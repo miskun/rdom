@@ -1,0 +1,13 @@
+[package]
+name = "rdom-parser"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "HTML-ish template parser for rdom-core — parseFromString equivalent. Hand-rolled recursive-descent, no external parser deps."
+readme = "README.md"
+keywords = ["dom", "html", "parser", "template", "rdom"]
+categories = ["parser-implementations"]
+
+[dependencies]
+rdom-core = { path = "../rdom-core", version = "0.1.0" }

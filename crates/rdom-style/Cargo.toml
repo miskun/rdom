@@ -1,0 +1,13 @@
+[package]
+name = "rdom-style"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "CSS data model + property dispatch for rdom — TuiStyle, Stylesheet, ComputedStyle, the property→value table. Leaf crate, no backend/runtime deps."
+readme = "README.md"
+keywords = ["css", "rdom", "tui", "style"]
+categories = ["data-structures"]
+
+[dependencies]
+rdom-core = { path = "../rdom-core", version = "0.1.0" }

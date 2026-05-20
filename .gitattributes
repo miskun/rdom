@@ -1,0 +1,5 @@
+# Snapshot fixtures must be byte-identical across platforms. The test
+# harness generates LF-only output; if git checks the file out with
+# CRLF on Windows, the comparison fails on line endings even when the
+# rendered content matches.
+*.snap text eol=lf

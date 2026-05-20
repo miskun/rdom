@@ -1,0 +1,20 @@
+[package]
+name = "rdom-css"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "CSS string parser for rdom-tui — turns real CSS into Stylesheet / TuiStyle. Hand-rolled, no external parser deps."
+readme = "README.md"
+keywords = ["css", "parser", "rdom", "tui"]
+categories = ["parser-implementations"]
+
+[dependencies]
+rdom-core = { path = "../rdom-core", version = "0.1.0" }
+rdom-style = { path = "../rdom-style", version = "0.1.0" }
+
+[dev-dependencies]
+# Examples build a TuiDom + render it; rdom-tui is example-only,
+# the parser core has no runtime/backend deps.
+rdom-parser = { path = "../rdom-parser", version = "0.1.0" }
+rdom-tui = { path = "../rdom-tui", version = "0.1.0" }

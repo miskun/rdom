@@ -1,0 +1,23 @@
+[package]
+name = "rdom-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Arena-backed DOM for Rust — pure tree + events, no renderer. Can be used headlessly or paired with rdom-tui for terminal rendering."
+readme = "README.md"
+keywords = ["dom", "tree", "arena", "html"]
+categories = ["data-structures", "parser-implementations"]
+
+[features]
+default = []
+
+[dependencies]
+
+[dev-dependencies]
+proptest = "1"
+criterion = { version = "0.5", default-features = false, features = ["rayon"] }
+
+[[bench]]
+name = "arena"
+harness = false

@@ -1,0 +1,10 @@
+/target
+**/*.rs.bk
+Cargo.lock.bak
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Claude Code harness artifacts (per-session locks, transcripts).
+.claude/scheduled_tasks.lock

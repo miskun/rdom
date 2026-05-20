@@ -1,0 +1,66 @@
+[package]
+name = "rdom-tui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Terminal rendering layer for rdom-core — flexbox layout, TUI styles, key/mouse events. Use rdom-core directly for headless DOM manipulation."
+readme = "README.md"
+keywords = ["tui", "dom", "terminal", "flexbox", "cascade"]
+categories = ["command-line-interface", "gui"]
+
+[features]
+default = []
+# Skip BSU/ESU synchronized output sequences (for terminals that don't
+# handle DEC private mode 2026 gracefully). Default off = emit them;
+# non-supporting terminals ignore.
+no-synchronized-output = []
+
+[dependencies]
+rdom-core = { path = "../rdom-core", version = "0.1.0" }
+rdom-css = { path = "../rdom-css", version = "0.1.0" }
+rdom-style = { path = "../rdom-style", version = "0.1.0" }
+
+# Terminal rendering primitives. Pure-Rust, ~30KB binary cost combined.
+# - compact_str: inline-stored grapheme cluster in each Cell (up to 24B)
+# - unicode-segmentation: TR29 grapheme cluster iteration
+# - unicode-width: UAX #11 visible cell width — the foundation of all
+#   positioning math in the renderer. See RDOM_RENDER.md §12.
+compact_str = "0.9"
+unicode-segmentation = { workspace = true }
+unicode-width = { workspace = true }
+
+# Terminal I/O — raw mode, alt screen, cursor control, size detection.
+# We emit SGR bytes ourselves (our own Color/Modifier, our own diff);
+# crossterm handles the platform-specific mode switching.
+crossterm = { workspace = true }
+
+# Clipboard (copy / cut / paste) — cross-platform native clipboard.
+# Runtime-optional: if initialization fails (no display server, WSL
+# without clip.exe, sandboxed build, etc.) the `SystemClipboard` falls
+# back to a no-op so apps keep running. Tests use `MemoryClipboard`.
+arboard = { workspace = true }
+
+# URL opening — used by the `<a href>` click default action to hand
+# external URLs (http/https/mailto/…) to the OS. Tiny pure-Rust crate
+# that wraps platform-specific `xdg-open` / `open` / `start`. Tests
+# use `MemoryUrlOpener` to avoid shelling out.
+open = { workspace = true }
+
+[build-dependencies]
+# Read `property_dispatch::property_names()` at build time to emit
+# camelCase aliases (one method per shipped CSS property) onto
+# `StyleDeclaration`. Same single source of truth the runtime uses
+# — no parallel list to drift. See `build.rs`.
+rdom-style = { path = "../rdom-style", version = "0.1.0" }
+
+[dev-dependencies]
+proptest = "1"
+criterion = { version = "0.5", default-features = false, features = ["rayon"] }
+# Used by the parse_and_render example (shows the three crates
+# composing). Not a runtime dep of rdom-tui itself.
+rdom-parser = { path = "../rdom-parser", version = "0.1.0" }
+
+[[bench]]
+name = "runtime"
+harness = false

@@ -1,0 +1,30 @@
+
+  rdom UA chrome — pure defaults, no author CSS
+
+  Buttons
+  [ Save ]
+  [ Cancel ]
+  [ Continue ]
+
+  Lists
+    • unordered first
+    • unordered second
+    • ordered first
+    • ordered second
+
+  Disclosure
+  ▸ Click or press Enter to toggle
+
+
+  Dialog (always open)
+  ╭──────────────────────────────────────────────────────╮
+  │                                                      │
+  │  Native dialog chrome: border + padding.             │
+  │                                                      │
+  ╰──────────────────────────────────────────────────────╯
+
+
+
+
+
+

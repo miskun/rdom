@@ -1,0 +1,31 @@
+[workspace]
+members = [
+    "crates/rdom-core",
+    "crates/rdom-style",
+    "crates/rdom-tui",
+    "crates/rdom-parser",
+    "crates/rdom-css",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT"
+repository = "https://github.com/miskun/rdom"
+authors = ["Miska Kaipiainen"]
+
+[workspace.dependencies]
+# Terminal I/O — raw mode, alt screen, cursor control, size detection.
+crossterm = "0.28"
+
+# Unicode handling — TR29 grapheme iteration + UAX #11 visible width.
+unicode-segmentation = "1"
+unicode-width = "0.2"
+
+# Cross-platform native clipboard.
+arboard = "3"
+
+# Cross-platform OS URL opener (xdg-open / open / start).
+open = "5"
