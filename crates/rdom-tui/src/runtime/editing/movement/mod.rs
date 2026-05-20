@@ -46,21 +46,240 @@ pub(crate) fn try_handle_movement_key(dom: &mut TuiDom, key: KeyEvent) -> bool {
         return false;
     }
 
+    // Vertical motions PRESERVE sticky-x; everything else CLEARS it.
     match key.code {
-        KeyCode::Backspace => delete_back(dom),
-        KeyCode::Delete => delete_forward(dom),
-        KeyCode::Left if ctrl => move_caret(dom, caret_word_left),
-        KeyCode::Right if ctrl => move_caret(dom, caret_word_right),
-        KeyCode::Left => move_caret_left_collapse_or_grapheme(dom),
-        KeyCode::Right => move_caret_right_collapse_or_grapheme(dom),
-        KeyCode::Home if ctrl => move_caret(dom, caret_doc_start),
-        KeyCode::End if ctrl => move_caret(dom, caret_doc_end),
-        KeyCode::Home => move_caret(dom, caret_line_start),
-        KeyCode::End => move_caret(dom, caret_line_end),
-        KeyCode::Up => move_caret(dom, caret_up),
-        KeyCode::Down => move_caret(dom, caret_down),
+        KeyCode::Up => move_vertical(dom, -1),
+        KeyCode::Down => move_vertical(dom, 1),
+        KeyCode::Backspace => {
+            clear_focused_sticky_x(dom);
+            delete_back(dom)
+        }
+        KeyCode::Delete => {
+            clear_focused_sticky_x(dom);
+            delete_forward(dom)
+        }
+        KeyCode::Left if ctrl => {
+            clear_focused_sticky_x(dom);
+            move_caret(dom, caret_word_left)
+        }
+        KeyCode::Right if ctrl => {
+            clear_focused_sticky_x(dom);
+            move_caret(dom, caret_word_right)
+        }
+        KeyCode::Left => {
+            clear_focused_sticky_x(dom);
+            move_caret_left_collapse_or_grapheme(dom)
+        }
+        KeyCode::Right => {
+            clear_focused_sticky_x(dom);
+            move_caret_right_collapse_or_grapheme(dom)
+        }
+        KeyCode::Home if ctrl => {
+            clear_focused_sticky_x(dom);
+            move_caret(dom, caret_doc_start)
+        }
+        KeyCode::End if ctrl => {
+            clear_focused_sticky_x(dom);
+            move_caret(dom, caret_doc_end)
+        }
+        KeyCode::Home => {
+            clear_focused_sticky_x(dom);
+            move_caret(dom, caret_line_start)
+        }
+        KeyCode::End => {
+            clear_focused_sticky_x(dom);
+            move_caret(dom, caret_line_end)
+        }
         _ => false,
     }
+}
+
+/// Clear sticky-x on the focused editable's `EditorState`. No-op
+/// if nothing is focused, the focused element isn't editable, or
+/// the editable doesn't yet have an editor state.
+pub(crate) fn clear_focused_sticky_x(dom: &mut TuiDom) {
+    let Some(focused) = dom.focused() else { return };
+    let Some(editable) = crate::node::nearest_editable_ancestor(dom, focused) else {
+        return;
+    };
+    let mut node = dom.node_mut(editable);
+    let Some(ext) = node.ext_mut() else { return };
+    if let Some(state) = ext.editor_state.as_mut() {
+        state.clear_sticky_x();
+    }
+}
+
+/// Vertical caret motion (Up / Down). Honors sticky-x: the target
+/// column is the value last stored in `EditorState.sticky_x`, or
+/// the current caret column if no sticky value exists.
+///
+/// Edge behaviors (matching browser DOM):
+///
+/// - **Up at top of content** → caret moves to line-start (offset 0
+///   of the first line's text).
+/// - **Down at bottom of content** → caret moves to line-end (text
+///   length of the last line's last fragment).
+/// - **Vertical clamp** to a shorter line uses the line's end
+///   position; sticky-x is NOT updated (so moving back to a wider
+///   line restores the original column).
+///
+/// Always returns `true` (consumes the key) — even a no-op
+/// movement shouldn't fall through to focus navigation.
+fn move_vertical(dom: &mut TuiDom, delta_y: i32) -> bool {
+    let Some(sel) = dom.selection().copied() else {
+        return false;
+    };
+    let from = sel.focus;
+    let new_pos = vertical_motion(dom, from, delta_y);
+    if let Some(to) = new_pos
+        && to != from
+    {
+        dom.set_selection(Some(Selection::caret(to)));
+    }
+    true
+}
+
+/// Compute the target `Position` for vertical motion starting at
+/// `from`, honoring sticky-x. Updates `EditorState.sticky_x` on the
+/// nearest editable ancestor so subsequent vertical motions reuse
+/// the same column even after clamping to shorter lines.
+///
+/// Returns the resolved target — caller decides what to do with it
+/// (move caret to it, or extend selection focus to it). Shared by
+/// [`move_vertical`] (bare Up/Down) and `selection::keyboard`'s
+/// Shift+Up/Down handlers so the sticky-x state survives across
+/// caret-move and selection-extend operations seamlessly.
+pub(crate) fn vertical_motion(dom: &mut TuiDom, from: Position, delta_y: i32) -> Option<Position> {
+    use crate::render::inline::inline_flow_container;
+
+    let from_ifc = inline_flow_container(dom, from.node)?;
+    let (current_x, current_y) = cell_of_position(dom, from)?;
+
+    let editable = crate::node::nearest_editable_ancestor(dom, from.node);
+    let stored_sticky = editable.and_then(|id| {
+        dom.node(id)
+            .ext()
+            .and_then(|e| e.editor_state.as_ref())
+            .and_then(|s| s.sticky_x())
+    });
+    let target_x = stored_sticky.unwrap_or(current_x);
+
+    let target_y_i32 = current_y as i32 + delta_y;
+    let new_pos = compute_vertical_target(dom, from_ifc, target_x, target_y_i32, delta_y);
+
+    if let Some(id) = editable
+        && let Some(ext) = dom.node_mut(id).ext_mut()
+    {
+        let state = ext.editor_state.get_or_insert_with(|| {
+            Box::new(crate::runtime::editing::editor_state::EditorState::new())
+        });
+        state.set_sticky_x(target_x);
+    }
+
+    new_pos
+}
+
+/// Compute the position at the start (`forward == false`) or end
+/// (`forward == true`) of the line containing `from`. Mirrors the
+/// internal `caret_line_start` / `caret_line_end` but exposed so
+/// `selection::keyboard` can implement Shift+Home / Shift+End by
+/// extending selection focus to the same target.
+pub(crate) fn line_edge_position(dom: &TuiDom, from: Position, forward: bool) -> Option<Position> {
+    let from_ifc = crate::render::inline::inline_flow_container(dom, from.node)?;
+    let (_, y) = cell_of_position(dom, from)?;
+    let ext = dom.node(from_ifc).ext()?;
+    let layout = ext.inline_layout.as_ref()?;
+    let content = ext.content_layout;
+    let line_idx = (y as i32 - content.y) as usize;
+    let target_line = layout.lines.get(line_idx)?;
+    if forward {
+        target_line
+            .fragments
+            .last()
+            .map(|f| Position::new(f.text_node, f.source_byte_offset + f.text.len()))
+    } else {
+        target_line
+            .fragments
+            .first()
+            .map(|f| Position::new(f.text_node, f.source_byte_offset))
+    }
+}
+
+/// Resolve the target `Position` for vertical motion given a
+/// desired `(target_x, target_y)` inside `from_ifc`. Handles the
+/// in-bounds case via hit-test, clamps to end-of-line for shorter
+/// lines, and clamps to line-start / line-end at the edges of
+/// content (Up-at-top / Down-at-bottom).
+fn compute_vertical_target(
+    dom: &TuiDom,
+    from_ifc: NodeId,
+    target_x: u16,
+    target_y_i32: i32,
+    delta_y: i32,
+) -> Option<Position> {
+    use crate::render::inline::inline_flow_container;
+
+    let ext = dom.node(from_ifc).ext()?;
+    let layout = ext.inline_layout.as_ref()?;
+    let content = ext.content_layout;
+
+    // Up past the first line → clamp to line-start of first line.
+    if target_y_i32 < content.y {
+        if delta_y < 0
+            && let Some(first_line) = layout.lines.first()
+            && let Some(first_frag) = first_line.fragments.first()
+        {
+            return Some(Position {
+                node: first_frag.text_node,
+                offset: first_frag.source_byte_offset,
+            });
+        }
+        return None;
+    }
+
+    let target_line_idx = (target_y_i32 - content.y) as usize;
+
+    // Down past the last line → clamp to line-end of last line.
+    if target_line_idx >= layout.lines.len() {
+        if delta_y > 0
+            && let Some(last_line) = layout.lines.last()
+            && let Some(last_frag) = last_line.fragments.last()
+        {
+            return Some(Position {
+                node: last_frag.text_node,
+                offset: last_frag.source_byte_offset + last_frag.text.len(),
+            });
+        }
+        return None;
+    }
+
+    let target_y = target_y_i32 as u16;
+
+    // In-bounds: try hit-test at target_x first.
+    if let Some(pos) = dom.position_at(target_x, target_y)
+        && inline_flow_container(dom, pos.node) == Some(from_ifc)
+    {
+        return Some(pos);
+    }
+
+    // Target line exists but target_x is past its content — clamp to
+    // the line's last-fragment-end. Sticky-x stays at target_x (caller
+    // doesn't update it); next vertical motion may restore the column
+    // if it falls back into a wider line.
+    let target_line = &layout.lines[target_line_idx];
+    if let Some(last_frag) = target_line.fragments.last() {
+        return Some(Position {
+            node: last_frag.text_node,
+            offset: last_frag.source_byte_offset + last_frag.text.len(),
+        });
+    }
+
+    // Empty line in the middle of content (e.g. blank line between
+    // two non-empty ones via `\n\n`). Position the caret at the
+    // start of that line — the phantom path in `cell_of_position`
+    // handles rendering. Returning None preserves the previous
+    // caret position which is acceptable for v1.
+    None
 }
 
 // ── Deletion ────────────────────────────────────────────────────────
@@ -240,41 +459,52 @@ fn caret_doc_end(dom: &TuiDom, from: Position) -> Option<Position> {
 }
 
 fn caret_line_start(dom: &TuiDom, from: Position) -> Option<Position> {
+    let from_ifc = crate::render::inline::inline_flow_container(dom, from.node)?;
     let (_, y) = cell_of_position(dom, from)?;
-    // Find the first fragment on this line by hit-testing x=0
-    // within the IFC's content rect. `HitTestExt::position_at`
-    // snaps to the nearest valid position; with x=0 it lands at
-    // the first cell of the row, which maps to the start of the
-    // first fragment — i.e. line start.
-    //
-    // Fall back to a 0-offset position in the caret's node if the
-    // hit-test somehow fails (shouldn't in practice).
-    dom.position_at(0, y)
-        .or_else(|| Some(Position::new(from.node, 0)))
+    let ext = dom.node(from_ifc).ext()?;
+    let layout = ext.inline_layout.as_ref()?;
+    let content = ext.content_layout;
+    let line_idx = (y as i32 - content.y) as usize;
+    let target_line = layout.lines.get(line_idx)?;
+    // Start of line = position of the first fragment's first byte.
+    // Going through `position_at(0, y)` doesn't work because column
+    // 0 sits inside the textarea's left padding (no fragment there)
+    // and the fallback would resolve to offset 0 of the whole text,
+    // not the start of the current line.
+    if let Some(first_frag) = target_line.fragments.first() {
+        Some(Position::new(
+            first_frag.text_node,
+            first_frag.source_byte_offset,
+        ))
+    } else {
+        // Empty line — keep caret where it is.
+        Some(from)
+    }
 }
 
 fn caret_line_end(dom: &TuiDom, from: Position) -> Option<Position> {
+    let from_ifc = crate::render::inline::inline_flow_container(dom, from.node)?;
     let (_, y) = cell_of_position(dom, from)?;
-    // `position_at(u16::MAX, y)` snaps to the last cell of the
-    // row — the end of the last fragment on the line. `position_at`
-    // already clamps x to valid bounds for us.
-    dom.position_at(u16::MAX, y).or_else(|| {
-        let text = dom.node(from.node).node_value()?;
-        Some(Position::new(from.node, text.len()))
-    })
-}
-
-fn caret_up(dom: &TuiDom, from: Position) -> Option<Position> {
-    let (x, y) = cell_of_position(dom, from)?;
-    if y == 0 {
-        return None;
+    let ext = dom.node(from_ifc).ext()?;
+    let layout = ext.inline_layout.as_ref()?;
+    let content = ext.content_layout;
+    let line_idx = (y as i32 - content.y) as usize;
+    let target_line = layout.lines.get(line_idx)?;
+    // End of line = position just past the last fragment on the
+    // line. `position_at(u16::MAX, y)` doesn't work because no
+    // fragment covers cells past the line's content; the hit-test
+    // returns None and we'd fall through to `text.len()` (end of
+    // the whole content, not end of THIS line).
+    if let Some(last_frag) = target_line.fragments.last() {
+        Some(Position::new(
+            last_frag.text_node,
+            last_frag.source_byte_offset + last_frag.text.len(),
+        ))
+    } else {
+        // Empty line — keep caret where it is (no good "end" to
+        // move to within this line).
+        Some(from)
     }
-    dom.position_at(x, y - 1)
-}
-
-fn caret_down(dom: &TuiDom, from: Position) -> Option<Position> {
-    let (x, y) = cell_of_position(dom, from)?;
-    dom.position_at(x, y.saturating_add(1))
 }
 
 // ── Shared utilities ───────────────────────────────────────────────

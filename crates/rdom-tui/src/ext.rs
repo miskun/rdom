@@ -236,8 +236,11 @@ pub struct TuiExt {
     /// for elements whose stylesheet has a matching `::selection`
     /// rule. The selection-overlay paint walks up from each
     /// selected text fragment to the nearest ancestor with this
-    /// style and applies its bg/fg/modifier; if no ancestor has
-    /// one, the v1 default `Modifier::REVERSED` overlay is used.
+    /// style and applies its bg/fg/modifier. The UA stylesheet
+    /// ships a default `*::selection { background-color: #394B7E;
+    /// color: white }` rule, so every selectable always has a
+    /// computed selection style unless an author explicitly
+    /// overrides it back to `initial`.
     pub computed_selection: Option<ComputedStyle>,
     /// `::scrollbar` pseudo-element computed style — populated
     /// for elements with non-`Visible`/`Hidden` overflow on at

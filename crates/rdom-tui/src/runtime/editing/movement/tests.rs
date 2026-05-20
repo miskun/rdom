@@ -310,14 +310,17 @@ fn up_moves_caret_to_prev_line() {
 }
 
 #[test]
-fn up_on_first_line_is_noop_but_consumed() {
+fn up_on_first_line_moves_caret_to_line_start_and_consumes() {
+    // Browser behavior: Up at top-of-content moves the caret to
+    // the start of the first line (offset 0), not "no-op". Up
+    // always consumes the key regardless — never falls through to
+    // focus navigation.
     let (mut dom, _p, t) = editable_paragraph("hello");
     dom.set_selection(Some(Selection::caret(Position::new(t, 2))));
 
     let consumed = try_handle_movement_key(&mut dom, key(KeyCode::Up, KeyModifiers::empty()));
     assert!(consumed);
-    // Still at byte 2.
-    assert_eq!(dom.selection().unwrap().focus, Position::new(t, 2));
+    assert_eq!(dom.selection().unwrap().focus, Position::new(t, 0));
 }
 
 // ── Shift+arrow is NOT handled here ────────────────────────────────

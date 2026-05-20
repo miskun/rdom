@@ -109,9 +109,6 @@ fn modifier_on_codes(bits: Modifier) -> impl Iterator<Item = u16> {
     if bits.contains(Modifier::RAPID_BLINK) {
         out.push(6);
     }
-    if bits.contains(Modifier::REVERSED) {
-        out.push(7);
-    }
     if bits.contains(Modifier::HIDDEN) {
         out.push(8);
     }
@@ -134,9 +131,6 @@ fn modifier_off_codes(bits: Modifier) -> impl Iterator<Item = u16> {
     }
     if bits.intersects(Modifier::SLOW_BLINK | Modifier::RAPID_BLINK) {
         out.push(25);
-    }
-    if bits.contains(Modifier::REVERSED) {
-        out.push(27);
     }
     if bits.contains(Modifier::HIDDEN) {
         out.push(28);

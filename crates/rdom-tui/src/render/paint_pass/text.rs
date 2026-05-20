@@ -71,8 +71,7 @@ pub(super) fn style_from_computed(c: &ComputedStyle) -> Style {
     if c.bg != Color::Reset {
         style = style.bg(c.bg);
     }
-    let mods = c.modifiers
-        & (Modifier::BOLD | Modifier::ITALIC | Modifier::UNDERLINED | Modifier::REVERSED);
+    let mods = c.modifiers & (Modifier::BOLD | Modifier::ITALIC | Modifier::UNDERLINED);
     if !mods.is_empty() {
         style = style.add_modifier(mods);
     }
@@ -88,8 +87,7 @@ pub(super) fn glyph_style_from_computed(c: &ComputedStyle) -> Style {
     if c.fg != Color::Reset {
         style = style.fg(c.fg);
     }
-    let mods = c.modifiers
-        & (Modifier::BOLD | Modifier::ITALIC | Modifier::UNDERLINED | Modifier::REVERSED);
+    let mods = c.modifiers & (Modifier::BOLD | Modifier::ITALIC | Modifier::UNDERLINED);
     if !mods.is_empty() {
         style = style.add_modifier(mods);
     }

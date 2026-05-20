@@ -18,7 +18,7 @@ use unicode_width::UnicodeWidthStr;
 use crate::ext::TuiExt;
 use crate::layout::LayoutRect;
 use crate::node::TuiNodeExt;
-use crate::render::inline::InlineFragment;
+use crate::render::inline::{InlineFragment, inline_flow_container};
 use crate::render::{Buffer, Rect, Style};
 use crate::style::{ComputedStyle, Modifier};
 
@@ -464,60 +464,111 @@ pub(super) fn paint_ifc(
         }
     }
 
-    // Caret overlay: paint a single REVERSED cell where the caret
-    // sits when the focused editable's text node lives in THIS IFC.
-    // Solid caret for v1 — blink is a post-Phase-B polish item.
-    paint_caret_if_editable(dom, buf, id, clip);
+    // Caret is painted by `paint_node` once per element that owns
+    // an inline-flow container (IFC blocks AND pure-text leaf
+    // blocks); the call used to live here, but textareas/inputs go
+    // through `paint_inline_content` and never reach this function.
+    // The hoist keeps both paint paths consistent.
 }
 
 /// If the focused element is editable and its collapsed-selection
-/// caret falls inside IFC block `id`, paint a REVERSED cell at the
-/// caret's `(cell_x, cell_y)`. No-op otherwise.
-fn paint_caret_if_editable(dom: &Dom<TuiExt>, buf: &mut Buffer, id: NodeId, clip: Rect) {
+/// caret falls inside the inline-flow container `id`, paint a
+/// REVERSED cell at the caret's `(cell_x, cell_y)`. No-op otherwise.
+pub(super) fn paint_caret_if_editable(dom: &Dom<TuiExt>, buf: &mut Buffer, id: NodeId, clip: Rect) {
+    use crate::layout::{CaretColor, CaretTextColor};
+
     // Must have a collapsed selection (caret), not a range.
     let sel = match dom.selection() {
         Some(s) if s.is_collapsed() => s,
         _ => return,
     };
-    // Must have a focused element.
     let Some(focused) = dom.focused() else {
         return;
     };
-    // Focused element (or an ancestor) must be editable.
     if crate::node::nearest_editable_ancestor(dom, focused).is_none() {
         return;
     };
-    // The caret's text node must sit inside THIS IFC's subtree.
-    // `cell_of_position` walks up from the text node to find its
-    // IFC; if that IFC is us, it's ours to paint.
-    let caret_ifc = ifc_ancestor(dom, sel.focus.node);
+    let caret_ifc = inline_flow_container(dom, sel.focus.node);
     if caret_ifc != Some(id) {
+        return;
+    }
+    // Resolve caret colors from cascade. `caret-color: transparent`
+    // suppresses paint; `Auto` means "derive from the underlying
+    // cell's existing fg/bg" (classic swap visual).
+    let computed = match dom.node(focused).ext().and_then(|e| e.computed.as_ref()) {
+        Some(c) => c,
+        None => return,
+    };
+    if matches!(computed.caret_color, CaretColor::Transparent) {
         return;
     }
     let Some((x, y)) = crate::runtime::editing::caret::cell_of_position(dom, sel.focus) else {
         return;
     };
-    // Respect the clip.
     if x < clip.x || x >= clip.right() || y < clip.y || y >= clip.bottom() {
         return;
     }
-    buf.set_style(x, y, Style::new().add_modifier(Modifier::REVERSED));
-}
 
-/// Walk up from a text node to its enclosing IFC block, if any.
-/// Small duplicate of the logic in `runtime::editing::caret`;
-/// exposed here because the paint path needs to check "is this
-/// caret's IFC the one I'm painting?" without going through the
-/// full reverse mapping.
-fn ifc_ancestor(dom: &Dom<TuiExt>, node_id: NodeId) -> Option<NodeId> {
-    let mut cur = Some(node_id);
-    while let Some(n) = cur {
-        if crate::render::layout_pass::is_ifc_block(dom, n) {
-            return Some(n);
+    // `Auto` caret colors derive from the focused element's
+    // CASCADED `color` and `background-color` — NOT the cell's
+    // currently-painted values. For an empty cell (no glyph painted
+    // yet), the painted fg is `Color::Reset`, which would give an
+    // invisible caret. Using cascade values gives the predictable
+    // "swap text-color and bg-color" visual that authors expect.
+    //
+    // Fallback: if the cascade resolved to `Color::Reset` (no
+    // explicit value, terminal-default), the caret would be
+    // invisible (the cell paints as default-on-default). Substitute
+    // a sensible high-contrast default — White for the bg-side,
+    // Black for the fg-side — so an unstyled textarea/input still
+    // shows a visible caret. Authors override via `caret-color` /
+    // `caret-text-color`.
+    let resolve_reset_fg = |c: crate::Color| match c {
+        crate::Color::Reset => crate::Color::Rgb(0xFF, 0xFF, 0xFF),
+        other => other,
+    };
+    let resolve_reset_bg = |c: crate::Color| match c {
+        crate::Color::Reset => crate::Color::Rgb(0x00, 0x00, 0x00),
+        other => other,
+    };
+    let cascaded_fg = resolve_reset_fg(computed.fg);
+    let cascaded_bg = resolve_reset_bg(computed.bg);
+    let under_mod = buf.cell(x, y).map(|c| c.modifier).unwrap_or_default();
+
+    let caret_bg = match &computed.caret_color {
+        CaretColor::Auto => cascaded_fg,
+        CaretColor::Transparent => return, // already handled above
+        CaretColor::Color(tc) => match tc {
+            crate::TuiColor::Literal(c) => *c,
+            crate::TuiColor::Var { .. } => cascaded_fg,
+        },
+    };
+    let caret_fg = match &computed.caret_text_color {
+        CaretTextColor::Auto => cascaded_bg,
+        CaretTextColor::Color(tc) => match tc {
+            crate::TuiColor::Literal(c) => *c,
+            crate::TuiColor::Var { .. } => cascaded_bg,
+        },
+    };
+
+    let mut new_style = Style::new().fg(caret_fg).bg(caret_bg);
+    // Preserve non-color modifiers (bold/italic etc.) that were on
+    // the underlying cell so the caret doesn't strip them. `Modifier`
+    // is a bitflag — re-add each set bit.
+    for m in [
+        Modifier::BOLD,
+        Modifier::ITALIC,
+        Modifier::UNDERLINED,
+        Modifier::SLOW_BLINK,
+        Modifier::RAPID_BLINK,
+        Modifier::HIDDEN,
+        Modifier::CROSSED_OUT,
+    ] {
+        if under_mod.contains(m) {
+            new_style = new_style.add_modifier(m);
         }
-        cur = dom.node(n).parent_node().map(|p| p.id());
     }
-    None
+    buf.set_style(x, y, new_style);
 }
 
 /// Overlay the selection style on cells of `fragment` whose source
@@ -527,8 +578,9 @@ fn ifc_ancestor(dom: &Dom<TuiExt>, node_id: NodeId) -> Option<NodeId> {
 /// node to the nearest ancestor element with `computed_selection`
 /// set and uses that style (fg/bg/modifiers). When no ancestor has
 /// a cascaded selection style, falls back to the v1 default
-/// `Modifier::REVERSED` overlay, which the renderer paints as a
-/// fg/bg swap.
+/// transparent overlay (no visual change). The UA's
+/// `*::selection { bg: #394B7E; fg: white }` rule ensures the
+/// fallback rarely fires.
 fn apply_selection_overlay(
     dom: &Dom<TuiExt>,
     buf: &mut Buffer,
@@ -563,9 +615,15 @@ fn apply_selection_overlay(
         return;
     }
 
+    // Author `::selection` cascade overrides the UA default.
+    // The UA `*::selection { bg: #394B7E; fg: white }` rule means
+    // every focusable always has a computed_selection style — so
+    // this fallback only fires if an author *explicitly* removes
+    // the UA rule via `*::selection { background-color: initial; }`
+    // or similar. In that case we paint nothing (Style::new()).
     let overlay = match nearest_selection_style(dom, fragment.text_node) {
         Some(c) => style_from_computed(c),
-        None => Style::new().add_modifier(Modifier::REVERSED),
+        None => Style::new(),
     };
     for c in cell_start..cell_end {
         let x = (frag_x + c as i32) as u16;

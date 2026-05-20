@@ -18,10 +18,13 @@ bitflags_like! {
         BG         = 1 << 1;
         BORDER_FG  = 1 << 2;
         BOLD       = 1 << 3;
-        DIM        = 1 << 4;
+        // Bits 4 (DIM), 6 (UNDERLINE), and 7 (REVERSED) are unused.
+        // DIM was dropped when `.dim()` was removed; UNDERLINE was
+        // dropped when `.underline()` was replaced by `text-decoration`;
+        // REVERSED was dropped when the caret switched to explicit
+        // fg/bg paint. The gaps stay so the remaining bit values
+        // don't shift.
         ITALIC     = 1 << 5;
-        UNDERLINE  = 1 << 6;
-        REVERSED   = 1 << 7;
         WIDTH      = 1 << 8;
         HEIGHT     = 1 << 9;
         MIN_WIDTH  = 1 << 10;
@@ -46,9 +49,7 @@ bitflags_like! {
 pub const INHERITS_MASK: PropMask = PropMask(
     PropMask::FG.bits()
         | PropMask::BOLD.bits()
-        | PropMask::DIM.bits()
         | PropMask::ITALIC.bits()
-        | PropMask::UNDERLINE.bits()
         | PropMask::WHITE_SPACE.bits()
         | PropMask::USER_SELECT.bits(),
 );

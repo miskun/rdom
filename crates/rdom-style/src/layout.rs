@@ -269,6 +269,62 @@ pub enum WhiteSpace {
     NoWrap,
 }
 
+/// CSS `caret-color` — controls the **background color** of the
+/// caret cell inside editable elements. Matches the standard CSS
+/// property name; in a TUI the caret is a block (one cell), so
+/// `caret-color` sets the cell's bg. The glyph color above it is
+/// controlled by the companion rdom property `caret-text-color`.
+///
+/// Variants:
+/// - `Auto` — uses the underlying cell's foreground color as the
+///   caret's bg, reproducing the classic "swap fg/bg" caret look
+///   without relying on terminal SGR-7 reverse video.
+/// - `Transparent` — caret is not painted. Authors who want focus
+///   without a visible caret reach for `:focus { caret-color:
+///   transparent; }`. Editing still works; only the visible
+///   indicator is suppressed.
+/// - `Color(c)` — caret cell bg = `c`. Pair with `caret-text-color`
+///   for a fully theme-able caret.
+///
+/// Inherits per CSS spec (a `caret-color: transparent` on a
+/// container suppresses every descendant editable's caret).
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub enum CaretColor {
+    /// Default. Caret bg = underlying cell's fg.
+    #[default]
+    Auto,
+    /// Caret is not painted.
+    Transparent,
+    /// Explicit caret cell background color. Stored as a `TuiColor`
+    /// so `var(--accent)` style references resolve at cascade time
+    /// the same way `color` / `background-color` values do.
+    Color(crate::TuiColor),
+}
+
+/// rdom extension property — `caret-text-color` controls the
+/// **foreground (glyph) color** of the caret cell. There is no
+/// standard CSS counterpart because CSS's caret is a thin bar; in
+/// a TUI the caret is a block with both fg and bg, so both need
+/// independent control.
+///
+/// Documented in `DIVERGENCES.md` as a TUI-specific extension.
+///
+/// Variants:
+/// - `Auto` — uses the underlying cell's background color as the
+///   glyph color, reproducing the classic fg/bg swap visual.
+/// - `Color(c)` — caret cell fg = `c`.
+///
+/// Inherits per CSS spec.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub enum CaretTextColor {
+    /// Default. Glyph color = underlying cell's bg.
+    #[default]
+    Auto,
+    /// Explicit caret cell glyph color. Stored as a `TuiColor` for
+    /// `var()` parity with other color properties.
+    Color(crate::TuiColor),
+}
+
 /// Controls whether the user can select text inside the element.
 /// Matches the CSS `user-select` property. Inherits (so a chrome
 /// subtree can be marked unselectable with a single rule on the

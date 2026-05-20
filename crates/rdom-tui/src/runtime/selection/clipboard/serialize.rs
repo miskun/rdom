@@ -17,7 +17,7 @@
 use rdom_core::{Dom, NodeId, NodeType, Range};
 
 use crate::ext::TuiExt;
-use crate::layout::UserSelect;
+use crate::runtime::selection::user_select;
 
 /// Concatenate the text content of all text nodes within `range`.
 /// Empty when the range is collapsed or the traversal finds no
@@ -42,7 +42,7 @@ fn visit(dom: &Dom<TuiExt>, id: NodeId, range: &Range, state: &mut WalkState, ou
         return;
     }
     // Skip user-select:none subtrees entirely.
-    if has_user_select_none(dom, id) {
+    if user_select::has_none_ancestor(dom, id) {
         return;
     }
 
@@ -114,22 +114,4 @@ fn slice_bytes(data: &str, start: usize, end: usize) -> &str {
     let s = start.min(data.len());
     let e = end.min(data.len()).max(s);
     &data[s..e]
-}
-
-/// `true` when `id` (or any ancestor) has `user-select: none`.
-/// Matches the drag / position_at gating so serialization and
-/// interaction stay consistent.
-fn has_user_select_none(dom: &Dom<TuiExt>, id: NodeId) -> bool {
-    let mut cur = Some(id);
-    while let Some(n) = cur {
-        let ext = dom.node(n).ext();
-        if let Some(e) = ext
-            && let Some(c) = &e.computed
-            && c.user_select == UserSelect::None
-        {
-            return true;
-        }
-        cur = dom.node(n).parent_node().map(|p| p.id());
-    }
-    false
 }

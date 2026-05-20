@@ -346,9 +346,11 @@ fn insert_at_selection_backward_selection_still_replaces() {
 }
 
 #[test]
-fn insert_at_selection_is_noop_when_selection_spans_different_nodes() {
-    // MVP restriction — single text node only. This test ensures
-    // the narrow guard fires cleanly.
+fn insert_at_selection_applies_across_text_nodes_in_same_editable() {
+    // C1: cross-text-node selections inside a single contenteditable
+    // host commit through `perform_cross_node_edit`. The covered
+    // range from both nodes is deleted and the replacement lands at
+    // the document-order earlier endpoint.
     let mut dom: TuiDom = TuiDom::new();
     let root = dom.root();
     let p = dom.create_element("p");
@@ -366,9 +368,15 @@ fn insert_at_selection_is_noop_when_selection_spans_different_nodes() {
     )));
 
     let outcome = insert_at_selection(&mut dom, "x");
-    assert_eq!(outcome, EditOutcome::NoEditableTarget);
-    assert_eq!(dom.node(t1).node_value(), Some("hello "));
-    assert_eq!(dom.node(t2).node_value(), Some("world"));
+    assert_eq!(outcome, EditOutcome::Applied);
+    // t1: keep "he", drop " " (offsets 2..6), append "x" → "hex".
+    // t2: drop "wor" (offsets 0..3) → "ld".
+    assert_eq!(dom.node(t1).node_value(), Some("hex"));
+    assert_eq!(dom.node(t2).node_value(), Some("ld"));
+    // Caret collapses at end-of-insertion in t1.
+    let sel = dom.selection().unwrap();
+    assert_eq!(sel.anchor, Position::new(t1, 3));
+    assert!(sel.is_collapsed());
 }
 
 // ── End-to-end via App::handle_event ────────────────────────────────
@@ -510,7 +518,13 @@ fn readonly_input_blocks_perform_edit_with_prevented_outcome() {
 }
 
 #[test]
-fn readonly_does_not_fire_beforeinput_event() {
+fn readonly_fires_beforeinput_then_ua_cancels_without_input_event() {
+    // Per UI Events / Input Events Level 2: `readonly` form fields
+    // still dispatch `beforeinput` (cancelable). The UA's default
+    // action cancels the edit, so no mutation lands and no `input`
+    // event fires. Listeners can observe the attempted edit
+    // (useful for analytics, validation feedback, etc.) — the
+    // earlier short-circuit hid that signal entirely.
     let (mut dom, input, t) = editable_input("x");
     dom.set_attribute(input, "readonly", "").unwrap();
 
@@ -524,7 +538,7 @@ fn readonly_does_not_fire_beforeinput_event() {
         .unwrap();
     }
 
-    let _ = perform_edit(
+    let outcome = perform_edit(
         &mut dom,
         Edit {
             node: t,
@@ -534,10 +548,51 @@ fn readonly_does_not_fire_beforeinput_event() {
     );
 
     let calls = fires.borrow().clone();
-    assert!(
-        calls.is_empty(),
-        "readonly must short-circuit before beforeinput; got {:?}",
+    assert_eq!(
+        calls,
+        vec!["beforeinput".to_string()],
+        "readonly must fire beforeinput exactly once (no input event); got {:?}",
         calls
+    );
+    assert_eq!(outcome, EditOutcome::Prevented);
+    assert_eq!(dom.node(t).node_value(), Some("x"));
+}
+
+#[test]
+fn readonly_beforeinput_listener_can_observe_input_type_and_data() {
+    // Sanity check: the beforeinput we fire on readonly carries
+    // the same InputType + data as a regular edit, so listeners
+    // can introspect the rejected attempt.
+    let (mut dom, input, t) = editable_input("x");
+    dom.set_attribute(input, "readonly", "").unwrap();
+
+    let captured = Rc::new(RefCell::new(None::<(rdom_core::InputType, Option<String>)>));
+    let c = captured.clone();
+    dom.add_event_listener(
+        input,
+        "beforeinput",
+        ListenerOptions::default(),
+        move |ctx| {
+            if let rdom_core::EventDetail::Input(detail) = &ctx.event.detail {
+                *c.borrow_mut() = Some((detail.input_type.clone(), detail.data.clone()));
+            }
+        },
+    )
+    .unwrap();
+
+    let _ = perform_edit(
+        &mut dom,
+        Edit {
+            node: t,
+            range: 1..1,
+            text: "y".to_string(),
+        },
+    );
+
+    let captured = captured.borrow().clone();
+    assert_eq!(
+        captured,
+        Some((rdom_core::InputType::InsertText, Some("y".to_string())))
     );
 }
 
@@ -555,6 +610,185 @@ fn input_value_attribute_mirrors_text_after_edit() {
     );
     assert_eq!(outcome, EditOutcome::Applied);
     assert_eq!(dom.node(input).get_attribute("value"), Some("abc"));
+}
+
+// ── C1: cross-text-node edits in contenteditable ───────────────
+
+/// Build a contenteditable `<p>` containing two text nodes
+/// straddling a `<b>` boundary: `<p>abc<b>xyz</b></p>`. Returns
+/// (dom, p, t1, t2).
+fn contenteditable_with_two_text_nodes() -> (TuiDom, NodeId, NodeId, NodeId) {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let p = dom.create_element("p");
+    dom.set_attribute(p, "contenteditable", "true").unwrap();
+    let t1 = dom.create_text_node("abc");
+    dom.append_child(p, t1).unwrap();
+    let b = dom.create_element("b");
+    let t2 = dom.create_text_node("xyz");
+    dom.append_child(b, t2).unwrap();
+    dom.append_child(p, b).unwrap();
+    dom.append_child(root, p).unwrap();
+    (dom, p, t1, t2)
+}
+
+#[test]
+fn cross_node_typing_replaces_selection_across_two_text_nodes() {
+    // Browser behavior: selecting from one text node to another
+    // (here, across a <b> boundary) and typing should delete the
+    // covered range AND insert the replacement at the anchor.
+    // The pre-C1 MVP silently dropped these keystrokes.
+    let (mut dom, _p, t1, t2) = contenteditable_with_two_text_nodes();
+
+    // Select from t1[1] to t2[2]: covers "bc" + "xy".
+    dom.set_selection(Some(Selection::new(
+        Position::new(t1, 1),
+        Position::new(t2, 2),
+    )));
+
+    let outcome = insert_at_selection(&mut dom, "Q");
+    assert_eq!(outcome, EditOutcome::Applied);
+
+    // t1's tail removed + replacement appended; t2's head removed.
+    assert_eq!(dom.node(t1).node_value(), Some("aQ"));
+    assert_eq!(dom.node(t2).node_value(), Some("z"));
+
+    // Caret collapses to end-of-insertion in the anchor node.
+    let sel = dom.selection().unwrap();
+    assert_eq!(sel.anchor, Position::new(t1, 2));
+    assert!(sel.is_collapsed());
+}
+
+#[test]
+fn cross_node_pure_delete_via_empty_replacement() {
+    // Same setup; insert "" — verifies the delete-only path.
+    let (mut dom, _p, t1, t2) = contenteditable_with_two_text_nodes();
+    dom.set_selection(Some(Selection::new(
+        Position::new(t1, 1),
+        Position::new(t2, 2),
+    )));
+
+    let outcome = insert_at_selection(&mut dom, "");
+    assert_eq!(outcome, EditOutcome::Applied);
+    assert_eq!(dom.node(t1).node_value(), Some("a"));
+    assert_eq!(dom.node(t2).node_value(), Some("z"));
+
+    let sel = dom.selection().unwrap();
+    assert_eq!(sel.anchor, Position::new(t1, 1));
+    assert!(sel.is_collapsed());
+}
+
+#[test]
+fn cross_node_edit_fires_beforeinput_once_then_input_once() {
+    // Single beforeinput + single input per logical edit, even
+    // when multiple text nodes are mutated under the hood.
+    let (mut dom, p, t1, t2) = contenteditable_with_two_text_nodes();
+    dom.set_selection(Some(Selection::new(
+        Position::new(t1, 1),
+        Position::new(t2, 2),
+    )));
+
+    let fires = Rc::new(RefCell::new(Vec::<String>::new()));
+    for ty in ["beforeinput", "input"] {
+        let f = fires.clone();
+        let label = ty.to_string();
+        dom.add_event_listener(p, ty, ListenerOptions::default(), move |_| {
+            f.borrow_mut().push(label.clone());
+        })
+        .unwrap();
+    }
+
+    let _ = insert_at_selection(&mut dom, "Q");
+    assert_eq!(
+        fires.borrow().as_slice(),
+        ["beforeinput".to_string(), "input".to_string()],
+    );
+}
+
+#[test]
+fn cross_node_edit_three_node_selection_clears_intermediate_text_nodes() {
+    // Selection spans `<p>{abc}<b>{xyz}</b>{end}</p>` from t1[1]
+    // to t3[2]: t1's tail and t3's head are partial-trimmed, t2
+    // is fully covered and must be cleared.
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let p = dom.create_element("p");
+    dom.set_attribute(p, "contenteditable", "true").unwrap();
+    let t1 = dom.create_text_node("abc");
+    dom.append_child(p, t1).unwrap();
+    let b = dom.create_element("b");
+    let t2 = dom.create_text_node("xyz");
+    dom.append_child(b, t2).unwrap();
+    dom.append_child(p, b).unwrap();
+    let t3 = dom.create_text_node("end");
+    dom.append_child(p, t3).unwrap();
+    dom.append_child(root, p).unwrap();
+
+    dom.set_selection(Some(Selection::new(
+        Position::new(t1, 1),
+        Position::new(t3, 2),
+    )));
+
+    let outcome = insert_at_selection(&mut dom, "Q");
+    assert_eq!(outcome, EditOutcome::Applied);
+    assert_eq!(dom.node(t1).node_value(), Some("aQ"));
+    assert_eq!(
+        dom.node(t2).node_value(),
+        Some(""),
+        "intermediate text node must be cleared"
+    );
+    assert_eq!(dom.node(t3).node_value(), Some("d"));
+
+    let sel = dom.selection().unwrap();
+    assert_eq!(sel.anchor, Position::new(t1, 2));
+}
+
+#[test]
+fn cross_node_edit_with_reverse_order_anchor_after_focus() {
+    // Browsers preserve direction in Selection (anchor / focus aren't
+    // necessarily in document order). A cross-node edit must order
+    // the endpoints by document position internally and apply the
+    // replacement at the document-order earlier endpoint regardless
+    // of which one the user "anchored."
+    let (mut dom, _p, t1, t2) = contenteditable_with_two_text_nodes();
+
+    // Anchor in t2 (later in doc order), focus in t1.
+    dom.set_selection(Some(Selection::new(
+        Position::new(t2, 2),
+        Position::new(t1, 1),
+    )));
+
+    let outcome = insert_at_selection(&mut dom, "Q");
+    assert_eq!(outcome, EditOutcome::Applied);
+    // Result identical to forward-ordered selection:
+    // t1 = "aQ", t2 = "z".
+    assert_eq!(dom.node(t1).node_value(), Some("aQ"));
+    assert_eq!(dom.node(t2).node_value(), Some("z"));
+
+    // Caret lands at end-of-insertion in t1 (document-order start).
+    let sel = dom.selection().unwrap();
+    assert_eq!(sel.anchor, Position::new(t1, 2));
+}
+
+#[test]
+fn cross_node_edit_respects_beforeinput_prevent_default() {
+    // A handler that cancels beforeinput suppresses the entire
+    // cross-node edit — nothing mutates, outcome is Prevented.
+    let (mut dom, p, t1, t2) = contenteditable_with_two_text_nodes();
+    dom.set_selection(Some(Selection::new(
+        Position::new(t1, 1),
+        Position::new(t2, 2),
+    )));
+
+    dom.add_event_listener(p, "beforeinput", ListenerOptions::default(), |ctx| {
+        ctx.event.prevent_default();
+    })
+    .unwrap();
+
+    let outcome = insert_at_selection(&mut dom, "Q");
+    assert_eq!(outcome, EditOutcome::Prevented);
+    assert_eq!(dom.node(t1).node_value(), Some("abc"));
+    assert_eq!(dom.node(t2).node_value(), Some("xyz"));
 }
 
 #[test]

@@ -53,8 +53,8 @@ pub enum PseudoElementTarget {
     /// that fall inside the current text selection. Lookup at
     /// paint time walks up from each selected fragment's text
     /// node to the nearest ancestor with a cascaded selection
-    /// style; if none, the v1 default `Modifier::REVERSED`
-    /// overlay is used.
+    /// style. The UA `*::selection { bg: #394B7E; fg: white }`
+    /// rule provides the default; authors override per-element.
     Selection,
     /// `::scrollbar` — the scrollbar track. Author-overridable
     /// styling for the colored gutter that backs the thumb.

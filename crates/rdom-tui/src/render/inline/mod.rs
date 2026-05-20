@@ -106,6 +106,45 @@ impl InlineLayout {
     }
 }
 
+/// True iff `id` has a populated `inline_layout` on its `TuiExt`.
+/// Singular variant of [`inline_flow_container`].
+pub fn has_inline_layout(dom: &Dom<TuiExt>, id: NodeId) -> bool {
+    dom.node(id)
+        .ext()
+        .and_then(|e| e.inline_layout.as_ref())
+        .is_some()
+}
+
+/// Walk up from `node_id` to the nearest element with a populated
+/// `inline_layout`. Inclusive — if `node_id` itself is such an
+/// element, returns it.
+///
+/// This is the "find the inline-flow container that owns this text"
+/// lookup. Two kinds of elements have an `inline_layout`:
+///
+/// 1. **IFC blocks** — elements with `display: inline` children.
+///    Their `inline_layout` packs the inline children plus any
+///    interleaved text.
+/// 2. **Pure-text leaf blocks** — elements with only direct text
+///    content and no element children (e.g. `<input>`, `<textarea>`,
+///    a `<p>only text</p>`). Their `inline_layout` packs the text
+///    against the element's content width.
+///
+/// Used by caret positioning, mouse hit-test routing, drag-selection
+/// anchoring, multi-click word/line expansion, and the caret paint
+/// primitive — every path that needs to map a text node back to the
+/// inline-flow container that laid it out.
+pub fn inline_flow_container(dom: &Dom<TuiExt>, node_id: NodeId) -> Option<NodeId> {
+    let mut cur = Some(node_id);
+    while let Some(id) = cur {
+        if has_inline_layout(dom, id) {
+            return Some(id);
+        }
+        cur = dom.node(id).parent_node().map(|p| p.id());
+    }
+    None
+}
+
 /// Entry point: compute the inline layout for `block` at
 /// `content_width`. Idempotent — calling twice with the same inputs
 /// yields identical output.

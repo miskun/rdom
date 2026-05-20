@@ -199,7 +199,7 @@ fn expect_comma(value: &[Token], at: usize) -> Option<usize> {
 
 // ── Generic helpers ───────────────────────────────────────────────
 
-pub fn parse_keyword<T: Copy>(value: &[Token], table: &[(&str, T)]) -> Option<T> {
+pub fn parse_keyword<T: Clone>(value: &[Token], table: &[(&str, T)]) -> Option<T> {
     if value.len() != 1 {
         return None;
     }
@@ -209,7 +209,7 @@ pub fn parse_keyword<T: Copy>(value: &[Token], table: &[(&str, T)]) -> Option<T>
     };
     for (k, v) in table {
         if name.eq_ignore_ascii_case(k) {
-            return Some(*v);
+            return Some(v.clone());
         }
     }
     None

@@ -31,8 +31,7 @@ use unicode_segmentation::UnicodeSegmentation;
 use rdom_core::{NodeId, NodeType, Position, Selection};
 
 use crate::TuiDom;
-use crate::render::inline::InlineLayout;
-use crate::render::layout_pass::is_ifc_block;
+use crate::render::inline::{InlineLayout, inline_flow_container};
 
 /// Expand the current selection to the word containing
 /// `selection.anchor`. Returns `true` when the selection actually
@@ -147,14 +146,8 @@ fn text_of(dom: &TuiDom, id: NodeId) -> Option<String> {
 }
 
 fn ifc_block_of(dom: &TuiDom, node_id: NodeId) -> Option<NodeId> {
-    let mut cur = dom.node(node_id).parent_node().map(|p| p.id());
-    while let Some(id) = cur {
-        if is_ifc_block(dom, id) {
-            return Some(id);
-        }
-        cur = dom.node(id).parent_node().map(|p| p.id());
-    }
-    None
+    let parent = dom.node(node_id).parent_node().map(|p| p.id())?;
+    inline_flow_container(dom, parent)
 }
 
 fn inline_layout_of(dom: &TuiDom, id: NodeId) -> Option<&InlineLayout> {

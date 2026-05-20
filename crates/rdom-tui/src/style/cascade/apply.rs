@@ -11,7 +11,10 @@
 //! honor the `important_pass` / `important_prop` pairing so normal
 //! and important declarations apply in separate passes.
 
-use crate::layout::{Border, Direction, Display, Overflow, Padding, Size, UserSelect, WhiteSpace};
+use crate::layout::{
+    Border, CaretColor, CaretTextColor, Direction, Display, Overflow, Padding, Size, UserSelect,
+    WhiteSpace,
+};
 use crate::style::{
     Color, ComputedStyle, ImportantMask, Modifier, Rule, RuleOrigin, TuiColor, TuiStyle, Value,
     resolve_tui_color,
@@ -294,6 +297,20 @@ fn apply_style(
         style.important.contains(ImportantMask::USER_SELECT),
         important_pass,
         parent.user_select,
+    );
+    apply_caret_color(
+        &mut working.caret_color,
+        &style.caret_color,
+        style.important.contains(ImportantMask::CARET_COLOR),
+        important_pass,
+        &parent.caret_color,
+    );
+    apply_caret_text_color(
+        &mut working.caret_text_color,
+        &style.caret_text_color,
+        style.important.contains(ImportantMask::CARET_TEXT_COLOR),
+        important_pass,
+        &parent.caret_text_color,
     );
     // ── Positioning (M2). Non-inheriting.
     apply_position(
@@ -615,6 +632,45 @@ fn apply_user_select(
         inherit,
         UserSelect::Auto
     );
+}
+
+/// Apply `caret-color`. Hand-rolled (not `apply_simple!`) because
+/// `CaretColor::Color(TuiColor)` is not `Copy` — TuiColor's `Var`
+/// variant holds a `String`. Same shape as the macro, with `.clone()`.
+fn apply_caret_color(
+    target: &mut CaretColor,
+    value: &Option<Value<CaretColor>>,
+    important_prop: bool,
+    important_pass: bool,
+    inherit: &CaretColor,
+) {
+    if let Some(v) = value
+        && matches_pass(important_prop, important_pass)
+    {
+        *target = match v {
+            Value::Specified(x) => x.clone(),
+            Value::Inherit => inherit.clone(),
+            Value::Initial => CaretColor::Auto,
+        };
+    }
+}
+
+fn apply_caret_text_color(
+    target: &mut CaretTextColor,
+    value: &Option<Value<CaretTextColor>>,
+    important_prop: bool,
+    important_pass: bool,
+    inherit: &CaretTextColor,
+) {
+    if let Some(v) = value
+        && matches_pass(important_prop, important_pass)
+    {
+        *target = match v {
+            Value::Specified(x) => x.clone(),
+            Value::Inherit => inherit.clone(),
+            Value::Initial => CaretTextColor::Auto,
+        };
+    }
 }
 
 /// Apply CSS `opacity` to the working `ComputedStyle`. Does NOT

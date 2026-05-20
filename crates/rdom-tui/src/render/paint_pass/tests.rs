@@ -666,8 +666,22 @@ fn ifc_sheet(width: u16) -> Stylesheet {
         .rule_unchecked("span", TuiStyle::new().display(Display::Inline))
 }
 
+/// Same as `ifc_sheet`, plus the UA `*::selection` default that
+/// `Stylesheet::new()` would inject (these tests run on the
+/// `bare` baseline, so the UA selection rule is missing unless
+/// we add it back explicitly). Mirrors
+/// `*::selection { background-color: #394B7E; color: white }`.
+fn ifc_sheet_with_ua_selection(width: u16) -> Stylesheet {
+    ifc_sheet(width).rule_unchecked(
+        "*::selection",
+        TuiStyle::new()
+            .bg(Color::Rgb(0x39, 0x4B, 0x7E))
+            .fg(Color::Rgb(0xFF, 0xFF, 0xFF)),
+    )
+}
+
 #[test]
-fn selection_range_paints_reversed_on_selected_cells_only() {
+fn selection_range_paints_ua_overlay_on_selected_cells_only() {
     use rdom_core::{Position, Selection};
 
     let (mut dom, t) = ifc_paragraph("hello");
@@ -676,40 +690,27 @@ fn selection_range_paints_reversed_on_selected_cells_only() {
         Position::new(t, 4),
     )));
 
-    let buf = pipeline(&mut dom, &ifc_sheet(20), Rect::new(0, 0, 20, 2));
+    let buf = pipeline(
+        &mut dom,
+        &ifc_sheet_with_ua_selection(20),
+        Rect::new(0, 0, 20, 2),
+    );
 
-    // Cells 0 ('h') and 4 ('o') — outside selection — not reversed.
-    assert!(
-        !buf.cell(0, 0)
-            .unwrap()
-            .modifier
-            .contains(Modifier::REVERSED)
-    );
-    assert!(
-        !buf.cell(4, 0)
-            .unwrap()
-            .modifier
-            .contains(Modifier::REVERSED)
-    );
-    // Cells 1 ('e'), 2 ('l'), 3 ('l') — inside selection — reversed.
-    assert!(
-        buf.cell(1, 0)
-            .unwrap()
-            .modifier
-            .contains(Modifier::REVERSED)
-    );
-    assert!(
-        buf.cell(2, 0)
-            .unwrap()
-            .modifier
-            .contains(Modifier::REVERSED)
-    );
-    assert!(
-        buf.cell(3, 0)
-            .unwrap()
-            .modifier
-            .contains(Modifier::REVERSED)
-    );
+    // UA `*::selection` rule paints selected cells with explicit
+    // bg #394B7E + fg white. Cells outside the selection keep
+    // their default (Reset) bg.
+    let ua_sel_bg = Color::Rgb(0x39, 0x4B, 0x7E);
+    let ua_sel_fg = Color::Rgb(0xFF, 0xFF, 0xFF);
+
+    // Cells 0 ('h') and 4 ('o') — outside selection — not overlaid.
+    assert_ne!(buf.cell(0, 0).unwrap().bg, ua_sel_bg);
+    assert_ne!(buf.cell(4, 0).unwrap().bg, ua_sel_bg);
+    // Cells 1 ('e'), 2 ('l'), 3 ('l') — inside selection — overlaid.
+    for x in 1..=3 {
+        let c = buf.cell(x, 0).unwrap();
+        assert_eq!(c.bg, ua_sel_bg, "cell {x} bg");
+        assert_eq!(c.fg, ua_sel_fg, "cell {x} fg");
+    }
 }
 
 #[test]
@@ -730,33 +731,25 @@ fn selection_uses_author_styled_overlay_when_present() {
     );
     let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 20, 2));
 
-    // Outside selection: untouched.
-    assert!(
-        !buf.cell(0, 0)
-            .unwrap()
-            .modifier
-            .contains(Modifier::REVERSED),
-        "cell 0 must not be reversed"
-    );
+    // Outside selection: untouched by the author overlay.
     assert_ne!(buf.cell(0, 0).unwrap().bg, Color::Rgb(255, 255, 0));
 
-    // Inside selection: author colors win, REVERSED is NOT applied
-    // (otherwise the author's fg/bg gets re-swapped at render time).
+    // Inside selection: author colors win. The overlay paints
+    // explicit fg/bg cells (no REVERSED modifier any more).
     for x in 1..=3 {
         let c = buf.cell(x, 0).unwrap();
         assert_eq!(c.bg, Color::Rgb(255, 255, 0), "cell {x} bg");
         assert_eq!(c.fg, Color::Rgb(0, 0, 0), "cell {x} fg");
-        assert!(
-            !c.modifier.contains(Modifier::REVERSED),
-            "cell {x} must not be reversed when author styled the selection"
-        );
     }
 }
 
 #[test]
-fn selection_falls_back_to_reversed_when_no_author_rule() {
-    // Regression guard: the v1 default REVERSED overlay still kicks
-    // in when no `::selection` rule cascades onto any ancestor.
+fn selection_uses_ua_default_when_no_author_rule() {
+    // Regression guard: when no author `::selection` rule cascades,
+    // the UA default `*::selection { background-color: #394B7E;
+    // color: white }` paints selected cells. The fallback to a bare
+    // `Style::new()` only fires if the author explicitly removes the
+    // UA rule, which we don't do here.
     use rdom_core::{Position, Selection};
 
     let (mut dom, t) = ifc_paragraph("hello");
@@ -765,95 +758,89 @@ fn selection_falls_back_to_reversed_when_no_author_rule() {
         Position::new(t, 4),
     )));
 
-    let buf = pipeline(&mut dom, &ifc_sheet(20), Rect::new(0, 0, 20, 2));
+    let buf = pipeline(
+        &mut dom,
+        &ifc_sheet_with_ua_selection(20),
+        Rect::new(0, 0, 20, 2),
+    );
 
+    let ua_sel_bg = Color::Rgb(0x39, 0x4B, 0x7E);
+    let ua_sel_fg = Color::Rgb(0xFF, 0xFF, 0xFF);
     for x in 1..=3 {
-        assert!(
-            buf.cell(x, 0)
-                .unwrap()
-                .modifier
-                .contains(Modifier::REVERSED),
-            "cell {x} should fall back to REVERSED overlay"
-        );
+        let c = buf.cell(x, 0).unwrap();
+        assert_eq!(c.bg, ua_sel_bg, "cell {x} bg should be UA selection bg");
+        assert_eq!(c.fg, ua_sel_fg, "cell {x} fg should be UA selection fg");
     }
 }
 
 #[test]
-fn collapsed_selection_paints_no_reversed_cells() {
+fn collapsed_selection_paints_no_selection_overlay() {
     use rdom_core::{Position, Selection};
 
     let (mut dom, t) = ifc_paragraph("hello");
-    // Caret at offset 2 — no range.
+    // Caret at offset 2 — no range. No focused editable, so no
+    // caret either; the buffer should remain at default bg even
+    // though the UA `*::selection` rule is loaded.
     dom.set_selection(Some(Selection::caret(Position::new(t, 2))));
 
-    let buf = pipeline(&mut dom, &ifc_sheet(20), Rect::new(0, 0, 20, 2));
+    let buf = pipeline(
+        &mut dom,
+        &ifc_sheet_with_ua_selection(20),
+        Rect::new(0, 0, 20, 2),
+    );
 
+    let ua_sel_bg = Color::Rgb(0x39, 0x4B, 0x7E);
     for x in 0..5 {
-        assert!(
-            !buf.cell(x, 0)
-                .unwrap()
-                .modifier
-                .contains(Modifier::REVERSED),
-            "cell {x} should not be reversed for a collapsed caret"
+        assert_ne!(
+            buf.cell(x, 0).unwrap().bg,
+            ua_sel_bg,
+            "cell {x} should not get the selection overlay for a collapsed caret"
         );
     }
 }
 
 #[test]
-fn no_selection_paints_no_reversed_cells() {
+fn no_selection_paints_no_selection_overlay() {
     let (mut dom, _t) = ifc_paragraph("hello");
-    let buf = pipeline(&mut dom, &ifc_sheet(20), Rect::new(0, 0, 20, 2));
+    // UA `*::selection` rule is loaded but no selection exists, so
+    // overlay never fires.
+    let buf = pipeline(
+        &mut dom,
+        &ifc_sheet_with_ua_selection(20),
+        Rect::new(0, 0, 20, 2),
+    );
 
+    let ua_sel_bg = Color::Rgb(0x39, 0x4B, 0x7E);
     for x in 0..5 {
-        assert!(
-            !buf.cell(x, 0)
-                .unwrap()
-                .modifier
-                .contains(Modifier::REVERSED)
-        );
+        assert_ne!(buf.cell(x, 0).unwrap().bg, ua_sel_bg);
     }
 }
 
 #[test]
-fn cjk_selection_reverses_full_grapheme_cells() {
+fn cjk_selection_overlays_full_grapheme_cells() {
     use rdom_core::{Position, Selection};
 
     // "中文": byte 0..3 = 中 (2 cells), byte 3..6 = 文 (2 cells).
     // Selecting [0, 3) → the "中" grapheme — both of its cells
-    // (0 and 1) should be reversed.
+    // (0 and 1) should get the UA selection overlay.
     let (mut dom, t) = ifc_paragraph("中文");
     dom.set_selection(Some(Selection::new(
         Position::new(t, 0),
         Position::new(t, 3),
     )));
 
-    let buf = pipeline(&mut dom, &ifc_sheet(20), Rect::new(0, 0, 20, 2));
+    let buf = pipeline(
+        &mut dom,
+        &ifc_sheet_with_ua_selection(20),
+        Rect::new(0, 0, 20, 2),
+    );
 
-    assert!(
-        buf.cell(0, 0)
-            .unwrap()
-            .modifier
-            .contains(Modifier::REVERSED)
-    );
-    assert!(
-        buf.cell(1, 0)
-            .unwrap()
-            .modifier
-            .contains(Modifier::REVERSED)
-    );
+    let ua_sel_bg = Color::Rgb(0x39, 0x4B, 0x7E);
+    assert_eq!(buf.cell(0, 0).unwrap().bg, ua_sel_bg);
+    assert_eq!(buf.cell(1, 0).unwrap().bg, ua_sel_bg);
     // Cells 2-3 are "文" — not selected.
-    assert!(
-        !buf.cell(2, 0)
-            .unwrap()
-            .modifier
-            .contains(Modifier::REVERSED)
-    );
-    assert!(
-        !buf.cell(3, 0)
-            .unwrap()
-            .modifier
-            .contains(Modifier::REVERSED)
-    );
+    assert_ne!(buf.cell(2, 0).unwrap().bg, ua_sel_bg);
+    assert_ne!(buf.cell(3, 0).unwrap().bg, ua_sel_bg);
 }
 
 #[test]
@@ -884,7 +871,14 @@ fn selection_across_inline_element_highlights_both_fragments() {
                 .display(Display::Block)
                 .width(Size::Fixed(20)),
         )
-        .rule_unchecked("code", TuiStyle::new().display(Display::Inline));
+        .rule_unchecked("code", TuiStyle::new().display(Display::Inline))
+        // UA `*::selection` default — see `ifc_sheet_with_ua_selection`.
+        .rule_unchecked(
+            "*::selection",
+            TuiStyle::new()
+                .bg(Color::Rgb(0x39, 0x4B, 0x7E))
+                .fg(Color::Rgb(0xFF, 0xFF, 0xFF)),
+        );
 
     dom.set_selection(Some(Selection::new(
         Position::new(t_ab, 1),
@@ -893,42 +887,13 @@ fn selection_across_inline_element_highlights_both_fragments() {
 
     let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 20, 2));
 
-    assert!(
-        !buf.cell(0, 0)
-            .unwrap()
-            .modifier
-            .contains(Modifier::REVERSED)
-    ); // 'a'
-    assert!(
-        buf.cell(1, 0)
-            .unwrap()
-            .modifier
-            .contains(Modifier::REVERSED)
-    ); // 'b'
-    assert!(
-        buf.cell(2, 0)
-            .unwrap()
-            .modifier
-            .contains(Modifier::REVERSED)
-    ); // 'X'
-    assert!(
-        buf.cell(3, 0)
-            .unwrap()
-            .modifier
-            .contains(Modifier::REVERSED)
-    ); // 'Y'
-    assert!(
-        buf.cell(4, 0)
-            .unwrap()
-            .modifier
-            .contains(Modifier::REVERSED)
-    ); // 'c'
-    assert!(
-        !buf.cell(5, 0)
-            .unwrap()
-            .modifier
-            .contains(Modifier::REVERSED)
-    ); // 'd'
+    let ua_sel_bg = Color::Rgb(0x39, 0x4B, 0x7E);
+    assert_ne!(buf.cell(0, 0).unwrap().bg, ua_sel_bg); // 'a'
+    assert_eq!(buf.cell(1, 0).unwrap().bg, ua_sel_bg); // 'b'
+    assert_eq!(buf.cell(2, 0).unwrap().bg, ua_sel_bg); // 'X'
+    assert_eq!(buf.cell(3, 0).unwrap().bg, ua_sel_bg); // 'Y'
+    assert_eq!(buf.cell(4, 0).unwrap().bg, ua_sel_bg); // 'c'
+    assert_ne!(buf.cell(5, 0).unwrap().bg, ua_sel_bg); // 'd'
 }
 
 #[test]
@@ -942,26 +907,27 @@ fn selection_on_wrapped_second_line_paints_that_row() {
         Position::new(t, 11),
     )));
 
-    let buf = pipeline(&mut dom, &ifc_sheet(6), Rect::new(0, 0, 10, 3));
+    let buf = pipeline(
+        &mut dom,
+        &ifc_sheet_with_ua_selection(6),
+        Rect::new(0, 0, 10, 3),
+    );
 
+    let ua_sel_bg = Color::Rgb(0x39, 0x4B, 0x7E);
     // Row 0 ("hello") — untouched.
     for x in 0..5 {
-        assert!(
-            !buf.cell(x, 0)
-                .unwrap()
-                .modifier
-                .contains(Modifier::REVERSED),
-            "row 0 cell {x} should not be reversed"
+        assert_ne!(
+            buf.cell(x, 0).unwrap().bg,
+            ua_sel_bg,
+            "row 0 cell {x} should not have the selection overlay"
         );
     }
-    // Row 1 ("world") — all 5 cells reversed.
+    // Row 1 ("world") — all 5 cells get the UA selection overlay.
     for x in 0..5 {
-        assert!(
-            buf.cell(x, 1)
-                .unwrap()
-                .modifier
-                .contains(Modifier::REVERSED),
-            "row 1 cell {x} should be reversed"
+        assert_eq!(
+            buf.cell(x, 1).unwrap().bg,
+            ua_sel_bg,
+            "row 1 cell {x} should have the selection overlay"
         );
     }
 }

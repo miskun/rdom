@@ -30,7 +30,7 @@ mod tests;
 
 use rdom_core::{NodeId, NodeType, Position, Selection};
 
-use crate::node::TuiNodeExt;
+use crate::node::{TuiNodeExt, is_descendant_or_self};
 use crate::{TuiDispatchExt, TuiDom, TuiEvent};
 
 /// Change focus. Fires `blur` + `focusout` on the old focus,
@@ -116,17 +116,6 @@ fn seed_caret_for_editable_focus(dom: &mut TuiDom, id: NodeId) {
     if let Some(text_id) = text_child {
         dom.set_selection(Some(Selection::caret(Position::new(text_id, 0))));
     }
-}
-
-fn is_descendant_or_self(dom: &TuiDom, node: NodeId, ancestor: NodeId) -> bool {
-    let mut cur = Some(node);
-    while let Some(id) = cur {
-        if id == ancestor {
-            return true;
-        }
-        cur = dom.node(id).parent_node().map(|p| p.id());
-    }
-    false
 }
 
 /// Walk up from `start` via parent_node, returning the nearest

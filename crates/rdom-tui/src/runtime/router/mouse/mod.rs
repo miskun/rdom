@@ -196,7 +196,9 @@ fn handle_move(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> Rout
         // `prevent_default` on `selectstart` (Phase 6.5.5) — but not
         // on mousemove itself, since browsers don't wire it that way.
         let mut redraw = false;
-        if router.selection_drag.is_some() && crate::runtime::selection::drag::extend(dom, mouse) {
+        if let Some(anchor_ifc) = router.selection_drag
+            && crate::runtime::selection::drag::extend(dom, mouse, anchor_ifc)
+        {
             redraw = true;
         }
         // Scrollbar drag default action: if a thumb drag is active,

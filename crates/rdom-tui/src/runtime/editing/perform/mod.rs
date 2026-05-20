@@ -64,15 +64,6 @@ pub fn perform_edit(dom: &mut TuiDom, edit: Edit) -> EditOutcome {
         None => return EditOutcome::NoEditableTarget,
     };
 
-    // `readonly` blocks edits but keeps the element editable for
-    // focus / selection routing (HTML-faithful contrast with
-    // `disabled`, which makes `is_editable` return false outright).
-    // Callers see the same `Prevented` outcome they'd get from a
-    // user-cancelled `beforeinput` — no event fires.
-    if dom.node(editable).has_attribute("readonly") {
-        return EditOutcome::Prevented;
-    }
-
     // Snapshot caret-before + the bytes we're about to replace.
     // Both are needed to build the undo entry after a successful
     // edit; grabbing them pre-mutation avoids re-reading the DOM.
@@ -98,10 +89,23 @@ pub fn perform_edit(dom: &mut TuiDom, edit: Edit) -> EditOutcome {
         Some(edit.text.clone())
     };
 
-    // Fire `beforeinput` — cancelable.
+    // Fire `beforeinput` — cancelable. Per UI Events / Input Events
+    // Level 2 this dispatches BEFORE the readonly check: listeners
+    // observe attempted edits on readonly fields (analytics,
+    // validation feedback), and the UA cancels them by default.
     let mut before = TuiEvent::before_input(input_type.clone(), data.clone());
     let _ = dom.dispatch_tui_event(editable, &mut before);
     if before.event.default_prevented() {
+        return EditOutcome::Prevented;
+    }
+
+    // `readonly` blocks edits but keeps the element editable for
+    // focus / selection routing (HTML-faithful contrast with
+    // `disabled`, which makes `is_editable` return false outright).
+    // The UA's default action for readonly is to cancel the edit;
+    // the `beforeinput` listener already fired above so handlers
+    // can observe the rejected attempt.
+    if dom.node(editable).has_attribute("readonly") {
         return EditOutcome::Prevented;
     }
 
@@ -190,28 +194,149 @@ fn classify_kind(edit: &Edit) -> EditKind {
 
 /// Convenience: insert `text` at the current selection. If the
 /// selection is a non-collapsed range, the range is replaced;
-/// otherwise the text is inserted at the caret. No-op when no
-/// selection exists or it spans multiple text nodes (the MVP
-/// single-text-node restriction per V2 §4.2 decision #2).
+/// otherwise the text is inserted at the caret.
+///
+/// Single-text-node selections delegate to [`perform_edit`].
+/// Cross-text-node selections (typical inside contenteditable
+/// when the user has selected across an inline boundary like
+/// `<b>`) dispatch to [`perform_cross_node_edit`].
 ///
 /// Returns `Applied` / `Prevented` / `NoEditableTarget` — same
 /// contract as `perform_edit`.
 pub fn insert_at_selection(dom: &mut TuiDom, text: &str) -> EditOutcome {
-    let Some(sel) = dom.selection() else {
+    let Some(sel) = dom.selection().copied() else {
         return EditOutcome::NoEditableTarget;
     };
-    let range = selection_to_single_node_range(sel).unwrap_or(None);
-    let Some((node, start, end)) = range else {
-        return EditOutcome::NoEditableTarget;
+    if sel.anchor.node == sel.focus.node {
+        let (start, end) = if sel.anchor.offset <= sel.focus.offset {
+            (sel.anchor.offset, sel.focus.offset)
+        } else {
+            (sel.focus.offset, sel.anchor.offset)
+        };
+        return perform_edit(
+            dom,
+            Edit {
+                node: sel.anchor.node,
+                range: start..end,
+                text: text.to_string(),
+            },
+        );
+    }
+    perform_cross_node_edit(dom, sel.anchor, sel.focus, text)
+}
+
+/// Apply a replacement spanning multiple text nodes. The covered
+/// range from `anchor` to `focus` is deleted (delete-only when
+/// `text` is empty), and `text` is inserted at the document-
+/// order earlier endpoint. Fires a single `beforeinput` /
+/// `input` pair on the editable host, matching browser semantics
+/// for cross-node edits in contenteditable.
+///
+/// Cross-node edits are not recorded on the editable's undo
+/// history in 0.1.0 — the per-node EditEntry shape can't capture
+/// the multi-node mutation cleanly, and undo would silently
+/// reverse only one of the affected nodes. Tracked in
+/// TECH_DEBT.md for v0.2.0 (compound edit entries).
+pub fn perform_cross_node_edit(
+    dom: &mut TuiDom,
+    anchor: Position,
+    focus: Position,
+    text: &str,
+) -> EditOutcome {
+    // Both endpoints must resolve to the same editable host —
+    // selections crossing out of a contenteditable into a sibling
+    // can't be applied as a single edit.
+    let host = match nearest_editable_ancestor(dom, anchor.node) {
+        Some(id) => id,
+        None => return EditOutcome::NoEditableTarget,
     };
-    perform_edit(
-        dom,
-        Edit {
-            node,
-            range: start..end,
-            text: text.to_string(),
-        },
-    )
+    if nearest_editable_ancestor(dom, focus.node) != Some(host) {
+        return EditOutcome::NoEditableTarget;
+    }
+
+    // One pre-order DFS of the host subtree covers both ordering
+    // and intermediates — both `order_positions` and
+    // `text_nodes_between` used to call `collect_doc_order` on
+    // their own (two full walks per cross-node edit).
+    let doc_order = doc_order_under(dom, host);
+    let (start, end) = match order_positions_from_walk(&doc_order, anchor, focus) {
+        Some(pair) => pair,
+        None => return EditOutcome::NoEditableTarget,
+    };
+    if start.node == end.node {
+        return perform_edit(
+            dom,
+            Edit {
+                node: start.node,
+                range: start.offset..end.offset,
+                text: text.to_string(),
+            },
+        );
+    }
+
+    // Single beforeinput up front.
+    let input_type = if text.is_empty() {
+        rdom_core::InputType::DeleteContentBackward
+    } else {
+        rdom_core::InputType::InsertReplacementText
+    };
+    let data = if text.is_empty() {
+        None
+    } else {
+        Some(text.to_string())
+    };
+    let mut before = TuiEvent::before_input(input_type.clone(), data.clone());
+    let _ = dom.dispatch_tui_event(host, &mut before);
+    if before.event.default_prevented() {
+        return EditOutcome::Prevented;
+    }
+    if dom.node(host).has_attribute("readonly") {
+        return EditOutcome::Prevented;
+    }
+
+    // Apply per-node mutations: start.node tail (replaced with
+    // `text`), intermediates cleared, end.node head removed.
+    let start_len = match dom.node(start.node).node_value() {
+        Some(s) => s.len(),
+        None => return EditOutcome::NoEditableTarget,
+    };
+    if dom
+        .node_mut(start.node)
+        .edit_text(start.offset.min(start_len), start_len, text)
+        .is_err()
+    {
+        return EditOutcome::Prevented;
+    }
+
+    for node in text_nodes_between_in_walk(&doc_order, start.node, end.node, |n| {
+        dom.node(n).node_type() == rdom_core::NodeType::Text
+    }) {
+        let len = dom.node(node).node_value().map(|s| s.len()).unwrap_or(0);
+        if len > 0 {
+            let _ = dom.node_mut(node).edit_text(0, len, "");
+        }
+    }
+
+    let end_len = dom
+        .node(end.node)
+        .node_value()
+        .map(|s| s.len())
+        .unwrap_or(0);
+    if end.offset > 0 {
+        let _ = dom
+            .node_mut(end.node)
+            .edit_text(0, end.offset.min(end_len), "");
+    }
+
+    let caret_offset = start.offset + text.len();
+    dom.set_selection(Some(Selection::caret(Position::new(
+        start.node,
+        caret_offset,
+    ))));
+
+    let mut after = TuiEvent::input(input_type, data);
+    let _ = dom.dispatch_tui_event(host, &mut after);
+    EditOutcome::Applied
 }
 
 /// Narrow `Selection` to a single-text-node `(node, start, end)`
@@ -249,6 +374,68 @@ pub fn edit_for_selection(dom: &TuiDom, text: String) -> Option<Edit> {
         range: start..end,
         text,
     })
+}
+
+/// Pre-order DFS of `root`'s subtree, returning every node's id
+/// (elements and text alike) in document order. Iterative to
+/// avoid stack pressure on deeply nested DOMs.
+fn doc_order_under(dom: &TuiDom, root: NodeId) -> Vec<NodeId> {
+    let mut out = Vec::new();
+    let mut stack: Vec<NodeId> = vec![root];
+    while let Some(id) = stack.pop() {
+        out.push(id);
+        // Push children in reverse so the pop order is left-to-
+        // right (matches pre-order).
+        let kids: Vec<NodeId> = dom.node(id).child_nodes().map(|c| c.id()).collect();
+        for child in kids.into_iter().rev() {
+            stack.push(child);
+        }
+    }
+    out
+}
+
+/// Order two endpoints into `(start, end)` by document position
+/// using a pre-computed `doc_order` slice. Returns `None` when
+/// either endpoint is missing from the walk.
+fn order_positions_from_walk(
+    doc_order: &[NodeId],
+    a: Position,
+    b: Position,
+) -> Option<(Position, Position)> {
+    if a.node == b.node {
+        return Some(if a.offset <= b.offset { (a, b) } else { (b, a) });
+    }
+    let pa = doc_order.iter().position(|&n| n == a.node)?;
+    let pb = doc_order.iter().position(|&n| n == b.node)?;
+    Some(if pa <= pb { (a, b) } else { (b, a) })
+}
+
+/// Text nodes strictly between `start` and `end` in a pre-computed
+/// document-order walk. `is_text` lets the caller decide what
+/// counts as text (defers the per-node type lookup to the caller
+/// so this function stays generic over the walk's slice type).
+fn text_nodes_between_in_walk(
+    doc_order: &[NodeId],
+    start: NodeId,
+    end: NodeId,
+    mut is_text: impl FnMut(NodeId) -> bool,
+) -> Vec<NodeId> {
+    let mut between = Vec::new();
+    let mut state = 0u8; // 0 = before start, 1 = between, 2 = past end
+    for &n in doc_order {
+        match state {
+            0 if n == start => state = 1,
+            1 => {
+                if n == end {
+                    state = 2;
+                } else if is_text(n) {
+                    between.push(n);
+                }
+            }
+            _ => {}
+        }
+    }
+    between
 }
 
 #[cfg(test)]

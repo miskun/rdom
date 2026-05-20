@@ -29,11 +29,11 @@
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
-use rdom_core::{Dom, NodeId, Position};
+use rdom_core::{Dom, Position};
 
 use crate::ext::TuiExt;
+use crate::render::inline::inline_flow_container;
 use crate::render::inline::{InlineFragment, InlineLayout};
-use crate::render::layout_pass::is_ifc_block;
 
 /// Screen-cell position where a caret at `pos` should paint.
 /// Returns `None` when:
@@ -43,10 +43,23 @@ use crate::render::layout_pass::is_ifc_block;
 /// - No fragment in the IFC covers the position (shouldn't happen
 ///   for a caret set by `position_at`, but handled defensively).
 pub fn cell_of_position(dom: &Dom<TuiExt>, pos: Position) -> Option<(u16, u16)> {
-    let ifc_id = ifc_block_of(dom, pos.node)?;
+    let ifc_id = inline_flow_container(dom, pos.node)?;
     let ifc_ext = dom.node(ifc_id).ext()?;
     let layout = ifc_ext.inline_layout.as_ref()?;
     let content = ifc_ext.content_layout;
+
+    // Phantom-position fallback: when `pos` doesn't correspond to
+    // any laid-out fragment (empty text, cursor sitting just past a
+    // trailing `\n`, etc.), reconstruct (line, column) from the
+    // text itself rather than failing. Without this, the caret is
+    // invisible at end-of-content after Enter inserts a newline.
+    if fragment_for_position(layout, pos).is_none() {
+        let text = dom.node(pos.node).node_value()?;
+        let (line_idx, col) = phantom_line_and_column(text, pos.offset)?;
+        let x = (content.x + col as i32).max(0) as u16;
+        let y = (content.y + line_idx as i32).max(0) as u16;
+        return Some((x, y));
+    }
 
     let (line_idx, fragment) = fragment_for_position(layout, pos)?;
 
@@ -58,19 +71,22 @@ pub fn cell_of_position(dom: &Dom<TuiExt>, pos: Position) -> Option<(u16, u16)> 
     Some((x, y))
 }
 
-/// Walk up from `node_id` to the nearest element with an
-/// `inline_layout` (i.e., an IFC block). Inclusive — if `node_id`
-/// itself is an element and it's an IFC, returns it. The common
-/// case is `node_id` is a text node; we start from its parent.
-fn ifc_block_of(dom: &Dom<TuiExt>, node_id: NodeId) -> Option<NodeId> {
-    let mut cur = Some(node_id);
-    while let Some(id) = cur {
-        if is_ifc_block(dom, id) {
-            return Some(id);
-        }
-        cur = dom.node(id).parent_node().map(|p| p.id());
+/// Compute (line_index, column) for a position that has no
+/// corresponding fragment in the inline layout — counts `\n`s in
+/// the text up to `offset` and measures the column as the width of
+/// the prefix after the last `\n`. Used by [`cell_of_position`] for
+/// caret positions at end-of-content past a trailing newline,
+/// inside empty text nodes, etc.
+fn phantom_line_and_column(text: &str, offset: usize) -> Option<(usize, u16)> {
+    if offset > text.len() {
+        return None;
     }
-    None
+    let prefix = &text[..offset];
+    let line_idx = prefix.matches('\n').count();
+    let last_break = prefix.rfind('\n').map(|p| p + 1).unwrap_or(0);
+    let col_text = &prefix[last_break..];
+    let col = UnicodeWidthStr::width(col_text) as u16;
+    Some((line_idx, col))
 }
 
 /// Find the `(line_idx, fragment)` in `layout` that covers

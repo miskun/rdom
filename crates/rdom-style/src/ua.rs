@@ -33,7 +33,7 @@
 use crate::color::named;
 use crate::layout::{
     Border, Direction, Display, Length, Overflow, Padding, Position, Size, TextDecoration,
-    WhiteSpace,
+    UserSelect, WhiteSpace,
 };
 use crate::{Color, Content, TuiStyle};
 
@@ -70,7 +70,18 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
         // property, naturally inheriting through `<button disabled>`'s
         // text node) over the legacy SGR-2 `dim` modifier which had no
         // CSS analog and rendered however the terminal felt like it.
-        ("[disabled]", TuiStyle::new().fg(MUTED_FG)),
+        //
+        // `user-select: none` blocks mouse drag-selection inside any
+        // disabled control. Browsers vary on this (Chromium permits
+        // text selection inside `<input disabled>`, Firefox blocks
+        // it); rdom matches Firefox + the broader HTML "must not be
+        // interacted with" intent — and it falls out of the existing
+        // user-select gate in hit_test::position_at without any
+        // disabled-specific plumbing.
+        (
+            "[disabled]",
+            TuiStyle::new().fg(MUTED_FG).user_select(UserSelect::None),
+        ),
         // Global `hidden` attribute — HTML treats it as a boolean,
         // so the selector is `[hidden]` (not `[hidden=""]`). Any
         // value, including "false" or "until-found", still hides
@@ -384,7 +395,6 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
             TuiStyle::new()
                 .display(Display::Block)
                 .white_space(WhiteSpace::PreWrap)
-                .overflow_x(Overflow::Auto)
                 .overflow_y(Overflow::Auto)
                 .width(Size::Fixed(20))
                 .height(Size::Fixed(4))
@@ -818,6 +828,19 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
             TuiStyle::new().content(Content::Str(" ".into())).bg(RAIL),
         ),
         ("*::scrollbar-thumb", TuiStyle::new().bg(RAIL).fg(MUTED_FG)),
+        // ── Selection ──
+        // Distinct bg color for selected text so a 1-cell selection
+        // is visually different from the caret cell next to it.
+        // Without this rule, selection overlay paints nothing
+        // visible, and Shift+arrow extending by one cell produces
+        // no visible change. Authors override with their own
+        // `::selection` rule at any specificity.
+        (
+            "*::selection",
+            TuiStyle::new()
+                .bg(Color::Rgb(0x39, 0x4B, 0x7E))
+                .fg(Color::Rgb(0xFF, 0xFF, 0xFF)),
+        ),
         // ── Document metadata ──
         // `<style>` carries CSS source as text content; it
         // must not render. Matches HTML's display:none for
@@ -847,7 +870,7 @@ mod tests {
         // this test and requires a deliberate update. Comma-list
         // selectors expand to one Rule per selector at insertion, so
         // the count can exceed the number of tuples in `ua_defaults`.
-        assert_eq!(ua.len(), 127);
+        assert_eq!(ua.len(), 128);
         let disabled = ua
             .iter()
             .find(|r| r.source_text == "[disabled]")

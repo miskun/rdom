@@ -253,7 +253,10 @@ impl VirtualScreen {
                 4 => self.sgr.modifier |= Modifier::UNDERLINED,
                 5 => self.sgr.modifier |= Modifier::SLOW_BLINK,
                 6 => self.sgr.modifier |= Modifier::RAPID_BLINK,
-                7 => self.sgr.modifier |= Modifier::REVERSED,
+                // SGR-7 (reverse video) was emitted by rdom pre-
+                // caret-color rollout. Now ignored — rdom paints
+                // explicit fg/bg for the caret cell instead.
+                7 => { /* reverse video — no internal flag */ }
                 8 => self.sgr.modifier |= Modifier::HIDDEN,
                 9 => self.sgr.modifier |= Modifier::CROSSED_OUT,
                 22 => self.sgr.modifier.remove(Modifier::BOLD),
@@ -263,7 +266,7 @@ impl VirtualScreen {
                     .sgr
                     .modifier
                     .remove(Modifier::SLOW_BLINK | Modifier::RAPID_BLINK),
-                27 => self.sgr.modifier.remove(Modifier::REVERSED),
+                27 => { /* reverse-video off — no internal flag */ }
                 28 => self.sgr.modifier.remove(Modifier::HIDDEN),
                 29 => self.sgr.modifier.remove(Modifier::CROSSED_OUT),
                 30..=37 => self.sgr.fg = ansi16_color((n - 30) as u8, false),

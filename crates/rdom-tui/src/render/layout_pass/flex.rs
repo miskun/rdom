@@ -29,7 +29,7 @@ use crate::render::inline::compute_inline_layout;
 use crate::style::ComputedStyle;
 
 use super::ifc::is_ifc_block;
-use super::intrinsic::{has_non_whitespace_text, intrinsic_size};
+use super::intrinsic::intrinsic_size;
 use super::{element_children_of, layout_node, parent_scroll};
 
 /// Lay out the **element** children of `id` inside `container`, using
@@ -62,14 +62,23 @@ pub(super) fn layout_children(
         return;
     }
 
-    // Pure-text leaf block (e.g. `<textarea>`, `<p>only text</p>`,
-    // any element with direct text content and no element children).
-    // It's not an IFC per `is_ifc_block`'s carve-out (paint routing
-    // for `::before` / `::after` chrome), but its rendered text still
-    // needs to wrap. Compute and store the inline layout here so the
-    // non-IFC paint path (`paint_inline_content`) iterates lines
-    // instead of single-row painting.
-    if has_non_whitespace_text(dom, id) && element_children_of(dom, id).is_empty() {
+    // Pure-text leaf block (e.g. `<textarea>`, `<input>`, `<p>only
+    // text</p>`). Any element with a direct text-node child and no
+    // element children. It's not an IFC per `is_ifc_block`'s carve-
+    // out (paint routing for `::before` / `::after` chrome), but its
+    // rendered text still needs to wrap AND its caret needs an
+    // inline-flow container to anchor to.
+    //
+    // Empty text (e.g. an unsubmitted `<input>` / `<textarea>`)
+    // still qualifies: the caret has to land somewhere, so the
+    // inline_layout is computed even when its lines list is empty
+    // or a single empty line. Paint reads it back to position the
+    // REVERSED caret cell.
+    let has_text_child = dom
+        .node(id)
+        .child_nodes()
+        .any(|c| c.node_type() == rdom_core::NodeType::Text);
+    if has_text_child && element_children_of(dom, id).is_empty() {
         let inline_layout = compute_inline_layout(dom, id, container.width);
         if let Some(ext) = dom.node_mut(id).ext_mut() {
             ext.inline_layout = Some(inline_layout);

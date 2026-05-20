@@ -31,15 +31,41 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use unicode_segmentation::UnicodeSegmentation;
 
-use rdom_core::{NodeId, NodeType, Position, Selection};
+use rdom_core::{NodeId, Position, Selection};
 
 use crate::TuiDom;
+use crate::node::{first_text_descendant, last_text_descendant, text_len};
 
 /// Try to consume `key` as a selection-default action. Returns
 /// `true` when a selection change happened — caller marks a
 /// redraw. Never fires events; selection updates go through
 /// `Dom::set_selection` which notifies observers.
+///
+/// Gated on `user-select` policy:
+/// - `user-select: none` on the focused element (or any ancestor)
+///   suppresses keyboard-driven selection extension entirely. Same
+///   gate the mouse-drag path uses.
+/// - `user-select: all` on an ancestor of the selection's focus
+///   suppresses extension *while* the focus is inside the all-host
+///   — the host stays selected atomically. Matches drag-extend's
+///   own all-host short-circuit.
 pub(crate) fn try_handle_key(dom: &mut TuiDom, key: KeyEvent) -> bool {
+    if let Some(focused) = dom.focused()
+        && crate::runtime::selection::user_select::has_none_ancestor(dom, focused)
+    {
+        return false;
+    }
+    if let Some(sel) = dom.selection()
+        && crate::runtime::selection::user_select::ancestor_with(
+            dom,
+            sel.focus.node,
+            crate::layout::UserSelect::All,
+        )
+        .is_some()
+    {
+        return false;
+    }
+
     let ctrl = key.modifiers.contains(KeyModifiers::CONTROL)
         || key.modifiers.contains(KeyModifiers::SUPER);
     let shift = key.modifiers.contains(KeyModifiers::SHIFT);
@@ -50,6 +76,10 @@ pub(crate) fn try_handle_key(dom: &mut TuiDom, key: KeyEvent) -> bool {
         KeyCode::Right if shift && ctrl => extend_by_word(dom, Dir::Forward),
         KeyCode::Left if shift => extend_by_grapheme(dom, Dir::Backward),
         KeyCode::Right if shift => extend_by_grapheme(dom, Dir::Forward),
+        KeyCode::Up if shift => extend_vertical(dom, -1),
+        KeyCode::Down if shift => extend_vertical(dom, 1),
+        KeyCode::Home if shift => extend_to_line_edge(dom, Dir::Backward),
+        KeyCode::End if shift => extend_to_line_edge(dom, Dir::Forward),
         _ => false,
     }
 }
@@ -66,10 +96,10 @@ enum Dir {
 /// existing selection untouched).
 fn select_all_under_focus(dom: &mut TuiDom) -> bool {
     let root = dom.focused().unwrap_or_else(|| dom.root());
-    let Some(first) = first_text_node(dom, root) else {
+    let Some(first) = first_text_descendant(dom, root) else {
         return false;
     };
-    let last = last_text_node(dom, root).unwrap_or(first);
+    let last = last_text_descendant(dom, root).unwrap_or(first);
     let end_offset = text_len(dom, last);
 
     let next = Selection::new(Position::new(first, 0), Position::new(last, end_offset));
@@ -107,6 +137,50 @@ fn extend_by_grapheme(dom: &mut TuiDom, dir: Dir) -> bool {
         sel.anchor,
         Position::new(sel.focus.node, new_offset),
     )));
+    true
+}
+
+/// Extend the selection's focus vertically by `delta_y` lines.
+/// Shares the sticky-x state with bare Up/Down — pressing
+/// Shift+Down after Down (or vice versa) preserves the original
+/// column across clamped short lines.
+fn extend_vertical(dom: &mut TuiDom, delta_y: i32) -> bool {
+    let Some(sel) = dom.selection().copied() else {
+        return false;
+    };
+    let from = sel.focus;
+    let new_pos = crate::runtime::editing::movement::vertical_motion(dom, from, delta_y);
+    let Some(to) = new_pos else {
+        return false;
+    };
+    if to == from {
+        return false;
+    }
+    dom.set_selection(Some(Selection::new(sel.anchor, to)));
+    true
+}
+
+/// Extend the selection's focus to the start (`Dir::Backward`) or
+/// end (`Dir::Forward`) of the current line. Mirrors
+/// `caret_line_start` / `caret_line_end` from the bare-Home / -End
+/// path so the result lands at the same offset.
+fn extend_to_line_edge(dom: &mut TuiDom, dir: Dir) -> bool {
+    let Some(sel) = dom.selection().copied() else {
+        return false;
+    };
+    let from = sel.focus;
+    let to = crate::runtime::editing::movement::line_edge_position(
+        dom,
+        from,
+        matches!(dir, Dir::Forward),
+    );
+    let Some(to) = to else {
+        return false;
+    };
+    if to == from {
+        return false;
+    }
+    dom.set_selection(Some(Selection::new(sel.anchor, to)));
     true
 }
 
@@ -181,44 +255,6 @@ pub(crate) fn prev_word_byte(text: &str, offset: usize) -> Option<usize> {
 /// text node.
 fn text_of(dom: &TuiDom, id: NodeId) -> Option<String> {
     dom.node(id).node_value().map(|s| s.to_string())
-}
-
-/// Byte length of a text node's data. `0` when not a text node.
-fn text_len(dom: &TuiDom, id: NodeId) -> usize {
-    dom.node(id).node_value().map(|s| s.len()).unwrap_or(0)
-}
-
-/// First text-node descendant (DFS, document order) of `root`,
-/// inclusive of `root` itself.
-fn first_text_node(dom: &TuiDom, root: NodeId) -> Option<NodeId> {
-    if is_text_node(dom, root) {
-        return Some(root);
-    }
-    for child in dom.node(root).child_nodes() {
-        if let Some(found) = first_text_node(dom, child.id()) {
-            return Some(found);
-        }
-    }
-    None
-}
-
-/// Last text-node descendant (DFS, reverse document order) of
-/// `root`, inclusive of `root` itself.
-fn last_text_node(dom: &TuiDom, root: NodeId) -> Option<NodeId> {
-    if is_text_node(dom, root) {
-        return Some(root);
-    }
-    let children: Vec<NodeId> = dom.node(root).child_nodes().map(|c| c.id()).collect();
-    for child in children.into_iter().rev() {
-        if let Some(found) = last_text_node(dom, child) {
-            return Some(found);
-        }
-    }
-    None
-}
-
-fn is_text_node(dom: &TuiDom, id: NodeId) -> bool {
-    dom.node(id).node_type() == NodeType::Text
 }
 
 #[cfg(test)]

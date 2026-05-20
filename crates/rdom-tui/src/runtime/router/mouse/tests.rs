@@ -1253,14 +1253,21 @@ fn drag_extends_selection_focus_forward() {
 }
 
 #[test]
-fn drag_extend_out_of_bounds_preserves_last_valid_focus() {
+fn drag_extend_out_of_bounds_clamps_to_anchor_ifc_end() {
+    // Browser behavior: dragging the mouse OUTSIDE any element
+    // doesn't freeze the selection — it clamps to the nearest valid
+    // position inside the drag's anchor inline-flow container. So
+    // dragging past the bottom of a paragraph extends selection to
+    // the paragraph's last position. Previously rdom froze focus at
+    // the anchor, which silently missed text the user was trying to
+    // select.
     let (mut dom, _p, t) = drag_text_fixture();
     let mut router = Router::new();
 
     router.route(&mut dom, crossterm::event::Event::Mouse(down_at(1, 0)));
     // Drag into row 5 — empty terminal below the paragraph. No IFC
-    // there, so position_at returns None; focus should stay at the
-    // anchor.
+    // there, so position_at returns None; clamp_to_anchor_ifc kicks
+    // in and clamps focus to the end of the anchor's last line.
     router.route(
         &mut dom,
         crossterm::event::Event::Mouse(mouse_at(MouseEventKind::Drag(MouseButton::Left), 1, 5)),
@@ -1268,7 +1275,9 @@ fn drag_extend_out_of_bounds_preserves_last_valid_focus() {
 
     let sel = dom.selection().unwrap();
     assert_eq!(sel.anchor, Position::new(t, 1));
-    assert_eq!(sel.focus, Position::new(t, 1));
+    // Text node `t` is "hello" (5 chars). Drag past bottom → focus
+    // clamps to end of the last (only) fragment = offset 5.
+    assert_eq!(sel.focus, Position::new(t, 5));
 }
 
 #[test]
@@ -1440,4 +1449,119 @@ fn selection_setter_preserved_when_handler_re_sets_on_mousedown() {
 
     let sel = dom.selection().unwrap();
     assert_eq!(sel.anchor, Position::new(t, 2));
+}
+
+// ── user-select: all / contain (B1) ──────────────────────────────
+
+#[test]
+fn mousedown_inside_user_select_all_selects_whole_element() {
+    // Browser behavior: a single click anywhere inside a
+    // `user-select: all` element selects its entire text content as
+    // one unit — for one-click-copy of tokens, URLs, code snippets.
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let p = dom.create_element("p");
+    let t = dom.create_text_node("token-abc");
+    dom.append_child(p, t).unwrap();
+    dom.append_child(root, p).unwrap();
+
+    let sheet = Stylesheet::bare().rule_unchecked(
+        "p",
+        TuiStyle::new()
+            .display(Display::Block)
+            .width(Size::Fixed(15))
+            .user_select(UserSelect::All),
+    );
+    prepare(&mut dom, &sheet, Rect::new(0, 0, 20, 10));
+
+    let mut router = Router::new();
+    // Click at cell 3 (would be a caret at offset 3 under user-
+    // select: text). With user-select: all, selection covers the
+    // whole text node.
+    router.route(&mut dom, crossterm::event::Event::Mouse(down_at(3, 0)));
+
+    let sel = dom.selection().expect("selection set on click");
+    assert_eq!(sel.anchor, Position::new(t, 0));
+    assert_eq!(sel.focus, Position::new(t, "token-abc".len()));
+    assert!(!sel.is_collapsed());
+}
+
+#[test]
+fn drag_inside_user_select_all_keeps_whole_element_selected() {
+    // Once user-select: all has expanded the selection, dragging
+    // shouldn't shrink it back to a caret — the all-host stays
+    // fully selected for the duration of the drag.
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let p = dom.create_element("p");
+    let t = dom.create_text_node("token-abc");
+    dom.append_child(p, t).unwrap();
+    dom.append_child(root, p).unwrap();
+
+    let sheet = Stylesheet::bare().rule_unchecked(
+        "p",
+        TuiStyle::new()
+            .display(Display::Block)
+            .width(Size::Fixed(15))
+            .user_select(UserSelect::All),
+    );
+    prepare(&mut dom, &sheet, Rect::new(0, 0, 20, 10));
+
+    let mut router = Router::new();
+    router.route(&mut dom, crossterm::event::Event::Mouse(down_at(2, 0)));
+    router.route(
+        &mut dom,
+        crossterm::event::Event::Mouse(mouse_at(MouseEventKind::Drag(MouseButton::Left), 5, 0)),
+    );
+
+    let sel = dom.selection().unwrap();
+    assert_eq!(sel.anchor, Position::new(t, 0));
+    assert_eq!(sel.focus, Position::new(t, "token-abc".len()));
+}
+
+#[test]
+fn drag_extend_clamps_to_user_select_contain_boundary() {
+    // Browser behavior: `user-select: contain` traps a selection
+    // inside the element where the drag started. Dragging out
+    // doesn't let the focus escape — it clamps to the contain
+    // host's nearest valid position.
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let p1 = dom.create_element("p");
+    let t1 = dom.create_text_node("abcde");
+    dom.append_child(p1, t1).unwrap();
+    let p2 = dom.create_element("p");
+    let t2 = dom.create_text_node("fghij");
+    dom.append_child(p2, t2).unwrap();
+    dom.append_child(root, p1).unwrap();
+    dom.append_child(root, p2).unwrap();
+
+    let sheet = Stylesheet::bare().rule_unchecked(
+        "p",
+        TuiStyle::new()
+            .display(Display::Block)
+            .width(Size::Fixed(10))
+            .user_select(UserSelect::Contain),
+    );
+    prepare(&mut dom, &sheet, Rect::new(0, 0, 20, 10));
+
+    let mut router = Router::new();
+    // Click in p1 at offset 2, then drag down into p2 — focus
+    // should clamp to the end of p1 (length 5), not move into t2.
+    router.route(&mut dom, crossterm::event::Event::Mouse(down_at(2, 0)));
+    router.route(
+        &mut dom,
+        crossterm::event::Event::Mouse(mouse_at(MouseEventKind::Drag(MouseButton::Left), 2, 1)),
+    );
+
+    let sel = dom.selection().unwrap();
+    assert_eq!(sel.anchor, Position::new(t1, 2));
+    assert_eq!(
+        sel.focus,
+        Position::new(t1, "abcde".len()),
+        "user-select: contain must clamp focus to its host's end; got {:?}",
+        sel.focus
+    );
+    // t2 must NOT be involved.
+    assert_ne!(sel.focus.node, t2);
 }

@@ -20,8 +20,4 @@ pub mod clipboard;
 pub(crate) mod drag;
 pub(crate) mod keyboard;
 pub(crate) mod multiclick;
-
-// Placeholders — Phase 14.6 (sub-phase 6.5) fills these in.
-// pub mod types;
-// pub mod paint;
-// pub mod user_select;
+pub(crate) mod user_select;

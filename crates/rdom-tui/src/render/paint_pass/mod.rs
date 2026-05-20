@@ -64,7 +64,7 @@ use crate::render::{Buffer, Rect};
 use crate::style::{Color, ComputedStyle};
 
 use border::{fill_bg, paint_border};
-use inline_paint::{paint_ifc, paint_inline_content};
+use inline_paint::{paint_caret_if_editable, paint_ifc, paint_inline_content};
 
 /// Extension trait on `Dom<TuiExt>` adding `paint_dom(buf, clip)`.
 pub trait PaintExt {
@@ -355,6 +355,10 @@ fn paint_node(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect) {
     // recursion.
     if is_ifc_block(dom, id) {
         paint_ifc(dom, id, &computed, inner, buf, children_clip);
+        // Caret overlay — paint at the end so it sits on top of
+        // every fragment in the inline flow. IFC blocks always have
+        // an `inline_layout`, so this fires unconditionally.
+        paint_caret_if_editable(dom, buf, id, children_clip);
         // Scrollbar overlay — on top of any content that might
         // have leaked into the gutter (it can't, but paint order
         // still puts scrollbars last so any future strategy
@@ -368,6 +372,15 @@ fn paint_node(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect) {
 
     // Compute ::before / own text / ::after paint positions.
     paint_inline_content(dom, id, &computed, inner, buf, children_clip);
+
+    // Caret overlay for pure-text leaf blocks (e.g. <input>,
+    // <textarea>) — they go through `paint_inline_content` rather
+    // than `paint_ifc`, so the caret has to be painted at this call
+    // site too. `paint_caret_if_editable` is a no-op for elements
+    // that aren't the inline-flow container of the focused caret.
+    if crate::render::inline::has_inline_layout(dom, id) {
+        paint_caret_if_editable(dom, buf, id, children_clip);
+    }
 
     // Recurse into element children (they paint at their own layouts).
     recurse_children(dom, id, buf, children_clip);

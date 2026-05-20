@@ -19,12 +19,15 @@ bitflags_like! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
     pub struct Modifier(u16) {
         BOLD         = 1 << 0;
-        // Bit 1 is unused.
+        // Bits 1 and 6 are unused. Bit 1 was DIM (SGR-2),
+        // dropped pre-publish; bit 6 was REVERSED (SGR-7), dropped
+        // when the caret switched to explicit fg/bg pairs instead
+        // of relying on the terminal's reverse-video toggle. Both
+        // gaps stay so the remaining bit values don't shift.
         ITALIC       = 1 << 2;
         UNDERLINED   = 1 << 3;
         SLOW_BLINK   = 1 << 4;
         RAPID_BLINK  = 1 << 5;
-        REVERSED     = 1 << 6;
         HIDDEN       = 1 << 7;
         CROSSED_OUT  = 1 << 8;
     }
@@ -161,14 +164,13 @@ mod tests {
     }
 
     #[test]
-    fn all_eight_flags_distinct() {
+    fn all_seven_flags_distinct() {
         let flags = [
             Modifier::BOLD,
             Modifier::ITALIC,
             Modifier::UNDERLINED,
             Modifier::SLOW_BLINK,
             Modifier::RAPID_BLINK,
-            Modifier::REVERSED,
             Modifier::HIDDEN,
             Modifier::CROSSED_OUT,
         ];
@@ -194,7 +196,6 @@ mod tests {
             Modifier::UNDERLINED,
             Modifier::SLOW_BLINK,
             Modifier::RAPID_BLINK,
-            Modifier::REVERSED,
             Modifier::HIDDEN,
             Modifier::CROSSED_OUT,
         ];

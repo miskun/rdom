@@ -24,7 +24,7 @@
 //!     .set_padding(Padding::all(1));
 //! ```
 
-use rdom_core::{NodeMut, NodeRef};
+use rdom_core::{NodeMut, NodeRef, NodeType};
 
 use crate::ext::TuiExt;
 use crate::layout::{Border, Direction, LayoutRect, Overflow, Padding, Size};
@@ -182,6 +182,69 @@ pub fn nearest_editable_ancestor(
         cur = dom.node(id).parent_node().map(|p| p.id());
     }
     None
+}
+
+/// True when `node` is a descendant of `ancestor`, or `node ==
+/// ancestor`. Used by user-select / focus / selection clamp logic
+/// to decide whether a candidate target is inside a host's subtree.
+pub fn is_descendant_or_self(
+    dom: &rdom_core::Dom<TuiExt>,
+    node: rdom_core::NodeId,
+    ancestor: rdom_core::NodeId,
+) -> bool {
+    let mut cur = Some(node);
+    while let Some(n) = cur {
+        if n == ancestor {
+            return true;
+        }
+        cur = dom.node(n).parent_node().map(|p| p.id());
+    }
+    false
+}
+
+/// First text-node descendant of `root` (inclusive) in document
+/// order. Returns `None` when no text node exists in the subtree.
+/// Used by selection-extension logic that needs the host's
+/// leading text position.
+pub fn first_text_descendant(
+    dom: &rdom_core::Dom<TuiExt>,
+    root: rdom_core::NodeId,
+) -> Option<rdom_core::NodeId> {
+    if dom.node(root).node_type() == NodeType::Text {
+        return Some(root);
+    }
+    for child in dom.node(root).child_nodes() {
+        if let Some(found) = first_text_descendant(dom, child.id()) {
+            return Some(found);
+        }
+    }
+    None
+}
+
+/// Last text-node descendant of `root` (inclusive) in document
+/// order. Returns `None` when no text node exists in the subtree.
+/// Used by selection-extension logic that needs the host's
+/// trailing text position.
+pub fn last_text_descendant(
+    dom: &rdom_core::Dom<TuiExt>,
+    root: rdom_core::NodeId,
+) -> Option<rdom_core::NodeId> {
+    if dom.node(root).node_type() == NodeType::Text {
+        return Some(root);
+    }
+    let kids: Vec<rdom_core::NodeId> = dom.node(root).child_nodes().map(|c| c.id()).collect();
+    for child in kids.into_iter().rev() {
+        if let Some(found) = last_text_descendant(dom, child) {
+            return Some(found);
+        }
+    }
+    None
+}
+
+/// Byte length of a text node's data. Returns `0` for non-text
+/// nodes (use as a position-clamp helper, not a node-type check).
+pub fn text_len(dom: &rdom_core::Dom<TuiExt>, id: rdom_core::NodeId) -> usize {
+    dom.node(id).node_value().map(|s| s.len()).unwrap_or(0)
 }
 
 /// Replace all children of `id` with a single text node holding

@@ -55,6 +55,11 @@ For the durable architectural divergences (web-platform departures shipped on pu
 - **`DRY-1` — "Skip out-of-flow children" filter in 4 places.** `flex::layout_children`, `layout_fragment_children`, `paint_pass::recurse_children`, and `hit_test::descend_children_reverse` all have nearly identical filters for `display: none` + `position: absolute | fixed | sticky`. Factor to a shared `is_in_flow(dom, id) -> bool` helper.
 - **`DRY-2` — Paint-vs-hit-test z-list collection duplicated.** Both passes walk the tree and collect positioned elements in nearly identical loops; only the sort direction differs. Could share a `collect_positioned` helper. Profile first; cost has to justify the abstraction.
 
+### Editing
+
+- **`EDIT-1` — Cross-text-node edits don't push undo entries.** `perform_cross_node_edit` fires the `beforeinput` / `input` pair and applies mutations across multiple text nodes, but the per-node `EditEntry` shape can't capture the compound mutation cleanly. Pay down with a compound `EditEntry` variant (sequence of per-node deltas) so undo can reverse the whole cross-node operation atomically. Until then, an undo after a cross-node edit reverses *nothing* (the editable's history stack is untouched for the cross-node case). Tracked for v0.2.0.
+- **`EDIT-2` — `user-select: contain` clamps only via the host's outer layout rect.** The clamp uses the mouse coordinates against the host's `layout_rect()`; it doesn't consult per-line content extents. Good enough for single-paragraph contain hosts; multi-paragraph contain hosts with internal gaps may clamp to the wrong end if the mouse lands in inter-paragraph whitespace. Pay down by clamping to the nearest in-host inline fragment instead.
+
 ### Process
 
 - **`OPS-4` — Snapshot-pin remaining six examples.** The paint-snapshot harness exists (`crates/rdom-tui/tests/common/mod.rs`) and `ua_chrome` + `app_shell` have goldens. The six older examples (`counter_button`, `tab_form`, `scrollable_list`, `selectable_text`, `parse_and_render`, `dom_api_demo`) have no goldens — cascade/layout/paint regressions there would only surface via a downstream consumer issue. Pattern is mechanical.

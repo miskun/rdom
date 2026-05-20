@@ -18,7 +18,8 @@
 #[cfg(test)]
 use crate::Color;
 use crate::layout::{
-    Border, Direction, Display, Overflow, Padding, Size, TextDecoration, UserSelect, WhiteSpace,
+    Border, CaretColor, CaretTextColor, Direction, Display, Overflow, Padding, Size,
+    TextDecoration, UserSelect, WhiteSpace,
 };
 use crate::{Content, TuiColor, Value};
 
@@ -74,6 +75,8 @@ bitflags_like! {
         ASPECT_RATIO = 1 << 33;
         MARGIN = 1 << 34;
         BORDER_COLLAPSE = 1 << 35;
+        CARET_COLOR = 1 << 36;
+        CARET_TEXT_COLOR = 1 << 37;
     }
 }
 
@@ -135,6 +138,14 @@ pub struct TuiStyle {
     pub display: Option<Value<Display>>,
     pub white_space: Option<Value<WhiteSpace>>,
     pub user_select: Option<Value<UserSelect>>,
+    /// CSS `caret-color`. `Auto` (default) paints the caret cell
+    /// with bg = underlying-cell fg. `Transparent` suppresses paint.
+    /// `Color(c)` uses `c` as the caret bg. Inherits per CSS spec.
+    pub caret_color: Option<Value<CaretColor>>,
+    /// rdom-extension `caret-text-color`: glyph color of the caret
+    /// cell. `Auto` (default) uses the underlying cell's bg. Pairs
+    /// with `caret-color`. Inherits.
+    pub caret_text_color: Option<Value<CaretTextColor>>,
     /// CSS `text-decoration` (line subset). Maps to the
     /// `UNDERLINED` / `CROSSED_OUT` modifier bits at cascade time.
     /// `None` clears both. Non-inheriting per CSS spec.
@@ -390,6 +401,20 @@ impl TuiStyle {
         UserSelect
     );
     setter!(
+        caret_color,
+        caret_color,
+        caret_color_important,
+        CARET_COLOR,
+        CaretColor
+    );
+    setter!(
+        caret_text_color,
+        caret_text_color,
+        caret_text_color_important,
+        CARET_TEXT_COLOR,
+        CaretTextColor
+    );
+    setter!(
         text_decoration,
         text_decoration,
         text_decoration_important,
@@ -534,6 +559,12 @@ impl TuiStyle {
             n += 1
         }
         if self.user_select.is_some() {
+            n += 1
+        }
+        if self.caret_color.is_some() {
+            n += 1
+        }
+        if self.caret_text_color.is_some() {
             n += 1
         }
         if self.text_decoration.is_some() {
@@ -762,6 +793,8 @@ mod tests {
             .display_important(Display::Inline)
             .white_space_important(WhiteSpace::Pre)
             .user_select_important(UserSelect::None)
+            .caret_color_important(CaretColor::Transparent)
+            .caret_text_color_important(CaretTextColor::Auto)
             .text_decoration_important(TextDecoration::Underline)
             .opacity_important(0.5)
             .aspect_ratio_important(16, 9)

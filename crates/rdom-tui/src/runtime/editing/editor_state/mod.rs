@@ -74,11 +74,44 @@ pub struct EditorState {
     /// `COALESCE_WINDOW` to decide whether the next insert extends
     /// the pending entry or starts a fresh one.
     last_commit: Option<Instant>,
+    /// Sticky cell-column for vertical caret motion.
+    ///
+    /// `Some(x)` when the previous applied caret action was Up or
+    /// Down. The next vertical motion uses this `x` as the target
+    /// column (clamped to the target line's width) rather than the
+    /// current caret column — so moving Down from a long line to a
+    /// shorter one and back lands at the original column, not the
+    /// clamped one. This is the canonical browser behavior.
+    ///
+    /// `None` after any action that isn't a vertical caret move:
+    /// typing, deletion, horizontal arrow keys, Home, End, mouse
+    /// click. Cleared via [`clear_sticky_x`](Self::clear_sticky_x).
+    sticky_x: Option<u16>,
 }
 
 impl EditorState {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Read the sticky column for vertical caret motion. See the
+    /// field's doc-comment for semantics.
+    pub fn sticky_x(&self) -> Option<u16> {
+        self.sticky_x
+    }
+
+    /// Set the sticky column for vertical caret motion. Idempotent —
+    /// calling repeatedly with the same value is a no-op. Called by
+    /// the vertical-motion path the first time a vertical arrow is
+    /// pressed (initialized from the caret's current cell column).
+    pub fn set_sticky_x(&mut self, x: u16) {
+        self.sticky_x = Some(x);
+    }
+
+    /// Drop the sticky column. Called from every code path other
+    /// than vertical caret motion — typing, horizontal arrows, etc.
+    pub fn clear_sticky_x(&mut self) {
+        self.sticky_x = None;
     }
 
     /// Record a just-applied edit. Either coalesces into the top

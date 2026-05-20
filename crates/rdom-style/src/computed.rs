@@ -6,7 +6,10 @@
 
 use std::rc::Rc;
 
-use crate::layout::{Border, Direction, Display, Overflow, Padding, Size, UserSelect, WhiteSpace};
+use crate::layout::{
+    Border, CaretColor, CaretTextColor, Direction, Display, Overflow, Padding, Size, UserSelect,
+    WhiteSpace,
+};
 use crate::{Color, Modifier};
 
 /// Resolved `var()` map. Copied by reference through inheritance so
@@ -76,6 +79,12 @@ pub struct ComputedStyle {
     /// Whether text inside this element is selectable by the user.
     /// Inherits. Default `Auto`.
     pub user_select: UserSelect,
+    /// Whether the caret is visible. `Auto` paints the caret as a
+    /// REVERSED cell; `Transparent` suppresses caret paint. Inherits.
+    /// Default `Auto`.
+    pub caret_color: CaretColor,
+    /// Glyph color of the caret cell. Inherits. Default `Auto`.
+    pub caret_text_color: CaretTextColor,
 
     // ── Content (pseudo-elements) ─────────────────────────────────────
     /// Resolved `content:` value for this element or pseudo-element.
@@ -141,6 +150,8 @@ impl ComputedStyle {
             display: Display::Block,
             white_space: WhiteSpace::Normal,
             user_select: UserSelect::Auto,
+            caret_color: CaretColor::Auto,
+            caret_text_color: CaretTextColor::Auto,
             content: None,
             position: crate::layout::Position::Static,
             top: crate::layout::Length::Auto,

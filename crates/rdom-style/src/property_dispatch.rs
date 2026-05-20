@@ -46,7 +46,8 @@
 //! enforces this for the full table.
 
 use crate::layout::{
-    Border, Direction, Display, Length, Overflow, Position, Size, UserSelect, WhiteSpace, ZIndex,
+    Border, CaretColor, CaretTextColor, Direction, Display, Length, Overflow, Position, Size,
+    UserSelect, WhiteSpace, ZIndex,
 };
 use crate::parse::token::{Token, tokenize};
 use crate::parse::values::{
@@ -90,6 +91,8 @@ const PROPERTY_NAMES: &[&str] = &[
     "flex-direction",
     "white-space",
     "user-select",
+    "caret-color",
+    "caret-text-color",
     // Layout — overflow
     "overflow",
     "overflow-x",
@@ -164,6 +167,8 @@ pub fn property_mask(name: &str) -> Option<crate::ImportantMask> {
         "flex-direction" => ImportantMask::DIRECTION,
         "white-space" => ImportantMask::WHITE_SPACE,
         "user-select" => ImportantMask::USER_SELECT,
+        "caret-color" => ImportantMask::CARET_COLOR,
+        "caret-text-color" => ImportantMask::CARET_TEXT_COLOR,
         "overflow" => ImportantMask::OVERFLOW_X | ImportantMask::OVERFLOW_Y,
         "overflow-x" => ImportantMask::OVERFLOW_X,
         "overflow-y" => ImportantMask::OVERFLOW_Y,
@@ -222,6 +227,8 @@ pub fn remove(name: &str, style: &mut TuiStyle) -> bool {
         "flex-direction" => style.direction.take().is_some(),
         "white-space" => style.white_space.take().is_some(),
         "user-select" => style.user_select.take().is_some(),
+        "caret-color" => style.caret_color.take().is_some(),
+        "caret-text-color" => style.caret_text_color.take().is_some(),
         "overflow" => style.overflow_x.take().is_some() | style.overflow_y.take().is_some(),
         "overflow-x" => style.overflow_x.take().is_some(),
         "overflow-y" => style.overflow_y.take().is_some(),
@@ -376,6 +383,29 @@ pub fn set_from_tokens(
         .map(|u| {
             style.user_select = Some(Value::Specified(u));
         }),
+        // `caret-color: auto | transparent | <color>`. Auto = caret
+        // bg matches the underlying cell's fg (classic swap visual).
+        // Transparent suppresses the caret paint entirely. A color
+        // value paints the caret cell's bg with that color.
+        "caret-color" => parse_keyword(
+            value,
+            &[
+                ("auto", CaretColor::Auto),
+                ("transparent", CaretColor::Transparent),
+            ],
+        )
+        .or_else(|| parse_color(value).map(CaretColor::Color))
+        .map(|c| {
+            style.caret_color = Some(Value::Specified(c));
+        }),
+        // rdom-extension `caret-text-color: auto | <color>`. Auto =
+        // glyph color matches the underlying cell's bg (classic
+        // swap visual). A color value paints the caret cell's fg.
+        "caret-text-color" => parse_keyword(value, &[("auto", CaretTextColor::Auto)])
+            .or_else(|| parse_color(value).map(CaretTextColor::Color))
+            .map(|c| {
+                style.caret_text_color = Some(Value::Specified(c));
+            }),
 
         // Layout — overflow
         "overflow" => parse_overflow(value).map(|o| {
@@ -631,6 +661,25 @@ pub fn serialize(name: &str, style: &TuiStyle) -> Option<String> {
             }
             .to_string()
         }),
+        "caret-color" => style
+            .caret_color
+            .as_ref()
+            .and_then(specified)
+            .map(|c| match c {
+                CaretColor::Auto => "auto".to_string(),
+                CaretColor::Transparent => "transparent".to_string(),
+                CaretColor::Color(c) => serialize_color(c),
+            }),
+        "caret-text-color" => {
+            style
+                .caret_text_color
+                .as_ref()
+                .and_then(specified)
+                .map(|c| match c {
+                    CaretTextColor::Auto => "auto".to_string(),
+                    CaretTextColor::Color(c) => serialize_color(c),
+                })
+        }
 
         // Layout — overflow. The shorthand only serializes when
         // both axes agree (matching CSS's `overflow: <single>`
@@ -1049,6 +1098,8 @@ mod tests {
             ("flex-direction", "column"),
             ("white-space", "pre"),
             ("user-select", "text"),
+            ("caret-color", "transparent"),
+            ("caret-text-color", "auto"),
             ("overflow", "scroll"),
             ("overflow-x", "auto"),
             ("overflow-y", "hidden"),

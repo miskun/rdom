@@ -5,7 +5,7 @@
 //! - `nearest_editable_ancestor` walks up through the tree.
 //! - `cell_of_position` maps positions to cells for ASCII, CJK,
 //!   mid-line, end-of-line, wrapped paragraphs.
-//! - The paint pass overlays REVERSED on the caret cell when a
+//! - The paint pass paints explicit fg/bg on the caret cell when a
 //!   focused editable has a collapsed selection, and leaves the
 //!   buffer untouched otherwise.
 
@@ -16,7 +16,7 @@ use crate::layout::{Display, Size};
 use crate::node::{TuiNodeExt, nearest_editable_ancestor};
 use crate::render::{Buffer, LayoutExt, PaintExt, Rect};
 use crate::runtime::editing::caret::cell_of_position;
-use crate::style::{CascadeExt, Modifier, Stylesheet, TuiStyle};
+use crate::style::{CascadeExt, Color, Stylesheet, TuiStyle};
 
 // ── is_editable ─────────────────────────────────────────────────────
 
@@ -297,23 +297,21 @@ fn caret_paints_when_editable_is_focused_with_collapsed_selection() {
 
     let buf = pipeline(&mut dom, &editable_sheet(), Rect::new(0, 0, 30, 5));
 
-    // Cells 0-2 ("hel") aren't selected → plain. Cell 3 ("l" index 3,
-    // byte 3 is after the first 'l' and on the second 'l') has caret
-    // → REVERSED. Cell 4 plain again.
-    assert!(
-        buf.cell(3, 0)
-            .unwrap()
-            .modifier
-            .contains(Modifier::REVERSED),
-        "caret cell should be reversed"
+    // Cells 0-2 ("hel") aren't selected → plain (bg == Reset). Cell 3
+    // ("l" index 3, byte 3 is after the first 'l' and on the second 'l')
+    // has the caret painted → bg is the high-contrast white fallback
+    // (no cascaded color on <p>, so Auto caret-color → white).
+    // Cell 4 plain again.
+    assert_ne!(
+        buf.cell(3, 0).unwrap().bg,
+        Color::Reset,
+        "caret cell should have an explicit bg painted"
     );
     for x in [0u16, 1, 2, 4] {
-        assert!(
-            !buf.cell(x, 0)
-                .unwrap()
-                .modifier
-                .contains(Modifier::REVERSED),
-            "cell {x} should not be reversed"
+        assert_eq!(
+            buf.cell(x, 0).unwrap().bg,
+            Color::Reset,
+            "cell {x} should not have the caret bg painted"
         );
     }
 }
@@ -325,12 +323,7 @@ fn caret_does_not_paint_when_no_focus() {
     // focused is None
     let buf = pipeline(&mut dom, &editable_sheet(), Rect::new(0, 0, 30, 5));
     for x in 0..5 {
-        assert!(
-            !buf.cell(x, 0)
-                .unwrap()
-                .modifier
-                .contains(Modifier::REVERSED)
-        );
+        assert_eq!(buf.cell(x, 0).unwrap().bg, Color::Reset);
     }
 }
 
@@ -352,20 +345,16 @@ fn caret_does_not_paint_on_non_editable_even_with_selection() {
 
     let buf = pipeline(&mut dom, &editable_sheet(), Rect::new(0, 0, 30, 5));
     for x in 0..5 {
-        assert!(
-            !buf.cell(x, 0)
-                .unwrap()
-                .modifier
-                .contains(Modifier::REVERSED)
-        );
+        assert_eq!(buf.cell(x, 0).unwrap().bg, Color::Reset);
     }
 }
 
 #[test]
 fn caret_does_not_paint_when_selection_is_a_range_not_a_caret() {
     // Non-collapsed selection paints the selection overlay, not a
-    // caret. Verified indirectly: no standalone REVERSED cell
-    // outside the range.
+    // caret. Verified indirectly: no standalone caret-style cell
+    // outside the range (cells 0 and 4 keep bg == Reset; cells 1-3
+    // get the UA `*::selection` bg, not the caret white fallback).
     let (mut dom, p, t) = editable_paragraph("hello");
     dom.set_focused(Some(p));
     dom.set_selection(Some(Selection::new(
@@ -374,18 +363,7 @@ fn caret_does_not_paint_when_selection_is_a_range_not_a_caret() {
     )));
 
     let buf = pipeline(&mut dom, &editable_sheet(), Rect::new(0, 0, 30, 5));
-    // Cells 1-3 are in the selection and reversed (from Phase
-    // 6.5.5). Cells 0 and 4 are NOT — no extra caret should show.
-    assert!(
-        !buf.cell(0, 0)
-            .unwrap()
-            .modifier
-            .contains(Modifier::REVERSED)
-    );
-    assert!(
-        !buf.cell(4, 0)
-            .unwrap()
-            .modifier
-            .contains(Modifier::REVERSED)
-    );
+    // Cells 0 and 4 are outside the selection — no caret, no overlay.
+    assert_eq!(buf.cell(0, 0).unwrap().bg, Color::Reset);
+    assert_eq!(buf.cell(4, 0).unwrap().bg, Color::Reset);
 }

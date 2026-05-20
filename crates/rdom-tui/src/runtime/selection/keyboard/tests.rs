@@ -312,19 +312,79 @@ fn plain_ctrl_b_is_not_consumed() {
 }
 
 #[test]
-fn shift_up_down_are_not_consumed_yet() {
-    // Line-based extension is out of scope for v1 (pending line/caret
-    // infra). Should fall through so apps can handle them as normal
-    // keydown events without the selection layer claiming them.
+fn shift_arrow_inside_user_select_all_does_not_shrink_selection() {
+    // Per CSS UI: `user-select: all` selects the element atomically.
+    // Any keyboard extension that would split the all-host's
+    // selection must be suppressed — the host stays fully selected.
+    // (Drag-extend has the same gate in `drag::extend`.)
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let p = dom.create_element("p");
+    let t = dom.create_text_node("token");
+    dom.append_child(p, t).unwrap();
+    let span = dom.create_element("span");
+    dom.append_child(p, span).unwrap();
+    dom.append_child(root, p).unwrap();
+
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "p",
+            TuiStyle::new()
+                .display(Display::Block)
+                .width(Size::Fixed(40))
+                .user_select(crate::layout::UserSelect::All),
+        )
+        .rule_unchecked("span", TuiStyle::new().display(Display::Inline));
+    prepare(&mut dom, &sheet, Rect::new(0, 0, 60, 10));
+
+    // Pre-state: full-host selection (anchor=0, focus=end).
+    let full = Selection::new(Position::new(t, 0), Position::new(t, "token".len()));
+    dom.set_selection(Some(full));
+
+    // Shift+Left would normally retract focus by one grapheme.
+    // Under `user-select: all` the call returns false and the
+    // selection stays at its all-host extent.
+    let consumed = try_handle_key(&mut dom, key(KeyCode::Left, KeyModifiers::SHIFT));
+    assert!(
+        !consumed,
+        "Shift+Left inside user-select: all must not be consumed"
+    );
+    assert_eq!(
+        dom.selection().copied(),
+        Some(full),
+        "selection must remain at the all-host's full extent"
+    );
+
+    // Same for Shift+Right.
+    let consumed = try_handle_key(&mut dom, key(KeyCode::Right, KeyModifiers::SHIFT));
+    assert!(!consumed);
+    assert_eq!(dom.selection().copied(), Some(full));
+}
+
+#[test]
+fn shift_up_down_extend_selection_with_line_clamps() {
+    // Shift+Up at top-of-content extends selection focus to line
+    // START (offset 0). Shift+Down at bottom extends to line END
+    // (= text.len()). Matches the caret-move clamps that bare
+    // Up / Down ship.
     let (mut dom, _p, t) = paragraph("hello");
     dom.set_selection(Some(Selection::caret(Position::new(t, 2))));
 
-    assert!(!try_handle_key(
-        &mut dom,
-        key(KeyCode::Up, KeyModifiers::SHIFT)
-    ));
-    assert!(!try_handle_key(
-        &mut dom,
-        key(KeyCode::Down, KeyModifiers::SHIFT)
-    ));
+    // Shift+Up: focus to start of line 0 = offset 0.
+    let consumed_up = try_handle_key(&mut dom, key(KeyCode::Up, KeyModifiers::SHIFT));
+    assert!(
+        consumed_up,
+        "Shift+Up extends selection focus to line start"
+    );
+    let sel = dom.selection().unwrap();
+    assert_eq!(sel.anchor, Position::new(t, 2));
+    assert_eq!(sel.focus, Position::new(t, 0));
+
+    // Reset to caret at offset 2 and try Shift+Down.
+    dom.set_selection(Some(Selection::caret(Position::new(t, 2))));
+    let consumed_down = try_handle_key(&mut dom, key(KeyCode::Down, KeyModifiers::SHIFT));
+    assert!(consumed_down, "Shift+Down extends to line end");
+    let sel = dom.selection().unwrap();
+    assert_eq!(sel.anchor, Position::new(t, 2));
+    assert_eq!(sel.focus, Position::new(t, 5)); // end of "hello"
 }

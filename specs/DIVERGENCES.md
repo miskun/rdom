@@ -90,10 +90,17 @@ The DOM API is Rust-shaped rather than JS-shaped. The semantics match WHATWG DOM
 ### Selection & editing
 
 - **Selection is single-range only.** Multi-range selection (Ctrl-click in browsers) is not supported.
-- **`contenteditable` requires exactly one text-node child.** Rich-text editing across inline elements is not implemented.
+- **Cross-text-node edits inside contenteditable** apply as a single `beforeinput` / `input` pair but are **not recorded on the undo stack** in 0.1.0 — multi-node mutations can't be captured by the per-node `EditEntry` shape cleanly. Tracked for v0.2.0 (compound edit entries).
 - **`beforeinput.detail` is a plain `String`**, not a structured `inputType` enum.
 - **Undo/redo fires `input` only.** `beforeinput` does not fire on history transitions.
-- **The caret renders as a `REVERSED` cell** at the focus position. There is no `::caret` pseudo-element, no blink animation, and the terminal's hardware cursor stays hidden.
+- **Caret paint composes `caret-color` (cell background) and the rdom-extension `caret-text-color` (glyph foreground).** When either is `auto`, the painter uses the inverse of the cascaded fg/bg at the caret cell — matching browser visual semantics without the legacy SGR-7 REVERSED modifier. There is no `::caret` pseudo-element, no blink animation, and the terminal's hardware cursor stays hidden.
+- **`caret-text-color` is an rdom extension**, not a CSS Working Group property. Browsers have no glyph-color knob for the caret (the underlying cell is the user's font). Terminals paint full cells, so rdom exposes the glyph color separately to let authors tune contrast against `caret-color`.
+- **`user-select: all` selects the host's entire text on click; drag-extend is suppressed.** Matches Chromium behavior.
+- **`user-select: contain` clamps drag-extend focus to the host's subtree.** Above the host clamps to start; below clamps to end; same-row past-right clamps to end.
+- **Disabled form controls have `user-select: none`** in the UA stylesheet, blocking drag-selection inside them. Matches Firefox; Chromium permits selection inside disabled controls.
+- **`readonly` form controls fire `beforeinput` (cancelable) then the UA cancels the edit by default.** Listeners can observe the attempted edit (analytics, validation feedback). No `input` event fires for cancelled edits. Matches UI Events / Input Events Level 2 §5.
+- **Shift+Up / Shift+Down extend the selection vertically and share the editor's sticky-x state** with bare Up/Down, so the original column is preserved across clamped short lines. Shift+Home / Shift+End extend to line edges.
+- **Vertical caret motion (Up/Down) uses sticky-x**: an `EditorState.sticky_x` field remembers the column the caret started from so traversing short lines doesn't shrink the column permanently. Browsers do the same but call it "preferred caret position."
 
 ### Runtime & focus
 
