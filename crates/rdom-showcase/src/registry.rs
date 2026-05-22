@@ -3,6 +3,7 @@
 //! is a single line here plus a new module under `crate::demos`.
 
 use crate::Demo;
+use crate::demos::counter_button::CounterButton;
 use crate::demos::flex_row::FlexRow;
 use crate::demos::hello::HelloWorld;
 use crate::demos::hover::Hover;
@@ -10,7 +11,7 @@ use crate::demos::hover::Hover;
 /// Every demo the showcase knows about, in stable order. Order
 /// here determines display order in the sidebar (within each
 /// category — the shell groups by `Category` for display).
-pub const DEMOS: &[&dyn Demo] = &[&HelloWorld, &FlexRow, &Hover];
+pub const DEMOS: &[&dyn Demo] = &[&HelloWorld, &FlexRow, &Hover, &CounterButton];
 
 #[cfg(test)]
 mod tests {
