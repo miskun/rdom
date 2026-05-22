@@ -528,6 +528,47 @@ fn rdom_tui_initial_fg() -> Color {
     crate::style::ComputedStyle::initial().fg
 }
 
+#[test]
+fn cascade_with_zero_stylesheets_renders_initial_styles() {
+    // The empty-stylesheets case is reachable via `set_stylesheet`
+    // (returning the new id) followed by `remove_stylesheet`. The
+    // cascade must handle it: no panic, every element resolves to
+    // `ComputedStyle::initial()`, paint runs cleanly.
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let div = dom.create_element("div");
+    dom.append_child(root, div).unwrap();
+
+    let mut app = test_app(
+        dom,
+        Stylesheet::bare().rule_unchecked("div", TuiStyle::new().fg(Color::Rgb(255, 0, 0))),
+        Rect::new(0, 0, 20, 5),
+    );
+    // Construction sheet's id isn't returned; we get one via
+    // set_stylesheet now that it returns a StylesheetId.
+    let id = app.set_stylesheet(
+        Stylesheet::bare().rule_unchecked("div", TuiStyle::new().fg(Color::Rgb(0, 255, 0))),
+    );
+    app.draw_if_dirty().unwrap();
+    assert_eq!(
+        crate::style::cascade::computed_of(app.dom(), div).fg,
+        Color::Rgb(0, 255, 0),
+        "green from the post-set sheet"
+    );
+
+    // Now remove the only registered sheet.
+    app.remove_stylesheet(id);
+    assert_eq!(app.style_sheets().len(), 0, "no sheets registered");
+
+    // Paint must succeed and every element must resolve to initial.
+    app.draw_if_dirty().unwrap();
+    assert_eq!(
+        crate::style::cascade::computed_of(app.dom(), div).fg,
+        rdom_tui_initial_fg(),
+        "div re-cascaded to initial — nothing left to apply"
+    );
+}
+
 // ── dom_mut + set_stylesheet ────────────────────────────────────────
 
 #[test]

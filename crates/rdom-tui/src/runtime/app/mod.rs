@@ -389,16 +389,18 @@ impl<B: Backend> App<B> {
         t::drain_microtasks(&mut self.scheduler, &mut self.dom);
     }
 
-    /// Replace every registered stylesheet with `sheet`. After this
-    /// call, `style_sheets()` is a single-element slice; any sheets
-    /// previously pushed via [`Self::push_stylesheet`] are dropped
-    /// and their ids become stale (subsequent `remove_stylesheet`
-    /// calls with them are no-ops). The next paint runs a full
-    /// re-cascade.
+    /// Replace every registered stylesheet with `sheet`. Returns the
+    /// freshly-assigned [`StylesheetId`] for the new sheet, symmetric
+    /// with [`Self::push_stylesheet`].
+    ///
+    /// Any sheets previously pushed via [`Self::push_stylesheet`] are
+    /// dropped and their ids become stale (subsequent
+    /// `remove_stylesheet` calls with them are no-ops). The next paint
+    /// runs a full re-cascade.
     ///
     /// For incremental sheet management (adding a per-screen sheet
     /// without losing the base sheet), use [`Self::push_stylesheet`].
-    pub fn set_stylesheet(&mut self, sheet: Stylesheet) {
+    pub fn set_stylesheet(&mut self, sheet: Stylesheet) -> StylesheetId {
         let id = StylesheetId(self.next_stylesheet_id);
         self.next_stylesheet_id += 1;
         self.stylesheets.clear();
@@ -406,6 +408,7 @@ impl<B: Backend> App<B> {
         self.stylesheets.push(sheet);
         self.stylesheet_ids.push(id);
         self.invalidate_cascade();
+        id
     }
 
     /// Append a new author stylesheet onto the cascade stack. The
