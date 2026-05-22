@@ -14,6 +14,7 @@ use crate::demos::scrollable_list::ScrollableList;
 use crate::demos::selectable_text::SelectableText;
 use crate::demos::sticky::Sticky;
 use crate::demos::tab_form::TabForm;
+use crate::demos::ua_chrome::UaChrome;
 
 /// Every demo the showcase knows about, in stable order. Order
 /// here determines display order in the sidebar (within each
@@ -30,6 +31,7 @@ pub const DEMOS: &[&dyn Demo] = &[
     &TabForm,
     &ParseAndRender,
     &DomApi,
+    &UaChrome,
 ];
 
 #[cfg(test)]
