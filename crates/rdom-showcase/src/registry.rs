@@ -8,6 +8,7 @@ use crate::demos::counter_button::CounterButton;
 use crate::demos::flex_row::FlexRow;
 use crate::demos::hello::HelloWorld;
 use crate::demos::hover::Hover;
+use crate::demos::scrollable_list::ScrollableList;
 use crate::demos::sticky::Sticky;
 
 /// Every demo the showcase knows about, in stable order. Order
@@ -17,6 +18,7 @@ pub const DEMOS: &[&dyn Demo] = &[
     &HelloWorld,
     &FlexRow,
     &BorderCollapse,
+    &ScrollableList,
     &Hover,
     &CounterButton,
     &Sticky,
