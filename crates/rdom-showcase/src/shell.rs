@@ -156,7 +156,7 @@ const BASE_CSS: &str = r#"
   height: 3;
   border: solid;
   border-color: rgb(70, 80, 100);
-  padding: 0 2;
+  padding: 0 1;
 }
 .app-header h1 {
   color: rgb(200, 220, 255);
