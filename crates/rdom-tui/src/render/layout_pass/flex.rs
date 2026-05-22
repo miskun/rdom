@@ -6,13 +6,16 @@
 //!
 //! Main-axis sizing in order of precedence:
 //! 1. `Size::Fixed(n)` → exactly `n`.
-//! 2. `Size::Auto` → intrinsic (content fit), via [`intrinsic::intrinsic_size`].
-//! 3. `Size::Flex(w)` → share of the remaining main-axis budget
+//! 2. `Size::Percent(p)` → `main_budget * p / 100` (treated as
+//!    fixed once resolved; does not participate in flex distribution).
+//! 3. `Size::Auto` → intrinsic (content fit), via [`intrinsic::intrinsic_size`].
+//! 4. `Size::Flex(w)` → share of the remaining main-axis budget
 //!    proportional to `w`.
 //!
 //! Final size clamped to `min_*` / `max_*`.
 //!
-//! Cross-axis sizing: `Fixed(n)` → `n`; `Flex | Auto` → stretch to
+//! Cross-axis sizing: `Fixed(n)` → `n`; `Percent(p)` → `container_cross * p / 100`;
+//!  `Flex | Auto` → stretch to
 //! container; clamped by min/max.
 //!
 //! IFC detection: if `id` has `display: inline` element children,
@@ -191,6 +194,14 @@ pub(super) fn layout_flex_children(
             Size::Flex(w) => {
                 total_flex_weight += w as u32;
                 MainNatural::Flex(w)
+            }
+            Size::Percent(p) => {
+                // Percent resolves against the parent's main-axis
+                // content area at layout time. Treated as a fixed
+                // cell value once resolved — does NOT participate
+                // in flex weight distribution.
+                let resolved = ((main_budget as u32 * p as u32) / 100).min(u16::MAX as u32) as u16;
+                MainNatural::Fixed(resolved)
             }
             Size::Auto => {
                 let intrinsic = intrinsic_size(dom, child, direction, cross_budget);
@@ -454,6 +465,11 @@ fn resolve_cross_size(
     let natural = match cross_size {
         Size::Fixed(n) => n,
         Size::Flex(_) => container_cross,
+        Size::Percent(p) => {
+            // Cross-axis percent resolves against the container's
+            // cross-axis dimension.
+            ((container_cross as u32 * p as u32) / 100).min(u16::MAX as u32) as u16
+        }
         Size::Auto => {
             if let Some(ratio) = computed.aspect_ratio
                 && !main_was_auto

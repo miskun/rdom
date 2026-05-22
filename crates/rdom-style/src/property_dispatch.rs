@@ -976,6 +976,7 @@ fn serialize_size(s: &Size) -> String {
         Size::Auto => "auto".to_string(),
         Size::Fixed(n) => n.to_string(),
         Size::Flex(n) => format!("{n}fr"),
+        Size::Percent(p) => format!("{p}%"),
     }
 }
 

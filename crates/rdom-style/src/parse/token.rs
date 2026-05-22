@@ -15,6 +15,12 @@ pub enum Token {
     /// Decimal integer. Negative numbers are tokenized as
     /// `Delim('-')` followed by `Number` — value parsers compose.
     Number(i32),
+    /// `<n>%`. Emitted when a number is immediately followed by
+    /// `%` (no whitespace). Matches the CSS Syntax Module
+    /// `<percentage-token>`. Sign is independent — negative
+    /// percentages tokenize as `Delim('-')` + `Percentage(n)`
+    /// just like negative numbers.
+    Percentage(i32),
     /// `"…"` or `'…'` with backslash escapes resolved.
     String(String),
     /// `#…` followed by 3..=8 hex digits.
@@ -186,6 +192,13 @@ fn read_number(cursor: &mut Cursor) -> Token {
         }
     }
     let value: i32 = digits.parse().unwrap_or(0);
+    // A `%` immediately after the digits promotes the token to a
+    // `Percentage` per CSS Syntax Module §4.3. Whitespace breaks
+    // the promotion (`50 %` tokenizes as `Number(50)` + `Delim('%')`).
+    if cursor.peek() == Some('%') {
+        cursor.bump();
+        return Token::Percentage(value);
+    }
     Token::Number(value)
 }
 

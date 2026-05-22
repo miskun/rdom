@@ -19,7 +19,7 @@ These are intrinsic to terminals. They will not change.
 - **Integer cells only.** No subpixel positioning, no fractional widths, no anti-aliasing. Coordinates are `u16` cells.
 - **Monospaced advance.** Variable-width fonts are out of scope.
 - **No images, no SVG, no pixel painting.** `<canvas>` is a cell-painting escape hatch via `RenderContext`, not a pixel-painting surface.
-- **Length units.** Sizing accepts cells (unitless integers) and the flex `fr` unit. `px`, `em`, `rem`, `ch`, `%`, viewport units (`vh`/`vw`) are tokenized but produce a warning and are dropped.
+- **Length units.** Sizing accepts cells (unitless integers), the flex `fr` unit, and `%` (resolves against the parent's content-area dimension at layout time). `px`, `em`, `rem`, `ch`, and viewport units (`vh`/`vw`) are tokenized but produce a warning and are dropped — they depend on a pixel or font-size concept the terminal grid doesn't have. `%` is *relative* to parent dimensions (which the layout pass already knows), so it ships as a first-class unit.
 - **Color.** `Color::Rgb` emits truecolor SGR sequences unconditionally; there is no `COLORTERM` runtime autodetection. A separate 256-color fallback exists as an explicit code path.
 - **UA stylesheet glyphs assume BMP box-drawing support** (U+25xx, U+250x, U+256x). Terminals without these blocks are out of scope.
 - **Tabs in `<pre>` render as a single space.** Full 8-column tab expansion is not implemented.

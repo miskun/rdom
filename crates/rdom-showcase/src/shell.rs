@@ -133,8 +133,8 @@ pub fn base_stylesheet() -> Stylesheet {
 const BASE_CSS: &str = r#"
 .app {
   flex-direction: column;
-  width: 1fr;
-  height: 1fr;
+  width: 100%;
+  height: 100%;
   border: solid;
   border-color: rgb(70, 80, 100);
   border-collapse: collapse;
@@ -153,12 +153,13 @@ const BASE_CSS: &str = r#"
 
 .app-body {
   flex-direction: row;
-  width: 1fr;
-  height: 1fr;
+  width: 100%;
+  height: 100%;
 }
 
 .sidebar {
   width: 28;
+  height: 100%;
   border: solid;
   border-color: rgb(70, 80, 100);
   padding: 1;
@@ -169,7 +170,8 @@ const BASE_CSS: &str = r#"
 }
 
 .main {
-  width: 1fr;
+  width: 100%;
+  height: 100%;
   border: solid;
   border-color: rgb(70, 80, 100);
   padding: 1;

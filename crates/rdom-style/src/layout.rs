@@ -91,6 +91,16 @@ pub enum Size {
     /// Flexible: takes remaining space proportional to weight.
     /// `Flex(1)` = equal share. `Flex(2)` = double share.
     Flex(u16),
+    /// Percentage of the parent's content-area dimension on the
+    /// matching axis (`width: 50%` ⇒ half of parent's content
+    /// width). Resolves at layout time once the parent dimension
+    /// is known. Matches CSS `<percentage>` semantics for sizing
+    /// properties; clamped to `u16::MAX` cells after multiplication.
+    ///
+    /// `Percent(0)` collapses to zero cells. `Percent(100)` fills
+    /// the parent's content area on this axis. Values > 100 are
+    /// permitted and produce overflow, matching CSS.
+    Percent(u16),
     /// Child determines its own size (default: content-driven).
     #[default]
     Auto,

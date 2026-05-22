@@ -26,6 +26,10 @@ pub fn render_value(value: &[Token]) -> String {
         match t {
             Token::Ident(s) => out.push_str(s),
             Token::Number(n) => out.push_str(&n.to_string()),
+            Token::Percentage(n) => {
+                out.push_str(&n.to_string());
+                out.push('%');
+            }
             Token::String(s) => {
                 out.push('"');
                 out.push_str(s);
@@ -343,13 +347,14 @@ pub fn current_padding(style: &TuiStyle) -> Padding {
 }
 
 pub fn parse_size(value: &[Token]) -> Option<Size> {
-    // `auto` | `<n>` | `<n>fr`
+    // `auto` | `<n>` | `<n>fr` | `<n>%`
     match value {
         [Token::Ident(s)] if s.eq_ignore_ascii_case("auto") => Some(Size::Auto),
         [Token::Number(n)] if *n >= 0 => Some(Size::Fixed(*n as u16)),
         [Token::Number(n), Token::Ident(unit)] if *n >= 0 && unit.eq_ignore_ascii_case("fr") => {
             Some(Size::Flex(*n as u16))
         }
+        [Token::Percentage(n)] if *n >= 0 => Some(Size::Percent(*n as u16)),
         _ => None,
     }
 }

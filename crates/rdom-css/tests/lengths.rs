@@ -33,13 +33,26 @@ fn width_with_em_unit_warns() {
 }
 
 #[test]
-fn width_percentage_warns() {
+fn width_percentage_parses_to_size_percent() {
+    // Pre-0.2.0, `width: 50%` was dropped as an unsupported unit
+    // (one of the documented divergences). Fixed in 0.2.0 M2:
+    // `%` is a *relative* unit (against parent dimensions),
+    // semantically distinct from the pixel/font-size units we
+    // legitimately can't represent on a cell grid. `Size::Percent`
+    // resolves at layout time the same way `Size::Flex` does.
     let r = parse("a { width: 50%; }");
-    assert_eq!(r.warnings.len(), 1);
-    assert!(matches!(
-        &r.warnings[0].kind,
-        WarningKind::InvalidValue { property, .. } if property == "width"
-    ));
+    assert!(
+        r.warnings.is_empty(),
+        "no warning expected; got {:?}",
+        r.warnings
+    );
+    let rule = &r.stylesheet.rules()[0];
+    assert_eq!(
+        rule.style.width,
+        Some(rdom_style::Value::Specified(
+            rdom_style::layout::Size::Percent(50)
+        ))
+    );
 }
 
 #[test]

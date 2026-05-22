@@ -172,6 +172,9 @@ fn walk_for_positioned(dom: &Dom<TuiExt>, id: NodeId, out: &mut Vec<NodeId>) {
 /// Width / height resolve in this order:
 /// - `Size::Fixed(n)` → `n`.
 /// - `Size::Flex(_)` → fills the containing block on that axis.
+/// - `Size::Percent(p)` → `cb_axis * p / 100`. Resolves against the
+///   *containing block* — for absolute/fixed positioning, that's the
+///   nearest positioned ancestor (or the viewport for `fixed`).
 /// - `Size::Auto`:
 ///   - When both edges of the axis are `Cells`, derive from
 ///     `cb_axis - left - right` (or `cb_axis - top - bottom`).
@@ -184,11 +187,13 @@ fn compute_placed_rect(c: &ComputedStyle, cb: LayoutRect) -> LayoutRect {
     let width = match c.width {
         Size::Fixed(n) => n,
         Size::Flex(_) => cb.width,
+        Size::Percent(p) => ((cb.width as u32 * p as u32) / 100).min(u16::MAX as u32) as u16,
         Size::Auto => axis_size_from_edges(c.left, c.right, cb.width, 0),
     };
     let height = match c.height {
         Size::Fixed(n) => n,
         Size::Flex(_) => cb.height,
+        Size::Percent(p) => ((cb.height as u32 * p as u32) / 100).min(u16::MAX as u32) as u16,
         Size::Auto => axis_size_from_edges(c.top, c.bottom, cb.height, 0),
     };
     // M5.3b — absolute element centering via `margin: auto` between
