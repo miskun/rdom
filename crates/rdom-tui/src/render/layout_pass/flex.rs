@@ -136,6 +136,38 @@ pub(super) fn layout_flex_children(
     let direction = parent.direction;
     let gap = parent.gap;
 
+    // ── Parent-child border-collapse inset ─────────────────────────
+    //
+    // Under `border-collapse: collapse`, `compute_content_area_collapsed`
+    // flattens the parent's content area to its outer rect — children's
+    // outer rects then extend into the parent's border ring (so a
+    // bordered child's first cell coincides with the parent's first
+    // border cell, sharing one paint surface — the table-cell model).
+    //
+    // That sharing is only correct when the first/last child ACTUALLY
+    // HAS A BORDER to share. If the first child is content-bearing
+    // (no own border), its content would land on the parent's painted
+    // border row and disappear under the border glyph. Surfaced
+    // visually by the showcase chrome: `<header>` inside an `<app>`
+    // with collapse + own border had its `<h1>` text painted at the
+    // shared border row.
+    //
+    // Per-edge fix: if the first child along the main axis has no
+    // border, push that edge's start back by 1 so the first child's
+    // content area sits below the parent's border row. Same for the
+    // last child along the main axis. Cross-axis insets follow the
+    // same logic. Pre-scan one element child each direction; correct
+    // for the common case (table cells vs. content-bearing chrome
+    // panels) without touching `compute_content_area_collapsed`.
+    let (top_inset, bot_inset, left_inset, right_inset) =
+        collapse_parent_edge_insets(dom, children, parent);
+    let container = LayoutRect::new(
+        container.x + left_inset as i32,
+        container.y + top_inset as i32,
+        container.width.saturating_sub(left_inset + right_inset),
+        container.height.saturating_sub(top_inset + bot_inset),
+    );
+
     // Main-axis budget for distribution (cells available to all
     // children + gaps).
     let main_budget: u16 = match direction {
@@ -388,6 +420,144 @@ pub(super) fn layout_flex_children(
             }
         }
     }
+}
+
+/// Per-edge inset to add back under `border-collapse: collapse` when
+/// the first/last child along the main axis has no own border.
+/// Returns `(top, bottom, left, right)` in cells. All zero unless
+/// parent has both `collapse` and an own border AND a relevant
+/// child lacks a border.
+///
+/// See the call site for full rationale. Short version: the flatten
+/// in `compute_content_area_collapsed` is correct only when the
+/// shared border row is actually shared with a child's own border;
+/// when the child is content-bearing (no border), it would land
+/// on the parent's painted border row.
+fn collapse_parent_edge_insets(
+    dom: &Dom<TuiExt>,
+    children: &[NodeId],
+    parent: &ComputedStyle,
+) -> (u16, u16, u16, u16) {
+    use crate::layout::{Border, BorderCollapse};
+    if parent.border_collapse != BorderCollapse::Collapse {
+        return (0, 0, 0, 0);
+    }
+    let parent_has_top = matches!(
+        parent.border,
+        Border::Top | Border::Single | Border::Rounded
+    );
+    let parent_has_bottom = matches!(
+        parent.border,
+        Border::Bottom | Border::Single | Border::Rounded
+    );
+    let parent_has_left = matches!(
+        parent.border,
+        Border::Left | Border::Single | Border::Rounded
+    );
+    let parent_has_right = matches!(
+        parent.border,
+        Border::Right | Border::Single | Border::Rounded
+    );
+    if !(parent_has_top || parent_has_bottom || parent_has_left || parent_has_right) {
+        return (0, 0, 0, 0);
+    }
+
+    let child_has_border = |id: NodeId, want: Border| -> bool {
+        let b = dom
+            .node(id)
+            .computed()
+            .map(|c| c.border)
+            .unwrap_or(Border::None);
+        match want {
+            Border::Top => matches!(b, Border::Top | Border::Single | Border::Rounded),
+            Border::Bottom => matches!(b, Border::Bottom | Border::Single | Border::Rounded),
+            Border::Left => matches!(b, Border::Left | Border::Single | Border::Rounded),
+            Border::Right => matches!(b, Border::Right | Border::Single | Border::Rounded),
+            _ => false,
+        }
+    };
+
+    // "Content-bearing" means: this child has no element children of
+    // its own. A borderless container with bordered descendants is
+    // transparent for the collapse-sharing rule — the deep bordered
+    // descendants will share with the parent's border through the
+    // intermediate. Only when the chain ends at a content-bearing
+    // leaf (text-only, no element children) does the parent's border
+    // need an inset so the leaf's content doesn't paint at the
+    // shared border row.
+    let is_content_bearing =
+        |id: NodeId| -> bool { super::element_children_of(dom, id).is_empty() };
+
+    let first = *children.first().unwrap();
+    let last = *children.last().unwrap();
+
+    // Decision per edge: inset by 1 iff parent has that edge's
+    // border AND the child whose outer edge shares it is
+    // content-bearing without a matching border of its own.
+    //
+    // Borderless container children are transparent — they don't
+    // need an inset because their bordered grandchildren will share
+    // with parent's border through them. Only content-bearing
+    // leaves trigger the inset.
+    let needs_inset_for = |id: NodeId, want: Border| -> bool {
+        is_content_bearing(id) && !child_has_border(id, want)
+    };
+
+    let (top, bottom, left, right) = match parent.direction {
+        Direction::Column => {
+            // Main axis is vertical. First child shares parent's TOP
+            // edge; last child shares parent's BOTTOM edge. Cross
+            // axis is horizontal — first child also stands in for
+            // left/right sharing checks (in column flex, children
+            // typically span the full cross-axis).
+            let top = if parent_has_top && needs_inset_for(first, Border::Top) {
+                1
+            } else {
+                0
+            };
+            let bottom = if parent_has_bottom && needs_inset_for(last, Border::Bottom) {
+                1
+            } else {
+                0
+            };
+            let left = if parent_has_left && needs_inset_for(first, Border::Left) {
+                1
+            } else {
+                0
+            };
+            let right = if parent_has_right && needs_inset_for(first, Border::Right) {
+                1
+            } else {
+                0
+            };
+            (top, bottom, left, right)
+        }
+        Direction::Row => {
+            // Main axis is horizontal — mirror of the column case.
+            let left = if parent_has_left && needs_inset_for(first, Border::Left) {
+                1
+            } else {
+                0
+            };
+            let right = if parent_has_right && needs_inset_for(last, Border::Right) {
+                1
+            } else {
+                0
+            };
+            let top = if parent_has_top && needs_inset_for(first, Border::Top) {
+                1
+            } else {
+                0
+            };
+            let bottom = if parent_has_bottom && needs_inset_for(first, Border::Bottom) {
+                1
+            } else {
+                0
+            };
+            (top, bottom, left, right)
+        }
+    };
+    (top, bottom, left, right)
 }
 
 /// Compute the cross-axis cell count from the main-axis cell count and
