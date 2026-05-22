@@ -924,8 +924,7 @@ dependencies = [
 name = "rdom-showcase"
 version = "0.1.0"
 dependencies = [
- "rdom-core",
- "rdom-style",
+ "rdom-css",
  "rdom-tui",
 ]
 

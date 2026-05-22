@@ -33,8 +33,7 @@
 //! and wires per-demo stylesheet push/pop via M1's multi-slot
 //! stylesheet API.
 
-use rdom_core::NodeId;
-use rdom_tui::{Stylesheet, TuiDom};
+use rdom_tui::{NodeId, Stylesheet, TuiDom};
 
 use crate::DEMOS;
 
@@ -80,9 +79,16 @@ pub fn build_shell(dom: &mut TuiDom) -> ShellHandles {
     dom.set_attribute(body, "class", "app-body").unwrap();
     dom.append_child(app, body).unwrap();
 
-    // <aside class="sidebar"><nav><ul>… one <li> per demo …</ul></nav></aside>
+    // <aside class="sidebar">
+    //   <h2>Demos</h2>
+    //   <nav><ul>… one <li> per demo …</ul></nav>
+    // </aside>
     let sidebar = dom.create_element("aside");
     dom.set_attribute(sidebar, "class", "sidebar").unwrap();
+    let h2 = dom.create_element("h2");
+    let h2_text = dom.create_text_node("Demos");
+    dom.append_child(h2, h2_text).unwrap();
+    dom.append_child(sidebar, h2).unwrap();
     let nav = dom.create_element("nav");
     let ul = dom.create_element("ul");
     for demo in DEMOS {
@@ -111,69 +117,66 @@ pub fn build_shell(dom: &mut TuiDom) -> ShellHandles {
 /// sidebar width, main-view flex), no demo styles. Demos push
 /// their own sheets on top via M1's multi-slot stylesheet API.
 pub fn base_stylesheet() -> Stylesheet {
-    // CSS-as-strings would let us reuse rdom-css here; for M2 we
-    // build the sheet programmatically to avoid pulling rdom-css
-    // into the showcase's dependency closure for a single shell
-    // sheet. M3 will likely refactor this to a `<style>` tag inside
-    // the shell markup once the showcase grows enough chrome to
-    // warrant it.
-    use rdom_style::Color;
-    use rdom_tui::layout::{Border, Direction, Padding, Size};
-    use rdom_tui::{Stylesheet, TuiStyle};
-
-    Stylesheet::bare()
-        // Outer shell — fills viewport, flex column. `Flex(1)` on both
-        // axes is the rdom idiom for "fill available space" (see
-        // crates/rdom-tui/examples/app_shell.rs).
-        .rule_unchecked(
-            ".app",
-            TuiStyle::new()
-                .direction(Direction::Column)
-                .width(Size::Flex(1))
-                .height(Size::Flex(1)),
-        )
-        // Header: 3-row strip with a border, just enough to host the title.
-        .rule_unchecked(
-            ".app-header",
-            TuiStyle::new()
-                .height(Size::Fixed(3))
-                .border(Border::Single)
-                .border_fg(Color::Rgb(70, 80, 100))
-                .padding(Padding::symmetric(2, 0)),
-        )
-        .rule_unchecked(
-            ".app-header h1",
-            TuiStyle::new().fg(Color::Rgb(200, 220, 255)).bold(true),
-        )
-        // Body row: sidebar + main, takes the rest of the vertical space.
-        .rule_unchecked(
-            ".app-body",
-            TuiStyle::new()
-                .direction(Direction::Row)
-                .height(Size::Flex(1))
-                .width(Size::Flex(1)),
-        )
-        // Sidebar: fixed-width vertical strip with its own border.
-        .rule_unchecked(
-            ".sidebar",
-            TuiStyle::new()
-                .width(Size::Fixed(28))
-                .height(Size::Flex(1))
-                .border(Border::Single)
-                .border_fg(Color::Rgb(70, 80, 100))
-                .padding(Padding::all(1)),
-        )
-        // Main view: takes the rest of the horizontal space.
-        .rule_unchecked(
-            ".main",
-            TuiStyle::new()
-                .width(Size::Flex(1))
-                .height(Size::Flex(1))
-                .border(Border::Single)
-                .border_fg(Color::Rgb(70, 80, 100))
-                .padding(Padding::all(1)),
-        )
+    rdom_css::from_css(BASE_CSS)
 }
+
+/// Chrome stylesheet for the shell. Authored as CSS so it reads
+/// like CSS — the showcase IS the dogfooding fixture, so when a
+/// consumer browses the source they should see the same shape
+/// they'd write themselves.
+///
+/// Borders use `border-collapse: collapse` on the outer `.app` so
+/// adjacent inner borders share cells instead of stacking into
+/// double rules at every junction. The four child boxes
+/// (`.app-header`, `.sidebar`, `.main`, plus `.app-body` as a
+/// row container with no border of its own) line up cleanly.
+const BASE_CSS: &str = r#"
+.app {
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  border: solid;
+  border-color: rgb(70, 80, 100);
+  border-collapse: collapse;
+}
+
+.app-header {
+  height: 3;
+  border: solid;
+  border-color: rgb(70, 80, 100);
+  padding: 0 2;
+}
+.app-header h1 {
+  color: rgb(200, 220, 255);
+  font-weight: bold;
+}
+
+.app-body {
+  flex-direction: row;
+  width: 100%;
+  height: 100%;
+}
+
+.sidebar {
+  width: 28;
+  height: 100%;
+  border: solid;
+  border-color: rgb(70, 80, 100);
+  padding: 1;
+}
+.sidebar h2 {
+  color: rgb(150, 170, 200);
+  font-weight: bold;
+}
+
+.main {
+  width: 100%;
+  height: 100%;
+  border: solid;
+  border-color: rgb(70, 80, 100);
+  padding: 1;
+}
+"#;
 
 #[cfg(test)]
 mod tests {
@@ -213,12 +216,12 @@ mod tests {
         let mut dom: TuiDom = TuiDom::new();
         let handles = build_shell(&mut dom);
 
-        // Walk sidebar → nav → ul → li...
+        // Sidebar children: <h2>Demos</h2>, then <nav>. Skip the h2.
         let nav = dom
             .node(handles.sidebar)
-            .first_element_child()
+            .child_nodes()
+            .find(|n| n.tag_name() == Some("nav"))
             .expect("sidebar has a <nav>");
-        assert_eq!(nav.tag_name(), Some("nav"));
         let ul = nav.first_element_child().expect("nav has a <ul>");
         assert_eq!(ul.tag_name(), Some("ul"));
         let li_count = ul
@@ -226,5 +229,22 @@ mod tests {
             .filter(|n| n.tag_name() == Some("li"))
             .count();
         assert_eq!(li_count, crate::DEMOS.len(), "one <li> per registered demo");
+    }
+
+    #[test]
+    fn sidebar_has_demos_heading() {
+        let mut dom: TuiDom = TuiDom::new();
+        let handles = build_shell(&mut dom);
+
+        let h2 = dom
+            .node(handles.sidebar)
+            .child_nodes()
+            .find(|n| n.tag_name() == Some("h2"))
+            .expect("sidebar has an <h2>");
+        let text = h2
+            .child_nodes()
+            .next()
+            .and_then(|n| n.node_value().map(|s| s.to_string()));
+        assert_eq!(text.as_deref(), Some("Demos"));
     }
 }

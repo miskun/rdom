@@ -52,6 +52,24 @@ fn shell_plus_first_demo_survives_full_paint_pass() {
         2,
         "base sheet + demo sheet → exactly two slots"
     );
+
+    // Explicit ordering check — slot 0 must be the base sheet
+    // (chrome layout), slot 1 must be the demo's sheet (per-demo
+    // styles). M1's cascade order is push-order: later wins
+    // same-specificity contests, so demo styles override chrome.
+    // If a future refactor pushes the demo BEFORE the App is
+    // constructed, the chrome would win and demos couldn't
+    // restyle anything the chrome touched — silently inverted
+    // semantics. This test pins the order.
+    let sheets = app.style_sheets();
+    let base_rule_count = sheets[0].rules().len();
+    let demo_rule_count = sheets[1].rules().len();
+    assert!(
+        base_rule_count >= demo_rule_count,
+        "shell base sheet has more rules than the demo's stylesheet \
+         (base={base_rule_count}, demo={demo_rule_count}); if this \
+         inverts, slot 0 and slot 1 got swapped"
+    );
 }
 
 #[test]

@@ -1,13 +1,32 @@
 //! Hello World — the simplest possible demo. A `<div>` with text
 //! inside. Acts as the M2 scaffold's "is the shell actually
 //! working" canary.
+//!
+//! Authoring pattern (followed by every demo): one `const MARKUP`,
+//! one `const CSS`. `build` constructs the DOM matching MARKUP;
+//! `stylesheet` parses CSS via `rdom_css::from_css`; `source`
+//! exposes both strings to the Source view (M7). Single source of
+//! truth per demo — no drift between the runtime tree and what the
+//! Source tab shows.
 
-use rdom_core::NodeId;
-use rdom_style::Color;
-use rdom_tui::layout::Padding;
-use rdom_tui::{Stylesheet, TuiDom, TuiStyle};
+use rdom_tui::{NodeId, Stylesheet, TuiDom};
 
 use crate::{Category, Demo, Source};
+
+const MARKUP: &str = r#"<div class="hello">
+  <h1>Hello, rdom!</h1>
+  <p>If you can read this in a terminal, the showcase shell is mounted.</p>
+</div>"#;
+
+const CSS: &str = r#"
+.hello {
+  padding: 1;
+}
+.hello h1 {
+  color: rgb(180, 220, 255);
+  font-weight: bold;
+}
+"#;
 
 pub struct HelloWorld;
 
@@ -40,22 +59,13 @@ impl Demo for HelloWorld {
     }
 
     fn stylesheet(&self) -> Stylesheet {
-        Stylesheet::bare()
-            .rule_unchecked(".hello", TuiStyle::new().padding(Padding::all(1)))
-            .rule_unchecked(
-                "h1",
-                TuiStyle::new().fg(Color::Rgb(180, 220, 255)).bold(true),
-            )
+        rdom_css::from_css(CSS)
     }
 
     fn source(&self) -> Source {
         Source {
-            markup: r#"<div class="hello">
-  <h1>Hello, rdom!</h1>
-  <p>If you can read this in a terminal, the showcase shell is mounted.</p>
-</div>"#,
-            css: r#".hello { padding: 1; }
-h1 { color: rgb(180, 220, 255); font-weight: bold; }"#,
+            markup: MARKUP,
+            css: CSS,
         }
     }
 }

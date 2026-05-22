@@ -1,8 +1,7 @@
 //! The `Demo` trait — every entry in the showcase registry
 //! implements this. See [`crate::registry::DEMOS`] for the table.
 
-use rdom_core::NodeId;
-use rdom_tui::{Stylesheet, TuiDom};
+use rdom_tui::{NodeId, Stylesheet, TuiDom};
 
 /// One showcase entry. Implementations describe a small, focused
 /// example of an rdom primitive: a button, a form, a flex layout,

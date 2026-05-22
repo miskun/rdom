@@ -12,6 +12,9 @@ name = "rdom-showcase"
 path = "src/main.rs"
 
 [dependencies]
-rdom-core = { path = "../rdom-core", version = "0.1.0" }
-rdom-style = { path = "../rdom-style", version = "0.1.0" }
+# `rdom-tui` re-exports the public surface of `rdom-core` and
+# `rdom-style`, so depend only on the renderer + the CSS parser.
+# This matches the consumer-facing dependency shape we want demos
+# to teach.
 rdom-tui = { path = "../rdom-tui", version = "0.1.0" }
+rdom-css = { path = "../rdom-css", version = "0.1.0" }
