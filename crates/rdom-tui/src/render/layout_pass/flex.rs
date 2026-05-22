@@ -264,7 +264,6 @@ pub(super) fn layout_flex_children(
             max,
             main_start_margin: main_start_m,
             main_end_margin: main_end_m,
-            has_border: c.border != crate::layout::Border::None,
         });
     }
 
@@ -279,10 +278,21 @@ pub(super) fn layout_flex_children(
     // the saved cells appear as empty space at the parent's right
     // / bottom edge (the headline `border-collapse` bug from M5
     // gate review).
+    // Per-edge effective border check (transparent intermediate
+    // propagation) — adjacent siblings overlap when both have a
+    // border on the shared edge, either directly or via
+    // borderless container children that propagate the sharing
+    // to bordered descendants.
+    let (edge_i, edge_next) = match direction {
+        Direction::Column => (CollapseEdge::Bottom, CollapseEdge::Top),
+        Direction::Row => (CollapseEdge::Right, CollapseEdge::Left),
+    };
     let mut overlap_savings: u16 = 0;
     if parent.border_collapse == crate::layout::BorderCollapse::Collapse {
         for i in 0..child_info.len().saturating_sub(1) {
-            if child_info[i].has_border && child_info[i + 1].has_border {
+            if has_effective_border_on_edge(dom, child_info[i].id, edge_i)
+                && has_effective_border_on_edge(dom, child_info[i + 1].id, edge_next)
+            {
                 overlap_savings = overlap_savings.saturating_add(1);
             }
         }
@@ -408,16 +418,133 @@ pub(super) fn layout_flex_children(
         main_cursor = main_cursor.saturating_add(main_end_cells as i32);
         if i + 1 < child_list.len() {
             main_cursor = main_cursor.saturating_add(gap as i32);
-            // M5.5b — sibling border overlap under `border-collapse:
-            // collapse`. When the parent has collapse active AND both
-            // this child and the next have borders, they share one
+            // M5.5b + Finding 2 — sibling border overlap under
+            // `border-collapse: collapse`. When the parent has
+            // collapse active AND both this child and the next
+            // have a border on the shared edge (directly or via
+            // transparent intermediate containers), they share one
             // cell at the junction: pull the cursor back by 1.
             if parent.border_collapse == crate::layout::BorderCollapse::Collapse
-                && child_info[i].has_border
-                && child_info[i + 1].has_border
+                && has_effective_border_on_edge(dom, child_info[i].id, edge_i)
+                && has_effective_border_on_edge(dom, child_info[i + 1].id, edge_next)
             {
                 main_cursor = main_cursor.saturating_sub(1);
             }
+        }
+    }
+}
+
+/// Edge tag used for transparent-intermediate border-collapse
+/// propagation. Independent of the `Border` enum so we can talk
+/// about a single edge without conflating it with the four
+/// "single-edge-only" `Border` variants.
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub(super) enum CollapseEdge {
+    Top,
+    Bottom,
+    Left,
+    Right,
+}
+
+/// Does `id` have a border on `edge` for `border-collapse`
+/// sharing purposes — directly, OR via transparent borderless
+/// container intermediates that propagate the sharing through
+/// to bordered descendants?
+///
+/// Closes the gap surfaced by the M2 visual review: a layout
+/// like `<app border collapse> > <header border> + <body no-border> > <sidebar border> + <main border>`
+/// should share `<header>`'s bottom with `<sidebar>` / `<main>`'s
+/// tops through the transparent `<body>`. Same shape as the
+/// `collapse_parent_edge_insets` content-inset logic, applied to
+/// the sibling-overlap axis.
+///
+/// Recursion direction:
+///
+/// - Column-direction container: only first column-child touches
+///   parent's top edge; only last touches parent's bottom edge;
+///   any child can touch left or right (children span the cross
+///   axis).
+/// - Row-direction container: mirror of the column case.
+pub(super) fn has_effective_border_on_edge(
+    dom: &Dom<TuiExt>,
+    id: NodeId,
+    edge: CollapseEdge,
+) -> bool {
+    use crate::layout::Border;
+    let computed = dom
+        .node(id)
+        .computed()
+        .cloned()
+        .unwrap_or_else(ComputedStyle::initial);
+
+    let own_has_edge = match edge {
+        CollapseEdge::Top => {
+            matches!(
+                computed.border,
+                Border::Top | Border::Single | Border::Rounded
+            )
+        }
+        CollapseEdge::Bottom => matches!(
+            computed.border,
+            Border::Bottom | Border::Single | Border::Rounded
+        ),
+        CollapseEdge::Left => {
+            matches!(
+                computed.border,
+                Border::Left | Border::Single | Border::Rounded
+            )
+        }
+        CollapseEdge::Right => matches!(
+            computed.border,
+            Border::Right | Border::Single | Border::Rounded
+        ),
+    };
+    if own_has_edge {
+        return true;
+    }
+    if computed.border != Border::None {
+        // Has some border but not the queried edge — opaque on
+        // this edge. Don't look through.
+        return false;
+    }
+
+    // Borderless — transparent. Look through to children.
+    let children: Vec<NodeId> = super::element_children_of(dom, id)
+        .into_iter()
+        .filter(|&c| {
+            let cc = dom.node(c).computed();
+            cc.is_none_or(|s| {
+                s.display != crate::layout::Display::None
+                    && !matches!(
+                        s.position,
+                        crate::layout::Position::Absolute | crate::layout::Position::Fixed
+                    )
+            })
+        })
+        .collect();
+    if children.is_empty() {
+        return false;
+    }
+
+    let dir = computed.direction;
+    match (dir, edge) {
+        (Direction::Column, CollapseEdge::Top) => {
+            has_effective_border_on_edge(dom, children[0], CollapseEdge::Top)
+        }
+        (Direction::Column, CollapseEdge::Bottom) => {
+            has_effective_border_on_edge(dom, *children.last().unwrap(), CollapseEdge::Bottom)
+        }
+        (Direction::Column, CollapseEdge::Left | CollapseEdge::Right) => children
+            .iter()
+            .any(|&c| has_effective_border_on_edge(dom, c, edge)),
+        (Direction::Row, CollapseEdge::Top | CollapseEdge::Bottom) => children
+            .iter()
+            .any(|&c| has_effective_border_on_edge(dom, c, edge)),
+        (Direction::Row, CollapseEdge::Left) => {
+            has_effective_border_on_edge(dom, children[0], CollapseEdge::Left)
+        }
+        (Direction::Row, CollapseEdge::Right) => {
+            has_effective_border_on_edge(dom, *children.last().unwrap(), CollapseEdge::Right)
         }
     }
 }
@@ -462,70 +589,37 @@ fn collapse_parent_edge_insets(
         return (0, 0, 0, 0);
     }
 
-    let child_has_border = |id: NodeId, want: Border| -> bool {
-        let b = dom
-            .node(id)
-            .computed()
-            .map(|c| c.border)
-            .unwrap_or(Border::None);
-        match want {
-            Border::Top => matches!(b, Border::Top | Border::Single | Border::Rounded),
-            Border::Bottom => matches!(b, Border::Bottom | Border::Single | Border::Rounded),
-            Border::Left => matches!(b, Border::Left | Border::Single | Border::Rounded),
-            Border::Right => matches!(b, Border::Right | Border::Single | Border::Rounded),
-            _ => false,
-        }
-    };
-
-    // "Content-bearing" means: this child has no element children of
-    // its own. A borderless container with bordered descendants is
-    // transparent for the collapse-sharing rule — the deep bordered
-    // descendants will share with the parent's border through the
-    // intermediate. Only when the chain ends at a content-bearing
-    // leaf (text-only, no element children) does the parent's border
-    // need an inset so the leaf's content doesn't paint at the
-    // shared border row.
-    let is_content_bearing =
-        |id: NodeId| -> bool { super::element_children_of(dom, id).is_empty() };
-
+    // Per-edge inset: only inset when parent has that edge AND
+    // the child whose outer edge shares it lacks an effective
+    // border on the same edge (direct OR via transparent
+    // intermediate containers — same helper used by the sibling-
+    // overlap path so both axes treat "transparency" consistently).
     let first = *children.first().unwrap();
     let last = *children.last().unwrap();
-
-    // Decision per edge: inset by 1 iff parent has that edge's
-    // border AND the child whose outer edge shares it is
-    // content-bearing without a matching border of its own.
-    //
-    // Borderless container children are transparent — they don't
-    // need an inset because their bordered grandchildren will share
-    // with parent's border through them. Only content-bearing
-    // leaves trigger the inset.
-    let needs_inset_for = |id: NodeId, want: Border| -> bool {
-        is_content_bearing(id) && !child_has_border(id, want)
-    };
+    let needs_inset =
+        |id: NodeId, edge: CollapseEdge| -> bool { !has_effective_border_on_edge(dom, id, edge) };
 
     let (top, bottom, left, right) = match parent.direction {
         Direction::Column => {
-            // Main axis is vertical. First child shares parent's TOP
-            // edge; last child shares parent's BOTTOM edge. Cross
-            // axis is horizontal — first child also stands in for
-            // left/right sharing checks (in column flex, children
-            // typically span the full cross-axis).
-            let top = if parent_has_top && needs_inset_for(first, Border::Top) {
+            // Main axis vertical. First column-child touches
+            // parent's top; last touches parent's bottom. Cross
+            // axis (left/right) — first child stands in.
+            let top = if parent_has_top && needs_inset(first, CollapseEdge::Top) {
                 1
             } else {
                 0
             };
-            let bottom = if parent_has_bottom && needs_inset_for(last, Border::Bottom) {
+            let bottom = if parent_has_bottom && needs_inset(last, CollapseEdge::Bottom) {
                 1
             } else {
                 0
             };
-            let left = if parent_has_left && needs_inset_for(first, Border::Left) {
+            let left = if parent_has_left && needs_inset(first, CollapseEdge::Left) {
                 1
             } else {
                 0
             };
-            let right = if parent_has_right && needs_inset_for(first, Border::Right) {
+            let right = if parent_has_right && needs_inset(first, CollapseEdge::Right) {
                 1
             } else {
                 0
@@ -533,23 +627,23 @@ fn collapse_parent_edge_insets(
             (top, bottom, left, right)
         }
         Direction::Row => {
-            // Main axis is horizontal — mirror of the column case.
-            let left = if parent_has_left && needs_inset_for(first, Border::Left) {
+            // Mirror of column.
+            let left = if parent_has_left && needs_inset(first, CollapseEdge::Left) {
                 1
             } else {
                 0
             };
-            let right = if parent_has_right && needs_inset_for(last, Border::Right) {
+            let right = if parent_has_right && needs_inset(last, CollapseEdge::Right) {
                 1
             } else {
                 0
             };
-            let top = if parent_has_top && needs_inset_for(first, Border::Top) {
+            let top = if parent_has_top && needs_inset(first, CollapseEdge::Top) {
                 1
             } else {
                 0
             };
-            let bottom = if parent_has_bottom && needs_inset_for(first, Border::Bottom) {
+            let bottom = if parent_has_bottom && needs_inset(first, CollapseEdge::Bottom) {
                 1
             } else {
                 0
@@ -588,10 +682,6 @@ struct ChildMain {
     max: Option<u16>,
     main_start_margin: crate::layout::MarginValue,
     main_end_margin: crate::layout::MarginValue,
-    /// `true` when the child has a non-`None` `border` (any side).
-    /// Used by the `border-collapse: collapse` sibling-overlap rule
-    /// (M5.5b) — adjacent border-bearing siblings share one cell.
-    has_border: bool,
 }
 
 enum MainNatural {
