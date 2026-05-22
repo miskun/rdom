@@ -242,6 +242,14 @@ fn apply_style(
         parent.gap,
         0,
     );
+    apply_u16(
+        &mut working.flex_shrink,
+        &style.flex_shrink,
+        style.important.contains(ImportantMask::FLEX_SHRINK),
+        important_pass,
+        parent.flex_shrink,
+        1, // CSS default
+    );
     apply_border(
         &mut working.border,
         &style.border,

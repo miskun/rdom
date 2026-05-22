@@ -325,7 +325,7 @@ pub(super) fn layout_flex_children(
     // `31 / 2 = 15`, summing to 30 and leaving 1 cell unallocated
     // as visible empty space — the bug surfaced by the
     // `border_collapse_demo` at odd terminal sizes.
-    let final_main: Vec<u16> = {
+    let mut final_main: Vec<u16> = {
         let mut accumulated_weight: u32 = 0;
         let mut accumulated_flex_size: u32 = 0;
         child_info
@@ -348,6 +348,58 @@ pub(super) fn layout_flex_children(
             })
             .collect()
     };
+
+    // ── flex-shrink ──────────────────────────────────────────────
+    //
+    // When the sum of children's declared sizes (+ gaps − overlap)
+    // exceeds the main-axis budget, CSS distributes the overflow
+    // proportional to `flex_shrink * basis` across shrinkable
+    // children. Default `flex_shrink: 1` makes overflow gracefully
+    // shrink-to-fit instead of clipping past the parent's edge —
+    // the behavior every CSS author expects from
+    // `height: 100% on a flex child` (the showcase chrome case).
+    //
+    // Bresenham-style accumulation keeps the per-child integer
+    // shrink amounts exact (sum-of-shares matches the overflow
+    // total, no off-by-one at the last child).
+    let net_budget = (main_budget as i32) - (gap_total as i32) + (overlap_savings as i32);
+    let total: i32 = final_main.iter().map(|&n| n as i32).sum();
+    if total > net_budget && net_budget > 0 {
+        let overflow = (total - net_budget) as u32;
+        let shrink_of = |ci: &ChildMain| -> u32 {
+            dom.node(ci.id)
+                .computed()
+                .map(|c| c.flex_shrink as u32)
+                .unwrap_or(1)
+        };
+        let total_shrink_basis: u32 = child_info
+            .iter()
+            .zip(final_main.iter())
+            .map(|(ci, &size)| (size as u32) * shrink_of(ci))
+            .sum();
+        if let Some(divisor) = std::num::NonZeroU32::new(total_shrink_basis) {
+            let mut accumulated_basis: u32 = 0;
+            let mut accumulated_shrink: u32 = 0;
+            for (i, ci) in child_info.iter().enumerate() {
+                let shrink = shrink_of(ci);
+                if shrink == 0 {
+                    continue;
+                }
+                accumulated_basis += (final_main[i] as u32) * shrink;
+                let target_total_shrink = (accumulated_basis * overflow) / divisor.get();
+                let my_shrink = target_total_shrink.saturating_sub(accumulated_shrink) as u16;
+                accumulated_shrink = target_total_shrink;
+                let new_size = final_main[i].saturating_sub(my_shrink);
+                // Honor min clamp — child can't shrink below its
+                // `min-width` / `min-height` (auto resolves to
+                // intrinsic min-content per M5 pre-prep decision 4).
+                final_main[i] = match ci.min {
+                    Some(m) => new_size.max(m),
+                    None => new_size,
+                };
+            }
+        }
+    }
 
     // Position each child along main axis, scrolling by parent's
     // scroll offset.

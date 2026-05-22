@@ -2071,12 +2071,21 @@ fn layout_records_scroll_content_height_for_scrollable_column() {
                 .height(crate::layout::Size::Flex(1))
                 .overflow(crate::layout::Overflow::Scroll),
         )
-        .rule_unchecked("row", TuiStyle::new().height(crate::layout::Size::Fixed(1)));
+        .rule_unchecked(
+            "row",
+            TuiStyle::new()
+                .height(crate::layout::Size::Fixed(1))
+                .flex_shrink(0),
+        );
     cascade(&mut dom, &sheet);
     dom.layout_dom(Rect::new(0, 0, 80, 24));
 
     let ext = dom.node(list).ext().unwrap();
     // 50 rows × 1 cell tall, no gap → 50 cells of content height.
+    // `flex-shrink: 0` opts each row out of the default CSS shrink
+    // behavior so the scroll-content overflow is what gets recorded
+    // (scrollable container with non-shrinking children — the
+    // canonical use case for `overflow: scroll`).
     assert_eq!(ext.scroll_content_height, 50);
     // No horizontal overflow; child rows stretch to fill cross-axis
     // (less 1 cell of vertical scrollbar gutter). Whatever the

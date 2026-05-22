@@ -108,6 +108,7 @@ const PROPERTY_NAMES: &[&str] = &[
     "gap",
     // Flex shorthand (sets width and height in one declaration).
     "flex",
+    "flex-shrink",
     // Padding (shorthand + longhands)
     "padding",
     "padding-top",
@@ -182,7 +183,8 @@ pub fn property_mask(name: &str) -> Option<crate::ImportantMask> {
         "max-height" => ImportantMask::MAX_HEIGHT,
         "aspect-ratio" => ImportantMask::ASPECT_RATIO,
         "gap" => ImportantMask::GAP,
-        "flex" => ImportantMask::WIDTH | ImportantMask::HEIGHT,
+        "flex" => ImportantMask::WIDTH | ImportantMask::HEIGHT | ImportantMask::FLEX_SHRINK,
+        "flex-shrink" => ImportantMask::FLEX_SHRINK,
         "padding" | "padding-top" | "padding-right" | "padding-bottom" | "padding-left" => {
             ImportantMask::PADDING
         }
@@ -243,7 +245,12 @@ pub fn remove(name: &str, style: &mut TuiStyle) -> bool {
         "max-height" => style.max_height.take().is_some(),
         "aspect-ratio" => style.aspect_ratio.take().is_some(),
         "gap" => style.gap.take().is_some(),
-        "flex" => style.width.take().is_some() | style.height.take().is_some(),
+        "flex" => {
+            style.width.take().is_some()
+                | style.height.take().is_some()
+                | style.flex_shrink.take().is_some()
+        }
+        "flex-shrink" => style.flex_shrink.take().is_some(),
         "padding" | "padding-top" | "padding-right" | "padding-bottom" | "padding-left" => {
             // Per-side longhands don't have separate storage — the
             // shorthand owns all four cells. Removing any longhand
@@ -451,15 +458,25 @@ pub fn set_from_tokens(
             style.gap = Some(Value::Specified(n));
         }),
 
-        // Flex shorthand — sets BOTH `width` and `height` so the
-        // child sizes correctly in row OR column flex parents.
-        // Cross-axis `Size::Flex` reads as "stretch to container"
-        // in the layout pass, matching CSS default
-        // `align-items: stretch`. See `parse_flex_shorthand`'s
-        // doc for value-shape support.
+        // Flex shorthand — sets `width` + `height` AND `flex-shrink`.
+        // Per CSS spec: `flex: <n>` ≡ `<n> 1 0` (grow=n, shrink=1,
+        // basis=0); `flex: none` ≡ `0 0 auto` (no grow, NO shrink,
+        // basis=auto). Cross-axis `Size::Flex` reads as "stretch to
+        // container" in the layout pass, matching CSS default
+        // `align-items: stretch`.
         "flex" => parse_flex_shorthand(value).map(|s| {
             style.width = Some(Value::Specified(s));
             style.height = Some(Value::Specified(s));
+            // `flex: none` ⇒ Size::Auto with flex_shrink=0. All
+            // other shapes use the CSS-default shrink=1.
+            let shrink = match s {
+                Size::Auto => 0,
+                _ => 1,
+            };
+            style.flex_shrink = Some(Value::Specified(shrink));
+        }),
+        "flex-shrink" => parse_unsigned(value).map(|n| {
+            style.flex_shrink = Some(Value::Specified(n));
         }),
 
         // Padding shorthand + longhands
@@ -733,6 +750,11 @@ pub fn serialize(name: &str, style: &TuiStyle) -> Option<String> {
             },
             _ => None,
         },
+        "flex-shrink" => style
+            .flex_shrink
+            .as_ref()
+            .and_then(specified)
+            .map(|n| n.to_string()),
 
         // Layout — sizing
         "width" => style.width.as_ref().and_then(specified).map(serialize_size),
@@ -1145,6 +1167,7 @@ mod tests {
             ("aspect-ratio", "16/9"),
             ("gap", "2"),
             ("flex", "1"),
+            ("flex-shrink", "1"),
             ("padding", "1 2 3 4"),
             ("padding-top", "5"),
             ("padding-right", "6"),

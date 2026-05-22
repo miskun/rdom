@@ -41,6 +41,7 @@ bitflags_like! {
         WHITE_SPACE = 1 << 21;
         USER_SELECT = 1 << 22;
         OVERFLOW_Y  = 1 << 23;
+        FLEX_SHRINK = 1 << 24;
     }
 }
 
@@ -70,5 +71,6 @@ pub const LAYOUT_MASK: PropMask = PropMask(
         | PropMask::OVERFLOW_X.bits()
         | PropMask::OVERFLOW_Y.bits()
         | PropMask::DISPLAY.bits()
-        | PropMask::WHITE_SPACE.bits(),
+        | PropMask::WHITE_SPACE.bits()
+        | PropMask::FLEX_SHRINK.bits(),
 );

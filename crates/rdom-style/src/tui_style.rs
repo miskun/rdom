@@ -77,6 +77,7 @@ bitflags_like! {
         BORDER_COLLAPSE = 1 << 35;
         CARET_COLOR = 1 << 36;
         CARET_TEXT_COLOR = 1 << 37;
+        FLEX_SHRINK = 1 << 38;
     }
 }
 
@@ -121,6 +122,12 @@ pub struct TuiStyle {
     pub padding: Option<Value<Padding>>,
     pub margin: Option<Value<crate::layout::Margin>>,
     pub gap: Option<Value<u16>>,
+    /// CSS `flex-shrink`. Default `1` per CSS spec — when total
+    /// declared flex-item sizes exceed the parent's main axis,
+    /// items shrink proportional to `flex_shrink * basis`. `0`
+    /// opts out of shrinking (the item keeps its declared size
+    /// and overflows). Larger values shrink more aggressively.
+    pub flex_shrink: Option<Value<u16>>,
     pub border: Option<Value<Border>>,
     /// `border-collapse: separate | collapse`. CSS-faithful name but
     /// rdom extends the property's scope from `<table>` only to any
@@ -330,6 +337,13 @@ impl TuiStyle {
         self
     }
     setter!(gap, gap, gap_important, GAP, u16);
+    setter!(
+        flex_shrink,
+        flex_shrink,
+        flex_shrink_important,
+        FLEX_SHRINK,
+        u16
+    );
     setter!(border, border, border_important, BORDER, Border);
     /// `.collapse_borders()` — sets `border-collapse: collapse` on
     /// this element. Convenience shortcut over the verbose
@@ -786,6 +800,7 @@ mod tests {
             .padding_important(Padding::all(1))
             .margin_important(crate::layout::Margin::all_cells(1))
             .gap_important(1)
+            .flex_shrink_important(1)
             .border_important(Border::Single)
             .border_collapse_important(crate::layout::BorderCollapse::Collapse)
             .direction_important(Direction::Row)
