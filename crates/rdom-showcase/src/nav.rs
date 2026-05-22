@@ -43,11 +43,21 @@ pub struct ShowcaseState {
 /// The cascade picks up the new subtree on the next paint —
 /// `MutationObserver` records flow through, `DirtyTracker` marks
 /// the new root.
+///
+/// **Infallibility.** Both DOM mutations here are infallible by
+/// construction: `main_id` came from [`crate::build_shell`] and is
+/// kept alive for the App's lifetime, and `demo_root` was created
+/// one line earlier and is therefore not currently parented.
+/// `expect()` is the correct error discipline — if either call
+/// errored, the showcase's invariants are broken at the substrate
+/// level and continuing would produce an inconsistent DOM (empty
+/// `<main>` with `current_idx` pointing at a demo that's not
+/// there). Panic is the safer outcome.
 pub fn mount_demo(state: &mut ShowcaseState, dom: &mut TuiDom, demo_idx: usize) {
     if state.current_idx == demo_idx {
         return;
     }
-    debug_assert!(
+    assert!(
         demo_idx < DEMOS.len(),
         "mount_demo: idx {demo_idx} out of range (have {} demos)",
         DEMOS.len()
@@ -56,9 +66,11 @@ pub fn mount_demo(state: &mut ShowcaseState, dom: &mut TuiDom, demo_idx: usize) 
     // The DOM's `clear_children` fires a `ChildListChanged` record
     // with every detached child + runs the purge step from
     // `rdom-core::tree::detach_from_parent`.
-    let _ = dom.clear_children(state.main_id);
+    dom.clear_children(state.main_id)
+        .expect("main_id from build_shell stays valid for the App's lifetime");
     let demo_root = DEMOS[demo_idx].build(dom);
-    dom.append_child(state.main_id, demo_root).unwrap();
+    dom.append_child(state.main_id, demo_root)
+        .expect("demo_root was just created and has no parent");
     state.current_idx = demo_idx;
 }
 
@@ -73,10 +85,7 @@ pub fn wire_sidebar_click(dom: &mut TuiDom, sidebar: NodeId, state: Rc<RefCell<S
         let Some(target) = ctx.event.target else {
             return;
         };
-        let Some(slug) = find_demo_slug_ancestor(ctx.dom, target) else {
-            return;
-        };
-        let Some(idx) = DEMOS.iter().position(|d| d.slug() == slug) else {
+        let Some(idx) = find_demo_idx_from_target(ctx.dom, target) else {
             return;
         };
         mount_demo(&mut state.borrow_mut(), ctx.dom, idx);
@@ -84,16 +93,29 @@ pub fn wire_sidebar_click(dom: &mut TuiDom, sidebar: NodeId, state: Rc<RefCell<S
     .expect("sidebar is a valid node");
 }
 
-/// Walk up from `start` looking for a `data-demo-slug` attribute.
-/// Returns the slug as an owned `String` (caller compares against
-/// `DEMOS`).
-fn find_demo_slug_ancestor(dom: &TuiDom, start: NodeId) -> Option<String> {
+/// Walk up from `start` looking for an `<li>` element carrying
+/// `data-demo-slug`. Returns the matching demo's index in
+/// [`DEMOS`], or `None` if no such ancestor exists.
+///
+/// **Why pinned to `<li>`:** the contract is "demo activation is
+/// triggered only by interacting with a demo's `<li>` row in the
+/// sidebar." If a `data-demo-slug` somehow ended up on a different
+/// element (e.g. a future `<details>` with a slug attribute would
+/// fire both a category toggle AND a demo swap on every header
+/// click — silent footgun), the ancestor walk would still hit it
+/// and trigger a swap. Restricting the match to `<li>` makes the
+/// contract a tag-and-attribute pair rather than just an attribute.
+fn find_demo_idx_from_target(dom: &TuiDom, start: NodeId) -> Option<usize> {
     let mut cur = Some(start);
     while let Some(id) = cur {
-        if let Some(slug) = dom.node(id).get_attribute("data-demo-slug") {
-            return Some(slug.to_string());
+        let node = dom.node(id);
+        if node.tag_name() == Some("li")
+            && let Some(slug) = node.get_attribute("data-demo-slug")
+            && let Some(idx) = DEMOS.iter().position(|d| d.slug() == slug)
+        {
+            return Some(idx);
         }
-        cur = dom.node(id).parent_node().map(|p| p.id());
+        cur = node.parent_node().map(|p| p.id());
     }
     None
 }
@@ -109,15 +131,25 @@ fn find_demo_slug_ancestor(dom: &TuiDom, start: NodeId) -> Option<String> {
 /// Doesn't fight the runtime's `Tab` / `Shift+Tab` traversal —
 /// that already handles moving focus between focusable elements
 /// (the `<li>`s carry `tabindex="0"` so they participate).
+///
+/// **Known gap (M7 polish):** ArrowDown / ArrowUp on a focused
+/// `<summary>` (category header) is a no-op — focus stays where
+/// it is. ARIA authoring practice would say ArrowDown from a
+/// category `<summary>` should descend into that category's
+/// first `<li>`, and ArrowUp from the first `<li>` should rise
+/// to its parent `<summary>`. Not wired because (a) the `<li>`s
+/// are reachable via Tab regardless, (b) the right shape needs
+/// real `aria-expanded` / `aria-tree` semantics that haven't
+/// landed yet. Defer to M7 (showcase polish).
 pub fn wire_sidebar_keys(dom: &mut TuiDom, sidebar: NodeId, state: Rc<RefCell<ShowcaseState>>) {
     dom.add_event_listener(sidebar, "keydown", ListenerOptions::default(), move |ctx| {
         let Some(focused) = ctx.dom.focused() else {
             return;
         };
         // Only act when focus is on a demo `<li>`.
-        if find_demo_slug_ancestor(ctx.dom, focused).is_none() {
+        let Some(focused_idx) = find_demo_idx_from_target(ctx.dom, focused) else {
             return;
-        }
+        };
         // Read the key from the event detail (set by the
         // runtime's keyboard router).
         let key = ctx
@@ -140,12 +172,8 @@ pub fn wire_sidebar_keys(dom: &mut TuiDom, sidebar: NodeId, state: Rc<RefCell<Sh
                 }
             }
             "Enter" | " " => {
-                if let Some(slug) = find_demo_slug_ancestor(ctx.dom, focused)
-                    && let Some(idx) = DEMOS.iter().position(|d| d.slug() == slug)
-                {
-                    mount_demo(&mut state.borrow_mut(), ctx.dom, idx);
-                    ctx.event.prevent_default();
-                }
+                mount_demo(&mut state.borrow_mut(), ctx.dom, focused_idx);
+                ctx.event.prevent_default();
             }
             _ => {}
         }
@@ -162,6 +190,14 @@ enum Direction {
 /// Collect every `<li data-demo-slug>` under `sidebar` in document
 /// order, find `current`'s position, return the neighbor in
 /// `direction`. Wraps.
+///
+/// Cost: O(sidebar subtree size) per keystroke — we re-walk the
+/// sidebar on every arrow because the tree can mutate (collapsing
+/// a `<details>` category, dynamically adding demos at runtime).
+/// At the showcase's scale (~tens of demos, two-level tree) this
+/// is unmeasurable; if we ever ship hundreds of demos, cache the
+/// list and invalidate on a `MutationObserver` listening for
+/// `ChildListChanged` under the sidebar.
 fn next_demo_li(
     dom: &TuiDom,
     current: NodeId,

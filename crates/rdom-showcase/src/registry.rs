@@ -43,4 +43,46 @@ mod tests {
         assert_eq!(first.slug(), "layout/hello-world");
         assert_eq!(first.title(), "Hello World");
     }
+
+    #[test]
+    fn every_demo_stylesheet_uses_only_class_scoped_selectors() {
+        // M3 architectural pin: per-demo stylesheets are pre-pushed
+        // onto the App at startup. Every demo's sheet stays loaded
+        // even when its subtree isn't mounted. This works only as
+        // long as each demo's CSS uses class-scoped selectors —
+        // if a demo ships a bare `div { ... }` rule, that rule
+        // bleeds onto every OTHER demo's subtree.
+        //
+        // The convention is enforced here, not in the cascade: a
+        // selector contains at least one `.` class selector
+        // somewhere in its text. Combinator forms like `.x > .y`,
+        // `.x .y`, `.x.y`, `.x:hover` all pass; bare `div`,
+        // `:root`, `body` all fail.
+        //
+        // If a future demo legitimately needs to restyle a chrome
+        // rule (e.g. override `<main>`'s padding), the right fix
+        // is a substrate push/pop API for event handlers — see
+        // SHOWCASE-EVT-1 in TECH_DEBT.md — not weakening this
+        // invariant.
+        // Parse the demo's OWN css text via `rdom_css::parse` —
+        // bypasses the UA-merge that `Demo::stylesheet()` performs
+        // via `rdom_css::from_css`. We only want to check the
+        // author rules, not the UA defaults bundled in.
+        for demo in DEMOS {
+            let css = demo.source().css;
+            let parsed = rdom_css::parse(css);
+            for rule in parsed.stylesheet.rules() {
+                assert!(
+                    rule.source_text.contains('.'),
+                    "demo {:?} stylesheet rule {:?} has no class selector — \
+                     every per-demo rule must be class-scoped (see \
+                     SHOWCASE-EVT-1 in TECH_DEBT.md). If you need to \
+                     restyle a chrome element, file a substrate gap, \
+                     don't ship an unscoped selector.",
+                    demo.slug(),
+                    rule.source_text,
+                );
+            }
+        }
+    }
 }

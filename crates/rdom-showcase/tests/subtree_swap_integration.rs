@@ -22,8 +22,15 @@
 //! drifted away from the substrate contract — a substrate fix,
 //! not a showcase fix, is the answer.
 
-use rdom_showcase::{ShowcaseState, build_shell, mount_demo};
-use rdom_tui::{Position, Selection, TuiDom};
+use std::cell::RefCell;
+use std::rc::Rc;
+
+use rdom_showcase::{
+    DEMOS, ShowcaseState, build_shell, mount_demo, wire_sidebar_click, wire_sidebar_keys,
+};
+use rdom_tui::{
+    Event, EventDetail, KeyboardDetail, KeyboardModifiers, NodeId, Position, Selection, TuiDom,
+};
 
 /// Build shell + mount demo 0, returning the populated state +
 /// `<main>` handle. Common setup across the tests below.
@@ -188,13 +195,14 @@ fn swap_renders_clean_at_full_viewport() {
     // After a swap, the renderer must successfully paint the new
     // subtree under the full chrome — no panics from stale
     // cascade / dirty-tracker state pointing at detached nodes.
+    // Paints between mounts to exercise dirty-tracker through
+    // interleaved swap-then-paint, not just one terminal paint
+    // after multiple swaps.
     use rdom_tui::App;
     use rdom_tui::render::{Terminal, TestBackend};
 
-    let (mut dom, mut state) = setup();
-    mount_demo(&mut state, &mut dom, 1);
-    mount_demo(&mut state, &mut dom, 2);
-    mount_demo(&mut state, &mut dom, 0);
+    let (dom, initial_state) = setup();
+    let main_id = initial_state.main_id;
 
     let backend = TestBackend::new(80, 24);
     let terminal = Terminal::new(backend).unwrap();
@@ -203,5 +211,210 @@ fn swap_renders_clean_at_full_viewport() {
     for demo in rdom_showcase::DEMOS {
         app.push_stylesheet(demo.stylesheet());
     }
-    app.draw_if_dirty().unwrap();
+
+    let mut state = ShowcaseState {
+        current_idx: initial_state.current_idx,
+        main_id,
+    };
+    for idx in [1usize, 2, 0, 2, 1] {
+        mount_demo(&mut state, app.dom_mut(), idx);
+        app.draw_if_dirty().unwrap();
+    }
+}
+
+// ─── End-to-end listener tests ──────────────────────────────────────
+//
+// These tests fire synthetic `click` / `keydown` events through
+// `Dom::dispatch_event` against a fully-wired showcase (build_shell
+// + wire_sidebar_click + wire_sidebar_keys) and assert that the
+// listener wiring actually swaps the mounted demo. Without these,
+// `mount_demo` and `next_demo_li` are unit-tested but the listeners
+// themselves — half of M3's deliverable — could be swapped /
+// reversed / disconnected without anything failing.
+
+/// Find the first `<li data-demo-slug="…">` under `sidebar` whose
+/// slug matches the demo at `demo_idx`. Used to target synthetic
+/// events at a specific demo's row.
+fn find_li_for_demo(dom: &TuiDom, sidebar: NodeId, demo_idx: usize) -> NodeId {
+    let target_slug = DEMOS[demo_idx].slug();
+    let mut stack = vec![sidebar];
+    while let Some(id) = stack.pop() {
+        let node = dom.node(id);
+        if node.tag_name() == Some("li")
+            && node.get_attribute("data-demo-slug") == Some(target_slug)
+        {
+            return id;
+        }
+        for child in node.child_nodes() {
+            stack.push(child.id());
+        }
+    }
+    panic!("no <li> for demo idx {demo_idx} ({target_slug}) in sidebar");
+}
+
+/// Build a fully wired showcase: shell + listeners + initial mount
+/// of demo 0. Returns (dom, state-handle, sidebar-id).
+fn wired_setup() -> (TuiDom, Rc<RefCell<ShowcaseState>>, NodeId) {
+    let mut dom: TuiDom = TuiDom::new();
+    let handles = build_shell(&mut dom);
+    let state = Rc::new(RefCell::new(ShowcaseState {
+        current_idx: usize::MAX,
+        main_id: handles.main,
+    }));
+    mount_demo(&mut state.borrow_mut(), &mut dom, 0);
+    wire_sidebar_click(&mut dom, handles.sidebar, Rc::clone(&state));
+    wire_sidebar_keys(&mut dom, handles.sidebar, Rc::clone(&state));
+    (dom, state, handles.sidebar)
+}
+
+#[test]
+fn click_on_li_mounts_that_demo() {
+    let (mut dom, state, sidebar) = wired_setup();
+    assert_eq!(state.borrow().current_idx, 0);
+
+    let target_li = find_li_for_demo(&dom, sidebar, 2);
+    let mut click = Event::new("click");
+    dom.dispatch_event(target_li, &mut click).unwrap();
+
+    assert_eq!(
+        state.borrow().current_idx,
+        2,
+        "clicking demo 2's <li> mounts demo 2"
+    );
+}
+
+#[test]
+fn click_on_text_inside_li_bubbles_up_and_mounts() {
+    // The click target is usually the text node inside the <li>,
+    // not the <li> itself — the ancestor walk has to find the
+    // <li> with data-demo-slug.
+    let (mut dom, state, sidebar) = wired_setup();
+    let target_li = find_li_for_demo(&dom, sidebar, 1);
+    let text_node = dom
+        .node(target_li)
+        .child_nodes()
+        .next()
+        .expect("<li> has a text child")
+        .id();
+
+    let mut click = Event::new("click");
+    dom.dispatch_event(text_node, &mut click).unwrap();
+
+    assert_eq!(state.borrow().current_idx, 1);
+}
+
+#[test]
+fn click_on_summary_does_not_mount_anything() {
+    // Clicking a category <summary> toggles the <details> open
+    // state; it must NOT trigger a demo swap. Pins Finding 7:
+    // only <li> elements with data-demo-slug fire mount_demo.
+    let (mut dom, state, sidebar) = wired_setup();
+    let initial = state.borrow().current_idx;
+
+    // Find the first <summary> under the sidebar.
+    let mut stack = vec![sidebar];
+    let summary = loop {
+        let id = stack.pop().expect("sidebar has a summary somewhere");
+        if dom.node(id).tag_name() == Some("summary") {
+            break id;
+        }
+        for child in dom.node(id).child_nodes() {
+            stack.push(child.id());
+        }
+    };
+
+    let mut click = Event::new("click");
+    dom.dispatch_event(summary, &mut click).unwrap();
+
+    assert_eq!(
+        state.borrow().current_idx,
+        initial,
+        "clicking <summary> must not change the mounted demo"
+    );
+}
+
+/// Build a `keydown` event with `key` as the only meaningful
+/// payload — modifiers default, repeat=false.
+fn keydown(key: &str) -> Event {
+    let mut e = Event::new("keydown");
+    e.detail = EventDetail::Keyboard(Box::new(KeyboardDetail {
+        key: key.to_string(),
+        modifiers: KeyboardModifiers::default(),
+        repeat: false,
+    }));
+    e
+}
+
+#[test]
+fn arrow_down_moves_focus_to_next_demo_li() {
+    let (mut dom, _state, sidebar) = wired_setup();
+    let first_li = find_li_for_demo(&dom, sidebar, 0);
+    let expected_next = find_li_for_demo(&dom, sidebar, 1);
+    dom.set_focused(Some(first_li));
+
+    let mut e = keydown("ArrowDown");
+    dom.dispatch_event(first_li, &mut e).unwrap();
+
+    assert_eq!(
+        dom.focused(),
+        Some(expected_next),
+        "ArrowDown moves focus to demo 1's <li>"
+    );
+}
+
+#[test]
+fn arrow_up_from_first_li_wraps_to_last() {
+    let (mut dom, _state, sidebar) = wired_setup();
+    let first_li = find_li_for_demo(&dom, sidebar, 0);
+    let last_li = find_li_for_demo(&dom, sidebar, DEMOS.len() - 1);
+    dom.set_focused(Some(first_li));
+
+    let mut e = keydown("ArrowUp");
+    dom.dispatch_event(first_li, &mut e).unwrap();
+
+    assert_eq!(dom.focused(), Some(last_li), "ArrowUp on first <li> wraps");
+}
+
+#[test]
+fn enter_on_focused_li_mounts_that_demo() {
+    let (mut dom, state, sidebar) = wired_setup();
+    let target_li = find_li_for_demo(&dom, sidebar, 2);
+    dom.set_focused(Some(target_li));
+
+    let mut e = keydown("Enter");
+    dom.dispatch_event(target_li, &mut e).unwrap();
+
+    assert_eq!(
+        state.borrow().current_idx,
+        2,
+        "Enter on demo 2's <li> mounts demo 2"
+    );
+}
+
+#[test]
+fn space_on_focused_li_mounts_that_demo() {
+    // Space activates focused elements just like Enter, per ARIA
+    // / standard form control conventions.
+    let (mut dom, state, sidebar) = wired_setup();
+    let target_li = find_li_for_demo(&dom, sidebar, 1);
+    dom.set_focused(Some(target_li));
+
+    let mut e = keydown(" ");
+    dom.dispatch_event(target_li, &mut e).unwrap();
+
+    assert_eq!(state.borrow().current_idx, 1);
+}
+
+#[test]
+fn arrow_keys_without_focus_inside_sidebar_are_noop() {
+    let (mut dom, state, sidebar) = wired_setup();
+    let initial = state.borrow().current_idx;
+    // Focus is None — keydown listener should early-return.
+    assert!(dom.focused().is_none());
+
+    let mut e = keydown("ArrowDown");
+    dom.dispatch_event(sidebar, &mut e).unwrap();
+
+    assert_eq!(state.borrow().current_idx, initial);
+    assert!(dom.focused().is_none(), "no focus to move");
 }
