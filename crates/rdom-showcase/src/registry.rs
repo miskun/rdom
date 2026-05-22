@@ -11,6 +11,7 @@ use crate::demos::hover::Hover;
 use crate::demos::scrollable_list::ScrollableList;
 use crate::demos::selectable_text::SelectableText;
 use crate::demos::sticky::Sticky;
+use crate::demos::tab_form::TabForm;
 
 /// Every demo the showcase knows about, in stable order. Order
 /// here determines display order in the sidebar (within each
@@ -24,6 +25,7 @@ pub const DEMOS: &[&dyn Demo] = &[
     &CounterButton,
     &Sticky,
     &SelectableText,
+    &TabForm,
 ];
 
 #[cfg(test)]
