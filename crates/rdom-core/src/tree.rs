@@ -287,6 +287,24 @@ impl<Ext: 'static> Dom<Ext> {
 
     /// Detach `id` from its parent. Fixes sibling chain + first/last_child
     /// on parent. Safe no-op if the node has no parent.
+    ///
+    /// Also clears any interaction state (`focused`, `hovered`,
+    /// `pointer_capture`, `selection`) that pointed into the
+    /// detached subtree. Without this, a `set_focused`/etc. pointing
+    /// at a now-orphaned node leaves the Dom in an internally
+    /// inconsistent state — `dom.focused()` returns a NodeId that's
+    /// no longer in the tree, and `:focus` keeps matching it.
+    ///
+    /// Record-emission order is: structural pointer update, then
+    /// `InteractionChanged`/`SelectionChanged` for any cleared
+    /// state. The `ChildListChanged` record that motivates the
+    /// detach is fired by the caller (`remove_child`,
+    /// `replace_with`, `clear_children`, ...) AFTER this returns,
+    /// so observers see the interaction-state changes before the
+    /// tree change that caused them. The simpler causal order
+    /// would require each caller to remember a post-detach purge
+    /// step — centralizing in this function trades that
+    /// observability nuance for a structurally-guaranteed cleanup.
     pub(crate) fn detach_from_parent(&mut self, id: NodeId) -> Result<()> {
         let node = self.node_or_err(id)?;
         let parent = node.parent;
@@ -312,7 +330,51 @@ impl<Ext: 'static> Dom<Ext> {
         n.parent = None;
         n.prev_sibling = None;
         n.next_sibling = None;
+
+        self.purge_interaction_state_for_subtree(id);
         Ok(())
+    }
+
+    /// Clear any document-level interaction state
+    /// (`focused`, `hovered`, `pointer_capture`, `selection`) whose
+    /// referenced node lives inside the subtree rooted at `root`
+    /// (inclusive). Called by `detach_from_parent` so detachment
+    /// can never leave dangling interaction pointers.
+    ///
+    /// Each cleared field that has a mutation type (`focused`,
+    /// `hovered`, `selection`) goes through its public setter so
+    /// the appropriate `InteractionChanged` / `SelectionChanged`
+    /// record fires; `pointer_capture` clears silently because it
+    /// has no associated record type (it's a runtime-routing flag,
+    /// not a cascade-affecting state).
+    fn purge_interaction_state_for_subtree(&mut self, root: NodeId) {
+        let mut subtree: Vec<NodeId> = Vec::new();
+        self.collect_descendants(root, &mut subtree);
+
+        let in_subtree = |candidate: NodeId| subtree.contains(&candidate);
+
+        if let Some(f) = self.focused
+            && in_subtree(f)
+        {
+            self.set_focused(None);
+        }
+        if let Some(h) = self.hovered
+            && in_subtree(h)
+        {
+            self.set_hovered(None);
+        }
+        if let Some(p) = self.pointer_capture
+            && in_subtree(p)
+        {
+            self.pointer_capture = None;
+        }
+        if let Some(sel) = self.selection.as_ref() {
+            let anchor = sel.anchor.node;
+            let focus = sel.focus.node;
+            if in_subtree(anchor) || in_subtree(focus) {
+                self.set_selection(None);
+            }
+        }
     }
 
     /// Depth-first descendants including `root`. Used by `drop_subtree`.
