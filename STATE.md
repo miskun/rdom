@@ -10,7 +10,7 @@ For the durable architecture and roadmap, see [`specs/DESIGN.md`](specs/DESIGN.m
 
 **Next milestone:** M3 — Sidebar navigation + per-demo subtree swap.
 
-**Status:** **M1 + M2 closed.** M2 ships the static showcase scaffold at `crates/rdom-showcase/`; binary builds, integration tests pass, one demo (HelloWorld) wired through the Demo trait + shell layout. 2,320 workspace tests passing.
+**Status:** **M1 + M2 closed.** M2 grumpy architect review surfaced a substrate-honesty gap (class attribute / classList silent divergence) that the visual review made impossible to ignore — fixed in commit `a92aa6a` with `set_attribute("class", _)` ↔ `add_class` round-trip now per WHATWG. M2 review items 1-5 landed in `c6f5d34`. 2,327 workspace tests passing.
 
 One piece of architectural debt deferred with teeth: `EVT-DETACH-1` (implicit blur/focusout/mouseleave on detach) is tracked in [`specs/TECH_DEBT.md`](specs/TECH_DEBT.md) and listed as a non-negotiable M5 deliverable in [`specs/SHOWCASE.md`](specs/SHOWCASE.md). M5 cannot ship `mouseleave` for explicit motion without closing this.
 
@@ -20,7 +20,7 @@ One piece of architectural debt deferred with teeth: `EVT-DETACH-1` (implicit bl
   - [x] D1 — Multi-slot stylesheet API (`App::push_stylesheet` / `remove_stylesheet` + `cascade_all` / `cascade_subtrees_all`). Commit `c585065`, plus grumpy-review follow-ups: `adf14be` (drain dirty tracker, not peek), `82a2dbe` (set_stylesheet returns id + empty-sheets test), `e5b4e89` (tuple-vec storage + per-pass vars merge).
   - [x] D2 — Subtree-replacement contract + integration tests. 15 contract tests under `crates/rdom-tui/tests/subtree_replacement_contract.rs`. Root-cause fix in `rdom-core::tree::detach_from_parent` adds a `purge_interaction_state_for_subtree` helper so every detach path cleans up focused/hovered/pointer_capture/selection. Commits `245c626`, `41f9f76` (review follow-ups + EVT-DETACH-1).
   - [x] D3 — Focus-on-detach specification. Folded into D2 (same fix surface): `dom.focused()` clears synchronously on detach (matches the web); the no-`blur`-event divergence documented in [`specs/DIVERGENCES.md`](specs/DIVERGENCES.md) §"Runtime & focus" and tracked as **`EVT-DETACH-1`** in [`specs/TECH_DEBT.md`](specs/TECH_DEBT.md), blocking on M5.
-- [x] **M2** — Showcase scaffold *(closed 2026-05-22)*. `crates/rdom-showcase/` workspace member (`publish = false`). Public API: `Demo` trait, `Category` enum, `Source` struct, `DEMOS` registry, `build_shell(&mut TuiDom) -> ShellHandles`, `base_stylesheet()`. Shell structure is native HTML (`<header>`/`<aside>`/`<nav>`/`<main>`). One demo (`HelloWorld`) wired end-to-end. Two stylesheets registered (base + demo) exercising M1's multi-slot API. 9 tests (3 unit registry, 3 unit shell, 3 integration scaffold). Commit `0c25920`.
+- [x] **M2** — Showcase scaffold *(closed 2026-05-22)*. `crates/rdom-showcase/` workspace member (`publish = false`). Public API: `Demo` trait, `Category` enum, `Source` struct, `DEMOS` registry, `build_shell(&mut TuiDom) -> ShellHandles`, `base_stylesheet()`. Shell structure is native HTML (`<header>`/`<aside>`/`<nav>`/`<h2>`/`<main>`). One demo (`HelloWorld`) wired end-to-end. Two stylesheets registered (base + demo, slot order pinned by test) exercising M1's multi-slot API. CSS authored as strings parsed via `rdom_css::from_css` — same shape consumers learn from + same source the M7 Source tab will surface. Commits `0c25920` (scaffold), `a92aa6a` (substrate: class attribute round-trip), `c6f5d34` (review follow-ups: heading, border-collapse, dep cleanup, CSS-as-string, slot-order test).
 - [ ] **M3** — Sidebar nav + per-demo subtree swap + sheet stack push/pop. *Showcase.*
 - [ ] **M4** — Examples-to-demos refactor; closes `OPS-4` (snapshot pinning for the seven older examples). *Showcase.*
 - [ ] **M5** — Event surface bundle: `dblclick`, `contextmenu`, `keyup`, `mousemove`, `scroll`, `resize`. *Substrate.*
@@ -42,6 +42,14 @@ One piece of architectural debt deferred with teeth: `EVT-DETACH-1` (implicit bl
 - **`EVT-DETACH-1`** — implicit `blur` / `focusout` / `mouseleave` / `mouseout` not dispatched on detach. Documented in [`specs/TECH_DEBT.md`](specs/TECH_DEBT.md) as a non-negotiable M5 deliverable. Risk: if M5 scope grows and this slips, rdom-tui ships an internally inconsistent hover-event model. Mitigation: M5 exit criteria in [`specs/SHOWCASE.md`](specs/SHOWCASE.md) explicitly require closing `EVT-DETACH-1` + deleting the related DIVERGENCES.md entries.
 
 ## Recent decisions
+
+### 2026-05-22 — M2 grumpy review surfaced class-attribute round-trip bug; fixed
+
+Visual smoke test of the M2 binary showed the chrome wasn't rendering — every `.foo` class selector was silently failing to match. Root cause: `dom.set_attribute(node, "class", "x")` wrote the attribute string but didn't sync the `classes` BTreeSet or the per-class selector indexes that selector matching consults. The reverse direction (`add_class("x")` didn't write back to `attrs["class"]`) was also broken. The `dom_api_demo` example documented the footgun as a "use `add_class` rather than `set_attribute`" comment — a clear smell.
+
+Per CLAUDE.md "Real Fixes Only": root-cause fix in `rdom-core::tree::attrs::set_attribute` + `add_class` / `remove_class` / `toggle_class` / `replace_class`. Two new private helpers (`sync_class_list_from_attribute_value`, `sync_class_attribute_from_class_list`) keep the three sources of truth (attrs / classes / indexes) in sync regardless of which entry point is used. Tokens iterate alphabetically per the pre-existing BTreeSet-order divergence. 7 new round-trip tests; the workaround comment in `dom_api_demo` removed.
+
+Surfaced by visual review precisely because no automated test exercised both directions — every existing class-related test used either `set_attribute` OR `add_class`, never both. Lesson: M2's shell-structure tests should have asserted computed-style as well; pinning visual output (per M9's snapshot harness) would have caught this without a visual review.
 
 ### 2026-05-22 — M2 closed: showcase scaffold runnable end-to-end
 
