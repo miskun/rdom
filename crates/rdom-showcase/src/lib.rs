@@ -21,9 +21,11 @@
 
 pub mod demo;
 pub mod demos;
+pub mod nav;
 pub mod registry;
 pub mod shell;
 
 pub use demo::{Category, Demo, Source};
+pub use nav::{ShowcaseState, mount_demo, wire_sidebar_click, wire_sidebar_keys};
 pub use registry::DEMOS;
 pub use shell::{ShellHandles, build_shell};

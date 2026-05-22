@@ -35,7 +35,7 @@
 
 use rdom_tui::{NodeId, Stylesheet, TuiDom};
 
-use crate::DEMOS;
+use crate::{Category, DEMOS};
 
 /// References to load-bearing nodes the App needs to interact with
 /// after the shell is built — e.g., M3 will use `main` to swap
@@ -80,24 +80,58 @@ pub fn build_shell(dom: &mut TuiDom) -> ShellHandles {
     dom.append_child(app, body).unwrap();
 
     // <aside class="sidebar">
-    //   <h2>Demos</h2>
-    //   <nav><ul>… one <li> per demo …</ul></nav>
+    //   <nav>
+    //     <details open><summary>Layout</summary>
+    //       <ul>
+    //         <li data-demo-slug="layout/hello-world" tabindex="0">Hello World</li>
+    //         ...
+    //       </ul>
+    //     </details>
+    //     <details open><summary>Cascade</summary>...</details>
+    //     ...
+    //   </nav>
     // </aside>
+    //
+    // Demos grouped by `Category` enum. Each category renders as
+    // a `<details>` with its title in `<summary>` — UA gives us
+    // the disclosure triangle for free. `<li>`s carry the demo's
+    // slug in a `data-demo-slug` attribute so the click handler
+    // (M3 D4) can identify which demo to mount. `tabindex="0"`
+    // makes them keyboard-focusable (M3 D5).
     let sidebar = dom.create_element("aside");
     dom.set_attribute(sidebar, "class", "sidebar").unwrap();
-    let h2 = dom.create_element("h2");
-    let h2_text = dom.create_text_node("Demos");
-    dom.append_child(h2, h2_text).unwrap();
-    dom.append_child(sidebar, h2).unwrap();
     let nav = dom.create_element("nav");
-    let ul = dom.create_element("ul");
+
+    // Group demos by category. Iterates the registry in declaration
+    // order, which is also the order categories appear in the
+    // sidebar — first demo's category goes first, etc.
+    let mut seen_categories: Vec<Category> = Vec::new();
     for demo in DEMOS {
-        let li = dom.create_element("li");
-        let title = dom.create_text_node(demo.title());
-        dom.append_child(li, title).unwrap();
-        dom.append_child(ul, li).unwrap();
+        if !seen_categories.contains(&demo.category()) {
+            seen_categories.push(demo.category());
+        }
     }
-    dom.append_child(nav, ul).unwrap();
+    for cat in &seen_categories {
+        let details = dom.create_element("details");
+        dom.set_attribute(details, "open", "").unwrap();
+        let summary = dom.create_element("summary");
+        let summary_text = dom.create_text_node(cat.title());
+        dom.append_child(summary, summary_text).unwrap();
+        dom.append_child(details, summary).unwrap();
+
+        let ul = dom.create_element("ul");
+        for demo in DEMOS.iter().filter(|d| d.category() == *cat) {
+            let li = dom.create_element("li");
+            dom.set_attribute(li, "data-demo-slug", demo.slug())
+                .unwrap();
+            dom.set_attribute(li, "tabindex", "0").unwrap();
+            let title = dom.create_text_node(demo.title());
+            dom.append_child(li, title).unwrap();
+            dom.append_child(ul, li).unwrap();
+        }
+        dom.append_child(details, ul).unwrap();
+        dom.append_child(nav, details).unwrap();
+    }
     dom.append_child(sidebar, nav).unwrap();
     dom.append_child(body, sidebar).unwrap();
 
@@ -225,35 +259,72 @@ mod tests {
         let mut dom: TuiDom = TuiDom::new();
         let handles = build_shell(&mut dom);
 
-        // Sidebar children: <h2>Demos</h2>, then <nav>. Skip the h2.
+        // Sidebar → <nav> → <details>* → <ul> → <li>*. Count
+        // every <li> across every category.
         let nav = dom
             .node(handles.sidebar)
             .child_nodes()
             .find(|n| n.tag_name() == Some("nav"))
             .expect("sidebar has a <nav>");
-        let ul = nav.first_element_child().expect("nav has a <ul>");
-        assert_eq!(ul.tag_name(), Some("ul"));
-        let li_count = ul
+
+        let mut li_count = 0usize;
+        for details in nav
             .child_nodes()
-            .filter(|n| n.tag_name() == Some("li"))
-            .count();
-        assert_eq!(li_count, crate::DEMOS.len(), "one <li> per registered demo");
+            .filter(|n| n.tag_name() == Some("details"))
+        {
+            let ul = details
+                .child_nodes()
+                .find(|n| n.tag_name() == Some("ul"))
+                .expect("each <details> has a <ul>");
+            li_count += ul
+                .child_nodes()
+                .filter(|n| n.tag_name() == Some("li"))
+                .count();
+        }
+        assert_eq!(
+            li_count,
+            crate::DEMOS.len(),
+            "one <li> per registered demo across all category <details>"
+        );
     }
 
     #[test]
-    fn sidebar_has_demos_heading() {
+    fn each_sidebar_li_carries_data_demo_slug() {
+        // Click handler (M3 D4) reads this attribute to identify
+        // which demo to mount. Pinning the contract.
         let mut dom: TuiDom = TuiDom::new();
         let handles = build_shell(&mut dom);
-
-        let h2 = dom
+        let nav = dom
             .node(handles.sidebar)
             .child_nodes()
-            .find(|n| n.tag_name() == Some("h2"))
-            .expect("sidebar has an <h2>");
-        let text = h2
+            .find(|n| n.tag_name() == Some("nav"))
+            .unwrap();
+
+        let mut slugs: Vec<String> = Vec::new();
+        for details in nav
             .child_nodes()
-            .next()
-            .and_then(|n| n.node_value().map(|s| s.to_string()));
-        assert_eq!(text.as_deref(), Some("Demos"));
+            .filter(|n| n.tag_name() == Some("details"))
+        {
+            let ul = details
+                .child_nodes()
+                .find(|n| n.tag_name() == Some("ul"))
+                .unwrap();
+            for li in ul.child_nodes().filter(|n| n.tag_name() == Some("li")) {
+                let slug = li
+                    .get_attribute("data-demo-slug")
+                    .map(str::to_string)
+                    .expect("<li> has data-demo-slug");
+                slugs.push(slug);
+            }
+        }
+
+        let expected: Vec<&'static str> = crate::DEMOS.iter().map(|d| d.slug()).collect();
+        assert_eq!(slugs.len(), expected.len());
+        for slug in expected {
+            assert!(
+                slugs.iter().any(|s| s == slug),
+                "demo slug {slug:?} missing from sidebar"
+            );
+        }
     }
 }

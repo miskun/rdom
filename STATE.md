@@ -8,9 +8,9 @@ For the durable architecture and roadmap, see [`specs/DESIGN.md`](specs/DESIGN.m
 
 **Release in flight:** 0.2.0. Three workstreams bundled under one release — `rdom-showcase` (headline), event surface bundle, `calc()` value system. Plan: [`specs/SHOWCASE.md`](specs/SHOWCASE.md).
 
-**Next milestone:** M3 — Sidebar navigation + per-demo subtree swap.
+**Next milestone:** M4 — Examples-to-demos refactor (closes `OPS-4`).
 
-**Status:** **M1 + M2 closed.** M2 visual review surfaced SEVEN substrate-honesty gaps over multiple passes; all fixed at root cause per CLAUDE.md "Real Fixes Only" rather than worked around in the showcase. Substrate now provides the canonical CSS author experience: standard CSS chrome layouts render correctly with no rdom-specific idioms required. 2,347 workspace tests passing.
+**Status:** **M1 + M2 + M3 closed.** M2 visual review surfaced SEVEN substrate-honesty gaps over multiple passes; all fixed at root cause per CLAUDE.md "Real Fixes Only" rather than worked around in the showcase. Substrate now provides the canonical CSS author experience: standard CSS chrome layouts render correctly with no rdom-specific idioms required. M3 added interactive demo navigation (mouse + keyboard) on top of the M1 D2 subtree-replacement contract, validated by 7 end-to-end integration tests exercising the showcase's real `mount_demo` path against the substrate purge guarantees.
 
 The seven fixes (in order of discovery):
 1. `class` attribute ↔ `classList` round-trip per WHATWG (commit `a92aa6a`)
@@ -32,7 +32,14 @@ One piece of architectural debt deferred with teeth: `EVT-DETACH-1` (implicit bl
   - [x] D2 — Subtree-replacement contract + integration tests. 15 contract tests under `crates/rdom-tui/tests/subtree_replacement_contract.rs`. Root-cause fix in `rdom-core::tree::detach_from_parent` adds a `purge_interaction_state_for_subtree` helper so every detach path cleans up focused/hovered/pointer_capture/selection. Commits `245c626`, `41f9f76` (review follow-ups + EVT-DETACH-1).
   - [x] D3 — Focus-on-detach specification. Folded into D2 (same fix surface): `dom.focused()` clears synchronously on detach (matches the web); the no-`blur`-event divergence documented in [`specs/DIVERGENCES.md`](specs/DIVERGENCES.md) §"Runtime & focus" and tracked as **`EVT-DETACH-1`** in [`specs/TECH_DEBT.md`](specs/TECH_DEBT.md), blocking on M5.
 - [x] **M2** — Showcase scaffold *(closed 2026-05-22)*. `crates/rdom-showcase/` workspace member (`publish = false`). Public API: `Demo` trait, `Category` enum, `Source` struct, `DEMOS` registry, `build_shell(&mut TuiDom) -> ShellHandles`, `base_stylesheet()`. Shell structure is native HTML (`<header>`/`<aside>`/`<nav>`/`<h2>`/`<main>`). One demo (`HelloWorld`) wired end-to-end. Two stylesheets registered (base + demo, slot order pinned by test) exercising M1's multi-slot API. CSS authored as strings parsed via `rdom_css::from_css` — same shape consumers learn from + same source the M7 Source tab will surface. Commits `0c25920` (scaffold), `a92aa6a` (substrate: class attribute round-trip), `c6f5d34` (review follow-ups: heading, border-collapse, dep cleanup, CSS-as-string, slot-order test).
-- [ ] **M3** — Sidebar nav + per-demo subtree swap + sheet stack push/pop. *Showcase.*
+- [x] **M3** — Sidebar nav + per-demo subtree swap *(closed 2026-05-22)*. Six deliverables shipped:
+  - D1 — two additional placeholder demos (`FlexRow`, `Hover`) registered alongside `HelloWorld`, each with its own class-scoped stylesheet.
+  - D2 — sidebar rebuilt as a `<details>/<summary>` category tree grouped by `Category` enum, with `<li data-demo-slug="…" tabindex="0">` items.
+  - D3 — `ShowcaseState` + `mount_demo` in `crates/rdom-showcase/src/nav.rs` clears `<main>`'s children + builds + appends the new demo's subtree. Per-demo sheets are pre-pushed at App startup; class-scoped selectors mean swapping is a pure subtree replacement, no sheet churn.
+  - D4 — single `click` listener on the sidebar (event delegation) walks up the target's ancestor chain for `data-demo-slug`, looks up the demo, calls `mount_demo`.
+  - D5 — `keydown` listener on the sidebar: ArrowUp/ArrowDown traverse `<li>`s in document order (wraps), Enter/Space activate the focused one. Tab/Shift+Tab traversal works for free via the runtime's built-in focus router because `<li>`s carry `tabindex="0"`.
+  - D6 — 7 end-to-end integration tests in `crates/rdom-showcase/tests/subtree_swap_integration.rs` exercising the M1 D2 substrate purge contract through the showcase's `mount_demo` path (focus/hover/pointer-capture/selection in detached subtree all clear; same-idx swap is a no-op; multi-swap leaves `<main>` with exactly one child; full-viewport paint after multiple swaps survives without panic).
+- [ ] **M4** — Examples-to-demos refactor; closes `OPS-4` (snapshot pinning for the seven older examples). *Showcase.*
 - [ ] **M4** — Examples-to-demos refactor; closes `OPS-4` (snapshot pinning for the seven older examples). *Showcase.*
 - [ ] **M5** — Event surface bundle: `dblclick`, `contextmenu`, `keyup`, `mousemove`, `scroll`, `resize`. *Substrate.*
 - [ ] **M6** — `calc()` value system in `rdom-style`/`rdom-css`, resolved at cascade/layout time. *Substrate.*
@@ -53,6 +60,20 @@ One piece of architectural debt deferred with teeth: `EVT-DETACH-1` (implicit bl
 - **`EVT-DETACH-1`** — implicit `blur` / `focusout` / `mouseleave` / `mouseout` not dispatched on detach. Documented in [`specs/TECH_DEBT.md`](specs/TECH_DEBT.md) as a non-negotiable M5 deliverable. Risk: if M5 scope grows and this slips, rdom-tui ships an internally inconsistent hover-event model. Mitigation: M5 exit criteria in [`specs/SHOWCASE.md`](specs/SHOWCASE.md) explicitly require closing `EVT-DETACH-1` + deleting the related DIVERGENCES.md entries.
 
 ## Recent decisions
+
+### 2026-05-22 — M3 closed: interactive demo navigation
+
+Sidebar is now a real interactive surface, not just a static label. The structural shape: `<aside class="sidebar"><nav><details open><summary>Category</summary><ul><li data-demo-slug="…" tabindex="0">…</li></ul></details>…</nav></aside>` — every element is a standard HTML primitive, no opinionated component shows up.
+
+Two demos were added alongside `HelloWorld` (`FlexRow`, `Hover`) so the navigation actually has more than one target — picking the simplest "shows that flex works" + "shows that :hover cascade works" demos gives the user something to click between without inflating M3's scope into M8 territory (full coverage demos).
+
+The mount mechanism is deliberately boring: clear `<main>`'s children, build the next demo's subtree, append. That's it. All the interesting work (interaction-state cleanup, mutation records, dirty-tracking) is done by the substrate via M1 D2's `purge_interaction_state_for_subtree`. The integration tests in `tests/subtree_swap_integration.rs` validate end-to-end that the substrate contract survives the trip through the showcase's actual entry point — not just the unit-level `detach_from_parent` tests.
+
+One architectural choice worth keeping: **per-demo stylesheets are pre-pushed at App startup**, not push/popped on each swap. This avoids a re-entrancy problem (the click handler runs inside the event dispatch loop and doesn't have mutable App access) and works because every demo's CSS is class-scoped (e.g. `.flex-row-demo`, `.hover-demo`). The convention is enforced by review, not by code — but since it's only the showcase that loads multiple demo sheets at once, the convention has exactly one consumer. If we later add a demo that needs to override a chrome rule, we'll need a real push/pop API; for now we don't.
+
+Event handling uses **single-listener delegation** for both click and keyboard — the listener sits on the sidebar, walks up from `event.target` to find the demo `<li>`. This is the same pattern web devs reach for; rdom's three-phase dispatch makes it work the same way it does on the web.
+
+Keyboard nav: Tab/Shift+Tab traversal is free because the runtime's focus router already handles `tabindex="0"` elements. ArrowUp/ArrowDown + Enter/Space are wired explicitly because they're application-level conventions, not generic focus mechanics — the W3C ARIA tree-view authoring practice is the reference.
 
 ### 2026-05-22 — Four more substrate gaps closed: paint-side filter, `flex:`, transparent collapse, flex-shrink
 
