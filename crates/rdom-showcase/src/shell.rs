@@ -130,6 +130,19 @@ pub fn base_stylesheet() -> Stylesheet {
 /// double rules at every junction. The four child boxes
 /// (`.app-header`, `.sidebar`, `.main`, plus `.app-body` as a
 /// row container with no border of its own) line up cleanly.
+///
+/// **`.main` has NO padding by design.** The chrome's job is to
+/// define the panel container — its borders, position, and
+/// stacking relative to the sidebar. Choosing the content's
+/// visual inset belongs to the demo, not the chrome. This lets
+/// canvas-style or full-bleed demos paint to every cell of the
+/// panel without fighting an injected panel margin. Text demos
+/// that want content padding set their own `padding: 1` (or
+/// other value) on their content root.
+///
+/// `.sidebar` keeps its `padding: 1` because the sidebar IS the
+/// showcase's own nav UI — not a demo — and the chrome owns its
+/// look.
 const BASE_CSS: &str = r#"
 .app {
   flex: 1;
@@ -171,7 +184,6 @@ const BASE_CSS: &str = r#"
   flex: 1;
   border: solid;
   border-color: rgb(70, 80, 100);
-  padding: 1;
 }
 "#;
 
