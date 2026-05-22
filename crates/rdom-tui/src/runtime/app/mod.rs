@@ -444,8 +444,18 @@ impl<B: Backend> App<B> {
     /// Drop the dirty tracker's accumulated roots and force a full
     /// re-cascade on the next paint. Used by stylesheet-mutation
     /// methods.
+    ///
+    /// Critically uses `take_roots` (which drains) rather than
+    /// `roots_snapshot` (which peeks). If the DOM has pending dirty
+    /// subtrees when this is called, leaving them in the tracker
+    /// would cause the next `draw_if_dirty` to do a partial
+    /// `cascade_subtrees_all` rooted at those subtrees — skipping
+    /// every element outside them and leaving stale computed styles
+    /// from the previous sheet stack. Draining + `needs_redraw=true`
+    /// is what gets the empty-`dirty_roots` branch of `draw_if_dirty`
+    /// to run the full cascade.
     fn invalidate_cascade(&mut self) {
-        let _ = self.tracker.roots_snapshot();
+        self.tracker.take_roots();
         self.needs_redraw = true;
     }
 

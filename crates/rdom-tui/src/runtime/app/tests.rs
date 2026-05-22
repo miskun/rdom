@@ -471,6 +471,63 @@ fn remove_stylesheet_triggers_recascade() {
     );
 }
 
+#[test]
+fn stylesheet_mutation_forces_full_cascade_even_when_dom_is_already_dirty() {
+    // The contract: push/remove/set_stylesheet "force a full re-cascade
+    // on the next paint." Latent v0.1.0 bug — invalidate_cascade
+    // peeked instead of draining the dirty tracker, so when the DOM
+    // had a dirty subtree at the time of stylesheet mutation, the
+    // next paint did a *partial* cascade rooted at the dirty subtree
+    // and skipped every other element. Elements outside the dirty
+    // subtree kept stale computed styles from the previous sheet
+    // stack.
+    //
+    // Repro: two siblings <a> and <b>; mutate only <b> after the
+    // initial cascade; then remove the sheet that gave <a> its
+    // color. If the bug is live, <a>'s computed.fg stays at the
+    // pre-removal red. If the contract holds, <a> re-cascades to
+    // initial.
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let a = dom.create_element("a");
+    let b = dom.create_element("b");
+    dom.append_child(root, a).unwrap();
+    dom.append_child(root, b).unwrap();
+
+    let mut app = test_app(dom, Stylesheet::bare(), Rect::new(0, 0, 20, 5));
+    let colors = app.push_stylesheet(
+        Stylesheet::bare()
+            .rule_unchecked("a", TuiStyle::new().fg(Color::Rgb(255, 0, 0)))
+            .rule_unchecked("b", TuiStyle::new().fg(Color::Rgb(0, 255, 0))),
+    );
+    app.draw_if_dirty().unwrap();
+    assert_eq!(
+        crate::style::cascade::computed_of(app.dom(), a).fg,
+        Color::Rgb(255, 0, 0),
+        "<a> picks up red from the pushed sheet"
+    );
+
+    // Dirty only <b>. <a> is *not* in the tracker's dirty set.
+    app.dom_mut().set_attribute(b, "class", "x").unwrap();
+
+    // Remove the colors sheet. The contract: full re-cascade.
+    app.remove_stylesheet(colors);
+    app.draw_if_dirty().unwrap();
+
+    assert_eq!(
+        crate::style::cascade::computed_of(app.dom(), a).fg,
+        rdom_tui_initial_fg(),
+        "<a> must re-cascade to initial — the sheet that produced red is gone, \
+         even though <a> wasn't in the dirty tracker when the sheet was removed",
+    );
+}
+
+/// Helper: the cascade's `ComputedStyle::initial()` fg. Centralized so
+/// the test above doesn't hard-code the initial-fg value.
+fn rdom_tui_initial_fg() -> Color {
+    crate::style::ComputedStyle::initial().fg
+}
+
 // ── dom_mut + set_stylesheet ────────────────────────────────────────
 
 #[test]
