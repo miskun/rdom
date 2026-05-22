@@ -10,14 +10,16 @@ For the durable architecture and roadmap, see [`specs/DESIGN.md`](specs/DESIGN.m
 
 **Next milestone:** M1 — Substrate honesty. Three blocking deliverables; **D1 done**, D2 and D3 next.
 
-**Status:** M1 D1 fully closed. Multi-slot stylesheet API landed in `c585065`; grumpy architect review found four issues (one blocking, three non-blocking), all fixed in follow-up commits `adf14be`, `82a2dbe`, `e5b4e89`. 2,296 workspace tests passing. M1 D2 (subtree-replacement contract + tests) is next.
+**Status:** M1 D1 + D2 + D3 all closed. Subtree-replacement contract + focus-on-detach spec landed in `245c626`. Only M1 itself's review gate remains before M2 starts.
+
+2,309 workspace tests passing.
 
 ## 0.2.0 milestone status
 
 - [ ] **M1** — Substrate honesty *(in progress)*:
   - [x] D1 — Multi-slot stylesheet API (`App::push_stylesheet` / `remove_stylesheet` + `cascade_all` / `cascade_subtrees_all`). Commit `c585065`, plus grumpy-review follow-ups: `adf14be` (drain dirty tracker, not peek), `82a2dbe` (set_stylesheet returns id + empty-sheets test), `e5b4e89` (tuple-vec storage + per-pass vars merge).
-  - [ ] D2 — Subtree-replacement contract + integration tests.
-  - [ ] D3 — Focus-on-detach specification.
+  - [x] D2 — Subtree-replacement contract + integration tests. 13 contract tests under `crates/rdom-tui/tests/subtree_replacement_contract.rs`. Root-cause fix in `rdom-core::tree::detach_from_parent` adds a `purge_interaction_state_for_subtree` helper so every detach path cleans up focused/hovered/pointer_capture/selection. Commit `245c626`.
+  - [x] D3 — Focus-on-detach specification. Folded into D2 (same fix surface): `dom.focused()` clears synchronously on detach (matches the web); the divergence — no synthetic `blur` event for *implicit* focus loss — documented in [`specs/DIVERGENCES.md`](specs/DIVERGENCES.md) §"Runtime & focus". Same shape applies to `hovered` (no `mouseleave`) and `selection` (no `selectionchange`).
 - [ ] **M2** — Showcase scaffold (`crates/rdom-showcase/`, `Demo` trait, static first demo). *Showcase.*
 - [ ] **M3** — Sidebar nav + per-demo subtree swap + sheet stack push/pop. *Showcase.*
 - [ ] **M4** — Examples-to-demos refactor; closes `OPS-4` (snapshot pinning for the seven older examples). *Showcase.*
@@ -40,6 +42,14 @@ For the durable architecture and roadmap, see [`specs/DESIGN.md`](specs/DESIGN.m
 (none recorded yet)
 
 ## Recent decisions
+
+### 2026-05-22 — M1 D2 + D3 closed: subtree-replacement contract
+
+13 integration tests in `crates/rdom-tui/tests/subtree_replacement_contract.rs` codify the contract `rdom-showcase` (and any consumer that swaps a subtree's children) needs. Cascade reset, MutationObserver records, DirtyTracker — all already worked. The four interaction-state pointers (`focused`, `hovered`, `pointer_capture`, `selection`) leaked stale references at detach — fixed by centralizing cleanup in `rdom-core::tree::detach_from_parent` via a new private `purge_interaction_state_for_subtree` helper.
+
+One divergence captured: implicit focus loss on detach updates `dom.focused()` synchronously (matches web) but does NOT fire a synthetic `blur` / `focusout` event. Same for `hovered`/`mouseleave` and `selection`/`selectionchange`. Documented in [`specs/DIVERGENCES.md`](specs/DIVERGENCES.md) §"Runtime & focus".
+
+D3 (focus-on-detach spec) folds into D2 because the cleanup surface is the same — D3 is the focus axis of a four-axis contract.
 
 ### 2026-05-22 — M1 D1 grumpy architect review found dirty-tracker peek-vs-drain bug
 
