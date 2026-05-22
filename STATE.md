@@ -8,18 +8,18 @@ For the durable architecture and roadmap, see [`specs/DESIGN.md`](specs/DESIGN.m
 
 **Release in flight:** 0.2.0. Three workstreams bundled under one release — `rdom-showcase` (headline), event surface bundle, `calc()` value system. Plan: [`specs/SHOWCASE.md`](specs/SHOWCASE.md).
 
-**Next milestone:** M1 — Substrate honesty. Three blocking deliverables; **D1 done**, D2 and D3 next.
+**Next milestone:** M2 — Showcase scaffold.
 
-**Status:** M1 D1 + D2 + D3 all closed. Subtree-replacement contract + focus-on-detach spec landed in `245c626`. Only M1 itself's review gate remains before M2 starts.
+**Status:** **M1 closed.** All three deliverables landed, two grumpy architect reviews done (one per major code change), every finding addressed in-milestone. 2,311 workspace tests passing.
 
-2,309 workspace tests passing.
+One piece of architectural debt deferred with teeth: `EVT-DETACH-1` (implicit blur/focusout/mouseleave on detach) is tracked in [`specs/TECH_DEBT.md`](specs/TECH_DEBT.md) and listed as a non-negotiable M5 deliverable in [`specs/SHOWCASE.md`](specs/SHOWCASE.md). M5 cannot ship `mouseleave` for explicit motion without closing this.
 
 ## 0.2.0 milestone status
 
-- [ ] **M1** — Substrate honesty *(in progress)*:
+- [x] **M1** — Substrate honesty *(closed 2026-05-22)*:
   - [x] D1 — Multi-slot stylesheet API (`App::push_stylesheet` / `remove_stylesheet` + `cascade_all` / `cascade_subtrees_all`). Commit `c585065`, plus grumpy-review follow-ups: `adf14be` (drain dirty tracker, not peek), `82a2dbe` (set_stylesheet returns id + empty-sheets test), `e5b4e89` (tuple-vec storage + per-pass vars merge).
-  - [x] D2 — Subtree-replacement contract + integration tests. 13 contract tests under `crates/rdom-tui/tests/subtree_replacement_contract.rs`. Root-cause fix in `rdom-core::tree::detach_from_parent` adds a `purge_interaction_state_for_subtree` helper so every detach path cleans up focused/hovered/pointer_capture/selection. Commit `245c626`.
-  - [x] D3 — Focus-on-detach specification. Folded into D2 (same fix surface): `dom.focused()` clears synchronously on detach (matches the web); the divergence — no synthetic `blur` event for *implicit* focus loss — documented in [`specs/DIVERGENCES.md`](specs/DIVERGENCES.md) §"Runtime & focus". Same shape applies to `hovered` (no `mouseleave`) and `selection` (no `selectionchange`).
+  - [x] D2 — Subtree-replacement contract + integration tests. 15 contract tests under `crates/rdom-tui/tests/subtree_replacement_contract.rs`. Root-cause fix in `rdom-core::tree::detach_from_parent` adds a `purge_interaction_state_for_subtree` helper so every detach path cleans up focused/hovered/pointer_capture/selection. Commits `245c626`, `41f9f76` (review follow-ups + EVT-DETACH-1).
+  - [x] D3 — Focus-on-detach specification. Folded into D2 (same fix surface): `dom.focused()` clears synchronously on detach (matches the web); the no-`blur`-event divergence documented in [`specs/DIVERGENCES.md`](specs/DIVERGENCES.md) §"Runtime & focus" and tracked as **`EVT-DETACH-1`** in [`specs/TECH_DEBT.md`](specs/TECH_DEBT.md), blocking on M5.
 - [ ] **M2** — Showcase scaffold (`crates/rdom-showcase/`, `Demo` trait, static first demo). *Showcase.*
 - [ ] **M3** — Sidebar nav + per-demo subtree swap + sheet stack push/pop. *Showcase.*
 - [ ] **M4** — Examples-to-demos refactor; closes `OPS-4` (snapshot pinning for the seven older examples). *Showcase.*
@@ -39,9 +39,17 @@ For the durable architecture and roadmap, see [`specs/DESIGN.md`](specs/DESIGN.m
 
 ## Open risks
 
-(none recorded yet)
+- **`EVT-DETACH-1`** — implicit `blur` / `focusout` / `mouseleave` / `mouseout` not dispatched on detach. Documented in [`specs/TECH_DEBT.md`](specs/TECH_DEBT.md) as a non-negotiable M5 deliverable. Risk: if M5 scope grows and this slips, rdom-tui ships an internally inconsistent hover-event model. Mitigation: M5 exit criteria in [`specs/SHOWCASE.md`](specs/SHOWCASE.md) explicitly require closing `EVT-DETACH-1` + deleting the related DIVERGENCES.md entries.
 
 ## Recent decisions
+
+### 2026-05-22 — M1 closed; EVT-DETACH-1 deferred to M5 with teeth
+
+Second grumpy architect pass (covering D2 + D3) found five items: one undocumented divergence (selection-collapses-to-None instead of relocating boundary points per WHATWG), one cheap perf nit, one observability note about mutation-record ordering, two missing test paths (`drop_subtree`, `replace_with`), and the headline architectural question — should implicit `blur` / `focusout` / `mouseleave` events fire on detach now or later?
+
+User pushback: "if we don't do it now, we should have reason to postpone it forever." Counter: M5 (event surface bundle) has a forcing function and the architecturally correct shape (pre-detach ancestor path capture + new Mutation variant + App-level translation observer) is event-pipeline work, not tree-mutation work — doing it in M1 means inventing rdom-tui pipeline in rdom-core. Defer to M5 with a stable id (`EVT-DETACH-1`), an explicit non-negotiable line in [`specs/SHOWCASE.md`](specs/SHOWCASE.md) M5 scope, and exit criteria that require closing this before M5 itself closes. Defer with teeth, not defer with hope.
+
+All five items addressed in commit `41f9f76`. M1 milestone closed.
 
 ### 2026-05-22 — M1 D2 + D3 closed: subtree-replacement contract
 
