@@ -1,0 +1,50 @@
+
+  rdom DOM API demo
+
+  ─── form-edit ──────────────────────────────────
+    smart input value     → Some("a@b.c")
+    narrow input_value    → Some("a@b.c")
+    input_name            → Some("email")
+    textarea_value        → Some("Hello")
+    select_value          → Some("user")
+    select_selected_index → Some(1)
+    option_value (user)   → Some("user")
+    form_elements count   → 4
+    form_length           → Some(4)
+    after set_value       → Some("new@addr.test")
+    form_request_submit   → prevented=false, submitter=NodeId(9)
+
+  ─── tree-walk ──────────────────────────────────
+    element_from_point(2,1)   → Some(NodeId(2))
+    elements_from_point depth → 1
+    element_from_point(200,200) → None (off-screen)
+    inner.is_connected      → true
+    closest("div")          → Some(NodeId(2))
+    matches("p.para")       → true
+    outer.query_selector("p") → Some(NodeId(3))
+
+  ─── cssom ──────────────────────────────────────
+    get_property_value(color) → "red"
+    get_property_priority(padding) → "important"
+    cssText → "color: red; gap: 2; padding: 1 2 3 4 !important;"
+    length  → 7
+      item(0) = Some("color")
+      item(1) = Some("gap")
+      item(2) = Some("padding")
+      item(3) = Some("padding-top")
+      item(4) = Some("padding-right")
+      item(5) = Some("padding-bottom")
+      item(6) = Some("padding-left")
+    .color()          → "red"
+    .background_color() → ""
+    after external write → color = "blue"
+    caret_position_from_point(0, 0) → None
+
+
+
+
+
+
+
+
+
