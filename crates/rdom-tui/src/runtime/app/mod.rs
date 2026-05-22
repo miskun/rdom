@@ -71,19 +71,16 @@ pub struct StylesheetId(u64);
 /// real terminal.
 pub struct App<B: Backend = CrosstermBackend<Stdout>> {
     dom: TuiDom,
-    /// Author stylesheets registered with this App, in push order.
-    /// The cascade reads this slice; later sheets win same-specificity
-    /// contests, matching `Document.styleSheets` ordering on the web.
+    /// Author stylesheets registered with this App, in push order,
+    /// paired with their opaque ids. The cascade reads this slice;
+    /// later sheets win same-specificity contests, matching
+    /// `Document.styleSheets` ordering on the web.
     ///
-    /// Mutated via [`App::push_stylesheet`] (append + returns
-    /// [`StylesheetId`]), [`App::remove_stylesheet`] (delete by id),
-    /// or [`App::set_stylesheet`] (clear + push). Public accessor
-    /// [`App::style_sheets`] returns the slice.
-    stylesheets: Vec<Stylesheet>,
-    /// Parallel to [`Self::stylesheets`]: the id assigned to each
-    /// slot. Keeps `style_sheets() -> &[Stylesheet]` returning a
-    /// borrow of the sheet vec directly without re-exposing the id.
-    stylesheet_ids: Vec<StylesheetId>,
+    /// Mutated via [`App::push_stylesheet`] (append + returns id),
+    /// [`App::remove_stylesheet`] (delete by id), or
+    /// [`App::set_stylesheet`] (clear + push). Public accessor
+    /// [`App::style_sheets`] returns the sheets-only view.
+    stylesheets: Vec<(StylesheetId, Stylesheet)>,
     /// Monotonic id generator. Incremented on every push (including
     /// the construction sheet and `set_stylesheet`). u64 is overkill
     /// for in-process lifetimes — chosen for simplicity.
@@ -291,8 +288,7 @@ impl<B: Backend> App<B> {
         crate::runtime::autofocus::focus_first_autofocus(&mut dom);
         Ok(Self {
             dom,
-            stylesheets: vec![stylesheet],
-            stylesheet_ids: vec![StylesheetId(0)],
+            stylesheets: vec![(StylesheetId(0), stylesheet)],
             next_stylesheet_id: 1,
             terminal,
             tracker,
@@ -404,9 +400,7 @@ impl<B: Backend> App<B> {
         let id = StylesheetId(self.next_stylesheet_id);
         self.next_stylesheet_id += 1;
         self.stylesheets.clear();
-        self.stylesheet_ids.clear();
-        self.stylesheets.push(sheet);
-        self.stylesheet_ids.push(id);
+        self.stylesheets.push((id, sheet));
         self.invalidate_cascade();
         id
     }
@@ -426,8 +420,7 @@ impl<B: Backend> App<B> {
     pub fn push_stylesheet(&mut self, sheet: Stylesheet) -> StylesheetId {
         let id = StylesheetId(self.next_stylesheet_id);
         self.next_stylesheet_id += 1;
-        self.stylesheets.push(sheet);
-        self.stylesheet_ids.push(id);
+        self.stylesheets.push((id, sheet));
         self.invalidate_cascade();
         id
     }
@@ -437,9 +430,8 @@ impl<B: Backend> App<B> {
     /// App) — never panics. When removal actually changes the
     /// stack, the next paint runs a full re-cascade.
     pub fn remove_stylesheet(&mut self, id: StylesheetId) {
-        if let Some(pos) = self.stylesheet_ids.iter().position(|x| *x == id) {
+        if let Some(pos) = self.stylesheets.iter().position(|(sid, _)| *sid == id) {
             self.stylesheets.remove(pos);
-            self.stylesheet_ids.remove(pos);
             self.invalidate_cascade();
         }
     }
@@ -465,10 +457,14 @@ impl<B: Backend> App<B> {
     /// All stylesheets registered with this App, in push order.
     /// Spec-name parity with `Document.styleSheets`.
     ///
-    /// Slot 0 is the sheet passed to [`Self::new`] / [`Self::with_backend`];
-    /// further slots come from [`Self::push_stylesheet`] calls. The cascade
+    /// Index 0 is the sheet passed to [`Self::new`] / [`Self::with_backend`];
+    /// further indices come from [`Self::push_stylesheet`] calls. The cascade
     /// merges rules across all sheets, with later sheets winning
     /// same-specificity contests.
+    ///
+    /// Returns a fresh `Vec` of references because storage pairs each
+    /// sheet with its opaque `StylesheetId`; the allocation is
+    /// negligible compared to a cascade pass.
     ///
     /// Note: stylesheets live on `App`, not on `TuiDom`. This is
     /// deliberate — a stylesheet is an App-lifecycle concept
@@ -478,8 +474,8 @@ impl<B: Backend> App<B> {
     /// `elements_from_point`, `caret_position_from_point`) operate
     /// on the tree and live on `Dom`; this one operates on the
     /// runtime and lives here.
-    pub fn style_sheets(&self) -> &[Stylesheet] {
-        &self.stylesheets
+    pub fn style_sheets(&self) -> Vec<&Stylesheet> {
+        self.stylesheets.iter().map(|(_, s)| s).collect()
     }
 
     /// Mutable DOM access for pre-`run` setup. Listener registration,
@@ -697,9 +693,11 @@ impl<B: Backend> App<B> {
         dirty_roots.sort_unstable();
         dirty_roots.dedup();
 
-        // Cascade reads the full registered slice; later sheets win
-        // same-specificity contests (push order).
-        let sheets = self.stylesheets.as_slice();
+        // Cascade reads the full registered set; later sheets win
+        // same-specificity contests (push order). Build a small
+        // ref-slice view over the (id, sheet) storage — allocates
+        // a Vec of fat-pointers, negligible vs. the cascade itself.
+        let sheets: Vec<&Stylesheet> = self.stylesheets.iter().map(|(_, s)| s).collect();
         let dom = &mut self.dom;
         let terminal = &mut self.terminal;
         let animations = &mut self.animations;
@@ -707,9 +705,9 @@ impl<B: Backend> App<B> {
 
         terminal.draw(|buf| {
             if dirty_roots.is_empty() {
-                dom.cascade_all(sheets);
+                dom.cascade_all(&sheets);
             } else {
-                dom.cascade_subtrees_all(sheets, &dirty_roots);
+                dom.cascade_subtrees_all(&sheets, &dirty_roots);
             }
             // Detect cascade-driven property changes and register
             // transitions before layout / paint pick up the new

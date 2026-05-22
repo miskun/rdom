@@ -19,9 +19,9 @@ use super::inherit::{inherit_inheritable_from, layout_differs};
 /// Merge `root_vars` across all registered sheets into a single
 /// `VarMap`. Later sheets win per var name — push order is the
 /// last-wins tiebreaker. Allocates one fresh `Rc<HashMap>` per call;
-/// callers should compute this once per cascade pass and `Rc::clone`
-/// from there.
-pub(super) fn merge_root_vars(sheets: &[Stylesheet]) -> VarMap {
+/// callers compute this once per cascade pass (in `cascade_all` /
+/// `cascade_subtrees_all`) and `Rc::clone` from there per element.
+pub(super) fn merge_root_vars(sheets: &[&Stylesheet]) -> VarMap {
     let mut merged = std::collections::HashMap::new();
     for sheet in sheets {
         for (k, v) in sheet.vars() {
@@ -57,7 +57,8 @@ impl SubtreeFlags {
 /// conservatism rules.
 pub(super) fn cascade_subtree(
     dom: &mut Dom<TuiExt>,
-    sheets: &[Stylesheet],
+    sheets: &[&Stylesheet],
+    merged_vars: &VarMap,
     id: NodeId,
     parent_computed: &ComputedStyle,
 ) -> SubtreeFlags {
@@ -74,7 +75,13 @@ pub(super) fn cascade_subtree(
     if !is_element {
         let mut flags = SubtreeFlags::default();
         for child in child_ids {
-            flags.merge(cascade_subtree(dom, sheets, child, parent_computed));
+            flags.merge(cascade_subtree(
+                dom,
+                sheets,
+                merged_vars,
+                child,
+                parent_computed,
+            ));
         }
         return flags;
     }
@@ -89,7 +96,7 @@ pub(super) fn cascade_subtree(
         computed_scrollbar,
         computed_scrollbar_thumb,
     ) = {
-        let computed = compute_element_style(dom, sheets, id, parent_computed);
+        let computed = compute_element_style(dom, sheets, merged_vars, id, parent_computed);
         let cb = compute_pseudo_style(dom, sheets, id, &computed, PseudoElementTarget::Before);
         let ca = compute_pseudo_style(dom, sheets, id, &computed, PseudoElementTarget::After);
         let cbd = compute_pseudo_style(dom, sheets, id, &computed, PseudoElementTarget::Backdrop);
@@ -158,7 +165,7 @@ pub(super) fn cascade_subtree(
         has_collapse: computed.border_collapse == crate::layout::BorderCollapse::Collapse,
     };
     for child in child_ids {
-        flags.merge(cascade_subtree(dom, sheets, child, &computed));
+        flags.merge(cascade_subtree(dom, sheets, merged_vars, child, &computed));
     }
 
     // Write the bottom-up aggregates.
@@ -174,16 +181,19 @@ pub(super) fn cascade_subtree(
 /// `border_fg`.
 fn compute_element_style(
     dom: &Dom<TuiExt>,
-    sheets: &[Stylesheet],
+    sheets: &[&Stylesheet],
+    merged_vars: &VarMap,
     id: NodeId,
     parent: &ComputedStyle,
 ) -> ComputedStyle {
     // Start from initial + inherit subset from parent.
     let mut working = ComputedStyle::initial();
     inherit_inheritable_from(&mut working, parent);
-    // Vars from every registered sheet — later sheets win per var
-    // name. Push order is the tiebreaker.
-    working.vars = merge_root_vars(sheets);
+    // Vars are precomputed once per cascade pass — Rc::clone is
+    // cheap (one atomic-or-non-atomic refcount bump, depending on
+    // Rc vs Arc), so every element shares the same `VarMap`
+    // allocation.
+    working.vars = std::rc::Rc::clone(merged_vars);
 
     // Collect matching non-pseudo-element rules across all sheets.
     // Track each rule's sheet index so cascade order is
@@ -228,7 +238,7 @@ fn compute_element_style(
 /// resolved).
 fn compute_pseudo_style(
     dom: &Dom<TuiExt>,
-    sheets: &[Stylesheet],
+    sheets: &[&Stylesheet],
     id: NodeId,
     host_computed: &ComputedStyle,
     target: PseudoElementTarget,

@@ -90,7 +90,7 @@ pub trait CascadeExt {
     /// across all sheets; later sheets win same-specificity contests.
     /// Custom-property (`var()`) definitions are merged with
     /// later-wins semantics per var name.
-    fn cascade_all(&mut self, stylesheets: &[Stylesheet]);
+    fn cascade_all(&mut self, stylesheets: &[&Stylesheet]);
 
     /// Cascade only the subtrees rooted at `roots`. Each root's
     /// parent is consulted for inheritance (so a root's computed fg
@@ -104,28 +104,30 @@ pub trait CascadeExt {
     fn cascade_subtrees(&mut self, stylesheet: &Stylesheet, roots: &[NodeId]);
 
     /// Multi-sheet variant of [`Self::cascade_subtrees`].
-    fn cascade_subtrees_all(&mut self, stylesheets: &[Stylesheet], roots: &[NodeId]);
+    fn cascade_subtrees_all(&mut self, stylesheets: &[&Stylesheet], roots: &[NodeId]);
 }
 
 impl CascadeExt for Dom<TuiExt> {
     fn cascade(&mut self, stylesheet: &Stylesheet) {
-        self.cascade_all(std::slice::from_ref(stylesheet));
+        self.cascade_all(&[stylesheet]);
     }
 
-    fn cascade_all(&mut self, stylesheets: &[Stylesheet]) {
+    fn cascade_all(&mut self, stylesheets: &[&Stylesheet]) {
+        let merged_vars = walk::merge_root_vars(stylesheets);
         let root = self.root();
         let parent = ComputedStyle::initial();
         // Full-tree cascade: `tree_has_positioned_pseudo` flags get
         // written authoritatively, top-to-bottom. No bubble-up needed
         // because the walk visits every ancestor.
-        let _ = walk::cascade_subtree(self, stylesheets, root, &parent);
+        let _ = walk::cascade_subtree(self, stylesheets, &merged_vars, root, &parent);
     }
 
     fn cascade_subtrees(&mut self, stylesheet: &Stylesheet, roots: &[NodeId]) {
-        self.cascade_subtrees_all(std::slice::from_ref(stylesheet), roots);
+        self.cascade_subtrees_all(&[stylesheet], roots);
     }
 
-    fn cascade_subtrees_all(&mut self, stylesheets: &[Stylesheet], roots: &[NodeId]) {
+    fn cascade_subtrees_all(&mut self, stylesheets: &[&Stylesheet], roots: &[NodeId]) {
+        let merged_vars = walk::merge_root_vars(stylesheets);
         for &root in roots {
             // Look up parent's computed style for inheritance. Root
             // has no parent, or the parent is a Fragment/root — use
@@ -135,7 +137,8 @@ impl CascadeExt for Dom<TuiExt> {
                 .parent_node()
                 .and_then(|p| p.ext().and_then(|e| e.computed.clone()))
                 .unwrap_or_else(ComputedStyle::initial);
-            let flags = walk::cascade_subtree(self, stylesheets, root, &parent_computed);
+            let flags =
+                walk::cascade_subtree(self, stylesheets, &merged_vars, root, &parent_computed);
             // If the partial cascade introduced a positioned pseudo
             // or a `border-collapse: collapse` element anywhere in
             // the subtree, bubble `true` up through ancestors so the
