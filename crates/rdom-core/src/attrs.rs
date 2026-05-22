@@ -30,6 +30,15 @@ impl<Ext: 'static> Dom<Ext> {
             }
             self.indexes.register_id(id, value);
         }
+        // Per WHATWG DOM: setting the "class" attribute MUST update
+        // `Element.classList`. The attribute string is just one of
+        // three sources that must agree (attrs["class"] / the
+        // `classes` BTreeSet / the per-class `indexes` map);
+        // `set_attribute` is the WHATWG-canonical entry point for
+        // setting `class`, so it owns the sync.
+        if key == "class" {
+            self.sync_class_list_from_attribute_value(id, value);
+        }
         self.fire_mutation(Mutation::AttributeChanged {
             id,
             name: key.to_string(),
@@ -37,6 +46,80 @@ impl<Ext: 'static> Dom<Ext> {
             new: Some(value.to_string()),
         });
         Ok(())
+    }
+
+    /// Rebuild the `classes` BTreeSet + selector indexes from the
+    /// whitespace-separated class attribute value. Called by
+    /// `set_attribute` whenever the "class" attribute is written so
+    /// classList stays in sync with the attribute string.
+    ///
+    /// Fires one `ClassChanged` record with the net diff (added /
+    /// removed) iff the set actually changed — observers see
+    /// classList changes whether they came via `add_class` or
+    /// `set_attribute("class", _)`.
+    fn sync_class_list_from_attribute_value(&mut self, id: NodeId, value: &str) {
+        let new_tokens: std::collections::BTreeSet<String> =
+            value.split_whitespace().map(String::from).collect();
+        let old_tokens: std::collections::BTreeSet<String> = match self.get_node(id) {
+            Some(node) => match &node.data {
+                NodeData::Element { classes, .. } => classes.clone(),
+                _ => return,
+            },
+            None => return,
+        };
+        if new_tokens == old_tokens {
+            return;
+        }
+        let added: Vec<String> = new_tokens.difference(&old_tokens).cloned().collect();
+        let removed: Vec<String> = old_tokens.difference(&new_tokens).cloned().collect();
+
+        for cls in &removed {
+            self.indexes.unregister_class(id, cls);
+        }
+        for cls in &added {
+            self.indexes.register_class(id, cls);
+        }
+        if let Some(node) = self.node_mut_or_err(id).ok()
+            && let NodeData::Element { classes, .. } = &mut node.data
+        {
+            *classes = new_tokens;
+        }
+        self.fire_mutation(Mutation::ClassChanged { id, added, removed });
+    }
+
+    /// Write the `class` attribute string from the current
+    /// `classes` BTreeSet. Called by `add_class`/`remove_class`/
+    /// `toggle_class`/`replace_class` to maintain the reverse
+    /// half of the round-trip with `set_attribute("class", _)`.
+    /// Joins tokens with single spaces — iteration is
+    /// alphabetic per the BTreeSet ordering, which is a
+    /// pre-existing iteration-order divergence from browsers
+    /// (documented in [`crate::token_list::DomTokenList`]).
+    fn sync_class_attribute_from_class_list(&mut self, id: NodeId) {
+        let new_attr: String = match self.get_node(id) {
+            Some(node) => match &node.data {
+                NodeData::Element { classes, .. } => {
+                    classes.iter().cloned().collect::<Vec<_>>().join(" ")
+                }
+                _ => return,
+            },
+            None => return,
+        };
+        // Write directly to attrs without going back through
+        // `set_attribute` — that would loop through
+        // sync_class_list_from_attribute_value. The attribute
+        // change fires no synthetic `AttributeChanged` record
+        // here: the `ClassChanged` record from the calling
+        // add/remove/toggle is the canonical signal.
+        if let Some(node) = self.node_mut_or_err(id).ok()
+            && let NodeData::Element { attrs, .. } = &mut node.data
+        {
+            if new_attr.is_empty() {
+                attrs.remove("class");
+            } else {
+                attrs.insert("class".to_string(), new_attr);
+            }
+        }
     }
 
     pub fn get_attribute(&self, id: NodeId, key: &str) -> Option<&str> {
@@ -154,6 +237,7 @@ impl<Ext: 'static> Dom<Ext> {
         };
         if inserted {
             self.indexes.register_class(id, class);
+            self.sync_class_attribute_from_class_list(id);
             self.fire_mutation(Mutation::ClassChanged {
                 id,
                 added: vec![class.to_string()],
@@ -175,6 +259,7 @@ impl<Ext: 'static> Dom<Ext> {
         };
         if removed {
             self.indexes.unregister_class(id, class);
+            self.sync_class_attribute_from_class_list(id);
             self.fire_mutation(Mutation::ClassChanged {
                 id,
                 added: vec![],
@@ -203,6 +288,7 @@ impl<Ext: 'static> Dom<Ext> {
         };
         if removed {
             self.indexes.unregister_class(id, class);
+            self.sync_class_attribute_from_class_list(id);
             self.fire_mutation(Mutation::ClassChanged {
                 id,
                 added: vec![],
@@ -210,6 +296,7 @@ impl<Ext: 'static> Dom<Ext> {
             });
         } else if added {
             self.indexes.register_class(id, class);
+            self.sync_class_attribute_from_class_list(id);
             self.fire_mutation(Mutation::ClassChanged {
                 id,
                 added: vec![class.to_string()],
@@ -246,6 +333,7 @@ impl<Ext: 'static> Dom<Ext> {
         if swapped {
             self.indexes.unregister_class(id, old);
             self.indexes.register_class(id, new);
+            self.sync_class_attribute_from_class_list(id);
             self.fire_mutation(Mutation::ClassChanged {
                 id,
                 added: vec![new.to_string()],
@@ -420,5 +508,114 @@ mod tests {
             DomError::WrongNodeType { .. }
         ));
         assert!(!dom.has_class(t, "anything"));
+    }
+
+    // ── class attribute / classList round-trip ────────────────────
+
+    #[test]
+    fn set_attribute_class_syncs_class_list() {
+        // WHATWG DOM: setting the "class" attribute MUST update
+        // `Element.classList`. rdom historically diverged — the
+        // attribute string was written but the indexed classList
+        // (and selector matching) didn't reflect it. Surfaced by
+        // M2's showcase shell: every `.foo` selector silently
+        // failed to match. Round-trip fixed in the same patch as
+        // this test.
+        let mut dom: Dom = Dom::new();
+        let el = dom.create_element("div");
+
+        dom.set_attribute(el, "class", "alpha beta").unwrap();
+
+        // class_list now contains the parsed tokens.
+        let tokens: Vec<&str> = dom.class_list(el).collect();
+        assert!(tokens.contains(&"alpha"));
+        assert!(tokens.contains(&"beta"));
+        assert_eq!(tokens.len(), 2);
+
+        // has_class reflects the tokens.
+        assert!(dom.has_class(el, "alpha"));
+        assert!(dom.has_class(el, "beta"));
+        assert!(!dom.has_class(el, "gamma"));
+    }
+
+    #[test]
+    fn set_attribute_class_replaces_existing_classes() {
+        // Setting "class" again replaces — the old tokens go away,
+        // the new tokens take over.
+        let mut dom: Dom = Dom::new();
+        let el = dom.create_element("div");
+        dom.add_class(el, "old").unwrap();
+        assert!(dom.has_class(el, "old"));
+
+        dom.set_attribute(el, "class", "fresh").unwrap();
+
+        assert!(!dom.has_class(el, "old"), "old token cleared");
+        assert!(dom.has_class(el, "fresh"), "new token present");
+    }
+
+    #[test]
+    fn set_attribute_class_empty_clears_class_list() {
+        let mut dom: Dom = Dom::new();
+        let el = dom.create_element("div");
+        dom.add_class(el, "x").unwrap();
+        dom.add_class(el, "y").unwrap();
+        assert_eq!(dom.class_list(el).count(), 2);
+
+        dom.set_attribute(el, "class", "").unwrap();
+
+        assert_eq!(dom.class_list(el).count(), 0);
+    }
+
+    #[test]
+    fn add_class_syncs_class_attribute() {
+        // The reverse direction: `add_class` writes through to
+        // `attrs["class"]` so `get_attribute("class")` round-trips
+        // with classList membership.
+        let mut dom: Dom = Dom::new();
+        let el = dom.create_element("div");
+
+        dom.add_class(el, "foo").unwrap();
+
+        let attr = dom.get_attribute(el, "class");
+        assert_eq!(attr, Some("foo"), "add_class wrote the attribute as well");
+    }
+
+    #[test]
+    fn remove_class_syncs_class_attribute() {
+        let mut dom: Dom = Dom::new();
+        let el = dom.create_element("div");
+        dom.add_class(el, "a").unwrap();
+        dom.add_class(el, "b").unwrap();
+        assert!(
+            dom.get_attribute(el, "class").unwrap().contains('a')
+                && dom.get_attribute(el, "class").unwrap().contains('b')
+        );
+
+        dom.remove_class(el, "a").unwrap();
+
+        let attr = dom.get_attribute(el, "class").unwrap_or("");
+        assert!(!attr.contains('a'), "removed token gone from attribute");
+        assert!(attr.contains('b'), "remaining token still in attribute");
+    }
+
+    #[test]
+    fn set_attribute_then_class_selector_via_index_round_trips() {
+        // The substrate's classList drives selector matching. After
+        // `set_attribute(_, "class", "hero")`, queries for class
+        // "hero" must return `el`. Without the round-trip sync,
+        // every CSS `.hero` selector silently misses — exactly the
+        // showcase shell bug surfaced in M2.
+        let mut dom: Dom = Dom::new();
+        let root = dom.root();
+        let el = dom.create_element("div");
+        dom.append_child(root, el).unwrap();
+
+        dom.set_attribute(el, "class", "hero").unwrap();
+
+        let matches = dom.get_elements_by_class_name(root, "hero");
+        assert!(
+            matches.contains(&el),
+            "el is in the indexed match set for .hero (got {matches:?})"
+        );
     }
 }

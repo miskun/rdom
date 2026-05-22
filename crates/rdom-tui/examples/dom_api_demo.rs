@@ -125,9 +125,6 @@ fn demo_tree_walk() {
     let outer = dom.create_element("div");
     dom.set_attribute(outer, "id", "outer").unwrap();
     let inner = dom.create_element("p");
-    // Use `add_class` rather than `set_attribute("class", …)` —
-    // `add_class` updates both the attribute and the indexed
-    // classList that selector matching queries.
     dom.add_class(inner, "para").unwrap();
     let text = dom.create_text_node("Hello, world");
     dom.append_child(inner, text).unwrap();

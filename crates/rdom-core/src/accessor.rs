@@ -1058,8 +1058,15 @@ mod tests {
         let el = dom.create_element("div");
         dom.node_mut(el).set_attribute("class", "hero").unwrap();
         dom.node_mut(el).add_class("active").unwrap();
-        assert_eq!(dom.node(el).get_attribute("class"), Some("hero"));
+        // Per WHATWG DOM, classList changes round-trip through
+        // `get_attribute("class")`. Tokens iterate alphabetically
+        // (a documented divergence — see
+        // `crate::token_list::DomTokenList`), so after
+        // `add_class("active")` on top of `set_attribute("class",
+        // "hero")` the attribute reads "active hero".
+        assert_eq!(dom.node(el).get_attribute("class"), Some("active hero"));
         assert!(dom.node(el).has_class("active"));
+        assert!(dom.node(el).has_class("hero"));
     }
 
     // ── M4b step 14: NodeRef accessor additions ───────────────────────
