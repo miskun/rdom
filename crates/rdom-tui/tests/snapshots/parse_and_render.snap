@@ -1,0 +1,16 @@
+ rdom: parse → cascade → render
+
+
+ ╭───────────────────────────────╮  ╭───────────────────────────────╮
+ │                               │  │                               │
+ │ Three crates, one pipeline    │  │ Features shown                │
+ │ Template parsed by rdom-      │  │ • HTML-ish templates, entity  │
+ │ parser.                       │  │ decoding                      │
+ │ Cascaded + laid out + painted │  │ • CSS cascade with var(),     │
+ │ by rdom-tui.                  │  │ • Flexbox and inline layout   │
+ │                               │  │                               │
+ ╰───────────────────────────────╯  ╰───────────────────────────────╯
+
+ Ctrl-C to exit
+
+

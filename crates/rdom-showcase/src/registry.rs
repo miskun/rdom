@@ -8,6 +8,7 @@ use crate::demos::counter_button::CounterButton;
 use crate::demos::flex_row::FlexRow;
 use crate::demos::hello::HelloWorld;
 use crate::demos::hover::Hover;
+use crate::demos::parse_and_render::ParseAndRender;
 use crate::demos::scrollable_list::ScrollableList;
 use crate::demos::selectable_text::SelectableText;
 use crate::demos::sticky::Sticky;
@@ -26,6 +27,7 @@ pub const DEMOS: &[&dyn Demo] = &[
     &Sticky,
     &SelectableText,
     &TabForm,
+    &ParseAndRender,
 ];
 
 #[cfg(test)]

@@ -18,3 +18,6 @@ path = "src/main.rs"
 # to teach.
 rdom-tui = { path = "../rdom-tui", version = "0.1.0" }
 rdom-css = { path = "../rdom-css", version = "0.1.0" }
+# `parse_and_render` demo uses the HTML-ish parser; one of the
+# few demos that touch all three crates composing.
+rdom-parser = { path = "../rdom-parser", version = "0.1.0" }
