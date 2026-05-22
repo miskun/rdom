@@ -10,7 +10,18 @@ For the durable architecture and roadmap, see [`specs/DESIGN.md`](specs/DESIGN.m
 
 **Next milestone:** M3 — Sidebar navigation + per-demo subtree swap.
 
-**Status:** **M1 + M2 closed.** M2 visual review surfaced THREE substrate-honesty gaps; all fixed at root cause per CLAUDE.md "Real Fixes Only" rather than worked around in the showcase. Substrate now: round-trips `class` ↔ `classList` (commit `a92aa6a`), supports `%` units as first-class (commit `0b363db`), correctly handles nested `border-collapse` + content-bearing children (commit `5b699c2`). 2,334 workspace tests passing.
+**Status:** **M1 + M2 closed.** M2 visual review surfaced SEVEN substrate-honesty gaps over multiple passes; all fixed at root cause per CLAUDE.md "Real Fixes Only" rather than worked around in the showcase. Substrate now provides the canonical CSS author experience: standard CSS chrome layouts render correctly with no rdom-specific idioms required. 2,347 workspace tests passing.
+
+The seven fixes (in order of discovery):
+1. `class` attribute ↔ `classList` round-trip per WHATWG (commit `a92aa6a`)
+2. `%` units as first-class CSS sizing (commit `0b363db`)
+3. Nested `border-collapse` + content-bearing children get proper content inset (commit `5b699c2`)
+4. Off-viewport mask bits filtered at paint-side instead of joiner-side (commit `78e5060`) — architectural cleanup of the M2-D2-review patch
+5. CSS `flex: <n>` shorthand parses + applies (commit `fdab1bb`)
+6. Transparent intermediate container propagation for `border-collapse` sibling overlap (commit `29765b5`)
+7. CSS-default `flex-shrink: 1` so `height: 100%` shrinks to fit instead of overflowing (commit `afed656`)
+
+Plus `4b79b05` updates the showcase chrome to use canonical `flex: 1` for "fill remaining" — the modern CSS idiom that matches the layout mode.
 
 One piece of architectural debt deferred with teeth: `EVT-DETACH-1` (implicit blur/focusout/mouseleave on detach) is tracked in [`specs/TECH_DEBT.md`](specs/TECH_DEBT.md) and listed as a non-negotiable M5 deliverable in [`specs/SHOWCASE.md`](specs/SHOWCASE.md). M5 cannot ship `mouseleave` for explicit motion without closing this.
 
@@ -42,6 +53,22 @@ One piece of architectural debt deferred with teeth: `EVT-DETACH-1` (implicit bl
 - **`EVT-DETACH-1`** — implicit `blur` / `focusout` / `mouseleave` / `mouseout` not dispatched on detach. Documented in [`specs/TECH_DEBT.md`](specs/TECH_DEBT.md) as a non-negotiable M5 deliverable. Risk: if M5 scope grows and this slips, rdom-tui ships an internally inconsistent hover-event model. Mitigation: M5 exit criteria in [`specs/SHOWCASE.md`](specs/SHOWCASE.md) explicitly require closing `EVT-DETACH-1` + deleting the related DIVERGENCES.md entries.
 
 ## Recent decisions
+
+### 2026-05-22 — Four more substrate gaps closed: paint-side filter, `flex:`, transparent collapse, flex-shrink
+
+After the first three substrate gaps closed (class round-trip, `%` units, nested-collapse content inset), the M2 chrome dump exposed three stray border glyphs at viewport corners — the immediate fix moved the filter to paint-side architecturally (Finding 3 / commit `78e5060`). But the dump also revealed that the header's bottom border and sidebar/main's top borders weren't sharing despite collapse — the chrome rendered with two adjacent horizontal rules instead of one. The user pushed hard on framing: rdom must work for canonical CSS in the first minute, not require rdom-specific idioms.
+
+Three more findings emerged from that frame and all landed at root cause:
+
+- **Finding 1 — CSS `flex: <n>` shorthand** (`fdab1bb`). The canonical "fill remaining flex space" idiom every modern CSS author reaches for. Previously dropped silently because the parser didn't know the shorthand, forcing authors to learn the rdom `1fr` syntax (CSS Grid) or write programmatic `Size::Flex(1)`. Now parses with full grammar (`flex: <n>` / `flex: auto` / `flex: none`) and sets width + height (cross-axis Flex stretches by default).
+
+- **Finding 2 — transparent intermediate propagation for `border-collapse`** (`29765b5`). The user-observed bug: a layout `<outer border collapse> > <header border> + <body no-border> > <sidebar border> + <main border>` should share `<header>`'s bottom with `<sidebar>` / `<main>`'s tops through the transparent `<body>`. CSS tables do this natively (`<tbody>`, `<tr>` are transparent). rdom's extension of `border-collapse` to flex now propagates the same way via a recursive `has_effective_border_on_edge` helper that walks through borderless container intermediates. Unifies the concept with the content-inset path (`collapse_parent_edge_insets`) from the original M2 D2 review.
+
+- **Finding 4 — flex-shrink for overflow** (`afed656`). `height: 100%` on a flex child alongside a fixed-size sibling previously overflowed silently. CSS-default `flex-shrink: 1` distributes overflow proportionally; rdom didn't model it. Added `flex_shrink: u16` field across TuiStyle / ComputedStyle, integrated into the flex algorithm via Bresenham-style accumulation, respecting min-* clamps. 5 pre-existing tests updated to opt non-shrinking fixed-size items into `flex-shrink: 0` (canonical CSS for scrollable-container row patterns).
+
+Final showcase update (`4b79b05`): updated the chrome stylesheet to use `flex: 1` for "fill remaining" instead of `width: 100%`. The latter still works (CSS-correct) but causes proportional shrinking; the former is the modern canonical CSS idiom for flex layouts.
+
+User-level frame validated: with all seven substrate gaps closed, the chrome's CSS is what a modern web developer would write — no rdom-isms, no workarounds, just canonical Flexbox. The first-minute experience now matches "browser DOM in terminal."
 
 ### 2026-05-22 — Three substrate gaps surfaced by M2 visual review, all fixed at root cause
 
