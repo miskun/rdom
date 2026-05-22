@@ -1,0 +1,16 @@
+
+   Selectable text demo
+
+   Drag over prose, code, or CJK. This bar is user-select:none.
+
+   Terminal UIs should let you select text. That's table stakes for
+   any interactive tool that shows text — error messages, log
+   lines, config values, you name it. rdom-tui's runtime ships with
+   drag, double-click, triple-click, Shift+arrow, and Ctrl-A
+   support out of the box.
+
+   let sel = Selection::new(Position::new(t, 0), Position::new(t, 5
+
+   中文字符也可以选择。CJK graphemes snap to full width.
+
+
