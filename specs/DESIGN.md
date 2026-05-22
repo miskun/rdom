@@ -72,9 +72,11 @@ The work that fed into 0.1.0 was organized in five internal milestones (M1 CSS p
 
 | Version | Scope |
 |---|---|
-| **0.2.0** | `calc()` value system. Event surface bundle: `dblclick`, `contextmenu`, `keyup`, `mousemove`, `scroll`, `resize`. |
+| **0.2.0** | Three workstreams bundled — see [`SHOWCASE.md`](SHOWCASE.md) for the full plan. (1) **`rdom-showcase`** — permanent in-tree TUI app that mounts every rdom primitive in one browsable binary; headline feature, dogfooding fixture, CI regression detector. (2) **Event surface bundle** — `dblclick`, `contextmenu`, `keyup`, `mousemove`, `scroll`, `resize`. (3) **`calc()` value system** — length-and-percentage expressions, resolved at cascade/layout time. M1 of the plan also lands substrate completion the showcase depends on: multi-slot stylesheet API, subtree-replacement contract, focus-on-detach spec. |
 | **0.3.0** | Client-side routing primitive. |
 | **0.4.0** | Async tasks during event handlers. |
+
+Current 0.2.0 progress lives in [`../STATE.md`](../STATE.md).
 
 Open polish items (no fixed milestone): form validation (`:required` / `:invalid` / `pattern`), `:focus-visible`, `::placeholder` / `:placeholder-shown`, multi-text-node `contenteditable`, undo/redo coalescing, blinking caret, line-based selection extension (`Shift+Up` / `Shift+Down`), whitespace normalization in clipboard serialization.
 
