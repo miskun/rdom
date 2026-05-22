@@ -168,6 +168,33 @@ pub(super) fn paint_border(
     const S: u8 = 0b0100;
     const W: u8 = 0b1000;
 
+    // Drop bits whose adjacent cell is outside the buffer. Lines
+    // that logically continue off-screen leave no visible
+    // counterpart there, so a bit pointing off-buffer would yield
+    // a stray glyph during joiner accumulation (e.g. a `┼` where
+    // a `┤` was correct because an overflowing top border kept
+    // its E bit at the rightmost visible cell). Filtering at the
+    // paint site keeps the joiner pure — read mask, look up
+    // glyph, no viewport-edge logic — and reflects the substrate
+    // truth that the mask only encodes visible connectivity.
+    let buf_area = buf.area;
+    let filter_off_buffer = |x: u16, y: u16, bits: u8| -> u8 {
+        let mut out = bits;
+        if y == buf_area.y {
+            out &= !N;
+        }
+        if x + 1 >= buf_area.x + buf_area.width {
+            out &= !E;
+        }
+        if y + 1 >= buf_area.y + buf_area.height {
+            out &= !S;
+        }
+        if x == buf_area.x {
+            out &= !W;
+        }
+        out
+    };
+
     // Top
     if top_edge && in_clip_row(outer.y, clip) {
         let y = outer.y as u16;
@@ -190,7 +217,7 @@ pub(super) fn paint_border(
                 (HORIZONTAL, E | W)
             };
             buf.set_symbol(xu, y, symbol, style);
-            buf.add_border_mask(xu, y, bits);
+            buf.add_border_mask(xu, y, filter_off_buffer(xu, y, bits));
         }
     }
 
@@ -213,7 +240,7 @@ pub(super) fn paint_border(
                 (HORIZONTAL, E | W)
             };
             buf.set_symbol(xu, y, symbol, style);
-            buf.add_border_mask(xu, y, bits);
+            buf.add_border_mask(xu, y, filter_off_buffer(xu, y, bits));
         }
     }
 
@@ -231,7 +258,7 @@ pub(super) fn paint_border(
                 continue;
             }
             buf.set_symbol(x, yu, VERTICAL, style);
-            buf.add_border_mask(x, yu, N | S);
+            buf.add_border_mask(x, yu, filter_off_buffer(x, yu, N | S));
         }
     }
 
@@ -249,7 +276,7 @@ pub(super) fn paint_border(
                 continue;
             }
             buf.set_symbol(x, yu, VERTICAL, style);
-            buf.add_border_mask(x, yu, N | S);
+            buf.add_border_mask(x, yu, filter_off_buffer(x, yu, N | S));
         }
     }
 }
