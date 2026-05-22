@@ -5,6 +5,7 @@ members = [
     "crates/rdom-tui",
     "crates/rdom-parser",
     "crates/rdom-css",
+    "crates/rdom-showcase",
 ]
 resolver = "2"
 

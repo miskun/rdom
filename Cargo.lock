@@ -921,6 +921,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "rdom-showcase"
+version = "0.1.0"
+dependencies = [
+ "rdom-core",
+ "rdom-style",
+ "rdom-tui",
+]
+
+[[package]]
 name = "rdom-style"
 version = "0.1.0"
 dependencies = [

@@ -1,0 +1,17 @@
+[package]
+name = "rdom-showcase"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "In-tree TUI app demonstrating every rdom primitive. Permanent dogfooding fixture; not published."
+publish = false
+
+[[bin]]
+name = "rdom-showcase"
+path = "src/main.rs"
+
+[dependencies]
+rdom-core = { path = "../rdom-core", version = "0.1.0" }
+rdom-style = { path = "../rdom-style", version = "0.1.0" }
+rdom-tui = { path = "../rdom-tui", version = "0.1.0" }
