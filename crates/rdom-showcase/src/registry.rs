@@ -3,6 +3,7 @@
 //! is a single line here plus a new module under `crate::demos`.
 
 use crate::Demo;
+use crate::demos::app_shell::AppShell;
 use crate::demos::border_collapse::BorderCollapse;
 use crate::demos::counter_button::CounterButton;
 use crate::demos::dom_api::DomApi;
@@ -32,6 +33,7 @@ pub const DEMOS: &[&dyn Demo] = &[
     &ParseAndRender,
     &DomApi,
     &UaChrome,
+    &AppShell,
 ];
 
 #[cfg(test)]

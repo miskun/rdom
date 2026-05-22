@@ -68,7 +68,7 @@ For the durable architectural divergences (web-platform departures shipped on pu
 
 ### Process
 
-- **`OPS-4` — Snapshot-pin remaining six examples.** The paint-snapshot harness exists (`crates/rdom-tui/tests/common/mod.rs`) and `ua_chrome` + `app_shell` have goldens. The six older examples (`counter_button`, `tab_form`, `scrollable_list`, `selectable_text`, `parse_and_render`, `dom_api_demo`) have no goldens — cascade/layout/paint regressions there would only surface via a downstream consumer issue. Pattern is mechanical.
+*(no current process debt)*
 
 ## Accepted simplifications (forever-state)
 

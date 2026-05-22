@@ -366,13 +366,36 @@ fn arrow_down_moves_focus_to_next_demo_li() {
 fn arrow_up_from_first_li_wraps_to_last() {
     let (mut dom, _state, sidebar) = wired_setup();
     let first_li = find_li_for_demo(&dom, sidebar, 0);
-    let last_li = find_li_for_demo(&dom, sidebar, DEMOS.len() - 1);
+    // The sidebar groups by category, so document order != registry
+    // order. ArrowUp wraps to the LAST <li> in document order, not
+    // the last entry in `DEMOS`.
+    let last_li = find_last_demo_li(&dom, sidebar);
     dom.set_focused(Some(first_li));
 
     let mut e = keydown("ArrowUp");
     dom.dispatch_event(first_li, &mut e).unwrap();
 
     assert_eq!(dom.focused(), Some(last_li), "ArrowUp on first <li> wraps");
+}
+
+/// Walk the sidebar in document order, return the last
+/// `<li data-demo-slug>`. Used by the wrap-to-last test, which
+/// can't assume registry order matches document order (demos are
+/// grouped by category in the sidebar).
+fn find_last_demo_li(dom: &TuiDom, sidebar: NodeId) -> NodeId {
+    let mut last = None;
+    walk_lis(dom, sidebar, &mut |id| last = Some(id));
+    last.expect("sidebar contains at least one demo <li>")
+}
+
+fn walk_lis(dom: &TuiDom, id: NodeId, visit: &mut impl FnMut(NodeId)) {
+    let node = dom.node(id);
+    if node.tag_name() == Some("li") && node.get_attribute("data-demo-slug").is_some() {
+        visit(id);
+    }
+    for child in node.child_nodes() {
+        walk_lis(dom, child.id(), visit);
+    }
 }
 
 #[test]

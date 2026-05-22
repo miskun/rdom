@@ -35,12 +35,10 @@ pub const MARKUP: &str = r#"
 "#;
 
 pub const CSS: &str = r#"
-:root {
+.par-demo {
   --accent: #3d90ce;
   --ink: #d0d0d0;
   --muted: #808080;
-}
-.par-demo {
   flex: 1;
   flex-direction: column;
 }

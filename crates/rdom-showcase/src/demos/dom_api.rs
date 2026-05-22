@@ -202,7 +202,9 @@ fn write_tree_walk(out: &mut String) {
 
     let sheet = Stylesheet::bare().rule_unchecked(
         "div",
-        TuiStyle::new().width(Size::Fixed(40)).height(Size::Fixed(5)),
+        TuiStyle::new()
+            .width(Size::Fixed(40))
+            .height(Size::Fixed(5)),
     );
     dom.cascade(&sheet);
     dom.layout_dom(Rect::new(0, 0, 80, 24));
@@ -231,7 +233,11 @@ fn write_tree_walk(out: &mut String) {
         "  closest(\"div\")          → {:?}",
         p_node.closest("div").map(|n| n.id())
     );
-    let _ = writeln!(out, "  matches(\"p.para\")       → {}", p_node.matches("p.para"));
+    let _ = writeln!(
+        out,
+        "  matches(\"p.para\")       → {}",
+        p_node.matches("p.para")
+    );
     let _ = writeln!(
         out,
         "  outer.query_selector(\"p\") → {:?}",
@@ -280,10 +286,15 @@ fn write_cssom(out: &mut String) {
     }
 
     let _ = writeln!(out, "  .color()          → {:?}", style.color());
-    let _ = writeln!(out, "  .background_color() → {:?}", style.background_color());
+    let _ = writeln!(
+        out,
+        "  .background_color() → {:?}",
+        style.background_color()
+    );
 
     let observer_id = rdom_tui::cssom::install_inline_style_observer(&mut dom);
-    dom.set_attribute(div, "style", "color: blue; gap: 5").unwrap();
+    dom.set_attribute(div, "style", "color: blue; gap: 5")
+        .unwrap();
     let _ = writeln!(
         out,
         "  after external write → color = {:?}",

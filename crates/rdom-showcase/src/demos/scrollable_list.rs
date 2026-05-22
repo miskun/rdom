@@ -51,11 +51,11 @@ pub const CSS: &str = r#"
 
 pub fn build(dom: &mut TuiDom) -> NodeId {
     let root = dom.create_element("div");
-    dom.set_attribute(root, "class", "scroll-list-demo").unwrap();
+    dom.set_attribute(root, "class", "scroll-list-demo")
+        .unwrap();
 
     let h1 = dom.create_element("h1");
-    let h1_text =
-        dom.create_text_node("Scrollable list — wheel to scroll, hover highlights rows");
+    let h1_text = dom.create_text_node("Scrollable list — wheel to scroll, hover highlights rows");
     dom.append_child(h1, h1_text).unwrap();
     dom.append_child(root, h1).unwrap();
 

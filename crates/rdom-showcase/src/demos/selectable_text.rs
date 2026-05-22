@@ -75,9 +75,8 @@ pub fn build(dom: &mut TuiDom) -> NodeId {
 
     let chrome = dom.create_element("div");
     dom.set_attribute(chrome, "class", "chrome").unwrap();
-    let chrome_text = dom.create_text_node(
-        "Drag over prose, code, or CJK. This bar is user-select:none.",
-    );
+    let chrome_text =
+        dom.create_text_node("Drag over prose, code, or CJK. This bar is user-select:none.");
     dom.append_child(chrome, chrome_text).unwrap();
     dom.append_child(root, chrome).unwrap();
 

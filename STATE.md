@@ -8,9 +8,9 @@ For the durable architecture and roadmap, see [`specs/DESIGN.md`](specs/DESIGN.m
 
 **Release in flight:** 0.2.0. Three workstreams bundled under one release — `rdom-showcase` (headline), event surface bundle, `calc()` value system. Plan: [`specs/SHOWCASE.md`](specs/SHOWCASE.md).
 
-**Next milestone:** M4 — Examples-to-demos refactor (closes `OPS-4`).
+**Next milestone:** M5 — Event surface bundle (`dblclick`, `contextmenu`, `keyup`, `mousemove`, `scroll`, `resize`). Also closes `EVT-DETACH-1`.
 
-**Status:** **M1 + M2 + M3 closed.** M2 visual review surfaced SEVEN substrate-honesty gaps over multiple passes; all fixed at root cause per CLAUDE.md "Real Fixes Only" rather than worked around in the showcase. Substrate now provides the canonical CSS author experience: standard CSS chrome layouts render correctly with no rdom-specific idioms required. M3 added interactive demo navigation (mouse + keyboard) on top of the M1 D2 subtree-replacement contract, validated by 7 end-to-end integration tests exercising the showcase's real `mount_demo` path against the substrate purge guarantees.
+**Status:** **M1 + M2 + M3 + M4 closed.** M4 ported all 10 in-tree examples into showcase demos with paint snapshots pinning each. `rdom-tui/examples/*.rs` are now 1-line shims calling into `rdom_showcase::demos::*`; standalone invocation (`cargo run -p rdom-tui --example X`) still works. 13 demos total in the showcase across 7 categories. `OPS-4` retired. Showcase is now the dogfooding canon — anything the snapshot pins, downstream consumers can rely on.
 
 The seven fixes (in order of discovery):
 1. `class` attribute ↔ `classList` round-trip per WHATWG (commit `a92aa6a`)
@@ -39,7 +39,7 @@ One piece of architectural debt deferred with teeth: `EVT-DETACH-1` (implicit bl
   - D4 — single `click` listener on the sidebar (event delegation) walks up the target's ancestor chain for `data-demo-slug`, looks up the demo, calls `mount_demo`.
   - D5 — `keydown` listener on the sidebar: ArrowUp/ArrowDown traverse `<li>`s in document order (wraps), Enter/Space activate the focused one. Tab/Shift+Tab traversal works for free via the runtime's built-in focus router because `<li>`s carry `tabindex="0"`.
   - D6 — 7 end-to-end integration tests in `crates/rdom-showcase/tests/subtree_swap_integration.rs` exercising the M1 D2 substrate purge contract through the showcase's `mount_demo` path (focus/hover/pointer-capture/selection in detached subtree all clear; same-idx swap is a no-op; multi-swap leaves `<main>` with exactly one child; full-viewport paint after multiple swaps survives without panic).
-- [ ] **M4** — Examples-to-demos refactor; closes `OPS-4` (snapshot pinning for the seven older examples). *Showcase.*
+- [x] **M4** — Examples-to-demos refactor *(closed 2026-05-23)*. All 10 in-tree examples ported to `crates/rdom-showcase/src/demos/`. Each `rdom-tui/examples/*.rs` is now a 1-line shim calling `rdom_showcase::demos::X::run_standalone()`. Paint snapshots pin all 10 outputs at fixed viewports under `crates/rdom-tui/tests/snapshots/`. `OPS-4` retired. Showcase grew from 3 (M3) to 13 demos across 7 categories. Side fix: `sticky_demo`'s pre-existing rendering bug (every Nth item missing under `overflow: auto` due to CSS-default `flex-shrink: 1`) closed by adding `flex-shrink: 0` to demo items — same pattern applied to `scrollable_list`, `tab_form`, etc.
 - [ ] **M4** — Examples-to-demos refactor; closes `OPS-4` (snapshot pinning for the seven older examples). *Showcase.*
 - [ ] **M5** — Event surface bundle: `dblclick`, `contextmenu`, `keyup`, `mousemove`, `scroll`, `resize`. *Substrate.*
 - [ ] **M6** — `calc()` value system in `rdom-style`/`rdom-css`, resolved at cascade/layout time. *Substrate.*
@@ -60,6 +60,62 @@ One piece of architectural debt deferred with teeth: `EVT-DETACH-1` (implicit bl
 - **`EVT-DETACH-1`** — implicit `blur` / `focusout` / `mouseleave` / `mouseout` not dispatched on detach. Documented in [`specs/TECH_DEBT.md`](specs/TECH_DEBT.md) as a non-negotiable M5 deliverable. Risk: if M5 scope grows and this slips, rdom-tui ships an internally inconsistent hover-event model. Mitigation: M5 exit criteria in [`specs/SHOWCASE.md`](specs/SHOWCASE.md) explicitly require closing `EVT-DETACH-1` + deleting the related DIVERGENCES.md entries.
 
 ## Recent decisions
+
+### 2026-05-23 — M4 closed: examples-to-demos refactor
+
+All 10 in-tree examples now live as showcase demos at
+`crates/rdom-showcase/src/demos/`. The `rdom-tui/examples/*.rs`
+binaries are one-line shims calling `run_standalone()`. This
+collapses three previously-distinct sources of truth (example
+binary, snapshot test inline DOM construction, eventual showcase
+demo) into one. The snapshot tests now build via
+`rdom_showcase::demos::X::build(dom)` — no chance of test/example
+drift.
+
+Per-example design pattern (the M4 canonical port):
+
+- `const MARKUP: &str` — HTML-ish reference for the M7 Source tab.
+- `const CSS: &str` — class-scoped CSS string (passes the M3
+  convention test from registry.rs).
+- `pub fn build(dom: &mut TuiDom) -> NodeId` — constructs the
+  subtree, registers any listeners, returns the root.
+- `pub fn stylesheet() -> Stylesheet` — re-parses CSS via
+  `rdom_css::from_css`.
+- `pub fn run_standalone() -> io::Result<()>` — standalone-example
+  entry point: build a one-off App, run it.
+- `pub struct X` + `impl Demo for X` — registry entry.
+
+Required Cargo change: `rdom-tui` adds `rdom-showcase` to its
+`[dev-dependencies]`. Cargo accepts the cycle because dev-deps
+are separate from runtime deps. `rdom-showcase` also gained
+`rdom-parser` as a direct dep (for the `parse_and_render` demo).
+
+**Substrate fixes shaken out during the port:**
+
+- `sticky_demo` was rendering wrong all along — every Nth item
+  disappeared under `overflow: auto` due to CSS-default
+  `flex-shrink: 1` (shipped in M2) shrinking `height: 1` items
+  via Bresenham to zero height when content overflowed. A
+  diagnostic test confirmed the bug was pre-existing (the
+  original programmatic-stylesheet shape produced the same
+  scrambled output). Fix is author-side: `flex-shrink: 0` on
+  items inside an `overflow: auto` container — the canonical
+  CSS idiom for scrollable-list patterns. Applied to
+  `sticky_demo`, `scrollable_list`, `tab_form`, `selectable_text`,
+  and others as appropriate.
+
+- `parse_and_render`'s original CSS used `:root { --accent: …; }`
+  custom-property declarations, which the new M3 class-scoped
+  convention test (added in the post-M3 review pass) correctly
+  flagged as bleeding to other demos. Moved to `.par-demo { … }`
+  so the vars only cascade under the demo's subtree. CSS-correct
+  for the showcase's multi-demo-sheet-pre-pushed model.
+
+**Coverage now pinned:** 10 snapshot tests at fixed viewports
+cover every shipped example. Visual regressions in cascade,
+layout, paint, UA chrome, scrollbar gutter, border collapse,
+sticky positioning, form chrome, parser composition, or DOM
+accessor surface flag immediately. `OPS-4` retired.
 
 ### 2026-05-22 — M3 closed: interactive demo navigation
 

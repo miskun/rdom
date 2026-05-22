@@ -136,12 +136,7 @@ pub fn run_standalone() -> io::Result<()> {
     App::new(dom, stylesheet())?.run()
 }
 
-fn section(
-    dom: &mut TuiDom,
-    parent: NodeId,
-    title: &str,
-    build: impl FnOnce(&mut TuiDom, NodeId),
-) {
+fn section(dom: &mut TuiDom, parent: NodeId, title: &str, build: impl FnOnce(&mut TuiDom, NodeId)) {
     let sec = dom.create_element("section");
     let label = dom.create_element("h3");
     let t = dom.create_text_node(title);
