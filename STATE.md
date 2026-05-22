@@ -8,13 +8,16 @@ For the durable architecture and roadmap, see [`specs/DESIGN.md`](specs/DESIGN.m
 
 **Release in flight:** 0.2.0. Three workstreams bundled under one release — `rdom-showcase` (headline), event surface bundle, `calc()` value system. Plan: [`specs/SHOWCASE.md`](specs/SHOWCASE.md).
 
-**Next milestone:** M1 — Substrate honesty. Three blocking deliverables (multi-slot stylesheet API, subtree-replacement contract + tests, focus-on-detach spec) before any showcase code is written.
+**Next milestone:** M1 — Substrate honesty. Three blocking deliverables; **D1 done**, D2 and D3 next.
 
-**Status:** plan committed, M1 not yet started.
+**Status:** M1 D1 (multi-slot stylesheet API) landed in commit `c585065`. 2,294 workspace tests passing. M1 D2 (subtree-replacement contract + tests) is next.
 
 ## 0.2.0 milestone status
 
-- [ ] **M1** — Substrate honesty (multi-stylesheet API, subtree-replacement contract, focus-on-detach spec). *Substrate.*
+- [ ] **M1** — Substrate honesty *(in progress)*:
+  - [x] D1 — Multi-slot stylesheet API (`App::push_stylesheet` / `remove_stylesheet` + `cascade_all` / `cascade_subtrees_all`). Commit `c585065`.
+  - [ ] D2 — Subtree-replacement contract + integration tests.
+  - [ ] D3 — Focus-on-detach specification.
 - [ ] **M2** — Showcase scaffold (`crates/rdom-showcase/`, `Demo` trait, static first demo). *Showcase.*
 - [ ] **M3** — Sidebar nav + per-demo subtree swap + sheet stack push/pop. *Showcase.*
 - [ ] **M4** — Examples-to-demos refactor; closes `OPS-4` (snapshot pinning for the seven older examples). *Showcase.*
@@ -37,6 +40,10 @@ For the durable architecture and roadmap, see [`specs/DESIGN.md`](specs/DESIGN.m
 (none recorded yet)
 
 ## Recent decisions
+
+### 2026-05-22 — M1 D1 landed: multi-slot stylesheet API
+
+`App::push_stylesheet` / `remove_stylesheet` / `StylesheetId` shipped, with `cascade_all` / `cascade_subtrees_all` taking `&[Stylesheet]` so the cascade is honestly multi-sheet (push order is the third tiebreaker after specificity + source_idx; vars merge across sheets with later-wins per name). Existing `CascadeExt::cascade(&Stylesheet)` kept as a one-element-slice wrapper so 80+ cascade tests didn't churn. `set_stylesheet` semantics tightened to wholesale-replace (clear + push). Commit `c585065`.
 
 ### 2026-05-22 — 0.2.0 payload expanded to bundle the showcase
 
