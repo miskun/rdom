@@ -10,12 +10,12 @@ For the durable architecture and roadmap, see [`specs/DESIGN.md`](specs/DESIGN.m
 
 **Next milestone:** M1 — Substrate honesty. Three blocking deliverables; **D1 done**, D2 and D3 next.
 
-**Status:** M1 D1 (multi-slot stylesheet API) landed in commit `c585065`. 2,294 workspace tests passing. M1 D2 (subtree-replacement contract + tests) is next.
+**Status:** M1 D1 (multi-slot stylesheet API) landed in `c585065`, with a follow-up fix in `adf14be` after the grumpy architect review found `invalidate_cascade` peeked instead of draining the dirty tracker. 2,295 workspace tests passing. M1 D2 (subtree-replacement contract + tests) is next.
 
 ## 0.2.0 milestone status
 
 - [ ] **M1** — Substrate honesty *(in progress)*:
-  - [x] D1 — Multi-slot stylesheet API (`App::push_stylesheet` / `remove_stylesheet` + `cascade_all` / `cascade_subtrees_all`). Commit `c585065`.
+  - [x] D1 — Multi-slot stylesheet API (`App::push_stylesheet` / `remove_stylesheet` + `cascade_all` / `cascade_subtrees_all`). Commit `c585065`, with `adf14be` fixing a latent `invalidate_cascade` bug surfaced by grumpy architect review.
   - [ ] D2 — Subtree-replacement contract + integration tests.
   - [ ] D3 — Focus-on-detach specification.
 - [ ] **M2** — Showcase scaffold (`crates/rdom-showcase/`, `Demo` trait, static first demo). *Showcase.*
@@ -40,6 +40,18 @@ For the durable architecture and roadmap, see [`specs/DESIGN.md`](specs/DESIGN.m
 (none recorded yet)
 
 ## Recent decisions
+
+### 2026-05-22 — M1 D1 grumpy architect review found dirty-tracker peek-vs-drain bug
+
+`App::invalidate_cascade` (and the v0.1.0 `set_stylesheet` it was extracted from) called `DirtyTracker::roots_snapshot` — a peek — when the intent was to drain. Effect: when the DOM had pending dirty subtrees at the moment of `push/remove/set_stylesheet`, the next paint did a partial subtree cascade instead of the full re-cascade the API contract promises. Elements outside the dirty subtree kept stale computed styles from the previous sheet stack. Pre-existing latent bug in v0.1.0; surfaced by the M1 D1 design review because multi-sheet mutation makes the violation observable.
+
+Regression test added (two siblings, mutate one, swap a sheet, assert the un-mutated sibling re-cascaded). One-line fix: `roots_snapshot` → `take_roots`. Commit `adf14be`.
+
+Non-blocking findings from the same review, recorded as follow-up work (not in this milestone):
+- Parallel-vec storage (`stylesheets` + `stylesheet_ids`) is a hidden invariant; cleaner shape is `Vec<(StylesheetId, Stylesheet)>` with `style_sheets()` returning an iterator. Acceptable churn for 0.2.0 if we want to address.
+- `merge_root_vars` allocates per element (matches pre-existing `root_vars_rc` allocation pattern in single-sheet code; absolute cost worse under multi-sheet). Compute once per cascade pass, thread `&VarMap` down — probably 5× faster on the vars step. Tech debt entry candidate.
+- `set_stylesheet` doesn't return a `StylesheetId` (asymmetric with `push_stylesheet`); minor API smell.
+- Empty-stylesheets edge case is reachable and untested.
 
 ### 2026-05-22 — M1 D1 landed: multi-slot stylesheet API
 
