@@ -52,11 +52,11 @@ use crate::layout::{
 use crate::parse::token::{Token, tokenize};
 use crate::parse::values::{
     current_margin, current_padding, parse_aspect_ratio, parse_border, parse_color, parse_content,
-    parse_inset_shorthand, parse_keyword, parse_length, parse_margin_longhand,
-    parse_margin_shorthand, parse_min_size, parse_opacity, parse_overflow, parse_padding_shorthand,
-    parse_position, parse_size, parse_text_decoration, parse_time_list, parse_timing_function_list,
-    parse_transition_property_list, parse_transition_shorthand, parse_unsigned, parse_z_index,
-    unzip_transition_rules,
+    parse_flex_shorthand, parse_inset_shorthand, parse_keyword, parse_length,
+    parse_margin_longhand, parse_margin_shorthand, parse_min_size, parse_opacity, parse_overflow,
+    parse_padding_shorthand, parse_position, parse_size, parse_text_decoration, parse_time_list,
+    parse_timing_function_list, parse_transition_property_list, parse_transition_shorthand,
+    parse_unsigned, parse_z_index, unzip_transition_rules,
 };
 use crate::transition::{TimingFunction, TransitionProperty};
 use crate::{Color, Content, TuiColor, TuiStyle, Value};
@@ -106,6 +106,8 @@ const PROPERTY_NAMES: &[&str] = &[
     "max-height",
     "aspect-ratio",
     "gap",
+    // Flex shorthand (sets width and height in one declaration).
+    "flex",
     // Padding (shorthand + longhands)
     "padding",
     "padding-top",
@@ -180,6 +182,7 @@ pub fn property_mask(name: &str) -> Option<crate::ImportantMask> {
         "max-height" => ImportantMask::MAX_HEIGHT,
         "aspect-ratio" => ImportantMask::ASPECT_RATIO,
         "gap" => ImportantMask::GAP,
+        "flex" => ImportantMask::WIDTH | ImportantMask::HEIGHT,
         "padding" | "padding-top" | "padding-right" | "padding-bottom" | "padding-left" => {
             ImportantMask::PADDING
         }
@@ -240,6 +243,7 @@ pub fn remove(name: &str, style: &mut TuiStyle) -> bool {
         "max-height" => style.max_height.take().is_some(),
         "aspect-ratio" => style.aspect_ratio.take().is_some(),
         "gap" => style.gap.take().is_some(),
+        "flex" => style.width.take().is_some() | style.height.take().is_some(),
         "padding" | "padding-top" | "padding-right" | "padding-bottom" | "padding-left" => {
             // Per-side longhands don't have separate storage — the
             // shorthand owns all four cells. Removing any longhand
@@ -445,6 +449,17 @@ pub fn set_from_tokens(
         // Layout — gap
         "gap" => parse_unsigned(value).map(|n| {
             style.gap = Some(Value::Specified(n));
+        }),
+
+        // Flex shorthand — sets BOTH `width` and `height` so the
+        // child sizes correctly in row OR column flex parents.
+        // Cross-axis `Size::Flex` reads as "stretch to container"
+        // in the layout pass, matching CSS default
+        // `align-items: stretch`. See `parse_flex_shorthand`'s
+        // doc for value-shape support.
+        "flex" => parse_flex_shorthand(value).map(|s| {
+            style.width = Some(Value::Specified(s));
+            style.height = Some(Value::Specified(s));
         }),
 
         // Padding shorthand + longhands
@@ -701,6 +716,23 @@ pub fn serialize(name: &str, style: &TuiStyle) -> Option<String> {
             .as_ref()
             .and_then(specified)
             .map(|o| serialize_overflow(o).to_string()),
+
+        // Flex shorthand. Serializes only when width and height
+        // agree, matching the shape `parse_flex_shorthand` outputs
+        // (`flex: <grow>` sets both axes to the same value). When
+        // the axes diverge, expose via the `width` / `height`
+        // longhands instead.
+        "flex" => match (
+            style.width.as_ref().and_then(specified),
+            style.height.as_ref().and_then(specified),
+        ) {
+            (Some(w), Some(h)) if w == h => match w {
+                Size::Flex(n) => Some(n.to_string()),
+                Size::Auto => Some("none".to_string()),
+                _ => None,
+            },
+            _ => None,
+        },
 
         // Layout — sizing
         "width" => style.width.as_ref().and_then(specified).map(serialize_size),
@@ -1112,6 +1144,7 @@ mod tests {
             ("max-height", "50"),
             ("aspect-ratio", "16/9"),
             ("gap", "2"),
+            ("flex", "1"),
             ("padding", "1 2 3 4"),
             ("padding-top", "5"),
             ("padding-right", "6"),

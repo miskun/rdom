@@ -359,6 +359,65 @@ pub fn parse_size(value: &[Token]) -> Option<Size> {
     }
 }
 
+/// Parse the CSS `flex` shorthand. Models the main-axis sizing
+/// of a flex child. Returns the `Size` that should be applied to
+/// the child's width AND height (cross-axis `Size::Flex` already
+/// means "stretch to container" in our layout, matching CSS
+/// default `align-items: stretch` behavior).
+///
+/// Supported value shapes:
+/// - `flex: auto`   → `Size::Flex(1)` (grow as `flex: 1 1 auto`)
+/// - `flex: none`   → `Size::Auto`     (don't grow as `flex: 0 0 auto`)
+/// - `flex: <n>`    → `n > 0` → `Size::Flex(n)`; `n == 0` → `Size::Auto`
+/// - `flex: <n> <m> <basis>` → use `<n>` as the grow value; `<m>`
+///   (shrink) and `<basis>` are parsed-and-accepted but ignored
+///   until full flex-grow / flex-shrink / flex-basis tracking lands
+///   in the substrate.
+pub fn parse_flex_shorthand(value: &[Token]) -> Option<Size> {
+    match value {
+        [Token::Ident(s)] if s.eq_ignore_ascii_case("auto") => Some(Size::Flex(1)),
+        [Token::Ident(s)] if s.eq_ignore_ascii_case("none") => Some(Size::Auto),
+        [Token::Number(n)] if *n >= 0 => {
+            if *n == 0 {
+                Some(Size::Auto)
+            } else {
+                Some(Size::Flex(*n as u16))
+            }
+        }
+        // Two-value form: `<grow> <shrink>` (basis defaults to 0).
+        // Three-value form: `<grow> <shrink> <basis>`. Both ignore
+        // shrink and basis for now; the grow value drives the Size.
+        [Token::Number(n), _rest @ ..] if *n >= 0 && !value.is_empty() => {
+            // Validate the remaining tokens look like a valid
+            // flex shorthand tail (1 or 2 more numeric/auto values).
+            // If not, reject so authors get a warning rather than a
+            // silent partial-apply.
+            let tail = &value[1..];
+            let tail_ok = match tail.len() {
+                1 => {
+                    matches!(&tail[0], Token::Number(_))
+                        || matches!(&tail[0], Token::Ident(s) if s.eq_ignore_ascii_case("auto"))
+                }
+                2 => {
+                    matches!(&tail[0], Token::Number(_))
+                        && (matches!(&tail[1], Token::Number(_))
+                            || matches!(&tail[1], Token::Ident(s) if s.eq_ignore_ascii_case("auto")))
+                }
+                _ => false,
+            };
+            if !tail_ok {
+                return None;
+            }
+            if *n == 0 {
+                Some(Size::Auto)
+            } else {
+                Some(Size::Flex(*n as u16))
+            }
+        }
+        _ => None,
+    }
+}
+
 /// `min-width` / `min-height` value: `auto` | `<unsigned-int>`. The
 /// `auto` keyword opts a flex item into intrinsic min-content
 /// protection (decision 4 from the M5 pre-prep, M5.1.b).
