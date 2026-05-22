@@ -10,7 +10,7 @@ For the durable architecture and roadmap, see [`specs/DESIGN.md`](specs/DESIGN.m
 
 **Next milestone:** M3 — Sidebar navigation + per-demo subtree swap.
 
-**Status:** **M1 + M2 closed.** M2 grumpy architect review surfaced a substrate-honesty gap (class attribute / classList silent divergence) that the visual review made impossible to ignore — fixed in commit `a92aa6a` with `set_attribute("class", _)` ↔ `add_class` round-trip now per WHATWG. M2 review items 1-5 landed in `c6f5d34`. 2,327 workspace tests passing.
+**Status:** **M1 + M2 closed.** M2 visual review surfaced THREE substrate-honesty gaps; all fixed at root cause per CLAUDE.md "Real Fixes Only" rather than worked around in the showcase. Substrate now: round-trips `class` ↔ `classList` (commit `a92aa6a`), supports `%` units as first-class (commit `0b363db`), correctly handles nested `border-collapse` + content-bearing children (commit `5b699c2`). 2,334 workspace tests passing.
 
 One piece of architectural debt deferred with teeth: `EVT-DETACH-1` (implicit blur/focusout/mouseleave on detach) is tracked in [`specs/TECH_DEBT.md`](specs/TECH_DEBT.md) and listed as a non-negotiable M5 deliverable in [`specs/SHOWCASE.md`](specs/SHOWCASE.md). M5 cannot ship `mouseleave` for explicit motion without closing this.
 
@@ -42,6 +42,16 @@ One piece of architectural debt deferred with teeth: `EVT-DETACH-1` (implicit bl
 - **`EVT-DETACH-1`** — implicit `blur` / `focusout` / `mouseleave` / `mouseout` not dispatched on detach. Documented in [`specs/TECH_DEBT.md`](specs/TECH_DEBT.md) as a non-negotiable M5 deliverable. Risk: if M5 scope grows and this slips, rdom-tui ships an internally inconsistent hover-event model. Mitigation: M5 exit criteria in [`specs/SHOWCASE.md`](specs/SHOWCASE.md) explicitly require closing `EVT-DETACH-1` + deleting the related DIVERGENCES.md entries.
 
 ## Recent decisions
+
+### 2026-05-22 — Three substrate gaps surfaced by M2 visual review, all fixed at root cause
+
+Visual review of the rendered showcase chrome surfaced two more substrate gaps after the class-attribute fix:
+
+1. **`%` units silently dropped** (commit `0b363db`). My `width: 100%; height: 100%` declarations were tokenized + warned + dropped because `%` was grouped with `px`/`em`/`rem`/`ch` as "non-cell units." That grouping was wrong: those four need a pixel/font-size concept the terminal grid doesn't have, but `%` is *relative to parent dimensions* — which the layout pass already knows. Fixed by adding `Token::Percentage`, `Size::Percent`, layout resolution in flex (main + cross axis) and positioned-element placement. DIVERGENCES.md updated.
+
+2. **Nested `border-collapse: collapse` + bordered child + content-bearing grandchild** (commit `5b699c2`). The chrome's `<header>` rendered as an empty box because the `<h1>` was being positioned at the same row as the shared parent-child border, then the border glyph painted over the text. Root cause: `compute_content_area_collapsed`'s flatten behavior assumes the touching child shares a border with the parent (the table-cell model); when the child is content-bearing (no own border), its content lands on the parent's painted border row. Fixed in `layout_flex_children` with per-edge insets that distinguish "child shares a border" vs "child is content-bearing leaf" — borderless container children remain transparent (the 3-sibling-nested-grid test still passes).
+
+User-level lesson: **when CSS that should work doesn't, the default action is to investigate the substrate, not the showcase code.** Twice in a row I papered over the symptom; the user pushed back hard and was right. Both gaps were real substrate honesty issues that would have rotted into permanent divergence if deferred.
 
 ### 2026-05-22 — M2 grumpy review surfaced class-attribute round-trip bug; fixed
 
