@@ -53,6 +53,17 @@ use handle::AppShared;
 
 type TickCallback = Box<dyn FnMut(&mut AppContext<'_>) -> ControlFlow + 'static>;
 
+/// Opaque handle for a stylesheet registered with an [`App`]. Returned
+/// by [`App::push_stylesheet`] and consumed by [`App::remove_stylesheet`].
+///
+/// Equality is identity-based: two ids compare equal iff they refer to
+/// the same registered sheet (within the same App). Ids are never
+/// reused within an App; once removed, the id becomes stale and
+/// further `remove_stylesheet` calls with it are a no-op. Ids from
+/// one App passed to another are also no-op on lookup miss — no panic.
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Hash)]
+pub struct StylesheetId(u64);
+
 /// The runtime. Owns everything needed to paint + interact.
 ///
 /// Generic over `Backend` so tests can construct an `App` with
@@ -60,13 +71,23 @@ type TickCallback = Box<dyn FnMut(&mut AppContext<'_>) -> ControlFlow + 'static>
 /// real terminal.
 pub struct App<B: Backend = CrosstermBackend<Stdout>> {
     dom: TuiDom,
-    /// Author stylesheets registered with this App. v0.1.0 always
-    /// holds exactly one sheet (the one passed to `App::new` /
-    /// `App::with_backend`). The `Vec` shape future-proofs for
-    /// multi-sheet registration without an API churn — public
-    /// accessor `style_sheets() -> &[Stylesheet]` matches the
-    /// browser `Document.styleSheets` shape.
+    /// Author stylesheets registered with this App, in push order.
+    /// The cascade reads this slice; later sheets win same-specificity
+    /// contests, matching `Document.styleSheets` ordering on the web.
+    ///
+    /// Mutated via [`App::push_stylesheet`] (append + returns
+    /// [`StylesheetId`]), [`App::remove_stylesheet`] (delete by id),
+    /// or [`App::set_stylesheet`] (clear + push). Public accessor
+    /// [`App::style_sheets`] returns the slice.
     stylesheets: Vec<Stylesheet>,
+    /// Parallel to [`Self::stylesheets`]: the id assigned to each
+    /// slot. Keeps `style_sheets() -> &[Stylesheet]` returning a
+    /// borrow of the sheet vec directly without re-exposing the id.
+    stylesheet_ids: Vec<StylesheetId>,
+    /// Monotonic id generator. Incremented on every push (including
+    /// the construction sheet and `set_stylesheet`). u64 is overkill
+    /// for in-process lifetimes — chosen for simplicity.
+    next_stylesheet_id: u64,
     terminal: Terminal<B>,
     tracker: DirtyTracker,
     router: Router,
@@ -271,6 +292,8 @@ impl<B: Backend> App<B> {
         Ok(Self {
             dom,
             stylesheets: vec![stylesheet],
+            stylesheet_ids: vec![StylesheetId(0)],
+            next_stylesheet_id: 1,
             terminal,
             tracker,
             router: Router::new(),
@@ -366,28 +389,78 @@ impl<B: Backend> App<B> {
         t::drain_microtasks(&mut self.scheduler, &mut self.dom);
     }
 
-    /// Replace the App's primary stylesheet (the one at index 0 of
-    /// `style_sheets()`). The next paint runs a full re-cascade.
-    /// v0.1.0 ships with only one sheet slot, so this is
-    /// equivalent to "replace the stylesheet"; the index-0 framing
-    /// future-proofs for multi-sheet registration.
+    /// Replace every registered stylesheet with `sheet`. After this
+    /// call, `style_sheets()` is a single-element slice; any sheets
+    /// previously pushed via [`Self::push_stylesheet`] are dropped
+    /// and their ids become stale (subsequent `remove_stylesheet`
+    /// calls with them are no-ops). The next paint runs a full
+    /// re-cascade.
+    ///
+    /// For incremental sheet management (adding a per-screen sheet
+    /// without losing the base sheet), use [`Self::push_stylesheet`].
     pub fn set_stylesheet(&mut self, sheet: Stylesheet) {
-        self.stylesheets[0] = sheet;
-        // Clearing tracker roots and forcing a full cascade: the
-        // simplest way is to drop + reinstall the tracker.
+        let id = StylesheetId(self.next_stylesheet_id);
+        self.next_stylesheet_id += 1;
+        self.stylesheets.clear();
+        self.stylesheet_ids.clear();
+        self.stylesheets.push(sheet);
+        self.stylesheet_ids.push(id);
+        self.invalidate_cascade();
+    }
+
+    /// Append a new author stylesheet onto the cascade stack. The
+    /// returned [`StylesheetId`] can later be passed to
+    /// [`Self::remove_stylesheet`] to take it back out.
+    ///
+    /// Within the cascade, later-pushed sheets win same-specificity
+    /// contests — push order is the third tiebreaker after
+    /// (specificity, source_idx). Custom-property (`var()`)
+    /// definitions are merged across sheets with later-wins
+    /// semantics per var name. Matches `Document.styleSheets`
+    /// ordering on the web.
+    ///
+    /// The next paint runs a full re-cascade.
+    pub fn push_stylesheet(&mut self, sheet: Stylesheet) -> StylesheetId {
+        let id = StylesheetId(self.next_stylesheet_id);
+        self.next_stylesheet_id += 1;
+        self.stylesheets.push(sheet);
+        self.stylesheet_ids.push(id);
+        self.invalidate_cascade();
+        id
+    }
+
+    /// Remove a previously-pushed sheet by [`StylesheetId`]. No-op
+    /// if the id is unknown (already removed, or from a different
+    /// App) — never panics. When removal actually changes the
+    /// stack, the next paint runs a full re-cascade.
+    pub fn remove_stylesheet(&mut self, id: StylesheetId) {
+        if let Some(pos) = self.stylesheet_ids.iter().position(|x| *x == id) {
+            self.stylesheets.remove(pos);
+            self.stylesheet_ids.remove(pos);
+            self.invalidate_cascade();
+        }
+    }
+
+    /// Drop the dirty tracker's accumulated roots and force a full
+    /// re-cascade on the next paint. Used by stylesheet-mutation
+    /// methods.
+    fn invalidate_cascade(&mut self) {
         let _ = self.tracker.roots_snapshot();
         self.needs_redraw = true;
     }
 
-    /// All stylesheets registered with this App. Spec-name parity
-    /// with `Document.styleSheets`. v0.1.0 always returns a
-    /// single-element slice — the sheet passed to construction
-    /// (and possibly replaced via `set_stylesheet`).
+    /// All stylesheets registered with this App, in push order.
+    /// Spec-name parity with `Document.styleSheets`.
+    ///
+    /// Slot 0 is the sheet passed to [`Self::new`] / [`Self::with_backend`];
+    /// further slots come from [`Self::push_stylesheet`] calls. The cascade
+    /// merges rules across all sheets, with later sheets winning
+    /// same-specificity contests.
     ///
     /// Note: stylesheets live on `App`, not on `TuiDom`. This is
     /// deliberate — a stylesheet is an App-lifecycle concept
-    /// (registered at construction, replaceable mid-run), whereas
-    /// the `Dom` is a pure tree structure. The other three
+    /// (registered at construction, mutable mid-run), whereas the
+    /// `Dom` is a pure tree structure. The other three
     /// `TuiDocAccessors` methods (`element_from_point`,
     /// `elements_from_point`, `caret_position_from_point`) operate
     /// on the tree and live on `Dom`; this one operates on the
@@ -611,9 +684,9 @@ impl<B: Backend> App<B> {
         dirty_roots.sort_unstable();
         dirty_roots.dedup();
 
-        // v0.1.0 cascade still operates on a single sheet; the
-        // primary (index 0) is the only one registered today.
-        let sheet = &self.stylesheets[0];
+        // Cascade reads the full registered slice; later sheets win
+        // same-specificity contests (push order).
+        let sheets = self.stylesheets.as_slice();
         let dom = &mut self.dom;
         let terminal = &mut self.terminal;
         let animations = &mut self.animations;
@@ -621,9 +694,9 @@ impl<B: Backend> App<B> {
 
         terminal.draw(|buf| {
             if dirty_roots.is_empty() {
-                dom.cascade(sheet);
+                dom.cascade_all(sheets);
             } else {
-                dom.cascade_subtrees(sheet, &dirty_roots);
+                dom.cascade_subtrees_all(sheets, &dirty_roots);
             }
             // Detect cascade-driven property changes and register
             // transitions before layout / paint pick up the new

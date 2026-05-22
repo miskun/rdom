@@ -37,6 +37,6 @@ pub mod url_opener;
 // Placeholders — later Phase 14.6 sub-phases fill these in.
 // pub mod pointer_capture;
 
-pub use app::{App, AppContext, AppHandle, ControlFlow};
+pub use app::{App, AppContext, AppHandle, ControlFlow, StylesheetId};
 pub use hit_test::HitTestExt;
 pub use router::{RouteOutcome, Router};

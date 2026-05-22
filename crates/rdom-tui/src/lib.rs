@@ -78,7 +78,9 @@ pub use render::{
     Backend, Buffer, Cell, CellDiff, CompletedFrame, CrosstermBackend, LayoutExt, PaintExt, Rect,
     RenderContext, Style, Terminal, TerminalGuard, TestBackend, VirtualScreen,
 };
-pub use runtime::{App, AppContext, AppHandle, ControlFlow, HitTestExt, RouteOutcome, Router};
+pub use runtime::{
+    App, AppContext, AppHandle, ControlFlow, HitTestExt, RouteOutcome, Router, StylesheetId,
+};
 pub use style::{
     CascadeExt, Color, ComputedStyle, Content, DirtyTracker, INHERITS_MASK, ImportantMask,
     LAYOUT_MASK, Modifier, PropMask, PseudoElementTarget, Rule, RuleOrigin, Specificity,

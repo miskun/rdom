@@ -354,6 +354,123 @@ fn set_stylesheet_replaces_primary_in_place() {
     );
 }
 
+// ── Multi-slot stylesheet API (M1 D1) ───────────────────────────────
+
+#[test]
+fn push_stylesheet_appends_and_returns_distinct_ids() {
+    // Construction puts one sheet in slot 0. Each push appends; each
+    // push gets back a distinct StylesheetId.
+    let dom: TuiDom = TuiDom::new();
+    let mut app = test_app(dom, Stylesheet::bare(), Rect::new(0, 0, 20, 5));
+    assert_eq!(app.style_sheets().len(), 1, "construction sheet present");
+
+    let id1 = app.push_stylesheet(Stylesheet::bare());
+    let id2 = app.push_stylesheet(Stylesheet::bare());
+
+    assert_eq!(app.style_sheets().len(), 3, "two pushes appended");
+    assert_ne!(id1, id2, "each push gets a distinct id");
+}
+
+#[test]
+fn remove_stylesheet_removes_only_that_slot() {
+    // Push three sheets, remove the middle one, verify the other two
+    // stay and order is preserved.
+    let dom: TuiDom = TuiDom::new();
+    let mut app = test_app(dom, Stylesheet::bare(), Rect::new(0, 0, 20, 5));
+    let id_a = app.push_stylesheet(
+        Stylesheet::bare().rule_unchecked("a", TuiStyle::new().fg(Color::Rgb(1, 0, 0))),
+    );
+    let id_b = app.push_stylesheet(
+        Stylesheet::bare().rule_unchecked("b", TuiStyle::new().fg(Color::Rgb(2, 0, 0))),
+    );
+    let _id_c = app.push_stylesheet(
+        Stylesheet::bare().rule_unchecked("c", TuiStyle::new().fg(Color::Rgb(3, 0, 0))),
+    );
+    assert_eq!(app.style_sheets().len(), 4);
+
+    app.remove_stylesheet(id_b);
+
+    let sheets = app.style_sheets();
+    assert_eq!(sheets.len(), 3, "one removed");
+    // Slot 0 = construction (bare). Slot 1 = A. Slot 2 = C (shifted).
+    assert_eq!(sheets[1].rules().len(), 1, "A still present at index 1");
+    assert_eq!(sheets[2].rules().len(), 1, "C shifted to index 2");
+
+    app.remove_stylesheet(id_a);
+    assert_eq!(app.style_sheets().len(), 2);
+}
+
+#[test]
+fn remove_stylesheet_unknown_id_is_noop() {
+    // Removing a stale (already-removed) id is a no-op — no panic, no
+    // state change. Same contract for an id from a different App.
+    let dom: TuiDom = TuiDom::new();
+    let mut app = test_app(dom, Stylesheet::bare(), Rect::new(0, 0, 20, 5));
+    let id = app.push_stylesheet(Stylesheet::bare());
+    app.remove_stylesheet(id);
+    let len_before = app.style_sheets().len();
+    app.remove_stylesheet(id);
+    assert_eq!(app.style_sheets().len(), len_before, "stale id no-op");
+}
+
+#[test]
+fn later_pushed_sheet_wins_same_specificity() {
+    // The cascade-order proof. Construction sheet: div → red.
+    // Pushed sheet: div → blue. Same selector specificity; push
+    // order is the tiebreaker — blue wins. Confirms that
+    // additional sheets actually participate in the cascade, not
+    // just sit on the side.
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let div = dom.create_element("div");
+    dom.append_child(root, div).unwrap();
+
+    let base = Stylesheet::bare().rule_unchecked("div", TuiStyle::new().fg(Color::Rgb(255, 0, 0)));
+    let mut app = test_app(dom, base, Rect::new(0, 0, 20, 5));
+    let _blue = app.push_stylesheet(
+        Stylesheet::bare().rule_unchecked("div", TuiStyle::new().fg(Color::Rgb(0, 0, 255))),
+    );
+    app.draw_if_dirty().unwrap();
+
+    let fg = crate::style::cascade::computed_of(app.dom(), div).fg;
+    assert_eq!(
+        fg,
+        Color::Rgb(0, 0, 255),
+        "later-pushed sheet wins same-specificity contest"
+    );
+}
+
+#[test]
+fn remove_stylesheet_triggers_recascade() {
+    // Push a sheet that overrides the construction sheet, paint, then
+    // remove the pushed sheet — the construction sheet's value must
+    // come back. Proves removal actually invalidates the cascade.
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let div = dom.create_element("div");
+    dom.append_child(root, div).unwrap();
+
+    let base = Stylesheet::bare().rule_unchecked("div", TuiStyle::new().fg(Color::Rgb(255, 0, 0)));
+    let mut app = test_app(dom, base, Rect::new(0, 0, 20, 5));
+    let blue = app.push_stylesheet(
+        Stylesheet::bare().rule_unchecked("div", TuiStyle::new().fg(Color::Rgb(0, 0, 255))),
+    );
+    app.draw_if_dirty().unwrap();
+    assert_eq!(
+        crate::style::cascade::computed_of(app.dom(), div).fg,
+        Color::Rgb(0, 0, 255),
+        "blue while pushed"
+    );
+
+    app.remove_stylesheet(blue);
+    app.draw_if_dirty().unwrap();
+    assert_eq!(
+        crate::style::cascade::computed_of(app.dom(), div).fg,
+        Color::Rgb(255, 0, 0),
+        "back to base red after removal"
+    );
+}
+
 // ── dom_mut + set_stylesheet ────────────────────────────────────────
 
 #[test]

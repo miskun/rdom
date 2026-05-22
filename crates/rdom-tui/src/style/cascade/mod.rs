@@ -69,6 +69,15 @@ pub use masks::{INHERITS_MASK, LAYOUT_MASK, PropMask};
 /// Lives in rdom-tui so `Dom` in rdom-core stays style-agnostic. Users
 /// pull it in with `use rdom_tui::CascadeExt;` (or via
 /// `use rdom_tui::*;`).
+///
+/// Each method comes in two forms: the single-`Stylesheet` form for
+/// ergonomic use in tests and the rare app with one sheet, and the
+/// `&[Stylesheet]` form that the runtime uses when an `App` has
+/// multiple sheets registered (`push_stylesheet` / `set_stylesheet` /
+/// construction). Within the slice, later sheets win same-specificity
+/// contests — push order is the tiebreaker, matching `Document.styleSheets`
+/// ordering on the web. The single-sheet form is a thin wrapper around
+/// the slice form with a one-element slice.
 pub trait CascadeExt {
     /// Cascade the whole document against `stylesheet`. Writes
     /// `ComputedStyle` entries to every element's `TuiExt`, clears
@@ -76,6 +85,12 @@ pub trait CascadeExt {
     /// layout-affecting property values changed. Use for initial
     /// paint or after a stylesheet swap.
     fn cascade(&mut self, stylesheet: &Stylesheet);
+
+    /// Multi-sheet variant of [`Self::cascade`]. Rules are merged
+    /// across all sheets; later sheets win same-specificity contests.
+    /// Custom-property (`var()`) definitions are merged with
+    /// later-wins semantics per var name.
+    fn cascade_all(&mut self, stylesheets: &[Stylesheet]);
 
     /// Cascade only the subtrees rooted at `roots`. Each root's
     /// parent is consulted for inheritance (so a root's computed fg
@@ -87,19 +102,30 @@ pub trait CascadeExt {
     /// resulting performance scales with the size of changed
     /// subtrees, not the whole tree.
     fn cascade_subtrees(&mut self, stylesheet: &Stylesheet, roots: &[NodeId]);
+
+    /// Multi-sheet variant of [`Self::cascade_subtrees`].
+    fn cascade_subtrees_all(&mut self, stylesheets: &[Stylesheet], roots: &[NodeId]);
 }
 
 impl CascadeExt for Dom<TuiExt> {
     fn cascade(&mut self, stylesheet: &Stylesheet) {
+        self.cascade_all(std::slice::from_ref(stylesheet));
+    }
+
+    fn cascade_all(&mut self, stylesheets: &[Stylesheet]) {
         let root = self.root();
         let parent = ComputedStyle::initial();
         // Full-tree cascade: `tree_has_positioned_pseudo` flags get
         // written authoritatively, top-to-bottom. No bubble-up needed
         // because the walk visits every ancestor.
-        let _ = walk::cascade_subtree(self, stylesheet, root, &parent);
+        let _ = walk::cascade_subtree(self, stylesheets, root, &parent);
     }
 
     fn cascade_subtrees(&mut self, stylesheet: &Stylesheet, roots: &[NodeId]) {
+        self.cascade_subtrees_all(std::slice::from_ref(stylesheet), roots);
+    }
+
+    fn cascade_subtrees_all(&mut self, stylesheets: &[Stylesheet], roots: &[NodeId]) {
         for &root in roots {
             // Look up parent's computed style for inheritance. Root
             // has no parent, or the parent is a Fragment/root — use
@@ -109,7 +135,7 @@ impl CascadeExt for Dom<TuiExt> {
                 .parent_node()
                 .and_then(|p| p.ext().and_then(|e| e.computed.clone()))
                 .unwrap_or_else(ComputedStyle::initial);
-            let flags = walk::cascade_subtree(self, stylesheet, root, &parent_computed);
+            let flags = walk::cascade_subtree(self, stylesheets, root, &parent_computed);
             // If the partial cascade introduced a positioned pseudo
             // or a `border-collapse: collapse` element anywhere in
             // the subtree, bubble `true` up through ancestors so the
