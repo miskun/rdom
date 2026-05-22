@@ -8,6 +8,7 @@
 //! 2. Define a unit struct + impl `Demo` for it.
 //! 3. Register the struct in [`crate::registry::DEMOS`].
 
+pub mod border_collapse;
 pub mod counter_button;
 pub mod flex_row;
 pub mod hello;
