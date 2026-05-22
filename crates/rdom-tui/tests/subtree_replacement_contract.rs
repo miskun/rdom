@@ -369,6 +369,58 @@ fn selection_collapses_when_focus_in_detached_subtree() {
     );
 }
 
+// ─── Cleanup propagates through every detach path ──────────────────
+
+#[test]
+fn drop_subtree_purges_interaction_state() {
+    // `drop_subtree` frees the subtree from the arena entirely. The
+    // cleanup must run *before* the free, otherwise a stale focused
+    // NodeId would point at a recycled slot — the worst kind of bug,
+    // because the same id could later be handed out for a fresh node.
+    let mut dom: TuiDom = TuiDom::new();
+    let main = dom.create_element("main");
+    let btn = dom.create_element("button");
+    dom.append_child(dom.root(), main).unwrap();
+    dom.append_child(main, btn).unwrap();
+    dom.set_focused(Some(btn));
+    dom.set_hovered(Some(btn));
+
+    dom.drop_subtree(main).unwrap();
+
+    assert_eq!(
+        dom.focused(),
+        None,
+        "drop_subtree must purge focused state before freeing the subtree"
+    );
+    assert_eq!(
+        dom.hovered(),
+        None,
+        "drop_subtree must purge hovered state before freeing the subtree"
+    );
+}
+
+#[test]
+fn replace_with_purges_interaction_state_on_replaced_node() {
+    // `ChildNode.replaceWith(...)` inserts the new siblings then
+    // detaches self. The replaced node carries its subtree with it
+    // — interaction state pointing inside that subtree must clear.
+    let mut dom: TuiDom = TuiDom::new();
+    let old = dom.create_element("old");
+    let inner = dom.create_element("inner");
+    dom.append_child(dom.root(), old).unwrap();
+    dom.append_child(old, inner).unwrap();
+    dom.set_focused(Some(inner));
+
+    let new = dom.create_element("new");
+    dom.node_mut(old).replace_with([new.into()]).unwrap();
+
+    assert_eq!(
+        dom.focused(),
+        None,
+        "replace_with must purge focus that was inside the replaced node's subtree"
+    );
+}
+
 #[test]
 fn selection_unaffected_when_unrelated_node_is_detached() {
     let mut dom: TuiDom = TuiDom::new();

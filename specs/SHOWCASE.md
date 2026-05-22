@@ -118,7 +118,7 @@ The seven existing `crates/rdom-tui/examples/*.rs` become showcase demos without
 
 ### M5 — Event surface bundle
 
-Substrate work. Six new events lift `rdom-tui`'s event coverage to the 0.2.0 set.
+Substrate work. Six new events lift `rdom-tui`'s event coverage to the 0.2.0 set. Also closes the implicit-detach-events gap left open in M1 (`EVT-DETACH-1`).
 
 **Deliverables:**
 
@@ -128,10 +128,11 @@ Substrate work. Six new events lift `rdom-tui`'s event coverage to the 0.2.0 set
 4. **`mousemove`** — fires while the terminal reports motion events. Respects pointer capture.
 5. **`scroll`** — fires on any scrollable element when its `scroll_top` or `scroll_left` changes. Coalesced per rendering step (matches HTML).
 6. **`resize`** — fires on `Window` (mapped to the runtime's resize signal) when the terminal grid changes size. Coalesced per rendering step.
+7. **`EVT-DETACH-1` closure** — implicit `blur` / `focusout` / `mouseleave` / `mouseout` dispatch when the focused or hovered element (or any ancestor) is detached from the tree. Capture the pre-detach ancestor path in `rdom-core::tree::detach_from_parent`, plumb through a new `Mutation` shape, install an `App`-level observer that translates those records into `dispatch_tui_event` calls. See `EVT-DETACH-1` in [`TECH_DEBT.md`](TECH_DEBT.md) for the full rationale. **Non-negotiable** for M5 — shipping `mouseleave` for explicit motion without closing the implicit-detach path leaves `rdom-tui` with two inconsistent hover-event models.
 
 Each event needs: a public event type, dispatch wired through the existing 3-phase pipeline, integration tests covering cancellation / propagation / `AbortSignal` removal, and (where applicable) a [`DIVERGENCES.md`](DIVERGENCES.md) entry for terminal-specific behavior.
 
-**Exit criteria:** all six events implemented + tested; `add_event_listener` accepts the new names; review gate run.
+**Exit criteria:** all six events implemented + tested; `add_event_listener` accepts the new names; `EVT-DETACH-1` closed (entry retired from `TECH_DEBT.md`); the implicit-detach DIVERGENCES.md entries deleted (no longer divergent); review gate run.
 
 ### M6 — `calc()` value system
 

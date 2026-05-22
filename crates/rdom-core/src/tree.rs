@@ -1,5 +1,20 @@
 //! Tree mutation: `append_child`, `remove_child`, `insert_before`, etc.
 //!
+//! ## Observer record ordering
+//!
+//! Every detach path (`remove_child`, `replace_child`, `replace_with`,
+//! `clear_children`, `drop_subtree`) routes through
+//! `detach_from_parent`, which clears any interaction state
+//! (`focused` / `hovered` / `pointer_capture` / `selection`) that
+//! pointed into the subtree being removed. The
+//! `InteractionChanged` / `SelectionChanged` records for those
+//! cleanups fire *during* the detach, before the caller's
+//! `ChildListChanged` record. Observers therefore see "effect"
+//! records before the "cause" record. The alternative —
+//! post-detach purge in every caller — would centralize the
+//! ordering at the cost of forgetting it on a future tree-mutation
+//! API. Document, don't decentralize.
+//!
 //! Every mutation maintains the doubly-linked sibling chain + first_child/
 //! last_child + parent invariants. Fragment insertion unwraps the fragment's
 //! children. Cycle detection via `is_ancestor`.
@@ -348,6 +363,18 @@ impl<Ext: 'static> Dom<Ext> {
     /// has no associated record type (it's a runtime-routing flag,
     /// not a cascade-affecting state).
     fn purge_interaction_state_for_subtree(&mut self, root: NodeId) {
+        // Common-case early exit: when no interaction state is set
+        // (headless DOM consumers, doc-building scripts, tests that
+        // don't touch focus/hover/selection), skip the descendant
+        // walk + allocation.
+        if self.focused.is_none()
+            && self.hovered.is_none()
+            && self.pointer_capture.is_none()
+            && self.selection.is_none()
+        {
+            return;
+        }
+
         let mut subtree: Vec<NodeId> = Vec::new();
         self.collect_descendants(root, &mut subtree);
 
