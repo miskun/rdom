@@ -132,9 +132,8 @@ pub fn base_stylesheet() -> Stylesheet {
 /// row container with no border of its own) line up cleanly.
 const BASE_CSS: &str = r#"
 .app {
+  flex: 1;
   flex-direction: column;
-  width: 100%;
-  height: 100%;
   border: solid;
   border-color: rgb(70, 80, 100);
   border-collapse: collapse;
@@ -152,9 +151,8 @@ const BASE_CSS: &str = r#"
 }
 
 .app-body {
+  flex: 1;
   flex-direction: row;
-  width: 100%;
-  height: 100%;
 }
 
 .sidebar {
@@ -170,8 +168,7 @@ const BASE_CSS: &str = r#"
 }
 
 .main {
-  width: 100%;
-  height: 100%;
+  flex: 1;
   border: solid;
   border-color: rgb(70, 80, 100);
   padding: 1;
