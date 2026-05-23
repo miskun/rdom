@@ -168,6 +168,22 @@ fn handle_up(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> RouteO
         let mut tui_click = TuiEvent::click(mouse);
         tui_click.event = tui_click.event.clone().with_synthetic(true);
         let _ = dom.dispatch_tui_event(target, &mut tui_click);
+
+        // Multi-click promotion: fire `dblclick` on the second
+        // click of a sequence, AFTER the regular click event.
+        // `register_click` recorded the running count on the
+        // matching mousedown; we consume it here. Only the 2nd
+        // click promotes — a 3rd click in the same sequence is a
+        // triple-click gesture (selection extends to a line); a
+        // 4th wraps the counter back to 1 and starts a new pair,
+        // so dblclick will fire again on a fresh second click.
+        // Synthetic per UI Events §5.10.
+        let count = router.last_click.map(|c| c.count).unwrap_or(0);
+        if count == 2 {
+            let mut tui_dbl = TuiEvent::dblclick(mouse);
+            tui_dbl.event = tui_dbl.event.clone().with_synthetic(true);
+            let _ = dom.dispatch_tui_event(target, &mut tui_dbl);
+        }
     }
 
     // Auto-release the pointer. Browser-faithful: capture ends on

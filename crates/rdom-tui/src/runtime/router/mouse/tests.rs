@@ -139,6 +139,109 @@ fn contextmenu_off_screen_does_not_fire() {
     assert!(log.borrow().is_empty());
 }
 
+// ── dblclick (M5 D3) ────────────────────────────────────────────────
+
+#[test]
+fn second_click_dispatches_dblclick() {
+    // M5 D3: two clicks at the same position within the multi-click
+    // window dispatch `dblclick` on the second click, in addition
+    // to the second `click`. Matches HTML.
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let el = dom.create_element("div");
+    dom.append_child(root, el).unwrap();
+    let sheet = Stylesheet::bare().rule_unchecked(
+        "div",
+        TuiStyle::new().width(Size::Fixed(10)).height(Size::Fixed(3)),
+    );
+    prepare(&mut dom, &sheet, Rect::new(0, 0, 20, 5));
+
+    let log = log();
+    record(&mut dom, el, "click", &log);
+    record(&mut dom, el, "dblclick", &log);
+
+    let mut router = Router::new();
+    router.route(&mut dom, crossterm::event::Event::Mouse(down_at(3, 1)));
+    router.route(&mut dom, crossterm::event::Event::Mouse(up_at(3, 1)));
+    router.route(&mut dom, crossterm::event::Event::Mouse(down_at(3, 1)));
+    router.route(&mut dom, crossterm::event::Event::Mouse(up_at(3, 1)));
+
+    let events: Vec<String> = log.borrow().iter().map(|(_, t)| t.clone()).collect();
+    // Expected: click, click, dblclick (dblclick fires AFTER the
+    // second click, matching HTML).
+    assert_eq!(
+        events.iter().filter(|t| t.as_str() == "click").count(),
+        2,
+        "two clicks fired"
+    );
+    assert_eq!(
+        events.iter().filter(|t| t.as_str() == "dblclick").count(),
+        1,
+        "exactly one dblclick fired"
+    );
+    let click_positions: Vec<usize> = events
+        .iter()
+        .enumerate()
+        .filter_map(|(i, t)| (t.as_str() == "click").then_some(i))
+        .collect();
+    let dblclick_position = events.iter().position(|t| t.as_str() == "dblclick").unwrap();
+    assert!(
+        dblclick_position > click_positions[1],
+        "dblclick fires AFTER the second click (got order: {events:?})"
+    );
+}
+
+#[test]
+fn single_click_does_not_fire_dblclick() {
+    // Sanity: a lone click never produces a dblclick.
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let el = dom.create_element("div");
+    dom.append_child(root, el).unwrap();
+    let sheet = Stylesheet::bare().rule_unchecked(
+        "div",
+        TuiStyle::new().width(Size::Fixed(10)).height(Size::Fixed(3)),
+    );
+    prepare(&mut dom, &sheet, Rect::new(0, 0, 20, 5));
+
+    let log = log();
+    record(&mut dom, el, "dblclick", &log);
+
+    let mut router = Router::new();
+    router.route(&mut dom, crossterm::event::Event::Mouse(down_at(3, 1)));
+    router.route(&mut dom, crossterm::event::Event::Mouse(up_at(3, 1)));
+
+    assert!(log.borrow().is_empty());
+}
+
+#[test]
+fn triple_click_fires_dblclick_only_once() {
+    // M5 D3: dblclick fires on the SECOND click of a sequence.
+    // The third click does not produce another dblclick (the next
+    // dblclick would require a fresh pair starting from a 4th
+    // click, since register_click resets after 3).
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let el = dom.create_element("div");
+    dom.append_child(root, el).unwrap();
+    let sheet = Stylesheet::bare().rule_unchecked(
+        "div",
+        TuiStyle::new().width(Size::Fixed(10)).height(Size::Fixed(3)),
+    );
+    prepare(&mut dom, &sheet, Rect::new(0, 0, 20, 5));
+
+    let log = log();
+    record(&mut dom, el, "dblclick", &log);
+
+    let mut router = Router::new();
+    for _ in 0..3 {
+        router.route(&mut dom, crossterm::event::Event::Mouse(down_at(3, 1)));
+        router.route(&mut dom, crossterm::event::Event::Mouse(up_at(3, 1)));
+    }
+
+    assert_eq!(log.borrow().len(), 1, "dblclick fires once across a triple-click");
+}
+
 // ── mousedown ───────────────────────────────────────────────────────
 
 #[test]
