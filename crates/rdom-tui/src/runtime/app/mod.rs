@@ -642,7 +642,14 @@ impl<B: Backend> App<B> {
             CtEvent::Resize(_, _) => {
                 // `Terminal::autoresize` (called from `draw`) handles
                 // buffer resizing + backend.clear() on the next paint.
-                // We just need to ensure a paint happens.
+                // Dispatch a `resize` event on the document root
+                // (the "Window" target per HTML §UIEvents) so apps
+                // can react to viewport changes before the paint.
+                // Coalesced naturally — crossterm delivers one
+                // Resize signal per terminal change, not per cell.
+                let root = self.dom.root();
+                let mut tui = TuiEvent::new("resize");
+                let _ = self.dom.dispatch_tui_event(root, &mut tui);
                 self.needs_redraw = true;
             }
             _ => {

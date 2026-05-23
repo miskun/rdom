@@ -126,6 +126,32 @@ fn key_dispatches_to_focused_element() {
 }
 
 #[test]
+fn resize_dispatches_resize_event_on_root() {
+    // M5 D4: terminal resize dispatches `resize` on the document
+    // root. Coalesced per render step (one event per Resize signal,
+    // not per cell delta).
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+
+    let fired = Rc::new(Cell::new(0u32));
+    let f = fired.clone();
+    dom.add_event_listener(root, "resize", ListenerOptions::default(), move |_| {
+        f.set(f.get() + 1);
+    })
+    .unwrap();
+
+    let mut app = test_app(dom, Stylesheet::bare(), Rect::new(0, 0, 20, 5));
+    app.handle_event(CtEvent::Resize(40, 10));
+    app.handle_event(CtEvent::Resize(60, 15));
+
+    assert_eq!(
+        fired.get(),
+        2,
+        "resize fires once per Resize event (no coalescing across events)"
+    );
+}
+
+#[test]
 fn key_release_dispatches_keyup_to_focused_element() {
     // M5 D1: Release events fire `keyup`, not `keydown`. The pairing
     // mirrors keydown/keyup dispatch in the DOM.
