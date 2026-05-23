@@ -47,6 +47,7 @@ pub const CSS: &str = r#"
   font-weight: bold;
   padding: 0 1;
   height: 2;
+  flex-shrink: 0;
   border-bottom: solid;
   border-color: var(--accent);
 }
@@ -74,6 +75,7 @@ pub const CSS: &str = r#"
 .par-demo footer {
   color: var(--muted);
   height: 1;
+  flex-shrink: 0;
   padding: 0 1;
 }
 "#;

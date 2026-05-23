@@ -60,11 +60,15 @@ criterion = { version = "0.5", default-features = false, features = ["rayon"] }
 # Used by the parse_and_render example (shows the three crates
 # composing). Not a runtime dep of rdom-tui itself.
 rdom-parser = { path = "../rdom-parser", version = "0.1.0" }
-# Used by the examples — each example file is now a thin shim
-# around the corresponding `rdom-showcase::demos::*` module. The
-# showcase owns the DOM-building logic; examples share it. Dev-dep
-# only (cargo treats the cycle as a non-cycle because this is dev,
-# not runtime).
+# Used by the examples + integration snapshot tests — each example
+# file is a thin shim around `rdom-showcase::demos::*`, and each
+# snapshot test calls `demos::X::build` directly. Single source of
+# truth for the DOM-building logic. **Coupling-direction note:**
+# `rdom-tui` is the substrate; this dev-dep on its consumer inverts
+# the usual direction. Cargo accepts it because dev-deps don't
+# participate in the runtime graph, but be aware that
+# `cargo test -p rdom-tui` will fail to compile if `rdom-showcase`
+# fails to compile. Runtime users of `rdom-tui` are unaffected.
 rdom-showcase = { path = "../rdom-showcase" }
 
 [[bench]]

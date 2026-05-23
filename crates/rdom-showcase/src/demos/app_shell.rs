@@ -43,6 +43,7 @@ pub const CSS: &str = r#"
 }
 .app-shell-demo .header {
   height: 3;
+  flex-shrink: 0;
   border: solid;
 }
 .app-shell-demo .body {
@@ -66,6 +67,7 @@ pub const CSS: &str = r#"
 }
 .app-shell-demo .footer {
   height: 3;
+  flex-shrink: 0;
   border: solid;
 }
 "#;

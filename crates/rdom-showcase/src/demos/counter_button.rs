@@ -32,16 +32,18 @@ pub const CSS: &str = r#"
 .counter-demo {
   flex: 1;
   flex-direction: column;
-  padding: 1 2;
+  padding: 2 4;
   gap: 1;
 }
 .counter-demo h1 {
   color: rgb(180, 220, 255);
   font-weight: bold;
   height: 1;
+  flex-shrink: 0;
 }
 .counter-demo p {
   height: 1;
+  flex-shrink: 0;
 }
 "#;
 

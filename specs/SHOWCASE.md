@@ -103,18 +103,18 @@ The showcase becomes browsable.
 
 **Exit criteria:** can browse between three placeholder demos using both mouse and keyboard; sheets stack correctly; review gate run.
 
-### M4 — Examples-to-demos refactor (closes `OPS-4`)
+### M4 — Examples-to-demos refactor (closes `OPS-4`) — **CLOSED 2026-05-23**
 
-The seven existing `crates/rdom-tui/examples/*.rs` become showcase demos without losing their standalone-run shape.
+The 10 existing `crates/rdom-tui/examples/*.rs` (originally planned as 7; two more had been added in the interim, plus `app_shell` which already had a snapshot) became showcase demos without losing their standalone-run shape. The canonical implementation now lives in `rdom_showcase::demos::*`; each example file is a 1-line shim calling `run_standalone()`.
 
-**Deliverables:**
+**Shipped:**
 
-1. Each example refactored to expose `pub fn build(dom: &mut TuiDom) -> NodeId` + `pub fn stylesheet() -> Stylesheet` + `pub fn source() -> Source`.
-2. Standalone `fn main()` becomes a thin shim around the exposed pieces. `cargo run --example counter_button` still works.
-3. Each example registered as a `Demo` in the showcase registry.
-4. **Snapshot pins for all seven (closes `OPS-4` in [`TECH_DEBT.md`](TECH_DEBT.md)).** Use the existing paint-snapshot harness in `crates/rdom-tui/tests/common/mod.rs`.
+1. Each example exposes `pub fn build(dom: &mut TuiDom) -> NodeId` + `pub fn stylesheet() -> Stylesheet` + `pub fn source() -> Source` + `pub fn run_standalone() -> io::Result<()>` + a `Demo` impl on a unit struct.
+2. Standalone `cargo run -p rdom-tui --example <name>` still works for every one. Requires `rdom-showcase` as a `[dev-dependencies]` of `rdom-tui` (dev-deps don't participate in the runtime graph, so the coupling-direction inversion is bounded to test/example builds).
+3. All 10 demos registered in `DEMOS`. Showcase grew from 3 → 13 demos across 7 categories.
+4. Paint snapshots in `crates/rdom-tui/tests/snapshots/` pin every demo's output at fixed viewports. `OPS-4` retired.
 
-**Exit criteria:** all seven examples runnable both standalone and inside the showcase; goldens committed; `OPS-4` retired; review gate run.
+**Side-fix:** the M2 default `flex-shrink: 1` (CSS-correct) interacted badly with terminal integer-cell allocation, dropping `height: 1` items to zero cells under overflow. Pre-existing bug surfaced by porting `sticky_demo`. Author-side fix (`flex-shrink: 0` on fixed-height children) applied across affected demos; root-cause substrate fix tracked as expanded `M5-MIN-CONTENT-1` in [`TECH_DEBT.md`](TECH_DEBT.md) (height-axis `min-height: auto` floor).
 
 ### M5 — Event surface bundle
 
