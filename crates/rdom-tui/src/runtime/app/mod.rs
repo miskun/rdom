@@ -581,6 +581,21 @@ impl<B: Backend> App<B> {
                 let mut tui = TuiEvent::keydown(*key);
                 let _ = self.dom.dispatch_tui_event(target, &mut tui);
 
+                // Shift+F10 → contextmenu on the focused element
+                // (accessibility / keyboard-only equivalent of
+                // right-click). Dispatched as a fresh event after
+                // keydown so a handler that wants to suppress the
+                // keydown path doesn't accidentally swallow the
+                // contextmenu intent. Synthesized; no mouse
+                // coordinates (button=Left sentinel, buttons=0).
+                if key.code == KeyCode::F(10)
+                    && key.modifiers.contains(KeyModifiers::SHIFT)
+                {
+                    let mut cm = TuiEvent::new("contextmenu");
+                    cm.event = cm.event.clone().with_synthetic(true);
+                    let _ = self.dom.dispatch_tui_event(target, &mut cm);
+                }
+
                 // Default actions — only run if the handler didn't
                 // call prevent_default. Selection-keyboard defaults
                 // (Ctrl-A, Shift+arrows) run first so a selection

@@ -61,6 +61,84 @@ fn record(dom: &mut TuiDom, node: NodeId, event_type: &str, log: &Log) {
     .unwrap();
 }
 
+// ── contextmenu (M5 D2) ─────────────────────────────────────────────
+
+#[test]
+fn right_mousedown_dispatches_contextmenu_on_hit_target() {
+    // Right-button down fires `contextmenu` at the hit target.
+    // Cancelable; bubbles up the ancestor chain.
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let el = dom.create_element("div");
+    dom.append_child(root, el).unwrap();
+    let sheet = Stylesheet::bare().rule_unchecked(
+        "div",
+        TuiStyle::new().width(Size::Fixed(10)).height(Size::Fixed(3)),
+    );
+    prepare(&mut dom, &sheet, Rect::new(0, 0, 20, 5));
+
+    let log = log();
+    record(&mut dom, el, "contextmenu", &log);
+
+    let mut router = Router::new();
+    router.route(
+        &mut dom,
+        crossterm::event::Event::Mouse(mouse_at(MouseEventKind::Down(MouseButton::Right), 2, 1)),
+    );
+
+    assert_eq!(log.borrow().len(), 1);
+    assert_eq!(log.borrow()[0].1, "contextmenu");
+}
+
+#[test]
+fn left_mousedown_does_not_fire_contextmenu() {
+    // Regression guard: left-button keeps existing behavior; the
+    // new contextmenu code path must not fire on left clicks.
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let el = dom.create_element("div");
+    dom.append_child(root, el).unwrap();
+    let sheet = Stylesheet::bare().rule_unchecked(
+        "div",
+        TuiStyle::new().width(Size::Fixed(10)).height(Size::Fixed(3)),
+    );
+    prepare(&mut dom, &sheet, Rect::new(0, 0, 20, 5));
+
+    let log = log();
+    record(&mut dom, el, "contextmenu", &log);
+
+    let mut router = Router::new();
+    router.route(&mut dom, crossterm::event::Event::Mouse(down_at(2, 1)));
+
+    assert!(log.borrow().is_empty(), "left click must not fire contextmenu");
+}
+
+#[test]
+fn contextmenu_off_screen_does_not_fire() {
+    // No hit target → no contextmenu dispatch (matches the
+    // existing mousedown behavior on miss).
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let el = dom.create_element("div");
+    dom.append_child(root, el).unwrap();
+    let sheet = Stylesheet::bare().rule_unchecked(
+        "div",
+        TuiStyle::new().width(Size::Fixed(10)).height(Size::Fixed(3)),
+    );
+    prepare(&mut dom, &sheet, Rect::new(0, 0, 20, 5));
+
+    let log = log();
+    record(&mut dom, el, "contextmenu", &log);
+
+    let mut router = Router::new();
+    router.route(
+        &mut dom,
+        crossterm::event::Event::Mouse(mouse_at(MouseEventKind::Down(MouseButton::Right), 50, 50)),
+    );
+
+    assert!(log.borrow().is_empty());
+}
+
 // ── mousedown ───────────────────────────────────────────────────────
 
 #[test]

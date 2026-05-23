@@ -136,6 +136,27 @@ impl TuiEvent {
         e
     }
 
+    /// Construct a `contextmenu` event from a crossterm
+    /// `MouseEvent`. Fired on right-mouse-button down (and on
+    /// `Shift+F10` / context-menu key — those paths construct
+    /// via the [`Self::contextmenu_keyboard`] variant since they
+    /// have no mouse coordinates). Bubbles, cancelable.
+    pub fn contextmenu(mouse: MouseEvent) -> Self {
+        let mut e = Self::new("contextmenu");
+        e.event.detail = EventDetail::Mouse(key_translate::translate_mouse_event(mouse));
+        e
+    }
+
+    /// Construct a `dblclick` event from a crossterm `MouseEvent`.
+    /// Synthesized by the router on the second click in a
+    /// 2-click sequence within the platform double-click window;
+    /// fired in addition to the second `click`. Bubbles, cancelable.
+    pub fn dblclick(mouse: MouseEvent) -> Self {
+        let mut e = Self::new("dblclick");
+        e.event.detail = EventDetail::Mouse(key_translate::translate_mouse_event(mouse));
+        e
+    }
+
     /// Construct a `wheel` event. The translator populates
     /// `MouseDetail.delta_x` / `delta_y` for the scroll direction
     /// (`±1` per tick); button-related fields default to the

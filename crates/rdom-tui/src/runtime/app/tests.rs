@@ -184,6 +184,29 @@ fn key_release_does_not_run_default_actions() {
 }
 
 #[test]
+fn shift_f10_dispatches_contextmenu_on_focused_element() {
+    // M5 D2: Shift+F10 is the keyboard equivalent of right-click —
+    // browsers dispatch `contextmenu` on the focused element.
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let btn = dom.create_element("button");
+    dom.append_child(root, btn).unwrap();
+    dom.set_focused(Some(btn));
+
+    let fired = Rc::new(Cell::new(false));
+    let f = fired.clone();
+    dom.add_event_listener(btn, "contextmenu", ListenerOptions::default(), move |_| {
+        f.set(true);
+    })
+    .unwrap();
+
+    let mut app = test_app(dom, Stylesheet::bare(), Rect::new(0, 0, 20, 5));
+    app.handle_event(CtEvent::Key(KeyEvent::new(KeyCode::F(10), KeyModifiers::SHIFT)));
+
+    assert!(fired.get(), "Shift+F10 fires contextmenu on focused element");
+}
+
+#[test]
 fn key_with_no_focus_dispatches_to_root() {
     let mut dom: TuiDom = TuiDom::new();
     let root = dom.root();

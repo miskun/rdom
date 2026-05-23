@@ -21,6 +21,7 @@ pub(super) fn route_mouse(
     match mouse.kind {
         MouseEventKind::Down(MouseButton::Left) => handle_down(router, dom, mouse),
         MouseEventKind::Up(MouseButton::Left) => handle_up(router, dom, mouse),
+        MouseEventKind::Down(MouseButton::Right) => handle_contextmenu(dom, mouse),
         MouseEventKind::Moved | MouseEventKind::Drag(MouseButton::Left) => {
             handle_move(router, dom, mouse)
         }
@@ -28,9 +29,23 @@ pub(super) fn route_mouse(
         | MouseEventKind::ScrollDown
         | MouseEventKind::ScrollLeft
         | MouseEventKind::ScrollRight => handle_wheel(dom, mouse),
-        // Other buttons (right, middle) — no default action yet.
+        // Other buttons (middle) — no default action yet.
         _ => RouteOutcome::default(),
     }
+}
+
+/// `contextmenu` dispatch. Hit-tests; if a target exists, fires
+/// a bubbling cancelable `contextmenu` event at it. No default
+/// action in v1 (no popup menu UI to suppress) — but the event
+/// is cancelable per HTML so future default actions land in the
+/// same place author code already gates on `preventDefault`.
+fn handle_contextmenu(dom: &mut TuiDom, mouse: MouseEvent) -> RouteOutcome {
+    let Some(target) = dom.hit_test(mouse.column, mouse.row) else {
+        return RouteOutcome::default();
+    };
+    let mut tui = TuiEvent::contextmenu(mouse);
+    let _ = dom.dispatch_tui_event(target, &mut tui);
+    RouteOutcome::default()
 }
 
 /// `mousedown` with the left button. Hit-tests, remembers the
