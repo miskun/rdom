@@ -116,7 +116,7 @@ The 10 existing `crates/rdom-tui/examples/*.rs` (originally planned as 7; two mo
 
 **Side-fix:** the M2 default `flex-shrink: 1` (CSS-correct) interacted badly with terminal integer-cell allocation, dropping `height: 1` items to zero cells under overflow. Pre-existing bug surfaced by porting `sticky_demo`. Author-side fix (`flex-shrink: 0` on fixed-height children) applied across affected demos; root-cause substrate fix tracked as expanded `M5-MIN-CONTENT-1` in [`TECH_DEBT.md`](TECH_DEBT.md) (height-axis `min-height: auto` floor).
 
-### M5 — Event surface bundle
+### M5 — Event surface bundle — **CLOSED 2026-05-23**
 
 Substrate work. Six new events lift `rdom-tui`'s event coverage to the 0.2.0 set. Also closes the implicit-detach-events gap left open in M1 (`EVT-DETACH-1`).
 

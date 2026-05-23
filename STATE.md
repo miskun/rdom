@@ -8,9 +8,9 @@ For the durable architecture and roadmap, see [`specs/DESIGN.md`](specs/DESIGN.m
 
 **Release in flight:** 0.2.0. Three workstreams bundled under one release — `rdom-showcase` (headline), event surface bundle, `calc()` value system. Plan: [`specs/SHOWCASE.md`](specs/SHOWCASE.md).
 
-**Next milestone:** M5 — Event surface bundle (`dblclick`, `contextmenu`, `keyup`, `mousemove`, `scroll`, `resize`). Also closes `EVT-DETACH-1`.
+**Next milestone:** M6 — `calc()` value system in `rdom-style`/`rdom-css`.
 
-**Status:** **M1 + M2 + M3 + M4 closed.** M4 ported all 10 in-tree examples into showcase demos with paint snapshots pinning each. `rdom-tui/examples/*.rs` are now 1-line shims calling into `rdom_showcase::demos::*`; standalone invocation (`cargo run -p rdom-tui --example X`) still works. 13 demos total in the showcase across 7 categories. `OPS-4` retired. Showcase is now the dogfooding canon — anything the snapshot pins, downstream consumers can rely on.
+**Status:** **M1 + M2 + M3 + M4 + M5 closed.** M5 shipped the full 0.2.0 event surface: `keyup` (kitty-protocol terminals), `contextmenu` (right-click + Shift+F10), `dblclick` (synthesized from click stream), `resize` (Window target), `scroll` (per-element, coalesced), and the implicit-detach event ceremony (`blur`/`focusout`/`mouseout`/`mouseleave` on detach). `EVT-DETACH-1` retired; two divergence entries deleted. 2,397 workspace tests passing.
 
 The seven fixes (in order of discovery):
 1. `class` attribute ↔ `classList` round-trip per WHATWG (commit `a92aa6a`)
@@ -41,7 +41,13 @@ One piece of architectural debt deferred with teeth: `EVT-DETACH-1` (implicit bl
   - D6 — 7 end-to-end integration tests in `crates/rdom-showcase/tests/subtree_swap_integration.rs` exercising the M1 D2 substrate purge contract through the showcase's `mount_demo` path (focus/hover/pointer-capture/selection in detached subtree all clear; same-idx swap is a no-op; multi-swap leaves `<main>` with exactly one child; full-viewport paint after multiple swaps survives without panic).
 - [x] **M4** — Examples-to-demos refactor *(closed 2026-05-23)*. All 10 in-tree examples ported to `crates/rdom-showcase/src/demos/`. Each `rdom-tui/examples/*.rs` is now a 1-line shim calling `rdom_showcase::demos::X::run_standalone()`. Paint snapshots pin all 10 outputs at fixed viewports under `crates/rdom-tui/tests/snapshots/`. `OPS-4` retired. Showcase grew from 3 (M3) to 13 demos across 7 categories. Side fix: `sticky_demo`'s pre-existing rendering bug (every Nth item missing under `overflow: auto` due to CSS-default `flex-shrink: 1`) closed by adding `flex-shrink: 0` to demo items — same pattern applied to `scrollable_list`, `tab_form`, etc.
 - [ ] **M4** — Examples-to-demos refactor; closes `OPS-4` (snapshot pinning for the seven older examples). *Showcase.*
-- [ ] **M5** — Event surface bundle: `dblclick`, `contextmenu`, `keyup`, `mousemove`, `scroll`, `resize`. *Substrate.*
+- [x] **M5** — Event surface bundle *(closed 2026-05-23)*. Six new events + the implicit-detach ceremony:
+  - D1 — **`keyup`** distinguishes `KeyEventKind::Release` from Press/Repeat. App enables `KeyboardEnhancementFlags::REPORT_EVENT_TYPES` + `DISAMBIGUATE_ESCAPE_CODES` on `enter_tui_mode`; supporting terminals (kitty/foot/WezTerm/alacritty 0.13+/recent xterm) fire Release, others silently no-op.
+  - D2 — **`contextmenu`** fires on right-mouse-button down at the hit target; Shift+F10 fires on the focused element. Cancelable, bubbles.
+  - D3 — **`dblclick`** synthesized on the second click of a 2-click sequence, dispatched after the regular click. Triple-click is selection-gesture territory.
+  - D4 — **`resize`** dispatches on the document root (Window target per HTML §UIEvents) when `CtEvent::Resize` fires. Coalesced per crossterm signal.
+  - D5 — **`scroll`** dispatches on elements whose `scroll_x`/`scroll_y` actually changed. Three mutation sites wired: wheel scroll, scrollbar drag, programmatic `set_scroll_*`/`scroll_to`. No event at-rail-end wheel ticks.
+  - D6 — **Implicit-detach event ceremony** (closes `EVT-DETACH-1`). New `Mutation::PreDetach` variant fires BEFORE structural unlink. `runtime::implicit_events` module's App-level observer dispatches `blur` + `focusout` on focus loss, `mouseout` + `mouseleave` on hover loss. Tree intact at dispatch → bubbling works through live ancestor chain. 8 integration tests pin the contract. Two `DIVERGENCES.md` entries removed.
 - [ ] **M6** — `calc()` value system in `rdom-style`/`rdom-css`, resolved at cascade/layout time. *Substrate.*
 - [ ] **M7** — Showcase polish: source view + CLI deep-link + M5 event integration. *Showcase.*
 - [ ] **M8** — Coverage demos (one per primitive in §0.1.0 + every new 0.2.0 addition). *Showcase.*
@@ -60,6 +66,27 @@ One piece of architectural debt deferred with teeth: `EVT-DETACH-1` (implicit bl
 - **`EVT-DETACH-1`** — implicit `blur` / `focusout` / `mouseleave` / `mouseout` not dispatched on detach. Documented in [`specs/TECH_DEBT.md`](specs/TECH_DEBT.md) as a non-negotiable M5 deliverable. Risk: if M5 scope grows and this slips, rdom-tui ships an internally inconsistent hover-event model. Mitigation: M5 exit criteria in [`specs/SHOWCASE.md`](specs/SHOWCASE.md) explicitly require closing `EVT-DETACH-1` + deleting the related DIVERGENCES.md entries.
 
 ## Recent decisions
+
+### 2026-05-23 — M5 closed: event surface bundle + implicit detach ceremony
+
+Shipped the full 0.2.0 event surface in 6 per-deliverable commits.
+
+**Additive events (D1–D5)** were straightforward — each wires one new dispatch path through the existing 3-phase pipeline:
+- `keyup` distinguishes `KeyEventKind::Release` from Press/Repeat. Enabling `KeyboardEnhancementFlags::REPORT_EVENT_TYPES` + `DISAMBIGUATE_ESCAPE_CODES` on terminal init lets kitty-protocol terminals deliver Release events; non-supporting terminals stay silent — documented as a `DIVERGENCES.md` entry.
+- `contextmenu` on right-mouse-down + Shift+F10. Two entry points, one event factory.
+- `dblclick` reused the router's existing `register_click` count.
+- `resize` dispatches on the document root when `CtEvent::Resize` fires — single dispatch site.
+- `scroll` was three mutation sites consolidated: wheel scroll in `handle_wheel`, scrollbar drag in `runtime::scrollbar::set_scroll`, programmatic API funneled through `write_scroll_clamped`. All gate on "did the offset actually change" so at-rail-end ticks don't fire spurious events.
+
+**The architectural deliverable was D6 — implicit detach events** (`EVT-DETACH-1` closure). The challenge: when the focused / hovered element is removed from the tree, browsers dispatch `blur`/`focusout`/`mouseout`/`mouseleave` BEFORE the actual removal, so bubbling works through the still-intact ancestor chain.
+
+The shape: new `Mutation::PreDetach { detached_root, focused, hovered }` variant in `rdom-core::observer`. `detach_from_parent` fires it BEFORE the structural unlink, but only when the focused/hovered node is actually inside the subtree being detached (cheap short-circuit otherwise). The runtime's new `runtime::implicit_events` module installs an App-level `MutationObserver` that listens for `PreDetach` and dispatches the four events via the normal `TuiDispatchExt` pipeline. Because the tree is still intact at dispatch time, normal parent_node-walking bubbling works.
+
+This keeps `rdom-core` renderer-free — it knows about Mutation records but not about events. The event-pipeline knowledge lives entirely in `rdom-tui`. The substrate emits a "here's a hook" record; the runtime decides what to do with it.
+
+Two `DIVERGENCES.md` entries deleted ("Implicit focus loss on detach does not fire `blur` / `focusout`" + the hover counterpart) — no longer divergent. `EVT-DETACH-1` retired from `TECH_DEBT.md`.
+
+Coverage: 8 integration tests in `crates/rdom-tui/tests/implicit_detach_events.rs` pin the order (blur → focusout → mouseout → mouseleave), the bubbling/non-bubbling distinctions, the synthetic flag, and the negative case (unrelated detach doesn't fire). 28 new tests across M5; 2,397 total workspace tests passing.
 
 ### 2026-05-23 — M4 closed: examples-to-demos refactor
 
