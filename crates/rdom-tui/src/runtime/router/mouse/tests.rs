@@ -93,7 +93,11 @@ fn wheel_that_scrolls_dispatches_scroll_event() {
         crossterm::event::Event::Mouse(mouse_at(MouseEventKind::ScrollDown, 5, 2)),
     );
 
-    assert_eq!(log.borrow().len(), 1, "scroll fires once per wheel tick that changed offset");
+    assert_eq!(
+        log.borrow().len(),
+        1,
+        "scroll fires once per wheel tick that changed offset"
+    );
     assert_eq!(log.borrow()[0].1, "scroll");
 }
 
@@ -127,7 +131,10 @@ fn wheel_with_no_scrollable_offset_change_does_not_fire_scroll() {
         crossterm::event::Event::Mouse(mouse_at(MouseEventKind::ScrollDown, 5, 2)),
     );
 
-    assert!(log.borrow().is_empty(), "no offset change = no scroll event");
+    assert!(
+        log.borrow().is_empty(),
+        "no offset change = no scroll event"
+    );
 }
 
 // ── contextmenu (M5 D2) ─────────────────────────────────────────────
@@ -142,7 +149,9 @@ fn right_mousedown_dispatches_contextmenu_on_hit_target() {
     dom.append_child(root, el).unwrap();
     let sheet = Stylesheet::bare().rule_unchecked(
         "div",
-        TuiStyle::new().width(Size::Fixed(10)).height(Size::Fixed(3)),
+        TuiStyle::new()
+            .width(Size::Fixed(10))
+            .height(Size::Fixed(3)),
     );
     prepare(&mut dom, &sheet, Rect::new(0, 0, 20, 5));
 
@@ -169,7 +178,9 @@ fn left_mousedown_does_not_fire_contextmenu() {
     dom.append_child(root, el).unwrap();
     let sheet = Stylesheet::bare().rule_unchecked(
         "div",
-        TuiStyle::new().width(Size::Fixed(10)).height(Size::Fixed(3)),
+        TuiStyle::new()
+            .width(Size::Fixed(10))
+            .height(Size::Fixed(3)),
     );
     prepare(&mut dom, &sheet, Rect::new(0, 0, 20, 5));
 
@@ -179,7 +190,10 @@ fn left_mousedown_does_not_fire_contextmenu() {
     let mut router = Router::new();
     router.route(&mut dom, crossterm::event::Event::Mouse(down_at(2, 1)));
 
-    assert!(log.borrow().is_empty(), "left click must not fire contextmenu");
+    assert!(
+        log.borrow().is_empty(),
+        "left click must not fire contextmenu"
+    );
 }
 
 #[test]
@@ -192,7 +206,9 @@ fn contextmenu_off_screen_does_not_fire() {
     dom.append_child(root, el).unwrap();
     let sheet = Stylesheet::bare().rule_unchecked(
         "div",
-        TuiStyle::new().width(Size::Fixed(10)).height(Size::Fixed(3)),
+        TuiStyle::new()
+            .width(Size::Fixed(10))
+            .height(Size::Fixed(3)),
     );
     prepare(&mut dom, &sheet, Rect::new(0, 0, 20, 5));
 
@@ -221,7 +237,9 @@ fn second_click_dispatches_dblclick() {
     dom.append_child(root, el).unwrap();
     let sheet = Stylesheet::bare().rule_unchecked(
         "div",
-        TuiStyle::new().width(Size::Fixed(10)).height(Size::Fixed(3)),
+        TuiStyle::new()
+            .width(Size::Fixed(10))
+            .height(Size::Fixed(3)),
     );
     prepare(&mut dom, &sheet, Rect::new(0, 0, 20, 5));
 
@@ -253,7 +271,10 @@ fn second_click_dispatches_dblclick() {
         .enumerate()
         .filter_map(|(i, t)| (t.as_str() == "click").then_some(i))
         .collect();
-    let dblclick_position = events.iter().position(|t| t.as_str() == "dblclick").unwrap();
+    let dblclick_position = events
+        .iter()
+        .position(|t| t.as_str() == "dblclick")
+        .unwrap();
     assert!(
         dblclick_position > click_positions[1],
         "dblclick fires AFTER the second click (got order: {events:?})"
@@ -269,7 +290,9 @@ fn single_click_does_not_fire_dblclick() {
     dom.append_child(root, el).unwrap();
     let sheet = Stylesheet::bare().rule_unchecked(
         "div",
-        TuiStyle::new().width(Size::Fixed(10)).height(Size::Fixed(3)),
+        TuiStyle::new()
+            .width(Size::Fixed(10))
+            .height(Size::Fixed(3)),
     );
     prepare(&mut dom, &sheet, Rect::new(0, 0, 20, 5));
 
@@ -295,7 +318,9 @@ fn triple_click_fires_dblclick_only_once() {
     dom.append_child(root, el).unwrap();
     let sheet = Stylesheet::bare().rule_unchecked(
         "div",
-        TuiStyle::new().width(Size::Fixed(10)).height(Size::Fixed(3)),
+        TuiStyle::new()
+            .width(Size::Fixed(10))
+            .height(Size::Fixed(3)),
     );
     prepare(&mut dom, &sheet, Rect::new(0, 0, 20, 5));
 
@@ -308,7 +333,11 @@ fn triple_click_fires_dblclick_only_once() {
         router.route(&mut dom, crossterm::event::Event::Mouse(up_at(3, 1)));
     }
 
-    assert_eq!(log.borrow().len(), 1, "dblclick fires once across a triple-click");
+    assert_eq!(
+        log.borrow().len(),
+        1,
+        "dblclick fires once across a triple-click"
+    );
 }
 
 // ── mousedown ───────────────────────────────────────────────────────

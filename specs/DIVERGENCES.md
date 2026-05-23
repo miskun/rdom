@@ -109,8 +109,6 @@ The DOM API is Rust-shaped rather than JS-shaped. The semantics match WHATWG DOM
 - **Pointer capture:** while captured, `mousemove` / `mouseup` route to the captured element regardless of hit; capture releases on `mouseup`.
 - **Wheel scrolling auto-scrolls the nearest scrollable ancestor** (first-scrollable-wins). Scroll chaining beyond the first ancestor is not implemented.
 - **Focus events dispatch synchronously**, not deferred.
-- **Implicit focus loss on detach does not fire `blur` / `focusout`.** When the focused element (or any ancestor of it) is removed from the tree, `dom.focused()` synchronously clears — matching the web — and a `Mutation::InteractionChanged { next: None, kind: Focus }` record fires. The browser *additionally* fires a `blur` event on the detached element and a `focusout` that bubbles to body; rdom emits no DOM events for *implicit* focus loss. Explicit `focus_node(dom, ...)` calls fire the full event ceremony as expected. Tracked as `EVT-DETACH-1`, blocking on M5 (event bundle).
-- **Implicit hover loss on detach does not fire `mouseleave` / `mouseout`.** Same shape as the focus case: `dom.hovered()` clears synchronously on detach, but no DOM events fire. Tracked as `EVT-DETACH-1`, blocking on M5.
 - **`Tab` / `Shift-Tab` route through focus navigation first**, then dispatch as `keydown` if not consumed.
 - **`pointer-events` property is not implemented.** Every painted element is hittable.
 

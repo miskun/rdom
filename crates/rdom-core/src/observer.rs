@@ -94,6 +94,32 @@ pub enum Mutation {
         prev: Option<crate::Selection>,
         next: Option<crate::Selection>,
     },
+    /// **About to detach** — fired in `detach_from_parent` BEFORE
+    /// the structural unlink, so observers can dispatch implicit
+    /// `blur` / `focusout` / `mouseleave` / `mouseout` events
+    /// while the tree is still intact (the focused/hovered node's
+    /// parent_node() still walks the live ancestor chain).
+    ///
+    /// `focused` is `Some(id)` iff `dom.focused()` was inside the
+    /// subtree rooted at `detached_root` at the moment of detach.
+    /// `hovered` likewise for hover. If neither is set, no
+    /// `PreDetach` record is emitted (the structurally-cheap
+    /// short-circuit path in `purge_interaction_state_for_subtree`
+    /// also gates this record's emission).
+    ///
+    /// The subsequent `InteractionChanged { next: None, kind }`
+    /// records still fire from the purge step — observers that
+    /// only care about the post-detach state can listen to those.
+    /// `PreDetach` is for observers that need to dispatch real
+    /// DOM events with bubbling intact.
+    PreDetach {
+        /// Subtree root being detached.
+        detached_root: NodeId,
+        /// Pre-detach focused node, if it was inside the subtree.
+        focused: Option<NodeId>,
+        /// Pre-detach hovered node, if it was inside the subtree.
+        hovered: Option<NodeId>,
+    },
 }
 
 /// Observer callback trait. Receives a mutable `&mut Dom<Ext>` so

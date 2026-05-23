@@ -321,6 +321,29 @@ impl<Ext: 'static> Dom<Ext> {
     /// step — centralizing in this function trades that
     /// observability nuance for a structurally-guaranteed cleanup.
     pub(crate) fn detach_from_parent(&mut self, id: NodeId) -> Result<()> {
+        // **Pre-detach event window** — fire `Mutation::PreDetach`
+        // BEFORE structural unlink, while focused/hovered's
+        // ancestor chains are still intact. Observers (notably
+        // `rdom-tui`'s App-level observer) use this to dispatch
+        // implicit `blur` / `focusout` / `mouseleave` / `mouseout`
+        // events with normal bubbling semantics. Only emitted
+        // when at least one of focused/hovered is actually inside
+        // the subtree being detached — empty PreDetach records
+        // would be noise.
+        if self.focused.is_some() || self.hovered.is_some() {
+            let mut subtree = Vec::new();
+            self.collect_descendants(id, &mut subtree);
+            let focused_in = self.focused.filter(|f| subtree.contains(f));
+            let hovered_in = self.hovered.filter(|h| subtree.contains(h));
+            if focused_in.is_some() || hovered_in.is_some() {
+                self.fire_mutation(Mutation::PreDetach {
+                    detached_root: id,
+                    focused: focused_in,
+                    hovered: hovered_in,
+                });
+            }
+        }
+
         let node = self.node_or_err(id)?;
         let parent = node.parent;
         let prev = node.prev_sibling;

@@ -57,6 +57,16 @@ impl MutationObserver<()> for Logger {
             Mutation::SelectionChanged { prev, next } => {
                 format!("selection: {:?} → {:?}", prev.is_some(), next.is_some())
             }
+            Mutation::PreDetach {
+                detached_root,
+                focused,
+                hovered,
+            } => format!(
+                "predetach[{}]: focused={:?} hovered={:?}",
+                id_fmt(*detached_root),
+                focused.map(id_fmt),
+                hovered.map(id_fmt),
+            ),
         };
         self.log.borrow_mut().push(line);
     }

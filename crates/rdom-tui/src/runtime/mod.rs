@@ -29,6 +29,7 @@ pub mod builtins;
 pub mod editing;
 pub mod focus;
 pub mod hit_test;
+pub(crate) mod implicit_events;
 pub mod router;
 pub mod scrollbar;
 pub mod selection;

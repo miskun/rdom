@@ -281,6 +281,11 @@ impl<B: Backend> App<B> {
         // apps that mutate tables at runtime can call the helper
         // themselves to re-sync (see `runtime::builtins::table`).
         crate::runtime::builtins::table::size_all_tables(&mut dom);
+        // Install the implicit-detach event observer: dispatches
+        // `blur` / `focusout` / `mouseout` / `mouseleave` when the
+        // focused or hovered element is removed from the tree,
+        // matching browser behavior. Closes `EVT-DETACH-1`.
+        crate::runtime::implicit_events::install(&mut dom);
         // Honor `[autofocus]` on initial mount. Walks the tree in
         // document order and focuses the first eligible `[autofocus]`
         // element. No-op when something is already focused or when no
@@ -588,9 +593,7 @@ impl<B: Backend> App<B> {
                 // keydown path doesn't accidentally swallow the
                 // contextmenu intent. Synthesized; no mouse
                 // coordinates (button=Left sentinel, buttons=0).
-                if key.code == KeyCode::F(10)
-                    && key.modifiers.contains(KeyModifiers::SHIFT)
-                {
+                if key.code == KeyCode::F(10) && key.modifiers.contains(KeyModifiers::SHIFT) {
                     let mut cm = TuiEvent::new("contextmenu");
                     cm.event = cm.event.clone().with_synthetic(true);
                     let _ = self.dom.dispatch_tui_event(target, &mut cm);

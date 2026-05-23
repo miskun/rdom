@@ -200,6 +200,13 @@ impl MutationObserver<TuiExt> for Shim {
                 // the Router / selection helper). Nothing to do
                 // here.
             }
+            Mutation::PreDetach { .. } => {
+                // Cascade-relevant state changes (focused / hovered
+                // clearing to None) fire their own
+                // `InteractionChanged` record from the purge step;
+                // PreDetach itself is a pure event-pipeline hook
+                // and doesn't carry any cascade implication.
+            }
         }
         // `kind` is currently unused but may drive finer-grained
         // invalidation later (e.g., skip when no :hover rules exist).

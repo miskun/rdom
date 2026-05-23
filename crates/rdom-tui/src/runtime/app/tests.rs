@@ -177,11 +177,11 @@ fn key_release_dispatches_keyup_to_focused_element() {
     let mut app = test_app(dom, Stylesheet::bare(), Rect::new(0, 0, 20, 5));
     app.handle_event(key_release(KeyCode::Enter));
 
+    assert!(!keydown_fired.get(), "Release event must NOT fire keydown");
     assert!(
-        !keydown_fired.get(),
-        "Release event must NOT fire keydown"
+        keyup_fired.get(),
+        "Release event fires keyup on the focused element"
     );
-    assert!(keyup_fired.get(), "Release event fires keyup on the focused element");
 }
 
 #[test]
@@ -227,9 +227,15 @@ fn shift_f10_dispatches_contextmenu_on_focused_element() {
     .unwrap();
 
     let mut app = test_app(dom, Stylesheet::bare(), Rect::new(0, 0, 20, 5));
-    app.handle_event(CtEvent::Key(KeyEvent::new(KeyCode::F(10), KeyModifiers::SHIFT)));
+    app.handle_event(CtEvent::Key(KeyEvent::new(
+        KeyCode::F(10),
+        KeyModifiers::SHIFT,
+    )));
 
-    assert!(fired.get(), "Shift+F10 fires contextmenu on focused element");
+    assert!(
+        fired.get(),
+        "Shift+F10 fires contextmenu on focused element"
+    );
 }
 
 #[test]
