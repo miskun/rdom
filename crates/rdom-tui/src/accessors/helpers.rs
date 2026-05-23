@@ -130,9 +130,22 @@ pub(super) fn write_scroll_clamped(dom: &mut TuiDom, id: NodeId, x: i32, y: i32)
     let max_y = (content_h - viewport_h).max(0);
     let clamped_x = x.clamp(0, max_x) as usize;
     let clamped_y = y.clamp(0, max_y) as usize;
-    if let Some(ext) = dom.node_mut(id).ext_mut() {
+    let (changed, _old) = if let Some(ext) = dom.node_mut(id).ext_mut() {
+        let old = (ext.scroll_x, ext.scroll_y);
         ext.scroll_x = clamped_x;
         ext.scroll_y = clamped_y;
+        ((old.0, old.1) != (clamped_x, clamped_y), old)
+    } else {
+        return;
+    };
+    if changed {
+        // M5 D5: fire `scroll` on the element whose offset moved.
+        // Programmatic + scrollbar + wheel all converge here when
+        // they touch ext.scroll_*; the wheel path also has its own
+        // dispatch site for the case where it walks past the
+        // initial hit to find a scrollable ancestor.
+        let mut tui = crate::TuiEvent::new("scroll");
+        let _ = crate::TuiDispatchExt::dispatch_tui_event(dom, id, &mut tui);
     }
 }
 

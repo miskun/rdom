@@ -346,7 +346,13 @@ fn handle_wheel(dom: &mut TuiDom, mouse: MouseEvent) -> RouteOutcome {
         let y_scrollable = matches!(computed.overflow_y, Overflow::Scroll | Overflow::Auto);
         let x_scrollable = matches!(computed.overflow_x, Overflow::Scroll | Overflow::Auto);
         if (wants_y && y_scrollable) || (wants_x && x_scrollable) {
-            if let Some(ext) = dom.node_mut(id).ext_mut() {
+            // Capture pre-mutation offsets so we can detect change
+            // and dispatch a `scroll` event only when offsets
+            // actually moved (matches HTML — at-the-bottom wheel
+            // ticks are no-ops and don't fire scroll).
+            let (old_x, old_y, new_x, new_y) = if let Some(ext) = dom.node_mut(id).ext_mut() {
+                let old_x = ext.scroll_x;
+                let old_y = ext.scroll_y;
                 if wants_y && y_scrollable {
                     let max_y = ext
                         .scroll_content_height
@@ -359,11 +365,19 @@ fn handle_wheel(dom: &mut TuiDom, mouse: MouseEvent) -> RouteOutcome {
                         .saturating_sub(ext.content_layout.width as usize);
                     apply_scroll(&mut ext.scroll_x, dx, max_x);
                 }
-            }
-            return RouteOutcome {
-                redraw_requested: true,
-                quit_requested: false,
+                (old_x, old_y, ext.scroll_x, ext.scroll_y)
+            } else {
+                (0, 0, 0, 0)
             };
+            if old_x != new_x || old_y != new_y {
+                let mut tui_scroll = TuiEvent::new("scroll");
+                let _ = dom.dispatch_tui_event(id, &mut tui_scroll);
+                return RouteOutcome {
+                    redraw_requested: true,
+                    quit_requested: false,
+                };
+            }
+            return RouteOutcome::default();
         }
         cur = dom.node(id).parent_node().map(|p| p.id());
     }

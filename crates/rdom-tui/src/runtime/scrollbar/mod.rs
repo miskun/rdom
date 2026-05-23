@@ -318,11 +318,28 @@ fn set_scroll(dom: &mut TuiDom, element: NodeId, axis: ScrollAxis, value: i32) -
     };
     let max = content_size.saturating_sub(viewport) as i32;
     let clamped = value.clamp(0, max) as usize;
-    if let Some(ext) = dom.node_mut(element).ext_mut() {
+    let changed = if let Some(ext) = dom.node_mut(element).ext_mut() {
         match axis {
-            ScrollAxis::Vertical => ext.scroll_y = clamped,
-            ScrollAxis::Horizontal => ext.scroll_x = clamped,
+            ScrollAxis::Vertical => {
+                let changed = ext.scroll_y != clamped;
+                ext.scroll_y = clamped;
+                changed
+            }
+            ScrollAxis::Horizontal => {
+                let changed = ext.scroll_x != clamped;
+                ext.scroll_x = clamped;
+                changed
+            }
         }
+    } else {
+        false
+    };
+    if changed {
+        // M5 D5: scrollbar drag dispatches `scroll` like wheel +
+        // programmatic mutation. Only fires when the offset
+        // actually moved (dragging at the rail end is a no-op).
+        let mut tui = crate::TuiEvent::new("scroll");
+        let _ = crate::TuiDispatchExt::dispatch_tui_event(dom, element, &mut tui);
     }
     clamped
 }

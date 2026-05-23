@@ -61,6 +61,75 @@ fn record(dom: &mut TuiDom, node: NodeId, event_type: &str, log: &Log) {
     .unwrap();
 }
 
+// ── scroll (M5 D5) ──────────────────────────────────────────────────
+
+#[test]
+fn wheel_that_scrolls_dispatches_scroll_event() {
+    // M5 D5: a wheel event that advances scroll_y dispatches a
+    // `scroll` event on the scrolled element.
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let scroller = dom.create_element("scroller");
+    dom.append_child(root, scroller).unwrap();
+    let sheet = Stylesheet::bare().rule_unchecked(
+        "scroller",
+        TuiStyle::new()
+            .width(Size::Fixed(20))
+            .height(Size::Fixed(5))
+            .overflow(Overflow::Auto),
+    );
+    prepare(&mut dom, &sheet, Rect::new(0, 0, 30, 10));
+    // Inflate the content so the scroller is actually scrollable.
+    if let Some(ext) = dom.node_mut(scroller).ext_mut() {
+        ext.scroll_content_height = 50;
+    }
+
+    let log = log();
+    record(&mut dom, scroller, "scroll", &log);
+
+    let mut router = Router::new();
+    router.route(
+        &mut dom,
+        crossterm::event::Event::Mouse(mouse_at(MouseEventKind::ScrollDown, 5, 2)),
+    );
+
+    assert_eq!(log.borrow().len(), 1, "scroll fires once per wheel tick that changed offset");
+    assert_eq!(log.borrow()[0].1, "scroll");
+}
+
+#[test]
+fn wheel_with_no_scrollable_offset_change_does_not_fire_scroll() {
+    // At scroll_top = max_y already, an additional wheel-down tick
+    // is a no-op (saturating clamp). No scroll event fires.
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let scroller = dom.create_element("scroller");
+    dom.append_child(root, scroller).unwrap();
+    let sheet = Stylesheet::bare().rule_unchecked(
+        "scroller",
+        TuiStyle::new()
+            .width(Size::Fixed(20))
+            .height(Size::Fixed(5))
+            .overflow(Overflow::Auto),
+    );
+    prepare(&mut dom, &sheet, Rect::new(0, 0, 30, 10));
+    // No content overflow → max_y = 0, wheel cannot scroll.
+    if let Some(ext) = dom.node_mut(scroller).ext_mut() {
+        ext.scroll_content_height = 3; // less than viewport
+    }
+
+    let log = log();
+    record(&mut dom, scroller, "scroll", &log);
+
+    let mut router = Router::new();
+    router.route(
+        &mut dom,
+        crossterm::event::Event::Mouse(mouse_at(MouseEventKind::ScrollDown, 5, 2)),
+    );
+
+    assert!(log.borrow().is_empty(), "no offset change = no scroll event");
+}
+
 // ── contextmenu (M5 D2) ─────────────────────────────────────────────
 
 #[test]
