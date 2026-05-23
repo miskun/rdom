@@ -5,8 +5,8 @@
 //! scenarios end-to-end.
 
 use crossterm::event::{
-    Event as CtEvent, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent as CtMouseEvent,
-    MouseEventKind,
+    Event as CtEvent, KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers, MouseButton,
+    MouseEvent as CtMouseEvent, MouseEventKind,
 };
 use rdom_core::{ListenerOptions, NodeId};
 use std::cell::Cell;
@@ -32,6 +32,19 @@ fn ctrl_c() -> CtEvent {
 
 fn key(code: KeyCode) -> CtEvent {
     CtEvent::Key(KeyEvent::new(code, KeyModifiers::empty()))
+}
+
+/// Synthesize a `KeyEventKind::Release` event — used to drive the
+/// `keyup` dispatch path. Terminals that don't enable the kitty
+/// keyboard protocol won't actually send Release events; tests
+/// construct them directly.
+fn key_release(code: KeyCode) -> CtEvent {
+    CtEvent::Key(KeyEvent {
+        code,
+        modifiers: KeyModifiers::empty(),
+        kind: KeyEventKind::Release,
+        state: KeyEventState::empty(),
+    })
 }
 
 fn click_at(x: u16, y: u16) -> Vec<CtEvent> {
@@ -110,6 +123,64 @@ fn key_dispatches_to_focused_element() {
     let mut app = test_app(dom, Stylesheet::bare(), Rect::new(0, 0, 20, 5));
     app.handle_event(key(KeyCode::Enter));
     assert!(fired.get(), "focused element received keydown");
+}
+
+#[test]
+fn key_release_dispatches_keyup_to_focused_element() {
+    // M5 D1: Release events fire `keyup`, not `keydown`. The pairing
+    // mirrors keydown/keyup dispatch in the DOM.
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let btn = dom.create_element("button");
+    dom.append_child(root, btn).unwrap();
+    dom.set_focused(Some(btn));
+
+    let keydown_fired = Rc::new(Cell::new(false));
+    let keyup_fired = Rc::new(Cell::new(false));
+    let kd = keydown_fired.clone();
+    let ku = keyup_fired.clone();
+    dom.add_event_listener(btn, "keydown", ListenerOptions::default(), move |_| {
+        kd.set(true);
+    })
+    .unwrap();
+    dom.add_event_listener(btn, "keyup", ListenerOptions::default(), move |_| {
+        ku.set(true);
+    })
+    .unwrap();
+
+    let mut app = test_app(dom, Stylesheet::bare(), Rect::new(0, 0, 20, 5));
+    app.handle_event(key_release(KeyCode::Enter));
+
+    assert!(
+        !keydown_fired.get(),
+        "Release event must NOT fire keydown"
+    );
+    assert!(keyup_fired.get(), "Release event fires keyup on the focused element");
+}
+
+#[test]
+fn key_release_does_not_run_default_actions() {
+    // M5 D1: Default actions (tab focus traversal, editable key
+    // handling, selection keyboard, etc.) run only on Press. A
+    // Release event with KeyCode::Tab must NOT advance focus.
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let a = dom.create_element("button");
+    let b = dom.create_element("button");
+    dom.append_child(root, a).unwrap();
+    dom.append_child(root, b).unwrap();
+    dom.set_attribute(a, "tabindex", "0").unwrap();
+    dom.set_attribute(b, "tabindex", "0").unwrap();
+    dom.set_focused(Some(a));
+
+    let mut app = test_app(dom, Stylesheet::bare(), Rect::new(0, 0, 20, 5));
+    app.handle_event(key_release(KeyCode::Tab));
+
+    assert_eq!(
+        app.dom().focused(),
+        Some(a),
+        "Tab Release must not advance focus (only Press does)"
+    );
 }
 
 #[test]

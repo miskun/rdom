@@ -542,6 +542,21 @@ impl<B: Backend> App<B> {
         let _scheduler_guard = crate::runtime::timers::SchedulerGuard::install(&mut self.scheduler);
         match &event {
             CtEvent::Key(key) => {
+                use crossterm::event::KeyEventKind;
+                // Release events fire `keyup` to the focused
+                // element only — no clipboard handling, no Ctrl-C
+                // exit (terminals don't reliably report the
+                // release event for those anyway), no default
+                // actions. Pairs with `keydown` for symmetry.
+                if key.kind == KeyEventKind::Release {
+                    let target = self.dom.focused().unwrap_or_else(|| self.dom.root());
+                    let mut tui = TuiEvent::keyup(*key);
+                    let _ = self.dom.dispatch_tui_event(target, &mut tui);
+                    self.needs_redraw |= !self.tracker.roots_snapshot().is_empty();
+                    self.needs_redraw |= self.tracker.take_paint_dirty();
+                    return;
+                }
+
                 // Clipboard shortcuts intercept the key before it's
                 // dispatched as a normal `keydown`. A non-collapsed
                 // selection turns Ctrl-C into "copy" instead of
@@ -558,6 +573,10 @@ impl<B: Backend> App<B> {
                 }
 
                 // Dispatch `keydown` to the focused element (or root).
+                // Both `Press` and `Repeat` flow through this path;
+                // browsers don't distinguish auto-repeat keydown from
+                // initial keydown either (the DOM `KeyboardEvent.repeat`
+                // bit is on the detail, set by `key_translate`).
                 let target = self.dom.focused().unwrap_or_else(|| self.dom.root());
                 let mut tui = TuiEvent::keydown(*key);
                 let _ = self.dom.dispatch_tui_event(target, &mut tui);

@@ -82,6 +82,7 @@ The DOM API is Rust-shaped rather than JS-shaped. The semantics match WHATWG DOM
 - **`isTrusted` is inverted as `is_synthetic`.**
 - **Listener removal is via `AbortSignal`**, not function-identity equality on a per-listener `removeEventListener(fn)` call.
 - **Not implemented:** `composedPath()`, `initEvent()`, `passive: true`, `CustomEvent` ≠ `Event` distinction.
+- **`keyup` requires kitty-keyboard-protocol terminal support.** rdom-tui enables `KeyboardEnhancementFlags::REPORT_EVENT_TYPES` on startup, but the host terminal has to honor it. Supporting terminals (kitty, foot, WezTerm, alacritty 0.13+, recent xterm) fire `keyup` events for every key release. Non-supporting terminals (legacy xterm, basic VT100, most macOS Terminal.app builds) only ever send `KeyEventKind::Press` — `keyup` listeners on those terminals will never fire. No emulation; if your demo needs cross-terminal key-release behavior, derive it from `keydown` + a timer.
 - **`dblclick` is not dispatched as an event.** Double/triple click are gestures handled internally as word/line-selection.
 - **Not implemented:** `dragstart` / `drag` / `drop` / `DataTransfer`, touch events, IME composition events, pointer events beyond mouse, `wheel` event chaining beyond the first scrollable ancestor.
 - **`change` fires on number-step and checkbox/radio toggle**, not on text-input blur.

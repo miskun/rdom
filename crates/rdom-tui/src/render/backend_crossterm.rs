@@ -12,7 +12,10 @@
 
 use std::io::{self, Write};
 
-use crossterm::event::{DisableMouseCapture, EnableMouseCapture};
+use crossterm::event::{
+    DisableMouseCapture, EnableMouseCapture, KeyboardEnhancementFlags, PopKeyboardEnhancementFlags,
+    PushKeyboardEnhancementFlags,
+};
 use crossterm::terminal;
 use crossterm::{cursor, execute, queue};
 
@@ -119,6 +122,19 @@ pub fn enter_tui_mode<W: Write>(writer: &mut W) -> io::Result<()> {
         terminal::EnterAlternateScreen,
         cursor::Hide,
         EnableMouseCapture,
+        // Kitty keyboard protocol — enables `KeyEventKind::Release`
+        // events, disambiguates Escape, surfaces all modifier keys.
+        // Terminals that don't support the protocol silently ignore
+        // the sequence (xterm, basic terminals fall through to the
+        // legacy keyboard encoding without an error). `keyup`
+        // listeners receive events on supporting terminals
+        // (kitty, foot, alacritty 0.13+, WezTerm, recent xterm
+        // builds) and stay silent elsewhere — both behaviors are
+        // documented in [`DIVERGENCES.md`](../../specs/DIVERGENCES.md).
+        PushKeyboardEnhancementFlags(
+            KeyboardEnhancementFlags::REPORT_EVENT_TYPES
+                | KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES,
+        ),
     )?;
     writer.flush()
 }
@@ -130,6 +146,10 @@ pub fn enter_tui_mode<W: Write>(writer: &mut W) -> io::Result<()> {
 pub fn leave_tui_mode<W: Write>(writer: &mut W) -> io::Result<()> {
     queue!(
         writer,
+        // Pop the kitty keyboard flags first — restore the
+        // terminal's pre-rdom keyboard mode. Idempotent and safe
+        // on terminals that ignored the matching `Push`.
+        PopKeyboardEnhancementFlags,
         DisableMouseCapture,
         cursor::Show,
         terminal::LeaveAlternateScreen,
