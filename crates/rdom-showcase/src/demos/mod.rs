@@ -15,6 +15,7 @@ pub mod dom_api;
 pub mod flex_row;
 pub mod hello;
 pub mod hover;
+pub mod mutation_observer;
 pub mod parse_and_render;
 pub mod scrollable_list;
 pub mod selectable_text;

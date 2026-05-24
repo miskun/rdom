@@ -10,6 +10,7 @@ use crate::demos::dom_api::DomApi;
 use crate::demos::flex_row::FlexRow;
 use crate::demos::hello::HelloWorld;
 use crate::demos::hover::Hover;
+use crate::demos::mutation_observer::MutationObserverDemo;
 use crate::demos::parse_and_render::ParseAndRender;
 use crate::demos::scrollable_list::ScrollableList;
 use crate::demos::selectable_text::SelectableText;
@@ -27,6 +28,7 @@ pub const DEMOS: &[&dyn Demo] = &[
     &ScrollableList,
     &Hover,
     &CounterButton,
+    &MutationObserverDemo,
     &Sticky,
     &SelectableText,
     &TabForm,
