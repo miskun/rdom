@@ -1,0 +1,14 @@
+
+  Heading 1 — primary
+  Heading 2 — secondary
+  Heading 3 — tertiary
+  Heading 4
+  Heading 5
+  Heading 6
+
+  Body text under the headings shows the contrast:
+  paragraphs use the default fg, headings are bold (UA)
+  with the demo-level color override on h1.
+
+
+

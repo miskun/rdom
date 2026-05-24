@@ -10,10 +10,23 @@
 
 mod common;
 
-use rdom_showcase::demos::inline_formatting;
+use rdom_showcase::demos::{headings, inline_formatting};
 use rdom_tui::prelude::*;
 
 use common::{assert_snapshot, buffer_to_snapshot, render};
+
+#[test]
+fn headings_initial_paint() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let demo_root = headings::build(&mut dom);
+    dom.append_child(root, demo_root).unwrap();
+
+    let sheet = headings::stylesheet();
+    let buf = render(&mut dom, &sheet, Rect::new(0, 0, 60, 14));
+    let snap = buffer_to_snapshot(&buf);
+    assert_snapshot(&snap, "headings.snap");
+}
 
 #[test]
 fn inline_formatting_initial_paint() {

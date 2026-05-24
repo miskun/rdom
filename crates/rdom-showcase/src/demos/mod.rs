@@ -13,6 +13,7 @@ pub mod border_collapse;
 pub mod counter_button;
 pub mod dom_api;
 pub mod flex_row;
+pub mod headings;
 pub mod hello;
 pub mod hover;
 pub mod inline_formatting;
