@@ -279,12 +279,11 @@ pub fn parse_overflow(value: &[Token]) -> Option<Overflow> {
 }
 
 pub fn parse_unsigned(value: &[Token]) -> Option<u16> {
-    if value.len() == 1 {
-        if let Token::Number(n) = &value[0]
-            && *n >= 0
-        {
-            return Some(*n as u16);
-        }
+    if value.len() == 1
+        && let Token::Number(n) = &value[0]
+        && *n >= 0
+    {
+        return Some(*n as u16);
     }
     // Constant `calc(...)` — a percent-bearing form has no
     // sensible static basis here (padding/margin/gap don't carry

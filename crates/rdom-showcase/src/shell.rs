@@ -46,11 +46,17 @@ pub struct ShellHandles {
     /// shell does this internally, exposed for tests that want to
     /// re-query the tree).
     pub app_root: NodeId,
-    /// The `<main>` container that hosts the active demo. Caller
-    /// appends the demo's `build()` result to this node.
+    /// The view-content container that hosts the active demo OR
+    /// the active source view. Caller appends the demo's `build()`
+    /// result (Demo mode) or a `<pre>` block carrying MARKUP + CSS
+    /// strings (Source mode) here.
     pub main: NodeId,
     /// The sidebar `<aside>` — M3 attaches click listeners here.
     pub sidebar: NodeId,
+    /// The `<nav class="view-tabs">` container holding the
+    /// Demo / Source `<button>`s. M7 D1 attaches click listeners
+    /// here to switch view mode.
+    pub view_tabs: NodeId,
 }
 
 /// Build the showcase shell under `dom.root()`. Does NOT mount any
@@ -135,15 +141,48 @@ pub fn build_shell(dom: &mut TuiDom) -> ShellHandles {
     dom.append_child(sidebar, nav).unwrap();
     dom.append_child(body, sidebar).unwrap();
 
-    // <main class="main"> — demo mount point.
+    // <main class="main"> — wraps the view tabs + the content mount.
+    //
+    // ```
+    // <main class="main">
+    //   <nav class="view-tabs">
+    //     <button class="view-tab active" data-view="demo">Demo</button>
+    //     <button class="view-tab" data-view="source">Source</button>
+    //   </nav>
+    //   <div class="view-content"></div>  ← where demos mount
+    // </main>
+    // ```
+    //
+    // Tabs in M7 D1 toggle the main view between the live demo
+    // and its source (markup + CSS strings). The `<button>` carries
+    // `data-view` so the click handler can switch without per-button
+    // listeners.
     let main = dom.create_element("main");
     dom.set_attribute(main, "class", "main").unwrap();
+
+    let view_tabs = dom.create_element("nav");
+    dom.set_attribute(view_tabs, "class", "view-tabs").unwrap();
+    for (label, view) in [("Demo", "demo"), ("Source", "source")] {
+        let tab = dom.create_element("button");
+        dom.set_attribute(tab, "class", "view-tab").unwrap();
+        dom.set_attribute(tab, "data-view", view).unwrap();
+        let tab_text = dom.create_text_node(label);
+        dom.append_child(tab, tab_text).unwrap();
+        dom.append_child(view_tabs, tab).unwrap();
+    }
+    dom.append_child(main, view_tabs).unwrap();
+
+    let view_content = dom.create_element("div");
+    dom.set_attribute(view_content, "class", "view-content")
+        .unwrap();
+    dom.append_child(main, view_content).unwrap();
     dom.append_child(body, main).unwrap();
 
     ShellHandles {
         app_root: app,
-        main,
+        main: view_content,
         sidebar,
+        view_tabs,
     }
 }
 
@@ -216,8 +255,34 @@ const BASE_CSS: &str = r#"
 
 .main {
   flex: 1;
+  flex-direction: column;
   border: solid;
   border-color: rgb(70, 80, 100);
+}
+
+/* Tab strip across the top of the main view. Two buttons:
+ * "Demo" (active by default) and "Source". The .active class is
+ * toggled by the view-tab click handler at runtime.
+ */
+.main .view-tabs {
+  flex-direction: row;
+  height: 1;
+  flex-shrink: 0;
+  border-bottom: solid;
+  border-color: rgb(70, 80, 100);
+}
+.main .view-tabs .view-tab {
+  flex-shrink: 0;
+  padding: 0 2;
+  color: rgb(150, 170, 200);
+}
+.main .view-tabs .view-tab.active {
+  color: rgb(220, 230, 255);
+  font-weight: bold;
+}
+
+.main .view-content {
+  flex: 1;
 }
 "#;
 
@@ -240,9 +305,16 @@ mod tests {
     fn shell_has_main_under_app_body_under_app_root() {
         let mut dom: TuiDom = TuiDom::new();
         let handles = build_shell(&mut dom);
-        // main → app-body → app-root
-        let body = dom
+        // view-content (handles.main) → <main> → app-body → app-root.
+        // The extra hop is from M7 D1: <main> now holds the view-tabs +
+        // the view-content; handles.main points at the inner mount.
+        let main_el = dom
             .node(handles.main)
+            .parent_node()
+            .expect("view-content has a parent")
+            .id();
+        let body = dom
+            .node(main_el)
             .parent_node()
             .expect("main has a parent")
             .id();
@@ -252,6 +324,27 @@ mod tests {
             .expect("body has a parent")
             .id();
         assert_eq!(app, handles.app_root);
+    }
+
+    #[test]
+    fn shell_exposes_view_tabs() {
+        // M7 D1: the shell now produces a <nav class="view-tabs">
+        // with two <button data-view> children.
+        let mut dom: TuiDom = TuiDom::new();
+        let handles = build_shell(&mut dom);
+
+        let tabs_node = dom.node(handles.view_tabs);
+        assert_eq!(tabs_node.tag_name(), Some("nav"));
+        let buttons: Vec<_> = tabs_node
+            .child_nodes()
+            .filter(|n| n.tag_name() == Some("button"))
+            .collect();
+        assert_eq!(buttons.len(), 2, "two tabs: Demo + Source");
+        let views: Vec<&str> = buttons
+            .iter()
+            .filter_map(|b| b.get_attribute("data-view"))
+            .collect();
+        assert_eq!(views, vec!["demo", "source"]);
     }
 
     #[test]

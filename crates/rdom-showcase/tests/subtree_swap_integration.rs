@@ -26,7 +26,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use rdom_showcase::{
-    DEMOS, ShowcaseState, build_shell, mount_demo, wire_sidebar_click, wire_sidebar_keys,
+    DEMOS, ShowcaseState, ViewMode, build_shell, mount_demo, set_view, wire_sidebar_click,
+    wire_sidebar_keys, wire_view_tab_click,
 };
 use rdom_tui::{
     Event, EventDetail, KeyboardDetail, KeyboardModifiers, NodeId, Position, Selection, TuiDom,
@@ -37,10 +38,7 @@ use rdom_tui::{
 fn setup() -> (TuiDom, ShowcaseState) {
     let mut dom: TuiDom = TuiDom::new();
     let handles = build_shell(&mut dom);
-    let mut state = ShowcaseState {
-        current_idx: usize::MAX,
-        main_id: handles.main,
-    };
+    let mut state = ShowcaseState::from_handles(&handles);
     mount_demo(&mut state, &mut dom, 0);
     (dom, state)
 }
@@ -202,7 +200,6 @@ fn swap_renders_clean_at_full_viewport() {
     use rdom_tui::render::{Terminal, TestBackend};
 
     let (dom, initial_state) = setup();
-    let main_id = initial_state.main_id;
 
     let backend = TestBackend::new(80, 24);
     let terminal = Terminal::new(backend).unwrap();
@@ -214,7 +211,9 @@ fn swap_renders_clean_at_full_viewport() {
 
     let mut state = ShowcaseState {
         current_idx: initial_state.current_idx,
-        main_id,
+        view: initial_state.view,
+        main_id: initial_state.main_id,
+        view_tabs_id: initial_state.view_tabs_id,
     };
     for idx in [1usize, 2, 0, 2, 1] {
         mount_demo(&mut state, app.dom_mut(), idx);
@@ -257,10 +256,7 @@ fn find_li_for_demo(dom: &TuiDom, sidebar: NodeId, demo_idx: usize) -> NodeId {
 fn wired_setup() -> (TuiDom, Rc<RefCell<ShowcaseState>>, NodeId) {
     let mut dom: TuiDom = TuiDom::new();
     let handles = build_shell(&mut dom);
-    let state = Rc::new(RefCell::new(ShowcaseState {
-        current_idx: usize::MAX,
-        main_id: handles.main,
-    }));
+    let state = Rc::new(RefCell::new(ShowcaseState::from_handles(&handles)));
     mount_demo(&mut state.borrow_mut(), &mut dom, 0);
     wire_sidebar_click(&mut dom, handles.sidebar, Rc::clone(&state));
     wire_sidebar_keys(&mut dom, handles.sidebar, Rc::clone(&state));
@@ -440,4 +436,134 @@ fn arrow_keys_without_focus_inside_sidebar_are_noop() {
 
     assert_eq!(state.borrow().current_idx, initial);
     assert!(dom.focused().is_none(), "no focus to move");
+}
+
+// ─── M7 D1 — view tabs (Demo / Source) ──────────────────────────────
+
+#[test]
+fn set_view_to_source_mounts_pre_block_with_markup_and_css() {
+    let (mut dom, _state, _sidebar) = wired_setup();
+    let state_borrow = _state.borrow();
+    let main_id = state_borrow.main_id;
+    drop(state_borrow);
+
+    set_view(&mut _state.borrow_mut(), &mut dom, ViewMode::Source);
+
+    // <main>'s view-content now holds the source-view wrapper.
+    let source_root = dom.node(main_id).child_nodes().next().expect("mounted");
+    assert_eq!(
+        source_root.get_attribute("class"),
+        Some("source-view"),
+        "Source view mounts a .source-view container"
+    );
+
+    // It contains at least one <pre> with the demo's markup.
+    let pres: Vec<_> = source_root
+        .child_nodes()
+        .filter(|n| n.tag_name() == Some("pre"))
+        .collect();
+    assert_eq!(
+        pres.len(),
+        2,
+        "Source view shows MARKUP + CSS as two <pre> blocks"
+    );
+}
+
+#[test]
+fn set_view_back_to_demo_mounts_live_subtree() {
+    let (mut dom, state, _sidebar) = wired_setup();
+    let state_borrow = state.borrow();
+    let main_id = state_borrow.main_id;
+    drop(state_borrow);
+
+    set_view(&mut state.borrow_mut(), &mut dom, ViewMode::Source);
+    set_view(&mut state.borrow_mut(), &mut dom, ViewMode::Demo);
+
+    let demo_root = dom
+        .node(main_id)
+        .child_nodes()
+        .next()
+        .expect("Demo view re-mounted");
+    // Demo 0 is HelloWorld; its root carries class="hello" per
+    // crates/rdom-showcase/src/demos/hello.rs.
+    assert!(
+        demo_root.get_attribute("class").is_some(),
+        "Demo view mounts the live subtree (not source-view)"
+    );
+    assert_ne!(demo_root.get_attribute("class"), Some("source-view"));
+}
+
+#[test]
+fn switching_demo_resets_view_to_demo() {
+    // After clicking around in Source view, switching to a different
+    // demo should reset back to Demo mode so the author sees the
+    // live demo first.
+    let (mut dom, state, _sidebar) = wired_setup();
+    set_view(&mut state.borrow_mut(), &mut dom, ViewMode::Source);
+    assert_eq!(state.borrow().view, ViewMode::Source);
+
+    mount_demo(&mut state.borrow_mut(), &mut dom, 1);
+
+    assert_eq!(
+        state.borrow().view,
+        ViewMode::Demo,
+        "switching demos resets to Demo view"
+    );
+}
+
+#[test]
+fn click_on_source_tab_switches_view() {
+    use rdom_tui::Event;
+
+    let (mut dom, state, sidebar) = wired_setup();
+    let view_tabs_id = state.borrow().view_tabs_id;
+    wire_view_tab_click(&mut dom, view_tabs_id, std::rc::Rc::clone(&state));
+
+    // Find the Source tab button.
+    let source_btn = dom
+        .node(view_tabs_id)
+        .child_nodes()
+        .find(|n| n.get_attribute("data-view") == Some("source"))
+        .expect("Source tab exists")
+        .id();
+
+    let mut click = Event::new("click");
+    dom.dispatch_event(source_btn, &mut click).unwrap();
+
+    assert_eq!(state.borrow().view, ViewMode::Source);
+    let _ = sidebar;
+}
+
+#[test]
+fn active_tab_class_flips_with_view_mode() {
+    let (mut dom, state, _sidebar) = wired_setup();
+
+    // After initial mount (Demo view), the Demo tab should have .active.
+    let view_tabs_id = state.borrow().view_tabs_id;
+    let demo_btn = dom
+        .node(view_tabs_id)
+        .child_nodes()
+        .find(|n| n.get_attribute("data-view") == Some("demo"))
+        .unwrap()
+        .id();
+    let source_btn = dom
+        .node(view_tabs_id)
+        .child_nodes()
+        .find(|n| n.get_attribute("data-view") == Some("source"))
+        .unwrap()
+        .id();
+
+    assert!(
+        dom.node(demo_btn).has_class("active"),
+        "Demo tab is active initially"
+    );
+    assert!(
+        !dom.node(source_btn).has_class("active"),
+        "Source tab is not active initially"
+    );
+
+    set_view(&mut state.borrow_mut(), &mut dom, ViewMode::Source);
+
+    assert!(!dom.node(demo_btn).has_class("active"));
+    assert!(dom.node(source_btn).has_class("active"));
 }

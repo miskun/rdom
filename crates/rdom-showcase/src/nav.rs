@@ -18,7 +18,18 @@ use std::rc::Rc;
 
 use rdom_tui::{ListenerOptions, NodeId, TuiDom};
 
-use crate::DEMOS;
+use crate::{DEMOS, Demo};
+
+/// Which view of the current demo is mounted in `<main>`.
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum ViewMode {
+    /// Live demo subtree from `Demo::build`.
+    Demo,
+    /// `<pre>` block containing the demo's `MARKUP` + `CSS`
+    /// strings (`Demo::source()`). Authors browse this to learn
+    /// what code produces the live demo on the left.
+    Source,
+}
 
 /// Shared mutable state the navigation owns: which demo is
 /// currently mounted, and where to mount the next one.
@@ -31,8 +42,29 @@ pub struct ShowcaseState {
     /// `usize::MAX` before any demo has been mounted so the first
     /// call to [`mount_demo`] always proceeds.
     pub current_idx: usize,
+    /// Current view mode. Switching demos resets to `ViewMode::Demo`
+    /// so authors always see the live demo first.
+    pub view: ViewMode,
     /// Where demos mount — `<main>` from [`crate::shell::ShellHandles`].
     pub main_id: NodeId,
+    /// The `<nav class="view-tabs">` container — needed at mount
+    /// time so the active-tab class flips when view mode changes.
+    pub view_tabs_id: NodeId,
+}
+
+impl ShowcaseState {
+    /// Construct from `ShellHandles`. Initial state: no demo mounted
+    /// (`current_idx = usize::MAX` so the first `mount_demo` call
+    /// always proceeds), Demo view, active-tab class will land on
+    /// the first mount.
+    pub fn from_handles(handles: &crate::shell::ShellHandles) -> Self {
+        Self {
+            current_idx: usize::MAX,
+            view: ViewMode::Demo,
+            main_id: handles.main,
+            view_tabs_id: handles.view_tabs,
+        }
+    }
 }
 
 /// Swap the mounted demo. No-op if `demo_idx` is already mounted.
@@ -62,16 +94,105 @@ pub fn mount_demo(state: &mut ShowcaseState, dom: &mut TuiDom, demo_idx: usize) 
         "mount_demo: idx {demo_idx} out of range (have {} demos)",
         DEMOS.len()
     );
-    // Atomic-as-far-as-this-function-is-concerned subtree swap.
-    // The DOM's `clear_children` fires a `ChildListChanged` record
-    // with every detached child + runs the purge step from
-    // `rdom-core::tree::detach_from_parent`.
+    // Switching demos resets the view to Demo — authors always
+    // start with the live view of a freshly-clicked demo.
+    state.view = ViewMode::Demo;
+    state.current_idx = demo_idx;
+    remount_current_view(state, dom);
+    update_tab_active_class(dom, state.view_tabs_id, state.view);
+}
+
+/// Switch the currently-mounted view between Demo and Source for
+/// the active demo. No-op if the requested view is already mounted.
+pub fn set_view(state: &mut ShowcaseState, dom: &mut TuiDom, view: ViewMode) {
+    if state.view == view {
+        return;
+    }
+    state.view = view;
+    remount_current_view(state, dom);
+    update_tab_active_class(dom, state.view_tabs_id, state.view);
+}
+
+/// Internal: clear `<main>`'s view-content and mount whatever the
+/// current view mode dictates. Used by both `mount_demo` (demo
+/// changed) and `set_view` (view mode changed, demo stayed).
+fn remount_current_view(state: &mut ShowcaseState, dom: &mut TuiDom) {
+    debug_assert!(state.current_idx < DEMOS.len());
     dom.clear_children(state.main_id)
         .expect("main_id from build_shell stays valid for the App's lifetime");
-    let demo_root = DEMOS[demo_idx].build(dom);
-    dom.append_child(state.main_id, demo_root)
-        .expect("demo_root was just created and has no parent");
-    state.current_idx = demo_idx;
+    match state.view {
+        ViewMode::Demo => {
+            let demo_root = DEMOS[state.current_idx].build(dom);
+            dom.append_child(state.main_id, demo_root)
+                .expect("demo_root was just created and has no parent");
+        }
+        ViewMode::Source => {
+            let source_root = build_source_view(dom, DEMOS[state.current_idx]);
+            dom.append_child(state.main_id, source_root)
+                .expect("source_root was just created and has no parent");
+        }
+    }
+}
+
+/// Build a `<pre>` block containing the demo's `MARKUP` + `CSS`
+/// strings, separated by a header line. Returns the root.
+fn build_source_view(dom: &mut TuiDom, demo: &dyn Demo) -> NodeId {
+    let source = demo.source();
+    let root = dom.create_element("div");
+    dom.set_attribute(root, "class", "source-view").unwrap();
+
+    append_labeled_pre(dom, root, "Markup", source.markup);
+    append_labeled_pre(dom, root, "CSS", source.css);
+
+    root
+}
+
+fn append_labeled_pre(dom: &mut TuiDom, parent: NodeId, label: &str, body: &str) {
+    let h = dom.create_element("h2");
+    let h_text = dom.create_text_node(label);
+    dom.append_child(h, h_text).unwrap();
+    dom.append_child(parent, h).unwrap();
+
+    let pre = dom.create_element("pre");
+    let body_text = dom.create_text_node(body);
+    dom.append_child(pre, body_text).unwrap();
+    dom.append_child(parent, pre).unwrap();
+}
+
+/// Walk the tab buttons under `tabs_root`; on each, ensure the
+/// `active` class is present iff its `data-view` matches the
+/// currently-active view. Uses class-list operations so we don't
+/// disturb other classes the buttons carry.
+fn update_tab_active_class(dom: &mut TuiDom, tabs_root: NodeId, view: ViewMode) {
+    let target = match view {
+        ViewMode::Demo => "demo",
+        ViewMode::Source => "source",
+    };
+    let mut buttons = Vec::new();
+    collect_view_tabs(dom, tabs_root, &mut buttons);
+    for btn in buttons {
+        let is_target = dom
+            .node(btn)
+            .get_attribute("data-view")
+            .map(|v| v == target)
+            .unwrap_or(false);
+        if is_target {
+            let _ = dom.add_class(btn, "active");
+        } else {
+            let _ = dom.remove_class(btn, "active");
+        }
+    }
+}
+
+fn collect_view_tabs(dom: &TuiDom, id: NodeId, out: &mut Vec<NodeId>) {
+    if dom.node(id).tag_name() == Some("button")
+        && dom.node(id).get_attribute("data-view").is_some()
+    {
+        out.push(id);
+    }
+    for child in dom.node(id).child_nodes() {
+        collect_view_tabs(dom, child.id(), out);
+    }
 }
 
 /// Install the sidebar's click handler. Walks up from the click
@@ -80,6 +201,40 @@ pub fn mount_demo(state: &mut ShowcaseState, dom: &mut TuiDom, demo_idx: usize) 
 ///
 /// Single listener on the sidebar — the click event bubbles up
 /// from whichever `<li>` or descendant was clicked.
+/// Install the view-tabs click handler. Single listener on the
+/// `<nav class="view-tabs">` container; walks the target's
+/// ancestors looking for a `data-view` attribute, then calls
+/// [`set_view`].
+pub fn wire_view_tab_click(dom: &mut TuiDom, view_tabs: NodeId, state: Rc<RefCell<ShowcaseState>>) {
+    dom.add_event_listener(view_tabs, "click", ListenerOptions::default(), move |ctx| {
+        let Some(target) = ctx.event.target else {
+            return;
+        };
+        let Some(view) = find_view_attr_ancestor(ctx.dom, target) else {
+            return;
+        };
+        set_view(&mut state.borrow_mut(), ctx.dom, view);
+    })
+    .expect("view_tabs is a valid node");
+}
+
+fn find_view_attr_ancestor(dom: &TuiDom, start: NodeId) -> Option<ViewMode> {
+    let mut cur = Some(start);
+    while let Some(id) = cur {
+        if dom.node(id).tag_name() == Some("button")
+            && let Some(v) = dom.node(id).get_attribute("data-view")
+        {
+            return match v {
+                "demo" => Some(ViewMode::Demo),
+                "source" => Some(ViewMode::Source),
+                _ => None,
+            };
+        }
+        cur = dom.node(id).parent_node().map(|p| p.id());
+    }
+    None
+}
+
 pub fn wire_sidebar_click(dom: &mut TuiDom, sidebar: NodeId, state: Rc<RefCell<ShowcaseState>>) {
     dom.add_event_listener(sidebar, "click", ListenerOptions::default(), move |ctx| {
         let Some(target) = ctx.event.target else {
@@ -249,10 +404,7 @@ mod tests {
     fn mount_demo_initial_attaches_first_demo() {
         let mut dom: TuiDom = TuiDom::new();
         let handles = build_shell(&mut dom);
-        let mut state = ShowcaseState {
-            current_idx: usize::MAX,
-            main_id: handles.main,
-        };
+        let mut state = ShowcaseState::from_handles(&handles);
 
         mount_demo(&mut state, &mut dom, 0);
 
@@ -269,10 +421,7 @@ mod tests {
     fn mount_demo_swap_replaces_subtree() {
         let mut dom: TuiDom = TuiDom::new();
         let handles = build_shell(&mut dom);
-        let mut state = ShowcaseState {
-            current_idx: usize::MAX,
-            main_id: handles.main,
-        };
+        let mut state = ShowcaseState::from_handles(&handles);
 
         mount_demo(&mut state, &mut dom, 0);
         let first_demo_root = dom
@@ -349,10 +498,7 @@ mod tests {
     fn mount_demo_same_index_is_noop() {
         let mut dom: TuiDom = TuiDom::new();
         let handles = build_shell(&mut dom);
-        let mut state = ShowcaseState {
-            current_idx: usize::MAX,
-            main_id: handles.main,
-        };
+        let mut state = ShowcaseState::from_handles(&handles);
 
         mount_demo(&mut state, &mut dom, 0);
         let root_a = dom
