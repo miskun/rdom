@@ -21,3 +21,9 @@ rdom-css = { path = "../rdom-css", version = "0.1.0" }
 # `parse_and_render` demo uses the HTML-ish parser; one of the
 # few demos that touch all three crates composing.
 rdom-parser = { path = "../rdom-parser", version = "0.1.0" }
+
+[dev-dependencies]
+# Tests synthesize `crossterm` events (Resize / Key / Mouse) to
+# drive App::handle_event directly. Not a runtime dep — the
+# showcase binary uses crossterm transitively via rdom-tui.
+crossterm = "0.28"
