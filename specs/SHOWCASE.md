@@ -134,7 +134,7 @@ Each event needs: a public event type, dispatch wired through the existing 3-pha
 
 **Exit criteria:** all six events implemented + tested; `add_event_listener` accepts the new names; `EVT-DETACH-1` closed (entry retired from `TECH_DEBT.md`); the implicit-detach DIVERGENCES.md entries deleted (no longer divergent); review gate run.
 
-### M6 — `calc()` value system
+### M6 — `calc()` value system — **CLOSED 2026-05-24** (with scope reduction)
 
 Substrate work. Lets CSS values combine `<length>`s and percentages.
 

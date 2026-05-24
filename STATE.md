@@ -8,9 +8,9 @@ For the durable architecture and roadmap, see [`specs/DESIGN.md`](specs/DESIGN.m
 
 **Release in flight:** 0.2.0. Three workstreams bundled under one release — `rdom-showcase` (headline), event surface bundle, `calc()` value system. Plan: [`specs/SHOWCASE.md`](specs/SHOWCASE.md).
 
-**Next milestone:** M6 — `calc()` value system in `rdom-style`/`rdom-css`.
+**Next milestone:** M7 — Showcase polish (source view + CLI deep-link + M5 event integration).
 
-**Status:** **M1 + M2 + M3 + M4 + M5 closed.** M5 shipped the full 0.2.0 event surface: `keyup` (kitty-protocol terminals), `contextmenu` (right-click + Shift+F10), `dblclick` (synthesized from click stream), `resize` (Window target), `scroll` (per-element, coalesced), and the implicit-detach event ceremony (`blur`/`focusout`/`mouseout`/`mouseleave` on detach). `EVT-DETACH-1` retired; two divergence entries deleted. 2,397 workspace tests passing.
+**Status:** **M1 + M2 + M3 + M4 + M5 + M6 closed.** M6 shipped the `calc()` value system at the parse-time constant-evaluation layer: `calc(8 * 2)` resolves to `Size::Fixed(16)` at parse time and works end-to-end. Percent-bearing forms (`calc(100% - 4)`) parse into a `CalcExpr` AST but defer their resolution — tracked as `CALC-PCT-1` in TECH_DEBT.md with the precise pay-down recipe. 2,438 workspace tests passing.
 
 The seven fixes (in order of discovery):
 1. `class` attribute ↔ `classList` round-trip per WHATWG (commit `a92aa6a`)
@@ -48,7 +48,10 @@ One piece of architectural debt deferred with teeth: `EVT-DETACH-1` (implicit bl
   - D4 — **`resize`** dispatches on the document root (Window target per HTML §UIEvents) when `CtEvent::Resize` fires. Coalesced per crossterm signal.
   - D5 — **`scroll`** dispatches on elements whose `scroll_x`/`scroll_y` actually changed. Three mutation sites wired: wheel scroll, scrollbar drag, programmatic `set_scroll_*`/`scroll_to`. No event at-rail-end wheel ticks.
   - D6 — **Implicit-detach event ceremony** (closes `EVT-DETACH-1`). New `Mutation::PreDetach` variant fires BEFORE structural unlink. `runtime::implicit_events` module's App-level observer dispatches `blur` + `focusout` on focus loss, `mouseout` + `mouseleave` on hover loss. Tree intact at dispatch → bubbling works through live ancestor chain. 8 integration tests pin the contract. Two `DIVERGENCES.md` entries removed.
-- [ ] **M6** — `calc()` value system in `rdom-style`/`rdom-css`, resolved at cascade/layout time. *Substrate.*
+- [x] **M6** — `calc()` value system *(closed 2026-05-24)*. Two-phase delivery:
+  - D1 — **CalcExpr AST + parser**. New `crates/rdom-style/src/calc.rs` (CalcExpr enum, CalcOp, ResolveCtx, banker's-rounding resolver). Recursive-descent parser in `parse/values.rs` (`parse_calc`, `looks_like_calc`) handles `+ - * /` with correct precedence, parens, unary minus, nested `calc()`. 20 unit tests on the AST + parser.
+  - D2 — **Parse-time constant-eval integration into `Size` + `Length`**. `width: calc(2 + 3)` → `Size::Fixed(5)`; `top: calc(-3 * 2)` → `Length::Cells(-6)`. Negative size results clamp to 0 (CSS-correct). Percent-bearing forms parse but drop with warning — tracked as `CALC-PCT-1`. 6 end-to-end tests via `rdom_css::from_css`.
+  - **Scope decision**: full layout-time resolution of `calc(100% - 4)` requires adding `Calc(Box<CalcExpr>)` variants to `Size` / `Length` which removes `Copy` and ripples `.clone()` through ~50 cascade/layout/animation/pseudo-positioning sites. The mechanical refactor was scoped out of 0.2.0; the substrate (`CalcExpr` + parser + resolver) is already shipped, so closing `CALC-PCT-1` is the rippling part only.
 - [ ] **M7** — Showcase polish: source view + CLI deep-link + M5 event integration. *Showcase.*
 - [ ] **M8** — Coverage demos (one per primitive in §0.1.0 + every new 0.2.0 addition). *Showcase.*
 - [ ] **M9** — CI + snapshots + README + DESIGN.md decision archive + per-crate version bumps + `cargo publish` → **0.2.0 ships**.
@@ -66,6 +69,30 @@ One piece of architectural debt deferred with teeth: `EVT-DETACH-1` (implicit bl
 - **`EVT-DETACH-1`** — implicit `blur` / `focusout` / `mouseleave` / `mouseout` not dispatched on detach. Documented in [`specs/TECH_DEBT.md`](specs/TECH_DEBT.md) as a non-negotiable M5 deliverable. Risk: if M5 scope grows and this slips, rdom-tui ships an internally inconsistent hover-event model. Mitigation: M5 exit criteria in [`specs/SHOWCASE.md`](specs/SHOWCASE.md) explicitly require closing `EVT-DETACH-1` + deleting the related DIVERGENCES.md entries.
 
 ## Recent decisions
+
+### 2026-05-24 — M6 closed: calc() at parse-time constant-eval
+
+Shipped the `calc()` value system in two commits, with a deliberate scope reduction documented in `CALC-PCT-1`.
+
+**What shipped:**
+- `crates/rdom-style/src/calc.rs` — the AST + resolver: `CalcExpr { Number(f64), Length(i32), Percent(f64), Binary { op, lhs, rhs } }`, `CalcOp { Add, Sub, Mul, Div }`, `ResolveCtx { percent_basis }`, banker's-rounding resolver. Already complete for both constant-eval and layout-time resolution paths — the latter has no caller yet.
+- Parser in `parse/values.rs` — recursive descent with correct CSS operator precedence, parens, unary minus, nested `calc()`. Accepts whitespace-or-not around `+`/`-` (divergence from CSS Values L3 documented; our tokenizer doesn't preserve whitespace).
+- Integration into `parse_size` and `parse_length` — when the calc expression contains no percentages, resolve at parse time and yield the existing `Size::Fixed` / `Length::Cells` variants. Author CSS like `width: calc(8 * 2)` works end-to-end with no other changes.
+
+**What's deferred (and why):**
+
+Resolving percent-bearing calc (`calc(100% - 4)`) at layout time would require:
+1. Adding `Calc(Box<CalcExpr>)` variants to `Size` and `Length`.
+2. Removing `Copy` from both enums (because the variants box a tree).
+3. Rippling `.clone()` through every site that destructures these enums by value. The compile-error count when I attempted the refactor: 48 errors across ~10 files, including the cascade animation interpolator, every layout pass (`flex.rs`, `intrinsic.rs`, `positioning.rs`, `positioned_pseudos.rs`), `PresentationStyle`'s `Eq` derive, etc.
+
+The work is mechanical but substantial — each site needs a careful resolution-context wire-up to know which dimension the percentage resolves against (`width` → parent content width; `top` → parent content height; etc.). I reverted the variant additions and shipped the parse-time path instead so 0.2.0 has a usable `calc()` for the second-most-common author idiom (constant arithmetic), with the percent path tracked as `CALC-PCT-1` carrying a precise pay-down recipe.
+
+The `CalcExpr` substrate is fully built; closing `CALC-PCT-1` is the rippling step plus threading `ResolveCtx` into the right layout sites. No new substrate design work needed.
+
+**Coverage shipped:**
+- Constants: `calc(2 + 3)`, `calc(2 + 3 * 4)` (precedence), `calc((2+3) * 4)` (parens), `calc(calc(2+3) * 4)` (nested), `calc(-3 * 2)` (unary).
+- Properties: `width`, `height` via `parse_size`; `top`/`right`/`bottom`/`left` via `parse_length`. Other length-bearing properties (padding, margin, gap, min-*, max-*, font-size) are not yet wired — same `CALC-PCT-1` follow-up.
 
 ### 2026-05-23 — M5 closed: event surface bundle + implicit detach ceremony
 
