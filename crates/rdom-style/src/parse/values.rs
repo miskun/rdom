@@ -10,6 +10,7 @@
 //! `property_dispatch::set_from_tokens` (in this crate) can both
 //! consume the same per-property parsing.
 
+use crate::calc::{CalcExpr, CalcOp};
 use crate::layout::{Border, Length, Overflow, Padding, Position, Size, ZIndex};
 use crate::parse::token::Token;
 use crate::transition::{AnimatableProperty, TimingFunction, TransitionProperty};
@@ -882,4 +883,326 @@ pub fn unzip_transition_rules(
         delays.push(r.delay);
     }
     (props, durs, timings, delays)
+}
+
+// ─── calc() expression parser (M6) ───────────────────────────────────
+//
+// Recursive-descent over the token stream. Grammar:
+//
+//   calc       = 'calc' '(' sum ')'
+//   sum        = product (('+' | '-') product)*
+//   product    = factor (('*' | '/') factor)*
+//   factor     = leaf | '(' sum ')' | calc
+//   leaf       = Number | Length | Percentage
+//
+// Whitespace is already eaten by the tokenizer. Operator
+// precedence follows CSS Values L3 §10.2: * and / bind tighter
+// than + and -. Per CSS, `+` and `-` MUST be surrounded by
+// whitespace at the source level (`5+5` is invalid; `5 + 5` is
+// valid). Our tokenizer doesn't preserve whitespace, so we
+// accept both forms — a deliberate relaxation documented in
+// DIVERGENCES.md.
+
+/// Parser cursor over a `&[Token]`. Tracks position only.
+struct CalcParser<'a> {
+    tokens: &'a [Token],
+    pos: usize,
+}
+
+impl<'a> CalcParser<'a> {
+    fn new(tokens: &'a [Token]) -> Self {
+        Self { tokens, pos: 0 }
+    }
+
+    fn peek(&self) -> Option<&'a Token> {
+        self.tokens.get(self.pos)
+    }
+
+    fn advance(&mut self) -> Option<&'a Token> {
+        let t = self.tokens.get(self.pos);
+        if t.is_some() {
+            self.pos += 1;
+        }
+        t
+    }
+
+    /// Top-level entry: parse a `calc(<sum>)` form. The leading
+    /// `Function("calc")` token must already be matched by the
+    /// caller (this fn starts after the opening paren).
+    fn parse_sum(&mut self) -> Option<CalcExpr> {
+        let mut lhs = self.parse_product()?;
+        loop {
+            let op = match self.peek() {
+                Some(Token::Delim('+')) => CalcOp::Add,
+                Some(Token::Delim('-')) => CalcOp::Sub,
+                _ => break,
+            };
+            self.advance();
+            let rhs = self.parse_product()?;
+            lhs = CalcExpr::binary(op, lhs, rhs);
+        }
+        Some(lhs)
+    }
+
+    fn parse_product(&mut self) -> Option<CalcExpr> {
+        let mut lhs = self.parse_factor()?;
+        loop {
+            let op = match self.peek() {
+                Some(Token::Delim('*')) => CalcOp::Mul,
+                Some(Token::Delim('/')) => CalcOp::Div,
+                _ => break,
+            };
+            self.advance();
+            let rhs = self.parse_factor()?;
+            lhs = CalcExpr::binary(op, lhs, rhs);
+        }
+        Some(lhs)
+    }
+
+    fn parse_factor(&mut self) -> Option<CalcExpr> {
+        match self.peek()? {
+            Token::Number(n) => {
+                let n = *n;
+                self.advance();
+                // A number followed by `fr` is a flex unit and
+                // doesn't make sense inside calc(); other unit
+                // idents (px / em / rem / ch) would be terminal-
+                // incompatible. We accept bare numbers as
+                // unitless "Number" leaves; the cell-vs-number
+                // distinction is by syntax (bare `5` = number,
+                // `5` with explicit cell typing in the property
+                // wrapper). For value-position calc operands
+                // (e.g., `calc(100% - 4)`) the `4` is a number
+                // that resolves as a length because the
+                // containing property is a length.
+                Some(CalcExpr::Number(n as f64))
+            }
+            Token::Percentage(n) => {
+                let n = *n;
+                self.advance();
+                Some(CalcExpr::Percent(n as f64))
+            }
+            Token::Delim('-') => {
+                // Unary minus — accept `-5` as a literal.
+                self.advance();
+                match self.advance()? {
+                    Token::Number(n) => Some(CalcExpr::Number(-(*n as f64))),
+                    Token::Percentage(n) => Some(CalcExpr::Percent(-(*n as f64))),
+                    _ => None,
+                }
+            }
+            Token::Delim('+') => {
+                // Unary plus — accept and ignore.
+                self.advance();
+                self.parse_factor()
+            }
+            Token::LParen => {
+                self.advance();
+                let inner = self.parse_sum()?;
+                match self.advance()? {
+                    Token::RParen => Some(inner),
+                    _ => None,
+                }
+            }
+            Token::Function(name) if name.eq_ignore_ascii_case("calc") => {
+                self.advance();
+                let inner = self.parse_sum()?;
+                match self.advance()? {
+                    Token::RParen => Some(inner),
+                    _ => None,
+                }
+            }
+            _ => None,
+        }
+    }
+}
+
+/// Parse a `calc(<sum>)` expression starting from the
+/// `Function("calc")` token. Returns the AST + the position
+/// AFTER the closing `)`. None on parse failure or unbalanced
+/// parens.
+pub fn parse_calc(tokens: &[Token]) -> Option<CalcExpr> {
+    if tokens.is_empty() {
+        return None;
+    }
+    let mut parser = CalcParser::new(tokens);
+    // First token must be `calc(`.
+    match parser.advance()? {
+        Token::Function(name) if name.eq_ignore_ascii_case("calc") => {}
+        _ => return None,
+    }
+    let expr = parser.parse_sum()?;
+    match parser.advance()? {
+        Token::RParen => {}
+        _ => return None,
+    }
+    // Reject trailing tokens — a calc() must be the entire value.
+    if parser.peek().is_some() {
+        return None;
+    }
+    Some(expr)
+}
+
+/// `true` iff `tokens` is exactly a single `calc(...)` form.
+/// Used by per-property parsers to detect the calc path before
+/// trying the bare-value patterns.
+pub fn looks_like_calc(tokens: &[Token]) -> bool {
+    matches!(tokens.first(), Some(Token::Function(n)) if n.eq_ignore_ascii_case("calc"))
+}
+
+#[cfg(test)]
+mod calc_parser_tests {
+    use super::*;
+    use crate::parse::token::Token;
+
+    fn calc_tokens(inner: Vec<Token>) -> Vec<Token> {
+        let mut v = vec![Token::Function("calc".to_string())];
+        v.extend(inner);
+        v.push(Token::RParen);
+        v
+    }
+
+    #[test]
+    fn bare_number() {
+        let tokens = calc_tokens(vec![Token::Number(5)]);
+        let e = parse_calc(&tokens).unwrap();
+        assert_eq!(e, CalcExpr::Number(5.0));
+    }
+
+    #[test]
+    fn bare_percent() {
+        let tokens = calc_tokens(vec![Token::Percentage(50)]);
+        let e = parse_calc(&tokens).unwrap();
+        assert_eq!(e, CalcExpr::Percent(50.0));
+    }
+
+    #[test]
+    fn add_percent_and_number() {
+        let tokens = calc_tokens(vec![
+            Token::Percentage(50),
+            Token::Delim('+'),
+            Token::Number(2),
+        ]);
+        let e = parse_calc(&tokens).unwrap();
+        assert_eq!(
+            e,
+            CalcExpr::binary(CalcOp::Add, CalcExpr::Percent(50.0), CalcExpr::Number(2.0))
+        );
+    }
+
+    #[test]
+    fn sub_full_minus_constant() {
+        let tokens = calc_tokens(vec![
+            Token::Percentage(100),
+            Token::Delim('-'),
+            Token::Number(4),
+        ]);
+        let e = parse_calc(&tokens).unwrap();
+        assert_eq!(
+            e,
+            CalcExpr::binary(CalcOp::Sub, CalcExpr::Percent(100.0), CalcExpr::Number(4.0))
+        );
+    }
+
+    #[test]
+    fn mul_binds_tighter_than_add() {
+        // calc(2 + 3 * 4) → Add(2, Mul(3, 4))
+        let tokens = calc_tokens(vec![
+            Token::Number(2),
+            Token::Delim('+'),
+            Token::Number(3),
+            Token::Delim('*'),
+            Token::Number(4),
+        ]);
+        let e = parse_calc(&tokens).unwrap();
+        let expected = CalcExpr::binary(
+            CalcOp::Add,
+            CalcExpr::Number(2.0),
+            CalcExpr::binary(CalcOp::Mul, CalcExpr::Number(3.0), CalcExpr::Number(4.0)),
+        );
+        assert_eq!(e, expected);
+    }
+
+    #[test]
+    fn parens_override_precedence() {
+        // calc((2 + 3) * 4) → Mul(Add(2,3), 4)
+        let tokens = calc_tokens(vec![
+            Token::LParen,
+            Token::Number(2),
+            Token::Delim('+'),
+            Token::Number(3),
+            Token::RParen,
+            Token::Delim('*'),
+            Token::Number(4),
+        ]);
+        let e = parse_calc(&tokens).unwrap();
+        let expected = CalcExpr::binary(
+            CalcOp::Mul,
+            CalcExpr::binary(CalcOp::Add, CalcExpr::Number(2.0), CalcExpr::Number(3.0)),
+            CalcExpr::Number(4.0),
+        );
+        assert_eq!(e, expected);
+    }
+
+    #[test]
+    fn nested_calc() {
+        // calc(calc(2 + 3) * 4) — semantically same as the parens form.
+        let tokens = calc_tokens(vec![
+            Token::Function("calc".to_string()),
+            Token::Number(2),
+            Token::Delim('+'),
+            Token::Number(3),
+            Token::RParen,
+            Token::Delim('*'),
+            Token::Number(4),
+        ]);
+        let e = parse_calc(&tokens).unwrap();
+        let expected = CalcExpr::binary(
+            CalcOp::Mul,
+            CalcExpr::binary(CalcOp::Add, CalcExpr::Number(2.0), CalcExpr::Number(3.0)),
+            CalcExpr::Number(4.0),
+        );
+        assert_eq!(e, expected);
+    }
+
+    #[test]
+    fn unary_minus() {
+        let tokens = calc_tokens(vec![
+            Token::Number(5),
+            Token::Delim('-'),
+            Token::Delim('-'),
+            Token::Number(3),
+        ]);
+        // calc(5 - -3) = Sub(5, -3) — and -3 is a Number(-3.0).
+        let e = parse_calc(&tokens).unwrap();
+        assert_eq!(
+            e,
+            CalcExpr::binary(CalcOp::Sub, CalcExpr::Number(5.0), CalcExpr::Number(-3.0))
+        );
+    }
+
+    #[test]
+    fn invalid_form_returns_none() {
+        // Missing closing paren.
+        let tokens = vec![Token::Function("calc".to_string()), Token::Number(5)];
+        assert!(parse_calc(&tokens).is_none());
+
+        // Trailing tokens after the calc.
+        let tokens = calc_tokens(vec![Token::Number(5)]);
+        let mut with_trail = tokens.clone();
+        with_trail.push(Token::Number(99));
+        assert!(parse_calc(&with_trail).is_none());
+
+        // Not a calc() at all.
+        let tokens = vec![Token::Number(5)];
+        assert!(parse_calc(&tokens).is_none());
+    }
+
+    #[test]
+    fn looks_like_calc_detects_function_token() {
+        let yes = vec![Token::Function("calc".to_string())];
+        let no = vec![Token::Number(5)];
+        assert!(looks_like_calc(&yes));
+        assert!(!looks_like_calc(&no));
+    }
 }

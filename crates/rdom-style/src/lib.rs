@@ -45,6 +45,7 @@
 
 #![forbid(unsafe_code)]
 
+pub mod calc;
 pub mod layout;
 pub mod parse;
 pub mod property_dispatch;
