@@ -22,6 +22,10 @@ For the durable architectural divergences (web-platform departures shipped on pu
 
 ### Cascade misses
 
+- **`BUTTON-FLEX-ROW-1` — `<button>`'s UA `::before`/`::after` bracket chrome doesn't render when the button is a child of a flex-row container.** Inside a flex column the brackets paint correctly (`counter_button` demo); inside `<div class="row" style="flex-direction: row">` they're absent (visible in the M8 `interval_counter` snapshot: button renders as bare "Start" not "[ Start ]"). Suspect a flex-row layout pass not allocating space for the inline pseudo content, OR a paint-order interaction with the row's main-axis sizing. Surfaced by the M8 Animations demos; reproducible test case in `crates/rdom-showcase/src/demos/interval_counter.rs`. Pay down with a focused substrate investigation; demos work around by stacking buttons vertically until then.
+
+### Cascade misses
+
 - **`D-M1-3` — `text-decoration: line-through` is a no-op.** Parser accepts the keyword, paint writes nothing. Substrate fix: `strikethrough` field on `TuiStyle` + `Modifier::STRIKETHROUGH` bit + paint pass support.
 - **`D-M1-4` — Inline-style caching is one-shot.** `seed_inline_styles` runs once before `App::new`. Mutating the `style="…"` attribute later does not re-trigger parsing. Apps either call `seed_inline_styles` again or use the typed `set_inline_style(TuiStyle)` API.
 

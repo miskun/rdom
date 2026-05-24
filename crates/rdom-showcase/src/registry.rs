@@ -10,12 +10,15 @@ use crate::demos::dom_api::DomApi;
 use crate::demos::flex_row::FlexRow;
 use crate::demos::hello::HelloWorld;
 use crate::demos::hover::Hover;
+use crate::demos::interval_counter::IntervalCounter;
 use crate::demos::mutation_observer::MutationObserverDemo;
 use crate::demos::parse_and_render::ParseAndRender;
+use crate::demos::raf_progress::RafProgress;
 use crate::demos::scrollable_list::ScrollableList;
 use crate::demos::selectable_text::SelectableText;
 use crate::demos::sticky::Sticky;
 use crate::demos::tab_form::TabForm;
+use crate::demos::transition_box::TransitionBox;
 use crate::demos::ua_chrome::UaChrome;
 
 /// Every demo the showcase knows about, in stable order. Order
@@ -36,6 +39,9 @@ pub const DEMOS: &[&dyn Demo] = &[
     &DomApi,
     &UaChrome,
     &AppShell,
+    &TransitionBox,
+    &IntervalCounter,
+    &RafProgress,
 ];
 
 #[cfg(test)]

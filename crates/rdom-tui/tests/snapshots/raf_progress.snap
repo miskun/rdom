@@ -1,0 +1,10 @@
+
+  requestAnimationFrame
+
+  2-second smooth fill driven by per-frame rAF callbacks.
+
+  [ Start ]  [ Reset ]
+
+  ┌────────────────────────────────────────────────┐
+
+

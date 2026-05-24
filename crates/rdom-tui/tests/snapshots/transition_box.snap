@@ -1,0 +1,10 @@
+
+  CSS transition
+
+  Click the box to toggle its `active` class. Width +
+  color animate over 500ms.
+
+  ┌──────────────────┐
+  │  Click me        │
+  └──────────────────┘
+
