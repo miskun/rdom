@@ -23,10 +23,8 @@ use crate::{Category, Demo, Source};
 pub const MARKUP: &str = r#"<div class="interval-demo">
   <h1>setInterval ticker</h1>
   <p>200ms cadence. Click Start/Stop to toggle.</p>
-  <div class="row">
-    <button class="toggle-btn">Start</button>
-    <span class="value">0</span>
-  </div>
+  <button class="toggle-btn">Start</button>
+  <p class="value-line">Counter: <span class="value">0</span></p>
 </div>"#;
 
 pub const CSS: &str = r#"
@@ -46,17 +44,10 @@ pub const CSS: &str = r#"
   height: 1;
   flex-shrink: 0;
 }
-.interval-demo .row {
-  flex-direction: row;
-  gap: 2;
-  height: 1;
-  flex-shrink: 0;
-}
 .interval-demo .toggle-btn {
   flex-shrink: 0;
 }
-.interval-demo .value {
-  flex-shrink: 0;
+.interval-demo .value-line .value {
   color: rgb(220, 230, 255);
   font-weight: bold;
 }
@@ -76,21 +67,24 @@ pub fn build(dom: &mut TuiDom) -> NodeId {
     dom.append_child(p, p_t).unwrap();
     dom.append_child(root, p).unwrap();
 
-    let row = dom.create_element("div");
-    dom.set_attribute(row, "class", "row").unwrap();
-
     let btn = dom.create_element("button");
     dom.set_attribute(btn, "class", "toggle-btn").unwrap();
     let btn_text = dom.create_text_node("Start");
     dom.append_child(btn, btn_text).unwrap();
-    dom.append_child(row, btn).unwrap();
+    dom.append_child(root, btn).unwrap();
 
+    // Counter line: "Counter: 0".
+    let value_line = dom.create_element("p");
+    dom.set_attribute(value_line, "class", "value-line")
+        .unwrap();
+    let prefix = dom.create_text_node("Counter: ");
+    dom.append_child(value_line, prefix).unwrap();
     let value = dom.create_element("span");
     dom.set_attribute(value, "class", "value").unwrap();
     let value_text = dom.create_text_node("0");
     dom.append_child(value, value_text).unwrap();
-    dom.append_child(row, value).unwrap();
-    dom.append_child(root, row).unwrap();
+    dom.append_child(value_line, value).unwrap();
+    dom.append_child(root, value_line).unwrap();
 
     // Shared state. `count` is mutated on every tick; `running_id`
     // holds the active interval's TimerId (or None when stopped).

@@ -398,14 +398,27 @@ fn recurse_children(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect)
         match child.node_type() {
             NodeType::Element => {
                 // Display:inline children outside an IFC context are
-                // a cascade error. Skip them at paint rather than
-                // painting as blocks — matches CSS "anonymous block
-                // box" suppression for isolated inlines.
+                // a cascade error in CSS — but in rdom, a flex
+                // container with at least one `display: inline-block`
+                // child (e.g. `<button>`) escapes IFC and treats all
+                // its children as flex items (see
+                // `layout_pass/ifc.rs`'s `is_ifc_block`). In that
+                // case an inline-display child gets a real layout
+                // rect plus its own `inline_layout` from the pure-
+                // text-leaf branch in flex layout — and must paint
+                // through the normal element path.
+                //
+                // The original suppression still applies to "truly
+                // orphaned" inline elements (no layout rect, no
+                // inline_layout) — keep skipping those so they don't
+                // paint as zero-sized blocks at (0,0).
                 let computed_ref = child.ext().and_then(|e| e.computed.as_ref());
                 let is_inline = computed_ref
                     .map(|c| c.display == Display::Inline)
                     .unwrap_or(false);
-                if is_inline {
+                let has_inline_layout =
+                    child.ext().and_then(|e| e.inline_layout.as_ref()).is_some();
+                if is_inline && !has_inline_layout {
                     continue;
                 }
                 // M2: position: absolute / fixed children are

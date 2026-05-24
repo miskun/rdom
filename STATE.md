@@ -10,7 +10,7 @@ For the durable architecture and roadmap, see [`specs/DESIGN.md`](specs/DESIGN.m
 
 **Next milestone:** M8 — Coverage demos (the showcase becomes a complete tour of the substrate).
 
-**Status:** **M1 + M2 + M3 + M4 + M5 + M6 + M7 closed.** M7 polished the showcase consumer-side: Source view tab (Demo / Source toggle), terminal resize integration, scroll-position indicator at the bottom of `<main>`, CLI deep-link via `--demo <slug>` / `--list` / `--help`. 2,467 workspace tests passing.
+**Status:** **M1 + M2 + M3 + M4 + M5 + M6 + M7 closed; M8 in flight.** M7 polished the showcase consumer-side: Source view tab (Demo / Source toggle), terminal resize integration, scroll-position indicator at the bottom of `<main>`, CLI deep-link via `--demo <slug>` / `--list` / `--help`. M8 (Coverage demos) is underway — first four demos shipped (MutationObserver + Animations: transition / interval / rAF), plus a substrate fix for inline-block in flex rows surfaced by the interval-counter demo. 2,481 workspace tests passing.
 
 The seven fixes (in order of discovery):
 1. `class` attribute ↔ `classList` round-trip per WHATWG (commit `a92aa6a`)
@@ -75,6 +75,20 @@ One piece of architectural debt deferred with teeth: `EVT-DETACH-1` (implicit bl
 - **`EVT-DETACH-1`** — implicit `blur` / `focusout` / `mouseleave` / `mouseout` not dispatched on detach. Documented in [`specs/TECH_DEBT.md`](specs/TECH_DEBT.md) as a non-negotiable M5 deliverable. Risk: if M5 scope grows and this slips, rdom-tui ships an internally inconsistent hover-event model. Mitigation: M5 exit criteria in [`specs/SHOWCASE.md`](specs/SHOWCASE.md) explicitly require closing `EVT-DETACH-1` + deleting the related DIVERGENCES.md entries.
 
 ## Recent decisions
+
+### 2026-05-24 — Substrate fix: inline-block in flex row paints UA pseudos
+
+M8 demo `interval_counter` surfaced a substrate gap: `<button>` (inline-block) + `<span>` (inline) siblings in a flex row rendered as `Start0` — the button's UA `[ … ]` bracket pseudos were silently dropped. Root cause: `is_ifc_block` (`crates/rdom-tui/src/render/layout_pass/ifc.rs`) routed any container with an inline-element child through the IFC paint path, which doesn't synthesize pseudo fragments for inline-block children. The original behavior was deliberate ("inline-block doesn't flip the parent into IFC mode") but ignored *sibling inline elements* flipping it — exactly the failing case.
+
+**Fix:** `Display::InlineBlock` now disqualifies the parent from IFC even with inline-element siblings. The container falls through to flex layout, where the inline-block child gets a proper rect and renders with full pseudo chrome. Closer to CSS Flexbox §3 step 7 (flex containers blockify their children) than the previous IFC opt-in. The companion paint-side change loosens `recurse_children` so a `display: inline` child *with its own `inline_layout`* (the new flex-laid case) paints normally instead of being swept into the legacy "cascade error" suppression bucket.
+
+**Tests:** new `crates/rdom-tui/tests/button_flex_repro.rs` — four regression assertions (button alone, button + inline sibling, two buttons, plain inline-only IFC negative case). 2,481 workspace tests pass.
+
+**Documentation:**
+- `specs/DIVERGENCES.md` — new entry under §Layout calling out the inline-block ↔ IFC behavior and pointing at the residual gap.
+- `specs/TECH_DEBT.md` — `BUTTON-FLEX-ROW-1` retired; the narrower remainder (`IFC-MIXED-TEXT-INLINEBLOCK-1`: mixed raw-text + inline-block in the same container) tracked as a separate, smaller debt with a workaround (wrap text in `<span>`).
+
+The demo (`crates/rdom-showcase/src/demos/interval_counter.rs`) keeps its stacked counter layout — `<button>` then `<p>Counter: <span>0</span></p>` — which reads cleaner than the original button-and-value-in-a-row pattern. The substrate fix means either layout works now; the choice is now UX, not workaround.
 
 ### 2026-05-24 — M6 closed: calc() value system end-to-end
 
