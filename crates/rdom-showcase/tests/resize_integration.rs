@@ -8,7 +8,7 @@
 //! tall, the main panel flexes to fill the rest at every size.
 
 use rdom_showcase::{ShowcaseState, build_shell, mount_demo, shell::base_stylesheet};
-use rdom_tui::render::{Rect, TestBackend, Terminal};
+use rdom_tui::render::{Rect, Terminal, TestBackend};
 use rdom_tui::{App, TuiDom};
 
 /// Build a wired showcase with the first demo mounted, on a

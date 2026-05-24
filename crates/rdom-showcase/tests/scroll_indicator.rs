@@ -10,8 +10,7 @@ use rdom_showcase::{
     ShellHandles, ShowcaseState, build_shell, mount_demo, shell::base_stylesheet,
     wire_scroll_indicator,
 };
-use rdom_tui::node::TuiNodeExt;
-use rdom_tui::render::{TestBackend, Terminal};
+use rdom_tui::render::{Terminal, TestBackend};
 use rdom_tui::{App, NodeId, TuiAccessorsMut, TuiDom};
 
 fn make_app() -> (App<TestBackend>, ShellHandles) {

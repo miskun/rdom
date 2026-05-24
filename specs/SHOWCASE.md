@@ -148,7 +148,7 @@ Substrate work. Lets CSS values combine `<length>`s and percentages.
 
 **Exit criteria:** `calc()` parses + resolves for the listed property surface; layout passes use resolved values; review gate run.
 
-### M7 — Showcase polish: source view + CLI deep-link + event integration
+### M7 — Showcase polish: source view + CLI deep-link + event integration — **CLOSED 2026-05-24**
 
 Polish to the level a real consumer expects. Uses M5 events.
 

@@ -250,11 +250,14 @@ fn read_scroll_info(dom: &TuiDom, target: NodeId) -> Option<ScrollInfo> {
 
 fn format_scroll_text(info: &ScrollInfo) -> String {
     let max_scroll = info.content_height.saturating_sub(info.viewport_height);
-    let percent = if max_scroll == 0 {
-        100
-    } else {
-        ((info.scroll_y * 100) / max_scroll).min(100)
-    };
+    // `checked_div` collapses the zero-divisor case (no scrollable
+    // range → pinned at 100% by convention).
+    let percent = info
+        .scroll_y
+        .saturating_mul(100)
+        .checked_div(max_scroll)
+        .map(|p| p.min(100))
+        .unwrap_or(100);
     // Row 1-indexed for human reading.
     let row = info.scroll_y + 1;
     format!("Row {row}/{} — {percent}%", info.content_height)

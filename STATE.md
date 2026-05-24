@@ -8,9 +8,9 @@ For the durable architecture and roadmap, see [`specs/DESIGN.md`](specs/DESIGN.m
 
 **Release in flight:** 0.2.0. Three workstreams bundled under one release — `rdom-showcase` (headline), event surface bundle, `calc()` value system. Plan: [`specs/SHOWCASE.md`](specs/SHOWCASE.md).
 
-**Next milestone:** M7 — Showcase polish (source view + CLI deep-link + M5 event integration).
+**Next milestone:** M8 — Coverage demos (the showcase becomes a complete tour of the substrate).
 
-**Status:** **M1 + M2 + M3 + M4 + M5 + M6 closed.** M6 ships the `calc()` value system end-to-end: full layout-time resolution for `width` / `height` / `top` / `right` / `bottom` / `left` (`width: calc(100% - 4)` lays out at 36 cells in a 40-wide parent), parse-time constant evaluation for `padding` / `margin` / `gap`. `Size::Calc(Box<CalcExpr>)` + `Length::Calc(Box<CalcExpr>)` thread through cascade, layout, and animation. 2,448 workspace tests passing.
+**Status:** **M1 + M2 + M3 + M4 + M5 + M6 + M7 closed.** M7 polished the showcase consumer-side: Source view tab (Demo / Source toggle), terminal resize integration, scroll-position indicator at the bottom of `<main>`, CLI deep-link via `--demo <slug>` / `--list` / `--help`. 2,467 workspace tests passing.
 
 The seven fixes (in order of discovery):
 1. `class` attribute ↔ `classList` round-trip per WHATWG (commit `a92aa6a`)
@@ -54,7 +54,11 @@ One piece of architectural debt deferred with teeth: `EVT-DETACH-1` (implicit bl
   - **Phase 3** — `parse_unsigned` and `parse_padding_shorthand` accept constant-only `calc()` (e.g. `padding: calc(2 * 3)` → 6 cells). Percent-bearing calc on padding/margin/gap is rejected — narrow gap tracked as `CALC-PADMARG-1`.
   - **Phase 4** — End-to-end integration tests in `crates/rdom-tui/tests/calc_layout.rs` (10 tests): width / height / top / left / nested calc / negative-clamp / absolute positioning / relative shift / constant padding / paint-pipeline survival.
   - **Animation**: Calc-bearing transitions snap at midpoint (no layout context at interpolation time). Documented in DIVERGENCES.md.
-- [ ] **M7** — Showcase polish: source view + CLI deep-link + M5 event integration. *Showcase.*
+- [x] **M7** — Showcase polish *(closed 2026-05-24)*. Four deliverables:
+  - D1 — **Source view tab** in `<main>`. Demo / Source toggle; Source mounts a `<div class="source-view">` with the demo's `MARKUP` + `CSS` strings rendered into two `<pre>` blocks with `<h2>` labels. `ShowcaseState` gains `view: ViewMode`; switching demos auto-resets to Demo view; `.active` class flips between tabs.
+  - D2 — **resize integration verified.** Substrate already wires resize (M5 D4); 3 integration tests pin that the showcase chrome adapts (main panel grows/shrinks) and that listeners on the document root see one resize event per crossterm signal.
+  - D3 — **Scroll-position indicator** at the bottom of `<main>`. Empty when no scrollable element is in play; populates with "Row N/M — P%" on any `scroll` event from a descendant. Wired via `wire_scroll_indicator` listening on `dom.root()`.
+  - D4 — **CLI deep-link:** `cargo run -p rdom-showcase -- --demo <slug>` opens directly to a named demo; `--list` prints every registered slug + title; `--help` prints usage. 7 unit tests cover `parse_args`.
 - [ ] **M8** — Coverage demos (one per primitive in §0.1.0 + every new 0.2.0 addition). *Showcase.*
 - [ ] **M9** — CI + snapshots + README + DESIGN.md decision archive + per-crate version bumps + `cargo publish` → **0.2.0 ships**.
 

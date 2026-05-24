@@ -1,11 +1,21 @@
 //! `rdom-showcase` binary entry point.
 //!
-//! Builds the shell, mounts the demo at `DEMOS[0]` into the main
-//! view, pushes the demo's stylesheet onto the App's sheet stack,
-//! runs the event loop. M2 ships this static layout; M3 makes the
-//! sidebar interactive.
+//! Builds the shell, mounts a demo into the main view, pushes
+//! per-demo stylesheets onto the App's sheet stack, runs the
+//! event loop.
+//!
+//! ## CLI
+//!
+//! - `cargo run -p rdom-showcase` — opens to `DEMOS[0]` (Hello World).
+//! - `cargo run -p rdom-showcase -- --demo <slug>` — opens directly
+//!   to the named demo. The slug matches `Demo::slug()` (e.g.
+//!   `layout/hello-world`, `events/counter-button`).
+//! - `cargo run -p rdom-showcase -- --list` — print every registered
+//!   demo's slug + title and exit.
+//! - `cargo run -p rdom-showcase -- --help` — usage + slug list.
 
 use std::cell::RefCell;
+use std::process::ExitCode;
 use std::rc::Rc;
 
 use rdom_showcase::{
@@ -14,14 +24,98 @@ use rdom_showcase::{
 };
 use rdom_tui::{App, TuiDom};
 
-fn main() -> std::io::Result<()> {
+fn main() -> ExitCode {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let initial_idx = match parse_args(&args) {
+        Ok(CliAction::Run { demo_idx }) => demo_idx,
+        Ok(CliAction::List) => {
+            print_demo_list();
+            return ExitCode::SUCCESS;
+        }
+        Ok(CliAction::Help) => {
+            print_help();
+            return ExitCode::SUCCESS;
+        }
+        Err(msg) => {
+            eprintln!("rdom-showcase: {msg}");
+            eprintln!();
+            print_help();
+            return ExitCode::from(2);
+        }
+    };
+    match run(initial_idx) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(err) => {
+            eprintln!("rdom-showcase: {err}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+/// What the parsed CLI tells the binary to do.
+#[derive(Debug)]
+enum CliAction {
+    Run { demo_idx: usize },
+    List,
+    Help,
+}
+
+/// Parse the argv tail (after the program name). Returns the
+/// action to take or an error message describing the problem.
+fn parse_args(args: &[String]) -> Result<CliAction, String> {
+    let mut i = 0;
+    let mut demo_idx: Option<usize> = None;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--help" | "-h" => return Ok(CliAction::Help),
+            "--list" => return Ok(CliAction::List),
+            "--demo" => {
+                let slug = args
+                    .get(i + 1)
+                    .ok_or_else(|| "--demo requires a slug argument".to_string())?;
+                let idx = DEMOS.iter().position(|d| d.slug() == slug).ok_or_else(|| {
+                    format!("no demo with slug {slug:?} — use `--list` to see registered demos")
+                })?;
+                demo_idx = Some(idx);
+                i += 2;
+            }
+            other => return Err(format!("unrecognized argument: {other}")),
+        }
+    }
+    Ok(CliAction::Run {
+        demo_idx: demo_idx.unwrap_or(0),
+    })
+}
+
+fn print_help() {
+    println!("rdom-showcase — browsable TUI demos for the rdom substrate");
+    println!();
+    println!("Usage:");
+    println!("  rdom-showcase                    # open to the first demo");
+    println!("  rdom-showcase --demo <slug>      # open directly to a named demo");
+    println!("  rdom-showcase --list             # list every registered demo");
+    println!("  rdom-showcase --help             # this message");
+    println!();
+    println!("Slugs:");
+    for demo in DEMOS {
+        println!("  {} — {}", demo.slug(), demo.title());
+    }
+}
+
+fn print_demo_list() {
+    for demo in DEMOS {
+        println!("{}\t{}", demo.slug(), demo.title());
+    }
+}
+
+fn run(initial_idx: usize) -> std::io::Result<()> {
     let mut dom: TuiDom = TuiDom::new();
     let handles = build_shell(&mut dom);
 
     let state = Rc::new(RefCell::new(ShowcaseState::from_handles(&handles)));
 
-    // Initial mount: demo 0 in Demo view.
-    mount_demo(&mut state.borrow_mut(), &mut dom, 0);
+    // Initial mount: deep-linked demo (default 0).
+    mount_demo(&mut state.borrow_mut(), &mut dom, initial_idx);
 
     // Sidebar click handler — walks up from the click target to
     // find the `<li>` with `data-demo-slug`, then swaps demos.
@@ -53,4 +147,68 @@ fn main() -> std::io::Result<()> {
     }
 
     app.run()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn args(v: &[&str]) -> Vec<String> {
+        v.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn no_args_defaults_to_first_demo() {
+        match parse_args(&[]).unwrap() {
+            CliAction::Run { demo_idx } => assert_eq!(demo_idx, 0),
+            _ => panic!("expected Run"),
+        }
+    }
+
+    #[test]
+    fn help_flag_returns_help_action() {
+        for flag in &["--help", "-h"] {
+            match parse_args(&args(&[flag])).unwrap() {
+                CliAction::Help => {}
+                _ => panic!("expected Help"),
+            }
+        }
+    }
+
+    #[test]
+    fn list_flag_returns_list_action() {
+        match parse_args(&args(&["--list"])).unwrap() {
+            CliAction::List => {}
+            _ => panic!("expected List"),
+        }
+    }
+
+    #[test]
+    fn demo_flag_resolves_known_slug() {
+        match parse_args(&args(&["--demo", "events/counter-button"])).unwrap() {
+            CliAction::Run { demo_idx } => {
+                assert_eq!(DEMOS[demo_idx].slug(), "events/counter-button");
+            }
+            _ => panic!("expected Run"),
+        }
+    }
+
+    #[test]
+    fn demo_flag_with_unknown_slug_errors() {
+        let err = parse_args(&args(&["--demo", "no-such-demo"])).unwrap_err();
+        assert!(err.contains("no-such-demo"), "{err}");
+        assert!(err.contains("--list"), "{err}");
+    }
+
+    #[test]
+    fn demo_flag_without_argument_errors() {
+        let err = parse_args(&args(&["--demo"])).unwrap_err();
+        assert!(err.contains("requires"), "{err}");
+    }
+
+    #[test]
+    fn unknown_argument_errors() {
+        let err = parse_args(&args(&["--bogus"])).unwrap_err();
+        assert!(err.contains("--bogus"), "{err}");
+    }
 }
