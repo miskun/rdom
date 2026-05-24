@@ -348,7 +348,7 @@ pub fn current_padding(style: &TuiStyle) -> Padding {
 }
 
 pub fn parse_size(value: &[Token]) -> Option<Size> {
-    // `auto` | `<n>` | `<n>fr` | `<n>%`
+    // `auto` | `<n>` | `<n>fr` | `<n>%` | `calc(<expr>)`
     match value {
         [Token::Ident(s)] if s.eq_ignore_ascii_case("auto") => Some(Size::Auto),
         [Token::Number(n)] if *n >= 0 => Some(Size::Fixed(*n as u16)),
@@ -356,8 +356,34 @@ pub fn parse_size(value: &[Token]) -> Option<Size> {
             Some(Size::Flex(*n as u16))
         }
         [Token::Percentage(n)] if *n >= 0 => Some(Size::Percent(*n as u16)),
+        // calc(...) — constant-eval at parse time iff the
+        // expression contains no percentages. See
+        // `calc_to_constant_size` for the precise constraint.
+        _ if looks_like_calc(value) => calc_to_constant_size(value),
         _ => None,
     }
+}
+
+/// Evaluate a `calc(...)` expression at parse time if it can be
+/// reduced to a constant integer (no percentages). Returns
+/// `Some(Size::Fixed(n))` on success, `None` on parse failure or
+/// when the expression depends on layout-time context.
+///
+/// **M6 limitation**: percentage-bearing calc() expressions
+/// require the layout-pass resolver and aren't supported in this
+/// milestone. Documented in DIVERGENCES.md.
+fn calc_to_constant_size(value: &[Token]) -> Option<Size> {
+    let expr = parse_calc(value)?;
+    if expr.contains_percent() {
+        // Defer to a future milestone — pretend the value didn't
+        // parse so the block parser emits its InvalidValue warning.
+        return None;
+    }
+    // No percentages: any percent_basis works. Resolve and clamp
+    // to u16.
+    let cells = expr.resolve(&crate::calc::ResolveCtx::new(0));
+    let clamped = cells.max(0).min(u16::MAX as i32) as u16;
+    Some(Size::Fixed(clamped))
 }
 
 /// Parse the CSS `flex` shorthand. Models the main-axis sizing
@@ -564,14 +590,28 @@ pub fn parse_position(value: &[Token]) -> Option<Position> {
     )
 }
 
-/// `auto` keyword | signed integer in cells.
+/// `auto` keyword | signed integer in cells | `calc(<expr>)`.
 pub fn parse_length(value: &[Token]) -> Option<Length> {
     match value {
         [Token::Ident(s)] if s.eq_ignore_ascii_case("auto") => Some(Length::Auto),
         [Token::Number(n)] => i16::try_from(*n).ok().map(Length::Cells),
         [Token::Delim('-'), Token::Number(n)] => i16::try_from(-*n).ok().map(Length::Cells),
+        _ if looks_like_calc(value) => calc_to_constant_length(value),
         _ => None,
     }
+}
+
+/// Parse-time constant-eval for `calc(...)` in `Length` position.
+/// Same M6 limitation as [`calc_to_constant_size`]: percent-bearing
+/// expressions return `None`.
+fn calc_to_constant_length(value: &[Token]) -> Option<Length> {
+    let expr = parse_calc(value)?;
+    if expr.contains_percent() {
+        return None;
+    }
+    let cells = expr.resolve(&crate::calc::ResolveCtx::new(0));
+    let clamped = cells.max(i16::MIN as i32).min(i16::MAX as i32) as i16;
+    Some(Length::Cells(clamped))
 }
 
 /// `auto` keyword | signed integer.
@@ -1204,5 +1244,69 @@ mod calc_parser_tests {
         let no = vec![Token::Number(5)];
         assert!(looks_like_calc(&yes));
         assert!(!looks_like_calc(&no));
+    }
+
+    // ─── Parse-time constant-eval integration ───────────────────────
+
+    #[test]
+    fn parse_size_accepts_constant_calc() {
+        // `width: calc(2 + 3)` → `Size::Fixed(5)`.
+        let tokens = calc_tokens(vec![Token::Number(2), Token::Delim('+'), Token::Number(3)]);
+        assert_eq!(parse_size(&tokens), Some(Size::Fixed(5)));
+    }
+
+    #[test]
+    fn parse_size_accepts_constant_calc_with_precedence() {
+        // `width: calc(2 + 3 * 4)` → `Size::Fixed(14)`.
+        let tokens = calc_tokens(vec![
+            Token::Number(2),
+            Token::Delim('+'),
+            Token::Number(3),
+            Token::Delim('*'),
+            Token::Number(4),
+        ]);
+        assert_eq!(parse_size(&tokens), Some(Size::Fixed(14)));
+    }
+
+    #[test]
+    fn parse_size_rejects_percent_bearing_calc() {
+        // `width: calc(100% - 4)` — percent-bearing, requires
+        // layout-time resolver (not in 0.2.0). Documented in
+        // DIVERGENCES.md.
+        let tokens = calc_tokens(vec![
+            Token::Percentage(100),
+            Token::Delim('-'),
+            Token::Number(4),
+        ]);
+        assert_eq!(parse_size(&tokens), None);
+    }
+
+    #[test]
+    fn parse_size_clamps_negative_constant_calc_to_zero() {
+        // `width: calc(2 - 10)` → -8 cells → clamped to 0.
+        let tokens = calc_tokens(vec![Token::Number(2), Token::Delim('-'), Token::Number(10)]);
+        assert_eq!(parse_size(&tokens), Some(Size::Fixed(0)));
+    }
+
+    #[test]
+    fn parse_length_accepts_constant_calc_negative_result() {
+        // `top: calc(-3 * 2)` → -6 → Length::Cells(-6).
+        let tokens = calc_tokens(vec![
+            Token::Delim('-'),
+            Token::Number(3),
+            Token::Delim('*'),
+            Token::Number(2),
+        ]);
+        assert_eq!(parse_length(&tokens), Some(Length::Cells(-6)));
+    }
+
+    #[test]
+    fn parse_length_rejects_percent_bearing_calc() {
+        let tokens = calc_tokens(vec![
+            Token::Percentage(50),
+            Token::Delim('+'),
+            Token::Number(2),
+        ]);
+        assert_eq!(parse_length(&tokens), None);
     }
 }

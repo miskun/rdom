@@ -48,6 +48,12 @@ These are intrinsic to terminals. They will not change.
 - **No `transform`, `rotate`, `scale`, `matrix`, `isolation: isolate`, `will-change`.**
 - **Positioned `::before` / `::after` pseudo-elements are not in the hit-test set.** Clicks on pseudo rects resolve to the underlying element.
 
+### Values
+
+- **`calc()` is parse-time constant evaluation only.** Expressions containing percentages (e.g. `calc(100% - 4)`) are dropped with a warning rather than resolved at layout time. The CSS-correct shape — `Calc(Box<CalcExpr>)` variant on `Size` / `Length` plus a layout-pass resolver — was scoped out of 0.2.0 because it requires removing `Copy` from those types and rippling `.clone()` through ~50 layout/cascade sites. The parse-time-constant path covers the second-most-common idiom (`width: calc(8 * 2)` and similar arithmetic-only forms) without the substrate refactor. Tracked as **`CALC-PCT-1`** in [`TECH_DEBT.md`](TECH_DEBT.md).
+- **`calc()` accepts both `5+5` and `5 + 5` inside the call.** CSS Values L3 requires whitespace around `+`/`-`; rdom's tokenizer doesn't preserve whitespace so the parser accepts either form. `*` and `/` don't need whitespace in CSS either, so those match.
+- **`calc()` does NOT support `min(...)` / `max(...)` / `clamp(...)`.** CSS Values L4 functions. Deferred.
+
 ### Cascade & selectors
 
 Supported selector grammar: type, class, ID, attribute, descendant, child (`>`), adjacent sibling (`+`), general sibling (`~`), comma list. Supported pseudo-classes: `:hover`, `:focus`, `:active`, `:checked`, `:indeterminate`, `:open`, `:first-child`, `:last-child`, `:not(<simple>)`, `:placeholder-shown`.
