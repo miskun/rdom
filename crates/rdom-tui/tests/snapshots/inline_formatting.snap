@@ -1,0 +1,14 @@
+
+  Inline formatting
+
+  Paragraphs can mix bold, italic, code spans, and
+  highlighted text inside a single flowing line that wraps
+  at the container's content width.
+
+  A second paragraph keeps the same pattern: strong + em +
+  code + mark all participating in the inline formatting
+  context, each carrying its own cascaded style per
+  fragment.
+
+
+

@@ -10,6 +10,7 @@ use crate::demos::dom_api::DomApi;
 use crate::demos::flex_row::FlexRow;
 use crate::demos::hello::HelloWorld;
 use crate::demos::hover::Hover;
+use crate::demos::inline_formatting::InlineFormatting;
 use crate::demos::interval_counter::IntervalCounter;
 use crate::demos::mutation_observer::MutationObserverDemo;
 use crate::demos::parse_and_render::ParseAndRender;
@@ -42,6 +43,7 @@ pub const DEMOS: &[&dyn Demo] = &[
     &TransitionBox,
     &IntervalCounter,
     &RafProgress,
+    &InlineFormatting,
 ];
 
 #[cfg(test)]
