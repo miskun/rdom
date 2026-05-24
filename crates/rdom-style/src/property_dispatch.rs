@@ -465,14 +465,14 @@ pub fn set_from_tokens(
         // container" in the layout pass, matching CSS default
         // `align-items: stretch`.
         "flex" => parse_flex_shorthand(value).map(|s| {
-            style.width = Some(Value::Specified(s));
-            style.height = Some(Value::Specified(s));
             // `flex: none` ⇒ Size::Auto with flex_shrink=0. All
             // other shapes use the CSS-default shrink=1.
-            let shrink = match s {
+            let shrink = match &s {
                 Size::Auto => 0,
                 _ => 1,
             };
+            style.width = Some(Value::Specified(s.clone()));
+            style.height = Some(Value::Specified(s));
             style.flex_shrink = Some(Value::Specified(shrink));
         }),
         "flex-shrink" => parse_unsigned(value).map(|n| {
@@ -1031,6 +1031,7 @@ fn serialize_size(s: &Size) -> String {
         Size::Fixed(n) => n.to_string(),
         Size::Flex(n) => format!("{n}fr"),
         Size::Percent(p) => format!("{p}%"),
+        Size::Calc(expr) => format!("calc({})", serialize_calc(expr)),
     }
 }
 
@@ -1052,6 +1053,40 @@ fn serialize_length(l: &Length) -> String {
     match l {
         Length::Auto => "auto".to_string(),
         Length::Cells(n) => n.to_string(),
+        Length::Calc(expr) => format!("calc({})", serialize_calc(expr)),
+    }
+}
+
+/// Render a `CalcExpr` back to its source form. Used by
+/// `serialize_size` / `serialize_length` for the cssText
+/// round-trip + devtools / debug output.
+fn serialize_calc(expr: &crate::calc::CalcExpr) -> String {
+    use crate::calc::{CalcExpr, CalcOp};
+    match expr {
+        CalcExpr::Number(n) => {
+            if n.fract() == 0.0 {
+                format!("{}", *n as i64)
+            } else {
+                format!("{n}")
+            }
+        }
+        CalcExpr::Length(c) => format!("{c}"),
+        CalcExpr::Percent(p) => {
+            if p.fract() == 0.0 {
+                format!("{}%", *p as i64)
+            } else {
+                format!("{p}%")
+            }
+        }
+        CalcExpr::Binary { op, lhs, rhs } => {
+            let op_str = match op {
+                CalcOp::Add => "+",
+                CalcOp::Sub => "-",
+                CalcOp::Mul => "*",
+                CalcOp::Div => "/",
+            };
+            format!("{} {} {}", serialize_calc(lhs), op_str, serialize_calc(rhs))
+        }
     }
 }
 

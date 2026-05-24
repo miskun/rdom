@@ -95,26 +95,44 @@ pub(super) fn parent_id(dom: &Dom<TuiExt>, id: NodeId) -> Option<NodeId> {
 ///
 /// Per CSS, when both edges of an axis are specified, `top` /
 /// `left` win and `bottom` / `right` are ignored.
-pub(super) fn apply_relative_shift(computed: &ComputedStyle, rect: LayoutRect) -> LayoutRect {
+pub(super) fn apply_relative_shift(
+    computed: &ComputedStyle,
+    rect: LayoutRect,
+    parent: LayoutRect,
+) -> LayoutRect {
     if computed.position != Position::Relative {
         return rect;
     }
-    let dx = match (computed.left, computed.right) {
-        (Length::Cells(l), _) => l as i32,
-        (Length::Auto, Length::Cells(r)) => -(r as i32),
-        _ => 0,
-    };
-    let dy = match (computed.top, computed.bottom) {
-        (Length::Cells(t), _) => t as i32,
-        (Length::Auto, Length::Cells(b)) => -(b as i32),
-        _ => 0,
-    };
+    // Relative offsets resolve percentages against the parent's
+    // content box on the matching axis (`top`/`bottom` → height,
+    // `left`/`right` → width). Per CSS 2.1 §9.4.3.
+    let dx =
+        resolve_length_offset(&computed.left, parent.width as i32, false).unwrap_or_else(|| {
+            resolve_length_offset(&computed.right, parent.width as i32, true).unwrap_or(0)
+        });
+    let dy =
+        resolve_length_offset(&computed.top, parent.height as i32, false).unwrap_or_else(|| {
+            resolve_length_offset(&computed.bottom, parent.height as i32, true).unwrap_or(0)
+        });
     LayoutRect::new(
         rect.x.saturating_add(dx),
         rect.y.saturating_add(dy),
         rect.width,
         rect.height,
     )
+}
+
+/// Resolve a `Length` value to a signed integer offset given the
+/// axis basis. `negate` flips the sign (used for the `bottom`/
+/// `right` insets which point inward from the opposite edge).
+/// Returns `None` for `Length::Auto`.
+fn resolve_length_offset(len: &Length, basis: i32, negate: bool) -> Option<i32> {
+    let cells = match len {
+        Length::Auto => return None,
+        Length::Cells(n) => *n as i32,
+        Length::Calc(expr) => expr.resolve(&rdom_style::calc::ResolveCtx::new(basis)),
+    };
+    Some(if negate { -cells } else { cells })
 }
 
 // ── Phase 2 placement ───────────────────────────────────────────
@@ -184,18 +202,11 @@ fn walk_for_positioned(dom: &Dom<TuiExt>, id: NodeId, out: &mut Vec<NodeId>) {
 ///
 /// X / Y resolve from the offsets via [`axis_position_anchored`].
 fn compute_placed_rect(c: &ComputedStyle, cb: LayoutRect) -> LayoutRect {
-    let width = match c.width {
-        Size::Fixed(n) => n,
-        Size::Flex(_) => cb.width,
-        Size::Percent(p) => ((cb.width as u32 * p as u32) / 100).min(u16::MAX as u32) as u16,
-        Size::Auto => axis_size_from_edges(c.left, c.right, cb.width, 0),
-    };
-    let height = match c.height {
-        Size::Fixed(n) => n,
-        Size::Flex(_) => cb.height,
-        Size::Percent(p) => ((cb.height as u32 * p as u32) / 100).min(u16::MAX as u32) as u16,
-        Size::Auto => axis_size_from_edges(c.top, c.bottom, cb.height, 0),
-    };
+    // Resolve width/height — percentage AND Calc both resolve
+    // against the containing-block's matching axis.
+    let width = resolve_size_axis(&c.width, cb.width, &c.left, &c.right, cb.width);
+    let height = resolve_size_axis(&c.height, cb.height, &c.top, &c.bottom, cb.height);
+
     // M5.3b — absolute element centering via `margin: auto` between
     // resolved insets. CSS rule: when both axis insets are `Cells`
     // (non-auto) AND the corresponding axis margins are both `Auto`,
@@ -205,47 +216,40 @@ fn compute_placed_rect(c: &ComputedStyle, cb: LayoutRect) -> LayoutRect {
     let (cx_left, cx_right) = (c.margin.left, c.margin.right);
     let (cy_top, cy_bottom) = (c.margin.top, c.margin.bottom);
 
-    let x = if matches!((c.left, c.right), (Length::Cells(_), Length::Cells(_)))
+    let basis_w = cb.width as i32;
+    let basis_h = cb.height as i32;
+
+    let x = if length_to_cells_opt(&c.left, basis_w).is_some()
+        && length_to_cells_opt(&c.right, basis_w).is_some()
         && matches!(cx_left, MarginValue::Auto)
         && matches!(cx_right, MarginValue::Auto)
     {
         // Center horizontally between left + right insets.
-        let left = match c.left {
-            Length::Cells(n) => n as i32,
-            _ => 0,
-        };
-        let right = match c.right {
-            Length::Cells(n) => n as i32,
-            _ => 0,
-        };
-        let span = (cb.width as i32).saturating_sub(left + right);
+        let left = length_to_cells_opt(&c.left, basis_w).unwrap_or(0);
+        let right = length_to_cells_opt(&c.right, basis_w).unwrap_or(0);
+        let span = basis_w.saturating_sub(left + right);
         let extra = span.saturating_sub(width as i32).max(0);
         cb.x + left + extra / 2
     } else {
-        let base = axis_position_anchored(c.left, c.right, cb.x, cb.width, width);
+        let base = axis_position_anchored(&c.left, &c.right, cb.x, cb.width, width);
         let start_margin = match cx_left {
             MarginValue::Cells(n) => n as i32,
             MarginValue::Auto => 0,
         };
         base + start_margin
     };
-    let y = if matches!((c.top, c.bottom), (Length::Cells(_), Length::Cells(_)))
+    let y = if length_to_cells_opt(&c.top, basis_h).is_some()
+        && length_to_cells_opt(&c.bottom, basis_h).is_some()
         && matches!(cy_top, MarginValue::Auto)
         && matches!(cy_bottom, MarginValue::Auto)
     {
-        let top = match c.top {
-            Length::Cells(n) => n as i32,
-            _ => 0,
-        };
-        let bottom = match c.bottom {
-            Length::Cells(n) => n as i32,
-            _ => 0,
-        };
-        let span = (cb.height as i32).saturating_sub(top + bottom);
+        let top = length_to_cells_opt(&c.top, basis_h).unwrap_or(0);
+        let bottom = length_to_cells_opt(&c.bottom, basis_h).unwrap_or(0);
+        let span = basis_h.saturating_sub(top + bottom);
         let extra = span.saturating_sub(height as i32).max(0);
         cb.y + top + extra / 2
     } else {
-        let base = axis_position_anchored(c.top, c.bottom, cb.y, cb.height, height);
+        let base = axis_position_anchored(&c.top, &c.bottom, cb.y, cb.height, height);
         let start_margin = match cy_top {
             MarginValue::Cells(n) => n as i32,
             MarginValue::Auto => 0,
@@ -253,6 +257,37 @@ fn compute_placed_rect(c: &ComputedStyle, cb: LayoutRect) -> LayoutRect {
         base + start_margin
     };
     LayoutRect::new(x, y, width, height)
+}
+
+/// Resolve a `Size` against a basis (parent's matching-axis
+/// content dimension). Handles all `Size` variants including
+/// `Size::Calc`. For `Size::Auto`, falls back to deriving from
+/// the start/end edges when both are non-auto.
+fn resolve_size_axis(
+    size: &Size,
+    cb_extent: u16,
+    start: &Length,
+    end: &Length,
+    edges_basis: u16,
+) -> u16 {
+    match size {
+        Size::Fixed(n) => *n,
+        Size::Flex(_) => cb_extent,
+        Size::Percent(p) => ((cb_extent as u32 * *p as u32) / 100).min(u16::MAX as u32) as u16,
+        Size::Calc(expr) => {
+            let v = expr.resolve(&rdom_style::calc::ResolveCtx::new(cb_extent as i32));
+            v.max(0).min(u16::MAX as i32) as u16
+        }
+        Size::Auto => axis_size_from_edges(start, end, edges_basis, 0),
+    }
+}
+
+/// Resolve a `Length` to `Option<i32>` cells. Wrapper used by
+/// the per-axis branches above; `length_to_cells` (in the
+/// `Length` resolver section) is a private helper from the same
+/// module.
+fn length_to_cells_opt(len: &Length, basis: i32) -> Option<i32> {
+    length_to_cells(len, basis)
 }
 
 // ── Shared offset resolvers (consumed by absolute/fixed element
@@ -264,17 +299,35 @@ fn compute_placed_rect(c: &ComputedStyle, cb: LayoutRect) -> LayoutRect {
 /// specified; one-sided cases fall back to an intrinsic measure
 /// (caller passes `0` for elements, content width for pseudos).
 pub(super) fn axis_size_from_edges(
-    start: Length,
-    end: Length,
+    start: &Length,
+    end: &Length,
     cb_extent: u16,
     fallback: u16,
 ) -> u16 {
-    match (start, end) {
-        (Length::Cells(s), Length::Cells(e)) => {
-            let span = (s as i32).saturating_add(e as i32);
-            ((cb_extent as i32).saturating_sub(span)).max(0) as u16
+    // Resolve both edges into Option<i32>. `Auto` → None, others
+    // → Some(cells). When both are Some, derive size from the
+    // extent minus both insets.
+    let basis = cb_extent as i32;
+    let s = length_to_cells(start, basis);
+    let e = length_to_cells(end, basis);
+    match (s, e) {
+        (Some(s), Some(e)) => {
+            let span = s.saturating_add(e);
+            (basis.saturating_sub(span)).max(0) as u16
         }
         _ => fallback,
+    }
+}
+
+/// Resolve a `Length` to a signed integer cell count given the
+/// percent basis (parent's axis extent). Returns `None` for
+/// `Length::Auto`. Shared helper for the offset/size resolvers
+/// in this module.
+fn length_to_cells(len: &Length, basis: i32) -> Option<i32> {
+    match len {
+        Length::Auto => None,
+        Length::Cells(n) => Some(*n as i32),
+        Length::Calc(expr) => Some(expr.resolve(&rdom_style::calc::ResolveCtx::new(basis))),
     }
 }
 
@@ -286,17 +339,20 @@ pub(super) fn axis_size_from_edges(
 ///   flips to far edge, going inward).
 /// - `(Auto, Auto)` → `cb_start` (static-position fallback).
 pub(super) fn axis_position_anchored(
-    start: Length,
-    end: Length,
+    start: &Length,
+    end: &Length,
     cb_start: i32,
     cb_extent: u16,
     size: u16,
 ) -> i32 {
-    match (start, end) {
-        (Length::Cells(s), _) => cb_start.saturating_add(s as i32),
-        (Length::Auto, Length::Cells(e)) => cb_start
-            .saturating_add(cb_extent as i32)
-            .saturating_sub(e as i32)
+    let basis = cb_extent as i32;
+    let s = length_to_cells(start, basis);
+    let e = length_to_cells(end, basis);
+    match (s, e) {
+        (Some(s), _) => cb_start.saturating_add(s),
+        (None, Some(e)) => cb_start
+            .saturating_add(basis)
+            .saturating_sub(e)
             .saturating_sub(size as i32),
         _ => cb_start,
     }
@@ -316,10 +372,17 @@ pub(super) fn axis_position_anchored(
 /// ([`apply_relative_shift`]) because element placement reads `top`
 /// / `left` / `right` / `bottom` as a *delta* against the in-flow
 /// rect, not against a containing block.
-pub(super) fn axis_position_relative_shift(start: Length, end: Length, anchor: i32) -> i32 {
-    match (start, end) {
-        (Length::Cells(s), _) => anchor.saturating_add(s as i32),
-        (Length::Auto, Length::Cells(e)) => anchor.saturating_sub(e as i32),
+pub(super) fn axis_position_relative_shift(
+    start: &Length,
+    end: &Length,
+    anchor: i32,
+    basis: i32,
+) -> i32 {
+    let s = length_to_cells(start, basis);
+    let e = length_to_cells(end, basis);
+    match (s, e) {
+        (Some(s), _) => anchor.saturating_add(s),
+        (None, Some(e)) => anchor.saturating_sub(e),
         _ => anchor,
     }
 }

@@ -356,34 +356,28 @@ pub fn parse_size(value: &[Token]) -> Option<Size> {
             Some(Size::Flex(*n as u16))
         }
         [Token::Percentage(n)] if *n >= 0 => Some(Size::Percent(*n as u16)),
-        // calc(...) — constant-eval at parse time iff the
-        // expression contains no percentages. See
-        // `calc_to_constant_size` for the precise constraint.
-        _ if looks_like_calc(value) => calc_to_constant_size(value),
+        // calc(...) — parse to a CalcExpr. If the expression has
+        // no percentages, constant-fold at parse time to Fixed.
+        // Otherwise carry the AST through to layout via Size::Calc.
+        _ if looks_like_calc(value) => parse_calc_to_size(value),
         _ => None,
     }
 }
 
-/// Evaluate a `calc(...)` expression at parse time if it can be
-/// reduced to a constant integer (no percentages). Returns
-/// `Some(Size::Fixed(n))` on success, `None` on parse failure or
-/// when the expression depends on layout-time context.
-///
-/// **M6 limitation**: percentage-bearing calc() expressions
-/// require the layout-pass resolver and aren't supported in this
-/// milestone. Documented in DIVERGENCES.md.
-fn calc_to_constant_size(value: &[Token]) -> Option<Size> {
+/// Parse a `calc(...)` value in `Size` position. Constant-fold to
+/// `Size::Fixed` when the expression contains no percentages
+/// (saves layout-time work for the common arithmetic-only case).
+/// Otherwise carry the AST through as `Size::Calc` for layout
+/// resolution.
+fn parse_calc_to_size(value: &[Token]) -> Option<Size> {
     let expr = parse_calc(value)?;
     if expr.contains_percent() {
-        // Defer to a future milestone — pretend the value didn't
-        // parse so the block parser emits its InvalidValue warning.
-        return None;
+        Some(Size::Calc(Box::new(expr)))
+    } else {
+        let cells = expr.resolve(&crate::calc::ResolveCtx::new(0));
+        let clamped = cells.max(0).min(u16::MAX as i32) as u16;
+        Some(Size::Fixed(clamped))
     }
-    // No percentages: any percent_basis works. Resolve and clamp
-    // to u16.
-    let cells = expr.resolve(&crate::calc::ResolveCtx::new(0));
-    let clamped = cells.max(0).min(u16::MAX as i32) as u16;
-    Some(Size::Fixed(clamped))
 }
 
 /// Parse the CSS `flex` shorthand. Models the main-axis sizing
@@ -596,22 +590,23 @@ pub fn parse_length(value: &[Token]) -> Option<Length> {
         [Token::Ident(s)] if s.eq_ignore_ascii_case("auto") => Some(Length::Auto),
         [Token::Number(n)] => i16::try_from(*n).ok().map(Length::Cells),
         [Token::Delim('-'), Token::Number(n)] => i16::try_from(-*n).ok().map(Length::Cells),
-        _ if looks_like_calc(value) => calc_to_constant_length(value),
+        _ if looks_like_calc(value) => parse_calc_to_length(value),
         _ => None,
     }
 }
 
-/// Parse-time constant-eval for `calc(...)` in `Length` position.
-/// Same M6 limitation as [`calc_to_constant_size`]: percent-bearing
-/// expressions return `None`.
-fn calc_to_constant_length(value: &[Token]) -> Option<Length> {
+/// Parse a `calc(...)` value in `Length` position. Constant-fold
+/// to `Length::Cells` when the expression has no percentages;
+/// carry the AST through as `Length::Calc` otherwise.
+fn parse_calc_to_length(value: &[Token]) -> Option<Length> {
     let expr = parse_calc(value)?;
     if expr.contains_percent() {
-        return None;
+        Some(Length::Calc(Box::new(expr)))
+    } else {
+        let cells = expr.resolve(&crate::calc::ResolveCtx::new(0));
+        let clamped = cells.max(i16::MIN as i32).min(i16::MAX as i32) as i16;
+        Some(Length::Cells(clamped))
     }
-    let cells = expr.resolve(&crate::calc::ResolveCtx::new(0));
-    let clamped = cells.max(i16::MIN as i32).min(i16::MAX as i32) as i16;
-    Some(Length::Cells(clamped))
 }
 
 /// `auto` keyword | signed integer.
@@ -629,10 +624,10 @@ pub fn parse_z_index(value: &[Token]) -> Option<ZIndex> {
 pub fn parse_inset_shorthand(value: &[Token]) -> Option<(Length, Length, Length, Length)> {
     let lengths = split_lengths(value)?;
     let p = match lengths.as_slice() {
-        [a] => (*a, *a, *a, *a),
-        [a, b] => (*a, *b, *a, *b),
-        [a, b, c] => (*a, *b, *c, *b),
-        [a, b, c, d] => (*a, *b, *c, *d),
+        [a] => (a.clone(), a.clone(), a.clone(), a.clone()),
+        [a, b] => (a.clone(), b.clone(), a.clone(), b.clone()),
+        [a, b, c] => (a.clone(), b.clone(), c.clone(), b.clone()),
+        [a, b, c, d] => (a.clone(), b.clone(), c.clone(), d.clone()),
         _ => return None,
     };
     Some(p)
@@ -1269,16 +1264,20 @@ mod calc_parser_tests {
     }
 
     #[test]
-    fn parse_size_rejects_percent_bearing_calc() {
-        // `width: calc(100% - 4)` — percent-bearing, requires
-        // layout-time resolver (not in 0.2.0). Documented in
-        // DIVERGENCES.md.
+    fn parse_size_carries_percent_bearing_calc_as_calc_variant() {
+        // M6 full: percent-bearing calc parses into Size::Calc and
+        // resolves at layout time.
         let tokens = calc_tokens(vec![
             Token::Percentage(100),
             Token::Delim('-'),
             Token::Number(4),
         ]);
-        assert_eq!(parse_size(&tokens), None);
+        match parse_size(&tokens) {
+            Some(Size::Calc(expr)) => {
+                assert!(expr.contains_percent());
+            }
+            other => panic!("expected Size::Calc, got {other:?}"),
+        }
     }
 
     #[test]
@@ -1301,12 +1300,17 @@ mod calc_parser_tests {
     }
 
     #[test]
-    fn parse_length_rejects_percent_bearing_calc() {
+    fn parse_length_carries_percent_bearing_calc_as_calc_variant() {
         let tokens = calc_tokens(vec![
             Token::Percentage(50),
             Token::Delim('+'),
             Token::Number(2),
         ]);
-        assert_eq!(parse_length(&tokens), None);
+        match parse_length(&tokens) {
+            Some(Length::Calc(expr)) => {
+                assert!(expr.contains_percent());
+            }
+            other => panic!("expected Length::Calc, got {other:?}"),
+        }
     }
 }

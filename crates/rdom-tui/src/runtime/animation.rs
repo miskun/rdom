@@ -74,7 +74,7 @@ impl AnimatedProp {
 
 /// Boxed value of any animatable property. The variant matches
 /// the property type 1:1; mismatched lerps just snap at midpoint.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum AnimatedValue {
     Color(Color),
     Size(Size),
@@ -450,14 +450,14 @@ fn read_value(style: &ComputedStyle, prop: AnimatedProp) -> AnimatedValue {
         AnimatedProp::Fg => AnimatedValue::Color(style.fg),
         AnimatedProp::Bg => AnimatedValue::Color(style.bg),
         AnimatedProp::BorderFg => AnimatedValue::Color(style.border_fg),
-        AnimatedProp::Width => AnimatedValue::Size(style.width),
-        AnimatedProp::Height => AnimatedValue::Size(style.height),
+        AnimatedProp::Width => AnimatedValue::Size(style.width.clone()),
+        AnimatedProp::Height => AnimatedValue::Size(style.height.clone()),
         AnimatedProp::Padding => AnimatedValue::Padding(style.padding),
         AnimatedProp::Gap => AnimatedValue::U16(style.gap),
-        AnimatedProp::Top => AnimatedValue::Length(style.top),
-        AnimatedProp::Right => AnimatedValue::Length(style.right),
-        AnimatedProp::Bottom => AnimatedValue::Length(style.bottom),
-        AnimatedProp::Left => AnimatedValue::Length(style.left),
+        AnimatedProp::Top => AnimatedValue::Length(style.top.clone()),
+        AnimatedProp::Right => AnimatedValue::Length(style.right.clone()),
+        AnimatedProp::Bottom => AnimatedValue::Length(style.bottom.clone()),
+        AnimatedProp::Left => AnimatedValue::Length(style.left.clone()),
         AnimatedProp::ZIndex => AnimatedValue::ZIndex(style.z_index),
     }
 }
@@ -517,11 +517,9 @@ fn interpolate(from: &AnimatedValue, to: &AnimatedValue, t: f32) -> AnimatedValu
         (AnimatedValue::Color(a), AnimatedValue::Color(b)) => {
             AnimatedValue::Color(lerp_color(*a, *b, t))
         }
-        (AnimatedValue::Size(a), AnimatedValue::Size(b)) => {
-            AnimatedValue::Size(lerp_size(*a, *b, t))
-        }
+        (AnimatedValue::Size(a), AnimatedValue::Size(b)) => AnimatedValue::Size(lerp_size(a, b, t)),
         (AnimatedValue::Length(a), AnimatedValue::Length(b)) => {
-            AnimatedValue::Length(lerp_length(*a, *b, t))
+            AnimatedValue::Length(lerp_length(a, b, t))
         }
         (AnimatedValue::U16(a), AnimatedValue::U16(b)) => AnimatedValue::U16(lerp_u16(*a, *b, t)),
         (AnimatedValue::Padding(a), AnimatedValue::Padding(b)) => {
@@ -538,9 +536,9 @@ fn interpolate(from: &AnimatedValue, to: &AnimatedValue, t: f32) -> AnimatedValu
         // Type mismatch — snap at midpoint.
         _ => {
             if t < 0.5 {
-                *from
+                from.clone()
             } else {
-                *to
+                to.clone()
             }
         }
     }
@@ -570,28 +568,32 @@ fn lerp_i16(a: i16, b: i16, t: f32) -> i16 {
     v.round().clamp(i16::MIN as f32, i16::MAX as f32) as i16
 }
 
-fn lerp_size(a: Size, b: Size, t: f32) -> Size {
+fn lerp_size(a: &Size, b: &Size, t: f32) -> Size {
     match (a, b) {
-        (Size::Fixed(x), Size::Fixed(y)) => Size::Fixed(lerp_u16(x, y, t)),
-        // Fixed ↔ Flex / Auto don't lerp meaningfully; snap.
+        (Size::Fixed(x), Size::Fixed(y)) => Size::Fixed(lerp_u16(*x, *y, t)),
+        // Fixed ↔ Flex / Auto / Calc don't lerp meaningfully; snap.
+        // Calc-bearing transitions snap because we don't have layout
+        // context at interpolation time to resolve the percent
+        // basis. Documented divergence; pay down by snapshotting
+        // computed-pixel values at transition start.
         _ => {
             if t < 0.5 {
-                a
+                a.clone()
             } else {
-                b
+                b.clone()
             }
         }
     }
 }
 
-fn lerp_length(a: Length, b: Length, t: f32) -> Length {
+fn lerp_length(a: &Length, b: &Length, t: f32) -> Length {
     match (a, b) {
-        (Length::Cells(x), Length::Cells(y)) => Length::Cells(lerp_i16(x, y, t)),
+        (Length::Cells(x), Length::Cells(y)) => Length::Cells(lerp_i16(*x, *y, t)),
         _ => {
             if t < 0.5 {
-                a
+                a.clone()
             } else {
-                b
+                b.clone()
             }
         }
     }

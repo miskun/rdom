@@ -255,8 +255,8 @@ fn compute_placed_rect(
     let intrinsic_w = pseudo_content_width(style);
     let intrinsic_h = pseudo_content_height(style);
 
-    let width = axis_size_from_edges(style.left, style.right, cb.width, intrinsic_w);
-    let height = axis_size_from_edges(style.top, style.bottom, cb.height, intrinsic_h);
+    let width = axis_size_from_edges(&style.left, &style.right, cb.width, intrinsic_w);
+    let height = axis_size_from_edges(&style.top, &style.bottom, cb.height, intrinsic_h);
 
     if style.position == Position::Relative {
         // Relative pseudo: natural anchor is the host's start edge
@@ -272,12 +272,13 @@ fn compute_placed_rect(
                 host_rect.y,
             ),
         };
-        let x = axis_position_relative_shift(style.left, style.right, natural_x);
-        let y = axis_position_relative_shift(style.top, style.bottom, natural_y);
+        let x = axis_position_relative_shift(&style.left, &style.right, natural_x, cb.width as i32);
+        let y =
+            axis_position_relative_shift(&style.top, &style.bottom, natural_y, cb.height as i32);
         LayoutRect::new(x, y, width, height)
     } else {
-        let x = axis_position_anchored(style.left, style.right, cb.x, cb.width, width);
-        let y = axis_position_anchored(style.top, style.bottom, cb.y, cb.height, height);
+        let x = axis_position_anchored(&style.left, &style.right, cb.x, cb.width, width);
+        let y = axis_position_anchored(&style.top, &style.bottom, cb.y, cb.height, height);
         LayoutRect::new(x, y, width, height)
     }
 }

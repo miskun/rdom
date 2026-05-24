@@ -39,10 +39,10 @@ pub trait TuiNodeExt<'a> {
     fn tui_ext(&self) -> Option<&'a TuiExt>;
 
     fn width(&self) -> Option<Size> {
-        self.tui_ext().map(|e| e.width)
+        self.tui_ext().map(|e| e.width.clone())
     }
     fn height(&self) -> Option<Size> {
-        self.tui_ext().map(|e| e.height)
+        self.tui_ext().map(|e| e.height.clone())
     }
     fn direction(&self) -> Option<Direction> {
         self.tui_ext().map(|e| e.direction)

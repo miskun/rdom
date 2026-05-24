@@ -50,20 +50,25 @@ fn calc_in_top_yields_signed_cells() {
 }
 
 #[test]
-fn calc_with_percent_drops_with_warning() {
-    // Percent-bearing calc requires layout-time resolution which
-    // M6 doesn't ship. The rule should not have width set; the
-    // parser emits a warning that gets dropped in lenient mode.
+fn calc_with_percent_carries_through_as_size_calc() {
+    // M6 full: percent-bearing calc parses into Size::Calc and
+    // resolves at layout time against the parent's matching-axis
+    // dimension. The rule's `style.width` carries the AST.
     let sheet = rdom_css::from_css("div { width: calc(100% - 4); }");
-    let rule = sheet.rules().iter().find(|r| r.source_text == "div");
-    if let Some(rule) = rule {
-        // Either no width set or set to None — either way, the
-        // value didn't take effect.
-        assert!(
-            rule.style.width.is_none(),
-            "percent-bearing calc must not produce a usable width in 0.2.0 — got {:?}",
-            rule.style.width
-        );
+    let rule = sheet
+        .rules()
+        .iter()
+        .find(|r| r.source_text == "div")
+        .expect("div rule parses");
+    let width = rule.style.width.as_ref().expect("width is set");
+    match width {
+        rdom_style::Value::Specified(rdom_style::layout::Size::Calc(expr)) => {
+            assert!(
+                expr.contains_percent(),
+                "the AST retains the percent operand"
+            );
+        }
+        other => panic!("expected Size::Calc, got {other:?}"),
     }
 }
 

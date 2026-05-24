@@ -72,11 +72,11 @@ fn intrinsic_element(
     // wins over child measurement (matches CSS min-content + explicit
     // width).
     let declared = match direction {
-        Direction::Row => computed.width,
-        Direction::Column => computed.height,
+        Direction::Row => &computed.width,
+        Direction::Column => &computed.height,
     };
     if let Size::Fixed(n) = declared {
-        return n;
+        return *n;
     }
 
     // Padding + border cost on the main axis.
@@ -113,8 +113,8 @@ fn intrinsic_element(
                 // height will be computed for a wrong width and the
                 // wrap-count will lie. Caught by hit-test tests
                 // that set narrow Fixed widths on IFC blocks.
-                let outer_width = match computed.width {
-                    Size::Fixed(n) => n,
+                let outer_width = match &computed.width {
+                    Size::Fixed(n) => *n,
                     _ => cross_budget,
                 };
                 let row_pad = computed.padding.left + computed.padding.right;
@@ -160,8 +160,8 @@ fn intrinsic_element(
             let content = match direction {
                 Direction::Row => inline_content_width(dom, id),
                 Direction::Column => {
-                    let outer_width = match computed.width {
-                        Size::Fixed(n) => n,
+                    let outer_width = match &computed.width {
+                        Size::Fixed(n) => *n,
                         _ => cross_budget,
                     };
                     let row_pad = computed.padding.left + computed.padding.right;

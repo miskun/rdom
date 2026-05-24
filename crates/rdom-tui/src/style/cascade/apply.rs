@@ -174,7 +174,7 @@ fn apply_style(
         &style.width,
         style.important.contains(ImportantMask::WIDTH),
         important_pass,
-        parent.width,
+        parent.width.clone(),
         Size::Auto,
     );
     apply_size(
@@ -182,7 +182,7 @@ fn apply_style(
         &style.height,
         style.important.contains(ImportantMask::HEIGHT),
         important_pass,
-        parent.height,
+        parent.height.clone(),
         Size::Auto,
     );
     apply_opt_copy(
@@ -333,28 +333,28 @@ fn apply_style(
         &style.top,
         style.important.contains(ImportantMask::TOP),
         important_pass,
-        parent.top,
+        parent.top.clone(),
     );
     apply_length(
         &mut working.right,
         &style.right,
         style.important.contains(ImportantMask::RIGHT),
         important_pass,
-        parent.right,
+        parent.right.clone(),
     );
     apply_length(
         &mut working.bottom,
         &style.bottom,
         style.important.contains(ImportantMask::BOTTOM),
         important_pass,
-        parent.bottom,
+        parent.bottom.clone(),
     );
     apply_length(
         &mut working.left,
         &style.left,
         style.important.contains(ImportantMask::LEFT),
         important_pass,
-        parent.left,
+        parent.left.clone(),
     );
     apply_z_index(
         &mut working.z_index,
@@ -405,8 +405,11 @@ macro_rules! apply_simple {
     ($working:expr, $value_opt:expr, $important_prop:expr, $important_pass:expr, $inherit:expr, $initial:expr) => {
         if let Some(v) = $value_opt {
             if matches_pass($important_prop, $important_pass) {
+                // `.clone()` works for both Copy and Clone-only
+                // types; Copy types still memcpy because their
+                // `Clone` impl forwards to Copy.
                 $working = match v {
-                    Value::Specified(x) => *x,
+                    Value::Specified(x) => x.clone(),
                     Value::Inherit => $inherit,
                     Value::Initial => $initial,
                 };

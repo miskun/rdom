@@ -42,7 +42,7 @@ pub struct PseudoLayout {
 /// M3 covers the animatable subset. Discrete properties (display,
 /// position, content, etc.) toggle in `ComputedStyle` directly
 /// at midpoint and are not covered here.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct PresentationStyle {
     pub fg: Option<Color>,
     pub bg: Option<Color>,

@@ -221,18 +221,25 @@ pub(super) fn layout_flex_children(
             auto_main_count += 1;
         }
 
-        let natural = match main_size {
-            Size::Fixed(n) => MainNatural::Fixed(n),
+        let natural = match &main_size {
+            Size::Fixed(n) => MainNatural::Fixed(*n),
             Size::Flex(w) => {
-                total_flex_weight += w as u32;
-                MainNatural::Flex(w)
+                total_flex_weight += *w as u32;
+                MainNatural::Flex(*w)
             }
             Size::Percent(p) => {
                 // Percent resolves against the parent's main-axis
                 // content area at layout time. Treated as a fixed
                 // cell value once resolved — does NOT participate
                 // in flex weight distribution.
-                let resolved = ((main_budget as u32 * p as u32) / 100).min(u16::MAX as u32) as u16;
+                let resolved = ((main_budget as u32 * *p as u32) / 100).min(u16::MAX as u32) as u16;
+                MainNatural::Fixed(resolved)
+            }
+            Size::Calc(expr) => {
+                // Calc resolves against the same axis basis as
+                // Percent — parent's main-axis content dimension.
+                let v = expr.resolve(&rdom_style::calc::ResolveCtx::new(main_budget as i32));
+                let resolved = v.max(0).min(u16::MAX as i32) as u16;
                 MainNatural::Fixed(resolved)
             }
             Size::Auto => {
@@ -767,20 +774,24 @@ fn resolve_cross_size(
     main_was_auto: bool,
 ) -> u16 {
     let (cross_size, min_raw, max) = match direction {
-        Direction::Row => (computed.height, computed.min_height, computed.max_height),
-        Direction::Column => (computed.width, computed.min_width, computed.max_width),
+        Direction::Row => (&computed.height, computed.min_height, computed.max_height),
+        Direction::Column => (&computed.width, computed.min_width, computed.max_width),
     };
     let cross_dir = match direction {
         Direction::Row => Direction::Column,
         Direction::Column => Direction::Row,
     };
     let natural = match cross_size {
-        Size::Fixed(n) => n,
+        Size::Fixed(n) => *n,
         Size::Flex(_) => container_cross,
         Size::Percent(p) => {
             // Cross-axis percent resolves against the container's
             // cross-axis dimension.
-            ((container_cross as u32 * p as u32) / 100).min(u16::MAX as u32) as u16
+            ((container_cross as u32 * *p as u32) / 100).min(u16::MAX as u32) as u16
+        }
+        Size::Calc(expr) => {
+            let v = expr.resolve(&rdom_style::calc::ResolveCtx::new(container_cross as i32));
+            v.max(0).min(u16::MAX as i32) as u16
         }
         Size::Auto => {
             if let Some(ratio) = computed.aspect_ratio

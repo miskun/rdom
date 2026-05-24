@@ -145,7 +145,17 @@ pub(super) fn layout_node(dom: &mut Dom<TuiExt>, id: NodeId, outer_rect: LayoutR
     // already had their rects written by the parent's layout_children
     // loop (which advances its cursor by the in-flow `size`, not the
     // shifted rect), so they don't see the shift — matching CSS.
-    let outer_rect = positioning::apply_relative_shift(&computed, outer_rect);
+    // Pass the parent's content_layout for percentage basis on
+    // `top`/`bottom` (parent height) and `left`/`right` (parent width).
+    let parent_rect = dom
+        .node(id)
+        .parent_node()
+        .and_then(|p| {
+            use crate::node::TuiNodeExt;
+            p.tui_ext().map(|e| e.content_layout)
+        })
+        .unwrap_or(outer_rect);
+    let outer_rect = positioning::apply_relative_shift(&computed, outer_rect, parent_rect);
 
     // Inset by this element's own padding + border. Under
     // `border-collapse: collapse`, an element with a border has its

@@ -83,8 +83,13 @@ pub enum Direction {
     Column,
 }
 
-/// Sizing for width or height — the three CSS-like modes.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+/// Sizing for width or height — CSS-like sizing modes.
+///
+/// **Not `Copy`** — the `Calc` variant carries a boxed expression
+/// tree. The simple variants (`Fixed` / `Flex` / `Percent` /
+/// `Auto`) clone in O(1); `Calc` clones the AST. Move boundaries
+/// where the previous `Copy` was implicit need `.clone()`.
+#[derive(Debug, Clone, PartialEq, Default)]
 pub enum Size {
     /// Exact number of cells.
     Fixed(u16),
@@ -96,14 +101,34 @@ pub enum Size {
     /// width). Resolves at layout time once the parent dimension
     /// is known. Matches CSS `<percentage>` semantics for sizing
     /// properties; clamped to `u16::MAX` cells after multiplication.
-    ///
-    /// `Percent(0)` collapses to zero cells. `Percent(100)` fills
-    /// the parent's content area on this axis. Values > 100 are
-    /// permitted and produce overflow, matching CSS.
     Percent(u16),
+    /// `calc(<expr>)` — arithmetic over lengths + percentages
+    /// (`+ - * /`). Resolves at layout time against the parent's
+    /// matching-axis content dimension (`width` → parent width,
+    /// `height` → parent height). See [`crate::calc::CalcExpr`].
+    /// Negative results clamp to 0; positive results clamp to
+    /// `u16::MAX`.
+    Calc(Box<crate::calc::CalcExpr>),
     /// Child determines its own size (default: content-driven).
     #[default]
     Auto,
+}
+
+impl Size {
+    /// Resolve `Calc` to `Fixed`, leaving other variants unchanged.
+    /// Pass the parent's content dimension on the relevant axis as
+    /// `basis`. Used by layout sites that prefer to flatten before
+    /// matching.
+    pub fn resolve_calc(self, basis: i32) -> Size {
+        match self {
+            Size::Calc(expr) => {
+                let v = expr.resolve(&crate::calc::ResolveCtx::new(basis));
+                let clamped = v.max(0).min(u16::MAX as i32) as u16;
+                Size::Fixed(clamped)
+            }
+            other => other,
+        }
+    }
 }
 
 /// Value of `min-width` / `min-height`. CSS-faithful: `auto` resolves
@@ -507,16 +532,36 @@ pub enum Position {
     Sticky,
 }
 
-/// Offset value for `top` / `right` / `bottom` / `left` (M2). M5+
-/// may grow `Percent(...)` once the layout primitives bundle adds
-/// percentage resolution.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+/// Offset value for `top` / `right` / `bottom` / `left`.
+///
+/// **Not `Copy`** — the `Calc` variant carries a boxed expression
+/// tree. The simple variants clone in O(1); `Calc` clones the AST.
+#[derive(Debug, Clone, PartialEq, Default)]
 pub enum Length {
     /// `auto`. Resolution depends on context — phase-2 placement.
     #[default]
     Auto,
     /// Integer cells. Signed so negative offsets are valid CSS.
     Cells(i16),
+    /// `calc(<expr>)`. Resolves at layout time against the
+    /// parent's matching-axis content dimension (`top`/`bottom` →
+    /// height, `left`/`right` → width). Result clamped to the
+    /// `i16` range.
+    Calc(Box<crate::calc::CalcExpr>),
+}
+
+impl Length {
+    /// Resolve `Calc` to `Cells`, leaving other variants unchanged.
+    pub fn resolve_calc(self, basis: i32) -> Length {
+        match self {
+            Length::Calc(expr) => {
+                let v = expr.resolve(&crate::calc::ResolveCtx::new(basis));
+                let clamped = v.max(i16::MIN as i32).min(i16::MAX as i32) as i16;
+                Length::Cells(clamped)
+            }
+            other => other,
+        }
+    }
 }
 
 /// `z-index` value (M2). `Auto` does not establish a stacking
