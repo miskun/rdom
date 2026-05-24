@@ -10,7 +10,7 @@
 
 mod common;
 
-use rdom_showcase::demos::{headings, inline_formatting};
+use rdom_showcase::demos::{headings, inline_formatting, whitespace_modes};
 use rdom_tui::prelude::*;
 
 use common::{assert_snapshot, buffer_to_snapshot, render};
@@ -26,6 +26,22 @@ fn headings_initial_paint() {
     let buf = render(&mut dom, &sheet, Rect::new(0, 0, 60, 14));
     let snap = buffer_to_snapshot(&buf);
     assert_snapshot(&snap, "headings.snap");
+}
+
+#[test]
+fn whitespace_modes_initial_paint() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let demo_root = whitespace_modes::build(&mut dom);
+    dom.append_child(root, demo_root).unwrap();
+
+    let sheet = whitespace_modes::stylesheet();
+    // Wide viewport so the four columns each get ~20 cells —
+    // enough to demonstrate wrap vs. no-wrap clearly without
+    // crowding the longest sample line.
+    let buf = render(&mut dom, &sheet, Rect::new(0, 0, 100, 14));
+    let snap = buffer_to_snapshot(&buf);
+    assert_snapshot(&snap, "whitespace_modes.snap");
 }
 
 #[test]

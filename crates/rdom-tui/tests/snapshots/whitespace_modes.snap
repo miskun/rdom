@@ -1,0 +1,14 @@
+
+  white-space modes
+
+  normal                  pre                      pre-wrap                nowrap
+
+  first line with runs    first    line with    r  first    line with      first line with runs of
+  of spaces second line   second line after a lit  runs of    spaces
+  after a literal                                  second line after a
+  newline                                          literal newline
+
+
+
+
+

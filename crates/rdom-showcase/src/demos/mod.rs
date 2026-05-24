@@ -27,3 +27,4 @@ pub mod sticky;
 pub mod tab_form;
 pub mod transition_box;
 pub mod ua_chrome;
+pub mod whitespace_modes;

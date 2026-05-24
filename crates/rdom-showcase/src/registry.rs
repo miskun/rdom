@@ -22,6 +22,7 @@ use crate::demos::sticky::Sticky;
 use crate::demos::tab_form::TabForm;
 use crate::demos::transition_box::TransitionBox;
 use crate::demos::ua_chrome::UaChrome;
+use crate::demos::whitespace_modes::WhitespaceModes;
 
 /// Every demo the showcase knows about, in stable order. Order
 /// here determines display order in the sidebar (within each
@@ -46,6 +47,7 @@ pub const DEMOS: &[&dyn Demo] = &[
     &RafProgress,
     &InlineFormatting,
     &Headings,
+    &WhitespaceModes,
 ];
 
 #[cfg(test)]
