@@ -330,19 +330,29 @@ impl<Ext: 'static> Dom<Ext> {
         // when at least one of focused/hovered is actually inside
         // the subtree being detached — empty PreDetach records
         // would be noise.
-        if self.focused.is_some() || self.hovered.is_some() {
-            let mut subtree = Vec::new();
-            self.collect_descendants(id, &mut subtree);
-            let focused_in = self.focused.filter(|f| subtree.contains(f));
-            let hovered_in = self.hovered.filter(|h| subtree.contains(h));
-            if focused_in.is_some() || hovered_in.is_some() {
-                self.fire_mutation(Mutation::PreDetach {
-                    detached_root: id,
-                    focused: focused_in,
-                    hovered: hovered_in,
-                });
-            }
-        }
+        //
+        // Walks the detached subtree at most ONCE per detach: the
+        // collected `Vec<NodeId>` is reused by
+        // `purge_interaction_state_for_subtree` below via the
+        // `_with_subtree` variant. Saves an O(N) re-walk per
+        // detach for non-trivial subtrees.
+        let subtree: Option<Vec<NodeId>> =
+            if self.focused.is_some() || self.hovered.is_some() || self.selection.is_some() {
+                let mut v = Vec::new();
+                self.collect_descendants(id, &mut v);
+                let focused_in = self.focused.filter(|f| v.contains(f));
+                let hovered_in = self.hovered.filter(|h| v.contains(h));
+                if focused_in.is_some() || hovered_in.is_some() {
+                    self.fire_mutation(Mutation::PreDetach {
+                        detached_root: id,
+                        focused: focused_in,
+                        hovered: hovered_in,
+                    });
+                }
+                Some(v)
+            } else {
+                None
+            };
 
         let node = self.node_or_err(id)?;
         let parent = node.parent;
@@ -369,7 +379,7 @@ impl<Ext: 'static> Dom<Ext> {
         n.prev_sibling = None;
         n.next_sibling = None;
 
-        self.purge_interaction_state_for_subtree(id);
+        self.purge_interaction_state_for_subtree(id, subtree);
         Ok(())
     }
 
@@ -385,7 +395,16 @@ impl<Ext: 'static> Dom<Ext> {
     /// record fires; `pointer_capture` clears silently because it
     /// has no associated record type (it's a runtime-routing flag,
     /// not a cascade-affecting state).
-    fn purge_interaction_state_for_subtree(&mut self, root: NodeId) {
+    ///
+    /// Accepts an optional pre-computed `subtree` list — the
+    /// `detach_from_parent` PreDetach pass already walks the
+    /// detached subtree and threads its result through to avoid a
+    /// duplicate O(N) walk. `None` falls back to walking here.
+    fn purge_interaction_state_for_subtree(
+        &mut self,
+        root: NodeId,
+        cached_subtree: Option<Vec<NodeId>>,
+    ) {
         // Common-case early exit: when no interaction state is set
         // (headless DOM consumers, doc-building scripts, tests that
         // don't touch focus/hover/selection), skip the descendant
@@ -398,8 +417,11 @@ impl<Ext: 'static> Dom<Ext> {
             return;
         }
 
-        let mut subtree: Vec<NodeId> = Vec::new();
-        self.collect_descendants(root, &mut subtree);
+        let subtree: Vec<NodeId> = cached_subtree.unwrap_or_else(|| {
+            let mut v = Vec::new();
+            self.collect_descendants(root, &mut v);
+            v
+        });
 
         let in_subtree = |candidate: NodeId| subtree.contains(&candidate);
 

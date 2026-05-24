@@ -144,7 +144,9 @@ pub(super) fn write_scroll_clamped(dom: &mut TuiDom, id: NodeId, x: i32, y: i32)
         // they touch ext.scroll_*; the wheel path also has its own
         // dispatch site for the case where it walks past the
         // initial hit to find a scrollable ancestor.
+        // `scroll`: bubbles, NOT cancelable per HTML.
         let mut tui = crate::TuiEvent::new("scroll");
+        tui.event.cancelable = false;
         let _ = crate::TuiDispatchExt::dispatch_tui_event(dom, id, &mut tui);
     }
 }

@@ -651,7 +651,9 @@ impl<B: Backend> App<B> {
                 // Coalesced naturally — crossterm delivers one
                 // Resize signal per terminal change, not per cell.
                 let root = self.dom.root();
+                // `resize`: bubbles, NOT cancelable per HTML.
                 let mut tui = TuiEvent::new("resize");
+                tui.event.cancelable = false;
                 let _ = self.dom.dispatch_tui_event(root, &mut tui);
                 self.needs_redraw = true;
             }

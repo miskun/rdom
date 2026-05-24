@@ -21,7 +21,10 @@ pub(super) fn route_mouse(
     match mouse.kind {
         MouseEventKind::Down(MouseButton::Left) => handle_down(router, dom, mouse),
         MouseEventKind::Up(MouseButton::Left) => handle_up(router, dom, mouse),
-        MouseEventKind::Down(MouseButton::Right) => handle_contextmenu(dom, mouse),
+        MouseEventKind::Down(MouseButton::Right) => handle_right_down(dom, mouse),
+        MouseEventKind::Up(MouseButton::Right) => handle_nonleft_up(dom, mouse),
+        MouseEventKind::Down(MouseButton::Middle) => handle_nonleft_down(dom, mouse),
+        MouseEventKind::Up(MouseButton::Middle) => handle_nonleft_up(dom, mouse),
         MouseEventKind::Moved | MouseEventKind::Drag(MouseButton::Left) => {
             handle_move(router, dom, mouse)
         }
@@ -29,21 +32,49 @@ pub(super) fn route_mouse(
         | MouseEventKind::ScrollDown
         | MouseEventKind::ScrollLeft
         | MouseEventKind::ScrollRight => handle_wheel(dom, mouse),
-        // Other buttons (middle) — no default action yet.
-        _ => RouteOutcome::default(),
+        // Right/middle drag — same hit-test-and-dispatch as Moved,
+        // but only when button is held. v1 routes both as plain
+        // mousemove (no special drag semantics for non-left buttons).
+        MouseEventKind::Drag(_) => handle_move(router, dom, mouse),
     }
 }
 
-/// `contextmenu` dispatch. Hit-tests; if a target exists, fires
-/// a bubbling cancelable `contextmenu` event at it. No default
-/// action in v1 (no popup menu UI to suppress) — but the event
-/// is cancelable per HTML so future default actions land in the
-/// same place author code already gates on `preventDefault`.
-fn handle_contextmenu(dom: &mut TuiDom, mouse: MouseEvent) -> RouteOutcome {
+/// Right-button mousedown: fire `mousedown` first (every button
+/// fires mousedown per UI Events), then `contextmenu`. Cancelling
+/// `mousedown` does NOT suppress `contextmenu` — the two are
+/// independent dispatches per HTML.
+fn handle_right_down(dom: &mut TuiDom, mouse: MouseEvent) -> RouteOutcome {
     let Some(target) = dom.hit_test(mouse.column, mouse.row) else {
         return RouteOutcome::default();
     };
-    let mut tui = TuiEvent::contextmenu(mouse);
+    let mut tui_down = TuiEvent::mousedown(mouse);
+    let _ = dom.dispatch_tui_event(target, &mut tui_down);
+
+    let mut tui_ctx = TuiEvent::contextmenu(mouse);
+    let _ = dom.dispatch_tui_event(target, &mut tui_ctx);
+    RouteOutcome::default()
+}
+
+/// Non-left mousedown (middle button): fire `mousedown`. No
+/// associated default action; no click synthesis (browsers only
+/// synthesize click for the left button).
+fn handle_nonleft_down(dom: &mut TuiDom, mouse: MouseEvent) -> RouteOutcome {
+    let Some(target) = dom.hit_test(mouse.column, mouse.row) else {
+        return RouteOutcome::default();
+    };
+    let mut tui = TuiEvent::mousedown(mouse);
+    let _ = dom.dispatch_tui_event(target, &mut tui);
+    RouteOutcome::default()
+}
+
+/// Non-left mouseup (right or middle button): fire `mouseup`.
+/// No click synthesis, no pointer-capture release path
+/// (capture is left-button-only in v1).
+fn handle_nonleft_up(dom: &mut TuiDom, mouse: MouseEvent) -> RouteOutcome {
+    let Some(target) = dom.hit_test(mouse.column, mouse.row) else {
+        return RouteOutcome::default();
+    };
+    let mut tui = TuiEvent::mouseup(mouse);
     let _ = dom.dispatch_tui_event(target, &mut tui);
     RouteOutcome::default()
 }
@@ -370,7 +401,9 @@ fn handle_wheel(dom: &mut TuiDom, mouse: MouseEvent) -> RouteOutcome {
                 (0, 0, 0, 0)
             };
             if old_x != new_x || old_y != new_y {
+                // `scroll`: bubbles, NOT cancelable per HTML.
                 let mut tui_scroll = TuiEvent::new("scroll");
+                tui_scroll.event.cancelable = false;
                 let _ = dom.dispatch_tui_event(id, &mut tui_scroll);
                 return RouteOutcome {
                     redraw_requested: true,

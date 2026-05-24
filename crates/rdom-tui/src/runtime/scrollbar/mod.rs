@@ -338,7 +338,9 @@ fn set_scroll(dom: &mut TuiDom, element: NodeId, axis: ScrollAxis, value: i32) -
         // M5 D5: scrollbar drag dispatches `scroll` like wheel +
         // programmatic mutation. Only fires when the offset
         // actually moved (dragging at the rail end is a no-op).
+        // `scroll`: bubbles, NOT cancelable per HTML.
         let mut tui = crate::TuiEvent::new("scroll");
+        tui.event.cancelable = false;
         let _ = crate::TuiDispatchExt::dispatch_tui_event(dom, element, &mut tui);
     }
     clamped

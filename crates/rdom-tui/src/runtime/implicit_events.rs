@@ -22,6 +22,27 @@
 //! observer is opaque; consumers register their own `blur`/
 //! `focusout`/`mouseout`/`mouseleave` listeners on whichever
 //! nodes they care about and get fired automatically.
+//!
+//! ## Reentrancy notes for listener authors
+//!
+//! Handlers run DURING `detach_from_parent`, in the window between
+//! the `PreDetach` mutation record firing and the structural
+//! unlink. The tree is still intact at that moment. Implications:
+//!
+//! - **Mutating the tree from a handler is allowed.** Setting
+//!   focus elsewhere, appending nodes, removing siblings — all
+//!   work.
+//! - **Re-attaching the about-to-be-detached subtree does NOT
+//!   cancel the in-flight detach.** After every handler in the
+//!   ceremony returns, `detach_from_parent` proceeds with the
+//!   structural unlink of the original target. A handler that
+//!   appends the focused subtree to a different parent will
+//!   see that re-attachment torn out again immediately.
+//! - **A handler that calls `dom.set_focused(another_node)`
+//!   during `blur`** works as expected — the second
+//!   `InteractionChanged` record fires the cascade pickup; the
+//!   purge step then sees that `focused` is no longer in the
+//!   subtree and skips clearing it.
 
 use rdom_core::Mutation;
 
@@ -47,25 +68,31 @@ impl rdom_core::MutationObserver<crate::TuiExt> for ImplicitDetachEvents {
         // then focusout. Both fire on the same target; the
         // bubbling difference is on the event itself.
         if let Some(target) = focused {
+            // `blur`: non-bubbling, non-cancelable per UI Events.
             let mut blur = TuiEvent::new("blur");
             blur.event.bubbles = false;
+            blur.event.cancelable = false;
             blur.event = blur.event.clone().with_synthetic(true);
             let _ = dom.dispatch_tui_event(*target, &mut blur);
 
+            // `focusout`: bubbles, non-cancelable per UI Events.
             let mut focusout = TuiEvent::new("focusout");
+            focusout.event.cancelable = false;
             focusout.event = focusout.event.clone().with_synthetic(true);
             let _ = dom.dispatch_tui_event(*target, &mut focusout);
         }
         // Hover loss ceremony — `mouseout` bubbling, `mouseleave`
-        // non-bubbling. Same target, same event-flag difference.
-        // Order: mouseout first (matches browser).
+        // non-bubbling. Order: mouseout first (matches browser).
         if let Some(target) = hovered {
+            // `mouseout`: bubbles, cancelable per UI Events.
             let mut mouseout = TuiEvent::new("mouseout");
             mouseout.event = mouseout.event.clone().with_synthetic(true);
             let _ = dom.dispatch_tui_event(*target, &mut mouseout);
 
+            // `mouseleave`: non-bubbling, non-cancelable per UI Events.
             let mut mouseleave = TuiEvent::new("mouseleave");
             mouseleave.event.bubbles = false;
+            mouseleave.event.cancelable = false;
             mouseleave.event = mouseleave.event.clone().with_synthetic(true);
             let _ = dom.dispatch_tui_event(*target, &mut mouseleave);
         }

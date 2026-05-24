@@ -233,6 +233,74 @@ fn detach_unrelated_subtree_does_not_dispatch_implicit_events() {
 }
 
 #[test]
+fn mutation_record_order_predetach_then_childlist_then_interaction() {
+    // Pin the dispatch order other observers see. The implicit-
+    // events observer needs PreDetach to fire first so it can
+    // dispatch while the tree is intact. After that, the
+    // structural unlink fires ChildListChanged on the parent; the
+    // purge step fires InteractionChanged when it clears focused.
+    use rdom_tui::core_api::{Mutation, MutationObserver};
+    use std::cell::RefCell;
+
+    struct Recorder {
+        order: Rc<RefCell<Vec<String>>>,
+    }
+    impl MutationObserver<rdom_tui::TuiExt> for Recorder {
+        fn observe(&mut self, _dom: &mut TuiDom, record: &Mutation) {
+            let name = match record {
+                Mutation::PreDetach { .. } => "PreDetach",
+                Mutation::ChildListChanged { .. } => "ChildListChanged",
+                Mutation::InteractionChanged { .. } => "InteractionChanged",
+                Mutation::AttributeChanged { .. } => "AttributeChanged",
+                Mutation::ClassChanged { .. } => "ClassChanged",
+                Mutation::CharacterDataChanged { .. } => "CharacterDataChanged",
+                Mutation::SelectionChanged { .. } => "SelectionChanged",
+            };
+            self.order.borrow_mut().push(name.to_string());
+        }
+    }
+
+    let (mut app, root, _outer, inner) = make_app();
+    app.dom_mut().set_focused(Some(inner));
+
+    let order = Rc::new(RefCell::new(Vec::new()));
+    app.dom_mut().add_mutation_observer(Box::new(Recorder {
+        order: order.clone(),
+    }));
+
+    app.dom_mut().clear_children(root).unwrap();
+
+    let order = order.borrow().clone();
+    // Contract: PreDetach first (BEFORE structural unlink, so
+    // observers can dispatch with the tree intact), then
+    // InteractionChanged (from purge clearing focused — interaction
+    // state quiesces before structure announces the parent
+    // changes), then ChildListChanged (notifies the parent's
+    // child list lost a child).
+    let pre = order
+        .iter()
+        .position(|s| s == "PreDetach")
+        .expect("PreDetach fired");
+    let interact = order
+        .iter()
+        .position(|s| s == "InteractionChanged")
+        .expect("InteractionChanged fired");
+    let child = order
+        .iter()
+        .position(|s| s == "ChildListChanged")
+        .expect("ChildListChanged fired");
+
+    assert!(
+        pre < interact,
+        "PreDetach must fire FIRST so observers can dispatch with the tree intact (got order {order:?})"
+    );
+    assert!(
+        interact < child,
+        "InteractionChanged from purge fires BEFORE the parent's ChildListChanged (got order {order:?})"
+    );
+}
+
+#[test]
 fn dispatched_events_are_synthetic() {
     // The implicit-detach dispatches mark events as synthetic so
     // handlers can distinguish them from user-initiated focus

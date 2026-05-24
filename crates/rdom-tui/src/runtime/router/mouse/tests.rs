@@ -197,6 +197,110 @@ fn left_mousedown_does_not_fire_contextmenu() {
 }
 
 #[test]
+fn right_mousedown_fires_mousedown_before_contextmenu() {
+    // M5 D2 follow-up: every button fires `mousedown` per UI
+    // Events. Right-button fires `mousedown` first, then
+    // `contextmenu`. Same target.
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let el = dom.create_element("div");
+    dom.append_child(root, el).unwrap();
+    let sheet = Stylesheet::bare().rule_unchecked(
+        "div",
+        TuiStyle::new()
+            .width(Size::Fixed(10))
+            .height(Size::Fixed(3)),
+    );
+    prepare(&mut dom, &sheet, Rect::new(0, 0, 20, 5));
+
+    let log = log();
+    record(&mut dom, el, "mousedown", &log);
+    record(&mut dom, el, "contextmenu", &log);
+
+    let mut router = Router::new();
+    router.route(
+        &mut dom,
+        crossterm::event::Event::Mouse(mouse_at(MouseEventKind::Down(MouseButton::Right), 2, 1)),
+    );
+
+    let events: Vec<String> = log.borrow().iter().map(|(_, t)| t.clone()).collect();
+    assert_eq!(
+        events,
+        vec!["mousedown".to_string(), "contextmenu".to_string()],
+        "mousedown fires before contextmenu for right-button down"
+    );
+}
+
+#[test]
+fn right_mouseup_fires_mouseup() {
+    // M5 D2 follow-up: right-button release fires `mouseup`. No
+    // click synthesis (clicks are left-button-only).
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let el = dom.create_element("div");
+    dom.append_child(root, el).unwrap();
+    let sheet = Stylesheet::bare().rule_unchecked(
+        "div",
+        TuiStyle::new()
+            .width(Size::Fixed(10))
+            .height(Size::Fixed(3)),
+    );
+    prepare(&mut dom, &sheet, Rect::new(0, 0, 20, 5));
+
+    let log = log();
+    record(&mut dom, el, "mouseup", &log);
+    record(&mut dom, el, "click", &log);
+
+    let mut router = Router::new();
+    router.route(
+        &mut dom,
+        crossterm::event::Event::Mouse(mouse_at(MouseEventKind::Up(MouseButton::Right), 2, 1)),
+    );
+
+    let events: Vec<String> = log.borrow().iter().map(|(_, t)| t.clone()).collect();
+    assert_eq!(events, vec!["mouseup".to_string()]);
+}
+
+#[test]
+fn middle_mousedown_and_mouseup_fire() {
+    // Middle button is symmetric with right for mousedown/mouseup
+    // (but no contextmenu).
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let el = dom.create_element("div");
+    dom.append_child(root, el).unwrap();
+    let sheet = Stylesheet::bare().rule_unchecked(
+        "div",
+        TuiStyle::new()
+            .width(Size::Fixed(10))
+            .height(Size::Fixed(3)),
+    );
+    prepare(&mut dom, &sheet, Rect::new(0, 0, 20, 5));
+
+    let log = log();
+    record(&mut dom, el, "mousedown", &log);
+    record(&mut dom, el, "mouseup", &log);
+    record(&mut dom, el, "contextmenu", &log);
+
+    let mut router = Router::new();
+    router.route(
+        &mut dom,
+        crossterm::event::Event::Mouse(mouse_at(MouseEventKind::Down(MouseButton::Middle), 2, 1)),
+    );
+    router.route(
+        &mut dom,
+        crossterm::event::Event::Mouse(mouse_at(MouseEventKind::Up(MouseButton::Middle), 2, 1)),
+    );
+
+    let events: Vec<String> = log.borrow().iter().map(|(_, t)| t.clone()).collect();
+    assert_eq!(
+        events,
+        vec!["mousedown".to_string(), "mouseup".to_string()],
+        "middle-button fires mousedown + mouseup, no contextmenu"
+    );
+}
+
+#[test]
 fn contextmenu_off_screen_does_not_fire() {
     // No hit target → no contextmenu dispatch (matches the
     // existing mousedown behavior on miss).
