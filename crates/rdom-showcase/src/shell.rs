@@ -57,6 +57,10 @@ pub struct ShellHandles {
     /// Demo / Source `<button>`s. M7 D1 attaches click listeners
     /// here to switch view mode.
     pub view_tabs: NodeId,
+    /// The scroll-position indicator at the bottom of `<main>`.
+    /// M7 D3 updates this element's text on every `scroll` event
+    /// fired by a descendant of the view-content mount.
+    pub scroll_indicator: NodeId,
 }
 
 /// Build the showcase shell under `dom.root()`. Does NOT mount any
@@ -176,6 +180,15 @@ pub fn build_shell(dom: &mut TuiDom) -> ShellHandles {
     dom.set_attribute(view_content, "class", "view-content")
         .unwrap();
     dom.append_child(main, view_content).unwrap();
+
+    // <div class="scroll-indicator"></div> — status row at the
+    // bottom of <main>. Empty when the active demo has no
+    // scrollable element; populated by the `scroll` listener
+    // (M7 D3) with "Row N/M — P%" text.
+    let scroll_indicator = dom.create_element("div");
+    dom.set_attribute(scroll_indicator, "class", "scroll-indicator")
+        .unwrap();
+    dom.append_child(main, scroll_indicator).unwrap();
     dom.append_child(body, main).unwrap();
 
     ShellHandles {
@@ -183,6 +196,7 @@ pub fn build_shell(dom: &mut TuiDom) -> ShellHandles {
         main: view_content,
         sidebar,
         view_tabs,
+        scroll_indicator,
     }
 }
 
@@ -283,6 +297,20 @@ const BASE_CSS: &str = r#"
 
 .main .view-content {
   flex: 1;
+}
+
+/* Scroll-position indicator at the bottom of <main>. Empty by
+ * default — the listener writes "Row N/M — P%" text when a
+ * descendant scrolls. The 1-cell height + flex-shrink: 0 keeps
+ * the indicator visible without pushing demo content around.
+ */
+.main .scroll-indicator {
+  height: 1;
+  flex-shrink: 0;
+  border-top: solid;
+  border-color: rgb(70, 80, 100);
+  padding: 0 1;
+  color: rgb(150, 170, 200);
 }
 "#;
 

@@ -201,6 +201,72 @@ fn collect_view_tabs(dom: &TuiDom, id: NodeId, out: &mut Vec<NodeId>) {
 ///
 /// Single listener on the sidebar — the click event bubbles up
 /// from whichever `<li>` or descendant was clicked.
+/// Install the scroll-indicator listener. Fires on every `scroll`
+/// event bubbling up from any element in the document; if the
+/// event target has scroll content (a meaningful `scroll_y` +
+/// `scroll_content_height`), updates the indicator's text with
+/// the current row + percent.
+///
+/// Element targets that aren't scrollable (rare bubble-cases)
+/// don't update the indicator — keeps stale text in place rather
+/// than flickering.
+pub fn wire_scroll_indicator(dom: &mut TuiDom, indicator: NodeId) {
+    let root = dom.root();
+    dom.add_event_listener(root, "scroll", ListenerOptions::default(), move |ctx| {
+        let Some(target) = ctx.event.target else {
+            return;
+        };
+        let info = read_scroll_info(ctx.dom, target);
+        let Some(info) = info else {
+            return;
+        };
+        let text = format_scroll_text(&info);
+        write_indicator_text(ctx.dom, indicator, &text);
+    })
+    .expect("dom.root() is valid");
+}
+
+#[derive(Debug, Clone, Copy)]
+struct ScrollInfo {
+    scroll_y: usize,
+    content_height: usize,
+    viewport_height: usize,
+}
+
+fn read_scroll_info(dom: &TuiDom, target: NodeId) -> Option<ScrollInfo> {
+    use rdom_tui::node::TuiNodeExt;
+    let ext = dom.node(target).tui_ext()?;
+    let viewport_height = ext.content_layout.height as usize;
+    let content_height = ext.scroll_content_height;
+    if content_height <= viewport_height {
+        return None;
+    }
+    Some(ScrollInfo {
+        scroll_y: ext.scroll_y,
+        content_height,
+        viewport_height,
+    })
+}
+
+fn format_scroll_text(info: &ScrollInfo) -> String {
+    let max_scroll = info.content_height.saturating_sub(info.viewport_height);
+    let percent = if max_scroll == 0 {
+        100
+    } else {
+        ((info.scroll_y * 100) / max_scroll).min(100)
+    };
+    // Row 1-indexed for human reading.
+    let row = info.scroll_y + 1;
+    format!("Row {row}/{} — {percent}%", info.content_height)
+}
+
+fn write_indicator_text(dom: &mut TuiDom, indicator: NodeId, text: &str) {
+    // Replace the indicator's children with a single text node.
+    let _ = dom.clear_children(indicator);
+    let t = dom.create_text_node(text);
+    let _ = dom.append_child(indicator, t);
+}
+
 /// Install the view-tabs click handler. Single listener on the
 /// `<nav class="view-tabs">` container; walks the target's
 /// ancestors looking for a `data-view` attribute, then calls

@@ -9,8 +9,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use rdom_showcase::{
-    DEMOS, ShowcaseState, build_shell, mount_demo, shell::base_stylesheet, wire_sidebar_click,
-    wire_sidebar_keys, wire_view_tab_click,
+    DEMOS, ShowcaseState, build_shell, mount_demo, shell::base_stylesheet, wire_scroll_indicator,
+    wire_sidebar_click, wire_sidebar_keys, wire_view_tab_click,
 };
 use rdom_tui::{App, TuiDom};
 
@@ -34,6 +34,10 @@ fn main() -> std::io::Result<()> {
     // View-tabs click handler — Demo / Source toggle in the main
     // view header.
     wire_view_tab_click(&mut dom, handles.view_tabs, Rc::clone(&state));
+    // Scroll listener — populates the indicator at the bottom of
+    // `<main>` with "Row N/M — P%" text whenever any scrollable
+    // descendant fires a scroll event.
+    wire_scroll_indicator(&mut dom, handles.scroll_indicator);
 
     // Construct the App with the shell's base stylesheet.
     let mut app = App::new(dom, base_stylesheet())?;
