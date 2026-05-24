@@ -18,7 +18,7 @@ fn make_app() -> (App<TestBackend>, ShellHandles) {
     let handles = build_shell(&mut dom);
     let mut state = ShowcaseState::from_handles(&handles);
     mount_demo(&mut state, &mut dom, 0);
-    wire_scroll_indicator(&mut dom, handles.scroll_indicator);
+    wire_scroll_indicator(&mut dom, handles.main, handles.scroll_indicator);
 
     let backend = TestBackend::new(80, 24);
     let terminal = Terminal::new(backend).unwrap();
@@ -67,9 +67,39 @@ fn scroll_event_populates_indicator_text() {
     app.dom_mut().node_mut(target).set_scroll_top(40).unwrap();
 
     let text = indicator_text(app.dom(), handles.scroll_indicator);
+    // Format: "P% — cell Y/H". Y is the raw scroll_y; H is
+    // content_height. For Y=40, H=100, viewport=20 → max_scroll
+    // = 80, percent = 40*100/80 = 50%.
     assert!(
-        text.contains("Row 41/100") && text.contains("%"),
-        "indicator shows the current row + percent (got {text:?})"
+        text.contains("cell 40/100") && text.contains("50%"),
+        "indicator shows the current cell + percent (got {text:?})"
+    );
+}
+
+#[test]
+fn mount_demo_clears_stale_scroll_indicator() {
+    // After scrolling demo A, switching to demo B should clear
+    // the indicator (A's scrollable element is gone; stale text
+    // would lie about B's state).
+    let (mut app, handles) = make_app();
+    let target = handles.main;
+
+    if let Some(ext) = app.dom_mut().node_mut(target).ext_mut() {
+        ext.scroll_content_height = 100;
+        ext.content_layout = rdom_tui::layout::LayoutRect::new(0, 0, 50, 20);
+    }
+    app.dom_mut().node_mut(target).set_scroll_top(40).unwrap();
+    assert!(!indicator_text(app.dom(), handles.scroll_indicator).is_empty());
+
+    // Switch to a different demo. Indicator must clear.
+    let mut state = ShowcaseState::from_handles(&handles);
+    state.current_idx = 0; // setup() already mounted demo 0
+    mount_demo(&mut state, app.dom_mut(), 1);
+
+    assert_eq!(
+        indicator_text(app.dom(), handles.scroll_indicator),
+        "",
+        "indicator clears on demo switch — stale scroll info no longer applies"
     );
 }
 

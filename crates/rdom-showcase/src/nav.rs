@@ -20,19 +20,8 @@ use rdom_tui::{ListenerOptions, NodeId, TuiDom};
 
 use crate::{DEMOS, Demo};
 
-/// Which view of the current demo is mounted in `<main>`.
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub enum ViewMode {
-    /// Live demo subtree from `Demo::build`.
-    Demo,
-    /// `<pre>` block containing the demo's `MARKUP` + `CSS`
-    /// strings (`Demo::source()`). Authors browse this to learn
-    /// what code produces the live demo on the left.
-    Source,
-}
-
 /// Shared mutable state the navigation owns: which demo is
-/// currently mounted, and where to mount the next one.
+/// currently mounted, plus the handles needed to swap it.
 ///
 /// Wrapped in `Rc<RefCell<...>>` so the sidebar's click listener
 /// (a `'static` closure) and the initial-mount path can both
@@ -42,49 +31,49 @@ pub struct ShowcaseState {
     /// `usize::MAX` before any demo has been mounted so the first
     /// call to [`mount_demo`] always proceeds.
     pub current_idx: usize,
-    /// Current view mode. Switching demos resets to `ViewMode::Demo`
-    /// so authors always see the live demo first.
-    pub view: ViewMode,
-    /// Where demos mount — `<main>` from [`crate::shell::ShellHandles`].
+    /// Where demos mount — `<main>`'s view-content from
+    /// [`crate::shell::ShellHandles`].
     pub main_id: NodeId,
-    /// The `<nav class="view-tabs">` container — needed at mount
-    /// time so the active-tab class flips when view mode changes.
-    pub view_tabs_id: NodeId,
+    /// The `<details class="source-disclosure">` element below
+    /// the view-content mount. `mount_demo` rebuilds its body
+    /// (preserving the `<summary>`) with the active demo's
+    /// MARKUP + CSS on every demo switch. UA's native
+    /// `<details>` toggle handles open/close — no custom state.
+    pub source_disclosure_id: NodeId,
+    /// The scroll-position indicator at the bottom of `<main>`.
+    /// Cleared on every demo switch (the previous demo's
+    /// scrollable element is gone).
+    pub scroll_indicator_id: NodeId,
 }
 
 impl ShowcaseState {
-    /// Construct from `ShellHandles`. Initial state: no demo mounted
-    /// (`current_idx = usize::MAX` so the first `mount_demo` call
-    /// always proceeds), Demo view, active-tab class will land on
-    /// the first mount.
+    /// Construct from `ShellHandles`. Initial state: no demo
+    /// mounted (`current_idx = usize::MAX` so the first
+    /// `mount_demo` call always proceeds).
     pub fn from_handles(handles: &crate::shell::ShellHandles) -> Self {
         Self {
             current_idx: usize::MAX,
-            view: ViewMode::Demo,
             main_id: handles.main,
-            view_tabs_id: handles.view_tabs,
+            source_disclosure_id: handles.source_disclosure,
+            scroll_indicator_id: handles.scroll_indicator,
         }
     }
 }
 
 /// Swap the mounted demo. No-op if `demo_idx` is already mounted.
 ///
-/// Mechanics: clear `<main>`'s children (which detaches the previous
-/// demo's subtree, triggering M1 D2's interaction-state cleanup),
-/// build the new demo's subtree under `dom`, append it to `<main>`.
-/// The cascade picks up the new subtree on the next paint —
-/// `MutationObserver` records flow through, `DirtyTracker` marks
-/// the new root.
+/// Mechanics: clear `<main>`'s view-content, rebuild the source
+/// disclosure body, clear the scroll indicator (the previous
+/// demo's scrollable element is gone). `clear_children` fires a
+/// `ChildListChanged` record with every detached child + runs
+/// the purge step from `rdom-core::tree::detach_from_parent`.
 ///
 /// **Infallibility.** Both DOM mutations here are infallible by
-/// construction: `main_id` came from [`crate::build_shell`] and is
-/// kept alive for the App's lifetime, and `demo_root` was created
-/// one line earlier and is therefore not currently parented.
-/// `expect()` is the correct error discipline — if either call
-/// errored, the showcase's invariants are broken at the substrate
-/// level and continuing would produce an inconsistent DOM (empty
-/// `<main>` with `current_idx` pointing at a demo that's not
-/// there). Panic is the safer outcome.
+/// construction: `main_id` / `source_disclosure_id` /
+/// `scroll_indicator_id` came from [`crate::build_shell`] and
+/// stay alive for the App's lifetime; nodes created here have no
+/// parent before append. `expect()` is the correct error
+/// discipline.
 pub fn mount_demo(state: &mut ShowcaseState, dom: &mut TuiDom, demo_idx: usize) {
     if state.current_idx == demo_idx {
         return;
@@ -94,61 +83,54 @@ pub fn mount_demo(state: &mut ShowcaseState, dom: &mut TuiDom, demo_idx: usize) 
         "mount_demo: idx {demo_idx} out of range (have {} demos)",
         DEMOS.len()
     );
-    // Switching demos resets the view to Demo — authors always
-    // start with the live view of a freshly-clicked demo.
-    state.view = ViewMode::Demo;
     state.current_idx = demo_idx;
-    remount_current_view(state, dom);
-    update_tab_active_class(dom, state.view_tabs_id, state.view);
-}
+    let demo = DEMOS[demo_idx];
 
-/// Switch the currently-mounted view between Demo and Source for
-/// the active demo. No-op if the requested view is already mounted.
-pub fn set_view(state: &mut ShowcaseState, dom: &mut TuiDom, view: ViewMode) {
-    if state.view == view {
-        return;
-    }
-    state.view = view;
-    remount_current_view(state, dom);
-    update_tab_active_class(dom, state.view_tabs_id, state.view);
-}
-
-/// Internal: clear `<main>`'s view-content and mount whatever the
-/// current view mode dictates. Used by both `mount_demo` (demo
-/// changed) and `set_view` (view mode changed, demo stayed).
-fn remount_current_view(state: &mut ShowcaseState, dom: &mut TuiDom) {
-    debug_assert!(state.current_idx < DEMOS.len());
+    // 1. Mount the live demo subtree.
     dom.clear_children(state.main_id)
         .expect("main_id from build_shell stays valid for the App's lifetime");
-    match state.view {
-        ViewMode::Demo => {
-            let demo_root = DEMOS[state.current_idx].build(dom);
-            dom.append_child(state.main_id, demo_root)
-                .expect("demo_root was just created and has no parent");
-        }
-        ViewMode::Source => {
-            let source_root = build_source_view(dom, DEMOS[state.current_idx]);
-            dom.append_child(state.main_id, source_root)
-                .expect("source_root was just created and has no parent");
-        }
+    let demo_root = demo.build(dom);
+    dom.append_child(state.main_id, demo_root)
+        .expect("demo_root was just created and has no parent");
+
+    // 2. Rebuild the source disclosure body. Keep the `<summary>`
+    //    that the shell put there; replace everything else with
+    //    the new demo's MARKUP + CSS.
+    rebuild_source_disclosure(dom, state.source_disclosure_id, demo);
+
+    // 3. Clear the scroll indicator — the previous demo's
+    //    scrollable element is gone; stale "Row 7/50" text would
+    //    lie about the new demo's state.
+    let _ = dom.clear_children(state.scroll_indicator_id);
+}
+
+/// Replace the body of the `<details class="source-disclosure">`
+/// element with the new demo's MARKUP + CSS, preserving the
+/// `<summary>` that the shell installed. The summary stays put so
+/// the UA's open-state, focus, and click handler keep working
+/// across demo switches.
+fn rebuild_source_disclosure(dom: &mut TuiDom, disclosure: NodeId, demo: &dyn Demo) {
+    // Collect non-summary children to remove. We can't
+    // `clear_children` because that would drop the summary too.
+    let to_remove: Vec<NodeId> = dom
+        .node(disclosure)
+        .child_nodes()
+        .filter(|c| c.tag_name() != Some("summary"))
+        .map(|c| c.id())
+        .collect();
+    for child in to_remove {
+        let _ = dom.remove_child(disclosure, child);
     }
-}
 
-/// Build a `<pre>` block containing the demo's `MARKUP` + `CSS`
-/// strings, separated by a header line. Returns the root.
-fn build_source_view(dom: &mut TuiDom, demo: &dyn Demo) -> NodeId {
     let source = demo.source();
-    let root = dom.create_element("div");
-    dom.set_attribute(root, "class", "source-view").unwrap();
-
-    append_labeled_pre(dom, root, "Markup", source.markup);
-    append_labeled_pre(dom, root, "CSS", source.css);
-
-    root
+    append_labeled_pre(dom, disclosure, "Markup", source.markup);
+    append_labeled_pre(dom, disclosure, "CSS", source.css);
 }
 
+/// Append `<h3>label</h3><pre>body</pre>` to `parent`. Used by
+/// the source disclosure to render the demo's MARKUP / CSS.
 fn append_labeled_pre(dom: &mut TuiDom, parent: NodeId, label: &str, body: &str) {
-    let h = dom.create_element("h2");
+    let h = dom.create_element("h3");
     let h_text = dom.create_text_node(label);
     dom.append_child(h, h_text).unwrap();
     dom.append_child(parent, h).unwrap();
@@ -159,42 +141,6 @@ fn append_labeled_pre(dom: &mut TuiDom, parent: NodeId, label: &str, body: &str)
     dom.append_child(parent, pre).unwrap();
 }
 
-/// Walk the tab buttons under `tabs_root`; on each, ensure the
-/// `active` class is present iff its `data-view` matches the
-/// currently-active view. Uses class-list operations so we don't
-/// disturb other classes the buttons carry.
-fn update_tab_active_class(dom: &mut TuiDom, tabs_root: NodeId, view: ViewMode) {
-    let target = match view {
-        ViewMode::Demo => "demo",
-        ViewMode::Source => "source",
-    };
-    let mut buttons = Vec::new();
-    collect_view_tabs(dom, tabs_root, &mut buttons);
-    for btn in buttons {
-        let is_target = dom
-            .node(btn)
-            .get_attribute("data-view")
-            .map(|v| v == target)
-            .unwrap_or(false);
-        if is_target {
-            let _ = dom.add_class(btn, "active");
-        } else {
-            let _ = dom.remove_class(btn, "active");
-        }
-    }
-}
-
-fn collect_view_tabs(dom: &TuiDom, id: NodeId, out: &mut Vec<NodeId>) {
-    if dom.node(id).tag_name() == Some("button")
-        && dom.node(id).get_attribute("data-view").is_some()
-    {
-        out.push(id);
-    }
-    for child in dom.node(id).child_nodes() {
-        collect_view_tabs(dom, child.id(), out);
-    }
-}
-
 /// Install the sidebar's click handler. Walks up from the click
 /// target until it finds a `<li>` carrying `data-demo-slug`, then
 /// looks up the demo by slug and calls [`mount_demo`].
@@ -202,28 +148,49 @@ fn collect_view_tabs(dom: &TuiDom, id: NodeId, out: &mut Vec<NodeId>) {
 /// Single listener on the sidebar — the click event bubbles up
 /// from whichever `<li>` or descendant was clicked.
 /// Install the scroll-indicator listener. Fires on every `scroll`
-/// event bubbling up from any element in the document; if the
-/// event target has scroll content (a meaningful `scroll_y` +
-/// `scroll_content_height`), updates the indicator's text with
-/// the current row + percent.
+/// event bubbling up from any element in the document; only
+/// updates the indicator when the event target is a descendant
+/// of `view_root` (the view-content mount) AND has scrollable
+/// content. Filters out scroll events from outside the demo
+/// panel (e.g. a hypothetical scrollable sidebar `<details>`)
+/// so the indicator stays meaningful.
 ///
-/// Element targets that aren't scrollable (rare bubble-cases)
-/// don't update the indicator — keeps stale text in place rather
-/// than flickering.
-pub fn wire_scroll_indicator(dom: &mut TuiDom, indicator: NodeId) {
+/// rdom currently fires `scroll` events with `bubbles = true`
+/// for all targets, which is a deliberate divergence from
+/// CSSOM View Module §6 (browsers fire scroll on non-Document
+/// elements as a non-bubbling event). The bubble lets us install
+/// a single listener on `dom.root()` instead of re-installing
+/// per-scrollable on every demo mount. See
+/// [`specs/DIVERGENCES.md`](../../specs/DIVERGENCES.md) §Events.
+pub fn wire_scroll_indicator(dom: &mut TuiDom, view_root: NodeId, indicator: NodeId) {
     let root = dom.root();
     dom.add_event_listener(root, "scroll", ListenerOptions::default(), move |ctx| {
         let Some(target) = ctx.event.target else {
             return;
         };
-        let info = read_scroll_info(ctx.dom, target);
-        let Some(info) = info else {
+        if !is_descendant_of(ctx.dom, target, view_root) {
+            return;
+        }
+        let Some(info) = read_scroll_info(ctx.dom, target) else {
             return;
         };
         let text = format_scroll_text(&info);
         write_indicator_text(ctx.dom, indicator, &text);
     })
     .expect("dom.root() is valid");
+}
+
+/// `true` if `id` is a descendant of `ancestor` (or equal to it).
+/// Walks `parent_node()` up to the document root.
+fn is_descendant_of(dom: &TuiDom, id: NodeId, ancestor: NodeId) -> bool {
+    let mut cur = Some(id);
+    while let Some(n) = cur {
+        if n == ancestor {
+            return true;
+        }
+        cur = dom.node(n).parent_node().map(|p| p.id());
+    }
+    false
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -258,9 +225,15 @@ fn format_scroll_text(info: &ScrollInfo) -> String {
         .checked_div(max_scroll)
         .map(|p| p.min(100))
         .unwrap_or(100);
-    // Row 1-indexed for human reading.
-    let row = info.scroll_y + 1;
-    format!("Row {row}/{} — {percent}%", info.content_height)
+    // Cell-aware label: the substrate scrolls by cells regardless
+    // of row height. For fixed-row demos (scrollable_list)
+    // "cell Y of H" reads as rows; for mixed-height demos it
+    // doesn't lie about row counts.
+    format!(
+        "{percent}% — cell {y}/{h}",
+        y = info.scroll_y,
+        h = info.content_height
+    )
 }
 
 fn write_indicator_text(dom: &mut TuiDom, indicator: NodeId, text: &str) {
@@ -268,40 +241,6 @@ fn write_indicator_text(dom: &mut TuiDom, indicator: NodeId, text: &str) {
     let _ = dom.clear_children(indicator);
     let t = dom.create_text_node(text);
     let _ = dom.append_child(indicator, t);
-}
-
-/// Install the view-tabs click handler. Single listener on the
-/// `<nav class="view-tabs">` container; walks the target's
-/// ancestors looking for a `data-view` attribute, then calls
-/// [`set_view`].
-pub fn wire_view_tab_click(dom: &mut TuiDom, view_tabs: NodeId, state: Rc<RefCell<ShowcaseState>>) {
-    dom.add_event_listener(view_tabs, "click", ListenerOptions::default(), move |ctx| {
-        let Some(target) = ctx.event.target else {
-            return;
-        };
-        let Some(view) = find_view_attr_ancestor(ctx.dom, target) else {
-            return;
-        };
-        set_view(&mut state.borrow_mut(), ctx.dom, view);
-    })
-    .expect("view_tabs is a valid node");
-}
-
-fn find_view_attr_ancestor(dom: &TuiDom, start: NodeId) -> Option<ViewMode> {
-    let mut cur = Some(start);
-    while let Some(id) = cur {
-        if dom.node(id).tag_name() == Some("button")
-            && let Some(v) = dom.node(id).get_attribute("data-view")
-        {
-            return match v {
-                "demo" => Some(ViewMode::Demo),
-                "source" => Some(ViewMode::Source),
-                _ => None,
-            };
-        }
-        cur = dom.node(id).parent_node().map(|p| p.id());
-    }
-    None
 }
 
 pub fn wire_sidebar_click(dom: &mut TuiDom, sidebar: NodeId, state: Rc<RefCell<ShowcaseState>>) {

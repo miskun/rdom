@@ -27,8 +27,7 @@ pub mod shell;
 
 pub use demo::{Category, Demo, Source};
 pub use nav::{
-    ShowcaseState, ViewMode, mount_demo, set_view, wire_scroll_indicator, wire_sidebar_click,
-    wire_sidebar_keys, wire_view_tab_click,
+    ShowcaseState, mount_demo, wire_scroll_indicator, wire_sidebar_click, wire_sidebar_keys,
 };
 pub use registry::DEMOS;
 pub use shell::{ShellHandles, build_shell};

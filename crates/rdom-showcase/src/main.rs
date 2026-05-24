@@ -20,7 +20,7 @@ use std::rc::Rc;
 
 use rdom_showcase::{
     DEMOS, ShowcaseState, build_shell, mount_demo, shell::base_stylesheet, wire_scroll_indicator,
-    wire_sidebar_click, wire_sidebar_keys, wire_view_tab_click,
+    wire_sidebar_click, wire_sidebar_keys,
 };
 use rdom_tui::{App, TuiDom};
 
@@ -125,13 +125,10 @@ fn run(initial_idx: usize) -> std::io::Result<()> {
     // Tab / Shift+Tab is handled by the runtime's built-in
     // focus traversal (the `<li>`s carry `tabindex="0"`).
     wire_sidebar_keys(&mut dom, handles.sidebar, Rc::clone(&state));
-    // View-tabs click handler — Demo / Source toggle in the main
-    // view header.
-    wire_view_tab_click(&mut dom, handles.view_tabs, Rc::clone(&state));
     // Scroll listener — populates the indicator at the bottom of
-    // `<main>` with "Row N/M — P%" text whenever any scrollable
-    // descendant fires a scroll event.
-    wire_scroll_indicator(&mut dom, handles.scroll_indicator);
+    // `<main>` with current scroll info whenever any scrollable
+    // descendant of `<main>` fires a scroll event.
+    wire_scroll_indicator(&mut dom, handles.main, handles.scroll_indicator);
 
     // Construct the App with the shell's base stylesheet.
     let mut app = App::new(dom, base_stylesheet())?;
@@ -209,6 +206,59 @@ mod tests {
     #[test]
     fn unknown_argument_errors() {
         let err = parse_args(&args(&["--bogus"])).unwrap_err();
+        assert!(err.contains("--bogus"), "{err}");
+    }
+
+    #[test]
+    fn multiple_demo_flags_last_one_wins() {
+        // Repeated `--demo X --demo Y` — last wins (POSIX-ish
+        // convention). Pin the behavior so a future refactor
+        // doesn't silently swap to "first wins" or "error".
+        let slug_a = DEMOS[0].slug();
+        let slug_b = DEMOS[2].slug();
+        match parse_args(&args(&["--demo", slug_a, "--demo", slug_b])).unwrap() {
+            CliAction::Run { demo_idx } => assert_eq!(DEMOS[demo_idx].slug(), slug_b),
+            _ => panic!("expected Run"),
+        }
+    }
+
+    #[test]
+    fn list_short_circuits_after_demo() {
+        // `--demo X --list` — list trumps; never enters TUI.
+        // Useful for "show me the demo list, but I've been
+        // running this command with --demo before."
+        let slug = DEMOS[0].slug();
+        match parse_args(&args(&["--demo", slug, "--list"])).unwrap() {
+            CliAction::List => {}
+            _ => panic!("expected List"),
+        }
+    }
+
+    #[test]
+    fn help_short_circuits_after_demo() {
+        let slug = DEMOS[0].slug();
+        match parse_args(&args(&["--demo", slug, "--help"])).unwrap() {
+            CliAction::Help => {}
+            _ => panic!("expected Help"),
+        }
+    }
+
+    #[test]
+    fn list_flag_before_demo_short_circuits() {
+        // `--list --demo X` — list trumps regardless of position
+        // (it returns immediately on first sight).
+        match parse_args(&args(&["--list", "--demo", "events/counter-button"])).unwrap() {
+            CliAction::List => {}
+            _ => panic!("expected List"),
+        }
+    }
+
+    #[test]
+    fn unknown_flag_after_demo_errors() {
+        // Error should still propagate even if a valid `--demo`
+        // preceded the bogus arg.
+        let slug = DEMOS[0].slug();
+        let err = parse_args(&args(&["--demo", slug, "--bogus"])).unwrap_err();
         assert!(err.contains("--bogus"), "{err}");
     }
 }

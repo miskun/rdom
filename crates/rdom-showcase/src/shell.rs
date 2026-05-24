@@ -53,10 +53,12 @@ pub struct ShellHandles {
     pub main: NodeId,
     /// The sidebar `<aside>` — M3 attaches click listeners here.
     pub sidebar: NodeId,
-    /// The `<nav class="view-tabs">` container holding the
-    /// Demo / Source `<button>`s. M7 D1 attaches click listeners
-    /// here to switch view mode.
-    pub view_tabs: NodeId,
+    /// The `<details class="source-disclosure">` element below
+    /// the view-content mount. Its `<summary>` is "Source"; the
+    /// body is rebuilt by `mount_demo` to contain the active
+    /// demo's MARKUP + CSS strings. UA's `<details>` chrome
+    /// handles the toggle.
+    pub source_disclosure: NodeId,
     /// The scroll-position indicator at the bottom of `<main>`.
     /// M7 D3 updates this element's text on every `scroll` event
     /// fired by a descendant of the view-content mount.
@@ -145,46 +147,46 @@ pub fn build_shell(dom: &mut TuiDom) -> ShellHandles {
     dom.append_child(sidebar, nav).unwrap();
     dom.append_child(body, sidebar).unwrap();
 
-    // <main class="main"> — wraps the view tabs + the content mount.
-    //
-    // ```
     // <main class="main">
-    //   <nav class="view-tabs">
-    //     <button class="view-tab active" data-view="demo">Demo</button>
-    //     <button class="view-tab" data-view="source">Source</button>
-    //   </nav>
-    //   <div class="view-content"></div>  ← where demos mount
+    //   <div class="view-content"></div>             ← demo mounts here
+    //   <details class="source-disclosure">
+    //     <summary>Source</summary>
+    //     <pre class="source-markup">…</pre>
+    //     <pre class="source-css">…</pre>
+    //   </details>
+    //   <div class="scroll-indicator"></div>
     // </main>
-    // ```
     //
-    // Tabs in M7 D1 toggle the main view between the live demo
-    // and its source (markup + CSS strings). The `<button>` carries
-    // `data-view` so the click handler can switch without per-button
-    // listeners.
+    // Source revealed via native `<details>` disclosure — the
+    // browser-faithful pattern for "additional content the
+    // reader can opt into." UA handles the toggle (click summary
+    // or Enter/Space on focus). No custom tab UI, no view-mode
+    // state, no `.active` class flipping.
     let main = dom.create_element("main");
     dom.set_attribute(main, "class", "main").unwrap();
-
-    let view_tabs = dom.create_element("nav");
-    dom.set_attribute(view_tabs, "class", "view-tabs").unwrap();
-    for (label, view) in [("Demo", "demo"), ("Source", "source")] {
-        let tab = dom.create_element("button");
-        dom.set_attribute(tab, "class", "view-tab").unwrap();
-        dom.set_attribute(tab, "data-view", view).unwrap();
-        let tab_text = dom.create_text_node(label);
-        dom.append_child(tab, tab_text).unwrap();
-        dom.append_child(view_tabs, tab).unwrap();
-    }
-    dom.append_child(main, view_tabs).unwrap();
 
     let view_content = dom.create_element("div");
     dom.set_attribute(view_content, "class", "view-content")
         .unwrap();
     dom.append_child(main, view_content).unwrap();
 
+    // Source disclosure. Body is empty until the first
+    // `mount_demo` populates it with the active demo's MARKUP +
+    // CSS strings. Closed by default — demo gets the screen real
+    // estate unless the author opens it.
+    let source_disclosure = dom.create_element("details");
+    dom.set_attribute(source_disclosure, "class", "source-disclosure")
+        .unwrap();
+    let summary = dom.create_element("summary");
+    let summary_text = dom.create_text_node("Source");
+    dom.append_child(summary, summary_text).unwrap();
+    dom.append_child(source_disclosure, summary).unwrap();
+    dom.append_child(main, source_disclosure).unwrap();
+
     // <div class="scroll-indicator"></div> — status row at the
     // bottom of <main>. Empty when the active demo has no
     // scrollable element; populated by the `scroll` listener
-    // (M7 D3) with "Row N/M — P%" text.
+    // (M7 D3) with current scroll info.
     let scroll_indicator = dom.create_element("div");
     dom.set_attribute(scroll_indicator, "class", "scroll-indicator")
         .unwrap();
@@ -195,7 +197,7 @@ pub fn build_shell(dom: &mut TuiDom) -> ShellHandles {
         app_root: app,
         main: view_content,
         sidebar,
-        view_tabs,
+        source_disclosure,
         scroll_indicator,
     }
 }
@@ -274,35 +276,37 @@ const BASE_CSS: &str = r#"
   border-color: rgb(70, 80, 100);
 }
 
-/* Tab strip across the top of the main view. Two buttons:
- * "Demo" (active by default) and "Source". The .active class is
- * toggled by the view-tab click handler at runtime.
- */
-.main .view-tabs {
-  flex-direction: row;
-  height: 1;
-  flex-shrink: 0;
-  border-bottom: solid;
-  border-color: rgb(70, 80, 100);
-}
-.main .view-tabs .view-tab {
-  flex-shrink: 0;
-  padding: 0 2;
-  color: rgb(150, 170, 200);
-}
-.main .view-tabs .view-tab.active {
-  color: rgb(220, 230, 255);
-  font-weight: bold;
-}
-
 .main .view-content {
   flex: 1;
 }
 
+/* Source disclosure. Closed by default → demo takes all space
+ * above the scroll indicator. Open → the disclosure body
+ * expands to a fixed height, with overflow:auto so long source
+ * scrolls inside the disclosure rather than pushing chrome
+ * around.
+ */
+.main .source-disclosure {
+  flex-shrink: 0;
+  border-top: solid;
+  border-color: rgb(70, 80, 100);
+  max-height: 16;
+  overflow: auto;
+}
+.main .source-disclosure summary {
+  padding: 0 1;
+  color: rgb(180, 200, 230);
+  font-weight: bold;
+}
+.main .source-disclosure pre {
+  padding: 0 2;
+  color: rgb(200, 210, 230);
+}
+
 /* Scroll-position indicator at the bottom of <main>. Empty by
- * default — the listener writes "Row N/M — P%" text when a
- * descendant scrolls. The 1-cell height + flex-shrink: 0 keeps
- * the indicator visible without pushing demo content around.
+ * default — the listener writes scroll info when a descendant
+ * scrolls. The 1-cell height + flex-shrink: 0 keeps the
+ * indicator visible without pushing demo content around.
  */
 .main .scroll-indicator {
   height: 1;
@@ -355,24 +359,24 @@ mod tests {
     }
 
     #[test]
-    fn shell_exposes_view_tabs() {
-        // M7 D1: the shell now produces a <nav class="view-tabs">
-        // with two <button data-view> children.
+    fn shell_exposes_source_disclosure() {
+        // M7 D1 (refactored): the shell produces a <details
+        // class="source-disclosure"> with a <summary>"Source"
+        // child. `mount_demo` rebuilds the rest of the body.
         let mut dom: TuiDom = TuiDom::new();
         let handles = build_shell(&mut dom);
 
-        let tabs_node = dom.node(handles.view_tabs);
-        assert_eq!(tabs_node.tag_name(), Some("nav"));
-        let buttons: Vec<_> = tabs_node
+        let disclosure = dom.node(handles.source_disclosure);
+        assert_eq!(disclosure.tag_name(), Some("details"));
+        let summary = disclosure
             .child_nodes()
-            .filter(|n| n.tag_name() == Some("button"))
+            .find(|n| n.tag_name() == Some("summary"))
+            .expect("<summary> child");
+        let summary_text: String = summary
+            .child_nodes()
+            .filter_map(|c| c.node_value().map(str::to_string))
             .collect();
-        assert_eq!(buttons.len(), 2, "two tabs: Demo + Source");
-        let views: Vec<&str> = buttons
-            .iter()
-            .filter_map(|b| b.get_attribute("data-view"))
-            .collect();
-        assert_eq!(views, vec!["demo", "source"]);
+        assert_eq!(summary_text, "Source");
     }
 
     #[test]
