@@ -10,7 +10,7 @@ For the durable architecture and roadmap, see [`specs/DESIGN.md`](specs/DESIGN.m
 
 **Next milestone:** M7 — Showcase polish (source view + CLI deep-link + M5 event integration).
 
-**Status:** **M1 + M2 + M3 + M4 + M5 + M6 closed.** M6 shipped the `calc()` value system at the parse-time constant-evaluation layer: `calc(8 * 2)` resolves to `Size::Fixed(16)` at parse time and works end-to-end. Percent-bearing forms (`calc(100% - 4)`) parse into a `CalcExpr` AST but defer their resolution — tracked as `CALC-PCT-1` in TECH_DEBT.md with the precise pay-down recipe. 2,438 workspace tests passing.
+**Status:** **M1 + M2 + M3 + M4 + M5 + M6 closed.** M6 ships the `calc()` value system end-to-end: full layout-time resolution for `width` / `height` / `top` / `right` / `bottom` / `left` (`width: calc(100% - 4)` lays out at 36 cells in a 40-wide parent), parse-time constant evaluation for `padding` / `margin` / `gap`. `Size::Calc(Box<CalcExpr>)` + `Length::Calc(Box<CalcExpr>)` thread through cascade, layout, and animation. 2,448 workspace tests passing.
 
 The seven fixes (in order of discovery):
 1. `class` attribute ↔ `classList` round-trip per WHATWG (commit `a92aa6a`)
@@ -48,10 +48,12 @@ One piece of architectural debt deferred with teeth: `EVT-DETACH-1` (implicit bl
   - D4 — **`resize`** dispatches on the document root (Window target per HTML §UIEvents) when `CtEvent::Resize` fires. Coalesced per crossterm signal.
   - D5 — **`scroll`** dispatches on elements whose `scroll_x`/`scroll_y` actually changed. Three mutation sites wired: wheel scroll, scrollbar drag, programmatic `set_scroll_*`/`scroll_to`. No event at-rail-end wheel ticks.
   - D6 — **Implicit-detach event ceremony** (closes `EVT-DETACH-1`). New `Mutation::PreDetach` variant fires BEFORE structural unlink. `runtime::implicit_events` module's App-level observer dispatches `blur` + `focusout` on focus loss, `mouseout` + `mouseleave` on hover loss. Tree intact at dispatch → bubbling works through live ancestor chain. 8 integration tests pin the contract. Two `DIVERGENCES.md` entries removed.
-- [x] **M6** — `calc()` value system *(closed 2026-05-24)*. Two-phase delivery:
-  - D1 — **CalcExpr AST + parser**. New `crates/rdom-style/src/calc.rs` (CalcExpr enum, CalcOp, ResolveCtx, banker's-rounding resolver). Recursive-descent parser in `parse/values.rs` (`parse_calc`, `looks_like_calc`) handles `+ - * /` with correct precedence, parens, unary minus, nested `calc()`. 20 unit tests on the AST + parser.
-  - D2 — **Parse-time constant-eval integration into `Size` + `Length`**. `width: calc(2 + 3)` → `Size::Fixed(5)`; `top: calc(-3 * 2)` → `Length::Cells(-6)`. Negative size results clamp to 0 (CSS-correct). Percent-bearing forms parse but drop with warning — tracked as `CALC-PCT-1`. 6 end-to-end tests via `rdom_css::from_css`.
-  - **Scope decision**: full layout-time resolution of `calc(100% - 4)` requires adding `Calc(Box<CalcExpr>)` variants to `Size` / `Length` which removes `Copy` and ripples `.clone()` through ~50 cascade/layout/animation/pseudo-positioning sites. The mechanical refactor was scoped out of 0.2.0; the substrate (`CalcExpr` + parser + resolver) is already shipped, so closing `CALC-PCT-1` is the rippling part only.
+- [x] **M6** — `calc()` value system *(closed 2026-05-24)*. End-to-end shipped:
+  - **Phase 1** — `CalcExpr` AST + recursive-descent parser. CSS-correct precedence (`+ -` < `* /`), parens, unary minus, nested `calc()`. Banker's-rounding resolver. Substrate types: `Size::Calc(Box<CalcExpr>)`, `Length::Calc(Box<CalcExpr>)` — `Size` / `Length` non-Copy, `.clone()` at move boundaries. `PresentationStyle::Eq` derive removed; `AnimatedValue` non-Copy.
+  - **Phase 2** — Layout-time resolution: `apply_relative_shift` resolves `top`/`bottom` against parent height, `left`/`right` against parent width. `axis_size_from_edges` / `axis_position_anchored` / `axis_position_relative_shift` take `&Length` and resolve Calc via shared `length_to_cells` helper. `compute_placed_rect` (absolute positioning) resolves Size + Length Calc against the containing block. `compute_pseudo_layout_rect` (positioned pseudos) follows the same pattern. `layout_flex_children` resolves main-axis Calc against `main_budget` and cross-axis against `container_cross`.
+  - **Phase 3** — `parse_unsigned` and `parse_padding_shorthand` accept constant-only `calc()` (e.g. `padding: calc(2 * 3)` → 6 cells). Percent-bearing calc on padding/margin/gap is rejected — narrow gap tracked as `CALC-PADMARG-1`.
+  - **Phase 4** — End-to-end integration tests in `crates/rdom-tui/tests/calc_layout.rs` (10 tests): width / height / top / left / nested calc / negative-clamp / absolute positioning / relative shift / constant padding / paint-pipeline survival.
+  - **Animation**: Calc-bearing transitions snap at midpoint (no layout context at interpolation time). Documented in DIVERGENCES.md.
 - [ ] **M7** — Showcase polish: source view + CLI deep-link + M5 event integration. *Showcase.*
 - [ ] **M8** — Coverage demos (one per primitive in §0.1.0 + every new 0.2.0 addition). *Showcase.*
 - [ ] **M9** — CI + snapshots + README + DESIGN.md decision archive + per-crate version bumps + `cargo publish` → **0.2.0 ships**.
@@ -70,29 +72,30 @@ One piece of architectural debt deferred with teeth: `EVT-DETACH-1` (implicit bl
 
 ## Recent decisions
 
-### 2026-05-24 — M6 closed: calc() at parse-time constant-eval
+### 2026-05-24 — M6 closed: calc() value system end-to-end
 
-Shipped the `calc()` value system in two commits, with a deliberate scope reduction documented in `CALC-PCT-1`.
+Shipped the full `calc()` value system. Width / height / top / right / bottom / left support layout-time percentage-bearing calc through cascade → layout → paint. Padding / margin / gap support constant-only calc (narrow gap tracked as `CALC-PADMARG-1`).
 
-**What shipped:**
-- `crates/rdom-style/src/calc.rs` — the AST + resolver: `CalcExpr { Number(f64), Length(i32), Percent(f64), Binary { op, lhs, rhs } }`, `CalcOp { Add, Sub, Mul, Div }`, `ResolveCtx { percent_basis }`, banker's-rounding resolver. Already complete for both constant-eval and layout-time resolution paths — the latter has no caller yet.
-- Parser in `parse/values.rs` — recursive descent with correct CSS operator precedence, parens, unary minus, nested `calc()`. Accepts whitespace-or-not around `+`/`-` (divergence from CSS Values L3 documented; our tokenizer doesn't preserve whitespace).
-- Integration into `parse_size` and `parse_length` — when the calc expression contains no percentages, resolve at parse time and yield the existing `Size::Fixed` / `Length::Cells` variants. Author CSS like `width: calc(8 * 2)` works end-to-end with no other changes.
+**Initial scope reduction was the wrong call.** The first M6 attempt shipped parse-time constant-eval only and deferred the layout-time work as `CALC-PCT-1`. Grumpy review (correctly) flagged that as accumulated debt + "scope reduction" framing burying real work. Reopened M6, powered through the refactor.
 
-**What's deferred (and why):**
+**What the refactor actually entailed:**
+- `Size` + `Length` get `Calc(Box<CalcExpr>)` variants — both lose `Copy` / `Eq`, gain Clone-only semantics. The `.clone()` is O(1) for the simple variants; only `Calc` walks an AST.
+- 48 compile errors after the variant addition, deduping to ~15 unique sites. Mechanical fix per site: either `.clone()` at move boundaries OR change `match c.field` to `match &c.field` and dereference simple variants inline.
+- `apply_simple` macro in `cascade/apply.rs` changed from `*x` to `x.clone()` — works for both Copy and Clone-only types (Copy's Clone impl is memcpy).
+- `apply_size` / `apply_length` callers pass `parent.{field}.clone()` for inherited values.
+- `ResolveCtx` threaded into layout via new helpers `length_to_cells` (Length → Option<i32>) and `resolve_size_axis` (Size → u16). Each layout site picks the correct percentage basis: width sites use parent.width, height sites use parent.height, etc.
+- `apply_relative_shift` gained a parent-rect parameter — the caller (in `layout_node`) reads `parent_node().tui_ext().content_layout` and passes it through. CSS 2.1 §9.4.3: relative offsets resolve against the parent's content box.
+- Animation engine snaps Calc-bearing transitions at midpoint instead of tweening. Without resolved-pixel snapshotting at transition start (which requires layout context the engine doesn't currently have), smooth interpolation is impossible. Documented divergence; resolved-value snapshotting is a polish item.
+- `parse_unsigned` and `parse_padding_shorthand` accept constant-only `calc()` for the u16-backed properties. Avoiding the Padding/Margin field-type refactor in this milestone — those types stay `u16` per side. Percent-bearing calc on padding/margin requires changing those types (rippling through paint/layout/cascade reads), which would be a separate milestone.
 
-Resolving percent-bearing calc (`calc(100% - 4)`) at layout time would require:
-1. Adding `Calc(Box<CalcExpr>)` variants to `Size` and `Length`.
-2. Removing `Copy` from both enums (because the variants box a tree).
-3. Rippling `.clone()` through every site that destructures these enums by value. The compile-error count when I attempted the refactor: 48 errors across ~10 files, including the cascade animation interpolator, every layout pass (`flex.rs`, `intrinsic.rs`, `positioning.rs`, `positioned_pseudos.rs`), `PresentationStyle`'s `Eq` derive, etc.
+**Tests:**
+- 10 calc layout integration tests in `crates/rdom-tui/tests/calc_layout.rs` — width/height/top/left/nested/clamp/absolute/relative/constant-padding/paint-pipeline.
+- 6 existing end-to-end CSS tests retained.
+- 16 existing AST + parser tests retained.
 
-The work is mechanical but substantial — each site needs a careful resolution-context wire-up to know which dimension the percentage resolves against (`width` → parent content width; `top` → parent content height; etc.). I reverted the variant additions and shipped the parse-time path instead so 0.2.0 has a usable `calc()` for the second-most-common author idiom (constant arithmetic), with the percent path tracked as `CALC-PCT-1` carrying a precise pay-down recipe.
+**`CALC-PCT-1` retired** from TECH_DEBT.md. Replaced with the narrower `CALC-PADMARG-1` for padding/margin/gap percent-calc support — that's a clean follow-up requiring a Padding field-type change.
 
-The `CalcExpr` substrate is fully built; closing `CALC-PCT-1` is the rippling step plus threading `ResolveCtx` into the right layout sites. No new substrate design work needed.
-
-**Coverage shipped:**
-- Constants: `calc(2 + 3)`, `calc(2 + 3 * 4)` (precedence), `calc((2+3) * 4)` (parens), `calc(calc(2+3) * 4)` (nested), `calc(-3 * 2)` (unary).
-- Properties: `width`, `height` via `parse_size`; `top`/`right`/`bottom`/`left` via `parse_length`. Other length-bearing properties (padding, margin, gap, min-*, max-*, font-size) are not yet wired — same `CALC-PCT-1` follow-up.
+2,448 workspace tests passing.
 
 ### 2026-05-23 — M5 closed: event surface bundle + implicit detach ceremony
 

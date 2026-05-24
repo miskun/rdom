@@ -50,9 +50,10 @@ These are intrinsic to terminals. They will not change.
 
 ### Values
 
-- **`calc()` is parse-time constant evaluation only.** Expressions containing percentages (e.g. `calc(100% - 4)`) are dropped with a warning rather than resolved at layout time. The CSS-correct shape — `Calc(Box<CalcExpr>)` variant on `Size` / `Length` plus a layout-pass resolver — was scoped out of 0.2.0 because it requires removing `Copy` from those types and rippling `.clone()` through ~50 layout/cascade sites. The parse-time-constant path covers the second-most-common idiom (`width: calc(8 * 2)` and similar arithmetic-only forms) without the substrate refactor. Tracked as **`CALC-PCT-1`** in [`TECH_DEBT.md`](TECH_DEBT.md).
 - **`calc()` accepts both `5+5` and `5 + 5` inside the call.** CSS Values L3 requires whitespace around `+`/`-`; rdom's tokenizer doesn't preserve whitespace so the parser accepts either form. `*` and `/` don't need whitespace in CSS either, so those match.
+- **`calc()` on `padding` / `margin` / `gap` is constant-only.** Width/height/top/right/bottom/left support full layout-time `calc()` with percentages. Padding/margin/gap support `calc()` with constants only (`padding: calc(2 * 3)`); percent-bearing forms reject at parse time. The narrow gap is tracked as `CALC-PADMARG-1` in `TECH_DEBT.md`.
 - **`calc()` does NOT support `min(...)` / `max(...)` / `clamp(...)`.** CSS Values L4 functions. Deferred.
+- **CSS transitions don't smoothly tween between `calc()` values.** When either endpoint of a `transition` carries a `calc()` expression (Size or Length axis), the engine snaps at midpoint instead of interpolating. Smooth tweening would require resolving both endpoints to concrete cells using the current layout's parent dimensions at every animation tick — straightforward but unwired in M6.
 
 ### Cascade & selectors
 

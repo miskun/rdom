@@ -279,28 +279,37 @@ pub fn parse_overflow(value: &[Token]) -> Option<Overflow> {
 }
 
 pub fn parse_unsigned(value: &[Token]) -> Option<u16> {
-    if value.len() != 1 {
-        return None;
+    if value.len() == 1 {
+        if let Token::Number(n) = &value[0]
+            && *n >= 0
+        {
+            return Some(*n as u16);
+        }
     }
-    match &value[0] {
-        Token::Number(n) if *n >= 0 => Some(*n as u16),
-        _ => None,
+    // Constant `calc(...)` — a percent-bearing form has no
+    // sensible static basis here (padding/margin/gap don't carry
+    // a Calc-bearing type), so we reject it. The block parser's
+    // warning channel surfaces the rejection.
+    if looks_like_calc(value) {
+        let expr = parse_calc(value)?;
+        if expr.contains_percent() {
+            return None;
+        }
+        let cells = expr.resolve(&crate::calc::ResolveCtx::new(0));
+        return Some(cells.max(0).min(u16::MAX as i32) as u16);
     }
+    None
 }
 
 /// Padding shorthand expansion. Accepts 1..=4 unsigned integers.
 /// Order matches CSS: top, right, bottom, left (clockwise from top).
 pub fn parse_padding_shorthand(value: &[Token]) -> Option<Padding> {
-    let mut nums: Vec<u16> = Vec::with_capacity(4);
-    for tok in value {
-        match tok {
-            Token::Number(n) if *n >= 0 => nums.push(*n as u16),
-            _ => return None,
-        }
-        if nums.len() > 4 {
-            return None;
-        }
-    }
+    // Split on `calc(...)` function boundaries + bare numbers.
+    // Each value-position must be either a bare unsigned number
+    // OR a `calc(...)` that resolves to a constant integer (no
+    // percent — padding/margin's u16 field type can't carry a
+    // Calc AST; see DIVERGENCES.md).
+    let nums = split_padding_values(value)?;
     let p = match nums.as_slice() {
         [a] => Padding {
             top: *a,
@@ -329,6 +338,58 @@ pub fn parse_padding_shorthand(value: &[Token]) -> Option<Padding> {
         _ => return None,
     };
     Some(p)
+}
+
+/// Split a value-token slice into 1..=4 unsigned cell counts.
+/// Each position accepts:
+/// - bare `Token::Number(n)` with `n >= 0`
+/// - `calc(<const-expr>)` — resolves at parse time to an integer.
+///   Percent-bearing calcs are rejected (padding's u16 field type
+///   can't carry a Calc AST without a substrate refactor).
+fn split_padding_values(value: &[Token]) -> Option<Vec<u16>> {
+    let mut nums = Vec::with_capacity(4);
+    let mut i = 0;
+    while i < value.len() {
+        match &value[i] {
+            Token::Number(n) if *n >= 0 => {
+                nums.push(*n as u16);
+                i += 1;
+            }
+            Token::Function(name) if name.eq_ignore_ascii_case("calc") => {
+                // Scan forward for the matching `)` — calc-token
+                // through closing paren, accounting for nested
+                // parens / calc().
+                let mut depth = 1usize;
+                let mut j = i + 1;
+                while j < value.len() && depth > 0 {
+                    match &value[j] {
+                        Token::LParen | Token::Function(_) => depth += 1,
+                        Token::RParen => depth -= 1,
+                        _ => {}
+                    }
+                    j += 1;
+                }
+                if depth != 0 {
+                    return None;
+                }
+                let expr = parse_calc(&value[i..j])?;
+                if expr.contains_percent() {
+                    return None;
+                }
+                let cells = expr.resolve(&crate::calc::ResolveCtx::new(0));
+                nums.push(cells.max(0).min(u16::MAX as i32) as u16);
+                i = j;
+            }
+            _ => return None,
+        }
+        if nums.len() > 4 {
+            return None;
+        }
+    }
+    if nums.is_empty() {
+        return None;
+    }
+    Some(nums)
 }
 
 /// Read the current padding from `style`, defaulting to all-zero
