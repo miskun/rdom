@@ -423,25 +423,21 @@ fn min_max_width_height_clamp_via_css_strings() {
 }
 
 #[test]
-fn min_width_auto_protects_flex_item_from_collapsing_below_intrinsic() {
-    // M5.1.b decision 4: `min-width: auto` on a flex item resolves
-    // to the item's intrinsic min-content size — not zero. Pre-M5.1.b
-    // semantics: no `min-width` set means `min = 0`, so flex pressure
-    // could shrink the child to zero, hiding its content.
-    use rdom_css::parse_inline;
+fn auto_basis_flex_item_keeps_intrinsic_under_pressure() {
+    // CSS Flexbox §4.5: a flex item with `width: auto` (no
+    // explicit basis suggestion) has an unbounded specified
+    // suggestion, so its auto-min floor = content size. Under
+    // pressure from a sibling, it should keep at least its
+    // intrinsic content width.
+    //
+    // Compare to `flex: 1` items (`flex-basis: 0%`) which have a
+    // specified suggestion of 0 → auto-min = min(content, 0) = 0
+    // → free to shrink. That's the spec-correct distinction; the
+    // pre-M5-MIN-CONTENT-1 rdom carried a divergence that made
+    // explicit `min-width: auto` content-protective regardless of
+    // basis. That divergence was dropped — the spec-strict
+    // behavior is enough once the test uses the right basis.
     use rdom_style::layout::MinSize;
-    let style_a = parse_inline("min-width: auto; width: 8").style;
-    assert_eq!(
-        style_a.min_width,
-        Some(Value::Specified(MinSize::Auto)),
-        "min-width: auto must parse to MinSize::Auto"
-    );
-
-    // End-to-end: a flex container under cross-axis pressure pinches
-    // its child below the child's natural intrinsic size unless
-    // min-width: auto protects it. We give the child explicit text
-    // content via children, and use a fixed-text intrinsic
-    // measurement to verify the child's final width.
     let mut dom = tui_dom();
     let root = dom.root();
     let c = dom.create_element("c");
@@ -455,22 +451,183 @@ fn min_width_auto_protects_flex_item_from_collapsing_below_intrinsic() {
 
     let sheet = Stylesheet::bare()
         .rule_unchecked("c", TuiStyle::new().direction(Direction::Row))
-        .rule_unchecked(
-            "p",
-            TuiStyle::new()
-                .width(Size::Flex(1))
-                .min_width(MinSize::Auto),
-        )
+        // `width: auto + min-width: auto` is the spec-correct way
+        // to say "size from content, protect content". This is
+        // also what `flex: 0 1 auto` resolves to.
+        .rule_unchecked("p", TuiStyle::new().min_width(MinSize::Auto))
         .rule_unchecked("g", TuiStyle::new().width(Size::Flex(99)));
     cascade(&mut dom, &sheet);
     dom.layout_dom(Rect::new(0, 0, 80, 5));
 
-    // protected should not have collapsed to zero; its width should be
-    // at least the natural intrinsic of its text content (~11 cells).
     let pw = layout_rect_of(&dom, protected).width;
     assert!(
         pw >= 11,
-        "min-width: auto must protect at-least-intrinsic, got {pw}"
+        "auto-basis item with min-width: auto must protect intrinsic content, got {pw}"
+    );
+}
+
+#[test]
+fn flex_basis_zero_shrinks_freely_per_css_strict() {
+    // Counterpart to the above: per CSS Flexbox §4.5, a `flex: 1`
+    // (`flex-basis: 0%`) item's specified suggestion is 0, so
+    // its auto-min is also 0. It SHOULD shrink to its share of
+    // the flex distribution, even when content would otherwise
+    // floor it. This was the divergence we dropped — `flex: 1`
+    // items are now free to vanish per spec.
+    let mut dom = tui_dom();
+    let root = dom.root();
+    let c = dom.create_element("c");
+    let p = dom.create_element("p");
+    let g = dom.create_element("g");
+    let text = dom.create_text_node("very long text that would intrinsically need many cells");
+    dom.append_child(p, text).unwrap();
+    dom.append_child(c, p).unwrap();
+    dom.append_child(c, g).unwrap();
+    dom.append_child(root, c).unwrap();
+
+    let sheet = Stylesheet::bare()
+        .rule_unchecked("c", TuiStyle::new().direction(Direction::Row))
+        .rule_unchecked("p", TuiStyle::new().width(Size::Flex(1)))
+        .rule_unchecked("g", TuiStyle::new().width(Size::Flex(99)));
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 80, 5));
+
+    let pw = layout_rect_of(&dom, p).width;
+    let gw = layout_rect_of(&dom, g).width;
+    // p ≈ 1/100 of 80 = 0 or 1; g ≈ 99/100 of 80 = 79.
+    assert!(
+        pw <= 1,
+        "flex: 1 with no min must shrink to its flex share (~0–1), got {pw}"
+    );
+    assert!(
+        gw >= 78,
+        "flex: 99 sibling must take ~99/100 of the row, got {gw}"
+    );
+}
+
+#[test]
+fn auto_min_drops_to_zero_when_overflow_non_visible_per_css_4_5() {
+    // CSS Flexbox §4.5 exception: when the flex item's own
+    // overflow along the relevant axis is non-visible
+    // (hidden / scroll / auto), the auto-min floor goes back
+    // to 0 — the box's content is allowed to overflow into the
+    // scroll region.
+    //
+    // To make the exception observable, the container must be
+    // narrow enough that the auto-min floor would otherwise
+    // prevent shrink. Both children get equal Flex(1) shares in
+    // a 20-cell row: without the exception, p (11-cell intrinsic)
+    // refuses to shrink below 11 and overflow happens; with
+    // the exception, p shrinks to its 10-cell flex share.
+    let mut dom = tui_dom();
+    let root = dom.root();
+    let c = dom.create_element("c");
+    let p = dom.create_element("p");
+    let g = dom.create_element("g");
+    let tp = dom.create_text_node("hello world"); // 11 cells
+    let tg = dom.create_text_node("x");
+    dom.append_child(p, tp).unwrap();
+    dom.append_child(g, tg).unwrap();
+    dom.append_child(c, p).unwrap();
+    dom.append_child(c, g).unwrap();
+    dom.append_child(root, c).unwrap();
+
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "c",
+            TuiStyle::new()
+                .direction(Direction::Row)
+                .width(Size::Fixed(20)),
+        )
+        .rule_unchecked(
+            "p",
+            TuiStyle::new()
+                .width(Size::Flex(1))
+                .overflow_x(crate::layout::Overflow::Hidden),
+        )
+        .rule_unchecked("g", TuiStyle::new().width(Size::Flex(1)));
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 80, 5));
+
+    let pw = layout_rect_of(&dom, p).width;
+    // With the exception: p shrinks to its flex share (~10 cells).
+    // Without: p would refuse to shrink below 11 (intrinsic floor)
+    // and would push g out. The assertion catches the regression
+    // where the exception stops applying — p would jump back to ≥11.
+    assert!(
+        pw < 11,
+        "overflow:hidden must drop the content-min floor — p should shrink to its flex share, got {pw}"
+    );
+}
+
+#[test]
+fn fixed_width_caps_auto_min_per_css_4_5() {
+    // CSS Flexbox §4.5: auto-min = min(content_size_suggestion,
+    // specified_size_suggestion). A `width: 30` (Fixed) on an
+    // item with 60+ cells of intrinsic content should clamp auto-
+    // min to 30, NOT pin at 60. This lets `max-width` actually
+    // clamp the item even when content is larger.
+    let mut dom = tui_dom();
+    let root = dom.root();
+    let c = dom.create_element("c");
+    let p = dom.create_element("p");
+    let text = dom.create_text_node("a string that would intrinsically take many cells");
+    dom.append_child(p, text).unwrap();
+    dom.append_child(c, p).unwrap();
+    dom.append_child(root, c).unwrap();
+
+    let sheet = Stylesheet::bare()
+        .rule_unchecked("c", TuiStyle::new().direction(Direction::Row))
+        .rule_unchecked("p", TuiStyle::new().width(Size::Fixed(30)).max_width(30));
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 200, 5));
+
+    let pw = layout_rect_of(&dom, p).width;
+    assert_eq!(
+        pw, 30,
+        "max-width must clamp even when intrinsic content is larger (got {pw})"
+    );
+}
+
+#[test]
+fn calc_specified_caps_auto_min_per_css_4_5() {
+    // Block 1 finding: Size::Calc must contribute a definite
+    // specified suggestion. `width: calc(50%)` resolves to a
+    // concrete value at layout time; auto-min should be
+    // min(content, resolved-calc), not just content.
+    use rdom_style::calc::CalcExpr;
+    let mut dom = tui_dom();
+    let root = dom.root();
+    let c = dom.create_element("c");
+    let p = dom.create_element("p");
+    let text = dom.create_text_node("long string of content larger than 30 cells of intrinsic");
+    dom.append_child(p, text).unwrap();
+    dom.append_child(c, p).unwrap();
+    dom.append_child(root, c).unwrap();
+
+    // p width: calc(50%). With main_budget = 80, resolves to 40.
+    let basis_50pct = CalcExpr::Percent(50.0);
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "c",
+            TuiStyle::new()
+                .direction(Direction::Row)
+                .width(Size::Fixed(80)),
+        )
+        .rule_unchecked(
+            "p",
+            TuiStyle::new().width(Size::Calc(Box::new(basis_50pct))),
+        );
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 200, 5));
+
+    let pw = layout_rect_of(&dom, p).width;
+    // p should size to calc(50%) = 40, not be pinned at intrinsic
+    // (which is ~57 cells). Test passes only when the Calc branch
+    // contributes to specified_cap.
+    assert_eq!(
+        pw, 40,
+        "calc(50%) must produce a definite specified suggestion that bounds auto-min; got {pw}"
     );
 }
 

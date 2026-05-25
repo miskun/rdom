@@ -50,15 +50,40 @@ pub(super) fn content_min_size(
     intrinsic_size_inner(dom, id, direction, cross_budget, IntrinsicMode::ContentOnly)
 }
 
+/// How `intrinsic_size_inner` interprets the element's declared
+/// size.
+///
+/// Two callers in the layout pass need subtly different things:
+///
+/// 1. **Flex layout asking "how big does this child want to be on
+///    the main axis?"** — wants the box's declared size when set
+///    (`width: 30` means "I want 30"). Pick `BoxSize`. Used by
+///    `Size::Auto` resolution in `layout_flex_children`'s natural-
+///    size computation and by intrinsic measurement of grow-
+///    children's cross-axis suggestions.
+///
+/// 2. **Flex layout computing CSS Flexbox §4.5 content size
+///    suggestion** — wants the min-content of the actual content
+///    (text + children), even when the element has a declared
+///    size that's larger or smaller. Pick `ContentOnly`. Without
+///    this, an empty `<a width=100 max-width=30>` would report
+///    intrinsic = 100 (from the short-circuit) instead of 0
+///    (its actual content), and `max-width: 30` would never get
+///    a chance to clamp the box down.
+///
+/// Recursive descent always uses `BoxSize` for children — the
+/// content-only mode only skips the short-circuit at the TOP of
+/// the call stack. The auto-min rule applies to the box being
+/// measured, not its descendants.
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub(super) enum IntrinsicMode {
-    /// Honor an explicit `Size::Fixed` on the element (short-circuit
-    /// to that value). The intrinsic size of the BOX as it wants to
-    /// appear in layout — used to resolve `Size::Auto` siblings.
+    /// Honor an explicit `Size::Fixed` on the element (short-
+    /// circuit to that value). "Size of the box as it wants to
+    /// appear in layout."
     BoxSize,
-    /// Ignore any declared `Size::Fixed`; always measure children/
-    /// text. The intrinsic size of the CONTENT — used for CSS
-    /// Flexbox §4.5 content size suggestion.
+    /// Ignore any declared `Size::Fixed`; always measure children
+    /// plus text. "Size of the content irrespective of the box's
+    /// declaration." CSS Flexbox §4.5's content size suggestion.
     ContentOnly,
 }
 

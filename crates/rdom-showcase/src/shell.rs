@@ -243,6 +243,21 @@ pub fn base_stylesheet() -> Stylesheet {
 /// `.sidebar` keeps its `padding: 1` because the sidebar IS the
 /// showcase's own nav UI — not a demo — and the chrome owns its
 /// look.
+///
+/// **Fitting-pane chain.** `.app`, `.app-body`, and `.main` each
+/// declare `min-width: 0` / `min-height: 0`. This is a web-faithful
+/// app-shell pattern, not a workaround: by default flex items
+/// can't shrink below their intrinsic content size (CSS Flexbox
+/// §4.5), so a content-heavy demo would force its ancestor chain
+/// to grow past the viewport. The `min-*: 0` opt-in says "I am a
+/// fitting pane — clip me to the viewport, don't grow me to my
+/// children's content." Real CSS authors use the same pattern in
+/// browser app shells; the substrate fix (`M5-MIN-CONTENT-1`)
+/// adopted the contract, the chrome opts into the override for
+/// every container in the fitting chain. If a future structural
+/// change adds another container between `.app` and `.main`, that
+/// container needs the same opt-in or content overflow will
+/// reappear.
 const BASE_CSS: &str = r#"
 .app {
   flex: 1;
@@ -347,6 +362,15 @@ const BASE_CSS: &str = r#"
  */
 .main .scroll-indicator {
   height: 1;
+  /* The indicator is initially empty — its intrinsic content
+   * height is 0. Without an explicit min, the substrate's auto-
+   * min floor (min(content, specified)=0) would let the indicator
+   * collapse to 0 under tight viewport pressure. Explicit `min-
+   * height: 1` says "always reserve 1 row" regardless of content
+   * presence. This is the spec-correct way to express the
+   * authorial intent that the pre-substrate-fix code expressed
+   * via `flex-shrink: 0`. */
+  min-height: 1;
   border-top: solid;
   border-color: rgb(70, 80, 100);
   padding: 0 1;

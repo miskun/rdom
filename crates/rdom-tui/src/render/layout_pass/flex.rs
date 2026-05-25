@@ -250,92 +250,41 @@ pub(super) fn layout_flex_children(
 
         // Resolve `min-width: auto` / `min-height: auto` → intrinsic
         // content size, per CSS Flexbox §4.5. Flex items default to
-        // `min-*: auto` even when the author writes nothing — that's
-        // the CSS contract. Without this floor, a flex container that
-        // overflows would silently shrink its items to zero cells
-        // (the M5-MIN-CONTENT-1 substrate bug: every-other-row
-        // disappearing in a long sidebar, etc.).
+        // `min-*: auto` even when the author writes nothing —
+        // that's the CSS contract. Without this floor, a flex
+        // container that overflows would silently shrink its items
+        // to zero cells (the M5-MIN-CONTENT-1 substrate bug).
         //
-        // The auto-min is `min(intrinsic, specified)` — if the item
-        // has an explicit main-axis size, that caps the auto-min so
-        // the floor never exceeds the author's declared size.
+        // **Lazy resolution.** The auto-min only matters during
+        // shrink (`total > net_budget`). For the first `clamp_size`
+        // pass below, auto-min is mathematically ≤ natural for
+        // every Size variant (Flex items have specified_cap = 0;
+        // Fixed/Percent/Calc items have natural = specified_cap;
+        // Auto items have natural = intrinsic ≥ content-min). So
+        // we skip the content walk here — `min` carries only the
+        // explicit `Cells(n)` floor for the first pass; the shrink
+        // branch resolves Auto on demand for items it actually
+        // shrinks.
         //
-        // Spec exception: when the child's own `overflow` along this
-        // axis is non-visible, the auto-min floor goes back to 0 —
-        // CSS allows scroll/clip containers to be sized below their
-        // content (so the content can scroll inside).
+        // Authors that want strict zero shrink set `min-*: 0`
+        // explicitly. Authors that want content-protection on a
+        // grow item write the basis explicitly (`flex: 0 1 auto`
+        // / `width: auto`) so the specified suggestion is
+        // unbounded.
         //
-        // Authors that want responsive shrink past content size opt
-        // in explicitly: `min-width: 0` (or `min-height: 0`) on the
-        // flex item. That's web-faithful — the same opt-in real
-        // browsers require for flex items to shrink below intrinsic.
+        // Profile evidence: eager resolution added +47% to the
+        // full-frame benchmark
+        // (`benches/runtime.rs::bench_full_frame`); shrink-only
+        // resolution recovers the cost for the non-overflowing
+        // case (the common case).
         //
-        // v1 approximates CSS min-content with intrinsic natural size;
-        // strict min-content (longest-word width) is a future polish.
-        let overflow_on_axis = dom
-            .node(child)
-            .computed()
-            .map(|c| match direction {
-                Direction::Row => c.overflow_x,
-                Direction::Column => c.overflow_y,
-            })
-            .unwrap_or(crate::layout::Overflow::Visible);
-        // Per CSS Flexbox §4.5, the content size suggestion is the
-        // min-content size of the box's content, NOT the box's
-        // declared size. Use `content_min_size` so an empty `<a>`
-        // with `width: 100` reports content=0 — letting a smaller
-        // `max-width: 30` actually clamp the box down.
-        let intrinsic_min = content_min_size(dom, child, direction, cross_budget);
-        // Cap the auto-min by the specified main-axis size when one
-        // is set. Per CSS Flexbox §4.5, the "specified size
-        // suggestion" is the resolved value of the item's flex-
-        // basis (or `width` if flex-basis is auto). rdom's `flex: N`
-        // shorthand resolves flex-basis to 0% (CSS default for the
-        // `flex: <number>` form) — so a Flex(_) item's specified
-        // suggestion is 0, NOT infinity. Without this, every `flex:
-        // 1` panel would get pinned to its content's intrinsic
-        // width and never participate in shrink-to-fit.
-        let specified_cap: Option<u16> = match &main_size {
-            Size::Fixed(n) => Some(*n),
-            Size::Percent(p) => {
-                Some(((main_budget as u32 * *p as u32) / 100).min(u16::MAX as u32) as u16)
-            }
-            Size::Flex(_) => Some(0),
-            Size::Calc(_) | Size::Auto => None,
-        };
-        // Two flavors of "auto" min:
-        //
-        // - Implicit (`min_raw == None`): the CSS spec default for
-        //   flex items. Resolves to `min(content_suggestion,
-        //   specified_suggestion)` — so a `flex: 1` (basis: 0%)
-        //   item gets effective min=0, allowing free shrink.
-        // - Explicit (`min_raw == Some(Auto)`): rdom divergence
-        //   from CSS strict (documented in DIVERGENCES.md). An
-        //   author writing `min-width: auto` opts into "protect
-        //   intrinsic content", regardless of specified suggestion.
-        //   This gives authors a single-property way to declare
-        //   "don't shrink me below my content" without computing
-        //   the content size themselves.
-        //
-        // Both forms collapse to 0 under non-visible overflow, per
-        // CSS Flexbox §4.5.
-        let implicit_auto_min = if overflow_on_axis == crate::layout::Overflow::Visible {
-            match specified_cap {
-                Some(cap) => intrinsic_min.min(cap),
-                None => intrinsic_min,
-            }
-        } else {
-            0
-        };
-        let explicit_auto_min = if overflow_on_axis == crate::layout::Overflow::Visible {
-            intrinsic_min
-        } else {
-            0
-        };
+        // v1 approximates CSS min-content with intrinsic natural
+        // size; strict min-content (longest-word width with wrap)
+        // is a future polish tracked as `M5-MIN-CONTENT-2`.
         let min = match min_raw {
-            None => Some(implicit_auto_min),
+            None => None,
             Some(crate::layout::MinSize::Cells(n)) => Some(n),
-            Some(crate::layout::MinSize::Auto) => Some(explicit_auto_min),
+            Some(crate::layout::MinSize::Auto) => None,
         };
 
         if let MainNatural::Fixed(n) | MainNatural::Auto(n) = natural {
@@ -476,12 +425,14 @@ pub(super) fn layout_flex_children(
                 accumulated_shrink = target_total_shrink;
                 let new_size = final_main[i].saturating_sub(my_shrink);
                 // Honor min clamp — child can't shrink below its
-                // `min-width` / `min-height` (auto resolves to
-                // intrinsic min-content per M5 pre-prep decision 4).
-                final_main[i] = match ci.min {
-                    Some(m) => new_size.max(m),
-                    None => new_size,
-                };
+                // `min-width` / `min-height`. Explicit `Cells(n)` is
+                // stored in `ci.min`; the auto-min (implicit or
+                // explicit `Auto`) is resolved lazily here per CSS
+                // Flexbox §4.5.
+                let floor = ci.min.unwrap_or_else(|| {
+                    resolve_auto_min(dom, ci.id, direction, main_budget, cross_budget)
+                });
+                final_main[i] = new_size.max(floor);
             }
         }
     }
@@ -815,10 +766,72 @@ fn aspect_cross_from_main(
 struct ChildMain {
     id: NodeId,
     main: MainNatural,
+    /// Explicit `min: <n>` cell floor, or `None` for "use auto-min
+    /// resolved lazily during shrink". `None` covers both an unset
+    /// min (CSS spec default for flex items) and an explicit
+    /// `min: auto` — they share the same auto resolution path per
+    /// CSS Flexbox §4.5.
     min: Option<u16>,
     max: Option<u16>,
     main_start_margin: crate::layout::MarginValue,
     main_end_margin: crate::layout::MarginValue,
+}
+
+/// Compute the auto-min floor for `id` along `direction`, per CSS
+/// Flexbox §4.5. Called from the shrink branch when an item with
+/// implicit/auto min is about to be shrunk — eager resolution
+/// during the natural-size pass would walk every flex item's
+/// subtree every layout (the +47% regression observed in the
+/// full-frame benchmark), so we defer until we know the item is
+/// actually shrinking.
+fn resolve_auto_min(
+    dom: &Dom<TuiExt>,
+    id: NodeId,
+    direction: Direction,
+    main_budget: u16,
+    cross_budget: u16,
+) -> u16 {
+    let computed = match dom.node(id).computed() {
+        Some(c) => c.clone(),
+        None => return 0,
+    };
+    let main_size = match direction {
+        Direction::Row => &computed.width,
+        Direction::Column => &computed.height,
+    };
+    let overflow_on_axis = match direction {
+        Direction::Row => computed.overflow_x,
+        Direction::Column => computed.overflow_y,
+    };
+    // CSS §4.5 exception: non-visible overflow drops the floor to 0
+    // — items inside a scroll container are allowed to be sized
+    // below their content.
+    if overflow_on_axis != crate::layout::Overflow::Visible {
+        return 0;
+    }
+    // Specified size suggestion per spec.
+    let specified_cap: Option<u16> = match main_size {
+        Size::Fixed(n) => Some(*n),
+        Size::Percent(p) => {
+            Some(((main_budget as u32 * *p as u32) / 100).min(u16::MAX as u32) as u16)
+        }
+        Size::Calc(expr) => {
+            let v = expr.resolve(&rdom_style::calc::ResolveCtx::new(main_budget as i32));
+            Some(v.max(0).min(u16::MAX as i32) as u16)
+        }
+        Size::Flex(_) => Some(0),
+        Size::Auto => None,
+    };
+    // `flex: N` (basis 0%) trivially has specified=0, so auto-min
+    // = min(content, 0) = 0. Skip the content walk.
+    if matches!(specified_cap, Some(0)) {
+        return 0;
+    }
+    let content = content_min_size(dom, id, direction, cross_budget);
+    match specified_cap {
+        Some(cap) => content.min(cap),
+        None => content,
+    }
 }
 
 enum MainNatural {
@@ -892,7 +905,18 @@ fn resolve_cross_size(
             }
         }
     };
-    // Resolve `min-*: auto` → intrinsic min-content along this axis.
+    // Cross axis intentionally does NOT carry an auto-min content
+    // floor. CSS Flexbox §4.5's content-based min applies to the
+    // MAIN axis only, where a flex distribution can drive an item
+    // below its content size. The cross axis in rdom has no shrink
+    // distribution — items either stretch to fill the container
+    // (`Size::Auto` / `Flex`), take a declared value (`Fixed` /
+    // `Percent` / `Calc`), or honor an explicit `min-*: auto` opt-
+    // in. There is no path that would silently collapse cross-axis
+    // sizes, so no floor is needed. Adding one would force items
+    // to GROW past their natural cross size — which would break
+    // IFC wrap (a narrow column container's wider-content child
+    // would balloon to its content width, defeating the wrap).
     let min = match min_raw {
         None => None,
         Some(crate::layout::MinSize::Cells(n)) => Some(n),

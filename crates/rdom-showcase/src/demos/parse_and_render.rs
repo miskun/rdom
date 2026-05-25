@@ -62,6 +62,11 @@ pub const CSS: &str = r#"
   padding: 1;
   color: var(--ink);
   border-color: var(--muted);
+  /* Cards stretch to the row's cross-axis (height) but their
+   * content can exceed that height on narrow viewports. Clip
+   * cleanly rather than painting overflow text over the bottom
+   * border. */
+  overflow-y: hidden;
 }
 .par-demo .card.accent {
   border-color: var(--accent);
