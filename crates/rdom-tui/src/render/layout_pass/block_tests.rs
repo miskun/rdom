@@ -1944,3 +1944,471 @@ fn auto_height_block_with_overflow_hidden_includes_descendant_margins() {
         "BFC parent traps child's top margin → height includes it"
     );
 }
+
+// ── Phase 7: extended coverage (WPT-style scenarios) ─────────────
+
+// ── 7a — Margin collapse edge cases ──────────────────────────────
+
+#[test]
+fn parent_bottom_margin_collapses_with_last_child() {
+    // Symmetric to the parent-first-child top collapse: when the
+    // parent has no bottom padding/border and doesn't establish a
+    // new BFC, the last in-flow block child's `margin-bottom`
+    // collapses through the parent. The visible consequence: the
+    // parent's effective outer bottom margin includes the child's.
+    let mut dom = dom();
+    let root = dom.root();
+    let gp = dom.create_element("gp");
+    let p = dom.create_element("p");
+    let c = dom.create_element("c");
+    let next = dom.create_element("n");
+    dom.append_child(p, c).unwrap();
+    dom.append_child(gp, p).unwrap();
+    dom.append_child(gp, next).unwrap();
+    dom.append_child(root, gp).unwrap();
+
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "p",
+            TuiStyle::new().height(Size::Fixed(2)).margin(Margin::new(
+                MarginValue::Cells(0),
+                MarginValue::Cells(0),
+                MarginValue::Cells(3),
+                MarginValue::Cells(0),
+            )),
+        )
+        .rule_unchecked(
+            "c",
+            TuiStyle::new().height(Size::Fixed(1)).margin(Margin::new(
+                MarginValue::Cells(0),
+                MarginValue::Cells(0),
+                MarginValue::Cells(7),
+                MarginValue::Cells(0),
+            )),
+        )
+        .rule_unchecked("n", TuiStyle::new().height(Size::Fixed(1)));
+    cascade(&mut dom, &sheet);
+    run_block(&mut dom, gp, LayoutRect::new(0, 0, 80, 24));
+
+    // p height includes c's height but NOT c's margin-bottom
+    // (which escaped upward via P's outer bottom collapse).
+    // After P: gap = max(P.mb=3, C.mb=7) = 7. N at y = P.bottom (2) + 7 = 9.
+    assert_eq!(
+        layout_of(&dom, next).y,
+        2 + 7,
+        "N.y = max(P.mb=3, C.mb=7) above gp.y_cursor after P"
+    );
+}
+
+#[test]
+fn display_none_sibling_does_not_break_margin_adjacency() {
+    use crate::layout::Display;
+    let mut dom = dom();
+    let root = dom.root();
+    let parent = dom.create_element("p");
+    let a = dom.create_element("a");
+    let h = dom.create_element("h");
+    let b = dom.create_element("b");
+    dom.append_child(parent, a).unwrap();
+    dom.append_child(parent, h).unwrap();
+    dom.append_child(parent, b).unwrap();
+    dom.append_child(root, parent).unwrap();
+
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "a",
+            TuiStyle::new().height(Size::Fixed(1)).margin(Margin::new(
+                MarginValue::Cells(0),
+                MarginValue::Cells(0),
+                MarginValue::Cells(4),
+                MarginValue::Cells(0),
+            )),
+        )
+        .rule_unchecked("h", TuiStyle::new().display(Display::None))
+        .rule_unchecked(
+            "b",
+            TuiStyle::new().height(Size::Fixed(1)).margin(Margin::new(
+                MarginValue::Cells(2),
+                MarginValue::Cells(0),
+                MarginValue::Cells(0),
+                MarginValue::Cells(0),
+            )),
+        );
+    cascade(&mut dom, &sheet);
+    run_block(&mut dom, parent, LayoutRect::new(0, 0, 80, 24));
+
+    // display:none child is filtered out before run partitioning,
+    // so A.mb and B.mt collapse as if H weren't there.
+    assert_eq!(layout_of(&dom, b).y, 1 + 4);
+}
+
+#[test]
+fn negative_top_with_positive_bottom_partially_cancels() {
+    // A.mb=+5, B.mt=-2 → mixed → 5 + -2 = 3.
+    let mut dom = dom();
+    let root = dom.root();
+    let parent = dom.create_element("p");
+    let a = dom.create_element("a");
+    let b = dom.create_element("b");
+    dom.append_child(parent, a).unwrap();
+    dom.append_child(parent, b).unwrap();
+    dom.append_child(root, parent).unwrap();
+
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "a",
+            TuiStyle::new().height(Size::Fixed(2)).margin(Margin::new(
+                MarginValue::Cells(0),
+                MarginValue::Cells(0),
+                MarginValue::Cells(5),
+                MarginValue::Cells(0),
+            )),
+        )
+        .rule_unchecked(
+            "b",
+            TuiStyle::new().height(Size::Fixed(2)).margin(Margin::new(
+                MarginValue::Cells(-2),
+                MarginValue::Cells(0),
+                MarginValue::Cells(0),
+                MarginValue::Cells(0),
+            )),
+        );
+    cascade(&mut dom, &sheet);
+    run_block(&mut dom, parent, LayoutRect::new(0, 0, 80, 24));
+
+    assert_eq!(layout_of(&dom, b).y, 2 + (5 - 2));
+}
+
+#[test]
+fn parent_with_only_empty_collapse_through_children_has_zero_content() {
+    // All children are empty-collapse-through. Their margins fold
+    // together; with no real content, the parent's content height
+    // is 0 (and the merged margin escapes upward).
+    use crate::render::Rect;
+    let mut dom = dom();
+    let root = dom.root();
+    let parent = dom.create_element("p");
+    let e1 = dom.create_element("e1");
+    let e2 = dom.create_element("e2");
+    dom.append_child(parent, e1).unwrap();
+    dom.append_child(parent, e2).unwrap();
+    dom.append_child(root, parent).unwrap();
+
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "e1",
+            TuiStyle::new().margin(Margin::new(
+                MarginValue::Cells(2),
+                MarginValue::Cells(0),
+                MarginValue::Cells(3),
+                MarginValue::Cells(0),
+            )),
+        )
+        .rule_unchecked(
+            "e2",
+            TuiStyle::new().margin(Margin::new(
+                MarginValue::Cells(1),
+                MarginValue::Cells(0),
+                MarginValue::Cells(4),
+                MarginValue::Cells(0),
+            )),
+        );
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 80, 24));
+
+    // Parent has no real content; all margins collapse through.
+    // Phase 6.1 auto-height should resolve to 0 (no content
+    // extent) — margins escaped upward.
+    assert_eq!(
+        dom.node(parent).ext().unwrap().layout.height,
+        0,
+        "all-empty parent collapses to 0 content height"
+    );
+}
+
+// ── 7b — Width edge cases ────────────────────────────────────────
+
+#[test]
+fn min_width_floors_under_auto_margin_distribution() {
+    // CSS 2.1 §10.3.3 + §10.7: min-width clamp wins even when
+    // auto margins would have given the box less.
+    use crate::layout::MinSize;
+    let mut dom = dom();
+    let root = dom.root();
+    let parent = dom.create_element("p");
+    let child = dom.create_element("c");
+    dom.append_child(parent, child).unwrap();
+    dom.append_child(root, parent).unwrap();
+
+    let sheet = Stylesheet::bare().rule_unchecked(
+        "c",
+        TuiStyle::new()
+            .width(Size::Fixed(10))
+            .min_width(MinSize::Cells(60))
+            .margin(Margin::new(
+                MarginValue::Cells(0),
+                MarginValue::Auto,
+                MarginValue::Cells(0),
+                MarginValue::Auto,
+            )),
+    );
+    cascade(&mut dom, &sheet);
+    run_block(&mut dom, parent, LayoutRect::new(0, 0, 80, 24));
+
+    assert_eq!(layout_of(&dom, child).width, 60, "min-width clamp wins");
+}
+
+#[test]
+fn max_width_caps_before_auto_margins() {
+    // Auto margins distribute the LEFTOVER. With width: auto, the
+    // child would normally fill the container (80). With max-width:
+    // 30, the box caps at 30 and auto margins fight over 50 cells
+    // leftover → 25 each (LTR — odd leftover, but 50 is even).
+    let mut dom = dom();
+    let root = dom.root();
+    let parent = dom.create_element("p");
+    let child = dom.create_element("c");
+    dom.append_child(parent, child).unwrap();
+    dom.append_child(root, parent).unwrap();
+
+    let sheet = Stylesheet::bare().rule_unchecked(
+        "c",
+        TuiStyle::new().max_width(30).margin(Margin::new(
+            MarginValue::Cells(0),
+            MarginValue::Auto,
+            MarginValue::Cells(0),
+            MarginValue::Auto,
+        )),
+    );
+    cascade(&mut dom, &sheet);
+    run_block(&mut dom, parent, LayoutRect::new(0, 0, 80, 24));
+
+    let r = layout_of(&dom, child);
+    assert_eq!(r.width, 30, "max-width caps");
+    assert_eq!(r.x, 25, "leftover (50) splits 25/25");
+}
+
+#[test]
+fn width_percent_resolves_against_definite_containing_block() {
+    let mut dom = dom();
+    let root = dom.root();
+    let parent = dom.create_element("p");
+    let child = dom.create_element("c");
+    dom.append_child(parent, child).unwrap();
+    dom.append_child(root, parent).unwrap();
+
+    let sheet = Stylesheet::bare()
+        .rule_unchecked("p", TuiStyle::new().width(Size::Fixed(40)))
+        .rule_unchecked("c", TuiStyle::new().width(Size::Percent(25)));
+    cascade(&mut dom, &sheet);
+    run_block(&mut dom, parent, LayoutRect::new(0, 0, 40, 24));
+
+    assert_eq!(layout_of(&dom, child).width, 10, "25% of 40 = 10");
+}
+
+// ── 7c — Height resolution chains ────────────────────────────────
+
+#[test]
+fn percent_height_chains_through_three_definite_levels() {
+    // GP (Fixed 40) -> P (50% = 20) -> C (50% = 10)
+    use crate::render::Rect;
+    let mut dom = dom();
+    let root = dom.root();
+    let gp = dom.create_element("gp");
+    let p = dom.create_element("p");
+    let c = dom.create_element("c");
+    dom.append_child(p, c).unwrap();
+    dom.append_child(gp, p).unwrap();
+    dom.append_child(root, gp).unwrap();
+
+    let sheet = Stylesheet::bare()
+        .rule_unchecked("gp", TuiStyle::new().height(Size::Fixed(40)))
+        .rule_unchecked("p", TuiStyle::new().height(Size::Percent(50)))
+        .rule_unchecked("c", TuiStyle::new().height(Size::Percent(50)));
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 80, 60));
+
+    assert_eq!(dom.node(p).ext().unwrap().layout.height, 20);
+    assert_eq!(dom.node(c).ext().unwrap().layout.height, 10);
+}
+
+#[test]
+fn percent_height_breaks_chain_at_auto_ancestor() {
+    // GP (Fixed 40) -> P (Auto) -> C (50%)
+    // Chain breaks at P (Auto). C's percent falls back to intrinsic.
+    use crate::render::Rect;
+    let mut dom = dom();
+    let root = dom.root();
+    let gp = dom.create_element("gp");
+    let p = dom.create_element("p");
+    let c = dom.create_element("c");
+    let inner = dom.create_element("i");
+    dom.append_child(c, inner).unwrap();
+    dom.append_child(p, c).unwrap();
+    dom.append_child(gp, p).unwrap();
+    dom.append_child(root, gp).unwrap();
+
+    let sheet = Stylesheet::bare()
+        .rule_unchecked("gp", TuiStyle::new().height(Size::Fixed(40)))
+        // P is Auto — breaks the chain.
+        .rule_unchecked("c", TuiStyle::new().height(Size::Percent(50)))
+        .rule_unchecked("i", TuiStyle::new().height(Size::Fixed(3)));
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 80, 60));
+
+    assert_eq!(
+        dom.node(c).ext().unwrap().layout.height,
+        3,
+        "percent height falls to intrinsic (inner fixed 3) because parent P is Auto"
+    );
+}
+
+// ── 7d — Nested formatting contexts ──────────────────────────────
+
+#[test]
+fn block_inside_flex_inside_block() {
+    // Outer is block; middle is flex column with one child; that
+    // child is a block with two children. Each formatting context
+    // applies its own rules without leaking into siblings.
+    use crate::render::Rect;
+    let mut dom = dom();
+    let root = dom.root();
+    let outer = dom.create_element("outer");
+    let middle = dom.create_element("middle");
+    let inner = dom.create_element("inner");
+    let a = dom.create_element("a");
+    let b = dom.create_element("b");
+    dom.append_child(inner, a).unwrap();
+    dom.append_child(inner, b).unwrap();
+    dom.append_child(middle, inner).unwrap();
+    dom.append_child(outer, middle).unwrap();
+    dom.append_child(root, outer).unwrap();
+
+    let sheet = Stylesheet::bare()
+        // outer is block-flow (default)
+        .rule_unchecked(
+            "middle",
+            TuiStyle::new()
+                .flow(Flow::Flex)
+                .direction(Direction::Column)
+                .height(Size::Fixed(20)),
+        )
+        // inner: block-flow under flex parent. Its own block children
+        // stack. inner.height = stretch (cross axis is row; main is
+        // column → main = inner's natural).
+        .rule_unchecked("a", TuiStyle::new().height(Size::Fixed(5)))
+        .rule_unchecked("b", TuiStyle::new().height(Size::Fixed(7)));
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 80, 60));
+
+    let a_rect = dom.node(a).ext().unwrap().layout;
+    let b_rect = dom.node(b).ext().unwrap().layout;
+    // Block children stack inside inner.
+    assert_eq!(a_rect.y, 0, "a at inner's content top");
+    assert_eq!(b_rect.y, 5, "b stacks below a");
+    assert_eq!(a_rect.height, 5);
+    assert_eq!(b_rect.height, 7);
+}
+
+// ── 7e — Positioned / relative interactions ──────────────────────
+
+#[test]
+fn relative_positioned_child_does_not_shift_subsequent_block_siblings() {
+    // CSS 2.1 §9.4.3: relative positioning offsets the element
+    // visually but DOES NOT remove it from flow — subsequent
+    // siblings lay out as if the relative child was at its
+    // original position.
+    use crate::layout::{Length, Position};
+    use crate::render::Rect;
+    let mut dom = dom();
+    let root = dom.root();
+    let parent = dom.create_element("p");
+    let a = dom.create_element("a");
+    let b = dom.create_element("b");
+    dom.append_child(parent, a).unwrap();
+    dom.append_child(parent, b).unwrap();
+    dom.append_child(root, parent).unwrap();
+
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "a",
+            TuiStyle::new()
+                .height(Size::Fixed(3))
+                .position(Position::Relative)
+                .top(Length::Cells(5)),
+        )
+        .rule_unchecked("b", TuiStyle::new().height(Size::Fixed(2)));
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 80, 50));
+
+    // b sits at A's natural bottom (a.height = 3, b.y = 3), even
+    // though a was visually shifted to y=5.
+    assert_eq!(
+        dom.node(b).ext().unwrap().layout.y,
+        3,
+        "b's position is independent of A's relative shift"
+    );
+}
+
+// ── 7f — Gap interactions ────────────────────────────────────────
+
+#[test]
+fn block_gap_adds_to_collapsed_margins() {
+    // CSS3 Box Alignment + CSS 2.1: row-gap stacks ON TOP of the
+    // collapsed margin between block siblings. They don't merge.
+    let mut dom = dom();
+    let root = dom.root();
+    let parent = dom.create_element("p");
+    let a = dom.create_element("a");
+    let b = dom.create_element("b");
+    dom.append_child(parent, a).unwrap();
+    dom.append_child(parent, b).unwrap();
+    dom.append_child(root, parent).unwrap();
+
+    let sheet = Stylesheet::bare()
+        .rule_unchecked("p", TuiStyle::new().gap(2))
+        .rule_unchecked(
+            "a",
+            TuiStyle::new().height(Size::Fixed(2)).margin(Margin::new(
+                MarginValue::Cells(0),
+                MarginValue::Cells(0),
+                MarginValue::Cells(3),
+                MarginValue::Cells(0),
+            )),
+        )
+        .rule_unchecked(
+            "b",
+            TuiStyle::new().height(Size::Fixed(2)).margin(Margin::new(
+                MarginValue::Cells(1),
+                MarginValue::Cells(0),
+                MarginValue::Cells(0),
+                MarginValue::Cells(0),
+            )),
+        );
+    cascade(&mut dom, &sheet);
+    run_block(&mut dom, parent, LayoutRect::new(0, 0, 80, 24));
+
+    // a.bottom = 2. collapsed margin = max(3, 1) = 3. + gap = 2.
+    // b.y = 2 + 3 + 2 = 7.
+    assert_eq!(layout_of(&dom, b).y, 2 + 3 + 2);
+}
+
+#[test]
+fn block_gap_not_applied_before_first_or_after_last() {
+    // Gap is BETWEEN adjacent siblings, not around the outside.
+    let mut dom = dom();
+    let root = dom.root();
+    let parent = dom.create_element("p");
+    let a = dom.create_element("a");
+    dom.append_child(parent, a).unwrap();
+    dom.append_child(root, parent).unwrap();
+
+    let sheet = Stylesheet::bare()
+        .rule_unchecked("p", TuiStyle::new().gap(5))
+        .rule_unchecked("a", TuiStyle::new().height(Size::Fixed(2)));
+    cascade(&mut dom, &sheet);
+    run_block(&mut dom, parent, LayoutRect::new(0, 0, 80, 24));
+
+    // Single child: no gap. y=0.
+    assert_eq!(layout_of(&dom, a).y, 0);
+}
