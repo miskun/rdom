@@ -17,6 +17,7 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
+use crate::common::render;
 use crossterm::event::{
     Event as CtEvent, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent as CtMouseEvent,
     MouseEventKind,
@@ -26,9 +27,6 @@ use rdom_tui::layout::{Size, WhiteSpace};
 use rdom_tui::prelude::*;
 use rdom_tui::render::{Buffer, Rect, Terminal, TestBackend};
 use rdom_tui::runtime::app::App;
-
-mod common;
-use common::render;
 
 fn key(code: KeyCode) -> CtEvent {
     CtEvent::Key(KeyEvent::new(code, KeyModifiers::empty()))

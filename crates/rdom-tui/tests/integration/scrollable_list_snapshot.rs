@@ -1,13 +1,10 @@
 //! Paint snapshot for the `scrollable_list` example / showcase
 //! demo. Pins the initial paint at scrollTop=0 — first ~10 rows
 //! visible, scrollbar gutter reserved on the right.
-
-mod common;
-
 use rdom_showcase::demos::scrollable_list;
 use rdom_tui::prelude::*;
 
-use common::{assert_snapshot, buffer_to_snapshot, render};
+use crate::common::{assert_snapshot, buffer_to_snapshot, render};
 
 #[test]
 fn scrollable_list_initial_paint_matches_golden() {

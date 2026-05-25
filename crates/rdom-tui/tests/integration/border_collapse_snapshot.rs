@@ -1,13 +1,10 @@
 //! Paint snapshot for the `border_collapse_demo` example /
 //! showcase demo. Pins the joiner output at a fixed viewport so
 //! a regression in `paint_pass::border_join` flags immediately.
-
-mod common;
-
 use rdom_showcase::demos::border_collapse;
 use rdom_tui::prelude::*;
 
-use common::{assert_snapshot, buffer_to_snapshot, render};
+use crate::common::{assert_snapshot, buffer_to_snapshot, render};
 
 #[test]
 fn border_collapse_paint_matches_golden() {

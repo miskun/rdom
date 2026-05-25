@@ -28,9 +28,7 @@ fn dispatch<B: rdom_tui::render::Backend>(app: &mut App<B>, event: CtEvent) {
 fn shift(code: KeyCode) -> CtEvent {
     CtEvent::Key(KeyEvent::new(code, KeyModifiers::SHIFT))
 }
-
-mod common;
-use common::render;
+use crate::common::render;
 
 fn key(code: KeyCode) -> CtEvent {
     CtEvent::Key(KeyEvent::new(code, KeyModifiers::empty()))

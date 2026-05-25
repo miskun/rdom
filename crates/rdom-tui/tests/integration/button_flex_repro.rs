@@ -12,10 +12,7 @@
 //! See `IFC-INLINEBLOCK-PSEUDOS-1` in `specs/TECH_DEBT.md` for
 //! the deeper gap that remains (mixed `<p>text <button>btn</button>
 //! text</p>` content alongside inline elements is still unsupported).
-
-mod common;
-
-use common::{buffer_to_snapshot, render};
+use crate::common::{buffer_to_snapshot, render};
 use rdom_tui::prelude::*;
 
 fn snapshot_contains(snap: &str, needle: &str) -> bool {

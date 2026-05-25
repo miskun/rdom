@@ -1,13 +1,10 @@
 //! Paint snapshot for the `sticky_demo` example / showcase demo.
 //! Pins the initial paint (header at y=0, items below). Scrolling
 //! is interactive and not part of the static snapshot.
-
-mod common;
-
 use rdom_showcase::demos::sticky;
 use rdom_tui::prelude::*;
 
-use common::{assert_snapshot, buffer_to_snapshot, render};
+use crate::common::{assert_snapshot, buffer_to_snapshot, render};
 
 #[test]
 fn sticky_initial_paint_matches_golden() {

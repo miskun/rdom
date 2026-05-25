@@ -1,13 +1,10 @@
 //! Paint snapshot for the `parse_and_render` example / showcase
 //! demo. Pins the three-crate end-to-end pipeline: parser → CSS →
 //! cascade → layout → paint.
-
-mod common;
-
 use rdom_showcase::demos::parse_and_render;
 use rdom_tui::prelude::*;
 
-use common::{assert_snapshot, buffer_to_snapshot, render};
+use crate::common::{assert_snapshot, buffer_to_snapshot, render};
 
 #[test]
 fn parse_and_render_paint_matches_golden() {

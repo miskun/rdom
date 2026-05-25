@@ -7,13 +7,10 @@
 //! snapshot — the harness records visible glyphs, and style
 //! regressions are caught by the paint-pass unit tests in
 //! `rdom-tui`.
-
-mod common;
-
 use rdom_showcase::demos::{headings, inline_formatting, whitespace_modes};
 use rdom_tui::prelude::*;
 
-use common::{assert_snapshot, buffer_to_snapshot, render};
+use crate::common::{assert_snapshot, buffer_to_snapshot, render};
 
 #[test]
 fn headings_initial_paint() {

@@ -1,13 +1,10 @@
 //! Paint snapshot for the `mutation_observer` showcase demo.
 //! Pins the initial paint (empty list, empty log) so visual
 //! regressions to the demo chrome flag immediately.
-
-mod common;
-
 use rdom_showcase::demos::mutation_observer;
 use rdom_tui::prelude::*;
 
-use common::{assert_snapshot, buffer_to_snapshot, render};
+use crate::common::{assert_snapshot, buffer_to_snapshot, render};
 
 #[test]
 fn mutation_observer_initial_paint_matches_golden() {

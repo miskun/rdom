@@ -18,13 +18,10 @@
 //!
 //! Then `git diff` the snapshot to review the visual change
 //! before committing.
-
-mod common;
-
 use rdom_showcase::demos::counter_button;
 use rdom_tui::prelude::*;
 
-use common::{assert_snapshot, buffer_to_snapshot, render};
+use crate::common::{assert_snapshot, buffer_to_snapshot, render};
 
 #[test]
 fn counter_button_initial_paint_matches_golden() {

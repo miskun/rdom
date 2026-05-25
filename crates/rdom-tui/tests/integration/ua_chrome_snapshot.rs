@@ -13,13 +13,10 @@
 //! ```sh
 //! UPDATE_SNAPSHOTS=1 cargo test -p rdom-tui --test ua_chrome_snapshot
 //! ```
-
-mod common;
-
 use rdom_showcase::demos::ua_chrome;
 use rdom_tui::prelude::*;
 
-use common::{assert_snapshot, buffer_to_snapshot, render};
+use crate::common::{assert_snapshot, buffer_to_snapshot, render};
 
 #[test]
 fn ua_chrome_paints_naked_native_built_ins() {

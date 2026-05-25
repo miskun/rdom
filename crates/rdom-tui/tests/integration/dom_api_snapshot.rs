@@ -2,13 +2,10 @@
 //! Non-visual example originally — translated to a showcase demo
 //! that renders the API walkthrough's textual report into a
 //! `<pre>` block. Snapshot pins the report content + structure.
-
-mod common;
-
 use rdom_showcase::demos::dom_api;
 use rdom_tui::prelude::*;
 
-use common::{assert_snapshot, buffer_to_snapshot, render};
+use crate::common::{assert_snapshot, buffer_to_snapshot, render};
 
 #[test]
 fn dom_api_paint_matches_golden() {

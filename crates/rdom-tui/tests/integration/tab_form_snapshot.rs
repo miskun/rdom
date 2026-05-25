@@ -2,13 +2,10 @@
 //! Pins the initial paint (no focus, empty inputs, "(not submitted)"
 //! status). Catches regressions to `<input>`, `<textarea>`, and
 //! `<button>` UA chrome.
-
-mod common;
-
 use rdom_showcase::demos::tab_form;
 use rdom_tui::prelude::*;
 
-use common::{assert_snapshot, buffer_to_snapshot, render};
+use crate::common::{assert_snapshot, buffer_to_snapshot, render};
 
 #[test]
 fn tab_form_initial_paint_matches_golden() {

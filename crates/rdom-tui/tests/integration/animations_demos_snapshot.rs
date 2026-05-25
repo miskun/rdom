@@ -7,13 +7,10 @@
 //! `rdom-showcase/tests/`. These snapshots just pin the static
 //! initial paint — when ticks haven't fired yet, the bar is at
 //! 0%, the counter is 0, the box hasn't transitioned.
-
-mod common;
-
 use rdom_showcase::demos::{interval_counter, raf_progress, transition_box};
 use rdom_tui::prelude::*;
 
-use common::{assert_snapshot, buffer_to_snapshot, render};
+use crate::common::{assert_snapshot, buffer_to_snapshot, render};
 
 #[test]
 fn transition_box_initial_paint() {

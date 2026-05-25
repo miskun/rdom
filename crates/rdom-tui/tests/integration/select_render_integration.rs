@@ -9,13 +9,11 @@
 //! to render — e.g. when the selected option lookup returns the
 //! wrong label, or when paint takes a different path entirely.
 
+use crate::common::render;
 use rdom_tui::layout::Size;
 use rdom_tui::prelude::*;
 use rdom_tui::render::{Buffer, Rect, Terminal, TestBackend};
 use rdom_tui::runtime::app::App;
-
-mod common;
-use common::render;
 
 fn row_slice(buf: &Buffer, y: u16, x_start: u16, x_end: u16) -> String {
     let mut out = String::new();
