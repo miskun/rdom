@@ -137,6 +137,17 @@ pub fn build_shell(dom: &mut TuiDom) -> ShellHandles {
             dom.set_attribute(li, "data-demo-slug", demo.slug())
                 .unwrap();
             dom.set_attribute(li, "tabindex", "0").unwrap();
+            // The first `<li>` in the registry gets `autofocus` so
+            // the showcase boots with a keyboard-navigable element
+            // already focused. Without it, the app starts with
+            // nothing focused (web-faithful) and the user has to
+            // press Tab once before arrow keys do anything — easy
+            // to mistake for "the keyboard nav is broken." rdom's
+            // runtime/autofocus module picks the first eligible
+            // `[autofocus]` element on mount.
+            if demo.slug() == DEMOS[0].slug() {
+                dom.set_attribute(li, "autofocus", "").unwrap();
+            }
             let title = dom.create_text_node(demo.title());
             dom.append_child(li, title).unwrap();
             dom.append_child(ul, li).unwrap();
@@ -263,6 +274,31 @@ const BASE_CSS: &str = r#"
   border: solid;
   border-color: rgb(70, 80, 100);
   padding: 1;
+  /* Sidebar content (categories + lis) is taller than the viewport
+   * on small terminals. Scroll instead of letting the flex-shrink
+   * algorithm drop entries to zero height (which would stack
+   * multiple items at the same row — see M5-MIN-CONTENT-1). */
+  overflow-y: auto;
+}
+.sidebar nav {
+  flex-direction: column;
+  flex-shrink: 0;
+}
+.sidebar details {
+  flex-shrink: 0;
+  flex-direction: column;
+}
+.sidebar summary {
+  flex-shrink: 0;
+  height: 1;
+}
+.sidebar ul {
+  flex-shrink: 0;
+  flex-direction: column;
+}
+.sidebar li {
+  flex-shrink: 0;
+  height: 1;
 }
 .sidebar h2 {
   color: rgb(150, 170, 200);
