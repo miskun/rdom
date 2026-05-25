@@ -379,7 +379,54 @@ pub(super) fn paint_ifc(
     let Some(inline_layout) = dom.node(id).ext().and_then(|e| e.inline_layout.clone()) else {
         return;
     };
+    paint_inline_layout(dom, &inline_layout, inner, id, buf, clip);
+    // Caret is painted by `paint_node` once per element that owns
+    // an inline-flow container (IFC blocks AND pure-text leaf
+    // blocks); the call used to live here, but textareas/inputs go
+    // through `paint_inline_content` and never reach this function.
+    // The hoist keeps both paint paths consistent.
+}
 
+/// Paint each anonymous block box (BFC-1 phase 3) attached to
+/// `container_id`'s `TuiExt.anonymous_blocks`. Each anon box was
+/// synthesized by `layout_pass::block::layout_block_children` for
+/// a run of inline-level children inside a block container that
+/// also has block-level children. The anon box carries its own
+/// `InlineLayout` + `LayoutRect`; this routine paints each.
+///
+/// `bg_dedup_owner` is the parent block container — fragments
+/// whose `node` matches it get their bg painted by the parent's
+/// own `fill_bg`, so they paint with `glyph_style` to avoid double-
+/// apply under `opacity`.
+pub(super) fn paint_anonymous_blocks(
+    dom: &Dom<TuiExt>,
+    container_id: NodeId,
+    buf: &mut Buffer,
+    clip: Rect,
+) {
+    let anons: Vec<crate::ext::AnonymousIfc> = dom
+        .node(container_id)
+        .ext()
+        .map(|e| e.anonymous_blocks.clone())
+        .unwrap_or_default();
+    for anon in &anons {
+        paint_inline_layout(dom, &anon.inline_layout, anon.rect, container_id, buf, clip);
+    }
+}
+
+/// Shared body: paint `inline_layout` at `rect` (the IFC's content
+/// area in viewport coords). `bg_dedup_owner` is the element whose
+/// `fill_bg` already covers fragments owned by it — those fragments
+/// paint with `glyph_style` to avoid double-applying bg under
+/// `opacity`.
+fn paint_inline_layout(
+    dom: &Dom<TuiExt>,
+    inline_layout: &crate::render::inline::InlineLayout,
+    inner: LayoutRect,
+    bg_dedup_owner: NodeId,
+    buf: &mut Buffer,
+    clip: Rect,
+) {
     // The current selection range (document-ordered) — computed once
     // per IFC paint, reused across fragments. `None` when there's no
     // selection or it's collapsed (caret only, nothing to highlight).
@@ -409,13 +456,14 @@ pub(super) fn paint_ifc(
                 .and_then(|e| e.computed.as_ref())
                 .cloned()
                 .unwrap_or_else(ComputedStyle::initial);
-            // Fragments owned by the IFC block itself (text directly
-            // inside the block) have their bg painted by the block's
-            // `fill_bg`; using `style_from_computed` here would
-            // double-apply the bg under opacity. Inline-child
-            // fragments (`<span>` etc.) DO need their own bg in the
-            // glyph style since they have no `fill_bg` of their own.
-            let style = if fragment.node == id {
+            // Fragments owned by the bg-dedup owner (text directly
+            // inside the block / anon box) have their bg painted by
+            // the owner's `fill_bg`; using `style_from_computed`
+            // here would double-apply the bg under opacity. Inline-
+            // child fragments (`<span>` etc.) DO need their own bg
+            // in the glyph style since they have no `fill_bg` of
+            // their own.
+            let style = if fragment.node == bg_dedup_owner {
                 glyph_style_from_computed(&computed)
             } else {
                 style_from_computed(&computed)
@@ -463,12 +511,6 @@ pub(super) fn paint_ifc(
             }
         }
     }
-
-    // Caret is painted by `paint_node` once per element that owns
-    // an inline-flow container (IFC blocks AND pure-text leaf
-    // blocks); the call used to live here, but textareas/inputs go
-    // through `paint_inline_content` and never reach this function.
-    // The hoist keeps both paint paths consistent.
 }
 
 /// If the focused element is editable and its collapsed-selection

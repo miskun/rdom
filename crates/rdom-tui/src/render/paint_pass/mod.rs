@@ -64,7 +64,9 @@ use crate::render::{Buffer, Rect};
 use crate::style::{Color, ComputedStyle};
 
 use border::{fill_bg, paint_border};
-use inline_paint::{paint_caret_if_editable, paint_ifc, paint_inline_content};
+use inline_paint::{
+    paint_anonymous_blocks, paint_caret_if_editable, paint_ifc, paint_inline_content,
+};
 
 /// Extension trait on `Dom<TuiExt>` adding `paint_dom(buf, clip)`.
 pub trait PaintExt {
@@ -384,6 +386,14 @@ fn paint_node(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect) {
 
     // Recurse into element children (they paint at their own layouts).
     recurse_children(dom, id, buf, children_clip);
+
+    // Paint each anonymous block box synthesized by the block
+    // layout pass (BFC-1 phase 3). Anonymous boxes wrap runs of
+    // inline-level children inside a block container that also
+    // has block children; each carries its own `InlineLayout` +
+    // rect on `TuiExt.anonymous_blocks`. No-op when the Vec is
+    // empty (pure-flex, pure-IFC, or pure-block containers).
+    paint_anonymous_blocks(dom, id, buf, children_clip);
 
     // Scrollbar overlay (after children so it sits on top if
     // anything encroached).
