@@ -60,9 +60,12 @@
 //! their own). Text content is consumed via the parent element's
 //! intrinsic measurement.
 
+mod block;
+#[cfg(test)]
+mod block_tests;
 mod flex;
 mod ifc;
-mod intrinsic;
+pub(crate) mod intrinsic;
 mod positioned_pseudos;
 mod positioning;
 mod sticky;
