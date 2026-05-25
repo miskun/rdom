@@ -624,6 +624,73 @@ fn pure_block_container_has_no_anonymous_boxes() {
     );
 }
 
+// ── Inline-block atomic packing in IFC (phase 3.5b) ─────────────
+
+#[test]
+fn inline_block_inside_paragraph_packs_as_atomic_and_brackets_render() {
+    // CSS 2.1 §10.8 + BFC-1 phase 3.5b: a `Display::InlineBlock`
+    // child of an IFC participates as an atomic inline-level box.
+    // UA pseudos (`<button>`'s `[ ]`) paint at the fragment's
+    // rect via `paint_inline_content`'s single-row-chrome path.
+    use crate::render::{Buffer, PaintExt, Rect};
+
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let p = dom.create_element("p");
+    let t1 = dom.create_text_node("hi ");
+    let btn = dom.create_element("button");
+    let btn_t = dom.create_text_node("X");
+    dom.append_child(btn, btn_t).unwrap();
+    let t2 = dom.create_text_node(" ok");
+    dom.append_child(p, t1).unwrap();
+    dom.append_child(p, btn).unwrap();
+    dom.append_child(p, t2).unwrap();
+    dom.append_child(root, p).unwrap();
+    // SUB-2 workaround: trailing inline element so the IFC predicate
+    // (which requires at least one inline ELEMENT child) fires for
+    // text-only-plus-inline-block content.
+    let span = dom.create_element("span");
+    dom.append_child(p, span).unwrap();
+
+    // Cascade with UA defaults — that's where `<button>` gets
+    // `display: inline-block` + `[ ` / ` ]` pseudo chrome and
+    // `<span>` gets `display: inline`.
+    dom.cascade(&Stylesheet::new());
+
+    // Full pipeline.
+    let viewport = Rect::new(0, 0, 30, 5);
+    dom.layout_dom(viewport);
+    let mut buf = Buffer::empty(viewport);
+    dom.paint_dom(&mut buf, viewport);
+
+    // Read row 0: should contain "hi", "[ X ]" (button UA pseudo
+    // chrome), and "ok".
+    let mut row = String::new();
+    for x in 0..30 {
+        if let Some(c) = buf.cell(x, 0)
+            && !c.is_spacer()
+        {
+            row.push_str(c.symbol());
+        }
+    }
+    // Stronger check: "hi" must precede "[ X ]" must precede "ok",
+    // with a space separating each (pending-space-before-atom path).
+    let i_hi = row.find("hi").expect("hi missing");
+    let i_btn = row.find("[ X ]").expect("button UA chrome missing");
+    let i_ok = row.find("ok").expect("ok missing");
+    assert!(
+        i_hi < i_btn && i_btn < i_ok,
+        "inline-flow order broken: got {row:?}"
+    );
+    // Separators (collapsed whitespace) must survive around the
+    // atom — without `pending_space` honored, this would be
+    // "hi[ X ]ok".
+    assert!(
+        row.contains("hi [ X ] ok"),
+        "missing separator space around atomic inline-block: got {row:?}"
+    );
+}
+
 // ── Selection / inline-flow lookup (phase 3.4) ──────────────────
 
 #[test]

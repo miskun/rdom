@@ -105,11 +105,20 @@ pub(super) fn paint_inline_content(
         return;
     }
 
-    // Path 4: no own text, just chrome on a single row.
+    // Path 4: no inline_layout (either because the element is IFC-
+    // zeroed as a flex/IFC child OR because it has no own text and
+    // no children). Fall back to single-row chrome — render
+    // ::before + own_text_content (if any) + ::after at the inner
+    // rect. This covers the BFC-1 phase 3.5b atomic inline-block
+    // path: `paint_anonymous_blocks` / `paint_ifc` paint the
+    // atomic by calling back into `paint_inline_content` at the
+    // fragment's rect, but the inline-block child's own
+    // `inline_layout` was cleared during the parent IFC's zeroing
+    // pass.
     paint_single_row_chrome(
         dom,
         id,
-        "",
+        &own_text_content(dom, id),
         glyph_style_from_computed(computed),
         inner,
         buf,
@@ -447,6 +456,29 @@ fn paint_inline_layout(
         for fragment in &line.fragments {
             let frag_x = inner.x + fragment.x as i32;
             if frag_x >= clip.right() as i32 {
+                continue;
+            }
+
+            // Atomic inline-block fragments are rendered via the
+            // regular inline-content path at the fragment's rect —
+            // pseudo content (`<button>`'s `[ ]`), own text, and
+            // background all paint through the host element's
+            // normal paint pass. Done before the text-fragment
+            // body so atom-specific paint doesn't double-touch
+            // the text path. See `crate::render::inline::InlineFragment`
+            // doc for the contract.
+            if fragment.atomic {
+                let atom_rect = LayoutRect::new(frag_x, line_y, fragment.width, 1);
+                let atom_computed = dom
+                    .node(fragment.node)
+                    .ext()
+                    .and_then(|e| e.computed.as_ref())
+                    .cloned()
+                    .unwrap_or_else(ComputedStyle::initial);
+                // Reuse paint_inline_content: it handles
+                // ::before / own text / ::after at the given inner
+                // rect.
+                paint_inline_content(dom, fragment.node, &atom_computed, atom_rect, buf, clip);
                 continue;
             }
 

@@ -1,10 +1,11 @@
 //! IFC detection — is an element an inline formatting context?
 //!
-//! An element establishes an **IFC** when it has at least one
-//! element child with `display: inline` and no element children with
-//! `display: block`. Mixed (block + inline) is a cascade error —
-//! we treat it as a regular block so the flex layout keeps
-//! working.
+//! An element establishes an **IFC** when at least one of its
+//! element children participates as inline-level (Display::Inline
+//! OR Display::InlineBlock per CSS 2.1 §9.2.1) AND no children are
+//! block-level. Mixed block + inline is a cascade error here — the
+//! block-layout pass handles it via anonymous block boxes (CSS
+//! 2.1 §9.2.1.1, see `render/layout_pass/block.rs`).
 //!
 //! **Pure-text blocks (`<note>only text</note>`) are deliberately
 //! NOT IFC.** They're routed through the non-IFC paint path
@@ -17,32 +18,13 @@
 //! seeing the static pseudos. Unifying the two paths is deferred
 //! until pseudo content is integrated into `compute_inline_layout`.
 //!
-//! **Note on `Display::InlineBlock`**: inline-block does NOT flip
-//! the parent into IFC mode. An inline-block child of a flex
-//! container is a regular flex item with intrinsic sizing (see
-//! `flex.rs::resolve_cross_size`); it doesn't require IFC packing
-//! because it has its own layout rect, and routing the parent
-//! through the IFC path would zero its rect — the OOTB blocker.
-//!
-//! Stronger rule (M8): an inline-block child also **disqualifies**
-//! the parent from IFC even when there's an inline-element sibling.
-//! Previously the predicate ignored inline-block children for the
-//! decision; that caused `<row><button>X</button><span>Y</span></row>`
-//! (button is inline-block, span is inline) to enter IFC mode, where
-//! the IFC paint path drops the button's UA `::before` / `::after`
-//! pseudos because the IFC packer doesn't synthesize pseudo
-//! fragments for inline-block children. Per CSS Flexbox §3 step 7
-//! a flex container blockifies its children rather than establishing
-//! an IFC, so falling back to flex layout for this case is closer
-//! to the spec.
-//!
-//! Mixed inline-text + inline-block content (e.g.
-//! `<p>text <button>...</button> text</p>`) is still unsupported —
-//! the parent escapes IFC (no IFC text packing) but the regular
-//! flex layout doesn't surface text nodes as flow content either.
-//! Demos work around with the `<span>` wrapping idiom for text or
-//! stack inline-block items vertically. Proper anonymous-inline-box
-//! generation is deferred until a milestone after 0.1.0.
+//! **Display::InlineBlock in IFC** (BFC-1 phase 3.5b): an
+//! inline-block child participates in IFC as an atomic inline-
+//! level box (CSS 2.1 §10.8) — the IFC packer emits one fragment
+//! per inline-block carrying the box's intrinsic width, and paint
+//! renders it via the regular `paint_inline_content` path at that
+//! rect. UA pseudo content (`<button>`'s `[ ]` brackets) shows
+//! through.
 
 use rdom_core::{Dom, NodeId, NodeType};
 
@@ -64,18 +46,24 @@ pub(crate) fn is_ifc_block(dom: &Dom<TuiExt>, id: NodeId) -> bool {
             .map(|c| c.display)
             .unwrap_or(Display::Block);
         match display {
+            // `Inline` triggers IFC: its text packs into the
+            // parent's inline flow.
             Display::Inline => has_inline = true,
-            // InlineBlock is inline-LEVEL per CSS but rdom routes it
-            // through flex layout (with intrinsic cross-axis sizing)
-            // instead of IFC packing. It also disqualifies the
-            // parent from IFC even with inline-element siblings —
-            // see the module-doc note for the spec rationale.
-            Display::InlineBlock => return false,
+            // `InlineBlock` neither triggers nor disqualifies. When
+            // it appears alongside an `Inline` sibling (mixed text +
+            // inline + inline-block), the IFC packer treats it
+            // atomically (BFC-1 phase 3.5b). When it appears alone
+            // or only with text, the parent stays a flex container
+            // (the inline-block is a flex item with intrinsic
+            // sizing).
+            Display::InlineBlock => continue,
             // Display::None children are invisible and don't
             // participate in layout — they don't count as inline
             // but also don't disqualify an IFC (treat like a
             // whitespace/comment child).
             Display::None => continue,
+            // Block-level child → not IFC. The block-layout pass
+            // will partition into anonymous boxes per §9.2.1.1.
             Display::Block => return false,
         }
     }

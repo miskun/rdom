@@ -26,7 +26,7 @@ use super::ifc::is_ifc_block;
 /// resolve `Size::Auto`. `cross_budget` is the container's
 /// perpendicular dimension — consulted by IFC blocks to decide how
 /// many lines their content wraps to.
-pub(super) fn intrinsic_size(
+pub(crate) fn intrinsic_size(
     dom: &Dom<TuiExt>,
     id: NodeId,
     direction: Direction,

@@ -381,8 +381,68 @@ impl LinePacker {
             x,
             width,
             text: text.to_string(),
+            atomic: false,
         });
         self.cur_line_width = self.cur_line_width.saturating_add(width);
+    }
+
+    /// Push an **atomic inline-block** fragment — a
+    /// `Display::InlineBlock` element participating in IFC as a
+    /// single inline-level atom (CSS 2.1 §10.8).
+    ///
+    /// Commits any pending word + flushes the pending whitespace
+    /// separator so the atom sits at the natural inline-flow
+    /// cursor. Wrap behavior: atoms wrap-aware via the same `\u{a0}`-
+    /// proxy mechanism as text — emit a width-`width` placeholder
+    /// grapheme to lean on the existing wrap logic, then upgrade
+    /// the just-pushed fragment to `atomic = true`.
+    pub(super) fn push_atomic_inline_block(&mut self, node: NodeId, width: u16) {
+        if !self.word_buffer.is_empty() {
+            self.commit_word();
+        }
+        // Honor `pending_space` — a collapsed whitespace between
+        // preceding text and this atom MUST emit a separator
+        // fragment, otherwise `<p>hi <button>X</button> ok</p>`
+        // renders as "hi[ X ] ok" instead of "hi [ X ] ok".
+        // Skip the separator at IFC start (cur_line_width == 0)
+        // to keep the leading-whitespace trim invariant.
+        let separator: u16 = if self.pending_space && self.cur_line_width > 0 {
+            1
+        } else {
+            0
+        };
+        // Wrap if the atom (plus separator) doesn't fit on the
+        // current line and there's already content on the line.
+        let projected = self
+            .cur_line_width
+            .saturating_add(separator)
+            .saturating_add(width);
+        if projected > self.content_width && self.cur_line_width > 0 {
+            self.break_line();
+            self.pending_space = false;
+            self.pending_space_source = None;
+        } else if separator > 0 {
+            let (sep_owner, sep_text_node, sep_offset) =
+                self.pending_space_source.unwrap_or((node, node, 0));
+            self.append_fragment(sep_owner, sep_text_node, sep_offset, " ", 1);
+            self.pending_space = false;
+            self.pending_space_source = None;
+        }
+        let x = self.cur_line_width;
+        self.cur_fragments.push(InlineFragment {
+            node,
+            text_node: node, // sentinel — atom has no source text node
+            source_byte_offset: 0,
+            x,
+            width,
+            text: String::new(),
+            atomic: true,
+        });
+        self.cur_line_width = self.cur_line_width.saturating_add(width);
+        // Atoms behave like a committed word — any whitespace that
+        // FOLLOWS them must again emit a separator (we just emitted
+        // visible content, so `emitted_any` must be true).
+        self.emitted_any = true;
     }
 
     fn break_line(&mut self) {

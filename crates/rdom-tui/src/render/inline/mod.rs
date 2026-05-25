@@ -56,28 +56,45 @@ use packer::LinePacker;
 /// element whose text wraps produces multiple fragments (one per
 /// line). A whitespace-collapsed separator ("a <b>bold</b>") is
 /// also a single fragment whose text is `" "`.
+///
+/// **Atomic inline-block fragments** (`atomic = true`) carry a
+/// `Display::InlineBlock` element participating in IFC. Their
+/// `text` is empty; their `width` is the box's intrinsic main-
+/// axis size including UA pseudo content (`<button>`'s `[ … ]`).
+/// Paint renders them via the regular inline-content path at
+/// `(x, line_y, width)`; selection skips them; hit-test routes to
+/// `node`. Closes the bracketed-button-inside-`<p>` case of
+/// `IFC-MIXED-TEXT-INLINEBLOCK-1`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InlineFragment {
-    /// The direct element parent of the source text. Click / hover
-    /// routes to this node. For text directly under the IFC block,
-    /// this is the IFC block itself.
+    /// The direct element parent of the source text, or — for
+    /// `atomic = true` fragments — the inline-block element itself.
+    /// Click / hover routes here.
     pub node: NodeId,
     /// The source `Text` node whose data this fragment renders. For
     /// whitespace-collapsed separators, this is the text node that
-    /// contained the first collapsed whitespace byte. Used by
-    /// selection to map (x, y) → `Position { node: text_node, offset }`.
+    /// contained the first collapsed whitespace byte. For
+    /// `atomic = true` fragments, set to the inline-block element
+    /// (sentinel — there's no source text node).
     pub text_node: NodeId,
     /// Byte offset in `text_node`'s data where this fragment's
     /// first grapheme sits. The runtime's `position_at` walks
     /// fragment graphemes from `x` to compute the hit position.
+    /// `0` for atomic fragments.
     pub source_byte_offset: usize,
     /// X offset from the IFC block's content area left edge.
     pub x: u16,
-    /// Visible cell width of `text`.
+    /// Visible cell width of `text` (or, for atomic fragments,
+    /// the inline-block's intrinsic main-axis content size).
     pub width: u16,
     /// Normalized text to paint. No control characters; no leading /
     /// trailing whitespace when this fragment brackets a line.
+    /// Empty for `atomic = true` fragments.
     pub text: String,
+    /// True iff this fragment is an atomic inline-block box
+    /// (`Display::InlineBlock` participating in IFC). See the type
+    /// doc for the full contract.
+    pub atomic: bool,
 }
 
 /// One line of inline content.
@@ -280,6 +297,7 @@ pub fn compute_inline_layout_for_run(
         .map(|c| c.white_space)
         .unwrap_or(WhiteSpace::Normal);
 
+    use crate::layout::Display;
     let mut packer = LinePacker::new(content_width, ws);
     for &child_id in direct_children {
         let child = dom.node(child_id);
@@ -292,9 +310,21 @@ pub fn compute_inline_layout_for_run(
             NodeType::Element => {
                 if child.tag_name() == Some("br") {
                     packer.push_hard_break(child_id);
-                } else {
-                    walk_subtree(dom, child_id, &mut packer);
+                    continue;
                 }
+                // Inline-block participates as an atomic box — see
+                // `walk_subtree` for the rationale.
+                let display = child
+                    .ext()
+                    .and_then(|e| e.computed.as_ref())
+                    .map(|c| c.display)
+                    .unwrap_or(Display::Block);
+                if matches!(display, Display::InlineBlock) {
+                    let intrinsic = atomic_inline_block_intrinsic_width(dom, child_id);
+                    packer.push_atomic_inline_block(child_id, intrinsic);
+                    continue;
+                }
+                walk_subtree(dom, child_id, &mut packer);
             }
             _ => {}
         }
@@ -313,6 +343,7 @@ pub fn compute_inline_layout_for_run(
 /// Non-element children (comments, fragments) are passed through
 /// their descendant element walk.
 fn walk_subtree(dom: &Dom<TuiExt>, id: NodeId, packer: &mut LinePacker) {
+    use crate::layout::Display;
     for child in dom.node(id).child_nodes() {
         match child.node_type() {
             NodeType::Text => {
@@ -329,11 +360,41 @@ fn walk_subtree(dom: &Dom<TuiExt>, id: NodeId, packer: &mut LinePacker) {
                 // for a one-element special case.
                 if child.tag_name() == Some("br") {
                     packer.push_hard_break(child.id());
-                } else {
-                    walk_subtree(dom, child.id(), packer);
+                    continue;
                 }
+                // CSS 2.1 §10.8: a `Display::InlineBlock` element
+                // participates in IFC as a single atomic inline-
+                // level box. Don't recurse into it — the packer
+                // emits a width-`intrinsic` placeholder fragment,
+                // and paint renders the box's content (including
+                // UA pseudos like `<button>`'s `[ ]`) via the
+                // regular inline-content path at that rect.
+                let display = child
+                    .ext()
+                    .and_then(|e| e.computed.as_ref())
+                    .map(|c| c.display)
+                    .unwrap_or(Display::Block);
+                if matches!(display, Display::InlineBlock) {
+                    let intrinsic = atomic_inline_block_intrinsic_width(dom, child.id());
+                    packer.push_atomic_inline_block(child.id(), intrinsic);
+                    continue;
+                }
+                walk_subtree(dom, child.id(), packer);
             }
             _ => {}
         }
     }
+}
+
+/// Intrinsic main-axis (row) content width of an inline-block
+/// element treated as an atomic IFC box. Includes UA pseudo
+/// content (`::before` + `::after`) plus own text/inline content
+/// plus padding/border via the existing intrinsic measurement.
+fn atomic_inline_block_intrinsic_width(dom: &Dom<TuiExt>, id: NodeId) -> u16 {
+    // `intrinsic_size` already factors in pseudo widths +
+    // padding + border for Display::InlineBlock — that's the same
+    // measurement the flex layout uses to size inline-block flex
+    // items. Pass `cross_budget = 0` since IFC packers don't
+    // affect inline-block height; only the width matters here.
+    crate::render::layout_pass::intrinsic::intrinsic_size(dom, id, crate::layout::Direction::Row, 0)
 }
