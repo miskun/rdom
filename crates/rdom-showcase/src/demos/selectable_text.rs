@@ -38,6 +38,7 @@ pub const MARKUP: &str = r#"<div class="selectable-text-demo">
 pub const CSS: &str = r#"
 .selectable-text-demo {
   flex: 1;
+  display: flex;
   flex-direction: column;
   padding: 1 3;
   gap: 1;

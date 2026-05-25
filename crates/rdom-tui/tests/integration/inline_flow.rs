@@ -185,6 +185,7 @@ fn block_with_only_block_children_not_ifc() {
             "section",
             TuiStyle::new()
                 .display(Display::Block)
+                .flow(Flow::Flex)
                 .direction(Direction::Column),
         )
         .rule_unchecked(
@@ -539,6 +540,7 @@ fn auto_height_ifc_grows_to_fit_content() {
             "section",
             TuiStyle::new()
                 .display(Display::Block)
+                .flow(Flow::Flex)
                 .direction(Direction::Column)
                 .width(Size::Fixed(10)),
         )
@@ -808,6 +810,7 @@ fn resizing_terminal_wider_then_narrower_reflows_ifc_without_stale_cells() {
         .rule(
             "screen",
             TuiStyle::new()
+                .flow(Flow::Flex)
                 .direction(Direction::Column)
                 .width(Size::Flex(1))
                 .height(Size::Flex(1)),
@@ -816,6 +819,7 @@ fn resizing_terminal_wider_then_narrower_reflows_ifc_without_stale_cells() {
         .rule(
             "body",
             TuiStyle::new()
+                .flow(Flow::Flex)
                 .direction(Direction::Row)
                 .padding(Padding::all(1))
                 .height(Size::Flex(1)),
@@ -1019,6 +1023,7 @@ fn ifc_block_intrinsic_height_is_one_line() {
             "section",
             TuiStyle::new()
                 .display(Display::Block)
+                .flow(Flow::Flex)
                 .direction(Direction::Column),
         )
         // p: Auto height — should equal 1 because IFC Phase B is single-line.

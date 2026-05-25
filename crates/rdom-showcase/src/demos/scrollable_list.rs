@@ -24,6 +24,7 @@ pub const MARKUP: &str = r#"<div class="scroll-list-demo">
 pub const CSS: &str = r#"
 .scroll-list-demo {
   flex: 1;
+  display: flex;
   flex-direction: column;
   padding: 1 2;
   gap: 1;
@@ -35,6 +36,7 @@ pub const CSS: &str = r#"
 }
 .scroll-list-demo .list {
   flex: 1;
+  display: flex;
   flex-direction: column;
   overflow-y: auto;
 }

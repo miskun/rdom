@@ -65,6 +65,7 @@ fn row_fixed_children() {
         .rule_unchecked(
             "div",
             TuiStyle::new()
+                .flow(Flow::Flex)
                 .direction(Direction::Row)
                 .width(Size::Fixed(20))
                 .height(Size::Fixed(5)),
@@ -96,7 +97,13 @@ fn row_with_gap() {
     dom.append_child(root, c).unwrap();
 
     let sheet = Stylesheet::bare()
-        .rule_unchecked("c", TuiStyle::new().direction(Direction::Row).gap(2))
+        .rule_unchecked(
+            "c",
+            TuiStyle::new()
+                .flow(Flow::Flex)
+                .direction(Direction::Row)
+                .gap(2),
+        )
         .rule_unchecked("a", TuiStyle::new().width(Size::Fixed(3)))
         .rule_unchecked("b", TuiStyle::new().width(Size::Fixed(4)));
     cascade(&mut dom, &sheet);
@@ -124,7 +131,10 @@ fn row_flex_distributes_remaining() {
     // Viewport 50 wide. Container takes full 50.
     // a = Fixed(5), fx = Flex(1), b = Fixed(5). Remaining = 50-10 = 40.
     let sheet = Stylesheet::bare()
-        .rule_unchecked("c", TuiStyle::new().direction(Direction::Row))
+        .rule_unchecked(
+            "c",
+            TuiStyle::new().flow(Flow::Flex).direction(Direction::Row),
+        )
         .rule_unchecked("a", TuiStyle::new().width(Size::Fixed(5)))
         .rule_unchecked("fx", TuiStyle::new().width(Size::Flex(1)))
         .rule_unchecked("b", TuiStyle::new().width(Size::Fixed(5)));
@@ -149,7 +159,10 @@ fn row_flex_weights_distribute_proportionally() {
 
     // a = Flex(1), b = Flex(3). Viewport 40. a = 10, b = 30.
     let sheet = Stylesheet::bare()
-        .rule_unchecked("c", TuiStyle::new().direction(Direction::Row))
+        .rule_unchecked(
+            "c",
+            TuiStyle::new().flow(Flow::Flex).direction(Direction::Row),
+        )
         .rule_unchecked("a", TuiStyle::new().width(Size::Flex(1)))
         .rule_unchecked("b", TuiStyle::new().width(Size::Flex(3)));
     cascade(&mut dom, &sheet);
@@ -254,7 +267,7 @@ fn auto_text_uses_unicode_width() {
     // Text "hello" = 5 cells.
     let sheet = Stylesheet::bare().rule_unchecked(
         "span",
-        TuiStyle::new().direction(Direction::Row), // so row-fit takes text width
+        TuiStyle::new().flow(Flow::Flex).direction(Direction::Row), // so row-fit takes text width
     );
     cascade(&mut dom, &sheet);
     dom.layout_dom(Rect::new(0, 0, 50, 5));
@@ -282,7 +295,10 @@ fn auto_text_in_row_parent() {
     dom.append_child(r, span).unwrap();
     dom.append_child(root, r).unwrap();
 
-    let sheet = Stylesheet::bare().rule_unchecked("r", TuiStyle::new().direction(Direction::Row));
+    let sheet = Stylesheet::bare().rule_unchecked(
+        "r",
+        TuiStyle::new().flow(Flow::Flex).direction(Direction::Row),
+    );
     cascade(&mut dom, &sheet);
     dom.layout_dom(Rect::new(0, 0, 50, 5));
     // span is Auto in Row parent → main = intrinsic = 5 (width of "hello")
@@ -300,7 +316,10 @@ fn auto_text_cjk_is_two_cells_each() {
     dom.append_child(r, span).unwrap();
     dom.append_child(root, r).unwrap();
 
-    let sheet = Stylesheet::bare().rule_unchecked("r", TuiStyle::new().direction(Direction::Row));
+    let sheet = Stylesheet::bare().rule_unchecked(
+        "r",
+        TuiStyle::new().flow(Flow::Flex).direction(Direction::Row),
+    );
     cascade(&mut dom, &sheet);
     dom.layout_dom(Rect::new(0, 0, 50, 5));
     // UnicodeWidthStr::width("中国") = 4
@@ -321,10 +340,14 @@ fn auto_nested_element_recursive_fit() {
     dom.append_child(root, r).unwrap();
 
     let sheet = Stylesheet::bare()
-        .rule_unchecked("r", TuiStyle::new().direction(Direction::Row))
+        .rule_unchecked(
+            "r",
+            TuiStyle::new().flow(Flow::Flex).direction(Direction::Row),
+        )
         .rule_unchecked(
             "outer",
             TuiStyle::new()
+                .flow(Flow::Flex)
                 .direction(Direction::Row)
                 .padding(Padding::all(1)),
         );
@@ -349,7 +372,10 @@ fn max_width_clamps_flex() {
     dom.append_child(root, c).unwrap();
 
     let sheet = Stylesheet::bare()
-        .rule_unchecked("c", TuiStyle::new().direction(Direction::Row))
+        .rule_unchecked(
+            "c",
+            TuiStyle::new().flow(Flow::Flex).direction(Direction::Row),
+        )
         .rule_unchecked("a", TuiStyle::new().width(Size::Flex(1)).max_width(20));
     cascade(&mut dom, &sheet);
     dom.layout_dom(Rect::new(0, 0, 100, 5));
@@ -367,7 +393,10 @@ fn min_width_lifts_fixed() {
     dom.append_child(root, c).unwrap();
 
     let sheet = Stylesheet::bare()
-        .rule_unchecked("c", TuiStyle::new().direction(Direction::Row))
+        .rule_unchecked(
+            "c",
+            TuiStyle::new().flow(Flow::Flex).direction(Direction::Row),
+        )
         .rule_unchecked("a", TuiStyle::new().width(Size::Fixed(3)).min_width(10));
     cascade(&mut dom, &sheet);
     dom.layout_dom(Rect::new(0, 0, 100, 5));
@@ -404,7 +433,10 @@ fn min_max_width_height_clamp_via_css_strings() {
     dom.append_child(root, c).unwrap();
 
     let sheet = Stylesheet::bare()
-        .rule_unchecked("c", TuiStyle::new().direction(Direction::Row))
+        .rule_unchecked(
+            "c",
+            TuiStyle::new().flow(Flow::Flex).direction(Direction::Row),
+        )
         .rule_unchecked("a", style_a)
         .rule_unchecked("b", style_b);
     cascade(&mut dom, &sheet);
@@ -450,7 +482,10 @@ fn auto_basis_flex_item_keeps_intrinsic_under_pressure() {
     dom.append_child(root, c).unwrap();
 
     let sheet = Stylesheet::bare()
-        .rule_unchecked("c", TuiStyle::new().direction(Direction::Row))
+        .rule_unchecked(
+            "c",
+            TuiStyle::new().flow(Flow::Flex).direction(Direction::Row),
+        )
         // `width: auto + min-width: auto` is the spec-correct way
         // to say "size from content, protect content". This is
         // also what `flex: 0 1 auto` resolves to.
@@ -486,7 +521,10 @@ fn flex_basis_zero_shrinks_freely_per_css_strict() {
     dom.append_child(root, c).unwrap();
 
     let sheet = Stylesheet::bare()
-        .rule_unchecked("c", TuiStyle::new().direction(Direction::Row))
+        .rule_unchecked(
+            "c",
+            TuiStyle::new().flow(Flow::Flex).direction(Direction::Row),
+        )
         .rule_unchecked("p", TuiStyle::new().width(Size::Flex(1)))
         .rule_unchecked("g", TuiStyle::new().width(Size::Flex(99)));
     cascade(&mut dom, &sheet);
@@ -536,6 +574,7 @@ fn auto_min_drops_to_zero_when_overflow_non_visible_per_css_4_5() {
         .rule_unchecked(
             "c",
             TuiStyle::new()
+                .flow(Flow::Flex)
                 .direction(Direction::Row)
                 .width(Size::Fixed(20)),
         )
@@ -577,7 +616,10 @@ fn fixed_width_caps_auto_min_per_css_4_5() {
     dom.append_child(root, c).unwrap();
 
     let sheet = Stylesheet::bare()
-        .rule_unchecked("c", TuiStyle::new().direction(Direction::Row))
+        .rule_unchecked(
+            "c",
+            TuiStyle::new().flow(Flow::Flex).direction(Direction::Row),
+        )
         .rule_unchecked("p", TuiStyle::new().width(Size::Fixed(30)).max_width(30));
     cascade(&mut dom, &sheet);
     dom.layout_dom(Rect::new(0, 0, 200, 5));
@@ -611,6 +653,7 @@ fn calc_specified_caps_auto_min_per_css_4_5() {
         .rule_unchecked(
             "c",
             TuiStyle::new()
+                .flow(Flow::Flex)
                 .direction(Direction::Row)
                 .width(Size::Fixed(80)),
         )
@@ -646,7 +689,10 @@ fn aspect_ratio_computes_height_from_explicit_width_in_row_flex() {
     dom.append_child(root, c).unwrap();
 
     let sheet = Stylesheet::bare()
-        .rule_unchecked("c", TuiStyle::new().direction(Direction::Row))
+        .rule_unchecked(
+            "c",
+            TuiStyle::new().flow(Flow::Flex).direction(Direction::Row),
+        )
         .rule_unchecked(
             "a",
             TuiStyle::new().width(Size::Fixed(32)).aspect_ratio(16, 9),
@@ -691,7 +737,10 @@ fn aspect_ratio_ignored_when_both_axes_explicit() {
     dom.append_child(root, c).unwrap();
 
     let sheet = Stylesheet::bare()
-        .rule_unchecked("c", TuiStyle::new().direction(Direction::Row))
+        .rule_unchecked(
+            "c",
+            TuiStyle::new().flow(Flow::Flex).direction(Direction::Row),
+        )
         .rule_unchecked(
             "a",
             TuiStyle::new()
@@ -722,7 +771,10 @@ fn aspect_ratio_rounds_half_to_even() {
     dom.append_child(root, c).unwrap();
 
     let sheet = Stylesheet::bare()
-        .rule_unchecked("c", TuiStyle::new().direction(Direction::Row))
+        .rule_unchecked(
+            "c",
+            TuiStyle::new().flow(Flow::Flex).direction(Direction::Row),
+        )
         .rule_unchecked(
             "a",
             TuiStyle::new().width(Size::Fixed(30)).aspect_ratio(16, 9),
@@ -766,7 +818,10 @@ fn flex_row_centers_child_with_margin_auto_horizontal() {
     dom.append_child(root, c).unwrap();
 
     let sheet = Stylesheet::bare()
-        .rule_unchecked("c", TuiStyle::new().direction(Direction::Row))
+        .rule_unchecked(
+            "c",
+            TuiStyle::new().flow(Flow::Flex).direction(Direction::Row),
+        )
         .rule_unchecked(
             "a",
             TuiStyle::new().width(Size::Fixed(10)).margin(Margin {
@@ -809,7 +864,10 @@ fn flex_row_multi_auto_margin_distributes_equally() {
         left: MarginValue::Auto,
     };
     let sheet = Stylesheet::bare()
-        .rule_unchecked("c", TuiStyle::new().direction(Direction::Row))
+        .rule_unchecked(
+            "c",
+            TuiStyle::new().flow(Flow::Flex).direction(Direction::Row),
+        )
         .rule_unchecked("a", TuiStyle::new().width(Size::Fixed(5)).margin(auto_left))
         .rule_unchecked("b", TuiStyle::new().width(Size::Fixed(5)).margin(auto_left))
         .rule_unchecked("d", TuiStyle::new().width(Size::Fixed(5)).margin(auto_left));
@@ -834,7 +892,10 @@ fn flex_main_axis_cells_margin_offsets_child() {
     dom.append_child(root, c).unwrap();
 
     let sheet = Stylesheet::bare()
-        .rule_unchecked("c", TuiStyle::new().direction(Direction::Row))
+        .rule_unchecked(
+            "c",
+            TuiStyle::new().flow(Flow::Flex).direction(Direction::Row),
+        )
         .rule_unchecked(
             "a",
             TuiStyle::new().width(Size::Fixed(10)).margin(Margin {
@@ -870,7 +931,10 @@ fn flex_auto_margin_starves_flex_grow() {
     dom.append_child(root, c).unwrap();
 
     let sheet = Stylesheet::bare()
-        .rule_unchecked("c", TuiStyle::new().direction(Direction::Row))
+        .rule_unchecked(
+            "c",
+            TuiStyle::new().flow(Flow::Flex).direction(Direction::Row),
+        )
         .rule_unchecked(
             "a",
             TuiStyle::new().width(Size::Flex(1)).margin(Margin {
@@ -1088,6 +1152,7 @@ fn flex_row_with_collapse_shared_edge_is_one_cell() {
             TuiStyle::new()
                 .width(Size::Fixed(20))
                 .height(Size::Fixed(5))
+                .flow(Flow::Flex)
                 .direction(Direction::Row)
                 .border(Border::Single)
                 .border_collapse(BorderCollapse::Collapse),
@@ -1139,6 +1204,7 @@ fn flex_row_collapse_inactive_keeps_separate_borders() {
             TuiStyle::new()
                 .width(Size::Fixed(20))
                 .height(Size::Fixed(5))
+                .flow(Flow::Flex)
                 .direction(Direction::Row)
                 .border(Border::Single),
         )
@@ -1212,6 +1278,7 @@ fn flex_distribution_redistributes_integer_remainder() {
             "c",
             TuiStyle::new()
                 .width(Size::Fixed(31))
+                .flow(Flow::Flex)
                 .direction(Direction::Row),
         )
         .rule_unchecked("a", TuiStyle::new().width(Size::Flex(1)))
@@ -1255,6 +1322,7 @@ fn hit_test_at_shared_edge_returns_deeper_element() {
             TuiStyle::new()
                 .width(Size::Fixed(20))
                 .height(Size::Fixed(5))
+                .flow(Flow::Flex)
                 .direction(Direction::Row)
                 .border(Border::Single)
                 .border_collapse(BorderCollapse::Collapse),
@@ -1304,6 +1372,7 @@ fn collapse_three_bordered_siblings_share_two_junctions() {
             "outer",
             TuiStyle::new()
                 .width(Size::Fixed(20))
+                .flow(Flow::Flex)
                 .direction(Direction::Row)
                 .border(Border::Single)
                 .border_collapse(BorderCollapse::Collapse),
@@ -1344,6 +1413,7 @@ fn row_cross_axis_stretches() {
         .rule_unchecked(
             "r",
             TuiStyle::new()
+                .flow(Flow::Flex)
                 .direction(Direction::Row)
                 .height(Size::Fixed(8)),
         )
@@ -1368,6 +1438,7 @@ fn row_cross_axis_fixed_not_stretched() {
         .rule_unchecked(
             "r",
             TuiStyle::new()
+                .flow(Flow::Flex)
                 .direction(Direction::Row)
                 .height(Size::Fixed(10)),
         )
@@ -1426,6 +1497,7 @@ fn nested_containers_lay_out_independently() {
         .rule_unchecked(
             "outer",
             TuiStyle::new()
+                .flow(Flow::Flex)
                 .direction(Direction::Column)
                 .padding(Padding::all(1))
                 .border(Border::Single)
@@ -1497,7 +1569,13 @@ fn gap_only_between_not_after_last() {
     dom.append_child(root, c).unwrap();
 
     let sheet = Stylesheet::bare()
-        .rule_unchecked("c", TuiStyle::new().direction(Direction::Row).gap(3))
+        .rule_unchecked(
+            "c",
+            TuiStyle::new()
+                .flow(Flow::Flex)
+                .direction(Direction::Row)
+                .gap(3),
+        )
         .rule_unchecked("a", TuiStyle::new().width(Size::Fixed(5)))
         .rule_unchecked("b", TuiStyle::new().width(Size::Fixed(5)));
     cascade(&mut dom, &sheet);
@@ -1525,7 +1603,10 @@ fn flex_phase1_skips_absolute_child() {
     dom.append_child(root, c).unwrap();
 
     let sheet = Stylesheet::bare()
-        .rule_unchecked("c", TuiStyle::new().direction(Direction::Row))
+        .rule_unchecked(
+            "c",
+            TuiStyle::new().flow(Flow::Flex).direction(Direction::Row),
+        )
         .rule_unchecked(
             "abs",
             TuiStyle::new()
@@ -1552,7 +1633,10 @@ fn flex_phase1_skips_fixed_child() {
     dom.append_child(root, c).unwrap();
 
     let sheet = Stylesheet::bare()
-        .rule_unchecked("c", TuiStyle::new().direction(Direction::Row))
+        .rule_unchecked(
+            "c",
+            TuiStyle::new().flow(Flow::Flex).direction(Direction::Row),
+        )
         .rule_unchecked(
             "fixed",
             TuiStyle::new()
@@ -1578,7 +1662,10 @@ fn relative_shift_moves_layout_rect() {
     dom.append_child(root, c).unwrap();
 
     let sheet = Stylesheet::bare()
-        .rule_unchecked("c", TuiStyle::new().direction(Direction::Row))
+        .rule_unchecked(
+            "c",
+            TuiStyle::new().flow(Flow::Flex).direction(Direction::Row),
+        )
         .rule_unchecked(
             "rel",
             TuiStyle::new()
@@ -1611,7 +1698,10 @@ fn relative_shift_does_not_affect_sibling_layout() {
     dom.append_child(root, c).unwrap();
 
     let sheet = Stylesheet::bare()
-        .rule_unchecked("c", TuiStyle::new().direction(Direction::Row))
+        .rule_unchecked(
+            "c",
+            TuiStyle::new().flow(Flow::Flex).direction(Direction::Row),
+        )
         .rule_unchecked(
             "rel",
             TuiStyle::new()
@@ -1640,7 +1730,10 @@ fn relative_negative_offset_shifts_left() {
     dom.append_child(root, c).unwrap();
 
     let sheet = Stylesheet::bare()
-        .rule_unchecked("c", TuiStyle::new().direction(Direction::Row))
+        .rule_unchecked(
+            "c",
+            TuiStyle::new().flow(Flow::Flex).direction(Direction::Row),
+        )
         .rule_unchecked(
             "rel",
             TuiStyle::new()
@@ -1938,7 +2031,10 @@ fn flex_phase1_keeps_relative_child_in_flow() {
     dom.append_child(root, c).unwrap();
 
     let sheet = Stylesheet::bare()
-        .rule_unchecked("c", TuiStyle::new().direction(Direction::Row))
+        .rule_unchecked(
+            "c",
+            TuiStyle::new().flow(Flow::Flex).direction(Direction::Row),
+        )
         .rule_unchecked(
             "rel",
             TuiStyle::new()
@@ -1999,6 +2095,7 @@ fn inline_block_hugs_content_in_column_parent() {
         .rule_unchecked(
             "screen",
             TuiStyle::new()
+                .flow(Flow::Flex)
                 .direction(Direction::Column)
                 .width(Size::Flex(1))
                 .height(Size::Flex(1)),
@@ -2032,6 +2129,7 @@ fn inline_block_with_pseudo_chrome_hugs_content_plus_pseudos() {
         .rule_unchecked(
             "screen",
             TuiStyle::new()
+                .flow(Flow::Flex)
                 .direction(Direction::Column)
                 .width(Size::Flex(1)),
         )
@@ -2069,6 +2167,7 @@ fn inline_block_hugs_content_in_row_parent() {
         .rule_unchecked(
             "screen",
             TuiStyle::new()
+                .flow(Flow::Flex)
                 .direction(Direction::Row)
                 .width(Size::Flex(1))
                 .height(Size::Flex(1)),
@@ -2100,6 +2199,7 @@ fn inline_block_fixed_width_wins_over_intrinsic() {
         .rule_unchecked(
             "screen",
             TuiStyle::new()
+                .flow(Flow::Flex)
                 .direction(Direction::Column)
                 .width(Size::Flex(1)),
         )
@@ -2134,6 +2234,7 @@ fn block_still_stretches_cross_axially() {
         .rule_unchecked(
             "screen",
             TuiStyle::new()
+                .flow(Flow::Flex)
                 .direction(Direction::Column)
                 .width(Size::Flex(1)),
         )
@@ -2160,6 +2261,7 @@ fn inline_block_with_position_relative_shifts_in_flex_parent() {
         .rule_unchecked(
             "screen",
             TuiStyle::new()
+                .flow(Flow::Flex)
                 .direction(Direction::Column)
                 .width(Size::Flex(1)),
         )
@@ -2224,6 +2326,7 @@ fn layout_records_scroll_content_height_for_scrollable_column() {
         .rule_unchecked(
             "list",
             TuiStyle::new()
+                .flow(crate::layout::Flow::Flex)
                 .direction(crate::layout::Direction::Column)
                 .height(crate::layout::Size::Flex(1))
                 .overflow(crate::layout::Overflow::Scroll),
@@ -2452,4 +2555,72 @@ fn ifc_block_inline_block_only_returns_false() {
         !super::ifc::is_ifc_block(&dom, host),
         "InlineBlock-only parent stays non-IFC"
     );
+}
+
+// ── BFC-1 Phase 4.1: dispatch wiring ────────────────────────────
+
+#[test]
+fn block_flow_container_ignores_flex_direction_row() {
+    // BFC-1 Phase 4.1: a container with `flow: Block` (the cascaded
+    // default after Phase 1's Flow enum landed) must dispatch to
+    // `layout_block_children` and stack its block-level children
+    // vertically EVEN WHEN the author writes `flex-direction: row`
+    // — because block layout doesn't honor `flex-direction` at all
+    // (it's a flex-only property per CSS Flexbox §5.1). The current
+    // pre-phase-4 substrate routes everything through flex, so it
+    // WOULD honor the row direction; the new dispatch must ignore
+    // it for Block flow containers.
+    //
+    // We assert horizontal cursor (x) stays at 0 for both children
+    // — that's the unambiguous "block layout was selected" signal,
+    // since flex(row) would lay them out side-by-side with the
+    // second child at x = h1.width.
+    let mut dom = tui_dom();
+    let root = dom.root();
+    let container = dom.create_element("div");
+    let h1 = dom.create_element("h1");
+    let p = dom.create_element("p");
+    dom.append_child(container, h1).unwrap();
+    dom.append_child(container, p).unwrap();
+    dom.append_child(root, container).unwrap();
+
+    // Author writes `flex-direction: row` on the container — but
+    // `<div>` cascades to `flow: Block` per UA defaults (which
+    // implies `Display::Block` + the new `Flow::Block`), so flex-
+    // direction is inert. Children fixed-height to pin stacking.
+    let sheet = Stylesheet::new()
+        .rule_unchecked("div", TuiStyle::new().direction(Direction::Row))
+        .rule_unchecked(
+            "h1",
+            TuiStyle::new()
+                .height(Size::Fixed(2))
+                .width(Size::Fixed(15)),
+        )
+        .rule_unchecked(
+            "p",
+            TuiStyle::new()
+                .height(Size::Fixed(3))
+                .width(Size::Fixed(20)),
+        );
+    cascade(&mut dom, &sheet);
+
+    dom.layout_dom(Rect::new(0, 0, 40, 20));
+
+    let h1_rect = layout_rect_of(&dom, h1);
+    let p_rect = layout_rect_of(&dom, p);
+
+    // Block dispatch: both children at x = container left.
+    assert_eq!(
+        h1_rect.x, 0,
+        "h1 at container left (block layout, not flex)"
+    );
+    assert_eq!(p_rect.x, 0, "p at container left (block layout, not flex)");
+    // Block dispatch: p stacks BELOW h1, not beside it.
+    assert_eq!(h1_rect.y, 0, "h1 at container top");
+    assert_eq!(p_rect.y, 2, "p stacks directly below h1 (block layout)");
+    // Block dispatch: each child honors its declared width.
+    assert_eq!(h1_rect.width, 15, "h1 declared width");
+    assert_eq!(p_rect.width, 20, "p declared width");
+    assert_eq!(h1_rect.height, 2);
+    assert_eq!(p_rect.height, 3);
 }

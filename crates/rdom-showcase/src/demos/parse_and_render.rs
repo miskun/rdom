@@ -40,6 +40,7 @@ pub const CSS: &str = r#"
   --ink: #d0d0d0;
   --muted: #808080;
   flex: 1;
+  display: flex;
   flex-direction: column;
 }
 .par-demo title {
@@ -51,6 +52,7 @@ pub const CSS: &str = r#"
   border-color: var(--accent);
 }
 .par-demo body {
+  display: flex;
   flex-direction: row;
   gap: 2;
   padding: 1;

@@ -98,10 +98,17 @@ fn tab_form_full_loop_with_typing_and_submit() {
 
     // Minimal layout so the rows stack and have non-zero height.
     let sheet = Stylesheet::new()
-        .rule_unchecked("form", TuiStyle::new().direction(Direction::Column).gap(0))
+        .rule_unchecked(
+            "form",
+            TuiStyle::new()
+                .flow(Flow::Flex)
+                .direction(Direction::Column)
+                .gap(0),
+        )
         .rule_unchecked(
             "row",
             TuiStyle::new()
+                .flow(Flow::Flex)
                 .direction(Direction::Row)
                 .height(Size::Fixed(1)),
         )

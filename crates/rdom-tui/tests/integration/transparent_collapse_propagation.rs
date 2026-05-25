@@ -34,10 +34,12 @@ fn header_and_body_share_border_through_transparent_intermediate() {
     dom.append_child(body, main).unwrap();
 
     let css = r#"
-        app        { width: 80; height: 24; flex-direction: column;
+        app        { display: flex;
+ width: 80; height: 24; flex-direction: column;
                      border: solid; border-collapse: collapse; }
         header_el  { height: 3; border: solid; }
-        body_el    { flex: 1; flex-direction: row; }
+        body_el    { display: flex;
+ flex: 1; flex-direction: row; }
         sidebar_el { width: 28; border: solid; }
         main_el    { flex: 1; border: solid; }
     "#;
@@ -91,10 +93,12 @@ fn header_and_borderless_intermediate_with_no_bordered_descendants_dont_overlap(
     dom.append_child(text_child, text).unwrap();
 
     let css = r#"
-        app        { width: 30; height: 10; flex-direction: column;
+        app        { display: flex;
+ width: 30; height: 10; flex-direction: column;
                      border: solid; border-collapse: collapse; }
         header_el  { height: 3; border: solid; }
-        body_el    { flex: 1; flex-direction: column; }
+        body_el    { display: flex;
+ flex: 1; flex-direction: column; }
         text_child { height: 1; }
     "#;
     let sheet = rdom_css::from_css(css);
@@ -129,7 +133,8 @@ fn directly_bordered_sibling_still_overlaps() {
     dom.append_child(outer, b).unwrap();
 
     let css = r#"
-        outer_el { width: 20; height: 5; flex-direction: column;
+        outer_el { display: flex;
+ width: 20; height: 5; flex-direction: column;
                    border: solid; border-collapse: collapse; }
         a_el     { height: 2; border: solid; }
         b_el     { flex: 1; border: solid; }

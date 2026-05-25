@@ -31,7 +31,8 @@ fn child_with_own_border_under_collapse_parent_has_content_inset_by_own_border()
     dom.append_child(header, h1).unwrap();
 
     let css = r#"
-        app    { width: 80; height: 24; flex-direction: column;
+        app    { display: flex;
+ width: 80; height: 24; flex-direction: column;
                  border: solid; border-collapse: collapse; }
         header_el { height: 3; border: solid; }
         h1_el  { height: 1; }
@@ -94,7 +95,8 @@ fn child_with_own_border_under_collapse_paints_text_below_top_border_row() {
 
     let sheet = rdom_css::from_css(
         r#"
-        app    { width: 100%; height: 100%; flex-direction: column;
+        app    { display: flex;
+ width: 100%; height: 100%; flex-direction: column;
                  border: solid; border-collapse: collapse; }
         header_el { height: 3; border: solid; }
         h1_el  { height: 1; }

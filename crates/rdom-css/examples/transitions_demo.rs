@@ -172,6 +172,7 @@ fn main() -> io::Result<()> {
         .rule(
             "screen",
             TuiStyle::new()
+                .flow(Flow::Flex)
                 .direction(Direction::Column)
                 .width(Size::Flex(1))
                 .height(Size::Flex(1)),

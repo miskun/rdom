@@ -30,7 +30,8 @@ fn percent_width_main_axis_resolves_against_parent_content() {
     dom.append_child(parent, child).unwrap();
 
     let css = r#"
-        parent { width: 80; height: 10; flex-direction: row; }
+        parent { display: flex;
+ width: 80; height: 10; flex-direction: row; }
         child { width: 50%; height: 5; }
     "#;
     let sheet = rdom_css::from_css(css);
@@ -56,7 +57,8 @@ fn percent_height_main_axis_resolves_against_parent_content() {
     dom.append_child(parent, child).unwrap();
 
     let css = r#"
-        parent { width: 30; height: 20; flex-direction: column; }
+        parent { display: flex;
+ width: 30; height: 20; flex-direction: column; }
         child { width: 30; height: 25%; }
     "#;
     let sheet = rdom_css::from_css(css);
@@ -82,7 +84,8 @@ fn percent_cross_axis_resolves_against_container_cross() {
     dom.append_child(parent, child).unwrap();
 
     let css = r#"
-        parent { width: 40; height: 20; flex-direction: row; }
+        parent { display: flex;
+ width: 40; height: 20; flex-direction: row; }
         child { width: 10; height: 50%; }
     "#;
     let sheet = rdom_css::from_css(css);
@@ -109,7 +112,8 @@ fn percent_100_fills_parent_content_area() {
     dom.append_child(app, body).unwrap();
 
     let css = r#"
-        app { width: 100%; height: 100%; flex-direction: column; }
+        app { display: flex;
+ width: 100%; height: 100%; flex-direction: column; }
         body { width: 100%; height: 100%; }
     "#;
     let sheet = rdom_css::from_css(css);
@@ -147,7 +151,8 @@ fn percent_alongside_flex_distributes_correctly() {
     dom.append_child(parent, c).unwrap();
 
     let css = r#"
-        parent { width: 100; height: 10; flex-direction: row; }
+        parent { display: flex;
+ width: 100; height: 10; flex-direction: row; }
         a { width: 30%; height: 5; }
         b { width: 40; height: 5; }
         c { width: 1fr; height: 5; }

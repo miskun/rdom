@@ -29,6 +29,7 @@ pub const MARKUP: &str = r#"<div class="tab-form-demo">
 pub const CSS: &str = r#"
 .tab-form-demo {
   flex: 1;
+  display: flex;
   flex-direction: column;
   padding: 1 2;
   gap: 1;
@@ -42,6 +43,7 @@ pub const CSS: &str = r#"
   height: 1;
 }
 .tab-form-demo .row {
+  display: flex;
   flex-direction: row;
   gap: 1;
 }

@@ -19,6 +19,7 @@ const MARKUP: &str = r#"<div class="flex-row-demo">
 
 const CSS: &str = r#"
 .flex-row-demo {
+  display: flex;
   flex-direction: row;
   gap: 1;
   padding: 1;

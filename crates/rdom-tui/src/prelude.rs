@@ -79,6 +79,7 @@ pub use crate::{
     DomError,
     Event,
     EventPhase,
+    Flow,
     HitTestExt,
     ImportantMask,
     InteractionKind,

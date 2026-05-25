@@ -54,6 +54,21 @@ pub(crate) fn begin(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) ->
         return false;
     };
 
+    // Anchor must point at a real text node, not at an atomic
+    // inline-block sentinel. When an IFC packer emits a fragment
+    // for `Display::InlineBlock` (BFC-1 phase 3.5b), it sets
+    // `text_node = node` so the fragment carries the inline-block
+    // element id as its source. `position_at` happily returns a
+    // Position whose `node` is that element. Engaging drag-select
+    // there is wrong — atomic inline-blocks are interactive
+    // widgets (`<button>`, `<input type=submit>`), not selectable
+    // text. The click event must route to the widget itself, which
+    // pointer capture would clobber by retargeting to the IFC
+    // owner. Bail out so the click flow stays intact.
+    if dom.node(anchor.node).node_type() != rdom_core::NodeType::Text {
+        return false;
+    }
+
     // `user-select: all`: a click anywhere inside the host element
     // selects its entire text content as a single unit. The drag
     // still engages capture, but `extend` becomes a no-op for the

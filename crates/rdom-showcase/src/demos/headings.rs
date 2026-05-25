@@ -27,6 +27,7 @@ pub const MARKUP: &str = r#"<div class="headings">
 pub const CSS: &str = r#"
 .headings {
   flex: 1;
+  display: flex;
   flex-direction: column;
   padding: 1 2;
   gap: 0;

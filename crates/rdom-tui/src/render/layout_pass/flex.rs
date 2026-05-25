@@ -59,8 +59,30 @@ pub(super) fn layout_children(
         // Compute + store the inline layout at the block's final
         // content width. Paint reads this back directly.
         let inline_layout = compute_inline_layout(dom, id, container.width);
+        // Atomic inline-block fragments (`<button>` in
+        // `<p>hi <button>X</button> ok</p>`) need their layout rect
+        // written so hit-test descends into them, and need
+        // `layout_node` recursion so their own subtrees lay out
+        // (text wrap, pseudos, descendants). Snapshot fragments
+        // first to satisfy the borrow checker.
+        let mut atoms: Vec<(NodeId, LayoutRect)> = Vec::new();
+        for (line_idx, line) in inline_layout.lines.iter().enumerate() {
+            let line_y = container.y + line_idx as i32;
+            for fragment in &line.fragments {
+                if !fragment.atomic {
+                    continue;
+                }
+                atoms.push((
+                    fragment.node,
+                    LayoutRect::new(container.x + fragment.x as i32, line_y, fragment.width, 1),
+                ));
+            }
+        }
         if let Some(ext) = dom.node_mut(id).ext_mut() {
             ext.inline_layout = Some(inline_layout);
+        }
+        for (atom_id, atom_rect) in atoms {
+            layout_node(dom, atom_id, atom_rect);
         }
         return;
     }
@@ -94,6 +116,34 @@ pub(super) fn layout_children(
         // transitioned back to block via cascade.
         ext.inline_layout = None;
     }
+
+    // BFC-1 Phase 4.1 — dispatch on cascaded `flow`. Default flow
+    // is Block (set by Phase 1's cascade machinery), so semantic
+    // HTML (`<div><h1><p></p></div>`) routes to
+    // `layout_block_children` for CSS 2.1 §10 normal-flow stacking.
+    // Authors opt into flex with `display: flex` (which the parser
+    // maps to Display::Block + Flow::Flex per CSS3 Display Module).
+    //
+    // Note: this branch runs ONLY after the IFC + pure-text-leaf
+    // carve-outs above. Both of those paths must stay above the
+    // dispatch — they're not parameterized by Flow.
+    match computed.flow {
+        crate::layout::Flow::Block => {
+            // Stale anon boxes from a prior flex layout: clear so
+            // the new block layout starts fresh. Anon boxes will
+            // be repopulated by `layout_block_children`.
+            super::block::layout_block_children(dom, id, container, computed);
+            return;
+        }
+        crate::layout::Flow::Flex => {
+            // Fall through to flex distribution. Stale anon boxes
+            // from a prior block layout get cleared here.
+            if let Some(ext) = dom.node_mut(id).ext_mut() {
+                ext.anonymous_blocks.clear();
+            }
+        }
+    }
+
     // Filter out children that don't participate in normal flow:
     //
     // - `display: none` — invisible to layout and paint.
@@ -648,7 +698,7 @@ pub(super) fn has_effective_border_on_edge(
 /// shared border row is actually shared with a child's own border;
 /// when the child is content-bearing (no border), it would land
 /// on the parent's painted border row.
-fn collapse_parent_edge_insets(
+pub(super) fn collapse_parent_edge_insets(
     dom: &Dom<TuiExt>,
     children: &[NodeId],
     parent: &ComputedStyle,

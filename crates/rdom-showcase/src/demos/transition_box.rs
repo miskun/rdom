@@ -29,6 +29,7 @@ pub const MARKUP: &str = r#"<div class="transition-demo">
 pub const CSS: &str = r#"
 .transition-demo {
   flex: 1;
+  display: flex;
   flex-direction: column;
   padding: 1 2;
   gap: 1;

@@ -41,7 +41,8 @@ fn percent_height_with_fixed_sibling_shrinks_to_fit() {
             body_id = Some(body);
         },
         r#"
-            app       { width: 80; height: 24; flex-direction: column; }
+            app       { display: flex;
+ width: 80; height: 24; flex-direction: column; }
             header_el { height: 3; }
             body_el   { height: 100%; }
         "#,
@@ -90,7 +91,8 @@ fn flex_shrink_zero_protects_size() {
             main_id = Some(main);
         },
         r#"
-            row        { width: 80; height: 10; flex-direction: row; }
+            row        { display: flex;
+ width: 80; height: 10; flex-direction: row; }
             sidebar_el { width: 28; flex-shrink: 0; }
             main_el    { flex: 1; }
         "#,
@@ -132,7 +134,8 @@ fn shrink_respects_min_width() {
             bb_id = Some(bb);
         },
         r#"
-            parent { width: 20; height: 5; flex-direction: row; }
+            parent { display: flex;
+ width: 20; height: 5; flex-direction: row; }
             aa     { width: 30; min-width: 10; }
             bb     { width: 30; }
         "#,
@@ -170,7 +173,8 @@ fn no_overflow_means_no_shrink() {
             bb_id = Some(bb);
         },
         r#"
-            parent { width: 50; height: 5; flex-direction: row; }
+            parent { display: flex;
+ width: 50; height: 5; flex-direction: row; }
             aa     { width: 10; }
             bb     { width: 10; }
         "#,

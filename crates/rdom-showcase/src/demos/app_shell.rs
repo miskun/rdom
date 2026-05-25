@@ -37,6 +37,7 @@ pub const MARKUP: &str = r#"<div class="app-shell-demo">
 pub const CSS: &str = r#"
 .app-shell-demo {
   flex: 1;
+  display: flex;
   flex-direction: column;
   border: solid;
   border-collapse: collapse;
@@ -47,6 +48,7 @@ pub const CSS: &str = r#"
 }
 .app-shell-demo .body {
   flex: 1;
+  display: flex;
   flex-direction: row;
   border: solid;
 }

@@ -260,6 +260,11 @@ pub fn base_stylesheet() -> Stylesheet {
 /// reappear.
 const BASE_CSS: &str = r#"
 .app {
+  /* BFC-1 Phase 4.3: with the block/flex dispatch wired,
+   * containers that want flex distribution (flex-grow, flex-
+   * direction) MUST declare `display: flex`. Default `<div>` is
+   * Block flow per UA + CSS3 Display Module. */
+  display: flex;
   flex: 1;
   flex-direction: column;
   border: solid;
@@ -285,6 +290,7 @@ const BASE_CSS: &str = r#"
 }
 
 .app-body {
+  display: flex;
   flex: 1;
   flex-direction: row;
   /* Body is an app-shell pane — it should track the available
@@ -312,6 +318,7 @@ const BASE_CSS: &str = r#"
 }
 
 .main {
+  display: flex;
   flex: 1;
   flex-direction: column;
   border: solid;

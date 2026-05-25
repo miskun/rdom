@@ -447,7 +447,13 @@ fn row_children_paint_at_their_layout_positions() {
     dom.append_child(root, r).unwrap();
 
     let sheet = Stylesheet::bare()
-        .rule_unchecked("r", TuiStyle::new().direction(Direction::Row).gap(1))
+        .rule_unchecked(
+            "r",
+            TuiStyle::new()
+                .flow(Flow::Flex)
+                .direction(Direction::Row)
+                .gap(1),
+        )
         .rule_unchecked("a", TuiStyle::new().width(Size::Fixed(4)))
         .rule_unchecked("b", TuiStyle::new().width(Size::Fixed(5)));
     let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 20, 1));
@@ -2840,6 +2846,7 @@ fn collapse_two_bordered_siblings_render_t_junctions() {
             TuiStyle::new()
                 .width(Size::Fixed(11))
                 .height(Size::Fixed(3))
+                .flow(Flow::Flex)
                 .direction(Direction::Row)
                 .border(Border::Single)
                 .border_collapse(BorderCollapse::Collapse),
@@ -2896,6 +2903,7 @@ fn collapse_joiner_is_noop_when_no_element_has_collapse() {
             TuiStyle::new()
                 .width(Size::Fixed(14))
                 .height(Size::Fixed(3))
+                .flow(Flow::Flex)
                 .direction(Direction::Row)
                 .border(Border::Single),
         )
@@ -2971,7 +2979,10 @@ fn collapse_three_sibling_nested_grid_renders_correct_junctions() {
                 .border(Border::Single)
                 .border_collapse(BorderCollapse::Collapse),
         )
-        .rule_unchecked("row", TuiStyle::new().direction(Direction::Row))
+        .rule_unchecked(
+            "row",
+            TuiStyle::new().flow(Flow::Flex).direction(Direction::Row),
+        )
         .rule_unchecked(
             "left",
             TuiStyle::new()

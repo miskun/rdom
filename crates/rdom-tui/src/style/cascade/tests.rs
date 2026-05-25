@@ -8,7 +8,7 @@
 //! crate's integration-test story solidifies.
 
 use super::*;
-use crate::layout::{Border, Direction, Display, Overflow, Padding, Size, WhiteSpace};
+use crate::layout::{Border, Direction, Display, Flow, Overflow, Padding, Size, WhiteSpace};
 use crate::style::{Color, Content, Modifier, Stylesheet, TuiStyle};
 use crate::{TuiDom, TuiNodeMutExt};
 use rdom_core::NodeId;
@@ -668,6 +668,7 @@ fn border_direction_overflow_cascade() {
         "div",
         TuiStyle::new()
             .border(Border::Single)
+            .flow(Flow::Flex)
             .direction(Direction::Row)
             .overflow(Overflow::Hidden),
     );

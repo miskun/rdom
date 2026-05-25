@@ -31,6 +31,7 @@ pub const MARKUP: &str = r#"<div class="counter-demo">
 pub const CSS: &str = r#"
 .counter-demo {
   flex: 1;
+  display: flex;
   flex-direction: column;
   padding: 2 4;
   gap: 1;

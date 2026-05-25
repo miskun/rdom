@@ -37,7 +37,8 @@ fn flex_one_fills_remaining_space_in_column_parent() {
             dom.append_child(app, body).unwrap();
         },
         r#"
-            app        { width: 80; height: 24; flex-direction: column; }
+            app        { display: flex;
+ width: 80; height: 24; flex-direction: column; }
             header_el  { height: 3; }
             body_el    { flex: 1; }
         "#,
@@ -68,7 +69,8 @@ fn flex_one_fills_remaining_space_in_row_parent() {
             dom.append_child(row, main).unwrap();
         },
         r#"
-            row_el    { width: 80; height: 10; flex-direction: row; }
+            row_el    { display: flex;
+ width: 80; height: 10; flex-direction: row; }
             side_el   { width: 28; }
             main_el   { flex: 1; }
         "#,
@@ -100,7 +102,8 @@ fn flex_none_falls_back_to_auto() {
             child_id = Some(child);
         },
         r#"
-            parent { width: 80; height: 10; flex-direction: row; }
+            parent { display: flex;
+ width: 80; height: 10; flex-direction: row; }
             child  { flex: none; }
         "#,
         Rect::new(0, 0, 80, 24),
@@ -131,7 +134,8 @@ fn flex_auto_grows_like_flex_one() {
             child_id = Some(child);
         },
         r#"
-            parent   { width: 80; height: 10; flex-direction: row; }
+            parent   { display: flex;
+ width: 80; height: 10; flex-direction: row; }
             fixed_el { width: 30; }
             auto_el  { flex: auto; }
         "#,
@@ -169,7 +173,8 @@ fn flex_two_takes_double_share() {
             c_id = Some(c);
         },
         r#"
-            parent { width: 80; height: 10; flex-direction: row; }
+            parent { display: flex;
+ width: 80; height: 10; flex-direction: row; }
             a      { flex: 1; }
             b      { flex: 1; }
             c      { flex: 2; }

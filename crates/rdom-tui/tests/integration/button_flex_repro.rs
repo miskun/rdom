@@ -34,7 +34,10 @@ fn button_brackets_render_with_inline_sibling_in_flex_row() {
     dom.append_child(row, span).unwrap();
     dom.append_child(root, row).unwrap();
 
-    let sheet = Stylesheet::new().rule_unchecked("div", TuiStyle::new().direction(Direction::Row));
+    let sheet = Stylesheet::new().rule_unchecked(
+        "div",
+        TuiStyle::new().flow(Flow::Flex).direction(Direction::Row),
+    );
     let buf = render(&mut dom, &sheet, Rect::new(0, 0, 30, 3));
     let snap = buffer_to_snapshot(&buf);
 
@@ -62,7 +65,10 @@ fn button_brackets_render_alone_in_flex_row() {
     dom.append_child(row, btn).unwrap();
     dom.append_child(root, row).unwrap();
 
-    let sheet = Stylesheet::new().rule_unchecked("div", TuiStyle::new().direction(Direction::Row));
+    let sheet = Stylesheet::new().rule_unchecked(
+        "div",
+        TuiStyle::new().flow(Flow::Flex).direction(Direction::Row),
+    );
     let buf = render(&mut dom, &sheet, Rect::new(0, 0, 20, 3));
     let snap = buffer_to_snapshot(&buf);
 
@@ -85,7 +91,10 @@ fn two_buttons_in_flex_row_both_show_brackets() {
     }
     dom.append_child(root, row).unwrap();
 
-    let sheet = Stylesheet::new().rule_unchecked("div", TuiStyle::new().direction(Direction::Row));
+    let sheet = Stylesheet::new().rule_unchecked(
+        "div",
+        TuiStyle::new().flow(Flow::Flex).direction(Direction::Row),
+    );
     let buf = render(&mut dom, &sheet, Rect::new(0, 0, 30, 3));
     let snap = buffer_to_snapshot(&buf);
 

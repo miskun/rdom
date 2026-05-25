@@ -26,6 +26,7 @@ pub const CSS: &str = r#"
   width: 40;
   height: 15;
   overflow: auto;
+  display: flex;
   flex-direction: column;
 }
 .sticky-demo .header {

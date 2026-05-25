@@ -1411,7 +1411,7 @@ fn bounding_rect_returns_shifted_rect_after_position_relative() {
     // `getBoundingClientRect()` semantics, which return the
     // *visual* (post-shift) rect, not the in-flow position.
     use crate::Rect;
-    use crate::layout::{Direction, Length, Position as LayoutPosition, Size};
+    use crate::layout::{Direction, Flow, Length, Position as LayoutPosition, Size};
     use crate::render::layout_pass::LayoutExt;
     use crate::style::{CascadeExt, Stylesheet};
     use crate::{TuiDom, TuiStyle};
@@ -1424,7 +1424,10 @@ fn bounding_rect_returns_shifted_rect_after_position_relative() {
     dom.append_child(root, c).unwrap();
 
     let sheet = Stylesheet::bare()
-        .rule_unchecked("c", TuiStyle::new().direction(Direction::Row))
+        .rule_unchecked(
+            "c",
+            TuiStyle::new().flow(Flow::Flex).direction(Direction::Row),
+        )
         .rule_unchecked(
             "rel",
             TuiStyle::new()

@@ -51,6 +51,7 @@ second line after a literal newline<span></span></p>
 pub const CSS: &str = r#"
 .ws-demo {
   flex: 1;
+  display: flex;
   flex-direction: column;
   padding: 1 2;
   gap: 1;
@@ -60,11 +61,13 @@ pub const CSS: &str = r#"
 }
 .ws-demo .row {
   flex: 1;
+  display: flex;
   flex-direction: row;
   gap: 2;
 }
 .ws-demo .col {
   flex: 1;
+  display: flex;
   flex-direction: column;
   gap: 1;
   overflow-x: hidden;

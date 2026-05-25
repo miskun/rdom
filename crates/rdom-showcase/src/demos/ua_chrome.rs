@@ -56,6 +56,7 @@ pub const MARKUP: &str = r#"<div class="ua-chrome-demo">
 pub const CSS: &str = r#"
 .ua-chrome-demo {
   flex: 1;
+  display: flex;
   flex-direction: column;
   padding: 1 2;
   gap: 1;

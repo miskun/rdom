@@ -38,6 +38,7 @@ pub const MARKUP: &str = r#"<div class="raf-demo">
 pub const CSS: &str = r#"
 .raf-demo {
   flex: 1;
+  display: flex;
   flex-direction: column;
   padding: 1 2;
   gap: 1;
@@ -48,6 +49,7 @@ pub const CSS: &str = r#"
   font-weight: bold;
 }
 .raf-demo .row {
+  display: flex;
   flex-direction: row;
   gap: 2;
   height: 1;

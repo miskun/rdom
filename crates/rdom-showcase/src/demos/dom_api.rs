@@ -31,6 +31,7 @@ pub const MARKUP: &str = r#"<div class="dom-api-demo">
 pub const CSS: &str = r#"
 .dom-api-demo {
   flex: 1;
+  display: flex;
   flex-direction: column;
   padding: 1 2;
   gap: 1;

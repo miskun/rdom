@@ -15,23 +15,16 @@
 //! resolved percentage (`Percent`), or its intrinsic content height
 //! (`Auto`). Min/max clamping applies after computing the size.
 //!
-//! **Scope of phase 2** (this module, first commit):
-//! - Width formula + auto margins + min/max clamp.
+//! **Scope (BFC-1 through phase 4):**
+//! - Width formula + auto margins + min/max clamp (phase 2).
 //! - Plain vertical stacking (no margin collapse — phase 5).
-//! - No anonymous box generation around inline-level children — phase 3.
-//! - No dispatch from `layout_children` — phase 4 wires it in.
+//! - Anonymous box generation around inline-level children (phase 3),
+//!   including atomic inline-block packing (phase 3.5b).
+//! - Live dispatch from `layout_children` via cascaded `Flow::Block`
+//!   (phase 4.1); border-collapse parent-edge inset + scroll cursor
+//!   offset mirror flex behavior so the two modes agree.
 //! - Strict percent-height-needs-definite-parent — phase 6 will
 //!   tighten this; for now percent resolves against the container.
-//!
-//! The function is exposed via `pub(super)` so phase 4's dispatch
-//! in `mod.rs` can call it; phases 2 & 3 ship it dormant.
-//!
-//! `#![allow(dead_code)]` because phases 2 & 3 build infrastructure
-//! that's not on the live dispatch path yet. The dead-code lint
-//! returns automatically once phase 4 wires `layout_children`'s
-//! `match flow` arm.
-
-#![allow(dead_code)]
 
 use rdom_core::{Dom, NodeId, NodeType};
 
@@ -59,7 +52,7 @@ pub(super) fn layout_block_children(
     dom: &mut Dom<TuiExt>,
     id: NodeId,
     container: LayoutRect,
-    _parent_computed: &ComputedStyle,
+    parent_computed: &ComputedStyle,
 ) {
     // Collect ALL direct child nodes (text + element). Block layout
     // distinguishes inline-level (text + Display::Inline/InlineBlock
@@ -109,8 +102,32 @@ pub(super) fn layout_block_children(
         }
     }
 
+    // Parent-child border-collapse inset (CSS 2.1 §17.6.3 +
+    // BFC-1 invariant): when this container is `border-collapse:
+    // collapse` with its own border, `layout_node` already expanded
+    // its content area to extend into the border ring. That's
+    // correct ONLY when the first/last child has its own border to
+    // share the cell with. Content-bearing children (no border)
+    // would land on the parent's painted border row. Apply the
+    // same per-edge inset flex uses so the two layout modes agree.
+    let in_flow_ids: Vec<NodeId> = in_flow.iter().map(|(_, id)| *id).collect();
+    let (top_inset, bot_inset, left_inset, right_inset) =
+        super::flex::collapse_parent_edge_insets(dom, &in_flow_ids, parent_computed);
+    let container = LayoutRect::new(
+        container.x + left_inset as i32,
+        container.y + top_inset as i32,
+        container.width.saturating_sub(left_inset + right_inset),
+        container.height.saturating_sub(top_inset + bot_inset),
+    );
+
     let containing_block_width = container.width;
-    let mut y_cursor: i32 = container.y;
+    // Apply this container's scroll_y to the starting cursor (mirrors
+    // `flex::layout_flex_children`'s `container.y - scroll_main`). The
+    // scroll itself lives on the parent's `ext.scroll_y`; the flex pass
+    // reads it via the *children's* `parent_scroll` helper, which we
+    // reuse here so block and flex agree on the offset.
+    let scroll_y = super::parent_scroll(dom, &in_flow_ids, crate::layout::Direction::Column);
+    let mut y_cursor: i32 = container.y - scroll_y;
     let mut anon_blocks: Vec<AnonymousIfc> = Vec::new();
 
     for run in &runs {
@@ -134,6 +151,14 @@ pub(super) fn layout_block_children(
                     compute_inline_layout_for_run(dom, id, &run.children, containing_block_width);
                 let height = inline_layout.height();
                 let rect = LayoutRect::new(container.x, y_cursor, containing_block_width, height);
+                // Layout atomic inline-block children at their
+                // fragment rects. This both writes their layout
+                // rects (so hit-test descends into them — e.g.
+                // `<form><button>Go</button></form>` button clicks
+                // route to the button, not the form) and recurses
+                // into their subtrees (so `<button>`'s own inner
+                // text-only layout, pseudos, etc. get computed).
+                layout_atomic_inline_blocks(dom, &inline_layout, rect);
                 anon_blocks.push(AnonymousIfc {
                     rect,
                     inline_layout,
@@ -152,6 +177,39 @@ pub(super) fn layout_block_children(
     }
 }
 
+/// Recurse layout into atomic inline-block fragments — write each
+/// atom's layout rect (so hit-test descends) and call `layout_node`
+/// to lay out the atom's own subtree (its own inner inline_layout,
+/// pseudo positioning, descendants).
+///
+/// `anon_rect` is the anonymous block box's rect (or the singular
+/// IFC's content rect). Fragment x is offset from `anon_rect.x`;
+/// fragment line index gives the y row.
+fn layout_atomic_inline_blocks(
+    dom: &mut Dom<TuiExt>,
+    inline_layout: &crate::render::inline::InlineLayout,
+    anon_rect: LayoutRect,
+) {
+    // Snapshot the atomic-fragment placements first — we can't
+    // mutate-borrow `dom` while iterating an `&InlineLayout`
+    // borrowed from it.
+    let mut atoms: Vec<(NodeId, LayoutRect)> = Vec::new();
+    for (line_idx, line) in inline_layout.lines.iter().enumerate() {
+        let line_y = anon_rect.y + line_idx as i32;
+        for fragment in &line.fragments {
+            if !fragment.atomic {
+                continue;
+            }
+            let atom_rect =
+                LayoutRect::new(anon_rect.x + fragment.x as i32, line_y, fragment.width, 1);
+            atoms.push((fragment.node, atom_rect));
+        }
+    }
+    for (id, rect) in atoms {
+        layout_node(dom, id, rect);
+    }
+}
+
 /// Lay out a single block-level child. Returns the new y cursor.
 fn lay_out_block_child(
     dom: &mut Dom<TuiExt>,
@@ -167,7 +225,7 @@ fn lay_out_block_child(
         .unwrap_or_else(ComputedStyle::initial);
 
     let resolved = resolve_block_width(&computed, containing_block_width);
-    let height = resolve_block_height(dom, child, &computed, container.height);
+    let height = resolve_block_height(dom, child, &computed, resolved.width, container.height);
 
     let top_margin = vertical_margin(&computed.margin.top);
     let bottom_margin = vertical_margin(&computed.margin.bottom);
@@ -411,10 +469,19 @@ fn clamp_width(
 /// phase 2 this is the simple version: `Auto` → intrinsic content
 /// height; `Fixed` → declared; `Percent` → percent of container
 /// (the "percent needs definite parent" rule lands in phase 6).
+///
+/// Two separate budgets:
+/// - `resolved_width` is the child's content width — fed to
+///   `intrinsic_size` as the cross-axis budget so descendant text
+///   wraps against the box that will hold it.
+/// - `container_height` is the containing-block's content height —
+///   used as the base for `height: <pct>%` resolution and for
+///   `calc()` with percent terms.
 fn resolve_block_height(
     dom: &Dom<TuiExt>,
     id: NodeId,
     computed: &ComputedStyle,
+    resolved_width: u16,
     container_height: u16,
 ) -> u16 {
     let raw = match &computed.height {
@@ -423,7 +490,12 @@ fn resolve_block_height(
             // Block items aren't "flex items" in this pass; Flex
             // here means the shorthand was used in a non-flex
             // context, treated as Auto.
-            intrinsic_size(dom, id, Direction::Column, container_height)
+            //
+            // cross_budget passed to intrinsic_size = the WIDTH
+            // descendants will be laid out into (Direction::Column
+            // queries height; cross axis is row/width). That's the
+            // child's own resolved width — text wraps to it.
+            intrinsic_size(dom, id, Direction::Column, resolved_width)
         }
         Size::Fixed(n) => *n,
         Size::Percent(p) => {

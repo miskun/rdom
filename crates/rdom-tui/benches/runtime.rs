@@ -57,6 +57,7 @@ fn build_list_dom(n_rows: usize) -> (TuiDom, Stylesheet) {
         .rule_unchecked(
             "list",
             TuiStyle::new()
+                .flow(Flow::Flex)
                 .direction(Direction::Column)
                 .width(Size::Flex(1))
                 .height(Size::Flex(1)),

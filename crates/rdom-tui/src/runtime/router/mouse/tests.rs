@@ -529,6 +529,7 @@ fn mouseup_different_child_of_same_parent_click_fires_on_parent() {
         .rule_unchecked(
             "parent",
             TuiStyle::new()
+                .flow(crate::layout::Flow::Flex)
                 .direction(crate::layout::Direction::Row)
                 .width(Size::Fixed(10))
                 .height(Size::Fixed(3)),
@@ -684,6 +685,7 @@ fn mousemove_between_siblings_fires_mouseout_then_mouseover() {
         .rule_unchecked(
             "parent",
             TuiStyle::new()
+                .flow(crate::layout::Flow::Flex)
                 .direction(crate::layout::Direction::Row)
                 .width(Size::Fixed(10))
                 .height(Size::Fixed(3)),
@@ -1330,7 +1332,7 @@ fn drag_at(x: u16, y: u16) -> CtMouseEvent {
 /// (or beyond) — exactly the "drag-select / resize-handle"
 /// scenario pointer capture is meant to handle.
 fn drag_handle_fixture() -> (TuiDom, NodeId, NodeId) {
-    use crate::layout::Direction;
+    use crate::layout::{Direction, Flow};
 
     let mut dom: TuiDom = TuiDom::new();
     let root = dom.root();
@@ -1344,6 +1346,7 @@ fn drag_handle_fixture() -> (TuiDom, NodeId, NodeId) {
         .rule_unchecked(
             "container",
             TuiStyle::new()
+                .flow(Flow::Flex)
                 .direction(Direction::Row)
                 .width(Size::Fixed(20))
                 .height(Size::Fixed(3)),

@@ -7,7 +7,7 @@
 
 use super::*;
 use crate::TuiDom;
-use crate::layout::{Border, Direction, Display, Overflow, Padding, Size};
+use crate::layout::{Border, Direction, Display, Flow, Overflow, Padding, Size};
 use crate::render::{LayoutExt, Rect};
 use crate::style::{CascadeExt, Color, Stylesheet, TuiStyle};
 use rdom_core::NodeId;
@@ -125,6 +125,7 @@ fn paint_order_stacking_later_sibling_wins() {
         .rule_unchecked(
             "div",
             TuiStyle::new()
+                .flow(Flow::Flex)
                 .direction(Direction::Row)
                 .gap(0)
                 .width(Size::Fixed(10))

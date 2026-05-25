@@ -33,6 +33,7 @@ pub const MARKUP: &str = r#"<div class="border-collapse-demo">
 pub const CSS: &str = r#"
 .border-collapse-demo {
   flex: 1;
+  display: flex;
   flex-direction: row;
   border: solid;
   border-collapse: collapse;
@@ -43,6 +44,7 @@ pub const CSS: &str = r#"
 }
 .border-collapse-demo .middle {
   flex: 1;
+  display: flex;
   flex-direction: column;
   border: solid;
 }

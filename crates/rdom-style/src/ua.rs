@@ -673,8 +673,14 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
         ("tfoot", TuiStyle::new().display(Display::Block)),
         (
             "tr",
+            // `<tr>` lays its `<td>`/`<th>` cells out horizontally.
+            // Pre-BFC-1 this worked implicitly because every container
+            // ran flex; post-BFC-1 the UA must explicitly opt the row
+            // into flex flow (CSS3 Display Module: `display: flex` =
+            // outer `block` + inner `flex`).
             TuiStyle::new()
                 .display(Display::Block)
+                .flow(crate::layout::Flow::Flex)
                 .direction(Direction::Row)
                 .height(Size::Fixed(1)),
         ),

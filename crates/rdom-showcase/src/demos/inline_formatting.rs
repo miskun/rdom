@@ -36,6 +36,7 @@ pub const MARKUP: &str = r#"<div class="inline-fmt">
 pub const CSS: &str = r#"
 .inline-fmt {
   flex: 1;
+  display: flex;
   flex-direction: column;
   padding: 1 2;
   gap: 1;
