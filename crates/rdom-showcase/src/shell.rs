@@ -250,6 +250,12 @@ const BASE_CSS: &str = r#"
   border: solid;
   border-color: rgb(70, 80, 100);
   border-collapse: collapse;
+  /* App shell fits the viewport — opt out of intrinsic-min on
+   * both axes so the children's content can scroll rather than
+   * the shell ballooning to fit them. Mirrors `.app-body` and
+   * `.main`. */
+  min-width: 0;
+  min-height: 0;
 }
 
 .app-header {
@@ -266,6 +272,11 @@ const BASE_CSS: &str = r#"
 .app-body {
   flex: 1;
   flex-direction: row;
+  /* Body is an app-shell pane — it should track the available
+   * height, not balloon to the sum of its children's intrinsic
+   * heights. Web-faithful: real CSS authors use `min-height: 0`
+   * on flex items they want shrinkable past their content. */
+  min-height: 0;
 }
 
 .sidebar {
@@ -274,31 +285,11 @@ const BASE_CSS: &str = r#"
   border: solid;
   border-color: rgb(70, 80, 100);
   padding: 1;
-  /* Sidebar content (categories + lis) is taller than the viewport
-   * on small terminals. Scroll instead of letting the flex-shrink
-   * algorithm drop entries to zero height (which would stack
-   * multiple items at the same row — see M5-MIN-CONTENT-1). */
+  /* The nav is taller than the viewport on small terminals;
+   * scroll instead of clipping. The substrate floors each item
+   * at its intrinsic content height (CSS Flexbox §4.5 min-*:
+   * auto), so nothing squishes regardless. */
   overflow-y: auto;
-}
-.sidebar nav {
-  flex-direction: column;
-  flex-shrink: 0;
-}
-.sidebar details {
-  flex-shrink: 0;
-  flex-direction: column;
-}
-.sidebar summary {
-  flex-shrink: 0;
-  height: 1;
-}
-.sidebar ul {
-  flex-shrink: 0;
-  flex-direction: column;
-}
-.sidebar li {
-  flex-shrink: 0;
-  height: 1;
 }
 .sidebar h2 {
   color: rgb(150, 170, 200);
@@ -310,6 +301,16 @@ const BASE_CSS: &str = r#"
   flex-direction: column;
   border: solid;
   border-color: rgb(70, 80, 100);
+  /* Opt into responsive shrink past intrinsic content size — the
+   * source disclosure can hold lines wider than the terminal, but
+   * `<main>` should still fit the row alongside the sidebar.
+   * `min-height: 0` lets `<main>` fit the available height of
+   * `.app-body` so the demo can fill the viewport vertically.
+   * Web-faithful: real CSS authors use `min-width: 0` /
+   * `min-height: 0` on flex items they want shrinkable past
+   * their content. */
+  min-width: 0;
+  min-height: 0;
 }
 
 .main .view-content {

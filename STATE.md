@@ -76,6 +76,25 @@ One piece of architectural debt deferred with teeth: `EVT-DETACH-1` (implicit bl
 
 ## Recent decisions
 
+### 2026-05-25 — Substrate fix: M5-MIN-CONTENT-1 retired (flex items default to content-min floor)
+
+User-reported sidebar nav UX bug surfaced the deeper substrate gap that the project had been documenting for milestones: CSS-default `flex-shrink: 1` plus no `min-height: auto` floor let the Bresenham allocator squish flex items to zero cells when the container overflowed. The original symptom was "every-other-row highlight disappears" in the showcase sidebar; the actual cause was 0-height items stacking under their visible siblings.
+
+The first fix attempt was chrome-side workarounds (`flex-shrink: 0` everywhere). Grumpy architect review correctly called that out: "App should work OOTB if you create it like any HTML app — this is our most important contract." Reverted the chrome workaround. Implemented CSS Flexbox §4.5 in the flex layout:
+
+- Every flex item now has an auto-min floor along the main axis: `min(content_size_suggestion, specified_size_suggestion)`, dropped to 0 when overflow on the axis is non-visible. Items can no longer silently vanish in overflowing containers.
+- `intrinsic_size` got a sibling `content_min_size` (skips the `Size::Fixed` short-circuit) so the content size suggestion measures actual content, not declared box size — `<a style="width:100; max-width:30">` with no children correctly resolves auto-min to 0 and max-width clamps to 30.
+- `Size::Flex(_)` (the `flex: <N>` shorthand) maps to `specified_suggestion = 0`, matching CSS's `flex-basis: 0%` default. So `flex: 1` items still shrink freely (chrome wants this for fitting panes); authors who want content-protection opt in via explicit `min-*: auto`.
+- Explicit `min-*: auto` is **more protective than CSS strict** (documented divergence in DIVERGENCES.md): always equals content size suggestion, regardless of specified cap. Gives authors a single-property "protect my content" without computing intrinsic themselves.
+
+Chrome opts: `.app`, `.app-body`, `.main` now declare `min-width: 0` / `min-height: 0` to participate as fit-the-viewport shells — web-faithful (the same opt-in real CSS authors use for app-shell flex panes).
+
+`autofocus` on the first sidebar `<li>` rounds out the OOTB UX so the app boots keyboard-navigable.
+
+Tests: new `keyboard_nav.rs` (3 tests pinning autofocus + ArrowDown advancement + no-zero-height-squish), updated `parse_and_render` snapshot (cards now show all their content as they should). 2,487 workspace tests pass.
+
+Follow-up: `SHRINK-CLEANUP-1` in TECH_DEBT — remove the ~60 `flex-shrink: 0` declarations across showcase demos. They're now no-ops but mislead future authors.
+
 ### 2026-05-24 — Substrate fix: inline-block in flex row paints UA pseudos
 
 M8 demo `interval_counter` surfaced a substrate gap: `<button>` (inline-block) + `<span>` (inline) siblings in a flex row rendered as `Start0` — the button's UA `[ … ]` bracket pseudos were silently dropped. Root cause: `is_ifc_block` (`crates/rdom-tui/src/render/layout_pass/ifc.rs`) routed any container with an inline-element child through the IFC paint path, which doesn't synthesize pseudo fragments for inline-block children. The original behavior was deliberate ("inline-block doesn't flip the parent into IFC mode") but ignored *sibling inline elements* flipping it — exactly the failing case.

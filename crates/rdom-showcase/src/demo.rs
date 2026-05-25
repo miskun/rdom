@@ -20,20 +20,6 @@ use rdom_tui::{NodeId, Stylesheet, TuiDom};
 /// class somewhere in its selector. Enforced by the
 /// `every_demo_stylesheet_uses_only_class_scoped_selectors` test
 /// in `crates/rdom-showcase/src/registry.rs`.
-///
-/// **Use `flex-shrink: 0` on fixed-height children in flex
-/// columns.** Until `M5-MIN-CONTENT-1` closes (height-axis
-/// `min-height: auto = intrinsic content`), CSS-default
-/// `flex-shrink: 1` lets the Bresenham allocator in the flex
-/// shrink pass drop `height: N` items to zero cells when the
-/// container can't fit them all. The browser-faithful answer is
-/// `min-height: auto` flooring every item at its intrinsic
-/// content height (≥1 line for text); until that lands, demos
-/// MUST declare `flex-shrink: 0` on every fixed-height child of
-/// a flex column. Worked example: see
-/// `crates/rdom-showcase/src/demos/sticky.rs`. When the substrate
-/// fix lands, these declarations will be removed in a single
-/// pass across the demos.
 pub trait Demo {
     /// Path-like identifier used for CLI deep-linking and as the
     /// stable key for goldens. Format: `"category/demo-name"` in

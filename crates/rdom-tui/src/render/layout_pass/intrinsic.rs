@@ -32,11 +32,48 @@ pub(super) fn intrinsic_size(
     direction: Direction,
     cross_budget: u16,
 ) -> u16 {
+    intrinsic_size_inner(dom, id, direction, cross_budget, IntrinsicMode::BoxSize)
+}
+
+/// Measure an element's **content** intrinsic size along `direction` —
+/// i.e. the min-content size of its actual children/text, ignoring
+/// any explicit `Size::Fixed` declared on the element itself. Used
+/// by CSS Flexbox §4.5's "content size suggestion" half of the
+/// auto-min computation, where we need to know how small the content
+/// can be regardless of the box's declared size.
+pub(super) fn content_min_size(
+    dom: &Dom<TuiExt>,
+    id: NodeId,
+    direction: Direction,
+    cross_budget: u16,
+) -> u16 {
+    intrinsic_size_inner(dom, id, direction, cross_budget, IntrinsicMode::ContentOnly)
+}
+
+#[derive(Copy, Clone, PartialEq, Eq)]
+pub(super) enum IntrinsicMode {
+    /// Honor an explicit `Size::Fixed` on the element (short-circuit
+    /// to that value). The intrinsic size of the BOX as it wants to
+    /// appear in layout — used to resolve `Size::Auto` siblings.
+    BoxSize,
+    /// Ignore any declared `Size::Fixed`; always measure children/
+    /// text. The intrinsic size of the CONTENT — used for CSS
+    /// Flexbox §4.5 content size suggestion.
+    ContentOnly,
+}
+
+fn intrinsic_size_inner(
+    dom: &Dom<TuiExt>,
+    id: NodeId,
+    direction: Direction,
+    cross_budget: u16,
+    mode: IntrinsicMode,
+) -> u16 {
     let kind = dom.node(id).node_type();
     match kind {
         NodeType::Text => intrinsic_text(dom, id, direction),
         NodeType::Element | NodeType::Fragment => {
-            intrinsic_element(dom, id, direction, cross_budget)
+            intrinsic_element(dom, id, direction, cross_budget, mode)
         }
         NodeType::Comment => 0,
     }
@@ -61,6 +98,7 @@ fn intrinsic_element(
     id: NodeId,
     direction: Direction,
     cross_budget: u16,
+    mode: IntrinsicMode,
 ) -> u16 {
     let computed = dom
         .node(id)
@@ -68,15 +106,24 @@ fn intrinsic_element(
         .cloned()
         .unwrap_or_else(ComputedStyle::initial);
 
-    // If the element has an explicit size along `direction`, that
-    // wins over child measurement (matches CSS min-content + explicit
-    // width).
-    let declared = match direction {
-        Direction::Row => &computed.width,
-        Direction::Column => &computed.height,
-    };
-    if let Size::Fixed(n) = declared {
-        return *n;
+    // BoxSize mode: if the element has an explicit Fixed size along
+    // `direction`, that wins over child measurement — matches CSS
+    // min-content + explicit width.
+    //
+    // ContentOnly mode: skip the short-circuit. The CSS Flexbox §4.5
+    // "content size suggestion" needs the size of the actual content,
+    // not the declared box size, so the auto-min floor doesn't
+    // mistake a `width: 100` declaration for "this box must be 100
+    // cells of content" — empty boxes need to be allowed to shrink
+    // toward 0 to honor a smaller `max-width`.
+    if mode == IntrinsicMode::BoxSize {
+        let declared = match direction {
+            Direction::Row => &computed.width,
+            Direction::Column => &computed.height,
+        };
+        if let Size::Fixed(n) = declared {
+            return *n;
+        }
     }
 
     // Padding + border cost on the main axis.

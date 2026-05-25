@@ -113,7 +113,9 @@ fn chrome_adapts_to_viewport_size() {
     );
     assert!(
         wider_main.height > initial_main_rect.height,
-        "main panel grew taller on taller terminal"
+        "main panel grew taller on taller terminal ({} → {})",
+        initial_main_rect.height,
+        wider_main.height
     );
 
     // Resize narrower. Main panel shrinks but doesn't go negative.

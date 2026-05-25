@@ -7,9 +7,9 @@
  │ Template parsed by rdom-      │  │ • HTML-ish templates, entity  │
  │ parser.                       │  │ decoding                      │
  │ Cascaded + laid out + painted │  │ • CSS cascade with var(),     │
- │ by rdom-tui.                  │  │ • Flexbox and inline layout   │
- │                               │  │                               │
- ╰───────────────────────────────╯  ╰───────────────────────────────╯
+ │ by rdom-tui.                  │  │ pseudo-elements               │
+ │ Using rdom-core underneath.   │  │ • Flexbox and inline layout   │
+ ╰───────────────────────────────╯  ╰─• Unicode: 中文 🦀 👨‍👩‍👧─────────╯
 
  Ctrl-C to exit
 
