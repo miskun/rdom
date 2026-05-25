@@ -187,8 +187,70 @@ pub(super) fn layout_node(dom: &mut Dom<TuiExt>, id: NodeId, outer_rect: LayoutR
         ext.layout_dirty = false;
     }
 
-    // Lay out children inside `inner`.
-    layout_children(dom, id, inner, &computed);
+    // Lay out children inside `inner`. The returned measurement
+    // captures the margin-collapse-aware content extent for block-
+    // flow elements (CSS 2.1 §10.6.3 — used below to resolve
+    // `height: Auto` on this element).
+    let measurement = layout_children(dom, id, inner, &computed);
+
+    // CSS 2.1 §10.6.3 — Phase 6.1: resolve `height: Auto` on a
+    // block-flow element against the measured content extent.
+    //
+    // Gating:
+    // - element's own `flow == Block` (otherwise flex distribution
+    //   inside this element governs its own children, but the
+    //   element's height is already-final from above).
+    // - parent's `flow` is also `Block` — Auto height on a flex
+    //   *item* means "stretch to cross axis" (CSS Flexbox §7.5),
+    //   not "intrinsic content," and the parent's flex pass has
+    //   already written that height into our outer_rect. Touching
+    //   it would clobber the stretch.
+    // - element has an explicit `Fixed` / `Percent` / `Calc` height:
+    //   already drives `inner.height`; skip the override.
+    let parent_is_block_flow = dom
+        .node(id)
+        .parent_node()
+        .and_then(|p| {
+            use crate::node::TuiNodeExt;
+            p.tui_ext().and_then(|e| e.computed.as_ref().map(|c| c.flow))
+        })
+        .map(|f| matches!(f, crate::layout::Flow::Block))
+        .unwrap_or(true);
+    // Absolute / fixed elements get their height from
+    // `compute_placed_rect` (positioning::place_positioned) — auto
+    // height there means "derive from top/bottom against CB", NOT
+    // "intrinsic content." Don't clobber that with the block
+    // measurement.
+    let is_out_of_flow_positioned = matches!(
+        computed.position,
+        crate::layout::Position::Absolute | crate::layout::Position::Fixed
+    );
+    if matches!(computed.height, crate::layout::Size::Auto)
+        && matches!(computed.flow, crate::layout::Flow::Block)
+        && parent_is_block_flow
+        && !is_out_of_flow_positioned
+    {
+        let content_h = crate::layout::clamp_size(
+            measurement.content_height,
+            match computed.min_height {
+                Some(crate::layout::MinSize::Cells(n)) => Some(n),
+                _ => None,
+            },
+            computed.max_height,
+        );
+        let pad = computed.padding.top + computed.padding.bottom;
+        let border = match computed.border {
+            crate::layout::Border::None => 0,
+            crate::layout::Border::Top | crate::layout::Border::Bottom => 1,
+            crate::layout::Border::Left | crate::layout::Border::Right => 0,
+            crate::layout::Border::Single | crate::layout::Border::Rounded => 2,
+        };
+        let outer_h = content_h.saturating_add(pad).saturating_add(border);
+        if let Some(ext) = dom.node_mut(id).ext_mut() {
+            ext.layout.height = outer_h;
+            ext.content_layout.height = content_h;
+        }
+    }
 
     // Record the scrollable content extent (cells that children
     // occupied, in the parent's content-area coord space, scroll

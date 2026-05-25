@@ -1613,3 +1613,334 @@ fn child_with_padding_and_border_reduces_intrinsic_width_via_layout_node() {
     // `layout_node` handles. The block pass writes outer rect only.
     assert_eq!(layout_of(&dom, child).width, 80);
 }
+
+// ── Phase 6.1: auto height sums children + margin collapse ──────
+
+#[test]
+fn auto_height_block_sums_two_fixed_children() {
+    // CSS 2.1 §10.6.3: a block with `height: auto` takes the
+    // vertical extent of its in-flow content (top of first child
+    // to bottom of last child).
+    //
+    // Two fixed-height children (3 + 5 = 8) → parent.height = 8.
+    use crate::render::Rect;
+    let mut dom = dom();
+    let root = dom.root();
+    let parent = dom.create_element("p");
+    let a = dom.create_element("a");
+    let b = dom.create_element("b");
+    dom.append_child(parent, a).unwrap();
+    dom.append_child(parent, b).unwrap();
+    dom.append_child(root, parent).unwrap();
+
+    let sheet = Stylesheet::bare()
+        .rule_unchecked("a", TuiStyle::new().height(Size::Fixed(3)))
+        .rule_unchecked("b", TuiStyle::new().height(Size::Fixed(5)));
+    cascade(&mut dom, &sheet);
+    // Full pipeline so layout_node updates parent.height after
+    // block_layout returns the measured content height.
+    dom.layout_dom(Rect::new(0, 0, 40, 50));
+
+    assert_eq!(
+        dom.node(parent).ext().unwrap().layout.height,
+        8,
+        "auto height = sum of children = 3 + 5"
+    );
+}
+
+#[test]
+fn auto_height_block_includes_collapsed_inter_sibling_margin() {
+    // Auto height includes the gap between siblings — the
+    // collapsed margin space counts as content extent.
+    //   a.h=2, a.mb=3, b.mt=2, b.h=4.
+    //   collapsed gap = max(3, 2) = 3.
+    //   total = 2 + 3 + 4 = 9.
+    use crate::render::Rect;
+    let mut dom = dom();
+    let root = dom.root();
+    let parent = dom.create_element("p");
+    let a = dom.create_element("a");
+    let b = dom.create_element("b");
+    dom.append_child(parent, a).unwrap();
+    dom.append_child(parent, b).unwrap();
+    dom.append_child(root, parent).unwrap();
+
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "a",
+            TuiStyle::new().height(Size::Fixed(2)).margin(Margin::new(
+                MarginValue::Cells(0),
+                MarginValue::Cells(0),
+                MarginValue::Cells(3),
+                MarginValue::Cells(0),
+            )),
+        )
+        .rule_unchecked(
+            "b",
+            TuiStyle::new().height(Size::Fixed(4)).margin(Margin::new(
+                MarginValue::Cells(2),
+                MarginValue::Cells(0),
+                MarginValue::Cells(0),
+                MarginValue::Cells(0),
+            )),
+        );
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 40, 50));
+
+    assert_eq!(
+        dom.node(parent).ext().unwrap().layout.height,
+        2 + 3 + 4,
+        "auto height includes collapsed inter-sibling margin gap"
+    );
+}
+
+#[test]
+fn block_height_fixed_overflows_excess_children() {
+    // CSS 2.1 §10.6.3: a block with a declared height keeps that
+    // declared value — children that exceed overflow below
+    // (overflow: visible) or get clipped (overflow: hidden). The
+    // box itself does NOT grow.
+    use crate::render::Rect;
+    let mut dom = dom();
+    let root = dom.root();
+    let parent = dom.create_element("p");
+    let child = dom.create_element("c");
+    dom.append_child(parent, child).unwrap();
+    dom.append_child(root, parent).unwrap();
+
+    let sheet = Stylesheet::bare()
+        .rule_unchecked("p", TuiStyle::new().height(Size::Fixed(4)))
+        .rule_unchecked("c", TuiStyle::new().height(Size::Fixed(10)));
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 80, 50));
+
+    assert_eq!(
+        dom.node(parent).ext().unwrap().layout.height,
+        4,
+        "fixed-height parent stays 4 even with 10-tall child"
+    );
+    // Child still takes its declared height; it just overflows.
+    assert_eq!(dom.node(child).ext().unwrap().layout.height, 10);
+}
+
+// ── Phase 6.3: min/max-height clamping ───────────────────────────
+
+#[test]
+fn min_height_floors_block_above_content() {
+    // CSS 2.1 §10.7: `min-height` is a lower bound; if content
+    // would be shorter, the block stretches to min-height.
+    use crate::layout::MinSize;
+    use crate::render::Rect;
+    let mut dom = dom();
+    let root = dom.root();
+    let parent = dom.create_element("p");
+    let child = dom.create_element("c");
+    dom.append_child(parent, child).unwrap();
+    dom.append_child(root, parent).unwrap();
+
+    let sheet = Stylesheet::bare()
+        .rule_unchecked("p", TuiStyle::new().min_height(MinSize::Cells(8)))
+        .rule_unchecked("c", TuiStyle::new().height(Size::Fixed(3)));
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 80, 50));
+
+    assert_eq!(
+        dom.node(parent).ext().unwrap().layout.height,
+        8,
+        "parent floored to min-height even though content is only 3"
+    );
+}
+
+#[test]
+fn max_height_caps_block_below_content() {
+    // CSS 2.1 §10.7: `max-height` is an upper bound; content
+    // overflows the box visually (paint clips by overflow setting).
+    use crate::render::Rect;
+    let mut dom = dom();
+    let root = dom.root();
+    let parent = dom.create_element("p");
+    let child = dom.create_element("c");
+    dom.append_child(parent, child).unwrap();
+    dom.append_child(root, parent).unwrap();
+
+    let sheet = Stylesheet::bare()
+        .rule_unchecked("p", TuiStyle::new().max_height(5))
+        .rule_unchecked("c", TuiStyle::new().height(Size::Fixed(12)));
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 80, 50));
+
+    assert_eq!(
+        dom.node(parent).ext().unwrap().layout.height,
+        5,
+        "parent capped at max-height even though content is 12"
+    );
+}
+
+#[test]
+fn min_height_keeps_empty_block_open_blocking_collapse_through() {
+    // Phase 5.3 + 6.3 interaction: an empty block with min-height >
+    // 0 is NOT collapse-through (its min-height pins top + bottom
+    // edges apart). Adjacent siblings' margins don't merge through
+    // it; the min-height creates separation.
+    //
+    //   A.mb=4, E.mt=2, E.mb=3, E.min-height=2, B.mt=5
+    //   Without E: collapse = max(4, 5) = 5.
+    //   With E pinned: gap = max(4, 2) + 2 (E.height) + max(3, 5) = 4 + 2 + 5 = 11.
+    use crate::layout::MinSize;
+    use crate::render::Rect;
+    let mut dom = dom();
+    let root = dom.root();
+    let parent = dom.create_element("p");
+    let a = dom.create_element("a");
+    let e = dom.create_element("e");
+    let b = dom.create_element("b");
+    dom.append_child(parent, a).unwrap();
+    dom.append_child(parent, e).unwrap();
+    dom.append_child(parent, b).unwrap();
+    dom.append_child(root, parent).unwrap();
+
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "a",
+            TuiStyle::new().height(Size::Fixed(1)).margin(Margin::new(
+                MarginValue::Cells(0),
+                MarginValue::Cells(0),
+                MarginValue::Cells(4),
+                MarginValue::Cells(0),
+            )),
+        )
+        .rule_unchecked(
+            "e",
+            TuiStyle::new()
+                .min_height(MinSize::Cells(2))
+                .margin(Margin::new(
+                    MarginValue::Cells(2),
+                    MarginValue::Cells(0),
+                    MarginValue::Cells(3),
+                    MarginValue::Cells(0),
+                )),
+        )
+        .rule_unchecked(
+            "b",
+            TuiStyle::new().height(Size::Fixed(1)).margin(Margin::new(
+                MarginValue::Cells(5),
+                MarginValue::Cells(0),
+                MarginValue::Cells(0),
+                MarginValue::Cells(0),
+            )),
+        );
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 80, 50));
+
+    // A at y=0 (h=1). E.top: collapse A.mb=4 with E.mt=2 → 4.
+    // E starts at y=1+4=5, height=2 (min-height pin), bottom at 7.
+    // B.top: collapse E.mb=3 with B.mt=5 → 5. B at y=7+5=12.
+    assert_eq!(layout_of(&dom, b).y, 12);
+}
+
+// ── Phase 6.2: percent-height needs definite parent ─────────────
+
+#[test]
+fn percent_height_resolves_against_definite_parent() {
+    // CSS 2.1 §10.5: `height: <percent>` resolves to parent's
+    // content height when parent's height is *definite*. Here the
+    // parent has `height: Fixed(20)` → child's `height: 50%` = 10.
+    use crate::render::Rect;
+    let mut dom = dom();
+    let root = dom.root();
+    let parent = dom.create_element("p");
+    let child = dom.create_element("c");
+    dom.append_child(parent, child).unwrap();
+    dom.append_child(root, parent).unwrap();
+
+    let sheet = Stylesheet::bare()
+        .rule_unchecked("p", TuiStyle::new().height(Size::Fixed(20)))
+        .rule_unchecked("c", TuiStyle::new().height(Size::Percent(50)));
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 80, 50));
+
+    assert_eq!(
+        dom.node(child).ext().unwrap().layout.height,
+        10,
+        "50% of definite parent height (20) = 10"
+    );
+}
+
+#[test]
+fn percent_height_falls_to_auto_when_parent_height_is_indefinite() {
+    // CSS 2.1 §10.5: when the parent's height is indefinite
+    // (`height: auto` and not pinned by min/max), a child's
+    // percent height resolves to `auto` — i.e. intrinsic content.
+    //
+    //   parent.height = auto
+    //   child.height = 50%
+    //   child has fixed-height grandchild = 3
+    // Expected: child.height = 3 (intrinsic, NOT 50% of anything).
+    use crate::render::Rect;
+    let mut dom = dom();
+    let root = dom.root();
+    let parent = dom.create_element("p");
+    let child = dom.create_element("c");
+    let gc = dom.create_element("g");
+    dom.append_child(child, gc).unwrap();
+    dom.append_child(parent, child).unwrap();
+    dom.append_child(root, parent).unwrap();
+
+    let sheet = Stylesheet::bare()
+        // parent has no height declared → Auto, and Auto here
+        // doesn't pin to a finite outer because the root viewport
+        // size flows down through Auto cascade (rdom subtlety: a
+        // top-level Auto on `<p>` falls through to grand-parent
+        // viewport, but for percent-resolution purposes that
+        // outer is also indefinite per CSS 2.1).
+        .rule_unchecked("c", TuiStyle::new().height(Size::Percent(50)))
+        .rule_unchecked("g", TuiStyle::new().height(Size::Fixed(3)));
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 80, 50));
+
+    assert_eq!(
+        dom.node(child).ext().unwrap().layout.height,
+        3,
+        "indefinite parent → percent height falls to auto (intrinsic = 3)"
+    );
+}
+
+#[test]
+fn auto_height_block_with_overflow_hidden_includes_descendant_margins() {
+    // With `overflow: hidden` (new BFC), the parent traps its
+    // children's margins. The auto height includes everything,
+    // including the first child's top margin (no escape upward
+    // because the BFC blocks it).
+    //
+    //   parent: overflow: hidden, height: auto
+    //   a.mt=3, a.h=2
+    //   total height = 3 (top margin) + 2 (a.h) = 5.
+    use crate::layout::Overflow;
+    use crate::render::Rect;
+    let mut dom = dom();
+    let root = dom.root();
+    let parent = dom.create_element("p");
+    let a = dom.create_element("a");
+    dom.append_child(parent, a).unwrap();
+    dom.append_child(root, parent).unwrap();
+
+    let sheet = Stylesheet::bare()
+        .rule_unchecked("p", TuiStyle::new().overflow(Overflow::Hidden))
+        .rule_unchecked(
+            "a",
+            TuiStyle::new().height(Size::Fixed(2)).margin(Margin::new(
+                MarginValue::Cells(3),
+                MarginValue::Cells(0),
+                MarginValue::Cells(0),
+                MarginValue::Cells(0),
+            )),
+        );
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 40, 50));
+
+    assert_eq!(
+        dom.node(parent).ext().unwrap().layout.height,
+        3 + 2,
+        "BFC parent traps child's top margin → height includes it"
+    );
+}

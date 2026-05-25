@@ -48,12 +48,30 @@ use super::layout_node;
 /// Stores anonymous boxes on the parent's `TuiExt.anonymous_blocks`
 /// — paint / hit-test / selection iterate this Vec alongside the
 /// singular `inline_layout` field.
+/// Returned by [`layout_block_children`] so the caller (`layout_node`)
+/// can resolve an `Auto` parent height against the actual content
+/// extent. Captures the margin-collapse-aware measurement that
+/// `intrinsic_size`'s flat sum can't see.
+#[derive(Debug, Clone, Copy, Default)]
+pub(super) struct BlockMeasurement {
+    /// Top-of-content to bottom-of-last-block, including any
+    /// trailing bottom margin that the parent *traps* (i.e. won't
+    /// escape upward via parent-last-child collapse). For BFC
+    /// containers (`overflow: hidden`, flex, abs-pos, …) this
+    /// includes leading and trailing margins both — the BFC seals
+    /// them in. For collapse-eligible parents, leading/trailing
+    /// margins escape upward and aren't counted here; the
+    /// grandparent picks them up via the `accumulate_outer_*`
+    /// helpers.
+    pub content_height: u16,
+}
+
 pub(super) fn layout_block_children(
     dom: &mut Dom<TuiExt>,
     id: NodeId,
     container: LayoutRect,
     parent_computed: &ComputedStyle,
-) {
+) -> BlockMeasurement {
     // Collect ALL direct child nodes (text + element). Block layout
     // distinguishes inline-level (text + Display::Inline/InlineBlock
     // elements) from block-level (Display::Block elements) — text
@@ -61,7 +79,7 @@ pub(super) fn layout_block_children(
     // CSS 2.1 §9.2.1.1 rule 2.
     let raw_children: Vec<NodeId> = dom.node(id).child_nodes().map(|c| c.id()).collect();
     if raw_children.is_empty() {
-        return;
+        return BlockMeasurement::default();
     }
 
     // Filter out-of-flow elements; text nodes are always in flow.
@@ -78,7 +96,7 @@ pub(super) fn layout_block_children(
         if let Some(ext) = dom.node_mut(id).ext_mut() {
             ext.anonymous_blocks.clear();
         }
-        return;
+        return BlockMeasurement::default();
     }
 
     // Partition into runs. A run is a contiguous sequence of in-flow
@@ -165,6 +183,14 @@ pub(super) fn layout_block_children(
         .rev()
         .find_map(|(i, r)| (r.kind == RunKind::Block).then_some(i));
 
+    // CSS3 Box Alignment Module — `row-gap` applies between
+    // adjacent in-flow **block-level element children**. We
+    // deliberately don't insert gap around anonymous block boxes
+    // wrapping inline-only runs (whitespace text between block
+    // siblings produces 0-height anons; counting them as gap
+    // boundaries would multiply gaps unexpectedly).
+    let row_gap = parent_computed.gap;
+
     let mut placed_block_count: usize = 0;
     for (run_idx, run) in runs.iter().enumerate() {
         match run.kind {
@@ -174,6 +200,12 @@ pub(super) fn layout_block_children(
                 for (i, &child) in run.children.iter().enumerate() {
                     let is_first_block_placed = placed_block_count == 0;
                     let is_last_block_placed = is_last_block_run && i == last_child_idx;
+                    if !is_first_block_placed && row_gap > 0 {
+                        // Gap between adjacent block-level element
+                        // children. Margins collapse normally above;
+                        // gap is added on top per CSS3 Box Alignment.
+                        y_cursor += row_gap as i32;
+                    }
                     y_cursor = lay_out_block_child(
                         dom,
                         child,
@@ -231,6 +263,26 @@ pub(super) fn layout_block_children(
     // previous layout where the tree may have had different shape.
     if let Some(ext) = dom.node_mut(id).ext_mut() {
         ext.anonymous_blocks = anon_blocks;
+    }
+
+    // CSS 2.1 §10.6.3 — content height measurement. `y_cursor` is
+    // the bottom of the last placed in-flow content; subtract the
+    // initial cursor (`container.y - scroll_y`) to get the extent.
+    // Any unresolved bottom margin in the accumulator escapes
+    // upward through parent-last-child collapse (handled by the
+    // grandparent's `accumulate_outer_bottom_margin`) — UNLESS the
+    // parent establishes a new BFC, in which case the margin is
+    // trapped inside this container's height.
+    let initial_cursor = container.y - scroll_y;
+    let mut content_height = (y_cursor - initial_cursor).max(0);
+    if !suppress_last_bottom_margin {
+        // Margin doesn't escape upward — fold the running
+        // accumulator into the measured height. (Trailing positive
+        // margins contribute to height; negative pull content up.)
+        content_height = (content_height + margin_acc.resolved() as i32).max(0);
+    }
+    BlockMeasurement {
+        content_height: content_height.min(u16::MAX as i32) as u16,
     }
 }
 
@@ -942,6 +994,14 @@ fn resolve_block_height(
     resolved_width: u16,
     container_height: u16,
 ) -> u16 {
+    // CSS 2.1 §10.5 — `height: <percent>` only resolves against
+    // the containing block's height when that height is *definite*
+    // (Fixed, or Percent-of-definite, or otherwise pinned). When
+    // the containing block's own height is `auto` (indefinite),
+    // the percent falls back to `auto` — i.e. intrinsic content.
+    // Same rule applies to `Calc` expressions with percent terms.
+    let parent_height_definite = nearest_block_ancestor_height_is_definite(dom, id);
+
     let raw = match &computed.height {
         Size::Auto | Size::Flex(_) => {
             // Intrinsic content height — walk the child's subtree.
@@ -957,11 +1017,26 @@ fn resolve_block_height(
         }
         Size::Fixed(n) => *n,
         Size::Percent(p) => {
-            ((container_height as u32 * *p as u32) / 100).min(u16::MAX as u32) as u16
+            if parent_height_definite {
+                ((container_height as u32 * *p as u32) / 100).min(u16::MAX as u32) as u16
+            } else {
+                // Fall through to intrinsic — same as Auto.
+                intrinsic_size(dom, id, Direction::Column, resolved_width)
+            }
         }
         Size::Calc(expr) => {
-            let v = expr.resolve(&rdom_style::calc::ResolveCtx::new(container_height as i32));
-            v.max(0).min(u16::MAX as i32) as u16
+            // Calc with percent terms needs a definite basis too.
+            // For simplicity, treat all Calc the same as Percent:
+            // definite parent → resolve; indefinite → fall back to
+            // intrinsic. Calc without percent terms still resolves
+            // correctly (the basis isn't used) so the fallback path
+            // never hurts.
+            if parent_height_definite {
+                let v = expr.resolve(&rdom_style::calc::ResolveCtx::new(container_height as i32));
+                v.max(0).min(u16::MAX as i32) as u16
+            } else {
+                intrinsic_size(dom, id, Direction::Column, resolved_width)
+            }
         }
     };
 
@@ -973,6 +1048,61 @@ fn resolve_block_height(
         Some(crate::layout::MinSize::Auto) | None => None,
     };
     clamp_size(raw, min_cells, computed.max_height)
+}
+
+/// CSS 2.1 §10.5 — walk up to find the nearest block-flow ancestor
+/// whose height is *definite* (resolves to a concrete value
+/// independent of content measurement). Used to gate `Size::Percent`
+/// height resolution.
+///
+/// A height is definite when:
+/// - The element's `computed.height` is `Size::Fixed(_)`, OR
+/// - It's `Size::Percent` or `Size::Calc` AND the ancestor chain
+///   resolves to a definite ancestor (recursive), OR
+/// - `min-height` pins the box to a concrete value (Cells(>0)), OR
+/// - The element is absolutely-positioned with both top + bottom
+///   (height is `cb_height - top - bottom`, definite by extension
+///   when the CB is definite — for v1 we assume CB-of-absolute is
+///   definite since it traces to the viewport).
+///
+/// Flex items have a definite cross-axis size after distribution,
+/// but in this codepath we're only consulted when walking up a
+/// `Flow::Block` chain from a Block child — flex contexts are
+/// outside that.
+fn nearest_block_ancestor_height_is_definite(dom: &Dom<TuiExt>, id: NodeId) -> bool {
+    let Some(parent) = dom.node(id).parent_node() else {
+        // No parent — `id` is root. The viewport is definite by
+        // construction (the caller passes viewport rect).
+        return true;
+    };
+    let parent_id = parent.id();
+    let Some(parent_computed) = parent.ext().and_then(|e| e.computed.as_ref()) else {
+        return true; // fragment root etc.
+    };
+    use crate::layout::{MinSize, Position};
+    if matches!(
+        parent_computed.position,
+        Position::Absolute | Position::Fixed
+    ) {
+        // Absolute/fixed with both top + bottom defines a definite
+        // height. Conservative simplification: treat as definite —
+        // matches how `compute_placed_rect` actually sets the rect.
+        return true;
+    }
+    if let Some(MinSize::Cells(n)) = parent_computed.min_height
+        && n > 0
+    {
+        return true;
+    }
+    match parent_computed.height {
+        Size::Fixed(_) => true,
+        Size::Auto | Size::Flex(_) => false,
+        Size::Percent(_) | Size::Calc(_) => {
+            // Chain up — definite iff parent's own height-basis
+            // is definite.
+            nearest_block_ancestor_height_is_definite(dom, parent_id)
+        }
+    }
 }
 
 /// Convert a `MarginValue` to its effective cell contribution on

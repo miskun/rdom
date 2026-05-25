@@ -37,12 +37,19 @@ use super::{element_children_of, layout_node, parent_scroll};
 
 /// Lay out the **element** children of `id` inside `container`, using
 /// `computed`'s `direction`, `gap`, and the children's own sizes.
+///
+/// Returns a [`BlockMeasurement`] of the laid-out content extent so
+/// `layout_node` can resolve `height: Auto` on block-flow elements
+/// against the actual margin-collapse-aware content height (Phase 6.1).
+/// For IFC / pure-text-leaf / flex paths the measurement reports
+/// what's relevant for that path (inline height / flex distribution
+/// already produces final per-child rects).
 pub(super) fn layout_children(
     dom: &mut Dom<TuiExt>,
     id: NodeId,
     container: LayoutRect,
     computed: &ComputedStyle,
-) {
+) -> super::block::BlockMeasurement {
     // IFC block: inline element children don't participate in flex
     // layout — they're painted by the inline flow pass. Give each a
     // zero-sized layout rect (hit tests and debug tools shouldn't
@@ -84,7 +91,15 @@ pub(super) fn layout_children(
         for (atom_id, atom_rect) in atoms {
             layout_node(dom, atom_id, atom_rect);
         }
-        return;
+        // IFC height is the line count — block-flow auto-height
+        // resolution uses this if the IFC block has `height: auto`.
+        let h = dom
+            .node(id)
+            .ext()
+            .and_then(|e| e.inline_layout.as_ref())
+            .map(|l| l.height())
+            .unwrap_or(0);
+        return super::block::BlockMeasurement { content_height: h };
     }
 
     // Pure-text leaf block (e.g. `<textarea>`, `<input>`, `<p>only
@@ -105,10 +120,11 @@ pub(super) fn layout_children(
         .any(|c| c.node_type() == rdom_core::NodeType::Text);
     if has_text_child && element_children_of(dom, id).is_empty() {
         let inline_layout = compute_inline_layout(dom, id, container.width);
+        let h = inline_layout.height();
         if let Some(ext) = dom.node_mut(id).ext_mut() {
             ext.inline_layout = Some(inline_layout);
         }
-        return;
+        return super::block::BlockMeasurement { content_height: h };
     }
 
     if let Some(ext) = dom.node_mut(id).ext_mut() {
@@ -132,8 +148,7 @@ pub(super) fn layout_children(
             // Stale anon boxes from a prior flex layout: clear so
             // the new block layout starts fresh. Anon boxes will
             // be repopulated by `layout_block_children`.
-            super::block::layout_block_children(dom, id, container, computed);
-            return;
+            return super::block::layout_block_children(dom, id, container, computed);
         }
         crate::layout::Flow::Flex => {
             // Fall through to flex distribution. Stale anon boxes
@@ -171,6 +186,18 @@ pub(super) fn layout_children(
         })
         .collect();
     layout_flex_children(dom, &children, container, computed);
+    // Flex distribution sets each child's outer rect inside the
+    // container; the container's own height was determined by its
+    // parent's distribution / its declared size. There's no
+    // analogous "measure from children" pass for flex (it's the
+    // INVERSE: the container's main-axis size flows down to
+    // children). Return the container's content height so layout_node
+    // doesn't accidentally collapse `Auto` height when this branch
+    // returns — Auto on a flex container resolves via the parent's
+    // distribution + intrinsic_size, not via this measurement.
+    super::block::BlockMeasurement {
+        content_height: container.height,
+    }
 }
 
 pub(super) fn layout_flex_children(
