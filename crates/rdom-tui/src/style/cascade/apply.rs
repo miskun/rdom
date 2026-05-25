@@ -73,6 +73,34 @@ pub(super) fn apply_cascade_ladder(
     // unexpected horizontal gutter. Each axis is independent.
 }
 
+/// Compute `establishes_new_bfc` from the working style + parent
+/// context. Runs after the cascade ladder so all source properties
+/// are at their final values. Per CSS 2.1 §9.4.1 + Flexbox §3:
+///
+/// An element establishes a new block formatting context when:
+/// - It's a flex container (`flow: Flex`) — flex containers form
+///   independent BFCs for their items.
+/// - It's an inline-block — establishes a new BFC for its content
+///   (which then lays out as block).
+/// - Its overflow on either axis is non-visible (Hidden/Scroll/
+///   Auto) — clipping containers form independent BFCs.
+/// - It's absolutely or fixed positioned — out-of-flow boxes form
+///   their own BFCs.
+/// - (Root element is also a BFC — handled implicitly because
+///   layout starts at root regardless.)
+///
+/// Margin collapsing checks this predicate: parent-child margin
+/// collapse happens only when the parent does NOT establish a new
+/// BFC.
+pub(super) fn finalize_bfc_formation(working: &mut ComputedStyle) {
+    use crate::layout::{Flow, Overflow, Position};
+    working.establishes_new_bfc = matches!(working.flow, Flow::Flex)
+        || matches!(working.display, Display::InlineBlock)
+        || !matches!(working.overflow_x, Overflow::Visible)
+        || !matches!(working.overflow_y, Overflow::Visible)
+        || matches!(working.position, Position::Absolute | Position::Fixed);
+}
+
 /// If no declaration set `border_fg`, fall back to the working `fg`.
 /// Runs after the cascade ladder so `fg` is at its final value.
 pub(super) fn finalize_border_fg(
@@ -291,6 +319,12 @@ fn apply_style(
         style.important.contains(ImportantMask::DISPLAY),
         important_pass,
         parent.display,
+    );
+    apply_flow(
+        &mut working.flow,
+        &style.flow,
+        style.important.contains(ImportantMask::FLOW),
+        important_pass,
     );
     apply_white_space(
         &mut working.white_space,
@@ -608,6 +642,25 @@ fn apply_display(
         important_pass,
         inherit,
         Display::Block
+    );
+}
+
+/// `flow` is non-inheriting (matches `display`'s non-inheriting nature).
+/// Default is `Flow::Block`. Initial-value reset means absent writes
+/// fall back to Block, not to the parent's flow.
+fn apply_flow(
+    target: &mut crate::layout::Flow,
+    value: &Option<Value<crate::layout::Flow>>,
+    important_prop: bool,
+    important_pass: bool,
+) {
+    apply_simple!(
+        *target,
+        value,
+        important_prop,
+        important_pass,
+        crate::layout::Flow::Block, // non-inheriting; inherit slot = initial
+        crate::layout::Flow::Block
     );
 }
 

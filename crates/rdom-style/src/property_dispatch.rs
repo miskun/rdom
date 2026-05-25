@@ -350,18 +350,49 @@ pub fn set_from_tokens(
         }),
 
         // Layout — keywords
-        "display" => parse_keyword(
-            value,
-            &[
-                ("block", Display::Block),
-                ("inline", Display::Inline),
-                ("inline-block", Display::InlineBlock),
-                ("none", Display::None),
-            ],
-        )
-        .map(|d| {
-            style.display = Some(Value::Specified(d));
-        }),
+        //
+        // `display` writes BOTH outer (`Display`) and inner (`Flow`)
+        // values per CSS3 Display Module. The single-value forms map:
+        //  `block`        → Block + flow:Block
+        //  `flex`         → Block + flow:Flex   (most common)
+        //  `inline`       → Inline + (flow N/A)
+        //  `inline-block` → InlineBlock + flow:Block
+        //  `inline-flex`  → Inline + flow:Flex
+        //  `none`         → None
+        // The Flow side overwrites any prior author `flow` write —
+        // matches CSS expectation that `display: flex` makes the
+        // element a flex container regardless of any other prop.
+        "display" => match value {
+            [Token::Ident(s)] if s.eq_ignore_ascii_case("block") => {
+                style.display = Some(Value::Specified(Display::Block));
+                style.flow = Some(Value::Specified(crate::layout::Flow::Block));
+                Some(())
+            }
+            [Token::Ident(s)] if s.eq_ignore_ascii_case("flex") => {
+                style.display = Some(Value::Specified(Display::Block));
+                style.flow = Some(Value::Specified(crate::layout::Flow::Flex));
+                Some(())
+            }
+            [Token::Ident(s)] if s.eq_ignore_ascii_case("inline") => {
+                style.display = Some(Value::Specified(Display::Inline));
+                Some(())
+            }
+            [Token::Ident(s)] if s.eq_ignore_ascii_case("inline-block") => {
+                style.display = Some(Value::Specified(Display::InlineBlock));
+                style.flow = Some(Value::Specified(crate::layout::Flow::Block));
+                Some(())
+            }
+            [Token::Ident(s)] if s.eq_ignore_ascii_case("inline-flex") => {
+                style.display = Some(Value::Specified(Display::Inline));
+                style.flow = Some(Value::Specified(crate::layout::Flow::Flex));
+                Some(())
+            }
+            [Token::Ident(s)] if s.eq_ignore_ascii_case("none") => {
+                style.display = Some(Value::Specified(Display::None));
+                Some(())
+            }
+            _ => None,
+        },
         "flex-direction" => parse_keyword(
             value,
             &[("row", Direction::Row), ("column", Direction::Column)],

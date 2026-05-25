@@ -281,6 +281,44 @@ pub enum Display {
     None,
 }
 
+/// **Inner display** — how an element lays out its own children.
+/// Pairs with [`Display`] (the "outer display" — how the element
+/// participates in its parent).
+///
+/// CSS3 Display Module models display as a two-value property
+/// `<outer> <inner>`:
+///
+/// | `display: <…>`     | outer `Display`   | inner `Flow` |
+/// |--------------------|-------------------|--------------|
+/// | `block` (default)  | `Block`           | `Block`      |
+/// | `flex`             | `Block`           | `Flex`       |
+/// | `inline`           | `Inline`          | n/a          |
+/// | `inline-block`     | `InlineBlock`     | `Block`      |
+/// | `inline-flex`      | `Inline`          | `Flex`       |
+/// | `none`             | `None`            | n/a          |
+///
+/// Default is `Block` — rdom's block layout pass walks children
+/// in document order, stacking at natural heights per CSS 2.1 §10.
+/// Authors opt into flex distribution via `display: flex` (or
+/// `display: inline-flex` for inline-level flex containers).
+///
+/// Does not inherit. Computed at cascade time alongside `Display`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Flow {
+    /// Children stack vertically in document order at natural
+    /// heights (CSS 2.1 §10). The default — matches CSS `display:
+    /// block` inner. No distribution, no shrink-to-fit; container
+    /// overflows below its content if too short. Vertical margins
+    /// between adjacent block children collapse per CSS 2.1 §8.3.1.
+    #[default]
+    Block,
+    /// Children participate in flex distribution along the
+    /// container's `direction` axis (`Row` / `Column`). Grow, shrink,
+    /// gap, justify-content semantics per CSS Flexible Box L1.
+    /// Container forms a new BFC.
+    Flex,
+}
+
 /// White-space handling for text inside an inline formatting context.
 /// Matches the CSS property of the same name.
 ///

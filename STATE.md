@@ -6,9 +6,11 @@ For the durable architecture and roadmap, see [`specs/DESIGN.md`](specs/DESIGN.m
 
 ## Current focus
 
-**Release in flight:** 0.2.0. Three workstreams bundled under one release — `rdom-showcase` (headline), event surface bundle, `calc()` value system. Plan: [`specs/SHOWCASE.md`](specs/SHOWCASE.md).
+**In flight:** `BFC-1` — Block Formatting Context substrate milestone. The showcase exposed a structural gap: rdom has only one layout mode (flex), so `<h1><p>` doesn't stack like the web platform specifies. Closing this unlocks "write semantic HTML, get HTML behavior" for every downstream consumer. Plan: [`specs/BFC-1.md`](specs/BFC-1.md). Tasks tracked #70–#78.
 
-**Next milestone:** M8 — Coverage demos (the showcase becomes a complete tour of the substrate).
+**Release in flight:** 0.2.0. Workstreams: `rdom-showcase`, event surface bundle, `calc()` value system, now BFC-1. Plan: [`specs/SHOWCASE.md`](specs/SHOWCASE.md).
+
+**After BFC-1:** M8 — Coverage demos (the showcase becomes a complete tour of the substrate). Currently partially shipped (4 demos in animations, 3 in text + others); resumption blocked until BFC-1 closes the textual-content authoring gap.
 
 **Status:** **M1 + M2 + M3 + M4 + M5 + M6 + M7 closed; M8 in flight.** M7 polished the showcase consumer-side: Source view tab (Demo / Source toggle), terminal resize integration, scroll-position indicator at the bottom of `<main>`, CLI deep-link via `--demo <slug>` / `--list` / `--help`. M8 (Coverage demos) is underway — first four demos shipped (MutationObserver + Animations: transition / interval / rAF), plus a substrate fix for inline-block in flex rows surfaced by the interval-counter demo. 2,481 workspace tests passing.
 

@@ -75,8 +75,23 @@ pub struct ComputedStyle {
     pub overflow_y: Overflow,
 
     // ── Inline formatting ────────────────────────────────────────────
-    /// Block vs inline participation. Default `Block`.
+    /// Outer display — how this element participates in its parent's
+    /// formatting context. Default `Block`. See also `flow` for the
+    /// inner display (how this element lays out its OWN children).
     pub display: Display,
+    /// Inner display — how this element lays out its children.
+    /// Default `Block` (children stack at natural heights, CSS 2.1
+    /// §10 block flow). `display: flex` flips this to `Flex`. See
+    /// [`Flow`] for the full table.
+    pub flow: crate::layout::Flow,
+    /// True when this element establishes a new **block formatting
+    /// context** per CSS 2.1 §9.4.1. Triggers: root element, flex
+    /// containers, inline-blocks, absolute/fixed positioning,
+    /// non-visible overflow on either axis. Margin collapsing
+    /// crosses a parent-child boundary only when the parent does
+    /// NOT establish a new BFC. Computed at cascade finalization
+    /// (last pass over the property bag).
+    pub establishes_new_bfc: bool,
     /// Whitespace handling inside an inline formatting context.
     /// Inherits. Default `Normal`.
     pub white_space: WhiteSpace,
@@ -153,6 +168,8 @@ impl ComputedStyle {
             overflow_x: Overflow::Visible,
             overflow_y: Overflow::Visible,
             display: Display::Block,
+            flow: crate::layout::Flow::Block,
+            establishes_new_bfc: false,
             white_space: WhiteSpace::Normal,
             user_select: UserSelect::Auto,
             caret_color: CaretColor::Auto,
@@ -256,6 +273,8 @@ mod tests {
         assert_eq!(s.gap, 0);
         assert_eq!(s.padding, Padding::default());
         assert_eq!(s.display, Display::Block);
+        assert_eq!(s.flow, crate::layout::Flow::Block);
+        assert!(!s.establishes_new_bfc);
         assert_eq!(s.white_space, WhiteSpace::Normal);
         assert_eq!(s.user_select, UserSelect::Auto);
         assert!(s.content.is_none());

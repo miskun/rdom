@@ -12,7 +12,7 @@ use crate::ext::TuiExt;
 use crate::layout::Position;
 use crate::style::{ComputedStyle, PseudoElementTarget, Rule, Stylesheet, VarMap};
 
-use super::apply::{apply_cascade_ladder, finalize_border_fg};
+use super::apply::{apply_cascade_ladder, finalize_bfc_formation, finalize_border_fg};
 use super::content::resolve_content_on;
 use super::inherit::{inherit_inheritable_from, layout_differs};
 
@@ -228,6 +228,12 @@ fn compute_element_style(
     // set fg AFTER border_fg in the rule (same specificity), and we
     // need the *final* fg value as the fallback.
     finalize_border_fg(&mut working, &sorted, inline);
+    // BFC formation predicate (CSS 2.1 §9.4.1). Computed AFTER the
+    // cascade ladder so it reads the final values of `flow`,
+    // `display`, `overflow_*`, `position`. Used by the block-layout
+    // margin-collapse pass — landing here in phase 1 so phase 5 has
+    // it ready to consume.
+    finalize_bfc_formation(&mut working);
 
     working
 }
@@ -273,6 +279,7 @@ fn compute_pseudo_style(
 
     // Border_fg fallback (same rule as for host elements).
     finalize_border_fg(&mut working, &sorted, None);
+    finalize_bfc_formation(&mut working);
 
     // Resolve content:
     //   - None  = no `content:` declaration at all → use legacy fallback

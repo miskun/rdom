@@ -71,7 +71,8 @@ pub use tui_event::{TuiDispatchExt, TuiEvent};
 
 pub use ext::{PseudoLayout, TuiExt};
 pub use layout::{
-    Align, Border, Direction, Display, LayoutRect, Overflow, Padding, Size, UserSelect, WhiteSpace,
+    Align, Border, Direction, Display, Flow, LayoutRect, Overflow, Padding, Size, UserSelect,
+    WhiteSpace,
 };
 pub use node::{TuiNodeExt, TuiNodeMutExt};
 pub use render::{

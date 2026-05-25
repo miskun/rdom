@@ -78,6 +78,7 @@ bitflags_like! {
         CARET_COLOR = 1 << 36;
         CARET_TEXT_COLOR = 1 << 37;
         FLEX_SHRINK = 1 << 38;
+        FLOW = 1 << 39;
     }
 }
 
@@ -142,7 +143,17 @@ pub struct TuiStyle {
     pub overflow_y: Option<Value<Overflow>>,
 
     // ── Inline formatting ────────────────────────────────────────────
+    /// Outer display. Set by `display: <kw>` keywords. The companion
+    /// `flow` field captures the inner display (block vs flex layout
+    /// of THIS element's children). Both are written by the `display`
+    /// property parser: `display: flex` sets `display = Some(Block)`
+    /// AND `flow = Some(Flex)`; `display: block` sets `display =
+    /// Some(Block)` + `flow = Some(Block)`; etc.
     pub display: Option<Value<Display>>,
+    /// Inner display — how this element lays out its children.
+    /// Written alongside `display` by the same parser. See [`Flow`]
+    /// for the mapping table.
+    pub flow: Option<Value<crate::layout::Flow>>,
     pub white_space: Option<Value<WhiteSpace>>,
     pub user_select: Option<Value<UserSelect>>,
     /// CSS `caret-color`. `Auto` (default) paints the caret cell
@@ -399,7 +410,32 @@ impl TuiStyle {
         self
     }
 
-    setter!(display, display, display_important, DISPLAY, Display);
+    // `display` carries the outer formatting value AND drives the
+    // inner `flow` value per the CSS3 Display Module mapping. The
+    // setter mirrors what the `display: <kw>` parser does: writing
+    // `display(Display::Block)` also sets `flow = Flow::Block`,
+    // `display(Display::InlineBlock)` sets `flow = Flow::Block`,
+    // etc. Without this, builder-built styles (used in tests, the
+    // UA stylesheet, and inline API) would diverge from CSS-parsed
+    // styles at round-trip boundaries. `display(Display::Inline)`
+    // and `display(Display::None)` leave `flow` untouched (no inner
+    // formatting context to declare).
+    pub fn display(mut self, v: Display) -> Self {
+        self.display = Some(Value::Specified(v));
+        match v {
+            Display::Block | Display::InlineBlock => {
+                self.flow = Some(Value::Specified(crate::layout::Flow::Block));
+            }
+            Display::Inline | Display::None => {}
+        }
+        self
+    }
+    pub fn display_important(mut self, v: Display) -> Self {
+        self = self.display(v);
+        self.important |= ImportantMask::DISPLAY;
+        self
+    }
+    setter!(flow, flow, flow_important, FLOW, crate::layout::Flow);
     setter!(
         white_space,
         white_space,
@@ -567,6 +603,9 @@ impl TuiStyle {
             n += 1
         }
         if self.display.is_some() {
+            n += 1
+        }
+        if self.flow.is_some() {
             n += 1
         }
         if self.white_space.is_some() {
@@ -806,6 +845,7 @@ mod tests {
             .direction_important(Direction::Row)
             .overflow_important(Overflow::Hidden)
             .display_important(Display::Inline)
+            .flow_important(crate::layout::Flow::Block)
             .white_space_important(WhiteSpace::Pre)
             .user_select_important(UserSelect::None)
             .caret_color_important(CaretColor::Transparent)
