@@ -624,6 +624,69 @@ fn pure_block_container_has_no_anonymous_boxes() {
     );
 }
 
+// ── Hit-test integration (phase 3.3) ────────────────────────────
+
+#[test]
+fn anonymous_block_hit_test_resolves_to_source_text_node() {
+    use crate::ext::TuiExt;
+    use crate::render::layout_pass::block::layout_block_children;
+    use crate::render::{PaintExt, Rect};
+    use crate::runtime::hit_test::HitTestExt;
+    use rdom_core::Dom;
+
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let parent = dom.create_element("div");
+    let h1 = dom.create_element("h1");
+    let h1t = dom.create_text_node("X");
+    dom.append_child(h1, h1t).unwrap();
+    let text = dom.create_text_node("middle");
+    let h2 = dom.create_element("h2");
+    let h2t = dom.create_text_node("Y");
+    dom.append_child(h2, h2t).unwrap();
+    dom.append_child(parent, h1).unwrap();
+    dom.append_child(parent, text).unwrap();
+    dom.append_child(parent, h2).unwrap();
+    dom.append_child(root, parent).unwrap();
+
+    let sheet = Stylesheet::bare()
+        .rule_unchecked("h1", TuiStyle::new().height(Size::Fixed(1)))
+        .rule_unchecked("h2", TuiStyle::new().height(Size::Fixed(1)));
+    dom.cascade(&sheet);
+
+    let parent_rect = LayoutRect::new(0, 0, 20, 10);
+    if let Some(ext) = dom.node_mut(parent).ext_mut() {
+        ext.layout = parent_rect;
+        ext.content_layout = parent_rect;
+    }
+    if let Some(ext) = dom.node_mut(root).ext_mut() {
+        ext.layout = parent_rect;
+        ext.content_layout = parent_rect;
+    }
+    // Lay out child blocks so hit-test descent works through them.
+    let parent_computed = dom.node(parent).computed().cloned().unwrap_or_default();
+    layout_block_children(
+        &mut dom as &mut Dom<TuiExt>,
+        parent,
+        parent_rect,
+        &parent_computed,
+    );
+
+    // Paint once so any internal caches are warm (no-op for hit-
+    // test but matches the runtime sequence).
+    let mut buf = crate::render::Buffer::empty(Rect::new(0, 0, 20, 10));
+    dom.paint_dom(&mut buf, Rect::new(0, 0, 20, 10));
+
+    // Click at (2, 1) — inside the anon box's row, second cell.
+    // Should resolve to a Position inside the "middle" text node
+    // with byte offset 2 ("middle"[0..2] = "mi").
+    let pos = dom
+        .position_at(2, 1)
+        .expect("anon-box click resolves to a position");
+    assert_eq!(pos.node, text, "click routes to the middle text node");
+    assert_eq!(pos.offset, 2, "byte offset within the text node");
+}
+
 // ── Paint integration (phase 3.2) ───────────────────────────────
 
 #[test]

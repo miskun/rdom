@@ -120,24 +120,27 @@ impl HitTestExt for Dom<TuiExt> {
     }
 
     fn position_at(&self, x: u16, y: u16) -> Option<Position> {
-        // Find the IFC block under (x, y). `hit_test_path` already
-        // handles overflow clipping and reverse-document-order
+        // Find the inline-flow container under (x, y) — either a
+        // classic IFC block (singular `inline_layout`) or one of
+        // a parent's anonymous block boxes (BFC-1 phase 3.3). The
+        // hit-test path is walked innermost-first; the deepest
+        // matching container wins.
+        // `hit_test_path` already handles overflow clipping and
+        // reverse-document-order
         // stacking; we just need to find the first IFC ancestor
         // on the path.
         let path = self.hit_test_path(x, y);
 
-        // Walk path *innermost-first* — we want the deepest IFC
-        // that contains the point. But IFC blocks are block
-        // elements, so any ancestor of the hit element that's an
-        // IFC block is a candidate; the deepest wins.
-        let mut ifc_block: Option<NodeId> = None;
-        for &id in path.iter().rev() {
-            if has_inline_layout(self, id) {
-                ifc_block = Some(id);
-                break;
-            }
-        }
-        let ifc_id = ifc_block?;
+        // Walk path *innermost-first* — deepest match wins. A
+        // singular IFC block (its own `inline_layout`) is the
+        // common case; an anonymous block box (a slot in some
+        // ancestor's `anonymous_blocks` Vec, populated by the
+        // block-layout pass for inline runs amongst block
+        // children) is the BFC-1 phase 3 case.
+        let target = path
+            .iter()
+            .rev()
+            .find_map(|&id| inline_target_at(self, id, y))?;
 
         // user-select gate: any ancestor of the hit with
         // `user-select: none` kills the position.
@@ -145,15 +148,17 @@ impl HitTestExt for Dom<TuiExt> {
             return None;
         }
 
-        // Find the fragment at the point inside the IFC block.
+        // Resolve the InlineLayout + content rect for the target.
+        let (inline_layout, content) = target.layout_and_rect(self)?;
+
+        // Find the fragment at the point inside the inline flow.
         // If no fragment covers (x, y) — common case: the user
         // dragged the mouse past a line's content — clamp to the
         // nearest valid position on the target line. Without this,
         // drag-selection past end-of-line silently misses the final
         // character (the `position_at` returns None and the drag
         // handler doesn't update the selection focus).
-        let content = self.node(ifc_id).content_layout_rect()?;
-        match fragment_at(self, ifc_id, content, x, y) {
+        match fragment_at_layout(inline_layout, content, x, y) {
             Some(fragment) => {
                 let cell_offset_in_frag = (x as i32 - content.x - fragment.x as i32).max(0) as u16;
                 let bytes_into_text = cells_to_bytes(&fragment.text, cell_offset_in_frag);
@@ -162,9 +167,68 @@ impl HitTestExt for Dom<TuiExt> {
                     fragment.source_byte_offset + bytes_into_text,
                 ))
             }
-            None => clamp_to_line(self, ifc_id, content, x, y),
+            None => clamp_to_line_layout(inline_layout, content, x, y),
         }
     }
+}
+
+/// What kind of inline-flow container is under the hit point.
+#[derive(Debug, Clone, Copy)]
+enum InlineTarget {
+    /// Classic IFC — the block element itself owns the
+    /// `inline_layout`. Content rect = the block's content_layout.
+    Ifc(NodeId),
+    /// Anonymous block box — `container` owns the
+    /// `anonymous_blocks` Vec; `index` selects the entry. Content
+    /// rect = the entry's `.rect` (no further inset).
+    Anonymous { container: NodeId, index: usize },
+}
+
+impl InlineTarget {
+    /// Resolve to `(layout, content_rect)`. Borrows from the dom.
+    fn layout_and_rect(
+        self,
+        dom: &Dom<TuiExt>,
+    ) -> Option<(&crate::render::inline::InlineLayout, LayoutRect)> {
+        match self {
+            InlineTarget::Ifc(id) => {
+                let ext = dom.node(id).ext()?;
+                let layout = ext.inline_layout.as_ref()?;
+                let content = dom.node(id).content_layout_rect()?;
+                Some((layout, content))
+            }
+            InlineTarget::Anonymous { container, index } => {
+                let ext = dom.node(container).ext()?;
+                let anon = ext.anonymous_blocks.get(index)?;
+                Some((&anon.inline_layout, anon.rect))
+            }
+        }
+    }
+}
+
+/// Return the inline-flow target rooted at `id` that contains
+/// `y`, if any. Picks the singular IFC when present; otherwise
+/// checks each anonymous box on the element for a y-range match.
+fn inline_target_at(dom: &Dom<TuiExt>, id: NodeId, y: u16) -> Option<InlineTarget> {
+    if has_inline_layout(dom, id) {
+        return Some(InlineTarget::Ifc(id));
+    }
+    let ext = dom.node(id).ext()?;
+    if ext.anonymous_blocks.is_empty() {
+        return None;
+    }
+    let y_i = y as i32;
+    for (i, anon) in ext.anonymous_blocks.iter().enumerate() {
+        let top = anon.rect.y;
+        let bottom = anon.rect.y + anon.rect.height as i32;
+        if y_i >= top && y_i < bottom {
+            return Some(InlineTarget::Anonymous {
+                container: id,
+                index: i,
+            });
+        }
+    }
+    None
 }
 
 /// Clamp `(x, y)` to the nearest valid position on the inline layout
@@ -176,14 +240,12 @@ impl HitTestExt for Dom<TuiExt> {
 /// - `y >= content.y + content.height` → last line's end position.
 /// - In-bounds y, x past line's content → that line's end position.
 /// - In-bounds y, line is empty → walk to the nearest non-empty line.
-fn clamp_to_line(
-    dom: &Dom<TuiExt>,
-    ifc_id: NodeId,
+fn clamp_to_line_layout(
+    layout: &crate::render::inline::InlineLayout,
     content: crate::layout::LayoutRect,
     x: u16,
     y: u16,
 ) -> Option<Position> {
-    let layout = dom.node(ifc_id).ext()?.inline_layout.as_ref()?;
     if layout.lines.is_empty() {
         return None;
     }
@@ -448,16 +510,12 @@ fn rect_contains(r: LayoutRect, x: u16, y: u16) -> bool {
 /// block's content area. Returns a reference into the block's
 /// stored `InlineLayout` — the caller extracts whatever info it
 /// needs (owner, text_node, source offset) without cloning.
-fn fragment_at(
-    dom: &Dom<TuiExt>,
-    ifc_block: NodeId,
+fn fragment_at_layout(
+    layout: &crate::render::inline::InlineLayout,
     content: LayoutRect,
     x: u16,
     y: u16,
 ) -> Option<&InlineFragment> {
-    let ext = dom.node(ifc_block).ext()?;
-    let layout = ext.inline_layout.as_ref()?;
-
     let line_index = y as i32 - content.y;
     if line_index < 0 || line_index as usize >= layout.lines.len() {
         return None;
