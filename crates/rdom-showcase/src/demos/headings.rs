@@ -32,24 +32,15 @@ pub const CSS: &str = r#"
   gap: 0;
 }
 .headings h1 {
-  flex-shrink: 0;
   color: rgb(180, 220, 255);
 }
 .headings h2 {
-  flex-shrink: 0;
   color: rgb(160, 200, 240);
 }
 .headings h3 {
-  flex-shrink: 0;
   color: rgb(140, 180, 220);
 }
-.headings h4,
-.headings h5,
-.headings h6 {
-  flex-shrink: 0;
-}
 .headings p {
-  flex-shrink: 0;
   padding-top: 1;
 }
 "#;

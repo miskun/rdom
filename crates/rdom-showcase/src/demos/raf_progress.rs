@@ -44,27 +44,17 @@ pub const CSS: &str = r#"
 }
 .raf-demo h1 {
   height: 1;
-  flex-shrink: 0;
   color: rgb(180, 220, 255);
   font-weight: bold;
-}
-.raf-demo p {
-  flex-shrink: 0;
 }
 .raf-demo .row {
   flex-direction: row;
   gap: 2;
   height: 1;
-  flex-shrink: 0;
-}
-.raf-demo .row .start-btn,
-.raf-demo .row .reset-btn {
-  flex-shrink: 0;
 }
 .raf-demo .track {
   height: 1;
   width: 50;
-  flex-shrink: 0;
   border: solid;
   border-color: rgb(120, 130, 150);
 }

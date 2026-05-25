@@ -35,22 +35,18 @@ pub const CSS: &str = r#"
 }
 .tab-form-demo h1 {
   height: 1;
-  flex-shrink: 0;
   color: rgb(180, 220, 255);
   font-weight: bold;
 }
 .tab-form-demo .hint {
   height: 1;
-  flex-shrink: 0;
 }
 .tab-form-demo .row {
   flex-direction: row;
   gap: 1;
-  flex-shrink: 0;
 }
 .tab-form-demo .row label {
   width: 9;
-  flex-shrink: 0;
 }
 .tab-form-demo .row input {
   flex: 1;
@@ -58,11 +54,9 @@ pub const CSS: &str = r#"
 .tab-form-demo .row textarea {
   flex: 1;
   height: 3;
-  flex-shrink: 0;
 }
 .tab-form-demo .status {
   height: 1;
-  flex-shrink: 0;
 }
 "#;
 

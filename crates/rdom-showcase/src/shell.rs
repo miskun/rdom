@@ -324,7 +324,6 @@ const BASE_CSS: &str = r#"
  * around.
  */
 .main .source-disclosure {
-  flex-shrink: 0;
   border-top: solid;
   border-color: rgb(70, 80, 100);
   max-height: 16;
@@ -342,12 +341,12 @@ const BASE_CSS: &str = r#"
 
 /* Scroll-position indicator at the bottom of <main>. Empty by
  * default — the listener writes scroll info when a descendant
- * scrolls. The 1-cell height + flex-shrink: 0 keeps the
- * indicator visible without pushing demo content around.
+ * scrolls. The 1-cell height keeps the indicator visible
+ * without pushing demo content around (substrate floors the
+ * height at its intrinsic 1-row content via M5-MIN-CONTENT-1).
  */
 .main .scroll-indicator {
   height: 1;
-  flex-shrink: 0;
   border-top: solid;
   border-color: rgb(70, 80, 100);
   padding: 0 1;

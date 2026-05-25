@@ -56,7 +56,6 @@ pub const CSS: &str = r#"
   gap: 1;
 }
 .ws-demo h1 {
-  flex-shrink: 0;
   color: rgb(180, 220, 255);
 }
 .ws-demo .row {
@@ -71,11 +70,7 @@ pub const CSS: &str = r#"
   overflow-x: hidden;
 }
 .ws-demo .col h2 {
-  flex-shrink: 0;
   color: rgb(180, 200, 220);
-}
-.ws-demo .col p {
-  flex-shrink: 0;
 }
 .ws-demo .ws-normal {
   white-space: normal;

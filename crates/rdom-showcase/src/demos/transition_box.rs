@@ -35,17 +35,12 @@ pub const CSS: &str = r#"
 }
 .transition-demo h1 {
   height: 1;
-  flex-shrink: 0;
   color: rgb(180, 220, 255);
   font-weight: bold;
-}
-.transition-demo p {
-  flex-shrink: 0;
 }
 .transition-demo .box {
   height: 3;
   width: 20;
-  flex-shrink: 0;
   border: solid;
   border-color: rgb(120, 130, 150);
   color: rgb(180, 190, 210);

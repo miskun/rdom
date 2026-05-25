@@ -41,24 +41,17 @@ pub const CSS: &str = r#"
 }
 .mo-demo h1 {
   height: 1;
-  flex-shrink: 0;
   color: rgb(180, 220, 255);
   font-weight: bold;
 }
 .mo-demo h2 {
   height: 1;
-  flex-shrink: 0;
   color: rgb(150, 180, 210);
 }
 .mo-demo p {
   height: 1;
-  flex-shrink: 0;
-}
-.mo-demo .add-btn {
-  flex-shrink: 0;
 }
 .mo-demo .items {
-  flex-shrink: 0;
   max-height: 8;
   overflow: auto;
 }

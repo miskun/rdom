@@ -36,16 +36,11 @@ pub const CSS: &str = r#"
 }
 .interval-demo h1 {
   height: 1;
-  flex-shrink: 0;
   color: rgb(180, 220, 255);
   font-weight: bold;
 }
 .interval-demo p {
   height: 1;
-  flex-shrink: 0;
-}
-.interval-demo .toggle-btn {
-  flex-shrink: 0;
 }
 .interval-demo .value-line .value {
   color: rgb(220, 230, 255);

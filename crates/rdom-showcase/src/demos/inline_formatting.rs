@@ -42,12 +42,8 @@ pub const CSS: &str = r#"
 }
 .inline-fmt h1 {
   height: 1;
-  flex-shrink: 0;
   color: rgb(180, 220, 255);
   font-weight: bold;
-}
-.inline-fmt p {
-  flex-shrink: 0;
 }
 "#;
 

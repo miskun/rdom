@@ -30,7 +30,6 @@ pub const CSS: &str = r#"
 }
 .scroll-list-demo h1 {
   height: 1;
-  flex-shrink: 0;
   color: rgb(180, 220, 255);
   font-weight: bold;
 }
@@ -41,7 +40,6 @@ pub const CSS: &str = r#"
 }
 .scroll-list-demo .row {
   height: 1;
-  flex-shrink: 0;
 }
 .scroll-list-demo .row:hover {
   background: rgb(169, 169, 169);

@@ -22,7 +22,6 @@ const CSS: &str = r#"
 .hover-demo .card {
   height: 3;
   width: 20;
-  flex-shrink: 0;
   border: solid;
   border-color: rgb(120, 130, 150);
   color: rgb(180, 190, 210);

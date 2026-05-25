@@ -39,11 +39,9 @@ pub const CSS: &str = r#"
   color: rgb(180, 220, 255);
   font-weight: bold;
   height: 1;
-  flex-shrink: 0;
 }
 .counter-demo p {
   height: 1;
-  flex-shrink: 0;
 }
 "#;
 

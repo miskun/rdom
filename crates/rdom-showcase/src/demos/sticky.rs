@@ -30,7 +30,6 @@ pub const CSS: &str = r#"
 }
 .sticky-demo .header {
   height: 1;
-  flex-shrink: 0;
   position: sticky;
   top: 0;
   background: rgb(40, 40, 60);
@@ -39,7 +38,6 @@ pub const CSS: &str = r#"
 }
 .sticky-demo .item {
   height: 1;
-  flex-shrink: 0;
 }
 "#;
 

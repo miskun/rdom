@@ -37,13 +37,11 @@ pub const CSS: &str = r#"
 }
 .dom-api-demo h1 {
   height: 1;
-  flex-shrink: 0;
   color: rgb(180, 220, 255);
   font-weight: bold;
 }
 .dom-api-demo .report {
   flex: 1;
-  flex-shrink: 0;
   display: block;
 }
 "#;

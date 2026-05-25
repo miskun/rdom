@@ -44,22 +44,15 @@ pub const CSS: &str = r#"
 }
 .selectable-text-demo h1 {
   height: 1;
-  flex-shrink: 0;
   color: rgb(180, 220, 255);
   font-weight: bold;
 }
 .selectable-text-demo .chrome {
   height: 1;
-  flex-shrink: 0;
   user-select: none;
-}
-.selectable-text-demo .prose,
-.selectable-text-demo .cjk {
-  flex-shrink: 0;
 }
 .selectable-text-demo .code {
   display: block;
-  flex-shrink: 0;
 }
 "#;
 
