@@ -34,6 +34,33 @@ pub struct PseudoLayout {
     pub position: Position,
 }
 
+/// One synthesized **anonymous block box** wrapping a run of
+/// inline-level children inside a block container. Per CSS 2.1
+/// §9.2.1.1, when a block-flow container has mixed block + inline
+/// children, the inline runs are wrapped in anonymous boxes that
+/// each establish their own IFC.
+///
+/// Anonymous boxes have no `NodeId` (they're layout-pass ephemera
+/// allocated per cascade). Their `inline_layout` carries text
+/// fragments owned by real source nodes; hit-test and selection
+/// resolve through those owners. `child_range` records the
+/// document-order indices (within the parent's element-or-text
+/// child list) the anon box wraps — paint walks this back to find
+/// the source ::before / ::after pseudos and styling context.
+#[derive(Debug, Clone, PartialEq)]
+pub struct AnonymousIfc {
+    /// Where this anonymous box sits in its parent's content area.
+    /// Width = parent content width; height = inline_layout.height().
+    pub rect: LayoutRect,
+    /// IFC packing of the wrapped inline run.
+    pub inline_layout: InlineLayout,
+    /// Indices into the parent's `child_nodes()` iteration covered
+    /// by this anonymous box, as `[start, end)`. Hit-test and
+    /// selection use this to map a fragment to its surrounding DOM
+    /// neighbors.
+    pub child_range: (usize, usize),
+}
+
 /// Sparse override on top of `ComputedStyle`. Only populated for
 /// properties that an active transition is currently driving.
 /// Paint, layout, and hit-test read these slots before falling
@@ -204,6 +231,16 @@ pub struct TuiExt {
     /// by hit testing (Phase F) to find the inline element under a
     /// cursor click.
     pub inline_layout: Option<InlineLayout>,
+    /// **Anonymous block boxes** synthesized by the block layout pass
+    /// for runs of inline-level children inside a `Flow::Block`
+    /// container that also has block-level children. Each entry
+    /// holds its own IFC layout + rect — paint, hit-test, and
+    /// selection walk this Vec alongside the singular `inline_layout`
+    /// field. Empty when the container is pure flex, pure block, or
+    /// a single-IFC container (which uses `inline_layout` instead).
+    /// Populated by `layout_pass::block::layout_block_children` per
+    /// CSS 2.1 §9.2.1.1.
+    pub anonymous_blocks: Vec<AnonymousIfc>,
 
     // ── Cascade cache (populated by Dom::cascade) ─────────────────────
     /// Post-cascade style for this element. `None` means "no cascade run

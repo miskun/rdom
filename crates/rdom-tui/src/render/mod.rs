@@ -36,7 +36,9 @@ pub use cell::{Cell, CellDiff};
 // `Color` + `Modifier` live in rdom-style as of the M4b mid-stream
 // restructure; re-exported here so existing `rdom_tui::render::Color`
 // callers keep working.
-pub use inline::{InlineFragment, InlineLayout, LineBox, compute_inline_layout};
+pub use inline::{
+    InlineFragment, InlineLayout, LineBox, compute_inline_layout, compute_inline_layout_for_run,
+};
 pub use layout_pass::LayoutExt;
 pub use paint_pass::PaintExt;
 pub use rdom_style::{Color, Modifier};

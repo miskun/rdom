@@ -165,6 +165,55 @@ pub fn compute_inline_layout(dom: &Dom<TuiExt>, block: NodeId, content_width: u1
     }
 }
 
+/// Pack a **range of direct children** of `parent` as an inline
+/// formatting context. Used by `layout_block_children` to populate
+/// anonymous block boxes per CSS 2.1 §9.2.1.1 — the block container
+/// holds the IFC's whitespace context, but only the listed
+/// `direct_children` participate in this anonymous block's content.
+///
+/// Each entry in `direct_children` must be a NodeId that's a direct
+/// child of `parent` (text or element). Text-node children pack as
+/// inline runs owned by `parent`; element children pack via
+/// `walk_subtree` (same semantics as the full-subtree path).
+pub fn compute_inline_layout_for_run(
+    dom: &Dom<TuiExt>,
+    parent: NodeId,
+    direct_children: &[NodeId],
+    content_width: u16,
+) -> InlineLayout {
+    let ws = dom
+        .node(parent)
+        .ext()
+        .and_then(|e| e.computed.as_ref())
+        .map(|c| c.white_space)
+        .unwrap_or(WhiteSpace::Normal);
+
+    let mut packer = LinePacker::new(content_width, ws);
+    for &child_id in direct_children {
+        let child = dom.node(child_id);
+        match child.node_type() {
+            NodeType::Text => {
+                if let Some(data) = child.node_value() {
+                    packer.push_text(parent, child_id, data);
+                }
+            }
+            NodeType::Element => {
+                if child.tag_name() == Some("br") {
+                    packer.push_hard_break(child_id);
+                } else {
+                    walk_subtree(dom, child_id, &mut packer);
+                }
+            }
+            _ => {}
+        }
+    }
+    packer.finish();
+    InlineLayout {
+        lines: packer.take_lines(),
+        content_width,
+    }
+}
+
 /// Recursively walk `id`'s descendants in document order, feeding
 /// every text node's graphemes to `packer`. Descends into
 /// `display: inline` elements; `<br>` emits a hard line break.

@@ -459,6 +459,201 @@ fn padding_on_block_container_is_handled_by_layout_node() {
     assert_eq!(r.width, 70);
 }
 
+// ── Anonymous block box generation (CSS 2.1 §9.2.1.1) ───────────
+
+fn anon_blocks_of(dom: &TuiDom, id: NodeId) -> Vec<crate::ext::AnonymousIfc> {
+    dom.node(id).ext().unwrap().anonymous_blocks.clone()
+}
+
+#[test]
+fn text_only_paragraph_wraps_in_anonymous_block() {
+    // CSS 2.1 §9.2.1.1: a block container whose only children are
+    // inline-level (here, a single text node) folds those children
+    // into one anonymous block establishing an IFC.
+    let mut dom = dom();
+    let root = dom.root();
+    let p = dom.create_element("p");
+    let t = dom.create_text_node("hello world");
+    dom.append_child(p, t).unwrap();
+    dom.append_child(root, p).unwrap();
+
+    cascade(&mut dom, &Stylesheet::bare());
+    run_block(&mut dom, p, LayoutRect::new(0, 0, 20, 24));
+
+    let anons = anon_blocks_of(&dom, p);
+    assert_eq!(anons.len(), 1, "one anonymous block wraps the text");
+    assert_eq!(anons[0].rect.x, 0);
+    assert_eq!(anons[0].rect.y, 0);
+    assert_eq!(anons[0].rect.width, 20);
+    assert_eq!(
+        anons[0].rect.height, 1,
+        "11-char text fits on one line at width 20"
+    );
+}
+
+#[test]
+fn mixed_text_and_inline_element_share_one_anonymous_block() {
+    // `<p>text <em>italic</em> more</p>` — all children are inline-
+    // level (text, Display::Inline element, text). They share ONE
+    // anonymous block per CSS 2.1 §9.2.1.1 rule 2.
+    use crate::layout::Display;
+    let mut dom = dom();
+    let root = dom.root();
+    let p = dom.create_element("p");
+    let t1 = dom.create_text_node("text ");
+    let em = dom.create_element("em");
+    let t_em = dom.create_text_node("italic");
+    dom.append_child(em, t_em).unwrap();
+    let t2 = dom.create_text_node(" more");
+    dom.append_child(p, t1).unwrap();
+    dom.append_child(p, em).unwrap();
+    dom.append_child(p, t2).unwrap();
+    dom.append_child(root, p).unwrap();
+
+    let sheet = Stylesheet::bare().rule_unchecked("em", TuiStyle::new().display(Display::Inline));
+    cascade(&mut dom, &sheet);
+    run_block(&mut dom, p, LayoutRect::new(0, 0, 30, 24));
+
+    let anons = anon_blocks_of(&dom, p);
+    assert_eq!(
+        anons.len(),
+        1,
+        "consecutive inline-level children share one anonymous block"
+    );
+    // child_range covers all three direct children (text + em + text).
+    assert_eq!(anons[0].child_range, (0, 3));
+}
+
+#[test]
+fn block_then_text_then_block_produces_anon_block_in_the_middle() {
+    // `<div><h1>X</h1>text<h2>Y</h2></div>` — block + inline + block.
+    // The inline run (one text node) wraps in an anonymous block
+    // that sits between the two block siblings.
+    let mut dom = dom();
+    let root = dom.root();
+    let parent = dom.create_element("p");
+    let h1 = dom.create_element("h1");
+    let h1_t = dom.create_text_node("X");
+    dom.append_child(h1, h1_t).unwrap();
+    let text = dom.create_text_node("middle text");
+    let h2 = dom.create_element("h2");
+    let h2_t = dom.create_text_node("Y");
+    dom.append_child(h2, h2_t).unwrap();
+    dom.append_child(parent, h1).unwrap();
+    dom.append_child(parent, text).unwrap();
+    dom.append_child(parent, h2).unwrap();
+    dom.append_child(root, parent).unwrap();
+
+    let sheet = Stylesheet::bare()
+        .rule_unchecked("h1", TuiStyle::new().height(Size::Fixed(1)))
+        .rule_unchecked("h2", TuiStyle::new().height(Size::Fixed(1)));
+    cascade(&mut dom, &sheet);
+    run_block(&mut dom, parent, LayoutRect::new(0, 0, 20, 24));
+
+    let anons = anon_blocks_of(&dom, parent);
+    assert_eq!(anons.len(), 1, "only the middle inline run wraps");
+    // Anon block sits at y=1 (below h1), height=1 (text fits).
+    assert_eq!(anons[0].rect.y, 1);
+    assert_eq!(anons[0].rect.height, 1);
+    assert_eq!(anons[0].child_range, (1, 2), "wraps the text node only");
+
+    // The two block children sit at the expected y positions.
+    assert_eq!(layout_of(&dom, h1).y, 0);
+    assert_eq!(layout_of(&dom, h2).y, 2, "h2 follows anon block");
+}
+
+#[test]
+fn multiple_inline_runs_separated_by_block_each_get_their_own_anonymous() {
+    // text + h1 + text + h2 + text → 3 anonymous blocks interleaved.
+    let mut dom = dom();
+    let root = dom.root();
+    let parent = dom.create_element("p");
+    let t1 = dom.create_text_node("one");
+    let h1 = dom.create_element("h1");
+    let h1t = dom.create_text_node("X");
+    dom.append_child(h1, h1t).unwrap();
+    let t2 = dom.create_text_node("two");
+    let h2 = dom.create_element("h2");
+    let h2t = dom.create_text_node("Y");
+    dom.append_child(h2, h2t).unwrap();
+    let t3 = dom.create_text_node("three");
+    dom.append_child(parent, t1).unwrap();
+    dom.append_child(parent, h1).unwrap();
+    dom.append_child(parent, t2).unwrap();
+    dom.append_child(parent, h2).unwrap();
+    dom.append_child(parent, t3).unwrap();
+    dom.append_child(root, parent).unwrap();
+
+    let sheet = Stylesheet::bare()
+        .rule_unchecked("h1", TuiStyle::new().height(Size::Fixed(1)))
+        .rule_unchecked("h2", TuiStyle::new().height(Size::Fixed(1)));
+    cascade(&mut dom, &sheet);
+    run_block(&mut dom, parent, LayoutRect::new(0, 0, 20, 24));
+
+    let anons = anon_blocks_of(&dom, parent);
+    assert_eq!(anons.len(), 3, "three inline runs → three anonymous blocks");
+    // Document-order child ranges: [0,1), [2,3), [4,5).
+    assert_eq!(anons[0].child_range, (0, 1));
+    assert_eq!(anons[1].child_range, (2, 3));
+    assert_eq!(anons[2].child_range, (4, 5));
+}
+
+#[test]
+fn pure_block_container_has_no_anonymous_boxes() {
+    // `<div><h1>X</h1><p>Y</p></div>` — all children are block-level.
+    // No anon boxes synthesized.
+    let mut dom = dom();
+    let root = dom.root();
+    let parent = dom.create_element("p");
+    let h1 = dom.create_element("h1");
+    let h1t = dom.create_text_node("X");
+    dom.append_child(h1, h1t).unwrap();
+    let body = dom.create_element("body");
+    let bodyt = dom.create_text_node("Y");
+    dom.append_child(body, bodyt).unwrap();
+    dom.append_child(parent, h1).unwrap();
+    dom.append_child(parent, body).unwrap();
+    dom.append_child(root, parent).unwrap();
+
+    cascade(&mut dom, &Stylesheet::bare());
+    run_block(&mut dom, parent, LayoutRect::new(0, 0, 30, 24));
+
+    assert!(
+        anon_blocks_of(&dom, parent).is_empty(),
+        "pure-block container has no anonymous boxes"
+    );
+}
+
+#[test]
+fn out_of_flow_children_do_not_break_inline_runs() {
+    // text + absolute + text → ONE anonymous block (the absolute
+    // is removed from flow before partitioning, so the two text
+    // nodes are adjacent in the filtered sequence).
+    use crate::layout::Position;
+    let mut dom = dom();
+    let root = dom.root();
+    let parent = dom.create_element("p");
+    let t1 = dom.create_text_node("one ");
+    let abs = dom.create_element("abs");
+    let t2 = dom.create_text_node("two");
+    dom.append_child(parent, t1).unwrap();
+    dom.append_child(parent, abs).unwrap();
+    dom.append_child(parent, t2).unwrap();
+    dom.append_child(root, parent).unwrap();
+
+    let sheet =
+        Stylesheet::bare().rule_unchecked("abs", TuiStyle::new().position(Position::Absolute));
+    cascade(&mut dom, &sheet);
+    run_block(&mut dom, parent, LayoutRect::new(0, 0, 30, 24));
+
+    let anons = anon_blocks_of(&dom, parent);
+    assert_eq!(
+        anons.len(),
+        1,
+        "two text nodes adjacent in flow share one anon block"
+    );
+}
+
 // ── Sanity: border + padding eat into child width ───────────────
 
 #[test]

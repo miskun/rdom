@@ -33,87 +33,211 @@
 
 #![allow(dead_code)]
 
-use rdom_core::{Dom, NodeId};
+use rdom_core::{Dom, NodeId, NodeType};
 
-use crate::ext::TuiExt;
+use crate::ext::{AnonymousIfc, TuiExt};
 use crate::layout::{
     Direction, LayoutRect, MarginValue, Size, clamp_size, compute_content_area_collapsed,
 };
 use crate::node::TuiNodeExt;
+use crate::render::inline::compute_inline_layout_for_run;
 use crate::render::layout_pass::intrinsic::intrinsic_size;
 use crate::style::ComputedStyle;
 
-use super::{element_children_of, layout_node};
+use super::layout_node;
 
-/// Lay out `id`'s in-flow element children as block-level boxes
-/// stacked vertically in `container`. `parent_computed` is the
-/// container's cascaded style (not used directly for sizing yet —
-/// kept for parity with `layout_flex_children` and for the
-/// margin-collapse pass in phase 5).
+/// Lay out `id`'s in-flow children per CSS 2.1 §10. Partitions
+/// children into runs of consecutive block-level vs inline-level
+/// nodes; block runs get individual block layout; inline runs
+/// fold into **anonymous block boxes** (CSS 2.1 §9.2.1.1) that
+/// each establish their own IFC.
+///
+/// Stores anonymous boxes on the parent's `TuiExt.anonymous_blocks`
+/// — paint / hit-test / selection iterate this Vec alongside the
+/// singular `inline_layout` field.
 pub(super) fn layout_block_children(
     dom: &mut Dom<TuiExt>,
     id: NodeId,
     container: LayoutRect,
     _parent_computed: &ComputedStyle,
 ) {
-    // In-flow element children. `position: absolute` / `fixed` are
-    // skipped (the positioning pass places them); `display: none`
-    // takes no space.
-    let children: Vec<NodeId> = element_children_of(dom, id)
-        .into_iter()
-        .filter(|&c| is_in_flow(dom, c))
-        .collect();
-    if children.is_empty() {
+    // Collect ALL direct child nodes (text + element). Block layout
+    // distinguishes inline-level (text + Display::Inline/InlineBlock
+    // elements) from block-level (Display::Block elements) — text
+    // nodes are inline-level participants in an anonymous block per
+    // CSS 2.1 §9.2.1.1 rule 2.
+    let raw_children: Vec<NodeId> = dom.node(id).child_nodes().map(|c| c.id()).collect();
+    if raw_children.is_empty() {
         return;
     }
 
+    // Filter out-of-flow elements; text nodes are always in flow.
+    // The `child_range` indices below are into THIS filtered list.
+    let in_flow: Vec<(usize, NodeId)> = raw_children
+        .iter()
+        .copied()
+        .enumerate()
+        .filter(|(_, c)| is_in_flow(dom, *c))
+        .collect();
+    if in_flow.is_empty() {
+        // Clear any stale anonymous boxes from a previous layout —
+        // matches flex's `ext.inline_layout = None` reset.
+        if let Some(ext) = dom.node_mut(id).ext_mut() {
+            ext.anonymous_blocks.clear();
+        }
+        return;
+    }
+
+    // Partition into runs. A run is a contiguous sequence of in-flow
+    // children that share a level (block or inline). When the level
+    // flips, the run closes and a new one opens. Comments and
+    // fragments are treated as inline-level (no effect on layout
+    // beyond breaking adjacency).
+    let mut runs: Vec<Run> = Vec::new();
+    for (orig_idx, child_id) in &in_flow {
+        let kind = child_level(dom, *child_id);
+        match runs.last_mut() {
+            Some(last) if last.kind == kind => {
+                last.children.push(*child_id);
+                last.child_range.1 = orig_idx + 1;
+            }
+            _ => runs.push(Run {
+                kind,
+                children: vec![*child_id],
+                child_range: (*orig_idx, orig_idx + 1),
+            }),
+        }
+    }
+
     let containing_block_width = container.width;
-    // Cursor walks the y axis as we place children. Adjacent
-    // margins simply add for now (phase 5 introduces collapse).
     let mut y_cursor: i32 = container.y;
+    let mut anon_blocks: Vec<AnonymousIfc> = Vec::new();
 
-    for &child in &children {
-        let computed = dom
-            .node(child)
-            .computed()
-            .cloned()
-            .unwrap_or_else(ComputedStyle::initial);
+    for run in &runs {
+        match run.kind {
+            RunKind::Block => {
+                for &child in &run.children {
+                    y_cursor = lay_out_block_child(
+                        dom,
+                        child,
+                        container,
+                        containing_block_width,
+                        y_cursor,
+                    );
+                }
+            }
+            RunKind::Inline => {
+                // Anonymous block box wrapping this inline run. Its
+                // IFC packs the run's children at the container's
+                // content width. Height = packed line count.
+                let inline_layout =
+                    compute_inline_layout_for_run(dom, id, &run.children, containing_block_width);
+                let height = inline_layout.height();
+                let rect = LayoutRect::new(container.x, y_cursor, containing_block_width, height);
+                anon_blocks.push(AnonymousIfc {
+                    rect,
+                    inline_layout,
+                    child_range: run.child_range,
+                });
+                y_cursor += height as i32;
+            }
+        }
+    }
 
-        // Width side per CSS 2.1 §10.3.3.
-        let resolved = resolve_block_width(&computed, containing_block_width);
-
-        // Height side. Auto = intrinsic content; Fixed/Percent/Calc
-        // = resolved; min/max clamping last. The "percent height
-        // needs definite parent" CSS rule is deferred to phase 6;
-        // for now percent resolves against the container's height,
-        // which matches the prior flex behavior.
-        let height = resolve_block_height(dom, child, &computed, container.height);
-
-        // Vertical margins. Negative-cell margins are allowed in CSS
-        // and rdom carries them as `i16`. The cursor advances by
-        // (top_margin + height + bottom_margin); the child's own
-        // outer rect doesn't include its margins.
-        let top_margin = vertical_margin(&computed.margin.top);
-        let bottom_margin = vertical_margin(&computed.margin.bottom);
-
-        let outer_x = container.x + resolved.margin_left as i32;
-        let outer_y = y_cursor + top_margin as i32;
-        let outer_rect = LayoutRect::new(outer_x, outer_y, resolved.width, height);
-
-        // Lay out the child — `layout_node` writes its rect, recurses
-        // into descendants, and handles padding/border insets.
-        layout_node(dom, child, outer_rect);
-
-        // Advance: outer rect's bottom + bottom margin.
-        y_cursor = outer_rect.bottom() + bottom_margin as i32;
+    // Write anon boxes to the parent. Empty Vec is the normal state
+    // for pure-block containers — clears any stale entries from a
+    // previous layout where the tree may have had different shape.
+    if let Some(ext) = dom.node_mut(id).ext_mut() {
+        ext.anonymous_blocks = anon_blocks;
     }
 }
 
-/// True iff the child participates in normal flow. Mirrors the
-/// filter used by `layout_flex_children` (will be DRY'd via the
-/// pending `is_in_flow` helper in `DRY-1`).
+/// Lay out a single block-level child. Returns the new y cursor.
+fn lay_out_block_child(
+    dom: &mut Dom<TuiExt>,
+    child: NodeId,
+    container: LayoutRect,
+    containing_block_width: u16,
+    y_cursor: i32,
+) -> i32 {
+    let computed = dom
+        .node(child)
+        .computed()
+        .cloned()
+        .unwrap_or_else(ComputedStyle::initial);
+
+    let resolved = resolve_block_width(&computed, containing_block_width);
+    let height = resolve_block_height(dom, child, &computed, container.height);
+
+    let top_margin = vertical_margin(&computed.margin.top);
+    let bottom_margin = vertical_margin(&computed.margin.bottom);
+
+    let outer_x = container.x + resolved.margin_left as i32;
+    let outer_y = y_cursor + top_margin as i32;
+    let outer_rect = LayoutRect::new(outer_x, outer_y, resolved.width, height);
+
+    layout_node(dom, child, outer_rect);
+
+    outer_rect.bottom() + bottom_margin as i32
+}
+
+/// One run of consecutive children sharing a level (block-level or
+/// inline-level). Block runs get per-child block layout; inline
+/// runs fold into one anonymous block per CSS 2.1 §9.2.1.1.
+struct Run {
+    kind: RunKind,
+    /// Direct-child NodeIds in document order.
+    children: Vec<NodeId>,
+    /// Indices into the parent's raw `child_nodes()` order, as
+    /// `[start, end)`. Stored on the resulting `AnonymousIfc` so
+    /// paint / hit-test can map back to surrounding context.
+    child_range: (usize, usize),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RunKind {
+    Block,
+    Inline,
+}
+
+/// Classify a direct child as block-level vs inline-level. Text
+/// nodes are always inline-level; element children depend on their
+/// `Display`. Per CSS 2.1 §9.2: only `Block` elements are
+/// block-level; `Inline` and `InlineBlock` are inline-level (the
+/// inline-block participates in IFC as an atomic box per phase
+/// 3.5's planned inline-block-in-IFC packing).
+fn child_level(dom: &Dom<TuiExt>, id: NodeId) -> RunKind {
+    let node = dom.node(id);
+    match node.node_type() {
+        NodeType::Text => RunKind::Inline,
+        NodeType::Element => {
+            let display = node
+                .ext()
+                .and_then(|e| e.computed.as_ref())
+                .map(|c| c.display)
+                .unwrap_or(crate::layout::Display::Block);
+            match display {
+                crate::layout::Display::Inline | crate::layout::Display::InlineBlock => {
+                    RunKind::Inline
+                }
+                crate::layout::Display::Block | crate::layout::Display::None => RunKind::Block,
+            }
+        }
+        // Comments, fragments — treat as inline-level (effectively
+        // invisible; they don't break runs).
+        _ => RunKind::Inline,
+    }
+}
+
+/// True iff the node participates in normal flow. Text nodes are
+/// always in flow; element children are in flow when not
+/// `display: none` and not absolutely positioned.
 fn is_in_flow(dom: &Dom<TuiExt>, id: NodeId) -> bool {
-    let Some(c) = dom.node(id).ext().and_then(|e| e.computed.as_ref()) else {
+    let node = dom.node(id);
+    if node.node_type() != NodeType::Element {
+        return true; // text, comments, fragments
+    }
+    let Some(c) = node.ext().and_then(|e| e.computed.as_ref()) else {
         return true;
     };
     use crate::layout::{Display, Position};
