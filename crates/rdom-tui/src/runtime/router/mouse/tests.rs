@@ -1597,8 +1597,12 @@ fn mousedown_on_text_starts_drag_and_sets_caret_selection() {
     // Pointer capture held on the IFC block (the <p>).
     assert_eq!(dom.pointer_capture(), Some(p));
 
-    // Router knows a drag is in progress.
-    assert_eq!(router.selection_drag, Some(p));
+    // Router knows a drag is in progress — anchor is the IFC flow
+    // for `<p>`, not the raw NodeId (BFC-1 phase 3.5a refactor).
+    assert_eq!(
+        router.selection_drag,
+        Some(crate::render::inline::InlineFlow::Ifc { block: p })
+    );
 }
 
 #[test]
@@ -1791,7 +1795,10 @@ fn drag_between_two_paragraphs_follows_innermost_ifc() {
 
     let mut router = Router::new();
     router.route(&mut dom, crossterm::event::Event::Mouse(down_at(1, 0)));
-    assert_eq!(router.selection_drag, Some(p1));
+    assert_eq!(
+        router.selection_drag,
+        Some(crate::render::inline::InlineFlow::Ifc { block: p1 })
+    );
 
     // Drag into row 1 — p2's row. Capture is still on p1, but
     // position_at on row 1 finds p2 and maps into t2.
@@ -1810,7 +1817,10 @@ fn reset_clears_selection_drag_state() {
     let (mut dom, p, _t) = drag_text_fixture();
     let mut router = Router::new();
     router.route(&mut dom, crossterm::event::Event::Mouse(down_at(2, 0)));
-    assert_eq!(router.selection_drag, Some(p));
+    assert_eq!(
+        router.selection_drag,
+        Some(crate::render::inline::InlineFlow::Ifc { block: p })
+    );
 
     router.reset();
     assert_eq!(router.selection_drag, None);

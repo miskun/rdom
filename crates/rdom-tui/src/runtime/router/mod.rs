@@ -65,12 +65,14 @@ pub(super) struct ClickRecord {
 /// - `hover_target`: which node is currently under the cursor; used
 ///   to fire `mouseover`/`mouseout` on transitions and to drive the
 ///   `:hover` pseudo-class cascade.
-/// - `selection_drag`: `Some(ifc_block)` while a mouse-drag
+/// - `selection_drag`: `Some(InlineFlow)` while a mouse-drag
 ///   text-selection is in progress. Set by
 ///   `runtime::selection::drag::begin` on `mousedown`, consulted by
 ///   `handle_move` to route through the drag extension default
-///   action, cleared on `mouseup`. The stored `NodeId` is the IFC
-///   block that holds the pointer capture.
+///   action, cleared on `mouseup`. The stored `InlineFlow` identifies
+///   the inline-flow container holding the anchor — either a classic
+///   IFC block or one of a parent's anonymous block boxes (BFC-1
+///   phase 3).
 ///
 /// All fields are internal; apps touch the router only through
 /// [`Router::new`] and [`Router::route`].
@@ -78,7 +80,7 @@ pub(super) struct ClickRecord {
 pub struct Router {
     pub(super) down_target: Option<NodeId>,
     pub(super) hover_target: Option<NodeId>,
-    pub(crate) selection_drag: Option<NodeId>,
+    pub(crate) selection_drag: Option<crate::render::inline::InlineFlow>,
     /// Last observed `mousedown` — time, position, running count.
     /// Used by `register_click` to promote successive fast clicks
     /// into double / triple gestures.

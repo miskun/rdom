@@ -219,10 +219,10 @@ pub fn inline_flow_for_text(dom: &Dom<TuiExt>, text_node: NodeId) -> Option<Inli
 /// Look up the `InlineLayout` for an [`InlineFlow`]. Returns
 /// `(layout, content_rect)` — both needed by caret arithmetic and
 /// hit-test fragment lookup.
-pub fn inline_flow_layout<'a>(
-    dom: &'a Dom<TuiExt>,
+pub fn inline_flow_layout(
+    dom: &Dom<TuiExt>,
     flow: InlineFlow,
-) -> Option<(&'a InlineLayout, crate::layout::LayoutRect)> {
+) -> Option<(&InlineLayout, crate::layout::LayoutRect)> {
     use crate::node::TuiNodeExt;
     match flow {
         InlineFlow::Ifc { block } => {

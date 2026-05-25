@@ -32,12 +32,12 @@
 
 use crossterm::event::MouseEvent;
 
-use rdom_core::{NodeId, Selection};
+use rdom_core::Selection;
 
 use crate::TuiDom;
 use crate::layout::UserSelect;
-use crate::node::{TuiNodeExt, is_descendant_or_self};
-use crate::render::inline::inline_flow_container;
+use crate::node::is_descendant_or_self;
+use crate::render::inline::{InlineFlow, inline_flow_for_text, inline_flow_layout};
 use crate::runtime::hit_test::HitTestExt;
 use crate::runtime::router::Router;
 use crate::runtime::selection::user_select;
@@ -67,14 +67,17 @@ pub(crate) fn begin(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) ->
     };
     dom.set_selection(Some(initial));
 
-    // Hold pointer capture on the IFC block containing the anchor
-    // (or, if we somehow can't find one, the text node itself). The
-    // holder node receives every follow-up `mousemove` / `mouseup`
-    // until auto-release on the next up.
-    let capture_holder = ifc_block_of(dom, anchor.node).unwrap_or(anchor.node);
+    // Hold pointer capture on the inline-flow container that holds
+    // the anchor. For a classic IFC, the holder is the IFC block;
+    // for an anonymous block box (BFC-1 phase 3), it's the parent
+    // container — pointer capture is a per-NodeId concept, and the
+    // container is the closest real node. The follow-up mousemove /
+    // mouseup events route through that holder.
+    let anchor_flow = inline_flow_for_text(dom, anchor.node);
+    let capture_holder = anchor_flow.map(|f| f.owner()).unwrap_or(anchor.node);
     let _ = dom.set_pointer_capture(capture_holder);
 
-    router.selection_drag = Some(capture_holder);
+    router.selection_drag = anchor_flow;
     true
 }
 
@@ -83,13 +86,13 @@ pub(crate) fn begin(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) ->
 /// position. Returns `true` when the selection actually changed —
 /// caller uses it to request a redraw.
 ///
-/// `anchor_ifc` is the inline-flow container the drag started in
+/// `anchor_flow` is the inline-flow container the drag started in
 /// (kept by the router in `selection_drag`). When the cursor moves
 /// outside ANY element (or onto a non-text element), we still want
-/// to extend the selection within `anchor_ifc` — browsers do this
+/// to extend the selection within `anchor_flow` — browsers do this
 /// so dragging past the end of a line / past the bottom of a
 /// paragraph still selects up to the line's end / paragraph's end.
-pub(crate) fn extend(dom: &mut TuiDom, mouse: MouseEvent, anchor_ifc: NodeId) -> bool {
+pub(crate) fn extend(dom: &mut TuiDom, mouse: MouseEvent, anchor_flow: InlineFlow) -> bool {
     let Some(sel) = dom.selection().copied() else {
         return false;
     };
@@ -109,7 +112,7 @@ pub(crate) fn extend(dom: &mut TuiDom, mouse: MouseEvent, anchor_ifc: NodeId) ->
     // dragging past end-of-line.
     let raw_focus = match dom.position_at(mouse.column, mouse.row) {
         Some(p) => p,
-        None => match clamp_to_anchor_ifc(dom, anchor_ifc, mouse.column, mouse.row) {
+        None => match clamp_to_anchor_flow(dom, anchor_flow, mouse.column, mouse.row) {
             Some(p) => p,
             None => return false,
         },
@@ -135,17 +138,16 @@ pub(crate) fn extend(dom: &mut TuiDom, mouse: MouseEvent, anchor_ifc: NodeId) ->
     true
 }
 
-/// Compute the position inside `anchor_ifc` nearest to `(x, y)`.
+/// Compute the position inside `anchor_flow` nearest to `(x, y)`.
 /// Used by drag-extend when the cursor moves out of the anchor's
 /// inline-flow container (past end of line, off the bottom, etc.).
-fn clamp_to_anchor_ifc(
+fn clamp_to_anchor_flow(
     dom: &TuiDom,
-    anchor_ifc: NodeId,
+    anchor_flow: InlineFlow,
     x: u16,
     y: u16,
 ) -> Option<rdom_core::Position> {
-    let content = dom.node(anchor_ifc).content_layout_rect()?;
-    let layout = dom.node(anchor_ifc).ext()?.inline_layout.as_ref()?;
+    let (layout, content) = inline_flow_layout(dom, anchor_flow)?;
     if layout.lines.is_empty() {
         return None;
     }
@@ -224,13 +226,6 @@ pub(crate) fn end(router: &mut Router) {
     router.selection_drag = None;
 }
 
-/// Walk up from `node_id` to the nearest ancestor that establishes
-/// an inline formatting context (has an `inline_layout` on its
-/// `TuiExt`). Returns `None` if no ancestor qualifies, which in
-/// practice only happens for orphan text nodes and is a signal
-/// that selection wouldn't behave sensibly anyway.
-fn ifc_block_of(dom: &TuiDom, node_id: NodeId) -> Option<NodeId> {
-    // Exclude `node_id` itself — start the walk from its parent.
-    let parent = dom.node(node_id).parent_node().map(|p| p.id())?;
-    inline_flow_container(dom, parent)
-}
+// `ifc_block_of` retired — drag now stores `InlineFlow` directly,
+// resolved via `inline_flow_for_text`. The pointer-capture holder
+// falls back to `InlineFlow::owner()` (the container node id).

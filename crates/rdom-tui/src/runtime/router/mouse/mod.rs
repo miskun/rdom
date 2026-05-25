@@ -258,8 +258,8 @@ fn handle_move(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> Rout
         // `prevent_default` on `selectstart` (Phase 6.5.5) — but not
         // on mousemove itself, since browsers don't wire it that way.
         let mut redraw = false;
-        if let Some(anchor_ifc) = router.selection_drag
-            && crate::runtime::selection::drag::extend(dom, mouse, anchor_ifc)
+        if let Some(anchor_flow) = router.selection_drag
+            && crate::runtime::selection::drag::extend(dom, mouse, anchor_flow)
         {
             redraw = true;
         }
