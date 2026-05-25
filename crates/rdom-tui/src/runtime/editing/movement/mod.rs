@@ -150,9 +150,9 @@ fn move_vertical(dom: &mut TuiDom, delta_y: i32) -> bool {
 /// Shift+Up/Down handlers so the sticky-x state survives across
 /// caret-move and selection-extend operations seamlessly.
 pub(crate) fn vertical_motion(dom: &mut TuiDom, from: Position, delta_y: i32) -> Option<Position> {
-    use crate::render::inline::inline_flow_container;
+    use crate::render::inline::inline_flow_for_text;
 
-    let from_ifc = inline_flow_container(dom, from.node)?;
+    let from_flow = inline_flow_for_text(dom, from.node)?;
     let (current_x, current_y) = cell_of_position(dom, from)?;
 
     let editable = crate::node::nearest_editable_ancestor(dom, from.node);
@@ -165,7 +165,7 @@ pub(crate) fn vertical_motion(dom: &mut TuiDom, from: Position, delta_y: i32) ->
     let target_x = stored_sticky.unwrap_or(current_x);
 
     let target_y_i32 = current_y as i32 + delta_y;
-    let new_pos = compute_vertical_target(dom, from_ifc, target_x, target_y_i32, delta_y);
+    let new_pos = compute_vertical_target(dom, from_flow, target_x, target_y_i32, delta_y);
 
     if let Some(id) = editable
         && let Some(ext) = dom.node_mut(id).ext_mut()
@@ -185,11 +185,9 @@ pub(crate) fn vertical_motion(dom: &mut TuiDom, from: Position, delta_y: i32) ->
 /// `selection::keyboard` can implement Shift+Home / Shift+End by
 /// extending selection focus to the same target.
 pub(crate) fn line_edge_position(dom: &TuiDom, from: Position, forward: bool) -> Option<Position> {
-    let from_ifc = crate::render::inline::inline_flow_container(dom, from.node)?;
+    let flow = crate::render::inline::inline_flow_for_text(dom, from.node)?;
     let (_, y) = cell_of_position(dom, from)?;
-    let ext = dom.node(from_ifc).ext()?;
-    let layout = ext.inline_layout.as_ref()?;
-    let content = ext.content_layout;
+    let (layout, content) = crate::render::inline::inline_flow_layout(dom, flow)?;
     let line_idx = (y as i32 - content.y) as usize;
     let target_line = layout.lines.get(line_idx)?;
     if forward {
@@ -212,16 +210,14 @@ pub(crate) fn line_edge_position(dom: &TuiDom, from: Position, forward: bool) ->
 /// content (Up-at-top / Down-at-bottom).
 fn compute_vertical_target(
     dom: &TuiDom,
-    from_ifc: NodeId,
+    from_flow: crate::render::inline::InlineFlow,
     target_x: u16,
     target_y_i32: i32,
     delta_y: i32,
 ) -> Option<Position> {
-    use crate::render::inline::inline_flow_container;
+    use crate::render::inline::{inline_flow_for_text, inline_flow_layout};
 
-    let ext = dom.node(from_ifc).ext()?;
-    let layout = ext.inline_layout.as_ref()?;
-    let content = ext.content_layout;
+    let (layout, content) = inline_flow_layout(dom, from_flow)?;
 
     // Up past the first line → clamp to line-start of first line.
     if target_y_i32 < content.y {
@@ -257,7 +253,7 @@ fn compute_vertical_target(
 
     // In-bounds: try hit-test at target_x first.
     if let Some(pos) = dom.position_at(target_x, target_y)
-        && inline_flow_container(dom, pos.node) == Some(from_ifc)
+        && inline_flow_for_text(dom, pos.node) == Some(from_flow)
     {
         return Some(pos);
     }
@@ -459,11 +455,9 @@ fn caret_doc_end(dom: &TuiDom, from: Position) -> Option<Position> {
 }
 
 fn caret_line_start(dom: &TuiDom, from: Position) -> Option<Position> {
-    let from_ifc = crate::render::inline::inline_flow_container(dom, from.node)?;
+    let flow = crate::render::inline::inline_flow_for_text(dom, from.node)?;
     let (_, y) = cell_of_position(dom, from)?;
-    let ext = dom.node(from_ifc).ext()?;
-    let layout = ext.inline_layout.as_ref()?;
-    let content = ext.content_layout;
+    let (layout, content) = crate::render::inline::inline_flow_layout(dom, flow)?;
     let line_idx = (y as i32 - content.y) as usize;
     let target_line = layout.lines.get(line_idx)?;
     // Start of line = position of the first fragment's first byte.
@@ -483,11 +477,9 @@ fn caret_line_start(dom: &TuiDom, from: Position) -> Option<Position> {
 }
 
 fn caret_line_end(dom: &TuiDom, from: Position) -> Option<Position> {
-    let from_ifc = crate::render::inline::inline_flow_container(dom, from.node)?;
+    let flow = crate::render::inline::inline_flow_for_text(dom, from.node)?;
     let (_, y) = cell_of_position(dom, from)?;
-    let ext = dom.node(from_ifc).ext()?;
-    let layout = ext.inline_layout.as_ref()?;
-    let content = ext.content_layout;
+    let (layout, content) = crate::render::inline::inline_flow_layout(dom, flow)?;
     let line_idx = (y as i32 - content.y) as usize;
     let target_line = layout.lines.get(line_idx)?;
     // End of line = position just past the last fragment on the

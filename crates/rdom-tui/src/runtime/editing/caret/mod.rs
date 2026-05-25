@@ -32,8 +32,9 @@ use unicode_width::UnicodeWidthStr;
 use rdom_core::{Dom, Position};
 
 use crate::ext::TuiExt;
-use crate::render::inline::inline_flow_container;
-use crate::render::inline::{InlineFragment, InlineLayout};
+use crate::render::inline::{
+    InlineFragment, InlineLayout, inline_flow_for_text, inline_flow_layout,
+};
 
 /// Screen-cell position where a caret at `pos` should paint.
 /// Returns `None` when:
@@ -43,10 +44,8 @@ use crate::render::inline::{InlineFragment, InlineLayout};
 /// - No fragment in the IFC covers the position (shouldn't happen
 ///   for a caret set by `position_at`, but handled defensively).
 pub fn cell_of_position(dom: &Dom<TuiExt>, pos: Position) -> Option<(u16, u16)> {
-    let ifc_id = inline_flow_container(dom, pos.node)?;
-    let ifc_ext = dom.node(ifc_id).ext()?;
-    let layout = ifc_ext.inline_layout.as_ref()?;
-    let content = ifc_ext.content_layout;
+    let flow = inline_flow_for_text(dom, pos.node)?;
+    let (layout, content) = inline_flow_layout(dom, flow)?;
 
     // Phantom-position fallback: when `pos` doesn't correspond to
     // any laid-out fragment (empty text, cursor sitting just past a

@@ -130,6 +130,11 @@ pub fn has_inline_layout(dom: &Dom<TuiExt>, id: NodeId) -> bool {
 ///    a `<p>only text</p>`). Their `inline_layout` packs the text
 ///    against the element's content width.
 ///
+/// **Does NOT find anonymous block boxes** (BFC-1 phase 3) — their
+/// inline_layouts live in the parent container's `anonymous_blocks`
+/// Vec, not in `inline_layout`. Callers that need anon-box support
+/// use [`inline_flow_for_text`] instead.
+///
 /// Used by caret positioning, mouse hit-test routing, drag-selection
 /// anchoring, multi-click word/line expansion, and the caret paint
 /// primitive — every path that needs to map a text node back to the
@@ -143,6 +148,93 @@ pub fn inline_flow_container(dom: &Dom<TuiExt>, node_id: NodeId) -> Option<NodeI
         cur = dom.node(id).parent_node().map(|p| p.id());
     }
     None
+}
+
+/// The inline-flow container holding a given text node — either a
+/// classic IFC block (singular `inline_layout`) or an anonymous
+/// block box synthesized by the block layout pass (BFC-1 phase 3).
+///
+/// Returned by [`inline_flow_for_text`] so callers can read the
+/// `InlineLayout` and the IFC's content rect without caring which
+/// variety they're in. The variants compare by identity — two text
+/// nodes in different anon boxes of the same container are NOT in
+/// the same flow.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InlineFlow {
+    /// Singular IFC — `block` owns `inline_layout`. Content rect is
+    /// `block`'s `content_layout`.
+    Ifc { block: NodeId },
+    /// Anonymous block box — slot `index` in `container`'s
+    /// `anonymous_blocks` Vec.
+    Anonymous { container: NodeId, index: usize },
+}
+
+impl InlineFlow {
+    /// Owner NodeId for identity comparisons / back-compat. For
+    /// anon boxes this is the container — two `Anonymous` flows
+    /// on the same container share the owner but have different
+    /// indices, so use full equality for identity.
+    pub fn owner(&self) -> NodeId {
+        match self {
+            Self::Ifc { block } => *block,
+            Self::Anonymous { container, .. } => *container,
+        }
+    }
+}
+
+/// Resolve `text_node` to its containing [`InlineFlow`]. Walks up
+/// from the text node looking for either a singular IFC ancestor
+/// or an ancestor with an anonymous block box wrapping the node.
+///
+/// For most consumers this replaces the
+/// [`inline_flow_container`] + manual `ext.inline_layout` lookup
+/// pair — see the deprecation note on `inline_flow_container`.
+pub fn inline_flow_for_text(dom: &Dom<TuiExt>, text_node: NodeId) -> Option<InlineFlow> {
+    let mut cur = Some(text_node);
+    while let Some(id) = cur {
+        if has_inline_layout(dom, id) {
+            return Some(InlineFlow::Ifc { block: id });
+        }
+        if let Some(ext) = dom.node(id).ext() {
+            // Find the anon box whose IFC contains a fragment owned
+            // by `text_node`. Linear scan — anon-box Vecs are short.
+            for (i, anon) in ext.anonymous_blocks.iter().enumerate() {
+                for line in &anon.inline_layout.lines {
+                    for frag in &line.fragments {
+                        if frag.text_node == text_node {
+                            return Some(InlineFlow::Anonymous {
+                                container: id,
+                                index: i,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+        cur = dom.node(id).parent_node().map(|p| p.id());
+    }
+    None
+}
+
+/// Look up the `InlineLayout` for an [`InlineFlow`]. Returns
+/// `(layout, content_rect)` — both needed by caret arithmetic and
+/// hit-test fragment lookup.
+pub fn inline_flow_layout<'a>(
+    dom: &'a Dom<TuiExt>,
+    flow: InlineFlow,
+) -> Option<(&'a InlineLayout, crate::layout::LayoutRect)> {
+    use crate::node::TuiNodeExt;
+    match flow {
+        InlineFlow::Ifc { block } => {
+            let layout = dom.node(block).ext()?.inline_layout.as_ref()?;
+            let content = dom.node(block).content_layout_rect()?;
+            Some((layout, content))
+        }
+        InlineFlow::Anonymous { container, index } => {
+            let anon = dom.node(container).ext()?.anonymous_blocks.get(index)?;
+            Some((&anon.inline_layout, anon.rect))
+        }
+    }
 }
 
 /// Entry point: compute the inline layout for `block` at

@@ -31,7 +31,7 @@ use unicode_segmentation::UnicodeSegmentation;
 use rdom_core::{NodeId, NodeType, Position, Selection};
 
 use crate::TuiDom;
-use crate::render::inline::{InlineLayout, inline_flow_container};
+use crate::render::inline::{InlineLayout, inline_flow_for_text, inline_flow_layout};
 
 /// Expand the current selection to the word containing
 /// `selection.anchor`. Returns `true` when the selection actually
@@ -69,10 +69,10 @@ pub(crate) fn expand_to_line(dom: &mut TuiDom) -> bool {
     let Some(sel) = dom.selection().copied() else {
         return false;
     };
-    let Some(ifc) = ifc_block_of(dom, sel.anchor.node) else {
+    let Some(flow) = inline_flow_for_text(dom, sel.anchor.node) else {
         return false;
     };
-    let Some(layout) = inline_layout_of(dom, ifc) else {
+    let Some((layout, _content)) = inline_flow_layout(dom, flow) else {
         return false;
     };
     let Some(line_idx) = line_containing(layout, sel.anchor.node, sel.anchor.offset) else {
@@ -145,14 +145,10 @@ fn text_of(dom: &TuiDom, id: NodeId) -> Option<String> {
     dom.node(id).node_value().map(|s| s.to_string())
 }
 
-fn ifc_block_of(dom: &TuiDom, node_id: NodeId) -> Option<NodeId> {
-    let parent = dom.node(node_id).parent_node().map(|p| p.id())?;
-    inline_flow_container(dom, parent)
-}
-
-fn inline_layout_of(dom: &TuiDom, id: NodeId) -> Option<&InlineLayout> {
-    dom.node(id).ext()?.inline_layout.as_ref()
-}
+// `ifc_block_of` / `inline_layout_of` retired in BFC-1 phase 3.4 —
+// `inline_flow_for_text` + `inline_flow_layout` handle both
+// singular IFCs and anonymous block boxes uniformly. Look at the
+// `expand_to_line` call site for the migrated pattern.
 
 #[cfg(test)]
 mod tests;

@@ -624,6 +624,56 @@ fn pure_block_container_has_no_anonymous_boxes() {
     );
 }
 
+// ── Selection / inline-flow lookup (phase 3.4) ──────────────────
+
+#[test]
+fn inline_flow_for_text_resolves_anon_box() {
+    use crate::ext::TuiExt;
+    use crate::render::inline::{InlineFlow, inline_flow_for_text, inline_flow_layout};
+    use crate::render::layout_pass::block::layout_block_children;
+    use rdom_core::Dom;
+
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let parent = dom.create_element("div");
+    let h1 = dom.create_element("h1");
+    let h1t = dom.create_text_node("X");
+    dom.append_child(h1, h1t).unwrap();
+    let text = dom.create_text_node("middle");
+    dom.append_child(parent, h1).unwrap();
+    dom.append_child(parent, text).unwrap();
+    dom.append_child(root, parent).unwrap();
+
+    let sheet = Stylesheet::bare().rule_unchecked("h1", TuiStyle::new().height(Size::Fixed(1)));
+    dom.cascade(&sheet);
+
+    let parent_rect = LayoutRect::new(0, 0, 20, 10);
+    if let Some(ext) = dom.node_mut(parent).ext_mut() {
+        ext.layout = parent_rect;
+        ext.content_layout = parent_rect;
+    }
+    let parent_computed = dom.node(parent).computed().cloned().unwrap_or_default();
+    layout_block_children(
+        &mut dom as &mut Dom<TuiExt>,
+        parent,
+        parent_rect,
+        &parent_computed,
+    );
+
+    // The "middle" text node is inside an anonymous block on
+    // `parent`. The new helper should find it.
+    let flow = inline_flow_for_text(&dom, text).expect("text resolves to a flow");
+    assert!(
+        matches!(flow, InlineFlow::Anonymous { container, .. } if container == parent),
+        "text in anon box resolves to InlineFlow::Anonymous on the parent, got {flow:?}",
+    );
+
+    // Looking up the layout returns a non-empty IFC.
+    let (layout, rect) = inline_flow_layout(&dom, flow).expect("anon flow has layout + rect");
+    assert!(!layout.lines.is_empty(), "anon IFC has at least one line");
+    assert_eq!(rect.y, 1, "anon box at y=1 (below h1)");
+}
+
 // ── Hit-test integration (phase 3.3) ────────────────────────────
 
 #[test]
