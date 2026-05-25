@@ -478,6 +478,200 @@ fn three_adjacent_siblings_collapse_each_gap_independently() {
     );
 }
 
+// ── Phase 5.2b: upward propagation of merged parent-child margins
+
+#[test]
+fn parent_outer_top_margin_propagates_child_margin_upward_to_grandparent() {
+    // CSS 2.1 §8.3.1: when a parent collapses with its first
+    // block child, the *merged* margin (max of parent.mt +
+    // child.mt) surfaces at the parent's OUTER top — it must
+    // therefore reach the grandparent's accumulator, not just the
+    // parent's local one.
+    //
+    // GP has two children: A (height: 1) and P. P has C as its
+    // first block child.
+    //   A.mb = 0
+    //   P.mt = 2
+    //   C.mt = 5
+    // Expected gap between A and P: max(0, 2, 5) = 5.
+    // P.y = A.bottom (1) + 5 = 6.
+    let mut dom = dom();
+    let root = dom.root();
+    let gp = dom.create_element("gp");
+    let a = dom.create_element("a");
+    let p = dom.create_element("p");
+    let c = dom.create_element("c");
+    dom.append_child(p, c).unwrap();
+    dom.append_child(gp, a).unwrap();
+    dom.append_child(gp, p).unwrap();
+    dom.append_child(root, gp).unwrap();
+
+    let sheet = Stylesheet::bare()
+        .rule_unchecked("a", TuiStyle::new().height(Size::Fixed(1)))
+        .rule_unchecked(
+            "p",
+            TuiStyle::new().height(Size::Fixed(10)).margin(Margin::new(
+                MarginValue::Cells(2),
+                MarginValue::Cells(0),
+                MarginValue::Cells(0),
+                MarginValue::Cells(0),
+            )),
+        )
+        .rule_unchecked(
+            "c",
+            TuiStyle::new().height(Size::Fixed(1)).margin(Margin::new(
+                MarginValue::Cells(5),
+                MarginValue::Cells(0),
+                MarginValue::Cells(0),
+                MarginValue::Cells(0),
+            )),
+        );
+    cascade(&mut dom, &sheet);
+    run_block(&mut dom, gp, LayoutRect::new(0, 0, 80, 24));
+
+    assert_eq!(
+        layout_of(&dom, p).y,
+        1 + 5,
+        "P.outer_top includes max(P.mt=2, C.mt=5) = 5 → P.y = A.bottom (1) + 5 = 6"
+    );
+    assert_eq!(
+        layout_of(&dom, c).y,
+        layout_of(&dom, p).y,
+        "C is suppressed inside P — sits at P.y"
+    );
+}
+
+#[test]
+fn parent_outer_top_margin_propagates_through_multilevel_chain() {
+    // Three levels: GP places M; M places P; P places C.
+    // All collapse (no padding/border/BFC anywhere).
+    //   A.mb = 0
+    //   M.mt = 1
+    //   P.mt = 3
+    //   C.mt = 7
+    // Expected outer-top of M = max(1, 3, 7) = 7.
+    // M.y = A.bottom (1) + 7 = 8.
+    let mut dom = dom();
+    let root = dom.root();
+    let gp = dom.create_element("gp");
+    let a = dom.create_element("a");
+    let m = dom.create_element("m");
+    let p = dom.create_element("p");
+    let c = dom.create_element("c");
+    dom.append_child(p, c).unwrap();
+    dom.append_child(m, p).unwrap();
+    dom.append_child(gp, a).unwrap();
+    dom.append_child(gp, m).unwrap();
+    dom.append_child(root, gp).unwrap();
+
+    let sheet = Stylesheet::bare()
+        .rule_unchecked("a", TuiStyle::new().height(Size::Fixed(1)))
+        .rule_unchecked(
+            "m",
+            TuiStyle::new().height(Size::Fixed(10)).margin(Margin::new(
+                MarginValue::Cells(1),
+                MarginValue::Cells(0),
+                MarginValue::Cells(0),
+                MarginValue::Cells(0),
+            )),
+        )
+        .rule_unchecked(
+            "p",
+            TuiStyle::new().height(Size::Fixed(8)).margin(Margin::new(
+                MarginValue::Cells(3),
+                MarginValue::Cells(0),
+                MarginValue::Cells(0),
+                MarginValue::Cells(0),
+            )),
+        )
+        .rule_unchecked(
+            "c",
+            TuiStyle::new().height(Size::Fixed(1)).margin(Margin::new(
+                MarginValue::Cells(7),
+                MarginValue::Cells(0),
+                MarginValue::Cells(0),
+                MarginValue::Cells(0),
+            )),
+        );
+    cascade(&mut dom, &sheet);
+    run_block(&mut dom, gp, LayoutRect::new(0, 0, 80, 24));
+
+    assert_eq!(
+        layout_of(&dom, m).y,
+        1 + 7,
+        "M.outer_top includes max(M.mt=1, P.mt=3, C.mt=7) = 7"
+    );
+}
+
+#[test]
+fn parent_outer_top_chain_stops_at_padding() {
+    // GP -> M (no padding) -> P (top padding 2!) -> C (mt=9)
+    // The padding on P blocks the chain — only M.mt + P.mt
+    // collapse upward. C.mt stays inside P.
+    let mut dom = dom();
+    let root = dom.root();
+    let gp = dom.create_element("gp");
+    let a = dom.create_element("a");
+    let m = dom.create_element("m");
+    let p = dom.create_element("p");
+    let c = dom.create_element("c");
+    dom.append_child(p, c).unwrap();
+    dom.append_child(m, p).unwrap();
+    dom.append_child(gp, a).unwrap();
+    dom.append_child(gp, m).unwrap();
+    dom.append_child(root, gp).unwrap();
+
+    let sheet = Stylesheet::bare()
+        .rule_unchecked("a", TuiStyle::new().height(Size::Fixed(1)))
+        .rule_unchecked(
+            "m",
+            TuiStyle::new().height(Size::Fixed(15)).margin(Margin::new(
+                MarginValue::Cells(2),
+                MarginValue::Cells(0),
+                MarginValue::Cells(0),
+                MarginValue::Cells(0),
+            )),
+        )
+        .rule_unchecked(
+            "p",
+            TuiStyle::new()
+                .height(Size::Fixed(10))
+                .padding(Padding::new(2, 0, 0, 0))
+                .margin(Margin::new(
+                    MarginValue::Cells(4),
+                    MarginValue::Cells(0),
+                    MarginValue::Cells(0),
+                    MarginValue::Cells(0),
+                )),
+        )
+        .rule_unchecked(
+            "c",
+            TuiStyle::new().height(Size::Fixed(1)).margin(Margin::new(
+                MarginValue::Cells(9),
+                MarginValue::Cells(0),
+                MarginValue::Cells(0),
+                MarginValue::Cells(0),
+            )),
+        );
+    cascade(&mut dom, &sheet);
+    run_block(&mut dom, gp, LayoutRect::new(0, 0, 80, 24));
+
+    // M.outer_top = collapse(M.mt=2, P.mt=4) = 4.
+    // M.y = A.bottom (1) + 4 = 5.
+    assert_eq!(
+        layout_of(&dom, m).y,
+        1 + 4,
+        "padding on P blocks chain — M.outer_top = max(2, 4) = 4"
+    );
+    // P sits at M.y; C sits inside P at P.y + 2 (padding) + 9 (own margin).
+    assert_eq!(layout_of(&dom, p).y, 1 + 4, "P at M.y (M-P collapse)");
+    assert_eq!(
+        layout_of(&dom, c).y,
+        layout_of(&dom, p).y + 2 + 9,
+        "C inside P: P.y + padding (2) + C.mt (9)"
+    );
+}
+
 // ── Phase 5.3: empty-block collapse-through ─────────────────────
 
 #[test]
