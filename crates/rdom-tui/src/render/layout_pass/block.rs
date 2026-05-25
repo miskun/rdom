@@ -130,27 +130,84 @@ pub(super) fn layout_block_children(
     let mut y_cursor: i32 = container.y - scroll_y;
     let mut anon_blocks: Vec<AnonymousIfc> = Vec::new();
 
-    for run in &runs {
+    // CSS 2.1 §8.3.1 — vertical margin collapse accumulator.
+    // Tracks the unresolved set of margins between the last placed
+    // block (or the container's top) and the next block to be
+    // placed. Adjacent in-flow block siblings' vertical margins
+    // collapse into one: `max(positives) + min(negatives)`.
+    //
+    // Anonymous block boxes (inline runs in mixed content) have
+    // zero margins so they participate transparently — they don't
+    // contribute to the accumulator but they also don't reset it
+    // wholesale when surrounded by block siblings. Out-of-flow
+    // siblings are already filtered out of `in_flow`.
+    //
+    // Parent–first-child and parent–last-child collapse (Phase 5.2)
+    // + empty-block collapse-through (Phase 5.3) build on this same
+    // accumulator.
+    let mut margin_acc = MarginAccumulator::new();
+
+    // Phase 5.2 — parent–first-child top margin collapse.
+    // When the parent has no top padding, no top border, and doesn't
+    // establish a new BFC, the first in-flow block child's
+    // `margin-top` collapses through the parent. The merged margin
+    // ideally surfaces at the parent's OUTER top (the
+    // parent's parent should see it). For now we implement the
+    // local half: suppress the first child's `margin-top` so it
+    // doesn't create extra space inside the parent's content area.
+    // The upward-merge half is tracked as known incompleteness in
+    // [[bfc1-margin-collapse-upward-propagation]] (`TECH_DEBT.md`).
+    let suppress_first_top_margin = parent_collapses_top_with_first_child(parent_computed);
+    let suppress_last_bottom_margin = parent_collapses_bottom_with_last_child(parent_computed);
+    let last_block_run_idx = runs
+        .iter()
+        .enumerate()
+        .rev()
+        .find_map(|(i, r)| (r.kind == RunKind::Block).then_some(i));
+
+    let mut placed_block_count: usize = 0;
+    for (run_idx, run) in runs.iter().enumerate() {
         match run.kind {
             RunKind::Block => {
-                for &child in &run.children {
+                let is_last_block_run = Some(run_idx) == last_block_run_idx;
+                let last_child_idx = run.children.len() - 1;
+                for (i, &child) in run.children.iter().enumerate() {
+                    let is_first_block_placed = placed_block_count == 0;
+                    let is_last_block_placed = is_last_block_run && i == last_child_idx;
                     y_cursor = lay_out_block_child(
                         dom,
                         child,
-                        container,
-                        containing_block_width,
-                        y_cursor,
+                        BlockPlace {
+                            container,
+                            containing_block_width,
+                            y_cursor,
+                            margin_acc: &mut margin_acc,
+                            suppress_top_margin: is_first_block_placed && suppress_first_top_margin,
+                            suppress_bottom_margin: is_last_block_placed
+                                && suppress_last_bottom_margin,
+                        },
                     );
+                    placed_block_count += 1;
                 }
             }
             RunKind::Inline => {
                 // Anonymous block box wrapping this inline run. Its
                 // IFC packs the run's children at the container's
                 // content width. Height = packed line count.
+                //
+                // Resolve any accumulated margin from the previous
+                // block sibling before placing the anon box. Anon
+                // boxes themselves contribute zero margins (no CSS
+                // identity), so the accumulator empties after this
+                // placement — the next block starts a fresh
+                // accumulator.
                 let inline_layout =
                     compute_inline_layout_for_run(dom, id, &run.children, containing_block_width);
                 let height = inline_layout.height();
-                let rect = LayoutRect::new(container.x, y_cursor, containing_block_width, height);
+                let resolved_gap = margin_acc.resolved();
+                margin_acc = MarginAccumulator::new();
+                let anon_y = y_cursor + resolved_gap as i32;
+                let rect = LayoutRect::new(container.x, anon_y, containing_block_width, height);
                 // Layout atomic inline-block children at their
                 // fragment rects. This both writes their layout
                 // rects (so hit-test descends into them — e.g.
@@ -164,7 +221,7 @@ pub(super) fn layout_block_children(
                     inline_layout,
                     child_range: run.child_range,
                 });
-                y_cursor += height as i32;
+                y_cursor = anon_y + height as i32;
             }
         }
     }
@@ -210,14 +267,42 @@ fn layout_atomic_inline_blocks(
     }
 }
 
-/// Lay out a single block-level child. Returns the new y cursor.
-fn lay_out_block_child(
-    dom: &mut Dom<TuiExt>,
-    child: NodeId,
+/// Lay out a single block-level child. Folds the child's `margin-top`
+/// into the running margin accumulator, resolves the accumulator into
+/// a single gap above the child, places the child, then primes the
+/// accumulator with the child's `margin-bottom` for the next sibling.
+///
+/// Returns the new y cursor — the bottom edge of the child's outer
+/// rect (NOT including its bottom margin, which is now buffered in
+/// `margin_acc`). The container's own height computation (Phase 6) and
+/// the parent-last-child collapse (Phase 5.2) consume the leftover
+/// accumulator separately.
+/// Per-child placement context — bundles the in-flow positioning
+/// state so `lay_out_block_child`'s signature stays narrow.
+struct BlockPlace<'a> {
     container: LayoutRect,
     containing_block_width: u16,
     y_cursor: i32,
-) -> i32 {
+    margin_acc: &'a mut MarginAccumulator,
+    /// Phase 5.2 — first-block-in-this-container + parent's
+    /// `parent_collapses_top_with_first_child`. When true, the
+    /// child's `margin-top` is suppressed to model parent-first-
+    /// child collapse.
+    suppress_top_margin: bool,
+    /// Symmetric to `suppress_top_margin` — for the last in-flow
+    /// block child + parent's `parent_collapses_bottom_with_last_child`.
+    suppress_bottom_margin: bool,
+}
+
+fn lay_out_block_child(dom: &mut Dom<TuiExt>, child: NodeId, ctx: BlockPlace<'_>) -> i32 {
+    let BlockPlace {
+        container,
+        containing_block_width,
+        y_cursor,
+        margin_acc,
+        suppress_top_margin,
+        suppress_bottom_margin,
+    } = ctx;
     let computed = dom
         .node(child)
         .computed()
@@ -227,16 +312,198 @@ fn lay_out_block_child(
     let resolved = resolve_block_width(&computed, containing_block_width);
     let height = resolve_block_height(dom, child, &computed, resolved.width, container.height);
 
-    let top_margin = vertical_margin(&computed.margin.top);
-    let bottom_margin = vertical_margin(&computed.margin.bottom);
+    let top_margin = if suppress_top_margin {
+        // Phase 5.2 — parent–first-child top margin collapse: the
+        // child's `margin-top` collapses through the parent and
+        // surfaces at the parent's outer top. The local effect is
+        // that the child sits flush with the parent's content
+        // start (no extra space inside the parent's content area).
+        0
+    } else {
+        vertical_margin(&computed.margin.top)
+    };
+    let bottom_margin = if suppress_bottom_margin {
+        // Phase 5.2 — parent–last-child bottom margin collapse:
+        // symmetric to the top case.
+        0
+    } else {
+        vertical_margin(&computed.margin.bottom)
+    };
+
+    // Phase 5.3 — empty-block collapse-through. A block with no
+    // content, no padding, no border, and zero height has its top
+    // + bottom margins meet — they fold into the surrounding
+    // accumulator together rather than resetting it.
+    let collapse_through = is_empty_collapse_through(dom, child, &computed, height);
+
+    // Collapse this child's `margin-top` with the accumulator (which
+    // already holds the previous sibling's `margin-bottom` or 0).
+    margin_acc.add(top_margin);
 
     let outer_x = container.x + resolved.margin_left as i32;
-    let outer_y = y_cursor + top_margin as i32;
+    // The "gap" used for placement: for collapse-through children we
+    // still place the empty box visually at the resolved-so-far
+    // position (mostly for downstream layouts that ask for its
+    // rect), but we do NOT advance the y_cursor or reset the
+    // accumulator — the next sibling's gap will collapse with
+    // everything accumulated so far.
+    let gap = margin_acc.resolved();
+    let outer_y = y_cursor + gap as i32;
     let outer_rect = LayoutRect::new(outer_x, outer_y, resolved.width, height);
-
     layout_node(dom, child, outer_rect);
 
-    outer_rect.bottom() + bottom_margin as i32
+    if collapse_through {
+        // Fold the bottom margin into the SAME accumulator and
+        // leave y_cursor where it was. Next sibling's `gap`
+        // computation will see all of A.mb, E.mt, E.mb, B.mt.
+        margin_acc.add(bottom_margin);
+        y_cursor
+    } else {
+        // Normal block: advance y_cursor past the child and reset
+        // the accumulator to just this child's bottom margin.
+        *margin_acc = MarginAccumulator::new();
+        margin_acc.add(bottom_margin);
+        outer_rect.bottom()
+    }
+}
+
+/// CSS 2.1 §8.3.1 — does this block's top and bottom margins meet
+/// directly (i.e. is the block "collapse-through")? True when there
+/// is nothing between the top and bottom edges that could separate
+/// the margins: no height, no padding, no border, no element /
+/// non-whitespace text children, and no min-height pinning the box
+/// open.
+fn is_empty_collapse_through(
+    dom: &Dom<TuiExt>,
+    id: NodeId,
+    computed: &ComputedStyle,
+    resolved_height: u16,
+) -> bool {
+    use crate::layout::Border;
+    if resolved_height != 0 {
+        return false;
+    }
+    if computed.padding.top != 0 || computed.padding.bottom != 0 {
+        return false;
+    }
+    if matches!(
+        computed.border,
+        Border::Top | Border::Bottom | Border::Single | Border::Rounded
+    ) {
+        return false;
+    }
+    // An explicit `min-height: Cells(n)` with n > 0 keeps the box
+    // open even when content is empty — that opens a separator
+    // between top and bottom margins, so collapse-through doesn't
+    // apply.
+    if let Some(crate::layout::MinSize::Cells(n)) = computed.min_height
+        && n > 0
+    {
+        return false;
+    }
+    // Any in-flow element child OR any non-whitespace text child
+    // counts as content that separates the margins. Out-of-flow
+    // children don't count (they don't take space in normal flow).
+    for child in dom.node(id).child_nodes() {
+        match child.node_type() {
+            NodeType::Element => {
+                let c = child.ext().and_then(|e| e.computed.as_ref());
+                let in_flow = c
+                    .map(|s| {
+                        s.display != crate::layout::Display::None
+                            && !matches!(
+                                s.position,
+                                crate::layout::Position::Absolute | crate::layout::Position::Fixed
+                            )
+                    })
+                    .unwrap_or(true);
+                if in_flow {
+                    return false;
+                }
+            }
+            NodeType::Text => {
+                if let Some(t) = child.node_value()
+                    && !t.chars().all(char::is_whitespace)
+                {
+                    return false;
+                }
+            }
+            _ => {}
+        }
+    }
+    true
+}
+
+/// CSS 2.1 §8.3.1 — predicate for "this container's `margin-top`
+/// collapses through to its first in-flow block child's
+/// `margin-top`." All conditions must hold: no top padding, no top
+/// border, no clearance (always true in v1 — `clear` isn't a
+/// property we model), and the container doesn't establish a new
+/// block formatting context.
+fn parent_collapses_top_with_first_child(parent: &ComputedStyle) -> bool {
+    use crate::layout::Border;
+    parent.padding.top == 0
+        && !matches!(
+            parent.border,
+            Border::Top | Border::Single | Border::Rounded
+        )
+        && !parent.establishes_new_bfc
+}
+
+/// Symmetric to `parent_collapses_top_with_first_child` — for the
+/// bottom edge.
+fn parent_collapses_bottom_with_last_child(parent: &ComputedStyle) -> bool {
+    use crate::layout::Border;
+    parent.padding.bottom == 0
+        && !matches!(
+            parent.border,
+            Border::Bottom | Border::Single | Border::Rounded
+        )
+        && !parent.establishes_new_bfc
+}
+
+/// CSS 2.1 §8.3.1 vertical-margin collapse accumulator.
+///
+/// Maintains the running set of margins to be collapsed between two
+/// block boundaries: the largest positive (or zero) and the most
+/// negative (or zero). Resolution:
+///
+/// `final = positive_max + negative_min`
+///
+/// - Both positive (negative_min == 0): max.
+/// - Both negative (positive_max == 0): min (most negative).
+/// - Mixed: largest positive plus most negative — partial
+///   cancellation per spec.
+/// - Empty (initial state, zero contributions): 0.
+///
+/// Used by `layout_block_children` to track the unresolved margin
+/// between the last placed block and the next block to be placed,
+/// supporting any number of intervening empty-collapse-through
+/// blocks (Phase 5.3) and absorbing the parent-child collapse
+/// boundary (Phase 5.2).
+#[derive(Debug, Default, Clone, Copy)]
+struct MarginAccumulator {
+    positive_max: i16,
+    negative_min: i16,
+}
+
+impl MarginAccumulator {
+    fn new() -> Self {
+        Self::default()
+    }
+
+    fn add(&mut self, margin: i16) {
+        if margin > self.positive_max {
+            self.positive_max = margin;
+        }
+        if margin < self.negative_min {
+            self.negative_min = margin;
+        }
+    }
+
+    fn resolved(&self) -> i16 {
+        self.positive_max + self.negative_min
+    }
 }
 
 /// One run of consecutive children sharing a level (block-level or
