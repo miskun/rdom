@@ -215,6 +215,74 @@ fn source_disclosure_when_closed_shows_only_summary() {
 }
 
 #[test]
+fn source_disclosure_block_children_share_content_box_left() {
+    // Bug: <h3>Markup</h3> labels added by `rebuild_source_disclosure`
+    // rendered flush against the right panel's left border, while the
+    // sibling <pre> code body was indented. Caused by per-child
+    // padding rules on <summary> and <pre> with nothing on <h3>
+    // (UA-default <h3> has no padding).
+    //
+    // Contract: the source-disclosure container provides horizontal
+    // padding for its block children, so <summary>, <h3>, and <pre>
+    // all share the same content-box left edge. This is the web-
+    // idiom layout — container-padding inherits to every block child
+    // without each one needing its own rule, so new block children
+    // (a future "Show diff" button, an explanation <p>, etc.) auto-
+    // align without a per-element rule.
+    let mut dom: TuiDom = TuiDom::new();
+    let handles = build_shell(&mut dom);
+    let mut state = ShowcaseState::from_handles(&handles);
+    mount_demo(&mut state, &mut dom, 0); // Hello World
+
+    // Open the disclosure so h3/pre are laid out.
+    dom.set_attribute(handles.source_disclosure, "open", "")
+        .unwrap();
+
+    let base = base_stylesheet();
+    let mut sheets = vec![base];
+    for d in DEMOS {
+        sheets.push(d.stylesheet());
+    }
+    let refs: Vec<&_> = sheets.iter().collect();
+    dom.cascade_all(&refs);
+    dom.layout_dom(Rect::new(0, 0, 123, 26));
+
+    // Find the first <summary>, <h3>, and <pre> children of the
+    // source-disclosure.
+    let n = dom.node(handles.source_disclosure);
+    let mut summary: Option<NodeId> = None;
+    let mut h3: Option<NodeId> = None;
+    let mut pre: Option<NodeId> = None;
+    for child in n.child_nodes() {
+        match child.tag_name() {
+            Some("summary") if summary.is_none() => summary = Some(child.id()),
+            Some("h3") if h3.is_none() => h3 = Some(child.id()),
+            Some("pre") if pre.is_none() => pre = Some(child.id()),
+            _ => {}
+        }
+    }
+    let summary = summary.expect("<summary> child");
+    let h3 = h3.expect("<h3> label child");
+    let pre = pre.expect("<pre> code child");
+
+    let summary_x = dom.node(summary).ext().unwrap().content_layout.x;
+    let h3_x = dom.node(h3).ext().unwrap().content_layout.x;
+    let pre_x = dom.node(pre).ext().unwrap().content_layout.x;
+
+    assert_eq!(
+        h3_x, pre_x,
+        "<h3> label and <pre> code must share content-box left edge \
+         (h3.x={h3_x}, pre.x={pre_x}) — move padding onto the \
+         .source-disclosure container instead of per-child rules"
+    );
+    assert_eq!(
+        h3_x, summary_x,
+        "<h3> label and <summary> disclosure must share content-box \
+         left edge (h3.x={h3_x}, summary.x={summary_x})"
+    );
+}
+
+#[test]
 fn first_demos_subtree_attaches_under_view_content_not_main() {
     // Design intent: mount_demo appends the demo's subtree to the
     // `.view-content` <div>, not directly to <main>. The demo's

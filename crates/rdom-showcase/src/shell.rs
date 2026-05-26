@@ -393,9 +393,16 @@ const BASE_CSS: &str = r#"
  * `details:not([open]) > *:not(summary) { display: none }` hides
  * the body when closed, so there's nothing to scroll when closed.
  */
+/* Horizontal padding lives on the container, NOT on each child.
+ * Web-idiom: container provides the inset, every block child
+ * (<summary>, <h3>, <pre>, plus anything added later) inherits the
+ * same content-box left edge automatically. Per-child padding on
+ * <summary> + <pre> with nothing on <h3> previously left the
+ * "Markup" / "CSS" labels flush against the panel border. */
 .main .source-disclosure {
   border-top: solid;
   border-color: rgb(70, 80, 100);
+  padding: 0 1;
 }
 .main .source-disclosure[open] {
   height: 12;
@@ -406,12 +413,13 @@ const BASE_CSS: &str = r#"
   overflow: auto;
 }
 .main .source-disclosure summary {
-  padding: 0 1;
   color: rgb(180, 200, 230);
   font-weight: bold;
 }
+.main .source-disclosure h3 {
+  color: rgb(180, 200, 230);
+}
 .main .source-disclosure pre {
-  padding: 0 2;
   color: rgb(200, 210, 230);
 }
 
