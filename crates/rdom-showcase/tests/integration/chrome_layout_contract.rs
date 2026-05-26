@@ -116,6 +116,75 @@ fn view_content_flex_grows_to_fill_main_with_source_at_bottom() {
 }
 
 #[test]
+fn source_disclosure_when_open_has_fixed_height_12() {
+    // Phase 2 design intent: when the source disclosure is OPEN,
+    // it occupies a fixed 12 outer rows (border-top + 11-row
+    // content area). `overflow: auto` lets longer source scroll
+    // inside that fixed-size panel rather than pushing chrome
+    // around. Predictable demo-vs-source split — opening source
+    // for any demo always takes the same 12 rows.
+    let mut dom: TuiDom = TuiDom::new();
+    let handles = build_shell(&mut dom);
+    let mut state = ShowcaseState::from_handles(&handles);
+    mount_demo(&mut state, &mut dom, 0); // Hello World
+
+    // Open the disclosure (substrate's UA cascade gates content
+    // visibility on `[open]`).
+    dom.set_attribute(handles.source_disclosure, "open", "")
+        .unwrap();
+
+    let base = base_stylesheet();
+    let mut sheets = vec![base];
+    for d in DEMOS {
+        sheets.push(d.stylesheet());
+    }
+    let refs: Vec<&_> = sheets.iter().collect();
+    dom.cascade_all(&refs);
+    dom.layout_dom(Rect::new(0, 0, 80, 30));
+
+    let src_rect = dom.node(handles.source_disclosure).ext().unwrap().layout;
+    assert_eq!(
+        src_rect.height, 12,
+        "open source-disclosure should take fixed 12 outer rows (got {})",
+        src_rect.height
+    );
+
+    // Content area: under `border-collapse: collapse` on `.app`,
+    // M5.5b says a child's content area expands to include its
+    // border-ring cells (the border shares with the previous
+    // sibling's bottom edge). So content = full outer = 12.
+    let src_content = dom
+        .node(handles.source_disclosure)
+        .ext()
+        .unwrap()
+        .content_layout;
+    assert_eq!(
+        src_content.height, 12,
+        "border-collapse: collapse → content area includes the border-ring cell"
+    );
+
+    // `overflow: auto` means a long source scrolls inside this
+    // 11-row content area. Check both axes are scrollable
+    // (CSS `overflow: auto` shorthand sets both x and y).
+    let (ox, oy) = dom
+        .node(handles.source_disclosure)
+        .ext()
+        .and_then(|e| e.computed.as_ref())
+        .map(|c| (c.overflow_x, c.overflow_y))
+        .unwrap();
+    let scroll = |o: rdom_tui::layout::Overflow| {
+        matches!(
+            o,
+            rdom_tui::layout::Overflow::Auto | rdom_tui::layout::Overflow::Scroll
+        )
+    };
+    assert!(
+        scroll(ox) && scroll(oy),
+        "open source-disclosure should be scrollable on both axes (got x={ox:?}, y={oy:?})"
+    );
+}
+
+#[test]
 fn source_disclosure_when_closed_shows_only_summary() {
     // Design intent: the UA `details:not([open]) > *:not(summary)`
     // rule hides every child of `<details>` except `<summary>` when

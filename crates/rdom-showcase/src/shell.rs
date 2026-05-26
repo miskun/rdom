@@ -378,20 +378,31 @@ const BASE_CSS: &str = r#"
   flex: 1;
 }
 
-/* Source disclosure. Closed by default → demo takes all space
- * above the scroll indicator. Open → the disclosure body
- * expands to a fixed height, with overflow:auto so long source
- * scrolls inside the disclosure rather than pushing chrome
- * around.
+/* Source disclosure. Two states:
+ *
+ * - CLOSED (default) — intrinsic height = 1 row summary +
+ *   1 row `border-top: solid` = 2 outer rows. The demo gets all
+ *   the remaining vertical space inside `<main>`.
+ * - OPEN — fixed 12 outer rows = 1 border-top + 11-row content
+ *   area, with `overflow: auto` so long source scrolls inside the
+ *   panel rather than pushing chrome around. Predictable split
+ *   regardless of demo source length.
+ *
+ * `[open]` attribute selector targets only the open state, leaving
+ * the closed state at its intrinsic. The substrate's UA rule
+ * `details:not([open]) > *:not(summary) { display: none }` hides
+ * the body when closed, so there's nothing to scroll when closed.
  */
 .main .source-disclosure {
   border-top: solid;
   border-color: rgb(70, 80, 100);
-  max-height: 16;
-  /* `overflow: auto` is fine now — the CSS-default
-   * `scrollbar-gutter: auto` (substrate post-`CHROME-SCROLL-GUTTER-DEFAULT-1`)
-   * means gutters reserve only when the scrollbar actually shows,
-   * so the closed-disclosure 1-row state isn't eaten. */
+}
+.main .source-disclosure[open] {
+  height: 12;
+  /* `overflow: auto` reserves a scrollbar gutter only when the
+   * scrollbar actually shows (CSS-default `scrollbar-gutter: auto`
+   * post-`CHROME-SCROLL-GUTTER-DEFAULT-1`), so short source doesn't
+   * lose a content column. */
   overflow: auto;
 }
 .main .source-disclosure summary {
