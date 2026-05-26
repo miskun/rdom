@@ -11,4 +11,5 @@ mod mutation_observer_demo;
 mod resize_integration;
 mod scaffold;
 mod scroll_indicator;
+mod sidebar_scroll_end_regression;
 mod subtree_swap_integration;

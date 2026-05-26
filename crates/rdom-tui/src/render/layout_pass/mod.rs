@@ -343,8 +343,20 @@ fn record_scroll_content_size(
         None => return,
     };
 
-    let mut content_w: i32 = 0;
-    let mut content_h: i32 = 0;
+    // Content extent = max(child.bottom) - min(child.top) along each
+    // axis, with the parent's `scroll_{x,y}` added back so the result
+    // is the un-scrolled extent. The min/max framing (rather than
+    // anchoring on `inner.{x,y}`) is what makes `collapse_parent_edge_insets`'s
+    // top/left layout-time shifts cleanly ignored: those insets push
+    // the first child away from `inner` but the children's collective
+    // extent is what overflow actually depends on, and that extent
+    // is `max - min` regardless of where the first child sits inside
+    // the inner rect.
+    let mut min_x: Option<i32> = None;
+    let mut min_y: Option<i32> = None;
+    let mut max_right: i32 = 0;
+    let mut max_bottom: i32 = 0;
+    let mut any = false;
     for child in element_children_of(dom, id) {
         if let Some(ext) = dom.node(child).ext() {
             // Skip out-of-flow children (display:none has
@@ -364,16 +376,30 @@ fn record_scroll_content_size(
                 continue;
             }
             let rect = ext.layout;
-            let end_x = rect.x + rect.width as i32 - inner.x + scroll_x;
-            let end_y = rect.y + rect.height as i32 - inner.y + scroll_y;
-            content_w = content_w.max(end_x);
-            content_h = content_h.max(end_y);
+            let top = rect.y + scroll_y;
+            let left = rect.x + scroll_x;
+            let bottom = top + rect.height as i32;
+            let right = left + rect.width as i32;
+            min_x = Some(min_x.map_or(left, |m: i32| m.min(left)));
+            min_y = Some(min_y.map_or(top, |m: i32| m.min(top)));
+            max_right = max_right.max(right);
+            max_bottom = max_bottom.max(bottom);
+            any = true;
         }
     }
 
+    let (content_w, content_h) = if any {
+        (
+            (max_right - min_x.unwrap_or(inner.x)).max(0),
+            (max_bottom - min_y.unwrap_or(inner.y)).max(0),
+        )
+    } else {
+        (0, 0)
+    };
+
     if let Some(ext) = dom.node_mut(id).ext_mut() {
-        ext.scroll_content_width = content_w.max(0) as usize;
-        ext.scroll_content_height = content_h.max(0) as usize;
+        ext.scroll_content_width = content_w as usize;
+        ext.scroll_content_height = content_h as usize;
     }
 }
 
