@@ -903,6 +903,37 @@ pub fn compute_content_area_collapsed(
     )
 }
 
+/// Compute the **padding-box** edge for an element with `outer` (border-box)
+/// rect and the given `border`. This is the CSS Box Model 3 §1 padding edge:
+/// `border-box ∸ border` on each side.
+///
+/// CSS Overflow 3 §3 names this rect the **scrollport** of a scroll container:
+/// the region inside which overflow content is clipped, where the scrollbar
+/// gutter lives, and what `position: sticky` pins against.
+///
+/// Independent of `border-collapse`. The M5.5b layout-time expansion in
+/// [`compute_content_area_collapsed`] widens `content_layout` into the border
+/// ring so children with their own borders can position on the shared edge —
+/// that's a *child-positioning* concern, not a paint-clipping one. CSS Overflow
+/// 3 §3 places the scrollport at the padding-box for every scroll container,
+/// no table/collapse exception, so paint clipping reads this rect even when
+/// the layout-side content rect was expanded.
+///
+/// Saturating math throughout — a degenerate `outer` smaller than the border
+/// insets yields a zero-size rect at the inset origin, never a panic.
+pub fn compute_padding_box(outer: LayoutRect, border: Border) -> LayoutRect {
+    let bl = border.left as u16;
+    let bt = border.top as u16;
+    let bh = bl + border.right as u16;
+    let bv = bt + border.bottom as u16;
+    LayoutRect::new(
+        outer.x + bl as i32,
+        outer.y + bt as i32,
+        outer.width.saturating_sub(bh),
+        outer.height.saturating_sub(bv),
+    )
+}
+
 /// Clamp a cell count to min/max constraints. Matches CSS: when `min >
 /// max`, `min` wins.
 pub fn clamp_size(value: u16, min: Option<u16>, max: Option<u16>) -> u16 {
@@ -1049,5 +1080,70 @@ mod tests {
     #[test]
     fn clamp_no_constraints() {
         assert_eq!(clamp_size(42, None, None), 42);
+    }
+
+    // ── compute_padding_box (CSS Box Model 3 §1, Overflow 3 §3) ────
+
+    #[test]
+    fn padding_box_subtracts_border_on_all_sides() {
+        // CSS Box Model 3: padding-box edge = border-box ∸ border.
+        // Inset by 1 on every side reduces a 10×10 outer to an 8×8
+        // padding-box offset by (1, 1).
+        let outer = LayoutRect::new(0, 0, 10, 10);
+        let border = Border::single(); // all four sides = 1 cell
+        let pb = compute_padding_box(outer, border);
+        assert_eq!(pb, LayoutRect::new(1, 1, 8, 8));
+    }
+
+    #[test]
+    fn padding_box_independent_of_border_collapse() {
+        // `compute_padding_box` ignores border-collapse entirely.
+        // M5.5b's layout-time expansion of `content_layout` into the
+        // border ring is a child-positioning concern, not a paint-
+        // clipping one. CSS Overflow 3 §3: the scrollport is the
+        // padding-box, full stop — no table/collapse exception.
+        let outer = LayoutRect::new(5, 10, 20, 15);
+        let border = Border::single();
+        // Function signature takes no BorderCollapse parameter — the
+        // semantics are independent by construction. The assertion
+        // here is the result equals what we'd get for any collapse
+        // mode (the same single rect).
+        let pb = compute_padding_box(outer, border);
+        assert_eq!(pb, LayoutRect::new(6, 11, 18, 13));
+    }
+
+    #[test]
+    fn padding_box_saturates_when_border_exceeds_outer() {
+        // Defensive: a degenerate outer rect smaller than the
+        // border insets must not panic. Should saturate to a
+        // zero-size rect at the inset origin.
+        let outer = LayoutRect::new(0, 0, 1, 1);
+        let border = Border::single();
+        let pb = compute_padding_box(outer, border);
+        // After inset by (1, 1) on a 1×1: x=1, y=1, w=0, h=0.
+        assert_eq!(pb.x, 1);
+        assert_eq!(pb.y, 1);
+        assert_eq!(pb.width, 0);
+        assert_eq!(pb.height, 0);
+    }
+
+    #[test]
+    fn padding_box_with_no_border_equals_outer() {
+        // No border → padding-box = border-box. The non-bordered
+        // path doesn't shrink the rect.
+        let outer = LayoutRect::new(3, 7, 50, 40);
+        let pb = compute_padding_box(outer, Border::none());
+        assert_eq!(pb, outer);
+    }
+
+    #[test]
+    fn padding_box_per_side_border_only_top() {
+        // The source-disclosure shape: `border-top: solid`, no other
+        // sides. Padding-box drops only the top row.
+        let outer = LayoutRect::new(0, 0, 20, 10);
+        let mut border = Border::none();
+        border.top = true;
+        let pb = compute_padding_box(outer, border);
+        assert_eq!(pb, LayoutRect::new(0, 1, 20, 9));
     }
 }
