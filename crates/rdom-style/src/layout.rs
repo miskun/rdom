@@ -227,18 +227,115 @@ pub enum ScrollbarGutter {
     Stable,
 }
 
-/// Border style. Single/Rounded draws all four sides; Top/Bottom/Left/Right
-/// draws only that one side.
+/// Per-side border state. CSS lets authors enable any combination
+/// of `border-top` / `border-right` / `border-bottom` / `border-left`
+/// independently. `corner_style` only matters when all 4 sides are
+/// drawn — the rounded-corner glyphs `╭╮╰╯` need both sides at a
+/// corner to share a cell.
+///
+/// The `border` shorthand and the per-side longhands all write into
+/// this struct via the cascade. `Border::default()` is "no border."
+///
+/// Backward-compat factory methods (`Border::single()`, `Border::top()`,
+/// etc.) match the names of the old `Border` enum variants so the
+/// cascade + paint sites that used to switch on those variants now
+/// read field combinations instead.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum Border {
+pub struct Border {
+    pub top: bool,
+    pub right: bool,
+    pub bottom: bool,
+    pub left: bool,
+    pub corner_style: CornerStyle,
+}
+
+impl Border {
+    /// All sides off. Same as `Default`.
+    pub const fn none() -> Self {
+        Self {
+            top: false,
+            right: false,
+            bottom: false,
+            left: false,
+            corner_style: CornerStyle::Square,
+        }
+    }
+    /// All four sides on, square corners. `border: solid` shorthand.
+    pub const fn single() -> Self {
+        Self {
+            top: true,
+            right: true,
+            bottom: true,
+            left: true,
+            corner_style: CornerStyle::Square,
+        }
+    }
+    /// All four sides on, rounded corners. `border: rounded` shorthand.
+    pub const fn rounded() -> Self {
+        Self {
+            top: true,
+            right: true,
+            bottom: true,
+            left: true,
+            corner_style: CornerStyle::Rounded,
+        }
+    }
+    /// Top side only. `border-top: solid` longhand without others.
+    pub const fn top() -> Self {
+        Self {
+            top: true,
+            right: false,
+            bottom: false,
+            left: false,
+            corner_style: CornerStyle::Square,
+        }
+    }
+    pub const fn bottom() -> Self {
+        Self {
+            top: false,
+            right: false,
+            bottom: true,
+            left: false,
+            corner_style: CornerStyle::Square,
+        }
+    }
+    pub const fn left() -> Self {
+        Self {
+            top: false,
+            right: false,
+            bottom: false,
+            left: true,
+            corner_style: CornerStyle::Square,
+        }
+    }
+    pub const fn right() -> Self {
+        Self {
+            top: false,
+            right: true,
+            bottom: false,
+            left: false,
+            corner_style: CornerStyle::Square,
+        }
+    }
+
+    /// True if no side is enabled.
+    pub const fn is_empty(&self) -> bool {
+        !self.top && !self.right && !self.bottom && !self.left
+    }
+    /// True if exactly all four sides are enabled.
+    pub const fn is_box(&self) -> bool {
+        self.top && self.right && self.bottom && self.left
+    }
+}
+
+/// Corner glyph style — applies when all 4 sides are drawn (per-side
+/// borders don't form corners). `Square` uses `┌┐└┘`; `Rounded` uses
+/// `╭╮╰╯`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CornerStyle {
     #[default]
-    None,
-    Single,
+    Square,
     Rounded,
-    Top,
-    Bottom,
-    Left,
-    Right,
 }
 
 /// CSS `border-collapse` (M5.5). Default is `Separate` — every box
@@ -701,29 +798,15 @@ pub fn compute_content_area_collapsed(
     // border for content-area purposes; the border still paints
     // (paint pass renders it), but children's rects extend into
     // those cells.
-    let effective_border = if collapse == BorderCollapse::Collapse && border != Border::None {
-        Border::None
+    let effective_border = if collapse == BorderCollapse::Collapse && !border.is_empty() {
+        Border::none()
     } else {
         border
     };
-    let border_left = matches!(
-        effective_border,
-        Border::Left | Border::Single | Border::Rounded
-    ) as u16;
-    let border_top = matches!(
-        effective_border,
-        Border::Top | Border::Single | Border::Rounded
-    ) as u16;
-    let border_h = match effective_border {
-        Border::Left | Border::Right => 1,
-        Border::Single | Border::Rounded => 2,
-        _ => 0,
-    };
-    let border_v = match effective_border {
-        Border::Top | Border::Bottom => 1,
-        Border::Single | Border::Rounded => 2,
-        _ => 0,
-    };
+    let border_left = effective_border.left as u16;
+    let border_top = effective_border.top as u16;
+    let border_h = border_left + effective_border.right as u16;
+    let border_v = border_top + effective_border.bottom as u16;
 
     let inset_x = padding.left + border_left;
     let inset_y = padding.top + border_top;
@@ -823,7 +906,7 @@ mod tests {
     fn content_area_none_padding_no_border() {
         let area = LayoutRect::new(0, 0, 80, 24);
         assert_eq!(
-            compute_content_area(area, Padding::default(), Border::None),
+            compute_content_area(area, Padding::default(), Border::none()),
             area
         );
     }
@@ -831,7 +914,7 @@ mod tests {
     #[test]
     fn content_area_with_padding() {
         let area = LayoutRect::new(0, 0, 80, 24);
-        let content = compute_content_area(area, Padding::symmetric(2, 1), Border::None);
+        let content = compute_content_area(area, Padding::symmetric(2, 1), Border::none());
         assert_eq!(content, LayoutRect::new(2, 1, 76, 22));
     }
 
@@ -839,21 +922,21 @@ mod tests {
     fn content_area_with_asymmetric_padding() {
         let area = LayoutRect::new(0, 0, 80, 24);
         // top=1, right=3, bottom=2, left=5 → x+5, y+1, w-8, h-3
-        let content = compute_content_area(area, Padding::new(1, 3, 2, 5), Border::None);
+        let content = compute_content_area(area, Padding::new(1, 3, 2, 5), Border::none());
         assert_eq!(content, LayoutRect::new(5, 1, 72, 21));
     }
 
     #[test]
     fn content_area_with_single_border() {
         let area = LayoutRect::new(0, 0, 80, 24);
-        let content = compute_content_area(area, Padding::default(), Border::Single);
+        let content = compute_content_area(area, Padding::default(), Border::single());
         assert_eq!(content, LayoutRect::new(1, 1, 78, 22));
     }
 
     #[test]
     fn content_area_with_top_only_border() {
         let area = LayoutRect::new(0, 0, 80, 24);
-        let content = compute_content_area(area, Padding::default(), Border::Top);
+        let content = compute_content_area(area, Padding::default(), Border::top());
         // border_top=1, border_left=0, border_v=1, border_h=0
         assert_eq!(content, LayoutRect::new(0, 1, 80, 23));
     }

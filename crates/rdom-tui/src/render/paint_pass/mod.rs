@@ -57,7 +57,7 @@ mod tests;
 use rdom_core::{Dom, NodeId, NodeType};
 
 use crate::ext::TuiExt;
-use crate::layout::{Border, Display, LayoutRect, Overflow};
+use crate::layout::{Display, LayoutRect, Overflow};
 use crate::node::TuiNodeExt;
 use crate::render::layout_pass::is_ifc_block;
 use crate::render::{Buffer, Rect};
@@ -310,7 +310,7 @@ fn paint_node(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect) {
 
         // 2. Border. Glyph paint only — `paint_border` does not write
         // `cell.bg`; the bg invariant is owned by `fill_bg` above.
-        if !matches!(computed.border, Border::None) {
+        if !computed.border.is_empty() {
             paint_border(buf, outer, computed.border, computed.border_fg, clip);
         }
     } else {

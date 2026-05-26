@@ -1,7 +1,7 @@
 //! Background fill + border drawing.
 //!
 //! Box-drawing characters live here (constants) to keep the shape
-//! lookup tight. `Border::Single` uses square corners; `Rounded`
+//! lookup tight. `Border::single()` uses square corners; `Rounded`
 //! uses arc corners; `Top/Bottom/Left/Right` draw just that one
 //! edge (no corners needed).
 //!
@@ -147,14 +147,14 @@ pub(super) fn paint_border(
     let style = Style::new().fg(border_fg);
 
     // Which edges are drawn?
-    let top_edge = matches!(border, Border::Single | Border::Rounded | Border::Top);
-    let bottom_edge = matches!(border, Border::Single | Border::Rounded | Border::Bottom);
-    let left_edge = matches!(border, Border::Single | Border::Rounded | Border::Left);
-    let right_edge = matches!(border, Border::Single | Border::Rounded | Border::Right);
+    let top_edge = border.top;
+    let bottom_edge = border.bottom;
+    let left_edge = border.left;
+    let right_edge = border.right;
 
-    let (tl, tr, bl, br) = match border {
-        Border::Rounded => (ROUNDED_TL, ROUNDED_TR, ROUNDED_BL, ROUNDED_BR),
-        _ => (SINGLE_TL, SINGLE_TR, SINGLE_BL, SINGLE_BR),
+    let (tl, tr, bl, br) = match border.corner_style {
+        crate::layout::CornerStyle::Rounded => (ROUNDED_TL, ROUNDED_TR, ROUNDED_BL, ROUNDED_BR),
+        crate::layout::CornerStyle::Square => (SINGLE_TL, SINGLE_TR, SINGLE_BL, SINGLE_BR),
     };
 
     let right_x = outer.x + outer.width as i32 - 1;

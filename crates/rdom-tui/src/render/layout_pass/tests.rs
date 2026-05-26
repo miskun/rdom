@@ -239,7 +239,7 @@ fn content_layout_insets_by_border() {
         TuiStyle::new()
             .width(Size::Fixed(10))
             .height(Size::Fixed(5))
-            .border(Border::Single),
+            .border(Border::single()),
     );
     cascade(&mut dom, &sheet);
     dom.layout_dom(Rect::new(0, 0, 20, 10));
@@ -1154,16 +1154,20 @@ fn flex_row_with_collapse_shared_edge_is_one_cell() {
                 .height(Size::Fixed(5))
                 .flow(Flow::Flex)
                 .direction(Direction::Row)
-                .border(Border::Single)
+                .border(Border::single())
                 .border_collapse(BorderCollapse::Collapse),
         )
         .rule_unchecked(
             "a",
-            TuiStyle::new().width(Size::Fixed(8)).border(Border::Single),
+            TuiStyle::new()
+                .width(Size::Fixed(8))
+                .border(Border::single()),
         )
         .rule_unchecked(
             "b",
-            TuiStyle::new().width(Size::Fixed(8)).border(Border::Single),
+            TuiStyle::new()
+                .width(Size::Fixed(8))
+                .border(Border::single()),
         );
 
     cascade(&mut dom, &sheet);
@@ -1206,15 +1210,19 @@ fn flex_row_collapse_inactive_keeps_separate_borders() {
                 .height(Size::Fixed(5))
                 .flow(Flow::Flex)
                 .direction(Direction::Row)
-                .border(Border::Single),
+                .border(Border::single()),
         )
         .rule_unchecked(
             "a",
-            TuiStyle::new().width(Size::Fixed(8)).border(Border::Single),
+            TuiStyle::new()
+                .width(Size::Fixed(8))
+                .border(Border::single()),
         )
         .rule_unchecked(
             "b",
-            TuiStyle::new().width(Size::Fixed(8)).border(Border::Single),
+            TuiStyle::new()
+                .width(Size::Fixed(8))
+                .border(Border::single()),
         );
 
     cascade(&mut dom, &sheet);
@@ -1324,16 +1332,20 @@ fn hit_test_at_shared_edge_returns_deeper_element() {
                 .height(Size::Fixed(5))
                 .flow(Flow::Flex)
                 .direction(Direction::Row)
-                .border(Border::Single)
+                .border(Border::single())
                 .border_collapse(BorderCollapse::Collapse),
         )
         .rule_unchecked(
             "a",
-            TuiStyle::new().width(Size::Fixed(8)).border(Border::Single),
+            TuiStyle::new()
+                .width(Size::Fixed(8))
+                .border(Border::single()),
         )
         .rule_unchecked(
             "b",
-            TuiStyle::new().width(Size::Fixed(8)).border(Border::Single),
+            TuiStyle::new()
+                .width(Size::Fixed(8))
+                .border(Border::single()),
         );
 
     cascade(&mut dom, &sheet);
@@ -1374,20 +1386,26 @@ fn collapse_three_bordered_siblings_share_two_junctions() {
                 .width(Size::Fixed(20))
                 .flow(Flow::Flex)
                 .direction(Direction::Row)
-                .border(Border::Single)
+                .border(Border::single())
                 .border_collapse(BorderCollapse::Collapse),
         )
         .rule_unchecked(
             "a",
-            TuiStyle::new().width(Size::Fixed(6)).border(Border::Single),
+            TuiStyle::new()
+                .width(Size::Fixed(6))
+                .border(Border::single()),
         )
         .rule_unchecked(
             "b",
-            TuiStyle::new().width(Size::Fixed(6)).border(Border::Single),
+            TuiStyle::new()
+                .width(Size::Fixed(6))
+                .border(Border::single()),
         )
         .rule_unchecked(
             "c",
-            TuiStyle::new().width(Size::Fixed(6)).border(Border::Single),
+            TuiStyle::new()
+                .width(Size::Fixed(6))
+                .border(Border::single()),
         );
 
     cascade(&mut dom, &sheet);
@@ -1500,7 +1518,7 @@ fn nested_containers_lay_out_independently() {
                 .flow(Flow::Flex)
                 .direction(Direction::Column)
                 .padding(Padding::all(1))
-                .border(Border::Single)
+                .border(Border::single())
                 .width(Size::Fixed(20))
                 .height(Size::Fixed(10)),
         )
@@ -2408,7 +2426,7 @@ fn intrinsic_height_ignores_whitespace_text_between_block_children() {
         "card",
         TuiStyle::new()
             .display(Display::Block)
-            .border(crate::layout::Border::Rounded)
+            .border(crate::layout::Border::rounded())
             .padding(crate::layout::Padding {
                 top: 1,
                 right: 2,

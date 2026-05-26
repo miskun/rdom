@@ -179,7 +179,7 @@ fn padding_single_value() {
 #[test]
 fn border_keyword_rounded() {
     let s = first_style("a { border: rounded; }");
-    assert_eq!(s.border, Some(Value::Specified(Border::Rounded)));
+    assert_eq!(s.border, Some(Value::Specified(Border::rounded())));
 }
 
 #[test]

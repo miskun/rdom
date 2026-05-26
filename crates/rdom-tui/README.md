@@ -43,7 +43,7 @@ let sheet = Stylesheet::new()
     .rule(".hero", TuiStyle::new()
         .fg(Color::Red)
         .padding(Padding::all(1))
-        .border(Border::Single))
+        .border(Border::single()))
     .unwrap();
 
 // Run the cascade.
@@ -53,7 +53,7 @@ dom.cascade(&sheet);
 let c = dom.node(hero).computed().unwrap();
 assert_eq!(c.fg, Color::Red);
 assert_eq!(c.padding, Padding::all(1));
-assert_eq!(c.border, Border::Single);
+assert_eq!(c.border, Border::single());
 ```
 
 ## Stylesheets

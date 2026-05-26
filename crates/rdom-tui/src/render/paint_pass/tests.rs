@@ -113,7 +113,7 @@ fn bg_covers_border_cells() {
             .width(Size::Fixed(5))
             .height(Size::Fixed(3))
             .bg(Color::Rgb(255, 0, 0))
-            .border(Border::Single)
+            .border(Border::single())
             .border_fg(Color::Rgb(255, 255, 255)),
     );
     let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 10, 5));
@@ -138,7 +138,7 @@ fn border_single_all_four_sides() {
         TuiStyle::new()
             .width(Size::Fixed(4))
             .height(Size::Fixed(3))
-            .border(Border::Single),
+            .border(Border::single()),
     );
     let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 10, 5));
 
@@ -162,7 +162,7 @@ fn border_rounded_uses_curves() {
         TuiStyle::new()
             .width(Size::Fixed(4))
             .height(Size::Fixed(3))
-            .border(Border::Rounded),
+            .border(Border::rounded()),
     );
     let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 10, 5));
 
@@ -183,7 +183,7 @@ fn border_top_only() {
         TuiStyle::new()
             .width(Size::Fixed(4))
             .height(Size::Fixed(3))
-            .border(Border::Top),
+            .border(Border::top()),
     );
     let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 10, 5));
 
@@ -207,7 +207,7 @@ fn border_fg_applies() {
         TuiStyle::new()
             .width(Size::Fixed(3))
             .height(Size::Fixed(2))
-            .border(Border::Single)
+            .border(Border::single())
             .border_fg(Color::Rgb(0, 255, 255)),
     );
     let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 10, 5));
@@ -245,7 +245,7 @@ fn border_with_no_bg_preserves_parent_bg() {
             TuiStyle::new()
                 .width(Size::Fixed(6))
                 .height(Size::Fixed(3))
-                .border(Border::Rounded)
+                .border(Border::rounded())
                 .border_fg(Color::Rgb(200, 200, 200)),
         );
     let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 12, 6));
@@ -283,7 +283,7 @@ fn text_inside_bordered_box_respects_inset() {
         TuiStyle::new()
             .width(Size::Fixed(6))
             .height(Size::Fixed(3))
-            .border(Border::Single),
+            .border(Border::single()),
     );
     let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 10, 5));
 
@@ -415,7 +415,7 @@ fn nested_elements_paint_recursively() {
         "outer",
         TuiStyle::new()
             .padding(Padding::all(1))
-            .border(Border::Single)
+            .border(Border::single())
             .width(Size::Fixed(12))
             .height(Size::Fixed(4)),
     );
@@ -2522,7 +2522,7 @@ fn opacity_one_overlay_occludes_underlying_glyphs() {
             TuiStyle::new()
                 .width(Size::Fixed(6))
                 .height(Size::Fixed(3))
-                .border(Border::Rounded)
+                .border(Border::rounded())
                 .border_fg(Color::Rgb(200, 200, 200)),
         )
         .rule_unchecked(
@@ -2576,7 +2576,7 @@ fn opacity_half_overlay_blends_bg_and_preserves_underlying_glyphs() {
             TuiStyle::new()
                 .width(Size::Fixed(6))
                 .height(Size::Fixed(3))
-                .border(Border::Rounded)
+                .border(Border::rounded())
                 .border_fg(Color::Rgb(200, 200, 200)),
         )
         .rule_unchecked(
@@ -2641,7 +2641,7 @@ fn opacity_zero_overlay_is_invisible_keeps_symbols() {
             TuiStyle::new()
                 .width(Size::Fixed(6))
                 .height(Size::Fixed(3))
-                .border(Border::Rounded)
+                .border(Border::rounded())
                 .border_fg(Color::Rgb(200, 200, 200)),
         )
         .rule_unchecked(
@@ -2848,7 +2848,7 @@ fn collapse_two_bordered_siblings_render_t_junctions() {
                 .height(Size::Fixed(3))
                 .flow(Flow::Flex)
                 .direction(Direction::Row)
-                .border(Border::Single)
+                .border(Border::single())
                 .border_collapse(BorderCollapse::Collapse),
         )
         .rule_unchecked(
@@ -2856,14 +2856,14 @@ fn collapse_two_bordered_siblings_render_t_junctions() {
             TuiStyle::new()
                 .width(Size::Fixed(6))
                 .height(Size::Fixed(3))
-                .border(Border::Single),
+                .border(Border::single()),
         )
         .rule_unchecked(
             "b",
             TuiStyle::new()
                 .width(Size::Fixed(6))
                 .height(Size::Fixed(3))
-                .border(Border::Single),
+                .border(Border::single()),
         );
 
     let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 11, 3));
@@ -2905,21 +2905,21 @@ fn collapse_joiner_is_noop_when_no_element_has_collapse() {
                 .height(Size::Fixed(3))
                 .flow(Flow::Flex)
                 .direction(Direction::Row)
-                .border(Border::Single),
+                .border(Border::single()),
         )
         .rule_unchecked(
             "a",
             TuiStyle::new()
                 .width(Size::Fixed(6))
                 .height(Size::Fixed(3))
-                .border(Border::Single),
+                .border(Border::single()),
         )
         .rule_unchecked(
             "b",
             TuiStyle::new()
                 .width(Size::Fixed(6))
                 .height(Size::Fixed(3))
-                .border(Border::Single),
+                .border(Border::single()),
         );
 
     let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 14, 3));
@@ -2976,7 +2976,7 @@ fn collapse_three_sibling_nested_grid_renders_correct_junctions() {
             TuiStyle::new()
                 .width(Size::Fixed(15))
                 .height(Size::Fixed(3))
-                .border(Border::Single)
+                .border(Border::single())
                 .border_collapse(BorderCollapse::Collapse),
         )
         .rule_unchecked(
@@ -2988,21 +2988,21 @@ fn collapse_three_sibling_nested_grid_renders_correct_junctions() {
             TuiStyle::new()
                 .width(Size::Fixed(5))
                 .height(Size::Fixed(3))
-                .border(Border::Single),
+                .border(Border::single()),
         )
         .rule_unchecked(
             "mid",
             TuiStyle::new()
                 .width(Size::Fixed(5))
                 .height(Size::Fixed(3))
-                .border(Border::Single),
+                .border(Border::single()),
         )
         .rule_unchecked(
             "right",
             TuiStyle::new()
                 .width(Size::Fixed(5))
                 .height(Size::Fixed(3))
-                .border(Border::Single),
+                .border(Border::single()),
         );
 
     let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 15, 3));

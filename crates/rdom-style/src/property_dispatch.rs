@@ -46,16 +46,16 @@
 //! enforces this for the full table.
 
 use crate::layout::{
-    Border, CaretColor, CaretTextColor, Direction, Display, Length, Overflow, Position, Size,
-    UserSelect, WhiteSpace, ZIndex,
+    CaretColor, CaretTextColor, Direction, Display, Length, Overflow, Position, Size, UserSelect,
+    WhiteSpace, ZIndex,
 };
 use crate::parse::token::{Token, tokenize};
 use crate::parse::values::{
-    current_margin, current_padding, parse_aspect_ratio, parse_border, parse_color, parse_content,
-    parse_flex_shorthand, parse_inset_shorthand, parse_keyword, parse_length,
-    parse_margin_longhand, parse_margin_shorthand, parse_min_size, parse_opacity, parse_overflow,
-    parse_padding_shorthand, parse_position, parse_scrollbar_gutter, parse_size,
-    parse_text_decoration, parse_time_list, parse_timing_function_list,
+    current_border, current_margin, current_padding, parse_aspect_ratio, parse_border,
+    parse_border_side, parse_color, parse_content, parse_flex_shorthand, parse_inset_shorthand,
+    parse_keyword, parse_length, parse_margin_longhand, parse_margin_shorthand, parse_min_size,
+    parse_opacity, parse_overflow, parse_padding_shorthand, parse_position, parse_scrollbar_gutter,
+    parse_size, parse_text_decoration, parse_time_list, parse_timing_function_list,
     parse_transition_property_list, parse_transition_shorthand, parse_unsigned, parse_z_index,
     unzip_transition_rules,
 };
@@ -125,6 +125,10 @@ const PROPERTY_NAMES: &[&str] = &[
     "margin-left",
     // Box decoration
     "border",
+    "border-top",
+    "border-right",
+    "border-bottom",
+    "border-left",
     "border-collapse",
     "content",
     // Positioning (M2)
@@ -194,7 +198,9 @@ pub fn property_mask(name: &str) -> Option<crate::ImportantMask> {
         "margin" | "margin-top" | "margin-right" | "margin-bottom" | "margin-left" => {
             ImportantMask::MARGIN
         }
-        "border" => ImportantMask::BORDER,
+        "border" | "border-top" | "border-right" | "border-bottom" | "border-left" => {
+            ImportantMask::BORDER
+        }
         "border-collapse" => ImportantMask::BORDER_COLLAPSE,
         "content" => ImportantMask::CONTENT,
         "transition-property"
@@ -267,7 +273,9 @@ pub fn remove(name: &str, style: &mut TuiStyle) -> bool {
             // storage. Clearing any longhand removes the whole margin.
             style.margin.take().is_some()
         }
-        "border" => style.border.take().is_some(),
+        "border" | "border-top" | "border-right" | "border-bottom" | "border-left" => {
+            style.border.take().is_some()
+        }
         "border-collapse" => style.border_collapse.take().is_some(),
         "content" => style.content.take().is_some(),
         "position" => style.position.take().is_some(),
@@ -567,8 +575,31 @@ pub fn set_from_tokens(
             style.margin = Some(Value::Specified(m));
         }),
 
-        // Border keyword
+        // Border shorthand + per-side longhands. Per-side
+        // longhands READ the current border on `style` and
+        // MERGE — so `border: solid; border-top: none` correctly
+        // clears just the top side and keeps R/B/L.
         "border" => parse_border(value).map(|b| {
+            style.border = Some(Value::Specified(b));
+        }),
+        "border-top" => parse_border_side(value).map(|on| {
+            let mut b = current_border(style);
+            b.top = on;
+            style.border = Some(Value::Specified(b));
+        }),
+        "border-right" => parse_border_side(value).map(|on| {
+            let mut b = current_border(style);
+            b.right = on;
+            style.border = Some(Value::Specified(b));
+        }),
+        "border-bottom" => parse_border_side(value).map(|on| {
+            let mut b = current_border(style);
+            b.bottom = on;
+            style.border = Some(Value::Specified(b));
+        }),
+        "border-left" => parse_border_side(value).map(|on| {
+            let mut b = current_border(style);
+            b.left = on;
             style.border = Some(Value::Specified(b));
         }),
         "border-collapse" => parse_keyword(
@@ -905,20 +936,54 @@ pub fn serialize(name: &str, style: &TuiStyle) -> Option<String> {
             .and_then(specified)
             .map(|m| serialize_margin_value(&m.left)),
 
-        // Border keyword. `Single` parses as both "solid" and
-        // "single"; serialize as the CSS-faithful "solid".
-        "border" => style.border.as_ref().and_then(specified).map(|b| {
-            match b {
-                Border::None => "none",
-                Border::Single => "solid",
-                Border::Rounded => "rounded",
-                Border::Top => "top",
-                Border::Bottom => "bottom",
-                Border::Left => "left",
-                Border::Right => "right",
+        // Border shorthand. Serializes only the combinations the
+        // shorthand can express (all 4 sides on/off + corner
+        // style, or exactly one side). Other combinations exist
+        // (e.g. top+bottom from per-side longhands) — those
+        // serialize via the per-side longhands, not here.
+        "border" => style.border.as_ref().and_then(specified).and_then(|b| {
+            use crate::layout::CornerStyle;
+            if b.is_empty() {
+                return Some("none".to_string());
             }
-            .to_string()
+            if b.is_box() {
+                return Some(
+                    match b.corner_style {
+                        CornerStyle::Square => "solid",
+                        CornerStyle::Rounded => "rounded",
+                    }
+                    .to_string(),
+                );
+            }
+            // Single-side shorthand legacy syntax (rdom-specific).
+            match (b.top, b.right, b.bottom, b.left) {
+                (true, false, false, false) => Some("top".to_string()),
+                (false, true, false, false) => Some("right".to_string()),
+                (false, false, true, false) => Some("bottom".to_string()),
+                (false, false, false, true) => Some("left".to_string()),
+                _ => None,
+            }
         }),
+        "border-top" => style
+            .border
+            .as_ref()
+            .and_then(specified)
+            .map(|b| if b.top { "solid" } else { "none" }.to_string()),
+        "border-right" => style
+            .border
+            .as_ref()
+            .and_then(specified)
+            .map(|b| if b.right { "solid" } else { "none" }.to_string()),
+        "border-bottom" => style
+            .border
+            .as_ref()
+            .and_then(specified)
+            .map(|b| if b.bottom { "solid" } else { "none" }.to_string()),
+        "border-left" => style
+            .border
+            .as_ref()
+            .and_then(specified)
+            .map(|b| if b.left { "solid" } else { "none" }.to_string()),
         "border-collapse" => style
             .border_collapse
             .as_ref()
@@ -1264,6 +1329,10 @@ mod tests {
             ("margin-bottom", "3"),
             ("margin-left", "auto"),
             ("border", "solid"),
+            ("border-top", "solid"),
+            ("border-right", "solid"),
+            ("border-bottom", "solid"),
+            ("border-left", "solid"),
             ("border-collapse", "collapse"),
             ("content", "\"hello\""),
             ("position", "absolute"),

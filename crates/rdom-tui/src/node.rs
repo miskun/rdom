@@ -407,7 +407,7 @@ mod tests {
             .set_width(Size::Fixed(40))
             .set_height(Size::Flex(1))
             .set_padding(Padding::symmetric(2, 1))
-            .set_border(Border::Single)
+            .set_border(Border::single())
             .set_gap(1)
             .set_overflow(Overflow::Hidden)
             .set_direction(Direction::Row);
@@ -416,7 +416,7 @@ mod tests {
         assert_eq!(n.width(), Some(Size::Fixed(40)));
         assert_eq!(n.height(), Some(Size::Flex(1)));
         assert_eq!(n.padding(), Some(Padding::symmetric(2, 1)));
-        assert_eq!(n.border(), Some(Border::Single));
+        assert_eq!(n.border(), Some(Border::single()));
         assert_eq!(n.gap(), Some(1));
         assert_eq!(n.overflow(), Some(Overflow::Hidden));
         assert_eq!(n.direction(), Some(Direction::Row));
@@ -478,7 +478,7 @@ mod tests {
         // No panic, no-op:
         dom.node_mut(t)
             .set_width(Size::Fixed(5))
-            .set_border(Border::Single);
+            .set_border(Border::single());
         assert!(dom.node(t).tui_ext().is_none());
     }
 

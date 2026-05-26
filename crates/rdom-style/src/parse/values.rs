@@ -418,6 +418,34 @@ pub fn current_padding(style: &TuiStyle) -> Padding {
     }
 }
 
+/// Read the current border from `style`, defaulting to all-sides-off
+/// when nothing is set. Used by the `border-top` / `border-right` /
+/// `border-bottom` / `border-left` longhands so consecutive
+/// declarations combine instead of overwriting.
+pub fn current_border(style: &TuiStyle) -> Border {
+    match style.border {
+        Some(Value::Specified(b)) => b,
+        _ => Border::none(),
+    }
+}
+
+/// Parse a per-side `border-<side>` value into a boolean: any
+/// recognized "draw" keyword (`solid`, `single`, `rounded`) → true;
+/// `none` → false. Width / color / style triples aren't modeled
+/// (rdom borders are binary per side). Unknown values → `None` so
+/// the caller emits a warning.
+pub fn parse_border_side(value: &[Token]) -> Option<bool> {
+    parse_keyword(
+        value,
+        &[
+            ("solid", true),
+            ("single", true),
+            ("rounded", true),
+            ("none", false),
+        ],
+    )
+}
+
 pub fn parse_size(value: &[Token]) -> Option<Size> {
     // `auto` | `<n>` | `<n>fr` | `<n>%` | `calc(<expr>)`
     match value {
@@ -615,14 +643,14 @@ pub fn parse_border(value: &[Token]) -> Option<Border> {
     parse_keyword(
         value,
         &[
-            ("none", Border::None),
-            ("solid", Border::Single),
-            ("single", Border::Single),
-            ("rounded", Border::Rounded),
-            ("top", Border::Top),
-            ("bottom", Border::Bottom),
-            ("left", Border::Left),
-            ("right", Border::Right),
+            ("none", Border::none()),
+            ("solid", Border::single()),
+            ("single", Border::single()),
+            ("rounded", Border::rounded()),
+            ("top", Border::top()),
+            ("bottom", Border::bottom()),
+            ("left", Border::left()),
+            ("right", Border::right()),
         ],
     )
 }

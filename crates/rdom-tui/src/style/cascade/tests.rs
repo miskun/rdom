@@ -667,14 +667,14 @@ fn border_direction_overflow_cascade() {
     let sheet = Stylesheet::bare().rule_unchecked(
         "div",
         TuiStyle::new()
-            .border(Border::Single)
+            .border(Border::single())
             .flow(Flow::Flex)
             .direction(Direction::Row)
             .overflow(Overflow::Hidden),
     );
     dom.cascade(&sheet);
     let c = computed_of(&dom, div);
-    assert_eq!(c.border, Border::Single);
+    assert_eq!(c.border, Border::single());
     assert_eq!(c.direction, Direction::Row);
     assert_eq!(c.overflow_x, Overflow::Hidden);
     assert_eq!(c.overflow_y, Overflow::Hidden);
@@ -1164,7 +1164,7 @@ fn ua_blockquote_has_left_rail_and_is_muted() {
     // 1-cell left border (`│` rail) + 1-cell padding = 2-cell total
     // left indent, same visual budget as the pre-rail design.
     assert_eq!(c.padding.left, 1, "blockquote needs 1 cell padding");
-    assert_eq!(c.border, Border::Left, "blockquote shows `│` rail");
+    assert_eq!(c.border, Border::left(), "blockquote shows `│` rail");
     // T8: blockquote text is muted via `fg: gray`, not the deleted
     // `dim` modifier.
     assert_eq!(c.fg, Color::Rgb(128, 128, 128));

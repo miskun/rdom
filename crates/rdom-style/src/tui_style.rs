@@ -702,14 +702,14 @@ mod tests {
             .padding(Padding::all(2))
             .gap(1)
             .direction(Direction::Row)
-            .border(Border::Single)
+            .border(Border::single())
             .overflow(Overflow::Hidden);
 
         assert_eq!(s.width, Some(Value::Specified(Size::Fixed(40))));
         assert_eq!(s.padding, Some(Value::Specified(Padding::all(2))));
         assert_eq!(s.gap, Some(Value::Specified(1)));
         assert_eq!(s.direction, Some(Value::Specified(Direction::Row)));
-        assert_eq!(s.border, Some(Value::Specified(Border::Single)));
+        assert_eq!(s.border, Some(Value::Specified(Border::single())));
         // `overflow` shorthand writes both longhands.
         assert_eq!(s.overflow_x, Some(Value::Specified(Overflow::Hidden)));
         assert_eq!(s.overflow_y, Some(Value::Specified(Overflow::Hidden)));
@@ -807,7 +807,7 @@ mod tests {
             .max_height(1)
             .padding(Padding::all(1))
             .gap(1)
-            .border(Border::Single)
+            .border(Border::single())
             .direction(Direction::Row)
             .overflow(Overflow::Hidden)
             .content(Content::Str("x".into()));
@@ -854,7 +854,7 @@ mod tests {
             .margin_important(crate::layout::Margin::all_cells(1))
             .gap_important(1)
             .flex_shrink_important(1)
-            .border_important(Border::Single)
+            .border_important(Border::single())
             .border_collapse_important(crate::layout::BorderCollapse::Collapse)
             .direction_important(Direction::Row)
             .overflow_important(Overflow::Hidden)

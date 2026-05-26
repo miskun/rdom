@@ -342,7 +342,7 @@ mod tests {
         assert_eq!(ext.width, Size::Auto);
         assert_eq!(ext.height, Size::Auto);
         assert_eq!(ext.overflow, Overflow::Visible);
-        assert_eq!(ext.border, Border::None);
+        assert_eq!(ext.border, Border::none());
         assert_eq!(ext.gap, 0);
         assert_eq!(ext.scroll_x, 0);
         assert_eq!(ext.scroll_y, 0);

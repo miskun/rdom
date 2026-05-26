@@ -241,12 +241,7 @@ pub(super) fn layout_node(dom: &mut Dom<TuiExt>, id: NodeId, outer_rect: LayoutR
             computed.max_height,
         );
         let pad = computed.padding.top + computed.padding.bottom;
-        let border = match computed.border {
-            crate::layout::Border::None => 0,
-            crate::layout::Border::Top | crate::layout::Border::Bottom => 1,
-            crate::layout::Border::Left | crate::layout::Border::Right => 0,
-            crate::layout::Border::Single | crate::layout::Border::Rounded => 2,
-        };
+        let border = computed.border.top as u16 + computed.border.bottom as u16;
         let outer_h = content_h.saturating_add(pad).saturating_add(border);
         if let Some(ext) = dom.node_mut(id).ext_mut() {
             ext.layout.height = outer_h;

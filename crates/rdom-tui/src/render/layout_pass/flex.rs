@@ -640,31 +640,15 @@ pub(super) fn has_effective_border_on_edge(
         .unwrap_or_else(ComputedStyle::initial);
 
     let own_has_edge = match edge {
-        CollapseEdge::Top => {
-            matches!(
-                computed.border,
-                Border::Top | Border::Single | Border::Rounded
-            )
-        }
-        CollapseEdge::Bottom => matches!(
-            computed.border,
-            Border::Bottom | Border::Single | Border::Rounded
-        ),
-        CollapseEdge::Left => {
-            matches!(
-                computed.border,
-                Border::Left | Border::Single | Border::Rounded
-            )
-        }
-        CollapseEdge::Right => matches!(
-            computed.border,
-            Border::Right | Border::Single | Border::Rounded
-        ),
+        CollapseEdge::Top => computed.border.top,
+        CollapseEdge::Bottom => computed.border.bottom,
+        CollapseEdge::Left => computed.border.left,
+        CollapseEdge::Right => computed.border.right,
     };
     if own_has_edge {
         return true;
     }
-    if computed.border != Border::None {
+    if computed.border != Border::none() {
         // Has some border but not the queried edge — opaque on
         // this edge. Don't look through.
         return false;
@@ -727,26 +711,14 @@ pub(super) fn collapse_parent_edge_insets(
     children: &[NodeId],
     parent: &ComputedStyle,
 ) -> (u16, u16, u16, u16) {
-    use crate::layout::{Border, BorderCollapse};
+    use crate::layout::BorderCollapse;
     if parent.border_collapse != BorderCollapse::Collapse {
         return (0, 0, 0, 0);
     }
-    let parent_has_top = matches!(
-        parent.border,
-        Border::Top | Border::Single | Border::Rounded
-    );
-    let parent_has_bottom = matches!(
-        parent.border,
-        Border::Bottom | Border::Single | Border::Rounded
-    );
-    let parent_has_left = matches!(
-        parent.border,
-        Border::Left | Border::Single | Border::Rounded
-    );
-    let parent_has_right = matches!(
-        parent.border,
-        Border::Right | Border::Single | Border::Rounded
-    );
+    let parent_has_top = parent.border.top;
+    let parent_has_bottom = parent.border.bottom;
+    let parent_has_left = parent.border.left;
+    let parent_has_right = parent.border.right;
     if !(parent_has_top || parent_has_bottom || parent_has_left || parent_has_right) {
         return (0, 0, 0, 0);
     }

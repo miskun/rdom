@@ -829,7 +829,7 @@ fn resizing_terminal_wider_then_narrower_reflows_ifc_without_stale_cells() {
             "p",
             TuiStyle::new()
                 .width(Size::Flex(1))
-                .border(Border::Rounded)
+                .border(Border::rounded())
                 .padding(Padding::all(1)),
         )
         .unwrap();

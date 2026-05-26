@@ -169,7 +169,7 @@ impl ComputedStyle {
             margin: crate::layout::Margin::default(),
             gap: 0,
             flex_shrink: 1,
-            border: Border::None,
+            border: Border::none(),
             border_collapse: crate::layout::BorderCollapse::Separate,
             direction: Direction::Column,
             overflow_x: Overflow::Visible,
@@ -277,7 +277,7 @@ mod tests {
         assert_eq!(s.direction, Direction::Column);
         assert_eq!(s.overflow_x, Overflow::Visible);
         assert_eq!(s.overflow_y, Overflow::Visible);
-        assert_eq!(s.border, Border::None);
+        assert_eq!(s.border, Border::none());
         assert_eq!(s.gap, 0);
         assert_eq!(s.padding, Padding::default());
         assert_eq!(s.display, Display::Block);

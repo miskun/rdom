@@ -433,17 +433,13 @@ fn is_empty_collapse_through(
     computed: &ComputedStyle,
     resolved_height: u16,
 ) -> bool {
-    use crate::layout::Border;
     if resolved_height != 0 {
         return false;
     }
     if computed.padding.top != 0 || computed.padding.bottom != 0 {
         return false;
     }
-    if matches!(
-        computed.border,
-        Border::Top | Border::Bottom | Border::Single | Border::Rounded
-    ) {
+    if computed.border.top || computed.border.bottom {
         return false;
     }
     // An explicit `min-height: Cells(n)` with n > 0 keeps the box
@@ -495,25 +491,13 @@ fn is_empty_collapse_through(
 /// property we model), and the container doesn't establish a new
 /// block formatting context.
 fn parent_collapses_top_with_first_child(parent: &ComputedStyle) -> bool {
-    use crate::layout::Border;
-    parent.padding.top == 0
-        && !matches!(
-            parent.border,
-            Border::Top | Border::Single | Border::Rounded
-        )
-        && !parent.establishes_new_bfc
+    parent.padding.top == 0 && !parent.border.top && !parent.establishes_new_bfc
 }
 
 /// Symmetric to `parent_collapses_top_with_first_child` — for the
 /// bottom edge.
 fn parent_collapses_bottom_with_last_child(parent: &ComputedStyle) -> bool {
-    use crate::layout::Border;
-    parent.padding.bottom == 0
-        && !matches!(
-            parent.border,
-            Border::Bottom | Border::Single | Border::Rounded
-        )
-        && !parent.establishes_new_bfc
+    parent.padding.bottom == 0 && !parent.border.bottom && !parent.establishes_new_bfc
 }
 
 /// CSS 2.1 §8.3.1 vertical-margin collapse accumulator.
@@ -700,14 +684,10 @@ fn is_statically_empty_collapse_through(
     id: NodeId,
     computed: &ComputedStyle,
 ) -> bool {
-    use crate::layout::Border;
     if computed.padding.top != 0 || computed.padding.bottom != 0 {
         return false;
     }
-    if matches!(
-        computed.border,
-        Border::Top | Border::Bottom | Border::Single | Border::Rounded
-    ) {
+    if computed.border.top || computed.border.bottom {
         return false;
     }
     match computed.height {

@@ -454,7 +454,7 @@ fn hit_on_border_returns_the_element() {
         TuiStyle::new()
             .width(Size::Fixed(6))
             .height(Size::Fixed(4))
-            .border(Border::Single)
+            .border(Border::single())
             .fg(Color::Rgb(255, 255, 255)),
     );
     prepare(&mut dom, &sheet, Rect::new(0, 0, 20, 10));

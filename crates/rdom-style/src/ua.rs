@@ -233,12 +233,12 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
             TuiStyle::new()
                 .display(Display::Block)
                 .padding(Padding::new(0, 0, 0, 1))
-                .border(Border::Left)
+                .border(Border::left())
                 .border_fg(RAIL)
                 .fg(MUTED_FG),
         ),
         // Thematic break — `─` rule across the available width
-        // via a `Border::Top` on a 1-row block. `Border::Top`
+        // via a `Border::top()` on a 1-row block. `Border::top()`
         // paints the box-drawing `─` on every cell of the top
         // edge, which on a 1-tall block is the only row → the
         // hr's single row IS the rule. Dim fg so it recedes.
@@ -247,7 +247,7 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
             TuiStyle::new()
                 .display(Display::Block)
                 .height(Size::Fixed(1))
-                .border(Border::Top)
+                .border(Border::top())
                 .border_fg(RAIL),
         ),
         // Figures.
@@ -336,7 +336,7 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
             "dialog",
             TuiStyle::new()
                 .display(Display::Block)
-                .border(Border::Rounded)
+                .border(Border::rounded())
                 .border_fg(ACCENT)
                 .padding(Padding::new(1, 2, 1, 2)),
         ),

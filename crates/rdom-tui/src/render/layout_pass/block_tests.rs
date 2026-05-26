@@ -862,7 +862,7 @@ fn parent_top_border_blocks_first_child_collapse() {
             "p",
             TuiStyle::new()
                 .height(Size::Fixed(10))
-                .border(Border::Single),
+                .border(Border::single()),
         )
         .rule_unchecked(
             "c",
@@ -1603,7 +1603,7 @@ fn child_with_padding_and_border_reduces_intrinsic_width_via_layout_node() {
                 bottom: 0,
                 left: 2,
             })
-            .border(Border::Single),
+            .border(Border::single()),
     );
     cascade(&mut dom, &sheet);
     run_block(&mut dom, parent, LayoutRect::new(0, 0, 80, 24));

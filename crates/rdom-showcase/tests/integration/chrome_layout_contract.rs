@@ -80,12 +80,12 @@ fn view_content_flex_grows_to_fill_main_with_source_at_bottom() {
     let scroll_rect = dom.node(scroll).ext().unwrap().layout;
 
     // source-disclosure is CLOSED. Its content is the summary
-    // (one row of text). Its outer height should match — no
-    // padding, no border (the border-top declaration is silently
-    // dropped today; tracked separately).
+    // (one row of text) PLUS its 1-row `border-top: solid`. The
+    // border-top longhand now applies (per-side `border-*`
+    // longhand parser landed) so outer height is 2.
     assert_eq!(
-        src_rect.height, 1,
-        "closed source-disclosure should be 1 row tall (just the summary)"
+        src_rect.height, 2,
+        "closed source-disclosure = 1 row summary + 1 row border-top"
     );
 
     // scroll-indicator is height: 1.
@@ -127,8 +127,8 @@ fn source_disclosure_when_closed_shows_only_summary() {
     let src = find_by_class(&dom, dom.root(), "source-disclosure").unwrap();
     let src_rect = dom.node(src).ext().unwrap().layout;
     assert_eq!(
-        src_rect.height, 1,
-        "closed disclosure: only summary visible, height = 1"
+        src_rect.height, 2,
+        "closed disclosure: 1 row summary + 1 row border-top"
     );
 
     // Check that hidden children have zero-area layout rects.
@@ -185,24 +185,24 @@ fn shell_paints_no_overlap_between_demo_and_source_at_default_viewport() {
 }
 
 #[test]
-fn source_disclosure_intent_to_have_border_top() {
-    // Design intent: the chrome CSS says `border-top: solid` on
-    // `.main .source-disclosure`. Today this declaration is
-    // silently dropped because the property-dispatch table only
-    // knows the `border` shorthand, not per-side longhands.
-    //
-    // This test asserts the INTENT — and so will START FAILING
-    // when the per-side parser lands (which is the desired
-    // outcome — the test becomes a pin against future regression).
-    // Until then it's `#[ignore]`d so it documents the gap without
-    // failing CI.
-    //
-    // Tracking: per-side `border-*` longhand parsing is the next
-    // ship-blocker after this commit.
-    // (Stub assertion until the per-side `border-*` longhand
-    // parser lands. The test body intentionally only does the
-    // shell_at setup so the file documents the gap; the real
-    // assertion will be added in the same commit that fixes the
-    // parser.)
-    let (_dom, _h) = shell_at(80, 24);
+fn source_disclosure_has_border_top() {
+    // Chrome CSS: `.main .source-disclosure { border-top: solid }`.
+    // Per-side `border-*` longhand parser landed
+    // (`BORDER-PER-SIDE-LONGHAND-1`); this asserts the cascaded
+    // computed style has the top side enabled.
+    let (dom, _h) = shell_at(80, 24);
+    let src = find_by_class(&dom, dom.root(), "source-disclosure").unwrap();
+    let border = dom
+        .node(src)
+        .ext()
+        .and_then(|e| e.computed.as_ref())
+        .map(|c| c.border)
+        .unwrap_or_default();
+    assert!(
+        border.top,
+        "border-top: solid should set border.top = true (got {border:?})"
+    );
+    assert!(!border.right, "border-top doesn't enable other sides");
+    assert!(!border.bottom);
+    assert!(!border.left);
 }

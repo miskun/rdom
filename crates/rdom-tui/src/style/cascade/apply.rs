@@ -579,7 +579,7 @@ fn apply_border(
         important_prop,
         important_pass,
         inherit,
-        Border::None
+        Border::none()
     );
 }
 

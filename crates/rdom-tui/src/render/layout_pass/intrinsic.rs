@@ -15,7 +15,7 @@ use rdom_core::{Dom, NodeId, NodeType};
 use unicode_width::UnicodeWidthStr;
 
 use crate::ext::TuiExt;
-use crate::layout::{Border, Direction, Size};
+use crate::layout::{Direction, Size};
 use crate::node::TuiNodeExt;
 use crate::render::inline::compute_inline_layout;
 use crate::style::ComputedStyle;
@@ -357,11 +357,10 @@ pub(super) fn has_non_whitespace_text(dom: &Dom<TuiExt>, id: NodeId) -> bool {
 }
 
 pub(super) fn border_main_cost(computed: &ComputedStyle, direction: Direction) -> u16 {
-    match (direction, computed.border) {
-        (Direction::Row, Border::Left | Border::Right) => 1,
-        (Direction::Column, Border::Top | Border::Bottom) => 1,
-        (_, Border::Single | Border::Rounded) => 2,
-        _ => 0,
+    let b = computed.border;
+    match direction {
+        Direction::Row => b.left as u16 + b.right as u16,
+        Direction::Column => b.top as u16 + b.bottom as u16,
     }
 }
 
