@@ -40,10 +40,10 @@ pub struct ShowcaseState {
     /// MARKUP + CSS on every demo switch. UA's native
     /// `<details>` toggle handles open/close — no custom state.
     pub source_disclosure_id: NodeId,
-    /// The scroll-position indicator at the bottom of `<main>`.
-    /// Cleared on every demo switch (the previous demo's
-    /// scrollable element is gone).
-    pub scroll_indicator_id: NodeId,
+    /// The status bar — a `<footer class="status-bar">` sibling of
+    /// `.app`. Cleared on every demo switch (the previous demo's
+    /// scrollable element is gone; stale scroll info would lie).
+    pub status_bar_id: NodeId,
 }
 
 impl ShowcaseState {
@@ -55,7 +55,7 @@ impl ShowcaseState {
             current_idx: usize::MAX,
             main_id: handles.main,
             source_disclosure_id: handles.source_disclosure,
-            scroll_indicator_id: handles.scroll_indicator,
+            status_bar_id: handles.status_bar,
         }
     }
 }
@@ -70,7 +70,7 @@ impl ShowcaseState {
 ///
 /// **Infallibility.** Both DOM mutations here are infallible by
 /// construction: `main_id` / `source_disclosure_id` /
-/// `scroll_indicator_id` came from [`crate::build_shell`] and
+/// `status_bar_id` came from [`crate::build_shell`] and
 /// stay alive for the App's lifetime; nodes created here have no
 /// parent before append. `expect()` is the correct error
 /// discipline.
@@ -98,10 +98,10 @@ pub fn mount_demo(state: &mut ShowcaseState, dom: &mut TuiDom, demo_idx: usize) 
     //    the new demo's MARKUP + CSS.
     rebuild_source_disclosure(dom, state.source_disclosure_id, demo);
 
-    // 3. Clear the scroll indicator — the previous demo's
-    //    scrollable element is gone; stale "Row 7/50" text would
-    //    lie about the new demo's state.
-    let _ = dom.clear_children(state.scroll_indicator_id);
+    // 3. Clear the status bar — the previous demo's scrollable
+    //    element is gone; stale "Row 7/50" text would lie about the
+    //    new demo's state.
+    let _ = dom.clear_children(state.status_bar_id);
 }
 
 /// Replace the body of the `<details class="source-disclosure">`

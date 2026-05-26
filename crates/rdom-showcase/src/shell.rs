@@ -8,23 +8,27 @@
 //! Structure:
 //!
 //! ```text
-//! <div class="app">                 ← flex column
-//!   <header class="app-header">
-//!     <h1>rdom showcase</h1>
-//!   </header>
-//!   <div class="app-body">          ← flex row, takes remaining height
-//!     <aside class="sidebar">       ← fixed width, non-interactive in M2
-//!       <nav>
-//!         <ul>
-//!           <li>Hello World</li>    ← one <li> per registered demo
-//!           ...
-//!         </ul>
-//!       </nav>
-//!     </aside>
-//!     <main class="main">           ← demo mounts here
-//!       (active demo's subtree)
-//!     </main>
+//! <div class="app-shell">             ← flex column, viewport
+//!   <div class="app">                 ← bordered panel (flex: 1)
+//!     <header class="app-header">
+//!       <h1>rdom showcase</h1>
+//!     </header>
+//!     <div class="app-body">          ← flex row, takes remaining height
+//!       <aside class="sidebar">       ← demo navigator
+//!         <nav>
+//!           <ul>
+//!             <li>Hello World</li>    ← one <li> per registered demo
+//!             ...
+//!           </ul>
+//!         </nav>
+//!       </aside>
+//!       <main class="main">           ← demo + source panel
+//!         <div class="view-content">  ← demo mounts here (flex: 1)
+//!         <details class="source-disclosure">…</details>
+//!       </main>
+//!     </div>
 //!   </div>
+//!   <footer class="status-bar">       ← 1-row status line (Phase 1a)
 //! </div>
 //! ```
 //!
@@ -42,9 +46,9 @@ use crate::{Category, DEMOS};
 /// demo subtrees on nav clicks.
 #[derive(Copy, Clone, Debug)]
 pub struct ShellHandles {
-    /// The root `<div class="app">` — append to `dom.root()` (the
-    /// shell does this internally, exposed for tests that want to
-    /// re-query the tree).
+    /// The root `<div class="app">` — sits inside the outer
+    /// `<div class="app-shell">` flex column that holds both the
+    /// bordered panel AND the status bar.
     pub app_root: NodeId,
     /// The view-content container that hosts the active demo OR
     /// the active source view. Caller appends the demo's `build()`
@@ -59,10 +63,13 @@ pub struct ShellHandles {
     /// demo's MARKUP + CSS strings. UA's `<details>` chrome
     /// handles the toggle.
     pub source_disclosure: NodeId,
-    /// The scroll-position indicator at the bottom of `<main>`.
-    /// M7 D3 updates this element's text on every `scroll` event
-    /// fired by a descendant of the view-content mount.
-    pub scroll_indicator: NodeId,
+    /// The status bar — a `<footer class="status-bar">` SIBLING of
+    /// `.app` (not a descendant). Lives outside the bordered panel
+    /// so its row doesn't fight `.app`'s `border-collapse`. Phase
+    /// 1b will populate it with keyboard-shortcut hints; today the
+    /// scroll listener writes scroll-position info here when a
+    /// descendant of the view-content mount scrolls.
+    pub status_bar: NodeId,
 }
 
 /// Build the showcase shell under `dom.root()`. Does NOT mount any
@@ -72,10 +79,24 @@ pub struct ShellHandles {
 /// Returns the handles to load-bearing nodes; the shell itself is
 /// already attached to `dom.root()` when this returns.
 pub fn build_shell(dom: &mut TuiDom) -> ShellHandles {
+    // <div class="app-shell">                  ← flex column, viewport
+    //   <div class="app">…</div>               ← bordered panel (flex: 1)
+    //   <footer class="status-bar">…</footer>  ← 1-row status line
+    // </div>
+    //
+    // Wrapping `.app` and the status bar in an outer flex column
+    // lets the panel grab the viewport's remaining height while the
+    // status bar holds its 1-row strip — and keeps the status bar
+    // OUTSIDE `.app`'s border so it doesn't collide with
+    // `border-collapse` on the panel's bottom edge.
+    let app_shell = dom.create_element("div");
+    dom.set_attribute(app_shell, "class", "app-shell").unwrap();
+    dom.append_child(dom.root(), app_shell).unwrap();
+
     // <div class="app">
     let app = dom.create_element("div");
     dom.set_attribute(app, "class", "app").unwrap();
-    dom.append_child(dom.root(), app).unwrap();
+    dom.append_child(app_shell, app).unwrap();
 
     // <header class="app-header"><h1>rdom showcase</h1></header>
     let header = dom.create_element("header");
@@ -194,22 +215,23 @@ pub fn build_shell(dom: &mut TuiDom) -> ShellHandles {
     dom.append_child(source_disclosure, summary).unwrap();
     dom.append_child(main, source_disclosure).unwrap();
 
-    // <div class="scroll-indicator"></div> — status row at the
-    // bottom of <main>. Empty when the active demo has no
-    // scrollable element; populated by the `scroll` listener
-    // (M7 D3) with current scroll info.
-    let scroll_indicator = dom.create_element("div");
-    dom.set_attribute(scroll_indicator, "class", "scroll-indicator")
-        .unwrap();
-    dom.append_child(main, scroll_indicator).unwrap();
     dom.append_child(body, main).unwrap();
+
+    // <footer class="status-bar"></footer> — sibling of `.app`,
+    // outside the bordered panel. Empty by default; the scroll
+    // listener writes here when a descendant of `view_content`
+    // scrolls. Phase 1b will seed default keyboard hints.
+    let status_bar = dom.create_element("footer");
+    dom.set_attribute(status_bar, "class", "status-bar")
+        .unwrap();
+    dom.append_child(app_shell, status_bar).unwrap();
 
     ShellHandles {
         app_root: app,
         main: view_content,
         sidebar,
         source_disclosure,
-        scroll_indicator,
+        status_bar,
     }
 }
 
@@ -259,6 +281,21 @@ pub fn base_stylesheet() -> Stylesheet {
 /// container needs the same opt-in or content overflow will
 /// reappear.
 const BASE_CSS: &str = r#"
+/* `.app-shell` is the outer flex column that holds the bordered
+ * `.app` panel and the status bar below it. `.app` flexes to fill
+ * remaining viewport height; the status bar holds its intrinsic
+ * 1-row footprint. `min-*: 0` keeps the panel shrinkable past its
+ * children's intrinsic content size (same fitting-pane pattern
+ * used inside `.app`).
+ */
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
 .app {
   /* BFC-1 Phase 4.3: with the block/flex dispatch wired,
    * containers that want flex distribution (flex-grow, flex-
@@ -365,25 +402,20 @@ const BASE_CSS: &str = r#"
   color: rgb(200, 210, 230);
 }
 
-/* Scroll-position indicator at the bottom of <main>. Empty by
- * default — the listener writes scroll info when a descendant
- * scrolls. The 1-cell height keeps the indicator visible
- * without pushing demo content around (substrate floors the
- * height at its intrinsic 1-row content via M5-MIN-CONTENT-1).
+/* Status bar — sibling of `.app` under `.app-shell`. Lives outside
+ * the bordered panel so its row doesn't fight `.app`'s
+ * `border-collapse`. Empty by default; the scroll listener writes
+ * scroll-position info here when a descendant of view-content
+ * scrolls. Phase 1b will seed default keyboard-shortcut hints.
+ *
+ * `min-height: 1` keeps the bar visible when empty — same reason
+ * as the prior `.scroll-indicator` rule (substrate's auto-min
+ * floor would otherwise let it collapse to zero under tight
+ * viewport pressure).
  */
-.main .scroll-indicator {
+.status-bar {
   height: 1;
-  /* The indicator is initially empty — its intrinsic content
-   * height is 0. Without an explicit min, the substrate's auto-
-   * min floor (min(content, specified)=0) would let the indicator
-   * collapse to 0 under tight viewport pressure. Explicit `min-
-   * height: 1` says "always reserve 1 row" regardless of content
-   * presence. This is the spec-correct way to express the
-   * authorial intent that the pre-substrate-fix code expressed
-   * via `flex-shrink: 0`. */
   min-height: 1;
-  border-top: solid;
-  border-color: rgb(70, 80, 100);
   padding: 0 1;
   color: rgb(150, 170, 200);
 }
@@ -394,14 +426,23 @@ mod tests {
     use super::*;
 
     #[test]
-    fn build_shell_attaches_app_root_under_dom_root() {
+    fn build_shell_attaches_app_root_under_app_shell_under_dom_root() {
+        // Phase 1a: `.app` no longer sits directly under `dom.root()`
+        // — it's wrapped in `<div class="app-shell">` so the status
+        // bar can be a sibling. Chain: app_root → .app-shell → root.
         let mut dom: TuiDom = TuiDom::new();
         let handles = build_shell(&mut dom);
-        let parent = dom
+        let app_shell = dom
             .node(handles.app_root)
             .parent_node()
             .expect("app root has a parent");
-        assert_eq!(parent.id(), dom.root());
+        assert_eq!(
+            app_shell.get_attribute("class"),
+            Some("app-shell"),
+            "app_root's parent should be the `.app-shell` wrapper"
+        );
+        let grand = app_shell.parent_node().expect("app-shell has a parent");
+        assert_eq!(grand.id(), dom.root());
     }
 
     #[test]

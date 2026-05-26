@@ -125,10 +125,10 @@ fn run(initial_idx: usize) -> std::io::Result<()> {
     // Tab / Shift+Tab is handled by the runtime's built-in
     // focus traversal (the `<li>`s carry `tabindex="0"`).
     wire_sidebar_keys(&mut dom, handles.sidebar, Rc::clone(&state));
-    // Scroll listener — populates the indicator at the bottom of
-    // `<main>` with current scroll info whenever any scrollable
-    // descendant of `<main>` fires a scroll event.
-    wire_scroll_indicator(&mut dom, handles.main, handles.scroll_indicator);
+    // Scroll listener — writes scroll info into the status bar
+    // (sibling of `.app`) whenever any scrollable descendant of
+    // `<main>` fires a scroll event.
+    wire_scroll_indicator(&mut dom, handles.main, handles.status_bar);
 
     // Construct the App with the shell's base stylesheet.
     let mut app = App::new(dom, base_stylesheet())?;

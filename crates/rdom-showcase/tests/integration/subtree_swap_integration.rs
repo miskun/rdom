@@ -212,7 +212,7 @@ fn swap_renders_clean_at_full_viewport() {
         current_idx: initial_state.current_idx,
         main_id: initial_state.main_id,
         source_disclosure_id: initial_state.source_disclosure_id,
-        scroll_indicator_id: initial_state.scroll_indicator_id,
+        status_bar_id: initial_state.status_bar_id,
     };
     for idx in [1usize, 2, 0, 2, 1] {
         mount_demo(&mut state, app.dom_mut(), idx);
