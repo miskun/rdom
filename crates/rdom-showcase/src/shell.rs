@@ -307,7 +307,7 @@ const BASE_CSS: &str = r#"
   flex: 1;
   flex-direction: column;
   border: solid;
-  border-color: rgb(70, 80, 100);
+  border-color: rgb(45, 47, 49);
   border-collapse: collapse;
   /* App shell fits the viewport — opt out of intrinsic-min on
    * both axes so the children's content can scroll rather than
@@ -320,7 +320,7 @@ const BASE_CSS: &str = r#"
 .app-header {
   height: 3;
   border: solid;
-  border-color: rgb(70, 80, 100);
+  border-color: rgb(45, 47, 49);
   padding: 0 1;
 }
 .app-header h1 {
@@ -343,7 +343,7 @@ const BASE_CSS: &str = r#"
   width: 28;
   height: 100%;
   border: solid;
-  border-color: rgb(70, 80, 100);
+  border-color: rgb(45, 47, 49);
   padding: 1;
   /* The nav is taller than the viewport on small terminals;
    * scroll instead of clipping. The substrate floors each item
@@ -361,7 +361,7 @@ const BASE_CSS: &str = r#"
   flex: 1;
   flex-direction: column;
   border: solid;
-  border-color: rgb(70, 80, 100);
+  border-color: rgb(45, 47, 49);
   /* Opt into responsive shrink past intrinsic content size — the
    * source disclosure can hold lines wider than the terminal, but
    * `<main>` should still fit the row alongside the sidebar.
@@ -401,7 +401,7 @@ const BASE_CSS: &str = r#"
  * "Markup" / "CSS" labels flush against the panel border. */
 .main .source-disclosure {
   border-top: solid;
-  border-color: rgb(70, 80, 100);
+  border-color: rgb(45, 47, 49);
   padding: 0 1;
 }
 .main .source-disclosure[open] {

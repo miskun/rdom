@@ -838,18 +838,17 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
         // The `*` universal host is required because the parser
         // rejects bare `::scrollbar` (host-required, same rule
         // as `::before` / `::after` / `::backdrop` / `::selection`).
-        // Scrollbar fg is inlined (#7F868B) rather than borrowing a
-        // shared constant — even though the value coincides with
-        // `TEXT_MUTED` today, "scrollbar glyph color" and "muted
-        // text" are independent design tokens. A future tweak to one
-        // must not silently move the other.
+        // Scrollbar fg is inlined rather than borrowing a shared
+        // constant — track and thumb are independent design tokens
+        // even when their values relate to other UA colors. A future
+        // tweak to one must not silently move the other.
         (
             "*::scrollbar",
-            TuiStyle::new().fg(Color::Rgb(0x7F, 0x86, 0x8B)),
+            TuiStyle::new().fg(Color::Rgb(0x2D, 0x2F, 0x31)),
         ),
         (
             "*::scrollbar-thumb",
-            TuiStyle::new().fg(Color::Rgb(0x7F, 0x86, 0x8B)),
+            TuiStyle::new().fg(Color::Rgb(0x41, 0x43, 0x45)),
         ),
         // ── Selection ──
         // Distinct bg color for selected text so a 1-cell selection
