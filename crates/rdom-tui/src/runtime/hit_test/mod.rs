@@ -316,6 +316,24 @@ fn descend(dom: &Dom<TuiExt>, id: NodeId, x: u16, y: u16, path: &mut Vec<NodeId>
         return false;
     }
 
+    // `display: none` generates no boxes per CSS Display 3 §2.5. The
+    // layout pass leaves these elements with stale rects from the
+    // last cascade in which they DID lay out (e.g. a `<details>` child
+    // that was visible when `[open]` was set, then hidden when `open`
+    // was removed — the pre's old open-state rect lingers). Hit-test
+    // must skip them or stale rects catch clicks meant for the
+    // elements actually painted at those cells (regression repro:
+    // `<details>` expand → collapse → expand failed because the hidden
+    // `<pre>`'s stale rect intercepted the third click).
+    let display = dom
+        .node(id)
+        .computed()
+        .map(|c| c.display)
+        .unwrap_or(crate::layout::Display::Block);
+    if matches!(display, crate::layout::Display::None) {
+        return false;
+    }
+
     // Element — check containment against its outer layout rect.
     let outer = match dom.node(id).layout_rect() {
         Some(r) if rect_contains(r, x, y) => r,
