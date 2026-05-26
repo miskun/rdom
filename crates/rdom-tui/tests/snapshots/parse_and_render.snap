@@ -8,7 +8,7 @@
  │ parser.                       │  │ decoding                      │
  │ Cascaded + laid out + painted │  │ • CSS cascade with var(),     │
  │ by rdom-tui.                  │  │ pseudo-elements               │
- │                               │  │                               │
+ │ Using rdom-core underneath.   │  │ • Flexbox and inline layout   │
  ╰───────────────────────────────╯  ╰───────────────────────────────╯
 
  Ctrl-C to exit

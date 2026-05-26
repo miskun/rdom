@@ -39,6 +39,7 @@ mod input_render_integration;
 mod m5_abortsignal;
 mod mutation_observer_snapshot;
 mod nested_collapse_content_inset;
+mod padding_box_paint_clip;
 mod parse_and_render_snapshot;
 mod percent_units;
 mod scrollable_list_snapshot;

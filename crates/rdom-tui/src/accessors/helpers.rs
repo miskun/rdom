@@ -115,15 +115,30 @@ pub(super) fn read_scroll_y(dom: &TuiDom, id: NodeId) -> i32 {
 /// element's scroll offsets. Non-scrollable elements (no
 /// scrollable content beyond their viewport) end up pinned to
 /// `(0, 0)` — the browser-faithful silent no-op behavior.
+///
+/// Viewport is the **padding-box** dimensions, NOT `content_layout`.
+/// CSSOM View defines `scrollTop` / `scrollLeft` clamping against the
+/// scrollport, which CSS Overflow 3 §3 places at the padding-box edge.
+/// Under M5.5b border-collapse, `content_layout` can widen into the
+/// border ring; using it here would under-clamp by 1 cell per
+/// expanded edge and let `scrollTop = N` slide past the true max.
 pub(super) fn write_scroll_clamped(dom: &mut TuiDom, id: NodeId, x: i32, y: i32) {
     use crate::node::TuiNodeExt;
     let (viewport_w, viewport_h, content_w, content_h) = match dom.node(id).tui_ext() {
-        Some(e) => (
-            e.content_layout.width as i32,
-            e.content_layout.height as i32,
-            e.scroll_content_width as i32,
-            e.scroll_content_height as i32,
-        ),
+        Some(e) => {
+            let border = dom
+                .node(id)
+                .computed()
+                .map(|c| c.border)
+                .unwrap_or_default();
+            let pb = rdom_style::layout::compute_padding_box(e.layout, border);
+            (
+                pb.width as i32,
+                pb.height as i32,
+                e.scroll_content_width as i32,
+                e.scroll_content_height as i32,
+            )
+        }
         None => return,
     };
     let max_x = (content_w - viewport_w).max(0);

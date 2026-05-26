@@ -296,6 +296,12 @@ fn paint_node(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect) {
 
     let outer = dom.node(id).layout_rect().unwrap_or_default();
     let inner = dom.node(id).content_layout_rect().unwrap_or(outer);
+    // CSS Overflow 3 §3: the scrollport is the padding-box. Overflow
+    // clipping, scrollbar paint, and sticky pinning all use this rect,
+    // never the layout-side `content_layout` (which under M5.5b border-
+    // collapse can widen into the border ring for child positioning —
+    // a layout concern, not a paint-clipping one).
+    let padding_box = rdom_style::layout::compute_padding_box(outer, computed.border);
 
     // Fast path: element entirely outside the clip.
     if let Some(outer_grid) = layout_rect_to_grid(outer, clip) {
@@ -320,13 +326,22 @@ fn paint_node(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect) {
     }
 
     // Inner paint (text + pseudo-elements + children) happens in
-    // `content_layout`, clipped by the element's overflow mode.
-    // Either axis being non-Visible clips (matches browser
-    // behavior — you can't have a half-clipped element).
+    // `content_layout`, clipped by the element's overflow mode at the
+    // padding-box edge per CSS Overflow 3 §3. Either axis being
+    // non-Visible clips (matches browser behavior — you can't have a
+    // half-clipped element).
     let clips = !matches!(computed.overflow_x, Overflow::Visible)
         || !matches!(computed.overflow_y, Overflow::Visible);
     let children_clip = if clips {
-        layout_rect_to_grid(inner, clip).unwrap_or_else(|| Rect::new(clip.x, clip.y, 0, 0))
+        // Clip at the padding-box, NOT `content_layout`. The two
+        // diverge under M5.5b border-collapse — `content_layout` can
+        // widen into the border ring for child positioning, but CSS
+        // Overflow 3 §3 places the scrollport at the padding-box edge
+        // for every scroll container, no collapse exception. Reading
+        // `content_layout` here lets scrolled children's bg overpaint
+        // the parent's border row.
+        layout_rect_to_grid(padding_box, clip)
+            .unwrap_or_else(|| Rect::new(clip.x, clip.y, 0, 0))
     } else {
         clip
     };

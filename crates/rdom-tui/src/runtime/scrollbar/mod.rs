@@ -88,6 +88,12 @@ fn check_element(dom: &TuiDom, id: NodeId, x: u16, y: u16) -> Option<ScrollbarHi
     let ext = dom.node(id).tui_ext()?;
     let content = ext.content_layout;
     let computed = dom.node(id).computed()?;
+    // CSS Overflow 3 §3: scrollbar gutter is inside the padding-box.
+    // Column position uses `content_layout` (gutter already accounted
+    // for by `reserve_scrollbar_gutter`); track extent is clamped to
+    // padding-box so a click on a border-row column doesn't register
+    // as a scrollbar hit under M5.5b border-collapse.
+    let padding_box = rdom_style::layout::compute_padding_box(ext.layout, computed.border);
 
     let y_reserves = matches!(computed.overflow_y, Overflow::Scroll | Overflow::Auto);
     let x_reserves = matches!(computed.overflow_x, Overflow::Scroll | Overflow::Auto);
@@ -100,27 +106,25 @@ fn check_element(dom: &TuiDom, id: NodeId, x: u16, y: u16) -> Option<ScrollbarHi
     let in_v_col = x as i32 == v_col;
     let in_h_row = y as i32 == h_row;
 
-    // Vertical track spans y in [content.y, content.y + height)
-    //   minus one row for the corner if horizontal also reserves.
-    let mut v_top = content.y;
-    let mut v_bottom = content.y + content.height as i32;
+    // Vertical track spans y in [content.y, content.y + height) clamped
+    // to padding-box rows; minus one row for the corner if horizontal
+    // also reserves.
+    let v_top = content.y.max(padding_box.y);
+    let mut v_bottom = (content.y + content.height as i32).min(padding_box.y + padding_box.height as i32);
     if x_reserves {
         v_bottom -= 1;
     }
     let in_v_rows = (y as i32) >= v_top && (y as i32) < v_bottom;
 
-    let mut h_left = content.x;
-    let mut h_right = content.x + content.width as i32;
+    let h_left = content.x.max(padding_box.x);
+    let mut h_right = (content.x + content.width as i32).min(padding_box.x + padding_box.width as i32);
     if y_reserves {
         h_right -= 1;
     }
     let in_h_cols = (x as i32) >= h_left && (x as i32) < h_right;
 
-    // Ignore unused vars in the branches below.
-    let _ = (&mut v_top, &mut h_left);
-
     if y_reserves && in_v_col && in_v_rows {
-        let track_len = (v_bottom - content.y) as u16;
+        let track_len = (v_bottom - v_top) as u16;
         let viewport = content.height;
         let content_size = ext.scroll_content_height;
         if !should_paint(computed.overflow_y, viewport as usize, content_size) {
@@ -128,7 +132,7 @@ fn check_element(dom: &TuiDom, id: NodeId, x: u16, y: u16) -> Option<ScrollbarHi
         }
         let (thumb_size, thumb_off) =
             thumb_geometry(track_len, viewport as usize, content_size, ext.scroll_y);
-        let cursor_along = (y as i32 - content.y) as u16;
+        let cursor_along = (y as i32 - v_top) as u16;
         return Some(ScrollbarHit {
             element: id,
             axis: ScrollAxis::Vertical,
@@ -138,7 +142,7 @@ fn check_element(dom: &TuiDom, id: NodeId, x: u16, y: u16) -> Option<ScrollbarHi
     }
 
     if x_reserves && in_h_row && in_h_cols {
-        let track_len = (h_right - content.x) as u16;
+        let track_len = (h_right - h_left) as u16;
         let viewport = content.width;
         let content_size = ext.scroll_content_width;
         if !should_paint(computed.overflow_x, viewport as usize, content_size) {
@@ -146,7 +150,7 @@ fn check_element(dom: &TuiDom, id: NodeId, x: u16, y: u16) -> Option<ScrollbarHi
         }
         let (thumb_size, thumb_off) =
             thumb_geometry(track_len, viewport as usize, content_size, ext.scroll_x);
-        let cursor_along = (x as i32 - content.x) as u16;
+        let cursor_along = (x as i32 - h_left) as u16;
         return Some(ScrollbarHit {
             element: id,
             axis: ScrollAxis::Horizontal,
@@ -226,7 +230,15 @@ pub(crate) fn extend_drag(router: &Router, dom: &mut TuiDom, mouse_x: u16, mouse
         Some(e) => e,
         None => return false,
     };
-    let content = ext.content_layout;
+    // Drag math (cursor-delta → scroll-delta) reads from the padding-
+    // box per CSS Overflow 3 §3; the track lives in the padding-box,
+    // not `content_layout`.
+    let border = dom
+        .node(drag.element)
+        .computed()
+        .map(|c| c.border)
+        .unwrap_or_default();
+    let content = rdom_style::layout::compute_padding_box(ext.layout, border);
     let (viewport, content_size, track_len) = match drag.axis {
         ScrollAxis::Vertical => {
             let x_reserves = dom
@@ -287,33 +299,42 @@ pub(crate) fn end_drag(router: &mut Router) {
 // ── Helpers ─────────────────────────────────────────────────────────
 
 /// `(viewport_size_in_cells, current_scroll_offset)` for a given
-/// element + axis.
+/// element + axis. Viewport = padding-box per CSS Overflow 3 §3.
 fn scroll_metrics(dom: &TuiDom, element: NodeId, axis: ScrollAxis) -> (u16, usize) {
     let ext = match dom.node(element).tui_ext() {
         Some(e) => e,
         None => return (0, 0),
     };
+    let border = dom
+        .node(element)
+        .computed()
+        .map(|c| c.border)
+        .unwrap_or_default();
+    let pb = rdom_style::layout::compute_padding_box(ext.layout, border);
     match axis {
-        ScrollAxis::Vertical => (ext.content_layout.height, ext.scroll_y),
-        ScrollAxis::Horizontal => (ext.content_layout.width, ext.scroll_x),
+        ScrollAxis::Vertical => (pb.height, ext.scroll_y),
+        ScrollAxis::Horizontal => (pb.width, ext.scroll_x),
     }
 }
 
 /// Set the scroll offset for `element` on `axis`, clamped to
 /// `[0, content - viewport]`. Returns the clamped value actually
-/// written.
+/// written. Viewport = padding-box per CSS Overflow 3 §3.
 fn set_scroll(dom: &mut TuiDom, element: NodeId, axis: ScrollAxis, value: i32) -> usize {
     let (viewport, content_size) = {
         let ext = match dom.node(element).tui_ext() {
             Some(e) => e,
             None => return 0,
         };
+        let border = dom
+            .node(element)
+            .computed()
+            .map(|c| c.border)
+            .unwrap_or_default();
+        let pb = rdom_style::layout::compute_padding_box(ext.layout, border);
         match axis {
-            ScrollAxis::Vertical => (
-                ext.content_layout.height as usize,
-                ext.scroll_content_height,
-            ),
-            ScrollAxis::Horizontal => (ext.content_layout.width as usize, ext.scroll_content_width),
+            ScrollAxis::Vertical => (pb.height as usize, ext.scroll_content_height),
+            ScrollAxis::Horizontal => (pb.width as usize, ext.scroll_content_width),
         }
     };
     let max = content_size.saturating_sub(viewport) as i32;

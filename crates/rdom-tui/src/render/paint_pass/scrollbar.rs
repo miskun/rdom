@@ -150,6 +150,12 @@ pub(super) fn paint_scrollbars(
         return;
     };
     let content_layout = ext.content_layout;
+    // CSS Overflow 3 §3: the scrollbar gutter lives inside the padding-
+    // box. Under M5.5b border-collapse `content_layout` can extend into
+    // the border ring (a child-positioning concern); the scrollbar
+    // track must NOT paint there. `padding_box` defines the spec-correct
+    // outer bound for the track extent on both axes.
+    let padding_box = rdom_style::layout::compute_padding_box(ext.layout, computed.border);
 
     let (scroll_x, scroll_y) = (ext.scroll_x, ext.scroll_y);
     let (content_w, content_h) = (ext.scroll_content_width, ext.scroll_content_height);
@@ -185,6 +191,7 @@ pub(super) fn paint_scrollbars(
         paint_vertical_scrollbar(
             buf,
             content_layout,
+            padding_box,
             x_gutter,
             y_gutter,
             computed.overflow_y,
@@ -205,6 +212,7 @@ pub(super) fn paint_scrollbars(
         paint_horizontal_scrollbar(
             buf,
             content_layout,
+            padding_box,
             y_gutter,
             x_gutter,
             computed.overflow_x,
@@ -223,6 +231,7 @@ pub(super) fn paint_scrollbars(
 fn paint_vertical_scrollbar(
     buf: &mut Buffer,
     content: LayoutRect,
+    padding_box: LayoutRect,
     has_h_scrollbar: bool,
     self_reserves_gutter: bool,
     overflow: Overflow,
@@ -234,7 +243,9 @@ fn paint_vertical_scrollbar(
     thumb_glyph: &str,
     thumb_style: Style,
 ) {
-    // Track column placement depends on `scrollbar-gutter`:
+    // Track column placement depends on `scrollbar-gutter` and uses
+    // `content_layout` because `reserve_scrollbar_gutter` already
+    // shrunk it by 1 cell when the gutter is reserved:
     // - Reserved (`stable` or `Scroll` overflow): track lives at
     //   `content.right()` — the dedicated gutter column.
     // - Not reserved (`auto` + `Auto` overflow): track overlays
@@ -252,8 +263,16 @@ fn paint_vertical_scrollbar(
     }
     let track_x = track_x as u16;
 
-    let track_top = content.y.max(clip.y as i32);
-    let mut track_bottom = (content.y + content.height as i32).min(clip.bottom() as i32);
+    // Track vertical extent is bounded by the **padding-box**, not
+    // `content_layout`. Under M5.5b border-collapse, `content_layout`
+    // can widen vertically into the border ring (a child-positioning
+    // concern). CSS Overflow 3 §3 places the scrollport at the
+    // padding-box; the track lives inside that scrollport and must
+    // not paint into the border row.
+    let track_top = content.y.max(padding_box.y).max(clip.y as i32);
+    let mut track_bottom = (content.y + content.height as i32)
+        .min(padding_box.y + padding_box.height as i32)
+        .min(clip.bottom() as i32);
     if has_h_scrollbar {
         track_bottom -= 1;
     }
@@ -286,6 +305,7 @@ fn paint_vertical_scrollbar(
 fn paint_horizontal_scrollbar(
     buf: &mut Buffer,
     content: LayoutRect,
+    padding_box: LayoutRect,
     has_v_scrollbar: bool,
     self_reserves_gutter: bool,
     overflow: Overflow,
@@ -310,8 +330,14 @@ fn paint_horizontal_scrollbar(
     }
     let track_y = track_y as u16;
 
-    let track_left = content.x.max(clip.x as i32);
-    let mut track_right = (content.x + content.width as i32).min(clip.right() as i32);
+    // Track horizontal extent bounded by the padding-box (mirror of
+    // the vertical case): under M5.5b `content_layout` can widen into
+    // the border ring on the left/right; the track must not paint
+    // there per CSS Overflow 3 §3.
+    let track_left = content.x.max(padding_box.x).max(clip.x as i32);
+    let mut track_right = (content.x + content.width as i32)
+        .min(padding_box.x + padding_box.width as i32)
+        .min(clip.right() as i32);
     if has_v_scrollbar {
         track_right -= 1;
     }

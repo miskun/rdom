@@ -325,15 +325,21 @@ fn descend(dom: &Dom<TuiExt>, id: NodeId, x: u16, y: u16, path: &mut Vec<NodeId>
     path.push(id);
 
     // Overflow clipping: if the element clips its children, check
-    // whether (x, y) is in the content area. If not, the hit stays
-    // on THIS element (its padding/border) — no recurse.
+    // whether (x, y) is in the scrollport (CSS Overflow 3 §3 = padding-
+    // box). If not, the hit stays on THIS element (its padding/border)
+    // — no recurse. Hit-test must agree with paint's clip rect; both
+    // use the padding-box, not `content_layout` (which under M5.5b
+    // border-collapse can widen into the border ring).
     let computed = dom.node(id).computed();
     let clips_children = computed.is_some_and(|c| {
         !matches!(c.overflow_x, Overflow::Visible) || !matches!(c.overflow_y, Overflow::Visible)
     });
 
     let inner = dom.node(id).content_layout_rect().unwrap_or(outer);
-    if clips_children && !rect_contains(inner, x, y) {
+    let scrollport = computed
+        .map(|c| rdom_style::layout::compute_padding_box(outer, c.border))
+        .unwrap_or(outer);
+    if clips_children && !rect_contains(scrollport, x, y) {
         return true; // hit on padding/border, no descent
     }
 

@@ -381,19 +381,25 @@ fn handle_wheel(dom: &mut TuiDom, mouse: MouseEvent) -> RouteOutcome {
             // and dispatch a `scroll` event only when offsets
             // actually moved (matches HTML — at-the-bottom wheel
             // ticks are no-ops and don't fire scroll).
+            //
+            // Viewport size is the padding-box (CSS Overflow 3 §3
+            // scrollport), not `content_layout` — the two diverge
+            // under M5.5b border-collapse.
+            let border = dom
+                .node(id)
+                .computed()
+                .map(|c| c.border)
+                .unwrap_or_default();
             let (old_x, old_y, new_x, new_y) = if let Some(ext) = dom.node_mut(id).ext_mut() {
+                let pb = rdom_style::layout::compute_padding_box(ext.layout, border);
                 let old_x = ext.scroll_x;
                 let old_y = ext.scroll_y;
                 if wants_y && y_scrollable {
-                    let max_y = ext
-                        .scroll_content_height
-                        .saturating_sub(ext.content_layout.height as usize);
+                    let max_y = ext.scroll_content_height.saturating_sub(pb.height as usize);
                     apply_scroll(&mut ext.scroll_y, dy, max_y);
                 }
                 if wants_x && x_scrollable {
-                    let max_x = ext
-                        .scroll_content_width
-                        .saturating_sub(ext.content_layout.width as usize);
+                    let max_x = ext.scroll_content_width.saturating_sub(pb.width as usize);
                     apply_scroll(&mut ext.scroll_x, dx, max_x);
                 }
                 (old_x, old_y, ext.scroll_x, ext.scroll_y)

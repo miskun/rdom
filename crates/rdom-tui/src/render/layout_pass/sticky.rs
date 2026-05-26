@@ -175,12 +175,21 @@ fn nearest_scrollport(dom: &Dom<TuiExt>, id: NodeId) -> Option<(NodeId, LayoutRe
     let mut cursor = dom.node(id).parent_node();
     while let Some(p) = cursor {
         if p.node_type() == NodeType::Element {
-            let scrollable = p
-                .computed()
+            let computed = p.computed();
+            let scrollable = computed
                 .map(|c| c.overflow_x != Overflow::Visible || c.overflow_y != Overflow::Visible)
                 .unwrap_or(false);
             if scrollable && let Some(ext) = p.ext() {
-                return Some((p.id(), ext.content_layout));
+                // CSS Overflow 3 §3 + Position 3 sticky: pin against
+                // the scrollport (= padding-box), not `content_layout`.
+                // Under M5.5b border-collapse `content_layout` can
+                // widen into the border ring; using it here would
+                // shift the sticky pin threshold 1 row earlier on each
+                // expanded edge.
+                let border = computed.map(|c| c.border).unwrap_or_default();
+                let scrollport =
+                    rdom_style::layout::compute_padding_box(ext.layout, border);
+                return Some((p.id(), scrollport));
             }
         }
         cursor = p.parent_node();
