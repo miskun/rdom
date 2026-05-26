@@ -355,6 +355,108 @@ fn hello_world_demo_renders_per_css_contract() {
     }
 }
 
+/// Concatenate every text-node descendant of `id` in document
+/// order — like the DOM `textContent` accessor.
+fn text_content(dom: &TuiDom, id: NodeId) -> String {
+    let mut s = String::new();
+    fn walk(dom: &TuiDom, id: NodeId, out: &mut String) {
+        let n = dom.node(id);
+        if n.node_type() == NodeType::Text {
+            out.push_str(&n.text_content());
+            return;
+        }
+        for c in n.child_nodes() {
+            walk(dom, c.id(), out);
+        }
+    }
+    walk(dom, id, &mut s);
+    s
+}
+
+#[test]
+fn status_bar_shows_default_keyboard_hints_after_build() {
+    // Phase 1b design intent: on boot, the status bar shows the
+    // global keyboard hints (sidebar nav is autofocused, so the
+    // hints applicable there double as the global default). The
+    // bar is populated by `seed_status_bar_hints` during build,
+    // BEFORE any focus event fires.
+    let (dom, handles) = shell_at(80, 24);
+    let txt = text_content(&dom, handles.status_bar);
+    // The exact prose may evolve; pin the substantive shortcuts.
+    assert!(
+        txt.contains("↑↓"),
+        "status bar should advertise the up/down keys; got {txt:?}"
+    );
+    assert!(
+        txt.contains("navigate"),
+        "status bar should label the up/down shortcut; got {txt:?}"
+    );
+    assert!(
+        txt.contains("Enter"),
+        "status bar should advertise the Enter key; got {txt:?}"
+    );
+    assert!(
+        txt.contains("select"),
+        "status bar should label the Enter shortcut; got {txt:?}"
+    );
+}
+
+#[test]
+fn status_bar_keys_render_with_distinct_style_from_labels() {
+    // Phase 1b design intent: status bar uses `<span class="key">`
+    // and `<span class="label">` so the cascade can style keys
+    // (bold + brighter) differently from their action labels
+    // (dimmer, regular weight). Probe specific glyph cells:
+    // - "↑" — first cell of the key span ("↑↓")
+    // - "n" — first cell of the label span ("navigate")
+    let (dom, handles, buf) = paint_shell(80, 24);
+
+    // First confirm the structure exists (helps fail loudly if the
+    // markup drifts).
+    find_by_class(&dom, handles.status_bar, "key")
+        .expect("status bar should contain at least one .key span");
+    find_by_class(&dom, handles.status_bar, "label")
+        .expect("status bar should contain at least one .label span");
+
+    // Find the painted row of the status bar via its layout rect.
+    let status_rect = dom.node(handles.status_bar).ext().unwrap().layout;
+    let y = status_rect.y as u16;
+
+    // Scan the row left-to-right and pick the first cell that
+    // paints "↑" (key glyph) and the first cell that paints "n"
+    // (label glyph — `navigate`'s first letter).
+    let mut key_cell = None;
+    let mut label_cell = None;
+    for x in 0..80 {
+        let Some(cell) = buf.cell(x, y) else { continue };
+        let sym = cell.symbol();
+        if key_cell.is_none() && sym == "↑" {
+            key_cell = Some(cell);
+        }
+        if label_cell.is_none() && sym == "n" {
+            label_cell = Some(cell);
+        }
+    }
+    let key_cell = key_cell.expect("`↑` glyph should paint somewhere in the status row");
+    let label_cell =
+        label_cell.expect("`n` of `navigate` should paint somewhere in the status row");
+
+    assert!(
+        key_cell.modifier.contains(rdom_tui::Modifier::BOLD),
+        "key cells should be bold; got modifier {:?}",
+        key_cell.modifier
+    );
+    assert!(
+        !label_cell.modifier.contains(rdom_tui::Modifier::BOLD),
+        "label cells should NOT be bold; got modifier {:?}",
+        label_cell.modifier
+    );
+    assert_ne!(
+        key_cell.fg, label_cell.fg,
+        "key and label spans should resolve to different fg colors"
+    );
+}
+
 #[test]
 fn status_bar_is_sibling_of_app_and_sits_below_panel() {
     // Phase 1a design intent: the status bar is a separate concern

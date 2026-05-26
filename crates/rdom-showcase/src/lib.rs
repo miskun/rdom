@@ -24,6 +24,7 @@ pub mod demos;
 pub mod nav;
 pub mod registry;
 pub mod shell;
+pub mod status_bar;
 
 pub use demo::{Category, Demo, Source};
 pub use nav::{
@@ -31,3 +32,4 @@ pub use nav::{
 };
 pub use registry::DEMOS;
 pub use shell::{ShellHandles, build_shell};
+pub use status_bar::{seed_default_hints, wire_focus_hints};

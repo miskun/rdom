@@ -129,6 +129,10 @@ fn run(initial_idx: usize) -> std::io::Result<()> {
     // (sibling of `.app`) whenever any scrollable descendant of
     // `<main>` fires a scroll event.
     wire_scroll_indicator(&mut dom, handles.main, handles.status_bar);
+    // Focus listener — refreshes keyboard hints in the status bar
+    // whenever focus moves. The bar is pre-seeded in `build_shell`
+    // with the global default; this listener handles changes.
+    rdom_showcase::wire_focus_hints(&mut dom, handles.status_bar);
 
     // Construct the App with the shell's base stylesheet.
     let mut app = App::new(dom, base_stylesheet())?;

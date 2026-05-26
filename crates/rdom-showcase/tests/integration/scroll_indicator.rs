@@ -30,22 +30,41 @@ fn make_app() -> (App<TestBackend>, ShellHandles) {
     (app, handles)
 }
 
-/// Find the text content of the indicator (concatenated text-node
-/// children).
+/// Find the text content of the indicator — walks the full
+/// descendant tree (Phase 1b nested the hints inside
+/// `<span class="key">` / `<span class="label">` elements, so
+/// the prior "direct children only" walk no longer suffices).
 fn indicator_text(dom: &TuiDom, indicator: NodeId) -> String {
     let mut out = String::new();
-    for child in dom.node(indicator).child_nodes() {
-        if let Some(t) = child.node_value() {
+    fn walk(dom: &TuiDom, id: NodeId, out: &mut String) {
+        let n = dom.node(id);
+        if let Some(t) = n.node_value() {
             out.push_str(t);
         }
+        for c in n.child_nodes() {
+            walk(dom, c.id(), out);
+        }
     }
+    walk(dom, indicator, &mut out);
     out
 }
 
 #[test]
-fn empty_indicator_before_any_scroll() {
+fn status_bar_shows_default_hints_before_any_scroll() {
+    // Phase 1b: the status bar is seeded with the default keyboard
+    // hints at build time. Before any scroll event fires, the bar
+    // shows hints — not the empty string it had pre-Phase-1b.
     let (app, handles) = make_app();
-    assert_eq!(indicator_text(app.dom(), handles.status_bar), "");
+    let text = indicator_text(app.dom(), handles.status_bar);
+    assert!(
+        text.contains("navigate") && text.contains("select"),
+        "status bar should show default hints before scroll; got {text:?}"
+    );
+    // And the scroll listener hasn't fired anything yet.
+    assert!(
+        !text.contains("cell ") && !text.contains('%'),
+        "no scroll info should appear pre-scroll; got {text:?}"
+    );
 }
 
 #[test]
@@ -77,10 +96,11 @@ fn scroll_event_populates_indicator_text() {
 }
 
 #[test]
-fn mount_demo_clears_stale_scroll_indicator() {
-    // After scrolling demo A, switching to demo B should clear
-    // the indicator (A's scrollable element is gone; stale text
-    // would lie about B's state).
+fn mount_demo_replaces_stale_scroll_info_with_default_hints() {
+    // After scrolling demo A, switching to demo B should wipe the
+    // scroll info (A's scrollable element is gone; stale text
+    // would lie about B's state). Phase 1b: instead of leaving the
+    // bar empty, the default hints come back.
     let (mut app, handles) = make_app();
     let target = handles.main;
 
@@ -89,22 +109,30 @@ fn mount_demo_clears_stale_scroll_indicator() {
         ext.content_layout = rdom_tui::layout::LayoutRect::new(0, 0, 50, 20);
     }
     app.dom_mut().node_mut(target).set_scroll_top(40).unwrap();
-    assert!(!indicator_text(app.dom(), handles.status_bar).is_empty());
+    let after_scroll = indicator_text(app.dom(), handles.status_bar);
+    assert!(
+        after_scroll.contains("cell "),
+        "scroll listener should have written scroll info; got {after_scroll:?}"
+    );
 
-    // Switch to a different demo. Indicator must clear.
+    // Switch to a different demo. Scroll info clears; hints return.
     let mut state = ShowcaseState::from_handles(&handles);
     state.current_idx = 0; // setup() already mounted demo 0
     mount_demo(&mut state, app.dom_mut(), 1);
 
-    assert_eq!(
-        indicator_text(app.dom(), handles.status_bar),
-        "",
-        "indicator clears on demo switch — stale scroll info no longer applies"
+    let after_swap = indicator_text(app.dom(), handles.status_bar);
+    assert!(
+        !after_swap.contains("cell "),
+        "demo swap must drop stale scroll info; got {after_swap:?}"
+    );
+    assert!(
+        after_swap.contains("navigate"),
+        "demo swap should restore default hints; got {after_swap:?}"
     );
 }
 
 #[test]
-fn indicator_stays_empty_when_target_has_no_overflow() {
+fn no_overflow_target_does_not_overwrite_hints() {
     let (mut app, handles) = make_app();
     let target = handles.main;
 
@@ -120,5 +148,15 @@ fn indicator_stays_empty_when_target_has_no_overflow() {
     // stays 0 so no event fires — which is the right behavior.
     let _ = app.dom_mut().node_mut(target).set_scroll_top(40);
 
-    assert_eq!(indicator_text(app.dom(), handles.status_bar), "");
+    // Phase 1b: with no scroll, the bar still shows the default
+    // hints seeded by `build_shell`.
+    let text = indicator_text(app.dom(), handles.status_bar);
+    assert!(
+        !text.contains("cell "),
+        "no scroll → no scroll info in the bar; got {text:?}"
+    );
+    assert!(
+        text.contains("navigate"),
+        "no scroll → default hints still visible; got {text:?}"
+    );
 }

@@ -218,13 +218,15 @@ pub fn build_shell(dom: &mut TuiDom) -> ShellHandles {
     dom.append_child(body, main).unwrap();
 
     // <footer class="status-bar"></footer> — sibling of `.app`,
-    // outside the bordered panel. Empty by default; the scroll
-    // listener writes here when a descendant of `view_content`
-    // scrolls. Phase 1b will seed default keyboard hints.
+    // outside the bordered panel. Seeded with the global keyboard
+    // hints; `status_bar::wire_focus_hints` refreshes them on
+    // focus change; the scroll listener takes over transiently
+    // during active scrolling.
     let status_bar = dom.create_element("footer");
     dom.set_attribute(status_bar, "class", "status-bar")
         .unwrap();
     dom.append_child(app_shell, status_bar).unwrap();
+    crate::status_bar::seed_default_hints(dom, status_bar);
 
     ShellHandles {
         app_root: app,
@@ -418,6 +420,22 @@ const BASE_CSS: &str = r#"
   min-height: 1;
   padding: 0 1;
   color: rgb(150, 170, 200);
+}
+/* Keyboard-hint spans inside the status bar. Two-tone styling
+ * (key vs label) mirrors the conventional terminal-status-line
+ * pattern: the *key* is what the user has to press, so it's bright
+ * + bold; the *label* describes what pressing it does, so it's
+ * muted to read as supporting prose.
+ */
+.status-bar .key {
+  color: rgb(220, 230, 255);
+  font-weight: bold;
+}
+.status-bar .label {
+  color: rgb(140, 160, 190);
+}
+.status-bar .sep {
+  color: rgb(80, 90, 110);
 }
 "#;
 

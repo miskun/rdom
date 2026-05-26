@@ -98,10 +98,11 @@ pub fn mount_demo(state: &mut ShowcaseState, dom: &mut TuiDom, demo_idx: usize) 
     //    the new demo's MARKUP + CSS.
     rebuild_source_disclosure(dom, state.source_disclosure_id, demo);
 
-    // 3. Clear the status bar — the previous demo's scrollable
+    // 3. Reset the status bar — the previous demo's scrollable
     //    element is gone; stale "Row 7/50" text would lie about the
-    //    new demo's state.
-    let _ = dom.clear_children(state.status_bar_id);
+    //    new demo's state. Re-seed with the global default hints so
+    //    the bar isn't empty between scroll events.
+    crate::status_bar::seed_default_hints(dom, state.status_bar_id);
 }
 
 /// Replace the body of the `<details class="source-disclosure">`
