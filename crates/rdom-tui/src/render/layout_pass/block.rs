@@ -1070,37 +1070,46 @@ fn resolve_block_height(
 /// `Flow::Block` chain from a Block child — flex contexts are
 /// outside that.
 fn nearest_block_ancestor_height_is_definite(dom: &Dom<TuiExt>, id: NodeId) -> bool {
-    let Some(parent) = dom.node(id).parent_node() else {
-        // No parent — `id` is root. The viewport is definite by
-        // construction (the caller passes viewport rect).
-        return true;
-    };
-    let parent_id = parent.id();
-    let Some(parent_computed) = parent.ext().and_then(|e| e.computed.as_ref()) else {
-        return true; // fragment root etc.
-    };
     use crate::layout::{MinSize, Position};
-    if matches!(
-        parent_computed.position,
-        Position::Absolute | Position::Fixed
-    ) {
-        // Absolute/fixed with both top + bottom defines a definite
-        // height. Conservative simplification: treat as definite —
-        // matches how `compute_placed_rect` actually sets the rect.
-        return true;
-    }
-    if let Some(MinSize::Cells(n)) = parent_computed.min_height
-        && n > 0
-    {
-        return true;
-    }
-    match parent_computed.height {
-        Size::Fixed(_) => true,
-        Size::Auto | Size::Flex(_) => false,
-        Size::Percent(_) | Size::Calc(_) => {
-            // Chain up — definite iff parent's own height-basis
-            // is definite.
-            nearest_block_ancestor_height_is_definite(dom, parent_id)
+    // Iterative walk so a pathological `<div height="50%">` nest
+    // can't blow the stack. Each step looks at THE PARENT — `id`
+    // is the descendant whose percent we're trying to resolve, so
+    // the first iteration consults `id.parent`, the next consults
+    // *that* parent's parent, etc.
+    let mut cur = id;
+    loop {
+        let node = dom.node(cur);
+        let Some(parent) = node.parent_node() else {
+            // No parent — `cur` is root. The viewport is definite
+            // by construction (layout_dom passes viewport rect).
+            return true;
+        };
+        let parent_id = parent.id();
+        let Some(parent_computed) = parent.ext().and_then(|e| e.computed.as_ref()) else {
+            return true; // fragment root etc.
+        };
+        if matches!(
+            parent_computed.position,
+            Position::Absolute | Position::Fixed
+        ) {
+            // Absolute / fixed: `compute_placed_rect` sets a
+            // concrete height (CB height when both top + bottom
+            // are `Cells`, declared otherwise). Conservative
+            // simplification: treat as definite.
+            return true;
+        }
+        if let Some(MinSize::Cells(n)) = parent_computed.min_height
+            && n > 0
+        {
+            return true;
+        }
+        match parent_computed.height {
+            Size::Fixed(_) => return true,
+            Size::Auto | Size::Flex(_) => return false,
+            Size::Percent(_) | Size::Calc(_) => {
+                // Chain up — re-test against the GRANDparent.
+                cur = parent_id;
+            }
         }
     }
 }

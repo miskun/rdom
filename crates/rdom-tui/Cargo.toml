@@ -74,3 +74,7 @@ rdom-showcase = { path = "../rdom-showcase" }
 [[bench]]
 name = "runtime"
 harness = false
+
+[[bench]]
+name = "block_layout"
+harness = false

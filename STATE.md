@@ -6,7 +6,7 @@ For the durable architecture and roadmap, see [`specs/DESIGN.md`](specs/DESIGN.m
 
 ## Current focus
 
-**In flight:** `BFC-1` — Block Formatting Context substrate milestone. The showcase exposed a structural gap: rdom has only one layout mode (flex), so `<h1><p>` doesn't stack like the web platform specifies. Closing this unlocks "write semantic HTML, get HTML behavior" for every downstream consumer. Plan: [`specs/BFC-1.md`](specs/BFC-1.md). Tasks tracked #70–#78.
+**Just closed:** `BFC-1` — Block Formatting Context substrate. Semantic HTML now stacks per the web platform: `<div><h1><p></p></div>` produces a block-flow column at intrinsic heights with no CSS at all. CSS 2.1 §10 normal flow + §8.3.1 margin collapse + §10.5/§10.6.3 height resolution + CSS3 `gap` for block + atomic inline-block in IFC, all on top of the original flex pass. Plan: [`specs/BFC-1.md`](specs/BFC-1.md). Tasks #70–#78 + #80–#95 closed. See "2026-05-26 — BFC-1 closed" below for the full landing.
 
 **Release in flight:** 0.2.0. Workstreams: `rdom-showcase`, event surface bundle, `calc()` value system, now BFC-1. Plan: [`specs/SHOWCASE.md`](specs/SHOWCASE.md).
 
@@ -77,6 +77,22 @@ One piece of architectural debt deferred with teeth: `EVT-DETACH-1` (implicit bl
 - **`EVT-DETACH-1`** — implicit `blur` / `focusout` / `mouseleave` / `mouseout` not dispatched on detach. Documented in [`specs/TECH_DEBT.md`](specs/TECH_DEBT.md) as a non-negotiable M5 deliverable. Risk: if M5 scope grows and this slips, rdom-tui ships an internally inconsistent hover-event model. Mitigation: M5 exit criteria in [`specs/SHOWCASE.md`](specs/SHOWCASE.md) explicitly require closing `EVT-DETACH-1` + deleting the related DIVERGENCES.md entries.
 
 ## Recent decisions
+
+### 2026-05-26 — BFC-1 closed: block-formatting-context substrate end-to-end
+
+Shipped in 9 phases (commits `9e9af04` Phase 1 → `<phase-9-commit>` Phase 9):
+
+- **Phase 1** — `Flow` enum (Block | Flex) cascades alongside `Display`; CSS3 Display Module two-value mapping (`display: block` → outer Block + inner Block, `display: flex` → outer Block + inner Flex). `establishes_new_bfc` cascade field gates margin-collapse + height-trap behavior.
+- **Phase 2** — `layout_block_children` width formula (CSS 2.1 §10.3.3 seven-term equation), auto-margin centering with odd-cell distribution to right, min/max-width clamping.
+- **Phase 3** — Anonymous block boxes (CSS 2.1 §9.2.1.1) around inline-level child runs in mixed content. Atomic `Display::InlineBlock` packing in IFC per CSS 2.1 §10.8 (Phase 3.5b). Hit-test, paint, selection, drag-routing all walk anon boxes.
+- **Phase 4** — Dispatch wired in `flex::layout_children`: IFC → pure-text-leaf → `match Flow`. UA sweep added explicit `flow: Flex` to `<tr>`. Showcase chrome migration + 49-file demo sweep + snapshot regeneration. Substrate fixes uncovered during the sweep: block.rs passed wrong axis budget to intrinsic measurement (now `resolved_width` for cross-budget), block lacked border-collapse parent-edge inset (shared `flex::collapse_parent_edge_insets`), block lacked `parent_scroll` offset, atomic inline-block fragments didn't get layout rects (now `layout_atomic_inline_blocks` writes them in both anon-box and singular-IFC paths), `selection::drag::begin` engaged for atomic-inline-block sentinel positions (now gated on `node_type() == Text`).
+- **Phase 5** — Full CSS 2.1 §8.3.1: adjacent-sibling collapse via `MarginAccumulator` (`max(positives) + min(negatives)`), parent-first/last-child collapse with new-BFC/padding/border blockers, empty-block collapse-through, full upward propagation via `accumulate_outer_top_margin` / `accumulate_outer_bottom_margin` (the chain walk that the grandparent uses, not just local suppression).
+- **Phase 6** — CSS 2.1 §10.5 + §10.6.3 height. `BlockMeasurement` returned from block-flow dispatch only (`Option<BlockMeasurement>` after Phase 9 review); `layout_node` applies margin-collapse-aware content extent for `Auto` height (gated on parent's flow being Block, not flex, and element not being out-of-flow positioned). Percent height walks `nearest_block_ancestor_height_is_definite` (iterative after Phase 9 review). CSS3 Box Alignment Module `row-gap` between block-level element children.
+- **Phase 7** — 62 named block-flow tests in `block_tests.rs`, snapshot audit of all 17 .snap files.
+- **Phase 8** — DESIGN.md "Layout passes" section, DIVERGENCES.md retired the BFC-1-obsoleted entries (anonymous-inline-boxes / inline-block-disqualifies-IFC) and added explicit no-floats entry, TECH_DEBT.md retired `BFC-1` + `SUB-2` + `IFC-MIXED-TEXT-INLINEBLOCK-1`, Demo trait gained "Default flow is block; opt into flex with `display: flex`" authoring rule.
+- **Phase 9** — Grumpy chief architect review surfaced 5 blocking findings + 7 non-blocking + 5 test-coverage gaps. Three blocking items addressed in this commit: iterative `nearest_block_ancestor_height_is_definite` (closes the unbounded-recursion concern), `layout_children` returns `Option<BlockMeasurement>` (only the block path produces one — moves the "valid for Block flow only" invariant into the type), explicit regression tests for vertical-auto-margin (resolves to 0 per §8.3) and anon-block-box-margin-boundary. Perf bench `benches/block_layout.rs` confirms block layout is on par with flex on equivalent content (254µs vs 253µs on a 100-paragraph document); margin-collapse-deep chains complete in 14µs. Remaining grumpy findings filed as `BFC1-PERF-MARGIN-CHAIN-1`, `BFC1-PERF-INLINE-FLOW-LOOKUP-1`, `BFC1-CODE-BLOCK-SPLIT-1`, `BFC1-CODE-ATOMIC-IB-DUP-1`, `BFC1-CODE-COLLAPSE-INSETS-1`, `BFC1-MARGIN-PERCENT-1`, `BFC1-AUTO-HEIGHT-ORDERING-1` in TECH_DEBT.md with characterization for each.
+
+Workspace state: 2574 tests pass; clippy + fmt clean across the workspace. Block layout fully matches the relevant CSS specs (§9, §10, §17.6.3, Box Alignment Module) within the rdom TUI substrate scope. Authors can write semantic HTML now and get web-platform behavior.
 
 ### 2026-05-25 — Substrate fix: M5-MIN-CONTENT-1 retired (flex items default to content-min floor)
 

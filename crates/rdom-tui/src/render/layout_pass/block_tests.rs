@@ -1945,6 +1945,98 @@ fn auto_height_block_with_overflow_hidden_includes_descendant_margins() {
     );
 }
 
+// ── Phase 9: grumpy-review follow-ups ────────────────────────────
+
+#[test]
+fn vertical_auto_margin_resolves_to_zero_not_distribution() {
+    // CSS 2.1 §8.3: `margin-top: auto` and `margin-bottom: auto`
+    // on a block-level box collapse to 0. Auto distribution is
+    // INLINE-axis only — vertical autos don't absorb leftover
+    // space.
+    let mut dom = dom();
+    let root = dom.root();
+    let parent = dom.create_element("p");
+    let a = dom.create_element("a");
+    let b = dom.create_element("b");
+    dom.append_child(parent, a).unwrap();
+    dom.append_child(parent, b).unwrap();
+    dom.append_child(root, parent).unwrap();
+
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "a",
+            // margin-top: auto, margin-bottom: auto. Both → 0.
+            TuiStyle::new().height(Size::Fixed(2)).margin(Margin::new(
+                MarginValue::Auto,
+                MarginValue::Cells(0),
+                MarginValue::Auto,
+                MarginValue::Cells(0),
+            )),
+        )
+        .rule_unchecked("b", TuiStyle::new().height(Size::Fixed(3)));
+    cascade(&mut dom, &sheet);
+    run_block(&mut dom, parent, LayoutRect::new(0, 0, 80, 24));
+
+    // a's auto margins collapse to 0. b stacks at y=2 (a's bottom).
+    assert_eq!(layout_of(&dom, a).y, 0);
+    assert_eq!(layout_of(&dom, b).y, 2);
+}
+
+#[test]
+fn anonymous_block_box_does_not_collapse_margins_with_adjacent_block() {
+    // Anonymous block boxes wrap inline runs in mixed content.
+    // They have zero margins of their own and reset the margin
+    // accumulator at their boundary — so an adjacent real block
+    // sibling's margin DOES NOT collapse through the anon box
+    // with whatever margin was upstream of it. Pin this contract
+    // explicitly.
+    let mut dom = dom();
+    let root = dom.root();
+    let parent = dom.create_element("p");
+    let a = dom.create_element("a");
+    let txt = dom.create_text_node("inline text");
+    let b = dom.create_element("b");
+    dom.append_child(parent, a).unwrap();
+    dom.append_child(parent, txt).unwrap();
+    dom.append_child(parent, b).unwrap();
+    dom.append_child(root, parent).unwrap();
+
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "a",
+            TuiStyle::new().height(Size::Fixed(1)).margin(Margin::new(
+                MarginValue::Cells(0),
+                MarginValue::Cells(0),
+                MarginValue::Cells(5),
+                MarginValue::Cells(0),
+            )),
+        )
+        .rule_unchecked(
+            "b",
+            TuiStyle::new().height(Size::Fixed(1)).margin(Margin::new(
+                MarginValue::Cells(3),
+                MarginValue::Cells(0),
+                MarginValue::Cells(0),
+                MarginValue::Cells(0),
+            )),
+        );
+    cascade(&mut dom, &sheet);
+    run_block(&mut dom, parent, LayoutRect::new(0, 0, 80, 24));
+
+    // a at y=0, h=1.
+    // a.mb=5 flushes against anon box (accumulator resets at anon
+    // boundary, but a.mb was applied to the anon's top via
+    // `resolved_gap`). So anon sits at y=1+5=6. anon height = 1
+    // line (one row of text). b starts after anon: y_cursor was
+    // set to anon_y + 1 = 7. b.mt=3 applies (accumulator started
+    // fresh after anon). b at y=7+3=10.
+    assert_eq!(
+        layout_of(&dom, b).y,
+        10,
+        "anon-block boundary prevents A.mb from collapsing with B.mt — anon takes A.mb on its top, B.mt applies fresh"
+    );
+}
+
 // ── Phase 7: extended coverage (WPT-style scenarios) ─────────────
 
 // ── 7a — Margin collapse edge cases ──────────────────────────────

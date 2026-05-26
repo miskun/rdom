@@ -212,7 +212,8 @@ pub(super) fn layout_node(dom: &mut Dom<TuiExt>, id: NodeId, outer_rect: LayoutR
         .parent_node()
         .and_then(|p| {
             use crate::node::TuiNodeExt;
-            p.tui_ext().and_then(|e| e.computed.as_ref().map(|c| c.flow))
+            p.tui_ext()
+                .and_then(|e| e.computed.as_ref().map(|c| c.flow))
         })
         .map(|f| matches!(f, crate::layout::Flow::Block))
         .unwrap_or(true);
@@ -225,7 +226,8 @@ pub(super) fn layout_node(dom: &mut Dom<TuiExt>, id: NodeId, outer_rect: LayoutR
         computed.position,
         crate::layout::Position::Absolute | crate::layout::Position::Fixed
     );
-    if matches!(computed.height, crate::layout::Size::Auto)
+    if let Some(measurement) = measurement
+        && matches!(computed.height, crate::layout::Size::Auto)
         && matches!(computed.flow, crate::layout::Flow::Block)
         && parent_is_block_flow
         && !is_out_of_flow_positioned
