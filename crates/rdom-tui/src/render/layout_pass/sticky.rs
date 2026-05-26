@@ -187,8 +187,7 @@ fn nearest_scrollport(dom: &Dom<TuiExt>, id: NodeId) -> Option<(NodeId, LayoutRe
                 // shift the sticky pin threshold 1 row earlier on each
                 // expanded edge.
                 let border = computed.map(|c| c.border).unwrap_or_default();
-                let scrollport =
-                    rdom_style::layout::compute_padding_box(ext.layout, border);
+                let scrollport = rdom_style::layout::compute_padding_box(ext.layout, border);
                 return Some((p.id(), scrollport));
             }
         }

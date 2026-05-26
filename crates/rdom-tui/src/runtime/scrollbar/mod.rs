@@ -110,14 +110,16 @@ fn check_element(dom: &TuiDom, id: NodeId, x: u16, y: u16) -> Option<ScrollbarHi
     // to padding-box rows; minus one row for the corner if horizontal
     // also reserves.
     let v_top = content.y.max(padding_box.y);
-    let mut v_bottom = (content.y + content.height as i32).min(padding_box.y + padding_box.height as i32);
+    let mut v_bottom =
+        (content.y + content.height as i32).min(padding_box.y + padding_box.height as i32);
     if x_reserves {
         v_bottom -= 1;
     }
     let in_v_rows = (y as i32) >= v_top && (y as i32) < v_bottom;
 
     let h_left = content.x.max(padding_box.x);
-    let mut h_right = (content.x + content.width as i32).min(padding_box.x + padding_box.width as i32);
+    let mut h_right =
+        (content.x + content.width as i32).min(padding_box.x + padding_box.width as i32);
     if y_reserves {
         h_right -= 1;
     }

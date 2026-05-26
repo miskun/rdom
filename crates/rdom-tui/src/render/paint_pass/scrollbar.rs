@@ -176,23 +176,23 @@ pub(super) fn paint_scrollbars(
     // for the track; `┃` vs `━` for the thumb). Resolve per-axis at
     // the call sites below.
 
-    // CSS `scrollbar-gutter`: `Scroll` axes always reserve a
-    // gutter (and paint the track inside it). `Auto` axes only
-    // reserve when `scrollbar-gutter: stable` is set; otherwise
-    // the track overlays the rightmost content column / bottom
-    // content row when a scrollbar appears. This must agree with
-    // `layout_pass::reserve_scrollbar_gutter`'s decision.
-    use crate::layout::ScrollbarGutter;
-    let reserves = |o: Overflow| match o {
-        Overflow::Scroll => true,
-        Overflow::Auto => matches!(computed.scrollbar_gutter, ScrollbarGutter::Stable),
-        Overflow::Hidden | Overflow::Visible => false,
-    };
-    let y_gutter = reserves(computed.overflow_y);
-    let x_gutter = reserves(computed.overflow_x);
-
-    let y_paints = matches!(computed.overflow_y, Overflow::Scroll | Overflow::Auto);
-    let x_paints = matches!(computed.overflow_x, Overflow::Scroll | Overflow::Auto);
+    // Both axes always reserve their gutter when the scrollbar
+    // actually paints — see `layout_pass::reserve_scrollbar_gutter`
+    // and its two-pass companion for `Auto`. We only need to know
+    // whether the OTHER axis also paints so the bottom-right corner
+    // stays unclaimed.
+    let y_paints = matches!(computed.overflow_y, Overflow::Scroll | Overflow::Auto)
+        && should_paint(
+            computed.overflow_y,
+            content_layout.height as usize,
+            content_h,
+        );
+    let x_paints = matches!(computed.overflow_x, Overflow::Scroll | Overflow::Auto)
+        && should_paint(
+            computed.overflow_x,
+            content_layout.width as usize,
+            content_w,
+        );
 
     if y_paints {
         let (track_glyph, track_style) =
@@ -205,8 +205,7 @@ pub(super) fn paint_scrollbars(
             buf,
             content_layout,
             padding_box,
-            x_gutter,
-            y_gutter,
+            x_paints,
             computed.overflow_y,
             scroll_y,
             content_h,
@@ -218,10 +217,8 @@ pub(super) fn paint_scrollbars(
         );
     }
     if x_paints {
-        let (track_glyph, track_style) = track_cell(
-            ext.computed_scrollbar.as_ref(),
-            ScrollbarAxis::Horizontal,
-        );
+        let (track_glyph, track_style) =
+            track_cell(ext.computed_scrollbar.as_ref(), ScrollbarAxis::Horizontal);
         let (thumb_glyph, thumb_style) = thumb_cell(
             ext.computed_scrollbar_thumb.as_ref(),
             ScrollbarAxis::Horizontal,
@@ -230,8 +227,7 @@ pub(super) fn paint_scrollbars(
             buf,
             content_layout,
             padding_box,
-            y_gutter,
-            x_gutter,
+            y_paints,
             computed.overflow_x,
             scroll_x,
             content_w,
@@ -250,7 +246,6 @@ fn paint_vertical_scrollbar(
     content: LayoutRect,
     padding_box: LayoutRect,
     has_h_scrollbar: bool,
-    self_reserves_gutter: bool,
     overflow: Overflow,
     scroll_offset: usize,
     content_size: usize,
@@ -260,20 +255,14 @@ fn paint_vertical_scrollbar(
     thumb_glyph: &str,
     thumb_style: Style,
 ) {
-    // Track column placement depends on `scrollbar-gutter` and uses
-    // `content_layout` because `reserve_scrollbar_gutter` already
-    // shrunk it by 1 cell when the gutter is reserved:
-    // - Reserved (`stable` or `Scroll` overflow): track lives at
-    //   `content.right()` — the dedicated gutter column.
-    // - Not reserved (`auto` + `Auto` overflow): track overlays
-    //   the rightmost content column at `content.right() - 1`.
-    //   Content cells at that column get overwritten when the
-    //   scrollbar shows. Matches CSS `scrollbar-gutter: auto`.
-    let track_x_signed = if self_reserves_gutter {
-        content.x + content.width as i32
-    } else {
-        content.x + content.width as i32 - 1
-    };
+    // Track column = the dedicated gutter cell at `content.right()`.
+    // The layout pass guarantees the gutter is reserved (via either
+    // `Scroll` always-reserves, `Auto + scrollbar-gutter: stable`, or
+    // `Auto`'s two-pass force-reserve when overflow is detected).
+    // CSS Overflow 3 §3 + the TUI medium constraint (no cell overlay)
+    // mean overlay positioning is unreachable for paint — by the
+    // time the scrollbar actually paints, its column belongs to it.
+    let track_x_signed = content.x + content.width as i32;
     let track_x = track_x_signed as i64;
     if track_x < clip.x as i64 || track_x >= clip.right() as i64 {
         return;
@@ -324,7 +313,6 @@ fn paint_horizontal_scrollbar(
     content: LayoutRect,
     padding_box: LayoutRect,
     has_v_scrollbar: bool,
-    self_reserves_gutter: bool,
     overflow: Overflow,
     scroll_offset: usize,
     content_size: usize,
@@ -334,13 +322,10 @@ fn paint_horizontal_scrollbar(
     thumb_glyph: &str,
     thumb_style: Style,
 ) {
-    // Track row placement — symmetric to vertical case. See
-    // `paint_vertical_scrollbar` for the rationale.
-    let track_y_signed = if self_reserves_gutter {
-        content.y + content.height as i32
-    } else {
-        content.y + content.height as i32 - 1
-    };
+    // Track row = the dedicated gutter row at `content.bottom()`.
+    // Mirror of the vertical case — layout guarantees reservation by
+    // the time paint runs.
+    let track_y_signed = content.y + content.height as i32;
     let track_y = track_y_signed as i64;
     if track_y < clip.y as i64 || track_y >= clip.bottom() as i64 {
         return;

@@ -262,6 +262,52 @@ pub(super) fn layout_node(dom: &mut Dom<TuiExt>, id: NodeId, outer_rect: LayoutR
     // can't tell viewport from content size, so the thumb fills
     // the whole track regardless of overflow state.
     record_scroll_content_size(dom, id, inner, &computed);
+
+    // Two-pass classic scrollbar (CSS Overflow 3 §3): for `Auto`
+    // axes without `scrollbar-gutter: stable`, we couldn't decide
+    // at pass-1 time whether the scrollbar would be visible. Now
+    // that `scroll_content_*` is known, force-reserve the gutter
+    // on any Auto axis that actually overflowed, then redo the
+    // children's layout one cell narrower / shorter. TUI cells
+    // can't be overlay-composited — the spec's "classic platform
+    // = scrollbars consume space when present" path is the only
+    // one available to us, and pass 2 is how we honor it.
+    //
+    // Convergent in two passes: a narrower viewport can only
+    // increase overflow, never decrease it, so the second pass's
+    // gutter decision sticks.
+    use crate::layout::ScrollbarGutter;
+    let auto_no_stable_y = matches!(computed.overflow_y, Overflow::Auto)
+        && !matches!(computed.scrollbar_gutter, ScrollbarGutter::Stable);
+    let auto_no_stable_x = matches!(computed.overflow_x, Overflow::Auto)
+        && !matches!(computed.scrollbar_gutter, ScrollbarGutter::Stable);
+    if auto_no_stable_y || auto_no_stable_x {
+        let (overflow_y, overflow_x) = match dom.node(id).ext() {
+            Some(ext) => (
+                auto_no_stable_y && ext.scroll_content_height > inner.height as usize,
+                auto_no_stable_x && ext.scroll_content_width > inner.width as usize,
+            ),
+            None => (false, false),
+        };
+        if overflow_y || overflow_x {
+            // Recompute inner from scratch (pass-1 inner already had
+            // Scroll / Stable gutters applied; we add the Auto
+            // gutter on top via the force flags).
+            let inner_full = compute_content_area_collapsed(
+                outer_rect,
+                computed.padding.clone(),
+                computed.border,
+                computed.border_collapse,
+            );
+            let inner_v2 =
+                reserve_scrollbar_gutter_forced(inner_full, &computed, overflow_y, overflow_x);
+            if let Some(ext) = dom.node_mut(id).ext_mut() {
+                ext.content_layout = inner_v2;
+            }
+            let _ = layout_children(dom, id, inner_v2, &computed);
+            record_scroll_content_size(dom, id, inner_v2, &computed);
+        }
+    }
 }
 
 /// Walk `id`'s direct element children (transparently descending
@@ -424,15 +470,28 @@ pub(super) fn parent_scroll(dom: &Dom<TuiExt>, children: &[NodeId], direction: D
 ///
 /// When both reserve, the bottom-right corner cell is unclaimed
 /// by either strip — paint leaves it blank.
-pub(super) fn reserve_scrollbar_gutter(inner: LayoutRect, computed: &ComputedStyle) -> LayoutRect {
+///
+/// `force_y` / `force_x` override the cascade decision for `Auto`
+/// axes — used by `layout_node`'s two-pass re-layout when overflow
+/// was detected in pass 1. `Scroll` always reserves regardless; CSS
+/// Overflow 3 §3 "classic" semantic for `Auto` ("consumes space when
+/// present") needs the override because at the time of pass 1 the
+/// substrate doesn't yet know if overflow will exist. Two-pass:
+/// measure → if overflow on an Auto axis, force-reserve in pass 2.
+pub(super) fn reserve_scrollbar_gutter_forced(
+    inner: LayoutRect,
+    computed: &ComputedStyle,
+    force_y: bool,
+    force_x: bool,
+) -> LayoutRect {
     use crate::layout::ScrollbarGutter;
-    let reserves = |o: Overflow| match o {
+    let reserves = |o: Overflow, force: bool| match o {
         Overflow::Scroll => true,
-        Overflow::Auto => matches!(computed.scrollbar_gutter, ScrollbarGutter::Stable),
+        Overflow::Auto => force || matches!(computed.scrollbar_gutter, ScrollbarGutter::Stable),
         Overflow::Hidden | Overflow::Visible => false,
     };
-    let reserve_y = reserves(computed.overflow_y);
-    let reserve_x = reserves(computed.overflow_x);
+    let reserve_y = reserves(computed.overflow_y, force_y);
+    let reserve_x = reserves(computed.overflow_x, force_x);
     LayoutRect::new(
         inner.x,
         inner.y,
@@ -447,4 +506,12 @@ pub(super) fn reserve_scrollbar_gutter(inner: LayoutRect, computed: &ComputedSty
             inner.height
         },
     )
+}
+
+/// Pass-1 gutter reservation — Scroll always, Auto only if
+/// `scrollbar-gutter: stable`. `Auto` without `stable` waits for
+/// overflow detection then forces the gutter in pass 2 via
+/// [`reserve_scrollbar_gutter_forced`].
+pub(super) fn reserve_scrollbar_gutter(inner: LayoutRect, computed: &ComputedStyle) -> LayoutRect {
+    reserve_scrollbar_gutter_forced(inner, computed, false, false)
 }

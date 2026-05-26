@@ -174,9 +174,12 @@ fn scrollbar_gutter_excludes_border_row_under_collapse() {
 
     let ext = dom.node(parent).tui_ext().expect("parent ext");
     let content = ext.content_layout;
-    // For overflow: auto without scrollbar-gutter: stable, the track
-    // overlays the rightmost content column at content.right() - 1.
-    let track_x = (content.x + content.width as i32 - 1) as u16;
+    // CSS Overflow 3 §3 classic-platform model: the scrollbar lives
+    // in the reserved gutter at content.right (= content.x +
+    // content.width). The two-pass layout shrinks `content.width` by
+    // 1 when overflow is detected, so the gutter sits in its own
+    // dedicated column — no overlay over content.
+    let track_x = (content.x + content.width as i32) as u16;
 
     let buf = paint(&dom);
 
@@ -414,6 +417,139 @@ fn scroll_top_clamp_uses_padding_box_viewport() {
         actual, expected_max,
         "scrollTop max = scroll_content_height ({scroll_content_h}) - \
          padding_box_height ({padding_box_h}) = {expected_max}; got {actual}"
+    );
+}
+
+// ── Two-pass auto-gutter (classic scrollbar) ────────────────────────
+
+#[test]
+fn overflow_auto_no_overflow_does_not_reserve_gutter() {
+    // CSS Overflow 3: `scrollbar-gutter: auto` (default) means
+    // "classic if platform is classic, overlay if platform is overlay."
+    // TUI is structurally classic (no cell-overlay possible). The
+    // classic semantic is: scrollbar consumes space ONLY when present.
+    // No overflow → no scrollbar → content uses every cell.
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let parent = dom.create_element("parent_el");
+    let child = dom.create_element("child_el");
+    dom.append_child(root, parent).unwrap();
+    dom.append_child(parent, child).unwrap();
+
+    let css = r#"
+        parent_el {
+            display: block;
+            width: 20;
+            height: 10;
+            overflow-y: auto;
+        }
+        child_el {
+            display: block;
+            width: 20;
+            height: 5;
+        }
+    "#;
+    let sheet = rdom_css::from_css(css);
+    dom.cascade(&sheet);
+    dom.layout_dom(Rect::new(0, 0, 30, 12));
+
+    let ext = dom.node(parent).tui_ext().unwrap();
+    // No overflow → no gutter → content_layout uses full inner width
+    // (= outer width here since no border / padding).
+    assert_eq!(
+        ext.content_layout.width, 20,
+        "no overflow on Auto axis → no gutter reserved, content uses \
+         every cell (CSS Overflow 3 classic-platform behavior)"
+    );
+}
+
+#[test]
+fn overflow_auto_with_overflow_reserves_gutter_after_two_pass() {
+    // The two-pass fix: when overflow IS detected on an Auto axis
+    // without `scrollbar-gutter: stable`, the substrate redoes the
+    // layout with the gutter forced on. Content reflows one cell
+    // narrower; scrollbar lives in its dedicated column. No cell-
+    // overlay (impossible in a TUI medium) and no bg "under" the
+    // scrollbar.
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let parent = dom.create_element("parent_el");
+    let child = dom.create_element("child_el");
+    dom.append_child(root, parent).unwrap();
+    dom.append_child(parent, child).unwrap();
+
+    // Child uses default block width (= fills parent) so we can
+    // observe the pass-2 reflow. An explicit `width` on the child
+    // would *not* shrink (CSS block-formula respects explicit width)
+    // — that overflow on the cross axis is its own concern.
+    let css = r#"
+        parent_el {
+            display: block;
+            width: 20;
+            height: 6;
+            overflow-y: auto;
+        }
+        child_el {
+            display: block;
+            height: 20;
+        }
+    "#;
+    let sheet = rdom_css::from_css(css);
+    dom.cascade(&sheet);
+    dom.layout_dom(Rect::new(0, 0, 30, 12));
+
+    let ext = dom.node(parent).tui_ext().unwrap();
+    // Overflow detected (child 20 tall vs viewport 6) → gutter
+    // reserved → content width drops by 1.
+    assert_eq!(
+        ext.content_layout.width, 19,
+        "overflow detected on Auto axis → gutter reserved in pass 2 \
+         (CSS Overflow 3: 'classic scrollbars consume space when \
+         present'); content width = outer.width - 1"
+    );
+    // Auto-width block child reflows to the narrower viewport.
+    let child_w = dom.node(child).tui_ext().unwrap().layout.width;
+    assert_eq!(
+        child_w, 19,
+        "auto-width block child reflowed to (parent content_layout.width \
+         after gutter reservation); got {child_w}"
+    );
+}
+
+#[test]
+fn overflow_auto_horizontal_axis_reserves_gutter_when_overflow() {
+    // Mirror of the vertical case on overflow-x.
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let parent = dom.create_element("parent_el");
+    let child = dom.create_element("child_el");
+    dom.append_child(root, parent).unwrap();
+    dom.append_child(parent, child).unwrap();
+
+    let css = r#"
+        parent_el {
+            display: block;
+            width: 12;
+            height: 10;
+            overflow-x: auto;
+        }
+        child_el {
+            display: block;
+            width: 50;
+            height: 5;
+        }
+    "#;
+    let sheet = rdom_css::from_css(css);
+    dom.cascade(&sheet);
+    dom.layout_dom(Rect::new(0, 0, 60, 12));
+
+    let ext = dom.node(parent).tui_ext().unwrap();
+    // Horizontal overflow → reserve 1 row of height for the
+    // horizontal scrollbar gutter.
+    assert_eq!(
+        ext.content_layout.height, 9,
+        "overflow detected on Auto horizontal axis → gutter reserved, \
+         content height = outer.height - 1"
     );
 }
 

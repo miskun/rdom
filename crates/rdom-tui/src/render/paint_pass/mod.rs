@@ -340,8 +340,7 @@ fn paint_node(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect) {
         // for every scroll container, no collapse exception. Reading
         // `content_layout` here lets scrolled children's bg overpaint
         // the parent's border row.
-        layout_rect_to_grid(padding_box, clip)
-            .unwrap_or_else(|| Rect::new(clip.x, clip.y, 0, 0))
+        layout_rect_to_grid(padding_box, clip).unwrap_or_else(|| Rect::new(clip.x, clip.y, 0, 0))
     } else {
         clip
     };

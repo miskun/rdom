@@ -951,7 +951,9 @@ fn paint_with_scroll_content(
     let mut dom: TuiDom = TuiDom::new();
     let root = dom.root();
     let c = dom.create_element("c");
+    let inner = dom.create_element("inner");
     dom.append_child(root, c).unwrap();
+    dom.append_child(c, inner).unwrap();
 
     let mut rule = TuiStyle::new()
         .width(Size::Fixed(10))
@@ -962,21 +964,18 @@ fn paint_with_scroll_content(
     if let Some(o) = overflow_x {
         rule = rule.overflow_x(o);
     }
-    let sheet = Stylesheet::bare().rule_unchecked("c", rule);
+    // Real child sized to the requested content extent — drives the
+    // layout pass to record the matching `scroll_content_*` AND lets
+    // the `Overflow::Auto` two-pass detect overflow naturally
+    // (synthetic post-layout injection bypasses the pass-2 trigger).
+    let inner_rule = TuiStyle::new()
+        .width(Size::Fixed(content_w as u16))
+        .height(Size::Fixed(content_h as u16));
+    let sheet = Stylesheet::bare()
+        .rule_unchecked("c", rule)
+        .rule_unchecked("inner", inner_rule);
 
-    let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 12, 8));
-
-    // Set scroll_content_* on the ext after layout. Layout would
-    // normally populate these from children; for the test we
-    // inject so should_paint sees overflow.
-    drop(buf); // We need to re-paint with the scroll_content set.
-    if let Some(ext) = dom.node_mut(c).ext_mut() {
-        ext.scroll_content_width = content_w;
-        ext.scroll_content_height = content_h;
-    }
-    let mut buf2 = Buffer::empty(Rect::new(0, 0, 12, 8));
-    dom.paint_dom(&mut buf2, Rect::new(0, 0, 12, 8));
-    buf2
+    pipeline(&mut dom, &sheet, Rect::new(0, 0, 12, 8))
 }
 
 #[test]
