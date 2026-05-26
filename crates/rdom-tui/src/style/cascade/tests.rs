@@ -152,9 +152,9 @@ fn ua_rule_loses_to_author() {
     let (mut dom, div) = dom_with_div();
     dom.set_attribute(div, "disabled", "").unwrap();
 
-    // Plain UA: disabled div takes the muted gray fg.
+    // Plain UA: disabled div takes the muted fg (lens TextMuted).
     dom.cascade(&Stylesheet::new());
-    assert_eq!(computed_of(&dom, div).fg, Color::Rgb(128, 128, 128));
+    assert_eq!(computed_of(&dom, div).fg, Color::Rgb(127, 134, 139));
 
     // Author override at same specificity, later in source order → wins.
     let sheet =
@@ -467,11 +467,13 @@ fn focus_pseudo_affects_cascade() {
 
 #[test]
 fn ua_disabled_rule_mutes_by_default() {
-    // T8: `[disabled]` UA rule sets `fg: gray` (was `dim: true` pre-T8).
+    // T8: `[disabled]` UA rule sets `fg: TEXT_MUTED` (lens TextMuted
+    // #7F868B — was `dim: true` pre-T8, briefly CSS gray pre-palette
+    // refresh).
     let (mut dom, div) = dom_with_div();
     dom.set_attribute(div, "disabled", "").unwrap();
     dom.cascade(&Stylesheet::new());
-    assert_eq!(computed_of(&dom, div).fg, Color::Rgb(128, 128, 128));
+    assert_eq!(computed_of(&dom, div).fg, Color::Rgb(127, 134, 139));
 }
 
 #[test]
@@ -1169,9 +1171,9 @@ fn ua_blockquote_has_left_rail_and_is_muted() {
         "blockquote needs 1 cell padding"
     );
     assert_eq!(c.border, Border::left(), "blockquote shows `│` rail");
-    // T8: blockquote text is muted via `fg: gray`, not the deleted
-    // `dim` modifier.
-    assert_eq!(c.fg, Color::Rgb(128, 128, 128));
+    // T8: blockquote text is muted via `fg: TEXT_MUTED` (lens
+    // TextMuted #7F868B), not the deleted `dim` modifier.
+    assert_eq!(c.fg, Color::Rgb(127, 134, 139));
 }
 
 #[test]
@@ -1191,9 +1193,9 @@ fn ua_figcaption_is_italic_muted_block() {
     let c = ua_computed_for("figcaption");
     assert_eq!(c.display, Display::Block);
     assert!(c.modifiers.contains(Modifier::ITALIC));
-    // T8: figcaption is muted via `fg: gray`, not the deleted `dim`
-    // modifier.
-    assert_eq!(c.fg, Color::Rgb(128, 128, 128));
+    // T8: figcaption is muted via `fg: TEXT_MUTED` (lens TextMuted
+    // #7F868B), not the deleted `dim` modifier.
+    assert_eq!(c.fg, Color::Rgb(127, 134, 139));
 }
 
 #[test]
@@ -1342,9 +1344,9 @@ fn placeholder_shown_triggers_before_content_with_placeholder_text() {
     use crate::node::TuiNodeExt;
     let before = dom.node(inp).computed_before().cloned().unwrap();
     assert_eq!(before.content.as_deref(), Some("Search"));
-    // T8: placeholder is muted via `fg: gray`, not the deleted `dim`
-    // modifier.
-    assert_eq!(before.fg, Color::Rgb(128, 128, 128));
+    // T8: placeholder is muted via `fg: TEXT_MUTED` (lens TextMuted
+    // #7F868B), not the deleted `dim` modifier.
+    assert_eq!(before.fg, Color::Rgb(127, 134, 139));
 }
 
 #[test]

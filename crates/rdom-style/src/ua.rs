@@ -42,13 +42,16 @@ use crate::{Color, Content, TuiStyle};
 /// (just visible enough to mark the field affordance). On light
 /// terminals it's a dark rectangle.
 const FIELD_BG: Color = Color::Rgb(0x1f, 0x21, 0x23);
-/// Muted text — gray per CSS Color Level 4 (#808080). Replaces
-/// the dim modifier across the UA (disabled, placeholder, small,
-/// abbr, blockquote text, etc.).
-const MUTED_FG: Color = named::GRAY;
-/// Dim border / rail — dimgray (#696969). Used for blockquote
-/// rail, hr rule, scrollbar track, subtle row highlights.
-const RAIL: Color = named::DIMGRAY;
+/// Muted text — #7F868B (lens-k8s-tui `TextMuted`). Cool gray that
+/// reads as supporting prose against both light and dark surfaces.
+/// Used for `[disabled]`, placeholder, `<small>`, `<abbr>`,
+/// blockquote text, scrollbar glyphs, helper text, etc.
+const TEXT_MUTED: Color = Color::Rgb(0x7F, 0x86, 0x8B);
+/// Default border — #3B4042 (lens-k8s-tui `BorderDefault`). Subtle
+/// gray for box-drawing borders and `<hr>` rules — distinct from
+/// `TEXT_MUTED` so a border next to muted text still reads as
+/// chrome rather than as more text.
+const BORDER_DEFAULT: Color = Color::Rgb(0x3B, 0x40, 0x42);
 /// Accent — dodgerblue (#1E90FF). Vivid on both light and dark
 /// terminals. Replaces every former `ACCENT` use:
 /// link fg, kbd, button fg, dialog border, focus glyph, select
@@ -80,7 +83,7 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
         // disabled-specific plumbing.
         (
             "[disabled]",
-            TuiStyle::new().fg(MUTED_FG).user_select(UserSelect::None),
+            TuiStyle::new().fg(TEXT_MUTED).user_select(UserSelect::None),
         ),
         // Global `hidden` attribute — HTML treats it as a boolean,
         // so the selector is `[hidden]` (not `[hidden=""]`). Any
@@ -172,13 +175,13 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
             TuiStyle::new()
                 .display(Display::Inline)
                 .text_decoration(TextDecoration::Underline)
-                .fg(MUTED_FG),
+                .fg(TEXT_MUTED),
         ),
         // Small text — browser renders at reduced font size; the TUI
         // doesn't shrink, so we substitute muted fg.
         (
             "small",
-            TuiStyle::new().display(Display::Inline).fg(MUTED_FG),
+            TuiStyle::new().display(Display::Inline).fg(TEXT_MUTED),
         ),
         // Pure-inline (no specific style, just the Display hint).
         ("sub", TuiStyle::new().display(Display::Inline)),
@@ -234,8 +237,8 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
                 .display(Display::Block)
                 .padding(Padding::new(0, 0, 0, 1))
                 .border(Border::left())
-                .border_fg(RAIL)
-                .fg(MUTED_FG),
+                .border_fg(BORDER_DEFAULT)
+                .fg(TEXT_MUTED),
         ),
         // Thematic break — `─` rule across the available width
         // via a `Border::top()` on a 1-row block. `Border::top()`
@@ -248,7 +251,7 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
                 .display(Display::Block)
                 .height(Size::Fixed(1))
                 .border(Border::top())
-                .border_fg(RAIL),
+                .border_fg(BORDER_DEFAULT),
         ),
         // Figures.
         ("figure", TuiStyle::new().display(Display::Block)),
@@ -257,7 +260,7 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
             TuiStyle::new()
                 .display(Display::Block)
                 .italic(true)
-                .fg(MUTED_FG),
+                .fg(TEXT_MUTED),
         ),
         // ── Block structural (sectioning) ──
         // These are pure semantic containers — default display
@@ -475,13 +478,13 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
             "input:placeholder-shown::before",
             TuiStyle::new()
                 .content(Content::Attr("placeholder".into()))
-                .fg(MUTED_FG),
+                .fg(TEXT_MUTED),
         ),
         (
             "textarea:placeholder-shown::before",
             TuiStyle::new()
                 .content(Content::Attr("placeholder".into()))
-                .fg(MUTED_FG),
+                .fg(TEXT_MUTED),
         ),
         // ── Toggle widgets ──
         // `<input type="checkbox">` and `<input type="radio">`
@@ -607,10 +610,15 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
             TuiStyle::new().bg(ACCENT).fg(named::BLACK),
         ),
         (
+            // Option-highlight bg is inlined rather than borrowing
+            // `BORDER_DEFAULT` — "highlighted option" is a selection
+            // token, not a border token, even when the value happens
+            // to coincide today. Independent tokens shouldn't share
+            // a constant.
             "option[data-rdom-highlight]:not([selected])",
-            TuiStyle::new().bg(RAIL),
+            TuiStyle::new().bg(Color::Rgb(0x3B, 0x40, 0x42)),
         ),
-        ("option[disabled]", TuiStyle::new().fg(MUTED_FG)),
+        ("option[disabled]", TuiStyle::new().fg(TEXT_MUTED)),
         // `<optgroup>` — semantic grouping container. The
         // `label` attribute renders as a bold separator line
         // via a `::before` pseudo-element that uses
@@ -627,7 +635,7 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
             TuiStyle::new()
                 .content(Content::Attr("label".into()))
                 .bold(true)
-                .fg(MUTED_FG),
+                .fg(TEXT_MUTED),
         ),
         // ── Canvas ──
         // `<canvas>` is a raw-buffer escape hatch. When a
@@ -666,7 +674,7 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
             TuiStyle::new()
                 .display(Display::Block)
                 .italic(true)
-                .fg(MUTED_FG),
+                .fg(TEXT_MUTED),
         ),
         ("thead", TuiStyle::new().display(Display::Block)),
         ("tbody", TuiStyle::new().display(Display::Block)),
@@ -802,38 +810,47 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
         ),
         // ── Scrollbars ──
         // `::scrollbar` and `::scrollbar-thumb` paint inside the
-        // 1-cell gutter that `reserve_scrollbar_gutter` carved
-        // out. The UA ships a colored-gutter look: dark bg fills
-        // the whole track, a heavy-box handle glyph marks the
-        // thumb position in lighter fg on the same bg — track
-        // and thumb form one continuous rail with the handle
-        // visible against it.
+        // 1-cell gutter that `reserve_scrollbar_gutter` carved out.
+        // The UA ships a light/heavy two-glyph look: track renders
+        // `│` (U+2502 LIGHT VERTICAL) / `─` (U+2500 LIGHT HORIZONTAL),
+        // thumb renders `┃` (U+2503 HEAVY VERTICAL) / `━` (U+2501
+        // HEAVY HORIZONTAL), both in the same muted fg. No bg fill,
+        // so underlying content shows through the gutter — closer to
+        // the convention used by modern TUIs (helix, lazygit, gum).
+        // Glyph weight, not color, distinguishes track from thumb.
         //
-        // The thumb's `content` is deliberately UNSET on the UA
-        // rule; paint picks an axis-appropriate fallback glyph
-        // (`┃` U+2503 HEAVY VERTICAL for the y-axis scrollbar,
-        // `━` U+2501 HEAVY HORIZONTAL for the x-axis). Authors
-        // who set `content` get the literal glyph on both axes
-        // — picking a glyph that reads both ways (full block,
-        // half block, shaded blocks) is the documented path
-        // until `::scrollbar-thumb:vertical` / `:horizontal`
-        // pseudo-class targeting lands (tracked as `UA-SB-1`
-        // in `TECH_DEBT.md`).
+        // Both `content` properties are deliberately UNSET; paint
+        // picks the axis-appropriate fallback glyph
+        // (`paint_pass::scrollbar::FALLBACK_TRACK_V/H` and
+        // `FALLBACK_THUMB_V/H`). Authors who set `content` get the
+        // literal glyph on both axes — picking a glyph that reads
+        // both ways (full block, half block, shaded blocks) is the
+        // documented path until `::scrollbar:vertical` /
+        // `:horizontal` pseudo-class targeting lands (tracked as
+        // `UA-SB-1` in `TECH_DEBT.md`).
         //
         // Authors retheme by overriding either rule at any
         // specificity:
         //
-        //   *::scrollbar       { bg: Black }
+        //   *::scrollbar       { bg: Black; fg: White }
         //   *::scrollbar-thumb { content: "█"; fg: LightBlue }
         //
         // The `*` universal host is required because the parser
         // rejects bare `::scrollbar` (host-required, same rule
         // as `::before` / `::after` / `::backdrop` / `::selection`).
+        // Scrollbar fg is inlined (#7F868B) rather than borrowing a
+        // shared constant — even though the value coincides with
+        // `TEXT_MUTED` today, "scrollbar glyph color" and "muted
+        // text" are independent design tokens. A future tweak to one
+        // must not silently move the other.
         (
             "*::scrollbar",
-            TuiStyle::new().content(Content::Str(" ".into())).bg(RAIL),
+            TuiStyle::new().fg(Color::Rgb(0x7F, 0x86, 0x8B)),
         ),
-        ("*::scrollbar-thumb", TuiStyle::new().bg(RAIL).fg(MUTED_FG)),
+        (
+            "*::scrollbar-thumb",
+            TuiStyle::new().fg(Color::Rgb(0x7F, 0x86, 0x8B)),
+        ),
         // ── Selection ──
         // Distinct bg color for selected text so a 1-cell selection
         // is visually different from the caret cell next to it.
@@ -858,6 +875,7 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
 
 #[cfg(test)]
 mod tests {
+    use super::TEXT_MUTED;
     use crate::color::named;
     use crate::stylesheet::{Rule, RuleOrigin, Stylesheet};
     use crate::{TuiColor, Value};
@@ -883,7 +901,7 @@ mod tests {
             .expect("[disabled] rule must exist");
         assert_eq!(
             disabled.style.fg,
-            Some(Value::Specified(TuiColor::Literal(named::GRAY))),
+            Some(Value::Specified(TuiColor::Literal(TEXT_MUTED))),
         );
     }
 
@@ -979,13 +997,14 @@ mod tests {
             );
         }
 
-        // Muted text: small / abbr render with `fg: gray`.
+        // Muted text: small / abbr render with the UA muted-text
+        // color (`TEXT_MUTED` — lens `TextMuted`, #7F868B).
         for t in ["small", "abbr"] {
             let r = ua[t];
             assert_eq!(
                 r.style.fg,
-                Some(Value::Specified(TuiColor::Literal(named::GRAY))),
-                "<{t}> must use muted fg (gray)"
+                Some(Value::Specified(TuiColor::Literal(TEXT_MUTED))),
+                "<{t}> must use TEXT_MUTED fg"
             );
         }
         // <del> and <s> render with line-through, not dim.

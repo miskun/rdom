@@ -47,18 +47,23 @@ use crate::node::TuiNodeExt;
 use crate::render::{Buffer, Rect, Style};
 use crate::style::{Color, ComputedStyle};
 
-/// Fallback track glyph when no `::scrollbar { content }` rule
-/// supplies one. Empty space — the track reads as a colored
-/// gutter via `bg`, no foreground rail glyph. The UA stylesheet
-/// installs the canonical default; this fallback only fires for
-/// `Stylesheet::bare()` (UA-free) consumers.
-const FALLBACK_TRACK_CHAR: &str = " ";
+/// Vertical scrollbar track fallback glyph. `│` U+2502 BOX DRAWINGS
+/// LIGHT VERTICAL. Used when the cascade output for `::scrollbar`
+/// has no `content` property set (UA-default state). The light glyph
+/// pairs with the heavy thumb [`FALLBACK_THUMB_V`] — same color,
+/// different weight, gives the eye a clear track-vs-thumb signal
+/// without needing a bg fill.
+const FALLBACK_TRACK_V: &str = "│";
+
+/// Horizontal scrollbar track fallback glyph. `─` U+2500 BOX DRAWINGS
+/// LIGHT HORIZONTAL. Mirror of [`FALLBACK_TRACK_V`].
+const FALLBACK_TRACK_H: &str = "─";
 
 /// Vertical scrollbar thumb fallback glyph. `┃` U+2503 BOX
 /// DRAWINGS HEAVY VERTICAL. Used when the cascade output for
 /// `::scrollbar-thumb` has no `content` property set — which is
-/// the UA-default state: the UA rule supplies only `bg` + `fg`
-/// so the paint layer can pick the axis-appropriate glyph.
+/// the UA-default state: the UA rule supplies only `fg` so the
+/// paint layer can pick the axis-appropriate glyph.
 const FALLBACK_THUMB_V: &str = "┃";
 
 /// Horizontal scrollbar thumb fallback glyph. `━` U+2501 BOX
@@ -66,8 +71,9 @@ const FALLBACK_THUMB_V: &str = "┃";
 const FALLBACK_THUMB_H: &str = "━";
 
 /// Which scrollbar axis we're resolving styling for.
-/// Used to pick the right paint-level fallback thumb glyph when
-/// the cascade's `::scrollbar-thumb { content }` is unset.
+/// Used to pick the right paint-level fallback glyph when the
+/// cascade's `::scrollbar { content }` / `::scrollbar-thumb
+/// { content }` is unset.
 #[derive(Debug, Clone, Copy)]
 enum ScrollbarAxis {
     Vertical,
@@ -78,11 +84,20 @@ enum ScrollbarAxis {
 /// cell. Reads `::scrollbar` if cascade populated one; otherwise
 /// falls back to a minimal DarkGray-bg gutter so the scrollbar
 /// is visible even against a `Stylesheet::bare()` (no-UA)
-/// configuration. Track is axis-agnostic — bg color works the
-/// same vertically and horizontally.
-fn track_cell<'a>(pseudo: Option<&'a crate::style::ComputedStyle>) -> (&'a str, Style) {
+/// configuration. The track glyph IS axis-sensitive — the cascade
+/// exposes a single `::scrollbar` rule, and paint picks `│` for
+/// vertical and `─` for horizontal when `content` is unset (the
+/// UA-default state).
+fn track_cell<'a>(
+    pseudo: Option<&'a crate::style::ComputedStyle>,
+    axis: ScrollbarAxis,
+) -> (&'a str, Style) {
+    let fallback = match axis {
+        ScrollbarAxis::Vertical => FALLBACK_TRACK_V,
+        ScrollbarAxis::Horizontal => FALLBACK_TRACK_H,
+    };
     if let Some(p) = pseudo {
-        let glyph: &'a str = p.content.as_deref().unwrap_or(FALLBACK_TRACK_CHAR);
+        let glyph: &'a str = p.content.as_deref().unwrap_or(fallback);
         let mut style = Style::new();
         if p.bg != Color::Reset {
             style = style.bg(p.bg);
@@ -92,10 +107,7 @@ fn track_cell<'a>(pseudo: Option<&'a crate::style::ComputedStyle>) -> (&'a str, 
         }
         (glyph, style)
     } else {
-        (
-            FALLBACK_TRACK_CHAR,
-            Style::new().bg(Color::Rgb(169, 169, 169)),
-        )
+        (fallback, Style::new().bg(Color::Rgb(169, 169, 169)))
     }
 }
 
@@ -160,10 +172,9 @@ pub(super) fn paint_scrollbars(
     let (scroll_x, scroll_y) = (ext.scroll_x, ext.scroll_y);
     let (content_w, content_h) = (ext.scroll_content_width, ext.scroll_content_height);
 
-    // Track is axis-agnostic — resolve once.
-    let (track_glyph, track_style) = track_cell(ext.computed_scrollbar.as_ref());
-    // Thumb glyph IS axis-sensitive (`┃` vs `━` default).
-    // Resolve per-axis at the call site below.
+    // Both track and thumb glyphs are axis-sensitive (`│` vs `─`
+    // for the track; `┃` vs `━` for the thumb). Resolve per-axis at
+    // the call sites below.
 
     // CSS `scrollbar-gutter`: `Scroll` axes always reserve a
     // gutter (and paint the track inside it). `Auto` axes only
@@ -184,6 +195,8 @@ pub(super) fn paint_scrollbars(
     let x_paints = matches!(computed.overflow_x, Overflow::Scroll | Overflow::Auto);
 
     if y_paints {
+        let (track_glyph, track_style) =
+            track_cell(ext.computed_scrollbar.as_ref(), ScrollbarAxis::Vertical);
         let (thumb_glyph, thumb_style) = thumb_cell(
             ext.computed_scrollbar_thumb.as_ref(),
             ScrollbarAxis::Vertical,
@@ -205,6 +218,10 @@ pub(super) fn paint_scrollbars(
         );
     }
     if x_paints {
+        let (track_glyph, track_style) = track_cell(
+            ext.computed_scrollbar.as_ref(),
+            ScrollbarAxis::Horizontal,
+        );
         let (thumb_glyph, thumb_style) = thumb_cell(
             ext.computed_scrollbar_thumb.as_ref(),
             ScrollbarAxis::Horizontal,

@@ -2039,8 +2039,8 @@ fn table_caption_uses_italic_dim_style() {
 
     let computed = dom.node(caption).computed().cloned().unwrap();
     assert!(computed.modifiers.contains(crate::style::Modifier::ITALIC));
-    // Caption is muted via `fg: gray`.
-    assert_eq!(computed.fg, crate::style::Color::Rgb(128, 128, 128));
+    // Caption is muted via `fg: TEXT_MUTED` (lens TextMuted #7F868B).
+    assert_eq!(computed.fg, crate::style::Color::Rgb(127, 134, 139));
 }
 
 #[test]

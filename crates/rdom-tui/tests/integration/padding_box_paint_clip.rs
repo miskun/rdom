@@ -196,25 +196,21 @@ fn scrollbar_gutter_excludes_border_row_under_collapse() {
     // padding-box rows (y >= 1), so this test isn't a no-op when the
     // scrollbar is simply absent.
     //
-    // UA stylesheet (ua.rs:836): `*::scrollbar-thumb { bg: RAIL }`
-    // where RAIL = DIMGRAY = rgb(105, 105, 105). The thumb's `┃`
-    // glyph painted on that bg is the signature.
-    use rdom_tui::style::Color;
-    let mut found_scrollbar_paint = false;
+    // UA stylesheet (post-palette-refresh): `*::scrollbar-thumb`
+    // ships fg only (no bg), so the thumb's signature is the `┃`
+    // glyph itself appearing in the padding-box rows.
+    let mut found_thumb_glyph = false;
     for y in 1..8 {
-        let cell = buf.cell(track_x, y);
-        if cell.map(|c| c.symbol()) == Some("┃")
-            && cell.map(|c| matches!(c.bg, Color::Rgb(105, 105, 105))) == Some(true)
-        {
-            found_scrollbar_paint = true;
+        if buf.cell(track_x, y).map(|c| c.symbol()) == Some("┃") {
+            found_thumb_glyph = true;
             break;
         }
     }
     assert!(
-        found_scrollbar_paint,
-        "scrollbar thumb (┃ on DIMGRAY bg per UA stylesheet) should appear \
-         at col {track_x} somewhere in rows 1..8 — if it doesn't, this \
-         test isn't actually exercising scrollbar paint and the border-row \
+        found_thumb_glyph,
+        "scrollbar thumb (`┃` per UA stylesheet) should appear at col \
+         {track_x} somewhere in rows 1..8 — if it doesn't, this test \
+         isn't actually exercising scrollbar paint and the border-row \
          assertion above is vacuous"
     );
 }
