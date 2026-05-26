@@ -99,3 +99,73 @@ fn calc_with_parens_evaluates() {
         Some(rdom_style::Value::Specified(Size::Fixed(20)))
     );
 }
+
+#[test]
+fn calc_with_percent_in_padding_carries_through_as_padding_calc() {
+    // CALC-PADMARG-1 closing test. Percent-bearing calc in a padding
+    // side must parse into `PaddingValue::Calc` so layout can resolve
+    // it against the containing-block width at layout time (CSS 2.1
+    // §8.4 — padding percent uses CB width on all four sides).
+    use rdom_style::layout::PaddingValue;
+    let sheet = rdom_css::from_css("div { padding-top: calc(50% + 1); }");
+    let rule = sheet
+        .rules()
+        .iter()
+        .find(|r| r.source_text == "div")
+        .expect("div rule parses");
+    let padding = rule.style.padding.as_ref().expect("padding is set");
+    match padding {
+        rdom_style::Value::Specified(p) => match &p.top {
+            PaddingValue::Calc(expr) => {
+                assert!(expr.contains_percent(), "AST retains the percent operand");
+            }
+            other => panic!("expected PaddingValue::Calc, got {other:?}"),
+        },
+        other => panic!("expected Specified, got {other:?}"),
+    }
+}
+
+#[test]
+fn calc_with_percent_in_margin_carries_through_as_margin_calc() {
+    // CALC-PADMARG-1 closing test for margin. CSS 2.1 §8.3 — margin
+    // percent on ALL four sides resolves against the containing-block
+    // width. The AST must reach layout.
+    use rdom_style::layout::MarginValue;
+    let sheet = rdom_css::from_css("div { margin-left: calc(25% - 2); }");
+    let rule = sheet
+        .rules()
+        .iter()
+        .find(|r| r.source_text == "div")
+        .expect("div rule parses");
+    let margin = rule.style.margin.as_ref().expect("margin is set");
+    match margin {
+        rdom_style::Value::Specified(m) => match &m.left {
+            MarginValue::Calc(expr) => {
+                assert!(expr.contains_percent(), "AST retains the percent operand");
+            }
+            other => panic!("expected MarginValue::Calc, got {other:?}"),
+        },
+        other => panic!("expected Specified, got {other:?}"),
+    }
+}
+
+#[test]
+fn calc_constant_in_padding_evaluates_to_cells() {
+    // Constant calc (no percent) folds at parse time to a plain
+    // `PaddingValue::Cells` — same policy as `Size::Fixed` for width.
+    use rdom_style::layout::PaddingValue;
+    let sheet = rdom_css::from_css("div { padding: calc(2 + 3); }");
+    let rule = sheet
+        .rules()
+        .iter()
+        .find(|r| r.source_text == "div")
+        .expect("div rule parses");
+    let padding = rule.style.padding.as_ref().expect("padding is set");
+    match padding {
+        rdom_style::Value::Specified(p) => {
+            assert_eq!(p.top, PaddingValue::Cells(5));
+            assert_eq!(p.left, PaddingValue::Cells(5));
+        }
+        other => panic!("expected Specified, got {other:?}"),
+    }
+}

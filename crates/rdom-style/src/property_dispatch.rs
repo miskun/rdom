@@ -54,10 +54,10 @@ use crate::parse::values::{
     current_border, current_margin, current_padding, parse_aspect_ratio, parse_border,
     parse_border_side, parse_color, parse_content, parse_flex_shorthand, parse_inset_shorthand,
     parse_keyword, parse_length, parse_margin_longhand, parse_margin_shorthand, parse_min_size,
-    parse_opacity, parse_overflow, parse_padding_shorthand, parse_position, parse_scrollbar_gutter,
-    parse_size, parse_text_decoration, parse_time_list, parse_timing_function_list,
-    parse_transition_property_list, parse_transition_shorthand, parse_unsigned, parse_z_index,
-    unzip_transition_rules,
+    parse_opacity, parse_overflow, parse_padding_shorthand, parse_padding_value, parse_position,
+    parse_scrollbar_gutter, parse_size, parse_text_decoration, parse_time_list,
+    parse_timing_function_list, parse_transition_property_list, parse_transition_shorthand,
+    parse_unsigned, parse_z_index, unzip_transition_rules,
 };
 use crate::transition::{TimingFunction, TransitionProperty};
 use crate::{Color, Content, TuiColor, TuiStyle, Value};
@@ -529,24 +529,24 @@ pub fn set_from_tokens(
         "padding" => parse_padding_shorthand(value).map(|p| {
             style.padding = Some(Value::Specified(p));
         }),
-        "padding-top" => parse_unsigned(value).map(|n| {
+        "padding-top" => parse_padding_value(value).map(|v| {
             let mut p = current_padding(style);
-            p.top = n;
+            p.top = v;
             style.padding = Some(Value::Specified(p));
         }),
-        "padding-right" => parse_unsigned(value).map(|n| {
+        "padding-right" => parse_padding_value(value).map(|v| {
             let mut p = current_padding(style);
-            p.right = n;
+            p.right = v;
             style.padding = Some(Value::Specified(p));
         }),
-        "padding-bottom" => parse_unsigned(value).map(|n| {
+        "padding-bottom" => parse_padding_value(value).map(|v| {
             let mut p = current_padding(style);
-            p.bottom = n;
+            p.bottom = v;
             style.padding = Some(Value::Specified(p));
         }),
-        "padding-left" => parse_unsigned(value).map(|n| {
+        "padding-left" => parse_padding_value(value).map(|v| {
             let mut p = current_padding(style);
-            p.left = n;
+            p.left = v;
             style.padding = Some(Value::Specified(p));
         }),
 
@@ -879,31 +879,35 @@ pub fn serialize(name: &str, style: &TuiStyle) -> Option<String> {
         // Padding — emit the 4-value shorthand always (round-trips
         // via parse_padding_shorthand). The longhands read a
         // single side from the same shorthand value.
-        "padding" => style
-            .padding
-            .as_ref()
-            .and_then(specified)
-            .map(|p| format!("{} {} {} {}", p.top, p.right, p.bottom, p.left)),
+        "padding" => style.padding.as_ref().and_then(specified).map(|p| {
+            format!(
+                "{} {} {} {}",
+                serialize_padding_value(&p.top),
+                serialize_padding_value(&p.right),
+                serialize_padding_value(&p.bottom),
+                serialize_padding_value(&p.left),
+            )
+        }),
         "padding-top" => style
             .padding
             .as_ref()
             .and_then(specified)
-            .map(|p| p.top.to_string()),
+            .map(|p| serialize_padding_value(&p.top)),
         "padding-right" => style
             .padding
             .as_ref()
             .and_then(specified)
-            .map(|p| p.right.to_string()),
+            .map(|p| serialize_padding_value(&p.right)),
         "padding-bottom" => style
             .padding
             .as_ref()
             .and_then(specified)
-            .map(|p| p.bottom.to_string()),
+            .map(|p| serialize_padding_value(&p.bottom)),
         "padding-left" => style
             .padding
             .as_ref()
             .and_then(specified)
-            .map(|p| p.left.to_string()),
+            .map(|p| serialize_padding_value(&p.left)),
 
         // Margin — same shape as padding (shorthand + 4 longhands).
         "margin" => style.margin.as_ref().and_then(specified).map(|m| {
@@ -1160,6 +1164,14 @@ fn serialize_margin_value(v: &crate::layout::MarginValue) -> String {
     match v {
         crate::layout::MarginValue::Auto => "auto".to_string(),
         crate::layout::MarginValue::Cells(n) => n.to_string(),
+        crate::layout::MarginValue::Calc(expr) => format!("calc({})", serialize_calc(expr)),
+    }
+}
+
+fn serialize_padding_value(v: &crate::layout::PaddingValue) -> String {
+    match v {
+        crate::layout::PaddingValue::Cells(n) => n.to_string(),
+        crate::layout::PaddingValue::Calc(expr) => format!("calc({})", serialize_calc(expr)),
     }
 }
 
@@ -1558,6 +1570,36 @@ mod tests {
     fn serialize_unknown_property_is_none() {
         let style = TuiStyle::new();
         assert!(serialize("bogus", &style).is_none());
+    }
+
+    /// CALC-PADMARG-1 closing test. Percent-bearing padding/margin
+    /// `calc()` declarations must survive set → serialize → set.
+    /// The canonical_values table doesn't cover this directly because
+    /// it pairs each property with one canonical form; calc-bearing
+    /// values are an additional shape over the same property.
+    #[test]
+    fn padding_and_margin_calc_round_trip() {
+        let cases = [
+            ("padding-top", "calc(50% + 1)"),
+            ("padding-left", "calc(25% - 2)"),
+            ("margin-right", "calc(10% + 3)"),
+            ("margin-bottom", "calc(100% / 2)"),
+        ];
+        for (name, value) in cases {
+            let mut style_a = TuiStyle::new();
+            set(name, value, &mut style_a)
+                .unwrap_or_else(|e| panic!("first set({name:?}, {value:?}) errored: {e:?}"));
+            let serialized = serialize(name, &style_a)
+                .unwrap_or_else(|| panic!("serialize({name:?}) returned None"));
+            let mut style_b = TuiStyle::new();
+            set(name, &serialized, &mut style_b).unwrap_or_else(|e| {
+                panic!("round-trip set({name:?}, {serialized:?}) errored: {e:?}",)
+            });
+            assert_eq!(
+                style_a, style_b,
+                "{name}: calc round-trip diverged. original={value:?}, serialized={serialized:?}"
+            );
+        }
     }
 
     /// The headline spec test for step 25. Every property name in

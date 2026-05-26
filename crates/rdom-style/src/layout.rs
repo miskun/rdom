@@ -579,27 +579,109 @@ pub enum TextDecoration {
     LineThrough,
 }
 
+/// Padding value on a single side. CSS allows numeric cells and
+/// percent (resolved against the containing-block width even for
+/// top/bottom padding per CSS 2.1 §8.4). rdom adds `Calc` for
+/// `calc()` expressions that may mix cells and percent.
+///
+/// Closes `CALC-PADMARG-1`: pre-2026-05-26 the parser rejected
+/// percent-bearing calc at parse time because padding fields were
+/// plain `u16`. Now the type carries the unresolved expression and
+/// layout-pass readers call [`resolve`](Self::resolve) with the
+/// containing-block width.
+#[derive(Debug, Clone, PartialEq)]
+pub enum PaddingValue {
+    /// Concrete cell count.
+    Cells(u16),
+    /// `calc(...)` expression. Resolves at layout time against the
+    /// containing-block width (CSS resolves both axes' padding
+    /// percent against width).
+    Calc(Box<crate::calc::CalcExpr>),
+}
+
+impl Default for PaddingValue {
+    fn default() -> Self {
+        PaddingValue::Cells(0)
+    }
+}
+
+impl PaddingValue {
+    /// Resolve to a concrete cell count. `cb_width` is the
+    /// containing-block width (the basis for `%` units per CSS
+    /// 2.1 §8.4 — vertical padding percent ALSO resolves against
+    /// width, not height).
+    pub fn resolve(&self, cb_width: u16) -> u16 {
+        match self {
+            PaddingValue::Cells(n) => *n,
+            PaddingValue::Calc(expr) => {
+                let v = expr.resolve(&crate::calc::ResolveCtx::new(cb_width as i32));
+                v.max(0).min(u16::MAX as i32) as u16
+            }
+        }
+    }
+
+    /// True iff this is provably `Cells(0)`. `Calc` returns false
+    /// (conservative — the resolved value depends on the
+    /// containing-block width). Used by layout-pass predicates
+    /// like "does this element have any padding?" where the
+    /// conservative answer for Calc is "treat as non-zero."
+    pub fn is_zero(&self) -> bool {
+        matches!(self, PaddingValue::Cells(0))
+    }
+}
+
 /// Padding (CSS order: top, right, bottom, left).
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+///
+/// Each side is a [`PaddingValue`] so `padding-top: calc(50% + 1)`
+/// round-trips through the parser. Layout-pass readers call
+/// `padding.top.resolve(cb_width)` (etc.) to convert to a u16 cell
+/// count.
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct Padding {
-    pub top: u16,
-    pub right: u16,
-    pub bottom: u16,
-    pub left: u16,
+    pub top: PaddingValue,
+    pub right: PaddingValue,
+    pub bottom: PaddingValue,
+    pub left: PaddingValue,
 }
 
 /// Margin value on a single side. CSS allows numeric (positive or
-/// negative) and the `auto` keyword. `Auto` participates in flex
-/// main-axis space absorption and absolute-element centering
-/// (M5.3b). Until M5.3b lights up auto-absorption, layout treats
-/// `Auto` as `Cells(0)`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// negative), the `auto` keyword, and `calc()` (rdom adds the last
+/// to close `CALC-PADMARG-1`). `Auto` participates in flex
+/// main-axis space absorption and absolute-element centering.
+#[derive(Debug, Clone, PartialEq)]
 pub enum MarginValue {
     /// `auto`. Participates in flex space distribution and absolute
-    /// centering (M5.3b).
+    /// centering.
     Auto,
     /// Integer cells. Signed so negative margins are valid CSS.
     Cells(i16),
+    /// `calc(...)`. Resolves at layout time against the
+    /// containing-block width (CSS resolves percent margins against
+    /// width on all four sides). Result clamped to i16.
+    Calc(Box<crate::calc::CalcExpr>),
+}
+
+impl MarginValue {
+    /// Resolve to a concrete cell count. `cb_width` is the
+    /// containing-block width (CSS 2.1 §8.3 — percent margins
+    /// resolve against width on both axes). `Auto` resolves to 0
+    /// — auto-absorption is the caller's responsibility (flex
+    /// distribution computes its own auto handling).
+    pub fn resolve(&self, cb_width: u16) -> i16 {
+        match self {
+            MarginValue::Auto => 0,
+            MarginValue::Cells(n) => *n,
+            MarginValue::Calc(expr) => {
+                let v = expr.resolve(&crate::calc::ResolveCtx::new(cb_width as i32));
+                v.clamp(i16::MIN as i32, i16::MAX as i32) as i16
+            }
+        }
+    }
+
+    /// True iff this is `Auto`.
+    pub fn is_auto(&self) -> bool {
+        matches!(self, MarginValue::Auto)
+    }
 }
 
 impl Default for MarginValue {
@@ -614,7 +696,7 @@ impl Default for MarginValue {
 /// **Note:** rdom diverges from CSS by NOT collapsing adjacent
 /// vertical margins between block-level boxes (CSS 2.1 §8.3.1).
 /// Tracked as `M5-MARGIN-1` in `TECH_DEBT.md`.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct Margin {
     pub top: MarginValue,
     pub right: MarginValue,
@@ -639,12 +721,11 @@ impl Margin {
 
     /// Convenience: same numeric cells on all four sides.
     pub fn all_cells(n: i16) -> Self {
-        let v = MarginValue::Cells(n);
         Self {
-            top: v,
-            right: v,
-            bottom: v,
-            left: v,
+            top: MarginValue::Cells(n),
+            right: MarginValue::Cells(n),
+            bottom: MarginValue::Cells(n),
+            left: MarginValue::Cells(n),
         }
     }
 
@@ -741,31 +822,21 @@ pub enum ZIndex {
 impl Padding {
     pub fn new(top: u16, right: u16, bottom: u16, left: u16) -> Self {
         Self {
-            top,
-            right,
-            bottom,
-            left,
+            top: PaddingValue::Cells(top),
+            right: PaddingValue::Cells(right),
+            bottom: PaddingValue::Cells(bottom),
+            left: PaddingValue::Cells(left),
         }
     }
 
     /// Same horizontal (left/right) and vertical (top/bottom).
     pub fn symmetric(h: u16, v: u16) -> Self {
-        Self {
-            top: v,
-            right: h,
-            bottom: v,
-            left: h,
-        }
+        Self::new(v, h, v, h)
     }
 
     /// Same on all sides.
     pub fn all(n: u16) -> Self {
-        Self {
-            top: n,
-            right: n,
-            bottom: n,
-            left: n,
-        }
+        Self::new(n, n, n, n)
     }
 }
 
@@ -808,10 +879,21 @@ pub fn compute_content_area_collapsed(
     let border_h = border_left + effective_border.right as u16;
     let border_v = border_top + effective_border.bottom as u16;
 
-    let inset_x = padding.left + border_left;
-    let inset_y = padding.top + border_top;
-    let total_h = padding.left + padding.right + border_h;
-    let total_v = padding.top + padding.bottom + border_v;
+    // Percent / calc padding resolves against the containing-block
+    // width on ALL four sides (CSS 2.1 §8.4 — vertical padding
+    // percent also uses width). `area.width` here is the element's
+    // outer width, which under the standard box model equals
+    // the containing-block width minus any position offsets.
+    let cb_w = area.width;
+    let pad_l = padding.left.resolve(cb_w);
+    let pad_r = padding.right.resolve(cb_w);
+    let pad_t = padding.top.resolve(cb_w);
+    let pad_b = padding.bottom.resolve(cb_w);
+
+    let inset_x = pad_l + border_left;
+    let inset_y = pad_t + border_top;
+    let total_h = pad_l + pad_r + border_h;
+    let total_v = pad_t + pad_b + border_v;
 
     LayoutRect::new(
         area.x + inset_x as i32,
@@ -894,10 +976,10 @@ mod tests {
     #[test]
     fn padding_symmetric_hv() {
         let p = Padding::symmetric(4, 2);
-        assert_eq!(p.left, 4);
-        assert_eq!(p.right, 4);
-        assert_eq!(p.top, 2);
-        assert_eq!(p.bottom, 2);
+        assert_eq!(p.left, PaddingValue::Cells(4));
+        assert_eq!(p.right, PaddingValue::Cells(4));
+        assert_eq!(p.top, PaddingValue::Cells(2));
+        assert_eq!(p.bottom, PaddingValue::Cells(2));
     }
 
     // ── compute_content_area ─────────────────────────────────────────

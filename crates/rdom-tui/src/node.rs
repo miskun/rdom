@@ -48,7 +48,7 @@ pub trait TuiNodeExt<'a> {
         self.tui_ext().map(|e| e.direction)
     }
     fn padding(&self) -> Option<Padding> {
-        self.tui_ext().map(|e| e.padding)
+        self.tui_ext().map(|e| e.padding.clone())
     }
     fn border(&self) -> Option<Border> {
         self.tui_ext().map(|e| e.border)

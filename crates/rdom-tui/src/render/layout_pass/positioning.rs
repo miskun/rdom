@@ -213,8 +213,11 @@ fn compute_placed_rect(c: &ComputedStyle, cb: LayoutRect) -> LayoutRect {
     // distribute remaining space equally to both margins — i.e.
     // center the element between the insets.
     use crate::layout::MarginValue;
-    let (cx_left, cx_right) = (c.margin.left, c.margin.right);
-    let (cy_top, cy_bottom) = (c.margin.top, c.margin.bottom);
+    let (cx_left, cx_right) = (c.margin.left.clone(), c.margin.right.clone());
+    let (cy_top, cy_bottom) = (c.margin.top.clone(), c.margin.bottom.clone());
+    // Margin percent / calc resolves against the containing-block
+    // width on ALL four sides (CSS 2.1 §8.3).
+    let margin_cb_w = cb.width;
 
     let basis_w = cb.width as i32;
     let basis_h = cb.height as i32;
@@ -232,9 +235,10 @@ fn compute_placed_rect(c: &ComputedStyle, cb: LayoutRect) -> LayoutRect {
         cb.x + left + extra / 2
     } else {
         let base = axis_position_anchored(&c.left, &c.right, cb.x, cb.width, width);
-        let start_margin = match cx_left {
-            MarginValue::Cells(n) => n as i32,
+        let start_margin = match &cx_left {
+            MarginValue::Cells(n) => *n as i32,
             MarginValue::Auto => 0,
+            MarginValue::Calc(_) => cx_left.resolve(margin_cb_w) as i32,
         };
         base + start_margin
     };
@@ -250,9 +254,10 @@ fn compute_placed_rect(c: &ComputedStyle, cb: LayoutRect) -> LayoutRect {
         cb.y + top + extra / 2
     } else {
         let base = axis_position_anchored(&c.top, &c.bottom, cb.y, cb.height, height);
-        let start_margin = match cy_top {
-            MarginValue::Cells(n) => n as i32,
+        let start_margin = match &cy_top {
+            MarginValue::Cells(n) => *n as i32,
             MarginValue::Auto => 0,
+            MarginValue::Calc(_) => cy_top.resolve(margin_cb_w) as i32,
         };
         base + start_margin
     };

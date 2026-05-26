@@ -1163,7 +1163,11 @@ fn ua_blockquote_has_left_rail_and_is_muted() {
     assert_eq!(c.display, Display::Block);
     // 1-cell left border (`│` rail) + 1-cell padding = 2-cell total
     // left indent, same visual budget as the pre-rail design.
-    assert_eq!(c.padding.left, 1, "blockquote needs 1 cell padding");
+    assert_eq!(
+        c.padding.left,
+        crate::layout::PaddingValue::Cells(1),
+        "blockquote needs 1 cell padding"
+    );
     assert_eq!(c.border, Border::left(), "blockquote shows `│` rail");
     // T8: blockquote text is muted via `fg: gray`, not the deleted
     // `dim` modifier.
@@ -1174,7 +1178,11 @@ fn ua_blockquote_has_left_rail_and_is_muted() {
 fn ua_ul_ol_menu_have_left_padding() {
     for tag in ["ul", "ol", "menu"] {
         let c = ua_computed_for(tag);
-        assert_eq!(c.padding.left, 2, "<{tag}> needs list-marker room");
+        assert_eq!(
+            c.padding.left,
+            crate::layout::PaddingValue::Cells(2),
+            "<{tag}> needs list-marker room"
+        );
     }
 }
 

@@ -11,7 +11,7 @@
 use rdom_core::Dom;
 
 use crate::ext::TuiExt;
-use crate::layout::{Border, LayoutRect, Margin, MarginValue, Padding, Size};
+use crate::layout::{Border, LayoutRect, Margin, MarginValue, Padding, PaddingValue, Size};
 use crate::node::TuiNodeExt;
 use crate::prelude::*;
 use crate::render::layout_pass::block::layout_block_children;
@@ -1598,10 +1598,10 @@ fn child_with_padding_and_border_reduces_intrinsic_width_via_layout_node() {
         "c",
         TuiStyle::new()
             .padding(Padding {
-                top: 0,
-                right: 2,
-                bottom: 0,
-                left: 2,
+                top: PaddingValue::Cells(0),
+                right: PaddingValue::Cells(2),
+                bottom: PaddingValue::Cells(0),
+                left: PaddingValue::Cells(2),
             })
             .border(Border::single()),
     );

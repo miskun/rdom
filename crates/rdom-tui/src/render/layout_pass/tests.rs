@@ -868,8 +868,18 @@ fn flex_row_multi_auto_margin_distributes_equally() {
             "c",
             TuiStyle::new().flow(Flow::Flex).direction(Direction::Row),
         )
-        .rule_unchecked("a", TuiStyle::new().width(Size::Fixed(5)).margin(auto_left))
-        .rule_unchecked("b", TuiStyle::new().width(Size::Fixed(5)).margin(auto_left))
+        .rule_unchecked(
+            "a",
+            TuiStyle::new()
+                .width(Size::Fixed(5))
+                .margin(auto_left.clone()),
+        )
+        .rule_unchecked(
+            "b",
+            TuiStyle::new()
+                .width(Size::Fixed(5))
+                .margin(auto_left.clone()),
+        )
         .rule_unchecked("d", TuiStyle::new().width(Size::Fixed(5)).margin(auto_left));
     cascade(&mut dom, &sheet);
     dom.layout_dom(Rect::new(0, 0, 30, 5));
@@ -2428,10 +2438,10 @@ fn intrinsic_height_ignores_whitespace_text_between_block_children() {
             .display(Display::Block)
             .border(crate::layout::Border::rounded())
             .padding(crate::layout::Padding {
-                top: 1,
-                right: 2,
-                bottom: 1,
-                left: 2,
+                top: crate::layout::PaddingValue::Cells(1),
+                right: crate::layout::PaddingValue::Cells(2),
+                bottom: crate::layout::PaddingValue::Cells(1),
+                left: crate::layout::PaddingValue::Cells(2),
             })
             .gap(1),
     );
@@ -2464,10 +2474,10 @@ fn intrinsic_size_block_with_only_whitespace_text_is_chrome_only() {
         TuiStyle::new()
             .display(Display::Block)
             .padding(crate::layout::Padding {
-                top: 1,
-                right: 0,
-                bottom: 1,
-                left: 0,
+                top: crate::layout::PaddingValue::Cells(1),
+                right: crate::layout::PaddingValue::Cells(0),
+                bottom: crate::layout::PaddingValue::Cells(1),
+                left: crate::layout::PaddingValue::Cells(0),
             }),
     );
     cascade(&mut dom, &sheet);

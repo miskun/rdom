@@ -151,10 +151,23 @@ fn intrinsic_element(
         }
     }
 
-    // Padding + border cost on the main axis.
+    // Padding + border cost on the main axis. Padding-with-percent
+    // resolves against the containing-block width on BOTH axes
+    // per CSS 2.1 §8.4 — `cross_budget` here is the available
+    // width for the parent's content area, which is the correct
+    // basis. Calc that mixes percent with cells resolves at this
+    // point in the layout pass; constant calcs were resolved at
+    // parse time.
+    let cb_w_for_pad = cross_budget;
     let pad_main = match direction {
-        Direction::Row => computed.padding.left + computed.padding.right,
-        Direction::Column => computed.padding.top + computed.padding.bottom,
+        Direction::Row => {
+            computed.padding.left.resolve(cb_w_for_pad)
+                + computed.padding.right.resolve(cb_w_for_pad)
+        }
+        Direction::Column => {
+            computed.padding.top.resolve(cb_w_for_pad)
+                + computed.padding.bottom.resolve(cb_w_for_pad)
+        }
     };
     let border_main = border_main_cost(&computed, direction);
 
@@ -189,7 +202,8 @@ fn intrinsic_element(
                     Size::Fixed(n) => *n,
                     _ => cross_budget,
                 };
-                let row_pad = computed.padding.left + computed.padding.right;
+                let row_pad = computed.padding.left.resolve(outer_width)
+                    + computed.padding.right.resolve(outer_width);
                 let row_border = border_main_cost(&computed, Direction::Row);
                 let content_width = outer_width
                     .saturating_sub(row_pad)
@@ -259,7 +273,8 @@ fn intrinsic_element(
                         Size::Fixed(n) => *n,
                         _ => cross_budget,
                     };
-                    let row_pad = computed.padding.left + computed.padding.right;
+                    let row_pad = computed.padding.left.resolve(outer_width)
+                        + computed.padding.right.resolve(outer_width);
                     let row_border = border_main_cost(&computed, Direction::Row);
                     let content_width = outer_width
                         .saturating_sub(row_pad)
@@ -283,12 +298,14 @@ fn intrinsic_element(
     // level this is what determines wrap.
     let child_cross_budget = match direction {
         Direction::Row => cross_budget.saturating_sub(
-            (computed.padding.top + computed.padding.bottom)
-                .saturating_add(border_main_cost(&computed, Direction::Column)),
+            (computed.padding.top.resolve(cross_budget)
+                + computed.padding.bottom.resolve(cross_budget))
+            .saturating_add(border_main_cost(&computed, Direction::Column)),
         ),
         Direction::Column => cross_budget.saturating_sub(
-            (computed.padding.left + computed.padding.right)
-                .saturating_add(border_main_cost(&computed, Direction::Row)),
+            (computed.padding.left.resolve(cross_budget)
+                + computed.padding.right.resolve(cross_budget))
+            .saturating_add(border_main_cost(&computed, Direction::Row)),
         ),
     };
 

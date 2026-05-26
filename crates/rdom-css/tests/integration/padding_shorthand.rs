@@ -10,7 +10,7 @@
 //! `padding-bottom` / `padding-left`.
 
 use rdom_css::parse;
-use rdom_tui::layout::Padding;
+use rdom_tui::layout::{Padding, PaddingValue};
 use rdom_tui::style::Value;
 
 fn padding_of(source: &str) -> Padding {
@@ -19,7 +19,9 @@ fn padding_of(source: &str) -> Padding {
     let v = r.stylesheet.rules()[0]
         .style
         .padding
-        .expect("padding declared");
+        .as_ref()
+        .expect("padding declared")
+        .clone();
     match v {
         Value::Specified(p) => p,
         _ => panic!("expected Specified, got {v:?}"),
@@ -32,10 +34,10 @@ fn padding_one_value_uniform() {
     assert_eq!(
         p,
         Padding {
-            top: 5,
-            right: 5,
-            bottom: 5,
-            left: 5
+            top: PaddingValue::Cells(5),
+            right: PaddingValue::Cells(5),
+            bottom: PaddingValue::Cells(5),
+            left: PaddingValue::Cells(5)
         }
     );
 }
@@ -46,10 +48,10 @@ fn padding_two_values_vertical_horizontal() {
     assert_eq!(
         p,
         Padding {
-            top: 1,
-            right: 2,
-            bottom: 1,
-            left: 2
+            top: PaddingValue::Cells(1),
+            right: PaddingValue::Cells(2),
+            bottom: PaddingValue::Cells(1),
+            left: PaddingValue::Cells(2)
         }
     );
 }
@@ -60,10 +62,10 @@ fn padding_three_values_top_horizontal_bottom() {
     assert_eq!(
         p,
         Padding {
-            top: 1,
-            right: 2,
-            bottom: 3,
-            left: 2
+            top: PaddingValue::Cells(1),
+            right: PaddingValue::Cells(2),
+            bottom: PaddingValue::Cells(3),
+            left: PaddingValue::Cells(2)
         }
     );
 }
@@ -74,10 +76,10 @@ fn padding_four_values_clockwise() {
     assert_eq!(
         p,
         Padding {
-            top: 1,
-            right: 2,
-            bottom: 3,
-            left: 4
+            top: PaddingValue::Cells(1),
+            right: PaddingValue::Cells(2),
+            bottom: PaddingValue::Cells(3),
+            left: PaddingValue::Cells(4)
         }
     );
 }
@@ -88,10 +90,10 @@ fn padding_top_longhand() {
     assert_eq!(
         p,
         Padding {
-            top: 7,
-            right: 0,
-            bottom: 0,
-            left: 0
+            top: PaddingValue::Cells(7),
+            right: PaddingValue::Cells(0),
+            bottom: PaddingValue::Cells(0),
+            left: PaddingValue::Cells(0)
         }
     );
 }
@@ -102,10 +104,10 @@ fn padding_right_longhand() {
     assert_eq!(
         p,
         Padding {
-            top: 0,
-            right: 7,
-            bottom: 0,
-            left: 0
+            top: PaddingValue::Cells(0),
+            right: PaddingValue::Cells(7),
+            bottom: PaddingValue::Cells(0),
+            left: PaddingValue::Cells(0)
         }
     );
 }
@@ -116,10 +118,10 @@ fn padding_bottom_longhand() {
     assert_eq!(
         p,
         Padding {
-            top: 0,
-            right: 0,
-            bottom: 7,
-            left: 0
+            top: PaddingValue::Cells(0),
+            right: PaddingValue::Cells(0),
+            bottom: PaddingValue::Cells(7),
+            left: PaddingValue::Cells(0)
         }
     );
 }
@@ -130,10 +132,10 @@ fn padding_left_longhand() {
     assert_eq!(
         p,
         Padding {
-            top: 0,
-            right: 0,
-            bottom: 0,
-            left: 7
+            top: PaddingValue::Cells(0),
+            right: PaddingValue::Cells(0),
+            bottom: PaddingValue::Cells(0),
+            left: PaddingValue::Cells(7)
         }
     );
 }
@@ -147,10 +149,10 @@ fn padding_shorthand_then_longhand_overrides() {
     assert_eq!(
         p,
         Padding {
-            top: 9,
-            right: 1,
-            bottom: 1,
-            left: 1
+            top: PaddingValue::Cells(9),
+            right: PaddingValue::Cells(1),
+            bottom: PaddingValue::Cells(1),
+            left: PaddingValue::Cells(1)
         }
     );
 }
@@ -162,10 +164,10 @@ fn padding_longhand_then_longhand_combines() {
     assert_eq!(
         p,
         Padding {
-            top: 2,
-            right: 0,
-            bottom: 0,
-            left: 4
+            top: PaddingValue::Cells(2),
+            right: PaddingValue::Cells(0),
+            bottom: PaddingValue::Cells(0),
+            left: PaddingValue::Cells(4)
         }
     );
 }

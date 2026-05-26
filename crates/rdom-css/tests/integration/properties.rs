@@ -6,7 +6,7 @@
 
 use rdom_css::{WarningKind, parse};
 use rdom_tui::layout::{
-    Border, Direction, Display, Overflow, Padding, Size, UserSelect, WhiteSpace,
+    Border, Direction, Display, Overflow, Padding, PaddingValue, Size, UserSelect, WhiteSpace,
 };
 use rdom_tui::style::{Content, Value};
 use rdom_tui::{Color, TuiColor};
@@ -168,10 +168,10 @@ fn padding_single_value() {
     assert_eq!(
         s.padding,
         Some(Value::Specified(Padding {
-            top: 1,
-            right: 1,
-            bottom: 1,
-            left: 1
+            top: PaddingValue::Cells(1),
+            right: PaddingValue::Cells(1),
+            bottom: PaddingValue::Cells(1),
+            left: PaddingValue::Cells(1)
         }))
     );
 }

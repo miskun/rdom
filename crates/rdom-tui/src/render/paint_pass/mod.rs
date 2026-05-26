@@ -255,8 +255,8 @@ fn paint_node(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect) {
         if let Some(border_fg) = ext.presentation.border_fg {
             computed.border_fg = border_fg;
         }
-        if let Some(padding) = ext.presentation.padding {
-            computed.padding = padding;
+        if let Some(padding) = &ext.presentation.padding {
+            computed.padding = padding.clone();
         }
         if let Some(gap) = ext.presentation.gap {
             computed.gap = gap;

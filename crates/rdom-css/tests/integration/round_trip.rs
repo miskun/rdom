@@ -5,7 +5,7 @@
 //! in so future drift is caught early.
 
 use rdom_css::{from_css, from_css_strict};
-use rdom_tui::layout::{Display, Padding, Size};
+use rdom_tui::layout::{Display, Padding, PaddingValue, Size};
 use rdom_tui::{Color, Stylesheet, TuiColor, TuiStyle};
 
 #[test]
@@ -63,10 +63,10 @@ fn padding_shorthand_round_trip() {
         .rule(
             "p",
             TuiStyle::new().padding(Padding {
-                top: 1,
-                right: 2,
-                bottom: 3,
-                left: 4,
+                top: PaddingValue::Cells(1),
+                right: PaddingValue::Cells(2),
+                bottom: PaddingValue::Cells(3),
+                left: PaddingValue::Cells(4),
             }),
         )
         .unwrap();

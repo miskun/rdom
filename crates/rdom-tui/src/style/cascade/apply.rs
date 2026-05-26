@@ -253,14 +253,14 @@ fn apply_style(
         &style.padding,
         style.important.contains(ImportantMask::PADDING),
         important_pass,
-        parent.padding,
+        parent.padding.clone(),
     );
     apply_margin(
         &mut working.margin,
         &style.margin,
         style.important.contains(ImportantMask::MARGIN),
         important_pass,
-        parent.margin,
+        parent.margin.clone(),
     );
     apply_u16(
         &mut working.gap,

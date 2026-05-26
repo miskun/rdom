@@ -452,7 +452,7 @@ fn read_value(style: &ComputedStyle, prop: AnimatedProp) -> AnimatedValue {
         AnimatedProp::BorderFg => AnimatedValue::Color(style.border_fg),
         AnimatedProp::Width => AnimatedValue::Size(style.width.clone()),
         AnimatedProp::Height => AnimatedValue::Size(style.height.clone()),
-        AnimatedProp::Padding => AnimatedValue::Padding(style.padding),
+        AnimatedProp::Padding => AnimatedValue::Padding(style.padding.clone()),
         AnimatedProp::Gap => AnimatedValue::U16(style.gap),
         AnimatedProp::Top => AnimatedValue::Length(style.top.clone()),
         AnimatedProp::Right => AnimatedValue::Length(style.right.clone()),
@@ -524,10 +524,10 @@ fn interpolate(from: &AnimatedValue, to: &AnimatedValue, t: f32) -> AnimatedValu
         (AnimatedValue::U16(a), AnimatedValue::U16(b)) => AnimatedValue::U16(lerp_u16(*a, *b, t)),
         (AnimatedValue::Padding(a), AnimatedValue::Padding(b)) => {
             AnimatedValue::Padding(crate::layout::Padding {
-                top: lerp_u16(a.top, b.top, t),
-                right: lerp_u16(a.right, b.right, t),
-                bottom: lerp_u16(a.bottom, b.bottom, t),
-                left: lerp_u16(a.left, b.left, t),
+                top: lerp_padding_value(&a.top, &b.top, t),
+                right: lerp_padding_value(&a.right, &b.right, t),
+                bottom: lerp_padding_value(&a.bottom, &b.bottom, t),
+                left: lerp_padding_value(&a.left, &b.left, t),
             })
         }
         (AnimatedValue::ZIndex(a), AnimatedValue::ZIndex(b)) => {
@@ -560,6 +560,31 @@ fn lerp_u8(a: u8, b: u8, t: f32) -> u8 {
 fn lerp_u16(a: u16, b: u16, t: f32) -> u16 {
     let v = a as f32 + (b as f32 - a as f32) * t;
     v.round().clamp(0.0, u16::MAX as f32) as u16
+}
+
+/// Interpolate two `PaddingValue` sides. `Cells ↔ Cells` lerps the
+/// cell count linearly. Anything involving `Calc` (whose value
+/// depends on a containing-block width unknown at animation time)
+/// snaps at midpoint — matches the policy already used for
+/// `Size::Flex|Auto|Calc` lerps below.
+fn lerp_padding_value(
+    a: &crate::layout::PaddingValue,
+    b: &crate::layout::PaddingValue,
+    t: f32,
+) -> crate::layout::PaddingValue {
+    use crate::layout::PaddingValue;
+    match (a, b) {
+        (PaddingValue::Cells(x), PaddingValue::Cells(y)) => {
+            PaddingValue::Cells(lerp_u16(*x, *y, t))
+        }
+        _ => {
+            if t < 0.5 {
+                a.clone()
+            } else {
+                b.clone()
+            }
+        }
+    }
 }
 
 #[inline]
@@ -658,7 +683,8 @@ pub fn effective_border_fg(ext: &TuiExt) -> Color {
 pub fn effective_padding(ext: &TuiExt) -> crate::layout::Padding {
     ext.presentation
         .padding
-        .or(ext.computed.as_ref().map(|c| c.padding))
+        .clone()
+        .or_else(|| ext.computed.as_ref().map(|c| c.padding.clone()))
         .unwrap_or_default()
 }
 

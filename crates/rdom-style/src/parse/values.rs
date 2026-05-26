@@ -322,53 +322,53 @@ pub fn parse_padding_shorthand(value: &[Token]) -> Option<Padding> {
     let nums = split_padding_values(value)?;
     let p = match nums.as_slice() {
         [a] => Padding {
-            top: *a,
-            right: *a,
-            bottom: *a,
-            left: *a,
+            top: a.clone(),
+            right: a.clone(),
+            bottom: a.clone(),
+            left: a.clone(),
         },
         [a, b] => Padding {
-            top: *a,
-            right: *b,
-            bottom: *a,
-            left: *b,
+            top: a.clone(),
+            right: b.clone(),
+            bottom: a.clone(),
+            left: b.clone(),
         },
         [a, b, c] => Padding {
-            top: *a,
-            right: *b,
-            bottom: *c,
-            left: *b,
+            top: a.clone(),
+            right: b.clone(),
+            bottom: c.clone(),
+            left: b.clone(),
         },
         [a, b, c, d] => Padding {
-            top: *a,
-            right: *b,
-            bottom: *c,
-            left: *d,
+            top: a.clone(),
+            right: b.clone(),
+            bottom: c.clone(),
+            left: d.clone(),
         },
         _ => return None,
     };
     Some(p)
 }
 
-/// Split a value-token slice into 1..=4 unsigned cell counts.
-/// Each position accepts:
-/// - bare `Token::Number(n)` with `n >= 0`
-/// - `calc(<const-expr>)` — resolves at parse time to an integer.
-///   Percent-bearing calcs are rejected (padding's u16 field type
-///   can't carry a Calc AST without a substrate refactor).
-fn split_padding_values(value: &[Token]) -> Option<Vec<u16>> {
-    let mut nums = Vec::with_capacity(4);
+/// Split a value-token slice into 1..=4 padding values. Each
+/// position accepts:
+/// - bare `Token::Number(n)` with `n >= 0` → `PaddingValue::Cells(n)`.
+/// - `calc(<expr>)` — constant calcs resolve immediately to
+///   `Cells`; percent-bearing calcs are preserved as
+///   `PaddingValue::Calc` for layout-time resolution against the
+///   containing-block width (closes `CALC-PADMARG-1`).
+fn split_padding_values(value: &[Token]) -> Option<Vec<crate::layout::PaddingValue>> {
+    use crate::layout::PaddingValue;
+    let mut vals = Vec::with_capacity(4);
     let mut i = 0;
     while i < value.len() {
         match &value[i] {
             Token::Number(n) if *n >= 0 => {
-                nums.push(*n as u16);
+                vals.push(PaddingValue::Cells(*n as u16));
                 i += 1;
             }
             Token::Function(name) if name.eq_ignore_ascii_case("calc") => {
-                // Scan forward for the matching `)` — calc-token
-                // through closing paren, accounting for nested
-                // parens / calc().
+                // Scan forward for the matching `)`.
                 let mut depth = 1usize;
                 let mut j = i + 1;
                 while j < value.len() && depth > 0 {
@@ -384,37 +384,48 @@ fn split_padding_values(value: &[Token]) -> Option<Vec<u16>> {
                 }
                 let expr = parse_calc(&value[i..j])?;
                 if expr.contains_percent() {
-                    return None;
+                    // Keep the AST around — layout resolves against
+                    // containing-block width per CSS 2.1 §8.4.
+                    vals.push(PaddingValue::Calc(Box::new(expr)));
+                } else {
+                    let cells = expr.resolve(&crate::calc::ResolveCtx::new(0));
+                    vals.push(PaddingValue::Cells(cells.max(0).min(u16::MAX as i32) as u16));
                 }
-                let cells = expr.resolve(&crate::calc::ResolveCtx::new(0));
-                nums.push(cells.max(0).min(u16::MAX as i32) as u16);
                 i = j;
             }
             _ => return None,
         }
-        if nums.len() > 4 {
+        if vals.len() > 4 {
             return None;
         }
     }
-    if nums.is_empty() {
+    if vals.is_empty() {
         return None;
     }
-    Some(nums)
+    Some(vals)
 }
 
 /// Read the current padding from `style`, defaulting to all-zero
 /// when nothing is set or when the existing value is `Inherit` /
 /// `Initial`. Used by the per-side longhands so consecutive
 /// declarations combine instead of overwriting.
+/// Parse a single padding value (used by `padding-*` longhands).
+/// Accepts `<number>` (cells) or `calc(<expr>)` — constant calc
+/// resolves at parse time; percent-bearing calc is preserved as
+/// `PaddingValue::Calc` for layout-time resolution.
+pub fn parse_padding_value(value: &[Token]) -> Option<crate::layout::PaddingValue> {
+    let vals = split_padding_values(value)?;
+    if vals.len() == 1 {
+        Some(vals.into_iter().next().unwrap())
+    } else {
+        None
+    }
+}
+
 pub fn current_padding(style: &TuiStyle) -> Padding {
-    match style.padding {
-        Some(Value::Specified(p)) => p,
-        _ => Padding {
-            top: 0,
-            right: 0,
-            bottom: 0,
-            left: 0,
-        },
+    match &style.padding {
+        Some(Value::Specified(p)) => p.clone(),
+        _ => Padding::default(),
     }
 }
 
@@ -572,6 +583,35 @@ fn parse_margin_value_at(
             }
             _ => None,
         },
+        // `calc(<expr>)` — constant resolves immediately; percent-
+        // bearing preserved as `MarginValue::Calc` for layout-time
+        // resolution against containing-block width.
+        Some(Token::Function(name)) if name.eq_ignore_ascii_case("calc") => {
+            let mut depth = 1usize;
+            let mut j = start + 1;
+            while j < value.len() && depth > 0 {
+                match &value[j] {
+                    Token::LParen | Token::Function(_) => depth += 1,
+                    Token::RParen => depth -= 1,
+                    _ => {}
+                }
+                j += 1;
+            }
+            if depth != 0 {
+                return None;
+            }
+            let expr = parse_calc(&value[start..j])?;
+            let consumed = j - start;
+            if expr.contains_percent() {
+                Some((MarginValue::Calc(Box::new(expr)), consumed))
+            } else {
+                let cells = expr.resolve(&crate::calc::ResolveCtx::new(0));
+                if !(i16::MIN as i32..=i16::MAX as i32).contains(&cells) {
+                    return None;
+                }
+                Some((MarginValue::Cells(cells as i16), consumed))
+            }
+        }
         _ => None,
     }
 }
@@ -595,10 +635,10 @@ pub fn parse_margin_shorthand(value: &[Token]) -> Option<crate::layout::Margin> 
         }
     }
     let m = match vals.as_slice() {
-        [a] => Margin::new(*a, *a, *a, *a),
-        [a, b] => Margin::new(*a, *b, *a, *b),
-        [a, b, c] => Margin::new(*a, *b, *c, *b),
-        [a, b, c, d] => Margin::new(*a, *b, *c, *d),
+        [a] => Margin::new(a.clone(), a.clone(), a.clone(), a.clone()),
+        [a, b] => Margin::new(a.clone(), b.clone(), a.clone(), b.clone()),
+        [a, b, c] => Margin::new(a.clone(), b.clone(), c.clone(), b.clone()),
+        [a, b, c, d] => Margin::new(a.clone(), b.clone(), c.clone(), d.clone()),
         _ => return None,
     };
     Some(m)
@@ -617,8 +657,8 @@ pub fn parse_margin_longhand(value: &[Token]) -> Option<crate::layout::MarginVal
 /// nothing is set. Used by per-side longhands so consecutive
 /// declarations combine instead of overwriting.
 pub fn current_margin(style: &TuiStyle) -> crate::layout::Margin {
-    match style.margin {
-        Some(Value::Specified(m)) => m,
+    match &style.margin {
+        Some(Value::Specified(m)) => m.clone(),
         _ => crate::layout::Margin::default(),
     }
 }

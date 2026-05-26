@@ -436,7 +436,7 @@ fn is_empty_collapse_through(
     if resolved_height != 0 {
         return false;
     }
-    if computed.padding.top != 0 || computed.padding.bottom != 0 {
+    if !computed.padding.top.is_zero() || !computed.padding.bottom.is_zero() {
         return false;
     }
     if computed.border.top || computed.border.bottom {
@@ -491,13 +491,13 @@ fn is_empty_collapse_through(
 /// property we model), and the container doesn't establish a new
 /// block formatting context.
 fn parent_collapses_top_with_first_child(parent: &ComputedStyle) -> bool {
-    parent.padding.top == 0 && !parent.border.top && !parent.establishes_new_bfc
+    parent.padding.top.is_zero() && !parent.border.top && !parent.establishes_new_bfc
 }
 
 /// Symmetric to `parent_collapses_top_with_first_child` — for the
 /// bottom edge.
 fn parent_collapses_bottom_with_last_child(parent: &ComputedStyle) -> bool {
-    parent.padding.bottom == 0 && !parent.border.bottom && !parent.establishes_new_bfc
+    parent.padding.bottom.is_zero() && !parent.border.bottom && !parent.establishes_new_bfc
 }
 
 /// CSS 2.1 §8.3.1 vertical-margin collapse accumulator.
@@ -573,7 +573,7 @@ fn accumulate_outer_top_margin(
     computed: &ComputedStyle,
     acc: &mut MarginAccumulator,
 ) {
-    acc.add(vertical_margin(&computed.margin.top));
+    acc.add(vertical_margin(&computed.margin.top, 0));
     if !parent_collapses_top_with_first_child(computed) {
         return;
     }
@@ -606,7 +606,7 @@ fn accumulate_outer_top_margin(
                 }
                 accumulate_outer_top_margin(dom, child.id(), &child_computed, acc);
                 if is_statically_empty_collapse_through(dom, child.id(), &child_computed) {
-                    acc.add(vertical_margin(&child_computed.margin.bottom));
+                    acc.add(vertical_margin(&child_computed.margin.bottom, 0));
                     continue;
                 }
                 return;
@@ -632,7 +632,7 @@ fn accumulate_outer_bottom_margin(
     computed: &ComputedStyle,
     acc: &mut MarginAccumulator,
 ) {
-    acc.add(vertical_margin(&computed.margin.bottom));
+    acc.add(vertical_margin(&computed.margin.bottom, 0));
     if !parent_collapses_bottom_with_last_child(computed) {
         return;
     }
@@ -657,7 +657,7 @@ fn accumulate_outer_bottom_margin(
                 }
                 accumulate_outer_bottom_margin(dom, child.id(), &child_computed, acc);
                 if is_statically_empty_collapse_through(dom, child.id(), &child_computed) {
-                    acc.add(vertical_margin(&child_computed.margin.top));
+                    acc.add(vertical_margin(&child_computed.margin.top, 0));
                     continue;
                 }
                 return;
@@ -684,7 +684,7 @@ fn is_statically_empty_collapse_through(
     id: NodeId,
     computed: &ComputedStyle,
 ) -> bool {
-    if computed.padding.top != 0 || computed.padding.bottom != 0 {
+    if !computed.padding.top.is_zero() || !computed.padding.bottom.is_zero() {
         return false;
     }
     if computed.border.top || computed.border.bottom {
@@ -835,8 +835,8 @@ fn resolve_block_width(computed: &ComputedStyle, containing_block_width: u16) ->
 
     // Declared width and margins in their raw forms.
     let width_decl = &computed.width;
-    let ml_decl = computed.margin.left;
-    let mr_decl = computed.margin.right;
+    let ml_decl = &computed.margin.left;
+    let mr_decl = &computed.margin.right;
 
     // Resolve the declared width to a concrete cell count when
     // possible. `Auto` stays "needs computation" — we drive it
@@ -845,13 +845,18 @@ fn resolve_block_width(computed: &ComputedStyle, containing_block_width: u16) ->
 
     let ml_auto = matches!(ml_decl, MarginValue::Auto);
     let mr_auto = matches!(mr_decl, MarginValue::Auto);
-    let ml_cells = match ml_decl {
-        MarginValue::Auto => 0i32,
-        MarginValue::Cells(n) => n as i32,
+    // Resolve cells (including Calc-with-percent) against the
+    // containing-block width per CSS 2.1 §8.3.
+    let cb_width_u16 = containing_block_width;
+    let ml_cells = if ml_auto {
+        0i32
+    } else {
+        ml_decl.resolve(cb_width_u16) as i32
     };
-    let mr_cells = match mr_decl {
-        MarginValue::Auto => 0i32,
-        MarginValue::Cells(n) => n as i32,
+    let mr_cells = if mr_auto {
+        0i32
+    } else {
+        mr_decl.resolve(cb_width_u16) as i32
     };
 
     let (ml_final, width_final, mr_final): (i32, i32, i32) =
@@ -1097,11 +1102,14 @@ fn nearest_block_ancestor_height_is_definite(dom: &Dom<TuiExt>, id: NodeId) -> b
 /// Convert a `MarginValue` to its effective cell contribution on
 /// the BLOCK axis (top/bottom). `Auto` on the block axis collapses
 /// to 0 per CSS 2.1 §8.3 — only inline-axis auto margins absorb
-/// leftover space; block-axis autos don't.
-fn vertical_margin(m: &MarginValue) -> i16 {
+/// leftover space; block-axis autos don't. `Calc` resolves against
+/// the containing-block width (which is the basis for percent
+/// margins on all four sides per CSS 2.1 §8.3).
+fn vertical_margin(m: &MarginValue, cb_width: u16) -> i16 {
     match m {
         MarginValue::Auto => 0,
         MarginValue::Cells(n) => *n,
+        MarginValue::Calc(_) => m.resolve(cb_width),
     }
 }
 
@@ -1112,7 +1120,7 @@ fn vertical_margin(m: &MarginValue) -> i16 {
 fn content_area(outer: LayoutRect, computed: &ComputedStyle) -> LayoutRect {
     compute_content_area_collapsed(
         outer,
-        computed.padding,
+        computed.padding.clone(),
         computed.border,
         computed.border_collapse,
     )

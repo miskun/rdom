@@ -167,7 +167,7 @@ pub(super) fn layout_node(dom: &mut Dom<TuiExt>, id: NodeId, outer_rect: LayoutR
     // border cells.
     let inner = compute_content_area_collapsed(
         outer_rect,
-        computed.padding,
+        computed.padding.clone(),
         computed.border,
         computed.border_collapse,
     );
@@ -240,7 +240,13 @@ pub(super) fn layout_node(dom: &mut Dom<TuiExt>, id: NodeId, outer_rect: LayoutR
             },
             computed.max_height,
         );
-        let pad = computed.padding.top + computed.padding.bottom;
+        // Padding percent / calc resolves against the containing-block
+        // width on ALL four sides (CSS 2.1 §8.4). Use the element's own
+        // outer width here — same basis `compute_content_area_collapsed`
+        // already uses for this element's inset.
+        let pad_cb_w = outer_rect.width;
+        let pad =
+            computed.padding.top.resolve(pad_cb_w) + computed.padding.bottom.resolve(pad_cb_w);
         let border = computed.border.top as u16 + computed.border.bottom as u16;
         let outer_h = content_h.saturating_add(pad).saturating_add(border);
         if let Some(ext) = dom.node_mut(id).ext_mut() {

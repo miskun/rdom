@@ -276,16 +276,23 @@ pub(super) fn layout_flex_children(
         // distribution (CSS rule).
         use crate::layout::MarginValue;
         let (main_start_m, main_end_m) = match direction {
-            Direction::Row => (c.margin.left, c.margin.right),
-            Direction::Column => (c.margin.top, c.margin.bottom),
+            Direction::Row => (c.margin.left.clone(), c.margin.right.clone()),
+            Direction::Column => (c.margin.top.clone(), c.margin.bottom.clone()),
         };
-        let margin_consumed = match (main_start_m, main_end_m) {
-            (MarginValue::Cells(a), MarginValue::Cells(b)) => {
-                (a.max(0) as u16).saturating_add(b.max(0) as u16)
-            }
-            (MarginValue::Cells(a), MarginValue::Auto) => a.max(0) as u16,
-            (MarginValue::Auto, MarginValue::Cells(b)) => b.max(0) as u16,
-            (MarginValue::Auto, MarginValue::Auto) => 0,
+        // Resolve margin values (including Calc-with-percent) against
+        // the parent's main-axis budget — CSS 2.1 §8.3 always uses
+        // width, so `main_budget` is correct for Row main, and we
+        // use `cross_budget` for Column main (= parent's width).
+        let main_cb_w = match direction {
+            Direction::Row => main_budget,
+            Direction::Column => cross_budget,
+        };
+        let margin_consumed = match (&main_start_m, &main_end_m) {
+            (MarginValue::Auto, MarginValue::Auto) => 0u16,
+            (a, MarginValue::Auto) => a.resolve(main_cb_w).max(0) as u16,
+            (MarginValue::Auto, b) => b.resolve(main_cb_w).max(0) as u16,
+            (a, b) => (a.resolve(main_cb_w).max(0) as u16)
+                .saturating_add(b.resolve(main_cb_w).max(0) as u16),
         };
         consumed_fixed = consumed_fixed.saturating_add(margin_consumed);
         if matches!(main_start_m, MarginValue::Auto) {
@@ -365,13 +372,24 @@ pub(super) fn layout_flex_children(
             consumed_fixed = consumed_fixed.saturating_add(n);
         }
 
+        // Pre-resolve `Calc` margins to `Cells` here so the placement
+        // loop below can match on `Cells | Auto` exhaustively. Calc
+        // percent resolves against the parent's main-axis width
+        // (CSS 2.1 §8.3) — `main_cb_w` computed above.
+        let resolve_margin = |m: MarginValue| -> MarginValue {
+            match m {
+                MarginValue::Auto => MarginValue::Auto,
+                MarginValue::Cells(n) => MarginValue::Cells(n),
+                MarginValue::Calc(_) => MarginValue::Cells(m.resolve(main_cb_w)),
+            }
+        };
         child_info.push(ChildMain {
             id: child,
             main: natural,
             min,
             max,
-            main_start_margin: main_start_m,
-            main_end_margin: main_end_m,
+            main_start_margin: resolve_margin(main_start_m),
+            main_end_margin: resolve_margin(main_end_m),
         });
     }
 
@@ -543,14 +561,19 @@ pub(super) fn layout_flex_children(
             .unwrap_or_else(ComputedStyle::initial);
 
         // Resolve this child's main-axis start and end margins.
+        // `Calc` was pre-resolved to `Cells` during `ChildMain`
+        // construction above (see `resolve_margin`), so only the
+        // `Cells | Auto` cases are reachable here.
         use crate::layout::MarginValue;
-        let main_start_cells = match child_info[i].main_start_margin {
-            MarginValue::Cells(n) => n.max(0) as u16,
+        let main_start_cells = match &child_info[i].main_start_margin {
+            MarginValue::Cells(n) => (*n).max(0) as u16,
             MarginValue::Auto => resolve_auto(&mut autos_consumed),
+            MarginValue::Calc(_) => unreachable!("Calc pre-resolved to Cells"),
         };
-        let main_end_cells = match child_info[i].main_end_margin {
-            MarginValue::Cells(n) => n.max(0) as u16,
+        let main_end_cells = match &child_info[i].main_end_margin {
+            MarginValue::Cells(n) => (*n).max(0) as u16,
             MarginValue::Auto => resolve_auto(&mut autos_consumed),
+            MarginValue::Calc(_) => unreachable!("Calc pre-resolved to Cells"),
         };
         main_cursor = main_cursor.saturating_add(main_start_cells as i32);
 
@@ -819,6 +842,11 @@ struct ChildMain {
     /// CSS Flexbox §4.5.
     min: Option<u16>,
     max: Option<u16>,
+    /// Pre-resolved main-axis start margin. `Cells` carries the
+    /// resolved cell count (including `calc()` percent terms folded
+    /// against the parent's main-axis cb-width). `Auto` is preserved
+    /// because the placement loop resolves auto margins lazily by
+    /// distributing leftover free space.
     main_start_margin: crate::layout::MarginValue,
     main_end_margin: crate::layout::MarginValue,
 }

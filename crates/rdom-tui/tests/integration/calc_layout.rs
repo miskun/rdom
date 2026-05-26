@@ -159,6 +159,56 @@ fn constant_calc_padding_resolves_at_parse_time() {
 }
 
 #[test]
+fn percent_calc_padding_resolves_at_layout_time() {
+    // CALC-PADMARG-1 closing test. `padding-left: calc(50% + 1)`
+    // on a 40-cell-wide parent → 21 cells of left padding (50% of
+    // 40 = 20, plus 1). CSS 2.1 §8.4: padding percent on all four
+    // sides uses the containing-block width.
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let parent = dom.create_element("parent");
+    let child = dom.create_element("child");
+    dom.append_child(parent, child).unwrap();
+    dom.append_child(root, parent).unwrap();
+
+    let sheet = rdom_css::from_css(
+        "parent { width: 40; height: 20; padding-left: calc(50% + 1); } \
+         child { width: 5; height: 5; }",
+    );
+    dom.cascade(&sheet);
+    dom.layout_dom(Rect::new(0, 0, 60, 30));
+
+    let child_rect = dom.node(child).tui_ext().map(|e| e.layout).unwrap();
+    // 50% of 40 = 20; +1 = 21 cells of left padding.
+    assert_eq!(child_rect.x, 21);
+}
+
+#[test]
+fn percent_calc_margin_left_offsets_block_child() {
+    // CALC-PADMARG-1 closing test for margin. `margin-left:
+    // calc(25% - 2)` on a 40-cell-wide parent → 8 cells (25% of
+    // 40 = 10, minus 2). CSS 2.1 §8.3: margin percent on all four
+    // sides uses the containing-block width.
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let parent = dom.create_element("parent");
+    let child = dom.create_element("child");
+    dom.append_child(parent, child).unwrap();
+    dom.append_child(root, parent).unwrap();
+
+    let sheet = rdom_css::from_css(
+        "parent { width: 40; height: 20; } \
+         child { width: 10; height: 5; margin-left: calc(25% - 2); }",
+    );
+    dom.cascade(&sheet);
+    dom.layout_dom(Rect::new(0, 0, 60, 30));
+
+    let child_rect = dom.node(child).tui_ext().map(|e| e.layout).unwrap();
+    // child sits at parent.x + margin-left = 0 + 8.
+    assert_eq!(child_rect.x, 8);
+}
+
+#[test]
 fn calc_top_in_absolute_resolves_against_parent_height() {
     // `top: calc(25% + 3)` of a 20-tall parent → 5 + 3 = 8.
     let mut dom: TuiDom = TuiDom::new();
