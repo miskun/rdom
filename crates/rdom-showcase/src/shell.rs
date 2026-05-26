@@ -344,7 +344,10 @@ const BASE_CSS: &str = r#"
   height: 100%;
   border: solid;
   border-color: rgb(45, 47, 49);
-  padding: 1;
+  /* No top/bottom padding — the first category sits right under the
+   * top border. Horizontal padding only, so item text doesn't kiss
+   * the left/right border. */
+  padding: 0 1;
   /* The nav is taller than the viewport on small terminals;
    * scroll instead of clipping. The substrate floors each item
    * at its intrinsic content height (CSS Flexbox §4.5 min-*:
