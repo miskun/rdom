@@ -349,13 +349,11 @@ const BASE_CSS: &str = r#"
   border-top: solid;
   border-color: rgb(70, 80, 100);
   max-height: 16;
-  /* Vertical-only scrolling — the source view never overflows
-   * horizontally (PRE wraps via white-space, and even if it
-   * didn't, horizontal source scrolling is a poor TUI affordance).
-   * `overflow: auto` on both axes would reserve an X-axis gutter
-   * (rdom's `scrollbar-gutter: stable` default) and consume the
-   * disclosure's 1 row when closed. */
-  overflow-y: auto;
+  /* `overflow: auto` is fine now — the CSS-default
+   * `scrollbar-gutter: auto` (substrate post-`CHROME-SCROLL-GUTTER-DEFAULT-1`)
+   * means gutters reserve only when the scrollbar actually shows,
+   * so the closed-disclosure 1-row state isn't eaten. */
+  overflow: auto;
 }
 .main .source-disclosure summary {
   padding: 0 1;

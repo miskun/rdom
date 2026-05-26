@@ -79,6 +79,7 @@ bitflags_like! {
         CARET_TEXT_COLOR = 1 << 37;
         FLEX_SHRINK = 1 << 38;
         FLOW = 1 << 39;
+        SCROLLBAR_GUTTER = 1 << 40;
     }
 }
 
@@ -141,6 +142,9 @@ pub struct TuiStyle {
     /// longhands.
     pub overflow_x: Option<Value<Overflow>>,
     pub overflow_y: Option<Value<Overflow>>,
+    /// `scrollbar-gutter: auto | stable`. Gates the layout pass's
+    /// gutter reservation for scrollable elements. Default `Auto`.
+    pub scrollbar_gutter: Option<Value<crate::layout::ScrollbarGutter>>,
 
     // ── Inline formatting ────────────────────────────────────────────
     /// Outer display. Set by `display: <kw>` keywords. The companion
@@ -437,6 +441,13 @@ impl TuiStyle {
     }
     setter!(flow, flow, flow_important, FLOW, crate::layout::Flow);
     setter!(
+        scrollbar_gutter,
+        scrollbar_gutter,
+        scrollbar_gutter_important,
+        SCROLLBAR_GUTTER,
+        crate::layout::ScrollbarGutter
+    );
+    setter!(
         white_space,
         white_space,
         white_space_important,
@@ -600,6 +611,9 @@ impl TuiStyle {
             n += 1
         }
         if self.overflow_y.is_some() {
+            n += 1
+        }
+        if self.scrollbar_gutter.is_some() {
             n += 1
         }
         if self.display.is_some() {
@@ -846,6 +860,7 @@ mod tests {
             .overflow_important(Overflow::Hidden)
             .display_important(Display::Inline)
             .flow_important(crate::layout::Flow::Block)
+            .scrollbar_gutter_important(crate::layout::ScrollbarGutter::Stable)
             .white_space_important(WhiteSpace::Pre)
             .user_select_important(UserSelect::None)
             .caret_color_important(CaretColor::Transparent)

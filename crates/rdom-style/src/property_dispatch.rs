@@ -54,9 +54,10 @@ use crate::parse::values::{
     current_margin, current_padding, parse_aspect_ratio, parse_border, parse_color, parse_content,
     parse_flex_shorthand, parse_inset_shorthand, parse_keyword, parse_length,
     parse_margin_longhand, parse_margin_shorthand, parse_min_size, parse_opacity, parse_overflow,
-    parse_padding_shorthand, parse_position, parse_size, parse_text_decoration, parse_time_list,
-    parse_timing_function_list, parse_transition_property_list, parse_transition_shorthand,
-    parse_unsigned, parse_z_index, unzip_transition_rules,
+    parse_padding_shorthand, parse_position, parse_scrollbar_gutter, parse_size,
+    parse_text_decoration, parse_time_list, parse_timing_function_list,
+    parse_transition_property_list, parse_transition_shorthand, parse_unsigned, parse_z_index,
+    unzip_transition_rules,
 };
 use crate::transition::{TimingFunction, TransitionProperty};
 use crate::{Color, Content, TuiColor, TuiStyle, Value};
@@ -97,6 +98,7 @@ const PROPERTY_NAMES: &[&str] = &[
     "overflow",
     "overflow-x",
     "overflow-y",
+    "scrollbar-gutter",
     // Layout — sizing
     "width",
     "height",
@@ -175,6 +177,7 @@ pub fn property_mask(name: &str) -> Option<crate::ImportantMask> {
         "overflow" => ImportantMask::OVERFLOW_X | ImportantMask::OVERFLOW_Y,
         "overflow-x" => ImportantMask::OVERFLOW_X,
         "overflow-y" => ImportantMask::OVERFLOW_Y,
+        "scrollbar-gutter" => ImportantMask::SCROLLBAR_GUTTER,
         "width" => ImportantMask::WIDTH,
         "height" => ImportantMask::HEIGHT,
         "min-width" => ImportantMask::MIN_WIDTH,
@@ -237,6 +240,7 @@ pub fn remove(name: &str, style: &mut TuiStyle) -> bool {
         "overflow" => style.overflow_x.take().is_some() | style.overflow_y.take().is_some(),
         "overflow-x" => style.overflow_x.take().is_some(),
         "overflow-y" => style.overflow_y.take().is_some(),
+        "scrollbar-gutter" => style.scrollbar_gutter.take().is_some(),
         "width" => style.width.take().is_some(),
         "height" => style.height.take().is_some(),
         "min-width" => style.min_width.take().is_some(),
@@ -459,6 +463,9 @@ pub fn set_from_tokens(
         }),
         "overflow-y" => parse_overflow(value).map(|o| {
             style.overflow_y = Some(Value::Specified(o));
+        }),
+        "scrollbar-gutter" => parse_scrollbar_gutter(value).map(|g| {
+            style.scrollbar_gutter = Some(Value::Specified(g));
         }),
 
         // Layout — sizing
@@ -764,6 +771,17 @@ pub fn serialize(name: &str, style: &TuiStyle) -> Option<String> {
             .as_ref()
             .and_then(specified)
             .map(|o| serialize_overflow(o).to_string()),
+        "scrollbar-gutter" => style
+            .scrollbar_gutter
+            .as_ref()
+            .and_then(specified)
+            .map(|g| {
+                match g {
+                    crate::layout::ScrollbarGutter::Auto => "auto",
+                    crate::layout::ScrollbarGutter::Stable => "stable",
+                }
+                .to_string()
+            }),
 
         // Flex shorthand. Serializes only when width and height
         // agree, matching the shape `parse_flex_shorthand` outputs
@@ -1224,6 +1242,7 @@ mod tests {
             ("overflow", "scroll"),
             ("overflow-x", "auto"),
             ("overflow-y", "hidden"),
+            ("scrollbar-gutter", "stable"),
             ("width", "40"),
             ("height", "auto"),
             ("min-width", "10"),

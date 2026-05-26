@@ -159,10 +159,25 @@ pub(super) fn paint_scrollbars(
     // Thumb glyph IS axis-sensitive (`┃` vs `━` default).
     // Resolve per-axis at the call site below.
 
-    let y_reserves = matches!(computed.overflow_y, Overflow::Scroll | Overflow::Auto);
-    let x_reserves = matches!(computed.overflow_x, Overflow::Scroll | Overflow::Auto);
+    // CSS `scrollbar-gutter`: `Scroll` axes always reserve a
+    // gutter (and paint the track inside it). `Auto` axes only
+    // reserve when `scrollbar-gutter: stable` is set; otherwise
+    // the track overlays the rightmost content column / bottom
+    // content row when a scrollbar appears. This must agree with
+    // `layout_pass::reserve_scrollbar_gutter`'s decision.
+    use crate::layout::ScrollbarGutter;
+    let reserves = |o: Overflow| match o {
+        Overflow::Scroll => true,
+        Overflow::Auto => matches!(computed.scrollbar_gutter, ScrollbarGutter::Stable),
+        Overflow::Hidden | Overflow::Visible => false,
+    };
+    let y_gutter = reserves(computed.overflow_y);
+    let x_gutter = reserves(computed.overflow_x);
 
-    if y_reserves {
+    let y_paints = matches!(computed.overflow_y, Overflow::Scroll | Overflow::Auto);
+    let x_paints = matches!(computed.overflow_x, Overflow::Scroll | Overflow::Auto);
+
+    if y_paints {
         let (thumb_glyph, thumb_style) = thumb_cell(
             ext.computed_scrollbar_thumb.as_ref(),
             ScrollbarAxis::Vertical,
@@ -170,7 +185,8 @@ pub(super) fn paint_scrollbars(
         paint_vertical_scrollbar(
             buf,
             content_layout,
-            x_reserves,
+            x_gutter,
+            y_gutter,
             computed.overflow_y,
             scroll_y,
             content_h,
@@ -181,7 +197,7 @@ pub(super) fn paint_scrollbars(
             thumb_style,
         );
     }
-    if x_reserves {
+    if x_paints {
         let (thumb_glyph, thumb_style) = thumb_cell(
             ext.computed_scrollbar_thumb.as_ref(),
             ScrollbarAxis::Horizontal,
@@ -189,7 +205,8 @@ pub(super) fn paint_scrollbars(
         paint_horizontal_scrollbar(
             buf,
             content_layout,
-            y_reserves,
+            y_gutter,
+            x_gutter,
             computed.overflow_x,
             scroll_x,
             content_w,
@@ -207,6 +224,7 @@ fn paint_vertical_scrollbar(
     buf: &mut Buffer,
     content: LayoutRect,
     has_h_scrollbar: bool,
+    self_reserves_gutter: bool,
     overflow: Overflow,
     scroll_offset: usize,
     content_size: usize,
@@ -216,10 +234,19 @@ fn paint_vertical_scrollbar(
     thumb_glyph: &str,
     thumb_style: Style,
 ) {
-    // Track spans content_layout.y..bottom(). When the horizontal
-    // scrollbar also reserves, the bottom-right corner cell is
-    // shared — stop the vertical track one row above.
-    let track_x = (content.x + content.width as i32) as i64;
+    // Track column placement depends on `scrollbar-gutter`:
+    // - Reserved (`stable` or `Scroll` overflow): track lives at
+    //   `content.right()` — the dedicated gutter column.
+    // - Not reserved (`auto` + `Auto` overflow): track overlays
+    //   the rightmost content column at `content.right() - 1`.
+    //   Content cells at that column get overwritten when the
+    //   scrollbar shows. Matches CSS `scrollbar-gutter: auto`.
+    let track_x_signed = if self_reserves_gutter {
+        content.x + content.width as i32
+    } else {
+        content.x + content.width as i32 - 1
+    };
+    let track_x = track_x_signed as i64;
     if track_x < clip.x as i64 || track_x >= clip.right() as i64 {
         return;
     }
@@ -260,6 +287,7 @@ fn paint_horizontal_scrollbar(
     buf: &mut Buffer,
     content: LayoutRect,
     has_v_scrollbar: bool,
+    self_reserves_gutter: bool,
     overflow: Overflow,
     scroll_offset: usize,
     content_size: usize,
@@ -269,7 +297,14 @@ fn paint_horizontal_scrollbar(
     thumb_glyph: &str,
     thumb_style: Style,
 ) {
-    let track_y = (content.y + content.height as i32) as i64;
+    // Track row placement — symmetric to vertical case. See
+    // `paint_vertical_scrollbar` for the rationale.
+    let track_y_signed = if self_reserves_gutter {
+        content.y + content.height as i32
+    } else {
+        content.y + content.height as i32 - 1
+    };
+    let track_y = track_y_signed as i64;
     if track_y < clip.y as i64 || track_y >= clip.bottom() as i64 {
         return;
     }

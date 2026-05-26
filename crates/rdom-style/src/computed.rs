@@ -73,6 +73,13 @@ pub struct ComputedStyle {
     /// The cascade normalizes both axes to a consistent pair.
     pub overflow_x: Overflow,
     pub overflow_y: Overflow,
+    /// CSS `scrollbar-gutter` — controls whether `Overflow::Auto`
+    /// reserves gutter cells when no scrollbar is actually showing.
+    /// `Auto` (default) reserves only when overflow occurs (TUI
+    /// approximation: never pre-reserve for `Auto`; reserve for
+    /// `Scroll`). `Stable` always reserves to prevent reflow when
+    /// a scrollbar appears.
+    pub scrollbar_gutter: crate::layout::ScrollbarGutter,
 
     // ── Inline formatting ────────────────────────────────────────────
     /// Outer display — how this element participates in its parent's
@@ -167,6 +174,7 @@ impl ComputedStyle {
             direction: Direction::Column,
             overflow_x: Overflow::Visible,
             overflow_y: Overflow::Visible,
+            scrollbar_gutter: crate::layout::ScrollbarGutter::Auto,
             display: Display::Block,
             flow: crate::layout::Flow::Block,
             establishes_new_bfc: false,

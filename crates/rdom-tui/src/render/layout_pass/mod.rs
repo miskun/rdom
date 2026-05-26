@@ -399,11 +399,21 @@ pub(super) fn parent_scroll(dom: &Dom<TuiExt>, children: &[NodeId], direction: D
     }
 }
 
-/// Shrink `inner` by a 1-cell scrollbar gutter on each axis whose
-/// overflow is `Scroll` or `Auto`. Matches CSS
-/// `scrollbar-gutter: stable` — the gutter is reserved even for
-/// the `auto` case where no thumb would render, so content
-/// doesn't reflow when a scrollbar becomes visible.
+/// Shrink `inner` by a 1-cell scrollbar gutter per axis when CSS
+/// `scrollbar-gutter` says to reserve it (or when `overflow:
+/// scroll` requires a permanent gutter).
+///
+/// Reservation rules per axis:
+/// - `Overflow::Scroll` → always reserve (scrollbar always shown).
+/// - `Overflow::Auto` + `scrollbar-gutter: stable` → reserve
+///   (matches CSS `scrollbar-gutter: stable` — prevents content
+///   reflow when the scrollbar appears mid-frame).
+/// - `Overflow::Auto` + `scrollbar-gutter: auto` (the CSS
+///   default) → DO NOT reserve. The scrollbar paints over the
+///   edge column/row only while it's visible; content gets the
+///   cells when scrolling isn't active. Authors who want stable
+///   layout opt in with `scrollbar-gutter: stable`.
+/// - `Overflow::Hidden` / `Visible` → never reserve.
 ///
 /// The reserved cells live at:
 /// - **Vertical scrollbar** (if `overflow_y` reserves): the
@@ -414,8 +424,14 @@ pub(super) fn parent_scroll(dom: &Dom<TuiExt>, children: &[NodeId], direction: D
 /// When both reserve, the bottom-right corner cell is unclaimed
 /// by either strip — paint leaves it blank.
 pub(super) fn reserve_scrollbar_gutter(inner: LayoutRect, computed: &ComputedStyle) -> LayoutRect {
-    let reserve_y = matches!(computed.overflow_y, Overflow::Scroll | Overflow::Auto);
-    let reserve_x = matches!(computed.overflow_x, Overflow::Scroll | Overflow::Auto);
+    use crate::layout::ScrollbarGutter;
+    let reserves = |o: Overflow| match o {
+        Overflow::Scroll => true,
+        Overflow::Auto => matches!(computed.scrollbar_gutter, ScrollbarGutter::Stable),
+        Overflow::Hidden | Overflow::Visible => false,
+    };
+    let reserve_y = reserves(computed.overflow_y);
+    let reserve_x = reserves(computed.overflow_x);
     LayoutRect::new(
         inner.x,
         inner.y,

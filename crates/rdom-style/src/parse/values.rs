@@ -278,6 +278,17 @@ pub fn parse_overflow(value: &[Token]) -> Option<Overflow> {
     )
 }
 
+pub fn parse_scrollbar_gutter(value: &[Token]) -> Option<crate::layout::ScrollbarGutter> {
+    use crate::layout::ScrollbarGutter;
+    parse_keyword(
+        value,
+        &[
+            ("auto", ScrollbarGutter::Auto),
+            ("stable", ScrollbarGutter::Stable),
+        ],
+    )
+}
+
 pub fn parse_unsigned(value: &[Token]) -> Option<u16> {
     if value.len() == 1
         && let Token::Number(n) = &value[0]

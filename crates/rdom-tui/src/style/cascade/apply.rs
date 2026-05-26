@@ -313,6 +313,12 @@ fn apply_style(
         important_pass,
         parent.overflow_y,
     );
+    apply_scrollbar_gutter(
+        &mut working.scrollbar_gutter,
+        &style.scrollbar_gutter,
+        style.important.contains(ImportantMask::SCROLLBAR_GUTTER),
+        important_pass,
+    );
     apply_display(
         &mut working.display,
         &style.display,
@@ -626,6 +632,23 @@ fn apply_overflow(
         inherit,
         Overflow::Visible
     );
+}
+
+/// `scrollbar-gutter` is non-inheriting (matches `overflow`'s
+/// non-inheriting nature). Initial value: `Auto` — CSS default.
+fn apply_scrollbar_gutter(
+    target: &mut crate::layout::ScrollbarGutter,
+    value: &Option<Value<crate::layout::ScrollbarGutter>>,
+    important_prop: bool,
+    important_pass: bool,
+) {
+    if important_prop != important_pass {
+        return;
+    }
+    match value {
+        Some(Value::Specified(v)) => *target = *v,
+        Some(Value::Inherit | Value::Initial) | None => {}
+    }
 }
 
 fn apply_display(

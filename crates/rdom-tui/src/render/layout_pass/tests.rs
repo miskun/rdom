@@ -2478,8 +2478,7 @@ fn intrinsic_size_ignores_display_none_children() {
     let visible_text = dom.create_text_node("one");
     dom.append_child(visible, visible_text).unwrap();
     let hidden = dom.create_element("h");
-    let hidden_text =
-        dom.create_text_node("five\nlines\nof\nhidden\ncontent");
+    let hidden_text = dom.create_text_node("five\nlines\nof\nhidden\ncontent");
     dom.append_child(hidden, hidden_text).unwrap();
     dom.append_child(host, visible).unwrap();
     dom.append_child(host, hidden).unwrap();
@@ -2697,4 +2696,88 @@ fn block_flow_container_ignores_flex_direction_row() {
     assert_eq!(p_rect.width, 20, "p declared width");
     assert_eq!(h1_rect.height, 2);
     assert_eq!(p_rect.height, 3);
+}
+
+// ── scrollbar-gutter property ────────────────────────────────────
+
+#[test]
+fn overflow_auto_does_not_reserve_gutter_under_default_scrollbar_gutter_auto() {
+    // CSS default for `scrollbar-gutter` is `auto` — gutter only
+    // reserves when the scrollbar actually paints (`Overflow::Scroll`
+    // always; `Overflow::Auto` only via the `Stable` opt-in).
+    // Regression for `CHROME-SCROLL-GUTTER-DEFAULT-1`.
+    use crate::layout::Overflow;
+    let mut dom = tui_dom();
+    let root = dom.root();
+    let host = dom.create_element("host");
+    dom.append_child(root, host).unwrap();
+    let sheet = Stylesheet::bare().rule_unchecked(
+        "host",
+        TuiStyle::new()
+            .display(Display::Block)
+            .width(Size::Fixed(10))
+            .height(Size::Fixed(5))
+            .overflow(Overflow::Auto),
+    );
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 12, 8));
+    let inner = dom.node(host).ext().unwrap().content_layout;
+    // No gutter reserved → content_layout == outer (no padding/border).
+    assert_eq!(inner.width, 10, "no gutter reserved on auto+auto");
+    assert_eq!(inner.height, 5);
+}
+
+#[test]
+fn overflow_auto_with_scrollbar_gutter_stable_reserves_gutter() {
+    use crate::layout::{Overflow, ScrollbarGutter};
+    let mut dom = tui_dom();
+    let root = dom.root();
+    let host = dom.create_element("host");
+    dom.append_child(root, host).unwrap();
+    let sheet = Stylesheet::bare().rule_unchecked(
+        "host",
+        TuiStyle::new()
+            .display(Display::Block)
+            .width(Size::Fixed(10))
+            .height(Size::Fixed(5))
+            .overflow(Overflow::Auto)
+            .scrollbar_gutter(ScrollbarGutter::Stable),
+    );
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 12, 8));
+    let inner = dom.node(host).ext().unwrap().content_layout;
+    // Both axes reserve 1 cell each.
+    assert_eq!(
+        inner.width, 9,
+        "scrollbar-gutter: stable reserves Y-axis gutter"
+    );
+    assert_eq!(
+        inner.height, 4,
+        "scrollbar-gutter: stable reserves X-axis gutter"
+    );
+}
+
+#[test]
+fn overflow_scroll_always_reserves_gutter_regardless_of_scrollbar_gutter_value() {
+    use crate::layout::{Overflow, ScrollbarGutter};
+    let mut dom = tui_dom();
+    let root = dom.root();
+    let host = dom.create_element("host");
+    dom.append_child(root, host).unwrap();
+    // overflow: scroll + scrollbar-gutter: auto. Scroll always
+    // shows the scrollbar, so the gutter must reserve regardless.
+    let sheet = Stylesheet::bare().rule_unchecked(
+        "host",
+        TuiStyle::new()
+            .display(Display::Block)
+            .width(Size::Fixed(10))
+            .height(Size::Fixed(5))
+            .overflow(Overflow::Scroll)
+            .scrollbar_gutter(ScrollbarGutter::Auto),
+    );
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 12, 8));
+    let inner = dom.node(host).ext().unwrap().content_layout;
+    assert_eq!(inner.width, 9, "overflow: scroll always reserves Y-gutter");
+    assert_eq!(inner.height, 4, "overflow: scroll always reserves X-gutter");
 }
