@@ -211,7 +211,30 @@ fn intrinsic_element(
     // `<card>` items would summate as 2 rows on the Column axis),
     // making intrinsic measurement disagree with layout about what
     // counts as a "child."
-    let children: Vec<NodeId> = super::element_children_of(dom, id);
+    //
+    // CSS 2.1 §9.3 + §9.5: out-of-flow children (`display: none`,
+    // `position: absolute|fixed`) take no space in their parent's
+    // in-flow content extent. They MUST be filtered here too —
+    // otherwise the parent's intrinsic includes hidden / floated
+    // content that doesn't actually occupy any cells, inflating
+    // it. Specifically caught the chrome bug where a closed
+    // `<details>` element's hidden `<pre>` body inflated the
+    // intrinsic from ~1 row (summary) to ~15, starving the
+    // sibling `flex: 1` panel of its share of the main axis.
+    use crate::layout::{Display, Position};
+    let children: Vec<NodeId> = super::element_children_of(dom, id)
+        .into_iter()
+        .filter(|&c| {
+            let c_computed = dom.node(c).ext().and_then(|e| e.computed.as_ref());
+            match c_computed {
+                Some(s) => {
+                    s.display != Display::None
+                        && !matches!(s.position, Position::Absolute | Position::Fixed)
+                }
+                None => true,
+            }
+        })
+        .collect();
 
     if children.is_empty() {
         // No element children. Two cases:

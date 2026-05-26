@@ -4,6 +4,7 @@
 #![allow(dead_code)]
 
 mod chrome_dump;
+mod chrome_layout_contract;
 mod keyboard_nav;
 mod mutation_observer_demo;
 mod resize_integration;

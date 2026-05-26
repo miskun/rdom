@@ -2458,6 +2458,80 @@ fn intrinsic_size_block_with_only_whitespace_text_is_chrome_only() {
     assert_eq!(h, 2, "padding only — whitespace text contributes nothing");
 }
 
+#[test]
+fn intrinsic_size_ignores_display_none_children() {
+    // CSS 2.1 §9.5: `display: none` elements take no space in
+    // layout — including no contribution to their parent's
+    // intrinsic measurement. Regression for the
+    // `<details>`-closed-body bug surfaced during BFC-1 Phase 9
+    // chrome review: the source-disclosure's intrinsic counted
+    // its hidden `<pre>` blocks (display:none via the UA
+    // `details:not([open]) > *:not(summary)` rule), giving it
+    // ~15 rows of intrinsic instead of ~1 (summary only). That
+    // intrinsic then ate from the flex column's main-axis
+    // budget so the sibling `flex: 1` view-content shrank to
+    // its content height instead of stretching.
+    let mut dom = tui_dom();
+    let root = dom.root();
+    let host = dom.create_element("host");
+    let visible = dom.create_element("v");
+    let visible_text = dom.create_text_node("one");
+    dom.append_child(visible, visible_text).unwrap();
+    let hidden = dom.create_element("h");
+    let hidden_text =
+        dom.create_text_node("five\nlines\nof\nhidden\ncontent");
+    dom.append_child(hidden, hidden_text).unwrap();
+    dom.append_child(host, visible).unwrap();
+    dom.append_child(host, hidden).unwrap();
+    dom.append_child(root, host).unwrap();
+
+    let sheet = Stylesheet::bare()
+        .rule_unchecked("v", TuiStyle::new().display(Display::Block))
+        .rule_unchecked("h", TuiStyle::new().display(Display::None));
+    cascade(&mut dom, &sheet);
+
+    let h = super::intrinsic::intrinsic_size(&dom, host, Direction::Column, 40);
+    assert_eq!(
+        h, 1,
+        "intrinsic = visible child's 1 row; hidden 5-line child contributes 0"
+    );
+}
+
+#[test]
+fn intrinsic_size_ignores_absolutely_positioned_children() {
+    // CSS 2.1 §9.3 + §10.6: out-of-flow elements (position:
+    // absolute/fixed) don't contribute to their parent's
+    // in-flow content extent. Their layout rect comes from the
+    // positioning pass against their containing block, not from
+    // the parent's intrinsic.
+    use crate::layout::Position;
+    let mut dom = tui_dom();
+    let root = dom.root();
+    let host = dom.create_element("host");
+    let visible = dom.create_element("v");
+    let vt = dom.create_text_node("one");
+    dom.append_child(visible, vt).unwrap();
+    let abs = dom.create_element("a");
+    let at = dom.create_text_node("five\nlines\nof\noff-flow\ncontent");
+    dom.append_child(abs, at).unwrap();
+    dom.append_child(host, visible).unwrap();
+    dom.append_child(host, abs).unwrap();
+    dom.append_child(root, host).unwrap();
+
+    let sheet = Stylesheet::bare()
+        .rule_unchecked("v", TuiStyle::new().display(Display::Block))
+        .rule_unchecked(
+            "a",
+            TuiStyle::new()
+                .display(Display::Block)
+                .position(Position::Absolute),
+        );
+    cascade(&mut dom, &sheet);
+
+    let h = super::intrinsic::intrinsic_size(&dom, host, Direction::Column, 40);
+    assert_eq!(h, 1, "absolute child contributes 0 to in-flow intrinsic");
+}
+
 /// Text-only block elements measure via the inline formatting
 /// context, not by counting their text node's newline count. The
 /// height should reflect actual inline layout at the given cross
