@@ -3060,3 +3060,43 @@ fn collapse_three_sibling_nested_grid_renders_correct_junctions() {
         "second sibling boundary at bottom"
     );
 }
+
+// ── text-decoration: line-through → CROSSED_OUT reaches cells ───
+
+#[test]
+fn text_decoration_line_through_paints_crossed_out_modifier_on_cells() {
+    // CSS 2.1 + tui SGR pipeline: `text-decoration: line-through`
+    // cascades to `Modifier::CROSSED_OUT` on the computed style.
+    // The paint pass must propagate that modifier to every text
+    // cell so the backend emits SGR-9 (CROSSED_OUT, ECMA-48 §8.3.117).
+    //
+    // Regression for `D-M1-3`: `style_from_computed` /
+    // `glyph_style_from_computed` previously masked the modifier
+    // bitset with `BOLD | ITALIC | UNDERLINED` only, silently
+    // dropping `CROSSED_OUT` between cascade and paint. Parser +
+    // cascade worked end-to-end; the paint mask was the leak.
+    use crate::layout::TextDecoration;
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let host = dom.create_element("host");
+    let txt = dom.create_text_node("xy");
+    dom.append_child(host, txt).unwrap();
+    dom.append_child(root, host).unwrap();
+
+    let sheet = Stylesheet::bare().rule_unchecked(
+        "host",
+        TuiStyle::new()
+            .display(Display::Block)
+            .text_decoration(TextDecoration::LineThrough),
+    );
+    let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 4, 1));
+
+    for x in 0..2 {
+        let cell = buf.cell(x, 0).expect("cell present");
+        assert!(
+            cell.modifier.contains(Modifier::CROSSED_OUT),
+            "cell ({x}, 0) {:?} missing CROSSED_OUT — paint dropped the modifier",
+            cell.modifier
+        );
+    }
+}

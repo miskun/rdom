@@ -71,7 +71,19 @@ pub(super) fn style_from_computed(c: &ComputedStyle) -> Style {
     if c.bg != Color::Reset {
         style = style.bg(c.bg);
     }
-    let mods = c.modifiers & (Modifier::BOLD | Modifier::ITALIC | Modifier::UNDERLINED);
+    // CSS-author-visible cell modifiers. Each maps to a SGR
+    // code in `sgr::emit_sgr_transition`:
+    // - BOLD       → SGR-1
+    // - ITALIC     → SGR-3
+    // - UNDERLINED → SGR-4
+    // - CROSSED_OUT → SGR-9  (`text-decoration: line-through`)
+    //
+    // Other Modifier bits (DIM, REVERSED, etc.) are runtime/
+    // selection chrome — they're written explicitly at paint
+    // sites (caret, selection highlight) and must not piggyback
+    // off `text_decoration` cascade values.
+    let mods = c.modifiers
+        & (Modifier::BOLD | Modifier::ITALIC | Modifier::UNDERLINED | Modifier::CROSSED_OUT);
     if !mods.is_empty() {
         style = style.add_modifier(mods);
     }
@@ -87,7 +99,19 @@ pub(super) fn glyph_style_from_computed(c: &ComputedStyle) -> Style {
     if c.fg != Color::Reset {
         style = style.fg(c.fg);
     }
-    let mods = c.modifiers & (Modifier::BOLD | Modifier::ITALIC | Modifier::UNDERLINED);
+    // CSS-author-visible cell modifiers. Each maps to a SGR
+    // code in `sgr::emit_sgr_transition`:
+    // - BOLD       → SGR-1
+    // - ITALIC     → SGR-3
+    // - UNDERLINED → SGR-4
+    // - CROSSED_OUT → SGR-9  (`text-decoration: line-through`)
+    //
+    // Other Modifier bits (DIM, REVERSED, etc.) are runtime/
+    // selection chrome — they're written explicitly at paint
+    // sites (caret, selection highlight) and must not piggyback
+    // off `text_decoration` cascade values.
+    let mods = c.modifiers
+        & (Modifier::BOLD | Modifier::ITALIC | Modifier::UNDERLINED | Modifier::CROSSED_OUT);
     if !mods.is_empty() {
         style = style.add_modifier(mods);
     }

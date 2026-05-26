@@ -35,7 +35,7 @@ For the durable architectural divergences (web-platform departures shipped on pu
 
 ### Cascade misses
 
-- **`D-M1-3` — `text-decoration: line-through` is a no-op.** Parser accepts the keyword, paint writes nothing. Substrate fix: `strikethrough` field on `TuiStyle` + `Modifier::STRIKETHROUGH` bit + paint pass support.
+- **`D-M1-3` — RESOLVED (2026-05-26).** The original entry mis-described the gap: the substrate already had `TextDecoration::LineThrough` → `Modifier::CROSSED_OUT` in the cascade (`apply_text_decoration`), and `sgr::emit_sgr_transition` emitted SGR-9 for that bit. The real leak was in the paint helpers: `style_from_computed` and `glyph_style_from_computed` masked the modifier bitset with `BOLD | ITALIC | UNDERLINED` only — `CROSSED_OUT` was dropped between cascade and cell write. Fixed by adding `CROSSED_OUT` to both masks; regression pinned by `text_decoration_line_through_paints_crossed_out_modifier_on_cells` in `crates/rdom-tui/src/render/paint_pass/tests.rs`.
 - **`D-M1-4` — Inline-style caching is one-shot.** `seed_inline_styles` runs once before `App::new`. Mutating the `style="…"` attribute later does not re-trigger parsing. Apps either call `seed_inline_styles` again or use the typed `set_inline_style(TuiStyle)` API.
 
 ### Animations
