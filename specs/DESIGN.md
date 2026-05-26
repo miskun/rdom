@@ -64,6 +64,26 @@ Domain types and tests describe behavior before implementation lands. The public
 
 Special-case patches that only satisfy the current fixture, silent fallbacks that hide invalid state, broad `unwrap_or_default` / `let _ =` that swallow real failures, and duplicated logic across crates are not acceptable. Fix the root cause, not the symptom.
 
+## Layout passes
+
+`rdom-tui` runs three formatting contexts off the same `layout_pass::layout_node` entry point. Selection happens in `flex::layout_children`:
+
+1. **Inline Formatting Context (IFC)** — fires when the node has at least one `Display::Inline` child. The `LinePacker` greedily packs every descendant grapheme (plus atomic `Display::InlineBlock` fragments per CSS 2.1 §10.8) into `LineBox`es at the container's content width. Children get zero-sized layout rects; paint reads the parent's `inline_layout`. Single-fragment containers (just one inline element) still go through this path. Lives in `render/inline/`.
+
+2. **Pure-text leaf** — fires when the node has direct text children and no element children (`<p>only text</p>`, `<input>`, `<textarea>`). Same line-packing as IFC, but reached through a structural shortcut so the predicate stays narrow ("at least one inline ELEMENT child").
+
+3. **Flow dispatch** — for elements with element children that aren't an IFC. The cascaded `Flow` (Phase 1 of BFC-1) picks between:
+   - `Flow::Block` → `block::layout_block_children`: CSS 2.1 §10 normal flow. Children stack vertically in document order; mixed inline+block content folds inline runs into **anonymous block boxes** (CSS 2.1 §9.2.1.1) that establish their own IFC. Margin collapse per §8.3.1 (adjacent siblings, parent-first/last-child, empty-block collapse-through, full upward propagation). Height: `Auto` resolves from the actual measured content extent; `Percent` resolves only against a *definite* containing block, walking the ancestor chain (§10.5). `row-gap` from CSS3 Box Alignment applies between adjacent block-level element children.
+   - `Flow::Flex` → `flex::layout_flex_children`: CSS Flexible Box L1 distribution along `direction`. Main-axis grow / shrink / `flex-basis` per §9; cross-axis stretch; `gap` between items; auto-min content floor per §4.5 (`M5-MIN-CONTENT-1`). Establishes a new BFC.
+
+CSS3 Display Module two-value mapping is the source of truth: `display: block` → outer `Block` + inner `Block`; `display: flex` → outer `Block` + inner `Flex`. The parser writes both fields atomically (`tui_style::display()` setter).
+
+**Atomic inline-block in IFC** (Phase 3.5b): when an inline-block element appears alongside `Display::Inline` siblings, the IFC packer emits a single fragment for the inline-block carrying its intrinsic width (including UA pseudo content like `<button>`'s `[ ]`). After IFC layout, `layout_atomic_inline_blocks` (block.rs) recursively calls `layout_node` on each atom so its own subtree (text wrap, pseudos, descendants) lays out and so hit-test descends into it.
+
+**Border-collapse parent-edge inset**: shared between block and flex via `flex::collapse_parent_edge_insets` — when `border-collapse: collapse` extends the parent's content area to include its border ring, the first/last in-flow child needs an inset if it lacks its own border to share the cell with. Same per-edge logic for both layout modes.
+
+**`establishes_new_bfc`** (Phase 1 cascade field): true for `display: flex`, `display: inline-block`, `overflow != visible`, `position: absolute|fixed`. Used by margin-collapse to gate parent-child collapse + by parent-bottom/last-child trapping (a BFC traps its children's margins inside its content height instead of letting them escape upward).
+
 ## Roadmap
 
 0.1.0 ships the DOM substrate, the cascade, flexbox layout, the runtime, native HTML built-ins, the UA stylesheet, the CSS string parser, and the HTML template parser. See the root [`README.md`](../README.md#whats-in-010) for the shipped feature list.

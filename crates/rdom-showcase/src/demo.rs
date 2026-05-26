@@ -20,6 +20,17 @@ use rdom_tui::{NodeId, Stylesheet, TuiDom};
 /// class somewhere in its selector. Enforced by the
 /// `every_demo_stylesheet_uses_only_class_scoped_selectors` test
 /// in `crates/rdom-showcase/src/registry.rs`.
+///
+/// **Default flow is block; opt into flex with `display: flex`.**
+/// Post-BFC-1, semantic HTML behaves like the web platform:
+/// `<div><h1></h1><p></p></div>` stacks vertically without any
+/// CSS at all. Demos that want flex distribution (a row of items,
+/// a grow-to-fill panel, `flex-direction: column` for explicit
+/// stacking-with-grow) must declare `display: flex` on the
+/// container alongside their `flex-direction` / `flex-grow` rules.
+/// Pure-text demos (Hello World, Headings, paragraphs) need no
+/// opt-in — `display: block` is the default for every container
+/// you didn't explicitly mark.
 pub trait Demo {
     /// Path-like identifier used for CLI deep-linking and as the
     /// stable key for goldens. Format: `"category/demo-name"` in
