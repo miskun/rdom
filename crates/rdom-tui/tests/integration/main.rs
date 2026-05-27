@@ -27,6 +27,7 @@ mod app_shell_snapshot;
 mod append_text_reflows_layout;
 mod bfc_cascade;
 mod border_collapse_snapshot;
+mod border_model_contract;
 mod button_flex_repro;
 mod calc_layout;
 mod counter_button_snapshot;
