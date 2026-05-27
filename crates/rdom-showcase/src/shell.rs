@@ -294,11 +294,14 @@ pub fn base_stylesheet() -> Stylesheet {
 /// consumer browses the source they should see the same shape
 /// they'd write themselves.
 ///
-/// Borders use `border-collapse: collapse` on the outer `.app` so
-/// adjacent inner borders share cells instead of stacking into
-/// double rules at every junction. The four child boxes
-/// (`.app-header`, `.sidebar`, `.main`, plus `.app-body` as a
-/// row container with no border of its own) line up cleanly.
+/// Borders use `border-collapse: collapse` declared explicitly on
+/// `.app`, `.app-body`, and `.main` so adjacent inner borders
+/// share cells instead of stacking into double rules at every
+/// junction. Under BORDER-MODEL-1 the property is non-inheriting
+/// — each container along the chain (panel → body → main) opts
+/// in for its own direct children to participate. `.app-body`
+/// additionally gets its own (visually invisible) border so it
+/// can join `.app`'s collapse group at the header / footer rows.
 ///
 /// **`.main` has NO padding by design.** The chrome's job is to
 /// define the panel container — its borders, position, and

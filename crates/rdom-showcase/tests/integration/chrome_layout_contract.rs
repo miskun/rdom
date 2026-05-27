@@ -767,3 +767,73 @@ fn border_collapse_demo_preserves_source_disclosure_left_indent() {
         main_rect.x
     );
 }
+
+#[test]
+fn flex_row_demo_renders_gap_between_boxes() {
+    // BORDER-MODEL-1 canonical user-visible outcome: the flex-row
+    // demo writes `gap: 1` on its container; the substrate must
+    // honor that gap and put a visible empty cell between the
+    // three bordered `.box` children. Pre-initiative behavior
+    // collapsed the gap into the borders (`┐┌` adjacency) because
+    // `.app`'s inherited `border-collapse: collapse` cascaded into
+    // every demo subtree. Pinned here so that regression can't
+    // come back silently.
+    use rdom_tui::PaintExt;
+    use rdom_tui::render::Buffer;
+
+    let idx = DEMOS
+        .iter()
+        .position(|d| d.slug() == "layout/flex-row")
+        .expect("flex-row demo registered");
+    let (dom, _h) = shell_with_demo(idx, 80, 24);
+    let mut buf = Buffer::empty(Rect::new(0, 0, 80, 24));
+    dom.paint_dom(&mut buf, Rect::new(0, 0, 80, 24));
+
+    // Find the row of `.box` tops by scanning for `┌`. The three
+    // boxes are on the same row inside view-content; we expect
+    // them as `┌─...─┐ ┌─...─┐ ┌─...─┐` separated by a single
+    // space (gap=1).
+    let mut box_top_y = None;
+    for y in 0..24 {
+        let mut row = String::new();
+        for x in 0..80 {
+            if let Some(c) = buf.cell(x, y) {
+                row.push_str(c.symbol());
+            }
+        }
+        if row.matches('┌').count() == 3 {
+            box_top_y = Some(y);
+            break;
+        }
+    }
+    let y = box_top_y.expect("three ┌ on one row (three .box tops)");
+    let mut tops: Vec<u16> = Vec::new();
+    for x in 0..80 {
+        if buf.cell(x, y).map(|c| c.symbol()) == Some("┌") {
+            tops.push(x);
+        }
+    }
+    assert_eq!(tops.len(), 3, "three box top-left corners");
+    // Gap rule: between consecutive boxes there must be at least
+    // ONE empty cell (gap=1). If they were touching (`┐┌` adjacency)
+    // the spacing would be exactly `box_width`; with gap=1 it's
+    // `box_width + 1`.
+    let box0_right = (0..80)
+        .rev()
+        .find(|&x| x < tops[1] && buf.cell(x, y).map(|c| c.symbol()) == Some("┐"))
+        .expect("first box top-right corner");
+    assert!(
+        tops[1] > box0_right + 1,
+        "expected gap cell between box A's right ({}) and box B's left ({}); got adjacent",
+        box0_right,
+        tops[1]
+    );
+    // Spot-check: the cell between them is empty (not part of any
+    // box's border).
+    let gap_cell = buf.cell(box0_right + 1, y).map(|c| c.symbol());
+    assert_eq!(
+        gap_cell,
+        Some(" "),
+        "the gap cell must be empty space; got {gap_cell:?}"
+    );
+}
