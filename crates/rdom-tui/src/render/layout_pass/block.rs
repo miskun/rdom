@@ -192,6 +192,14 @@ pub(super) fn layout_block_children(
     let row_gap = parent_computed.gap;
 
     let mut placed_block_count: usize = 0;
+    // BORDER-MODEL-1 (M6): track the previous direct block sibling
+    // so we can apply the sibling-overlap pullback when both this
+    // block and its predecessor have a visible border on the shared
+    // edge under `border-collapse: collapse`. Mirrors flex.rs's
+    // pullback. The variable resets to `None` when an inline-run
+    // anonymous block intervenes — its non-zero height breaks
+    // border-adjacency, so border-overlap can't apply across it.
+    let mut prev_block_id: Option<NodeId> = None;
     for (run_idx, run) in runs.iter().enumerate() {
         match run.kind {
             RunKind::Block => {
@@ -205,6 +213,32 @@ pub(super) fn layout_block_children(
                         // children. Margins collapse normally above;
                         // gap is added on top per CSS3 Box Alignment.
                         y_cursor += row_gap as i32;
+                    }
+                    // BORDER-MODEL-1 (M6) block-flow sibling overlap:
+                    // same rule as flex.rs — parent has `collapse`,
+                    // row-gap is 0, AND both this child and the
+                    // previous block sibling have a visible border on
+                    // the shared (top / bottom) edge. Pull the cursor
+                    // back by 1 so the borders coincide and paint-time
+                    // mask-OR produces the junction glyph.
+                    if row_gap == 0
+                        && parent_computed.border_collapse
+                            == crate::layout::BorderCollapse::Collapse
+                        && let Some(prev) = prev_block_id
+                    {
+                        let prev_bot = dom
+                            .node(prev)
+                            .computed()
+                            .map(|c| c.border.bottom.is_visible())
+                            .unwrap_or(false);
+                        let curr_top = dom
+                            .node(child)
+                            .computed()
+                            .map(|c| c.border.top.is_visible())
+                            .unwrap_or(false);
+                        if prev_bot && curr_top {
+                            y_cursor -= 1;
+                        }
                     }
                     y_cursor = lay_out_block_child(
                         dom,
@@ -220,6 +254,7 @@ pub(super) fn layout_block_children(
                         },
                     );
                     placed_block_count += 1;
+                    prev_block_id = Some(child);
                 }
             }
             RunKind::Inline => {
@@ -254,6 +289,11 @@ pub(super) fn layout_block_children(
                     child_range: run.child_range,
                 });
                 y_cursor = anon_y + height as i32;
+                // BORDER-MODEL-1 (M6): an inline-run anon block breaks
+                // block-to-block border adjacency. Reset the
+                // overlap-tracker so the next block sibling is treated
+                // as the start of a fresh adjacency chain.
+                prev_block_id = None;
             }
         }
     }

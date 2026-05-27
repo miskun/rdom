@@ -145,6 +145,68 @@ fn gap_positive_collapse_has_no_overlap_collapse_is_noop() {
 }
 
 // ─────────────────────────────────────────────────────────────────
+// Block-flow mirror — same rules in vertical block stacking
+// ─────────────────────────────────────────────────────────────────
+
+#[test]
+fn block_flow_siblings_overlap_under_collapse_with_zero_gap() {
+    // Two block-level siblings under `border-collapse: collapse`
+    // with gap == 0 and both bordered. The second's outer top
+    // coincides with the first's outer bottom (overlap by 1 cell)
+    // — same rule as the flex case, applied to block flow.
+    let mut dom: TuiDom = TuiDom::new();
+    let outer = dom.create_element("stack");
+    let a = dom.create_element("block_a");
+    let b = dom.create_element("block_b");
+    dom.append_child(dom.root(), outer).unwrap();
+    dom.append_child(outer, a).unwrap();
+    dom.append_child(outer, b).unwrap();
+
+    let css = r#"
+        stack    { width: 10; height: 10; border-collapse: collapse; }
+        block_a  { height: 3; border: solid; }
+        block_b  { height: 3; border: solid; }
+    "#;
+    let _buf = pipeline(&mut dom, css, Rect::new(0, 0, 12, 12));
+
+    let a_rect = dom.node(a).layout_rect().expect("a laid out");
+    let b_rect = dom.node(b).layout_rect().expect("b laid out");
+    assert_eq!(a_rect.y, 0, "first block at top of container");
+    assert_eq!(a_rect.height, 3);
+    assert_eq!(
+        b_rect.y, 2,
+        "block-flow sibling overlaps prev's bottom by 1 cell under collapse + gap=0; got {b_rect:?}"
+    );
+}
+
+#[test]
+fn block_flow_siblings_respect_gap_under_collapse() {
+    // `row-gap: 1` (block-flow gap is just `gap` per CSS3) is
+    // honored — collapse becomes a no-op for the sibling pair.
+    let mut dom: TuiDom = TuiDom::new();
+    let outer = dom.create_element("stack");
+    let a = dom.create_element("block_a");
+    let b = dom.create_element("block_b");
+    dom.append_child(dom.root(), outer).unwrap();
+    dom.append_child(outer, a).unwrap();
+    dom.append_child(outer, b).unwrap();
+
+    let css = r#"
+        stack    { width: 10; height: 10; border-collapse: collapse; gap: 1; }
+        block_a  { height: 3; border: solid; }
+        block_b  { height: 3; border: solid; }
+    "#;
+    let _buf = pipeline(&mut dom, css, Rect::new(0, 0, 12, 12));
+
+    let _a_rect = dom.node(a).layout_rect().expect("a laid out");
+    let b_rect = dom.node(b).layout_rect().expect("b laid out");
+    assert_eq!(
+        b_rect.y, 4,
+        "with gap=1 the second sibling starts at a.bottom + 1; got {b_rect:?}"
+    );
+}
+
+// ─────────────────────────────────────────────────────────────────
 // Non-inheritance — `border-collapse` does NOT inherit
 // ─────────────────────────────────────────────────────────────────
 
