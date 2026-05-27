@@ -377,6 +377,13 @@ const BASE_CSS: &str = r#"
   display: flex;
   flex: 1;
   flex-direction: row;
+  /* BORDER-MODEL-1 (non-inheriting `border-collapse`): a container
+   * that wants its direct children to share borders must declare
+   * collapse itself. `.app-body`'s direct children are `.sidebar`
+   * and `.main`; declaring collapse here makes their adjacent
+   * vertical borders overlap (the `┬`/`┴` junctions between
+   * sidebar and main on the header / footer rows). */
+  border-collapse: collapse;
   /* Body is an app-shell pane — it should track the available
    * height, not balloon to the sum of its children's intrinsic
    * heights. Web-faithful: real CSS authors use `min-height: 0`
@@ -410,6 +417,13 @@ const BASE_CSS: &str = r#"
   flex-direction: column;
   border: solid;
   border-color: rgb(45, 47, 49);
+  /* BORDER-MODEL-1 (non-inheriting `border-collapse`): declare
+   * collapse on `.main` so its direct children (`.view-content`
+   * and `.source-disclosure`) share borders — the
+   * source-disclosure's `border-top` sits on `.main`'s outer
+   * frame and shares the cell with the panel's right and left
+   * borders to form the `├`/`┤` T-junctions at row 20. */
+  border-collapse: collapse;
   /* Opt into responsive shrink past intrinsic content size — the
    * source disclosure can hold lines wider than the terminal, but
    * `<main>` should still fit the row alongside the sidebar.

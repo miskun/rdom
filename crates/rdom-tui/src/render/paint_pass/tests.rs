@@ -2980,7 +2980,13 @@ fn collapse_three_sibling_nested_grid_renders_correct_junctions() {
         )
         .rule_unchecked(
             "row",
-            TuiStyle::new().flow(Flow::Flex).direction(Direction::Row),
+            // BORDER-MODEL-1: collapse is non-inheriting; `row`
+            // declares it explicitly so its direct children's
+            // adjacent borders overlap at the shared cells.
+            TuiStyle::new()
+                .flow(Flow::Flex)
+                .direction(Direction::Row)
+                .border_collapse(BorderCollapse::Collapse),
         )
         .rule_unchecked(
             "left",

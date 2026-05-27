@@ -150,7 +150,6 @@ fn gap_positive_collapse_has_no_overlap_collapse_is_noop() {
 // ─────────────────────────────────────────────────────────────────
 
 #[test]
-#[ignore = "BORDER-MODEL-1 M4 — border-collapse must stop inheriting"]
 fn border_collapse_does_not_inherit() {
     // Parent declares `collapse`; intermediate borderless container
     // is declaration-less; intermediate's bordered children must NOT

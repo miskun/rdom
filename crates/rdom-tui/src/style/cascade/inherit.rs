@@ -27,11 +27,13 @@ pub(super) fn inherit_inheritable_from(working: &mut ComputedStyle, parent: &Com
     // white_space + user_select inherit; display does not.
     working.white_space = parent.white_space;
     working.user_select = parent.user_select;
-    // border-collapse inherits per CSS spec (M5.5a). The default
-    // `Separate` propagates from root → children unless an ancestor
-    // sets `collapse`, in which case every descendant inherits it
-    // until something explicitly resets to `separate`.
-    working.border_collapse = parent.border_collapse;
+    // `border-collapse` does NOT inherit in rdom — documented
+    // divergence (BORDER-MODEL-1). Containers that want their direct
+    // children to participate in collapse declare it themselves;
+    // demos and downstream consumer subtrees never inherit the
+    // chrome's choice implicitly. `working.border_collapse` keeps
+    // its initialized default (`Separate`); explicit author
+    // declarations are applied later in `apply_border_collapse`.
     // Inherit custom-property map by Rc::clone (cheap).
     working.vars = parent.vars.clone();
 }

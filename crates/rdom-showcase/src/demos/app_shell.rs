@@ -51,6 +51,10 @@ pub const CSS: &str = r#"
   display: flex;
   flex-direction: row;
   border: solid;
+  /* BORDER-MODEL-1: collapse is non-inheriting; the body declares
+   * it so its direct children (sidebar/middle/right-panel) share
+   * borders with each other and with the body's own ring. */
+  border-collapse: collapse;
 }
 .app-shell-demo .sidebar {
   width: 20;

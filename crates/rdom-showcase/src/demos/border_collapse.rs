@@ -47,6 +47,10 @@ pub const CSS: &str = r#"
   display: flex;
   flex-direction: column;
   border: solid;
+  /* BORDER-MODEL-1: collapse is non-inheriting; the middle column
+   * declares it so its `.row` children share borders with each
+   * other AND with `.middle`'s own ring. */
+  border-collapse: collapse;
 }
 .border-collapse-demo .middle .row {
   flex: 1;

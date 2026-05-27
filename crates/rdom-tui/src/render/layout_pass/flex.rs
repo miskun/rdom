@@ -662,29 +662,16 @@ pub(super) fn has_effective_border_on_edge(
         .cloned()
         .unwrap_or_else(ComputedStyle::initial);
 
-    // Collapse-root opacity (CSS 2.1 §17.6.2.1 table-equals-boundary,
-    // extended to rdom's non-table elements): an element that
-    // DECLARES `border-collapse: collapse` is a sealed sub-group.
-    // Its outer border belongs to its own collapse group, not the
-    // outer one — so to the outer parent's collapse logic, this
-    // element does NOT have a shareable edge. Returning false here
-    // both (a) skips sibling-overlap with adjacent in-group siblings
-    // and (b) makes the parent reserve the full edge inset via
-    // `collapse_parent_edge_insets`, so this element's ring sits
-    // INSIDE the parent's content area rather than coincident with
-    // the parent's border ring.
-    //
-    // Pure inheritance (`border_collapse == Collapse` without
-    // `border_collapse_declared`) keeps the existing transparent-
-    // intermediate behavior — the chrome's `<header>` ↔ `<sidebar>`
-    // overlap still fires because the chrome elements only inherit
-    // collapse from `.app`.
-    if computed.border_collapse_declared
-        && computed.border_collapse == crate::layout::BorderCollapse::Collapse
-    {
-        return false;
-    }
-
+    // BORDER-MODEL-1 retired the "collapse-root opacity" guard that
+    // used to live here. Under non-inheriting `border-collapse`,
+    // every container that wants collapse semantics declares them
+    // explicitly — declaration is normal, not "sealed sub-group."
+    // The previous guard returned `false` for any element whose own
+    // `border_collapse_declared == true`, which under the new model
+    // breaks the chrome (every chrome container declares collapse
+    // and would be falsely reported as borderless). Sibling-overlap
+    // and parent-edge insets read the element's own border directly
+    // — that's the single source of truth.
     let own_has_edge = match edge {
         CollapseEdge::Top => computed.border.top.is_visible(),
         CollapseEdge::Bottom => computed.border.bottom.is_visible(),

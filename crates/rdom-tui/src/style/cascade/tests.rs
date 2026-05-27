@@ -624,7 +624,11 @@ fn min_max_option_cascade() {
 }
 
 #[test]
-fn border_collapse_inherits_to_children() {
+fn border_collapse_does_not_inherit_to_children() {
+    // BORDER-MODEL-1 divergence: `border-collapse` is non-inheriting
+    // in rdom. A container that wants its direct children to
+    // participate declares it explicitly; descendants do NOT
+    // implicitly receive it.
     use rdom_style::layout::BorderCollapse;
     let mut dom: TuiDom = TuiDom::new();
     let root = dom.root();
@@ -639,12 +643,13 @@ fn border_collapse_inherits_to_children() {
     dom.cascade(&sheet);
     assert_eq!(
         computed_of(&dom, outer).border_collapse,
-        BorderCollapse::Collapse
+        BorderCollapse::Collapse,
+        "outer declared collapse explicitly"
     );
     assert_eq!(
         computed_of(&dom, inner).border_collapse,
-        BorderCollapse::Collapse,
-        "border-collapse inherits per CSS spec"
+        BorderCollapse::Separate,
+        "inner does NOT inherit outer's collapse (BORDER-MODEL-1 divergence)"
     );
 }
 
