@@ -34,6 +34,7 @@ pub mod router;
 pub mod scrollbar;
 pub mod selection;
 pub mod timers;
+pub mod trace;
 pub mod url_opener;
 // Placeholders — later Phase 14.6 sub-phases fill these in.
 // pub mod pointer_capture;
