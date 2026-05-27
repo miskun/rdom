@@ -227,10 +227,13 @@ fn first_child_with_matching_border_still_shares_under_collapse() {
     // = parent.outer.y (the border row). Does clipping at padding-box
     // wipe out the child's border?
     //
-    // Answer per `M5-COLLAPSE-1`: "outermost wins" — parent's border
-    // resolution dominates anyway. The shared cell still renders a
-    // border glyph (the parent's). The fix neither helps nor hurts
-    // this case visually; pin the behavior.
+    // Answer under BORDER-MODEL-1's CSS Tables 3 §11.5 conflict
+    // resolution: the per-direction joiner picks the highest-rank
+    // contribution at the shared cell. Both parent and child
+    // contribute Solid + same border-color, so the cell renders
+    // the corresponding glyph (matched colors blend trivially).
+    // The fix neither helps nor hurts this case visually; pin
+    // the behavior.
     let mut dom: TuiDom = TuiDom::new();
     let root = dom.root();
     let parent = dom.create_element("parent_el");

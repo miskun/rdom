@@ -92,15 +92,17 @@ One piece of architectural debt deferred with teeth: `EVT-DETACH-1` (implicit bl
 - **Scope:** single initiative. Block-flow collapse, flex-flow collapse, paint conflict resolution, cascade non-inheritance, BorderStyle enum, chrome migration, all dead-code removal — one branch, one push.
 
 **Milestones:**
-- [ ] M1 — Docs + contract pinning. `DIVERGENCES.md` rewritten under "Layout"; `TECH_DEBT.md` opens `BORDER-MODEL-1` and marks `M5-COLLAPSE-1` / `M5.5b-CELL-OWNERSHIP-1` / `BFC1-CODE-COLLAPSE-INSETS-1` as resolved by it; this log opened.
-- [ ] M2 — Failing test scaffold pinning every contract row (4 layout outcomes, non-inheritance, hidden kill-switch, style ranking, color winner, DOM-order tiebreak).
-- [ ] M3 — `BorderStyle` enum + parsing; replace per-side bool in `Border`; migrate every call site.
-- [ ] M4 — `border-collapse` becomes non-inheriting.
-- [ ] M5 — Flex layout: remove transparent-intermediate recursion; direct-children-only; `gap > 0` honored.
-- [ ] M6 — Block-flow mirror of M5's rules.
-- [ ] M7 — Paint: per-direction buffer + CSS Tables 3 §11.5 conflict-resolution algorithm.
-- [ ] M8 — Showcase chrome migration to explicit per-container collapse declarations; demos audited.
-- [ ] M9 — Cleanup; workspace gate green; visual smoke on every example; `BORDER-MODEL-1` closed.
+- [x] M1 — Docs + contract pinning. `DIVERGENCES.md` rewritten under "Layout"; `TECH_DEBT.md` opens `BORDER-MODEL-1` and marks `M5-COLLAPSE-1` / `M5.5b-CELL-OWNERSHIP-1` / `BFC1-CODE-COLLAPSE-INSETS-1` as resolved by it; this log opened.
+- [x] M2 — Failing test scaffold pinning every contract row (4 layout outcomes, non-inheritance, hidden kill-switch, style ranking, color winner, DOM-order tiebreak).
+- [x] M3 — `BorderStyle` enum + parsing; replace per-side bool in `Border`; migrate every call site.
+- [x] M4 — `border-collapse` becomes non-inheriting + chrome migration to explicit per-container declarations on `.app`, `.app-body`, `.main`.
+- [x] M5 — Flex layout: remove transparent-intermediate recursion; direct-children-only; `gap > 0` honored. `.app-body` border added so it joins `.app`'s collapse group.
+- [x] M6 — Block-flow mirror of M5's rules.
+- [x] M7 — Paint: per-direction `BorderContribution` buffer + CSS Tables 3 §11.5 conflict-resolution algorithm. Hidden kill-switch, double-line glyph table, rounded-corner fast path for lone contributors. All 13 contract tests pass.
+- [x] M8 — `flex_row` demo gap pinned end-to-end via `flex_row_demo_renders_gap_between_boxes` in chrome contract tests.
+- [x] M9 — Cleanup, workspace gate green, contract tests un-ignored, stale comments updated.
+
+**Closed.** `BORDER-MODEL-1` retires `M5-COLLAPSE-1`, `M5.5b-CELL-OWNERSHIP-1`, `BFC1-CODE-COLLAPSE-INSETS-1`. CSS author can now write any of the three valid `gap` × `border-collapse` outcomes and get exactly what they asked for; no inheritance leak, no surprise.
 
 ### 2026-05-26 — BFC-1 closed: block-formatting-context substrate end-to-end
 
