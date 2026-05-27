@@ -104,6 +104,34 @@ impl Router {
     /// Non-mouse events (`CtEvent::Resize`, `Key`, etc.) return an
     /// empty outcome — `App` handles them directly.
     pub fn route(&mut self, dom: &mut TuiDom, event: CtEvent) -> RouteOutcome {
+        if crate::runtime::trace::enabled() {
+            match &event {
+                CtEvent::Mouse(m) => crate::rdom_trace!(
+                    "Router::route Mouse {{ kind: {:?}, col: {}, row: {}, mods: {:?} }} \
+                     capture={:?} hover_target={:?} dom.hovered={:?} sel_drag={:?} scb_drag={}",
+                    m.kind,
+                    m.column,
+                    m.row,
+                    m.modifiers,
+                    dom.pointer_capture(),
+                    self.hover_target,
+                    dom.hovered(),
+                    self.selection_drag.is_some(),
+                    self.scrollbar_drag.is_some(),
+                ),
+                CtEvent::FocusGained => {
+                    crate::rdom_trace!("Router::route FocusGained")
+                }
+                CtEvent::FocusLost => {
+                    crate::rdom_trace!("Router::route FocusLost")
+                }
+                CtEvent::Resize(w, h) => {
+                    crate::rdom_trace!("Router::route Resize {w}x{h}")
+                }
+                CtEvent::Key(k) => crate::rdom_trace!("Router::route Key {k:?}"),
+                CtEvent::Paste(_) => crate::rdom_trace!("Router::route Paste"),
+            }
+        }
         match event {
             CtEvent::Mouse(m) => mouse::route_mouse(self, dom, m),
             _ => RouteOutcome::default(),

@@ -197,8 +197,37 @@ impl App<CrosstermBackend<Stdout>> {
                 let poll_timeout = self.compute_poll_timeout();
                 let has_event = event::poll(poll_timeout).unwrap_or(false);
                 if has_event {
-                    if let Ok(ev) = event::read() {
-                        self.handle_event(ev);
+                    // Drain ALL currently-queued events before
+                    // drawing. At ~100Hz mouse motion, processing
+                    // one event then drawing then processing the
+                    // next means each paint (which can be 80ms+
+                    // for a complex scene) lets ~8 motion events
+                    // queue up. The hover state visibly lags
+                    // behind the cursor. Draining collapses a
+                    // burst into a single paint that reflects the
+                    // final state — same pattern ratatui apps
+                    // use. We still bound the drain to whatever's
+                    // queued right now: an infinite tight drain
+                    // would starve drawing if events arrive
+                    // faster than we can drain.
+                    loop {
+                        match event::read() {
+                            Ok(ev) => {
+                                crate::rdom_trace!("event::read() -> Ok({ev:?})");
+                                self.handle_event(ev);
+                            }
+                            Err(e) => {
+                                crate::rdom_trace!("event::read() -> Err({e:?})");
+                                break;
+                            }
+                        }
+                        // Zero-timeout poll: only continue if
+                        // another event is already buffered. As
+                        // soon as the queue drains we exit the
+                        // loop and proceed to draw.
+                        if !event::poll(std::time::Duration::ZERO).unwrap_or(false) {
+                            break;
+                        }
                     }
                 } else {
                     self.tick();
@@ -545,6 +574,11 @@ impl<B: Backend> App<B> {
         // extension trait. Dropped at the end of this method,
         // restoring the previous value (typically null).
         let _scheduler_guard = crate::runtime::timers::SchedulerGuard::install(&mut self.scheduler);
+        // RAW ENTRY trace — every event from `event::read()` lands
+        // here. If trace shows clicks but no `Moved`, we know
+        // motion events are NOT crossing this boundary — i.e.,
+        // crossterm itself isn't producing them.
+        crate::rdom_trace!("App::handle_event RAW: {event:?}");
         match &event {
             CtEvent::Key(key) => {
                 use crossterm::event::KeyEventKind;
@@ -656,9 +690,36 @@ impl<B: Backend> App<B> {
                 tui.event.cancelable = false;
                 let _ = self.dom.dispatch_tui_event(root, &mut tui);
                 self.needs_redraw = true;
+
+                // Re-arm mouse tracking after the resize signal.
+                // Terminals (and tmux in some configurations) reset
+                // DEC private-mode state across viewport changes;
+                // EnableMouseCapture is idempotent on conformant
+                // terminals and recovers motion-event delivery
+                // where it was lost.
+                let mut stdout = std::io::stdout();
+                if let Err(e) = crate::render::backend_crossterm::enter_mouse_capture(&mut stdout) {
+                    crate::rdom_trace!("Resize: failed to re-arm mouse capture: {e}");
+                } else {
+                    crate::rdom_trace!("Resize: re-armed mouse capture");
+                }
+            }
+            CtEvent::FocusGained => {
+                crate::rdom_trace!(
+                    "App::handle_event: FocusGained (capture={:?}, hovered={:?})",
+                    self.dom.pointer_capture(),
+                    self.dom.hovered()
+                );
+            }
+            CtEvent::FocusLost => {
+                crate::rdom_trace!(
+                    "App::handle_event: FocusLost (capture={:?}, hovered={:?})",
+                    self.dom.pointer_capture(),
+                    self.dom.hovered()
+                );
             }
             _ => {
-                // FocusGained/Lost, Paste, etc. — currently ignored.
+                // Paste, etc. — currently ignored.
             }
         }
     }
@@ -731,8 +792,14 @@ impl<B: Backend> App<B> {
         }
 
         if !self.needs_redraw && dirty_roots.is_empty() {
+            crate::rdom_trace!("draw_if_dirty: SKIP (needs_redraw=false, dirty_roots empty)");
             return Ok(());
         }
+        crate::rdom_trace!(
+            "draw_if_dirty: DRAW (needs_redraw={}, dirty_roots={:?})",
+            self.needs_redraw,
+            dirty_roots
+        );
 
         // De-duplicate: multiple mutations under the same root end up
         // registered under the same NodeId.

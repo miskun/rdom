@@ -419,7 +419,10 @@ fn multiple_mutations_coalesce_into_one_paint() {
     let child_refs: Vec<NodeId> = children.clone();
     let mut app = test_app(dom, Stylesheet::bare(), Rect::new(0, 0, 20, 5)).on_tick(
         move |ctx: &mut AppContext<'_>| {
-            // Mutate 5 nodes in one tick.
+            // Mutate 5 element nodes in one tick. `set_attribute`
+            // fires `AttributeChanged` which the DirtyTracker
+            // observer marks dirty directly on each element —
+            // pinning the "many mutations → one drain" contract.
             for &id in &child_refs {
                 let _ = ctx.dom.set_attribute(id, "data-touched", "1");
             }
@@ -428,14 +431,25 @@ fn multiple_mutations_coalesce_into_one_paint() {
     );
 
     app.draw_if_dirty().unwrap();
-    let initial_bytes = app.terminal().backend().bytes().len();
+    // Coalescing signal: after `tick` queues 5 mutations, the
+    // DirtyTracker's roots list holds N entries (at most 5, some
+    // may dedupe via the ancestor check). After `draw_if_dirty`,
+    // the tracker is drained to empty — proving one draw consumed
+    // the whole batch. (We don't count emitted bytes: with BSU/
+    // ESU removed, an empty diff emits zero bytes, breaking a
+    // bytes-based heuristic.)
     app.tick();
+    let roots_after_tick = app.dirty_roots_snapshot();
+    assert!(
+        !roots_after_tick.is_empty(),
+        "tick should leave dirty roots from the 5 attribute mutations"
+    );
     app.draw_if_dirty().unwrap();
-    let after_bytes = app.terminal().backend().bytes().len();
-    // One paint happened (after_bytes > initial_bytes). We don't
-    // assert an exact count, just that a second paint did NOT
-    // fire per-mutation.
-    assert!(after_bytes > initial_bytes, "paint happened once");
+    assert!(
+        app.dirty_roots_snapshot().is_empty(),
+        "draw_if_dirty must drain the dirty roots in one pass — coalescing 5 \
+         mutations into one paint cycle"
+    );
     // After the draw, flags reset.
     assert!(!app.needs_redraw());
 }

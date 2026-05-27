@@ -143,11 +143,18 @@ impl<B: Backend> Terminal<B> {
         // Caller paints.
         f(&mut self.back)?;
 
-        // Begin Synchronized Update (ignored by non-supporting
-        // terminals).
-        #[cfg(not(feature = "no-synchronized-output"))]
-        self.backend.write_all(b"\x1b[?2026h")?;
-
+        // Synchronized output (BSU/ESU = `?2026h` / `?2026l`)
+        // INTENTIONALLY OMITTED — iTerm2 has a confirmed bad
+        // interaction where the per-frame `?2026h` reset of the
+        // sync-output state machine intermittently breaks
+        // delivery of `?1003h` (any-motion) mouse events: the
+        // user-visible symptom is that hover stops working
+        // until the terminal window loses + regains focus. Other
+        // terminal frameworks that don't emit `?2026` (ratatui
+        // 0.29 confirmed) don't trigger this. The protection
+        // BSU/ESU offers (mid-frame tearing on fast paints) is
+        // not worth losing hover for. Re-enable when iTerm2 fixes
+        // the interaction OR rdom-tui adds a runtime opt-in.
         let mut cells_emitted = 0usize;
         let was_full_redraw = self.force_full_redraw;
 
@@ -170,10 +177,7 @@ impl<B: Backend> Terminal<B> {
             self.backend.draw(self.back.diff_iter(&self.front))?;
         }
 
-        // End Synchronized Update.
-        #[cfg(not(feature = "no-synchronized-output"))]
-        self.backend.write_all(b"\x1b[?2026l")?;
-
+        // ESU intentionally omitted — see BSU comment above.
         self.backend.flush()?;
 
         // Swap: back becomes the new front.
@@ -328,9 +332,16 @@ mod tests {
 
     // ── BSU/ESU ──────────────────────────────────────────────────────
 
-    #[cfg(not(feature = "no-synchronized-output"))]
     #[test]
-    fn sync_output_wraps_frame() {
+    fn draw_does_not_emit_synchronized_output_sequences() {
+        // Inverse of the pre-fix invariant: BSU/ESU (`?2026h` /
+        // `?2026l`) were emitted by every `draw()` to prevent mid-
+        // frame tearing on conformant terminals. iTerm2 has a
+        // confirmed interaction where the per-frame `?2026h` reset
+        // intermittently breaks `?1003h` motion-event delivery
+        // (hover stops working until terminal loses + regains
+        // focus). Pin the new contract: draw emits NO `?2026`
+        // bytes so motion tracking stays alive.
         let tb = TestBackend::new(5, 1);
         let mut term = Terminal::new(tb).unwrap();
         term.draw(|buf| {
@@ -339,8 +350,15 @@ mod tests {
         })
         .unwrap();
         let bytes = term.backend().bytes();
-        assert!(bytes.starts_with(b"\x1b[?2026h"), "BSU missing");
-        assert!(bytes.ends_with(b"\x1b[?2026l"), "ESU missing");
+        assert!(
+            !bytes.windows(8).any(|w| w == b"\x1b[?2026h"),
+            "BSU (?2026h) must NOT appear in draw output — see iTerm2 \
+             motion-tracking interaction documented in `terminal.rs::draw`"
+        );
+        assert!(
+            !bytes.windows(8).any(|w| w == b"\x1b[?2026l"),
+            "ESU (?2026l) must NOT appear in draw output"
+        );
     }
 
     // ── Resize ───────────────────────────────────────────────────────

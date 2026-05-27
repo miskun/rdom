@@ -13,11 +13,11 @@
 use std::io::{self, Write};
 
 use crossterm::event::{
-    DisableMouseCapture, EnableMouseCapture, KeyboardEnhancementFlags, PopKeyboardEnhancementFlags,
-    PushKeyboardEnhancementFlags,
+    DisableFocusChange, DisableMouseCapture, EnableFocusChange, EnableMouseCapture,
+    KeyboardEnhancementFlags, PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags,
 };
 use crossterm::terminal;
-use crossterm::{cursor, execute, queue};
+use crossterm::{cursor, execute};
 
 use super::backend::{Backend, BackendState, draw_iter};
 use super::sgr::emit_cup;
@@ -117,26 +117,28 @@ impl<W: Write> Backend for CrosstermBackend<W> {
 /// `no-mouse-capture` cargo feature on `rdom-tui`.
 pub fn enter_tui_mode<W: Write>(writer: &mut W) -> io::Result<()> {
     terminal::enable_raw_mode()?;
-    queue!(
+    // Single batched execute! — matches the lens-k8s-tui /
+    // ratatui-canonical pattern that's known to work reliably on
+    // iTerm2 and other terminals. Earlier in this codebase we
+    // tried splitting the writes per-sequence + various
+    // pre-resets / focus-cycle kicks chasing a hover bug; none of
+    // those helped, because the actual root cause was elsewhere
+    // (Terminal::draw was emitting BSU/ESU `?2026` on every
+    // frame, which interacted badly with iTerm2 motion tracking).
+    // With BSU/ESU removed (see `terminal.rs::draw`), this clean
+    // setup is sufficient.
+    execute!(
         writer,
         terminal::EnterAlternateScreen,
         cursor::Hide,
         EnableMouseCapture,
-        // Kitty keyboard protocol — enables `KeyEventKind::Release`
-        // events, disambiguates Escape, surfaces all modifier keys.
-        // Terminals that don't support the protocol silently ignore
-        // the sequence (xterm, basic terminals fall through to the
-        // legacy keyboard encoding without an error). `keyup`
-        // listeners receive events on supporting terminals
-        // (kitty, foot, alacritty 0.13+, WezTerm, recent xterm
-        // builds) and stay silent elsewhere — both behaviors are
-        // documented in [`DIVERGENCES.md`](../../specs/DIVERGENCES.md).
+        EnableFocusChange,
         PushKeyboardEnhancementFlags(
             KeyboardEnhancementFlags::REPORT_EVENT_TYPES
                 | KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES,
         ),
     )?;
-    writer.flush()
+    Ok(())
 }
 
 /// Restore the terminal to its pre-`enter_tui_mode` state: disable
@@ -144,12 +146,10 @@ pub fn enter_tui_mode<W: Write>(writer: &mut W) -> io::Result<()> {
 /// raw mode. Safe to call from a drop handler — all crossterm
 /// operations map to idempotent-enough ANSI sequences.
 pub fn leave_tui_mode<W: Write>(writer: &mut W) -> io::Result<()> {
-    queue!(
+    execute!(
         writer,
-        // Pop the kitty keyboard flags first — restore the
-        // terminal's pre-rdom keyboard mode. Idempotent and safe
-        // on terminals that ignored the matching `Push`.
         PopKeyboardEnhancementFlags,
+        DisableFocusChange,
         DisableMouseCapture,
         cursor::Show,
         terminal::LeaveAlternateScreen,
