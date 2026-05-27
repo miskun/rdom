@@ -36,17 +36,20 @@ pub const CSS: &str = r#"
   display: flex;
   flex-direction: row;
   border: solid;
+  border-color: rgb(160, 200, 220);
   border-collapse: collapse;
 }
 .border-collapse-demo .col {
   width: 12;
   border: solid;
+  border-color: rgb(160, 200, 220);
 }
 .border-collapse-demo .middle {
   flex: 1;
   display: flex;
   flex-direction: column;
   border: solid;
+  border-color: rgb(160, 200, 220);
   /* BORDER-MODEL-1: collapse is non-inheriting; the middle column
    * declares it so its `.row` children share borders with each
    * other AND with `.middle`'s own ring. */
@@ -55,6 +58,7 @@ pub const CSS: &str = r#"
 .border-collapse-demo .middle .row {
   flex: 1;
   border: solid;
+  border-color: rgb(160, 200, 220);
 }
 "#;
 

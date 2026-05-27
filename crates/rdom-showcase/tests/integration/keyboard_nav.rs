@@ -85,8 +85,8 @@ fn arrow_down_advances_one_demo_li_per_press_in_document_order() {
 
     // Sidebar groups demos by Category, so document order is
     // category-first, then registry order within each category.
-    // Re-derive it here rather than reusing registry order (which
-    // would put Layout's `AppShell` AFTER Built-ins).
+    // Re-derive it here rather than reusing registry order
+    // directly — registry order interleaves categories.
     let mut expected: Vec<&'static str> = Vec::new();
     let mut seen_cats: Vec<rdom_showcase::Category> = Vec::new();
     for d in DEMOS {

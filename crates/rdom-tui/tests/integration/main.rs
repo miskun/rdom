@@ -23,7 +23,6 @@
 pub mod common;
 
 mod animations_demos_snapshot;
-mod app_shell_snapshot;
 mod append_text_reflows_layout;
 mod bfc_cascade;
 mod border_collapse_snapshot;
