@@ -18,7 +18,7 @@ fn make_app() -> (App<TestBackend>, ShellHandles) {
     let handles = build_shell(&mut dom);
     let mut state = ShowcaseState::from_handles(&handles);
     mount_demo(&mut state, &mut dom, 0);
-    wire_scroll_indicator(&mut dom, handles.main, handles.status_bar);
+    wire_scroll_indicator(&mut dom, handles.main, handles.status_bar_hints);
 
     let backend = TestBackend::new(80, 24);
     let terminal = Terminal::new(backend).unwrap();

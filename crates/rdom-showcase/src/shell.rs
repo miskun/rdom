@@ -66,10 +66,26 @@ pub struct ShellHandles {
     /// The status bar — a `<footer class="status-bar">` SIBLING of
     /// `.app` (not a descendant). Lives outside the bordered panel
     /// so its row doesn't fight `.app`'s `border-collapse`. Phase
-    /// 1b will populate it with keyboard-shortcut hints; today the
+    /// 1b populates it with keyboard-shortcut hints; today the
     /// scroll listener writes scroll-position info here when a
     /// descendant of the view-content mount scrolls.
+    ///
+    /// **Internal structure:** a flex row with two slots —
+    /// [`Self::status_bar_hints`] on the left and
+    /// [`Self::status_bar_mouse_pos`] on the right. Writers should
+    /// target the slot they own; replacing the whole footer would
+    /// wipe the sibling slot.
     pub status_bar: NodeId,
+    /// Left-aligned slot inside `.status-bar` that holds the
+    /// keyboard-hint spans / scroll indicator text. Owned by
+    /// `seed_default_hints`, `wire_focus_hints`, and
+    /// `wire_scroll_indicator`.
+    pub status_bar_hints: NodeId,
+    /// Right-aligned slot inside `.status-bar` that holds the live
+    /// mouse-position display ("X: 42 Y: 7"). Owned by
+    /// `wire_mouse_position_indicator`. Empty until the first
+    /// `mousemove` event fires.
+    pub status_bar_mouse_pos: NodeId,
 }
 
 /// Build the showcase shell under `dom.root()`. Does NOT mount any
@@ -217,16 +233,43 @@ pub fn build_shell(dom: &mut TuiDom) -> ShellHandles {
 
     dom.append_child(body, main).unwrap();
 
-    // <footer class="status-bar"></footer> — sibling of `.app`,
-    // outside the bordered panel. Seeded with the global keyboard
-    // hints; `status_bar::wire_focus_hints` refreshes them on
-    // focus change; the scroll listener takes over transiently
-    // during active scrolling.
+    // <footer class="status-bar">
+    //   <span class="status-bar-hints">…</span>      ← left slot
+    //   <span class="status-bar-mouse-pos">…</span>  ← right slot
+    // </footer>
+    //
+    // Sibling of `.app`, outside the bordered panel. Two-slot
+    // layout (hints left, mouse position right) so the
+    // mouse-position indicator (high-frequency updates, ~60Hz)
+    // doesn't clobber the keyboard-hint content owned by the
+    // focus / scroll listeners. CSS makes `.status-bar` a flex
+    // row; the mouse-pos span has `margin-left: auto` to push it
+    // to the right edge.
     let status_bar = dom.create_element("footer");
     dom.set_attribute(status_bar, "class", "status-bar")
         .unwrap();
     dom.append_child(app_shell, status_bar).unwrap();
-    crate::status_bar::seed_default_hints(dom, status_bar);
+
+    // Both slots are `<div>` (block by default) — NOT `<span>`.
+    // A `<span>` slot is `display: inline`; its inline-content
+    // children (hint spans + space text nodes) try to participate
+    // in the PARENT's IFC, but the parent is `.status-bar` with
+    // `display: flex` (not an IFC). Result: text nodes between
+    // hint spans get dropped and the mouse-pos slot has nowhere
+    // to render its text. `<div>` slots are block-level → they
+    // establish their own IFC for their inline children, and the
+    // flex container positions them as block-level flex items.
+    let status_bar_hints = dom.create_element("div");
+    dom.set_attribute(status_bar_hints, "class", "status-bar-hints")
+        .unwrap();
+    dom.append_child(status_bar, status_bar_hints).unwrap();
+
+    let status_bar_mouse_pos = dom.create_element("div");
+    dom.set_attribute(status_bar_mouse_pos, "class", "status-bar-mouse-pos")
+        .unwrap();
+    dom.append_child(status_bar, status_bar_mouse_pos).unwrap();
+
+    crate::status_bar::seed_default_hints(dom, status_bar_hints);
 
     ShellHandles {
         app_root: app,
@@ -234,6 +277,8 @@ pub fn build_shell(dom: &mut TuiDom) -> ShellHandles {
         sidebar,
         source_disclosure,
         status_bar,
+        status_bar_hints,
+        status_bar_mouse_pos,
     }
 }
 
@@ -377,8 +422,26 @@ const BASE_CSS: &str = r#"
   min-height: 0;
 }
 
+/* `.view-content` is the single-slot container that hosts the
+ * active demo's subtree. It MUST be a flex column container, not a
+ * block (BFC-1 default for `<div>`): demos declare `flex: 1` on
+ * their own root expecting to fill `<main>`'s vertical slot, but
+ * inside a block parent that opts-in becomes a no-op and the demo
+ * grows to its intrinsic content height instead. `overflow-y: auto`
+ * inside the demo (e.g. `scrollable_list`) then has nothing to
+ * overflow — the container expands to fit its content and wheel
+ * scrolling does nothing. Making `.view-content` a flex column
+ * gives the demo a definite, constrained height to flex against.
+ * `min-height: 0` continues the fitting-pane chain so a tall demo
+ * (50+ rows in `scrollable_list`) clips at the slot edge rather
+ * than ballooning `<main>`.
+ */
 .main .view-content {
+  display: flex;
+  flex-direction: column;
   flex: 1;
+  min-width: 0;
+  min-height: 0;
 }
 
 /* Source disclosure. Two states:
@@ -438,10 +501,23 @@ const BASE_CSS: &str = r#"
  * viewport pressure).
  */
 .status-bar {
+  display: flex;
+  flex-direction: row;
   height: 1;
   min-height: 1;
   padding: 0 1;
   color: rgb(150, 170, 200);
+}
+/* Hints slot grows to absorb the remaining row space, leaving
+ * the mouse-pos slot pushed flush against the right edge. Two
+ * spans in a flex row with `flex: 1` on the first one gives the
+ * canonical "left content + right content" layout.
+ */
+.status-bar .status-bar-hints {
+  flex: 1;
+}
+.status-bar .status-bar-mouse-pos {
+  color: rgb(140, 160, 190);
 }
 /* Keyboard-hint spans inside the status bar. Two-tone styling
  * (key vs label) mirrors the conventional terminal-status-line

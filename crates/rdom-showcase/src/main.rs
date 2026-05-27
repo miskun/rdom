@@ -19,8 +19,8 @@ use std::process::ExitCode;
 use std::rc::Rc;
 
 use rdom_showcase::{
-    DEMOS, ShowcaseState, build_shell, mount_demo, shell::base_stylesheet, wire_scroll_indicator,
-    wire_sidebar_click, wire_sidebar_keys,
+    DEMOS, ShowcaseState, build_shell, mount_demo, shell::base_stylesheet,
+    wire_mouse_position_indicator, wire_scroll_indicator, wire_sidebar_click, wire_sidebar_keys,
 };
 use rdom_tui::{App, TuiDom};
 
@@ -125,14 +125,20 @@ fn run(initial_idx: usize) -> std::io::Result<()> {
     // Tab / Shift+Tab is handled by the runtime's built-in
     // focus traversal (the `<li>`s carry `tabindex="0"`).
     wire_sidebar_keys(&mut dom, handles.sidebar, Rc::clone(&state));
-    // Scroll listener — writes scroll info into the status bar
-    // (sibling of `.app`) whenever any scrollable descendant of
-    // `<main>` fires a scroll event.
-    wire_scroll_indicator(&mut dom, handles.main, handles.status_bar);
-    // Focus listener — refreshes keyboard hints in the status bar
+    // Scroll listener — writes scroll info into the LEFT slot of
+    // the status bar (the hints slot) whenever any scrollable
+    // descendant of `<main>` fires a scroll event.
+    wire_scroll_indicator(&mut dom, handles.main, handles.status_bar_hints);
+    // Live mouse-position gauge in the RIGHT slot of the status
+    // bar — instantly tells the developer whether motion events
+    // are flowing (numbers update) or stalled (numbers freeze).
+    // Independent slot so it doesn't clobber the hints / scroll
+    // content owned by other listeners.
+    wire_mouse_position_indicator(&mut dom, handles.status_bar_mouse_pos);
+    // Focus listener — refreshes keyboard hints in the LEFT slot
     // whenever focus moves. The bar is pre-seeded in `build_shell`
     // with the global default; this listener handles changes.
-    rdom_showcase::wire_focus_hints(&mut dom, handles.status_bar);
+    rdom_showcase::wire_focus_hints(&mut dom, handles.status_bar_hints);
 
     // Construct the App with the shell's base stylesheet.
     let mut app = App::new(dom, base_stylesheet())?;

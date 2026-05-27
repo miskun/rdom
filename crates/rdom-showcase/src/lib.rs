@@ -28,7 +28,8 @@ pub mod status_bar;
 
 pub use demo::{Category, Demo, Source};
 pub use nav::{
-    ShowcaseState, mount_demo, wire_scroll_indicator, wire_sidebar_click, wire_sidebar_keys,
+    ShowcaseState, mount_demo, wire_mouse_position_indicator, wire_scroll_indicator,
+    wire_sidebar_click, wire_sidebar_keys,
 };
 pub use registry::DEMOS;
 pub use shell::{ShellHandles, build_shell};

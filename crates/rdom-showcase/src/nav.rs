@@ -40,10 +40,13 @@ pub struct ShowcaseState {
     /// MARKUP + CSS on every demo switch. UA's native
     /// `<details>` toggle handles open/close — no custom state.
     pub source_disclosure_id: NodeId,
-    /// The status bar — a `<footer class="status-bar">` sibling of
-    /// `.app`. Cleared on every demo switch (the previous demo's
-    /// scrollable element is gone; stale scroll info would lie).
-    pub status_bar_id: NodeId,
+    /// The status bar's **hints slot** — the left `<div>` inside
+    /// `<footer class="status-bar">`. Cleared on every demo switch
+    /// (the previous demo's scrollable element is gone; stale
+    /// scroll info would lie). The mouse-position slot (right side)
+    /// is OWNED by a separate listener and lives in its own div
+    /// sibling, so writes here don't disturb it.
+    pub status_bar_hints_id: NodeId,
 }
 
 impl ShowcaseState {
@@ -55,7 +58,7 @@ impl ShowcaseState {
             current_idx: usize::MAX,
             main_id: handles.main,
             source_disclosure_id: handles.source_disclosure,
-            status_bar_id: handles.status_bar,
+            status_bar_hints_id: handles.status_bar_hints,
         }
     }
 }
@@ -102,7 +105,7 @@ pub fn mount_demo(state: &mut ShowcaseState, dom: &mut TuiDom, demo_idx: usize) 
     //    element is gone; stale "Row 7/50" text would lie about the
     //    new demo's state. Re-seed with the global default hints so
     //    the bar isn't empty between scroll events.
-    crate::status_bar::seed_default_hints(dom, state.status_bar_id);
+    crate::status_bar::seed_default_hints(dom, state.status_bar_hints_id);
 }
 
 /// Replace the body of the `<details class="source-disclosure">`
@@ -242,6 +245,34 @@ fn write_indicator_text(dom: &mut TuiDom, indicator: NodeId, text: &str) {
     let _ = dom.clear_children(indicator);
     let t = dom.create_text_node(text);
     let _ = dom.append_child(indicator, t);
+}
+
+/// Install a `mousemove` listener on the document root that writes
+/// the cursor's current `X:<col> Y:<row>` into `indicator` (the
+/// status bar). Useful as a live debugging gauge: if motion-event
+/// delivery breaks (terminal-side mouse-tracking quirk), the
+/// numbers freeze immediately and the user can tell at a glance,
+/// without tailing a trace log.
+///
+/// `mousemove` is dispatched at the hit target and bubbles up; the
+/// document-root listener catches every motion event in the app.
+pub fn wire_mouse_position_indicator(dom: &mut TuiDom, indicator: NodeId) {
+    let root = dom.root();
+    dom.add_event_listener(root, "mousemove", ListenerOptions::default(), move |ctx| {
+        let mouse = match ctx.event.detail.as_mouse() {
+            Some(m) => m,
+            None => {
+                rdom_tui::rdom_trace!("mousemove listener: event.detail is not Mouse — skipping");
+                return;
+            }
+        };
+        let text = format!("X: {} Y: {}", mouse.client_x, mouse.client_y);
+        rdom_tui::rdom_trace!(
+            "mousemove listener: writing '{text}' to indicator NodeId({indicator:?})"
+        );
+        write_indicator_text(ctx.dom, indicator, &text);
+    })
+    .expect("dom.root() is valid");
 }
 
 pub fn wire_sidebar_click(dom: &mut TuiDom, sidebar: NodeId, state: Rc<RefCell<ShowcaseState>>) {
