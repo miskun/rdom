@@ -226,15 +226,21 @@ pub(super) fn layout_block_children(
                             == crate::layout::BorderCollapse::Collapse
                         && let Some(prev) = prev_block_id
                     {
+                        // Any non-None border (including Hidden) counts
+                        // for sibling-overlap participation, mirroring
+                        // flex.rs's `has_effective_border_on_edge`. Hidden
+                        // suppresses paint at the shared cell but still
+                        // participates in layout so the shared cell
+                        // exists for the kill-switch to suppress.
                         let prev_bot = dom
                             .node(prev)
                             .computed()
-                            .map(|c| c.border.bottom.is_visible())
+                            .map(|c| !c.border.bottom.is_none())
                             .unwrap_or(false);
                         let curr_top = dom
                             .node(child)
                             .computed()
-                            .map(|c| c.border.top.is_visible())
+                            .map(|c| !c.border.top.is_none())
                             .unwrap_or(false);
                         if prev_bot && curr_top {
                             y_cursor -= 1;

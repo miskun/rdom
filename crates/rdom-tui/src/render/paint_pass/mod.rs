@@ -314,10 +314,22 @@ fn paint_node(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect) {
             fill_bg(buf, outer_grid, computed.bg, computed.opacity);
         }
 
-        // 2. Border. Glyph paint only — `paint_border` does not write
-        // `cell.bg`; the bg invariant is owned by `fill_bg` above.
+        // 2. Border. Writes per-cell × per-direction `BorderContribution`s
+        // into `buf.border_dirs`; the joiner reads them after the
+        // walk and emits the right glyph + color. BORDER-MODEL-1
+        // priority encodes "child wins over ancestor" (depth) and
+        // "earlier DOM order wins on tie" (`NodeId` proxy for
+        // geometric position).
         if !computed.border.is_empty() {
-            paint_border(buf, outer, computed.border, computed.border_fg, clip);
+            let priority = compute_border_priority(dom, id);
+            paint_border(
+                buf,
+                outer,
+                computed.border,
+                computed.border_fg,
+                clip,
+                priority,
+            );
         }
     } else {
         // Element off-screen: skip paint but still recurse — a
@@ -511,6 +523,30 @@ pub(super) fn layout_rect_to_grid(layout: LayoutRect, clip: Rect) -> Option<Rect
 /// Returns the first ancestor's non-`Reset` `computed.bg`, or
 /// `Color::Reset` if no ancestor has set one. Caller decides what
 /// `Reset` means for blending — the canvas model is `#000000`.
+/// Compute the structural priority for an element's border
+/// contributions. Encodes CSS Tables 3 §11.5 rules 5 + 6:
+///
+/// - **Rule 5 (closer-to-cell wins).** Deeper elements outrank
+///   their ancestors. We walk the parent chain to count depth.
+/// - **Rule 6 (geometric position).** Within the same depth,
+///   earlier-in-DOM wins. We use `NodeId.as_u32()` as a stable
+///   proxy: nodes are created in monotonic order, and for the
+///   common case of "build the tree top-down, append children in
+///   order" that aligns with leftmost / topmost in geometric
+///   layout. Edge cases (re-parented elements, mixed creation
+///   order) are accepted simplifications — documented in
+///   `DIVERGENCES.md` under "Layout."
+fn compute_border_priority(dom: &Dom<TuiExt>, id: NodeId) -> u64 {
+    use crate::render::buffer::BorderContribution;
+    let mut depth: u16 = 0;
+    let mut cur = dom.node(id).parent_node();
+    while let Some(node) = cur {
+        depth = depth.saturating_add(1);
+        cur = node.parent_node();
+    }
+    BorderContribution::pack_priority(depth, id.as_u32())
+}
+
 fn resolve_parent_bg(dom: &Dom<TuiExt>, id: NodeId) -> Color {
     let mut cur = dom.node(id).parent_node();
     while let Some(node) = cur {

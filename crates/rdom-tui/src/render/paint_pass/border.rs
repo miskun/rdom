@@ -10,20 +10,39 @@
 //! (`LayoutRect` can be negative under scroll) skip cleanly.
 
 use crate::layout::{Border, LayoutRect};
+use crate::render::buffer::{BorderContribution, DIR_E, DIR_N, DIR_S, DIR_W};
 use crate::render::{Buffer, Modifier, Rect, Style};
 use crate::style::Color;
+use rdom_style::layout::BorderStyle;
 
 // ─── Box-drawing characters ─────────────────────────────────────────
+//
+// The actual glyphs are emitted by the joiner (`border_join.rs`)
+// from the per-direction state this module writes. Paint here
+// is now structural — it stamps `(BorderStyle, fg, priority)`
+// per cell × direction; the joiner reconciles conflicts and picks
+// the right glyph. These constants are kept for any future
+// non-collapse fast path / fallback.
 
+#[allow(dead_code)]
 const SINGLE_TL: &str = "┌";
+#[allow(dead_code)]
 const SINGLE_TR: &str = "┐";
+#[allow(dead_code)]
 const SINGLE_BL: &str = "└";
+#[allow(dead_code)]
 const SINGLE_BR: &str = "┘";
+#[allow(dead_code)]
 const ROUNDED_TL: &str = "╭";
+#[allow(dead_code)]
 const ROUNDED_TR: &str = "╮";
+#[allow(dead_code)]
 const ROUNDED_BL: &str = "╰";
+#[allow(dead_code)]
 const ROUNDED_BR: &str = "╯";
+#[allow(dead_code)]
 const HORIZONTAL: &str = "─";
+#[allow(dead_code)]
 const VERTICAL: &str = "│";
 
 // ─── Background ─────────────────────────────────────────────────────
@@ -74,6 +93,12 @@ pub(super) fn fill_bg(buf: &mut Buffer, area: Rect, bg: Color, opacity: f32) {
                 // element's subsequent border/text/pseudo paints land
                 // on a blank canvas, then write the raw bg.
                 clear_cell_for_opaque_fill(buf, x, y);
+                // BORDER-MODEL-1: an opaque fill completely occludes
+                // anything painted at this cell earlier in the walk,
+                // including border contributions from underlying
+                // elements. Clear the per-direction state so the
+                // joiner doesn't re-emit a border glyph here.
+                clear_border_dirs(buf, x, y);
                 if let Some(cell) = buf.cell_mut(x, y) {
                     cell.bg = bg;
                 }
@@ -93,6 +118,16 @@ pub(super) fn fill_bg(buf: &mut Buffer, area: Rect, bg: Color, opacity: f32) {
                 }
             }
         }
+    }
+}
+
+/// Clear the per-direction border state at `(x, y)`. Called by
+/// the opaque-`fill_bg` fast path so subsequent joiner runs don't
+/// resurrect border glyphs that the opaque fill should occlude.
+fn clear_border_dirs(buf: &mut Buffer, x: u16, y: u16) {
+    use crate::render::buffer::BorderDirState;
+    for dir in 0..4 {
+        buf.set_border_dir(x, y, dir, BorderDirState::default());
     }
 }
 
@@ -138,69 +173,71 @@ pub(super) fn paint_border(
     border: Border,
     border_fg: Color,
     clip: Rect,
+    priority: u64,
 ) {
-    // Per the project's paint-layer invariant: only `fill_bg` writes
-    // `cell.bg`. Glyph painters write `symbol + fg + modifiers` only.
-    // Building a `Style` with `.bg(...)` here — even with
-    // `Color::Reset` — would wipe the underlying bg via
-    // `Cell::apply_style`'s `Some(Color::Reset)` write.
-    let style = Style::new().fg(border_fg);
+    // BORDER-MODEL-1: paint writes per-cell × per-direction
+    // contributions to the buffer's `border_dirs`. Each
+    // contribution carries the source side's `BorderStyle`, color,
+    // and structural priority. The joiner (`border_join.rs`) reads
+    // every cell's per-direction state, resolves CSS Tables 3
+    // §11.5 conflicts, and emits the right junction glyph + color.
+    //
+    // We don't `set_symbol` here at all — the joiner is the single
+    // source of truth for what each border cell shows. Hidden
+    // contributions kill their direction at conflict-resolution
+    // time, so no extra "clear the symbol" step is needed.
 
-    // Which edges paint a glyph. `BorderStyle::None` and `Hidden`
-    // both produce no glyph (CSS 2.1 §8.5.3); every other style
-    // paints. Per-direction conflict resolution lives in the joiner
-    // (border_join.rs), not here — paint emits each ring's glyph
-    // straightforwardly and the joiner reconciles overlaps.
-    let top_edge = border.top.is_visible();
-    let bottom_edge = border.bottom.is_visible();
-    let left_edge = border.left.is_visible();
-    let right_edge = border.right.is_visible();
+    // `Style::new()` is no longer used here — the joiner is the
+    // single source of truth for symbol+fg writes at border cells.
+    let _ = Style::new();
 
-    let (tl, tr, bl, br) = match border.corner_style {
-        crate::layout::CornerStyle::Rounded => (ROUNDED_TL, ROUNDED_TR, ROUNDED_BL, ROUNDED_BR),
-        crate::layout::CornerStyle::Square => (SINGLE_TL, SINGLE_TR, SINGLE_BL, SINGLE_BR),
-    };
+    let top = border.top;
+    let bot = border.bottom;
+    let lft = border.left;
+    let rgt = border.right;
+    // `is_visible()` returns true for any non-None / non-Hidden
+    // style; we still need to write a contribution for Hidden too,
+    // because Hidden's job is to KILL the direction. None is the
+    // only style we can short-circuit on.
+    let any_top = !top.is_none();
+    let any_bot = !bot.is_none();
+    let any_lft = !lft.is_none();
+    let any_rgt = !rgt.is_none();
+    if !(any_top || any_bot || any_lft || any_rgt) {
+        return;
+    }
 
     let right_x = outer.x + outer.width as i32 - 1;
     let bottom_y = outer.y + outer.height as i32 - 1;
 
-    // Per-direction bits for the additive border mask (M5-COLLAPSE-2
-    // fix). When two rings' cells coincide, masks OR; the joiner
-    // reads the final mask to derive the right junction glyph.
-    const N: u8 = 0b0001;
-    const E: u8 = 0b0010;
-    const S: u8 = 0b0100;
-    const W: u8 = 0b1000;
+    // Bit constants for the off-buffer filter — drop a direction's
+    // contribution when it'd point past the viewport edge (no
+    // visible neighbor to share with → no junction).
+    const NM: u8 = 0b0001;
+    const EM: u8 = 0b0010;
+    const SM: u8 = 0b0100;
+    const WM: u8 = 0b1000;
 
-    // Drop bits whose adjacent cell is outside the buffer. Lines
-    // that logically continue off-screen leave no visible
-    // counterpart there, so a bit pointing off-buffer would yield
-    // a stray glyph during joiner accumulation (e.g. a `┼` where
-    // a `┤` was correct because an overflowing top border kept
-    // its E bit at the rightmost visible cell). Filtering at the
-    // paint site keeps the joiner pure — read mask, look up
-    // glyph, no viewport-edge logic — and reflects the substrate
-    // truth that the mask only encodes visible connectivity.
     let buf_area = buf.area;
-    let filter_off_buffer = |x: u16, y: u16, bits: u8| -> u8 {
+    let off_buffer = |x: u16, y: u16, bits: u8| -> u8 {
         let mut out = bits;
         if y == buf_area.y {
-            out &= !N;
+            out &= !NM;
         }
         if x + 1 >= buf_area.x + buf_area.width {
-            out &= !E;
+            out &= !EM;
         }
         if y + 1 >= buf_area.y + buf_area.height {
-            out &= !S;
+            out &= !SM;
         }
         if x == buf_area.x {
-            out &= !W;
+            out &= !WM;
         }
         out
     };
 
     // Top
-    if top_edge && in_clip_row(outer.y, clip) {
+    if any_top && in_clip_row(outer.y, clip) {
         let y = outer.y as u16;
         for x in outer.x..=right_x {
             if x < 0 {
@@ -210,23 +247,62 @@ pub(super) fn paint_border(
             if !clip.contains(xu, y) {
                 continue;
             }
-            // Top edge has a line going horizontally (E + W) PLUS,
-            // at the corners, a line going down (S). The corner
-            // glyph itself encodes (E + S) at TL and (W + S) at TR.
-            let (symbol, bits) = if left_edge && x == outer.x {
-                (tl, E | S)
-            } else if right_edge && x == right_x {
-                (tr, W | S)
+            // Top edge contributes E (going east) and W (going west)
+            // to interior cells; the corner cells additionally get
+            // S contributions from the LEFT or RIGHT border.
+            let bits = if any_lft && x == outer.x {
+                EM | SM
+            } else if any_rgt && x == right_x {
+                WM | SM
             } else {
-                (HORIZONTAL, E | W)
+                EM | WM
             };
-            buf.set_symbol(xu, y, symbol, style);
-            buf.add_border_mask(xu, y, filter_off_buffer(xu, y, bits));
+            let allowed = off_buffer(xu, y, bits);
+            // Horizontal segments (E / W) carry `top`'s style.
+            if allowed & EM != 0 {
+                add_dir(
+                    buf,
+                    xu,
+                    y,
+                    DIR_E,
+                    top,
+                    border_fg,
+                    priority,
+                    border.corner_style,
+                );
+            }
+            if allowed & WM != 0 {
+                add_dir(
+                    buf,
+                    xu,
+                    y,
+                    DIR_W,
+                    top,
+                    border_fg,
+                    priority,
+                    border.corner_style,
+                );
+            }
+            // The S segment at a top corner carries the LEFT/RIGHT
+            // border's style — it's the start of the vertical line.
+            if allowed & SM != 0 {
+                let side = if x == outer.x { lft } else { rgt };
+                add_dir(
+                    buf,
+                    xu,
+                    y,
+                    DIR_S,
+                    side,
+                    border_fg,
+                    priority,
+                    border.corner_style,
+                );
+            }
         }
     }
 
     // Bottom
-    if bottom_edge && in_clip_row(bottom_y, clip) && outer.height >= 2 {
+    if any_bot && in_clip_row(bottom_y, clip) && outer.height >= 2 {
         let y = bottom_y as u16;
         for x in outer.x..=right_x {
             if x < 0 {
@@ -236,23 +312,60 @@ pub(super) fn paint_border(
             if !clip.contains(xu, y) {
                 continue;
             }
-            let (symbol, bits) = if left_edge && x == outer.x {
-                (bl, N | E)
-            } else if right_edge && x == right_x {
-                (br, N | W)
+            let bits = if any_lft && x == outer.x {
+                NM | EM
+            } else if any_rgt && x == right_x {
+                NM | WM
             } else {
-                (HORIZONTAL, E | W)
+                EM | WM
             };
-            buf.set_symbol(xu, y, symbol, style);
-            buf.add_border_mask(xu, y, filter_off_buffer(xu, y, bits));
+            let allowed = off_buffer(xu, y, bits);
+            if allowed & EM != 0 {
+                add_dir(
+                    buf,
+                    xu,
+                    y,
+                    DIR_E,
+                    bot,
+                    border_fg,
+                    priority,
+                    border.corner_style,
+                );
+            }
+            if allowed & WM != 0 {
+                add_dir(
+                    buf,
+                    xu,
+                    y,
+                    DIR_W,
+                    bot,
+                    border_fg,
+                    priority,
+                    border.corner_style,
+                );
+            }
+            if allowed & NM != 0 {
+                let side = if x == outer.x { lft } else { rgt };
+                add_dir(
+                    buf,
+                    xu,
+                    y,
+                    DIR_N,
+                    side,
+                    border_fg,
+                    priority,
+                    border.corner_style,
+                );
+            }
         }
     }
 
-    // Left (skip cells already filled by corners)
-    if left_edge && in_clip_col(outer.x, clip) {
+    // Left (skip cells already covered by corners — those wrote
+    // their N/S contributions above)
+    if any_lft && in_clip_col(outer.x, clip) {
         let x = outer.x as u16;
-        let y_start = if top_edge { outer.y + 1 } else { outer.y };
-        let y_end = if bottom_edge { bottom_y - 1 } else { bottom_y };
+        let y_start = if any_top { outer.y + 1 } else { outer.y };
+        let y_end = if any_bot { bottom_y - 1 } else { bottom_y };
         for y in y_start..=y_end {
             if y < 0 {
                 continue;
@@ -261,16 +374,39 @@ pub(super) fn paint_border(
             if !clip.contains(x, yu) {
                 continue;
             }
-            buf.set_symbol(x, yu, VERTICAL, style);
-            buf.add_border_mask(x, yu, filter_off_buffer(x, yu, N | S));
+            let allowed = off_buffer(x, yu, NM | SM);
+            if allowed & NM != 0 {
+                add_dir(
+                    buf,
+                    x,
+                    yu,
+                    DIR_N,
+                    lft,
+                    border_fg,
+                    priority,
+                    border.corner_style,
+                );
+            }
+            if allowed & SM != 0 {
+                add_dir(
+                    buf,
+                    x,
+                    yu,
+                    DIR_S,
+                    lft,
+                    border_fg,
+                    priority,
+                    border.corner_style,
+                );
+            }
         }
     }
 
     // Right
-    if right_edge && in_clip_col(right_x, clip) && outer.width >= 2 {
+    if any_rgt && in_clip_col(right_x, clip) && outer.width >= 2 {
         let x = right_x as u16;
-        let y_start = if top_edge { outer.y + 1 } else { outer.y };
-        let y_end = if bottom_edge { bottom_y - 1 } else { bottom_y };
+        let y_start = if any_top { outer.y + 1 } else { outer.y };
+        let y_end = if any_bot { bottom_y - 1 } else { bottom_y };
         for y in y_start..=y_end {
             if y < 0 {
                 continue;
@@ -279,10 +415,65 @@ pub(super) fn paint_border(
             if !clip.contains(x, yu) {
                 continue;
             }
-            buf.set_symbol(x, yu, VERTICAL, style);
-            buf.add_border_mask(x, yu, filter_off_buffer(x, yu, N | S));
+            let allowed = off_buffer(x, yu, NM | SM);
+            if allowed & NM != 0 {
+                add_dir(
+                    buf,
+                    x,
+                    yu,
+                    DIR_N,
+                    rgt,
+                    border_fg,
+                    priority,
+                    border.corner_style,
+                );
+            }
+            if allowed & SM != 0 {
+                add_dir(
+                    buf,
+                    x,
+                    yu,
+                    DIR_S,
+                    rgt,
+                    border_fg,
+                    priority,
+                    border.corner_style,
+                );
+            }
         }
     }
+}
+
+/// Add one direction's contribution to the cell. Routes the
+/// element's per-side `BorderStyle` + `border-color` + structural
+/// priority through `add_border_dir` so CSS Tables 3 §11.5
+/// conflict resolution can decide the winner per direction.
+#[inline]
+#[allow(clippy::too_many_arguments)]
+fn add_dir(
+    buf: &mut Buffer,
+    x: u16,
+    y: u16,
+    dir: usize,
+    style: BorderStyle,
+    fg: Color,
+    priority: u64,
+    corner_style: crate::layout::CornerStyle,
+) {
+    if style.is_none() {
+        return;
+    }
+    buf.add_border_dir(
+        x,
+        y,
+        dir,
+        BorderContribution {
+            style,
+            fg,
+            priority,
+            corner_style,
+        },
+    );
 }
 
 #[inline]

@@ -6,11 +6,8 @@
 //! `<row>` / `<cell>`) so the contract reads decoupled from the
 //! showcase chrome.
 //!
-//! Tests carry `#[ignore = "BORDER-MODEL-1 Mn"]` annotations where
-//! the milestone making them pass is still upstream. As each
-//! milestone lands, the corresponding `#[ignore]` lines are
-//! removed and the tests join the regular suite. By M9 every test
-//! here runs as part of the workspace gate.
+//! As of M7 every test in this file runs as part of the regular
+//! workspace gate — no `#[ignore]` annotations remain.
 
 use rdom_tui::render::{Buffer, Rect};
 use rdom_tui::{CascadeExt, LayoutExt, PaintExt, TuiDom, TuiNodeExt};
@@ -251,7 +248,6 @@ fn border_collapse_does_not_inherit() {
 // ─────────────────────────────────────────────────────────────────
 
 #[test]
-#[ignore = "BORDER-MODEL-1 M3+M7 — needs BorderStyle::Hidden + paint conflict resolution"]
 fn border_style_hidden_on_one_participant_suppresses_merged_edge() {
     // Two bordered siblings under collapse. A says `solid`, B says
     // `hidden` on its left edge. The shared cell renders WITHOUT a
@@ -283,7 +279,6 @@ fn border_style_hidden_on_one_participant_suppresses_merged_edge() {
 }
 
 #[test]
-#[ignore = "BORDER-MODEL-1 M3+M7"]
 fn border_style_hidden_at_any_participant_wins_over_solid_and_double() {
     // Three-way pile-on: hidden beats solid AND double.
     let mut dom: TuiDom = TuiDom::new();
@@ -313,7 +308,6 @@ fn border_style_hidden_at_any_participant_wins_over_solid_and_double() {
 // ─────────────────────────────────────────────────────────────────
 
 #[test]
-#[ignore = "BORDER-MODEL-1 M3+M7 — needs BorderStyle::Double + ranking"]
 fn double_beats_solid_at_shared_cell() {
     // A says `double`, B says `solid`. Shared cell renders with
     // the double-line glyph (`║` for the vertical, `╗` / `╔` etc.
@@ -347,7 +341,6 @@ fn double_beats_solid_at_shared_cell() {
 // ─────────────────────────────────────────────────────────────────
 
 #[test]
-#[ignore = "BORDER-MODEL-1 M7 — needs per-direction priority tracking"]
 fn child_border_wins_over_ancestor_for_color() {
     // Ancestor declares red border around the shared edge; child
     // declares blue. They land on the same cell. Child wins color
@@ -378,12 +371,11 @@ fn child_border_wins_over_ancestor_for_color() {
 }
 
 #[test]
-#[ignore = "BORDER-MODEL-1 M7"]
-fn later_sibling_wins_at_shared_cell_when_both_solid() {
+fn earlier_sibling_wins_at_shared_cell_when_both_solid() {
     // Two siblings, both solid, different colors. Their right/left
     // borders share a cell under collapse. Per CSS Tables 3 §11.5
-    // rule 6 (geometric position → adapted to "later in DOM order
-    // wins" for non-table elements), B wins.
+    // rule 6 (leftmost / topmost in LTR geometric order wins),
+    // earlier-in-DOM A wins.
     use rdom_tui::style::Color;
     let mut dom: TuiDom = TuiDom::new();
     let row = dom.create_element("row");
@@ -403,8 +395,8 @@ fn later_sibling_wins_at_shared_cell_when_both_solid() {
 
     assert_eq!(
         buf.cell(4, 1).unwrap().fg,
-        Color::Rgb(80, 80, 200),
-        "later sibling (B) wins the shared vertical's color"
+        Color::Rgb(200, 80, 80),
+        "earlier sibling (A) wins the shared vertical's color (CSS rule 6: leftmost wins)"
     );
 }
 
@@ -413,7 +405,6 @@ fn later_sibling_wins_at_shared_cell_when_both_solid() {
 // ─────────────────────────────────────────────────────────────────
 
 #[test]
-#[ignore = "BORDER-MODEL-1 M7"]
 fn winning_border_determines_glyph_color_not_last_paint() {
     // Pin that the winner of the conflict resolution contributes
     // BOTH the glyph (style) AND the color. The substrate must not

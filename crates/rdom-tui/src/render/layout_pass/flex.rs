@@ -634,7 +634,13 @@ pub(super) enum CollapseEdge {
     Right,
 }
 
-/// Does `id` have a visible border on `edge`?
+/// Does `id` declare a border on `edge` for collapse-sharing
+/// purposes? Returns `true` for any non-`None` style — including
+/// `Hidden`. Hidden contributes to the cell's conflict resolution
+/// (it's CSS Tables 3 §11.5 rule 1's kill-switch) AND it
+/// participates in layout-side sibling-overlap so the shared
+/// cell exists for the kill-switch to suppress. Only `None`
+/// fully opts out.
 ///
 /// **BORDER-MODEL-1 simplification.** The previous version recursed
 /// through borderless transparent intermediates to find bordered
@@ -646,11 +652,6 @@ pub(super) enum CollapseEdge {
 /// border; the recursion is unnecessary and was actively wrong for
 /// any child whose bordered descendants were offset from its edge
 /// by padding, margin, or its own collapse declaration.
-///
-/// Now this is a 4-field check on the element's own computed
-/// border. Kept as a function (rather than inlined) so the
-/// callers — `collapse_parent_edge_insets` and the sibling-overlap
-/// math in `layout_flex_children` — can stay readable.
 pub(super) fn has_effective_border_on_edge(
     dom: &Dom<TuiExt>,
     id: NodeId,
@@ -662,10 +663,10 @@ pub(super) fn has_effective_border_on_edge(
         .cloned()
         .unwrap_or_else(ComputedStyle::initial);
     match edge {
-        CollapseEdge::Top => computed.border.top.is_visible(),
-        CollapseEdge::Bottom => computed.border.bottom.is_visible(),
-        CollapseEdge::Left => computed.border.left.is_visible(),
-        CollapseEdge::Right => computed.border.right.is_visible(),
+        CollapseEdge::Top => !computed.border.top.is_none(),
+        CollapseEdge::Bottom => !computed.border.bottom.is_none(),
+        CollapseEdge::Left => !computed.border.left.is_none(),
+        CollapseEdge::Right => !computed.border.right.is_none(),
     }
 }
 
@@ -689,10 +690,10 @@ pub(super) fn collapse_parent_edge_insets(
     if parent.border_collapse != BorderCollapse::Collapse {
         return (0, 0, 0, 0);
     }
-    let parent_has_top = parent.border.top.is_visible();
-    let parent_has_bottom = parent.border.bottom.is_visible();
-    let parent_has_left = parent.border.left.is_visible();
-    let parent_has_right = parent.border.right.is_visible();
+    let parent_has_top = !parent.border.top.is_none();
+    let parent_has_bottom = !parent.border.bottom.is_none();
+    let parent_has_left = !parent.border.left.is_none();
+    let parent_has_right = !parent.border.right.is_none();
     if !(parent_has_top || parent_has_bottom || parent_has_left || parent_has_right) {
         return (0, 0, 0, 0);
     }
