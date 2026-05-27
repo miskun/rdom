@@ -30,7 +30,22 @@ These are intrinsic to terminals. They will not change.
 
 ### Layout
 
-- **`border-collapse: collapse` applies to any flex container with a border**, not just `<table>`. The CSS algorithm is unchanged; only the *scope* is extended. Documented at the property dispatch table.
+- **`border-collapse` is a layout-only, non-inheriting opt-in that applies to any container's direct children, not only `<table>`s.** Three divergence axes from CSS:
+  1. *Scope.* CSS restricts `border-collapse: collapse` to `<table>` boxes; rdom honors it on any container (flex or block). Terminal UIs lean on shared-border rendering for non-table chrome.
+  2. *Inheritance.* CSS makes `border-collapse` inheritable. rdom makes it non-inheriting. A container that wants its direct children to participate must declare `border-collapse: collapse` itself — no spooky action across subtrees. The reset means demo / consumer subtrees never inherit a chrome's collapse decision implicitly.
+  3. *Scope of effect within a subtree.* Within a single collapse container, the overlap-share affects only the container's **direct children**. The "transparent intermediate" recursive propagation present in earlier rdom builds is gone — to share borders with a more deeply nested element, every container in the chain declares collapse explicitly.
+- **The 2×2 outcome grid for `gap` × `border-collapse`** is the canonical reference for what authors get:
+
+  | `gap` on parent | `border-collapse` on parent | Outcome |
+  |-----------------|------------------------------|---------|
+  | `0`             | `separate` (default)         | Adjacent children, each owns its own border (`┐┌`). |
+  | `>0`            | `separate`                   | Visible gap between bordered children. |
+  | `0`             | `collapse`                   | Direct children overlap by 1 cell at shared edges; paint emits junction glyphs (`┬┴├┤┼`). |
+  | `>0`            | `collapse`                   | Visible gap. `collapse` is a no-op because there is nothing adjacent to share — `gap` always wins where the two would conflict. |
+
+- **`border-style: hidden` is honored as CSS Tables 3 §11.5's kill-switch on any rdom collapse subtree, not only tables.** Wherever `hidden` appears in a border conflict, that direction is suppressed regardless of any other contributor. Same divergence axis as the scope extension above — rdom adopts the table conflict-resolution algorithm wholesale and applies it to the non-table cases the substrate enables.
+- **Border conflict resolution follows CSS Tables 3 §11.5 in priority order:** `hidden` wins absolutely → `none` loses absolutely → border-style ranking (`double > solid > dashed > dotted > ridge > outset > groove > inset`) → child wins over ancestor → later DOM order wins among same-depth siblings. The winning border contributes BOTH glyph and color; paint never picks one from the winner and one from a loser.
+- **Border-style support is the full CSS keyword set, with terminal-faithful degradation:** `none`, `hidden`, `solid`, and `double` render with distinct glyphs (`│─┌┐└┘` / `║═╔╗╚╝`). `dashed`, `dotted`, `ridge`, `outset`, `groove`, `inset` parse and rank correctly in conflict resolution but render as `solid` (matching CSS's "render as best you can on this medium" principle — the data model is faithful even where the glyphs aren't yet distinguishable).
 - **No margin collapsing between adjacent block boxes.** Margins are additive.
 - **`min-width: auto` / `min-height: auto` content size suggestion uses intrinsic natural size**, not strict CSS min-content (longest-word width with wrap). The auto-min resolution itself follows CSS Flexbox §4.5 — `min(content_size_suggestion, specified_size_suggestion)`, dropped to 0 when overflow on the axis is non-visible. The approximation is in HOW `content_size_suggestion` is computed (natural width vs. longest-word). Tracked as `M5-MIN-CONTENT-2` in `TECH_DEBT.md`.
 - **`flex: <N>` shorthand collapses `<basis>` to 0%.** rdom's parser stores both `flex: 1` and `flex: 1 1 auto` as `Size::Flex(1)`; the basis token is parsed-and-accepted but ignored. Effective behavior: any `flex: <N>` form is treated as `flex: <N> 1 0%`. Authors who need `flex-basis: auto` semantics (specified suggestion = the item's `width`) write `width: auto; flex-grow: 1` instead. Parser doc at `crates/rdom-style/src/parse/values.rs::parse_flex_shorthand` documents the ignore; this entry surfaces the user-visible consequence.
@@ -150,5 +165,5 @@ Common web-platform surface that 0.1.0 omits entirely. Schedule lives in [`DESIG
 ## 4. Known limitations within shipped features
 
 - **Opacity nesting is flat.** A child with `opacity: 0.5` under a parent with `opacity: 0.5` renders at `0.5`, not the CSS-correct `0.25`. CSS group rendering would require an off-screen buffer; not implemented.
-- **`border-collapse: collapse` corner glyphs:** cells where two outer corners meet lose connectivity (last-paint-wins on the symbol). Visible at the corners of nested bordered containers.
-- **`border-collapse` style conflict resolution is simplified to "outermost wins"**, not the full CSS table-cell border-conflict cascade.
+<!-- The two `border-collapse` simplifications (corner-glyph last-paint and "outermost wins" conflict resolution) were retired by the BORDER-MODEL-1 initiative. The current contract — CSS Tables 3 §11.5 algorithm, hidden kill-switch, glyph-and-color from the same winner — lives under "Layout" above and supersedes both prior entries. -->
+

@@ -6,6 +6,8 @@ For the durable architecture and roadmap, see [`specs/DESIGN.md`](specs/DESIGN.m
 
 ## Current focus
 
+**In flight:** `BORDER-MODEL-1` — border model refactor. Replaces the `border-collapse` heuristic stack with a layered model: layout owns positioning (direct-children-only collapse, gap-sacred), paint owns visual merging (per-direction style/color/priority, CSS Tables 3 §11.5 conflict resolution). Adds `BorderStyle` enum with `hidden` kill-switch. Makes `border-collapse` non-inheriting. Closes `M5-COLLAPSE-1`, `M5.5b-CELL-OWNERSHIP-1`, `BFC1-CODE-COLLAPSE-INSETS-1`. Branch: `border-model`. Plan + progress below under "BORDER-MODEL-1 initiative log."
+
 **Just closed:** `BFC-1` — Block Formatting Context substrate. Semantic HTML now stacks per the web platform: `<div><h1><p></p></div>` produces a block-flow column at intrinsic heights with no CSS at all. CSS 2.1 §10 normal flow + §8.3.1 margin collapse + §10.5/§10.6.3 height resolution + CSS3 `gap` for block + atomic inline-block in IFC, all on top of the original flex pass. Plan: [`specs/BFC-1.md`](specs/BFC-1.md). Tasks #70–#78 + #80–#95 closed. See "2026-05-26 — BFC-1 closed" below for the full landing.
 
 **Release in flight:** 0.2.0. Workstreams: `rdom-showcase`, event surface bundle, `calc()` value system, now BFC-1. Plan: [`specs/SHOWCASE.md`](specs/SHOWCASE.md).
@@ -77,6 +79,28 @@ One piece of architectural debt deferred with teeth: `EVT-DETACH-1` (implicit bl
 - **`EVT-DETACH-1`** — implicit `blur` / `focusout` / `mouseleave` / `mouseout` not dispatched on detach. Documented in [`specs/TECH_DEBT.md`](specs/TECH_DEBT.md) as a non-negotiable M5 deliverable. Risk: if M5 scope grows and this slips, rdom-tui ships an internally inconsistent hover-event model. Mitigation: M5 exit criteria in [`specs/SHOWCASE.md`](specs/SHOWCASE.md) explicitly require closing `EVT-DETACH-1` + deleting the related DIVERGENCES.md entries.
 
 ## Recent decisions
+
+### 2026-05-27 — BORDER-MODEL-1 initiative log
+
+**Goal:** replace `border-collapse`'s heuristic stack with a layered, browser-faithful model so CSS authors get expected results without surprising substrate side effects.
+
+**Architectural decisions:**
+- **Layout vs paint split.** Layout positions borders (collapse → direct-children overlap by 1, gap honored verbatim). Paint composites per-direction `(BorderStyle, Color, priority)` and emits the winning glyph + color per CSS Tables 3 §11.5.
+- **`border-collapse` is non-inheriting.** rdom divergence from CSS, documented in `DIVERGENCES.md`. Containers that want their direct children to participate declare collapse themselves. No subtree contamination.
+- **Conflict resolution adopts CSS Tables 3 §11.5 wholesale.** Hidden kill-switch → none losses → style ranking → child wins ancestor → later-DOM-order wins. Winner contributes BOTH glyph and color.
+- **`BorderStyle` enum** in `rdom-style` carries the full CSS keyword set; `dashed`/`dotted`/`ridge`/`outset`/`groove`/`inset` parse + rank correctly but render as `solid` (CSS-faithful degradation on terminal medium).
+- **Scope:** single initiative. Block-flow collapse, flex-flow collapse, paint conflict resolution, cascade non-inheritance, BorderStyle enum, chrome migration, all dead-code removal — one branch, one push.
+
+**Milestones:**
+- [ ] M1 — Docs + contract pinning. `DIVERGENCES.md` rewritten under "Layout"; `TECH_DEBT.md` opens `BORDER-MODEL-1` and marks `M5-COLLAPSE-1` / `M5.5b-CELL-OWNERSHIP-1` / `BFC1-CODE-COLLAPSE-INSETS-1` as resolved by it; this log opened.
+- [ ] M2 — Failing test scaffold pinning every contract row (4 layout outcomes, non-inheritance, hidden kill-switch, style ranking, color winner, DOM-order tiebreak).
+- [ ] M3 — `BorderStyle` enum + parsing; replace per-side bool in `Border`; migrate every call site.
+- [ ] M4 — `border-collapse` becomes non-inheriting.
+- [ ] M5 — Flex layout: remove transparent-intermediate recursion; direct-children-only; `gap > 0` honored.
+- [ ] M6 — Block-flow mirror of M5's rules.
+- [ ] M7 — Paint: per-direction buffer + CSS Tables 3 §11.5 conflict-resolution algorithm.
+- [ ] M8 — Showcase chrome migration to explicit per-container collapse declarations; demos audited.
+- [ ] M9 — Cleanup; workspace gate green; visual smoke on every example; `BORDER-MODEL-1` closed.
 
 ### 2026-05-26 — BFC-1 closed: block-formatting-context substrate end-to-end
 
