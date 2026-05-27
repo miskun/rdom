@@ -35,7 +35,6 @@ pub const CSS: &str = r#"
   gap: 1;
 }
 .tab-form-demo h1 {
-  height: 1;
   color: rgb(180, 220, 255);
   font-weight: bold;
 }

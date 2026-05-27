@@ -2,12 +2,12 @@
   MutationObserver
 
   Click the button to append a list item. The observer
+  logs each tree mutation.
 
   [ Add item ]
 
 
   Observer log
-
 
 
 

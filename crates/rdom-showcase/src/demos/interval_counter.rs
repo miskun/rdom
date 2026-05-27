@@ -36,12 +36,8 @@ pub const CSS: &str = r#"
   gap: 1;
 }
 .interval-demo h1 {
-  height: 1;
   color: rgb(180, 220, 255);
   font-weight: bold;
-}
-.interval-demo p {
-  height: 1;
 }
 .interval-demo .value-line .value {
   color: rgb(220, 230, 255);

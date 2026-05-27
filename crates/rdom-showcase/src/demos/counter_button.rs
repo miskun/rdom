@@ -39,7 +39,6 @@ pub const CSS: &str = r#"
 .counter-demo h1 {
   color: rgb(180, 220, 255);
   font-weight: bold;
-  height: 1;
 }
 .counter-demo p {
   height: 1;

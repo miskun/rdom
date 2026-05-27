@@ -37,7 +37,6 @@ pub const CSS: &str = r#"
   gap: 1;
 }
 .dom-api-demo h1 {
-  height: 1;
   color: rgb(180, 220, 255);
   font-weight: bold;
 }

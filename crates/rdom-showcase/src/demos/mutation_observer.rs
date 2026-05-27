@@ -41,16 +41,11 @@ pub const CSS: &str = r#"
   gap: 1;
 }
 .mo-demo h1 {
-  height: 1;
   color: rgb(180, 220, 255);
   font-weight: bold;
 }
 .mo-demo h2 {
-  height: 1;
   color: rgb(150, 180, 210);
-}
-.mo-demo p {
-  height: 1;
 }
 .mo-demo .items {
   max-height: 8;
