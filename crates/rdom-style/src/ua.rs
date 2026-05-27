@@ -434,19 +434,29 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
         // pseudo_content_width`, which reads `computed_before()` /
         // `computed_after()` content alongside DOM children when
         // measuring along `Direction::Row`.
+        //
+        // `user-select: none` matches modern browser UAs (Chrome,
+        // Firefox, Safari all ship it on `<button>` and the button-
+        // family inputs): a button's label is a click affordance,
+        // not prose, so drag-selecting it would be a distraction.
+        // The `[disabled]` rule already covers disabled buttons via
+        // its own `user-select: none`; these rules cover the
+        // enabled case.
         (
             "button",
             TuiStyle::new()
                 .display(Display::InlineBlock)
                 .fg(ACCENT)
-                .bold(true),
+                .bold(true)
+                .user_select(UserSelect::None),
         ),
         (
             "input[type=button], input[type=submit], input[type=reset]",
             TuiStyle::new()
                 .display(Display::InlineBlock)
                 .fg(ACCENT)
-                .bold(true),
+                .bold(true)
+                .user_select(UserSelect::None),
         ),
         (
             "button::before, input[type=button]::before, input[type=submit]::before, input[type=reset]::before",
@@ -1013,6 +1023,41 @@ mod tests {
                 r.style.text_decoration,
                 Some(Value::Specified(crate::layout::TextDecoration::LineThrough)),
                 "<{t}> must use text-decoration: line-through"
+            );
+        }
+    }
+
+    /// Buttons are not text — their label is a click affordance, not
+    /// selectable prose. The base button rules (`<button>` and the
+    /// three button-family input types) must declare
+    /// `user-select: none` so drag-selection skips them, matching the
+    /// modern browser UA convention. The `[disabled]` rule already
+    /// covers the disabled case; this pins the enabled case.
+    #[test]
+    fn ua_buttons_are_unselectable() {
+        use crate::layout::UserSelect;
+
+        let s = Stylesheet::new();
+        let ua: std::collections::HashMap<String, &Rule> = s
+            .rules()
+            .iter()
+            .filter(|r| r.origin == RuleOrigin::UserAgent)
+            .map(|r| (r.source_text.clone(), r))
+            .collect();
+
+        for sel in [
+            "button",
+            "input[type=button]",
+            "input[type=submit]",
+            "input[type=reset]",
+        ] {
+            let r = ua
+                .get(sel)
+                .unwrap_or_else(|| panic!("missing UA rule for `{sel}`"));
+            assert_eq!(
+                r.style.user_select,
+                Some(Value::Specified(UserSelect::None)),
+                "`{sel}` must declare user-select: none so its label is not drag-selectable"
             );
         }
     }
