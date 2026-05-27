@@ -146,11 +146,15 @@ pub(super) fn paint_border(
     // `Cell::apply_style`'s `Some(Color::Reset)` write.
     let style = Style::new().fg(border_fg);
 
-    // Which edges are drawn?
-    let top_edge = border.top;
-    let bottom_edge = border.bottom;
-    let left_edge = border.left;
-    let right_edge = border.right;
+    // Which edges paint a glyph. `BorderStyle::None` and `Hidden`
+    // both produce no glyph (CSS 2.1 §8.5.3); every other style
+    // paints. Per-direction conflict resolution lives in the joiner
+    // (border_join.rs), not here — paint emits each ring's glyph
+    // straightforwardly and the joiner reconciles overlaps.
+    let top_edge = border.top.is_visible();
+    let bottom_edge = border.bottom.is_visible();
+    let left_edge = border.left.is_visible();
+    let right_edge = border.right.is_visible();
 
     let (tl, tr, bl, br) = match border.corner_style {
         crate::layout::CornerStyle::Rounded => (ROUNDED_TL, ROUNDED_TR, ROUNDED_BL, ROUNDED_BR),

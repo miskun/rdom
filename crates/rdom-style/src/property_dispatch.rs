@@ -129,6 +129,11 @@ const PROPERTY_NAMES: &[&str] = &[
     "border-right",
     "border-bottom",
     "border-left",
+    "border-style",
+    "border-top-style",
+    "border-right-style",
+    "border-bottom-style",
+    "border-left-style",
     "border-collapse",
     "content",
     // Positioning (M2)
@@ -198,9 +203,16 @@ pub fn property_mask(name: &str) -> Option<crate::ImportantMask> {
         "margin" | "margin-top" | "margin-right" | "margin-bottom" | "margin-left" => {
             ImportantMask::MARGIN
         }
-        "border" | "border-top" | "border-right" | "border-bottom" | "border-left" => {
-            ImportantMask::BORDER
-        }
+        "border"
+        | "border-top"
+        | "border-right"
+        | "border-bottom"
+        | "border-left"
+        | "border-style"
+        | "border-top-style"
+        | "border-right-style"
+        | "border-bottom-style"
+        | "border-left-style" => ImportantMask::BORDER,
         "border-collapse" => ImportantMask::BORDER_COLLAPSE,
         "content" => ImportantMask::CONTENT,
         "transition-property"
@@ -273,9 +285,16 @@ pub fn remove(name: &str, style: &mut TuiStyle) -> bool {
             // storage. Clearing any longhand removes the whole margin.
             style.margin.take().is_some()
         }
-        "border" | "border-top" | "border-right" | "border-bottom" | "border-left" => {
-            style.border.take().is_some()
-        }
+        "border"
+        | "border-top"
+        | "border-right"
+        | "border-bottom"
+        | "border-left"
+        | "border-style"
+        | "border-top-style"
+        | "border-right-style"
+        | "border-bottom-style"
+        | "border-left-style" => style.border.take().is_some(),
         "border-collapse" => style.border_collapse.take().is_some(),
         "content" => style.content.take().is_some(),
         "position" => style.position.take().is_some(),
@@ -582,24 +601,58 @@ pub fn set_from_tokens(
         "border" => parse_border(value).map(|b| {
             style.border = Some(Value::Specified(b));
         }),
-        "border-top" => parse_border_side(value).map(|on| {
+        "border-top" => parse_border_side(value).map(|bs| {
             let mut b = current_border(style);
-            b.top = on;
+            b.top = bs;
             style.border = Some(Value::Specified(b));
         }),
-        "border-right" => parse_border_side(value).map(|on| {
+        "border-right" => parse_border_side(value).map(|bs| {
             let mut b = current_border(style);
-            b.right = on;
+            b.right = bs;
             style.border = Some(Value::Specified(b));
         }),
-        "border-bottom" => parse_border_side(value).map(|on| {
+        "border-bottom" => parse_border_side(value).map(|bs| {
             let mut b = current_border(style);
-            b.bottom = on;
+            b.bottom = bs;
             style.border = Some(Value::Specified(b));
         }),
-        "border-left" => parse_border_side(value).map(|on| {
+        "border-left" => parse_border_side(value).map(|bs| {
             let mut b = current_border(style);
-            b.left = on;
+            b.left = bs;
+            style.border = Some(Value::Specified(b));
+        }),
+        // CSS `border-style: <style>` — sets all four sides to one
+        // style. `border-style: hidden` is the conflict kill-switch
+        // applied uniformly.
+        "border-style" => parse_border_side(value).map(|bs| {
+            let mut b = current_border(style);
+            b.top = bs;
+            b.right = bs;
+            b.bottom = bs;
+            b.left = bs;
+            style.border = Some(Value::Specified(b));
+        }),
+        // CSS per-side `*-style` longhands. Same merge semantics as
+        // `border-top` / etc.; useful when authors want to flip just
+        // one side's style without touching color (when color lands).
+        "border-top-style" => parse_border_side(value).map(|bs| {
+            let mut b = current_border(style);
+            b.top = bs;
+            style.border = Some(Value::Specified(b));
+        }),
+        "border-right-style" => parse_border_side(value).map(|bs| {
+            let mut b = current_border(style);
+            b.right = bs;
+            style.border = Some(Value::Specified(b));
+        }),
+        "border-bottom-style" => parse_border_side(value).map(|bs| {
+            let mut b = current_border(style);
+            b.bottom = bs;
+            style.border = Some(Value::Specified(b));
+        }),
+        "border-left-style" => parse_border_side(value).map(|bs| {
+            let mut b = current_border(style);
+            b.left = bs;
             style.border = Some(Value::Specified(b));
         }),
         "border-collapse" => parse_keyword(
@@ -950,44 +1003,60 @@ pub fn serialize(name: &str, style: &TuiStyle) -> Option<String> {
             if b.is_empty() {
                 return Some("none".to_string());
             }
-            if b.is_box() {
-                return Some(
-                    match b.corner_style {
-                        CornerStyle::Square => "solid",
-                        CornerStyle::Rounded => "rounded",
-                    }
-                    .to_string(),
-                );
+            // If all four sides share the same style, that style
+            // serializes as the shorthand. `rounded` is the
+            // rdom-specific spelling for `solid` ring + rounded
+            // corners; only emit it for square→rounded promotion.
+            if b.top == b.right && b.right == b.bottom && b.bottom == b.left {
+                let s = border_style_keyword(b.top);
+                if b.corner_style == CornerStyle::Rounded
+                    && b.top == crate::layout::BorderStyle::Solid
+                {
+                    return Some("rounded".to_string());
+                }
+                return Some(s.to_string());
             }
             // Single-side shorthand legacy syntax (rdom-specific).
+            // Only meaningful when the chosen side is Solid; mixed
+            // styles serialize via per-side longhands instead.
+            use crate::layout::BorderStyle as BS;
             match (b.top, b.right, b.bottom, b.left) {
-                (true, false, false, false) => Some("top".to_string()),
-                (false, true, false, false) => Some("right".to_string()),
-                (false, false, true, false) => Some("bottom".to_string()),
-                (false, false, false, true) => Some("left".to_string()),
+                (BS::Solid, BS::None, BS::None, BS::None) => Some("top".to_string()),
+                (BS::None, BS::Solid, BS::None, BS::None) => Some("right".to_string()),
+                (BS::None, BS::None, BS::Solid, BS::None) => Some("bottom".to_string()),
+                (BS::None, BS::None, BS::None, BS::Solid) => Some("left".to_string()),
                 _ => None,
             }
         }),
-        "border-top" => style
+        "border-top" | "border-top-style" => style
             .border
             .as_ref()
             .and_then(specified)
-            .map(|b| if b.top { "solid" } else { "none" }.to_string()),
-        "border-right" => style
+            .map(|b| border_style_keyword(b.top).to_string()),
+        "border-right" | "border-right-style" => style
             .border
             .as_ref()
             .and_then(specified)
-            .map(|b| if b.right { "solid" } else { "none" }.to_string()),
-        "border-bottom" => style
+            .map(|b| border_style_keyword(b.right).to_string()),
+        "border-bottom" | "border-bottom-style" => style
             .border
             .as_ref()
             .and_then(specified)
-            .map(|b| if b.bottom { "solid" } else { "none" }.to_string()),
-        "border-left" => style
+            .map(|b| border_style_keyword(b.bottom).to_string()),
+        "border-left" | "border-left-style" => style
             .border
             .as_ref()
             .and_then(specified)
-            .map(|b| if b.left { "solid" } else { "none" }.to_string()),
+            .map(|b| border_style_keyword(b.left).to_string()),
+        "border-style" => style.border.as_ref().and_then(specified).and_then(|b| {
+            // `border-style` shorthand serializes when all four sides
+            // match. Otherwise consumers read the per-side longhands.
+            if b.top == b.right && b.right == b.bottom && b.bottom == b.left {
+                Some(border_style_keyword(b.top).to_string())
+            } else {
+                None
+            }
+        }),
         "border-collapse" => style
             .border_collapse
             .as_ref()
@@ -1168,6 +1237,22 @@ fn serialize_margin_value(v: &crate::layout::MarginValue) -> String {
     }
 }
 
+fn border_style_keyword(s: crate::layout::BorderStyle) -> &'static str {
+    use crate::layout::BorderStyle;
+    match s {
+        BorderStyle::None => "none",
+        BorderStyle::Hidden => "hidden",
+        BorderStyle::Solid => "solid",
+        BorderStyle::Double => "double",
+        BorderStyle::Dashed => "dashed",
+        BorderStyle::Dotted => "dotted",
+        BorderStyle::Ridge => "ridge",
+        BorderStyle::Outset => "outset",
+        BorderStyle::Groove => "groove",
+        BorderStyle::Inset => "inset",
+    }
+}
+
 fn serialize_padding_value(v: &crate::layout::PaddingValue) -> String {
     match v {
         crate::layout::PaddingValue::Cells(n) => n.to_string(),
@@ -1345,6 +1430,11 @@ mod tests {
             ("border-right", "solid"),
             ("border-bottom", "solid"),
             ("border-left", "solid"),
+            ("border-style", "dashed"),
+            ("border-top-style", "double"),
+            ("border-right-style", "hidden"),
+            ("border-bottom-style", "dotted"),
+            ("border-left-style", "ridge"),
             ("border-collapse", "collapse"),
             ("content", "\"hello\""),
             ("position", "absolute"),

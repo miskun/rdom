@@ -439,7 +439,7 @@ fn is_empty_collapse_through(
     if !computed.padding.top.is_zero() || !computed.padding.bottom.is_zero() {
         return false;
     }
-    if computed.border.top || computed.border.bottom {
+    if computed.border.top.is_visible() || computed.border.bottom.is_visible() {
         return false;
     }
     // An explicit `min-height: Cells(n)` with n > 0 keeps the box
@@ -491,13 +491,13 @@ fn is_empty_collapse_through(
 /// property we model), and the container doesn't establish a new
 /// block formatting context.
 fn parent_collapses_top_with_first_child(parent: &ComputedStyle) -> bool {
-    parent.padding.top.is_zero() && !parent.border.top && !parent.establishes_new_bfc
+    parent.padding.top.is_zero() && parent.border.top.is_none() && !parent.establishes_new_bfc
 }
 
 /// Symmetric to `parent_collapses_top_with_first_child` — for the
 /// bottom edge.
 fn parent_collapses_bottom_with_last_child(parent: &ComputedStyle) -> bool {
-    parent.padding.bottom.is_zero() && !parent.border.bottom && !parent.establishes_new_bfc
+    parent.padding.bottom.is_zero() && parent.border.bottom.is_none() && !parent.establishes_new_bfc
 }
 
 /// CSS 2.1 §8.3.1 vertical-margin collapse accumulator.
@@ -687,7 +687,7 @@ fn is_statically_empty_collapse_through(
     if !computed.padding.top.is_zero() || !computed.padding.bottom.is_zero() {
         return false;
     }
-    if computed.border.top || computed.border.bottom {
+    if computed.border.top.is_visible() || computed.border.bottom.is_visible() {
         return false;
     }
     match computed.height {

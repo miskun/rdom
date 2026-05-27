@@ -376,8 +376,8 @@ pub(super) fn has_non_whitespace_text(dom: &Dom<TuiExt>, id: NodeId) -> bool {
 pub(super) fn border_main_cost(computed: &ComputedStyle, direction: Direction) -> u16 {
     let b = computed.border;
     match direction {
-        Direction::Row => b.left as u16 + b.right as u16,
-        Direction::Column => b.top as u16 + b.bottom as u16,
+        Direction::Row => b.left.cells() + b.right.cells(),
+        Direction::Column => b.top.cells() + b.bottom.cells(),
     }
 }
 

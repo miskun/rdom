@@ -247,7 +247,7 @@ pub(super) fn layout_node(dom: &mut Dom<TuiExt>, id: NodeId, outer_rect: LayoutR
         let pad_cb_w = outer_rect.width;
         let pad =
             computed.padding.top.resolve(pad_cb_w) + computed.padding.bottom.resolve(pad_cb_w);
-        let border = computed.border.top as u16 + computed.border.bottom as u16;
+        let border = computed.border.top.cells() + computed.border.bottom.cells();
         let outer_h = content_h.saturating_add(pad).saturating_add(border);
         if let Some(ext) = dom.node_mut(id).ext_mut() {
             ext.layout.height = outer_h;

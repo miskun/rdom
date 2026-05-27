@@ -686,10 +686,10 @@ pub(super) fn has_effective_border_on_edge(
     }
 
     let own_has_edge = match edge {
-        CollapseEdge::Top => computed.border.top,
-        CollapseEdge::Bottom => computed.border.bottom,
-        CollapseEdge::Left => computed.border.left,
-        CollapseEdge::Right => computed.border.right,
+        CollapseEdge::Top => computed.border.top.is_visible(),
+        CollapseEdge::Bottom => computed.border.bottom.is_visible(),
+        CollapseEdge::Left => computed.border.left.is_visible(),
+        CollapseEdge::Right => computed.border.right.is_visible(),
     };
     if own_has_edge {
         return true;
@@ -761,10 +761,10 @@ pub(super) fn collapse_parent_edge_insets(
     if parent.border_collapse != BorderCollapse::Collapse {
         return (0, 0, 0, 0);
     }
-    let parent_has_top = parent.border.top;
-    let parent_has_bottom = parent.border.bottom;
-    let parent_has_left = parent.border.left;
-    let parent_has_right = parent.border.right;
+    let parent_has_top = parent.border.top.is_visible();
+    let parent_has_bottom = parent.border.bottom.is_visible();
+    let parent_has_left = parent.border.left.is_visible();
+    let parent_has_right = parent.border.right.is_visible();
     if !(parent_has_top || parent_has_bottom || parent_has_left || parent_has_right) {
         return (0, 0, 0, 0);
     }

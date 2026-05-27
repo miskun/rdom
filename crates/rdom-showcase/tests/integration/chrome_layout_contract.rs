@@ -653,12 +653,15 @@ fn source_disclosure_has_border_top() {
         .map(|c| c.border)
         .unwrap_or_default();
     assert!(
-        border.top,
-        "border-top: solid should set border.top = true (got {border:?})"
+        border.top.is_visible(),
+        "border-top: solid should set border.top to a visible style (got {border:?})"
     );
-    assert!(!border.right, "border-top doesn't enable other sides");
-    assert!(!border.bottom);
-    assert!(!border.left);
+    assert!(
+        border.right.is_none(),
+        "border-top doesn't enable other sides"
+    );
+    assert!(border.bottom.is_none());
+    assert!(border.left.is_none());
 }
 
 /// Helper: build shell + mount a demo by index + cascade + layout.
