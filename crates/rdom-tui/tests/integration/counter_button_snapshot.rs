@@ -31,7 +31,7 @@ fn counter_button_initial_paint_matches_golden() {
     dom.append_child(root, demo_root).unwrap();
 
     let sheet = counter_button::stylesheet();
-    // 50×10 — fits the demo's `padding: 2 4` (4 rows of padding
+    // 50×10 — fits the demo's `padding: 1 2` (2 rows of padding
     // top + bottom) + h1 + p + button row + inter-element gaps,
     // matching how the original `cargo run --example counter_button`
     // looks in a typical terminal.

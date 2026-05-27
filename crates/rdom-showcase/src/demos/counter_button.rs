@@ -33,7 +33,7 @@ pub const CSS: &str = r#"
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: 2 4;
+  padding: 1 2;
   gap: 1;
 }
 .counter-demo h1 {

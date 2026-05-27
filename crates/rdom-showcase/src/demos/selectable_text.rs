@@ -40,7 +40,7 @@ pub const CSS: &str = r#"
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: 1 3;
+  padding: 1 2;
   gap: 1;
 }
 .selectable-text-demo h1 {

@@ -15,7 +15,7 @@ const MARKUP: &str = r#"<div class="hover-demo">
 
 const CSS: &str = r#"
 .hover-demo {
-  padding: 1;
+  padding: 1 2;
   display: flex;
   flex-direction: column;
   gap: 1;

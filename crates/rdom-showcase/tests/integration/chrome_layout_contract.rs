@@ -361,7 +361,7 @@ fn hello_world_demo_renders_per_css_contract() {
     //     <p>If you can read this in a terminal, the showcase shell is mounted.</p>
     //   </div>
     //
-    //   .hello { padding: 1 }
+    //   .hello { padding: 1 2 }
     //   .hello h1 { color: rgb(180, 220, 255); font-weight: bold }
     //
     // UA defaults: <h1> and <p> are block + (h1 is) bold. No UA
@@ -375,22 +375,23 @@ fn hello_world_demo_renders_per_css_contract() {
     let hello_rect = dom.node(hello).ext().unwrap().layout;
     let hello_content = dom.node(hello).ext().unwrap().content_layout;
 
-    // `.hello { padding: 1 }` → content area is inset 1 cell on all
-    // sides relative to the outer layout rect.
+    // `.hello { padding: 1 2 }` → content area is inset 1 cell on the
+    // vertical axis and 2 cells on the horizontal axis relative to
+    // the outer layout rect.
     assert_eq!(
         hello_content.x,
-        hello_rect.x + 1,
-        "padding: 1 → content x is outer.x + 1"
+        hello_rect.x + 2,
+        "padding-x: 2 → content x is outer.x + 2"
     );
     assert_eq!(
         hello_content.y,
         hello_rect.y + 1,
-        "padding: 1 → content y is outer.y + 1"
+        "padding-y: 1 → content y is outer.y + 1"
     );
     assert_eq!(
-        hello_content.width + 2,
+        hello_content.width + 4,
         hello_rect.width,
-        "padding: 1 each side → content width is outer.width - 2"
+        "padding-x: 2 each side → content width is outer.width - 4"
     );
 
     // Children layout: h1 sits at .hello's content top (no UA top

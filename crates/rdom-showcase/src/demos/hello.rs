@@ -20,7 +20,7 @@ const MARKUP: &str = r#"<div class="hello">
 
 const CSS: &str = r#"
 .hello {
-  padding: 1;
+  padding: 1 2;
 }
 .hello h1 {
   color: rgb(180, 220, 255);

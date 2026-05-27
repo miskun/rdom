@@ -22,7 +22,7 @@ const CSS: &str = r#"
   display: flex;
   flex-direction: row;
   gap: 1;
-  padding: 1;
+  padding: 1 2;
 }
 .flex-row-demo .box {
   flex: 1;
