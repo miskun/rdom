@@ -158,7 +158,12 @@ impl MutationObserver<TuiExt> for Shim {
             Mutation::AttributeChanged { id, .. } | Mutation::ClassChanged { id, .. } => {
                 mark_style_dirty(dom, &mut state, *id);
             }
-            Mutation::ChildListChanged { parent, added, .. } => {
+            Mutation::ChildListChanged {
+                parent,
+                added,
+                removed,
+                ..
+            } => {
                 // The inserted subtrees get dirtied directly.
                 for a in added {
                     mark_style_dirty(dom, &mut state, *a);
@@ -170,6 +175,33 @@ impl MutationObserver<TuiExt> for Shim {
                 for sib in sibling_ids {
                     mark_style_dirty(dom, &mut state, sib);
                 }
+                // Text-only mutations (a `<div></div>` getting a
+                // text node appended, or the inverse) don't touch
+                // any element with a TuiExt — `mark_style_dirty`
+                // on a text node early-returns, and the element-
+                // children loop above doesn't see text nodes. The
+                // mutation IS visible-content-changing though, so
+                // flag paint_dirty: the runtime's event loop ORs
+                // this into `needs_redraw`, which triggers a fresh
+                // `draw_if_dirty` that re-runs `layout_dom`
+                // (full-tree re-flow) and picks up the new text in
+                // intrinsic-size / flex-distribution / IFC packing.
+                //
+                // We don't mark the parent element style_dirty
+                // because that would trigger cascade work that
+                // text-only changes don't need (CSS selectors don't
+                // match text content) and that empirically breaks
+                // pseudo-element-driven built-ins (form/input
+                // seeding, label `for` resolution).
+                let any_text_added = added
+                    .iter()
+                    .any(|&n| dom.node(n).node_type() == rdom_core::NodeType::Text);
+                let any_text_removed = removed
+                    .iter()
+                    .any(|&n| dom.node(n).node_type() == rdom_core::NodeType::Text);
+                if any_text_added || any_text_removed {
+                    state.paint_dirty = true;
+                }
             }
             Mutation::CharacterDataChanged { .. } => {
                 // Text data doesn't affect selector matching — no
@@ -179,17 +211,21 @@ impl MutationObserver<TuiExt> for Shim {
                 // cascade roots queued.
                 state.paint_dirty = true;
             }
-            Mutation::InteractionChanged {
-                prev,
-                next,
-                kind: _,
-            } => {
+            Mutation::InteractionChanged { prev, next, kind } => {
+                crate::rdom_trace!(
+                    "DirtyTracker::observe InteractionChanged kind={kind:?} prev={prev:?} next={next:?}; \
+                     marking style_dirty + pushing roots"
+                );
                 if let Some(p) = prev {
                     mark_style_dirty(dom, &mut state, *p);
                 }
                 if let Some(n) = next {
                     mark_style_dirty(dom, &mut state, *n);
                 }
+                crate::rdom_trace!(
+                    "DirtyTracker::observe InteractionChanged: roots now = {:?}",
+                    state.roots
+                );
             }
             Mutation::SelectionChanged { .. } => {
                 // Selection changes don't affect cascade — the

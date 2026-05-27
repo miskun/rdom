@@ -66,6 +66,17 @@ pub struct ComputedStyle {
     /// **Inherits** — the cascade propagates parent's value to
     /// children. Default `Separate`.
     pub border_collapse: crate::layout::BorderCollapse,
+    /// True iff this element was assigned `border-collapse` by a
+    /// cascade rule that specified a concrete value (`collapse` or
+    /// `separate`) — not via inheritance and not via
+    /// `border-collapse: inherit`. Identifies the element as a
+    /// **collapse-root**: the boundary of its own collapse group,
+    /// equivalent to a `<table>` in the CSS table model. Used by
+    /// the flex/block layout's transparent-intermediate propagation
+    /// (`has_effective_border_on_edge`) to seal nested collapse-
+    /// groups from each other, matching CSS 2.1 §17.6.2.1's table-
+    /// equals-boundary rule extended to rdom's non-table elements.
+    pub border_collapse_declared: bool,
     pub direction: Direction,
     /// Per-axis overflow. Resolved after the cross-axis rule from
     /// CSS Overflow Level 3: if one axis is not `Visible` and the
@@ -171,6 +182,7 @@ impl ComputedStyle {
             flex_shrink: 1,
             border: Border::none(),
             border_collapse: crate::layout::BorderCollapse::Separate,
+            border_collapse_declared: false,
             direction: Direction::Column,
             overflow_x: Overflow::Visible,
             overflow_y: Overflow::Visible,

@@ -660,3 +660,104 @@ fn source_disclosure_has_border_top() {
     assert!(!border.bottom);
     assert!(!border.left);
 }
+
+/// Helper: build shell + mount a demo by index + cascade + layout.
+fn shell_with_demo(
+    demo_idx: usize,
+    width: u16,
+    height: u16,
+) -> (TuiDom, rdom_showcase::ShellHandles) {
+    let mut dom: TuiDom = TuiDom::new();
+    let handles = build_shell(&mut dom);
+    let mut state = ShowcaseState::from_handles(&handles);
+    mount_demo(&mut state, &mut dom, demo_idx);
+
+    let base = base_stylesheet();
+    let mut sheets = vec![base];
+    for d in DEMOS {
+        sheets.push(d.stylesheet());
+    }
+    let refs: Vec<&_> = sheets.iter().collect();
+    dom.cascade_all(&refs);
+    dom.layout_dom(Rect::new(0, 0, width, height));
+    (dom, handles)
+}
+
+fn border_collapse_demo_idx() -> usize {
+    DEMOS
+        .iter()
+        .position(|d| d.slug() == "layout/border-collapse")
+        .expect("border-collapse demo registered")
+}
+
+#[test]
+fn border_collapse_demo_wrapper_keeps_main_content_inset() {
+    // Regression: the border-collapse demo declares
+    // `border-collapse: collapse` on its wrapper `.border-collapse-demo`
+    // — this should make the wrapper a sealed collapse-root (CSS 2.1
+    // §17.6.2.1 table-equals-boundary, extended to rdom's non-table
+    // elements). The wrapper's outer border must NOT fuse with
+    // `<main>`'s border ring; `<main>` must keep its 1-cell content
+    // inset on every edge.
+    //
+    // Bug shape: `.app { border-collapse: collapse }` inherits through
+    // every chrome descendant, then `view-content` (no border)
+    // propagated the demo wrapper's edges up via the transparent-
+    // intermediate rule. `<main>`'s `collapse_parent_edge_insets`
+    // computed `(0,0,0,0)` and the demo wrapper landed coincident
+    // with `<main>`'s ring (T-joints visible at top/bottom borders).
+    let idx = border_collapse_demo_idx();
+    let (dom, _h) = shell_with_demo(idx, 100, 30);
+    let main = find_by_class(&dom, dom.root(), "main").unwrap();
+    let wrapper = find_by_class(&dom, dom.root(), "border-collapse-demo").unwrap();
+    let main_rect = dom.node(main).ext().unwrap().layout;
+    let wrap_rect = dom.node(wrapper).ext().unwrap().layout;
+
+    assert!(
+        wrap_rect.x > main_rect.x,
+        "demo wrapper's left edge must be strictly inside <main>'s left border \
+         (collapse-root opacity); got wrapper.x={} main.x={}",
+        wrap_rect.x,
+        main_rect.x
+    );
+    assert!(
+        wrap_rect.y > main_rect.y,
+        "demo wrapper's top edge must be strictly inside <main>'s top border; \
+         got wrapper.y={} main.y={}",
+        wrap_rect.y,
+        main_rect.y
+    );
+    assert!(
+        wrap_rect.x + (wrap_rect.width as i32) < main_rect.x + (main_rect.width as i32),
+        "demo wrapper's right edge must be strictly inside <main>'s right border; \
+         got wrapper={wrap_rect:?} main={main_rect:?}"
+    );
+}
+
+#[test]
+fn border_collapse_demo_preserves_source_disclosure_left_indent() {
+    // Companion regression to the wrapper-inset bug above: when the
+    // demo wrapper was fusing with `<main>`'s ring, the parent-edge
+    // inset for ALL of `<main>`'s children went to 0 — including
+    // `<details class="source-disclosure">`, which then sat with its
+    // left edge AT `<main>`'s left border column (producing a `┼`
+    // glyph + lost 1-cell left indent in the rendered output).
+    //
+    // Contract: the source-disclosure's left edge must be strictly
+    // inside `<main>`'s left border, regardless of which demo is
+    // mounted.
+    let idx = border_collapse_demo_idx();
+    let (dom, _h) = shell_with_demo(idx, 100, 30);
+    let main = find_by_class(&dom, dom.root(), "main").unwrap();
+    let src = find_by_class(&dom, dom.root(), "source-disclosure").unwrap();
+    let main_rect = dom.node(main).ext().unwrap().layout;
+    let src_rect = dom.node(src).ext().unwrap().layout;
+
+    assert!(
+        src_rect.x > main_rect.x,
+        "source-disclosure's left edge must be strictly inside <main>'s left border; \
+         got src.x={} main.x={}",
+        src_rect.x,
+        main_rect.x
+    );
+}

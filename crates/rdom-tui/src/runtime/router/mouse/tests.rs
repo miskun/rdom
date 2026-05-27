@@ -1379,9 +1379,14 @@ fn pointer_capture_routes_mousemove_to_captured_regardless_of_hit() {
     dom.set_pointer_capture(handle).unwrap();
 
     let mut router = Router::new();
-    // Move well beyond the handle's rect; without capture this would
-    // hit `rest` and dispatch mousemove there.
-    router.route(&mut dom, crossterm::event::Event::Mouse(move_at(12, 1)));
+    // Drag (button held) well beyond the handle's rect; without
+    // capture this would hit `rest` and dispatch mousemove there.
+    // NOTE: must be `drag_at` (Drag(Left)) rather than `move_at`
+    // (Moved with no button held). A `Moved` event with capture set
+    // is treated as evidence the mouseup was lost (button NOT held
+    // any more), and releases capture — see `handle_move`'s stale-
+    // capture cleanup. Real drags use `Drag(Left)`.
+    router.route(&mut dom, crossterm::event::Event::Mouse(drag_at(12, 1)));
 
     assert_eq!(moves_on_handle.get(), 1);
 }
@@ -1406,8 +1411,10 @@ fn pointer_capture_suppresses_hover_transitions() {
     dom.set_pointer_capture(handle).unwrap();
 
     let mut router = Router::new();
-    // Without capture: would fire mouseover on rest.
-    router.route(&mut dom, crossterm::event::Event::Mouse(move_at(12, 1)));
+    // Real drag (button held) — capture suppresses hover. A `Moved`
+    // event here would be treated as a missed-mouseup and release
+    // capture; use `drag_at` to simulate the in-progress drag.
+    router.route(&mut dom, crossterm::event::Event::Mouse(drag_at(12, 1)));
 
     assert_eq!(over_handle.get(), 0, "no mouseover during capture");
     assert_eq!(over_rest.get(), 0, "no mouseover during capture");
@@ -1523,9 +1530,10 @@ fn set_pointer_capture_in_mousedown_handler_persists_through_drag() {
     router.route(&mut dom, crossterm::event::Event::Mouse(down_at(2, 1)));
     assert_eq!(dom.pointer_capture(), Some(handle));
 
-    // Drag off the handle — mousemove should still route to handle.
-    router.route(&mut dom, crossterm::event::Event::Mouse(move_at(15, 2)));
-    router.route(&mut dom, crossterm::event::Event::Mouse(move_at(18, 2)));
+    // Drag off the handle (button held — `Drag(Left)`, not `Moved`).
+    // mousemove should still route to handle.
+    router.route(&mut dom, crossterm::event::Event::Mouse(drag_at(15, 2)));
+    router.route(&mut dom, crossterm::event::Event::Mouse(drag_at(18, 2)));
     assert_eq!(received.get(), 2);
 
     // Mouseup clears capture.
@@ -1545,15 +1553,57 @@ fn explicit_release_pointer_capture_restores_normal_routing() {
     })
     .unwrap();
 
-    // While captured, hover over rest is suppressed.
+    // While captured, hover over rest is suppressed (during a real
+    // drag — button held).
     let mut router = Router::new();
-    router.route(&mut dom, crossterm::event::Event::Mouse(move_at(12, 1)));
+    router.route(&mut dom, crossterm::event::Event::Mouse(drag_at(12, 1)));
     assert!(!hover_on_rest.get());
 
     // Release and move again — hover should now update normally.
     dom.release_pointer_capture();
     router.route(&mut dom, crossterm::event::Event::Mouse(move_at(12, 1)));
     assert!(hover_on_rest.get());
+}
+
+#[test]
+fn moved_event_with_capture_set_releases_capture_and_updates_hover() {
+    // Regression: a `Moved` event (no button held) arriving while
+    // `pointer_capture` is set means the mouseup that would have
+    // released it was lost — most commonly because the user
+    // released the button outside the terminal window, or the
+    // terminal lost focus mid-drag. Browser-faithful behavior:
+    // treat the next button-less motion as a `pointercancel`,
+    // release capture, end any in-progress drags, and proceed with
+    // normal hover routing.
+    //
+    // User-visible symptom this prevents: after unfocusing the
+    // terminal and bringing it back, hover stops working until the
+    // user clicks an item to force the mouseup auto-release path.
+    let (mut dom, handle, rest) = drag_handle_fixture();
+
+    let hover_on_rest = Rc::new(Cell::new(false));
+    let r = hover_on_rest.clone();
+    dom.add_event_listener(rest, "mouseover", ListenerOptions::default(), move |_| {
+        r.set(true);
+    })
+    .unwrap();
+
+    dom.set_pointer_capture(handle).unwrap();
+    assert_eq!(dom.pointer_capture(), Some(handle));
+
+    let mut router = Router::new();
+    router.route(&mut dom, crossterm::event::Event::Mouse(move_at(12, 1)));
+
+    assert_eq!(
+        dom.pointer_capture(),
+        None,
+        "Moved (button NOT held) with capture set must release stale capture"
+    );
+    assert!(
+        hover_on_rest.get(),
+        "after the stale-capture release, the same `Moved` event must fall through \
+         to normal hover routing and fire `mouseover` on the actual hit target (rest)"
+    );
 }
 
 // ── drag-select ─────────────────────────────────────────────────────

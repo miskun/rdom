@@ -29,12 +29,33 @@
 use rdom_core::{Dom, NodeId, NodeType};
 
 use crate::ext::TuiExt;
-use crate::layout::Display;
+use crate::layout::{Display, Flow};
 
 /// True iff `id`'s children establish an inline formatting context.
 /// Used by both layout (to skip flex distribution + populate
 /// `inline_layout`) and paint (to switch to fragment-driven paint).
+///
+/// **Flex containers are NEVER IFC**, per CSS Flexbox §3: inline-level
+/// children of a flex container are *blockified* — their display
+/// computes to a block-level equivalent and they participate in the
+/// flex layout as ordinary flex items. Without this carve-out, a
+/// `<div style="display: flex"><span>A</span><span>B</span></div>`
+/// would silently route through the IFC path, each `<span>` would
+/// get a zero-sized layout rect, and the flex layout the author asked
+/// for would never run. Bug surfaced by the showcase status bar's
+/// two-slot pattern (hints left + mouse position right).
 pub(crate) fn is_ifc_block(dom: &Dom<TuiExt>, id: NodeId) -> bool {
+    // Flex parent → never an IFC. Inline children blockify.
+    let parent_flow = dom
+        .node(id)
+        .ext()
+        .and_then(|e| e.computed.as_ref())
+        .map(|c| c.flow)
+        .unwrap_or(Flow::Block);
+    if parent_flow == Flow::Flex {
+        return false;
+    }
+
     let mut has_inline = false;
     for child in dom.node(id).child_nodes() {
         if child.node_type() != NodeType::Element {

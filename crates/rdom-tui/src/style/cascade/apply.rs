@@ -287,6 +287,7 @@ fn apply_style(
     );
     apply_border_collapse(
         &mut working.border_collapse,
+        &mut working.border_collapse_declared,
         &style.border_collapse,
         style.important.contains(ImportantMask::BORDER_COLLAPSE),
         important_pass,
@@ -585,19 +586,40 @@ fn apply_border(
 
 fn apply_border_collapse(
     target: &mut crate::layout::BorderCollapse,
+    declared: &mut bool,
     value: &Option<Value<crate::layout::BorderCollapse>>,
     important_prop: bool,
     important_pass: bool,
     inherit: crate::layout::BorderCollapse,
 ) {
-    apply_simple!(
-        *target,
-        value,
-        important_prop,
-        important_pass,
-        inherit,
-        crate::layout::BorderCollapse::Separate
-    );
+    if let Some(v) = value
+        && matches_pass(important_prop, important_pass)
+    {
+        match v {
+            Value::Specified(x) => {
+                *target = *x;
+                // Author wrote `border-collapse: collapse | separate;`
+                // on THIS element — it becomes a collapse-root (the
+                // boundary of its own group, equivalent to a CSS
+                // `<table>`). See `ComputedStyle::border_collapse_declared`.
+                *declared = true;
+            }
+            Value::Inherit => {
+                // Explicit `inherit` keyword: semantically "use my
+                // parent's value." Not a collapse-root declaration —
+                // leave `declared` as-is (initial: false; never set
+                // by inheritance).
+                *target = inherit;
+            }
+            Value::Initial => {
+                *target = crate::layout::BorderCollapse::Separate;
+                // `initial` resets to the property's initial value
+                // (`separate`); the author IS declaring something on
+                // this element, so it's a (trivial) collapse-root.
+                *declared = true;
+            }
+        }
+    }
 }
 
 fn apply_direction(

@@ -93,6 +93,13 @@ fn handle_down(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> Rout
 
     let hit = dom.hit_test(mouse.column, mouse.row);
     router.down_target = hit;
+    crate::rdom_trace!(
+        "handle_down: hit_test({}, {}) = {:?}; pre-capture={:?}",
+        mouse.column,
+        mouse.row,
+        hit,
+        dom.pointer_capture()
+    );
 
     let Some(target) = hit else {
         return RouteOutcome::default();
@@ -133,6 +140,12 @@ fn handle_down(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> Rout
         // selectable text, set a caret selection at that position
         // and engage pointer capture so subsequent moves extend it.
         let drag_started = crate::runtime::selection::drag::begin(router, dom, mouse);
+        crate::rdom_trace!(
+            "handle_down: selection::drag::begin returned {drag_started}; \
+             post-capture={:?} selection_drag={:?}",
+            dom.pointer_capture(),
+            router.selection_drag.is_some()
+        );
         if drag_started {
             redraw = true;
 
@@ -172,6 +185,12 @@ fn handle_up(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> RouteO
     let captured = dom.pointer_capture();
     let hit = dom.hit_test(mouse.column, mouse.row);
     let down_target = router.down_target.take();
+    crate::rdom_trace!(
+        "handle_up: hit={hit:?} down_target={down_target:?} captured={captured:?} \
+         selection_drag={} scrollbar_drag={}",
+        router.selection_drag.is_some(),
+        router.scrollbar_drag.is_some()
+    );
 
     // Routing target for mouseup: captured element (if any) else hit.
     let up_target = captured.or(hit);
@@ -220,6 +239,7 @@ fn handle_up(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> RouteO
     // Auto-release the pointer. Browser-faithful: capture ends on
     // the next mouseup unless the handler explicitly re-captures.
     if captured.is_some() {
+        crate::rdom_trace!("handle_up: auto-releasing pointer_capture (was {captured:?})");
         dom.release_pointer_capture();
     }
 
@@ -228,6 +248,11 @@ fn handle_up(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> RouteO
     // at the click position, matching browser behavior.
     crate::runtime::selection::drag::end(router);
     crate::runtime::scrollbar::end_drag(router);
+    crate::rdom_trace!(
+        "handle_up: end of fn — capture={:?} hovered={:?}",
+        dom.pointer_capture(),
+        dom.hovered()
+    );
 
     RouteOutcome::default()
 }
@@ -247,8 +272,39 @@ fn handle_up(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> RouteO
 /// rubber-band selection) need: the captured handler sees every
 /// move, and the rest of the UI doesn't flicker its hover state.
 fn handle_move(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> RouteOutcome {
+    // Stale pointer-capture release: a `Moved` event (button NOT
+    // held) arriving while `pointer_capture` is set means the
+    // mouseup that would have released it never reached us — the
+    // user released the button outside the terminal window, or the
+    // terminal lost focus mid-drag and the mouseup was delivered to
+    // a different window. crossterm doesn't surface focus events
+    // unless `EnableFocusChange` is opted in, so we can't watch for
+    // FocusLost to clean up; instead we treat the next button-less
+    // motion as evidence the drag is over.
+    //
+    // Browser-faithful: the W3C Pointer Events spec fires
+    // `pointercancel` when the implementation determines a pointer
+    // is unlikely to produce any more events (window blur during
+    // drag is the canonical case). `pointercancel` releases capture
+    // and ends any in-progress drag — exactly what we do here, just
+    // detected via the absence of a button on the follow-up motion.
+    //
+    // Without this fix, hover updates were dead until the user
+    // clicked an element to force the mouseup auto-release path
+    // (`handle_up` → `release_pointer_capture`).
+    if dom.pointer_capture().is_some() && matches!(mouse.kind, MouseEventKind::Moved) {
+        crate::rdom_trace!(
+            "handle_move: stale capture detected (Moved with capture={:?}) — releasing",
+            dom.pointer_capture()
+        );
+        dom.release_pointer_capture();
+        crate::runtime::selection::drag::end(router);
+        crate::runtime::scrollbar::end_drag(router);
+    }
+
     // Pointer capture path: route to captured, no hover updates.
     if let Some(captured) = dom.pointer_capture() {
+        crate::rdom_trace!("handle_move: capture branch — routing to {captured:?}, hover skipped");
         let mut tui = TuiEvent::mousemove(mouse);
         let _ = dom.dispatch_tui_event(captured, &mut tui);
 
@@ -280,6 +336,23 @@ fn handle_move(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> Rout
     }
 
     let hit = dom.hit_test(mouse.column, mouse.row);
+    if crate::runtime::trace::enabled() {
+        // Resolve tag + class for human-readable trace.
+        let info = hit
+            .map(|id| {
+                let n = dom.node(id);
+                let tag = n.tag_name().unwrap_or("?");
+                let cls = n.get_attribute("class").unwrap_or("");
+                format!("{id:?} <{tag} class=\"{cls}\">")
+            })
+            .unwrap_or_else(|| "None".to_string());
+        crate::rdom_trace!(
+            "handle_move: hit_test({}, {}) = {info}  (prev hover_target={:?})",
+            mouse.column,
+            mouse.row,
+            router.hover_target
+        );
+    }
 
     // Dispatch mousemove on the current hit.
     if let Some(target) = hit {
@@ -290,11 +363,18 @@ fn handle_move(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> Rout
     // Hover transition?
     let changed = hit != router.hover_target;
     if !changed {
+        crate::rdom_trace!(
+            "handle_move: no hover change ({:?} == hover_target); returning no-op",
+            hit
+        );
         return RouteOutcome::default();
     }
 
     let prev = router.hover_target;
     router.hover_target = hit;
+    crate::rdom_trace!(
+        "handle_move: hover transition {prev:?} -> {hit:?}; calling set_hovered + redraw"
+    );
 
     // mouseout on the previous hover target.
     if let Some(old) = prev {
