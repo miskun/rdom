@@ -402,19 +402,22 @@ pub(super) fn layout_flex_children(
     // loop below), but flex sizing needs to know up-front so the
     // grow distribution uses ALL the available cells — otherwise
     // the saved cells appear as empty space at the parent's right
-    // / bottom edge (the headline `border-collapse` bug from M5
-    // gate review).
-    // Per-edge effective border check (transparent intermediate
-    // propagation) — adjacent siblings overlap when both have a
-    // border on the shared edge, either directly or via
-    // borderless container children that propagate the sharing
-    // to bordered descendants.
+    // / bottom edge.
+    //
+    // **BORDER-MODEL-1 gap-honoring rule.** When the author writes
+    // `gap > 0`, the gap is sacred: it produces a visible cell
+    // between siblings and there is nothing adjacent to merge. So
+    // `overlap_savings` only fires when `gap == 0` AND the parent
+    // declares `collapse`. With `gap > 0`, the gap and collapse
+    // coexist orthogonally — `collapse` becomes a no-op for that
+    // sibling pair. Documented as the 2×2 outcome grid in
+    // `DIVERGENCES.md`.
     let (edge_i, edge_next) = match direction {
         Direction::Column => (CollapseEdge::Bottom, CollapseEdge::Top),
         Direction::Row => (CollapseEdge::Right, CollapseEdge::Left),
     };
     let mut overlap_savings: u16 = 0;
-    if parent.border_collapse == crate::layout::BorderCollapse::Collapse {
+    if parent.border_collapse == crate::layout::BorderCollapse::Collapse && gap == 0 {
         for i in 0..child_info.len().saturating_sub(1) {
             if has_effective_border_on_edge(dom, child_info[i].id, edge_i)
                 && has_effective_border_on_edge(dom, child_info[i + 1].id, edge_next)
@@ -603,13 +606,13 @@ pub(super) fn layout_flex_children(
         main_cursor = main_cursor.saturating_add(main_end_cells as i32);
         if i + 1 < child_list.len() {
             main_cursor = main_cursor.saturating_add(gap as i32);
-            // M5.5b + Finding 2 — sibling border overlap under
-            // `border-collapse: collapse`. When the parent has
-            // collapse active AND both this child and the next
-            // have a border on the shared edge (directly or via
-            // transparent intermediate containers), they share one
-            // cell at the junction: pull the cursor back by 1.
-            if parent.border_collapse == crate::layout::BorderCollapse::Collapse
+            // Sibling-overlap pullback. Mirrors the gating in the
+            // `overlap_savings` computation above: only fires when
+            // gap == 0 AND parent has collapse AND both children
+            // have a border on the shared edge. With gap > 0, the
+            // gap is visible and the siblings don't overlap.
+            if gap == 0
+                && parent.border_collapse == crate::layout::BorderCollapse::Collapse
                 && has_effective_border_on_edge(dom, child_info[i].id, edge_i)
                 && has_effective_border_on_edge(dom, child_info[i + 1].id, edge_next)
             {
@@ -631,100 +634,38 @@ pub(super) enum CollapseEdge {
     Right,
 }
 
-/// Does `id` have a border on `edge` for `border-collapse`
-/// sharing purposes — directly, OR via transparent borderless
-/// container intermediates that propagate the sharing through
-/// to bordered descendants?
+/// Does `id` have a visible border on `edge`?
 ///
-/// Closes the gap surfaced by the M2 visual review: a layout
-/// like `<app border collapse> > <header border> + <body no-border> > <sidebar border> + <main border>`
-/// should share `<header>`'s bottom with `<sidebar>` / `<main>`'s
-/// tops through the transparent `<body>`. Same shape as the
-/// `collapse_parent_edge_insets` content-inset logic, applied to
-/// the sibling-overlap axis.
+/// **BORDER-MODEL-1 simplification.** The previous version recursed
+/// through borderless transparent intermediates to find bordered
+/// descendants — a heuristic stack that needed escape hatches for
+/// padding, margin, declared-collapse, etc. Under the new model
+/// (`border-collapse: collapse` is non-inheriting and affects a
+/// container's direct children only), collapse-sharing is a
+/// per-direct-child decision. Each child reports on its OWN
+/// border; the recursion is unnecessary and was actively wrong for
+/// any child whose bordered descendants were offset from its edge
+/// by padding, margin, or its own collapse declaration.
 ///
-/// Recursion direction:
-///
-/// - Column-direction container: only first column-child touches
-///   parent's top edge; only last touches parent's bottom edge;
-///   any child can touch left or right (children span the cross
-///   axis).
-/// - Row-direction container: mirror of the column case.
+/// Now this is a 4-field check on the element's own computed
+/// border. Kept as a function (rather than inlined) so the
+/// callers — `collapse_parent_edge_insets` and the sibling-overlap
+/// math in `layout_flex_children` — can stay readable.
 pub(super) fn has_effective_border_on_edge(
     dom: &Dom<TuiExt>,
     id: NodeId,
     edge: CollapseEdge,
 ) -> bool {
-    use crate::layout::Border;
     let computed = dom
         .node(id)
         .computed()
         .cloned()
         .unwrap_or_else(ComputedStyle::initial);
-
-    // BORDER-MODEL-1 retired the "collapse-root opacity" guard that
-    // used to live here. Under non-inheriting `border-collapse`,
-    // every container that wants collapse semantics declares them
-    // explicitly — declaration is normal, not "sealed sub-group."
-    // The previous guard returned `false` for any element whose own
-    // `border_collapse_declared == true`, which under the new model
-    // breaks the chrome (every chrome container declares collapse
-    // and would be falsely reported as borderless). Sibling-overlap
-    // and parent-edge insets read the element's own border directly
-    // — that's the single source of truth.
-    let own_has_edge = match edge {
+    match edge {
         CollapseEdge::Top => computed.border.top.is_visible(),
         CollapseEdge::Bottom => computed.border.bottom.is_visible(),
         CollapseEdge::Left => computed.border.left.is_visible(),
         CollapseEdge::Right => computed.border.right.is_visible(),
-    };
-    if own_has_edge {
-        return true;
-    }
-    if computed.border != Border::none() {
-        // Has some border but not the queried edge — opaque on
-        // this edge. Don't look through.
-        return false;
-    }
-
-    // Borderless — transparent. Look through to children.
-    let children: Vec<NodeId> = super::element_children_of(dom, id)
-        .into_iter()
-        .filter(|&c| {
-            let cc = dom.node(c).computed();
-            cc.is_none_or(|s| {
-                s.display != crate::layout::Display::None
-                    && !matches!(
-                        s.position,
-                        crate::layout::Position::Absolute | crate::layout::Position::Fixed
-                    )
-            })
-        })
-        .collect();
-    if children.is_empty() {
-        return false;
-    }
-
-    let dir = computed.direction;
-    match (dir, edge) {
-        (Direction::Column, CollapseEdge::Top) => {
-            has_effective_border_on_edge(dom, children[0], CollapseEdge::Top)
-        }
-        (Direction::Column, CollapseEdge::Bottom) => {
-            has_effective_border_on_edge(dom, *children.last().unwrap(), CollapseEdge::Bottom)
-        }
-        (Direction::Column, CollapseEdge::Left | CollapseEdge::Right) => children
-            .iter()
-            .any(|&c| has_effective_border_on_edge(dom, c, edge)),
-        (Direction::Row, CollapseEdge::Top | CollapseEdge::Bottom) => children
-            .iter()
-            .any(|&c| has_effective_border_on_edge(dom, c, edge)),
-        (Direction::Row, CollapseEdge::Left) => {
-            has_effective_border_on_edge(dom, children[0], CollapseEdge::Left)
-        }
-        (Direction::Row, CollapseEdge::Right) => {
-            has_effective_border_on_edge(dom, *children.last().unwrap(), CollapseEdge::Right)
-        }
     }
 }
 

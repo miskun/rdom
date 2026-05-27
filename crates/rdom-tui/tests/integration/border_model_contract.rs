@@ -116,7 +116,6 @@ fn gap_zero_collapse_overlaps_one_cell_and_paints_junction() {
 }
 
 #[test]
-#[ignore = "BORDER-MODEL-1 M5 — gap must be honored under collapse"]
 fn gap_positive_collapse_has_no_overlap_collapse_is_noop() {
     // `gap: 1` is sacred — collapse can't merge across a gap cell.
     // Outcome identical to `gap_positive_separate_leaves_visible_gap`.

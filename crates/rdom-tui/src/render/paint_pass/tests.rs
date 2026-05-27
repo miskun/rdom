@@ -2980,12 +2980,19 @@ fn collapse_three_sibling_nested_grid_renders_correct_junctions() {
         )
         .rule_unchecked(
             "row",
-            // BORDER-MODEL-1: collapse is non-inheriting; `row`
-            // declares it explicitly so its direct children's
-            // adjacent borders overlap at the shared cells.
+            // BORDER-MODEL-1: collapse is non-inheriting AND only
+            // affects direct children. For `row`'s cell children
+            // (left/mid/right) to share borders with `outer`'s ring
+            // — the table-like pattern this test pins — `row`
+            // declares its own border-collapse AND its own border
+            // ring. Then row shares with outer (via outer's
+            // collapse on its direct children), and cells share
+            // with row (via row's own collapse). No more recursion
+            // through transparent intermediates.
             TuiStyle::new()
                 .flow(Flow::Flex)
                 .direction(Direction::Row)
+                .border(Border::single())
                 .border_collapse(BorderCollapse::Collapse),
         )
         .rule_unchecked(

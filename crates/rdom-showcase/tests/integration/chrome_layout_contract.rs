@@ -697,7 +697,6 @@ fn border_collapse_demo_idx() -> usize {
 }
 
 #[test]
-#[ignore = "BORDER-MODEL-1 M5 — direct-child-only recursion will restore the inset"]
 fn border_collapse_demo_wrapper_keeps_main_content_inset() {
     // Regression: the border-collapse demo declares
     // `border-collapse: collapse` on its wrapper `.border-collapse-demo`
@@ -742,7 +741,6 @@ fn border_collapse_demo_wrapper_keeps_main_content_inset() {
 }
 
 #[test]
-#[ignore = "BORDER-MODEL-1 M5 — direct-child-only recursion will restore the inset"]
 fn border_collapse_demo_preserves_source_disclosure_left_indent() {
     // Companion regression to the wrapper-inset bug above: when the
     // demo wrapper was fusing with `<main>`'s ring, the parent-edge

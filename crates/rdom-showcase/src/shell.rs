@@ -382,7 +382,22 @@ const BASE_CSS: &str = r#"
    * collapse itself. `.app-body`'s direct children are `.sidebar`
    * and `.main`; declaring collapse here makes their adjacent
    * vertical borders overlap (the `┬`/`┴` junctions between
-   * sidebar and main on the header / footer rows). */
+   * sidebar and main on the header / footer rows).
+   *
+   * `.app-body` also gives itself a border so it can participate
+   * in `.app`'s collapse — its outer top shares the row with
+   * `.app-header`'s bottom, and its outer left/right share the
+   * columns with `.app`'s left/right borders. Without a real
+   * border, body would be "transparent" and the direct-children
+   * rule would put it on a row below header rather than coincident
+   * with header's bottom row.
+   *
+   * Visually the body's border ring is invisible: every cell it
+   * paints to coincides with an `.app` or `.app-header` border
+   * cell, so paint-time mask-OR produces the same junction glyph
+   * either way. */
+  border: solid;
+  border-color: rgb(45, 47, 49);
   border-collapse: collapse;
   /* Body is an app-shell pane — it should track the available
    * height, not balloon to the sum of its children's intrinsic

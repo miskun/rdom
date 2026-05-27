@@ -23,7 +23,6 @@ use rdom_tui::render::{Rect, Terminal, TestBackend};
 use rdom_tui::{CascadeExt, LayoutExt, TuiDom, TuiNodeExt};
 
 #[test]
-#[ignore = "BORDER-MODEL-1 M5 — direct-child-only recursion will restore the opacity"]
 fn declared_collapse_child_keeps_outer_content_inset() {
     // `outer` declares `border-collapse: collapse` + own border.
     // `mid` is a transparent intermediate (no border).
@@ -144,13 +143,19 @@ fn declared_collapse_child_paints_outer_corners_as_clean_corners() {
 }
 
 #[test]
-fn inherited_collapse_child_still_propagates_through_transparent_intermediate() {
-    // Regression guard: the chrome's `<header>` ↔ `<sidebar>`
-    // overlap-through-`<body>` pattern relies on inherited
-    // `border-collapse: collapse` propagating through borderless
-    // intermediates. The collapse-root opacity rule must ONLY fire
-    // on elements that DECLARE the property — pure inheritance
-    // must keep the existing transparent-intermediate behavior.
+fn nested_collapse_groups_each_decide_their_own_children() {
+    // BORDER-MODEL-1 replaced the inherited-propagation pattern
+    // with explicit per-container collapse declarations. Each
+    // container that wants its direct children to share borders
+    // declares it. The chrome's old `<header>` ↔ `<sidebar>` /
+    // `<main>` overlap-through-`<body>` shape works today by
+    // declaring collapse on the body too AND giving every
+    // participant a real border to share.
+    //
+    // This test pins the layered pattern: `outer` collapse =
+    // header ↔ body share their meeting row; `body` collapse =
+    // sidebar ↔ main share their meeting column. Two independent
+    // collapse contexts with no spooky-action-at-a-distance.
     let mut dom: TuiDom = TuiDom::new();
     let root = dom.root();
     let app = dom.create_element("app_el");
@@ -164,17 +169,16 @@ fn inherited_collapse_child_still_propagates_through_transparent_intermediate() 
     dom.append_child(body, sidebar).unwrap();
     dom.append_child(body, main).unwrap();
 
-    // `app` declares collapse — root of the group.
-    // `header`, `body`, `sidebar`, `main` only INHERIT it.
-    // Expected: `header` ↔ `sidebar`/`main` still overlap by 1 row
-    // through the transparent `body` (matches today's behavior).
+    // Both `app` and `body` declare collapse. `body` also gives
+    // itself a border so header ↔ body share at their meeting row.
     let css = r#"
         app_el     { display: flex;
  width: 80; height: 24; flex-direction: column;
                      border: solid; border-collapse: collapse; }
         header_el  { height: 3; border: solid; }
         body_el    { display: flex;
- flex: 1; flex-direction: row; }
+ flex: 1; flex-direction: row;
+                     border: solid; border-collapse: collapse; }
         sidebar_el { width: 28; border: solid; }
         main_el    { flex: 1; border: solid; }
     "#;
@@ -183,18 +187,19 @@ fn inherited_collapse_child_still_propagates_through_transparent_intermediate() 
     dom.layout_dom(Rect::new(0, 0, 80, 24));
 
     let header_rect = dom.node(header).layout_rect().expect("header laid out");
+    let body_rect = dom.node(body).layout_rect().expect("body laid out");
     let sidebar_rect = dom.node(sidebar).layout_rect().expect("sidebar laid out");
     let main_rect = dom.node(main).layout_rect().expect("main laid out");
 
     assert_eq!(header_rect.y, 0);
+    // outer collapse: header.bottom shares with body.top.
     assert_eq!(
-        sidebar_rect.y, 2,
-        "sidebar should overlap header's bottom border via transparent body \
-         (inherited-only collapse must still propagate); got {sidebar_rect:?}"
+        body_rect.y, 2,
+        "body should overlap header's bottom row (outer's collapse, both direct children \
+         have borders on the shared edge); got {body_rect:?}"
     );
-    assert_eq!(
-        main_rect.y, 2,
-        "main should overlap header's bottom border via transparent body \
-         (inherited-only collapse must still propagate); got {main_rect:?}"
-    );
+    // body collapse: sidebar ↔ main share at their meeting column,
+    // and both inherit body's y position.
+    assert_eq!(sidebar_rect.y, body_rect.y);
+    assert_eq!(main_rect.y, body_rect.y);
 }
