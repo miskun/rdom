@@ -241,7 +241,7 @@ fn closest_toggle(dom: &TuiDom, id: NodeId) -> Option<NodeId> {
     None
 }
 
-fn is_toggle(dom: &TuiDom, id: NodeId) -> bool {
+pub(crate) fn is_toggle(dom: &TuiDom, id: NodeId) -> bool {
     if dom.node(id).tag_name() != Some("input") {
         return false;
     }

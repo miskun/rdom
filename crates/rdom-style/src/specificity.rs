@@ -104,6 +104,7 @@ impl Specificity {
                 | PseudoClass::Root
                 | PseudoClass::Hover
                 | PseudoClass::Focus
+                | PseudoClass::FocusWithin
                 | PseudoClass::Checked
                 | PseudoClass::PlaceholderShown
                 | PseudoClass::Indeterminate

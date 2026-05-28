@@ -14,6 +14,7 @@ use crate::demos::inline_formatting::InlineFormatting;
 use crate::demos::interval_counter::IntervalCounter;
 use crate::demos::mutation_observer::MutationObserverDemo;
 use crate::demos::parse_and_render::ParseAndRender;
+use crate::demos::permission_dialog::PermissionDialog;
 use crate::demos::raf_progress::RafProgress;
 use crate::demos::scrollable_list::ScrollableList;
 use crate::demos::selectable_text::SelectableText;
@@ -37,6 +38,7 @@ pub const DEMOS: &[&dyn Demo] = &[
     &Sticky,
     &SelectableText,
     &TabForm,
+    &PermissionDialog,
     &ParseAndRender,
     &DomApi,
     &UaChrome,

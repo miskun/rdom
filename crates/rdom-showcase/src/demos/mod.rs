@@ -19,6 +19,7 @@ pub mod inline_formatting;
 pub mod interval_counter;
 pub mod mutation_observer;
 pub mod parse_and_render;
+pub mod permission_dialog;
 pub mod raf_progress;
 pub mod scrollable_list;
 pub mod selectable_text;

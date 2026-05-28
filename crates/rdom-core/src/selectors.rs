@@ -107,6 +107,14 @@ pub enum PseudoClass {
     /// `:focus` — matches when the node is the Dom's currently-focused
     /// node (tracked via `Dom::set_focused`).
     Focus,
+    /// `:focus-within` — matches when the node OR any of its
+    /// descendants is the Dom's currently-focused node. Mirrors
+    /// CSS Selectors L4 §10.1.4 — lets authors style an entire
+    /// container (form row, label, dialog) based on whether
+    /// focus is somewhere inside it. The substrate walks from
+    /// the focused node upward through parents; every ancestor
+    /// in the chain matches, plus the focused node itself.
+    FocusWithin,
     /// `:checked` — matches when the element has a `checked`
     /// attribute (any value, presence-only). The user-toggle
     /// builtins flip this attribute on click / Space, so this
@@ -465,6 +473,7 @@ impl<'a> Parser<'a> {
             "root" => Ok(SimpleSelector::Pseudo(PseudoClass::Root)),
             "hover" => Ok(SimpleSelector::Pseudo(PseudoClass::Hover)),
             "focus" => Ok(SimpleSelector::Pseudo(PseudoClass::Focus)),
+            "focus-within" => Ok(SimpleSelector::Pseudo(PseudoClass::FocusWithin)),
             "checked" => Ok(SimpleSelector::Pseudo(PseudoClass::Checked)),
             "placeholder-shown" => Ok(SimpleSelector::Pseudo(PseudoClass::PlaceholderShown)),
             "indeterminate" => Ok(SimpleSelector::Pseudo(PseudoClass::Indeterminate)),

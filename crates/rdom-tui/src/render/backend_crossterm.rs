@@ -117,9 +117,9 @@ impl<W: Write> Backend for CrosstermBackend<W> {
 /// `no-mouse-capture` cargo feature on `rdom-tui`.
 pub fn enter_tui_mode<W: Write>(writer: &mut W) -> io::Result<()> {
     terminal::enable_raw_mode()?;
-    // Single batched execute! — matches the lens-k8s-tui /
-    // ratatui-canonical pattern that's known to work reliably on
-    // iTerm2 and other terminals. Earlier in this codebase we
+    // Single batched execute! — the ratatui-canonical pattern
+    // that's known to work reliably on iTerm2 and other
+    // terminals. Earlier in this codebase we
     // tried splitting the writes per-sequence + various
     // pre-resets / focus-cycle kicks chasing a hover bug; none of
     // those helped, because the actual root cause was elsewhere

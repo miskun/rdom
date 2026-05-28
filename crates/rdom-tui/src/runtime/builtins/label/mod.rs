@@ -22,16 +22,27 @@
 //! 1. Moves focus to the associated control.
 //! 2. For `<input type="checkbox">` / `<input type="radio">`,
 //!    also re-dispatches a click on the control so it toggles.
-//!    C.3 ships focus-transfer only — toggle integration lands
-//!    in C.4b when checkbox/radio exist.
+//!    The re-dispatched click bubbles back through the label
+//!    (the input is a descendant), so the label listener uses
+//!    a `target != control` check to skip its own
+//!    re-dispatches — otherwise the dispatch chain
+//!    `label → input → label → input → …` would loop forever.
+//!    Other labelables — `<button>`, `<select>`, `<textarea>`,
+//!    `<meter>`, `<output>`, `<progress>` — get focus only;
+//!    their activation semantics differ from checkbox/radio's
+//!    flip-the-state model and re-dispatching click is not what
+//!    those controls want.
 //!
 //! The listener respects `event.preventDefault()` — an author
 //! `click` handler on the label can short-circuit the focus
 //! transfer.
 
+use crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
 use rdom_core::{ListenerOptions, NodeId};
 
 use crate::TuiDom;
+use crate::runtime::builtins::toggle;
+use crate::tui_event::{TuiDispatchExt, TuiEvent};
 
 /// Install the label-click default action. Called once from
 /// `App::build`.
@@ -53,6 +64,37 @@ pub fn install(dom: &mut TuiDom) {
             return;
         };
         crate::runtime::focus::focus_node(ctx.dom, Some(control));
+
+        // For checkbox/radio, also re-dispatch click on the
+        // control so the toggle builtin's click listener flips
+        // the state.
+        //
+        // Loop breaker: only re-dispatch if the original target
+        // is something OTHER than the control itself. When the
+        // user clicks the input glyph directly, `target == control`
+        // and the toggle builtin's own click listener has already
+        // handled it — re-dispatching would toggle the state a
+        // second time (cancelling itself). When our re-dispatched
+        // click bubbles back through the label (input is a
+        // descendant), `target == control` again and we skip,
+        // breaking the otherwise-infinite chain
+        // `label → input → label → input → …`.
+        //
+        // Note we DON'T gate on `is_synthetic` — the mouse router
+        // marks every click as synthetic when it synthesizes the
+        // click from a mousedown/mouseup pair, so that flag can't
+        // distinguish "user-originated" from "re-dispatched."
+        if toggle::is_toggle(ctx.dom, control) && target != control {
+            let fake_mouse = MouseEvent {
+                kind: MouseEventKind::Up(MouseButton::Left),
+                column: 0,
+                row: 0,
+                modifiers: KeyModifiers::empty(),
+            };
+            let mut click = TuiEvent::click(fake_mouse);
+            click.event = click.event.clone().with_synthetic(true);
+            let _ = ctx.dom.dispatch_tui_event(control, &mut click);
+        }
     })
     .expect("root label click listener install");
 }

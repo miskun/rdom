@@ -222,6 +222,23 @@ impl MutationObserver<TuiExt> for Shim {
                 if let Some(n) = next {
                     mark_style_dirty(dom, &mut state, *n);
                 }
+                // For focus changes, the `:focus-within` pseudo
+                // class also flips on every ancestor of the
+                // prev/next focused node. Walk up and mark the
+                // topmost element ancestor — `mark_style_dirty`'s
+                // ancestor-already-dirty check then dedupes the
+                // descendants we marked above. Hover doesn't
+                // propagate up via a `:hover-within` (no such
+                // selector exists in CSS) so we skip this for
+                // non-focus kinds.
+                if matches!(kind, InteractionKind::Focus) {
+                    if let Some(p) = prev {
+                        mark_ancestor_chain_style_dirty(dom, &mut state, *p);
+                    }
+                    if let Some(n) = next {
+                        mark_ancestor_chain_style_dirty(dom, &mut state, *n);
+                    }
+                }
                 crate::rdom_trace!(
                     "DirtyTracker::observe InteractionChanged: roots now = {:?}",
                     state.roots
@@ -244,9 +261,34 @@ impl MutationObserver<TuiExt> for Shim {
                 // and doesn't carry any cascade implication.
             }
         }
-        // `kind` is currently unused but may drive finer-grained
-        // invalidation later (e.g., skip when no :hover rules exist).
-        let _ = InteractionKind::Hover; // keep enum referenced for docs.
+    }
+}
+
+/// Walk from `id`'s parent upward through the element ancestor
+/// chain and mark each as style-dirty. Used when an interaction
+/// state propagates upward through `:focus-within` — every
+/// ancestor's selector match flips.
+///
+/// The walk goes innermost-to-outermost; `mark_style_dirty`'s
+/// own ancestor-already-dirty check kicks in once the outermost
+/// ancestor is marked, so we don't push an exploding number of
+/// roots for deep trees.
+fn mark_ancestor_chain_style_dirty(dom: &mut Dom<TuiExt>, state: &mut DirtyState, id: NodeId) {
+    // Collect element ancestors first so `mark_style_dirty` can
+    // process them outermost-first — the topmost ancestor's push
+    // covers every descendant via the subtree cascade, so the
+    // closer ancestors hit the dirty-ancestor dedupe path and
+    // don't end up as extra roots.
+    let mut chain: Vec<NodeId> = Vec::new();
+    let mut cur = dom.node(id).parent_node().map(|p| p.id());
+    while let Some(a) = cur {
+        if dom.node(a).ext().is_some() {
+            chain.push(a);
+        }
+        cur = dom.node(a).parent_node().map(|p| p.id());
+    }
+    for ancestor in chain.into_iter().rev() {
+        mark_style_dirty(dom, state, ancestor);
     }
 }
 
@@ -395,6 +437,47 @@ mod tests {
         let roots = tracker.take_roots();
         assert!(roots.contains(&a));
         assert!(roots.contains(&b));
+    }
+
+    #[test]
+    fn focus_changes_dirty_ancestor_chain_for_focus_within() {
+        // `:focus-within` matches every ancestor of the focused
+        // element. When focus moves, those ancestors' style
+        // changes — so the cascade must re-run on at least one
+        // root that covers them. The dirty tracker walks up from
+        // prev/next and marks an ancestor that re-cascades the
+        // whole chain.
+        //
+        // Tree: outer > middle > inner.
+        // Focus inner → outer's `:focus-within` flips → outer's
+        // subtree must be re-cascaded.
+        let mut dom: TuiDom = TuiDom::new();
+        let root = dom.root();
+        let outer = dom.create_element("div");
+        let middle = dom.create_element("div");
+        let inner = dom.create_element("span");
+        dom.append_child(middle, inner).unwrap();
+        dom.append_child(outer, middle).unwrap();
+        dom.append_child(root, outer).unwrap();
+
+        let tracker = DirtyTracker::install(&mut dom);
+        dom.set_focused(Some(inner));
+        let roots = tracker.take_roots();
+        // The exact root pushed is an implementation detail (could
+        // be `inner`, or its topmost element ancestor `outer`).
+        // What matters is that SOMETHING re-cascades the chain —
+        // either the topmost ancestor is a root, or every ancestor
+        // along the chain has `style_dirty` set so its parent's
+        // cascade visits them. The simplest pin: `outer` (the
+        // topmost element ancestor) must end up either in roots
+        // OR have `style_dirty = true`, so a future cascade pass
+        // re-evaluates its `:focus-within` selector match.
+        let outer_dirty =
+            roots.contains(&outer) || dom.node(outer).ext().is_some_and(|e| e.style_dirty);
+        assert!(
+            outer_dirty,
+            "outer must re-cascade so its :focus-within match flips when inner gets focus"
+        );
     }
 
     #[test]

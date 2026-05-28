@@ -252,6 +252,24 @@ impl<Ext> Dom<Ext> {
             PseudoClass::Root => id == self.root(),
             PseudoClass::Hover => self.hovered() == Some(id),
             PseudoClass::Focus => self.focused() == Some(id),
+            PseudoClass::FocusWithin => {
+                // Walk up from the focused node to the root; if
+                // `id` is the focused node itself or any ancestor
+                // in that chain, it matches. O(depth) per query,
+                // which is fine — focus depth is bounded by tree
+                // height.
+                let Some(focused) = self.focused() else {
+                    return false;
+                };
+                let mut cur = Some(focused);
+                while let Some(n) = cur {
+                    if n == id {
+                        return true;
+                    }
+                    cur = self.get_node(n).and_then(|node| node.parent);
+                }
+                false
+            }
             PseudoClass::Checked => self
                 .get_node(id)
                 .map(|n| match &n.data {
@@ -589,6 +607,44 @@ mod tests {
         dom.set_focused(Some(s1));
         assert!(dom.matches(s1, ":focus").unwrap());
         assert!(!dom.matches(div, ":focus").unwrap());
+    }
+
+    #[test]
+    fn focus_within_matches_focused_and_ancestor_elements() {
+        // `:focus-within` matches the focused element AND every
+        // ancestor element in the chain. Mirrors CSS Selectors L4
+        // §10.1.4. The Document root is not an element so it
+        // won't return true via `matches()` (which filters to
+        // elements), but every element ancestor between root and
+        // the focused node does.
+        //
+        // Tree shape (from `build`):
+        //   root → div.outer → p.last → em
+        let (mut dom, [div, _s1, _s2, p, em]) = build();
+        dom.set_focused(Some(em));
+        assert!(dom.matches(em, ":focus-within").unwrap(), "focused itself");
+        assert!(dom.matches(p, ":focus-within").unwrap(), "parent");
+        assert!(dom.matches(div, ":focus-within").unwrap(), "grandparent");
+    }
+
+    #[test]
+    fn focus_within_does_not_match_siblings_or_other_subtrees() {
+        // Focus is on em (under p.last). Siblings of p (s1.first,
+        // s2.mid) are in a different subtree — they must NOT match.
+        let (mut dom, [_div, s1, s2, _p, em]) = build();
+        dom.set_focused(Some(em));
+        assert!(!dom.matches(s1, ":focus-within").unwrap());
+        assert!(!dom.matches(s2, ":focus-within").unwrap());
+    }
+
+    #[test]
+    fn focus_within_clears_when_focus_cleared() {
+        let (mut dom, [div, _, _, _, em]) = build();
+        dom.set_focused(Some(em));
+        assert!(dom.matches(div, ":focus-within").unwrap());
+        dom.set_focused(None);
+        assert!(!dom.matches(div, ":focus-within").unwrap());
+        assert!(!dom.matches(em, ":focus-within").unwrap());
     }
 
     #[test]

@@ -42,15 +42,15 @@ use crate::{Color, Content, TuiStyle};
 /// (just visible enough to mark the field affordance). On light
 /// terminals it's a dark rectangle.
 const FIELD_BG: Color = Color::Rgb(0x1f, 0x21, 0x23);
-/// Muted text — #7F868B (lens-k8s-tui `TextMuted`). Cool gray that
-/// reads as supporting prose against both light and dark surfaces.
-/// Used for `[disabled]`, placeholder, `<small>`, `<abbr>`,
-/// blockquote text, scrollbar glyphs, helper text, etc.
+/// Muted text — #7F868B. Cool gray that reads as supporting
+/// prose against both light and dark surfaces. Used for
+/// `[disabled]`, placeholder, `<small>`, `<abbr>`, blockquote
+/// text, scrollbar glyphs, helper text, etc.
 const TEXT_MUTED: Color = Color::Rgb(0x7F, 0x86, 0x8B);
-/// Default border — #3B4042 (lens-k8s-tui `BorderDefault`). Subtle
-/// gray for box-drawing borders and `<hr>` rules — distinct from
-/// `TEXT_MUTED` so a border next to muted text still reads as
-/// chrome rather than as more text.
+/// Default border — #3B4042. Subtle gray for box-drawing borders
+/// and `<hr>` rules — distinct from `TEXT_MUTED` so a border
+/// next to muted text still reads as chrome rather than as more
+/// text.
 const BORDER_DEFAULT: Color = Color::Rgb(0x3B, 0x40, 0x42);
 /// Accent — dodgerblue (#1E90FF). Vivid on both light and dark
 /// terminals. Replaces every former `ACCENT` use:
@@ -1007,7 +1007,7 @@ mod tests {
         }
 
         // Muted text: small / abbr render with the UA muted-text
-        // color (`TEXT_MUTED` — lens `TextMuted`, #7F868B).
+        // color (`TEXT_MUTED` — #7F868B).
         for t in ["small", "abbr"] {
             let r = ua[t];
             assert_eq!(
