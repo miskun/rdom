@@ -80,7 +80,7 @@ pub const MARKUP: &str = r#"<div class="permission-dialog-demo">
 
 pub const CSS: &str = r#"
 .permission-dialog-demo {
-  padding: 1 2;
+  padding: 0 1;
   display: flex;
   flex-direction: column;
   gap: 1;
@@ -88,7 +88,17 @@ pub const CSS: &str = r#"
 .permission-dialog-demo dialog {
   display: flex;
   flex-direction: column;
-  gap: 1;
+  /* Override the UA's `Padding(1, 2, 1, 2)` on `<dialog>` —
+     drop the vertical pad so the speaker line sits flush
+     against the top border. Horizontal stays at 1 so text
+     doesn't crowd the side borders.
+
+     No `gap` — a uniform gap would put a row between
+     `.choices` and `.actions` too, which we don't want. The
+     single inter-section row above the radios is supplied by
+     `.choices { padding-top: 1 }` below; `.actions` butts up
+     against `.choices` with no space between. */
+  padding: 0 1;
 }
 .permission-dialog-demo .speaker {
   font-weight: bold;
@@ -96,6 +106,11 @@ pub const CSS: &str = r#"
 .permission-dialog-demo .choices {
   display: flex;
   flex-direction: column;
+  /* Single row of breathing space between the message block
+     above and the radios. Pads the .choices box itself rather
+     than relying on the dialog's `gap`, because we want NO
+     space between .choices and .actions. */
+  padding-top: 1;
 }
 .permission-dialog-demo .choice {
   display: flex;
@@ -140,10 +155,37 @@ pub const CSS: &str = r#"
 .permission-dialog-demo .actions {
   display: flex;
   flex-direction: row;
-  gap: 2;
 }
 .permission-dialog-demo .actions .apply {
   margin-left: auto;
+}
+/* Box-bordered buttons in place of the UA's bracketed-glyph
+   `[ Label ]` chrome. Suppress the UA `::before` / `::after`
+   brackets (override their `content` to the empty string) and
+   ship a `border: rounded` ring — solid lines with rounded
+   `╭ ╮ ╰ ╯` corners matching the dialog's own border style.
+   With no gap between actions, adjacent buttons render as
+   `╮╭` (two cells, no collapse — `border-collapse` would merge
+   them into `┬`/`├` glyphs which isn't the look we want). */
+.permission-dialog-demo .actions button {
+  border: rounded;
+  padding: 0 1;
+}
+.permission-dialog-demo .actions button::before,
+.permission-dialog-demo .actions button::after {
+  content: "";
+}
+/* Dismiss is the secondary action — opt out of the UA's accent
+   fg so the button reads as a plain "cancel" affordance rather
+   than competing with Apply for visual weight. The color
+   matches the `.result` line below the dialog (the muted
+   blue-gray used for status/helper text in this demo), so
+   secondary-affordance elements stay visually coherent.
+   `border-color` falls back to `color` per
+   `style::cascade::apply::finalize_border_fg`, so setting
+   `color` alone tints both text and ring. */
+.permission-dialog-demo .actions .dismiss {
+  color: #616365;
 }
 .permission-dialog-demo .result {
   color: rgb(140, 150, 170);
