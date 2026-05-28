@@ -53,22 +53,22 @@ pub const MARKUP: &str = r#"<div class="permission-dialog-demo">
       <p class="url"><code>POST https://api.linear.app/graphql</code></p>
     </div>
     <div class="choices">
-      <label class="choice">
-        <input type="radio" name="action" value="allow-once" checked>
-        <span>Allow once</span>
-      </label>
-      <label class="choice">
-        <input type="radio" name="action" value="allow-always">
-        <span>Allow always</span>
-      </label>
-      <label class="choice">
-        <input type="radio" name="action" value="deny-once">
-        <span>Deny once</span>
-      </label>
-      <label class="choice">
-        <input type="radio" name="action" value="deny-always">
-        <span>Deny always</span>
-      </label>
+      <div class="choice">
+        <input type="radio" id="allow-once" name="action" value="allow-once" checked>
+        <label for="allow-once">Allow once</label>
+      </div>
+      <div class="choice">
+        <input type="radio" id="allow-always" name="action" value="allow-always">
+        <label for="allow-always">Allow always</label>
+      </div>
+      <div class="choice">
+        <input type="radio" id="deny-once" name="action" value="deny-once">
+        <label for="deny-once">Deny once</label>
+      </div>
+      <div class="choice">
+        <input type="radio" id="deny-always" name="action" value="deny-always">
+        <label for="deny-always">Deny always</label>
+      </div>
     </div>
     <div class="actions">
       <button class="apply">Apply</button>
@@ -175,6 +175,10 @@ pub fn build(dom: &mut TuiDom) -> NodeId {
     dom.append_child(message, url_p).unwrap();
 
     // Radio group — four choices, `Allow once` checked initially.
+    // Explicit `for`/`id` association (input + label as siblings)
+    // rather than wrapping; matches the canonical web-developer
+    // idiom and lets `.choice` be a plain `<div>` flex container,
+    // independent of the label element.
     let choices = dom.create_element("div");
     dom.set_attribute(choices, "class", "choices").unwrap();
     let radios: Vec<NodeId> = [
@@ -185,24 +189,26 @@ pub fn build(dom: &mut TuiDom) -> NodeId {
     ]
     .into_iter()
     .map(|(value, label_text, checked)| {
-        let label = dom.create_element("label");
-        dom.set_attribute(label, "class", "choice").unwrap();
+        let row = dom.create_element("div");
+        dom.set_attribute(row, "class", "choice").unwrap();
 
         let input = dom.create_element("input");
         dom.set_attribute(input, "type", "radio").unwrap();
+        dom.set_attribute(input, "id", value).unwrap();
         dom.set_attribute(input, "name", "action").unwrap();
         dom.set_attribute(input, "value", value).unwrap();
         if checked {
             dom.set_attribute(input, "checked", "").unwrap();
         }
-        dom.append_child(label, input).unwrap();
+        dom.append_child(row, input).unwrap();
 
-        let span = dom.create_element("span");
+        let label = dom.create_element("label");
+        dom.set_attribute(label, "for", value).unwrap();
         let t = dom.create_text_node(label_text);
-        dom.append_child(span, t).unwrap();
-        dom.append_child(label, span).unwrap();
+        dom.append_child(label, t).unwrap();
+        dom.append_child(row, label).unwrap();
 
-        dom.append_child(choices, label).unwrap();
+        dom.append_child(choices, row).unwrap();
         input
     })
     .collect();
