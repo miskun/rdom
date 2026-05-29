@@ -1250,6 +1250,7 @@ fn border_style_keyword(s: crate::layout::BorderStyle) -> &'static str {
         BorderStyle::Outset => "outset",
         BorderStyle::Groove => "groove",
         BorderStyle::Inset => "inset",
+        BorderStyle::HalfBlock => "half-block",
     }
 }
 

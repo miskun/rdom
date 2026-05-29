@@ -54,7 +54,7 @@ pub const MARKUP: &str = r#"<div class="permission-dialog-demo">
     </div>
     <div class="choices">
       <div class="choice">
-        <input type="radio" id="allow-once" name="action" value="allow-once" checked>
+        <input type="radio" id="allow-once" name="action" value="allow-once" checked autofocus>
         <label for="allow-once">Allow once</label>
       </div>
       <div class="choice">
@@ -99,9 +99,27 @@ pub const CSS: &str = r#"
      `.choices { padding-top: 1 }` below; `.actions` butts up
      against `.choices` with no space between. */
   padding: 0 1;
+  /* Subtle near-black surface that distinguishes the dialog
+     from the terminal default. The Apply button's half-block
+     border has `background-clip: padding-box`-equivalent
+     behavior (see DIVERGENCES.md) — the dialog bg shows
+     through the empty half of each half-block glyph, joining
+     the pill silhouette into a continuous accent shape. */
+  background-color: #1f2123;
+  /* Override the UA's accent border-color with a neutral gray
+     one shade lighter than the dialog bg — frames the dialog
+     without screaming for attention. */
+  border-color: #2d2f31;
 }
 .permission-dialog-demo .speaker {
   font-weight: bold;
+}
+/* Suppress the UA's `<code>` field-tint bg (`FIELD_BG` =
+   `#1f2123`) — it now matches the dialog bg by coincidence, but
+   the override keeps the URL line readable even if the dialog
+   palette shifts later. */
+.permission-dialog-demo .url code {
+  background-color: transparent;
 }
 .permission-dialog-demo .choices {
   display: flex;
@@ -116,6 +134,12 @@ pub const CSS: &str = r#"
   display: flex;
   flex-direction: row;
   height: 1;
+  /* Anchor for the absolutely-positioned `::before` / `::after`
+     half-block extensions below — they pin to `left: -1` /
+     `right: -1` relative to this `.choice` rect to spill into
+     the dialog's 1-cell horizontal padding when the row is
+     focused. */
+  position: relative;
 }
 .permission-dialog-demo .choice input[type=radio] {
   width: 2;
@@ -129,14 +153,14 @@ pub const CSS: &str = r#"
    specificity (1 class + 1 class + 1 type + 1 attribute +
    pseudo-element) against the UA's bare
    `input[type=radio]::before` and `:checked::before`. The checked
-   glyph also picks up the dialog's accent color (dodgerblue) so
+   glyph also picks up the dialog's accent color (#3d90ce) so
    the selected option pops against the unchecked siblings. */
 .permission-dialog-demo .choice input[type=radio]::before {
   content: "○ ";
 }
 .permission-dialog-demo .choice input[type=radio]:checked::before {
   content: "◉ ";
-  color: dodgerblue;
+  color: #3d90ce;
 }
 /* Suppress the UA `:focus` bg on the radio itself — by default it
    paints a dark gray block over the 2-cell input box, which reads
@@ -152,9 +176,42 @@ pub const CSS: &str = r#"
 .permission-dialog-demo .choice:focus-within {
   background-color: rgb(45, 47, 49);
 }
+/* Half-block extensions: when a `.choice` is focused, paint a
+   right-half-block (`▐`) one cell to the LEFT of the row and a
+   left-half-block (`▌`) one cell to the RIGHT — those cells sit
+   inside the dialog's 1-cell horizontal padding, so the focus
+   highlight visually spills into the padding zone with a soft
+   pill edge instead of stopping abruptly at the .choice rect.
+   Each half-block paints its inner half in the focus color and
+   leaves the outer half showing the dialog bg.
+
+   Anchored via `position: absolute` (the `.choice` rule above
+   sets `position: relative` so these pseudos use `.choice` as
+   their containing block). Negative `left` / `right` offsets put
+   them just outside the row's normal layout rect. */
+.permission-dialog-demo .choice:focus-within::before {
+  content: "▐";
+  position: absolute;
+  left: -1;
+  color: rgb(45, 47, 49);
+}
+.permission-dialog-demo .choice:focus-within::after {
+  content: "▌";
+  position: absolute;
+  right: -1;
+  color: rgb(45, 47, 49);
+}
 .permission-dialog-demo .actions {
   display: flex;
   flex-direction: row;
+  /* Shift the row 1 cell to the right so the buttons land
+     flush against the dialog's right padding/border edge
+     instead of leaving a visible gap. `position: relative` +
+     `left: 1` is the cleanest way — `margin-right: -1` doesn't
+     compose with the default `align-items: stretch` on the
+     dialog's cross-axis. */
+  position: relative;
+  left: 1;
 }
 .permission-dialog-demo .actions .apply {
   margin-left: auto;
@@ -175,17 +232,42 @@ pub const CSS: &str = r#"
 .permission-dialog-demo .actions button::after {
   content: "";
 }
-/* Dismiss is the secondary action — opt out of the UA's accent
-   fg so the button reads as a plain "cancel" affordance rather
-   than competing with Apply for visual weight. The color
-   matches the `.result` line below the dialog (the muted
-   blue-gray used for status/helper text in this demo), so
-   secondary-affordance elements stay visually coherent.
-   `border-color` falls back to `color` per
-   `style::cascade::apply::finalize_border_fg`, so setting
-   `color` alone tints both text and ring. */
+/* Apply is the primary CTA. Filled rectangle visually outweighs
+   the outlined Dismiss next to it when every cell is colored —
+   so the button uses `border: half-block`, a rdom-specific
+   border style that paints `▄ ▀ ▌ ▐ ▗ ▖ ▝ ▘` glyphs (U+258x /
+   U+259x) sized to half a cell each. The colored ring spans
+   ~2 cells of visible vertical color across the 3-row layout,
+   so the button reads as a 2-cell-tall pill — same visual
+   weight as Dismiss's thin outline, without giving up the
+   filled-CTA look. `border-color` AND `background-color` both
+   set to #3d90ce so the ring and the interior share the
+   accent color; the join phase clears bg on the border cells
+   themselves so the half-block silhouette stays visible against
+   the surrounding parent bg (see border_join's HalfBlock branch
+   + the DIVERGENCES.md entry — closest analog to CSS's
+   `background-clip: padding-box`). `color: white` makes the
+   label legible against the accent-colored interior. */
+.permission-dialog-demo .actions .apply {
+  border: half-block;
+  border-color: #3d90ce;
+  background-color: #3d90ce;
+  color: white;
+  padding: 0 1;
+}
+/* Dismiss mirrors Apply's filled-pill shape (`border: half-block`
+   ring + filled interior + white text) but in a near-black
+   `#2d2f31` instead of the accent. The low-contrast surface
+   reads as "present but secondary" against the `#181a1c`
+   dialog bg — visually distinguishable without competing with
+   Apply for the eye. Same half-block bg-clip behavior applies:
+   the dialog bg shows through the empty half of each
+   half-block glyph, joining the pill silhouette continuously. */
 .permission-dialog-demo .actions .dismiss {
-  color: #616365;
+  border: half-block;
+  border-color: #2d2f31;
+  background-color: #2d2f31;
+  color: white;
 }
 .permission-dialog-demo .result {
   color: rgb(140, 150, 170);
@@ -230,7 +312,8 @@ pub fn build(dom: &mut TuiDom) -> NodeId {
         ("deny-always", "Deny always", false),
     ]
     .into_iter()
-    .map(|(value, label_text, checked)| {
+    .enumerate()
+    .map(|(idx, (value, label_text, checked))| {
         let row = dom.create_element("div");
         dom.set_attribute(row, "class", "choice").unwrap();
 
@@ -241,6 +324,16 @@ pub fn build(dom: &mut TuiDom) -> NodeId {
         dom.set_attribute(input, "value", value).unwrap();
         if checked {
             dom.set_attribute(input, "checked", "").unwrap();
+        }
+        // First radio carries `autofocus` so the showcase's
+        // `mount_demo` (which runs `focus_within` on the demo
+        // subtree, see crates/rdom-showcase/src/nav.rs) drops
+        // initial focus inside the dialog instead of leaving
+        // it on the sidebar `<li>`. Tab from here moves to the
+        // Apply button (the radio group is a single tab stop
+        // per HTML — arrow keys navigate within the group).
+        if idx == 0 {
+            dom.set_attribute(input, "autofocus", "").unwrap();
         }
         dom.append_child(row, input).unwrap();
 

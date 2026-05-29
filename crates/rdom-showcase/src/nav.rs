@@ -96,6 +96,20 @@ pub fn mount_demo(state: &mut ShowcaseState, dom: &mut TuiDom, demo_idx: usize) 
     dom.append_child(state.main_id, demo_root)
         .expect("demo_root was just created and has no parent");
 
+    // 1a. Run the `[autofocus]` algorithm scoped to the newly-
+    //     mounted demo subtree. Demo-switch is a consumer-level
+    //     lifecycle moment — the substrate provides
+    //     `focus_within(dom, root)` as the primitive; the
+    //     showcase glues it in here so a demo can opt into
+    //     initial focus by tagging an element with `autofocus`
+    //     (the canonical HTML idiom). `focus_within` walks the
+    //     subtree and focuses the first eligible `[autofocus]`
+    //     element, unconditionally moving focus off whatever
+    //     was previously focused (typically the sidebar `<li>`
+    //     the user clicked to switch demos). Demos without any
+    //     `[autofocus]` get no auto-focus — the user Tabs in.
+    rdom_tui::runtime::autofocus::focus_within(dom, demo_root);
+
     // 2. Rebuild the source disclosure body. Keep the `<summary>`
     //    that the shell put there; replace everything else with
     //    the new demo's MARKUP + CSS.
@@ -454,6 +468,35 @@ mod tests {
             main_children.len(),
             1,
             "main has exactly one child (the mounted demo's root)"
+        );
+    }
+
+    #[test]
+    fn mount_demo_runs_autofocus_on_demo_subtree() {
+        // The showcase glues the substrate's autofocus primitive
+        // to its mount lifecycle: when a demo carrying an
+        // `[autofocus]` element is mounted (or swapped in), focus
+        // should land on that element. The permission_dialog demo
+        // marks its first radio with `autofocus`; verify by
+        // mounting it and checking the focused node.
+        let mut dom: TuiDom = TuiDom::new();
+        let handles = build_shell(&mut dom);
+        let mut state = ShowcaseState::from_handles(&handles);
+
+        let permission_idx = crate::DEMOS
+            .iter()
+            .position(|d| d.slug() == "forms/permission-dialog")
+            .expect("permission-dialog demo registered");
+        mount_demo(&mut state, &mut dom, permission_idx);
+
+        let focused = dom.focused().expect("autofocus moved focus into demo");
+        let node = dom.node(focused);
+        assert_eq!(node.tag_name(), Some("input"));
+        assert_eq!(node.get_attribute("type"), Some("radio"));
+        assert_eq!(
+            node.get_attribute("id"),
+            Some("allow-once"),
+            "first radio (autofocus target) is focused"
         );
     }
 

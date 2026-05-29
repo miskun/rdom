@@ -459,3 +459,111 @@ fn non_focusable_tags_stay_non_focusable() {
         );
     }
 }
+
+// ── Radio-group single tab stop ──────────────────────────────────────
+// Per HTML, a `name`-keyed `<input type=radio>` group is one tab stop.
+// Tab moves focus IN/OUT of the group as a unit; only the checked
+// radio (or the first if none is checked) is in the sequential focus
+// chain. Arrow-key navigation among the other group members is handled
+// by the toggle builtin; those non-checked radios must NOT show up in
+// `focusable_elements`.
+
+fn make_radio(dom: &mut TuiDom, name: &str, id: &str, checked: bool) -> NodeId {
+    let r = dom.create_element("input");
+    dom.set_attribute(r, "type", "radio").unwrap();
+    dom.set_attribute(r, "name", name).unwrap();
+    dom.set_attribute(r, "id", id).unwrap();
+    if checked {
+        dom.set_attribute(r, "checked", "").unwrap();
+    }
+    r
+}
+
+#[test]
+fn radio_group_with_checked_member_excludes_unchecked_from_tab_list() {
+    // Three radios with `name="g"`, second is checked. Tab list
+    // should include ONLY the second radio (one tab stop for the
+    // whole group).
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let r1 = make_radio(&mut dom, "g", "r1", false);
+    let r2 = make_radio(&mut dom, "g", "r2", true);
+    let r3 = make_radio(&mut dom, "g", "r3", false);
+    for r in [r1, r2, r3] {
+        dom.append_child(root, r).unwrap();
+    }
+    let list = focusable_elements(&dom);
+    assert_eq!(
+        list,
+        vec![r2],
+        "tab list should contain only the checked radio"
+    );
+}
+
+#[test]
+fn radio_group_without_checked_member_keeps_first_as_tab_stop() {
+    // No radio checked → the FIRST in document order represents
+    // the group in the tab list.
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let r1 = make_radio(&mut dom, "g", "r1", false);
+    let r2 = make_radio(&mut dom, "g", "r2", false);
+    for r in [r1, r2] {
+        dom.append_child(root, r).unwrap();
+    }
+    let list = focusable_elements(&dom);
+    assert_eq!(list, vec![r1], "tab list should contain only first radio");
+}
+
+#[test]
+fn radio_without_name_is_not_in_a_group() {
+    // A radio with no `name` (or empty name) forms its own
+    // single-element group — it's still tab-reachable on its own
+    // because there's nothing for it to dedupe against.
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let r1 = make_radio(&mut dom, "", "r1", false);
+    let r2 = dom.create_element("input");
+    dom.set_attribute(r2, "type", "radio").unwrap();
+    dom.set_attribute(r2, "id", "r2").unwrap();
+    // r2 has no `name` attribute at all
+    dom.append_child(root, r1).unwrap();
+    dom.append_child(root, r2).unwrap();
+    let list = focusable_elements(&dom);
+    assert_eq!(list, vec![r1, r2], "nameless radios stand on their own");
+}
+
+#[test]
+fn distinct_radio_groups_each_contribute_one_tab_stop() {
+    // Two groups with different `name`s — each contributes its own
+    // single tab stop, so the list is 2 long.
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let g1a = make_radio(&mut dom, "g1", "g1a", true);
+    let g1b = make_radio(&mut dom, "g1", "g1b", false);
+    let g2a = make_radio(&mut dom, "g2", "g2a", false);
+    let g2b = make_radio(&mut dom, "g2", "g2b", true);
+    for r in [g1a, g1b, g2a, g2b] {
+        dom.append_child(root, r).unwrap();
+    }
+    let list = focusable_elements(&dom);
+    assert_eq!(list, vec![g1a, g2b], "one tab stop per distinct group");
+}
+
+#[test]
+fn radio_group_dedupe_does_not_affect_other_focusables() {
+    // A button before, a radio group, a button after — the buttons
+    // remain in the tab list unchanged.
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let b1 = dom.create_element("button");
+    let r1 = make_radio(&mut dom, "g", "r1", false);
+    let r2 = make_radio(&mut dom, "g", "r2", true);
+    let b2 = dom.create_element("button");
+    dom.append_child(root, b1).unwrap();
+    dom.append_child(root, r1).unwrap();
+    dom.append_child(root, r2).unwrap();
+    dom.append_child(root, b2).unwrap();
+    let list = focusable_elements(&dom);
+    assert_eq!(list, vec![b1, r2, b2]);
+}

@@ -10,7 +10,7 @@
 //! (`LayoutRect` can be negative under scroll) skip cleanly.
 
 use crate::layout::{Border, LayoutRect};
-use crate::render::buffer::{BorderContribution, DIR_E, DIR_N, DIR_S, DIR_W};
+use crate::render::buffer::{BorderContribution, BorderSide, DIR_E, DIR_N, DIR_S, DIR_W};
 use crate::render::{Buffer, Modifier, Rect, Style};
 use crate::style::Color;
 use rdom_style::layout::BorderStyle;
@@ -269,6 +269,7 @@ pub(super) fn paint_border(
                     border_fg,
                     priority,
                     border.corner_style,
+                    BorderSide::Top,
                 );
             }
             if allowed & WM != 0 {
@@ -281,21 +282,27 @@ pub(super) fn paint_border(
                     border_fg,
                     priority,
                     border.corner_style,
+                    BorderSide::Top,
                 );
             }
             // The S segment at a top corner carries the LEFT/RIGHT
             // border's style — it's the start of the vertical line.
             if allowed & SM != 0 {
-                let side = if x == outer.x { lft } else { rgt };
+                let (style, src_side) = if x == outer.x {
+                    (lft, BorderSide::Left)
+                } else {
+                    (rgt, BorderSide::Right)
+                };
                 add_dir(
                     buf,
                     xu,
                     y,
                     DIR_S,
-                    side,
+                    style,
                     border_fg,
                     priority,
                     border.corner_style,
+                    src_side,
                 );
             }
         }
@@ -330,6 +337,7 @@ pub(super) fn paint_border(
                     border_fg,
                     priority,
                     border.corner_style,
+                    BorderSide::Bottom,
                 );
             }
             if allowed & WM != 0 {
@@ -342,19 +350,25 @@ pub(super) fn paint_border(
                     border_fg,
                     priority,
                     border.corner_style,
+                    BorderSide::Bottom,
                 );
             }
             if allowed & NM != 0 {
-                let side = if x == outer.x { lft } else { rgt };
+                let (style, src_side) = if x == outer.x {
+                    (lft, BorderSide::Left)
+                } else {
+                    (rgt, BorderSide::Right)
+                };
                 add_dir(
                     buf,
                     xu,
                     y,
                     DIR_N,
-                    side,
+                    style,
                     border_fg,
                     priority,
                     border.corner_style,
+                    src_side,
                 );
             }
         }
@@ -385,6 +399,7 @@ pub(super) fn paint_border(
                     border_fg,
                     priority,
                     border.corner_style,
+                    BorderSide::Left,
                 );
             }
             if allowed & SM != 0 {
@@ -397,6 +412,7 @@ pub(super) fn paint_border(
                     border_fg,
                     priority,
                     border.corner_style,
+                    BorderSide::Left,
                 );
             }
         }
@@ -426,6 +442,7 @@ pub(super) fn paint_border(
                     border_fg,
                     priority,
                     border.corner_style,
+                    BorderSide::Right,
                 );
             }
             if allowed & SM != 0 {
@@ -438,6 +455,7 @@ pub(super) fn paint_border(
                     border_fg,
                     priority,
                     border.corner_style,
+                    BorderSide::Right,
                 );
             }
         }
@@ -459,6 +477,7 @@ fn add_dir(
     fg: Color,
     priority: u64,
     corner_style: crate::layout::CornerStyle,
+    side: BorderSide,
 ) {
     if style.is_none() {
         return;
@@ -472,6 +491,7 @@ fn add_dir(
             fg,
             priority,
             corner_style,
+            side,
         },
     );
 }

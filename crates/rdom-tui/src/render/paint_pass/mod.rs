@@ -311,7 +311,21 @@ fn paint_node(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect) {
         // translucent fills set `cell.bg` only and let underlying
         // glyphs bleed through. See `border.rs::fill_bg` for the rule.
         if computed.bg != Color::Reset {
-            fill_bg(buf, outer_grid, computed.bg, computed.opacity);
+            // For `border: half-block`, skip painting bg under the
+            // border cells — the half-block paint relies on the
+            // surrounding (parent) bg showing through the "empty"
+            // half of each glyph to produce the pill silhouette.
+            // This is the rdom analog of CSS `background-clip:
+            // padding-box`, hard-coded for the half-block style.
+            // See DIVERGENCES.md for the wider story.
+            let fill_area = if border_has_half_block(computed.border)
+                && let Some(pb_grid) = layout_rect_to_grid(padding_box, clip)
+            {
+                pb_grid
+            } else {
+                outer_grid
+            };
+            fill_bg(buf, fill_area, computed.bg, computed.opacity);
         }
 
         // 2. Border. Writes per-cell × per-direction `BorderContribution`s
@@ -545,6 +559,19 @@ fn compute_border_priority(dom: &Dom<TuiExt>, id: NodeId) -> u64 {
         cur = node.parent_node();
     }
     BorderContribution::pack_priority(depth, id.as_u32())
+}
+
+/// True iff any of the element's four border sides uses the
+/// half-block style. Drives the padding-box `fill_bg` clip in the
+/// paint flow above — bg under half-block border cells must NOT
+/// be painted, so the parent's bg shows through the empty half of
+/// each half-block glyph (producing the pill silhouette).
+fn border_has_half_block(border: rdom_style::layout::Border) -> bool {
+    use rdom_style::layout::BorderStyle;
+    matches!(border.top, BorderStyle::HalfBlock)
+        || matches!(border.right, BorderStyle::HalfBlock)
+        || matches!(border.bottom, BorderStyle::HalfBlock)
+        || matches!(border.left, BorderStyle::HalfBlock)
 }
 
 fn resolve_parent_bg(dom: &Dom<TuiExt>, id: NodeId) -> Color {

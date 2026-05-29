@@ -37,7 +37,9 @@ use rdom_style::layout::{BorderStyle, CornerStyle};
 
 use crate::ext::TuiExt;
 use crate::render::Buffer;
-use crate::render::buffer::{BorderContribution, BorderDirState, DIR_E, DIR_N, DIR_S, DIR_W};
+use crate::render::buffer::{
+    BorderContribution, BorderDirState, BorderSide, DIR_E, DIR_N, DIR_S, DIR_W,
+};
 
 pub(super) fn join_borders(_dom: &Dom<TuiExt>, buf: &mut Buffer) {
     let area = buf.area;
@@ -63,6 +65,34 @@ pub(super) fn join_borders(_dom: &Dom<TuiExt>, buf: &mut Buffer) {
             // overlap (multiple priorities) → square junction,
             // because Unicode has no rounded T-junctions.
             let lone = is_lone_contributor(&cell_state, dominant.priority);
+            // Half-block style — direction-asymmetric glyphs picked
+            // from (mask, side) per the lone-element half-block
+            // table. T-junctions / shared cells don't have a
+            // well-defined glyph; fall through and skip them.
+            //
+            // The half-block branch deliberately leaves the cell's
+            // bg ALONE. The paint flow upstream (see
+            // `paint_pass::mod`'s `fill_bg` call site, which clips
+            // to padding-box when `border_has_half_block`) skipped
+            // painting the element's own bg under these border
+            // cells — so the cell still carries whatever the
+            // parent painted earlier. Result: each half-block
+            // glyph's "empty" half visually merges into the parent
+            // bg, producing the pill silhouette. This is rdom's
+            // hard-coded analog of CSS `background-clip:
+            // padding-box`; see DIVERGENCES.md.
+            if dominant.style == BorderStyle::HalfBlock && lone {
+                let glyph = half_block_glyph(&cell_state, mask);
+                if !glyph.is_empty()
+                    && let Some(cell) = buf.cell_mut(x, y)
+                {
+                    cell.set_symbol(glyph);
+                    if dominant.fg != crate::style::Color::Reset {
+                        cell.set_fg(dominant.fg);
+                    }
+                }
+                continue;
+            }
             if lone
                 && dominant.corner_style == CornerStyle::Rounded
                 && dominant.style != BorderStyle::Double
@@ -164,6 +194,7 @@ fn dominant_contribution(cell_state: &[BorderDirState; 4]) -> BorderContribution
         fg: crate::style::Color::Reset,
         priority: 0,
         corner_style: CornerStyle::Square,
+        side: BorderSide::Top,
     })
 }
 
@@ -235,3 +266,56 @@ const ROUNDED_TABLE: [&str; 16] = [
     "",  // 1110 E+S+W
     "",  // 1111 all four
 ];
+
+/// Half-block glyph lookup for `BorderStyle::HalfBlock`. The
+/// direction mask alone can't distinguish a top edge from a bottom
+/// edge (both have E+W set), so the joiner also reads the side tag
+/// carried on each `BorderContribution` to pick the right
+/// asymmetric glyph.
+///
+/// Glyph mapping:
+/// - `▄` U+2584 LOWER HALF BLOCK — top edge cell
+/// - `▀` U+2580 UPPER HALF BLOCK — bottom edge cell
+/// - `▐` U+2590 RIGHT HALF BLOCK — left edge cell (color on right half)
+/// - `▌` U+258C LEFT HALF BLOCK  — right edge cell (color on left half)
+/// - `▗` U+2597 QUADRANT LOWER RIGHT — top-left corner
+/// - `▖` U+2596 QUADRANT LOWER LEFT  — top-right corner
+/// - `▝` U+259D QUADRANT UPPER RIGHT — bottom-left corner
+/// - `▘` U+2598 QUADRANT UPPER LEFT  — bottom-right corner
+///
+/// Each glyph paints its color on the half/quarter that points
+/// INWARD toward the bordered element's content — so the colored
+/// regions of adjacent border cells join up into a continuous pill
+/// shape.
+///
+/// T-junctions and shared cells (multiple contributors) return ""
+/// — `HalfBlock` is designed for the lone-element case and the
+/// joiner gates this branch on `is_lone_contributor`.
+fn half_block_glyph(cell_state: &[BorderDirState; 4], mask: u8) -> &'static str {
+    let side = |dir: usize| -> Option<BorderSide> { cell_state[dir].winner.map(|c| c.side) };
+    match mask {
+        // E+W — top or bottom edge (run continues left and right).
+        0b1010 => match side(DIR_E).or_else(|| side(DIR_W)) {
+            Some(BorderSide::Top) => "▄",
+            Some(BorderSide::Bottom) => "▀",
+            _ => "",
+        },
+        // N+S — left or right edge (run continues up and down).
+        0b0101 => match side(DIR_N).or_else(|| side(DIR_S)) {
+            Some(BorderSide::Left) => "▐",
+            Some(BorderSide::Right) => "▌",
+            _ => "",
+        },
+        // E+S — top-left corner.
+        0b0110 => "▗",
+        // S+W — top-right corner.
+        0b1100 => "▖",
+        // N+E — bottom-left corner.
+        0b0011 => "▝",
+        // N+W — bottom-right corner.
+        0b1001 => "▘",
+        // Single-bit cells, T-junctions, all-four: no half-block
+        // glyph — HalfBlock is for the lone-element ring case.
+        _ => "",
+    }
+}

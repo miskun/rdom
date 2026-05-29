@@ -273,6 +273,17 @@ pub enum BorderStyle {
     Groove,
     /// 3D inset. Parses + ranks per CSS; renders as `Solid`.
     Inset,
+    /// rdom-specific terminal-only style. Each border cell paints
+    /// a half-block (`▄ ▀ ▌ ▐`) or quadrant (`▗ ▖ ▝ ▘`) glyph
+    /// whose filled half-or-quarter points INWARD toward the
+    /// element's content. The visible color spans roughly half a
+    /// cell vertically (top/bottom edges) or horizontally
+    /// (left/right edges), so a half-block-bordered element reads
+    /// as a "pill" rather than a hard-edged rectangle. Pairs
+    /// naturally with a `background-color`-filled interior to
+    /// build a primary-CTA button style. Not a CSS-spec style;
+    /// see DIVERGENCES.md.
+    HalfBlock,
 }
 
 impl BorderStyle {
@@ -314,6 +325,7 @@ impl BorderStyle {
         match self {
             BorderStyle::Double => 7,
             BorderStyle::Solid => 6,
+            BorderStyle::HalfBlock => 6,
             BorderStyle::Dashed => 5,
             BorderStyle::Dotted => 4,
             BorderStyle::Ridge => 3,

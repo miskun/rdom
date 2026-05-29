@@ -173,6 +173,44 @@ fn border_rounded_uses_curves() {
 }
 
 #[test]
+fn border_half_block_uses_block_glyphs() {
+    use crate::layout::BorderStyle;
+    // 4×3 box with `border: half-block`. Expected layout:
+    //   ▗▄▄▖
+    //   ▐  ▌
+    //   ▝▀▀▘
+    // Each edge cell uses the half-block char whose filled half
+    // points inward; each corner uses the quadrant char whose
+    // filled quarter points inward.
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let d = dom.create_element("d");
+    dom.append_child(root, d).unwrap();
+    let sheet = Stylesheet::bare().rule_unchecked(
+        "d",
+        TuiStyle::new()
+            .width(Size::Fixed(4))
+            .height(Size::Fixed(3))
+            .border(Border::ring(BorderStyle::HalfBlock)),
+    );
+    let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 10, 5));
+
+    // Corners
+    assert_eq!(buf.cell(0, 0).unwrap().symbol(), "▗", "top-left");
+    assert_eq!(buf.cell(3, 0).unwrap().symbol(), "▖", "top-right");
+    assert_eq!(buf.cell(0, 2).unwrap().symbol(), "▝", "bottom-left");
+    assert_eq!(buf.cell(3, 2).unwrap().symbol(), "▘", "bottom-right");
+    // Top + bottom edges
+    assert_eq!(buf.cell(1, 0).unwrap().symbol(), "▄", "top edge");
+    assert_eq!(buf.cell(2, 0).unwrap().symbol(), "▄", "top edge");
+    assert_eq!(buf.cell(1, 2).unwrap().symbol(), "▀", "bottom edge");
+    assert_eq!(buf.cell(2, 2).unwrap().symbol(), "▀", "bottom edge");
+    // Left + right edges
+    assert_eq!(buf.cell(0, 1).unwrap().symbol(), "▐", "left edge");
+    assert_eq!(buf.cell(3, 1).unwrap().symbol(), "▌", "right edge");
+}
+
+#[test]
 fn border_top_only() {
     let mut dom = TuiDom::new();
     let root = dom.root();

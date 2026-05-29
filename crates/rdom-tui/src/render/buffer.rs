@@ -40,6 +40,20 @@ use rdom_style::layout::{BorderStyle, CornerStyle};
 /// Horizontal ellipsis used when a wide glyph is clipped.
 const WIDE_CLIP_PLACEHOLDER: &str = "…";
 
+/// Which physical side of the source element a border
+/// contribution sits on. Direction-symmetric styles (Solid, Double,
+/// Dashed, etc.) ignore it — `─` looks the same on a top or bottom
+/// edge. Direction-asymmetric styles (currently `HalfBlock`) use
+/// it to pick the right glyph: a top edge gets `▄` (lower half
+/// block) while a bottom edge gets `▀` (upper half block).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BorderSide {
+    Top,
+    Right,
+    Bottom,
+    Left,
+}
+
 /// One element's contribution to one cell × one direction's border.
 /// Captures the data needed by the CSS Tables 3 §11.5 conflict-
 /// resolution algorithm: the style (for hidden kill-switch + style-
@@ -64,6 +78,12 @@ pub struct BorderContribution {
     /// any overlap from a second element promotes to a square
     /// junction (Unicode has no rounded T-junctions).
     pub corner_style: CornerStyle,
+    /// Which physical side of the source element this contribution
+    /// came from. The joiner only consults this for direction-
+    /// asymmetric styles (`HalfBlock`). For `Solid` and friends
+    /// the field is recorded but ignored — the same glyph wins
+    /// either way.
+    pub side: BorderSide,
 }
 
 impl BorderContribution {

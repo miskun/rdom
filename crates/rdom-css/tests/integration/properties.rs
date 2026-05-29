@@ -183,6 +183,27 @@ fn border_keyword_rounded() {
 }
 
 #[test]
+fn border_keyword_half_block() {
+    use rdom_style::layout::BorderStyle;
+    let s = first_style("a { border: half-block; }");
+    assert_eq!(
+        s.border,
+        Some(Value::Specified(Border::ring(BorderStyle::HalfBlock)))
+    );
+}
+
+#[test]
+fn border_top_keyword_half_block() {
+    use rdom_style::layout::BorderStyle;
+    let s = first_style("a { border-top: half-block; }");
+    let b = match s.border {
+        Some(Value::Specified(b)) => b,
+        other => panic!("expected Border::Specified, got {other:?}"),
+    };
+    assert_eq!(b.top, BorderStyle::HalfBlock);
+}
+
+#[test]
 fn overflow_hidden() {
     let s = first_style("a { overflow: hidden; }");
     assert_eq!(s.overflow_x, Some(Value::Specified(Overflow::Hidden)));

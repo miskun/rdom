@@ -102,6 +102,15 @@ pub fn is_tab_focusable(dom: &TuiDom, id: NodeId) -> bool {
 /// 2. Elements with `tabindex == 0`, in document order.
 ///
 /// `tabindex < 0` elements are excluded (not Tab-reachable).
+///
+/// **Radio groups are a single tab stop.** Per HTML, a `name`-keyed
+/// `<input type=radio>` group represents itself in sequential focus
+/// navigation by exactly ONE radio: the currently-`checked` member,
+/// or — if none is checked — the first member in document order.
+/// The other group members are reachable only via the in-group
+/// arrow-key navigation provided by the toggle builtin. This pass
+/// runs after tabindex ordering: collect everything tabindex-wise
+/// first, then collapse each radio group down to its representative.
 pub fn focusable_elements(dom: &TuiDom) -> Vec<NodeId> {
     let mut positive: Vec<(i32, usize, NodeId)> = Vec::new();
     let mut zero: Vec<(usize, NodeId)> = Vec::new();
@@ -111,11 +120,70 @@ pub fn focusable_elements(dom: &TuiDom) -> Vec<NodeId> {
     positive.sort_by_key(|(ti, ord, _)| (*ti, *ord));
     zero.sort_by_key(|(ord, _)| *ord);
 
-    positive
+    let raw: Vec<NodeId> = positive
         .into_iter()
         .map(|(_, _, id)| id)
         .chain(zero.into_iter().map(|(_, id)| id))
+        .collect();
+
+    dedupe_radio_groups(dom, raw)
+}
+
+/// Collapse each `name`-keyed radio group in `list` to a single
+/// tab stop: the checked member if any, otherwise the first member
+/// in `list`'s order. Non-radio elements and radios without a
+/// `name` attribute pass through unchanged.
+fn dedupe_radio_groups(dom: &TuiDom, list: Vec<NodeId>) -> Vec<NodeId> {
+    use std::collections::HashMap;
+
+    // First pass: for each named radio group, pick the
+    // representative (checked > first).
+    let mut rep_for: HashMap<String, NodeId> = HashMap::new();
+    for &id in &list {
+        let Some(name) = named_radio_name(dom, id) else {
+            continue;
+        };
+        let is_checked = dom.node(id).has_attribute("checked");
+        match rep_for.get(&name) {
+            None => {
+                rep_for.insert(name, id);
+            }
+            Some(&existing) if is_checked && !dom.node(existing).has_attribute("checked") => {
+                // Existing rep is not checked, current one is —
+                // promote current.
+                rep_for.insert(name, id);
+            }
+            _ => {}
+        }
+    }
+
+    // Second pass: filter — keep non-radios and named-radio
+    // representatives; drop other group members.
+    list.into_iter()
+        .filter(|&id| match named_radio_name(dom, id) {
+            Some(name) => rep_for.get(&name) == Some(&id),
+            None => true,
+        })
         .collect()
+}
+
+/// Return the radio's `name` attribute iff `id` is an
+/// `<input type=radio>` with a non-empty `name`. Returns `None`
+/// for non-radios and for nameless radios (which don't form a
+/// group and so don't get deduped).
+fn named_radio_name(dom: &TuiDom, id: NodeId) -> Option<String> {
+    let node = dom.node(id);
+    if node.tag_name() != Some("input") {
+        return None;
+    }
+    if node.get_attribute("type") != Some("radio") {
+        return None;
+    }
+    let name = node.get_attribute("name")?;
+    if name.is_empty() {
+        return None;
+    }
+    Some(name.to_string())
 }
 
 fn collect(
