@@ -12,6 +12,65 @@ use rdom_tui::render::{Buffer, Rect};
 use rdom_tui::{CascadeExt, LayoutExt, PaintExt, TuiDom};
 
 #[test]
+fn scrolled_off_category_label_does_not_bleed_onto_first_visible_row() {
+    // Regression (TREE-2): scrolling the sidebar pushed a category
+    // label above the scrollport, but it "bled" onto the first
+    // visible item — "Layout" + "Hello World" read as "LaHello World".
+    // Root cause was a general mixed-content paint bug (a branch's
+    // leading text run clamped to the clip top instead of being
+    // skipped); the substrate fix has a unit test, this pins the
+    // showcase symptom end-to-end.
+    let mut dom: TuiDom = TuiDom::new();
+    let handles = build_shell(&mut dom);
+    let mut state = ShowcaseState::from_handles(&handles);
+    mount_demo(&mut state, &mut dom, 0);
+    let base = base_stylesheet();
+    let mut sheets = vec![base];
+    for d in DEMOS {
+        sheets.push(d.stylesheet());
+    }
+    let refs: Vec<&_> = sheets.iter().collect();
+    let viewport = Rect::new(0, 0, 80, 20);
+    dom.cascade_all(&refs);
+    dom.layout_dom(viewport);
+    if let Some(ext) = dom.node_mut(handles.sidebar).ext_mut() {
+        ext.scroll_y = 1; // scroll the first category ("Layout") off the top
+    }
+    dom.cascade_all(&refs);
+    dom.layout_dom(viewport);
+    let mut buf = Buffer::empty(viewport);
+    dom.paint_dom(&mut buf, viewport);
+
+    // The first visible sidebar row must show "Hello World", not the
+    // scrolled-off "Layout" label bleeding into it.
+    let sb = dom.node(handles.sidebar).tui_ext().unwrap().layout;
+    let first_content_row = (sb.y + 1) as u16; // just inside the top border
+    let mut line = String::new();
+    for x in (sb.x as u16 + 1)..(sb.x as u16 + sb.width - 1) {
+        line.push_str(
+            buf.cell(x, first_content_row)
+                .map(|c| c.symbol())
+                .unwrap_or(" "),
+        );
+    }
+    // Extract just the label text (drop guide glyphs + collapse
+    // whitespace). With the bleed it reads "LaHello World"; clean it
+    // must be exactly "Hello World".
+    let labels: String = line
+        .chars()
+        .filter(|c| c.is_ascii_alphabetic() || *c == ' ')
+        .collect::<String>()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    assert_eq!(
+        labels, "Hello World",
+        "first visible row must show only 'Hello World' — a scrolled-off category \
+         label bleeding in shows up as e.g. 'La Hello World'. Raw row: {line:?}"
+    );
+}
+
+#[test]
 fn sidebar_scrolled_to_end_has_no_gap_before_bottom_border() {
     let mut dom: TuiDom = TuiDom::new();
     let handles = build_shell(&mut dom);

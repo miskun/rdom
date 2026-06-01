@@ -142,6 +142,62 @@ fn tree_guides_clip_to_an_overflow_hidden_ancestor() {
 }
 
 #[test]
+fn mixed_content_block_leading_text_clips_instead_of_clamping_when_scrolled_above() {
+    // A mixed-content block (leading text + a block child) paints its
+    // text run via the single-row-chrome fallback. When the block is
+    // scrolled so its text row sits ABOVE an overflow clip, that text
+    // must be SKIPPED — not clamped onto the clip's top row, where it
+    // would overlap the child/sibling that legitimately scrolled into
+    // view. Regression: the showcase sidebar's scrolled-off category
+    // label "Layout" bled onto "Hello World" → "LaHello World".
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let wrap = dom.create_element("div");
+    dom.set_attribute(wrap, "class", "wrap").unwrap();
+    dom.append_child(root, wrap).unwrap();
+    // Mixed content via a tree branch: leading text "Category" + a
+    // block child whose own text "kitten" is indented (so a bleed is
+    // visible, not painted over). The treeitem padding gives the
+    // indent for free.
+    let tree = dom.create_element("ul");
+    dom.set_attribute(tree, "role", "tree").unwrap();
+    dom.append_child(wrap, tree).unwrap();
+    let branch = treeitem(&mut dom, "Category", &[("aria-expanded", "true")]);
+    dom.append_child(tree, branch).unwrap();
+    let group = dom.create_element("ul");
+    dom.set_attribute(group, "role", "group").unwrap();
+    dom.append_child(branch, group).unwrap();
+    let leaf = treeitem(&mut dom, "kitten", &[]);
+    dom.append_child(group, leaf).unwrap();
+
+    let sheet = rdom_css::from_css(".wrap { height: 3; overflow: hidden; }");
+    dom.cascade(&sheet);
+    dom.layout_dom(Rect::new(0, 0, 16, 4));
+    // Scroll "Category" above the clip; "kitten" rises to the top row.
+    if let Some(ext) = dom.node_mut(wrap).ext_mut() {
+        ext.scroll_y = 1;
+    }
+    dom.cascade(&sheet);
+    dom.layout_dom(Rect::new(0, 0, 16, 4));
+    let mut buf = Buffer::empty(Rect::new(0, 0, 16, 4));
+    dom.paint_dom(&mut buf, Rect::new(0, 0, 16, 4));
+
+    let row0 = row(&buf, 0);
+    let labels: String = row0
+        .chars()
+        .filter(|c| c.is_ascii_alphabetic() || *c == ' ')
+        .collect::<String>()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    assert_eq!(
+        labels, "kitten",
+        "scrolled-off 'Category' label must not clamp onto the first visible row \
+         (would read like 'Categ kitten'). Raw row: {row0:?}"
+    );
+}
+
+#[test]
 fn tree_guides_continue_through_a_wrapped_label() {
     // Regression (TREE-2): when a non-last treeitem's label wraps to
     // multiple rows, the connecting `│` trunk must continue through

@@ -141,7 +141,18 @@ fn paint_single_row_chrome(
     let Some(inner_grid) = layout_rect_to_grid(inner, clip) else {
         return;
     };
-    let base_y = inner_grid.y;
+    // Paint on the element's FIRST content row (`inner.y`), NOT the
+    // clip-clamped top (`inner_grid.y`). For a height-1 chrome element
+    // the two coincide, but a mixed-content block's `inner` spans its
+    // block children, so clamping would drop the leading text run onto
+    // whatever scrolled into the clip's top row (the "LaHello World"
+    // bleed). If that row is scrolled out of the clip, skip it — it's
+    // genuinely off-screen. Horizontal extent stays clipped via
+    // `inner_grid`.
+    if inner.y < clip.y as i32 || inner.y >= clip.bottom() as i32 {
+        return;
+    }
+    let base_y = inner.y as u16;
     let start_x = inner_grid.x;
     let mut cursor_x = start_x;
     let budget_right = inner_grid.right();
