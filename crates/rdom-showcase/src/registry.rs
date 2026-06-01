@@ -21,6 +21,7 @@ use crate::demos::selectable_text::SelectableText;
 use crate::demos::sticky::Sticky;
 use crate::demos::tab_form::TabForm;
 use crate::demos::transition_box::TransitionBox;
+use crate::demos::tree_nav::TreeNav;
 use crate::demos::ua_chrome::UaChrome;
 use crate::demos::whitespace_modes::WhitespaceModes;
 
@@ -48,6 +49,7 @@ pub const DEMOS: &[&dyn Demo] = &[
     &InlineFormatting,
     &Headings,
     &WhitespaceModes,
+    &TreeNav,
 ];
 
 #[cfg(test)]

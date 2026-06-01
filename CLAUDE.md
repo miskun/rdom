@@ -203,6 +203,7 @@ cargo run -p rdom-tui --example tab_form
 cargo run -p rdom-tui --example parse_and_render
 cargo run -p rdom-tui --example ua_chrome
 cargo run -p rdom-tui --example app_shell
+cargo run -p rdom-tui --example tree_nav
 ```
 
 CI (`.github/workflows/ci.yml`) runs all three gates on `[ubuntu-latest, macos-latest, windows-latest]` for every push and PR against `main`. The toolchain is pinned via `rust-toolchain.toml` so local dev and CI use the same `rustfmt` / `clippy` versions.
