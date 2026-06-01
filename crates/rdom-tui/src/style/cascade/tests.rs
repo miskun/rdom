@@ -1258,6 +1258,74 @@ fn ua_dialog_is_none_when_closed() {
     );
 }
 
+/// Confirms the ARIA-tree UA selectors actually MATCH through the
+/// cascade — the compound `[role][aria-*]`, the child combinator
+/// `… > [role=group]`, and the `:focus`-descendant
+/// `[role=tree]:focus [data-rdom-active]`. De-risks the guide-paint
+/// + behavior work that builds on these selectors.
+#[test]
+fn ua_aria_tree_selectors_match() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+
+    let tree = dom.create_element("ul");
+    dom.set_attribute(tree, "role", "tree").unwrap();
+    dom.append_child(root, tree).unwrap();
+
+    // Collapsed branch with a child group.
+    let collapsed = dom.create_element("li");
+    dom.set_attribute(collapsed, "role", "treeitem").unwrap();
+    dom.set_attribute(collapsed, "aria-expanded", "false")
+        .unwrap();
+    dom.append_child(tree, collapsed).unwrap();
+    let collapsed_group = dom.create_element("ul");
+    dom.set_attribute(collapsed_group, "role", "group").unwrap();
+    dom.append_child(collapsed, collapsed_group).unwrap();
+
+    // Expanded branch with a child group holding the active item.
+    let open = dom.create_element("li");
+    dom.set_attribute(open, "role", "treeitem").unwrap();
+    dom.set_attribute(open, "aria-expanded", "true").unwrap();
+    dom.append_child(tree, open).unwrap();
+    let open_group = dom.create_element("ul");
+    dom.set_attribute(open_group, "role", "group").unwrap();
+    dom.append_child(open, open_group).unwrap();
+    let active = dom.create_element("li");
+    dom.set_attribute(active, "role", "treeitem").unwrap();
+    dom.set_attribute(active, "data-rdom-active", "").unwrap();
+    dom.append_child(open_group, active).unwrap();
+
+    // Child combinator: `[role=treeitem][aria-expanded=false] >
+    // [role=group]` hides the collapsed group; the expanded one
+    // stays Block.
+    dom.cascade(&Stylesheet::new());
+    assert_eq!(
+        computed_of(&dom, collapsed_group).display,
+        Display::None,
+        "collapsed branch's group must be hidden",
+    );
+    assert_eq!(
+        computed_of(&dom, open_group).display,
+        Display::Block,
+        "expanded branch's group must stay block",
+    );
+
+    // `:focus`-descendant: the active row highlights only while the
+    // tree itself holds focus.
+    assert_eq!(
+        computed_of(&dom, active).bg,
+        Color::Reset,
+        "no highlight while the tree is unfocused",
+    );
+    dom.set_focused(Some(tree));
+    dom.cascade(&Stylesheet::new());
+    assert_eq!(
+        computed_of(&dom, active).bg,
+        Color::Rgb(0x2d, 0x2f, 0x31),
+        "active row highlights when [role=tree]:focus",
+    );
+}
+
 #[test]
 fn ua_colgroup_and_col_are_none() {
     assert_eq!(ua_computed_for("colgroup").display, Display::None);
