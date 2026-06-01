@@ -82,12 +82,12 @@ fn tree_guides_draw_connectors_and_trunks() {
     assert_eq!(
         rows,
         vec![
-            "▾ Cluster",
-            "  ├─  Pods",
-            "  ├─  Services",
-            "  └─▾ Nodes",
-            "      ├─  node-1",
-            "      └─  node-2",
+            "▼ Cluster",
+            "├   Pods",
+            "├   Services",
+            "└ ▼ Nodes",
+            "  ├   node-1",
+            "  └   node-2",
         ],
         "actual tree render:\n{}",
         rows.join("\n"),
@@ -128,7 +128,7 @@ fn tree_guides_continue_trunk_past_expanded_nonlast_branch() {
         .collect();
     assert_eq!(
         rows,
-        vec!["▾ A", "  ├─▾ B", "  │   └─  B1", "  └─  C"],
+        vec!["▼ A", "├ ▼ B", "│ └   B1", "└   C"],
         "actual:\n{}",
         rows.join("\n"),
     );
@@ -151,7 +151,7 @@ fn tree_collapsed_branch_hides_children_and_shows_collapsed_chevron() {
     dom.append_child(ag, hidden).unwrap();
 
     let buf = pipeline(&mut dom, &Stylesheet::new(), Rect::new(0, 0, 20, 4));
-    assert_eq!(row(&buf, 0).trim_end(), "▸ A", "collapsed chevron");
+    assert_eq!(row(&buf, 0).trim_end(), "▶ A", "collapsed arrow");
     assert_eq!(row(&buf, 1).trim_end(), "", "child group must be hidden");
 }
 

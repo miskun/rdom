@@ -13,21 +13,22 @@
 //! E+W) via its `SOLID_TABLE`. This pass therefore runs AFTER the
 //! main paint walk and BEFORE the joiner (see `paint_dom`).
 //!
-//! ## Geometry
+//! ## Geometry (lens-faithful: 2 cells per level)
 //!
-//! Indentation is owned by the `[role=group]` UA rule
-//! (`padding-left: TREE_INDENT`). A group's child treeitems lay out
-//! at `group.layout.x + TREE_INDENT`, so an item's own connector
-//! lives in its parent group's padding gutter at `item.layout.x -
-//! TREE_INDENT` (= the group's left edge), with a `─` lead-in stub
-//! in the next cell. Ancestor trunks (`│`) are drawn at each
-//! ancestor group's gutter column when that ancestor has a
+//! Each nesting level is 2 cells. The indent comes from the
+//! treeitem's own `padding-left: TREE_INDENT` (the `▼ `/`▶ ` arrow
+//! field) — `[role=group]` adds none. So an item's box sits 2 cells
+//! right of its parent's box, and its connector is painted in the
+//! cell 2 to the LEFT of its box (`item.layout.x - TREE_INDENT`),
+//! which lands directly under the parent item's arrow column.
+//! Per row: `[ancestor trunks `│ `][connector `├ `/`└ `][arrow
+//! `▼ `/`▶ ` or 2 blanks][label]`. Ancestor trunks (`│`) are drawn
+//! at each ancestor's connector column when that ancestor has a
 //! following sibling — "does the line continue past me" falls out
 //! of the sibling list, no per-row computed state.
 //!
-//! Direct children of `[role=tree]` are depth 0: chevron + label
-//! only, no trunk. Connectors begin one level in, inside a
-//! `[role=group]`.
+//! Direct children of `[role=tree]` are depth 0: arrow + label
+//! only, no connector/trunk. Connectors begin one level in.
 //!
 //! This pass reads layout rects + DOM structure only — it never
 //! recomputes layout or cascade. Glyph choice stays in the generic
@@ -39,14 +40,16 @@ use rdom_core::{Dom, NodeId};
 use crate::ext::TuiExt;
 use crate::layout::{CornerStyle, Display};
 use crate::node::TuiNodeExt;
-use crate::render::buffer::{BorderContribution, BorderSide, DIR_E, DIR_N, DIR_S, DIR_W};
+use crate::render::buffer::{BorderContribution, BorderSide, DIR_E, DIR_N, DIR_S};
 use crate::render::{Buffer, Rect, Style};
 use crate::style::Color;
 use rdom_style::layout::BorderStyle;
 
 /// Cells of indent per nesting level. MUST match the
-/// `[role=group] { padding-left: N }` value in the UA stylesheet
-/// (`rdom-style/src/ua.rs`); the guide columns are derived from it.
+/// `[role=treeitem] { padding-left: N }` value in the UA stylesheet
+/// (`rdom-style/src/ua.rs`) — that padding is the per-level step,
+/// and a child's connector is painted `TREE_INDENT` cells left of
+/// its box.
 const TREE_INDENT: i32 = 2;
 
 /// Entry point — paint guides for every `[role=tree]` in the
@@ -91,21 +94,17 @@ fn paint_item(
     let row_y = rect.y;
     let color = guide_color(dom, item);
 
-    // Disclosure chevron in the treeitem's reserved padding cell
-    // (`padding-left: 2` ⇒ label starts at `rect.x + 2`, chevron at
+    // Expand/collapse arrow in the treeitem's reserved arrow field
+    // (`padding-left: 2` ⇒ label starts at `rect.x + 2`, arrow at
     // `rect.x`). Branches only — a branch is any item with an
     // `aria-expanded` attribute (presence, not child count, so an
-    // unloaded lazy branch still shows a chevron). Painted here
+    // unloaded lazy branch still shows an arrow). Full-cell `▼`/`▶`
+    // (lens-faithful), painted in the guide color. Painted here
     // rather than via `::before` to dodge the mixed-content pseudo
     // gap (TREE-BFC-PSEUDO-1).
     if let Some(expanded) = dom.node(item).get_attribute("aria-expanded") {
-        let glyph = if expanded == "true" { "▾" } else { "▸" };
-        let fg = dom
-            .node(item)
-            .computed()
-            .map(|c| c.fg)
-            .unwrap_or(Color::Reset);
-        put_glyph(buf, clip, rect.x, row_y, glyph, fg);
+        let glyph = if expanded == "true" { "▼" } else { "▶" };
+        put_glyph(buf, clip, rect.x, row_y, glyph, color);
     }
 
     // Ancestor trunks at this row.
@@ -125,14 +124,14 @@ fn paint_item(
     if in_group && let Some(p) = parent {
         is_last = treeitem_children(dom, p).last() == Some(&item);
         // `├` (N+E+S) when a sibling follows, `└` (N+E) when last.
+        // The E stub is the connector glyph's own right tick; the
+        // next cell stays blank (lens uses `├ ` / `└ `, no dash).
         let connector: &[usize] = if is_last {
             &[DIR_N, DIR_E]
         } else {
             &[DIR_N, DIR_E, DIR_S]
         };
         put(buf, clip, own_col, row_y, connector, color);
-        // `─` lead-in toward the label.
-        put(buf, clip, own_col + 1, row_y, &[DIR_E, DIR_W], color);
     }
 
     // Recurse into the child group, extending the trunk stack with

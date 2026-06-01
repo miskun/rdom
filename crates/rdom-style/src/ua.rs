@@ -350,23 +350,27 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
             "[role=treeitem]::before",
             TuiStyle::new().content(Content::Str(String::new())),
         ),
-        // Group padding-left reserves the connector gutter (`├─`);
-        // treeitem padding-left reserves the chevron cell (`▾ `).
-        // Both MUST stay in lockstep with `TREE_INDENT` in
-        // `render::paint_pass::tree_guides`.
+        // The group adds NO indent of its own — each nesting level's
+        // 2-cell step comes from the treeitem's own `padding-left: 2`
+        // (the arrow field). The guide paint draws the connector for
+        // a child in the cell to the LEFT of the child's box, which
+        // lands under the parent item's arrow column (lens-faithful).
+        // `padding: 0` overrides the `ul` default left padding so the
+        // group adds no indent of its own.
         (
             "[role=group]",
             TuiStyle::new()
                 .display(Display::Block)
-                .padding(Padding::new(0, 0, 0, 2)),
+                .padding(Padding::new(0, 0, 0, 0)),
         ),
         // The treeitem is the row. `padding-left: 2` reserves the
-        // chevron cell before the label. `border-color` is the GUIDE
-        // color — the guide paint reads `computed.border_fg` for the
-        // connector glyphs even though the item has no actual CSS
-        // border. Authors retheme guides with
-        // `[role=treeitem] { border-color: … }`. Divergence noted in
-        // DIVERGENCES.md.
+        // `▼ `/`▶ ` expand-arrow field before the label; the
+        // connector + ancestor trunks are painted in the gutter to
+        // the left. `border-color` is the GUIDE color — the guide
+        // paint reads `computed.border_fg` for the connector/arrow
+        // glyphs even though the item paints no actual CSS border.
+        // Authors retheme guides with
+        // `[role=treeitem] { border-color: … }`. See DIVERGENCES.md.
         (
             "[role=treeitem]",
             TuiStyle::new()

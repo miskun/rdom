@@ -287,28 +287,32 @@ fn click_at(app: &mut App<TestBackend>, x: u16, y: u16) {
 }
 
 #[test]
-fn click_on_label_sets_cursor_without_toggling() {
+fn click_on_leaf_sets_cursor() {
     let mut f = fixture();
-    // Pods is on row 1 (Cluster row 0). Click its label (well right of
-    // the gutter) — sets the cursor, does NOT toggle anything.
+    // Pods (leaf) is on row 1. Clicking it sets the cursor; there's
+    // nothing to toggle.
     click_at(&mut f.app, 8, 1);
     assert_eq!(active(&f.app, f.tree), Some(f.pods));
-    // Cluster (a branch) stays expanded — label clicks don't toggle.
-    assert_eq!(
-        f.app.dom().node(f.cluster).get_attribute("aria-expanded"),
-        Some("true")
-    );
 }
 
 #[test]
-fn click_in_twisty_gutter_toggles_branch() {
+fn click_anywhere_on_branch_row_toggles() {
     let mut f = fixture();
-    // Cluster's chevron sits at the far left of row 0.
-    click_at(&mut f.app, 0, 0);
+    // Click Cluster's LABEL (row 0, well right of the arrow) — a
+    // branch toggles on any row click, not just the arrow (lens
+    // behavior). Also moves the cursor there.
+    click_at(&mut f.app, 5, 0);
+    assert_eq!(active(&f.app, f.tree), Some(f.cluster));
     assert_eq!(
         f.app.dom().node(f.cluster).get_attribute("aria-expanded"),
         Some("false"),
-        "gutter click collapses the branch"
+        "branch-row click collapses it"
+    );
+    // Click again → re-expands.
+    click_at(&mut f.app, 5, 0);
+    assert_eq!(
+        f.app.dom().node(f.cluster).get_attribute("aria-expanded"),
+        Some("true")
     );
 }
 
