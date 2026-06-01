@@ -74,7 +74,7 @@ fn find_by_role(dom: &TuiDom, id: NodeId, role: &str) -> Option<NodeId> {
 }
 
 #[test]
-fn sidebar_tree_does_not_inherit_demo_stylesheet_padding() {
+fn sidebar_tree_carries_only_its_own_inset_not_demo_padding() {
     // The sidebar navigator is a `[role=tree]` in the chrome. Every
     // demo stylesheet is pre-pushed onto the App at startup, so the
     // chrome must NOT reuse a demo's class name — or that demo's
@@ -82,11 +82,12 @@ fn sidebar_tree_does_not_inherit_demo_stylesheet_padding() {
     //
     // Regression (TREE-2): the sidebar tree once carried
     // `class="nav-tree"`, colliding with the tree_nav demo's
-    // `.nav-tree { padding: 1 2 }`. That rule pushed the whole
-    // sidebar nav in by (top 1, left 2) on top of the sidebar's own
-    // `padding-left: 1` — a visible 3-cell left / 1-row top inset
-    // that no chrome CSS asked for. A zero-padding tree has its
-    // content-box origin coincident with its border-box origin.
+    // `.nav-tree { padding: 1 2 }`, which inset the whole sidebar nav
+    // by (top 1, left 2). It's now `class="sidebar-tree"` with the
+    // chrome's own `padding: 0 0 0 1` — a single left cell (so the
+    // selected-row highlight fills it) and NO top padding. We assert
+    // exactly that inset: content origin = border origin + (1, 0).
+    // The bled demo rule would instead produce (2, 1).
     let (dom, handles) = shell_at(80, 24);
     let tree = find_by_role(&dom, handles.sidebar, "tree").expect("sidebar has a [role=tree]");
     let outer = dom
@@ -98,10 +99,10 @@ fn sidebar_tree_does_not_inherit_demo_stylesheet_padding() {
         .content_layout_rect()
         .expect("tree has a content rect");
     assert_eq!(
-        (inner.x, inner.y),
-        (outer.x, outer.y),
-        "sidebar tree must carry no padding (content origin == border origin); \
-         a non-zero inset means a demo stylesheet bled onto the chrome via a \
+        (inner.x - outer.x, inner.y - outer.y),
+        (1, 0),
+        "sidebar tree must carry only its own 1-cell left inset (no top padding); \
+         a different inset means a demo stylesheet bled onto the chrome via a \
          shared class name"
     );
 }

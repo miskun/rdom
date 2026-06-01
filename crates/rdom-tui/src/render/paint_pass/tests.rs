@@ -253,6 +253,44 @@ fn tree_collapsed_branch_hides_children_and_shows_collapsed_chevron() {
 }
 
 #[test]
+fn tree_active_row_highlight_fills_the_trees_own_padding() {
+    // A selected/cursor row's bg must cover the tree's own padding,
+    // not stop at the content box — matching CSS `background-clip:
+    // border-box` (the default). This lets a consumer extend the
+    // highlight to the full container width by padding the tree
+    // (e.g. the showcase sidebar fills the cell between the panel
+    // border and the tree) without shifting the content.
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let tree = dom.create_element("ul");
+    dom.set_attribute(tree, "role", "tree").unwrap();
+    dom.set_attribute(tree, "class", "t").unwrap();
+    dom.append_child(root, tree).unwrap();
+
+    let x = treeitem(&mut dom, "X", &[("data-rdom-active", "")]);
+    dom.append_child(tree, x).unwrap();
+
+    dom.set_focused(Some(tree));
+    // 2 cells of left padding on the tree itself.
+    let sheet = rdom_css::from_css(".t { padding-left: 2; }");
+    let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 12, 2));
+    let hl = Color::Rgb(0x2d, 0x2f, 0x31);
+
+    // The cursor row is row 0. Cols 0..2 are the tree's own left
+    // padding — they must carry the highlight bg.
+    assert_eq!(
+        buf.cell(0, 0).unwrap().bg,
+        hl,
+        "highlight must fill the tree's left padding (col 0), not stop at the content box"
+    );
+    assert_eq!(
+        buf.cell(1, 0).unwrap().bg,
+        hl,
+        "and the rest of the padding"
+    );
+}
+
+#[test]
 fn tree_active_row_highlight_spans_full_width_under_guides() {
     // The cursor row's bg must fill the WHOLE row — including the
     // guide gutter to the left of the indented box — and must NOT

@@ -426,23 +426,27 @@ const BASE_CSS: &str = r#"
   height: 100%;
   border: solid;
   border-color: rgb(45, 47, 49);
-  /* Left padding only — keep item text away from the left border.
-   * No right padding because the rightmost content column is the
-   * scrollbar gutter (`overflow-y: auto` below); padding there
-   * would put a visible empty cell between the scrollbar `┃` and
-   * the sidebar's right border. With zero right padding the
-   * scrollbar sits flush against the border edge — the
-   * pre-BORDER-MODEL-1 visual (`┃│`). */
-  padding: 0 0 0 1;
+  /* No sidebar padding — the 1-cell left inset that keeps item text
+   * off the border lives on `.sidebar-tree` instead (below), so the
+   * tree's selected/cursor row highlight fills that cell too (the
+   * highlight spans the tree's padding box). No right padding either:
+   * the rightmost content column is the scrollbar gutter
+   * (`overflow-y: auto`); padding there would wedge a blank cell
+   * between the scrollbar `┃` and the right border. */
+  padding: 0;
   /* The nav is taller than the viewport on small terminals;
    * scroll instead of clipping. The substrate floors each item
    * at its intrinsic content height (CSS Flexbox §4.5 min-*:
    * auto), so nothing squishes regardless. */
   overflow-y: auto;
 }
-.sidebar h2 {
-  color: rgb(150, 170, 200);
-  font-weight: bold;
+/* The 1-cell left inset rides on the tree, not the sidebar, so the
+ * row-highlight bg (which fills the tree's padding box) extends to
+ * the panel border — a full-width selection bar — while the content
+ * stays exactly where the sidebar padding put it. Chrome-owned class;
+ * see `build_shell` for why it must NOT be the demo's `nav-tree`. */
+.sidebar-tree {
+  padding: 0 0 0 1;
 }
 
 .main {

@@ -242,6 +242,59 @@ fn enter_on_a_category_branch_toggles_it_without_mounting() {
 }
 
 #[test]
+fn cursor_row_highlight_fills_the_cell_left_of_the_content() {
+    // The selected/cursor row's highlight must extend one cell to the
+    // LEFT of the tree content — filling the gap between the panel
+    // border and the first glyph — so it reads as a full-width
+    // selection bar. The 1-cell inset rides on the tree's padding
+    // (`.sidebar-tree`), and the highlight fills the tree's padding
+    // box, so that cell carries the bg while content stays put.
+    let (mut app, _state, handles) = build_app(Rect::new(0, 0, 80, 24));
+    let viewport = Rect::new(0, 0, 80, 24);
+    let mut buf = Buffer::empty(viewport);
+    let sheet = base_stylesheet();
+    let mut all_sheets = vec![sheet];
+    for demo in DEMOS {
+        all_sheets.push(demo.stylesheet());
+    }
+    let dom = app.dom_mut();
+    let refs: Vec<&_> = all_sheets.iter().collect();
+    dom.cascade_all(&refs);
+    dom.layout_dom(viewport);
+    dom.paint_dom(&mut buf, viewport);
+
+    let dom = app.dom();
+    let tree = nav_tree(dom, handles.sidebar);
+    let cursor = active_descendant(dom, tree).expect("a row is the cursor");
+
+    // The cursor row's y, and the tree's border-box left column (the
+    // padding cell the highlight should now reach).
+    let cursor_rect = dom.node(cursor).ext().map(|e| e.layout).unwrap_or_default();
+    let tree_rect = dom.node(tree).ext().map(|e| e.layout).unwrap_or_default();
+    let content_rect = dom
+        .node(cursor)
+        .ext()
+        .map(|e| e.content_layout)
+        .unwrap_or_default();
+
+    let hl = rdom_tui::Color::Rgb(0x2d, 0x2f, 0x31);
+    let left_col = tree_rect.x as u16;
+    let y = cursor_rect.y as u16;
+
+    assert!(
+        (left_col as i32) < content_rect.x,
+        "the tree's left edge (col {left_col}) must sit left of the content (col {}) — \
+         that's the inset cell the highlight should fill",
+        content_rect.x
+    );
+    assert_eq!(
+        buf.cell(left_col, y).map(|c| c.bg),
+        Some(hl),
+        "cursor-row highlight must fill the inset cell at the tree's left edge (col {left_col}, row {y})"
+    );
+}
+
+#[test]
 fn every_visible_sidebar_treeitem_paints_at_a_unique_row() {
     // Regression for the user-reported "highlight disappears"
     // visual: when the sidebar exceeds the viewport height,

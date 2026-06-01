@@ -67,12 +67,15 @@ pub(super) fn paint_tree_guides(dom: &Dom<TuiExt>, buf: &mut Buffer, clip: Rect)
         // auto` ancestor paints its `│` trunk straight through the
         // container's bottom edge (see the regression test).
         let tree_clip = clip_for_tree(dom, tree, clip);
-        // Full-width span of the tree's content box — row highlights
+        // Full-width span of the tree's PADDING box — row highlights
         // fill from here to the right edge so the selected/cursor bg
-        // runs under the guide gutter, not just the indented box.
-        let span = dom
-            .node(tree)
-            .content_layout_rect()
+        // runs under the guide gutter AND under the tree's own padding
+        // (CSS `background-clip: border-box` default). Filling the
+        // padding box, not the content box, lets a consumer extend the
+        // highlight to the container edge by padding the tree without
+        // shifting content (the showcase sidebar fills the cell
+        // between the panel border and the tree this way).
+        let span = tree_padding_box(dom, tree)
             .map(|r| (r.x, r.x + r.width as i32))
             .unwrap_or((tree_clip.x as i32, tree_clip.right() as i32));
         for item in treeitem_children(dom, tree) {
@@ -105,6 +108,20 @@ fn clip_for_tree(dom: &Dom<TuiExt>, tree: NodeId, base_clip: Rect) -> Rect {
         cur = dom.node(id).parent_node().map(|p| p.id());
     }
     clip
+}
+
+/// The tree's padding box (border box minus its border) — the fill
+/// region for row highlights, so a selected/cursor row's bg covers
+/// the tree's own padding (CSS `background-clip: border-box`).
+fn tree_padding_box(dom: &Dom<TuiExt>, tree: NodeId) -> Option<crate::layout::LayoutRect> {
+    let outer = dom.node(tree).layout_rect()?;
+    let border = dom
+        .node(tree)
+        .ext()
+        .and_then(|e| e.computed.as_ref())
+        .map(|c| c.border)
+        .unwrap_or_default();
+    Some(rdom_style::layout::compute_padding_box(outer, border))
 }
 
 fn collect_trees(dom: &Dom<TuiExt>, id: NodeId, out: &mut Vec<NodeId>) {
