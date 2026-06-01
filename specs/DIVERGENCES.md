@@ -141,6 +141,19 @@ The DOM API is Rust-shaped rather than JS-shaped. The semantics match WHATWG DOM
 - **`Tab` / `Shift-Tab` route through focus navigation first**, then dispatch as `keydown` if not consumed.
 - **`pointer-events` property is not implemented.** Every painted element is hittable.
 
+### ARIA tree (no `<tree>` element on the web)
+
+The web platform has no tree element — trees are built from `role="tree"` / `role="treeitem"` / `role="group"` on `<ul>` / `<li>`. rdom ships that pattern as a native built-in (`runtime::builtins::tree` + UA rules), which means it acts on `role` and `aria-*` where the web platform treats them as accessibility metadata only:
+
+- **`role=tree/treeitem/group` drive built-in styling + behavior.** UA rules key box model, disclosure, and highlight off these roles; the runtime keys keyboard/pointer behavior off them. On the web these are ARIA semantics with no intrinsic styling/behavior.
+- **Branch-ness keys on `aria-expanded` *presence*, not child count.** A branch with no loaded children (lazy/async) still renders as a branch with a chevron. `aria-expanded="true|false"` toggles open/closed; absent = leaf.
+- **`aria-busy="true"` is the loading-state hook.** App-driven and app-styleable (`[role=treeitem][aria-busy=true] { … }`); rdom ships no built-in busy affordance.
+- **The disclosure chevron (`▾`/`▸`) is painted into the gutter**, not generated via `::before`. (Forced by the mixed-content pseudo gap — see `TREE-BFC-PSEUDO-1` in `TECH_DEBT.md`.)
+- **Tree guide lines (`│ ├ └`) have no web equivalent.** They're emitted as border-glyph contributions and reuse the border joiner. Their color comes from the treeitem's `border-color` (`[role=treeitem] { border-color: … }`) even though the item paints no actual CSS border.
+- **A `[role=treeitem]`'s background fills only its label row**, not its full box. On the web a `<li>`'s background would cover its nested child list; rdom clamps tree-row backgrounds to one row so `aria-selected` / cursor highlight mark the row, not the open subtree.
+- **Active descendant, not roving DOM focus.** The `[role=tree]` container holds focus; the cursor row carries an internal `data-rdom-active` marker and highlights only while the container is focused. The container's own generic `:focus` background is suppressed.
+- **Built-in keys are Arrows + Home/End + Enter/Space only** — no vi keys (`j`/`k`/`g`/`G`); apps add those. Every default action is `preventDefault`-overridable.
+
 ### Clipboard
 
 - **System clipboard via `arboard` with OSC 52 fallback** for SSH/tmux. Read/write text only.

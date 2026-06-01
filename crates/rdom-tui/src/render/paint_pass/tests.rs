@@ -30,6 +30,167 @@ fn row(buf: &Buffer, y: u16) -> String {
 
 // ── Text painting ────────────────────────────────────────────────
 
+// ── Tree guide lines ─────────────────────────────────────────────
+
+/// Build `<li role=treeitem [attrs]>label …children</li>`.
+#[cfg(test)]
+fn treeitem(dom: &mut TuiDom, label: &str, attrs: &[(&str, &str)]) -> rdom_core::NodeId {
+    let li = dom.create_element("li");
+    dom.set_attribute(li, "role", "treeitem").unwrap();
+    for (k, v) in attrs {
+        dom.set_attribute(li, k, v).unwrap();
+    }
+    let t = dom.create_text_node(label);
+    dom.append_child(li, t).unwrap();
+    li
+}
+
+#[test]
+fn tree_guides_draw_connectors_and_trunks() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+
+    let tree = dom.create_element("ul");
+    dom.set_attribute(tree, "role", "tree").unwrap();
+    dom.append_child(root, tree).unwrap();
+
+    let cluster = treeitem(&mut dom, "Cluster", &[("aria-expanded", "true")]);
+    dom.append_child(tree, cluster).unwrap();
+    let cgroup = dom.create_element("ul");
+    dom.set_attribute(cgroup, "role", "group").unwrap();
+    dom.append_child(cluster, cgroup).unwrap();
+
+    let pods = treeitem(&mut dom, "Pods", &[]);
+    let services = treeitem(&mut dom, "Services", &[]);
+    let nodes = treeitem(&mut dom, "Nodes", &[("aria-expanded", "true")]);
+    dom.append_child(cgroup, pods).unwrap();
+    dom.append_child(cgroup, services).unwrap();
+    dom.append_child(cgroup, nodes).unwrap();
+
+    let ngroup = dom.create_element("ul");
+    dom.set_attribute(ngroup, "role", "group").unwrap();
+    dom.append_child(nodes, ngroup).unwrap();
+    let n1 = treeitem(&mut dom, "node-1", &[]);
+    let n2 = treeitem(&mut dom, "node-2", &[]);
+    dom.append_child(ngroup, n1).unwrap();
+    dom.append_child(ngroup, n2).unwrap();
+
+    let buf = pipeline(&mut dom, &Stylesheet::new(), Rect::new(0, 0, 24, 6));
+    let rows: Vec<String> = (0..6)
+        .map(|y| row(&buf, y).trim_end().to_string())
+        .collect();
+    assert_eq!(
+        rows,
+        vec![
+            "▾ Cluster",
+            "  ├─  Pods",
+            "  ├─  Services",
+            "  └─▾ Nodes",
+            "      ├─  node-1",
+            "      └─  node-2",
+        ],
+        "actual tree render:\n{}",
+        rows.join("\n"),
+    );
+}
+
+#[test]
+fn tree_guides_continue_trunk_past_expanded_nonlast_branch() {
+    // A non-last branch that is open: the trunk `│` must continue at
+    // the branch's column through its children's rows down to the
+    // following sibling.
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let tree = dom.create_element("ul");
+    dom.set_attribute(tree, "role", "tree").unwrap();
+    dom.append_child(root, tree).unwrap();
+
+    let a = treeitem(&mut dom, "A", &[("aria-expanded", "true")]);
+    dom.append_child(tree, a).unwrap();
+    let ag = dom.create_element("ul");
+    dom.set_attribute(ag, "role", "group").unwrap();
+    dom.append_child(a, ag).unwrap();
+
+    let b = treeitem(&mut dom, "B", &[("aria-expanded", "true")]); // not last
+    dom.append_child(ag, b).unwrap();
+    let bg = dom.create_element("ul");
+    dom.set_attribute(bg, "role", "group").unwrap();
+    dom.append_child(b, bg).unwrap();
+    let b1 = treeitem(&mut dom, "B1", &[]);
+    dom.append_child(bg, b1).unwrap();
+
+    let c = treeitem(&mut dom, "C", &[]); // last
+    dom.append_child(ag, c).unwrap();
+
+    let buf = pipeline(&mut dom, &Stylesheet::new(), Rect::new(0, 0, 20, 4));
+    let rows: Vec<String> = (0..4)
+        .map(|y| row(&buf, y).trim_end().to_string())
+        .collect();
+    assert_eq!(
+        rows,
+        vec!["▾ A", "  ├─▾ B", "  │   └─  B1", "  └─  C"],
+        "actual:\n{}",
+        rows.join("\n"),
+    );
+}
+
+#[test]
+fn tree_collapsed_branch_hides_children_and_shows_collapsed_chevron() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let tree = dom.create_element("ul");
+    dom.set_attribute(tree, "role", "tree").unwrap();
+    dom.append_child(root, tree).unwrap();
+
+    let a = treeitem(&mut dom, "A", &[("aria-expanded", "false")]);
+    dom.append_child(tree, a).unwrap();
+    let ag = dom.create_element("ul");
+    dom.set_attribute(ag, "role", "group").unwrap();
+    dom.append_child(a, ag).unwrap();
+    let hidden = treeitem(&mut dom, "hidden-child", &[]);
+    dom.append_child(ag, hidden).unwrap();
+
+    let buf = pipeline(&mut dom, &Stylesheet::new(), Rect::new(0, 0, 20, 4));
+    assert_eq!(row(&buf, 0).trim_end(), "▸ A", "collapsed chevron");
+    assert_eq!(row(&buf, 1).trim_end(), "", "child group must be hidden");
+}
+
+#[test]
+fn tree_active_row_highlight_clamps_to_label_row() {
+    // The active row's bg must fill ONLY the label row, not the
+    // whole (open) subtree box.
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let tree = dom.create_element("ul");
+    dom.set_attribute(tree, "role", "tree").unwrap();
+    dom.append_child(root, tree).unwrap();
+
+    let a = treeitem(
+        &mut dom,
+        "A",
+        &[("aria-expanded", "true"), ("data-rdom-active", "")],
+    );
+    dom.append_child(tree, a).unwrap();
+    let ag = dom.create_element("ul");
+    dom.set_attribute(ag, "role", "group").unwrap();
+    dom.append_child(a, ag).unwrap();
+    let child = treeitem(&mut dom, "child", &[]);
+    dom.append_child(ag, child).unwrap();
+
+    dom.set_focused(Some(tree));
+    let buf = pipeline(&mut dom, &Stylesheet::new(), Rect::new(0, 0, 20, 3));
+    let hl = Color::Rgb(0x2d, 0x2f, 0x31);
+    // A's label row (y0) is highlighted; the open child row (y1)
+    // must NOT be — neither from A's clamped fill nor from the
+    // container's own `:focus` bg (suppressed for `[role=tree]`).
+    assert_eq!(buf.cell(0, 0).unwrap().bg, hl, "label row is highlighted");
+    assert_ne!(
+        buf.cell(0, 1).unwrap().bg,
+        hl,
+        "child row must NOT inherit the active branch's highlight",
+    );
+}
+
 #[test]
 fn single_text_span_paints() {
     let mut dom = TuiDom::new();

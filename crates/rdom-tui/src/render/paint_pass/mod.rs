@@ -50,6 +50,7 @@ mod inline_paint;
 mod positioned_pseudos;
 pub(crate) mod scrollbar;
 mod text;
+mod tree_guides;
 
 #[cfg(test)]
 mod tests;
@@ -96,6 +97,10 @@ impl PaintExt for Dom<TuiExt> {
         // else painted into the viewport — then we re-paint the
         // dialog subtree so it ends up above the backdrop.
         paint_modal_backdrops(self, buf, clip);
+        // Tree guide lines — emit `│ ├ └` border contributions into
+        // the gutter of every `[role=tree]`. Runs BEFORE the joiner
+        // so the accumulated direction masks become glyphs.
+        tree_guides::paint_tree_guides(self, buf, clip);
         // Border-collapse joiner. Walks the buffer once and rewrites
         // box-drawing glyphs at junctions based on 4-neighbor
         // connectivity. Cheap when no element has `border-collapse:
@@ -325,6 +330,14 @@ fn paint_node(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect) {
             } else {
                 outer_grid
             };
+            // Tree row highlight: a `[role=treeitem]`'s box includes
+            // its nested `[role=group]` (the subtree), so a blanket
+            // bg fill would tint the whole open subtree. Clamp the
+            // fill to the item's own label row (treeitems are
+            // single-line) so `aria-selected` / `data-rdom-active`
+            // highlight just the row. Divergence noted in
+            // DIVERGENCES.md.
+            let fill_area = clamp_treeitem_row(dom, id, fill_area);
             fill_bg(buf, fill_area, computed.bg, computed.opacity);
         }
 
@@ -566,6 +579,19 @@ fn compute_border_priority(dom: &Dom<TuiExt>, id: NodeId) -> u64 {
 /// paint flow above — bg under half-block border cells must NOT
 /// be painted, so the parent's bg shows through the empty half of
 /// each half-block glyph (producing the pill silhouette).
+/// Clamp a `[role=treeitem]`'s background fill to its top (label)
+/// row. A treeitem nests its child `[role=group]` inside its own
+/// box, so the default full-box fill would tint the entire open
+/// subtree; tree rows are single-line, so the highlight is the top
+/// row. No-op for every other element.
+fn clamp_treeitem_row(dom: &Dom<TuiExt>, id: NodeId, area: Rect) -> Rect {
+    if dom.node(id).get_attribute("role") == Some("treeitem") {
+        Rect::new(area.x, area.y, area.width, area.height.min(1))
+    } else {
+        area
+    }
+}
+
 fn border_has_half_block(border: rdom_style::layout::Border) -> bool {
     use rdom_style::layout::BorderStyle;
     matches!(border.top, BorderStyle::HalfBlock)
