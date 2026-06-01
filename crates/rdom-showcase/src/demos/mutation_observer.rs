@@ -34,7 +34,11 @@ pub const MARKUP: &str = r#"<div class="mo-demo">
 
 pub const CSS: &str = r#"
 .mo-demo {
-  flex: 1;
+  /* FILL demo: claim the full view pane so the inner `.log`
+   * (`flex: 1; overflow: auto`) gets a bounded height to scroll
+   * against. `height: 100%` resolves against the flex-sized
+   * `.view-content` pane (Flexbox §9.8 definite). */
+  height: 100%;
   display: flex;
   flex-direction: column;
   padding: 1 2;

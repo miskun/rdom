@@ -474,36 +474,44 @@ const BASE_CSS: &str = r#"
   min-height: 0;
 }
 
-/* `.view-content` is the single-slot container that hosts the
- * active demo's subtree. It MUST be a flex column container, not a
- * block (BFC-1 default for `<div>`): demos declare `flex: 1` on
- * their own root expecting to fill `<main>`'s vertical slot, but
- * inside a block parent that opts-in becomes a no-op and the demo
- * grows to its intrinsic content height instead. `overflow-y: auto`
- * inside the demo (e.g. `scrollable_list`) then has nothing to
- * overflow — the container expands to fit its content and wheel
- * scrolling does nothing. Making `.view-content` a flex column
- * gives the demo a definite, constrained height to flex against.
- * `min-height: 0` continues the fitting-pane chain so a tall demo
- * (50+ rows in `scrollable_list`) clips at the slot edge rather
- * than ballooning `<main>`.
+/* `.view-content` is the "Page": the single-slot scroll viewport that
+ * hosts the active demo. It's a flex ITEM of `<main>` (`flex: 1`,
+ * `min-height: 0`) so it fills the height left over after the Source
+ * tray — and shrinks when Source expands — but its OWN formatting is
+ * `display: block` with `overflow-y: auto`. That gives demos the
+ * web "page scrolls" default: a demo at natural height taller than
+ * the pane overflows it and the Page scrolls. (A flex-column pane
+ * would instead force every `flex: 1` demo to exactly pane height,
+ * so tall content squished rather than scrolled.)
+ *
+ * Two demo idioms, by design:
+ * - CONTENT demo (the default): no special CSS — a stray `flex: 1`
+ *   is a harmless no-op in a block parent, so the demo lays out at
+ *   its natural height and the Page scrolls when it's tall.
+ * - FILL demo (claims the viewport + wraps its own scroller, e.g.
+ *   `scrollable_list`, `mutation_observer`): sets `height: 100%` on
+ *   its root. That now resolves against this flex-sized pane (CSS
+ *   Flexbox §9.8 definite size — see DIVERGENCES.md), bounding an
+ *   inner `overflow: auto` so it scrolls internally and the Page
+ *   does NOT.
+ *
+ * `overflow-y: auto` also keeps a tall demo from bleeding into the
+ * Source tray below (the old `overflow: hidden` clipped but couldn't
+ * scroll); horizontal stays visible. `min-height: 0` keeps the Page
+ * bounded to its slot so it scrolls instead of ballooning `<main>`.
  */
 .main .view-content {
-  display: flex;
-  flex-direction: column;
+  display: block;
   flex: 1;
   min-width: 0;
   min-height: 0;
-  /* Clip demo descendants to the slot. Without this, a demo whose
-   * intrinsic content is taller than the slot (e.g. `selectable_text`
-   * when the source disclosure is open) lets its overflowing
-   * children paint INTO the source-disclosure rect — `overflow:
-   * visible` is the CSS default and `.source-disclosure` has no
-   * background fill, so the bleed-through is visible wherever the
-   * disclosure's own children leave cells unpainted. Clipping at
-   * the slot edge is web-faithful for an app-shell pane that
-   * shares vertical space with a sibling. */
-  overflow: hidden;
+  /* Scroll vertically (the Page), clip horizontally. The old
+   * `overflow: hidden` clipped both axes to stop a tall demo bleeding
+   * into the Source tray; `overflow-y: auto` keeps that vertical clip
+   * AND scrolls, while `overflow-x: hidden` preserves the horizontal
+   * no-bleed guarantee (horizontal page-scroll isn't a goal). */
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 /* Source disclosure. Two states:

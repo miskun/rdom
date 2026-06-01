@@ -80,6 +80,16 @@ One piece of architectural debt deferred with teeth: `EVT-DETACH-1` (implicit bl
 
 ## Recent decisions
 
+### 2026-06-02 — Showcase "page scrolls by default" (demo view pane)
+
+Built on the percentage-height fix below. `.view-content` is now the **Page**: a `display: block; overflow-y: auto` scroll viewport (still a `flex: 1` item of `<main>`, so it fills the height left after the Source tray and shrinks when Source expands). Model:
+
+- **Content demos (default):** no change — a stray `flex: 1` is a harmless no-op in a block parent, so the demo lays out at natural height and the Page scrolls when it's taller than the pane. Fixes the reported "Built-ins demos don't fit / no scrollbar."
+- **Fill demos (opt-in):** claim the viewport with `height: 100%` (now resolves against the flex-sized pane via the §9.8 fix) so an inner `overflow: auto` bounds + scrolls internally instead of the Page. Converted `scrollable_list` and `mutation_observer` (`flex: 1` → `height: 100%`); `sticky` was already self-contained (`height: 15; overflow: auto`).
+- **Source tray:** unchanged structurally — a sibling of `.view-content` inside `<main>`, *outside* the Page, so it's never scrolled away and expanding it shrinks the Page's slot (scroll responds to Source size).
+
+`overflow-x: hidden` preserves the old horizontal no-bleed clip (the prior `overflow: hidden` clipped both axes). Standalone-example snapshots unchanged: in `run_standalone` the demo mounts at the column-flex root, where `height: 100%` fills exactly as `flex: 1` did. Tests: `tall_content_demo_makes_the_page_scroll` + `fill_demo_scrolls_internally_not_the_page` in `chrome_layout_contract.rs`. Full gate green (2697 tests).
+
 ### 2026-06-02 — Percentage height resolves against flex-sized ancestors (layout fix)
 
 `nearest_block_ancestor_height_is_definite` (`layout_pass/block.rs`) treated a `Size::Flex` parent height as **indefinite** (lumped with `Size::Auto`), so `height: <pct>%` on a child of a `flex: 1` pane fell back to content height. Per CSS Flexbox §9.8 a flex item in a definite-size flex container has a definite post-flex size, and percentages of its content resolve against it (CSS Sizing 3) — every browser does this. rdom was applying the older CSS 2.1 §10.5 "needs explicit height" rule and the function's own doc comment admitted the punt ("flex contexts are outside that… phase 6 will").

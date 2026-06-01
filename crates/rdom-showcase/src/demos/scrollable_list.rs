@@ -23,7 +23,11 @@ pub const MARKUP: &str = r#"<div class="scroll-list-demo">
 
 pub const CSS: &str = r#"
 .scroll-list-demo {
-  flex: 1;
+  /* FILL demo: claim the full view pane so the inner `.list` has a
+   * bounded height to scroll against (rather than letting the whole
+   * 50-row list overflow the Page). `height: 100%` resolves against
+   * the flex-sized `.view-content` pane (Flexbox §9.8 definite). */
+  height: 100%;
   display: flex;
   flex-direction: column;
   padding: 1 2;

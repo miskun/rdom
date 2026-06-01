@@ -42,6 +42,55 @@ fn shell_at(width: u16, height: u16) -> (TuiDom, rdom_showcase::ShellHandles) {
     (dom, handles)
 }
 
+/// Index of the demo whose slug matches (for `shell_with_demo`).
+fn demo_idx(slug: &str) -> usize {
+    DEMOS
+        .iter()
+        .position(|d| d.slug() == slug)
+        .unwrap_or_else(|| panic!("no demo with slug {slug}"))
+}
+
+#[test]
+fn tall_content_demo_makes_the_page_scroll() {
+    // The showcase framework gives demos "page scrolls" by default:
+    // a content demo taller than the view pane overflows it, and
+    // `.view-content` (a scroll viewport) scrolls. dom-api's
+    // walkthrough is far taller than a short pane.
+    let (dom, handles) = shell_with_demo(demo_idx("builtins/dom-api"), 80, 12);
+    let vc = dom.node(handles.main).ext().unwrap();
+    assert!(
+        vc.scroll_content_height > vc.layout.height as usize,
+        "tall demo must overflow the view pane so it page-scrolls \
+         (content={} <= pane={}); the pane isn't a scroll viewport",
+        vc.scroll_content_height,
+        vc.layout.height
+    );
+}
+
+#[test]
+fn fill_demo_scrolls_internally_not_the_page() {
+    // A demo that claims the full viewport (height: 100%) and wraps
+    // its own scroller must NOT make the page scroll — its inner
+    // scroller handles the overflow. scrollable_list is the canonical
+    // case: 50 rows in a bounded `.list`.
+    let (dom, handles) = shell_with_demo(demo_idx("layout/scrollable-list"), 80, 16);
+    let vc = dom.node(handles.main).ext().unwrap();
+    assert!(
+        vc.scroll_content_height <= vc.layout.height as usize,
+        "fill demo must NOT page-scroll (content={} should fit pane={})",
+        vc.scroll_content_height,
+        vc.layout.height
+    );
+    let list = find_by_class(&dom, handles.main, "list").expect("scrollable list inner .list");
+    let le = dom.node(list).ext().unwrap();
+    assert!(
+        le.scroll_content_height > le.layout.height as usize,
+        "the inner .list must scroll internally (content={} > list={})",
+        le.scroll_content_height,
+        le.layout.height
+    );
+}
+
 fn find_by_class(dom: &TuiDom, id: NodeId, class: &str) -> Option<NodeId> {
     let n = dom.node(id);
     if n.node_type() == NodeType::Element
