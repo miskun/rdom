@@ -22,6 +22,46 @@ fn content_rect_of(dom: &TuiDom, id: NodeId) -> LayoutRect {
     dom.node(id).ext().unwrap().content_layout
 }
 
+#[test]
+fn percent_height_resolves_against_flex_sized_ancestor() {
+    // CSS Flexbox §9.8: a flex item with a definite flex basis in a
+    // flex container with a definite main size has a DEFINITE
+    // post-flexing main size — so a percentage height on the item's
+    // content resolves against it (CSS Sizing 3). rdom used to treat
+    // a `Size::Flex` parent height as indefinite, so `height: 100%`
+    // fell back to content height. Pin the browser-faithful behavior.
+    let mut dom = tui_dom();
+    let root = dom.root();
+    let outer = dom.create_element("div");
+    dom.set_attribute(outer, "class", "outer").unwrap();
+    dom.append_child(root, outer).unwrap();
+    let mid = dom.create_element("div");
+    dom.set_attribute(mid, "class", "mid").unwrap();
+    dom.append_child(outer, mid).unwrap();
+    let inner = dom.create_element("div");
+    dom.set_attribute(inner, "class", "inner").unwrap();
+    dom.append_child(mid, inner).unwrap();
+
+    let sheet = rdom_css::from_css(
+        ".outer { height: 10; display: flex; flex-direction: column; } \
+         .mid { flex: 1; } \
+         .inner { height: 100%; }",
+    );
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 20, 12));
+
+    assert_eq!(
+        layout_rect_of(&dom, mid).height,
+        10,
+        "flex:1 item fills the fixed-height column container"
+    );
+    assert_eq!(
+        layout_rect_of(&dom, inner).height,
+        10,
+        "height:100% must resolve against the flex-sized parent (definite per Flexbox §9.8)"
+    );
+}
+
 // ── Root-level layout ────────────────────────────────────────────
 
 #[test]

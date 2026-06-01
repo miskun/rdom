@@ -1152,7 +1152,42 @@ fn nearest_block_ancestor_height_is_definite(dom: &Dom<TuiExt>, id: NodeId) -> b
         }
         match parent_computed.height {
             Size::Fixed(_) => return true,
-            Size::Auto | Size::Flex(_) => return false,
+            // Plain `auto` height tracks content → indefinite
+            // (CSS 2.1 §10.5). True for a block-flow box AND for a
+            // column flex item with no grow (its main size is its
+            // content). The narrower `auto`-cross-stretch case (a row
+            // flex item) is conservatively left indefinite too; see
+            // DIVERGENCES.md "Percentage height".
+            Size::Auto => return false,
+            Size::Flex(_) => {
+                // `flex: …` shorthand on the height ⇒ a growing /
+                // flexing item. CSS Flexbox §9.8: a flex item in a
+                // flex container with a definite main size has a
+                // DEFINITE post-flexing main size, so percentages of
+                // its content resolve against it — even though its own
+                // `height` isn't `Fixed`. It's definite iff the flex
+                // container is, so chain up and re-test the container.
+                use crate::layout::Flow;
+                match parent.parent_node() {
+                    // No grandparent: `parent` is the top-level box,
+                    // flexed against the viewport `layout_dom` passes
+                    // in — definite.
+                    None => return true,
+                    Some(gp) => match gp.ext().and_then(|e| e.computed.as_ref()).map(|c| c.flow) {
+                        // Fragment / document root lays children out as
+                        // a definite-size column flex container (the
+                        // viewport), so a flexing child is definite.
+                        None => return true,
+                        // Flex container: chain up to test its size.
+                        Some(Flow::Flex) => cur = parent_id,
+                        // A `flex`-height value under a block-flow
+                        // parent is a non-flex context (the shorthand
+                        // was used outside a flex container) → treated
+                        // as `auto` → indefinite.
+                        Some(Flow::Block) => return false,
+                    },
+                }
+            }
             Size::Percent(_) | Size::Calc(_) => {
                 // Chain up — re-test against the GRANDparent.
                 cur = parent_id;

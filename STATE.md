@@ -80,6 +80,14 @@ One piece of architectural debt deferred with teeth: `EVT-DETACH-1` (implicit bl
 
 ## Recent decisions
 
+### 2026-06-02 — Percentage height resolves against flex-sized ancestors (layout fix)
+
+`nearest_block_ancestor_height_is_definite` (`layout_pass/block.rs`) treated a `Size::Flex` parent height as **indefinite** (lumped with `Size::Auto`), so `height: <pct>%` on a child of a `flex: 1` pane fell back to content height. Per CSS Flexbox §9.8 a flex item in a definite-size flex container has a definite post-flex size, and percentages of its content resolve against it (CSS Sizing 3) — every browser does this. rdom was applying the older CSS 2.1 §10.5 "needs explicit height" rule and the function's own doc comment admitted the punt ("flex contexts are outside that… phase 6 will").
+
+Fix: the `Size::Flex` arm now chains up through flex-item ancestors (definite iff the flex container is) and bottoms out at the document root, which lays its children out as a viewport-definite column flex container. `Size::Auto` stays indefinite (correct for block-flow `auto` and conservatively for column-flex `auto`-main / row-flex `auto`-cross-stretch — the latter is the documented remaining gap). Contained to one function; no other layout codepath changed. **Full workspace gate green (2695 tests, 0 failures)** — the existing `percent_height_falls_to_auto_when_parent_height_is_indefinite` still passes (it's a block `auto` parent). New test `percent_height_resolves_against_flex_sized_ancestor` in `layout_pass/tests.rs`. Divergence narrowed + documented in `DIVERGENCES.md` §Layout "Percentage height".
+
+**Why now:** this was the blocker for the showcase "page scrolls by default" work — it unblocks the `height: 100%` fill opt-in (block scroll-viewport model), which needs far fewer demo edits than the flex-viewport workaround. The showcase scroll wiring (view-content as scroll viewport + per-demo fill opt-ins) is the follow-on.
+
 ### 2026-06-01 — TREE-2: showcase sidebar dogfoods the native ARIA tree
 
 The showcase navigator is now built from the TREE-1 built-in instead of a bespoke `<details>/<summary>` + roving-focus handler. Each `Category` is a branch treeitem (`<li role=treeitem aria-expanded=true>` + `<ul role=group>`); each demo is a leaf treeitem carrying `data-demo-slug`. The `[role=tree]` container is the single tab stop (implicitly focusable) and carries `autofocus`, so arrow keys are live on first paint.
