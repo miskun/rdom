@@ -35,3 +35,4 @@ pub mod range;
 pub mod select;
 pub mod table;
 pub mod toggle;
+pub mod tree;

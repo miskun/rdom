@@ -78,6 +78,14 @@ fn is_implicit_focusable(dom: &TuiDom, id: NodeId) -> bool {
         "summary" => true,
         // Anchors + image map areas need `href` to be focusable.
         "a" | "area" => node.has_attribute("href"),
+        // ARIA tree container: `<ul role=tree>` holds focus on
+        // behalf of its active descendant (the cursor row). Treat
+        // it as implicitly focusable so a tree is Tab-reachable
+        // without the author wiring `tabindex`. The treeitems
+        // themselves are NOT focusable — the runtime moves a
+        // `data-rdom-active` cursor among them instead. See
+        // `runtime::builtins::tree` + DIVERGENCES.md "ARIA tree".
+        _ if node.get_attribute("role") == Some("tree") => true,
         _ => false,
     }
 }

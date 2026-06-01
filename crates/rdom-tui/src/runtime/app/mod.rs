@@ -296,6 +296,7 @@ impl<B: Backend> App<B> {
         crate::runtime::builtins::dialog::install(&mut dom);
         crate::runtime::builtins::select::install(&mut dom);
         crate::runtime::builtins::range::install(&mut dom);
+        crate::runtime::builtins::tree::install(&mut dom);
         // Make sure every `<input>` has a text-node child reflecting
         // its `value` attribute. Parsed templates (`<input value="x">`
         // with no children) and direct-API users alike land in the
