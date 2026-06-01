@@ -478,6 +478,16 @@ const BASE_CSS: &str = r#"
   flex: 1;
   min-width: 0;
   min-height: 0;
+  /* Clip demo descendants to the slot. Without this, a demo whose
+   * intrinsic content is taller than the slot (e.g. `selectable_text`
+   * when the source disclosure is open) lets its overflowing
+   * children paint INTO the source-disclosure rect — `overflow:
+   * visible` is the CSS default and `.source-disclosure` has no
+   * background fill, so the bleed-through is visible wherever the
+   * disclosure's own children leave cells unpainted. Clipping at
+   * the slot edge is web-faithful for an app-shell pane that
+   * shares vertical space with a sibling. */
+  overflow: hidden;
 }
 
 /* Source disclosure. Two states:
