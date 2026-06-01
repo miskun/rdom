@@ -80,6 +80,24 @@ One piece of architectural debt deferred with teeth: `EVT-DETACH-1` (implicit bl
 
 ## Recent decisions
 
+### 2026-06-01 — TREE-1 landed: native ARIA tree (v1)
+
+Shipped end-to-end on `feat/tree-element`. The ARIA tree pattern (`<ul role=tree>` / `role=treeitem` / `role=group`) is now a first-class built-in: UA box model + collapse + highlight (`rdom-style/src/ua.rs`, +8 rules, count 128→136), guide-line + chevron paint (`render::paint_pass::tree_guides`), keyboard/pointer behavior + active-descendant cursor (`runtime::builtins::tree`), and a showcase demo with a fake 2s lazy-load branch. Commits `346acf3` (UA) → `1516837` (cascade-match test) → `3067ec2` (layout fix) → `680ebe0` (guide paint) → `52520da` (behavior) → `731fa53` (demo). Full workspace gate green.
+
+**Substrate bug found + fixed (root cause, benefits all consumers):** mixed-content block stacking. A block with a text run AND a block child (any `<ul><li>text<ul>…` nested list, and every tree branch) positioned its next sibling using the pre-layout `intrinsic_size` estimate, which counts element children only — so the sibling overlapped the block's children. `block.rs` now advances the block cursor by the child's actual laid-out height (`layout_node` already finalizes it per CSS 2.1 §10.6.3). Regression test in `block_tests.rs`.
+
+**Key design decisions (full rationale in the Step 0 entry below):**
+- Guide lines reuse the border-contribution substrate (`buf.border_dirs` + the joiner's mask→glyph table) — `tree_guides` only declares N/E/S directions; the generic joiner picks `├ └ │ ─`. Trunk continuation falls out of the sibling list (no per-row computed state).
+- The chevron is painted into the gutter, NOT a `::before`, because `::before`/`::after` paint incorrectly on mixed-content blocks (`TREE-BFC-PSEUDO-1`, accepted/tracked — the height half of that bug was fixed; the pseudo half is deferred). The `ul > li::before` list marker is suppressed for treeitems.
+- Active-descendant focus model: the container is focusable and holds focus; the cursor is an internal `data-rdom-active` marker; the container's generic `:focus` bg is suppressed; treeitem row backgrounds clamp to the label row (not the open subtree box).
+- `aria-expanded` *presence* = branch (lazy branches with no children still render as branches); `aria-busy` is the app-level loading hook. Built-in keys are Arrows + Home/End + Enter/Space only — no vi keys; all `preventDefault`-overridable.
+
+**Review gates (TREE-1 milestone):**
+- *Grumpy Architect:* PASS. Core stays renderer-free (only `rdom-tui`/`rdom-style` touched). Guide pass reads layout+DOM, never recomputes layout/cascade; glyph choice stays in the generic joiner. Behavior module mirrors `<select>`/`<details>` precedents, no god-object. One accepted paint special-case (`clamp_treeitem_row` reads `role` in the bg-fill path) — bounded + documented. Non-blocking follow-ups: virtualization for huge trees (deferred), multi-select (deferred), `TREE-BFC-PSEUDO-1` (tracked).
+- *Grumpy API:* PASS. Web-faithful (ARIA pattern, no invented element); every divergence documented in `DIVERGENCES.md` §"ARIA tree". Authoring is plain DOM mutation, so lazy/filter/search are app-level as intended. Demo proves the async-children workflow end-to-end.
+
+**Deferred (tracked):** large-tree virtualization (paint-then-clip today); multi-select (reuse `<select>`'s anchor model); `TREE-BFC-PSEUDO-1` proper fix (anonymous-block pseudo width reservation).
+
 ### 2026-06-01 — TREE-1 initiative: native ARIA tree element (Step 0 design)
 
 New initiative on branch `feat/tree-element`: a first-class, browser-faithful tree for TUIs. Trees are the single most-requested TUI affordance (file browsers, k8s navigators, outline views) and have no HTML element — so we implement the **ARIA tree pattern** rather than inventing a `<tree>` tag, keeping the "HTML elements only" non-negotiable intact.
