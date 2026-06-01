@@ -299,8 +299,8 @@ fn click_on_leaf_sets_cursor() {
 fn click_anywhere_on_branch_row_toggles() {
     let mut f = fixture();
     // Click Cluster's LABEL (row 0, well right of the arrow) — a
-    // branch toggles on any row click, not just the arrow (lens
-    // behavior). Also moves the cursor there.
+    // branch toggles on any row click, not just the arrow. Also
+    // moves the cursor there.
     click_at(&mut f.app, 5, 0);
     assert_eq!(active(&f.app, f.tree), Some(f.cluster));
     assert_eq!(

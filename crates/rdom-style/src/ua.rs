@@ -354,7 +354,7 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
         // 2-cell step comes from the treeitem's own `padding-left: 2`
         // (the arrow field). The guide paint draws the connector for
         // a child in the cell to the LEFT of the child's box, which
-        // lands under the parent item's arrow column (lens-faithful).
+        // lands under the parent item's arrow column.
         // `padding: 0` overrides the `ul` default left padding so the
         // group adds no indent of its own.
         (

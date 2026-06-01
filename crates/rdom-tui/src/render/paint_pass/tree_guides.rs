@@ -13,7 +13,7 @@
 //! E+W) via its `SOLID_TABLE`. This pass therefore runs AFTER the
 //! main paint walk and BEFORE the joiner (see `paint_dom`).
 //!
-//! ## Geometry (lens-faithful: 2 cells per level)
+//! ## Geometry (2 cells per level)
 //!
 //! Each nesting level is 2 cells. The indent comes from the
 //! treeitem's own `padding-left: TREE_INDENT` (the `▼ `/`▶ ` arrow
@@ -98,10 +98,10 @@ fn paint_item(
     // (`padding-left: 2` ⇒ label starts at `rect.x + 2`, arrow at
     // `rect.x`). Branches only — a branch is any item with an
     // `aria-expanded` attribute (presence, not child count, so an
-    // unloaded lazy branch still shows an arrow). Full-cell `▼`/`▶`
-    // (lens-faithful), painted in the guide color. Painted here
-    // rather than via `::before` to dodge the mixed-content pseudo
-    // gap (TREE-BFC-PSEUDO-1).
+    // unloaded lazy branch still shows an arrow). Full-cell `▼`/`▶`,
+    // painted in the guide color. Painted here rather than via
+    // `::before` to dodge the mixed-content pseudo gap
+    // (TREE-BFC-PSEUDO-1).
     if let Some(expanded) = dom.node(item).get_attribute("aria-expanded") {
         let glyph = if expanded == "true" { "▼" } else { "▶" };
         put_glyph(buf, clip, rect.x, row_y, glyph, color);
@@ -125,7 +125,7 @@ fn paint_item(
         is_last = treeitem_children(dom, p).last() == Some(&item);
         // `├` (N+E+S) when a sibling follows, `└` (N+E) when last.
         // The E stub is the connector glyph's own right tick; the
-        // next cell stays blank (lens uses `├ ` / `└ `, no dash).
+        // next cell stays blank — the connector is `├ ` / `└ `, no dash.
         let connector: &[usize] = if is_last {
             &[DIR_N, DIR_E]
         } else {

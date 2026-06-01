@@ -74,10 +74,10 @@ pub fn install(dom: &mut TuiDom) {
         // container and moves the cursor to the row.
         focus_node(ctx.dom, Some(tree));
         set_active(ctx.dom, tree, item);
-        // Clicking anywhere on a branch row toggles it (lens-faithful
-        // — the arrow isn't the only hit target). Gated on a real
-        // pointer click: keyboard-synthesized clicks carry no mouse
-        // detail, so Enter/Space don't double-toggle.
+        // Clicking anywhere on a branch row toggles it — the arrow
+        // isn't the only hit target. Gated on a real pointer click:
+        // keyboard-synthesized clicks carry no mouse detail, so
+        // Enter/Space don't double-toggle.
         if is_branch(ctx.dom, item) && ctx.event.detail.as_mouse().is_some() {
             set_expanded(ctx.dom, item, !is_expanded(ctx.dom, item));
         }
