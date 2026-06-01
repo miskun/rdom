@@ -130,26 +130,47 @@ pub fn build_shell(dom: &mut TuiDom) -> ShellHandles {
 
     // <aside class="sidebar">
     //   <nav>
-    //     <details open><summary>Layout</summary>
-    //       <ul>
-    //         <li data-demo-slug="layout/hello-world" tabindex="0">Hello World</li>
-    //         ...
-    //       </ul>
-    //     </details>
-    //     <details open><summary>Cascade</summary>...</details>
-    //     ...
+    //     <ul role="tree" class="sidebar-tree" autofocus>
+    //       <li role="treeitem" aria-expanded="true">Layout
+    //         <ul role="group">
+    //           <li role="treeitem" data-demo-slug="layout/hello-world">Hello World</li>
+    //           ...
+    //         </ul>
+    //       </li>
+    //       <li role="treeitem" aria-expanded="true">Cascade …</li>
+    //       ...
+    //     </ul>
     //   </nav>
     // </aside>
     //
-    // Demos grouped by `Category` enum. Each category renders as
-    // a `<details>` with its title in `<summary>` — UA gives us
-    // the disclosure triangle for free. `<li>`s carry the demo's
-    // slug in a `data-demo-slug` attribute so the click handler
-    // (M3 D4) can identify which demo to mount. `tabindex="0"`
-    // makes them keyboard-focusable (M3 D5).
+    // TREE-2: the sidebar IS the native ARIA tree built-in
+    // (`<ul role=tree>` / `role=treeitem` / `role=group`). Each
+    // distinct `Category` becomes a branch treeitem (a collapsible
+    // row — `aria-expanded` presence is what makes the built-in
+    // treat it as a branch), and each demo becomes a leaf treeitem
+    // carrying its slug in `data-demo-slug`. `runtime::builtins::tree`
+    // supplies arrows / Home / End / Right / Left / Enter / Space,
+    // the active-descendant cursor, the `│ ├ └` guides, and the
+    // `▾`/`▸` chevrons — so the showcase navigates itself with the
+    // very primitive it ships. No per-item `tabindex`: the tree
+    // container is the single tab stop (implicitly focusable via
+    // `role=tree`), and it carries `autofocus` so arrow keys work on
+    // the first paint without a Tab press. Activation (pointer or
+    // Enter/Space) dispatches a bubbling `click` on the active
+    // treeitem, which `wire_sidebar_click` turns into a demo mount.
     let sidebar = dom.create_element("aside");
     dom.set_attribute(sidebar, "class", "sidebar").unwrap();
     let nav = dom.create_element("nav");
+
+    let tree = dom.create_element("ul");
+    dom.set_attribute(tree, "role", "tree").unwrap();
+    // Chrome-specific class — NOT `nav-tree`. Every demo stylesheet
+    // is pre-pushed onto the App, so reusing a demo's class name
+    // bleeds that demo's rules onto the chrome: the `tree_nav` demo's
+    // `.nav-tree { padding: 1 2 }` would inset the whole sidebar nav.
+    // The chrome owns the `sidebar-tree` namespace; demos never use it.
+    dom.set_attribute(tree, "class", "sidebar-tree").unwrap();
+    dom.set_attribute(tree, "autofocus", "").unwrap();
 
     // Group demos by category. Iterates the registry in declaration
     // order, which is also the order categories appear in the
@@ -161,37 +182,28 @@ pub fn build_shell(dom: &mut TuiDom) -> ShellHandles {
         }
     }
     for cat in &seen_categories {
-        let details = dom.create_element("details");
-        dom.set_attribute(details, "open", "").unwrap();
-        let summary = dom.create_element("summary");
-        let summary_text = dom.create_text_node(cat.title());
-        dom.append_child(summary, summary_text).unwrap();
-        dom.append_child(details, summary).unwrap();
+        // Branch row: a treeitem with a text label + a child group.
+        let branch = dom.create_element("li");
+        dom.set_attribute(branch, "role", "treeitem").unwrap();
+        dom.set_attribute(branch, "aria-expanded", "true").unwrap();
+        let branch_label = dom.create_text_node(cat.title());
+        dom.append_child(branch, branch_label).unwrap();
 
-        let ul = dom.create_element("ul");
+        let group = dom.create_element("ul");
+        dom.set_attribute(group, "role", "group").unwrap();
         for demo in DEMOS.iter().filter(|d| d.category() == *cat) {
             let li = dom.create_element("li");
+            dom.set_attribute(li, "role", "treeitem").unwrap();
             dom.set_attribute(li, "data-demo-slug", demo.slug())
                 .unwrap();
-            dom.set_attribute(li, "tabindex", "0").unwrap();
-            // The first `<li>` in the registry gets `autofocus` so
-            // the showcase boots with a keyboard-navigable element
-            // already focused. Without it, the app starts with
-            // nothing focused (web-faithful) and the user has to
-            // press Tab once before arrow keys do anything — easy
-            // to mistake for "the keyboard nav is broken." rdom's
-            // runtime/autofocus module picks the first eligible
-            // `[autofocus]` element on mount.
-            if demo.slug() == DEMOS[0].slug() {
-                dom.set_attribute(li, "autofocus", "").unwrap();
-            }
             let title = dom.create_text_node(demo.title());
             dom.append_child(li, title).unwrap();
-            dom.append_child(ul, li).unwrap();
+            dom.append_child(group, li).unwrap();
         }
-        dom.append_child(details, ul).unwrap();
-        dom.append_child(nav, details).unwrap();
+        dom.append_child(branch, group).unwrap();
+        dom.append_child(tree, branch).unwrap();
     }
+    dom.append_child(nav, tree).unwrap();
     dom.append_child(sidebar, nav).unwrap();
     dom.append_child(body, sidebar).unwrap();
 
@@ -653,68 +665,95 @@ mod tests {
         assert_eq!(summary_text, "Source");
     }
 
+    /// The `<ul role="tree">` navigator inside the sidebar, if any.
+    fn find_nav_tree(dom: &TuiDom, sidebar: NodeId) -> Option<NodeId> {
+        fn walk(dom: &TuiDom, id: NodeId) -> Option<NodeId> {
+            let n = dom.node(id);
+            if n.tag_name() == Some("ul") && n.get_attribute("role") == Some("tree") {
+                return Some(id);
+            }
+            for c in n.child_nodes() {
+                if let Some(found) = walk(dom, c.id()) {
+                    return Some(found);
+                }
+            }
+            None
+        }
+        walk(dom, sidebar)
+    }
+
+    /// Every `<li role="treeitem" data-demo-slug>` (the demo leaves)
+    /// under `root`, in document order.
+    fn collect_demo_leaves(dom: &TuiDom, root: NodeId) -> Vec<NodeId> {
+        fn walk(dom: &TuiDom, id: NodeId, out: &mut Vec<NodeId>) {
+            let n = dom.node(id);
+            if n.tag_name() == Some("li")
+                && n.get_attribute("role") == Some("treeitem")
+                && n.has_attribute("data-demo-slug")
+            {
+                out.push(id);
+            }
+            for c in n.child_nodes() {
+                walk(dom, c.id(), out);
+            }
+        }
+        let mut out = Vec::new();
+        walk(dom, root, &mut out);
+        out
+    }
+
     #[test]
-    fn sidebar_contains_one_li_per_registered_demo() {
+    fn sidebar_navigator_is_a_role_tree_with_autofocus() {
+        // TREE-2: the sidebar is now the native ARIA tree built-in.
+        // The `[role=tree]` container is the single tab stop (it's
+        // implicitly focusable) and carries `autofocus` so the
+        // keyboard navigation is live on first paint — no Tab
+        // required. The bespoke `wire_sidebar_keys` roving-focus
+        // handler is gone; `runtime::builtins::tree` supplies the
+        // arrows / Home / End / Enter / Space + active-descendant
+        // cursor.
         let mut dom: TuiDom = TuiDom::new();
         let handles = build_shell(&mut dom);
 
-        // Sidebar → <nav> → <details>* → <ul> → <li>*. Count
-        // every <li> across every category.
-        let nav = dom
-            .node(handles.sidebar)
-            .child_nodes()
-            .find(|n| n.tag_name() == Some("nav"))
-            .expect("sidebar has a <nav>");
-
-        let mut li_count = 0usize;
-        for details in nav
-            .child_nodes()
-            .filter(|n| n.tag_name() == Some("details"))
-        {
-            let ul = details
-                .child_nodes()
-                .find(|n| n.tag_name() == Some("ul"))
-                .expect("each <details> has a <ul>");
-            li_count += ul
-                .child_nodes()
-                .filter(|n| n.tag_name() == Some("li"))
-                .count();
-        }
-        assert_eq!(
-            li_count,
-            crate::DEMOS.len(),
-            "one <li> per registered demo across all category <details>"
+        let tree = find_nav_tree(&dom, handles.sidebar).expect("sidebar has a <ul role=tree>");
+        let node = dom.node(tree);
+        assert_eq!(node.tag_name(), Some("ul"));
+        assert_eq!(node.get_attribute("role"), Some("tree"));
+        assert!(
+            node.has_attribute("autofocus"),
+            "the tree container carries autofocus so arrow keys work on boot"
         );
     }
 
     #[test]
-    fn each_sidebar_li_carries_data_demo_slug() {
-        // Click handler (M3 D4) reads this attribute to identify
-        // which demo to mount. Pinning the contract.
+    fn sidebar_has_one_treeitem_leaf_per_registered_demo() {
         let mut dom: TuiDom = TuiDom::new();
         let handles = build_shell(&mut dom);
-        let nav = dom
-            .node(handles.sidebar)
-            .child_nodes()
-            .find(|n| n.tag_name() == Some("nav"))
-            .unwrap();
+        let tree = find_nav_tree(&dom, handles.sidebar).expect("sidebar has a <ul role=tree>");
+
+        let leaves = collect_demo_leaves(&dom, tree);
+        assert_eq!(
+            leaves.len(),
+            crate::DEMOS.len(),
+            "one <li role=treeitem data-demo-slug> per registered demo"
+        );
+    }
+
+    #[test]
+    fn each_demo_leaf_carries_role_treeitem_and_data_demo_slug() {
+        // Click handler reads `data-demo-slug` to identify which
+        // demo to mount; the tree built-in keys behavior off
+        // `role=treeitem`. Both must be present on every leaf, and
+        // the set of slugs must exactly cover the registry.
+        let mut dom: TuiDom = TuiDom::new();
+        let handles = build_shell(&mut dom);
+        let tree = find_nav_tree(&dom, handles.sidebar).unwrap();
 
         let mut slugs: Vec<String> = Vec::new();
-        for details in nav
-            .child_nodes()
-            .filter(|n| n.tag_name() == Some("details"))
-        {
-            let ul = details
-                .child_nodes()
-                .find(|n| n.tag_name() == Some("ul"))
-                .unwrap();
-            for li in ul.child_nodes().filter(|n| n.tag_name() == Some("li")) {
-                let slug = li
-                    .get_attribute("data-demo-slug")
-                    .map(str::to_string)
-                    .expect("<li> has data-demo-slug");
-                slugs.push(slug);
-            }
+        for leaf in collect_demo_leaves(&dom, tree) {
+            let node = dom.node(leaf);
+            assert_eq!(node.get_attribute("role"), Some("treeitem"));
+            slugs.push(node.get_attribute("data-demo-slug").unwrap().to_string());
         }
 
         let expected: Vec<&'static str> = crate::DEMOS.iter().map(|d| d.slug()).collect();
@@ -722,8 +761,65 @@ mod tests {
         for slug in expected {
             assert!(
                 slugs.iter().any(|s| s == slug),
-                "demo slug {slug:?} missing from sidebar"
+                "demo slug {slug:?} missing from sidebar tree"
             );
+        }
+    }
+
+    #[test]
+    fn categories_are_branch_treeitems_holding_a_role_group() {
+        // Each distinct category becomes a branch: a
+        // `<li role=treeitem aria-expanded=true>` whose label text
+        // is the category title, containing a `<ul role=group>` of
+        // that category's demo leaves. `aria-expanded` presence (not
+        // child count) is what makes the tree built-in treat the row
+        // as a collapsible branch.
+        let mut dom: TuiDom = TuiDom::new();
+        let handles = build_shell(&mut dom);
+        let tree = find_nav_tree(&dom, handles.sidebar).unwrap();
+
+        let mut distinct: Vec<Category> = Vec::new();
+        for d in crate::DEMOS {
+            if !distinct.contains(&d.category()) {
+                distinct.push(d.category());
+            }
+        }
+
+        let branches: Vec<_> = dom
+            .node(tree)
+            .child_nodes()
+            .filter(|n| n.tag_name() == Some("li") && n.get_attribute("role") == Some("treeitem"))
+            .collect();
+        assert_eq!(
+            branches.len(),
+            distinct.len(),
+            "one top-level branch treeitem per distinct category"
+        );
+
+        for (branch, cat) in branches.iter().zip(distinct.iter()) {
+            assert_eq!(
+                branch.get_attribute("aria-expanded"),
+                Some("true"),
+                "category branch starts expanded"
+            );
+            assert!(
+                branch.get_attribute("data-demo-slug").is_none(),
+                "category branch carries no demo slug — Enter/click on it only toggles"
+            );
+            let group = branch
+                .child_nodes()
+                .find(|n| n.get_attribute("role") == Some("group"))
+                .expect("branch holds a <ul role=group>");
+            assert_eq!(group.tag_name(), Some("ul"));
+            // Every child of the group is a demo leaf in this category.
+            for leaf in group.child_nodes().filter(|n| n.tag_name() == Some("li")) {
+                let slug = leaf.get_attribute("data-demo-slug").expect("leaf has slug");
+                let demo = crate::DEMOS
+                    .iter()
+                    .find(|d| d.slug() == slug)
+                    .expect("slug resolves to a demo");
+                assert_eq!(demo.category(), *cat, "leaf grouped under its own category");
+            }
         }
     }
 }

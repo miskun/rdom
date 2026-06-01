@@ -59,6 +59,14 @@ pub(super) fn paint_tree_guides(dom: &Dom<TuiExt>, buf: &mut Buffer, clip: Rect)
     let mut trees = Vec::new();
     collect_trees(dom, dom.root(), &mut trees);
     for tree in trees {
+        // The guide pass is a standalone walk, so — unlike `paint_node`
+        // — it doesn't inherit the per-`overflow` clip a scroll
+        // container imposes on its descendants. Re-derive it: narrow
+        // the viewport clip to the scrollport of every clipping
+        // ancestor. Without this a tree taller than an `overflow:
+        // auto` ancestor paints its `│` trunk straight through the
+        // container's bottom edge (see the regression test).
+        let tree_clip = clip_for_tree(dom, tree, clip);
         // Full-width span of the tree's content box — row highlights
         // fill from here to the right edge so the selected/cursor bg
         // runs under the guide gutter, not just the indented box.
@@ -66,11 +74,37 @@ pub(super) fn paint_tree_guides(dom: &Dom<TuiExt>, buf: &mut Buffer, clip: Rect)
             .node(tree)
             .content_layout_rect()
             .map(|r| (r.x, r.x + r.width as i32))
-            .unwrap_or((clip.x as i32, clip.right() as i32));
+            .unwrap_or((tree_clip.x as i32, tree_clip.right() as i32));
         for item in treeitem_children(dom, tree) {
-            paint_item(dom, item, buf, clip, &[], span);
+            paint_item(dom, item, buf, tree_clip, &[], span);
         }
     }
+}
+
+/// Narrow `base_clip` to the scrollport (padding-box, per CSS
+/// Overflow 3 §3) of every clipping ancestor of `tree`, including the
+/// tree itself. Mirrors `paint_node`'s `children_clip` rule so guides
+/// painted by this standalone pass respect the same overflow clipping
+/// the main walk applies to a scroll container's descendants.
+fn clip_for_tree(dom: &Dom<TuiExt>, tree: NodeId, base_clip: Rect) -> Rect {
+    use crate::layout::Overflow;
+    let mut clip = base_clip;
+    let mut cur = Some(tree);
+    while let Some(id) = cur {
+        if let Some(computed) = dom.node(id).ext().and_then(|e| e.computed.as_ref()) {
+            let clips = !matches!(computed.overflow_x, Overflow::Visible)
+                || !matches!(computed.overflow_y, Overflow::Visible);
+            if clips && let Some(outer) = dom.node(id).layout_rect() {
+                let padding_box = rdom_style::layout::compute_padding_box(outer, computed.border);
+                clip = match super::layout_rect_to_grid(padding_box, clip) {
+                    Some(grid) => clip.intersection(grid),
+                    None => return Rect::new(clip.x, clip.y, 0, 0),
+                };
+            }
+        }
+        cur = dom.node(id).parent_node().map(|p| p.id());
+    }
+    clip
 }
 
 fn collect_trees(dom: &Dom<TuiExt>, id: NodeId, out: &mut Vec<NodeId>) {
@@ -103,15 +137,35 @@ fn paint_item(
     let row_y = rect.y;
     let color = guide_color(dom, item);
 
+    // The item's own label can wrap to multiple rows. Guides span the
+    // LABEL rows only — never the child group, whose rows the
+    // recursion handles via the ancestor-trunk stack. `label_height`
+    // is the gap between this item's top and its (visible) child
+    // group's top, or the full item height when there's no group
+    // (e.g. a wrapped leaf). Without spanning these rows the `│`
+    // trunk breaks wherever a sibling's label wrapped.
+    let label_height = match child_group(dom, item) {
+        Some(g) if !is_hidden(dom, g) => dom
+            .node(g)
+            .layout_rect()
+            .map(|gr| (gr.y - rect.y).max(1))
+            .unwrap_or(rect.height as i32),
+        _ => (rect.height as i32).max(1),
+    };
+
     // Row-background highlight. The cascade sets a non-`Reset` `bg`
     // only on the selected (`aria-selected`) / cursor
     // (`[role=tree]:focus [data-rdom-active]`) row, so reading
     // `computed.bg` covers both — and the cursor case is already
     // focus-gated by the selector. Fill the FULL tree-width row
     // (set `bg` only, preserving the label glyphs painted in the
-    // main walk and the guide glyphs the joiner draws after).
+    // main walk and the guide glyphs the joiner draws after). Fill
+    // every label row so a wrapped cursor/selected row highlights
+    // fully, not just its first line.
     if let Some(bg) = row_highlight(dom, item) {
-        fill_row_bg(buf, clip, span, row_y, bg);
+        for dy in 0..label_height {
+            fill_row_bg(buf, clip, span, row_y + dy, bg);
+        }
     }
 
     // Expand/collapse arrow in the treeitem's reserved arrow field
@@ -121,16 +175,20 @@ fn paint_item(
     // unloaded lazy branch still shows an arrow). Full-cell `▼`/`▶`,
     // painted in the guide color. Painted here rather than via
     // `::before` to dodge the mixed-content pseudo gap
-    // (TREE-BFC-PSEUDO-1).
+    // (TREE-BFC-PSEUDO-1). First label row only.
     if let Some(expanded) = dom.node(item).get_attribute("aria-expanded") {
         let glyph = if expanded == "true" { "▼" } else { "▶" };
         put_glyph(buf, clip, rect.x, row_y, glyph, color);
     }
 
-    // Ancestor trunks at this row.
+    // Ancestor trunks — `│` at each continuing ancestor's column,
+    // drawn across EVERY label row so the trunk doesn't break where
+    // this item's label wrapped.
     for &(col, continues) in trunks {
         if continues {
-            put(buf, clip, col as i32, row_y, &[DIR_N, DIR_S], color);
+            for dy in 0..label_height {
+                put(buf, clip, col as i32, row_y + dy, &[DIR_N, DIR_S], color);
+            }
         }
     }
 
@@ -152,6 +210,13 @@ fn paint_item(
             &[DIR_N, DIR_E, DIR_S]
         };
         put(buf, clip, own_col, row_y, connector, color);
+        // Continue the `│` down through any wrapped label rows so a
+        // non-last item's trunk reaches its child group / next sibling.
+        if !is_last {
+            for dy in 1..label_height {
+                put(buf, clip, own_col, row_y + dy, &[DIR_N, DIR_S], color);
+            }
+        }
     }
 
     // Recurse into the child group, extending the trunk stack with

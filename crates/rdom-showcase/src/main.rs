@@ -19,8 +19,8 @@ use std::process::ExitCode;
 use std::rc::Rc;
 
 use rdom_showcase::{
-    DEMOS, ShowcaseState, build_shell, mount_demo, shell::base_stylesheet,
-    wire_mouse_position_indicator, wire_scroll_indicator, wire_sidebar_click, wire_sidebar_keys,
+    DEMOS, ShowcaseState, build_shell, mount_demo, seed_tree_cursor, shell::base_stylesheet,
+    wire_mouse_position_indicator, wire_scroll_indicator, wire_sidebar_click,
 };
 use rdom_tui::{App, TuiDom};
 
@@ -116,15 +116,21 @@ fn run(initial_idx: usize) -> std::io::Result<()> {
 
     // Initial mount: deep-linked demo (default 0).
     mount_demo(&mut state.borrow_mut(), &mut dom, initial_idx);
+    // Seed the ARIA tree's active-descendant cursor onto the mounted
+    // demo so the navigator boots already highlighting "where you
+    // are" (and a CLI `--demo <slug>` deep-link expands + points at
+    // its row). The tree built-in owns the cursor after the first
+    // arrow / click.
+    seed_tree_cursor(&mut dom, handles.sidebar, initial_idx);
 
     // Sidebar click handler — walks up from the click target to
-    // find the `<li>` with `data-demo-slug`, then swaps demos.
+    // find the `<li>` with `data-demo-slug`, then swaps demos. The
+    // ARIA tree built-in dispatches a bubbling `click` on the active
+    // treeitem for BOTH pointer and keyboard (Enter / Space)
+    // activation, so this single listener covers mouse and keyboard
+    // — the arrows / Home / End / expand / collapse + the
+    // active-descendant cursor all come from `runtime::builtins::tree`.
     wire_sidebar_click(&mut dom, handles.sidebar, Rc::clone(&state));
-    // Sidebar keyboard handler — Arrow keys to navigate between
-    // demo `<li>`s, Enter / Space to activate the focused one.
-    // Tab / Shift+Tab is handled by the runtime's built-in
-    // focus traversal (the `<li>`s carry `tabindex="0"`).
-    wire_sidebar_keys(&mut dom, handles.sidebar, Rc::clone(&state));
     // Scroll listener — writes scroll info into the LEFT slot of
     // the status bar (the hints slot) whenever any scrollable
     // descendant of `<main>` fires a scroll event.

@@ -329,124 +329,83 @@ fn find_demo_idx_from_target(dom: &TuiDom, start: NodeId) -> Option<usize> {
     None
 }
 
-/// Install the sidebar's keyboard handler. Listens on the sidebar
-/// for `keydown` and handles:
-///
-/// - `ArrowDown` / `ArrowUp` — move focus between sidebar `<li>`s
-///   in document order. Wraps at edges.
-/// - `Enter` / `Space` — activate the focused `<li>` (mount that
-///   demo). Equivalent to clicking it.
-///
-/// Doesn't fight the runtime's `Tab` / `Shift+Tab` traversal —
-/// that already handles moving focus between focusable elements
-/// (the `<li>`s carry `tabindex="0"` so they participate).
-///
-/// **Known gap (M7 polish):** ArrowDown / ArrowUp on a focused
-/// `<summary>` (category header) is a no-op — focus stays where
-/// it is. ARIA authoring practice would say ArrowDown from a
-/// category `<summary>` should descend into that category's
-/// first `<li>`, and ArrowUp from the first `<li>` should rise
-/// to its parent `<summary>`. Not wired because (a) the `<li>`s
-/// are reachable via Tab regardless, (b) the right shape needs
-/// real `aria-expanded` / `aria-tree` semantics that haven't
-/// landed yet. Defer to M7 (showcase polish).
-pub fn wire_sidebar_keys(dom: &mut TuiDom, sidebar: NodeId, state: Rc<RefCell<ShowcaseState>>) {
-    dom.add_event_listener(sidebar, "keydown", ListenerOptions::default(), move |ctx| {
-        let Some(focused) = ctx.dom.focused() else {
-            return;
-        };
-        // Only act when focus is on a demo `<li>`.
-        let Some(focused_idx) = find_demo_idx_from_target(ctx.dom, focused) else {
-            return;
-        };
-        // Read the key from the event detail (set by the
-        // runtime's keyboard router).
-        let key = ctx
-            .event
-            .detail
-            .as_keyboard()
-            .map(|k| k.key.as_str())
-            .unwrap_or("");
-        match key {
-            "ArrowDown" => {
-                if let Some(next) = next_demo_li(ctx.dom, focused, sidebar, Direction::Down) {
-                    ctx.dom.set_focused(Some(next));
-                    ctx.event.prevent_default();
-                }
-            }
-            "ArrowUp" => {
-                if let Some(prev) = next_demo_li(ctx.dom, focused, sidebar, Direction::Up) {
-                    ctx.dom.set_focused(Some(prev));
-                    ctx.event.prevent_default();
-                }
-            }
-            "Enter" | " " => {
-                mount_demo(&mut state.borrow_mut(), ctx.dom, focused_idx);
-                ctx.event.prevent_default();
-            }
-            _ => {}
-        }
-    })
-    .expect("sidebar is a valid node");
-}
+/// The active-descendant cursor attribute used by the ARIA tree
+/// built-in (`runtime::builtins::tree`). The showcase only seeds it
+/// once at boot; the built-in owns it thereafter.
+const ACTIVE_ATTR: &str = "data-rdom-active";
 
-#[derive(Copy, Clone)]
-enum Direction {
-    Up,
-    Down,
-}
-
-/// Collect every `<li data-demo-slug>` under `sidebar` in document
-/// order, find `current`'s position, return the neighbor in
-/// `direction`. Wraps.
+/// Seed the sidebar tree's active-descendant cursor onto the leaf
+/// for `demo_idx`, expanding any collapsed ancestor branches so the
+/// row is visible.
 ///
-/// Cost: O(sidebar subtree size) per keystroke — we re-walk the
-/// sidebar on every arrow because the tree can mutate (collapsing
-/// a `<details>` category, dynamically adding demos at runtime).
-/// At the showcase's scale (~tens of demos, two-level tree) this
-/// is unmeasurable; if we ever ship hundreds of demos, cache the
-/// list and invalidate on a `MutationObserver` listening for
-/// `ChildListChanged` under the sidebar.
-fn next_demo_li(
-    dom: &TuiDom,
-    current: NodeId,
-    sidebar: NodeId,
-    direction: Direction,
-) -> Option<NodeId> {
-    let lis = collect_demo_lis(dom, sidebar);
-    if lis.is_empty() {
-        return None;
-    }
-    let cur_pos = lis.iter().position(|&id| id == current)?;
-    let next_pos = match direction {
-        Direction::Down => (cur_pos + 1) % lis.len(),
-        Direction::Up => {
-            if cur_pos == 0 {
-                lis.len() - 1
-            } else {
-                cur_pos - 1
-            }
-        }
+/// The ARIA tree built-in moves the `data-rdom-active` cursor on
+/// every arrow / click and highlights it while the `[role=tree]`
+/// container holds focus. But on a cold boot (and after a CLI
+/// `--demo <slug>` deep-link) no interaction has happened yet, so
+/// nothing is marked and the highlight wouldn't show until the
+/// first arrow press. This seeds the cursor on the mounted demo so
+/// the navigator boots already pointing at "where you are" — and so
+/// the first ArrowDown advances to the *next* row rather than
+/// snapping to the top.
+///
+/// Called once from `main::run` after the initial mount. The
+/// built-in takes over from there; we don't re-seed on every
+/// `mount_demo`, because runtime mounts come *from* a tree
+/// activation that already moved the cursor.
+pub fn seed_tree_cursor(dom: &mut TuiDom, sidebar: NodeId, demo_idx: usize) {
+    let slug = DEMOS[demo_idx].slug();
+    let Some(leaf) = find_leaf_by_slug(dom, sidebar, slug) else {
+        return;
     };
-    Some(lis[next_pos])
-}
 
-/// Document-order walk of `<li data-demo-slug>` under `sidebar`.
-fn collect_demo_lis(dom: &TuiDom, sidebar: NodeId) -> Vec<NodeId> {
-    let mut out = Vec::new();
-    walk(dom, sidebar, &mut out);
-    out
-}
-
-fn walk(dom: &TuiDom, id: NodeId, out: &mut Vec<NodeId>) {
-    if dom.node(id).tag_name() == Some("li")
-        && dom.node(id).get_attribute("data-demo-slug").is_some()
+    // Clear any stale cursor, then mark the target leaf.
+    if let Some(prev) = find_active(dom, sidebar)
+        && prev != leaf
     {
-        out.push(id);
+        let _ = dom.remove_attribute(prev, ACTIVE_ATTR);
     }
-    for child in dom.node(id).child_nodes() {
-        walk(dom, child.id(), out);
+    let _ = dom.set_attribute(leaf, ACTIVE_ATTR, "");
+
+    // Expand every ancestor branch treeitem so the leaf is visible.
+    let mut cur = dom.node(leaf).parent_node().map(|p| p.id());
+    while let Some(id) = cur {
+        let role = dom.node(id).get_attribute("role").map(str::to_string);
+        let is_branch = dom.node(id).has_attribute("aria-expanded");
+        if role.as_deref() == Some("treeitem") && is_branch {
+            let _ = dom.set_attribute(id, "aria-expanded", "true");
+        }
+        if role.as_deref() == Some("tree") {
+            break;
+        }
+        cur = dom.node(id).parent_node().map(|p| p.id());
     }
+}
+
+/// First `<li data-demo-slug=slug>` under `root`, document order.
+fn find_leaf_by_slug(dom: &TuiDom, root: NodeId, slug: &str) -> Option<NodeId> {
+    let node = dom.node(root);
+    if node.tag_name() == Some("li") && node.get_attribute("data-demo-slug") == Some(slug) {
+        return Some(root);
+    }
+    for child in node.child_nodes() {
+        if let Some(found) = find_leaf_by_slug(dom, child.id(), slug) {
+            return Some(found);
+        }
+    }
+    None
+}
+
+/// First element under `root` carrying the active-descendant marker.
+fn find_active(dom: &TuiDom, root: NodeId) -> Option<NodeId> {
+    for child in dom.node(root).child_nodes() {
+        if child.has_attribute(ACTIVE_ATTR) {
+            return Some(child.id());
+        }
+        if let Some(found) = find_active(dom, child.id()) {
+            return Some(found);
+        }
+    }
+    None
 }
 
 #[cfg(test)]
@@ -531,49 +490,89 @@ mod tests {
     }
 
     #[test]
-    fn next_demo_li_arrow_down_walks_forward_in_document_order() {
-        // Sidebar groups demos by category; arrow-down should
-        // traverse `<li data-demo-slug>` in document order
-        // regardless of which `<details>` they sit under.
+    fn seed_tree_cursor_marks_mounted_demo_leaf() {
+        // Boot-time seeding: the cursor lands on the leaf for the
+        // given demo, so the navigator highlights "where you are"
+        // before any arrow press.
         let mut dom: TuiDom = TuiDom::new();
         let handles = build_shell(&mut dom);
-        let lis = collect_demo_lis(&dom, handles.sidebar);
+
+        let idx = 0;
+        seed_tree_cursor(&mut dom, handles.sidebar, idx);
+
+        let active = find_active(&dom, handles.sidebar).expect("a leaf is marked active");
         assert_eq!(
-            lis.len(),
-            crate::DEMOS.len(),
-            "one focusable <li> per registered demo"
+            dom.node(active).get_attribute("data-demo-slug"),
+            Some(DEMOS[idx].slug()),
+            "the active-descendant cursor is on the mounted demo's leaf"
         );
-
-        let after_first =
-            next_demo_li(&dom, lis[0], handles.sidebar, Direction::Down).expect("has next");
-        assert_eq!(after_first, lis[1]);
     }
 
     #[test]
-    fn next_demo_li_arrow_down_wraps_at_end() {
+    fn seed_tree_cursor_expands_collapsed_ancestor_branches() {
+        // A deep-linked demo whose category branch was collapsed
+        // must become visible: seeding expands every ancestor
+        // branch treeitem.
         let mut dom: TuiDom = TuiDom::new();
         let handles = build_shell(&mut dom);
-        let lis = collect_demo_lis(&dom, handles.sidebar);
-        let last = *lis.last().expect("at least one demo");
 
-        let after_last =
-            next_demo_li(&dom, last, handles.sidebar, Direction::Down).expect("wraps to first");
-        assert_eq!(after_last, lis[0], "ArrowDown on the last item wraps");
-    }
+        // Pick a demo, find its leaf + parent branch, collapse it.
+        let idx = crate::DEMOS.len() - 1; // TreeNav, in Built-ins
+        let leaf = find_leaf_by_slug(&dom, handles.sidebar, DEMOS[idx].slug()).unwrap();
+        // Walk to the nearest ancestor branch treeitem.
+        let mut branch = dom.node(leaf).parent_node().map(|p| p.id());
+        while let Some(id) = branch {
+            let node = dom.node(id);
+            if node.get_attribute("role") == Some("treeitem") && node.has_attribute("aria-expanded")
+            {
+                break;
+            }
+            branch = node.parent_node().map(|p| p.id());
+        }
+        let branch = branch.expect("leaf has an ancestor branch");
+        dom.set_attribute(branch, "aria-expanded", "false").unwrap();
 
-    #[test]
-    fn next_demo_li_arrow_up_wraps_at_start() {
-        let mut dom: TuiDom = TuiDom::new();
-        let handles = build_shell(&mut dom);
-        let lis = collect_demo_lis(&dom, handles.sidebar);
-        let first = lis[0];
+        seed_tree_cursor(&mut dom, handles.sidebar, idx);
 
-        let before_first =
-            next_demo_li(&dom, first, handles.sidebar, Direction::Up).expect("wraps to last");
         assert_eq!(
-            before_first,
-            *lis.last().unwrap(),
-            "ArrowUp on the first item wraps"
+            dom.node(branch).get_attribute("aria-expanded"),
+            Some("true"),
+            "seeding re-expands the collapsed ancestor branch"
+        );
+    }
+
+    #[test]
+    fn seed_tree_cursor_moves_a_stale_cursor() {
+        // Re-seeding clears the previous active marker so exactly
+        // one leaf is ever the cursor.
+        let mut dom: TuiDom = TuiDom::new();
+        let handles = build_shell(&mut dom);
+
+        seed_tree_cursor(&mut dom, handles.sidebar, 0);
+        seed_tree_cursor(&mut dom, handles.sidebar, 1);
+
+        // Count every node carrying the marker under the sidebar.
+        fn count_active(dom: &TuiDom, id: NodeId) -> usize {
+            let mut n = if dom.node(id).has_attribute(ACTIVE_ATTR) {
+                1
+            } else {
+                0
+            };
+            for c in dom.node(id).child_nodes() {
+                n += count_active(dom, c.id());
+            }
+            n
+        }
+        assert_eq!(
+            count_active(&dom, handles.sidebar),
+            1,
+            "exactly one leaf carries the active-descendant cursor after re-seeding"
+        );
+        let active = find_active(&dom, handles.sidebar).unwrap();
+        assert_eq!(
+            dom.node(active).get_attribute("data-demo-slug"),
+            Some(DEMOS[1].slug()),
+            "the cursor moved to the most recently seeded demo"
         );
     }
 

@@ -95,6 +95,103 @@ fn tree_guides_draw_connectors_and_trunks() {
 }
 
 #[test]
+fn tree_guides_clip_to_an_overflow_hidden_ancestor() {
+    // Regression (TREE-2): a tree taller than a clipping ancestor —
+    // e.g. an `overflow: auto` sidebar shorter than its content —
+    // must not paint its guide trunk / connectors below the
+    // ancestor's scrollport. The guide pass runs as a standalone
+    // walk AFTER the main paint, so it has to re-derive the
+    // per-`overflow` clip the main walk applies to descendants
+    // (CSS Overflow 3 §3: scrollport = padding-box). Without it the
+    // `│` trunk bleeds straight through the container's bottom edge
+    // into whatever sits below (in the showcase: the panel border +
+    // status bar).
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+
+    let wrap = dom.create_element("div");
+    dom.set_attribute(wrap, "class", "wrap").unwrap();
+    dom.append_child(root, wrap).unwrap();
+
+    let tree = dom.create_element("ul");
+    dom.set_attribute(tree, "role", "tree").unwrap();
+    dom.append_child(wrap, tree).unwrap();
+
+    let branch = treeitem(&mut dom, "Branch", &[("aria-expanded", "true")]);
+    dom.append_child(tree, branch).unwrap();
+    let group = dom.create_element("ul");
+    dom.set_attribute(group, "role", "group").unwrap();
+    dom.append_child(branch, group).unwrap();
+    for name in ["one", "two", "three", "four", "five"] {
+        let li = treeitem(&mut dom, name, &[]);
+        dom.append_child(group, li).unwrap();
+    }
+
+    // Wrapper clips at 3 rows; the tree is 6 rows tall. Viewport is
+    // taller so any bleed below the clip lands in addressable cells.
+    let sheet = rdom_css::from_css(".wrap { height: 3; overflow: hidden; }");
+    let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 24, 8));
+
+    for y in 3..8 {
+        let line = row(&buf, y);
+        assert!(
+            !line.contains('│') && !line.contains('├') && !line.contains('└'),
+            "guide glyph leaked below the overflow:hidden clip at row {y}: {line:?}"
+        );
+    }
+}
+
+#[test]
+fn tree_guides_continue_through_a_wrapped_label() {
+    // Regression (TREE-2): when a non-last treeitem's label wraps to
+    // multiple rows, the connecting `│` trunk must continue through
+    // the wrapped rows down to the next sibling — otherwise the guide
+    // visibly breaks at the wrap. Spotted in the showcase sidebar:
+    // "DOM API walkthrough" wrapped and split the trunk. Guides used
+    // to paint only at `rect.y` (the item's first row).
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let tree = dom.create_element("ul");
+    dom.set_attribute(tree, "role", "tree").unwrap();
+    dom.append_child(root, tree).unwrap();
+
+    let branch = treeitem(&mut dom, "Cat", &[("aria-expanded", "true")]);
+    dom.append_child(tree, branch).unwrap();
+    let group = dom.create_element("ul");
+    dom.set_attribute(group, "role", "group").unwrap();
+    dom.append_child(branch, group).unwrap();
+    // A long label that wraps in a narrow viewport, followed by a
+    // sibling so the wrapped item is NOT last — its trunk must
+    // continue down through the wrapped rows to reach the sibling.
+    let long = treeitem(&mut dom, "alpha beta gamma", &[]);
+    let short = treeitem(&mut dom, "z", &[]);
+    dom.append_child(group, long).unwrap();
+    dom.append_child(group, short).unwrap();
+
+    let buf = pipeline(&mut dom, &Stylesheet::new(), Rect::new(0, 0, 12, 8));
+
+    let lrect = dom.node(long).layout_rect().unwrap();
+    assert!(
+        lrect.height >= 2,
+        "label should wrap to >=2 rows at width 12 (got {})",
+        lrect.height
+    );
+    // Connector column = box left minus the 2-cell indent step.
+    let own_col = (lrect.x - 2) as u16;
+    for dy in 1..lrect.height {
+        let y = (lrect.y + dy as i32) as u16;
+        let sym = buf
+            .cell(own_col, y)
+            .map(|c| c.symbol().to_string())
+            .unwrap_or_default();
+        assert!(
+            sym == "│" || sym == "├",
+            "trunk broke at wrapped row y={y}, col={own_col}: expected vertical guide, got {sym:?}"
+        );
+    }
+}
+
+#[test]
 fn tree_guides_continue_trunk_past_expanded_nonlast_branch() {
     // A non-last branch that is open: the trunk `│` must continue at
     // the branch's column through its children's rows down to the

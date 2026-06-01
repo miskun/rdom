@@ -9,7 +9,7 @@ use crossterm::event::{
 };
 use rdom_showcase::{
     DEMOS, ShowcaseState, build_shell, mount_demo, shell::base_stylesheet, wire_focus_hints,
-    wire_scroll_indicator, wire_sidebar_click, wire_sidebar_keys,
+    wire_scroll_indicator, wire_sidebar_click,
 };
 use rdom_tui::node::TuiNodeExt;
 use rdom_tui::render::{Terminal, TestBackend};
@@ -54,7 +54,6 @@ fn expand_collapse_expand_via_mouse_router() {
     mount_demo(&mut state.borrow_mut(), &mut dom, 0);
 
     wire_sidebar_click(&mut dom, handles.sidebar, Rc::clone(&state));
-    wire_sidebar_keys(&mut dom, handles.sidebar, Rc::clone(&state));
     wire_scroll_indicator(&mut dom, handles.main, handles.status_bar);
     wire_focus_hints(&mut dom, handles.status_bar);
 

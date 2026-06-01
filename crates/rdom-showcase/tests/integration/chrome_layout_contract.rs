@@ -59,6 +59,53 @@ fn find_by_class(dom: &TuiDom, id: NodeId, class: &str) -> Option<NodeId> {
     None
 }
 
+/// Find the first `[role=<role>]` element under `id`.
+fn find_by_role(dom: &TuiDom, id: NodeId, role: &str) -> Option<NodeId> {
+    let n = dom.node(id);
+    if n.node_type() == NodeType::Element && n.get_attribute("role") == Some(role) {
+        return Some(id);
+    }
+    for c in n.child_nodes() {
+        if let Some(f) = find_by_role(dom, c.id(), role) {
+            return Some(f);
+        }
+    }
+    None
+}
+
+#[test]
+fn sidebar_tree_does_not_inherit_demo_stylesheet_padding() {
+    // The sidebar navigator is a `[role=tree]` in the chrome. Every
+    // demo stylesheet is pre-pushed onto the App at startup, so the
+    // chrome must NOT reuse a demo's class name — or that demo's
+    // class-scoped rules bleed onto it.
+    //
+    // Regression (TREE-2): the sidebar tree once carried
+    // `class="nav-tree"`, colliding with the tree_nav demo's
+    // `.nav-tree { padding: 1 2 }`. That rule pushed the whole
+    // sidebar nav in by (top 1, left 2) on top of the sidebar's own
+    // `padding-left: 1` — a visible 3-cell left / 1-row top inset
+    // that no chrome CSS asked for. A zero-padding tree has its
+    // content-box origin coincident with its border-box origin.
+    let (dom, handles) = shell_at(80, 24);
+    let tree = find_by_role(&dom, handles.sidebar, "tree").expect("sidebar has a [role=tree]");
+    let outer = dom
+        .node(tree)
+        .layout_rect()
+        .expect("tree has a layout rect");
+    let inner = dom
+        .node(tree)
+        .content_layout_rect()
+        .expect("tree has a content rect");
+    assert_eq!(
+        (inner.x, inner.y),
+        (outer.x, outer.y),
+        "sidebar tree must carry no padding (content origin == border origin); \
+         a non-zero inset means a demo stylesheet bled onto the chrome via a \
+         shared class name"
+    );
+}
+
 #[test]
 fn view_content_flex_grows_to_fill_main_with_source_at_bottom() {
     // Design intent: `view-content { flex: 1 }` should grab the

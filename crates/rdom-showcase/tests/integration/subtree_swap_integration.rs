@@ -25,12 +25,8 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use rdom_showcase::{
-    DEMOS, ShowcaseState, build_shell, mount_demo, wire_sidebar_click, wire_sidebar_keys,
-};
-use rdom_tui::{
-    Event, EventDetail, KeyboardDetail, KeyboardModifiers, NodeId, Position, Selection, TuiDom,
-};
+use rdom_showcase::{DEMOS, ShowcaseState, build_shell, mount_demo, wire_sidebar_click};
+use rdom_tui::{Event, NodeId, Position, Selection, TuiDom};
 
 /// Build shell + mount demo 0, returning the populated state +
 /// `<main>` handle. Common setup across the tests below.
@@ -222,13 +218,17 @@ fn swap_renders_clean_at_full_viewport() {
 
 // ─── End-to-end listener tests ──────────────────────────────────────
 //
-// These tests fire synthetic `click` / `keydown` events through
-// `Dom::dispatch_event` against a fully-wired showcase (build_shell
-// + wire_sidebar_click + wire_sidebar_keys) and assert that the
-// listener wiring actually swaps the mounted demo. Without these,
-// `mount_demo` and `next_demo_li` are unit-tested but the listeners
-// themselves — half of M3's deliverable — could be swapped /
-// reversed / disconnected without anything failing.
+// These tests fire synthetic `click` events through
+// `Dom::dispatch_event` against a showcase wired the way `main::run`
+// wires it (build_shell + wire_sidebar_click) and assert the click
+// path actually swaps the mounted demo. The ARIA tree built-in
+// (`runtime::builtins::tree`) routes BOTH pointer and keyboard
+// activation through a bubbling `click` on the active treeitem, so a
+// dispatched click is exactly the activation signal `wire_sidebar_click`
+// must turn into a mount. Keyboard navigation itself (arrows / Enter /
+// Space + the active-descendant cursor) is owned by the built-in and
+// exercised end-to-end against a real `App` in `keyboard_nav.rs`,
+// where its keydown listeners are actually installed.
 
 /// Find the first `<li data-demo-slug="…">` under `sidebar` whose
 /// slug matches the demo at `demo_idx`. Used to target synthetic
@@ -258,7 +258,6 @@ fn wired_setup() -> (TuiDom, Rc<RefCell<ShowcaseState>>, NodeId) {
     let state = Rc::new(RefCell::new(ShowcaseState::from_handles(&handles)));
     mount_demo(&mut state.borrow_mut(), &mut dom, 0);
     wire_sidebar_click(&mut dom, handles.sidebar, Rc::clone(&state));
-    wire_sidebar_keys(&mut dom, handles.sidebar, Rc::clone(&state));
     (dom, state, handles.sidebar)
 }
 
@@ -299,142 +298,41 @@ fn click_on_text_inside_li_bubbles_up_and_mounts() {
 }
 
 #[test]
-fn click_on_summary_does_not_mount_anything() {
-    // Clicking a category <summary> toggles the <details> open
-    // state; it must NOT trigger a demo swap. Pins Finding 7:
-    // only <li> elements with data-demo-slug fire mount_demo.
+fn click_on_category_branch_does_not_mount_anything() {
+    // Clicking a category branch treeitem toggles its expanded
+    // state (handled by the tree built-in); it must NOT trigger a
+    // demo swap. Only treeitems carrying `data-demo-slug` (the
+    // leaves) fire `mount_demo` — a branch's ancestor walk finds no
+    // slug and bails.
     let (mut dom, state, sidebar) = wired_setup();
     let initial = state.borrow().current_idx;
 
-    // Find the first <summary> under the sidebar.
+    // Find the first branch treeitem (has aria-expanded, no slug).
     let mut stack = vec![sidebar];
-    let summary = loop {
-        let id = stack.pop().expect("sidebar has a summary somewhere");
-        if dom.node(id).tag_name() == Some("summary") {
+    let branch = loop {
+        let id = stack
+            .pop()
+            .expect("sidebar has a branch treeitem somewhere");
+        let node = dom.node(id);
+        if node.get_attribute("role") == Some("treeitem")
+            && node.has_attribute("aria-expanded")
+            && node.get_attribute("data-demo-slug").is_none()
+        {
             break id;
         }
-        for child in dom.node(id).child_nodes() {
+        for child in node.child_nodes() {
             stack.push(child.id());
         }
     };
 
     let mut click = Event::new("click");
-    dom.dispatch_event(summary, &mut click).unwrap();
+    dom.dispatch_event(branch, &mut click).unwrap();
 
     assert_eq!(
         state.borrow().current_idx,
         initial,
-        "clicking <summary> must not change the mounted demo"
+        "clicking a category branch must not change the mounted demo"
     );
-}
-
-/// Build a `keydown` event with `key` as the only meaningful
-/// payload — modifiers default, repeat=false.
-fn keydown(key: &str) -> Event {
-    let mut e = Event::new("keydown");
-    e.detail = EventDetail::Keyboard(Box::new(KeyboardDetail {
-        key: key.to_string(),
-        modifiers: KeyboardModifiers::default(),
-        repeat: false,
-    }));
-    e
-}
-
-#[test]
-fn arrow_down_moves_focus_to_next_demo_li() {
-    let (mut dom, _state, sidebar) = wired_setup();
-    let first_li = find_li_for_demo(&dom, sidebar, 0);
-    let expected_next = find_li_for_demo(&dom, sidebar, 1);
-    dom.set_focused(Some(first_li));
-
-    let mut e = keydown("ArrowDown");
-    dom.dispatch_event(first_li, &mut e).unwrap();
-
-    assert_eq!(
-        dom.focused(),
-        Some(expected_next),
-        "ArrowDown moves focus to demo 1's <li>"
-    );
-}
-
-#[test]
-fn arrow_up_from_first_li_wraps_to_last() {
-    let (mut dom, _state, sidebar) = wired_setup();
-    let first_li = find_li_for_demo(&dom, sidebar, 0);
-    // The sidebar groups by category, so document order != registry
-    // order. ArrowUp wraps to the LAST <li> in document order, not
-    // the last entry in `DEMOS`.
-    let last_li = find_last_demo_li(&dom, sidebar);
-    dom.set_focused(Some(first_li));
-
-    let mut e = keydown("ArrowUp");
-    dom.dispatch_event(first_li, &mut e).unwrap();
-
-    assert_eq!(dom.focused(), Some(last_li), "ArrowUp on first <li> wraps");
-}
-
-/// Walk the sidebar in document order, return the last
-/// `<li data-demo-slug>`. Used by the wrap-to-last test, which
-/// can't assume registry order matches document order (demos are
-/// grouped by category in the sidebar).
-fn find_last_demo_li(dom: &TuiDom, sidebar: NodeId) -> NodeId {
-    let mut last = None;
-    walk_lis(dom, sidebar, &mut |id| last = Some(id));
-    last.expect("sidebar contains at least one demo <li>")
-}
-
-fn walk_lis(dom: &TuiDom, id: NodeId, visit: &mut impl FnMut(NodeId)) {
-    let node = dom.node(id);
-    if node.tag_name() == Some("li") && node.get_attribute("data-demo-slug").is_some() {
-        visit(id);
-    }
-    for child in node.child_nodes() {
-        walk_lis(dom, child.id(), visit);
-    }
-}
-
-#[test]
-fn enter_on_focused_li_mounts_that_demo() {
-    let (mut dom, state, sidebar) = wired_setup();
-    let target_li = find_li_for_demo(&dom, sidebar, 2);
-    dom.set_focused(Some(target_li));
-
-    let mut e = keydown("Enter");
-    dom.dispatch_event(target_li, &mut e).unwrap();
-
-    assert_eq!(
-        state.borrow().current_idx,
-        2,
-        "Enter on demo 2's <li> mounts demo 2"
-    );
-}
-
-#[test]
-fn space_on_focused_li_mounts_that_demo() {
-    // Space activates focused elements just like Enter, per ARIA
-    // / standard form control conventions.
-    let (mut dom, state, sidebar) = wired_setup();
-    let target_li = find_li_for_demo(&dom, sidebar, 1);
-    dom.set_focused(Some(target_li));
-
-    let mut e = keydown(" ");
-    dom.dispatch_event(target_li, &mut e).unwrap();
-
-    assert_eq!(state.borrow().current_idx, 1);
-}
-
-#[test]
-fn arrow_keys_without_focus_inside_sidebar_are_noop() {
-    let (mut dom, state, sidebar) = wired_setup();
-    let initial = state.borrow().current_idx;
-    // Focus is None — keydown listener should early-return.
-    assert!(dom.focused().is_none());
-
-    let mut e = keydown("ArrowDown");
-    dom.dispatch_event(sidebar, &mut e).unwrap();
-
-    assert_eq!(state.borrow().current_idx, initial);
-    assert!(dom.focused().is_none(), "no focus to move");
 }
 
 // ─── M7 D1 — source disclosure (<details>) ──────────────────────────
