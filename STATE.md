@@ -80,6 +80,51 @@ One piece of architectural debt deferred with teeth: `EVT-DETACH-1` (implicit bl
 
 ## Recent decisions
 
+### 2026-06-01 — TREE-1 initiative: native ARIA tree element (Step 0 design)
+
+New initiative on branch `feat/tree-element`: a first-class, browser-faithful tree for TUIs. Trees are the single most-requested TUI affordance (file browsers, k8s navigators, outline views) and have no HTML element — so we implement the **ARIA tree pattern** rather than inventing a `<tree>` tag, keeping the "HTML elements only" non-negotiable intact.
+
+**DOM shape (web-faithful):**
+```
+<ul role="tree">
+  <li role="treeitem" aria-expanded="true">Cluster
+    <ul role="group">
+      <li role="treeitem">node-1</li>
+      <li role="treeitem">node-2</li>
+    </ul>
+  </li>
+  <li role="treeitem">Other</li>
+</ul>
+```
+
+**State contract (all attribute-driven, recompute-from-DOM — no side tables):**
+
+| State | Attributes |
+| --- | --- |
+| Leaf | no `aria-expanded` |
+| Collapsed branch | `aria-expanded="false"` |
+| Expanded branch | `aria-expanded="true"` |
+| Loading branch | `aria-expanded="true"` + `aria-busy="true"` |
+| Selected | `aria-selected="true"` |
+| Cursor (active descendant) | internal `data-rdom-active` marker (module-managed) |
+
+Branch-ness keys on **presence** of `aria-expanded`, never child count — so a lazily-loaded branch with no children yet is still a branch (resolves the empty-vs-unloaded ambiguity). Lazy/async/filter/search are app-level: just DOM mutation, which the cascade/layout already re-runs. `aria-busy` is the loading hook; needs zero new selector machinery (`[role=treeitem][aria-busy=true]` already matches via existing attribute-value selectors).
+
+**Grumpy-architect blockers (raised pre-implementation) and resolutions:**
+- **B1 (guides computed in layout, paint stays dumb)** → Spike conclusion below refines this: structural geometry is derived in a focused, gated paint pass that reads layout rects + DOM structure (no recompute of layout/cascade), and **glyph selection stays in the existing generic `border_join` pass**. Paint declares "trunk passes here / connector here"; the joiner blits.
+- **B2 (single owner for indentation)** → one indentation model, documented, co-designed with the guide pass (below). `[role=group]` `padding-left` owns the indent; guides paint into that gutter.
+- **B3 (focus model chosen by analysis, not default)** → **`aria-activedescendant`**, not roving DOM focus. The `[role=tree]` container is the single tab stop and holds focus; the cursor row carries `data-rdom-active`; highlight keys on `[role=tree]:focus [data-rdom-active]` (dims on blur, matching lens). Avoids per-keystroke `focus_node()` churn — which fires blur/focusin/focusout and seeds editable carets (`focus/mod.rs:45-119`) — on large, arrow-spammed trees.
+- **B4 (lazy branch contract)** → covered by `aria-expanded` presence + `aria-busy`; Right/chevron on an `aria-expanded="true"` node with no children fires `toggle` (the app's load hook) rather than no-op.
+
+**Step 0 spike — guide-line rendering, CONCLUSION: reuse the border-contribution substrate (no throwaway proof needed).**
+The existing paint already does the hard part. `paint_border` records per-cell × per-direction `BorderContribution`s into `buf.border_dirs`, and `border_join::join_borders` (runs last in `paint_dom`) reconciles a 4-direction visible mask into `│ ├ └ ┌ ┼` glyphs via `SOLID_TABLE` (`paint_pass/border_join.rs:205`). So tree guides need **only** to emit N/E/S contributions at the gutter cells; the joiner produces the connectors for free, including color.
+- A new `paint_pass/tree_guides.rs` runs **after the main walk, before `join_borders`**, gated by a bottom-up `tree_has_role_tree` flag in `TuiExt` (mirrors the existing `tree_has_collapse` / `tree_has_positioned_pseudo` gates — no full-tree walk when no tree exists).
+- Per visible `treeitem` at depth `d`: at its row, write `├` (N+E+S) / `└` (N+E, when last child) at its immediate parent group's gutter column, and `│` (N+S) at each higher ancestor column whose ancestor is **not** its group's last child (`ancestor_continues`). Pure-CSS `border-left` was rejected: borders give the vertical `│` but cannot produce the eastward connector stub, and they shift content by a cell — confirmed via the column analysis, so approach (B) wins.
+- **Indentation model:** root `[role=tree]`'s direct children are depth 0 — chevron + label, no trunk. Connectors start at depth ≥ 1 (items inside a `[role=group]`). `[role=group]` carries `padding-left` = indent step; guides paint into that padding gutter. Chevron is a `::before` (`▾`/`▸`/leaf-space), part of inline content, exactly like `<details>`.
+- **Guide color is styleable via `border-color` on the treeitem** (guides are border-like; UA sets a muted default, authors retheme with `[role=treeitem] { border-color: … }`). New DIVERGENCES entry: `border-color` drives tree guides without an actual CSS border.
+
+Plan of record: Step 1 event/state contract → Step 2 UA defaults (`rdom-style/src/ua.rs`, bump pinned `ua.len()` at line 906) → Step 3 guide painter → Step 4 behavior module (`runtime/builtins/tree/{mod,keyboard,pointer,selection}.rs`, registered at `app/mod.rs:~298`) → Step 5 showcase demo incl. a fake 2s-lazy-load branch + `examples/tree_nav.rs` → review gates. Multi-select (reuses `<select>`'s anchor model) and large-tree virtualization deferred to TECH_DEBT. Built-in keyboard is Arrows + Home/End + Enter/Space only — no vi keys (`j`/`k`/`g`/`G` are app-level); every default action is `preventDefault`-overridable via the established builtin landing pattern.
+
 ### 2026-05-27 — BORDER-MODEL-1 initiative log
 
 **Goal:** replace `border-collapse`'s heuristic stack with a layered, browser-faithful model so CSS authors get expected results without surprising substrate side effects.
