@@ -322,6 +322,84 @@ fn scroll_metrics(dom: &TuiDom, element: NodeId, axis: ScrollAxis) -> (u16, usiz
 /// Set the scroll offset for `element` on `axis`, clamped to
 /// `[0, content - viewport]`. Returns the clamped value actually
 /// written. Viewport = padding-box per CSS Overflow 3 §3.
+/// Scroll the nearest vertically-scrollable ancestor of `node` so the
+/// viewport-coord region `reveal` becomes visible. Uses
+/// `block: "nearest"` alignment that never hides `reveal`'s TOP edge,
+/// so a navigation cursor row stays anchored — the ARIA listbox/tree
+/// pattern, and the browser's focus scroll-into-view. Vertical axis
+/// only for now; nested scroll containers resolve to the nearest one
+/// (sufficient for current widgets — revisit if a nested-scroller case
+/// appears).
+///
+/// Reuses [`set_scroll`], so the clamp to `[0, max]` and the `scroll`
+/// event dispatch are shared with wheel / scrollbar interaction.
+pub(crate) fn scroll_into_view(dom: &mut TuiDom, node: NodeId, reveal: LayoutRect) {
+    let mut cur = dom.node(node).parent_node().map(|p| p.id());
+    while let Some(id) = cur {
+        if is_vertical_scroll_container(dom, id) {
+            ensure_visible_vertical(dom, id, reveal);
+            return;
+        }
+        cur = dom.node(id).parent_node().map(|p| p.id());
+    }
+}
+
+/// `true` when `id` clips on the Y axis and has more content than its
+/// scrollport can show (i.e. there's somewhere to scroll to).
+fn is_vertical_scroll_container(dom: &TuiDom, id: NodeId) -> bool {
+    let Some(ext) = dom.node(id).tui_ext() else {
+        return false;
+    };
+    let overflow_y = dom
+        .node(id)
+        .computed()
+        .map(|c| c.overflow_y)
+        .unwrap_or(Overflow::Visible);
+    if matches!(overflow_y, Overflow::Visible) {
+        return false;
+    }
+    let border = dom
+        .node(id)
+        .computed()
+        .map(|c| c.border)
+        .unwrap_or_default();
+    let pb = rdom_style::layout::compute_padding_box(ext.layout, border);
+    ext.scroll_content_height > pb.height as usize
+}
+
+/// Adjust `container`'s vertical scroll so `reveal` is in the
+/// scrollport, anchoring `reveal`'s top edge (never scroll so far down
+/// that the top leaves the view).
+fn ensure_visible_vertical(dom: &mut TuiDom, container: NodeId, reveal: LayoutRect) {
+    let (port_top, port_bottom, cur_scroll) = {
+        let Some(ext) = dom.node(container).tui_ext() else {
+            return;
+        };
+        let border = dom
+            .node(container)
+            .computed()
+            .map(|c| c.border)
+            .unwrap_or_default();
+        let pb = rdom_style::layout::compute_padding_box(ext.layout, border);
+        (pb.y, pb.y + pb.height as i32, ext.scroll_y as i32)
+    };
+    let r_top = reveal.y;
+    let r_bottom = reveal.y + reveal.height as i32;
+    let delta = if r_top < port_top {
+        // Region above the scrollport — scroll up to reveal its top.
+        r_top - port_top
+    } else if r_bottom > port_bottom {
+        // Region below — scroll down just enough, but never past the
+        // top edge (so a region taller than the port aligns its top).
+        (r_bottom - port_bottom).min(r_top - port_top).max(0)
+    } else {
+        0
+    };
+    if delta != 0 {
+        set_scroll(dom, container, ScrollAxis::Vertical, cur_scroll + delta);
+    }
+}
+
 fn set_scroll(dom: &mut TuiDom, element: NodeId, axis: ScrollAxis, value: i32) -> usize {
     let (viewport, content_size) = {
         let ext = match dom.node(element).tui_ext() {

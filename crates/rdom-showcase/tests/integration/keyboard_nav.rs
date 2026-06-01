@@ -143,6 +143,80 @@ fn boot_focuses_the_tree_and_seeds_cursor_on_mounted_demo() {
 }
 
 #[test]
+fn arrowing_past_the_fold_keeps_the_cursor_in_view() {
+    // Keyboard nav must scroll the sidebar to keep the active-
+    // descendant cursor visible — the ARIA listbox/tree pattern and
+    // browser focus scroll-into-view. At a short viewport the sidebar
+    // overflows; arrowing the cursor down past the fold must scroll
+    // the sidebar so the cursor row stays within the scrollport
+    // instead of disappearing below it.
+    let (mut app, _state, handles) = build_app(Rect::new(0, 0, 80, 12));
+    let tree = nav_tree(app.dom(), handles.sidebar);
+    let total = visible_items(app.dom(), tree).len();
+
+    for step in 1..total {
+        app.handle_event(key_press(KeyCode::Down));
+        app.draw_if_dirty().unwrap();
+
+        let cursor = active_descendant(app.dom(), tree).expect("cursor exists");
+        let crect = app
+            .dom()
+            .node(cursor)
+            .ext()
+            .map(|e| e.layout)
+            .unwrap_or_default();
+        // The sidebar's visible content region (scrollport ≈ content box).
+        let port = app
+            .dom()
+            .node(handles.sidebar)
+            .ext()
+            .map(|e| e.content_layout)
+            .unwrap_or_default();
+        assert!(
+            crect.y >= port.y && crect.y < port.y + port.height as i32,
+            "after ArrowDown #{step}, cursor row (y={}) must stay within the sidebar \
+             scrollport [{}, {}) — scroll-into-view should follow the cursor",
+            crect.y,
+            port.y,
+            port.y + port.height as i32
+        );
+    }
+}
+
+#[test]
+fn end_then_home_scrolls_the_cursor_into_view_both_directions() {
+    // End jumps to the last item (scrolls down); Home jumps back to
+    // the first (scrolls up). Both must land the cursor in view.
+    let (mut app, _state, handles) = build_app(Rect::new(0, 0, 80, 12));
+    let tree = nav_tree(app.dom(), handles.sidebar);
+
+    let in_view = |app: &App<TestBackend>| {
+        let cursor = active_descendant(app.dom(), tree).unwrap();
+        let c = app
+            .dom()
+            .node(cursor)
+            .ext()
+            .map(|e| e.layout)
+            .unwrap_or_default();
+        let port = app
+            .dom()
+            .node(handles.sidebar)
+            .ext()
+            .map(|e| e.content_layout)
+            .unwrap_or_default();
+        c.y >= port.y && c.y < port.y + port.height as i32
+    };
+
+    app.handle_event(key_press(KeyCode::End));
+    app.draw_if_dirty().unwrap();
+    assert!(in_view(&app), "End must scroll the last row into view");
+
+    app.handle_event(key_press(KeyCode::Home));
+    app.draw_if_dirty().unwrap();
+    assert!(in_view(&app), "Home must scroll back up to the first row");
+}
+
+#[test]
 fn arrow_down_advances_the_cursor_one_visible_item_at_a_time() {
     let (mut app, _state, handles) = build_app(Rect::new(0, 0, 80, 24));
 

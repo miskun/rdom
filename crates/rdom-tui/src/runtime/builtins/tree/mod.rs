@@ -171,7 +171,8 @@ fn activate(dom: &mut TuiDom, item: NodeId) {
 }
 
 /// Move the `data-rdom-active` cursor to `item`, clearing it from
-/// the previously-active row in the same tree.
+/// the previously-active row in the same tree, then scroll the cursor
+/// into view.
 fn set_active(dom: &mut TuiDom, tree: NodeId, item: NodeId) {
     if let Some(prev) = active(dom, tree)
         && prev != item
@@ -179,6 +180,28 @@ fn set_active(dom: &mut TuiDom, tree: NodeId, item: NodeId) {
         let _ = dom.remove_attribute(prev, ACTIVE_ATTR);
     }
     let _ = dom.set_attribute(item, ACTIVE_ATTR, "");
+    scroll_active_into_view(dom, item);
+}
+
+/// Keep the active row visible when the cursor moves under keyboard
+/// nav (the ARIA tree/listbox pattern — `aria-activedescendant`
+/// doesn't auto-scroll, the widget must). Reveals only the item's
+/// LABEL row(s), not an expanded branch's child group, so arrowing
+/// onto a tall open branch doesn't scroll its whole subtree into view.
+fn scroll_active_into_view(dom: &mut TuiDom, item: NodeId) {
+    let Some(rect) = dom.node(item).ext().map(|e| e.layout) else {
+        return;
+    };
+    let label_height = if is_branch(dom, item) && is_expanded(dom, item) {
+        child_group(dom, item)
+            .and_then(|g| dom.node(g).ext().map(|e| e.layout))
+            .map(|gr| (gr.y - rect.y).max(1))
+            .unwrap_or(rect.height as i32)
+    } else {
+        (rect.height as i32).max(1)
+    };
+    let reveal = crate::layout::LayoutRect::new(rect.x, rect.y, rect.width, label_height as u16);
+    crate::runtime::scrollbar::scroll_into_view(dom, item, reveal);
 }
 
 // ── Structure queries ───────────────────────────────────────────
