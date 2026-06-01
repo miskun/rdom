@@ -453,6 +453,22 @@ fn lay_out_block_child(dom: &mut Dom<TuiExt>, child: NodeId, ctx: BlockPlace<'_>
     let outer_rect = LayoutRect::new(outer_x, outer_y, resolved.width, height);
     layout_node(dom, child, outer_rect);
 
+    // `layout_node` finalizes an `Auto` height via CSS 2.1 §10.6.3
+    // content measurement, which can exceed the pre-layout
+    // `resolve_block_height` estimate — notably for a mixed-content
+    // block (a text run + a block child), whose `intrinsic_size`
+    // walk counts element children only and so misses the text
+    // run's anonymous-block row. Advance the cursor by the child's
+    // ACTUAL laid-out height so the next sibling can't overlap it.
+    // Use the intended `outer_y` (not the written `rect.y`, which
+    // may carry a `position: relative` shift that must NOT move
+    // siblings).
+    let actual_height = dom
+        .node(child)
+        .layout_rect()
+        .map(|r| r.height)
+        .unwrap_or(height);
+
     if collapse_through {
         // Fold the outer bottom into the SAME accumulator and
         // leave y_cursor where it was. Next sibling's `gap`
@@ -463,7 +479,7 @@ fn lay_out_block_child(dom: &mut Dom<TuiExt>, child: NodeId, ctx: BlockPlace<'_>
         // Normal block: advance y_cursor past the child and reset
         // the accumulator to just this child's outer bottom margin.
         *margin_acc = outer_bottom;
-        outer_rect.bottom()
+        outer_y + actual_height as i32
     }
 }
 

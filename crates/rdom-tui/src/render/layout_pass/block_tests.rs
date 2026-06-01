@@ -2504,3 +2504,44 @@ fn block_gap_not_applied_before_first_or_after_last() {
     // Single child: no gap. y=0.
     assert_eq!(layout_of(&dom, a).y, 0);
 }
+
+/// Regression: a mixed-content block (text run + block child) must
+/// advance the next sibling past its FULL height, not just the text
+/// row. `intrinsic_size` counts element children only, so the
+/// pre-layout estimate under-measured mixed content and the sibling
+/// overlapped the inner block. The block cursor now advances by the
+/// child's actual laid-out height. Covers nested `<ul><li>text<ul>…`
+/// and the ARIA-tree branch case.
+#[test]
+fn mixed_content_block_advances_sibling_past_full_height() {
+    let mut dom = dom();
+    let root = dom.root();
+    let outer = dom.create_element("div");
+    dom.append_child(root, outer).unwrap();
+
+    let first = dom.create_element("div");
+    let ft = dom.create_text_node("FIRST");
+    dom.append_child(first, ft).unwrap();
+    let inner = dom.create_element("div");
+    let it = dom.create_text_node("INNER");
+    dom.append_child(inner, it).unwrap();
+    dom.append_child(first, inner).unwrap();
+    dom.append_child(outer, first).unwrap();
+
+    let second = dom.create_element("div");
+    let st = dom.create_text_node("SECOND");
+    dom.append_child(second, st).unwrap();
+    dom.append_child(outer, second).unwrap();
+
+    let sheet = Stylesheet::bare().rule_unchecked("div", TuiStyle::new().display(Display::Block));
+    dom.cascade(&sheet);
+    dom.layout_dom(Rect::new(0, 0, 20, 6));
+
+    assert_eq!(layout_of(&dom, first).height, 2, "first spans text + inner");
+    assert_eq!(layout_of(&dom, inner).y, 1, "inner sits below the text row");
+    assert_eq!(
+        layout_of(&dom, second).y,
+        2,
+        "sibling must clear first's full height, not overlap inner"
+    );
+}
