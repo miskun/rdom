@@ -315,7 +315,15 @@ fn paint_node(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect) {
         // fills clear glyphs from earlier paints (full CSS occlusion);
         // translucent fills set `cell.bg` only and let underlying
         // glyphs bleed through. See `border.rs::fill_bg` for the rule.
-        if computed.bg != Color::Reset {
+        // Tree rows defer their background to the guide pass
+        // (`tree_guides`), which fills the FULL row — including the
+        // guide gutter to the left of the indented box — so the
+        // `aria-selected` / cursor highlight spans edge to edge. A
+        // normal box fill here would both stop at the indented box's
+        // left edge AND tint the whole open subtree (the box
+        // contains the nested group).
+        let is_tree_row = dom.node(id).get_attribute("role") == Some("treeitem");
+        if computed.bg != Color::Reset && !is_tree_row {
             // For `border: half-block`, skip painting bg under the
             // border cells — the half-block paint relies on the
             // surrounding (parent) bg showing through the "empty"
@@ -330,14 +338,6 @@ fn paint_node(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect) {
             } else {
                 outer_grid
             };
-            // Tree row highlight: a `[role=treeitem]`'s box includes
-            // its nested `[role=group]` (the subtree), so a blanket
-            // bg fill would tint the whole open subtree. Clamp the
-            // fill to the item's own label row (treeitems are
-            // single-line) so `aria-selected` / `data-rdom-active`
-            // highlight just the row. Divergence noted in
-            // DIVERGENCES.md.
-            let fill_area = clamp_treeitem_row(dom, id, fill_area);
             fill_bg(buf, fill_area, computed.bg, computed.opacity);
         }
 
@@ -579,19 +579,6 @@ fn compute_border_priority(dom: &Dom<TuiExt>, id: NodeId) -> u64 {
 /// paint flow above — bg under half-block border cells must NOT
 /// be painted, so the parent's bg shows through the empty half of
 /// each half-block glyph (producing the pill silhouette).
-/// Clamp a `[role=treeitem]`'s background fill to its top (label)
-/// row. A treeitem nests its child `[role=group]` inside its own
-/// box, so the default full-box fill would tint the entire open
-/// subtree; tree rows are single-line, so the highlight is the top
-/// row. No-op for every other element.
-fn clamp_treeitem_row(dom: &Dom<TuiExt>, id: NodeId, area: Rect) -> Rect {
-    if dom.node(id).get_attribute("role") == Some("treeitem") {
-        Rect::new(area.x, area.y, area.width, area.height.min(1))
-    } else {
-        area
-    }
-}
-
 fn border_has_half_block(border: rdom_style::layout::Border) -> bool {
     use rdom_style::layout::BorderStyle;
     matches!(border.top, BorderStyle::HalfBlock)

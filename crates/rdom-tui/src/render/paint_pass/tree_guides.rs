@@ -59,8 +59,16 @@ pub(super) fn paint_tree_guides(dom: &Dom<TuiExt>, buf: &mut Buffer, clip: Rect)
     let mut trees = Vec::new();
     collect_trees(dom, dom.root(), &mut trees);
     for tree in trees {
+        // Full-width span of the tree's content box — row highlights
+        // fill from here to the right edge so the selected/cursor bg
+        // runs under the guide gutter, not just the indented box.
+        let span = dom
+            .node(tree)
+            .content_layout_rect()
+            .map(|r| (r.x, r.x + r.width as i32))
+            .unwrap_or((clip.x as i32, clip.right() as i32));
         for item in treeitem_children(dom, tree) {
-            paint_item(dom, item, buf, clip, &[]);
+            paint_item(dom, item, buf, clip, &[], span);
         }
     }
 }
@@ -84,6 +92,7 @@ fn paint_item(
     buf: &mut Buffer,
     clip: Rect,
     trunks: &[(u16, bool)],
+    span: (i32, i32),
 ) {
     if is_hidden(dom, item) {
         return;
@@ -93,6 +102,17 @@ fn paint_item(
     };
     let row_y = rect.y;
     let color = guide_color(dom, item);
+
+    // Row-background highlight. The cascade sets a non-`Reset` `bg`
+    // only on the selected (`aria-selected`) / cursor
+    // (`[role=tree]:focus [data-rdom-active]`) row, so reading
+    // `computed.bg` covers both — and the cursor case is already
+    // focus-gated by the selector. Fill the FULL tree-width row
+    // (set `bg` only, preserving the label glyphs painted in the
+    // main walk and the guide glyphs the joiner draws after).
+    if let Some(bg) = row_highlight(dom, item) {
+        fill_row_bg(buf, clip, span, row_y, bg);
+    }
 
     // Expand/collapse arrow in the treeitem's reserved arrow field
     // (`padding-left: 2` ⇒ label starts at `rect.x + 2`, arrow at
@@ -145,7 +165,7 @@ fn paint_item(
             child_trunks.push((own_col as u16, !is_last));
         }
         for child in treeitem_children(dom, group) {
-            paint_item(dom, child, buf, clip, &child_trunks);
+            paint_item(dom, child, buf, clip, &child_trunks, span);
         }
     }
 }
@@ -173,6 +193,34 @@ fn put(buf: &mut Buffer, clip: Rect, x: i32, y: i32, dirs: &[usize], color: Colo
                 side: BorderSide::Top,
             },
         );
+    }
+}
+
+/// The row-highlight background for `item`, or `None` when the row
+/// isn't highlighted. Sourced from the cascaded `bg` (selected /
+/// focus-gated cursor — see the UA `[role=…]` rules).
+fn row_highlight(dom: &Dom<TuiExt>, item: NodeId) -> Option<Color> {
+    let bg = dom.node(item).computed().map(|c| c.bg)?;
+    (bg != Color::Reset).then_some(bg)
+}
+
+/// Set `bg` on every cell of `[left, right)` at row `y` (clipped),
+/// preserving each cell's symbol/fg — so the highlight runs under
+/// the label and the guide glyphs without erasing them.
+fn fill_row_bg(buf: &mut Buffer, clip: Rect, span: (i32, i32), y: i32, bg: Color) {
+    if y < 0 {
+        return;
+    }
+    let yu = y as u16;
+    if yu < clip.y || yu >= clip.bottom() {
+        return;
+    }
+    let x0 = span.0.max(clip.x as i32).max(0) as u16;
+    let x1 = span.1.min(clip.right() as i32).max(0) as u16;
+    for x in x0..x1 {
+        if let Some(cell) = buf.cell_mut(x, yu) {
+            cell.set_bg(bg);
+        }
     }
 }
 

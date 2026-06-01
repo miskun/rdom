@@ -156,39 +156,43 @@ fn tree_collapsed_branch_hides_children_and_shows_collapsed_chevron() {
 }
 
 #[test]
-fn tree_active_row_highlight_clamps_to_label_row() {
-    // The active row's bg must fill ONLY the label row, not the
-    // whole (open) subtree box.
+fn tree_active_row_highlight_spans_full_width_under_guides() {
+    // The cursor row's bg must fill the WHOLE row — including the
+    // guide gutter to the left of the indented box — and must NOT
+    // bleed onto other rows (the open subtree).
     let mut dom = TuiDom::new();
     let root = dom.root();
     let tree = dom.create_element("ul");
     dom.set_attribute(tree, "role", "tree").unwrap();
     dom.append_child(root, tree).unwrap();
 
-    let a = treeitem(
-        &mut dom,
-        "A",
-        &[("aria-expanded", "true"), ("data-rdom-active", "")],
-    );
+    let a = treeitem(&mut dom, "A", &[("aria-expanded", "true")]);
     dom.append_child(tree, a).unwrap();
     let ag = dom.create_element("ul");
     dom.set_attribute(ag, "role", "group").unwrap();
     dom.append_child(a, ag).unwrap();
-    let child = treeitem(&mut dom, "child", &[]);
+    // The cursor is on the depth-1 child, which has a connector in
+    // col 0 (its box starts at col 2).
+    let child = treeitem(&mut dom, "child", &[("data-rdom-active", "")]);
     dom.append_child(ag, child).unwrap();
 
     dom.set_focused(Some(tree));
     let buf = pipeline(&mut dom, &Stylesheet::new(), Rect::new(0, 0, 20, 3));
     let hl = Color::Rgb(0x2d, 0x2f, 0x31);
-    // A's label row (y0) is highlighted; the open child row (y1)
-    // must NOT be — neither from A's clamped fill nor from the
-    // container's own `:focus` bg (suppressed for `[role=tree]`).
-    assert_eq!(buf.cell(0, 0).unwrap().bg, hl, "label row is highlighted");
-    assert_ne!(
+    // child is row 1. col 0 is the connector gutter (left of the box).
+    assert_eq!(
         buf.cell(0, 1).unwrap().bg,
         hl,
-        "child row must NOT inherit the active branch's highlight",
+        "highlight fills the guide gutter (col 0), not just the box"
     );
+    assert_eq!(
+        buf.cell(0, 1).unwrap().symbol(),
+        "└",
+        "the guide glyph still renders on the highlighted gutter"
+    );
+    assert_eq!(buf.cell(10, 1).unwrap().bg, hl, "and the rest of the row");
+    // A (row 0) isn't the cursor row — must stay unhighlighted.
+    assert_ne!(buf.cell(0, 0).unwrap().bg, hl, "non-cursor row not filled");
 }
 
 #[test]
