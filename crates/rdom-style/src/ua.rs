@@ -312,6 +312,89 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
             "details:not([open]) > *:not(summary)",
             TuiStyle::new().display(Display::None),
         ),
+        // ── Tree (ARIA tree pattern) ──
+        // rdom has no `<tree>` element — trees are built the
+        // web-faithful way with `role`: `<ul role=tree>` holds
+        // `<li role=treeitem>`s, and a branch nests its children in
+        // a `<ul role=group>`. `runtime::builtins::tree` drives the
+        // keyboard / pointer behavior and the guide-line paint;
+        // these rules supply the static box model + chevrons.
+        //
+        // State is attribute-driven (presence of `aria-expanded` =
+        // branch; `true`/`false` = open/closed; `aria-busy` =
+        // loading; `aria-selected` = chosen; `data-rdom-active` =
+        // keyboard cursor). See DIVERGENCES.md "Runtime & focus".
+        ("[role=tree]", TuiStyle::new().display(Display::Block)),
+        // The group is the indent gutter: `padding-left: 2` insets
+        // each nesting level, and the guide-line paint pass draws
+        // `│ ├ └` into that 2-cell gutter (see
+        // `render::paint_pass::tree_guides`). Keep this in lockstep
+        // with `TREE_INDENT` in that module.
+        (
+            "[role=group]",
+            TuiStyle::new()
+                .display(Display::Block)
+                .padding(Padding::new(0, 0, 0, 2)),
+        ),
+        // The treeitem is the row. `border-color` here is the GUIDE
+        // color — the guide paint reads `computed.border_fg` for the
+        // `│ ├ └` glyphs even though the item has no actual CSS
+        // border. Authors retheme guides with
+        // `[role=treeitem] { border-color: … }`. Divergence noted in
+        // DIVERGENCES.md.
+        (
+            "[role=treeitem]",
+            TuiStyle::new()
+                .display(Display::Block)
+                .border_fg(BORDER_DEFAULT),
+        ),
+        // Disclosure chevron — `▾` open / `▸` collapsed (small
+        // triangles, matching `<details>`). Leaves (no
+        // `aria-expanded`) get a 2-cell blank so their labels align
+        // under sibling branch labels.
+        (
+            "[role=treeitem][aria-expanded=true]::before",
+            TuiStyle::new().content(Content::Str("▾ ".into())),
+        ),
+        (
+            "[role=treeitem][aria-expanded=false]::before",
+            TuiStyle::new().content(Content::Str("▸ ".into())),
+        ),
+        (
+            "[role=treeitem]:not([aria-expanded])::before",
+            TuiStyle::new().content(Content::Str("  ".into())),
+        ),
+        // Collapsed branch hides its child group — same disclosure
+        // mechanic as `details:not([open]) > *`.
+        (
+            "[role=treeitem][aria-expanded=false] > [role=group]",
+            TuiStyle::new().display(Display::None),
+        ),
+        // Keyboard cursor (active descendant) — highlighted only
+        // while the tree itself holds focus, so the cursor dims when
+        // focus leaves. The bg is consumed by the tree paint pass as
+        // a single-row fill (not a full-subtree fill); see
+        // `tree_guides`.
+        (
+            "[role=tree]:focus [data-rdom-active]",
+            TuiStyle::new().bg(Color::Rgb(0x2d, 0x2f, 0x31)),
+        ),
+        // Selected row — accent fill, same treatment as
+        // `option[selected]`. Also painted as a single-row fill.
+        (
+            "[role=treeitem][aria-selected=true]",
+            TuiStyle::new().bg(ACCENT).fg(named::BLACK),
+        ),
+        // Loading affordance — a trailing ellipsis while the app is
+        // fetching this branch's children (`aria-busy=true`). Apps
+        // override the glyph or animate it; this is a minimal, muted
+        // default.
+        (
+            "[role=treeitem][aria-busy=true]::after",
+            TuiStyle::new()
+                .content(Content::Str(" …".into()))
+                .fg(TEXT_MUTED),
+        ),
         // `<dialog>`: block when open, hidden via `display: none`
         // when the `open` attribute is absent. Author rules with
         // greater specificity than `dialog:not([open])` override
@@ -903,7 +986,7 @@ mod tests {
         // this test and requires a deliberate update. Comma-list
         // selectors expand to one Rule per selector at insertion, so
         // the count can exceed the number of tuples in `ua_defaults`.
-        assert_eq!(ua.len(), 128);
+        assert_eq!(ua.len(), 138);
         let disabled = ua
             .iter()
             .find(|r| r.source_text == "[disabled]")
@@ -911,6 +994,78 @@ mod tests {
         assert_eq!(
             disabled.style.fg,
             Some(Value::Specified(TuiColor::Literal(TEXT_MUTED))),
+        );
+    }
+
+    /// ARIA tree pattern (`<ul role=tree>` / `<li role=treeitem>` /
+    /// `<ul role=group>`) UA defaults. Structural display + indent,
+    /// disclosure chevron, collapse, and row-highlight rules.
+    #[test]
+    fn ua_tree_aria_rules() {
+        use crate::layout::Display;
+
+        let s = Stylesheet::new();
+        let ua: std::collections::HashMap<String, &Rule> = s
+            .rules()
+            .iter()
+            .filter(|r| r.origin == RuleOrigin::UserAgent)
+            .map(|r| (r.source_text.clone(), r))
+            .collect();
+
+        for sel in [
+            "[role=tree]",
+            "[role=group]",
+            "[role=treeitem]",
+            "[role=treeitem][aria-expanded=true]::before",
+            "[role=treeitem][aria-expanded=false]::before",
+            "[role=treeitem]:not([aria-expanded])::before",
+            "[role=treeitem][aria-expanded=false] > [role=group]",
+            "[role=tree]:focus [data-rdom-active]",
+            "[role=treeitem][aria-selected=true]",
+            "[role=treeitem][aria-busy=true]::after",
+        ] {
+            assert!(ua.contains_key(sel), "missing UA rule for `{sel}`");
+        }
+
+        // Container + group + item are block-level.
+        for sel in ["[role=tree]", "[role=group]", "[role=treeitem]"] {
+            assert_eq!(
+                ua[sel].style.display,
+                Some(Value::Specified(Display::Block)),
+                "`{sel}` should be display:block",
+            );
+        }
+
+        // Group carries the indent gutter (left padding).
+        assert!(
+            ua["[role=group]"].style.padding.is_some(),
+            "group must declare indent padding",
+        );
+
+        // Collapsed branch hides its child group.
+        assert_eq!(
+            ua["[role=treeitem][aria-expanded=false] > [role=group]"]
+                .style
+                .display,
+            Some(Value::Specified(Display::None)),
+        );
+
+        // Disclosure chevrons carry content.
+        for sel in [
+            "[role=treeitem][aria-expanded=true]::before",
+            "[role=treeitem][aria-expanded=false]::before",
+            "[role=treeitem]:not([aria-expanded])::before",
+        ] {
+            assert!(
+                ua[sel].style.content.is_some(),
+                "`{sel}` should set content",
+            );
+        }
+
+        // Guide color is sourced from the treeitem's border color.
+        assert!(
+            ua["[role=treeitem]"].style.border_fg.is_some(),
+            "treeitem must declare a guide (border) color",
         );
     }
 
