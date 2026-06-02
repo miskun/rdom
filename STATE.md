@@ -106,8 +106,8 @@ Zero snapshot churn (only canvas + overridability changed). Tests in `ua_focus_o
 focused canvas clean by default, non-canvas still tinted, author can still paint a focused canvas,
 text input still tinted. Audited the whole UA sheet — the only `!important` remaining is the scoped
 field-focus rule; no other blanket hacks. `DIVERGENCES.md` documents focus-tint-not-outline + the
-canvas exemption; a real non-destructive `outline` is noted as a roadmap follow-up. Ships as
-**0.3.1**.
+canvas exemption. No follow-up owed — outline-style focus is author-achievable today via
+`:focus { border-color: … }`; the substrate already offers what's needed. Ships as **0.3.1**.
 
 ### 2026-06-02 — 0.3.0 released to crates.io
 
