@@ -5,6 +5,12 @@ All notable changes to rdom will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`:where()` selector support** (Selectors Level 4). Matches like `:is()` — any complex selector in its forgiving list matches the element — but contributes **zero specificity**. This is the web-faithful mechanism a component library uses to ship default styles that any author rule overrides without a specificity fight (the role browsers give the UA origin, but achieved inside the author origin — where a downstream library actually lives). Combinators are allowed inside the argument (`:where(table:focus td)`), and since the cascade orders author rules by specificity, a plain `td { … }` beats a `:where(…)`-wrapped default regardless of source order. `:is()` (specificity = most-specific argument) remains unimplemented. Driven by the first component-library consumer (`rdom-virtualtable`), whose highlight defaults now ship in `:where()` so consumers recolor them with ordinary CSS.
+
 ## [0.3.2] - 2026-06-02
 
 ### Fixed

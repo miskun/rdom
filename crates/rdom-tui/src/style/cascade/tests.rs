@@ -1918,3 +1918,27 @@ fn opacity_does_not_inherit_to_child() {
     assert_eq!(computed_of(&dom, parent).opacity, 0.5);
     assert_eq!(computed_of(&dom, child).opacity, 1.0);
 }
+
+// ── `:where()` zero-specificity (library-default override ergonomics) ──
+
+#[test]
+fn where_pseudo_applies_when_unopposed() {
+    let (mut dom, div) = dom_with_div();
+    let sheet =
+        Stylesheet::bare().rule_unchecked(":where(div)", TuiStyle::new().bg(Color::Rgb(9, 9, 9)));
+    dom.cascade(&sheet);
+    assert_eq!(computed_of(&dom, div).bg, Color::Rgb(9, 9, 9));
+}
+
+#[test]
+fn author_rule_beats_where_pseudo_regardless_of_source_order() {
+    let (mut dom, div) = dom_with_div();
+    // `:where(div)` matches the div but contributes ZERO specificity, so the
+    // plain `div` rule (0,0,1) wins even though `:where` is declared LATER —
+    // this is exactly how a library ships defaults an author overrides freely.
+    let sheet = Stylesheet::bare()
+        .rule_unchecked("div", TuiStyle::new().bg(Color::Rgb(1, 2, 3)))
+        .rule_unchecked(":where(div)", TuiStyle::new().bg(Color::Rgb(9, 9, 9)));
+    dom.cascade(&sheet);
+    assert_eq!(computed_of(&dom, div).bg, Color::Rgb(1, 2, 3));
+}

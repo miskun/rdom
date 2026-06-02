@@ -6,9 +6,14 @@
 //!   `[attr="v"]`, `[attr^=v]`, `[attr$=v]`, `[attr*=v]`, `[attr~=v]`, `[attr|=v]`
 //! - Compound: `tag.foo#bar[attr=x]`
 //! - Combinators: descendant (space), child `>`, adjacent `+`, general `~`
-//! - Pseudo-classes: `:not(selector)`, `:first-child`, `:last-child`,
-//!   `:only-child`, `:empty`, `:root`
+//! - Pseudo-classes: `:not(selector)`, `:where(selector-list)`,
+//!   `:first-child`, `:last-child`, `:only-child`, `:empty`, `:root`,
+//!   plus the interaction pseudos (`:hover`, `:focus`, `:focus-within`, …)
 //! - Selector list: `a, b, c`
+//!
+//! `:where()` matches like `:is()` (any item in its list) but contributes
+//! **zero specificity** (Selectors L4) — the mechanism a component library
+//! uses to ship default styles that any author rule overrides freely.
 //!
 //! Not supported yet (reserved for later phases):
 //! - `:nth-child(an+b)`, `:has(...)`, `:is(...)`, namespaces, attribute
@@ -74,6 +79,11 @@ pub enum SimpleSelector {
     },
     /// `:not(...)` — the negated selector list.
     Not(Box<SelectorList>),
+    /// `:where(...)` — matches like `:is()` (any complex selector in the
+    /// list matches the element), but contributes **zero specificity**
+    /// (Selectors Level 4). Lets a library ship default styles that any
+    /// real author selector overrides without a specificity fight.
+    Where(Box<SelectorList>),
     /// Structural pseudo-classes.
     Pseudo(PseudoClass),
 }
@@ -466,6 +476,14 @@ impl<'a> Parser<'a> {
                 self.expect(b')', ":not")?;
                 Ok(SimpleSelector::Not(Box::new(inner)))
             }
+            "where" => {
+                self.expect(b'(', ":where")?;
+                self.skip_ws();
+                let inner = self.parse_selector_list()?;
+                self.skip_ws();
+                self.expect(b')', ":where")?;
+                Ok(SimpleSelector::Where(Box::new(inner)))
+            }
             "first-child" => Ok(SimpleSelector::Pseudo(PseudoClass::FirstChild)),
             "last-child" => Ok(SimpleSelector::Pseudo(PseudoClass::LastChild)),
             "only-child" => Ok(SimpleSelector::Pseudo(PseudoClass::OnlyChild)),
@@ -670,6 +688,21 @@ mod tests {
             }
             _ => panic!(),
         }
+    }
+
+    #[test]
+    fn parse_where_pseudo() {
+        let sl = parse("div:where(.foo, #bar)").unwrap();
+        match &sl.0[0].subject.simples[1] {
+            SimpleSelector::Where(inner) => assert_eq!(inner.0.len(), 2),
+            other => panic!("expected Where, got {other:?}"),
+        }
+        // Combinators are allowed inside the argument.
+        let sl = parse(":where(table:focus td)").unwrap();
+        assert!(matches!(
+            sl.0[0].subject.simples[0],
+            SimpleSelector::Where(_)
+        ));
     }
 
     #[test]

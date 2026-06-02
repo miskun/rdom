@@ -117,6 +117,9 @@ impl Specificity {
                 self.class_attr_pseudo += inner_spec.class_attr_pseudo;
                 self.type_pseudo_el += inner_spec.type_pseudo_el;
             }
+            // `:where(X)` matches like `:is(X)` but contributes ZERO
+            // specificity (Selectors L4) — the whole point of the pseudo.
+            SimpleSelector::Where(_) => {}
         }
     }
 }
@@ -197,6 +200,17 @@ mod tests {
         assert_eq!(spec(":not(#bar)"), spec("#bar"));
         // Nested :not() stacks.
         assert_eq!(spec(":not(.a.b)"), spec(".a.b"));
+    }
+
+    #[test]
+    fn where_pseudo_contributes_zero_specificity() {
+        // :where(anything) is always (0,0,0), no matter how specific its arg.
+        assert_eq!(spec(":where(#id.cls div)"), Specificity::ZERO);
+        // It adds nothing to the rest of the compound.
+        assert_eq!(spec("div:where(#x)"), spec("div"));
+        // A :where()-wrapped selector loses to even a single class — the
+        // property that lets author rules override library defaults freely.
+        assert!(spec(":where(table:focus td)") < spec(".cell"));
     }
 
     #[test]

@@ -208,6 +208,14 @@ impl<Ext> Dom<Ext> {
                         return false;
                     }
                 }
+                SimpleSelector::Where(inner) => {
+                    // Matches like `:is()` — any complex selector in the list
+                    // must match this element as its subject. Specificity is
+                    // handled (as zero) by `rdom-style`.
+                    if !self.matches_list(id, inner) {
+                        return false;
+                    }
+                }
                 SimpleSelector::Pseudo(p) => {
                     if !self.match_pseudo(id, *p) {
                         return false;
@@ -511,6 +519,20 @@ mod tests {
         let root = dom.root();
         let r = dom.query_selector_all_in(root, "span:not(.first)").unwrap();
         assert_eq!(r.len(), 1);
+    }
+
+    #[test]
+    fn where_pseudo_matches_like_is() {
+        let (dom, [_div, s1, _s2, p, em]) = build();
+        let root = dom.root();
+        // :where(list) matches an element matching any item in the list.
+        let r = dom
+            .query_selector_all_in(root, ":where(.first, .last)")
+            .unwrap();
+        assert_eq!(r, vec![s1, p]);
+        // Combinators inside :where() are honored (em is a descendant of div).
+        assert!(dom.matches(em, ":where(div em)").unwrap());
+        assert!(!dom.matches(s1, ":where(div em)").unwrap());
     }
 
     #[test]
