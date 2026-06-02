@@ -84,6 +84,20 @@ One piece of architectural debt deferred with teeth: `EVT-DETACH-1` (implicit bl
 
 ## Recent decisions
 
+### 2026-06-02 — `DROP-SUBTREE-FREE-ORDER-1`: drop_subtree freed before firing its mutation (0.3.2)
+
+Ninth consumer-surfaced substrate bug. A downstream chart gallery swapped demos on a keypress by
+`drop_subtree`-ing the focused canvas from inside the keydown handler — and it panicked
+(`unwrap` on `None` in `NodeRef::node_type()`). Root cause: `drop_subtree` freed the subtree's arena
+slots **before** firing its `ChildListChanged` record, so the dirty-tracker observer (and the
+implicit blur/focusout-on-detach dispatch) inspected an already-reclaimed node. Removing the focused
+node inside a handler is valid on the web (`node.remove()` in a click/keydown), so this is a real
+defect, not consumer misuse. Fix: fire the mutation while the subtree is still alive, then free —
+matching `remove_child` and the MutationObserver `removedNodes`-readable contract. The consumer also
+switched its gallery to re-point one canvas's paint instead of drop+remount (cleaner regardless),
+but the substrate fix stands on its own — any consumer removing a focused/observed node was exposed.
+Ships as **0.3.2**.
+
 ### 2026-06-02 — `UA-FOCUS-OVERRIDABLE-1`: focus indicator made overridable (0.3.1)
 
 Building `rdom-extensions`'s interactive chart surfaced an eighth substrate issue: the UA focus

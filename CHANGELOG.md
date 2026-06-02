@@ -5,6 +5,12 @@ All notable changes to rdom will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.2] - 2026-06-02
+
+### Fixed
+
+- **Removing the focused (or otherwise observed) node from inside an event handler no longer panics** (`DROP-SUBTREE-FREE-ORDER-1`). `drop_subtree` freed the subtree's arena slots *before* firing its `ChildListChanged` mutation, so any observer that inspected the removed node in its callback — the dirty tracker, the implicit blur/focusout-on-detach dispatch — dereferenced a reclaimed slot and panicked (`unwrap` on `None`). It now fires the mutation while the subtree is still alive, then frees — matching `remove_child` and the MutationObserver contract that `removedNodes` are readable in the callback. Removing the focused element in a click/keydown handler (modal dismiss, list-item delete, view switch) is now safe, as it is on the web.
+
 ## [0.3.1] - 2026-06-02
 
 ### Fixed

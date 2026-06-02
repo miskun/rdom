@@ -281,19 +281,26 @@ impl<Ext: 'static> Dom<Ext> {
         let parent = self.get_node(id).and_then(|n| n.parent);
         // Detach from parent first.
         let _ = self.detach_from_parent(id);
-        // Walk + collect before freeing (can't free during traversal).
+        // Snapshot the subtree to free WHILE it's still alive.
         let mut to_free = Vec::new();
         self.collect_descendants(id, &mut to_free);
-        for n in to_free {
-            self.free(n);
-        }
-        // Fire one ChildListChanged on the (now-former) parent.
+        // Fire the mutation BEFORE freeing, so observers (the dirty
+        // tracker, implicit blur/focusout-on-detach) can still read the
+        // removed nodes in their callback — same contract as
+        // `remove_child`, and what the MutationObserver spec requires
+        // (`removedNodes` are inspectable). Freeing first left observers
+        // dereferencing a reclaimed slot → panic when a focused/observed
+        // node was dropped from inside an event handler.
         if let Some(parent) = parent {
             self.fire_mutation(Mutation::ChildListChanged {
                 parent,
                 added: vec![],
                 removed: vec![id],
             });
+        }
+        // Now reclaim the slots.
+        for n in to_free {
+            self.free(n);
         }
         Ok(())
     }

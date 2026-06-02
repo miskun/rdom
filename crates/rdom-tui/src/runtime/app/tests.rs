@@ -2172,3 +2172,32 @@ mod canvas_interactive_spike {
         assert_eq!((local_x, local_y), (0, 0));
     }
 }
+
+/// Regression: dropping the focused node from inside an event handler
+/// must not panic. `drop_subtree` fires its `ChildListChanged` mutation
+/// while the subtree is still alive, so the dirty-tracker observer (and
+/// implicit blur/focusout) can read the removed node — freeing first
+/// left them dereferencing a reclaimed arena slot. Surfaced by a chart
+/// gallery that swapped demos on a keypress.
+#[test]
+fn dropping_focused_node_in_handler_does_not_panic() {
+    use rdom_core::ListenerOptions;
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let btn = dom.create_element("button");
+    dom.append_child(root, btn).unwrap();
+    dom.add_event_listener(btn, "keydown", ListenerOptions::default(), move |ctx| {
+        if let Some(n) = ctx.dom.focused() {
+            let _ = ctx.dom.drop_subtree(n);
+        }
+    })
+    .unwrap();
+
+    let mut app = test_app(dom, Stylesheet::new(), Rect::new(0, 0, 20, 5));
+    app.dom_mut().set_focused(Some(btn));
+    app.handle_event(key(KeyCode::Char('a'))); // must not panic
+    assert!(
+        !app.dom().contains(btn),
+        "the focused node was removed in the handler"
+    );
+}
