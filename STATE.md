@@ -6,7 +6,9 @@ For the durable architecture and roadmap, see [`specs/DESIGN.md`](specs/DESIGN.m
 
 ## Current focus
 
-**In flight:** `BORDER-MODEL-1` — border model refactor. Replaces the `border-collapse` heuristic stack with a layered model: layout owns positioning (direct-children-only collapse, gap-sacred), paint owns visual merging (per-direction style/color/priority, CSS Tables 3 §11.5 conflict resolution). Adds `BorderStyle` enum with `hidden` kill-switch. Makes `border-collapse` non-inheriting. Closes `M5-COLLAPSE-1`, `M5.5b-CELL-OWNERSHIP-1`, `BFC1-CODE-COLLAPSE-INSETS-1`. Branch: `border-model`. Plan + progress below under "BORDER-MODEL-1 initiative log."
+**In flight:** **0.3.0 — substrate honesty.** Fixing the seven friction points the first downstream consumer (`rdom-extensions`) hit; two are High (geometry node setters that silently don't drive layout; no repaint request from event listeners). Plan: [`specs/SUBSTRATE-0.3.0.md`](specs/SUBSTRATE-0.3.0.md); IDs in [`specs/TECH_DEBT.md`](specs/TECH_DEBT.md) §"Substrate honesty". Milestones A (setters) → B (redraw) → C (ergonomics) → D (arena), then 0.3.0 release.
+
+**Shipped in 0.2.0:** `BORDER-MODEL-1` — layered border model (layout positions, paint merges per-direction per CSS Tables 3 §11.5; `BorderStyle` enum + `hidden` kill-switch; non-inheriting `border-collapse`). Closed `M5-COLLAPSE-1`, `M5.5b-CELL-OWNERSHIP-1`, `BFC1-CODE-COLLAPSE-INSETS-1`.
 
 **Just closed:** `BFC-1` — Block Formatting Context substrate. Semantic HTML now stacks per the web platform: `<div><h1><p></p></div>` produces a block-flow column at intrinsic heights with no CSS at all. CSS 2.1 §10 normal flow + §8.3.1 margin collapse + §10.5/§10.6.3 height resolution + CSS3 `gap` for block + atomic inline-block in IFC, all on top of the original flex pass. Plan: [`specs/BFC-1.md`](specs/BFC-1.md). Tasks #70–#78 + #80–#95 closed. See "2026-05-26 — BFC-1 closed" below for the full landing.
 
@@ -71,14 +73,35 @@ One piece of architectural debt deferred with teeth: `EVT-DETACH-1` (implicit bl
 - [x] **0.1.0** — Initial release (2026-05-19): DOM substrate, cascade, flexbox, runtime, native built-ins, UA stylesheet, CSS parser, HTML parser.
 - [x] **0.1.0 editing parity** (2026-05-20): selection, caret, contenteditable parity.
 - [ ] **0.2.0** — In flight. `rdom-showcase` (headline) + event surface bundle + `calc()` value system. See [`specs/SHOWCASE.md`](specs/SHOWCASE.md).
-- [ ] **0.3.0** — Client-side routing primitive.
-- [ ] **0.4.0** — Async tasks during event handlers.
+- [ ] **0.3.0** — Substrate honesty. Fixes the seven points of friction the first downstream consumer (`rdom-extensions`) hit, two of them High (geometry setters that don't drive layout; no repaint request from event listeners). See [`specs/SUBSTRATE-0.3.0.md`](specs/SUBSTRATE-0.3.0.md). (Routing slid to 0.4.0.)
+- [ ] **0.4.0** — Client-side routing primitive.
+- [ ] **0.5.0** — Async tasks during event handlers.
 
 ## Open risks
 
 - **`EVT-DETACH-1`** — implicit `blur` / `focusout` / `mouseleave` / `mouseout` not dispatched on detach. Documented in [`specs/TECH_DEBT.md`](specs/TECH_DEBT.md) as a non-negotiable M5 deliverable. Risk: if M5 scope grows and this slips, rdom-tui ships an internally inconsistent hover-event model. Mitigation: M5 exit criteria in [`specs/SHOWCASE.md`](specs/SHOWCASE.md) explicitly require closing `EVT-DETACH-1` + deleting the related DIVERGENCES.md entries.
 
 ## Recent decisions
+
+### 2026-06-02 — 0.3.0 planned: substrate honesty (driven by the first downstream consumer)
+
+`rdom-extensions` (a downstream data-viz component crate: charts, sparklines, gauges, a virtual
+table on `rdom-tui 0.2`) became the first real consumer of the published substrate and surfaced
+seven points of friction, captured + grumpy-reviewed in that repo's `RDOM_SUBSTRATE_FINDINGS.md`
+and **confirmed against rdom source** before planning. Repurposed the 0.3.0 slot from "client-side
+routing" to fix them; routing slid to 0.4.0.
+
+Two are High and the reason for prioritizing: **`EXT-LAYOUT-SETTERS-1`** — the geometry node setters
+(`set_width`/`set_direction`/…) write raw `ext.*` fields that the cascade/layout never read, so they
+silently no-op for layout while the accessors echo the set values (the API lies); and
+**`EVENT-REDRAW-1`** — `EventCtx` has no `request_redraw`, so a listener mutating non-DOM state
+(canvas + external `Rc<RefCell>`) can't trigger a frame, blocking interactive canvas components. The
+rest are ergonomics/hygiene: `TUISTYLE-FLEX-BUILDER-1`, `RENDERCTX-DEDUP-1` (a dead `RenderContext`
+shadowing the real one at the crate root), `CANVAS-TEST-CTOR-1`, `ARENA-RECLAIM-1`.
+
+Plan + milestones (A: setters → B: redraw → C: ergonomics → D: arena): [`specs/SUBSTRATE-0.3.0.md`](specs/SUBSTRATE-0.3.0.md).
+All six tracked in [`specs/TECH_DEBT.md`](specs/TECH_DEBT.md) §"Substrate honesty". 0.3.0 is a
+breaking minor (A changes setter behavior; C deletes a public name) — pre-1.0, acceptable.
 
 ### 2026-06-02 — 0.2.0 released to crates.io
 
