@@ -77,8 +77,12 @@ pub use layout::{
 pub use node::{TuiNodeExt, TuiNodeMutExt};
 pub use render::{
     Backend, Buffer, Cell, CellDiff, CompletedFrame, CrosstermBackend, LayoutExt, PaintExt, Rect,
-    RenderContext, Style, Terminal, TerminalGuard, TestBackend, VirtualScreen,
+    Style, Terminal, TerminalGuard, TestBackend, VirtualScreen,
 };
+/// The canvas paint surface a `<canvas>` `set_paint` callback receives.
+/// (Re-exported here as the canonical `RenderContext`; the old, unused
+/// `render::RenderContext` was removed in `RENDERCTX-DEDUP-1`.)
+pub use runtime::builtins::canvas::RenderContext;
 pub use runtime::{
     App, AppContext, AppHandle, ControlFlow, HitTestExt, RouteOutcome, Router, StylesheetId,
 };

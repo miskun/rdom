@@ -181,6 +181,30 @@ impl<'a> RenderContext<'a> {
         }
     }
 
+    /// Construct a `RenderContext` over a caller-provided `buffer`,
+    /// occupying (and clipped to) `area`, with canvas-local `(0, 0)` at
+    /// `area`'s top-left. For **unit-testing paint code** outside the
+    /// full cascade → layout → paint pipeline — e.g. a downstream
+    /// component crate testing what its paint callback writes:
+    ///
+    /// ```
+    /// # use rdom_tui::render::{Buffer, Rect};
+    /// # use rdom_tui::RenderContext;
+    /// let mut buf = Buffer::empty(Rect::new(0, 0, 10, 3));
+    /// let mut ctx = RenderContext::for_test(&mut buf, Rect::new(0, 0, 10, 3));
+    /// ctx.fill(Default::default());
+    /// ```
+    pub fn for_test(buffer: &'a mut Buffer, area: Rect) -> Self {
+        Self::new(
+            buffer,
+            area.x as i32,
+            area.y as i32,
+            area.width,
+            area.height,
+            area,
+        )
+    }
+
     /// Canvas width in cells. Apps use `0..width()` as the x range.
     pub fn width(&self) -> u16 {
         self.width

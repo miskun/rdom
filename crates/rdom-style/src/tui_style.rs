@@ -440,6 +440,39 @@ impl TuiStyle {
         self
     }
     setter!(flow, flow, flow_important, FLOW, crate::layout::Flow);
+
+    /// `display: flex` — outer [`Display::Block`] + inner
+    /// [`Flow::Flex`](crate::layout::Flow::Flex). Mirrors the CSS
+    /// `display: flex` keyword.
+    ///
+    /// Prefer this over `.display(Display::Block).flow(Flow::Flex)`:
+    /// `.display(...)` *resets* `flow` (e.g. `Display::Block` forces
+    /// `Flow::Block`), so `.flow(Flex).display(Block)` would silently
+    /// clobber the flex flow. `.flex()` sets both in the right order.
+    pub fn flex(mut self) -> Self {
+        self.display = Some(Value::Specified(Display::Block));
+        self.flow = Some(Value::Specified(crate::layout::Flow::Flex));
+        self
+    }
+
+    /// `display: flex; flex-direction: row`.
+    pub fn flex_row(self) -> Self {
+        self.flex().direction(crate::layout::Direction::Row)
+    }
+
+    /// `display: flex; flex-direction: column`.
+    pub fn flex_column(self) -> Self {
+        self.flex().direction(crate::layout::Direction::Column)
+    }
+
+    /// `display: inline-flex` — outer [`Display::Inline`] + inner
+    /// [`Flow::Flex`](crate::layout::Flow::Flex).
+    pub fn inline_flex(mut self) -> Self {
+        self.display = Some(Value::Specified(Display::Inline));
+        self.flow = Some(Value::Specified(crate::layout::Flow::Flex));
+        self
+    }
+
     setter!(
         scrollbar_gutter,
         scrollbar_gutter,
@@ -652,6 +685,32 @@ mod tests {
     fn default_is_empty() {
         assert!(TuiStyle::default().is_empty());
         assert_eq!(TuiStyle::default().declared_count(), 0);
+    }
+
+    #[test]
+    fn flex_builders_set_display_flow_direction() {
+        use crate::layout::{Direction, Flow};
+        let row = TuiStyle::new().flex_row();
+        assert_eq!(row.display, Some(Value::Specified(Display::Block)));
+        assert_eq!(row.flow, Some(Value::Specified(Flow::Flex)));
+        assert_eq!(row.direction, Some(Value::Specified(Direction::Row)));
+
+        let col = TuiStyle::new().flex_column();
+        assert_eq!(col.flow, Some(Value::Specified(Flow::Flex)));
+        assert_eq!(col.direction, Some(Value::Specified(Direction::Column)));
+
+        let inl = TuiStyle::new().inline_flex();
+        assert_eq!(inl.display, Some(Value::Specified(Display::Inline)));
+        assert_eq!(inl.flow, Some(Value::Specified(Flow::Flex)));
+    }
+
+    #[test]
+    fn flex_avoids_the_display_resets_flow_trap() {
+        use crate::layout::Flow;
+        // `.flex()` must keep Flow::Flex even though `.display(Block)`
+        // would reset it — pins the ordering the convenience guarantees.
+        let s = TuiStyle::new().flex();
+        assert_eq!(s.flow, Some(Value::Specified(Flow::Flex)));
     }
 
     #[test]

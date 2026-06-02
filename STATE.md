@@ -83,6 +83,22 @@ One piece of architectural debt deferred with teeth: `EVT-DETACH-1` (implicit bl
 
 ## Recent decisions
 
+### 2026-06-02 — 0.3.0 Milestone C landed: ergonomics & hygiene
+
+Three additive/hygiene fixes:
+- **`TUISTYLE-FLEX-BUILDER-1`** — `TuiStyle::flex()` / `flex_row()` / `flex_column()` / `inline_flex()`.
+  Mirrors the CSS `display: flex` keyword (`Display::Block` + `Flow::Flex`) and dodges the
+  `.display()`-resets-`.flow()` ordering trap (documented on `flex()`). Additive.
+- **`RENDERCTX-DEDUP-1`** — deleted the dead `render::RenderContext` (used only by its own tests)
+  and its crate-root re-export; re-exported the canvas `RenderContext` (the real `PaintFn` type) at
+  the crate root as canonical. `use rdom_tui::*` / `rdom_tui::RenderContext` now resolve to the one
+  a paint callback actually receives. Removed ~10 dead tests.
+- **`CANVAS-TEST-CTOR-1`** — `RenderContext::for_test(buffer, area)` (public) so downstream crates
+  can unit-test paint code over a scratch `Buffer` without the full pipeline. Pinned by a doctest.
+
+Review: all low-risk. The only breaking bit is `RENDERCTX-DEDUP-1` removing the (unused) public
+name; net it *fixes* the `use rdom_tui::*` collision. 2705 workspace tests green.
+
 ### 2026-06-02 — 0.3.0 Milestone B landed: `EVENT-REDRAW-1` (repaint request from event listeners)
 
 `EventCtx::request_redraw()` (rdom-core) lets a listener ask the host to repaint when it mutated
