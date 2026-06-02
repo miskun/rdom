@@ -80,6 +80,12 @@ One piece of architectural debt deferred with teeth: `EVT-DETACH-1` (implicit bl
 
 ## Recent decisions
 
+### 2026-06-02 — Scroll offset clamps to content on layout (substrate fix)
+
+Reported: scroll a tall demo to the bottom, switch to another demo — the new demo rendered scrolled (top clipped, often no scrollbar). Root cause: `.view-content` (now the scrolling Page) kept its `scroll_y` across content changes; rdom clamped the offset only on scroll *input* (`set_scroll`), never when the *content* changed. The web clamps `scrollTop`/`scrollLeft` to `[0, scrollSize − clientSize]` continuously, so replacing a scroll container's children with shorter content snaps a stale offset back (to 0 when it again fits) — no special "reset on navigation." Fixed in the substrate, not the showcase: `layout_node` calls a new `clamp_scroll_offset` after the two-pass scrollbar reflow, using the final `content_layout` as the viewport (the region children are laid out and clipped into — matches the runtime's reachable max to the cell). `scroll_content_*` is recorded offset-independently, so the max is stable; if an offset changed, the children re-lay-out at the corrected position (one extra pass, only when an offset was actually stale).
+
+Subtleties found: (1) the clamp must run **after** the two-pass gutter reflow and use `content_layout`, not the padding box — using the padding box was 1 cell too restrictive and capped legitimate tree scroll-into-view at the last row. (2) The earlier mixed-content bleed test set `scroll_y` on a container whose content fit; with the clamp that's correctly a no-op, so the test now gives it genuinely-overflowing content. Tests: `scroll_offset_clamps_when_content_shrinks` (substrate) + `swapping_from_a_scrolled_tall_demo_to_a_short_one_clamps_the_page_to_top` (showcase). Full gate green (2699). Replaces the rejected showcase-side `mount_demo` scroll-reset band-aid — this is the DOM-faithful root-cause behavior, reusable for every consumer's scroll containers.
+
 ### 2026-06-02 — Showcase "page scrolls by default" (demo view pane)
 
 Built on the percentage-height fix below. `.view-content` is now the **Page**: a `display: block; overflow-y: auto` scroll viewport (still a `flex: 1` item of `<main>`, so it fills the height left after the Source tray and shrinks when Source expands). Model:

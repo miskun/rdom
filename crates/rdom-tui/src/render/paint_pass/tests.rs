@@ -167,8 +167,16 @@ fn mixed_content_block_leading_text_clips_instead_of_clamping_when_scrolled_abov
     let group = dom.create_element("ul");
     dom.set_attribute(group, "role", "group").unwrap();
     dom.append_child(branch, group).unwrap();
+    // Enough leaves that the content (1 branch + 4 leaves = 5 rows)
+    // overflows the height-3 wrap, so `scroll_y = 1` is a VALID offset
+    // (otherwise the layout-time scroll clamp correctly resets it to 0
+    // — you can't scroll a container whose content fits).
     let leaf = treeitem(&mut dom, "kitten", &[]);
     dom.append_child(group, leaf).unwrap();
+    for name in ["puppy", "fish", "bird"] {
+        let l = treeitem(&mut dom, name, &[]);
+        dom.append_child(group, l).unwrap();
+    }
 
     let sheet = rdom_css::from_css(".wrap { height: 3; overflow: hidden; }");
     dom.cascade(&sheet);

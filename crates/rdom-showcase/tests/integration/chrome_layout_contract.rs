@@ -51,6 +51,51 @@ fn demo_idx(slug: &str) -> usize {
 }
 
 #[test]
+fn swapping_from_a_scrolled_tall_demo_to_a_short_one_clamps_the_page_to_top() {
+    // Reported: scroll a tall demo to the bottom, then switch to a
+    // short demo — the new demo rendered scrolled, top clipped, no
+    // scrollbar. The page scroll offset must clamp to the new content
+    // (CSS scrollTop range), so a fitting demo lands at the top. This
+    // is the substrate clamp, exercised through the real `mount_demo`
+    // swap path (no showcase reset).
+    let mut dom: TuiDom = TuiDom::new();
+    let handles = build_shell(&mut dom);
+    let mut state = ShowcaseState::from_handles(&handles);
+    let base = base_stylesheet();
+    let mut sheets = vec![base];
+    for d in DEMOS {
+        sheets.push(d.stylesheet());
+    }
+    let refs: Vec<&_> = sheets.iter().collect();
+    let vp = Rect::new(0, 0, 80, 16);
+
+    // Mount the tall demo and scroll the page near its bottom.
+    mount_demo(&mut state, &mut dom, demo_idx("builtins/dom-api"));
+    dom.cascade_all(&refs);
+    dom.layout_dom(vp);
+    if let Some(ext) = dom.node_mut(handles.main).ext_mut() {
+        ext.scroll_y = 50; // beyond max — the wheel/clamp would cap it
+    }
+    dom.cascade_all(&refs);
+    dom.layout_dom(vp);
+    assert!(
+        dom.node(handles.main).ext().unwrap().scroll_y > 0,
+        "precondition: the tall demo's page is scrolled"
+    );
+
+    // Switch to a short demo that fits the pane.
+    mount_demo(&mut state, &mut dom, demo_idx("layout/hello-world"));
+    dom.cascade_all(&refs);
+    dom.layout_dom(vp);
+
+    assert_eq!(
+        dom.node(handles.main).ext().unwrap().scroll_y,
+        0,
+        "swapping to a fitting demo must clamp the page scroll to the top"
+    );
+}
+
+#[test]
 fn tall_content_demo_makes_the_page_scroll() {
     // The showcase framework gives demos "page scrolls" by default:
     // a content demo taller than the view pane overflows it, and

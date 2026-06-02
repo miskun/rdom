@@ -308,6 +308,33 @@ pub(super) fn layout_node(dom: &mut Dom<TuiExt>, id: NodeId, outer_rect: LayoutR
             record_scroll_content_size(dom, id, inner_v2, &computed);
         }
     }
+
+    // Clamp a stale scroll offset to the content. CSS keeps
+    // `scrollTop`/`scrollLeft` within `[0, scroll size − client size]`
+    // at all times — so when a scroll container's content shrinks
+    // (its subtree is replaced with shorter content, or children are
+    // removed), a previously-valid offset that now exceeds the max
+    // must snap back (to 0 when the content again fits). Without this
+    // the container stays scrolled past its content: blank at the
+    // bottom, top clipped, and — when the new content fits — no
+    // scrollbar to reveal it. Runs LAST so it sees the final
+    // `content_layout` (after the two-pass gutter reflow), and uses
+    // that as the scroll viewport — the same region children are laid
+    // out and clipped into, so the max matches the runtime's
+    // wheel/scrollbar/scroll-into-view clamp to the cell. The recorded
+    // `scroll_content_*` is offset-independent, so the max is stable;
+    // if an offset changed, re-lay-out the children at the corrected
+    // position. Cheap: the re-layout only runs when an offset was
+    // actually stale.
+    if clamp_scroll_offset(dom, id, &computed) {
+        let final_inner = dom
+            .node(id)
+            .ext()
+            .map(|e| e.content_layout)
+            .unwrap_or(inner);
+        let _ = layout_children(dom, id, final_inner, &computed);
+        record_scroll_content_size(dom, id, final_inner, &computed);
+    }
 }
 
 /// Walk `id`'s direct element children (transparently descending
@@ -401,6 +428,40 @@ fn record_scroll_content_size(
         ext.scroll_content_width = content_w as usize;
         ext.scroll_content_height = content_h as usize;
     }
+}
+
+/// Clamp `id`'s scroll offset to `[0, scroll size − viewport size]`
+/// on each axis (CSS keeps `scrollTop`/`scrollLeft` in range as
+/// content changes). Only scroll containers can hold a non-zero
+/// offset, so non-scrollable elements are a no-op. The viewport is
+/// the element's final `content_layout` — the region children are
+/// laid out and clipped into (after the two-pass scrollbar gutter
+/// reflow), so this max matches what the runtime's wheel / scrollbar
+/// / scroll-into-view path can actually reach. Returns whether an
+/// offset changed (the caller then re-lays-out the children at the
+/// corrected position).
+fn clamp_scroll_offset(dom: &mut Dom<TuiExt>, id: NodeId, computed: &ComputedStyle) -> bool {
+    let scrolls = !matches!(computed.overflow_x, Overflow::Visible)
+        || !matches!(computed.overflow_y, Overflow::Visible);
+    if !scrolls {
+        return false;
+    }
+    let Some(ext) = dom.node(id).ext() else {
+        return false;
+    };
+    let vp = ext.content_layout;
+    let max_x = ext.scroll_content_width.saturating_sub(vp.width as usize);
+    let max_y = ext.scroll_content_height.saturating_sub(vp.height as usize);
+    let new_x = ext.scroll_x.min(max_x);
+    let new_y = ext.scroll_y.min(max_y);
+    if new_x == ext.scroll_x && new_y == ext.scroll_y {
+        return false;
+    }
+    if let Some(ext) = dom.node_mut(id).ext_mut() {
+        ext.scroll_x = new_x;
+        ext.scroll_y = new_y;
+    }
+    true
 }
 
 /// Fragment case: children inherit our container rect directly

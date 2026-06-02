@@ -23,6 +23,47 @@ fn content_rect_of(dom: &TuiDom, id: NodeId) -> LayoutRect {
 }
 
 #[test]
+fn scroll_offset_clamps_when_content_shrinks() {
+    // CSS keeps scrollTop within [0, scrollHeight − clientHeight]. A
+    // scroll container scrolled to the bottom, whose content then
+    // shrinks to fit, must clamp its offset back to 0 — not stay
+    // scrolled past its (now shorter) content.
+    let mut dom = tui_dom();
+    let root = dom.root();
+    let boxed = dom.create_element("div");
+    dom.set_attribute(boxed, "class", "box").unwrap();
+    dom.append_child(root, boxed).unwrap();
+    for _ in 0..20 {
+        let r = dom.create_element("div");
+        dom.set_attribute(r, "class", "row").unwrap();
+        dom.append_child(boxed, r).unwrap();
+    }
+    let sheet = rdom_css::from_css(".box { height: 5; overflow-y: auto; } .row { height: 1; }");
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 20, 30));
+
+    // Scroll near the bottom (20 rows of content in a 5-row box).
+    if let Some(ext) = dom.node_mut(boxed).ext_mut() {
+        ext.scroll_y = 15;
+    }
+
+    // Replace the content with 2 rows — now fits the 5-row box.
+    dom.clear_children(boxed).unwrap();
+    for _ in 0..2 {
+        let r = dom.create_element("div");
+        dom.set_attribute(r, "class", "row").unwrap();
+        dom.append_child(boxed, r).unwrap();
+    }
+    dom.layout_dom(Rect::new(0, 0, 20, 30));
+
+    assert_eq!(
+        dom.node(boxed).ext().unwrap().scroll_y,
+        0,
+        "scroll offset must clamp to 0 once the content fits the viewport"
+    );
+}
+
+#[test]
 fn percent_height_resolves_against_flex_sized_ancestor() {
     // CSS Flexbox §9.8: a flex item with a definite flex basis in a
     // flex container with a definite main size has a DEFINITE
