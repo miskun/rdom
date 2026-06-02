@@ -23,6 +23,8 @@
 use rdom_core::NodeId;
 
 use crate::TuiDom;
+use crate::layout::Overflow;
+use crate::node::TuiNodeExt;
 
 /// Effective tabindex for focus ordering. Reflects the full HTML
 /// "focusable area" rules — not just the literal `tabindex`
@@ -60,34 +62,79 @@ pub fn tab_index(dom: &TuiDom, id: NodeId) -> Option<i32> {
 
 /// HTML living-standard "focusable area" rules for elements
 /// without an explicit `tabindex`. Called from `tab_index`.
+///
+/// Two sources of implicit focusability:
+/// 1. **Intrinsic tags** — `<input>`, `<button>`, etc. ([`intrinsic_tag_focusable`]).
+/// 2. **Scroll containers** — a clipping element whose content overflows is
+///    keyboard-focusable so it can be scrolled (matching modern browsers),
+///    *unless* it already contains a focus stop of its own (then a tab stop on
+///    the container would be redundant — the web's rule). Its focus affordance
+///    is the accent scrollbar thumb (`:focus::scrollbar-thumb`), not a fill.
 fn is_implicit_focusable(dom: &TuiDom, id: NodeId) -> bool {
+    if intrinsic_tag_focusable(dom, id) {
+        return true;
+    }
+    is_scroll_container(dom, id) && !has_focusable_descendant(dom, id)
+}
+
+/// The tag-based focusable-area list (no scroll-container rule — that's handled
+/// in [`is_implicit_focusable`] and would otherwise recurse).
+fn intrinsic_tag_focusable(dom: &TuiDom, id: NodeId) -> bool {
     let node = dom.node(id);
     let Some(tag) = node.tag_name() else {
         return false;
     };
     match tag {
-        // `<input type="hidden">` is NOT focusable. Every other
-        // input type is.
+        // `<input type="hidden">` is NOT focusable. Every other input type is.
         "input" => !matches!(node.get_attribute("type"), Some("hidden")),
         "button" | "textarea" | "select" => true,
-        // `<summary>` is the focus target of a `<details>`
-        // disclosure widget, not `<details>` itself (per the
-        // HTML living standard). A `<summary>` without a parent
-        // `<details>` has no defined behavior — we still treat
-        // it as focusable.
+        // `<summary>` is the focus target of a `<details>` disclosure widget.
         "summary" => true,
         // Anchors + image map areas need `href` to be focusable.
         "a" | "area" => node.has_attribute("href"),
-        // ARIA tree container: `<ul role=tree>` holds focus on
-        // behalf of its active descendant (the cursor row). Treat
-        // it as implicitly focusable so a tree is Tab-reachable
-        // without the author wiring `tabindex`. The treeitems
-        // themselves are NOT focusable — the runtime moves a
-        // `data-rdom-active` cursor among them instead. See
-        // `runtime::builtins::tree` + DIVERGENCES.md "ARIA tree".
-        _ if node.get_attribute("role") == Some("tree") => true,
-        _ => false,
+        // ARIA tree container: `<ul role=tree>` holds focus on behalf of its
+        // active descendant (the cursor row). See `runtime::builtins::tree`.
+        _ => node.get_attribute("role") == Some("tree"),
     }
+}
+
+/// True when `id` shows a scrollbar — it clips on an axis (`overflow: scroll`
+/// or `auto`) and its content overflows the scrollport, so there's somewhere
+/// to scroll. The TUI's keyboard-focusable scroll region.
+fn is_scroll_container(dom: &TuiDom, id: NodeId) -> bool {
+    let node = dom.node(id);
+    let (Some(ext), Some(c)) = (node.tui_ext(), node.computed()) else {
+        return false;
+    };
+    let pb = rdom_style::layout::compute_padding_box(ext.layout, c.border);
+    let scrolls_y = matches!(c.overflow_y, Overflow::Scroll | Overflow::Auto)
+        && ext.scroll_content_height > pb.height as usize;
+    let scrolls_x = matches!(c.overflow_x, Overflow::Scroll | Overflow::Auto)
+        && ext.scroll_content_width > pb.width as usize;
+    scrolls_x || scrolls_y
+}
+
+/// Does any descendant of `id` qualify as its own focus stop? If so, a tab stop
+/// on the enclosing scroll container would be redundant. A descendant counts
+/// when it has an explicit `tabindex >= 0`, is intrinsically focusable
+/// (control / tree), or is itself a scroll container.
+fn has_focusable_descendant(dom: &TuiDom, id: NodeId) -> bool {
+    let mut stack: Vec<NodeId> = dom.node(id).children().map(|c| c.id()).collect();
+    while let Some(d) = stack.pop() {
+        let node = dom.node(d);
+        let explicit_nonneg = node
+            .get_attribute("tabindex")
+            .and_then(|s| s.parse::<i32>().ok())
+            .is_some_and(|t| t >= 0);
+        let enabled = !node.has_attribute("disabled");
+        if (enabled && (explicit_nonneg || intrinsic_tag_focusable(dom, d)))
+            || is_scroll_container(dom, d)
+        {
+            return true;
+        }
+        stack.extend(dom.node(d).children().map(|c| c.id()));
+    }
+    false
 }
 
 /// True iff the element is focusable at all — either via Tab
@@ -258,4 +305,79 @@ fn step_focus(dom: &mut TuiDom, direction: i32) {
     };
 
     super::focus_node(dom, Some(target));
+}
+
+#[cfg(test)]
+mod focusable_tests {
+    use super::*;
+    use crate::layout::{Overflow, Size};
+    use crate::render::{LayoutExt, Rect};
+    use crate::style::{CascadeExt, Stylesheet, TuiStyle};
+    use crate::{TuiDom, TuiNodeMutExt};
+
+    /// A `<div>` 4 rows tall with `overflow-y: scroll`. `tall` controls whether
+    /// its content overflows the box (→ a scroll container); `build` adds
+    /// children before cascade.
+    fn scroll_div(tall: bool, build: impl FnOnce(&mut TuiDom, NodeId)) -> (TuiDom, NodeId) {
+        let mut dom = TuiDom::new();
+        let root = dom.root();
+        let d = dom.create_element("div");
+        dom.node_mut(d).set_inline_style(
+            TuiStyle::new()
+                .height(Size::Fixed(4))
+                .overflow_y(Overflow::Scroll),
+        );
+        build(&mut dom, d);
+        dom.append_child(root, d).unwrap();
+        dom.cascade(&Stylesheet::new());
+        dom.layout_dom(Rect::new(0, 0, 20, 10));
+        if let Some(ext) = dom.node_mut(d).ext_mut() {
+            ext.scroll_content_height = if tall { 50 } else { 2 };
+        }
+        (dom, d)
+    }
+
+    #[test]
+    fn scrollable_div_is_focusable() {
+        let (dom, d) = scroll_div(true, |_, _| {});
+        assert!(
+            is_focusable(&dom, d),
+            "a scrollable overflow div is Tab-focusable"
+        );
+    }
+
+    #[test]
+    fn non_overflowing_overflow_div_is_not_focusable() {
+        let (dom, d) = scroll_div(false, |_, _| {});
+        assert!(
+            !is_focusable(&dom, d),
+            "content fits → no scrollbar → not focusable"
+        );
+    }
+
+    #[test]
+    fn plain_div_is_not_focusable() {
+        let mut dom = TuiDom::new();
+        let root = dom.root();
+        let d = dom.create_element("div");
+        dom.append_child(root, d).unwrap();
+        dom.cascade(&Stylesheet::new());
+        dom.layout_dom(Rect::new(0, 0, 20, 10));
+        assert!(
+            !is_focusable(&dom, d),
+            "a non-scrolling div is not focusable"
+        );
+    }
+
+    #[test]
+    fn scroll_container_with_focusable_child_is_not_a_redundant_stop() {
+        let (dom, d) = scroll_div(true, |dom, parent| {
+            let b = dom.create_element("button");
+            dom.append_child(parent, b).unwrap();
+        });
+        assert!(
+            !is_focusable(&dom, d),
+            "the button is the stop; the enclosing scroller must not also be one"
+        );
+    }
 }

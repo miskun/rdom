@@ -384,15 +384,11 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
             "[role=treeitem][aria-expanded=false] > [role=group]",
             TuiStyle::new().display(Display::None),
         ),
-        // The tree uses the ARIA active-descendant model: the
-        // container holds focus on behalf of the cursor row, so the
-        // generic `:focus` background affordance must NOT fill the
-        // whole container — reset it to no fill. Higher specificity
-        // (`[role=tree]:focus` = 0,2,0) beats the generic `:focus`
-        // (0,1,0), so no `!important` is needed now that the generic
-        // rule is non-important. The visible focus indicator is the
-        // active ROW below.
-        ("[role=tree]:focus", TuiStyle::new().bg(Color::Reset)),
+        // The tree uses the ARIA active-descendant model: the container holds
+        // focus on behalf of the cursor row. No reset hack is needed anymore —
+        // the focus tint is scoped to atomic controls, so a `[role=tree]`
+        // container never gets a fill. Its visible focus indicator is the
+        // active ROW below (and, when scrollable, the accent scrollbar thumb).
         // Keyboard cursor (active descendant) — highlighted only
         // while the tree itself holds focus, so the cursor dims when
         // focus leaves. The bg is consumed by the tree paint pass as
@@ -562,19 +558,23 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
             "button::after, input[type=button]::after, input[type=submit]::after, input[type=reset]::after",
             TuiStyle::new().content(Content::Str(" ]".into())),
         ),
-        // ── Focus indicator ──
-        // Subtle background tint on focus — the TUI analog of the web's
-        // focus outline (a bg tint avoids the reflow a border ring would
-        // cause; see DIVERGENCES.md). Deliberately **non-important** so
-        // authors/consumers can override it on any element: a forced
-        // `!important` fill here is unoverridable and wrong for elements
-        // that own their content area (a `<canvas>` the app paints, a
-        // focusable scroll container). Override with a higher-specificity
-        // rule (`canvas:focus { background: … }`) or an inline style.
-        // The text-field family re-asserts the tint with `!important`
-        // just below — it has to beat its own high-specificity field
-        // background.
-        (":focus", TuiStyle::new().bg(Color::Rgb(0x2d, 0x2f, 0x31))),
+        // ── Focus indicator: background tint, scoped to atomic controls ──
+        // The web shows focus with an OUTLINE on every focusable element; a
+        // TUI can't draw a no-reflow ring, so rdom substitutes a background
+        // tint. A fill only reads as a focus affordance on small atomic
+        // controls (the box IS the control). On a container — table, div,
+        // scroll region, canvas — it floods the interior, nothing like the
+        // web's outline, so the tint is *scoped to the control set*.
+        // Containers express focus another way: scroll containers via the
+        // `:focus::scrollbar-thumb` accent (below), grid/tree via their
+        // internal cursor, otherwise the consumer's own CSS. This replaces the
+        // old generic `:focus` tint + its per-element opt-out hacks
+        // (`canvas:focus`, `[role=tree]:focus`). Non-important so authors
+        // override freely. See DIVERGENCES.md "Focus affordances".
+        (
+            "button:focus, summary:focus, a:focus, area:focus",
+            TuiStyle::new().bg(Color::Rgb(0x2d, 0x2f, 0x31)),
+        ),
         // The text-field background chain
         // (`input:not([type=button])…`, specificity 0,7,1) would
         // otherwise hide the focus tint on text inputs. `!important`
@@ -584,6 +584,14 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
             "input:focus, textarea:focus, select:focus",
             TuiStyle::new().bg_important(Color::Rgb(0x2d, 0x2f, 0x31)),
         ),
+        // Focus indicator for SCROLL CONTAINERS: a focused, scrollable element
+        // (a div/table/region that overflows) is keyboard-focusable so it can
+        // be scrolled — and it already owns scrollbar chrome, so its thumb
+        // doubles as the focus cue at zero extra area. Focused → accent
+        // (DodgerBlue) thumb; unfocused → the paint pass's gray fallback. This
+        // is the container analog of the web's focus outline, expressed
+        // through the `::scrollbar-thumb` pseudo. See DIVERGENCES.md.
+        (":focus::scrollbar-thumb", TuiStyle::new().bg(ACCENT)),
         // Placeholder rendering via `:placeholder-shown` +
         // `attr()` content. When the input / textarea has a
         // non-empty `placeholder` attribute and is empty, the
@@ -768,16 +776,10 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
                 .width(Size::Fixed(40))
                 .height(Size::Fixed(10)),
         ),
-        // `<canvas>` is a replaced/content element — the app paints its
-        // cells. The web's focus *outline* is a non-destructive overlay
-        // around the box; rdom's focus indicator is a background tint
-        // (no-reflow TUI substitute), which WOULD paint over the canvas
-        // content. So a focused canvas opts out of the focus tint —
-        // matching the web, where focusing a canvas never touches its
-        // pixels. Higher specificity than the generic `:focus` (0,1,1 >
-        // 0,1,0); both non-important, so this wins. Apps that *want* a
-        // focused-canvas background still set their own.
-        ("canvas:focus", TuiStyle::new().bg(Color::Reset)),
+        // No `canvas:focus` reset hack is needed anymore: the focus tint is
+        // scoped to atomic controls, so a `<canvas>` (a replaced/content
+        // element the app paints) never gets a background fill on focus —
+        // matching the web, where focusing a canvas never touches its pixels.
         // ── Tables ──
         // `<table>` is the layout primitive for tabular data.
         // Structure: optional `<caption>`, optional `<thead>` /
@@ -1019,10 +1021,13 @@ mod tests {
         // this test and requires a deliberate update. Comma-list
         // selectors expand to one Rule per selector at insertion, so
         // the count can exceed the number of tuples in `ua_defaults`.
-        // 140 = 136 + the 3-selector `input:focus, textarea:focus,
-        // select:focus` focus-tint rule + the `canvas:focus` opt-out
-        // (UA-FOCUS-OVERRIDABLE-1).
-        assert_eq!(ua.len(), 140);
+        // 142: the focus-affordance vocabulary (FOCUS-VOCAB-1) replaced the
+        // generic `:focus` tint + its `canvas:focus` / `[role=tree]:focus`
+        // opt-out hacks (net -3) with a 4-selector control allowlist
+        // (`button/summary/a/area:focus`, +4) and the `:focus::scrollbar-thumb`
+        // accent (+1) — alongside the retained 3-selector
+        // `input/textarea/select:focus` !important tint.
+        assert_eq!(ua.len(), 142);
         let disabled = ua
             .iter()
             .find(|r| r.source_text == "[disabled]")
@@ -1054,7 +1059,8 @@ mod tests {
             "[role=treeitem]",
             "[role=treeitem]::before",
             "[role=treeitem][aria-expanded=false] > [role=group]",
-            "[role=tree]:focus",
+            // `[role=tree]:focus` reset removed by FOCUS-VOCAB-1 — the tint is
+            // now scoped to controls, so the tree container never gets a fill.
             "[role=tree]:focus [data-rdom-active]",
             "[role=treeitem][aria-selected=true]",
         ] {

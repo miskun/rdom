@@ -5,6 +5,17 @@ All notable changes to rdom will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **Focus is now a typed affordance vocabulary, not a universal background tint** (`FOCUS-VOCAB-1`). The web shows focus with an outline on every focusable element; a TUI can't draw a no-reflow ring, so rdom matches the cue to the element kind instead of flooding every focused element's background. **Atomic controls** (`button`/`input`/`textarea`/`select`/`summary`/`a`/`area`) keep the `:focus` background tint. **Scroll containers** get an accent scrollbar thumb (see below). **Grid/tree/listbox** use their internal cursor. **Everything else** (a bare focusable `<div>`/`<table>` with no scrollbar) gets **no default fill** — a full-area tint on a large container is destructive and unlike the web's outline; the consumer expresses focus in CSS. This replaced the old generic `:focus` tint and its per-element opt-out hacks (`canvas:focus`, `[role=tree]:focus`), which are now deleted. Migration: an app that relied on a focused container being tinted adds its own `:focus { … }` rule.
+
+### Added
+
+- **Scrollable overflow containers are implicitly keyboard-focusable** (`FOCUS-VOCAB-1`), matching modern browsers' keyboard-focusable scrollers — so a scroll region can be scrolled from the keyboard. A container qualifies only when it actually shows a scrollbar (clips on an axis *and* content overflows) **and** has no focus stop of its own, so it never adds a redundant tab stop. A non-scrolling `<div>`/`<table>` remains non-focusable, exactly as on the web.
+- **`:focus::scrollbar-thumb` UA rule** — a focused scroll container's scrollbar thumb turns accent (DodgerBlue); unfocused thumbs stay gray. The container analog of the web's focus outline, at zero extra area (it reuses scrollbar chrome the element already owns).
+
 ## [0.3.3] - 2026-06-02
 
 ### Added

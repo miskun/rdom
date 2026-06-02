@@ -1,14 +1,15 @@
-//! `UA-FOCUS-OVERRIDABLE-1`: focus-indicator semantics.
+//! Focus-indicator semantics (`UA-FOCUS-OVERRIDABLE-1` → `FOCUS-VOCAB-1`).
 //!
-//! 1. The generic UA `:focus` background tint is non-important, so
-//!    authors can override it on any element (was unoverridable when
-//!    `!important`).
-//! 2. A focused `<canvas>` gets **no** tint by default — it's a
-//!    replaced/content element the app paints, so the focus background
-//!    must not paint over it (the web focuses a canvas with a
-//!    non-destructive outline; rdom opts canvas out of the bg tint).
-//! 3. Non-canvas focusable elements still get the tint, and the
-//!    text-field family keeps it over their own field background.
+//! 1. The focus background tint is non-important, so authors can override
+//!    it (was unoverridable when `!important`).
+//! 2. The tint is **scoped to atomic controls** (button/input/textarea/
+//!    select/summary/a). A focused container — `<canvas>`, `<div>`, table,
+//!    scroll region — gets **no** background fill (the web shows those an
+//!    outline, which rdom can't fill-substitute; containers express focus
+//!    via the scrollbar thumb / an internal cursor / the consumer's CSS).
+//!    This replaced the old generic `:focus` tint + its `canvas:focus`
+//!    opt-out hack.
+//! 3. The text-field family keeps the tint over their own field background.
 
 use rdom_tui::prelude::*;
 use rdom_tui::style::Color;
@@ -39,9 +40,11 @@ fn focused_canvas_is_clean_by_default() {
 }
 
 #[test]
-fn focused_non_canvas_still_gets_the_tint() {
-    // The exemption is scoped to canvas — a focusable div still shows
-    // the generic focus indicator (no regression of the affordance).
+fn focused_container_gets_no_tint() {
+    // The tint is scoped to atomic controls — a focused container (div,
+    // table, canvas, …) is NOT flooded with the focus background. It's the
+    // same clean result canvas got via its old opt-out hack, now the default
+    // for every non-control.
     let mut dom = TuiDom::new();
     let root = dom.root();
     let div = dom.create_element("div");
@@ -49,8 +52,24 @@ fn focused_non_canvas_still_gets_the_tint() {
 
     assert_eq!(
         cascade_focused(&mut dom, &Stylesheet::new(), div),
+        Color::Reset,
+        "a focused container must not be flooded with the focus tint"
+    );
+}
+
+#[test]
+fn focused_control_gets_the_tint() {
+    // The affordance is intact where it belongs: a focused atomic control
+    // (here a <button>) shows the focus background.
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let button = dom.create_element("button");
+    dom.append_child(root, button).unwrap();
+
+    assert_eq!(
+        cascade_focused(&mut dom, &Stylesheet::new(), button),
         FOCUS_BG,
-        "non-canvas focusable elements keep the generic focus tint"
+        "a focused control keeps the focus tint"
     );
 }
 
@@ -72,8 +91,9 @@ fn author_can_paint_a_focused_canvas_if_it_wants() {
 }
 
 #[test]
-fn author_focus_rule_overrides_generic_tint_on_a_div() {
-    // The generic tint is overridable (non-important) on any element.
+fn author_can_express_focus_on_a_container() {
+    // Containers get no default focus fill, but an author can express focus
+    // however they like — here a `div:focus` background.
     let mut dom = TuiDom::new();
     let root = dom.root();
     let div = dom.create_element("div");

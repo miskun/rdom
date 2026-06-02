@@ -1942,3 +1942,64 @@ fn author_rule_beats_where_pseudo_regardless_of_source_order() {
     dom.cascade(&sheet);
     assert_eq!(computed_of(&dom, div).bg, Color::Rgb(1, 2, 3));
 }
+
+// ── Focus affordance vocabulary (FOCUS-VOCAB-1) ──
+
+#[test]
+fn focus_tint_applies_to_controls() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let button = dom.create_element("button");
+    dom.append_child(root, button).unwrap();
+    dom.set_focused(Some(button));
+    dom.cascade(&Stylesheet::new());
+    assert_eq!(
+        computed_of(&dom, button).bg,
+        Color::Rgb(0x2d, 0x2f, 0x31),
+        "a focused control gets the focus tint"
+    );
+}
+
+#[test]
+fn focus_tint_does_not_fill_containers() {
+    // A focused non-control gets NO background fill — the tint is scoped to
+    // controls. (Focus is forced via set_focused; the point is the cascade
+    // scoping, not whether a bare div is normally focusable.)
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let div = dom.create_element("div");
+    dom.append_child(root, div).unwrap();
+    dom.set_focused(Some(div));
+    dom.cascade(&Stylesheet::new());
+    assert_eq!(
+        computed_of(&dom, div).bg,
+        Color::Reset,
+        "a focused container must not be flooded with the focus tint"
+    );
+}
+
+#[test]
+fn focused_scroll_container_thumb_is_accent() {
+    use crate::node::TuiNodeExt;
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let d = dom.create_element("div");
+    dom.node_mut(d).set_inline_style(
+        TuiStyle::new()
+            .height(Size::Fixed(4))
+            .overflow_y(Overflow::Scroll),
+    );
+    dom.append_child(root, d).unwrap();
+    dom.set_focused(Some(d));
+    dom.cascade(&Stylesheet::new());
+    let thumb_bg = dom
+        .node(d)
+        .tui_ext()
+        .and_then(|e| e.computed_scrollbar_thumb.as_ref())
+        .map(|c| c.bg);
+    assert_eq!(
+        thumb_bg,
+        Some(Color::Rgb(30, 144, 255)), // DodgerBlue = ACCENT
+        "a focused scroll container's thumb signals focus via the accent color"
+    );
+}

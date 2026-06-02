@@ -85,6 +85,17 @@ One piece of architectural debt deferred with teeth: `EVT-DETACH-1` (implicit bl
 
 ## Recent decisions
 
+### 2026-06-02 — `FOCUS-VOCAB-1`: typed focus-affordance vocabulary (Unreleased)
+
+Eleventh consumer-surfaced substrate issue — and a design correction. While building `rdom-virtualtable`, the focused `<table>` kept washing to the focus background. Root question (the consumer asked): "is `<table>` even focusable in HTML?" No — it's not focusable without `tabindex`, like `<p>`/`<div>`; rdom matched that. The real defect was upstream: the UA applied a generic `:focus { background }` tint to **every** focused element, with a growing denylist of opt-out hacks (`canvas:focus`, `[role=tree]:focus`) — `<table>` was about to be the third. The web shows focus with an *outline* on every focusable element, but a TUI can't draw a no-reflow ring, so there's no universal cue. Fix: flip denylist → **typed vocabulary**:
+
+- atomic controls → `:focus` bg tint (kept, scoped);
+- scroll containers → accent scrollbar thumb (`:focus::scrollbar-thumb`), reusing chrome they already own — and they're now implicitly keyboard-focusable (web-faithful: only when they actually scroll *and* have no focus stop of their own, so no redundant tab stop);
+- grid/tree/listbox → internal cursor;
+- everything else → no default fill; consumer's CSS.
+
+This deleted both opt-out hacks (one principle replaces the hack list) and is *more* web-faithful (containers get the web's non-destructive treatment, not a flood). Leans entirely on primitives that already existed — `:focus`, the `::scrollbar-thumb` pseudo, the cascade — plus one focusability rule in `tabindex.rs`. Tests: P2 focusability (scrollable focusable; non-scrolling not; scroller-with-focusable-child not a redundant stop), P1 cascade scoping (control tinted, container not), P3 thumb-accent. UA rule count 140 → 142. Updated the `UA-FOCUS-OVERRIDABLE-1` integration test to the new semantics. DIVERGENCES "Runtime & focus" rewritten. Pending a release decision (0.3.4) so `rdom-virtualtable` can drop its `table:focus { background: reset }` workaround. **A `<tree>` may now show two cues at once (accent thumb + highlighted row) — accepted; consumers can restyle.**
+
 ### 2026-06-02 — `:where()` zero-specificity selector (0.3.3, released)
 
 Tenth consumer-surfaced substrate gap — this one about *override ergonomics*, not a bug. The first
