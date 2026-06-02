@@ -85,6 +85,24 @@ One piece of architectural debt deferred with teeth: `EVT-DETACH-1` (implicit bl
 
 ## Recent decisions
 
+### 2026-06-02 — `:where()` zero-specificity selector (0.3.3, released)
+
+Tenth consumer-surfaced substrate gap — this one about *override ergonomics*, not a bug. The first
+component-library consumer (`rdom-virtualtable`) ships default highlight styles, and the question
+came up: why is overriding them harder than overriding browser UA defaults? Answer: browsers sort
+the cascade by **origin first** (Author beats UA regardless of specificity), but rdom only lets a
+downstream crate emit **Author**-origin rules — so a library's defaults and the app's rules compete
+purely on specificity + source order. The wrong fix would be inventing a `RuleOrigin::Library` tier
+(non-web; browsers never let a library touch UA). The right, web-faithful fix is the mechanism the
+platform built for exactly this: **`:where()`** (Selectors L4) — matches like `:is()` but contributes
+zero specificity, so any real author rule overrides a `:where()`-wrapped default for free, all inside
+the Author origin where a library actually lives. Added to `rdom-core` (parser + matcher, delegating
+to `matches_list` so combinators inside the arg work) and `rdom-style` (zero specificity). `:is()`
+(specificity = most-specific arg) and `@layer` (cascade layers — the heavier, complete answer for the
+`:where()` "stray low-spec author rule" wrinkle) remain on the roadmap. Additive, backward-compatible
+→ all five crates bump together to **0.3.3** (rdom-core is a leaf dep; every consumer re-pins). Live
+on crates.io; tag `v0.3.3`. Next: `rdom-virtualtable` wraps its highlight defaults in `:where()`.
+
 ### 2026-06-02 — `DROP-SUBTREE-FREE-ORDER-1`: drop_subtree freed before firing its mutation (0.3.2)
 
 Ninth consumer-surfaced substrate bug. A downstream chart gallery swapped demos on a keypress by
