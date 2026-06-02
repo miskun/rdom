@@ -897,7 +897,7 @@ dependencies = [
 
 [[package]]
 name = "rdom-core"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "criterion",
  "proptest",
@@ -905,7 +905,7 @@ dependencies = [
 
 [[package]]
 name = "rdom-css"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "rdom-core",
  "rdom-parser",
@@ -915,14 +915,14 @@ dependencies = [
 
 [[package]]
 name = "rdom-parser"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "rdom-core",
 ]
 
 [[package]]
 name = "rdom-showcase"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "crossterm",
  "rdom-css",
@@ -932,14 +932,14 @@ dependencies = [
 
 [[package]]
 name = "rdom-style"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "rdom-core",
 ]
 
 [[package]]
 name = "rdom-tui"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "arboard",
  "compact_str",

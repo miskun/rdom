@@ -10,8 +10,8 @@ keywords = ["css", "parser", "rdom", "tui"]
 categories = ["parser-implementations"]
 
 [dependencies]
-rdom-core = { path = "../rdom-core", version = "0.3.1" }
-rdom-style = { path = "../rdom-style", version = "0.3.1" }
+rdom-core = { path = "../rdom-core", version = "0.3.2" }
+rdom-style = { path = "../rdom-style", version = "0.3.2" }
 
 [dev-dependencies]
 # Examples build a TuiDom + render it; rdom-tui is example-only,
