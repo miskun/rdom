@@ -73,7 +73,7 @@ One piece of architectural debt deferred with teeth: `EVT-DETACH-1` (implicit bl
 - [x] **0.1.0** — Initial release (2026-05-19): DOM substrate, cascade, flexbox, runtime, native built-ins, UA stylesheet, CSS parser, HTML parser.
 - [x] **0.1.0 editing parity** (2026-05-20): selection, caret, contenteditable parity.
 - [ ] **0.2.0** — In flight. `rdom-showcase` (headline) + event surface bundle + `calc()` value system. See [`specs/SHOWCASE.md`](specs/SHOWCASE.md).
-- [ ] **0.3.0** — Substrate honesty. Fixes the seven points of friction the first downstream consumer (`rdom-extensions`) hit, two of them High (geometry setters that don't drive layout; no repaint request from event listeners). See [`specs/SUBSTRATE-0.3.0.md`](specs/SUBSTRATE-0.3.0.md). (Routing slid to 0.4.0.)
+- [x] **0.3.0** — Substrate honesty (released 2026-06-02). Fixed the seven friction points the first downstream consumer (`rdom-extensions`) hit, two High (geometry setters that didn't drive layout; no repaint request from event listeners). See [`specs/SUBSTRATE-0.3.0.md`](specs/SUBSTRATE-0.3.0.md). (Routing slid to 0.4.0.)
 - [ ] **0.4.0** — Client-side routing primitive.
 - [ ] **0.5.0** — Async tasks during event handlers.
 
@@ -82,6 +82,13 @@ One piece of architectural debt deferred with teeth: `EVT-DETACH-1` (implicit bl
 - **`EVT-DETACH-1`** — implicit `blur` / `focusout` / `mouseleave` / `mouseout` not dispatched on detach. Documented in [`specs/TECH_DEBT.md`](specs/TECH_DEBT.md) as a non-negotiable M5 deliverable. Risk: if M5 scope grows and this slips, rdom-tui ships an internally inconsistent hover-event model. Mitigation: M5 exit criteria in [`specs/SHOWCASE.md`](specs/SHOWCASE.md) explicitly require closing `EVT-DETACH-1` + deleting the related DIVERGENCES.md entries.
 
 ## Recent decisions
+
+### 2026-06-02 — 0.3.0 released to crates.io
+
+All five published crates shipped at `0.3.0` in dep order (rdom-core → rdom-style → rdom-parser →
+rdom-css → rdom-tui), tag `v0.3.0`. Payload: the substrate-honesty set (A–D / six `TECH_DEBT`
+items). The `rdom-css ↔ rdom-tui` dev-dep cycle stayed path-only from 0.2.0, so the publish was
+clean first try. No release-mechanics snags this time.
 
 ### 2026-06-02 — 0.3.0 Milestone D landed: `ARENA-RECLAIM-1` (detach-vs-free ergonomics)
 
