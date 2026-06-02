@@ -53,7 +53,12 @@ pub fn install(dom: &mut TuiDom) {
         if key.modifiers.ctrl || key.modifiers.alt || key.modifiers.meta {
             return;
         }
-        handle_key(ctx.dom, focused, key.key.as_str());
+        if handle_key(ctx.dom, focused, key.key.as_str()) {
+            // The tree consumed this key — claim it so the app's default
+            // actions (focused-scroll-container keymap, Tab focus nav) don't
+            // also fire on the same arrow.
+            ctx.event.prevent_default();
+        }
     })
     .expect("tree keydown listener install");
 
@@ -87,10 +92,15 @@ pub fn install(dom: &mut TuiDom) {
 
 // ── Keyboard ────────────────────────────────────────────────────
 
-fn handle_key(dom: &mut TuiDom, tree: NodeId, key: &str) {
+/// Handle a navigation key. Returns `true` when the tree consumed the key —
+/// the caller then `prevent_default()`s it so the app's default-action chain
+/// (scroll-key, Tab focus nav, …) doesn't *also* act on it. Without this, a
+/// tree that owns its scroll would move the cursor AND get line-scrolled by
+/// the focused-scroll-container keymap (double scroll).
+fn handle_key(dom: &mut TuiDom, tree: NodeId, key: &str) -> bool {
     let items = visible_items(dom, tree);
     if items.is_empty() {
-        return;
+        return false;
     }
     let cur = active(dom, tree);
     let cur_idx = cur.and_then(|c| items.iter().position(|&i| i == c));
@@ -135,8 +145,11 @@ fn handle_key(dom: &mut TuiDom, tree: NodeId, key: &str) {
             }
             activate(dom, item);
         }
-        _ => {}
+        // Keys the tree doesn't navigate (Tab, letters, …) fall through to the
+        // app's default actions.
+        _ => return false,
     }
+    true
 }
 
 // ── State mutation + events ─────────────────────────────────────

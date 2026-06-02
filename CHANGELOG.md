@@ -20,6 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **A tree's full-width row highlight no longer bleeds under its vertical scrollbar.** The `[role=treeitem]` cursor/selected-row background is painted edge-to-edge by the guide pass; once a tree can own its scroll, that fill ran under the scrollbar thumb. It now reserves the scrollbar gutter (the rightmost padding-box column) when the tree shows a vertical scrollbar, matching how normal content reserves it.
+- **A focused `[role=tree]` no longer double-scrolls on arrow keys.** Its keydown handler moved the cursor (and `scroll_into_view` followed it) but never `preventDefault`'d, so the new focused-scroll-container keymap *also* line-scrolled the same arrow. The tree now claims the keys it navigates, leaving Tab / unhandled keys to fall through.
+- **A dynamically-added `<input>` / `<textarea>` is now typeable.** `input::seed_all` only ran once at `App::build`, so an editable mounted later (a switched-in view, a runtime-built form) had no text-node child — focusing it seeded no caret and keystrokes were silently dropped. The focus path now seeds the editable lazily (`input::ensure_seeded`), so any focused editable accepts text whenever it was created.
 
 ## [0.3.3] - 2026-06-02
 

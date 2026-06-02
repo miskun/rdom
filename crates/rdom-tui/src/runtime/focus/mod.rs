@@ -94,6 +94,13 @@ fn seed_caret_for_editable_focus(dom: &mut TuiDom, id: NodeId) {
         return;
     }
 
+    // Ensure the editable has its text-node child. `input::seed_all` only
+    // runs once at `App::build`, so an editable mounted later (a switched-in
+    // view, a runtime-built form) had none — and the caret seed + first
+    // keystroke silently no-op'd. Seed it lazily here so any focused editable
+    // is typeable, whenever it was created.
+    crate::runtime::builtins::input::ensure_seeded(dom, id);
+
     // Preserve any pre-existing selection that already lives inside
     // `id`'s subtree — re-focusing the same element after blur
     // shouldn't reset the user's caret position.

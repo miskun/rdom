@@ -115,6 +115,39 @@ pub fn seed_all(dom: &mut TuiDom) {
     }
 }
 
+/// Ensure a single editable `<input>` / `<textarea>` has its text-node child,
+/// seeding it (from the `value` attribute, for text-family inputs) if missing.
+/// Idempotent.
+///
+/// [`seed_all`] only runs once at `App::build`, so an editable added to the
+/// DOM *after* that (a dynamically-mounted view, a runtime-built form) had no
+/// text child — and editing/caret seeding silently no-op'd against it. The
+/// focus path calls this so a freshly-focused editable is always typeable,
+/// whenever it was created.
+pub fn ensure_seeded(dom: &mut TuiDom, id: NodeId) {
+    let has_text_child = dom
+        .node(id)
+        .child_nodes()
+        .any(|c| c.node_type() == rdom_core::NodeType::Text);
+    if has_text_child {
+        return;
+    }
+    match dom.node(id).tag_name() {
+        Some("input") if is_text_family_input(dom, id) => {
+            let want = dom
+                .node(id)
+                .get_attribute("value")
+                .unwrap_or("")
+                .to_string();
+            let _ = crate::node::install_text_content(dom, id, &want);
+        }
+        Some("textarea") => {
+            let _ = crate::node::install_text_content(dom, id, "");
+        }
+        _ => {}
+    }
+}
+
 /// Same text-family list as `node::is_text_input_type`. Lives
 /// here too because `node` keeps it private. Both must stay in
 /// sync — adding a new text-family type means updating both.
