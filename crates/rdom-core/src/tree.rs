@@ -182,8 +182,16 @@ impl<Ext: 'static> Dom<Ext> {
     }
 
     /// Remove `child` from `parent`. Child is detached (parent + sibling
-    /// pointers cleared) but remains in the arena as an orphan — it can
-    /// be reattached elsewhere or explicitly dropped via `drop_subtree`.
+    /// pointers cleared) but **remains in the arena as an orphan** — it
+    /// can be reattached elsewhere, or explicitly freed via
+    /// [`drop_subtree`](Self::drop_subtree).
+    ///
+    /// The arena has no GC: a detached node is never reclaimed on its
+    /// own. Code that removes nodes it will **not** reattach — especially
+    /// high-churn UIs (a virtualized list/table re-materializing rows on
+    /// every scroll) — must free them, or arena slots leak. Use
+    /// [`remove_child_dropping`](Self::remove_child_dropping) to remove
+    /// and free in one call.
     pub fn remove_child(&mut self, parent: NodeId, child: NodeId) -> Result<()> {
         if self.get_node(child).and_then(|n| n.parent) != Some(parent) {
             return Err(DomError::NotFound);
@@ -244,8 +252,11 @@ impl<Ext: 'static> Dom<Ext> {
         }
     }
 
-    /// Remove all children from `parent`. They become orphans in the arena.
-    /// Fires a single `ChildListChanged` record with every removed child.
+    /// Remove all children from `parent`. They become **orphans in the
+    /// arena** (not freed — see [`remove_child`](Self::remove_child) on
+    /// the no-GC contract). Fires a single `ChildListChanged` record with
+    /// every removed child. To remove and free in one call, use
+    /// [`clear_children_dropping`](Self::clear_children_dropping).
     pub fn clear_children(&mut self, parent: NodeId) -> Result<()> {
         self.node_or_err(parent)?;
         let mut removed: Vec<NodeId> = Vec::new();
@@ -283,6 +294,41 @@ impl<Ext: 'static> Dom<Ext> {
                 added: vec![],
                 removed: vec![id],
             });
+        }
+        Ok(())
+    }
+
+    /// Remove `child` from `parent` **and free** its subtree from the
+    /// arena (the non-leaking [`remove_child`](Self::remove_child)).
+    /// Use when you won't reattach the removed node. Fires the same
+    /// single `ChildListChanged` record `remove_child` does (the
+    /// follow-up free runs on the already-detached orphan, so it adds no
+    /// extra record). Observers still see the removed node alive in their
+    /// synchronous callback — it's freed only after dispatch returns.
+    pub fn remove_child_dropping(&mut self, parent: NodeId, child: NodeId) -> Result<()> {
+        self.remove_child(parent, child)?;
+        // `child` is now a detached orphan; drop_subtree frees it and
+        // fires no further record (its parent is already `None`).
+        let _ = self.drop_subtree(child);
+        Ok(())
+    }
+
+    /// Remove all children from `parent` **and free** their subtrees
+    /// from the arena (the non-leaking [`clear_children`](Self::clear_children)).
+    /// Fires the same single `ChildListChanged` record `clear_children`
+    /// does; the frees run on the already-detached orphans.
+    pub fn clear_children_dropping(&mut self, parent: NodeId) -> Result<()> {
+        self.node_or_err(parent)?;
+        // Snapshot children before detaching them.
+        let mut children: Vec<NodeId> = Vec::new();
+        let mut cur = self.get_node(parent).and_then(|n| n.first_child);
+        while let Some(id) = cur {
+            children.push(id);
+            cur = self.get_node(id).and_then(|n| n.next_sibling);
+        }
+        self.clear_children(parent)?; // detaches all, one batch record
+        for child in children {
+            let _ = self.drop_subtree(child); // frees orphan, no extra record
         }
         Ok(())
     }
@@ -735,6 +781,36 @@ mod tests {
         assert!(dom.contains(b));
         assert!(dom.contains(c));
         assert!(dom.get_node(a).unwrap().parent.is_none());
+    }
+
+    #[test]
+    fn remove_child_dropping_frees_the_node() {
+        let (mut dom, a, b, _c) = sample();
+        let root = dom.root();
+        dom.append_child(root, a).unwrap();
+        dom.append_child(a, b).unwrap();
+
+        dom.remove_child_dropping(root, a).unwrap();
+        // Detached AND freed — the whole subtree is gone from the arena.
+        assert!(!dom.contains(a));
+        assert!(!dom.contains(b));
+        assert!(dom.get_node(root).unwrap().first_child.is_none());
+    }
+
+    #[test]
+    fn clear_children_dropping_frees_all() {
+        let (mut dom, a, b, c) = sample();
+        let root = dom.root();
+        dom.append_child(root, a).unwrap();
+        dom.append_child(root, b).unwrap();
+        dom.append_child(root, c).unwrap();
+
+        dom.clear_children_dropping(root).unwrap();
+        assert!(dom.get_node(root).unwrap().first_child.is_none());
+        // Unlike clear_children, every child is freed, not orphaned.
+        assert!(!dom.contains(a));
+        assert!(!dom.contains(b));
+        assert!(!dom.contains(c));
     }
 
     #[test]

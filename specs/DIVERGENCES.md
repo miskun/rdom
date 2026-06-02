@@ -102,6 +102,7 @@ The DOM API is Rust-shaped rather than JS-shaped. The semantics match WHATWG DOM
 - **`textContent.len()` returns bytes**, not UTF-16 code units.
 - **No XML namespaces.** `namespaceURI`, `prefix`, `*NS` method variants are not applicable.
 - **No Shadow DOM, no custom elements registry, no `<template>` cloning semantics.**
+- **Detached nodes are not garbage-collected.** `remove_child` / `clear_children` / `replace_child` / `replace_children` detach a node but leave it in the arena as a reusable orphan (so it can be reattached). The slot is reclaimed only by `drop_subtree`, or the `remove_child_dropping` / `clear_children_dropping` convenience variants. The web relies on GC to reclaim unreferenced detached nodes; rdom's arena requires **explicit** reclamation, so high-churn callers that won't reattach (e.g. a virtualized list/table re-materializing rows) must drop removed nodes or leak arena slots. (`ARENA-RECLAIM-1`.)
 
 ### Events
 

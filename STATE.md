@@ -83,6 +83,19 @@ One piece of architectural debt deferred with teeth: `EVT-DETACH-1` (implicit bl
 
 ## Recent decisions
 
+### 2026-06-02 — 0.3.0 Milestone D landed: `ARENA-RECLAIM-1` (detach-vs-free ergonomics)
+
+`remove_child` / `clear_children` / `replace_child(ren)` detach but never free (deliberate:
+synchronous observers read removed nodes; detached nodes can be reattached) — only `drop_subtree`
+frees, so high-churn callers leak arena slots silently. Fix is additive: added
+`remove_child_dropping` / `clear_children_dropping` (detach + free, same single mutation record),
+documented the orphan/no-GC contract loudly on the detaching methods, and added a `DIVERGENCES.md`
+entry under "DOM API shape" (web relies on GC; rdom needs explicit reclamation). Primitives
+unchanged. TDD: `remove_child_dropping_frees_the_node` + `clear_children_dropping_frees_all`.
+
+**All four 0.3.0 milestones (A–D) are landed.** The six `TECH_DEBT` "Substrate honesty" items are
+resolved. Next: 0.3.0 release prep (version bump, CHANGELOG, README) then publish.
+
 ### 2026-06-02 — 0.3.0 Milestone C landed: ergonomics & hygiene
 
 Three additive/hygiene fixes:
