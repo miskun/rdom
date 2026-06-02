@@ -13,8 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Scrollable overflow containers are implicitly keyboard-focusable** (`FOCUS-VOCAB-1`), matching modern browsers' keyboard-focusable scrollers — so a scroll region can be scrolled from the keyboard. A container qualifies only when it actually shows a scrollbar (clips on an axis *and* content overflows) **and** has no focus stop of its own, so it never adds a redundant tab stop. A non-scrolling `<div>`/`<table>` remains non-focusable, exactly as on the web.
-- **`:focus::scrollbar-thumb` UA rule** — a focused scroll container's scrollbar thumb turns accent (DodgerBlue); unfocused thumbs stay gray. The container analog of the web's focus outline, at zero extra area (it reuses scrollbar chrome the element already owns).
+- **Scrollable overflow containers are implicitly keyboard-focusable** (`FOCUS-VOCAB-1`), matching modern browsers' keyboard-focusable scrollers. A container qualifies only when it actually shows a scrollbar (clips on an axis *and* content overflows) **and** has no focus stop of its own, so it never adds a redundant tab stop. A non-scrolling `<div>`/`<table>` remains non-focusable, exactly as on the web.
+- **A focused scroll container scrolls with the keyboard** — `ArrowUp`/`ArrowDown` (and `ArrowLeft`/`ArrowRight` when horizontally scrollable) by a line, `PageUp`/`PageDown`/`Space`/`Shift+Space` by a page, `Home`/`End` to the ends. Runs after the editable-key default, so a focused `<input>`/`<textarea>` still moves its caret. `preventDefault` on the `keydown` suppresses it.
+- **`:focus::scrollbar-thumb` UA rule** — a focused scroll container's scrollbar thumb **glyph** turns accent (DodgerBlue, foreground — a colored handle, not a filled block); unfocused thumbs stay gray. The container analog of the web's focus outline, at zero extra area (it reuses scrollbar chrome the element already owns).
 
 ## [0.3.3] - 2026-06-02
 

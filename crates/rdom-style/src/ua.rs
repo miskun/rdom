@@ -587,11 +587,13 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
         // Focus indicator for SCROLL CONTAINERS: a focused, scrollable element
         // (a div/table/region that overflows) is keyboard-focusable so it can
         // be scrolled — and it already owns scrollbar chrome, so its thumb
-        // doubles as the focus cue at zero extra area. Focused → accent
-        // (DodgerBlue) thumb; unfocused → the paint pass's gray fallback. This
-        // is the container analog of the web's focus outline, expressed
-        // through the `::scrollbar-thumb` pseudo. See DIVERGENCES.md.
-        (":focus::scrollbar-thumb", TuiStyle::new().bg(ACCENT)),
+        // doubles as the focus cue at zero extra area. Focused → the thumb
+        // GLYPH (`┃`/`━`) turns accent (DodgerBlue) via foreground; unfocused →
+        // the paint pass's gray fallback. Coloring the foreground keeps the
+        // thin handle bar rather than filling a blue block. The container
+        // analog of the web's focus outline, via `::scrollbar-thumb`. See
+        // DIVERGENCES.md.
+        (":focus::scrollbar-thumb", TuiStyle::new().fg(ACCENT)),
         // Placeholder rendering via `:placeholder-shown` +
         // `attr()` content. When the input / textarea has a
         // non-empty `placeholder` attribute and is empty, the

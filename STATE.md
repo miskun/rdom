@@ -90,7 +90,7 @@ One piece of architectural debt deferred with teeth: `EVT-DETACH-1` (implicit bl
 Eleventh consumer-surfaced substrate issue — and a design correction. While building `rdom-virtualtable`, the focused `<table>` kept washing to the focus background. Root question (the consumer asked): "is `<table>` even focusable in HTML?" No — it's not focusable without `tabindex`, like `<p>`/`<div>`; rdom matched that. The real defect was upstream: the UA applied a generic `:focus { background }` tint to **every** focused element, with a growing denylist of opt-out hacks (`canvas:focus`, `[role=tree]:focus`) — `<table>` was about to be the third. The web shows focus with an *outline* on every focusable element, but a TUI can't draw a no-reflow ring, so there's no universal cue. Fix: flip denylist → **typed vocabulary**:
 
 - atomic controls → `:focus` bg tint (kept, scoped);
-- scroll containers → accent scrollbar thumb (`:focus::scrollbar-thumb`), reusing chrome they already own — and they're now implicitly keyboard-focusable (web-faithful: only when they actually scroll *and* have no focus stop of their own, so no redundant tab stop);
+- scroll containers → accent scrollbar thumb **glyph** (`:focus::scrollbar-thumb { color }` — foreground, a colored handle not a filled block), reusing chrome they already own — and they're now implicitly keyboard-**focusable** (web-faithful: only when they actually scroll *and* have no focus stop of their own, so no redundant tab stop) **and keyboard-scrollable** (Arrows/PageUp/PageDown/Home/End/Space scroll the focused container, after the editable-key default, `preventDefault`-overridable);
 - grid/tree/listbox → internal cursor;
 - everything else → no default fill; consumer's CSS.
 

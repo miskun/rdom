@@ -447,6 +447,102 @@ fn set_scroll(dom: &mut TuiDom, element: NodeId, axis: ScrollAxis, value: i32) -
     clamped
 }
 
+/// `true` when `id` clips on the X axis and its content is wider than its
+/// scrollport. Horizontal analog of [`is_vertical_scroll_container`].
+fn is_horizontal_scroll_container(dom: &TuiDom, id: NodeId) -> bool {
+    let Some(ext) = dom.node(id).tui_ext() else {
+        return false;
+    };
+    let overflow_x = dom
+        .node(id)
+        .computed()
+        .map(|c| c.overflow_x)
+        .unwrap_or(Overflow::Visible);
+    if matches!(overflow_x, Overflow::Visible) {
+        return false;
+    }
+    let border = dom
+        .node(id)
+        .computed()
+        .map(|c| c.border)
+        .unwrap_or_default();
+    let pb = rdom_style::layout::compute_padding_box(ext.layout, border);
+    ext.scroll_content_width > pb.width as usize
+}
+
+/// Keyboard scrolling for a **focused scroll container** (`FOCUS-VOCAB-1`):
+/// Arrows / PageUp / PageDown / Home / End / Space scroll the focused element
+/// along whichever axes it can scroll. Mirrors the web, where a focused
+/// scrollable region is keyboard-scrollable.
+///
+/// Returns `true` when the key was a scroll key the focused element handles —
+/// the caller treats it as a consumed default action (request a redraw, skip
+/// focus-nav fallthrough). Keys for a non-scrollable axis return `false` so
+/// they fall through to other defaults. Runs *after* the editable-key default,
+/// so a focused `<input>`/`<textarea>` still moves its caret with arrows.
+pub(crate) fn handle_scroll_key(dom: &mut TuiDom, key: crossterm::event::KeyEvent) -> bool {
+    use crossterm::event::{KeyCode, KeyModifiers};
+
+    let Some(el) = dom.focused() else {
+        return false;
+    };
+    let vert = is_vertical_scroll_container(dom, el);
+    let horiz = is_horizontal_scroll_container(dom, el);
+    if !vert && !horiz {
+        return false;
+    }
+
+    let (vh, vscroll) = scroll_metrics(dom, el, ScrollAxis::Vertical);
+    let page = (vh as i32).max(1);
+
+    match key.code {
+        KeyCode::Down if vert => {
+            set_scroll(dom, el, ScrollAxis::Vertical, vscroll as i32 + 1);
+            true
+        }
+        KeyCode::Up if vert => {
+            set_scroll(dom, el, ScrollAxis::Vertical, vscroll as i32 - 1);
+            true
+        }
+        KeyCode::PageDown if vert => {
+            set_scroll(dom, el, ScrollAxis::Vertical, vscroll as i32 + page);
+            true
+        }
+        KeyCode::PageUp if vert => {
+            set_scroll(dom, el, ScrollAxis::Vertical, vscroll as i32 - page);
+            true
+        }
+        KeyCode::Char(' ') if vert => {
+            let dir = if key.modifiers.contains(KeyModifiers::SHIFT) {
+                -page
+            } else {
+                page
+            };
+            set_scroll(dom, el, ScrollAxis::Vertical, vscroll as i32 + dir);
+            true
+        }
+        KeyCode::Home if vert => {
+            set_scroll(dom, el, ScrollAxis::Vertical, 0);
+            true
+        }
+        KeyCode::End if vert => {
+            set_scroll(dom, el, ScrollAxis::Vertical, i32::MAX);
+            true
+        }
+        KeyCode::Right if horiz => {
+            let (_, hscroll) = scroll_metrics(dom, el, ScrollAxis::Horizontal);
+            set_scroll(dom, el, ScrollAxis::Horizontal, hscroll as i32 + 1);
+            true
+        }
+        KeyCode::Left if horiz => {
+            let (_, hscroll) = scroll_metrics(dom, el, ScrollAxis::Horizontal);
+            set_scroll(dom, el, ScrollAxis::Horizontal, hscroll as i32 - 1);
+            true
+        }
+        _ => false,
+    }
+}
+
 #[allow(dead_code)]
 fn _layout_rect_unused(_: LayoutRect) {}
 

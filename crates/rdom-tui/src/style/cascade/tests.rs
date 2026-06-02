@@ -1992,14 +1992,14 @@ fn focused_scroll_container_thumb_is_accent() {
     dom.append_child(root, d).unwrap();
     dom.set_focused(Some(d));
     dom.cascade(&Stylesheet::new());
-    let thumb_bg = dom
+    let thumb_fg = dom
         .node(d)
         .tui_ext()
         .and_then(|e| e.computed_scrollbar_thumb.as_ref())
-        .map(|c| c.bg);
+        .map(|c| c.fg);
     assert_eq!(
-        thumb_bg,
+        thumb_fg,
         Some(Color::Rgb(30, 144, 255)), // DodgerBlue = ACCENT
-        "a focused scroll container's thumb signals focus via the accent color"
+        "a focused scroll container's thumb glyph turns accent (foreground)"
     );
 }

@@ -12,6 +12,7 @@ mod resize_integration;
 mod scaffold;
 mod scroll_indicator;
 mod scrollable_list_hover_regression;
+mod scrollable_list_keyboard_scroll;
 mod scrollable_list_wheel_regression;
 mod sidebar_scroll_end_regression;
 mod source_overflow_regression;

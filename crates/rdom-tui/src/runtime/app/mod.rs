@@ -643,6 +643,7 @@ impl<B: Backend> App<B> {
                 if !tui.event.default_prevented() {
                     if crate::runtime::selection::keyboard::try_handle_key(&mut self.dom, *key)
                         || try_handle_editable_key(&mut self.dom, *key)
+                        || crate::runtime::scrollbar::handle_scroll_key(&mut self.dom, *key)
                     {
                         self.needs_redraw = true;
                     } else {
