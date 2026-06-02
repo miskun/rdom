@@ -73,6 +73,7 @@ One piece of architectural debt deferred with teeth: `EVT-DETACH-1` (implicit bl
 - [x] **0.1.0** — Initial release (2026-05-19): DOM substrate, cascade, flexbox, runtime, native built-ins, UA stylesheet, CSS parser, HTML parser.
 - [x] **0.1.0 editing parity** (2026-05-20): selection, caret, contenteditable parity.
 - [ ] **0.2.0** — In flight. `rdom-showcase` (headline) + event surface bundle + `calc()` value system. See [`specs/SHOWCASE.md`](specs/SHOWCASE.md).
+- [x] **0.3.2** — `drop_subtree` mutation/free ordering fix (released 2026-06-02): removing a focused/observed node from inside an event handler no longer panics (`DROP-SUBTREE-FREE-ORDER-1`).
 - [x] **0.3.1** — Focus-indicator fix (released 2026-06-02): focused `<canvas>` clean by default + focus tint overridable (`UA-FOCUS-OVERRIDABLE-1`).
 - [x] **0.3.0** — Substrate honesty (released 2026-06-02). Fixed the seven friction points the first downstream consumer (`rdom-extensions`) hit, two High (geometry setters that didn't drive layout; no repaint request from event listeners). See [`specs/SUBSTRATE-0.3.0.md`](specs/SUBSTRATE-0.3.0.md). (Routing slid to 0.4.0.)
 - [ ] **0.4.0** — Client-side routing primitive.
