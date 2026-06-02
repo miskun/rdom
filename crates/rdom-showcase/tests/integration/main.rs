@@ -20,3 +20,5 @@ mod status_bar_renders;
 mod subtree_swap_integration;
 
 mod tab_form_typing_repro;
+
+mod sticky_single_scrollbar;

@@ -24,7 +24,10 @@ pub const MARKUP: &str = r#"<div class="sticky-demo">
 pub const CSS: &str = r#"
 .sticky-demo {
   width: 40;
-  height: 15;
+  /* Fill the (definite-height) view pane rather than a fixed height, so the
+   * demo scrolls ITSELF and never overflows the pane — one scrollbar, not two
+   * nested ones on a short terminal. */
+  height: 100%;
   overflow: auto;
   display: flex;
   flex-direction: column;
