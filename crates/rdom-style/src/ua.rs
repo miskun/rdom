@@ -386,14 +386,13 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
         ),
         // The tree uses the ARIA active-descendant model: the
         // container holds focus on behalf of the cursor row, so the
-        // generic `:focus { background !important }` affordance must
-        // NOT fill the whole container — override it back to no fill
-        // (higher specificity + important). The visible focus
-        // indicator is the active ROW below.
-        (
-            "[role=tree]:focus",
-            TuiStyle::new().bg_important(Color::Reset),
-        ),
+        // generic `:focus` background affordance must NOT fill the
+        // whole container — reset it to no fill. Higher specificity
+        // (`[role=tree]:focus` = 0,2,0) beats the generic `:focus`
+        // (0,1,0), so no `!important` is needed now that the generic
+        // rule is non-important. The visible focus indicator is the
+        // active ROW below.
+        ("[role=tree]:focus", TuiStyle::new().bg(Color::Reset)),
         // Keyboard cursor (active descendant) — highlighted only
         // while the tree itself holds focus, so the cursor dims when
         // focus leaves. The bg is consumed by the tree paint pass as
@@ -564,15 +563,25 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
             TuiStyle::new().content(Content::Str(" ]".into())),
         ),
         // ── Focus indicator ──
-        // Single rule: subtle background tint. No content shift, no
-        // reverse video. Marked `!important` so the indicator can't
-        // be silently defeated by higher-specificity UA rules like
-        // the `input:not(...):not(...)` text-field chain (specificity
-        // 0,7,1). Authors who want to override the focus indicator
-        // can still do so with their own `!important` rule, or with
-        // a higher-origin selector.
+        // Subtle background tint on focus — the TUI analog of the web's
+        // focus outline (a bg tint avoids the reflow a border ring would
+        // cause; see DIVERGENCES.md). Deliberately **non-important** so
+        // authors/consumers can override it on any element: a forced
+        // `!important` fill here is unoverridable and wrong for elements
+        // that own their content area (a `<canvas>` the app paints, a
+        // focusable scroll container). Override with a higher-specificity
+        // rule (`canvas:focus { background: … }`) or an inline style.
+        // The text-field family re-asserts the tint with `!important`
+        // just below — it has to beat its own high-specificity field
+        // background.
+        (":focus", TuiStyle::new().bg(Color::Rgb(0x2d, 0x2f, 0x31))),
+        // The text-field background chain
+        // (`input:not([type=button])…`, specificity 0,7,1) would
+        // otherwise hide the focus tint on text inputs. `!important`
+        // scoped to just these controls — small widgets where a forced
+        // tint is the right affordance, not app-painted surfaces.
         (
-            ":focus",
+            "input:focus, textarea:focus, select:focus",
             TuiStyle::new().bg_important(Color::Rgb(0x2d, 0x2f, 0x31)),
         ),
         // Placeholder rendering via `:placeholder-shown` +
@@ -1000,7 +1009,9 @@ mod tests {
         // this test and requires a deliberate update. Comma-list
         // selectors expand to one Rule per selector at insertion, so
         // the count can exceed the number of tuples in `ua_defaults`.
-        assert_eq!(ua.len(), 136);
+        // 139 = 136 + the 3-selector `input:focus, textarea:focus,
+        // select:focus` focus-tint rule (UA-FOCUS-OVERRIDABLE-1).
+        assert_eq!(ua.len(), 139);
         let disabled = ua
             .iter()
             .find(|r| r.source_text == "[disabled]")

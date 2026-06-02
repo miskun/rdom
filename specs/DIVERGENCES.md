@@ -140,6 +140,7 @@ The DOM API is Rust-shaped rather than JS-shaped. The semantics match WHATWG DOM
 - **Pointer capture:** while captured, `mousemove` / `mouseup` route to the captured element regardless of hit; capture releases on `mouseup`.
 - **Wheel scrolling auto-scrolls the nearest scrollable ancestor** (first-scrollable-wins). Scroll chaining beyond the first ancestor is not implemented.
 - **Focus events dispatch synchronously**, not deferred.
+- **The focus indicator is a background tint, not an outline.** The web draws a focus *outline* (an overlay that doesn't reflow). A box outline in a TUI would consume a border cell and reflow content, so the UA stylesheet uses a subtle `:focus { background }` tint instead. It is **non-important** and therefore author-overridable (a `<canvas>` or app-painted container reclaims its background with `canvas:focus { background: … }` or an inline style); the `input/textarea/select:focus` tint is `!important` only because it must beat those controls' own high-specificity field background. (`UA-FOCUS-OVERRIDABLE-1`.)
 - **`Tab` / `Shift-Tab` route through focus navigation first**, then dispatch as `keydown` if not consumed.
 - **`pointer-events` property is not implemented.** Every painted element is hittable.
 

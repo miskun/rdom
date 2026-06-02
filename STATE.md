@@ -83,6 +83,24 @@ One piece of architectural debt deferred with teeth: `EVT-DETACH-1` (implicit bl
 
 ## Recent decisions
 
+### 2026-06-02 — `UA-FOCUS-OVERRIDABLE-1`: focus indicator made overridable (0.3.1)
+
+Building `rdom-extensions`'s interactive chart surfaced an eighth substrate issue: the UA focus
+indicator was `:focus { background !important }`, and since UA-`!important` is the strongest cascade
+origin, **no author/inline rule could override it** — a focusable `<canvas>` was force-filled gray
+with no escape hatch, and the rule's comment falsely claimed it was overridable.
+
+Grumpy-architect call: rejected the quick "add a `canvas:focus` carve-out" (Option A) — that would
+have been the *second* per-element carve-out (the tree already had one), i.e. whack-a-mole on a
+blanket rule that's the real bug. Proper fix: generic `:focus` tint → **non-important** (overridable
+on any element), with `!important` re-asserted **scoped to `input/textarea/select:focus`** (the only
+place it was load-bearing — their field-bg chain is specificity 0,7,1). Dropped the now-unnecessary
+`!important` on the `[role=tree]:focus` carve-out too. Verified: zero snapshot churn (visuals
+identical; only overridability changed) + a new test that a `canvas:focus` author rule and an inline
+style both win. Audited the rest of the UA sheet — the only `!important` that remains is the scoped
+field-focus rule; no other blanket hacks. `DIVERGENCES.md` now documents the focus-tint-not-outline
+choice. Ships as **0.3.1**.
+
 ### 2026-06-02 — 0.3.0 released to crates.io
 
 All five published crates shipped at `0.3.0` in dep order (rdom-core → rdom-style → rdom-parser →

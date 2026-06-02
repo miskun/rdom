@@ -5,6 +5,12 @@ All notable changes to rdom will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-06-02
+
+### Fixed
+
+- **Focus indicator is now overridable** (`UA-FOCUS-OVERRIDABLE-1`). The UA `:focus` background tint was `!important`, which — since UA-`!important` is the strongest cascade origin — made it unoverridable by any author or inline rule. A focusable `<canvas>` (or any app-painted container) was force-filled gray with no escape hatch. The generic `:focus` tint is now non-important (override it with a higher-specificity rule like `canvas:focus { background: … }` or an inline style); `!important` is retained only on `input/textarea/select:focus`, where it must beat those controls' own high-specificity field background. No visual change to existing UIs — only overridability. Surfaced by the first downstream consumer's interactive chart.
+
 ## [0.3.0] - 2026-06-02
 
 Substrate-honesty release, driven by the first downstream consumer (`rdom-extensions`, a data-visualization component crate). All five published crates bump together to `0.3.0`. Pre-1.0, so this minor carries breaking changes alongside additive ones.
