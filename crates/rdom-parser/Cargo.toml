@@ -10,4 +10,4 @@ keywords = ["dom", "html", "parser", "template", "rdom"]
 categories = ["parser-implementations"]
 
 [dependencies]
-rdom-core = { path = "../rdom-core", version = "0.3.2" }
+rdom-core = { path = "../rdom-core", version = "0.3.3" }
