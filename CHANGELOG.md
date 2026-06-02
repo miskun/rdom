@@ -9,7 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Focus indicator is now overridable** (`UA-FOCUS-OVERRIDABLE-1`). The UA `:focus` background tint was `!important`, which — since UA-`!important` is the strongest cascade origin — made it unoverridable by any author or inline rule. A focusable `<canvas>` (or any app-painted container) was force-filled gray with no escape hatch. The generic `:focus` tint is now non-important (override it with a higher-specificity rule like `canvas:focus { background: … }` or an inline style); `!important` is retained only on `input/textarea/select:focus`, where it must beat those controls' own high-specificity field background. No visual change to existing UIs — only overridability. Surfaced by the first downstream consumer's interactive chart.
+- **A focused `<canvas>` is no longer painted over** (`UA-FOCUS-OVERRIDABLE-1`). rdom's focus indicator is a background tint (a no-reflow TUI substitute for the web's focus outline). For form controls that's the right affordance, but `<canvas>` is a replaced/content element the app paints — the web focuses a canvas with a non-destructive outline and never touches its pixels. rdom now matches that: a focused canvas keeps its background by default (a UA `canvas:focus` opt-out), so app-drawn canvases (charts, etc.) aren't grayed out on focus. Apps that *want* a focused-canvas background can still set one.
+- **The focus tint is now overridable.** It was `!important` (and UA-`!important` is the strongest cascade origin), so it couldn't be overridden by any author or inline rule. The generic `:focus` tint is now non-important; `!important` is retained only on `input/textarea/select:focus`, where it must beat those controls' own high-specificity field background. No visual change to existing UIs — only canvas (now clean) and overridability.
 
 ## [0.3.0] - 2026-06-02
 

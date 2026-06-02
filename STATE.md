@@ -90,16 +90,24 @@ indicator was `:focus { background !important }`, and since UA-`!important` is t
 origin, **no author/inline rule could override it** — a focusable `<canvas>` was force-filled gray
 with no escape hatch, and the rule's comment falsely claimed it was overridable.
 
-Grumpy-architect call: rejected the quick "add a `canvas:focus` carve-out" (Option A) — that would
-have been the *second* per-element carve-out (the tree already had one), i.e. whack-a-mole on a
-blanket rule that's the real bug. Proper fix: generic `:focus` tint → **non-important** (overridable
-on any element), with `!important` re-asserted **scoped to `input/textarea/select:focus`** (the only
-place it was load-bearing — their field-bg chain is specificity 0,7,1). Dropped the now-unnecessary
-`!important` on the `[role=tree]:focus` carve-out too. Verified: zero snapshot churn (visuals
-identical; only overridability changed) + a new test that a `canvas:focus` author rule and an inline
-style both win. Audited the rest of the UA sheet — the only `!important` that remains is the scoped
-field-focus rule; no other blanket hacks. `DIVERGENCES.md` now documents the focus-tint-not-outline
-choice. Ships as **0.3.1**.
+Two-part fix, and the framing shifted mid-investigation. First pass: make the tint **overridable**
+(generic `:focus` → non-important; `!important` re-scoped to `input/textarea/select:focus` where it
+must beat the 0,7,1 field-bg chain; `[role=tree]:focus` de-importanted). That fixed the
+unoverridable-`!important` bug but the consumer pushed back with the right web-semantics argument:
+on the web you *never* write `canvas:focus { background }` — focus is an **outline** (overlay), so a
+focused canvas's pixels are never touched. rdom's bg-tint is a no-reflow substitute that's fine for
+form controls but wrong for `<canvas>` (a replaced/content element the app paints). So the actual
+fix: **`<canvas>` opts out of the focus tint** (UA `canvas:focus { background: reset }`), making a
+focused canvas clean by **default** with zero consumer effort — matching the web. Reversed my
+earlier "no carve-out" stance: exempting canvas isn't whack-a-mole, it's recognizing canvas is the
+one replaced/content element, exactly as the web's outline never paints into it.
+
+Zero snapshot churn (only canvas + overridability changed). Tests in `ua_focus_overridable.rs`:
+focused canvas clean by default, non-canvas still tinted, author can still paint a focused canvas,
+text input still tinted. Audited the whole UA sheet — the only `!important` remaining is the scoped
+field-focus rule; no other blanket hacks. `DIVERGENCES.md` documents focus-tint-not-outline + the
+canvas exemption; a real non-destructive `outline` is noted as a roadmap follow-up. Ships as
+**0.3.1**.
 
 ### 2026-06-02 — 0.3.0 released to crates.io
 

@@ -1,8 +1,14 @@
-//! `UA-FOCUS-OVERRIDABLE-1`: the generic UA `:focus` background tint is
-//! non-important, so authors can override it on any element (a
-//! `<canvas>` or app-painted container that owns its background). The
-//! text-field family keeps an `!important` focus tint so it still beats
-//! its own high-specificity field background.
+//! `UA-FOCUS-OVERRIDABLE-1`: focus-indicator semantics.
+//!
+//! 1. The generic UA `:focus` background tint is non-important, so
+//!    authors can override it on any element (was unoverridable when
+//!    `!important`).
+//! 2. A focused `<canvas>` gets **no** tint by default — it's a
+//!    replaced/content element the app paints, so the focus background
+//!    must not paint over it (the web focuses a canvas with a
+//!    non-destructive outline; rdom opts canvas out of the bg tint).
+//! 3. Non-canvas focusable elements still get the tint, and the
+//!    text-field family keeps it over their own field background.
 
 use rdom_tui::prelude::*;
 use rdom_tui::style::Color;
@@ -16,50 +22,69 @@ fn cascade_focused(dom: &mut TuiDom, sheet: &Stylesheet, focus: NodeId) -> Color
 }
 
 #[test]
-fn author_focus_rule_overrides_generic_focus_tint() {
+fn focused_canvas_is_clean_by_default() {
+    // No author rule, no inline style — a focused canvas must NOT be
+    // tinted. This is the behavior a web dev expects (focus never
+    // repaints a canvas), with zero consumer effort.
     let mut dom = TuiDom::new();
     let root = dom.root();
     let canvas = dom.create_element("canvas");
-    dom.append_child(root, canvas).unwrap();
-
-    // Higher-specificity author rule (canvas:focus = 0,1,1) beats the
-    // generic UA `:focus` (0,1,0) — both non-important now.
-    let sheet = Stylesheet::new()
-        .rule("canvas:focus", TuiStyle::new().bg(Color::Rgb(0, 0, 255)))
-        .unwrap();
-
-    assert_eq!(
-        cascade_focused(&mut dom, &sheet, canvas),
-        Color::Rgb(0, 0, 255),
-        "author canvas:focus rule must override the UA focus tint (was unoverridable when !important)"
-    );
-}
-
-#[test]
-fn inline_style_overrides_generic_focus_tint() {
-    let mut dom = TuiDom::new();
-    let root = dom.root();
-    let canvas = dom.create_element("canvas");
-    // Inline (normal) beats UA-normal in the cascade ladder.
-    dom.node_mut(canvas)
-        .set_inline_style(TuiStyle::new().bg(Color::Reset));
     dom.append_child(root, canvas).unwrap();
 
     assert_eq!(
         cascade_focused(&mut dom, &Stylesheet::new(), canvas),
         Color::Reset,
-        "an inline background must reclaim a focused canvas"
+        "a focused <canvas> must keep its (transparent) background by default"
     );
 }
 
 #[test]
-fn unfocused_canvas_has_no_focus_tint() {
+fn focused_non_canvas_still_gets_the_tint() {
+    // The exemption is scoped to canvas — a focusable div still shows
+    // the generic focus indicator (no regression of the affordance).
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let div = dom.create_element("div");
+    dom.append_child(root, div).unwrap();
+
+    assert_eq!(
+        cascade_focused(&mut dom, &Stylesheet::new(), div),
+        FOCUS_BG,
+        "non-canvas focusable elements keep the generic focus tint"
+    );
+}
+
+#[test]
+fn author_can_paint_a_focused_canvas_if_it_wants() {
+    // Canvas opts out by default, but an app that *wants* a focused-
+    // canvas background can still set one (the exemption isn't a lock).
     let mut dom = TuiDom::new();
     let root = dom.root();
     let canvas = dom.create_element("canvas");
     dom.append_child(root, canvas).unwrap();
-    dom.cascade(&Stylesheet::new());
-    assert_eq!(dom.node(canvas).computed().unwrap().bg, Color::Reset);
+    let sheet = Stylesheet::new()
+        .rule("canvas:focus", TuiStyle::new().bg(Color::Rgb(0, 0, 255)))
+        .unwrap();
+    assert_eq!(
+        cascade_focused(&mut dom, &sheet, canvas),
+        Color::Rgb(0, 0, 255),
+    );
+}
+
+#[test]
+fn author_focus_rule_overrides_generic_tint_on_a_div() {
+    // The generic tint is overridable (non-important) on any element.
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let div = dom.create_element("div");
+    dom.append_child(root, div).unwrap();
+    let sheet = Stylesheet::new()
+        .rule("div:focus", TuiStyle::new().bg(Color::Rgb(0, 0, 255)))
+        .unwrap();
+    assert_eq!(
+        cascade_focused(&mut dom, &sheet, div),
+        Color::Rgb(0, 0, 255)
+    );
 }
 
 #[test]

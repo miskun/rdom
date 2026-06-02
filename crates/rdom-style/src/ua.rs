@@ -768,6 +768,16 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
                 .width(Size::Fixed(40))
                 .height(Size::Fixed(10)),
         ),
+        // `<canvas>` is a replaced/content element — the app paints its
+        // cells. The web's focus *outline* is a non-destructive overlay
+        // around the box; rdom's focus indicator is a background tint
+        // (no-reflow TUI substitute), which WOULD paint over the canvas
+        // content. So a focused canvas opts out of the focus tint —
+        // matching the web, where focusing a canvas never touches its
+        // pixels. Higher specificity than the generic `:focus` (0,1,1 >
+        // 0,1,0); both non-important, so this wins. Apps that *want* a
+        // focused-canvas background still set their own.
+        ("canvas:focus", TuiStyle::new().bg(Color::Reset)),
         // ── Tables ──
         // `<table>` is the layout primitive for tabular data.
         // Structure: optional `<caption>`, optional `<thead>` /
@@ -1009,9 +1019,10 @@ mod tests {
         // this test and requires a deliberate update. Comma-list
         // selectors expand to one Rule per selector at insertion, so
         // the count can exceed the number of tuples in `ua_defaults`.
-        // 139 = 136 + the 3-selector `input:focus, textarea:focus,
-        // select:focus` focus-tint rule (UA-FOCUS-OVERRIDABLE-1).
-        assert_eq!(ua.len(), 139);
+        // 140 = 136 + the 3-selector `input:focus, textarea:focus,
+        // select:focus` focus-tint rule + the `canvas:focus` opt-out
+        // (UA-FOCUS-OVERRIDABLE-1).
+        assert_eq!(ua.len(), 140);
         let disabled = ua
             .iter()
             .find(|r| r.source_text == "[disabled]")
