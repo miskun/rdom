@@ -592,6 +592,7 @@ impl<B: Backend> App<B> {
                     let target = self.dom.focused().unwrap_or_else(|| self.dom.root());
                     let mut tui = TuiEvent::keyup(*key);
                     let _ = self.dom.dispatch_tui_event(target, &mut tui);
+                    self.needs_redraw |= tui.event.redraw_requested();
                     self.needs_redraw |= !self.tracker.roots_snapshot().is_empty();
                     self.needs_redraw |= self.tracker.take_paint_dirty();
                     return;
@@ -632,6 +633,7 @@ impl<B: Backend> App<B> {
                     let mut cm = TuiEvent::new("contextmenu");
                     cm.event = cm.event.clone().with_synthetic(true);
                     let _ = self.dom.dispatch_tui_event(target, &mut cm);
+                    self.needs_redraw |= cm.event.redraw_requested();
                 }
 
                 // Default actions — only run if the handler didn't
@@ -663,6 +665,9 @@ impl<B: Backend> App<B> {
                     }
                 }
 
+                // Listener-requested repaint (state outside the DOM the
+                // tracker can't see — e.g. a canvas reading app state).
+                self.needs_redraw |= tui.event.redraw_requested();
                 self.needs_redraw |= !self.tracker.roots_snapshot().is_empty();
                 // Text-only mutations from event handlers don't dirty
                 // the cascade (selectors don't match text content) but

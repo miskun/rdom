@@ -65,6 +65,24 @@ pub struct EventCtx<'a, Ext: 'static> {
     pub dom: &'a mut Dom<Ext>,
 }
 
+impl<Ext: 'static> EventCtx<'_, Ext> {
+    /// Ask the rendering host to repaint after this event completes.
+    ///
+    /// Mutations made through `ctx.dom` are already seen by the host's
+    /// mutation tracker. Use this for the case the tracker *can't* see:
+    /// a handler that changed state living **outside** the DOM that the
+    /// next paint will read — e.g. a `<canvas>` whose paint callback
+    /// reads external application state. Without this, such a change
+    /// produces no repaint until something else dirties the tree.
+    ///
+    /// Sets a flag on the event ([`Event::redraw_requested`]) that the
+    /// host harvests after dispatch; `rdom-core` itself does nothing
+    /// with it.
+    pub fn request_redraw(&mut self) {
+        self.event.redraw_requested = true;
+    }
+}
+
 /// Options for `add_event_listener` — matches the DOM spec object.
 ///
 /// Not `Copy` because `signal: Option<AbortSignal>` holds an `Rc`.

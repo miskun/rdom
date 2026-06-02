@@ -32,6 +32,7 @@ mod calc_layout;
 mod counter_button_snapshot;
 mod cssom_cascade;
 mod dom_api_snapshot;
+mod event_request_redraw;
 mod flex_blockifies_inline_children;
 mod flex_shorthand;
 mod flex_shrink;

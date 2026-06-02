@@ -90,6 +90,12 @@ pub struct Router {
     /// mousemove events (via pointer capture) to adjust scroll.
     /// See `runtime::scrollbar`.
     pub(crate) scrollbar_drag: Option<crate::runtime::scrollbar::ScrollbarDrag>,
+    /// Accumulates listener-requested repaints
+    /// ([`EventCtx::request_redraw`](rdom_core::EventCtx::request_redraw))
+    /// across the dispatches one mouse event fans out (mousedown →
+    /// click, mouseout → mouseover, …). Folded into the `RouteOutcome` in
+    /// [`Router::route`] and reset per call.
+    pub(super) pending_redraw: bool,
 }
 
 impl Router {
@@ -133,7 +139,14 @@ impl Router {
             }
         }
         match event {
-            CtEvent::Mouse(m) => mouse::route_mouse(self, dom, m),
+            CtEvent::Mouse(m) => {
+                self.pending_redraw = false;
+                let mut outcome = mouse::route_mouse(self, dom, m);
+                // Fold in any listener-requested repaints from the
+                // dispatches this mouse event fanned out.
+                outcome.redraw_requested |= self.pending_redraw;
+                outcome
+            }
             _ => RouteOutcome::default(),
         }
     }

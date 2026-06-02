@@ -75,6 +75,16 @@ pub struct Event {
     pub(crate) propagation_stopped: bool,
     pub(crate) immediate_propagation_stopped: bool,
     pub(crate) default_prevented: bool,
+
+    /// Set by [`EventCtx::request_redraw`](crate::EventCtx::request_redraw)
+    /// when a listener mutated state that the host should repaint —
+    /// state the DOM mutation tracker can't see (e.g. a `<canvas>` whose
+    /// paint reads external app state). Accumulates across every listener
+    /// in the dispatch. **`rdom-core` never acts on this** — it's an
+    /// inert intent flag the rendering host reads after dispatch (the
+    /// `rdom-tui` runtime ORs it into its repaint decision). Read via
+    /// [`Event::redraw_requested`].
+    pub(crate) redraw_requested: bool,
 }
 
 impl Event {
@@ -91,6 +101,7 @@ impl Event {
             propagation_stopped: false,
             immediate_propagation_stopped: false,
             default_prevented: false,
+            redraw_requested: false,
         }
     }
 
@@ -151,6 +162,14 @@ impl Event {
         if self.cancelable {
             self.default_prevented = true;
         }
+    }
+
+    /// `true` if any listener called
+    /// [`EventCtx::request_redraw`](crate::EventCtx::request_redraw)
+    /// during this dispatch. The rendering host reads this after
+    /// `dispatch_event` returns to decide whether to repaint.
+    pub fn redraw_requested(&self) -> bool {
+        self.redraw_requested
     }
 
     pub fn is_propagation_stopped(&self) -> bool {

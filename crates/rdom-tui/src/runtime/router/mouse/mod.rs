@@ -12,6 +12,15 @@ use crate::{TuiDispatchExt, TuiDom, TuiEvent};
 
 use super::{RouteOutcome, Router};
 
+/// Dispatch `ev` to `target`, accumulating any listener-requested
+/// repaint ([`EventCtx::request_redraw`](rdom_core::EventCtx::request_redraw))
+/// into the router. `Router::route` folds the accumulated flag into the
+/// `RouteOutcome` once per mouse event.
+fn dispatch(router: &mut Router, dom: &mut TuiDom, target: crate::NodeId, ev: &mut TuiEvent) {
+    let _ = dom.dispatch_tui_event(target, ev);
+    router.pending_redraw |= ev.event.redraw_requested();
+}
+
 /// Top-level entry for mouse events. Dispatches by kind.
 pub(super) fn route_mouse(
     router: &mut Router,
@@ -21,17 +30,17 @@ pub(super) fn route_mouse(
     match mouse.kind {
         MouseEventKind::Down(MouseButton::Left) => handle_down(router, dom, mouse),
         MouseEventKind::Up(MouseButton::Left) => handle_up(router, dom, mouse),
-        MouseEventKind::Down(MouseButton::Right) => handle_right_down(dom, mouse),
-        MouseEventKind::Up(MouseButton::Right) => handle_nonleft_up(dom, mouse),
-        MouseEventKind::Down(MouseButton::Middle) => handle_nonleft_down(dom, mouse),
-        MouseEventKind::Up(MouseButton::Middle) => handle_nonleft_up(dom, mouse),
+        MouseEventKind::Down(MouseButton::Right) => handle_right_down(router, dom, mouse),
+        MouseEventKind::Up(MouseButton::Right) => handle_nonleft_up(router, dom, mouse),
+        MouseEventKind::Down(MouseButton::Middle) => handle_nonleft_down(router, dom, mouse),
+        MouseEventKind::Up(MouseButton::Middle) => handle_nonleft_up(router, dom, mouse),
         MouseEventKind::Moved | MouseEventKind::Drag(MouseButton::Left) => {
             handle_move(router, dom, mouse)
         }
         MouseEventKind::ScrollUp
         | MouseEventKind::ScrollDown
         | MouseEventKind::ScrollLeft
-        | MouseEventKind::ScrollRight => handle_wheel(dom, mouse),
+        | MouseEventKind::ScrollRight => handle_wheel(router, dom, mouse),
         // Right/middle drag — same hit-test-and-dispatch as Moved,
         // but only when button is held. v1 routes both as plain
         // mousemove (no special drag semantics for non-left buttons).
@@ -43,39 +52,39 @@ pub(super) fn route_mouse(
 /// fires mousedown per UI Events), then `contextmenu`. Cancelling
 /// `mousedown` does NOT suppress `contextmenu` — the two are
 /// independent dispatches per HTML.
-fn handle_right_down(dom: &mut TuiDom, mouse: MouseEvent) -> RouteOutcome {
+fn handle_right_down(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> RouteOutcome {
     let Some(target) = dom.hit_test(mouse.column, mouse.row) else {
         return RouteOutcome::default();
     };
     let mut tui_down = TuiEvent::mousedown(mouse);
-    let _ = dom.dispatch_tui_event(target, &mut tui_down);
+    dispatch(router, dom, target, &mut tui_down);
 
     let mut tui_ctx = TuiEvent::contextmenu(mouse);
-    let _ = dom.dispatch_tui_event(target, &mut tui_ctx);
+    dispatch(router, dom, target, &mut tui_ctx);
     RouteOutcome::default()
 }
 
 /// Non-left mousedown (middle button): fire `mousedown`. No
 /// associated default action; no click synthesis (browsers only
 /// synthesize click for the left button).
-fn handle_nonleft_down(dom: &mut TuiDom, mouse: MouseEvent) -> RouteOutcome {
+fn handle_nonleft_down(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> RouteOutcome {
     let Some(target) = dom.hit_test(mouse.column, mouse.row) else {
         return RouteOutcome::default();
     };
     let mut tui = TuiEvent::mousedown(mouse);
-    let _ = dom.dispatch_tui_event(target, &mut tui);
+    dispatch(router, dom, target, &mut tui);
     RouteOutcome::default()
 }
 
 /// Non-left mouseup (right or middle button): fire `mouseup`.
 /// No click synthesis, no pointer-capture release path
 /// (capture is left-button-only in v1).
-fn handle_nonleft_up(dom: &mut TuiDom, mouse: MouseEvent) -> RouteOutcome {
+fn handle_nonleft_up(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> RouteOutcome {
     let Some(target) = dom.hit_test(mouse.column, mouse.row) else {
         return RouteOutcome::default();
     };
     let mut tui = TuiEvent::mouseup(mouse);
-    let _ = dom.dispatch_tui_event(target, &mut tui);
+    dispatch(router, dom, target, &mut tui);
     RouteOutcome::default()
 }
 
@@ -106,7 +115,7 @@ fn handle_down(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> Rout
     };
 
     let mut tui = TuiEvent::mousedown(mouse);
-    let _ = dom.dispatch_tui_event(target, &mut tui);
+    dispatch(router, dom, target, &mut tui);
 
     // Default actions run only when the handler didn't cancel them.
     // Browsers fire focus + selection-begin on mousedown, both off
@@ -197,7 +206,7 @@ fn handle_up(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> RouteO
 
     if let Some(target) = up_target {
         let mut tui_up = TuiEvent::mouseup(mouse);
-        let _ = dom.dispatch_tui_event(target, &mut tui_up);
+        dispatch(router, dom, target, &mut tui_up);
     }
 
     // Click synthesis.
@@ -217,7 +226,7 @@ fn handle_up(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> RouteO
     if let Some(target) = click_target {
         let mut tui_click = TuiEvent::click(mouse);
         tui_click.event = tui_click.event.clone().with_synthetic(true);
-        let _ = dom.dispatch_tui_event(target, &mut tui_click);
+        dispatch(router, dom, target, &mut tui_click);
 
         // Multi-click promotion: fire `dblclick` on the second
         // click of a sequence, AFTER the regular click event.
@@ -232,7 +241,7 @@ fn handle_up(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> RouteO
         if count == 2 {
             let mut tui_dbl = TuiEvent::dblclick(mouse);
             tui_dbl.event = tui_dbl.event.clone().with_synthetic(true);
-            let _ = dom.dispatch_tui_event(target, &mut tui_dbl);
+            dispatch(router, dom, target, &mut tui_dbl);
         }
     }
 
@@ -306,7 +315,7 @@ fn handle_move(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> Rout
     if let Some(captured) = dom.pointer_capture() {
         crate::rdom_trace!("handle_move: capture branch — routing to {captured:?}, hover skipped");
         let mut tui = TuiEvent::mousemove(mouse);
-        let _ = dom.dispatch_tui_event(captured, &mut tui);
+        dispatch(router, dom, captured, &mut tui);
 
         // Drag-select default action: extend selection focus to the
         // current cursor position. Runs alongside the mousemove
@@ -357,7 +366,7 @@ fn handle_move(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> Rout
     // Dispatch mousemove on the current hit.
     if let Some(target) = hit {
         let mut tui = TuiEvent::mousemove(mouse);
-        let _ = dom.dispatch_tui_event(target, &mut tui);
+        dispatch(router, dom, target, &mut tui);
     }
 
     // Hover transition?
@@ -380,13 +389,13 @@ fn handle_move(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> Rout
     if let Some(old) = prev {
         let mut tui_out = TuiEvent::mouseout(mouse);
         tui_out.event = tui_out.event.clone().with_synthetic(true);
-        let _ = dom.dispatch_tui_event(old, &mut tui_out);
+        dispatch(router, dom, old, &mut tui_out);
     }
     // mouseover on the new hover target.
     if let Some(new) = hit {
         let mut tui_over = TuiEvent::mouseover(mouse);
         tui_over.event = tui_over.event.clone().with_synthetic(true);
-        let _ = dom.dispatch_tui_event(new, &mut tui_over);
+        dispatch(router, dom, new, &mut tui_over);
     }
     // Update Dom-level hover state so cascade picks up :hover.
     dom.set_hovered(hit);
@@ -413,7 +422,7 @@ fn handle_move(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> Rout
 /// populates `ext.scroll_content_{width,height}` (currently left
 /// unbounded — apps that want a cap can listen for `wheel` and
 /// `prevent_default` past their limit).
-fn handle_wheel(dom: &mut TuiDom, mouse: MouseEvent) -> RouteOutcome {
+fn handle_wheel(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> RouteOutcome {
     let Some(target) = dom.hit_test(mouse.column, mouse.row) else {
         return RouteOutcome::default();
     };
@@ -421,7 +430,7 @@ fn handle_wheel(dom: &mut TuiDom, mouse: MouseEvent) -> RouteOutcome {
     // Dispatch wheel first — a handler may cancel the default
     // scroll by calling `ctx.event.prevent_default()`.
     let mut tui = TuiEvent::wheel(mouse);
-    let _ = dom.dispatch_tui_event(target, &mut tui);
+    dispatch(router, dom, target, &mut tui);
     if tui.event.default_prevented() {
         return RouteOutcome::default();
     }
@@ -490,7 +499,7 @@ fn handle_wheel(dom: &mut TuiDom, mouse: MouseEvent) -> RouteOutcome {
                 // `scroll`: bubbles, NOT cancelable per HTML.
                 let mut tui_scroll = TuiEvent::new("scroll");
                 tui_scroll.event.cancelable = false;
-                let _ = dom.dispatch_tui_event(id, &mut tui_scroll);
+                dispatch(router, dom, id, &mut tui_scroll);
                 return RouteOutcome {
                     redraw_requested: true,
                     quit_requested: false,

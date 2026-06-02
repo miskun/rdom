@@ -83,6 +83,30 @@ One piece of architectural debt deferred with teeth: `EVT-DETACH-1` (implicit bl
 
 ## Recent decisions
 
+### 2026-06-02 — 0.3.0 Milestone B landed: `EVENT-REDRAW-1` (repaint request from event listeners)
+
+`EventCtx::request_redraw()` (rdom-core) lets a listener ask the host to repaint when it mutated
+state the DOM mutation tracker can't see — the interactive-`<canvas>` case (paint reads external
+`Rc<RefCell>` state). It sets an inert `Event::redraw_requested` flag (rdom-core never acts on it);
+the rdom-tui runtime harvests it after dispatch and ORs it into `needs_redraw`.
+
+Harvest sites: the keyboard paths in `App::handle_event` (keydown/keyup/contextmenu) read
+`tui.event.redraw_requested()` directly; the mouse path is centralized — a `Router.pending_redraw`
+accumulator is set by a single `dispatch()` helper that wraps every `dispatch_tui_event` in the
+mouse handlers, then folded into the `RouteOutcome` once in `Router::route`. TDD:
+`event_request_redraw.rs` (listener mutates external state + `request_redraw` → flag set, no DOM
+mutation needed).
+
+**Architect/API review:** the flag-on-Event design accumulates correctly across the capture→bubble
+walk and needs no `dispatch_event` signature change (the host already holds the event after
+dispatch). Putting a render-ish flag on the core `Event` is a mild boundary bend, but it's inert in
+core and documented as a host signal — the alternative (threading a `&mut bool` through the whole
+dispatch walk) is uglier. The `Router.pending_redraw` accumulator keeps the mouse path DRY (one
+helper, one fold) instead of editing ~14 dispatch sites. This is the minimal case of
+`SHOWCASE-EVT-1`'s "App-level intents from EventCtx" — that broader queue can layer on later. No
+blocking findings. Unblocks interactive canvas components downstream (rdom-extensions M7). 2712
+workspace tests green.
+
 ### 2026-06-02 — 0.3.0 Milestone A landed: `EXT-LAYOUT-SETTERS-1` (geometry setters drive layout)
 
 The `TuiNodeMutExt` geometry setters (`set_width`/`set_height`/`set_min_*`/`set_max_*`/
