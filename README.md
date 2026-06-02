@@ -12,9 +12,9 @@ Install:
 
 ```toml
 [dependencies]
-rdom-tui    = "0.2"
-rdom-parser = "0.2"   # optional: HTML-ish template strings
-rdom-css    = "0.2"   # optional: parse real CSS at runtime
+rdom-tui    = "0.3"
+rdom-parser = "0.3"   # optional: HTML-ish template strings
+rdom-css    = "0.3"   # optional: parse real CSS at runtime
 ```
 
 `rdom-core` and `rdom-style` are pulled in transitively. For headless DOM work — building and querying a tree without rendering anything — depend on `rdom-core` alone.
@@ -56,6 +56,18 @@ See [`crates/rdom-tui/examples/`](crates/rdom-tui/examples/) for ten working dem
 | [`rdom-css`](crates/rdom-css) | CSS parser. Tokenizer + block parser + `<style>`-tag extraction + inline-style seeding. Produces `Stylesheet` / `TuiStyle` via `rdom-style`'s property dispatch. |
 | [`rdom-tui`](crates/rdom-tui) | Terminal backend. CSS cascade, flexbox layout, paint pass, ANSI emission, inline formatting (word wrap, CJK breaks, `<br>`, `white-space`), runtime (event loop, hit test, keyboard/mouse routing, focus, text selection + clipboard), native HTML element behaviors (`<button>`, `<input>` family, `<select>`, `<form>`, `<details>`, `<dialog>`, `<progress>`, `<meter>`, `<table>` family, `<canvas>`). |
 | [`rdom-parser`](crates/rdom-parser) | HTML-ish template parser → `Dom<Ext>`. `parseFromString` equivalent. Hand-rolled, no external parser deps. |
+
+## What's in 0.3.0
+
+A substrate-honesty release driven by the first downstream consumer. Highlights:
+
+- **Geometry node setters drive layout.** `set_width` / `set_direction` / `set_gap` / … now write the cascade input, so they actually affect layout (they previously wrote dead fields and silently no-op'd). **Breaking** — see the changelog.
+- **`EventCtx::request_redraw()`.** Event listeners can request a repaint when they mutate state the DOM tracker can't see (e.g. a `<canvas>` reading external app state) — unblocks interactive canvas components.
+- **`TuiStyle::flex_row()` / `flex_column()` / `flex()` / `inline_flex()`** convenience builders.
+- **`remove_child_dropping` / `clear_children_dropping`** — detach **and** free in one call (no arena-slot leak for high-churn UIs).
+- **`RenderContext::for_test`** for unit-testing `<canvas>` paint code downstream; the canvas `RenderContext` is now the canonical crate-root export.
+
+See [`CHANGELOG.md`](CHANGELOG.md) for the full 0.3.0 notes (incl. breaking changes) and [`specs/SUBSTRATE-0.3.0.md`](specs/SUBSTRATE-0.3.0.md) for rationale.
 
 ## What's in 0.2.0
 

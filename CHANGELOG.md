@@ -5,6 +5,27 @@ All notable changes to rdom will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-06-02
+
+Substrate-honesty release, driven by the first downstream consumer (`rdom-extensions`, a data-visualization component crate). All five published crates bump together to `0.3.0`. Pre-1.0, so this minor carries breaking changes alongside additive ones.
+
+### Added
+
+- **`EventCtx::request_redraw()`** — a listener can ask the runtime to repaint after it mutated state the DOM mutation tracker can't see (e.g. a `<canvas>` whose paint reads external app state). Harvested on both the keyboard and mouse paths. Unblocks interactive canvas components.
+- **`TuiStyle::flex()` / `flex_row()` / `flex_column()` / `inline_flex()`** — convenience builders for `display: flex` (`Display::Block` + `Flow::Flex`), avoiding the `.display()`-resets-`.flow()` ordering trap.
+- **`Dom::remove_child_dropping` / `clear_children_dropping`** — detach **and** free a subtree in one call, for high-churn UIs that would otherwise leak arena slots (detach alone never frees; only `drop_subtree` does).
+- **`RenderContext::for_test(buffer, area)`** — public constructor so downstream crates can unit-test `<canvas>` paint code over a scratch `Buffer`.
+
+### Changed / Fixed
+
+- **Geometry node setters now drive layout.** `set_width` / `set_height` / `set_min_*` / `set_max_*` / `set_direction` / `set_padding` / `set_border` / `set_gap` / `set_overflow` wrote raw `ext` fields the cascade and layout never read — a silent no-op for layout while the accessors echoed the set values. They now write `inline_style` (the cascade input), so they actually affect layout. **Breaking:** the accessors return `None` when a property is unset (was `Some(default)`); `set_inline_style` replaces the whole inline style, including geometry the setters wrote (seed the inline style first). Also fixed: `scroll_into_view`'s scrollable-ancestor check read a never-populated raw `overflow` field; it now honors CSS `overflow`.
+
+### Removed
+
+- **The dead `render::RenderContext`** (used only by its own tests) and its crate-root re-export. The canvas `RenderContext` (the `<canvas>` `set_paint` callback type) is now re-exported at the crate root as the canonical `RenderContext`, so `use rdom_tui::*` resolves to the one a paint callback actually receives. **Breaking** only for code that imported the unused type.
+
+See [`specs/SUBSTRATE-0.3.0.md`](specs/SUBSTRATE-0.3.0.md) for the full rationale and the `TECH_DEBT` IDs (`EXT-LAYOUT-SETTERS-1`, `EVENT-REDRAW-1`, `TUISTYLE-FLEX-BUILDER-1`, `RENDERCTX-DEDUP-1`, `CANVAS-TEST-CTOR-1`, `ARENA-RECLAIM-1`).
+
 ## [0.2.0] - 2026-06-02
 
 Second release. All five published crates bump together to `0.2.0` (shared workspace version); `rdom-core` changed, so every consumer re-pins and re-publishes. Pre-1.0, so this minor carries both additive features and breaking changes.
