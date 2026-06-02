@@ -55,7 +55,8 @@ rdom-... = { path = "../rdom-...", version = "X.Y.Z" }   # BOTH path and version
 - [ ] `readme = "README.md"` is **declared** AND the file exists on disk.
 - [ ] `keywords` and `categories` are set. Categories must be valid: <https://crates.io/category_slugs>.
 - [ ] `[dependencies]` — every inter-crate dep has BOTH `path` (for local builds) AND `version` (for the published manifest). Path-only deps will fail `cargo publish` with `all dependencies must have a version requirement specified`.
-- [ ] `[dev-dependencies]` and `[build-dependencies]` — same rule; add `version` everywhere. Even though dev-deps don't ship, cargo treats their absence as a publish-time error in some configurations.
+- [ ] `[build-dependencies]` — same rule as `[dependencies]`: BOTH `path` and `version`.
+- [ ] `[dev-dependencies]` — version each one **EXCEPT when it would form a publish cycle.** A dev-dep on a crate that (transitively) depends on *this* crate is a cycle: cargo resolves dev-deps against the registry at publish time (even with `--no-verify`), so a *versioned* cyclic dev-dep can never resolve — neither crate can publish before the other. Make those **path-only** (`{ path = "../foo" }`, no `version`): cargo strips path-only dev-deps from the published manifest entirely (consumers never need a crate's example/test dev-deps), which breaks the cycle, while local example/test builds still resolve via the path. **Known cycle in this workspace:** `rdom-css` has example-only dev-deps on `rdom-tui` + `rdom-parser`, and `rdom-tui` depends on `rdom-css` → keep those two **path-only**. (Non-cyclic dev-deps still get a version.)
 - [ ] No `publish = false` on a crate that should publish.
 
 If any crate is missing a field, fix it in the prep commit before going further.
@@ -156,6 +157,7 @@ After all five crates are live on crates.io:
 - **Same version, different source.** Bumping a crate's source without bumping its version means the next `cargo publish` fails with `crate version <X> is already uploaded`. Always bump if you changed anything.
 - **Forgetting a transitive consumer.** Bumping `rdom-core` without bumping its dep version in `rdom-tui`'s `Cargo.toml` means rdom-tui at `0.1.0` will keep resolving to `rdom-core = "0.1.0"` from crates.io even after `0.2.0` ships. Audit `[dependencies]` blocks every time the upstream moves.
 - **Skipping the index-propagation wait.** Index propagation isn't atomic. `cargo publish -p rdom-style` immediately after `rdom-core` ≈ 50% chance of failing. Sleep.
+- **Versioned cyclic dev-dependency.** A dev-dep on a crate that depends back on this one (e.g. `rdom-css`'s example-only dev-dep on `rdom-tui`) fails publish with `no matching package named '<dep>' found` — there's no order that satisfies it, and `--no-verify` doesn't help (it still resolves the graph). Make the cyclic dev-dep **path-only** so cargo drops it from the published manifest. (0.2.0 hit this mid-release after `rdom-core`/`style`/`parser` were already live; the fix was a one-line manifest change + re-tag.)
 - **`--allow-dirty` on the real publish.** Means the uploaded tarball doesn't match any committed state. Always commit first, then publish from clean.
 - **Marketing-voice README.** Crates.io is read by serious engineers evaluating a dependency. "Blazing fast" / "the modern way to…" / "future-proof" all hurt credibility. Match the project's voice: shipped features, honest tradeoffs, pointers to specs.
 
