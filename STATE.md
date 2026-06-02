@@ -10,7 +10,7 @@ For the durable architecture and roadmap, see [`specs/DESIGN.md`](specs/DESIGN.m
 
 **Just closed:** `BFC-1` — Block Formatting Context substrate. Semantic HTML now stacks per the web platform: `<div><h1><p></p></div>` produces a block-flow column at intrinsic heights with no CSS at all. CSS 2.1 §10 normal flow + §8.3.1 margin collapse + §10.5/§10.6.3 height resolution + CSS3 `gap` for block + atomic inline-block in IFC, all on top of the original flex pass. Plan: [`specs/BFC-1.md`](specs/BFC-1.md). Tasks #70–#78 + #80–#95 closed. See "2026-05-26 — BFC-1 closed" below for the full landing.
 
-**Release in flight:** 0.2.0. Workstreams: `rdom-showcase`, event surface bundle, `calc()` value system, now BFC-1. Plan: [`specs/SHOWCASE.md`](specs/SHOWCASE.md).
+**Released:** **0.2.0 — live on crates.io (2026-06-02).** All five crates (`rdom-core` / `rdom-style` / `rdom-css` / `rdom-parser` / `rdom-tui`) at `0.2.0`; tag `v0.2.0`. Headline: BFC, native ARIA tree, `calc()`, event surface bundle, multi-slot stylesheets, layered border model. See the "2026-06-02 — 0.2.0 released" entry below and [`CHANGELOG.md`](CHANGELOG.md).
 
 **After BFC-1:** M8 — Coverage demos (the showcase becomes a complete tour of the substrate). Currently partially shipped (4 demos in animations, 3 in text + others); resumption blocked until BFC-1 closes the textual-content authoring gap.
 
@@ -79,6 +79,16 @@ One piece of architectural debt deferred with teeth: `EVT-DETACH-1` (implicit bl
 - **`EVT-DETACH-1`** — implicit `blur` / `focusout` / `mouseleave` / `mouseout` not dispatched on detach. Documented in [`specs/TECH_DEBT.md`](specs/TECH_DEBT.md) as a non-negotiable M5 deliverable. Risk: if M5 scope grows and this slips, rdom-tui ships an internally inconsistent hover-event model. Mitigation: M5 exit criteria in [`specs/SHOWCASE.md`](specs/SHOWCASE.md) explicitly require closing `EVT-DETACH-1` + deleting the related DIVERGENCES.md entries.
 
 ## Recent decisions
+
+### 2026-06-02 — 0.2.0 released to crates.io
+
+All five publishable crates shipped at `0.2.0` (shared workspace version): `rdom-core` → `rdom-style` → `rdom-parser` → `rdom-css` → `rdom-tui`, in dep order with index-propagation waits. Tag `v0.2.0` on the released commit; `CHANGELOG.md` `[0.2.0]` + README (0.2.0 features, `"0.2"` install lines, UA count 136) live in the published cards. `rdom-showcase` stays `publish = false`.
+
+Headline since 0.1.0 (149 commits): block formatting context, native ARIA tree, `calc()` value system, event surface bundle (`keyup` / `contextmenu` / `dblclick` / `resize` / `scroll` + implicit detach events), multi-slot stylesheet API, layered border model (non-inheriting `border-collapse` + full `border-style` set). Pre-1.0, so the minor carried both additive features and breaking changes (non-inheriting `border-collapse`; `Size` / `Length` non-`Copy`).
+
+**Two release-mechanics snags, both fixed live and folded back into the `/publish` skill:**
+- crates.io requires a verified account email before the first publish — one-time account step, no code impact.
+- **Dev-dependency cycle.** `rdom-css` had *versioned* example-only dev-deps on `rdom-tui` + `rdom-parser`, but `rdom-tui` depends on `rdom-css` — an unpublishable cycle (cargo resolves dev-deps against the registry at publish time, even with `--no-verify`). Hit it mid-release after `core`/`style`/`parser` were already live. Fix: path-only those dev-deps (commit `d4e8815`) so cargo strips them from the published manifest; `v0.2.0` tag re-pointed to the fixed source. The `/publish` skill now documents the path-only-for-cyclic-dev-deps rule + the known `rdom-css ↔ rdom-tui` cycle so the next release doesn't rediscover it.
 
 ### 2026-06-02 — Scroll offset clamps to content on layout (substrate fix)
 
