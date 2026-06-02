@@ -12,9 +12,9 @@ Install:
 
 ```toml
 [dependencies]
-rdom-tui    = "0.1"
-rdom-parser = "0.1"   # optional: HTML-ish template strings
-rdom-css    = "0.1"   # optional: parse real CSS at runtime
+rdom-tui    = "0.2"
+rdom-parser = "0.2"   # optional: HTML-ish template strings
+rdom-css    = "0.2"   # optional: parse real CSS at runtime
 ```
 
 `rdom-core` and `rdom-style` are pulled in transitively. For headless DOM work — building and querying a tree without rendering anything — depend on `rdom-core` alone.
@@ -45,7 +45,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-See [`crates/rdom-tui/examples/`](crates/rdom-tui/examples/) for seven working demos including buttons with state, scrollable lists, text selection, focusable forms, end-to-end parse+render, and a naked-UA chrome showcase.
+See [`crates/rdom-tui/examples/`](crates/rdom-tui/examples/) for ten working demos including buttons with state, scrollable lists, text selection, focusable forms, an ARIA tree with lazy children, end-to-end parse+render, and a naked-UA chrome showcase.
 
 ## Crates
 
@@ -81,7 +81,7 @@ See [`CHANGELOG.md`](CHANGELOG.md) for the full 0.2.0 notes, including breaking 
 - **Native HTML built-ins.** `<button>`, `<label>`, `<details>` / `<summary>`, `<input>` family (text, password, number, checkbox, radio, range, submit, button, reset, hidden, color, search, email, tel, url), `<textarea>`, `<select>` / `<option>`, `<form>`, `<dialog>`, `<progress>`, `<meter>`, `<table>` family + column-width sync, `<canvas>` + `RenderContext` escape hatch, `<a href>` with scheme dispatch. Editable surfaces honor `caret-color` (cell bg) and the rdom-extension `caret-text-color` (glyph fg); both default to inverting the cell's cascaded fg/bg. `readonly` fires cancelable `beforeinput` (matches UI Events L2 §5). `contenteditable` supports cross-text-node edits across inline boundaries.
 - **User-agent stylesheet.** 136 UA rules ship visual chrome on every native element so naked HTML looks attractive out of the box. Bracketed `[ Label ]` buttons in accent fg. Rounded LightBlue-bordered modal dialogs. `▸`/`▾` disclosure triangles. `•` list bullets. `│` blockquote rail, `─` `<hr>` rule, `▾` `<select>` chevron. Subtle background-tint `:focus` indicator (a single `!important` rule, color-only — no reverse-video, no glyph shift) that authors can override with their own `!important` rule. Run `cargo run -p rdom-tui --example ua_chrome` to see it.
 - **DOM API completeness.** Per-tag accessors (`input_value`, `select_options`, `details_open`, `form_elements`, …), CSSOM (`style.set_property`, `style_declaration`, camelCase aliases), scroll APIs (`scroll_top` / `scroll_into_view`), document hit-testing (`element_from_point`), `bounding_rect`, focus/blur/click programmatic dispatch.
-- **Positioning.** `position: {static, relative, absolute, fixed}`, `z-index` parsing, `top` / `right` / `bottom` / `left`, `inset` shorthand. Paint order is document order (no stacking contexts in 0.1.0).
+- **Positioning.** `position: {static, relative, absolute, fixed}`, `z-index` parsing, `top` / `right` / `bottom` / `left`, `inset` shorthand. Paint order is document order (no nested stacking contexts).
 - **Timers + transitions.** `setTimeout` / `setInterval`, `requestAnimationFrame` with `DOMHighResTimeStamp`, CSS `transition` with cubic-bezier timing.
 - **Terminal niceties.** OSC 52 clipboard fallback, OSC 8 hyperlinks for `<a href>`, truecolor + 256-color fallback, integer-cell grid, monospaced advance.
 
@@ -106,6 +106,9 @@ cargo run -p rdom-tui --example counter_button     # button + state
 cargo run -p rdom-tui --example scrollable_list    # overflow + wheel scrolling
 cargo run -p rdom-tui --example selectable_text    # text selection + clipboard
 cargo run -p rdom-tui --example tab_form           # focus navigation + form controls
+cargo run -p rdom-tui --example tree_nav           # ARIA tree: guides, keyboard nav, lazy load
+cargo run -p rdom-tui --example border_collapse_demo  # border-collapse junctions
+cargo run -p rdom-tui --example sticky_demo        # position: sticky in a scroll container
 cargo run -p rdom-tui --example parse_and_render   # rdom-parser + rdom-css + rdom-tui
 cargo run -p rdom-tui --example dom_api_demo       # form-edit / tree-walk / cssom
 cargo run -p rdom-tui --example ua_chrome          # naked HTML built-ins with UA defaults
@@ -114,7 +117,7 @@ cargo run -p rdom-tui --example ua_chrome          # naked HTML built-ins with U
 ## Design docs
 
 - [`specs/DESIGN.md`](specs/DESIGN.md) — architectural overview: crate map, non-negotiable invariants, roadmap.
-- [`specs/DIVERGENCES.md`](specs/DIVERGENCES.md) — every deliberate departure from the web platform that ships in 0.1.0.
+- [`specs/DIVERGENCES.md`](specs/DIVERGENCES.md) — every deliberate departure from the web platform.
 - [`specs/TECH_DEBT.md`](specs/TECH_DEBT.md) — open debt + accepted simplifications.
 
 Detailed behavior lives in the code: each module has a top-level doc comment, and tests document the contracts. The web specs (WHATWG DOM, CSS, UI Events) are the reference; rdom tracks them within the supported subset.
