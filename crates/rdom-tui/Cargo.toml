@@ -17,9 +17,9 @@ default = []
 no-synchronized-output = []
 
 [dependencies]
-rdom-core = { path = "../rdom-core", version = "0.1.0" }
-rdom-css = { path = "../rdom-css", version = "0.1.0" }
-rdom-style = { path = "../rdom-style", version = "0.1.0" }
+rdom-core = { path = "../rdom-core", version = "0.2.0" }
+rdom-css = { path = "../rdom-css", version = "0.2.0" }
+rdom-style = { path = "../rdom-style", version = "0.2.0" }
 
 # Terminal rendering primitives. Pure-Rust, ~30KB binary cost combined.
 # - compact_str: inline-stored grapheme cluster in each Cell (up to 24B)
@@ -52,14 +52,14 @@ open = { workspace = true }
 # camelCase aliases (one method per shipped CSS property) onto
 # `StyleDeclaration`. Same single source of truth the runtime uses
 # — no parallel list to drift. See `build.rs`.
-rdom-style = { path = "../rdom-style", version = "0.1.0" }
+rdom-style = { path = "../rdom-style", version = "0.2.0" }
 
 [dev-dependencies]
 proptest = "1"
 criterion = { version = "0.5", default-features = false, features = ["rayon"] }
 # Used by the parse_and_render example (shows the three crates
 # composing). Not a runtime dep of rdom-tui itself.
-rdom-parser = { path = "../rdom-parser", version = "0.1.0" }
+rdom-parser = { path = "../rdom-parser", version = "0.2.0" }
 # Used by the examples + integration snapshot tests — each example
 # file is a thin shim around `rdom-showcase::demos::*`, and each
 # snapshot test calls `demos::X::build` directly. Single source of

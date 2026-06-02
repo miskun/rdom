@@ -5,6 +5,34 @@ All notable changes to rdom will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-06-02
+
+Second release. All five published crates bump together to `0.2.0` (shared workspace version); `rdom-core` changed, so every consumer re-pins and re-publishes. Pre-1.0, so this minor carries both additive features and breaking changes.
+
+### Added
+
+- **Block formatting context.** Semantic HTML now stacks per the web platform with no CSS at all — `<div><h1></h1><p></p></div>` is a block-flow column at intrinsic heights. CSS 2.1 §10 normal flow + §8.3.1 margin collapse + §10.6.3 height resolution + CSS3 `gap` on block containers + atomic `inline-block` participating in inline formatting contexts, layered on top of the original flex pass.
+- **Native ARIA tree** — `<ul role=tree>` / `role=treeitem` / `role=group`. Guide lines (`│ ├ └`) + `▾`/`▸` chevrons, keyboard navigation (Arrows / Home / End / Enter / Space) with an `aria-activedescendant` cursor, pointer + keyboard activation through one bubbling `click`, collapse/expand via `aria-expanded` (presence = branch, so lazy/unloaded branches still render), lazy children via `aria-busy`, and scroll-into-view that follows the cursor.
+- **`calc()` value system** for `width` / `height` / inset / length axes — recursive-descent parser with CSS precedence, parentheses, unary minus, nested `calc()`, banker's rounding onto the cell grid. (`padding` / `margin` / `gap` accept constant-only `calc()`.)
+- **Event surface bundle** — `keyup` (terminals with the kitty keyboard protocol), `contextmenu` (right-click + Shift+F10), `dblclick`, `resize` (document root), `scroll` (on offset change). Plus the implicit-detach ceremony: `blur` / `focusout` on focus loss and `mouseout` / `mouseleave` on hover loss fire *before* structural unlink, bubbling through the still-live ancestor chain.
+- **Multi-slot stylesheet API** — `App::push_stylesheet` / `remove_stylesheet` + `cascade_all`, so a consumer can stack (and swap) author sheets on top of the UA sheet.
+- **Full `border-style` keyword set** with terminal-faithful degradation (`solid` / `double` get distinct glyphs; `dashed` / `dotted` / `ridge` / `outset` / `groove` / `inset` rank in conflict resolution and render as `solid`), the `hidden` kill-switch, and the rdom-specific `half-block` pill style.
+
+### Changed
+
+- **Layered border model (breaking).** `border-collapse` is now layout-only and **non-inheriting**, and applies to any container's direct children (not only `<table>`). Visual merging is per-direction (style / color / priority) with CSS Tables 3 §11.5 conflict resolution. Declare `border-collapse` on each container whose direct children should share borders.
+- **`calc()` support made `Size` / `Length` non-`Copy` (breaking)** — `.clone()` at move boundaries; `ComputedStyle` / `AnimatedValue` are no longer `Copy`.
+- **Percentage height resolves against flex-sized ancestors** (CSS Flexbox §9.8) — `height: 100%` inside a `flex: 1` pane resolves instead of falling back to content height.
+- **Scroll offset clamps to content on layout**, not only on input — replacing a scroll container's content with shorter content snaps a stale `scrollTop` / `scrollLeft` back into range, matching the browser.
+
+### Fixed
+
+- Tree guides clip to scroll-container ancestors and span wrapped labels; the active-row highlight fills the tree's padding box.
+- Mixed-content blocks (leading text + a block child) lay out and paint correctly under scroll — no leading-text bleed onto a scrolled-in sibling.
+- A run of layout / paint fixes surfaced by dogfooding: `border-collapse` junctions, flex-shrink content squish, `position: sticky` under `overflow: auto`, and overflow-clip bleed between an app-shell pane and its sibling.
+
+The in-tree `rdom-showcase` dogfooding app was built out across this release but is `publish = false` — it is not part of the crates.io publish set.
+
 ## [0.1.0] - 2026-05-17
 
 Initial public release. The five workspace crates ship together on crates.io:

@@ -57,7 +57,20 @@ See [`crates/rdom-tui/examples/`](crates/rdom-tui/examples/) for seven working d
 | [`rdom-tui`](crates/rdom-tui) | Terminal backend. CSS cascade, flexbox layout, paint pass, ANSI emission, inline formatting (word wrap, CJK breaks, `<br>`, `white-space`), runtime (event loop, hit test, keyboard/mouse routing, focus, text selection + clipboard), native HTML element behaviors (`<button>`, `<input>` family, `<select>`, `<form>`, `<details>`, `<dialog>`, `<progress>`, `<meter>`, `<table>` family, `<canvas>`). |
 | [`rdom-parser`](crates/rdom-parser) | HTML-ish template parser → `Dom<Ext>`. `parseFromString` equivalent. Hand-rolled, no external parser deps. |
 
-## What's in 0.1.0
+## What's in 0.2.0
+
+0.2.0 adds, on top of the 0.1.0 substrate below:
+
+- **Block formatting context.** Semantic HTML stacks per the web platform with no CSS at all — `<div><h1></h1><p></p></div>` is a block-flow column at intrinsic heights. CSS 2.1 normal flow + margin collapse + height resolution + CSS3 `gap` on blocks + atomic `inline-block` in inline formatting contexts, on top of the original flex pass.
+- **Native ARIA tree.** `<ul role=tree>` / `role=treeitem` / `role=group` with `│ ├ └` guides + `▾`/`▸` chevrons, keyboard nav (Arrows / Home / End / Enter / Space) via an `aria-activedescendant` cursor, collapse/expand (`aria-expanded`), lazy children (`aria-busy`), and scroll-into-view that follows the cursor.
+- **`calc()` value system.** `width` / `height` / inset / length axes — CSS precedence, parentheses, nested `calc()`, banker's rounding onto the cell grid.
+- **More events.** `keyup` (kitty keyboard protocol), `contextmenu` (right-click + Shift+F10), `dblclick`, `resize`, `scroll`, plus implicit `blur` / `focusout` / `mouseout` / `mouseleave` dispatched before structural detach.
+- **Layered border model.** `border-collapse` is non-inheriting and applies to any container's direct children; per-direction conflict resolution (CSS Tables 3 §11.5); full `border-style` keyword set + the rdom-specific `half-block` pill style.
+- **Multi-slot stylesheets.** `push_stylesheet` / `remove_stylesheet` + `cascade_all` to stack and swap author sheets over the UA sheet.
+
+See [`CHANGELOG.md`](CHANGELOG.md) for the full 0.2.0 notes, including breaking changes.
+
+### The 0.1.0 substrate
 
 - **DOM substrate.** Arena, attributes, classes, mutation, CSS selectors (Selectors Level 4 subset), 3-phase event dispatch with `stopPropagation` / `preventDefault` / `AbortSignal`, `MutationObserver`, `Selection` / `Range` / `Position`, serialization (`outer_markup` / `inner_markup`).
 - **HTML template parser.** Hand-rolled, no external deps. `parseFromString` equivalent. Round-trippable for the supported subset.
@@ -66,7 +79,7 @@ See [`crates/rdom-tui/examples/`](crates/rdom-tui/examples/) for seven working d
 - **Layout + paint.** Flexbox for flex containers. `display: inline-block` for content-hugging chrome (buttons, badges, tags). Inline formatting (word wrap at whitespace + CJK + hyphens, `<br>`, `white-space: normal|pre|nowrap`, per-grapheme source tracking). Positioned `::before` / `::after` pseudo-elements (`position: relative | absolute | fixed` honoring `top` / `right` / `bottom` / `left`). Truecolor / 256-color fallback. ANSI emission with synchronized output (DEC 2026).
 - **Runtime.** Event loop with rendering-steps model (drain, tick, rAF, cascade + layout + paint, sleep). Hit testing, mouse routing (`mousedown` / `mouseup` / `click` synthesized on nearest common ancestor — matches HTML), keyboard routing, focus navigation (`tabindex`, `Tab` / `Shift-Tab`, autofocus), pointer capture, text selection (mouse drag, `Shift+arrow` including vertical with sticky-x and line-edge via `Shift+Home`/`End`, `Ctrl-A`, double/triple-click, `user-select: none|all|contain`) + system clipboard (`arboard`, OSC 52 fallback), panic safety (terminal state restored on panic).
 - **Native HTML built-ins.** `<button>`, `<label>`, `<details>` / `<summary>`, `<input>` family (text, password, number, checkbox, radio, range, submit, button, reset, hidden, color, search, email, tel, url), `<textarea>`, `<select>` / `<option>`, `<form>`, `<dialog>`, `<progress>`, `<meter>`, `<table>` family + column-width sync, `<canvas>` + `RenderContext` escape hatch, `<a href>` with scheme dispatch. Editable surfaces honor `caret-color` (cell bg) and the rdom-extension `caret-text-color` (glyph fg); both default to inverting the cell's cascaded fg/bg. `readonly` fires cancelable `beforeinput` (matches UI Events L2 §5). `contenteditable` supports cross-text-node edits across inline boundaries.
-- **User-agent stylesheet.** 128 UA rules ship visual chrome on every native element so naked HTML looks attractive out of the box. Bracketed `[ Label ]` buttons in accent fg. Rounded LightBlue-bordered modal dialogs. `▸`/`▾` disclosure triangles. `•` list bullets. `│` blockquote rail, `─` `<hr>` rule, `▾` `<select>` chevron. Subtle background-tint `:focus` indicator (a single `!important` rule, color-only — no reverse-video, no glyph shift) that authors can override with their own `!important` rule. Run `cargo run -p rdom-tui --example ua_chrome` to see it.
+- **User-agent stylesheet.** 136 UA rules ship visual chrome on every native element so naked HTML looks attractive out of the box. Bracketed `[ Label ]` buttons in accent fg. Rounded LightBlue-bordered modal dialogs. `▸`/`▾` disclosure triangles. `•` list bullets. `│` blockquote rail, `─` `<hr>` rule, `▾` `<select>` chevron. Subtle background-tint `:focus` indicator (a single `!important` rule, color-only — no reverse-video, no glyph shift) that authors can override with their own `!important` rule. Run `cargo run -p rdom-tui --example ua_chrome` to see it.
 - **DOM API completeness.** Per-tag accessors (`input_value`, `select_options`, `details_open`, `form_elements`, …), CSSOM (`style.set_property`, `style_declaration`, camelCase aliases), scroll APIs (`scroll_top` / `scroll_into_view`), document hit-testing (`element_from_point`), `bounding_rect`, focus/blur/click programmatic dispatch.
 - **Positioning.** `position: {static, relative, absolute, fixed}`, `z-index` parsing, `top` / `right` / `bottom` / `left`, `inset` shorthand. Paint order is document order (no stacking contexts in 0.1.0).
 - **Timers + transitions.** `setTimeout` / `setInterval`, `requestAnimationFrame` with `DOMHighResTimeStamp`, CSS `transition` with cubic-bezier timing.
@@ -74,7 +87,6 @@ See [`crates/rdom-tui/examples/`](crates/rdom-tui/examples/) for seven working d
 
 ## Roadmap
 
-- **0.2.0** — `calc()` value system + event surface bundle (`dblclick`, `contextmenu`, `keyup`, `mousemove`, `scroll`, `resize`).
 - **0.3.0** — Client-side routing primitive.
 - **0.4.0** — Async tasks during event handlers.
 

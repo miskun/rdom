@@ -10,4 +10,4 @@ keywords = ["css", "rdom", "tui", "style"]
 categories = ["data-structures"]
 
 [dependencies]
-rdom-core = { path = "../rdom-core", version = "0.1.0" }
+rdom-core = { path = "../rdom-core", version = "0.2.0" }
