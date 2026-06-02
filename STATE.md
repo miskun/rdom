@@ -85,7 +85,21 @@ One piece of architectural debt deferred with teeth: `EVT-DETACH-1` (implicit bl
 
 ## Recent decisions
 
-### 2026-06-02 — `FOCUS-VOCAB-1`: typed focus-affordance vocabulary (Unreleased)
+### 2026-06-03 — 0.3.4 released to crates.io
+
+All five crates (`rdom-core` / `rdom-style` / `rdom-parser` / `rdom-css` / `rdom-tui`) at `0.3.4`;
+tag `v0.3.4`. Ships the **`FOCUS-VOCAB-1`** focus-affordance vocabulary and its follow-ups (entry
+below): typed focus cues (controls → bg tint, scroll regions → accent `:focus-within` thumb,
+grid/tree → cursor, else → consumer CSS), keyboard scrolling of the focused element's nearest scroll
+ancestor, scroll containers keyboard-focusable, the `<tree>`/`<button>` key-claim fixes, the
+tree row-highlight scrollbar-gutter fix, and lazy `input::ensure_seeded` (dynamically-added inputs
+are typeable). One accepted limitation: `FOCUS-THUMB-NEAREST-1` (`:focus-within` colors every
+overflowing scroll ancestor, not just the nearest) — recorded in TECH_DEBT + DIVERGENCES. Showcase
+demo CSS fixes (sidebar tree owns its scroll, sticky demo fills the pane) rode along but aren't
+published (`rdom-showcase` is `publish = false`). Next: bump `rdom-virtualtable` to `rdom-tui =
+"0.3.4"` and drop its `table:focus { background: reset }` workaround (the tint is control-scoped now).
+
+### 2026-06-02 — `FOCUS-VOCAB-1`: typed focus-affordance vocabulary (0.3.4, released)
 
 Eleventh consumer-surfaced substrate issue — and a design correction. While building `rdom-virtualtable`, the focused `<table>` kept washing to the focus background. Root question (the consumer asked): "is `<table>` even focusable in HTML?" No — it's not focusable without `tabindex`, like `<p>`/`<div>`; rdom matched that. The real defect was upstream: the UA applied a generic `:focus { background }` tint to **every** focused element, with a growing denylist of opt-out hacks (`canvas:focus`, `[role=tree]:focus`) — `<table>` was about to be the third. The web shows focus with an *outline* on every focusable element, but a TUI can't draw a no-reflow ring, so there's no universal cue. Fix: flip denylist → **typed vocabulary**:
 
