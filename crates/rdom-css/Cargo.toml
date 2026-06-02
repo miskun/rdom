@@ -15,6 +15,11 @@ rdom-style = { path = "../rdom-style", version = "0.2.0" }
 
 [dev-dependencies]
 # Examples build a TuiDom + render it; rdom-tui is example-only,
-# the parser core has no runtime/backend deps.
-rdom-parser = { path = "../rdom-parser", version = "0.2.0" }
-rdom-tui = { path = "../rdom-tui", version = "0.2.0" }
+# the parser core has no runtime/backend deps. Path-ONLY (no version)
+# on purpose: rdom-tui depends on rdom-css, so a versioned dev-dep here
+# would be an unpublishable cycle (cargo resolves dev-deps against the
+# registry at publish time). cargo drops path-only dev-deps from the
+# published manifest — they're example-only, consumers never need them
+# — which breaks the cycle. Local example builds still resolve by path.
+rdom-parser = { path = "../rdom-parser" }
+rdom-tui = { path = "../rdom-tui" }

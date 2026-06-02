@@ -1869,3 +1869,286 @@ fn transitionstart_and_transitioncancel_also_carry_typed_detail() {
         assert_eq!(captured.borrow().as_deref(), Some("background-color"));
     }
 }
+
+// ── SPIKE: <canvas> as a focusable interactive widget ───────────────
+//
+// Verification tests for whether a `<canvas>` can act as a
+// focusable, keyboard- and mouse-interactive widget (the
+// foundation a canvas-based vtable would need). Added by a
+// de-risk spike — does NOT change library behavior.
+mod canvas_interactive_spike {
+    use super::*;
+    use crate::accessors::TuiAccessors;
+    use std::cell::RefCell;
+
+    fn canvas_app() -> (App<TestBackend>, NodeId) {
+        let mut dom: TuiDom = TuiDom::new();
+        let root = dom.root();
+        let cv = dom.create_element("canvas");
+        dom.set_attribute(cv, "tabindex", "0").unwrap();
+        dom.append_child(root, cv).unwrap();
+        let sheet = Stylesheet::bare().rule_unchecked(
+            "canvas",
+            TuiStyle::new()
+                .width(Size::Fixed(20))
+                .height(Size::Fixed(6)),
+        );
+        let app = test_app(dom, sheet, Rect::new(0, 0, 40, 10));
+        (app, cv)
+    }
+
+    // 1. FOCUS — programmatic.
+    #[test]
+    fn canvas_with_tabindex_is_focusable_programmatically() {
+        let (mut app, cv) = canvas_app();
+        assert!(crate::runtime::focus::tabindex::is_focusable(app.dom(), cv));
+        crate::runtime::focus::focus_node(app.dom_mut(), Some(cv));
+        assert_eq!(app.dom().focused(), Some(cv));
+    }
+
+    // 1. FOCUS — via Tab key through the full App pipeline.
+    #[test]
+    fn canvas_receives_focus_via_tab_key() {
+        let (mut app, cv) = canvas_app();
+        app.draw_if_dirty().unwrap();
+        assert_eq!(app.dom().focused(), None);
+        app.handle_event(key(KeyCode::Tab));
+        assert_eq!(
+            app.dom().focused(),
+            Some(cv),
+            "Tab should land focus on the only focusable element"
+        );
+    }
+
+    // 1. FOCUS — via click (focus-on-click default action).
+    #[test]
+    fn canvas_receives_focus_via_click() {
+        let (mut app, cv) = canvas_app();
+        app.draw_if_dirty().unwrap();
+        for ev in click_at(3, 2) {
+            app.handle_event(ev);
+        }
+        assert_eq!(app.dom().focused(), Some(cv));
+    }
+
+    // 2. KEYBOARD — keydown dispatches to the focused canvas;
+    // listener reads key + modifiers.
+    #[test]
+    fn focused_canvas_receives_keydown_with_key_and_modifiers() {
+        let (mut app, cv) = canvas_app();
+        let seen: Rc<RefCell<Vec<(String, bool)>>> = Rc::new(RefCell::new(Vec::new()));
+        let s = seen.clone();
+        app.dom_mut()
+            .add_event_listener(cv, "keydown", ListenerOptions::default(), move |ctx| {
+                let kb = ctx
+                    .event
+                    .detail
+                    .as_keyboard()
+                    .expect("keydown carries keyboard detail");
+                s.borrow_mut().push((kb.key.clone(), kb.modifiers.shift));
+            })
+            .unwrap();
+        app.draw_if_dirty().unwrap();
+        crate::runtime::focus::focus_node(app.dom_mut(), Some(cv));
+
+        app.handle_event(CtEvent::Key(KeyEvent::new(
+            KeyCode::Down,
+            KeyModifiers::empty(),
+        )));
+        app.handle_event(CtEvent::Key(KeyEvent::new(
+            KeyCode::Char('j'),
+            KeyModifiers::SHIFT,
+        )));
+
+        let got = seen.borrow().clone();
+        // Note: the printable `key` is NOT upcased by Shift — DOM
+        // `KeyboardEvent.key` would be "J", but rdom's key_translate
+        // reports the base char "j" and surfaces Shift via the
+        // separate `modifiers.shift` flag. The capability (key +
+        // modifier both readable) is what matters here.
+        assert_eq!(
+            got,
+            vec![("ArrowDown".to_string(), false), ("j".to_string(), true)],
+            "listener must see translated key + shift modifier"
+        );
+    }
+
+    // 2. KEYBOARD — prevent_default suppresses the Tab focus-nav
+    // default action, so a focused canvas can keep Tab.
+    #[test]
+    fn canvas_keydown_prevent_default_intercepts_tab() {
+        let (mut app, cv) = canvas_app();
+        app.dom_mut()
+            .add_event_listener(cv, "keydown", ListenerOptions::default(), move |ctx| {
+                let kb = ctx.event.detail.as_keyboard().unwrap();
+                if kb.key == "Tab" {
+                    ctx.event.prevent_default();
+                }
+            })
+            .unwrap();
+        app.draw_if_dirty().unwrap();
+        crate::runtime::focus::focus_node(app.dom_mut(), Some(cv));
+        assert_eq!(app.dom().focused(), Some(cv));
+
+        app.handle_event(key(KeyCode::Tab));
+        // prevent_default ran → focus_next was skipped → focus stays.
+        assert_eq!(
+            app.dom().focused(),
+            Some(cv),
+            "prevent_default on Tab must suppress focus navigation"
+        );
+    }
+
+    // 2. KEYBOARD — arrow keys reach the canvas listener even
+    // without prevent_default (no built-in steals plain arrows when
+    // a canvas is focused and has no selection/editable default).
+    #[test]
+    fn focused_canvas_receives_arrow_keys() {
+        let (mut app, cv) = canvas_app();
+        let count = Rc::new(Cell::new(0u32));
+        let c = count.clone();
+        app.dom_mut()
+            .add_event_listener(cv, "keydown", ListenerOptions::default(), move |ctx| {
+                if ctx.event.detail.as_keyboard().unwrap().key.starts_with("Arrow") {
+                    c.set(c.get() + 1);
+                }
+            })
+            .unwrap();
+        app.draw_if_dirty().unwrap();
+        crate::runtime::focus::focus_node(app.dom_mut(), Some(cv));
+
+        for code in [KeyCode::Up, KeyCode::Down, KeyCode::Left, KeyCode::Right] {
+            app.handle_event(key(code));
+        }
+        assert_eq!(count.get(), 4);
+    }
+
+    // 3. MOUSE — click reaches the canvas; coords are GLOBAL
+    // (client_x/client_y), and bounding_rect lets the app convert
+    // to canvas-local coords.
+    #[test]
+    fn canvas_click_delivers_global_coords_convertible_to_local() {
+        let (mut app, cv) = canvas_app();
+        let pos: Rc<RefCell<Option<(i32, i32)>>> = Rc::new(RefCell::new(None));
+        let p = pos.clone();
+        app.dom_mut()
+            .add_event_listener(cv, "click", ListenerOptions::default(), move |ctx| {
+                let m = ctx.event.detail.as_mouse().expect("mouse detail");
+                *p.borrow_mut() = Some((m.client_x, m.client_y));
+            })
+            .unwrap();
+        app.draw_if_dirty().unwrap();
+
+        // Canvas is at viewport origin (0,0) per layout. Click at (5, 3).
+        for ev in click_at(5, 3) {
+            app.handle_event(ev);
+        }
+
+        let (gx, gy) = pos.borrow().expect("click must reach canvas");
+        assert_eq!((gx, gy), (5, 3), "client_x/client_y are GLOBAL screen cells");
+
+        // App converts to canvas-local via bounding_rect.
+        let rect = app.dom().node(cv).bounding_rect().expect("canvas has a rect");
+        let local_x = gx - rect.x;
+        let local_y = gy - rect.y;
+        assert_eq!(
+            (local_x, local_y),
+            (5, 3),
+            "with canvas at origin, local == global; rect.x/y is the subtractable origin"
+        );
+    }
+
+    // 3. MOUSE — wheel event reaches the canvas listener with delta.
+    #[test]
+    fn focused_canvas_receives_wheel_with_delta() {
+        let (mut app, cv) = canvas_app();
+        let dy: Rc<RefCell<Vec<i32>>> = Rc::new(RefCell::new(Vec::new()));
+        let d = dy.clone();
+        app.dom_mut()
+            .add_event_listener(cv, "wheel", ListenerOptions::default(), move |ctx| {
+                let m = ctx.event.detail.as_mouse().unwrap();
+                d.borrow_mut().push(m.delta_y);
+            })
+            .unwrap();
+        app.draw_if_dirty().unwrap();
+
+        app.handle_event(CtEvent::Mouse(CtMouseEvent {
+            kind: MouseEventKind::ScrollDown,
+            column: 5,
+            row: 3,
+            modifiers: KeyModifiers::empty(),
+        }));
+        app.handle_event(CtEvent::Mouse(CtMouseEvent {
+            kind: MouseEventKind::ScrollUp,
+            column: 5,
+            row: 3,
+            modifiers: KeyModifiers::empty(),
+        }));
+
+        assert_eq!(*dy.borrow(), vec![1, -1], "wheel delta_y reaches canvas");
+    }
+
+    // 3. MOUSE — mousedown also reaches the canvas (finer-grained
+    // than click; useful for drag-select inside the vtable).
+    #[test]
+    fn canvas_receives_mousedown() {
+        let (mut app, cv) = canvas_app();
+        let hits = Rc::new(Cell::new(0u32));
+        let h = hits.clone();
+        app.dom_mut()
+            .add_event_listener(cv, "mousedown", ListenerOptions::default(), move |_| {
+                h.set(h.get() + 1);
+            })
+            .unwrap();
+        app.draw_if_dirty().unwrap();
+        for ev in click_at(4, 2) {
+            app.handle_event(ev);
+        }
+        assert_eq!(hits.get(), 1);
+    }
+
+    // COORDINATE MAPPING: confirm what bounding_rect returns for a
+    // DEEPLY NESTED canvas. The doc comment on `bounding_rect` says
+    // "parent's coordinate space", but the layout pass bakes
+    // ABSOLUTE (viewport-relative) positions into `ext.layout`, so
+    // bounding_rect actually returns absolute screen coords — which
+    // is exactly what an app needs to subtract from client_x/y.
+    #[test]
+    fn nested_canvas_bounding_rect_is_absolute_screen_coords() {
+        let mut dom: TuiDom = TuiDom::new();
+        let root = dom.root();
+        let outer = dom.create_element("div");
+        let inner = dom.create_element("div");
+        let cv = dom.create_element("canvas");
+        dom.set_attribute(cv, "tabindex", "0").unwrap();
+        dom.append_child(root, outer).unwrap();
+        dom.append_child(outer, inner).unwrap();
+        dom.append_child(inner, cv).unwrap();
+        // Push everything down/right so absolute != parent-relative.
+        let sheet = Stylesheet::bare()
+            .rule_unchecked("div", TuiStyle::new().padding(crate::layout::Padding::all(2)))
+            .rule_unchecked(
+                "canvas",
+                TuiStyle::new().width(Size::Fixed(10)).height(Size::Fixed(4)),
+            );
+        let mut app = test_app(dom, sheet, Rect::new(0, 0, 40, 20));
+        app.draw_if_dirty().unwrap();
+
+        let rect = app.dom().node(cv).bounding_rect().unwrap();
+        // Absolute origin is (4, 4): two nested divs × 2 padding
+        // each. bounding_rect returns ABSOLUTE coords — so an app
+        // can subtract rect.x/rect.y from a click's client_x/y to
+        // get canvas-local coords regardless of nesting depth.
+        assert_eq!(
+            (rect.x, rect.y),
+            (4, 4),
+            "bounding_rect returns absolute screen coords, not parent-relative"
+        );
+
+        // Prove the end-to-end conversion: a click at absolute (4, 4)
+        // maps to canvas-local (0, 0).
+        let local_x = 4 - rect.x;
+        let local_y = 4 - rect.y;
+        assert_eq!((local_x, local_y), (0, 0));
+    }
+}
