@@ -84,6 +84,11 @@ pub fn install(dom: &mut TuiDom) {
         let mut click = TuiEvent::click(fake_mouse);
         click.event = click.event.clone().with_synthetic(true);
         let _ = ctx.dom.dispatch_tui_event(focused, &mut click);
+        // Claim the activation key so the app's default-action chain
+        // (focused-scroll-container keymap, Tab focus nav) doesn't ALSO act on
+        // it — e.g. Space would otherwise both activate the button and page
+        // the scroll container it sits in.
+        ctx.event.prevent_default();
     })
     .expect("root button keydown listener install");
 }

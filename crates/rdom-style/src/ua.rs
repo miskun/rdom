@@ -584,16 +584,17 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
             "input:focus, textarea:focus, select:focus",
             TuiStyle::new().bg_important(Color::Rgb(0x2d, 0x2f, 0x31)),
         ),
-        // Focus indicator for SCROLL CONTAINERS: a focused, scrollable element
-        // (a div/table/region that overflows) is keyboard-focusable so it can
-        // be scrolled — and it already owns scrollbar chrome, so its thumb
-        // doubles as the focus cue at zero extra area. Focused → the thumb
-        // GLYPH (`┃`/`━`) turns accent (DodgerBlue) via foreground; unfocused →
-        // the paint pass's gray fallback. Coloring the foreground keeps the
-        // thin handle bar rather than filling a blue block. The container
-        // analog of the web's focus outline, via `::scrollbar-thumb`. See
-        // DIVERGENCES.md.
-        (":focus::scrollbar-thumb", TuiStyle::new().fg(ACCENT)),
+        // Focus indicator for SCROLL CONTAINERS: the scroll region that
+        // CONTAINS the focus (`:focus-within` — the focused element itself
+        // when it's a focusable scroll container like a tree, or the scroll
+        // pane around a focused `<input>`) shows an accent thumb. This is the
+        // same region the keyboard scroll keys act on, so the blue handle
+        // marks "what your keyboard scrolls". The thumb GLYPH (`┃`/`━`) turns
+        // accent (DodgerBlue) via foreground — a thin colored handle, not a
+        // filled block; unfocused → the paint pass's gray fallback. The
+        // container analog of the web's focus outline, via `::scrollbar-thumb`.
+        // See DIVERGENCES.md.
+        (":focus-within::scrollbar-thumb", TuiStyle::new().fg(ACCENT)),
         // Placeholder rendering via `:placeholder-shown` +
         // `attr()` content. When the input / textarea has a
         // non-empty `placeholder` attribute and is empty, the

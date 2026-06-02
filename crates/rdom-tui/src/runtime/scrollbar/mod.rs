@@ -483,14 +483,28 @@ fn is_horizontal_scroll_container(dom: &TuiDom, id: NodeId) -> bool {
 pub(crate) fn handle_scroll_key(dom: &mut TuiDom, key: crossterm::event::KeyEvent) -> bool {
     use crossterm::event::{KeyCode, KeyModifiers};
 
-    let Some(el) = dom.focused() else {
+    let Some(focused) = dom.focused() else {
         return false;
+    };
+    // Scroll the nearest scrollable ancestor of the focused element (itself
+    // included). So a focused `<input>` inside a scroll pane still pages the
+    // pane (the focused element isn't a scroll container, an ancestor is) —
+    // the web's "scroll keys act on the scrolling element the focus is in".
+    let mut cur = Some(focused);
+    let el = loop {
+        match cur {
+            Some(id)
+                if is_vertical_scroll_container(dom, id)
+                    || is_horizontal_scroll_container(dom, id) =>
+            {
+                break id;
+            }
+            Some(id) => cur = dom.node(id).parent_node().map(|p| p.id()),
+            None => return false,
+        }
     };
     let vert = is_vertical_scroll_container(dom, el);
     let horiz = is_horizontal_scroll_container(dom, el);
-    if !vert && !horiz {
-        return false;
-    }
 
     let (vh, vscroll) = scroll_metrics(dom, el, ScrollAxis::Vertical);
     let page = (vh as i32).max(1);
