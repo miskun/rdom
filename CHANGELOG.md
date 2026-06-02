@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A focused scroll container scrolls with the keyboard** — `ArrowUp`/`ArrowDown` (and `ArrowLeft`/`ArrowRight` when horizontally scrollable) by a line, `PageUp`/`PageDown`/`Space`/`Shift+Space` by a page, `Home`/`End` to the ends. Runs after the editable-key default, so a focused `<input>`/`<textarea>` still moves its caret. `preventDefault` on the `keydown` suppresses it.
 - **`:focus::scrollbar-thumb` UA rule** — a focused scroll container's scrollbar thumb **glyph** turns accent (DodgerBlue, foreground — a colored handle, not a filled block); unfocused thumbs stay gray. The container analog of the web's focus outline, at zero extra area (it reuses scrollbar chrome the element already owns).
 
+### Fixed
+
+- **A tree's full-width row highlight no longer bleeds under its vertical scrollbar.** The `[role=treeitem]` cursor/selected-row background is painted edge-to-edge by the guide pass; once a tree can own its scroll, that fill ran under the scrollbar thumb. It now reserves the scrollbar gutter (the rightmost padding-box column) when the tree shows a vertical scrollbar, matching how normal content reserves it.
+
 ## [0.3.3] - 2026-06-02
 
 ### Added

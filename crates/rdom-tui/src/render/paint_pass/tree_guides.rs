@@ -38,7 +38,7 @@
 use rdom_core::{Dom, NodeId};
 
 use crate::ext::TuiExt;
-use crate::layout::{CornerStyle, Display};
+use crate::layout::{CornerStyle, Display, Overflow};
 use crate::node::TuiNodeExt;
 use crate::render::buffer::{BorderContribution, BorderSide, DIR_E, DIR_N, DIR_S};
 use crate::render::{Buffer, Rect, Style};
@@ -76,7 +76,14 @@ pub(super) fn paint_tree_guides(dom: &Dom<TuiExt>, buf: &mut Buffer, clip: Rect)
         // shifting content (the showcase sidebar fills the cell
         // between the panel border and the tree this way).
         let span = tree_padding_box(dom, tree)
-            .map(|r| (r.x, r.x + r.width as i32))
+            .map(|r| {
+                // Reserve the vertical scrollbar's gutter (the rightmost
+                // padding-box column) when the tree shows one — otherwise the
+                // row highlight bleeds *under* the scrollbar thumb. A tree can
+                // own its scroll (FOCUS-VOCAB-1), so this is now reachable.
+                let gutter = if reserves_vscrollbar(dom, tree) { 1 } else { 0 };
+                (r.x, r.x + r.width as i32 - gutter)
+            })
             .unwrap_or((tree_clip.x as i32, tree_clip.right() as i32));
         for item in treeitem_children(dom, tree) {
             paint_item(dom, item, buf, tree_clip, &[], span);
@@ -122,6 +129,25 @@ fn tree_padding_box(dom: &Dom<TuiExt>, tree: NodeId) -> Option<crate::layout::La
         .map(|c| c.border)
         .unwrap_or_default();
     Some(rdom_style::layout::compute_padding_box(outer, border))
+}
+
+/// Does the tree currently paint a vertical scrollbar (so its gutter — the
+/// rightmost padding-box column — is reserved)? Mirrors `paint_scrollbars`'
+/// `y_paints` decision so the row-highlight fill stops short of the gutter
+/// instead of bleeding under the thumb.
+fn reserves_vscrollbar(dom: &Dom<TuiExt>, tree: NodeId) -> bool {
+    let Some(ext) = dom.node(tree).ext() else {
+        return false;
+    };
+    let Some(c) = ext.computed.as_ref() else {
+        return false;
+    };
+    matches!(c.overflow_y, Overflow::Scroll | Overflow::Auto)
+        && super::scrollbar::should_paint(
+            c.overflow_y,
+            ext.content_layout.height as usize,
+            ext.scroll_content_height,
+        )
 }
 
 fn collect_trees(dom: &Dom<TuiExt>, id: NodeId, out: &mut Vec<NodeId>) {

@@ -395,6 +395,52 @@ fn tree_active_row_highlight_spans_full_width_under_guides() {
 }
 
 #[test]
+fn tree_active_row_highlight_reserves_scrollbar_gutter() {
+    // When the tree owns its scroll (overflow-y:auto + bounded height), the
+    // row-highlight fill must stop short of the vertical scrollbar gutter (the
+    // rightmost padding-box column) — otherwise the highlight bleeds *under*
+    // the thumb. Regression for the FOCUS-VOCAB-1 self-scrolling tree.
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let tree = dom.create_element("ul");
+    dom.set_attribute(tree, "role", "tree").unwrap();
+    dom.node_mut(tree).set_inline_style(
+        TuiStyle::new()
+            .height(Size::Fixed(3))
+            .overflow_y(Overflow::Auto),
+    );
+    dom.append_child(root, tree).unwrap();
+
+    // 6 rows in a 3-row tree → a vertical scrollbar is reserved.
+    let first = treeitem(&mut dom, "AAAAA", &[("data-rdom-active", "")]);
+    dom.append_child(tree, first).unwrap();
+    for label in ["BBBBB", "CCCCC", "DDDDD", "EEEEE", "FFFFF"] {
+        let li = treeitem(&mut dom, label, &[]);
+        dom.append_child(tree, li).unwrap();
+    }
+
+    dom.set_focused(Some(tree));
+    let w: u16 = 20;
+    let buf = pipeline(&mut dom, &Stylesheet::new(), Rect::new(0, 0, w, 3));
+    let hl = Color::Rgb(0x2d, 0x2f, 0x31);
+    let last = w - 1; // rightmost column = scrollbar gutter
+
+    // Cursor row (row 0) highlight fills the content up to the gutter…
+    assert_eq!(buf.cell(0, 0).unwrap().bg, hl, "cursor row is highlighted");
+    assert_eq!(
+        buf.cell(last - 1, 0).unwrap().bg,
+        hl,
+        "highlight fills right up to the scrollbar gutter"
+    );
+    // …but NOT the scrollbar gutter column itself.
+    assert_ne!(
+        buf.cell(last, 0).unwrap().bg,
+        hl,
+        "the scrollbar gutter column must not be filled with the row highlight"
+    );
+}
+
+#[test]
 fn single_text_span_paints() {
     let mut dom = TuiDom::new();
     let root = dom.root();
