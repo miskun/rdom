@@ -166,9 +166,12 @@ fn arrowing_past_the_fold_keeps_the_cursor_in_view() {
             .map(|e| e.layout)
             .unwrap_or_default();
         // The sidebar's visible content region (scrollport ≈ content box).
+        // The tree itself is the scroll container now (FOCUS-VOCAB-1:
+        // `[role=tree]` owns its scroll), so the scrollport is the tree's
+        // content box, not the `.sidebar` wrapper's.
         let port = app
             .dom()
-            .node(handles.sidebar)
+            .node(tree)
             .ext()
             .map(|e| e.content_layout)
             .unwrap_or_default();
@@ -198,9 +201,12 @@ fn end_then_home_scrolls_the_cursor_into_view_both_directions() {
             .ext()
             .map(|e| e.layout)
             .unwrap_or_default();
+        // The tree itself is the scroll container now (FOCUS-VOCAB-1:
+        // `[role=tree]` owns its scroll), so the scrollport is the tree's
+        // content box, not the `.sidebar` wrapper's.
         let port = app
             .dom()
-            .node(handles.sidebar)
+            .node(tree)
             .ext()
             .map(|e| e.content_layout)
             .unwrap_or_default();

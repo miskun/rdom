@@ -434,18 +434,34 @@ const BASE_CSS: &str = r#"
    * (`overflow-y: auto`); padding there would wedge a blank cell
    * between the scrollbar `┃` and the right border. */
   padding: 0;
-  /* The nav is taller than the viewport on small terminals;
-   * scroll instead of clipping. The substrate floors each item
-   * at its intrinsic content height (CSS Flexbox §4.5 min-*:
-   * auto), so nothing squishes regardless. */
-  overflow-y: auto;
+  /* The scroll lives on the `.sidebar-tree` (the `<ul role=tree>`),
+   * NOT on this wrapper — so the FOCUSED element (the tree) owns its
+   * scrollbar and gets the `:focus::scrollbar-thumb` accent cue.
+   * `.sidebar-tree` opts into `overflow-y: auto` below; this `.sidebar`
+   * just bounds the height. (Overflow is a layout choice the consumer
+   * makes per element — rdom's `<ul role=tree>` is `overflow: visible`
+   * by default, like any `<ul>`.) */
+}
+/* The `<nav>` between `.sidebar` and the tree must carry the definite
+ * height through, or the tree's `height: 100%` resolves against an
+ * auto-height containing block and over-sizes (guides bleed past the
+ * panel). */
+.sidebar nav {
+  height: 100%;
 }
 /* The 1-cell left inset rides on the tree, not the sidebar, so the
  * row-highlight bg (which fills the tree's padding box) extends to
  * the panel border — a full-width selection bar — while the content
  * stays exactly where the sidebar padding put it. Chrome-owned class;
- * see `build_shell` for why it must NOT be the demo's `nav-tree`. */
+ * see `build_shell` for why it must NOT be the demo's `nav-tree`.
+ *
+ * `overflow-y: auto` makes the tree its OWN scroll container, and
+ * `height: 100%` bounds it to the (definite-height) sidebar so the
+ * overflow actually clips + scrolls — the focused tree then owns its
+ * scrollbar, whose thumb turns accent while focused. */
 .sidebar-tree {
+  height: 100%;
+  overflow-y: auto;
   padding: 0 0 0 1;
 }
 
