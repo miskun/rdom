@@ -16,11 +16,11 @@ path = "src/main.rs"
 # `rdom-style`, so depend only on the renderer + the CSS parser.
 # This matches the consumer-facing dependency shape we want demos
 # to teach.
-rdom-tui = { path = "../rdom-tui", version = "0.3.3" }
-rdom-css = { path = "../rdom-css", version = "0.3.3" }
+rdom-tui = { path = "../rdom-tui", version = "0.3.4" }
+rdom-css = { path = "../rdom-css", version = "0.3.4" }
 # `parse_and_render` demo uses the HTML-ish parser; one of the
 # few demos that touch all three crates composing.
-rdom-parser = { path = "../rdom-parser", version = "0.3.3" }
+rdom-parser = { path = "../rdom-parser", version = "0.3.4" }
 
 [dev-dependencies]
 # Tests synthesize `crossterm` events (Resize / Key / Mouse) to
