@@ -2009,7 +2009,14 @@ mod canvas_interactive_spike {
         let c = count.clone();
         app.dom_mut()
             .add_event_listener(cv, "keydown", ListenerOptions::default(), move |ctx| {
-                if ctx.event.detail.as_keyboard().unwrap().key.starts_with("Arrow") {
+                if ctx
+                    .event
+                    .detail
+                    .as_keyboard()
+                    .unwrap()
+                    .key
+                    .starts_with("Arrow")
+                {
                     c.set(c.get() + 1);
                 }
             })
@@ -2045,10 +2052,18 @@ mod canvas_interactive_spike {
         }
 
         let (gx, gy) = pos.borrow().expect("click must reach canvas");
-        assert_eq!((gx, gy), (5, 3), "client_x/client_y are GLOBAL screen cells");
+        assert_eq!(
+            (gx, gy),
+            (5, 3),
+            "client_x/client_y are GLOBAL screen cells"
+        );
 
         // App converts to canvas-local via bounding_rect.
-        let rect = app.dom().node(cv).bounding_rect().expect("canvas has a rect");
+        let rect = app
+            .dom()
+            .node(cv)
+            .bounding_rect()
+            .expect("canvas has a rect");
         let local_x = gx - rect.x;
         let local_y = gy - rect.y;
         assert_eq!(
@@ -2126,10 +2141,15 @@ mod canvas_interactive_spike {
         dom.append_child(inner, cv).unwrap();
         // Push everything down/right so absolute != parent-relative.
         let sheet = Stylesheet::bare()
-            .rule_unchecked("div", TuiStyle::new().padding(crate::layout::Padding::all(2)))
+            .rule_unchecked(
+                "div",
+                TuiStyle::new().padding(crate::layout::Padding::all(2)),
+            )
             .rule_unchecked(
                 "canvas",
-                TuiStyle::new().width(Size::Fixed(10)).height(Size::Fixed(4)),
+                TuiStyle::new()
+                    .width(Size::Fixed(10))
+                    .height(Size::Fixed(4)),
             );
         let mut app = test_app(dom, sheet, Rect::new(0, 0, 40, 20));
         app.draw_if_dirty().unwrap();

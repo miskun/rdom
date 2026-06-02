@@ -28,7 +28,7 @@ use rdom_core::{NodeMut, NodeRef, NodeType};
 
 use crate::ext::TuiExt;
 use crate::layout::{Border, Direction, LayoutRect, Overflow, Padding, Size};
-use crate::style::{ComputedStyle, TuiStyle};
+use crate::style::{ComputedStyle, TuiStyle, Value};
 
 // ───────────────────────── Read helpers ─────────────────────────────
 
@@ -38,26 +38,44 @@ use crate::style::{ComputedStyle, TuiStyle};
 pub trait TuiNodeExt<'a> {
     fn tui_ext(&self) -> Option<&'a TuiExt>;
 
+    // These read the *specified* inline-style value (`None` when the
+    // property wasn't set via a node setter or inline style). Layout
+    // reads the post-cascade `ComputedStyle`; these are the author-input
+    // side, kept symmetric with the `set_*` setters in `TuiNodeMutExt`.
     fn width(&self) -> Option<Size> {
-        self.tui_ext().map(|e| e.width.clone())
+        self.inline_style()
+            .and_then(|s| s.width.as_ref())
+            .and_then(|v| v.as_specified().cloned())
     }
     fn height(&self) -> Option<Size> {
-        self.tui_ext().map(|e| e.height.clone())
+        self.inline_style()
+            .and_then(|s| s.height.as_ref())
+            .and_then(|v| v.as_specified().cloned())
     }
     fn direction(&self) -> Option<Direction> {
-        self.tui_ext().map(|e| e.direction)
+        self.inline_style()
+            .and_then(|s| s.direction.as_ref())
+            .and_then(|v| v.as_specified().copied())
     }
     fn padding(&self) -> Option<Padding> {
-        self.tui_ext().map(|e| e.padding.clone())
+        self.inline_style()
+            .and_then(|s| s.padding.as_ref())
+            .and_then(|v| v.as_specified().cloned())
     }
     fn border(&self) -> Option<Border> {
-        self.tui_ext().map(|e| e.border)
+        self.inline_style()
+            .and_then(|s| s.border.as_ref())
+            .and_then(|v| v.as_specified().copied())
     }
     fn gap(&self) -> Option<u16> {
-        self.tui_ext().map(|e| e.gap)
+        self.inline_style()
+            .and_then(|s| s.gap.as_ref())
+            .and_then(|v| v.as_specified().copied())
     }
     fn overflow(&self) -> Option<Overflow> {
-        self.tui_ext().map(|e| e.overflow)
+        self.inline_style()
+            .and_then(|s| s.overflow_x.as_ref())
+            .and_then(|v| v.as_specified().copied())
     }
     fn inline_style(&self) -> Option<&'a TuiStyle> {
         self.tui_ext().map(|e| &e.inline_style)
@@ -282,69 +300,86 @@ pub(crate) fn install_text_content(
 pub trait TuiNodeMutExt<'a> {
     fn tui_ext_mut(&mut self) -> Option<&mut TuiExt>;
 
+    // Geometry setters write the element's **inline style** (the cascade
+    // input) and mark it style-dirty, so the next cascade carries them
+    // into `ComputedStyle` — the only thing layout reads. (Before
+    // `EXT-LAYOUT-SETTERS-1` these wrote raw `ext` fields that layout
+    // ignored, so the setters silently did nothing for layout.)
     fn set_width(&mut self, w: Size) -> &mut Self {
         if let Some(e) = self.tui_ext_mut() {
-            e.width = w;
+            e.inline_style.width = Some(Value::Specified(w));
+            e.style_dirty = true;
         }
         self
     }
     fn set_height(&mut self, h: Size) -> &mut Self {
         if let Some(e) = self.tui_ext_mut() {
-            e.height = h;
+            e.inline_style.height = Some(Value::Specified(h));
+            e.style_dirty = true;
         }
         self
     }
     fn set_min_width(&mut self, v: Option<rdom_style::layout::MinSize>) -> &mut Self {
         if let Some(e) = self.tui_ext_mut() {
-            e.min_width = v;
+            e.inline_style.min_width = v.map(Value::Specified);
+            e.style_dirty = true;
         }
         self
     }
     fn set_max_width(&mut self, v: Option<u16>) -> &mut Self {
         if let Some(e) = self.tui_ext_mut() {
-            e.max_width = v;
+            e.inline_style.max_width = v.map(Value::Specified);
+            e.style_dirty = true;
         }
         self
     }
     fn set_min_height(&mut self, v: Option<rdom_style::layout::MinSize>) -> &mut Self {
         if let Some(e) = self.tui_ext_mut() {
-            e.min_height = v;
+            e.inline_style.min_height = v.map(Value::Specified);
+            e.style_dirty = true;
         }
         self
     }
     fn set_max_height(&mut self, v: Option<u16>) -> &mut Self {
         if let Some(e) = self.tui_ext_mut() {
-            e.max_height = v;
+            e.inline_style.max_height = v.map(Value::Specified);
+            e.style_dirty = true;
         }
         self
     }
     fn set_direction(&mut self, d: Direction) -> &mut Self {
         if let Some(e) = self.tui_ext_mut() {
-            e.direction = d;
+            e.inline_style.direction = Some(Value::Specified(d));
+            e.style_dirty = true;
         }
         self
     }
     fn set_padding(&mut self, p: Padding) -> &mut Self {
         if let Some(e) = self.tui_ext_mut() {
-            e.padding = p;
+            e.inline_style.padding = Some(Value::Specified(p));
+            e.style_dirty = true;
         }
         self
     }
     fn set_border(&mut self, b: Border) -> &mut Self {
         if let Some(e) = self.tui_ext_mut() {
-            e.border = b;
+            e.inline_style.border = Some(Value::Specified(b));
+            e.style_dirty = true;
         }
         self
     }
     fn set_gap(&mut self, g: u16) -> &mut Self {
         if let Some(e) = self.tui_ext_mut() {
-            e.gap = g;
+            e.inline_style.gap = Some(Value::Specified(g));
+            e.style_dirty = true;
         }
         self
     }
     fn set_overflow(&mut self, o: Overflow) -> &mut Self {
         if let Some(e) = self.tui_ext_mut() {
-            e.overflow = o;
+            e.inline_style.overflow_x = Some(Value::Specified(o));
+            e.inline_style.overflow_y = Some(Value::Specified(o));
+            e.style_dirty = true;
         }
         self
     }
@@ -433,10 +468,17 @@ mod tests {
             .set_min_height(Some(MinSize::Cells(5)))
             .set_max_height(Some(50));
         let e = dom.node(div).tui_ext().unwrap();
-        assert_eq!(e.min_width, Some(MinSize::Cells(10)));
-        assert_eq!(e.max_width, Some(100));
-        assert_eq!(e.min_height, Some(MinSize::Cells(5)));
-        assert_eq!(e.max_height, Some(50));
+        use crate::style::Value;
+        assert_eq!(
+            e.inline_style.min_width,
+            Some(Value::Specified(MinSize::Cells(10)))
+        );
+        assert_eq!(e.inline_style.max_width, Some(Value::Specified(100)));
+        assert_eq!(
+            e.inline_style.min_height,
+            Some(Value::Specified(MinSize::Cells(5)))
+        );
+        assert_eq!(e.inline_style.max_height, Some(Value::Specified(50)));
     }
 
     #[test]

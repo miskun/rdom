@@ -1488,7 +1488,8 @@ fn dom_with_scrollable_div() -> (TuiDom, NodeId) {
         ext.content_layout.height = 20;
         ext.scroll_content_width = 200;
         ext.scroll_content_height = 100;
-        ext.overflow = crate::layout::Overflow::Auto;
+        // (scroll clamping reads `layout` / `scroll_content_*`, not
+        // overflow — overflow only gates `nearest_scrollable_ancestor`.)
     }
     (dom, div)
 }
@@ -1566,7 +1567,11 @@ fn scroll_into_view_scrolls_direct_parent() {
     {
         let mut nm = dom.node_mut(parent);
         let pe = nm.ext_mut().unwrap();
-        pe.overflow = Overflow::Auto;
+        // `nearest_scrollable_ancestor` reads computed overflow now.
+        let mut computed = crate::style::ComputedStyle::initial();
+        computed.overflow_x = Overflow::Auto;
+        computed.overflow_y = Overflow::Auto;
+        pe.computed = Some(computed);
         pe.content_layout.width = 80;
         pe.content_layout.height = 20;
         pe.scroll_content_width = 80;

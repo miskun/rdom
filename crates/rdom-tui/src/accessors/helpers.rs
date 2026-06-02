@@ -174,13 +174,15 @@ pub(super) fn write_scroll_clamped(dom: &mut TuiDom, id: NodeId, x: i32, y: i32)
 pub(super) fn nearest_scrollable_ancestor(dom: &TuiDom, start: NodeId) -> Option<NodeId> {
     use crate::layout::Overflow;
     use crate::node::TuiNodeExt;
+    let scrollable =
+        |o: Overflow| matches!(o, Overflow::Hidden | Overflow::Scroll | Overflow::Auto);
     let mut cur = dom.node(start).parent_node().map(|p| p.id());
     while let Some(id) = cur {
-        if let Some(ext) = dom.node(id).tui_ext()
-            && matches!(
-                ext.overflow,
-                Overflow::Hidden | Overflow::Scroll | Overflow::Auto
-            )
+        // Read the post-cascade overflow (per-axis): an ancestor is a
+        // scroll container if either axis is non-visible. (Was reading the
+        // raw `ext.overflow` field, which CSS overflow never populated.)
+        if let Some(c) = dom.node(id).computed()
+            && (scrollable(c.overflow_x) || scrollable(c.overflow_y))
         {
             return Some(id);
         }

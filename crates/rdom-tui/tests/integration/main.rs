@@ -43,6 +43,7 @@ mod m5_abortsignal;
 mod mutation_observer_snapshot;
 mod nested_collapse_content_inset;
 mod nested_collapse_root_opacity;
+mod node_setters_drive_layout;
 mod padding_box_paint_clip;
 mod parse_and_render_snapshot;
 mod percent_units;

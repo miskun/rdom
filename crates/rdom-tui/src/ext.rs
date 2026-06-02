@@ -6,9 +6,7 @@
 //! post-cascade `ComputedStyle`. `rdom-core` never sees any of this —
 //! it just holds the `TuiExt` payload behind its `Ext` generic.
 
-use crate::layout::{
-    Border, Direction, LayoutRect, Length, Overflow, Padding, Position, Size, ZIndex,
-};
+use crate::layout::{LayoutRect, Length, Padding, Position, Size, ZIndex};
 use crate::render::inline::InlineLayout;
 use crate::runtime::editing::EditorState;
 use crate::style::{Color, ComputedStyle, TuiStyle};
@@ -142,22 +140,15 @@ pub struct TuiExt {
     /// Text injected after the element's own content by `::after`.
     pub after_content: Option<String>,
 
-    // ── Sizing ────────────────────────────────────────────────────────
-    pub width: Size,
-    pub height: Size,
-    pub min_width: Option<rdom_style::layout::MinSize>,
-    pub max_width: Option<u16>,
-    pub min_height: Option<rdom_style::layout::MinSize>,
-    pub max_height: Option<u16>,
+    // ── Sizing / box model / overflow ────────────────────────────────
+    //
+    // (Removed in `EXT-LAYOUT-SETTERS-1`: width/height/min_*/max_*/
+    // direction/padding/border/gap/overflow used to live here as raw
+    // fields, but layout reads only `ComputedStyle`, so they were dead.
+    // The `set_*` node setters now write `inline_style` instead — the
+    // cascade carries it into `computed`, which is what layout reads.)
 
-    // ── Box model ─────────────────────────────────────────────────────
-    pub direction: Direction,
-    pub padding: Padding,
-    pub border: Border,
-    pub gap: u16,
-
-    // ── Overflow + scroll ─────────────────────────────────────────────
-    pub overflow: Overflow,
+    // ── Scroll ────────────────────────────────────────────────────────
     /// Horizontal scroll offset in cells.
     pub scroll_x: usize,
     /// Vertical scroll offset in cells.
@@ -338,12 +329,9 @@ mod tests {
     #[test]
     fn defaults_are_sensible() {
         let ext = TuiExt::new();
-        assert_eq!(ext.direction, Direction::Column);
-        assert_eq!(ext.width, Size::Auto);
-        assert_eq!(ext.height, Size::Auto);
-        assert_eq!(ext.overflow, Overflow::Visible);
-        assert_eq!(ext.border, Border::none());
-        assert_eq!(ext.gap, 0);
+        // Geometry now lives in `inline_style` (empty by default) — the
+        // raw `ext` geometry fields were removed in EXT-LAYOUT-SETTERS-1.
+        assert!(ext.inline_style.is_empty());
         assert_eq!(ext.scroll_x, 0);
         assert_eq!(ext.scroll_y, 0);
         assert!(ext.inline_style.is_empty());
@@ -363,9 +351,10 @@ mod tests {
     #[test]
     fn clone_preserves_fields() {
         let ext = TuiExt {
-            inline_style: TuiStyle::new().fg(Color::Rgb(255, 0, 0)),
-            width: Size::Fixed(80),
-            padding: Padding::all(2),
+            inline_style: TuiStyle::new()
+                .fg(Color::Rgb(255, 0, 0))
+                .width(Size::Fixed(80))
+                .padding(Padding::all(2)),
             ..Default::default()
         };
         let cloned = ext.clone();
@@ -375,22 +364,28 @@ mod tests {
                 crate::style::TuiColor::Literal(Color::Rgb(255, 0, 0))
             ))
         );
-        assert_eq!(cloned.width, Size::Fixed(80));
-        assert_eq!(cloned.padding, Padding::all(2));
+        assert_eq!(
+            cloned.inline_style.width,
+            Some(crate::style::Value::Specified(Size::Fixed(80)))
+        );
+        assert_eq!(
+            cloned.inline_style.padding,
+            Some(crate::style::Value::Specified(Padding::all(2)))
+        );
     }
 
     #[test]
     fn partial_eq_works() {
         let a = TuiExt {
-            width: Size::Fixed(10),
+            inline_style: TuiStyle::new().width(Size::Fixed(10)),
             ..Default::default()
         };
         let b = TuiExt {
-            width: Size::Fixed(10),
+            inline_style: TuiStyle::new().width(Size::Fixed(10)),
             ..Default::default()
         };
         let c = TuiExt {
-            width: Size::Fixed(11),
+            inline_style: TuiStyle::new().width(Size::Fixed(11)),
             ..Default::default()
         };
         assert_eq!(a, b);

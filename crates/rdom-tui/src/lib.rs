@@ -135,8 +135,9 @@ mod tests {
     #[test]
     fn default_ext_is_default_tui_ext() {
         let ext: TuiExt = TuiExt::default();
-        assert_eq!(ext.direction, Direction::Column);
-        assert_eq!(ext.width, Size::Auto);
+        // Geometry lives in `inline_style` (empty by default) since
+        // EXT-LAYOUT-SETTERS-1 removed the raw `ext` geometry fields.
+        assert!(ext.inline_style.is_empty());
     }
 
     #[test]
@@ -179,18 +180,21 @@ mod tests {
         let mut dom: TuiDom = TuiDom::new();
         let root = dom.root();
         let div = dom.create_element("div");
+        // Geometry setters now write `inline_style`, and `set_inline_style`
+        // replaces it wholesale — so seed the inline style first, then let
+        // the geometry setters patch onto it.
         dom.node_mut(div)
+            .set_inline_style(
+                TuiStyle::new()
+                    .fg(Color::Rgb(255, 255, 255))
+                    .bg(Color::Rgb(0, 0, 0)),
+            )
             .set_width(Size::Fixed(80))
             .set_height(Size::Flex(1))
             .set_padding(Padding::symmetric(2, 1))
             .set_border(Border::rounded())
             .set_gap(1)
-            .set_direction(Direction::Row)
-            .set_inline_style(
-                TuiStyle::new()
-                    .fg(Color::Rgb(255, 255, 255))
-                    .bg(Color::Rgb(0, 0, 0)),
-            );
+            .set_direction(Direction::Row);
 
         dom.append_child(root, div).unwrap();
 

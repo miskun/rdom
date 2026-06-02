@@ -83,6 +83,32 @@ One piece of architectural debt deferred with teeth: `EVT-DETACH-1` (implicit bl
 
 ## Recent decisions
 
+### 2026-06-02 — 0.3.0 Milestone A landed: `EXT-LAYOUT-SETTERS-1` (geometry setters drive layout)
+
+The `TuiNodeMutExt` geometry setters (`set_width`/`set_height`/`set_min_*`/`set_max_*`/
+`set_direction`/`set_padding`/`set_border`/`set_gap`/`set_overflow`) now write `inline_style` +
+`style_dirty` instead of raw `ext` fields, so they flow through cascade → computed → layout (the
+only thing layout reads). Accessors read `inline_style` (specified value; `None` when unset). The
+dead raw geometry fields were removed from `TuiExt`. TDD: `node_setters_drive_layout.rs` integration
+test (failed before, passes after).
+
+**Fixed a latent bug in passing:** `nearest_scrollable_ancestor` (scroll helper) read the raw
+`ext.overflow` field, which **CSS overflow never populated** — so `scroll_into_view` only saw an
+ancestor as scrollable if someone had called `set_overflow`. Now reads `computed.overflow_x/y`, so
+CSS-defined `overflow` is honored.
+
+**Breaking (pre-1.0):** setter→layout behavior changes (was silent no-op); accessors return `None`
+when a property is unset (was `Some(default)`); `set_inline_style` replaces the whole inline style
+including geometry the setters wrote (order matters — seed inline style first, then geometry
+setters). Blast radius was tiny: geometry setters were used in exactly 6 places workspace-wide, all
+unit tests. 2710 workspace tests green.
+
+**Architect/API review:** strong — the fix is the root cause, not a patch; it activated (didn't
+mask) the latent scroll bug; accessor semantics are now honest. No blocking findings. Non-blocking:
+the `set_inline_style`-clobbers-geometry interaction is a sharp edge — documented in code + the
+round-trip test pins the "seed first" order; revisit if a merge-semantics `patch_inline_style` is
+wanted later.
+
 ### 2026-06-02 — 0.3.0 planned: substrate honesty (driven by the first downstream consumer)
 
 `rdom-extensions` (a downstream data-viz component crate: charts, sparklines, gauges, a virtual
