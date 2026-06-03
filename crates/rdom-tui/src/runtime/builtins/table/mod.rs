@@ -58,6 +58,13 @@ use crate::style::Value;
 /// content widths.
 const CELL_H_PADDING: u16 = 2;
 
+/// Internal attribute stamped on a `<table>` carrying the computed
+/// column-width signature. Bumped by [`size_columns`] only when the
+/// widths change, which fires an `AttributeChanged` mutation so the
+/// runtime's incremental cascade re-processes the table subtree (see
+/// the dirty-signal note in [`size_columns`]).
+const COLSYNC_ATTR: &str = "data-rdom-colsync";
+
 /// Walk the whole DOM; size columns on every `<table>` found.
 pub fn size_all_tables(dom: &mut TuiDom) {
     let tables = collect_tables(dom, dom.root());
@@ -101,6 +108,27 @@ pub fn size_columns(dom: &mut TuiDom, table: NodeId) {
                 ext.inline_style.width = Some(Value::Specified(Size::Fixed(w)));
             }
         }
+    }
+
+    // Dirty signal. The width writes above poke `inline_style` directly,
+    // which fires no DOM mutation — so the runtime's *incremental* cascade
+    // (it re-cascades only dirtied subtrees) won't re-process these cells.
+    // That bites the `<thead>` cells in particular: a caller that rebuilt
+    // only the `<tbody>` (e.g. a virtualized table swapping its row window)
+    // dirties the body subtree but not the headers, leaving them with a
+    // stale computed width while full layout reads it — the column shifts.
+    //
+    // Stamp a column-width signature on the `<table>` *only when it changes*.
+    // The resulting `AttributeChanged` marks the table a dirty root, so the
+    // whole table subtree (headers included) re-cascades and every cell picks
+    // up its new width. One attribute, fired only on an actual width change.
+    let signature = col_widths
+        .iter()
+        .map(u16::to_string)
+        .collect::<Vec<_>>()
+        .join(",");
+    if dom.get_attribute(table, COLSYNC_ATTR) != Some(signature.as_str()) {
+        let _ = dom.set_attribute(table, COLSYNC_ATTR, &signature);
     }
 }
 

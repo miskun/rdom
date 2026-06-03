@@ -5,6 +5,17 @@ All notable changes to rdom will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **`<table>` columns re-cascade after a `size_columns` re-sync** (`TABLE-COLSYNC-DIRTY-1`). `size_columns` wrote each cell's width straight to inline style, which fires no mutation — so the runtime's *incremental* cascade left re-used cells with a stale computed width while full layout read it. It bit `<thead>` headers when a consumer rebuilt only the `<tbody>` (a virtualized table swapping its row window): the column visibly shifted until an unrelated later mutation re-dirtied the header. `size_columns` now stamps a column-width signature (`data-rdom-colsync`) on the `<table>` **only when the widths change**, dirtying the table so the whole subtree (headers included) re-cascades. Surfaced by `rdom-virtualtable`; consumers can drop their own dirty workaround.
+
+### Notes
+
+- **Scroll API for virtualized consumers is already complete** — `Element.scroll_top` / `scroll_left` / `scroll_width` / `scroll_height` (read) and `set_scroll_top` / `set_scroll_left` (write, clamped to the padding-box scrollport, firing a bubbling `scroll` event) are exposed via `TuiAccessors` / `TuiAccessorsMut`. A component can listen to `scroll`, read `scroll_top()`, and re-window.
+- **Horizontal scroll for a wide `<table>`** is done the web way: wrap it in a `Row`-flex `overflow-x` container (the `<div style="overflow-x:auto">` analogue); header and body scroll together. A `<table>` is a column-flex container, so it can't be its own cross-axis scroll container — see `SCROLL-CROSS-AXIS-1` in `TECH_DEBT.md`. `colspan`/`rowspan` remain unimplemented (`TABLE-COLSPAN-1`); not needed for virtualization.
+
 ## [0.3.4] - 2026-06-03
 
 ### Changed

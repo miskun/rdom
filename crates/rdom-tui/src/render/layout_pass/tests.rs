@@ -2890,3 +2890,68 @@ fn overflow_scroll_always_reserves_gutter_regardless_of_scrollbar_gutter_value()
     assert_eq!(inner.width, 9, "overflow: scroll always reserves Y-gutter");
     assert_eq!(inner.height, 4, "overflow: scroll always reserves X-gutter");
 }
+
+#[test]
+fn table_in_a_horizontal_scroll_wrapper_scrolls_header_and_body_together() {
+    // Browser-faithful horizontal scroll for a wide table: wrap it in a
+    // Row-flex `overflow-x` container (the TUI analogue of
+    // `<div style="overflow-x:auto"><table>…`). The whole table is one child,
+    // so header and body translate together and stay column-aligned. A
+    // `<table>` is itself a column-flex container, so it can't be the
+    // horizontal (cross-axis) scroll container directly — see TECH_DEBT
+    // `cross-axis-scroll`.
+    let mut dom = tui_dom();
+    let root = dom.root();
+    let wrap = dom.create_element("div");
+    let table = dom.create_element("table");
+    let mk = |dom: &mut TuiDom, tag: &str, text: &str| {
+        let c = dom.create_element(tag);
+        let t = dom.create_text_node(text);
+        dom.append_child(c, t).unwrap();
+        c
+    };
+    let thead = dom.create_element("thead");
+    let htr = dom.create_element("tr");
+    let th0 = mk(&mut dom, "th", "A");
+    let th1 = mk(&mut dom, "th", "second-col");
+    dom.append_child(htr, th0).unwrap();
+    dom.append_child(htr, th1).unwrap();
+    dom.append_child(thead, htr).unwrap();
+    dom.append_child(table, thead).unwrap();
+    let tbody = dom.create_element("tbody");
+    let btr = dom.create_element("tr");
+    let td0 = mk(&mut dom, "td", "x");
+    let td1 = mk(&mut dom, "td", "y");
+    dom.append_child(btr, td0).unwrap();
+    dom.append_child(btr, td1).unwrap();
+    dom.append_child(tbody, btr).unwrap();
+    dom.append_child(table, tbody).unwrap();
+    dom.append_child(wrap, table).unwrap();
+    dom.append_child(root, wrap).unwrap();
+
+    crate::runtime::builtins::table::size_columns(&mut dom, table);
+    let sheet = Stylesheet::bare().rule_unchecked(
+        "div",
+        TuiStyle::new()
+            .flow(Flow::Flex)
+            .direction(Direction::Row)
+            .overflow(Overflow::Scroll)
+            .width(Size::Fixed(8)),
+    );
+    cascade(&mut dom, &sheet);
+
+    // Unscrolled baseline.
+    dom.layout_dom(Rect::new(0, 0, 40, 10));
+    let base_h = layout_rect_of(&dom, th0).x;
+    let base_b = layout_rect_of(&dom, td0).x;
+    assert_eq!(base_h, base_b, "header & body column 0 start aligned");
+
+    // Scroll right by 4 → both header and body column 0 shift left by 4,
+    // staying aligned (they scroll as one).
+    dom.node_mut(wrap).ext_mut().unwrap().scroll_x = 4;
+    dom.layout_dom(Rect::new(0, 0, 40, 10));
+    let sh = layout_rect_of(&dom, th0).x;
+    let sb = layout_rect_of(&dom, td0).x;
+    assert_eq!(sh, sb, "header & body stay aligned while scrolled");
+    assert_eq!(sh, base_h - 4, "column scrolled left by the scroll offset");
+}

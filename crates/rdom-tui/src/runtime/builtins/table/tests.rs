@@ -232,3 +232,54 @@ fn cjk_graphemes_are_counted_as_wide() {
     table::size_columns(&mut dom, table);
     assert_eq!(cell_width(&dom, td), Some(6));
 }
+
+// ── colsync dirty signal ────────────────────────────────────────────
+
+/// First `<table>` under the document root.
+fn first_table(dom: &TuiDom) -> NodeId {
+    dom.node(dom.root())
+        .child_nodes()
+        .find(|c| c.tag_name() == Some("table"))
+        .map(|c| c.id())
+        .expect("a <table> under root")
+}
+
+#[test]
+fn size_columns_stamps_a_stable_colsync_signature() {
+    let (mut dom, _r1, _r2) = two_row_table(["Alice", "30"], ["Bob", "25"]);
+    let table = first_table(&dom);
+    table::size_columns(&mut dom, table);
+    let sig = dom
+        .get_attribute(table, "data-rdom-colsync")
+        .map(str::to_string);
+    assert!(sig.is_some(), "sizing stamps the column-width signature");
+    // Re-sizing identical content leaves the signature byte-for-byte stable.
+    table::size_columns(&mut dom, table);
+    assert_eq!(
+        dom.get_attribute(table, "data-rdom-colsync")
+            .map(str::to_string),
+        sig
+    );
+}
+
+#[test]
+fn size_columns_dirties_the_table_only_when_widths_change() {
+    // The fix: writing cell widths via `inline_style` fires no mutation, so
+    // `size_columns` stamps the `<table>` to force a re-cascade — but only
+    // when the widths actually change, so a no-op sizing doesn't churn.
+    let (mut dom, _r1, _r2) = two_row_table(["Alice", "30"], ["Bob", "25"]);
+    let table = first_table(&dom);
+    let tracker = crate::style::DirtyTracker::install(&mut dom);
+
+    table::size_columns(&mut dom, table);
+    assert!(
+        tracker.take_roots().contains(&table),
+        "the width change dirties the table so headers re-cascade"
+    );
+
+    table::size_columns(&mut dom, table);
+    assert!(
+        !tracker.take_roots().contains(&table),
+        "an unchanged re-size does not re-dirty the table"
+    );
+}

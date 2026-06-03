@@ -76,6 +76,7 @@ One piece of architectural debt deferred with teeth: `EVT-DETACH-1` (implicit bl
 - [x] **0.3.2** — `drop_subtree` mutation/free ordering fix (released 2026-06-02): removing a focused/observed node from inside an event handler no longer panics (`DROP-SUBTREE-FREE-ORDER-1`).
 - [x] **0.3.1** — Focus-indicator fix (released 2026-06-02): focused `<canvas>` clean by default + focus tint overridable (`UA-FOCUS-OVERRIDABLE-1`).
 - [x] **0.3.0** — Substrate honesty (released 2026-06-02). Fixed the seven friction points the first downstream consumer (`rdom-extensions`) hit, two High (geometry setters that didn't drive layout; no repaint request from event listeners). See [`specs/SUBSTRATE-0.3.0.md`](specs/SUBSTRATE-0.3.0.md). (Routing slid to 0.4.0.)
+- [ ] **0.3.5** — Unreleased. Table column-sync dirty fix (`TABLE-COLSYNC-DIRTY-1`) so virtualized tables don't keep stale header widths under the incremental cascade. Surfaced by `rdom-virtualtable`.
 - [ ] **0.4.0** — Client-side routing primitive.
 - [ ] **0.5.0** — Async tasks during event handlers.
 
@@ -84,6 +85,15 @@ One piece of architectural debt deferred with teeth: `EVT-DETACH-1` (implicit bl
 - **`EVT-DETACH-1`** — implicit `blur` / `focusout` / `mouseleave` / `mouseout` not dispatched on detach. Documented in [`specs/TECH_DEBT.md`](specs/TECH_DEBT.md) as a non-negotiable M5 deliverable. Risk: if M5 scope grows and this slips, rdom-tui ships an internally inconsistent hover-event model. Mitigation: M5 exit criteria in [`specs/SHOWCASE.md`](specs/SHOWCASE.md) explicitly require closing `EVT-DETACH-1` + deleting the related DIVERGENCES.md entries.
 
 ## Recent decisions
+
+### 2026-06-03 — Substrate support for the virtualized-table consumer (`rdom-virtualtable`)
+
+Audited what the virtual table actually needs from the substrate for a scrollbar + horizontal scroll. The substrate turned out to already cover most of it; only one real fix was needed.
+
+- **Fixed `TABLE-COLSYNC-DIRTY-1`** — `size_columns` poked `inline_style.width` directly (no mutation fired), so re-used `<thead>` cells kept a stale computed width under the incremental cascade after a consumer rebuilt only the `<tbody>` (a virtualized row-window swap) — a visible column shift, fixed only by an unrelated later mutation. `size_columns` now stamps `data-rdom-colsync` on the `<table>` when widths change, dirtying it so headers re-cascade. The downstream `data-vt-rev` workaround can be dropped.
+- **Scroll API already complete** — `scroll_top`/`scroll_left`/`scroll_width`/`scroll_height` + `set_scroll_top`/`set_scroll_left` (clamped, fires `scroll`) exist on `TuiAccessors`/`TuiAccessorsMut`. No work needed; the component reads `scroll_top()` on the `scroll` event to re-window.
+- **Horizontal scroll** — verified a wide `<table>` scrolls header+body together when wrapped in a `Row`-flex `overflow-x` container (the web `<div style="overflow-x:auto">` pattern); regression test in `layout_pass/tests.rs`. Recorded the real gap (`SCROLL-CROSS-AXIS-1`: flex scroll only translates the main axis, so a column-flex `<table>` can't be its *own* horizontal scroll container) and `TABLE-COLSPAN-1` (absent, not needed) in `TECH_DEBT.md`.
+- **Grumpy-architect call (recorded):** rejected a "declared virtual scroll extent" API — no web counterpart, forks the layout core, two sources of truth for content size. The browser-faithful path is the spacer technique downstream + the standard `scrollTop` API, which already exists. Door left open for a deliberate, documented divergence only if a measured need appears.
 
 ### 2026-06-03 — 0.3.4 released to crates.io
 
