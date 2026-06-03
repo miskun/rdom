@@ -76,7 +76,7 @@ One piece of architectural debt deferred with teeth: `EVT-DETACH-1` (implicit bl
 - [x] **0.3.2** — `drop_subtree` mutation/free ordering fix (released 2026-06-02): removing a focused/observed node from inside an event handler no longer panics (`DROP-SUBTREE-FREE-ORDER-1`).
 - [x] **0.3.1** — Focus-indicator fix (released 2026-06-02): focused `<canvas>` clean by default + focus tint overridable (`UA-FOCUS-OVERRIDABLE-1`).
 - [x] **0.3.0** — Substrate honesty (released 2026-06-02). Fixed the seven friction points the first downstream consumer (`rdom-extensions`) hit, two High (geometry setters that didn't drive layout; no repaint request from event listeners). See [`specs/SUBSTRATE-0.3.0.md`](specs/SUBSTRATE-0.3.0.md). (Routing slid to 0.4.0.)
-- [ ] **0.3.5** — Unreleased. Table column-sync dirty fix (`TABLE-COLSYNC-DIRTY-1`) so virtualized tables don't keep stale header widths under the incremental cascade. Surfaced by `rdom-virtualtable`.
+- [x] **0.3.5** — `rdom-tui` only (released 2026-06-03): table column-sync dirty fix (`TABLE-COLSYNC-DIRTY-1`) so virtualized tables don't keep stale header widths under the incremental cascade. Surfaced by `rdom-virtualtable`. **Divergent bump** — only `rdom-tui` (DAG top, no dependents) went to 0.3.5; the other four stay at 0.3.4.
 - [ ] **0.4.0** — Client-side routing primitive.
 - [ ] **0.5.0** — Async tasks during event handlers.
 

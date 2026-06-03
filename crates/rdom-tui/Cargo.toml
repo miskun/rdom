@@ -1,6 +1,9 @@
 [package]
 name = "rdom-tui"
-version.workspace = true
+# Diverges from the shared workspace version (0.3.4): this is the only crate
+# changed in 0.3.5 (TABLE-COLSYNC-DIRTY-1), and nothing depends on it, so the
+# other four crates stay at 0.3.4 — no need to republish unchanged crates.
+version = "0.3.5"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
