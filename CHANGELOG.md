@@ -5,6 +5,12 @@ All notable changes to rdom will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **`<table>` column sizing now respects explicit widths** (`TABLE-COLSYNC-1`). `size_columns` used to write its measured column widths back onto every cell's `inline_style.width` (conflating author intent with the computed result) and stamp `data-rdom-colsync` to force a re-cascade — so an author's explicit width couldn't survive a re-size, `Column`-style fixed widths were silently overwritten, and a sort glyph in an `::after` got clipped. It now resolves each column's *used* width from author input (a cell's `inline_style.width: Fixed`) where specified, content width otherwise, and records it on a **layout-side** field (`TuiExt::table_used_width`, read by flex + intrinsic sizing) — **never** on `inline_style`. The `data-rdom-colsync` hack is gone (the value is read by full layout each frame, not the incremental cascade), obsoleting the `TABLE-COLSYNC-DIRTY-1` workaround. **Divergence:** explicit column widths are honored via inline `style="width"` / `set_width`, not via a CSS rule (`td { width }`) — full CSS table layout is the `TABLE-TFC-1` roadmap item.
+
 ## [0.3.5] - 2026-06-03
 
 Only `rdom-tui` bumps (0.3.4 → 0.3.5); the other four crates are unchanged and stay at 0.3.4.

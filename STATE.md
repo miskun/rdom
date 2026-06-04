@@ -88,6 +88,11 @@ One piece of architectural debt deferred with teeth: `EVT-DETACH-1` (implicit bl
 
 ## Recent decisions
 
+### 2026-06-04 — Table column-sizing de-conflated (`TABLE-COLSYNC-1`, code done; ship as 0.3.6)
+
+Grumpy-architect call after interrogating "does column resize need substrate?": the root cause is that `size_columns` wrote its computed column widths back onto author `inline_style.width` (conflating intent with result) — not the flex-masquerade per se. So the **bounded** fix, not a full Table Formatting Context: `size_columns` now respects an author's explicit width (a cell's `inline_style.width: Fixed`) and writes the *used* width to a new layout-side field (`TuiExt::table_used_width`, read by flex + `intrinsic_size`), **never** `inline_style`; the `data-rdom-colsync` re-cascade hack is deleted (the value is read by full layout, not the incremental cascade). Fixes dead `Column.width`, the `::after` clip, and unblocks consumer-side column resize. Documented divergence: explicit widths via inline / `set_width`, not CSS-rule (`td{width}`) — that + the full table model (`display:table`, anonymous boxes, auto min/max algorithm, colspan/rowspan) is the deferred `TABLE-TFC-1` roadmap item. Migrated the 10 table tests + the h-scroll wrapper test (which drove the `intrinsic_size` half of the fix); 2734 workspace tests green. Next: cut 0.3.6, bump `rdom-virtualtable`, add `set_column_width`.
+
+
 ### 2026-06-03 — Substrate support for the virtualized-table consumer (`rdom-virtualtable`)
 
 Audited what the virtual table actually needs from the substrate for a scrollbar + horizontal scroll. The substrate turned out to already cover most of it; only one real fix was needed.
