@@ -270,6 +270,18 @@ pub(super) fn layout_flex_children(
             Direction::Row => (c.width, c.min_width, c.max_width),
             Direction::Column => (c.height, c.min_height, c.max_height),
         };
+        // TABLE-COLSYNC-1: a table cell's *used* column width — computed by
+        // `size_columns` from the column's author widths + content and stored
+        // on the cell's ext (layout output, NOT author `inline_style`) —
+        // overrides the normal main-size resolution so every cell in the
+        // column lines up. A width drives the Row main axis only.
+        let main_size = match (
+            direction,
+            dom.node(child).ext().and_then(|e| e.table_used_width),
+        ) {
+            (Direction::Row, Some(w)) => Size::Fixed(w),
+            _ => main_size,
+        };
 
         // Main-axis margins (M5.3b). Cells contribute to consumed
         // space; Auto absorbs remaining free space after flex

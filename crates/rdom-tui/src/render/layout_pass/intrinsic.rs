@@ -142,6 +142,15 @@ fn intrinsic_element(
     // cells of content" — empty boxes need to be allowed to shrink
     // toward 0 to honor a smaller `max-width`.
     if mode == IntrinsicMode::BoxSize {
+        // TABLE-COLSYNC-1: a table cell's resolved column width is its used
+        // main size (a width → Row axis), so a table measures to its laid-out
+        // column widths (e.g. when it's a flex item being sized by a scroll
+        // wrapper) — same short-circuit as an explicit `Fixed`.
+        if direction == Direction::Row
+            && let Some(w) = dom.node(id).ext().and_then(|e| e.table_used_width)
+        {
+            return w;
+        }
         let declared = match direction {
             Direction::Row => &computed.width,
             Direction::Column => &computed.height,

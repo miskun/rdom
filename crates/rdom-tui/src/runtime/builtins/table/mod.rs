@@ -8,11 +8,21 @@
 //! each other at content-driven widths, but DIFFERENT rows would
 //! land on different widths — so columns don't line up.
 //!
-//! This pre-pass walks every `<table>` in the DOM, computes the
-//! max content width per column index across all rows, and writes
-//! those widths as inline style on every cell. After cascade +
-//! layout, every cell in column N has the same width, so columns
-//! align the way HTML table readers expect.
+//! This pass walks every `<table>` in the DOM and resolves each
+//! column's *used* width — **the column's author width if one is
+//! specified, else its content width** — recording it on each cell's
+//! [`TuiExt::table_used_width`](crate::TuiExt::table_used_width), a
+//! **layout output** field flex reads as the cell's main size. Every
+//! cell in column N gets the same width, so columns line up.
+//!
+//! `TABLE-COLSYNC-1`: the used width is *never* written back to
+//! `inline_style` — author width (input) and computed width (output)
+//! stay separate. That's why an explicit width survives a re-size
+//! (`Column.width` works), and why no `data-rdom-colsync` re-cascade
+//! hack is needed: the value is read by full layout each frame, not by
+//! the incremental cascade. (Full CSS table layout — `display:table`,
+//! the auto min/max algorithm, spanning, CSS-rule widths — is the
+//! `TABLE-TFC-1` roadmap item; this is the bounded, web-faithful fix.)
 //!
 //! ## Content measurement
 //!
@@ -34,17 +44,18 @@
 //! other builtin installs. Apps that mutate table content at
 //! runtime can call it themselves to re-sync.
 //!
-//! ## Not done in v1
+//! ## Deferred to the full table model (`TABLE-TFC-1`)
 //!
-//! - `colspan` / `rowspan` — a spanning cell contributes its
-//!   total width / height across N columns / rows, which requires
-//!   a real table layout algorithm. Polish item.
-//! - `<col>` / `<colgroup>` width hints via attributes — would
-//!   need to read `width` / `span` attrs off `<col>` elements
-//!   and apply as initial column-width constraints. Polish.
-//! - Post-cascade measurement — we eyeball text widths with
-//!   `UnicodeWidthStr` rather than running the full intrinsic-
-//!   size machinery. Good enough for most text tables.
+//! - **Explicit width source.** Author widths are read from
+//!   `inline_style.width` (set directly / via `set_width` / a
+//!   `Column` width), NOT from a CSS rule (`td { width }`) — this pass
+//!   runs before cascade. The TFC computes widths in-layout, post-cascade.
+//! - `colspan` / `rowspan` spanning-cell width distribution.
+//! - `<col>` / `<colgroup>` width hints.
+//! - Percentage column widths + the auto min/max-content redistribution
+//!   when an explicit table width conflicts with content.
+//! - Content measurement still eyeballs text via `UnicodeWidthStr` on
+//!   text descendants (nested-element / replaced-content widths ignored).
 
 use rdom_core::{NodeId, NodeType};
 use unicode_width::UnicodeWidthStr;
@@ -58,13 +69,6 @@ use crate::style::Value;
 /// content widths.
 const CELL_H_PADDING: u16 = 2;
 
-/// Internal attribute stamped on a `<table>` carrying the computed
-/// column-width signature. Bumped by [`size_columns`] only when the
-/// widths change, which fires an `AttributeChanged` mutation so the
-/// runtime's incremental cascade re-processes the table subtree (see
-/// the dirty-signal note in [`size_columns`]).
-const COLSYNC_ATTR: &str = "data-rdom-colsync";
-
 /// Walk the whole DOM; size columns on every `<table>` found.
 pub fn size_all_tables(dom: &mut TuiDom) {
     let tables = collect_tables(dom, dom.root());
@@ -73,62 +77,79 @@ pub fn size_all_tables(dom: &mut TuiDom) {
     }
 }
 
-/// Compute per-column max content widths for a single `<table>`
-/// and write them as inline-style `width: Fixed(…)` on every
-/// cell. No-op when the table has no rows.
+/// Resolve each column's *used* width for a single `<table>` and record it on
+/// every cell's [`TuiExt::table_used_width`](crate::TuiExt::table_used_width)
+/// (a **layout output** field). Flex reads it as the cell's main size, so all
+/// cells in a column line up. No-op when the table has no rows.
+///
+/// Per column the used width is **the column's author width if one is
+/// specified, else its content width** (`TABLE-COLSYNC-1`):
+/// - **Author width (input):** a cell's `inline_style.width: Fixed(n)`
+///   (set directly, or via `set_width` / a `Column` width). Respected and
+///   never overwritten — the max specified across the column wins. *(Divergence:
+///   a width from a CSS **rule** — `td { width }` — is not honored here; this
+///   pass runs before cascade and reads only inline/author widths. Full CSS
+///   table layout is `TABLE-TFC-1`.)*
+/// - **Content (fallback):** the widest cell's text width + the UA cell
+///   padding ([`CELL_H_PADDING`]).
+///
+/// Crucially this **does not touch `inline_style`** (so author intent and the
+/// computed result never conflate, the dead-`Column.width` / `::after`-clip
+/// bugs go away) and needs **no cascade dirty signal** — the value is read by
+/// full layout each frame, not by the incremental cascade.
 pub fn size_columns(dom: &mut TuiDom, table: NodeId) {
     let rows = collect_rows(dom, table);
     if rows.is_empty() {
         return;
     }
 
-    // First pass: max content width per column across all rows.
-    let mut col_widths: Vec<u16> = Vec::new();
+    // Pass 1: per column, the max author width (if any cell specifies one) and
+    // the max content width. Author width is the INPUT, read from inline style.
+    let mut explicit: Vec<Option<u16>> = Vec::new();
+    let mut content: Vec<u16> = Vec::new();
     for &row_id in &rows {
         let cells = collect_cells(dom, row_id);
         for (i, &cell) in cells.iter().enumerate() {
-            let content = text_content_width(dom, cell);
-            let total = content.saturating_add(CELL_H_PADDING);
-            if i < col_widths.len() {
-                col_widths[i] = col_widths[i].max(total);
-            } else {
-                col_widths.push(total);
+            if i >= content.len() {
+                explicit.push(None);
+                content.push(0);
             }
+            if let Some(w) = cell_author_width(dom, cell) {
+                explicit[i] = Some(explicit[i].map_or(w, |e| e.max(w)));
+            }
+            let total = text_content_width(dom, cell).saturating_add(CELL_H_PADDING);
+            content[i] = content[i].max(total);
         }
     }
 
-    // Second pass: write the computed widths onto every cell.
+    // Used width = author width if specified, else content width.
+    let used: Vec<u16> = content
+        .iter()
+        .enumerate()
+        .map(|(i, &c)| explicit[i].unwrap_or(c))
+        .collect();
+
+    // Pass 2: record the used width on every cell as a LAYOUT field (flex reads
+    // it). Never `inline_style` — that's the conflation `TABLE-COLSYNC-1` fixes.
     for &row_id in &rows {
         let cells = collect_cells(dom, row_id);
         for (i, &cell) in cells.iter().enumerate() {
-            let Some(&w) = col_widths.get(i) else {
+            let Some(&w) = used.get(i) else {
                 continue;
             };
             if let Some(ext) = dom.node_mut(cell).ext_mut() {
-                ext.inline_style.width = Some(Value::Specified(Size::Fixed(w)));
+                ext.table_used_width = Some(w);
             }
         }
     }
+}
 
-    // Dirty signal. The width writes above poke `inline_style` directly,
-    // which fires no DOM mutation — so the runtime's *incremental* cascade
-    // (it re-cascades only dirtied subtrees) won't re-process these cells.
-    // That bites the `<thead>` cells in particular: a caller that rebuilt
-    // only the `<tbody>` (e.g. a virtualized table swapping its row window)
-    // dirties the body subtree but not the headers, leaving them with a
-    // stale computed width while full layout reads it — the column shifts.
-    //
-    // Stamp a column-width signature on the `<table>` *only when it changes*.
-    // The resulting `AttributeChanged` marks the table a dirty root, so the
-    // whole table subtree (headers included) re-cascades and every cell picks
-    // up its new width. One attribute, fired only on an actual width change.
-    let signature = col_widths
-        .iter()
-        .map(u16::to_string)
-        .collect::<Vec<_>>()
-        .join(",");
-    if dom.get_attribute(table, COLSYNC_ATTR) != Some(signature.as_str()) {
-        let _ = dom.set_attribute(table, COLSYNC_ATTR, &signature);
+/// The cell's *author-specified* fixed width (`inline_style.width: Fixed(n)`),
+/// or `None`. The column-sizing input — read, never written.
+fn cell_author_width(dom: &TuiDom, cell: NodeId) -> Option<u16> {
+    match dom.node(cell).ext()?.inline_style.width {
+        Some(Value::Specified(Size::Fixed(w))) => Some(w),
+        _ => None,
     }
 }
 

@@ -7,7 +7,7 @@ use crate::layout::Size;
 use crate::render::{Terminal, TestBackend};
 use crate::runtime::app::App;
 use crate::runtime::builtins::table;
-use crate::style::{Stylesheet, Value};
+use crate::style::Stylesheet;
 
 /// Build a table with two rows of two cells. Returns
 /// (dom, cell_ids_row1, cell_ids_row2).
@@ -39,13 +39,10 @@ fn two_row_table(row1: [&str; 2], row2: [&str; 2]) -> (TuiDom, [NodeId; 2], [Nod
     (dom, r1_cells, r2_cells)
 }
 
+/// The cell's used column width — `TABLE-COLSYNC-1` records this on the layout
+/// field, not `inline_style`.
 fn cell_width(dom: &TuiDom, cell: NodeId) -> Option<u16> {
-    dom.node(cell)
-        .ext()
-        .and_then(|e| match e.inline_style.width {
-            Some(Value::Specified(Size::Fixed(w))) => Some(w),
-            _ => None,
-        })
+    dom.node(cell).ext().and_then(|e| e.table_used_width)
 }
 
 /// Build an app from a pre-populated DOM. `App::build` runs the
@@ -233,7 +230,7 @@ fn cjk_graphemes_are_counted_as_wide() {
     assert_eq!(cell_width(&dom, td), Some(6));
 }
 
-// ── colsync dirty signal ────────────────────────────────────────────
+// ── TABLE-COLSYNC-1: explicit widths respected, no inline conflation ──
 
 /// First `<table>` under the document root.
 fn first_table(dom: &TuiDom) -> NodeId {
@@ -245,41 +242,52 @@ fn first_table(dom: &TuiDom) -> NodeId {
 }
 
 #[test]
-fn size_columns_stamps_a_stable_colsync_signature() {
-    let (mut dom, _r1, _r2) = two_row_table(["Alice", "30"], ["Bob", "25"]);
+fn explicit_author_width_is_respected_not_overwritten() {
+    use crate::node::TuiNodeMutExt;
+    // Column 0 content "Alice"(5)/"Bob"(3) → 7 with padding. The author pins
+    // the column to 20 — size_columns must keep 20, not measure it back to 7.
+    let (mut dom, r1, r2) = two_row_table(["Alice", "30"], ["Bob", "25"]);
+    dom.node_mut(r1[0]).set_width(Size::Fixed(20));
+    dom.node_mut(r2[0]).set_width(Size::Fixed(20));
     let table = first_table(&dom);
     table::size_columns(&mut dom, table);
-    let sig = dom
-        .get_attribute(table, "data-rdom-colsync")
-        .map(str::to_string);
-    assert!(sig.is_some(), "sizing stamps the column-width signature");
-    // Re-sizing identical content leaves the signature byte-for-byte stable.
-    table::size_columns(&mut dom, table);
+
     assert_eq!(
-        dom.get_attribute(table, "data-rdom-colsync")
-            .map(str::to_string),
-        sig
+        cell_width(&dom, r1[0]),
+        Some(20),
+        "author width is the used width"
+    );
+    assert_eq!(
+        cell_width(&dom, r2[0]),
+        Some(20),
+        "every cell in the column uses it"
+    );
+    assert_eq!(
+        cell_width(&dom, r1[1]),
+        Some(4),
+        "column 1 is still content-sized"
     );
 }
 
 #[test]
-fn size_columns_dirties_the_table_only_when_widths_change() {
-    // The fix: writing cell widths via `inline_style` fires no mutation, so
-    // `size_columns` stamps the `<table>` to force a re-cascade — but only
-    // when the widths actually change, so a no-op sizing doesn't churn.
-    let (mut dom, _r1, _r2) = two_row_table(["Alice", "30"], ["Bob", "25"]);
+fn size_columns_leaves_inline_style_untouched() {
+    // The de-conflation contract: the used width lands on the layout field,
+    // never on author inline style — so author intent and the computed result
+    // stay separate (the root cause of dead Column.width / the colsync hack).
+    let (mut dom, r1, _r2) = two_row_table(["Alice", "30"], ["Bob", "25"]);
     let table = first_table(&dom);
-    let tracker = crate::style::DirtyTracker::install(&mut dom);
-
     table::size_columns(&mut dom, table);
+
+    let inline = dom
+        .node(r1[0])
+        .ext()
+        .and_then(|e| e.inline_style.width.clone());
     assert!(
-        tracker.take_roots().contains(&table),
-        "the width change dirties the table so headers re-cascade"
+        inline.is_none(),
+        "size_columns must not write inline_style.width"
     );
-
-    table::size_columns(&mut dom, table);
     assert!(
-        !tracker.take_roots().contains(&table),
-        "an unchanged re-size does not re-dirty the table"
+        cell_width(&dom, r1[0]).is_some(),
+        "but the used width is recorded"
     );
 }

@@ -147,6 +147,15 @@ pub struct TuiExt {
     // fields, but layout reads only `ComputedStyle`, so they were dead.
     // The `set_*` node setters now write `inline_style` instead — the
     // cascade carries it into `computed`, which is what layout reads.)
+    /// Used main-axis width of a table cell, computed by
+    /// [`runtime::builtins::table::size_columns`](crate::runtime::builtins::table::size_columns)
+    /// from the column's author widths + content. **Layout output, not author
+    /// input** (`TABLE-COLSYNC-1`): flex reads this as the cell's main size,
+    /// overriding the normal `computed.width` resolution, so every cell in a
+    /// column lines up — without the column-sync pass overwriting author
+    /// `inline_style.width` (which would conflate intent with result). `None`
+    /// for non-table cells / before the pass runs.
+    pub table_used_width: Option<u16>,
 
     // ── Scroll ────────────────────────────────────────────────────────
     /// Horizontal scroll offset in cells.
