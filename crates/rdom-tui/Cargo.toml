@@ -1,9 +1,10 @@
 [package]
 name = "rdom-tui"
 # Diverges from the shared workspace version (0.3.4): rdom-tui is the only crate
-# changed in 0.3.5/0.3.6 (table column-sizing fixes), and nothing depends on it,
-# so the other four crates stay at 0.3.4 — no need to republish unchanged crates.
-version = "0.3.6"
+# changed in 0.3.5/0.3.6/0.3.7 (table column-sizing + layout stale-state fixes),
+# and nothing depends on it, so the other four crates stay at 0.3.4 — no need to
+# republish unchanged crates.
+version = "0.3.7"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true

@@ -5,6 +5,19 @@ All notable changes to rdom will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.7] - 2026-06-04
+
+Only `rdom-tui` bumps (0.3.6 → 0.3.7); the other four crates are unchanged and stay at 0.3.4.
+
+### Fixed
+
+- **`display:none` elements no longer keep a stale layout rect** (`LAYOUT-DISPLAY-NONE-STALE-RECT`). An element laid out while visible kept its rect after going `display:none` — the in-flow layout filter dropped it without zeroing `ext.layout`, so the stale rect still drove paint and hit-test. `layout_node` now collapses every `display:none` child subtree's geometry after laying out children (early-returning on already-zero subtrees, so steady-state hidden subtrees stay O(1)). Masked before by nodes that are rebuilt every frame (e.g. a virtualized `<tbody>`'s cells); exposed by persistent nodes like table headers.
+- **Stale anonymous-block boxes no longer double-paint** (`PAINT-RELATIVE-ABSPOS-DOUBLE`). A block element with an element child wraps its own text in an anonymous box (`TuiExt.anonymous_blocks`); when that child was removed the element became a pure-text leaf via a `layout_children` carve-out that set `inline_layout` but never cleared `anonymous_blocks`, so the paint pass kept drawing the old inline run at its previous position (a glyph echoing at a stale slot). `anonymous_blocks` is now cleared once at the top of `layout_children` — only the block-flow arm repopulates it — covering every dispatch path (IFC, pure-text-leaf, flex, block). Both bugs surfaced building `rdom-virtualtable`'s column show/hide dropdown and only appeared under the runtime's *incremental* cascade.
+
+### Internal
+
+- `is_in_flow` promoted from `block.rs` to the layout-pass module root as the single source for the "skip out-of-flow children" filter, shared by flex / fragment layout and the scroll-content walk (`DRY-1`, layout sites).
+
 ## [0.3.6] - 2026-06-04
 
 Only `rdom-tui` bumps (0.3.5 → 0.3.6); the other four crates are unchanged and stay at 0.3.4.
