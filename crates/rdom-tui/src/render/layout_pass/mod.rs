@@ -193,6 +193,14 @@ pub(super) fn layout_node(dom: &mut Dom<TuiExt>, id: NodeId, outer_rect: LayoutR
     // `height: Auto` on this element).
     let measurement = layout_children(dom, id, inner, &computed);
 
+    // Collapse the geometry of any `display:none` child subtree. The in-flow
+    // layout above filters those children out (they take no space), so without
+    // this they keep the rect they were last laid out with while VISIBLE — and
+    // a stale rect drives paint / hit-test for a box that should generate none
+    // (LAYOUT-DISPLAY-NONE-STALE-RECT). Freshly-hidden nodes already read zero;
+    // this only matters on the visible→none transition for persistent nodes.
+    collapse_hidden_children(dom, id);
+
     // CSS 2.1 §10.6.3 — Phase 6.1: resolve `height: Auto` on a
     // block-flow element against the measured content extent.
     //
@@ -385,23 +393,13 @@ fn record_scroll_content_size(
     let mut max_bottom: i32 = 0;
     let mut any = false;
     for child in element_children_of(dom, id) {
+        // Skip out-of-flow children: `display:none` takes no space and
+        // positioned children are placed in phase-2 against their own CB, not
+        // the parent's content area — neither enlarges the scroll extent.
+        if !is_in_flow(dom, child) {
+            continue;
+        }
         if let Some(ext) = dom.node(child).ext() {
-            // Skip out-of-flow children (display:none has
-            // layout=default zero; positioned children get placed
-            // in phase-2 against their own CB, not the parent's
-            // content area — they shouldn't enlarge the parent's
-            // scroll content extent).
-            let display = ext.computed.as_ref().map(|c| c.display);
-            let position = ext.computed.as_ref().map(|c| c.position);
-            if display == Some(crate::layout::Display::None) {
-                continue;
-            }
-            if matches!(
-                position,
-                Some(crate::layout::Position::Absolute) | Some(crate::layout::Position::Fixed)
-            ) {
-                continue;
-            }
             let rect = ext.layout;
             let top = rect.y + scroll_y;
             let left = rect.x + scroll_x;
@@ -474,19 +472,7 @@ fn layout_fragment_children(dom: &mut Dom<TuiExt>, id: NodeId, container: Layout
     // Fragment is not a positioned containing block).
     let children: Vec<NodeId> = element_children_of(dom, id)
         .into_iter()
-        .filter(|&c| {
-            let computed = dom.node(c).ext().and_then(|e| e.computed.as_ref());
-            match computed {
-                Some(s) => {
-                    s.display != crate::layout::Display::None
-                        && !matches!(
-                            s.position,
-                            crate::layout::Position::Absolute | crate::layout::Position::Fixed
-                        )
-                }
-                None => true,
-            }
-        })
+        .filter(|&c| is_in_flow(dom, c))
         .collect();
     // Fragment uses a Column-like default with no gap/padding —
     // treat it like an invisible Column container.
@@ -504,6 +490,59 @@ pub(super) fn element_children_of(dom: &Dom<TuiExt>, id: NodeId) -> Vec<NodeId> 
     let mut out = Vec::new();
     collect_element_children(dom, id, &mut out);
     out
+}
+
+/// True iff `id` participates in normal flow. Non-elements (text, comments,
+/// fragments) always do; an element does when it's neither `display: none` nor
+/// out-of-flow positioned (`absolute` / `fixed`). The single source of truth
+/// for the "skip out-of-flow children" filter shared by block + flex layout and
+/// the scroll-content walk (DRY-1).
+pub(super) fn is_in_flow(dom: &Dom<TuiExt>, id: NodeId) -> bool {
+    let node = dom.node(id);
+    if node.node_type() != NodeType::Element {
+        return true; // text, comments, fragments
+    }
+    let Some(c) = node.ext().and_then(|e| e.computed.as_ref()) else {
+        return true;
+    };
+    use crate::layout::{Display, Position};
+    c.display != Display::None && !matches!(c.position, Position::Absolute | Position::Fixed)
+}
+
+/// Zero the layout geometry of every `display:none` child subtree of `id`.
+/// In-flow layout filters `display:none` children out, so they'd otherwise
+/// retain the rect from when they were last visible (LAYOUT-DISPLAY-NONE-STALE-
+/// RECT). A `display:none` box generates no box, so its rect — and every
+/// descendant's, since the subtree isn't laid out — must read zero.
+fn collapse_hidden_children(dom: &mut Dom<TuiExt>, id: NodeId) {
+    for child in element_children_of(dom, id) {
+        let hidden = dom
+            .node(child)
+            .ext()
+            .and_then(|e| e.computed.as_ref())
+            .map(|c| c.display == crate::layout::Display::None)
+            .unwrap_or(false);
+        if hidden {
+            collapse_subtree_geometry(dom, child);
+        }
+    }
+}
+
+/// Recursively reset `layout` / `content_layout` to the zero rect for `id` and
+/// every element descendant. Used to collapse a `display:none` subtree.
+fn collapse_subtree_geometry(dom: &mut Dom<TuiExt>, id: NodeId) {
+    if let Some(ext) = dom.node_mut(id).ext_mut() {
+        if ext.layout == LayoutRect::default() && ext.content_layout == LayoutRect::default() {
+            // Already collapsed — and so is everything below it (we always zero
+            // top-down), so stop early. Keeps steady-state hidden subtrees O(1).
+            return;
+        }
+        ext.layout = LayoutRect::default();
+        ext.content_layout = LayoutRect::default();
+    }
+    for child in element_children_of(dom, id) {
+        collapse_subtree_geometry(dom, child);
+    }
 }
 
 fn collect_element_children(dom: &Dom<TuiExt>, id: NodeId, out: &mut Vec<NodeId>) {

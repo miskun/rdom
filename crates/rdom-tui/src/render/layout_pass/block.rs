@@ -839,20 +839,7 @@ fn child_level(dom: &Dom<TuiExt>, id: NodeId) -> RunKind {
     }
 }
 
-/// True iff the node participates in normal flow. Text nodes are
-/// always in flow; element children are in flow when not
-/// `display: none` and not absolutely positioned.
-fn is_in_flow(dom: &Dom<TuiExt>, id: NodeId) -> bool {
-    let node = dom.node(id);
-    if node.node_type() != NodeType::Element {
-        return true; // text, comments, fragments
-    }
-    let Some(c) = node.ext().and_then(|e| e.computed.as_ref()) else {
-        return true;
-    };
-    use crate::layout::{Display, Position};
-    c.display != Display::None && !matches!(c.position, Position::Absolute | Position::Fixed)
-}
+use super::is_in_flow;
 
 /// Result of CSS 2.1 §10.3.3 width resolution for a single block
 /// child: the resolved `margin-left`, `width`, and `margin-right`

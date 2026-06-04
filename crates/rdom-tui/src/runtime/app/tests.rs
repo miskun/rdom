@@ -2201,3 +2201,94 @@ fn dropping_focused_node_in_handler_does_not_panic() {
         "the focused node was removed in the handler"
     );
 }
+
+// ── PAINT-RELATIVE-ABSPOS-DOUBLE regression ─────────────────────────
+
+/// A `position:relative` cell with text, beside a sibling that goes
+/// `display:none`, plus an absolute child created then dropped (the
+/// rdom-virtualtable show/hide chip + dropdown shape). Under the App's
+/// *incremental* cascade the relative cell's glyph used to paint twice — once
+/// at its slot and once at the hidden sibling's stale rect. With
+/// `LAYOUT-DISPLAY-NONE-STALE-RECT` fixed the stale slot collapses, so the
+/// glyph paints exactly once.
+#[test]
+fn relative_cell_glyph_paints_once_after_sibling_hidden_and_abspos_child_dropped() {
+    use crate::layout::{Direction, Display, Flow, Position, ZIndex};
+    use crate::node::TuiNodeMutExt;
+    use crate::render::{Buffer, LayoutExt, PaintExt};
+    use crate::style::Value;
+
+    let vp = Rect::new(0, 0, 40, 6);
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let row = dom.create_element("div"); // flex Row header
+    {
+        let mut s = TuiStyle::new().direction(Direction::Row);
+        s.display = Some(Value::Specified(Display::Block));
+        s.flow = Some(Value::Specified(Flow::Flex));
+        dom.node_mut(row).set_inline_style(s);
+    }
+    dom.append_child(root, row).unwrap();
+    let mk_cell = |dom: &mut TuiDom, parent: NodeId, text: &str| {
+        let cell = dom.create_element("div");
+        let t = dom.create_text_node(text);
+        dom.append_child(cell, t).unwrap();
+        dom.append_child(parent, cell).unwrap();
+        cell
+    };
+    let a = mk_cell(&mut dom, row, "aa");
+    let b1 = mk_cell(&mut dom, row, "bb"); // visible → hidden (1st)
+    let b2 = mk_cell(&mut dom, row, "cc"); // visible → hidden (2nd)
+    let chip = mk_cell(&mut dom, row, "X"); // position:relative, the glyph carrier
+    {
+        let mut s = TuiStyle::new().width(Size::Fixed(3));
+        s.position = Some(Value::Specified(Position::Relative));
+        dom.node_mut(chip).set_inline_style(s);
+    }
+    // Like the `<table>` builtin's `size_columns`: stamp a used main-axis width
+    // on each cell (flex reads `table_used_width` as the cell's main size).
+    for (cell, w) in [(a, 3u16), (b1, 6), (b2, 6), (chip, 3)] {
+        dom.node_mut(cell).ext_mut().unwrap().table_used_width = Some(w);
+    }
+
+    // `[hide]` → display:none (an attribute toggle, like the real contract).
+    let sheet = Stylesheet::bare().rule_unchecked("[hide]", TuiStyle::new().display(Display::None));
+    let mut app = test_app(dom, sheet, vp);
+    app.draw_if_dirty().unwrap(); // frame 0 — all visible
+
+    // Hide b1 (chip shifts left). Then on b2: open + close an absolute child of
+    // the relative chip, then hide b2 (chip shifts left AGAIN). The chip moving
+    // across incremental frames is what leaves the stale glyph behind.
+    app.dom_mut().set_attribute(b1, "hide", "").unwrap();
+    app.draw_if_dirty().unwrap();
+
+    let menu = app.dom_mut().create_element("div");
+    {
+        let mut s = TuiStyle::new().width(Size::Fixed(4)).height(Size::Fixed(1));
+        s.position = Some(Value::Specified(Position::Absolute));
+        s.z_index = Some(Value::Specified(ZIndex::Value(10)));
+        app.dom_mut().node_mut(menu).set_inline_style(s);
+    }
+    app.dom_mut().append_child(chip, menu).unwrap();
+    app.draw_if_dirty().unwrap(); // dropdown open
+    let _ = app.dom_mut().drop_subtree(menu);
+    app.draw_if_dirty().unwrap(); // dropdown closed
+
+    app.dom_mut().set_attribute(b2, "hide", "").unwrap();
+    app.draw_if_dirty().unwrap();
+
+    // Fresh-paint the App's (incremental-cascade) DOM and count the glyph.
+    let dom = app.dom_mut();
+    dom.layout_dom(vp);
+    let mut buf = Buffer::empty(vp);
+    dom.paint_dom(&mut buf, vp);
+    let mut glyphs = 0;
+    for y in 0..vp.height {
+        for x in 0..vp.width {
+            if buf.cell(x, y).map(|c| c.symbol()) == Some("X") {
+                glyphs += 1;
+            }
+        }
+    }
+    assert_eq!(glyphs, 1, "the relative cell's glyph paints exactly once");
+}

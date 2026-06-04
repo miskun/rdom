@@ -2414,6 +2414,78 @@ fn display_none_ancestor_suppresses_inline_block_descendant() {
     assert_eq!(lb.height, 0);
 }
 
+#[test]
+fn display_none_collapses_a_previously_visible_rect() {
+    // LAYOUT-DISPLAY-NONE-STALE-RECT: an element laid out while *visible* gets
+    // a real rect; once it goes `display:none` the in-flow layout filters it
+    // out and must ZERO that rect — not leave it stale. A virtualized body
+    // masks this (cells rebuilt each frame → fresh 0×0); persistent flex
+    // children (table headers) expose it: the stale rect then drives paint.
+    use crate::layout::{Direction, Flow, Size};
+    let mut dom = tui_dom();
+    let root = dom.root();
+    let row = dom.create_element("row"); // flex Row
+    let a = dom.create_element("a"); // toggled visible → none
+    let inner = dom.create_element("inner"); // descendant of `a`
+    dom.append_child(a, inner).unwrap();
+    let b = dom.create_element("b"); // stays visible
+    dom.append_child(row, a).unwrap();
+    dom.append_child(row, b).unwrap();
+    dom.append_child(root, row).unwrap();
+
+    let dims = |s: TuiStyle| s.width(Size::Fixed(6)).height(Size::Fixed(1));
+    let row_rule = TuiStyle::new().flow(Flow::Flex).direction(Direction::Row);
+    let visible = Stylesheet::bare()
+        .rule_unchecked("row", row_rule.clone())
+        .rule_unchecked("a", dims(TuiStyle::new()))
+        .rule_unchecked(
+            "inner",
+            TuiStyle::new().width(Size::Fixed(3)).height(Size::Fixed(1)),
+        )
+        .rule_unchecked(
+            "b",
+            TuiStyle::new().width(Size::Fixed(4)).height(Size::Fixed(1)),
+        );
+    cascade(&mut dom, &visible);
+    dom.layout_dom(Rect::new(0, 0, 80, 24));
+    assert!(
+        layout_rect_of(&dom, a).width > 0,
+        "a is laid out while visible"
+    );
+    assert!(
+        layout_rect_of(&dom, inner).width > 0,
+        "so is its descendant"
+    );
+
+    // Hide `a` and re-lay-out — its (and its subtree's) rect must collapse.
+    let hidden = Stylesheet::bare()
+        .rule_unchecked("row", row_rule)
+        .rule_unchecked("a", dims(TuiStyle::new()).display(Display::None))
+        .rule_unchecked(
+            "inner",
+            TuiStyle::new().width(Size::Fixed(3)).height(Size::Fixed(1)),
+        )
+        .rule_unchecked(
+            "b",
+            TuiStyle::new().width(Size::Fixed(4)).height(Size::Fixed(1)),
+        );
+    cascade(&mut dom, &hidden);
+    dom.layout_dom(Rect::new(0, 0, 80, 24));
+
+    let ra = layout_rect_of(&dom, a);
+    assert_eq!(
+        (ra.width, ra.height),
+        (0, 0),
+        "hidden element's rect collapses"
+    );
+    let ri = layout_rect_of(&dom, inner);
+    assert_eq!(
+        (ri.width, ri.height),
+        (0, 0),
+        "and its descendant's rect too"
+    );
+}
+
 // ── scroll_content_{width,height} recording ─────────────────────
 
 /// A `Column` flex container with `overflow: Scroll` and N children

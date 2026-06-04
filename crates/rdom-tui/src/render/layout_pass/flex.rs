@@ -51,6 +51,19 @@ pub(super) fn layout_children(
     container: LayoutRect,
     computed: &ComputedStyle,
 ) -> Option<super::block::BlockMeasurement> {
+    // Drop anonymous-block boxes from a PRIOR layout up front. Only the
+    // block-flow arm (`layout_block_children`) repopulates them; the IFC,
+    // pure-text-leaf, and flex paths never produce anon boxes. Without this an
+    // element that *transitions into* one of those paths — e.g. a block that
+    // had an element child (so its inline run was wrapped in an anon box), then
+    // becomes a pure-text leaf when that child is removed — keeps painting the
+    // stale boxes at their old position (PAINT-RELATIVE-ABSPOS-DOUBLE: the
+    // show/hide chip's glyph echoing at its previous slot after the dropdown
+    // child was dropped). Clearing here, once, covers every dispatch arm.
+    if let Some(ext) = dom.node_mut(id).ext_mut() {
+        ext.anonymous_blocks.clear();
+    }
+
     // IFC block: inline element children don't participate in flex
     // layout — they're painted by the inline flow pass. Give each a
     // zero-sized layout rect (hit tests and debug tools shouldn't
@@ -153,11 +166,8 @@ pub(super) fn layout_children(
             ));
         }
         crate::layout::Flow::Flex => {
-            // Fall through to flex distribution. Stale anon boxes
-            // from a prior block layout get cleared here.
-            if let Some(ext) = dom.node_mut(id).ext_mut() {
-                ext.anonymous_blocks.clear();
-            }
+            // Fall through to flex distribution. (Anon boxes already
+            // cleared at the top of `layout_children`.)
         }
     }
 
@@ -173,19 +183,7 @@ pub(super) fn layout_children(
     // `TuiExt::default` until something writes to it.
     let children: Vec<NodeId> = element_children_of(dom, id)
         .into_iter()
-        .filter(|&c| {
-            let computed = dom.node(c).ext().and_then(|e| e.computed.as_ref());
-            match computed {
-                Some(s) => {
-                    s.display != crate::layout::Display::None
-                        && !matches!(
-                            s.position,
-                            crate::layout::Position::Absolute | crate::layout::Position::Fixed
-                        )
-                }
-                None => true,
-            }
-        })
+        .filter(|&c| super::is_in_flow(dom, c))
         .collect();
     layout_flex_children(dom, &children, container, computed);
     // Flex distribution sets each child's outer rect inside the
