@@ -5,6 +5,14 @@ All notable changes to rdom will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.13] - 2026-06-06
+
+Only `rdom-tui` bumps (0.3.12 → **0.3.13**); the other four crates are unchanged.
+
+### Fixed — drag-autoscroll mid-tick re-render now cascades
+
+The autoscroll tick's mid-tick relayout was `layout_dom` only. When a consumer mutates the DOM inside its `scroll` handler — a virtualized table re-windows its rows and re-runs column-sizing — those mutations need a **cascade** to take effect, but the bare relayout skipped it. The re-materialized nodes laid out unstyled: collapsed column widths (so the synthetic move's coordinate→cell mapping resolved the wrong column → the selection flickered) and wrong spacer heights (so `scroll_content_height` was under-counted and clamped `scroll_top` below the window start → a cropped window). The mid-tick re-render now runs the full frame path (cascade dirty subtrees + advance animations + layout), matching a normal frame, so a consumer's scroll-handler mutations are fully realized before the synthetic move reads layout. Native text selection doesn't mutate in its scroll handler, so its cascade is a no-op (unaffected). Surfaced by `rdom-virtualtable`'s cell-range drag-autoscroll.
+
 ## [0.3.12] - 2026-06-05
 
 Only `rdom-tui` bumps (0.3.11 → **0.3.12**); the other four crates are unchanged (`rdom-core` stays 0.3.5, `rdom-style` / `rdom-css` / `rdom-parser` stay 0.3.4).

@@ -2734,6 +2734,120 @@ fn autoscroll_keeps_scrolling_when_pointer_overshoots_past_the_container() {
     );
 }
 
+#[test]
+fn autoscroll_mid_tick_relayout_cascades_scroll_handler_mutations() {
+    // The autoscroll mid-tick re-render must CASCADE, not just lay out. A
+    // consumer that mutates the DOM inside its `scroll` handler (a virtualized
+    // table re-windows its rows + re-sizes columns) needs the cascade to apply
+    // before the synthetic move reads layout — otherwise the re-materialized
+    // nodes lay out unstyled (collapsed column widths → mis-mapped pointer;
+    // wrong spacer heights → a `scroll_top` clamped below `window_start`, i.e.
+    // a cropped window). We mirror that: the scroll handler tags a probe so a
+    // wider rule applies (needs cascade); a mousemove handler — standing in for
+    // the consumer's drag-extend, which reads layout DURING the move — records
+    // the probe's width at that mid-tick moment. With a bare `layout_dom` it
+    // would read the stale pre-class width.
+    use crate::layout::{Display, Overflow};
+    use crate::node::TuiNodeExt;
+    use std::cell::Cell;
+    use std::rc::Rc;
+
+    let mev = |kind, x: u16, y: u16| {
+        CtEvent::Mouse(CtMouseEvent {
+            kind,
+            column: x,
+            row: y,
+            modifiers: KeyModifiers::empty(),
+        })
+    };
+
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let scroller = dom.create_element("scroller");
+    dom.append_child(root, scroller).unwrap();
+    for _ in 0..10 {
+        let r = dom.create_element("r");
+        dom.append_child(scroller, r).unwrap();
+    }
+    let probe = dom.create_element("probe");
+    dom.append_child(root, probe).unwrap();
+
+    // scroll handler: tag the probe so the wider rule applies (needs cascade).
+    dom.add_event_listener(scroller, "scroll", ListenerOptions::default(), move |ctx| {
+        let _ = ctx.dom.node_mut(probe).set_attribute("class", "wide");
+    })
+    .unwrap();
+    // mousedown: capture + opt into autoscroll.
+    dom.add_event_listener(
+        scroller,
+        "mousedown",
+        ListenerOptions::default(),
+        move |ctx| {
+            ctx.dom.set_pointer_capture(scroller).unwrap();
+            ctx.dom.set_drag_autoscroll(true);
+            ctx.event.prevent_default();
+        },
+    )
+    .unwrap();
+    // mousemove: record the probe's width AS SEEN during the (synthetic) move —
+    // mid-tick, after the scroll handler's mutation, before the next frame.
+    let seen = Rc::new(Cell::new(0u16));
+    let seen_w = seen.clone();
+    dom.add_event_listener(
+        scroller,
+        "mousemove",
+        ListenerOptions::default(),
+        move |ctx| {
+            if let Some(w) = ctx.dom.node(probe).layout_rect().map(|r| r.width) {
+                seen_w.set(w);
+            }
+        },
+    )
+    .unwrap();
+
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "scroller",
+            TuiStyle::new()
+                .width(Size::Fixed(10))
+                .height(Size::Fixed(3))
+                .overflow(Overflow::Auto),
+        )
+        .rule_unchecked("r", TuiStyle::new().height(Size::Fixed(1)))
+        .rule_unchecked(
+            "probe",
+            TuiStyle::new()
+                .display(Display::Block)
+                .width(Size::Fixed(4))
+                .height(Size::Fixed(1)),
+        )
+        .rule_unchecked(
+            "probe.wide",
+            TuiStyle::new()
+                .display(Display::Block)
+                .width(Size::Fixed(9))
+                .height(Size::Fixed(1)),
+        );
+    let mut app = test_app(dom, sheet, Rect::new(0, 0, 12, 8));
+    app.draw_if_dirty().unwrap();
+    assert_eq!(
+        app.dom().node(probe).layout_rect().map(|r| r.width),
+        Some(4),
+        "probe starts at the un-tagged width"
+    );
+
+    app.handle_event(mev(MouseEventKind::Down(MouseButton::Left), 2, 1));
+    app.handle_event(mev(MouseEventKind::Drag(MouseButton::Left), 2, 2));
+    app.advance(50).unwrap();
+
+    assert_eq!(
+        seen.get(),
+        9,
+        "the synthetic move saw the probe re-cascaded to `.wide` (width 9) \
+         mid-tick — not the stale pre-scroll width 4"
+    );
+}
+
 // ── PAINT-RELATIVE-ABSPOS-DOUBLE regression ─────────────────────────
 
 /// A `position:relative` cell with text, beside a sibling that goes

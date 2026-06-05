@@ -1,11 +1,12 @@
 [package]
 name = "rdom-tui"
 # Diverges from the shared workspace version (0.3.4): rdom-tui changed across
-# 0.3.5–0.3.12 (table column-sizing + layout/paint/border/cascade fixes +
-# drag-autoscroll + its robustness/selection-precision follow-ups). Needs
-# rdom-core 0.3.5 (the drag-autoscroll opt-in); rdom-style/css/parser are
+# 0.3.5–0.3.13 (table column-sizing + layout/paint/border/cascade fixes +
+# drag-autoscroll + its robustness/selection-precision follow-ups + the
+# mid-tick cascade so a consumer's scroll-handler DOM mutations are realized).
+# Needs rdom-core 0.3.5 (the drag-autoscroll opt-in); rdom-style/css/parser are
 # unchanged and stay at 0.3.4.
-version = "0.3.12"
+version = "0.3.13"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true

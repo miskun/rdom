@@ -571,12 +571,18 @@ impl<B: Backend> App<B> {
         if !crate::runtime::scrollbar::autoscroll_step(&mut self.dom, container, axis, step) {
             return; // container at its scroll limit — idle
         }
-        // Re-lay-out against the new scroll offset BEFORE the synthetic move, so
-        // a layout-dependent consumer (native text selection's `position_at`)
-        // re-evaluates at the revealed content. Coords-based consumers (the
-        // grid) don't need it, but it's a cheap per-tick pass.
+        // Re-render (cascade + layout) against the new scroll offset BEFORE the
+        // synthetic move, so a layout-dependent consumer re-evaluates at the
+        // revealed content. This is the **full** frame path, not a bare
+        // `layout_dom`: the `scroll` event fired by `autoscroll_step` runs the
+        // consumer's listener, which may MUTATE the DOM (e.g. a virtualized
+        // table re-windows its rows + runs column-sizing) — those mutations
+        // need a cascade to take effect, or the re-materialized nodes lay out
+        // unstyled (collapsed column widths, wrong spacer heights → a clamped
+        // `scroll_top` and a mis-mapped pointer). Native text selection doesn't
+        // mutate here, so its cascade is a no-op.
         let area = self.terminal.size();
-        self.dom.layout_dom(area);
+        self.cascade_and_layout(area);
         // A synthetic left-button Drag at the held pointer carries the held
         // coords + the held-button bitmask, so the consumer's move guard accepts
         // it and re-evaluates against the new scroll offset.
@@ -589,6 +595,32 @@ impl<B: Backend> App<B> {
         let outcome = self.router.route(&mut self.dom, CtEvent::Mouse(synthetic));
         self.needs_redraw |= outcome.redraw_requested;
         self.needs_redraw = true; // the scroll itself changed the view
+    }
+
+    /// Cascade the dirty subtrees + advance animations + layout — the
+    /// non-painting half of [`Self::draw_if_dirty`]'s frame. Used by
+    /// [`Self::autoscroll_tick`] for an off-frame re-render so DOM mutations a
+    /// consumer made inside a `scroll` handler are fully realized before the
+    /// synthetic move. Drains the dirty-root tracker like a real frame, so the
+    /// subsequent `draw_if_dirty` only re-cascades what the synthetic move
+    /// newly dirtied (it still paints — `needs_redraw` is set).
+    fn cascade_and_layout(&mut self, area: crate::render::Rect) {
+        let mut dirty_roots = self.tracker.roots_snapshot();
+        if !dirty_roots.is_empty() {
+            self.tracker.take_roots();
+        }
+        dirty_roots.sort_unstable();
+        dirty_roots.dedup();
+        let sheets: Vec<&Stylesheet> = self.stylesheets.iter().map(|(_, s)| s).collect();
+        if dirty_roots.is_empty() {
+            self.dom.cascade_all(&sheets);
+        } else {
+            self.dom.cascade_subtrees_all(&sheets, &dirty_roots);
+        }
+        let now = std::time::Instant::now();
+        crate::runtime::animation::diff_and_register(&mut self.dom, &mut self.animations, now);
+        self.animations.advance(&mut self.dom, now);
+        self.dom.layout_dom(area);
     }
 
     /// Replace every registered stylesheet with `sheet`. Returns the

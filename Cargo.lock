@@ -939,7 +939,7 @@ dependencies = [
 
 [[package]]
 name = "rdom-tui"
-version = "0.3.12"
+version = "0.3.13"
 dependencies = [
  "arboard",
  "compact_str",
