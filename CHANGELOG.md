@@ -5,6 +5,15 @@ All notable changes to rdom will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.9] - 2026-06-05
+
+Only `rdom-tui` bumps (0.3.8 → 0.3.9); the other four crates are unchanged and stay at 0.3.4.
+
+### Added / Fixed
+
+- **Half-block borders now weld across elements** (`HALFBLOCK-JOIN-1`). Previously `border-style: half-block` only rendered the lone-element ring (4 edges + 4 corners); any T-junction, cross, or two half-block borders meeting at a cell fell back to box-drawing glyphs (`┴`/`┤`). Half-block borders now use an **inward-quadrant model**: each cell fills the quadrants pointing toward its element's content (edge → a half, corner → one quadrant), and the joiner **unions** those quadrants across elements, emitting the matching block glyph. All 16 quadrant combinations have a Unicode block element, so half-block welds every junction with no gaps — e.g. a "tab" box whose bottom edge overlaps a panel's top row welds into one tab-panel outline (`▟ █ ▌` at the junction). The lone-element soft-pill ring is unchanged.
+- **Painted content now occludes the border beneath it** (`BORDER-Z-OCCLUDE-1`). The border joiner runs as a final pass and re-derived every border cell, so a higher-stacked element's glyph content could be clobbered by a lower element's border — the reverse of CSS stacking. Painted content now clears the border state at the cells it covers, so a higher element's content paints over a lower element's border (while borders contributed later in stacking order still paint over lower content). This already worked for opaque `background-color` fills; it now works for glyph content too.
+
 ## [0.3.8] - 2026-06-05
 
 Only `rdom-tui` bumps (0.3.7 → 0.3.8); the other four crates are unchanged and stay at 0.3.4.
