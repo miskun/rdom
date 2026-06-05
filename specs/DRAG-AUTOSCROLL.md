@@ -1,16 +1,28 @@
 # DRAG-AUTOSCROLL — pointer capture + edge autoscroll for drags in scroll containers
 
-**Status:** design **v2** (2026-06-05, revised after architect review). Not yet scheduled to a
-version. No code until reviewed.
+**Status:** design **v3** (2026-06-05, reviewed twice — ready to implement). No version scheduled
+yet; Phase order below.
 
-**v2 changes (what the review caught):** capture and autoscroll are now **decoupled** — capture is
-the default, autoscroll is an explicit opt-in (v1 coupled them, which is wrong: a slider that
-captures must not scroll). The **capture-precedence model is now a resolved decision**, not an open
-question (a single unified pointer-capture owner). The **per-tick ordering and its virtualization
-interaction are specified** (mutate → handlers → relayout → re-hit-test → synthetic event). The
-**synthetic-event contract is specified**, including `mouseover`/`mouseout` and a `synthetic` flag.
-Sequencing is **grid-first** (text selection adopted after, not before). Scroll **chaining and the
-inside-edge band are cut from v1**. A **headless fake-clock pump** is a Phase-0 gate.
+**v3 changes (second review — feasibility/honesty, surfaced by tracing the data flow):**
+- **Capture state lives in `rdom-core` dispatch** (it's a DOM API), including a generic
+  `autoscroll: bool` flag, so a `Dom`-only `EventCtx` can arm both without reaching the App/router —
+  this is *how* the `SHOWCASE-EVT-1` wall is crossed. `rdom-tui` *reads* the flag and interprets it
+  as "autoscroll scroll ancestors" (rdom-core stays renderer-agnostic). See N1.
+- **Dropped the "zero new consumer code" claim.** The autoscroll pointer is *beyond the edge* → no
+  cell under it → a target-node consumer (the grid) must extend via **clamped `client_x/client_y` →
+  cell**, not `closest("td")`. The substrate's job is the tick + scroll + a faithful synthetic move
+  carrying coords; the consumer maps+clamps. Text selection gets it ~free (runtime clamps to the
+  nearest text position). See N2 + "Consumer autoscroll contract."
+- **`event.target` under capture = the element actually under the pointer** (not the capture node) —
+  a documented divergence from the DOM, because every consumer wants the real position. See N2.
+- **The autoscroll tick is a built-in event-loop phase woken by a timer, not a user `set_interval`**
+  (it needs router + relayout + dispatch, which `TimerCtx` can't do). See N3.
+- **Phase-0 gate sharpened** to a concrete `pump_one_autoscroll_tick()` headless hook. See N4.
+
+**v2 changes (first review):** decoupled capture from autoscroll (capture default, autoscroll
+opt-in); unified single-owner capture + precedence; specified the per-tick mini-frame and its
+virtualization interaction; specified the synthetic-event contract incl. `mouseover`/`mouseout` +
+`synthetic` flag; grid-first sequencing; cut chaining + the inside-edge band; added the clock gate.
 
 ## Origin
 
@@ -46,11 +58,21 @@ the design is wrong** — the one thing we refuse to do is implement autoscroll 
 
 ### Why re-dispatch the pointer (mechanic)
 
-After a tick scrolls the container, the element under the held pointer changed. Re-hit-testing and
-re-dispatching the pointer (not just firing a bare `scroll` event) means every drag handler that
-already reacts to `mousemove` extends with **no new code** — the grid's `closest("td")` handler and
-native text selection both. Rejected alternative: fire only `scroll` and make each consumer cache
-the pointer + own a coords→cell map (re-deriving what the synthetic move gives for free).
+After a tick scrolls the container, the content under the held pointer changed, so the runtime
+re-hit-tests and re-dispatches the pointer (rather than firing a bare `scroll` event). The drag's
+update logic — native text-selection extend, or the grid's range extend — runs on that synthetic
+move, with the **same handler as a real move**. One tick mechanism; every drag type reuses it.
+
+**What this does NOT do (corrected from v2):** it is *not* "zero new consumer code." The autoscroll
+scenario is precisely *pointer at/beyond the container edge* — so the cell "under" the held pointer
+is often **nothing** (the pointer sits below the last row, over empty space). A target-node mapping
+(`closest("td")`) therefore finds no cell and the range wouldn't grow. So an autoscroll consumer
+extends via the synthetic move's **`client_x/client_y`, clamped to the container's cell grid** (see
+"Consumer autoscroll contract"). Native text selection gets this nearly free — the runtime clamps to
+the nearest text position. The substrate's contract is: deliver the tick + the scroll + a faithful
+synthetic move carrying coords; the consumer maps-and-clamps. Rejected alternative: a bare `scroll`
+event with no pointer — that forces the consumer to *also* cache the pointer position the synthetic
+move already carries.
 
 ## Pointer capture — unified single-owner model (resolves B2)
 
@@ -79,6 +101,27 @@ enum PointerCapture {
   lands off any element — that's the point of capture. (Confirm the router delivers a release the
   terminal reports outside all element rects; if not, that's a Phase-1 fix, not an open question.)
 
+**Where the state lives (N1 — the `SHOWCASE-EVT-1` wall).** `EventCtx` holds only `&mut Dom`
+(`dispatch.rs:63`) — it cannot touch `rdom-tui`'s router. But `setPointerCapture` *is* a DOM API, so
+**the capture state lives in `rdom-core`'s dispatch state**, where `EventCtx` can set it. It carries:
+the owner (`TextSelection | Scrollbar | Element{node}`) **and a generic `autoscroll: bool` flag**.
+`rdom-core` stays renderer-agnostic — it stores a bool, nothing about scrolling. `rdom-tui`'s loop
+*reads* this state each frame: it routes captured pointer events to the owner and, when
+`autoscroll` is set, runs the autoscroll phase. That split is how a `Dom`-only event handler arms
+both capture and autoscroll without reaching the App — the drag slice of `SHOWCASE-EVT-1`. (The
+router's existing `selection_drag`/`scrollbar_drag` collapse into reading this one rdom-core owner.)
+
+**`event.target` under capture (N2).** For both real and synthetic captured moves, `target` is **the
+element actually under the pointer** (the hit-tested node), *not* the capture node. This **diverges
+from the DOM** (which retargets to the capture element), deliberately: every rdom consumer wants the
+real pointer position, and root-delegated handlers need it. Capture only forces *delivery* (the
+owner's listener chain always runs) and the `mouseup` guarantee — it does not rewrite `target`.
+
+**Supersede side effects (N5).** The table sets `user-select: none`, so `selection::drag::begin`
+won't arm a text-selection capture on its cells — the "consumer supersedes text-selection" path is
+rarely hit there. Where it *is* (selectable content that also captures), superseding must cancel the
+selection-begin's caret/collapse side effects, not just reroute future moves.
+
 Public API (on `EventCtx`, `crates/rdom-core/src/dispatch.rs:63`):
 
 ```rust
@@ -103,11 +146,14 @@ be added once both exist; keep the primitives separate underneath.)
 
 Autoscroll is dwell-gated and tick-driven. While a capture with `autoscroll = true` is active:
 
-**Arming.** A real pointer move that lands in an edge zone (below) arms an internal `set_interval`
-(period ~50 ms; one internal constant). It is **disarmed** the instant any of: the pointer leaves
-the zone, the drag ends, or the target container hits its scroll limit on the needed axis. No
-poll-spin — when disarmed the loop blocks on input as usual. (rdom's loop already wakes for interval
-timers; autoscroll registers/cancels one.)
+**Arming.** A real pointer move that lands in an edge zone (below) arms a **built-in event-loop
+autoscroll phase woken by a timer** (period ~50 ms; one internal constant). It is **not** a user
+`set_interval`: the tick needs router state (the capture + held pointer), a scroll, a relayout, and
+a dispatch — none of which a scheduler callback (`TimerCtx` = dom + scheduler) can do. It is
+**disarmed** the instant any of: the pointer leaves the zone, the drag ends, or the target container
+hits its scroll limit on the needed axis. No poll-spin — when disarmed the loop blocks on input as
+usual. rdom's loop already wakes on a timer deadline for the scheduler, so the wake path exists;
+autoscroll arms/clears its own deadline.
 
 **Each tick runs, in this exact order** (a mini-frame — *not* a shortcut):
 1. Compute the per-axis step from pointer-vs-edge (see speed model).
@@ -172,6 +218,27 @@ Because the element under the pointer changes as content scrolls, a tick fires t
 **`mouseout`(old) + `mouseover`(new)** pair before `mousemove` — otherwise `:hover` styles go stale
 mid-autoscroll. (The first tick may have no "old" element.)
 
+## Consumer autoscroll contract (N2)
+
+A drag consumer that wants its selection to follow an autoscroll does **not** map the synthetic
+move's *target node* (it's beyond the edge — empty space). It maps the move's **`client_x`/
+`client_y`, clamped to the scroll container's cell grid**, to a logical position. For
+`rdom-virtualtable`:
+
+```text
+on the (real or synthetic) drag mousemove while captured:
+    let (cx, cy) = (detail.client_x, detail.client_y)
+    clamp cy into [tbody.top, tbody.bottom-1]  → window row → logical row (via window_start)
+    clamp cx into the column band               → column
+    extend_selection_to(row, col)
+```
+
+So adopting autoscroll in a consumer means: (1) `set_pointer_capture` + `enable_drag_autoscroll` on
+mousedown, and (2) extend on the move via **clamped coords** instead of `closest("td")`. Modest, not
+zero — but the edge-zone math, the scroll, the tick cadence, and the synthetic re-dispatch all live
+in the substrate, used identically by text selection. (The grid's *non-drag* click mapping can keep
+using `closest("td")`; only the drag-extend path needs coords.)
+
 ## Boundary: virtualization without a real scroll container
 
 `rdom-virtualtable` can window via `show_window` with **no** `overflow:scroll` element. Autoscroll
@@ -189,10 +256,12 @@ scrollable `<tbody>`) is fully covered.
 - No scroll chaining (v1).
 
 ## Test plan
-- **Phase-0 gate (must pass before Phase 2 design is final):** confirm a **headless** test can pump
-  the loop's timer phase with a fake clock — advance time, run due intervals, no real terminal/input.
-  If not reachable, exposing that pump is a prerequisite sub-task. The whole autoscroll test story
-  depends on it.
+- **Phase-0 gate (must pass before Phase 2):** a deterministic, headless **`pump_one_autoscroll_tick()`**
+  hook (or equivalent on the test `App`) that runs the full tick once — scroll → scroll-handlers →
+  relayout → re-hit-test → synthetic dispatch — against a `TestBackend`, no wall clock, no real
+  input. Every autoscroll test below drives this. If the loop can't be pumped one tick at a time
+  headlessly today, **building that hook is the first sub-task** (it's also generally useful for
+  testing any timer-driven runtime behavior).
 - **Capture (Phase 1):** `set_pointer_capture` routes moves outside the node to it; `mouseup` off
   any element still reaches the owner; a consumer capture supersedes the implicit text-selection
   capture for the same mousedown.
@@ -208,24 +277,28 @@ scrollable `<tbody>`) is fully covered.
 - **Hover fidelity:** as content scrolls under a held pointer, `mouseout`/`mouseover` fire and a
   `:hover` rule tracks the newly-revealed element.
 - **Grid (rdom-virtualtable):** drag a cell range past the `<tbody>` edge → the window scrolls and
-  the rectangle extends to revealed rows, with **no table code beyond** `set_pointer_capture` +
-  `enable_drag_autoscroll` on mousedown.
+  the rectangle extends to revealed rows. Table changes are exactly: `set_pointer_capture` +
+  `enable_drag_autoscroll` on mousedown, and a drag-extend path that maps **clamped coords → cell**.
 - **Text selection:** drag-select past a scrollable `<div>`'s edge → the Range grows and the div
   scrolls.
 
 ## Implementation phases (re-sequenced grid-first — resolves S3)
 
-0. **Gate:** verify / expose the headless fake-clock loop pump (test plan above). Blocks Phase 2.
-1. **Pointer capture API + unified owner.** Surface `set_pointer_capture` / `release_pointer_capture`;
-   collapse `selection_drag` / `scrollbar_drag` / consumer capture into the one `PointerCapture`
-   owner with the decided precedence; guarantee `mouseup`-to-owner. **No autoscroll yet.**
-   `DIVERGENCES` + tests. (Independently useful — sliders, drag handles.)
+0. **Gate:** build/expose the headless `pump_one_autoscroll_tick()` hook (test plan above). Blocks
+   Phase 2.
+1. **Pointer capture API + unified owner.** Put the capture state (owner + `autoscroll` flag) in
+   **`rdom-core` dispatch**; surface `set_pointer_capture` / `release_pointer_capture` on `EventCtx`;
+   `event.target` stays the under-pointer element (documented divergence); collapse the router's
+   `selection_drag` / `scrollbar_drag` into *reading* the one rdom-core owner with the decided
+   precedence; guarantee `mouseup`-to-owner. **No autoscroll yet.** `DIVERGENCES` + tests.
+   (Independently useful — sliders, drag handles.)
 2. **Drag autoscroll** + `enable_drag_autoscroll`: the armed-interval tick (the 6-step contract),
    edge-zone dwell detection (innermost container, no chaining), synthetic-event contract incl.
    `MouseDetail.synthetic` + `mouseout`/`mouseover`, re-entrancy guards, fake-clock tests.
 3. **Adopt in `rdom-virtualtable` first** (the driver, low risk): `set_pointer_capture` +
-   `enable_drag_autoscroll` on the cell-drag `mousedown`; verify the rectangle extends across an
-   autoscroll with no other table changes. This proves the public API.
+   `enable_drag_autoscroll` on the cell-drag `mousedown`, and switch the drag-extend path to
+   **clamped `client_x/client_y` → cell** (per the consumer contract; the click path keeps
+   `closest("td")`). Verify the rectangle extends across an autoscroll. This proves the public API.
 4. **Adopt in native text selection** (after the API is proven). Start with the **minimal hook** —
    `selection::drag::begin` arms the same autoscroll (the existing extend runs on the re-dispatched
    move). A fuller cleanup/rewrite of `selection::drag` is a **separate** follow-up, not gating this
