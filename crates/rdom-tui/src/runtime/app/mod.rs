@@ -404,11 +404,20 @@ impl<B: Backend> App<B> {
     /// fire expired timeouts/intervals, drain microtasks again
     /// (callbacks may queue them), then drain rAF before paint.
     fn pump_scheduler(&mut self) {
-        use crate::runtime::timers as t;
         // Sync the clock to wall time — production only ever
         // moves forward; tests use the virtual-clock API
-        // directly.
+        // (`advance`) directly.
         self.scheduler.set_now(std::time::Instant::now());
+        self.pump_due();
+    }
+
+    /// Drain everything due at the scheduler's *current* clock — microtasks,
+    /// expired timeouts/intervals, then rAF — without touching the clock.
+    /// `pump_scheduler` (live loop) syncs the clock to wall time first;
+    /// `advance` (headless/test) moves the virtual clock first. Both then call
+    /// this so the drain order is identical.
+    fn pump_due(&mut self) {
+        use crate::runtime::timers as t;
         // Microtasks first, in case a previous handler queued
         // one and we haven't drained yet.
         t::drain_microtasks(&mut self.scheduler, &mut self.dom);
@@ -418,6 +427,21 @@ impl<B: Backend> App<B> {
         t::drain_microtasks(&mut self.scheduler, &mut self.dom);
         t::pump_raf(&mut self.scheduler, &mut self.dom);
         t::drain_microtasks(&mut self.scheduler, &mut self.dom);
+    }
+
+    /// Advance the virtual scheduler clock by `ms` and service everything that
+    /// comes due, then redraw if dirty. For **headless / simulation / test**
+    /// drivers that don't run the live [`run`](Self::run) loop (which syncs to
+    /// wall time). Fires timeouts, intervals, rAF, and microtasks whose deadline
+    /// falls within the elapsed window, exactly as the loop would — making
+    /// timer-driven runtime behavior (animations, autoscroll) deterministically
+    /// testable. Advance one period at a time to step a repeating timer
+    /// tick-by-tick.
+    pub fn advance(&mut self, ms: u64) -> io::Result<()> {
+        let target = self.scheduler.now() + std::time::Duration::from_millis(ms);
+        self.scheduler.set_now(target);
+        self.pump_due();
+        self.draw_if_dirty()
     }
 
     /// Replace every registered stylesheet with `sheet`. Returns the

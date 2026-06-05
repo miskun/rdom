@@ -2232,6 +2232,46 @@ fn dropping_a_sibling_then_a_dirtied_sibling_does_not_panic() {
     assert!(!app.dom().contains(b));
 }
 
+#[test]
+fn advance_drives_a_scheduler_interval_deterministically() {
+    // Phase-0 gate for timer-driven runtime behavior (autoscroll): `advance`
+    // moves the virtual clock and services what comes due, headless and
+    // deterministic — no wall clock, no real input.
+    use crate::runtime::timers::TuiTimers;
+    use std::cell::Cell;
+    use std::rc::Rc;
+
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let el = dom.create_element("div");
+    dom.append_child(root, el).unwrap();
+    let ticks = Rc::new(Cell::new(0u32));
+    let t = ticks.clone();
+    dom.add_event_listener(el, "keydown", ListenerOptions::default(), move |ctx| {
+        let t = t.clone();
+        ctx.set_interval(
+            move |_| {
+                t.set(t.get() + 1);
+                true // keep firing
+            },
+            50,
+        );
+    })
+    .unwrap();
+
+    let mut app = test_app(dom, Stylesheet::new(), Rect::new(0, 0, 10, 3));
+    app.dom_mut().set_focused(Some(el));
+    app.handle_event(key(KeyCode::Char('a'))); // schedules the 50ms interval
+    assert_eq!(ticks.get(), 0, "interval hasn't come due yet");
+
+    app.advance(50).unwrap();
+    assert_eq!(ticks.get(), 1, "one period → one tick");
+    app.advance(50).unwrap();
+    assert_eq!(ticks.get(), 2);
+    app.advance(50).unwrap();
+    assert_eq!(ticks.get(), 3, "deterministic, one tick per period");
+}
+
 // ── PAINT-RELATIVE-ABSPOS-DOUBLE regression ─────────────────────────
 
 /// A `position:relative` cell with text, beside a sibling that goes
