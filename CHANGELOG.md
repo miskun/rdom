@@ -5,6 +5,20 @@ All notable changes to rdom will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.8] - 2026-06-05
+
+Only `rdom-tui` bumps (0.3.7 → 0.3.8); the other four crates are unchanged and stay at 0.3.4.
+
+### Fixed
+
+- **Half-block borders now render on a 1-row box** (`PAINT-HALFBLOCK-1ROW-1`). A `BorderStyle::HalfBlock` left/right edge on a `height: 1` element emitted no glyph — the half-block joiner only mapped multi-bit direction masks (corners + runs that join with a neighbour) and fell through to nothing for a lone contributor. It now maps single-bit masks too: a one-cell vertical edge paints `▐`/`▌`, a one-cell horizontal edge `▄`/`▀`, independent of box height. (A *full* half-block ring still needs ≥ 2 rows — the border-box wants a top half, content, and a bottom half.)
+- **Pseudo / own text no longer double-paints on pseudo- or mixed-content blocks** (`TREE-BFC-PSEUDO-1`, duplicate-text class). A block whose own text lives in an anonymous box (mixed content) was repainted a second time by the inline paint path at a shifted x (`Label` → `Labelel`); and a text-leaf with `::before`/`::after` plus an absolutely-positioned child (e.g. a chip with an absolute dropdown) spuriously created an anonymous block. The inline paint path now bails when anonymous blocks exist, and the pure-text-leaf carve-out ignores out-of-flow element children — so pseudos + own text paint exactly once.
+- **Out-of-flow descendants no longer leak into inline content** (companion to the above). The IFC text walk and the intrinsic inline-width walk both recursed into `display:none` / `position: absolute|fixed` descendants, packing their text into an ancestor's inline run and inflating its max-content width. Both now skip out-of-flow descendants per CSS (out-of-flow boxes contribute nothing to the containing block's in-flow inline content). This also fixes a collapsed-tree leak where a `display:none` `[role=group]` leaked its child text into the parent treeitem.
+
+### Remaining (tracked)
+
+- The `::before` / `::after` **prefix** on a *true* mixed-content block (a text run plus an in-flow block child) is still dropped — folding it into the first/last anonymous block as a reserved fragment is a layout change, tracked in `specs/TECH_DEBT.md`. Does not affect text-leaf elements (chips), which paint pseudos correctly.
+
 ## [0.3.7] - 2026-06-04
 
 Only `rdom-tui` bumps (0.3.6 → 0.3.7); the other four crates are unchanged and stay at 0.3.4.
