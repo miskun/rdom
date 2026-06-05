@@ -1351,6 +1351,73 @@ fn selection_across_inline_element_highlights_both_fragments() {
 }
 
 #[test]
+fn selection_spanning_user_select_none_skips_its_highlight() {
+    // selectable_text repro: a selection started in the title and dragged
+    // down past the `user-select: none` chrome bar must NOT highlight the
+    // chrome — browsers exclude user-select:none content from a spanning
+    // selection's highlight (and from copy). Anchor in row 0, focus in row 2;
+    // the row-1 chrome bar is spanned but unselectable.
+    use crate::layout::UserSelect;
+    use rdom_core::{Position, Selection};
+
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let mk = |dom: &mut TuiDom, txt: &str| -> (NodeId, NodeId) {
+        let p = dom.create_element("p");
+        let t = dom.create_text_node(txt);
+        dom.append_child(p, t).unwrap();
+        let tail = dom.create_element("span"); // 2nd inline child → IFC
+        dom.append_child(p, tail).unwrap();
+        (p, t)
+    };
+    let (title, t_title) = mk(&mut dom, "AA");
+    let (chrome, _t_chrome) = mk(&mut dom, "NN");
+    dom.set_attribute(chrome, "class", "chrome").unwrap();
+    let (body, t_body) = mk(&mut dom, "BB");
+    dom.append_child(root, title).unwrap();
+    dom.append_child(root, chrome).unwrap();
+    dom.append_child(root, body).unwrap();
+
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "p",
+            TuiStyle::new()
+                .display(Display::Block)
+                .width(Size::Fixed(20)),
+        )
+        .rule_unchecked("span", TuiStyle::new().display(Display::Inline))
+        .rule_unchecked(".chrome", TuiStyle::new().user_select(UserSelect::None))
+        .rule_unchecked(
+            "*::selection",
+            TuiStyle::new()
+                .bg(Color::Rgb(0x39, 0x4B, 0x7E))
+                .fg(Color::Rgb(0xFF, 0xFF, 0xFF)),
+        );
+
+    // Span the whole thing: title start → body end.
+    dom.set_selection(Some(Selection::new(
+        Position::new(t_title, 0),
+        Position::new(t_body, 2),
+    )));
+
+    let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 20, 3));
+    let ua_sel_bg = Color::Rgb(0x39, 0x4B, 0x7E);
+
+    // Row 0 (title "AA") and row 2 (body "BB") are highlighted…
+    assert_eq!(buf.cell(0, 0).unwrap().bg, ua_sel_bg, "title selected");
+    assert_eq!(buf.cell(1, 0).unwrap().bg, ua_sel_bg, "title selected");
+    assert_eq!(buf.cell(0, 2).unwrap().bg, ua_sel_bg, "body selected");
+    assert_eq!(buf.cell(1, 2).unwrap().bg, ua_sel_bg, "body selected");
+    // …but the spanned user-select:none chrome bar (row 1) is NOT.
+    assert_ne!(
+        buf.cell(0, 1).unwrap().bg,
+        ua_sel_bg,
+        "user-select:none chrome must not be highlighted by a spanning selection"
+    );
+    assert_ne!(buf.cell(1, 1).unwrap().bg, ua_sel_bg, "ditto");
+}
+
+#[test]
 fn selection_on_wrapped_second_line_paints_that_row() {
     use rdom_core::{Position, Selection};
 
