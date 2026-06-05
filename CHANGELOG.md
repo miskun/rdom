@@ -5,6 +5,14 @@ All notable changes to rdom will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.10] - 2026-06-05
+
+Only `rdom-tui` bumps (0.3.9 → 0.3.10); the other four crates are unchanged and stay at 0.3.4.
+
+### Fixed
+
+- **`drop_subtree` no longer panics when dropping two siblings in a row** (`CASCADE-FREED-ROOT-1`). Dropping a node fires a `ChildListChanged` mutation, and the incremental cascade's dirty tracker marks every *remaining* sibling dirty (so sibling selectors re-evaluate) — queuing them as cascade roots. If one of those freshly-marked siblings was then itself dropped in the same teardown (e.g. removing a panel and then its tab), it was freed while still queued, and the next redraw dereferenced the reclaimed arena slot and panicked. The incremental cascade now skips any queued root the arena no longer holds. Consumers can drop absolutely-positioned children freely.
+
 ## [0.3.9] - 2026-06-05
 
 Only `rdom-tui` bumps (0.3.8 → 0.3.9); the other four crates are unchanged and stay at 0.3.4.
