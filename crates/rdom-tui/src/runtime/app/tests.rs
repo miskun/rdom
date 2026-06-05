@@ -1048,6 +1048,73 @@ fn mousedown_then_small_drag_stays_within_dragged_range() {
 }
 
 #[test]
+fn drag_up_over_user_select_none_extends_past_it_not_collapse() {
+    // selectable_text repro (upward): anchor a selection in the bottom block,
+    // drag UP and rest the cursor over a `user-select: none` bar between
+    // blocks. `position_at` returns None there (so a *click* can't start a
+    // selection on chrome), and the drag must snap the focus to the nearest
+    // SELECTABLE text — not clamp back to the anchor flow, which (being far
+    // below) collapsed the whole multi-block selection.
+    use crate::layout::{Display, UserSelect};
+    use crossterm::event::{MouseButton, MouseEvent as CtMouseEvent, MouseEventKind};
+    use rdom_core::Position;
+
+    let mev = |kind, x: u16, y: u16| {
+        CtEvent::Mouse(CtMouseEvent {
+            kind,
+            column: x,
+            row: y,
+            modifiers: KeyModifiers::empty(),
+        })
+    };
+
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let mk = |dom: &mut TuiDom, txt: &str| -> (NodeId, NodeId) {
+        let p = dom.create_element("p");
+        let t = dom.create_text_node(txt);
+        dom.append_child(p, t).unwrap();
+        let tail = dom.create_element("span"); // 2nd inline child → IFC
+        dom.append_child(p, tail).unwrap();
+        (p, t)
+    };
+    let (a, t_a) = mk(&mut dom, "AAAA"); // row 0 — selectable
+    let (chrome, _t_chrome) = mk(&mut dom, "NN"); // row 1 — user-select:none
+    dom.set_attribute(chrome, "class", "chrome").unwrap();
+    let (p_mid, _t_mid) = mk(&mut dom, "PPPP"); // row 2 — selectable
+    let (b, t_b) = mk(&mut dom, "BBBB"); // row 3 — selectable (anchor here)
+    for n in [a, chrome, p_mid, b] {
+        dom.append_child(root, n).unwrap();
+    }
+
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "p",
+            TuiStyle::new()
+                .display(Display::Block)
+                .width(Size::Fixed(20)),
+        )
+        .rule_unchecked("span", TuiStyle::new().display(Display::Inline))
+        .rule_unchecked(".chrome", TuiStyle::new().user_select(UserSelect::None));
+    let mut app = test_app(dom, sheet, Rect::new(0, 0, 20, 6));
+    app.draw_if_dirty().unwrap();
+
+    // Anchor at the end of the bottom block (row 3), then drag UP onto the
+    // user-select:none bar (row 1).
+    app.handle_event(mev(MouseEventKind::Down(MouseButton::Left), 3, 3));
+    app.handle_event(mev(MouseEventKind::Drag(MouseButton::Left), 1, 1));
+
+    let sel = app.dom().selection().expect("drag keeps a selection");
+    assert_ne!(
+        sel.focus.node, t_b,
+        "drag up over user-select:none must not collapse back into the anchor block"
+    );
+    // Snaps to the nearest selectable flow — the top block's end (doc-order
+    // tie-break vs the equidistant block below the bar).
+    assert_eq!(sel.focus, Position::new(t_a, 4));
+}
+
+#[test]
 fn mousedown_focuses_focusable_ancestor() {
     use crossterm::event::{MouseButton, MouseEvent as CtMouseEvent, MouseEventKind};
 

@@ -92,6 +92,17 @@ pub trait HitTestExt {
     /// node's data — matches the `Selection` / `Range` API and
     /// Rust string slicing conventions.
     fn position_at(&self, x: u16, y: u16) -> Option<Position>;
+
+    /// The nearest **selectable** text position to `(x, y)` by vertical
+    /// distance — `position_at`'s empty-space resolution, exposed for the
+    /// drag-extend fallback. Unlike `position_at` it never returns `None`
+    /// for a `user-select: none` hit: it skips those candidates and snaps to
+    /// the closest selectable flow instead (so dragging a selection *over* a
+    /// `user-select: none` bar extends to the text beyond it rather than
+    /// collapsing). Scoped to the deepest hit element's subtree, escalating
+    /// up the ancestor chain until a subtree has selectable text. `None` only
+    /// when nothing selectable exists to snap to.
+    fn nearest_selectable_position(&self, x: u16, y: u16) -> Option<Position>;
 }
 
 impl HitTestExt for Dom<TuiExt> {
@@ -160,14 +171,19 @@ impl HitTestExt for Dom<TuiExt> {
         // a gap between blocks, above/below all content, or a non-IFC
         // container with text only in descendants. Browsers snap
         // `caretPositionFromPoint` (and drag-select) to the nearest text
-        // position rather than returning nothing, so resolve to the closest
-        // inline-flow target by vertical distance. Start scoped to the
-        // deepest hit element's subtree (so a Page-scrollport gap resolves
-        // within that page, not unrelated chrome) and escalate up the
-        // ancestor chain until a subtree has text — e.g. a hit landing in
-        // an empty sibling spacer climbs to the parent that also holds the
-        // prose. The search skips `user-select: none` candidates, so no
-        // separate gate is needed here.
+        // position rather than returning nothing.
+        self.nearest_selectable_position(x, y)
+    }
+
+    fn nearest_selectable_position(&self, x: u16, y: u16) -> Option<Position> {
+        // Resolve to the closest inline-flow target by vertical distance.
+        // Start scoped to the deepest hit element's subtree (so a Page-
+        // scrollport gap resolves within that page, not unrelated chrome) and
+        // escalate up the ancestor chain until a subtree has text — e.g. a hit
+        // landing in an empty sibling spacer, or on a `user-select: none` bar,
+        // climbs to the parent that also holds the prose. The search skips
+        // `user-select: none` candidates, so the snap never lands on chrome.
+        let path = self.hit_test_path(x, y);
         let mut scope = path.last().copied();
         loop {
             let id = scope.unwrap_or_else(|| self.root());

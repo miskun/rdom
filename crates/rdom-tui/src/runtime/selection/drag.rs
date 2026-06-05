@@ -37,7 +37,7 @@ use rdom_core::Selection;
 use crate::TuiDom;
 use crate::layout::UserSelect;
 use crate::node::is_descendant_or_self;
-use crate::render::inline::{InlineFlow, inline_flow_for_text, inline_flow_layout};
+use crate::render::inline::inline_flow_for_text;
 use crate::runtime::hit_test::HitTestExt;
 use crate::runtime::router::Router;
 use crate::runtime::selection::user_select;
@@ -105,13 +105,12 @@ pub(crate) fn begin(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) ->
 /// position. Returns `true` when the selection actually changed —
 /// caller uses it to request a redraw.
 ///
-/// `anchor_flow` is the inline-flow container the drag started in
-/// (kept by the router in `selection_drag`). When the cursor moves
-/// outside ANY element (or onto a non-text element), we still want
-/// to extend the selection within `anchor_flow` — browsers do this
-/// so dragging past the end of a line / past the bottom of a
-/// paragraph still selects up to the line's end / paragraph's end.
-pub(crate) fn extend(dom: &mut TuiDom, mouse: MouseEvent, anchor_flow: InlineFlow) -> bool {
+/// When the cursor moves outside any selectable text (onto a
+/// `user-select: none` bar, into a gap, or past end-of-line) the focus
+/// snaps to the nearest selectable position to the pointer via
+/// [`HitTestExt::nearest_selectable_position`] — browsers extend the
+/// selection past such regions rather than freezing or collapsing it.
+pub(crate) fn extend(dom: &mut TuiDom, mouse: MouseEvent) -> bool {
     let Some(sel) = dom.selection().copied() else {
         return false;
     };
@@ -125,13 +124,15 @@ pub(crate) fn extend(dom: &mut TuiDom, mouse: MouseEvent, anchor_flow: InlineFlo
     // Prefer the hit-tested position — it may land in a DIFFERENT
     // inline-flow container, which is correct for cross-paragraph
     // drag selection (browsers let the selection span multiple
-    // paragraphs). Only when no valid position exists anywhere on
-    // screen (e.g. cursor is outside any IFC) do we clamp to the
-    // anchor's nearest position so the user sees feedback for
-    // dragging past end-of-line.
+    // paragraphs). When the cursor is over non-selectable space —
+    // a `user-select: none` bar, a gap, past end-of-line — `position_at`
+    // yields nothing, so snap to the nearest SELECTABLE position to the
+    // POINTER (not the anchor flow): dragging up over a `user-select: none`
+    // chrome bar must extend to the text beyond it, not collapse the
+    // selection back into the anchor block far below the cursor.
     let raw_focus = match dom.position_at(mouse.column, mouse.row) {
         Some(p) => p,
-        None => match clamp_to_anchor_flow(dom, anchor_flow, mouse.column, mouse.row) {
+        None => match dom.nearest_selectable_position(mouse.column, mouse.row) {
             Some(p) => p,
             None => return false,
         },
@@ -157,86 +158,12 @@ pub(crate) fn extend(dom: &mut TuiDom, mouse: MouseEvent, anchor_flow: InlineFlo
     true
 }
 
-/// Compute the position inside `anchor_flow` nearest to `(x, y)`.
-/// Used by drag-extend when the cursor moves out of the anchor's
-/// inline-flow container (past end of line, off the bottom, etc.).
-fn clamp_to_anchor_flow(
-    dom: &TuiDom,
-    anchor_flow: InlineFlow,
-    x: u16,
-    y: u16,
-) -> Option<rdom_core::Position> {
-    let (layout, content) = inline_flow_layout(dom, anchor_flow)?;
-    if layout.lines.is_empty() {
-        return None;
-    }
-
-    // Decide the target line AND whether the y was clamped. A
-    // y-clamp dominates the x logic: dragging past the bottom of a
-    // multi-line block should anchor at the LAST line's END
-    // regardless of where x is on that line. Same for top.
-    let (line_idx, y_overshoot_down, y_overshoot_up) = if (y as i32) < content.y {
-        (0, false, true)
-    } else if (y as i32) >= content.y + content.height as i32 {
-        (layout.lines.len() - 1, true, false)
-    } else {
-        let raw = (y as i32 - content.y) as usize;
-        (raw.min(layout.lines.len() - 1), false, false)
-    };
-
-    let target_line = &layout.lines[line_idx];
-
-    // Empty target line → walk to the nearest non-empty line.
-    if target_line.fragments.is_empty() {
-        for line in layout.lines.iter().rev() {
-            if let Some(frag) = line.fragments.last() {
-                return Some(rdom_core::Position::new(
-                    frag.text_node,
-                    frag.source_byte_offset + frag.text.len(),
-                ));
-            }
-        }
-        return None;
-    }
-
-    let first = target_line.fragments.first().unwrap();
-    let last = target_line.fragments.last().unwrap();
-
-    // Y overshoot dominates: down → last line end, up → first line start.
-    if y_overshoot_down {
-        return Some(rdom_core::Position::new(
-            last.text_node,
-            last.source_byte_offset + last.text.len(),
-        ));
-    }
-    if y_overshoot_up {
-        return Some(rdom_core::Position::new(
-            first.text_node,
-            first.source_byte_offset,
-        ));
-    }
-
-    // In-bounds y: clamp on x. Past line end → end. Before line
-    // start → start. Middle gap (rare) → end.
-    let line_right = content.x + last.x as i32 + last.width as i32;
-    let line_left = content.x + first.x as i32;
-    if (x as i32) >= line_right {
-        Some(rdom_core::Position::new(
-            last.text_node,
-            last.source_byte_offset + last.text.len(),
-        ))
-    } else if (x as i32) < line_left {
-        Some(rdom_core::Position::new(
-            first.text_node,
-            first.source_byte_offset,
-        ))
-    } else {
-        Some(rdom_core::Position::new(
-            last.text_node,
-            last.source_byte_offset + last.text.len(),
-        ))
-    }
-}
+// `clamp_to_anchor_flow` retired: the no-position fallback now snaps to the
+// nearest *selectable* flow to the pointer via
+// `HitTestExt::nearest_selectable_position` (so dragging over a
+// `user-select: none` bar extends past it instead of collapsing back into the
+// anchor flow). The y-overshoot clamp it used lives in `position_at`'s
+// `clamp_to_line_layout`, shared by both the contained and nearest paths.
 
 /// Clear router drag state. Call from `mouseup` regardless of
 /// whether the up landed on text — the pointer capture is what
