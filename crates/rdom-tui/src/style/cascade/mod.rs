@@ -129,6 +129,15 @@ impl CascadeExt for Dom<TuiExt> {
     fn cascade_subtrees_all(&mut self, stylesheets: &[&Stylesheet], roots: &[NodeId]) {
         let merged_vars = walk::merge_root_vars(stylesheets);
         for &root in roots {
+            // A queued root can have been FREED between when it was marked
+            // dirty and now: dropping one child fires `ChildListChanged`, whose
+            // dirty-tracker handler marks every remaining sibling dirty (sibling
+            // selectors), and one of those siblings may itself be dropped later
+            // in the same teardown. A freed node has no subtree to cascade —
+            // skip it rather than dereferencing a reclaimed arena slot.
+            if !self.contains(root) {
+                continue;
+            }
             // Look up parent's computed style for inheritance. Root
             // has no parent, or the parent is a Fragment/root — use
             // initial in either case.

@@ -2202,6 +2202,36 @@ fn dropping_focused_node_in_handler_does_not_panic() {
     );
 }
 
+#[test]
+fn dropping_a_sibling_then_a_dirtied_sibling_does_not_panic() {
+    // Dropping one child fires `ChildListChanged`, whose dirty-tracker handler
+    // marks every *remaining* sibling dirty (so `:first-child` / `+` / `~`
+    // re-evaluate). If one of those freshly-marked siblings is then dropped in
+    // the same teardown, it becomes a freed node still queued as a cascade root
+    // — the next `draw_if_dirty` must not dereference it. (rdom-virtualtable's
+    // column chooser closing: drop the panel, then the tab; the panel-drop marks
+    // the tab dirty, then the tab is freed.)
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let host = dom.create_element("host");
+    dom.append_child(root, host).unwrap();
+    let a = dom.create_element("a");
+    dom.append_child(host, a).unwrap();
+    let b = dom.create_element("b");
+    dom.append_child(host, b).unwrap();
+
+    let mut app = test_app(dom, Stylesheet::new(), Rect::new(0, 0, 20, 5));
+    app.draw_if_dirty().unwrap(); // drain the create/append dirty roots
+
+    // Drop A → its ChildListChanged marks sibling B a dirty cascade root. Then
+    // drop B, freeing it while it's still queued.
+    app.dom_mut().drop_subtree(a).unwrap();
+    app.dom_mut().drop_subtree(b).unwrap();
+
+    app.draw_if_dirty().unwrap(); // must not panic on the freed B root
+    assert!(!app.dom().contains(b));
+}
+
 // ── PAINT-RELATIVE-ABSPOS-DOUBLE regression ─────────────────────────
 
 /// A `position:relative` cell with text, beside a sibling that goes
