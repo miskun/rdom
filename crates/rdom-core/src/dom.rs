@@ -56,6 +56,13 @@ pub struct Dom<Ext: 'static = ()> {
     /// `mouseup` (browser-faithful). No mutation record fires — this
     /// state doesn't affect cascade / selectors.
     pub(crate) pointer_capture: Option<NodeId>,
+    /// Opt-in flag for the active captured drag: when `true`, the backend
+    /// autoscrolls the nearest scroll container while the pointer dwells at its
+    /// edge (DRAG-AUTOSCROLL). A generic bool here keeps rdom-core
+    /// renderer-agnostic — the backend (rdom-tui) interprets it. Reset to
+    /// `false` whenever the capture changes or releases, so a plain capture (a
+    /// slider, a scrollbar drag) never autoscrolls unless it opts in.
+    pub(crate) drag_autoscroll: bool,
     /// Document-level text selection. `None` = nothing selected.
     /// Mutations fire `Mutation::SelectionChanged`. Paint observers
     /// use those records to refresh the `::selection` overlay.
@@ -89,6 +96,7 @@ impl<Ext: Default> Dom<Ext> {
             hovered: None,
             focused: None,
             pointer_capture: None,
+            drag_autoscroll: false,
             selection: None,
             observers: ObserverStore::default(),
             is_observing: false,
@@ -212,13 +220,37 @@ impl<Ext: 'static> Dom<Ext> {
     pub fn set_pointer_capture(&mut self, id: NodeId) -> crate::Result<()> {
         self.node_or_err(id)?;
         self.pointer_capture = Some(id);
+        // A fresh capture starts without autoscroll; the owner opts in
+        // explicitly via `set_drag_autoscroll(true)`. Resetting here means a
+        // scrollbar / slider capture never inherits a stale autoscroll flag.
+        self.drag_autoscroll = false;
         Ok(())
     }
 
     /// Release any active pointer capture. Idempotent — no-op when
-    /// nothing was captured.
+    /// nothing was captured. Also clears the drag-autoscroll opt-in.
     pub fn release_pointer_capture(&mut self) {
         self.pointer_capture = None;
+        self.drag_autoscroll = false;
+    }
+
+    /// Opt the active captured drag into edge autoscroll (DRAG-AUTOSCROLL):
+    /// while set, the backend scrolls the nearest scroll container as the
+    /// pointer dwells at its edge. Pair with
+    /// [`set_pointer_capture`](Self::set_pointer_capture) from a drag's
+    /// `mousedown` handler (the same handler should `prevent_default` so the
+    /// runtime's own text-selection/scrollbar defaults don't claim the drag).
+    /// Auto-cleared when the capture releases. No-op without an active capture.
+    pub fn set_drag_autoscroll(&mut self, on: bool) {
+        if self.pointer_capture.is_some() {
+            self.drag_autoscroll = on;
+        }
+    }
+
+    /// Whether the active captured drag opted into edge autoscroll. Read by the
+    /// backend each frame to decide whether to run the autoscroll phase.
+    pub fn drag_autoscroll(&self) -> bool {
+        self.drag_autoscroll
     }
 
     /// Set the document selection. `None` clears it.
@@ -347,6 +379,7 @@ impl<Ext: Default> Dom<Ext> {
             hovered: None,
             focused: None,
             pointer_capture: None,
+            drag_autoscroll: false,
             selection: None,
             observers: ObserverStore::default(),
             is_observing: false,
@@ -620,6 +653,36 @@ mod tests {
         dom.set_pointer_capture(a).unwrap();
         dom.set_pointer_capture(b).unwrap();
         assert_eq!(dom.pointer_capture(), Some(b));
+    }
+
+    #[test]
+    fn drag_autoscroll_defaults_off_and_needs_a_capture() {
+        let mut dom: Dom = Dom::new();
+        let a = dom.create_element("a");
+        assert!(!dom.drag_autoscroll(), "off by default");
+        // No-op without an active capture.
+        dom.set_drag_autoscroll(true);
+        assert!(!dom.drag_autoscroll(), "ignored with no capture");
+        // Opts in once captured.
+        dom.set_pointer_capture(a).unwrap();
+        dom.set_drag_autoscroll(true);
+        assert!(dom.drag_autoscroll());
+    }
+
+    #[test]
+    fn drag_autoscroll_clears_on_release_and_recapture() {
+        let mut dom: Dom = Dom::new();
+        let a = dom.create_element("a");
+        let b = dom.create_element("b");
+        dom.set_pointer_capture(a).unwrap();
+        dom.set_drag_autoscroll(true);
+        dom.release_pointer_capture();
+        assert!(!dom.drag_autoscroll(), "release clears the opt-in");
+        // A fresh capture starts without autoscroll (no stale flag).
+        dom.set_pointer_capture(a).unwrap();
+        dom.set_drag_autoscroll(true);
+        dom.set_pointer_capture(b).unwrap(); // replace → reset
+        assert!(!dom.drag_autoscroll(), "re-capture resets the opt-in");
     }
 
     // ── selection ────────────────────────────────────────────────────

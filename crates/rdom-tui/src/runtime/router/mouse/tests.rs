@@ -61,6 +61,67 @@ fn record(dom: &mut TuiDom, node: NodeId, event_type: &str, log: &Log) {
     .unwrap();
 }
 
+// ── pointer capture precedence (DRAG-AUTOSCROLL phase 1) ────────────
+
+#[test]
+fn consumer_capture_with_prevent_default_beats_text_selection() {
+    // A consumer that captures the pointer + prevent_defaults its mousedown
+    // claims the drag: the runtime's text-selection default never runs (so
+    // pointer_capture stays the consumer's node, not a text holder), the
+    // autoscroll opt-in sticks, and a subsequent drag routes to the consumer
+    // even when the cursor leaves its box.
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let host = dom.create_element("host");
+    let t = dom.create_text_node("selectable text here");
+    dom.append_child(host, t).unwrap();
+    dom.append_child(root, host).unwrap();
+    let sheet = Stylesheet::bare().rule_unchecked(
+        "host",
+        TuiStyle::new()
+            .width(Size::Fixed(20))
+            .height(Size::Fixed(1)),
+    );
+    prepare(&mut dom, &sheet, Rect::new(0, 0, 40, 5));
+
+    let log = log();
+    record(&mut dom, host, "mousemove", &log);
+    dom.add_event_listener(host, "mousedown", ListenerOptions::default(), move |ctx| {
+        ctx.dom.set_pointer_capture(host).unwrap();
+        ctx.dom.set_drag_autoscroll(true);
+        ctx.event.prevent_default(); // claim the drag; suppress text-selection
+    })
+    .unwrap();
+
+    let mut router = Router::new();
+    router.route(&mut dom, crossterm::event::Event::Mouse(down_at(2, 0)));
+    assert_eq!(
+        dom.pointer_capture(),
+        Some(host),
+        "consumer's capture stands — text-selection default was suppressed"
+    );
+    assert!(dom.drag_autoscroll(), "autoscroll opt-in stuck");
+    assert!(
+        dom.selection().is_none(),
+        "no text-selection caret was started"
+    );
+
+    // A drag far outside the host still routes a mousemove to it (capture).
+    router.route(
+        &mut dom,
+        crossterm::event::Event::Mouse(mouse_at(MouseEventKind::Drag(MouseButton::Left), 35, 4)),
+    );
+    assert!(
+        log.borrow().iter().any(|(_, ty)| ty == "mousemove"),
+        "captured drag routes mousemove to the owner outside its box"
+    );
+
+    // mouseup releases capture + the autoscroll flag.
+    router.route(&mut dom, crossterm::event::Event::Mouse(up_at(35, 4)));
+    assert_eq!(dom.pointer_capture(), None, "mouseup releases capture");
+    assert!(!dom.drag_autoscroll(), "release clears autoscroll");
+}
+
 // ── scroll (M5 D5) ──────────────────────────────────────────────────
 
 #[test]

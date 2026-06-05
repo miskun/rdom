@@ -13,11 +13,18 @@ yet; Phase order below.
   cell**, not `closest("td")`. The substrate's job is the tick + scroll + a faithful synthetic move
   carrying coords; the consumer maps+clamps. Text selection gets it ~free (runtime clamps to the
   nearest text position). See N2 + "Consumer autoscroll contract."
-- **`event.target` under capture = the element actually under the pointer** (not the capture node) —
-  a documented divergence from the DOM, because every consumer wants the real position. See N2.
+- **`event.target` under capture stays DOM-standard** (the captured node). v2 proposed a divergence
+  (target = under-pointer); it's unnecessary since drags read coords, not `target`. See N2.
 - **The autoscroll tick is a built-in event-loop phase woken by a timer, not a user `set_interval`**
   (it needs router + relayout + dispatch, which `TimerCtx` can't do). See N3.
 - **Phase-0 gate sharpened** to a concrete `pump_one_autoscroll_tick()` headless hook. See N4.
+
+**Implementation notes (after Phases 0–1):** the substrate was further along than the design
+assumed — pointer capture already lived in `rdom-core` (used by scrollbar + text selection),
+`Event.is_synthetic`/`with_synthetic` already existed, and the scheduler clock was already virtual.
+So Phase 0 = a deterministic `App::advance(ms)`; Phase 1 = just the `Dom::drag_autoscroll` flag +
+confirming the `prevent_default` precedence. No `EventCtx`/App reach-through was needed; capture +
+precedence pre-existed. The phase descriptions below reflect this.
 
 **v2 changes (first review):** decoupled capture from autoscroll (capture default, autoscroll
 opt-in); unified single-owner capture + precedence; specified the per-tick mini-frame and its
@@ -101,26 +108,32 @@ enum PointerCapture {
   lands off any element — that's the point of capture. (Confirm the router delivers a release the
   terminal reports outside all element rects; if not, that's a Phase-1 fix, not an open question.)
 
-**Where the state lives (N1 — the `SHOWCASE-EVT-1` wall).** `EventCtx` holds only `&mut Dom`
-(`dispatch.rs:63`) — it cannot touch `rdom-tui`'s router. But `setPointerCapture` *is* a DOM API, so
-**the capture state lives in `rdom-core`'s dispatch state**, where `EventCtx` can set it. It carries:
-the owner (`TextSelection | Scrollbar | Element{node}`) **and a generic `autoscroll: bool` flag**.
-`rdom-core` stays renderer-agnostic — it stores a bool, nothing about scrolling. `rdom-tui`'s loop
-*reads* this state each frame: it routes captured pointer events to the owner and, when
-`autoscroll` is set, runs the autoscroll phase. That split is how a `Dom`-only event handler arms
-both capture and autoscroll without reaching the App — the drag slice of `SHOWCASE-EVT-1`. (The
-router's existing `selection_drag`/`scrollbar_drag` collapse into reading this one rdom-core owner.)
+**Where the state lives — IMPLEMENTED (N1, simpler than feared).** Pointer capture already lives in
+`rdom-core` on the `Dom`: `set_pointer_capture` / `pointer_capture` / `release_pointer_capture` are
+public (`dom.rs`), already used by scrollbar drag *and* text selection (`selection::drag::begin`
+calls `set_pointer_capture`), and auto-released on `mouseup`. So `setPointerCapture` is already the
+single capture slot, and a `Dom`-only `EventCtx` already reaches it (`ctx.dom.set_pointer_capture`).
+Phase 1 adds one thing: a generic **`drag_autoscroll: bool`** on the `Dom` (+
+`set_drag_autoscroll` / `drag_autoscroll`), reset on every capture change and on release.
+`rdom-core` stays renderer-agnostic — it stores a bool; `rdom-tui`'s loop reads `dom.drag_autoscroll()`
+to decide whether to run the autoscroll phase. No new `EventCtx` methods, no App reach-through — the
+`SHOWCASE-EVT-1` wall was never actually in the way for capture.
 
-**`event.target` under capture (N2).** For both real and synthetic captured moves, `target` is **the
-element actually under the pointer** (the hit-tested node), *not* the capture node. This **diverges
-from the DOM** (which retargets to the capture element), deliberately: every rdom consumer wants the
-real pointer position, and root-delegated handlers need it. Capture only forces *delivery* (the
-owner's listener chain always runs) and the `mouseup` guarantee — it does not rewrite `target`.
+**Precedence — IMPLEMENTED via the existing `prevent_default` gate (B2).** `handle_down` runs its
+defaults (scrollbar hit → focus → `selection::drag::begin`) **only when the mousedown wasn't
+`prevent_default`ed** (`router/mouse/mod.rs:124`). So a consumer that captures in its mousedown
+handler **and calls `prevent_default`** owns the drag — the runtime's text-selection/scrollbar
+defaults never run, and its capture stands. No router refactor and no `selection_drag` unification
+needed: `dom.pointer_capture` is the one owner; `selection_drag`/`scrollbar_drag` are per-kind
+extend-state riding alongside it. (Pinned by `consumer_capture_with_prevent_default_beats_text_selection`.)
 
-**Supersede side effects (N5).** The table sets `user-select: none`, so `selection::drag::begin`
-won't arm a text-selection capture on its cells — the "consumer supersedes text-selection" path is
-rarely hit there. Where it *is* (selectable content that also captures), superseding must cancel the
-selection-begin's caret/collapse side effects, not just reroute future moves.
+**`event.target` under capture — stays DOM-standard (N2 revised).** The existing captured-move path
+dispatches with `target = the captured node` (DOM-standard). The v2 doc proposed a divergence
+(target = under-pointer); it's **unnecessary** — the consumer contract has drags read **coords**, not
+`target`, so target semantics don't matter to a drag. Left as-is.
+
+**N5 (moot here).** The grid sets `user-select: none` AND `prevent_default`s, so the runtime's
+text-selection default never arms on its cells — the supersede path isn't exercised.
 
 Public API (on `EventCtx`, `crates/rdom-core/src/dispatch.rs:63`):
 
@@ -284,14 +297,15 @@ scrollable `<tbody>`) is fully covered.
 
 ## Implementation phases (re-sequenced grid-first — resolves S3)
 
-0. **Gate:** build/expose the headless `pump_one_autoscroll_tick()` hook (test plan above). Blocks
-   Phase 2.
-1. **Pointer capture API + unified owner.** Put the capture state (owner + `autoscroll` flag) in
-   **`rdom-core` dispatch**; surface `set_pointer_capture` / `release_pointer_capture` on `EventCtx`;
-   `event.target` stays the under-pointer element (documented divergence); collapse the router's
-   `selection_drag` / `scrollbar_drag` into *reading* the one rdom-core owner with the decided
-   precedence; guarantee `mouseup`-to-owner. **No autoscroll yet.** `DIVERGENCES` + tests.
-   (Independently useful — sliders, drag handles.)
+0. **Gate — DONE.** `App::advance(ms)` advances the virtual scheduler clock + services due
+   timers/microtasks/rAF headless and deterministically (the scheduler clock was already virtual).
+   Pinned by `advance_drives_a_scheduler_interval_deterministically`.
+1. **Pointer capture — DONE.** Capture already lived in `rdom-core` on the `Dom`; added the generic
+   `drag_autoscroll: bool` (+ `set_drag_autoscroll`/`drag_autoscroll`, reset on capture change +
+   release). Precedence is the existing `prevent_default` gate — a consumer that captures +
+   `prevent_default`s its mousedown owns the drag. `event.target` stays DOM-standard. No router
+   refactor, no new `EventCtx` methods. Pinned by `drag_autoscroll_*` (rdom-core) +
+   `consumer_capture_with_prevent_default_beats_text_selection` (rdom-tui).
 2. **Drag autoscroll** + `enable_drag_autoscroll`: the armed-interval tick (the 6-step contract),
    edge-zone dwell detection (innermost container, no chaining), synthetic-event contract incl.
    `MouseDetail.synthetic` + `mouseout`/`mouseover`, re-entrancy guards, fake-clock tests.
