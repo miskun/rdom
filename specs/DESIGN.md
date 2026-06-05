@@ -94,7 +94,7 @@ The work that fed into 0.1.0 was organized in five internal milestones (M1 CSS p
 |---|---|---|
 | **0.2.0** | Three workstreams bundled (see [`SHOWCASE.md`](SHOWCASE.md)): **`rdom-showcase`** (in-tree TUI app touring every primitive), the **event surface bundle** (`dblclick`, `contextmenu`, `keyup`, `mousemove`, `scroll`, `resize`), and the **`calc()` value system**. Plus BFC, native ARIA tree, multi-slot stylesheets, layered border model. | ✅ Released 2026-06-02 |
 | **0.3.0** | **Substrate honesty** — the seven friction points the first downstream consumer hit (geometry setters drive layout, repaint-from-listeners, arena ergonomics). Routing slid out to 0.4.0. | ✅ Released 2026-06-02 |
-| **0.3.1 – 0.3.12** | Divergent `rdom-tui`-only patch releases, mostly driven by the `rdom-virtualtable` consumer: focus/`:where()`/`drop_subtree` fixes, table column-sizing, layout stale-state, half-block borders, **drag-autoscroll** + its robustness/selection-precision follow-ups. See [`../CHANGELOG.md`](../CHANGELOG.md) + [`../STATE.md`](../STATE.md). | ✅ through 0.3.11; 0.3.12 prepared |
+| **0.3.1 – 0.3.12** | Divergent `rdom-tui`-only patch releases, mostly driven by the `rdom-virtualtable` consumer: focus/`:where()`/`drop_subtree` fixes, table column-sizing, layout stale-state, half-block borders, **drag-autoscroll** + its robustness/selection-precision follow-ups. See [`../CHANGELOG.md`](../CHANGELOG.md) + [`../STATE.md`](../STATE.md). | ✅ Released (latest 0.3.12, 2026-06-05) |
 | **0.4.0** | Client-side routing primitive. | Planned |
 | **0.5.0** | Async tasks during event handlers. | Planned |
 
