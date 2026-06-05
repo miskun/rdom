@@ -310,7 +310,16 @@ fn paint_lines(
                 &fragment.text
             };
 
-            buf.set_stringn(start_x, line_y as u16, text_to_paint, max_width, style);
+            // Route through `paint_text` so painted content occludes any
+            // border the joiner would re-derive beneath it (z-aware borders).
+            paint_text(
+                buf,
+                start_x,
+                line_y as u16,
+                budget_right,
+                text_to_paint,
+                style,
+            );
 
             if let Some(href) = anchor_href_for(dom, fragment.node) {
                 let written_cells = text_to_paint
@@ -544,7 +553,16 @@ fn paint_inline_layout(
                 &fragment.text
             };
 
-            buf.set_stringn(start_x, line_y as u16, text_to_paint, max_width, style);
+            // Route through `paint_text` so painted content occludes any
+            // border the joiner would re-derive beneath it (z-aware borders).
+            paint_text(
+                buf,
+                start_x,
+                line_y as u16,
+                budget_right,
+                text_to_paint,
+                style,
+            );
 
             // Polish #9: tag this fragment's cells with the
             // enclosing `<a href>`'s URL, if any. The fragment's

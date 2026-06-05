@@ -28,6 +28,16 @@ pub(super) fn paint_text(
     let max_width = budget_right - x;
     let text_width = UnicodeWidthStr::width(text).min(max_width as usize) as u16;
     let _end = buf.set_stringn(x, base_y, text, max_width, style);
+    // z-aware borders: painted content occludes any border the joiner would
+    // otherwise re-derive at these cells. Paint runs in stacking order and the
+    // joiner runs last, so clearing here means a higher element's content wins
+    // over a lower element's border beneath it — matching CSS paint order
+    // (content paints above the box's own border). Borders added *after* this
+    // paint (higher elements) are untouched, so a higher border still shows
+    // over lower content. Mirrors the opaque-`fill_bg` occlusion.
+    for cx in x..x.saturating_add(text_width) {
+        buf.clear_border_at(cx, base_y);
+    }
     x + text_width
 }
 

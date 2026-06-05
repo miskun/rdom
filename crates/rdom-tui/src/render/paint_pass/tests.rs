@@ -3590,6 +3590,141 @@ fn half_block_left_right_on_a_one_row_box() {
 }
 
 #[test]
+fn half_block_lone_ring_renders_soft_pill() {
+    // Regression: a lone half-block ring must keep its soft-pill silhouette —
+    // quadrant corners `▗▖▝▘` and half-block edges `▄▀▐▌`. The quadrant-join
+    // model must reproduce this exactly (it's the basis the welds extend).
+    use crate::layout::{Border, BorderStyle, Size};
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let d = dom.create_element("d");
+    dom.append_child(root, d).unwrap();
+    let sheet = Stylesheet::bare().rule_unchecked(
+        "d",
+        TuiStyle::new()
+            .width(Size::Fixed(4))
+            .height(Size::Fixed(3))
+            .border(Border::ring(BorderStyle::HalfBlock)),
+    );
+    let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 8, 4));
+    assert_eq!(
+        row(&buf, 0).trim_end(),
+        "▗▄▄▖",
+        "top: corners + lower-half edge"
+    );
+    assert_eq!(buf.cell(0, 1).unwrap().symbol(), "▐", "left edge mid");
+    assert_eq!(buf.cell(3, 1).unwrap().symbol(), "▌", "right edge mid");
+    assert_eq!(
+        row(&buf, 2).trim_end(),
+        "▝▀▀▘",
+        "bottom: corners + upper-half edge"
+    );
+}
+
+#[test]
+fn half_block_tab_welds_into_panel() {
+    // A half-block "tab" box overlapping a half-block panel by one row welds into
+    // one tab-panel outline: the joiner unions each cell's inward quadrants. The
+    // weld row becomes `▗▄▄▄▄▟█▌` — panel corner/edge, then `▟` (tab bottom-left
+    // corner ∪ panel top edge), `█` (tab bottom ∪ panel top), `▌` (tab
+    // bottom-right corner ∪ panel top-right corner). (rdom-virtualtable chip.)
+    use crate::layout::{Border, BorderStyle, Length, Position, Size};
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let host = dom.create_element("host");
+    let mut hs = TuiStyle::new();
+    hs.position = Some(Value::Specified(Position::Relative));
+    dom.node_mut(host).set_inline_style(hs);
+    dom.append_child(root, host).unwrap();
+
+    // Panel: full half-block ring, x0-7, y1-4.
+    let panel = dom.create_element("panel");
+    let mut ps = TuiStyle::new()
+        .width(Size::Fixed(8))
+        .height(Size::Fixed(4))
+        .border(Border::ring(BorderStyle::HalfBlock));
+    ps.position = Some(Value::Specified(Position::Absolute));
+    ps.left = Some(Value::Specified(Length::Cells(0)));
+    ps.top = Some(Value::Specified(Length::Cells(1)));
+    dom.node_mut(panel).set_inline_style(ps);
+    dom.append_child(host, panel).unwrap();
+
+    // Tab: left+right+bottom half-block, x5-7, y0-1 (bottom row overlaps panel top).
+    let tab = dom.create_element("tab");
+    let mut ts = TuiStyle::new()
+        .width(Size::Fixed(3))
+        .height(Size::Fixed(2))
+        .border(Border {
+            left: BorderStyle::HalfBlock,
+            right: BorderStyle::HalfBlock,
+            bottom: BorderStyle::HalfBlock,
+            ..Border::none()
+        });
+    ts.position = Some(Value::Specified(Position::Absolute));
+    ts.left = Some(Value::Specified(Length::Cells(5)));
+    ts.top = Some(Value::Specified(Length::Cells(0)));
+    dom.node_mut(tab).set_inline_style(ts);
+    dom.append_child(host, tab).unwrap();
+
+    let buf = pipeline(&mut dom, &Stylesheet::new(), Rect::new(0, 0, 10, 6));
+    assert_eq!(
+        row(&buf, 1).trim_end(),
+        "▗▄▄▄▄▟█▌",
+        "welded tab-panel top row"
+    );
+}
+
+#[test]
+fn higher_z_content_occludes_a_lower_border() {
+    // z-aware borders: a higher-z element's painted CONTENT paints over a lower
+    // element's border, the way CSS stacking works — not the other way round.
+    // The joiner runs last and re-derives border cells; without occlusion it
+    // would stomp the overlay's glyphs. Covers both solid and half-block.
+    use crate::layout::{Border, BorderStyle, Length, Position, Size, ZIndex};
+    for style in [BorderStyle::Solid, BorderStyle::HalfBlock] {
+        let mut dom = TuiDom::new();
+        let root = dom.root();
+        // Borderless relative host so absolute children anchor at (0,0).
+        let host = dom.create_element("host");
+        let mut hs = TuiStyle::new();
+        hs.position = Some(Value::Specified(Position::Relative));
+        dom.node_mut(host).set_inline_style(hs);
+        dom.append_child(root, host).unwrap();
+
+        // Lower box: a bordered ring at (0,0).
+        let boxa = dom.create_element("boxa");
+        let mut as_ = TuiStyle::new()
+            .width(Size::Fixed(5))
+            .height(Size::Fixed(3))
+            .border(Border::ring(style));
+        as_.position = Some(Value::Specified(Position::Absolute));
+        as_.left = Some(Value::Specified(Length::Cells(0)));
+        as_.top = Some(Value::Specified(Length::Cells(0)));
+        dom.node_mut(boxa).set_inline_style(as_);
+        dom.append_child(host, boxa).unwrap();
+
+        // Higher-z sibling painting "OOOOO" over box A's TOP border row (y0).
+        let over = dom.create_element("over");
+        let ot = dom.create_text_node("OOOOO");
+        dom.append_child(over, ot).unwrap();
+        let mut os = TuiStyle::new().width(Size::Fixed(5)).height(Size::Fixed(1));
+        os.position = Some(Value::Specified(Position::Absolute));
+        os.top = Some(Value::Specified(Length::Cells(0)));
+        os.left = Some(Value::Specified(Length::Cells(0)));
+        os.z_index = Some(Value::Specified(ZIndex::Value(99)));
+        dom.node_mut(over).set_inline_style(os);
+        dom.append_child(host, over).unwrap();
+
+        let buf = pipeline(&mut dom, &Stylesheet::new(), Rect::new(0, 0, 8, 4));
+        assert_eq!(
+            row(&buf, 0).trim_end(),
+            "OOOOO",
+            "higher-z content must occlude the {style:?} border beneath it"
+        );
+    }
+}
+
+#[test]
 fn pseudo_before_after_on_text_only_block_paints_once() {
     // TREE-BFC-PSEUDO-1 (text-only variant): an element with a direct text run
     // plus `::before` / `::after` content must paint "[X]" — not duplicate the

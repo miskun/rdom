@@ -156,6 +156,14 @@ pub const DIR_E: usize = 1;
 pub const DIR_S: usize = 2;
 pub const DIR_W: usize = 3;
 
+/// Quadrant bits for the half-block inward-quadrant accumulator
+/// (`Buffer::half_block_quads`). A cell's filled region is the union of
+/// these across every contributing half-block border.
+pub const QUAD_TL: u8 = 0b0001;
+pub const QUAD_TR: u8 = 0b0010;
+pub const QUAD_BL: u8 = 0b0100;
+pub const QUAD_BR: u8 = 0b1000;
+
 /// 2D grid of cells.
 ///
 /// `Eq` is intentionally omitted because `compose_alpha: f32`
@@ -176,6 +184,15 @@ pub struct Buffer {
     /// The joiner reads each direction's winner to derive the final
     /// junction glyph + color (BORDER-MODEL-1).
     pub border_dirs: Vec<BorderCell>,
+    /// Per-cell inward-quadrant accumulator for half-block borders. Each
+    /// `u8` is a 4-bit set — `QUAD_TL|QUAD_TR|QUAD_BL|QUAD_BR` — of the
+    /// quadrants a half-block border fills at that cell, OR-ed across every
+    /// contributing element. `paint_border` writes a box's inward quadrants
+    /// (corner → one quadrant, edge → a half); the joiner unions them and
+    /// emits the matching block glyph. This is what lets two half-block
+    /// borders *weld* (a tab onto a panel → `▟ █ ▌`) instead of falling back
+    /// to box-drawing T-junctions — see `border_join::HALF_BLOCK_QUAD_TABLE`.
+    pub half_block_quads: Vec<u8>,
     /// Compose context — alpha applied to every cell write while
     /// active. `1.0` (the default) is the no-compose fast path.
     /// Set by `paint_node` via `enter_compose_ctx` before painting
@@ -213,6 +230,7 @@ impl Buffer {
             area,
             content: vec![cell; len],
             border_dirs: vec![BorderCell::default(); len],
+            half_block_quads: vec![0u8; len],
             compose_alpha: 1.0,
             compose_parent_bg: Color::Reset,
         }
@@ -233,6 +251,7 @@ impl Buffer {
             area,
             content: cells,
             border_dirs: vec![BorderCell::default(); len],
+            half_block_quads: vec![0u8; len],
             compose_alpha: 1.0,
             compose_parent_bg: Color::Reset,
         }
@@ -347,6 +366,45 @@ impl Buffer {
         self.content.fill(Cell::EMPTY);
         for dir in &mut self.border_dirs {
             *dir = BorderCell::default();
+        }
+        self.half_block_quads.fill(0);
+    }
+
+    /// OR `quads` into the half-block inward-quadrant accumulator at
+    /// `(x, y)`. Out-of-bounds writes silently no-op. Welding is just
+    /// the union of every contributing element's inward quadrants.
+    pub fn add_half_block_quads(&mut self, x: u16, y: u16, quads: u8) {
+        if let Some(i) = self.index_of(x, y) {
+            self.half_block_quads[i] |= quads;
+        }
+    }
+
+    /// Read the accumulated half-block quadrants at `(x, y)`. `0` for
+    /// out-of-bounds or cells with no half-block border.
+    pub fn half_block_quads_at(&self, x: u16, y: u16) -> u8 {
+        self.index_of(x, y)
+            .map(|i| self.half_block_quads[i])
+            .unwrap_or(0)
+    }
+
+    /// Clear the half-block quadrants at `(x, y)`. Used by opaque
+    /// content paint (bg/glyph) to occlude an underlying half-block
+    /// border, matching `set_border_dir`'s direction-state clear.
+    pub fn clear_half_block_quads(&mut self, x: u16, y: u16) {
+        if let Some(i) = self.index_of(x, y) {
+            self.half_block_quads[i] = 0;
+        }
+    }
+
+    /// Clear ALL border state at `(x, y)` — every direction's contribution
+    /// plus the half-block quadrants. Used by content paint to occlude a
+    /// lower element's border beneath it (z-aware borders): the joiner runs
+    /// last, so a cleared cell won't have a border re-derived over the
+    /// content.
+    pub fn clear_border_at(&mut self, x: u16, y: u16) {
+        if let Some(i) = self.index_of(x, y) {
+            self.border_dirs[i] = BorderCell::default();
+            self.half_block_quads[i] = 0;
         }
     }
 
