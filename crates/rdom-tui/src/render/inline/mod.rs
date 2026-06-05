@@ -354,6 +354,26 @@ fn walk_subtree(dom: &Dom<TuiExt>, id: NodeId, packer: &mut LinePacker) {
                 }
             }
             NodeType::Element => {
+                use crate::layout::Position;
+                let (display, position) = child
+                    .ext()
+                    .and_then(|e| e.computed.as_ref())
+                    .map(|c| (c.display, c.position))
+                    .unwrap_or((Display::Block, Position::Static));
+                // Out-of-flow descendants contribute nothing to the
+                // inline formatting context: `display: none` generates
+                // no box, and `position: absolute|fixed` boxes are
+                // placed independently by phase-2 positioning. Skipping
+                // them keeps their text out of an ancestor's inline run
+                // — e.g. a collapsed tree branch (`[role=group]` set to
+                // `display: none`) must not leak "hidden-child" into the
+                // parent treeitem's text, and a chip with an absolutely-
+                // positioned dropdown must pack only the chip's own text.
+                if display == Display::None
+                    || matches!(position, Position::Absolute | Position::Fixed)
+                {
+                    continue;
+                }
                 // <br> is a hard break. Matches HTML's baked-in
                 // behavior; recognized by tag name rather than by a
                 // Display variant to avoid complicating the cascade
@@ -369,11 +389,6 @@ fn walk_subtree(dom: &Dom<TuiExt>, id: NodeId, packer: &mut LinePacker) {
                 // and paint renders the box's content (including
                 // UA pseudos like `<button>`'s `[ ]`) via the
                 // regular inline-content path at that rect.
-                let display = child
-                    .ext()
-                    .and_then(|e| e.computed.as_ref())
-                    .map(|c| c.display)
-                    .unwrap_or(Display::Block);
                 if matches!(display, Display::InlineBlock) {
                     let intrinsic = atomic_inline_block_intrinsic_width(dom, child.id());
                     packer.push_atomic_inline_block(child.id(), intrinsic);

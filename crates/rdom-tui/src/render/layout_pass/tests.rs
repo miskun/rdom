@@ -408,6 +408,44 @@ fn auto_text_cjk_is_two_cells_each() {
 }
 
 #[test]
+fn auto_text_ignores_out_of_flow_child_text_for_intrinsic_width() {
+    // A text-leaf element whose only element child is absolutely
+    // positioned (e.g. a chip with an absolute dropdown) must size to
+    // its OWN text, not its text plus the out-of-flow child's text.
+    // CSS: out-of-flow boxes don't contribute to their containing
+    // block's in-flow content extent, so they must not inflate the
+    // parent's max-content width. Regression guard for the inline
+    // intrinsic walk leaking hidden/absolute descendant text.
+    let mut dom = tui_dom();
+    let root = dom.root();
+    let r = dom.create_element("r");
+    let chip = dom.create_element("span");
+    let label = dom.create_text_node("…"); // width 1
+    dom.append_child(chip, label).unwrap();
+    let drop = dom.create_element("div");
+    let long = dom.create_text_node("a very long dropdown panel of choices");
+    dom.append_child(drop, long).unwrap();
+    dom.append_child(chip, drop).unwrap();
+    dom.append_child(r, chip).unwrap();
+    dom.append_child(root, r).unwrap();
+
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "r",
+            TuiStyle::new().flow(Flow::Flex).direction(Direction::Row),
+        )
+        .rule_unchecked(
+            "div",
+            TuiStyle::new().position(crate::layout::Position::Absolute),
+        );
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 50, 5));
+    // chip is Auto in a Row parent → main = intrinsic = width of "…" (1),
+    // NOT 1 + width of the absolutely-positioned dropdown's text.
+    assert_eq!(layout_rect_of(&dom, chip).width, 1);
+}
+
+#[test]
 fn auto_nested_element_recursive_fit() {
     let mut dom = tui_dom();
     let root = dom.root();

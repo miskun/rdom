@@ -54,6 +54,22 @@ pub(super) fn paint_inline_content(
     buf: &mut Buffer,
     clip: Rect,
 ) {
+    // Mixed content (a direct text run AND in-flow block children): the own
+    // text run lives in an anonymous block, painted by `paint_anonymous_blocks`.
+    // This Path-4 pass would paint the own text a SECOND time (at a different x
+    // once `::before` shifts it), duplicating the tail — `<li>Label<ul>` →
+    // "Labelel". So bail when anonymous blocks exist; the anon-block pass owns
+    // the inline content. (TREE-BFC-PSEUDO-1. `::before`/`::after` on a
+    // mixed-content block don't render yet — they'd need to be folded into the
+    // first/last anon block as reserved fragments; tracked separately.)
+    if dom
+        .node(id)
+        .ext()
+        .is_some_and(|e| !e.anonymous_blocks.is_empty())
+    {
+        return;
+    }
+
     // Path 1: chrome substitution. Always a single row by construction.
     let avail_single_row = inner.width;
     let chrome = if let Some((bar, color)) =

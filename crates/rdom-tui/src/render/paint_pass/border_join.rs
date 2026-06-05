@@ -314,8 +314,25 @@ fn half_block_glyph(cell_state: &[BorderDirState; 4], mask: u8) -> &'static str 
         0b0011 => "▝",
         // N+W — bottom-right corner.
         0b1001 => "▘",
-        // Single-bit cells, T-junctions, all-four: no half-block
-        // glyph — HalfBlock is for the lone-element ring case.
+        // Single N or S — a one-cell vertical edge: a 1-row box, or a
+        // left/right edge cell at the buffer/clip boundary where the
+        // perpendicular neighbor was dropped (`off_buffer`). The half-block
+        // glyph is self-contained — it doesn't need a neighbor to join with —
+        // so a lone vertical edge still renders `▐` / `▌` (PAINT-HALFBLOCK-1ROW-1).
+        0b0001 | 0b0100 => match side(DIR_N).or_else(|| side(DIR_S)) {
+            Some(BorderSide::Left) => "▐",
+            Some(BorderSide::Right) => "▌",
+            _ => "",
+        },
+        // Single E or W — a one-cell horizontal edge (1-column box, or a
+        // top/bottom edge cell at the buffer/clip boundary).
+        0b0010 | 0b1000 => match side(DIR_E).or_else(|| side(DIR_W)) {
+            Some(BorderSide::Top) => "▄",
+            Some(BorderSide::Bottom) => "▀",
+            _ => "",
+        },
+        // T-junctions, all-four: no half-block glyph — HalfBlock is for the
+        // lone-element ring case.
         _ => "",
     }
 }

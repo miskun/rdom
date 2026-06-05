@@ -130,7 +130,16 @@ pub(super) fn layout_children(
         .node(id)
         .child_nodes()
         .any(|c| c.node_type() == rdom_core::NodeType::Text);
-    if has_text_child && element_children_of(dom, id).is_empty() {
+    // Only *in-flow* element children disqualify the pure-text-leaf path:
+    // out-of-flow children (`position: absolute|fixed`) don't participate in the
+    // block/inline mix, so a "text + an absolutely-positioned child" element
+    // (e.g. a chip with an absolute dropdown) is still a text leaf — it must use
+    // its own `inline_layout` (so `::before`/`::after` + own text paint once via
+    // Path 3, not duplicated by an anonymous block; see TREE-BFC-PSEUDO-1).
+    let no_in_flow_element_children = element_children_of(dom, id)
+        .iter()
+        .all(|&c| !super::is_in_flow(dom, c));
+    if has_text_child && no_in_flow_element_children {
         let inline_layout = compute_inline_layout(dom, id, container.width);
         if let Some(ext) = dom.node_mut(id).ext_mut() {
             ext.inline_layout = Some(inline_layout);

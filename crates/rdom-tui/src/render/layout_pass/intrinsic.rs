@@ -395,6 +395,7 @@ pub(super) fn border_main_cost(computed: &ComputedStyle, direction: Direction) -
 /// children. Used as the intrinsic max-content width for IFC blocks.
 pub(super) fn inline_content_width(dom: &Dom<TuiExt>, id: NodeId) -> u16 {
     fn walk(dom: &Dom<TuiExt>, id: NodeId, acc: &mut u32) {
+        use crate::layout::{Display, Position};
         for child in dom.node(id).child_nodes() {
             match child.node_type() {
                 NodeType::Text => {
@@ -402,6 +403,25 @@ pub(super) fn inline_content_width(dom: &Dom<TuiExt>, id: NodeId) -> u16 {
                     *acc = acc.saturating_add(UnicodeWidthStr::width(text) as u32);
                 }
                 NodeType::Element => {
+                    // Out-of-flow descendants (`display: none`,
+                    // `position: absolute|fixed`) generate no in-flow box
+                    // and so add nothing to their ancestor's max-content
+                    // inline width. Skip them — otherwise a text-leaf with
+                    // an absolutely-positioned child (e.g. a chip with an
+                    // absolute dropdown) inflates its intrinsic width by
+                    // the hidden child's text. Mirrors the same filter in
+                    // `intrinsic_element` and the IFC walk in
+                    // `render::inline::walk_subtree`.
+                    let (display, position) = child
+                        .ext()
+                        .and_then(|e| e.computed.as_ref())
+                        .map(|c| (c.display, c.position))
+                        .unwrap_or((Display::Block, Position::Static));
+                    if display == Display::None
+                        || matches!(position, Position::Absolute | Position::Fixed)
+                    {
+                        continue;
+                    }
                     walk(dom, child.id(), acc);
                 }
                 _ => {}

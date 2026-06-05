@@ -3560,3 +3560,134 @@ fn text_decoration_line_through_paints_crossed_out_modifier_on_cells() {
         );
     }
 }
+
+#[test]
+fn half_block_left_right_on_a_one_row_box() {
+    // PAINT-HALFBLOCK-1ROW-1: a height-1 box with half-block left/right borders
+    // (no top/bottom) should still paint `▐` / `▌` on its side cells — the
+    // vertical edge is a single cell. (rdom-virtualtable's column-chooser chip.)
+    use crate::layout::{Border, BorderStyle, Size};
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let d = dom.create_element("d");
+    let t = dom.create_text_node("x");
+    dom.append_child(d, t).unwrap();
+    dom.append_child(root, d).unwrap();
+    let sheet = Stylesheet::bare().rule_unchecked(
+        "d",
+        TuiStyle::new()
+            .width(Size::Fixed(3))
+            .height(Size::Fixed(1))
+            .border(Border {
+                left: BorderStyle::HalfBlock,
+                right: BorderStyle::HalfBlock,
+                ..Border::none()
+            }),
+    );
+    let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 10, 3));
+    assert_eq!(buf.cell(0, 0).unwrap().symbol(), "▐", "left edge");
+    assert_eq!(buf.cell(2, 0).unwrap().symbol(), "▌", "right edge");
+}
+
+#[test]
+fn pseudo_before_after_on_text_only_block_paints_once() {
+    // TREE-BFC-PSEUDO-1 (text-only variant): an element with a direct text run
+    // plus `::before` / `::after` content must paint "[X]" — not duplicate the
+    // own text. (rdom-virtualtable's column-chooser chip: ▐…▌ came out ……▌.)
+    use crate::layout::Size;
+    use crate::style::Content;
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let d = dom.create_element("d");
+    let t = dom.create_text_node("X");
+    dom.append_child(d, t).unwrap();
+    dom.append_child(root, d).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "d",
+            TuiStyle::new().width(Size::Fixed(3)).height(Size::Fixed(1)),
+        )
+        .rule_unchecked(
+            "d::before",
+            TuiStyle::new().content(Content::Str("[".into())),
+        )
+        .rule_unchecked(
+            "d::after",
+            TuiStyle::new().content(Content::Str("]".into())),
+        );
+    let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 10, 3));
+    assert_eq!(row(&buf, 0).trim_end(), "[X]");
+}
+
+#[test]
+fn pseudo_before_on_mixed_content_block_paints_text_once() {
+    // TREE-BFC-PSEUDO-1 (the critical half): a block with a direct text run AND
+    // an in-flow element child (mixed content → anonymous blocks) + `::before`
+    // must paint the own text exactly ONCE — not duplicate its tail
+    // (`<li>Label<ul>` → "Labelel"). The own text lives in an anonymous block;
+    // Path 4 no longer re-paints it. (The `::before` PREFIX on a mixed-content
+    // block is dropped for now — folding it into the anon block is the remaining
+    // layout half; tracked in TECH_DEBT.)
+    use crate::layout::{Direction, Display, Flow};
+    use crate::style::Content;
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let p = dom.create_element("p");
+    let label = dom.create_text_node("Label");
+    dom.append_child(p, label).unwrap();
+    let child = dom.create_element("c");
+    let ct = dom.create_text_node("kid");
+    dom.append_child(child, ct).unwrap();
+    dom.append_child(p, child).unwrap();
+    dom.append_child(root, p).unwrap();
+    let mut prow = TuiStyle::new().direction(Direction::Column);
+    prow.display = Some(Value::Specified(Display::Block));
+    prow.flow = Some(Value::Specified(Flow::Block));
+    let sheet = Stylesheet::bare().rule_unchecked("p", prow).rule_unchecked(
+        "p::before",
+        TuiStyle::new().content(Content::Str("> ".into())),
+    );
+    let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 12, 3));
+    // Own text appears once, undisturbed — no "Labelel" duplication.
+    assert_eq!(
+        row(&buf, 0).trim_end(),
+        "Label",
+        "own text painted once, no duplicate"
+    );
+}
+
+#[test]
+fn pseudo_before_with_absolute_child_paints_text_once() {
+    // The chip's real shape: a text run + an ABSOLUTE child (the dropdown) +
+    // `::before`. An out-of-flow child shouldn't create anonymous blocks (it
+    // doesn't participate in the block/inline mix), so own text + pseudos paint
+    // normally: "[X]".
+    use crate::layout::{Position, Size};
+    use crate::style::Content;
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let d = dom.create_element("d");
+    let t = dom.create_text_node("X");
+    dom.append_child(d, t).unwrap();
+    let abs = dom.create_element("abs"); // the "dropdown"
+    dom.append_child(d, abs).unwrap();
+    dom.append_child(root, d).unwrap();
+    let mut abs_style = TuiStyle::new().width(Size::Fixed(2)).height(Size::Fixed(1));
+    abs_style.position = Some(Value::Specified(Position::Absolute));
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "d",
+            TuiStyle::new().width(Size::Fixed(3)).height(Size::Fixed(1)),
+        )
+        .rule_unchecked("abs", abs_style)
+        .rule_unchecked(
+            "d::before",
+            TuiStyle::new().content(Content::Str("[".into())),
+        )
+        .rule_unchecked(
+            "d::after",
+            TuiStyle::new().content(Content::Str("]".into())),
+        );
+    let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 10, 3));
+    assert_eq!(row(&buf, 0).trim_end(), "[X]");
+}
