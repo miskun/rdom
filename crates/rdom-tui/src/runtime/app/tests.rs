@@ -981,6 +981,13 @@ fn mousedown_alone_leaves_collapsed_caret_not_whole_paragraph() {
         sel.anchor,
         sel.focus,
     );
+    // A text-selection drag opts into edge autoscroll (DRAG-AUTOSCROLL phase 4
+    // hook), so dragging past a scroll container's edge keeps the selection
+    // growing — same primitive the grid uses.
+    assert!(
+        app.dom().drag_autoscroll(),
+        "text-selection drag arms autoscroll"
+    );
 }
 
 /// Companion to `mousedown_alone_leaves_collapsed_caret_not_whole_paragraph`:

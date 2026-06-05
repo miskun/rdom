@@ -534,6 +534,12 @@ impl<B: Backend> App<B> {
         if !crate::runtime::scrollbar::autoscroll_step(&mut self.dom, container, axis, step) {
             return false;
         }
+        // Re-lay-out against the new scroll offset BEFORE the synthetic move, so
+        // a layout-dependent consumer (native text selection's `position_at`)
+        // re-evaluates at the revealed content. Coords-based consumers (the
+        // grid) don't need it, but it's a cheap per-tick pass.
+        let area = self.terminal.size();
+        self.dom.layout_dom(area);
         // A synthetic left-button Drag at the held pointer carries the held
         // coords + the held-button bitmask, so the consumer's move guard accepts
         // it and re-evaluates against the new scroll offset.

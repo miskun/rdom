@@ -91,6 +91,10 @@ pub(crate) fn begin(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) ->
     let anchor_flow = inline_flow_for_text(dom, anchor.node);
     let capture_holder = anchor_flow.map(|f| f.owner()).unwrap_or(anchor.node);
     let _ = dom.set_pointer_capture(capture_holder);
+    // Opt the text-selection drag into edge autoscroll (DRAG-AUTOSCROLL): when
+    // the drag dwells at a scroll container's edge, the runtime scrolls it and
+    // re-extends the selection at the revealed content — like a browser.
+    dom.set_drag_autoscroll(true);
 
     router.selection_drag = anchor_flow;
     true

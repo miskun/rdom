@@ -328,11 +328,12 @@ scrollable `<tbody>`) is fully covered.
    `enable_drag_autoscroll` on the cell-drag `mousedown`, and switch the drag-extend path to
    **clamped `client_x/client_y` → cell** (per the consumer contract; the click path keeps
    `closest("td")`). Verify the rectangle extends across an autoscroll. This proves the public API.
-4. **Adopt in native text selection** (after the API is proven). Start with the **minimal hook** —
-   `selection::drag::begin` arms the same autoscroll (the existing extend runs on the re-dispatched
-   move). A fuller cleanup/rewrite of `selection::drag` is a **separate** follow-up, not gating this
-   work. (The "one primitive" rule forbids two long-term *copies*; it does not force the risky
-   rewrite into this release.)
+4. **Native text selection — DONE (minimal hook).** `selection::drag::begin` now calls
+   `dom.set_drag_autoscroll(true)` (it already captured the pointer), so a text-selection drag
+   autoscrolls like a browser. The autoscroll tick re-lays-out before the synthetic move, so text
+   selection's layout-dependent `position_at` re-extends at the revealed content. Pinned by the
+   `drag_autoscroll` assertion in `mousedown_alone_leaves_collapsed_caret_not_whole_paragraph`. No
+   `selection::drag` rewrite was needed — it rides the one primitive unchanged.
 5. Ship as an `rdom-tui` minor bump; `DIVERGENCES.md` + `TECH_DEBT` (`DRAG-AUTOSCROLL-1`) + `STATE.md`.
 
 ## Open questions (genuinely open; the rest are decided above)
