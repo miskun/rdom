@@ -1,10 +1,10 @@
 [package]
 name = "rdom-tui"
-# Diverges from the shared workspace version (0.3.4): rdom-tui is the only crate
-# changed across 0.3.5–0.3.10 (table column-sizing + layout stale-state + paint /
-# border + cascade fixes), and nothing depends on it, so the other four crates
-# stay at 0.3.4 — no need to republish unchanged crates.
-version = "0.3.10"
+# Diverges from the shared workspace version (0.3.4): rdom-tui changed across
+# 0.3.5–0.3.11 (table column-sizing + layout/paint/border/cascade fixes +
+# drag-autoscroll). 0.3.11 also needs rdom-core 0.3.5 (the drag-autoscroll
+# opt-in). rdom-style/css/parser are unchanged and stay at 0.3.4.
+version = "0.3.11"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
@@ -21,7 +21,7 @@ default = []
 no-synchronized-output = []
 
 [dependencies]
-rdom-core = { path = "../rdom-core", version = "0.3.4" }
+rdom-core = { path = "../rdom-core", version = "0.3.5" }
 rdom-css = { path = "../rdom-css", version = "0.3.4" }
 rdom-style = { path = "../rdom-style", version = "0.3.4" }
 

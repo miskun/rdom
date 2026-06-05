@@ -5,6 +5,19 @@ All notable changes to rdom will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.11] - 2026-06-05
+
+`rdom-core` bumps 0.3.4 → **0.3.5** (additive API) and `rdom-tui` bumps 0.3.10 → **0.3.11**; `rdom-style` / `rdom-css` / `rdom-parser` are unchanged and stay at 0.3.4 (their `rdom-core = "0.3.4"` pins caret-resolve 0.3.5).
+
+### Added — drag autoscroll (`DRAG-AUTOSCROLL-1`)
+
+A drag that reaches a scroll container's edge now **autoscrolls** it so the selection keeps growing past the viewport — like a browser. Built as one substrate primitive used by both text selection and custom drags (see `specs/DRAG-AUTOSCROLL.md`).
+
+- **rdom-core 0.3.5:** `Dom::set_drag_autoscroll(bool)` / `Dom::drag_autoscroll()` — a generic opt-in flag on the existing pointer capture (`set_pointer_capture` etc.), auto-cleared on release. Renderer-agnostic; the backend interprets it.
+- **rdom-tui 0.3.11:**
+  - **Drag autoscroll.** While a captured drag that opted in dwells at a scroll container's vertical edge, the runtime scrolls the nearest container one step per ~50ms tick and re-dispatches the drag at the held pointer, so the consumer re-evaluates at the revealed content. Vertical only (horizontal pairs with a separate flex cross-axis-scroll gap). Native **text selection** opts in automatically; a custom drag opts in with `dom.set_drag_autoscroll(true)` from a `prevent_default`ed mousedown.
+  - **`App::advance(ms)`** — advance the virtual scheduler clock + service due timers/rAF/microtasks headless and deterministically (for testing timer-driven behavior).
+
 ## [0.3.10] - 2026-06-05
 
 Only `rdom-tui` bumps (0.3.9 → 0.3.10); the other four crates are unchanged and stay at 0.3.4.
