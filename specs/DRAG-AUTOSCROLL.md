@@ -1,7 +1,9 @@
 # DRAG-AUTOSCROLL — pointer capture + edge autoscroll for drags in scroll containers
 
-**Status:** design **v3** (2026-06-05, reviewed twice — ready to implement). No version scheduled
-yet; Phase order below.
+**Status:** **SHIPPED** (2026-06-05). Substrate in rdom-core 0.3.5 + rdom-tui 0.3.11; native text
+selection adopted in-tree; `rdom-virtualtable` adopted as the first external consumer (against the
+published crate, no path patch). All phases below DONE except the deferred horizontal axis (pairs
+with `SCROLL-CROSS-AXIS-1`). Design history (v1→v3, two reviews) retained below for the rationale.
 
 **v3 changes (second review — feasibility/honesty, surfaced by tracing the data flow):**
 - **Capture state lives in `rdom-core` dispatch** (it's a DOM API), including a generic
@@ -252,6 +254,18 @@ zero — but the edge-zone math, the scroll, the tick cadence, and the synthetic
 in the substrate, used identically by text selection. (The grid's *non-drag* click mapping can keep
 using `closest("td")`; only the drag-extend path needs coords.)
 
+**(3) Single scroll writer during a drag (gotcha — found adopting in `rdom-virtualtable`).** A
+consumer that *also* drives its container's scroll offset from its own state (e.g. a keyboard cursor
+that scrolls-to-follow) must **suspend that write while a pointer drag is live**. Otherwise the
+consumer's per-move scroll write fights the autoscroll's write on the same container every tick: the
+cursor-follow only scrolls enough to keep the cursor visible, so it resets the offset the autoscroll
+just advanced, and the two settle at a stuck fixed point where the window never moves. The rule is
+**one scroll authority at a time**: the pointer/autoscroll owns the offset during a drag; the
+consumer's own scroll-follow logic is for keyboard navigation only. (A browser behaves the same —
+dragging a selection scrolls via autoscroll; the caret follows the pointer, it doesn't re-drive
+scroll.) The substrate can't enforce this — it can't tell a legitimate consumer `set_scroll_top`
+from a cursor-follow clobber — so it's a documented consumer obligation.
+
 ## Boundary: virtualization without a real scroll container
 
 `rdom-virtualtable` can window via `show_window` with **no** `overflow:scroll` element. Autoscroll
@@ -324,10 +338,15 @@ scrollable `<tbody>`) is fully covered.
    — added in Phase 4 if needed; the grid maps `window_start` + coords, which the `scroll` event
    already updated, so it needs no mid-tick layout). Hover (`mouseout`/`mouseover`) stays suppressed
    during a captured drag, matching the existing capture path.
-3. **Adopt in `rdom-virtualtable` first** (the driver, low risk): `set_pointer_capture` +
-   `enable_drag_autoscroll` on the cell-drag `mousedown`, and switch the drag-extend path to
-   **clamped `client_x/client_y` → cell** (per the consumer contract; the click path keeps
-   `closest("td")`). Verify the rectangle extends across an autoscroll. This proves the public API.
+3. **Adopt in `rdom-virtualtable` — DONE** (the driver; against the *published* rdom-tui 0.3.11, no
+   path patch). `set_pointer_capture(table)` + `set_drag_autoscroll(true)` on the cell-drag
+   `mousedown`; the drag-extend path resolves the cell by **clamped `client_x/client_y`**
+   (`drag_cell_at`) when the target isn't a body cell (the captured/beyond-edge case), keeping
+   `closest("td")` for clicks. Surfaced the **single-writer gotcha** (now in the §Consumer autoscroll
+   contract): the grid's `refresh_after_cursor` was writing `scroll_top` from the cursor every move,
+   clobbering the autoscroll; gated on `!mouse_drag` so the pointer/autoscroll owns scroll during a
+   drag. **No substrate change** — proves the 0.3.11 public API end-to-end. Pinned by
+   `drag_past_the_edge_autoscrolls_and_extends_the_selection` (rdom-virtualtable `tests/mouse.rs`).
 4. **Native text selection — DONE (minimal hook).** `selection::drag::begin` now calls
    `dom.set_drag_autoscroll(true)` (it already captured the pointer), so a text-selection drag
    autoscrolls like a browser. The autoscroll tick re-lays-out before the synthetic move, so text
