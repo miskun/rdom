@@ -5,6 +5,21 @@ All notable changes to rdom will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.12] - unreleased
+
+Prepared on `main`, not yet published. Only `rdom-tui` changes (0.3.11 → **0.3.12**); the other four crates are unchanged (`rdom-core` stays 0.3.5, `rdom-style` / `rdom-css` / `rdom-parser` stay 0.3.4).
+
+### Fixed / Changed — drag-autoscroll robustness + text-selection precision
+
+Surfaced by interactive testing of the `selectable_text` showcase demo (the substrate isolation vehicle for `DRAG-AUTOSCROLL`).
+
+- **Sticky drag-scroll container.** A drag now **owns one scroll container for its lifetime** — resolved once the first time the pointer reaches an edge zone, then never re-targeted or disarmed. Fixes autoscroll getting stuck once the captured/anchor block scrolled out of view, and keeps scrolling when the pointer overshoots *past* the container onto a sibling (textarea-forgiving). Edge detection widened from a single row to a **banded zone with a speed ramp** (`AUTOSCROLL_EDGE_ZONE` / `AUTOSCROLL_MAX_STEP`). The autoscroll engine stays selection-agnostic.
+- **Empty-space hits snap to the nearest text position.** `position_at` (and `Document.caretPositionFromPoint`) now resolve a point in a gap / above / below all content to the closest text position instead of returning nothing — so drag-select past the bottom edge no longer collapses back to the anchor block.
+- **`user-select: none` excluded from a spanning selection's highlight.** A selection that spans *across* a `user-select: none` element (e.g. a chrome bar between two paragraphs) no longer paints the chrome as selected — matching the copy serializer (which already skipped it) and browsers.
+- **Drag over `user-select: none` snaps to the nearest selectable position**, not back to the anchor flow — so dragging a selection over a chrome bar extends past it instead of collapsing. A click still cannot *start* a selection on `user-select: none` content.
+
+Deliberate TUI divergences documented in `specs/DIVERGENCES.md`: sticky container (no cursor re-targeting mid-drag), no viewport scroll-chaining, banded cell-grained edge zone.
+
 ## [0.3.11] - 2026-06-05
 
 `rdom-core` bumps 0.3.4 → **0.3.5** (additive API) and `rdom-tui` bumps 0.3.10 → **0.3.11**; `rdom-style` / `rdom-css` / `rdom-parser` are unchanged and stay at 0.3.4 (their `rdom-core = "0.3.4"` pins caret-resolve 0.3.5).

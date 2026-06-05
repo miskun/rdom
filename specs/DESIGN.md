@@ -90,13 +90,15 @@ CSS3 Display Module two-value mapping is the source of truth: `display: block` �
 
 The work that fed into 0.1.0 was organized in five internal milestones (M1 CSS parser, M2 positioning, M3 timers + transitions, M4 DOM API completeness, M5 layout primitives bundle). Going forward, releases are numbered by semver only.
 
-| Version | Scope |
-|---|---|
-| **0.2.0** | Three workstreams bundled — see [`SHOWCASE.md`](SHOWCASE.md) for the full plan. (1) **`rdom-showcase`** — permanent in-tree TUI app that mounts every rdom primitive in one browsable binary; headline feature, dogfooding fixture, CI regression detector. (2) **Event surface bundle** — `dblclick`, `contextmenu`, `keyup`, `mousemove`, `scroll`, `resize`. (3) **`calc()` value system** — length-and-percentage expressions, resolved at cascade/layout time. M1 of the plan also lands substrate completion the showcase depends on: multi-slot stylesheet API, subtree-replacement contract, focus-on-detach spec. |
-| **0.3.0** | Client-side routing primitive. |
-| **0.4.0** | Async tasks during event handlers. |
+| Version | Scope | Status |
+|---|---|---|
+| **0.2.0** | Three workstreams bundled (see [`SHOWCASE.md`](SHOWCASE.md)): **`rdom-showcase`** (in-tree TUI app touring every primitive), the **event surface bundle** (`dblclick`, `contextmenu`, `keyup`, `mousemove`, `scroll`, `resize`), and the **`calc()` value system**. Plus BFC, native ARIA tree, multi-slot stylesheets, layered border model. | ✅ Released 2026-06-02 |
+| **0.3.0** | **Substrate honesty** — the seven friction points the first downstream consumer hit (geometry setters drive layout, repaint-from-listeners, arena ergonomics). Routing slid out to 0.4.0. | ✅ Released 2026-06-02 |
+| **0.3.1 – 0.3.12** | Divergent `rdom-tui`-only patch releases, mostly driven by the `rdom-virtualtable` consumer: focus/`:where()`/`drop_subtree` fixes, table column-sizing, layout stale-state, half-block borders, **drag-autoscroll** + its robustness/selection-precision follow-ups. See [`../CHANGELOG.md`](../CHANGELOG.md) + [`../STATE.md`](../STATE.md). | ✅ through 0.3.11; 0.3.12 prepared |
+| **0.4.0** | Client-side routing primitive. | Planned |
+| **0.5.0** | Async tasks during event handlers. | Planned |
 
-Current 0.2.0 progress lives in [`../STATE.md`](../STATE.md).
+Current progress + the full release ledger live in [`../STATE.md`](../STATE.md).
 
 Open polish items (no fixed milestone): form validation (`:required` / `:invalid` / `pattern`), `:focus-visible`, `::placeholder` / `:placeholder-shown`, multi-text-node `contenteditable`, undo/redo coalescing, blinking caret, line-based selection extension (`Shift+Up` / `Shift+Down`), whitespace normalization in clipboard serialization.
 
