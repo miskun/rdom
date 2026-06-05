@@ -2634,6 +2634,106 @@ fn autoscroll_continues_after_the_anchor_block_scrolls_out_of_view() {
     );
 }
 
+#[test]
+fn autoscroll_keeps_scrolling_when_pointer_overshoots_past_the_container() {
+    // DRAG-AUTOSCROLL sticky engine: once a drag's autoscroll arms, it OWNS its
+    // scroll container for the rest of the drag. Overshooting the pointer DOWN
+    // past the container onto a sibling below it must keep scrolling that
+    // container to the end — the textarea-forgiving behavior. (Re-resolving the
+    // container from the pointer each tick stopped here, because the pointer no
+    // longer hit the scroller — the `selectable_text` "Source steals it" dead
+    // zone.)
+    use crate::layout::{Display, Overflow};
+    use crate::node::TuiNodeExt;
+
+    let mev = |kind, x: u16, y: u16| {
+        CtEvent::Mouse(CtMouseEvent {
+            kind,
+            column: x,
+            row: y,
+            modifiers: KeyModifiers::empty(),
+        })
+    };
+
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let scroller = dom.create_element("div");
+    dom.append_child(root, scroller).unwrap();
+    let body = dom.create_element("p");
+    let body_text: String = (0..40)
+        .map(|i| format!("w{}", i % 10))
+        .collect::<Vec<_>>()
+        .join(" ");
+    let t_body = dom.create_text_node(&body_text);
+    dom.append_child(body, t_body).unwrap();
+    let body_tail = dom.create_element("span");
+    dom.append_child(body, body_tail).unwrap();
+    dom.append_child(scroller, body).unwrap();
+    // A sibling BELOW the scroller (the showcase "Source" tray analog).
+    let sibling = dom.create_element("aside");
+    let sib_text = dom.create_text_node("sibling content below the scroller");
+    dom.append_child(sibling, sib_text).unwrap();
+    let sib_tail = dom.create_element("span");
+    dom.append_child(sibling, sib_tail).unwrap();
+    dom.append_child(root, sibling).unwrap();
+
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "div",
+            TuiStyle::new()
+                .width(Size::Fixed(12))
+                .height(Size::Fixed(3))
+                .overflow(Overflow::Auto),
+        )
+        .rule_unchecked(
+            "p",
+            TuiStyle::new()
+                .display(Display::Block)
+                .width(Size::Fixed(12)),
+        )
+        .rule_unchecked(
+            "aside",
+            TuiStyle::new()
+                .display(Display::Block)
+                .width(Size::Fixed(12)),
+        )
+        .rule_unchecked("span", TuiStyle::new().display(Display::Inline));
+    let mut app = test_app(dom, sheet, Rect::new(0, 0, 14, 8));
+    app.draw_if_dirty().unwrap();
+
+    let scroll_y = |app: &App<TestBackend>| -> usize {
+        app.dom()
+            .node(scroller)
+            .tui_ext()
+            .map(|e| e.scroll_y)
+            .unwrap_or(0)
+    };
+    let max_scroll = app
+        .dom()
+        .node(scroller)
+        .tui_ext()
+        .map(|e| e.scroll_content_height)
+        .unwrap_or(0)
+        .saturating_sub(3);
+    assert!(max_scroll > 4, "need a tall scroll range, got {max_scroll}");
+
+    // Anchor in the scroller, arm at its bottom edge (row 2), then drag the
+    // pointer DOWN onto the sibling below the scroller (row 5).
+    app.handle_event(mev(MouseEventKind::Down(MouseButton::Left), 1, 0));
+    app.handle_event(mev(MouseEventKind::Drag(MouseButton::Left), 1, 2));
+    app.handle_event(mev(MouseEventKind::Drag(MouseButton::Left), 1, 5));
+    for _ in 0..40 {
+        app.advance(50).unwrap();
+    }
+
+    assert_eq!(
+        scroll_y(&app),
+        max_scroll,
+        "the drag owns its scroll container — overshooting onto the sibling \
+         keeps scrolling the scroller to the end"
+    );
+}
+
 // ── PAINT-RELATIVE-ABSPOS-DOUBLE regression ─────────────────────────
 
 /// A `position:relative` cell with text, beside a sibling that goes

@@ -344,20 +344,14 @@ pub(crate) fn scroll_into_view(dom: &mut TuiDom, node: NodeId, reveal: LayoutRec
     }
 }
 
-/// Drag-autoscroll (DRAG-AUTOSCROLL): for a captured drag whose pointer dwells
-/// at a scroll container's vertical edge, return `(container, axis, step)` — the
-/// container to scroll and the signed cell step toward the pointer — or `None`
-/// when the pointer isn't in an edge zone or the container can't scroll further
-/// that way.
-///
-/// The pointer is first **clamped into the captured node's box**, then
-/// hit-tested + walked up to the nearest vertical scroll container — so a
-/// pointer dragged *beyond* the container (no element under it) still resolves
-/// to the right container via the captured subtree. Edge detection uses the
-/// *un*clamped pointer against the container's padding box: the boundary cell is
-/// included (so a container flush with the terminal edge still triggers), and
-/// dwell-gating by the tick interval keeps a quick drag-through from scrolling.
-/// Vertical only for now (horizontal pairs with `SCROLL-CROSS-AXIS-1`).
+/// Rows near a scroll container's edge that arm/drive autoscroll — a *band*,
+/// not a single row, so the user doesn't have to hug the exact edge. Includes
+/// everything past the edge too.
+const AUTOSCROLL_EDGE_ZONE: i32 = 2;
+/// Max cells scrolled per tick. Speed ramps with how far the pointer is into /
+/// past the edge zone, capped here so a big overshoot doesn't teleport.
+const AUTOSCROLL_MAX_STEP: i32 = 3;
+
 /// Hit-test `(x, y)` and walk up to the nearest vertical scroll container, or
 /// `None` if the point hits nothing or no ancestor scrolls vertically.
 fn scroll_container_from_hit(dom: &TuiDom, x: u16, y: u16) -> Option<NodeId> {
@@ -373,24 +367,24 @@ fn scroll_container_from_hit(dom: &TuiDom, x: u16, y: u16) -> Option<NodeId> {
     }
 }
 
-pub(crate) fn autoscroll_target(
+/// Resolve the vertical scroll container a captured drag should autoscroll
+/// (DRAG-AUTOSCROLL). Called **once** when the autoscroll session arms; the
+/// runtime then keeps the result **sticky** for the rest of the drag, so the
+/// captured node scrolling out of view — or the pointer overshooting past the
+/// container onto a sibling — never re-targets or disarms it.
+///
+/// Resolution prefers the **raw pointer** (held at an edge the pointer is still
+/// inside the container, so a hit-test finds the nearest vertical scroll
+/// container directly, independent of the captured node). It falls back to
+/// hit-testing the pointer **clamped into the captured node's box** — for a
+/// descendant scroller whose owner is the captured node (the virtual table's
+/// `<tbody>` inside the captured `<table>`).
+pub(crate) fn resolve_autoscroll_container(
     dom: &TuiDom,
     captured: NodeId,
     pointer: (u16, u16),
-) -> Option<(NodeId, ScrollAxis, i32)> {
-    // Resolve the scroll container from the pointer. Held at an edge the
-    // pointer is still inside the container (its first/last visible row), so a
-    // raw hit-test finds the nearest vertical scroll container directly —
-    // independent of where the captured node is. This matters because the
-    // captured node can scroll out of view: a text-selection drag captures the
-    // anchor's block, and once the drag scrolls that block off-screen, clamping
-    // the pointer into its (now off-screen) box and hit-testing there lands in
-    // a clipped region → None → autoscroll wrongly disarms ("stuck" once the
-    // anchor leaves the viewport). Fall back to the captured-clamp hit-test for
-    // the pointer-dragged-beyond-the-container case (reliable only while the
-    // captured node is still on-screen — e.g. the virtual table's <table>,
-    // which never scrolls out, whose scroller <tbody> is a descendant).
-    let container = scroll_container_from_hit(dom, pointer.0, pointer.1).or_else(|| {
+) -> Option<NodeId> {
+    scroll_container_from_hit(dom, pointer.0, pointer.1).or_else(|| {
         let cap = dom.node(captured).tui_ext()?.layout;
         if cap.width == 0 || cap.height == 0 {
             return None;
@@ -398,7 +392,20 @@ pub(crate) fn autoscroll_target(
         let cx = (pointer.0 as i32).clamp(cap.x, cap.x + cap.width as i32 - 1) as u16;
         let cy = (pointer.1 as i32).clamp(cap.y, cap.y + cap.height as i32 - 1) as u16;
         scroll_container_from_hit(dom, cx, cy)
-    })?;
+    })
+}
+
+/// The signed scroll step for a *known* `container` given the pointer, or `None`
+/// when the pointer isn't in an edge zone or the container can't scroll that way
+/// (so the tick idles without disarming). The zone is [`AUTOSCROLL_EDGE_ZONE`]
+/// cells deep at each edge plus everything beyond it; the step ramps with the
+/// pointer's distance into/past the zone, capped at [`AUTOSCROLL_MAX_STEP`].
+/// Vertical only for now (horizontal pairs with `SCROLL-CROSS-AXIS-1`).
+pub(crate) fn autoscroll_step_for(
+    dom: &TuiDom,
+    container: NodeId,
+    pointer: (u16, u16),
+) -> Option<(ScrollAxis, i32)> {
     let ext = dom.node(container).tui_ext()?;
     let border = dom
         .node(container)
@@ -408,21 +415,22 @@ pub(crate) fn autoscroll_target(
     let pb = rdom_style::layout::compute_padding_box(ext.layout, border);
     let (viewport, offset, content) = (pb.height as usize, ext.scroll_y, ext.scroll_content_height);
     let py = pointer.1 as i32;
+    let zone = AUTOSCROLL_EDGE_ZONE.max(1);
     let last_row = pb.y + pb.height as i32 - 1;
-    // Down: pointer at/below the last visible row, room to scroll down.
-    if py >= last_row && offset + viewport < content {
+    // Down: within `zone` rows of (or past) the bottom edge, room to scroll down.
+    let into_bottom = py - (last_row - (zone - 1));
+    if into_bottom >= 0 && offset + viewport < content {
         return Some((
-            container,
             ScrollAxis::Vertical,
-            (py - last_row + 1).clamp(1, 3),
+            (into_bottom + 1).clamp(1, AUTOSCROLL_MAX_STEP),
         ));
     }
-    // Up: pointer at/above the top visible row, not already at the top.
-    if py <= pb.y && offset > 0 {
+    // Up: within `zone` rows of (or above) the top edge, not already at the top.
+    let into_top = (pb.y + (zone - 1)) - py;
+    if into_top >= 0 && offset > 0 {
         return Some((
-            container,
             ScrollAxis::Vertical,
-            -((pb.y - py + 1).clamp(1, 3)),
+            -((into_top + 1).clamp(1, AUTOSCROLL_MAX_STEP)),
         ));
     }
     None
