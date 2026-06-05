@@ -2363,6 +2363,115 @@ fn drag_autoscroll_scrolls_a_container_held_at_the_edge() {
     );
 }
 
+#[test]
+fn text_selection_drag_past_edge_autoscrolls_and_keeps_extending() {
+    // DRAG-AUTOSCROLL phase 4, end-to-end: a *native text-selection* drag
+    // held past a scroll container's bottom edge must autoscroll AND keep
+    // extending the selection into the revealed lines. This is the
+    // `selectable_text` repro — the bug was that holding the pointer in the
+    // empty space past the edge made `position_at` return None, so the drag
+    // collapsed the focus back to the anchor block instead of following the
+    // revealed text. Driven deterministically via `advance`.
+    use crate::layout::{Display, Overflow};
+    use crate::node::TuiNodeExt;
+
+    let mev = |kind, x: u16, y: u16| {
+        CtEvent::Mouse(CtMouseEvent {
+            kind,
+            column: x,
+            row: y,
+            modifiers: KeyModifiers::empty(),
+        })
+    };
+
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let scroller = dom.create_element("div");
+    dom.append_child(root, scroller).unwrap();
+    let p = dom.create_element("p");
+    // 40 two-letter tokens wrap (at the spaces) to ~10 rows at width 12 —
+    // content well past the 3-row viewport, so there's plenty to autoscroll
+    // into. (A space-free string wouldn't wrap: no break opportunities.)
+    let text: String = (0..40)
+        .map(|i| format!("w{}", i % 10))
+        .collect::<Vec<_>>()
+        .join(" ");
+    let t = dom.create_text_node(&text);
+    dom.append_child(p, t).unwrap();
+    let tail = dom.create_element("span"); // 2nd inline child → IFC
+    dom.append_child(p, tail).unwrap();
+    dom.append_child(scroller, p).unwrap();
+
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "div",
+            TuiStyle::new()
+                .width(Size::Fixed(12))
+                .height(Size::Fixed(3))
+                .overflow(Overflow::Auto),
+        )
+        .rule_unchecked(
+            "p",
+            TuiStyle::new()
+                .display(Display::Block)
+                .width(Size::Fixed(12)),
+        )
+        .rule_unchecked("span", TuiStyle::new().display(Display::Inline));
+    let mut app = test_app(dom, sheet, Rect::new(0, 0, 14, 6));
+    app.draw_if_dirty().unwrap();
+
+    let scroll_y = |app: &App<TestBackend>| -> usize {
+        app.dom()
+            .node(scroller)
+            .tui_ext()
+            .map(|e| e.scroll_y)
+            .unwrap_or(0)
+    };
+    let focus_off = |app: &App<TestBackend>| -> usize {
+        app.dom().selection().map(|s| s.focus.offset).unwrap_or(0)
+    };
+
+    // Press near the top of the prose (anchors + captures + arms autoscroll),
+    // then hold a drag at the bottom visible row.
+    app.handle_event(mev(MouseEventKind::Down(MouseButton::Left), 1, 0));
+    assert!(
+        app.dom().selection().is_some(),
+        "mousedown on text starts a selection"
+    );
+    assert!(
+        app.dom().drag_autoscroll(),
+        "text-selection drag arms autoscroll"
+    );
+    app.handle_event(mev(MouseEventKind::Drag(MouseButton::Left), 1, 2));
+    let focus_before = focus_off(&app);
+
+    // Tick the autoscroll several periods while held at the edge.
+    for _ in 0..8 {
+        app.advance(50).unwrap();
+    }
+
+    assert!(
+        scroll_y(&app) > 0,
+        "held at the bottom edge autoscrolls the container"
+    );
+    assert!(
+        focus_off(&app) > focus_before,
+        "the selection keeps extending into revealed lines \
+         (focus {} should advance past {focus_before})",
+        focus_off(&app)
+    );
+
+    // Release stops it; the selection is stable afterward.
+    app.handle_event(mev(MouseEventKind::Up(MouseButton::Left), 1, 2));
+    let focus_at_release = focus_off(&app);
+    app.advance(500).unwrap();
+    assert_eq!(
+        focus_off(&app),
+        focus_at_release,
+        "no further extension after release"
+    );
+}
+
 // ── PAINT-RELATIVE-ABSPOS-DOUBLE regression ─────────────────────────
 
 /// A `position:relative` cell with text, beside a sibling that goes

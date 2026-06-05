@@ -72,15 +72,21 @@ pub trait HitTestExt {
     /// `(text_node, byte_offset)` pair suitable for
     /// [`Dom::set_selection`].
     ///
+    /// A point in empty space — a gap between blocks, above/below all
+    /// content, or a non-IFC container whose text lives in descendants —
+    /// **snaps to the nearest text position** by vertical distance
+    /// (scoped to the deepest hit element's subtree), matching how
+    /// browsers resolve `caretPositionFromPoint` and drag-select past
+    /// content. Without this, dragging past the bottom edge collapsed
+    /// the selection back to the anchor block.
+    ///
     /// Returns `None` when:
-    /// - `(x, y)` misses every element;
-    /// - the hit lands outside any IFC block (no selectable text
-    ///   at that point);
+    /// - `(x, y)` misses every element AND the document root subtree
+    ///   has no inline flow to snap to;
     /// - the innermost hit element or one of its ancestors has
     ///   `user-select: none` (chrome, buttons, etc. — the
-    ///   selection algorithm skips these subtrees);
-    /// - `(x, y)` falls in an IFC block's padding / border but
-    ///   not its content area (outside all fragments).
+    ///   selection algorithm skips these subtrees); the nearest-flow
+    ///   fallback likewise skips `user-select: none` candidates.
     ///
     /// The returned `offset` is a byte offset into the text
     /// node's data — matches the `Selection` / `Range` API and
@@ -137,39 +143,123 @@ impl HitTestExt for Dom<TuiExt> {
         // ancestor's `anonymous_blocks` Vec, populated by the
         // block-layout pass for inline runs amongst block
         // children) is the BFC-1 phase 3 case.
-        let target = path
+        if let Some(target) = path
             .iter()
             .rev()
-            .find_map(|&id| inline_target_at(self, id, y))?;
-
-        // user-select gate: any ancestor of the hit with
-        // `user-select: none` kills the position.
-        if user_select::has_none_ancestor(self, *path.last()?) {
-            return None;
+            .find_map(|&id| inline_target_at(self, id, y))
+        {
+            // user-select gate: any ancestor of the hit with
+            // `user-select: none` kills the position.
+            if user_select::has_none_ancestor(self, *path.last()?) {
+                return None;
+            }
+            return resolve_in_target(self, target, x, y);
         }
 
-        // Resolve the InlineLayout + content rect for the target.
-        let (inline_layout, content) = target.layout_and_rect(self)?;
-
-        // Find the fragment at the point inside the inline flow.
-        // If no fragment covers (x, y) — common case: the user
-        // dragged the mouse past a line's content — clamp to the
-        // nearest valid position on the target line. Without this,
-        // drag-selection past end-of-line silently misses the final
-        // character (the `position_at` returns None and the drag
-        // handler doesn't update the selection focus).
-        match fragment_at_layout(inline_layout, content, x, y) {
-            Some(fragment) => {
-                let cell_offset_in_frag = (x as i32 - content.x - fragment.x as i32).max(0) as u16;
-                let bytes_into_text = cells_to_bytes(&fragment.text, cell_offset_in_frag);
-                Some(Position::new(
-                    fragment.text_node,
-                    fragment.source_byte_offset + bytes_into_text,
-                ))
+        // No inline-flow target contains `y`: the point is in empty space —
+        // a gap between blocks, above/below all content, or a non-IFC
+        // container with text only in descendants. Browsers snap
+        // `caretPositionFromPoint` (and drag-select) to the nearest text
+        // position rather than returning nothing, so resolve to the closest
+        // inline-flow target by vertical distance. Start scoped to the
+        // deepest hit element's subtree (so a Page-scrollport gap resolves
+        // within that page, not unrelated chrome) and escalate up the
+        // ancestor chain until a subtree has text — e.g. a hit landing in
+        // an empty sibling spacer climbs to the parent that also holds the
+        // prose. The search skips `user-select: none` candidates, so no
+        // separate gate is needed here.
+        let mut scope = path.last().copied();
+        loop {
+            let id = scope.unwrap_or_else(|| self.root());
+            if let Some(target) = nearest_inline_target_in_subtree(self, id, y) {
+                return resolve_in_target(self, target, x, y);
             }
-            None => clamp_to_line_layout(inline_layout, content, x, y),
+            if id == self.root() {
+                return None;
+            }
+            scope = self.node(id).parent_node().map(|p| p.id());
         }
     }
+}
+
+/// Resolve a screen cell to a [`Position`] within a known inline-flow
+/// `target`. Returns the fragment-exact position when a fragment covers
+/// `(x, y)`, else clamps to the nearest valid position on the target's
+/// lines (drag past end-of-line / past last-line bottom — see
+/// [`clamp_to_line_layout`]).
+fn resolve_in_target(dom: &Dom<TuiExt>, target: InlineTarget, x: u16, y: u16) -> Option<Position> {
+    let (inline_layout, content) = target.layout_and_rect(dom)?;
+    match fragment_at_layout(inline_layout, content, x, y) {
+        Some(fragment) => {
+            let cell_offset_in_frag = (x as i32 - content.x - fragment.x as i32).max(0) as u16;
+            let bytes_into_text = cells_to_bytes(&fragment.text, cell_offset_in_frag);
+            Some(Position::new(
+                fragment.text_node,
+                fragment.source_byte_offset + bytes_into_text,
+            ))
+        }
+        None => clamp_to_line_layout(inline_layout, content, x, y),
+    }
+}
+
+/// The inline-flow target in `root`'s subtree nearest to `y` by vertical
+/// distance — the empty-space fallback for [`HitTestExt::position_at`]. A
+/// point inside a target's y-range has distance 0; otherwise it's the gap
+/// to the nearest edge. Ties keep the first found in document order.
+/// `user-select: none` candidates are skipped so the snap never lands on
+/// unselectable chrome. Returns `None` when the subtree has no inline flow.
+fn nearest_inline_target_in_subtree(
+    dom: &Dom<TuiExt>,
+    root: NodeId,
+    y: u16,
+) -> Option<InlineTarget> {
+    let y = y as i32;
+    let mut best: Option<(i32, InlineTarget)> = None;
+    let mut consider = |target: InlineTarget, top: i32, bottom: i32| {
+        if user_select::has_none_ancestor(dom, target.node()) {
+            return;
+        }
+        let dist = if y < top {
+            top - y
+        } else if y >= bottom {
+            y - bottom + 1
+        } else {
+            0
+        };
+        if best.is_none_or(|(d, _)| dist < d) {
+            best = Some((dist, target));
+        }
+    };
+
+    // Document-order DFS so ties resolve to the earliest target.
+    let mut stack = vec![root];
+    while let Some(id) = stack.pop() {
+        if has_inline_layout(dom, id)
+            && let Some(content) = dom.node(id).content_layout_rect()
+        {
+            consider(
+                InlineTarget::Ifc(id),
+                content.y,
+                content.y + content.height as i32,
+            );
+        }
+        if let Some(ext) = dom.node(id).ext() {
+            for (i, anon) in ext.anonymous_blocks.iter().enumerate() {
+                consider(
+                    InlineTarget::Anonymous {
+                        container: id,
+                        index: i,
+                    },
+                    anon.rect.y,
+                    anon.rect.y + anon.rect.height as i32,
+                );
+            }
+        }
+        // Push children reversed so they pop in document order.
+        let kids: Vec<NodeId> = dom.node(id).children().map(|c| c.id()).collect();
+        stack.extend(kids.into_iter().rev());
+    }
+    best.map(|(_, t)| t)
 }
 
 /// What kind of inline-flow container is under the hit point.
@@ -185,6 +275,16 @@ enum InlineTarget {
 }
 
 impl InlineTarget {
+    /// The owning node — the IFC block itself, or the container that
+    /// holds the anonymous block box. Used for the `user-select` gate
+    /// on the nearest-flow fallback.
+    fn node(self) -> NodeId {
+        match self {
+            InlineTarget::Ifc(id) => id,
+            InlineTarget::Anonymous { container, .. } => container,
+        }
+    }
+
     /// Resolve to `(layout, content_rect)`. Borrows from the dom.
     fn layout_and_rect(
         self,
@@ -250,11 +350,17 @@ fn clamp_to_line_layout(
         return None;
     }
 
-    let line_idx = if (y as i32) < content.y {
-        0
+    // A y-overshoot dominates the x logic: a point above the block snaps to
+    // the FIRST line's start, below it to the LAST line's end — regardless of
+    // x (matching the drag-extend clamp in `selection::drag`). Only an
+    // in-bounds y consults x to pick the position along the line.
+    let (line_idx, overshoot_up, overshoot_down) = if (y as i32) < content.y {
+        (0, true, false)
+    } else if (y as i32) >= content.y + content.height as i32 {
+        (layout.lines.len() - 1, false, true)
     } else {
         let raw = (y as i32 - content.y) as usize;
-        raw.min(layout.lines.len() - 1)
+        (raw.min(layout.lines.len() - 1), false, false)
     };
 
     let target_line = &layout.lines[line_idx];
@@ -274,10 +380,22 @@ fn clamp_to_line_layout(
         return None;
     }
 
-    // x past the line's last fragment → end of last fragment.
-    // x before the line's first fragment → start of first fragment.
     let first = target_line.fragments.first().unwrap();
     let last = target_line.fragments.last().unwrap();
+
+    // Y overshoot dominates: up → first line start, down → last line end.
+    if overshoot_up {
+        return Some(Position::new(first.text_node, first.source_byte_offset));
+    }
+    if overshoot_down {
+        return Some(Position::new(
+            last.text_node,
+            last.source_byte_offset + last.text.len(),
+        ));
+    }
+
+    // In-bounds y: clamp on x. Past the line's last fragment → end of last
+    // fragment. Before the line's first fragment → start of first fragment.
     let line_left = content.x + first.x as i32;
     let line_right = content.x + last.x as i32 + last.width as i32;
 

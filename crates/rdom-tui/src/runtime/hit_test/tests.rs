@@ -774,3 +774,74 @@ fn position_at_in_non_ifc_returns_none() {
 
     assert_eq!(dom.position_at(3, 1), None);
 }
+
+// ── Empty-space snap to nearest inline flow (DRAG-AUTOSCROLL) ────────
+
+/// A point in empty space BELOW every IFC block must snap to the nearest
+/// text position — the END of the last block — not return `None`. The
+/// `None` made drag-select past the bottom edge (and autoscroll held
+/// past the edge) collapse back to the anchor block: the `selectable_text`
+/// demo bug where dragging one cell below the last line dropped every
+/// block after the anchor's. Browsers snap `caretPositionFromPoint` to
+/// the closest text; so does rdom.
+#[test]
+fn position_at_below_all_blocks_snaps_to_last_block_end() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let p1 = dom.create_element("p");
+    let t1 = dom.create_text_node("alpha");
+    dom.append_child(p1, t1).unwrap();
+    let s1 = dom.create_element("span"); // 2nd inline child → IFC
+    dom.append_child(p1, s1).unwrap();
+    dom.append_child(root, p1).unwrap();
+    let p2 = dom.create_element("p");
+    let t2 = dom.create_text_node("omega");
+    dom.append_child(p2, t2).unwrap();
+    let s2 = dom.create_element("span");
+    dom.append_child(p2, s2).unwrap();
+    dom.append_child(root, p2).unwrap();
+
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "p",
+            TuiStyle::new()
+                .display(Display::Block)
+                .width(Size::Fixed(10)),
+        )
+        .rule_unchecked("span", TuiStyle::new().display(Display::Inline));
+    prepare(&mut dom, &sheet, Rect::new(0, 0, 20, 10));
+
+    // p1 at row 0, p2 at row 1. A point at row 5 is empty space below
+    // both → snaps to the end of p2's "omega" (5 bytes).
+    assert_eq!(dom.position_at(3, 5), Some(Position::new(t2, 5)));
+}
+
+/// A point ABOVE every block snaps to the first block's start.
+#[test]
+fn position_at_above_all_blocks_snaps_to_first_block_start() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let spacer = dom.create_element("div"); // pushes the prose down a row
+    dom.append_child(root, spacer).unwrap();
+    let p = dom.create_element("p");
+    let t = dom.create_text_node("hello");
+    dom.append_child(p, t).unwrap();
+    let s = dom.create_element("span");
+    dom.append_child(p, s).unwrap();
+    dom.append_child(root, p).unwrap();
+
+    let sheet = Stylesheet::bare()
+        .rule_unchecked("div", TuiStyle::new().height(Size::Fixed(3)))
+        .rule_unchecked(
+            "p",
+            TuiStyle::new()
+                .display(Display::Block)
+                .width(Size::Fixed(10)),
+        )
+        .rule_unchecked("span", TuiStyle::new().display(Display::Inline));
+    prepare(&mut dom, &sheet, Rect::new(0, 0, 20, 10));
+
+    // The prose sits at row 3 (after the 3-row spacer). A point at the
+    // spacer (row 1, above the prose) snaps to the start of "hello".
+    assert_eq!(dom.position_at(2, 1), Some(Position::new(t, 0)));
+}

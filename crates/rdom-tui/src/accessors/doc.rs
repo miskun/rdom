@@ -59,10 +59,12 @@ pub trait TuiDocAccessors {
     fn elements_from_point(&self, x: i32, y: i32) -> Vec<NodeRef<'_, TuiExt>>;
 
     /// [`Document.caretPositionFromPoint(x, y)`] — text-position
-    /// at the screen cell, or `None` if the hit misses every
-    /// IFC block / lands in `user-select: none` / falls outside
-    /// any text fragment. See [`HitTestExt::position_at`] for
-    /// the full miss matrix.
+    /// at the screen cell. A hit in empty space (gap between
+    /// blocks, above/below all content) **snaps to the nearest
+    /// text position**, matching browsers; returns `None` only
+    /// when there's no selectable text to snap to or the hit
+    /// lands in `user-select: none`. See [`HitTestExt::position_at`]
+    /// for the full matrix.
     ///
     /// [`Document.caretPositionFromPoint(x, y)`]:
     ///   https://developer.mozilla.org/docs/Web/API/Document/caretPositionFromPoint
