@@ -2539,6 +2539,101 @@ fn text_selection_drag_past_edge_autoscrolls_and_keeps_extending() {
     );
 }
 
+#[test]
+fn autoscroll_continues_after_the_anchor_block_scrolls_out_of_view() {
+    // DRAG-AUTOSCROLL "stuck" bug: autoscroll resolved its scroll container by
+    // clamping the pointer into the CAPTURED node's box and hit-testing there.
+    // For a text-selection drag the captured node is the anchor's block, so
+    // once the drag scrolled that block out of the viewport the clamped
+    // hit-test landed off-screen → None → autoscroll disarmed. You could only
+    // scroll until the anchor block left view (selectable_text: "stuck at the
+    // code block" / "won't scroll up"). The container must be found from the
+    // pointer at the (still-visible) edge, independent of the anchor.
+    use crate::layout::{Display, Overflow};
+    use crate::node::TuiNodeExt;
+
+    let mev = |kind, x: u16, y: u16| {
+        CtEvent::Mouse(CtMouseEvent {
+            kind,
+            column: x,
+            row: y,
+            modifiers: KeyModifiers::empty(),
+        })
+    };
+
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let scroller = dom.create_element("div");
+    dom.append_child(root, scroller).unwrap();
+    // A short top block (the anchor) followed by a tall paragraph, so the
+    // anchor block scrolls out of the 3-row viewport after a step or two.
+    let top = dom.create_element("p");
+    let t_top = dom.create_text_node("TOP");
+    dom.append_child(top, t_top).unwrap();
+    let top_tail = dom.create_element("span");
+    dom.append_child(top, top_tail).unwrap();
+    dom.append_child(scroller, top).unwrap();
+    let body = dom.create_element("p");
+    let body_text: String = (0..40)
+        .map(|i| format!("w{}", i % 10))
+        .collect::<Vec<_>>()
+        .join(" ");
+    let t_body = dom.create_text_node(&body_text);
+    dom.append_child(body, t_body).unwrap();
+    let body_tail = dom.create_element("span");
+    dom.append_child(body, body_tail).unwrap();
+    dom.append_child(scroller, body).unwrap();
+
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "div",
+            TuiStyle::new()
+                .width(Size::Fixed(12))
+                .height(Size::Fixed(3))
+                .overflow(Overflow::Auto),
+        )
+        .rule_unchecked(
+            "p",
+            TuiStyle::new()
+                .display(Display::Block)
+                .width(Size::Fixed(12)),
+        )
+        .rule_unchecked("span", TuiStyle::new().display(Display::Inline));
+    let mut app = test_app(dom, sheet, Rect::new(0, 0, 14, 6));
+    app.draw_if_dirty().unwrap();
+
+    let scroll_y = |app: &App<TestBackend>| -> usize {
+        app.dom()
+            .node(scroller)
+            .tui_ext()
+            .map(|e| e.scroll_y)
+            .unwrap_or(0)
+    };
+    let content_h = app
+        .dom()
+        .node(scroller)
+        .tui_ext()
+        .map(|e| e.scroll_content_height)
+        .unwrap_or(0);
+    let max_scroll = content_h.saturating_sub(3);
+    assert!(max_scroll > 5, "need a tall scroll range, got {max_scroll}");
+
+    // Anchor in the SHORT top block (row 0), then hold a drag at the bottom
+    // edge. The top block scrolls out of view after the first step or two.
+    app.handle_event(mev(MouseEventKind::Down(MouseButton::Left), 1, 0));
+    app.handle_event(mev(MouseEventKind::Drag(MouseButton::Left), 1, 2));
+    for _ in 0..40 {
+        app.advance(50).unwrap();
+    }
+
+    assert_eq!(
+        scroll_y(&app),
+        max_scroll,
+        "autoscroll must reach the bottom even though the anchor block \
+         (the captured node) scrolled out of view early"
+    );
+}
+
 // ── PAINT-RELATIVE-ABSPOS-DOUBLE regression ─────────────────────────
 
 /// A `position:relative` cell with text, beside a sibling that goes

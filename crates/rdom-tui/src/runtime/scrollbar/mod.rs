@@ -358,28 +358,47 @@ pub(crate) fn scroll_into_view(dom: &mut TuiDom, node: NodeId, reveal: LayoutRec
 /// included (so a container flush with the terminal edge still triggers), and
 /// dwell-gating by the tick interval keeps a quick drag-through from scrolling.
 /// Vertical only for now (horizontal pairs with `SCROLL-CROSS-AXIS-1`).
+/// Hit-test `(x, y)` and walk up to the nearest vertical scroll container, or
+/// `None` if the point hits nothing or no ancestor scrolls vertically.
+fn scroll_container_from_hit(dom: &TuiDom, x: u16, y: u16) -> Option<NodeId> {
+    use crate::runtime::hit_test::HitTestExt;
+    let hit = dom.hit_test(x, y)?;
+    let mut cur = Some(hit);
+    loop {
+        let id = cur?;
+        if is_vertical_scroll_container(dom, id) {
+            return Some(id);
+        }
+        cur = dom.node(id).parent_node().map(|p| p.id());
+    }
+}
+
 pub(crate) fn autoscroll_target(
     dom: &TuiDom,
     captured: NodeId,
     pointer: (u16, u16),
 ) -> Option<(NodeId, ScrollAxis, i32)> {
-    use crate::runtime::hit_test::HitTestExt;
-    let cap = dom.node(captured).tui_ext()?.layout;
-    if cap.width == 0 || cap.height == 0 {
-        return None;
-    }
-    let cx = (pointer.0 as i32).clamp(cap.x, cap.x + cap.width as i32 - 1) as u16;
-    let cy = (pointer.1 as i32).clamp(cap.y, cap.y + cap.height as i32 - 1) as u16;
-    let hit = dom.hit_test(cx, cy)?;
-    // Nearest vertical scroll container at or above the hit.
-    let mut cur = Some(hit);
-    let container = loop {
-        let id = cur?;
-        if is_vertical_scroll_container(dom, id) {
-            break id;
+    // Resolve the scroll container from the pointer. Held at an edge the
+    // pointer is still inside the container (its first/last visible row), so a
+    // raw hit-test finds the nearest vertical scroll container directly —
+    // independent of where the captured node is. This matters because the
+    // captured node can scroll out of view: a text-selection drag captures the
+    // anchor's block, and once the drag scrolls that block off-screen, clamping
+    // the pointer into its (now off-screen) box and hit-testing there lands in
+    // a clipped region → None → autoscroll wrongly disarms ("stuck" once the
+    // anchor leaves the viewport). Fall back to the captured-clamp hit-test for
+    // the pointer-dragged-beyond-the-container case (reliable only while the
+    // captured node is still on-screen — e.g. the virtual table's <table>,
+    // which never scrolls out, whose scroller <tbody> is a descendant).
+    let container = scroll_container_from_hit(dom, pointer.0, pointer.1).or_else(|| {
+        let cap = dom.node(captured).tui_ext()?.layout;
+        if cap.width == 0 || cap.height == 0 {
+            return None;
         }
-        cur = dom.node(id).parent_node().map(|p| p.id());
-    };
+        let cx = (pointer.0 as i32).clamp(cap.x, cap.x + cap.width as i32 - 1) as u16;
+        let cy = (pointer.1 as i32).clamp(cap.y, cap.y + cap.height as i32 - 1) as u16;
+        scroll_container_from_hit(dom, cx, cy)
+    })?;
     let ext = dom.node(container).tui_ext()?;
     let border = dom
         .node(container)
