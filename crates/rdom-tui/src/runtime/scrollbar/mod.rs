@@ -344,6 +344,91 @@ pub(crate) fn scroll_into_view(dom: &mut TuiDom, node: NodeId, reveal: LayoutRec
     }
 }
 
+/// Drag-autoscroll (DRAG-AUTOSCROLL): for a captured drag whose pointer dwells
+/// at a scroll container's vertical edge, return `(container, axis, step)` — the
+/// container to scroll and the signed cell step toward the pointer — or `None`
+/// when the pointer isn't in an edge zone or the container can't scroll further
+/// that way.
+///
+/// The pointer is first **clamped into the captured node's box**, then
+/// hit-tested + walked up to the nearest vertical scroll container — so a
+/// pointer dragged *beyond* the container (no element under it) still resolves
+/// to the right container via the captured subtree. Edge detection uses the
+/// *un*clamped pointer against the container's padding box: the boundary cell is
+/// included (so a container flush with the terminal edge still triggers), and
+/// dwell-gating by the tick interval keeps a quick drag-through from scrolling.
+/// Vertical only for now (horizontal pairs with `SCROLL-CROSS-AXIS-1`).
+pub(crate) fn autoscroll_target(
+    dom: &TuiDom,
+    captured: NodeId,
+    pointer: (u16, u16),
+) -> Option<(NodeId, ScrollAxis, i32)> {
+    use crate::runtime::hit_test::HitTestExt;
+    let cap = dom.node(captured).tui_ext()?.layout;
+    if cap.width == 0 || cap.height == 0 {
+        return None;
+    }
+    let cx = (pointer.0 as i32).clamp(cap.x, cap.x + cap.width as i32 - 1) as u16;
+    let cy = (pointer.1 as i32).clamp(cap.y, cap.y + cap.height as i32 - 1) as u16;
+    let hit = dom.hit_test(cx, cy)?;
+    // Nearest vertical scroll container at or above the hit.
+    let mut cur = Some(hit);
+    let container = loop {
+        let id = cur?;
+        if is_vertical_scroll_container(dom, id) {
+            break id;
+        }
+        cur = dom.node(id).parent_node().map(|p| p.id());
+    };
+    let ext = dom.node(container).tui_ext()?;
+    let border = dom
+        .node(container)
+        .computed()
+        .map(|c| c.border)
+        .unwrap_or_default();
+    let pb = rdom_style::layout::compute_padding_box(ext.layout, border);
+    let (viewport, offset, content) = (pb.height as usize, ext.scroll_y, ext.scroll_content_height);
+    let py = pointer.1 as i32;
+    let last_row = pb.y + pb.height as i32 - 1;
+    // Down: pointer at/below the last visible row, room to scroll down.
+    if py >= last_row && offset + viewport < content {
+        return Some((
+            container,
+            ScrollAxis::Vertical,
+            (py - last_row + 1).clamp(1, 3),
+        ));
+    }
+    // Up: pointer at/above the top visible row, not already at the top.
+    if py <= pb.y && offset > 0 {
+        return Some((
+            container,
+            ScrollAxis::Vertical,
+            -((pb.y - py + 1).clamp(1, 3)),
+        ));
+    }
+    None
+}
+
+/// Scroll `container` by `step` cells on `axis` (clamped); returns `true` if the
+/// offset actually changed (so the caller knows it hasn't hit the limit). Reuses
+/// [`set_scroll`], so the clamp + `scroll`-event dispatch are shared.
+pub(crate) fn autoscroll_step(
+    dom: &mut TuiDom,
+    container: NodeId,
+    axis: ScrollAxis,
+    step: i32,
+) -> bool {
+    let before = match dom.node(container).tui_ext() {
+        Some(e) => match axis {
+            ScrollAxis::Vertical => e.scroll_y,
+            ScrollAxis::Horizontal => e.scroll_x,
+        },
+        None => return false,
+    } as i32;
+    let after = set_scroll(dom, container, axis, before + step) as i32;
+    after != before
+}
+
 /// `true` when `id` clips on the Y axis and has more content than its
 /// scrollport can show (i.e. there's somewhere to scroll to).
 fn is_vertical_scroll_container(dom: &TuiDom, id: NodeId) -> bool {

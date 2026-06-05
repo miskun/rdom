@@ -306,9 +306,24 @@ scrollable `<tbody>`) is fully covered.
    `prevent_default`s its mousedown owns the drag. `event.target` stays DOM-standard. No router
    refactor, no new `EventCtx` methods. Pinned by `drag_autoscroll_*` (rdom-core) +
    `consumer_capture_with_prevent_default_beats_text_selection` (rdom-tui).
-2. **Drag autoscroll** + `enable_drag_autoscroll`: the armed-interval tick (the 6-step contract),
-   edge-zone dwell detection (innermost container, no chaining), synthetic-event contract incl.
-   `MouseDetail.synthetic` + `mouseout`/`mouseover`, re-entrancy guards, fake-clock tests.
+2. **Drag autoscroll — DONE (vertical).** A built-in loop phase (`service_autoscroll`, keyed on the
+   scheduler clock so it fires under both the live loop and `advance`): when an autoscroll-armed
+   captured drag dwells in a scroll container's vertical edge zone, each ~50ms tick scrolls the
+   nearest scroll container one step toward the pointer (`scrollbar::autoscroll_target` clamps the
+   pointer into the captured box → hit-test → walk up; `autoscroll_step` scrolls + dispatches the
+   `scroll` event so the consumer re-windows), then re-dispatches a synthetic left-button `Drag` at
+   the held pointer through the router so the consumer extends. `compute_poll_timeout` floors to the
+   period while armed; the tick's `while`-loop has an 8-iter guard; re-entrancy is avoided because
+   the re-dispatch routes (not `handle_event`), so `note_autoscroll` isn't re-invoked. Consumers opt
+   in with `dom.set_drag_autoscroll(true)`. Pinned by
+   `drag_autoscroll_scrolls_a_container_held_at_the_edge`.
+   **Scoped out of v1 (deferred):** *horizontal* autoscroll (pairs with `SCROLL-CROSS-AXIS-1`); the
+   `MouseDetail.synthetic` flag (informational only — the re-dispatched move is faithful in
+   buttons/coords/modifiers, which is what consumers need); and a *mid-tick relayout* before the
+   synthetic move (only matters for a layout-dependent consumer like text selection's `position_at`
+   — added in Phase 4 if needed; the grid maps `window_start` + coords, which the `scroll` event
+   already updated, so it needs no mid-tick layout). Hover (`mouseout`/`mouseover`) stays suppressed
+   during a captured drag, matching the existing capture path.
 3. **Adopt in `rdom-virtualtable` first** (the driver, low risk): `set_pointer_capture` +
    `enable_drag_autoscroll` on the cell-drag `mousedown`, and switch the drag-extend path to
    **clamped `client_x/client_y` → cell** (per the consumer contract; the click path keeps

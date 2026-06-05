@@ -2272,6 +2272,90 @@ fn advance_drives_a_scheduler_interval_deterministically() {
     assert_eq!(ticks.get(), 3, "deterministic, one tick per period");
 }
 
+#[test]
+fn drag_autoscroll_scrolls_a_container_held_at_the_edge() {
+    // DRAG-AUTOSCROLL phase 2: a captured drag that opted into autoscroll and
+    // dwells at a scroll container's bottom edge scrolls it one step per tick,
+    // and stops on release. Driven deterministically via `advance`.
+    use crate::layout::Overflow;
+    use crate::node::TuiNodeExt;
+
+    let mev = |kind, x: u16, y: u16| {
+        CtEvent::Mouse(CtMouseEvent {
+            kind,
+            column: x,
+            row: y,
+            modifiers: KeyModifiers::empty(),
+        })
+    };
+
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let scroller = dom.create_element("scroller");
+    dom.append_child(root, scroller).unwrap();
+    for _ in 0..10 {
+        let r = dom.create_element("r");
+        dom.append_child(scroller, r).unwrap(); // 10 rows of 1 → content 10 > viewport 3
+    }
+    dom.add_event_listener(
+        scroller,
+        "mousedown",
+        ListenerOptions::default(),
+        move |ctx| {
+            ctx.dom.set_pointer_capture(scroller).unwrap();
+            ctx.dom.set_drag_autoscroll(true);
+            ctx.event.prevent_default(); // claim the drag
+        },
+    )
+    .unwrap();
+
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "scroller",
+            TuiStyle::new()
+                .width(Size::Fixed(10))
+                .height(Size::Fixed(3))
+                .overflow(Overflow::Auto),
+        )
+        .rule_unchecked("r", TuiStyle::new().height(Size::Fixed(1)));
+    let mut app = test_app(dom, sheet, Rect::new(0, 0, 12, 6));
+    app.draw_if_dirty().unwrap(); // layout → scroll_content_height = 10
+
+    let scroll_y = |app: &App<TestBackend>, id: NodeId| -> usize {
+        app.dom()
+            .node(id)
+            .tui_ext()
+            .map(|e| e.scroll_y)
+            .unwrap_or(0)
+    };
+
+    // Press inside, then drag to the bottom visible row → arm autoscroll-down.
+    app.handle_event(mev(MouseEventKind::Down(MouseButton::Left), 2, 1));
+    app.handle_event(mev(MouseEventKind::Drag(MouseButton::Left), 2, 2));
+    let before = scroll_y(&app, scroller);
+    app.advance(50).unwrap();
+    let after1 = scroll_y(&app, scroller);
+    assert!(
+        after1 > before,
+        "held at the bottom edge autoscrolls down ({before} -> {after1})"
+    );
+    app.advance(50).unwrap();
+    assert!(
+        scroll_y(&app, scroller) > after1,
+        "keeps scrolling each period while held"
+    );
+
+    // Release ends the drag; further advances don't scroll.
+    app.handle_event(mev(MouseEventKind::Up(MouseButton::Left), 2, 2));
+    let at_release = scroll_y(&app, scroller);
+    app.advance(500).unwrap();
+    assert_eq!(
+        scroll_y(&app, scroller),
+        at_release,
+        "no autoscroll after mouseup releases the capture"
+    );
+}
+
 // ── PAINT-RELATIVE-ABSPOS-DOUBLE regression ─────────────────────────
 
 /// A `position:relative` cell with text, beside a sibling that goes

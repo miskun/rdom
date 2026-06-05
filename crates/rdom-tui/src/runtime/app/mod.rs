@@ -32,9 +32,17 @@ use std::io::{self, Stdout};
 use std::panic::{self, AssertUnwindSafe};
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
-use crossterm::event::{self, Event as CtEvent, KeyCode, KeyModifiers};
+use crossterm::event::{
+    self, Event as CtEvent, KeyCode, KeyModifiers, MouseButton, MouseEvent as CtMouseEvent,
+    MouseEventKind,
+};
+
+/// Cadence of the drag-autoscroll tick (DRAG-AUTOSCROLL). One internal
+/// constant; the live loop floors its poll timeout to this while an autoscroll
+/// drag is armed so it wakes to tick even with the pointer held still.
+const AUTOSCROLL_PERIOD: Duration = Duration::from_millis(50);
 
 use std::rc::Rc;
 
@@ -100,6 +108,12 @@ pub struct App<B: Backend = CrosstermBackend<Stdout>> {
     pub(crate) scheduler: crate::runtime::timers::Scheduler,
     /// In-flight CSS transitions.
     pub(crate) animations: crate::runtime::animation::AnimationRegistry,
+
+    /// DRAG-AUTOSCROLL state. `autoscroll_pointer` is the held pointer of an
+    /// autoscroll-armed captured drag (`None` when not armed); `autoscroll_next`
+    /// is the next tick's deadline on the scheduler clock.
+    autoscroll_pointer: Option<(u16, u16)>,
+    autoscroll_next: Option<Instant>,
 
     /// Flags accumulated over a tick: if true, `draw_if_dirty`
     /// triggers a paint regardless of DirtyTracker state.
@@ -237,6 +251,7 @@ impl App<CrosstermBackend<Stdout>> {
                 // chained queue_microtask calls during a callback
                 // run before the next paint, matching HTML spec.
                 self.pump_scheduler();
+                self.service_autoscroll();
                 self.drain_handle_injections();
                 self.draw_if_dirty()?;
             }
@@ -333,6 +348,8 @@ impl<B: Backend> App<B> {
             on_tick: None,
             scheduler: crate::runtime::timers::Scheduler::new(std::time::Instant::now()),
             animations: crate::runtime::animation::AnimationRegistry::new(),
+            autoscroll_pointer: None,
+            autoscroll_next: None,
             needs_redraw: true,
             should_quit: false,
             guard: None,
@@ -397,7 +414,14 @@ impl<B: Backend> App<B> {
         } else {
             self.tick_rate
         };
-        to_deadline.min(frame_floor).min(self.tick_rate)
+        let base = to_deadline.min(frame_floor).min(self.tick_rate);
+        // While a drag-autoscroll is armed, wake at least once per period so the
+        // tick fires even with the pointer held still (no new input events).
+        if self.autoscroll_pointer.is_some() {
+            base.min(AUTOSCROLL_PERIOD)
+        } else {
+            base
+        }
     }
 
     /// Pump the scheduler: advance the clock, drain microtasks,
@@ -441,7 +465,88 @@ impl<B: Backend> App<B> {
         let target = self.scheduler.now() + std::time::Duration::from_millis(ms);
         self.scheduler.set_now(target);
         self.pump_due();
+        self.service_autoscroll();
         self.draw_if_dirty()
+    }
+
+    /// Update DRAG-AUTOSCROLL arm state from the latest pointer position (called
+    /// after every routed mouse event). Armed only while a captured drag opted
+    /// into autoscroll AND the pointer dwells in a scroll container's edge zone.
+    /// On `mouseup` the capture releases, so the arm clears here next event.
+    fn note_autoscroll(&mut self, col: u16, row: u16) {
+        let armed = self.dom.drag_autoscroll()
+            && self.dom.pointer_capture().is_some_and(|cap| {
+                crate::runtime::scrollbar::autoscroll_target(&self.dom, cap, (col, row)).is_some()
+            });
+        if armed {
+            self.autoscroll_pointer = Some((col, row));
+            if self.autoscroll_next.is_none() {
+                self.autoscroll_next = Some(self.scheduler.now() + AUTOSCROLL_PERIOD);
+            }
+        } else {
+            self.autoscroll_pointer = None;
+            self.autoscroll_next = None;
+        }
+    }
+
+    /// Fire any due autoscroll ticks. Keyed on the scheduler clock so it works
+    /// identically under the live loop (wall-synced) and `advance` (virtual).
+    fn service_autoscroll(&mut self) {
+        let Some((col, row)) = self.autoscroll_pointer else {
+            return;
+        };
+        if self.dom.pointer_capture().is_none() || !self.dom.drag_autoscroll() {
+            self.autoscroll_pointer = None;
+            self.autoscroll_next = None;
+            return;
+        }
+        let now = self.scheduler.now();
+        let mut guard = 0u8;
+        while let Some(next) = self.autoscroll_next {
+            if now < next || guard >= 8 {
+                break;
+            }
+            guard += 1;
+            if !self.autoscroll_tick(col, row) {
+                // Hit the scroll limit / left the zone — disarm.
+                self.autoscroll_pointer = None;
+                self.autoscroll_next = None;
+                return;
+            }
+            self.autoscroll_next = Some(next + AUTOSCROLL_PERIOD);
+        }
+    }
+
+    /// One autoscroll step: scroll the container toward the held pointer, then
+    /// re-dispatch the drag at the held pointer (capture path) so the consumer
+    /// — and native text selection — extend against the new scroll position.
+    /// Returns `false` when there's nothing left to scroll, so the caller
+    /// disarms.
+    fn autoscroll_tick(&mut self, col: u16, row: u16) -> bool {
+        let Some(captured) = self.dom.pointer_capture() else {
+            return false;
+        };
+        let Some((container, axis, step)) =
+            crate::runtime::scrollbar::autoscroll_target(&self.dom, captured, (col, row))
+        else {
+            return false;
+        };
+        if !crate::runtime::scrollbar::autoscroll_step(&mut self.dom, container, axis, step) {
+            return false;
+        }
+        // A synthetic left-button Drag at the held pointer carries the held
+        // coords + the held-button bitmask, so the consumer's move guard accepts
+        // it and re-evaluates against the new scroll offset.
+        let synthetic = CtMouseEvent {
+            kind: MouseEventKind::Drag(MouseButton::Left),
+            column: col,
+            row,
+            modifiers: KeyModifiers::empty(),
+        };
+        let outcome = self.router.route(&mut self.dom, CtEvent::Mouse(synthetic));
+        self.needs_redraw |= outcome.redraw_requested;
+        self.needs_redraw = true; // the scroll itself changed the view
+        true
     }
 
     /// Replace every registered stylesheet with `sheet`. Returns the
@@ -701,11 +806,14 @@ impl<B: Backend> App<B> {
                 // until the next event ticks the cascade.
                 self.needs_redraw |= self.tracker.take_paint_dirty();
             }
-            CtEvent::Mouse(_) => {
+            CtEvent::Mouse(m) => {
+                let (col, row) = (m.column, m.row);
                 let outcome = self.router.route(&mut self.dom, event);
                 self.needs_redraw |= outcome.redraw_requested;
                 self.should_quit |= outcome.quit_requested;
                 self.needs_redraw |= self.tracker.take_paint_dirty();
+                // DRAG-AUTOSCROLL: (re)arm from the pointer's current position.
+                self.note_autoscroll(col, row);
             }
             CtEvent::Resize(_, _) => {
                 // `Terminal::autoresize` (called from `draw`) handles
