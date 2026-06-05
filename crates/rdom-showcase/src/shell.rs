@@ -567,6 +567,10 @@ const BASE_CSS: &str = r#"
 .main .source-disclosure summary {
   color: rgb(180, 200, 230);
   font-weight: bold;
+  /* The "Source" label is an interactive disclosure control, not prose —
+   * a drag-select spilling out of the demo above shouldn't highlight it.
+   * The source `<pre>` below stays selectable so its code can be copied. */
+  user-select: none;
 }
 .main .source-disclosure h3 {
   color: rgb(180, 200, 230);
