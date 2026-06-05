@@ -254,17 +254,29 @@ zero — but the edge-zone math, the scroll, the tick cadence, and the synthetic
 in the substrate, used identically by text selection. (The grid's *non-drag* click mapping can keep
 using `closest("td")`; only the drag-extend path needs coords.)
 
-**(3) Single scroll writer during a drag (gotcha — found adopting in `rdom-virtualtable`).** A
-consumer that *also* drives its container's scroll offset from its own state (e.g. a keyboard cursor
-that scrolls-to-follow) must **suspend that write while a pointer drag is live**. Otherwise the
-consumer's per-move scroll write fights the autoscroll's write on the same container every tick: the
-cursor-follow only scrolls enough to keep the cursor visible, so it resets the offset the autoscroll
-just advanced, and the two settle at a stuck fixed point where the window never moves. The rule is
-**one scroll authority at a time**: the pointer/autoscroll owns the offset during a drag; the
-consumer's own scroll-follow logic is for keyboard navigation only. (A browser behaves the same —
-dragging a selection scrolls via autoscroll; the caret follows the pointer, it doesn't re-drive
-scroll.) The substrate can't enforce this — it can't tell a legitimate consumer `set_scroll_top`
-from a cursor-follow clobber — so it's a documented consumer obligation.
+**(3) One scroll authority at a time (gotcha — found adopting in `rdom-virtualtable`).** The
+synthetic move re-dispatches into the consumer's `mousemove` handler **every tick** (that's the
+mechanic in §"Why re-dispatch the pointer"), so the handler is re-entrant under autoscroll in a way
+a browser's engine-internal selection-autoscroll is not. Any scroll-touching side-effect in that
+handler therefore runs against the autoscroll's own `scroll_top` write. Concretely: a consumer that
+also drives its container's scroll offset from its **own state** — e.g. a keyboard cursor that
+scrolls-to-follow — must **suspend that write while a pointer drag is live**, or the two writers
+fight on the same container each tick (the cursor-follow only scrolls enough to keep the cursor
+visible, so it resets the offset the autoscroll just advanced; they settle at a stuck fixed point and
+the window never moves). The pointer/autoscroll owns the offset during a drag; the consumer's
+scroll-follow logic is for keyboard navigation only. A browser sidesteps this **by construction**,
+and that's the real lesson: browser scrolling is *unidirectional* — `scrollTop` is the single source
+of truth and the rendered/virtualized window is a pure function of it (`window = f(scrollTop)`);
+"keep the cursor visible" is a discrete `scrollIntoView()`-style command on nav, never a continuous
+reconciliation, and nav-scroll and drag-autoscroll-scroll live on **separate** code paths. The gotcha
+only appears when a consumer keeps a **second, redundant source of truth for scroll** (its own cursor
+offset) and continuously pushes it back into the container, *and* routes both gestures through that
+one write. The substrate can't enforce the rule — it can't tell a legitimate `set_scroll_top` from a
+cursor-follow clobber, just as the DOM can't — so it's a documented consumer obligation. The
+**interim** fix in `rdom-virtualtable` is a `!mouse_drag` guard on the cursor-follow write; the
+**root** fix is to retire the redundant scroll state once a real scroll container exists (make
+`scrollTop` authoritative; `follow` → write-once on keyboard nav only). That refactor is tracked in
+the consumer's roadmap, not here.
 
 ## Boundary: virtualization without a real scroll container
 
