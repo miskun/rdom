@@ -167,6 +167,19 @@ impl HitTestExt for Dom<TuiExt> {
             return resolve_in_target(self, target, x, y);
         }
 
+        // Empty space inside a `user-select: none` subtree (e.g. a table row's
+        // trailing space past its last cell): no caret. Do NOT snap out to the
+        // nearest selectable text elsewhere — that would start a text-selection
+        // drag from a non-selectable region and hijack the consumer (the grid).
+        // This mirrors the contained-case gate above. The drag-extend path
+        // (`nearest_selectable_position`) is unaffected — it deliberately skips
+        // *over* user-select:none regions to keep extending an existing drag.
+        if let Some(&deepest) = path.last()
+            && user_select::has_none_ancestor(self, deepest)
+        {
+            return None;
+        }
+
         // No inline-flow target contains `y`: the point is in empty space —
         // a gap between blocks, above/below all content, or a non-IFC
         // container with text only in descendants. Browsers snap

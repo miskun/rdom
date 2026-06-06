@@ -5,6 +5,14 @@ All notable changes to rdom will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.14] - 2026-06-06
+
+Only `rdom-tui` bumps (0.3.13 → **0.3.14**); the other four crates are unchanged.
+
+### Fixed — `position_at` no longer snaps out of a `user-select: none` region
+
+Clicking the **empty space** inside a `user-select: none` subtree — e.g. a table row's trailing area, past its last cell — wrongly snapped the caret to the nearest *selectable* text elsewhere on the page (a title, a label), starting a phantom text-selection drag that captured the pointer and hijacked the consumer's own grid selection. The contained-hit path already gated on `has_none_ancestor`; the empty-space snap fallback did not, so it escalated its search up past the non-selectable region to the root and landed on distant prose. The fallback now applies the same gate: if the deepest hit element is inside a `user-select: none` subtree, `position_at` returns `None` (no caret) instead of snapping out. The drag-*extend* path (`nearest_selectable_position`) is intentionally left to skip *over* none-regions so an in-flight selection keeps extending. Surfaced by `rdom-virtualtable`: clicking the table body past the last column killed the cursor/selection highlight.
+
 ## [0.3.13] - 2026-06-06
 
 Only `rdom-tui` bumps (0.3.12 → **0.3.13**); the other four crates are unchanged.

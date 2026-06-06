@@ -606,6 +606,63 @@ fn position_at_respects_user_select_none() {
 }
 
 #[test]
+fn position_at_empty_space_in_user_select_none_does_not_snap_out() {
+    // rdom-virtualtable repro: clicking the EMPTY area of a `user-select: none`
+    // flex container (e.g. a table row's trailing space, past the last cell)
+    // must yield no caret — NOT snap to the nearest *selectable* text elsewhere
+    // (the page title), which would start a text-selection drag and hijack the
+    // grid. The snap fallback must not escalate out of a user-select:none region.
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    // A user-select:none flex row with one short cell; cols 5..20 are empty.
+    let row = dom.create_element("row");
+    let cell = dom.create_element("cell");
+    let ct = dom.create_text_node("x");
+    dom.append_child(cell, ct).unwrap();
+    let cspan = dom.create_element("span");
+    dom.append_child(cell, cspan).unwrap();
+    dom.append_child(row, cell).unwrap();
+    dom.append_child(root, row).unwrap();
+    // A separate SELECTABLE block below it (the "title").
+    let title = dom.create_element("p");
+    let tt = dom.create_text_node("title");
+    dom.append_child(title, tt).unwrap();
+    let tspan = dom.create_element("span");
+    dom.append_child(title, tspan).unwrap();
+    dom.append_child(root, title).unwrap();
+
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "row",
+            TuiStyle::new()
+                .display(Display::Block)
+                .flow(Flow::Flex)
+                .direction(Direction::Row)
+                .width(Size::Fixed(20))
+                .height(Size::Fixed(1))
+                .user_select(UserSelect::None),
+        )
+        .rule_unchecked(
+            "cell",
+            TuiStyle::new()
+                .display(Display::Block)
+                .width(Size::Fixed(5)),
+        )
+        .rule_unchecked(
+            "p",
+            TuiStyle::new()
+                .display(Display::Block)
+                .width(Size::Fixed(10)),
+        )
+        .rule_unchecked("span", TuiStyle::new().display(Display::Inline));
+    prepare(&mut dom, &sheet, Rect::new(0, 0, 20, 10));
+
+    // (10, 0) is the row's empty trailing space — inside the user-select:none
+    // row, past its only cell. No caret; must NOT resolve to "title".
+    assert_eq!(dom.position_at(10, 0), None);
+}
+
+#[test]
 fn position_at_user_select_none_inherits_to_subtree() {
     // user-select inherits; a child inside a user-select: none
     // parent is also unselectable even without its own declaration.
