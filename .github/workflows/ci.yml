@@ -22,14 +22,14 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       # `--all-targets` covers libs, bins, integration tests, benches,
-      # AND examples. The 7 `rdom-tui` examples can't be `cargo test`'d
+      # AND examples. The `rdom-tui` examples can't be `cargo test`'d
       # (they're TTY-bound `main`s, not test harnesses) — instead, the
       # `ua_chrome_snapshot` integration test runs the same DOM
       # construction through a TestBackend pipeline and golden-compares
       # the painted buffer, so visible regressions to the UA chrome
       # are caught here.
-      - run: cargo build --workspace --all-targets
-      - run: cargo test --workspace
+      - run: cargo build --workspace --all-targets --locked
+      - run: cargo test --workspace --locked
 
   clippy:
     name: Clippy
@@ -42,7 +42,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       # `--all-targets` lints lib + bins + tests + examples + benches.
       # Examples therefore can't ship warnings either.
-      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
   fmt:
     name: Rustfmt
