@@ -18,7 +18,7 @@ are not caught by the suite — they are invariant breaks, spec inversions, and 
 
 | # | Finding | Where | Status |
 |---|---|---|---|
-| R1 | `NodeId` has no generation; freed slots are reissued and `contains()` says yes for a stale id. Router `hover_target` / `down_target`, `App.autoscroll_container`, `NodeList` snapshots all hold ids across detaches. `DIVERGENCES.md` claimed ids are never reused. | `rdom-core/src/dom.rs` alloc, `node_id.rs` | open |
+| R1 | `NodeId` has no generation; freed slots are reissued and `contains()` says yes for a stale id. Router `hover_target` / `down_target`, `App.autoscroll_container`, `NodeList` snapshots all hold ids across detaches. `DIVERGENCES.md` claimed ids are never reused. | `rdom-core/src/dom.rs` alloc, `node_id.rs` | **fixed** (generational `NodeId`, per-slot generation checked on every lookup) |
 | R2 | `compare_document_position` returned `CONTAINS \| PRECEDING` for a descendant argument; spec is `CONTAINED_BY \| FOLLOWING`. `selection_range` and paint were tuned to the inverted bits; ancestor positions ignored their offset. | `rdom-core/src/position.rs` | **fixed** (spec bits + `compare_boundary_points`, DOM §5.2) |
 | R3 | A panicking `MutationObserver` left `is_observing = true` and dropped every observer; a panicking listener was silently unregistered. | `observer.rs`, `dispatch.rs` | **fixed** (`catch_unwind` → restore → `resume_unwind`) |
 | R4 | Timer API reaches the scheduler through a raw-pointer thread-local installed only in `handle_event` / `tick`; any listener fired from a timer callback, `transitionend`, an injected closure, or the autoscroll synthetic drag panics on `set_timeout`. Installing the guard in the pump would alias `&mut Scheduler`. | `rdom-tui/src/runtime/timers.rs` | open — replace the thread-local with an explicit scheduler handle on the event context |
@@ -42,7 +42,7 @@ Core: target-phase listeners run in registration order, interleaving capture and
 capture listeners first at target); `stop_propagation` flags are not reset on re-dispatch;
 `add/remove_mutation_observer` don't honor the re-entrancy contract they document; `indexes.rs` does O(n)
 `contains` / `retain` per alloc/free; `set_class_name` emits three passes of records; `NodeRef::node_type`
-panics on a freed id without a `# Panics` doc; `bitflags_like!` is `#[macro_export]`ed for one internal use.
+panics on a freed id without a `# Panics` doc. (The review also flagged `bitflags_like!` as exported for one internal use; that was wrong — `rdom-style` consumes it, so the export stays.)
 
 Style/CSS: custom properties silently dropped unless the selector is literally `:root`; `serialize_literal_color`
 hand-matches 17 triples and emits non-CSS names (`lightred`); calc serialization drops parens; `calc(10 / 0)`
@@ -147,8 +147,8 @@ Every behavior change lands test-first. Each batch ends with the grumpy-architec
 then a release (divergent bumps as before; a `rdom-core` change forces a `rdom-tui` bump).
 
 - **Batch 1 — rdom-core** (→ `rdom-core` 0.4.0, `rdom-tui` follows): R2 ✔, R3 ✔, R1 generational `NodeId`,
-  target-phase ordering + flag reset, observer re-entrancy contract, index structure, duplicate-id document
-  order, `set_class_name` single pass, `# Panics` docs, `bitflags_like!` scope, accessor split. Rewrite the
+  target-phase ordering + flag reset ✔, observer re-entrancy contract ✔, index structure ✔, duplicate-id document
+  order ✔, `set_class_name` single pass ✔, `# Panics` docs ✔, accessor split. Rewrite the
   DOM-API section of DIVERGENCES.md.
 - **Batch 2 — rdom-style + rdom-css** (→ 0.4.0, `rdom-tui` follows): R8 number tokens, R9 at-rules and
   brace recovery, scoped custom properties, `background` shorthand, `inherit` / `initial` / `unset`,
@@ -168,4 +168,10 @@ then a release (divergent bumps as before; a `rdom-core` change forces a `rdom-t
 - 2026-09-21 — Review + audits complete. Lockfile synced, CI `--locked`, `rdom-tui-v0.3.14` tagged.
   Batch 1: R2 fixed (spec bits, `Dom::compare_boundary_points`, `selection_range` and paint selection
   membership use boundary-point order); R3 fixed (observer + listener panic restore). Runtime test that
-  enshrined the old "panicking listener vanishes" behavior rewritten to assert retention.
+  enshrined the old "panicking listener vanishes" behavior rewritten to assert retention. R1 fixed
+  (generational `NodeId`). Two-pass target dispatch + flag reset; observers may add/remove observers
+  during a callback; index buckets are `BTreeSet`s; `getElementById` duplicates resolve in document
+  order; `set_class_name` single pass. Process note: the first two Batch-1 commits went in with one
+  red runtime test (the rewritten panic test asserted a root listener count of 1, ignoring the App's
+  builtin root listeners) because the background test runner's exit status was read from the wrong
+  place — fixed in the following commit; the gate is now read from the log's own `test exit` line.

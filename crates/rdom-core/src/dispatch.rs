@@ -226,7 +226,16 @@ impl<Ext> Dom<Ext> {
             return Err(DomError::InvalidNode(target));
         }
 
-        // ── Capture phase ─────────────────────────────────────────
+        // DOM §2.9 dispatch: one capture pass root → target, one bubble
+        // pass target → root. The target participates in *both* passes
+        // (its capture listeners in the first, its non-capture listeners
+        // in the second) and reports `AtTarget` for each. This is what
+        // every engine ships since 2019: a target capture listener runs
+        // before a target bubble listener regardless of registration
+        // order, and `stopPropagation()` in the former suppresses the
+        // latter.
+
+        // ── Capture pass ──────────────────────────────────────────
         event.phase = EventPhase::Capturing;
         for &node in path.iter().take(path.len() - 1) {
             if event.propagation_stopped {
@@ -235,15 +244,18 @@ impl<Ext> Dom<Ext> {
             event.current_target = Some(node);
             self.fire_at(node, event, PhaseFilter::Capture);
         }
-
-        // ── Target phase ──────────────────────────────────────────
         if !event.propagation_stopped {
             event.phase = EventPhase::AtTarget;
             event.current_target = Some(target);
-            self.fire_at(target, event, PhaseFilter::All);
+            self.fire_at(target, event, PhaseFilter::Capture);
         }
 
-        // ── Bubble phase ──────────────────────────────────────────
+        // ── Bubble pass ───────────────────────────────────────────
+        if !event.propagation_stopped {
+            event.phase = EventPhase::AtTarget;
+            event.current_target = Some(target);
+            self.fire_at(target, event, PhaseFilter::Bubble);
+        }
         if event.bubbles && !event.propagation_stopped {
             event.phase = EventPhase::Bubbling;
             for &node in path.iter().rev().skip(1) {
@@ -255,8 +267,13 @@ impl<Ext> Dom<Ext> {
             }
         }
 
+        // DOM §2.9 step 5.9: clear the propagation flags so the same
+        // `Event` can be dispatched again. `default_prevented` (the
+        // canceled flag) deliberately persists.
         event.phase = EventPhase::None;
         event.current_target = None;
+        event.propagation_stopped = false;
+        event.immediate_propagation_stopped = false;
         Ok(())
     }
 
@@ -359,7 +376,6 @@ impl<Ext> Dom<Ext> {
 enum PhaseFilter {
     Capture,
     Bubble,
-    All,
 }
 
 impl PhaseFilter {
@@ -367,7 +383,6 @@ impl PhaseFilter {
         match self {
             PhaseFilter::Capture => listener_capture,
             PhaseFilter::Bubble => !listener_capture,
-            PhaseFilter::All => true,
         }
     }
 }
@@ -421,6 +436,126 @@ mod tests {
         let mut e = Event::new("click");
         dom.dispatch_event(el, &mut e).unwrap();
         assert_eq!(fired.get(), 2);
+    }
+
+    fn cap() -> ListenerOptions {
+        ListenerOptions {
+            capture: true,
+            ..ListenerOptions::default()
+        }
+    }
+
+    fn log_listener(
+        log: &Rc<std::cell::RefCell<Vec<&'static str>>>,
+        tag: &'static str,
+    ) -> impl FnMut(&mut EventCtx<'_, ()>) + 'static {
+        let log = log.clone();
+        move |_| log.borrow_mut().push(tag)
+    }
+
+    /// DOM §2.9 (2019+, shipped in every engine): at the target, capture
+    /// listeners run in the capture pass and non-capture listeners run
+    /// in the bubble pass — registration order does not interleave them.
+    #[test]
+    fn at_target_capture_listeners_fire_before_bubble_listeners() {
+        let (mut dom, _, _, c, _) = build_chain();
+        let log = Rc::new(std::cell::RefCell::new(Vec::new()));
+        // Register bubble listeners first so registration order would
+        // put them ahead of the capture listener.
+        dom.add_event_listener(
+            c,
+            "click",
+            ListenerOptions::default(),
+            log_listener(&log, "b1"),
+        )
+        .unwrap();
+        dom.add_event_listener(c, "click", cap(), log_listener(&log, "c1"))
+            .unwrap();
+        dom.add_event_listener(
+            c,
+            "click",
+            ListenerOptions::default(),
+            log_listener(&log, "b2"),
+        )
+        .unwrap();
+        dom.add_event_listener(c, "click", cap(), log_listener(&log, "c2"))
+            .unwrap();
+
+        let mut e = Event::new("click");
+        dom.dispatch_event(c, &mut e).unwrap();
+        assert_eq!(*log.borrow(), vec!["c1", "c2", "b1", "b2"]);
+    }
+
+    /// `stopPropagation()` in a target capture listener suppresses the
+    /// target's own bubble-side listeners (they belong to the next pass).
+    #[test]
+    fn stop_propagation_in_target_capture_listener_suppresses_target_bubble_listeners() {
+        let (mut dom, _, _, c, _) = build_chain();
+        let log = Rc::new(std::cell::RefCell::new(Vec::new()));
+        dom.add_event_listener(
+            c,
+            "click",
+            ListenerOptions::default(),
+            log_listener(&log, "bubble"),
+        )
+        .unwrap();
+        {
+            let log = log.clone();
+            dom.add_event_listener(c, "click", cap(), move |ctx| {
+                log.borrow_mut().push("capture");
+                ctx.event.stop_propagation();
+            })
+            .unwrap();
+        }
+        let mut e = Event::new("click");
+        dom.dispatch_event(c, &mut e).unwrap();
+        assert_eq!(*log.borrow(), vec!["capture"]);
+    }
+
+    /// Both listeners at the target report `AT_TARGET` as the phase.
+    #[test]
+    fn at_target_phase_is_reported_for_both_capture_and_bubble_listeners() {
+        let (mut dom, _, _, c, _) = build_chain();
+        let phases = Rc::new(std::cell::RefCell::new(Vec::new()));
+        for opts in [cap(), ListenerOptions::default()] {
+            let phases = phases.clone();
+            dom.add_event_listener(c, "click", opts, move |ctx| {
+                phases.borrow_mut().push(ctx.event.phase);
+            })
+            .unwrap();
+        }
+        let mut e = Event::new("click");
+        dom.dispatch_event(c, &mut e).unwrap();
+        assert_eq!(
+            *phases.borrow(),
+            vec![EventPhase::AtTarget, EventPhase::AtTarget]
+        );
+    }
+
+    /// DOM §2.9 step 5.9: the stop-propagation flags are cleared when
+    /// dispatch ends, so the same `Event` value can be dispatched again
+    /// (only `canceled` persists).
+    #[test]
+    fn propagation_flags_reset_after_dispatch_so_event_can_be_redispatched() {
+        let (mut dom, _, _, c, _) = build_chain();
+        let fired = Rc::new(Cell::new(0));
+        {
+            let fired = fired.clone();
+            dom.add_event_listener(c, "click", ListenerOptions::default(), move |ctx| {
+                fired.set(fired.get() + 1);
+                ctx.event.stop_immediate_propagation();
+                ctx.event.prevent_default();
+            })
+            .unwrap();
+        }
+        let mut e = Event::new("click");
+        dom.dispatch_event(c, &mut e).unwrap();
+        assert!(!e.is_propagation_stopped());
+        assert!(!e.is_immediate_propagation_stopped());
+        assert!(e.default_prevented(), "canceled flag persists");
+
+        dom.dispatch_event(c, &mut e).unwrap();
+        assert_eq!(fired.get(), 2, "second dispatch reaches the listener again");
     }
 
     #[test]

@@ -124,8 +124,11 @@ pub enum Mutation {
 
 /// Observer callback trait. Receives a mutable `&mut Dom<Ext>` so
 /// observers can READ freely — but any attempt to mutate the tree
-/// or install/remove observers inside `observe()` panics via the
-/// `is_observing` guard.
+/// inside `observe()` panics via the `is_observing` guard. Installing
+/// or removing observers from inside the callback is allowed (the web's
+/// `MutationObserver.disconnect()` inside the callback): a removed
+/// observer — including the one currently running — receives nothing
+/// further; an added one receives only later records.
 pub trait MutationObserver<Ext>: 'static {
     fn observe(&mut self, dom: &mut Dom<Ext>, record: &Mutation);
 }
@@ -135,9 +138,14 @@ pub trait MutationObserver<Ext>: 'static {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ObserverId(pub(crate) u32);
 
+/// One registered observer. The box is `None` while that observer is
+/// being invoked (taken out so the callback can receive `&mut Dom`) and
+/// restored by id afterwards.
+type ObserverSlot<Ext> = (ObserverId, Option<Box<dyn MutationObserver<Ext>>>);
+
 pub(crate) struct ObserverStore<Ext> {
     next_id: u32,
-    entries: Vec<(ObserverId, Box<dyn MutationObserver<Ext>>)>,
+    entries: Vec<ObserverSlot<Ext>>,
 }
 
 impl<Ext> Default for ObserverStore<Ext> {
@@ -175,7 +183,7 @@ impl<Ext: 'static> Dom<Ext> {
     ) -> ObserverId {
         let id = ObserverId(self.observers.next_id);
         self.observers.next_id += 1;
-        self.observers.entries.push((id, observer));
+        self.observers.entries.push((id, Some(observer)));
         id
     }
 
@@ -211,35 +219,49 @@ impl<Ext: 'static> Dom<Ext> {
             return;
         }
 
-        // Take observers out so we can pass &mut self to each callback.
-        // Observers added during the notification land in
-        // `self.observers.entries` (empty at start of loop) and are merged
-        // back in registration order afterwards.
-        let mut taken = std::mem::take(&mut self.observers.entries);
+        // Snapshot the ids to notify: observers added during this
+        // notification are not in the snapshot (they see later records);
+        // observers removed by an earlier callback are skipped when the
+        // re-locate fails. Each observer is taken out of its slot for
+        // the duration of its own call so it can receive `&mut Dom`,
+        // then restored by id — the same shape as `dispatch::fire_at`.
+        let ids: Vec<ObserverId> = self.observers.entries.iter().map(|(id, _)| *id).collect();
         self.is_observing = true;
-        // A panicking observer must not poison the Dom: hosts that catch
-        // the panic (rdom-tui does, to restore the terminal) need the
-        // re-entrancy flag cleared and every observer put back. Restore
-        // first, then re-raise the original panic payload.
-        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            for (_, obs) in &mut taken {
+        for id in ids {
+            let Some(pos) = self
+                .observers
+                .entries
+                .iter()
+                .position(|(oid, _)| *oid == id)
+            else {
+                continue; // removed by a previous observer in this round
+            };
+            let Some(mut obs) = self.observers.entries[pos].1.take() else {
+                continue;
+            };
+            // A panicking observer must not poison the Dom: hosts that
+            // catch the panic (rdom-tui does, to restore the terminal)
+            // need the re-entrancy flag cleared and the observer put
+            // back. Restore first, then re-raise the original payload.
+            let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 obs.observe(self, &record);
+            }));
+            if let Some(pos) = self
+                .observers
+                .entries
+                .iter()
+                .position(|(oid, _)| *oid == id)
+            {
+                self.observers.entries[pos].1 = Some(obs);
             }
-        }));
+            // Else: the observer removed itself (or was removed) during
+            // its own callback; dropping `obs` completes the removal.
+            if let Err(payload) = outcome {
+                self.is_observing = false;
+                std::panic::resume_unwind(payload);
+            }
+        }
         self.is_observing = false;
-
-        if self.observers.entries.is_empty() {
-            self.observers.entries = taken;
-        } else {
-            // Prepend taken so registration order is preserved
-            // (older observers run first when a newer one was added).
-            taken.extend(std::mem::take(&mut self.observers.entries));
-            self.observers.entries = taken;
-        }
-
-        if let Err(payload) = outcome {
-            std::panic::resume_unwind(payload);
-        }
     }
 }
 
@@ -313,6 +335,87 @@ mod tests {
         dom.set_attribute(el, "id", "x").unwrap();
         assert_eq!(before.borrow().len(), n_before + 1);
         assert_eq!(after.borrow().len(), n_after + 1);
+    }
+
+    /// `MutationObserver.disconnect()` inside the callback is legal on
+    /// the web. The in-flight observer removes itself: the call reports
+    /// success, later mutations don't reach it, the others are unaffected.
+    #[test]
+    fn observer_can_remove_itself_during_callback() {
+        struct SelfRemover {
+            me: Rc<std::cell::Cell<Option<ObserverId>>>,
+            seen: Rc<std::cell::Cell<u32>>,
+            removed: Rc<std::cell::Cell<Option<bool>>>,
+        }
+        impl MutationObserver<()> for SelfRemover {
+            fn observe(&mut self, dom: &mut Dom<()>, _record: &Mutation) {
+                self.seen.set(self.seen.get() + 1);
+                let id = self.me.get().expect("id stored before first mutation");
+                self.removed.set(Some(dom.remove_mutation_observer(id)));
+            }
+        }
+        let mut dom: Dom = Dom::new();
+        let (_, other) = install_collector(&mut dom);
+        let me = Rc::new(std::cell::Cell::new(None));
+        let seen = Rc::new(std::cell::Cell::new(0));
+        let removed = Rc::new(std::cell::Cell::new(None));
+        let id = dom.add_mutation_observer(Box::new(SelfRemover {
+            me: me.clone(),
+            seen: seen.clone(),
+            removed: removed.clone(),
+        }));
+        me.set(Some(id));
+        assert_eq!(dom.observer_count(), 2);
+
+        let el = dom.create_element("div");
+        dom.set_attribute(el, "id", "a").unwrap();
+        assert_eq!(seen.get(), 1);
+        assert_eq!(
+            removed.get(),
+            Some(true),
+            "removal inside observe() succeeds"
+        );
+        assert_eq!(dom.observer_count(), 1);
+
+        let n = other.borrow().len();
+        dom.set_attribute(el, "id", "b").unwrap();
+        assert_eq!(seen.get(), 1, "the removed observer gets nothing more");
+        assert_eq!(
+            other.borrow().len(),
+            n + 1,
+            "the other observer still fires"
+        );
+    }
+
+    /// An observer installed from inside a callback receives only records
+    /// for *later* mutations, in registration order after the existing ones.
+    #[test]
+    fn observer_added_during_callback_sees_only_later_records() {
+        struct Installer {
+            installed: Rc<std::cell::Cell<bool>>,
+            records: Rc<RefCell<Vec<Mutation>>>,
+        }
+        impl MutationObserver<()> for Installer {
+            fn observe(&mut self, dom: &mut Dom<()>, _record: &Mutation) {
+                if !self.installed.replace(true) {
+                    dom.add_mutation_observer(Box::new(Collector {
+                        records: self.records.clone(),
+                    }));
+                }
+            }
+        }
+        let mut dom: Dom = Dom::new();
+        let late = Rc::new(RefCell::new(Vec::new()));
+        dom.add_mutation_observer(Box::new(Installer {
+            installed: Rc::new(std::cell::Cell::new(false)),
+            records: late.clone(),
+        }));
+        let el = dom.create_element("div");
+        dom.set_attribute(el, "id", "first").unwrap();
+        assert_eq!(dom.observer_count(), 2);
+        assert!(late.borrow().is_empty(), "not the record that installed it");
+        dom.set_attribute(el, "id", "second").unwrap();
+        assert_eq!(late.borrow().len(), 1);
     }
 
     #[test]

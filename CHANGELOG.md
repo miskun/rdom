@@ -5,6 +5,25 @@ All notable changes to rdom will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+Work in progress under [`specs/HARDENING-2026-09.md`](specs/HARDENING-2026-09.md). Batch 1 changes `rdom-core` (→ 0.4.0); `rdom-tui` follows because it depends on it.
+
+### Changed — `rdom-core`
+
+- **`NodeId` is generational.** A handle is now a slot index plus a generation (8 bytes; `Option<NodeId>` still 8). Slots are still recycled after `drop_subtree` / `remove_child_dropping`, but the recycled slot gets a new generation, so a stale id is rejected by `contains`, `node_or_err`, and every mutation path instead of silently resolving to the new occupant. `NodeId::generation()` is new; `as_u32()` keeps returning the slot number; `Display` shows `#slot@gen` after a recycle. (R1)
+- **`compare_document_position` bits match DOM §4.4.** `a.compareDocumentPosition(b)` with `b` a descendant of `a` is `CONTAINED_BY | FOLLOWING` (20); the previous inversion made `FOLLOWING` mean two different things depending on the branch. New `Dom::compare_boundary_points` implements DOM §5.2 boundary-point ordering; `selection_range` uses it, so an element position `(el, k)` orders by its offset against the child index. (R2)
+- **Event dispatch is two-pass at the target (DOM §2.9).** Capture listeners on the target fire in the capture pass, non-capture listeners in the bubble pass, both reporting `AtTarget`; registration order no longer interleaves them, and `stopPropagation()` in a target capture listener suppresses the target's bubble listeners. The stop-propagation flags are cleared when dispatch ends so an `Event` can be dispatched again (`default_prevented` persists).
+- **`getElementById` with duplicate ids returns the first in document order** among connected elements (was: first registered).
+- **Index buckets are `BTreeSet`s.** Register / unregister is O(log n); building or tearing down n same-tag nodes was O(n²). Bulk getters return arena order as before.
+- `set_class_name` is a single `set_attribute("class", …)` call (one `AttributeChanged` record instead of a remove-all / set / add-each cycle).
+- `Dom::node` / `NodeRef::node_type` / `NodeRef::node_name` document their panic on a dead id.
+
+### Fixed — `rdom-core`
+
+- A panicking `MutationObserver` no longer poisons the `Dom` (the re-entrancy flag stayed set and every observer was dropped); a panicking event listener is restored instead of silently unregistered. Both run under `catch_unwind`, restore the bookkeeping, and re-raise. (R3)
+- `remove_mutation_observer` / `add_mutation_observer` work from inside an observer callback (the web's `disconnect()` inside the callback): the running observer can remove itself, and an observer added mid-notification receives only later records. Previously removal during notification returned `false` and the observer survived.
+
 ## [0.3.14] - 2026-06-06
 
 Only `rdom-tui` bumps (0.3.13 → **0.3.14**); the other four crates are unchanged.

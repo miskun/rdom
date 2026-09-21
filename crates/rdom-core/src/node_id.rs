@@ -15,7 +15,7 @@
 
 use std::num::NonZeroU32;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct NodeId {
     index: u32,
     generation: NonZeroU32,
@@ -55,6 +55,19 @@ impl NodeId {
     /// different nodes that occupied the same slot at different times.
     pub fn as_u32(self) -> u32 {
         self.index + 1
+    }
+}
+
+/// Compact form, `NodeId(42)` — with `@gen` appended after a recycle —
+/// rather than the derived struct dump, so debug output and paint
+/// snapshots that print ids stay readable.
+impl std::fmt::Debug for NodeId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "NodeId({}", self.index + 1)?;
+        if self.generation.get() > 1 {
+            write!(f, "@{}", self.generation.get())?;
+        }
+        write!(f, ")")
     }
 }
 
@@ -101,6 +114,15 @@ mod tests {
 
     /// First-generation ids print as before (`#slot`); a recycled slot
     /// shows its generation so debug output can tell the two apart.
+    #[test]
+    fn debug_is_compact() {
+        assert_eq!(format!("{:?}", NodeId::from_parts(8, G1)), "NodeId(9)");
+        assert_eq!(
+            format!("{:?}", NodeId::from_parts(8, NonZeroU32::new(2).unwrap())),
+            "NodeId(9@2)"
+        );
+    }
+
     #[test]
     fn display_shows_slot_and_generation_after_reuse() {
         assert_eq!(format!("{}", NodeId::from_parts(41, G1)), "#42");

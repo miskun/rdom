@@ -1421,13 +1421,16 @@ fn dispatch_after_handler_panic_keeps_listener_and_dom_usable() {
     .unwrap();
 
     let mut app = test_app(dom, Stylesheet::bare(), Rect::new(0, 0, 10, 5));
+    // The App installs its own root-delegated builtin listeners; only
+    // the delta matters.
+    let listeners_before = app.dom().listener_count(root);
     let first = panic::catch_unwind(AssertUnwindSafe(|| {
         app.handle_event(key(KeyCode::Char('x')));
     }));
     assert!(first.is_err(), "the bomb must fire");
     assert_eq!(
         app.dom().listener_count(root),
-        1,
+        listeners_before,
         "a panicking listener stays registered"
     );
 

@@ -1,18 +1,23 @@
-//! O(1) indexes: id → NodeId, tag → Vec<NodeId>, class → Vec<NodeId>.
+//! Indexes: id → set<NodeId>, tag → set<NodeId>, class → set<NodeId>.
 //!
 //! Every mutation entry point calls a hook that keeps these in sync. The
 //! payoff: `get_element_by_id` is a hashmap hit; tag/class getters return
 //! pre-filtered candidate lists. On very large trees (10k+ nodes) this is
 //! orders of magnitude faster than DFS.
 //!
+//! Buckets are `BTreeSet<NodeId>`: O(log n) register / unregister (a
+//! `Vec` made building or tearing down n same-tag nodes O(n²)), and
+//! iteration comes out in arena order, which is the deterministic order
+//! the bulk getters promise.
+//!
 //! ## Invariants
 //!
 //! For every live Element node `E` with id `I`, tag `T`, classes `Cs`:
 //! - `id_index[I]` contains `E` (if `I` is non-empty). When multiple
-//!   elements share an id, `id_index[I]` stores each in insertion order;
-//!   `get_element_by_id` returns the **first-inserted** element (first
-//!   come, first served — diverges slightly from browser's "first in
-//!   document order" but stable and easy to reason about).
+//!   elements share an id, `get_element_by_id` returns the first one in
+//!   **document order** among those connected to the root (the web's
+//!   answer); detached duplicates are considered only when no connected
+//!   element carries the id.
 //! - `tag_index[T]` contains `E`.
 //! - For every `c ∈ Cs`, `class_index[c]` contains `E`.
 //!
@@ -20,30 +25,30 @@
 //! every index entry. When `E`'s attrs/classes change, affected entries
 //! are updated atomically.
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 
 use crate::dom::Dom;
 use crate::node::NodeData;
 use crate::node_id::NodeId;
 
+pub(crate) type Bucket = BTreeSet<NodeId>;
+
 #[derive(Debug, Default, Clone)]
 pub(crate) struct Indexes {
-    pub(crate) by_id: HashMap<String, Vec<NodeId>>,
-    pub(crate) by_tag: HashMap<String, Vec<NodeId>>,
-    pub(crate) by_class: HashMap<String, Vec<NodeId>>,
+    pub(crate) by_id: HashMap<String, Bucket>,
+    pub(crate) by_tag: HashMap<String, Bucket>,
+    pub(crate) by_class: HashMap<String, Bucket>,
 }
 
 impl Indexes {
-    fn push_unique(vec: &mut Vec<NodeId>, id: NodeId) {
-        if !vec.contains(&id) {
-            vec.push(id);
-        }
+    fn push_unique(bucket: &mut Bucket, id: NodeId) {
+        bucket.insert(id);
     }
 
-    fn remove_from(map: &mut HashMap<String, Vec<NodeId>>, key: &str, id: NodeId) {
-        if let Some(vec) = map.get_mut(key) {
-            vec.retain(|&x| x != id);
-            if vec.is_empty() {
+    fn remove_from(map: &mut HashMap<String, Bucket>, key: &str, id: NodeId) {
+        if let Some(bucket) = map.get_mut(key) {
+            bucket.remove(&id);
+            if bucket.is_empty() {
                 map.remove(key);
             }
         }
@@ -151,27 +156,56 @@ impl<Ext> Dom<Ext> {
     /// first element that had the id *set* on it, which is almost always
     /// the same node unless the tree is being mutated rapidly.
     pub fn get_element_by_id(&self, id_value: &str) -> Option<NodeId> {
-        self.indexes
-            .by_id
-            .get(id_value)
-            .and_then(|v| v.first())
-            .copied()
+        let bucket = self.indexes.by_id.get(id_value)?;
+        if bucket.len() == 1 {
+            return bucket.iter().next().copied();
+        }
+        // Duplicate ids: first in document order among the connected
+        // candidates (DOM §4.5 `getElementById` walks the tree in order).
+        // Candidates are few — this is the exceptional path.
+        use crate::position::DocumentPosition;
+        let root = self.root();
+        let mut best: Option<NodeId> = None;
+        for &candidate in bucket {
+            let connected = self.ancestor_path(candidate).first() == Some(&root);
+            if !connected {
+                continue;
+            }
+            best = Some(match best {
+                None => candidate,
+                Some(b)
+                    if self
+                        .compare_document_position(b, candidate)
+                        .contains(DocumentPosition::PRECEDING) =>
+                {
+                    candidate
+                }
+                Some(b) => b,
+            });
+        }
+        best.or_else(|| bucket.iter().next().copied())
     }
 
     /// All elements with the given tag name across the entire arena, in
-    /// registration order (≈ creation order). The wildcard `"*"` returns
-    /// every element in the arena.
+    /// arena order (creation order, except for recycled slots). The
+    /// wildcard `"*"` returns every element in the arena.
     pub fn get_elements_by_tag_name_all(&self, tag: &str) -> Vec<NodeId> {
         if tag == "*" {
-            let mut out = Vec::new();
-            for v in self.indexes.by_tag.values() {
-                out.extend(v.iter().copied());
-            }
-            // Arena-order for determinism.
-            out.sort_by_key(|id| id.index());
+            // Merge the per-tag buckets; arena order for determinism.
+            let mut out: Vec<NodeId> = self
+                .indexes
+                .by_tag
+                .values()
+                .flat_map(|b| b.iter().copied())
+                .collect();
+            out.sort_unstable();
             out
         } else {
-            self.indexes.by_tag.get(tag).cloned().unwrap_or_default()
+            self.indexes
+                .by_tag
+                .get(tag)
+                .map(|b| b.iter().copied().collect())
+                .unwrap_or_default()
         }
     }
 
@@ -184,28 +218,72 @@ impl<Ext> Dom<Ext> {
             return self.get_elements_by_tag_name_all("*");
         }
         // Start with the smallest class bucket to minimize the scan.
-        let mut buckets: Vec<&Vec<NodeId>> = wanted
+        let mut buckets: Vec<&Bucket> = wanted
             .iter()
             .filter_map(|w| self.indexes.by_class.get(*w))
             .collect();
         if buckets.len() != wanted.len() {
             return Vec::new(); // one class isn't indexed anywhere
         }
-        buckets.sort_by_key(|v| v.len());
+        buckets.sort_by_key(|b| b.len());
         let smallest = buckets[0];
-        let mut out: Vec<NodeId> = smallest
+        // Iterating a `BTreeSet` yields arena order already.
+        smallest
             .iter()
             .copied()
             .filter(|id| buckets[1..].iter().all(|b| b.contains(id)))
-            .collect();
-        out.sort_by_key(|id| id.index());
-        out
+            .collect()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use crate::Dom;
+
+    /// `getElementById` with duplicate ids returns the first element in
+    /// **document order**, not the first one created.
+    #[test]
+    fn duplicate_ids_resolve_in_document_order() {
+        let mut dom: Dom = Dom::new();
+        let root = dom.root();
+        let later = dom.create_element("p");
+        dom.set_attribute(later, "id", "dup").unwrap();
+        let earlier = dom.create_element("p");
+        dom.set_attribute(earlier, "id", "dup").unwrap();
+        // `earlier` was created second but sits first in the tree.
+        dom.append_child(root, later).unwrap();
+        dom.insert_before(root, earlier, Some(later)).unwrap();
+        assert_eq!(dom.get_element_by_id("dup"), Some(earlier));
+        // Detaching the first makes the next one in document order win.
+        dom.remove_child_dropping(root, earlier).unwrap();
+        assert_eq!(dom.get_element_by_id("dup"), Some(later));
+    }
+
+    /// Freeing many same-tag nodes must not degrade: 20k register/free
+    /// cycles complete in well under a second with a log-time index.
+    #[test]
+    fn tag_index_scales_with_many_nodes() {
+        let mut dom: Dom = Dom::new();
+        let root = dom.root();
+        let ids: Vec<_> = (0..20_000)
+            .map(|_| {
+                let d = dom.create_element("div");
+                dom.append_child(root, d).unwrap();
+                d
+            })
+            .collect();
+        assert_eq!(dom.get_elements_by_tag_name_all("div").len(), 20_000);
+        let start = std::time::Instant::now();
+        for id in ids {
+            dom.remove_child_dropping(root, id).unwrap();
+        }
+        assert!(dom.get_elements_by_tag_name_all("div").is_empty());
+        assert!(
+            start.elapsed() < std::time::Duration::from_secs(2),
+            "teardown took {:?}",
+            start.elapsed()
+        );
+    }
 
     #[test]
     fn id_index_populated_on_set_attribute() {

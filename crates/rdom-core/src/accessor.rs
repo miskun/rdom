@@ -45,14 +45,28 @@ impl<'a, Ext: 'static> NodeRef<'a, Ext> {
         self.dom
     }
 
+    /// # Panics
+    ///
+    /// Panics if the id behind this `NodeRef` is not live (freed, or a
+    /// stale handle to a recycled slot). `Dom::node` does not validate
+    /// up front; check `Dom::contains` first when the id may be stale.
     pub fn node_type(&self) -> NodeType {
-        self.dom.get_node(self.id).map(|n| n.node_type()).unwrap()
+        self.dom
+            .get_node(self.id)
+            .map(|n| n.node_type())
+            .unwrap_or_else(|| panic!("NodeRef::node_type on a node that is not live: {}", self.id))
     }
 
     /// Canonical `nodeName`: element tag, or `#text` / `#comment` /
     /// `#document-fragment` for non-elements.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the id is not live; see [`NodeRef::node_type`].
     pub fn node_name(&self) -> &'a str {
-        let n = self.dom.get_node(self.id).unwrap();
+        let n = self.dom.get_node(self.id).unwrap_or_else(|| {
+            panic!("NodeRef::node_name on a node that is not live: {}", self.id)
+        });
         match &n.data {
             NodeData::Element { tag, .. } => tag,
             NodeData::Text { .. } => "#text",
@@ -500,15 +514,10 @@ impl<'a, Ext: 'static> NodeMut<'a, Ext> {
     /// the new value after this call. Empty `value` clears the
     /// classList entirely.
     pub fn set_class_name(&mut self, value: &str) -> Result<()> {
-        let existing: Vec<String> = self.dom.class_list(self.id).map(str::to_owned).collect();
-        for cls in &existing {
-            self.dom.remove_class(self.id, cls)?;
-        }
-        self.dom.set_attribute(self.id, "class", value)?;
-        for tok in value.split_whitespace() {
-            self.dom.add_class(self.id, tok)?;
-        }
-        Ok(())
+        // `set_attribute("class", …)` is the WHATWG-canonical entry point
+        // and owns the attribute ↔ classList ↔ index sync; one call, one
+        // `AttributeChanged` record.
+        self.dom.set_attribute(self.id, "class", value)
     }
 
     /// Mutating handle for the element's class tokens. DOM
@@ -909,10 +918,17 @@ impl<'a, Ext: 'static> Iterator for ElementChildIter<'a, Ext> {
 // ─────────────────────────────────────────────────────────────────────
 
 impl<Ext> Dom<Ext> {
+    /// Read accessor for `id`. Construction does not validate the id:
+    /// most `NodeRef` methods return `None` / empty for a dead id, but
+    /// the ones that have no empty value (`node_type`, `node_name`)
+    /// panic. Check [`Dom::contains`] first when the id may be stale.
     pub fn node(&self, id: NodeId) -> NodeRef<'_, Ext> {
         NodeRef { dom: self, id }
     }
 
+    /// Mutable accessor for `id`. Same validation contract as
+    /// [`Dom::node`]: mutation methods return `Err(InvalidNode)` for a
+    /// dead id.
     pub fn node_mut(&mut self, id: NodeId) -> NodeMut<'_, Ext> {
         NodeMut { dom: self, id }
     }
