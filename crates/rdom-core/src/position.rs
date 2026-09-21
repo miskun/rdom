@@ -24,14 +24,19 @@ bitflags_like! {
 }
 
 impl<Ext> Dom<Ext> {
-    /// Compare `a` against `b` and return a bitmask of their relationship.
+    /// `a.compareDocumentPosition(b)`: a bitmask describing **`b` relative
+    /// to `a`** (DOM §4.4). Same orientation as the web: the bits say where
+    /// the *argument* sits.
     ///
     /// - `a == b` → empty bits (0).
-    /// - `a` is ancestor of `b` → `CONTAINS | PRECEDING`.
-    /// - `a` is descendant of `b` → `CONTAINED_BY | FOLLOWING`.
-    /// - `a` precedes `b` in document order → `PRECEDING`.
-    /// - `a` follows `b` → `FOLLOWING`.
+    /// - `b` is a descendant of `a` → `CONTAINED_BY | FOLLOWING` (20).
+    /// - `b` is an ancestor of `a` → `CONTAINS | PRECEDING` (10).
+    /// - `b` comes later in tree order → `FOLLOWING`.
+    /// - `b` comes earlier in tree order → `PRECEDING`.
     /// - different trees → `DISCONNECTED | IMPLEMENTATION_SPECIFIC | PRECEDING`.
+    ///
+    /// `FOLLOWING` therefore always means "`b` is later in tree order",
+    /// whether `b` is a sibling's subtree or `a`'s own descendant.
     pub fn compare_document_position(&self, a: NodeId, b: NodeId) -> DocumentPosition {
         if a == b {
             return DocumentPosition::empty();
@@ -65,12 +70,13 @@ impl<Ext> Dom<Ext> {
 
         // If one path is a prefix of the other, it's an ancestor relationship.
         if common == a_path.len() && common < b_path.len() {
-            // b is descendant of a.
-            return DocumentPosition::CONTAINS | DocumentPosition::PRECEDING;
+            // b is a descendant of a: b is contained by a and, in tree
+            // order, comes after it.
+            return DocumentPosition::CONTAINED_BY | DocumentPosition::FOLLOWING;
         }
         if common == b_path.len() && common < a_path.len() {
-            // a is descendant of b.
-            return DocumentPosition::CONTAINED_BY | DocumentPosition::FOLLOWING;
+            // b is an ancestor of a: b contains a and precedes it.
+            return DocumentPosition::CONTAINS | DocumentPosition::PRECEDING;
         }
 
         // Otherwise we diverged at `common`. Compare child positions under
@@ -156,6 +162,65 @@ impl<Ext> Dom<Ext> {
                 _ => return false,
             }
         }
+    }
+
+    /// Order two boundary points per DOM §5.2 ("position of a boundary
+    /// point relative to another"). `Less` when `a` comes before `b`,
+    /// `Equal` when they are the same point, `None` when the nodes are in
+    /// different trees.
+    ///
+    /// An element position `(el, k)` sits between `el`'s children `k-1`
+    /// and `k`, so it orders against a point inside child `j` by comparing
+    /// `j` with `k` — not by which node contains the other.
+    pub fn compare_boundary_points(
+        &self,
+        a: crate::Position,
+        b: crate::Position,
+    ) -> Option<std::cmp::Ordering> {
+        use std::cmp::Ordering;
+        if a.node == b.node {
+            return Some(a.offset.cmp(&b.offset));
+        }
+        let pos = self.compare_document_position(a.node, b.node);
+        if pos.contains(DocumentPosition::DISCONNECTED) {
+            return None;
+        }
+        // `a.node` follows `b.node` (including `a.node` inside `b.node`):
+        // answer from the other side and flip.
+        if pos.contains(DocumentPosition::PRECEDING) {
+            return self.compare_boundary_points(b, a).map(Ordering::reverse);
+        }
+        // `a.node` is an ancestor of `b.node`: find `a.node`'s child on
+        // the way down to `b.node` and compare its index with `a.offset`.
+        if pos.contains(DocumentPosition::CONTAINED_BY) {
+            let b_path = self.ancestor_path(b.node);
+            let depth = b_path.iter().position(|&n| n == a.node)?;
+            let child = *b_path.get(depth + 1)?;
+            let index = self.child_index_of(child)?;
+            return Some(if index < a.offset {
+                Ordering::Greater
+            } else {
+                Ordering::Less
+            });
+        }
+        // Plain tree order: `b.node` follows `a.node`.
+        Some(Ordering::Less)
+    }
+
+    /// Index of `id` among its parent's children, `None` for a root or a
+    /// freed node.
+    fn child_index_of(&self, id: NodeId) -> Option<usize> {
+        let parent = self.get_node(id)?.parent?;
+        let mut cur = self.get_node(parent)?.first_child;
+        let mut index = 0;
+        while let Some(c) = cur {
+            if c == id {
+                return Some(index);
+            }
+            index += 1;
+            cur = self.get_node(c)?.next_sibling;
+        }
+        None
     }
 
     /// Path from root → this node as `Vec<NodeId>` (inclusive on both ends).
@@ -296,20 +361,101 @@ mod tests {
         );
     }
 
+    /// DOM §4.4 `compareDocumentPosition`: the bits describe `other`
+    /// relative to `this`. `parent.compareDocumentPosition(child)` is
+    /// `CONTAINED_BY | FOLLOWING` (20) in every browser.
     #[test]
-    fn ancestor_contains_descendant() {
+    fn descendant_argument_is_contained_by_and_following() {
         let (dom, a, _, g, _) = build();
         let r = dom.compare_document_position(a, g);
-        assert!(r.contains(DocumentPosition::CONTAINS));
-        assert!(r.contains(DocumentPosition::PRECEDING));
+        assert_eq!(
+            r,
+            DocumentPosition::CONTAINED_BY | DocumentPosition::FOLLOWING
+        );
+    }
+
+    /// `child.compareDocumentPosition(parent)` is `CONTAINS | PRECEDING` (10).
+    #[test]
+    fn ancestor_argument_contains_and_precedes() {
+        let (dom, a, _, g, _) = build();
+        let r = dom.compare_document_position(g, a);
+        assert_eq!(r, DocumentPosition::CONTAINS | DocumentPosition::PRECEDING);
+    }
+
+    /// The containment branch and the sibling branch must agree on what
+    /// FOLLOWING means: "the argument comes later in tree order".
+    #[test]
+    fn following_bit_is_consistent_across_containment_and_siblings() {
+        let (dom, a, b, g, _) = build();
+        // g is inside a, and a precedes b — so g precedes b too.
+        assert!(
+            dom.compare_document_position(a, g)
+                .contains(DocumentPosition::FOLLOWING)
+        );
+        assert!(
+            dom.compare_document_position(a, b)
+                .contains(DocumentPosition::FOLLOWING)
+        );
+        assert!(
+            dom.compare_document_position(g, b)
+                .contains(DocumentPosition::FOLLOWING)
+        );
+    }
+
+    // ── Boundary points (DOM §5.2) ─────────────────────────────────────
+
+    #[test]
+    fn boundary_points_same_node_order_by_offset() {
+        use crate::Position;
+        use std::cmp::Ordering;
+        let (dom, a, _, _, _) = build();
+        assert_eq!(
+            dom.compare_boundary_points(Position::new(a, 0), Position::new(a, 1)),
+            Some(Ordering::Less)
+        );
+        assert_eq!(
+            dom.compare_boundary_points(Position::new(a, 1), Position::new(a, 1)),
+            Some(Ordering::Equal)
+        );
+    }
+
+    /// (ancestor, offset) vs a point inside child `j`: the ancestor point
+    /// is before iff `j >= offset`.
+    #[test]
+    fn boundary_points_ancestor_offset_splits_around_child_index() {
+        use crate::Position;
+        use std::cmp::Ordering;
+        let (dom, a, _, g, root) = build();
+        // root children: [a, b]; g is inside a (child index 0 of root).
+        let in_g = Position::new(g, 0);
+        assert_eq!(
+            dom.compare_boundary_points(Position::new(root, 0), in_g),
+            Some(Ordering::Less)
+        );
+        assert_eq!(
+            dom.compare_boundary_points(Position::new(root, 1), in_g),
+            Some(Ordering::Greater)
+        );
+        // Symmetric.
+        assert_eq!(
+            dom.compare_boundary_points(in_g, Position::new(root, 1)),
+            Some(Ordering::Less)
+        );
+        assert_eq!(
+            dom.compare_boundary_points(in_g, Position::new(a, 0)),
+            Some(Ordering::Greater)
+        );
     }
 
     #[test]
-    fn descendant_contained_by_ancestor() {
-        let (dom, a, _, g, _) = build();
-        let r = dom.compare_document_position(g, a);
-        assert!(r.contains(DocumentPosition::CONTAINED_BY));
-        assert!(r.contains(DocumentPosition::FOLLOWING));
+    fn boundary_points_disconnected_is_none() {
+        use crate::Position;
+        let (mut dom, a, _, _, _) = build();
+        let loose = dom.create_element("x");
+        assert_eq!(
+            dom.compare_boundary_points(Position::new(a, 0), Position::new(loose, 0)),
+            None
+        );
     }
 
     #[test]

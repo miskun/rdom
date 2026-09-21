@@ -132,7 +132,8 @@ impl<Ext> Dom<Ext> {
     }
 
     /// The current selection normalized to a document-ordered
-    /// `Range` — `start` precedes `end` per `compare_document_position`.
+    /// `Range` — `start` precedes `end` per
+    /// [`compare_boundary_points`](Self::compare_boundary_points).
     /// Useful for paint + copy walks that need ordered traversal.
     ///
     /// Returns `None` when nothing is selected OR when the
@@ -142,21 +143,10 @@ impl<Ext> Dom<Ext> {
         let sel = self.selection.as_ref()?;
         let a = sel.anchor;
         let f = sel.focus;
-        if a.node == f.node {
-            // Same node: order by offset.
-            let (start, end) = if a.offset <= f.offset { (a, f) } else { (f, a) };
-            return Some(crate::Range::ordered_unchecked(start, end));
-        }
-        use crate::position::DocumentPosition;
-        let pos = self.compare_document_position(a.node, f.node);
-        if pos.contains(DocumentPosition::DISCONNECTED) {
-            return None;
-        }
-        // CONTAINS/PRECEDING: a comes before b (a is ancestor-or-sibling-before).
-        // CONTAINED_BY/FOLLOWING: a comes after b.
-        let a_first =
-            pos.contains(DocumentPosition::FOLLOWING) || pos.contains(DocumentPosition::CONTAINS);
-        let (start, end) = if a_first { (a, f) } else { (f, a) };
+        let (start, end) = match self.compare_boundary_points(a, f)? {
+            std::cmp::Ordering::Greater => (f, a),
+            _ => (a, f),
+        };
         Some(crate::Range::ordered_unchecked(start, end))
     }
 }
@@ -749,6 +739,38 @@ mod tests {
         let r = dom.selection_range().unwrap();
         assert_eq!(r.start.node, t1);
         assert_eq!(r.end.node, t2);
+    }
+
+    /// Anchor inside a child, focus on the ancestor: the ancestor point
+    /// is ordered by its offset against the child's index (DOM §5.2), not
+    /// by which node "contains" the other.
+    #[test]
+    fn selection_range_ancestor_position_orders_by_child_index() {
+        use crate::{Position, Selection};
+        let mut dom: Dom = Dom::new();
+        let root = dom.root();
+        let p = dom.create_element("p");
+        let t = dom.create_text_node("hello");
+        dom.append_child(root, p).unwrap();
+        dom.append_child(p, t).unwrap();
+
+        // (root, 1) is *after* everything inside p (p is root's child 0).
+        dom.set_selection(Some(Selection::new(
+            Position::new(t, 2),
+            Position::new(root, 1),
+        )));
+        let r = dom.selection_range().unwrap();
+        assert_eq!(r.start, Position::new(t, 2));
+        assert_eq!(r.end, Position::new(root, 1));
+
+        // (root, 0) is *before* everything inside p.
+        dom.set_selection(Some(Selection::new(
+            Position::new(t, 2),
+            Position::new(root, 0),
+        )));
+        let r = dom.selection_range().unwrap();
+        assert_eq!(r.start, Position::new(root, 0));
+        assert_eq!(r.end, Position::new(t, 2));
     }
 
     // ── M4b step 18: Dom-level accessor additions ─────────────────────

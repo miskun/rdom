@@ -11,7 +11,7 @@
 //!   owner element's cascaded style at `(content.x + fragment.x,
 //!   content.y + line_index)`.
 
-use rdom_core::{DocumentPosition, Dom, NodeId, NodeType, Range};
+use rdom_core::{Dom, NodeId, NodeType, Position, Range};
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
@@ -809,14 +809,20 @@ fn selection_byte_range_in(
         return Some((0, range.end.offset));
     }
 
-    let after_start = {
-        let p = dom.compare_document_position(range.start.node, text_node);
-        p.contains(DocumentPosition::FOLLOWING) || p.contains(DocumentPosition::CONTAINS)
-    };
-    let before_end = {
-        let p = dom.compare_document_position(range.end.node, text_node);
-        p.contains(DocumentPosition::PRECEDING) || p.contains(DocumentPosition::CONTAINS)
-    };
+    // Whole-node membership is a boundary-point comparison (DOM §5.2):
+    // the text is selected when `start <= (text, 0)` and
+    // `(text, len) <= end`. This orders an element position `(el, k)`
+    // by its offset against the child index, so a range that ends at
+    // `(parent, 0)` does not swallow the text under `parent`'s children.
+    use std::cmp::Ordering;
+    let after_start = matches!(
+        dom.compare_boundary_points(range.start, Position::new(text_node, 0)),
+        Some(Ordering::Less | Ordering::Equal)
+    );
+    let before_end = matches!(
+        dom.compare_boundary_points(Position::new(text_node, text_len), range.end),
+        Some(Ordering::Less | Ordering::Equal)
+    );
     if after_start && before_end {
         Some((0, text_len))
     } else {

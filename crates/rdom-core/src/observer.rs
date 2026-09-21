@@ -217,9 +217,15 @@ impl<Ext: 'static> Dom<Ext> {
         // back in registration order afterwards.
         let mut taken = std::mem::take(&mut self.observers.entries);
         self.is_observing = true;
-        for (_, obs) in &mut taken {
-            obs.observe(self, &record);
-        }
+        // A panicking observer must not poison the Dom: hosts that catch
+        // the panic (rdom-tui does, to restore the terminal) need the
+        // re-entrancy flag cleared and every observer put back. Restore
+        // first, then re-raise the original panic payload.
+        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            for (_, obs) in &mut taken {
+                obs.observe(self, &record);
+            }
+        }));
         self.is_observing = false;
 
         if self.observers.entries.is_empty() {
@@ -229,6 +235,10 @@ impl<Ext: 'static> Dom<Ext> {
             // (older observers run first when a newer one was added).
             taken.extend(std::mem::take(&mut self.observers.entries));
             self.observers.entries = taken;
+        }
+
+        if let Err(payload) = outcome {
+            std::panic::resume_unwind(payload);
         }
     }
 }
@@ -268,6 +278,41 @@ mod tests {
         assert_eq!(dom.observer_count(), 0);
         // Removing same id twice → false.
         assert!(!dom.remove_mutation_observer(id));
+    }
+
+    /// A panicking observer must not poison the `Dom`: once the host
+    /// catches the panic (rdom-tui does, to restore the terminal), the
+    /// re-entrancy flag is clear again and every observer — including
+    /// the one that panicked — is still installed.
+    #[test]
+    fn panicking_observer_leaves_dom_usable_and_observers_installed() {
+        struct Bomb;
+        impl MutationObserver<()> for Bomb {
+            fn observe(&mut self, _dom: &mut Dom<()>, _record: &Mutation) {
+                panic!("observer bomb");
+            }
+        }
+        let mut dom: Dom = Dom::new();
+        let root = dom.root();
+        let (_, before) = install_collector(&mut dom);
+        let bomb_id = dom.add_mutation_observer(Box::new(Bomb));
+        let (_, after) = install_collector(&mut dom);
+        assert_eq!(dom.observer_count(), 3);
+
+        let el = dom.create_element("div");
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            dom.append_child(root, el).unwrap();
+        }));
+        assert!(result.is_err(), "the bomb must actually fire");
+
+        // Dom is not stuck in "observing" state and still has all three.
+        assert_eq!(dom.observer_count(), 3);
+        assert!(dom.remove_mutation_observer(bomb_id));
+        let n_before = before.borrow().len();
+        let n_after = after.borrow().len();
+        dom.set_attribute(el, "id", "x").unwrap();
+        assert_eq!(before.borrow().len(), n_before + 1);
+        assert_eq!(after.borrow().len(), n_after + 1);
     }
 
     #[test]

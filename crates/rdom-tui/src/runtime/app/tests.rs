@@ -1406,12 +1406,11 @@ fn handler_panic_propagates_from_handle_event() {
 }
 
 #[test]
-fn dispatch_after_handler_panic_still_works_on_fresh_events() {
-    // A listener panics on "click"; the app catches externally. The
-    // DOM should still be usable for subsequent events (no wedged
-    // state from half-finished dispatch). This checks the
-    // "restore listener handler after call" path in rdom-core is
-    // robust against unwind.
+fn dispatch_after_handler_panic_keeps_listener_and_dom_usable() {
+    // A listener panics on "keydown"; the app catches externally. The
+    // DOM must still be usable afterwards AND the listener must still
+    // be registered — a throwing listener stays installed on the web,
+    // and rdom-core restores the handler slot before re-raising.
     let mut dom = TuiDom::new();
     let root = dom.root();
     let survivor_fired = Rc::new(Cell::new(false));
@@ -1422,35 +1421,46 @@ fn dispatch_after_handler_panic_still_works_on_fresh_events() {
     .unwrap();
 
     let mut app = test_app(dom, Stylesheet::bare(), Rect::new(0, 0, 10, 5));
-    let _ = panic::catch_unwind(AssertUnwindSafe(|| {
+    let first = panic::catch_unwind(AssertUnwindSafe(|| {
         app.handle_event(key(KeyCode::Char('x')));
     }));
+    assert!(first.is_err(), "the bomb must fire");
+    assert_eq!(
+        app.dom().listener_count(root),
+        1,
+        "a panicking listener stays registered"
+    );
 
-    // Register a fresh listener for a different key; it should fire
-    // when we dispatch again.
+    // Register a fresh listener for a different event; it must fire.
     {
         let fired = survivor_fired.clone();
         app.dom_mut()
-            .add_event_listener(root, "resize-noop", ListenerOptions::default(), move |_| {
-                fired.set(true);
-            })
+            .add_event_listener(
+                root,
+                "custom-probe",
+                ListenerOptions::default(),
+                move |_| {
+                    fired.set(true);
+                },
+            )
             .unwrap();
     }
-
-    // Dispatch a resize — it doesn't route to listeners, but the
-    // app should still run handle_event without panicking.
     app.handle_event(CtEvent::Resize(20, 10));
+    let mut probe = rdom_core::Event::new("custom-probe");
+    app.dom_mut().dispatch_event(root, &mut probe).unwrap();
+    assert!(
+        survivor_fired.get(),
+        "the Dom dispatches normally after the panic"
+    );
 
-    // The "first" listener is gone (panic removed its handler slot).
-    // A new dispatch of the same event type should NOT re-panic —
-    // the listener's handler was taken out; restore skipped on
-    // unwind, so the listener is effectively detached.
+    // The same key re-dispatches to the same (still installed) listener,
+    // which panics again — no wedged state, no silently dropped wiring.
     let second = panic::catch_unwind(AssertUnwindSafe(|| {
         app.handle_event(key(KeyCode::Char('x')))
     }));
     assert!(
-        second.is_ok(),
-        "a second dispatch of the same event must not re-panic"
+        second.is_err(),
+        "the listener is still there and still fires"
     );
 }
 

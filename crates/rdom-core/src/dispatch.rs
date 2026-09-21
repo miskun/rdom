@@ -315,9 +315,14 @@ impl<Ext> Dom<Ext> {
                 continue;
             };
 
-            // Run it.
-            let mut ctx = EventCtx { event, dom: self };
-            handler(&mut ctx);
+            // Run it. A panicking handler is caught so the listener can
+            // be restored below — otherwise a host that catches the
+            // panic is left with a listener that is counted but never
+            // fires again. The payload is re-raised after restore.
+            let outcome = {
+                let mut ctx = EventCtx { event, dom: self };
+                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| handler(&mut ctx)))
+            };
 
             // Restore (or expire, for `once`).
             if let Some(list) = self.listeners.by_node.get_mut(&node) {
@@ -335,6 +340,10 @@ impl<Ext> Dom<Ext> {
             // If the node was removed from by_node mid-handler we simply
             // drop `handler`. A dropped listener stays dropped — matches
             // `remove_event_listener` semantics.
+
+            if let Err(payload) = outcome {
+                std::panic::resume_unwind(payload);
+            }
         }
     }
 
@@ -381,6 +390,37 @@ mod tests {
         dom.append_child(b, c).unwrap();
         dom.append_child(root, a).unwrap();
         (dom, a, b, c, root)
+    }
+
+    /// A panicking listener stays registered. Without this, a host that
+    /// catches the panic ends up with a listener that is counted but
+    /// never fires again — silent breakage of the consumer's wiring.
+    #[test]
+    fn panicking_listener_is_restored_after_the_panic() {
+        let mut dom: Dom = Dom::new();
+        let el = dom.create_element("div");
+        let fired = Rc::new(Cell::new(0));
+        let f2 = fired.clone();
+        dom.add_event_listener(el, "click", ListenerOptions::default(), move |_| {
+            f2.set(f2.get() + 1);
+            if f2.get() == 1 {
+                panic!("listener bomb");
+            }
+        })
+        .unwrap();
+
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let mut e = Event::new("click");
+            dom.dispatch_event(el, &mut e).unwrap();
+        }));
+        assert!(result.is_err());
+        assert_eq!(fired.get(), 1);
+        assert_eq!(dom.listener_count(el), 1);
+
+        // Second dispatch reaches the same listener again.
+        let mut e = Event::new("click");
+        dom.dispatch_event(el, &mut e).unwrap();
+        assert_eq!(fired.get(), 2);
     }
 
     #[test]
