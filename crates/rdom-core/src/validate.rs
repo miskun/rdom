@@ -53,7 +53,7 @@ impl<Ext> Dom<Ext> {
 
         for (idx, slot) in self.nodes.iter().enumerate() {
             let Some(node) = slot else { continue };
-            let id = NodeId::from_index(idx);
+            let id = NodeId::from_parts(idx, self.generations[idx]);
 
             // Pointer reachability — freed slots not referenced.
             for (label, target) in [

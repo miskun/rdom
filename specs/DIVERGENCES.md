@@ -93,7 +93,7 @@ Supported selector grammar: type, class, ID, attribute, descendant, child (`>`),
 
 The DOM API is Rust-shaped rather than JS-shaped. The semantics match WHATWG DOM; the surface differs in idiomatic ways.
 
-- **Handles are arena IDs (`NodeId`), not object references.** IDs are arena-scoped and never reused within a `Dom`. Comparing IDs across separate `Dom` instances is meaningless.
+- **Handles are arena IDs (`NodeId`), not object references.** A `NodeId` is a slot index plus a generation. Slots are recycled after `drop_subtree` / `remove_child_dropping`, but the generation changes on every recycle, so a handle to a dropped node is rejected by `contains`, `node_or_err`, and every mutation path rather than resolving to the slot's new occupant. There is no garbage collection: a cached id does not keep a node alive (the web's object reference would). Comparing IDs across separate `Dom` instances is meaningless.
 - **No `Node.prototype` / `Element.prototype` inheritance.** Behaviors attach via Rust trait impls on `NodeRef` / `NodeMut`.
 - **Tag and attribute names are case-sensitive.** HTML's ASCII-case-insensitive matching is not applied.
 - **Snapshots replace live collections.** `child_ids`, `query_selector_all`, attribute iterators, etc. return `Vec<NodeId>` snapshots or iterators — there is no live `NodeList`, `HTMLCollection`, `NamedNodeMap`, or `DOMTokenList`.

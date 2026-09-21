@@ -584,7 +584,7 @@ mod tests {
     fn append_rejects_invalid_parent() {
         let mut dom: Dom = Dom::new();
         // A NodeId that was never allocated — guaranteed invalid.
-        let ghost = NodeId::from_index(999);
+        let ghost = NodeId::from_parts(999, std::num::NonZeroU32::MIN);
         let child = dom.create_element("child");
         assert!(matches!(
             dom.append_child(ghost, child).unwrap_err(),

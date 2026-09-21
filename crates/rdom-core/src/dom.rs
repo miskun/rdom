@@ -5,6 +5,7 @@
 //! `remove_child` are recycled LIFO via a free list.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::num::NonZeroU32;
 
 use crate::accessor::NodeRef;
 use crate::dispatch::ListenerStore;
@@ -26,10 +27,18 @@ use crate::selection::{Position, Range};
 /// `Ext: 'static` is required because event listeners and mutation
 /// observers are stored as `Box<dyn … + 'static>` trait objects —
 /// non-'static Ext types couldn't be boxed that way.
+/// Generation every slot starts at.
+const FIRST_GENERATION: NonZeroU32 = NonZeroU32::MIN;
+
 #[derive(Debug)]
 pub struct Dom<Ext: 'static = ()> {
     /// Arena storage. `None` = freed slot awaiting reuse.
     pub(crate) nodes: Vec<Option<Node<Ext>>>,
+    /// Per-slot generation, parallel to `nodes`. Bumped in `free`; a
+    /// `NodeId` resolves only while its generation matches the slot's,
+    /// so a handle to a dropped node never aliases the slot's next
+    /// occupant.
+    pub(crate) generations: Vec<NonZeroU32>,
     /// Free-slot indices, LIFO (cache-friendly reuse).
     pub(crate) free: Vec<u32>,
     /// The root node. Created at `Dom::new`; identity is stable for the
@@ -86,9 +95,10 @@ impl<Ext: Default> Dom<Ext> {
     pub fn new() -> Self {
         let root_node: Node<Ext> = Node::new(NodeData::Fragment);
         let nodes = vec![Some(root_node)];
-        let root = NodeId::from_index(0);
+        let root = NodeId::from_parts(0, FIRST_GENERATION);
         Self {
             nodes,
+            generations: vec![FIRST_GENERATION],
             free: Vec::new(),
             root,
             indexes: Indexes::default(),
@@ -359,9 +369,10 @@ impl<Ext: Default> Dom<Ext> {
             ext: Ext::default(),
         });
         let nodes = vec![Some(root_node)];
-        let root = NodeId::from_index(0);
+        let root = NodeId::from_parts(0, FIRST_GENERATION);
         let mut dom = Self {
             nodes,
+            generations: vec![FIRST_GENERATION],
             free: Vec::new(),
             root,
             indexes: Indexes::default(),
@@ -427,12 +438,10 @@ impl<Ext> Dom<Ext> {
         self.root
     }
 
-    /// Does the arena currently hold this id?
+    /// Does the arena currently hold this id? `false` for a freed node
+    /// even after its slot has been recycled (the generation differs).
     pub fn contains(&self, id: NodeId) -> bool {
-        self.nodes
-            .get(id.index())
-            .map(|slot| slot.is_some())
-            .unwrap_or(false)
+        self.get_node(id).is_some()
     }
 
     /// How many live nodes are in the arena (excludes freed slots).
@@ -450,12 +459,14 @@ impl<Ext> Dom<Ext> {
     /// Registers the node in the id/tag/class indexes if it's an Element.
     pub(crate) fn alloc(&mut self, node: Node<Ext>) -> NodeId {
         let new_id = if let Some(idx) = self.free.pop() {
-            self.nodes[idx as usize] = Some(node);
-            NodeId::from_index(idx as usize)
+            let idx = idx as usize;
+            self.nodes[idx] = Some(node);
+            NodeId::from_parts(idx, self.generations[idx])
         } else {
             let idx = self.nodes.len();
             self.nodes.push(Some(node));
-            NodeId::from_index(idx)
+            self.generations.push(FIRST_GENERATION);
+            NodeId::from_parts(idx, FIRST_GENERATION)
         };
         self.hook_register(new_id);
         new_id
@@ -465,25 +476,39 @@ impl<Ext> Dom<Ext> {
     /// detached (unlinked from parent/siblings). Unregisters from every
     /// index and drops any attached listeners before the slot is wiped.
     pub(crate) fn free(&mut self, id: NodeId) {
-        let idx = id.index();
-        if idx < self.nodes.len() && self.nodes[idx].is_some() {
-            self.hook_unregister(id);
-            self.drop_listeners(id);
-            self.nodes[idx] = None;
-            self.free.push(idx as u32);
+        if self.get_node(id).is_none() {
+            return;
         }
+        let idx = id.index();
+        self.hook_unregister(id);
+        self.drop_listeners(id);
+        self.nodes[idx] = None;
+        // Retire every outstanding handle to this slot. On the (4-billion
+        // recycles) wrap we restart at 1 rather than panic; a handle that
+        // old aliasing is accepted.
+        self.generations[idx] = self.generations[idx]
+            .checked_add(1)
+            .unwrap_or(FIRST_GENERATION);
+        self.free.push(idx as u32);
     }
 
-    /// Shared-ref node access; `None` if slot is freed or out of bounds.
+    /// Shared-ref node access; `None` if the slot is freed, out of
+    /// bounds, or has been recycled since `id` was issued.
     pub(crate) fn get_node(&self, id: NodeId) -> Option<&Node<Ext>> {
-        self.nodes.get(id.index()).and_then(|slot| slot.as_ref())
+        let idx = id.index();
+        if self.generations.get(idx).copied() != Some(id.generation_raw()) {
+            return None;
+        }
+        self.nodes.get(idx).and_then(|slot| slot.as_ref())
     }
 
-    /// Mutable node access.
+    /// Mutable node access; same liveness rule as `get_node`.
     pub(crate) fn get_node_mut(&mut self, id: NodeId) -> Option<&mut Node<Ext>> {
-        self.nodes
-            .get_mut(id.index())
-            .and_then(|slot| slot.as_mut())
+        let idx = id.index();
+        if self.generations.get(idx).copied() != Some(id.generation_raw()) {
+            return None;
+        }
+        self.nodes.get_mut(idx).and_then(|slot| slot.as_mut())
     }
 
     /// Node access that errors on invalid id (use when the caller expects
@@ -573,10 +598,60 @@ mod tests {
         assert_eq!(a.index(), b.index());
     }
 
+    /// Slot reuse must never make a stale id look live: the recycled slot
+    /// gets a new generation, so the old handle fails every lookup and
+    /// every mutation path instead of silently aliasing the new node.
+    #[test]
+    fn stale_id_after_slot_reuse_is_rejected() {
+        let mut dom: Dom = Dom::new();
+        let root = dom.root();
+        let a = dom.create_element("a");
+        dom.append_child(root, a).unwrap();
+        dom.remove_child_dropping(root, a).unwrap();
+        assert!(!dom.contains(a));
+
+        let b = dom.create_element("b");
+        assert_eq!(a.index(), b.index(), "slot is recycled");
+        assert_ne!(a, b, "but the id is not");
+        assert!(dom.contains(b));
+        assert!(!dom.contains(a), "the stale id is still dead");
+
+        assert!(matches!(
+            dom.node_or_err(a).unwrap_err(),
+            DomError::InvalidNode(_)
+        ));
+        assert!(matches!(
+            dom.set_attribute(a, "id", "x").unwrap_err(),
+            DomError::InvalidNode(_)
+        ));
+        assert!(matches!(
+            dom.append_child(a, b).unwrap_err(),
+            DomError::InvalidNode(_)
+        ));
+        // The new node was not touched through the stale handle.
+        assert_eq!(dom.get_attribute(b, "id"), None);
+        assert!(dom.validate().is_empty());
+    }
+
+    /// Generations survive repeated recycling of the same slot.
+    #[test]
+    fn each_recycle_of_a_slot_bumps_the_generation() {
+        let mut dom: Dom = Dom::new();
+        let mut prev = dom.create_element("x");
+        for _ in 0..5 {
+            dom.free(prev);
+            let next = dom.create_element("x");
+            assert_eq!(prev.index(), next.index());
+            assert_eq!(next.generation(), prev.generation() + 1);
+            assert!(!dom.contains(prev));
+            prev = next;
+        }
+    }
+
     #[test]
     fn invalid_id_returns_error() {
         let dom: Dom = Dom::new();
-        let ghost = NodeId::from_index(999);
+        let ghost = NodeId::from_parts(999, std::num::NonZeroU32::MIN);
         assert!(matches!(
             dom.node_or_err(ghost).unwrap_err(),
             DomError::InvalidNode(_)
