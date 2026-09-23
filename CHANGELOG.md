@@ -7,7 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Work in progress under [`specs/HARDENING-2026-09.md`](specs/HARDENING-2026-09.md). Batch 1 changes `rdom-core` (→ 0.4.0); every crate that pins `rdom-core` (`rdom-style`, `rdom-css`, `rdom-parser`, `rdom-tui`) bumps with it so a consumer never ends up with two `rdom-core` versions and mismatched `Dom` types. Batch 2 changes `rdom-style` and `rdom-css` (both → 0.4.0).
+Work in progress under [`specs/HARDENING-2026-09.md`](specs/HARDENING-2026-09.md). Batch 1 changes `rdom-core` (→ 0.4.0); every crate that pins `rdom-core` (`rdom-style`, `rdom-css`, `rdom-parser`, `rdom-tui`) bumps with it so a consumer never ends up with two `rdom-core` versions and mismatched `Dom` types. Batch 2 changes `rdom-style` and `rdom-css`; Batch 3 changes `rdom-tui` (and adds `pointer-events` to `rdom-style`); Batch 4 changes `rdom-parser`. All five ship as 0.4.0.
+
+### Fixed — `rdom-parser`
+
+- **`<` before a non-letter is text** (HTML §13.2.5.6 tag-open state): `<p>a < b</p>` and `<p>1<2</p>` parse; they were hard errors with the hint "tag names start with a letter". (R10)
+- **`<style>` and `<script>` are raw text, `<textarea>` and `<title>` are RCDATA.** A `<style>` body containing `<` or `&amp;` was a parse error or got entity-decoded although `rdom-tui` consumes `<style>` text as CSS; `<textarea>` content containing `<b>` created elements. Each ends at its own case-insensitive end tag (`</styles>` does not end `<style>`).
+- **Named character references** beyond the original six: the common set (`&copy; &mdash; &ndash; &hellip; &laquo; &raquo; &times; &euro; &trade; &deg; &bull;` and ~90 more, binary-searched). `&#0;`, surrogate, and out-of-range numeric references decode to U+FFFD per §13.2.5.80 instead of staying literal.
+- **`<!DOCTYPE …>` (and any `<!…>` declaration) is consumed** and produces no node; it used to fail with a misleading hint.
 
 ### Breaking — `rdom-style`
 
@@ -64,6 +71,10 @@ Migration notes for consumers moving from 0.3.x:
 - New `DomError::InvalidState(&'static str)` variant (exhaustive matches must add an arm): dispatching an `Event` that is already being dispatched returns it (DOM `InvalidStateError`), instead of running and clobbering the outer dispatch's propagation flags.
 - `set_class_name` now emits one net-diff `ClassChanged` record followed by one `AttributeChanged`, instead of one `ClassChanged` per removed and added class around the attribute write. Observers that counted records will see fewer.
 
+### Added — `rdom-core`
+
+- **Activation behavior hook (DOM §2.9 steps 5.5 and 11).** `Dom::set_activation_hook` installs one `ActivationHook` per `Dom`; `dispatch_event` calls it with `ActivationPhase::Pre` before any listener runs and `ActivationPhase::Post { canceled }` after dispatch, regardless of `stopPropagation()`. Backends implement element activation behavior (checkbox / radio flip-and-revert in `rdom-tui`) there instead of in root listeners, which a stopped click never reached.
+
 ### Changed — `rdom-core`
 
 - **`NodeId` is generational.** A handle is now a slot index plus a generation (8 bytes; `Option<NodeId>` still 8). Slots are still recycled after `drop_subtree` / `remove_child_dropping`, but the recycled slot gets a new generation, so a stale id is rejected by `contains`, `node_or_err`, and every mutation path instead of silently resolving to the new occupant. `NodeId::generation()` is new; `as_u32()` keeps returning the slot number; `Display` shows `#slot@gen` after a recycle. (R1)
@@ -77,6 +88,7 @@ Migration notes for consumers moving from 0.3.x:
 
 ### Breaking — `rdom-tui`
 
+- `TuiExt` gains public fields `dialog_return_focus`, `typeahead`, and `computed_prev` is `Option<Rc<ComputedStyle>>`; exhaustive struct literals must add them (`..Default::default()` is the intended pattern). `ComputedStyle` gains `pointer_events`.
 - `TuiExt.computed` is `Option<Rc<ComputedStyle>>` (was `Option<ComputedStyle>`). Read it through `TuiNodeExt::computed()` (unchanged: `Option<&ComputedStyle>`) or the new `computed_rc()`; code that matched the field directly needs `.as_deref()`. Layout and paint used to deep-clone the whole style per node per frame; they now clone a pointer.
 - `EditorState::pop_undo` / `pop_redo` / `push_undo` / `push_redo` take and return `HistoryItem = Vec<EditEntry>` (one user action may touch several text nodes).
 
@@ -87,15 +99,21 @@ Migration notes for consumers moving from 0.3.x:
 - **Text-only scroll containers scroll.** A `<textarea>` (or any pure-text leaf / IFC block with `overflow: auto | scroll`) reported zero scroll content because the extent counted element children only; its scroll offset was clamped back to 0 every frame, no scrollbar appeared, and a caret past the visible rows could never be brought back. The extent now includes the inline flow's lines (and anonymous block boxes), paint / hit-test / caret placement / keyboard movement address text rows through one scrolled content rect, and a caret move or edit reveals the caret row in its own scrolling container. (R5)
 - **Flex shrink and grow redistribute after a clamp (Flexbox §9.7).** An item frozen at its `min-width` (or capped by `max-width`) now hands the difference to its siblings instead of overflowing the container (or leaving a gap): budget 30 with three 20-cell items and the first pinned at 20 lays out 20 / 5 / 5, not 20 / 10 / 10. (R6)
 - **`enter_tui_mode` no longer leaves the shell in raw mode when the escape write fails.** The batched escape sequence is written first and raw mode enabled last; if raw mode then fails the escapes are undone before the error propagates. (R11)
-- **Tab skips elements that are not rendered.** Sequential focus navigation no longer visits a `display: none` subtree — a button inside a closed `<dialog>` (UA `display: none`) or a `[hidden]` container was focusable and Enter could activate it invisibly. HTML: a non-rendered element is not focusable.
-- **Checkbox and radio activation follows HTML §4.10.5.1.15.** The state flips *before* `click` is dispatched, so a click listener reading `checked` sees the new state as in a browser, and a canceled click (`preventDefault`) reverts the flip; `input` and `change` fire only when the click was not canceled. Previously the flip happened after dispatch.
+- **Tab skips `display: none` subtrees** (the only "not rendered" state rdom has). Sequential focus navigation no longer visits a `display: none` subtree — a button inside a closed `<dialog>` (UA `display: none`) or a `[hidden]` container was focusable and Enter could activate it invisibly. HTML: a non-rendered element is not focusable.
+- **Checkbox and radio activation follows HTML §4.10.5.1.15** and runs as the Dom's activation behavior, not as listeners: the state flips *before* `click` reaches any listener (a listener reading `checked` sees the new state as in a browser), a canceled click (`preventDefault`) reverts it, and `input` / `change` fire afterwards — all regardless of `stopPropagation()`. Previously the flip happened after dispatch in a root listener that a stopped click never reached.
 - **`<select size>` follows HTML §4.10.7.** `size="1"`, `size="0"`, or a non-numeric size is the drop-down box; only `size > 1` (or `multiple`) is a list box, and a `size > 1` list box without `multiple` stays single-select. Any `size` attribute used to force list-box mode.
 - **`position: sticky` moves a mixed-content element's text with it.** The anonymous block boxes that hold a sticky element's own text (next to block children) are shifted with the element, so a pinned header's title no longer stays at its pre-stick row while its background moves. (R7)
 - **`pointer-events: none` is honored by hit-testing.** The element is never the hit target, its subtree is still searched for `pointer-events: auto` descendants, and otherwise the point falls through to whatever is beneath — overlays and backdrops can let clicks through. Was: every painted element hittable.
 - **Wheel scrolling chains.** A wheel tick over a scroll container that is already at its rail end in that direction scrolls the next scrollable ancestor (CSS Overscroll Behavior default `auto`). Was: the nearest scrollable ancestor swallowed the tick.
 - **Multi-click and type-ahead timing run on the scheduler clock** when an `App` is active, so `App::advance` drives them deterministically (two clicks 600 ms apart on the virtual clock are two single clicks even with no real time elapsed); a bare `Router` or `Dom` outside an `App` still uses wall time.
-- **Flex items honor cross-axis margins (Flexbox §9.4 / §9.5).** In a row, `margin-top` / `margin-bottom` offset the item and reduce a stretched item's height; in a column, `margin-left` / `margin-right` do the same for width; `auto` cross margins take the free space (both `auto` centers). Cross-axis margins were ignored entirely.
+- **Flex items honor cross-axis margins (Flexbox §9.4 / §9.5).** In a row, `margin-top` / `margin-bottom` offset the item and reduce a stretched item's height; in a column, `margin-left` / `margin-right` do the same for width. An `auto` cross margin turns stretching off (the item takes its content size) and the margins absorb the free space — both `auto` centers. Cross-axis margins were ignored entirely; negative ones still clamp to 0 (`FLEX-ITEM-NEGATIVE-MARGIN-1`).
 - **`auto`-sized absolutes shrink to fit.** An absolutely positioned element with `width: auto` (or `height: auto`) and only one inset on that axis is sized to its content (CSS 2.1 §10.3.7 / §10.6.4) instead of 0 — a tooltip positioned with just `top` / `left` is visible.
+- **Flex grow with two clamps in one pass** distributed the second item's share from a budget already reduced by the first freeze, so an item could be falsely frozen at its `min-width`; shares now come from the pass-start budget (Flexbox §9.7).
+- **Hit-testing a scrolled IFC block** resolved the fragment owner from the unscrolled content rect (k rows off after scrolling k rows); it uses the scrolled rect like paint and the caret.
+- `clearInterval(id)` from inside that interval's own callback stops it (the entry was claimed while running, so the clear was lost).
+- `close()` on a `<dialog>` returns focus only to a previously focused element that is still focusable.
+- The UA sheet's list-box rule matches `select[size]` only for `size > 1` spellings, agreeing with the runtime; `select[size="1"]` renders as the drop-down.
+- The live run loop syncs the scheduler clock before each drained event, so multi-click and type-ahead windows do not share one stale instant per burst.
 - `is_layout_dirty()` now reacts to `position`, the four insets, `z-index`, `flow`, and `scrollbar-gutter`; `layout_differs` omitted them, so toggling `position: absolute` reported a clean layout.
 - **`<dialog>` modal fidelity (HTML §4.11.4).** `showModal()` runs the dialog focusing steps — the first `[autofocus]` descendant, else the first focusable descendant, else the dialog itself — and remembers the previously focused element; `close()` returns focus to it. While a modal is open, Tab / Shift-Tab cycle inside the dialog only (the rest of the document is inert to sequential focus navigation), and Esc cancels the open modal wherever focus sits. Pointer events outside the modal are still not blocked (see `DIVERGENCES.md`).
 - **Cross-node edits are one undo step (`EDIT-1`).** Replacing a selection that spans several text nodes inside a `contenteditable` host is recorded as a compound history item: Ctrl-Z restores every affected node at once and puts the caret at the start of the replaced range; redo re-applies the whole step. Previously such edits were not recorded and undo silently skipped them. `EditorState::pop_undo` / `pop_redo` now return a `HistoryItem` (`Vec<EditEntry>`).

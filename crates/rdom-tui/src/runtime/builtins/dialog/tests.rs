@@ -511,3 +511,19 @@ fn esc_cancels_the_open_modal_regardless_of_focus_location() {
         "modal closed by Esc"
     );
 }
+
+/// `close()` returns focus only to an element that is still focusable;
+/// a previously focused element that became disabled is skipped (HTML
+/// falls back to the body — here, no focus).
+#[test]
+fn close_does_not_focus_a_previously_focused_element_that_is_no_longer_focusable() {
+    let (mut app, dlg, outside, _, _) = modal_fixture();
+    app.draw_if_dirty().unwrap();
+    app.dom_mut().set_focused(Some(outside));
+    dialog::show_modal(app.dom_mut(), dlg);
+    app.dom_mut()
+        .set_attribute(outside, "disabled", "")
+        .unwrap();
+    dialog::close(app.dom_mut(), dlg, "");
+    assert_ne!(app.dom().focused(), Some(outside));
+}

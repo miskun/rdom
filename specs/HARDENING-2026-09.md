@@ -27,7 +27,7 @@ are not caught by the suite — they are invariant breaks, spec inversions, and 
 | R7 | `position: sticky` shifts `layout` / `content_layout` but not `anonymous_blocks[*].rect`; text stays at the pre-stick row. | `render/layout_pass/sticky.rs` | **fixed** (`shift_subtree` moves anonymous boxes and pseudo layouts) |
 | R8 | CSS decimals are reassembled from integer tokens: `0.05` → 0.5, `1.05s` → 1500ms. Oversized integers become 0 via `unwrap_or(0)`. | `rdom-style/src/parse/{values,token}.rs` | open — real `<number-token>` / `<dimension-token>` |
 | R9 | At-rules are never recognized; `@import …;` and `@media {…}` swallow the following rule. The `UnsupportedAtRule` warning is never constructed. No brace-depth tracking, stray `}` corrupts the next selector. | `rdom-css/src/top_level.rs` | open — CSS Syntax 3 §5.4 consumer |
-| R10 | HTML parser: `<` followed by a non-letter in text is a hard error; `<style>` / `<script>` are not raw text (yet rdom-tui consumes `<style>` bodies); `<textarea>` is not RCDATA. | `rdom-parser/src/parser.rs` | open |
+| R10 | HTML parser: `<` followed by a non-letter in text is a hard error; `<style>` / `<script>` are not raw text (yet rdom-tui consumes `<style>` bodies); `<textarea>` is not RCDATA. | `rdom-parser/src/parser.rs` | **fixed** (text `<`, RAWTEXT / RCDATA, entity table + U+FFFD, DOCTYPE skipped; strictness documented in DIVERGENCES §HTML parsing) |
 | R11 | `enter_tui_mode` enables raw mode, then `?`-returns on a failed batched write with no guard constructed: the shell is left raw. | `render/backend_crossterm.rs` | **fixed** (escapes first, raw mode last, undo on failure) |
 
 ### Non-blocking, worth fixing
@@ -199,6 +199,20 @@ then a release (divergent bumps as before; a `rdom-core` change forces a `rdom-t
   TECH_DEBT: `STYLE-TRANSITION-VALUE-1`, `STYLE-INHERITS-TWO-SOURCES-1`. Not done in this batch:
   `url(` token, `rgb(255 0 0)` / `hsl()` syntaxes, fractional-percentage layout resolution beyond
   whole percent (parsed, truncated), per-element custom-property scope (Batch 3 cascade work).
+- 2026-09-24 — Batch 3 review gates run (architect + API). Blocking items fixed: flex grow computed
+  later shares from a budget already reduced by an earlier freeze in the same pass (pass-start
+  snapshot now); `hit_fragment` used the unscrolled content rect; checkbox pre-activation lived in
+  root listeners that a `stopPropagation()` never reached — replaced by a DOM §2.9 activation-behavior
+  hook in `rdom-core` (`Dom::set_activation_hook`, `ActivationPhase::{Pre, Post}`) that dispatch runs
+  regardless of propagation; UA `select[size]` keyed on attribute presence. Also: `clearInterval`
+  from its own callback, dialog `close()` focus-return only to a focusable target, run-loop clock
+  sync per event, `computed_prev` behind `Rc`, `u64` shrink math, `auto` cross margins unstretch the
+  item, dialog rustdoc corrected, CHANGELOG Breaking additions, STATE / README refresh. Accepted for
+  0.4.0 with TECH_DEBT ids: `CARET-REVEAL-STALE-LAYOUT-1`, `POINTER-EVENTS-IFC-1`, file-size splits.
+- 2026-09-24 — Batch 4 (rdom-parser): R10 fixed — `<` before a non-letter is text, `<style>` /
+  `<script>` RAWTEXT, `<textarea>` / `<title>` RCDATA (own case-insensitive end tag), ~100 named
+  references + U+FFFD for invalid numeric ones, `<!DOCTYPE>` skipped. DIVERGENCES gains an "HTML
+  parsing" section for the remaining strictness. Batch 3 gates ran in parallel; their findings follow.
 - 2026-09-24 — Batch 3, last slice before gates: dirty tracker marks siblings once per parent per
   drain with a set-backed roots list (n appends → O(n)); `<select>` type-ahead state moved onto the
   node's `TuiExt` (no `thread_local!`, no test reset hook). Deferred items carry TECH_DEBT ids

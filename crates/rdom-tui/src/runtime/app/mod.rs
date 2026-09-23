@@ -234,6 +234,14 @@ impl App<CrosstermBackend<Stdout>> {
                         match event::read() {
                             Ok(ev) => {
                                 crate::rdom_trace!("event::read() -> Ok({ev:?})");
+                                // Multi-click / type-ahead windows read the
+                                // scheduler clock; sync it per event so a
+                                // drained burst does not share one stale
+                                // instant (`advance` never comes through
+                                // here, so it stays deterministic).
+                                self.scheduler
+                                    .borrow_mut()
+                                    .set_now(std::time::Instant::now());
                                 self.handle_event(ev);
                             }
                             Err(e) => {

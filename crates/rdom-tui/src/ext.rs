@@ -260,7 +260,7 @@ pub struct TuiExt {
     /// by the M3 transition engine to diff against the current
     /// `computed` and detect which animatable properties changed.
     /// `None` on the first cascade pass — no diff to perform.
-    pub computed_prev: Option<ComputedStyle>,
+    pub computed_prev: Option<std::rc::Rc<ComputedStyle>>,
     /// In-flight transition values. Sparse: only properties an
     /// active animation is currently driving have their slot
     /// populated; everything else falls back to `computed`. Paint,

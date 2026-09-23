@@ -687,7 +687,12 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
                 .overflow(Overflow::Visible),
         ),
         (
-            "select[size]",
+            // HTML §4.10.7: a display size of 1 is still the drop-down
+            // box; only `size > 1` is the list box. The runtime's
+            // `is_dropdown` parses the number; the sheet approximates it
+            // by excluding the spellings of "1" (`size="abc"` renders as
+            // a list box — a documented edge case).
+            "select[size]:not([size=\"1\"]):not([size=\"0\"]):not([size=\"\"])",
             TuiStyle::new()
                 .height(Size::Auto)
                 .overflow(Overflow::Visible),

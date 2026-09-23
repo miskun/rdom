@@ -197,6 +197,13 @@ struct MicrotaskEntry {
 /// The scheduler. Owned by `App`; one per app instance.
 pub(crate) struct Scheduler {
     next_id: u32,
+    /// The interval whose callback is currently running (its entry is
+    /// claimed out of `intervals` for the call). `clear_interval` on it
+    /// cannot find the entry, so it flags `running_cleared` instead and
+    /// the pump drops the entry on release — `clearInterval(id)` from
+    /// inside the callback works as in JS.
+    running_interval: Option<TimerId>,
+    running_cleared: bool,
     /// Virtual clock; `advance_to(now)` is the only way time
     /// moves forward. Production sets this from `Instant::now()`
     /// at the top of each tick; tests pass synthetic instants.
@@ -215,6 +222,8 @@ pub(crate) struct Scheduler {
 impl Scheduler {
     pub(crate) fn new(start: Instant) -> Self {
         Self {
+            running_interval: None,
+            running_cleared: false,
             next_id: 1, // 0 is the NONE sentinel — matches JS falsy
             now: start,
             app_start: start,
@@ -294,6 +303,9 @@ impl Scheduler {
     }
 
     pub fn clear_interval(&mut self, id: TimerId) {
+        if self.running_interval == Some(id) {
+            self.running_cleared = true;
+        }
         self.intervals.retain(|e| e.id != id);
     }
 
@@ -426,11 +438,21 @@ pub(crate) fn pump_intervals(scheduler: &SharedScheduler, dom: &mut TuiDom, expi
             pos.map(|p| s.intervals.swap_remove(p))
         };
         let Some(mut entry) = claimed else { continue };
+        {
+            let mut s = scheduler.borrow_mut();
+            s.running_interval = Some(id);
+            s.running_cleared = false;
+        }
         let keep = {
             let mut ctx = TimerCtx::new(dom, scheduler.clone());
             (entry.callback)(&mut ctx)
         };
-        if keep {
+        let cleared = {
+            let mut s = scheduler.borrow_mut();
+            s.running_interval = None;
+            std::mem::take(&mut s.running_cleared)
+        };
+        if keep && !cleared {
             entry.next_fire += entry.period;
             scheduler.borrow_mut().intervals.push(entry);
         }
@@ -835,6 +857,37 @@ mod tests {
             .set_now(start + Duration::from_millis(200));
         pump_timeouts(&sched, &mut dom);
         assert_eq!(fired.get(), 1);
+    }
+
+    /// `clearInterval(id)` from inside that interval's own callback
+    /// stops it (the JS idiom). The entry is claimed while running, so
+    /// the clear must be remembered and honored on release.
+    #[test]
+    fn interval_can_clear_itself_from_its_own_callback() {
+        let start = epoch();
+        let sched = shared(start);
+        let mut dom: TuiDom = TuiDom::new();
+        let fired = Rc::new(Cell::new(0u32));
+        let f = fired.clone();
+        let id_cell: Rc<Cell<Option<TimerId>>> = Rc::new(Cell::new(None));
+        let id_for_cb = id_cell.clone();
+        let id = sched.borrow_mut().set_interval(
+            move |ctx| {
+                f.set(f.get() + 1);
+                ctx.clear_interval(id_for_cb.get().unwrap());
+                true // "keep" — but the explicit clear must win
+            },
+            10,
+        );
+        id_cell.set(Some(id));
+        for tick in 1..=3 {
+            sched
+                .borrow_mut()
+                .set_now(start + Duration::from_millis(10 * tick));
+            let due = sched.borrow().drain_expired_interval_ids();
+            pump_intervals(&sched, &mut dom, &due);
+        }
+        assert_eq!(fired.get(), 1, "fired once, then stayed cleared");
     }
 
     #[test]

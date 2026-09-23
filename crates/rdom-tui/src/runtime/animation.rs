@@ -291,8 +291,8 @@ pub fn diff_and_register(dom: &mut Dom<TuiExt>, registry: &mut AnimationRegistry
             Some(pair) => pair,
             None => continue,
         };
-        if let Some(prev_style) = prev.as_ref() {
-            let curr_style = curr.as_ref().unwrap();
+        if let Some(prev_style) = prev.as_deref() {
+            let curr_style: &ComputedStyle = curr.as_deref().unwrap();
             for prop in animatable_props_for(curr_style, prev_style) {
                 let Some(rule) = lookup_rule(curr_style, prop) else {
                     continue;
@@ -331,12 +331,13 @@ pub fn diff_and_register(dom: &mut Dom<TuiExt>, registry: &mut AnimationRegistry
     }
 }
 
-fn snapshot(
-    dom: &Dom<TuiExt>,
-    id: NodeId,
-) -> Option<(Option<ComputedStyle>, Option<ComputedStyle>)> {
+/// A shared handle to a cascade result (`None` before the first cascade).
+type StyleSnapshot = Option<std::rc::Rc<ComputedStyle>>;
+
+fn snapshot(dom: &Dom<TuiExt>, id: NodeId) -> Option<(StyleSnapshot, StyleSnapshot)> {
+    // Rc clones: this runs for every element every frame.
     let ext = dom.node(id).ext()?;
-    Some((ext.computed_prev.clone(), ext.computed.as_deref().cloned()))
+    Some((ext.computed_prev.clone(), ext.computed.clone()))
 }
 
 fn collect_element_ids(dom: &Dom<TuiExt>, id: NodeId) -> Vec<NodeId> {

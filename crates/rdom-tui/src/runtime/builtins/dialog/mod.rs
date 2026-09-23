@@ -17,10 +17,11 @@
 //!
 //! ## v1 deliberate simplifications
 //!
-//! - Focus trap: Tab cycles inside the open modal (the rest of the
-//!   document is treated as inert by focus navigation); pointer
+//! - Focus trap covers keyboard navigation only: Tab cycles inside the
+//!   open modal and Esc cancels it wherever focus sits, but pointer
 //!   events outside the modal are NOT blocked (no `inert` for hit-test).
-//! - No `::backdrop` paint.
+//! - `::backdrop` paints (see `paint_pass`); there is no top layer, so
+//!   the dialog's z-order is the author's.
 //! - No `closedby` attribute (defaults are baked: modal closes
 //!   on Esc, non-modal doesn't).
 //! - No top-layer / z-index handling — apps lay out the dialog
@@ -59,10 +60,11 @@ pub fn show(dom: &mut TuiDom, dialog: NodeId) {
     }
 }
 
-/// Open the dialog modally. Marks the dialog as modal so the Esc
-/// handler treats it correctly. v1 does NOT focus-trap or inert
-/// the rest of the document — apps that need that compose it
-/// themselves.
+/// Open the dialog modally (HTML §4.11.4 `showModal()`): marks the
+/// dialog as modal, remembers the previously focused element for
+/// `close()`, runs the dialog focusing steps, and — while it stays
+/// open — scopes Tab / Shift-Tab to the dialog and lets Esc cancel it
+/// wherever focus sits. Pointer events outside are not blocked.
 ///
 /// Polish #5: if the dialog's subtree contains an element with
 /// `[autofocus]`, focus transfers to the first such element in
@@ -163,7 +165,9 @@ pub fn close(dom: &mut TuiDom, dialog: NodeId, return_value: &str) {
         .node_mut(dialog)
         .ext_mut()
         .and_then(|e| e.dialog_return_focus.take());
-    if let Some(prev) = previous.filter(|&p| dom.contains(p)) {
+    let still_focusable =
+        |p: &NodeId| dom.contains(*p) && crate::runtime::focus::tabindex::is_focusable(dom, *p);
+    if let Some(prev) = previous.filter(still_focusable) {
         crate::runtime::focus::focus_node(dom, Some(prev));
     } else if dom.focused().is_some_and(|f| is_inside(dom, f, dialog)) {
         crate::runtime::focus::focus_node(dom, None);

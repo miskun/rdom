@@ -174,10 +174,10 @@ What's supported:
 - **Nested inline styles compose** — `<b>bold <i>+italic</i></b>`
   contributes both modifiers to the inner span.
 
-What's out of scope (for v1):
+What's out of scope:
 
-- `display: inline-block`.
-- Inline borders / margins.
+- Inline borders / margins (`display: inline-block` is supported as an
+  atomic inline).
 - `text-align`, justification, baseline alignment.
 - UAX #14 line breaking (we use whitespace + CJK + hyphen).
 
@@ -293,9 +293,10 @@ phases:
   synthesized on the nearest common ancestor of down + up targets
   (matches HTML), auto-`mouseover` / `mouseout` on transitions,
   `:hover` cascade re-runs via `InteractionChanged` mutations.
-- **Wheel auto-scroll** — walks up from the hit target for the
-  nearest `overflow: Scroll | Auto` ancestor and adjusts its
-  scroll offset. Cancelable via `prevent_default` on `wheel`.
+- **Wheel scrolling** — walks up from the hit target for the nearest
+  `overflow: Scroll | Auto` ancestor that can still move in that
+  direction (one at its rail end chains to the next). Cancelable via
+  `prevent_default` on `wheel`.
 - **Focus navigation** — `tabindex` attribute parsing, `Tab` /
   `Shift-Tab` cycles focusable elements (positive indices first,
   then DOM order), focus-on-click walks up to nearest focusable.

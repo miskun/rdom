@@ -2212,3 +2212,35 @@ fn layout_dirty_flag_reacts_to_positioning_changes() {
         "inset change dirties layout"
     );
 }
+
+/// UA sheet agrees with the runtime on HTML §4.10.7: `size="1"` is the
+/// drop-down box (same chrome as no `size`); only `size > 1` is the list box.
+#[test]
+fn ua_select_size_one_renders_as_a_dropdown() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let plain = dom.create_element("select");
+    let one = dom.create_element("select");
+    let list = dom.create_element("select");
+    dom.set_attribute(one, "size", "1").unwrap();
+    dom.set_attribute(list, "size", "3").unwrap();
+    for s in [plain, one, list] {
+        dom.append_child(root, s).unwrap();
+    }
+    dom.cascade(&Stylesheet::new());
+    let (p, o, l) = (
+        computed_of(&dom, plain),
+        computed_of(&dom, one),
+        computed_of(&dom, list),
+    );
+    assert_eq!(
+        (o.height.clone(), o.overflow_y),
+        (p.height.clone(), p.overflow_y),
+        "size=1 == dropdown chrome"
+    );
+    assert_ne!(
+        (l.height.clone(), l.overflow_y),
+        (p.height.clone(), p.overflow_y),
+        "size=3 is the list box"
+    );
+}

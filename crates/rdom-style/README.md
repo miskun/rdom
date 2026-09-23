@@ -65,7 +65,7 @@ The leaf crate carries the **values**, not the cascade. Cascade lives in
 (also driving `rdom-tui`'s `StyleDeclaration` camelCase aliases via
 `build.rs`). The current set covers the M1–M3 milestones:
 
-- **Color / text** — `color`, `background-color` (and the color-only `background` shorthand), `border-color`,
+- **Color / text / interaction** — `color`, `background-color` (and the color-only `background` shorthand), `border-color`, `pointer-events`,
   `font-weight`, `font-style`, `text-decoration`.
 - **Block model** — `display`, `flex-direction`, `white-space`,
   `user-select`, `overflow`, `overflow-x`, `overflow-y`.

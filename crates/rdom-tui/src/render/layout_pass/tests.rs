@@ -3395,3 +3395,90 @@ fn absolute_auto_size_shrinks_to_fit_content() {
     assert_eq!(r.width, "Tooltip text".len() as u16, "shrink-to-fit width");
     assert_eq!(r.height, 1, "one line of content");
 }
+
+/// Flexbox §9.7 with two clamps in one pass: A capped by `max-width`,
+/// B floored by `min-width`. Shares must be computed from the pass-start
+/// budget; a mid-pass budget update falsely froze B at its floor
+/// (5 / 8 / 17 instead of 5 / 12 / 13).
+#[test]
+fn flex_grow_two_clamps_in_one_pass_distribute_fairly() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let row = dom.create_element("row");
+    dom.append_child(root, row).unwrap();
+    let a = dom.create_element("a");
+    let b = dom.create_element("b");
+    let c = dom.create_element("c");
+    for it in [a, b, c] {
+        dom.append_child(row, it).unwrap();
+    }
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "row",
+            TuiStyle::new()
+                .flow(crate::layout::Flow::Flex)
+                .direction(crate::layout::Direction::Row)
+                .width(crate::layout::Size::Fixed(30)),
+        )
+        .rule_unchecked(
+            "a",
+            TuiStyle::new()
+                .width(crate::layout::Size::Flex(1))
+                .max_width(5),
+        )
+        .rule_unchecked(
+            "b",
+            TuiStyle::new()
+                .width(crate::layout::Size::Flex(1))
+                .min_width(crate::layout::MinSize::Cells(8)),
+        )
+        .rule_unchecked("c", TuiStyle::new().width(crate::layout::Size::Flex(1)));
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 80, 10));
+    let w = |id| dom.node(id).ext().unwrap().layout.width;
+    assert_eq!(w(a), 5);
+    assert_eq!(w(b) + w(c), 25);
+    assert!(w(b) >= 12, "B gets its fair share, not its floor: {}", w(b));
+}
+
+/// An `auto` cross margin means the item is not stretched (Flexbox
+/// §9.5 / §9.4 note): it takes its content size and the free space
+/// goes to the auto margins (both auto → centered).
+#[test]
+fn auto_cross_margins_center_an_unstretched_item() {
+    use crate::layout::{Flow, Margin, MarginValue, Size, WhiteSpace};
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let row = dom.create_element("row");
+    let item = dom.create_element("item");
+    let t = dom.create_text_node("x");
+    dom.append_child(item, t).unwrap();
+    dom.append_child(row, item).unwrap();
+    dom.append_child(root, row).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "row",
+            TuiStyle::new()
+                .flow(Flow::Flex)
+                .direction(crate::layout::Direction::Row)
+                .width(Size::Fixed(20))
+                .height(Size::Fixed(10)),
+        )
+        .rule_unchecked(
+            "item",
+            TuiStyle::new()
+                .width(Size::Fixed(5))
+                .white_space(WhiteSpace::Pre)
+                .margin(Margin {
+                    top: MarginValue::Auto,
+                    right: MarginValue::Cells(0),
+                    bottom: MarginValue::Auto,
+                    left: MarginValue::Cells(0),
+                }),
+        );
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 40, 20));
+    let r = dom.node(item).ext().unwrap().layout;
+    assert_eq!(r.height, 1, "not stretched: one line of content");
+    assert_eq!(r.y, 4, "centered in the 10-row container ((10 − 1) / 2)");
+}

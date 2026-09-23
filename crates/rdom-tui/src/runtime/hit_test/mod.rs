@@ -516,7 +516,10 @@ fn descend(dom: &Dom<TuiExt>, id: NodeId, x: u16, y: u16, path: &mut Vec<NodeId>
         !matches!(c.overflow_x, Overflow::Visible) || !matches!(c.overflow_y, Overflow::Visible)
     });
 
-    let inner = dom.node(id).content_layout_rect().unwrap_or(outer);
+    // Text rows are addressed through the *scrolled* content rect so a
+    // scrolled IFC block resolves the owner visible on that row (paint
+    // and the caret use the same rect).
+    let inner = crate::render::inline::scrolled_content_rect(dom, id).unwrap_or(outer);
     let scrollport = computed
         .map(|c| rdom_style::layout::compute_padding_box(outer, c.border))
         .unwrap_or(outer);

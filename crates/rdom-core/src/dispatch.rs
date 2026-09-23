@@ -83,6 +83,38 @@ impl<Ext: 'static> EventCtx<'_, Ext> {
     }
 }
 
+/// Which activation step the Dom's hook is being asked to run.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ActivationPhase {
+    /// Before any listener: the legacy-pre-activation step (a checkbox
+    /// flips its state here so click listeners see the new value).
+    Pre,
+    /// After dispatch. `canceled` is the event's canceled flag: run the
+    /// legacy-canceled-activation step (revert) when true, the
+    /// activation behavior proper (fire `input` / `change`, submit,
+    /// navigate) when false.
+    Post { canceled: bool },
+}
+
+/// The Dom's activation-behavior hook (DOM §2.9 steps 5.5 and 11). One
+/// per `Dom`; it receives every dispatched event and decides by target
+/// and event type whether the target has activation behavior. Runs
+/// regardless of `stopPropagation()`.
+pub type ActivationHook<Ext> =
+    Box<dyn FnMut(&mut Dom<Ext>, NodeId, &Event, ActivationPhase) + 'static>;
+
+/// Storage for the hook with a `Debug` impl (the closure has none).
+pub(crate) struct ActivationSlot<Ext: 'static>(pub(crate) Option<ActivationHook<Ext>>);
+
+impl<Ext: 'static> std::fmt::Debug for ActivationSlot<Ext> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(if self.0.is_some() {
+            "ActivationSlot(Some(hook))"
+        } else {
+            "ActivationSlot(None)"
+        })
+    }
+}
 /// Options for `add_event_listener` — matches the DOM spec object.
 ///
 /// Not `Copy` because `signal: Option<AbortSignal>` holds an `Rc`.
@@ -206,6 +238,28 @@ impl<Ext> Dom<Ext> {
         self.listeners.by_node.get(&node).map_or(0, Vec::len)
     }
 
+    /// Install (or remove, with `None`) the Dom's activation-behavior hook.
+    /// See [`ActivationHook`]. A backend installs one hook for all its
+    /// elements with activation behavior and dispatches on tag / type
+    /// inside it.
+    pub fn set_activation_hook(&mut self, hook: Option<ActivationHook<Ext>>) {
+        self.activation_hook = ActivationSlot(hook);
+    }
+
+    /// Run the activation hook for `phase`, taking it out of `self` for
+    /// the call so the hook can receive `&mut Dom` (and re-enter
+    /// dispatch without recursion into itself). A hook installed by the
+    /// hook itself during the call replaces the old one.
+    fn run_activation_hook(&mut self, target: NodeId, event: &Event, phase: ActivationPhase) {
+        let Some(mut hook) = self.activation_hook.0.take() else {
+            return;
+        };
+        hook(self, target, event, phase);
+        if self.activation_hook.0.is_none() {
+            self.activation_hook.0 = Some(hook);
+        }
+    }
+
     /// Dispatch `event` at `target` per DOM §2.9: one capture pass from
     /// the root down, one bubble pass from the target up. The target
     /// takes part in both — its capture listeners fire in the capture
@@ -235,6 +289,10 @@ impl<Ext> Dom<Ext> {
         event.dispatching = true;
 
         event.target = Some(target);
+
+        // Legacy-pre-activation behavior (DOM §2.9 step 5.5): before any
+        // listener sees the event.
+        self.run_activation_hook(target, event, ActivationPhase::Pre);
 
         // Path from root → target (inclusive). Always non-empty if the
         // node is in the arena (the node itself is the last element).
@@ -292,6 +350,12 @@ impl<Ext> Dom<Ext> {
         event.propagation_stopped = false;
         event.immediate_propagation_stopped = false;
         event.dispatching = false;
+
+        // Activation behavior (DOM §2.9 step 11): after dispatch, once,
+        // whether or not propagation was stopped; `canceled` tells the
+        // hook to run the legacy-canceled-activation step instead.
+        let canceled = event.default_prevented();
+        self.run_activation_hook(target, event, ActivationPhase::Post { canceled });
         Ok(())
     }
 
@@ -633,6 +697,47 @@ mod tests {
                 .unwrap_err(),
             DomError::InvalidNode(_)
         ));
+    }
+
+    /// DOM §2.9 activation behavior: the Dom's activation hook runs its
+    /// pre-activation step before any listener sees the event and its
+    /// post step after dispatch with the canceled flag — regardless of
+    /// `stopPropagation()`, which only affects listeners.
+    #[test]
+    fn activation_hook_runs_pre_before_listeners_and_post_after_even_when_propagation_stops() {
+        let (mut dom, _, _, c, _) = build_chain();
+        let log = Rc::new(std::cell::RefCell::new(Vec::<String>::new()));
+        {
+            let log = log.clone();
+            dom.set_activation_hook(Some(Box::new(move |_dom, target, event, phase| {
+                log.borrow_mut()
+                    .push(format!("{:?} {} {}", phase, event.event_type, target == c));
+            })));
+        }
+        {
+            let log = log.clone();
+            dom.add_event_listener(c, "click", ListenerOptions::default(), move |ctx| {
+                log.borrow_mut().push("listener".to_string());
+                ctx.event.stop_propagation();
+                ctx.event.prevent_default();
+            })
+            .unwrap();
+        }
+        let mut e = Event::new("click");
+        e.cancelable = true;
+        dom.dispatch_event(c, &mut e).unwrap();
+        assert_eq!(
+            *log.borrow(),
+            vec![
+                "Pre click true".to_string(),
+                "listener".to_string(),
+                "Post { canceled: true } click true".to_string(),
+            ]
+        );
+        // The hook can be removed again.
+        dom.set_activation_hook(None);
+        dom.dispatch_event(c, &mut Event::new("click")).unwrap();
+        assert_eq!(log.borrow().len(), 4, "only the listener ran");
     }
 
     #[test]

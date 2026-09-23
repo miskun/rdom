@@ -2616,6 +2616,42 @@ fn double_click_detection_uses_the_scheduler_clock() {
     assert_eq!(dbl.get(), 1);
 }
 
+/// Activation behavior is part of dispatch, not a listener: a click
+/// listener that stops propagation still gets the checkbox flipped and
+/// `input` / `change` fired (HTML §4.10.5.1.15 via DOM §2.9 step 11).
+#[test]
+fn checkbox_activation_survives_stop_propagation() {
+    use std::cell::Cell;
+    use std::rc::Rc;
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let cb = dom.create_element("input");
+    dom.set_attribute(cb, "type", "checkbox").unwrap();
+    dom.append_child(root, cb).unwrap();
+    let changes = Rc::new(Cell::new(0));
+    {
+        let changes = changes.clone();
+        dom.add_event_listener(cb, "change", ListenerOptions::default(), move |_| {
+            changes.set(changes.get() + 1);
+        })
+        .unwrap();
+    }
+    dom.add_event_listener(cb, "click", ListenerOptions::default(), |ctx| {
+        ctx.event.stop_propagation();
+    })
+    .unwrap();
+    let mut app = test_app(dom, Stylesheet::new(), Rect::new(0, 0, 20, 3));
+    let mut click = rdom_core::Event::new("click");
+    click.bubbles = true;
+    click.cancelable = true;
+    app.dom_mut().dispatch_event(cb, &mut click).unwrap();
+    assert!(
+        app.dom().node(cb).has_attribute("checked"),
+        "flipped despite stopPropagation"
+    );
+    assert_eq!(changes.get(), 1, "change fired despite stopPropagation");
+}
+
 #[test]
 fn drag_autoscroll_scrolls_a_container_held_at_the_edge() {
     // DRAG-AUTOSCROLL phase 2: a captured drag that opted into autoscroll and

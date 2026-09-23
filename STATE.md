@@ -16,8 +16,8 @@ TECH_DEBT entry against the code, and pay the debt down in crate-grouped batches
 |---|---|---|
 | 1 | `rdom-core` | done, gated (architect + API), follow-ups landed |
 | 2 | `rdom-style`, `rdom-css` | done, gated, follow-ups landed |
-| 3 | `rdom-tui` | in progress — R4/R5/R6/R7/R11 fixed; Tab visibility, checkbox pre-activation, `<select size>`, `pointer-events`, wheel chaining, scheduler-clock timing, flex cross margins, shrink-to-fit absolutes landed; gates not yet run |
-| 4 | `rdom-parser` | not started (R10: `<` in text, RAWTEXT / RCDATA, entities) |
+| 3 | `rdom-tui` | done, gated (architect + API); blocking follow-ups landed (flex pass budget, scrolled-IFC hit test, activation-behavior hook for checkboxes, UA `select[size]`, interval self-clear, dialog focus return, clock sync) |
+| 4 | `rdom-parser` | done (R10: text `<`, RAWTEXT / RCDATA, entities, DOCTYPE); gates pending |
 
 Release plan: 0.4.0 across every crate whose source changed (all five — `rdom-core` changed, and every
 other crate pins it). Nothing has been published from this program yet.
@@ -36,25 +36,20 @@ other crate pins it). Nothing has been published from this program yet.
 
 ## Open risks
 
-- **Batch 3 review gates have not run yet.** Two slices of `rdom-tui` changes (scheduler handle, scroll
-  extent, flex loop, hit-test, builtins) are committed on the strength of unit + workspace tests only.
-  Run the architect and API passes before any 0.4.0 publish.
+- **Batch 4 gates have not run yet** (rdom-parser is small; run both passes before the 0.4.0 publish).
+- **`CARET-REVEAL-STALE-LAYOUT-1`** and **`POINTER-EVENTS-IFC-1`** are accepted for 0.4.0 (see TECH_DEBT).
 - **`PROC-TOOLCHAIN-PIN-1`** — the toolchain floats on `stable`; a new stable can break `-D warnings` on
   every PR.
-- **`rdom-parser` strictness** (R10) — `<` before a non-letter is a hard error and `<style>` is not raw
-  text while `rdom-tui` consumes `<style>` bodies. Untouched until Batch 4.
 - **`SHOWCASE-EVT-1`** — the showcase's event surface (`AppContext`) exposes only redraw / quit /
   dispatch; consumers needing more reach into the App.
 - **`ITERM2-MOUSE-MOTION-1`** — iTerm2 motion reporting quirk, external.
 
 ## Follow-ups
 
-Batch 3 remainder, in order: `<dialog>` focus trap / `inert` / top layer; `<form>` reset defaults
-(needs the IDL-value vs attribute split); `EDIT-1` compound undo entries; type-ahead state per node;
-per-element custom-property scope in the cascade; the render performance items (`ComputedStyle` /
-`InlineLayout` clones, packer strings, `DirtyTracker` sibling marking); the file splits (`block.rs`,
-`app/mod.rs`, `inline_paint.rs`, `flex.rs` border-collapse helpers); then the Batch 3 gates. Then
-Batch 4 (`rdom-parser`) and the 0.4.0 release with `/publish`.
+Run the Batch 4 gates, then the 0.4.0 release with `/publish` (all five crates; migration notes are in
+CHANGELOG "Unreleased"). After the release: the deferred TECH_DEBT items from this program —
+`CSS-VARS-SCOPE-1`, `FORM-DEFAULTS-1`, the file splits, the allocation items, `CARET-REVEAL-STALE-LAYOUT-1`,
+`POINTER-EVENTS-IFC-1`, `PROC-TUI-DEV-DEP-1`, `PROC-TOOLCHAIN-PIN-1`.
 
 ## Recent decisions
 

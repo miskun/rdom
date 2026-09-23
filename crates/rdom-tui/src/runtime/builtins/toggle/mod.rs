@@ -48,73 +48,56 @@ use rdom_core::{ListenerOptions, NodeId};
 use crate::tui_event::TuiDispatchExt;
 use crate::{TuiDom, TuiEvent};
 
-/// Install the checkbox/radio default actions. Three root-level
-/// listeners: click (toggle/select), keydown for Space (synthesize
-/// click), keydown for arrows (radio navigation).
+/// Install the checkbox/radio default actions: the Dom's activation
+/// hook (click → flip before dispatch, `input` + `change` or revert
+/// after), plus two root-level keydown listeners — Space (synthesize
+/// click) and arrows (radio navigation).
 pub fn install(dom: &mut TuiDom) {
     use std::cell::RefCell;
     use std::rc::Rc;
     let root = dom.root();
 
-    // HTML §4.10.5.1.15 activation behavior for checkbox / radio:
-    // the state flips in the *pre-activation* step, before `click`
-    // reaches any listener, and is reverted if the click is canceled
-    // (the "legacy-canceled-activation behavior"). Two root-level
-    // listeners share the pending flips: a capture listener runs
-    // first and flips, the bubble listener at the end either fires
-    // `input` + `change` or undoes the flip.
+    // HTML §4.10.5.1.15 activation behavior for checkbox / radio, run by
+    // the Dom's activation hook (DOM §2.9 steps 5.5 and 11) rather than
+    // by listeners: the state flips in the *pre-activation* step before
+    // any listener sees the click, and the post step fires `input` +
+    // `change` or reverts a canceled click — regardless of
+    // `stopPropagation()`, which only affects listeners. The pending
+    // flips are keyed by widget so nested dispatches cannot mix them up.
     let pending: Rc<RefCell<Vec<(NodeId, ToggleUndo)>>> = Rc::new(RefCell::new(Vec::new()));
-
-    let pre = pending.clone();
-    dom.add_event_listener(
-        root,
-        "click",
-        ListenerOptions {
-            capture: true,
-            ..ListenerOptions::default()
-        },
-        move |ctx| {
-            let Some(target) = ctx.event.target else {
-                return;
-            };
-            let Some(widget) = closest_toggle(ctx.dom, target) else {
-                return;
-            };
-            if ctx.dom.node(widget).has_attribute("disabled") {
-                return;
+    dom.set_activation_hook(Some(Box::new(move |dom, target, event, phase| {
+        if event.event_type != "click" {
+            return;
+        }
+        let Some(widget) = closest_toggle(dom, target) else {
+            return;
+        };
+        match phase {
+            rdom_core::ActivationPhase::Pre => {
+                if dom.node(widget).has_attribute("disabled") {
+                    return;
+                }
+                let undo = pre_activate(dom, widget);
+                pending.borrow_mut().push((widget, undo));
             }
-            let undo = pre_activate(ctx.dom, widget);
-            pre.borrow_mut().push((widget, undo));
-        },
-    )
-    .expect("toggle pre-activation listener install");
-
-    let post = pending;
-    dom.add_event_listener(root, "click", ListenerOptions::default(), move |ctx| {
-        let Some(target) = ctx.event.target else {
-            return;
-        };
-        let Some(widget) = closest_toggle(ctx.dom, target) else {
-            return;
-        };
-        let entry = {
-            let mut p = post.borrow_mut();
-            p.iter()
-                .rposition(|(w, _)| *w == widget)
-                .map(|i| p.remove(i))
-        };
-        let Some((_, undo)) = entry else {
-            return; // disabled, or never pre-activated
-        };
-        if ctx.event.default_prevented() {
-            revert(ctx.dom, widget, undo);
-            return;
+            rdom_core::ActivationPhase::Post { canceled } => {
+                let entry = {
+                    let mut p = pending.borrow_mut();
+                    p.iter()
+                        .rposition(|(w, _)| *w == widget)
+                        .map(|i| p.remove(i))
+                };
+                let Some((_, undo)) = entry else {
+                    return; // disabled, or never pre-activated
+                };
+                if canceled {
+                    revert(dom, widget, undo);
+                } else if undo != ToggleUndo::Nothing {
+                    fire_input_and_change(dom, widget);
+                }
+            }
         }
-        if undo != ToggleUndo::Nothing {
-            fire_input_and_change(ctx.dom, widget);
-        }
-    })
-    .expect("toggle click listener install");
+    })));
 
     // Space on focused checkbox/radio → synthesize click. Mirrors
     // the `<button>` activation flow from C.3 so apps that listen

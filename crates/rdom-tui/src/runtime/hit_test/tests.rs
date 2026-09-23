@@ -962,3 +962,52 @@ fn pointer_events_none_falls_through_and_auto_child_is_hittable() {
         "auto child inside a none parent is hit"
     );
 }
+
+/// A scrolled IFC block resolves fragment owners through the scrolled
+/// content rect, like paint and the caret do: after scrolling two lines,
+/// the link on the third line is what sits on the block's first row.
+#[test]
+fn scrolled_ifc_block_hits_the_fragment_owner_visible_on_that_row() {
+    use crate::layout::WhiteSpace;
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let p = dom.create_element("p");
+    let a1 = dom.create_element("a");
+    let a2 = dom.create_element("a");
+    let t1 = dom.create_text_node("first");
+    let gap = dom.create_text_node("\n\n");
+    let t2 = dom.create_text_node("third");
+    dom.append_child(a1, t1).unwrap();
+    dom.append_child(a2, t2).unwrap();
+    dom.append_child(p, a1).unwrap();
+    dom.append_child(p, gap).unwrap();
+    dom.append_child(p, a2).unwrap();
+    dom.append_child(root, p).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "p",
+            TuiStyle::new()
+                .width(Size::Fixed(20))
+                // One visible row of three lines, so a scroll of two
+                // rows is within the clamp and puts the third line on top.
+                .height(Size::Fixed(1))
+                .white_space(WhiteSpace::Pre)
+                .overflow_y(Overflow::Scroll)
+                .padding(Padding::all(0))
+                .border(Border::none()),
+        )
+        .rule_unchecked("a", TuiStyle::new().display(Display::Inline));
+    prepare(&mut dom, &sheet, Rect::new(0, 0, 30, 10));
+    assert_eq!(
+        dom.hit_test(1, 0),
+        Some(a1),
+        "unscrolled: first link on row 0"
+    );
+    dom.node_mut(p).ext_mut().unwrap().scroll_y = 2;
+    dom.layout_dom(Rect::new(0, 0, 30, 10));
+    assert_eq!(
+        dom.hit_test(1, 0),
+        Some(a2),
+        "scrolled by two: the third line's link is on row 0"
+    );
+}

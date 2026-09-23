@@ -61,7 +61,7 @@ mod validate;
 
 pub use abort::{AbortController, AbortSignal};
 pub use accessor::{ChildIter, ElementChildIter, NodeMut, NodeRef};
-pub use dispatch::{EventCtx, ListenerId, ListenerOptions};
+pub use dispatch::{ActivationHook, ActivationPhase, EventCtx, ListenerId, ListenerOptions};
 pub use dom::Dom;
 pub use dom_string_map::{DomStringMap, DomStringMapMut};
 pub use error::{DomError, Result};

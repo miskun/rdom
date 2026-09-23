@@ -486,6 +486,13 @@ pub(super) fn layout_flex_children(
             if weight == 0 {
                 break;
             }
+            // Every share in a pass is computed from the pass-start
+            // budget; the budget consumed by items frozen in this pass is
+            // subtracted only after the pass (a mid-pass subtraction made
+            // later items' shares shrink and falsely froze them at their
+            // floors).
+            let pass_budget = budget;
+            let mut frozen_this_pass: u32 = 0;
             let mut accumulated_weight: u32 = 0;
             let mut accumulated: u32 = 0;
             let mut clamped_any = false;
@@ -497,7 +504,7 @@ pub(super) fn layout_flex_children(
                     continue;
                 };
                 accumulated_weight = accumulated_weight.saturating_add(w as u32);
-                let target = budget
+                let target = pass_budget
                     .saturating_mul(accumulated_weight)
                     .checked_div(weight)
                     .unwrap_or(0);
@@ -508,13 +515,14 @@ pub(super) fn layout_flex_children(
                 if clamped != share {
                     // Freeze at the clamped size; its budget is spoken for.
                     frozen[i] = true;
-                    budget = budget.saturating_sub(clamped as u32);
+                    frozen_this_pass = frozen_this_pass.saturating_add(clamped as u32);
                     clamped_any = true;
                 }
             }
             if !clamped_any {
                 break;
             }
+            budget = budget.saturating_sub(frozen_this_pass);
         }
     }
 
@@ -567,7 +575,8 @@ pub(super) fn layout_flex_children(
                     continue;
                 }
                 accumulated_basis += (basis[i] as u32) * shrink_of(ci);
-                let target_total_shrink = (accumulated_basis * overflow) / divisor.get();
+                let target_total_shrink =
+                    ((accumulated_basis as u64 * overflow as u64) / divisor.get() as u64) as u32;
                 let my_shrink = target_total_shrink.saturating_sub(accumulated_shrink) as u16;
                 accumulated_shrink = target_total_shrink;
                 // Honor min clamp — child can't shrink below its
@@ -676,14 +685,21 @@ pub(super) fn layout_flex_children(
         let cross_avail = cross_budget
             .saturating_sub(cross_start_cells)
             .saturating_sub(cross_end_cells);
+        // Flexbox §9.5: an item with an `auto` cross margin is not
+        // stretched — it takes its content size and the margins absorb
+        // the free space.
+        let stretch = !(cross_start_m.is_auto() || cross_end_m.is_auto());
         let cross_size = resolve_cross_size(
             dom,
             *child_id,
             &child_computed,
             cross_avail,
             direction,
-            *size,
-            main_was_auto,
+            MainAxisFacts {
+                size: *size,
+                was_auto: main_was_auto,
+                stretch,
+            },
         );
         let cross_free = cross_avail.saturating_sub(cross_size);
         let cross_offset = match (cross_start_m.is_auto(), cross_end_m.is_auto()) {
@@ -842,15 +858,32 @@ enum MainNatural {
 ///   - Else → stretch to fill the cross budget.
 ///
 /// Then clamps by `min` / `max`.
+/// What the cross-axis resolver needs to know about the main axis and
+/// the item's margins.
+struct MainAxisFacts {
+    /// Resolved main-axis size (for `aspect-ratio`).
+    size: u16,
+    /// Whether the main size was declared `auto` (aspect-ratio needs an
+    /// explicit main size).
+    was_auto: bool,
+    /// `false` when a cross margin is `auto` — the item is not stretched
+    /// and takes its content size (Flexbox §9.5).
+    stretch: bool,
+}
+
 fn resolve_cross_size(
     dom: &Dom<TuiExt>,
     child_id: NodeId,
     computed: &ComputedStyle,
     container_cross: u16,
     direction: Direction,
-    main_size: u16,
-    main_was_auto: bool,
+    main: MainAxisFacts,
 ) -> u16 {
+    let MainAxisFacts {
+        size: main_size,
+        was_auto: main_was_auto,
+        stretch,
+    } = main;
     let (cross_size, min_raw, max) = match direction {
         Direction::Row => (&computed.height, computed.min_height, computed.max_height),
         Direction::Column => (&computed.width, computed.min_width, computed.max_width),
@@ -887,8 +920,11 @@ fn resolve_cross_size(
                 // cross size — a conservative budget that's correct
                 // for non-IFC inline-blocks (the common case).
                 intrinsic_size(dom, child_id, cross_dir, container_cross)
-            } else {
+            } else if stretch {
                 container_cross
+            } else {
+                // `auto` cross margin: content size, not stretch.
+                intrinsic_size(dom, child_id, cross_dir, container_cross)
             }
         }
     };
