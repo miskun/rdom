@@ -3230,3 +3230,61 @@ fn flex_grow_redistributes_after_a_max_width_clamp() {
         "surplus redistributed, container filled"
     );
 }
+
+// ── HARDENING-2026-09 R7: sticky shifts anonymous block boxes too ───
+
+/// A `position: sticky` mixed-content block (text + a block child)
+/// pins as a unit: the anonymous box holding its text moves with the
+/// element's rect instead of staying at the pre-stick row.
+#[test]
+fn sticky_shift_moves_anonymous_text_boxes_with_the_element() {
+    use crate::layout::{Flow, Overflow, Position, Size};
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let scroller = dom.create_element("scroller");
+    let spacer = dom.create_element("spacer");
+    let header = dom.create_element("header");
+    let text = dom.create_text_node("Header");
+    let inner = dom.create_element("inner");
+    let tail = dom.create_element("spacer");
+    dom.append_child(root, scroller).unwrap();
+    dom.append_child(scroller, spacer).unwrap();
+    dom.append_child(scroller, header).unwrap();
+    dom.append_child(header, text).unwrap();
+    dom.append_child(header, inner).unwrap();
+    dom.append_child(scroller, tail).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "scroller",
+            TuiStyle::new()
+                .flow(Flow::Block)
+                .height(Size::Fixed(5))
+                .width(Size::Fixed(20))
+                .overflow_y(Overflow::Scroll),
+        )
+        .rule_unchecked("spacer", TuiStyle::new().height(Size::Fixed(4)))
+        .rule_unchecked(
+            "header",
+            TuiStyle::new()
+                .flow(Flow::Block)
+                .position(Position::Sticky)
+                .top(crate::layout::Length::Cells(0)),
+        )
+        .rule_unchecked("inner", TuiStyle::new().height(Size::Fixed(1)));
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 40, 10));
+    dom.node_mut(scroller).ext_mut().unwrap().scroll_y = 6;
+    dom.layout_dom(Rect::new(0, 0, 40, 10));
+    let header_rect = dom.node(header).ext().unwrap().layout;
+    let scroller_rect = dom.node(scroller).ext().unwrap().layout;
+    assert_eq!(
+        header_rect.y, scroller_rect.y,
+        "header is pinned to the scroller top"
+    );
+    let anon = &dom.node(header).ext().unwrap().anonymous_blocks;
+    assert_eq!(anon.len(), 1, "text + block child → one anonymous box");
+    assert_eq!(
+        anon[0].rect.y, header_rect.y,
+        "the anonymous text box moved with the header"
+    );
+}

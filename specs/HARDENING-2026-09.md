@@ -24,7 +24,7 @@ are not caught by the suite — they are invariant breaks, spec inversions, and 
 | R4 | Timer API reaches the scheduler through a raw-pointer thread-local installed only in `handle_event` / `tick`; any listener fired from a timer callback, `transitionend`, an injected closure, or the autoscroll synthetic drag panics on `set_timeout`. Installing the guard in the pump would alias `&mut Scheduler`. | `rdom-tui/src/runtime/timers.rs` | **fixed** (shared `Rc<RefCell<Scheduler>>` handle installed on every user-code path; per-call borrows, no raw pointer) |
 | R5 | `record_scroll_content_size` measures element children only. Text-only scroll containers (`<textarea>`, `<pre style="overflow:auto">`) report zero content and clamp `scroll_y` to 0 every frame. | `render/layout_pass/mod.rs` | **fixed** (extent includes inline flow + anonymous boxes; one scrolled content rect for paint / hit-test / caret; caret reveal) |
 | R6 | Flex shrink/grow apply min/max clamps in a single pass; no freeze-and-redistribute loop (Flexbox §9.7). | `render/layout_pass/flex.rs` | **fixed** (freeze-and-redistribute loop for grow and shrink) |
-| R7 | `position: sticky` shifts `layout` / `content_layout` but not `anonymous_blocks[*].rect`; text stays at the pre-stick row. | `render/layout_pass/sticky.rs` | open |
+| R7 | `position: sticky` shifts `layout` / `content_layout` but not `anonymous_blocks[*].rect`; text stays at the pre-stick row. | `render/layout_pass/sticky.rs` | **fixed** (`shift_subtree` moves anonymous boxes and pseudo layouts) |
 | R8 | CSS decimals are reassembled from integer tokens: `0.05` → 0.5, `1.05s` → 1500ms. Oversized integers become 0 via `unwrap_or(0)`. | `rdom-style/src/parse/{values,token}.rs` | open — real `<number-token>` / `<dimension-token>` |
 | R9 | At-rules are never recognized; `@import …;` and `@media {…}` swallow the following rule. The `UnsupportedAtRule` warning is never constructed. No brace-depth tracking, stray `}` corrupts the next selector. | `rdom-css/src/top_level.rs` | open — CSS Syntax 3 §5.4 consumer |
 | R10 | HTML parser: `<` followed by a non-letter in text is a hard error; `<style>` / `<script>` are not raw text (yet rdom-tui consumes `<style>` bodies); `<textarea>` is not RCDATA. | `rdom-parser/src/parser.rs` | open |
@@ -198,6 +198,12 @@ then a release (divergent bumps as before; a `rdom-core` change forces a `rdom-t
   TECH_DEBT: `STYLE-TRANSITION-VALUE-1`, `STYLE-INHERITS-TWO-SOURCES-1`. Not done in this batch:
   `url(` token, `rgb(255 0 0)` / `hsl()` syntaxes, fractional-percentage layout resolution beyond
   whole percent (parsed, truncated), per-element custom-property scope (Batch 3 cascade work).
+- 2026-09-24 — Batch 3 progress: R4 (shared scheduler handle), R5 (scrollable text leaves: extent,
+  one scrolled content rect for paint / hit-test / caret / movement, caret reveal with deferred
+  clamp, trailing caret row for editing hosts), R6 (flex freeze-and-redistribute), R7 (sticky moves
+  anonymous boxes), R11 (raw mode last), Tab skips non-rendered subtrees, checkbox pre-activation
+  with revert on cancel, `<select size>` per HTML §4.10.7, `rdom-tui` package `exclude`. Process
+  debt recorded: `PROC-TUI-DEV-DEP-1`, `PROC-TOOLCHAIN-PIN-1`, `PROC-STATE-LEDGER-1`.
 - 2026-09-24 — Batch 2 review gates run (architect + API). Blocking items fixed: the cascade resolved
   `opacity` / `text-decoration` / `scrollbar-gutter: inherit` to the initial value (arms were dead
   before the parser produced the keywords); `css_wide_of` claimed `inherit` for a shorthand when only

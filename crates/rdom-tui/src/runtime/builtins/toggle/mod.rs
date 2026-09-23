@@ -52,23 +52,67 @@ use crate::{TuiDom, TuiEvent};
 /// listeners: click (toggle/select), keydown for Space (synthesize
 /// click), keydown for arrows (radio navigation).
 pub fn install(dom: &mut TuiDom) {
+    use std::cell::RefCell;
+    use std::rc::Rc;
     let root = dom.root();
 
-    // Click → toggle / select.
+    // HTML §4.10.5.1.15 activation behavior for checkbox / radio:
+    // the state flips in the *pre-activation* step, before `click`
+    // reaches any listener, and is reverted if the click is canceled
+    // (the "legacy-canceled-activation behavior"). Two root-level
+    // listeners share the pending flips: a capture listener runs
+    // first and flips, the bubble listener at the end either fires
+    // `input` + `change` or undoes the flip.
+    let pending: Rc<RefCell<Vec<(NodeId, ToggleUndo)>>> = Rc::new(RefCell::new(Vec::new()));
+
+    let pre = pending.clone();
+    dom.add_event_listener(
+        root,
+        "click",
+        ListenerOptions {
+            capture: true,
+            ..ListenerOptions::default()
+        },
+        move |ctx| {
+            let Some(target) = ctx.event.target else {
+                return;
+            };
+            let Some(widget) = closest_toggle(ctx.dom, target) else {
+                return;
+            };
+            if ctx.dom.node(widget).has_attribute("disabled") {
+                return;
+            }
+            let undo = pre_activate(ctx.dom, widget);
+            pre.borrow_mut().push((widget, undo));
+        },
+    )
+    .expect("toggle pre-activation listener install");
+
+    let post = pending;
     dom.add_event_listener(root, "click", ListenerOptions::default(), move |ctx| {
-        if ctx.event.default_prevented() {
-            return;
-        }
         let Some(target) = ctx.event.target else {
             return;
         };
         let Some(widget) = closest_toggle(ctx.dom, target) else {
             return;
         };
-        if ctx.dom.node(widget).has_attribute("disabled") {
+        let entry = {
+            let mut p = post.borrow_mut();
+            p.iter()
+                .rposition(|(w, _)| *w == widget)
+                .map(|i| p.remove(i))
+        };
+        let Some((_, undo)) = entry else {
+            return; // disabled, or never pre-activated
+        };
+        if ctx.event.default_prevented() {
+            revert(ctx.dom, widget, undo);
             return;
         }
-        apply_toggle(ctx.dom, widget);
+        if undo != ToggleUndo::Nothing {
+            fire_input_and_change(ctx.dom, widget);
+        }
     })
     .expect("toggle click listener install");
 
@@ -140,38 +184,73 @@ pub fn install(dom: &mut TuiDom) {
 
 // ── State change ───────────────────────────────────────────────────
 
-/// Apply a click activation to a checkbox or radio: flip the state,
-/// fire `input` then `change`. No-op if the click is on an already-
-/// checked radio (HTML rule: radios can't be deselected by clicking).
-fn apply_toggle(dom: &mut TuiDom, widget: NodeId) {
-    let was_checked = dom.node(widget).has_attribute("checked");
-    let is_radio_widget = is_radio(dom, widget);
+/// What `revert` needs to undo a pre-activation flip.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum ToggleUndo {
+    /// Checkbox flipped; `revert` flips it back.
+    Checkbox,
+    /// Radio checked; the group member that was checked before, if any.
+    Radio { previously_checked: Option<NodeId> },
+    /// Click on an already-checked radio: no state change.
+    Nothing,
+}
 
-    if is_radio_widget {
+/// Pre-activation step: flip a checkbox, or check a radio and uncheck
+/// the rest of its group. Returns what it did so a canceled click can
+/// undo it. No-op on an already-checked radio (HTML rule: radios can't
+/// be deselected by clicking).
+fn pre_activate(dom: &mut TuiDom, widget: NodeId) -> ToggleUndo {
+    let was_checked = dom.node(widget).has_attribute("checked");
+    if is_radio(dom, widget) {
         if was_checked {
-            // Re-clicking an already-checked radio is a no-op.
-            return;
+            return ToggleUndo::Nothing;
         }
-        // Uncheck siblings in the group, then check this one.
         let siblings = collect_radio_group(dom, widget);
+        let previously_checked = siblings
+            .iter()
+            .copied()
+            .find(|&sib| sib != widget && dom.node(sib).has_attribute("checked"));
         for sib in siblings {
             if sib != widget {
                 let _ = dom.remove_attribute(sib, "checked");
             }
         }
         let _ = dom.set_attribute(widget, "checked", "");
+        return ToggleUndo::Radio { previously_checked };
+    }
+    if was_checked {
+        let _ = dom.remove_attribute(widget, "checked");
     } else {
-        // Checkbox: toggle.
-        if was_checked {
+        let _ = dom.set_attribute(widget, "checked", "");
+    }
+    ToggleUndo::Checkbox
+}
+
+/// Legacy-canceled-activation behavior: put the state back the way
+/// `pre_activate` found it.
+fn revert(dom: &mut TuiDom, widget: NodeId, undo: ToggleUndo) {
+    match undo {
+        ToggleUndo::Nothing => {}
+        ToggleUndo::Checkbox => {
+            if dom.node(widget).has_attribute("checked") {
+                let _ = dom.remove_attribute(widget, "checked");
+            } else {
+                let _ = dom.set_attribute(widget, "checked", "");
+            }
+        }
+        ToggleUndo::Radio { previously_checked } => {
             let _ = dom.remove_attribute(widget, "checked");
-        } else {
-            let _ = dom.set_attribute(widget, "checked", "");
+            if let Some(prev) = previously_checked {
+                let _ = dom.set_attribute(prev, "checked", "");
+            }
         }
     }
+}
 
-    // `input` and `change` both fire post-mutation, in that order.
-    // Both are non-cancelable per MDN — handlers can observe but
-    // not block (the cancelable hook is the click event upstream).
+/// `input` and `change` both fire post-mutation, in that order. Both
+/// are non-cancelable per MDN — handlers can observe but not block (the
+/// cancelable hook is the click event upstream).
+fn fire_input_and_change(dom: &mut TuiDom, widget: NodeId) {
     let mut input_ev = TuiEvent::new("input");
     let _ = dom.dispatch_tui_event(widget, &mut input_ev);
     let mut change_ev = TuiEvent::new("change");

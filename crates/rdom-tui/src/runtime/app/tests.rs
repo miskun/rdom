@@ -885,6 +885,41 @@ fn tab_key_moves_focus_through_tabindex_chain() {
     assert_eq!(app.dom().focused(), Some(a), "wraps");
 }
 
+/// HTML: an element that is not being rendered is not focusable. A
+/// button inside a closed `<dialog>` (UA: `display: none`) or inside
+/// any `display: none` subtree must be skipped by Tab.
+#[test]
+fn tab_skips_elements_in_a_display_none_subtree() {
+    use crate::layout::Display;
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let a = dom.create_element("button");
+    let hidden_box = dom.create_element("div");
+    let hidden_btn = dom.create_element("button");
+    let dialog = dom.create_element("dialog");
+    let dialog_btn = dom.create_element("button");
+    let c = dom.create_element("button");
+    dom.append_child(hidden_box, hidden_btn).unwrap();
+    dom.append_child(dialog, dialog_btn).unwrap();
+    for n in [a, hidden_box, dialog, c] {
+        dom.append_child(root, n).unwrap();
+    }
+    dom.set_attribute(hidden_box, "class", "gone").unwrap();
+    let sheet = Stylesheet::new().rule_unchecked(".gone", TuiStyle::new().display(Display::None));
+    let mut app = test_app(dom, sheet, Rect::new(0, 0, 40, 10));
+    app.draw_if_dirty().unwrap(); // cascade so `display` is computed
+    app.handle_event(key(KeyCode::Tab));
+    assert_eq!(app.dom().focused(), Some(a));
+    app.handle_event(key(KeyCode::Tab));
+    assert_eq!(
+        app.dom().focused(),
+        Some(c),
+        "hidden and closed-dialog buttons skipped"
+    );
+    app.handle_event(key(KeyCode::Tab));
+    assert_eq!(app.dom().focused(), Some(a), "wraps past them too");
+}
+
 #[test]
 fn shift_tab_moves_focus_backward() {
     let mut dom: TuiDom = TuiDom::new();
@@ -2478,6 +2513,54 @@ fn typing_past_the_bottom_of_a_textarea_scrolls_the_caret_into_view() {
         (caret_y as i32) >= box_y && (caret_y as i32) < box_y + ext.layout.height as i32,
         "caret row {caret_y} inside box at {box_y}+{}",
         ext.layout.height
+    );
+}
+
+/// HTML §4.10.5.1.15 activation behavior: the checkbox flips *before*
+/// `click` is dispatched (a click listener reading `checked` sees the
+/// new state) and is reverted if the click is canceled.
+#[test]
+fn checkbox_flips_before_click_dispatch_and_reverts_when_canceled() {
+    use std::cell::Cell;
+    use std::rc::Rc;
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let cb = dom.create_element("input");
+    dom.set_attribute(cb, "type", "checkbox").unwrap();
+    dom.append_child(root, cb).unwrap();
+    let seen_checked = Rc::new(Cell::new(None));
+    {
+        let seen = seen_checked.clone();
+        dom.add_event_listener(cb, "click", ListenerOptions::default(), move |ctx| {
+            seen.set(Some(ctx.dom.node(cb).has_attribute("checked")));
+        })
+        .unwrap();
+    }
+    let mut app = test_app(dom, Stylesheet::new(), Rect::new(0, 0, 20, 3));
+    let mut click = rdom_core::Event::new("click");
+    click.bubbles = true;
+    click.cancelable = true;
+    app.dom_mut().dispatch_event(cb, &mut click).unwrap();
+    assert_eq!(
+        seen_checked.get(),
+        Some(true),
+        "listener sees the flipped state"
+    );
+    assert!(app.dom().node(cb).has_attribute("checked"));
+
+    // A canceling listener reverts the flip.
+    app.dom_mut()
+        .add_event_listener(cb, "click", ListenerOptions::default(), |ctx| {
+            ctx.event.prevent_default();
+        })
+        .unwrap();
+    let mut click = rdom_core::Event::new("click");
+    click.bubbles = true;
+    click.cancelable = true;
+    app.dom_mut().dispatch_event(cb, &mut click).unwrap();
+    assert!(
+        app.dom().node(cb).has_attribute("checked"),
+        "canceled click: still checked"
     );
 }
 

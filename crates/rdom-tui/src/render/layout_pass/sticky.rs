@@ -154,6 +154,28 @@ fn shift_subtree(dom: &mut Dom<TuiExt>, id: NodeId, dx: i32, dy: i32) {
             ext.content_layout.width,
             ext.content_layout.height,
         );
+        // The element's own text lives in anonymous block boxes (mixed
+        // content) and its pseudos in `before_layout` / `after_layout`;
+        // both carry their own rects and pin with the element.
+        for anon in &mut ext.anonymous_blocks {
+            anon.rect = LayoutRect::new(
+                anon.rect.x + dx,
+                anon.rect.y + dy,
+                anon.rect.width,
+                anon.rect.height,
+            );
+        }
+        for pseudo in [&mut ext.before_layout, &mut ext.after_layout]
+            .into_iter()
+            .flatten()
+        {
+            pseudo.rect = LayoutRect::new(
+                pseudo.rect.x + dx,
+                pseudo.rect.y + dy,
+                pseudo.rect.width,
+                pseudo.rect.height,
+            );
+        }
     }
     let child_ids: Vec<NodeId> = dom
         .node(id)

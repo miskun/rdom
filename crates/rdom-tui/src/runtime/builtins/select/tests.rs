@@ -409,6 +409,30 @@ fn select_with_size_is_not_dropdown() {
     assert!(!select::is_dropdown(app.dom(), sel));
 }
 
+/// HTML §4.10.7: display size 1 without `multiple` is the drop-down
+/// box; only `size > 1` (or `multiple`) is a list box. `size="1"`,
+/// `size="0"`, and a non-numeric size are the default of 1.
+#[test]
+fn select_size_one_or_invalid_is_still_a_dropdown() {
+    for size in ["1", "0", "abc", ""] {
+        let (mut app, sel, _) = select_fixture(false, &["a", "b"]);
+        app.dom_mut().set_attribute(sel, "size", size).unwrap();
+        assert!(select::is_dropdown(app.dom(), sel), "size={size:?}");
+    }
+}
+
+/// A `size > 1` list box without `multiple` is still single-select.
+#[test]
+fn listbox_without_multiple_is_single_select() {
+    let (mut app, sel, opts) = select_fixture(false, &["a", "b", "c"]);
+    app.dom_mut().set_attribute(sel, "size", "3").unwrap();
+    dispatch_click(&mut app, opts[0]);
+    dispatch_click(&mut app, opts[2]);
+    assert!(!app.dom().node(opts[0]).has_attribute("selected"));
+    assert!(app.dom().node(opts[2]).has_attribute("selected"));
+    assert!(!select::is_dropdown(app.dom(), sel));
+}
+
 #[test]
 fn open_sets_the_open_marker_on_dropdown() {
     let (mut app, sel, _) = select_fixture(false, &["a"]);

@@ -46,6 +46,11 @@ pub fn tab_index(dom: &TuiDom, id: NodeId) -> Option<i32> {
     if node.has_attribute("disabled") {
         return None;
     }
+    // HTML: an element that is not being rendered is not a focusable
+    // area (a button inside a closed `<dialog>`, a `[hidden]` box).
+    if !is_rendered(dom, id) {
+        return None;
+    }
     // Explicit tabindex wins.
     if let Some(t) = node
         .get_attribute("tabindex")
@@ -241,6 +246,17 @@ fn named_radio_name(dom: &TuiDom, id: NodeId) -> Option<String> {
     Some(name.to_string())
 }
 
+/// `false` when `id`'s own computed `display` is `none`. `display`
+/// does not inherit, so a hidden *ancestor* is caught by the tree
+/// walk in `collect` pruning that subtree, not by this check.
+/// Elements without a cascade result (never cascaded) count as
+/// rendered, so headless tests without a stylesheet keep working.
+fn is_rendered(dom: &TuiDom, id: NodeId) -> bool {
+    dom.node(id)
+        .computed()
+        .is_none_or(|c| c.display != crate::layout::Display::None)
+}
+
 fn collect(
     dom: &TuiDom,
     id: NodeId,
@@ -248,6 +264,11 @@ fn collect(
     zero: &mut Vec<(usize, NodeId)>,
     order: &mut usize,
 ) {
+    // A `display: none` subtree is not rendered: nothing in it is a
+    // focusable area, however the descendants are styled.
+    if !is_rendered(dom, id) {
+        return;
+    }
     *order += 1;
     let current_order = *order;
     if let Some(t) = tab_index(dom, id) {

@@ -622,11 +622,22 @@ fn fire_input_and_change(dom: &mut TuiDom, select: NodeId) {
 
 // ── Tree traversal helpers ─────────────────────────────────────────
 
-/// Is this select a multi-select (either `multiple` attribute set,
-/// or `size > 1` — both produce the listbox with independent
-/// selection per HTML).
+/// Is this select a multi-select? Only the `multiple` attribute makes
+/// one (HTML §4.10.7); a `size > 1` list box without `multiple` is
+/// still single-select.
 fn is_multi(dom: &TuiDom, select: NodeId) -> bool {
     dom.node(select).has_attribute("multiple")
+}
+
+/// HTML §4.10.7 "display size": the `size` attribute parsed as a
+/// non-negative integer greater than zero, else the default of 1
+/// (4 when `multiple`, which does not matter for the dropdown test).
+fn display_size(dom: &TuiDom, select: NodeId) -> u32 {
+    dom.node(select)
+        .get_attribute("size")
+        .and_then(|s| s.trim().parse::<u32>().ok())
+        .filter(|n| *n > 0)
+        .unwrap_or(1)
 }
 
 /// Collect every `<option>` descendant of `select`, in document
@@ -680,11 +691,12 @@ fn enclosing_select(dom: &TuiDom, id: NodeId) -> Option<NodeId> {
 
 // ── Dropdown open/close (C.7b) ─────────────────────────────────────
 
-/// True when this select is a dropdown (single-select, no
-/// `multiple`, no `size`). Listbox selects always show their
-/// option list and don't have open/closed state.
+/// True when this select is a drop-down box: no `multiple` and a
+/// display size of 1 (HTML §4.10.7 — `size="1"`, `size="0"`, or a
+/// non-numeric size all mean 1). List boxes (`multiple` or `size > 1`)
+/// always show their option list and have no open/closed state.
 pub fn is_dropdown(dom: &TuiDom, select: NodeId) -> bool {
-    !dom.node(select).has_attribute("multiple") && !dom.node(select).has_attribute("size")
+    !dom.node(select).has_attribute("multiple") && display_size(dom, select) <= 1
 }
 
 /// True when this dropdown is currently open. Always `false`
