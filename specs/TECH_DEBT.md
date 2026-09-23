@@ -105,7 +105,6 @@ For the durable architectural divergences (web-platform departures shipped on pu
 
 - **`PROC-TUI-DEV-DEP-1` — `rdom-tui` dev-depends on its own consumer `rdom-showcase`.** The examples are one-line shims around showcase demos and the integration snapshot tests build the same DOMs, so `cargo test -p rdom-tui` fails whenever the showcase fails to compile, and the coupling direction is inverted (substrate → consumer). Mitigated 2026-09-24 by `exclude = ["examples/**", "tests/**", "benches/**"]` in `rdom-tui/Cargo.toml`, so the published tarball no longer ships files that cannot build from crates.io. Real fix: keep two or three self-contained examples in-crate and move the showcase-backed shims and snapshot tests into `rdom-showcase`.
 - **`PROC-TOOLCHAIN-PIN-1` — the toolchain "pin" is `channel = "stable"`.** `rust-toolchain.toml` and CI's `dtolnay/rust-toolchain@stable` both float, so a new stable can break `-D warnings` on every PR and CONTRIBUTING's "local and CI agree on rustfmt/clippy versions" is only true by coincidence. Pin `channel = "1.xx"` and bump deliberately, or drop the claim.
-- **`PROC-STATE-LEDGER-1` — `STATE.md` is a 700-line append-only log.** Its "Open risks" lists only an item the same file closes. Cut to a ledger (current focus / release track table / open risks / follow-ups / last five decisions) and move the dated history to `specs/HISTORY-2026-05.md`; CHANGELOG already duplicates most of it.
 
 ## Accepted simplifications (forever-state)
 

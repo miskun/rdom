@@ -5,7 +5,7 @@ description: Pre-publish checklist + publish sequence + post-publish wrap-up for
 
 # /publish — crates.io release checklist
 
-Use this whenever a rdom crate is going to crates.io. The five crates (`rdom-core`, `rdom-style`, `rdom-css`, `rdom-parser`, `rdom-tui`) publish independently but share a workspace version (`workspace.package.version` in the root `Cargo.toml`); changes in one often imply bumps in consumers.
+Use this whenever a rdom crate is going to crates.io. The five crates (`rdom-core`, `rdom-style`, `rdom-css`, `rdom-parser`, `rdom-tui`) publish and **bump independently** ("divergent bumps"): only a crate whose source changed bumps, plus every crate that pins it — a `rdom-core` change bumps all five, a `rdom-tui`-only fix bumps one. The root `workspace.package.version` is the default for crates that have not diverged, not a shared release number (`rdom-core` and `rdom-tui` carry their own). Tag per crate (`rdom-tui-vX.Y.Z`); use a plain `vX.Y.Z` tag only when every crate ships together.
 
 **Every `cargo publish` is irreversible.** A crate/version pair, once on crates.io, can never be reused — only superseded by a higher version. The point of this skill is to catch every problem *before* that point.
 
@@ -15,7 +15,7 @@ Run `git log --oneline $(git describe --tags --abbrev=0)..HEAD` (or against the 
 
 - **Which crates changed?** Anything under `crates/<name>/` (source, examples, README, Cargo.toml) means *that crate* needs a bump.
 - **Which crates depend on a changed crate?** Those need to bump too if the change is API-visible. The dep DAG is `rdom-core → {rdom-style, rdom-parser} → rdom-css → rdom-tui`. (`rdom-parser` only depends on `rdom-core`; `rdom-css` depends on `rdom-core` + `rdom-style`; `rdom-tui` depends on `rdom-core` + `rdom-style` + `rdom-css`.)
-- **Is this an initial publish or a re-publish?** For the initial `0.1.0`, all five crates publish together at the workspace version. For later releases, only changed crates + their dependents need to bump.
+- **Which crates changed, and who pins them?** Only changed crates and their dependents bump. Check each `Cargo.toml` `version = "…"` pin on path deps: a bumped crate's dependents must re-pin and bump too, or consumers end up with two copies of the substrate and mismatched `Dom` types.
 
 Write down the bump plan as a one-line decision in the prep commit's message so future sessions can read it.
 

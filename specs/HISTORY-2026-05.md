@@ -1,0 +1,693 @@
+# HISTORY — 2026-05 → 2026-06 (0.1.0 → 0.3.13)
+
+Dated journal entries moved out of [`../STATE.md`](../STATE.md) on 2026-09-24 when it was cut back to a
+ledger (`PROC-STATE-LEDGER-1`). Nothing here is current; the release notes for the same period are in
+[`../CHANGELOG.md`](../CHANGELOG.md).
+
+## 0.2.0 milestone status — CLOSED (released 2026-06-02)
+
+All milestones closed; 0.2.0 shipped to crates.io on 2026-06-02 (tag `v0.2.0`). Retained for the record.
+
+- [x] **M1** — Substrate honesty *(closed 2026-05-22)*:
+  - [x] D1 — Multi-slot stylesheet API (`App::push_stylesheet` / `remove_stylesheet` + `cascade_all` / `cascade_subtrees_all`). Commit `c585065`, plus grumpy-review follow-ups: `adf14be` (drain dirty tracker, not peek), `82a2dbe` (set_stylesheet returns id + empty-sheets test), `e5b4e89` (tuple-vec storage + per-pass vars merge).
+  - [x] D2 — Subtree-replacement contract + integration tests. 15 contract tests under `crates/rdom-tui/tests/subtree_replacement_contract.rs`. Root-cause fix in `rdom-core::tree::detach_from_parent` adds a `purge_interaction_state_for_subtree` helper so every detach path cleans up focused/hovered/pointer_capture/selection. Commits `245c626`, `41f9f76` (review follow-ups + EVT-DETACH-1).
+  - [x] D3 — Focus-on-detach specification. Folded into D2 (same fix surface): `dom.focused()` clears synchronously on detach (matches the web); the no-`blur`-event divergence documented in [`specs/DIVERGENCES.md`](specs/DIVERGENCES.md) §"Runtime & focus" and tracked as **`EVT-DETACH-1`** in [`specs/TECH_DEBT.md`](specs/TECH_DEBT.md), blocking on M5.
+- [x] **M2** — Showcase scaffold *(closed 2026-05-22)*. `crates/rdom-showcase/` workspace member (`publish = false`). Public API: `Demo` trait, `Category` enum, `Source` struct, `DEMOS` registry, `build_shell(&mut TuiDom) -> ShellHandles`, `base_stylesheet()`. Shell structure is native HTML (`<header>`/`<aside>`/`<nav>`/`<h2>`/`<main>`). One demo (`HelloWorld`) wired end-to-end. Two stylesheets registered (base + demo, slot order pinned by test) exercising M1's multi-slot API. CSS authored as strings parsed via `rdom_css::from_css` — same shape consumers learn from + same source the M7 Source tab will surface. Commits `0c25920` (scaffold), `a92aa6a` (substrate: class attribute round-trip), `c6f5d34` (review follow-ups: heading, border-collapse, dep cleanup, CSS-as-string, slot-order test).
+- [x] **M3** — Sidebar nav + per-demo subtree swap *(closed 2026-05-22)*. Six deliverables shipped:
+  - D1 — two additional placeholder demos (`FlexRow`, `Hover`) registered alongside `HelloWorld`, each with its own class-scoped stylesheet.
+  - D2 — sidebar rebuilt as a `<details>/<summary>` category tree grouped by `Category` enum, with `<li data-demo-slug="…" tabindex="0">` items.
+  - D3 — `ShowcaseState` + `mount_demo` in `crates/rdom-showcase/src/nav.rs` clears `<main>`'s children + builds + appends the new demo's subtree. Per-demo sheets are pre-pushed at App startup; class-scoped selectors mean swapping is a pure subtree replacement, no sheet churn.
+  - D4 — single `click` listener on the sidebar (event delegation) walks up the target's ancestor chain for `data-demo-slug`, looks up the demo, calls `mount_demo`.
+  - D5 — `keydown` listener on the sidebar: ArrowUp/ArrowDown traverse `<li>`s in document order (wraps), Enter/Space activate the focused one. Tab/Shift+Tab traversal works for free via the runtime's built-in focus router because `<li>`s carry `tabindex="0"`.
+  - D6 — 7 end-to-end integration tests in `crates/rdom-showcase/tests/subtree_swap_integration.rs` exercising the M1 D2 substrate purge contract through the showcase's `mount_demo` path (focus/hover/pointer-capture/selection in detached subtree all clear; same-idx swap is a no-op; multi-swap leaves `<main>` with exactly one child; full-viewport paint after multiple swaps survives without panic).
+- [x] **M4** — Examples-to-demos refactor *(closed 2026-05-23)*. All 10 in-tree examples ported to `crates/rdom-showcase/src/demos/`. Each `rdom-tui/examples/*.rs` is now a 1-line shim calling `rdom_showcase::demos::X::run_standalone()`. Paint snapshots pin all 10 outputs at fixed viewports under `crates/rdom-tui/tests/snapshots/`. `OPS-4` retired. Showcase grew from 3 (M3) to 13 demos across 7 categories. Side fix: `sticky_demo`'s pre-existing rendering bug (every Nth item missing under `overflow: auto` due to CSS-default `flex-shrink: 1`) closed by adding `flex-shrink: 0` to demo items — same pattern applied to `scrollable_list`, `tab_form`, etc.
+- [x] **M5** — Event surface bundle *(closed 2026-05-23)*. Six new events + the implicit-detach ceremony:
+  - D1 — **`keyup`** distinguishes `KeyEventKind::Release` from Press/Repeat. App enables `KeyboardEnhancementFlags::REPORT_EVENT_TYPES` + `DISAMBIGUATE_ESCAPE_CODES` on `enter_tui_mode`; supporting terminals (kitty/foot/WezTerm/alacritty 0.13+/recent xterm) fire Release, others silently no-op.
+  - D2 — **`contextmenu`** fires on right-mouse-button down at the hit target; Shift+F10 fires on the focused element. Cancelable, bubbles.
+  - D3 — **`dblclick`** synthesized on the second click of a 2-click sequence, dispatched after the regular click. Triple-click is selection-gesture territory.
+  - D4 — **`resize`** dispatches on the document root (Window target per HTML §UIEvents) when `CtEvent::Resize` fires. Coalesced per crossterm signal.
+  - D5 — **`scroll`** dispatches on elements whose `scroll_x`/`scroll_y` actually changed. Three mutation sites wired: wheel scroll, scrollbar drag, programmatic `set_scroll_*`/`scroll_to`. No event at-rail-end wheel ticks.
+  - D6 — **Implicit-detach event ceremony** (closes `EVT-DETACH-1`). New `Mutation::PreDetach` variant fires BEFORE structural unlink. `runtime::implicit_events` module's App-level observer dispatches `blur` + `focusout` on focus loss, `mouseout` + `mouseleave` on hover loss. Tree intact at dispatch → bubbling works through live ancestor chain. 8 integration tests pin the contract. Two `DIVERGENCES.md` entries removed.
+- [x] **M6** — `calc()` value system *(closed 2026-05-24)*. End-to-end shipped:
+  - **Phase 1** — `CalcExpr` AST + recursive-descent parser. CSS-correct precedence (`+ -` < `* /`), parens, unary minus, nested `calc()`. Banker's-rounding resolver. Substrate types: `Size::Calc(Box<CalcExpr>)`, `Length::Calc(Box<CalcExpr>)` — `Size` / `Length` non-Copy, `.clone()` at move boundaries. `PresentationStyle::Eq` derive removed; `AnimatedValue` non-Copy.
+  - **Phase 2** — Layout-time resolution: `apply_relative_shift` resolves `top`/`bottom` against parent height, `left`/`right` against parent width. `axis_size_from_edges` / `axis_position_anchored` / `axis_position_relative_shift` take `&Length` and resolve Calc via shared `length_to_cells` helper. `compute_placed_rect` (absolute positioning) resolves Size + Length Calc against the containing block. `compute_pseudo_layout_rect` (positioned pseudos) follows the same pattern. `layout_flex_children` resolves main-axis Calc against `main_budget` and cross-axis against `container_cross`.
+  - **Phase 3** — `parse_unsigned` and `parse_padding_shorthand` accept constant-only `calc()` (e.g. `padding: calc(2 * 3)` → 6 cells). Percent-bearing calc on padding/margin/gap is rejected — narrow gap tracked as `CALC-PADMARG-1`.
+  - **Phase 4** — End-to-end integration tests in `crates/rdom-tui/tests/calc_layout.rs` (10 tests): width / height / top / left / nested calc / negative-clamp / absolute positioning / relative shift / constant padding / paint-pipeline survival.
+  - **Animation**: Calc-bearing transitions snap at midpoint (no layout context at interpolation time). Documented in DIVERGENCES.md.
+- [x] **M7** — Showcase polish *(closed 2026-05-24)*. Four deliverables:
+  - D1 — **Source view tab** in `<main>`. Demo / Source toggle; Source mounts a `<div class="source-view">` with the demo's `MARKUP` + `CSS` strings rendered into two `<pre>` blocks with `<h2>` labels. `ShowcaseState` gains `view: ViewMode`; switching demos auto-resets to Demo view; `.active` class flips between tabs.
+  - D2 — **resize integration verified.** Substrate already wires resize (M5 D4); 3 integration tests pin that the showcase chrome adapts (main panel grows/shrinks) and that listeners on the document root see one resize event per crossterm signal.
+  - D3 — **Scroll-position indicator** at the bottom of `<main>`. Empty when no scrollable element is in play; populates with "Row N/M — P%" on any `scroll` event from a descendant. Wired via `wire_scroll_indicator` listening on `dom.root()`.
+  - D4 — **CLI deep-link:** `cargo run -p rdom-showcase -- --demo <slug>` opens directly to a named demo; `--list` prints every registered slug + title; `--help` prints usage. 7 unit tests cover `parse_args`.
+- [x] **M8** — Coverage demos *(closed)*. The showcase ships 20+ demos across all categories (Layout / Positioning / Forms / Text / Editing / Selection / Cascade / PseudoElements / Events / Animations / BuiltIns) as the substrate tour; further demos are added opportunistically post-release (e.g. the drag-autoscroll exercise lives in `selectable_text`).
+- [x] **M9** — *(closed 2026-06-02)*. CI (3-OS matrix) + paint snapshots + README + DESIGN.md decision archive + per-crate version bumps + `cargo publish` → **0.2.0 shipped**.
+
+
+## Semver release track (as recorded at the time)
+
+- [x] **0.1.0** — Initial release (2026-05-19): DOM substrate, cascade, flexbox, runtime, native built-ins, UA stylesheet, CSS parser, HTML parser.
+- [x] **0.1.0 editing parity** (2026-05-20): selection, caret, contenteditable parity.
+- [x] **0.2.0** — Released 2026-06-02 (all five crates; tag `v0.2.0`). `rdom-showcase` (headline) + event surface bundle + `calc()` value system + BFC + native ARIA tree + layered border model. See [`specs/SHOWCASE.md`](specs/SHOWCASE.md) + the "0.2.0 milestone status" section above.
+- [x] **0.3.2** — `drop_subtree` mutation/free ordering fix (released 2026-06-02): removing a focused/observed node from inside an event handler no longer panics (`DROP-SUBTREE-FREE-ORDER-1`).
+- [x] **0.3.1** — Focus-indicator fix (released 2026-06-02): focused `<canvas>` clean by default + focus tint overridable (`UA-FOCUS-OVERRIDABLE-1`).
+- [x] **0.3.0** — Substrate honesty (released 2026-06-02). Fixed the seven friction points the first downstream consumer (`rdom-extensions`) hit, two High (geometry setters that didn't drive layout; no repaint request from event listeners). See [`specs/SUBSTRATE-0.3.0.md`](specs/SUBSTRATE-0.3.0.md). (Routing slid to 0.4.0.)
+- [x] **0.3.5** — `rdom-tui` only (released 2026-06-03): table column-sync dirty fix (`TABLE-COLSYNC-DIRTY-1`) so virtualized tables don't keep stale header widths under the incremental cascade. Surfaced by `rdom-virtualtable`. **Divergent bump** — only `rdom-tui` (DAG top, no dependents) went to 0.3.5; the other four stay at 0.3.4.
+- [x] **0.3.6** — `rdom-tui` only (released 2026-06-04). Table column-width **de-conflation** (`TABLE-COLSYNC-1`): `size_columns` stops writing computed widths onto author `inline_style`, respects explicit (inline / `<col>`) widths, and writes the used width to a layout-side field — fixes dead `Column.width`, retires the colsync hack, and unblocks consumer-side column resize. Web-faithful for the common case; CSS-rule cell widths + the full table model deferred to `TABLE-TFC-1`.
+- [x] **0.3.7** — `rdom-tui` only (released 2026-06-04): layout stale-state fixes surfaced by `rdom-virtualtable`'s show/hide dropdown — `display:none` elements no longer keep a stale layout rect (`LAYOUT-DISPLAY-NONE-STALE-RECT`), and stale anonymous-block boxes no longer double-paint (`PAINT-RELATIVE-ABSPOS-DOUBLE`). Both only appeared under the runtime's incremental cascade. **Divergent bump** — only `rdom-tui`.
+- [x] **0.3.8** — `rdom-tui` only (released 2026-06-05): paint fixes surfaced giving `rdom-virtualtable`'s column-chooser chip soft half-block side edges. Half-block borders now render on a 1-row box (`PAINT-HALFBLOCK-1ROW-1`); pseudo/own text no longer double-paints on pseudo- or mixed-content blocks (`TREE-BFC-PSEUDO-1`, duplicate-text class); and out-of-flow descendants (`display:none`/absolute/fixed) no longer leak their text into an ancestor's inline run or max-content width (companion fix in the IFC + intrinsic walks). Remaining: the `::before`/`::after` *prefix* on a true mixed-content block is still dropped (tracked in `TECH_DEBT.md`). **Divergent bump** — only `rdom-tui`.
+- [x] **0.3.9** — `rdom-tui` only (released 2026-06-05): border-system fixes surfaced welding rdom-virtualtable's column-chooser chip into a tab-panel outline. **Half-block borders now weld across elements** (`HALFBLOCK-JOIN-1`) — switched from the lone-element-only `(mask, side)` lookup to an inward-quadrant accumulation model (each cell fills the quadrants pointing toward its content; the joiner unions them across elements and emits the matching block glyph). All 16 quadrant combos have a Unicode block element, so half-block welds every T-junction / cross / tab-panel join with no gaps (`▟ █ ▌`). **Painted content now occludes the border beneath it** (`BORDER-Z-OCCLUDE-1`) — the final-pass joiner no longer clobbers a higher-stacked element's glyph content with a lower element's border (CSS stacking order); extends the existing opaque-bg occlusion to glyph content. **Divergent bump** — only `rdom-tui`.
+- [x] **0.3.10** — `rdom-tui` only (released 2026-06-05): `drop_subtree` cascade-crash fix (`CASCADE-FREED-ROOT-1`). Dropping a node marks its remaining siblings dirty (sibling selectors); if one of those siblings was then dropped in the same teardown it was freed while still queued as a cascade root, and the next redraw deref'd the reclaimed slot. The incremental cascade now skips queued roots the arena no longer holds, so consumers can `drop_subtree` absolute children freely. Distinct from `DROP-SUBTREE-FREE-ORDER-1` (synchronous-observer-during-drop). **Divergent bump** — only `rdom-tui`.
+- [x] **0.3.11** — `rdom-core` 0.3.4 → **0.3.5** + `rdom-tui` 0.3.10 → **0.3.11** (released 2026-06-05): **drag autoscroll** (`DRAG-AUTOSCROLL-1`). A drag that reaches a scroll container's edge now autoscrolls it so the selection grows past the viewport — for native text selection AND custom drags (the rdom-virtualtable cell range-select), built as one substrate primitive. rdom-core adds a generic `drag_autoscroll` opt-in on the existing pointer capture; rdom-tui runs a timer-woken autoscroll phase (`service_autoscroll`/`autoscroll_tick`) keyed on the scheduler clock + a deterministic `App::advance(ms)` test driver. Designed twice through grumpy-architect review (`specs/DRAG-AUTOSCROLL.md`): one primitive (not two), capture/autoscroll decoupled, `prevent_default` precedence, dwell-gated edge zone, mid-tick relayout for layout-dependent consumers. Vertical only (horizontal pairs with `SCROLL-CROSS-AXIS-1`). `rdom-style/css/parser` unchanged at 0.3.4. **Divergent bumps** — only the two crates that changed.
+- [x] **0.3.12** — `rdom-tui` only (released 2026-06-05; tag `rdom-tui-v0.3.12`): **drag-autoscroll robustness + text-selection precision**, surfaced by interactive `selectable_text` testing. Five substrate fixes — empty-space hits snap to the nearest text position (`position_at`); `user-select:none` content excluded from a spanning selection's highlight; drag over `user-select:none` snaps to nearest selectable instead of collapsing to the anchor; autoscroll no longer stuck when the captured/anchor block scrolls out of view — plus the **sticky drag-scroll engine**: a drag owns one scroll container for its lifetime (resolved once, never re-targeted) with a banded edge zone + speed ramp. Selection-agnostic engine composed with the existing `user-select: contain`/`none` scope cascade (grumpy-architect verdict). `DIVERGENCES.md` updated (sticky container, no viewport-chaining, banded cell zone). **Divergent bump** — only `rdom-tui` changed; the other four stay at 0.3.4 / `rdom-core` 0.3.5. Follow-ups tracked: textarea builtin as a contain-scoped selection root; scroll chaining.
+- [x] **0.3.13** — `rdom-tui` only (released 2026-06-06; tag `rdom-tui-v0.3.13`): **drag-autoscroll mid-tick re-render now cascades.** The autoscroll tick's relayout was `layout_dom` only; a consumer that mutates the DOM in its `scroll` handler (the virtual table re-windows + re-sizes columns) needs a cascade for those mutations to take effect. Without it the re-materialized cells laid out unstyled — collapsed column widths (synthetic-move coord→cell mapping hit the wrong column → **selection flicker**) and wrong spacer heights (under-counted `scroll_content_height` clamped `scroll_top` below `window_start` → **cropped window top**). The mid-tick re-render now runs the full frame path (cascade + animations + layout). Surfaced by `rdom-virtualtable`'s cell-range drag-autoscroll; both live symptoms were *this* substrate bug, distinct from the consumer's latent `SCROLL-SINGLE-OWNER-1` dual-writer (which the `!mouse_drag` guard still covers). **Divergent bump** — only `rdom-tui`.
+- [ ] **0.4.0** — Client-side routing primitive.
+- [ ] **0.5.0** — Async tasks during event handlers.
+- [ ] **Future (no version yet) — `TABLE-TFC-1`:** a real Table Formatting Context (`display:table` + anonymous boxes + full CSS auto algorithm + colspan/rowspan + percentage/CSS-rule widths), replacing the flex masquerade. Roadmap-level; do it only when a consumer needs `display:table` on arbitrary elements or spanning cells. See `TECH_DEBT.md`.
+
+
+## Recent decisions
+
+### 2026-06-05 — drag-autoscroll robustness + selection precision (shipped as 0.3.12)
+
+Interactive testing of the `selectable_text` showcase demo (the substrate isolation vehicle — native text selection rides the same drag-autoscroll primitive as `rdom-virtualtable`'s cell-drag, with no consumer code in the way) surfaced a cluster of selection/autoscroll bugs, each fixed at root with a regression test:
+
+1. **Empty-space caret snap** — `position_at` returned `None` for a point not inside any IFC block's y-range (gap between blocks, below all content). The drag's fallback then clamped to the *anchor* flow, so dragging below all content collapsed the selection back to the anchor block. Now snaps to the **nearest** text position (browser `caretPositionFromPoint` behavior); `clamp_to_line_layout` y-overshoot made to dominate x.
+2. **`user-select:none` highlighted by a spanning selection** — the overlay painted every fragment in the range without consulting `user-select`. The copy serializer already skipped such subtrees; the paint now matches.
+3. **Drag over `user-select:none` collapsed to the anchor** — the no-position fallback clamped to the anchor flow; now snaps to the nearest *selectable* position to the pointer (`HitTestExt::nearest_selectable_position`), so dragging over a chrome bar extends past it. `begin` unchanged (a click still can't start a selection on chrome).
+4. **Autoscroll stuck once the anchor scrolled out** — the engine re-derived its scroll container each tick by hit-testing the captured node's box; once the anchor block scrolled out of view that hit-test landed off-screen → disarm.
+
+The durable fix for #4 (grumpy-architect verdict on "the ultimate solution"): a drag **owns one scroll container for its lifetime (sticky)** — resolved once the first time the pointer reaches an edge zone, then never re-targeted or disarmed. This also fixes pointer-overshoot-past-the-container (kept scrolling the owned container onto a sibling — the textarea-forgiving behavior). Edge zone widened to a **band + speed ramp** (`AUTOSCROLL_EDGE_ZONE` / `AUTOSCROLL_MAX_STEP`), retiring the pixel-precise one-row edge. The engine stays **selection-agnostic** (scrolls + re-dispatches a faithful synthetic move); the textarea / table / prose experiences differ only in their move-handler (layer ②) and their `user-select` scope keyword (layer ③, already in the substrate via `Contain`/`None`). `DIVERGENCES.md` updated: sticky container, no viewport scroll-chaining, banded cell-grained zone are deliberate TUI departures. Showcase "Source" disclosure summary marked `user-select:none`.
+
+Shipped as **`rdom-tui` 0.3.12** (released 2026-06-05; divergent bump, `rdom-core` unchanged this round). Follow-ups tracked: textarea builtin as a `user-select: contain` selection root; scroll chaining.
+
+### 2026-06-04 — Table column-sizing de-conflated (`TABLE-COLSYNC-1`, code done; ship as 0.3.6)
+
+Grumpy-architect call after interrogating "does column resize need substrate?": the root cause is that `size_columns` wrote its computed column widths back onto author `inline_style.width` (conflating intent with result) — not the flex-masquerade per se. So the **bounded** fix, not a full Table Formatting Context: `size_columns` now respects an author's explicit width (a cell's `inline_style.width: Fixed`) and writes the *used* width to a new layout-side field (`TuiExt::table_used_width`, read by flex + `intrinsic_size`), **never** `inline_style`; the `data-rdom-colsync` re-cascade hack is deleted (the value is read by full layout, not the incremental cascade). Fixes dead `Column.width`, the `::after` clip, and unblocks consumer-side column resize. Documented divergence: explicit widths via inline / `set_width`, not CSS-rule (`td{width}`) — that + the full table model (`display:table`, anonymous boxes, auto min/max algorithm, colspan/rowspan) is the deferred `TABLE-TFC-1` roadmap item. Migrated the 10 table tests + the h-scroll wrapper test (which drove the `intrinsic_size` half of the fix); 2734 workspace tests green. Next: cut 0.3.6, bump `rdom-virtualtable`, add `set_column_width`.
+
+
+### 2026-06-03 — Substrate support for the virtualized-table consumer (`rdom-virtualtable`)
+
+Audited what the virtual table actually needs from the substrate for a scrollbar + horizontal scroll. The substrate turned out to already cover most of it; only one real fix was needed.
+
+- **Fixed `TABLE-COLSYNC-DIRTY-1`** — `size_columns` poked `inline_style.width` directly (no mutation fired), so re-used `<thead>` cells kept a stale computed width under the incremental cascade after a consumer rebuilt only the `<tbody>` (a virtualized row-window swap) — a visible column shift, fixed only by an unrelated later mutation. `size_columns` now stamps `data-rdom-colsync` on the `<table>` when widths change, dirtying it so headers re-cascade. The downstream `data-vt-rev` workaround can be dropped.
+- **Scroll API already complete** — `scroll_top`/`scroll_left`/`scroll_width`/`scroll_height` + `set_scroll_top`/`set_scroll_left` (clamped, fires `scroll`) exist on `TuiAccessors`/`TuiAccessorsMut`. No work needed; the component reads `scroll_top()` on the `scroll` event to re-window.
+- **Horizontal scroll** — verified a wide `<table>` scrolls header+body together when wrapped in a `Row`-flex `overflow-x` container (the web `<div style="overflow-x:auto">` pattern); regression test in `layout_pass/tests.rs`. Recorded the real gap (`SCROLL-CROSS-AXIS-1`: flex scroll only translates the main axis, so a column-flex `<table>` can't be its *own* horizontal scroll container) and `TABLE-COLSPAN-1` (absent, not needed) in `TECH_DEBT.md`.
+- **Grumpy-architect call (recorded):** rejected a "declared virtual scroll extent" API — no web counterpart, forks the layout core, two sources of truth for content size. The browser-faithful path is the spacer technique downstream + the standard `scrollTop` API, which already exists. Door left open for a deliberate, documented divergence only if a measured need appears.
+
+### 2026-06-03 — 0.3.4 released to crates.io
+
+All five crates (`rdom-core` / `rdom-style` / `rdom-parser` / `rdom-css` / `rdom-tui`) at `0.3.4`;
+tag `v0.3.4`. Ships the **`FOCUS-VOCAB-1`** focus-affordance vocabulary and its follow-ups (entry
+below): typed focus cues (controls → bg tint, scroll regions → accent `:focus-within` thumb,
+grid/tree → cursor, else → consumer CSS), keyboard scrolling of the focused element's nearest scroll
+ancestor, scroll containers keyboard-focusable, the `<tree>`/`<button>` key-claim fixes, the
+tree row-highlight scrollbar-gutter fix, and lazy `input::ensure_seeded` (dynamically-added inputs
+are typeable). One accepted limitation: `FOCUS-THUMB-NEAREST-1` (`:focus-within` colors every
+overflowing scroll ancestor, not just the nearest) — recorded in TECH_DEBT + DIVERGENCES. Showcase
+demo CSS fixes (sidebar tree owns its scroll, sticky demo fills the pane) rode along but aren't
+published (`rdom-showcase` is `publish = false`). Next: bump `rdom-virtualtable` to `rdom-tui =
+"0.3.4"` and drop its `table:focus { background: reset }` workaround (the tint is control-scoped now).
+
+### 2026-06-02 — `FOCUS-VOCAB-1`: typed focus-affordance vocabulary (0.3.4, released)
+
+Eleventh consumer-surfaced substrate issue — and a design correction. While building `rdom-virtualtable`, the focused `<table>` kept washing to the focus background. Root question (the consumer asked): "is `<table>` even focusable in HTML?" No — it's not focusable without `tabindex`, like `<p>`/`<div>`; rdom matched that. The real defect was upstream: the UA applied a generic `:focus { background }` tint to **every** focused element, with a growing denylist of opt-out hacks (`canvas:focus`, `[role=tree]:focus`) — `<table>` was about to be the third. The web shows focus with an *outline* on every focusable element, but a TUI can't draw a no-reflow ring, so there's no universal cue. Fix: flip denylist → **typed vocabulary**:
+
+- atomic controls → `:focus` bg tint (kept, scoped);
+- scroll containers → accent scrollbar thumb **glyph** (`:focus::scrollbar-thumb { color }` — foreground, a colored handle not a filled block), reusing chrome they already own — and they're now implicitly keyboard-**focusable** (web-faithful: only when they actually scroll *and* have no focus stop of their own, so no redundant tab stop) **and keyboard-scrollable** (Arrows/PageUp/PageDown/Home/End/Space scroll the focused container, after the editable-key default, `preventDefault`-overridable);
+- grid/tree/listbox → internal cursor;
+- everything else → no default fill; consumer's CSS.
+
+This deleted both opt-out hacks (one principle replaces the hack list) and is *more* web-faithful (containers get the web's non-destructive treatment, not a flood). Leans entirely on primitives that already existed — `:focus`, the `::scrollbar-thumb` pseudo, the cascade — plus one focusability rule in `tabindex.rs`. Tests: P2 focusability (scrollable focusable; non-scrolling not; scroller-with-focusable-child not a redundant stop), P1 cascade scoping (control tinted, container not), P3 thumb-accent. UA rule count 140 → 142. Updated the `UA-FOCUS-OVERRIDABLE-1` integration test to the new semantics. DIVERGENCES "Runtime & focus" rewritten. Pending a release decision (0.3.4) so `rdom-virtualtable` can drop its `table:focus { background: reset }` workaround. **A `<tree>` may now show two cues at once (accent thumb + highlighted row) — accepted; consumers can restyle.**
+
+Follow-ups from interactive testing: (1) the thumb cue colors the glyph **foreground** (a blue handle), not a filled bg block; (2) a focused scroll container is **keyboard-scrollable** (Arrows/PageUp/PageDown/Home/End/Space, after the editable-key default); (3) a focused **tree** wasn't getting the thumb cue because it didn't own its scroll — the showcase scrolled the `.sidebar` *wrapper*, not the focusable `[role=tree]`. Root cause was the **showcase CSS**, not the substrate: the tree builtin correctly leaves overflow to layout (a `<ul role=tree>` is `overflow: visible`, like any `<ul>`). Fix: move `overflow-y: auto` + a bounded height onto the `.sidebar-tree` itself (consumer choice). A first attempt to make it a UA default (`[role=tree] { overflow-y: auto }`) was **reverted** — it made *every* tree a scroll container, so an unbounded tree in a tight viewport sprouted a scrollbar and broke two tree-guide tests; too disruptive and a needless divergence from `<ul>`. Also surfaced (and dismissed) a non-bug: a focused tree bled its guides past the panel — the classic CSS *"percentage height resolves to `auto` against an auto-height containing block"* (CSS 2.1 §10.5); the intermediate `<nav>` broke the definite-height chain. rdom was faithful; fixed the standard way (`.sidebar nav { height: 100% }`). (4) A real substrate bug the self-scrolling tree exposed: the `[role=treeitem]` full-width row highlight (painted edge-to-edge by the guide pass) bled *under* the vertical scrollbar thumb. Fixed: the guide-pass fill now reserves the scrollbar gutter (rightmost padding-box column) when the tree shows a vertical scrollbar, mirroring `paint_scrollbars`' `y_paints`.
+
+### 2026-06-02 — `:where()` zero-specificity selector (0.3.3, released)
+
+Tenth consumer-surfaced substrate gap — this one about *override ergonomics*, not a bug. The first
+component-library consumer (`rdom-virtualtable`) ships default highlight styles, and the question
+came up: why is overriding them harder than overriding browser UA defaults? Answer: browsers sort
+the cascade by **origin first** (Author beats UA regardless of specificity), but rdom only lets a
+downstream crate emit **Author**-origin rules — so a library's defaults and the app's rules compete
+purely on specificity + source order. The wrong fix would be inventing a `RuleOrigin::Library` tier
+(non-web; browsers never let a library touch UA). The right, web-faithful fix is the mechanism the
+platform built for exactly this: **`:where()`** (Selectors L4) — matches like `:is()` but contributes
+zero specificity, so any real author rule overrides a `:where()`-wrapped default for free, all inside
+the Author origin where a library actually lives. Added to `rdom-core` (parser + matcher, delegating
+to `matches_list` so combinators inside the arg work) and `rdom-style` (zero specificity). `:is()`
+(specificity = most-specific arg) and `@layer` (cascade layers — the heavier, complete answer for the
+`:where()` "stray low-spec author rule" wrinkle) remain on the roadmap. Additive, backward-compatible
+→ all five crates bump together to **0.3.3** (rdom-core is a leaf dep; every consumer re-pins). Live
+on crates.io; tag `v0.3.3`. Next: `rdom-virtualtable` wraps its highlight defaults in `:where()`.
+
+### 2026-06-02 — `DROP-SUBTREE-FREE-ORDER-1`: drop_subtree freed before firing its mutation (0.3.2)
+
+Ninth consumer-surfaced substrate bug. A downstream chart gallery swapped demos on a keypress by
+`drop_subtree`-ing the focused canvas from inside the keydown handler — and it panicked
+(`unwrap` on `None` in `NodeRef::node_type()`). Root cause: `drop_subtree` freed the subtree's arena
+slots **before** firing its `ChildListChanged` record, so the dirty-tracker observer (and the
+implicit blur/focusout-on-detach dispatch) inspected an already-reclaimed node. Removing the focused
+node inside a handler is valid on the web (`node.remove()` in a click/keydown), so this is a real
+defect, not consumer misuse. Fix: fire the mutation while the subtree is still alive, then free —
+matching `remove_child` and the MutationObserver `removedNodes`-readable contract. The consumer also
+switched its gallery to re-point one canvas's paint instead of drop+remount (cleaner regardless),
+but the substrate fix stands on its own — any consumer removing a focused/observed node was exposed.
+Ships as **0.3.2**.
+
+### 2026-06-02 — `UA-FOCUS-OVERRIDABLE-1`: focus indicator made overridable (0.3.1)
+
+Building `rdom-extensions`'s interactive chart surfaced an eighth substrate issue: the UA focus
+indicator was `:focus { background !important }`, and since UA-`!important` is the strongest cascade
+origin, **no author/inline rule could override it** — a focusable `<canvas>` was force-filled gray
+with no escape hatch, and the rule's comment falsely claimed it was overridable.
+
+Two-part fix, and the framing shifted mid-investigation. First pass: make the tint **overridable**
+(generic `:focus` → non-important; `!important` re-scoped to `input/textarea/select:focus` where it
+must beat the 0,7,1 field-bg chain; `[role=tree]:focus` de-importanted). That fixed the
+unoverridable-`!important` bug but the consumer pushed back with the right web-semantics argument:
+on the web you *never* write `canvas:focus { background }` — focus is an **outline** (overlay), so a
+focused canvas's pixels are never touched. rdom's bg-tint is a no-reflow substitute that's fine for
+form controls but wrong for `<canvas>` (a replaced/content element the app paints). So the actual
+fix: **`<canvas>` opts out of the focus tint** (UA `canvas:focus { background: reset }`), making a
+focused canvas clean by **default** with zero consumer effort — matching the web. Reversed my
+earlier "no carve-out" stance: exempting canvas isn't whack-a-mole, it's recognizing canvas is the
+one replaced/content element, exactly as the web's outline never paints into it.
+
+Zero snapshot churn (only canvas + overridability changed). Tests in `ua_focus_overridable.rs`:
+focused canvas clean by default, non-canvas still tinted, author can still paint a focused canvas,
+text input still tinted. Audited the whole UA sheet — the only `!important` remaining is the scoped
+field-focus rule; no other blanket hacks. `DIVERGENCES.md` documents focus-tint-not-outline + the
+canvas exemption. No follow-up owed — outline-style focus is author-achievable today via
+`:focus { border-color: … }`; the substrate already offers what's needed. Ships as **0.3.1**.
+
+### 2026-06-02 — 0.3.0 released to crates.io
+
+All five published crates shipped at `0.3.0` in dep order (rdom-core → rdom-style → rdom-parser →
+rdom-css → rdom-tui), tag `v0.3.0`. Payload: the substrate-honesty set (A–D / six `TECH_DEBT`
+items). The `rdom-css ↔ rdom-tui` dev-dep cycle stayed path-only from 0.2.0, so the publish was
+clean first try. No release-mechanics snags this time.
+
+### 2026-06-02 — 0.3.0 Milestone D landed: `ARENA-RECLAIM-1` (detach-vs-free ergonomics)
+
+`remove_child` / `clear_children` / `replace_child(ren)` detach but never free (deliberate:
+synchronous observers read removed nodes; detached nodes can be reattached) — only `drop_subtree`
+frees, so high-churn callers leak arena slots silently. Fix is additive: added
+`remove_child_dropping` / `clear_children_dropping` (detach + free, same single mutation record),
+documented the orphan/no-GC contract loudly on the detaching methods, and added a `DIVERGENCES.md`
+entry under "DOM API shape" (web relies on GC; rdom needs explicit reclamation). Primitives
+unchanged. TDD: `remove_child_dropping_frees_the_node` + `clear_children_dropping_frees_all`.
+
+**All four 0.3.0 milestones (A–D) are landed.** The six `TECH_DEBT` "Substrate honesty" items are
+resolved. Next: 0.3.0 release prep (version bump, CHANGELOG, README) then publish.
+
+### 2026-06-02 — 0.3.0 Milestone C landed: ergonomics & hygiene
+
+Three additive/hygiene fixes:
+- **`TUISTYLE-FLEX-BUILDER-1`** — `TuiStyle::flex()` / `flex_row()` / `flex_column()` / `inline_flex()`.
+  Mirrors the CSS `display: flex` keyword (`Display::Block` + `Flow::Flex`) and dodges the
+  `.display()`-resets-`.flow()` ordering trap (documented on `flex()`). Additive.
+- **`RENDERCTX-DEDUP-1`** — deleted the dead `render::RenderContext` (used only by its own tests)
+  and its crate-root re-export; re-exported the canvas `RenderContext` (the real `PaintFn` type) at
+  the crate root as canonical. `use rdom_tui::*` / `rdom_tui::RenderContext` now resolve to the one
+  a paint callback actually receives. Removed ~10 dead tests.
+- **`CANVAS-TEST-CTOR-1`** — `RenderContext::for_test(buffer, area)` (public) so downstream crates
+  can unit-test paint code over a scratch `Buffer` without the full pipeline. Pinned by a doctest.
+
+Review: all low-risk. The only breaking bit is `RENDERCTX-DEDUP-1` removing the (unused) public
+name; net it *fixes* the `use rdom_tui::*` collision. 2705 workspace tests green.
+
+### 2026-06-02 — 0.3.0 Milestone B landed: `EVENT-REDRAW-1` (repaint request from event listeners)
+
+`EventCtx::request_redraw()` (rdom-core) lets a listener ask the host to repaint when it mutated
+state the DOM mutation tracker can't see — the interactive-`<canvas>` case (paint reads external
+`Rc<RefCell>` state). It sets an inert `Event::redraw_requested` flag (rdom-core never acts on it);
+the rdom-tui runtime harvests it after dispatch and ORs it into `needs_redraw`.
+
+Harvest sites: the keyboard paths in `App::handle_event` (keydown/keyup/contextmenu) read
+`tui.event.redraw_requested()` directly; the mouse path is centralized — a `Router.pending_redraw`
+accumulator is set by a single `dispatch()` helper that wraps every `dispatch_tui_event` in the
+mouse handlers, then folded into the `RouteOutcome` once in `Router::route`. TDD:
+`event_request_redraw.rs` (listener mutates external state + `request_redraw` → flag set, no DOM
+mutation needed).
+
+**Architect/API review:** the flag-on-Event design accumulates correctly across the capture→bubble
+walk and needs no `dispatch_event` signature change (the host already holds the event after
+dispatch). Putting a render-ish flag on the core `Event` is a mild boundary bend, but it's inert in
+core and documented as a host signal — the alternative (threading a `&mut bool` through the whole
+dispatch walk) is uglier. The `Router.pending_redraw` accumulator keeps the mouse path DRY (one
+helper, one fold) instead of editing ~14 dispatch sites. This is the minimal case of
+`SHOWCASE-EVT-1`'s "App-level intents from EventCtx" — that broader queue can layer on later. No
+blocking findings. Unblocks interactive canvas components downstream (rdom-extensions M7). 2712
+workspace tests green.
+
+### 2026-06-02 — 0.3.0 Milestone A landed: `EXT-LAYOUT-SETTERS-1` (geometry setters drive layout)
+
+The `TuiNodeMutExt` geometry setters (`set_width`/`set_height`/`set_min_*`/`set_max_*`/
+`set_direction`/`set_padding`/`set_border`/`set_gap`/`set_overflow`) now write `inline_style` +
+`style_dirty` instead of raw `ext` fields, so they flow through cascade → computed → layout (the
+only thing layout reads). Accessors read `inline_style` (specified value; `None` when unset). The
+dead raw geometry fields were removed from `TuiExt`. TDD: `node_setters_drive_layout.rs` integration
+test (failed before, passes after).
+
+**Fixed a latent bug in passing:** `nearest_scrollable_ancestor` (scroll helper) read the raw
+`ext.overflow` field, which **CSS overflow never populated** — so `scroll_into_view` only saw an
+ancestor as scrollable if someone had called `set_overflow`. Now reads `computed.overflow_x/y`, so
+CSS-defined `overflow` is honored.
+
+**Breaking (pre-1.0):** setter→layout behavior changes (was silent no-op); accessors return `None`
+when a property is unset (was `Some(default)`); `set_inline_style` replaces the whole inline style
+including geometry the setters wrote (order matters — seed inline style first, then geometry
+setters). Blast radius was tiny: geometry setters were used in exactly 6 places workspace-wide, all
+unit tests. 2710 workspace tests green.
+
+**Architect/API review:** strong — the fix is the root cause, not a patch; it activated (didn't
+mask) the latent scroll bug; accessor semantics are now honest. No blocking findings. Non-blocking:
+the `set_inline_style`-clobbers-geometry interaction is a sharp edge — documented in code + the
+round-trip test pins the "seed first" order; revisit if a merge-semantics `patch_inline_style` is
+wanted later.
+
+### 2026-06-02 — 0.3.0 planned: substrate honesty (driven by the first downstream consumer)
+
+`rdom-extensions` (a downstream data-viz component crate: charts, sparklines, gauges, a virtual
+table on `rdom-tui 0.2`) became the first real consumer of the published substrate and surfaced
+seven points of friction, captured + grumpy-reviewed in that repo's `RDOM_SUBSTRATE_FINDINGS.md`
+and **confirmed against rdom source** before planning. Repurposed the 0.3.0 slot from "client-side
+routing" to fix them; routing slid to 0.4.0.
+
+Two are High and the reason for prioritizing: **`EXT-LAYOUT-SETTERS-1`** — the geometry node setters
+(`set_width`/`set_direction`/…) write raw `ext.*` fields that the cascade/layout never read, so they
+silently no-op for layout while the accessors echo the set values (the API lies); and
+**`EVENT-REDRAW-1`** — `EventCtx` has no `request_redraw`, so a listener mutating non-DOM state
+(canvas + external `Rc<RefCell>`) can't trigger a frame, blocking interactive canvas components. The
+rest are ergonomics/hygiene: `TUISTYLE-FLEX-BUILDER-1`, `RENDERCTX-DEDUP-1` (a dead `RenderContext`
+shadowing the real one at the crate root), `CANVAS-TEST-CTOR-1`, `ARENA-RECLAIM-1`.
+
+Plan + milestones (A: setters → B: redraw → C: ergonomics → D: arena): [`specs/SUBSTRATE-0.3.0.md`](specs/SUBSTRATE-0.3.0.md).
+All six tracked in [`specs/TECH_DEBT.md`](specs/TECH_DEBT.md) §"Substrate honesty". 0.3.0 is a
+breaking minor (A changes setter behavior; C deletes a public name) — pre-1.0, acceptable.
+
+### 2026-06-02 — 0.2.0 released to crates.io
+
+All five publishable crates shipped at `0.2.0` (shared workspace version): `rdom-core` → `rdom-style` → `rdom-parser` → `rdom-css` → `rdom-tui`, in dep order with index-propagation waits. Tag `v0.2.0` on the released commit; `CHANGELOG.md` `[0.2.0]` + README (0.2.0 features, `"0.2"` install lines, UA count 136) live in the published cards. `rdom-showcase` stays `publish = false`.
+
+Headline since 0.1.0 (149 commits): block formatting context, native ARIA tree, `calc()` value system, event surface bundle (`keyup` / `contextmenu` / `dblclick` / `resize` / `scroll` + implicit detach events), multi-slot stylesheet API, layered border model (non-inheriting `border-collapse` + full `border-style` set). Pre-1.0, so the minor carried both additive features and breaking changes (non-inheriting `border-collapse`; `Size` / `Length` non-`Copy`).
+
+**Two release-mechanics snags, both fixed live and folded back into the `/publish` skill:**
+- crates.io requires a verified account email before the first publish — one-time account step, no code impact.
+- **Dev-dependency cycle.** `rdom-css` had *versioned* example-only dev-deps on `rdom-tui` + `rdom-parser`, but `rdom-tui` depends on `rdom-css` — an unpublishable cycle (cargo resolves dev-deps against the registry at publish time, even with `--no-verify`). Hit it mid-release after `core`/`style`/`parser` were already live. Fix: path-only those dev-deps (commit `d4e8815`) so cargo strips them from the published manifest; `v0.2.0` tag re-pointed to the fixed source. The `/publish` skill now documents the path-only-for-cyclic-dev-deps rule + the known `rdom-css ↔ rdom-tui` cycle so the next release doesn't rediscover it.
+
+### 2026-06-02 — Scroll offset clamps to content on layout (substrate fix)
+
+Reported: scroll a tall demo to the bottom, switch to another demo — the new demo rendered scrolled (top clipped, often no scrollbar). Root cause: `.view-content` (now the scrolling Page) kept its `scroll_y` across content changes; rdom clamped the offset only on scroll *input* (`set_scroll`), never when the *content* changed. The web clamps `scrollTop`/`scrollLeft` to `[0, scrollSize − clientSize]` continuously, so replacing a scroll container's children with shorter content snaps a stale offset back (to 0 when it again fits) — no special "reset on navigation." Fixed in the substrate, not the showcase: `layout_node` calls a new `clamp_scroll_offset` after the two-pass scrollbar reflow, using the final `content_layout` as the viewport (the region children are laid out and clipped into — matches the runtime's reachable max to the cell). `scroll_content_*` is recorded offset-independently, so the max is stable; if an offset changed, the children re-lay-out at the corrected position (one extra pass, only when an offset was actually stale).
+
+Subtleties found: (1) the clamp must run **after** the two-pass gutter reflow and use `content_layout`, not the padding box — using the padding box was 1 cell too restrictive and capped legitimate tree scroll-into-view at the last row. (2) The earlier mixed-content bleed test set `scroll_y` on a container whose content fit; with the clamp that's correctly a no-op, so the test now gives it genuinely-overflowing content. Tests: `scroll_offset_clamps_when_content_shrinks` (substrate) + `swapping_from_a_scrolled_tall_demo_to_a_short_one_clamps_the_page_to_top` (showcase). Full gate green (2699). Replaces the rejected showcase-side `mount_demo` scroll-reset band-aid — this is the DOM-faithful root-cause behavior, reusable for every consumer's scroll containers.
+
+### 2026-06-02 — Showcase "page scrolls by default" (demo view pane)
+
+Built on the percentage-height fix below. `.view-content` is now the **Page**: a `display: block; overflow-y: auto` scroll viewport (still a `flex: 1` item of `<main>`, so it fills the height left after the Source tray and shrinks when Source expands). Model:
+
+- **Content demos (default):** no change — a stray `flex: 1` is a harmless no-op in a block parent, so the demo lays out at natural height and the Page scrolls when it's taller than the pane. Fixes the reported "Built-ins demos don't fit / no scrollbar."
+- **Fill demos (opt-in):** claim the viewport with `height: 100%` (now resolves against the flex-sized pane via the §9.8 fix) so an inner `overflow: auto` bounds + scrolls internally instead of the Page. Converted `scrollable_list` and `mutation_observer` (`flex: 1` → `height: 100%`); `sticky` was already self-contained (`height: 15; overflow: auto`).
+- **Source tray:** unchanged structurally — a sibling of `.view-content` inside `<main>`, *outside* the Page, so it's never scrolled away and expanding it shrinks the Page's slot (scroll responds to Source size).
+
+`overflow-x: hidden` preserves the old horizontal no-bleed clip (the prior `overflow: hidden` clipped both axes). Standalone-example snapshots unchanged: in `run_standalone` the demo mounts at the column-flex root, where `height: 100%` fills exactly as `flex: 1` did. Tests: `tall_content_demo_makes_the_page_scroll` + `fill_demo_scrolls_internally_not_the_page` in `chrome_layout_contract.rs`. Full gate green (2697 tests).
+
+### 2026-06-02 — Percentage height resolves against flex-sized ancestors (layout fix)
+
+`nearest_block_ancestor_height_is_definite` (`layout_pass/block.rs`) treated a `Size::Flex` parent height as **indefinite** (lumped with `Size::Auto`), so `height: <pct>%` on a child of a `flex: 1` pane fell back to content height. Per CSS Flexbox §9.8 a flex item in a definite-size flex container has a definite post-flex size, and percentages of its content resolve against it (CSS Sizing 3) — every browser does this. rdom was applying the older CSS 2.1 §10.5 "needs explicit height" rule and the function's own doc comment admitted the punt ("flex contexts are outside that… phase 6 will").
+
+Fix: the `Size::Flex` arm now chains up through flex-item ancestors (definite iff the flex container is) and bottoms out at the document root, which lays its children out as a viewport-definite column flex container. `Size::Auto` stays indefinite (correct for block-flow `auto` and conservatively for column-flex `auto`-main / row-flex `auto`-cross-stretch — the latter is the documented remaining gap). Contained to one function; no other layout codepath changed. **Full workspace gate green (2695 tests, 0 failures)** — the existing `percent_height_falls_to_auto_when_parent_height_is_indefinite` still passes (it's a block `auto` parent). New test `percent_height_resolves_against_flex_sized_ancestor` in `layout_pass/tests.rs`. Divergence narrowed + documented in `DIVERGENCES.md` §Layout "Percentage height".
+
+**Why now:** this was the blocker for the showcase "page scrolls by default" work — it unblocks the `height: 100%` fill opt-in (block scroll-viewport model), which needs far fewer demo edits than the flex-viewport workaround. The showcase scroll wiring (view-content as scroll viewport + per-demo fill opt-ins) is the follow-on.
+
+### 2026-06-01 — TREE-2: showcase sidebar dogfoods the native ARIA tree
+
+The showcase navigator is now built from the TREE-1 built-in instead of a bespoke `<details>/<summary>` + roving-focus handler. Each `Category` is a branch treeitem (`<li role=treeitem aria-expanded=true>` + `<ul role=group>`); each demo is a leaf treeitem carrying `data-demo-slug`. The `[role=tree]` container is the single tab stop (implicitly focusable) and carries `autofocus`, so arrow keys are live on first paint.
+
+**What this deleted:** the entire `wire_sidebar_keys` handler + `next_demo_li` / `collect_demo_lis` / `Direction` helpers in `nav.rs`, plus the documented "M7 polish" gap (no arrow traversal between a category header and its items — it needed real `aria-expanded`/tree semantics that hadn't landed). The built-in now supplies Arrows / Home / End / Right / Left / Enter / Space + the active-descendant cursor + guides + chevrons. `wire_sidebar_click` is unchanged: the built-in routes BOTH pointer and keyboard (Enter/Space) activation through a bubbling `click` on the active treeitem, so one click listener covers both. New `seed_tree_cursor(dom, sidebar, idx)` seeds the active-descendant cursor on the mounted demo at boot (and on `--demo <slug>` deep-link, expanding ancestor branches) so the navigator boots already pointing at "where you are."
+
+**Substrate bug found + fixed (root cause, benefits all consumers):** `tree_guides` clip leak. The guide pass is a standalone walk that runs after the main paint, so it didn't inherit the per-`overflow` clip a scroll container imposes on its descendants. A tree taller than an `overflow: auto` ancestor (the showcase sidebar) painted its `│` trunk straight through the container's bottom edge — in the showcase it bled into the panel border (`┴`→`┼`) and overwrote the status bar's `↓` glyph with `├`. Fix: `clip_for_tree` narrows the viewport clip to the scrollport (padding-box, CSS Overflow 3 §3) of every clipping ancestor, mirroring `paint_node`'s `children_clip` rule. Regression test `tree_guides_clip_to_an_overflow_hidden_ancestor` in `paint_pass/tests.rs`. This was the first tree placed inside a shorter-than-content scroll container; the standalone tree demo never hit it.
+
+**Tests:** TDD throughout. `shell.rs` (4 tree-structure tests), `nav.rs` (3 `seed_tree_cursor` tests), `keyboard_nav.rs` rewritten around active-descendant nav (boot focus + cursor seed, ArrowDown walk, Enter-mounts-leaf, Enter-on-branch-toggles-without-mounting, unique-row paint), `subtree_swap_integration.rs` (click tests kept; `<summary>` test → branch-treeitem test; keyboard tests dropped — now covered at App level where the built-in's listeners are actually installed). Full workspace gate green.
+
+**Third substrate bug (mixed-content text clamps under scroll):** when a mixed-content block (leading text + a block child) scrolled so its text row sat *above* an overflow clip, `paint_single_row_chrome` (the Path-4 fallback that paints such a block's leading text run) clamped the paint row up to the clip top via `layout_rect_to_grid` instead of skipping it. Because the block's `inner` spans its block children, the clamp dropped the leading text onto whatever scrolled into the clip's top row — in the sidebar the category label "Layout" bled onto "Hello World" → "LaHello World". Fix: paint at the element's true first content row (`inner.y`) and skip when that row is outside the clip; horizontal extent stays clipped. Tests: `mixed_content_block_leading_text_clips_instead_of_clamping_when_scrolled_above` (substrate) + `scrolled_off_category_label_does_not_bleed_onto_first_visible_row` (showcase). General fix — benefits any scrolled mixed-content block, not just trees.
+
+**Full-width row highlight (substrate + chrome):** the tree's row-highlight fill used the tree's *content* box, so a selected/cursor row stopped at the first glyph. Changed `tree_guides` to fill the tree's *padding* box (CSS `background-clip: border-box` default) — a row highlight now covers the tree's own padding. The showcase then moves its 1-cell left inset off `.sidebar` and onto `.sidebar-tree` (`padding: 0 0 0 1`): content stays at the exact same columns, but the highlight now reaches the panel border (full-width selection bar). Tests: `tree_active_row_highlight_fills_the_trees_own_padding` (substrate) + `cursor_row_highlight_fills_the_cell_left_of_the_content` (end-to-end). Also dropped the now-dead `.sidebar h2` rule.
+
+**Second substrate bug (wrapped-label trunk break):** `tree_guides` painted connectors/trunks only at `rect.y` (the item's first row). When a treeitem's label wrapped to 2+ rows, the vertical `│` trunk broke at the wrapped rows (visible in the sidebar: "DOM API walkthrough" split the guide). Fix: guides now span the item's *label height* (top → child-group top, or full height for a wrapped leaf) — ancestor trunks and a non-last item's own continuation `│` paint on every label row, and the cursor/selected row highlight fills every label row too. The group's rows stay owned by the recursion's ancestor-trunk stack. Regression test `tree_guides_continue_through_a_wrapped_label`.
+
+**Bug caught in review (class-collision bleed):** the sidebar tree initially reused `class="nav-tree"` — the *tree_nav demo's* class. Since every demo stylesheet is pre-pushed onto the App, the demo's `.nav-tree { padding: 1 2 }` (and its guide-recolor rule) bled onto the chrome, insetting the whole sidebar by top 1 / left 2. Renamed to the chrome-owned `sidebar-tree`. This is exactly the footgun the showcase's "class-scoped CSS, unique per demo" convention warns about — the chrome must never reuse a demo class. Regression test `sidebar_tree_does_not_inherit_demo_stylesheet_padding` in `chrome_layout_contract.rs` (content-box origin == border-box origin).
+
+**Scroll-into-view for the active-descendant cursor (substrate + tree):** *(resolved 2026-06-01 — was a known limitation)* arrowing the cursor past the sidebar fold left it scrolled out of view. New reusable `runtime::scrollbar::scroll_into_view(dom, node, reveal)` scrolls the nearest vertically-scrollable ancestor so a viewport-coord region is visible, with `block: "nearest"` alignment that never hides the region's top edge (a navigation cursor stays anchored) — mirrors `Element.scrollIntoView` + the browser's focus scroll-into-view, and reuses `set_scroll` (so the clamp + `scroll` event are shared with wheel/scrollbar). The tree built-in's `set_active` calls it after every cursor move, revealing only the item's LABEL row(s) (not an expanded branch's child group, so arrowing onto a tall open branch doesn't drag its whole subtree into view). The ARIA active-descendant model doesn't auto-scroll (matches the web — `aria-activedescendant` requires the widget to scroll), so this lives in the widget, not the cursor primitive. Vertical axis only; nested scroll containers resolve to the nearest (sufficient today). Tests: `arrowing_past_the_fold_keeps_the_cursor_in_view` + `end_then_home_scrolls_the_cursor_into_view_both_directions` in `keyboard_nav.rs`.
+
+### 2026-06-01 — TREE-1 landed: native ARIA tree (v1)
+
+Shipped end-to-end on `feat/tree-element`. The ARIA tree pattern (`<ul role=tree>` / `role=treeitem` / `role=group`) is now a first-class built-in: UA box model + collapse + highlight (`rdom-style/src/ua.rs`, +8 rules, count 128→136), guide-line + chevron paint (`render::paint_pass::tree_guides`), keyboard/pointer behavior + active-descendant cursor (`runtime::builtins::tree`), and a showcase demo with a fake 2s lazy-load branch. Commits `346acf3` (UA) → `1516837` (cascade-match test) → `3067ec2` (layout fix) → `680ebe0` (guide paint) → `52520da` (behavior) → `731fa53` (demo). Full workspace gate green.
+
+**Substrate bug found + fixed (root cause, benefits all consumers):** mixed-content block stacking. A block with a text run AND a block child (any `<ul><li>text<ul>…` nested list, and every tree branch) positioned its next sibling using the pre-layout `intrinsic_size` estimate, which counts element children only — so the sibling overlapped the block's children. `block.rs` now advances the block cursor by the child's actual laid-out height (`layout_node` already finalizes it per CSS 2.1 §10.6.3). Regression test in `block_tests.rs`.
+
+**Key design decisions (full rationale in the Step 0 entry below):**
+- Guide lines reuse the border-contribution substrate (`buf.border_dirs` + the joiner's mask→glyph table) — `tree_guides` only declares N/E/S directions; the generic joiner picks `├ └ │ ─`. Trunk continuation falls out of the sibling list (no per-row computed state).
+- The chevron is painted into the gutter, NOT a `::before`, because `::before`/`::after` paint incorrectly on mixed-content blocks (`TREE-BFC-PSEUDO-1`, accepted/tracked — the height half of that bug was fixed; the pseudo half is deferred). The `ul > li::before` list marker is suppressed for treeitems.
+- Active-descendant focus model: the container is focusable and holds focus; the cursor is an internal `data-rdom-active` marker; the container's generic `:focus` bg is suppressed; treeitem row backgrounds clamp to the label row (not the open subtree box).
+- `aria-expanded` *presence* = branch (lazy branches with no children still render as branches); `aria-busy` is the app-level loading hook. Built-in keys are Arrows + Home/End + Enter/Space only — no vi keys; all `preventDefault`-overridable.
+
+**Review gates (TREE-1 milestone):**
+- *Grumpy Architect:* PASS. Core stays renderer-free (only `rdom-tui`/`rdom-style` touched). Guide pass reads layout+DOM, never recomputes layout/cascade; glyph choice stays in the generic joiner. Behavior module mirrors `<select>`/`<details>` precedents, no god-object. One accepted paint special-case (`clamp_treeitem_row` reads `role` in the bg-fill path) — bounded + documented. Non-blocking follow-ups: virtualization for huge trees (deferred), multi-select (deferred), `TREE-BFC-PSEUDO-1` (tracked).
+- *Grumpy API:* PASS. Web-faithful (ARIA pattern, no invented element); every divergence documented in `DIVERGENCES.md` §"ARIA tree". Authoring is plain DOM mutation, so lazy/filter/search are app-level as intended. Demo proves the async-children workflow end-to-end.
+
+**Deferred (tracked):** large-tree virtualization (paint-then-clip today); multi-select (reuse `<select>`'s anchor model); `TREE-BFC-PSEUDO-1` proper fix (anonymous-block pseudo width reservation).
+
+### 2026-06-01 — TREE-1 initiative: native ARIA tree element (Step 0 design)
+
+New initiative on branch `feat/tree-element`: a first-class, browser-faithful tree for TUIs. Trees are the single most-requested TUI affordance (file browsers, k8s navigators, outline views) and have no HTML element — so we implement the **ARIA tree pattern** rather than inventing a `<tree>` tag, keeping the "HTML elements only" non-negotiable intact.
+
+**DOM shape (web-faithful):**
+```
+<ul role="tree">
+  <li role="treeitem" aria-expanded="true">Cluster
+    <ul role="group">
+      <li role="treeitem">node-1</li>
+      <li role="treeitem">node-2</li>
+    </ul>
+  </li>
+  <li role="treeitem">Other</li>
+</ul>
+```
+
+**State contract (all attribute-driven, recompute-from-DOM — no side tables):**
+
+| State | Attributes |
+| --- | --- |
+| Leaf | no `aria-expanded` |
+| Collapsed branch | `aria-expanded="false"` |
+| Expanded branch | `aria-expanded="true"` |
+| Loading branch | `aria-expanded="true"` + `aria-busy="true"` |
+| Selected | `aria-selected="true"` |
+| Cursor (active descendant) | internal `data-rdom-active` marker (module-managed) |
+
+Branch-ness keys on **presence** of `aria-expanded`, never child count — so a lazily-loaded branch with no children yet is still a branch (resolves the empty-vs-unloaded ambiguity). Lazy/async/filter/search are app-level: just DOM mutation, which the cascade/layout already re-runs. `aria-busy` is the loading hook; needs zero new selector machinery (`[role=treeitem][aria-busy=true]` already matches via existing attribute-value selectors).
+
+**Grumpy-architect blockers (raised pre-implementation) and resolutions:**
+- **B1 (guides computed in layout, paint stays dumb)** → Spike conclusion below refines this: structural geometry is derived in a focused, gated paint pass that reads layout rects + DOM structure (no recompute of layout/cascade), and **glyph selection stays in the existing generic `border_join` pass**. Paint declares "trunk passes here / connector here"; the joiner blits.
+- **B2 (single owner for indentation)** → one indentation model, documented, co-designed with the guide pass (below). `[role=group]` `padding-left` owns the indent; guides paint into that gutter.
+- **B3 (focus model chosen by analysis, not default)** → **`aria-activedescendant`**, not roving DOM focus. The `[role=tree]` container is the single tab stop and holds focus; the cursor row carries `data-rdom-active`; highlight keys on `[role=tree]:focus [data-rdom-active]` (dims on blur). Avoids per-keystroke `focus_node()` churn — which fires blur/focusin/focusout and seeds editable carets (`focus/mod.rs:45-119`) — on large, arrow-spammed trees.
+- **B4 (lazy branch contract)** → covered by `aria-expanded` presence + `aria-busy`; Right/chevron on an `aria-expanded="true"` node with no children fires `toggle` (the app's load hook) rather than no-op.
+
+**Step 0 spike — guide-line rendering, CONCLUSION: reuse the border-contribution substrate (no throwaway proof needed).**
+The existing paint already does the hard part. `paint_border` records per-cell × per-direction `BorderContribution`s into `buf.border_dirs`, and `border_join::join_borders` (runs last in `paint_dom`) reconciles a 4-direction visible mask into `│ ├ └ ┌ ┼` glyphs via `SOLID_TABLE` (`paint_pass/border_join.rs:205`). So tree guides need **only** to emit N/E/S contributions at the gutter cells; the joiner produces the connectors for free, including color.
+- A new `paint_pass/tree_guides.rs` runs **after the main walk, before `join_borders`**, gated by a bottom-up `tree_has_role_tree` flag in `TuiExt` (mirrors the existing `tree_has_collapse` / `tree_has_positioned_pseudo` gates — no full-tree walk when no tree exists).
+- Per visible `treeitem` at depth `d`: at its row, write `├` (N+E+S) / `└` (N+E, when last child) at its immediate parent group's gutter column, and `│` (N+S) at each higher ancestor column whose ancestor is **not** its group's last child (`ancestor_continues`). Pure-CSS `border-left` was rejected: borders give the vertical `│` but cannot produce the eastward connector stub, and they shift content by a cell — confirmed via the column analysis, so approach (B) wins.
+- **Indentation model:** root `[role=tree]`'s direct children are depth 0 — chevron + label, no trunk. Connectors start at depth ≥ 1 (items inside a `[role=group]`). `[role=group]` carries `padding-left` = indent step; guides paint into that padding gutter. Chevron is a `::before` (`▾`/`▸`/leaf-space), part of inline content, exactly like `<details>`.
+- **Guide color is styleable via `border-color` on the treeitem** (guides are border-like; UA sets a muted default, authors retheme with `[role=treeitem] { border-color: … }`). New DIVERGENCES entry: `border-color` drives tree guides without an actual CSS border.
+
+Plan of record: Step 1 event/state contract → Step 2 UA defaults (`rdom-style/src/ua.rs`, bump pinned `ua.len()` at line 906) → Step 3 guide painter → Step 4 behavior module (`runtime/builtins/tree/{mod,keyboard,pointer,selection}.rs`, registered at `app/mod.rs:~298`) → Step 5 showcase demo incl. a fake 2s-lazy-load branch + `examples/tree_nav.rs` → review gates. Multi-select (reuses `<select>`'s anchor model) and large-tree virtualization deferred to TECH_DEBT. Built-in keyboard is Arrows + Home/End + Enter/Space only — no vi keys (`j`/`k`/`g`/`G` are app-level); every default action is `preventDefault`-overridable via the established builtin landing pattern.
+
+### 2026-05-27 — BORDER-MODEL-1 initiative log
+
+**Goal:** replace `border-collapse`'s heuristic stack with a layered, browser-faithful model so CSS authors get expected results without surprising substrate side effects.
+
+**Architectural decisions:**
+- **Layout vs paint split.** Layout positions borders (collapse → direct-children overlap by 1, gap honored verbatim). Paint composites per-direction `(BorderStyle, Color, priority)` and emits the winning glyph + color per CSS Tables 3 §11.5.
+- **`border-collapse` is non-inheriting.** rdom divergence from CSS, documented in `DIVERGENCES.md`. Containers that want their direct children to participate declare collapse themselves. No subtree contamination.
+- **Conflict resolution adopts CSS Tables 3 §11.5 wholesale.** Hidden kill-switch → none losses → style ranking → child wins ancestor → later-DOM-order wins. Winner contributes BOTH glyph and color.
+- **`BorderStyle` enum** in `rdom-style` carries the full CSS keyword set; `dashed`/`dotted`/`ridge`/`outset`/`groove`/`inset` parse + rank correctly but render as `solid` (CSS-faithful degradation on terminal medium).
+- **Scope:** single initiative. Block-flow collapse, flex-flow collapse, paint conflict resolution, cascade non-inheritance, BorderStyle enum, chrome migration, all dead-code removal — one branch, one push.
+
+**Milestones:**
+- [x] M1 — Docs + contract pinning. `DIVERGENCES.md` rewritten under "Layout"; `TECH_DEBT.md` opens `BORDER-MODEL-1` and marks `M5-COLLAPSE-1` / `M5.5b-CELL-OWNERSHIP-1` / `BFC1-CODE-COLLAPSE-INSETS-1` as resolved by it; this log opened.
+- [x] M2 — Failing test scaffold pinning every contract row (4 layout outcomes, non-inheritance, hidden kill-switch, style ranking, color winner, DOM-order tiebreak).
+- [x] M3 — `BorderStyle` enum + parsing; replace per-side bool in `Border`; migrate every call site.
+- [x] M4 — `border-collapse` becomes non-inheriting + chrome migration to explicit per-container declarations on `.app`, `.app-body`, `.main`.
+- [x] M5 — Flex layout: remove transparent-intermediate recursion; direct-children-only; `gap > 0` honored. `.app-body` border added so it joins `.app`'s collapse group.
+- [x] M6 — Block-flow mirror of M5's rules.
+- [x] M7 — Paint: per-direction `BorderContribution` buffer + CSS Tables 3 §11.5 conflict-resolution algorithm. Hidden kill-switch, double-line glyph table, rounded-corner fast path for lone contributors. All 13 contract tests pass.
+- [x] M8 — `flex_row` demo gap pinned end-to-end via `flex_row_demo_renders_gap_between_boxes` in chrome contract tests.
+- [x] M9 — Cleanup, workspace gate green, contract tests un-ignored, stale comments updated.
+
+**Closed.** `BORDER-MODEL-1` retires `M5-COLLAPSE-1`, `M5.5b-CELL-OWNERSHIP-1`, `BFC1-CODE-COLLAPSE-INSETS-1`. CSS author can now write any of the three valid `gap` × `border-collapse` outcomes and get exactly what they asked for; no inheritance leak, no surprise.
+
+### 2026-05-26 — BFC-1 closed: block-formatting-context substrate end-to-end
+
+Shipped in 9 phases (commits `9e9af04` Phase 1 → `<phase-9-commit>` Phase 9):
+
+- **Phase 1** — `Flow` enum (Block | Flex) cascades alongside `Display`; CSS3 Display Module two-value mapping (`display: block` → outer Block + inner Block, `display: flex` → outer Block + inner Flex). `establishes_new_bfc` cascade field gates margin-collapse + height-trap behavior.
+- **Phase 2** — `layout_block_children` width formula (CSS 2.1 §10.3.3 seven-term equation), auto-margin centering with odd-cell distribution to right, min/max-width clamping.
+- **Phase 3** — Anonymous block boxes (CSS 2.1 §9.2.1.1) around inline-level child runs in mixed content. Atomic `Display::InlineBlock` packing in IFC per CSS 2.1 §10.8 (Phase 3.5b). Hit-test, paint, selection, drag-routing all walk anon boxes.
+- **Phase 4** — Dispatch wired in `flex::layout_children`: IFC → pure-text-leaf → `match Flow`. UA sweep added explicit `flow: Flex` to `<tr>`. Showcase chrome migration + 49-file demo sweep + snapshot regeneration. Substrate fixes uncovered during the sweep: block.rs passed wrong axis budget to intrinsic measurement (now `resolved_width` for cross-budget), block lacked border-collapse parent-edge inset (shared `flex::collapse_parent_edge_insets`), block lacked `parent_scroll` offset, atomic inline-block fragments didn't get layout rects (now `layout_atomic_inline_blocks` writes them in both anon-box and singular-IFC paths), `selection::drag::begin` engaged for atomic-inline-block sentinel positions (now gated on `node_type() == Text`).
+- **Phase 5** — Full CSS 2.1 §8.3.1: adjacent-sibling collapse via `MarginAccumulator` (`max(positives) + min(negatives)`), parent-first/last-child collapse with new-BFC/padding/border blockers, empty-block collapse-through, full upward propagation via `accumulate_outer_top_margin` / `accumulate_outer_bottom_margin` (the chain walk that the grandparent uses, not just local suppression).
+- **Phase 6** — CSS 2.1 §10.5 + §10.6.3 height. `BlockMeasurement` returned from block-flow dispatch only (`Option<BlockMeasurement>` after Phase 9 review); `layout_node` applies margin-collapse-aware content extent for `Auto` height (gated on parent's flow being Block, not flex, and element not being out-of-flow positioned). Percent height walks `nearest_block_ancestor_height_is_definite` (iterative after Phase 9 review). CSS3 Box Alignment Module `row-gap` between block-level element children.
+- **Phase 7** — 62 named block-flow tests in `block_tests.rs`, snapshot audit of all 17 .snap files.
+- **Phase 8** — DESIGN.md "Layout passes" section, DIVERGENCES.md retired the BFC-1-obsoleted entries (anonymous-inline-boxes / inline-block-disqualifies-IFC) and added explicit no-floats entry, TECH_DEBT.md retired `BFC-1` + `SUB-2` + `IFC-MIXED-TEXT-INLINEBLOCK-1`, Demo trait gained "Default flow is block; opt into flex with `display: flex`" authoring rule.
+- **Phase 9** — Grumpy chief architect review surfaced 5 blocking findings + 7 non-blocking + 5 test-coverage gaps. Three blocking items addressed in this commit: iterative `nearest_block_ancestor_height_is_definite` (closes the unbounded-recursion concern), `layout_children` returns `Option<BlockMeasurement>` (only the block path produces one — moves the "valid for Block flow only" invariant into the type), explicit regression tests for vertical-auto-margin (resolves to 0 per §8.3) and anon-block-box-margin-boundary. Perf bench `benches/block_layout.rs` confirms block layout is on par with flex on equivalent content (254µs vs 253µs on a 100-paragraph document); margin-collapse-deep chains complete in 14µs. Remaining grumpy findings filed as `BFC1-PERF-MARGIN-CHAIN-1`, `BFC1-PERF-INLINE-FLOW-LOOKUP-1`, `BFC1-CODE-BLOCK-SPLIT-1`, `BFC1-CODE-ATOMIC-IB-DUP-1`, `BFC1-CODE-COLLAPSE-INSETS-1`, `BFC1-MARGIN-PERCENT-1`, `BFC1-AUTO-HEIGHT-ORDERING-1` in TECH_DEBT.md with characterization for each.
+
+Workspace state: 2574 tests pass; clippy + fmt clean across the workspace. Block layout fully matches the relevant CSS specs (§9, §10, §17.6.3, Box Alignment Module) within the rdom TUI substrate scope. Authors can write semantic HTML now and get web-platform behavior.
+
+### 2026-05-25 — Substrate fix: M5-MIN-CONTENT-1 retired (flex items default to content-min floor)
+
+User-reported sidebar nav UX bug surfaced the deeper substrate gap that the project had been documenting for milestones: CSS-default `flex-shrink: 1` plus no `min-height: auto` floor let the Bresenham allocator squish flex items to zero cells when the container overflowed. The original symptom was "every-other-row highlight disappears" in the showcase sidebar; the actual cause was 0-height items stacking under their visible siblings.
+
+The first fix attempt was chrome-side workarounds (`flex-shrink: 0` everywhere). Grumpy architect review correctly called that out: "App should work OOTB if you create it like any HTML app — this is our most important contract." Reverted the chrome workaround. Implemented CSS Flexbox §4.5 in the flex layout:
+
+- Every flex item now has an auto-min floor along the main axis: `min(content_size_suggestion, specified_size_suggestion)`, dropped to 0 when overflow on the axis is non-visible. Items can no longer silently vanish in overflowing containers.
+- `intrinsic_size` got a sibling `content_min_size` (skips the `Size::Fixed` short-circuit) so the content size suggestion measures actual content, not declared box size — `<a style="width:100; max-width:30">` with no children correctly resolves auto-min to 0 and max-width clamps to 30.
+- `Size::Flex(_)` (the `flex: <N>` shorthand) maps to `specified_suggestion = 0`, matching CSS's `flex-basis: 0%` default. So `flex: 1` items still shrink freely (chrome wants this for fitting panes); authors who want content-protection opt in via explicit `min-*: auto`.
+- Explicit `min-*: auto` is **more protective than CSS strict** (documented divergence in DIVERGENCES.md): always equals content size suggestion, regardless of specified cap. Gives authors a single-property "protect my content" without computing intrinsic themselves.
+
+Chrome opts: `.app`, `.app-body`, `.main` now declare `min-width: 0` / `min-height: 0` to participate as fit-the-viewport shells — web-faithful (the same opt-in real CSS authors use for app-shell flex panes).
+
+`autofocus` on the first sidebar `<li>` rounds out the OOTB UX so the app boots keyboard-navigable.
+
+Tests: new `keyboard_nav.rs` (3 tests pinning autofocus + ArrowDown advancement + no-zero-height-squish), updated `parse_and_render` snapshot (cards now show all their content as they should). 2,487 workspace tests pass.
+
+Follow-up: `SHRINK-CLEANUP-1` in TECH_DEBT — remove the ~60 `flex-shrink: 0` declarations across showcase demos. They're now no-ops but mislead future authors.
+
+### 2026-05-24 — Substrate fix: inline-block in flex row paints UA pseudos
+
+M8 demo `interval_counter` surfaced a substrate gap: `<button>` (inline-block) + `<span>` (inline) siblings in a flex row rendered as `Start0` — the button's UA `[ … ]` bracket pseudos were silently dropped. Root cause: `is_ifc_block` (`crates/rdom-tui/src/render/layout_pass/ifc.rs`) routed any container with an inline-element child through the IFC paint path, which doesn't synthesize pseudo fragments for inline-block children. The original behavior was deliberate ("inline-block doesn't flip the parent into IFC mode") but ignored *sibling inline elements* flipping it — exactly the failing case.
+
+**Fix:** `Display::InlineBlock` now disqualifies the parent from IFC even with inline-element siblings. The container falls through to flex layout, where the inline-block child gets a proper rect and renders with full pseudo chrome. Closer to CSS Flexbox §3 step 7 (flex containers blockify their children) than the previous IFC opt-in. The companion paint-side change loosens `recurse_children` so a `display: inline` child *with its own `inline_layout`* (the new flex-laid case) paints normally instead of being swept into the legacy "cascade error" suppression bucket.
+
+**Tests:** new `crates/rdom-tui/tests/button_flex_repro.rs` — four regression assertions (button alone, button + inline sibling, two buttons, plain inline-only IFC negative case). 2,481 workspace tests pass.
+
+**Documentation:**
+- `specs/DIVERGENCES.md` — new entry under §Layout calling out the inline-block ↔ IFC behavior and pointing at the residual gap.
+- `specs/TECH_DEBT.md` — `BUTTON-FLEX-ROW-1` retired; the narrower remainder (`IFC-MIXED-TEXT-INLINEBLOCK-1`: mixed raw-text + inline-block in the same container) tracked as a separate, smaller debt with a workaround (wrap text in `<span>`).
+
+The demo (`crates/rdom-showcase/src/demos/interval_counter.rs`) keeps its stacked counter layout — `<button>` then `<p>Counter: <span>0</span></p>` — which reads cleaner than the original button-and-value-in-a-row pattern. The substrate fix means either layout works now; the choice is now UX, not workaround.
+
+### 2026-05-24 — M6 closed: calc() value system end-to-end
+
+Shipped the full `calc()` value system. Width / height / top / right / bottom / left support layout-time percentage-bearing calc through cascade → layout → paint. Padding / margin / gap support constant-only calc (narrow gap tracked as `CALC-PADMARG-1`).
+
+**Initial scope reduction was the wrong call.** The first M6 attempt shipped parse-time constant-eval only and deferred the layout-time work as `CALC-PCT-1`. Grumpy review (correctly) flagged that as accumulated debt + "scope reduction" framing burying real work. Reopened M6, powered through the refactor.
+
+**What the refactor actually entailed:**
+- `Size` + `Length` get `Calc(Box<CalcExpr>)` variants — both lose `Copy` / `Eq`, gain Clone-only semantics. The `.clone()` is O(1) for the simple variants; only `Calc` walks an AST.
+- 48 compile errors after the variant addition, deduping to ~15 unique sites. Mechanical fix per site: either `.clone()` at move boundaries OR change `match c.field` to `match &c.field` and dereference simple variants inline.
+- `apply_simple` macro in `cascade/apply.rs` changed from `*x` to `x.clone()` — works for both Copy and Clone-only types (Copy's Clone impl is memcpy).
+- `apply_size` / `apply_length` callers pass `parent.{field}.clone()` for inherited values.
+- `ResolveCtx` threaded into layout via new helpers `length_to_cells` (Length → Option<i32>) and `resolve_size_axis` (Size → u16). Each layout site picks the correct percentage basis: width sites use parent.width, height sites use parent.height, etc.
+- `apply_relative_shift` gained a parent-rect parameter — the caller (in `layout_node`) reads `parent_node().tui_ext().content_layout` and passes it through. CSS 2.1 §9.4.3: relative offsets resolve against the parent's content box.
+- Animation engine snaps Calc-bearing transitions at midpoint instead of tweening. Without resolved-pixel snapshotting at transition start (which requires layout context the engine doesn't currently have), smooth interpolation is impossible. Documented divergence; resolved-value snapshotting is a polish item.
+- `parse_unsigned` and `parse_padding_shorthand` accept constant-only `calc()` for the u16-backed properties. Avoiding the Padding/Margin field-type refactor in this milestone — those types stay `u16` per side. Percent-bearing calc on padding/margin requires changing those types (rippling through paint/layout/cascade reads), which would be a separate milestone.
+
+**Tests:**
+- 10 calc layout integration tests in `crates/rdom-tui/tests/calc_layout.rs` — width/height/top/left/nested/clamp/absolute/relative/constant-padding/paint-pipeline.
+- 6 existing end-to-end CSS tests retained.
+- 16 existing AST + parser tests retained.
+
+**`CALC-PCT-1` retired** from TECH_DEBT.md. Replaced with the narrower `CALC-PADMARG-1` for padding/margin/gap percent-calc support — that's a clean follow-up requiring a Padding field-type change.
+
+2,448 workspace tests passing.
+
+### 2026-05-23 — M5 closed: event surface bundle + implicit detach ceremony
+
+Shipped the full 0.2.0 event surface in 6 per-deliverable commits.
+
+**Additive events (D1–D5)** were straightforward — each wires one new dispatch path through the existing 3-phase pipeline:
+- `keyup` distinguishes `KeyEventKind::Release` from Press/Repeat. Enabling `KeyboardEnhancementFlags::REPORT_EVENT_TYPES` + `DISAMBIGUATE_ESCAPE_CODES` on terminal init lets kitty-protocol terminals deliver Release events; non-supporting terminals stay silent — documented as a `DIVERGENCES.md` entry.
+- `contextmenu` on right-mouse-down + Shift+F10. Two entry points, one event factory.
+- `dblclick` reused the router's existing `register_click` count.
+- `resize` dispatches on the document root when `CtEvent::Resize` fires — single dispatch site.
+- `scroll` was three mutation sites consolidated: wheel scroll in `handle_wheel`, scrollbar drag in `runtime::scrollbar::set_scroll`, programmatic API funneled through `write_scroll_clamped`. All gate on "did the offset actually change" so at-rail-end ticks don't fire spurious events.
+
+**The architectural deliverable was D6 — implicit detach events** (`EVT-DETACH-1` closure). The challenge: when the focused / hovered element is removed from the tree, browsers dispatch `blur`/`focusout`/`mouseout`/`mouseleave` BEFORE the actual removal, so bubbling works through the still-intact ancestor chain.
+
+The shape: new `Mutation::PreDetach { detached_root, focused, hovered }` variant in `rdom-core::observer`. `detach_from_parent` fires it BEFORE the structural unlink, but only when the focused/hovered node is actually inside the subtree being detached (cheap short-circuit otherwise). The runtime's new `runtime::implicit_events` module installs an App-level `MutationObserver` that listens for `PreDetach` and dispatches the four events via the normal `TuiDispatchExt` pipeline. Because the tree is still intact at dispatch time, normal parent_node-walking bubbling works.
+
+This keeps `rdom-core` renderer-free — it knows about Mutation records but not about events. The event-pipeline knowledge lives entirely in `rdom-tui`. The substrate emits a "here's a hook" record; the runtime decides what to do with it.
+
+Two `DIVERGENCES.md` entries deleted ("Implicit focus loss on detach does not fire `blur` / `focusout`" + the hover counterpart) — no longer divergent. `EVT-DETACH-1` retired from `TECH_DEBT.md`.
+
+Coverage: 8 integration tests in `crates/rdom-tui/tests/implicit_detach_events.rs` pin the order (blur → focusout → mouseout → mouseleave), the bubbling/non-bubbling distinctions, the synthetic flag, and the negative case (unrelated detach doesn't fire). 28 new tests across M5; 2,397 total workspace tests passing.
+
+### 2026-05-23 — M4 closed: examples-to-demos refactor
+
+All 10 in-tree examples now live as showcase demos at
+`crates/rdom-showcase/src/demos/`. The `rdom-tui/examples/*.rs`
+binaries are one-line shims calling `run_standalone()`. This
+collapses three previously-distinct sources of truth (example
+binary, snapshot test inline DOM construction, eventual showcase
+demo) into one. The snapshot tests now build via
+`rdom_showcase::demos::X::build(dom)` — no chance of test/example
+drift.
+
+Per-example design pattern (the M4 canonical port):
+
+- `const MARKUP: &str` — HTML-ish reference for the M7 Source tab.
+- `const CSS: &str` — class-scoped CSS string (passes the M3
+  convention test from registry.rs).
+- `pub fn build(dom: &mut TuiDom) -> NodeId` — constructs the
+  subtree, registers any listeners, returns the root.
+- `pub fn stylesheet() -> Stylesheet` — re-parses CSS via
+  `rdom_css::from_css`.
+- `pub fn run_standalone() -> io::Result<()>` — standalone-example
+  entry point: build a one-off App, run it.
+- `pub struct X` + `impl Demo for X` — registry entry.
+
+Required Cargo change: `rdom-tui` adds `rdom-showcase` to its
+`[dev-dependencies]`. Cargo accepts the cycle because dev-deps
+are separate from runtime deps. `rdom-showcase` also gained
+`rdom-parser` as a direct dep (for the `parse_and_render` demo).
+
+**Substrate fixes shaken out during the port:**
+
+- `sticky_demo` was rendering wrong all along — every Nth item
+  disappeared under `overflow: auto` due to CSS-default
+  `flex-shrink: 1` (shipped in M2) shrinking `height: 1` items
+  via Bresenham to zero height when content overflowed. A
+  diagnostic test confirmed the bug was pre-existing (the
+  original programmatic-stylesheet shape produced the same
+  scrambled output). Fix is author-side: `flex-shrink: 0` on
+  items inside an `overflow: auto` container — the canonical
+  CSS idiom for scrollable-list patterns. Applied to
+  `sticky_demo`, `scrollable_list`, `tab_form`, `selectable_text`,
+  and others as appropriate.
+
+- `parse_and_render`'s original CSS used `:root { --accent: …; }`
+  custom-property declarations, which the new M3 class-scoped
+  convention test (added in the post-M3 review pass) correctly
+  flagged as bleeding to other demos. Moved to `.par-demo { … }`
+  so the vars only cascade under the demo's subtree. CSS-correct
+  for the showcase's multi-demo-sheet-pre-pushed model.
+
+**Coverage now pinned:** 10 snapshot tests at fixed viewports
+cover every shipped example. Visual regressions in cascade,
+layout, paint, UA chrome, scrollbar gutter, border collapse,
+sticky positioning, form chrome, parser composition, or DOM
+accessor surface flag immediately. `OPS-4` retired.
+
+### 2026-05-22 — M3 closed: interactive demo navigation
+
+Sidebar is now a real interactive surface, not just a static label. The structural shape: `<aside class="sidebar"><nav><details open><summary>Category</summary><ul><li data-demo-slug="…" tabindex="0">…</li></ul></details>…</nav></aside>` — every element is a standard HTML primitive, no opinionated component shows up.
+
+Two demos were added alongside `HelloWorld` (`FlexRow`, `Hover`) so the navigation actually has more than one target — picking the simplest "shows that flex works" + "shows that :hover cascade works" demos gives the user something to click between without inflating M3's scope into M8 territory (full coverage demos).
+
+The mount mechanism is deliberately boring: clear `<main>`'s children, build the next demo's subtree, append. That's it. All the interesting work (interaction-state cleanup, mutation records, dirty-tracking) is done by the substrate via M1 D2's `purge_interaction_state_for_subtree`. The integration tests in `tests/subtree_swap_integration.rs` validate end-to-end that the substrate contract survives the trip through the showcase's actual entry point — not just the unit-level `detach_from_parent` tests.
+
+One architectural choice worth keeping: **per-demo stylesheets are pre-pushed at App startup**, not push/popped on each swap. This avoids a re-entrancy problem (the click handler runs inside the event dispatch loop and doesn't have mutable App access) and works because every demo's CSS is class-scoped (e.g. `.flex-row-demo`, `.hover-demo`). The convention is enforced by review, not by code — but since it's only the showcase that loads multiple demo sheets at once, the convention has exactly one consumer. If we later add a demo that needs to override a chrome rule, we'll need a real push/pop API; for now we don't.
+
+Event handling uses **single-listener delegation** for both click and keyboard — the listener sits on the sidebar, walks up from `event.target` to find the demo `<li>`. This is the same pattern web devs reach for; rdom's three-phase dispatch makes it work the same way it does on the web.
+
+Keyboard nav: Tab/Shift+Tab traversal is free because the runtime's focus router already handles `tabindex="0"` elements. ArrowUp/ArrowDown + Enter/Space are wired explicitly because they're application-level conventions, not generic focus mechanics — the W3C ARIA tree-view authoring practice is the reference.
+
+### 2026-05-22 — Four more substrate gaps closed: paint-side filter, `flex:`, transparent collapse, flex-shrink
+
+After the first three substrate gaps closed (class round-trip, `%` units, nested-collapse content inset), the M2 chrome dump exposed three stray border glyphs at viewport corners — the immediate fix moved the filter to paint-side architecturally (Finding 3 / commit `78e5060`). But the dump also revealed that the header's bottom border and sidebar/main's top borders weren't sharing despite collapse — the chrome rendered with two adjacent horizontal rules instead of one. The user pushed hard on framing: rdom must work for canonical CSS in the first minute, not require rdom-specific idioms.
+
+Three more findings emerged from that frame and all landed at root cause:
+
+- **Finding 1 — CSS `flex: <n>` shorthand** (`fdab1bb`). The canonical "fill remaining flex space" idiom every modern CSS author reaches for. Previously dropped silently because the parser didn't know the shorthand, forcing authors to learn the rdom `1fr` syntax (CSS Grid) or write programmatic `Size::Flex(1)`. Now parses with full grammar (`flex: <n>` / `flex: auto` / `flex: none`) and sets width + height (cross-axis Flex stretches by default).
+
+- **Finding 2 — transparent intermediate propagation for `border-collapse`** (`29765b5`). The user-observed bug: a layout `<outer border collapse> > <header border> + <body no-border> > <sidebar border> + <main border>` should share `<header>`'s bottom with `<sidebar>` / `<main>`'s tops through the transparent `<body>`. CSS tables do this natively (`<tbody>`, `<tr>` are transparent). rdom's extension of `border-collapse` to flex now propagates the same way via a recursive `has_effective_border_on_edge` helper that walks through borderless container intermediates. Unifies the concept with the content-inset path (`collapse_parent_edge_insets`) from the original M2 D2 review.
+
+- **Finding 4 — flex-shrink for overflow** (`afed656`). `height: 100%` on a flex child alongside a fixed-size sibling previously overflowed silently. CSS-default `flex-shrink: 1` distributes overflow proportionally; rdom didn't model it. Added `flex_shrink: u16` field across TuiStyle / ComputedStyle, integrated into the flex algorithm via Bresenham-style accumulation, respecting min-* clamps. 5 pre-existing tests updated to opt non-shrinking fixed-size items into `flex-shrink: 0` (canonical CSS for scrollable-container row patterns).
+
+Final showcase update (`4b79b05`): updated the chrome stylesheet to use `flex: 1` for "fill remaining" instead of `width: 100%`. The latter still works (CSS-correct) but causes proportional shrinking; the former is the modern canonical CSS idiom for flex layouts.
+
+User-level frame validated: with all seven substrate gaps closed, the chrome's CSS is what a modern web developer would write — no rdom-isms, no workarounds, just canonical Flexbox. The first-minute experience now matches "browser DOM in terminal."
+
+### 2026-05-22 — Three substrate gaps surfaced by M2 visual review, all fixed at root cause
+
+Visual review of the rendered showcase chrome surfaced two more substrate gaps after the class-attribute fix:
+
+1. **`%` units silently dropped** (commit `0b363db`). My `width: 100%; height: 100%` declarations were tokenized + warned + dropped because `%` was grouped with `px`/`em`/`rem`/`ch` as "non-cell units." That grouping was wrong: those four need a pixel/font-size concept the terminal grid doesn't have, but `%` is *relative to parent dimensions* — which the layout pass already knows. Fixed by adding `Token::Percentage`, `Size::Percent`, layout resolution in flex (main + cross axis) and positioned-element placement. DIVERGENCES.md updated.
+
+2. **Nested `border-collapse: collapse` + bordered child + content-bearing grandchild** (commit `5b699c2`). The chrome's `<header>` rendered as an empty box because the `<h1>` was being positioned at the same row as the shared parent-child border, then the border glyph painted over the text. Root cause: `compute_content_area_collapsed`'s flatten behavior assumes the touching child shares a border with the parent (the table-cell model); when the child is content-bearing (no own border), its content lands on the parent's painted border row. Fixed in `layout_flex_children` with per-edge insets that distinguish "child shares a border" vs "child is content-bearing leaf" — borderless container children remain transparent (the 3-sibling-nested-grid test still passes).
+
+User-level lesson: **when CSS that should work doesn't, the default action is to investigate the substrate, not the showcase code.** Twice in a row I papered over the symptom; the user pushed back hard and was right. Both gaps were real substrate honesty issues that would have rotted into permanent divergence if deferred.
+
+### 2026-05-22 — M2 grumpy review surfaced class-attribute round-trip bug; fixed
+
+Visual smoke test of the M2 binary showed the chrome wasn't rendering — every `.foo` class selector was silently failing to match. Root cause: `dom.set_attribute(node, "class", "x")` wrote the attribute string but didn't sync the `classes` BTreeSet or the per-class selector indexes that selector matching consults. The reverse direction (`add_class("x")` didn't write back to `attrs["class"]`) was also broken. The `dom_api_demo` example documented the footgun as a "use `add_class` rather than `set_attribute`" comment — a clear smell.
+
+Per CLAUDE.md "Real Fixes Only": root-cause fix in `rdom-core::tree::attrs::set_attribute` + `add_class` / `remove_class` / `toggle_class` / `replace_class`. Two new private helpers (`sync_class_list_from_attribute_value`, `sync_class_attribute_from_class_list`) keep the three sources of truth (attrs / classes / indexes) in sync regardless of which entry point is used. Tokens iterate alphabetically per the pre-existing BTreeSet-order divergence. 7 new round-trip tests; the workaround comment in `dom_api_demo` removed.
+
+Surfaced by visual review precisely because no automated test exercised both directions — every existing class-related test used either `set_attribute` OR `add_class`, never both. Lesson: M2's shell-structure tests should have asserted computed-style as well; pinning visual output (per M9's snapshot harness) would have caught this without a visual review.
+
+### 2026-05-22 — M2 closed: showcase scaffold runnable end-to-end
+
+`crates/rdom-showcase/` shipped as a workspace member, `publish = false`. The `Demo` trait + `DEMOS` registry pattern is hardcoded (no build.rs scanning, no macros). Shell layout is pure native HTML (`<header>` / `<aside>` / `<nav>` / `<main>`) + CSS via `base_stylesheet()` — zero opinionated components, holding the substrate-first invariant.
+
+The binary `cargo run -p rdom-showcase` enters TUI mode and renders the static HelloWorld demo into the shell's `<main>`. Two stylesheets are pushed (chrome + demo), exercising M1's multi-slot stylesheet API as a real downstream consumer for the first time.
+
+Note: visual verification of the running binary requires interactive testing — integration tests cover cascade + layout + paint against a TestBackend at both 80×24 and 20×5 (tiny-viewport regression class).
+
+### 2026-05-22 — M1 closed; EVT-DETACH-1 deferred to M5 with teeth
+
+Second grumpy architect pass (covering D2 + D3) found five items: one undocumented divergence (selection-collapses-to-None instead of relocating boundary points per WHATWG), one cheap perf nit, one observability note about mutation-record ordering, two missing test paths (`drop_subtree`, `replace_with`), and the headline architectural question — should implicit `blur` / `focusout` / `mouseleave` events fire on detach now or later?
+
+User pushback: "if we don't do it now, we should have reason to postpone it forever." Counter: M5 (event surface bundle) has a forcing function and the architecturally correct shape (pre-detach ancestor path capture + new Mutation variant + App-level translation observer) is event-pipeline work, not tree-mutation work — doing it in M1 means inventing rdom-tui pipeline in rdom-core. Defer to M5 with a stable id (`EVT-DETACH-1`), an explicit non-negotiable line in [`specs/SHOWCASE.md`](specs/SHOWCASE.md) M5 scope, and exit criteria that require closing this before M5 itself closes. Defer with teeth, not defer with hope.
+
+All five items addressed in commit `41f9f76`. M1 milestone closed.
+
+### 2026-05-22 — M1 D2 + D3 closed: subtree-replacement contract
+
+13 integration tests in `crates/rdom-tui/tests/subtree_replacement_contract.rs` codify the contract `rdom-showcase` (and any consumer that swaps a subtree's children) needs. Cascade reset, MutationObserver records, DirtyTracker — all already worked. The four interaction-state pointers (`focused`, `hovered`, `pointer_capture`, `selection`) leaked stale references at detach — fixed by centralizing cleanup in `rdom-core::tree::detach_from_parent` via a new private `purge_interaction_state_for_subtree` helper.
+
+One divergence captured: implicit focus loss on detach updates `dom.focused()` synchronously (matches web) but does NOT fire a synthetic `blur` / `focusout` event. Same for `hovered`/`mouseleave` and `selection`/`selectionchange`. Documented in [`specs/DIVERGENCES.md`](specs/DIVERGENCES.md) §"Runtime & focus".
+
+D3 (focus-on-detach spec) folds into D2 because the cleanup surface is the same — D3 is the focus axis of a four-axis contract.
+
+### 2026-05-22 — M1 D1 grumpy architect review found dirty-tracker peek-vs-drain bug
+
+`App::invalidate_cascade` (and the v0.1.0 `set_stylesheet` it was extracted from) called `DirtyTracker::roots_snapshot` — a peek — when the intent was to drain. Effect: when the DOM had pending dirty subtrees at the moment of `push/remove/set_stylesheet`, the next paint did a partial subtree cascade instead of the full re-cascade the API contract promises. Elements outside the dirty subtree kept stale computed styles from the previous sheet stack. Pre-existing latent bug in v0.1.0; surfaced by the M1 D1 design review because multi-sheet mutation makes the violation observable.
+
+Regression test added (two siblings, mutate one, swap a sheet, assert the un-mutated sibling re-cascaded). One-line fix: `roots_snapshot` → `take_roots`. Commit `adf14be`.
+
+Non-blocking findings from the same review — all addressed in the same session, leaving M1 D1 fully closed with no lingering debt:
+- Parallel-vec storage (`stylesheets` + `stylesheet_ids`) — collapsed to `Vec<(StylesheetId, Stylesheet)>` in `e5b4e89`. `style_sheets()` now returns `Vec<&Stylesheet>`; cascade signature changed to `&[&Stylesheet]`; existing tests unchanged.
+- `merge_root_vars` allocated per element — moved to per-pass in `e5b4e89`. `cascade_all` / `cascade_subtrees_all` compute the merged `VarMap` once, thread `&VarMap` down, per-element work is `Rc::clone`. Saves O(elements × sheets) allocations per cascade.
+- `set_stylesheet` didn't return a `StylesheetId` — now returns one in `82a2dbe`, symmetric with `push_stylesheet`.
+- Empty-stylesheets edge case — covered by new test in `82a2dbe`.
+
+### 2026-05-22 — M1 D1 landed: multi-slot stylesheet API
+
+`App::push_stylesheet` / `remove_stylesheet` / `StylesheetId` shipped, with `cascade_all` / `cascade_subtrees_all` taking `&[Stylesheet]` so the cascade is honestly multi-sheet (push order is the third tiebreaker after specificity + source_idx; vars merge across sheets with later-wins per name). Existing `CascadeExt::cascade(&Stylesheet)` kept as a one-element-slice wrapper so 80+ cascade tests didn't churn. `set_stylesheet` semantics tightened to wholesale-replace (clear + push). Commit `c585065`.
+
+### 2026-05-22 — 0.2.0 payload expanded to bundle the showcase
+
+Originally 0.2.0 was `calc()` + event bundle, and `rdom-showcase` was a parallel track. Folded into one release because the showcase is the largest single consumer of the new events; shipping events without a real consumer risks substrate-design choices that miss in practice; and the showcase's M1 prerequisites (multi-stylesheet, subtree-replacement contract) are substrate completion 0.2.0 wants to ship anyway. Full rationale in [`specs/SHOWCASE.md`](specs/SHOWCASE.md) decision archive.
+
+### 2026-05-22 — `rdom-showcase` planned
+
+Decided to build `rdom-showcase` as a permanent in-tree TUI app for dogfooding and demonstrating every rdom primitive. Plan committed at [`specs/SHOWCASE.md`](specs/SHOWCASE.md).
+
+Durable decisions in the plan's decision archive:
+- Named `rdom-showcase`, not `rdom-storybook` (avoids React component-model expectations).
+- Lives in-tree at `crates/rdom-showcase/` with `publish = false` (keeps CI signal, keeps public API surface minimal).
+- Substrate work blocks showcase work, not the reverse (M1 lands before any showcase code).
+- Demos rebuild on nav, not hidden-and-restored (harder substrate test, matches gallery intuition, bounded memory).
+
+### 2026-05-22 — Grumpy chief architect pass on the showcase idea
+
+Pre-implementation review identified three blocking substrate findings: stylesheets are single-slot (not honest for "shell + per-demo CSS"); subtree replacement is not tested as a contract; focus disposition on detach is unspecified. All three become M1 deliverables.
+
+### 2026-05-20 — Editing parity shipped
+
+`feat: editing parity for 0.1.0 — selection, caret, contenteditable` (c4b4eba). Editing tech debt items `EDIT-1` (cross-node undo) and `EDIT-2` (`user-select: contain` clamp) tracked in [`specs/TECH_DEBT.md`](specs/TECH_DEBT.md).
+
+### 2026-05-19 — 0.1.0 initial release
+
+Five workspace crates published. Architectural decisions from M1–M5 internal milestones archived in [`specs/DESIGN.md`](specs/DESIGN.md#decision-archive).
+

@@ -6,7 +6,7 @@ This document is the durable architectural reference. For where rdom departs fro
 
 ## Crate map
 
-Five workspace crates. Each publishes independently to crates.io at a shared version pinned in the root `Cargo.toml`.
+Five published crates plus the in-tree `rdom-showcase` demo (`publish = false`). Crates publish independently and bump independently: only a crate whose source changed bumps, together with every crate that pins it (a `rdom-core` change therefore bumps all five). The root `Cargo.toml` workspace version is the default for crates that have not diverged, not a shared release number; `rdom-core` and `rdom-tui` have carried their own versions since 0.3.x.
 
 ```
 rdom-core      pure DOM — arena, NodeId, attrs, classes, mutation,
@@ -153,4 +153,4 @@ cargo test --workspace
 bash scripts/spec-lint.sh
 ```
 
-CI runs the same four gates on `[ubuntu-latest, macos-latest, windows-latest]` for every push and PR. Toolchain pinned via `rust-toolchain.toml`.
+CI runs the same three gates (fmt, clippy, test) on `[ubuntu-latest, macos-latest, windows-latest]` for every push and PR. Toolchain pinned via `rust-toolchain.toml`.

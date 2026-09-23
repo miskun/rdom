@@ -198,6 +198,11 @@ then a release (divergent bumps as before; a `rdom-core` change forces a `rdom-t
   TECH_DEBT: `STYLE-TRANSITION-VALUE-1`, `STYLE-INHERITS-TWO-SOURCES-1`. Not done in this batch:
   `url(` token, `rgb(255 0 0)` / `hsl()` syntaxes, fractional-percentage layout resolution beyond
   whole percent (parsed, truncated), per-element custom-property scope (Batch 3 cascade work).
+- 2026-09-24 — Housekeeping: 33 resolved TECH_DEBT rows deleted and four wrong resolutions corrected;
+  fourteen web-matching DIVERGENCES bullets deleted and the 0.1.0-era framing removed; `STATE.md` cut
+  from 708 lines to a ledger with the dated journal moved to `specs/HISTORY-2026-05.md`
+  (`PROC-STATE-LEDGER-1` closed); crate-count and version-policy text corrected in `CLAUDE.md`,
+  `DESIGN.md`, and `publish.md`.
 - 2026-09-24 — Batch 3, layout slice: flex cross-axis margins (offset + stretch reduction, `auto`
   centering), shrink-to-fit for `auto`-sized absolutes with one inset (intrinsic measurement),
   `layout_differs` covers position / insets / z-index / flow / scrollbar-gutter.
