@@ -61,7 +61,9 @@ fn adjacent_inserts_within_window_coalesce() {
     s.record(insert_entry(t, 1, "i"), t0 + Duration::from_millis(100));
     assert_eq!(s.undo_depth(), 1);
     // Coalesced entry extends `new` and advances `caret_after`.
-    let e = s.pop_undo().unwrap();
+    let step = s.pop_undo().unwrap();
+    assert_eq!(step.len(), 1, "coalesced into one part");
+    let e = &step[0];
     assert_eq!(e.new, "hi");
     assert_eq!(e.caret_after, Position::new(t, 2));
 }
@@ -168,5 +170,5 @@ fn pop_undo_breaks_coalescing_window() {
     // coalesce with a non-existent predecessor.
     s.record(insert_entry(t, 0, "i"), t0 + Duration::from_millis(50));
     assert_eq!(s.undo_depth(), 1);
-    assert_eq!(s.pop_undo().unwrap().new, "i");
+    assert_eq!(s.pop_undo().unwrap()[0].new, "i");
 }

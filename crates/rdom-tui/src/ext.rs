@@ -311,6 +311,10 @@ pub struct TuiExt {
     /// thereafter. Boxed so `TuiExt` stays small for non-editable
     /// elements (the common case).
     pub editor_state: Option<Box<EditorState>>,
+    /// `<dialog>` only: the element that had focus when `showModal()`
+    /// ran, so `close()` can return focus to it (HTML §4.11.4 "dialog
+    /// focusing steps" / "previously focused element").
+    pub dialog_return_focus: Option<rdom_core::NodeId>,
 
     // ── Canvas paint callback (Phase C.9) ────────────────────────────
     /// Raw-buffer paint hook for `<canvas>` elements. When `Some`,

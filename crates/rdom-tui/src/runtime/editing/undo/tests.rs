@@ -422,3 +422,69 @@ fn perform_edit_passes_outcome_after_edit() {
     );
     assert_eq!(outcome, EditOutcome::Applied);
 }
+
+// ── EDIT-1: cross-node edits are one undo entry ─────────────────────
+
+/// A contenteditable host with two text nodes around a `<b>`.
+fn two_text_host() -> (TuiDom, NodeId, NodeId, NodeId) {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let p = dom.create_element("p");
+    dom.set_attribute(p, "contenteditable", "true").unwrap();
+    let t1 = dom.create_text_node("hello ");
+    let b = dom.create_element("b");
+    let t2 = dom.create_text_node("world");
+    dom.append_child(b, t2).unwrap();
+    dom.append_child(p, t1).unwrap();
+    dom.append_child(p, b).unwrap();
+    dom.append_child(root, p).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "p",
+            TuiStyle::new()
+                .display(Display::Block)
+                .width(Size::Fixed(40)),
+        )
+        .rule_unchecked("b", TuiStyle::new().display(Display::Inline));
+    dom.cascade(&sheet);
+    dom.layout_dom(Rect::new(0, 0, 60, 10));
+    (dom, p, t1, t2)
+}
+
+/// Selecting "lo wor" across the two text nodes and typing "X" is a
+/// single history entry: undo restores both nodes and the original
+/// selection's start; redo re-applies it.
+#[test]
+fn cross_node_edit_is_undone_and_redone_as_one_entry() {
+    use crate::runtime::editing::perform::perform_cross_node_edit;
+    let (mut dom, p, t1, t2) = two_text_host();
+    dom.set_focused(Some(p));
+    let anchor = Position::new(t1, 3);
+    let focus = Position::new(t2, 3);
+    dom.set_selection(Some(Selection::new(anchor, focus)));
+    assert_eq!(
+        perform_cross_node_edit(&mut dom, anchor, focus, "X"),
+        EditOutcome::Applied
+    );
+    assert_eq!(dom.node(t1).node_value(), Some("helX"));
+    assert_eq!(dom.node(t2).node_value(), Some("ld"));
+
+    assert_eq!(undo_last(&mut dom), UndoOutcome::Applied);
+    assert_eq!(
+        dom.node(t1).node_value(),
+        Some("hello "),
+        "first node restored"
+    );
+    assert_eq!(
+        dom.node(t2).node_value(),
+        Some("world"),
+        "second node restored too"
+    );
+    assert_eq!(dom.selection().map(|s| s.focus), Some(Position::new(t1, 3)));
+    assert_eq!(undo_last(&mut dom), UndoOutcome::Noop, "one entry, not two");
+
+    assert_eq!(redo_last(&mut dom), UndoOutcome::Applied);
+    assert_eq!(dom.node(t1).node_value(), Some("helX"));
+    assert_eq!(dom.node(t2).node_value(), Some("ld"));
+    assert_eq!(dom.selection().map(|s| s.focus), Some(Position::new(t1, 4)));
+}

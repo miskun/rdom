@@ -175,7 +175,10 @@ pub fn focusable_elements(dom: &TuiDom) -> Vec<NodeId> {
     let mut positive: Vec<(i32, usize, NodeId)> = Vec::new();
     let mut zero: Vec<(usize, NodeId)> = Vec::new();
     let mut order: usize = 0;
-    collect(dom, dom.root(), &mut positive, &mut zero, &mut order);
+    // An open modal dialog makes the rest of the document inert
+    // (HTML §4.11.4): sequential focus navigation is scoped to it.
+    let scope = crate::runtime::builtins::dialog::top_modal(dom).unwrap_or(dom.root());
+    collect(dom, scope, &mut positive, &mut zero, &mut order);
 
     positive.sort_by_key(|(ti, ord, _)| (*ti, *ord));
     zero.sort_by_key(|(ord, _)| *ord);

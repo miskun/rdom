@@ -21,7 +21,7 @@
 use rdom_core::Selection;
 
 use crate::node::nearest_editable_ancestor;
-use crate::runtime::editing::editor_state::EditEntry;
+use crate::runtime::editing::editor_state::{EditEntry, HistoryItem};
 use crate::tui_event::TuiDispatchExt;
 use crate::{TuiDom, TuiEvent};
 
@@ -43,15 +43,21 @@ pub fn undo(dom: &mut TuiDom) -> UndoOutcome {
     let Some(editable) = focused_editable(dom) else {
         return UndoOutcome::Noop;
     };
-    let Some(entry) = pop_entry(dom, editable, StackSide::Undo) else {
+    let Some(item) = pop_entry(dom, editable, StackSide::Undo) else {
         return UndoOutcome::Noop;
     };
-    apply_reverse(dom, &entry);
-    push_entry(dom, editable, entry.clone(), StackSide::Redo);
+    // Reverse the parts last-applied-first, then restore the caret
+    // from before the whole step.
+    for part in item.iter().rev() {
+        apply_reverse(dom, part);
+    }
+    if let Some(first) = item.first() {
+        dom.set_selection(Some(Selection::caret(first.caret_before)));
+    }
+    push_entry(dom, editable, item, StackSide::Redo);
     // Fire `input` with HistoryUndo inputType — DOM convention is
     // `data: null` for history events; listeners read the new
     // value off the target's text content / `value` attribute.
-    let _ = entry.old; // drop — the new state is reflected on the DOM, not in detail
     let mut ev = TuiEvent::input(rdom_core::InputType::HistoryUndo, None);
     let _ = dom.dispatch_tui_event(editable, &mut ev);
     UndoOutcome::Applied
@@ -64,12 +70,16 @@ pub fn redo(dom: &mut TuiDom) -> UndoOutcome {
     let Some(editable) = focused_editable(dom) else {
         return UndoOutcome::Noop;
     };
-    let Some(entry) = pop_entry(dom, editable, StackSide::Redo) else {
+    let Some(item) = pop_entry(dom, editable, StackSide::Redo) else {
         return UndoOutcome::Noop;
     };
-    apply_forward(dom, &entry);
-    push_entry(dom, editable, entry.clone(), StackSide::Undo);
-    let _ = entry.new; // drop — see undo() above
+    for part in &item {
+        apply_forward(dom, part);
+    }
+    if let Some(last) = item.last() {
+        dom.set_selection(Some(Selection::caret(last.caret_after)));
+    }
+    push_entry(dom, editable, item, StackSide::Undo);
     let mut ev = TuiEvent::input(rdom_core::InputType::HistoryRedo, None);
     let _ = dom.dispatch_tui_event(editable, &mut ev);
     UndoOutcome::Applied
@@ -87,11 +97,11 @@ fn focused_editable(dom: &TuiDom) -> Option<rdom_core::NodeId> {
 fn apply_forward(dom: &mut TuiDom, entry: &EditEntry) {
     // Pre-apply state: the text node has `old` at
     // [range.start..range.start + old.len()). Replace with `new`.
+    // The caret is restored by the caller once the whole step is done.
     let end = entry.range.start + entry.old.len();
     let _ = dom
         .node_mut(entry.node)
         .edit_text(entry.range.start, end, &entry.new);
-    dom.set_selection(Some(Selection::caret(entry.caret_after)));
 }
 
 /// Reverse `entry` — replace `new` with `old`, restore
@@ -101,7 +111,6 @@ fn apply_reverse(dom: &mut TuiDom, entry: &EditEntry) {
     let _ = dom
         .node_mut(entry.node)
         .edit_text(entry.range.start, end, &entry.old);
-    dom.set_selection(Some(Selection::caret(entry.caret_before)));
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -110,7 +119,11 @@ enum StackSide {
     Redo,
 }
 
-fn pop_entry(dom: &mut TuiDom, editable: rdom_core::NodeId, side: StackSide) -> Option<EditEntry> {
+fn pop_entry(
+    dom: &mut TuiDom,
+    editable: rdom_core::NodeId,
+    side: StackSide,
+) -> Option<HistoryItem> {
     let mut node = dom.node_mut(editable);
     let state = node.ext_mut()?.editor_state.as_mut()?;
     match side {
@@ -119,7 +132,7 @@ fn pop_entry(dom: &mut TuiDom, editable: rdom_core::NodeId, side: StackSide) -> 
     }
 }
 
-fn push_entry(dom: &mut TuiDom, editable: rdom_core::NodeId, entry: EditEntry, side: StackSide) {
+fn push_entry(dom: &mut TuiDom, editable: rdom_core::NodeId, entry: HistoryItem, side: StackSide) {
     if let Some(ext) = dom.node_mut(editable).ext_mut()
         && let Some(state) = ext.editor_state.as_mut()
     {

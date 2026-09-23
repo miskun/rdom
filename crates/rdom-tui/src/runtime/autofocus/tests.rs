@@ -122,8 +122,12 @@ fn dialog_show_modal_focuses_autofocus_descendant() {
     assert_eq!(app.dom().focused(), Some(btn));
 }
 
+/// HTML §4.11.4 dialog focusing steps: with no `[autofocus]`
+/// descendant, `showModal()` focuses the first focusable descendant
+/// instead (and `close()` returns focus to where it was — covered in
+/// the dialog builtin's tests).
 #[test]
-fn dialog_show_modal_without_autofocus_descendant_leaves_focus_alone() {
+fn dialog_show_modal_without_autofocus_descendant_focuses_first_focusable() {
     let mut dom: TuiDom = TuiDom::new();
     let root = dom.root();
     let dlg = dom.create_element("dialog");
@@ -137,7 +141,7 @@ fn dialog_show_modal_without_autofocus_descendant_leaves_focus_alone() {
     app.dom_mut().set_focused(Some(other));
 
     dialog::show_modal(app.dom_mut(), dlg);
-    assert_eq!(app.dom().focused(), Some(other));
+    assert_eq!(app.dom().focused(), Some(btn));
 }
 
 // ── focus_within ─────────────────────────────────────────────────

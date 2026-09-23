@@ -17,14 +17,14 @@
 //!
 //! ## v1 deliberate simplifications
 //!
-//! - No focus trap or `inert` outside the modal — author-level
-//!   composition.
+//! - Focus trap: Tab cycles inside the open modal (the rest of the
+//!   document is treated as inert by focus navigation); pointer
+//!   events outside the modal are NOT blocked (no `inert` for hit-test).
 //! - No `::backdrop` paint.
 //! - No `closedby` attribute (defaults are baked: modal closes
 //!   on Esc, non-modal doesn't).
 //! - No top-layer / z-index handling — apps lay out the dialog
 //!   themselves (e.g. via absolute positioning).
-//! - No autofocus on the first focusable on open.
 //!
 //! ## Storage of returnValue
 //!
@@ -69,12 +69,70 @@ pub fn show(dom: &mut TuiDom, dialog: NodeId) {
 /// document order. Matches MDN's modal-dialog focus behavior.
 pub fn show_modal(dom: &mut TuiDom, dialog: NodeId) {
     let was_open = dom.node(dialog).has_attribute("open");
+    // Remember where focus was so `close()` can return it (HTML's
+    // "previously focused element"), unless it was already inside.
+    let previous = dom.focused().filter(|&f| !is_inside(dom, f, dialog));
+    if let Some(ext) = dom.node_mut(dialog).ext_mut() {
+        ext.dialog_return_focus = previous;
+    }
     let _ = dom.set_attribute(dialog, "open", "");
     let _ = dom.set_attribute(dialog, MODAL_ATTR, "");
-    crate::runtime::autofocus::focus_within(dom, dialog);
     if !was_open {
         fire_toggle(dom, dialog, rdom_core::ToggleState::Closed);
     }
+    // Dialog focusing steps (HTML §4.11.4): the first `[autofocus]`
+    // descendant, else the first focusable descendant, else the
+    // dialog itself when it is focusable.
+    crate::runtime::autofocus::focus_within(dom, dialog);
+    if !dom.focused().is_some_and(|f| is_inside(dom, f, dialog)) {
+        let target = first_focusable_in(dom, dialog).or_else(|| {
+            crate::runtime::focus::tabindex::is_focusable(dom, dialog).then_some(dialog)
+        });
+        if let Some(t) = target {
+            crate::runtime::focus::focus_node(dom, Some(t));
+        }
+    }
+}
+
+/// `id == ancestor` or `id` is a descendant of `ancestor`.
+fn is_inside(dom: &TuiDom, id: NodeId, ancestor: NodeId) -> bool {
+    let mut cur = Some(id);
+    while let Some(n) = cur {
+        if n == ancestor {
+            return true;
+        }
+        cur = dom.node(n).parent_node().map(|p| p.id());
+    }
+    false
+}
+
+/// First focusable element in document order strictly inside `root`.
+fn first_focusable_in(dom: &TuiDom, root: NodeId) -> Option<NodeId> {
+    fn walk(dom: &TuiDom, id: NodeId) -> Option<NodeId> {
+        for child in dom.node(id).child_nodes() {
+            let c = child.id();
+            if crate::runtime::focus::tabindex::is_focusable(dom, c) {
+                return Some(c);
+            }
+            if let Some(found) = walk(dom, c) {
+                return Some(found);
+            }
+        }
+        None
+    }
+    walk(dom, root)
+}
+
+/// The open modal dialog that currently owns interaction, if any:
+/// with a modal open, the rest of the document is inert, so Tab
+/// cycles inside it and Esc cancels it wherever focus sits. The last
+/// open modal in arena order wins when several are open (nested
+/// modals are rare enough that document order is not worth a walk).
+pub fn top_modal(dom: &TuiDom) -> Option<NodeId> {
+    dom.get_elements_by_tag_name_all("dialog")
+        .into_iter()
+        .rev()
+        .find(|&d| dom.node(d).has_attribute("open") && dom.node(d).has_attribute(MODAL_ATTR))
 }
 
 /// Close the dialog. Removes the `open` attribute, stores
@@ -98,7 +156,18 @@ pub fn close(dom: &mut TuiDom, dialog: NodeId, return_value: &str) {
 
     let mut ev = TuiEvent::new("close");
     ev.event = ev.event.clone().with_bubbles(false);
-    let _ = dom.dispatch_tui_event(dialog, &mut ev);
+    let _ = dom.dispatch_tui_event(dialog, &mut ev); // Return focus to the previously focused element (HTML §4.11.4)
+    // when it is still in the tree; the current focus leaves with the
+    // dialog either way if it was inside it.
+    let previous = dom
+        .node_mut(dialog)
+        .ext_mut()
+        .and_then(|e| e.dialog_return_focus.take());
+    if let Some(prev) = previous.filter(|&p| dom.contains(p)) {
+        crate::runtime::focus::focus_node(dom, Some(prev));
+    } else if dom.focused().is_some_and(|f| is_inside(dom, f, dialog)) {
+        crate::runtime::focus::focus_node(dom, None);
+    }
 }
 
 /// Fire a non-bubbling `toggle` event with typed
@@ -167,9 +236,6 @@ pub fn install(dom: &mut TuiDom) {
         if ctx.event.default_prevented() {
             return;
         }
-        let Some(focused) = ctx.dom.focused() else {
-            return;
-        };
         let Some(key) = ctx.event.detail.as_keyboard() else {
             return;
         };
@@ -180,12 +246,17 @@ pub fn install(dom: &mut TuiDom) {
         if key.key != "Escape" || !no_mods {
             return;
         }
-        let Some(dialog) = enclosing_dialog(ctx.dom, focused) else {
+        // The modal dialog that owns interaction: the one enclosing
+        // the focus, else the open modal (the document outside it is
+        // inert, so Esc still means "cancel" wherever focus sits).
+        let enclosing = ctx
+            .dom
+            .focused()
+            .and_then(|f| enclosing_dialog(ctx.dom, f))
+            .filter(|&d| is_modal(ctx.dom, d));
+        let Some(dialog) = enclosing.or_else(|| top_modal(ctx.dom)) else {
             return;
         };
-        if !is_modal(ctx.dom, dialog) {
-            return;
-        }
         // Fire `cancel` on the dialog — bubbling, cancelable.
         // If a handler `prevent_default`s, we leave the dialog
         // open. Otherwise fall through to close with the

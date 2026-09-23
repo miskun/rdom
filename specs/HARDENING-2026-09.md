@@ -198,6 +198,11 @@ then a release (divergent bumps as before; a `rdom-core` change forces a `rdom-t
   TECH_DEBT: `STYLE-TRANSITION-VALUE-1`, `STYLE-INHERITS-TWO-SOURCES-1`. Not done in this batch:
   `url(` token, `rgb(255 0 0)` / `hsl()` syntaxes, fractional-percentage layout resolution beyond
   whole percent (parsed, truncated), per-element custom-property scope (Batch 3 cascade work).
+- 2026-09-24 — Batch 3, builtins slice: `<dialog>` focusing steps (autofocus → first focusable →
+  dialog), previously-focused-element restore on close, focus trap for Tab while a modal is open, Esc
+  cancels the open modal wherever focus sits; `EDIT-1` closed with compound history items
+  (`HistoryItem = Vec<EditEntry>`); `FORM-DEFAULTS-1` recorded instead of implemented (the IDL-value vs
+  attribute split is a consumer-visible change for a major line).
 - 2026-09-24 — Housekeeping: 33 resolved TECH_DEBT rows deleted and four wrong resolutions corrected;
   fourteen web-matching DIVERGENCES bullets deleted and the 0.1.0-era framing removed; `STATE.md` cut
   from 708 lines to a ledger with the dated journal moved to `specs/HISTORY-2026-05.md`

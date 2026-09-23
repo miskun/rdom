@@ -432,3 +432,82 @@ fn dialog_show_on_already_open_does_not_refire_toggle() {
     dialog::show_modal(app.dom_mut(), dlg); // also no event (still open)
     assert_eq!(count.get(), 1);
 }
+
+// ── HTML §4.11.4 modal dialogs: focusing steps, focus trap, Esc ─────
+
+/// Dialog with two buttons inside and one button outside.
+fn modal_fixture() -> (App<TestBackend>, NodeId, NodeId, NodeId, NodeId) {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let outside = dom.create_element("button");
+    let dlg = dom.create_element("dialog");
+    let first = dom.create_element("button");
+    let second = dom.create_element("button");
+    dom.append_child(dlg, first).unwrap();
+    dom.append_child(dlg, second).unwrap();
+    dom.append_child(root, outside).unwrap();
+    dom.append_child(root, dlg).unwrap();
+    let app = test_app(dom, Stylesheet::new());
+    (app, dlg, outside, first, second)
+}
+
+/// `showModal()` runs the dialog focusing steps: the first focusable
+/// descendant gets focus, and the previously focused element is
+/// remembered so `close()` can return focus to it.
+#[test]
+fn show_modal_focuses_first_descendant_and_close_restores_focus() {
+    let (mut app, dlg, outside, first, _) = modal_fixture();
+    app.draw_if_dirty().unwrap();
+    app.dom_mut().set_focused(Some(outside));
+    dialog::show_modal(app.dom_mut(), dlg);
+    app.draw_if_dirty().unwrap();
+    assert_eq!(
+        app.dom().focused(),
+        Some(first),
+        "focus moves into the dialog"
+    );
+    dialog::close(app.dom_mut(), dlg, "");
+    assert_eq!(
+        app.dom().focused(),
+        Some(outside),
+        "focus returns to the previously focused element"
+    );
+}
+
+/// While a modal dialog is open the rest of the document is inert:
+/// Tab cycles among the dialog's focusable descendants only.
+#[test]
+fn tab_is_trapped_inside_an_open_modal_dialog() {
+    let (mut app, dlg, outside, first, second) = modal_fixture();
+    app.draw_if_dirty().unwrap();
+    dialog::show_modal(app.dom_mut(), dlg);
+    app.draw_if_dirty().unwrap();
+    assert_eq!(app.dom().focused(), Some(first));
+    app.handle_event(key(KeyCode::Tab));
+    assert_eq!(app.dom().focused(), Some(second));
+    app.handle_event(key(KeyCode::Tab));
+    assert_eq!(
+        app.dom().focused(),
+        Some(first),
+        "wraps inside the dialog, never reaches `outside`"
+    );
+    let _ = outside;
+}
+
+/// Esc cancels the open modal dialog even when focus is not inside it
+/// (with the rest of the document inert, the dialog is the only
+/// interactive content).
+#[test]
+fn esc_cancels_the_open_modal_regardless_of_focus_location() {
+    let (mut app, dlg, outside, _, _) = modal_fixture();
+    app.draw_if_dirty().unwrap();
+    dialog::show_modal(app.dom_mut(), dlg);
+    app.draw_if_dirty().unwrap();
+    // Force focus elsewhere (a consumer calling focus() directly).
+    app.dom_mut().set_focused(Some(outside));
+    app.handle_event(key(KeyCode::Esc));
+    assert!(
+        !app.dom().node(dlg).has_attribute("open"),
+        "modal closed by Esc"
+    );
+}

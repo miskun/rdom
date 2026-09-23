@@ -60,6 +60,13 @@ pub struct EditEntry {
     pub kind: EditKind,
 }
 
+/// One step of history: the per-node edits a single user action made,
+/// in application order. A plain edit is one part; a cross-node edit
+/// (a selection spanning text nodes replaced in one go) is several,
+/// undone together in reverse order and redone together in order
+/// (`EDIT-1`).
+pub type HistoryItem = Vec<EditEntry>;
+
 /// Undo + redo stacks for a single editable element.
 ///
 /// Every committed edit pushes onto `undo`; an `undo()` call pops
@@ -68,8 +75,8 @@ pub struct EditEntry {
 /// the history discards the abandoned future.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct EditorState {
-    undo: Vec<EditEntry>,
-    redo: Vec<EditEntry>,
+    undo: Vec<HistoryItem>,
+    redo: Vec<HistoryItem>,
     /// Time the last entry's edit committed. Used together with
     /// `COALESCE_WINDOW` to decide whether the next insert extends
     /// the pending entry or starts a fresh one.
@@ -125,19 +132,38 @@ impl EditorState {
     pub fn record(&mut self, entry: EditEntry, now: Instant) {
         self.redo.clear();
 
-        if Self::can_coalesce_with_previous(&self.undo, &entry, self.last_commit, now) {
-            let top = self.undo.last_mut().unwrap();
+        let coalesce = match self.undo.last() {
+            Some(top) if top.len() == 1 => {
+                Self::can_coalesce_with_previous(&top[0], &entry, self.last_commit, now)
+            }
+            _ => false,
+        };
+        if coalesce {
+            let top = &mut self.undo.last_mut().unwrap()[0];
             Self::extend_in_place(top, &entry);
         } else {
-            self.undo.push(entry);
+            self.undo.push(vec![entry]);
         }
         self.last_commit = Some(now);
+    }
+
+    /// Record a multi-node edit as one history step. Never coalesces
+    /// (with the previous step or the next one). Clears redo.
+    pub fn record_compound(&mut self, parts: HistoryItem, now: Instant) {
+        if parts.is_empty() {
+            return;
+        }
+        self.redo.clear();
+        self.undo.push(parts);
+        // A compound step is a coalescing barrier.
+        self.last_commit = None;
+        let _ = now;
     }
 
     /// Pop the top undo entry. Caller reverses it against the DOM
     /// and pushes the (unchanged) entry onto the redo stack via
     /// `push_redo`. Returns `None` when the undo stack is empty.
-    pub fn pop_undo(&mut self) -> Option<EditEntry> {
+    pub fn pop_undo(&mut self) -> Option<HistoryItem> {
         let entry = self.undo.pop()?;
         // Taking from undo breaks any pending coalescing window —
         // a subsequent edit must start a new entry regardless of
@@ -148,7 +174,7 @@ impl EditorState {
 
     /// Pop the top redo entry. Caller re-applies it against the DOM
     /// and pushes back onto the undo stack via `push_undo`.
-    pub fn pop_redo(&mut self) -> Option<EditEntry> {
+    pub fn pop_redo(&mut self) -> Option<HistoryItem> {
         let entry = self.redo.pop()?;
         self.last_commit = None;
         Some(entry)
@@ -156,13 +182,13 @@ impl EditorState {
 
     /// Called by undo machinery to move an entry from undo → redo
     /// after reversing its DOM effect.
-    pub fn push_redo(&mut self, entry: EditEntry) {
+    pub fn push_redo(&mut self, entry: HistoryItem) {
         self.redo.push(entry);
     }
 
     /// Called by redo machinery to move an entry from redo → undo
     /// after re-applying its DOM effect.
-    pub fn push_undo(&mut self, entry: EditEntry) {
+    pub fn push_undo(&mut self, entry: HistoryItem) {
         self.undo.push(entry);
     }
 
@@ -186,7 +212,7 @@ impl EditorState {
     /// - Less than `COALESCE_WINDOW` elapsed since the previous
     ///   commit.
     fn can_coalesce_with_previous(
-        undo: &[EditEntry],
+        top: &EditEntry,
         new_entry: &EditEntry,
         last_commit: Option<Instant>,
         now: Instant,
@@ -194,7 +220,6 @@ impl EditorState {
         if new_entry.kind != EditKind::Insert {
             return false;
         }
-        let Some(top) = undo.last() else { return false };
         if top.kind != EditKind::Insert {
             return false;
         }

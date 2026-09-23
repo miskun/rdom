@@ -296,45 +296,75 @@ pub fn perform_cross_node_edit(
     }
 
     // Apply per-node mutations: start.node tail (replaced with
-    // `text`), intermediates cleared, end.node head removed.
-    let start_len = match dom.node(start.node).node_value() {
-        Some(s) => s.len(),
+    // `text`), intermediates cleared, end.node head removed. Each
+    // mutation is recorded as one part of a single history step so
+    // undo restores every node at once (EDIT-1).
+    // Undo puts the caret at the document-order start of the replaced
+    // range — the one position that exists in both text nodes' pre- and
+    // post-edit states.
+    let caret_before = start;
+    let caret_after = Position::new(start.node, start.offset + text.len());
+    let mut parts: Vec<EditEntry> = Vec::new();
+    let part = |node: NodeId, range: std::ops::Range<usize>, old: String, new: &str| EditEntry {
+        node,
+        range,
+        old,
+        new: new.to_string(),
+        caret_before,
+        caret_after,
+        kind: EditKind::Replace,
+    };
+
+    let start_text = match dom.node(start.node).node_value() {
+        Some(s) => s.to_string(),
         None => return EditOutcome::NoEditableTarget,
     };
+    let start_len = start_text.len();
+    let tail_from = start.offset.min(start_len);
     if dom
         .node_mut(start.node)
-        .edit_text(start.offset.min(start_len), start_len, text)
+        .edit_text(tail_from, start_len, text)
         .is_err()
     {
         return EditOutcome::Prevented;
     }
+    parts.push(part(
+        start.node,
+        tail_from..start_len,
+        start_text[tail_from..].to_string(),
+        text,
+    ));
 
     for node in text_nodes_between_in_walk(&doc_order, start.node, end.node, |n| {
         dom.node(n).node_type() == rdom_core::NodeType::Text
     }) {
-        let len = dom.node(node).node_value().map(|s| s.len()).unwrap_or(0);
-        if len > 0 {
-            let _ = dom.node_mut(node).edit_text(0, len, "");
+        let full = dom.node(node).node_value().unwrap_or("").to_string();
+        if !full.is_empty() {
+            let _ = dom.node_mut(node).edit_text(0, full.len(), "");
+            parts.push(part(node, 0..full.len(), full, ""));
         }
     }
 
-    let end_len = dom
-        .node(end.node)
-        .node_value()
-        .map(|s| s.len())
-        .unwrap_or(0);
-    if end.offset > 0 {
-        let _ = dom
-            .node_mut(end.node)
-            .edit_text(0, end.offset.min(end_len), "");
+    let end_text = dom.node(end.node).node_value().unwrap_or("").to_string();
+    let head_to = end.offset.min(end_text.len());
+    if head_to > 0 {
+        let _ = dom.node_mut(end.node).edit_text(0, head_to, "");
+        parts.push(part(
+            end.node,
+            0..head_to,
+            end_text[..head_to].to_string(),
+            "",
+        ));
     }
 
-    let caret_offset = start.offset + text.len();
-    dom.set_selection(Some(Selection::caret(Position::new(
-        start.node,
-        caret_offset,
-    ))));
+    dom.set_selection(Some(Selection::caret(caret_after)));
     crate::runtime::scrollbar::reveal_caret(dom);
+
+    if let Some(ext) = dom.node_mut(host).ext_mut() {
+        ext.editor_state
+            .get_or_insert_with(|| Box::new(EditorState::new()))
+            .record_compound(parts, Instant::now());
+    }
 
     let mut after = TuiEvent::input(input_type, data);
     let _ = dom.dispatch_tui_event(host, &mut after);
