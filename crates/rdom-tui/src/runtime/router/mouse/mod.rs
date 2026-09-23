@@ -460,9 +460,8 @@ fn handle_wheel(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> Rou
     while let Some(id) = cur {
         let computed = dom
             .node(id)
-            .computed()
-            .cloned()
-            .unwrap_or_else(ComputedStyle::initial);
+            .computed_rc()
+            .unwrap_or_else(|| std::rc::Rc::new(ComputedStyle::initial()));
         let y_scrollable = matches!(computed.overflow_y, Overflow::Scroll | Overflow::Auto);
         let x_scrollable = matches!(computed.overflow_x, Overflow::Scroll | Overflow::Auto);
         if (wants_y && y_scrollable) || (wants_x && x_scrollable) {

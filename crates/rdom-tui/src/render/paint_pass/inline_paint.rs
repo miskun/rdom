@@ -291,9 +291,8 @@ fn paint_lines(
             let computed = dom
                 .node(fragment.node)
                 .ext()
-                .and_then(|e| e.computed.as_ref())
-                .cloned()
-                .unwrap_or_else(|| block_computed.clone());
+                .and_then(|e| e.computed.clone())
+                .unwrap_or_else(|| std::rc::Rc::new(block_computed.clone()));
             let style = if fragment.node == id {
                 glyph_style_from_computed(&computed)
             } else {
@@ -536,9 +535,8 @@ fn paint_inline_layout(
                 let atom_computed = dom
                     .node(fragment.node)
                     .ext()
-                    .and_then(|e| e.computed.as_ref())
-                    .cloned()
-                    .unwrap_or_else(ComputedStyle::initial);
+                    .and_then(|e| e.computed.clone())
+                    .unwrap_or_else(|| std::rc::Rc::new(ComputedStyle::initial()));
                 // Reuse paint_inline_content: it handles
                 // ::before / own text / ::after at the given inner
                 // rect.
@@ -549,9 +547,8 @@ fn paint_inline_layout(
             let computed = dom
                 .node(fragment.node)
                 .ext()
-                .and_then(|e| e.computed.as_ref())
-                .cloned()
-                .unwrap_or_else(ComputedStyle::initial);
+                .and_then(|e| e.computed.clone())
+                .unwrap_or_else(|| std::rc::Rc::new(ComputedStyle::initial()));
             // Fragments owned by the bg-dedup owner (text directly
             // inside the block / anon box) have their bg painted by
             // the owner's `fill_bg`; using `style_from_computed`

@@ -145,7 +145,7 @@ pub(super) fn cascade_subtree(
 
     // Write back.
     if let Some(ext) = dom.node_mut(id).ext_mut() {
-        ext.computed = Some(computed.clone());
+        ext.computed = Some(std::rc::Rc::new(computed.clone()));
         ext.computed_before = computed_before;
         ext.computed_after = computed_after;
         ext.computed_backdrop = computed_backdrop;

@@ -336,7 +336,7 @@ fn snapshot(
     id: NodeId,
 ) -> Option<(Option<ComputedStyle>, Option<ComputedStyle>)> {
     let ext = dom.node(id).ext()?;
-    Some((ext.computed_prev.clone(), ext.computed.clone()))
+    Some((ext.computed_prev.clone(), ext.computed.as_deref().cloned()))
 }
 
 fn collect_element_ids(dom: &Dom<TuiExt>, id: NodeId) -> Vec<NodeId> {

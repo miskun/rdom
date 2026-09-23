@@ -63,6 +63,7 @@
 mod block;
 #[cfg(test)]
 mod block_tests;
+mod border_collapse;
 mod flex;
 mod ifc;
 pub(crate) mod intrinsic;
@@ -139,9 +140,8 @@ pub(super) fn layout_node(dom: &mut Dom<TuiExt>, id: NodeId, outer_rect: LayoutR
 
     let computed = dom
         .node(id)
-        .computed()
-        .cloned()
-        .unwrap_or_else(ComputedStyle::initial);
+        .computed_rc()
+        .unwrap_or_else(|| std::rc::Rc::new(ComputedStyle::initial()));
 
     // Apply the `position: relative` shift before everything else
     // so children flow inside the *shifted* content area. Siblings

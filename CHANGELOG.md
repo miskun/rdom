@@ -75,6 +75,11 @@ Migration notes for consumers moving from 0.3.x:
 - `Dom::node` / `NodeRef::node_type` / `NodeRef::node_name` document their panic on a dead id.
 - `Dom::validate` reports a `GenerationTableMismatch` when the per-slot generation table and the slot table disagree.
 
+### Breaking — `rdom-tui`
+
+- `TuiExt.computed` is `Option<Rc<ComputedStyle>>` (was `Option<ComputedStyle>`). Read it through `TuiNodeExt::computed()` (unchanged: `Option<&ComputedStyle>`) or the new `computed_rc()`; code that matched the field directly needs `.as_deref()`. Layout and paint used to deep-clone the whole style per node per frame; they now clone a pointer.
+- `EditorState::pop_undo` / `pop_redo` / `push_undo` / `push_redo` take and return `HistoryItem = Vec<EditEntry>` (one user action may touch several text nodes).
+
 ### Fixed — `rdom-tui`
 
 - **The timer API works from every listener.** `TuiTimers` (`set_timeout`, `set_interval`, `request_animation_frame`, `queue_microtask` on the event context) reached the scheduler through a raw-pointer thread-local that was installed only for `handle_event` and the tick callback, so a listener fired from inside a timer callback, from a `transitionend`, from an `AppHandle::inject` closure, or from the drag-autoscroll synthetic move panicked with "set_timeout called outside event dispatch". The scheduler is now a shared `Rc<RefCell<_>>` handle installed around every path that runs user code (dispatch, ticks, the timer pumps themselves, injected closures, `draw_if_dirty`, `advance`, autoscroll); borrows are taken per call and never held across a callback, so a callback that schedules more work borrows a free cell. `TimerCtx` holds the shared handle instead of `&mut Scheduler`. (R4)
@@ -94,6 +99,7 @@ Migration notes for consumers moving from 0.3.x:
 - `is_layout_dirty()` now reacts to `position`, the four insets, `z-index`, `flow`, and `scrollbar-gutter`; `layout_differs` omitted them, so toggling `position: absolute` reported a clean layout.
 - **`<dialog>` modal fidelity (HTML §4.11.4).** `showModal()` runs the dialog focusing steps — the first `[autofocus]` descendant, else the first focusable descendant, else the dialog itself — and remembers the previously focused element; `close()` returns focus to it. While a modal is open, Tab / Shift-Tab cycle inside the dialog only (the rest of the document is inert to sequential focus navigation), and Esc cancels the open modal wherever focus sits. Pointer events outside the modal are still not blocked (see `DIVERGENCES.md`).
 - **Cross-node edits are one undo step (`EDIT-1`).** Replacing a selection that spans several text nodes inside a `contenteditable` host is recorded as a compound history item: Ctrl-Z restores every affected node at once and puts the caret at the start of the replaced range; redo re-applies the whole step. Previously such edits were not recorded and undo silently skipped them. `EditorState::pop_undo` / `pop_redo` now return a `HistoryItem` (`Vec<EditEntry>`).
+- Internal: the `border-collapse` edge helpers live in `layout_pass/border_collapse.rs` (shared by block and flex; `has_effective_border_on_edge` borrows instead of cloning a style), and the atomic inline-block placement snapshot is one `inline::atomic_placements` used by both passes (`BFC1-CODE-COLLAPSE-INSETS-1`, `BFC1-CODE-ATOMIC-IB-DUP-1`).
 - `opacity: inherit`, `text-decoration: inherit`, and `scrollbar-gutter: inherit | initial` now resolve in the cascade (parent's value / spec initial). The arms existed but resolved `inherit` to the initial value; they were unreachable until the parser started producing the keywords.
 
 ### Changed — `rdom-tui`

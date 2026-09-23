@@ -127,9 +127,8 @@ fn intrinsic_element(
 ) -> u16 {
     let computed = dom
         .node(id)
-        .computed()
-        .cloned()
-        .unwrap_or_else(ComputedStyle::initial);
+        .computed_rc()
+        .unwrap_or_else(|| std::rc::Rc::new(ComputedStyle::initial()));
 
     // BoxSize mode: if the element has an explicit Fixed size along
     // `direction`, that wins over child measurement — matches CSS

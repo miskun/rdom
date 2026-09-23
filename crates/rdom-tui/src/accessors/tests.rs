@@ -1571,7 +1571,7 @@ fn scroll_into_view_scrolls_direct_parent() {
         let mut computed = crate::style::ComputedStyle::initial();
         computed.overflow_x = Overflow::Auto;
         computed.overflow_y = Overflow::Auto;
-        pe.computed = Some(computed);
+        pe.computed = Some(std::rc::Rc::new(computed));
         pe.content_layout.width = 80;
         pe.content_layout.height = 20;
         pe.scroll_content_width = 80;

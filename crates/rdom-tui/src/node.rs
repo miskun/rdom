@@ -91,7 +91,14 @@ pub trait TuiNodeExt<'a> {
     /// the cascade has run at least once. Prefer `computed_or_initial`
     /// for code paths that need a concrete value unconditionally.
     fn computed(&self) -> Option<&'a ComputedStyle> {
-        self.tui_ext().and_then(|e| e.computed.as_ref())
+        self.tui_ext().and_then(|e| e.computed.as_deref())
+    }
+
+    /// The computed style as a shared handle — an `Rc` clone instead of
+    /// a deep copy, for the layout and paint paths that need an owned
+    /// value while they mutate the arena. `None` until the cascade ran.
+    fn computed_rc(&self) -> Option<std::rc::Rc<ComputedStyle>> {
+        self.tui_ext().and_then(|e| e.computed.clone())
     }
 
     /// Like `computed`, but returns `ComputedStyle::initial()` when

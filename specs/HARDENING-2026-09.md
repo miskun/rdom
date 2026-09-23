@@ -198,6 +198,11 @@ then a release (divergent bumps as before; a `rdom-core` change forces a `rdom-t
   TECH_DEBT: `STYLE-TRANSITION-VALUE-1`, `STYLE-INHERITS-TWO-SOURCES-1`. Not done in this batch:
   `url(` token, `rgb(255 0 0)` / `hsl()` syntaxes, fractional-percentage layout resolution beyond
   whole percent (parsed, truncated), per-element custom-property scope (Batch 3 cascade work).
+- 2026-09-24 — Batch 3, refactor slice: `TuiExt.computed` behind `Rc` (per-node deep clones in
+  layout / flex / paint / hit-test become pointer clones; `computed_rc()` added), border-collapse
+  helpers moved to `layout_pass/border_collapse.rs` (`has_effective_border_on_edge` borrows), atomic
+  inline-block placement shared via `inline::atomic_placements`. Closes `BFC1-CODE-COLLAPSE-INSETS-1`
+  and `BFC1-CODE-ATOMIC-IB-DUP-1`.
 - 2026-09-24 — Batch 3, builtins slice: `<dialog>` focusing steps (autofocus → first focusable →
   dialog), previously-focused-element restore on close, focus trap for Tab while a modal is open, Esc
   cancels the open modal wherever focus sits; `EDIT-1` closed with compound history items

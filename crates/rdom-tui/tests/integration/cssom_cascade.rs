@@ -36,7 +36,7 @@ fn dom_with_div() -> (TuiDom, rdom_core::NodeId) {
 fn computed_fg(dom: &TuiDom, id: rdom_core::NodeId) -> Color {
     dom.node(id)
         .tui_ext()
-        .and_then(|e| e.computed.as_ref())
+        .and_then(|e| e.computed.as_deref())
         .map(|c| c.fg)
         .unwrap_or(Color::Reset)
 }

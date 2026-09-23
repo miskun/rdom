@@ -10,7 +10,7 @@ use rdom_tui::{CascadeExt, TuiDom};
 fn computed(dom: &TuiDom, id: rdom_tui::NodeId) -> rdom_style::ComputedStyle {
     dom.node(id)
         .ext()
-        .and_then(|e| e.computed.as_ref())
+        .and_then(|e| e.computed.as_deref())
         .cloned()
         .expect("cascade ran")
 }

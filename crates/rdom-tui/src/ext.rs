@@ -246,7 +246,7 @@ pub struct TuiExt {
     /// Post-cascade style for this element. `None` means "no cascade run
     /// yet, or this element's ext was just created"; layout and paint
     /// must treat `None` as `ComputedStyle::initial()` by convention.
-    pub computed: Option<ComputedStyle>,
+    pub computed: Option<std::rc::Rc<ComputedStyle>>,
     /// Snapshot of `computed` from the *previous* cascade pass. Used
     /// by the M3 transition engine to diff against the current
     /// `computed` and detect which animatable properties changed.

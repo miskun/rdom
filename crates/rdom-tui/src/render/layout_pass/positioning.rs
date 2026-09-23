@@ -153,9 +153,8 @@ pub(super) fn place_positioned(dom: &mut Dom<TuiExt>, viewport: LayoutRect) {
         let cb = containing_block(dom, id, viewport);
         let computed = dom
             .node(id)
-            .computed()
-            .cloned()
-            .unwrap_or_else(ComputedStyle::initial);
+            .computed_rc()
+            .unwrap_or_else(|| std::rc::Rc::new(ComputedStyle::initial()));
         let placed = compute_placed_rect(dom, id, &computed, cb);
         super::layout_node(dom, id, placed);
     }

@@ -272,6 +272,34 @@ pub fn scrolled_content_rect(
     Some(content)
 }
 
+/// The atomic (`display: inline-block`) fragments of `layout`, each with
+/// the outer rect it occupies when the layout is painted at `origin`
+/// (one row per line). Both the block pass (anonymous boxes) and the
+/// flex pass (single IFC) recurse `layout_node` into these so the
+/// inline-block's own subtree lays out; the snapshot exists because the
+/// caller cannot hold `&InlineLayout` while mutating the arena.
+pub fn atomic_placements(
+    layout: &InlineLayout,
+    origin: crate::layout::LayoutRect,
+) -> Vec<(NodeId, crate::layout::LayoutRect)> {
+    let mut atoms = Vec::new();
+    for (line_idx, line) in layout.lines.iter().enumerate() {
+        let line_y = origin.y + line_idx as i32;
+        for fragment in line.fragments.iter().filter(|f| f.atomic) {
+            atoms.push((
+                fragment.node,
+                crate::layout::LayoutRect::new(
+                    origin.x + fragment.x as i32,
+                    line_y,
+                    fragment.width,
+                    1,
+                ),
+            ));
+        }
+    }
+    atoms
+}
+
 /// Entry point: compute the inline layout for `block` at
 /// `content_width`. Idempotent — calling twice with the same inputs
 /// yields identical output.

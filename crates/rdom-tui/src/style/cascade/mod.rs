@@ -145,7 +145,7 @@ impl CascadeExt for Dom<TuiExt> {
                 .node(root)
                 .parent_node()
                 .and_then(|p| p.ext().and_then(|e| e.computed.clone()))
-                .unwrap_or_else(ComputedStyle::initial);
+                .unwrap_or_else(|| std::rc::Rc::new(ComputedStyle::initial()));
             let flags =
                 walk::cascade_subtree(self, stylesheets, &merged_vars, root, &parent_computed);
             // If the partial cascade introduced a positioned pseudo
@@ -180,6 +180,6 @@ impl CascadeExt for Dom<TuiExt> {
 pub fn computed_of(dom: &Dom<TuiExt>, id: NodeId) -> ComputedStyle {
     dom.node(id)
         .ext()
-        .and_then(|e| e.computed.clone())
+        .and_then(|e| e.computed.as_deref().cloned())
         .unwrap_or_else(ComputedStyle::initial)
 }

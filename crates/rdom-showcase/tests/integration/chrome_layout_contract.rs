@@ -314,7 +314,7 @@ fn source_disclosure_when_open_has_fixed_height_12() {
     let (ox, oy) = dom
         .node(handles.source_disclosure)
         .ext()
-        .and_then(|e| e.computed.as_ref())
+        .and_then(|e| e.computed.as_deref())
         .map(|c| (c.overflow_x, c.overflow_y))
         .unwrap();
     let scroll = |o: rdom_tui::layout::Overflow| {
@@ -795,7 +795,7 @@ fn source_disclosure_has_border_top() {
     let border = dom
         .node(src)
         .ext()
-        .and_then(|e| e.computed.as_ref())
+        .and_then(|e| e.computed.as_deref())
         .map(|c| c.border)
         .unwrap_or_default();
     assert!(

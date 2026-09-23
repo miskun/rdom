@@ -130,7 +130,7 @@ pub(super) fn layout_block_children(
     // same per-edge inset flex uses so the two layout modes agree.
     let in_flow_ids: Vec<NodeId> = in_flow.iter().map(|(_, id)| *id).collect();
     let (top_inset, bot_inset, left_inset, right_inset) =
-        super::flex::collapse_parent_edge_insets(dom, &in_flow_ids, parent_computed);
+        super::border_collapse::collapse_parent_edge_insets(dom, &in_flow_ids, parent_computed);
     let container = LayoutRect::new(
         container.x + left_inset as i32,
         container.y + top_inset as i32,
@@ -345,22 +345,7 @@ fn layout_atomic_inline_blocks(
     inline_layout: &crate::render::inline::InlineLayout,
     anon_rect: LayoutRect,
 ) {
-    // Snapshot the atomic-fragment placements first — we can't
-    // mutate-borrow `dom` while iterating an `&InlineLayout`
-    // borrowed from it.
-    let mut atoms: Vec<(NodeId, LayoutRect)> = Vec::new();
-    for (line_idx, line) in inline_layout.lines.iter().enumerate() {
-        let line_y = anon_rect.y + line_idx as i32;
-        for fragment in &line.fragments {
-            if !fragment.atomic {
-                continue;
-            }
-            let atom_rect =
-                LayoutRect::new(anon_rect.x + fragment.x as i32, line_y, fragment.width, 1);
-            atoms.push((fragment.node, atom_rect));
-        }
-    }
-    for (id, rect) in atoms {
+    for (id, rect) in crate::render::inline::atomic_placements(inline_layout, anon_rect) {
         layout_node(dom, id, rect);
     }
 }
@@ -403,9 +388,8 @@ fn lay_out_block_child(dom: &mut Dom<TuiExt>, child: NodeId, ctx: BlockPlace<'_>
     } = ctx;
     let computed = dom
         .node(child)
-        .computed()
-        .cloned()
-        .unwrap_or_else(ComputedStyle::initial);
+        .computed_rc()
+        .unwrap_or_else(|| std::rc::Rc::new(ComputedStyle::initial()));
 
     let resolved = resolve_block_width(&computed, containing_block_width);
     let height = resolve_block_height(dom, child, &computed, resolved.width, container.height);
@@ -651,9 +635,8 @@ fn accumulate_outer_top_margin(
             NodeType::Element => {
                 let child_computed = child
                     .ext()
-                    .and_then(|e| e.computed.as_ref())
-                    .cloned()
-                    .unwrap_or_else(ComputedStyle::initial);
+                    .and_then(|e| e.computed.clone())
+                    .unwrap_or_else(|| std::rc::Rc::new(ComputedStyle::initial()));
                 use crate::layout::Display;
                 if matches!(
                     child_computed.display,
@@ -707,9 +690,8 @@ fn accumulate_outer_bottom_margin(
             NodeType::Element => {
                 let child_computed = child
                     .ext()
-                    .and_then(|e| e.computed.as_ref())
-                    .cloned()
-                    .unwrap_or_else(ComputedStyle::initial);
+                    .and_then(|e| e.computed.clone())
+                    .unwrap_or_else(|| std::rc::Rc::new(ComputedStyle::initial()));
                 use crate::layout::Display;
                 if matches!(
                     child_computed.display,
