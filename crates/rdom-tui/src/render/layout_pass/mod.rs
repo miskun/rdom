@@ -413,6 +413,41 @@ fn record_scroll_content_size(
         }
     }
 
+    // Text content: a pure-text leaf or IFC block packs its lines from
+    // the top of `inner` (stored unscrolled), so its extent is the line
+    // count by the widest line. Anonymous block boxes (mixed content)
+    // carry scrolled rects like element children do. Without these a
+    // `<textarea>` with six lines reported zero content and could never
+    // scroll (HARDENING-2026-09 R5).
+    if let Some(ext) = dom.node(id).ext() {
+        if let Some(il) = ext.inline_layout.as_ref() {
+            let widest = il.lines.iter().map(|l| l.width as i32).max().unwrap_or(0);
+            // An editing host whose text ends in a newline has one more
+            // row than the packer emits: the empty line the caret sits
+            // on after that newline (a browser `<textarea>` shows it; a
+            // `<pre>` does not). The caret code models the same row
+            // (`caret::phantom_line_and_column`), so the extent must
+            // include it or the caret can never be scrolled into view.
+            let trailing_caret_line = i32::from(trailing_newline_caret_row(dom, id));
+            let top = inner.y;
+            let left = inner.x;
+            min_x = Some(min_x.map_or(left, |m: i32| m.min(left)));
+            min_y = Some(min_y.map_or(top, |m: i32| m.min(top)));
+            max_right = max_right.max(left + widest);
+            max_bottom = max_bottom.max(top + il.height() as i32 + trailing_caret_line);
+            any = true;
+        }
+        for anon in &ext.anonymous_blocks {
+            let top = anon.rect.y + scroll_y;
+            let left = anon.rect.x + scroll_x;
+            min_x = Some(min_x.map_or(left, |m: i32| m.min(left)));
+            min_y = Some(min_y.map_or(top, |m: i32| m.min(top)));
+            max_right = max_right.max(left + anon.rect.width as i32);
+            max_bottom = max_bottom.max(top + anon.rect.height as i32);
+            any = true;
+        }
+    }
+
     let (content_w, content_h) = if any {
         (
             (max_right - min_x.unwrap_or(inner.x)).max(0),
@@ -426,6 +461,23 @@ fn record_scroll_content_size(
         ext.scroll_content_width = content_w as usize;
         ext.scroll_content_height = content_h as usize;
     }
+}
+
+/// True when `id` is an editing host (`<textarea>`, text `<input>`,
+/// `contenteditable`) whose last text child ends with `\n`: the caret
+/// can then stand on an empty row after that newline, which the line
+/// packer does not emit as a line box.
+fn trailing_newline_caret_row(dom: &Dom<TuiExt>, id: NodeId) -> bool {
+    use crate::node::TuiNodeExt;
+    if !dom.node(id).is_editable() {
+        return false;
+    }
+    let last_text = dom
+        .node(id)
+        .child_nodes()
+        .filter(|c| c.node_type() == rdom_core::NodeType::Text)
+        .last();
+    last_text.is_some_and(|t| t.node_value().is_some_and(|v| v.ends_with('\n')))
 }
 
 /// Clamp `id`'s scroll offset to `[0, scroll size − viewport size]`

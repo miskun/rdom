@@ -135,6 +135,7 @@ fn move_vertical(dom: &mut TuiDom, delta_y: i32) -> bool {
         && to != from
     {
         dom.set_selection(Some(Selection::caret(to)));
+        crate::runtime::scrollbar::reveal_caret(dom);
     }
     true
 }
@@ -373,6 +374,7 @@ fn move_caret_left_collapse_or_grapheme(dom: &mut TuiDom) -> bool {
         // is preserved, so sort first.
         let (start, _) = ordered_positions(&sel);
         dom.set_selection(Some(Selection::caret(start)));
+        crate::runtime::scrollbar::reveal_caret(dom);
         return true;
     }
     move_caret(dom, caret_grapheme_left)
@@ -387,6 +389,7 @@ fn move_caret_right_collapse_or_grapheme(dom: &mut TuiDom) -> bool {
     if !sel.is_collapsed() {
         let (_, end) = ordered_positions(&sel);
         dom.set_selection(Some(Selection::caret(end)));
+        crate::runtime::scrollbar::reveal_caret(dom);
         return true;
     }
     move_caret(dom, caret_grapheme_right)
@@ -408,6 +411,7 @@ where
         && to != from
     {
         dom.set_selection(Some(Selection::caret(to)));
+        crate::runtime::scrollbar::reveal_caret(dom);
     }
     true
 }

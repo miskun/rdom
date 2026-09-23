@@ -236,13 +236,19 @@ fn paint_lines(
     let selection_range = dom.selection_range().filter(|r| !r.is_collapsed());
 
     let last_line_index = layout.lines.len().saturating_sub(1);
+    // `inner` is the *scrolled* content rect (see
+    // `inline::scrolled_content_rect`): the block shows `inner.height`
+    // lines starting at its own `scroll_y`; earlier lines sit above
+    // the scrollport and later ones below the content box.
+    let first_visible_line = dom.node(id).ext().map_or(0, |e| e.scroll_y as i32);
 
     for (line_index, line) in layout.lines.iter().enumerate() {
         let line_y = inner.y + line_index as i32;
         if line_y < clip.y as i32 || line_y >= clip.bottom() as i32 {
             continue;
         }
-        if line_y < inner.y || line_y >= inner.y + inner.height as i32 {
+        let li = line_index as i32;
+        if li < first_visible_line || li >= first_visible_line + inner.height as i32 {
             continue;
         }
 
@@ -424,7 +430,16 @@ pub(super) fn paint_ifc(
     let Some(inline_layout) = dom.node(id).ext().and_then(|e| e.inline_layout.clone()) else {
         return;
     };
-    paint_inline_layout(dom, &inline_layout, inner, id, buf, clip);
+    let first_visible_line = dom.node(id).ext().map_or(0, |e| e.scroll_y as i32);
+    paint_inline_layout(
+        dom,
+        &inline_layout,
+        inner,
+        first_visible_line,
+        id,
+        buf,
+        clip,
+    );
     // Caret is painted by `paint_node` once per element that owns
     // an inline-flow container (IFC blocks AND pure-text leaf
     // blocks); the call used to live here, but textareas/inputs go
@@ -455,7 +470,15 @@ pub(super) fn paint_anonymous_blocks(
         .map(|e| e.anonymous_blocks.clone())
         .unwrap_or_default();
     for anon in &anons {
-        paint_inline_layout(dom, &anon.inline_layout, anon.rect, container_id, buf, clip);
+        paint_inline_layout(
+            dom,
+            &anon.inline_layout,
+            anon.rect,
+            0,
+            container_id,
+            buf,
+            clip,
+        );
     }
 }
 
@@ -468,6 +491,7 @@ fn paint_inline_layout(
     dom: &Dom<TuiExt>,
     inline_layout: &crate::render::inline::InlineLayout,
     inner: LayoutRect,
+    first_visible_line: i32,
     bg_dedup_owner: NodeId,
     buf: &mut Buffer,
     clip: Rect,
@@ -482,10 +506,14 @@ fn paint_inline_layout(
         if line_y < clip.y as i32 || line_y >= clip.bottom() as i32 {
             continue;
         }
-        // Stop if this line sits past the block's content height —
+        // The block shows `inner.height` lines starting at
+        // `first_visible_line` (its own scroll offset; 0 for an
+        // anonymous box, whose rect is already scrolled). Lines outside
+        // that band are above the scrollport or past the content box.
         // `overflow: hidden` on the block is enforced by the caller's
         // clip rect (set in `paint_node` based on overflow mode).
-        if line_y < inner.y || line_y >= inner.y + inner.height as i32 {
+        let li = line_index as i32;
+        if li < first_visible_line || li >= first_visible_line + inner.height as i32 {
             continue;
         }
 

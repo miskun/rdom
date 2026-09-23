@@ -116,7 +116,6 @@ impl<W: Write> Backend for CrosstermBackend<W> {
 /// specific region — or opt out at startup with the
 /// `no-mouse-capture` cargo feature on `rdom-tui`.
 pub fn enter_tui_mode<W: Write>(writer: &mut W) -> io::Result<()> {
-    terminal::enable_raw_mode()?;
     // Single batched execute! — the ratatui-canonical pattern
     // that's known to work reliably on iTerm2 and other
     // terminals. Earlier in this codebase we
@@ -127,6 +126,12 @@ pub fn enter_tui_mode<W: Write>(writer: &mut W) -> io::Result<()> {
     // frame, which interacted badly with iTerm2 motion tracking).
     // With BSU/ESU removed (see `terminal.rs::draw`), this clean
     // setup is sufficient.
+    //
+    // Ordering: the escape write happens BEFORE raw mode is enabled.
+    // If the write fails (closed tty, EPIPE) nothing has changed yet
+    // and the error simply propagates; the old order enabled raw mode
+    // first and a failed write left the user's shell raw with no
+    // guard constructed to undo it (HARDENING-2026-09 R11).
     execute!(
         writer,
         terminal::EnterAlternateScreen,
@@ -138,6 +143,21 @@ pub fn enter_tui_mode<W: Write>(writer: &mut W) -> io::Result<()> {
                 | KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES,
         ),
     )?;
+    if let Err(e) = terminal::enable_raw_mode() {
+        // Raw mode failed after the screen was switched: best-effort
+        // undo of the escapes so the caller gets back a normal
+        // screen. We are already returning `e`; a second failure
+        // here has nowhere better to go.
+        let _ = execute!(
+            writer,
+            PopKeyboardEnhancementFlags,
+            DisableFocusChange,
+            DisableMouseCapture,
+            cursor::Show,
+            terminal::LeaveAlternateScreen,
+        );
+        return Err(e);
+    }
     Ok(())
 }
 
@@ -201,6 +221,31 @@ mod tests {
 
     fn bytes(b: &CrosstermBackend<Sink>) -> &[u8] {
         &b.writer.0
+    }
+
+    /// HARDENING-2026-09 R11: `enter_tui_mode` must not leave the terminal
+    /// in raw mode when the batched escape write fails. The write happens
+    /// *before* raw mode is enabled, so a failing writer returns the
+    /// writer's own error and raw mode was never touched. (In a non-tty
+    /// test environment the old order failed on `enable_raw_mode` first,
+    /// so this also pins the ordering.)
+    #[test]
+    fn enter_tui_mode_writes_escapes_before_enabling_raw_mode() {
+        struct FailWriter;
+        impl Write for FailWriter {
+            fn write(&mut self, _buf: &[u8]) -> io::Result<usize> {
+                Err(io::Error::new(io::ErrorKind::BrokenPipe, "closed tty"))
+            }
+            fn flush(&mut self) -> io::Result<()> {
+                Ok(())
+            }
+        }
+        let err = enter_tui_mode(&mut FailWriter).expect_err("writer failure surfaces");
+        assert_eq!(
+            err.kind(),
+            io::ErrorKind::BrokenPipe,
+            "the writer's error, not raw-mode's: {err}"
+        );
     }
 
     #[test]

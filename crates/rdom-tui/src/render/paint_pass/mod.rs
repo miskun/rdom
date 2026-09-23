@@ -409,7 +409,10 @@ fn paint_node(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect) {
     // style) and skip both the default own-text paint and child
     // recursion.
     if is_ifc_block(dom, id) {
-        paint_ifc(dom, id, &computed, inner, buf, children_clip);
+        // Text rows are addressed through the *scrolled* content rect so
+        // a scroll container's first `scroll_y` lines sit above the port.
+        let text_inner = crate::render::inline::scrolled_content_rect(dom, id).unwrap_or(inner);
+        paint_ifc(dom, id, &computed, text_inner, buf, children_clip);
         // Caret overlay — paint at the end so it sits on top of
         // every fragment in the inline flow. IFC blocks always have
         // an `inline_layout`, so this fires unconditionally.
@@ -426,7 +429,8 @@ fn paint_node(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect) {
     }
 
     // Compute ::before / own text / ::after paint positions.
-    paint_inline_content(dom, id, &computed, inner, buf, children_clip);
+    let text_inner = crate::render::inline::scrolled_content_rect(dom, id).unwrap_or(inner);
+    paint_inline_content(dom, id, &computed, text_inner, buf, children_clip);
 
     // Caret overlay for pure-text leaf blocks (e.g. <input>,
     // <textarea>) — they go through `paint_inline_content` rather

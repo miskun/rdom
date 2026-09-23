@@ -240,11 +240,10 @@ pub fn inline_flow_layout(
     dom: &Dom<TuiExt>,
     flow: InlineFlow,
 ) -> Option<(&InlineLayout, crate::layout::LayoutRect)> {
-    use crate::node::TuiNodeExt;
     match flow {
         InlineFlow::Ifc { block } => {
             let layout = dom.node(block).ext()?.inline_layout.as_ref()?;
-            let content = dom.node(block).content_layout_rect()?;
+            let content = scrolled_content_rect(dom, block)?;
             Some((layout, content))
         }
         InlineFlow::Anonymous { container, index } => {
@@ -252,6 +251,25 @@ pub fn inline_flow_layout(
             Some((&anon.inline_layout, anon.rect))
         }
     }
+}
+
+/// The IFC block's content rect in **viewport** coordinates: the layout
+/// pass stores `content_layout` unscrolled, and an inline flow's lines
+/// are packed from its top, so a block that is itself a scroll
+/// container (a `<textarea>` taller than its box) has its first
+/// `scroll_y` lines above the scrollport. Every consumer that maps
+/// `line_index ↔ row` — paint, hit-test, caret placement, keyboard
+/// movement — goes through this so they agree.
+pub fn scrolled_content_rect(
+    dom: &Dom<TuiExt>,
+    block: NodeId,
+) -> Option<crate::layout::LayoutRect> {
+    use crate::node::TuiNodeExt;
+    let mut content = dom.node(block).content_layout_rect()?;
+    let ext = dom.node(block).ext()?;
+    content.x -= ext.scroll_x as i32;
+    content.y -= ext.scroll_y as i32;
+    Some(content)
 }
 
 /// Entry point: compute the inline layout for `block` at

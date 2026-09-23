@@ -264,7 +264,7 @@ fn nearest_inline_target_in_subtree(
     let mut stack = vec![root];
     while let Some(id) = stack.pop() {
         if has_inline_layout(dom, id)
-            && let Some(content) = dom.node(id).content_layout_rect()
+            && let Some(content) = crate::render::inline::scrolled_content_rect(dom, id)
         {
             consider(
                 InlineTarget::Ifc(id),
@@ -323,7 +323,7 @@ impl InlineTarget {
             InlineTarget::Ifc(id) => {
                 let ext = dom.node(id).ext()?;
                 let layout = ext.inline_layout.as_ref()?;
-                let content = dom.node(id).content_layout_rect()?;
+                let content = crate::render::inline::scrolled_content_rect(dom, id)?;
                 Some((layout, content))
             }
             InlineTarget::Anonymous { container, index } => {

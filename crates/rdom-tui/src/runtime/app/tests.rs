@@ -2433,6 +2433,54 @@ fn listener_reached_from_an_injected_dispatch_can_schedule_timers() {
     assert_eq!(fired.get(), 1);
 }
 
+/// HARDENING-2026-09 R5, end to end: typing past the bottom of a
+/// two-row `<textarea>` scrolls it so the caret row stays visible.
+#[test]
+fn typing_past_the_bottom_of_a_textarea_scrolls_the_caret_into_view() {
+    use crate::layout::{Overflow, Size, WhiteSpace};
+    use rdom_style::Stylesheet;
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let ta = dom.create_element("textarea");
+    let t = dom.create_text_node("a\nb");
+    dom.append_child(ta, t).unwrap();
+    dom.append_child(root, ta).unwrap();
+    let sheet = Stylesheet::new().rule_unchecked(
+        "textarea",
+        TuiStyle::new()
+            .height(Size::Fixed(2))
+            .width(Size::Fixed(20))
+            .white_space(WhiteSpace::Pre)
+            .overflow_y(Overflow::Auto),
+    );
+    let mut app = test_app(dom, sheet, Rect::new(0, 0, 40, 6));
+    app.draw_if_dirty().unwrap(); // first layout
+    app.dom_mut().set_focused(Some(ta));
+    app.dom_mut()
+        .set_selection(Some(Selection::caret(Position::new(t, 3))));
+    for _ in 0..3 {
+        app.handle_event(key(KeyCode::Enter));
+        app.draw_if_dirty().unwrap();
+    }
+    assert_eq!(app.dom().node(t).node_value(), Some("a\nb\n\n\n"));
+    let ext = app.dom().node(ta).ext().unwrap();
+    assert_eq!(ext.scroll_content_height, 5, "five lines of content");
+    assert!(
+        ext.scroll_y >= 3,
+        "scrolled so the caret row (line 4) is inside the 2-row port, scroll_y = {}",
+        ext.scroll_y
+    );
+    // The caret cell is inside the textarea's box.
+    let (_, caret_y) =
+        crate::runtime::editing::caret::cell_of_position(app.dom(), Position::new(t, 6)).unwrap();
+    let box_y = ext.layout.y;
+    assert!(
+        (caret_y as i32) >= box_y && (caret_y as i32) < box_y + ext.layout.height as i32,
+        "caret row {caret_y} inside box at {box_y}+{}",
+        ext.layout.height
+    );
+}
+
 #[test]
 fn drag_autoscroll_scrolls_a_container_held_at_the_edge() {
     // DRAG-AUTOSCROLL phase 2: a captured drag that opted into autoscroll and

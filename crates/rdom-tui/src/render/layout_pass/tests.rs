@@ -3065,3 +3065,168 @@ fn table_in_a_horizontal_scroll_wrapper_scrolls_header_and_body_together() {
     assert_eq!(sh, sb, "header & body stay aligned while scrolled");
     assert_eq!(sh, base_h - 4, "column scrolled left by the scroll offset");
 }
+
+// ── HARDENING-2026-09 R5: text-only scroll containers ───────────────
+
+/// A pure-text leaf with `overflow-y: auto` and a fixed height records
+/// its wrapped line count as the scroll extent, so it can scroll at
+/// all. Before, only element children counted: a `<textarea>` with six
+/// lines reported zero content and had its scroll offset clamped back
+/// to 0 every frame.
+#[test]
+fn text_leaf_records_its_line_count_as_scroll_extent_and_keeps_its_offset() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let ta = dom.create_element("textarea");
+    let t = dom.create_text_node("one\ntwo\nthree\nfour\nfive\nsix");
+    dom.append_child(ta, t).unwrap();
+    dom.append_child(root, ta).unwrap();
+    let sheet = Stylesheet::bare().rule_unchecked(
+        "textarea",
+        TuiStyle::new()
+            .height(crate::layout::Size::Fixed(2))
+            .width(crate::layout::Size::Fixed(20))
+            .white_space(crate::layout::WhiteSpace::Pre)
+            .overflow(crate::layout::Overflow::Auto),
+    );
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 40, 10));
+    assert_eq!(dom.node(ta).ext().unwrap().scroll_content_height, 6);
+
+    // A scroll offset survives relayout instead of being clamped to 0.
+    dom.node_mut(ta).ext_mut().unwrap().scroll_y = 3;
+    dom.layout_dom(Rect::new(0, 0, 40, 10));
+    assert_eq!(dom.node(ta).ext().unwrap().scroll_y, 3);
+    // …but is still clamped to the real maximum (6 lines − 2 visible).
+    dom.node_mut(ta).ext_mut().unwrap().scroll_y = 9;
+    dom.layout_dom(Rect::new(0, 0, 40, 10));
+    assert_eq!(dom.node(ta).ext().unwrap().scroll_y, 4);
+}
+
+/// The inline flow's content rect is reported in scrolled (viewport)
+/// coordinates, so paint, hit-test, and the caret all agree on which
+/// row a line lands on.
+#[test]
+fn scrolled_text_leaf_reports_its_lines_shifted_by_the_scroll_offset() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let ta = dom.create_element("textarea");
+    let t = dom.create_text_node("one\ntwo\nthree\nfour");
+    dom.append_child(ta, t).unwrap();
+    dom.append_child(root, ta).unwrap();
+    let sheet = Stylesheet::bare().rule_unchecked(
+        "textarea",
+        TuiStyle::new()
+            .height(crate::layout::Size::Fixed(2))
+            .width(crate::layout::Size::Fixed(20))
+            .white_space(crate::layout::WhiteSpace::Pre)
+            .overflow(crate::layout::Overflow::Scroll)
+            .padding(crate::layout::Padding::all(0))
+            .border(crate::layout::Border::none()),
+    );
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 40, 10));
+    dom.node_mut(ta).ext_mut().unwrap().scroll_y = 2;
+    dom.layout_dom(Rect::new(0, 0, 40, 10));
+    let flow = crate::render::inline::inline_flow_for_text(&dom, t).unwrap();
+    let (layout, content) = crate::render::inline::inline_flow_layout(&dom, flow).unwrap();
+    assert_eq!(layout.lines.len(), 4);
+    let unscrolled = dom.node(ta).content_layout_rect().unwrap();
+    assert_eq!(
+        content.y,
+        unscrolled.y - 2,
+        "content rect is shifted up by scroll_y"
+    );
+    // Line 2 ("three") therefore lands on the first visible row.
+    assert_eq!(content.y + 2, unscrolled.y);
+}
+
+// ── HARDENING-2026-09 R6: flex freeze-and-redistribute ──────────────
+
+/// CSS Flexible Box §9.7: when an item's shrink is clamped by its
+/// `min-width`, the shortfall is redistributed to the remaining
+/// unfrozen items. Budget 30, three 20-cell items, first frozen at 20
+/// → 20 / 5 / 5, not 20 / 10 / 10 (which overflowed the container).
+#[test]
+fn flex_shrink_redistributes_after_a_min_width_clamp() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let row = dom.create_element("row");
+    dom.append_child(root, row).unwrap();
+    let mut items = Vec::new();
+    for i in 0..3 {
+        let it = dom.create_element(if i == 0 { "pinned" } else { "item" });
+        dom.append_child(row, it).unwrap();
+        items.push(it);
+    }
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "row",
+            TuiStyle::new()
+                .flow(crate::layout::Flow::Flex)
+                .direction(crate::layout::Direction::Row)
+                .width(crate::layout::Size::Fixed(30)),
+        )
+        .rule_unchecked(
+            "pinned",
+            TuiStyle::new()
+                .width(crate::layout::Size::Fixed(20))
+                .min_width(crate::layout::MinSize::Cells(20)),
+        )
+        .rule_unchecked(
+            "item",
+            TuiStyle::new().width(crate::layout::Size::Fixed(20)),
+        );
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 80, 10));
+    let w = |id| dom.node(id).ext().unwrap().layout.width;
+    assert_eq!((w(items[0]), w(items[1]), w(items[2])), (20, 5, 5));
+    let right = dom.node(items[2]).ext().unwrap().layout;
+    assert_eq!(
+        right.x + right.width as i32,
+        30,
+        "no overflow past the container"
+    );
+}
+
+/// Grow side of the same loop: an item clamped by `max-width` hands its
+/// surplus to the others. Budget 30, three auto items each `max-width`
+/// / no cap: item 0 capped at 5 → 5 / 12 / 13 (the odd cell lands on
+/// the last item), not 10 / 10 / 10 with a truncated first item.
+#[test]
+fn flex_grow_redistributes_after_a_max_width_clamp() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let row = dom.create_element("row");
+    dom.append_child(root, row).unwrap();
+    let mut items = Vec::new();
+    for i in 0..3 {
+        let it = dom.create_element(if i == 0 { "capped" } else { "item" });
+        dom.append_child(row, it).unwrap();
+        items.push(it);
+    }
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "row",
+            TuiStyle::new()
+                .flow(crate::layout::Flow::Flex)
+                .direction(crate::layout::Direction::Row)
+                .width(crate::layout::Size::Fixed(30)),
+        )
+        .rule_unchecked(
+            "capped",
+            TuiStyle::new()
+                .width(crate::layout::Size::Flex(1))
+                .max_width(5),
+        )
+        .rule_unchecked("item", TuiStyle::new().width(crate::layout::Size::Flex(1)));
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 80, 10));
+    let w = |id| dom.node(id).ext().unwrap().layout.width;
+    assert_eq!(w(items[0]), 5);
+    assert_eq!(
+        w(items[1]) + w(items[2]),
+        25,
+        "surplus redistributed, container filled"
+    );
+}

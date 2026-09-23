@@ -11,6 +11,11 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "Terminal rendering layer for rdom-core — flexbox layout, TUI styles, key/mouse events. Use rdom-core directly for headless DOM manipulation."
+# The examples are one-line shims around `rdom-showcase` (an unpublished
+# in-tree dev-dependency) and the integration tests import it too, so
+# neither can build from the published tarball. Keep them out of the
+# package; the library itself has no dependency on the showcase.
+exclude = ["examples/**", "tests/**", "benches/**"]
 readme = "README.md"
 keywords = ["tui", "dom", "terminal", "flexbox", "cascade"]
 categories = ["command-line-interface", "gui"]

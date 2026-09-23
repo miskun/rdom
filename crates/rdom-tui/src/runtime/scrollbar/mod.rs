@@ -333,6 +333,45 @@ fn scroll_metrics(dom: &TuiDom, element: NodeId, axis: ScrollAxis) -> (u16, usiz
 ///
 /// Reuses [`set_scroll`], so the clamp to `[0, max]` and the `scroll`
 /// event dispatch are shared with wheel / scrollbar interaction.
+/// Keep the caret visible inside a text leaf that scrolls (a
+/// `<textarea>` taller than its box): after a caret move or an edit,
+/// scroll the caret's own inline-flow container so the caret row is
+/// inside its scrollport. No-op when the caret's container does not
+/// scroll vertically or there is no collapsed selection.
+pub(crate) fn reveal_caret(dom: &mut TuiDom) {
+    let Some(sel) = dom.selection() else { return };
+    if !sel.is_collapsed() {
+        return;
+    }
+    let focus = sel.focus;
+    let Some(flow) = crate::render::inline::inline_flow_for_text(dom, focus.node) else {
+        return;
+    };
+    let crate::render::inline::InlineFlow::Ifc { block } = flow else {
+        return;
+    };
+    if !is_vertical_scroll_container(dom, block) {
+        return;
+    }
+    let Some((x, y)) = crate::runtime::editing::caret::cell_of_position(dom, focus) else {
+        return;
+    };
+    // The edit that moved the caret may have added a line the last
+    // layout's extent does not know about yet; let the next layout
+    // clamp instead of the stale maximum.
+    ensure_visible_vertical_with(
+        dom,
+        block,
+        LayoutRect {
+            x: x as i32,
+            y: y as i32,
+            width: 1,
+            height: 1,
+        },
+        ClampTo::NextLayout,
+    );
+}
+
 pub(crate) fn scroll_into_view(dom: &mut TuiDom, node: NodeId, reveal: LayoutRect) {
     let mut cur = dom.node(node).parent_node().map(|p| p.id());
     while let Some(id) = cur {
@@ -483,6 +522,15 @@ fn is_vertical_scroll_container(dom: &TuiDom, id: NodeId) -> bool {
 /// scrollport, anchoring `reveal`'s top edge (never scroll so far down
 /// that the top leaves the view).
 fn ensure_visible_vertical(dom: &mut TuiDom, container: NodeId, reveal: LayoutRect) {
+    ensure_visible_vertical_with(dom, container, reveal, ClampTo::CurrentExtent)
+}
+
+fn ensure_visible_vertical_with(
+    dom: &mut TuiDom,
+    container: NodeId,
+    reveal: LayoutRect,
+    clamp: ClampTo,
+) {
     let (port_top, port_bottom, cur_scroll) = {
         let Some(ext) = dom.node(container).tui_ext() else {
             return;
@@ -508,11 +556,39 @@ fn ensure_visible_vertical(dom: &mut TuiDom, container: NodeId, reveal: LayoutRe
         0
     };
     if delta != 0 {
-        set_scroll(dom, container, ScrollAxis::Vertical, cur_scroll + delta);
+        set_scroll_with(
+            dom,
+            container,
+            ScrollAxis::Vertical,
+            cur_scroll + delta,
+            clamp,
+        );
     }
 }
 
 fn set_scroll(dom: &mut TuiDom, element: NodeId, axis: ScrollAxis, value: i32) -> usize {
+    set_scroll_with(dom, element, axis, value, ClampTo::CurrentExtent)
+}
+
+/// How `set_scroll_with` bounds the requested offset.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ClampTo {
+    /// `[0, content − viewport]` against the extent the last layout
+    /// recorded. Wheel, scrollbar drag, programmatic writes.
+    CurrentExtent,
+    /// `[0, ∞)` — the extent recorded by the last layout is stale
+    /// (an edit just added a line) and the next layout's
+    /// `clamp_scroll_offset` settles the true maximum. Caret reveal.
+    NextLayout,
+}
+
+fn set_scroll_with(
+    dom: &mut TuiDom,
+    element: NodeId,
+    axis: ScrollAxis,
+    value: i32,
+    clamp: ClampTo,
+) -> usize {
     let (viewport, content_size) = {
         let ext = match dom.node(element).tui_ext() {
             Some(e) => e,
@@ -530,7 +606,10 @@ fn set_scroll(dom: &mut TuiDom, element: NodeId, axis: ScrollAxis, value: i32) -
         }
     };
     let max = content_size.saturating_sub(viewport) as i32;
-    let clamped = value.clamp(0, max) as usize;
+    let clamped = match clamp {
+        ClampTo::CurrentExtent => value.clamp(0, max),
+        ClampTo::NextLayout => value.max(0),
+    } as usize;
     let changed = if let Some(ext) = dom.node_mut(element).ext_mut() {
         match axis {
             ScrollAxis::Vertical => {

@@ -124,6 +124,7 @@ pub fn perform_edit(dom: &mut TuiDom, edit: Edit) -> EditOutcome {
     let caret_offset = edit.range.start + edit.text.len();
     let caret_after = Position::new(edit.node, caret_offset);
     dom.set_selection(Some(Selection::caret(caret_after)));
+    crate::runtime::scrollbar::reveal_caret(dom);
 
     // Record on the editable's history stack. Lazily allocate
     // `EditorState` on first edit (keeps non-editable elements at
@@ -333,6 +334,7 @@ pub fn perform_cross_node_edit(
         start.node,
         caret_offset,
     ))));
+    crate::runtime::scrollbar::reveal_caret(dom);
 
     let mut after = TuiEvent::input(input_type, data);
     let _ = dom.dispatch_tui_event(host, &mut after);

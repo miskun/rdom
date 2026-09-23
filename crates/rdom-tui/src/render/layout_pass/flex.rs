@@ -264,7 +264,6 @@ pub(super) fn layout_flex_children(
     // axis.
     let mut child_info: Vec<ChildMain> = Vec::with_capacity(children.len());
     let mut consumed_fixed: u16 = 0;
-    let mut total_flex_weight: u32 = 0;
     let mut auto_main_count: u32 = 0;
 
     for &child in children {
@@ -323,10 +322,7 @@ pub(super) fn layout_flex_children(
 
         let natural = match &main_size {
             Size::Fixed(n) => MainNatural::Fixed(*n),
-            Size::Flex(w) => {
-                total_flex_weight += *w as u32;
-                MainNatural::Flex(*w)
-            }
+            Size::Flex(w) => MainNatural::Flex(*w),
             Size::Percent(p) => {
                 // Percent resolves against the parent's main-axis
                 // content area at layout time. Treated as a fixed
@@ -463,39 +459,74 @@ pub(super) fn layout_flex_children(
 
     // Resolve each child's main-axis final size with min/max.
     //
-    // Flex distribution uses a rolling (Bresenham-style) allocation
-    // so the integer-division remainder doesn't get dropped. For
-    // each flex child, the target cumulative flex size is computed
-    // first, then the child's share is `target - already_allocated`.
-    // This guarantees the sum of flex sizes equals `flex_remaining`
-    // exactly when no min/max clamps fire. Without this, e.g. two
-    // `Flex(1)` children with `flex_remaining = 31` would each get
-    // `31 / 2 = 15`, summing to 30 and leaving 1 cell unallocated
-    // as visible empty space — the bug surfaced by the
-    // `border_collapse_demo` at odd terminal sizes.
-    let mut final_main: Vec<u16> = {
-        let mut accumulated_weight: u32 = 0;
-        let mut accumulated_flex_size: u32 = 0;
-        child_info
+    // CSS Flexible Box §9.7 "resolve the flexible lengths": distribute
+    // the free space among the unfrozen flex items; any item whose
+    // share violates its min/max is *frozen* at the clamped size and
+    // the loop runs again over the survivors with the leftover budget,
+    // until no clamp fires. A single pass with a per-item clamp (the
+    // previous shape) left the clamped remainder unallocated — visible
+    // as a gap — or, on the shrink side, as overflow past the container.
+    //
+    // Distribution inside a pass is rolling (Bresenham-style) so the
+    // integer-division remainder is never dropped: two `Flex(1)`
+    // children over 31 cells get 15 + 16, not 15 + 15.
+    let mut final_main: Vec<u16> = child_info
+        .iter()
+        .map(|ci| match ci.main {
+            MainNatural::Fixed(n) | MainNatural::Auto(n) => clamp_size(n, ci.min, ci.max),
+            MainNatural::Flex(_) => 0,
+        })
+        .collect();
+    {
+        let mut frozen: Vec<bool> = child_info
             .iter()
-            .map(|ci| {
-                let natural = match ci.main {
-                    MainNatural::Fixed(n) | MainNatural::Auto(n) => n,
-                    MainNatural::Flex(w) => {
-                        accumulated_weight = accumulated_weight.saturating_add(w as u32);
-                        let target = (flex_remaining as u32)
-                            .saturating_mul(accumulated_weight)
-                            .checked_div(total_flex_weight)
-                            .unwrap_or(0);
-                        let share = target.saturating_sub(accumulated_flex_size) as u16;
-                        accumulated_flex_size = target;
-                        share
-                    }
+            .map(|ci| !matches!(ci.main, MainNatural::Flex(_)))
+            .collect();
+        let mut budget: u32 = flex_remaining as u32;
+        loop {
+            let weight: u32 = child_info
+                .iter()
+                .zip(frozen.iter())
+                .filter(|(_, f)| !**f)
+                .map(|(ci, _)| match ci.main {
+                    MainNatural::Flex(w) => w as u32,
+                    _ => 0,
+                })
+                .sum();
+            if weight == 0 {
+                break;
+            }
+            let mut accumulated_weight: u32 = 0;
+            let mut accumulated: u32 = 0;
+            let mut clamped_any = false;
+            for (i, ci) in child_info.iter().enumerate() {
+                if frozen[i] {
+                    continue;
+                }
+                let MainNatural::Flex(w) = ci.main else {
+                    continue;
                 };
-                clamp_size(natural, ci.min, ci.max)
-            })
-            .collect()
-    };
+                accumulated_weight = accumulated_weight.saturating_add(w as u32);
+                let target = budget
+                    .saturating_mul(accumulated_weight)
+                    .checked_div(weight)
+                    .unwrap_or(0);
+                let share = target.saturating_sub(accumulated).min(u16::MAX as u32) as u16;
+                accumulated = target;
+                let clamped = clamp_size(share, ci.min, ci.max);
+                final_main[i] = clamped;
+                if clamped != share {
+                    // Freeze at the clamped size; its budget is spoken for.
+                    frozen[i] = true;
+                    budget = budget.saturating_sub(clamped as u32);
+                    clamped_any = true;
+                }
+            }
+            if !clamped_any {
+                break;
+            }
+        }
+    }
 
     // ── flex-shrink ──────────────────────────────────────────────
     //
@@ -507,46 +538,77 @@ pub(super) fn layout_flex_children(
     // the behavior every CSS author expects from
     // `height: 100% on a flex child` (the showcase chrome case).
     //
-    // Bresenham-style accumulation keeps the per-child integer
-    // shrink amounts exact (sum-of-shares matches the overflow
-    // total, no off-by-one at the last child).
+    // Same §9.7 freeze loop as grow: an item that would shrink below
+    // its min (explicit `min-width` or the auto-min of §4.5) is frozen
+    // at the floor and the remaining overflow is redistributed over
+    // the others. Bresenham accumulation keeps each pass exact.
     let net_budget = (main_budget as i32) - (gap_total as i32) + (overlap_savings as i32);
-    let total: i32 = final_main.iter().map(|&n| n as i32).sum();
-    if total > net_budget && net_budget > 0 {
-        let overflow = (total - net_budget) as u32;
+    if net_budget > 0 {
         let shrink_of = |ci: &ChildMain| -> u32 {
             dom.node(ci.id)
                 .computed()
                 .map(|c| c.flex_shrink as u32)
                 .unwrap_or(1)
         };
-        let total_shrink_basis: u32 = child_info
-            .iter()
-            .zip(final_main.iter())
-            .map(|(ci, &size)| (size as u32) * shrink_of(ci))
-            .sum();
-        if let Some(divisor) = std::num::NonZeroU32::new(total_shrink_basis) {
+        // Basis = the size before any shrinking in this loop.
+        let basis: Vec<u16> = final_main.clone();
+        let mut frozen: Vec<bool> = child_info.iter().map(|ci| shrink_of(ci) == 0).collect();
+        let mut floors: Vec<Option<u16>> = vec![None; child_info.len()];
+        loop {
+            let total: i32 = final_main.iter().map(|&n| n as i32).sum();
+            if total <= net_budget {
+                break;
+            }
+            let overflow = (total - net_budget) as u32;
+            let divisor: u32 = child_info
+                .iter()
+                .enumerate()
+                .filter(|(i, _)| !frozen[*i])
+                .map(|(i, ci)| (basis[i] as u32) * shrink_of(ci))
+                .sum();
+            let Some(divisor) = std::num::NonZeroU32::new(divisor) else {
+                break; // nothing left that can shrink
+            };
             let mut accumulated_basis: u32 = 0;
             let mut accumulated_shrink: u32 = 0;
+            let mut clamped_any = false;
             for (i, ci) in child_info.iter().enumerate() {
-                let shrink = shrink_of(ci);
-                if shrink == 0 {
+                if frozen[i] {
                     continue;
                 }
-                accumulated_basis += (final_main[i] as u32) * shrink;
+                accumulated_basis += (basis[i] as u32) * shrink_of(ci);
                 let target_total_shrink = (accumulated_basis * overflow) / divisor.get();
                 let my_shrink = target_total_shrink.saturating_sub(accumulated_shrink) as u16;
                 accumulated_shrink = target_total_shrink;
-                let new_size = final_main[i].saturating_sub(my_shrink);
                 // Honor min clamp — child can't shrink below its
                 // `min-width` / `min-height`. Explicit `Cells(n)` is
                 // stored in `ci.min`; the auto-min (implicit or
                 // explicit `Auto`) is resolved lazily here per CSS
-                // Flexbox §4.5.
-                let floor = ci.min.unwrap_or_else(|| {
-                    resolve_auto_min(dom, ci.id, direction, main_budget, cross_budget)
+                // Flexbox §4.5 and cached per item.
+                let floor = *floors[i].get_or_insert_with(|| {
+                    ci.min.unwrap_or_else(|| {
+                        resolve_auto_min(dom, ci.id, direction, main_budget, cross_budget)
+                    })
                 });
-                final_main[i] = new_size.max(floor);
+                let wanted = final_main[i].saturating_sub(my_shrink);
+                if wanted < floor {
+                    final_main[i] = floor;
+                    frozen[i] = true;
+                    clamped_any = true;
+                } else {
+                    final_main[i] = wanted;
+                }
+            }
+            if !clamped_any {
+                break;
+            }
+            // A clamp fired: the unfrozen items were shrunk against a
+            // stale overflow figure. Restore them to their basis and
+            // redistribute the recomputed overflow on the next pass.
+            for i in 0..final_main.len() {
+                if !frozen[i] {
+                    final_main[i] = basis[i];
+                }
             }
         }
     }

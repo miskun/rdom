@@ -3893,3 +3893,45 @@ fn pseudo_before_with_absolute_child_paints_text_once() {
     let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 10, 3));
     assert_eq!(row(&buf, 0).trim_end(), "[X]");
 }
+
+// ── HARDENING-2026-09 R5: scrolled text leaves paint from their offset ──
+
+/// A `<textarea>`-like text leaf scrolled by two lines paints its third
+/// line on its first row; the first two lines are above the scrollport
+/// and never appear.
+#[test]
+fn scrolled_text_leaf_paints_lines_from_its_scroll_offset() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let ta = dom.create_element("textarea");
+    let t = dom.create_text_node("one\ntwo\nthree\nfour");
+    dom.append_child(ta, t).unwrap();
+    dom.append_child(root, ta).unwrap();
+    let sheet = Stylesheet::bare().rule_unchecked(
+        "textarea",
+        TuiStyle::new()
+            .height(Size::Fixed(2))
+            .width(Size::Fixed(10))
+            .white_space(WhiteSpace::Pre)
+            // Vertical only: `overflow: scroll` on both axes would paint a
+            // horizontal scrollbar over the second of the two rows.
+            .overflow_y(Overflow::Scroll)
+            .padding(Padding::all(0))
+            .border(Border::none()),
+    );
+    // First pass establishes the extent; then scroll and repaint.
+    let _ = pipeline(&mut dom, &sheet, Rect::new(0, 0, 20, 4));
+    dom.node_mut(ta).ext_mut().unwrap().scroll_y = 2;
+    let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 20, 4));
+    assert!(
+        row(&buf, 0).starts_with("three"),
+        "row 0 = {:?}",
+        row(&buf, 0)
+    );
+    assert!(
+        row(&buf, 1).starts_with("four"),
+        "row 1 = {:?}",
+        row(&buf, 1)
+    );
+    assert!(!row(&buf, 2).contains("one") && !row(&buf, 3).contains("two"));
+}
