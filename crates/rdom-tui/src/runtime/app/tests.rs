@@ -2359,6 +2359,80 @@ fn advance_drives_a_scheduler_interval_deterministically() {
     assert_eq!(ticks.get(), 3, "deterministic, one tick per period");
 }
 
+/// HARDENING-2026-09 R4: the timer API must work from *any* listener,
+/// including one reached from inside a timer callback. Previously the
+/// scheduler was installed only for `handle_event` / `tick`, so this
+/// panicked with "set_timeout called outside event dispatch".
+#[test]
+fn listener_reached_from_a_timer_callback_can_schedule_timers() {
+    use crate::runtime::timers::TuiTimers;
+    use std::cell::Cell;
+    use std::rc::Rc;
+
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let el = dom.create_element("div");
+    dom.append_child(root, el).unwrap();
+    let inner_fired = Rc::new(Cell::new(0u32));
+    {
+        let inner_fired = inner_fired.clone();
+        dom.add_event_listener(el, "probe", ListenerOptions::default(), move |ctx| {
+            let inner_fired = inner_fired.clone();
+            // A listener scheduling a timer — from inside a timer callback.
+            ctx.set_timeout(move |_| inner_fired.set(inner_fired.get() + 1), 10);
+        })
+        .unwrap();
+    }
+    dom.add_event_listener(el, "keydown", ListenerOptions::default(), move |ctx| {
+        ctx.set_timeout(
+            move |tctx| {
+                let mut probe = rdom_core::Event::new("probe");
+                tctx.dom.dispatch_event(el, &mut probe).unwrap();
+            },
+            10,
+        );
+    })
+    .unwrap();
+
+    let mut app = test_app(dom, Stylesheet::new(), Rect::new(0, 0, 10, 3));
+    app.dom_mut().set_focused(Some(el));
+    app.handle_event(key(KeyCode::Char('a'))); // schedules the outer timer
+    app.advance(10).unwrap(); // outer fires → dispatches probe → inner scheduled
+    assert_eq!(inner_fired.get(), 0);
+    app.advance(10).unwrap(); // inner fires
+    assert_eq!(inner_fired.get(), 1);
+}
+
+/// Same requirement through the cross-thread injection path.
+#[test]
+fn listener_reached_from_an_injected_dispatch_can_schedule_timers() {
+    use crate::runtime::timers::TuiTimers;
+    use std::cell::Cell;
+    use std::rc::Rc;
+
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let el = dom.create_element("div");
+    dom.append_child(root, el).unwrap();
+    let fired = Rc::new(Cell::new(0u32));
+    {
+        let fired = fired.clone();
+        dom.add_event_listener(el, "probe", ListenerOptions::default(), move |ctx| {
+            let fired = fired.clone();
+            ctx.set_timeout(move |_| fired.set(fired.get() + 1), 5);
+        })
+        .unwrap();
+    }
+    let mut app = test_app(dom, Stylesheet::new(), Rect::new(0, 0, 10, 3));
+    let handle = app.handle();
+    handle.inject(move |ctx: &mut AppContext<'_>| {
+        ctx.dispatch(el, &mut rdom_core::Event::new("probe"));
+    });
+    app.drain_handle_injections();
+    app.advance(5).unwrap();
+    assert_eq!(fired.get(), 1);
+}
+
 #[test]
 fn drag_autoscroll_scrolls_a_container_held_at_the_edge() {
     // DRAG-AUTOSCROLL phase 2: a captured drag that opted into autoscroll and

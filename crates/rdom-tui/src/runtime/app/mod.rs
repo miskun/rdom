@@ -105,7 +105,7 @@ pub struct App<B: Backend = CrosstermBackend<Stdout>> {
     animation_frame_ms: u32,
     on_tick: Option<TickCallback>,
     /// Timer / rAF / microtask scheduler.
-    pub(crate) scheduler: crate::runtime::timers::Scheduler,
+    pub(crate) scheduler: crate::runtime::timers::SharedScheduler,
     /// In-flight CSS transitions.
     pub(crate) animations: crate::runtime::animation::AnimationRegistry,
 
@@ -352,7 +352,9 @@ impl<B: Backend> App<B> {
             tick_rate: Duration::from_millis(50),
             animation_frame_ms: 16,
             on_tick: None,
-            scheduler: crate::runtime::timers::Scheduler::new(std::time::Instant::now()),
+            scheduler: std::rc::Rc::new(std::cell::RefCell::new(
+                crate::runtime::timers::Scheduler::new(std::time::Instant::now()),
+            )),
             animations: crate::runtime::animation::AnimationRegistry::new(),
             autoscroll_pointer: None,
             autoscroll_next: None,
@@ -411,12 +413,13 @@ impl<B: Backend> App<B> {
         let now = std::time::Instant::now();
         let to_deadline = self
             .scheduler
+            .borrow()
             .next_deadline()
             .map(|d| d.saturating_duration_since(now))
             .unwrap_or(self.tick_rate);
         // If we have pending rAF callbacks (= an animation
         // frame is queued), tighten to the frame budget.
-        let frame_floor = if self.scheduler.has_active_raf() {
+        let frame_floor = if self.scheduler.borrow().has_active_raf() {
             Duration::from_millis(self.animation_frame_ms as u64)
         } else {
             self.tick_rate
@@ -438,7 +441,9 @@ impl<B: Backend> App<B> {
         // Sync the clock to wall time — production only ever
         // moves forward; tests use the virtual-clock API
         // (`advance`) directly.
-        self.scheduler.set_now(std::time::Instant::now());
+        self.scheduler
+            .borrow_mut()
+            .set_now(std::time::Instant::now());
         self.pump_due();
     }
 
@@ -451,13 +456,14 @@ impl<B: Backend> App<B> {
         use crate::runtime::timers as t;
         // Microtasks first, in case a previous handler queued
         // one and we haven't drained yet.
-        t::drain_microtasks(&mut self.scheduler, &mut self.dom);
-        t::pump_timeouts(&mut self.scheduler, &mut self.dom);
-        let due = self.scheduler.drain_expired_interval_ids();
-        t::pump_intervals(&mut self.scheduler, &mut self.dom, &due);
-        t::drain_microtasks(&mut self.scheduler, &mut self.dom);
-        t::pump_raf(&mut self.scheduler, &mut self.dom);
-        t::drain_microtasks(&mut self.scheduler, &mut self.dom);
+        let sched = self.scheduler.clone();
+        t::drain_microtasks(&sched, &mut self.dom);
+        t::pump_timeouts(&sched, &mut self.dom);
+        let due = sched.borrow().drain_expired_interval_ids();
+        t::pump_intervals(&sched, &mut self.dom, &due);
+        t::drain_microtasks(&sched, &mut self.dom);
+        t::pump_raf(&sched, &mut self.dom);
+        t::drain_microtasks(&sched, &mut self.dom);
     }
 
     /// Advance the virtual scheduler clock by `ms` and service everything that
@@ -469,8 +475,9 @@ impl<B: Backend> App<B> {
     /// testable. Advance one period at a time to step a repeating timer
     /// tick-by-tick.
     pub fn advance(&mut self, ms: u64) -> io::Result<()> {
-        let target = self.scheduler.now() + std::time::Duration::from_millis(ms);
-        self.scheduler.set_now(target);
+        let _current = crate::runtime::timers::SchedulerGuard::install(&self.scheduler);
+        let target = self.scheduler.borrow().now() + std::time::Duration::from_millis(ms);
+        self.scheduler.borrow_mut().set_now(target);
         self.pump_due();
         self.service_autoscroll();
         self.draw_if_dirty()
@@ -526,7 +533,7 @@ impl<B: Backend> App<B> {
         // Armed + sticky: track the pointer; the tick decides scroll vs. idle.
         self.autoscroll_pointer = Some((col, row));
         if self.autoscroll_next.is_none() {
-            self.autoscroll_next = Some(self.scheduler.now() + AUTOSCROLL_PERIOD);
+            self.autoscroll_next = Some(self.scheduler.borrow().now() + AUTOSCROLL_PERIOD);
         }
     }
 
@@ -536,6 +543,8 @@ impl<B: Backend> App<B> {
     /// a tick that finds the pointer out of the edge zone (or the container at
     /// its limit) simply idles, keeping the sticky container for the drag.
     fn service_autoscroll(&mut self) {
+        // The synthetic drag move dispatches listeners that may schedule timers.
+        let _current = crate::runtime::timers::SchedulerGuard::install(&self.scheduler);
         if self.dom.pointer_capture().is_none() || !self.dom.drag_autoscroll() {
             self.disarm_autoscroll();
             return;
@@ -545,7 +554,7 @@ impl<B: Backend> App<B> {
         else {
             return;
         };
-        let now = self.scheduler.now();
+        let now = self.scheduler.borrow().now();
         let mut guard = 0u8;
         while let Some(next) = self.autoscroll_next {
             if now < next || guard >= 8 {
@@ -777,7 +786,7 @@ impl<B: Backend> App<B> {
         // can call ctx.set_timeout(...) etc. through the `TuiTimers`
         // extension trait. Dropped at the end of this method,
         // restoring the previous value (typically null).
-        let _scheduler_guard = crate::runtime::timers::SchedulerGuard::install(&mut self.scheduler);
+        let _scheduler_guard = crate::runtime::timers::SchedulerGuard::install(&self.scheduler);
         // RAW ENTRY trace — every event from `event::read()` lands
         // here. If trace shows clicks but no `Moved`, we know
         // motion events are NOT crossing this boundary — i.e.,
@@ -946,7 +955,7 @@ impl<B: Backend> App<B> {
         // Install the scheduler thread-local so on_tick handlers
         // can use the `TuiTimers` extension surface too (apps
         // that schedule fade-outs from a tick callback, etc.).
-        let _scheduler_guard = crate::runtime::timers::SchedulerGuard::install(&mut self.scheduler);
+        let _scheduler_guard = crate::runtime::timers::SchedulerGuard::install(&self.scheduler);
         let queued = {
             let mut ctx = AppContext::new(&mut self.dom);
             let flow = cb(&mut ctx);
@@ -981,6 +990,7 @@ impl<B: Backend> App<B> {
         if injections.is_empty() {
             return;
         }
+        let _current = crate::runtime::timers::SchedulerGuard::install(&self.scheduler);
         let mut queued = Vec::new();
         for f in injections {
             let mut ctx = AppContext::new(&mut self.dom);
@@ -997,6 +1007,9 @@ impl<B: Backend> App<B> {
     /// Cascade + layout + paint if anything is dirty. Pairs with
     /// [`Self::handle_event`] for apps running a custom event loop.
     pub fn draw_if_dirty(&mut self) -> io::Result<()> {
+        // Animation events (`transitionend`) fire from in here; their
+        // listeners may schedule timers.
+        let _current = crate::runtime::timers::SchedulerGuard::install(&self.scheduler);
         let mut dirty_roots = self.tracker.roots_snapshot();
         // dirty_roots is a snapshot; we need to actually drain them
         // so subsequent frames don't re-cascade the same roots.

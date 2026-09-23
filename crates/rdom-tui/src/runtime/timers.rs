@@ -24,80 +24,61 @@
 
 #![allow(dead_code)]
 
-use std::cell::Cell;
+use std::cell::RefCell;
 use std::collections::VecDeque;
+use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use crate::TuiDom;
 
+/// The scheduler as shared by the `App`, the timer callbacks, and the
+/// `TuiTimers` extension on event contexts. One `Rc` per `App`;
+/// borrows are taken per call and never held across a user callback,
+/// so a callback that schedules more work (or dispatches an event
+/// whose listener does) borrows a free cell.
+pub(crate) type SharedScheduler = Rc<RefCell<Scheduler>>;
+
 thread_local! {
-    /// Raw pointer to the currently-active `Scheduler`. Set by
-    /// [`SchedulerGuard`] for the duration of event dispatch /
-    /// tick callbacks. Listener code reads it via the
-    /// `TuiTimers` extension trait. (Before M4a step 8 the
-    /// thread-local pattern was shared with
-    /// `runtime::current_event::current_key`; that module was
-    /// retired when typed `event.detail` became the canonical
-    /// carrier for key/mouse payloads.)
-    ///
-    /// Single-threaded; the guard / read pair is the only access.
-    static CURRENT_SCHEDULER: Cell<*mut Scheduler> = const { Cell::new(std::ptr::null_mut()) };
+    /// The scheduler user code reaches through `TuiTimers`. Installed
+    /// by [`SchedulerGuard`] around every path that runs user
+    /// callbacks — event dispatch, ticks, timer pumps, injected
+    /// closures, animation events, the drag-autoscroll synthetic move.
+    /// An `Rc` clone, not a pointer: no aliasing with the `App`'s own
+    /// handle, and nothing dangles if a guard is forgotten.
+    static CURRENT_SCHEDULER: RefCell<Option<SharedScheduler>> = const { RefCell::new(None) };
 }
 
-/// RAII guard installed by `App` around event dispatch and tick
-/// callbacks. While alive, listener code can call timer
-/// scheduling methods on `TuiEventCtx` (via the `TuiTimers`
-/// extension trait) and they route to this scheduler.
-///
-/// On drop, the previous pointer (typically null) is restored —
-/// nested guard installs are safe.
+/// RAII guard that makes `scheduler` the one `TuiTimers` routes to
+/// for the guard's lifetime. On drop the previous value is restored,
+/// so nested installs (an `App` entry point calling another) are
+/// safe and re-entrant.
 pub(crate) struct SchedulerGuard {
-    previous: *mut Scheduler,
+    previous: Option<SharedScheduler>,
 }
 
 impl SchedulerGuard {
-    /// Install `scheduler` as the current one. The caller
-    /// guarantees that the scheduler outlives the guard. Pointer
-    /// does not borrow-check; the read path (`with_current`) is
-    /// `unsafe` internally and scoped to listener callbacks
-    /// inside dispatch.
-    pub(crate) fn install(scheduler: &mut Scheduler) -> Self {
-        let ptr = scheduler as *mut Scheduler;
-        let previous = CURRENT_SCHEDULER.with(|s| {
-            let prev = s.get();
-            s.set(ptr);
-            prev
-        });
+    pub(crate) fn install(scheduler: &SharedScheduler) -> Self {
+        let previous = CURRENT_SCHEDULER.with(|s| s.replace(Some(scheduler.clone())));
         SchedulerGuard { previous }
     }
 }
 
 impl Drop for SchedulerGuard {
     fn drop(&mut self) {
-        CURRENT_SCHEDULER.with(|s| s.set(self.previous));
+        let previous = self.previous.take();
+        CURRENT_SCHEDULER.with(|s| *s.borrow_mut() = previous);
     }
 }
 
-/// Run `f` with the currently-installed scheduler. Returns
-/// `None` when called outside an event handler / tick callback.
+/// Run `f` against the currently-installed scheduler. `None` when no
+/// `App` context is active on this thread. The `Rc` is cloned out of
+/// the thread-local first so `f` may itself re-enter `with_current`.
 fn with_current<F, R>(f: F) -> Option<R>
 where
     F: FnOnce(&mut Scheduler) -> R,
 {
-    CURRENT_SCHEDULER.with(|s| {
-        let ptr = s.get();
-        if ptr.is_null() {
-            None
-        } else {
-            // SAFETY: the pointer was set by `SchedulerGuard::install`
-            // around an `&mut Scheduler` that outlives this scope
-            // (App is single-threaded, owns the scheduler, and
-            // installs the guard for the duration of dispatch).
-            // Listener callbacks fire only inside that scope.
-            // No other path mutates the scheduler concurrently.
-            Some(f(unsafe { &mut *ptr }))
-        }
-    })
+    let current = CURRENT_SCHEDULER.with(|s| s.borrow().clone())?;
+    Some(f(&mut current.borrow_mut()))
 }
 
 /// Numeric handle returned by `set_timeout` / `set_interval` /
@@ -123,11 +104,11 @@ impl TimerId {
 /// into the same scheduler that's currently pumping.
 pub struct TimerCtx<'a> {
     pub dom: &'a mut TuiDom,
-    scheduler: &'a mut Scheduler,
+    scheduler: SharedScheduler,
 }
 
 impl<'a> TimerCtx<'a> {
-    pub(crate) fn new(dom: &'a mut TuiDom, scheduler: &'a mut Scheduler) -> Self {
+    pub(crate) fn new(dom: &'a mut TuiDom, scheduler: SharedScheduler) -> Self {
         Self { dom, scheduler }
     }
 
@@ -136,11 +117,11 @@ impl<'a> TimerCtx<'a> {
         callback: impl FnOnce(&mut TimerCtx<'_>) + 'static,
         delay_ms: u32,
     ) -> TimerId {
-        self.scheduler.set_timeout(callback, delay_ms)
+        self.scheduler.borrow_mut().set_timeout(callback, delay_ms)
     }
 
     pub fn clear_timeout(&mut self, id: TimerId) {
-        self.scheduler.clear_timeout(id);
+        self.scheduler.borrow_mut().clear_timeout(id);
     }
 
     pub fn set_interval(
@@ -148,26 +129,30 @@ impl<'a> TimerCtx<'a> {
         callback: impl FnMut(&mut TimerCtx<'_>) -> bool + 'static,
         period_ms: u32,
     ) -> TimerId {
-        self.scheduler.set_interval(callback, period_ms)
+        self.scheduler
+            .borrow_mut()
+            .set_interval(callback, period_ms)
     }
 
     pub fn clear_interval(&mut self, id: TimerId) {
-        self.scheduler.clear_interval(id);
+        self.scheduler.borrow_mut().clear_interval(id);
     }
 
     pub fn request_animation_frame(
         &mut self,
         callback: impl FnOnce(&mut TimerCtx<'_>, f64) + 'static,
     ) -> TimerId {
-        self.scheduler.request_animation_frame(callback)
+        self.scheduler
+            .borrow_mut()
+            .request_animation_frame(callback)
     }
 
     pub fn cancel_animation_frame(&mut self, id: TimerId) {
-        self.scheduler.cancel_animation_frame(id);
+        self.scheduler.borrow_mut().cancel_animation_frame(id);
     }
 
     pub fn queue_microtask(&mut self, callback: impl FnOnce(&mut TimerCtx<'_>) + 'static) {
-        self.scheduler.queue_microtask(callback);
+        self.scheduler.borrow_mut().queue_microtask(callback);
     }
 }
 
@@ -421,32 +406,36 @@ impl Scheduler {
 /// Lives outside `Scheduler` because it borrows interval entries
 /// for a `FnMut` call which the borrow checker would otherwise
 /// reject if we held a mutable borrow on the whole scheduler.
-pub(crate) fn pump_intervals(scheduler: &mut Scheduler, dom: &mut TuiDom, expired: &[TimerId]) {
+pub(crate) fn pump_intervals(scheduler: &SharedScheduler, dom: &mut TuiDom, expired: &[TimerId]) {
+    let _current = SchedulerGuard::install(scheduler);
     for &id in expired {
-        // Find the entry; tolerate the case where a previous
-        // callback in this same drain cleared it.
-        let pos = scheduler.intervals.iter().position(|e| e.id == id);
-        let Some(pos) = pos else { continue };
-        // Take ownership of the callback so we can call it while
-        // also holding `&mut scheduler` for the ctx.
-        let mut entry = scheduler.intervals.swap_remove(pos);
+        // Claim the entry (tolerating a previous callback in this same
+        // drain having cleared it), call it with the cell free, then
+        // release it back if it wants to keep firing.
+        let claimed = {
+            let mut s = scheduler.borrow_mut();
+            let pos = s.intervals.iter().position(|e| e.id == id);
+            pos.map(|p| s.intervals.swap_remove(p))
+        };
+        let Some(mut entry) = claimed else { continue };
         let keep = {
-            let mut ctx = TimerCtx::new(dom, scheduler);
+            let mut ctx = TimerCtx::new(dom, scheduler.clone());
             (entry.callback)(&mut ctx)
         };
         if keep {
             entry.next_fire += entry.period;
-            scheduler.intervals.push(entry);
+            scheduler.borrow_mut().intervals.push(entry);
         }
     }
 }
 
 /// Drain expired timeouts and invoke each callback with a real
 /// `TimerCtx`. Convenience for App's tick loop.
-pub(crate) fn pump_timeouts(scheduler: &mut Scheduler, dom: &mut TuiDom) {
-    let cbs = scheduler.drain_expired_timeouts();
+pub(crate) fn pump_timeouts(scheduler: &SharedScheduler, dom: &mut TuiDom) {
+    let _current = SchedulerGuard::install(scheduler);
+    let cbs = scheduler.borrow_mut().drain_expired_timeouts();
     for cb in cbs {
-        let mut ctx = TimerCtx::new(dom, scheduler);
+        let mut ctx = TimerCtx::new(dom, scheduler.clone());
         cb(&mut ctx);
     }
 }
@@ -454,11 +443,14 @@ pub(crate) fn pump_timeouts(scheduler: &mut Scheduler, dom: &mut TuiDom) {
 /// Drain queued rAF callbacks for the current frame. All callbacks
 /// in this drain receive the same `frame_timestamp_ms()` value —
 /// matches the browser contract that one frame = one timestamp.
-pub(crate) fn pump_raf(scheduler: &mut Scheduler, dom: &mut TuiDom) {
-    let timestamp = scheduler.frame_timestamp_ms();
-    let cbs = scheduler.drain_raf();
+pub(crate) fn pump_raf(scheduler: &SharedScheduler, dom: &mut TuiDom) {
+    let _current = SchedulerGuard::install(scheduler);
+    let (timestamp, cbs) = {
+        let mut s = scheduler.borrow_mut();
+        (s.frame_timestamp_ms(), s.drain_raf())
+    };
     for cb in cbs {
-        let mut ctx = TimerCtx::new(dom, scheduler);
+        let mut ctx = TimerCtx::new(dom, scheduler.clone());
         cb(&mut ctx, timestamp);
     }
 }
@@ -467,11 +459,13 @@ pub(crate) fn pump_raf(scheduler: &mut Scheduler, dom: &mut TuiDom) {
 /// API to event listeners. Mirrors `window.setTimeout`,
 /// `window.setInterval`, `window.requestAnimationFrame`, etc.
 ///
-/// Routes through the thread-local current scheduler installed by
-/// the App during dispatch. Calling these methods *outside* an
-/// event handler / tick callback panics. In practice this never
-/// surprises users because the extension is `&mut TuiEventCtx`,
-/// which is itself only available inside dispatch.
+/// Routes to the scheduler of the `App` currently running user code on
+/// this thread — installed around event dispatch, ticks, timer pumps,
+/// injected closures, animation events, and autoscroll — so it works
+/// from a listener regardless of how that listener was reached. It
+/// panics only when no `App` is active at all (a listener fired from a
+/// bare `Dom::dispatch_event` in a test with no `App`); pass a
+/// scheduler through your own context in that case.
 pub trait TuiTimers {
     fn set_timeout(
         &mut self,
@@ -506,7 +500,7 @@ impl<'a> TuiTimers for crate::TuiEventCtx<'a> {
         delay_ms: u32,
     ) -> TimerId {
         with_current(|s| s.set_timeout(callback, delay_ms))
-            .expect("set_timeout called outside event dispatch")
+            .expect("set_timeout: no App is running on this thread")
     }
 
     fn clear_timeout(&mut self, id: TimerId) {
@@ -519,7 +513,7 @@ impl<'a> TuiTimers for crate::TuiEventCtx<'a> {
         period_ms: u32,
     ) -> TimerId {
         with_current(|s| s.set_interval(callback, period_ms))
-            .expect("set_interval called outside event dispatch")
+            .expect("set_interval: no App is running on this thread")
     }
 
     fn clear_interval(&mut self, id: TimerId) {
@@ -531,7 +525,7 @@ impl<'a> TuiTimers for crate::TuiEventCtx<'a> {
         callback: impl FnOnce(&mut TimerCtx<'_>, f64) + 'static,
     ) -> TimerId {
         with_current(|s| s.request_animation_frame(callback))
-            .expect("request_animation_frame called outside event dispatch")
+            .expect("request_animation_frame: no App is running on this thread")
     }
 
     fn cancel_animation_frame(&mut self, id: TimerId) {
@@ -546,15 +540,21 @@ impl<'a> TuiTimers for crate::TuiEventCtx<'a> {
 /// Drain microtask queue to empty. Microtasks queued *during*
 /// this drain are appended and drained in the same loop —
 /// matches HTML spec.
-pub(crate) fn drain_microtasks(scheduler: &mut Scheduler, dom: &mut TuiDom) {
-    while let Some(cb) = scheduler.pop_microtask() {
-        let mut ctx = TimerCtx::new(dom, scheduler);
+pub(crate) fn drain_microtasks(scheduler: &SharedScheduler, dom: &mut TuiDom) {
+    let _current = SchedulerGuard::install(scheduler);
+    loop {
+        let next = scheduler.borrow_mut().pop_microtask();
+        let Some(cb) = next else { break };
+        let mut ctx = TimerCtx::new(dom, scheduler.clone());
         cb(&mut ctx);
     }
 }
 
 #[cfg(test)]
 mod tests {
+    fn shared(start: Instant) -> SharedScheduler {
+        Rc::new(RefCell::new(Scheduler::new(start)))
+    }
     use super::*;
     use std::cell::Cell;
     use std::rc::Rc;
@@ -572,25 +572,33 @@ mod tests {
     #[test]
     fn timeout_fires_after_delay() {
         let start = epoch();
-        let mut sched = Scheduler::new(start);
+        let sched = shared(start);
         let mut dom = dom_for_tests();
         let fired = Rc::new(Cell::new(0u32));
         let f = fired.clone();
-        sched.set_timeout(move |_ctx| f.set(f.get() + 1), 100);
+        sched
+            .borrow_mut()
+            .set_timeout(move |_ctx| f.set(f.get() + 1), 100);
 
         // Before deadline: not fired.
-        sched.set_now(start + Duration::from_millis(50));
-        pump_timeouts(&mut sched, &mut dom);
+        sched
+            .borrow_mut()
+            .set_now(start + Duration::from_millis(50));
+        pump_timeouts(&sched, &mut dom);
         assert_eq!(fired.get(), 0);
 
         // After deadline: fired exactly once.
-        sched.set_now(start + Duration::from_millis(150));
-        pump_timeouts(&mut sched, &mut dom);
+        sched
+            .borrow_mut()
+            .set_now(start + Duration::from_millis(150));
+        pump_timeouts(&sched, &mut dom);
         assert_eq!(fired.get(), 1);
 
         // Doesn't fire again.
-        sched.set_now(start + Duration::from_millis(300));
-        pump_timeouts(&mut sched, &mut dom);
+        sched
+            .borrow_mut()
+            .set_now(start + Duration::from_millis(300));
+        pump_timeouts(&sched, &mut dom);
         assert_eq!(fired.get(), 1);
     }
 
@@ -599,15 +607,19 @@ mod tests {
     #[test]
     fn clear_timeout_cancels_before_deadline() {
         let start = epoch();
-        let mut sched = Scheduler::new(start);
+        let sched = shared(start);
         let mut dom = dom_for_tests();
         let fired = Rc::new(Cell::new(0u32));
         let f = fired.clone();
-        let id = sched.set_timeout(move |_| f.set(f.get() + 1), 100);
+        let id = sched
+            .borrow_mut()
+            .set_timeout(move |_| f.set(f.get() + 1), 100);
 
-        sched.clear_timeout(id);
-        sched.set_now(start + Duration::from_millis(200));
-        pump_timeouts(&mut sched, &mut dom);
+        sched.borrow_mut().clear_timeout(id);
+        sched
+            .borrow_mut()
+            .set_now(start + Duration::from_millis(200));
+        pump_timeouts(&sched, &mut dom);
         assert_eq!(fired.get(), 0);
     }
 
@@ -616,11 +628,11 @@ mod tests {
     #[test]
     fn interval_repeats_at_period() {
         let start = epoch();
-        let mut sched = Scheduler::new(start);
+        let sched = shared(start);
         let mut dom = dom_for_tests();
         let count = Rc::new(Cell::new(0u32));
         let c = count.clone();
-        sched.set_interval(
+        sched.borrow_mut().set_interval(
             move |_| {
                 c.set(c.get() + 1);
                 true
@@ -629,15 +641,17 @@ mod tests {
         );
 
         // Advance 175ms — 3 fires expected (at 50, 100, 150).
-        sched.set_now(start + Duration::from_millis(175));
-        let due = sched.drain_expired_interval_ids();
-        pump_intervals(&mut sched, &mut dom, &due);
+        sched
+            .borrow_mut()
+            .set_now(start + Duration::from_millis(175));
+        let due = sched.borrow_mut().drain_expired_interval_ids();
+        pump_intervals(&sched, &mut dom, &due);
         // First pump catches one entry per drain — but the
         // collected `due` list only has the entry once, so we
         // need a loop in the App. Test the pump-loop semantic:
-        while !sched.drain_expired_interval_ids().is_empty() {
-            let due = sched.drain_expired_interval_ids();
-            pump_intervals(&mut sched, &mut dom, &due);
+        while !sched.borrow_mut().drain_expired_interval_ids().is_empty() {
+            let due = sched.borrow_mut().drain_expired_interval_ids();
+            pump_intervals(&sched, &mut dom, &due);
         }
         assert_eq!(count.get(), 3);
     }
@@ -647,11 +661,11 @@ mod tests {
     #[test]
     fn interval_self_cancels_on_false_return() {
         let start = epoch();
-        let mut sched = Scheduler::new(start);
+        let sched = shared(start);
         let mut dom = dom_for_tests();
         let count = Rc::new(Cell::new(0u32));
         let c = count.clone();
-        sched.set_interval(
+        sched.borrow_mut().set_interval(
             move |_| {
                 c.set(c.get() + 1);
                 c.get() < 2
@@ -662,17 +676,19 @@ mod tests {
         // Advance 500ms — should fire at 50ms (count=1, keep=true)
         // and at 100ms (count=2, keep=false). After that the
         // entry is removed.
-        sched.set_now(start + Duration::from_millis(500));
+        sched
+            .borrow_mut()
+            .set_now(start + Duration::from_millis(500));
         loop {
-            let due = sched.drain_expired_interval_ids();
+            let due = sched.borrow_mut().drain_expired_interval_ids();
             if due.is_empty() {
                 break;
             }
-            pump_intervals(&mut sched, &mut dom, &due);
+            pump_intervals(&sched, &mut dom, &due);
         }
         assert_eq!(count.get(), 2);
         // No more pending intervals.
-        assert!(sched.intervals.is_empty());
+        assert!(sched.borrow().intervals.is_empty());
     }
 
     // ── §15.5 — clear_timeout on stale handle is no-op ────────
@@ -680,22 +696,24 @@ mod tests {
     #[test]
     fn clear_timeout_on_stale_handle_is_noop() {
         let start = epoch();
-        let mut sched = Scheduler::new(start);
+        let sched = shared(start);
         let mut dom = dom_for_tests();
 
         let fired = Rc::new(Cell::new(false));
         let f = fired.clone();
-        let id = sched.set_timeout(move |_| f.set(true), 50);
+        let id = sched.borrow_mut().set_timeout(move |_| f.set(true), 50);
 
         // Fire it.
-        sched.set_now(start + Duration::from_millis(100));
-        pump_timeouts(&mut sched, &mut dom);
+        sched
+            .borrow_mut()
+            .set_now(start + Duration::from_millis(100));
+        pump_timeouts(&sched, &mut dom);
         assert!(fired.get());
 
         // Clearing the now-stale id is a silent no-op.
-        sched.clear_timeout(id);
+        sched.borrow_mut().clear_timeout(id);
         // Also: a never-issued id is a no-op.
-        sched.clear_timeout(TimerId(99999));
+        sched.borrow_mut().clear_timeout(TimerId(99999));
     }
 
     // ── §15.6 — request_animation_frame fires once per drain ──
@@ -703,17 +721,19 @@ mod tests {
     #[test]
     fn raf_fires_once_per_drain() {
         let start = epoch();
-        let mut sched = Scheduler::new(start);
+        let sched = shared(start);
         let mut dom = dom_for_tests();
         let fired = Rc::new(Cell::new(0u32));
         let f = fired.clone();
-        sched.request_animation_frame(move |_, _ts| f.set(f.get() + 1));
+        sched
+            .borrow_mut()
+            .request_animation_frame(move |_, _ts| f.set(f.get() + 1));
 
-        pump_raf(&mut sched, &mut dom);
+        pump_raf(&sched, &mut dom);
         assert_eq!(fired.get(), 1);
 
         // Second drain finds nothing — rAF is one-shot.
-        pump_raf(&mut sched, &mut dom);
+        pump_raf(&sched, &mut dom);
         assert_eq!(fired.get(), 1);
     }
 
@@ -722,12 +742,12 @@ mod tests {
     #[test]
     fn microtasks_drain_in_fifo_order_including_late_queues() {
         let start = epoch();
-        let mut sched = Scheduler::new(start);
+        let sched = shared(start);
         let mut dom = dom_for_tests();
         let order = Rc::new(std::cell::RefCell::new(Vec::<u32>::new()));
 
         let o = order.clone();
-        sched.queue_microtask(move |ctx| {
+        sched.borrow_mut().queue_microtask(move |ctx| {
             o.borrow_mut().push(1);
             // Microtask queued during drain is appended and
             // drained in the same loop (HTML spec).
@@ -735,9 +755,11 @@ mod tests {
             ctx.queue_microtask(move |_| o2.borrow_mut().push(3));
         });
         let o = order.clone();
-        sched.queue_microtask(move |_| o.borrow_mut().push(2));
+        sched
+            .borrow_mut()
+            .queue_microtask(move |_| o.borrow_mut().push(2));
 
-        drain_microtasks(&mut sched, &mut dom);
+        drain_microtasks(&sched, &mut dom);
         assert_eq!(*order.borrow(), vec![1, 2, 3]);
     }
 
@@ -746,11 +768,11 @@ mod tests {
     #[test]
     fn handles_are_unique_and_monotonic() {
         let start = epoch();
-        let mut sched = Scheduler::new(start);
-        let a = sched.set_timeout(|_| {}, 100);
-        let b = sched.set_timeout(|_| {}, 100);
-        let c = sched.request_animation_frame(|_, _ts| {});
-        let d = sched.set_interval(|_| true, 50);
+        let sched = shared(start);
+        let a = sched.borrow_mut().set_timeout(|_| {}, 100);
+        let b = sched.borrow_mut().set_timeout(|_| {}, 100);
+        let c = sched.borrow_mut().request_animation_frame(|_, _ts| {});
+        let d = sched.borrow_mut().set_interval(|_| true, 50);
         assert_ne!(a, b);
         assert_ne!(b, c);
         assert_ne!(c, d);
@@ -784,35 +806,39 @@ mod tests {
         .unwrap();
 
         let start = epoch();
-        let mut sched = Scheduler::new(start);
+        let sched = shared(start);
         // Install scheduler guard (mimics what App::handle_event does).
-        let _g = SchedulerGuard::install(&mut sched);
+        let _g = SchedulerGuard::install(&sched);
         // Dispatch the click event manually.
         let mut ev = rdom_core::Event::new("click");
         let _ = dom.dispatch_event(div, &mut ev);
         drop(_g);
 
         // Before the deadline.
-        sched.set_now(start + Duration::from_millis(50));
-        pump_timeouts(&mut sched, &mut dom);
+        sched
+            .borrow_mut()
+            .set_now(start + Duration::from_millis(50));
+        pump_timeouts(&sched, &mut dom);
         assert_eq!(fired.get(), 0);
 
         // After the deadline.
-        sched.set_now(start + Duration::from_millis(200));
-        pump_timeouts(&mut sched, &mut dom);
+        sched
+            .borrow_mut()
+            .set_now(start + Duration::from_millis(200));
+        pump_timeouts(&sched, &mut dom);
         assert_eq!(fired.get(), 1);
     }
 
     #[test]
     fn scheduler_guard_restores_previous_on_drop() {
         let start = epoch();
-        let mut a = Scheduler::new(start);
-        let mut b = Scheduler::new(start);
+        let a = shared(start);
+        let b = shared(start);
         // Outer guard installs `a`.
-        let _outer = SchedulerGuard::install(&mut a);
+        let _outer = SchedulerGuard::install(&a);
         // Inner guard installs `b`.
         {
-            let _inner = SchedulerGuard::install(&mut b);
+            let _inner = SchedulerGuard::install(&b);
             // While inner is alive, the current scheduler is `b`.
             let count_b = with_current(|s| s.next_id);
             assert_eq!(count_b, Some(1));
@@ -827,12 +853,14 @@ mod tests {
     #[test]
     fn raf_callback_receives_timestamp_zero_at_app_start() {
         let start = epoch();
-        let mut sched = Scheduler::new(start);
+        let sched = shared(start);
         let mut dom = dom_for_tests();
         let observed = Rc::new(Cell::new(-1.0_f64));
         let o = observed.clone();
-        sched.request_animation_frame(move |_ctx, ts| o.set(ts));
-        pump_raf(&mut sched, &mut dom);
+        sched
+            .borrow_mut()
+            .request_animation_frame(move |_ctx, ts| o.set(ts));
+        pump_raf(&sched, &mut dom);
         // No clock advancement → timestamp is exactly 0.0.
         assert_eq!(observed.get(), 0.0);
     }
@@ -840,13 +868,17 @@ mod tests {
     #[test]
     fn raf_callback_timestamp_reflects_scheduler_clock() {
         let start = epoch();
-        let mut sched = Scheduler::new(start);
+        let sched = shared(start);
         let mut dom = dom_for_tests();
         let observed = Rc::new(Cell::new(-1.0_f64));
         let o = observed.clone();
-        sched.request_animation_frame(move |_ctx, ts| o.set(ts));
-        sched.set_now(start + Duration::from_millis(16));
-        pump_raf(&mut sched, &mut dom);
+        sched
+            .borrow_mut()
+            .request_animation_frame(move |_ctx, ts| o.set(ts));
+        sched
+            .borrow_mut()
+            .set_now(start + Duration::from_millis(16));
+        pump_raf(&sched, &mut dom);
         // 16ms elapsed since app start → timestamp is 16.0.
         assert_eq!(observed.get(), 16.0);
     }
@@ -854,24 +886,36 @@ mod tests {
     #[test]
     fn raf_timestamps_monotonic_across_ticks() {
         let start = epoch();
-        let mut sched = Scheduler::new(start);
+        let sched = shared(start);
         let mut dom = dom_for_tests();
         let stamps = Rc::new(std::cell::RefCell::new(Vec::<f64>::new()));
 
         let s = stamps.clone();
-        sched.request_animation_frame(move |_ctx, ts| s.borrow_mut().push(ts));
-        sched.set_now(start + Duration::from_millis(16));
-        pump_raf(&mut sched, &mut dom);
+        sched
+            .borrow_mut()
+            .request_animation_frame(move |_ctx, ts| s.borrow_mut().push(ts));
+        sched
+            .borrow_mut()
+            .set_now(start + Duration::from_millis(16));
+        pump_raf(&sched, &mut dom);
 
         let s = stamps.clone();
-        sched.request_animation_frame(move |_ctx, ts| s.borrow_mut().push(ts));
-        sched.set_now(start + Duration::from_millis(33));
-        pump_raf(&mut sched, &mut dom);
+        sched
+            .borrow_mut()
+            .request_animation_frame(move |_ctx, ts| s.borrow_mut().push(ts));
+        sched
+            .borrow_mut()
+            .set_now(start + Duration::from_millis(33));
+        pump_raf(&sched, &mut dom);
 
         let s = stamps.clone();
-        sched.request_animation_frame(move |_ctx, ts| s.borrow_mut().push(ts));
-        sched.set_now(start + Duration::from_millis(50));
-        pump_raf(&mut sched, &mut dom);
+        sched
+            .borrow_mut()
+            .request_animation_frame(move |_ctx, ts| s.borrow_mut().push(ts));
+        sched
+            .borrow_mut()
+            .set_now(start + Duration::from_millis(50));
+        pump_raf(&sched, &mut dom);
 
         let captured = stamps.borrow().clone();
         assert_eq!(captured.len(), 3);
@@ -888,17 +932,23 @@ mod tests {
         // before advancing the clock and pump them in one drain —
         // both must see the same value.
         let start = epoch();
-        let mut sched = Scheduler::new(start);
+        let sched = shared(start);
         let mut dom = dom_for_tests();
         let stamps = Rc::new(std::cell::RefCell::new(Vec::<f64>::new()));
 
         let s1 = stamps.clone();
-        sched.request_animation_frame(move |_ctx, ts| s1.borrow_mut().push(ts));
+        sched
+            .borrow_mut()
+            .request_animation_frame(move |_ctx, ts| s1.borrow_mut().push(ts));
         let s2 = stamps.clone();
-        sched.request_animation_frame(move |_ctx, ts| s2.borrow_mut().push(ts));
+        sched
+            .borrow_mut()
+            .request_animation_frame(move |_ctx, ts| s2.borrow_mut().push(ts));
 
-        sched.set_now(start + Duration::from_millis(16));
-        pump_raf(&mut sched, &mut dom);
+        sched
+            .borrow_mut()
+            .set_now(start + Duration::from_millis(16));
+        pump_raf(&sched, &mut dom);
 
         let captured = stamps.borrow().clone();
         assert_eq!(captured.len(), 2);
@@ -911,22 +961,22 @@ mod tests {
     #[test]
     fn next_deadline_returns_shortest_pending() {
         let start = epoch();
-        let mut sched = Scheduler::new(start);
-        assert_eq!(sched.next_deadline(), None);
+        let sched = shared(start);
+        assert_eq!(sched.borrow_mut().next_deadline(), None);
 
-        sched.set_timeout(|_| {}, 200);
-        sched.set_timeout(|_| {}, 50); // closer
-        sched.set_timeout(|_| {}, 500);
+        sched.borrow_mut().set_timeout(|_| {}, 200);
+        sched.borrow_mut().set_timeout(|_| {}, 50); // closer
+        sched.borrow_mut().set_timeout(|_| {}, 500);
 
         assert_eq!(
-            sched.next_deadline(),
+            sched.borrow_mut().next_deadline(),
             Some(start + Duration::from_millis(50))
         );
 
         // Adding an interval that fires sooner wins.
-        sched.set_interval(|_| true, 10);
+        sched.borrow_mut().set_interval(|_| true, 10);
         assert_eq!(
-            sched.next_deadline(),
+            sched.borrow_mut().next_deadline(),
             Some(start + Duration::from_millis(10))
         );
     }
