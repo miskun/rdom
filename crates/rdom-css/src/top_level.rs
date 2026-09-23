@@ -1,8 +1,18 @@
-//! Top-level stylesheet parse loop.
+//! Top-level stylesheet parse loop — CSS Syntax 3 §5.4 "consume a list
+//! of rules" with its error recovery:
 //!
-//! Currently handles the structural shape — whitespace, comments,
-//! and rule-block recognition (selector text up to `{`, ignored body
-//! up to `}`). Declaration parsing arrives in §11.3.
+//! - a qualified rule is `<prelude> { <block> }`; the prelude is read
+//!   up to the first `{` outside strings and comments;
+//! - an at-rule (`@name …`) is consumed whole — statement form through
+//!   `;`, block form through a depth-tracked `{…}` — and reported as
+//!   `UnsupportedAtRule` (rdom evaluates none of them yet);
+//! - a stray `}` at the top level is a parse error and is ignored
+//!   (§5.4.1);
+//! - EOF inside a block closes the block and keeps the rule (§5.4.7).
+//!
+//! Without the at-rule and stray-brace paths, `@import …;` and
+//! `@media {…}` were read as the *next* rule's selector text and
+//! swallowed that rule.
 
 use rdom_style::{Stylesheet, TuiStyle};
 
@@ -21,11 +31,114 @@ pub(crate) fn parse_stylesheet(
         if !skip_ws_and_comments(cursor, warnings) {
             return;
         }
-        if cursor.is_eof() {
-            return;
+        match cursor.peek() {
+            None => return,
+            // §5.4.1: a `}` at the top level is a parse error; drop it
+            // and carry on with the next rule.
+            Some('}') => {
+                cursor.bump();
+            }
+            Some('@') => consume_at_rule(cursor, warnings),
+            Some(_) => {
+                if !parse_one_rule(cursor, sheet, warnings) {
+                    return;
+                }
+            }
         }
-        if !parse_one_rule(cursor, sheet, warnings) {
-            return;
+    }
+}
+
+/// Consume one at-rule starting at `@` (§5.4.2 "consume an at-rule"):
+/// the name, then the prelude up to either `;` (statement at-rule,
+/// e.g. `@import`, `@charset`) or a `{…}` block (e.g. `@media`,
+/// `@keyframes`, `@font-face`), whose nested blocks are skipped by
+/// depth. Emits `UnsupportedAtRule(name)` positioned at the `@`.
+fn consume_at_rule(cursor: &mut Cursor, warnings: &mut Vec<Warning>) {
+    let line = cursor.line();
+    let column = cursor.col();
+    cursor.bump(); // '@'
+    let mut name = String::new();
+    while let Some(c) = cursor.peek() {
+        if c.is_ascii_alphanumeric() || c == '-' || c == '_' {
+            name.push(c);
+            cursor.bump();
+        } else {
+            break;
+        }
+    }
+    warnings.push(Warning {
+        kind: WarningKind::UnsupportedAtRule(name),
+        line,
+        column,
+    });
+    // Prelude: strings and comments may contain `;` / `{`.
+    loop {
+        match cursor.peek() {
+            None => return,
+            Some(';') => {
+                cursor.bump();
+                return;
+            }
+            Some('{') => {
+                skip_balanced_block(cursor);
+                return;
+            }
+            Some(q @ ('"' | '\'')) => {
+                cursor.bump();
+                let mut sink = String::new();
+                if !read_string_into(cursor, q, &mut sink) {
+                    return; // EOF inside the string: at-rule ends with input
+                }
+            }
+            Some('/') if matches!(cursor.peek_two(), (_, Some('*'))) => {
+                if !skip_comment(cursor, warnings) {
+                    return;
+                }
+            }
+            Some(_) => {
+                cursor.bump();
+            }
+        }
+    }
+}
+
+/// With the cursor on `{`, consume through the matching `}` (nested
+/// blocks, strings, and comments respected). At EOF the block is
+/// treated as closed (§5.4.7).
+fn skip_balanced_block(cursor: &mut Cursor) {
+    let mut depth = 0usize;
+    loop {
+        match cursor.peek() {
+            None => return,
+            Some('{') => {
+                depth += 1;
+                cursor.bump();
+            }
+            Some('}') => {
+                cursor.bump();
+                depth = depth.saturating_sub(1);
+                if depth == 0 {
+                    return;
+                }
+            }
+            Some(q @ ('"' | '\'')) => {
+                cursor.bump();
+                let mut sink = String::new();
+                if !read_string_into(cursor, q, &mut sink) {
+                    return;
+                }
+            }
+            Some('/') if matches!(cursor.peek_two(), (_, Some('*'))) => {
+                let mut sink = String::new();
+                cursor.bump();
+                cursor.bump();
+                if !skip_comment_into(cursor, &mut sink) {
+                    return;
+                }
+            }
+            Some(_) => {
+                cursor.bump();
+            }
         }
     }
 }
@@ -89,7 +202,10 @@ fn parse_one_rule(
     sheet: &mut Stylesheet,
     warnings: &mut Vec<Warning>,
 ) -> bool {
-    // Read selector text up to `{`, stripping comments inline.
+    // Read selector text up to `{`, stripping comments inline. A
+    // prelude that hits EOF without a block is dropped (§5.4.3).
+    let selector_line = cursor.line();
+    let selector_col = cursor.col();
     let selector = match read_selector_text(cursor, warnings) {
         Some(s) => s,
         None => return false,
@@ -136,14 +252,15 @@ fn parse_one_rule(
     if !trimmed.is_empty() && sheet.add_rule(trimmed, style).is_err() {
         warnings.push(Warning {
             kind: WarningKind::InvalidSelector(trimmed.to_string()),
-            line: cursor.line(),
-            column: cursor.col(),
+            line: selector_line,
+            column: selector_col,
         });
     }
     true
 }
 
-/// Read the selector text up to (but not consuming) `{`. Returns
+/// Read the selector text up to (but not consuming) `{`. Strings are
+/// copied through so `[title="{"]` does not end the prelude. Returns
 /// `None` if EOF, unterminated comment, or no `{` found.
 fn read_selector_text(cursor: &mut Cursor, warnings: &mut Vec<Warning>) -> Option<String> {
     let mut out = String::new();
@@ -151,6 +268,13 @@ fn read_selector_text(cursor: &mut Cursor, warnings: &mut Vec<Warning>) -> Optio
         match cursor.peek() {
             None => return None,
             Some('{') => return Some(out),
+            Some(q @ ('"' | '\'')) => {
+                out.push(q);
+                cursor.bump();
+                if !read_string_into(cursor, q, &mut out) {
+                    return None;
+                }
+            }
             Some('/') => {
                 if let (_, Some('*')) = cursor.peek_two() {
                     if !skip_comment(cursor, warnings) {
@@ -176,17 +300,30 @@ fn read_selector_text(cursor: &mut Cursor, warnings: &mut Vec<Warning>) -> Optio
 /// Read the body from the position just inside `{` up to (and
 /// consuming) the matching `}`. Comments and string literals are
 /// recognized so that `}` inside them doesn't terminate the body
-/// early. The returned string is the verbatim body content
-/// (comments preserved); `declarations::parse_block` re-tokenizes
-/// it and skips comments there.
+/// early, and nested `{…}` (which rdom does not evaluate) is passed
+/// through by depth so the outer block still ends at the right brace.
+/// EOF closes the block (§5.4.7) — the rule is kept with whatever
+/// declarations parsed. The returned string is the verbatim body
+/// content (comments preserved); `declarations::parse_block`
+/// re-tokenizes it and skips comments there.
 fn read_block_body(cursor: &mut Cursor, warnings: &mut Vec<Warning>) -> Option<String> {
     let mut out = String::new();
+    let mut depth = 0usize;
     loop {
         match cursor.peek() {
-            None => return None,
+            None => return Some(out),
+            Some('{') => {
+                depth += 1;
+                out.push('{');
+                cursor.bump();
+            }
             Some('}') => {
                 cursor.bump();
-                return Some(out);
+                if depth == 0 {
+                    return Some(out);
+                }
+                depth -= 1;
+                out.push('}');
             }
             Some('/') if matches!(cursor.peek_two(), (_, Some('*'))) => {
                 // Preserve the comment in `out` so line/column

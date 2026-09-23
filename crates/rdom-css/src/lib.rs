@@ -117,7 +117,9 @@ fn warning_to_error(w: &Warning) -> ParseError {
         WarningKind::UnterminatedComment => ParseErrorKind::UnterminatedComment,
         WarningKind::UnterminatedString => ParseErrorKind::UnterminatedString,
         WarningKind::InvalidSelector(s) => ParseErrorKind::InvalidSelector(s.clone()),
-        WarningKind::UnknownProperty(_) | WarningKind::InvalidValue { .. } => {
+        WarningKind::UnknownProperty(_)
+        | WarningKind::InvalidValue { .. }
+        | WarningKind::MalformedDeclaration(_) => {
             ParseErrorKind::ExpectedToken("valid declaration")
         }
         WarningKind::UnsupportedAtRule(_) => ParseErrorKind::ExpectedToken("rule"),
@@ -167,7 +169,14 @@ pub struct Warning {
 #[derive(Debug, Clone, PartialEq)]
 pub enum WarningKind {
     UnknownProperty(String),
-    InvalidValue { property: String, value: String },
+    InvalidValue {
+        property: String,
+        value: String,
+    },
+    /// A declaration segment that is not `name : value` (missing colon,
+    /// missing name, stray tokens). Dropped per CSS Syntax 3 §5.4.4;
+    /// the payload is the segment's rendered text.
+    MalformedDeclaration(String),
     UnsupportedAtRule(String),
     InvalidSelector(String),
     UnterminatedComment,

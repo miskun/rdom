@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Work in progress under [`specs/HARDENING-2026-09.md`](specs/HARDENING-2026-09.md). Batch 1 changes `rdom-core` (→ 0.4.0); every crate that pins `rdom-core` (`rdom-style`, `rdom-css`, `rdom-parser`, `rdom-tui`) bumps with it so a consumer never ends up with two `rdom-core` versions and mismatched `Dom` types. Batch 2 changes `rdom-style` (→ 0.4.0).
 
+### Fixed — `rdom-css`
+
+- **At-rules no longer swallow the following rule.** `@import …;`, `@charset …;`, `@media (…) {…}`, `@keyframes … {…}`, `@font-face {…}` are consumed whole per CSS Syntax 3 §5.4.2 — statement form through `;`, block form through a depth-tracked `{…}` — and reported as `WarningKind::UnsupportedAtRule(name)` (the variant existed but was never produced). Previously the at-rule text was read as the *next* rule's selector, so `@import url("x.css"); button { … }` dropped the `button` rule with an `InvalidSelector` warning. rdom still evaluates no at-rule; see `DIVERGENCES.md`. (R9)
+- A stray top-level `}` is ignored (§5.4.1) instead of being prepended to the next selector.
+- EOF inside a declaration block closes the block and keeps the rule (§5.4.7) instead of aborting the parse.
+- A `{` inside a quoted attribute-selector value (`a[title="{"]`) no longer ends the selector prelude. Nested `{…}` inside a declaration block is passed through by depth so the outer block ends at the right brace.
+- `InvalidSelector` warnings are positioned at the start of the selector, not after the block.
+- A declaration segment that is not `name : value` (`color red;`, `: red;`) is dropped **with** a new `WarningKind::MalformedDeclaration(text)` instead of vanishing silently; empty segments (`;;`) stay silent. **Breaking** for exhaustive `WarningKind` matches.
+
 ### Changed — `rdom-style`
 
 - **CSS numbers are tokenized whole (CSS Syntax 3 §4.3.12).** A literal with a fraction or exponent is one `Token::Float(f64)`; an integer literal stays `Token::Number(i32)`; `Token::Percentage` carries an `f64` so `12.5%` survives. Previously `0.05` arrived as `Number(0) Delim('.') Number(5)` and was reassembled as **0.5**, and `1.05s` became **1500ms**; both now parse correctly. `.5` (leading dot) and `1e3` are numbers; `1.` is `1` followed by `.`; `1em` is `1` followed by the ident `em`. (R8)

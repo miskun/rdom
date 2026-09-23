@@ -45,7 +45,7 @@ pub(crate) fn parse_block(
             return;
         }
     };
-    let mut decls = split_declarations(&tokens);
+    let mut decls = split_declarations(&tokens, block_line, block_col, warnings);
     for decl in decls.drain(..) {
         if let Some(name) = decl.name.strip_prefix("--") {
             // Custom property — skip the property table, route
@@ -77,8 +77,15 @@ struct RawDeclaration<'a> {
 
 /// Split a token slice on top-level `;`s. Each non-empty segment
 /// must contain `name : value …` — a leading ident followed by `:`.
-/// Segments that don't match emit a warning at apply time.
-fn split_declarations(tokens: &[Token]) -> Vec<RawDeclaration<'_>> {
+/// A non-empty segment that doesn't match is dropped (CSS Syntax 3
+/// §5.4.4) with a `MalformedDeclaration` warning; empty segments
+/// (`;;`, trailing `;`) are silently fine.
+fn split_declarations<'a>(
+    tokens: &'a [Token],
+    line: u32,
+    column: u32,
+    warnings: &mut Vec<Warning>,
+) -> Vec<RawDeclaration<'a>> {
     let mut out = Vec::new();
     let mut start = 0usize;
     let len = tokens.len();
@@ -87,8 +94,14 @@ fn split_declarations(tokens: &[Token]) -> Vec<RawDeclaration<'_>> {
         let at_end = i == len;
         if at_end || tokens[i] == Token::Semicolon {
             let segment = &tokens[start..i];
-            if let Some(decl) = into_declaration(segment) {
-                out.push(decl);
+            match into_declaration(segment) {
+                Some(decl) => out.push(decl),
+                None if !segment.is_empty() => warnings.push(Warning {
+                    kind: WarningKind::MalformedDeclaration(render_value(segment)),
+                    line,
+                    column,
+                }),
+                None => {}
             }
             i += 1;
             start = i;

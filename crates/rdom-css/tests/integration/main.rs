@@ -3,6 +3,7 @@
 
 #![allow(dead_code)]
 
+mod at_rules;
 mod calc_parsing;
 mod colors;
 mod custom_properties;
@@ -10,6 +11,7 @@ mod display_flow;
 mod important;
 mod inline_style;
 mod lengths;
+mod malformed_declarations;
 mod padding_shorthand;
 mod positioning;
 mod properties;
