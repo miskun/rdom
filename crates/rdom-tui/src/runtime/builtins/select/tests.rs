@@ -46,11 +46,6 @@ fn select_fixture(multi: bool, labels: &[&str]) -> (App<TestBackend>, NodeId, Ve
         opts.push(opt);
     }
     dom.append_child(root, sel).unwrap();
-    // Reset the type-ahead thread-local before every test so
-    // state from a previous test running on the same thread
-    // doesn't leak in. Side effect is harmless for tests that
-    // don't exercise type-ahead.
-    select::reset_typeahead_buffer_for_tests();
     let app = test_app(dom);
     (app, sel, opts)
 }
@@ -678,7 +673,6 @@ fn type_ahead_buffer_resets_on_focus_change() {
     dom.append_child(root, s1).unwrap();
     dom.append_child(root, s2).unwrap();
 
-    select::reset_typeahead_buffer_for_tests();
     let backend = TestBackend::new(40, 8);
     let terminal = Terminal::new(backend).unwrap();
     let mut app = App::with_backend(dom, Stylesheet::new(), terminal).unwrap();
@@ -744,4 +738,24 @@ fn form_collect_uses_text_content_when_option_has_no_value() {
         form::collect(app.dom(), form_el),
         vec![("x".to_string(), "FallbackText".to_string())]
     );
+}
+
+/// Type-ahead state is per select: typing into one never seeds the
+/// other's buffer (it used to live in a thread-local shared by all).
+#[test]
+fn typeahead_buffer_is_per_select() {
+    let (mut app, sel, _opts) = select_fixture(false, &["apple", "banana"]);
+    app.dom_mut().set_focused(Some(sel));
+    app.handle_event(key(KeyCode::Char('b'), KeyModifiers::empty()));
+    let st = app
+        .dom()
+        .node(sel)
+        .ext()
+        .unwrap()
+        .typeahead
+        .clone()
+        .expect("buffer on the select");
+    assert_eq!(st.buffer, "b");
+    let other = app.dom_mut().create_element("select");
+    assert!(app.dom().node(other).ext().unwrap().typeahead.is_none());
 }

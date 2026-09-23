@@ -46,8 +46,6 @@ other crate pins it). Nothing has been published from this program yet.
 - **`SHOWCASE-EVT-1`** — the showcase's event surface (`AppContext`) exposes only redraw / quit /
   dispatch; consumers needing more reach into the App.
 - **`ITERM2-MOUSE-MOTION-1`** — iTerm2 motion reporting quirk, external.
-- **Type-ahead state is a `thread_local!`** in the `<select>` builtin (timing is now on the scheduler
-  clock, the buffer is still global).
 
 ## Follow-ups
 

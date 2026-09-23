@@ -58,6 +58,16 @@ For the durable architectural divergences (web-platform departures shipped on pu
 - **`D-M3-5` — Microtask integration runs three drains per tick.** Could batch into one. Profile-driven if it becomes hot.
 - **`D-M3-6` — Discrete properties under `transition: all` are not midpoint-toggled.** CSS L1 says discrete properties (display, position, content, …) under `transition: all` switch at midpoint; rdom's diff loop only registers animations for properties in the animatable enum. Apps explicitly transitioning a discrete property via `transition-property: display` get a warning.
 
+### Deferred from HARDENING-2026-09 Batch 3
+
+- **`CSS-VARS-SCOPE-1` — custom properties are stylesheet-global and `:root`-only.** Per-element scope needs: `TuiStyle` to carry `--*` declarations (rdom-style), rdom-css to attach them to the rule instead of warning, and the cascade to inherit a per-element `VarMap` (`ComputedStyle.vars` already exists as an `Rc` map) with `var()` resolved against it. Three crates; a minor-line feature. `DIVERGENCES.md` documents the current behavior and every dropped declaration warns.
+- **`APP-MOD-SPLIT-1` — `runtime/app/mod.rs` (~1350 lines, 19 fields) mixes the loop, the stylesheet stack, the autoscroll session, and the clipboard / undo / editable key defaults.** Split into `app/{keyboard_defaults,autoscroll,stylesheets}.rs`; no behavior change.
+- **`INLINE-PAINT-SPLIT-1` — `paint_pass/inline_paint.rs` (~950 lines) mixes text paint, the selection overlay, the caret, and `<select>` / password / gauge chrome substitution.** Paint knowing builtin internals is the coupling the module doc forbids; move chrome substitution behind a runtime-registered hook and the caret / selection overlay into their own files.
+- **`PACKER-STRING-ALLOC-1` — the line packer allocates one `String` per grapheme** (`render/inline/packer.rs` `PendingGrapheme { text }` + `g.to_string()`), and text is packed at least twice per frame (intrinsic measure + layout). Store byte ranges into the source text and cache the packed layout per `(node, width)` within a frame.
+- **`PAINT-INLINE-LAYOUT-CLONE-1` — paint clones each element's `InlineLayout` / `anonymous_blocks`** (every fragment `String`) per frame (`inline_paint.rs` `paint_ifc`, anonymous-box paint). Borrow through the ext or put the layout behind an `Rc` like `computed`.
+- **`CASCADE-INITIAL-ALLOC-1` — `ComputedStyle::initial()` is built twice per matched rule per element** in `cascade/apply.rs` (for `.fg` / `.bg` defaults), allocating its `Rc<HashMap>` each time; hoist the constants. The rule walk also scans every rule of every sheet per element with no rightmost-selector index (5–7 passes per element for the pseudos).
+- **`SGR-ALLOC-1` — SGR emission allocates a `Vec` per changed cell** and formats each code with `write!` (`render/sgr.rs`). Minor, but it is the byte hot path.
+
 ### Paint pipeline
 
 - **`OPACITY-1` — Group rendering for proper CSS opacity composition.** The current 0.1.0 implementation composites per-paint-op (cell-level), which works correctly for the common cases (element with bg + opacity, z-stacked translucent elements). Two divergence pockets remain:

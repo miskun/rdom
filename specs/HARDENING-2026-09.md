@@ -156,8 +156,9 @@ then a release (divergent bumps as before; a `rdom-core` change forces a `rdom-t
 - **Batch 3 — rdom-tui** (→ 0.4.0): R4 scheduler handle, R11 raw-mode guard, R5 scroll extent, R6 flex
   freeze loop, R7 sticky anon blocks, flex margins, Tab visibility, checkbox pre-flip, dialog / form / select
   fidelity, `pointer-events`, wheel chaining, `Cargo.toml` `exclude`, `EDIT-1`, type-ahead and dblclick on the
-  scheduler clock, `layout_differs` + masks, per-element custom-property scope in the cascade (lifts the
-  `:root`-only divergence), then the performance items and the file splits.
+  scheduler clock, `layout_differs` + masks; deferred to TECH_DEBT with their own ids: per-element
+  custom-property scope (`CSS-VARS-SCOPE-1`), the `app/mod.rs` and `inline_paint.rs` splits, the
+  packer / inline-layout / cascade-initial / SGR allocation items.
 - **Batch 4 — rdom-parser** (→ 0.4.0): R10 text `<`, RAWTEXT / RCDATA, entity table, an "HTML parsing"
   section in DIVERGENCES.md.
 - **Housekeeping (each batch, doc-only commits allowed):** delete resolved TECH_DEBT rows, fix the four wrong
@@ -198,6 +199,11 @@ then a release (divergent bumps as before; a `rdom-core` change forces a `rdom-t
   TECH_DEBT: `STYLE-TRANSITION-VALUE-1`, `STYLE-INHERITS-TWO-SOURCES-1`. Not done in this batch:
   `url(` token, `rgb(255 0 0)` / `hsl()` syntaxes, fractional-percentage layout resolution beyond
   whole percent (parsed, truncated), per-element custom-property scope (Batch 3 cascade work).
+- 2026-09-24 — Batch 3, last slice before gates: dirty tracker marks siblings once per parent per
+  drain with a set-backed roots list (n appends → O(n)); `<select>` type-ahead state moved onto the
+  node's `TuiExt` (no `thread_local!`, no test reset hook). Deferred items carry TECH_DEBT ids
+  (`CSS-VARS-SCOPE-1`, `APP-MOD-SPLIT-1`, `INLINE-PAINT-SPLIT-1`, `PACKER-STRING-ALLOC-1`,
+  `PAINT-INLINE-LAYOUT-CLONE-1`, `CASCADE-INITIAL-ALLOC-1`, `SGR-ALLOC-1`).
 - 2026-09-24 — Batch 3, refactor slice: `TuiExt.computed` behind `Rc` (per-node deep clones in
   layout / flex / paint / hit-test become pointer clones; `computed_rc()` added), border-collapse
   helpers moved to `layout_pass/border_collapse.rs` (`has_effective_border_on_edge` borrows), atomic

@@ -67,6 +67,15 @@ pub struct DirtyTracker {
 #[derive(Debug, Default)]
 struct DirtyState {
     roots: Vec<NodeId>,
+    /// Mirror of `roots` for O(1) membership (the Vec keeps insertion
+    /// order for deterministic cascade).
+    roots_set: std::collections::HashSet<NodeId>,
+    /// Parents whose element children were all marked dirty for
+    /// sibling-dependent selectors since the last drain. A second
+    /// `ChildListChanged` on the same parent before the cascade runs
+    /// finds them dirty already, so the O(children) loop is skipped —
+    /// appending n rows one by one is O(n) marks, not O(n²).
+    sibling_marked: std::collections::HashSet<NodeId>,
     /// Text-only mutations don't affect the cascade (selectors don't
     /// match against text content) but they DO change painted output.
     /// Set by `CharacterDataChanged`; consumed by the runtime's redraw
@@ -99,13 +108,19 @@ impl DirtyTracker {
         if let Some(id) = self.observer_id {
             dom.remove_mutation_observer(id);
         }
-        std::mem::take(&mut self.inner.borrow_mut().roots)
+        let mut state = self.inner.borrow_mut();
+        state.roots_set.clear();
+        state.sibling_marked.clear();
+        std::mem::take(&mut state.roots)
     }
 
     /// Return the accumulated dirty roots, clearing the internal list.
     /// Call this right before `cascade_subtrees`.
     pub fn take_roots(&self) -> Vec<NodeId> {
-        std::mem::take(&mut self.inner.borrow_mut().roots)
+        let mut state = self.inner.borrow_mut();
+        state.roots_set.clear();
+        state.sibling_marked.clear();
+        std::mem::take(&mut state.roots)
     }
 
     /// Peek at the current dirty roots without clearing. Useful in
@@ -169,11 +184,16 @@ impl MutationObserver<TuiExt> for Shim {
                     mark_style_dirty(dom, &mut state, *a);
                 }
                 // Sibling-dependent selectors: mark all element children
-                // of the parent so :first-child / + / ~ re-evaluate.
-                let sibling_ids: Vec<NodeId> =
-                    dom.node(*parent).children().map(|n| n.id()).collect();
-                for sib in sibling_ids {
-                    mark_style_dirty(dom, &mut state, sib);
+                // of the parent so :first-child / + / ~ re-evaluate. Once
+                // per parent per drain — they stay dirty until the
+                // cascade runs, and later-added children are marked
+                // directly above.
+                if state.sibling_marked.insert(*parent) {
+                    let sibling_ids: Vec<NodeId> =
+                        dom.node(*parent).children().map(|n| n.id()).collect();
+                    for sib in sibling_ids {
+                        mark_style_dirty(dom, &mut state, sib);
+                    }
                 }
                 // Text-only mutations (a `<div></div>` getting a
                 // text node appended, or the inverse) don't touch
@@ -323,7 +343,7 @@ fn mark_style_dirty(dom: &mut Dom<TuiExt>, state: &mut DirtyState, id: NodeId) {
 
     if !ancestor_dirty {
         // If `id` is already in the roots list, don't push it twice.
-        if !state.roots.contains(&id) {
+        if state.roots_set.insert(id) {
             state.roots.push(id);
         }
     }
@@ -333,6 +353,49 @@ fn mark_style_dirty(dom: &mut Dom<TuiExt>, state: &mut DirtyState, id: NodeId) {
 mod tests {
     use super::*;
     use crate::{Color, TuiDom, TuiNodeExt, TuiNodeMutExt, TuiStyle};
+
+    /// Appending children one at a time marks each parent's siblings
+    /// once per drain (they stay dirty until the cascade), and a drain
+    /// re-arms the sibling marking so `:first-child` / `+` / `~`
+    /// re-evaluate after the next structural change.
+    #[test]
+    fn sibling_marking_is_once_per_parent_per_drain_and_rearms_after_drain() {
+        let mut dom: TuiDom = TuiDom::new();
+        let root = dom.root();
+        let list = dom.create_element("ul");
+        dom.append_child(root, list).unwrap();
+        let tracker = DirtyTracker::install(&mut dom);
+
+        let mut items = Vec::new();
+        for _ in 0..2000 {
+            let li = dom.create_element("li");
+            dom.append_child(list, li).unwrap();
+            items.push(li);
+        }
+        for &li in &items {
+            assert!(dom.node(li).ext().unwrap().style_dirty);
+        }
+        let roots = tracker.take_roots();
+        assert_eq!(roots.len(), 2000, "each appended child is its own root");
+        assert_eq!(
+            roots.iter().collect::<std::collections::HashSet<_>>().len(),
+            2000,
+            "no duplicate roots"
+        );
+
+        // Simulate the cascade clearing the flags.
+        for &li in &items {
+            dom.node_mut(li).ext_mut().unwrap().style_dirty = false;
+        }
+        // A structural change after the drain re-marks the siblings.
+        let extra = dom.create_element("li");
+        dom.append_child(list, extra).unwrap();
+        assert!(
+            dom.node(items[0]).ext().unwrap().style_dirty,
+            "siblings re-marked after drain"
+        );
+        assert!(dom.node(extra).ext().unwrap().style_dirty);
+    }
 
     #[test]
     fn install_returns_tracker() {

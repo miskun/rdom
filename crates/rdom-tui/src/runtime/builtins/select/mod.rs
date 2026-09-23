@@ -494,22 +494,9 @@ fn select_all(dom: &mut TuiDom, select: NodeId) {
 /// user's next keystroke combines with it) and fall back to a
 /// single-char search of the new key alone — matches browser
 /// behavior where repeated typing "cycles" even past misses.
-use std::cell::RefCell;
 use std::time::{Duration, Instant};
 
 const TYPEAHEAD_TIMEOUT: Duration = Duration::from_millis(500);
-
-thread_local! {
-    static TYPEAHEAD_STATE: RefCell<TypeaheadState> =
-        RefCell::new(TypeaheadState::default());
-}
-
-#[derive(Default)]
-struct TypeaheadState {
-    buffer: String,
-    last: Option<Instant>,
-    last_select: Option<NodeId>,
-}
 
 /// Decode the DOM `KeyboardEvent.key` string into a single
 /// printable character. Returns `None` for named keys (`"Enter"`,
@@ -540,17 +527,22 @@ fn typeahead_search(dom: &mut TuiDom, select: NodeId, ch: char, multi: bool) {
     // highlight so repeated same-letter taps cycle through matches;
     // in prefix mode (multi-char buffer) we start AT the current
     // highlight so extra letters refine the match.
-    let (query_lower, cycle_mode): (String, bool) = TYPEAHEAD_STATE.with(|s| {
-        let mut st = s.borrow_mut();
-        let now = crate::runtime::timers::current_now().unwrap_or_else(Instant::now);
+    // The buffer lives on the select's own ext (per node, never shared
+    // between two selects) and runs on the scheduler clock under an App.
+    let now = crate::runtime::timers::current_now().unwrap_or_else(Instant::now);
+    let (query_lower, cycle_mode): (String, bool) = {
+        let mut node = dom.node_mut(select);
+        let Some(ext) = node.ext_mut() else {
+            return;
+        };
+        let st = ext.typeahead.get_or_insert_with(Default::default);
         let expired = st
             .last
             .is_none_or(|t| now.duration_since(t) > TYPEAHEAD_TIMEOUT);
-        let switched = st.last_select != Some(select);
         let lc = ch.to_ascii_lowercase();
         let mut cycle = false;
 
-        if expired || switched {
+        if expired {
             st.buffer.clear();
             st.buffer.push(lc);
         } else if st.buffer.len() == 1 && st.buffer.starts_with(lc) {
@@ -561,9 +553,8 @@ fn typeahead_search(dom: &mut TuiDom, select: NodeId, ch: char, multi: bool) {
             st.buffer.push(lc);
         }
         st.last = Some(now);
-        st.last_select = Some(select);
         (st.buffer.clone(), cycle)
-    });
+    };
 
     let start_idx = highlight(dom, select)
         .and_then(|h| all.iter().position(|&o| o == h))
@@ -597,16 +588,6 @@ fn typeahead_search(dom: &mut TuiDom, select: NodeId, ch: char, multi: bool) {
         set_anchor(dom, select, None);
     }
     fire_input_and_change(dom, select);
-}
-
-#[cfg(test)]
-pub(super) fn reset_typeahead_buffer_for_tests() {
-    TYPEAHEAD_STATE.with(|s| {
-        let mut st = s.borrow_mut();
-        st.buffer.clear();
-        st.last = None;
-        st.last_select = None;
-    });
 }
 
 // ── Event firing ───────────────────────────────────────────────────

@@ -32,6 +32,15 @@ pub struct PseudoLayout {
     pub position: Position,
 }
 
+/// `<select>` type-ahead state (see `runtime::builtins::select`).
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct TypeaheadState {
+    /// Lower-cased characters typed within the timeout window.
+    pub buffer: String,
+    /// When the last character was typed; `None` until the first.
+    pub last: Option<std::time::Instant>,
+}
+
 /// One synthesized **anonymous block box** wrapping a run of
 /// inline-level children inside a block container. Per CSS 2.1
 /// §9.2.1.1, when a block-flow container has mixed block + inline
@@ -315,6 +324,10 @@ pub struct TuiExt {
     /// ran, so `close()` can return focus to it (HTML §4.11.4 "dialog
     /// focusing steps" / "previously focused element").
     pub dialog_return_focus: Option<rdom_core::NodeId>,
+    /// `<select>` only: the type-ahead buffer and the time of its last
+    /// keystroke. Per node — two selects never share a buffer — and on
+    /// the scheduler clock under an `App`.
+    pub typeahead: Option<Box<TypeaheadState>>,
 
     // ── Canvas paint callback (Phase C.9) ────────────────────────────
     /// Raw-buffer paint hook for `<canvas>` elements. When `Some`,
