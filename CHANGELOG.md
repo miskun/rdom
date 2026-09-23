@@ -7,7 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Work in progress under [`specs/HARDENING-2026-09.md`](specs/HARDENING-2026-09.md). Batch 1 changes `rdom-core` (→ 0.4.0); every crate that pins `rdom-core` (`rdom-style`, `rdom-css`, `rdom-parser`, `rdom-tui`) bumps with it so a consumer never ends up with two `rdom-core` versions and mismatched `Dom` types. Batch 2 changes `rdom-style` (→ 0.4.0).
+Work in progress under [`specs/HARDENING-2026-09.md`](specs/HARDENING-2026-09.md). Batch 1 changes `rdom-core` (→ 0.4.0); every crate that pins `rdom-core` (`rdom-style`, `rdom-css`, `rdom-parser`, `rdom-tui`) bumps with it so a consumer never ends up with two `rdom-core` versions and mismatched `Dom` types. Batch 2 changes `rdom-style` and `rdom-css` (both → 0.4.0).
+
+### Breaking — `rdom-style`
+
+- `Token::Percentage(i32)` is now `Token::Percentage(f64)`, and `Token::Float(f64)` is a new variant. Exhaustive `match`es on `Token` need an arm; code that read `Percentage(n)` as an integer should truncate or round explicitly.
+- Integer literals outside `u16` range are now **rejected** (declaration dropped as invalid) where they previously wrapped: `width: 70000` used to lay out as 4464 cells. Check stylesheets for absurd magnitudes.
+- `parse_time_ms` rounds to whole milliseconds (`1.6ms` → 2) where it used to truncate.
+- `parse_flex_shorthand` accepts `Percentage` / `Float` tails; `set("flex", "1 1 0%")` no longer errors.
+
+### Breaking — `rdom-css`
+
+- `WarningKind` gains `MalformedDeclaration(String)` and `UnsupportedCustomPropertyScope { selector, name }`; exhaustive matches need arms. In strict mode both map to `ParseErrorKind::ExpectedToken(..)` (`"valid declaration"` and `":root"` respectively), so a stylesheet that used to parse strictly with a stray `--x` under `.foo { … }` now errors.
+- `UnsupportedAtRule(name)` is now actually produced; stylesheets with at-rules gain a warning per at-rule (and keep the rules that used to be swallowed).
 
 ### Fixed — `rdom-css`
 
@@ -27,17 +39,16 @@ Work in progress under [`specs/HARDENING-2026-09.md`](specs/HARDENING-2026-09.md
 
 ### Fixed — `rdom-style`
 
-- Named colors serialize back to a CSS name via a reverse lookup of the named-color table (`lightcoral` came back as the non-CSS `lightred`, which then failed to re-parse). Aliases prefer the terminal-palette spelling (`cyan`, `magenta`, `gray`).
+- Named colors serialize back to a CSS name via a reverse lookup of the named-color table (`lightcoral` came back as the non-CSS `lightred`, which then failed to re-parse). For triples with several names the terminal-palette spelling wins for `cyan`, `magenta`, `gray`, `darkgray`; other aliases (`lightgray` / `lightgrey`, `aqua` / `cyan` is covered) take the alphabetically first name.
 - `calc()` serialization keeps the parentheses a re-parse needs: `calc((50% + 2) * 2)` no longer flattens to `calc(50% + 2 * 2)`.
 - `calc(x / 0)` (division by a literal zero) is rejected at parse time instead of resolving to 0 at layout time.
 - Tokenizer: string escapes follow CSS Syntax 3 §4.3.7 — `"\201C"` is U+201C (1–6 hex digits, one following whitespace consumed; zero, surrogates, and out-of-range become U+FFFD), an escaped newline is dropped, and any other escaped character is itself. Previously `\201C` produced the literal text `201C`. Identifiers accept non-ASCII code points (`größe`, `--größe`, `日本語`) per §4.2.
 
 ### Changed — `rdom-style`
 
-- **CSS numbers are tokenized whole (CSS Syntax 3 §4.3.12).** A literal with a fraction or exponent is one `Token::Float(f64)`; an integer literal stays `Token::Number(i32)`; `Token::Percentage` carries an `f64` so `12.5%` survives. Previously `0.05` arrived as `Number(0) Delim('.') Number(5)` and was reassembled as **0.5**, and `1.05s` became **1500ms**; both now parse correctly. `.5` (leading dot) and `1e3` are numbers; `1.` is `1` followed by `.`; `1em` is `1` followed by the ident `em`. (R8)
+- **CSS numbers are tokenized whole (CSS Syntax 3 §4.3.12).** A literal with a fraction or exponent is one `Token::Float(f64)`; an integer literal stays `Token::Number(i32)`; `Token::Percentage` carries an `f64` so `12.5%` reaches the value parsers intact (layout still resolves whole percent — `STYLE-PERCENT-FRACTION-1`). Previously `0.05` arrived as `Number(0) Delim('.') Number(5)` and was reassembled as **0.5**, and `1.05s` became **1500ms**; both now parse correctly. `.5` (leading dot) and `1e3` are numbers; `1.` is `1` followed by `.`; `1em` is `1` followed by the ident `em`. (R8)
 - **Out-of-range integers are rejected, not wrapped or zeroed.** A literal that does not fit `i32` becomes a `Float` (so `width: 99999999999` is dropped as invalid instead of becoming 0), and `width` / `min-width` / `flex` / padding / `parse_unsigned` reject values above `u16::MAX` instead of wrapping (`width: 70000` was 4464 cells).
 - `parse_time_ms` rounds to whole milliseconds (`1.6ms` → 2ms; previously truncated).
-- **Breaking:** `Token::Percentage(i32)` is now `Token::Percentage(f64)` and `Token::Float(f64)` is a new variant; code matching on `Token` exhaustively must add an arm.
 
 ### Breaking — `rdom-core`
 
@@ -61,6 +72,12 @@ Migration notes for consumers moving from 0.3.x:
 - `set_class_name` is a single `set_attribute("class", …)` call (see Breaking for the record shape).
 - `Dom::node` / `NodeRef::node_type` / `NodeRef::node_name` document their panic on a dead id.
 - `Dom::validate` reports a `GenerationTableMismatch` when the per-slot generation table and the slot table disagree.
+
+### Fixed — `rdom-tui`
+
+- **The timer API works from every listener.** `TuiTimers` (`set_timeout`, `set_interval`, `request_animation_frame`, `queue_microtask` on the event context) reached the scheduler through a raw-pointer thread-local that was installed only for `handle_event` and the tick callback, so a listener fired from inside a timer callback, from a `transitionend`, from an `AppHandle::inject` closure, or from the drag-autoscroll synthetic move panicked with "set_timeout called outside event dispatch". The scheduler is now a shared `Rc<RefCell<_>>` handle installed around every path that runs user code (dispatch, ticks, the timer pumps themselves, injected closures, `draw_if_dirty`, `advance`, autoscroll); borrows are taken per call and never held across a callback, so a callback that schedules more work borrows a free cell. `TimerCtx` holds the shared handle instead of `&mut Scheduler`. (R4)
+
+- `opacity: inherit`, `text-decoration: inherit`, and `scrollbar-gutter: inherit | initial` now resolve in the cascade (parent's value / spec initial). The arms existed but resolved `inherit` to the initial value; they were unreachable until the parser started producing the keywords.
 
 ### Changed — `rdom-tui`
 

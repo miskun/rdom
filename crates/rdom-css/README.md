@@ -90,9 +90,10 @@ value       := token+
   modifiers (`bold`, `italic`, `underline`), shorthands (4-/3-/2-/1-value
   `padding`), comma-separated `transition` lists.
 - **Custom properties** — `--name: value;` declarations under `:root`
-  populate the `Stylesheet::vars` map. M1 ships custom properties for
-  `<color>` values only; generalization to `padding: var(--gap)` is
-  follow-up work.
+  populate the `Stylesheet::vars` map; under any other selector (or in a
+  `style` attribute) they are dropped with
+  `WarningKind::UnsupportedCustomPropertyScope`. `var()` is consumed in
+  `<color>` values and `content`; `padding: var(--gap)` is not shipped.
 - **`!important`** — recognized on any declaration; routed to the
   property's `ImportantMask` bit. Cascade ladder lives in `rdom-tui`.
 - **Comments** — `/* … */`, nested or unterminated handled with
@@ -106,20 +107,18 @@ value       := token+
 These produce a `Warning` and the parse continues — matching browser
 behavior, so copy-pasting CSS from MDN doesn't blow up:
 
-- **At-rules.** `@media`, `@import`, `@keyframes`, `@supports`,
-  `@font-face`. Tokens recognized; the rule body is skipped with
-  `WarningKind::UnsupportedAtRule(name)`. `@keyframes` and `@media`
-  are flagged for future milestones.
-- **`calc()` / `min()` / `max()`.** Reserved for M5 (layout primitives).
-- **Length units other than cells and `fr`.** `px`, `em`, `rem`, `%` —
-  M5.
-- **CSS variables in non-color values.** `padding: var(--gap)` — M5.
+- **At-rules.** Every at-rule (`@import`, `@charset`, `@media`,
+  `@keyframes`, `@supports`, `@font-face`, …) is consumed whole per CSS
+  Syntax 3 §5.4.2 and reported with `WarningKind::UnsupportedAtRule(name)`;
+  the rules around it are unaffected. `@keyframes` is on the roadmap.
+- **`min()` / `max()` / `clamp()`.** Not yet; `calc()` is supported
+  (percentages, nesting, CSS precedence).
+- **Length units other than cells, `fr`, and `%`.** `px`, `em`, `rem`
+  have no cell-grid meaning and are rejected.
+- **CSS variables in non-color values.** `padding: var(--gap)` — not shipped.
 - **CSS Nesting** (`.parent { .child { … } }`). Modern CSS feature; not
   in M1.
 - **`&` parent reference.** Same.
-- **Margin shorthand and the longhands.** No `margin` property in M1.
-  Use `padding` on the parent for the equivalent visual effect, or
-  wait for M5.
 
 ## Lenient vs. strict
 

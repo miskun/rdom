@@ -65,7 +65,7 @@ The leaf crate carries the **values**, not the cascade. Cascade lives in
 (also driving `rdom-tui`'s `StyleDeclaration` camelCase aliases via
 `build.rs`). The current set covers the M1–M3 milestones:
 
-- **Color / text** — `color`, `background-color`, `border-color`,
+- **Color / text** — `color`, `background-color` (and the color-only `background` shorthand), `border-color`,
   `font-weight`, `font-style`, `text-decoration`.
 - **Block model** — `display`, `flex-direction`, `white-space`,
   `user-select`, `overflow`, `overflow-x`, `overflow-y`.
@@ -82,8 +82,7 @@ The leaf crate carries the **values**, not the cascade. Cascade lives in
   `border-collapse`, plus `display: inline-block` and
   `position: sticky`.
 
-See [`DESIGN.md`](../../specs/DESIGN.md#roadmap) for what's coming next
-(`calc()` lands in 0.2.0).
+See [`DESIGN.md`](../../specs/DESIGN.md#roadmap) for what's coming next.
 
 ## Why a leaf crate
 
@@ -123,9 +122,10 @@ let sheet = Stylesheet::new()
         "missing", TuiColor::Literal(Color::White))))?;
 ```
 
-Custom properties are supported in `<color>` values only. Generalization
-to other property types (`padding: var(--gap)`) lands with the `calc()`
-value system in 0.2.0.
+Custom properties are consumed in `<color>` values and in `content`.
+Generalization to other property types (`padding: var(--gap)`) is not
+shipped; see `DIVERGENCES.md`. The CSS-wide keywords `inherit`, `initial`,
+and `unset` are accepted for every property except the transition family.
 
 ## Pointers
 

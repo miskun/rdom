@@ -132,6 +132,10 @@ Including `bg` in a glyph style during paint causes a second blend pass under op
 
 Removing a node releases its slot for reuse, but the `NodeId` carries a per-slot generation that changes on every recycle, so a handle to a dropped node never resolves to the slot's next occupant. This is what makes `NodeId` safe to pass around as an opaque handle without lifetime gymnastics.
 
+### `unset` is resolved when a declaration is parsed
+
+CSS Cascade 4 defines `unset` as `inherit` for inherited properties and `initial` otherwise. Which properties inherit is a fact about the property, not the tree, so `rdom-style`'s dispatch table (`property_dispatch::inherits`) resolves the keyword into `Value::Inherit` / `Value::Initial` at parse time and the cascade only ever sees those two. The cascade's own inherited set (`rdom-tui`'s `INHERITS_MASK`) must agree with that table; a test pins the two together.
+
 ### MutationObserver delivery is synchronous, one record per mutation
 
 Each mutation notifies every registered observer before the mutating call returns (no microtask batching — the runtime has no task queue to batch against). Records reference live nodes at delivery time; the `ChildListChanged` for a drop fires before the slot is freed. Observers must not mutate the tree during a callback (panics), but may add or remove observers.

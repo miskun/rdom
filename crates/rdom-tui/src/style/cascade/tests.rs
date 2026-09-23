@@ -9,7 +9,7 @@
 
 use super::*;
 use crate::layout::{Border, Direction, Display, Flow, Overflow, Padding, Size, WhiteSpace};
-use crate::style::{Color, Content, Modifier, Stylesheet, TuiStyle};
+use crate::style::{Color, Content, Modifier, Stylesheet, TuiStyle, Value};
 use crate::{TuiDom, TuiNodeMutExt};
 use rdom_core::NodeId;
 
@@ -2002,4 +2002,166 @@ fn focused_scroll_container_thumb_is_accent() {
         Some(Color::Rgb(30, 144, 255)), // DodgerBlue = ACCENT
         "a focused scroll container's thumb glyph turns accent (foreground)"
     );
+}
+
+// ── CSS-wide keywords reach the cascade (HARDENING-2026-09 Batch 2) ──
+
+fn parent_child() -> (TuiDom, NodeId, NodeId) {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let parent = dom.create_element("div");
+    let child = dom.create_element("span");
+    dom.append_child(parent, child).unwrap();
+    dom.append_child(root, parent).unwrap();
+    (dom, parent, child)
+}
+
+/// `opacity: inherit` takes the parent's computed opacity, `initial`
+/// resets to 1. Before, both arms resolved to 1.0 — dead code until the
+/// parser started producing the keywords.
+#[test]
+fn opacity_inherit_takes_parent_value_and_initial_resets() {
+    let (mut dom, parent, child) = parent_child();
+    let mut inherit = TuiStyle::new();
+    inherit.opacity = Some(Value::Inherit);
+    let sheet = Stylesheet::bare()
+        .rule_unchecked("div", TuiStyle::new().opacity(0.5))
+        .rule_unchecked("span", inherit);
+    dom.cascade(&sheet);
+    assert_eq!(computed_of(&dom, parent).opacity, 0.5);
+    assert_eq!(
+        computed_of(&dom, child).opacity,
+        0.5,
+        "inherit → parent's 0.5"
+    );
+
+    let mut initial = TuiStyle::new();
+    initial.opacity = Some(Value::Initial);
+    let sheet = Stylesheet::bare()
+        .rule_unchecked("div", TuiStyle::new().opacity(0.5))
+        .rule_unchecked("span", initial);
+    dom.cascade(&sheet);
+    assert_eq!(computed_of(&dom, child).opacity, 1.0, "initial → 1");
+}
+
+/// `text-decoration: inherit` copies the parent's decoration bits even
+/// though the property does not inherit by default.
+#[test]
+fn text_decoration_inherit_copies_parents_bits() {
+    use crate::layout::TextDecoration;
+    let (mut dom, parent, child) = parent_child();
+    let mut inherit = TuiStyle::new();
+    inherit.text_decoration = Some(Value::Inherit);
+    let mut underline = TuiStyle::new();
+    underline.text_decoration = Some(Value::Specified(TextDecoration::Underline));
+    let sheet = Stylesheet::bare()
+        .rule_unchecked("div", underline)
+        .rule_unchecked("span", inherit);
+    dom.cascade(&sheet);
+    assert!(
+        computed_of(&dom, parent)
+            .modifiers
+            .contains(Modifier::UNDERLINED)
+    );
+    assert!(
+        computed_of(&dom, child)
+            .modifiers
+            .contains(Modifier::UNDERLINED),
+        "explicit inherit copies the parent's underline"
+    );
+}
+
+/// `scrollbar-gutter: inherit` takes the parent's value; `initial`
+/// resets to `auto`. Both keywords were ignored before.
+#[test]
+fn scrollbar_gutter_keywords_resolve() {
+    use crate::layout::ScrollbarGutter;
+    let (mut dom, parent, child) = parent_child();
+    let mut stable = TuiStyle::new();
+    stable.scrollbar_gutter = Some(Value::Specified(ScrollbarGutter::Stable));
+    let mut inherit = TuiStyle::new();
+    inherit.scrollbar_gutter = Some(Value::Inherit);
+    let sheet = Stylesheet::bare()
+        .rule_unchecked("div", stable.clone())
+        .rule_unchecked("span", inherit);
+    dom.cascade(&sheet);
+    assert_eq!(
+        computed_of(&dom, parent).scrollbar_gutter,
+        ScrollbarGutter::Stable
+    );
+    assert_eq!(
+        computed_of(&dom, child).scrollbar_gutter,
+        ScrollbarGutter::Stable
+    );
+
+    let mut initial = TuiStyle::new();
+    initial.scrollbar_gutter = Some(Value::Initial);
+    let sheet = Stylesheet::bare()
+        .rule_unchecked("div", stable)
+        .rule_unchecked("span", initial);
+    dom.cascade(&sheet);
+    assert_eq!(
+        computed_of(&dom, child).scrollbar_gutter,
+        ScrollbarGutter::Auto
+    );
+}
+
+/// The style crate decides `unset` from `property_dispatch::inherits`;
+/// the cascade inherits from `INHERITS_MASK`. They must agree per
+/// property (STYLE-INHERITS-TWO-SOURCES-1 guard). Properties without a
+/// `PropMask` bit are never inherited by the cascade, so the table
+/// must say `false` for them.
+#[test]
+fn inherits_table_matches_the_cascade_mask() {
+    use crate::style::cascade::{INHERITS_MASK, PropMask};
+    use rdom_style::property_dispatch::inherits;
+    let with_bit: &[(&str, PropMask)] = &[
+        ("color", PropMask::FG),
+        ("background-color", PropMask::BG),
+        ("border-color", PropMask::BORDER_FG),
+        ("font-weight", PropMask::BOLD),
+        ("font-style", PropMask::ITALIC),
+        ("width", PropMask::WIDTH),
+        ("height", PropMask::HEIGHT),
+        ("min-width", PropMask::MIN_WIDTH),
+        ("max-width", PropMask::MAX_WIDTH),
+        ("min-height", PropMask::MIN_HEIGHT),
+        ("max-height", PropMask::MAX_HEIGHT),
+        ("padding", PropMask::PADDING),
+        ("gap", PropMask::GAP),
+        ("border", PropMask::BORDER),
+        ("flex-direction", PropMask::DIRECTION),
+        ("overflow-x", PropMask::OVERFLOW_X),
+        ("overflow-y", PropMask::OVERFLOW_Y),
+        ("content", PropMask::CONTENT),
+        ("display", PropMask::DISPLAY),
+        ("white-space", PropMask::WHITE_SPACE),
+        ("user-select", PropMask::USER_SELECT),
+        ("flex-shrink", PropMask::FLEX_SHRINK),
+    ];
+    for (name, bit) in with_bit {
+        assert_eq!(
+            inherits(name),
+            INHERITS_MASK.contains(*bit),
+            "{name}: style crate and cascade mask disagree"
+        );
+    }
+    for name in [
+        "text-decoration",
+        "opacity",
+        "caret-color",
+        "caret-text-color",
+        "scrollbar-gutter",
+        "aspect-ratio",
+        "margin",
+        "border-collapse",
+        "position",
+        "top",
+        "right",
+        "bottom",
+        "left",
+        "z-index",
+    ] {
+        assert!(!inherits(name), "{name} has no cascade inherit bit");
+    }
 }

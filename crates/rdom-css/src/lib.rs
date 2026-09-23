@@ -91,14 +91,25 @@ pub fn parse_strict(source: &str) -> Result<Stylesheet, ParseError> {
 
 /// Lenient inline-attribute parse. Reads a declaration list with
 /// no surrounding `{ … }` and returns the resulting `TuiStyle` plus
-/// any warnings. Custom-property declarations (`--name: value`)
-/// inside an inline style are dropped silently in M1 — there's no
-/// scoped vars story for inline yet.
+/// any warnings. A custom-property declaration (`--name: value`) has
+/// no `:root` to attach to here, so it is dropped with
+/// `UnsupportedCustomPropertyScope { selector: "style attribute", .. }`
+/// — the same rule as any non-root selector (see `DIVERGENCES.md`).
 pub fn parse_inline(source: &str) -> InlineParseResult {
     let mut style = TuiStyle::new();
     let mut custom_props: Vec<declarations::CustomProperty> = Vec::new();
     let mut warnings = Vec::new();
     declarations::parse_block(source, &mut style, &mut custom_props, 1, 1, &mut warnings);
+    for cp in custom_props {
+        warnings.push(Warning {
+            kind: WarningKind::UnsupportedCustomPropertyScope {
+                selector: "style attribute".to_string(),
+                name: cp.name,
+            },
+            line: 1,
+            column: 1,
+        });
+    }
     InlineParseResult { style, warnings }
 }
 

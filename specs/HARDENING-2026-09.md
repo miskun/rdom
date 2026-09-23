@@ -1,6 +1,6 @@
 # HARDENING-2026-09 — full-project review, divergence audit, debt paydown
 
-**Status:** IN PROGRESS (started 2026-09-21). Batch 1 (rdom-core) done and gated; Batch 2 (rdom-style + rdom-css) code complete, gates pending.
+**Status:** IN PROGRESS (started 2026-09-21). Batch 1 (rdom-core) done and gated; Batch 2 (rdom-style + rdom-css) done and gated; Batch 3 (rdom-tui) underway (R4 landed).
 
 Origin: a full review of the workspace at `rdom-tui` 0.3.14 / `rdom-core` 0.3.5 (five grumpy-architect
 passes, one per crate group, plus a docs/process pass), followed by an entry-by-entry audit of
@@ -156,7 +156,8 @@ then a release (divergent bumps as before; a `rdom-core` change forces a `rdom-t
 - **Batch 3 — rdom-tui** (→ 0.4.0): R4 scheduler handle, R11 raw-mode guard, R5 scroll extent, R6 flex
   freeze loop, R7 sticky anon blocks, flex margins, Tab visibility, checkbox pre-flip, dialog / form / select
   fidelity, `pointer-events`, wheel chaining, `Cargo.toml` `exclude`, `EDIT-1`, type-ahead and dblclick on the
-  scheduler clock, `layout_differs` + masks, then the performance items and the file splits.
+  scheduler clock, `layout_differs` + masks, per-element custom-property scope in the cascade (lifts the
+  `:root`-only divergence), then the performance items and the file splits.
 - **Batch 4 — rdom-parser** (→ 0.4.0): R10 text `<`, RAWTEXT / RCDATA, entity table, an "HTML parsing"
   section in DIVERGENCES.md.
 - **Housekeeping (each batch, doc-only commits allowed):** delete resolved TECH_DEBT rows, fix the four wrong
@@ -197,3 +198,15 @@ then a release (divergent bumps as before; a `rdom-core` change forces a `rdom-t
   TECH_DEBT: `STYLE-TRANSITION-VALUE-1`, `STYLE-INHERITS-TWO-SOURCES-1`. Not done in this batch:
   `url(` token, `rgb(255 0 0)` / `hsl()` syntaxes, fractional-percentage layout resolution beyond
   whole percent (parsed, truncated), per-element custom-property scope (Batch 3 cascade work).
+- 2026-09-24 — Batch 2 review gates run (architect + API). Blocking items fixed: the cascade resolved
+  `opacity` / `text-decoration` / `scrollbar-gutter: inherit` to the initial value (arms were dead
+  before the parser produced the keywords); `css_wide_of` claimed `inherit` for a shorthand when only
+  its first field was inherited. Also fixed: `aspect-ratio` wrapping cast, `1e400` → finite clamp,
+  negative opacity clamps (CSS Color 4), inline `--x` warns like any non-root scope, stale comments.
+  Docs: `Breaking — rdom-style` / `rdom-css` sections with migration notes; DIVERGENCES gains
+  color-only `background`, whole-percent / whole-ms resolution, shared longhand storage, integer flex
+  factors, `flex: inherit` semantics, transitions rejecting CSS-wide keywords, corrected at-rule
+  wording, and drops the stale "calc() not implemented" line; `unset` note moved to DESIGN.md; a test
+  pins `property_dispatch::inherits` to the cascade's `INHERITS_MASK`; READMEs swept (M5 / 0.2.0
+  claims, at-rules, custom-property scope, timing functions). New TECH_DEBT: `STYLE-PERCENT-FRACTION-1`,
+  `CSS-WARNING-POSITION-1`, `STYLE-PROPERTY-TABLES-1`. Batch 3 (rdom-tui) has begun with R4 landed.

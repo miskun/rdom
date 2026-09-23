@@ -446,7 +446,10 @@ fn set_css_wide(name: &str, kw: CssWide, style: &mut TuiStyle) -> Result<(), Dis
     Ok(())
 }
 
-/// If `name`'s (first) field holds a CSS-wide keyword, its spelling.
+/// If every field `name` owns holds the *same* CSS-wide keyword, its
+/// spelling; otherwise `None` and the per-field serializer decides.
+/// Shorthands over mixed fields (`overflow-x: inherit; overflow-y:
+/// hidden`) therefore never claim `inherit` for the whole shorthand.
 fn css_wide_of(name: &str, style: &TuiStyle) -> Option<&'static str> {
     fn kw<T>(v: &Option<Value<T>>) -> Option<&'static str> {
         match v {
@@ -454,6 +457,11 @@ fn css_wide_of(name: &str, style: &TuiStyle) -> Option<&'static str> {
             Some(Value::Initial) => Some("initial"),
             _ => None,
         }
+    }
+    /// All fields present and all the same keyword.
+    fn agree(fields: &[Option<&'static str>]) -> Option<&'static str> {
+        let first = fields.first().copied().flatten()?;
+        fields.iter().all(|f| *f == Some(first)).then_some(first)
     }
     match name {
         "color" => kw(&style.fg),
@@ -469,10 +477,11 @@ fn css_wide_of(name: &str, style: &TuiStyle) -> Option<&'static str> {
         "user-select" => kw(&style.user_select),
         "caret-color" => kw(&style.caret_color),
         "caret-text-color" => kw(&style.caret_text_color),
-        "overflow" | "overflow-x" => kw(&style.overflow_x),
+        "overflow" => agree(&[kw(&style.overflow_x), kw(&style.overflow_y)]),
+        "overflow-x" => kw(&style.overflow_x),
         "overflow-y" => kw(&style.overflow_y),
         "scrollbar-gutter" => kw(&style.scrollbar_gutter),
-        "width" | "flex" => kw(&style.width),
+        "width" => kw(&style.width),
         "height" => kw(&style.height),
         "min-width" => kw(&style.min_width),
         "max-width" => kw(&style.max_width),
@@ -480,6 +489,7 @@ fn css_wide_of(name: &str, style: &TuiStyle) -> Option<&'static str> {
         "max-height" => kw(&style.max_height),
         "aspect-ratio" => kw(&style.aspect_ratio),
         "gap" => kw(&style.gap),
+        "flex" => agree(&[kw(&style.width), kw(&style.height), kw(&style.flex_shrink)]),
         "flex-shrink" => kw(&style.flex_shrink),
         "padding" | "padding-top" | "padding-right" | "padding-bottom" | "padding-left" => {
             kw(&style.padding)
@@ -500,11 +510,17 @@ fn css_wide_of(name: &str, style: &TuiStyle) -> Option<&'static str> {
         "border-collapse" => kw(&style.border_collapse),
         "content" => kw(&style.content),
         "position" => kw(&style.position),
-        "top" | "inset" => kw(&style.top),
+        "top" => kw(&style.top),
         "right" => kw(&style.right),
         "bottom" => kw(&style.bottom),
         "left" => kw(&style.left),
         "z-index" => kw(&style.z_index),
+        "inset" => agree(&[
+            kw(&style.top),
+            kw(&style.right),
+            kw(&style.bottom),
+            kw(&style.left),
+        ]),
         _ => None,
     }
 }
@@ -1951,6 +1967,46 @@ mod tests {
         assert_eq!(serialize("color", &style).as_deref(), Some("inherit"));
         set("width", "initial", &mut style).unwrap();
         assert_eq!(serialize("width", &style).as_deref(), Some("initial"));
+    }
+
+    /// A shorthand serializes as a CSS-wide keyword only when *every*
+    /// field it owns holds that same keyword; mixed fields fall through
+    /// to the normal per-field serialization (or `None`).
+    #[test]
+    fn css_wide_serialization_requires_all_owned_fields_to_agree() {
+        let mut style = TuiStyle::new();
+        set("overflow-x", "inherit", &mut style).unwrap();
+        set("overflow-y", "hidden", &mut style).unwrap();
+        assert_ne!(serialize("overflow", &style).as_deref(), Some("inherit"));
+        assert_eq!(serialize("overflow-x", &style).as_deref(), Some("inherit"));
+
+        let mut style = TuiStyle::new();
+        set("top", "inherit", &mut style).unwrap();
+        set("left", "1", &mut style).unwrap();
+        assert_ne!(serialize("inset", &style).as_deref(), Some("inherit"));
+
+        let mut style = TuiStyle::new();
+        set("overflow", "initial", &mut style).unwrap();
+        assert_eq!(serialize("overflow", &style).as_deref(), Some("initial"));
+        assert_eq!(serialize("overflow-y", &style).as_deref(), Some("initial"));
+    }
+
+    /// `aspect-ratio` was missed by the checked-`u16` sweep.
+    #[test]
+    fn aspect_ratio_out_of_range_is_rejected_not_wrapped() {
+        assert_eq!(
+            set("aspect-ratio", "70000 / 1", &mut TuiStyle::new()),
+            Err(DispatchError::InvalidValue)
+        );
+        set("aspect-ratio", "16 / 9", &mut TuiStyle::new()).unwrap();
+    }
+
+    /// CSS Color 4 §11.1: out-of-range opacity is valid and clamps.
+    #[test]
+    fn negative_opacity_clamps_to_zero() {
+        let mut style = TuiStyle::new();
+        set("opacity", "-0.5", &mut style).unwrap();
+        assert_eq!(serialize("opacity", &style).as_deref(), Some("0"));
     }
 
     /// `background` shorthand with only a color is `background-color`.

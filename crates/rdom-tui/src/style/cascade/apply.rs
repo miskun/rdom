@@ -188,12 +188,14 @@ fn apply_style(
         &style.text_decoration,
         style.important.contains(ImportantMask::TEXT_DECORATION),
         important_pass,
+        parent.modifiers,
     );
     apply_opacity(
         working,
         &style.opacity,
         style.important.contains(ImportantMask::OPACITY),
         important_pass,
+        parent.opacity,
     );
 
     // Layout properties.
@@ -319,6 +321,7 @@ fn apply_style(
         &style.scrollbar_gutter,
         style.important.contains(ImportantMask::SCROLLBAR_GUTTER),
         important_pass,
+        parent.scrollbar_gutter,
     );
     apply_display(
         &mut working.display,
@@ -663,13 +666,18 @@ fn apply_scrollbar_gutter(
     value: &Option<Value<crate::layout::ScrollbarGutter>>,
     important_prop: bool,
     important_pass: bool,
+    inherit: crate::layout::ScrollbarGutter,
 ) {
     if important_prop != important_pass {
         return;
     }
     match value {
         Some(Value::Specified(v)) => *target = *v,
-        Some(Value::Inherit | Value::Initial) | None => {}
+        // Non-inherited property: `inherit` still means "the parent's
+        // computed value" when written explicitly; `initial` is `auto`.
+        Some(Value::Inherit) => *target = inherit,
+        Some(Value::Initial) => *target = crate::layout::ScrollbarGutter::default(),
+        None => {}
     }
 }
 
@@ -791,13 +799,17 @@ fn apply_opacity(
     value: &Option<Value<f32>>,
     important_prop: bool,
     important_pass: bool,
+    inherit: f32,
 ) {
     if important_prop != important_pass {
         return;
     }
     let resolved = match value {
         Some(Value::Specified(v)) => v.clamp(0.0, 1.0),
-        Some(Value::Inherit) | Some(Value::Initial) => 1.0,
+        // Not inherited by default, but an explicit `inherit` takes the
+        // parent's computed opacity; `initial` is 1.
+        Some(Value::Inherit) => inherit,
+        Some(Value::Initial) => 1.0,
         None => return,
     };
     working.opacity = resolved;
@@ -806,14 +818,15 @@ fn apply_opacity(
 /// Apply CSS `text-decoration` to the working `ComputedStyle`. Maps
 /// the enum value onto the `UNDERLINED` / `CROSSED_OUT` modifier
 /// bits. `text-decoration: none` clears both. CSS-spec: the property
-/// does NOT inherit (each element sets its own decoration), so the
-/// `Value::Inherit` arm uses the property's initial value (`None`)
-/// rather than reading from the parent.
+/// does NOT inherit by default (each element sets its own decoration),
+/// but an explicit `text-decoration: inherit` copies the parent's
+/// decoration bits; `initial` is `none`.
 fn apply_text_decoration(
     working: &mut ComputedStyle,
     value: &Option<Value<crate::layout::TextDecoration>>,
     important_prop: bool,
     important_pass: bool,
+    parent_modifiers: Modifier,
 ) {
     use crate::layout::TextDecoration;
     if important_prop != important_pass {
@@ -821,7 +834,15 @@ fn apply_text_decoration(
     }
     let resolved = match value {
         Some(Value::Specified(v)) => *v,
-        Some(Value::Inherit) => TextDecoration::None,
+        Some(Value::Inherit) => {
+            if parent_modifiers.contains(Modifier::UNDERLINED) {
+                TextDecoration::Underline
+            } else if parent_modifiers.contains(Modifier::CROSSED_OUT) {
+                TextDecoration::LineThrough
+            } else {
+                TextDecoration::None
+            }
+        }
         Some(Value::Initial) => TextDecoration::None,
         None => return,
     };

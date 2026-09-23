@@ -247,7 +247,13 @@ fn read_number(cursor: &mut Cursor) -> Token {
     // A `%` immediately after the literal promotes it to a
     // `Percentage`. Whitespace breaks the promotion (`50 %`
     // tokenizes as `Number(50)` + `Delim('%')`).
-    let value: f64 = text.parse().unwrap_or(f64::NAN);
+    // `text` always holds at least one digit, so this parses; a literal
+    // beyond f64's range comes back infinite and CSS Values 4 §7 says to
+    // clamp to the largest representable finite value.
+    let value: f64 = text
+        .parse::<f64>()
+        .map(|v| if v.is_finite() { v } else { f64::MAX })
+        .unwrap_or(f64::MAX);
     if cursor.peek() == Some('%') {
         cursor.bump();
         return Token::Percentage(value);
@@ -381,6 +387,47 @@ mod tests {
     #[test]
     fn oversized_integer_is_a_float_not_zero() {
         assert_eq!(toks("99999999999"), vec![Token::Float(99_999_999_999.0)]);
+    }
+
+    /// CSS Values 4 §7: numbers that overflow the representable range
+    /// clamp to the largest finite value — no `inf` or `NaN` token ever
+    /// reaches a value parser.
+    #[test]
+    fn overflowing_literals_clamp_to_finite() {
+        for src in ["1e400", "1e400%", ".1e400"] {
+            for tok in toks(src) {
+                match tok {
+                    Token::Float(f) | Token::Percentage(f) => {
+                        assert!(f.is_finite(), "{src} → {f}");
+                        assert_eq!(f, f64::MAX, "{src}");
+                    }
+                    other => panic!("{src} → {other:?}"),
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn more_number_edge_cases() {
+        assert_eq!(
+            toks("1e"),
+            vec![Token::Number(1), Token::Ident("e".to_string())]
+        );
+        assert_eq!(
+            toks("1e+"),
+            vec![
+                Token::Number(1),
+                Token::Ident("e".to_string()),
+                Token::Delim('+')
+            ]
+        );
+        assert_eq!(toks("-.5"), vec![Token::Delim('-'), Token::Float(0.5)]);
+        assert_eq!(toks("1.5.5"), vec![Token::Float(1.5), Token::Float(0.5)]);
+        assert_eq!(
+            toks("50%%"),
+            vec![Token::Percentage(50.0), Token::Delim('%')]
+        );
+        assert_eq!(toks("1E3"), vec![Token::Float(1000.0)]);
     }
 
     /// A trailing `.` with no digit after it is not part of the number.

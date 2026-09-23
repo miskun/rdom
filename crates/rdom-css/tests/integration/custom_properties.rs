@@ -129,3 +129,23 @@ fn root_in_a_selector_list_warns() {
         r.warnings
     );
 }
+
+/// The `style="…"` attribute has no `:root`; a custom property there is
+/// dropped like any other non-root declaration, and it warns the same way.
+#[test]
+fn inline_custom_property_warns() {
+    let r = rdom_css::parse_inline("--accent: red; color: blue");
+    assert!(
+        r.style.fg.is_some(),
+        "the rest of the declaration list applies"
+    );
+    assert!(
+        r.warnings.iter().any(|w| matches!(
+            &w.kind,
+            rdom_css::WarningKind::UnsupportedCustomPropertyScope { selector, name }
+                if selector == "style attribute" && name == "accent"
+        )),
+        "{:?}",
+        r.warnings
+    );
+}

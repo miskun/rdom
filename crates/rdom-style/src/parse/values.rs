@@ -225,12 +225,16 @@ pub fn parse_keyword<T: Clone>(value: &[Token], table: &[(&str, T)]) -> Option<T
 /// tokenizer delivers the literal whole (`Number` for integers, `Float`
 /// otherwise), so `0.05` is 0.05.
 pub fn parse_opacity(value: &[Token]) -> Option<f32> {
+    // Out-of-range values (including negatives, which arrive as
+    // `Delim('-')` + literal) are valid and clamp — CSS Color 4 §11.1.
     let n = match value {
         [Token::Number(n)] => f64::from(*n),
         [Token::Float(f)] => *f,
+        [Token::Delim('-'), Token::Number(n)] => -f64::from(*n),
+        [Token::Delim('-'), Token::Float(f)] => -*f,
         _ => return None,
     };
-    (n >= 0.0).then(|| (n as f32).clamp(0.0, 1.0))
+    Some((n as f32).clamp(0.0, 1.0))
 }
 
 pub fn parse_text_decoration(value: &[Token]) -> Option<(bool, bool)> {
@@ -677,7 +681,7 @@ pub fn current_margin(style: &TuiStyle) -> crate::layout::Margin {
 pub fn parse_aspect_ratio(value: &[Token]) -> Option<crate::layout::AspectRatio> {
     match value {
         [Token::Number(w), Token::Delim('/'), Token::Number(h)] if *w > 0 && *h > 0 => {
-            crate::layout::AspectRatio::new(*w as u16, *h as u16)
+            crate::layout::AspectRatio::new(u16::try_from(*w).ok()?, u16::try_from(*h).ok()?)
         }
         _ => None,
     }
@@ -1240,7 +1244,11 @@ mod number_value_tests {
         assert_eq!(parse_opacity(&t(".5")), Some(0.5));
         assert_eq!(parse_opacity(&t("1")), Some(1.0));
         assert_eq!(parse_opacity(&t("2.5")), Some(1.0), "clamped");
-        assert_eq!(parse_opacity(&t("-0.5")), None);
+        assert_eq!(
+            parse_opacity(&t("-0.5")),
+            Some(0.0),
+            "out of range clamps (CSS Color 4)"
+        );
     }
 
     #[test]

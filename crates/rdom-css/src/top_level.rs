@@ -223,9 +223,9 @@ fn parse_one_rule(
     };
     // Parse declarations into a TuiStyle and a list of custom
     // properties. The selector decides what happens to the custom
-    // properties: `:root` registers them in the stylesheet's
-    // VarMap; other selectors drop them silently in M1 (per spec
-    // §5.5).
+    // properties: `:root` registers them in the stylesheet's VarMap;
+    // any other selector drops them with a warning (no per-element
+    // custom-property scope yet — see DIVERGENCES.md).
     let mut style = TuiStyle::new();
     let mut custom_props: Vec<declarations::CustomProperty> = Vec::new();
     declarations::parse_block(
