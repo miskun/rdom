@@ -364,6 +364,14 @@ const NAMED: &[(&str, Color)] = &[
     ("yellowgreen", YELLOWGREEN),
 ];
 
+/// The CSS name for an RGB triple, if one exists — the first name in
+/// alphabetical order when several share the triple (`aqua` before
+/// `cyan`). Linear scan over the 148-entry table; used only when
+/// serializing a specified value back to text.
+pub fn name_of(color: Color) -> Option<&'static str> {
+    NAMED.iter().find(|(_, c)| *c == color).map(|(n, _)| *n)
+}
+
 /// Look up a CSS named color. ASCII-case-insensitive per the CSS
 /// spec — `RebeccaPurple`, `rebeccapurple`, and `REBECCAPURPLE` all
 /// resolve to the same RGB. Returns `None` for unknown names and

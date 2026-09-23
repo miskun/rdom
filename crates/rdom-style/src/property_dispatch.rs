@@ -82,6 +82,7 @@ const PROPERTY_NAMES: &[&str] = &[
     // Color / text
     "color",
     "background-color",
+    "background",
     "border-color",
     "font-weight",
     "font-style",
@@ -171,7 +172,7 @@ pub fn property_mask(name: &str) -> Option<crate::ImportantMask> {
     use crate::ImportantMask;
     Some(match name {
         "color" => ImportantMask::FG,
-        "background-color" => ImportantMask::BG,
+        "background-color" | "background" => ImportantMask::BG,
         "border-color" => ImportantMask::BORDER_FG,
         "font-weight" => ImportantMask::BOLD,
         "font-style" => ImportantMask::ITALIC,
@@ -243,7 +244,7 @@ pub fn property_mask(name: &str) -> Option<crate::ImportantMask> {
 pub fn remove(name: &str, style: &mut TuiStyle) -> bool {
     let was_set = match name {
         "color" => style.fg.take().is_some(),
-        "background-color" => style.bg.take().is_some(),
+        "background-color" | "background" => style.bg.take().is_some(),
         "border-color" => style.border_fg.take().is_some(),
         "font-weight" => style.bold.take().is_some(),
         "font-style" => style.italic.take().is_some(),
@@ -328,6 +329,186 @@ pub fn remove(name: &str, style: &mut TuiStyle) -> bool {
     was_set
 }
 
+/// Does rdom inherit this property by default? Mirrors the cascade's
+/// inherited set (`rdom-tui`'s `INHERITS_MASK`): the properties whose
+/// computed value flows parent → child when the child declares nothing.
+/// Decides what `unset` means (CSS Cascade 4 §7.3: `inherit` for
+/// inherited properties, `initial` otherwise).
+pub fn inherits(name: &str) -> bool {
+    matches!(
+        name,
+        "color" | "font-weight" | "font-style" | "white-space" | "user-select"
+    )
+}
+
+/// The CSS-wide keywords (CSS Cascade 4 §7). Valid for every property.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CssWide {
+    Inherit,
+    Initial,
+    Unset,
+}
+
+fn css_wide_keyword(value: &[Token]) -> Option<CssWide> {
+    match value {
+        [Token::Ident(s)] if s.eq_ignore_ascii_case("inherit") => Some(CssWide::Inherit),
+        [Token::Ident(s)] if s.eq_ignore_ascii_case("initial") => Some(CssWide::Initial),
+        [Token::Ident(s)] if s.eq_ignore_ascii_case("unset") => Some(CssWide::Unset),
+        _ => None,
+    }
+}
+
+impl CssWide {
+    /// Resolve `unset` for `name`, then build the field value.
+    fn into_value<T>(self, name: &str) -> Value<T> {
+        match self {
+            CssWide::Inherit => Value::Inherit,
+            CssWide::Initial => Value::Initial,
+            CssWide::Unset => {
+                if inherits(name) {
+                    Value::Inherit
+                } else {
+                    Value::Initial
+                }
+            }
+        }
+    }
+}
+
+/// Set every field `name` owns to the CSS-wide keyword. Same
+/// property → field table as [`remove`]. Transition properties are
+/// stored without a `Value` wrapper and cannot carry a keyword
+/// (`STYLE-TRANSITION-VALUE-1`), so they report `InvalidValue`.
+fn set_css_wide(name: &str, kw: CssWide, style: &mut TuiStyle) -> Result<(), DispatchError> {
+    macro_rules! put {
+        ($($field:ident),+) => {{ $( style.$field = Some(kw.into_value(name)); )+ }};
+    }
+    match name {
+        "color" => put!(fg),
+        "background-color" | "background" => put!(bg),
+        "border-color" => put!(border_fg),
+        "font-weight" => put!(bold),
+        "font-style" => put!(italic),
+        "text-decoration" => put!(text_decoration),
+        "opacity" => put!(opacity),
+        "display" => put!(display),
+        "flex-direction" => put!(direction),
+        "white-space" => put!(white_space),
+        "user-select" => put!(user_select),
+        "caret-color" => put!(caret_color),
+        "caret-text-color" => put!(caret_text_color),
+        "overflow" => put!(overflow_x, overflow_y),
+        "overflow-x" => put!(overflow_x),
+        "overflow-y" => put!(overflow_y),
+        "scrollbar-gutter" => put!(scrollbar_gutter),
+        "width" => put!(width),
+        "height" => put!(height),
+        "min-width" => put!(min_width),
+        "max-width" => put!(max_width),
+        "min-height" => put!(min_height),
+        "max-height" => put!(max_height),
+        "aspect-ratio" => put!(aspect_ratio),
+        "gap" => put!(gap),
+        "flex" => put!(width, height, flex_shrink),
+        "flex-shrink" => put!(flex_shrink),
+        "padding" | "padding-top" | "padding-right" | "padding-bottom" | "padding-left" => {
+            put!(padding)
+        }
+        "margin" | "margin-top" | "margin-right" | "margin-bottom" | "margin-left" => {
+            put!(margin)
+        }
+        "border"
+        | "border-top"
+        | "border-right"
+        | "border-bottom"
+        | "border-left"
+        | "border-style"
+        | "border-top-style"
+        | "border-right-style"
+        | "border-bottom-style"
+        | "border-left-style" => put!(border),
+        "border-collapse" => put!(border_collapse),
+        "content" => put!(content),
+        "position" => put!(position),
+        "top" => put!(top),
+        "right" => put!(right),
+        "bottom" => put!(bottom),
+        "left" => put!(left),
+        "z-index" => put!(z_index),
+        "inset" => put!(top, right, bottom, left),
+        "transition-property"
+        | "transition-duration"
+        | "transition-timing-function"
+        | "transition-delay"
+        | "transition" => return Err(DispatchError::InvalidValue),
+        _ => return Err(DispatchError::UnknownProperty),
+    }
+    Ok(())
+}
+
+/// If `name`'s (first) field holds a CSS-wide keyword, its spelling.
+fn css_wide_of(name: &str, style: &TuiStyle) -> Option<&'static str> {
+    fn kw<T>(v: &Option<Value<T>>) -> Option<&'static str> {
+        match v {
+            Some(Value::Inherit) => Some("inherit"),
+            Some(Value::Initial) => Some("initial"),
+            _ => None,
+        }
+    }
+    match name {
+        "color" => kw(&style.fg),
+        "background-color" | "background" => kw(&style.bg),
+        "border-color" => kw(&style.border_fg),
+        "font-weight" => kw(&style.bold),
+        "font-style" => kw(&style.italic),
+        "text-decoration" => kw(&style.text_decoration),
+        "opacity" => kw(&style.opacity),
+        "display" => kw(&style.display),
+        "flex-direction" => kw(&style.direction),
+        "white-space" => kw(&style.white_space),
+        "user-select" => kw(&style.user_select),
+        "caret-color" => kw(&style.caret_color),
+        "caret-text-color" => kw(&style.caret_text_color),
+        "overflow" | "overflow-x" => kw(&style.overflow_x),
+        "overflow-y" => kw(&style.overflow_y),
+        "scrollbar-gutter" => kw(&style.scrollbar_gutter),
+        "width" | "flex" => kw(&style.width),
+        "height" => kw(&style.height),
+        "min-width" => kw(&style.min_width),
+        "max-width" => kw(&style.max_width),
+        "min-height" => kw(&style.min_height),
+        "max-height" => kw(&style.max_height),
+        "aspect-ratio" => kw(&style.aspect_ratio),
+        "gap" => kw(&style.gap),
+        "flex-shrink" => kw(&style.flex_shrink),
+        "padding" | "padding-top" | "padding-right" | "padding-bottom" | "padding-left" => {
+            kw(&style.padding)
+        }
+        "margin" | "margin-top" | "margin-right" | "margin-bottom" | "margin-left" => {
+            kw(&style.margin)
+        }
+        "border"
+        | "border-top"
+        | "border-right"
+        | "border-bottom"
+        | "border-left"
+        | "border-style"
+        | "border-top-style"
+        | "border-right-style"
+        | "border-bottom-style"
+        | "border-left-style" => kw(&style.border),
+        "border-collapse" => kw(&style.border_collapse),
+        "content" => kw(&style.content),
+        "position" => kw(&style.position),
+        "top" | "inset" => kw(&style.top),
+        "right" => kw(&style.right),
+        "bottom" => kw(&style.bottom),
+        "left" => kw(&style.left),
+        "z-index" => kw(&style.z_index),
+        _ => None,
+    }
+}
+
 /// Set `name = value` on `style`. Tokenizes the value first; for
 /// callers that already have tokens, prefer [`set_from_tokens`].
 pub fn set(name: &str, value: &str, style: &mut TuiStyle) -> Result<(), DispatchError> {
@@ -343,12 +524,18 @@ pub fn set_from_tokens(
     value: &[Token],
     style: &mut TuiStyle,
 ) -> Result<(), DispatchError> {
+    if let Some(kw) = css_wide_keyword(value) {
+        return set_css_wide(name, kw, style);
+    }
     let outcome: Option<()> = match name {
         // Color / modifiers
         "color" => parse_color(value).map(|c| {
             style.fg = Some(Value::Specified(c));
         }),
-        "background-color" => parse_color(value).map(|c| {
+        // `background` shorthand: only the color component exists in a
+        // cell grid (no images, positions, or repeat), so a lone color
+        // is `background-color` and anything else is invalid.
+        "background-color" | "background" => parse_color(value).map(|c| {
             style.bg = Some(Value::Specified(c));
         }),
         "border-color" => parse_color(value).map(|c| {
@@ -731,10 +918,15 @@ pub fn set_from_tokens(
 /// Unknown property names also return `None` (rather than
 /// errorring); CSSOM `getPropertyValue("bogus")` returns `""` too.
 pub fn serialize(name: &str, style: &TuiStyle) -> Option<String> {
+    if let Some(kw) = css_wide_of(name, style) {
+        return Some(kw.to_string());
+    }
     match name {
         // Color / modifiers
         "color" => style.fg.as_ref().and_then(specified).map(serialize_color),
-        "background-color" => style.bg.as_ref().and_then(specified).map(serialize_color),
+        "background-color" | "background" => {
+            style.bg.as_ref().and_then(specified).map(serialize_color)
+        }
         "border-color" => style
             .border_fg
             .as_ref()
@@ -1182,24 +1374,23 @@ fn serialize_color(c: &TuiColor) -> String {
 fn serialize_literal_color(c: &Color) -> String {
     match c {
         Color::Reset => "reset".to_string(),
-        Color::Rgb(0, 0, 0) => "black".to_string(),
-        Color::Rgb(255, 0, 0) => "red".to_string(),
-        Color::Rgb(0, 128, 0) => "green".to_string(),
-        Color::Rgb(255, 255, 0) => "yellow".to_string(),
-        Color::Rgb(0, 0, 255) => "blue".to_string(),
-        Color::Rgb(255, 0, 255) => "magenta".to_string(),
-        Color::Rgb(0, 255, 255) => "cyan".to_string(),
-        Color::Rgb(128, 128, 128) => "gray".to_string(),
-        Color::Rgb(169, 169, 169) => "darkgray".to_string(),
-        Color::Rgb(240, 128, 128) => "lightred".to_string(),
-        Color::Rgb(144, 238, 144) => "lightgreen".to_string(),
-        Color::Rgb(255, 255, 224) => "lightyellow".to_string(),
-        Color::Rgb(173, 216, 230) => "lightblue".to_string(),
-        Color::Rgb(255, 128, 255) => "lightmagenta".to_string(),
-        Color::Rgb(224, 255, 255) => "lightcyan".to_string(),
-        Color::Rgb(255, 255, 255) => "white".to_string(),
         Color::Indexed(n) => format!("indexed-{n}"),
-        Color::Rgb(r, g, b) => format!("rgb({r}, {g}, {b})"),
+        Color::Rgb(r, g, b) => {
+            // Prefer the terminal-palette spellings authors write most
+            // (they are also the aliases `named::name_of` would not pick
+            // first), then any CSS name for the triple, then `rgb()`.
+            let preferred = match (r, g, b) {
+                (0, 255, 255) => Some("cyan"),
+                (255, 0, 255) => Some("magenta"),
+                (128, 128, 128) => Some("gray"),
+                (169, 169, 169) => Some("darkgray"),
+                _ => None,
+            };
+            preferred
+                .or_else(|| crate::color::named::name_of(*c))
+                .map(str::to_string)
+                .unwrap_or_else(|| format!("rgb({r}, {g}, {b})"))
+        }
     }
 }
 
@@ -1297,7 +1488,28 @@ fn serialize_calc(expr: &crate::calc::CalcExpr) -> String {
                 CalcOp::Mul => "*",
                 CalcOp::Div => "/",
             };
-            format!("{} {} {}", serialize_calc(lhs), op_str, serialize_calc(rhs))
+            // Parenthesize a sub-expression whenever re-parsing the
+            // flat form would bind differently: a lower-precedence
+            // child under `*` / `/`, or any binary right operand of
+            // the non-associative `-` / `/`.
+            let prec = |o: &CalcOp| match o {
+                CalcOp::Add | CalcOp::Sub => 1,
+                CalcOp::Mul | CalcOp::Div => 2,
+            };
+            let wrap = |child: &CalcExpr, is_rhs: bool| -> String {
+                let text = serialize_calc(child);
+                match child {
+                    CalcExpr::Binary { op: child_op, .. } => {
+                        let needs = prec(child_op) < prec(op)
+                            || (is_rhs
+                                && prec(child_op) == prec(op)
+                                && matches!(op, CalcOp::Sub | CalcOp::Div));
+                        if needs { format!("({text})") } else { text }
+                    }
+                    _ => text,
+                }
+            };
+            format!("{} {} {}", wrap(lhs, false), op_str, wrap(rhs, true))
         }
     }
 }
@@ -1391,6 +1603,7 @@ mod tests {
         &[
             ("color", "red"),
             ("background-color", "blue"),
+            ("background", "green"),
             ("border-color", "rgb(10, 20, 30)"),
             ("font-weight", "bold"),
             ("font-style", "italic"),
@@ -1691,6 +1904,153 @@ mod tests {
                 "{name}: calc round-trip diverged. original={value:?}, serialized={serialized:?}"
             );
         }
+    }
+
+    // ── HARDENING-2026-09 Batch 2 ────────────────────────────────────
+
+    /// CSS-wide keywords (CSS Cascade 4 §7): `inherit` and `initial`
+    /// are valid for every property; `unset` is `inherit` for inherited
+    /// properties and `initial` otherwise.
+    #[test]
+    fn css_wide_keywords_parse_for_every_property() {
+        for (name, _) in canonical_values() {
+            if name.starts_with("transition") {
+                // Stored without a `Value` wrapper — STYLE-TRANSITION-VALUE-1.
+                assert_eq!(
+                    set(name, "inherit", &mut TuiStyle::new()),
+                    Err(DispatchError::InvalidValue)
+                );
+                continue;
+            }
+            let mut style = TuiStyle::new();
+            set(name, "inherit", &mut style).unwrap_or_else(|e| panic!("{name}: inherit {e:?}"));
+            let mut style = TuiStyle::new();
+            set(name, "initial", &mut style).unwrap_or_else(|e| panic!("{name}: initial {e:?}"));
+            let mut style = TuiStyle::new();
+            set(name, "unset", &mut style).unwrap_or_else(|e| panic!("{name}: unset {e:?}"));
+        }
+        let mut style = TuiStyle::new();
+        set("color", "inherit", &mut style).unwrap();
+        assert_eq!(style.fg, Some(Value::Inherit));
+        set("width", "initial", &mut style).unwrap();
+        assert_eq!(style.width, Some(Value::Initial));
+        // `unset`: color inherits, width does not.
+        set("color", "unset", &mut style).unwrap();
+        assert_eq!(style.fg, Some(Value::Inherit));
+        set("width", "unset", &mut style).unwrap();
+        assert_eq!(style.width, Some(Value::Initial));
+        // Case-insensitive.
+        set("color", "INHERIT", &mut style).unwrap();
+        assert_eq!(style.fg, Some(Value::Inherit));
+    }
+
+    #[test]
+    fn css_wide_keywords_serialize_as_themselves() {
+        let mut style = TuiStyle::new();
+        set("color", "inherit", &mut style).unwrap();
+        assert_eq!(serialize("color", &style).as_deref(), Some("inherit"));
+        set("width", "initial", &mut style).unwrap();
+        assert_eq!(serialize("width", &style).as_deref(), Some("initial"));
+    }
+
+    /// `background` shorthand with only a color is `background-color`.
+    #[test]
+    fn background_shorthand_sets_background_color() {
+        let mut style = TuiStyle::new();
+        set("background", "red", &mut style).unwrap();
+        assert_eq!(
+            serialize("background-color", &style).as_deref(),
+            Some("red")
+        );
+        assert_eq!(serialize("background", &style).as_deref(), Some("red"));
+        assert_eq!(
+            property_mask("background"),
+            property_mask("background-color")
+        );
+        // Anything beyond a color (images, positions) is unsupported.
+        assert_eq!(
+            set("background", "url(x.png) red", &mut TuiStyle::new()),
+            Err(DispatchError::InvalidValue)
+        );
+    }
+
+    /// Named colors serialize back to a CSS name, never to a non-CSS
+    /// one: `lightcoral` used to come back as `lightred`, which then
+    /// failed to parse.
+    #[test]
+    fn named_colors_round_trip_through_css_names() {
+        for name in [
+            "lightcoral",
+            "rebeccapurple",
+            "gray",
+            "red",
+            "cyan",
+            "aliceblue",
+        ] {
+            let mut a = TuiStyle::new();
+            set("color", name, &mut a).unwrap();
+            let out = serialize("color", &a).unwrap();
+            assert!(!out.starts_with("rgb("), "{name} → {out}");
+            let mut b = TuiStyle::new();
+            set("color", &out, &mut b).unwrap_or_else(|e| panic!("{name} → {out}: {e:?}"));
+            assert_eq!(a, b);
+        }
+        let mut c = TuiStyle::new();
+        set("color", "rgb(1, 2, 3)", &mut c).unwrap();
+        assert_eq!(serialize("color", &c).as_deref(), Some("rgb(1, 2, 3)"));
+    }
+
+    /// Serialization must re-parse to the same tree: sub-expressions
+    /// keep their parentheses.
+    #[test]
+    fn calc_serialization_keeps_parentheses() {
+        for src in [
+            "calc((50% + 2) * 2)",
+            "calc(100% - (2 + 3))",
+            "calc(10 / (2 * 5))",
+            "calc((10 - 2) - 3)",
+        ] {
+            let mut a = TuiStyle::new();
+            set("width", src, &mut a).unwrap();
+            let out = serialize("width", &a).unwrap();
+            let mut b = TuiStyle::new();
+            set("width", &out, &mut b).unwrap_or_else(|e| panic!("{src} → {out}: {e:?}"));
+            assert_eq!(a, b, "{src} → {out}");
+        }
+        let mut s = TuiStyle::new();
+        set("width", "calc((50% + 2) * 2)", &mut s).unwrap();
+        assert_eq!(
+            serialize("width", &s).as_deref(),
+            Some("calc((50% + 2) * 2)")
+        );
+    }
+
+    /// Division by a literal zero is invalid at parse time (CSS Values 4
+    /// §10.9), not a silent 0 at layout time.
+    #[test]
+    fn calc_division_by_literal_zero_is_rejected() {
+        assert_eq!(
+            set("width", "calc(10 / 0)", &mut TuiStyle::new()),
+            Err(DispatchError::InvalidValue)
+        );
+        assert_eq!(
+            set("width", "calc(10 / 0.0)", &mut TuiStyle::new()),
+            Err(DispatchError::InvalidValue)
+        );
+        set("width", "calc(10 / 2)", &mut TuiStyle::new()).unwrap();
+    }
+
+    /// `flex: <grow> <shrink> <basis>` accepts the canonical `0%` basis
+    /// and fractional factors.
+    #[test]
+    fn flex_shorthand_accepts_percent_basis_and_fractional_factors() {
+        for src in ["1 1 0%", "1 0.5 auto", "2 1 0", "1 1 10%"] {
+            set("flex", src, &mut TuiStyle::new()).unwrap_or_else(|e| panic!("{src}: {e:?}"));
+        }
+        assert_eq!(
+            set("flex", "1 1 foo", &mut TuiStyle::new()),
+            Err(DispatchError::InvalidValue)
+        );
     }
 
     /// The headline spec test for step 25. Every property name in

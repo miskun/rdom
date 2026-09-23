@@ -12,6 +12,11 @@ For the durable architectural divergences (web-platform departures shipped on pu
 - **`CORE-GEN-COLOCATE-1` — the slot generation lives in a `Vec` parallel to `nodes`.** Every `get_node` touches two vectors (two bounds checks, two cache lines) on the hottest lookup in layout and paint. Colocating `(generation, Option<Node>)` in one slot removes one of each. Measure on a quiet machine before and after; do not record numbers taken under SentinelOne load.
 - **`CORE-DROP-PANIC-LEAK-1` — `drop_subtree` leaks the subtree if an observer panics.** The `ChildListChanged` record fires before the slots are freed (so observers can inspect the removed nodes); a panicking observer, now re-raised after restore, leaves the subtree detached but never freed. Consistent, but undocumented: either document at the API or free under a drop guard.
 
+### Style crate — from HARDENING-2026-09 Batch 2
+
+- **`STYLE-TRANSITION-VALUE-1` — transition properties are stored without the `Value<T>` wrapper.** `TuiStyle::transition_{property,duration,timing_function,delay}` are plain `Option<Vec<…>>`, so `transition: inherit` / `initial` / `unset` cannot be represented and `set()` reports `InvalidValue` for them while every other property accepts the CSS-wide keywords. Wrap them in `Value<T>` and resolve in the cascade's transition pass.
+- **`STYLE-INHERITS-TWO-SOURCES-1` — the inherited-property set is spelled twice.** `rdom_style::property_dispatch::inherits(name)` (decides `unset` at parse time) and `rdom-tui`'s `INHERITS_MASK` (drives step 2 of the cascade) must agree. The style crate's table is the contract-first home; make the mask derive from it (or test the two against each other) so they cannot drift.
+
 ### Layout & cascade
 
 - **`D-M2-2` — Static-position resolution simplified.** When `top: auto; bottom: auto` (or `left: auto; right: auto`), CSS uses the "hypothetical in-flow position" the element would have had. rdom simplifies to "containing block top-left edge." Real CSS resolution would require phase-1 to track hypothetical positions for absolute children — substantial layout work. Lift if real apps trip on it.

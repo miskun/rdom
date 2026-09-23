@@ -16,7 +16,20 @@ Work in progress under [`specs/HARDENING-2026-09.md`](specs/HARDENING-2026-09.md
 - EOF inside a declaration block closes the block and keeps the rule (§5.4.7) instead of aborting the parse.
 - A `{` inside a quoted attribute-selector value (`a[title="{"]`) no longer ends the selector prelude. Nested `{…}` inside a declaration block is passed through by depth so the outer block ends at the right brace.
 - `InvalidSelector` warnings are positioned at the start of the selector, not after the block.
+- Custom properties under a selector other than `:root` (`.dark { --accent: … }`, `:root, body { … }`) are dropped **with** a new `WarningKind::UnsupportedCustomPropertyScope { selector, name }`; previously they vanished silently. See `DIVERGENCES.md` for the `:root`-only scope.
 - A declaration segment that is not `name : value` (`color red;`, `: red;`) is dropped **with** a new `WarningKind::MalformedDeclaration(text)` instead of vanishing silently; empty segments (`;;`) stay silent. **Breaking** for exhaustive `WarningKind` matches.
+
+### Added — `rdom-style`
+
+- **CSS-wide keywords.** `inherit`, `initial`, and `unset` parse for every property (case-insensitive); `unset` resolves at parse time to `inherit` for the properties rdom inherits (`color`, `font-weight`, `font-style`, `white-space`, `user-select`) and `initial` otherwise, via the new `property_dispatch::inherits(name)`. They serialize back as themselves. Transition properties are the exception (`STYLE-TRANSITION-VALUE-1`). Closes `CSS-INHERIT-KEYWORD-1`.
+- **`background` shorthand** with a single color sets `background-color` (a cell grid has no images, positions, or repeat; anything else is an invalid value). Closes `CSS-BG-SHORTHAND-1`.
+- `flex: <grow> <shrink> <basis>` accepts the canonical `0%` basis, other percentages, and fractional shrink factors (`flex: 1 1 0%`, `flex: 1 0.5 auto`).
+
+### Fixed — `rdom-style`
+
+- Named colors serialize back to a CSS name via a reverse lookup of the named-color table (`lightcoral` came back as the non-CSS `lightred`, which then failed to re-parse). Aliases prefer the terminal-palette spelling (`cyan`, `magenta`, `gray`).
+- `calc()` serialization keeps the parentheses a re-parse needs: `calc((50% + 2) * 2)` no longer flattens to `calc(50% + 2 * 2)`.
+- `calc(x / 0)` (division by a literal zero) is rejected at parse time instead of resolving to 0 at layout time.
 
 ### Changed — `rdom-style`
 

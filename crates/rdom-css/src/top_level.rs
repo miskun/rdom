@@ -247,6 +247,19 @@ fn parse_one_rule(
             let owned = std::mem::take(sheet);
             *sheet = owned.define_var(&cp.name, &cp.value);
         }
+    } else {
+        // No per-element custom-property scope yet: the declaration
+        // is dropped, and it must not be dropped silently.
+        for cp in &custom_props {
+            warnings.push(Warning {
+                kind: WarningKind::UnsupportedCustomPropertyScope {
+                    selector: trimmed.to_string(),
+                    name: cp.name.clone(),
+                },
+                line: selector_line,
+                column: selector_col,
+            });
+        }
     }
 
     if !trimmed.is_empty() && sheet.add_rule(trimmed, style).is_err() {

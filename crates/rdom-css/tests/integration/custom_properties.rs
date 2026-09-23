@@ -5,9 +5,10 @@
 //! populates). Other rules can then reference it via
 //! `var(--name)` and the cascade resolves through the same chain.
 //!
-//! M1 simplification: any `--name: value` declaration anywhere
-//! (not just `:root`) registers a global var. Full cascade-
-//! scoped custom properties are deferred to M5+.
+//! Only `:root` registers vars; under any other selector the
+//! declaration is dropped with `UnsupportedCustomPropertyScope`.
+//! Per-element (cascade-scoped) custom properties are a documented
+//! divergence, see `DIVERGENCES.md`.
 
 use rdom_css::parse;
 use rdom_tui::style::Value;
@@ -93,4 +94,38 @@ fn var_resolves_var_with_fallback_color() {
         }
         other => panic!("expected Var, got {other:?}"),
     }
+}
+
+/// Custom properties declared under any selector other than `:root`
+/// are not applied (rdom has no per-element custom-property scope yet,
+/// see `DIVERGENCES.md`). They must not vanish silently.
+#[test]
+fn custom_property_outside_root_warns_and_keeps_the_rule() {
+    let r = parse(".dark { --accent: red; color: blue }");
+    assert_eq!(r.stylesheet.rules().len(), 1, "the rule itself is kept");
+    assert_eq!(r.stylesheet.var("accent"), None, "not registered globally");
+    assert!(
+        r.warnings.iter().any(|w| matches!(
+            &w.kind,
+            rdom_css::WarningKind::UnsupportedCustomPropertyScope { selector, name }
+                if selector == ".dark" && name == "accent"
+        )),
+        "{:?}",
+        r.warnings
+    );
+}
+
+/// `:root` inside a selector list still counts as the root scope only
+/// for the `:root` part — the whole list is one rule, so it warns.
+#[test]
+fn root_in_a_selector_list_warns() {
+    let r = parse(":root, body { --accent: red }");
+    assert!(
+        r.warnings.iter().any(|w| matches!(
+            &w.kind,
+            rdom_css::WarningKind::UnsupportedCustomPropertyScope { .. }
+        )),
+        "{:?}",
+        r.warnings
+    );
 }

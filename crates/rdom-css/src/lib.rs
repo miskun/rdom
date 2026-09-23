@@ -123,6 +123,9 @@ fn warning_to_error(w: &Warning) -> ParseError {
             ParseErrorKind::ExpectedToken("valid declaration")
         }
         WarningKind::UnsupportedAtRule(_) => ParseErrorKind::ExpectedToken("rule"),
+        WarningKind::UnsupportedCustomPropertyScope { .. } => {
+            ParseErrorKind::ExpectedToken(":root")
+        }
     };
     ParseError {
         kind,
@@ -177,6 +180,13 @@ pub enum WarningKind {
     /// missing name, stray tokens). Dropped per CSS Syntax 3 §5.4.4;
     /// the payload is the segment's rendered text.
     MalformedDeclaration(String),
+    /// A `--name: value` declaration under a selector other than
+    /// `:root`. rdom's custom properties are stylesheet-global and
+    /// `:root`-only (see `DIVERGENCES.md`); the declaration is dropped.
+    UnsupportedCustomPropertyScope {
+        selector: String,
+        name: String,
+    },
     UnsupportedAtRule(String),
     InvalidSelector(String),
     UnterminatedComment,

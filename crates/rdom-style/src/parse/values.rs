@@ -523,17 +523,24 @@ pub fn parse_flex_shorthand(value: &[Token]) -> Option<Size> {
             // flex shorthand tail (1 or 2 more numeric/auto values).
             // If not, reject so authors get a warning rather than a
             // silent partial-apply.
+            // `<shrink>` is a non-negative number (integer or fractional);
+            // `<basis>` is `auto`, a cell count, or a percentage — the
+            // canonical `flex: 1 1 0%` included.
+            let is_factor = |t: &Token| match t {
+                Token::Number(n) => *n >= 0,
+                Token::Float(f) => *f >= 0.0,
+                _ => false,
+            };
+            let is_basis = |t: &Token| match t {
+                Token::Number(n) => *n >= 0,
+                Token::Percentage(p) => *p >= 0.0,
+                Token::Ident(s) => s.eq_ignore_ascii_case("auto"),
+                _ => false,
+            };
             let tail = &value[1..];
             let tail_ok = match tail.len() {
-                1 => {
-                    matches!(&tail[0], Token::Number(_))
-                        || matches!(&tail[0], Token::Ident(s) if s.eq_ignore_ascii_case("auto"))
-                }
-                2 => {
-                    matches!(&tail[0], Token::Number(_))
-                        && (matches!(&tail[1], Token::Number(_))
-                            || matches!(&tail[1], Token::Ident(s) if s.eq_ignore_ascii_case("auto")))
-                }
+                1 => is_factor(&tail[0]) || is_basis(&tail[0]),
+                2 => is_factor(&tail[0]) && is_basis(&tail[1]),
                 _ => false,
             };
             if !tail_ok {
@@ -1110,6 +1117,12 @@ impl<'a> CalcParser<'a> {
             };
             self.advance();
             let rhs = self.parse_factor()?;
+            // CSS Values 4 §10.9: dividing by a literal zero makes the
+            // whole `calc()` invalid at parse time — never a silent 0
+            // at layout time.
+            if op == CalcOp::Div && matches!(rhs, CalcExpr::Number(z) if z == 0.0) {
+                return None;
+            }
             lhs = CalcExpr::binary(op, lhs, rhs);
         }
         Some(lhs)
