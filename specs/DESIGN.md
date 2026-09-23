@@ -130,11 +130,11 @@ Including `bg` in a glyph style during paint causes a second blend pass under op
 
 ### NodeId is arena-scoped and never reused within a `Dom`
 
-Removing a node releases the ID, but the arena never hands the same ID out twice within a single `Dom` instance. This is what makes `NodeId` safe to pass around as an opaque handle without lifetime gymnastics.
+Removing a node releases its slot for reuse, but the `NodeId` carries a per-slot generation that changes on every recycle, so a handle to a dropped node never resolves to the slot's next occupant. This is what makes `NodeId` safe to pass around as an opaque handle without lifetime gymnastics.
 
-### MutationObserver delivery is batched at microtask boundaries
+### MutationObserver delivery is synchronous, one record per mutation
 
-Records reference live nodes only; observers do not deliver records for nodes dropped during the batch. Matches WHATWG DOM.
+Each mutation notifies every registered observer before the mutating call returns (no microtask batching — the runtime has no task queue to batch against). Records reference live nodes at delivery time; the `ChildListChanged` for a drop fires before the slot is freed. Observers must not mutate the tree during a callback (panics), but may add or remove observers.
 
 ### Event dispatch is 3-phase (capture → target → bubble) with full `stopPropagation` / `stopImmediatePropagation` / `preventDefault` semantics
 

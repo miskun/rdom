@@ -32,6 +32,11 @@ pub enum DomError {
     /// UTF-8 codepoint (not on a `char` boundary). Callers should
     /// derive offsets from `Position` or grapheme walks to avoid this.
     InvalidOffset { node: NodeId, offset: usize },
+
+    /// The operation is not valid in the object's current state (spec
+    /// `InvalidStateError`) — e.g. dispatching an `Event` that is
+    /// already being dispatched.
+    InvalidState(&'static str),
 }
 
 impl std::fmt::Display for DomError {
@@ -49,6 +54,7 @@ impl std::fmt::Display for DomError {
                     "invalid byte offset {offset} for node {node:?} (out of range or mid-codepoint)"
                 )
             }
+            DomError::InvalidState(what) => write!(f, "invalid state: {what}"),
         }
     }
 }

@@ -75,6 +75,12 @@ pub struct Event {
     pub(crate) propagation_stopped: bool,
     pub(crate) immediate_propagation_stopped: bool,
     pub(crate) default_prevented: bool,
+    /// DOM "dispatch flag": set for the duration of `dispatch_event`.
+    /// Re-dispatching an in-flight event is `InvalidStateError` on the
+    /// web; here it returns `DomError::InvalidState`. A listener panic
+    /// that unwinds out of `dispatch_event` leaves the flag set on that
+    /// `Event` value (the value is normally dropped with the unwind).
+    pub(crate) dispatching: bool,
 
     /// Set by [`EventCtx::request_redraw`](crate::EventCtx::request_redraw)
     /// when a listener mutated state that the host should repaint —
@@ -101,6 +107,7 @@ impl Event {
             propagation_stopped: false,
             immediate_propagation_stopped: false,
             default_prevented: false,
+            dispatching: false,
             redraw_requested: false,
         }
     }
@@ -142,8 +149,11 @@ impl Event {
     }
 
     /// Stop bubbling/capturing on subsequent nodes. Listeners still
-    /// registered at the current node continue to fire (see
-    /// `stop_immediate_propagation` for the harder stop).
+    /// registered at the current node *and phase* continue to fire (see
+    /// `stop_immediate_propagation` for the harder stop); at the target,
+    /// calling this from a capture listener suppresses the target's
+    /// bubble listeners, which belong to the next pass. The flag is
+    /// cleared when the dispatch ends (DOM §2.9 step 5.9).
     pub fn stop_propagation(&mut self) {
         self.propagation_stopped = true;
     }

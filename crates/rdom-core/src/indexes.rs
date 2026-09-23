@@ -148,13 +148,17 @@ impl<Ext> Dom<Ext> {
 
     // ─── Public arena-wide lookups ───────────────────────────────────
 
-    /// Return the first element in the arena with the given `id` attribute.
-    /// O(1). Returns `None` if no element matches.
+    /// The element carrying this `id` attribute, or `None`.
     ///
-    /// Browser semantics: `document.getElementById`. In the real DOM this
-    /// returns the first element in *document order*. Here it returns the
-    /// first element that had the id *set* on it, which is almost always
-    /// the same node unless the tree is being mutated rapidly.
+    /// `document.getElementById` semantics for the common case: a hash
+    /// lookup, O(1) when the id is unique. When several elements share
+    /// the id, the first one in **document order** among those connected
+    /// to the root wins (the web's answer); that path walks the few
+    /// candidates' ancestor chains.
+    ///
+    /// Divergence (see `DIVERGENCES.md`): the lookup is arena-wide, so
+    /// a *detached* element is found when no connected element carries
+    /// the id. The web only searches the document tree.
     pub fn get_element_by_id(&self, id_value: &str) -> Option<NodeId> {
         let bucket = self.indexes.by_id.get(id_value)?;
         if bucket.len() == 1 {
@@ -259,10 +263,12 @@ mod tests {
         assert_eq!(dom.get_element_by_id("dup"), Some(later));
     }
 
-    /// Freeing many same-tag nodes must not degrade: 20k register/free
-    /// cycles complete in well under a second with a log-time index.
+    /// Registering and freeing many same-tag nodes keeps the index exact
+    /// (the bucket is a set: no duplicates, empty bucket removed). The
+    /// log-time cost is structural — `Bucket` is a `BTreeSet` — so no
+    /// wall-clock assertion here (it would be flaky under load).
     #[test]
-    fn tag_index_scales_with_many_nodes() {
+    fn tag_index_stays_exact_across_many_nodes() {
         let mut dom: Dom = Dom::new();
         let root = dom.root();
         let ids: Vec<_> = (0..20_000)
@@ -273,16 +279,15 @@ mod tests {
             })
             .collect();
         assert_eq!(dom.get_elements_by_tag_name_all("div").len(), 20_000);
-        let start = std::time::Instant::now();
         for id in ids {
             dom.remove_child_dropping(root, id).unwrap();
         }
         assert!(dom.get_elements_by_tag_name_all("div").is_empty());
         assert!(
-            start.elapsed() < std::time::Duration::from_secs(2),
-            "teardown took {:?}",
-            start.elapsed()
+            !dom.indexes.by_tag.contains_key("div"),
+            "empty bucket is removed"
         );
+        assert!(dom.validate().is_empty());
     }
 
     #[test]

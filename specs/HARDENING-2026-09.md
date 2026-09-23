@@ -175,3 +175,15 @@ then a release (divergent bumps as before; a `rdom-core` change forces a `rdom-t
   red runtime test (the rewritten panic test asserted a root listener count of 1, ignoring the App's
   builtin root listeners) because the background test runner's exit status was read from the wrong
   place — fixed in the following commit; the gate is now read from the log's own `test exit` line.
+- 2026-09-24 — Batch 1 review gates run (architect + API). No blocking findings. Follow-ups landed: stale
+  rustdoc (indexes / observer / dispatch / event), CHANGELOG "Breaking" section with migration notes,
+  DIVERGENCES DOM-API/Events entries rewritten (classList, listener removal, dispatch order) plus new
+  entries for arena-wide `getElementById` and the `compare_boundary_points` shape, DESIGN.md id-reuse and
+  observer-delivery paragraphs corrected, `dispatch_event` rejects an in-flight event
+  (`DomError::InvalidState`), `drop_subtree(root)` rejected, `validate()` checks the generation table,
+  timing assertion removed from the index test, missing tests added (stale id → dispatch/add_listener,
+  observer removing a later observer, boundary offset past child count). Deferred to TECH_DEBT:
+  `CORE-DOCPOS-ALLOC-1`, `CORE-GEN-COLOCATE-1`, `CORE-DROP-PANIC-LEAK-1`. Release note: every crate
+  pinning `rdom-core` must bump with it (not just `rdom-tui`).
+- 2026-09-24 — Batch 2 started: R8 fixed (`Token::Float`, `Percentage(f64)`, whole-literal number
+  tokenization per CSS Syntax 3 §4.3.12; checked `u16` conversions instead of wrapping casts).

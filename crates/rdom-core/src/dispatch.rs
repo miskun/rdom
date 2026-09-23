@@ -206,9 +206,19 @@ impl<Ext> Dom<Ext> {
         self.listeners.by_node.get(&node).map_or(0, Vec::len)
     }
 
-    /// Dispatch `event` starting at `target`. Walks capture → target →
-    /// bubble firing listeners, honoring `stop_propagation` and
-    /// `stop_immediate_propagation`. Returns `Err` on invalid target.
+    /// Dispatch `event` at `target` per DOM §2.9: one capture pass from
+    /// the root down, one bubble pass from the target up. The target
+    /// takes part in both — its capture listeners fire in the capture
+    /// pass and its non-capture listeners in the bubble pass, each
+    /// reporting `EventPhase::AtTarget` — so registration order never
+    /// interleaves them, and `stop_propagation()` in a target capture
+    /// listener suppresses the target's bubble listeners. Returns `Err`
+    /// on an invalid target.
+    ///
+    /// When dispatch ends, `phase`, `current_target`, and the two
+    /// stop-propagation flags are reset (spec step 5.9), so the same
+    /// `Event` value can be dispatched again; `default_prevented`
+    /// persists.
     ///
     /// Handlers may mutate the Dom via `EventCtx::dom`. The ancestor path
     /// is computed up-front so mid-dispatch mutations don't destabilize
@@ -216,6 +226,13 @@ impl<Ext> Dom<Ext> {
     /// dispatches, not the current one.
     pub fn dispatch_event(&mut self, target: NodeId, event: &mut Event) -> Result<()> {
         self.node_or_err(target)?;
+        if event.dispatching {
+            // DOM §2.9 step 1: the dispatch flag is set → InvalidStateError.
+            // Letting the inner dispatch run would reset the outer
+            // dispatch's propagation flags when it finished.
+            return Err(DomError::InvalidState("event is already being dispatched"));
+        }
+        event.dispatching = true;
 
         event.target = Some(target);
 
@@ -274,6 +291,7 @@ impl<Ext> Dom<Ext> {
         event.current_target = None;
         event.propagation_stopped = false;
         event.immediate_propagation_stopped = false;
+        event.dispatching = false;
         Ok(())
     }
 
@@ -556,6 +574,65 @@ mod tests {
 
         dom.dispatch_event(c, &mut e).unwrap();
         assert_eq!(fired.get(), 2, "second dispatch reaches the listener again");
+    }
+
+    /// DOM §2.9 step 1: dispatching an event whose dispatch flag is set
+    /// throws `InvalidStateError`. Without this, the inner dispatch's
+    /// end-of-dispatch flag reset would clobber the outer dispatch's
+    /// `stop_propagation()`.
+    #[test]
+    fn redispatching_an_in_flight_event_is_an_error_and_keeps_outer_flags() {
+        let (mut dom, a, _, c, _) = build_chain();
+        let inner_result = Rc::new(std::cell::RefCell::new(None));
+        let target_fired = Rc::new(Cell::new(false));
+        {
+            let inner_result = inner_result.clone();
+            dom.add_event_listener(a, "click", cap(), move |ctx| {
+                ctx.event.stop_propagation();
+                let r = ctx.dom.dispatch_event(a, ctx.event);
+                *inner_result.borrow_mut() = Some(r);
+            })
+            .unwrap();
+        }
+        {
+            let target_fired = target_fired.clone();
+            dom.add_event_listener(c, "click", ListenerOptions::default(), move |_| {
+                target_fired.set(true);
+            })
+            .unwrap();
+        }
+        let mut e = Event::new("click");
+        dom.dispatch_event(c, &mut e).unwrap();
+        assert!(matches!(
+            inner_result.borrow().as_ref(),
+            Some(Err(DomError::InvalidState(_)))
+        ));
+        assert!(
+            !target_fired.get(),
+            "outer stop_propagation survived the inner attempt"
+        );
+        // And the event is dispatchable again once the outer dispatch ends.
+        dom.dispatch_event(c, &mut e).unwrap();
+    }
+
+    #[test]
+    fn stale_id_is_rejected_by_dispatch_and_add_event_listener() {
+        let mut dom: Dom = Dom::new();
+        let root = dom.root();
+        let el = dom.create_element("div");
+        dom.append_child(root, el).unwrap();
+        dom.remove_child_dropping(root, el).unwrap();
+        let _reuses_slot = dom.create_element("span");
+        let mut e = Event::new("click");
+        assert!(matches!(
+            dom.dispatch_event(el, &mut e).unwrap_err(),
+            DomError::InvalidNode(_)
+        ));
+        assert!(matches!(
+            dom.add_event_listener(el, "click", ListenerOptions::default(), |_| {})
+                .unwrap_err(),
+            DomError::InvalidNode(_)
+        ));
     }
 
     #[test]

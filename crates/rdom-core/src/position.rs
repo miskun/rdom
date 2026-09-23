@@ -447,6 +447,30 @@ mod tests {
         );
     }
 
+    /// An offset past the last child is "after every child" (a Range end
+    /// of `(parent, childCount)`), not an error.
+    #[test]
+    fn boundary_point_offset_beyond_child_count_orders_after_all_children() {
+        use crate::Position;
+        use std::cmp::Ordering;
+        let (dom, a, b, g, root) = build();
+        let end = Position::new(root, 99);
+        for inside in [
+            Position::new(a, 0),
+            Position::new(g, 0),
+            Position::new(b, 0),
+        ] {
+            assert_eq!(
+                dom.compare_boundary_points(end, inside),
+                Some(Ordering::Greater)
+            );
+            assert_eq!(
+                dom.compare_boundary_points(inside, end),
+                Some(Ordering::Less)
+            );
+        }
+    }
+
     #[test]
     fn boundary_points_disconnected_is_none() {
         use crate::Position;

@@ -7,7 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Work in progress under [`specs/HARDENING-2026-09.md`](specs/HARDENING-2026-09.md). Batch 1 changes `rdom-core` (→ 0.4.0); `rdom-tui` follows because it depends on it.
+Work in progress under [`specs/HARDENING-2026-09.md`](specs/HARDENING-2026-09.md). Batch 1 changes `rdom-core` (→ 0.4.0); every crate that pins `rdom-core` (`rdom-style`, `rdom-css`, `rdom-parser`, `rdom-tui`) bumps with it so a consumer never ends up with two `rdom-core` versions and mismatched `Dom` types. Batch 2 changes `rdom-style` (→ 0.4.0).
+
+### Changed — `rdom-style`
+
+- **CSS numbers are tokenized whole (CSS Syntax 3 §4.3.12).** A literal with a fraction or exponent is one `Token::Float(f64)`; an integer literal stays `Token::Number(i32)`; `Token::Percentage` carries an `f64` so `12.5%` survives. Previously `0.05` arrived as `Number(0) Delim('.') Number(5)` and was reassembled as **0.5**, and `1.05s` became **1500ms**; both now parse correctly. `.5` (leading dot) and `1e3` are numbers; `1.` is `1` followed by `.`; `1em` is `1` followed by the ident `em`. (R8)
+- **Out-of-range integers are rejected, not wrapped or zeroed.** A literal that does not fit `i32` becomes a `Float` (so `width: 99999999999` is dropped as invalid instead of becoming 0), and `width` / `min-width` / `flex` / padding / `parse_unsigned` reject values above `u16::MAX` instead of wrapping (`width: 70000` was 4464 cells).
+- `parse_time_ms` rounds to whole milliseconds (`1.6ms` → 2ms; previously truncated).
+- **Breaking:** `Token::Percentage(i32)` is now `Token::Percentage(f64)` and `Token::Float(f64)` is a new variant; code matching on `Token` exhaustively must add an arm.
+
+### Breaking — `rdom-core`
+
+Migration notes for consumers moving from 0.3.x:
+
+- `NodeId` grows from 4 to 8 bytes (slot index + generation). It was never constructible outside the crate, so no code breaks, but structs holding many ids grow. `as_u32()` still returns the slot number and is therefore **no longer unique over a `Dom`'s lifetime** — two ids can share it across a recycle; use the whole `NodeId` (or `generation()` too) as a key. `Ord` now orders by `(slot, generation)`. `Display` appends `@gen` after a recycle.
+- `compare_document_position` bits are flipped to the web's orientation (below). Code that compensated for the old inversion — e.g. treating `CONTAINS` as "the argument comes after" — must flip its checks. Prefer the new `compare_boundary_points` for ordering positions.
+- Target-phase listener order changed (below): capture listeners on the target now fire before its non-capture listeners regardless of registration order, and `stop_propagation()` in one suppresses the other.
+- `get_elements_by_tag_name_all(tag)` / `get_elements_by_class_name_all` return **arena order** (creation order, except for recycled slots); the tag getter previously returned registration order, which differed for re-parented or recycled nodes.
+- `drop_subtree(dom.root())` now returns `Err(HierarchyRequest)` instead of freeing the root and leaving `Dom::root` dead.
+- New `DomError::InvalidState(&'static str)` variant (exhaustive matches must add an arm): dispatching an `Event` that is already being dispatched returns it (DOM `InvalidStateError`), instead of running and clobbering the outer dispatch's propagation flags.
+- `set_class_name` now emits one net-diff `ClassChanged` record followed by one `AttributeChanged`, instead of one `ClassChanged` per removed and added class around the attribute write. Observers that counted records will see fewer.
 
 ### Changed — `rdom-core`
 
@@ -15,9 +34,14 @@ Work in progress under [`specs/HARDENING-2026-09.md`](specs/HARDENING-2026-09.md
 - **`compare_document_position` bits match DOM §4.4.** `a.compareDocumentPosition(b)` with `b` a descendant of `a` is `CONTAINED_BY | FOLLOWING` (20); the previous inversion made `FOLLOWING` mean two different things depending on the branch. New `Dom::compare_boundary_points` implements DOM §5.2 boundary-point ordering; `selection_range` uses it, so an element position `(el, k)` orders by its offset against the child index. (R2)
 - **Event dispatch is two-pass at the target (DOM §2.9).** Capture listeners on the target fire in the capture pass, non-capture listeners in the bubble pass, both reporting `AtTarget`; registration order no longer interleaves them, and `stopPropagation()` in a target capture listener suppresses the target's bubble listeners. The stop-propagation flags are cleared when dispatch ends so an `Event` can be dispatched again (`default_prevented` persists).
 - **`getElementById` with duplicate ids returns the first in document order** among connected elements (was: first registered).
-- **Index buckets are `BTreeSet`s.** Register / unregister is O(log n); building or tearing down n same-tag nodes was O(n²). Bulk getters return arena order as before.
-- `set_class_name` is a single `set_attribute("class", …)` call (one `AttributeChanged` record instead of a remove-all / set / add-each cycle).
+- **Index buckets are `BTreeSet`s.** Register / unregister is O(log n); building or tearing down n same-tag nodes was O(n²). Bulk getters return arena order (see Breaking).
+- `set_class_name` is a single `set_attribute("class", …)` call (see Breaking for the record shape).
 - `Dom::node` / `NodeRef::node_type` / `NodeRef::node_name` document their panic on a dead id.
+- `Dom::validate` reports a `GenerationTableMismatch` when the per-slot generation table and the slot table disagree.
+
+### Changed — `rdom-tui`
+
+- Selection paint decides whole-text-node membership by boundary-point order, so a range ending at `(parent, 0)` no longer highlights the text under `parent`'s children.
 
 ### Fixed — `rdom-core`
 

@@ -276,8 +276,16 @@ impl<Ext: 'static> Dom<Ext> {
 
     /// Drop `id` and its entire subtree from the arena — frees every slot.
     /// Useful when you know you'll never reattach the nodes.
+    ///
+    /// The root cannot be dropped (`HierarchyRequest`): `Dom::root` must
+    /// stay live for the lifetime of the arena. Use
+    /// [`clear_children_dropping`](Self::clear_children_dropping) to
+    /// empty it.
     pub fn drop_subtree(&mut self, id: NodeId) -> Result<()> {
         self.node_or_err(id)?;
+        if id == self.root {
+            return Err(DomError::HierarchyRequest);
+        }
         let parent = self.get_node(id).and_then(|n| n.parent);
         // Detach from parent first.
         let _ = self.detach_from_parent(id);
@@ -578,6 +586,23 @@ mod tests {
             dom.append_child(b, a).unwrap_err(),
             DomError::HierarchyRequest
         ));
+    }
+
+    /// The root is the arena's anchor; dropping it would leave `Dom::root`
+    /// pointing at a dead slot and break every later call.
+    #[test]
+    fn drop_subtree_rejects_the_root() {
+        let mut dom: Dom = Dom::new();
+        let root = dom.root();
+        let child = dom.create_element("div");
+        dom.append_child(root, child).unwrap();
+        assert!(matches!(
+            dom.drop_subtree(root).unwrap_err(),
+            DomError::HierarchyRequest
+        ));
+        assert!(dom.contains(root));
+        assert!(dom.contains(child), "nothing was freed");
+        assert!(dom.validate().is_empty());
     }
 
     #[test]

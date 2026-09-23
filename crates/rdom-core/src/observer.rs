@@ -15,11 +15,17 @@
 //! ## Re-entrancy
 //!
 //! Observer callbacks may READ the Dom freely but must NOT mutate the
-//! tree or install/remove observers. A runtime guard (`is_observing`)
-//! panics on re-entrant mutation with a clear message. This keeps the
-//! cascade dirty-tracker's invariants intact: the set of dirty roots
-//! must be computed from a fixed tree state, not one that shifts under
-//! each notification.
+//! tree. A runtime guard (`is_observing`) panics on re-entrant mutation
+//! with a clear message. This keeps the cascade dirty-tracker's
+//! invariants intact: the set of dirty roots must be computed from a
+//! fixed tree state, not one that shifts under each notification.
+//!
+//! Installing or removing observers *is* allowed from inside a
+//! callback (the web's `MutationObserver.disconnect()` inside the
+//! callback). Notification snapshots the observer ids up front and
+//! takes each observer out of its slot only for its own call, so a
+//! removed observer — including the running one — gets nothing further
+//! and an added one sees only later records.
 //!
 //! ## Nested mutations (fragment unwrap)
 //!
@@ -176,7 +182,9 @@ impl<Ext> ObserverStore<Ext> {
 
 impl<Ext: 'static> Dom<Ext> {
     /// Register a mutation observer. Fires for every subsequent DOM
-    /// mutation on this `Dom`. Returns a handle for removal.
+    /// mutation on this `Dom`. Returns a handle for removal. Callable
+    /// from inside an `observe()` callback; the new observer first sees
+    /// the *next* record.
     pub fn add_mutation_observer(
         &mut self,
         observer: Box<dyn MutationObserver<Ext>>,
@@ -188,7 +196,9 @@ impl<Ext: 'static> Dom<Ext> {
     }
 
     /// Remove a previously-registered observer. Returns `true` if the
-    /// observer existed and was removed.
+    /// observer existed and was removed. Callable from inside an
+    /// `observe()` callback, including by the observer being notified
+    /// (it is dropped once its call returns).
     pub fn remove_mutation_observer(&mut self, id: ObserverId) -> bool {
         let before = self.observers.entries.len();
         self.observers.entries.retain(|(oid, _)| *oid != id);
@@ -200,12 +210,12 @@ impl<Ext: 'static> Dom<Ext> {
         self.observers.entries.len()
     }
 
-    /// Emit a mutation record to every registered observer. Panics if
-    /// called while already inside `observe()` (re-entrant mutation).
-    /// Fast-path noop when no observers AND we're not already observing
-    /// — the is_observing check must come first so re-entrancy is
-    /// detected even when the observer list has been temporarily moved
-    /// out for dispatch.
+    /// Emit a mutation record to every observer registered at the time
+    /// of the call. Panics if called while already inside `observe()`
+    /// (re-entrant mutation). Fast-path noop when no observers AND we're
+    /// not already observing — the `is_observing` check comes first so
+    /// re-entrancy is detected even while an observer is taken out of
+    /// its slot for its own call.
     pub(crate) fn fire_mutation(&mut self, record: Mutation) {
         if self.is_observing {
             panic!(
@@ -416,6 +426,37 @@ mod tests {
         assert!(late.borrow().is_empty(), "not the record that installed it");
         dom.set_attribute(el, "id", "second").unwrap();
         assert_eq!(late.borrow().len(), 1);
+    }
+
+    /// Removing an observer that has not fired yet in the current round
+    /// takes effect immediately: it is skipped for this record too.
+    #[test]
+    fn observer_can_remove_a_later_observer_before_it_fires() {
+        struct Remover {
+            victim: Rc<std::cell::Cell<Option<ObserverId>>>,
+        }
+        impl MutationObserver<()> for Remover {
+            fn observe(&mut self, dom: &mut Dom<()>, _record: &Mutation) {
+                if let Some(v) = self.victim.take() {
+                    assert!(dom.remove_mutation_observer(v));
+                }
+            }
+        }
+        let mut dom: Dom = Dom::new();
+        let victim = Rc::new(std::cell::Cell::new(None));
+        dom.add_mutation_observer(Box::new(Remover {
+            victim: victim.clone(),
+        }));
+        let (victim_id, victim_records) = install_collector(&mut dom);
+        victim.set(Some(victim_id));
+
+        let el = dom.create_element("div");
+        dom.set_attribute(el, "id", "x").unwrap();
+        assert!(
+            victim_records.borrow().is_empty(),
+            "removed before its turn"
+        );
+        assert_eq!(dom.observer_count(), 1);
     }
 
     #[test]
