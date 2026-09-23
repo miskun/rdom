@@ -1,6 +1,6 @@
 # HARDENING-2026-09 — full-project review, divergence audit, debt paydown
 
-**Status:** IN PROGRESS (started 2026-09-21). Batch 1 (rdom-core) underway.
+**Status:** IN PROGRESS (started 2026-09-21). Batch 1 (rdom-core) done and gated; Batch 2 (rdom-style + rdom-css) code complete, gates pending.
 
 Origin: a full review of the workspace at `rdom-tui` 0.3.14 / `rdom-core` 0.3.5 (five grumpy-architect
 passes, one per crate group, plus a docs/process pass), followed by an entry-by-entry audit of
@@ -185,5 +185,15 @@ then a release (divergent bumps as before; a `rdom-core` change forces a `rdom-t
   observer removing a later observer, boundary offset past child count). Deferred to TECH_DEBT:
   `CORE-DOCPOS-ALLOC-1`, `CORE-GEN-COLOCATE-1`, `CORE-DROP-PANIC-LEAK-1`. Release note: every crate
   pinning `rdom-core` must bump with it (not just `rdom-tui`).
-- 2026-09-24 — Batch 2 started: R8 fixed (`Token::Float`, `Percentage(f64)`, whole-literal number
-  tokenization per CSS Syntax 3 §4.3.12; checked `u16` conversions instead of wrapping casts).
+- 2026-09-24 — Batch 2 (rdom-style + rdom-css) code complete, pending review gates: R8 fixed
+  (`Token::Float`, `Percentage(f64)`, whole-literal number tokenization per CSS Syntax 3 §4.3.12;
+  checked `u16` conversions instead of wrapping casts); R9 fixed (at-rules consumed whole with
+  `UnsupportedAtRule`, stray `}` ignored, EOF closes a block, depth-aware bodies, strings in preludes,
+  `MalformedDeclaration` warning); CSS-wide keywords `inherit` / `initial` / `unset` for every
+  property (`property_dispatch::inherits` decides `unset`); `background` shorthand; `flex: 1 1 0%`;
+  named-color reverse lookup; calc serialization parentheses; `calc(x / 0)` rejected; string hex
+  escapes + non-ASCII identifiers; custom properties outside `:root` warn
+  (`UnsupportedCustomPropertyScope`) and DIVERGENCES documents the `:root`-only scope. Deferred to
+  TECH_DEBT: `STYLE-TRANSITION-VALUE-1`, `STYLE-INHERITS-TWO-SOURCES-1`. Not done in this batch:
+  `url(` token, `rgb(255 0 0)` / `hsl()` syntaxes, fractional-percentage layout resolution beyond
+  whole percent (parsed, truncated), per-element custom-property scope (Batch 3 cascade work).

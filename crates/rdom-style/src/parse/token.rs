@@ -127,7 +127,7 @@ fn read_one(cursor: &mut Cursor, c: char) -> Result<Token, TokenizerError> {
     if c == '-' {
         let next = cursor.peek_two().1;
         match next {
-            Some(c2) if c2.is_ascii_alphabetic() || c2 == '_' || c2 == '-' => {
+            Some(c2) if is_ident_start(c2) || c2 == '-' => {
                 return Ok(read_ident_or_function(cursor));
             }
             _ => {
@@ -161,14 +161,16 @@ fn read_one(cursor: &mut Cursor, c: char) -> Result<Token, TokenizerError> {
     Ok(tok)
 }
 
+/// CSS Syntax 3 §4.2 "ident-start code point": a letter, `_`, or any
+/// non-ASCII code point. `-` is handled specially in `read_one` (it's
+/// only an ident start when followed by another ident-start char).
 fn is_ident_start(c: char) -> bool {
-    // `-` is handled specially in `read_one` (it's only an ident
-    // start when followed by another ident-start char per CSS).
-    c.is_ascii_alphabetic() || c == '_'
+    c.is_ascii_alphabetic() || c == '_' || !c.is_ascii()
 }
 
+/// §4.2 "ident code point": ident-start, a digit, or `-`.
 fn is_ident_continue(c: char) -> bool {
-    c.is_ascii_alphanumeric() || c == '_' || c == '-'
+    is_ident_start(c) || c.is_ascii_digit() || c == '-'
 }
 
 fn read_ident_or_function(cursor: &mut Cursor) -> Token {
@@ -258,6 +260,32 @@ fn read_number(cursor: &mut Cursor) -> Token {
     Token::Float(value)
 }
 
+/// §4.3.7 "consume an escaped code point", hex form: the cursor is on
+/// the first of 1..=6 hex digits (the `\` is already consumed). One
+/// whitespace after the digits is part of the escape. Zero, surrogates,
+/// and values above U+10FFFF become U+FFFD.
+fn read_hex_escape(cursor: &mut Cursor) -> char {
+    let mut value: u32 = 0;
+    let mut digits = 0;
+    while digits < 6 {
+        match cursor.peek() {
+            Some(c) if c.is_ascii_hexdigit() => {
+                value = value * 16 + c.to_digit(16).unwrap_or(0);
+                cursor.bump();
+                digits += 1;
+            }
+            _ => break,
+        }
+    }
+    if cursor.peek().is_some_and(char::is_whitespace) {
+        cursor.bump();
+    }
+    match value {
+        0 | 0xD800..=0xDFFF => '\u{FFFD}',
+        v => char::from_u32(v).unwrap_or('\u{FFFD}'),
+    }
+}
+
 fn read_hash(cursor: &mut Cursor) -> Token {
     cursor.bump(); // consume '#'
     let mut hex = String::new();
@@ -289,11 +317,21 @@ fn read_string(cursor: &mut Cursor) -> Result<Token, TokenizerError> {
                 });
             }
             Some(c) if c == quote => return Ok(Token::String(out)),
-            Some('\\') => {
-                if let Some(esc) = cursor.bump() {
-                    out.push(esc);
+            Some('\\') => match cursor.peek() {
+                // §4.3.5: an escaped newline inside a string is dropped.
+                Some('\n') => {
+                    cursor.bump();
                 }
-            }
+                Some(c) if c.is_ascii_hexdigit() => {
+                    out.push(read_hex_escape(cursor));
+                }
+                Some(_) => {
+                    if let Some(esc) = cursor.bump() {
+                        out.push(esc);
+                    }
+                }
+                None => {} // `\` at EOF: the unterminated-string path reports it
+            },
             Some(c) => out.push(c),
         }
     }
@@ -357,6 +395,39 @@ mod tests {
                 Token::Ident("b".to_string())
             ]
         );
+    }
+
+    /// CSS Syntax 3 §4.3.7 "consume an escaped code point": `\` + 1..6
+    /// hex digits is a code point (one following whitespace is eaten);
+    /// `\` + any other char is that char; an escaped newline inside a
+    /// string is dropped (§4.3.5).
+    #[test]
+    fn string_escapes_decode_hex_and_literal_forms() {
+        assert_eq!(
+            toks(r#""\201C""#),
+            vec![Token::String("\u{201C}".to_string())]
+        );
+        assert_eq!(
+            toks(r#""\201c quote""#),
+            vec![Token::String("\u{201C}quote".to_string())]
+        );
+        assert_eq!(toks(r#""a\"b""#), vec![Token::String("a\"b".to_string())]);
+        assert_eq!(toks(r#""a\\b""#), vec![Token::String("a\\b".to_string())]);
+        assert_eq!(toks("\"a\\\nb\""), vec![Token::String("ab".to_string())]);
+        // Out-of-range / surrogate code points become U+FFFD.
+        assert_eq!(
+            toks(r#""\110000""#),
+            vec![Token::String("\u{FFFD}".to_string())]
+        );
+    }
+
+    /// Identifiers may contain non-ASCII code points (§4.3.9): `größe`
+    /// and `--größe` are single idents, not ident + garbage.
+    #[test]
+    fn non_ascii_identifiers_are_single_tokens() {
+        assert_eq!(toks("größe"), vec![Token::Ident("größe".to_string())]);
+        assert_eq!(toks("--größe"), vec![Token::Ident("--größe".to_string())]);
+        assert_eq!(toks("日本語"), vec![Token::Ident("日本語".to_string())]);
     }
 
     #[test]

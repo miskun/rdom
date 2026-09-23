@@ -30,6 +30,7 @@ Work in progress under [`specs/HARDENING-2026-09.md`](specs/HARDENING-2026-09.md
 - Named colors serialize back to a CSS name via a reverse lookup of the named-color table (`lightcoral` came back as the non-CSS `lightred`, which then failed to re-parse). Aliases prefer the terminal-palette spelling (`cyan`, `magenta`, `gray`).
 - `calc()` serialization keeps the parentheses a re-parse needs: `calc((50% + 2) * 2)` no longer flattens to `calc(50% + 2 * 2)`.
 - `calc(x / 0)` (division by a literal zero) is rejected at parse time instead of resolving to 0 at layout time.
+- Tokenizer: string escapes follow CSS Syntax 3 §4.3.7 — `"\201C"` is U+201C (1–6 hex digits, one following whitespace consumed; zero, surrogates, and out-of-range become U+FFFD), an escaped newline is dropped, and any other escaped character is itself. Previously `\201C` produced the literal text `201C`. Identifiers accept non-ASCII code points (`größe`, `--größe`, `日本語`) per §4.2.
 
 ### Changed — `rdom-style`
 
