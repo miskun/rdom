@@ -6,12 +6,22 @@
 //! - Start tags (`<tag>`), end tags (`</tag>`), self-closing (`<br/>`)
 //! - Void elements (`<br>`, `<hr>`, `<img>`, …) auto-close without `/>`
 //! - Attributes: `name="value"` / `name='value'` / `name=value` / `name`
-//! - Text with entity decoding: `&amp; &lt; &gt; &quot; &apos; &#NNN; &#xHH;`
+//! - Text with entity decoding: the common named references
+//!   (`&amp; &lt; &copy; &mdash; …`) plus `&#NNN;` / `&#xHH;`; U+0000,
+//!   surrogates and out-of-range code points decode to U+FFFD
+//! - A `<` not followed by an ASCII letter, `/`, `!`, or `?` is text
+//!   (HTML §13.2.5.6 tag-open state), so `a < b` needs no escaping
+//! - `<style>` / `<script>` bodies are RAWTEXT (no tags, no entities)
+//!   and `<textarea>` / `<title>` bodies are RCDATA (entities only),
+//!   each ending at its own case-insensitive end tag (HTML §13.2.5.3–6)
 //! - Comments: `<!-- … -->` preserved as Comment nodes
+//! - `<!DOCTYPE …>` and other `<!…>` declarations are consumed and
+//!   produce no node
 //! - Case-insensitive tag names (tags are normalized to lowercase)
 //!
-//! Out of scope: `<!DOCTYPE>`, CDATA, namespace prefixes, processing
-//! instructions, `<script>` / `<style>` raw-text mode.
+//! Out of scope: CDATA, namespace prefixes, processing instructions,
+//! tree-construction error recovery (a mismatched or missing end tag is
+//! a hard error — this is a template parser, not a browser).
 
 use rdom_core::{Dom, NodeId};
 
@@ -146,12 +156,21 @@ impl<'a> Parser<'a> {
                 out.push(id);
                 continue;
             }
-            if self.peek() == Some(b'<') {
+            if self.starts_with("<!") {
+                // `<!DOCTYPE html>` and any other markup declaration:
+                // consumed, no node (HTML §13.2.5.42 keeps the DOCTYPE
+                // token out of the tree).
+                self.skip_declaration();
+                continue;
+            }
+            if self.peek() == Some(b'<') && self.peek_at(1).is_some_and(|b| b.is_ascii_alphabetic())
+            {
                 let id = self.parse_element(dom, parent)?;
                 out.push(id);
                 continue;
             }
-            // Plain text until next '<'.
+            // Plain text until the next tag open. A `<` not followed by
+            // an ASCII letter, `/`, `!`, or `?` is text (§13.2.5.6).
             let id = self.parse_text(dom, parent)?;
             if let Some(id) = id {
                 out.push(id);
@@ -204,7 +223,7 @@ impl<'a> Parser<'a> {
             // UTF-8 slice from the source.
             let slice_start = self.pos;
             while let Some(b) = self.peek() {
-                if b == b'<' || b == b'&' {
+                if b == b'&' || (b == b'<' && self.at_tag_open()) {
                     break;
                 }
                 self.advance();
@@ -227,6 +246,89 @@ impl<'a> Parser<'a> {
         dom.append_child(parent, id)
             .map_err(|e| self.err(format!("failed to append text: {:?}", e)))?;
         Ok(Some(id))
+    }
+
+    /// Is the `<` at the cursor a real tag open (HTML §13.2.5.6)? Only
+    /// when followed by an ASCII letter, `/`, `!`, or `?`.
+    fn at_tag_open(&self) -> bool {
+        self.peek() == Some(b'<')
+            && self
+                .peek_at(1)
+                .is_some_and(|b| b.is_ascii_alphabetic() || matches!(b, b'/' | b'!' | b'?'))
+    }
+
+    /// Consume a `<!…>` markup declaration (DOCTYPE, CDATA-as-bogus,
+    /// etc.) through its closing `>`, or to EOF.
+    fn skip_declaration(&mut self) {
+        while let Some(b) = self.advance() {
+            if b == b'>' {
+                return;
+            }
+        }
+    }
+
+    /// Byte offset of the `</tag` (ASCII-case-insensitive, followed by
+    /// whitespace, `/`, or `>`) that ends a RAWTEXT / RCDATA element,
+    /// searching from the cursor. `None` at EOF.
+    fn find_end_tag(&self, tag_lc: &str) -> Option<usize> {
+        let hay = &self.bytes[self.pos..];
+        let needle_len = 2 + tag_lc.len();
+        let mut i = 0;
+        while i + needle_len <= hay.len() {
+            if hay[i] == b'<' && hay[i + 1] == b'/' {
+                let name = &hay[i + 2..i + needle_len];
+                if name.eq_ignore_ascii_case(tag_lc.as_bytes()) {
+                    let after = hay.get(i + needle_len).copied();
+                    if after.is_none_or(|b| b.is_ascii_whitespace() || b == b'>' || b == b'/') {
+                        return Some(self.pos + i);
+                    }
+                }
+            }
+            i += 1;
+        }
+        None
+    }
+
+    /// Parse the body of a RAWTEXT (`<style>`, `<script>`) or RCDATA
+    /// (`<textarea>`, `<title>`) element as a single text node, then
+    /// consume its end tag. RCDATA decodes character references; RAWTEXT
+    /// takes the bytes verbatim (HTML §13.2.5.3–6).
+    fn parse_special_text<Ext>(
+        &mut self,
+        dom: &mut Dom<Ext>,
+        element: NodeId,
+        tag_lc: &str,
+        decode_entities: bool,
+    ) -> Result<()>
+    where
+        Ext: Default + 'static,
+    {
+        let Some(end) = self.find_end_tag(tag_lc) else {
+            return Err(self
+                .err(format!("missing closing tag for <{}>", tag_lc))
+                .with_hint(format!("add </{}> to close", tag_lc)));
+        };
+        let raw = &self.src[self.pos..end];
+        let text = if decode_entities {
+            decode_character_references(raw)
+        } else {
+            raw.to_string()
+        };
+        if !text.is_empty() {
+            let id = dom.create_text_node(&text);
+            dom.append_child(element, id)
+                .map_err(|e| self.err(format!("failed to append text: {:?}", e)))?;
+        }
+        self.pos = end;
+        self.advance_n(2 + tag_lc.len()); // `</tag`
+        self.skip_ws();
+        if self.peek() != Some(b'>') {
+            return Err(self
+                .err(format!("expected `>` in </{}>", tag_lc))
+                .with_hint("no attributes on closing tags"));
+        }
+        self.advance();
+        Ok(())
     }
 
     // ── Entity ─────────────────────────────────────────────────────
@@ -331,6 +433,24 @@ impl<'a> Parser<'a> {
             dom.append_child(parent, element)
                 .map_err(|e| self.err(format!("failed to append <{}>: {:?}", tag_lc, e)))?;
             return Ok(element);
+        }
+
+        // RAWTEXT / RCDATA elements take their body as one text node
+        // up to their own end tag.
+        match tag_lc.as_str() {
+            "style" | "script" => {
+                self.parse_special_text(dom, element, &tag_lc, false)?;
+                dom.append_child(parent, element)
+                    .map_err(|e| self.err(format!("failed to append <{}>: {:?}", tag_lc, e)))?;
+                return Ok(element);
+            }
+            "textarea" | "title" => {
+                self.parse_special_text(dom, element, &tag_lc, true)?;
+                dom.append_child(parent, element)
+                    .map_err(|e| self.err(format!("failed to append <{}>: {:?}", tag_lc, e)))?;
+                return Ok(element);
+            }
+            _ => {}
         }
 
         // Parse children, then expect </tag>.
@@ -525,30 +645,156 @@ impl<'a> Parser<'a> {
 /// Decode an entity body (chars between `&` and `;`). Returns `None`
 /// for unrecognized input — caller emits the `&` literal.
 fn decode_entity_body(body: &str) -> Option<String> {
-    match body {
-        "amp" => Some("&".to_string()),
-        "lt" => Some("<".to_string()),
-        "gt" => Some(">".to_string()),
-        "quot" => Some("\"".to_string()),
-        "apos" => Some("'".to_string()),
-        "nbsp" => Some("\u{00A0}".to_string()),
-        _ => {
-            if let Some(rest) = body.strip_prefix('#') {
-                if let Some(hex) = rest.strip_prefix('x').or_else(|| rest.strip_prefix('X')) {
-                    let n = u32::from_str_radix(hex, 16).ok()?;
-                    let c = char::from_u32(n)?;
-                    Some(c.to_string())
-                } else {
-                    let n: u32 = rest.parse().ok()?;
-                    let c = char::from_u32(n)?;
-                    Some(c.to_string())
-                }
-            } else {
-                None
+    if let Some(rest) = body.strip_prefix('#') {
+        let n = if let Some(hex) = rest.strip_prefix('x').or_else(|| rest.strip_prefix('X')) {
+            u32::from_str_radix(hex, 16).ok()?
+        } else {
+            rest.parse::<u32>().ok()?
+        };
+        // HTML §13.2.5.80: U+0000, surrogates, and code points above
+        // U+10FFFF are parse errors that yield U+FFFD.
+        let c = match n {
+            0 | 0xD800..=0xDFFF => '\u{FFFD}',
+            _ => char::from_u32(n).unwrap_or('\u{FFFD}'),
+        };
+        return Some(c.to_string());
+    }
+    NAMED_REFERENCES
+        .binary_search_by(|(name, _)| (*name).cmp(body))
+        .ok()
+        .map(|i| NAMED_REFERENCES[i].1.to_string())
+}
+
+/// Decode every `&…;` reference in `text` (RCDATA bodies). Unknown
+/// or unterminated references stay literal, as in the text path.
+fn decode_character_references(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(amp) = rest.find('&') {
+        out.push_str(&rest[..amp]);
+        let after = &rest[amp + 1..];
+        let decoded = after
+            .find(';')
+            .filter(|&semi| semi <= 16)
+            .and_then(|semi| decode_entity_body(&after[..semi]).map(|d| (d, semi)));
+        match decoded {
+            Some((d, semi)) => {
+                out.push_str(&d);
+                rest = &after[semi + 1..];
+            }
+            None => {
+                out.push('&');
+                rest = after;
             }
         }
     }
+    out.push_str(rest);
+    out
 }
+
+/// The named character references a template author is likely to type.
+/// Sorted by name for binary search; the full HTML table has 2 231
+/// entries and is not worth its size for a TUI template language.
+const NAMED_REFERENCES: &[(&str, &str)] = &[
+    ("AElig", "\u{C6}"),
+    ("Aacute", "\u{C1}"),
+    ("Agrave", "\u{C0}"),
+    ("Auml", "\u{C4}"),
+    ("Ccedil", "\u{C7}"),
+    ("Dagger", "\u{2021}"),
+    ("Eacute", "\u{C9}"),
+    ("Egrave", "\u{C8}"),
+    ("Ntilde", "\u{D1}"),
+    ("Oslash", "\u{D8}"),
+    ("Ouml", "\u{D6}"),
+    ("Prime", "\u{2033}"),
+    ("Uuml", "\u{DC}"),
+    ("aacute", "\u{E1}"),
+    ("acute", "\u{B4}"),
+    ("aelig", "\u{E6}"),
+    ("agrave", "\u{E0}"),
+    ("amp", "&"),
+    ("apos", "'"),
+    ("aring", "\u{E5}"),
+    ("asymp", "\u{2248}"),
+    ("auml", "\u{E4}"),
+    ("bdquo", "\u{201E}"),
+    ("brvbar", "\u{A6}"),
+    ("bull", "\u{2022}"),
+    ("ccedil", "\u{E7}"),
+    ("cedil", "\u{B8}"),
+    ("cent", "\u{A2}"),
+    ("check", "\u{2713}"),
+    ("clubs", "\u{2663}"),
+    ("copy", "\u{A9}"),
+    ("crarr", "\u{21B5}"),
+    ("curren", "\u{A4}"),
+    ("dagger", "\u{2020}"),
+    ("darr", "\u{2193}"),
+    ("deg", "\u{B0}"),
+    ("diams", "\u{2666}"),
+    ("divide", "\u{F7}"),
+    ("eacute", "\u{E9}"),
+    ("egrave", "\u{E8}"),
+    ("equiv", "\u{2261}"),
+    ("euro", "\u{20AC}"),
+    ("frac12", "\u{BD}"),
+    ("frac14", "\u{BC}"),
+    ("frac34", "\u{BE}"),
+    ("ge", "\u{2265}"),
+    ("gt", ">"),
+    ("harr", "\u{2194}"),
+    ("hearts", "\u{2665}"),
+    ("hellip", "\u{2026}"),
+    ("iexcl", "\u{A1}"),
+    ("infin", "\u{221E}"),
+    ("iquest", "\u{BF}"),
+    ("laquo", "\u{AB}"),
+    ("larr", "\u{2190}"),
+    ("ldquo", "\u{201C}"),
+    ("le", "\u{2264}"),
+    ("loz", "\u{25CA}"),
+    ("lsaquo", "\u{2039}"),
+    ("lsquo", "\u{2018}"),
+    ("lt", "<"),
+    ("macr", "\u{AF}"),
+    ("mdash", "\u{2014}"),
+    ("micro", "\u{B5}"),
+    ("middot", "\u{B7}"),
+    ("minus", "\u{2212}"),
+    ("nbsp", "\u{A0}"),
+    ("ndash", "\u{2013}"),
+    ("ne", "\u{2260}"),
+    ("not", "\u{AC}"),
+    ("ntilde", "\u{F1}"),
+    ("oslash", "\u{F8}"),
+    ("ouml", "\u{F6}"),
+    ("para", "\u{B6}"),
+    ("permil", "\u{2030}"),
+    ("plusmn", "\u{B1}"),
+    ("pound", "\u{A3}"),
+    ("prime", "\u{2032}"),
+    ("quot", "\""),
+    ("raquo", "\u{BB}"),
+    ("rarr", "\u{2192}"),
+    ("rdquo", "\u{201D}"),
+    ("reg", "\u{AE}"),
+    ("rsaquo", "\u{203A}"),
+    ("rsquo", "\u{2019}"),
+    ("sbquo", "\u{201A}"),
+    ("sect", "\u{A7}"),
+    ("shy", "\u{AD}"),
+    ("spades", "\u{2660}"),
+    ("sup2", "\u{B2}"),
+    ("sup3", "\u{B3}"),
+    ("szlig", "\u{DF}"),
+    ("times", "\u{D7}"),
+    ("trade", "\u{2122}"),
+    ("uarr", "\u{2191}"),
+    ("uml", "\u{A8}"),
+    ("uuml", "\u{FC}"),
+    ("yen", "\u{A5}"),
+];
 
 #[cfg(test)]
 mod tests {

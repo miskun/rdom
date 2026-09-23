@@ -387,3 +387,89 @@ fn parser_works_with_generic_ext() {
     struct E;
     let _: (Dom<E>, Vec<_>) = parse::<E>("<x/>").unwrap();
 }
+
+// ── HARDENING-2026-09 R10: HTML tokenizer states the parser was missing ──
+
+fn only_text(dom: &Dom<()>, el: rdom_core::NodeId) -> String {
+    let kids: Vec<_> = dom.node(el).child_nodes().collect();
+    assert_eq!(kids.len(), 1, "expected exactly one child under {el:?}");
+    assert_eq!(kids[0].node_type(), rdom_core::NodeType::Text);
+    kids[0].node_value().unwrap().to_string()
+}
+
+/// HTML §13.2.5.6 tag-open state: `<` not followed by an ASCII letter,
+/// `/`, `!`, or `?` is emitted as a text character.
+#[test]
+fn less_than_before_non_letter_is_text() {
+    let (dom, ids) = p("<p>a < b</p>");
+    assert_eq!(only_text(&dom, ids[0]), "a < b");
+    let (dom, ids) = p("<p>1<2 and 3 <= 4</p>");
+    assert_eq!(only_text(&dom, ids[0]), "1<2 and 3 <= 4");
+    let (dom, ids) = p("<p>lonely <</p>");
+    assert_eq!(only_text(&dom, ids[0]), "lonely <");
+}
+
+/// `<style>` and `<script>` contents are RAWTEXT / script data: no
+/// tags, no entity decoding, until the matching end tag.
+#[test]
+fn style_and_script_are_raw_text() {
+    let css = r#"a::before { content: "<"; } b > c { color: red } .x { content: "&amp;" }"#;
+    let (dom, ids) = p(&format!("<style>{css}</style><div></div>"));
+    assert_eq!(dom.node(ids[0]).tag_name(), Some("style"));
+    assert_eq!(only_text(&dom, ids[0]), css);
+    assert_eq!(dom.node(ids[1]).tag_name(), Some("div"));
+
+    let js = "if (a < b && c) { d = '</p>'; }";
+    let (dom, ids) = p(&format!("<script>{js}</script>"));
+    assert_eq!(only_text(&dom, ids[0]), js);
+}
+
+/// The end tag inside raw text is matched case-insensitively and only
+/// for the same tag name.
+#[test]
+fn raw_text_ends_at_the_matching_end_tag_only() {
+    let (dom, ids) = p("<style>x</styles> y</STYLE><b></b>");
+    assert_eq!(only_text(&dom, ids[0]), "x</styles> y");
+    assert_eq!(dom.node(ids[1]).tag_name(), Some("b"));
+}
+
+/// `<textarea>` and `<title>` are RCDATA: entities decode, tags are text.
+#[test]
+fn textarea_and_title_are_rcdata() {
+    let (dom, ids) = p("<textarea>&lt;x&gt; <b>bold</b> &amp; more</textarea>");
+    assert_eq!(only_text(&dom, ids[0]), "<x> <b>bold</b> & more");
+    let (dom, ids) = p("<title>a &amp; b <i>c</i></title>");
+    assert_eq!(only_text(&dom, ids[0]), "a & b <i>c</i>");
+}
+
+/// Common named character references decode; unknown names and
+/// references without `;` stay literal; U+0000 and surrogates become
+/// U+FFFD (HTML §13.2.5.80).
+#[test]
+fn named_and_numeric_character_references() {
+    let (dom, ids) =
+        p("<p>&copy; 2026 &mdash; &hellip; &laquo;x&raquo; &times; &euro;&nbsp;&trade;</p>");
+    assert_eq!(
+        only_text(&dom, ids[0]),
+        "\u{A9} 2026 \u{2014} \u{2026} \u{AB}x\u{BB} \u{D7} \u{20AC}\u{A0}\u{2122}"
+    );
+    let (dom, ids) = p("<p>&bogus; &amp &#0; &#xD800; &#x1F600;</p>");
+    assert_eq!(
+        only_text(&dom, ids[0]),
+        "&bogus; &amp \u{FFFD} \u{FFFD} \u{1F600}"
+    );
+}
+
+/// A DOCTYPE (and any `<!…>` declaration) is consumed and produces no
+/// node; it used to be a parse error with a misleading hint.
+#[test]
+fn doctype_is_skipped() {
+    let (dom, ids) = p("<!DOCTYPE html><div>x</div>");
+    assert_eq!(ids.len(), 1);
+    assert_eq!(dom.node(ids[0]).tag_name(), Some("div"));
+    // Whitespace after the declaration is ordinary text (rdom preserves
+    // inter-element whitespace; collapsing is a layout concern).
+    let (dom, ids) = p("<!doctype html>\n<div>x</div>");
+    assert_eq!(ids.len(), 2);
+    assert_eq!(dom.node(ids[1]).tag_name(), Some("div"));
+}

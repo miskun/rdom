@@ -174,6 +174,18 @@ The web platform has no tree element — trees are built from `role="tree"` / `r
 - **Transitioning to or from `auto` width/height is declined** per CSS L1.
 - **Not implemented:** `@keyframes`, `animation-*` properties, the Web Animations API, `requestIdleCallback`, `cancelIdleCallback`, `setImmediate`, scroll-linked animations.
 
+### HTML parsing (`rdom-parser`)
+
+`rdom-parser` is a strict template parser, not a browser tree constructor. It follows the HTML tokenizer where that costs nothing (text `<`, RAWTEXT / RCDATA elements, character references, DOCTYPE skipping) and departs where recovery would hide author mistakes:
+
+- **Malformed markup is an error, not repaired.** A missing or mismatched end tag (`<div><p>a</div>`), an unterminated attribute, or EOF inside a tag returns `ParseError` with line / column and a hint; HTML's tree-construction recovery (implied end tags, foster parenting, adoption agency) is not implemented.
+- **`<tag/>` self-closes any element**, not just void and foreign elements (HTML ignores the `/` on a non-void HTML element).
+- **Attribute names keep their case** (HTML lowercases them); the DOM's attribute lookup is exact-match. Tag names are lowercased as in HTML.
+- **Duplicate attributes: the last one wins** (HTML keeps the first).
+- **Character references:** ~100 common named references (`DIVERGENCES` of the full 2 231-entry table); an unknown name or a reference without `;` stays literal (HTML also decodes a legacy set without the semicolon).
+- **Whitespace is preserved verbatim** in text nodes, including inter-element whitespace; collapsing happens in `rdom-tui`'s layout per `white-space`, as in the browser's rendering (not parsing) pipeline.
+- **`</` followed by a non-letter** ends the current element's children and is then an error, rather than becoming a bogus comment.
+
 ## 3. Not yet shipped
 
 Common web-platform surface rdom omits entirely as of 0.4.x. Schedule lives in [`DESIGN.md`](DESIGN.md#roadmap).
