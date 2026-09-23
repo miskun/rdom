@@ -42,6 +42,7 @@ bitflags_like! {
         USER_SELECT = 1 << 22;
         OVERFLOW_Y  = 1 << 23;
         FLEX_SHRINK = 1 << 24;
+        POINTER_EVENTS = 1 << 25;
     }
 }
 
@@ -52,7 +53,8 @@ pub const INHERITS_MASK: PropMask = PropMask(
         | PropMask::BOLD.bits()
         | PropMask::ITALIC.bits()
         | PropMask::WHITE_SPACE.bits()
-        | PropMask::USER_SELECT.bits(),
+        | PropMask::USER_SELECT.bits()
+        | PropMask::POINTER_EVENTS.bits(),
 );
 
 /// Properties that affect layout geometry. Changing one of these

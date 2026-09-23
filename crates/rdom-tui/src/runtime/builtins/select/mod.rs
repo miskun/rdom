@@ -542,7 +542,7 @@ fn typeahead_search(dom: &mut TuiDom, select: NodeId, ch: char, multi: bool) {
     // highlight so extra letters refine the match.
     let (query_lower, cycle_mode): (String, bool) = TYPEAHEAD_STATE.with(|s| {
         let mut st = s.borrow_mut();
-        let now = Instant::now();
+        let now = crate::runtime::timers::current_now().unwrap_or_else(Instant::now);
         let expired = st
             .last
             .is_none_or(|t| now.duration_since(t) > TYPEAHEAD_TIMEOUT);

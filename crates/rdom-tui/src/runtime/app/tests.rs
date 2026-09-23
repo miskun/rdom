@@ -2564,6 +2564,58 @@ fn checkbox_flips_before_click_dispatch_and_reverts_when_canceled() {
     );
 }
 
+/// Multi-click detection runs on the scheduler clock, not wall time,
+/// so `advance()` is authoritative: two clicks 600 ms apart on the
+/// virtual clock are two single clicks even though no real time passed.
+#[test]
+fn double_click_detection_uses_the_scheduler_clock() {
+    use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
+    use std::cell::Cell;
+    use std::rc::Rc;
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let el = dom.create_element("div");
+    dom.append_child(root, el).unwrap();
+    let dbl = Rc::new(Cell::new(0u32));
+    {
+        let dbl = dbl.clone();
+        dom.add_event_listener(el, "dblclick", ListenerOptions::default(), move |_| {
+            dbl.set(dbl.get() + 1);
+        })
+        .unwrap();
+    }
+    let sheet = Stylesheet::bare().rule_unchecked(
+        "div",
+        TuiStyle::new()
+            .width(Size::Fixed(10))
+            .height(Size::Fixed(3)),
+    );
+    let mut app = test_app(dom, sheet, Rect::new(0, 0, 20, 5));
+    app.draw_if_dirty().unwrap();
+    let mouse = |kind, x: u16, y: u16| {
+        CtEvent::Mouse(MouseEvent {
+            kind,
+            column: x,
+            row: y,
+            modifiers: KeyModifiers::empty(),
+        })
+    };
+    let click = |app: &mut App<TestBackend>| {
+        app.handle_event(mouse(MouseEventKind::Down(MouseButton::Left), 3, 1));
+        app.handle_event(mouse(MouseEventKind::Up(MouseButton::Left), 3, 1));
+    };
+    click(&mut app);
+    app.advance(600).unwrap(); // past the multi-click window on the virtual clock
+    click(&mut app);
+    assert_eq!(
+        dbl.get(),
+        0,
+        "no dblclick: the clicks are 600 ms apart on the scheduler clock"
+    );
+    click(&mut app); // immediately after → a real double-click
+    assert_eq!(dbl.get(), 1);
+}
+
 #[test]
 fn drag_autoscroll_scrolls_a_container_held_at_the_edge() {
     // DRAG-AUTOSCROLL phase 2: a captured drag that opted into autoscroll and

@@ -33,6 +33,8 @@ Work in progress under [`specs/HARDENING-2026-09.md`](specs/HARDENING-2026-09.md
 
 ### Added — `rdom-style`
 
+- **`pointer-events: auto | none`** (the cell-grid subset of CSS Pointer Events). Inherited; `none` makes an element transparent to hit-testing in `rdom-tui`. SVG-only values (`visiblePainted`, …) are invalid.
+
 - **CSS-wide keywords.** `inherit`, `initial`, and `unset` parse for every property (case-insensitive); `unset` resolves at parse time to `inherit` for the properties rdom inherits (`color`, `font-weight`, `font-style`, `white-space`, `user-select`) and `initial` otherwise, via the new `property_dispatch::inherits(name)`. They serialize back as themselves. Transition properties are the exception (`STYLE-TRANSITION-VALUE-1`). Closes `CSS-INHERIT-KEYWORD-1`.
 - **`background` shorthand** with a single color sets `background-color` (a cell grid has no images, positions, or repeat; anything else is an invalid value). Closes `CSS-BG-SHORTHAND-1`.
 - `flex: <grow> <shrink> <basis>` accepts the canonical `0%` basis, other percentages, and fractional shrink factors (`flex: 1 1 0%`, `flex: 1 0.5 auto`).
@@ -84,6 +86,9 @@ Migration notes for consumers moving from 0.3.x:
 - **Checkbox and radio activation follows HTML §4.10.5.1.15.** The state flips *before* `click` is dispatched, so a click listener reading `checked` sees the new state as in a browser, and a canceled click (`preventDefault`) reverts the flip; `input` and `change` fire only when the click was not canceled. Previously the flip happened after dispatch.
 - **`<select size>` follows HTML §4.10.7.** `size="1"`, `size="0"`, or a non-numeric size is the drop-down box; only `size > 1` (or `multiple`) is a list box, and a `size > 1` list box without `multiple` stays single-select. Any `size` attribute used to force list-box mode.
 - **`position: sticky` moves a mixed-content element's text with it.** The anonymous block boxes that hold a sticky element's own text (next to block children) are shifted with the element, so a pinned header's title no longer stays at its pre-stick row while its background moves. (R7)
+- **`pointer-events: none` is honored by hit-testing.** The element is never the hit target, its subtree is still searched for `pointer-events: auto` descendants, and otherwise the point falls through to whatever is beneath — overlays and backdrops can let clicks through. Was: every painted element hittable.
+- **Wheel scrolling chains.** A wheel tick over a scroll container that is already at its rail end in that direction scrolls the next scrollable ancestor (CSS Overscroll Behavior default `auto`). Was: the nearest scrollable ancestor swallowed the tick.
+- **Multi-click and type-ahead timing run on the scheduler clock** when an `App` is active, so `App::advance` drives them deterministically (two clicks 600 ms apart on the virtual clock are two single clicks even with no real time elapsed); a bare `Router` or `Dom` outside an `App` still uses wall time.
 - `opacity: inherit`, `text-decoration: inherit`, and `scrollbar-gutter: inherit | initial` now resolve in the cascade (parent's value / spec initial). The arms existed but resolved `inherit` to the initial value; they were unreachable until the parser started producing the keywords.
 
 ### Changed — `rdom-tui`

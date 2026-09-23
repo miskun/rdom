@@ -639,6 +639,20 @@ pub enum CaretTextColor {
     Color(crate::TuiColor),
 }
 
+/// CSS `pointer-events` — the subset that means something in a cell
+/// grid (`auto` | `none`). Inherited, like the web. `none` makes the
+/// element transparent to hit-testing: pointer input falls through to
+/// whatever is beneath, and a descendant that sets `auto` is a target
+/// again.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum PointerEvents {
+    /// Default: the element is a hit target.
+    #[default]
+    Auto,
+    /// Transparent to the pointer.
+    None,
+}
+
 /// Controls whether the user can select text inside the element.
 /// Matches the CSS `user-select` property. Inherits (so a chrome
 /// subtree can be marked unselectable with a single rule on the

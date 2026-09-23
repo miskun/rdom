@@ -445,8 +445,10 @@ fn handle_wheel(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> Rou
         _ => return RouteOutcome::default(),
     };
 
-    // Walk ancestors for the nearest scrollable container. First
-    // match wins — no nested-scroll chaining in v1.
+    // Walk ancestors for the nearest scrollable container that can
+    // still move in the wheel's direction. One already at its rail
+    // end is skipped and the tick chains to the next scrollable
+    // ancestor (CSS Overscroll Behavior §3 default, `auto`).
     // Which axis is this wheel event moving? crossterm emits
     // wheel events with a single axis set (either (0, ±1) or
     // (±1, 0)), so a scrollable ancestor must match the
@@ -503,7 +505,8 @@ fn handle_wheel(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> Rou
                     quit_requested: false,
                 };
             }
-            return RouteOutcome::default();
+            // At the rail end in this direction: chain to the next
+            // scrollable ancestor.
         }
         cur = dom.node(id).parent_node().map(|p| p.id());
     }

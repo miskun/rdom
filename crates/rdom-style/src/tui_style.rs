@@ -78,6 +78,7 @@ bitflags_like! {
         CARET_COLOR = 1 << 36;
         CARET_TEXT_COLOR = 1 << 37;
         FLEX_SHRINK = 1 << 38;
+        POINTER_EVENTS = 1 << 39;
         FLOW = 1 << 39;
         SCROLLBAR_GUTTER = 1 << 40;
     }
@@ -160,6 +161,8 @@ pub struct TuiStyle {
     pub flow: Option<Value<crate::layout::Flow>>,
     pub white_space: Option<Value<WhiteSpace>>,
     pub user_select: Option<Value<UserSelect>>,
+    /// CSS `pointer-events` (`auto` | `none`). Inherited.
+    pub pointer_events: Option<Value<crate::layout::PointerEvents>>,
     /// CSS `caret-color`. `Auto` (default) paints the caret cell
     /// with bg = underlying-cell fg. `Transparent` suppresses paint.
     /// `Color(c)` uses `c` as the caret bg. Inherits per CSS spec.
@@ -495,6 +498,13 @@ impl TuiStyle {
         UserSelect
     );
     setter!(
+        pointer_events,
+        pointer_events,
+        pointer_events_important,
+        POINTER_EVENTS,
+        crate::layout::PointerEvents
+    );
+    setter!(
         caret_color,
         caret_color,
         caret_color_important,
@@ -659,6 +669,9 @@ impl TuiStyle {
             n += 1
         }
         if self.user_select.is_some() {
+            n += 1
+        }
+        if self.pointer_events.is_some() {
             n += 1
         }
         if self.caret_color.is_some() {

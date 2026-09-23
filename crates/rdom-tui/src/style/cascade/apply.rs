@@ -350,6 +350,13 @@ fn apply_style(
         important_pass,
         parent.user_select,
     );
+    apply_pointer_events(
+        &mut working.pointer_events,
+        &style.pointer_events,
+        style.important.contains(ImportantMask::POINTER_EVENTS),
+        important_pass,
+        parent.pointer_events,
+    );
     apply_caret_color(
         &mut working.caret_color,
         &style.caret_color,
@@ -748,6 +755,23 @@ fn apply_user_select(
         important_pass,
         inherit,
         UserSelect::Auto
+    );
+}
+
+fn apply_pointer_events(
+    target: &mut crate::layout::PointerEvents,
+    value: &Option<Value<crate::layout::PointerEvents>>,
+    important_prop: bool,
+    important_pass: bool,
+    inherit: crate::layout::PointerEvents,
+) {
+    apply_simple!(
+        *target,
+        value,
+        important_prop,
+        important_pass,
+        inherit,
+        crate::layout::PointerEvents::Auto
     );
 }
 

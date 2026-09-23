@@ -81,6 +81,14 @@ where
     Some(f(&mut current.borrow_mut()))
 }
 
+/// The running `App`'s scheduler clock, when user code is executing
+/// under one. Builtins and the router use it for time-window
+/// heuristics (multi-click, type-ahead) so `App::advance` drives them
+/// deterministically; callers fall back to wall time outside an `App`.
+pub(crate) fn current_now() -> Option<Instant> {
+    with_current(|s| s.now())
+}
+
 /// Numeric handle returned by `set_timeout` / `set_interval` /
 /// `request_animation_frame`. Pass to `clear_*` to cancel.
 ///

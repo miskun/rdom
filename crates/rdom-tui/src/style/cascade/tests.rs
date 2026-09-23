@@ -2138,6 +2138,7 @@ fn inherits_table_matches_the_cascade_mask() {
         ("white-space", PropMask::WHITE_SPACE),
         ("user-select", PropMask::USER_SELECT),
         ("flex-shrink", PropMask::FLEX_SHRINK),
+        ("pointer-events", PropMask::POINTER_EVENTS),
     ];
     for (name, bit) in with_bit {
         assert_eq!(

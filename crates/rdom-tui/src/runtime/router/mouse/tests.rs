@@ -162,6 +162,72 @@ fn wheel_that_scrolls_dispatches_scroll_event() {
     assert_eq!(log.borrow()[0].1, "scroll");
 }
 
+/// CSS Overscroll Behavior §3 default (`auto`): when the nearest
+/// scroll container is already at its rail end in the wheel's
+/// direction, the scroll chains to the next scrollable ancestor.
+#[test]
+fn wheel_at_inner_rail_end_chains_to_the_outer_scroller() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let outer = dom.create_element("outer");
+    let inner = dom.create_element("inner");
+    dom.append_child(root, outer).unwrap();
+    dom.append_child(outer, inner).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "outer",
+            TuiStyle::new()
+                .width(Size::Fixed(20))
+                .height(Size::Fixed(8))
+                .overflow(Overflow::Auto),
+        )
+        .rule_unchecked(
+            "inner",
+            TuiStyle::new()
+                .width(Size::Fixed(10))
+                .height(Size::Fixed(4))
+                .overflow(Overflow::Auto),
+        );
+    prepare(&mut dom, &sheet, Rect::new(0, 0, 30, 10));
+    // Inflate both so each is scrollable; put the inner at its bottom.
+    dom.node_mut(outer).ext_mut().unwrap().scroll_content_height = 40;
+    {
+        let mut inner_ref = dom.node_mut(inner);
+        let ext = inner_ref.ext_mut().unwrap();
+        ext.scroll_content_height = 10;
+        ext.scroll_y = 6; // 10 − 4 = max
+    }
+    let outer_log = log();
+    record(&mut dom, outer, "scroll", &outer_log);
+
+    let mut router = Router::new();
+    router.route(
+        &mut dom,
+        crossterm::event::Event::Mouse(mouse_at(MouseEventKind::ScrollDown, 2, 1)),
+    );
+    assert_eq!(
+        dom.node(inner).ext().unwrap().scroll_y,
+        6,
+        "inner stays at its rail end"
+    );
+    assert!(
+        dom.node(outer).ext().unwrap().scroll_y > 0,
+        "outer took the wheel tick"
+    );
+    assert_eq!(
+        outer_log.borrow().len(),
+        1,
+        "scroll fired on the outer (the one that moved)"
+    );
+
+    // Scrolling back up: the inner is not at its top rail, so it takes it.
+    router.route(
+        &mut dom,
+        crossterm::event::Event::Mouse(mouse_at(MouseEventKind::ScrollUp, 2, 1)),
+    );
+    assert_eq!(dom.node(inner).ext().unwrap().scroll_y, 5);
+}
+
 #[test]
 fn wheel_with_no_scrollable_offset_change_does_not_fire_scroll() {
     // At scroll_top = max_y already, an additional wheel-down tick

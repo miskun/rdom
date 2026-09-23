@@ -198,6 +198,12 @@ then a release (divergent bumps as before; a `rdom-core` change forces a `rdom-t
   TECH_DEBT: `STYLE-TRANSITION-VALUE-1`, `STYLE-INHERITS-TWO-SOURCES-1`. Not done in this batch:
   `url(` token, `rgb(255 0 0)` / `hsl()` syntaxes, fractional-percentage layout resolution beyond
   whole percent (parsed, truncated), per-element custom-property scope (Batch 3 cascade work).
+- 2026-09-24 — Batch 3, follow-web slice: `pointer-events: auto | none` end to end (style enum,
+  dispatch tables, inherit bit, cascade, hit-test fall-through), wheel scroll chaining at a rail end,
+  multi-click and type-ahead timing on the scheduler clock via `timers::current_now()` (the
+  type-ahead buffer itself is still a `thread_local!` — see the runtime non-blocking list). Process
+  note: the tests for this slice were written first but their red run was a single compile failure
+  (the style enum did not exist yet), not a per-test failing assertion.
 - 2026-09-24 — Batch 3 progress: R4 (shared scheduler handle), R5 (scrollable text leaves: extent,
   one scrolled content rect for paint / hit-test / caret / movement, caret reveal with deferred
   clamp, trailing caret row for editing hosts), R6 (flex freeze-and-redistribute), R7 (sticky moves

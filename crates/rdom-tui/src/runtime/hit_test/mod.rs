@@ -38,7 +38,10 @@
 //!
 //! ## `pointer-events`
 //!
-//! Not supported in v1. Every painted element is hittable.
+//! `pointer-events: none` makes an element transparent: it is never
+//! the hit target, its subtree is still searched for `auto`
+//! descendants, and otherwise the point falls through to what is
+//! beneath. Inherited, like the web.
 
 use rdom_core::{Dom, NodeId, NodeType, Position};
 use unicode_segmentation::UnicodeSegmentation;
@@ -486,6 +489,19 @@ fn descend(dom: &Dom<TuiExt>, id: NodeId, x: u16, y: u16, path: &mut Vec<NodeId>
         Some(r) if rect_contains(r, x, y) => r,
         _ => return false,
     };
+
+    // `pointer-events: none`: the element is transparent to the
+    // pointer. Its subtree is still searched — a descendant that sets
+    // `pointer-events: auto` is a target — but the element itself is
+    // never on the path; with no hittable descendant the point falls
+    // through to earlier siblings / the parent.
+    let transparent = dom
+        .node(id)
+        .computed()
+        .is_some_and(|c| c.pointer_events == crate::layout::PointerEvents::None);
+    if transparent {
+        return descend_children_reverse(dom, id, x, y, path);
+    }
 
     path.push(id);
 

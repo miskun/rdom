@@ -27,6 +27,7 @@ pub(super) fn inherit_inheritable_from(working: &mut ComputedStyle, parent: &Com
     // white_space + user_select inherit; display does not.
     working.white_space = parent.white_space;
     working.user_select = parent.user_select;
+    working.pointer_events = parent.pointer_events;
     // `border-collapse` does NOT inherit in rdom — documented
     // divergence (BORDER-MODEL-1). Containers that want their direct
     // children to participate in collapse declare it themselves;

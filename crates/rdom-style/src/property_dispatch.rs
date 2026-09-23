@@ -93,6 +93,7 @@ const PROPERTY_NAMES: &[&str] = &[
     "flex-direction",
     "white-space",
     "user-select",
+    "pointer-events",
     "caret-color",
     "caret-text-color",
     // Layout — overflow
@@ -182,6 +183,7 @@ pub fn property_mask(name: &str) -> Option<crate::ImportantMask> {
         "flex-direction" => ImportantMask::DIRECTION,
         "white-space" => ImportantMask::WHITE_SPACE,
         "user-select" => ImportantMask::USER_SELECT,
+        "pointer-events" => ImportantMask::POINTER_EVENTS,
         "caret-color" => ImportantMask::CARET_COLOR,
         "caret-text-color" => ImportantMask::CARET_TEXT_COLOR,
         "overflow" => ImportantMask::OVERFLOW_X | ImportantMask::OVERFLOW_Y,
@@ -254,6 +256,7 @@ pub fn remove(name: &str, style: &mut TuiStyle) -> bool {
         "flex-direction" => style.direction.take().is_some(),
         "white-space" => style.white_space.take().is_some(),
         "user-select" => style.user_select.take().is_some(),
+        "pointer-events" => style.pointer_events.take().is_some(),
         "caret-color" => style.caret_color.take().is_some(),
         "caret-text-color" => style.caret_text_color.take().is_some(),
         "overflow" => style.overflow_x.take().is_some() | style.overflow_y.take().is_some(),
@@ -337,7 +340,7 @@ pub fn remove(name: &str, style: &mut TuiStyle) -> bool {
 pub fn inherits(name: &str) -> bool {
     matches!(
         name,
-        "color" | "font-weight" | "font-style" | "white-space" | "user-select"
+        "color" | "font-weight" | "font-style" | "white-space" | "user-select" | "pointer-events"
     )
 }
 
@@ -395,6 +398,7 @@ fn set_css_wide(name: &str, kw: CssWide, style: &mut TuiStyle) -> Result<(), Dis
         "flex-direction" => put!(direction),
         "white-space" => put!(white_space),
         "user-select" => put!(user_select),
+        "pointer-events" => put!(pointer_events),
         "caret-color" => put!(caret_color),
         "caret-text-color" => put!(caret_text_color),
         "overflow" => put!(overflow_x, overflow_y),
@@ -475,6 +479,7 @@ fn css_wide_of(name: &str, style: &TuiStyle) -> Option<&'static str> {
         "flex-direction" => kw(&style.direction),
         "white-space" => kw(&style.white_space),
         "user-select" => kw(&style.user_select),
+        "pointer-events" => kw(&style.pointer_events),
         "caret-color" => kw(&style.caret_color),
         "caret-text-color" => kw(&style.caret_text_color),
         "overflow" => agree(&[kw(&style.overflow_x), kw(&style.overflow_y)]),
@@ -658,6 +663,16 @@ pub fn set_from_tokens(
         )
         .map(|u| {
             style.user_select = Some(Value::Specified(u));
+        }),
+        "pointer-events" => parse_keyword(
+            value,
+            &[
+                ("auto", crate::layout::PointerEvents::Auto),
+                ("none", crate::layout::PointerEvents::None),
+            ],
+        )
+        .map(|v| {
+            style.pointer_events = Some(Value::Specified(v));
         }),
         // `caret-color: auto | transparent | <color>`. Auto = caret
         // bg matches the underlying cell's fg (classic swap visual).
@@ -1023,6 +1038,14 @@ pub fn serialize(name: &str, style: &TuiStyle) -> Option<String> {
             }
             .to_string()
         }),
+        "pointer-events" => style
+            .pointer_events
+            .as_ref()
+            .and_then(specified)
+            .map(|p| match p {
+                crate::layout::PointerEvents::Auto => "auto".to_string(),
+                crate::layout::PointerEvents::None => "none".to_string(),
+            }),
         "caret-color" => style
             .caret_color
             .as_ref()
@@ -1629,6 +1652,7 @@ mod tests {
             ("flex-direction", "column"),
             ("white-space", "pre"),
             ("user-select", "text"),
+            ("pointer-events", "none"),
             ("caret-color", "transparent"),
             ("caret-text-color", "auto"),
             ("overflow", "scroll"),
@@ -2007,6 +2031,25 @@ mod tests {
         let mut style = TuiStyle::new();
         set("opacity", "-0.5", &mut style).unwrap();
         assert_eq!(serialize("opacity", &style).as_deref(), Some("0"));
+    }
+
+    /// `pointer-events: auto | none` (CSS Pointer Events / SVG 1.1 §16.6
+    /// subset): parses, serializes, and inherits.
+    #[test]
+    fn pointer_events_parses_serializes_and_inherits() {
+        let mut style = TuiStyle::new();
+        set("pointer-events", "none", &mut style).unwrap();
+        assert_eq!(serialize("pointer-events", &style).as_deref(), Some("none"));
+        set("pointer-events", "auto", &mut style).unwrap();
+        assert_eq!(serialize("pointer-events", &style).as_deref(), Some("auto"));
+        assert_eq!(
+            set("pointer-events", "visiblePainted", &mut TuiStyle::new()),
+            Err(DispatchError::InvalidValue),
+            "SVG-only values are not supported in a cell grid"
+        );
+        assert!(inherits("pointer-events"));
+        assert!(remove("pointer-events", &mut style));
+        assert_eq!(serialize("pointer-events", &style), None);
     }
 
     /// `background` shorthand with only a color is `background-color`.

@@ -169,7 +169,9 @@ impl Router {
     /// Close-enough means within [`MULTI_CLICK_THRESHOLD`] in time
     /// AND [`MULTI_CLICK_TOLERANCE`] cells in both dimensions.
     pub(super) fn register_click(&mut self, mouse: &MouseEvent) -> u8 {
-        let now = Instant::now();
+        // Scheduler clock under an App (deterministic under `advance`);
+        // wall clock for a bare Router in tests.
+        let now = crate::runtime::timers::current_now().unwrap_or_else(Instant::now);
         let count = match self.last_click {
             Some(prev)
                 if prev.count < 3

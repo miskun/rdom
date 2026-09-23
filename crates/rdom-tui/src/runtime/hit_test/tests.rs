@@ -902,3 +902,63 @@ fn position_at_above_all_blocks_snaps_to_first_block_start() {
     // spacer (row 1, above the prose) snaps to the start of "hello".
     assert_eq!(dom.position_at(2, 1), Some(Position::new(t, 0)));
 }
+
+// ── pointer-events (HARDENING-2026-09, FOLLOW-WEB) ──────────────────
+
+/// `pointer-events: none` makes an element (and, by inheritance, its
+/// subtree) invisible to hit-testing: the point falls through to
+/// whatever is beneath. A descendant that sets `pointer-events: auto`
+/// is a target again.
+#[test]
+fn pointer_events_none_falls_through_and_auto_child_is_hittable() {
+    use crate::layout::PointerEvents;
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let base = dom.create_element("base");
+    let overlay = dom.create_element("overlay");
+    let button = dom.create_element("button");
+    dom.append_child(root, base).unwrap();
+    dom.append_child(root, overlay).unwrap();
+    dom.append_child(overlay, button).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "base",
+            TuiStyle::new()
+                .position(crate::layout::Position::Absolute)
+                .top(crate::layout::Length::Cells(0))
+                .left(crate::layout::Length::Cells(0))
+                .width(Size::Fixed(20))
+                .height(Size::Fixed(6)),
+        )
+        .rule_unchecked(
+            "overlay",
+            TuiStyle::new()
+                .position(crate::layout::Position::Absolute)
+                .top(crate::layout::Length::Cells(0))
+                .left(crate::layout::Length::Cells(0))
+                .width(Size::Fixed(20))
+                .height(Size::Fixed(6))
+                .pointer_events(PointerEvents::None),
+        )
+        .rule_unchecked(
+            "button",
+            TuiStyle::new()
+                .position(crate::layout::Position::Absolute)
+                .top(crate::layout::Length::Cells(4))
+                .left(crate::layout::Length::Cells(10))
+                .width(Size::Fixed(5))
+                .height(Size::Fixed(1))
+                .pointer_events(PointerEvents::Auto),
+        );
+    prepare(&mut dom, &sheet, Rect::new(0, 0, 30, 10));
+    assert_eq!(
+        dom.hit_test(2, 1),
+        Some(base),
+        "overlay is transparent to the pointer"
+    );
+    assert_eq!(
+        dom.hit_test(12, 4),
+        Some(button),
+        "auto child inside a none parent is hit"
+    );
+}
