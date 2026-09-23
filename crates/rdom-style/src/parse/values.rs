@@ -27,6 +27,7 @@ pub fn render_value(value: &[Token]) -> String {
         match t {
             Token::Ident(s) => out.push_str(s),
             Token::Number(n) => out.push_str(&n.to_string()),
+            Token::Float(f) => out.push_str(&f.to_string()),
             Token::Percentage(n) => {
                 out.push_str(&n.to_string());
                 out.push('%');
@@ -220,33 +221,16 @@ pub fn parse_keyword<T: Clone>(value: &[Token], table: &[(&str, T)]) -> Option<T
     None
 }
 
-/// Parse CSS `opacity: <number>`. Accepts integer (`0`, `1`) and
-/// decimal (`0.5`, `0.25`) values. Clamps to `[0.0, 1.0]`. Per
-/// CSS, percentage syntax (`50%`) is also valid; not yet wired
-/// because rdom's tokenizer doesn't represent `%` and no other
-/// property currently needs percentage handling.
-///
-/// Decimal tokenization: `0.5` arrives as three tokens —
-/// `Number(0) Delim('.') Number(5)` — matching the
-/// `parse_time_ms` precedent for sub-second durations.
+/// `opacity: <number>` — clamped to `0..=1` per CSS Color 4 §11.1. The
+/// tokenizer delivers the literal whole (`Number` for integers, `Float`
+/// otherwise), so `0.05` is 0.05.
 pub fn parse_opacity(value: &[Token]) -> Option<f32> {
-    match value {
-        // Integer: 0 or 1.
-        [Token::Number(n)] if *n >= 0 => Some((*n as f32).clamp(0.0, 1.0)),
-        // Decimal: <int>.<frac> pattern.
-        [Token::Number(int), Token::Delim('.'), Token::Number(frac)] if *int >= 0 && *frac >= 0 => {
-            let frac_str = frac.to_string();
-            let denom = 10f32.powi(frac_str.len() as i32);
-            Some(((*int as f32) + (*frac as f32) / denom).clamp(0.0, 1.0))
-        }
-        // Leading-dot form: .5
-        [Token::Delim('.'), Token::Number(frac)] if *frac >= 0 => {
-            let frac_str = frac.to_string();
-            let denom = 10f32.powi(frac_str.len() as i32);
-            Some(((*frac as f32) / denom).clamp(0.0, 1.0))
-        }
-        _ => None,
-    }
+    let n = match value {
+        [Token::Number(n)] => f64::from(*n),
+        [Token::Float(f)] => *f,
+        _ => return None,
+    };
+    (n >= 0.0).then(|| (n as f32).clamp(0.0, 1.0))
 }
 
 pub fn parse_text_decoration(value: &[Token]) -> Option<(bool, bool)> {
@@ -292,9 +276,9 @@ pub fn parse_scrollbar_gutter(value: &[Token]) -> Option<crate::layout::Scrollba
 pub fn parse_unsigned(value: &[Token]) -> Option<u16> {
     if value.len() == 1
         && let Token::Number(n) = &value[0]
-        && *n >= 0
     {
-        return Some(*n as u16);
+        // Out of `u16` range (or negative) is invalid, not wrapped.
+        return u16::try_from(*n).ok();
     }
     // Constant `calc(...)` — a percent-bearing form has no
     // sensible static basis here (padding/margin/gap don't carry
@@ -364,7 +348,7 @@ fn split_padding_values(value: &[Token]) -> Option<Vec<crate::layout::PaddingVal
     while i < value.len() {
         match &value[i] {
             Token::Number(n) if *n >= 0 => {
-                vals.push(PaddingValue::Cells(*n as u16));
+                vals.push(PaddingValue::Cells(u16::try_from(*n).ok()?));
                 i += 1;
             }
             Token::Function(name) if name.eq_ignore_ascii_case("calc") => {
@@ -468,15 +452,20 @@ pub fn parse_border_side(value: &[Token]) -> Option<BorderStyle> {
     )
 }
 
+/// A percentage literal as whole percent, rejecting out-of-range values.
+fn percent_cells(p: f64) -> Option<u16> {
+    (p >= 0.0 && p <= f64::from(u16::MAX)).then_some(p as u16)
+}
+
 pub fn parse_size(value: &[Token]) -> Option<Size> {
     // `auto` | `<n>` | `<n>fr` | `<n>%` | `calc(<expr>)`
     match value {
         [Token::Ident(s)] if s.eq_ignore_ascii_case("auto") => Some(Size::Auto),
-        [Token::Number(n)] if *n >= 0 => Some(Size::Fixed(*n as u16)),
+        [Token::Number(n)] if *n >= 0 => u16::try_from(*n).ok().map(Size::Fixed),
         [Token::Number(n), Token::Ident(unit)] if *n >= 0 && unit.eq_ignore_ascii_case("fr") => {
-            Some(Size::Flex(*n as u16))
+            u16::try_from(*n).ok().map(Size::Flex)
         }
-        [Token::Percentage(n)] if *n >= 0 => Some(Size::Percent(*n as u16)),
+        [Token::Percentage(n)] if *n >= 0.0 => Some(Size::Percent(percent_cells(*n)?)),
         // calc(...) — parse to a CalcExpr. If the expression has
         // no percentages, constant-fold at parse time to Fixed.
         // Otherwise carry the AST through to layout via Size::Calc.
@@ -523,7 +512,7 @@ pub fn parse_flex_shorthand(value: &[Token]) -> Option<Size> {
             if *n == 0 {
                 Some(Size::Auto)
             } else {
-                Some(Size::Flex(*n as u16))
+                u16::try_from(*n).ok().map(Size::Flex)
             }
         }
         // Two-value form: `<grow> <shrink>` (basis defaults to 0).
@@ -553,7 +542,7 @@ pub fn parse_flex_shorthand(value: &[Token]) -> Option<Size> {
             if *n == 0 {
                 Some(Size::Auto)
             } else {
-                Some(Size::Flex(*n as u16))
+                u16::try_from(*n).ok().map(Size::Flex)
             }
         }
         _ => None,
@@ -567,7 +556,7 @@ pub fn parse_min_size(value: &[Token]) -> Option<crate::layout::MinSize> {
     use crate::layout::MinSize;
     match value {
         [Token::Ident(s)] if s.eq_ignore_ascii_case("auto") => Some(MinSize::Auto),
-        [Token::Number(n)] if *n >= 0 => Some(MinSize::Cells(*n as u16)),
+        [Token::Number(n)] if *n >= 0 => u16::try_from(*n).ok().map(MinSize::Cells),
         _ => None,
     }
 }
@@ -904,48 +893,25 @@ pub fn parse_timing_function_list(value: &[Token]) -> Option<Vec<TimingFunction>
     if out.is_empty() { None } else { Some(out) }
 }
 
-/// Parse a single `<time>` value (`200ms` or `0.5s` or `0s`).
-/// Tokenizer produces:
-///   `200ms` → `Number(200)` `Ident("ms")`
-///   `0.5s`  → `Number(0)` `Delim('.')` `Number(5)` `Ident("s")`
-///   `0s`    → `Number(0)` `Ident("s")`
+/// Parse a single `<time>` value (`200ms`, `0.5s`, `1.05s`, `0s`) into
+/// whole milliseconds, rounding half away from zero. The literal is one
+/// token (`Number` or `Float`) followed by the unit ident.
 pub fn parse_time_ms(tokens: &[Token]) -> Option<u32> {
-    match tokens {
-        [Token::Number(n), Token::Ident(unit)] if *n >= 0 => match unit.as_str() {
-            "ms" => Some(*n as u32),
-            "s" => Some((*n as u32).checked_mul(1000)?),
-            _ => None,
-        },
-        // 0.5s pattern: integer.integer<unit>. The fractional
-        // part is in the second Number token.
-        [
-            Token::Number(int),
-            Token::Delim('.'),
-            Token::Number(frac),
-            Token::Ident(unit),
-        ] if *int >= 0 && *frac >= 0 => {
-            let (int_part, frac_str) = (*int as u32, frac.to_string());
-            // Determine the fractional digit count: count digits in `frac_str`.
-            let denom = 10u32.checked_pow(frac_str.len() as u32)?;
-            match unit.as_str() {
-                "s" => {
-                    // total_ms = (int + frac/denom) * 1000
-                    //         = int * 1000 + frac * (1000 / denom)
-                    let int_ms = int_part.checked_mul(1000)?;
-                    let frac_ms = (*frac as u32).checked_mul(1000)?.checked_div(denom)?;
-                    Some(int_ms + frac_ms)
-                }
-                "ms" => {
-                    // 0.5ms — sub-millisecond. Round to int.
-                    let int_us = int_part.checked_mul(1000)?;
-                    let frac_us = (*frac as u32).checked_mul(1000)?.checked_div(denom)?;
-                    Some((int_us + frac_us) / 1000)
-                }
-                _ => None,
-            }
-        }
-        _ => None,
+    let (n, unit) = match tokens {
+        [Token::Number(n), Token::Ident(unit)] => (f64::from(*n), unit),
+        [Token::Float(f), Token::Ident(unit)] => (*f, unit),
+        _ => return None,
+    };
+    if n < 0.0 {
+        return None;
     }
+    let ms = match unit.as_str() {
+        "ms" => n,
+        "s" => n * 1000.0,
+        _ => return None,
+    };
+    let ms = ms.round();
+    (ms <= f64::from(u32::MAX)).then_some(ms as u32)
 }
 
 /// Split `value` on commas at depth 0 (parens / function args
@@ -1045,12 +1011,7 @@ pub fn parse_transition_shorthand_single(value: &[Token]) -> Option<TransitionSh
 /// Try to parse a `<time>` value starting at `value[start]`.
 /// Returns `(ms, tokens_consumed)`.
 fn try_parse_time_at(value: &[Token], start: usize) -> Option<(u32, usize)> {
-    // Try the longest prefix first (4 tokens for `0.5s`).
-    if start + 4 <= value.len()
-        && let Some(ms) = parse_time_ms(&value[start..start + 4])
-    {
-        return Some((ms, 4));
-    }
+    // A `<time>` is always one numeric token plus its unit ident.
     if start + 2 <= value.len()
         && let Some(ms) = parse_time_ms(&value[start..start + 2])
     {
@@ -1172,17 +1133,23 @@ impl<'a> CalcParser<'a> {
                 // containing property is a length.
                 Some(CalcExpr::Number(n as f64))
             }
+            Token::Float(f) => {
+                let f = *f;
+                self.advance();
+                Some(CalcExpr::Number(f))
+            }
             Token::Percentage(n) => {
                 let n = *n;
                 self.advance();
-                Some(CalcExpr::Percent(n as f64))
+                Some(CalcExpr::Percent(n))
             }
             Token::Delim('-') => {
                 // Unary minus — accept `-5` as a literal.
                 self.advance();
                 match self.advance()? {
-                    Token::Number(n) => Some(CalcExpr::Number(-(*n as f64))),
-                    Token::Percentage(n) => Some(CalcExpr::Percent(-(*n as f64))),
+                    Token::Number(n) => Some(CalcExpr::Number(-f64::from(*n))),
+                    Token::Float(f) => Some(CalcExpr::Number(-*f)),
+                    Token::Percentage(n) => Some(CalcExpr::Percent(-*n)),
                     _ => None,
                 }
             }
@@ -1246,6 +1213,67 @@ pub fn looks_like_calc(tokens: &[Token]) -> bool {
 }
 
 #[cfg(test)]
+mod number_value_tests {
+    use super::*;
+    use crate::parse::token::tokenize;
+
+    fn t(src: &str) -> Vec<Token> {
+        tokenize(src).unwrap()
+    }
+
+    #[test]
+    fn opacity_keeps_leading_fraction_zeros() {
+        assert_eq!(parse_opacity(&t("0.05")), Some(0.05));
+        assert_eq!(parse_opacity(&t(".5")), Some(0.5));
+        assert_eq!(parse_opacity(&t("1")), Some(1.0));
+        assert_eq!(parse_opacity(&t("2.5")), Some(1.0), "clamped");
+        assert_eq!(parse_opacity(&t("-0.5")), None);
+    }
+
+    #[test]
+    fn time_values_round_to_whole_milliseconds() {
+        assert_eq!(parse_time_ms(&t("1.05s")), Some(1050));
+        assert_eq!(parse_time_ms(&t("0.5s")), Some(500));
+        assert_eq!(parse_time_ms(&t("200ms")), Some(200));
+        assert_eq!(parse_time_ms(&t("0s")), Some(0));
+        assert_eq!(parse_time_ms(&t("1.6ms")), Some(2));
+        assert_eq!(parse_time_ms(&t("-1s")), None);
+        assert_eq!(parse_time_ms(&t("1.5")), None, "unitless is not a time");
+    }
+
+    #[test]
+    fn transition_shorthand_takes_decimal_durations() {
+        let rules = parse_transition_shorthand(&t("width 0.25s ease-in 0.1s")).unwrap();
+        assert_eq!(rules.len(), 1);
+        assert_eq!(rules[0].duration, 250);
+        assert_eq!(rules[0].delay, 100);
+    }
+
+    #[test]
+    fn fractional_percent_in_calc_and_size() {
+        let e = parse_calc(&t("calc(12.5% + 1)")).unwrap();
+        assert_eq!(
+            e,
+            CalcExpr::Binary {
+                op: CalcOp::Add,
+                lhs: Box::new(CalcExpr::Percent(12.5)),
+                rhs: Box::new(CalcExpr::Number(1.0)),
+            }
+        );
+        // Integer cells: a fractional percentage width truncates to whole percent.
+        assert_eq!(parse_size(&t("50%")), Some(Size::Percent(50)));
+    }
+
+    /// Out-of-range integers are rejected (declaration dropped), not
+    /// silently zero.
+    #[test]
+    fn oversized_size_is_rejected_not_zero() {
+        assert_eq!(parse_size(&t("99999999999")), None);
+        assert_eq!(parse_size(&t("70000")), None, "u16 range");
+    }
+}
+
+#[cfg(test)]
 mod calc_parser_tests {
     use super::*;
     use crate::parse::token::Token;
@@ -1266,7 +1294,7 @@ mod calc_parser_tests {
 
     #[test]
     fn bare_percent() {
-        let tokens = calc_tokens(vec![Token::Percentage(50)]);
+        let tokens = calc_tokens(vec![Token::Percentage(50.0)]);
         let e = parse_calc(&tokens).unwrap();
         assert_eq!(e, CalcExpr::Percent(50.0));
     }
@@ -1274,7 +1302,7 @@ mod calc_parser_tests {
     #[test]
     fn add_percent_and_number() {
         let tokens = calc_tokens(vec![
-            Token::Percentage(50),
+            Token::Percentage(50.0),
             Token::Delim('+'),
             Token::Number(2),
         ]);
@@ -1288,7 +1316,7 @@ mod calc_parser_tests {
     #[test]
     fn sub_full_minus_constant() {
         let tokens = calc_tokens(vec![
-            Token::Percentage(100),
+            Token::Percentage(100.0),
             Token::Delim('-'),
             Token::Number(4),
         ]);
@@ -1428,7 +1456,7 @@ mod calc_parser_tests {
         // M6 full: percent-bearing calc parses into Size::Calc and
         // resolves at layout time.
         let tokens = calc_tokens(vec![
-            Token::Percentage(100),
+            Token::Percentage(100.0),
             Token::Delim('-'),
             Token::Number(4),
         ]);
@@ -1462,7 +1490,7 @@ mod calc_parser_tests {
     #[test]
     fn parse_length_carries_percent_bearing_calc_as_calc_variant() {
         let tokens = calc_tokens(vec![
-            Token::Percentage(50),
+            Token::Percentage(50.0),
             Token::Delim('+'),
             Token::Number(2),
         ]);

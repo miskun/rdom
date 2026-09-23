@@ -12,15 +12,22 @@ pub enum Token {
     /// `[-_a-zA-Z][-_a-zA-Z0-9]*`. Includes custom-property names
     /// like `--accent` (CSS treats them as idents).
     Ident(String),
-    /// Decimal integer. Negative numbers are tokenized as
-    /// `Delim('-')` followed by `Number` — value parsers compose.
+    /// `<number-token>` with the *integer* type flag (CSS Syntax 3
+    /// §4.3.12): digits only, in `i32` range. Negative numbers are
+    /// tokenized as `Delim('-')` followed by `Number` — value parsers
+    /// compose.
     Number(i32),
-    /// `<n>%`. Emitted when a number is immediately followed by
-    /// `%` (no whitespace). Matches the CSS Syntax Module
-    /// `<percentage-token>`. Sign is independent — negative
-    /// percentages tokenize as `Delim('-')` + `Percentage(n)`
-    /// just like negative numbers.
-    Percentage(i32),
+    /// `<number-token>` with the *number* type flag: the literal had a
+    /// fraction (`0.05`, `.5`), an exponent (`1e3`), or did not fit in
+    /// `i32`. Consumed whole by the tokenizer — a decimal is never
+    /// `Number Delim('.') Number`, which loses the fraction's leading
+    /// zeros.
+    Float(f64),
+    /// `<percentage-token>`: a numeric literal immediately followed by
+    /// `%` (no whitespace). Carries the fraction (`12.5%`). Sign is
+    /// independent — negative percentages tokenize as `Delim('-')` +
+    /// `Percentage(n)` just like negative numbers.
+    Percentage(f64),
     /// `"…"` or `'…'` with backslash escapes resolved.
     String(String),
     /// `#…` followed by 3..=8 hex digits.
@@ -132,7 +139,7 @@ fn read_one(cursor: &mut Cursor, c: char) -> Result<Token, TokenizerError> {
     if is_ident_start(c) {
         return Ok(read_ident_or_function(cursor));
     }
-    if c.is_ascii_digit() {
+    if c.is_ascii_digit() || (c == '.' && cursor.peek_two().1.is_some_and(|d| d.is_ascii_digit())) {
         return Ok(read_number(cursor));
     }
     if c == '#' {
@@ -181,25 +188,74 @@ fn read_ident_or_function(cursor: &mut Cursor) -> Token {
     Token::Ident(name)
 }
 
+/// CSS Syntax 3 §4.3.12 "consume a number": digits, an optional
+/// `.digits` fraction, an optional `e[+-]digits` exponent (only when a
+/// digit follows, so `1em` stays `1` + `em`), then the `%` promotion.
+/// The sign is not part of the literal here — `read_one` emits
+/// `Delim('-')` first — so this only ever sees an unsigned literal.
 fn read_number(cursor: &mut Cursor) -> Token {
-    let mut digits = String::new();
+    let mut text = String::new();
+    let mut is_integer = true;
     while let Some(c) = cursor.peek() {
         if c.is_ascii_digit() {
-            digits.push(c);
+            text.push(c);
             cursor.bump();
         } else {
             break;
         }
     }
-    let value: i32 = digits.parse().unwrap_or(0);
-    // A `%` immediately after the digits promotes the token to a
-    // `Percentage` per CSS Syntax Module §4.3. Whitespace breaks
-    // the promotion (`50 %` tokenizes as `Number(50)` + `Delim('%')`).
+    if let (Some('.'), Some(d)) = cursor.peek_two()
+        && d.is_ascii_digit()
+    {
+        is_integer = false;
+        text.push('.');
+        cursor.bump();
+        while let Some(c) = cursor.peek() {
+            if c.is_ascii_digit() {
+                text.push(c);
+                cursor.bump();
+            } else {
+                break;
+            }
+        }
+    }
+    if let (Some('e' | 'E'), Some(next)) = cursor.peek_two() {
+        // `e` followed by a digit, or by a sign and then a digit.
+        let exponent_follows = next.is_ascii_digit()
+            || ((next == '+' || next == '-')
+                && cursor.peek_third().is_some_and(|d| d.is_ascii_digit()));
+        if exponent_follows {
+            is_integer = false;
+            text.push('e');
+            cursor.bump();
+            if next == '+' || next == '-' {
+                text.push(next);
+                cursor.bump();
+            }
+            while let Some(c) = cursor.peek() {
+                if c.is_ascii_digit() {
+                    text.push(c);
+                    cursor.bump();
+                } else {
+                    break;
+                }
+            }
+        }
+    }
+    // A `%` immediately after the literal promotes it to a
+    // `Percentage`. Whitespace breaks the promotion (`50 %`
+    // tokenizes as `Number(50)` + `Delim('%')`).
+    let value: f64 = text.parse().unwrap_or(f64::NAN);
     if cursor.peek() == Some('%') {
         cursor.bump();
         return Token::Percentage(value);
     }
-    Token::Number(value)
+    if is_integer && let Ok(n) = text.parse::<i32>() {
+        return Token::Number(n);
+    }
+    // Fraction, exponent, or an integer literal outside `i32`: still
+    // a CSS number, just not an integer-typed one.
+    Token::Float(value)
 }
 
 fn read_hash(cursor: &mut Cursor) -> Token {
@@ -240,5 +296,78 @@ fn read_string(cursor: &mut Cursor) -> Result<Token, TokenizerError> {
             }
             Some(c) => out.push(c),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn toks(src: &str) -> Vec<Token> {
+        tokenize(src).unwrap()
+    }
+
+    /// CSS Syntax 3 §4.3.12: a numeric literal is consumed whole. An
+    /// integer stays `Number`; anything with a fraction or exponent is
+    /// a `Float` — never `Number Delim('.') Number`, which loses the
+    /// leading zeros of the fraction (`0.05` came out as 0.5).
+    #[test]
+    fn decimals_are_single_float_tokens() {
+        assert_eq!(toks("0.05"), vec![Token::Float(0.05)]);
+        assert_eq!(toks("1.5"), vec![Token::Float(1.5)]);
+        assert_eq!(toks(".5"), vec![Token::Float(0.5)]);
+        assert_eq!(toks("12"), vec![Token::Number(12)]);
+    }
+
+    #[test]
+    fn exponents_are_part_of_the_number() {
+        assert_eq!(toks("1e3"), vec![Token::Float(1000.0)]);
+        assert_eq!(toks("2.5E-1"), vec![Token::Float(0.25)]);
+        // `e` not followed by a digit is an ident, not an exponent.
+        assert_eq!(
+            toks("1em"),
+            vec![Token::Number(1), Token::Ident("em".to_string())]
+        );
+    }
+
+    #[test]
+    fn percentages_carry_fractions() {
+        assert_eq!(toks("50%"), vec![Token::Percentage(50.0)]);
+        assert_eq!(toks("12.5%"), vec![Token::Percentage(12.5)]);
+        // Whitespace breaks the promotion.
+        assert_eq!(toks("50 %"), vec![Token::Number(50), Token::Delim('%')]);
+    }
+
+    /// A literal too large for `i32` is still a CSS number; it must not
+    /// silently become 0.
+    #[test]
+    fn oversized_integer_is_a_float_not_zero() {
+        assert_eq!(toks("99999999999"), vec![Token::Float(99_999_999_999.0)]);
+    }
+
+    /// A trailing `.` with no digit after it is not part of the number.
+    #[test]
+    fn dot_without_following_digit_is_a_delim() {
+        assert_eq!(toks("1."), vec![Token::Number(1), Token::Delim('.')]);
+        assert_eq!(
+            toks("a.b"),
+            vec![
+                Token::Ident("a".to_string()),
+                Token::Delim('.'),
+                Token::Ident("b".to_string())
+            ]
+        );
+    }
+
+    #[test]
+    fn dimension_is_number_then_ident() {
+        assert_eq!(
+            toks("1.05s"),
+            vec![Token::Float(1.05), Token::Ident("s".to_string())]
+        );
+        assert_eq!(
+            toks("200ms"),
+            vec![Token::Number(200), Token::Ident("ms".to_string())]
+        );
     }
 }

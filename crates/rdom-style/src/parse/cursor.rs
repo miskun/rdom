@@ -44,6 +44,11 @@ impl<'a> Cursor<'a> {
         (it.next(), it.next())
     }
 
+    /// Third character from the cursor, without consuming.
+    pub fn peek_third(&self) -> Option<char> {
+        self.source[self.pos..].chars().nth(2)
+    }
+
     pub fn bump(&mut self) -> Option<char> {
         let c = self.peek()?;
         self.pos += c.len_utf8();
