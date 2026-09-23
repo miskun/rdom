@@ -3288,3 +3288,110 @@ fn sticky_shift_moves_anonymous_text_boxes_with_the_element() {
         "the anonymous text box moved with the header"
     );
 }
+
+// ── HARDENING-2026-09: flex cross-axis margins ──────────────────────
+
+/// CSS Flexbox §9.4: a flex item's cross-axis margins are part of its
+/// outer cross size. In a row, `margin-top` offsets the item and
+/// `margin-top + margin-bottom` shrink a stretched item; previously
+/// cross-axis margins were ignored entirely.
+#[test]
+fn flex_row_item_honors_cross_axis_margins() {
+    use crate::layout::{Flow, Margin, MarginValue, Size};
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let row = dom.create_element("row");
+    let item = dom.create_element("item");
+    dom.append_child(root, row).unwrap();
+    dom.append_child(row, item).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "row",
+            TuiStyle::new()
+                .flow(Flow::Flex)
+                .direction(crate::layout::Direction::Row)
+                .width(Size::Fixed(20))
+                .height(Size::Fixed(10)),
+        )
+        .rule_unchecked(
+            "item",
+            TuiStyle::new().width(Size::Fixed(5)).margin(Margin {
+                top: MarginValue::Cells(2),
+                right: MarginValue::Cells(0),
+                bottom: MarginValue::Cells(1),
+                left: MarginValue::Cells(0),
+            }),
+        );
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 40, 20));
+    let r = dom.node(item).ext().unwrap().layout;
+    assert_eq!(r.y, 2, "margin-top offsets the item");
+    assert_eq!(r.height, 7, "stretch fills 10 − 2 − 1");
+}
+
+/// Column direction: `margin-left` / `margin-right` are the cross
+/// margins.
+#[test]
+fn flex_column_item_honors_cross_axis_margins() {
+    use crate::layout::{Flow, Margin, MarginValue, Size};
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let col = dom.create_element("col");
+    let item = dom.create_element("item");
+    dom.append_child(root, col).unwrap();
+    dom.append_child(col, item).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "col",
+            TuiStyle::new()
+                .flow(Flow::Flex)
+                .direction(crate::layout::Direction::Column)
+                .width(Size::Fixed(20))
+                .height(Size::Fixed(10)),
+        )
+        .rule_unchecked(
+            "item",
+            TuiStyle::new().height(Size::Fixed(2)).margin(Margin {
+                top: MarginValue::Cells(0),
+                right: MarginValue::Cells(3),
+                bottom: MarginValue::Cells(0),
+                left: MarginValue::Cells(4),
+            }),
+        );
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 40, 20));
+    let r = dom.node(item).ext().unwrap().layout;
+    assert_eq!(r.x, 4, "margin-left offsets the item");
+    assert_eq!(r.width, 13, "stretch fills 20 − 4 − 3");
+}
+
+// ── HARDENING-2026-09: absolute elements with auto size ─────────────
+
+/// CSS 2.1 §10.3.7 / §10.6.4: an absolutely positioned element with
+/// `width: auto` and only one horizontal inset is shrink-to-fit —
+/// its content's width, not 0. Same for height. A tooltip positioned
+/// with just `top` / `left` must be visible.
+#[test]
+fn absolute_auto_size_shrinks_to_fit_content() {
+    use crate::layout::{Length, Position, WhiteSpace};
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let tip = dom.create_element("tip");
+    let t = dom.create_text_node("Tooltip text");
+    dom.append_child(tip, t).unwrap();
+    dom.append_child(root, tip).unwrap();
+    let sheet = Stylesheet::bare().rule_unchecked(
+        "tip",
+        TuiStyle::new()
+            .position(Position::Absolute)
+            .top(Length::Cells(1))
+            .left(Length::Cells(1))
+            .white_space(WhiteSpace::Pre),
+    );
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 40, 10));
+    let r = dom.node(tip).ext().unwrap().layout;
+    assert_eq!((r.x, r.y), (1, 1));
+    assert_eq!(r.width, "Tooltip text".len() as u16, "shrink-to-fit width");
+    assert_eq!(r.height, 1, "one line of content");
+}

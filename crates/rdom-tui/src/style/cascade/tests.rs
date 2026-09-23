@@ -2166,3 +2166,49 @@ fn inherits_table_matches_the_cascade_mask() {
         assert!(!inherits(name), "{name} has no cascade inherit bit");
     }
 }
+
+// ── HARDENING-2026-09: layout-dirty flag covers positioning ─────────
+
+/// `is_layout_dirty()` must report a change to any property the layout
+/// pass reads. Positioning fields were missing from `layout_differs`,
+/// so toggling `position: absolute` reported a clean layout.
+#[test]
+fn layout_dirty_flag_reacts_to_positioning_changes() {
+    use crate::layout::{Length, Position};
+    use crate::node::TuiNodeExt;
+    use crate::render::LayoutExt;
+    let (mut dom, div) = dom_with_div();
+    dom.cascade(&Stylesheet::bare());
+    dom.layout_dom(crate::render::Rect::new(0, 0, 20, 5));
+    // Settle: a second cascade with no change is clean.
+    dom.cascade(&Stylesheet::bare());
+    assert!(
+        !dom.node(div).is_layout_dirty(),
+        "unchanged cascade is clean"
+    );
+
+    let positioned = Stylesheet::bare().rule_unchecked(
+        "div",
+        TuiStyle::new()
+            .position(Position::Absolute)
+            .top(Length::Cells(2)),
+    );
+    dom.cascade(&positioned);
+    assert!(
+        dom.node(div).is_layout_dirty(),
+        "position/top change dirties layout"
+    );
+
+    dom.cascade(&positioned);
+    let moved = Stylesheet::bare().rule_unchecked(
+        "div",
+        TuiStyle::new()
+            .position(Position::Absolute)
+            .top(Length::Cells(3)),
+    );
+    dom.cascade(&moved);
+    assert!(
+        dom.node(div).is_layout_dirty(),
+        "inset change dirties layout"
+    );
+}

@@ -156,7 +156,7 @@ pub(super) fn place_positioned(dom: &mut Dom<TuiExt>, viewport: LayoutRect) {
             .computed()
             .cloned()
             .unwrap_or_else(ComputedStyle::initial);
-        let placed = compute_placed_rect(&computed, cb);
+        let placed = compute_placed_rect(dom, id, &computed, cb);
         super::layout_node(dom, id, placed);
     }
 }
@@ -196,16 +196,29 @@ fn walk_for_positioned(dom: &Dom<TuiExt>, id: NodeId, out: &mut Vec<NodeId>) {
 /// - `Size::Auto`:
 ///   - When both edges of the axis are `Cells`, derive from
 ///     `cb_axis - left - right` (or `cb_axis - top - bottom`).
-///   - Otherwise default to 0. (Real CSS measures intrinsic
-///     content; M2 simplification — extend if needed for tooltip
-///     auto-sizing.)
+///   - Otherwise shrink-to-fit the content (CSS 2.1 §10.3.7 /
+///     §10.6.4): the element's intrinsic size on that axis, height
+///     measured at the resolved width. A tooltip positioned with
+///     only `top` / `left` is therefore as wide as its text, not 0.
 ///
 /// X / Y resolve from the offsets via [`axis_position_anchored`].
-fn compute_placed_rect(c: &ComputedStyle, cb: LayoutRect) -> LayoutRect {
+fn compute_placed_rect(
+    dom: &Dom<TuiExt>,
+    id: NodeId,
+    c: &ComputedStyle,
+    cb: LayoutRect,
+) -> LayoutRect {
+    use crate::layout::Direction;
     // Resolve width/height — percentage AND Calc both resolve
-    // against the containing-block's matching axis.
-    let width = resolve_size_axis(&c.width, cb.width, &c.left, &c.right, cb.width);
-    let height = resolve_size_axis(&c.height, cb.height, &c.top, &c.bottom, cb.height);
+    // against the containing-block's matching axis. The intrinsic
+    // measurement only runs when an `auto` axis is not pinned by both
+    // edges (it walks the subtree).
+    let width = resolve_size_axis(&c.width, cb.width, &c.left, &c.right, cb.width, || {
+        super::intrinsic::intrinsic_size(dom, id, Direction::Row, cb.width)
+    });
+    let height = resolve_size_axis(&c.height, cb.height, &c.top, &c.bottom, cb.height, || {
+        super::intrinsic::intrinsic_size(dom, id, Direction::Column, width)
+    });
 
     // M5.3b — absolute element centering via `margin: auto` between
     // resolved insets. CSS rule: when both axis insets are `Cells`
@@ -274,6 +287,7 @@ fn resolve_size_axis(
     start: &Length,
     end: &Length,
     edges_basis: u16,
+    shrink_to_fit: impl FnOnce() -> u16,
 ) -> u16 {
     match size {
         Size::Fixed(n) => *n,
@@ -283,7 +297,15 @@ fn resolve_size_axis(
             let v = expr.resolve(&rdom_style::calc::ResolveCtx::new(cb_extent as i32));
             v.max(0).min(u16::MAX as i32) as u16
         }
-        Size::Auto => axis_size_from_edges(start, end, edges_basis, 0),
+        Size::Auto => {
+            let both_edges = length_to_cells_opt(start, edges_basis as i32).is_some()
+                && length_to_cells_opt(end, edges_basis as i32).is_some();
+            if both_edges {
+                axis_size_from_edges(start, end, edges_basis, 0)
+            } else {
+                shrink_to_fit()
+            }
+        }
     }
 }
 

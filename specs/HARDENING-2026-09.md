@@ -198,6 +198,11 @@ then a release (divergent bumps as before; a `rdom-core` change forces a `rdom-t
   TECH_DEBT: `STYLE-TRANSITION-VALUE-1`, `STYLE-INHERITS-TWO-SOURCES-1`. Not done in this batch:
   `url(` token, `rgb(255 0 0)` / `hsl()` syntaxes, fractional-percentage layout resolution beyond
   whole percent (parsed, truncated), per-element custom-property scope (Batch 3 cascade work).
+- 2026-09-24 — Batch 3, layout slice: flex cross-axis margins (offset + stretch reduction, `auto`
+  centering), shrink-to-fit for `auto`-sized absolutes with one inset (intrinsic measurement),
+  `layout_differs` covers position / insets / z-index / flow / scrollbar-gutter.
+  `FLEX-ITEM-NEGATIVE-MARGIN-CROSS-AXIS-1` rewritten as `FLEX-ITEM-NEGATIVE-MARGIN-1` (only the
+  negative-clamp remains).
 - 2026-09-24 — Batch 3, follow-web slice: `pointer-events: auto | none` end to end (style enum,
   dispatch tables, inherit bit, cascade, hit-test fall-through), wheel scroll chaining at a rail end,
   multi-click and type-ahead timing on the scheduler clock via `timers::current_now()` (the

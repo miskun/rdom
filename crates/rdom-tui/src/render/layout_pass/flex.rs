@@ -665,19 +665,51 @@ pub(super) fn layout_flex_children(
         // needed so `resolve_cross_size` knows whether to apply
         // aspect-ratio (which requires the main axis to be explicit).
         let main_was_auto = matches!(child_info[i].main, MainNatural::Auto(_));
+
+        // Cross-axis margins (Flexbox §9.4): the item's outer cross size
+        // includes them, so a stretched item shrinks by their sum and the
+        // start margin offsets the box. `auto` cross margins take the
+        // free cross space (both auto → centered), per §9.5.
+        let cb_width = container.width;
+        let (cross_start_m, cross_end_m) = match direction {
+            Direction::Row => (&child_computed.margin.top, &child_computed.margin.bottom),
+            Direction::Column => (&child_computed.margin.left, &child_computed.margin.right),
+        };
+        let cross_cells = |m: &crate::layout::MarginValue| -> u16 {
+            if m.is_auto() {
+                0
+            } else {
+                m.resolve(cb_width).max(0) as u16
+            }
+        };
+        let cross_start_cells = cross_cells(cross_start_m);
+        let cross_end_cells = cross_cells(cross_end_m);
+        let cross_avail = cross_budget
+            .saturating_sub(cross_start_cells)
+            .saturating_sub(cross_end_cells);
         let cross_size = resolve_cross_size(
             dom,
             *child_id,
             &child_computed,
-            cross_budget,
+            cross_avail,
             direction,
             *size,
             main_was_auto,
         );
+        let cross_free = cross_avail.saturating_sub(cross_size);
+        let cross_offset = match (cross_start_m.is_auto(), cross_end_m.is_auto()) {
+            (true, true) => cross_start_cells + cross_free / 2,
+            (true, false) => cross_start_cells + cross_free,
+            _ => cross_start_cells,
+        } as i32;
 
         let child_rect = match direction {
-            Direction::Row => LayoutRect::new(main_cursor, container.y, *size, cross_size),
-            Direction::Column => LayoutRect::new(container.x, main_cursor, cross_size, *size),
+            Direction::Row => {
+                LayoutRect::new(main_cursor, container.y + cross_offset, *size, cross_size)
+            }
+            Direction::Column => {
+                LayoutRect::new(container.x + cross_offset, main_cursor, cross_size, *size)
+            }
         };
 
         layout_node(dom, *child_id, child_rect);

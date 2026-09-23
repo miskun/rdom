@@ -63,4 +63,14 @@ pub(super) fn layout_differs(a: &ComputedStyle, b: &ComputedStyle) -> bool {
         || a.overflow_y != b.overflow_y
         || a.display != b.display
         || a.white_space != b.white_space
+        // Positioning: the box's placement, its containing-block role,
+        // and stacking all feed layout / paint order.
+        || a.position != b.position
+        || a.top != b.top
+        || a.right != b.right
+        || a.bottom != b.bottom
+        || a.left != b.left
+        || a.z_index != b.z_index
+        || a.flow != b.flow
+        || a.scrollbar_gutter != b.scrollbar_gutter
 }
