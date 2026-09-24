@@ -50,7 +50,8 @@
 //!   `inline_style.width` (set directly / via `set_width` / a
 //!   `Column` width), NOT from a CSS rule (`td { width }`) — this pass
 //!   runs before cascade. The TFC computes widths in-layout, post-cascade.
-//! - `colspan` / `rowspan` spanning-cell width distribution.
+//! - `rowspan`: rows are independent flex containers, so a cell cannot
+//!   extend into the next row (`colspan` IS honored, see below).
 //! - `<col>` / `<colgroup>` width hints.
 //! - Percentage column widths + the auto min/max-content redistribution
 //!   when an explicit table width conflicts with content.
@@ -103,45 +104,99 @@ pub fn size_columns(dom: &mut TuiDom, table: NodeId) {
         return;
     }
 
-    // Pass 1: per column, the max author width (if any cell specifies one) and
-    // the max content width. Author width is the INPUT, read from inline style.
+    // Pass 1: per column slot, the max author width (if any cell specifies
+    // one) and the max content width of the cells occupying exactly that
+    // slot. Author width is the INPUT, read from inline style. A `colspan`
+    // cell occupies `n` consecutive slots; its width is collected as a span
+    // and settled after the single-slot columns are known (CSS 2.2
+    // §17.5.2.2: a spanning cell's excess is spread over the columns it
+    // spans). `rowspan` is not honored — see the module docs.
     let mut explicit: Vec<Option<u16>> = Vec::new();
     let mut content: Vec<u16> = Vec::new();
+    let mut spans: Vec<Span> = Vec::new();
     for &row_id in &rows {
-        let cells = collect_cells(dom, row_id);
-        for (i, &cell) in cells.iter().enumerate() {
-            if i >= content.len() {
+        let mut slot = 0usize;
+        for cell in collect_cells(dom, row_id) {
+            let len = colspan_of(dom, cell);
+            while content.len() < slot + len {
                 explicit.push(None);
                 content.push(0);
             }
-            if let Some(w) = cell_author_width(dom, cell) {
-                explicit[i] = Some(explicit[i].map_or(w, |e| e.max(w)));
-            }
+            let author = cell_author_width(dom, cell);
             let total = text_content_width(dom, cell).saturating_add(CELL_H_PADDING);
-            content[i] = content[i].max(total);
+            if len == 1 {
+                if let Some(w) = author {
+                    explicit[slot] = Some(explicit[slot].map_or(w, |e| e.max(w)));
+                }
+                content[slot] = content[slot].max(total);
+            } else {
+                spans.push(Span {
+                    start: slot,
+                    len,
+                    want: author.unwrap_or(total),
+                });
+            }
+            slot += len;
         }
     }
 
     // Used width = author width if specified, else content width.
-    let used: Vec<u16> = content
+    let mut used: Vec<u16> = content
         .iter()
         .enumerate()
         .map(|(i, &c)| explicit[i].unwrap_or(c))
         .collect();
 
+    // A span wider than its columns' sum grows them evenly; the first
+    // columns take the remainder.
+    for span in &spans {
+        let cols = &mut used[span.start..span.start + span.len];
+        let sum: u32 = cols.iter().map(|&w| u32::from(w)).sum();
+        let deficit = u32::from(span.want).saturating_sub(sum);
+        if deficit == 0 {
+            continue;
+        }
+        let each = (deficit / span.len as u32).min(u32::from(u16::MAX)) as u16;
+        let extra = (deficit % span.len as u32) as usize;
+        for (i, w) in cols.iter_mut().enumerate() {
+            *w = w.saturating_add(each).saturating_add(u16::from(i < extra));
+        }
+    }
+
     // Pass 2: record the used width on every cell as a LAYOUT field (flex reads
-    // it). Never `inline_style` — that's the conflation `TABLE-COLSYNC-1` fixes.
+    // it) — a spanning cell takes the sum of its columns. Never
+    // `inline_style` — that's the conflation `TABLE-COLSYNC-1` fixes.
     for &row_id in &rows {
-        let cells = collect_cells(dom, row_id);
-        for (i, &cell) in cells.iter().enumerate() {
-            let Some(&w) = used.get(i) else {
-                continue;
-            };
+        let mut slot = 0usize;
+        for cell in collect_cells(dom, row_id) {
+            let len = colspan_of(dom, cell);
+            let w = used[slot..slot + len]
+                .iter()
+                .fold(0u16, |acc, &c| acc.saturating_add(c));
             if let Some(ext) = dom.node_mut(cell).ext_mut() {
                 ext.table_used_width = Some(w);
             }
+            slot += len;
         }
     }
+}
+
+/// A `colspan` cell awaiting settlement against its columns.
+struct Span {
+    start: usize,
+    len: usize,
+    /// The cell's author width, else its content width.
+    want: u16,
+}
+
+/// HTML §4.9.11: `colspan` is a valid non-negative integer ≥ 1 (0 and
+/// garbage mean 1), clamped to 1000.
+fn colspan_of(dom: &TuiDom, cell: NodeId) -> usize {
+    dom.node(cell)
+        .get_attribute("colspan")
+        .and_then(|v| v.trim().parse::<usize>().ok())
+        .filter(|&n| n >= 1)
+        .map_or(1, |n| n.min(1000))
 }
 
 /// The cell's *author-specified* fixed width (`inline_style.width: Fixed(n)`),

@@ -291,3 +291,72 @@ fn size_columns_leaves_inline_style_untouched() {
         "but the used width is recorded"
     );
 }
+
+// ── TABLE-COLSPAN-1: spanning cells ────────────────────────────────
+
+/// `table > tbody > tr*`, each row a list of `(text, colspan)`.
+fn spanning_table(rows: &[&[(&str, u32)]]) -> (TuiDom, NodeId, Vec<Vec<NodeId>>) {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let table = dom.create_element("table");
+    let tbody = dom.create_element("tbody");
+    let mut ids = Vec::new();
+    for row in rows {
+        let tr = dom.create_element("tr");
+        let mut row_ids = Vec::new();
+        for &(text, span) in row.iter() {
+            let td = dom.create_element("td");
+            if span != 1 {
+                dom.set_attribute(td, "colspan", &span.to_string()).unwrap();
+            }
+            let t = dom.create_text_node(text);
+            dom.append_child(td, t).unwrap();
+            dom.append_child(tr, td).unwrap();
+            row_ids.push(td);
+        }
+        dom.append_child(tbody, tr).unwrap();
+        ids.push(row_ids);
+    }
+    dom.append_child(table, tbody).unwrap();
+    dom.append_child(root, table).unwrap();
+    (dom, table, ids)
+}
+
+/// `TABLE-COLSPAN-1`: a `colspan` cell takes the sum of its columns'
+/// used widths, and content wider than that sum grows the spanned
+/// columns evenly (CSS 2.2 §17.5.2.2).
+#[test]
+fn colspan_cell_spans_its_columns_and_spreads_its_excess() {
+    // Row 1: "ab" | "cd" → 4 | 4 (2 + padding). Row 2: one cell over
+    // both, "0123456789" → 12 > 8: each column grows by 2 → 6 | 6.
+    let (mut dom, table, ids) = spanning_table(&[&[("ab", 1), ("cd", 1)], &[("0123456789", 2)]]);
+    table::size_columns(&mut dom, table);
+    assert_eq!(cell_width(&dom, ids[0][0]), Some(6));
+    assert_eq!(cell_width(&dom, ids[0][1]), Some(6));
+    assert_eq!(cell_width(&dom, ids[1][0]), Some(12), "the span is the sum");
+}
+
+/// A spanning cell narrower than its columns takes their sum and
+/// leaves them alone.
+#[test]
+fn narrow_colspan_cell_takes_the_sum_of_its_columns() {
+    let (mut dom, table, ids) = spanning_table(&[&[("Alice", 1), ("Bob", 1)], &[("x", 2)]]);
+    table::size_columns(&mut dom, table);
+    assert_eq!(cell_width(&dom, ids[0][0]), Some(7));
+    assert_eq!(cell_width(&dom, ids[0][1]), Some(5));
+    assert_eq!(cell_width(&dom, ids[1][0]), Some(12));
+}
+
+/// A cell after a spanning one lands in the slot the span skipped, and
+/// an invalid `colspan` counts as 1 (HTML §4.9.11).
+#[test]
+fn colspan_shifts_the_following_cells_and_invalid_values_span_one() {
+    let (mut dom, table, ids) =
+        spanning_table(&[&[("a", 2), ("cccccc", 1)], &[("x", 0), ("y", 1), ("z", 1)]]);
+    table::size_columns(&mut dom, table);
+    // Column 2 is "cccccc" (8) over "z" (3).
+    assert_eq!(cell_width(&dom, ids[0][1]), Some(8));
+    assert_eq!(cell_width(&dom, ids[1][2]), Some(8));
+    // `colspan=0` spans one column: "x" shares column 0 with the span.
+    assert_eq!(cell_width(&dom, ids[1][0]), Some(3));
+}

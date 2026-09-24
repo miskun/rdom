@@ -74,7 +74,7 @@ Everything else is real. Disposition per item:
 | `FLEX-ITEM-MARGIN-MAIN-INTRINSIC-1` | fix — main-axis margins count toward the container's hypothetical main size | 5 |
 | `FLEX-ITEM-NEGATIVE-MARGIN-1` | fix — `i32` placement, negative margins pull outward | 5 |
 | `SCROLL-CROSS-AXIS-1` | fix — cross-axis scroll offsets and overflow cross size; horizontal autoscroll band | 5 |
-| `TABLE-COLSPAN-1` | fix — `colspan` / `rowspan` width and height spreading in the column-sync pass | 5 |
+| `TABLE-COLSPAN-1` | fix — `colspan` width spreading in the column-sync pass; `rowspan` is part of the `TABLE-TFC-1` divergence (rows are independent flex containers) | 5 |
 | `TABLE-TFC-1` | **divergence** — tables are element-driven (`<table>` family), not `display: table` on arbitrary elements; anonymous table fixup is not implemented. Reason: no consumer needs it and it would import a second layout algorithm. Documented under Layout. | 5 |
 | `FOCUS-THUMB-NEAREST-1` | fix — post-layout nearest-scroll-container marker | 5 |
 | `OPACITY-1` | fix — subtree group rendering into an off-screen buffer | 6 |
@@ -212,6 +212,8 @@ Each phase ends with the two review gates; each commit carries the item id.
   `data-rdom-scroll-focus` on the keyboard's scroll target; the UA rule matches the attribute.
 - 2026-09-24 — Phase 5: `FLEX-ITEM-NEGATIVE-MARGIN-1` — signed margin math in the flex budget,
   placement and cross sizing.
+- 2026-09-24 — Phase 5: `TABLE-COLSPAN-1` — `colspan` in `size_columns`; `TABLE-TFC-1` →
+  DIVERGENCES (Layout: table model, `rowspan` included).
 - Found while mapping Phase 3 (not on the ledger): `ImportantMask::FLOW` and `POINTER_EVENTS` share
   bit 39 (`tui_style.rs`), custom-property inheritance in the cascade is overwritten by the merged
   root map (`walk.rs`), and tokenizer errors inside a block are body-relative (`declarations.rs`).
