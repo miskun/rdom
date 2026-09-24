@@ -671,15 +671,92 @@ fn auto_basis_flex_item_keeps_intrinsic_under_pressure() {
         // to say "size from content, protect content". This is
         // also what `flex: 0 1 auto` resolves to.
         .rule_unchecked("p", TuiStyle::new().min_width(MinSize::Auto))
-        .rule_unchecked("g", TuiStyle::new().width(Size::Flex(99)));
+        // An unshrinkable 30-cell sibling in a 20-cell row: `p`
+        // absorbs the whole overflow and lands on its floor.
+        .rule_unchecked("g", TuiStyle::new().width(Size::Fixed(30)).flex_shrink(0));
     cascade(&mut dom, &sheet);
-    dom.layout_dom(Rect::new(0, 0, 80, 5));
+    dom.layout_dom(Rect::new(0, 0, 20, 5));
 
+    // `M5-MIN-CONTENT-2`: the floor is the min-content size — the
+    // longest unbreakable word ("hello" / "world" = 5), not the
+    // unwrapped 11.
     let pw = layout_rect_of(&dom, protected).width;
-    assert!(
-        pw >= 11,
-        "auto-basis item with min-width: auto must protect intrinsic content, got {pw}"
+    assert_eq!(
+        pw, 5,
+        "auto-basis item with min-width: auto shrinks to its min-content"
     );
+}
+
+/// `M5-MIN-CONTENT-2`: `white-space: nowrap` has no break
+/// opportunities, so min-content equals max-content.
+#[test]
+fn auto_min_floor_of_nowrap_text_is_its_full_width() {
+    use rdom_style::layout::{MinSize, WhiteSpace};
+    let mut dom = tui_dom();
+    let root = dom.root();
+    let c = dom.create_element("c");
+    let protected = dom.create_element("p");
+    let greedy = dom.create_element("g");
+    let text = dom.create_text_node("hello world");
+    dom.append_child(protected, text).unwrap();
+    dom.append_child(c, protected).unwrap();
+    dom.append_child(c, greedy).unwrap();
+    dom.append_child(root, c).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "c",
+            TuiStyle::new().flow(Flow::Flex).direction(Direction::Row),
+        )
+        .rule_unchecked(
+            "p",
+            TuiStyle::new()
+                .min_width(MinSize::Auto)
+                .white_space(WhiteSpace::NoWrap),
+        )
+        .rule_unchecked("g", TuiStyle::new().width(Size::Fixed(30)).flex_shrink(0));
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 20, 5));
+    assert_eq!(layout_rect_of(&dom, protected).width, 11);
+}
+
+/// `M5-MIN-CONTENT-2`: a nested flex row's min-content is the sum of
+/// its items' min-content contributions; an explicit width counts as
+/// is.
+#[test]
+fn auto_min_floor_of_a_nested_row_sums_its_items_min_content() {
+    use rdom_style::layout::MinSize;
+    let mut dom = tui_dom();
+    let root = dom.root();
+    let c = dom.create_element("c");
+    let protected = dom.create_element("p");
+    let a = dom.create_element("a");
+    let b = dom.create_element("b");
+    let greedy = dom.create_element("g");
+    let text = dom.create_text_node("aaaa bb");
+    dom.append_child(a, text).unwrap();
+    dom.append_child(protected, a).unwrap();
+    dom.append_child(protected, b).unwrap();
+    dom.append_child(c, protected).unwrap();
+    dom.append_child(c, greedy).unwrap();
+    dom.append_child(root, c).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "c",
+            TuiStyle::new().flow(Flow::Flex).direction(Direction::Row),
+        )
+        .rule_unchecked(
+            "p",
+            TuiStyle::new()
+                .flow(Flow::Flex)
+                .direction(Direction::Row)
+                .min_width(MinSize::Auto),
+        )
+        .rule_unchecked("b", TuiStyle::new().width(Size::Fixed(3)))
+        .rule_unchecked("g", TuiStyle::new().width(Size::Fixed(30)).flex_shrink(0));
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 20, 5));
+    // "aaaa" (4) + the fixed 3.
+    assert_eq!(layout_rect_of(&dom, protected).width, 7);
 }
 
 #[test]

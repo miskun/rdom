@@ -6,8 +6,10 @@
 //! - Text nodes → widest line (Row) / line count (Column), via
 //!   `unicode-width`.
 //! - Elements with explicit `Size::Fixed(n)` → `n` (short-circuit).
-//! - IFC blocks → inline content width (unwrapped sum) on the Row
-//!   axis; line count at `cross_budget` on the Column axis.
+//! - IFC blocks → inline content width on the Row axis (max-content:
+//!   the unwrapped sum; min-content: the longest unbreakable word —
+//!   CSS Sizing 3 §4.1 / §4.2); line count at `cross_budget` on the
+//!   Column axis.
 //! - Everything else → recursive fit of children +
 //!   padding/border/gap costs.
 
@@ -32,22 +34,50 @@ pub(crate) fn intrinsic_size(
     direction: Direction,
     cross_budget: u16,
 ) -> u16 {
-    intrinsic_size_inner(dom, id, direction, cross_budget, IntrinsicMode::BoxSize)
+    intrinsic_size_inner(
+        dom,
+        id,
+        direction,
+        cross_budget,
+        IntrinsicMode::BoxSize,
+        Measure::MaxContent,
+    )
 }
 
 /// Measure an element's **content** intrinsic size along `direction` —
-/// i.e. the min-content size of its actual children/text, ignoring
-/// any explicit `Size::Fixed` declared on the element itself. Used
-/// by CSS Flexbox §4.5's "content size suggestion" half of the
-/// auto-min computation, where we need to know how small the content
-/// can be regardless of the box's declared size.
+/// the min-content size of its actual children/text (CSS Sizing 3
+/// §4.2: text breaks at every opportunity), ignoring any explicit
+/// `Size::Fixed` declared on the element itself. Used by CSS Flexbox
+/// §4.5's "content size suggestion" half of the auto-min computation,
+/// where we need to know how small the content can be regardless of
+/// the box's declared size.
 pub(super) fn content_min_size(
     dom: &Dom<TuiExt>,
     id: NodeId,
     direction: Direction,
     cross_budget: u16,
 ) -> u16 {
-    intrinsic_size_inner(dom, id, direction, cross_budget, IntrinsicMode::ContentOnly)
+    intrinsic_size_inner(
+        dom,
+        id,
+        direction,
+        cross_budget,
+        IntrinsicMode::ContentOnly,
+        Measure::MinContent,
+    )
+}
+
+/// Which intrinsic size text contributes (CSS Sizing 3 §4.1 / §4.2).
+/// Threaded through the recursion: a min-content measurement asks
+/// every descendant for its min-content contribution.
+#[derive(Copy, Clone, PartialEq, Eq)]
+pub(super) enum Measure {
+    /// Text unwrapped.
+    MaxContent,
+    /// Text broken at every soft-wrap opportunity: the widest
+    /// unbreakable word (the whole text under `white-space: nowrap`
+    /// / `pre`).
+    MinContent,
 }
 
 /// How `intrinsic_size_inner` interprets the element's declared
@@ -93,12 +123,13 @@ fn intrinsic_size_inner(
     direction: Direction,
     cross_budget: u16,
     mode: IntrinsicMode,
+    measure: Measure,
 ) -> u16 {
     let kind = dom.node(id).node_type();
     match kind {
         NodeType::Text => intrinsic_text(dom, id, direction),
         NodeType::Element | NodeType::Fragment => {
-            intrinsic_element(dom, id, direction, cross_budget, mode)
+            intrinsic_element(dom, id, direction, cross_budget, mode, measure)
         }
         NodeType::Comment => 0,
     }
@@ -124,6 +155,7 @@ fn intrinsic_element(
     direction: Direction,
     cross_budget: u16,
     mode: IntrinsicMode,
+    measure: Measure,
 ) -> u16 {
     let computed = dom
         .node(id)
@@ -193,7 +225,7 @@ fn intrinsic_element(
     // width.
     if is_ifc_block(dom, id) {
         let content = match direction {
-            Direction::Row => inline_content_width(dom, id),
+            Direction::Row => inline_width(dom, id, measure),
             Direction::Column => {
                 // We're asked for height given cross_budget (= width
                 // the container can give us). Subtract this block's
@@ -275,7 +307,7 @@ fn intrinsic_element(
         //     `::after` chrome on the Row axis plus padding/border.
         if has_non_whitespace_text(dom, id) {
             let content = match direction {
-                Direction::Row => inline_content_width(dom, id),
+                Direction::Row => inline_width(dom, id, measure),
                 Direction::Column => {
                     let outer_width = match &computed.width {
                         Size::Fixed(n) => *n,
@@ -322,7 +354,14 @@ fn intrinsic_element(
     // against the containing block width, approximated here by the
     // cross budget (the only width known during intrinsic sizing).
     let outer = |c: NodeId| {
-        let inner = intrinsic_size(dom, c, direction, child_cross_budget);
+        let inner = intrinsic_size_inner(
+            dom,
+            c,
+            direction,
+            child_cross_budget,
+            IntrinsicMode::BoxSize,
+            measure,
+        );
         let margins = dom
             .node(c)
             .ext()
@@ -410,6 +449,28 @@ pub(super) fn border_main_cost(computed: &ComputedStyle, direction: Direction) -
 /// Sum of visible cell widths of all text in an IFC block's inline
 /// subtree. Walks text nodes and descends into inline element
 /// children. Used as the intrinsic max-content width for IFC blocks.
+/// Inline content width of `id` on the Row axis for `measure`.
+fn inline_width(dom: &Dom<TuiExt>, id: NodeId, measure: Measure) -> u16 {
+    match measure {
+        Measure::MaxContent => inline_content_width(dom, id),
+        Measure::MinContent => min_content_inline_width(dom, id),
+    }
+}
+
+/// Min-content inline width (CSS Sizing 3 §4.2): the widest line when
+/// the content breaks at every soft-wrap opportunity. Packing at a
+/// zero content width puts each unbreakable word on its own line
+/// with exactly the packer's break rules (`white-space`, hyphens),
+/// so this cannot drift from what layout wraps.
+fn min_content_inline_width(dom: &Dom<TuiExt>, id: NodeId) -> u16 {
+    compute_inline_layout(dom, id, 0)
+        .lines
+        .iter()
+        .map(|line| line.width)
+        .max()
+        .unwrap_or(0)
+}
+
 pub(super) fn inline_content_width(dom: &Dom<TuiExt>, id: NodeId) -> u16 {
     fn walk(dom: &Dom<TuiExt>, id: NodeId, acc: &mut u32) {
         use crate::layout::{Display, Position};

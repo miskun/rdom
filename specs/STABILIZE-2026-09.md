@@ -197,6 +197,8 @@ Each phase ends with the two review gates; each commit carries the item id.
   context with the §11.1.1 clip for each entry; paint walks them forward, hit-test backward.
   `relative` / `sticky` join the positioned layer; `opacity < 1` forms a context. Supersedes
   `positioned_z_list` (DRY-2).
+- 2026-09-24 — Phase 5: `M5-MIN-CONTENT-2` — `content_min_size` measures min-content by packing
+  the inline content at width 0 (the packer's own break rules), threaded through the recursion.
 - Found while mapping Phase 3 (not on the ledger): `ImportantMask::FLOW` and `POINTER_EVENTS` share
   bit 39 (`tui_style.rs`), custom-property inheritance in the cascade is overwritten by the merged
   root map (`walk.rs`), and tokenizer errors inside a block are body-relative (`declarations.rs`).
