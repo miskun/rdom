@@ -247,6 +247,7 @@ Each phase ends with the two review gates; each commit carries the item id.
   DIVERGENCES entry (API gate), not a fix.
 - 2026-09-24 — Phase 6: `ITERM2-MOUSE-MOTION-1` → DIVERGENCES §4 (external: the terminal commits to
   motion tracking only on a real mouse event) + rdom-tui README "Terminal notes".
+- 2026-09-24 — Phase 6: `SGR-ALLOC-1` — const modifier-code table, no `Vec` per cell.
 - Found while mapping Phase 3 (not on the ledger): `ImportantMask::FLOW` and `POINTER_EVENTS` share
   bit 39 (`tui_style.rs`), custom-property inheritance in the cascade is overwritten by the merged
   root map (`walk.rs`), and tokenizer errors inside a block are body-relative (`declarations.rs`).

@@ -21,7 +21,6 @@ For the durable architectural divergences (web-platform departures shipped on pu
 - **`INLINE-PAINT-SPLIT-1` — `paint_pass/inline_paint.rs` (~950 lines) mixes text paint, the selection overlay, the caret, and `<select>` / password / gauge chrome substitution.** Paint knowing builtin internals is the coupling the module doc forbids; move chrome substitution behind a runtime-registered hook and the caret / selection overlay into their own files.
 - **`PACKER-STRING-ALLOC-1` — the line packer allocates one `String` per grapheme** (`render/inline/packer.rs` `PendingGrapheme { text }` + `g.to_string()`), and text is packed at least twice per frame (intrinsic measure + layout). Store byte ranges into the source text and cache the packed layout per `(node, width)` within a frame.
 - **`PAINT-INLINE-LAYOUT-CLONE-1` — paint clones each element's `InlineLayout` / `anonymous_blocks`** (every fragment `String`) per frame (`inline_paint.rs` `paint_ifc`, anonymous-box paint). Borrow through the ext or put the layout behind an `Rc` like `computed`.
-- **`SGR-ALLOC-1` — SGR emission allocates a `Vec` per changed cell** and formats each code with `write!` (`render/sgr.rs`). Minor, but it is the byte hot path.
 
 ### Paint pipeline
 

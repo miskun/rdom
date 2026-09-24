@@ -92,53 +92,43 @@ fn write_sgr<W: Write>(w: &mut W, code: u16) -> io::Result<()> {
 
 // ─── Modifier encoding ──────────────────────────────────────────────
 
+/// Modifier bits with their SGR turn-on and turn-off codes. Both blink
+/// bits share the `25` turn-off code, emitted once (see
+/// [`modifier_off_codes`]).
+const MODIFIER_CODES: [(Modifier, u16, u16); 7] = [
+    (Modifier::BOLD, 1, 22),
+    (Modifier::ITALIC, 3, 23),
+    (Modifier::UNDERLINED, 4, 24),
+    (Modifier::SLOW_BLINK, 5, 25),
+    (Modifier::RAPID_BLINK, 6, 25),
+    (Modifier::HIDDEN, 8, 28),
+    (Modifier::CROSSED_OUT, 9, 29),
+];
+
+/// Turn-on codes for the set bits, in table order. Allocation-free:
+/// filters the const table.
 fn modifier_on_codes(bits: Modifier) -> impl Iterator<Item = u16> {
-    let mut out = Vec::new();
-    if bits.contains(Modifier::BOLD) {
-        out.push(1);
-    }
-    if bits.contains(Modifier::ITALIC) {
-        out.push(3);
-    }
-    if bits.contains(Modifier::UNDERLINED) {
-        out.push(4);
-    }
-    if bits.contains(Modifier::SLOW_BLINK) {
-        out.push(5);
-    }
-    if bits.contains(Modifier::RAPID_BLINK) {
-        out.push(6);
-    }
-    if bits.contains(Modifier::HIDDEN) {
-        out.push(8);
-    }
-    if bits.contains(Modifier::CROSSED_OUT) {
-        out.push(9);
-    }
-    out.into_iter()
+    MODIFIER_CODES
+        .iter()
+        .filter(move |(bit, _, _)| bits.contains(*bit))
+        .map(|(_, on, _)| *on)
 }
 
+/// Turn-off codes for the set bits, in table order, each code once
+/// (both blink bits map to `25`).
 fn modifier_off_codes(bits: Modifier) -> impl Iterator<Item = u16> {
-    let mut out = Vec::new();
-    if bits.contains(Modifier::BOLD) {
-        out.push(22);
-    }
-    if bits.contains(Modifier::ITALIC) {
-        out.push(23);
-    }
-    if bits.contains(Modifier::UNDERLINED) {
-        out.push(24);
-    }
-    if bits.intersects(Modifier::SLOW_BLINK | Modifier::RAPID_BLINK) {
-        out.push(25);
-    }
-    if bits.contains(Modifier::HIDDEN) {
-        out.push(28);
-    }
-    if bits.contains(Modifier::CROSSED_OUT) {
-        out.push(29);
-    }
-    out.into_iter()
+    let mut last: Option<u16> = None;
+    MODIFIER_CODES
+        .iter()
+        .filter(move |(bit, _, _)| bits.contains(*bit))
+        .filter_map(move |(_, _, off)| {
+            if last == Some(*off) {
+                None
+            } else {
+                last = Some(*off);
+                Some(*off)
+            }
+        })
 }
 
 // ─── Color encoding ─────────────────────────────────────────────────
