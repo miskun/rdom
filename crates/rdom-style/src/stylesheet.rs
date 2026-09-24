@@ -72,6 +72,32 @@ pub enum PseudoElementTarget {
     /// cell; the bg fills around it). Matches WebKit's
     /// `::-webkit-scrollbar-thumb`.
     ScrollbarThumb,
+    /// `::scrollbar-thumb:vertical` — the vertical thumb only. Layers
+    /// over `::scrollbar-thumb` (a matching axis rule wins ties), so
+    /// `content: "═"` can be given to the horizontal bar alone.
+    /// `UA-SB-1`; mirrors WebKit's `:vertical` / `:horizontal`.
+    ScrollbarThumbVertical,
+    /// `::scrollbar-thumb:horizontal` — the horizontal thumb only.
+    ScrollbarThumbHorizontal,
+}
+
+impl PseudoElementTarget {
+    /// The targets whose rules style a given scrollbar-thumb axis, in
+    /// layering order: the axis-neutral rules first, the axis rules
+    /// on top.
+    pub fn thumb_targets(vertical: bool) -> [PseudoElementTarget; 2] {
+        if vertical {
+            [
+                PseudoElementTarget::ScrollbarThumb,
+                PseudoElementTarget::ScrollbarThumbVertical,
+            ]
+        } else {
+            [
+                PseudoElementTarget::ScrollbarThumb,
+                PseudoElementTarget::ScrollbarThumbHorizontal,
+            ]
+        }
+    }
 }
 
 /// Whether a rule comes from the built-in defaults or from the author.
@@ -367,10 +393,26 @@ fn extract_pseudo_suffix(selector: &str) -> Result<(&str, PseudoElementTarget), 
         }
         return Ok((core, PseudoElementTarget::Selection));
     }
-    // Note: `::scrollbar-thumb` must be checked BEFORE `::scrollbar`
-    // because the latter is a prefix of the former; otherwise
-    // `::scrollbar-thumb` would split as `::scrollbar` + dangling
-    // `-thumb`.
+    // Note: the longer suffixes go first — `::scrollbar` is a prefix of
+    // `::scrollbar-thumb`, which is a prefix of the axis forms.
+    for (suffix, target) in [
+        (
+            "::scrollbar-thumb:vertical",
+            PseudoElementTarget::ScrollbarThumbVertical,
+        ),
+        (
+            "::scrollbar-thumb:horizontal",
+            PseudoElementTarget::ScrollbarThumbHorizontal,
+        ),
+    ] {
+        if let Some(core) = s.strip_suffix(suffix) {
+            let core = core.trim_end();
+            if core.is_empty() {
+                return Err(format!("`{suffix}` requires a host selector"));
+            }
+            return Ok((core, target));
+        }
+    }
     if let Some(core) = s.strip_suffix("::scrollbar-thumb") {
         let core = core.trim_end();
         if core.is_empty() {
@@ -389,7 +431,7 @@ fn extract_pseudo_suffix(selector: &str) -> Result<(&str, PseudoElementTarget), 
     // A bare `::other` anywhere is rejected (unsupported pseudo-element).
     if pseudo_count == 1 {
         return Err(
-            "unsupported pseudo-element; only ::before, ::after, ::backdrop, ::selection, ::scrollbar, ::scrollbar-thumb allowed"
+            "unsupported pseudo-element; only ::before, ::after, ::backdrop, ::selection, ::scrollbar, ::scrollbar-thumb (optionally :vertical / :horizontal) allowed"
                 .to_string(),
         );
     }

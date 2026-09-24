@@ -296,13 +296,15 @@ pub struct TuiExt {
     /// modern look). Authors override via
     /// `selector::scrollbar { bg: …; content: "▒"; }` to retheme.
     pub computed_scrollbar: Option<ComputedStyle>,
-    /// `::scrollbar-thumb` pseudo-element computed style — same
-    /// shape as `computed_scrollbar` but for the thumb cells
-    /// (default content `┃`, fg `Gray`, bg matches the track so
-    /// the thumb cell renders as a vertical-bar glyph on the
-    /// colored gutter). Authors override via
-    /// `selector::scrollbar-thumb { fg: …; content: "█"; }`.
-    pub computed_scrollbar_thumb: Option<ComputedStyle>,
+    /// `::scrollbar-thumb` computed style for the **vertical** bar:
+    /// axis-neutral `::scrollbar-thumb` rules with
+    /// `::scrollbar-thumb:vertical` layered on top (default content
+    /// `┃`). Authors override via `selector::scrollbar-thumb { … }`
+    /// or the axis form.
+    pub computed_scrollbar_thumb_vertical: Option<ComputedStyle>,
+    /// Same for the **horizontal** bar (`::scrollbar-thumb` +
+    /// `::scrollbar-thumb:horizontal`, default content `━`).
+    pub computed_scrollbar_thumb_horizontal: Option<ComputedStyle>,
 
     // ── Dirty flags (read by cascade + layout, set by mutation hooks) ─
     /// This element needs re-cascade next frame. Set by the

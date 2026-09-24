@@ -152,6 +152,7 @@ Each phase ends with the two review gates; each commit carries the item id.
 - 2026-09-24 — `CSS-VARS-SCOPE-1`: `TuiStyle::custom_properties`, any-selector parsing (warning
   variant removed), cascade pre-pass folding declarations into a copy-on-write inherited map (this
   also fixes the inheritance overwrite found during mapping), CSSOM `--x` round-trip.
+- 2026-09-24 — `UA-SB-1` (per-axis thumb targets, layered pseudo computation, two `TuiExt` slots).
 - Found while mapping Phase 3 (not on the ledger): `ImportantMask::FLOW` and `POINTER_EVENTS` share
   bit 39 (`tui_style.rs`), custom-property inheritance in the cascade is overwritten by the merged
   root map (`walk.rs`), and tokenizer errors inside a block are body-relative (`declarations.rs`).

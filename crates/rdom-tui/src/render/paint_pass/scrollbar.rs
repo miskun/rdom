@@ -33,7 +33,7 @@
 //! Track and thumb cells are styled via the `::scrollbar` and
 //! `::scrollbar-thumb` pseudo-elements (modeled after WebKit's
 //! `::-webkit-scrollbar`). The cascade populates
-//! `TuiExt::computed_scrollbar` / `computed_scrollbar_thumb` for
+//! `TuiExt::computed_scrollbar` / `computed_scrollbar_thumb_{vertical,horizontal}` for
 //! scrollable elements; paint reads them via `track_cell` /
 //! `thumb_cell` and falls back to a minimal DarkGray-bg gutter
 //! when the cascade output is `None` (i.e. consumer used
@@ -198,7 +198,7 @@ pub(super) fn paint_scrollbars(
         let (track_glyph, track_style) =
             track_cell(ext.computed_scrollbar.as_ref(), ScrollbarAxis::Vertical);
         let (thumb_glyph, thumb_style) = thumb_cell(
-            ext.computed_scrollbar_thumb.as_ref(),
+            ext.computed_scrollbar_thumb_vertical.as_ref(),
             ScrollbarAxis::Vertical,
         );
         paint_vertical_scrollbar(
@@ -220,7 +220,7 @@ pub(super) fn paint_scrollbars(
         let (track_glyph, track_style) =
             track_cell(ext.computed_scrollbar.as_ref(), ScrollbarAxis::Horizontal);
         let (thumb_glyph, thumb_style) = thumb_cell(
-            ext.computed_scrollbar_thumb.as_ref(),
+            ext.computed_scrollbar_thumb_horizontal.as_ref(),
             ScrollbarAxis::Horizontal,
         );
         paint_horizontal_scrollbar(

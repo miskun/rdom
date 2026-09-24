@@ -41,6 +41,10 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 
 - UA: `<input type=checkbox>` / `<input type=radio>` are `inline-block`, like `<button>`, so `<label><input type=checkbox> Name</label>` flows on one line as in HTML. The UA module doc now lists all twenty sections. (`UA-CHECKBOX-INLINE-1`, `SUB-3`)
 
+### Added — `rdom-style`, `rdom-tui`
+
+- **`::scrollbar-thumb:vertical` / `::scrollbar-thumb:horizontal`** style one axis; the axis rule layers over the axis-neutral `::scrollbar-thumb` at equal specificity. `TuiExt::computed_scrollbar_thumb` is split into `computed_scrollbar_thumb_vertical` / `_horizontal` (breaking). (`UA-SB-1`)
+
 ### Added — `rdom-style`
 
 - **`cubic-bezier(x1, y1, x2, y2)` and `steps(n, <position>)`** (plus `step-start` / `step-end`) parse in `transition-timing-function` and the `transition` shorthand, evaluate per CSS Easing 1 (`TimingFunction::{CubicBezier, Steps}`, `StepPosition`), and serialize back. `TimingFunction` is no longer `Eq` / `Hash`. (`D-M3-2`)

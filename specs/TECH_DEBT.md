@@ -68,7 +68,6 @@ For the durable architectural divergences (web-platform departures shipped on pu
 ### UA stylesheet
 
 - **`UA-OL-1` — `<ol>` UA marker is a bullet, not a counter.** Phase F shipped `ol > li::before { content: "• " }` as an honest fallback (a static `"1. "` marker would lie about ordering). When CSS counters land, upgrade to `content: counter(list-item) ". "`.
-- **`UA-SB-1` — Scrollbar thumb `content` is single-pseudo, applies to both axes.** Authors who override `content` get the literal glyph on BOTH axes. WebKit's `::scrollbar-thumb:vertical` / `:horizontal` is the documented future migration target.
 
 ### Substrate gaps
 
