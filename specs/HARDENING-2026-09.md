@@ -209,6 +209,9 @@ then a release (divergent bumps as before; a `rdom-core` change forces a `rdom-t
   sync per event, `computed_prev` behind `Rc`, `u64` shrink math, `auto` cross margins unstretch the
   item, dialog rustdoc corrected, CHANGELOG Breaking additions, STATE / README refresh. Accepted for
   0.4.0 with TECH_DEBT ids: `CARET-REVEAL-STALE-LAYOUT-1`, `POINTER-EVENTS-IFC-1`, file-size splits.
+- 2026-09-24 — **0.4.0 released.** All five crates published to crates.io in dependency order (each
+  verified via the crates.io API before the next), tag `v0.4.0` pushed. Program complete; deferred items
+  live in TECH_DEBT under their ids.
 - 2026-09-24 — Batch 4 gates (architect + API passes): three blockers fixed — `<?…>` hung the parser
   (now a bogus comment, as is non-DOCTYPE `<!…>`), line / column skipped raw-text bodies (`parse_special_text`
   walks with `advance_n`), and `rdom-core`'s serializer escaped `<style>` text so `outer_markup` round-trips

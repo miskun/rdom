@@ -30,7 +30,7 @@ other crate pins it). Nothing has been published from this program yet.
 | 0.2.0 | 2026-06-02 | All five crates: showcase, event surface bundle, `calc()`, BFC, native ARIA tree, layered border model |
 | 0.3.0 – 0.3.4 | 2026-06-02/03 | Substrate honesty for `rdom-extensions`; focus / `:where()` / `drop_subtree` fixes (`rdom-core` 0.3.4 → 0.3.5 at 0.3.11) |
 | 0.3.5 – 0.3.14 | 2026-06-03 → 06-06 | `rdom-tui`-only patch line driven by `rdom-virtualtable`: table column sizing, stale-layout fixes, half-block borders, drag-autoscroll and its robustness follow-ups. Latest published: **`rdom-tui` 0.3.14**, tag `rdom-tui-v0.3.14` |
-| 0.4.0 | prep committed 2026-09-24; `cargo publish` pending (needs Miska's go) | HARDENING-2026-09: generational `NodeId`, spec-correct dispatch and document position, whole-literal CSS numbers, at-rule recovery, CSS-wide keywords, `pointer-events`, scrollable text leaves, flex §9.7, and the rest of the program. Breaking notes in CHANGELOG "0.4.0" |
+| 0.4.0 | **released 2026-09-24**, tag `v0.4.0`, all five crates on crates.io | HARDENING-2026-09: generational `NodeId`, spec-correct dispatch and document position, whole-literal CSS numbers, at-rule recovery, CSS-wide keywords, `pointer-events`, scrollable text leaves, flex §9.7, and the rest of the program. Breaking notes in CHANGELOG "0.4.0" |
 | 0.5.0 | planned | Client-side routing primitive (slid from 0.4.0) |
 | later | — | Async tasks during event handlers; `TABLE-TFC-1` real table formatting context |
 
@@ -45,8 +45,7 @@ other crate pins it). Nothing has been published from this program yet.
 
 ## Follow-ups
 
-Publish 0.4.0 with `/publish` step 7 (all five crates, dep order, index-propagation waits; prep is
-committed and gated), then tag `v0.4.0`. After the release: the deferred TECH_DEBT items from this program —
+0.4.0 is out. Next: the deferred TECH_DEBT items from this program —
 `CSS-VARS-SCOPE-1`, `FORM-DEFAULTS-1`, the file splits, the allocation items, `CARET-REVEAL-STALE-LAYOUT-1`,
 `POINTER-EVENTS-IFC-1`, `PARSER-VOID-TAGS-1`, `PARSER-ENTITIES-1`, `PROC-TUI-DEV-DEP-1`, `PROC-TOOLCHAIN-PIN-1`.
 
