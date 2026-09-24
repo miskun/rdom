@@ -129,7 +129,7 @@ pub(super) fn apply_relative_shift(
 fn resolve_length_offset(len: &Length, basis: i32, negate: bool) -> Option<i32> {
     let cells = match len {
         Length::Auto => return None,
-        Length::Cells(n) => *n as i32,
+        Length::Cells(n) => *n,
         Length::Calc(expr) => expr.resolve(&rdom_style::calc::ResolveCtx::new(basis)),
     };
     Some(if negate { -cells } else { cells })
@@ -352,7 +352,7 @@ pub(super) fn axis_size_from_edges(
 fn length_to_cells(len: &Length, basis: i32) -> Option<i32> {
     match len {
         Length::Auto => None,
-        Length::Cells(n) => Some(*n as i32),
+        Length::Cells(n) => Some(*n),
         Length::Calc(expr) => Some(expr.resolve(&rdom_style::calc::ResolveCtx::new(basis))),
     }
 }

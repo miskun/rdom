@@ -94,7 +94,7 @@ fn place_one(dom: &mut Dom<TuiExt>, id: NodeId) {
 
     // Vertical sticky with `top: N` (cells).
     if let Length::Cells(n) = top_inset {
-        let pin_y = scrollport_rect.y.saturating_add(n as i32);
+        let pin_y = scrollport_rect.y.saturating_add(n);
         if placed.y < pin_y {
             // Stuck — pin to threshold.
             placed.y = pin_y;
@@ -116,7 +116,7 @@ fn place_one(dom: &mut Dom<TuiExt>, id: NodeId) {
     }
     // Horizontal sticky with `left: N` (cells).
     if let Length::Cells(n) = left_inset {
-        let pin_x = scrollport_rect.x.saturating_add(n as i32);
+        let pin_x = scrollport_rect.x.saturating_add(n);
         if placed.x < pin_x {
             placed.x = pin_x;
         }

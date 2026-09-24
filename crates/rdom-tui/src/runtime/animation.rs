@@ -377,7 +377,9 @@ fn animatable_props_for(curr: &ComputedStyle, prev: &ComputedStyle) -> Vec<Anima
     if curr.padding != prev.padding {
         out.push(AnimatedProp::Padding);
     }
-    if curr.gap != prev.gap {
+    // A `calc()` gap has no cell value until layout; only cell ↔ cell
+    // changes interpolate (a calc-bearing change snaps).
+    if curr.gap != prev.gap && curr.gap.as_cells().is_some() && prev.gap.as_cells().is_some() {
         out.push(AnimatedProp::Gap);
     }
     if curr.top != prev.top {
@@ -454,7 +456,7 @@ fn read_value(style: &ComputedStyle, prop: AnimatedProp) -> AnimatedValue {
         AnimatedProp::Width => AnimatedValue::Size(style.width.clone()),
         AnimatedProp::Height => AnimatedValue::Size(style.height.clone()),
         AnimatedProp::Padding => AnimatedValue::Padding(style.padding.clone()),
-        AnimatedProp::Gap => AnimatedValue::U16(style.gap),
+        AnimatedProp::Gap => AnimatedValue::U16(style.gap.as_cells().unwrap_or(0)),
         AnimatedProp::Top => AnimatedValue::Length(style.top.clone()),
         AnimatedProp::Right => AnimatedValue::Length(style.right.clone()),
         AnimatedProp::Bottom => AnimatedValue::Length(style.bottom.clone()),
@@ -594,6 +596,12 @@ fn lerp_i16(a: i16, b: i16, t: f32) -> i16 {
     v.round().clamp(i16::MIN as f32, i16::MAX as f32) as i16
 }
 
+#[inline]
+fn lerp_i32(a: i32, b: i32, t: f32) -> i32 {
+    let v = f64::from(a) + (f64::from(b) - f64::from(a)) * f64::from(t);
+    v.round() as i32
+}
+
 fn lerp_size(a: &Size, b: &Size, t: f32) -> Size {
     match (a, b) {
         (Size::Fixed(x), Size::Fixed(y)) => Size::Fixed(lerp_u16(*x, *y, t)),
@@ -614,7 +622,7 @@ fn lerp_size(a: &Size, b: &Size, t: f32) -> Size {
 
 fn lerp_length(a: &Length, b: &Length, t: f32) -> Length {
     match (a, b) {
-        (Length::Cells(x), Length::Cells(y)) => Length::Cells(lerp_i16(*x, *y, t)),
+        (Length::Cells(x), Length::Cells(y)) => Length::Cells(lerp_i32(*x, *y, t)),
         _ => {
             if t < 0.5 {
                 a.clone()

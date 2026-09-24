@@ -299,6 +299,29 @@ pub fn parse_unsigned(value: &[Token]) -> Option<u16> {
     None
 }
 
+/// `gap`: `<length-percentage>` — whole cells, a bare percentage or a
+/// `calc()`; percent-bearing forms stay symbolic until layout knows
+/// the container size.
+pub fn parse_gap(value: &[Token]) -> Option<crate::layout::GapValue> {
+    use crate::layout::GapValue;
+    match value {
+        [Token::Number(n)] => u16::try_from(*n).ok().map(GapValue::Cells),
+        [Token::Percentage(p)] if *p >= 0.0 => {
+            Some(GapValue::Calc(Box::new(CalcExpr::Percent(*p))))
+        }
+        _ if looks_like_calc(value) => {
+            let expr = parse_calc(value)?;
+            if expr.contains_percent() {
+                Some(GapValue::Calc(Box::new(expr)))
+            } else {
+                let cells = expr.resolve(&crate::calc::ResolveCtx::new(0));
+                Some(GapValue::Cells(cells.clamp(0, i32::from(u16::MAX)) as u16))
+            }
+        }
+        _ => None,
+    }
+}
+
 /// Padding shorthand expansion. Accepts 1..=4 unsigned integers.
 /// Order matches CSS: top, right, bottom, left (clockwise from top).
 pub fn parse_padding_shorthand(value: &[Token]) -> Option<Padding> {
@@ -749,8 +772,8 @@ pub fn parse_position(value: &[Token]) -> Option<Position> {
 pub fn parse_length(value: &[Token]) -> Option<Length> {
     match value {
         [Token::Ident(s)] if s.eq_ignore_ascii_case("auto") => Some(Length::Auto),
-        [Token::Number(n)] => i16::try_from(*n).ok().map(Length::Cells),
-        [Token::Delim('-'), Token::Number(n)] => i16::try_from(-*n).ok().map(Length::Cells),
+        [Token::Number(n)] => Some(Length::Cells(*n)),
+        [Token::Delim('-'), Token::Number(n)] => Some(Length::Cells(-*n)),
         _ if looks_like_calc(value) => parse_calc_to_length(value),
         _ => None,
     }
@@ -764,9 +787,9 @@ fn parse_calc_to_length(value: &[Token]) -> Option<Length> {
     if expr.contains_percent() {
         Some(Length::Calc(Box::new(expr)))
     } else {
-        let cells = expr.resolve(&crate::calc::ResolveCtx::new(0));
-        let clamped = cells.max(i16::MIN as i32).min(i16::MAX as i32) as i16;
-        Some(Length::Cells(clamped))
+        Some(Length::Cells(
+            expr.resolve(&crate::calc::ResolveCtx::new(0)),
+        ))
     }
 }
 
@@ -804,14 +827,13 @@ fn split_lengths(value: &[Token]) -> Option<Vec<Length>> {
         // Try the two-token negative pattern first.
         if let (Some(Token::Delim('-')), Some(Token::Number(n))) = (value.get(i), value.get(i + 1))
         {
-            let l = i16::try_from(-*n).ok().map(Length::Cells)?;
-            out.push(l);
+            out.push(Length::Cells(-*n));
             i += 2;
             continue;
         }
         let l = match value.get(i)? {
             Token::Ident(s) if s.eq_ignore_ascii_case("auto") => Length::Auto,
-            Token::Number(n) => i16::try_from(*n).ok().map(Length::Cells)?,
+            Token::Number(n) => Length::Cells(*n),
             _ => return None,
         };
         out.push(l);

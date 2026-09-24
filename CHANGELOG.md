@@ -32,6 +32,10 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 
 - **Declaration warnings point at the declaration.** `UnknownProperty`, `InvalidValue` and `MalformedDeclaration` carry the line and column of the property name (they carried the block's `{`), and a tokenizer error inside a block is reported in document coordinates instead of relative to the block body. `rdom_style::parse::token::tokenize_at` returns per-token positions for this. (`CSS-WARNING-POSITION-1`)
 
+### Breaking — `rdom-style`
+
+- `Length::Cells` holds an `i32` (was `i16`): `top` / `right` / `bottom` / `left` can position past ±32 k cells for virtualized surfaces; `parse_length` no longer rejects large integers. `z-index` stays `i16`. (`SUB-4`)
+
 ### Added — `rdom-style`
 
 - **`cubic-bezier(x1, y1, x2, y2)` and `steps(n, <position>)`** (plus `step-start` / `step-end`) parse in `transition-timing-function` and the `transition` shorthand, evaluate per CSS Easing 1 (`TimingFunction::{CubicBezier, Steps}`, `StepPosition`), and serialize back. `TimingFunction` is no longer `Eq` / `Hash`. (`D-M3-2`)

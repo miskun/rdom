@@ -914,6 +914,43 @@ pub enum Position {
     Sticky,
 }
 
+/// `gap` value: whole cells, or a `calc()` / percentage that resolves
+/// at layout time against the container's content size on the gap's
+/// axis (CSS Box Alignment 3 §8: indefinite → 0). `CALC-GAP-1`.
+#[derive(Debug, Clone, PartialEq)]
+pub enum GapValue {
+    Cells(u16),
+    Calc(Box<crate::calc::CalcExpr>),
+}
+
+impl Default for GapValue {
+    fn default() -> Self {
+        GapValue::Cells(0)
+    }
+}
+
+impl GapValue {
+    /// Resolve against `basis` (the container's content size on the
+    /// gap's axis; `0` when that size is indefinite).
+    pub fn resolve(&self, basis: u16) -> u16 {
+        match self {
+            GapValue::Cells(n) => *n,
+            GapValue::Calc(expr) => {
+                let v = expr.resolve(&crate::calc::ResolveCtx::new(i32::from(basis)));
+                v.clamp(0, i32::from(u16::MAX)) as u16
+            }
+        }
+    }
+
+    /// The value as whole cells when it needs no basis.
+    pub fn as_cells(&self) -> Option<u16> {
+        match self {
+            GapValue::Cells(n) => Some(*n),
+            GapValue::Calc(_) => None,
+        }
+    }
+}
+
 /// Offset value for `top` / `right` / `bottom` / `left`.
 ///
 /// **Not `Copy`** — the `Calc` variant carries a boxed expression
@@ -923,12 +960,13 @@ pub enum Length {
     /// `auto`. Resolution depends on context — phase-2 placement.
     #[default]
     Auto,
-    /// Integer cells. Signed so negative offsets are valid CSS.
-    Cells(i16),
+    /// Integer cells. Signed so negative offsets are valid CSS; `i32`
+    /// so a virtualized surface can position past ±32 k cells
+    /// (`SUB-4`).
+    Cells(i32),
     /// `calc(<expr>)`. Resolves at layout time against the
     /// parent's matching-axis content dimension (`top`/`bottom` →
-    /// height, `left`/`right` → width). Result clamped to the
-    /// `i16` range.
+    /// height, `left`/`right` → width).
     Calc(Box<crate::calc::CalcExpr>),
 }
 
@@ -936,11 +974,7 @@ impl Length {
     /// Resolve `Calc` to `Cells`, leaving other variants unchanged.
     pub fn resolve_calc(self, basis: i32) -> Length {
         match self {
-            Length::Calc(expr) => {
-                let v = expr.resolve(&crate::calc::ResolveCtx::new(basis));
-                let clamped = v.max(i16::MIN as i32).min(i16::MAX as i32) as i16;
-                Length::Cells(clamped)
-            }
+            Length::Calc(expr) => Length::Cells(expr.resolve(&crate::calc::ResolveCtx::new(basis))),
             other => other,
         }
     }
