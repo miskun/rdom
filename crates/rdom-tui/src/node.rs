@@ -111,11 +111,11 @@ pub trait TuiNodeExt<'a> {
     }
 
     fn computed_before(&self) -> Option<&'a ComputedStyle> {
-        self.tui_ext().and_then(|e| e.computed_before.as_ref())
+        self.tui_ext().and_then(|e| e.computed_before.as_deref())
     }
 
     fn computed_after(&self) -> Option<&'a ComputedStyle> {
-        self.tui_ext().and_then(|e| e.computed_after.as_ref())
+        self.tui_ext().and_then(|e| e.computed_after.as_deref())
     }
 
     /// `true` when the cascade needs to re-run on this element's subtree.

@@ -239,6 +239,8 @@ impl Default for ComputedStyle {
 ///   concatenation. Nests arbitrarily.
 /// - `Content::None` — explicit "no content"; the pseudo-element does
 ///   not render at all (matches CSS `content: none;`).
+///
+/// Resolution reads the element's context through [`ContentContext`].
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Content {
     Str(String),
@@ -254,6 +256,32 @@ pub enum Content {
     None,
 }
 
+/// What `content` resolution needs from the element it is generated
+/// for: its custom properties, its attributes and its counters. The
+/// cascade implements this over its working state; a bare
+/// `HashMap<String, String>` implements it as "variables only" for
+/// callers without an element.
+pub trait ContentContext {
+    /// The value of custom property `--name` (without the dashes).
+    fn var(&self, name: &str) -> Option<String>;
+    /// The host element's attribute `name`.
+    fn attr(&self, name: &str) -> Option<String>;
+    /// The innermost counter `name` in scope (0 when there is none).
+    fn counter(&self, name: &str) -> i32;
+}
+
+impl ContentContext for std::collections::HashMap<String, String> {
+    fn var(&self, name: &str) -> Option<String> {
+        self.get(name).cloned()
+    }
+    fn attr(&self, _name: &str) -> Option<String> {
+        None
+    }
+    fn counter(&self, _name: &str) -> i32 {
+        0
+    }
+}
+
 impl Content {
     /// Resolve `Var(...)` against `vars` and `Attr(...)` against the
     /// `attr_lookup` closure; join `Concat` parts. Returns `None` if
@@ -263,26 +291,17 @@ impl Content {
     /// Unresolved vars and missing attrs yield empty strings rather
     /// than failing — matches CSS's permissive behavior (browsers
     /// render nothing for `attr(missing)`).
-    pub fn resolve<F, C>(
-        &self,
-        vars: &std::collections::HashMap<String, String>,
-        attr_lookup: &F,
-        counter_lookup: &C,
-    ) -> Option<String>
-    where
-        F: Fn(&str) -> Option<String>,
-        C: Fn(&str) -> i32,
-    {
+    pub fn resolve(&self, ctx: &impl ContentContext) -> Option<String> {
         match self {
             Content::None => None,
             Content::Str(s) => Some(s.clone()),
-            Content::Var(name) => Some(vars.get(name).cloned().unwrap_or_default()),
-            Content::Attr(name) => Some(attr_lookup(name).unwrap_or_default()),
-            Content::Counter { name, style } => Some(style.format(counter_lookup(name))),
+            Content::Var(name) => Some(ctx.var(name).unwrap_or_default()),
+            Content::Attr(name) => Some(ctx.attr(name).unwrap_or_default()),
+            Content::Counter { name, style } => Some(style.format(ctx.counter(name))),
             Content::Concat(parts) => {
                 let mut out = String::new();
                 for p in parts {
-                    if let Some(s) = p.resolve(vars, attr_lookup, counter_lookup) {
+                    if let Some(s) = p.resolve(ctx) {
                         out.push_str(&s);
                     }
                     // Content::None inside a concat contributes nothing.
@@ -306,6 +325,20 @@ impl Content {
 mod tests {
     use super::*;
     use std::collections::HashMap;
+
+    /// Variables plus an attribute lookup, for the `attr()` tests.
+    struct Ctx<'a, F: Fn(&str) -> Option<String>>(&'a HashMap<String, String>, &'a F);
+    impl<F: Fn(&str) -> Option<String>> ContentContext for Ctx<'_, F> {
+        fn var(&self, name: &str) -> Option<String> {
+            self.0.get(name).cloned()
+        }
+        fn attr(&self, name: &str) -> Option<String> {
+            (self.1)(name)
+        }
+        fn counter(&self, _name: &str) -> i32 {
+            0
+        }
+    }
 
     #[test]
     fn initial_is_safe_defaults() {
@@ -335,19 +368,10 @@ mod tests {
         assert_eq!(ComputedStyle::default(), ComputedStyle::initial());
     }
 
-    /// Attribute lookup that returns None for every name — used by
-    /// tests that don't exercise `Content::Attr`.
-    fn no_attrs(_: &str) -> Option<String> {
-        None
-    }
-
     #[test]
     fn content_str_resolves_to_itself() {
         let vars = HashMap::new();
-        assert_eq!(
-            Content::Str("→".into()).resolve(&vars, &no_attrs, &|_: &str| 0),
-            Some("→".into())
-        );
+        assert_eq!(Content::Str("→".into()).resolve(&vars), Some("→".into()));
     }
 
     #[test]
@@ -355,7 +379,7 @@ mod tests {
         let mut vars = HashMap::new();
         vars.insert("arrow".into(), "▾".into());
         assert_eq!(
-            Content::Var("arrow".into()).resolve(&vars, &no_attrs, &|_: &str| 0),
+            Content::Var("arrow".into()).resolve(&vars),
             Some("▾".into())
         );
     }
@@ -364,7 +388,7 @@ mod tests {
     fn content_var_unresolved_empty_string() {
         let vars = HashMap::new();
         assert_eq!(
-            Content::Var("nope".into()).resolve(&vars, &no_attrs, &|_: &str| 0),
+            Content::Var("nope".into()).resolve(&vars),
             Some(String::new())
         );
     }
@@ -377,7 +401,7 @@ mod tests {
             _ => None,
         };
         assert_eq!(
-            Content::Attr("label".into()).resolve(&vars, &lookup, &|_: &str| 0),
+            Content::Attr("label".into()).resolve(&Ctx(&vars, &lookup)),
             Some("Fruit".into())
         );
     }
@@ -387,7 +411,7 @@ mod tests {
         let vars = HashMap::new();
         let lookup = |_: &str| None;
         assert_eq!(
-            Content::Attr("label".into()).resolve(&vars, &lookup, &|_: &str| 0),
+            Content::Attr("label".into()).resolve(&Ctx(&vars, &lookup)),
             Some(String::new())
         );
     }
@@ -401,10 +425,7 @@ mod tests {
             Content::Var("x".into()),
             Content::Str(" BAZ".into()),
         ]);
-        assert_eq!(
-            c.resolve(&vars, &no_attrs, &|_: &str| 0),
-            Some("FOO BAR BAZ".into())
-        );
+        assert_eq!(c.resolve(&vars), Some("FOO BAR BAZ".into()));
     }
 
     #[test]
@@ -420,16 +441,13 @@ mod tests {
             Content::Var("sep".into()),
             Content::Str("end".into()),
         ]);
-        assert_eq!(
-            c.resolve(&vars, &lookup, &|_: &str| 0),
-            Some("Group · end".into())
-        );
+        assert_eq!(c.resolve(&Ctx(&vars, &lookup)), Some("Group · end".into()));
     }
 
     #[test]
     fn content_none_returns_none() {
         let vars = HashMap::new();
-        assert_eq!(Content::None.resolve(&vars, &no_attrs, &|_: &str| 0), None);
+        assert_eq!(Content::None.resolve(&vars), None);
     }
 
     #[test]
@@ -440,6 +458,6 @@ mod tests {
             Content::None,
             Content::Str("B".into()),
         ]);
-        assert_eq!(c.resolve(&vars, &no_attrs, &|_: &str| 0), Some("AB".into()));
+        assert_eq!(c.resolve(&vars), Some("AB".into()));
     }
 }

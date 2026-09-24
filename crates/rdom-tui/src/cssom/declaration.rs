@@ -359,10 +359,16 @@ impl<'a> StyleDeclarationMut<'a> {
         };
         // Surface the parse channel verbatim from property_dispatch.
         property_dispatch::set(name, value, &mut ext.inline_style)?;
-        // Custom properties carry importance per declaration.
-        if let Some(custom) = name.strip_prefix("--") {
-            ext.inline_style
-                .set_custom_property(custom, value, important);
+        // Custom properties carry importance per declaration (`set`
+        // stored the value already, rendered from tokens like CSS source).
+        if let Some(custom) = name.strip_prefix("--")
+            && let Some(d) = ext
+                .inline_style
+                .custom_properties
+                .iter_mut()
+                .find(|d| d.name == custom)
+        {
+            d.important = important;
         }
         // Flip the !important bit for this property's mask.
         if let Some(mask) = property_dispatch::property_mask(name) {

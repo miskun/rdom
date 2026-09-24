@@ -957,7 +957,12 @@ pub fn parse_transition_property_keyword(name: &str) -> Option<TransitionPropert
     match name.to_ascii_lowercase().as_str() {
         "all" => Some(TransitionProperty::All),
         "none" => Some(TransitionProperty::None),
-        other => parse_animatable_property(other).map(TransitionProperty::Named),
+        other => match parse_animatable_property(other) {
+            Some(ap) => Some(TransitionProperty::Named(ap)),
+            // Any other `<custom-ident>` is valid and inert (Transitions
+            // L1 §2.1), whether or not it names a property rdom knows.
+            None => Some(TransitionProperty::Discrete(other.to_string())),
+        },
     }
 }
 
@@ -1239,7 +1244,7 @@ pub fn unzip_transition_rules(
     let mut timings = Vec::with_capacity(rules.len());
     let mut delays = Vec::with_capacity(rules.len());
     for r in rules {
-        props.push(r.property);
+        props.push(r.property.clone());
         durs.push(r.duration);
         timings.push(r.timing);
         delays.push(r.delay);
@@ -1514,6 +1519,19 @@ mod number_value_tests {
             }
         );
         assert_eq!((rules[0].duration, rules[0].delay), (1000, 500));
+    }
+
+    /// Transitions L1 §2.1: any `<custom-ident>` is a valid, inert
+    /// `transition-property`.
+    #[test]
+    fn transition_property_accepts_any_custom_ident() {
+        assert_eq!(
+            parse_transition_property_list(&t("display, foo")),
+            Some(vec![
+                TransitionProperty::Discrete("display".into()),
+                TransitionProperty::Discrete("foo".into()),
+            ])
+        );
     }
 
     #[test]

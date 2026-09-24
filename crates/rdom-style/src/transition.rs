@@ -10,7 +10,7 @@
 //! decide whether to interpolate.
 
 /// One parsed transition rule.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TransitionRule {
     pub property: TransitionProperty,
     pub duration_ms: u32,
@@ -19,7 +19,7 @@ pub struct TransitionRule {
 }
 
 /// Which property a transition rule covers.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TransitionProperty {
     /// `transition-property: all` — every animatable property
     /// transitions on change.
@@ -28,13 +28,19 @@ pub enum TransitionProperty {
     None,
     /// A specific animatable property.
     Named(AnimatableProperty),
+    /// Any other `<custom-ident>` — a non-animatable property
+    /// (`display`, `position`, …) or an unknown name. Valid CSS
+    /// (Transitions 1 §2.1); it never starts a transition because
+    /// discrete properties only transition under `transition-behavior:
+    /// allow-discrete` (Transitions 2), which rdom does not ship.
+    Discrete(String),
 }
 
-/// The set of `TuiStyle` properties an explicit transition rule
-/// can target by name. Discrete properties (display, position,
-/// content, …) aren't here — they're not directly animatable
-/// individually, but they DO toggle at midpoint when covered by
-/// `transition: all`.
+/// The set of `TuiStyle` properties a transition can animate.
+/// Discrete properties (display, position, content, …) aren't here:
+/// they never transition (CSS Transitions 1; `transition-behavior:
+/// allow-discrete` is Level 2 and not shipped), so `transition: all`
+/// covers exactly this set.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AnimatableProperty {
     /// `color` (= TuiStyle.fg)

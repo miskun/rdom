@@ -382,15 +382,22 @@ fn keyword_of<T>(v: &Option<Value<T>>) -> Option<&'static str> {
     }
 }
 
-/// Does rdom inherit this property by default? Mirrors the cascade's
-/// inherited set (`rdom-tui`'s `INHERITS_MASK`): the properties whose
-/// computed value flows parent → child when the child declares nothing.
-/// Decides what `unset` means (CSS Cascade 4 §7.3: `inherit` for
+/// Does rdom inherit this property by default? The one declaration of
+/// the inherited set: `rdom-tui`'s cascade copies exactly these from
+/// parent to child (pinned by a cascade test), and this table decides
+/// what `unset` means (CSS Cascade 4 §7.3: `inherit` for
 /// inherited properties, `initial` otherwise).
 pub fn inherits(name: &str) -> bool {
     matches!(
         name,
-        "color" | "font-weight" | "font-style" | "white-space" | "user-select" | "pointer-events"
+        "color"
+            | "font-weight"
+            | "font-style"
+            | "white-space"
+            | "user-select"
+            | "pointer-events"
+            | "caret-color"
+            | "caret-text-color"
     )
 }
 
@@ -1507,6 +1514,7 @@ fn serialize_transition_property(p: &TransitionProperty) -> String {
     match p {
         TransitionProperty::All => "all".to_string(),
         TransitionProperty::None => "none".to_string(),
+        TransitionProperty::Discrete(name) => name.clone(),
         TransitionProperty::Named(a) => match a {
             AnimatableProperty::Color => "color",
             AnimatableProperty::BackgroundColor => "background-color",

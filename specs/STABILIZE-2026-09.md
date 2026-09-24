@@ -156,8 +156,11 @@ Each phase ends with the two review gates; each commit carries the item id.
   `UA-OL-1` (CSS counters: data model in `rdom_style::counters`, `Content::Counter`, tree-order
   `CounterState` in the cascade with `::after` moved after the children and subtree replay, UA `<ol>`
   numbering; `ua_chrome` snapshot regenerated).
-- 2026-09-24 — Phase 4: `CASCADE-INITIAL-ALLOC-1` (constants hoisted, lazily built `RuleIndex` per
-  sheet drives candidate matching).
+- 2026-09-24 — Phase 4: `D-M3-5` (checkpoint per task), `D-M3-6` (wrong premise: Transitions L1 never
+  transitions discrete properties; `transition-property: display` is now valid + inert,
+  `transition-behavior` listed as not shipped), `CASCADE-INITIAL-ALLOC-1` (constants hoisted, lazily
+  built `RuleIndex` per sheet drives candidate matching), `D-M3-3` (pseudo-element paint transitions in
+  their own `StyleSlot`, events carry `pseudoElement`).
 - 2026-09-24 — Phase 3+4 API gate: root `README.md` had been overwritten with `rdom-css`'s README by a
   commit-split script (restored from history); `ul` / `menu` reset `list-item` per HTML §15.3.8 so a
   nested bullet list no longer advances the enclosing `<ol>`; `RuleIndex` tag keys are case-exact like

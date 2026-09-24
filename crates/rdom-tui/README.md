@@ -128,8 +128,9 @@ let sheet = Stylesheet::new()
 
 `var()` references are tried in this order:
 
-1. Look up the name in the vars map. If found and parses as a color,
-   use it.
+1. Look up the name in the element's custom-property map (its own
+   `--*` declarations layered over the parent's, CSS Variables 1). If
+   found and parses as a color, use it.
 2. Otherwise, recurse into the explicit fallback chain
    (`var(--a, var(--b, red))` walks left-to-right).
 3. If all fail, fall back to the property's inherit value (typically
@@ -259,7 +260,8 @@ browser behavior).
   `rdom_style::property_dispatch::inherits`; the cascade's
   `inherit_inheritable_from` is pinned to it by a test that probes
   every property.
-- Selector matching goes through `rdom_core::Dom::matches_list` once
+- Selector matching goes through `rdom_core::Dom::matches_list` for each
+  candidate rule from the sheet's rightmost-selector index, once
   per rule per element. There is one matching engine.
 - `MutationObserver` is the invalidation mechanism. `DirtyTracker` is
   *one* observer; future devtools / a11y mirrors / reactive bindings

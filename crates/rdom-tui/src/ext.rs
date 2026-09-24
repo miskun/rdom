@@ -92,6 +92,47 @@ pub struct PresentationStyle {
     pub z_index: Option<ZIndex>,
 }
 
+/// Which style a transition animates: the element itself or one of
+/// its generated pseudo-elements (CSS Transitions 1 §5:
+/// `TransitionEvent.pseudoElement`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum StyleSlot {
+    #[default]
+    Host,
+    Before,
+    After,
+}
+
+impl StyleSlot {
+    /// The `TransitionEvent.pseudoElement` value.
+    pub fn pseudo_element(self) -> Option<&'static str> {
+        match self {
+            StyleSlot::Host => None,
+            StyleSlot::Before => Some("::before"),
+            StyleSlot::After => Some("::after"),
+        }
+    }
+}
+
+impl TuiExt {
+    /// The animation overrides for `slot`.
+    pub fn presentation_for(&self, slot: StyleSlot) -> &PresentationStyle {
+        match slot {
+            StyleSlot::Host => &self.presentation,
+            StyleSlot::Before => &self.presentation_before,
+            StyleSlot::After => &self.presentation_after,
+        }
+    }
+
+    pub fn presentation_for_mut(&mut self, slot: StyleSlot) -> &mut PresentationStyle {
+        match slot {
+            StyleSlot::Host => &mut self.presentation,
+            StyleSlot::Before => &mut self.presentation_before,
+            StyleSlot::After => &mut self.presentation_after,
+        }
+    }
+}
+
 impl PresentationStyle {
     /// True when no animation is currently driving any property.
     /// The hot path uses this to skip the override read.
@@ -269,9 +310,19 @@ pub struct TuiExt {
     pub presentation: PresentationStyle,
     /// `::before` pseudo-element computed style. `None` if no content
     /// and no matching `::before` rules.
-    pub computed_before: Option<ComputedStyle>,
+    pub computed_before: Option<std::rc::Rc<ComputedStyle>>,
     /// `::after` pseudo-element computed style.
-    pub computed_after: Option<ComputedStyle>,
+    pub computed_after: Option<std::rc::Rc<ComputedStyle>>,
+    /// Previous-cascade snapshots of the two pseudo-element styles, so
+    /// the transition engine can diff them like `computed_prev`
+    /// (`D-M3-3`).
+    pub computed_before_prev: Option<std::rc::Rc<ComputedStyle>>,
+    pub computed_after_prev: Option<std::rc::Rc<ComputedStyle>>,
+    /// Animation overrides for `::before` / `::after` paint
+    /// properties (`color`, `background-color`, `border-color`).
+    /// Geometry of positioned pseudo-elements does not transition.
+    pub presentation_before: PresentationStyle,
+    pub presentation_after: PresentationStyle,
     /// `::backdrop` pseudo-element computed style — populated for
     /// modal `<dialog>` elements whose stylesheet has a matching
     /// `dialog::backdrop` rule. The paint pass overlays the

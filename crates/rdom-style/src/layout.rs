@@ -120,7 +120,7 @@ impl Size {
     /// even, the same rule `calc()` uses). The single place a
     /// percentage becomes cells, so `12.5%` of 80 is 10 everywhere.
     pub fn percent_of(basis: i32, p: f32) -> i32 {
-        (f64::from(basis) * f64::from(p) / 100.0).round_ties_even() as i32
+        crate::calc::round_half_to_even(f64::from(basis) * f64::from(p) / 100.0)
     }
 
     /// Resolve `Calc` to `Fixed`, leaving other variants unchanged.
@@ -926,6 +926,18 @@ pub enum GapValue {
 impl Default for GapValue {
     fn default() -> Self {
         GapValue::Cells(0)
+    }
+}
+
+impl From<u16> for GapValue {
+    fn from(cells: u16) -> Self {
+        GapValue::Cells(cells)
+    }
+}
+
+impl From<crate::calc::CalcExpr> for GapValue {
+    fn from(expr: crate::calc::CalcExpr) -> Self {
+        GapValue::Calc(Box::new(expr))
     }
 }
 

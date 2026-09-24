@@ -31,6 +31,10 @@ pub(super) fn inherit_inheritable_from(working: &mut ComputedStyle, parent: &Com
     working.white_space = parent.white_space;
     working.user_select = parent.user_select;
     working.pointer_events = parent.pointer_events;
+    // CSS UI 4 §7.1: `caret-color` inherits; rdom's `caret-text-color`
+    // mirrors it.
+    working.caret_color = parent.caret_color.clone();
+    working.caret_text_color = parent.caret_text_color.clone();
     // `border-collapse` does NOT inherit in rdom — documented
     // divergence (BORDER-MODEL-1). Containers that want their direct
     // children to participate in collapse declare it themselves;

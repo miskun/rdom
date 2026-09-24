@@ -898,6 +898,10 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
         (
             "ul",
             TuiStyle::new()
+                .counter_reset(vec![CounterOp {
+                    name: "list-item".into(),
+                    value: 0,
+                }])
                 .display(Display::Block)
                 .padding(Padding::new(0, 0, 0, 2)),
         ),
@@ -914,6 +918,10 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
         (
             "menu",
             TuiStyle::new()
+                .counter_reset(vec![CounterOp {
+                    name: "list-item".into(),
+                    value: 0,
+                }])
                 .display(Display::Block)
                 .padding(Padding::new(0, 0, 0, 2)),
         ),
@@ -932,10 +940,12 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
         // `list-style-type: disc`. Nested lists pick up the same
         // marker from their own parent.
         //
-        // `<ol>` counts: the UA resets the `list-item` counter on
-        // `<ol>`, increments it on every `<li>`, and renders it in
-        // the marker (CSS Lists 3 §3, driven by explicit UA rules
-        // because rdom has no `display: list-item`).
+        // `<ol>` counts: the UA resets the `list-item` counter on every
+        // list container (`ul`, `ol`, `menu` — HTML §15.3.8), increments
+        // it on every `<li>`, and renders it in the `<ol>` marker (CSS
+        // Lists 3 §3, via explicit UA rules because rdom has no
+        // `display: list-item`). Resetting on `<ul>` too is what keeps a
+        // nested bullet list from advancing the enclosing numbering.
         (
             "ul > li::before",
             TuiStyle::new().content(Content::Str("• ".into())),

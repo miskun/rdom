@@ -138,6 +138,10 @@ Removing a node releases its slot for reuse, but the `NodeId` carries a per-slot
 
 CSS Cascade 4 defines `unset` as `inherit` for inherited properties and `initial` otherwise. Which properties inherit is a fact about the property, not the tree, so `rdom-style`'s dispatch table (`property_dispatch::inherits`) resolves the keyword into `Value::Inherit` / `Value::Initial` at parse time and the cascade only ever sees those two. The cascade copies that same set in `inherit_inheritable_from`; a cascade test probes every property against the table, so there is one declaration and one proof, no second list.
 
+### `:root` custom properties are published twice on purpose
+
+A `:root { --x: v }` rule is an ordinary rule whose custom properties the cascade scopes per element like any other (CSS Variables 1). The parser *also* mirrors those values into `Stylesheet::vars()`, and the cascade seeds the document root's map from every sheet's `vars()`. The sheet-level map is the programmatic API (`define_var`, consumers that read variables without a tree); the mirror keeps it truthful for parsed sheets. Both paths produce the same per-element map, so there is no precedence question — the last sheet wins in both.
+
 ### MutationObserver delivery is synchronous, one record per mutation
 
 Each mutation notifies every registered observer before the mutating call returns (no microtask batching — the runtime has no task queue to batch against). Records reference live nodes at delivery time; the `ChildListChanged` for a drop fires before the slot is freed. Observers must not mutate the tree during a callback (panics), but may add or remove observers.

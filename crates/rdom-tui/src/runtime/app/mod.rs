@@ -465,13 +465,14 @@ impl<B: Backend> App<B> {
         // Microtasks first, in case a previous handler queued
         // one and we haven't drained yet.
         let sched = self.scheduler.clone();
+        // One checkpoint for anything queued since the last task; each
+        // pump then checkpoints after every callback it runs (HTML
+        // §8.1.7.3), so nothing is left for a trailing drain.
         t::drain_microtasks(&sched, &mut self.dom);
         t::pump_timeouts(&sched, &mut self.dom);
         let due = sched.borrow().drain_expired_interval_ids();
         t::pump_intervals(&sched, &mut self.dom, &due);
-        t::drain_microtasks(&sched, &mut self.dom);
         t::pump_raf(&sched, &mut self.dom);
-        t::drain_microtasks(&sched, &mut self.dom);
     }
 
     /// Advance the virtual scheduler clock by `ms` and service everything that
@@ -1088,6 +1089,7 @@ impl<B: Backend> App<B> {
         let pending = self.animations.take_pending_events();
         for PendingEvent {
             node,
+            slot,
             kind,
             property,
             elapsed_seconds,
@@ -1102,7 +1104,7 @@ impl<B: Backend> App<B> {
             ev.detail = rdom_core::EventDetail::Transition(Box::new(rdom_core::TransitionDetail {
                 property_name: property.css_name().to_string(),
                 elapsed: elapsed_seconds.into(),
-                pseudo_element: None,
+                pseudo_element: slot.pseudo_element().map(str::to_string),
             }));
             let _ = self.dom.dispatch_event(node, &mut ev);
         }

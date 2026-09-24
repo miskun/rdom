@@ -10,7 +10,7 @@ use std::time::{Duration, Instant};
 
 use rdom_core::{Dom, NodeId, NodeType};
 
-use crate::ext::TuiExt;
+use crate::ext::{StyleSlot, TuiExt};
 use crate::layout::{Length, Size, ZIndex};
 use crate::style::transition::{AnimatableProperty, TimingFunction, TransitionProperty};
 use crate::style::{Color, ComputedStyle};
@@ -89,6 +89,8 @@ pub enum AnimatedValue {
 #[derive(Debug, Clone)]
 pub struct ActiveAnimation {
     pub node: NodeId,
+    /// The element itself or one of its pseudo-elements.
+    pub slot: StyleSlot,
     pub property: AnimatedProp,
     pub from: AnimatedValue,
     pub to: AnimatedValue,
@@ -150,6 +152,7 @@ pub struct AnimationRegistry {
 #[derive(Debug, Clone)]
 pub struct PendingEvent {
     pub node: NodeId,
+    pub slot: StyleSlot,
     pub kind: TransitionEventKind,
     pub property: AnimatedProp,
     pub elapsed_seconds: f32,
@@ -188,11 +191,12 @@ impl AnimationRegistry {
         if let Some(pos) = self
             .active
             .iter()
-            .position(|a| a.node == anim.node && a.property == anim.property)
+            .position(|a| a.node == anim.node && a.slot == anim.slot && a.property == anim.property)
         {
             let old = self.active.swap_remove(pos);
             self.pending_events.push(PendingEvent {
                 node: old.node,
+                slot: old.slot,
                 kind: TransitionEventKind::Cancel,
                 property: old.property,
                 elapsed_seconds: now.saturating_duration_since(old.started_at).as_secs_f32(),
@@ -213,6 +217,7 @@ impl AnimationRegistry {
                 let a = self.active.swap_remove(i);
                 self.pending_events.push(PendingEvent {
                     node: a.node,
+                    slot: a.slot,
                     kind: TransitionEventKind::Cancel,
                     property: a.property,
                     elapsed_seconds: now.saturating_duration_since(a.started_at).as_secs_f32(),
@@ -238,6 +243,7 @@ impl AnimationRegistry {
                 anim.started_dispatched = true;
                 self.pending_events.push(PendingEvent {
                     node: anim.node,
+                    slot: anim.slot,
                     kind: TransitionEventKind::Start,
                     property: anim.property,
                     elapsed_seconds: 0.0,
@@ -246,16 +252,17 @@ impl AnimationRegistry {
 
             // Compute current value + write to presentation.
             let value = anim.current(now);
-            write_presentation(dom, anim.node, anim.property, value);
+            write_presentation(dom, anim.node, anim.slot, anim.property, value);
 
             // Retire on completion.
             if anim.is_done(now) {
                 let finished = self.active.swap_remove(i);
                 // Clear the presentation slot — the committed
                 // value in ComputedStyle is the truth from now on.
-                clear_presentation(dom, finished.node, finished.property);
+                clear_presentation(dom, finished.node, finished.slot, finished.property);
                 self.pending_events.push(PendingEvent {
                     node: finished.node,
+                    slot: finished.slot,
                     kind: TransitionEventKind::End,
                     property: finished.property,
                     elapsed_seconds: finished.duration.as_secs_f32(),
@@ -309,6 +316,7 @@ pub fn diff_and_register(dom: &mut Dom<TuiExt>, registry: &mut AnimationRegistry
                 }
                 let anim = ActiveAnimation {
                     node: id,
+                    slot: StyleSlot::Host,
                     property: prop,
                     from,
                     to,
@@ -321,14 +329,79 @@ pub fn diff_and_register(dom: &mut Dom<TuiExt>, registry: &mut AnimationRegistry
                 registry.register(anim, now);
             }
         }
-        // Snapshot for next pass.
-        if let Some(curr_clone) = curr {
-            let mut node_mut = dom.node_mut(id);
-            if let Some(ext) = node_mut.ext_mut() {
-                ext.computed_prev = Some(curr_clone);
+        // Pseudo-elements: their paint properties transition too, driven
+        // by the pseudo's own `transition-*` (`D-M3-3`).
+        for slot in [StyleSlot::Before, StyleSlot::After] {
+            let Some((prev_p, curr_p)) = snapshot_pseudo(dom, id, slot) else {
+                continue;
+            };
+            for prop in animatable_props_for(&curr_p, &prev_p) {
+                if !matches!(
+                    prop,
+                    AnimatedProp::Fg | AnimatedProp::Bg | AnimatedProp::BorderFg
+                ) {
+                    continue;
+                }
+                let Some(rule) = lookup_rule(&curr_p, prop) else {
+                    continue;
+                };
+                if rule.duration_ms == 0 && rule.delay_ms == 0 {
+                    continue;
+                }
+                let from = read_value(&prev_p, prop);
+                let to = read_value(&curr_p, prop);
+                if from == to {
+                    continue;
+                }
+                registry.register(
+                    ActiveAnimation {
+                        node: id,
+                        slot,
+                        property: prop,
+                        from,
+                        to,
+                        started_at: now,
+                        delay: Duration::from_millis(rule.delay_ms as u64),
+                        duration: Duration::from_millis(rule.duration_ms as u64),
+                        timing: rule.timing,
+                        started_dispatched: false,
+                    },
+                    now,
+                );
             }
         }
+        // Snapshot for next pass.
+        let mut node_mut = dom.node_mut(id);
+        if let Some(ext) = node_mut.ext_mut() {
+            if let Some(curr_clone) = curr {
+                ext.computed_prev = Some(curr_clone);
+            }
+            ext.computed_before_prev = ext.computed_before.clone();
+            ext.computed_after_prev = ext.computed_after.clone();
+        }
     }
+}
+
+/// `(prev, curr)` for a pseudo-element slot when both exist and differ
+/// by identity.
+fn snapshot_pseudo(
+    dom: &Dom<TuiExt>,
+    id: NodeId,
+    slot: StyleSlot,
+) -> Option<(std::rc::Rc<ComputedStyle>, std::rc::Rc<ComputedStyle>)> {
+    let ext = dom.node(id).ext()?;
+    let (prev, curr) = match slot {
+        StyleSlot::Before => (&ext.computed_before_prev, &ext.computed_before),
+        StyleSlot::After => (&ext.computed_after_prev, &ext.computed_after),
+        StyleSlot::Host => return None,
+    };
+    let (prev, curr) = (prev.as_ref()?, curr.as_ref()?);
+    // Rc clones only; an unchanged pseudo (the cascade did not touch this
+    // element) shares the allocation and is skipped outright.
+    if std::rc::Rc::ptr_eq(prev, curr) {
+        return None;
+    }
+    Some((prev.clone(), curr.clone()))
 }
 
 /// A shared handle to a cascade result (`None` before the first cascade).
@@ -413,7 +486,7 @@ fn lookup_rule(style: &ComputedStyle, prop: AnimatedProp) -> Option<MatchedRule>
     // Find the index of the entry covering `prop`.
     let idx = props.iter().position(|p| match p {
         TransitionProperty::All => true,
-        TransitionProperty::None => false,
+        TransitionProperty::None | TransitionProperty::Discrete(_) => false,
         TransitionProperty::Named(ap) => AnimatedProp::from_animatable(*ap) == prop,
     })?;
     // None entries disable transitions for the matched property.
@@ -468,6 +541,7 @@ fn read_value(style: &ComputedStyle, prop: AnimatedProp) -> AnimatedValue {
 fn write_presentation(
     dom: &mut Dom<TuiExt>,
     node: NodeId,
+    slot: StyleSlot,
     prop: AnimatedProp,
     value: AnimatedValue,
 ) {
@@ -475,41 +549,43 @@ fn write_presentation(
     let Some(ext) = node_mut.ext_mut() else {
         return;
     };
+    let ext = ext.presentation_for_mut(slot);
     match (prop, value) {
-        (AnimatedProp::Fg, AnimatedValue::Color(c)) => ext.presentation.fg = Some(c),
-        (AnimatedProp::Bg, AnimatedValue::Color(c)) => ext.presentation.bg = Some(c),
-        (AnimatedProp::BorderFg, AnimatedValue::Color(c)) => ext.presentation.border_fg = Some(c),
-        (AnimatedProp::Width, AnimatedValue::Size(s)) => ext.presentation.width = Some(s),
-        (AnimatedProp::Height, AnimatedValue::Size(s)) => ext.presentation.height = Some(s),
-        (AnimatedProp::Padding, AnimatedValue::Padding(p)) => ext.presentation.padding = Some(p),
-        (AnimatedProp::Gap, AnimatedValue::U16(g)) => ext.presentation.gap = Some(g),
-        (AnimatedProp::Top, AnimatedValue::Length(l)) => ext.presentation.top = Some(l),
-        (AnimatedProp::Right, AnimatedValue::Length(l)) => ext.presentation.right = Some(l),
-        (AnimatedProp::Bottom, AnimatedValue::Length(l)) => ext.presentation.bottom = Some(l),
-        (AnimatedProp::Left, AnimatedValue::Length(l)) => ext.presentation.left = Some(l),
-        (AnimatedProp::ZIndex, AnimatedValue::ZIndex(z)) => ext.presentation.z_index = Some(z),
+        (AnimatedProp::Fg, AnimatedValue::Color(c)) => ext.fg = Some(c),
+        (AnimatedProp::Bg, AnimatedValue::Color(c)) => ext.bg = Some(c),
+        (AnimatedProp::BorderFg, AnimatedValue::Color(c)) => ext.border_fg = Some(c),
+        (AnimatedProp::Width, AnimatedValue::Size(s)) => ext.width = Some(s),
+        (AnimatedProp::Height, AnimatedValue::Size(s)) => ext.height = Some(s),
+        (AnimatedProp::Padding, AnimatedValue::Padding(p)) => ext.padding = Some(p),
+        (AnimatedProp::Gap, AnimatedValue::U16(g)) => ext.gap = Some(g),
+        (AnimatedProp::Top, AnimatedValue::Length(l)) => ext.top = Some(l),
+        (AnimatedProp::Right, AnimatedValue::Length(l)) => ext.right = Some(l),
+        (AnimatedProp::Bottom, AnimatedValue::Length(l)) => ext.bottom = Some(l),
+        (AnimatedProp::Left, AnimatedValue::Length(l)) => ext.left = Some(l),
+        (AnimatedProp::ZIndex, AnimatedValue::ZIndex(z)) => ext.z_index = Some(z),
         _ => {}
     }
 }
 
-fn clear_presentation(dom: &mut Dom<TuiExt>, node: NodeId, prop: AnimatedProp) {
+fn clear_presentation(dom: &mut Dom<TuiExt>, node: NodeId, slot: StyleSlot, prop: AnimatedProp) {
     let mut node_mut = dom.node_mut(node);
     let Some(ext) = node_mut.ext_mut() else {
         return;
     };
+    let ext = ext.presentation_for_mut(slot);
     match prop {
-        AnimatedProp::Fg => ext.presentation.fg = None,
-        AnimatedProp::Bg => ext.presentation.bg = None,
-        AnimatedProp::BorderFg => ext.presentation.border_fg = None,
-        AnimatedProp::Width => ext.presentation.width = None,
-        AnimatedProp::Height => ext.presentation.height = None,
-        AnimatedProp::Padding => ext.presentation.padding = None,
-        AnimatedProp::Gap => ext.presentation.gap = None,
-        AnimatedProp::Top => ext.presentation.top = None,
-        AnimatedProp::Right => ext.presentation.right = None,
-        AnimatedProp::Bottom => ext.presentation.bottom = None,
-        AnimatedProp::Left => ext.presentation.left = None,
-        AnimatedProp::ZIndex => ext.presentation.z_index = None,
+        AnimatedProp::Fg => ext.fg = None,
+        AnimatedProp::Bg => ext.bg = None,
+        AnimatedProp::BorderFg => ext.border_fg = None,
+        AnimatedProp::Width => ext.width = None,
+        AnimatedProp::Height => ext.height = None,
+        AnimatedProp::Padding => ext.padding = None,
+        AnimatedProp::Gap => ext.gap = None,
+        AnimatedProp::Top => ext.top = None,
+        AnimatedProp::Right => ext.right = None,
+        AnimatedProp::Bottom => ext.bottom = None,
+        AnimatedProp::Left => ext.left = None,
+        AnimatedProp::ZIndex => ext.z_index = None,
     }
 }
 
@@ -736,6 +812,62 @@ mod tests {
         assert_eq!(
             dom.node(div).ext().unwrap().computed.as_ref().unwrap().fg,
             Color::Rgb(0, 0, 255)
+        );
+    }
+
+    /// `D-M3-3`: a `::before` with its own `transition: color` animates
+    /// in its own slot — the host's presentation stays untouched, the
+    /// event names the pseudo-element, and the override clears at the end.
+    #[test]
+    fn pseudo_element_color_transitions_in_its_own_slot() {
+        use crate::ext::StyleSlot;
+        use crate::style::Content;
+        let mut dom: TuiDom = TuiDom::new();
+        let root = dom.root();
+        let div = dom.create_element("div");
+        dom.append_child(root, div).unwrap();
+        let sheet = |fg: Color| {
+            Stylesheet::bare().rule_unchecked(
+                "div::before",
+                TuiStyle::new()
+                    .content(Content::Str("*".into()))
+                    .fg(fg)
+                    .transition_property(vec![TransitionProperty::Named(AnimatableProperty::Color)])
+                    .transition_duration(vec![100])
+                    .transition_timing_function(vec![TimingFunction::Linear]),
+            )
+        };
+        dom.cascade(&sheet(Color::Rgb(255, 0, 0)));
+        let mut reg = AnimationRegistry::new();
+        let start = epoch();
+        diff_and_register(&mut dom, &mut reg, start);
+        dom.cascade(&sheet(Color::Rgb(0, 0, 255)));
+        diff_and_register(&mut dom, &mut reg, start);
+        assert_eq!(reg.len(), 1);
+
+        reg.advance(&mut dom, start + Duration::from_millis(50));
+        let ext = dom.node(div).ext().unwrap();
+        assert!(ext.presentation.fg.is_none(), "host slot untouched");
+        let Some(Color::Rgb(r, _, b)) = ext.presentation_before.fg else {
+            panic!("no ::before override");
+        };
+        assert!((r as i16 - 128).abs() <= 2 && (b as i16 - 128).abs() <= 2);
+        let events = reg.take_pending_events();
+        assert!(
+            events
+                .iter()
+                .any(|e| e.slot == StyleSlot::Before && e.kind == TransitionEventKind::Start)
+        );
+
+        reg.advance(&mut dom, start + Duration::from_millis(120));
+        assert!(reg.is_empty());
+        assert!(
+            dom.node(div)
+                .ext()
+                .unwrap()
+                .presentation_before
+                .fg
+                .is_none()
         );
     }
 

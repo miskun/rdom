@@ -19,6 +19,7 @@ use crate::ext::TuiExt;
 use crate::render::paint_pass::text::{paint_text, style_from_computed};
 use crate::render::{Buffer, Rect};
 use crate::style::Color;
+use crate::style::ComputedStyle;
 
 use super::layout_rect_to_grid;
 
@@ -47,16 +48,33 @@ pub(super) fn paint_positioned_pseudos(dom: &Dom<TuiExt>, buf: &mut Buffer, clip
                 Some(e) => e,
                 None => continue,
             };
-            match end {
-                PseudoEnd::Before => match (&ext.before_layout, &ext.computed_before) {
-                    (Some(layout), Some(style)) => (layout.rect, style.clone()),
-                    _ => continue,
-                },
-                PseudoEnd::After => match (&ext.after_layout, &ext.computed_after) {
-                    (Some(layout), Some(style)) => (layout.rect, style.clone()),
-                    _ => continue,
-                },
+            let (layout, style, overrides) = match end {
+                PseudoEnd::Before => (
+                    &ext.before_layout,
+                    &ext.computed_before,
+                    &ext.presentation_before,
+                ),
+                PseudoEnd::After => (
+                    &ext.after_layout,
+                    &ext.computed_after,
+                    &ext.presentation_after,
+                ),
+            };
+            let (Some(layout), Some(style)) = (layout, style) else {
+                continue;
+            };
+            let mut style = ComputedStyle::clone(style);
+            // In-flight transitions on the pseudo's paint properties.
+            if let Some(fg) = overrides.fg {
+                style.fg = fg;
             }
+            if let Some(bg) = overrides.bg {
+                style.bg = bg;
+            }
+            if let Some(border_fg) = overrides.border_fg {
+                style.border_fg = border_fg;
+            }
+            (layout.rect, style)
         };
 
         if rect.width == 0 || rect.height == 0 {

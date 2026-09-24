@@ -2490,6 +2490,200 @@ fn counters_reset_increment_and_read_in_tree_order() {
     assert_eq!(before(&dom, c).as_deref(), Some("III. "));
 }
 
+/// HTML §15.3.8: `ul` / `ol` / `menu` all reset `list-item`, so a bullet
+/// list nested in an `<li>` does not advance the enclosing `<ol>`.
+#[test]
+fn nested_ul_does_not_advance_the_enclosing_ol_numbering() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let ol = dom.create_element("ol");
+    let a = dom.create_element("li");
+    let ul = dom.create_element("ul");
+    let x = dom.create_element("li");
+    let y = dom.create_element("li");
+    let b = dom.create_element("li");
+    dom.append_child(root, ol).unwrap();
+    dom.append_child(ol, a).unwrap();
+    dom.append_child(a, ul).unwrap();
+    dom.append_child(ul, x).unwrap();
+    dom.append_child(ul, y).unwrap();
+    dom.append_child(ol, b).unwrap();
+    dom.cascade(&Stylesheet::new());
+    let marker = |id: NodeId| {
+        dom.node(id)
+            .ext()
+            .and_then(|e| e.computed_before.as_ref())
+            .and_then(|p| p.content.clone())
+    };
+    assert_eq!(marker(a).as_deref(), Some("1. "));
+    assert_eq!(marker(b).as_deref(), Some("2. "));
+    assert_eq!(marker(x).as_deref(), Some("• "));
+}
+
+/// Subtree cascades and counters: inserting an `<li>` before the second
+/// item, then re-cascading the dirty siblings in *id* order (which is
+/// not tree order — the new node may have a lower or higher id), must
+/// renumber every item correctly. The old per-root replay skipped the
+/// uncomputed new node and produced `1, 2, 2, 3`.
+#[test]
+fn subtree_cascade_renumbers_after_insertion_regardless_of_root_order() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let ol = dom.create_element("ol");
+    dom.append_child(root, ol).unwrap();
+    let mut items = Vec::new();
+    for text in ["a", "b", "c"] {
+        let li = dom.create_element("li");
+        let t = dom.create_text_node(text);
+        dom.append_child(li, t).unwrap();
+        dom.append_child(ol, li).unwrap();
+        items.push(li);
+    }
+    let sheet = Stylesheet::new();
+    dom.cascade(&sheet);
+    let marker = |dom: &TuiDom, id: NodeId| {
+        dom.node(id)
+            .ext()
+            .and_then(|e| e.computed_before.as_ref())
+            .and_then(|p| p.content.clone())
+    };
+    assert_eq!(marker(&dom, items[2]).as_deref(), Some("3. "));
+
+    let inserted = dom.create_element("li");
+    let t = dom.create_text_node("new");
+    dom.append_child(inserted, t).unwrap();
+    dom.insert_before(ol, inserted, Some(items[1])).unwrap();
+    // The dirty tracker marks every sibling as its own root; feed them
+    // in both orders.
+    for order in [
+        vec![items[0], items[1], items[2], inserted],
+        vec![inserted, items[2], items[1], items[0]],
+    ] {
+        dom.cascade_subtrees(&sheet, &order);
+        assert_eq!(marker(&dom, items[0]).as_deref(), Some("1. "));
+        assert_eq!(marker(&dom, inserted).as_deref(), Some("2. "));
+        assert_eq!(marker(&dom, items[1]).as_deref(), Some("3. "));
+        assert_eq!(marker(&dom, items[2]).as_deref(), Some("4. "));
+    }
+}
+
+/// The canonical counters idiom: the increment lives on the
+/// pseudo-element itself, the reset on an ancestor. (Without the
+/// ancestor reset each `::before` would instantiate its own counter,
+/// scoped to itself and the host's children — browsers show `1, 1`
+/// there too.)
+#[test]
+fn pseudo_element_counter_ops_apply() {
+    use rdom_style::{CounterOp, CounterStyle};
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let doc = dom.create_element("doc");
+    let h1 = dom.create_element("h2");
+    let h2 = dom.create_element("h2");
+    dom.append_child(root, doc).unwrap();
+    dom.append_child(doc, h1).unwrap();
+    dom.append_child(doc, h2).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "doc",
+            TuiStyle::new().counter_reset(vec![CounterOp {
+                name: "sec".into(),
+                value: 0,
+            }]),
+        )
+        .rule_unchecked(
+            "h2::before",
+            TuiStyle::new()
+                .counter_increment(vec![CounterOp {
+                    name: "sec".into(),
+                    value: 1,
+                }])
+                .content(Content::Counter {
+                    name: "sec".into(),
+                    style: CounterStyle::Decimal,
+                }),
+        );
+    dom.cascade(&sheet);
+    let marker = |id: NodeId| {
+        dom.node(id)
+            .ext()
+            .and_then(|e| e.computed_before.as_ref())
+            .and_then(|p| p.content.clone())
+    };
+    assert_eq!(marker(h1).as_deref(), Some("1"));
+    assert_eq!(marker(h2).as_deref(), Some("2"));
+}
+
+/// CSS Variables 1 §2: `--x: initial` undefines, `--x: inherit` /
+/// `unset` take the parent's value even after an earlier own value.
+#[test]
+fn custom_property_css_wide_keywords() {
+    use rdom_style::TuiColor;
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let outer = dom.create_element("div");
+    let reset = dom.create_element("p");
+    let inh = dom.create_element("b");
+    dom.append_child(root, outer).unwrap();
+    dom.append_child(outer, reset).unwrap();
+    dom.append_child(outer, inh).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked("div", TuiStyle::new().custom_property("c", "rgb(1, 1, 1)"))
+        .rule_unchecked("p", TuiStyle::new().custom_property("c", "initial"))
+        .rule_unchecked("b", TuiStyle::new().custom_property("c", "rgb(2, 2, 2)"))
+        .rule_unchecked("b", TuiStyle::new().custom_property("c", "inherit"))
+        .rule_unchecked(
+            "p, b",
+            TuiStyle::new().fg(TuiColor::var_with("c", Color::Rgb(9, 9, 9).into())),
+        );
+    dom.cascade(&sheet);
+    assert_eq!(
+        computed_of(&dom, reset).fg,
+        Color::Rgb(9, 9, 9),
+        "initial → undefined → fallback"
+    );
+    assert_eq!(
+        computed_of(&dom, inh).fg,
+        Color::Rgb(1, 1, 1),
+        "inherit → parent's value"
+    );
+}
+
+/// A detached node in the dirty-root list (the subtree a demo swap just
+/// removed) must not block the connected roots: the tree-ordered
+/// counter walk skips it and still cascades everything in the document.
+#[test]
+fn detached_dirty_root_does_not_starve_connected_roots() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let ol = dom.create_element("ol");
+    dom.append_child(root, ol).unwrap();
+    let li = dom.create_element("li");
+    dom.append_child(ol, li).unwrap();
+    let old_demo = dom.create_element("section");
+    let old_child = dom.create_element("p");
+    dom.append_child(old_demo, old_child).unwrap();
+    dom.append_child(root, old_demo).unwrap();
+    let sheet = Stylesheet::new();
+    dom.cascade(&sheet);
+    // Swap: detach the old demo (it stays live), restyle the list.
+    dom.remove_child(root, old_demo).unwrap();
+    let sheet2 = Stylesheet::new().rule_unchecked("li", TuiStyle::new().fg(Color::Rgb(7, 7, 7)));
+    // Detached roots first, as an id-sorted tracker snapshot could order them.
+    dom.cascade_subtrees(&sheet2, &[old_demo, old_child, ol, li]);
+    assert_eq!(
+        computed_of(&dom, li).fg,
+        Color::Rgb(7, 7, 7),
+        "connected root was cascaded"
+    );
+    let marker = dom
+        .node(li)
+        .ext()
+        .and_then(|e| e.computed_before.as_ref())
+        .and_then(|p| p.content.clone());
+    assert_eq!(marker.as_deref(), Some("1. "));
+}
+
 // ── HARDENING-2026-09: layout-dirty flag covers positioning ─────────
 
 /// `is_layout_dirty()` must report a change to any property the layout

@@ -194,11 +194,15 @@ The web platform has no tree element — trees are built from `role="tree"` / `r
 
 Common web-platform surface rdom omits entirely as of 0.4.x. Schedule lives in [`DESIGN.md`](DESIGN.md#roadmap).
 
+- **`transition-behavior: allow-discrete`** (CSS Transitions 2): discrete properties (`display`, `position`, …) never transition; `transition-property: display` (or any other `<custom-ident>`) parses and is inert, exactly as Transitions Level 1 behaves without the Level 2 property.
+
 - **Form validation:** `pattern`, `required`, `minlength`/`maxlength`, `ValidityState`, `checkValidity()`, the `:valid` / `:invalid` / `:required` pseudo-classes, constraint-validation API.
 - **Smooth scrolling.** `scroll-behavior` is not parsed; every scroll is instant.
 - **Live `<style>` sheets.** A `<style>` element's text is snapshotted when the stylesheet is built; editing its text later does not re-parse. (Inline `style="…"` *is* live — the CSSOM observer re-parses it on every attribute write.)
 
 ## 4. Known limitations within shipped features
+
+- **Pseudo-element transitions cover paint properties only.** `::before` / `::after` transition `color`, `background-color` and `border-color`; a positioned pseudo-element's `width` / `height` / insets switch discretely, and `::backdrop`, `::selection` and the `::scrollbar*` pseudo-elements do not transition at all. Reason: pseudo geometry is resolved inside the host's layout pass, which has no per-frame override slot yet, and the other pseudo-elements have no presentation slot.
 
 - **Opacity nesting is flat.** A child with `opacity: 0.5` under a parent with `opacity: 0.5` renders at `0.5`, not the CSS-correct `0.25`. CSS group rendering would require an off-screen buffer; not implemented.
 <!-- The two `border-collapse` simplifications (corner-glyph last-paint and "outermost wins" conflict resolution) were retired by the BORDER-MODEL-1 initiative. The current contract — CSS Tables 3 §11.5 algorithm, hidden kill-switch, glyph-and-color from the same winner — lives under "Layout" above and supersedes both prior entries. -->

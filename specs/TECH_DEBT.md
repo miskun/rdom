@@ -40,12 +40,6 @@ For the durable architectural divergences (web-platform departures shipped on pu
 ### Animations
 
 
-### Animations
-
-- **`D-M3-3` — Pseudo-element transitions deferred.** The cascade produces `computed_before` / `computed_after` / `computed_backdrop` / `computed_selection` on `TuiExt`, but `diff_and_register` only inspects the main `computed` slot. Apps can't transition pseudo-element styles.
-- **`D-M3-5` — Microtask integration runs three drains per tick.** Could batch into one. Profile-driven if it becomes hot.
-- **`D-M3-6` — Discrete properties under `transition: all` are not midpoint-toggled.** CSS L1 says discrete properties (display, position, content, …) under `transition: all` switch at midpoint; rdom's diff loop only registers animations for properties in the animatable enum. Apps explicitly transitioning a discrete property via `transition-property: display` get a warning.
-
 ### Deferred from HARDENING-2026-09 Batch 3
 
 - **`CARET-REVEAL-STALE-LAYOUT-1` — `reveal_caret` runs at edit time against the previous frame's layout.** A wrap-induced new line is revealed one keystroke late, and a `scroll` listener can observe an over-maximum offset for the frame before layout clamps it (`ClampTo::NextLayout`). Root fix: a "pending caret reveal" flag serviced by the App after `layout_dom`.

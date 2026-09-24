@@ -246,7 +246,7 @@ fn row_with_percent_gap_resolves_against_container_width() {
                 .flow(Flow::Flex)
                 .direction(Direction::Row)
                 .width(Size::Fixed(30))
-                .gap_value(GapValue::Calc(Box::new(CalcExpr::Percent(10.0)))),
+                .gap(GapValue::Calc(Box::new(CalcExpr::Percent(10.0)))),
         )
         .rule_unchecked("a", TuiStyle::new().width(Size::Fixed(3)))
         .rule_unchecked("b", TuiStyle::new().width(Size::Fixed(4)));

@@ -161,7 +161,7 @@ impl CalcExpr {
 
 /// Round half-to-even (banker's rounding) for the final calc()
 /// result. Matches CSS rounding when integer-quantised.
-fn round_half_to_even(v: f64) -> i32 {
+pub fn round_half_to_even(v: f64) -> i32 {
     let f = v.round();
     if (v - v.floor() - 0.5).abs() < f64::EPSILON {
         // Exactly halfway — pick the even neighbor.

@@ -64,6 +64,49 @@ fn click_at(x: u16, y: u16) -> Vec<CtEvent> {
     ]
 }
 
+// ── Counters through the App's incremental cascade ─────────────────
+
+/// Inserting an `<li>` into a rendered `<ol>` renumbers every item on
+/// the next draw: the dirty tracker marks the siblings as separate
+/// roots and the subtree cascade walks them in tree order.
+#[test]
+fn inserting_a_list_item_renumbers_the_ordered_list() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let ol = dom.create_element("ol");
+    dom.append_child(root, ol).unwrap();
+    let mut items = Vec::new();
+    for text in ["a", "b", "c"] {
+        let li = dom.create_element("li");
+        let t = dom.create_text_node(text);
+        dom.append_child(li, t).unwrap();
+        dom.append_child(ol, li).unwrap();
+        items.push(li);
+    }
+    let mut app = test_app(dom, Stylesheet::new(), Rect::new(0, 0, 20, 6));
+    app.draw_if_dirty().unwrap();
+    let marker = |app: &App<TestBackend>, id: NodeId| {
+        app.dom()
+            .node(id)
+            .ext()
+            .and_then(|e| e.computed_before.as_ref())
+            .and_then(|p| p.content.clone())
+    };
+    assert_eq!(marker(&app, items[2]).as_deref(), Some("3. "));
+
+    let inserted = app.dom_mut().create_element("li");
+    let t = app.dom_mut().create_text_node("new");
+    app.dom_mut().append_child(inserted, t).unwrap();
+    app.dom_mut()
+        .insert_before(ol, inserted, Some(items[1]))
+        .unwrap();
+    app.draw_if_dirty().unwrap();
+    assert_eq!(marker(&app, items[0]).as_deref(), Some("1. "));
+    assert_eq!(marker(&app, inserted).as_deref(), Some("2. "));
+    assert_eq!(marker(&app, items[1]).as_deref(), Some("3. "));
+    assert_eq!(marker(&app, items[2]).as_deref(), Some("4. "));
+}
+
 // ── Construction + initial state ────────────────────────────────────
 
 #[test]
@@ -1928,6 +1971,7 @@ fn transitionend_event_carries_typed_transition_detail() {
 
     app.animations_mut_for_test()
         .queue_event_for_test(PendingEvent {
+            slot: crate::ext::StyleSlot::Host,
             node: div,
             kind: TransitionEventKind::End,
             property: AnimatedProp::Fg,
@@ -1981,6 +2025,7 @@ fn transitionstart_and_transitioncancel_also_carry_typed_detail() {
 
         app.animations_mut_for_test()
             .queue_event_for_test(PendingEvent {
+                slot: crate::ext::StyleSlot::Host,
                 node: div,
                 kind,
                 property: AnimatedProp::Bg,

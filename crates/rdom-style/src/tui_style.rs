@@ -378,22 +378,18 @@ impl TuiStyle {
         self.important |= ImportantMask::MARGIN;
         self
     }
-    /// Set `gap` to `v` whole cells. Chainable.
-    pub fn gap(mut self, v: u16) -> Self {
-        self.gap = Some(Value::Specified(crate::layout::GapValue::Cells(v)));
+    /// Set `gap`: whole cells (`gap(2)`) or a `calc()` / percentage
+    /// (`gap(GapValue::from(CalcExpr::Percent(10.0)))`), resolved at
+    /// layout. Chainable.
+    pub fn gap(mut self, v: impl Into<crate::layout::GapValue>) -> Self {
+        self.gap = Some(Value::Specified(v.into()));
         self
     }
 
     /// Like `gap` but also marks the declaration `!important`.
-    pub fn gap_important(mut self, v: u16) -> Self {
-        self.gap = Some(Value::Specified(crate::layout::GapValue::Cells(v)));
+    pub fn gap_important(mut self, v: impl Into<crate::layout::GapValue>) -> Self {
+        self.gap = Some(Value::Specified(v.into()));
         self.important |= ImportantMask::GAP;
-        self
-    }
-
-    /// Set `gap` to a `calc()` / percentage value, resolved at layout.
-    pub fn gap_value(mut self, v: crate::layout::GapValue) -> Self {
-        self.gap = Some(Value::Specified(v));
         self
     }
     setter!(

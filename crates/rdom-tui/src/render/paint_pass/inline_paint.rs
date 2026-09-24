@@ -23,7 +23,7 @@ use crate::render::{Buffer, Rect, Style};
 use crate::style::{ComputedStyle, Modifier};
 
 use super::layout_rect_to_grid;
-use super::text::{glyph_style_from_computed, paint_text, style_from_computed};
+use super::text::{glyph_style_from_computed, paint_text, pseudo_style, style_from_computed};
 
 /// `::before` + own text + `::after` paint for a non-IFC element.
 ///
@@ -183,7 +183,10 @@ fn paint_single_row_chrome(
             base_y,
             budget_right,
             text,
-            style_from_computed(before),
+            pseudo_style(
+                before,
+                presentation_of(dom, id, crate::ext::StyleSlot::Before),
+            ),
         );
     }
 
@@ -201,7 +204,10 @@ fn paint_single_row_chrome(
             base_y,
             budget_right,
             text,
-            style_from_computed(after),
+            pseudo_style(
+                after,
+                presentation_of(dom, id, crate::ext::StyleSlot::After),
+            ),
         );
     }
 
@@ -271,7 +277,10 @@ fn paint_lines(
                 line_y as u16,
                 line_right,
                 text,
-                style_from_computed(before),
+                pseudo_style(
+                    before,
+                    presentation_of(dom, id, crate::ext::StyleSlot::Before),
+                ),
             );
             leading_cursor = Some(new_cursor.saturating_sub(line_left));
         }
@@ -367,7 +376,10 @@ fn paint_lines(
                         line_y as u16,
                         budget_right,
                         text,
-                        style_from_computed(after),
+                        pseudo_style(
+                            after,
+                            presentation_of(dom, id, crate::ext::StyleSlot::After),
+                        ),
                     );
                 }
             }
@@ -873,6 +885,21 @@ fn cells_before_byte(text: &str, target: usize) -> u16 {
 /// Skip `cells` worth of grapheme width from the front of `text`,
 /// returning the remaining slice. Used when a fragment starts off
 /// the left edge of the paint clip.
+/// The in-flight transition overrides for one of `id`'s pseudo-element
+/// slots, borrowed; an empty set when the element has no ext.
+fn presentation_of(
+    dom: &Dom<TuiExt>,
+    id: NodeId,
+    slot: crate::ext::StyleSlot,
+) -> &crate::ext::PresentationStyle {
+    static EMPTY: std::sync::LazyLock<crate::ext::PresentationStyle> =
+        std::sync::LazyLock::new(crate::ext::PresentationStyle::default);
+    dom.node(id)
+        .ext()
+        .map(|e| e.presentation_for(slot))
+        .unwrap_or(&EMPTY)
+}
+
 fn advance_text_by_cells(text: &str, cells: u16) -> &str {
     let mut consumed: u16 = 0;
     let mut byte_pos: usize = 0;

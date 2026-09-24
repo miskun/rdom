@@ -212,18 +212,20 @@ fn transition_shorthand_two_durations_first_is_duration_second_is_delay() {
     assert_eq!(s.transition_delay, Some(Value::Specified(vec![50])));
 }
 
-// ── unsupported properties produce InvalidValue warnings ─────────
+// ── non-animatable names are valid and inert (Transitions L1 §2.1) ──
 
 #[test]
-fn transition_with_non_animatable_property_warns() {
-    // `display` is discrete — CSS L1 says it's not animatable
-    // (covered by `transition: all`'s midpoint switch instead).
-    // Specifying it directly produces a warning.
+fn transition_with_non_animatable_property_is_valid_and_inert() {
+    // `display` is discrete: it never transitions (no
+    // `transition-behavior: allow-discrete`), but naming it is valid CSS
+    // and must not warn.
     let r = parse("a { transition-property: display; }");
-    assert!(
-        !r.warnings.is_empty() || r.stylesheet.rules()[0].style.transition_property.is_none(),
-        "expected warning or unset transitions; got rules with: {:?}",
-        r.stylesheet.rules()[0].style.transition_property
+    assert!(r.warnings.is_empty(), "{:?}", r.warnings);
+    assert_eq!(
+        r.stylesheet.rules()[0].style.transition_property,
+        Some(Value::Specified(vec![TransitionProperty::Discrete(
+            "display".into()
+        )]))
     );
 }
 

@@ -447,6 +447,7 @@ pub(crate) fn pump_intervals(scheduler: &SharedScheduler, dom: &mut TuiDom, expi
             let mut ctx = TimerCtx::new(dom, scheduler.clone());
             (entry.callback)(&mut ctx)
         };
+        drain_microtasks(scheduler, dom);
         let cleared = {
             let mut s = scheduler.borrow_mut();
             s.running_interval = None;
@@ -465,8 +466,13 @@ pub(crate) fn pump_timeouts(scheduler: &SharedScheduler, dom: &mut TuiDom) {
     let _current = SchedulerGuard::install(scheduler);
     let cbs = scheduler.borrow_mut().drain_expired_timeouts();
     for cb in cbs {
-        let mut ctx = TimerCtx::new(dom, scheduler.clone());
-        cb(&mut ctx);
+        {
+            let mut ctx = TimerCtx::new(dom, scheduler.clone());
+            cb(&mut ctx);
+        }
+        // Each timer callback is a task: microtask checkpoint after it
+        // (HTML event loop §8.1.7.3 step 8).
+        drain_microtasks(scheduler, dom);
     }
 }
 
@@ -480,8 +486,14 @@ pub(crate) fn pump_raf(scheduler: &SharedScheduler, dom: &mut TuiDom) {
         (s.frame_timestamp_ms(), s.drain_raf())
     };
     for cb in cbs {
-        let mut ctx = TimerCtx::new(dom, scheduler.clone());
-        cb(&mut ctx, timestamp);
+        {
+            let mut ctx = TimerCtx::new(dom, scheduler.clone());
+            cb(&mut ctx, timestamp);
+        }
+        // "Run the animation frame callbacks" performs a microtask
+        // checkpoint after each callback (HTML §8.1.7.3 step 14.10 →
+        // "clean up after running script").
+        drain_microtasks(scheduler, dom);
     }
 }
 
@@ -595,6 +607,94 @@ mod tests {
 
     fn dom_for_tests() -> TuiDom {
         TuiDom::new()
+    }
+
+    /// `D-M3-5`: HTML runs a microtask checkpoint after *every* task.
+    /// A microtask queued from one timeout callback runs before the next
+    /// due timeout's callback, not after the whole pump.
+    #[test]
+    fn microtask_checkpoint_runs_between_two_due_timeouts() {
+        let start = epoch();
+        let sched = shared(start);
+        let mut dom = dom_for_tests();
+        let log = Rc::new(std::cell::RefCell::new(Vec::new()));
+        let (l1, l2) = (log.clone(), log.clone());
+        sched.borrow_mut().set_timeout(
+            move |ctx| {
+                l1.borrow_mut().push("t1");
+                let l = l1.clone();
+                ctx.queue_microtask(move |_| l.borrow_mut().push("micro-from-t1"));
+            },
+            0,
+        );
+        sched
+            .borrow_mut()
+            .set_timeout(move |_| l2.borrow_mut().push("t2"), 0);
+        sched.borrow_mut().set_now(start + Duration::from_millis(1));
+        pump_timeouts(&sched, &mut dom);
+        assert_eq!(*log.borrow(), vec!["t1", "micro-from-t1", "t2"]);
+    }
+
+    /// A microtask queued by the first rAF callback runs before the
+    /// second rAF callback of the same frame (HTML "run the animation
+    /// frame callbacks" → "clean up after running script").
+    #[test]
+    fn microtask_checkpoint_runs_between_two_raf_callbacks() {
+        let start = epoch();
+        let sched = shared(start);
+        let mut dom = dom_for_tests();
+        let log = Rc::new(std::cell::RefCell::new(Vec::new()));
+        let (l1, l2) = (log.clone(), log.clone());
+        sched.borrow_mut().request_animation_frame(move |ctx, _ts| {
+            l1.borrow_mut().push("raf1");
+            let l = l1.clone();
+            ctx.queue_microtask(move |_| l.borrow_mut().push("micro-from-raf1"));
+        });
+        sched
+            .borrow_mut()
+            .request_animation_frame(move |_, _| l2.borrow_mut().push("raf2"));
+        pump_raf(&sched, &mut dom);
+        assert_eq!(*log.borrow(), vec!["raf1", "micro-from-raf1", "raf2"]);
+    }
+
+    /// An interval cleared from a microtask that its own callback queued
+    /// is not re-armed: the checkpoint runs inside the interval's
+    /// `running_interval` window.
+    #[test]
+    fn interval_cleared_from_its_own_microtask_does_not_rearm() {
+        let start = epoch();
+        let sched = shared(start);
+        let mut dom = dom_for_tests();
+        let fired = Rc::new(Cell::new(0u32));
+        let f = fired.clone();
+        let id_cell: Rc<Cell<Option<TimerId>>> = Rc::new(Cell::new(None));
+        let idc = id_cell.clone();
+        let id = sched.borrow_mut().set_interval(
+            move |ctx| {
+                f.set(f.get() + 1);
+                let idc = idc.clone();
+                ctx.queue_microtask(move |ctx| {
+                    if let Some(id) = idc.get() {
+                        ctx.clear_interval(id);
+                    }
+                });
+                true
+            },
+            10,
+        );
+        id_cell.set(Some(id));
+        for ms in [10, 20, 30] {
+            sched
+                .borrow_mut()
+                .set_now(start + Duration::from_millis(ms));
+            let due = sched.borrow().drain_expired_interval_ids();
+            pump_intervals(&sched, &mut dom, &due);
+        }
+        assert_eq!(
+            fired.get(),
+            1,
+            "cleared from its first microtask; never fired again"
+        );
     }
 
     // ── §15.1 — set_timeout fires after delay ─────────────────

@@ -41,6 +41,19 @@ pub(super) fn paint_text(
     x + text_width
 }
 
+/// [`style_from_computed`] for a pseudo-element, with that slot's
+/// in-flight transition overrides applied (`D-M3-3`).
+pub(super) fn pseudo_style(c: &ComputedStyle, overrides: &crate::ext::PresentationStyle) -> Style {
+    let mut style = style_from_computed(c);
+    if let Some(fg) = overrides.fg {
+        style = style.fg(fg);
+    }
+    if let Some(bg) = overrides.bg {
+        style = style.bg(bg);
+    }
+    style
+}
+
 /// Build a paint-layer `Style` from a `ComputedStyle`, including
 /// `bg`. Filters `Color::Reset` (means "no color set, use terminal
 /// default") and keeps only the modifier bits we actually support.

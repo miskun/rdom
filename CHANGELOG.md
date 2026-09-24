@@ -80,9 +80,15 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 
 - **Custom properties are scoped per element and inherit** (CSS Variables 1 §2). The cascade folds each element's `--*` declarations (rules and inline, in ladder order with `!important`) into a copy-on-write map inherited from the parent; `var()` in color positions and `content` resolves against it. The previous walk overwrote every element's map with the sheet-level `:root` map, so custom properties never inherited. CSSOM `setProperty("--x", …)` and `cssText` round-trip custom properties. (`CSS-VARS-SCOPE-1`)
 
+### Added — `rdom-tui`
+
+- **Pseudo-element transitions.** `::before` / `::after` paint properties (`color`, `background-color`, `border-color`) transition per the pseudo's own `transition-*`; `transitionstart` / `transitionend` / `transitioncancel` carry `pseudoElement`. Geometry of positioned pseudo-elements still switches discretely (DIVERGENCES). `TuiExt` gains `computed_{before,after}_prev`, `presentation_{before,after}` and `StyleSlot`. (`D-M3-3`)
+
 ### Changed — `rdom-tui`
 
+- **Microtask checkpoints follow the HTML event loop:** one after every timer, interval and rAF callback (a checkpoint per task), instead of three fixed drains per tick. A microtask queued by one timeout now runs before the next due timeout's callback. (`D-M3-5`)
 - **The cascade tests only candidate rules.** Each `Stylesheet` keeps a lazily built rightmost-selector index (`Stylesheet::rule_index`, `RuleIndex`), so an element is matched against the rules keyed by its tag / id / classes plus the universal ones, not every rule of every sheet; the two per-rule `ComputedStyle::initial()` allocations in the color applicators are gone. (`CASCADE-INITIAL-ALLOC-1`)
+- `transition-property: display` (any known, non-animatable property) is valid and inert, as CSS Transitions 1 specifies, instead of an `InvalidValue` warning: `TransitionProperty::Discrete(name)`. `TransitionProperty` and `TransitionRule` are no longer `Copy`. (`D-M3-6`)
 - **Examples and demo snapshots moved.** `rdom-tui/examples/` now holds three self-contained programs (`counter_button`, `tab_form`, `parse_and_render`); the ten showcase-backed shims and their sixteen paint snapshots live in `rdom-showcase/{examples,tests}/` (`cargo run -p rdom-showcase --example <name>`). `rdom-tui` no longer dev-depends on `rdom-showcase`, and the published tarball ships `examples/`, `tests/` and `benches/` again (the `exclude` is gone). (`PROC-TUI-DEV-DEP-1`)
 
 ### Changed — workspace

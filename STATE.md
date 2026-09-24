@@ -53,9 +53,10 @@ other crate pins it). Nothing has been published from this program yet.
 - **2026-09-24 — Batch 3 slices landed without gates.** Unit + workspace tests gate each commit; the
   architect / API passes run once at the end of the batch (recorded as an open risk above).
 - **2026-09-24 — `unset` is resolved at parse time** from `property_dispatch::inherits`; the cascade's
-  `INHERITS_MASK` must agree and a test pins the two (`STYLE-INHERITS-TWO-SOURCES-1`).
-- **2026-09-24 — Custom properties stay `:root`-only for now**, but silently dropping them is over:
-  every other scope warns. Per-element scope is a Batch 3 cascade item.
+  `inherit_inheritable_from` is pinned to that table by a per-property test (`STYLE-INHERITS-TWO-SOURCES-1`,
+  closed in STABILIZE).
+- **2026-09-24 — Custom properties are per element** (CSS Variables 1) since STABILIZE `CSS-VARS-SCOPE-1`;
+  the earlier `:root`-only rule is gone.
 - **2026-09-21 — Generational `NodeId`.** Slot reuse stays; the handle carries a generation so a stale
   id is rejected everywhere instead of aliasing the slot's next occupant.
 - **2026-09-21 — Web-faithful dispatch and document position.** Two-pass target dispatch, flag reset

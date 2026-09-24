@@ -122,10 +122,11 @@ let sheet = Stylesheet::new()
         "missing", TuiColor::Literal(Color::White))))?;
 ```
 
-Custom properties are consumed in `<color>` values and in `content`.
-Generalization to other property types (`padding: var(--gap)`) is not
-shipped; see `DIVERGENCES.md`. The CSS-wide keywords `inherit`, `initial`,
-and `unset` are accepted for every property except the transition family.
+Custom properties (`TuiStyle::custom_properties`) are declared under any
+selector and scoped per element by the cascade; `var()` is consumed in
+`<color>` values and in `content`. Generalization to other property types
+(`padding: var(--gap)`) is not shipped; see `DIVERGENCES.md`. The CSS-wide
+keywords `inherit`, `initial`, and `unset` are accepted for every property.
 
 ## Pointers
 
@@ -140,7 +141,7 @@ and `unset` are accepted for every property except the transition family.
 cargo test -p rdom-style
 ```
 
-245 tests covering color parsing, modifier composition, `Specificity`
+250+ tests covering color parsing, modifier composition, `Specificity`
 ordering, `ImportantMask` routing, every `property_dispatch::set` /
 `serialize` / `remove` path, length parsing, and `transition` value
 parsing.

@@ -130,8 +130,8 @@ fn place_one(dom: &mut Dom<TuiExt>, host: NodeId, viewport: LayoutRect) {
     let (before, after, host_rect) = {
         let ext = dom.node(host).ext().expect("host has ext");
         (
-            ext.computed_before.clone(),
-            ext.computed_after.clone(),
+            ext.computed_before.as_deref().cloned(),
+            ext.computed_after.as_deref().cloned(),
             ext.layout,
         )
     };

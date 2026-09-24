@@ -9,7 +9,7 @@
 //! ## Algorithm (per element)
 //!
 //! 1. Start from `ComputedStyle::initial()`.
-//! 2. Inherit the subset of properties in `INHERITS_MASK` from parent
+//! 2. Inherit the inherited properties (`rdom_style::property_dispatch::inherits`) from the parent
 //!    ([`inherit`]).
 //! 3. Collect matching rules via `rdom_core::Dom::matches_list`.
 //! 4. Sort candidates by (specificity, source_idx). Ascending =
@@ -143,60 +143,77 @@ impl CascadeExt for Dom<TuiExt> {
                         .is_some_and(Content::uses_counters)
             })
         });
-        for &root in roots {
-            // A queued root can have been FREED between when it was marked
-            // dirty and now: dropping one child fires `ChildListChanged`, whose
-            // dirty-tracker handler marks every remaining sibling dirty (sibling
-            // selectors), and one of those siblings may itself be dropped later
-            // in the same teardown. A freed node has no subtree to cascade —
-            // skip it rather than dereferencing a reclaimed arena slot.
-            if !self.contains(root) {
-                continue;
-            }
-            // Look up parent's computed style for inheritance. Root
-            // has no parent, or the parent is a Fragment/root — use
-            // initial in either case.
-            let parent_computed = self
-                .node(root)
-                .parent_node()
-                .and_then(|p| p.ext().and_then(|e| e.computed.clone()))
-                .unwrap_or_else(|| {
-                    let mut initial = ComputedStyle::initial();
-                    initial.vars = merged_vars.clone();
-                    std::rc::Rc::new(initial)
-                });
-            // Counters depend on everything before `root` in tree order;
-            // replay the stored computed styles of ancestors and earlier
-            // siblings (only when some sheet uses counters at all).
-            let mut counters = if uses_counters {
-                walk::counter_state_before(self, root)
-            } else {
-                walk::CounterState::default()
-            };
+        // A queued root can have been FREED between when it was marked
+        // dirty and now: dropping one child fires `ChildListChanged`, whose
+        // dirty-tracker handler marks every remaining sibling dirty (sibling
+        // selectors), and one of those siblings may itself be dropped later
+        // in the same teardown. A freed node has no subtree to cascade —
+        // skip it rather than dereferencing a reclaimed arena slot.
+        let mut live: Vec<NodeId> = roots
+            .iter()
+            .copied()
+            .filter(|r| self.contains(*r))
+            .collect();
+        if live.is_empty() {
+            return;
+        }
+        if uses_counters {
+            // Counters make every root depend on everything before it in
+            // tree order. One pre-order walk carries the state, replays the
+            // stored ops of untouched elements and cascades each root when
+            // the walk reaches it, so an earlier root is recomputed before a
+            // later root's counters are read: O(N) for any number of roots,
+            // and correct after insertions (a fresh node has no stored ops
+            // to replay — its own cascade supplies them).
+            // Only roots inside the document take part: a detached
+            // subtree that was marked dirty (the previous demo of a
+            // swap, a removed row) renders nothing, and the walk from the
+            // document root would never reach it — it must not sit at the
+            // head of the queue and starve every root behind it.
+            let root = self.root();
+            live.retain(|r| {
+                *r == root
+                    || self
+                        .compare_document_position(root, *r)
+                        .contains(rdom_core::DocumentPosition::CONTAINED_BY)
+            });
+            live.sort_by(|a, b| tree_order(self, *a, *b));
+            live.dedup();
+            let mut next = 0usize;
+            let mut counters = walk::CounterState::default();
+            walk::cascade_roots_in_order(
+                self,
+                stylesheets,
+                &merged_vars,
+                &live,
+                &mut next,
+                root,
+                &mut counters,
+            );
+            return;
+        }
+        for root in live {
+            let parent_computed = walk::parent_computed_for(self, root, &merged_vars);
+            let mut counters = walk::CounterState::default();
             let flags =
                 walk::cascade_subtree(self, stylesheets, root, &parent_computed, &mut counters);
-            // If the partial cascade introduced a positioned pseudo
-            // or a `border-collapse: collapse` element anywhere in
-            // the subtree, bubble `true` up through ancestors so the
-            // document-level early-exit check doesn't stale-`false`
-            // and miss it. We never bubble `false` — that would
-            // require seeing all ancestor siblings to know whether
-            // any other subtree still has the flag set.
-            if flags.has_positioned_pseudo || flags.has_collapse {
-                let mut cur = self.node(root).parent_node().map(|p| p.id());
-                while let Some(p) = cur {
-                    if let Some(ext) = self.node_mut(p).ext_mut() {
-                        if flags.has_positioned_pseudo {
-                            ext.tree_has_positioned_pseudo = true;
-                        }
-                        if flags.has_collapse {
-                            ext.tree_has_collapse = true;
-                        }
-                    }
-                    cur = self.node(p).parent_node().map(|n| n.id());
-                }
-            }
+            walk::bubble_subtree_flags(self, root, flags);
         }
+    }
+}
+
+/// Tree order (DOM §4.2.1) for two live nodes; equal only for the same node.
+fn tree_order(dom: &Dom<TuiExt>, a: NodeId, b: NodeId) -> std::cmp::Ordering {
+    use rdom_core::DocumentPosition;
+    use std::cmp::Ordering;
+    if a == b {
+        return Ordering::Equal;
+    }
+    let pos = dom.compare_document_position(a, b);
+    if pos.contains(DocumentPosition::FOLLOWING) {
+        Ordering::Less
+    } else {
+        Ordering::Greater
     }
 }
 
