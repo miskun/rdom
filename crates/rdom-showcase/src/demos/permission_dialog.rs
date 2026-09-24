@@ -19,26 +19,17 @@
 //! collapsing the dialog out of layout (UA rule:
 //! `dialog:not([open]) { display: none }`).
 //!
-//! ## Substrate workarounds documented in TECH_DEBT.md
+//! ## Authoring notes
 //!
-//! Building this demo surfaced two flex-intrinsic-sizing gaps.
-//! The CSS below works around each one cleanly:
-//!
-//! - `FLEX-BLOCK-MAIN-INTRINSIC-1` — `<input type=radio>` is UA
-//!   `display: Block`, and Block items in a flex row oversize past
-//!   their intrinsic content width. Worked around by setting
-//!   `.choice input[type=radio] { width: 4 }` — the radio's
-//!   `( ) ` / `(•) ` pseudo content is exactly 4 cells, so the
-//!   explicit width matches reality.
-//! - `FLEX-ITEM-MARGIN-MAIN-INTRINSIC-1` — `margin-top` /
-//!   `margin-bottom` on a flex item doesn't count toward the flex
-//!   container's intrinsic main-axis size, so a dialog full of
-//!   children with `margin-bottom` would shrink and clip the last
-//!   child into its bottom border. Worked around by putting the
-//!   inter-section spacing on the dialog itself via `gap: 1` and
-//!   wrapping the speaker + URL in a `.message` container so the
-//!   gap rule doesn't insert a row between *them* (they're block
-//!   siblings inside `.message`, not flex children of the dialog).
+//! - `.choice input[type=radio] { width: 2 }` matches the demo's own
+//!   2-cell radio glyphs (`○ ` / `◉ `); the UA radio sizes itself to
+//!   its 4-cell `( ) ` content otherwise.
+//! - Section spacing is `gap: 1` on the dialog (a flex column), with
+//!   the speaker + URL wrapped in `.message` so no row lands between
+//!   them.
+//! - `.actions { position: relative; left: 1 }` shifts the button row
+//!   one cell right; a relatively positioned box paints in the
+//!   positioned layer, above the in-flow siblings it overlaps.
 
 use std::io;
 

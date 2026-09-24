@@ -69,7 +69,7 @@ pub use accessors::{TuiAccessors, TuiAccessorsMut, TuiDocAccessors};
 pub use cssom::{extend_from_style_tags, seed_inline_styles};
 pub use tui_event::{TuiDispatchExt, TuiEvent};
 
-pub use ext::{MarginChainMemo, PseudoLayout, StaticPosition, TuiExt};
+pub use ext::{PseudoLayout, StaticPosition, TuiExt};
 pub use layout::{
     Align, Border, Direction, Display, Flow, LayoutRect, Overflow, Padding, Size, UserSelect,
     WhiteSpace,

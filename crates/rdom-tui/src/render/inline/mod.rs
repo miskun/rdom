@@ -368,7 +368,8 @@ pub fn compute_inline_layout_for_run(
                     .map(|c| c.display)
                     .unwrap_or(Display::Block);
                 if matches!(display, Display::InlineBlock) {
-                    let intrinsic = atomic_inline_block_intrinsic_width(dom, child_id);
+                    let intrinsic =
+                        atomic_inline_block_intrinsic_width(dom, child_id, packer.content_width());
                     packer.push_atomic_inline_block(child_id, intrinsic);
                     continue;
                 }
@@ -438,7 +439,11 @@ fn walk_subtree(dom: &Dom<TuiExt>, id: NodeId, packer: &mut LinePacker) {
                 // UA pseudos like `<button>`'s `[ ]`) via the
                 // regular inline-content path at that rect.
                 if matches!(display, Display::InlineBlock) {
-                    let intrinsic = atomic_inline_block_intrinsic_width(dom, child.id());
+                    let intrinsic = atomic_inline_block_intrinsic_width(
+                        dom,
+                        child.id(),
+                        packer.content_width(),
+                    );
                     packer.push_atomic_inline_block(child.id(), intrinsic);
                     continue;
                 }
@@ -453,21 +458,24 @@ fn walk_subtree(dom: &Dom<TuiExt>, id: NodeId, packer: &mut LinePacker) {
 /// element treated as an atomic IFC box. Includes UA pseudo
 /// content (`::before` + `::after`) plus own text/inline content
 /// plus padding/border via the existing intrinsic measurement.
-fn atomic_inline_block_intrinsic_width(dom: &Dom<TuiExt>, id: NodeId) -> u16 {
+fn atomic_inline_block_intrinsic_width(
+    dom: &Dom<TuiExt>,
+    id: NodeId,
+    containing_block_width: u16,
+) -> u16 {
     // `intrinsic_size` already factors in pseudo widths +
     // padding + border for Display::InlineBlock — that's the same
     // measurement the flex layout uses to size inline-block flex
     // items. Pass `cross_budget = 0` since IFC packers don't
     // affect inline-block height; only the width matters here.
-    // The IFC's width is not in scope here, so the atom's percent
-    // padding / margins resolve against 0 (CSS Sizing 3 §5.2.1 treats
-    // a percentage against an unknown basis as zero for an intrinsic
-    // contribution).
+    // The atom's containing block is the IFC's block container, whose
+    // content width is definite: percent padding / margins resolve
+    // against it (CSS 2.1 §8.4).
     crate::render::layout_pass::intrinsic::intrinsic_size(
         dom,
         id,
         crate::layout::Direction::Row,
         0,
-        0,
+        containing_block_width,
     )
 }

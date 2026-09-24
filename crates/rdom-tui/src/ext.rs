@@ -52,7 +52,7 @@ pub struct StaticPosition {
 /// chain re-walked the levels below it when its own turn came. Each
 /// accumulator is `(largest positive margin, most negative margin)`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct MarginChainMemo {
+pub(crate) struct MarginChainMemo {
     /// The width the chain's percentages were resolved against.
     pub containing_block_width: u16,
     /// The chain surfacing at the block's outer top edge.
@@ -403,8 +403,9 @@ pub struct TuiExt {
     /// Margin-collapse chain results an ancestor's placement computed
     /// for this block during the current layout pass (see
     /// [`MarginChainMemo`]). Consumed when this block is placed and
-    /// cleared when it is laid out, so nothing outlives the pass.
-    pub margin_chain: Option<MarginChainMemo>,
+    /// cleared when it is laid out, so nothing outlives the pass —
+    /// which is why it is not part of the public layout output.
+    pub(crate) margin_chain: Option<MarginChainMemo>,
 
     // ── Editing state (Phase B) ──────────────────────────────────────
     /// Per-editable state (undo/redo history, coalescing metadata).

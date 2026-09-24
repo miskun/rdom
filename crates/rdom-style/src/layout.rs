@@ -993,10 +993,10 @@ impl Length {
 }
 
 /// `z-index` value (M2). `Auto` does not establish a stacking
-/// context; the M2 flat-sort model treats it as 0 for sort order.
+/// context; the positioned layer orders it by tree position (as 0).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ZIndex {
-    /// `auto`. Default. Sorts as 0 in M2's flat z-list.
+    /// `auto`. Default. No stacking context of its own; sorts as 0.
     #[default]
     Auto,
     /// Explicit integer; negative values are valid.

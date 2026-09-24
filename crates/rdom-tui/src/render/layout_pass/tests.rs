@@ -4359,3 +4359,43 @@ fn margin_chain_memo_is_used_only_for_its_containing_block_width() {
     dom.layout_dom(Rect::new(0, 0, 40, 20));
     assert_eq!(layout_rect_of(&dom, a).y, 2);
 }
+
+// ── Phase 5 API gate: inline-block percent basis in an IFC ──────────
+
+/// An atomic inline-block's percent padding resolves against its
+/// containing block — the IFC block's content width — not against 0.
+#[test]
+fn inline_block_atom_percent_padding_resolves_against_the_ifc_width() {
+    use rdom_style::calc::CalcExpr;
+    use rdom_style::layout::{Padding, PaddingValue};
+    let mut dom = tui_dom();
+    let root = dom.root();
+    let p = dom.create_element("p");
+    let lead = dom.create_text_node("hi ");
+    let atom = dom.create_element("b");
+    let inner = dom.create_text_node("x");
+    let tail = dom.create_element("i");
+    dom.append_child(atom, inner).unwrap();
+    dom.append_child(p, lead).unwrap();
+    dom.append_child(p, atom).unwrap();
+    dom.append_child(p, tail).unwrap();
+    dom.append_child(root, p).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked("p", TuiStyle::new().width(Size::Fixed(40)))
+        .rule_unchecked("i", TuiStyle::new().display(Display::Inline))
+        .rule_unchecked(
+            "b",
+            TuiStyle::new()
+                .display(Display::InlineBlock)
+                .padding(Padding {
+                    top: PaddingValue::Cells(0),
+                    right: PaddingValue::Cells(0),
+                    bottom: PaddingValue::Cells(0),
+                    left: PaddingValue::Calc(Box::new(CalcExpr::Percent(10.0))),
+                }),
+        );
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 60, 10));
+    // "x" (1) + 10% of the 40-cell IFC (4).
+    assert_eq!(layout_rect_of(&dom, atom).width, 5);
+}

@@ -1,9 +1,10 @@
 //! Paint pass for positioned `::before` / `::after` pseudo-elements
 //! (M5-now Stage B).
 //!
-//! Runs after `paint_z_list` so that absolute pseudos can paint above
-//! positioned host elements (they share the same flat stacking
-//! context). Reads pre-computed `PseudoLayout` rects from
+//! Runs after every stacking context has painted, in one flat pass
+//! ordered by the host's `z-index` and tree order (DIVERGENCES:
+//! pseudos are not part of their host's stacking context). Reads
+//! pre-computed `PseudoLayout` rects from
 //! `TuiExt::before_layout` / `after_layout`, which the layout pass
 //! populated in `layout_pass::positioned_pseudos`.
 //!

@@ -698,8 +698,8 @@ fn position_at_user_select_none_inherits_to_subtree() {
 #[test]
 fn higher_z_index_catches_click_first() {
     // High-z element placed FIRST in the document so the reverse-
-    // document-order fallback can't pick it up by accident — only
-    // proper z-list logic returns it.
+    // document-order walk can't pick it up by accident — only the
+    // positioned layer's z order returns it.
     let mut dom: TuiDom = TuiDom::new();
     let root = dom.root();
     let hi = dom.create_element("hi");
@@ -757,7 +757,7 @@ fn positioned_catches_click_over_in_flow_content() {
 }
 
 #[test]
-fn z_list_among_positioned_uses_doc_order_for_auto() {
+fn positioned_layer_uses_doc_order_for_auto() {
     // Two z-index:auto positioned siblings — later in document
     // wins (matches paint order, last paint sits on top).
     let mut dom: TuiDom = TuiDom::new();

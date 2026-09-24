@@ -6,20 +6,10 @@ For the durable architectural divergences (web-platform departures shipped on pu
 
 ## Open
 
-### Style crate — from HARDENING-2026-09 Batch 2
-
-
 ### Style crate — from the STABILIZE-2026-09 Phase 3+4 gates
 
 - **`STYLE-DISPATCH-SPLIT-1` — `property_dispatch.rs` (~2 300 lines) mixes the field table, `set`, `serialize` and their tests.** Split into `property_dispatch/{table,set,serialize}.rs` (tests alongside); no behavior change.
 - **`STYLE-VALUES-SPLIT-1` — `parse/values.rs` (~1 800 lines) holds every value parser.** Split per value type (`color`, `length`, `calc` entry, `transition`, `content`); no behavior change. Also over the few-hundred-line bar: `layout.rs`, `ua.rs`, `tui_style.rs`, `stylesheet.rs`, and in `rdom-tui` `cascade/apply.rs` and `cascade/tests.rs`.
-
-### Layout & cascade
-
-
-
-### Animations
-
 
 ### Deferred from HARDENING-2026-09 Batch 3
 
@@ -43,12 +33,9 @@ For the durable architectural divergences (web-platform departures shipped on pu
 
 - **`TREE-BFC-PSEUDO-1` — the `::before` / `::after` prefix on a true mixed-content block is dropped.** The duplicate-text class of this bug is fixed (own text no longer double-paints on pseudo- or mixed-content blocks); what remains is that a block with both a pseudo `content` and mixed inline + block children paints the pseudo nowhere. Emit the pseudo into the first / last anonymous box's line.
 
-
 ### UA stylesheet
 
-
 ### Substrate gaps
-
 
 ### Events
 

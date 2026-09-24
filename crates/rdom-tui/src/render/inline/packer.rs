@@ -94,6 +94,12 @@ impl LinePacker {
         }
     }
 
+    /// The content width the lines are packed against — the IFC
+    /// block's content width, the containing block of its atoms.
+    pub(super) fn content_width(&self) -> u16 {
+        self.content_width
+    }
+
     pub(super) fn take_lines(&mut self) -> Vec<LineBox> {
         std::mem::take(&mut self.lines)
     }

@@ -29,7 +29,10 @@ use crate::runtime::focus::focus_node;
 use crate::tui_event::TuiDispatchExt;
 use crate::{TuiDom, TuiEvent};
 
-const ACTIVE_ATTR: &str = "data-rdom-active";
+/// Attribute the tree builtin keeps on the active row (the ARIA
+/// active descendant). Author rules may match it; mutation observers
+/// see it move.
+pub const ACTIVE_ATTR: &str = "data-rdom-active";
 
 /// Install the tree keydown + click default actions. Called once
 /// from `App::build`.

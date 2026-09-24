@@ -401,8 +401,10 @@ fn scroll_container_from_hit(dom: &TuiDom, x: u16, y: u16) -> Option<NodeId> {
 
 /// Attribute the runtime keeps on the scroll container the keyboard
 /// scrolls (see [`scroll_focus_target`]); the UA sheet colors that
-/// container's scrollbar thumb through it.
-pub(crate) const SCROLL_FOCUS_ATTR: &str = "data-rdom-scroll-focus";
+/// container's scrollbar thumb through it. Author rules may match it
+/// too. Written with `set_attribute` / `remove_attribute` before the
+/// frame's cascade, so mutation observers see the moves.
+pub const SCROLL_FOCUS_ATTR: &str = "data-rdom-scroll-focus";
 
 /// The scroll container the focus cue belongs on: the nearest scroll
 /// container of the focused element, per the last layout. `None` when

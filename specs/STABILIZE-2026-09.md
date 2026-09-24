@@ -217,6 +217,17 @@ Each phase ends with the two review gates; each commit carries the item id.
 - 2026-09-24 — Phase 5: `BFC1-PERF-MARGIN-CHAIN-1` — per-pass chain memo on `TuiExt`, cleared by
   `layout_node`; 60-level bench shape.
 - 2026-09-24 — Phase 5: `BFC1-CODE-BLOCK-SPLIT-1` — `block/{mod,margin_collapse,width,height}.rs`.
+- 2026-09-24 — Phase 5 API gate (blocking, all fixed): four DIVERGENCES entries and the README
+  positioning line had gone stale (autoscroll vertical-only, `min-width: auto` natural size,
+  calc padding constant-only, `:focus-within::scrollbar-thumb`, flat stacking); the vertical-wins
+  autoscroll precedence and the `opacity`-context clip approximation are now recorded; an
+  inline-block atom's percent padding resolves against the IFC width instead of 0 (code fix +
+  test); the permission-dialog demo docs no longer cite retired debt rows. Non-blocking, done:
+  `margin_chain` / `MarginChainMemo` are crate-internal (pass-local scratch, not layout output);
+  `SCROLL_FOCUS_ATTR` and the tree's `ACTIVE_ATTR` are public and the runtime-written attributes
+  are a DIVERGENCES entry; the two UA changes moved to the `rdom-style` changelog section with the
+  `compute_content_area_collapsed` migration clause; empty TECH_DEBT headings and stale "z-list"
+  comments removed. Declined: a footer in the sticky demo (test-covered; demo stays minimal).
 - Found while mapping Phase 3 (not on the ledger): `ImportantMask::FLOW` and `POINTER_EVENTS` share
   bit 39 (`tui_style.rs`), custom-property inheritance in the cascade is overwritten by the merged
   root map (`walk.rs`), and tokenizer errors inside a block are body-relative (`declarations.rs`).
