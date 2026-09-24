@@ -3,3 +3,7 @@
 # CRLF on Windows, the comparison fails on line endings even when the
 # rendered content matches.
 *.snap text eol=lf
+
+# The CI toolchain step reads `rust-toolchain.toml` with `sed`; keep
+# manifests LF so the parsed channel never carries a `\r`.
+*.toml text eol=lf

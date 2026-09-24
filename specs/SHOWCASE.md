@@ -112,7 +112,7 @@ The 10 existing `crates/rdom-tui/examples/*.rs` (originally planned as 7; two mo
 1. Each example exposes `pub fn build(dom: &mut TuiDom) -> NodeId` + `pub fn stylesheet() -> Stylesheet` + `pub fn source() -> Source` + `pub fn run_standalone() -> io::Result<()>` + a `Demo` impl on a unit struct.
 2. Standalone `cargo run -p rdom-showcase --example <name>` still works for every one. (Originally `-p rdom-tui`, via a dev-dependency on the showcase; STABILIZE-2026-09 removed that inversion by moving the shims here.)
 3. All 10 demos registered in `DEMOS`. Showcase grew from 3 → 13 demos across 7 categories.
-4. Paint snapshots in `crates/rdom-tui/tests/snapshots/` pin every demo's output at fixed viewports. `OPS-4` retired.
+4. Paint snapshots (now in `crates/rdom-showcase/tests/snapshots/`) pin every demo's output at fixed viewports. `OPS-4` retired.
 
 **Side-fix:** the M2 default `flex-shrink: 1` (CSS-correct) interacted badly with terminal integer-cell allocation, dropping `height: 1` items to zero cells under overflow. Pre-existing bug surfaced by porting `sticky_demo`. Author-side fix (`flex-shrink: 0` on fixed-height children) applied across affected demos; root-cause substrate fix tracked as expanded `M5-MIN-CONTENT-1` in [`TECH_DEBT.md`](TECH_DEBT.md) (height-axis `min-height: auto` floor).
 

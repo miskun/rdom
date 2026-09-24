@@ -22,18 +22,16 @@ jobs:
       # One source of truth for the toolchain: rust-toolchain.toml.
       - id: toolchain
         shell: bash
-        run: echo "channel=$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml)" >> "$GITHUB_OUTPUT"
+        run: echo "channel=$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml | tr -d '\r')" >> "$GITHUB_OUTPUT"
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ steps.toolchain.outputs.channel }}
       - uses: Swatinem/rust-cache@v2
       # `--all-targets` covers libs, bins, integration tests, benches,
-      # AND examples. The `rdom-tui` examples can't be `cargo test`'d
-      # (they're TTY-bound `main`s, not test harnesses) — instead, the
-      # `ua_chrome_snapshot` integration test runs the same DOM
-      # construction through a TestBackend pipeline and golden-compares
-      # the painted buffer, so visible regressions to the UA chrome
-      # are caught here.
+      # AND examples. Examples are TTY-bound `main`s and can't be
+      # `cargo test`'d; the showcase demos behind `rdom-showcase`'s
+      # examples are golden-compared by its paint snapshot tests, so
+      # visible regressions to the UA chrome are caught there.
       - run: cargo build --workspace --all-targets --locked
       - run: cargo test --workspace --locked
 
@@ -45,7 +43,7 @@ jobs:
       # One source of truth for the toolchain: rust-toolchain.toml.
       - id: toolchain
         shell: bash
-        run: echo "channel=$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml)" >> "$GITHUB_OUTPUT"
+        run: echo "channel=$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml | tr -d '\r')" >> "$GITHUB_OUTPUT"
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ steps.toolchain.outputs.channel }}
@@ -63,7 +61,7 @@ jobs:
       # One source of truth for the toolchain: rust-toolchain.toml.
       - id: toolchain
         shell: bash
-        run: echo "channel=$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml)" >> "$GITHUB_OUTPUT"
+        run: echo "channel=$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml | tr -d '\r')" >> "$GITHUB_OUTPUT"
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ steps.toolchain.outputs.channel }}

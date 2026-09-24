@@ -24,6 +24,7 @@ Write down the bump plan as a one-line decision in the prep commit's message so 
 - **0.x.y** (pre-1.0, where we are): any breaking change bumps `x`; additive changes bump `y`. Patch-level fixes are also `y`.
 - **Same version, two crates with different source?** Not allowed. Bump anything that changed, even a typo fix in a docstring — crates.io enforces version-source pairing, so a re-publish with the same version number fails outright.
 - **Bumping `rdom-core`?** `rdom-style`, `rdom-css`, `rdom-parser`, `rdom-tui` all need to bump their **dep on rdom-core** in their `[dependencies]` table, AND bump their own version because their published `Cargo.toml` changed.
+- **`rdom-tui`'s versioned dev-dep on `rdom-parser`** must move in the same release: the published tarball builds its examples and tests against it, and a stale pin resolves a second `rdom-core`, so `parse_into(&mut TuiDom, …)` stops type-checking for anyone running the crate's tests from crates.io.
 
 ## 2. Per-crate metadata audit
 

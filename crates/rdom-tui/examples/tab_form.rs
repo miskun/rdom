@@ -76,7 +76,10 @@ fn main() -> io::Result<()> {
             }
             msg.push_str(&format!("{name}={value:?}"));
         }
-        let _ = ctx.dom.node_mut(status_text).set_node_value(&msg);
+        ctx.dom
+            .node_mut(status_text)
+            .set_node_value(&msg)
+            .expect("status text node is live");
     })
     .unwrap();
 

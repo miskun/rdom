@@ -14,25 +14,25 @@ use rdom_parser::parse_into;
 use rdom_tui::{App, TuiDom};
 
 const MARKUP: &str = r#"
-<app class="par-demo">
-  <title>rdom: parse → cascade → render</title>
-  <body>
+<div class="par-demo">
+  <header>rdom: parse → cascade → render</header>
+  <main>
     <section class="card">
-      <h>Three crates, one pipeline</h>
+      <h2>Three crates, one pipeline</h2>
       <p>Template parsed by <code>rdom-parser</code>.</p>
       <p>Cascaded + laid out + painted by <code>rdom-tui</code>.</p>
       <p>Using <code>rdom-core</code> underneath.</p>
     </section>
     <section class="card accent">
-      <h>Features shown</h>
+      <h2>Features shown</h2>
       <p>• HTML-ish templates, character references (&amp; &copy;)</p>
       <p>• CSS cascade with <code>var()</code>, pseudo-elements</p>
       <p>• Flexbox <em>and</em> <b>inline</b> layout</p>
       <p>• Unicode: 中文 🦀 👨‍👩‍👧</p>
     </section>
-  </body>
+  </main>
   <footer>Ctrl-C to exit</footer>
-</app>
+</div>
 "#;
 
 const CSS: &str = r#"
@@ -44,7 +44,7 @@ const CSS: &str = r#"
   display: flex;
   flex-direction: column;
 }
-.par-demo title {
+.par-demo header {
   color: var(--accent);
   font-weight: bold;
   padding: 0 1;
@@ -52,7 +52,7 @@ const CSS: &str = r#"
   border-bottom: solid;
   border-color: var(--accent);
 }
-.par-demo body {
+.par-demo main {
   display: flex;
   flex-direction: row;
   gap: 2;
@@ -70,7 +70,7 @@ const CSS: &str = r#"
 .par-demo .card.accent {
   border-color: var(--accent);
 }
-.par-demo h {
+.par-demo h2 {
   color: var(--accent);
   font-weight: bold;
   height: 1;

@@ -5,7 +5,8 @@
 
 pub mod common;
 
-// Paint snapshots for every demo (also the standalone examples).
+// Paint snapshots for every demo (the `examples/` shims run the same
+// `build` + `stylesheet`, so they are covered too).
 mod animations_demos_snapshot;
 mod border_collapse_snapshot;
 mod counter_button_snapshot;

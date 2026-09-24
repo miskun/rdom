@@ -96,7 +96,7 @@ Everything else is real. Disposition per item:
 |---|---|---|---|
 | 0 | docs | this plan; stale rows deleted | done 2026-09-23 |
 | 1 | process | toolchain pin, dev-dep inversion | done 2026-09-23 |
-| 2 | rdom-core, rdom-parser | 3 core + 2 parser | |
+| 2 | rdom-core, rdom-parser | 3 core + 2 parser | done 2026-09-23 |
 | 3 | rdom-style, rdom-css | 12 style / css / UA items incl. counters and custom-property storage | |
 | 4 | rdom-tui cascade + animation | custom-property cascade, inherits mask, initial hoist + rule index, three animation items | |
 | 5 | rdom-tui layout | 22 layout items incl. stacking contexts, static position, cross-axis scroll, spans | |
@@ -107,6 +107,35 @@ Everything else is real. Disposition per item:
 Each phase ends with the two review gates; each commit carries the item id.
 
 ## 3. Log
+
+- 2026-09-23 — Phase 2: `drop_subtree` frees under an observer panic (`catch_unwind` → free →
+  `resume_unwind`); document position / boundary points / common ancestor are a depth walk with an
+  oracle test over every pair of a 40-node tree; the slot generation is colocated with the node
+  (`Slot { generation, node }`, `InvariantViolation::GenerationTableMismatch` removed); HTML §13.3's
+  void list is exported from `rdom-core` and imported by the parser (`vr` dropped); the parser
+  decodes the full WHATWG entity table (generated `entities.rs` + `tools/gen_entities.py`, legacy
+  no-`;` names, attribute caveat). Phase 1 and 2 are gated together.
+- 2026-09-23 — Phase 1+2 API gate: two blockers on the entity work fixed before commit — the C1
+  0x80–0x9F → Windows-1252 remap (`&#146;` is `’`) and digit-only numeric scanning (`&#65abc;` is
+  `Aabc;`); DIVERGENCES "in full" claim now earned. Also: `rust-version` 1.85 → 1.88 (let-chains),
+  stale `rdom-tui/Cargo.toml` tarball comment removed, examples use HTML elements and no `let _ =`
+  swallows, publish checklist notes the `rdom-tui` → `rdom-parser` dev-dep pin. Slip: the entity
+  generator script landed in the Phase 1 commit instead of Phase 2's.
+- 2026-09-23 — Phase 1+2 architect gate: blocker — the drop-path guard covered only the
+  `ChildListChanged` record; the focus / selection purge inside `detach_from_parent` fires before it.
+  Fixed by snapshotting the subtree first and running detach + fire under one guard, freeing only if
+  the root ended up detached (a `PreDetach` panic leaves an attached, intact subtree); the two
+  `*_dropping` wrappers got the same guard. Four tests. Also: legacy prefix loop bounded by
+  `LONGEST_LEGACY_NAME` (6 bytes, generated), `RefContext` enum instead of bool flags, numeric /
+  named scanner edge tests, `#[rustfmt::skip]` emitted by the generator, CI channel read hardened
+  against CRLF (`tr -d '\r'`, `*.toml eol=lf`), stale CI comment fixed. Decisions recorded: the full
+  entity table ships unconditionally (66 KB of source, no feature flag — correctness over size); the
+  `render` / `buffer_to_snapshot` test helpers are duplicated between the `rdom-tui` and
+  `rdom-showcase` suites on purpose (two test targets, no shared test crate).
+- Found while mapping Phase 3 (not on the ledger): `ImportantMask::FLOW` and `POINTER_EVENTS` share
+  bit 39 (`tui_style.rs`), custom-property inheritance in the cascade is overwritten by the merged
+  root map (`walk.rs`), and tokenizer errors inside a block are body-relative (`declarations.rs`).
+  All three are Phase 3 items.
 
 - 2026-09-23 — Phase 1: `rust-toolchain.toml` pins `1.95.0` and CI reads the channel from it
   (`PROC-TOOLCHAIN-PIN-1`). The ten showcase-backed example shims, the twelve demo snapshot tests and

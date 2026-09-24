@@ -30,6 +30,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 
 ### Changed — workspace
 
+- **`rust-version` is `1.88`** (the crates use let-chains); it was declared `1.85` while already requiring more.
 - **Toolchain pinned to `1.95.0`** in `rust-toolchain.toml`; CI reads the channel from that file instead of floating on `stable`. (`PROC-TOOLCHAIN-PIN-1`)
 
 ## [0.4.0] - 2026-09-24

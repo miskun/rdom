@@ -66,10 +66,10 @@ fn main() -> io::Result<()> {
     dom.add_event_listener(button, "click", ListenerOptions::default(), move |ctx| {
         let n = c.get() + 1;
         c.set(n);
-        let _ = ctx
-            .dom
+        ctx.dom
             .node_mut(label)
-            .set_node_value(&format!("Clicks: {n}"));
+            .set_node_value(&format!("Clicks: {n}"))
+            .expect("label text node is live");
     })
     .unwrap();
 
