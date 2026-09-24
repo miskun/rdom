@@ -22,6 +22,10 @@
 //! offset in that node's data. Fragments inherit this from their
 //! first grapheme, enabling `position_at` in the runtime to map
 //! screen cells back to node+offset for selection.
+//!
+//! Graphemes borrow the text node's data (the packer carries the DOM
+//! borrow's lifetime); the only allocation per run is one `String`
+//! per emitted fragment (`PACKER-STRING-ALLOC-1`).
 
 use rdom_core::NodeId;
 use unicode_segmentation::UnicodeSegmentation;
@@ -33,20 +37,20 @@ use super::{InlineFragment, LineBox};
 
 /// One grapheme awaiting commit, with every piece of provenance we
 /// need to rebuild a source position later.
-pub(super) struct PendingGrapheme {
+pub(super) struct PendingGrapheme<'a> {
     /// Direct element parent of the source text node.
     owner: NodeId,
     /// The source text node itself.
     text_node: NodeId,
     /// Byte offset of this grapheme's start in `text_node`'s data.
     source_offset: usize,
-    /// The grapheme string.
-    text: String,
+    /// The grapheme, borrowed from the source text node's data.
+    text: &'a str,
     /// Visible width of the grapheme.
     width: u16,
 }
 
-pub(super) struct LinePacker {
+pub(super) struct LinePacker<'a> {
     content_width: u16,
     ws: WhiteSpace,
 
@@ -58,7 +62,7 @@ pub(super) struct LinePacker {
 
     /// Accumulated since the last break opportunity — not yet
     /// committed to the current line.
-    word_buffer: Vec<PendingGrapheme>,
+    word_buffer: Vec<PendingGrapheme<'a>>,
     word_width: u16,
 
     /// A collapsed whitespace is buffered between the last committed
@@ -78,7 +82,7 @@ pub(super) struct LinePacker {
     emitted_any: bool,
 }
 
-impl LinePacker {
+impl<'a> LinePacker<'a> {
     pub(super) fn new(content_width: u16, ws: WhiteSpace) -> Self {
         Self {
             content_width,
@@ -106,7 +110,7 @@ impl LinePacker {
 
     /// Feed a whole text-node's string in one shot. Walks graphemes
     /// with byte-precise source tracking.
-    pub(super) fn push_text(&mut self, owner: NodeId, text_node: NodeId, text: &str) {
+    pub(super) fn push_text(&mut self, owner: NodeId, text_node: NodeId, text: &'a str) {
         let mut source_offset = 0usize;
         for g in text.graphemes(true) {
             self.push_grapheme(owner, text_node, source_offset, g);
@@ -129,7 +133,13 @@ impl LinePacker {
         self.break_line();
     }
 
-    fn push_grapheme(&mut self, owner: NodeId, text_node: NodeId, source_offset: usize, g: &str) {
+    fn push_grapheme(
+        &mut self,
+        owner: NodeId,
+        text_node: NodeId,
+        source_offset: usize,
+        g: &'a str,
+    ) {
         let first = g.chars().next().unwrap_or(' ');
 
         // Control characters require per-mode handling.
@@ -151,7 +161,7 @@ impl LinePacker {
                             owner,
                             text_node,
                             source_offset,
-                            text: " ".to_string(),
+                            text: " ",
                             width: 1,
                         });
                         self.word_width = self.word_width.saturating_add(1);
@@ -188,7 +198,7 @@ impl LinePacker {
                     owner,
                     text_node,
                     source_offset,
-                    text: g.to_string(),
+                    text: g,
                     width: w,
                 });
                 self.word_width = self.word_width.saturating_add(w);
@@ -206,7 +216,7 @@ impl LinePacker {
                         owner,
                         text_node,
                         source_offset,
-                        text: " ".to_string(),
+                        text: " ",
                         width: 1,
                     });
                     self.word_width = self.word_width.saturating_add(1);
@@ -219,7 +229,7 @@ impl LinePacker {
                         owner,
                         text_node,
                         source_offset,
-                        text: g.to_string(),
+                        text: g,
                         width: w,
                     });
                     self.word_width = self.word_width.saturating_add(w);
@@ -229,7 +239,7 @@ impl LinePacker {
                         owner,
                         text_node,
                         source_offset,
-                        text: g.to_string(),
+                        text: g,
                         width: w,
                     });
                     self.word_width = self.word_width.saturating_add(w);
@@ -263,7 +273,7 @@ impl LinePacker {
                         owner,
                         text_node,
                         source_offset,
-                        text: g.to_string(),
+                        text: g,
                         width: w,
                     });
                     self.word_width = self.word_width.saturating_add(w);
@@ -276,7 +286,7 @@ impl LinePacker {
                     owner,
                     text_node,
                     source_offset,
-                    text: g.to_string(),
+                    text: g,
                     width: w,
                 });
                 self.word_width = self.word_width.saturating_add(w);
@@ -346,7 +356,7 @@ impl LinePacker {
                 if g.owner != owner || g.text_node != text_node {
                     break;
                 }
-                text.push_str(&g.text);
+                text.push_str(g.text);
                 width = width.saturating_add(g.width);
                 idx += 1;
             }

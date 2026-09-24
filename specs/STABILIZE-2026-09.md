@@ -250,6 +250,11 @@ Each phase ends with the two review gates; each commit carries the item id.
 - 2026-09-24 — Phase 6: `SGR-ALLOC-1` — const modifier-code table, no `Vec` per cell.
 - 2026-09-24 — Phase 6: `PAINT-INLINE-LAYOUT-CLONE-1` — paint borrows through `tui_ext()`'s
   `'a` lifetime.
+- 2026-09-24 — Phase 6: `PACKER-STRING-ALLOC-1` — `PendingGrapheme<'a>` borrows the source text.
+  Not done from that row: a per-frame `(node, width)` layout cache — the intrinsic measure and the
+  layout pack the same text twice per frame by design (measure-then-place); a cache keyed on the
+  previous frame's layout would go stale on content edits, so the double pack stays and is cheap
+  now that a pack allocates per fragment only.
 - Found while mapping Phase 3 (not on the ledger): `ImportantMask::FLOW` and `POINTER_EVENTS` share
   bit 39 (`tui_style.rs`), custom-property inheritance in the cascade is overwritten by the merged
   root map (`walk.rs`), and tokenizer errors inside a block are body-relative (`declarations.rs`).

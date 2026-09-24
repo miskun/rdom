@@ -391,7 +391,7 @@ pub fn compute_inline_layout_for_run(
 ///
 /// Non-element children (comments, fragments) are passed through
 /// their descendant element walk.
-fn walk_subtree(dom: &Dom<TuiExt>, id: NodeId, packer: &mut LinePacker) {
+fn walk_subtree<'a>(dom: &'a Dom<TuiExt>, id: NodeId, packer: &mut LinePacker<'a>) {
     use crate::layout::Display;
     for child in dom.node(id).child_nodes() {
         match child.node_type() {
