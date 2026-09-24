@@ -79,8 +79,8 @@ bitflags_like! {
         CARET_TEXT_COLOR = 1 << 37;
         FLEX_SHRINK = 1 << 38;
         POINTER_EVENTS = 1 << 39;
-        FLOW = 1 << 39;
         SCROLLBAR_GUTTER = 1 << 40;
+        FLOW = 1 << 41;
     }
 }
 
@@ -692,6 +692,65 @@ impl TuiStyle {
 
 #[cfg(test)]
 mod tests {
+    /// Every `ImportantMask` flag owns one bit. `FLOW` and
+    /// `POINTER_EVENTS` shared bit 39 (`STYLE-MASK-COLLISION-1`), so
+    /// `pointer-events: none !important` also made `display`'s derived
+    /// flow important.
+    #[test]
+    fn important_mask_bits_are_unique() {
+        use super::ImportantMask as M;
+        let all = [
+            M::FG,
+            M::BG,
+            M::BORDER_FG,
+            M::BOLD,
+            M::ITALIC,
+            M::WIDTH,
+            M::HEIGHT,
+            M::MIN_WIDTH,
+            M::MAX_WIDTH,
+            M::MIN_HEIGHT,
+            M::MAX_HEIGHT,
+            M::PADDING,
+            M::GAP,
+            M::BORDER,
+            M::DIRECTION,
+            M::OVERFLOW_X,
+            M::CONTENT,
+            M::DISPLAY,
+            M::WHITE_SPACE,
+            M::USER_SELECT,
+            M::OVERFLOW_Y,
+            M::POSITION,
+            M::TOP,
+            M::RIGHT,
+            M::BOTTOM,
+            M::LEFT,
+            M::Z_INDEX,
+            M::TRANSITIONS,
+            M::TEXT_DECORATION,
+            M::OPACITY,
+            M::ASPECT_RATIO,
+            M::MARGIN,
+            M::BORDER_COLLAPSE,
+            M::CARET_COLOR,
+            M::CARET_TEXT_COLOR,
+            M::FLEX_SHRINK,
+            M::POINTER_EVENTS,
+            M::FLOW,
+            M::SCROLLBAR_GUTTER,
+        ];
+        for (i, a) in all.iter().enumerate() {
+            for b in &all[i + 1..] {
+                assert_eq!(a.bits() & b.bits(), 0, "{a:?} and {b:?} share a bit");
+            }
+        }
+        assert_eq!(M::all().bits().count_ones() as usize, all.len());
+        let style =
+            super::TuiStyle::new().pointer_events_important(crate::layout::PointerEvents::None);
+        assert!(!style.important.contains(M::FLOW));
+    }
+
     use super::*;
 
     #[test]
@@ -932,6 +991,7 @@ mod tests {
             .overflow_important(Overflow::Hidden)
             .display_important(Display::Inline)
             .flow_important(crate::layout::Flow::Block)
+            .pointer_events_important(crate::layout::PointerEvents::None)
             .scrollbar_gutter_important(crate::layout::ScrollbarGutter::Stable)
             .white_space_important(WhiteSpace::Pre)
             .user_select_important(UserSelect::None)
@@ -947,6 +1007,7 @@ mod tests {
             .bottom_important(crate::layout::Length::Cells(1))
             .left_important(crate::layout::Length::Cells(1))
             .z_index_important(crate::layout::ZIndex::Value(1))
+            .flow_important(crate::layout::Flow::Block)
             .transitions_important();
         assert_eq!(s.important, ImportantMask::all());
     }
