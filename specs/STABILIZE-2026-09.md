@@ -278,6 +278,8 @@ Each phase ends with the two review gates; each commit carries the item id.
   compose context and its `parent_bg` fallback are gone. Recorded in DESIGN.
 - 2026-09-24 — Phase 6: `FLEX-RS-SPLIT-1` — `flex/{mod,main_axis,cross,placement,collapse}.rs`; the gap==0 && collapse overlap gate now lives
   in one predicate.
+- 2026-09-24 — Phase 6: `SCROLLBAR-SPLIT-1` — `scrollbar/{hit,drag,keys,autoscroll,reveal,geometry,scroll}.rs`; largest piece 166
+  lines; `nearest_scroll_container` narrowed to the module (no crate callers).
 - Found while mapping Phase 3 (not on the ledger): `ImportantMask::FLOW` and `POINTER_EVENTS` share
   bit 39 (`tui_style.rs`), custom-property inheritance in the cascade is overwritten by the merged
   root map (`walk.rs`), and tokenizer errors inside a block are body-relative (`declarations.rs`).
