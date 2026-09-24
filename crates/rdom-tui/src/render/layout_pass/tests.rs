@@ -4275,3 +4275,87 @@ fn negative_cross_axis_margin_extends_a_flex_item_past_the_edge() {
     assert_eq!(r.y, -1, "starts one row above the container");
     assert_eq!(r.height, 4, "stretched: 3 - (-1)");
 }
+
+// ── BFC1-PERF-MARGIN-CHAIN-1: the margin-chain memo ────────────────
+
+/// Three nested collapse-eligible blocks with a leaf; each level has a
+/// `margin-top: 1`.
+fn nested_margin_chain() -> (TuiDom, [NodeId; 3]) {
+    use rdom_style::layout::{Margin, MarginValue};
+    let mut dom = tui_dom();
+    let root = dom.root();
+    let wrap = dom.create_element("wrap");
+    let a = dom.create_element("lvl");
+    let b = dom.create_element("lvl");
+    let c = dom.create_element("lvl");
+    let leaf = dom.create_element("leaf");
+    dom.append_child(c, leaf).unwrap();
+    dom.append_child(b, c).unwrap();
+    dom.append_child(a, b).unwrap();
+    dom.append_child(wrap, a).unwrap();
+    dom.append_child(root, wrap).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "wrap",
+            TuiStyle::new()
+                .width(Size::Fixed(20))
+                .padding(rdom_style::layout::Padding::new(1, 0, 0, 0)),
+        )
+        .rule_unchecked(
+            "lvl",
+            TuiStyle::new().margin(Margin {
+                top: MarginValue::Cells(1),
+                right: MarginValue::Cells(0),
+                bottom: MarginValue::Cells(0),
+                left: MarginValue::Cells(0),
+            }),
+        )
+        .rule_unchecked("leaf", TuiStyle::new().height(Size::Fixed(1)));
+    cascade(&mut dom, &sheet);
+    (dom, [a, b, c])
+}
+
+/// `BFC1-PERF-MARGIN-CHAIN-1`: an ancestor's placement memoizes the
+/// chain results of the nodes it walked; each node consumes its own
+/// entry when it is placed, and no entry outlives the pass.
+#[test]
+fn margin_chain_memo_is_consumed_within_the_pass() {
+    let (mut dom, [a, b, c]) = nested_margin_chain();
+    dom.layout_dom(Rect::new(0, 0, 40, 20));
+    for id in [a, b, c] {
+        assert!(
+            dom.node(id).ext().unwrap().margin_chain.is_none(),
+            "no memo survives the layout pass"
+        );
+    }
+    // The three margins collapse to one row below `wrap`'s padding.
+    assert_eq!(layout_rect_of(&dom, a).y, 2);
+    assert_eq!(layout_rect_of(&dom, c).y, 2);
+}
+
+/// `BFC1-PERF-MARGIN-CHAIN-1`: a memo entry is trusted only for the
+/// containing-block width it was computed against.
+#[test]
+fn margin_chain_memo_is_used_only_for_its_containing_block_width() {
+    use crate::ext::MarginChainMemo;
+    // Seed `b`'s entry with a fake outer-top chain for the right width:
+    // `a`'s placement walks to `b`, finds the entry and takes it.
+    let (mut dom, [a, b, _]) = nested_margin_chain();
+    dom.node_mut(b).ext_mut().unwrap().margin_chain = Some(MarginChainMemo {
+        containing_block_width: 20,
+        outer_top: Some((5, 0)),
+        outer_bottom: None,
+    });
+    dom.layout_dom(Rect::new(0, 0, 40, 20));
+    assert_eq!(layout_rect_of(&dom, a).y, 1 + 5, "the seeded chain won");
+
+    // Seeded for another width: ignored, the chain is walked.
+    let (mut dom, [a, b, _]) = nested_margin_chain();
+    dom.node_mut(b).ext_mut().unwrap().margin_chain = Some(MarginChainMemo {
+        containing_block_width: 7,
+        outer_top: Some((5, 0)),
+        outer_bottom: None,
+    });
+    dom.layout_dom(Rect::new(0, 0, 40, 20));
+    assert_eq!(layout_rect_of(&dom, a).y, 2);
+}

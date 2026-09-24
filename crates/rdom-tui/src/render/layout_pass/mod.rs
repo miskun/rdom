@@ -194,6 +194,7 @@ pub(super) fn layout_node(
         ext.layout = outer_rect;
         ext.content_layout = inner;
         ext.layout_dirty = false;
+        ext.margin_chain = None;
     }
 
     // Lay out children inside `inner`. The returned measurement

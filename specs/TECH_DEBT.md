@@ -16,7 +16,6 @@ For the durable architectural divergences (web-platform departures shipped on pu
 
 ### Layout & cascade
 
-- **`BFC1-PERF-MARGIN-CHAIN-1` — `accumulate_outer_top_margin` / `_bottom_margin` walk descendants per child placement.** `crates/rdom-tui/src/render/layout_pass/block.rs::accumulate_outer_top_margin` and `accumulate_outer_bottom_margin` recurse into the collapse-eligible chain every time `lay_out_block_child` places a child. For a tree N deep with M-wide block lists at each level the same chain is walked at every depth — O(N²) in pathological cases. Memoize per node id within a layout pass (e.g. cache `Option<MarginAccumulator>` on `TuiExt`, invalidated at `layout_dom` start) or fold the chain walk into a single pre-order pass. Bench coverage in `crates/rdom-tui/benches/block_layout.rs` will reveal whether real shapes hit this; pay down when it does.
 - **`BFC1-CODE-BLOCK-SPLIT-1` — `block.rs` is ~1200 lines mixing 6 concerns.** `MarginAccumulator`, `accumulate_outer_*`, `is_*_collapse_through`, `parent_collapses_*_with_*_child`, `nearest_block_ancestor_height_is_definite`, `resolve_block_width`/`clamp_width` and the main placement loop all live together. Split into `block/{mod,margin_collapse,width,height}.rs` before this file grows further. No behavior change; layout regression risk if margin-collapse helpers aren't kept in lockstep with the placement loop.
 
 

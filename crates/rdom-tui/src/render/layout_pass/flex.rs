@@ -78,6 +78,7 @@ pub(super) fn layout_children(
                 ext.layout = LayoutRect::new(container.x, container.y, 0, 0);
                 ext.content_layout = ext.layout;
                 ext.layout_dirty = false;
+                ext.margin_chain = None;
             }
         }
         // Compute + store the inline layout at the block's final

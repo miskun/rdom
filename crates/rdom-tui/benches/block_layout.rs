@@ -123,16 +123,18 @@ fn bench_block_margin_collapse_50_siblings(c: &mut Criterion) {
     });
 }
 
-/// Stress the parent-first-child upward propagation chain.
-/// 20-level nest of collapse-eligible blocks; each level has a
-/// `margin-top`. Exercises `accumulate_outer_top_margin`'s
-/// recursive walk on every layout pass.
-fn bench_block_deep_collapse_chain(c: &mut Criterion) {
+/// Stress the parent-first-child upward propagation chain: a
+/// `levels`-deep nest of collapse-eligible blocks, each with a
+/// `margin-top`. Every placement walks the chain below it
+/// (`accumulate_outer_top_margin`), so the walker's total work grows
+/// with the square of the depth while the rest of layout grows
+/// linearly; the 20- and 60-level shapes show which term dominates.
+fn deep_collapse_chain(levels: usize) -> TuiDom {
     use rdom_tui::layout::{Margin, MarginValue};
     let mut dom = TuiDom::new();
     let root = dom.root();
     let mut parent = root;
-    for _ in 0..20 {
+    for _ in 0..levels {
         let lvl = dom.create_element("lvl");
         dom.append_child(parent, lvl).unwrap();
         parent = lvl;
@@ -156,13 +158,19 @@ fn bench_block_deep_collapse_chain(c: &mut Criterion) {
                 .height(Size::Fixed(1)),
         );
     dom.cascade(&sheet);
-    let viewport = Rect::new(0, 0, 80, 200);
+    dom
+}
 
-    c.bench_function("block_deep_collapse_chain_20_levels", |b| {
-        b.iter(|| {
-            dom.layout_dom(black_box(viewport));
-        })
-    });
+fn bench_block_deep_collapse_chain(c: &mut Criterion) {
+    let viewport = Rect::new(0, 0, 80, 200);
+    for levels in [20usize, 60] {
+        let mut dom = deep_collapse_chain(levels);
+        c.bench_function(&format!("block_deep_collapse_chain_{levels}_levels"), |b| {
+            b.iter(|| {
+                dom.layout_dom(black_box(viewport));
+            })
+        });
+    }
 }
 
 criterion_group!(

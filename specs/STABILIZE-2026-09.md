@@ -214,6 +214,8 @@ Each phase ends with the two review gates; each commit carries the item id.
   placement and cross sizing.
 - 2026-09-24 — Phase 5: `TABLE-COLSPAN-1` — `colspan` in `size_columns`; `TABLE-TFC-1` →
   DIVERGENCES (Layout: table model, `rowspan` included).
+- 2026-09-24 — Phase 5: `BFC1-PERF-MARGIN-CHAIN-1` — per-pass chain memo on `TuiExt`, cleared by
+  `layout_node`; 60-level bench shape.
 - Found while mapping Phase 3 (not on the ledger): `ImportantMask::FLOW` and `POINTER_EVENTS` share
   bit 39 (`tui_style.rs`), custom-property inheritance in the cascade is overwritten by the merged
   root map (`walk.rs`), and tokenizer errors inside a block are body-relative (`declarations.rs`).

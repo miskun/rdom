@@ -45,6 +45,22 @@ pub struct StaticPosition {
     pub y: i32,
 }
 
+/// Memoized CSS 2.1 §8.3.1 outer-margin chains of one block, valid for
+/// one containing-block width and one layout pass
+/// (`BFC1-PERF-MARGIN-CHAIN-1`). Placing a block walks its first- /
+/// last-child collapse chain; without the memo every level of a deep
+/// chain re-walked the levels below it when its own turn came. Each
+/// accumulator is `(largest positive margin, most negative margin)`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MarginChainMemo {
+    /// The width the chain's percentages were resolved against.
+    pub containing_block_width: u16,
+    /// The chain surfacing at the block's outer top edge.
+    pub outer_top: Option<(i16, i16)>,
+    /// The chain surfacing at the block's outer bottom edge.
+    pub outer_bottom: Option<(i16, i16)>,
+}
+
 /// `<select>` type-ahead state (see `runtime::builtins::select`).
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct TypeaheadState {
@@ -384,6 +400,11 @@ pub struct TuiExt {
     /// layout-affecting computed value changes. Separate from
     /// `style_dirty` so a pure color change skips re-layout entirely.
     pub layout_dirty: bool,
+    /// Margin-collapse chain results an ancestor's placement computed
+    /// for this block during the current layout pass (see
+    /// [`MarginChainMemo`]). Consumed when this block is placed and
+    /// cleared when it is laid out, so nothing outlives the pass.
+    pub margin_chain: Option<MarginChainMemo>,
 
     // ── Editing state (Phase B) ──────────────────────────────────────
     /// Per-editable state (undo/redo history, coalescing metadata).
