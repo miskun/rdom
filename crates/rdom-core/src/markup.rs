@@ -35,6 +35,18 @@ fn escape_for_attr(s: &str, out: &mut String) {
     }
 }
 
+/// HTML §13.3 step 2 "text node" branch: a text child of one of these
+/// elements is serialized verbatim, because their content model is raw
+/// text — escaping `<` / `&` inside `<style>` would corrupt the CSS on
+/// round-trip. `textarea` and `title` are *escapable* raw text and are
+/// deliberately not listed.
+fn serializes_children_raw(tag: &str) -> bool {
+    matches!(
+        tag,
+        "style" | "script" | "xmp" | "iframe" | "noembed" | "noframes" | "plaintext"
+    )
+}
+
 /// Text nodes don't need to escape quotes but must escape the three html-critical chars.
 fn escape_for_text(s: &str, out: &mut String) {
     for c in s.chars() {
@@ -57,7 +69,7 @@ impl<Ext> Dom<Ext> {
     /// - Fragments: concatenated children (no wrapper tag)
     pub fn outer_markup(&self, id: NodeId) -> String {
         let mut out = String::new();
-        self.write_node(id, &mut out);
+        self.write_node(id, &mut out, false);
         out
     }
 
@@ -70,19 +82,26 @@ impl<Ext> Dom<Ext> {
             return out;
         };
         match &node.data {
-            NodeData::Element { .. } | NodeData::Fragment => {
-                let mut child = node.first_child;
-                while let Some(c) = child {
-                    self.write_node(c, &mut out);
-                    child = self.get_node(c).and_then(|n| n.next_sibling);
-                }
+            NodeData::Element { tag, .. } => {
+                self.write_children(id, &mut out, serializes_children_raw(tag));
             }
+            NodeData::Fragment => self.write_children(id, &mut out, false),
             _ => {}
         }
         out
     }
 
-    fn write_node(&self, id: NodeId, out: &mut String) {
+    fn write_children(&self, id: NodeId, out: &mut String, raw_text: bool) {
+        let mut child = self.get_node(id).and_then(|n| n.first_child);
+        while let Some(c) = child {
+            self.write_node(c, out, raw_text);
+            child = self.get_node(c).and_then(|n| n.next_sibling);
+        }
+    }
+
+    /// `raw_text` is true when `id`'s parent serializes its text
+    /// children verbatim (see [`serializes_children_raw`]).
+    fn write_node(&self, id: NodeId, out: &mut String, raw_text: bool) {
         let Some(node) = self.get_node(id) else {
             return;
         };
@@ -129,32 +148,24 @@ impl<Ext> Dom<Ext> {
                     return;
                 }
                 out.push('>');
-
-                let mut child = node.first_child;
-                while let Some(c) = child {
-                    self.write_node(c, out);
-                    child = self.get_node(c).and_then(|n| n.next_sibling);
-                }
-
+                self.write_children(id, out, serializes_children_raw(tag));
                 out.push_str("</");
                 out.push_str(tag);
                 out.push('>');
             }
             NodeData::Text { data } => {
-                escape_for_text(data, out);
+                if raw_text {
+                    out.push_str(data);
+                } else {
+                    escape_for_text(data, out);
+                }
             }
             NodeData::Comment { data } => {
                 out.push_str("<!--");
                 out.push_str(data); // comments pass through unescaped in HTML
                 out.push_str("-->");
             }
-            NodeData::Fragment => {
-                let mut child = node.first_child;
-                while let Some(c) = child {
-                    self.write_node(c, out);
-                    child = self.get_node(c).and_then(|n| n.next_sibling);
-                }
-            }
+            NodeData::Fragment => self.write_children(id, out, false),
         }
     }
 }
@@ -218,6 +229,27 @@ mod tests {
         let t = dom.create_text_node("a & b <c>");
         dom.append_child(div, t).unwrap();
         assert_eq!(dom.outer_markup(div), "<div>a &amp; b &lt;c&gt;</div>");
+    }
+
+    /// HTML §13.3 serialization: text under `style` / `script` (and the
+    /// other raw-text elements) is emitted as-is; `textarea` / `title`
+    /// are escapable raw text and keep the escaping.
+    #[test]
+    fn raw_text_element_children_are_not_escaped() {
+        let mut dom: Dom = Dom::new();
+        let style = dom.create_element("style");
+        let css = dom.create_text_node("a > b { content: \"<&\"; }");
+        dom.append_child(style, css).unwrap();
+        assert_eq!(
+            dom.outer_markup(style),
+            "<style>a > b { content: \"<&\"; }</style>"
+        );
+        assert_eq!(dom.inner_markup(style), "a > b { content: \"<&\"; }");
+
+        let ta = dom.create_element("textarea");
+        let t = dom.create_text_node("<b>&");
+        dom.append_child(ta, t).unwrap();
+        assert_eq!(dom.outer_markup(ta), "<textarea>&lt;b&gt;&amp;</textarea>");
     }
 
     #[test]

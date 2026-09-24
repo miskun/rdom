@@ -15,8 +15,9 @@
 //!   and `<textarea>` / `<title>` bodies are RCDATA (entities only),
 //!   each ending at its own case-insensitive end tag (HTML §13.2.5.3–6)
 //! - Comments: `<!-- … -->` preserved as Comment nodes
-//! - `<!DOCTYPE …>` and other `<!…>` declarations are consumed and
-//!   produce no node
+//! - `<!DOCTYPE …>` is consumed and produces no node; any other `<!…>`
+//!   or `<?…>` is a bogus comment kept as a Comment node (§13.2.5.41)
+//! - A newline right after `<textarea>` is dropped (§13.2.6.4.7)
 //! - Case-insensitive tag names (tags are normalized to lowercase)
 //!
 //! Out of scope: CDATA, namespace prefixes, processing instructions,
@@ -60,6 +61,13 @@ where
 {
     let mut p = Parser::new(template);
     let ids = p.parse_nodes(dom, mount)?;
+    if !p.eof() {
+        // `parse_nodes` stops at `</…`; at the top level nothing is open,
+        // so a stray end tag is an error rather than silent truncation.
+        return Err(p
+            .err("unexpected closing tag at top level")
+            .with_hint("nothing is open here — remove the end tag or open its element"));
+    }
     Ok(ids)
 }
 
@@ -157,10 +165,24 @@ impl<'a> Parser<'a> {
                 continue;
             }
             if self.starts_with("<!") {
-                // `<!DOCTYPE html>` and any other markup declaration:
-                // consumed, no node (HTML §13.2.5.42 keeps the DOCTYPE
-                // token out of the tree).
-                self.skip_declaration();
+                if self.src[self.pos + 2..]
+                    .get(..7)
+                    .is_some_and(|k| k.eq_ignore_ascii_case("DOCTYPE"))
+                {
+                    // `<!DOCTYPE html>`: consumed, no node (rdom has no
+                    // DocumentType node — see DIVERGENCES §HTML parsing).
+                    self.skip_declaration();
+                } else {
+                    // Any other `<!…>` is a bogus comment (§13.2.5.42).
+                    let id = self.parse_bogus_comment(dom, parent)?;
+                    out.push(id);
+                }
+                continue;
+            }
+            if self.starts_with("<?") {
+                // `<?…>` is a bogus comment (§13.2.5.6 "?" branch).
+                let id = self.parse_bogus_comment(dom, parent)?;
+                out.push(id);
                 continue;
             }
             if self.peek() == Some(b'<') && self.peek_at(1).is_some_and(|b| b.is_ascii_alphabetic())
@@ -257,8 +279,33 @@ impl<'a> Parser<'a> {
                 .is_some_and(|b| b.is_ascii_alphabetic() || matches!(b, b'/' | b'!' | b'?'))
     }
 
-    /// Consume a `<!…>` markup declaration (DOCTYPE, CDATA-as-bogus,
-    /// etc.) through its closing `>`, or to EOF.
+    /// HTML §13.2.5.41 bogus comment state: everything from just after
+    /// the `<` up to the next `>` becomes a Comment node's data
+    /// (`<?xml version="1.0"?>` → `?xml version="1.0"?`).
+    fn parse_bogus_comment<Ext>(&mut self, dom: &mut Dom<Ext>, parent: NodeId) -> Result<NodeId>
+    where
+        Ext: Default + 'static,
+    {
+        self.advance(); // '<'
+        let start = self.pos;
+        while let Some(b) = self.peek() {
+            if b == b'>' {
+                break;
+            }
+            self.advance();
+        }
+        let data = self.src[start..self.pos].to_string();
+        if self.peek() == Some(b'>') {
+            self.advance();
+        }
+        let id = dom.create_comment(&data);
+        dom.append_child(parent, id)
+            .map_err(|e| self.err(format!("failed to append comment: {:?}", e)))?;
+        Ok(id)
+    }
+
+    /// Consume a `<!DOCTYPE …>` declaration through its closing `>`, or
+    /// to EOF.
     fn skip_declaration(&mut self) {
         while let Some(b) = self.advance() {
             if b == b'>' {
@@ -308,7 +355,15 @@ impl<'a> Parser<'a> {
                 .err(format!("missing closing tag for <{}>", tag_lc))
                 .with_hint(format!("add </{}> to close", tag_lc)));
         };
-        let raw = &self.src[self.pos..end];
+        let mut raw = &self.src[self.pos..end];
+        // HTML §13.2.6.4.7: a newline immediately after `<textarea>` is
+        // ignored (the same rule HTML applies to `<pre>` / `<listing>`).
+        if tag_lc == "textarea" {
+            raw = raw
+                .strip_prefix("\r\n")
+                .or_else(|| raw.strip_prefix('\n'))
+                .unwrap_or(raw);
+        }
         let text = if decode_entities {
             decode_character_references(raw)
         } else {
@@ -319,7 +374,8 @@ impl<'a> Parser<'a> {
             dom.append_child(element, id)
                 .map_err(|e| self.err(format!("failed to append text: {:?}", e)))?;
         }
-        self.pos = end;
+        // Walk (not jump) so line / column stay right for later errors.
+        self.advance_n(end - self.pos);
         self.advance_n(2 + tag_lc.len()); // `</tag`
         self.skip_ws();
         if self.peek() != Some(b'>') {
@@ -334,50 +390,20 @@ impl<'a> Parser<'a> {
     // ── Entity ─────────────────────────────────────────────────────
 
     fn parse_entity(&mut self) -> Result<String> {
-        // We've seen '&'. Try to match a known entity; fall back to
-        // preserving as-is on malformed input (lenient mode, matches
-        // browser tolerance).
+        // We've seen '&'. One scanner for the text path and the RCDATA
+        // path (`scan_reference`), so both agree on what a reference
+        // looks like; unknown or malformed input keeps the `&` literal
+        // (lenient, as browsers flush the raw characters).
         debug_assert_eq!(self.peek(), Some(b'&'));
-        let save = self.snapshot();
-
-        self.advance(); // consume '&'
-
-        // Find the end of the entity — next ';' or 16 chars max.
-        let start = self.pos;
-        let mut end = None;
-        for i in 0..16 {
-            match self.peek_at(i) {
-                Some(b';') => {
-                    end = Some(self.pos + i);
-                    break;
-                }
-                Some(b) if b.is_ascii_alphanumeric() || b == b'#' || b == b'x' || b == b'X' => {
-                    continue;
-                }
-                _ => break,
+        match scan_reference(&self.src[self.pos + 1..]) {
+            Some((decoded, consumed)) => {
+                self.advance_n(1 + consumed);
+                Ok(decoded)
             }
-        }
-
-        let Some(end) = end else {
-            // No terminator found — restore cursor and emit '&' literally.
-            self.restore(save);
-            self.advance(); // consume the '&'
-            return Ok("&".to_string());
-        };
-
-        let body = &self.src[start..end];
-        let decoded = decode_entity_body(body);
-        if let Some(d) = decoded {
-            // Skip past the ';'.
-            let consume = end - self.pos + 1;
-            self.advance_n(consume);
-            Ok(d)
-        } else {
-            // Unknown entity — leave the '&' literal and continue;
-            // later chars will be consumed as text.
-            self.restore(save);
-            self.advance();
-            Ok("&".to_string())
+            None => {
+                self.advance(); // consume the '&'
+                Ok("&".to_string())
+            }
         }
     }
 
@@ -626,18 +652,6 @@ impl<'a> Parser<'a> {
         }
         Ok(out)
     }
-
-    // ── Snapshots (for entity recovery) ─────────────────────────
-
-    fn snapshot(&self) -> (usize, u32, u32) {
-        (self.pos, self.line, self.col)
-    }
-
-    fn restore(&mut self, (pos, line, col): (usize, u32, u32)) {
-        self.pos = pos;
-        self.line = line;
-        self.col = col;
-    }
 }
 
 // ─── Entity decoding ────────────────────────────────────────────────
@@ -646,11 +660,16 @@ impl<'a> Parser<'a> {
 /// for unrecognized input — caller emits the `&` literal.
 fn decode_entity_body(body: &str) -> Option<String> {
     if let Some(rest) = body.strip_prefix('#') {
-        let n = if let Some(hex) = rest.strip_prefix('x').or_else(|| rest.strip_prefix('X')) {
-            u32::from_str_radix(hex, 16).ok()?
-        } else {
-            rest.parse::<u32>().ok()?
+        // Digits only (no sign); a value that overflows `u32` is still
+        // "a number above U+10FFFF" and yields U+FFFD (§13.2.5.80).
+        let (digits, radix) = match rest.strip_prefix('x').or_else(|| rest.strip_prefix('X')) {
+            Some(hex) => (hex, 16),
+            None => (rest, 10),
         };
+        if digits.is_empty() || !digits.bytes().all(|b| (b as char).is_digit(radix)) {
+            return None;
+        }
+        let n = u32::from_str_radix(digits, radix).unwrap_or(u32::MAX);
         // HTML §13.2.5.80: U+0000, surrogates, and code points above
         // U+10FFFF are parse errors that yield U+FFFD.
         let c = match n {
@@ -665,22 +684,43 @@ fn decode_entity_body(body: &str) -> Option<String> {
         .map(|i| NAMED_REFERENCES[i].1.to_string())
 }
 
-/// Decode every `&…;` reference in `text` (RCDATA bodies). Unknown
-/// or unterminated references stay literal, as in the text path.
+/// Scan a character reference whose `&` has just been consumed:
+/// `after_amp` starts right after it. Returns the decoded text and the
+/// number of bytes to consume (body plus `;`) when `after_amp` starts
+/// with 1..=16 name / digit / `#` / hex-marker characters followed by
+/// `;` and the body decodes; `None` otherwise (caller keeps `&`).
+fn scan_reference(after_amp: &str) -> Option<(String, usize)> {
+    let bytes = after_amp.as_bytes();
+    let mut end = None;
+    for (i, &b) in bytes.iter().enumerate().take(17) {
+        if b == b';' {
+            end = Some(i);
+            break;
+        }
+        if !(b.is_ascii_alphanumeric() || b == b'#') {
+            return None;
+        }
+    }
+    let end = end?;
+    if end == 0 {
+        return None;
+    }
+    let decoded = decode_entity_body(&after_amp[..end])?;
+    Some((decoded, end + 1))
+}
+
+/// Decode every `&…;` reference in `text` (RCDATA bodies) with the same
+/// scanner the text path uses.
 fn decode_character_references(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     let mut rest = text;
     while let Some(amp) = rest.find('&') {
         out.push_str(&rest[..amp]);
         let after = &rest[amp + 1..];
-        let decoded = after
-            .find(';')
-            .filter(|&semi| semi <= 16)
-            .and_then(|semi| decode_entity_body(&after[..semi]).map(|d| (d, semi)));
-        match decoded {
-            Some((d, semi)) => {
-                out.push_str(&d);
-                rest = &after[semi + 1..];
+        match scan_reference(after) {
+            Some((decoded, consumed)) => {
+                out.push_str(&decoded);
+                rest = &after[consumed..];
             }
             None => {
                 out.push('&');
@@ -802,6 +842,20 @@ mod tests {
 
     fn parse_str(s: &str) -> (Dom<()>, Vec<NodeId>) {
         parse(s).unwrap()
+    }
+
+    /// `decode_entity_body` binary-searches the table, so it must stay
+    /// byte-sorted and free of duplicates.
+    #[test]
+    fn named_reference_table_is_sorted_and_unique() {
+        for w in NAMED_REFERENCES.windows(2) {
+            assert!(
+                w[0].0 < w[1].0,
+                "{:?} must sort before {:?}",
+                w[0].0,
+                w[1].0
+            );
+        }
     }
 
     // ── Basic elements ───────────────────────────────────────────────

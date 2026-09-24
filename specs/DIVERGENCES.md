@@ -181,10 +181,11 @@ The web platform has no tree element — trees are built from `role="tree"` / `r
 - **Malformed markup is an error, not repaired.** A missing or mismatched end tag (`<div><p>a</div>`), an unterminated attribute, or EOF inside a tag returns `ParseError` with line / column and a hint; HTML's tree-construction recovery (implied end tags, foster parenting, adoption agency) is not implemented.
 - **`<tag/>` self-closes any element**, not just void and foreign elements (HTML ignores the `/` on a non-void HTML element).
 - **Attribute names keep their case** (HTML lowercases them); the DOM's attribute lookup is exact-match. Tag names are lowercased as in HTML.
-- **Duplicate attributes: the last one wins** (HTML keeps the first).
-- **Character references:** ~100 common named references (`DIVERGENCES` of the full 2 231-entry table); an unknown name or a reference without `;` stays literal (HTML also decodes a legacy set without the semicolon).
-- **Whitespace is preserved verbatim** in text nodes, including inter-element whitespace; collapsing happens in `rdom-tui`'s layout per `white-space`, as in the browser's rendering (not parsing) pipeline.
-- **`</` followed by a non-letter** ends the current element's children and is then an error, rather than becoming a bogus comment.
+- **Duplicate attributes: the last one wins** (HTML keeps the first), except `class`, whose tokens are unioned into the class list (`<p class="a" class="b">` has both classes; HTML keeps only `a`).
+- **Character references:** ~100 common named references (a subset of the full 2 231-entry table); an unknown name or a reference without `;` stays literal (HTML also decodes a legacy set without the semicolon). A reference is at most 16 characters of `[A-Za-z0-9#]` before the `;`; a sign (`&#+65;`) is never accepted.
+- **`<!DOCTYPE …>` is dropped with no `DocumentType` node** (`Dom` has no such node type). Other `<!…>` and `<?…>` become Comment nodes, as in HTML's bogus-comment state.
+- **Whitespace is preserved verbatim** in text nodes, including inter-element whitespace; collapsing happens in `rdom-tui`'s layout per `white-space`, as in the browser's rendering (not parsing) pipeline. The one tokenizer-level exception is honored: a newline right after `<textarea>` is dropped (HTML §13.2.6.4.7). The same rule for `<pre>` / `<listing>` is **not** implemented — `<pre>` keeps a leading newline.
+- **`</` followed by a non-letter** ends the current element's children and is then an error, rather than becoming a bogus comment. At the top level any `</…` is an error ("unexpected closing tag at top level") instead of silently truncating the template.
 
 ## 3. Not yet shipped
 

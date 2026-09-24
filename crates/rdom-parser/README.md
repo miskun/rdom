@@ -38,16 +38,18 @@ let children = parse_into(&mut dom, "<h1>Title</h1><p>Body</p>", body)?;
 - Void elements (`<br>`, `<hr>`, `<img>`, `<input>`, …) auto-close
 - Attributes: `name="value"`, `name='value'`, `name=value`, `name` (boolean)
 - `class="a b c"` populates the classList
-- Text with entity decoding: `&amp;`, `&lt;`, `&gt;`, `&quot;`, `&apos;`, `&nbsp;`, `&#NNN;`, `&#xHH;`
-- Comments: `<!-- … -->` preserved as Comment nodes
+- Text with character references: ~100 common named references (`&amp;`, `&lt;`, `&copy;`, `&mdash;`, `&hellip;`, …) plus `&#NNN;` / `&#xHH;`; invalid numeric references decode to U+FFFD
+- A `<` not followed by a letter, `/`, `!`, or `?` is text — `a < b` needs no escaping
+- `<style>` / `<script>` bodies are raw text; `<textarea>` / `<title>` bodies are RCDATA
+- Comments: `<!-- … -->` preserved as Comment nodes; `<?…>` and non-DOCTYPE `<!…>` become Comment nodes too
+- `<!DOCTYPE …>` is skipped
 - Full UTF-8: CJK, emoji, ZWJ sequences, combining marks all preserved correctly
 
 ## Not supported
 
-- `<!DOCTYPE>` — skip in your source if you have it
-- CDATA sections, namespace prefixes, processing instructions
-- `<script>` / `<style>` raw-text mode (our DOM has no corresponding tags)
-- Mismatched tags — errors, not auto-repaired
+- Tree-construction recovery — a mismatched, missing, or stray end tag is an error, not auto-repaired
+- CDATA sections as CDATA (they become bogus comments), namespace prefixes
+- The full named-reference table and legacy no-semicolon references
 
 ## Error reporting
 
@@ -97,4 +99,4 @@ rdom-tui's [`parse_and_render` example](../rdom-tui/examples/parse_and_render.rs
 cargo test -p rdom-parser
 ```
 
-92 tests covering parsing, entity decoding, nesting, errors, round-tripping, realistic template snippets, and Unicode content.
+100+ tests covering parsing, entity decoding, nesting, errors, round-tripping, realistic template snippets, and Unicode content.

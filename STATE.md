@@ -17,7 +17,7 @@ TECH_DEBT entry against the code, and pay the debt down in crate-grouped batches
 | 1 | `rdom-core` | done, gated (architect + API), follow-ups landed |
 | 2 | `rdom-style`, `rdom-css` | done, gated, follow-ups landed |
 | 3 | `rdom-tui` | done, gated (architect + API); blocking follow-ups landed (flex pass budget, scrolled-IFC hit test, activation-behavior hook for checkboxes, UA `select[size]`, interval self-clear, dialog focus return, clock sync) |
-| 4 | `rdom-parser` | done (R10: text `<`, RAWTEXT / RCDATA, entities, DOCTYPE); gates pending |
+| 4 | `rdom-parser` | done; gated 2026-09-24 (bogus comments, raw-body line tracking, raw-text serialization in `rdom-core`) |
 
 Release plan: 0.4.0 across every crate whose source changed (all five — `rdom-core` changed, and every
 other crate pins it). Nothing has been published from this program yet.
@@ -36,7 +36,6 @@ other crate pins it). Nothing has been published from this program yet.
 
 ## Open risks
 
-- **Batch 4 gates have not run yet** (rdom-parser is small; run both passes before the 0.4.0 publish).
 - **`CARET-REVEAL-STALE-LAYOUT-1`** and **`POINTER-EVENTS-IFC-1`** are accepted for 0.4.0 (see TECH_DEBT).
 - **`PROC-TOOLCHAIN-PIN-1`** — the toolchain floats on `stable`; a new stable can break `-D warnings` on
   every PR.
@@ -46,10 +45,10 @@ other crate pins it). Nothing has been published from this program yet.
 
 ## Follow-ups
 
-Run the Batch 4 gates, then the 0.4.0 release with `/publish` (all five crates; migration notes are in
+Run the 0.4.0 release with `/publish` (all five crates; migration notes are in
 CHANGELOG "Unreleased"). After the release: the deferred TECH_DEBT items from this program —
 `CSS-VARS-SCOPE-1`, `FORM-DEFAULTS-1`, the file splits, the allocation items, `CARET-REVEAL-STALE-LAYOUT-1`,
-`POINTER-EVENTS-IFC-1`, `PROC-TUI-DEV-DEP-1`, `PROC-TOOLCHAIN-PIN-1`.
+`POINTER-EVENTS-IFC-1`, `PARSER-VOID-TAGS-1`, `PARSER-ENTITIES-1`, `PROC-TUI-DEV-DEP-1`, `PROC-TOOLCHAIN-PIN-1`.
 
 ## Recent decisions
 

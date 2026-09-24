@@ -9,12 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Work in progress under [`specs/HARDENING-2026-09.md`](specs/HARDENING-2026-09.md). Batch 1 changes `rdom-core` (→ 0.4.0); every crate that pins `rdom-core` (`rdom-style`, `rdom-css`, `rdom-parser`, `rdom-tui`) bumps with it so a consumer never ends up with two `rdom-core` versions and mismatched `Dom` types. Batch 2 changes `rdom-style` and `rdom-css`; Batch 3 changes `rdom-tui` (and adds `pointer-events` to `rdom-style`); Batch 4 changes `rdom-parser`. All five ship as 0.4.0.
 
+### Breaking — `rdom-parser`
+
+Templates that relied on the old, stricter-but-wrong tokenizer parse differently. Before / after, in the order most likely to be noticed:
+
+- `&copy;`, `&mdash;`, `&hellip;`, … used to stay literal; they now decode. `&amp;` inside `<style>` used to decode to `&`; it is now raw text.
+- `<textarea><b>x</b></textarea>` used to create a `<b>` element; the body is now a single text node `<b>x</b>`. A newline right after `<textarea>` is dropped.
+- `&#0;`, `&#xD800;`, `&#x110000;` used to stay literal; they decode to U+FFFD.
+- `<p>a < b</p>` used to be a parse error; it is text.
+- `<?xml …?>` used to hang the parser; `<!x>` used to be silently dropped. Both are now Comment nodes.
+- `parse("<p>x</p></b>…")` used to return the `<p>` and silently drop the rest; it is now a `ParseError` ("unexpected closing tag at top level").
+
+### Breaking — `rdom-core`
+
+- `Dom::outer_markup` / `inner_markup` emit text under `<style>`, `<script>`, `xmp`, `iframe`, `noembed`, `noframes` and `plaintext` **verbatim** (HTML §13.3 raw-text serialization). `<style>a > b {}</style>` used to serialize as `a &gt; b {}`, which no longer parsed as the same CSS. `<textarea>` / `<title>` keep escaping.
+
 ### Fixed — `rdom-parser`
 
 - **`<` before a non-letter is text** (HTML §13.2.5.6 tag-open state): `<p>a < b</p>` and `<p>1<2</p>` parse; they were hard errors with the hint "tag names start with a letter". (R10)
 - **`<style>` and `<script>` are raw text, `<textarea>` and `<title>` are RCDATA.** A `<style>` body containing `<` or `&amp;` was a parse error or got entity-decoded although `rdom-tui` consumes `<style>` text as CSS; `<textarea>` content containing `<b>` created elements. Each ends at its own case-insensitive end tag (`</styles>` does not end `<style>`).
 - **Named character references** beyond the original six: the common set (`&copy; &mdash; &ndash; &hellip; &laquo; &raquo; &times; &euro; &trade; &deg; &bull;` and ~90 more, binary-searched). `&#0;`, surrogate, and out-of-range numeric references decode to U+FFFD per §13.2.5.80 instead of staying literal.
-- **`<!DOCTYPE …>` (and any `<!…>` declaration) is consumed** and produces no node; it used to fail with a misleading hint.
+- **`<!DOCTYPE …>` is consumed** and produces no node; it used to fail with a misleading hint. Any other `<!…>` and `<?…>` is a bogus comment (Comment node) per HTML §13.2.5.41; `<?` used to spin forever.
+- **Line / column tracking through `<style>` / `<script>` / `<textarea>` / `<title>` bodies.** An error after a multi-line raw-text body reported the line the body started on.
+- **One character-reference scanner** for text and RCDATA bodies (they used to disagree on `&#+65;`); a numeric reference that overflows `u32` is U+FFFD, not literal.
 
 ### Breaking — `rdom-style`
 

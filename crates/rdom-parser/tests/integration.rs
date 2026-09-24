@@ -473,3 +473,93 @@ fn doctype_is_skipped() {
     assert_eq!(ids.len(), 2);
     assert_eq!(dom.node(ids[1]).tag_name(), Some("div"));
 }
+
+// ── Batch 4 review-gate follow-ups ───────────────────────────────────
+
+/// HTML §13.2.5.6 `?` branch: `<?…>` is a bogus comment, consumed to
+/// the next `>` and kept as a Comment node. It used to loop forever.
+#[test]
+fn processing_instruction_is_a_bogus_comment_not_a_hang() {
+    let (dom, ids) = p("<?xml version='1.0'?><div></div>");
+    assert_eq!(ids.len(), 2);
+    assert_eq!(dom.node(ids[0]).node_type(), rdom_core::NodeType::Comment);
+    assert_eq!(dom.node(ids[0]).node_value(), Some("?xml version='1.0'?"));
+    assert_eq!(dom.node(ids[1]).tag_name(), Some("div"));
+    let (dom, ids) = p("<p>a <?pi?> b</p>");
+    let kids: Vec<_> = dom.node(ids[0]).child_nodes().collect();
+    assert_eq!(kids.len(), 3);
+    assert_eq!(kids[1].node_type(), rdom_core::NodeType::Comment);
+}
+
+/// Error positions stay correct after a multi-line raw-text body.
+#[test]
+fn error_line_is_tracked_through_raw_text_bodies() {
+    let err = parse::<()>("<style>\n\n\n</style><p>").unwrap_err();
+    assert_eq!(err.line, 4, "{err}");
+}
+
+/// Serializing a `<style>` / `<script>` must not escape its text, or the
+/// round trip corrupts the CSS (`&gt;` is not a combinator); RCDATA
+/// parents keep escaping so `<textarea>` text round-trips too.
+#[test]
+fn raw_text_and_rcdata_round_trip() {
+    for src in [
+        r#"<style>a > b { content: "<"; } c { x: "&amp;" }</style>"#,
+        "<script>if (a < b && c) {}</script>",
+        "<textarea>&lt;b&gt; &amp; x</textarea>",
+        "<title>a &amp; b</title>",
+    ] {
+        let (dom, ids) = p(src);
+        let out = dom.outer_markup(ids[0]);
+        let (dom2, ids2) = p(&out);
+        assert_eq!(
+            dom.node(ids[0])
+                .child_nodes()
+                .next()
+                .and_then(|t| t.node_value().map(str::to_string)),
+            dom2.node(ids2[0])
+                .child_nodes()
+                .next()
+                .and_then(|t| t.node_value().map(str::to_string)),
+            "{src} → {out}"
+        );
+    }
+    let (dom, ids) = p("<style>a > b {}</style>");
+    assert_eq!(dom.outer_markup(ids[0]), "<style>a > b {}</style>");
+}
+
+/// A numeric reference that overflows `u32` is still "a number above
+/// U+10FFFF" and decodes to U+FFFD (§13.2.5.80), not the literal `&`.
+#[test]
+fn overflowing_numeric_reference_is_replacement_character() {
+    let (dom, ids) = p("<p>&#99999999999; &#x110000;</p>");
+    assert_eq!(only_text(&dom, ids[0]), "\u{FFFD} \u{FFFD}");
+}
+
+/// The two reference scanners (text and RCDATA) agree: a `+` sign is not
+/// part of a numeric reference in either.
+#[test]
+fn reference_scanners_agree_on_signs() {
+    let (dom, ids) = p("<p>&#+65;</p>");
+    assert_eq!(only_text(&dom, ids[0]), "&#+65;");
+    let (dom, ids) = p("<textarea>&#+65;</textarea>");
+    assert_eq!(only_text(&dom, ids[0]), "&#+65;");
+}
+
+/// A strict template parser does not silently truncate: a stray end tag
+/// at the top level is an error, not the end of the input.
+#[test]
+fn stray_top_level_end_tag_is_an_error() {
+    let err = parse::<()>("<p>x</p></b>garbage").unwrap_err();
+    let text = format!("{err}");
+    assert!(text.contains("closing tag"), "{text}");
+}
+
+/// HTML §13.2.6.4.7: a newline immediately after `<textarea>` is dropped.
+#[test]
+fn textarea_drops_a_leading_newline() {
+    let (dom, ids) = p("<textarea>\nfoo\nbar</textarea>");
+    assert_eq!(only_text(&dom, ids[0]), "foo\nbar");
+    let (dom, ids) = p("<textarea>\n</textarea>");
+    assert_eq!(dom.node(ids[0]).child_nodes().count(), 0);
+}

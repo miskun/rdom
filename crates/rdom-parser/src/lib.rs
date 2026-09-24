@@ -26,18 +26,27 @@
 //! - Void elements (`<br>`, `<hr>`, `<img>`, …) auto-close
 //! - Attributes: `name="value"`, `name='value'`, `name=value`, `name`
 //!   (boolean). `class="a b c"` populates the classList.
-//! - Text with entity decoding: `&amp; &lt; &gt; &quot; &apos; &nbsp;
-//!   &#NNN; &#xHH;`
-//! - Comments: `<!-- … -->` preserved as Comment nodes
+//! - Text with character references: the common named ones (`&amp;
+//!   &lt; &copy; &mdash; …`, ~100) plus `&#NNN;` / `&#xHH;`; U+0000,
+//!   surrogates and out-of-range values decode to U+FFFD
+//! - A `<` not followed by an ASCII letter, `/`, `!`, or `?` is text
+//!   (`a < b` needs no escaping)
+//! - `<style>` / `<script>` bodies are raw text; `<textarea>` /
+//!   `<title>` bodies are RCDATA (references decode, tags are text)
+//! - Comments: `<!-- … -->` preserved as Comment nodes; `<?…>` and
+//!   `<!…>` (other than DOCTYPE) are bogus comments, also Comment nodes
+//! - `<!DOCTYPE …>` is consumed (no node)
 //! - Case-insensitive tag names (normalized to lowercase)
 //! - Attribute names preserved case
 //!
 //! ## Not supported (out of scope)
 //!
-//! - `<!DOCTYPE>` — no need for a TUI DOM
-//! - CDATA sections, namespace prefixes, processing instructions
-//! - `<script>` / `<style>` raw-text mode (our DOM doesn't have these)
-//! - Mismatched tags are errors, not auto-repaired
+//! - CDATA sections as CDATA (they become bogus comments), namespace
+//!   prefixes
+//! - Tree-construction recovery: a mismatched or missing end tag, or a
+//!   stray end tag at the top level, is an error, not auto-repaired
+//! - The full 2 231-entry named-reference table and the legacy
+//!   no-semicolon references (`&amp` without `;` stays literal)
 //!
 //! ## Error reporting
 //!
