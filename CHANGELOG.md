@@ -32,6 +32,8 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 
 - `TuiStyle::transition_property` / `transition_duration` / `transition_timing_function` / `transition_delay` are `Option<Value<Vec<…>>>` (they were `Option<Vec<…>>`), so `transition: inherit` / `initial` / `unset` parse like every other property; the cascade resolves `inherit` from the parent's lists and `initial` to the empty list. Code that matched `Some(list)` reads `Some(Value::Specified(list))`; the fluent setters are unchanged. (`STYLE-TRANSITION-VALUE-1`)
 
+- `Size::Percent` carries an `f32` (it was `u16`): `width: 12.5%` lays out as 12.5%, rounded once onto the cell grid by `Size::percent_of` (ties to even, like `calc()`). Match arms and constructors that used integer literals need `50.0`. Times still resolve to whole milliseconds; that entry stays in DIVERGENCES. (`STYLE-PERCENT-FRACTION-1`)
+
 ### Fixed — `rdom-style`
 
 - `ImportantMask::FLOW` and `ImportantMask::POINTER_EVENTS` shared bit 39, so `pointer-events: … !important` also marked the `display`-derived flow important (and vice versa). Every flag now owns a bit, and a test pins it. (`STYLE-MASK-COLLISION-1`)

@@ -196,6 +196,34 @@ fn row_with_gap() {
     assert_eq!(lb.x, la.x + 3 + 2); // +size, +gap
 }
 
+/// `STYLE-PERCENT-FRACTION-1`: `12.5%` reaches layout intact and rounds
+/// once, onto the cell grid (12.5% of 80 = 10; the old whole-percent
+/// store gave 12% = 9).
+#[test]
+fn fractional_percent_width_rounds_once_at_layout() {
+    let mut dom = tui_dom();
+    let root = dom.root();
+    let c = dom.create_element("c");
+    let a = dom.create_element("a");
+    dom.append_child(c, a).unwrap();
+    dom.append_child(root, c).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "c",
+            TuiStyle::new()
+                .flow(Flow::Flex)
+                .direction(Direction::Row)
+                .width(Size::Fixed(80)),
+        )
+        .rule_unchecked("a", TuiStyle::new().width(Size::Percent(12.5)));
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 100, 10));
+    assert_eq!(layout_rect_of(&dom, a).width, 10);
+    assert_eq!(Size::percent_of(80, 12.5), 10);
+    assert_eq!(Size::percent_of(10, 12.5), 1, "1.25 rounds to 1");
+    assert_eq!(Size::percent_of(20, 12.5), 2, "2.5 rounds to even");
+}
+
 #[test]
 fn row_flex_distributes_remaining() {
     let mut dom = tui_dom();

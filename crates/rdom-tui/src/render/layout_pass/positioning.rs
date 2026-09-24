@@ -291,7 +291,7 @@ fn resolve_size_axis(
     match size {
         Size::Fixed(n) => *n,
         Size::Flex(_) => cb_extent,
-        Size::Percent(p) => ((cb_extent as u32 * *p as u32) / 100).min(u16::MAX as u32) as u16,
+        Size::Percent(p) => Size::percent_of(cb_extent as i32, *p).clamp(0, u16::MAX as i32) as u16,
         Size::Calc(expr) => {
             let v = expr.resolve(&rdom_style::calc::ResolveCtx::new(cb_extent as i32));
             v.max(0).min(u16::MAX as i32) as u16

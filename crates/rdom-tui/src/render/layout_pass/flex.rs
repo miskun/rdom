@@ -318,7 +318,8 @@ pub(super) fn layout_flex_children(
                 // content area at layout time. Treated as a fixed
                 // cell value once resolved — does NOT participate
                 // in flex weight distribution.
-                let resolved = ((main_budget as u32 * *p as u32) / 100).min(u16::MAX as u32) as u16;
+                let resolved =
+                    Size::percent_of(main_budget as i32, *p).clamp(0, u16::MAX as i32) as u16;
                 MainNatural::Fixed(resolved)
             }
             Size::Calc(expr) => {
@@ -816,7 +817,7 @@ fn resolve_auto_min(
     let specified_cap: Option<u16> = match main_size {
         Size::Fixed(n) => Some(*n),
         Size::Percent(p) => {
-            Some(((main_budget as u32 * *p as u32) / 100).min(u16::MAX as u32) as u16)
+            Some(Size::percent_of(main_budget as i32, *p).clamp(0, u16::MAX as i32) as u16)
         }
         Size::Calc(expr) => {
             let v = expr.resolve(&rdom_style::calc::ResolveCtx::new(main_budget as i32));
@@ -898,7 +899,7 @@ fn resolve_cross_size(
         Size::Percent(p) => {
             // Cross-axis percent resolves against the container's
             // cross-axis dimension.
-            ((container_cross as u32 * *p as u32) / 100).min(u16::MAX as u32) as u16
+            Size::percent_of(container_cross as i32, *p).clamp(0, u16::MAX as i32) as u16
         }
         Size::Calc(expr) => {
             let v = expr.resolve(&rdom_style::calc::ResolveCtx::new(container_cross as i32));

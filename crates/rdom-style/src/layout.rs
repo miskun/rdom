@@ -98,10 +98,11 @@ pub enum Size {
     Flex(u16),
     /// Percentage of the parent's content-area dimension on the
     /// matching axis (`width: 50%` ⇒ half of parent's content
-    /// width). Resolves at layout time once the parent dimension
-    /// is known. Matches CSS `<percentage>` semantics for sizing
-    /// properties; clamped to `u16::MAX` cells after multiplication.
-    Percent(u16),
+    /// width). Carries the fraction (`12.5%` is `12.5`); resolves at
+    /// layout time once the parent dimension is known, through
+    /// [`Size::percent_of`], which rounds onto the cell grid once.
+    /// Matches CSS `<percentage>` semantics for sizing properties.
+    Percent(f32),
     /// `calc(<expr>)` — arithmetic over lengths + percentages
     /// (`+ - * /`). Resolves at layout time against the parent's
     /// matching-axis content dimension (`width` → parent width,
@@ -115,6 +116,13 @@ pub enum Size {
 }
 
 impl Size {
+    /// `p` percent of `basis`, rounded onto the cell grid (ties to
+    /// even, the same rule `calc()` uses). The single place a
+    /// percentage becomes cells, so `12.5%` of 80 is 10 everywhere.
+    pub fn percent_of(basis: i32, p: f32) -> i32 {
+        (f64::from(basis) * f64::from(p) / 100.0).round_ties_even() as i32
+    }
+
     /// Resolve `Calc` to `Fixed`, leaving other variants unchanged.
     /// Pass the parent's content dimension on the relevant axis as
     /// `basis`. Used by layout sites that prefer to flatten before

@@ -50,7 +50,7 @@ fn width_percentage_parses_to_size_percent() {
     assert_eq!(
         rule.style.width,
         Some(rdom_style::Value::Specified(
-            rdom_style::layout::Size::Percent(50)
+            rdom_style::layout::Size::Percent(50.0)
         ))
     );
 }

@@ -962,7 +962,7 @@ fn resolve_size_to_cells(size: &Size, basis: i32) -> Option<i32> {
     match size {
         Size::Auto | Size::Flex(_) => None,
         Size::Fixed(n) => Some(*n as i32),
-        Size::Percent(p) => Some((basis * *p as i32) / 100),
+        Size::Percent(p) => Some(Size::percent_of(basis, *p)),
         Size::Calc(expr) => {
             let v = expr.resolve(&rdom_style::calc::ResolveCtx::new(basis));
             Some(v)
@@ -1034,7 +1034,7 @@ fn resolve_block_height(
         Size::Fixed(n) => *n,
         Size::Percent(p) => {
             if parent_height_definite {
-                ((container_height as u32 * *p as u32) / 100).min(u16::MAX as u32) as u16
+                Size::percent_of(container_height as i32, *p).clamp(0, u16::MAX as i32) as u16
             } else {
                 // Fall through to intrinsic — same as Auto.
                 intrinsic_size(dom, id, Direction::Column, resolved_width)

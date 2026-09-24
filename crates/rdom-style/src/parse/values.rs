@@ -456,9 +456,10 @@ pub fn parse_border_side(value: &[Token]) -> Option<BorderStyle> {
     )
 }
 
-/// A percentage literal as whole percent, rejecting out-of-range values.
-fn percent_cells(p: f64) -> Option<u16> {
-    (p >= 0.0 && p <= f64::from(u16::MAX)).then_some(p as u16)
+/// A percentage literal, fraction intact, rejecting negative and
+/// absurd values (`Size::percent_of` multiplies by an `i32` basis).
+fn percent_fraction(p: f64) -> Option<f32> {
+    (p >= 0.0 && p <= f64::from(u16::MAX)).then_some(p as f32)
 }
 
 pub fn parse_size(value: &[Token]) -> Option<Size> {
@@ -469,7 +470,7 @@ pub fn parse_size(value: &[Token]) -> Option<Size> {
         [Token::Number(n), Token::Ident(unit)] if *n >= 0 && unit.eq_ignore_ascii_case("fr") => {
             u16::try_from(*n).ok().map(Size::Flex)
         }
-        [Token::Percentage(n)] if *n >= 0.0 => Some(Size::Percent(percent_cells(*n)?)),
+        [Token::Percentage(n)] if *n >= 0.0 => Some(Size::Percent(percent_fraction(*n)?)),
         // calc(...) — parse to a CalcExpr. If the expression has
         // no percentages, constant-fold at parse time to Fixed.
         // Otherwise carry the AST through to layout via Size::Calc.
@@ -1282,7 +1283,8 @@ mod number_value_tests {
             }
         );
         // Integer cells: a fractional percentage width truncates to whole percent.
-        assert_eq!(parse_size(&t("50%")), Some(Size::Percent(50)));
+        assert_eq!(parse_size(&t("50%")), Some(Size::Percent(50.0)));
+        assert_eq!(parse_size(&t("12.5%")), Some(Size::Percent(12.5)));
     }
 
     /// Out-of-range integers are rejected (declaration dropped), not

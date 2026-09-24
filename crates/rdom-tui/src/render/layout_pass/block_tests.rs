@@ -90,7 +90,7 @@ fn block_child_with_width_percent_resolves_against_containing_block() {
     dom.append_child(parent, child).unwrap();
     dom.append_child(root, parent).unwrap();
 
-    let sheet = Stylesheet::bare().rule_unchecked("c", TuiStyle::new().width(Size::Percent(50)));
+    let sheet = Stylesheet::bare().rule_unchecked("c", TuiStyle::new().width(Size::Percent(50.0)));
     cascade(&mut dom, &sheet);
     run_block(&mut dom, parent, LayoutRect::new(0, 0, 80, 24));
 
@@ -1855,7 +1855,7 @@ fn percent_height_resolves_against_definite_parent() {
 
     let sheet = Stylesheet::bare()
         .rule_unchecked("p", TuiStyle::new().height(Size::Fixed(20)))
-        .rule_unchecked("c", TuiStyle::new().height(Size::Percent(50)));
+        .rule_unchecked("c", TuiStyle::new().height(Size::Percent(50.0)));
     cascade(&mut dom, &sheet);
     dom.layout_dom(Rect::new(0, 0, 80, 50));
 
@@ -1893,7 +1893,7 @@ fn percent_height_falls_to_auto_when_parent_height_is_indefinite() {
         // top-level Auto on `<p>` falls through to grand-parent
         // viewport, but for percent-resolution purposes that
         // outer is also indefinite per CSS 2.1).
-        .rule_unchecked("c", TuiStyle::new().height(Size::Percent(50)))
+        .rule_unchecked("c", TuiStyle::new().height(Size::Percent(50.0)))
         .rule_unchecked("g", TuiStyle::new().height(Size::Fixed(3)));
     cascade(&mut dom, &sheet);
     dom.layout_dom(Rect::new(0, 0, 80, 50));
@@ -2291,7 +2291,7 @@ fn width_percent_resolves_against_definite_containing_block() {
 
     let sheet = Stylesheet::bare()
         .rule_unchecked("p", TuiStyle::new().width(Size::Fixed(40)))
-        .rule_unchecked("c", TuiStyle::new().width(Size::Percent(25)));
+        .rule_unchecked("c", TuiStyle::new().width(Size::Percent(25.0)));
     cascade(&mut dom, &sheet);
     run_block(&mut dom, parent, LayoutRect::new(0, 0, 40, 24));
 
@@ -2315,8 +2315,8 @@ fn percent_height_chains_through_three_definite_levels() {
 
     let sheet = Stylesheet::bare()
         .rule_unchecked("gp", TuiStyle::new().height(Size::Fixed(40)))
-        .rule_unchecked("p", TuiStyle::new().height(Size::Percent(50)))
-        .rule_unchecked("c", TuiStyle::new().height(Size::Percent(50)));
+        .rule_unchecked("p", TuiStyle::new().height(Size::Percent(50.0)))
+        .rule_unchecked("c", TuiStyle::new().height(Size::Percent(50.0)));
     cascade(&mut dom, &sheet);
     dom.layout_dom(Rect::new(0, 0, 80, 60));
 
@@ -2343,7 +2343,7 @@ fn percent_height_breaks_chain_at_auto_ancestor() {
     let sheet = Stylesheet::bare()
         .rule_unchecked("gp", TuiStyle::new().height(Size::Fixed(40)))
         // P is Auto — breaks the chain.
-        .rule_unchecked("c", TuiStyle::new().height(Size::Percent(50)))
+        .rule_unchecked("c", TuiStyle::new().height(Size::Percent(50.0)))
         .rule_unchecked("i", TuiStyle::new().height(Size::Fixed(3)));
     cascade(&mut dom, &sheet);
     dom.layout_dom(Rect::new(0, 0, 80, 60));
