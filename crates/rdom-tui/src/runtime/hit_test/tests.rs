@@ -8,6 +8,7 @@
 use super::*;
 use crate::TuiDom;
 use crate::layout::{Border, Direction, Display, Flow, Overflow, Padding, Size};
+use crate::node::TuiNodeExt;
 use crate::render::{LayoutExt, Rect};
 use crate::style::{CascadeExt, Color, Stylesheet, TuiStyle};
 use rdom_core::NodeId;
