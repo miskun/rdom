@@ -46,6 +46,7 @@
 #![forbid(unsafe_code)]
 
 pub mod calc;
+pub mod counters;
 pub mod layout;
 pub mod parse;
 pub mod property_dispatch;
@@ -63,10 +64,11 @@ mod value;
 
 pub use color::Color;
 pub use computed::{ComputedStyle, Content, VarMap};
+pub use counters::{CounterOp, CounterStyle};
 pub use modifier::Modifier;
 pub use specificity::Specificity;
 pub use stylesheet::{PseudoElementTarget, Rule, RuleOrigin, StyleError, Stylesheet};
 pub use transition::{AnimatableProperty, TimingFunction, TransitionProperty, TransitionRule};
 pub use tui_color::{TuiColor, parse_color, resolve_tui_color};
-pub use tui_style::{ImportantMask, TuiStyle};
+pub use tui_style::{CustomDeclaration, ImportantMask, TuiStyle};
 pub use value::Value;

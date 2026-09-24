@@ -91,25 +91,13 @@ pub fn parse_strict(source: &str) -> Result<Stylesheet, ParseError> {
 
 /// Lenient inline-attribute parse. Reads a declaration list with
 /// no surrounding `{ … }` and returns the resulting `TuiStyle` plus
-/// any warnings. A custom-property declaration (`--name: value`) has
-/// no `:root` to attach to here, so it is dropped with
-/// `UnsupportedCustomPropertyScope { selector: "style attribute", .. }`
-/// — the same rule as any non-root selector (see `DIVERGENCES.md`).
+/// any warnings. Custom-property declarations (`--name: value`) land on
+/// `TuiStyle::custom_properties` and are scoped to the element by the
+/// cascade.
 pub fn parse_inline(source: &str) -> InlineParseResult {
     let mut style = TuiStyle::new();
-    let mut custom_props: Vec<declarations::CustomProperty> = Vec::new();
     let mut warnings = Vec::new();
-    declarations::parse_block(source, &mut style, &mut custom_props, 1, 1, &mut warnings);
-    for cp in custom_props {
-        warnings.push(Warning {
-            kind: WarningKind::UnsupportedCustomPropertyScope {
-                selector: "style attribute".to_string(),
-                name: cp.name,
-            },
-            line: 1,
-            column: 1,
-        });
-    }
+    declarations::parse_block(source, &mut style, 1, 1, &mut warnings);
     InlineParseResult { style, warnings }
 }
 
@@ -134,9 +122,6 @@ fn warning_to_error(w: &Warning) -> ParseError {
             ParseErrorKind::ExpectedToken("valid declaration")
         }
         WarningKind::UnsupportedAtRule(_) => ParseErrorKind::ExpectedToken("rule"),
-        WarningKind::UnsupportedCustomPropertyScope { .. } => {
-            ParseErrorKind::ExpectedToken(":root")
-        }
     };
     ParseError {
         kind,
@@ -191,13 +176,6 @@ pub enum WarningKind {
     /// missing name, stray tokens). Dropped per CSS Syntax 3 §5.4.4;
     /// the payload is the segment's rendered text.
     MalformedDeclaration(String),
-    /// A `--name: value` declaration under a selector other than
-    /// `:root`. rdom's custom properties are stylesheet-global and
-    /// `:root`-only (see `DIVERGENCES.md`); the declaration is dropped.
-    UnsupportedCustomPropertyScope {
-        selector: String,
-        name: String,
-    },
     UnsupportedAtRule(String),
     InvalidSelector(String),
     UnterminatedComment,

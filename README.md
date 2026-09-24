@@ -1,168 +1,196 @@
-# rdom
+# rdom-css
 
-A DOM for terminal applications, in Rust.
+CSS string parser for [rdom](https://github.com/miskun/rdom). Turns real
+CSS source — standalone stylesheets, `<style>` blocks in templates, or
+inline `style="…"` attributes — into [`Stylesheet`] and [`TuiStyle`]
+values consumed by [`rdom-tui`](../rdom-tui/)'s cascade.
 
-`rdom` brings the architecture of the browser DOM — arena-backed nodes, CSS-style cascade, flexbox layout, capture/bubble events, mutation observers, selection ranges — to text-mode UIs. It targets terminals (via `crossterm`) but the core tree is renderer-agnostic and can drive headless or alternate backends.
-
-The browser DOM is the reference model: native HTML elements, CSS-faithful cascade, web-platform event semantics. Higher-level component libraries live in downstream projects, not in this repo.
+Hand-rolled. Zero external parser dependencies (no `cssparser`, no
+`lightningcss`). Depends only on `rdom-core` and `rdom-style`.
 
 ## Quick start
 
-Install:
-
-```toml
-[dependencies]
-rdom-tui    = "0.3"
-rdom-parser = "0.3"   # optional: HTML-ish template strings
-rdom-css    = "0.3"   # optional: parse real CSS at runtime
-```
-
-`rdom-core` and `rdom-style` are pulled in transitively. For headless DOM work — building and querying a tree without rendering anything — depend on `rdom-core` alone.
-
-Build a tree, attach styles, run it:
-
 ```rust
-use rdom_parser::parse;
+use rdom_css::from_css;
 use rdom_tui::prelude::*;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let (dom, _ids) = parse::<TuiExt>(r#"
-        <div class="hero">
-            <h1>Hello, rdom!</h1>
-            <button class="primary">Click me</button>
-        </div>
-    "#)?;
+// One-shot: parse a CSS string into a Stylesheet that already has
+// the UA defaults baked in. Unknown properties become silent warnings.
+let sheet = from_css(r#"
+    :root {
+        --accent: #3d90ce;
+    }
 
-    let sheet = rdom_css::from_css(r#"
-        .hero    { padding: 1 2; border: solid; }
-        h1       { color: red; font-weight: bold; }
-        .primary { background-color: blue; color: white; padding: 0 2; }
-        .primary:hover { background-color: lightblue; }
-    "#);
+    .hero {
+        color: var(--accent);
+        font-weight: bold;
+        padding: 1 2;
+        border: solid;
+    }
 
-    App::new(dom, sheet)?.run()?;
-    Ok(())
+    button:hover {
+        background-color: lightgray;
+    }
+"#);
+
+// Build a tree, attach the sheet, render in a terminal.
+let mut dom: TuiDom = TuiDom::new();
+// ... build the tree ...
+App::new(dom, sheet)?.run()
+```
+
+For warnings-aware parsing, call `parse` (lenient) or `parse_strict`
+(first warning is returned as `ParseError`):
+
+```rust
+use rdom_css::parse;
+
+let result = parse(".hero { font-weight: ultraviolet }");
+assert_eq!(result.warnings.len(), 1);
+// WarningKind::InvalidValue { property: "font-weight", value: "ultraviolet" }
+```
+
+## Three CSS surfaces, one parser
+
+All three call the same tokenizer + property dispatch — there is no
+parallel grammar.
+
+| Surface | Entry point | Notes |
+|---|---|---|
+| Standalone stylesheet string | `from_css(s)` / `parse(s)` / `parse_strict(s)` | Full rule list, custom-property declarations under any selector, `<color>` `var()` references. |
+| `<style>…</style>` in a template | `rdom_tui::cssom::apply::extend_from_style_tags(&mut sheet, &dom)` | Walks the parsed `Dom`, finds every `<style>` element, feeds its text content through `parse`, appends to the sheet. |
+| Inline `style="…"` attribute | `parse_inline(s)` / `parse_inline_strict(s)` | Declaration list (no selectors, no braces). Returns a `TuiStyle` and any warnings. Drives `style="…"` attribute writes via `rdom-tui`'s `StyleDeclaration` and the `InlineStyleObserver`. |
+
+## Supported grammar
+
+```text
+stylesheet  := (comment | at-rule | rule)*
+rule        := selector-list '{' decl-list '}'
+selector-list := selector (',' selector)*
+decl-list   := (decl ';')* decl?
+decl        := identifier ':' value ('!' 'important')?
+value       := token+
+```
+
+- **Selectors** — full coverage of `rdom-core`'s selector engine. Type
+  (`div`, `h1`), universal (`*`), id (`#app`), class (`.hero`), attribute
+  (`[lang]`, `[lang="en"]`, `~=`, `|=`, `^=`, `$=`, `*=`), pseudo-classes
+  (`:hover`, `:focus`, `:not(...)`, `:first-child`, `:last-child`,
+  `:only-child`, `:empty`, `:root`, `:checked`, `:indeterminate`,
+  `:open`, …), pseudo-elements (`::before`, `::after`, `::selection`,
+  `::backdrop`), descendant / child / next-sibling / subsequent-sibling
+  combinators, comma-separated lists.
+- **Properties** — the 32-name `rdom-style::property_dispatch` table:
+  color/text, block model, sizing, content, positioning, transitions.
+  See [`rdom-style`](../rdom-style/#supported-properties) for the
+  current list.
+- **Values** — colors (`#rgb`, `#rrggbb`, `#rrggbbaa` (alpha dropped),
+  `rgb()`, `rgba()`, named colors, `reset`), lengths (cells, `fr`,
+  `auto`), `var(--name)` and `var(--name, fallback)` in color positions,
+  modifiers (`bold`, `italic`, `underline`), shorthands (4-/3-/2-/1-value
+  `padding`), comma-separated `transition` lists.
+- **Custom properties** — `--name: value;` under any selector (and in a
+  `style` attribute) rides on the rule as `TuiStyle::custom_properties`;
+  the cascade scopes it per element and inherits it. `:root` declarations
+  additionally populate the `Stylesheet::vars` map. `var()` is consumed in
+  `<color>` values and `content`; `padding: var(--gap)` is not shipped.
+- **`!important`** — recognized on any declaration; routed to the
+  property's `ImportantMask` bit. Cascade ladder lives in `rdom-tui`.
+- **Comments** — `/* … */`, nested or unterminated handled with
+  warnings.
+- **Whitespace** — CSS-faithful (whitespace required between adjacent
+  identifiers, optional around `:`, `;`, `{`, `}`).
+- **UTF-8** — identifiers, strings, comments all UTF-8 throughout.
+
+## Not yet supported
+
+These produce a `Warning` and the parse continues — matching browser
+behavior, so copy-pasting CSS from MDN doesn't blow up:
+
+- **At-rules.** Every at-rule (`@import`, `@charset`, `@media`,
+  `@keyframes`, `@supports`, `@font-face`, …) is consumed whole per CSS
+  Syntax 3 §5.4.2 and reported with `WarningKind::UnsupportedAtRule(name)`;
+  the rules around it are unaffected. `@keyframes` is on the roadmap.
+- **`min()` / `max()` / `clamp()`.** Not yet; `calc()` is supported
+  (percentages, nesting, CSS precedence).
+- **Length units other than cells, `fr`, and `%`.** `px`, `em`, `rem`
+  have no cell-grid meaning and are rejected.
+- **CSS variables in non-color values.** `padding: var(--gap)` — not shipped.
+- **CSS Nesting** (`.parent { .child { … } }`). Modern CSS feature; not
+  in M1.
+- **`&` parent reference.** Same.
+
+## Lenient vs. strict
+
+Two parallel APIs at every surface. Lenient is the default — both for
+top-level stylesheets and inline attributes — because copy-pasted CSS
+from real-world stylesheets always has *something* unsupported in it,
+and you want the rest to still apply.
+
+```rust
+// Lenient — Warnings collect; the rest of the parse continues.
+let result   = rdom_css::parse(source);
+let result_i = rdom_css::parse_inline(source);
+let sheet    = rdom_css::from_css(source);             // Stylesheet, warnings dropped
+
+// Strict — first Warning is returned as ParseError instead.
+let sheet    = rdom_css::parse_strict(source)?;
+let style    = rdom_css::parse_inline_strict(source)?;
+let sheet    = rdom_css::from_css_strict(source)?;
+```
+
+## Warnings
+
+```rust
+pub enum WarningKind {
+    UnknownProperty(String),
+    InvalidValue { property: String, value: String },
+    UnsupportedAtRule(String),
+    InvalidSelector(String),
+    UnterminatedComment,
+    UnterminatedString,
 }
 ```
 
-See [`crates/rdom-tui/examples/`](crates/rdom-tui/examples/) for three self-contained programs (counter button, tab form, parse + render) and [`crates/rdom-showcase/examples/`](crates/rdom-showcase/examples/) for the ten showcase demos runnable standalone: scrollable lists, text selection, an ARIA tree with lazy children, sticky headers, border collapse, and the naked-UA chrome tour.
+Each `Warning` carries the kind plus line + column. `ParseError`
+(returned by the strict APIs) maps the warning into a smaller
+`ParseErrorKind` enum suitable for fixed terminal error reporting.
 
-## Crates
+## Round-tripping with the builder
 
-| Crate | What it is |
-|---|---|
-| [`rdom-core`](crates/rdom-core) | Pure DOM. Arena, `NodeId`, attributes, classes, tree mutation, CSS selectors, 3-phase event dispatch, `MutationObserver`, `AbortSignal`, `Selection`/`Range`/`Position`. Zero rendering deps. |
-| [`rdom-style`](crates/rdom-style) | CSS data model + property dispatch + value parsers. Leaf crate; consumed by `rdom-css` (the parser) and `rdom-tui` (the renderer). |
-| [`rdom-css`](crates/rdom-css) | CSS parser. Tokenizer + block parser + `<style>`-tag extraction + inline-style seeding. Produces `Stylesheet` / `TuiStyle` via `rdom-style`'s property dispatch. |
-| [`rdom-tui`](crates/rdom-tui) | Terminal backend. CSS cascade, flexbox layout, paint pass, ANSI emission, inline formatting (word wrap, CJK breaks, `<br>`, `white-space`), runtime (event loop, hit test, keyboard/mouse routing, focus, text selection + clipboard), native HTML element behaviors (`<button>`, `<input>` family, `<select>`, `<form>`, `<details>`, `<dialog>`, `<progress>`, `<meter>`, `<table>` family, `<canvas>`). |
-| [`rdom-parser`](crates/rdom-parser) | HTML-ish template parser → `Dom<Ext>`. `parseFromString` equivalent. Hand-rolled, no external parser deps. |
+Rules constructed via the `Stylesheet::new().rule(sel, style)` fluent
+builder and rules parsed from a CSS source produce the same `TuiStyle`.
+This is verified in `rdom-tui`'s `cssom::tests` round-trip suite — a
+representative set of declarations parsed from CSS and constructed
+through the builder hash-compare equal after cascade.
 
-## What's in 0.4.0
+```rust
+let from_builder = TuiStyle::new()
+    .fg(Color::Red)
+    .padding(Padding::all(1));
 
-A hardening release. The whole workspace was reviewed, every documented divergence from the web platform was re-audited (kept, followed, or deleted), and the tech-debt ledger was resolved or re-justified row by row. Highlights, with the web spec each one follows:
+let from_css = rdom_css::parse_inline_strict("color: red; padding: 1")?;
 
-- **Generational `NodeId`.** A freed slot's old id no longer resolves to whatever node reuses the slot (DOM object identity). **Breaking:** `NodeId` is no longer a bare index.
-- **Event dispatch per DOM §2.9.** Two-pass target invocation, listener-removal-during-dispatch semantics, and a `Dom::set_activation_hook` so checkbox / radio activation behavior runs even when propagation stops.
-- **CSS tokenizer per CSS Syntax 3.** Whole-number tokens (`Token::Float`, fractional `Percentage`), string escapes, at-rule consumption, out-of-range integers rejected instead of wrapped, `calc(x / 0)` rejected at parse time. CSS-wide keywords use the same inheritance table as the cascade.
-- **HTML tokenizer per HTML §13.2.** `<style>` / `<script>` are raw text, `<textarea>` / `<title>` are RCDATA, ~100 named character references, `a < b` is text, `<!DOCTYPE>` is skipped, `<?…>` / `<!…>` are bogus comments, and `<style>` round-trips through `outer_markup` without corrupting the CSS.
-- **Runtime robustness.** One shared scheduler with a re-entrancy guard on every user-code path, flex freeze loops with a fixed pass budget, scrolled hit-testing through a single line↔row mapping, compound undo for cross-node edits, `pointer-events` inherited, `Rc` computed styles.
-
-See [`CHANGELOG.md`](CHANGELOG.md) for the full 0.4.0 notes and migration guidance, and [`specs/HARDENING-2026-09.md`](specs/HARDENING-2026-09.md) for the program log.
-
-## What's in 0.3.0
-
-A substrate-honesty release driven by the first downstream consumer. Highlights:
-
-- **Geometry node setters drive layout.** `set_width` / `set_direction` / `set_gap` / … now write the cascade input, so they actually affect layout (they previously wrote dead fields and silently no-op'd). **Breaking** — see the changelog.
-- **`EventCtx::request_redraw()`.** Event listeners can request a repaint when they mutate state the DOM tracker can't see (e.g. a `<canvas>` reading external app state) — unblocks interactive canvas components.
-- **`TuiStyle::flex_row()` / `flex_column()` / `flex()` / `inline_flex()`** convenience builders.
-- **`remove_child_dropping` / `clear_children_dropping`** — detach **and** free in one call (no arena-slot leak for high-churn UIs).
-- **`RenderContext::for_test`** for unit-testing `<canvas>` paint code downstream; the canvas `RenderContext` is now the canonical crate-root export.
-
-See [`CHANGELOG.md`](CHANGELOG.md) for the full 0.3.0 notes (incl. breaking changes) and [`specs/SUBSTRATE-0.3.0.md`](specs/SUBSTRATE-0.3.0.md) for rationale.
-
-## What's in 0.2.0
-
-0.2.0 adds, on top of the 0.1.0 substrate below:
-
-- **Block formatting context.** Semantic HTML stacks per the web platform with no CSS at all — `<div><h1></h1><p></p></div>` is a block-flow column at intrinsic heights. CSS 2.1 normal flow + margin collapse + height resolution + CSS3 `gap` on blocks + atomic `inline-block` in inline formatting contexts, on top of the original flex pass.
-- **Native ARIA tree.** `<ul role=tree>` / `role=treeitem` / `role=group` with `│ ├ └` guides + `▾`/`▸` chevrons, keyboard nav (Arrows / Home / End / Enter / Space) via an `aria-activedescendant` cursor, collapse/expand (`aria-expanded`), lazy children (`aria-busy`), and scroll-into-view that follows the cursor.
-- **`calc()` value system.** `width` / `height` / inset / length axes — CSS precedence, parentheses, nested `calc()`, banker's rounding onto the cell grid.
-- **More events.** `keyup` (kitty keyboard protocol), `contextmenu` (right-click + Shift+F10), `dblclick`, `resize`, `scroll`, plus implicit `blur` / `focusout` / `mouseout` / `mouseleave` dispatched before structural detach.
-- **Layered border model.** `border-collapse` is non-inheriting and applies to any container's direct children; per-direction conflict resolution (CSS Tables 3 §11.5); full `border-style` keyword set + the rdom-specific `half-block` pill style.
-- **Multi-slot stylesheets.** `push_stylesheet` / `remove_stylesheet` + `cascade_all` to stack and swap author sheets over the UA sheet.
-
-See [`CHANGELOG.md`](CHANGELOG.md) for the full 0.2.0 notes, including breaking changes.
-
-### The 0.1.0 substrate
-
-- **DOM substrate.** Arena, attributes, classes, mutation, CSS selectors (Selectors Level 4 subset), 3-phase event dispatch with `stopPropagation` / `preventDefault` / `AbortSignal`, `MutationObserver`, `Selection` / `Range` / `Position`, serialization (`outer_markup` / `inner_markup`).
-- **HTML template parser.** Hand-rolled, no external deps. `parseFromString` equivalent. Round-trippable for the supported subset.
-- **`pointer-events: none`, modal `<dialog>` focus trap, scrollable `<textarea>`.** Overlays let clicks through; `showModal()` traps Tab and Esc inside the dialog and returns focus on close; text leaves taller than their box scroll with the caret kept in view.
-
-- **CSS string parser.** Real CSS in, `Stylesheet` out. Three surfaces unified: standalone stylesheets, `<style>` blocks in templates, inline `style="…"`. Selectors, all properties in the dispatch table (color, sizing, padding, border, positioning, transitions), `!important`, custom properties (`var()` in color positions and `content`), the CSS-wide keywords `inherit` / `initial` / `unset`, comma-separated rules, lenient + strict modes with positioned warnings.
-- **Cascade.** UA / author / inline ladder with `!important` inversion. CSS-faithful specificity. Interaction pseudo-classes (`:hover`, `:focus`, `:checked`, `:indeterminate`, `:open`, …). Pseudo-elements (`::before`, `::after`, `::selection`, `::backdrop`). `content` property. Custom properties.
-- **Layout + paint.** Flexbox for flex containers. `display: inline-block` for content-hugging chrome (buttons, badges, tags). Inline formatting (word wrap at whitespace + CJK + hyphens, `<br>`, `white-space: normal|pre|nowrap`, per-grapheme source tracking). Positioned `::before` / `::after` pseudo-elements (`position: relative | absolute | fixed` honoring `top` / `right` / `bottom` / `left`). Truecolor / 256-color fallback. ANSI emission with synchronized output (DEC 2026).
-- **Runtime.** Event loop with rendering-steps model (drain, tick, rAF, cascade + layout + paint, sleep). Hit testing, mouse routing (`mousedown` / `mouseup` / `click` synthesized on nearest common ancestor — matches HTML), keyboard routing, focus navigation (`tabindex`, `Tab` / `Shift-Tab`, autofocus), pointer capture, text selection (mouse drag, `Shift+arrow` including vertical with sticky-x and line-edge via `Shift+Home`/`End`, `Ctrl-A`, double/triple-click, `user-select: none|all|contain`) + system clipboard (`arboard`, OSC 52 fallback), panic safety (terminal state restored on panic).
-- **Native HTML built-ins.** `<button>`, `<label>`, `<details>` / `<summary>`, `<input>` family (text, password, number, checkbox, radio, range, submit, button, reset, hidden, color, search, email, tel, url), `<textarea>`, `<select>` / `<option>`, `<form>`, `<dialog>`, `<progress>`, `<meter>`, `<table>` family + column-width sync, `<canvas>` + `RenderContext` escape hatch, `<a href>` with scheme dispatch. Editable surfaces honor `caret-color` (cell bg) and the rdom-extension `caret-text-color` (glyph fg); both default to inverting the cell's cascaded fg/bg. `readonly` fires cancelable `beforeinput` (matches UI Events L2 §5). `contenteditable` supports cross-text-node edits across inline boundaries.
-- **User-agent stylesheet.** 136 UA rules ship visual chrome on every native element so naked HTML looks attractive out of the box. Bracketed `[ Label ]` buttons in accent fg. Rounded LightBlue-bordered modal dialogs. `▸`/`▾` disclosure triangles. `•` list bullets. `│` blockquote rail, `─` `<hr>` rule, `▾` `<select>` chevron. Subtle background-tint `:focus` indicator (a single `!important` rule, color-only — no reverse-video, no glyph shift) that authors can override with their own `!important` rule. Run `cargo run -p rdom-showcase --example ua_chrome` to see it.
-- **DOM API completeness.** Per-tag accessors (`input_value`, `select_options`, `details_open`, `form_elements`, …), CSSOM (`style.set_property`, `style_declaration`, camelCase aliases), scroll APIs (`scroll_top` / `scroll_into_view`), document hit-testing (`element_from_point`), `bounding_rect`, focus/blur/click programmatic dispatch.
-- **Positioning.** `position: {static, relative, absolute, fixed}`, `z-index` parsing, `top` / `right` / `bottom` / `left`, `inset` shorthand. Paint order is document order (no nested stacking contexts).
-- **Timers + transitions.** `setTimeout` / `setInterval`, `requestAnimationFrame` with `DOMHighResTimeStamp`, CSS `transition` with the keyword timing functions, `cubic-bezier()` and `steps()`.
-- **Terminal niceties.** OSC 52 clipboard fallback, OSC 8 hyperlinks for `<a href>`, truecolor + 256-color fallback, integer-cell grid, monospaced advance.
-
-## Roadmap
-
-- **0.5.0** — Stabilize: every open item in `specs/TECH_DEBT.md` paid down.
-- **0.6.0** — Client-side routing primitive.
-- **0.7.0** — Async tasks during event handlers.
-
-Open polish items (no fixed milestone): form validation (`:required` / `:invalid` / `pattern`), `:focus-visible`, `::placeholder` / `:placeholder-shown`, undo/redo coalescing, blinking caret, whitespace normalization in clipboard serialization. Open debt is tracked in [`specs/TECH_DEBT.md`](specs/TECH_DEBT.md).
-
-## Out of scope (by design)
-
-- **Subpixel anything.** Terminal cells are integer-aligned, monospaced. No subpixel positioning, no fractional widths, no anti-aliasing.
-- **`@media` / `@keyframes` / `@font-face` / `@supports`.** Consumed whole and reported with `WarningKind::UnsupportedAtRule`; the surrounding rules are unaffected. CSS animation lands incrementally through named milestones, not via `@keyframes`.
-- **Touch, IME / composition, drag-and-drop, long-press gestures.** Web-platform features tied to input devices or interaction models that don't map onto a terminal.
-- **Higher-level component libraries.** The substrate ships native HTML elements and zero opinionated components — same shape as the browser. Component libraries that compose those primitives belong in downstream consumer crates, not in this workspace. See [`CLAUDE.md`](CLAUDE.md) §"Substrate First, Backend Second" for the rationale.
-
-## Examples
-
-```bash
-# Self-contained programs (each file is the whole example):
-cargo run -p rdom-tui --example counter_button          # button + state
-cargo run -p rdom-tui --example tab_form                # focus navigation + form controls
-cargo run -p rdom-tui --example parse_and_render        # rdom-parser + rdom-css + rdom-tui
-# Showcase demos, standalone:
-cargo run -p rdom-showcase                              # the whole tour
-cargo run -p rdom-showcase --example scrollable_list    # overflow + wheel scrolling
-cargo run -p rdom-showcase --example selectable_text    # text selection + clipboard
-cargo run -p rdom-showcase --example tree_nav           # ARIA tree: guides, keyboard nav, lazy load
-cargo run -p rdom-showcase --example border_collapse_demo  # border-collapse junctions
-cargo run -p rdom-showcase --example sticky_demo        # position: sticky in a scroll container
-cargo run -p rdom-showcase --example dom_api_demo       # form-edit / tree-walk / cssom (prints, no TUI)
-cargo run -p rdom-showcase --example ua_chrome          # naked HTML built-ins with UA defaults
+assert_eq!(from_builder, from_css);
 ```
 
-## Design docs
+## Pointers
 
-- [`specs/DESIGN.md`](specs/DESIGN.md) — architectural overview: crate map, non-negotiable invariants, roadmap.
-- [`specs/DIVERGENCES.md`](specs/DIVERGENCES.md) — every deliberate departure from the web platform.
-- [`specs/TECH_DEBT.md`](specs/TECH_DEBT.md) — open debt + accepted simplifications.
-
-Detailed behavior lives in the code: each module has a top-level doc comment, and tests document the contracts. The web specs (WHATWG DOM, CSS, UI Events) are the reference; rdom tracks them within the supported subset.
+- [`DESIGN.md`](../../specs/DESIGN.md) — architectural overview.
+- [`DIVERGENCES.md`](../../specs/DIVERGENCES.md) — every deliberate departure from the web platform (selectors, at-rules, value-system simplifications).
+- [`rdom-style`](../rdom-style/) — the data model this crate parses into.
+- [`rdom-tui`](../rdom-tui/) — the cascade + layout + paint consumer.
 
 ## Testing
 
-```bash
-cargo test --workspace                                  # all unit + integration tests
-cargo clippy --workspace --all-targets -- -D warnings
-cargo fmt --check
-bash scripts/spec-lint.sh                               # spec voice-drift lint
+```text
+cargo test -p rdom-css
 ```
 
-CI runs the same gates on `[ubuntu-latest, macos-latest, windows-latest]` for every push and PR against `main`.
-
-## License
-
-MIT — see [LICENSE](LICENSE).
+Covers tokenizer (comments, whitespace, identifiers, strings, hex
+colors, function tokens), selector integration, per-property parsing
+(one test per row in `RDOM_CSS_PARSER.md` §5), `padding` shorthand
+forms, color values (hex / `rgb()` / named / `var()` chains), custom
+properties at `:root`, `!important` routing, length parsing, lenient
+vs strict mode, `<style>` block extraction, and the
+`parse_inline` ↔ `from_css` consistency tests.

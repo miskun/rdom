@@ -359,6 +359,11 @@ impl<'a> StyleDeclarationMut<'a> {
         };
         // Surface the parse channel verbatim from property_dispatch.
         property_dispatch::set(name, value, &mut ext.inline_style)?;
+        // Custom properties carry importance per declaration.
+        if let Some(custom) = name.strip_prefix("--") {
+            ext.inline_style
+                .set_custom_property(custom, value, important);
+        }
         // Flip the !important bit for this property's mask.
         if let Some(mask) = property_dispatch::property_mask(name) {
             if important {
@@ -447,6 +452,19 @@ fn css_text_of(style: &TuiStyle) -> String {
             }
             out.push(';');
         }
+    }
+    for d in &style.custom_properties {
+        if !out.is_empty() {
+            out.push(' ');
+        }
+        out.push_str("--");
+        out.push_str(&d.name);
+        out.push_str(": ");
+        out.push_str(&d.value);
+        if d.important {
+            out.push_str(" !important");
+        }
+        out.push(';');
     }
     out
 }

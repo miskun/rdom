@@ -81,6 +81,8 @@ bitflags_like! {
         POINTER_EVENTS = 1 << 39;
         SCROLLBAR_GUTTER = 1 << 40;
         FLOW = 1 << 41;
+        COUNTER_RESET = 1 << 42;
+        COUNTER_INCREMENT = 1 << 43;
     }
 }
 
@@ -199,8 +201,30 @@ pub struct TuiStyle {
     /// `transition-delay` longhand, in milliseconds.
     pub transition_delay: Option<Value<Vec<u32>>>,
 
+    // ── Counters (CSS Lists 3 §3.1) ──────────────────────────────────
+    pub counter_reset: Option<Value<Vec<crate::counters::CounterOp>>>,
+    pub counter_increment: Option<Value<Vec<crate::counters::CounterOp>>>,
+
+    // ── Custom properties (CSS Variables 1) ──────────────────────────
+    /// `--name: value` declarations, in source order, names without
+    /// the `--`. The cascade folds them into the element's inherited
+    /// variable map before any `var()` consumer resolves
+    /// (`CSS-VARS-SCOPE-1`). Importance is per declaration here, not
+    /// in `important`, because the set of names is open.
+    pub custom_properties: Vec<CustomDeclaration>,
+
     // ── `!important` bits ─────────────────────────────────────────────
     pub important: ImportantMask,
+}
+
+/// One custom-property declaration (`--name: value [!important]`).
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct CustomDeclaration {
+    /// Name without the leading `--`.
+    pub name: String,
+    /// Verbatim value text (custom properties are untyped).
+    pub value: String,
+    pub important: bool,
 }
 
 macro_rules! setter {
@@ -460,6 +484,20 @@ impl TuiStyle {
         self
     }
     setter!(flow, flow, flow_important, FLOW, crate::layout::Flow);
+    setter!(
+        counter_reset,
+        counter_reset,
+        counter_reset_important,
+        COUNTER_RESET,
+        Vec<crate::counters::CounterOp>
+    );
+    setter!(
+        counter_increment,
+        counter_increment,
+        counter_increment_important,
+        COUNTER_INCREMENT,
+        Vec<crate::counters::CounterOp>
+    );
 
     /// `display: flex` — outer [`Display::Block`] + inner
     /// [`Flow::Flex`](crate::layout::Flow::Flex). Mirrors the CSS
@@ -618,6 +656,46 @@ impl TuiStyle {
         *self == Self::default()
     }
 
+    /// Declare the custom property `--name` (with or without the
+    /// dashes) as `value`. Chainable.
+    pub fn custom_property(mut self, name: &str, value: &str) -> Self {
+        self.set_custom_property(name, value, false);
+        self
+    }
+
+    /// Declare or replace `--name`; a later declaration of the same
+    /// name wins, as in a CSS block.
+    pub fn set_custom_property(&mut self, name: &str, value: &str, important: bool) {
+        let name = name.strip_prefix("--").unwrap_or(name);
+        if let Some(d) = self.custom_properties.iter_mut().find(|d| d.name == name) {
+            d.value = value.to_string();
+            d.important = important;
+        } else {
+            self.custom_properties.push(CustomDeclaration {
+                name: name.to_string(),
+                value: value.to_string(),
+                important,
+            });
+        }
+    }
+
+    /// The declared value of `--name`, if any.
+    pub fn custom_property_value(&self, name: &str) -> Option<&str> {
+        let name = name.strip_prefix("--").unwrap_or(name);
+        self.custom_properties
+            .iter()
+            .find(|d| d.name == name)
+            .map(|d| d.value.as_str())
+    }
+
+    /// Drop `--name`; `true` if it was declared.
+    pub fn remove_custom_property(&mut self, name: &str) -> bool {
+        let name = name.strip_prefix("--").unwrap_or(name);
+        let before = self.custom_properties.len();
+        self.custom_properties.retain(|d| d.name != name);
+        self.custom_properties.len() != before
+    }
+
     /// Count how many fields are `Some(..)`. Used by the cascade +
     /// devtools to show how "heavy" a rule is.
     pub fn declared_count(&self) -> usize {
@@ -703,6 +781,7 @@ impl TuiStyle {
         if self.content.is_some() {
             n += 1
         }
+        n += self.custom_properties.len();
         n
     }
 }
@@ -755,6 +834,8 @@ mod tests {
             M::FLEX_SHRINK,
             M::POINTER_EVENTS,
             M::FLOW,
+            M::COUNTER_RESET,
+            M::COUNTER_INCREMENT,
             M::SCROLLBAR_GUTTER,
         ];
         for (i, a) in all.iter().enumerate() {
@@ -1011,6 +1092,8 @@ mod tests {
             .overflow_important(Overflow::Hidden)
             .display_important(Display::Inline)
             .flow_important(crate::layout::Flow::Block)
+            .counter_reset_important(vec![])
+            .counter_increment_important(vec![])
             .pointer_events_important(crate::layout::PointerEvents::None)
             .scrollbar_gutter_important(crate::layout::ScrollbarGutter::Stable)
             .white_space_important(WhiteSpace::Pre)

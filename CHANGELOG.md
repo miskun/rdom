@@ -45,6 +45,14 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 
 - **`cubic-bezier(x1, y1, x2, y2)` and `steps(n, <position>)`** (plus `step-start` / `step-end`) parse in `transition-timing-function` and the `transition` shorthand, evaluate per CSS Easing 1 (`TimingFunction::{CubicBezier, Steps}`, `StepPosition`), and serialize back. `TimingFunction` is no longer `Eq` / `Hash`. (`D-M3-2`)
 
+### Breaking — `rdom-css`
+
+- `WarningKind::UnsupportedCustomPropertyScope` is gone: `--name: value` is accepted under any selector and in `style="…"`, and rides on the rule as `TuiStyle::custom_properties`. `:root` declarations still also populate `Stylesheet::vars()`. (`CSS-VARS-SCOPE-1`)
+
+### Added — `rdom-style`
+
+- `TuiStyle::custom_properties` (`Vec<CustomDeclaration { name, value, important }>`), `custom_property()` / `set_custom_property()` / `custom_property_value()` / `remove_custom_property()`; `property_dispatch::{set, remove, serialize}` accept `--*` names. (`CSS-VARS-SCOPE-1`)
+
 ### Breaking — `rdom-style`
 
 - `TuiStyle::transition_property` / `transition_duration` / `transition_timing_function` / `transition_delay` are `Option<Value<Vec<…>>>` (they were `Option<Vec<…>>`), so `transition: inherit` / `initial` / `unset` parse like every other property; the cascade resolves `inherit` from the parent's lists and `initial` to the empty list. Code that matched `Some(list)` reads `Some(Value::Specified(list))`; the fluent setters are unchanged. (`STYLE-TRANSITION-VALUE-1`)
@@ -59,6 +67,10 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 
 - `removeProperty("display")` now also clears the `display`-derived `flow` that `set` writes, and `property_mask("display")` includes `FLOW`; a removed `display` used to leave a stale flow declaration behind.
 - `ImportantMask::FLOW` and `ImportantMask::POINTER_EVENTS` shared bit 39, so `pointer-events: … !important` also marked the `display`-derived flow important (and vice versa). Every flag now owns a bit, and a test pins it. (`STYLE-MASK-COLLISION-1`)
+
+### Fixed — `rdom-tui`
+
+- **Custom properties are scoped per element and inherit** (CSS Variables 1 §2). The cascade folds each element's `--*` declarations (rules and inline, in ladder order with `!important`) into a copy-on-write map inherited from the parent; `var()` in color positions and `content` resolves against it. The previous walk overwrote every element's map with the sheet-level `:root` map, so custom properties never inherited. CSSOM `setProperty("--x", …)` and `cssText` round-trip custom properties. (`CSS-VARS-SCOPE-1`)
 
 ### Changed — `rdom-tui`
 

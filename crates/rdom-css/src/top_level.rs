@@ -221,44 +221,19 @@ fn parse_one_rule(
         Some(b) => b,
         None => return false,
     };
-    // Parse declarations into a TuiStyle and a list of custom
-    // properties. The selector decides what happens to the custom
-    // properties: `:root` registers them in the stylesheet's VarMap;
-    // any other selector drops them with a warning (no per-element
-    // custom-property scope yet — see DIVERGENCES.md).
+    // Parse declarations into a TuiStyle. Custom properties stay on
+    // the rule and the cascade scopes them per element; a `:root`
+    // rule's custom properties are additionally published through
+    // `Stylesheet::vars()` so consumers that read the sheet-level
+    // map (and the cascade's root seed) keep seeing them.
     let mut style = TuiStyle::new();
-    let mut custom_props: Vec<declarations::CustomProperty> = Vec::new();
-    declarations::parse_block(
-        &body,
-        &mut style,
-        &mut custom_props,
-        body_line,
-        body_col,
-        warnings,
-    );
+    declarations::parse_block(&body, &mut style, body_line, body_col, warnings);
 
     let trimmed = selector.trim();
     if trimmed == ":root" {
-        // Register every captured custom property globally.
-        // Stylesheet::define_var is fluent (consumes self), so we
-        // mem-swap to mutate in place. Infallible — no recovery
-        // needed.
-        for cp in &custom_props {
+        for d in &style.custom_properties {
             let owned = std::mem::take(sheet);
-            *sheet = owned.define_var(&cp.name, &cp.value);
-        }
-    } else {
-        // No per-element custom-property scope yet: the declaration
-        // is dropped, and it must not be dropped silently.
-        for cp in &custom_props {
-            warnings.push(Warning {
-                kind: WarningKind::UnsupportedCustomPropertyScope {
-                    selector: trimmed.to_string(),
-                    name: cp.name.clone(),
-                },
-                line: selector_line,
-                column: selector_col,
-            });
+            *sheet = owned.define_var(&d.name, &d.value);
         }
     }
 

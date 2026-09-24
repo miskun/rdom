@@ -29,6 +29,9 @@ pub(super) fn apply_cascade_ladder(
     inline: Option<&TuiStyle>,
     parent: &ComputedStyle,
 ) {
+    // 0. Custom properties (CSS Variables 1 §2) — same ladder, folded
+    //    into the element's own map before any `var()` consumer runs.
+    apply_custom_properties(working, sorted_by_spec, inline);
     // 1. UA normal.
     for rule in sorted_by_spec {
         if rule.origin == RuleOrigin::UserAgent {
@@ -71,6 +74,46 @@ pub(super) fn apply_cascade_ladder(
     // always-reserve), so enforcing the rule would surprise
     // authors writing `overflow-y: scroll` and getting an
     // unexpected horizontal gutter. Each axis is independent.
+}
+
+/// Fold every matched `--*` declaration into `working.vars`, in ladder
+/// order (UA → author → inline, normal then important), so a later or
+/// more important declaration of the same name wins. Copy-on-write:
+/// elements that declare nothing keep sharing their parent's map.
+fn apply_custom_properties(
+    working: &mut ComputedStyle,
+    sorted_by_spec: &[&Rule],
+    inline: Option<&TuiStyle>,
+) {
+    let declares = sorted_by_spec
+        .iter()
+        .any(|r| !r.style.custom_properties.is_empty())
+        || inline.is_some_and(|s| !s.custom_properties.is_empty());
+    if !declares {
+        return;
+    }
+    let map = std::rc::Rc::make_mut(&mut working.vars);
+    let mut put = |style: &TuiStyle, important_pass: bool| {
+        for d in &style.custom_properties {
+            if d.important == important_pass {
+                map.insert(d.name.clone(), d.value.clone());
+            }
+        }
+    };
+    for origin in [RuleOrigin::UserAgent, RuleOrigin::Author] {
+        for rule in sorted_by_spec.iter().filter(|r| r.origin == origin) {
+            put(&rule.style, false);
+        }
+    }
+    if let Some(s) = inline {
+        put(s, false);
+        put(s, true);
+    }
+    for origin in [RuleOrigin::Author, RuleOrigin::UserAgent] {
+        for rule in sorted_by_spec.iter().filter(|r| r.origin == origin) {
+            put(&rule.style, true);
+        }
+    }
 }
 
 /// Compute `establishes_new_bfc` from the working style + parent
@@ -416,6 +459,22 @@ fn apply_style(
     // Transitions (M3). Non-inheriting; latest wins. `inherit` copies
     // the parent's list, `initial` is the empty list.
     apply_transition_lists(working, style, important_pass, parent);
+    // Counters (CSS Lists 3 §3.1). Non-inheriting; `inherit` copies the
+    // parent's declaration lists.
+    apply_counter_ops(
+        &mut working.counter_reset,
+        &style.counter_reset,
+        style.important.contains(ImportantMask::COUNTER_RESET),
+        important_pass,
+        &parent.counter_reset,
+    );
+    apply_counter_ops(
+        &mut working.counter_increment,
+        &style.counter_increment,
+        style.important.contains(ImportantMask::COUNTER_INCREMENT),
+        important_pass,
+        &parent.counter_increment,
+    );
 }
 
 fn apply_transition_lists(
@@ -555,6 +614,23 @@ fn apply_gap(
         important_pass,
         inherit,
         crate::layout::GapValue::Cells(0)
+    );
+}
+
+fn apply_counter_ops(
+    target: &mut Vec<crate::style::CounterOp>,
+    value: &Option<Value<Vec<crate::style::CounterOp>>>,
+    important_prop: bool,
+    important_pass: bool,
+    inherit: &[crate::style::CounterOp],
+) {
+    apply_simple!(
+        *target,
+        value,
+        important_prop,
+        important_pass,
+        inherit.to_vec(),
+        Vec::new()
     );
 }
 

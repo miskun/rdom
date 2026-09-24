@@ -57,7 +57,7 @@ parallel grammar.
 
 | Surface | Entry point | Notes |
 |---|---|---|
-| Standalone stylesheet string | `from_css(s)` / `parse(s)` / `parse_strict(s)` | Full rule list, custom-property declarations under `:root { --name: value }`, `<color>` `var()` references. |
+| Standalone stylesheet string | `from_css(s)` / `parse(s)` / `parse_strict(s)` | Full rule list, custom-property declarations under any selector, `<color>` `var()` references. |
 | `<style>…</style>` in a template | `rdom_tui::cssom::apply::extend_from_style_tags(&mut sheet, &dom)` | Walks the parsed `Dom`, finds every `<style>` element, feeds its text content through `parse`, appends to the sheet. |
 | Inline `style="…"` attribute | `parse_inline(s)` / `parse_inline_strict(s)` | Declaration list (no selectors, no braces). Returns a `TuiStyle` and any warnings. Drives `style="…"` attribute writes via `rdom-tui`'s `StyleDeclaration` and the `InlineStyleObserver`. |
 
@@ -89,10 +89,10 @@ value       := token+
   `auto`), `var(--name)` and `var(--name, fallback)` in color positions,
   modifiers (`bold`, `italic`, `underline`), shorthands (4-/3-/2-/1-value
   `padding`), comma-separated `transition` lists.
-- **Custom properties** — `--name: value;` declarations under `:root`
-  populate the `Stylesheet::vars` map; under any other selector (or in a
-  `style` attribute) they are dropped with
-  `WarningKind::UnsupportedCustomPropertyScope`. `var()` is consumed in
+- **Custom properties** — `--name: value;` under any selector (and in a
+  `style` attribute) rides on the rule as `TuiStyle::custom_properties`;
+  the cascade scopes it per element and inherits it. `:root` declarations
+  additionally populate the `Stylesheet::vars` map. `var()` is consumed in
   `<color>` values and `content`; `padding: var(--gap)` is not shipped.
 - **`!important`** — recognized on any declaration; routed to the
   property's `ImportantMask` bit. Cascade ladder lives in `rdom-tui`.

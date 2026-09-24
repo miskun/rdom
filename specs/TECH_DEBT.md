@@ -44,7 +44,6 @@ For the durable architectural divergences (web-platform departures shipped on pu
 - **`POINTER-EVENTS-IFC-1` — `pointer-events: none` on an IFC block hides its `auto` inline descendants from hit-testing** (`hit_test::descend` recurses into element children, which have no box rects inside an inline formatting context) and skips the block's scrollport clip check. Resolve through `hit_fragment` → owner → nearest ancestor's `pointer_events`; keep the clip test for transparent elements. Only the positioned-children case is tested.
 - **`FLEX-RS-SPLIT-1`** (`layout_pass/flex.rs` ~950 lines: main-axis resolution, freeze loops, placement, cross sizing), **`SCROLLBAR-SPLIT-1`** (`runtime/scrollbar/mod.rs` ~750: hit / geometry / drag / autoscroll / reveal), **`HIT-TEST-SPLIT-1`** (`runtime/hit_test/mod.rs` ~750: descend / nearest / fragment), **`SELECT-SPLIT-1`** (`builtins/select/mod.rs` ~750: click / keyboard / type-ahead / dropdown) — over the few-hundred-line bar; split by concern, no behavior change. Also untouched but over the bar: `cssom/declaration.rs`, `render/buffer.rs`, `render/virtual_screen.rs` (test-only VT emulator that should be `cfg(test)` / a `test-util` feature rather than a public re-export).
 
-- **`CSS-VARS-SCOPE-1` — custom properties are stylesheet-global and `:root`-only.** Per-element scope needs: `TuiStyle` to carry `--*` declarations (rdom-style), rdom-css to attach them to the rule instead of warning, and the cascade to inherit a per-element `VarMap` (`ComputedStyle.vars` already exists as an `Rc` map) with `var()` resolved against it. Three crates; a minor-line feature. `DIVERGENCES.md` documents the current behavior and every dropped declaration warns.
 - **`APP-MOD-SPLIT-1` — `runtime/app/mod.rs` (~1350 lines, 19 fields) mixes the loop, the stylesheet stack, the autoscroll session, and the clipboard / undo / editable key defaults.** Split into `app/{keyboard_defaults,autoscroll,stylesheets}.rs`; no behavior change.
 - **`INLINE-PAINT-SPLIT-1` — `paint_pass/inline_paint.rs` (~950 lines) mixes text paint, the selection overlay, the caret, and `<select>` / password / gauge chrome substitution.** Paint knowing builtin internals is the coupling the module doc forbids; move chrome substitution behind a runtime-registered hook and the caret / selection overlay into their own files.
 - **`PACKER-STRING-ALLOC-1` — the line packer allocates one `String` per grapheme** (`render/inline/packer.rs` `PendingGrapheme { text }` + `g.to_string()`), and text is packed at least twice per frame (intrinsic measure + layout). Store byte ranges into the source text and cache the packed layout per `(node, width)` within a frame.
@@ -61,6 +60,9 @@ For the durable architectural divergences (web-platform departures shipped on pu
   Proper fix is subtree group rendering: each element with `opacity < 1.0` renders its entire subtree into a temporary `Buffer` at full opacity, then composites that buffer at the element's opacity. Eliminates both pockets. Defer until a real consumer hits a case the approximation produces wrong output for.
 
 - **`TREE-BFC-PSEUDO-1` — the `::before` / `::after` prefix on a true mixed-content block is dropped.** The duplicate-text class of this bug is fixed (own text no longer double-paints on pseudo- or mixed-content blocks); what remains is that a block with both a pseudo `content` and mixed inline + block children paints the pseudo nowhere. Emit the pseudo into the first / last anonymous box's line.
+
+
+### UA stylesheet
 
 
 ### UA stylesheet

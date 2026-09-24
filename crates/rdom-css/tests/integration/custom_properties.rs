@@ -6,7 +6,7 @@
 //! `var(--name)` and the cascade resolves through the same chain.
 //!
 //! Only `:root` registers vars; under any other selector the
-//! declaration is dropped with `UnsupportedCustomPropertyScope`.
+//! declaration rides on its rule and the cascade scopes it per element.
 //! Per-element (cascade-scoped) custom properties are a documented
 //! divergence, see `DIVERGENCES.md`.
 
@@ -96,56 +96,56 @@ fn var_resolves_var_with_fallback_color() {
     }
 }
 
-/// Custom properties declared under any selector other than `:root`
-/// are not applied (rdom has no per-element custom-property scope yet,
-/// see `DIVERGENCES.md`). They must not vanish silently.
+/// `CSS-VARS-SCOPE-1`: a custom property under any selector stays on
+/// the rule (the cascade scopes it per element); nothing warns, and
+/// only `:root` publishes through the sheet-level map.
 #[test]
-fn custom_property_outside_root_warns_and_keeps_the_rule() {
+fn custom_property_under_any_selector_stays_on_the_rule() {
     let r = parse(".dark { --accent: red; color: blue }");
-    assert_eq!(r.stylesheet.rules().len(), 1, "the rule itself is kept");
-    assert_eq!(r.stylesheet.var("accent"), None, "not registered globally");
+    assert!(r.warnings.is_empty(), "{:?}", r.warnings);
+    let rule = &r.stylesheet.rules()[0];
+    assert_eq!(
+        rule.style.custom_properties,
+        vec![rdom_tui::style::CustomDeclaration {
+            name: "accent".into(),
+            value: "red".into(),
+            important: false,
+        }]
+    );
     assert!(
-        r.warnings.iter().any(|w| matches!(
-            &w.kind,
-            rdom_css::WarningKind::UnsupportedCustomPropertyScope { selector, name }
-                if selector == ".dark" && name == "accent"
-        )),
-        "{:?}",
-        r.warnings
+        rule.style.fg.is_some(),
+        "the rest of the block still applies"
+    );
+    assert_eq!(
+        r.stylesheet.var("accent"),
+        None,
+        "sheet-level map is :root only"
     );
 }
 
-/// `:root` inside a selector list still counts as the root scope only
-/// for the `:root` part — the whole list is one rule, so it warns.
+/// `:root` inside a selector list is one rule for every selector; the
+/// declaration rides on the rule and the sheet-level map is untouched.
 #[test]
-fn root_in_a_selector_list_warns() {
+fn root_in_a_selector_list_keeps_the_declaration_on_the_rule() {
     let r = parse(":root, body { --accent: red }");
+    assert!(r.warnings.is_empty(), "{:?}", r.warnings);
     assert!(
-        r.warnings.iter().any(|w| matches!(
-            &w.kind,
-            rdom_css::WarningKind::UnsupportedCustomPropertyScope { .. }
-        )),
-        "{:?}",
-        r.warnings
+        r.stylesheet
+            .rules()
+            .iter()
+            .all(|rule| rule.style.custom_property_value("accent") == Some("red"))
     );
 }
 
-/// The `style="…"` attribute has no `:root`; a custom property there is
-/// dropped like any other non-root declaration, and it warns the same way.
+/// A `style="--x: …"` attribute declares the property on that element.
 #[test]
-fn inline_custom_property_warns() {
-    let r = rdom_css::parse_inline("--accent: red; color: blue");
-    assert!(
-        r.style.fg.is_some(),
-        "the rest of the declaration list applies"
-    );
-    assert!(
-        r.warnings.iter().any(|w| matches!(
-            &w.kind,
-            rdom_css::WarningKind::UnsupportedCustomPropertyScope { selector, name }
-                if selector == "style attribute" && name == "accent"
-        )),
-        "{:?}",
-        r.warnings
+fn inline_custom_property_is_kept() {
+    let r = rdom_css::parse_inline("--accent: red !important; color: blue");
+    assert!(r.warnings.is_empty(), "{:?}", r.warnings);
+    assert!(r.style.fg.is_some());
+    let d = &r.style.custom_properties[0];
+    assert_eq!(
+        (d.name.as_str(), d.value.as_str(), d.important),
+        ("accent", "red", true)
     );
 }

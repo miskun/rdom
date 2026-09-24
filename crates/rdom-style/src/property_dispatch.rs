@@ -52,8 +52,8 @@ use crate::layout::{
 use crate::parse::token::{Token, tokenize};
 use crate::parse::values::{
     current_border, current_margin, current_padding, parse_aspect_ratio, parse_border,
-    parse_border_side, parse_color, parse_content, parse_flex_shorthand, parse_gap,
-    parse_inset_shorthand, parse_keyword, parse_length, parse_margin_longhand,
+    parse_border_side, parse_color, parse_content, parse_counter_ops, parse_flex_shorthand,
+    parse_gap, parse_inset_shorthand, parse_keyword, parse_length, parse_margin_longhand,
     parse_margin_shorthand, parse_min_size, parse_opacity, parse_overflow, parse_padding_shorthand,
     parse_padding_value, parse_position, parse_scrollbar_gutter, parse_size, parse_text_decoration,
     parse_time_list, parse_timing_function_list, parse_transition_property_list,
@@ -152,6 +152,9 @@ const PROPERTY_NAMES: &[&str] = &[
     "transition-timing-function",
     "transition-delay",
     "transition",
+    // Counters (CSS Lists 3)
+    "counter-reset",
+    "counter-increment",
 ];
 
 /// The full list of property names supported by the dispatch
@@ -252,6 +255,8 @@ define_fields! {
     TransitionDuration => transition_duration : TRANSITIONS,
     TransitionTimingFunction => transition_timing_function : TRANSITIONS,
     TransitionDelay => transition_delay : TRANSITIONS,
+    CounterReset => counter_reset : COUNTER_RESET,
+    CounterIncrement => counter_increment : COUNTER_INCREMENT,
 }
 
 /// The fields a property name owns — the one property → field table.
@@ -324,6 +329,8 @@ fn fields_of(name: &str) -> Option<&'static [Field]> {
             TransitionTimingFunction,
             TransitionDelay,
         ],
+        "counter-reset" => &[CounterReset],
+        "counter-increment" => &[CounterIncrement],
         _ => return None,
     })
 }
@@ -352,6 +359,9 @@ pub fn property_mask(name: &str) -> Option<crate::ImportantMask> {
 /// so removing any of them clears the whole thing — the same way CSSOM
 /// `removeProperty("padding-top")` clears the entry.
 pub fn remove(name: &str, style: &mut TuiStyle) -> bool {
+    if let Some(custom) = name.strip_prefix("--") {
+        return style.remove_custom_property(custom);
+    }
     let Some(fields) = fields_of(name) else {
         return false;
     };
@@ -455,6 +465,16 @@ pub fn set_from_tokens(
     value: &[Token],
     style: &mut TuiStyle,
 ) -> Result<(), DispatchError> {
+    if let Some(custom) = name.strip_prefix("--") {
+        // CSS Variables 1 §2: any `--*` name is valid and untyped;
+        // the value is kept verbatim (no css-wide keyword handling
+        // either — `--x: inherit` is the token `inherit`).
+        if custom.is_empty() {
+            return Err(DispatchError::UnknownProperty);
+        }
+        style.set_custom_property(custom, &crate::parse::values::render_value(value), false);
+        return Ok(());
+    }
     if let Some(kw) = css_wide_keyword(value) {
         return set_css_wide(name, kw, style);
     }
@@ -846,6 +866,13 @@ pub fn set_from_tokens(
             style.transition_delay = Some(Value::Specified(delays));
         }),
 
+        "counter-reset" => parse_counter_ops(value, 0).map(|ops| {
+            style.counter_reset = Some(Value::Specified(ops));
+        }),
+        "counter-increment" => parse_counter_ops(value, 1).map(|ops| {
+            style.counter_increment = Some(Value::Specified(ops));
+        }),
+
         _ => return Err(DispatchError::UnknownProperty),
     };
 
@@ -859,6 +886,9 @@ pub fn set_from_tokens(
 /// Unknown property names also return `None` (rather than
 /// errorring); CSSOM `getPropertyValue("bogus")` returns `""` too.
 pub fn serialize(name: &str, style: &TuiStyle) -> Option<String> {
+    if let Some(custom) = name.strip_prefix("--") {
+        return style.custom_property_value(custom).map(str::to_string);
+    }
     if let Some(kw) = css_wide_of(name, style) {
         return Some(kw.to_string());
     }
@@ -1212,12 +1242,8 @@ pub fn serialize(name: &str, style: &TuiStyle) -> Option<String> {
             .as_ref()
             .and_then(specified)
             .and_then(|c| match c {
-                Content::Str(s) => Some(format!("\"{s}\"")),
-                Content::Attr(a) => Some(format!("attr({a})")),
-                // `Var` / `Concat` / `None` aren't produced by the
-                // parser today — they're internal cascade outputs.
-                // No CSS round-trip; serializer returns None.
-                Content::Var(_) | Content::Concat(_) | Content::None => None,
+                Content::None => Some("none".to_string()),
+                other => serialize_content(other),
             }),
 
         // Positioning (M2)
@@ -1292,6 +1318,16 @@ pub fn serialize(name: &str, style: &TuiStyle) -> Option<String> {
             .and_then(specified)
             .map(|list| join_csv(list.iter(), |ms| format!("{ms}ms"))),
         "transition" => serialize_transition_shorthand(style),
+        "counter-reset" => style
+            .counter_reset
+            .as_ref()
+            .and_then(specified)
+            .map(|ops| serialize_counter_ops(ops)),
+        "counter-increment" => style
+            .counter_increment
+            .as_ref()
+            .and_then(specified)
+            .map(|ops| serialize_counter_ops(ops)),
 
         _ => None,
     }
@@ -1489,6 +1525,39 @@ fn serialize_transition_property(p: &TransitionProperty) -> String {
     }
 }
 
+/// `counter-reset` / `counter-increment` value: `name value` pairs.
+fn serialize_counter_ops(ops: &[crate::counters::CounterOp]) -> String {
+    if ops.is_empty() {
+        return "none".to_string();
+    }
+    ops.iter()
+        .map(|op| format!("{} {}", op.name, op.value))
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// `content` value serialization; `None` for the cascade-internal
+/// `Var` form, which no CSS source produces.
+fn serialize_content(c: &Content) -> Option<String> {
+    match c {
+        Content::Str(s) => Some(format!("\"{s}\"")),
+        Content::Attr(a) => Some(format!("attr({a})")),
+        Content::Counter { name, style } => Some(match style {
+            crate::counters::CounterStyle::Decimal => format!("counter({name})"),
+            other => format!("counter({name}, {})", other.as_str()),
+        }),
+        Content::Concat(parts) => {
+            let mut out = Vec::with_capacity(parts.len());
+            for p in parts {
+                out.push(serialize_content(p)?);
+            }
+            Some(out.join(" "))
+        }
+        Content::None => Some("none".to_string()),
+        Content::Var(_) => None,
+    }
+}
+
 fn serialize_timing_function(f: &TimingFunction) -> String {
     use crate::transition::StepPosition;
     match f {
@@ -1632,6 +1701,8 @@ mod tests {
             ("transition-timing-function", "ease-in-out"),
             ("transition-delay", "50ms"),
             ("transition", "width 300ms ease 0ms"),
+            ("counter-reset", "chapter 0"),
+            ("counter-increment", "chapter 1"),
         ]
     }
 

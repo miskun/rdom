@@ -37,8 +37,8 @@ pub use dirty_tracker::DirtyTracker;
 
 pub use rdom_style::transition;
 pub use rdom_style::{
-    AnimatableProperty, Color, ComputedStyle, Content, ImportantMask, Modifier,
-    PseudoElementTarget, Rule, RuleOrigin, Specificity, StyleError, Stylesheet, TimingFunction,
-    TransitionProperty, TransitionRule, TuiColor, TuiStyle, Value, VarMap, parse_color,
-    resolve_tui_color,
+    AnimatableProperty, Color, ComputedStyle, Content, CounterOp, CounterStyle, CustomDeclaration,
+    ImportantMask, Modifier, PseudoElementTarget, Rule, RuleOrigin, Specificity, StyleError,
+    Stylesheet, TimingFunction, TransitionProperty, TransitionRule, TuiColor, TuiStyle, Value,
+    VarMap, parse_color, resolve_tui_color,
 };

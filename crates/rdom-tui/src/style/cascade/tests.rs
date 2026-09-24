@@ -1995,7 +1995,7 @@ fn focused_scroll_container_thumb_is_accent() {
     let thumb_fg = dom
         .node(d)
         .tui_ext()
-        .and_then(|e| e.computed_scrollbar_thumb.as_ref())
+        .and_then(|e| e.computed_scrollbar_thumb_vertical.as_ref())
         .map(|c| c.fg);
     assert_eq!(
         thumb_fg,
@@ -2341,6 +2341,153 @@ fn transition_inherit_and_initial_resolve_against_the_parent() {
         u.transition_property.is_empty(),
         "transitions do not inherit by default"
     );
+}
+
+/// `CSS-VARS-SCOPE-1`: custom properties are per element and inherit
+/// (CSS Variables 1 §2): a `.card` declaration reaches its descendants,
+/// not its siblings; a nested declaration overrides; inline wins over a
+/// rule; `!important` wins over a later normal declaration.
+#[test]
+fn custom_properties_scope_per_element_and_inherit() {
+    use rdom_style::TuiColor;
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let card = dom.create_element("div");
+    let inner = dom.create_element("p");
+    let nested = dom.create_element("section");
+    let nested_p = dom.create_element("p");
+    let inline_p = dom.create_element("p");
+    let outside = dom.create_element("p");
+    dom.set_attribute(card, "class", "card").unwrap();
+    dom.set_attribute(nested, "class", "nested").unwrap();
+    dom.set_attribute(inline_p, "class", "inline").unwrap();
+    dom.append_child(root, card).unwrap();
+    dom.append_child(card, inner).unwrap();
+    dom.append_child(card, nested).unwrap();
+    dom.append_child(nested, nested_p).unwrap();
+    dom.append_child(card, inline_p).unwrap();
+    dom.append_child(root, outside).unwrap();
+    dom.node_mut(inline_p)
+        .set_inline_style(TuiStyle::new().custom_property("accent", "rgb(0, 0, 255)"));
+
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            ".card",
+            TuiStyle::new().custom_property("accent", "rgb(255, 0, 0)"),
+        )
+        .rule_unchecked(
+            ".nested",
+            TuiStyle::new().custom_property("accent", "rgb(0, 255, 0)"),
+        )
+        .rule_unchecked(
+            "p",
+            TuiStyle::new().fg(TuiColor::var_with("accent", Color::Rgb(9, 9, 9).into())),
+        );
+    dom.cascade(&sheet);
+
+    assert_eq!(
+        computed_of(&dom, inner).fg,
+        Color::Rgb(255, 0, 0),
+        "inherited from .card"
+    );
+    assert_eq!(
+        computed_of(&dom, nested_p).fg,
+        Color::Rgb(0, 255, 0),
+        "nested override"
+    );
+    assert_eq!(
+        computed_of(&dom, inline_p).fg,
+        Color::Rgb(0, 0, 255),
+        "inline declaration"
+    );
+    assert_eq!(
+        computed_of(&dom, outside).fg,
+        Color::Rgb(9, 9, 9),
+        "not in scope → fallback"
+    );
+
+    // Importance: an earlier `!important` beats a later normal one.
+    let mut important = TuiStyle::new();
+    important.set_custom_property("accent", "rgb(1, 2, 3)", true);
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(".card", important)
+        .rule_unchecked(
+            ".card",
+            TuiStyle::new().custom_property("accent", "rgb(7, 7, 7)"),
+        )
+        .rule_unchecked(
+            "p",
+            TuiStyle::new().fg(TuiColor::var_with("accent", Color::Rgb(9, 9, 9).into())),
+        );
+    dom.cascade(&sheet);
+    assert_eq!(computed_of(&dom, inner).fg, Color::Rgb(1, 2, 3));
+}
+
+/// Counters through the cascade: author `counter-reset` /
+/// `counter-increment` with `counter(name, style)` in `::before`, an
+/// `::after` that sees the children's increments, and a subtree
+/// re-cascade that replays the state before its root.
+#[test]
+fn counters_reset_increment_and_read_in_tree_order() {
+    use rdom_style::{CounterOp, CounterStyle};
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let doc = dom.create_element("doc");
+    let a = dom.create_element("s");
+    let b = dom.create_element("s");
+    let c = dom.create_element("s");
+    dom.append_child(root, doc).unwrap();
+    for s in [a, b, c] {
+        dom.append_child(doc, s).unwrap();
+    }
+    let op = |name: &str, value: i32| CounterOp {
+        name: name.into(),
+        value,
+    };
+    let sheet = Stylesheet::bare()
+        .rule_unchecked("doc", TuiStyle::new().counter_reset(vec![op("sec", 0)]))
+        .rule_unchecked("s", TuiStyle::new().counter_increment(vec![op("sec", 1)]))
+        .rule_unchecked(
+            "s::before",
+            TuiStyle::new().content(Content::Concat(vec![
+                Content::Counter {
+                    name: "sec".into(),
+                    style: CounterStyle::UpperRoman,
+                },
+                Content::Str(". ".into()),
+            ])),
+        )
+        .rule_unchecked(
+            "doc::after",
+            TuiStyle::new().content(Content::Counter {
+                name: "sec".into(),
+                style: CounterStyle::Decimal,
+            }),
+        );
+    dom.cascade(&sheet);
+    fn before(dom: &TuiDom, id: NodeId) -> Option<String> {
+        dom.node(id)
+            .ext()
+            .and_then(|e| e.computed_before.as_ref())
+            .and_then(|p| p.content.clone())
+    }
+    assert_eq!(before(&dom, a).as_deref(), Some("I. "));
+    assert_eq!(before(&dom, b).as_deref(), Some("II. "));
+    assert_eq!(before(&dom, c).as_deref(), Some("III. "));
+    let after_doc = dom
+        .node(doc)
+        .ext()
+        .and_then(|e| e.computed_after.as_ref())
+        .and_then(|p| p.content.clone());
+    assert_eq!(
+        after_doc.as_deref(),
+        Some("3"),
+        "::after sees the children's increments"
+    );
+
+    // Re-cascade only the last section: the state before it is replayed.
+    dom.cascade_subtrees(&sheet, &[c]);
+    assert_eq!(before(&dom, c).as_deref(), Some("III. "));
 }
 
 // ── HARDENING-2026-09: layout-dirty flag covers positioning ─────────

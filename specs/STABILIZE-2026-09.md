@@ -149,6 +149,9 @@ Each phase ends with the two review gates; each commit carries the item id.
 - 2026-09-24 — `SUB-4` (`Length::Cells(i32)`), `CALC-GAP-1` (`GapValue`, `resolve_gap` in layout with
   the indefinite-axis rule, percent-gap layout test), `UA-CHECKBOX-INLINE-1` + `SUB-3` (inline-block
   toggles; UA section list matches the code).
+- 2026-09-24 — `CSS-VARS-SCOPE-1`: `TuiStyle::custom_properties`, any-selector parsing (warning
+  variant removed), cascade pre-pass folding declarations into a copy-on-write inherited map (this
+  also fixes the inheritance overwrite found during mapping), CSSOM `--x` round-trip.
 - Found while mapping Phase 3 (not on the ledger): `ImportantMask::FLOW` and `POINTER_EVENTS` share
   bit 39 (`tui_style.rs`), custom-property inheritance in the cascade is overwritten by the merged
   root map (`walk.rs`), and tokenizer errors inside a block are body-relative (`declarations.rs`).

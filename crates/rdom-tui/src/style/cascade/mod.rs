@@ -50,6 +50,7 @@
 
 mod apply;
 mod content;
+mod counters;
 mod inherit;
 mod walk;
 
@@ -59,7 +60,7 @@ mod tests;
 use rdom_core::{Dom, NodeId};
 
 use crate::ext::TuiExt;
-use crate::style::{ComputedStyle, Stylesheet};
+use crate::style::{ComputedStyle, Content, Stylesheet};
 
 // ─── Public entry point ─────────────────────────────────────────────
 
@@ -113,11 +114,16 @@ impl CascadeExt for Dom<TuiExt> {
     fn cascade_all(&mut self, stylesheets: &[&Stylesheet]) {
         let merged_vars = walk::merge_root_vars(stylesheets);
         let root = self.root();
-        let parent = ComputedStyle::initial();
+        // The root's parent carries the sheet-level (`define_var` /
+        // `:root`) variables; every element then inherits its parent's
+        // map and layers its own declarations on top.
+        let mut parent = ComputedStyle::initial();
+        parent.vars = merged_vars.clone();
         // Full-tree cascade: `tree_has_positioned_pseudo` flags get
         // written authoritatively, top-to-bottom. No bubble-up needed
         // because the walk visits every ancestor.
-        let _ = walk::cascade_subtree(self, stylesheets, &merged_vars, root, &parent);
+        let mut counters = walk::CounterState::default();
+        let _ = walk::cascade_subtree(self, stylesheets, root, &parent, &mut counters);
     }
 
     fn cascade_subtrees(&mut self, stylesheet: &Stylesheet, roots: &[NodeId]) {
@@ -126,6 +132,17 @@ impl CascadeExt for Dom<TuiExt> {
 
     fn cascade_subtrees_all(&mut self, stylesheets: &[&Stylesheet], roots: &[NodeId]) {
         let merged_vars = walk::merge_root_vars(stylesheets);
+        let uses_counters = stylesheets.iter().any(|s| {
+            s.rules().iter().any(|r| {
+                r.style.counter_reset.is_some()
+                    || r.style.counter_increment.is_some()
+                    || r.style
+                        .content
+                        .as_ref()
+                        .and_then(|c| c.as_specified())
+                        .is_some_and(Content::uses_counters)
+            })
+        });
         for &root in roots {
             // A queued root can have been FREED between when it was marked
             // dirty and now: dropping one child fires `ChildListChanged`, whose
@@ -143,9 +160,21 @@ impl CascadeExt for Dom<TuiExt> {
                 .node(root)
                 .parent_node()
                 .and_then(|p| p.ext().and_then(|e| e.computed.clone()))
-                .unwrap_or_else(|| std::rc::Rc::new(ComputedStyle::initial()));
+                .unwrap_or_else(|| {
+                    let mut initial = ComputedStyle::initial();
+                    initial.vars = merged_vars.clone();
+                    std::rc::Rc::new(initial)
+                });
+            // Counters depend on everything before `root` in tree order;
+            // replay the stored computed styles of ancestors and earlier
+            // siblings (only when some sheet uses counters at all).
+            let mut counters = if uses_counters {
+                walk::counter_state_before(self, root)
+            } else {
+                walk::CounterState::default()
+            };
             let flags =
-                walk::cascade_subtree(self, stylesheets, &merged_vars, root, &parent_computed);
+                walk::cascade_subtree(self, stylesheets, root, &parent_computed, &mut counters);
             // If the partial cascade introduced a positioned pseudo
             // or a `border-collapse: collapse` element anywhere in
             // the subtree, bubble `true` up through ancestors so the

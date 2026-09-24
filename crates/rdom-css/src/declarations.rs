@@ -17,14 +17,12 @@ use crate::{Warning, WarningKind};
 /// start of the body in the original source; every warning below
 /// carries the position of the declaration (or token) it is about.
 ///
-/// Custom-property declarations (`--name: value`) are routed into
-/// `custom_props` instead of `style`. The caller decides what to
-/// do with them — currently only `:root` rules feed them to
-/// `Stylesheet::define_var`.
+/// Custom-property declarations (`--name: value`) land on
+/// `style.custom_properties` like any other declaration; the cascade
+/// scopes them per element (CSS Variables 1).
 pub(crate) fn parse_block(
     body: &str,
     style: &mut TuiStyle,
-    custom_props: &mut Vec<CustomProperty>,
     block_line: u32,
     block_col: u32,
     warnings: &mut Vec<Warning>,
@@ -47,24 +45,13 @@ pub(crate) fn parse_block(
     let mut decls = split_declarations(&tokens, &positions, warnings);
     for decl in decls.drain(..) {
         if let Some(name) = decl.name.strip_prefix("--") {
-            // Custom property — skip the property table, route
-            // out for the caller to register.
-            custom_props.push(CustomProperty {
-                name: name.to_string(),
-                value: render_value(decl.value),
-            });
+            // Custom property: untyped, kept verbatim, importance per
+            // declaration.
+            style.set_custom_property(name, &render_value(decl.value), decl.important);
             continue;
         }
         apply_declaration(decl, style, warnings);
     }
-}
-
-/// A `--name: value` declaration captured during block parsing.
-/// `value` is the verbatim source text (rendered from tokens).
-#[derive(Debug)]
-pub(crate) struct CustomProperty {
-    pub name: String,
-    pub value: String,
 }
 
 #[derive(Debug)]

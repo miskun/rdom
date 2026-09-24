@@ -14,6 +14,7 @@ use crate::style::{ComputedStyle, PseudoElementTarget, Rule, Stylesheet, VarMap}
 
 use super::apply::{apply_cascade_ladder, finalize_bfc_formation, finalize_border_fg};
 use super::content::resolve_content_on;
+pub(super) use super::counters::CounterState;
 use super::inherit::{inherit_inheritable_from, layout_differs};
 
 /// Merge `root_vars` across all registered sheets into a single
@@ -29,6 +30,41 @@ pub(super) fn merge_root_vars(sheets: &[&Stylesheet]) -> VarMap {
         }
     }
     std::rc::Rc::new(merged)
+}
+
+/// The counter state at the moment a full cascade would reach `target`:
+/// replay the stored computed `counter-reset` / `counter-increment` of
+/// every element before it in tree order (ancestors are entered, earlier
+/// siblings and their subtrees are entered and left). Used by subtree
+/// cascades, whose root can sit after arbitrary counter activity.
+pub(super) fn counter_state_before(dom: &Dom<TuiExt>, target: NodeId) -> CounterState {
+    let mut state = CounterState::default();
+    let root = dom.root();
+    if root == target {
+        return state;
+    }
+    replay(dom, root, target, &mut state);
+    state
+}
+
+/// Depth-first replay; returns `true` once `target` is reached (its own
+/// ops are not applied — the cascade will apply them).
+fn replay(dom: &Dom<TuiExt>, id: NodeId, target: NodeId, state: &mut CounterState) -> bool {
+    if id == target {
+        return true;
+    }
+    let parent_id = dom.node(id).parent_node().map(|p| p.id());
+    if let Some(c) = dom.node(id).ext().and_then(|e| e.computed.as_ref()) {
+        state.enter(parent_id, &c.counter_reset, &c.counter_increment);
+    }
+    let children: Vec<NodeId> = dom.node(id).child_nodes().map(|n| n.id()).collect();
+    for child in children {
+        if replay(dom, child, target, state) {
+            return true;
+        }
+    }
+    state.exit(id);
+    false
 }
 
 /// Bottom-up flags aggregated up the tree during cascade. Each
@@ -58,9 +94,9 @@ impl SubtreeFlags {
 pub(super) fn cascade_subtree(
     dom: &mut Dom<TuiExt>,
     sheets: &[&Stylesheet],
-    merged_vars: &VarMap,
     id: NodeId,
     parent_computed: &ComputedStyle,
+    counters: &mut CounterState,
 ) -> SubtreeFlags {
     // Collect child ids up-front; mutations below don't change structure
     // but borrow rules need shared → exclusive swap.
@@ -78,29 +114,53 @@ pub(super) fn cascade_subtree(
             flags.merge(cascade_subtree(
                 dom,
                 sheets,
-                merged_vars,
                 child,
                 parent_computed,
+                counters,
             ));
         }
+        counters.exit(id);
         return flags;
     }
 
-    // Compute under a shared borrow.
+    // Compute under a shared borrow. `::after` is computed after the
+    // children (below): it sits after them in tree order, so a
+    // `counter()` in it sees their increments.
     let (
         computed,
         computed_before,
-        computed_after,
         computed_backdrop,
         computed_selection,
         computed_scrollbar,
-        computed_scrollbar_thumb,
+        computed_scrollbar_thumb_vertical,
+        computed_scrollbar_thumb_horizontal,
     ) = {
-        let computed = compute_element_style(dom, sheets, merged_vars, id, parent_computed);
-        let cb = compute_pseudo_style(dom, sheets, id, &computed, PseudoElementTarget::Before);
-        let ca = compute_pseudo_style(dom, sheets, id, &computed, PseudoElementTarget::After);
-        let cbd = compute_pseudo_style(dom, sheets, id, &computed, PseudoElementTarget::Backdrop);
-        let csel = compute_pseudo_style(dom, sheets, id, &computed, PseudoElementTarget::Selection);
+        let parent_id = dom.node(id).parent_node().map(|p| p.id());
+        let computed = compute_element_style(dom, sheets, id, parent_computed, parent_id, counters);
+        let cb = compute_pseudo_style(
+            dom,
+            sheets,
+            id,
+            &computed,
+            PseudoElementTarget::Before,
+            counters,
+        );
+        let cbd = compute_pseudo_style(
+            dom,
+            sheets,
+            id,
+            &computed,
+            PseudoElementTarget::Backdrop,
+            counters,
+        );
+        let csel = compute_pseudo_style(
+            dom,
+            sheets,
+            id,
+            &computed,
+            PseudoElementTarget::Selection,
+            counters,
+        );
         // Scrollbar pseudos only computed for elements that actually
         // have non-`Visible` overflow on at least one axis — saves a
         // selector-matching pass per element on the (very common)
@@ -112,29 +172,38 @@ pub(super) fn cascade_subtree(
             computed.overflow_y,
             crate::layout::Overflow::Visible | crate::layout::Overflow::Hidden
         );
-        let (csb, csbt) = if needs_scrollbar {
+        let (csb, csbt_v, csbt_h) = if needs_scrollbar {
             (
-                compute_pseudo_style(dom, sheets, id, &computed, PseudoElementTarget::Scrollbar),
                 compute_pseudo_style(
                     dom,
                     sheets,
                     id,
                     &computed,
-                    PseudoElementTarget::ScrollbarThumb,
+                    PseudoElementTarget::Scrollbar,
+                    counters,
+                ),
+                compute_pseudo_style_layered(
+                    dom,
+                    sheets,
+                    id,
+                    &computed,
+                    &PseudoElementTarget::thumb_targets(true),
+                    counters,
+                ),
+                compute_pseudo_style_layered(
+                    dom,
+                    sheets,
+                    id,
+                    &computed,
+                    &PseudoElementTarget::thumb_targets(false),
+                    counters,
                 ),
             )
         } else {
-            (None, None)
+            (None, None, None)
         };
-        (computed, cb, ca, cbd, csel, csb, csbt)
+        (computed, cb, cbd, csel, csb, csbt_v, csbt_h)
     };
-
-    let own_has_positioned_pseudo = computed_before
-        .as_ref()
-        .is_some_and(|c| c.position != Position::Static)
-        || computed_after
-            .as_ref()
-            .is_some_and(|c| c.position != Position::Static);
 
     // Diff for layout invalidation. "No previous computed" counts as a
     // change (first cascade).
@@ -146,12 +215,11 @@ pub(super) fn cascade_subtree(
     // Write back.
     if let Some(ext) = dom.node_mut(id).ext_mut() {
         ext.computed = Some(std::rc::Rc::new(computed.clone()));
-        ext.computed_before = computed_before;
-        ext.computed_after = computed_after;
         ext.computed_backdrop = computed_backdrop;
         ext.computed_selection = computed_selection;
         ext.computed_scrollbar = computed_scrollbar;
-        ext.computed_scrollbar_thumb = computed_scrollbar_thumb;
+        ext.computed_scrollbar_thumb_vertical = computed_scrollbar_thumb_vertical;
+        ext.computed_scrollbar_thumb_horizontal = computed_scrollbar_thumb_horizontal;
         ext.style_dirty = false;
         if layout_changed {
             ext.layout_dirty = true;
@@ -161,15 +229,35 @@ pub(super) fn cascade_subtree(
     // Recurse. Children inherit from our computed style. Aggregate
     // children's flags into our subtree flags.
     let mut flags = SubtreeFlags {
-        has_positioned_pseudo: own_has_positioned_pseudo,
+        has_positioned_pseudo: false,
         has_collapse: computed.border_collapse == crate::layout::BorderCollapse::Collapse,
     };
     for child in child_ids {
-        flags.merge(cascade_subtree(dom, sheets, merged_vars, child, &computed));
+        flags.merge(cascade_subtree(dom, sheets, child, &computed, counters));
     }
+
+    // `::after` comes after the children in tree order.
+    let computed_after = compute_pseudo_style(
+        dom,
+        sheets,
+        id,
+        &computed,
+        PseudoElementTarget::After,
+        counters,
+    );
+    counters.exit(id);
+    let own_has_positioned_pseudo = computed_before
+        .as_ref()
+        .is_some_and(|c| c.position != Position::Static)
+        || computed_after
+            .as_ref()
+            .is_some_and(|c| c.position != Position::Static);
+    flags.has_positioned_pseudo |= own_has_positioned_pseudo;
 
     // Write the bottom-up aggregates.
     if let Some(ext) = dom.node_mut(id).ext_mut() {
+        ext.computed_before = computed_before;
+        ext.computed_after = computed_after;
         ext.tree_has_positioned_pseudo = flags.has_positioned_pseudo;
         ext.tree_has_collapse = flags.has_collapse;
     }
@@ -182,18 +270,16 @@ pub(super) fn cascade_subtree(
 fn compute_element_style(
     dom: &Dom<TuiExt>,
     sheets: &[&Stylesheet],
-    merged_vars: &VarMap,
     id: NodeId,
     parent: &ComputedStyle,
+    parent_id: Option<NodeId>,
+    counters: &mut CounterState,
 ) -> ComputedStyle {
-    // Start from initial + inherit subset from parent.
+    // Start from initial + inherit subset from parent. That includes
+    // the custom-property map (an `Rc` clone; `apply_cascade_ladder`
+    // copies on write only when this element declares `--*`).
     let mut working = ComputedStyle::initial();
     inherit_inheritable_from(&mut working, parent);
-    // Vars are precomputed once per cascade pass — Rc::clone is
-    // cheap (one atomic-or-non-atomic refcount bump, depending on
-    // Rc vs Arc), so every element shares the same `VarMap`
-    // allocation.
-    working.vars = std::rc::Rc::clone(merged_vars);
 
     // Collect matching non-pseudo-element rules across all sheets.
     // Track each rule's sheet index so cascade order is
@@ -216,11 +302,21 @@ fn compute_element_style(
 
     apply_cascade_ladder(&mut working, &sorted, inline, parent);
 
+    // This element's `counter-reset` / `counter-increment` take effect
+    // before its own generated content and its children are seen.
+    counters.enter(
+        parent_id,
+        &working.counter_reset,
+        &working.counter_increment,
+    );
+
     // Host element's own `content` property. Normally `None`; authors
     // don't typically set `content` on a real element (CSS restricts it
     // to pseudo-elements) but we allow it for flexibility.
     let attr_lookup = |name: &str| dom.node(id).get_attribute(name).map(|s| s.to_string());
-    working.content = resolve_content_on(&working, &sorted, inline, &attr_lookup).unwrap_or(None);
+    let counter_lookup = |name: &str| counters.value(name);
+    working.content = resolve_content_on(&working, &sorted, inline, &attr_lookup, &counter_lookup)
+        .unwrap_or(None);
 
     // border_fg falls back to working.fg when no rule declared it
     // (property catalog: initial = "inherits fg"). Implemented as a
@@ -248,7 +344,25 @@ fn compute_pseudo_style(
     id: NodeId,
     host_computed: &ComputedStyle,
     target: PseudoElementTarget,
+    counters: &CounterState,
 ) -> Option<ComputedStyle> {
+    compute_pseudo_style_layered(dom, sheets, id, host_computed, &[target], counters)
+}
+
+/// [`compute_pseudo_style`] over several targets: rules for any of
+/// `targets` match, and at equal specificity a rule for a later target
+/// wins (the axis-specific `::scrollbar-thumb:vertical` layers over the
+/// axis-neutral `::scrollbar-thumb`). Content fallback and the
+/// `Some`-ness rule are those of the first target.
+fn compute_pseudo_style_layered(
+    dom: &Dom<TuiExt>,
+    sheets: &[&Stylesheet],
+    id: NodeId,
+    host_computed: &ComputedStyle,
+    targets: &[PseudoElementTarget],
+    counters: &CounterState,
+) -> Option<ComputedStyle> {
+    let target = targets[0];
     if target == PseudoElementTarget::None {
         return None;
     }
@@ -263,16 +377,18 @@ fn compute_pseudo_style(
 
     // Collect matching rules for this pseudo across all sheets, with
     // sheet_idx as the secondary tiebreaker.
-    let mut matching: Vec<(usize, &Rule)> = Vec::new();
+    let mut matching: Vec<(usize, usize, &Rule)> = Vec::new();
     for (sheet_idx, sheet) in sheets.iter().enumerate() {
         for rule in sheet.rules() {
-            if rule.pseudo == target && dom.matches_list(id, &rule.selector) {
-                matching.push((sheet_idx, rule));
+            if let Some(rank) = targets.iter().position(|t| *t == rule.pseudo)
+                && dom.matches_list(id, &rule.selector)
+            {
+                matching.push((rank, sheet_idx, rule));
             }
         }
     }
-    matching.sort_by_key(|(sheet_idx, r)| (r.specificity, *sheet_idx, r.source_idx));
-    let sorted: Vec<&Rule> = matching.iter().map(|(_, r)| *r).collect();
+    matching.sort_by_key(|(rank, sheet_idx, r)| (r.specificity, *rank, *sheet_idx, r.source_idx));
+    let sorted: Vec<&Rule> = matching.iter().map(|(_, _, r)| *r).collect();
 
     // Pseudo-elements don't have their own inline_style on `TuiExt`.
     apply_cascade_ladder(&mut working, &sorted, None, host_computed);
@@ -288,7 +404,8 @@ fn compute_pseudo_style(
     // Pseudo-elements read attributes from the HOST element — `attr(label)`
     // on `optgroup::before` looks up the `<optgroup>`'s `label` attribute.
     let attr_lookup = |name: &str| dom.node(id).get_attribute(name).map(|s| s.to_string());
-    let declared = resolve_content_on(&working, &sorted, None, &attr_lookup);
+    let counter_lookup = |name: &str| counters.value(name);
+    let declared = resolve_content_on(&working, &sorted, None, &attr_lookup, &counter_lookup);
     let fallback = dom.node(id).ext().and_then(|e| match target {
         PseudoElementTarget::Before => e.before_content.clone(),
         PseudoElementTarget::After => e.after_content.clone(),
@@ -302,6 +419,8 @@ fn compute_pseudo_style(
         | PseudoElementTarget::Selection
         | PseudoElementTarget::Scrollbar
         | PseudoElementTarget::ScrollbarThumb
+        | PseudoElementTarget::ScrollbarThumbVertical
+        | PseudoElementTarget::ScrollbarThumbHorizontal
         | PseudoElementTarget::None => None,
     });
     let final_content = match declared {
