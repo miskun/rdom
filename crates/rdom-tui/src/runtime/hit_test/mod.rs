@@ -196,7 +196,12 @@ impl HitTestExt for Dom<TuiExt> {
 /// `(x, y)`, else clamps to the nearest valid position on the target's
 /// lines (drag past end-of-line / past last-line bottom — see
 /// [`clamp_to_line_layout`]).
-fn resolve_in_target(dom: &Dom<TuiExt>, target: InlineTarget, x: u16, y: u16) -> Option<Position> {
+pub(crate) fn resolve_in_target(
+    dom: &Dom<TuiExt>,
+    target: InlineTarget,
+    x: u16,
+    y: u16,
+) -> Option<Position> {
     let (inline_layout, content) = target.layout_and_rect(dom)?;
     match fragment_at_layout(inline_layout, content, x, y) {
         Some(fragment) => {
@@ -217,7 +222,7 @@ fn resolve_in_target(dom: &Dom<TuiExt>, target: InlineTarget, x: u16, y: u16) ->
 /// to the nearest edge. Ties keep the first found in document order.
 /// `user-select: none` candidates are skipped so the snap never lands on
 /// unselectable chrome. Returns `None` when the subtree has no inline flow.
-fn nearest_inline_target_in_subtree(
+pub(crate) fn nearest_inline_target_in_subtree(
     dom: &Dom<TuiExt>,
     root: NodeId,
     y: u16,
@@ -273,7 +278,7 @@ fn nearest_inline_target_in_subtree(
 
 /// What kind of inline-flow container is under the hit point.
 #[derive(Debug, Clone, Copy)]
-enum InlineTarget {
+pub(crate) enum InlineTarget {
     /// Classic IFC — the block element itself owns the
     /// `inline_layout`. Content rect = the block's content_layout.
     Ifc(NodeId),

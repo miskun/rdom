@@ -15,7 +15,11 @@
 //!   while the focus remains inside the host.
 //! - **`Contain`** — selections started inside the host cannot
 //!   escape. Drag-extend whose hit position falls outside the host
-//!   clamps to the nearest in-host position.
+//!   clamps to the in-host line nearest the pointer's row.
+//!
+//! The host of `All` / `Contain` is the outermost element in the run
+//! of ancestors computing that value ([`host_with`]): the property
+//! inherits, so the nearest match would be the innermost descendant.
 //!
 //! `Auto` / `Text` are no-ops at the policy layer — they reflect
 //! the default "selectable" state the drag pipeline assumes.
@@ -44,6 +48,25 @@ pub(crate) fn ancestor_with(dom: &TuiDom, id: NodeId, value: UserSelect) -> Opti
     None
 }
 
+/// The host of a `user-select` value for `id`: the **outermost**
+/// element of the contiguous run of ancestors (inclusive) whose
+/// computed `user-select` is `value`. `user-select` inherits, so the
+/// nearest match is usually the innermost descendant of the element
+/// that declared it — a paragraph inside a `contain` host, not the
+/// host — and clamping or spanning that element instead of the host
+/// is the multi-paragraph bug (`EDIT-2`). Climbing the run finds the
+/// declaring element without needing the specified value.
+pub(crate) fn host_with(dom: &TuiDom, id: NodeId, value: UserSelect) -> Option<NodeId> {
+    let mut host = ancestor_with(dom, id, value)?;
+    while let Some(parent) = dom.node(host).parent_node().map(|p| p.id()) {
+        match dom.node(parent).computed() {
+            Some(c) if c.user_select == value => host = parent,
+            _ => break,
+        }
+    }
+    Some(host)
+}
+
 /// True iff `id` or any ancestor has `user-select: none` in its
 /// computed style. Skip-list for the selection algorithm — used
 /// by mouse hit-test, keyboard extension, and clipboard serialize.
@@ -65,8 +88,12 @@ pub(crate) fn span_all_text(dom: &TuiDom, host: NodeId) -> Option<Selection> {
 }
 
 /// Clamp focus to the nearest in-host position for
-/// `user-select: contain`. The cursor's row + column decides which
-/// boundary to land on:
+/// `user-select: contain`: the in-host inline flow nearest to the
+/// pointer's row, resolved like any hit on that flow (the pointer's
+/// column on the line, past its end when beside it, the last line's
+/// end when below), so a drag out of the host lands on the line the
+/// pointer is level with, as a browser's contain host does. When the
+/// host has no inline flow at all, the host's edges decide instead:
 ///
 /// - above host → first text descendant, offset 0;
 /// - below host → last text descendant, offset = len;
@@ -77,6 +104,12 @@ pub(crate) fn clamp_to_contain_host(
     host: NodeId,
     mouse: MouseEvent,
 ) -> Option<Position> {
+    use crate::runtime::hit_test::{nearest_inline_target_in_subtree, resolve_in_target};
+    if let Some(target) = nearest_inline_target_in_subtree(dom, host, mouse.row)
+        && let Some(pos) = resolve_in_target(dom, target, mouse.column, mouse.row)
+    {
+        return Some(pos);
+    }
     let rect = dom.node(host).layout_rect()?;
     let below = (mouse.row as i32) >= rect.y + rect.height as i32;
     let above = (mouse.row as i32) < rect.y;

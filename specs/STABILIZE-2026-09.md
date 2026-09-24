@@ -265,6 +265,10 @@ Each phase ends with the two review gates; each commit carries the item id.
 - 2026-09-24 — Phase 6: `CARET-REVEAL-STALE-LAYOUT-1` — `caret_reveal_pending` on the container,
   `service_caret_reveal` after `layout_dom` (a second layout only when the offset moved). Armed on
   `overflow-y`, not on the stale extent — the first overflowing line was otherwise never revealed.
+- 2026-09-24 — Phase 6: `EDIT-2` — root cause was the host lookup: `user-select` inherits, so the
+  nearest `contain` / `all` ancestor was the paragraph, not the host (`host_with` climbs the run).
+  Contain clamp via `nearest_inline_target_in_subtree` + `resolve_in_target`; the edge rule stays
+  as the no-flow fallback.
 - Found while mapping Phase 3 (not on the ledger): `ImportantMask::FLOW` and `POINTER_EVENTS` share
   bit 39 (`tui_style.rs`), custom-property inheritance in the cascade is overwritten by the merged
   root map (`walk.rs`), and tokenizer errors inside a block are body-relative (`declarations.rs`).

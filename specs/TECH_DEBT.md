@@ -38,10 +38,6 @@ For the durable architectural divergences (web-platform departures shipped on pu
 
 - **`FORM-DEFAULTS-1` — no `defaultValue` / `defaultChecked`, so `<form>` reset cannot restore anything.** The IDL value and the content attribute are conflated: `builtins/input::mirror_to_attribute` writes typed text into `value` and the toggle builtin flips the `checked` attribute itself. HTML keeps the attribute as the default and a separate dirty value. Fix = a per-control default snapshot (`TuiExt` or a `data-rdom-default-*` attribute captured on first edit) that reset restores, then stop mirroring — a consumer-visible change (`DIVERGENCES.md` documents the current behavior), so it ships with a major-line bump and a CHANGELOG migration note.
 
-### Editing
-
-- **`EDIT-2` — `user-select: contain` clamps only via the host's outer layout rect.** The clamp uses the mouse coordinates against the host's `layout_rect()`; it doesn't consult per-line content extents. Good enough for single-paragraph contain hosts; multi-paragraph contain hosts with internal gaps may clamp to the wrong end if the mouse lands in inter-paragraph whitespace. Pay down by clamping to the nearest in-host inline fragment instead.
-
 ## Accepted simplifications (forever-state)
 
 These won't be paid down — they reflect deliberate architectural choices.

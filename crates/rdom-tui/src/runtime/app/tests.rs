@@ -3518,3 +3518,158 @@ fn caret_reveal_uses_the_layout_of_the_same_frame() {
         "the frame that laid out the third line also scrolled it into view"
     );
 }
+
+// ── EDIT-2: `user-select: contain` clamps to the nearest line ────────
+
+fn mouse(kind: MouseEventKind, x: u16, y: u16) -> CtEvent {
+    CtEvent::Mouse(CtMouseEvent {
+        kind,
+        column: x,
+        row: y,
+        modifiers: KeyModifiers::empty(),
+    })
+}
+
+/// A two-paragraph `user-select: contain` host: `host` stacks `p1`
+/// (row 0) and `p2` (row 1); `between` sits between them when `gap`
+/// rows are requested.
+fn contain_host(gap: u16) -> (TuiDom, [NodeId; 4]) {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let host = dom.create_element("host");
+    let p1 = dom.create_element("p");
+    let t1 = dom.create_text_node("first para");
+    dom.append_child(p1, t1).unwrap();
+    let p2 = dom.create_element("p");
+    let t2 = dom.create_text_node("second one");
+    dom.append_child(p2, t2).unwrap();
+    dom.append_child(host, p1).unwrap();
+    if gap > 0 {
+        let between = dom.create_element("gap");
+        dom.append_child(host, between).unwrap();
+    }
+    dom.append_child(host, p2).unwrap();
+    dom.append_child(root, host).unwrap();
+    (dom, [host, t1, t2, root])
+}
+
+fn contain_sheet(gap: u16) -> Stylesheet {
+    use crate::layout::{Direction, UserSelect};
+    Stylesheet::bare()
+        .rule_unchecked(
+            "host",
+            TuiStyle::new()
+                .direction(Direction::Column)
+                .width(Size::Fixed(20))
+                .user_select(UserSelect::Contain),
+        )
+        .rule_unchecked("p", TuiStyle::new().height(Size::Fixed(1)))
+        .rule_unchecked(
+            "gap",
+            TuiStyle::new()
+                .height(Size::Fixed(gap))
+                .user_select(UserSelect::None),
+        )
+}
+
+/// The debt-row scenario: dragging into unselectable whitespace
+/// between the host's paragraphs lands on the nearer paragraph (at
+/// its start: the pointer is above that line, the usual y-overshoot
+/// rule). The host is the element that declared `contain` — not the
+/// first paragraph, which merely inherits it — so the drag is not
+/// clamped back to the first paragraph's end.
+#[test]
+fn contain_host_gap_drag_lands_on_the_nearest_paragraph() {
+    let (dom, [_host, _t1, t2, _]) = contain_host(2);
+    let mut app = test_app(dom, contain_sheet(2), Rect::new(0, 0, 20, 6));
+    app.draw_if_dirty().unwrap();
+    // Rows: 0 = p1, 1..=2 = gap, 3 = p2. Row 2 is nearer to p2.
+    app.handle_event(mouse(MouseEventKind::Down(MouseButton::Left), 1, 0));
+    app.handle_event(mouse(MouseEventKind::Drag(MouseButton::Left), 4, 2));
+    let sel = app.dom().selection().cloned().expect("a drag selection");
+    assert_eq!(sel.focus, Position::new(t2, 0));
+}
+
+/// Dragging onto selectable text *beside* the host clamps to the
+/// in-host line at the pointer's row — past its end, as for any
+/// pointer beside a line — not to the host's last text end.
+#[test]
+fn contain_host_clamps_to_the_line_at_the_pointers_row() {
+    use crate::layout::Direction;
+    let (mut dom, [host, t1, t2, root]) = contain_host(0);
+    // A selectable column to the right of the host.
+    let row = dom.create_element("row");
+    let side = dom.create_element("p");
+    let t3 = dom.create_text_node("side text");
+    dom.append_child(side, t3).unwrap();
+    dom.append_child(row, host).unwrap();
+    dom.append_child(row, side).unwrap();
+    dom.append_child(root, row).unwrap();
+    let sheet = contain_sheet(0).rule_unchecked(
+        "row",
+        TuiStyle::new()
+            .direction(Direction::Row)
+            .width(Size::Fixed(40)),
+    );
+    let mut app = test_app(dom, sheet, Rect::new(0, 0, 40, 6));
+    app.draw_if_dirty().unwrap();
+    app.handle_event(mouse(MouseEventKind::Down(MouseButton::Left), 1, 0));
+    // Row 0 of the side text: the first paragraph's line, past its end.
+    app.handle_event(mouse(MouseEventKind::Drag(MouseButton::Left), 25, 0));
+    let sel = app.dom().selection().cloned().expect("a drag selection");
+    assert_eq!(sel.focus, Position::new(t1, 10), "end of the line at row 0");
+    // Below the host: the last line's end (the usual y-overshoot rule).
+    app.handle_event(mouse(MouseEventKind::Drag(MouseButton::Left), 25, 4));
+    let sel = app.dom().selection().cloned().expect("a drag selection");
+    assert_eq!(sel.focus, Position::new(t2, 10), "end of the last line");
+}
+
+/// A click inside the second paragraph of a `user-select: all` host
+/// selects the whole host, not just that paragraph: the host is the
+/// element that declared `all`, not the innermost element inheriting
+/// it.
+#[test]
+fn all_host_spans_every_paragraph_of_the_declaring_element() {
+    use crate::layout::{Direction, UserSelect};
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let host = dom.create_element("host");
+    let p1 = dom.create_element("p");
+    let t1 = dom.create_text_node("first para");
+    dom.append_child(p1, t1).unwrap();
+    let p2 = dom.create_element("p");
+    let t2 = dom.create_text_node("second one");
+    dom.append_child(p2, t2).unwrap();
+    dom.append_child(host, p1).unwrap();
+    dom.append_child(host, p2).unwrap();
+    dom.append_child(root, host).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "host",
+            TuiStyle::new()
+                .direction(Direction::Column)
+                .width(Size::Fixed(20))
+                .user_select(UserSelect::All),
+        )
+        .rule_unchecked("p", TuiStyle::new().height(Size::Fixed(1)));
+    let mut app = test_app(dom, sheet, Rect::new(0, 0, 20, 6));
+    app.draw_if_dirty().unwrap();
+
+    app.handle_event(CtEvent::Mouse(CtMouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column: 3,
+        row: 1,
+        modifiers: KeyModifiers::empty(),
+    }));
+    let sel = app.dom().selection().cloned().expect("a selection");
+    assert_eq!(
+        sel.anchor,
+        Position::new(t1, 0),
+        "spans from the host's first text"
+    );
+    assert_eq!(
+        sel.focus,
+        Position::new(t2, 10),
+        "to the host's last text end"
+    );
+}
