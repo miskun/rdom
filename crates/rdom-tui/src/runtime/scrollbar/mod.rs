@@ -399,6 +399,18 @@ fn scroll_container_from_hit(dom: &TuiDom, x: u16, y: u16) -> Option<NodeId> {
     nearest_scroll_container(dom, hit)
 }
 
+/// Attribute the runtime keeps on the scroll container the keyboard
+/// scrolls (see [`scroll_focus_target`]); the UA sheet colors that
+/// container's scrollbar thumb through it.
+pub(crate) const SCROLL_FOCUS_ATTR: &str = "data-rdom-scroll-focus";
+
+/// The scroll container the focus cue belongs on: the nearest scroll
+/// container of the focused element, per the last layout. `None` when
+/// nothing is focused or no ancestor scrolls.
+pub(crate) fn scroll_focus_target(dom: &TuiDom) -> Option<NodeId> {
+    nearest_scroll_container(dom, dom.focused()?)
+}
+
 /// The nearest scroll container of `id` (itself included): an ancestor
 /// whose content overflows a non-`visible` axis after the last layout.
 /// The keyboard scroll keys and the drag-autoscroll engine act on it,

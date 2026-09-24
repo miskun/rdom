@@ -596,12 +596,18 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
         // when it's a focusable scroll container like a tree, or the scroll
         // pane around a focused `<input>`) shows an accent thumb. This is the
         // same region the keyboard scroll keys act on, so the blue handle
-        // marks "what your keyboard scrolls". The thumb GLYPH (`┃`/`━`) turns
-        // accent (DodgerBlue) via foreground — a thin colored handle, not a
-        // filled block; unfocused → the paint pass's gray fallback. The
-        // container analog of the web's focus outline, via `::scrollbar-thumb`.
-        // See DIVERGENCES.md.
-        (":focus-within::scrollbar-thumb", TuiStyle::new().fg(ACCENT)),
+        // marks "what your keyboard scrolls". The runtime keeps
+        // `data-rdom-scroll-focus` on exactly that container — the nearest
+        // *overflowing* scroll ancestor of the focus, which no selector can
+        // express (`:focus-within` would light every overflowing ancestor).
+        // The thumb GLYPH (`┃`/`━`) turns accent (DodgerBlue) via foreground
+        // — a thin colored handle, not a filled block; unfocused → the paint
+        // pass's gray fallback. The container analog of the web's focus
+        // outline, via `::scrollbar-thumb`. See DIVERGENCES.md.
+        (
+            "[data-rdom-scroll-focus]::scrollbar-thumb",
+            TuiStyle::new().fg(ACCENT),
+        ),
         // Placeholder rendering via `:placeholder-shown` +
         // `attr()` content. When the input / textarea has a
         // non-empty `placeholder` attribute and is empty, the

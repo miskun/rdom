@@ -208,6 +208,8 @@ Each phase ends with the two review gates; each commit carries the item id.
 - 2026-09-24 — Phase 5: `SCROLL-CROSS-AXIS-1` — cross-axis scroll in flex and block, descendant
   scrollable overflow, horizontal autoscroll band, `nearest_scroll_container` shared by keys /
   autoscroll.
+- 2026-09-24 — Phase 5: `FOCUS-THUMB-NEAREST-1` — `App::mark_scroll_focus` keeps
+  `data-rdom-scroll-focus` on the keyboard's scroll target; the UA rule matches the attribute.
 - Found while mapping Phase 3 (not on the ledger): `ImportantMask::FLOW` and `POINTER_EVENTS` share
   bit 39 (`tui_style.rs`), custom-property inheritance in the cascade is overwritten by the merged
   root map (`walk.rs`), and tokenizer errors inside a block are body-relative (`declarations.rs`).

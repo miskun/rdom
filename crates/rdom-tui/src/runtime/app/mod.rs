@@ -120,6 +120,9 @@ pub struct App<B: Backend = CrosstermBackend<Stdout>> {
     autoscroll_pointer: Option<(u16, u16)>,
     autoscroll_next: Option<Instant>,
     autoscroll_container: Option<crate::NodeId>,
+    /// The element currently carrying `data-rdom-scroll-focus` (see
+    /// [`Self::mark_scroll_focus`]).
+    scroll_focus_marked: Option<crate::NodeId>,
 
     /// Flags accumulated over a tick: if true, `draw_if_dirty`
     /// triggers a paint regardless of DirtyTracker state.
@@ -367,6 +370,7 @@ impl<B: Backend> App<B> {
             autoscroll_pointer: None,
             autoscroll_next: None,
             autoscroll_container: None,
+            scroll_focus_marked: None,
             needs_redraw: true,
             should_quit: false,
             guard: None,
@@ -1013,12 +1017,42 @@ impl<B: Backend> App<B> {
         }
     }
 
+    /// Keep `data-rdom-scroll-focus` on the scroll container the
+    /// keyboard scrolls: the nearest overflowing scroll ancestor of the
+    /// focus, per the previous frame's layout (`scrollbar::
+    /// scroll_focus_target`). The UA sheet colors that container's
+    /// scrollbar thumb through the attribute; `:focus-within` alone
+    /// would light every overflowing ancestor (`FOCUS-THUMB-NEAREST-1`).
+    /// Runs before the cascade, so the change lands in this frame.
+    fn mark_scroll_focus(&mut self) {
+        let target = crate::runtime::scrollbar::scroll_focus_target(&self.dom);
+        if target == self.scroll_focus_marked {
+            return;
+        }
+        if let Some(prev) = self.scroll_focus_marked.take()
+            && self.dom.contains(prev)
+        {
+            self.dom
+                .remove_attribute(prev, crate::runtime::scrollbar::SCROLL_FOCUS_ATTR)
+                .expect("a live element accepts attribute removal");
+        }
+        if let Some(next) = target {
+            self.dom
+                .set_attribute(next, crate::runtime::scrollbar::SCROLL_FOCUS_ATTR, "")
+                .expect("the focused element's ancestor is a live element");
+        }
+        self.scroll_focus_marked = target;
+    }
+
     /// Cascade + layout + paint if anything is dirty. Pairs with
     /// [`Self::handle_event`] for apps running a custom event loop.
     pub fn draw_if_dirty(&mut self) -> io::Result<()> {
         // Animation events (`transitionend`) fire from in here; their
         // listeners may schedule timers.
         let _current = crate::runtime::timers::SchedulerGuard::install(&self.scheduler);
+        // Before the roots snapshot, so a marker move is cascaded in
+        // this frame.
+        self.mark_scroll_focus();
         let mut dirty_roots = self.tracker.roots_snapshot();
         // dirty_roots is a snapshot; we need to actually drain them
         // so subsequent frames don't re-cascade the same roots.

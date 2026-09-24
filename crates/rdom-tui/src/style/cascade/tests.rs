@@ -1978,8 +1978,12 @@ fn focus_tint_does_not_fill_containers() {
     );
 }
 
+/// The UA colors the thumb of the scroll container the runtime marks
+/// with `data-rdom-scroll-focus` (the keyboard's scroll target, see
+/// `App::mark_scroll_focus`) — not of every focused or focus-containing
+/// scroll container (`FOCUS-THUMB-NEAREST-1`).
 #[test]
-fn focused_scroll_container_thumb_is_accent() {
+fn marked_scroll_container_thumb_is_accent() {
     use crate::node::TuiNodeExt;
     let mut dom: TuiDom = TuiDom::new();
     let root = dom.root();
@@ -1990,17 +1994,26 @@ fn focused_scroll_container_thumb_is_accent() {
             .overflow_y(Overflow::Scroll),
     );
     dom.append_child(root, d).unwrap();
+    let thumb_fg = |dom: &TuiDom| {
+        dom.node(d)
+            .tui_ext()
+            .and_then(|e| e.computed_scrollbar_thumb_vertical.as_ref())
+            .map(|c| c.fg)
+    };
     dom.set_focused(Some(d));
     dom.cascade(&Stylesheet::new());
-    let thumb_fg = dom
-        .node(d)
-        .tui_ext()
-        .and_then(|e| e.computed_scrollbar_thumb_vertical.as_ref())
-        .map(|c| c.fg);
+    assert_ne!(
+        thumb_fg(&dom),
+        Some(Color::Rgb(30, 144, 255)),
+        "focus alone does not color the thumb; the runtime's marker does"
+    );
+    dom.set_attribute(d, crate::runtime::scrollbar::SCROLL_FOCUS_ATTR, "")
+        .unwrap();
+    dom.cascade(&Stylesheet::new());
     assert_eq!(
-        thumb_fg,
+        thumb_fg(&dom),
         Some(Color::Rgb(30, 144, 255)), // DodgerBlue = ACCENT
-        "a focused scroll container's thumb glyph turns accent (foreground)"
+        "the marked scroll container's thumb glyph turns accent (foreground)"
     );
 }
 
