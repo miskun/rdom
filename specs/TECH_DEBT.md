@@ -13,7 +13,6 @@ For the durable architectural divergences (web-platform departures shipped on pu
 
 ### Deferred from HARDENING-2026-09 Batch 3
 
-- **`INLINE-PAINT-SPLIT-1` — `paint_pass/inline_paint.rs` (~950 lines) mixes text paint, the selection overlay, the caret, and `<select>` / password / gauge chrome substitution.** Paint knowing builtin internals is the coupling the module doc forbids; move chrome substitution behind a runtime-registered hook and the caret / selection overlay into their own files.
 
 ### Paint pipeline
 

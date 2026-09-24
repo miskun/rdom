@@ -32,6 +32,7 @@
 use rdom_core::NodeId;
 
 use crate::TuiDom;
+use crate::render::paint_pass::ChromeText;
 use crate::style::{Color, ComputedStyle};
 
 /// Glyph used to fill the active portion of a gauge.
@@ -176,6 +177,15 @@ pub fn override_fg(base: ComputedStyle, color: Option<Color>) -> ComputedStyle {
         out.fg = c;
     }
     out
+}
+
+/// The paint pass's chrome for a gauge (see
+/// `runtime::builtins::inline_chrome`): the bar for the available
+/// single-row width, with the meter zone color as the fg override.
+/// `None` for anything that is not a gauge.
+pub(crate) fn inline_chrome(dom: &TuiDom, id: NodeId, width: u16) -> Option<ChromeText> {
+    let (text, fg) = gauge_text(dom, id, width)?;
+    Some(ChromeText { text, fg })
 }
 
 #[cfg(test)]

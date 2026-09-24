@@ -5,8 +5,9 @@
 
 use rdom_core::NodeId;
 
-use super::model::display_size;
+use super::model::{display_size, option_label, selected_options};
 use crate::TuiDom;
+use crate::render::paint_pass::ChromeText;
 
 /// Marker: dropdown is open (options expanded below chrome). Only
 /// meaningful for single-select dropdowns — listboxes (`multiple`
@@ -43,4 +44,39 @@ pub fn close(dom: &mut TuiDom, select: NodeId) {
         return;
     }
     let _ = dom.remove_attribute(select, OPEN_ATTR);
+}
+
+/// The paint pass's chrome for a closed dropdown (see
+/// `runtime::builtins::inline_chrome`): the selected-option label to
+/// paint as the `<select>`'s own text — the option elements
+/// themselves are hidden by UA `display: none`, so the runtime
+/// echoes the selected label into the select's content area
+/// instead. The dropdown affordance (`▾` chevron at the right
+/// edge) is supplied separately by the UA
+/// `select:not([multiple]):not([size]):not([data-rdom-open])::after`
+/// rule, NOT prepended here.
+///
+/// `None` for any non-select, for listbox-mode selects (which
+/// paint their options directly), and for open dropdowns
+/// (where the option children paint themselves via the normal
+/// traversal).
+pub(crate) fn inline_chrome(dom: &TuiDom, id: NodeId, _width: u16) -> Option<ChromeText> {
+    if dom.node(id).tag_name() != Some("select") {
+        return None;
+    }
+    if !is_dropdown(dom, id) {
+        return None;
+    }
+    if is_open(dom, id) {
+        return None;
+    }
+    let selected = selected_options(dom, id);
+    let label = selected
+        .first()
+        .map(|&opt| option_label(dom, opt))
+        .unwrap_or_default();
+    Some(ChromeText {
+        text: label,
+        fg: None,
+    })
 }

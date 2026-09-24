@@ -51,7 +51,10 @@
 //! - [`border`] — background fill + border drawing (box-drawing
 //!   chars, edge selection).
 //! - [`inline_paint`] — `::before` + own text + `::after` for
-//!   non-IFC elements; fragment-driven IFC paint.
+//!   non-IFC elements; fragment-driven IFC paint. Split into the
+//!   fragment painter (`mod.rs`), the chrome-substitution seam
+//!   (`chrome`), the single-row painter (`single_row`), the caret
+//!   (`caret`) and the `::selection` overlay (`selection_overlay`).
 //! - [`text`] — `paint_text` low-level helper + `ComputedStyle` →
 //!   `Style` conversion.
 
@@ -82,6 +85,9 @@ use border::{fill_bg, paint_border};
 use inline_paint::{
     paint_anonymous_blocks, paint_caret_if_editable, paint_ifc, paint_inline_content,
 };
+// The chrome-substitution contract the built-ins implement
+// (`runtime::builtins::inline_chrome`); see `inline_paint::chrome`.
+pub(crate) use inline_paint::{ChromeText, InlineChromeFn};
 
 /// Extension trait on `Dom<TuiExt>` adding `paint_dom(buf, clip)`.
 pub trait PaintExt {

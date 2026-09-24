@@ -15,6 +15,9 @@
 //!
 //! ## Roster
 //!
+//! - `inline_chrome` — the table of paint-time text substitutions
+//!   (gauge bar, closed dropdown label, password mask) the paint pass
+//!   asks for instead of reading builtin state itself.
 //! - `a_href` — scheme-based click dispatch. External URLs shell
 //!   out via [`UrlOpener`]; internal schemes are a no-op (apps
 //!   route via their own `click` listener).
@@ -28,6 +31,7 @@ pub mod details;
 pub mod dialog;
 pub mod form;
 pub mod gauge;
+pub(crate) mod inline_chrome;
 pub mod input;
 pub mod label;
 pub mod number;

@@ -63,7 +63,9 @@
 //! - [`typeahead`] — the per-select type-ahead buffer and its
 //!   prefix / cycle match.
 //! - [`dropdown`] — dropdown-vs-listbox test and the open / close
-//!   marker (`is_dropdown`, `is_open`, `open`, `close`).
+//!   marker (`is_dropdown`, `is_open`, `open`, `close`), and the
+//!   closed-dropdown label the paint pass substitutes for the
+//!   select's own text (`inline_chrome`).
 //!
 //! This file keeps [`install`] — the two root-level listeners — and
 //! the public re-exports.
@@ -79,6 +81,7 @@ use rdom_core::ListenerOptions;
 
 use crate::TuiDom;
 
+pub(crate) use dropdown::inline_chrome;
 pub use dropdown::{close, is_dropdown, is_open, open};
 pub use model::{option_label, option_value, options, selected_options, value};
 

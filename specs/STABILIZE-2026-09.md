@@ -284,6 +284,10 @@ Each phase ends with the two review gates; each commit carries the item id.
 - 2026-09-24 — Phase 6: `SELECT-SPLIT-1` — `select/{model,state,click,keyboard,typeahead,dropdown}.rs`; stale module doc corrected.
 - 2026-09-24 — Phase 6: `APP-MOD-SPLIT-1` — `app/{stylesheets,keyboard_defaults,autoscroll,frame}.rs`; `mod.rs` 1423 → 734 lines,
   public API unchanged.
+- 2026-09-24 — Phase 6: `INLINE-PAINT-SPLIT-1` — `inline_paint/{single_row,caret,selection_overlay,chrome}.rs`; chrome substitution behind
+  `ChromeText` / `InlineChromeFn` (`builtins::inline_chrome::lookup`). Compiled-in supplier
+  table, not per-`Dom` registration: hand-driven `paint_dom` consumers and `paint_pass/tests.rs`
+  paint chrome without an `App`; a per-`Dom` slot would be a separate, behavior-changing item.
 - Found while mapping Phase 3 (not on the ledger): `ImportantMask::FLOW` and `POINTER_EVENTS` share
   bit 39 (`tui_style.rs`), custom-property inheritance in the cascade is overwritten by the merged
   root map (`walk.rs`), and tokenizer errors inside a block are body-relative (`declarations.rs`).

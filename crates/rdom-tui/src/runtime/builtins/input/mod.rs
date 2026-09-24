@@ -29,8 +29,10 @@
 //!   in C.4b and use a different model.
 
 use rdom_core::NodeId;
+use unicode_segmentation::UnicodeSegmentation;
 
 use crate::TuiDom;
+use crate::render::paint_pass::ChromeText;
 
 /// Read the live value of an `<input>`. Reads the text content of
 /// the input's first text-node child (i.e., what the editing
@@ -246,6 +248,29 @@ fn walk_by_tag(dom: &TuiDom, id: NodeId, tag: &str, out: &mut Vec<NodeId>) {
     for child in dom.node(id).child_nodes() {
         walk_by_tag(dom, child.id(), tag, out);
     }
+}
+
+/// True iff `id` is `<input type="password">`.
+fn is_password(dom: &TuiDom, id: NodeId) -> bool {
+    let node = dom.node(id);
+    node.tag_name() == Some("input") && node.get_attribute("type") == Some("password")
+}
+
+/// The paint pass's chrome for a password input (see
+/// `runtime::builtins::inline_chrome`): every grapheme cluster of the
+/// live value replaced by the bullet `•`, so the value never paints.
+/// The bullet is a single-cell glyph in monospace fonts, so the
+/// masked width matches the grapheme count (not the display width —
+/// wide chars mask to a single bullet, matching browser behavior).
+/// `None` for every other element.
+pub(crate) fn password_inline_chrome(dom: &TuiDom, id: NodeId, _width: u16) -> Option<ChromeText> {
+    if !is_password(dom, id) {
+        return None;
+    }
+    Some(ChromeText {
+        text: value(dom, id).graphemes(true).map(|_| "\u{2022}").collect(),
+        fg: None,
+    })
 }
 
 #[cfg(test)]

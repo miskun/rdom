@@ -108,8 +108,8 @@ fn fragment_for_position(layout: &InlineLayout, pos: Position) -> Option<(usize,
 }
 
 /// Visible cells before byte offset `target` in `text`. Mirrors
-/// `paint_pass::inline_paint::cells_before_byte` — extracted here
-/// so the caret path doesn't cross into paint internals.
+/// `paint_pass::inline_paint::selection_overlay::cells_before_byte` —
+/// extracted here so the caret path doesn't cross into paint internals.
 fn cells_before_byte(text: &str, target: usize) -> u16 {
     let mut cells: u16 = 0;
     for (idx, g) in text.grapheme_indices(true) {
