@@ -379,9 +379,7 @@ impl CssWide {
 }
 
 /// Set every field `name` owns to the CSS-wide keyword. Same
-/// property → field table as [`remove`]. Transition properties are
-/// stored without a `Value` wrapper and cannot carry a keyword
-/// (`STYLE-TRANSITION-VALUE-1`), so they report `InvalidValue`.
+/// property → field table as [`remove`].
 fn set_css_wide(name: &str, kw: CssWide, style: &mut TuiStyle) -> Result<(), DispatchError> {
     macro_rules! put {
         ($($field:ident),+) => {{ $( style.$field = Some(kw.into_value(name)); )+ }};
@@ -440,11 +438,16 @@ fn set_css_wide(name: &str, kw: CssWide, style: &mut TuiStyle) -> Result<(), Dis
         "left" => put!(left),
         "z-index" => put!(z_index),
         "inset" => put!(top, right, bottom, left),
-        "transition-property"
-        | "transition-duration"
-        | "transition-timing-function"
-        | "transition-delay"
-        | "transition" => return Err(DispatchError::InvalidValue),
+        "transition-property" => put!(transition_property),
+        "transition-duration" => put!(transition_duration),
+        "transition-timing-function" => put!(transition_timing_function),
+        "transition-delay" => put!(transition_delay),
+        "transition" => put!(
+            transition_property,
+            transition_duration,
+            transition_timing_function,
+            transition_delay
+        ),
         _ => return Err(DispatchError::UnknownProperty),
     }
     Ok(())
@@ -525,6 +528,16 @@ fn css_wide_of(name: &str, style: &TuiStyle) -> Option<&'static str> {
             kw(&style.right),
             kw(&style.bottom),
             kw(&style.left),
+        ]),
+        "transition-property" => kw(&style.transition_property),
+        "transition-duration" => kw(&style.transition_duration),
+        "transition-timing-function" => kw(&style.transition_timing_function),
+        "transition-delay" => kw(&style.transition_delay),
+        "transition" => agree(&[
+            kw(&style.transition_property),
+            kw(&style.transition_duration),
+            kw(&style.transition_timing_function),
+            kw(&style.transition_delay),
         ]),
         _ => None,
     }
@@ -917,23 +930,23 @@ pub fn set_from_tokens(
 
         // Transitions (M3)
         "transition-property" => parse_transition_property_list(value).map(|list| {
-            style.transition_property = Some(list);
+            style.transition_property = Some(Value::Specified(list));
         }),
         "transition-duration" => parse_time_list(value).map(|list| {
-            style.transition_duration = Some(list);
+            style.transition_duration = Some(Value::Specified(list));
         }),
         "transition-timing-function" => parse_timing_function_list(value).map(|list| {
-            style.transition_timing_function = Some(list);
+            style.transition_timing_function = Some(Value::Specified(list));
         }),
         "transition-delay" => parse_time_list(value).map(|list| {
-            style.transition_delay = Some(list);
+            style.transition_delay = Some(Value::Specified(list));
         }),
         "transition" => parse_transition_shorthand(value).map(|rules| {
             let (props, durs, timings, delays) = unzip_transition_rules(&rules);
-            style.transition_property = Some(props);
-            style.transition_duration = Some(durs);
-            style.transition_timing_function = Some(timings);
-            style.transition_delay = Some(delays);
+            style.transition_property = Some(Value::Specified(props));
+            style.transition_duration = Some(Value::Specified(durs));
+            style.transition_timing_function = Some(Value::Specified(timings));
+            style.transition_delay = Some(Value::Specified(delays));
         }),
 
         _ => return Err(DispatchError::UnknownProperty),
@@ -1365,18 +1378,22 @@ pub fn serialize(name: &str, style: &TuiStyle) -> Option<String> {
         "transition-property" => style
             .transition_property
             .as_ref()
+            .and_then(specified)
             .map(|list| join_csv(list.iter(), serialize_transition_property)),
         "transition-duration" => style
             .transition_duration
             .as_ref()
+            .and_then(specified)
             .map(|list| join_csv(list.iter(), |ms| format!("{ms}ms"))),
         "transition-timing-function" => style
             .transition_timing_function
             .as_ref()
+            .and_then(specified)
             .map(|list| join_csv(list.iter(), |f| serialize_timing_function(f).to_string())),
         "transition-delay" => style
             .transition_delay
             .as_ref()
+            .and_then(specified)
             .map(|list| join_csv(list.iter(), |ms| format!("{ms}ms"))),
         "transition" => serialize_transition_shorthand(style),
 
@@ -1591,10 +1608,13 @@ fn serialize_timing_function(f: &TimingFunction) -> &'static str {
 /// (matches CSS's "repeat shorter list" rule), then emits one
 /// comma-separated piece per rule.
 fn serialize_transition_shorthand(style: &TuiStyle) -> Option<String> {
-    let props = style.transition_property.as_ref()?;
-    let durs = style.transition_duration.as_ref()?;
-    let timings = style.transition_timing_function.as_ref()?;
-    let delays = style.transition_delay.as_ref()?;
+    let props = style.transition_property.as_ref().and_then(specified)?;
+    let durs = style.transition_duration.as_ref().and_then(specified)?;
+    let timings = style
+        .transition_timing_function
+        .as_ref()
+        .and_then(specified)?;
+    let delays = style.transition_delay.as_ref().and_then(specified)?;
     let n = props.len();
     if n == 0 || durs.is_empty() || timings.is_empty() || delays.is_empty() {
         return None;
@@ -1954,14 +1974,6 @@ mod tests {
     #[test]
     fn css_wide_keywords_parse_for_every_property() {
         for (name, _) in canonical_values() {
-            if name.starts_with("transition") {
-                // Stored without a `Value` wrapper — STYLE-TRANSITION-VALUE-1.
-                assert_eq!(
-                    set(name, "inherit", &mut TuiStyle::new()),
-                    Err(DispatchError::InvalidValue)
-                );
-                continue;
-            }
             let mut style = TuiStyle::new();
             set(name, "inherit", &mut style).unwrap_or_else(|e| panic!("{name}: inherit {e:?}"));
             let mut style = TuiStyle::new();

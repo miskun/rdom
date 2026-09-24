@@ -414,32 +414,49 @@ fn apply_style(
         important_pass,
         parent.z_index,
     );
-    // Transitions (M3). Non-inheriting; latest wins. Vec-typed,
-    // so we just clone-or-keep based on important matching.
-    apply_transition_lists(working, style, important_pass);
+    // Transitions (M3). Non-inheriting; latest wins. `inherit` copies
+    // the parent's list, `initial` is the empty list.
+    apply_transition_lists(working, style, important_pass, parent);
 }
 
 fn apply_transition_lists(
     working: &mut ComputedStyle,
     style: &crate::style::TuiStyle,
     important_pass: bool,
+    parent: &ComputedStyle,
 ) {
     let important = style.important.contains(ImportantMask::TRANSITIONS);
     if !matches_pass(important, important_pass) {
         return;
     }
-    if let Some(list) = &style.transition_property {
-        working.transition_property = list.clone();
+    fn resolve<T: Clone>(slot: &mut Vec<T>, declared: &Option<Value<Vec<T>>>, parent: &[T]) {
+        match declared {
+            None => {}
+            Some(Value::Specified(list)) => *slot = list.clone(),
+            Some(Value::Inherit) => *slot = parent.to_vec(),
+            Some(Value::Initial) => slot.clear(),
+        }
     }
-    if let Some(list) = &style.transition_duration {
-        working.transition_duration = list.clone();
-    }
-    if let Some(list) = &style.transition_timing_function {
-        working.transition_timing_function = list.clone();
-    }
-    if let Some(list) = &style.transition_delay {
-        working.transition_delay = list.clone();
-    }
+    resolve(
+        &mut working.transition_property,
+        &style.transition_property,
+        &parent.transition_property,
+    );
+    resolve(
+        &mut working.transition_duration,
+        &style.transition_duration,
+        &parent.transition_duration,
+    );
+    resolve(
+        &mut working.transition_timing_function,
+        &style.transition_timing_function,
+        &parent.transition_timing_function,
+    );
+    resolve(
+        &mut working.transition_delay,
+        &style.transition_delay,
+        &parent.transition_delay,
+    );
 }
 
 // ─── Tiny per-type applicator helpers ───────────────────────────────

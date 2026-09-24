@@ -191,13 +191,13 @@ pub struct TuiStyle {
     /// `transition-property` longhand. Each entry covers one
     /// CSS property (or `all` / `none`) at the matching index in
     /// the duration / timing / delay lists.
-    pub transition_property: Option<Vec<crate::transition::TransitionProperty>>,
+    pub transition_property: Option<Value<Vec<crate::transition::TransitionProperty>>>,
     /// `transition-duration` longhand, in milliseconds.
-    pub transition_duration: Option<Vec<u32>>,
+    pub transition_duration: Option<Value<Vec<u32>>>,
     /// `transition-timing-function` longhand.
-    pub transition_timing_function: Option<Vec<crate::transition::TimingFunction>>,
+    pub transition_timing_function: Option<Value<Vec<crate::transition::TimingFunction>>>,
     /// `transition-delay` longhand, in milliseconds.
-    pub transition_delay: Option<Vec<u32>>,
+    pub transition_delay: Option<Value<Vec<u32>>>,
 
     // ── `!important` bits ─────────────────────────────────────────────
     pub important: ImportantMask,
@@ -560,19 +560,19 @@ impl TuiStyle {
     // `Value<T>` wrapping), so we hand-write a thin layer. All four
     // longhand fields share the `TRANSITIONS` important bit.
     pub fn transition_property(mut self, v: Vec<crate::transition::TransitionProperty>) -> Self {
-        self.transition_property = Some(v);
+        self.transition_property = Some(Value::Specified(v));
         self
     }
     pub fn transition_duration(mut self, v: Vec<u32>) -> Self {
-        self.transition_duration = Some(v);
+        self.transition_duration = Some(Value::Specified(v));
         self
     }
     pub fn transition_timing_function(mut self, v: Vec<crate::transition::TimingFunction>) -> Self {
-        self.transition_timing_function = Some(v);
+        self.transition_timing_function = Some(Value::Specified(v));
         self
     }
     pub fn transition_delay(mut self, v: Vec<u32>) -> Self {
-        self.transition_delay = Some(v);
+        self.transition_delay = Some(Value::Specified(v));
         self
     }
     /// Mark the transition longhands as `!important`. All four

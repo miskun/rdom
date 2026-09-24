@@ -136,6 +136,8 @@ Each phase ends with the two review gates; each commit carries the item id.
   `STYLE-INHERITS-TWO-SOURCES-1` closed by deleting the dead `PropMask` / `INHERITS_MASK` /
   `LAYOUT_MASK` exports and pinning `inherit_inheritable_from` to `property_dispatch::inherits`
   with a test that probes all 41 properties (every inherited name must be probed).
+- 2026-09-23 — `STYLE-TRANSITION-VALUE-1`: the four transition longhands carry `Value`; the
+  css-wide coverage test no longer skips them; `apply_transition_lists` takes the parent.
 - Found while mapping Phase 3 (not on the ledger): `ImportantMask::FLOW` and `POINTER_EVENTS` share
   bit 39 (`tui_style.rs`), custom-property inheritance in the cascade is overwritten by the merged
   root map (`walk.rs`), and tokenizer errors inside a block are body-relative (`declarations.rs`).

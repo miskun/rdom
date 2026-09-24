@@ -2270,6 +2270,79 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
     assert!(Rc::ptr_eq(&child.vars, &parent.vars));
 }
 
+/// `STYLE-TRANSITION-VALUE-1`: transitions accept the CSS-wide
+/// keywords. `inherit` copies the parent's lists (they do not inherit
+/// by default), `initial` empties them, and a plain child keeps the
+/// initial empty lists.
+#[test]
+fn transition_inherit_and_initial_resolve_against_the_parent() {
+    use rdom_style::Value;
+    use rdom_style::transition::{TimingFunction, TransitionProperty};
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let parent = dom.create_element("div");
+    let inheriting = dom.create_element("i");
+    let resetting = dom.create_element("b");
+    let plain = dom.create_element("u");
+    dom.append_child(root, parent).unwrap();
+    for c in [inheriting, resetting, plain] {
+        dom.append_child(parent, c).unwrap();
+    }
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "div",
+            TuiStyle::new()
+                .transition_property(vec![TransitionProperty::All])
+                .transition_duration(vec![250])
+                .transition_timing_function(vec![TimingFunction::Linear])
+                .transition_delay(vec![10]),
+        )
+        .rule_unchecked(
+            "i",
+            TuiStyle {
+                transition_property: Some(Value::Inherit),
+                transition_duration: Some(Value::Inherit),
+                transition_timing_function: Some(Value::Inherit),
+                transition_delay: Some(Value::Inherit),
+                ..TuiStyle::new()
+            },
+        )
+        .rule_unchecked(
+            "b",
+            TuiStyle::new()
+                .transition_duration(vec![5])
+                .transition_property(vec![TransitionProperty::All]),
+        )
+        .rule_unchecked(
+            "b",
+            TuiStyle {
+                transition_duration: Some(Value::Initial),
+                ..TuiStyle::new()
+            },
+        );
+    dom.cascade(&sheet);
+
+    let p = computed_of(&dom, parent);
+    let i = computed_of(&dom, inheriting);
+    assert_eq!(i.transition_property, p.transition_property);
+    assert_eq!(i.transition_duration, vec![250]);
+    assert_eq!(i.transition_timing_function, vec![TimingFunction::Linear]);
+    assert_eq!(i.transition_delay, vec![10]);
+
+    let b = computed_of(&dom, resetting);
+    assert_eq!(b.transition_property, vec![TransitionProperty::All]);
+    assert!(
+        b.transition_duration.is_empty(),
+        "initial is the empty list"
+    );
+
+    let u = computed_of(&dom, plain);
+    assert!(
+        u.transition_property.is_empty(),
+        "transitions do not inherit by default"
+    );
+}
+
 // ── HARDENING-2026-09: layout-dirty flag covers positioning ─────────
 
 /// `is_layout_dirty()` must report a change to any property the layout
