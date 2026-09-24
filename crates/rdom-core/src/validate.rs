@@ -42,8 +42,6 @@ pub enum InvariantViolation {
         key: String,
         id: NodeId,
     },
-    /// The per-slot generation table is not parallel to the slot table.
-    GenerationTableMismatch { slots: usize, generations: usize },
 }
 
 impl<Ext> Dom<Ext> {
@@ -53,19 +51,9 @@ impl<Ext> Dom<Ext> {
     pub fn validate(&self) -> Vec<InvariantViolation> {
         let mut out = Vec::new();
 
-        if self.generations.len() != self.nodes.len() {
-            out.push(InvariantViolation::GenerationTableMismatch {
-                slots: self.nodes.len(),
-                generations: self.generations.len(),
-            });
-            // Every check below indexes `generations` by slot; stop here
-            // rather than panic on the short table.
-            return out;
-        }
-
         for (idx, slot) in self.nodes.iter().enumerate() {
-            let Some(node) = slot else { continue };
-            let id = NodeId::from_parts(idx, self.generations[idx]);
+            let Some(node) = &slot.node else { continue };
+            let id = NodeId::from_parts(idx, slot.generation);
 
             // Pointer reachability — freed slots not referenced.
             for (label, target) in [
@@ -244,24 +232,7 @@ impl<Ext> Dom<Ext> {
 
 #[cfg(test)]
 mod tests {
-    use super::InvariantViolation;
     use crate::Dom;
-
-    /// The generation table is parallel to the slot table; a mismatch
-    /// means a constructor or `alloc` path forgot one side.
-    #[test]
-    fn generation_table_length_mismatch_is_reported() {
-        let mut dom: Dom = Dom::new();
-        let _ = dom.create_element("div");
-        dom.generations.pop();
-        assert!(dom.validate().iter().any(|v| matches!(
-            v,
-            InvariantViolation::GenerationTableMismatch {
-                slots: 2,
-                generations: 1
-            }
-        )));
-    }
 
     #[test]
     fn empty_dom_validates() {

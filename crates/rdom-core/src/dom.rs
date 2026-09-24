@@ -30,15 +30,30 @@ use crate::selection::{Position, Range};
 /// Generation every slot starts at.
 const FIRST_GENERATION: NonZeroU32 = NonZeroU32::MIN;
 
+/// One arena slot: the node (or `None` while the slot is free) and the
+/// generation it was last issued under. A `NodeId` resolves only while
+/// its generation matches the slot's, so a handle to a dropped node
+/// never aliases the slot's next occupant. Colocated so the hottest
+/// lookup (`get_node`) touches one `Vec` entry, not two.
+#[derive(Debug)]
+pub(crate) struct Slot<Ext> {
+    pub(crate) generation: NonZeroU32,
+    pub(crate) node: Option<Node<Ext>>,
+}
+
+impl<Ext> Slot<Ext> {
+    fn fresh(node: Node<Ext>) -> Self {
+        Self {
+            generation: FIRST_GENERATION,
+            node: Some(node),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct Dom<Ext: 'static = ()> {
-    /// Arena storage. `None` = freed slot awaiting reuse.
-    pub(crate) nodes: Vec<Option<Node<Ext>>>,
-    /// Per-slot generation, parallel to `nodes`. Bumped in `free`; a
-    /// `NodeId` resolves only while its generation matches the slot's,
-    /// so a handle to a dropped node never aliases the slot's next
-    /// occupant.
-    pub(crate) generations: Vec<NonZeroU32>,
+    /// Arena storage, indexed by `NodeId::index`.
+    pub(crate) nodes: Vec<Slot<Ext>>,
     /// Free-slot indices, LIFO (cache-friendly reuse).
     pub(crate) free: Vec<u32>,
     /// The root node. Created at `Dom::new`; identity is stable for the
@@ -103,11 +118,10 @@ impl<Ext: Default> Dom<Ext> {
     /// `with_root_tag` if you want the root to be a specific element tag.
     pub fn new() -> Self {
         let root_node: Node<Ext> = Node::new(NodeData::Fragment);
-        let nodes = vec![Some(root_node)];
+        let nodes = vec![Slot::fresh(root_node)];
         let root = NodeId::from_parts(0, FIRST_GENERATION);
         Self {
             nodes,
-            generations: vec![FIRST_GENERATION],
             free: Vec::new(),
             root,
             indexes: Indexes::default(),
@@ -378,11 +392,10 @@ impl<Ext: Default> Dom<Ext> {
             classes: BTreeSet::new(),
             ext: Ext::default(),
         });
-        let nodes = vec![Some(root_node)];
+        let nodes = vec![Slot::fresh(root_node)];
         let root = NodeId::from_parts(0, FIRST_GENERATION);
         let mut dom = Self {
             nodes,
-            generations: vec![FIRST_GENERATION],
             free: Vec::new(),
             root,
             indexes: Indexes::default(),
@@ -471,12 +484,13 @@ impl<Ext> Dom<Ext> {
     pub(crate) fn alloc(&mut self, node: Node<Ext>) -> NodeId {
         let new_id = if let Some(idx) = self.free.pop() {
             let idx = idx as usize;
-            self.nodes[idx] = Some(node);
-            NodeId::from_parts(idx, self.generations[idx])
+            let slot = &mut self.nodes[idx];
+            debug_assert!(slot.node.is_none(), "free list held a live slot");
+            slot.node = Some(node);
+            NodeId::from_parts(idx, slot.generation)
         } else {
             let idx = self.nodes.len();
-            self.nodes.push(Some(node));
-            self.generations.push(FIRST_GENERATION);
+            self.nodes.push(Slot::fresh(node));
             NodeId::from_parts(idx, FIRST_GENERATION)
         };
         self.hook_register(new_id);
@@ -493,33 +507,34 @@ impl<Ext> Dom<Ext> {
         let idx = id.index();
         self.hook_unregister(id);
         self.drop_listeners(id);
-        self.nodes[idx] = None;
+        let slot = &mut self.nodes[idx];
+        slot.node = None;
         // Retire every outstanding handle to this slot. On the (4-billion
         // recycles) wrap we restart at 1 rather than panic; a handle that
         // old aliasing is accepted.
-        self.generations[idx] = self.generations[idx]
-            .checked_add(1)
-            .unwrap_or(FIRST_GENERATION);
+        slot.generation = slot.generation.checked_add(1).unwrap_or(FIRST_GENERATION);
         self.free.push(idx as u32);
     }
 
     /// Shared-ref node access; `None` if the slot is freed, out of
     /// bounds, or has been recycled since `id` was issued.
+    #[inline]
     pub(crate) fn get_node(&self, id: NodeId) -> Option<&Node<Ext>> {
-        let idx = id.index();
-        if self.generations.get(idx).copied() != Some(id.generation_raw()) {
+        let slot = self.nodes.get(id.index())?;
+        if slot.generation != id.generation_raw() {
             return None;
         }
-        self.nodes.get(idx).and_then(|slot| slot.as_ref())
+        slot.node.as_ref()
     }
 
     /// Mutable node access; same liveness rule as `get_node`.
+    #[inline]
     pub(crate) fn get_node_mut(&mut self, id: NodeId) -> Option<&mut Node<Ext>> {
-        let idx = id.index();
-        if self.generations.get(idx).copied() != Some(id.generation_raw()) {
+        let slot = self.nodes.get_mut(id.index())?;
+        if slot.generation != id.generation_raw() {
             return None;
         }
-        self.nodes.get_mut(idx).and_then(|slot| slot.as_mut())
+        slot.node.as_mut()
     }
 
     /// Node access that errors on invalid id (use when the caller expects

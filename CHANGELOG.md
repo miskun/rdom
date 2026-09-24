@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md): every open `TECH_DEBT.md` row is paid down before 0.5.0.
 
+### Breaking — `rdom-core`
+
+- `InvariantViolation::GenerationTableMismatch` is gone: the slot generation now lives in the slot (`CORE-GEN-COLOCATE-1`), so there is no parallel table to disagree.
+
 ### Fixed — `rdom-core`
 
 - `drop_subtree`, `remove_child_dropping` and `clear_children_dropping` free the subtree even when a `MutationObserver` panics in any record they fire after the unlink (`ChildListChanged`, or the focus / hover / selection purge); the panic still propagates afterwards. A panic in the `PreDetach` window leaves the still-attached subtree alone. (`CORE-DROP-PANIC-LEAK-1`)

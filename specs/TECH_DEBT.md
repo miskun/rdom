@@ -6,10 +6,6 @@ For the durable architectural divergences (web-platform departures shipped on pu
 
 ## Open
 
-### Substrate (rdom-core) — from the HARDENING-2026-09 Batch 1 gates
-
-- **`CORE-GEN-COLOCATE-1` — the slot generation lives in a `Vec` parallel to `nodes`.** Every `get_node` touches two vectors (two bounds checks, two cache lines) on the hottest lookup in layout and paint. Colocating `(generation, Option<Node>)` in one slot removes one of each. Measure on a quiet machine before and after; do not record numbers taken under SentinelOne load.
-
 ### Style crate — from HARDENING-2026-09 Batch 2
 
 - **`STYLE-TRANSITION-VALUE-1` — transition properties are stored without the `Value<T>` wrapper.** `TuiStyle::transition_{property,duration,timing_function,delay}` are plain `Option<Vec<…>>`, so `transition: inherit` / `initial` / `unset` cannot be represented and `set()` reports `InvalidValue` for them while every other property accepts the CSS-wide keywords. Wrap them in `Value<T>` and resolve in the cascade's transition pass.
