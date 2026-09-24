@@ -116,10 +116,13 @@ pub(super) fn paint_inline_content(
     // a `<textarea>`, or any element with own text and no element
     // children). Iterate lines and emit fragments, prepending
     // `::before` to line 0 and appending `::after` to the last line.
-    let inline_layout = dom.node(id).ext().and_then(|e| e.inline_layout.clone());
-    if let Some(layout) = inline_layout {
+    if let Some(layout) = dom
+        .node(id)
+        .tui_ext()
+        .and_then(|e| e.inline_layout.as_ref())
+    {
         paint_lines(
-            dom, id, computed, &layout, inner, buf, clip, /* emit_pseudos = */ true,
+            dom, id, computed, layout, inner, buf, clip, /* emit_pseudos = */ true,
         );
         return;
     }
@@ -452,19 +455,15 @@ pub(super) fn paint_ifc(
     buf: &mut Buffer,
     clip: Rect,
 ) {
-    let Some(inline_layout) = dom.node(id).ext().and_then(|e| e.inline_layout.clone()) else {
+    let Some(inline_layout) = dom
+        .node(id)
+        .tui_ext()
+        .and_then(|e| e.inline_layout.as_ref())
+    else {
         return;
     };
     let first_visible_line = dom.node(id).ext().map_or(0, |e| e.scroll_y as i32);
-    paint_inline_layout(
-        dom,
-        &inline_layout,
-        inner,
-        first_visible_line,
-        id,
-        buf,
-        clip,
-    );
+    paint_inline_layout(dom, inline_layout, inner, first_visible_line, id, buf, clip);
     // Caret is painted by `paint_node` once per element that owns
     // an inline-flow container (IFC blocks AND pure-text leaf
     // blocks); the call used to live here, but textareas/inputs go
@@ -489,12 +488,10 @@ pub(super) fn paint_anonymous_blocks(
     buf: &mut Buffer,
     clip: Rect,
 ) {
-    let anons: Vec<crate::ext::AnonymousIfc> = dom
-        .node(container_id)
-        .ext()
-        .map(|e| e.anonymous_blocks.clone())
-        .unwrap_or_default();
-    for anon in &anons {
+    let Some(ext) = dom.node(container_id).tui_ext() else {
+        return;
+    };
+    for anon in &ext.anonymous_blocks {
         paint_inline_layout(
             dom,
             &anon.inline_layout,
