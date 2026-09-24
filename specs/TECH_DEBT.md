@@ -10,7 +10,6 @@ For the durable architectural divergences (web-platform departures shipped on pu
 
 - **`CORE-DOCPOS-ALLOC-1` — `compare_document_position` / `compare_boundary_points` allocate.** Each call builds two `ancestor_path` `Vec`s (plus one more and a recursion in the ancestor case). rdom-tui's selection paint calls `compare_boundary_points` twice per text node per frame while a selection exists (`render/paint_pass/inline_paint.rs`, `selection_byte_range_in`). Pay down with a depth-walk comparison that allocates nothing, or compute selection membership once per paint instead of per text node.
 - **`CORE-GEN-COLOCATE-1` — the slot generation lives in a `Vec` parallel to `nodes`.** Every `get_node` touches two vectors (two bounds checks, two cache lines) on the hottest lookup in layout and paint. Colocating `(generation, Option<Node>)` in one slot removes one of each. Measure on a quiet machine before and after; do not record numbers taken under SentinelOne load.
-- **`CORE-DROP-PANIC-LEAK-1` — `drop_subtree` leaks the subtree if an observer panics.** The `ChildListChanged` record fires before the slots are freed (so observers can inspect the removed nodes); a panicking observer, now re-raised after restore, leaves the subtree detached but never freed. Consistent, but undocumented: either document at the API or free under a drop guard.
 
 ### Style crate — from HARDENING-2026-09 Batch 2
 

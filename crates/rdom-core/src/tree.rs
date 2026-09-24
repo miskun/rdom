@@ -287,30 +287,47 @@ impl<Ext: 'static> Dom<Ext> {
             return Err(DomError::HierarchyRequest);
         }
         let parent = self.get_node(id).and_then(|n| n.parent);
-        // Detach from parent first.
-        let _ = self.detach_from_parent(id);
-        // Snapshot the subtree to free WHILE it's still alive.
+        // Snapshot the subtree to free WHILE it's still alive and before
+        // anything can panic.
         let mut to_free = Vec::new();
         self.collect_descendants(id, &mut to_free);
-        // Fire the mutation BEFORE freeing, so observers (the dirty
-        // tracker, implicit blur/focusout-on-detach) can still read the
-        // removed nodes in their callback — same contract as
+        // Detach, then fire the mutation BEFORE freeing, so observers (the
+        // dirty tracker, implicit blur/focusout-on-detach) can still read
+        // the removed nodes in their callback — same contract as
         // `remove_child`, and what the MutationObserver spec requires
-        // (`removedNodes` are inspectable). Freeing first left observers
-        // dereferencing a reclaimed slot → panic when a focused/observed
-        // node was dropped from inside an event handler.
-        if let Some(parent) = parent {
-            self.fire_mutation(Mutation::ChildListChanged {
-                parent,
-                added: vec![],
-                removed: vec![id],
-            });
+        // (`removedNodes` are inspectable). Both steps fire records
+        // (detach purges focus / hover / selection inside the subtree); a
+        // panicking observer is re-raised by `fire_mutation`, so the whole
+        // window runs under one guard and the slots are reclaimed on the
+        // way out (`CORE-DROP-PANIC-LEAK-1`).
+        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _ = self.detach_from_parent(id);
+            if let Some(parent) = parent {
+                self.fire_mutation(Mutation::ChildListChanged {
+                    parent,
+                    added: vec![],
+                    removed: vec![id],
+                });
+            }
+        }));
+        self.free_if_detached(id, to_free);
+        if let Err(payload) = outcome {
+            std::panic::resume_unwind(payload);
         }
-        // Now reclaim the slots.
+        Ok(())
+    }
+
+    /// Reclaim `to_free` (a subtree rooted at `root`) — unless `root` is
+    /// still attached, which happens when an observer panicked in the
+    /// `PreDetach` window, before the unlink: then the tree is intact and
+    /// freeing it would leave the parent pointing at dead slots.
+    fn free_if_detached(&mut self, root: NodeId, to_free: Vec<NodeId>) {
+        if self.get_node(root).is_some_and(|n| n.parent.is_some()) {
+            return;
+        }
         for n in to_free {
             self.free(n);
         }
-        Ok(())
     }
 
     /// Remove `child` from `parent` **and free** its subtree from the
@@ -321,11 +338,21 @@ impl<Ext: 'static> Dom<Ext> {
     /// extra record). Observers still see the removed node alive in their
     /// synchronous callback — it's freed only after dispatch returns.
     pub fn remove_child_dropping(&mut self, parent: NodeId, child: NodeId) -> Result<()> {
-        self.remove_child(parent, child)?;
-        // `child` is now a detached orphan; drop_subtree frees it and
-        // fires no further record (its parent is already `None`).
-        let _ = self.drop_subtree(child);
-        Ok(())
+        if self.get_node(child).and_then(|n| n.parent) != Some(parent) {
+            return Err(DomError::NotFound);
+        }
+        let mut to_free = Vec::new();
+        self.collect_descendants(child, &mut to_free);
+        // Same guard as `drop_subtree`: the record fires inside
+        // `remove_child`; a panicking observer must not leak the orphan.
+        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            self.remove_child(parent, child)
+        }));
+        self.free_if_detached(child, to_free);
+        match outcome {
+            Ok(result) => result,
+            Err(payload) => std::panic::resume_unwind(payload),
+        }
     }
 
     /// Remove all children from `parent` **and free** their subtrees
@@ -334,18 +361,25 @@ impl<Ext: 'static> Dom<Ext> {
     /// does; the frees run on the already-detached orphans.
     pub fn clear_children_dropping(&mut self, parent: NodeId) -> Result<()> {
         self.node_or_err(parent)?;
-        // Snapshot children before detaching them.
-        let mut children: Vec<NodeId> = Vec::new();
+        // Snapshot each child's subtree before detaching anything.
+        let mut subtrees: Vec<(NodeId, Vec<NodeId>)> = Vec::new();
         let mut cur = self.get_node(parent).and_then(|n| n.first_child);
         while let Some(id) = cur {
-            children.push(id);
+            let mut to_free = Vec::new();
+            self.collect_descendants(id, &mut to_free);
+            subtrees.push((id, to_free));
             cur = self.get_node(id).and_then(|n| n.next_sibling);
         }
-        self.clear_children(parent)?; // detaches all, one batch record
-        for child in children {
-            let _ = self.drop_subtree(child); // frees orphan, no extra record
+        // Detaches all, one batch record; guarded like `drop_subtree`.
+        let outcome =
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| self.clear_children(parent)));
+        for (child, to_free) in subtrees {
+            self.free_if_detached(child, to_free);
         }
-        Ok(())
+        match outcome {
+            Ok(result) => result,
+            Err(payload) => std::panic::resume_unwind(payload),
+        }
     }
 
     // ── Internal helpers ─────────────────────────────────────────────
@@ -586,6 +620,192 @@ mod tests {
             dom.append_child(b, a).unwrap_err(),
             DomError::HierarchyRequest
         ));
+    }
+
+    /// `CORE-DROP-PANIC-LEAK-1`: the `ChildListChanged` record fires
+    /// before the slots are freed (observers may inspect the removed
+    /// subtree). A panicking observer must not turn that ordering into
+    /// a leak — the subtree is freed on the way out, then the panic
+    /// continues.
+    #[test]
+    fn drop_subtree_frees_even_when_an_observer_panics() {
+        struct Bomb;
+        impl crate::MutationObserver<()> for Bomb {
+            fn observe(&mut self, _dom: &mut Dom, _record: &crate::Mutation) {
+                panic!("observer bomb");
+            }
+        }
+        let mut dom: Dom = Dom::new();
+        let root = dom.root();
+        let div = dom.create_element("div");
+        let span = dom.create_element("span");
+        dom.append_child(root, div).unwrap();
+        dom.append_child(div, span).unwrap();
+        dom.add_mutation_observer(Box::new(Bomb));
+
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            dom.drop_subtree(div).unwrap();
+        }));
+        assert!(result.is_err(), "the bomb must actually fire");
+        assert!(!dom.contains(div), "subtree root was freed");
+        assert!(!dom.contains(span), "subtree descendant was freed");
+        assert_eq!(dom.len(), 1, "only the root remains");
+        assert!(dom.validate().is_empty());
+    }
+
+    /// A panicking observer on the *purge* records that `detach_from_parent`
+    /// fires (`InteractionChanged` for a focused descendant, `SelectionChanged`
+    /// for a selection anchored inside) must not leak either: the unlink has
+    /// already happened, so the subtree is freed on the way out.
+    #[test]
+    fn drop_subtree_frees_when_the_focus_purge_observer_panics() {
+        struct Bomb;
+        impl crate::MutationObserver<()> for Bomb {
+            fn observe(&mut self, _dom: &mut Dom, record: &crate::Mutation) {
+                if matches!(record, crate::Mutation::InteractionChanged { .. }) {
+                    panic!("observer bomb");
+                }
+            }
+        }
+        let mut dom: Dom = Dom::new();
+        let root = dom.root();
+        let div = dom.create_element("div");
+        let span = dom.create_element("span");
+        dom.append_child(root, div).unwrap();
+        dom.append_child(div, span).unwrap();
+        dom.set_focused(Some(span));
+        dom.add_mutation_observer(Box::new(Bomb));
+
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            dom.drop_subtree(div).unwrap();
+        }));
+        assert!(result.is_err(), "the bomb must actually fire");
+        assert!(
+            !dom.contains(div) && !dom.contains(span),
+            "subtree was freed"
+        );
+        assert_eq!(dom.len(), 1);
+        assert_eq!(dom.focused(), None);
+        assert!(dom.validate().is_empty());
+    }
+
+    #[test]
+    fn drop_subtree_frees_when_the_selection_purge_observer_panics() {
+        struct Bomb;
+        impl crate::MutationObserver<()> for Bomb {
+            fn observe(&mut self, _dom: &mut Dom, record: &crate::Mutation) {
+                if matches!(record, crate::Mutation::SelectionChanged { .. }) {
+                    panic!("observer bomb");
+                }
+            }
+        }
+        let mut dom: Dom = Dom::new();
+        let root = dom.root();
+        let div = dom.create_element("div");
+        let text = dom.create_text_node("hello");
+        dom.append_child(root, div).unwrap();
+        dom.append_child(div, text).unwrap();
+        let at = crate::Position {
+            node: text,
+            offset: 1,
+        };
+        dom.set_selection(Some(crate::Selection {
+            anchor: at,
+            focus: at,
+        }));
+        dom.add_mutation_observer(Box::new(Bomb));
+
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            dom.drop_subtree(div).unwrap();
+        }));
+        assert!(result.is_err(), "the bomb must actually fire");
+        assert!(
+            !dom.contains(div) && !dom.contains(text),
+            "subtree was freed"
+        );
+        assert_eq!(dom.len(), 1);
+        assert!(dom.validate().is_empty());
+    }
+
+    /// `remove_child_dropping` / `clear_children_dropping` fire their
+    /// `ChildListChanged` before the orphan reaches `drop_subtree`; the
+    /// same guarantee holds there.
+    #[test]
+    fn dropping_wrappers_free_when_an_observer_panics() {
+        struct Bomb;
+        impl crate::MutationObserver<()> for Bomb {
+            fn observe(&mut self, _dom: &mut Dom, record: &crate::Mutation) {
+                if matches!(record, crate::Mutation::ChildListChanged { .. }) {
+                    panic!("observer bomb");
+                }
+            }
+        }
+        let mut dom: Dom = Dom::new();
+        let root = dom.root();
+        let a = dom.create_element("a");
+        let a_kid = dom.create_element("kid");
+        let b = dom.create_element("b");
+        let c = dom.create_element("c");
+        dom.append_child(root, a).unwrap();
+        dom.append_child(a, a_kid).unwrap();
+        dom.append_child(root, b).unwrap();
+        dom.append_child(root, c).unwrap();
+        dom.add_mutation_observer(Box::new(Bomb));
+
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            dom.remove_child_dropping(root, a).unwrap();
+        }));
+        assert!(result.is_err());
+        assert!(
+            !dom.contains(a) && !dom.contains(a_kid),
+            "removed subtree was freed"
+        );
+        assert_eq!(dom.len(), 3, "root, b, c");
+
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            dom.clear_children_dropping(root).unwrap();
+        }));
+        assert!(result.is_err());
+        assert!(
+            !dom.contains(b) && !dom.contains(c),
+            "cleared children were freed"
+        );
+        assert_eq!(dom.len(), 1);
+        assert!(dom.validate().is_empty());
+    }
+
+    /// The other side of the rule: a panic in the `PreDetach` window
+    /// happens *before* the unlink, so the subtree is still attached and
+    /// must not be freed out from under its parent.
+    #[test]
+    fn drop_subtree_keeps_an_attached_subtree_when_pre_detach_panics() {
+        struct Bomb;
+        impl crate::MutationObserver<()> for Bomb {
+            fn observe(&mut self, _dom: &mut Dom, record: &crate::Mutation) {
+                if matches!(record, crate::Mutation::PreDetach { .. }) {
+                    panic!("observer bomb");
+                }
+            }
+        }
+        let mut dom: Dom = Dom::new();
+        let root = dom.root();
+        let div = dom.create_element("div");
+        let span = dom.create_element("span");
+        dom.append_child(root, div).unwrap();
+        dom.append_child(div, span).unwrap();
+        dom.set_focused(Some(span));
+        dom.add_mutation_observer(Box::new(Bomb));
+
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            dom.drop_subtree(div).unwrap();
+        }));
+        assert!(result.is_err());
+        assert!(
+            dom.contains(div) && dom.contains(span),
+            "still attached, not freed"
+        );
+        assert_eq!(dom.node(root).first_child().map(|n| n.id()), Some(div));
+        assert!(dom.validate().is_empty());
     }
 
     /// The root is the arena's anchor; dropping it would leave `Dom::root`

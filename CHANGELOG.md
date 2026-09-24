@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md): every open `TECH_DEBT.md` row is paid down before 0.5.0.
 
+### Fixed — `rdom-core`
+
+- `drop_subtree`, `remove_child_dropping` and `clear_children_dropping` free the subtree even when a `MutationObserver` panics in any record they fire after the unlink (`ChildListChanged`, or the focus / hover / selection purge); the panic still propagates afterwards. A panic in the `PreDetach` window leaves the still-attached subtree alone. (`CORE-DROP-PANIC-LEAK-1`)
+
 ### Changed — `rdom-tui`
 
 - **Examples and demo snapshots moved.** `rdom-tui/examples/` now holds three self-contained programs (`counter_button`, `tab_form`, `parse_and_render`); the ten showcase-backed shims and their sixteen paint snapshots live in `rdom-showcase/{examples,tests}/` (`cargo run -p rdom-showcase --example <name>`). `rdom-tui` no longer dev-depends on `rdom-showcase`, and the published tarball ships `examples/`, `tests/` and `benches/` again (the `exclude` is gone). (`PROC-TUI-DEV-DEP-1`)
