@@ -272,7 +272,9 @@ pub(super) fn layout_flex_children(
     // Gather per-child (Size, min, max, is_flex) tuples for the main
     // axis.
     let mut child_info: Vec<ChildMain> = Vec::with_capacity(children.len());
-    let mut consumed_fixed: u16 = 0;
+    // Signed: a negative margin frees main-axis space (Flexbox §9.7
+    // counts outer sizes; CSS margins may be negative).
+    let mut consumed_fixed: i32 = 0;
     let mut auto_main_count: u32 = 0;
 
     for &child in children {
@@ -313,14 +315,14 @@ pub(super) fn layout_flex_children(
             Direction::Row => main_budget,
             Direction::Column => cross_budget,
         };
-        let margin_consumed = match (&main_start_m, &main_end_m) {
-            (MarginValue::Auto, MarginValue::Auto) => 0u16,
-            (a, MarginValue::Auto) => a.resolve(main_cb_w).max(0) as u16,
-            (MarginValue::Auto, b) => b.resolve(main_cb_w).max(0) as u16,
-            (a, b) => (a.resolve(main_cb_w).max(0) as u16)
-                .saturating_add(b.resolve(main_cb_w).max(0) as u16),
+        let margin_consumed = |m: &MarginValue| -> i32 {
+            if m.is_auto() {
+                0
+            } else {
+                i32::from(m.resolve(main_cb_w))
+            }
         };
-        consumed_fixed = consumed_fixed.saturating_add(margin_consumed);
+        consumed_fixed += margin_consumed(&main_start_m) + margin_consumed(&main_end_m);
         if matches!(main_start_m, MarginValue::Auto) {
             auto_main_count += 1;
         }
@@ -395,7 +397,7 @@ pub(super) fn layout_flex_children(
         };
 
         if let MainNatural::Fixed(n) | MainNatural::Auto(n) = natural {
-            consumed_fixed = consumed_fixed.saturating_add(n);
+            consumed_fixed += i32::from(n);
         }
 
         // Pre-resolve `Calc` margins to `Cells` here so the placement
@@ -455,10 +457,9 @@ pub(super) fn layout_flex_children(
 
     // Space left after sizes + gaps + non-auto margins, plus the
     // cells reclaimed by sibling-overlap.
-    let remaining = main_budget
-        .saturating_sub(consumed_fixed)
-        .saturating_sub(gap_total)
-        .saturating_add(overlap_savings);
+    let remaining = (i32::from(main_budget) - consumed_fixed - i32::from(gap_total)
+        + i32::from(overlap_savings))
+    .clamp(0, i32::from(u16::MAX)) as u16;
 
     // CSS rule for flex auto-margins: when free space > 0 AND any
     // auto margins exist on the main axis, those margins consume the
@@ -679,17 +680,17 @@ pub(super) fn layout_flex_children(
         // construction above (see `resolve_margin`), so only the
         // `Cells | Auto` cases are reachable here.
         use crate::layout::MarginValue;
-        let main_start_cells = match &child_info[i].main_start_margin {
-            MarginValue::Cells(n) => (*n).max(0) as u16,
-            MarginValue::Auto => resolve_auto(&mut autos_consumed),
+        let main_start_cells: i32 = match &child_info[i].main_start_margin {
+            MarginValue::Cells(n) => i32::from(*n),
+            MarginValue::Auto => i32::from(resolve_auto(&mut autos_consumed)),
             MarginValue::Calc(_) => unreachable!("Calc pre-resolved to Cells"),
         };
-        let main_end_cells = match &child_info[i].main_end_margin {
-            MarginValue::Cells(n) => (*n).max(0) as u16,
-            MarginValue::Auto => resolve_auto(&mut autos_consumed),
+        let main_end_cells: i32 = match &child_info[i].main_end_margin {
+            MarginValue::Cells(n) => i32::from(*n),
+            MarginValue::Auto => i32::from(resolve_auto(&mut autos_consumed)),
             MarginValue::Calc(_) => unreachable!("Calc pre-resolved to Cells"),
         };
-        main_cursor = main_cursor.saturating_add(main_start_cells as i32);
+        main_cursor = main_cursor.saturating_add(main_start_cells);
 
         // Whether the child's main-axis size was declared `Auto` —
         // needed so `resolve_cross_size` knows whether to apply
@@ -705,18 +706,19 @@ pub(super) fn layout_flex_children(
             Direction::Row => (&child_computed.margin.top, &child_computed.margin.bottom),
             Direction::Column => (&child_computed.margin.left, &child_computed.margin.right),
         };
-        let cross_cells = |m: &crate::layout::MarginValue| -> u16 {
+        // Signed: a negative cross margin starts the box before the
+        // container's edge and widens a stretched box (Flexbox §9.4).
+        let cross_cells = |m: &crate::layout::MarginValue| -> i32 {
             if m.is_auto() {
                 0
             } else {
-                m.resolve(cb_width).max(0) as u16
+                i32::from(m.resolve(cb_width))
             }
         };
         let cross_start_cells = cross_cells(cross_start_m);
         let cross_end_cells = cross_cells(cross_end_m);
-        let cross_avail = cross_budget
-            .saturating_sub(cross_start_cells)
-            .saturating_sub(cross_end_cells);
+        let cross_avail = (i32::from(cross_budget) - cross_start_cells - cross_end_cells)
+            .clamp(0, i32::from(u16::MAX)) as u16;
         // Flexbox §9.5: an item with an `auto` cross margin is not
         // stretched — it takes its content size and the margins absorb
         // the free space.
@@ -734,12 +736,12 @@ pub(super) fn layout_flex_children(
                 stretch,
             },
         );
-        let cross_free = cross_avail.saturating_sub(cross_size);
-        let cross_offset = match (cross_start_m.is_auto(), cross_end_m.is_auto()) {
+        let cross_free = i32::from(cross_avail.saturating_sub(cross_size));
+        let cross_offset: i32 = match (cross_start_m.is_auto(), cross_end_m.is_auto()) {
             (true, true) => cross_start_cells + cross_free / 2,
             (true, false) => cross_start_cells + cross_free,
             _ => cross_start_cells,
-        } as i32;
+        };
 
         let child_rect = match direction {
             Direction::Row => LayoutRect::new(
@@ -760,7 +762,7 @@ pub(super) fn layout_flex_children(
 
         // Advance cursor past this child + main-end margin + gap.
         main_cursor = main_cursor.saturating_add(*size as i32);
-        main_cursor = main_cursor.saturating_add(main_end_cells as i32);
+        main_cursor = main_cursor.saturating_add(main_end_cells);
         if i + 1 < child_list.len() {
             main_cursor = main_cursor.saturating_add(gap as i32);
             // Sibling-overlap pullback. Mirrors the gating in the

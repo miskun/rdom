@@ -4192,3 +4192,86 @@ fn block_container_scrolls_horizontally() {
     dom.layout_dom(Rect::new(0, 0, 40, 10));
     assert_eq!(layout_rect_of(&dom, wide).x, -4);
 }
+
+// ── FLEX-ITEM-NEGATIVE-MARGIN-1: negative flex-item margins ─────────
+
+/// `FLEX-ITEM-NEGATIVE-MARGIN-1`: a negative main-axis margin pulls
+/// the item toward its predecessor and frees main-axis space instead
+/// of clamping to zero.
+#[test]
+fn negative_main_axis_margin_pulls_a_flex_item_back() {
+    use rdom_style::layout::{Margin, MarginValue};
+    let mut dom = tui_dom();
+    let root = dom.root();
+    let row = dom.create_element("row");
+    let a = dom.create_element("a");
+    let b = dom.create_element("b");
+    dom.append_child(row, a).unwrap();
+    dom.append_child(row, b).unwrap();
+    dom.append_child(root, row).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "row",
+            TuiStyle::new()
+                .flow(Flow::Flex)
+                .direction(Direction::Row)
+                .width(Size::Fixed(10))
+                .height(Size::Fixed(1)),
+        )
+        .rule_unchecked("a", TuiStyle::new().width(Size::Fixed(5)))
+        .rule_unchecked(
+            "b",
+            TuiStyle::new().width(Size::Fixed(5)).margin(Margin {
+                top: MarginValue::Cells(0),
+                right: MarginValue::Cells(0),
+                bottom: MarginValue::Cells(0),
+                left: MarginValue::Cells(-2),
+            }),
+        );
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 20, 5));
+    assert_eq!(layout_rect_of(&dom, b).x, 3, "overlaps `a` by two cells");
+    assert_eq!(
+        layout_rect_of(&dom, a).width,
+        5,
+        "5 + 5 - 2 = 8 ≤ 10: nothing shrinks"
+    );
+    assert_eq!(layout_rect_of(&dom, b).width, 5);
+}
+
+/// `FLEX-ITEM-NEGATIVE-MARGIN-1`: a negative cross-axis margin starts
+/// the item before the container's edge, and a stretched item grows by
+/// it (Flexbox §9.4: the outer cross size includes the margins).
+#[test]
+fn negative_cross_axis_margin_extends_a_flex_item_past_the_edge() {
+    use rdom_style::layout::{Margin, MarginValue};
+    let mut dom = tui_dom();
+    let root = dom.root();
+    let row = dom.create_element("row");
+    let a = dom.create_element("a");
+    dom.append_child(row, a).unwrap();
+    dom.append_child(root, row).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "row",
+            TuiStyle::new()
+                .flow(Flow::Flex)
+                .direction(Direction::Row)
+                .width(Size::Fixed(10))
+                .height(Size::Fixed(3)),
+        )
+        .rule_unchecked(
+            "a",
+            TuiStyle::new().width(Size::Fixed(4)).margin(Margin {
+                top: MarginValue::Cells(-1),
+                right: MarginValue::Cells(0),
+                bottom: MarginValue::Cells(0),
+                left: MarginValue::Cells(0),
+            }),
+        );
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 20, 5));
+    let r = layout_rect_of(&dom, a);
+    assert_eq!(r.y, -1, "starts one row above the container");
+    assert_eq!(r.height, 4, "stretched: 3 - (-1)");
+}

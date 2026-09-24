@@ -210,6 +210,8 @@ Each phase ends with the two review gates; each commit carries the item id.
   autoscroll.
 - 2026-09-24 — Phase 5: `FOCUS-THUMB-NEAREST-1` — `App::mark_scroll_focus` keeps
   `data-rdom-scroll-focus` on the keyboard's scroll target; the UA rule matches the attribute.
+- 2026-09-24 — Phase 5: `FLEX-ITEM-NEGATIVE-MARGIN-1` — signed margin math in the flex budget,
+  placement and cross sizing.
 - Found while mapping Phase 3 (not on the ledger): `ImportantMask::FLOW` and `POINTER_EVENTS` share
   bit 39 (`tui_style.rs`), custom-property inheritance in the cascade is overwritten by the merged
   root map (`walk.rs`), and tokenizer errors inside a block are body-relative (`declarations.rs`).
