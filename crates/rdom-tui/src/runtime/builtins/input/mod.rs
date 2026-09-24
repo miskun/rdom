@@ -57,6 +57,10 @@ pub fn value(dom: &TuiDom, input: NodeId) -> String {
 /// generally-forgiving builder-chain style used elsewhere in
 /// rdom-tui's helper API.
 pub fn set_value(dom: &mut TuiDom, input: NodeId, new_value: &str) {
+    // Setting the value programmatically leaves the default alone
+    // (HTML: `.value =` does not touch `defaultValue`), so record the
+    // authored value first if nothing has yet.
+    note_default_value(dom, input);
     let _ = dom.set_attribute(input, "value", new_value);
     // Errors discarded at the boundary — see the function-level
     // docstring. The canonical helper (`crate::node::install_text_content`)
@@ -98,6 +102,7 @@ pub fn seed_all(dom: &mut TuiDom) {
         if !has_text_child || want != have {
             let _ = crate::node::install_text_content(dom, id, &want);
         }
+        note_default_value(dom, id);
     }
 
     // Textareas need an editable text child too. Unlike `<input>`,
@@ -112,6 +117,42 @@ pub fn seed_all(dom: &mut TuiDom) {
         if !has_text_child {
             let _ = crate::node::install_text_content(dom, id, "");
         }
+        note_default_value(dom, id);
+    }
+}
+
+/// Record the control's current text as its `defaultValue` unless a
+/// default is already known (`FORM-DEFAULTS-1`). Called when a control
+/// is seeded and before its first change, so the authored value is the
+/// one a `<form>` reset restores.
+pub(crate) fn note_default_value(dom: &mut TuiDom, editable: NodeId) {
+    let known = dom
+        .node(editable)
+        .ext()
+        .is_some_and(|e| e.default_value.is_some());
+    if known {
+        return;
+    }
+    let current = value(dom, editable);
+    if let Some(ext) = dom.node_mut(editable).ext_mut() {
+        ext.default_value = Some(current);
+    }
+}
+
+/// Restore a text control to its `defaultValue`: the text content and,
+/// for an `<input>`, the mirrored `value` attribute. No-op without a
+/// recorded default.
+pub(crate) fn reset_to_default(dom: &mut TuiDom, editable: NodeId) {
+    let Some(default) = dom
+        .node(editable)
+        .ext()
+        .and_then(|e| e.default_value.clone())
+    else {
+        return;
+    };
+    let _ = crate::node::install_text_content(dom, editable, &default);
+    if dom.node(editable).tag_name() == Some("input") {
+        let _ = dom.set_attribute(editable, "value", &default);
     }
 }
 

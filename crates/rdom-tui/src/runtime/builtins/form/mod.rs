@@ -81,7 +81,9 @@ pub fn install(dom: &mut TuiDom) {
                 }
             }
             ButtonAction::Reset => {
-                let _ = fire_reset(ctx.dom, form);
+                if !fire_reset(ctx.dom, form) {
+                    reset_controls(ctx.dom, form);
+                }
             }
             ButtonAction::Button => {} // no default action
         }
@@ -266,6 +268,29 @@ pub(crate) fn fire_submit(dom: &mut TuiDom, form: NodeId, submitter: Option<Node
         rdom_core::EventDetail::Submit(Box::new(rdom_core::SubmitDetail { submitter }));
     let _ = dom.dispatch_tui_event(form, &mut ev);
     ev.event.default_prevented()
+}
+
+/// HTML §4.10.21.5 reset algorithm: every control under `form` goes back
+/// to its default — text controls to `defaultValue`, checkboxes and
+/// radios to `defaultChecked` (`FORM-DEFAULTS-1`). No `input` / `change`
+/// events fire, as on the web.
+fn reset_controls(dom: &mut TuiDom, form: NodeId) {
+    let mut stack = vec![form];
+    while let Some(id) = stack.pop() {
+        let kids: Vec<NodeId> = dom.node(id).child_nodes().map(|c| c.id()).collect();
+        for kid in kids {
+            match dom.node(kid).tag_name() {
+                Some("input") if crate::runtime::builtins::toggle::is_toggle(dom, kid) => {
+                    crate::runtime::builtins::toggle::reset_to_default(dom, kid);
+                }
+                Some("input") | Some("textarea") => {
+                    crate::runtime::builtins::input::reset_to_default(dom, kid);
+                }
+                _ => {}
+            }
+            stack.push(kid);
+        }
+    }
 }
 
 fn fire_reset(dom: &mut TuiDom, form: NodeId) -> bool {

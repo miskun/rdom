@@ -36,7 +36,6 @@ For the durable architectural divergences (web-platform departures shipped on pu
 
 ### Forms
 
-- **`FORM-DEFAULTS-1` — no `defaultValue` / `defaultChecked`, so `<form>` reset cannot restore anything.** The IDL value and the content attribute are conflated: `builtins/input::mirror_to_attribute` writes typed text into `value` and the toggle builtin flips the `checked` attribute itself. HTML keeps the attribute as the default and a separate dirty value. Fix = a per-control default snapshot (`TuiExt` or a `data-rdom-default-*` attribute captured on first edit) that reset restores, then stop mirroring — a consumer-visible change (`DIVERGENCES.md` documents the current behavior), so it ships with a major-line bump and a CHANGELOG migration note.
 
 ## Accepted simplifications (forever-state)
 

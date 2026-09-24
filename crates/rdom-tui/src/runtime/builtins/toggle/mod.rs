@@ -184,11 +184,15 @@ enum ToggleUndo {
 /// be deselected by clicking).
 fn pre_activate(dom: &mut TuiDom, widget: NodeId) -> ToggleUndo {
     let was_checked = dom.node(widget).has_attribute("checked");
+    note_default_checked(dom, widget);
     if is_radio(dom, widget) {
         if was_checked {
             return ToggleUndo::Nothing;
         }
         let siblings = collect_radio_group(dom, widget);
+        for &sib in &siblings {
+            note_default_checked(dom, sib);
+        }
         let previously_checked = siblings
             .iter()
             .copied()
@@ -207,6 +211,35 @@ fn pre_activate(dom: &mut TuiDom, widget: NodeId) -> ToggleUndo {
         let _ = dom.set_attribute(widget, "checked", "");
     }
     ToggleUndo::Checkbox
+}
+
+/// Record the widget's current checkedness as its `defaultChecked`
+/// unless already known (`FORM-DEFAULTS-1`); a `<form>` reset restores it.
+pub(crate) fn note_default_checked(dom: &mut TuiDom, widget: NodeId) {
+    let known = dom
+        .node(widget)
+        .ext()
+        .is_some_and(|e| e.default_checked.is_some());
+    if known {
+        return;
+    }
+    let checked = dom.node(widget).has_attribute("checked");
+    if let Some(ext) = dom.node_mut(widget).ext_mut() {
+        ext.default_checked = Some(checked);
+    }
+}
+
+/// Restore a checkbox / radio to its `defaultChecked`. No-op without a
+/// recorded default.
+pub(crate) fn reset_to_default(dom: &mut TuiDom, widget: NodeId) {
+    let Some(default) = dom.node(widget).ext().and_then(|e| e.default_checked) else {
+        return;
+    };
+    if default {
+        let _ = dom.set_attribute(widget, "checked", "");
+    } else {
+        let _ = dom.remove_attribute(widget, "checked");
+    }
 }
 
 /// Legacy-canceled-activation behavior: put the state back the way

@@ -269,6 +269,11 @@ Each phase ends with the two review gates; each commit carries the item id.
   nearest `contain` / `all` ancestor was the paragraph, not the host (`host_with` climbs the run).
   Contain clamp via `nearest_inline_target_in_subtree` + `resolve_in_target`; the edge rule stays
   as the no-flow fallback.
+- 2026-09-24 — Phase 6: `FORM-DEFAULTS-1` — defaults captured on seed / first change, reset
+  restores; the attributes stay live on purpose (`:checked` is attribute-matched in rdom-core; a
+  separate live state would need a core hook for one selector). Found on the way: a toggle beside
+  prose lost its click to the empty-space selection snap — toggles / range are now `user-select:
+  none` in the UA sheet, like buttons.
 - Found while mapping Phase 3 (not on the ledger): `ImportantMask::FLOW` and `POINTER_EVENTS` share
   bit 39 (`tui_style.rs`), custom-property inheritance in the cascade is overwritten by the merged
   root map (`walk.rs`), and tokenizer errors inside a block are body-relative (`declarations.rs`).

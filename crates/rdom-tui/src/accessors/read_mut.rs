@@ -18,6 +18,14 @@ impl<'a> TuiAccessors<'a> for rdom_core::NodeMut<'a, TuiExt> {
         self.as_ref().checked()
     }
 
+    fn default_value(&self) -> Option<String> {
+        self.as_ref().default_value()
+    }
+
+    fn default_checked(&self) -> Option<bool> {
+        self.as_ref().default_checked()
+    }
+
     fn indeterminate(&self) -> bool {
         self.as_ref().indeterminate()
     }

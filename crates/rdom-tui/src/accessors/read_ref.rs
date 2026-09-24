@@ -28,6 +28,30 @@ impl<'a> TuiAccessors<'a> for rdom_core::NodeRef<'a, TuiExt> {
         self.has_attribute("checked")
     }
 
+    fn default_value(&self) -> Option<String> {
+        match self.tag_name()? {
+            "input" if !crate::runtime::builtins::toggle::is_toggle(self.dom(), self.id()) => {}
+            "textarea" => {}
+            _ => return None,
+        }
+        Some(
+            self.ext()
+                .and_then(|e| e.default_value.clone())
+                .unwrap_or_else(|| crate::runtime::builtins::input::value(self.dom(), self.id())),
+        )
+    }
+
+    fn default_checked(&self) -> Option<bool> {
+        if !crate::runtime::builtins::toggle::is_toggle(self.dom(), self.id()) {
+            return None;
+        }
+        Some(
+            self.ext()
+                .and_then(|e| e.default_checked)
+                .unwrap_or_else(|| self.has_attribute("checked")),
+        )
+    }
+
     fn indeterminate(&self) -> bool {
         self.has_attribute("indeterminate")
     }

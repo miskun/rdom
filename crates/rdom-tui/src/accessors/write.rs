@@ -40,6 +40,10 @@ impl<'a> TuiAccessorsMut<'a> for rdom_core::NodeMut<'a, TuiExt> {
         if self.as_ref().tag_name() != Some("input") {
             return Ok(());
         }
+        let id = self.id();
+        if crate::runtime::builtins::toggle::is_toggle(self.as_ref().dom(), id) {
+            crate::runtime::builtins::toggle::note_default_checked(self.dom_mut(), id);
+        }
         write_boolean_attribute(self, "checked", value)
     }
 

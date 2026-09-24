@@ -76,6 +76,16 @@ pub trait TuiAccessors<'a> {
     /// the attribute).
     fn checked(&self) -> bool;
 
+    /// `defaultValue` of a text control: what it was authored / seeded
+    /// with, or its text before the first change; a `<form>` reset
+    /// restores it. `None` for other elements.
+    fn default_value(&self) -> Option<String>;
+
+    /// `defaultChecked` of a checkbox / radio: its checkedness before the
+    /// first flip; a `<form>` reset restores it. `None` for other
+    /// elements.
+    fn default_checked(&self) -> Option<bool>;
+
     /// `[indeterminate]` attribute presence — used by the
     /// `:indeterminate` pseudo-class. Browsers expose this as an
     /// IDL-only bit; v1 reflects it via attribute presence so a

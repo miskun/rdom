@@ -416,6 +416,14 @@ pub struct TuiExt {
     /// cleared when it is laid out, so nothing outlives the pass —
     /// which is why it is not part of the public layout output.
     pub(crate) margin_chain: Option<MarginChainMemo>,
+    /// `defaultValue` of a text control: the value it was authored /
+    /// seeded with, captured before its first change. `None` until a
+    /// control has been seeded or changed (`FORM-DEFAULTS-1`); `<form>`
+    /// reset restores it.
+    pub default_value: Option<String>,
+    /// `defaultChecked` of a checkbox / radio, captured before its first
+    /// flip; `<form>` reset restores it.
+    pub default_checked: Option<bool>,
     /// A caret move or edit asked this inline-flow container to reveal
     /// the caret; the runtime re-runs the reveal after the next layout,
     /// when the container's extent is current

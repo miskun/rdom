@@ -312,3 +312,45 @@ fn space_on_focused_radio_selects_it() {
     app.handle_event(key_press(KeyCode::Char(' '), KeyModifiers::empty()));
     assert!(app.dom().node(r2).has_attribute("checked"));
 }
+
+// ── A toggle next to prose is still a toggle ─────────────────────
+
+/// A mousedown on a checkbox must not start a selection drag in the
+/// nearest text on the page (the empty-space snap of `position_at`):
+/// that drag's pointer capture retargeted the click to the text's
+/// container and the box never flipped. Toggles are `user-select:
+/// none` widgets in the UA sheet, so the snap does not engage.
+#[test]
+fn click_on_checkbox_beside_text_toggles_and_starts_no_selection() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let p = dom.create_element("p");
+    let t = dom.create_text_node("some prose");
+    dom.append_child(p, t).unwrap();
+    let cb = dom.create_element("input");
+    dom.set_attribute(cb, "type", "checkbox").unwrap();
+    dom.append_child(root, p).unwrap();
+    dom.append_child(root, cb).unwrap();
+    // Rows: 0 = prose, 1 = checkbox.
+    let sheet = Stylesheet::new()
+        .rule_unchecked("p", TuiStyle::new().height(Size::Fixed(1)))
+        .rule_unchecked(
+            "input[type=checkbox]",
+            TuiStyle::new()
+                .display(crate::layout::Display::Block)
+                .width(Size::Fixed(10))
+                .height(Size::Fixed(1)),
+        );
+    let mut app = test_app(dom, sheet);
+    app.draw_if_dirty().unwrap();
+
+    click_at(&mut app, 1, 1);
+    assert!(
+        app.dom().node(cb).has_attribute("checked"),
+        "the click reached the box"
+    );
+    assert!(
+        app.dom().selection().is_none(),
+        "no selection drag began in the prose"
+    );
+}

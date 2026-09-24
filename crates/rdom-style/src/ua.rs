@@ -643,19 +643,28 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
         // so a toggle in a flex row takes 4 cells, not 20
         // (`FLEX-BLOCK-MAIN-INTRINSIC-1` — the width came from the UA,
         // not from flex-basis resolution).
+        //
+        // `user-select: none`: a toggle is a widget with no prose, like
+        // a browser's replaced checkbox. Without it a mousedown on the
+        // box fell through `position_at`'s empty-space snap to the
+        // nearest text elsewhere on the page and started a selection
+        // drag there — whose pointer capture then retargeted the click
+        // away from the toggle (found by `FORM-DEFAULTS-1`).
         (
             "input[type=checkbox]",
             TuiStyle::new()
                 .display(Display::InlineBlock)
                 .width(Size::Auto)
-                .height(Size::Fixed(1)),
+                .height(Size::Fixed(1))
+                .user_select(UserSelect::None),
         ),
         (
             "input[type=radio]",
             TuiStyle::new()
                 .display(Display::InlineBlock)
                 .width(Size::Auto)
-                .height(Size::Fixed(1)),
+                .height(Size::Fixed(1))
+                .user_select(UserSelect::None),
         ),
         (
             "input[type=checkbox]::before",
@@ -896,13 +905,17 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
         // glyphs within this rect. Accent color is LightBlue
         // (matching `<progress>` and the rest of the accent
         // family).
+        // `user-select: none` for the same reason as the toggles: a
+        // slider is a widget, and a mousedown on it must not start a
+        // selection drag in the nearest prose.
         (
             "input[type=range]",
             TuiStyle::new()
                 .display(Display::Block)
                 .width(Size::Fixed(20))
                 .height(Size::Fixed(1))
-                .fg(ACCENT),
+                .fg(ACCENT)
+                .user_select(UserSelect::None),
         ),
         // ── Lists ──
         // `ul` / `ol` / `menu` use left padding so nested list
@@ -1280,6 +1293,9 @@ mod tests {
             "input[type=button]",
             "input[type=submit]",
             "input[type=reset]",
+            "input[type=checkbox]",
+            "input[type=radio]",
+            "input[type=range]",
         ] {
             let r = ua
                 .get(sel)
@@ -1287,7 +1303,8 @@ mod tests {
             assert_eq!(
                 r.style.user_select,
                 Some(Value::Specified(UserSelect::None)),
-                "`{sel}` must declare user-select: none so its label is not drag-selectable"
+                "`{sel}` must declare user-select: none: a widget, not prose, and a mousedown on \
+                 it must not start a selection drag elsewhere"
             );
         }
     }

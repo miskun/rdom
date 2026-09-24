@@ -610,3 +610,83 @@ fn implicit_enter_submit_has_no_submitter() {
         "implicit Enter submit must have submitter=None; got {seen:?}"
     );
 }
+
+// ── FORM-DEFAULTS-1: defaults survive edits; reset restores them ────
+
+/// `defaultValue` / `defaultChecked` are kept apart from the live
+/// state, and a `<form>` reset restores every control to them: the
+/// text input's value, the checkbox, and the radio group's original
+/// member.
+#[test]
+fn reset_restores_default_value_and_default_checked() {
+    use crate::accessors::TuiAccessors;
+    use crate::runtime::builtins::input;
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let form = dom.create_element("form");
+    let text = dom.create_element("input");
+    dom.set_attribute(text, "value", "a").unwrap();
+    let cb = dom.create_element("input");
+    dom.set_attribute(cb, "type", "checkbox").unwrap();
+    let ra = dom.create_element("input");
+    dom.set_attribute(ra, "type", "radio").unwrap();
+    dom.set_attribute(ra, "name", "g").unwrap();
+    dom.set_attribute(ra, "checked", "").unwrap();
+    let rb = dom.create_element("input");
+    dom.set_attribute(rb, "type", "radio").unwrap();
+    dom.set_attribute(rb, "name", "g").unwrap();
+    let reset = dom.create_element("input");
+    dom.set_attribute(reset, "type", "reset").unwrap();
+    for c in [text, cb, ra, rb, reset] {
+        dom.append_child(form, c).unwrap();
+    }
+    dom.append_child(root, form).unwrap();
+    // One control per row so the clicks are unambiguous. The typed
+    // selectors outrank the UA sheet's `input[type=…]` inline-block rules.
+    let mut sheet = Stylesheet::new().rule_unchecked(
+        "form",
+        TuiStyle::new().direction(crate::layout::Direction::Column),
+    );
+    for sel in [
+        "input",
+        "input[type=checkbox]",
+        "input[type=radio]",
+        "input[type=reset]",
+    ] {
+        sheet = sheet.rule_unchecked(
+            sel,
+            TuiStyle::new()
+                .display(crate::layout::Display::Block)
+                .width(Size::Fixed(10))
+                .height(Size::Fixed(1)),
+        );
+    }
+    let mut app = test_app(dom, sheet);
+    app.draw_if_dirty().unwrap();
+
+    // Change every control.
+    input::set_value(app.dom_mut(), text, "ax");
+    for ev in click(1, 1) {
+        app.handle_event(ev); // checkbox on
+    }
+    for ev in click(1, 3) {
+        app.handle_event(ev); // radio b
+    }
+    app.draw_if_dirty().unwrap();
+    assert_eq!(app.dom().node(text).value(), Some("ax".into()));
+    assert!(app.dom().node(cb).checked());
+    assert!(!app.dom().node(ra).checked() && app.dom().node(rb).checked());
+    // The defaults are what the controls were authored with.
+    assert_eq!(app.dom().node(text).default_value(), Some("a".into()));
+    assert_eq!(app.dom().node(cb).default_checked(), Some(false));
+    assert_eq!(app.dom().node(ra).default_checked(), Some(true));
+
+    for ev in click(1, 4) {
+        app.handle_event(ev); // reset
+    }
+    app.draw_if_dirty().unwrap();
+    assert_eq!(app.dom().node(text).value(), Some("a".into()));
+    assert_eq!(app.dom().node(text).get_attribute("value"), Some("a"));
+    assert!(!app.dom().node(cb).checked());
+    assert!(app.dom().node(ra).checked() && !app.dom().node(rb).checked());
+}

@@ -71,6 +71,9 @@ pub fn perform_edit(dom: &mut TuiDom, edit: Edit) -> EditOutcome {
         .selection()
         .map(|s| s.focus)
         .unwrap_or_else(|| Position::new(edit.node, edit.range.start));
+    // `defaultValue` is the text before the first edit (unless the
+    // control was seeded, which recorded it already).
+    crate::runtime::builtins::input::note_default_value(dom, editable);
     let old_text = match dom.node(edit.node).node_value() {
         Some(s) => {
             let start = edit.range.start.min(s.len());
