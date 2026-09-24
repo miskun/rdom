@@ -291,7 +291,7 @@ Do not start the next milestone until key findings are addressed or explicitly t
 ## Repository Boundaries
 
 - `crates/` — the five published crates (`rdom-core`, `rdom-style`, `rdom-css`, `rdom-parser`, `rdom-tui`) plus `rdom-showcase`, an in-tree demo binary (`publish = false`) that doubles as `rdom-tui`'s example and snapshot fixture (`PROC-TUI-DEV-DEP-1`). Roles and durable rules in §Substrate First, Backend Second.
-- `specs/` — the three contract docs (`DESIGN.md`, `DIVERGENCES.md`, `TECH_DEBT.md`) plus per-initiative design and history files (`HARDENING-2026-09.md`, `BFC-1.md`, `DRAG-AUTOSCROLL.md`, `SHOWCASE.md`, `SUBSTRATE-0.3.0.md`, `HISTORY-2026-05.md`). Initiative files carry a status line at the top; only the three contract docs are load-bearing for agents.
+- `specs/` — the three contract docs (`DESIGN.md`, `DIVERGENCES.md`, `TECH_DEBT.md`) plus per-initiative design and history files (`STABILIZE-2026-09.md`, `HARDENING-2026-09.md`, `BFC-1.md`, `DRAG-AUTOSCROLL.md`, `SHOWCASE.md`, `SUBSTRATE-0.3.0.md`, `HISTORY-2026-05.md`). Initiative files carry a status line at the top; only the three contract docs are load-bearing for agents.
 - Versions: crates bump **independently** ("divergent bumps") — only a crate whose source changed bumps, plus every crate that pins it. Tags are per crate (`rdom-tui-vX.Y.Z`); a workspace-wide release uses a plain `vX.Y.Z` tag. The root `Cargo.toml` workspace version is a default for crates that have not diverged, not a shared release number.
 - `.claude/skills/` — operational checklists (`/commit`, `/push`, `/publish`).
 - `target/` — build output. Never commit.

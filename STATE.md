@@ -31,7 +31,8 @@ other crate pins it). Nothing has been published from this program yet.
 | 0.3.0 – 0.3.4 | 2026-06-02/03 | Substrate honesty for `rdom-extensions`; focus / `:where()` / `drop_subtree` fixes (`rdom-core` 0.3.4 → 0.3.5 at 0.3.11) |
 | 0.3.5 – 0.3.14 | 2026-06-03 → 06-06 | `rdom-tui`-only patch line driven by `rdom-virtualtable`: table column sizing, stale-layout fixes, half-block borders, drag-autoscroll and its robustness follow-ups. Latest published: **`rdom-tui` 0.3.14**, tag `rdom-tui-v0.3.14` |
 | 0.4.0 | **released 2026-09-24**, tag `v0.4.0`, all five crates on crates.io | HARDENING-2026-09: generational `NodeId`, spec-correct dispatch and document position, whole-literal CSS numbers, at-rule recovery, CSS-wide keywords, `pointer-events`, scrollable text leaves, flex §9.7, and the rest of the program. Breaking notes in CHANGELOG "0.4.0" |
-| 0.5.0 | planned | Client-side routing primitive (slid from 0.4.0) |
+| 0.5.0 | in progress | STABILIZE-2026-09: empty TECH_DEBT open list, "stable and complete" |
+| 0.6.0 | planned | Client-side routing primitive (slid from 0.5.0) |
 | later | — | Async tasks during event handlers; `TABLE-TFC-1` real table formatting context |
 
 ## Open risks
@@ -45,7 +46,7 @@ other crate pins it). Nothing has been published from this program yet.
 
 ## Follow-ups
 
-0.4.0 is out. Next: the deferred TECH_DEBT items from this program —
+[`STABILIZE-2026-09`](specs/STABILIZE-2026-09.md) is the active program: every open TECH_DEBT row fixed, moved to DIVERGENCES, or documented as external before 0.5.0; routing and async wait. Progress is logged there. The items it started from —
 `CSS-VARS-SCOPE-1`, `FORM-DEFAULTS-1`, the file splits, the allocation items, `CARET-REVEAL-STALE-LAYOUT-1`,
 `POINTER-EVENTS-IFC-1`, `PARSER-VOID-TAGS-1`, `PARSER-ENTITIES-1`, `PROC-TUI-DEV-DEP-1`, `PROC-TOOLCHAIN-PIN-1`.
 

@@ -113,8 +113,9 @@ See [`CHANGELOG.md`](CHANGELOG.md) for the full 0.2.0 notes, including breaking 
 
 ## Roadmap
 
-- **0.5.0** — Client-side routing primitive.
-- **0.6.0** — Async tasks during event handlers.
+- **0.5.0** — Stabilize: every open item in `specs/TECH_DEBT.md` paid down.
+- **0.6.0** — Client-side routing primitive.
+- **0.7.0** — Async tasks during event handlers.
 
 Open polish items (no fixed milestone): form validation (`:required` / `:invalid` / `pattern`), `:focus-visible`, `::placeholder` / `:placeholder-shown`, undo/redo coalescing, blinking caret, whitespace normalization in clipboard serialization. Open debt is tracked in [`specs/TECH_DEBT.md`](specs/TECH_DEBT.md).
 
