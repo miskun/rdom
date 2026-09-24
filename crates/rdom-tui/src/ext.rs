@@ -51,6 +51,16 @@ pub struct StaticPosition {
 /// last-child collapse chain; without the memo every level of a deep
 /// chain re-walked the levels below it when its own turn came. Each
 /// accumulator is `(largest positive margin, most negative margin)`.
+///
+/// Invariant: a chain walk only visits in-flow block-level children of
+/// a block container that does not establish a new formatting context
+/// (it stops at inline content, at a BFC and at padding / borders), and
+/// every such child is laid out by `layout_node` later in the same
+/// pass, which clears its entry — so no entry outlives the pass
+/// (checked in debug builds at the end of `layout_dom`). An entry is
+/// used only for the containing-block width it was computed against;
+/// a width that differs (a scrollbar gutter, a border-collapse inset)
+/// makes the walk recompute, never misread.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct MarginChainMemo {
     /// The width the chain's percentages were resolved against.

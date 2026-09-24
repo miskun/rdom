@@ -1208,3 +1208,51 @@ fn path_through_nested_stacking_contexts_keeps_every_root() {
     prepare(&mut dom, &sheet, Rect::new(0, 0, 10, 5));
     assert_eq!(dom.hit_test_path(1, 0), vec![a, mid, a1]);
 }
+
+/// A stacking-context root with `pointer-events: none` is never on the
+/// path, but its `auto` content is still hit, and its bare area falls
+/// through to what lies beneath.
+#[test]
+fn transparent_context_root_falls_through_but_its_content_is_hittable() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let under = dom.create_element("under");
+    let ctx = dom.create_element("ctx");
+    let child = dom.create_element("child");
+    dom.append_child(ctx, child).unwrap();
+    dom.append_child(root, under).unwrap();
+    dom.append_child(root, ctx).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "under",
+            TuiStyle::new()
+                .width(Size::Fixed(10))
+                .height(Size::Fixed(3)),
+        )
+        .rule_unchecked(
+            "ctx",
+            abs_box()
+                .width(Size::Fixed(10))
+                .height(Size::Fixed(3))
+                .z_index(crate::layout::ZIndex::Value(1))
+                .pointer_events(crate::layout::PointerEvents::None),
+        )
+        .rule_unchecked(
+            "child",
+            TuiStyle::new()
+                .width(Size::Fixed(3))
+                .height(Size::Fixed(1))
+                .pointer_events(crate::layout::PointerEvents::Auto),
+        );
+    prepare(&mut dom, &sheet, Rect::new(0, 0, 20, 10));
+    assert_eq!(
+        dom.hit_test_path(1, 0),
+        vec![child],
+        "content of a transparent root"
+    );
+    assert_eq!(
+        dom.hit_test_path(8, 2),
+        vec![under],
+        "bare area falls through"
+    );
+}

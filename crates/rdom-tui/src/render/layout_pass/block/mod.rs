@@ -17,14 +17,14 @@
 //!
 //! **Scope (BFC-1 through phase 4):**
 //! - Width formula + auto margins + min/max clamp (phase 2).
-//! - Plain vertical stacking (no margin collapse — phase 5).
+//! - Vertical stacking with §8.3.1 margin collapsing (`margin_collapse`).
 //! - Anonymous box generation around inline-level children (phase 3),
 //!   including atomic inline-block packing (phase 3.5b).
 //! - Live dispatch from `layout_children` via cascaded `Flow::Block`
 //!   (phase 4.1); border-collapse parent-edge inset + scroll cursor
 //!   offset mirror flex behavior so the two modes agree.
-//! - Strict percent-height-needs-definite-parent — phase 6 will
-//!   tighten this; for now percent resolves against the container.
+//! - Percent heights resolve only against a definite containing block
+//!   (`height`).
 //!
 //! ## Module layout
 //!
@@ -49,6 +49,8 @@ use super::is_in_flow;
 use super::layout_node;
 pub(super) use height::nearest_block_ancestor_height_is_definite;
 use height::resolve_block_height;
+#[cfg(debug_assertions)]
+pub(super) use margin_collapse::debug_assert_no_margin_chain_memo;
 use margin_collapse::{
     MarginAccumulator, is_empty_collapse_through, outer_bottom_margin, outer_top_margin,
     parent_collapses_bottom_with_last_child, parent_collapses_top_with_first_child,
@@ -56,15 +58,6 @@ use margin_collapse::{
 };
 use width::resolve_block_width;
 
-/// Lay out `id`'s in-flow children per CSS 2.1 §10. Partitions
-/// children into runs of consecutive block-level vs inline-level
-/// nodes; block runs get individual block layout; inline runs
-/// fold into **anonymous block boxes** (CSS 2.1 §9.2.1.1) that
-/// each establish their own IFC.
-///
-/// Stores anonymous boxes on the parent's `TuiExt.anonymous_blocks`
-/// — paint / hit-test / selection iterate this Vec alongside the
-/// singular `inline_layout` field.
 /// Returned by [`layout_block_children`] so the caller (`layout_node`)
 /// can resolve an `Auto` parent height against the actual content
 /// extent. Captures the margin-collapse-aware measurement that
@@ -83,6 +76,15 @@ pub(super) struct BlockMeasurement {
     pub content_height: u16,
 }
 
+/// Lay out `id`'s in-flow children per CSS 2.1 §10. Partitions
+/// children into runs of consecutive block-level vs inline-level
+/// nodes; block runs get individual block layout; inline runs
+/// fold into **anonymous block boxes** (CSS 2.1 §9.2.1.1) that
+/// each establish their own IFC.
+///
+/// Stores anonymous boxes on the parent's `TuiExt.anonymous_blocks`
+/// — paint / hit-test / selection iterate this Vec alongside the
+/// singular `inline_layout` field.
 pub(super) fn layout_block_children(
     dom: &mut Dom<TuiExt>,
     id: NodeId,
@@ -456,16 +458,6 @@ fn layout_atomic_inline_blocks(
     }
 }
 
-/// Lay out a single block-level child. Folds the child's `margin-top`
-/// into the running margin accumulator, resolves the accumulator into
-/// a single gap above the child, places the child, then primes the
-/// accumulator with the child's `margin-bottom` for the next sibling.
-///
-/// Returns the new y cursor — the bottom edge of the child's outer
-/// rect (NOT including its bottom margin, which is now buffered in
-/// `margin_acc`). The container's own height computation (Phase 6) and
-/// the parent-last-child collapse (Phase 5.2) consume the leftover
-/// accumulator separately.
 /// Per-child placement context — bundles the in-flow positioning
 /// state so `lay_out_block_child`'s signature stays narrow.
 struct BlockPlace<'a> {
@@ -483,6 +475,16 @@ struct BlockPlace<'a> {
     suppress_bottom_margin: bool,
 }
 
+/// Lay out a single block-level child. Folds the child's `margin-top`
+/// into the running margin accumulator, resolves the accumulator into
+/// a single gap above the child, places the child, then primes the
+/// accumulator with the child's `margin-bottom` for the next sibling.
+///
+/// Returns the new y cursor — the bottom edge of the child's outer
+/// rect (NOT including its bottom margin, which is now buffered in
+/// `margin_acc`). The container's own height computation and the
+/// parent-last-child collapse consume the leftover accumulator
+/// separately.
 fn lay_out_block_child(dom: &mut Dom<TuiExt>, child: NodeId, ctx: BlockPlace<'_>) -> i32 {
     let BlockPlace {
         container,

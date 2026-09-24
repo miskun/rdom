@@ -360,3 +360,19 @@ fn colspan_shifts_the_following_cells_and_invalid_values_span_one() {
     // `colspan=0` spans one column: "x" shares column 0 with the span.
     assert_eq!(cell_width(&dom, ids[1][0]), Some(3));
 }
+
+/// An author width on a spanned column is the column's used width and
+/// still grows when the spanning cell needs more.
+#[test]
+fn colspan_excess_spreads_over_author_sized_columns_too() {
+    use crate::node::TuiNodeMutExt;
+    let (mut dom, table, ids) = spanning_table(&[&[("ab", 1), ("cd", 1)], &[("0123456789", 2)]]);
+    // Column 0 is author-sized to 6 (> its 4-cell content).
+    dom.node_mut(ids[0][0])
+        .set_inline_style(crate::style::TuiStyle::new().width(crate::layout::Size::Fixed(6)));
+    table::size_columns(&mut dom, table);
+    // 6 + 4 = 10 < 12: deficit 2 → 7 | 5; the span takes 12.
+    assert_eq!(cell_width(&dom, ids[0][0]), Some(7));
+    assert_eq!(cell_width(&dom, ids[0][1]), Some(5));
+    assert_eq!(cell_width(&dom, ids[1][0]), Some(12));
+}

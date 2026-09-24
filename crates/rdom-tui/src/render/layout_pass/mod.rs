@@ -113,6 +113,8 @@ impl LayoutExt for Dom<TuiExt> {
         // in flow during pass 1; this pass adjusts their rect based
         // on the nearest scrollable ancestor's scroll position.
         sticky::place_sticky(self);
+        #[cfg(debug_assertions)]
+        block::debug_assert_no_margin_chain_memo(self, root);
         // Pass 3 — place positioned `::before` / `::after` pseudo-
         // elements. Runs AFTER pass 2 so absolute pseudos whose hosts
         // are themselves absolute can read the host's placed rect.
@@ -521,8 +523,19 @@ fn extend_scrollable_overflow(dom: &Dom<TuiExt>, id: NodeId, extend: &mut impl F
     if clips {
         return;
     }
-    for child in element_children_of(dom, id) {
-        extend_scrollable_overflow(dom, child, extend);
+    for child in dom.node(id).child_nodes() {
+        match child.node_type() {
+            NodeType::Element => extend_scrollable_overflow(dom, child.id(), extend),
+            // A fragment has no box; its element children count as ours.
+            NodeType::Fragment => {
+                for grand in child.child_nodes() {
+                    if grand.node_type() == NodeType::Element {
+                        extend_scrollable_overflow(dom, grand.id(), extend);
+                    }
+                }
+            }
+            _ => {}
+        }
     }
 }
 
@@ -640,11 +653,6 @@ pub(super) fn element_children_of(dom: &Dom<TuiExt>, id: NodeId) -> Vec<NodeId> 
     out
 }
 
-/// True iff `id` participates in normal flow. Non-elements (text, comments,
-/// fragments) always do; an element does when it's neither `display: none` nor
-/// out-of-flow positioned (`absolute` / `fixed`). The single source of truth
-/// for the "skip out-of-flow children" filter shared by block + flex layout and
-/// the scroll-content walk (DRY-1).
 /// Resolve a `gap` for `computed`'s children along `axis` (CSS Box
 /// Alignment 3 §8): percentages resolve against the container's
 /// content size on that axis, and against 0 when that size is
@@ -663,6 +671,11 @@ pub(super) fn resolve_gap(
     computed.gap.resolve(basis)
 }
 
+/// True iff `id` participates in normal flow. Non-elements (text, comments,
+/// fragments) always do; an element does when it's neither `display: none` nor
+/// out-of-flow positioned (`absolute` / `fixed`). The single source of truth
+/// for the "skip out-of-flow children" filter shared by block + flex layout and
+/// the scroll-content walk (`DRY-1`), by the margin-collapse predicates, intrinsic sizing, paint and hit-test.
 pub(crate) fn is_in_flow(dom: &Dom<TuiExt>, id: NodeId) -> bool {
     let node = dom.node(id);
     if node.node_type() != NodeType::Element {

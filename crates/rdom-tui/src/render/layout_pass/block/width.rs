@@ -14,12 +14,6 @@ use crate::style::ComputedStyle;
 pub(super) struct ResolvedWidth {
     pub(super) margin_left: i16,
     pub(super) width: u16,
-    #[allow(dead_code)] // phase 2: cursor doesn't use the right margin
-    // because horizontal block placement is left-anchored; phase 5
-    // (margin collapse) doesn't touch horizontal margins either.
-    // Kept on the struct for symmetry + future use (right-anchored
-    // direction support).
-    pub(super) margin_right: i16,
 }
 
 /// CSS 2.1 §10.3.3 — "Block-level, non-replaced elements in normal
@@ -76,65 +70,61 @@ pub(super) fn resolve_block_width(
         mr_decl.resolve(cb_width_u16) as i32
     };
 
-    let (ml_final, width_final, mr_final): (i32, i32, i32) =
-        match (declared_width, ml_auto, mr_auto) {
-            // Width auto — any auto margins resolve to 0; width absorbs
-            // leftover. (Note: width here is outer/border-box, NOT
-            // CSS-strict content width.)
-            (None, _, _) => {
-                let w = cb - ml_cells - mr_cells;
-                (ml_cells, w.max(0), mr_cells)
-            }
-            // Width fixed, both margins auto → center.
-            (Some(w), true, true) => {
-                let leftover = cb - w;
-                let half = leftover.div_euclid(2);
-                // The odd cell goes to the right margin — matches the
-                // common browser behavior for odd-leftover centering.
-                (half, w, leftover - half)
-            }
-            // Width fixed, only ML auto → ML absorbs leftover.
-            (Some(w), true, false) => {
-                let ml = cb - w - mr_cells;
-                (ml, w, mr_cells)
-            }
-            // Width fixed, only MR auto → MR absorbs leftover.
-            (Some(w), false, true) => {
-                let mr = cb - w - ml_cells;
-                (ml_cells, w, mr)
-            }
-            // Over-constrained (LTR): the declared MR is silently
-            // overridden so the equation balances.
-            (Some(w), false, false) => {
-                let mr = cb - w - ml_cells;
-                (ml_cells, w, mr)
-            }
-        };
+    let (ml_final, width_final, _): (i32, i32, i32) = match (declared_width, ml_auto, mr_auto) {
+        // Width auto — any auto margins resolve to 0; width absorbs
+        // leftover. (Note: width here is outer/border-box, NOT
+        // CSS-strict content width.)
+        (None, _, _) => {
+            let w = cb - ml_cells - mr_cells;
+            (ml_cells, w.max(0), mr_cells)
+        }
+        // Width fixed, both margins auto → center.
+        (Some(w), true, true) => {
+            let leftover = cb - w;
+            let half = leftover.div_euclid(2);
+            // The odd cell goes to the right margin — matches the
+            // common browser behavior for odd-leftover centering.
+            (half, w, leftover - half)
+        }
+        // Width fixed, only ML auto → ML absorbs leftover.
+        (Some(w), true, false) => {
+            let ml = cb - w - mr_cells;
+            (ml, w, mr_cells)
+        }
+        // Width fixed, only MR auto → MR absorbs leftover.
+        (Some(w), false, true) => {
+            let mr = cb - w - ml_cells;
+            (ml_cells, w, mr)
+        }
+        // Over-constrained (LTR): the declared MR is silently
+        // overridden so the equation balances.
+        (Some(w), false, false) => {
+            let mr = cb - w - ml_cells;
+            (ml_cells, w, mr)
+        }
+    };
 
     // Apply min/max-width clamp. CSS 2.1 §10.4: clamp the resolved
     // width by max-width first, then min-width (min wins over max).
     // After clamping, if the width changed, re-distribute the
     // leftover to whichever margins were auto.
     let clamped_width = clamp_width(width_final, &computed.min_width, computed.max_width, cb);
-    let (ml_clamped, mr_clamped) = if clamped_width != width_final {
+    let ml_clamped = if clamped_width != width_final {
         let leftover = cb - clamped_width;
+        // Only the left margin positions the box (LTR); the right
+        // margin is whatever balances the equation.
         match (ml_auto, mr_auto) {
-            (true, true) => {
-                let half = leftover.div_euclid(2);
-                (half, leftover - half)
-            }
-            (true, false) => (leftover - mr_cells, mr_cells),
-            (false, true) => (ml_cells, leftover - ml_cells),
-            (false, false) => (ml_cells, leftover - ml_cells),
+            (true, true) => leftover.div_euclid(2),
+            (true, false) => leftover - mr_cells,
+            (false, true) | (false, false) => ml_cells,
         }
     } else {
-        (ml_final, mr_final)
+        ml_final
     };
 
     ResolvedWidth {
         margin_left: ml_clamped.clamp(i16::MIN as i32, i16::MAX as i32) as i16,
         width: clamped_width.max(0).min(u16::MAX as i32) as u16,
-        margin_right: mr_clamped.clamp(i16::MIN as i32, i16::MAX as i32) as i16,
     }
 }
 

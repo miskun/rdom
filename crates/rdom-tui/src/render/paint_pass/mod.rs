@@ -556,10 +556,6 @@ pub(crate) fn layout_rect_to_grid(layout: LayoutRect, clip: Rect) -> Option<Rect
 
 // ─── CSS `opacity` alpha-blend (T4) ─────────────────────────────────
 
-/// Resolve the parent background color by walking up the DOM tree.
-/// Returns the first ancestor's non-`Reset` `computed.bg`, or
-/// `Color::Reset` if no ancestor has set one. Caller decides what
-/// `Reset` means for blending — the canvas model is `#000000`.
 /// Compute the structural priority for an element's border
 /// contributions. Encodes CSS Tables 3 §11.5 rules 5 + 6:
 ///
@@ -597,6 +593,10 @@ fn border_has_half_block(border: rdom_style::layout::Border) -> bool {
         || matches!(border.left, BorderStyle::HalfBlock)
 }
 
+/// Resolve the parent background color by walking up the DOM tree.
+/// Returns the first ancestor's non-`Reset` `computed.bg`, or
+/// `Color::Reset` if no ancestor has set one. Caller decides what
+/// `Reset` means for blending — the canvas model is `#000000`.
 fn resolve_parent_bg(dom: &Dom<TuiExt>, id: NodeId) -> Color {
     let mut cur = dom.node(id).parent_node();
     while let Some(node) = cur {

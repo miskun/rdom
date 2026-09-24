@@ -299,19 +299,9 @@ fn intrinsic_element(
     // `<details>` element's hidden `<pre>` body inflated the
     // intrinsic from ~1 row (summary) to ~15, starving the
     // sibling `flex: 1` panel of its share of the main axis.
-    use crate::layout::{Display, Position};
     let children: Vec<NodeId> = super::element_children_of(dom, id)
         .into_iter()
-        .filter(|&c| {
-            let c_computed = dom.node(c).ext().and_then(|e| e.computed.as_ref());
-            match c_computed {
-                Some(s) => {
-                    s.display != Display::None
-                        && !matches!(s.position, Position::Absolute | Position::Fixed)
-                }
-                None => true,
-            }
-        })
+        .filter(|&c| super::is_in_flow(dom, c))
         .collect();
 
     if children.is_empty() {

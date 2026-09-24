@@ -4561,3 +4561,90 @@ fn static_position_follows_horizontal_scroll() {
     let r = layout_rect_of(&dom, abs);
     assert_eq!((r.x, r.y), (-4, 1), "below `wide`, shifted by the scroll");
 }
+
+/// The scrollable overflow walk stops at a descendant that clips its
+/// own content: the outer scroller sees the inner scroller's box, not
+/// what overflows inside it.
+#[test]
+fn scrollable_overflow_stops_at_a_clipping_descendant() {
+    let mut dom = tui_dom();
+    let root = dom.root();
+    let outer = dom.create_element("outer");
+    let inner = dom.create_element("inner");
+    let tall = dom.create_element("tall");
+    dom.append_child(inner, tall).unwrap();
+    dom.append_child(outer, inner).unwrap();
+    dom.append_child(root, outer).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "outer",
+            TuiStyle::new()
+                .width(Size::Fixed(10))
+                .height(Size::Fixed(5))
+                .overflow(Overflow::Auto),
+        )
+        .rule_unchecked(
+            "inner",
+            TuiStyle::new()
+                .height(Size::Fixed(3))
+                .overflow(Overflow::Hidden),
+        )
+        .rule_unchecked("tall", TuiStyle::new().height(Size::Fixed(30)));
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 40, 10));
+    assert_eq!(dom.node(outer).ext().unwrap().scroll_content_height, 3);
+    assert_eq!(dom.node(inner).ext().unwrap().scroll_content_height, 30);
+}
+
+/// A `position: fixed` box inside a nested stacking context clips to
+/// the viewport, not to an overflow ancestor.
+#[test]
+fn fixed_box_inside_a_nested_context_keeps_the_viewport_clip() {
+    use rdom_style::layout::{Length, Position, ZIndex};
+    let mut dom = tui_dom();
+    let root = dom.root();
+    let clipper = dom.create_element("clipper");
+    let ctx = dom.create_element("ctx");
+    let fixed = dom.create_element("fixed");
+    dom.append_child(ctx, fixed).unwrap();
+    dom.append_child(clipper, ctx).unwrap();
+    dom.append_child(root, clipper).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "clipper",
+            TuiStyle::new()
+                .width(Size::Fixed(5))
+                .height(Size::Fixed(2))
+                .overflow(Overflow::Hidden),
+        )
+        .rule_unchecked(
+            "ctx",
+            TuiStyle::new()
+                .position(Position::Relative)
+                .z_index(ZIndex::Value(1))
+                .height(Size::Fixed(1)),
+        )
+        .rule_unchecked(
+            "fixed",
+            TuiStyle::new()
+                .position(Position::Fixed)
+                .top(Length::Cells(6))
+                .left(Length::Cells(6))
+                .width(Size::Fixed(2))
+                .height(Size::Fixed(1)),
+        );
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 20, 10));
+    let layers = crate::render::stacking::collect_layers(
+        &dom,
+        ctx,
+        crate::render::Rect::new(0, 0, 5, 2),
+        crate::render::Rect::new(0, 0, 20, 10),
+    );
+    let entry = layers
+        .zero_auto
+        .iter()
+        .find(|e| e.id == fixed)
+        .expect("the fixed box is in its context's positioned layer");
+    assert_eq!(entry.clip, crate::render::Rect::new(0, 0, 20, 10));
+}

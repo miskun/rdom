@@ -99,7 +99,7 @@ Everything else is real. Disposition per item:
 | 2 | rdom-core, rdom-parser | 3 core + 2 parser | done 2026-09-23 |
 | 3 | rdom-style, rdom-css | 12 style / css / UA items incl. counters and custom-property storage | done 2026-09-24 |
 | 4 | rdom-tui cascade + animation | custom-property cascade, inherits mask, initial hoist + rule index, three animation items | done 2026-09-24 |
-| 5 | rdom-tui layout | 22 layout items incl. stacking contexts, static position, cross-axis scroll, spans | implemented 2026-09-24; review gates pending |
+| 5 | rdom-tui layout | 22 layout items incl. stacking contexts, static position, cross-axis scroll, spans | done 2026-09-24 (both gates) |
 | 6 | rdom-tui paint + runtime + forms | 18 items incl. group opacity, splits, form defaults, app intents | |
 | 7 | completeness | scope confirmation with Miska: form validation, `:focus-visible`, `::placeholder` / `:placeholder-shown`, undo coalescing, blinking caret, clipboard whitespace, `scroll-behavior`, live `<style>` — the README's "open polish" list and DIVERGENCES §3 "Not yet shipped" | |
 | 8 | release | 0.5.0 across all five crates, migration notes | |
@@ -228,6 +228,23 @@ Each phase ends with the two review gates; each commit carries the item id.
   are a DIVERGENCES entry; the two UA changes moved to the `rdom-style` changelog section with the
   `compute_content_area_collapsed` migration clause; empty TECH_DEBT headings and stale "z-list"
   comments removed. Declined: a footer in the sticky demo (test-covered; demo stays minimal).
+- 2026-09-24 — Phase 5 architect gate (blocking, both fixed with tests): B1 — the classic-scrollbar
+  trigger compared the content against the pre-layout height estimate, so an `auto`-height
+  `overflow-y: auto` block reserved a phantom column; it now compares against the final height, and
+  intrinsic sizing counts a block's direct text runs next to element children. B2 — hits inside
+  positioned boxes (now `relative` / `sticky` too) lost their ancestors from `hit_test_path`; layer
+  hits insert the chain between the context root and the entry, and nested roots insert themselves.
+  Non-blocking, done: relative percent `top` / `bottom` are `auto` under an indefinite containing
+  block (§9.3.2; resolves the DESIGN ordering rule's own contradiction); static positions use the
+  scrolled origin on both axes; a positioned inline-block atom paints from the layer only; the
+  in-flow predicate copies are gone and the two collapse-through predicates and the two chain
+  walkers are one each; the dead `margin_right` field went; the memo invariant is documented and
+  checked in debug builds at the end of `layout_dom`; the scrollable-overflow walk no longer
+  allocates per node and has a bench shape; the glued / stale doc comments are fixed; tests for the
+  clipping-descendant stop, the fixed-in-nested-context clip, colspan over author-sized columns, a
+  removed scroll-focus carrier and a transparent context root. Recorded as divergence:
+  `elements_from_point` returns the ancestor chain. Not done: the `opacity`-context clip is a
+  DIVERGENCES entry (API gate), not a fix.
 - Found while mapping Phase 3 (not on the ledger): `ImportantMask::FLOW` and `POINTER_EVENTS` share
   bit 39 (`tui_style.rs`), custom-property inheritance in the cascade is overwritten by the merged
   root map (`walk.rs`), and tokenizer errors inside a block are body-relative (`declarations.rs`).

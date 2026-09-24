@@ -3365,3 +3365,62 @@ fn scroll_focus_marker_follows_the_nearest_overflowing_scroll_container() {
     assert!(marked(&app, outer), "marker moved to outer");
     assert!(!marked(&app, inner), "and left inner");
 }
+
+/// The scroll-focus marker survives its previous carrier being
+/// removed from the tree.
+#[test]
+fn scroll_focus_marker_tolerates_a_removed_carrier() {
+    use crate::accessors::TuiAccessorsMut;
+    use crate::layout::Overflow;
+    use crate::runtime::scrollbar::SCROLL_FOCUS_ATTR;
+
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let outer = dom.create_element("outer");
+    let inner = dom.create_element("inner");
+    let f = dom.create_element("f");
+    let g = dom.create_element("g");
+    dom.set_attribute(f, "tabindex", "0").unwrap();
+    dom.set_attribute(g, "tabindex", "0").unwrap();
+    dom.append_child(inner, f).unwrap();
+    for _ in 0..5 {
+        let r = dom.create_element("r");
+        dom.append_child(inner, r).unwrap();
+    }
+    dom.append_child(outer, inner).unwrap();
+    dom.append_child(outer, g).unwrap();
+    for _ in 0..8 {
+        let r = dom.create_element("r");
+        dom.append_child(outer, r).unwrap();
+    }
+    dom.append_child(root, outer).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "outer",
+            TuiStyle::new()
+                .width(Size::Fixed(10))
+                .height(Size::Fixed(6))
+                .overflow(Overflow::Auto),
+        )
+        .rule_unchecked(
+            "inner",
+            TuiStyle::new()
+                .width(Size::Fixed(8))
+                .height(Size::Fixed(3))
+                .overflow(Overflow::Auto),
+        )
+        .rule_unchecked("f", TuiStyle::new().height(Size::Fixed(1)))
+        .rule_unchecked("g", TuiStyle::new().height(Size::Fixed(1)))
+        .rule_unchecked("r", TuiStyle::new().height(Size::Fixed(1)));
+    let mut app = test_app(dom, sheet, Rect::new(0, 0, 12, 8));
+    app.draw_if_dirty().unwrap();
+    app.dom_mut().node_mut(f).focus();
+    app.draw_if_dirty().unwrap();
+    assert!(app.dom().node(inner).has_attribute(SCROLL_FOCUS_ATTR));
+
+    // Drop the marked scroller (and the focus inside it), focus `g`.
+    app.dom_mut().remove_child_dropping(outer, inner).unwrap();
+    app.dom_mut().node_mut(g).focus();
+    app.draw_if_dirty().unwrap();
+    assert!(app.dom().node(outer).has_attribute(SCROLL_FOCUS_ATTR));
+}

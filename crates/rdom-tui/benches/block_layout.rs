@@ -173,11 +173,64 @@ fn bench_block_deep_collapse_chain(c: &mut Criterion) {
     }
 }
 
+/// A wide table (200 rows × 10 cells) inside an `overflow: auto` pane:
+/// the scrollable-overflow walk visits every cell per layout, so this
+/// shape shows its share next to the layout itself.
+fn bench_scroll_overflow_wide_table(c: &mut Criterion) {
+    use rdom_tui::layout::{Direction, Flow, Overflow};
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let pane = dom.create_element("pane");
+    let table = dom.create_element("tbl");
+    for _ in 0..200 {
+        let row = dom.create_element("row");
+        for _ in 0..10 {
+            let cell = dom.create_element("cell");
+            let t = dom.create_text_node("cell text");
+            dom.append_child(cell, t).unwrap();
+            dom.append_child(row, cell).unwrap();
+        }
+        dom.append_child(table, row).unwrap();
+    }
+    dom.append_child(pane, table).unwrap();
+    dom.append_child(root, pane).unwrap();
+    let sheet = Stylesheet::new()
+        .rule_unchecked(
+            "pane",
+            TuiStyle::new()
+                .width(Size::Fixed(60))
+                .height(Size::Fixed(30))
+                .overflow(Overflow::Auto),
+        )
+        .rule_unchecked(
+            "tbl",
+            TuiStyle::new()
+                .flow(Flow::Flex)
+                .direction(Direction::Column),
+        )
+        .rule_unchecked(
+            "row",
+            TuiStyle::new()
+                .flow(Flow::Flex)
+                .direction(Direction::Row)
+                .height(Size::Fixed(1)),
+        )
+        .rule_unchecked("cell", TuiStyle::new().width(Size::Fixed(12)));
+    dom.cascade(&sheet);
+    let viewport = Rect::new(0, 0, 80, 40);
+    c.bench_function("scroll_overflow_wide_table_200x10", |b| {
+        b.iter(|| {
+            dom.layout_dom(black_box(viewport));
+        })
+    });
+}
+
 criterion_group!(
     benches,
     bench_block_layout_100_paragraphs,
     bench_flex_layout_100_paragraphs,
     bench_block_margin_collapse_50_siblings,
     bench_block_deep_collapse_chain,
+    bench_scroll_overflow_wide_table,
 );
 criterion_main!(benches);

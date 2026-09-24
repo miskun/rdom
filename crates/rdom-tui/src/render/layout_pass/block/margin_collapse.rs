@@ -19,51 +19,49 @@ use super::width::block_content_width;
 /// is nothing between the top and bottom edges that could separate
 /// the margins: no height, no padding, no border, no element /
 /// non-whitespace text children, and no min-height pinning the box
-/// open.
+/// open. Takes the resolved height (placement knows it).
 pub(super) fn is_empty_collapse_through(
     dom: &Dom<TuiExt>,
     id: NodeId,
     computed: &ComputedStyle,
     resolved_height: u16,
 ) -> bool {
-    if resolved_height != 0 {
-        return false;
-    }
+    resolved_height == 0 && is_collapse_through_shape(dom, id, computed)
+}
+
+/// [`is_empty_collapse_through`] before the height is resolved (the
+/// outer-margin chain walkers peek ahead): the declared height must be
+/// `auto` or `0`. A `height: 0%` / `calc()` box therefore reads as
+/// non-empty here and empty at placement — the walk stops one level
+/// early, which only costs a re-walk, never a wrong margin.
+fn is_statically_empty_collapse_through(
+    dom: &Dom<TuiExt>,
+    id: NodeId,
+    computed: &ComputedStyle,
+) -> bool {
+    matches!(computed.height, Size::Fixed(0) | Size::Auto)
+        && is_collapse_through_shape(dom, id, computed)
+}
+
+/// The height-independent half of collapse-through: no vertical
+/// padding or border, no `min-height` pinning, and no in-flow content
+/// (an in-flow element child or a non-whitespace text child separates
+/// the margins; out-of-flow children take no space in normal flow).
+fn is_collapse_through_shape(dom: &Dom<TuiExt>, id: NodeId, computed: &ComputedStyle) -> bool {
     if !computed.padding.top.is_zero() || !computed.padding.bottom.is_zero() {
         return false;
     }
     if computed.border.top.is_visible() || computed.border.bottom.is_visible() {
         return false;
     }
-    // An explicit `min-height: Cells(n)` with n > 0 keeps the box
-    // open even when content is empty — that opens a separator
-    // between top and bottom margins, so collapse-through doesn't
-    // apply.
     if let Some(crate::layout::MinSize::Cells(n)) = computed.min_height
         && n > 0
     {
         return false;
     }
-    // Any in-flow element child OR any non-whitespace text child
-    // counts as content that separates the margins. Out-of-flow
-    // children don't count (they don't take space in normal flow).
     for child in dom.node(id).child_nodes() {
         match child.node_type() {
-            NodeType::Element => {
-                let c = child.ext().and_then(|e| e.computed.as_ref());
-                let in_flow = c
-                    .map(|s| {
-                        s.display != crate::layout::Display::None
-                            && !matches!(
-                                s.position,
-                                crate::layout::Position::Absolute | crate::layout::Position::Fixed
-                            )
-                    })
-                    .unwrap_or(true);
-                if in_flow {
-                    return false;
-                }
-            }
+            NodeType::Element if is_in_flow(dom, child.id()) => return false,
             NodeType::Text => {
                 if let Some(t) = child.node_value()
                     && !t.chars().all(char::is_whitespace)
@@ -203,6 +201,13 @@ fn memoized_chain(
     })
 }
 
+/// Which outer edge a chain walk surfaces margins at.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Edge {
+    Top,
+    Bottom,
+}
+
 /// CSS 2.1 §8.3.1 — the margins that surface at `id`'s **outer top
 /// edge**: its own `margin-top` merged with the parent-first-child
 /// collapse chain (its first in-flow block child, that one's first
@@ -222,71 +227,7 @@ pub(super) fn outer_top_margin(
     containing_block_width: u16,
     memo: &mut Vec<ChainEntry>,
 ) -> MarginAccumulator {
-    if let Some(acc) = memoized_chain(dom, id, containing_block_width, |m| m.outer_top) {
-        return acc;
-    }
-    let mut acc = MarginAccumulator::new();
-    acc.add(vertical_margin(
-        &computed.margin.top,
-        containing_block_width,
-    ));
-    if parent_collapses_top_with_first_child(computed) {
-        // The children's margins resolve against `id`'s content width
-        // (CSS 2.1 §8.3), known from its own width resolution before it
-        // is laid out.
-        let child_cb = block_content_width(computed, containing_block_width);
-        // Walk in-flow children left-to-right. The first one that
-        // contributes a top margin determines where the chain stops.
-        // Empty-collapse-through children fold BOTH their margins and
-        // we continue to the next sibling.
-        for child in dom.node(id).child_nodes() {
-            if !is_in_flow(dom, child.id()) {
-                continue;
-            }
-            match child.node_type() {
-                NodeType::Element => {
-                    let child_computed = child
-                        .ext()
-                        .and_then(|e| e.computed.clone())
-                        .unwrap_or_else(|| std::rc::Rc::new(ComputedStyle::initial()));
-                    use crate::layout::Display;
-                    if matches!(
-                        child_computed.display,
-                        Display::Inline | Display::InlineBlock
-                    ) {
-                        // Anonymous block box wraps this inline run.
-                        // Anon-box content (visible glyphs or zero-
-                        // sized atom rects) sits between the parent's
-                        // top and any subsequent block, blocking the
-                        // chain.
-                        break;
-                    }
-                    acc.merge(outer_top_margin(
-                        dom,
-                        child.id(),
-                        &child_computed,
-                        child_cb,
-                        memo,
-                    ));
-                    if is_statically_empty_collapse_through(dom, child.id(), &child_computed) {
-                        acc.add(vertical_margin(&child_computed.margin.bottom, child_cb));
-                        continue;
-                    }
-                    break;
-                }
-                NodeType::Text => {
-                    if let Some(t) = child.node_value()
-                        && !t.chars().all(char::is_whitespace)
-                    {
-                        break; // anon-box content blocks chain
-                    }
-                }
-                _ => {}
-            }
-        }
-    }
-    memo.push((id, containing_block_width, Some(acc), None));
-    acc
+    outer_edge_margin(dom, id, computed, containing_block_width, memo, Edge::Top)
 }
 
 /// Symmetric to [`outer_top_margin`] — the margins that surface at
@@ -299,18 +240,58 @@ pub(super) fn outer_bottom_margin(
     containing_block_width: u16,
     memo: &mut Vec<ChainEntry>,
 ) -> MarginAccumulator {
-    if let Some(acc) = memoized_chain(dom, id, containing_block_width, |m| m.outer_bottom) {
+    outer_edge_margin(
+        dom,
+        id,
+        computed,
+        containing_block_width,
+        memo,
+        Edge::Bottom,
+    )
+}
+
+fn outer_edge_margin(
+    dom: &Dom<TuiExt>,
+    id: NodeId,
+    computed: &ComputedStyle,
+    containing_block_width: u16,
+    memo: &mut Vec<ChainEntry>,
+    edge: Edge,
+) -> MarginAccumulator {
+    let pick = |m: &MarginChainMemo| match edge {
+        Edge::Top => m.outer_top,
+        Edge::Bottom => m.outer_bottom,
+    };
+    if let Some(acc) = memoized_chain(dom, id, containing_block_width, pick) {
         return acc;
     }
+    let (own, collapses) = match edge {
+        Edge::Top => (
+            &computed.margin.top,
+            parent_collapses_top_with_first_child(computed),
+        ),
+        Edge::Bottom => (
+            &computed.margin.bottom,
+            parent_collapses_bottom_with_last_child(computed),
+        ),
+    };
     let mut acc = MarginAccumulator::new();
-    acc.add(vertical_margin(
-        &computed.margin.bottom,
-        containing_block_width,
-    ));
-    if parent_collapses_bottom_with_last_child(computed) {
+    acc.add(vertical_margin(own, containing_block_width));
+    if collapses {
+        // The children's margins resolve against `id`'s content width
+        // (CSS 2.1 §8.3), known from its own width resolution before it
+        // is laid out.
         let child_cb = block_content_width(computed, containing_block_width);
+        // Walk the in-flow children from the edge inward. The first one
+        // that contributes a margin at that edge determines where the
+        // chain stops; empty collapse-through children fold BOTH their
+        // margins and the walk continues to the next sibling.
         let children: Vec<_> = dom.node(id).child_nodes().collect();
-        for child in children.into_iter().rev() {
+        let ordered: Box<dyn Iterator<Item = _>> = match edge {
+            Edge::Top => Box::new(children.into_iter()),
+            Edge::Bottom => Box::new(children.into_iter().rev()),
+        };
+        for child in ordered {
             if !is_in_flow(dom, child.id()) {
                 continue;
             }
@@ -325,17 +306,25 @@ pub(super) fn outer_bottom_margin(
                         child_computed.display,
                         Display::Inline | Display::InlineBlock
                     ) {
+                        // An anonymous block box wraps this inline run;
+                        // its content (visible glyphs or zero-sized atom
+                        // rects) blocks the chain.
                         break;
                     }
-                    acc.merge(outer_bottom_margin(
+                    acc.merge(outer_edge_margin(
                         dom,
                         child.id(),
                         &child_computed,
                         child_cb,
                         memo,
+                        edge,
                     ));
                     if is_statically_empty_collapse_through(dom, child.id(), &child_computed) {
-                        acc.add(vertical_margin(&child_computed.margin.top, child_cb));
+                        let other = match edge {
+                            Edge::Top => &child_computed.margin.bottom,
+                            Edge::Bottom => &child_computed.margin.top,
+                        };
+                        acc.add(vertical_margin(other, child_cb));
                         continue;
                     }
                     break;
@@ -344,70 +333,19 @@ pub(super) fn outer_bottom_margin(
                     if let Some(t) = child.node_value()
                         && !t.chars().all(char::is_whitespace)
                     {
-                        break;
+                        break; // anon-box content blocks the chain
                     }
                 }
                 _ => {}
             }
         }
     }
-    memo.push((id, containing_block_width, None, Some(acc)));
+    let (top, bottom) = match edge {
+        Edge::Top => (Some(acc), None),
+        Edge::Bottom => (None, Some(acc)),
+    };
+    memo.push((id, containing_block_width, top, bottom));
     acc
-}
-
-/// Static (no resolved-height-required) variant of
-/// `is_empty_collapse_through` for the outer-margin peek paths.
-/// A box qualifies when it has no top/bottom padding, no top/
-/// bottom border, no min-height pinning, declared height is
-/// `Auto` or `Fixed(0)`, and no in-flow non-whitespace content.
-fn is_statically_empty_collapse_through(
-    dom: &Dom<TuiExt>,
-    id: NodeId,
-    computed: &ComputedStyle,
-) -> bool {
-    if !computed.padding.top.is_zero() || !computed.padding.bottom.is_zero() {
-        return false;
-    }
-    if computed.border.top.is_visible() || computed.border.bottom.is_visible() {
-        return false;
-    }
-    match computed.height {
-        Size::Fixed(0) | Size::Auto => {}
-        _ => return false,
-    }
-    if let Some(crate::layout::MinSize::Cells(n)) = computed.min_height
-        && n > 0
-    {
-        return false;
-    }
-    for child in dom.node(id).child_nodes() {
-        match child.node_type() {
-            NodeType::Element => {
-                let c = child.ext().and_then(|e| e.computed.as_ref());
-                let in_flow = c
-                    .map(|s| {
-                        s.display != crate::layout::Display::None
-                            && !matches!(
-                                s.position,
-                                crate::layout::Position::Absolute | crate::layout::Position::Fixed
-                            )
-                    })
-                    .unwrap_or(true);
-                if in_flow {
-                    return false;
-                }
-            }
-            NodeType::Text => {
-                if let Some(t) = child.node_value()
-                    && !t.chars().all(char::is_whitespace)
-                {
-                    return false;
-                }
-            }
-            _ => {}
-        }
-    }
-    true
 }
 
 /// Convert a `MarginValue` to its effective cell contribution on
@@ -421,5 +359,21 @@ fn vertical_margin(m: &MarginValue, cb_width: u16) -> i16 {
         MarginValue::Auto => 0,
         MarginValue::Cells(n) => *n,
         MarginValue::Calc(_) => m.resolve(cb_width),
+    }
+}
+
+/// Debug check for the memo invariant: every block a chain walk
+/// visited is laid out later in the same pass and clears its entry,
+/// so nothing survives `layout_dom`.
+#[cfg(debug_assertions)]
+pub(crate) fn debug_assert_no_margin_chain_memo(dom: &Dom<TuiExt>, id: NodeId) {
+    if let Some(ext) = dom.node(id).ext() {
+        debug_assert!(
+            ext.margin_chain.is_none(),
+            "margin-chain memo survived the layout pass on {id:?}"
+        );
+    }
+    for child in dom.node(id).child_nodes() {
+        debug_assert_no_margin_chain_memo(dom, child.id());
     }
 }
