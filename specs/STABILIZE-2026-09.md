@@ -132,6 +132,10 @@ Each phase ends with the two review gates; each commit carries the item id.
   entity table ships unconditionally (66 KB of source, no feature flag — correctness over size); the
   `render` / `buffer_to_snapshot` test helpers are duplicated between the `rdom-tui` and
   `rdom-showcase` suites on purpose (two test targets, no shared test crate).
+- 2026-09-23 — Phase 3 start: `STYLE-MASK-COLLISION-1` (FLOW → bit 41, uniqueness test);
+  `STYLE-INHERITS-TWO-SOURCES-1` closed by deleting the dead `PropMask` / `INHERITS_MASK` /
+  `LAYOUT_MASK` exports and pinning `inherit_inheritable_from` to `property_dispatch::inherits`
+  with a test that probes all 41 properties (every inherited name must be probed).
 - Found while mapping Phase 3 (not on the ledger): `ImportantMask::FLOW` and `POINTER_EVENTS` share
   bit 39 (`tui_style.rs`), custom-property inheritance in the cascade is overwritten by the merged
   root map (`walk.rs`), and tokenizer errors inside a block are body-relative (`declarations.rs`).

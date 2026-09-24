@@ -255,9 +255,10 @@ browser behavior).
 - `ComputedStyle` on `TuiExt` is the *only* post-cascade source of
   truth. Layout and paint should read `node.computed()`, never
   `inline_style` directly.
-- Inheritance is data, not code. Edit `INHERITS_MASK` in `cascade.rs`
-  to change which properties inherit — the cascade walk stays the
-  same.
+- Which properties inherit is declared once, in
+  `rdom_style::property_dispatch::inherits`; the cascade's
+  `inherit_inheritable_from` is pinned to it by a test that probes
+  every property.
 - Selector matching goes through `rdom_core::Dom::matches_list` once
   per rule per element. There is one matching engine.
 - `MutationObserver` is the invalidation mechanism. `DirtyTracker` is

@@ -34,7 +34,6 @@
 //!
 //! ## Module layout
 //!
-//! - [`masks`] — `PropMask` bitfield + `INHERITS_MASK` + `LAYOUT_MASK`.
 //! - [`walk`] — `cascade_subtree`, `compute_element_style`,
 //!   `compute_pseudo_style`. The tree recursion lives here.
 //! - [`apply`] — cascade ladder + per-property applicators.
@@ -43,14 +42,15 @@
 //!
 //! ## Inheritance model
 //!
-//! Which properties inherit is declared once in [`INHERITS_MASK`] as a
-//! `PropMask` bitfield. Adding a new inheritable property is a
-//! single-line change in [`masks`], not a code path rewrite.
+//! Which properties inherit is a fact about the property, declared once
+//! in `rdom_style::property_dispatch::inherits` (it also decides what
+//! `unset` means). [`inherit::inherit_inheritable_from`] copies exactly
+//! that set from parent to child, and a cascade test probes every
+//! property against the table so the two cannot drift.
 
 mod apply;
 mod content;
 mod inherit;
-mod masks;
 mod walk;
 
 #[cfg(test)]
@@ -60,8 +60,6 @@ use rdom_core::{Dom, NodeId};
 
 use crate::ext::TuiExt;
 use crate::style::{ComputedStyle, Stylesheet};
-
-pub use masks::{INHERITS_MASK, LAYOUT_MASK, PropMask};
 
 // ─── Public entry point ─────────────────────────────────────────────
 

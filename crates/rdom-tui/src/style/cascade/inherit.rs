@@ -11,7 +11,10 @@ use crate::style::{ComputedStyle, Modifier};
 
 /// Copy the inherited subset of properties from `parent` into
 /// `working`. Called at the start of every element's cascade to seed
-/// from the parent's computed style.
+/// from the parent's computed style. The set is
+/// `rdom_style::property_dispatch::inherits` — the cascade test
+/// `cascade_inherits_exactly_the_style_crates_inherited_set` probes every
+/// property against that table (`STYLE-INHERITS-TWO-SOURCES-1`).
 pub(super) fn inherit_inheritable_from(working: &mut ComputedStyle, parent: &ComputedStyle) {
     working.fg = parent.fg;
     // Modifiers: copy only the inheriting bits (bold / italic).
@@ -40,9 +43,9 @@ pub(super) fn inherit_inheritable_from(working: &mut ComputedStyle, parent: &Com
 }
 
 /// True iff any layout-affecting computed property differs between
-/// `a` and `b`. Keeps in sync with `LAYOUT_MASK` — if you add a new
-/// layout-affecting property to that mask, add the field-comparison
-/// here.
+/// `a` and `b`. When a new layout-affecting property lands, add its
+/// field comparison here (the cascade test `layout_differs_covers_…`
+/// probes the geometry fields).
 pub(super) fn layout_differs(a: &ComputedStyle, b: &ComputedStyle) -> bool {
     a.width != b.width
         || a.height != b.height

@@ -2106,65 +2106,168 @@ fn scrollbar_gutter_keywords_resolve() {
     );
 }
 
-/// The style crate decides `unset` from `property_dispatch::inherits`;
-/// the cascade inherits from `INHERITS_MASK`. They must agree per
-/// property (STYLE-INHERITS-TWO-SOURCES-1 guard). Properties without a
-/// `PropMask` bit are never inherited by the cascade, so the table
-/// must say `false` for them.
+/// The style crate's `property_dispatch::inherits` is the one
+/// declaration of which properties inherit (it also decides `unset`).
+/// `inherit_inheritable_from` must copy exactly that set: give every
+/// parent field a non-initial value, inherit into a fresh child, and
+/// check per property that the child took the parent's value iff the
+/// table says the property inherits (`STYLE-INHERITS-TWO-SOURCES-1`).
 #[test]
-fn inherits_table_matches_the_cascade_mask() {
-    use crate::style::cascade::{INHERITS_MASK, PropMask};
-    use rdom_style::property_dispatch::inherits;
-    let with_bit: &[(&str, PropMask)] = &[
-        ("color", PropMask::FG),
-        ("background-color", PropMask::BG),
-        ("border-color", PropMask::BORDER_FG),
-        ("font-weight", PropMask::BOLD),
-        ("font-style", PropMask::ITALIC),
-        ("width", PropMask::WIDTH),
-        ("height", PropMask::HEIGHT),
-        ("min-width", PropMask::MIN_WIDTH),
-        ("max-width", PropMask::MAX_WIDTH),
-        ("min-height", PropMask::MIN_HEIGHT),
-        ("max-height", PropMask::MAX_HEIGHT),
-        ("padding", PropMask::PADDING),
-        ("gap", PropMask::GAP),
-        ("border", PropMask::BORDER),
-        ("flex-direction", PropMask::DIRECTION),
-        ("overflow-x", PropMask::OVERFLOW_X),
-        ("overflow-y", PropMask::OVERFLOW_Y),
-        ("content", PropMask::CONTENT),
-        ("display", PropMask::DISPLAY),
-        ("white-space", PropMask::WHITE_SPACE),
-        ("user-select", PropMask::USER_SELECT),
-        ("flex-shrink", PropMask::FLEX_SHRINK),
-        ("pointer-events", PropMask::POINTER_EVENTS),
+fn cascade_inherits_exactly_the_style_crates_inherited_set() {
+    use super::inherit::inherit_inheritable_from;
+    use rdom_style::layout::{
+        AspectRatio, Border, BorderCollapse, BorderStyle, CaretColor, CaretTextColor, Direction,
+        Display, Length, Margin, MinSize, Overflow, Padding, PointerEvents, Position,
+        ScrollbarGutter, Size, UserSelect, WhiteSpace, ZIndex,
+    };
+    use rdom_style::property_dispatch::{inherits, property_names};
+    use rdom_style::transition::{TimingFunction, TransitionProperty};
+    use std::collections::HashMap;
+    use std::rc::Rc;
+
+    let mut parent = ComputedStyle::initial();
+    parent.fg = Color::Rgb(1, 2, 3);
+    parent.bg = Color::Rgb(4, 5, 6);
+    parent.border_fg = Color::Rgb(7, 8, 9);
+    parent.modifiers = Modifier::BOLD | Modifier::ITALIC | Modifier::UNDERLINED;
+    parent.opacity = 0.5;
+    parent.width = Size::Fixed(7);
+    parent.height = Size::Fixed(8);
+    parent.min_width = Some(MinSize::Cells(1));
+    parent.max_width = Some(9);
+    parent.min_height = Some(MinSize::Cells(1));
+    parent.max_height = Some(9);
+    parent.aspect_ratio = AspectRatio::new(4, 3);
+    parent.padding = Padding::all(1);
+    parent.margin = Margin::all_cells(1);
+    parent.gap = 2;
+    parent.flex_shrink = 3;
+    parent.border = Border {
+        top: BorderStyle::Solid,
+        ..Border::default()
+    };
+    parent.border_collapse = BorderCollapse::Collapse;
+    parent.direction = Direction::Row;
+    parent.overflow_x = Overflow::Hidden;
+    parent.overflow_y = Overflow::Scroll;
+    parent.scrollbar_gutter = ScrollbarGutter::Stable;
+    parent.display = Display::Inline;
+    parent.white_space = WhiteSpace::Pre;
+    parent.user_select = UserSelect::None;
+    parent.pointer_events = PointerEvents::None;
+    parent.caret_color = CaretColor::Transparent;
+    parent.caret_text_color = CaretTextColor::Color(Color::Rgb(1, 1, 1).into());
+    parent.content = Some("x".into());
+    parent.position = Position::Relative;
+    parent.top = Length::Cells(1);
+    parent.right = Length::Cells(1);
+    parent.bottom = Length::Cells(1);
+    parent.left = Length::Cells(1);
+    parent.z_index = ZIndex::Value(1);
+    parent.transition_property = vec![TransitionProperty::All];
+    parent.transition_duration = vec![100];
+    parent.transition_timing_function = vec![TimingFunction::Linear];
+    parent.transition_delay = vec![5];
+    parent.vars = Rc::new(HashMap::from([("a".to_string(), "b".to_string())]));
+
+    let mut child = ComputedStyle::initial();
+    inherit_inheritable_from(&mut child, &parent);
+
+    // property name → "the child took the parent's value"
+    let probes: &[(&str, bool)] = &[
+        ("color", child.fg == parent.fg),
+        ("background-color", child.bg == parent.bg),
+        ("border-color", child.border_fg == parent.border_fg),
+        ("font-weight", child.modifiers.contains(Modifier::BOLD)),
+        ("font-style", child.modifiers.contains(Modifier::ITALIC)),
+        (
+            "text-decoration",
+            child.modifiers.contains(Modifier::UNDERLINED),
+        ),
+        ("opacity", child.opacity == parent.opacity),
+        ("width", child.width == parent.width),
+        ("height", child.height == parent.height),
+        ("min-width", child.min_width == parent.min_width),
+        ("max-width", child.max_width == parent.max_width),
+        ("min-height", child.min_height == parent.min_height),
+        ("max-height", child.max_height == parent.max_height),
+        ("aspect-ratio", child.aspect_ratio == parent.aspect_ratio),
+        ("padding", child.padding == parent.padding),
+        ("margin", child.margin == parent.margin),
+        ("gap", child.gap == parent.gap),
+        ("flex-shrink", child.flex_shrink == parent.flex_shrink),
+        ("border", child.border == parent.border),
+        (
+            "border-collapse",
+            child.border_collapse == parent.border_collapse,
+        ),
+        ("flex-direction", child.direction == parent.direction),
+        ("overflow-x", child.overflow_x == parent.overflow_x),
+        ("overflow-y", child.overflow_y == parent.overflow_y),
+        (
+            "scrollbar-gutter",
+            child.scrollbar_gutter == parent.scrollbar_gutter,
+        ),
+        ("display", child.display == parent.display),
+        ("white-space", child.white_space == parent.white_space),
+        ("user-select", child.user_select == parent.user_select),
+        (
+            "pointer-events",
+            child.pointer_events == parent.pointer_events,
+        ),
+        ("caret-color", child.caret_color == parent.caret_color),
+        (
+            "caret-text-color",
+            child.caret_text_color == parent.caret_text_color,
+        ),
+        ("content", child.content == parent.content),
+        ("position", child.position == parent.position),
+        ("top", child.top == parent.top),
+        ("right", child.right == parent.right),
+        ("bottom", child.bottom == parent.bottom),
+        ("left", child.left == parent.left),
+        ("z-index", child.z_index == parent.z_index),
+        (
+            "transition-property",
+            child.transition_property == parent.transition_property,
+        ),
+        (
+            "transition-duration",
+            child.transition_duration == parent.transition_duration,
+        ),
+        (
+            "transition-timing-function",
+            child.transition_timing_function == parent.transition_timing_function,
+        ),
+        (
+            "transition-delay",
+            child.transition_delay == parent.transition_delay,
+        ),
     ];
-    for (name, bit) in with_bit {
+    for (name, took) in probes {
         assert_eq!(
+            *took,
             inherits(name),
-            INHERITS_MASK.contains(*bit),
-            "{name}: style crate and cascade mask disagree"
+            "{name}: the cascade {} it but the style table says {}",
+            if *took {
+                "inherited"
+            } else {
+                "did not inherit"
+            },
+            inherits(name)
         );
     }
-    for name in [
-        "text-decoration",
-        "opacity",
-        "caret-color",
-        "caret-text-color",
-        "scrollbar-gutter",
-        "aspect-ratio",
-        "margin",
-        "border-collapse",
-        "position",
-        "top",
-        "right",
-        "bottom",
-        "left",
-        "z-index",
-    ] {
-        assert!(!inherits(name), "{name} has no cascade inherit bit");
+    // Every inherited property in the dispatch table is probed above, so a
+    // property added to `inherits` without a matching cascade change (or
+    // a probe) fails here instead of drifting silently.
+    for name in property_names().iter().filter(|n| inherits(n)) {
+        assert!(
+            probes.iter().any(|(p, _)| p == name),
+            "{name} inherits but is not probed"
+        );
     }
+    // Custom properties inherit as a map (CSS Variables 1 §2).
+    assert!(Rc::ptr_eq(&child.vars, &parent.vars));
 }
 
 // ── HARDENING-2026-09: layout-dirty flag covers positioning ─────────

@@ -98,7 +98,6 @@ pub use crate::{
     PaintExt,
     // Selection types (re-exported from rdom-core)
     Position,
-    PropMask,
     PseudoElementTarget,
     Range,
     Rect,

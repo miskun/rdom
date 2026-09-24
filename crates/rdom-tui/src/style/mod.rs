@@ -26,7 +26,7 @@
 pub mod cascade;
 pub mod dirty_tracker;
 
-pub use cascade::{CascadeExt, INHERITS_MASK, LAYOUT_MASK, PropMask};
+pub use cascade::CascadeExt;
 pub use dirty_tracker::DirtyTracker;
 
 // ── Data-model re-exports from rdom-style ───────────────────────────

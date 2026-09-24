@@ -24,6 +24,10 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 - `drop_subtree`, `remove_child_dropping` and `clear_children_dropping` free the subtree even when a `MutationObserver` panics in any record they fire after the unlink (`ChildListChanged`, or the focus / hover / selection purge); the panic still propagates afterwards. A panic in the `PreDetach` window leaves the still-attached subtree alone. (`CORE-DROP-PANIC-LEAK-1`)
 - `compare_document_position`, `compare_boundary_points` and `common_ancestor` no longer allocate: a depth walk replaces the two materialized ancestor paths. Selection paint called this twice per text node per frame. (`CORE-DOCPOS-ALLOC-1`)
 
+### Breaking — `rdom-tui`
+
+- `PropMask`, `INHERITS_MASK` and `LAYOUT_MASK` are removed from the public API. They were exported but drove nothing; the inherited set is declared once in `rdom_style::property_dispatch::inherits` and the cascade is pinned to it by a per-property test. (`STYLE-INHERITS-TWO-SOURCES-1`)
+
 ### Fixed — `rdom-style`
 
 - `ImportantMask::FLOW` and `ImportantMask::POINTER_EVENTS` shared bit 39, so `pointer-events: … !important` also marked the `display`-derived flow important (and vice versa). Every flag now owns a bit, and a test pins it. (`STYLE-MASK-COLLISION-1`)

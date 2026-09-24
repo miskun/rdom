@@ -136,7 +136,7 @@ Removing a node releases its slot for reuse, but the `NodeId` carries a per-slot
 
 ### `unset` is resolved when a declaration is parsed
 
-CSS Cascade 4 defines `unset` as `inherit` for inherited properties and `initial` otherwise. Which properties inherit is a fact about the property, not the tree, so `rdom-style`'s dispatch table (`property_dispatch::inherits`) resolves the keyword into `Value::Inherit` / `Value::Initial` at parse time and the cascade only ever sees those two. The cascade's own inherited set (`rdom-tui`'s `INHERITS_MASK`) must agree with that table; a test pins the two together.
+CSS Cascade 4 defines `unset` as `inherit` for inherited properties and `initial` otherwise. Which properties inherit is a fact about the property, not the tree, so `rdom-style`'s dispatch table (`property_dispatch::inherits`) resolves the keyword into `Value::Inherit` / `Value::Initial` at parse time and the cascade only ever sees those two. The cascade copies that same set in `inherit_inheritable_from`; a cascade test probes every property against the table, so there is one declaration and one proof, no second list.
 
 ### MutationObserver delivery is synchronous, one record per mutation
 
