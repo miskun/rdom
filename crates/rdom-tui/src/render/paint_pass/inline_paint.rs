@@ -563,6 +563,12 @@ fn paint_inline_layout(
                     .ext()
                     .and_then(|e| e.computed.clone())
                     .unwrap_or_else(|| std::rc::Rc::new(ComputedStyle::initial()));
+                // A positioned atom belongs to its stacking context's
+                // positioned layer, which paints it; painting it here
+                // too would blend it twice under `opacity`.
+                if atom_computed.position != crate::layout::Position::Static {
+                    continue;
+                }
                 // Reuse paint_inline_content: it handles
                 // ::before / own text / ::after at the given inner
                 // rect.

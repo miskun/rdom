@@ -166,7 +166,17 @@ pub(super) fn layout_node(
             p.tui_ext().map(|e| e.content_layout)
         })
         .unwrap_or(outer_rect);
-    let outer_rect = positioning::apply_relative_shift(&computed, outer_rect, parent_rect);
+    // CSS 2.1 §9.3.2: a percentage `top` / `bottom` is `auto` when the
+    // containing block's height is not specified explicitly — so an
+    // `auto` parent height, still an estimate at this point, is never
+    // a basis.
+    let parent_height_definite = block::nearest_block_ancestor_height_is_definite(dom, id);
+    let outer_rect = positioning::apply_relative_shift(
+        &computed,
+        outer_rect,
+        parent_rect,
+        parent_height_definite,
+    );
 
     // Inset by this element's own padding + border. Under
     // `border-collapse: collapse`, an element with a border has its
@@ -250,9 +260,14 @@ pub(super) fn layout_node(
     let auto_no_stable_x = matches!(computed.overflow_x, Overflow::Auto)
         && !matches!(computed.scrollbar_gutter, ScrollbarGutter::Stable);
     if auto_no_stable_y || auto_no_stable_x {
+        // Compare against the FINAL content height: an `auto` height
+        // was just resolved from the content (CSS 2.1 §10.6.3 — such a
+        // box cannot overflow its block axis unless `max-height`
+        // clamps it), while the pass-1 `inner` still carries the
+        // pre-layout estimate.
         let (overflow_y, overflow_x) = match dom.node(id).ext() {
             Some(ext) => (
-                auto_no_stable_y && ext.scroll_content_height > inner.height as usize,
+                auto_no_stable_y && ext.scroll_content_height > ext.content_layout.height as usize,
                 auto_no_stable_x && ext.scroll_content_width > inner.width as usize,
             ),
             None => (false, false),

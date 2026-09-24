@@ -69,7 +69,7 @@ Everything else is real. Disposition per item:
 | `BFC1-PERF-INLINE-FLOW-LOOKUP-1` | fix — `text_node → flow` index | 5 |
 | `BFC1-CODE-BLOCK-SPLIT-1` | fix — `block/{mod,margin_collapse,width,height}.rs` | 5 |
 | `SCROLLBAR-AUTO-TWO-PASS-1` | fix — pass 2 re-resolves auto height and the scroll carry-back | 5 |
-| `BFC1-AUTO-HEIGHT-ORDERING-1` | fix — measure-then-place for `auto`-height parents with content-dependent descendants | 5 |
+| `BFC1-AUTO-HEIGHT-ORDERING-1` | → DESIGN layout rule (nothing reads a pre-final auto height as a basis: relative percent insets follow §9.3.2, percent heights §10.5, sticky / scroll extents read after the pass) | 5 |
 | `FLEX-BLOCK-MAIN-INTRINSIC-1` | fix — block items resolve flex base size via `max-content` | 5 |
 | `FLEX-ITEM-MARGIN-MAIN-INTRINSIC-1` | fix — main-axis margins count toward the container's hypothetical main size | 5 |
 | `FLEX-ITEM-NEGATIVE-MARGIN-1` | fix — `i32` placement, negative margins pull outward | 5 |

@@ -122,7 +122,7 @@ pub(super) fn resolve_block_height(
 /// but in this codepath we're only consulted when walking up a
 /// `Flow::Block` chain from a Block child — flex contexts are
 /// outside that.
-fn nearest_block_ancestor_height_is_definite(dom: &Dom<TuiExt>, id: NodeId) -> bool {
+pub(crate) fn nearest_block_ancestor_height_is_definite(dom: &Dom<TuiExt>, id: NodeId) -> bool {
     use crate::layout::{MinSize, Position};
     // Iterative walk so a pathological `<div height="50%">` nest
     // can't blow the stack. Each step looks at THE PARENT — `id`

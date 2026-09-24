@@ -84,7 +84,12 @@ pub(super) fn layout_children(
         // Compute + store the inline layout at the block's final
         // content width. Paint reads this back directly.
         let inline_layout = compute_inline_layout(dom, id, container.width);
-        super::positioning::record_static_positions_in_ifc(dom, id, &inline_layout, container);
+        super::positioning::record_static_positions_in_ifc(
+            dom,
+            id,
+            &inline_layout,
+            crate::render::inline::scrolled_content_rect(dom, id).unwrap_or(container),
+        );
         // Atomic inline-block fragments (`<button>` in
         // `<p>hi <button>X</button> ok</p>`) need their layout rect
         // written so hit-test descends into them, and need
@@ -134,7 +139,12 @@ pub(super) fn layout_children(
         .all(|&c| !super::is_in_flow(dom, c));
     if has_text_child && no_in_flow_element_children {
         let inline_layout = compute_inline_layout(dom, id, container.width);
-        super::positioning::record_static_positions_in_ifc(dom, id, &inline_layout, container);
+        super::positioning::record_static_positions_in_ifc(
+            dom,
+            id,
+            &inline_layout,
+            crate::render::inline::scrolled_content_rect(dom, id).unwrap_or(container),
+        );
         if let Some(ext) = dom.node_mut(id).ext_mut() {
             ext.inline_layout = Some(inline_layout);
         }
@@ -191,16 +201,14 @@ pub(super) fn layout_children(
     // `D-M2-2`: a positioned child's static position in a flex
     // container is the content box's start — Flexbox §4.1 places it as
     // the sole item; `justify-content` / `align-items` are not applied
-    // (DIVERGENCES). Scroll follows the main axis, as
-    // `layout_flex_children` does for the in-flow items.
-    let scroll_main = dom.node(id).ext().map_or(0, |e| match computed.direction {
-        Direction::Row => e.scroll_x as i32,
-        Direction::Column => e.scroll_y as i32,
+    // (DIVERGENCES). Both scroll offsets apply, as they do to the
+    // in-flow items.
+    let (static_x, static_y) = dom.node(id).ext().map_or((container.x, container.y), |e| {
+        (
+            container.x - e.scroll_x as i32,
+            container.y - e.scroll_y as i32,
+        )
     });
-    let (static_x, static_y) = match computed.direction {
-        Direction::Row => (container.x - scroll_main, container.y),
-        Direction::Column => (container.x, container.y - scroll_main),
-    };
     for n in super::positioning::out_of_flow_positioned_children(dom, id) {
         super::positioning::record_static_position(dom, n, static_x, static_y);
     }

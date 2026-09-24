@@ -427,7 +427,25 @@ fn intrinsic_element(
         children.iter().map(|&c| outer(c)).max().unwrap_or(0)
     };
 
-    intrinsic_children
+    // Direct text runs next to element children become anonymous
+    // block boxes (CSS 2.1 §9.2.1.1): a row each on the Column axis
+    // (unwrapped estimate; block layout measures the real wrap), the
+    // widest run on the Row axis.
+    let text_runs = dom
+        .node(id)
+        .child_nodes()
+        .filter(|c| {
+            c.node_type() == NodeType::Text
+                && c.node_value()
+                    .is_some_and(|t| !t.chars().all(char::is_whitespace))
+        })
+        .map(|c| intrinsic_text(dom, c.id(), direction));
+    let with_text = match direction {
+        Direction::Column => text_runs.fold(intrinsic_children, |acc, n| acc.saturating_add(n)),
+        Direction::Row => text_runs.fold(intrinsic_children, |acc, n| acc.max(n)),
+    };
+
+    with_text
         .saturating_add(pseudo_main)
         .saturating_add(pad_main)
         .saturating_add(border_main)

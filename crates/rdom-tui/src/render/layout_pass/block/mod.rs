@@ -47,6 +47,7 @@ use crate::style::ComputedStyle;
 
 use super::is_in_flow;
 use super::layout_node;
+pub(super) use height::nearest_block_ancestor_height_is_definite;
 use height::resolve_block_height;
 use margin_collapse::{
     MarginAccumulator, is_empty_collapse_through, outer_bottom_margin, outer_top_margin,
@@ -117,9 +118,17 @@ pub(super) fn layout_block_children(
         if let Some(ext) = dom.node_mut(id).ext_mut() {
             ext.anonymous_blocks.clear();
         }
-        let scroll_y = dom.node(id).ext().map_or(0, |e| e.scroll_y as i32);
+        let (scroll_x, scroll_y) = dom
+            .node(id)
+            .ext()
+            .map_or((0, 0), |e| (e.scroll_x as i32, e.scroll_y as i32));
         for &n in &static_trailing {
-            super::positioning::record_static_position(dom, n, container.x, container.y - scroll_y);
+            super::positioning::record_static_position(
+                dom,
+                n,
+                container.x - scroll_x,
+                container.y - scroll_y,
+            );
         }
         return BlockMeasurement::default();
     }
@@ -239,7 +248,7 @@ pub(super) fn layout_block_children(
                         // collapses through whatever is buffered.
                         let y = y_cursor + i32::from(margin_acc.resolved());
                         for &n in oof {
-                            super::positioning::record_static_position(dom, n, container.x, y);
+                            super::positioning::record_static_position(dom, n, content_x, y);
                         }
                     }
                     let is_first_block_placed = placed_block_count == 0;
@@ -395,7 +404,7 @@ pub(super) fn layout_block_children(
                     &anon.inline_layout,
                     anon.rect,
                 ),
-                _ => (container.x, below_last_block),
+                _ => (content_x, below_last_block),
             };
             super::positioning::record_static_position(dom, n, x, y);
         }

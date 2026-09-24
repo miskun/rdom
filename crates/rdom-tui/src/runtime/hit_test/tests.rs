@@ -1139,3 +1139,72 @@ fn absolute_clipped_by_a_scroll_container_is_not_hittable_outside_it() {
     prepare(&mut dom, &sheet, Rect::new(0, 0, 10, 8));
     assert_eq!(dom.hit_test(0, 4), None);
 }
+
+// ── Phase 5 architect gate: the path keeps the ancestor chain ───────
+
+/// B2: a hit inside a positioned box still reports the full ancestor
+/// chain, root-most first — `relative` / `sticky` boxes and absolute
+/// boxes alike (`elements_from_point` documents the chain).
+#[test]
+fn path_through_a_positioned_box_keeps_its_ancestors() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let pane = dom.create_element("pane");
+    let rel = dom.create_element("rel");
+    let button = dom.create_element("button");
+    let abs = dom.create_element("abs");
+    dom.append_child(rel, button).unwrap();
+    dom.append_child(rel, abs).unwrap();
+    dom.append_child(pane, rel).unwrap();
+    dom.append_child(root, pane).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "pane",
+            TuiStyle::new()
+                .width(Size::Fixed(10))
+                .height(Size::Fixed(5))
+                .overflow(Overflow::Auto),
+        )
+        .rule_unchecked(
+            "rel",
+            TuiStyle::new()
+                .position(crate::layout::Position::Relative)
+                .height(Size::Fixed(3)),
+        )
+        .rule_unchecked(
+            "button",
+            TuiStyle::new().width(Size::Fixed(4)).height(Size::Fixed(1)),
+        )
+        .rule_unchecked(
+            "abs",
+            TuiStyle::new()
+                .position(crate::layout::Position::Absolute)
+                .top(crate::layout::Length::Cells(2))
+                .left(crate::layout::Length::Cells(0))
+                .width(Size::Fixed(3))
+                .height(Size::Fixed(1)),
+        );
+    prepare(&mut dom, &sheet, Rect::new(0, 0, 20, 10));
+    assert_eq!(dom.hit_test_path(1, 0), vec![pane, rel, button]);
+    assert_eq!(dom.hit_test_path(1, 2), vec![pane, rel, abs]);
+}
+
+/// B2, nested contexts: the context root and the ancestors between it
+/// and the hit both appear.
+#[test]
+fn path_through_nested_stacking_contexts_keeps_every_root() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let a = dom.create_element("a");
+    let mid = dom.create_element("mid");
+    let a1 = dom.create_element("a1");
+    dom.append_child(mid, a1).unwrap();
+    dom.append_child(a, mid).unwrap();
+    dom.append_child(root, a).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked("a", abs_box().z_index(crate::layout::ZIndex::Value(1)))
+        .rule_unchecked("mid", TuiStyle::new().height(Size::Fixed(1)))
+        .rule_unchecked("a1", abs_box().z_index(crate::layout::ZIndex::Value(2)));
+    prepare(&mut dom, &sheet, Rect::new(0, 0, 10, 5));
+    assert_eq!(dom.hit_test_path(1, 0), vec![a, mid, a1]);
+}

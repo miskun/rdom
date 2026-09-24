@@ -4399,3 +4399,165 @@ fn inline_block_atom_percent_padding_resolves_against_the_ifc_width() {
     // "x" (1) + 10% of the 40-cell IFC (4).
     assert_eq!(layout_rect_of(&dom, atom).width, 5);
 }
+
+// ── Phase 5 architect gate ──────────────────────────────────────────
+
+/// B1: the classic-scrollbar trigger compares the content against the
+/// FINAL height of an `auto`-height block, not the pre-layout estimate.
+/// An auto-height block cannot overflow its block axis (CSS 2.1
+/// §10.6.3), so no vertical gutter may appear even when the estimate
+/// undershot (here: wrapped text next to a block child).
+#[test]
+fn auto_height_block_never_reserves_a_vertical_gutter_for_its_own_content() {
+    let mut dom = tui_dom();
+    let root = dom.root();
+    let wrap = dom.create_element("wrap");
+    let bx = dom.create_element("bx");
+    let text = dom.create_text_node("aaaa bbbb"); // wraps to two rows at width 6
+    let p = dom.create_element("p");
+    dom.append_child(bx, text).unwrap();
+    dom.append_child(bx, p).unwrap();
+    dom.append_child(wrap, bx).unwrap();
+    dom.append_child(root, wrap).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked("wrap", TuiStyle::new().width(Size::Fixed(6)))
+        .rule_unchecked(
+            "bx",
+            TuiStyle::new()
+                .width(Size::Fixed(6))
+                .overflow_y(Overflow::Auto),
+        )
+        .rule_unchecked("p", TuiStyle::new().height(Size::Fixed(1)));
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 40, 10));
+    assert_eq!(
+        layout_rect_of(&dom, bx).height,
+        3,
+        "two text rows + the block"
+    );
+    assert_eq!(
+        content_rect_of(&dom, bx).width,
+        6,
+        "no phantom scrollbar column"
+    );
+    assert_eq!(layout_rect_of(&dom, p).width, 6);
+}
+
+/// B1 (intrinsic): a block's direct text runs count toward its
+/// intrinsic height next to its element children — a flex item with
+/// "Heading" + a paragraph is two rows tall, not one.
+#[test]
+fn intrinsic_height_of_mixed_content_counts_the_text_runs() {
+    let mut dom = tui_dom();
+    let root = dom.root();
+    let col = dom.create_element("col");
+    let item = dom.create_element("item");
+    let text = dom.create_text_node("Heading");
+    let p = dom.create_element("p");
+    dom.append_child(item, text).unwrap();
+    dom.append_child(item, p).unwrap();
+    dom.append_child(col, item).unwrap();
+    dom.append_child(root, col).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "col",
+            TuiStyle::new()
+                .flow(Flow::Flex)
+                .direction(Direction::Column)
+                .width(Size::Fixed(20))
+                .height(Size::Fixed(10)),
+        )
+        .rule_unchecked("p", TuiStyle::new().height(Size::Fixed(1)));
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 40, 10));
+    assert_eq!(layout_rect_of(&dom, item).height, 2);
+}
+
+/// CSS 2.1 §9.3.2: a percentage `top` / `bottom` on a relatively
+/// positioned box computes to `auto` when its containing block's
+/// height is not specified explicitly — nothing reads a pre-final
+/// auto height.
+#[test]
+fn relative_percent_top_is_auto_under_an_indefinite_height() {
+    use rdom_style::calc::CalcExpr;
+    use rdom_style::layout::{Length, Position};
+    let build = |parent_height: Option<u16>| {
+        let mut dom = tui_dom();
+        let root = dom.root();
+        let parent = dom.create_element("parent");
+        let child = dom.create_element("child");
+        let filler = dom.create_element("filler");
+        dom.append_child(parent, child).unwrap();
+        dom.append_child(parent, filler).unwrap();
+        dom.append_child(root, parent).unwrap();
+        let mut parent_style = TuiStyle::new().width(Size::Fixed(20));
+        if let Some(h) = parent_height {
+            parent_style = parent_style.height(Size::Fixed(h));
+        }
+        let sheet = Stylesheet::bare()
+            .rule_unchecked("parent", parent_style)
+            .rule_unchecked(
+                "child",
+                TuiStyle::new()
+                    .position(Position::Relative)
+                    .top(Length::Calc(Box::new(CalcExpr::Percent(50.0))))
+                    .height(Size::Fixed(1)),
+            )
+            .rule_unchecked("filler", TuiStyle::new().height(Size::Fixed(3)));
+        cascade(&mut dom, &sheet);
+        dom.layout_dom(Rect::new(0, 0, 40, 20));
+        layout_rect_of(&dom, child).y
+    };
+    assert_eq!(
+        build(None),
+        0,
+        "indefinite containing block: `top: 50%` is auto"
+    );
+    assert_eq!(
+        build(Some(10)),
+        5,
+        "definite 10-row containing block: 50% = 5"
+    );
+}
+
+/// Static positions live in the scrolled coordinate space on both
+/// axes, like every in-flow box.
+#[test]
+fn static_position_follows_horizontal_scroll() {
+    use rdom_style::layout::Position;
+    let mut dom = tui_dom();
+    let root = dom.root();
+    let bx = dom.create_element("bx");
+    let wide = dom.create_element("wide");
+    let abs = dom.create_element("abs");
+    dom.append_child(bx, wide).unwrap();
+    dom.append_child(bx, abs).unwrap();
+    dom.append_child(root, bx).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "bx",
+            TuiStyle::new()
+                .position(Position::Relative)
+                .width(Size::Fixed(10))
+                .height(Size::Fixed(3))
+                .overflow_x(Overflow::Auto),
+        )
+        .rule_unchecked(
+            "wide",
+            TuiStyle::new()
+                .width(Size::Fixed(25))
+                .height(Size::Fixed(1)),
+        )
+        .rule_unchecked(
+            "abs",
+            TuiStyle::new()
+                .position(Position::Absolute)
+                .width(Size::Fixed(2))
+                .height(Size::Fixed(1)),
+        );
+    cascade(&mut dom, &sheet);
+    dom.node_mut(bx).ext_mut().unwrap().scroll_x = 4;
+    dom.layout_dom(Rect::new(0, 0, 40, 10));
+    let r = layout_rect_of(&dom, abs);
+    assert_eq!((r.x, r.y), (-4, 1), "below `wide`, shifted by the scroll");
+}

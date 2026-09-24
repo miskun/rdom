@@ -4291,3 +4291,38 @@ fn absolute_escapes_a_scroll_container_below_its_containing_block() {
         "the list is not the pop's containing block"
     );
 }
+
+/// A relatively positioned atomic inline-block paints from its
+/// stacking context's positioned layer (the IFC's atom pass skips it),
+/// and still lands on its line with its background blended once.
+#[test]
+fn relative_inline_block_atom_paints_from_the_positioned_layer() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let p = dom.create_element("p");
+    let lead = dom.create_text_node("hi ");
+    let atom = dom.create_element("b");
+    let inner = dom.create_text_node("x");
+    let tail = dom.create_element("i");
+    dom.append_child(atom, inner).unwrap();
+    dom.append_child(p, lead).unwrap();
+    dom.append_child(p, atom).unwrap();
+    dom.append_child(p, tail).unwrap();
+    dom.append_child(root, p).unwrap();
+    let white = Color::Rgb(255, 255, 255);
+    let sheet = Stylesheet::bare()
+        .rule_unchecked("p", TuiStyle::new().width(Size::Fixed(10)).bg(white))
+        .rule_unchecked("i", TuiStyle::new().display(Display::Inline))
+        .rule_unchecked(
+            "b",
+            TuiStyle::new()
+                .display(Display::InlineBlock)
+                .position(crate::layout::Position::Relative)
+                .bg(BLUE)
+                .opacity(0.5),
+        );
+    let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 10, 3));
+    let once = crate::render::compose::alpha_blend(BLUE, 0.5, white);
+    assert_eq!(bg_at(&buf, 3, 0), once, "blended over the white once");
+    assert!(row(&buf, 0).starts_with("hi x"), "{:?}", row(&buf, 0));
+}

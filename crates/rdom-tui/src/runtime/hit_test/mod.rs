@@ -6,35 +6,23 @@
 //! ancestor chain (outer → inner), matching the browser's
 //! `composedPath()` for a synthetic `MouseEvent` at that point.
 //!
-//! ## Algorithm (spec §7.1)
+//! ## Algorithm
 //!
-//! Recursive descent from root:
+//! The walk mirrors paint in reverse (`render::stacking`, CSS 2.1
+//! Appendix E). For a stacking context: try the child contexts with
+//! positive `z-index` (highest first), then the `z-index: auto | 0`
+//! layer in reverse tree order, then the root's in-flow content
+//! (children in reverse document order, or the inline fragment under
+//! the point for an inline formatting context), then the negative
+//! layer, and finally the root's own box. Every layer entry carries
+//! the clip that applies to it (CSS 2.1 §11.1.1), so a positioned box
+//! clipped by an ancestor's overflow is not hittable outside it, and
+//! an element that clips its children ends the descent when the point
+//! sits on its padding or border.
 //!
-//! 1. **Non-element** (Fragment root): recurse into element children;
-//!    skip the Fragment itself (it has no layout rect).
-//! 2. **Element**:
-//!    - If `(x, y)` is outside this element's `layout` rect → miss;
-//!      don't add to path, don't recurse.
-//!    - Otherwise, add to path.
-//!    - **Overflow clip**: if `overflow != Visible` and `(x, y)` is
-//!      outside this element's `content_layout` (padding/border
-//!      area without content) → hit stays on this element; don't
-//!      recurse.
-//!    - **IFC block**: look up the fragment at `(x − content.x,
-//!      y − content.y)`. If found and the fragment's owner is not
-//!      the IFC block itself, walk the owner's ancestor chain up to
-//!      (but not including) the IFC block and append each ancestor
-//!      in outer→inner order.
-//!    - **Normal block**: recurse into element children in **reverse
-//!      document order** (last-painted wins for stacking). First
-//!      child whose descent adds to the path wins — we return
-//!      immediately without trying earlier siblings.
-//!
-//! ## Stacking
-//!
-//! No `z-index` in v1. Paint order = stacking order. Reverse-document
-//! iteration in step 2 mirrors the paint pass's "later-siblings paint
-//! on top" behavior.
+//! The path is the full DOM ancestor chain of the hit, root-most
+//! first, whichever layer found it — the ancestors between a context
+//! root and a layer entry are inserted when the entry hits.
 //!
 //! ## `pointer-events`
 //!
@@ -467,20 +455,31 @@ fn hit_stacking_context(
         .as_ref()
         .map_or(clip, |(c, _)| children_clip(dom, root, c, clip));
     let layers = collect_layers(dom, root, content_clip, viewport);
-    if hit_layers(dom, &layers.positive, x, y, viewport, path)
-        || hit_layers(dom, &layers.zero_auto, x, y, viewport, path)
+    // A hit inside a layer reports the full ancestor chain: the
+    // entries between this root and the hit (`hit_layers`), and the
+    // root itself, ahead of what the layer pushed.
+    let mark = path.len();
+    let transparent = root_box
+        .as_ref()
+        .is_some_and(|(c, _)| c.pointer_events == crate::layout::PointerEvents::None);
+    let root_in_path = |path: &mut Vec<NodeId>| {
+        if root_box.is_some() && !transparent {
+            path.insert(mark, root);
+        }
+    };
+    if hit_layers(dom, root, &layers.positive, x, y, viewport, path)
+        || hit_layers(dom, root, &layers.zero_auto, x, y, viewport, path)
     {
+        root_in_path(path);
         return true;
     }
-    let Some((computed, outer)) = root_box else {
+    let Some((_, outer)) = root_box else {
         // The document root: in-flow content, then the negative layer.
         return descend_children_reverse(dom, root, x, y, content_clip, viewport, path)
-            || hit_layers(dom, &layers.negative, x, y, viewport, path);
+            || hit_layers(dom, root, &layers.negative, x, y, viewport, path);
     };
     let contains = rect_contains(outer, x, y);
-    let transparent = computed.pointer_events == crate::layout::PointerEvents::None;
     if contains && content_clip.contains(x, y) {
-        let mark = path.len();
         if !transparent {
             path.push(root);
         }
@@ -489,7 +488,8 @@ fn hit_stacking_context(
         }
         path.truncate(mark);
     }
-    if hit_layers(dom, &layers.negative, x, y, viewport, path) {
+    if hit_layers(dom, root, &layers.negative, x, y, viewport, path) {
+        root_in_path(path);
         return true;
     }
     if contains && !transparent {
@@ -499,22 +499,44 @@ fn hit_stacking_context(
     false
 }
 
-/// Try the entries of one layer in reverse paint order.
+/// Try the entries of one layer in reverse paint order. On a hit, the
+/// ancestors between the context `root` (exclusive) and the entry are
+/// inserted ahead of what the entry pushed, so the path stays the full
+/// ancestor chain.
 fn hit_layers(
     dom: &Dom<TuiExt>,
+    root: NodeId,
     entries: &[LayerEntry],
     x: u16,
     y: u16,
     viewport: Rect,
     path: &mut Vec<NodeId>,
 ) -> bool {
-    entries.iter().rev().any(|e| {
-        if e.context {
+    for e in entries.iter().rev() {
+        let mark = path.len();
+        let hit = if e.context {
             hit_stacking_context(dom, e.id, x, y, e.clip, viewport, path)
         } else {
             descend_plain(dom, e.id, x, y, e.clip, viewport, path)
+        };
+        if hit {
+            let mut chain = Vec::new();
+            let mut cur = dom.node(e.id).parent_node().map(|p| p.id());
+            while let Some(id) = cur {
+                if id == root {
+                    break;
+                }
+                if dom.node(id).node_type() == NodeType::Element {
+                    chain.push(id);
+                }
+                cur = dom.node(id).parent_node().map(|p| p.id());
+            }
+            chain.reverse();
+            path.splice(mark..mark, chain);
+            return true;
         }
-    })
+    }
+    false
 }
 
 /// An element's style and outer rect; `None` for non-elements and

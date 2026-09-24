@@ -230,11 +230,15 @@ pub(super) fn record_static_positions_in_ifc(
 /// `layout_node` runs.
 ///
 /// Per CSS, when both edges of an axis are specified, `top` /
-/// `left` win and `bottom` / `right` are ignored.
+/// `left` win and `bottom` / `right` are ignored. A percentage
+/// `top` / `bottom` computes to `auto` unless `parent_height_definite`
+/// (CSS 2.1 §9.3.2: the containing block's height must be specified
+/// explicitly).
 pub(super) fn apply_relative_shift(
     computed: &ComputedStyle,
     rect: LayoutRect,
     parent: LayoutRect,
+    parent_height_definite: bool,
 ) -> LayoutRect {
     if computed.position != Position::Relative {
         return rect;
@@ -246,9 +250,18 @@ pub(super) fn apply_relative_shift(
         resolve_length_offset(&computed.left, parent.width as i32, false).unwrap_or_else(|| {
             resolve_length_offset(&computed.right, parent.width as i32, true).unwrap_or(0)
         });
-    let dy =
-        resolve_length_offset(&computed.top, parent.height as i32, false).unwrap_or_else(|| {
-            resolve_length_offset(&computed.bottom, parent.height as i32, true).unwrap_or(0)
+    let vertical = |len: &Length| -> Length {
+        match len {
+            Length::Calc(expr) if !parent_height_definite && expr.contains_percent() => {
+                Length::Auto
+            }
+            other => other.clone(),
+        }
+    };
+    let dy = resolve_length_offset(&vertical(&computed.top), parent.height as i32, false)
+        .unwrap_or_else(|| {
+            resolve_length_offset(&vertical(&computed.bottom), parent.height as i32, true)
+                .unwrap_or(0)
         });
     LayoutRect::new(
         rect.x.saturating_add(dx),
