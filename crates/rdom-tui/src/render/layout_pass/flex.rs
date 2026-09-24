@@ -636,6 +636,17 @@ pub(super) fn layout_flex_children(
     // Position each child along main axis, scrolling by parent's
     // scroll offset.
     let scroll_main = parent_scroll(dom, children, direction);
+    // `SCROLL-CROSS-AXIS-1`: the container's other scroll offset moves
+    // every item along the cross axis (a column container scrolling
+    // horizontally).
+    let scroll_cross = parent_scroll(
+        dom,
+        children,
+        match direction {
+            Direction::Row => Direction::Column,
+            Direction::Column => Direction::Row,
+        },
+    );
 
     let mut main_cursor: i32 = match direction {
         Direction::Row => container.x - scroll_main,
@@ -731,12 +742,18 @@ pub(super) fn layout_flex_children(
         } as i32;
 
         let child_rect = match direction {
-            Direction::Row => {
-                LayoutRect::new(main_cursor, container.y + cross_offset, *size, cross_size)
-            }
-            Direction::Column => {
-                LayoutRect::new(container.x + cross_offset, main_cursor, cross_size, *size)
-            }
+            Direction::Row => LayoutRect::new(
+                main_cursor,
+                container.y + cross_offset - scroll_cross,
+                *size,
+                cross_size,
+            ),
+            Direction::Column => LayoutRect::new(
+                container.x + cross_offset - scroll_cross,
+                main_cursor,
+                cross_size,
+                *size,
+            ),
         };
 
         layout_node(dom, *child_id, child_rect, container.width);

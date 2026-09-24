@@ -252,3 +252,52 @@ fn reset_clears_drag_state() {
     router.reset();
     assert!(router.scrollbar_drag.is_none());
 }
+
+// ── SCROLL-CROSS-AXIS-1: horizontal autoscroll band ─────────────────
+
+/// A horizontal scroll container 10×3 with 30 cells of content.
+fn horizontal_scroller_dom() -> (TuiDom, NodeId) {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let c = dom.create_element("c");
+    let w = dom.create_element("w");
+    dom.append_child(c, w).unwrap();
+    dom.append_child(root, c).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "c",
+            TuiStyle::new()
+                .width(Size::Fixed(10))
+                .height(Size::Fixed(3))
+                .overflow_x(Overflow::Auto),
+        )
+        .rule_unchecked(
+            "w",
+            TuiStyle::new()
+                .width(Size::Fixed(30))
+                .height(Size::Fixed(1)),
+        );
+    dom.cascade(&sheet);
+    dom.layout_dom(Rect::new(0, 0, 20, 5));
+    (dom, c)
+}
+
+/// `SCROLL-CROSS-AXIS-1`: the drag-autoscroll edge zone has a
+/// horizontal band on horizontal scroll containers.
+#[test]
+fn autoscroll_step_has_a_horizontal_band() {
+    use crate::runtime::scrollbar::autoscroll_step_for;
+    let (mut dom, c) = horizontal_scroller_dom();
+    // Right edge, room to scroll right.
+    let (axis, step) = autoscroll_step_for(&dom, c, (9, 1)).expect("right band");
+    assert_eq!(axis, ScrollAxis::Horizontal);
+    assert!(step > 0, "{step}");
+    // Left edge at scroll 0: nothing to scroll back to.
+    assert_eq!(autoscroll_step_for(&dom, c, (0, 1)), None);
+    dom.node_mut(c).ext_mut().unwrap().scroll_x = 5;
+    let (axis, step) = autoscroll_step_for(&dom, c, (0, 1)).expect("left band");
+    assert_eq!(axis, ScrollAxis::Horizontal);
+    assert!(step < 0, "{step}");
+    // Middle: idle.
+    assert_eq!(autoscroll_step_for(&dom, c, (5, 1)), None);
+}

@@ -396,14 +396,22 @@ const AUTOSCROLL_MAX_STEP: i32 = 3;
 fn scroll_container_from_hit(dom: &TuiDom, x: u16, y: u16) -> Option<NodeId> {
     use crate::runtime::hit_test::HitTestExt;
     let hit = dom.hit_test(x, y)?;
-    let mut cur = Some(hit);
-    loop {
-        let id = cur?;
-        if is_vertical_scroll_container(dom, id) {
+    nearest_scroll_container(dom, hit)
+}
+
+/// The nearest scroll container of `id` (itself included): an ancestor
+/// whose content overflows a non-`visible` axis after the last layout.
+/// The keyboard scroll keys and the drag-autoscroll engine act on it,
+/// and its scrollbar thumb carries the focus cue.
+pub(crate) fn nearest_scroll_container(dom: &TuiDom, id: NodeId) -> Option<NodeId> {
+    let mut cur = Some(id);
+    while let Some(id) = cur {
+        if is_vertical_scroll_container(dom, id) || is_horizontal_scroll_container(dom, id) {
             return Some(id);
         }
         cur = dom.node(id).parent_node().map(|p| p.id());
     }
+    None
 }
 
 /// Resolve the vertical scroll container a captured drag should autoscroll
@@ -439,7 +447,7 @@ pub(crate) fn resolve_autoscroll_container(
 /// (so the tick idles without disarming). The zone is [`AUTOSCROLL_EDGE_ZONE`]
 /// cells deep at each edge plus everything beyond it; the step ramps with the
 /// pointer's distance into/past the zone, capped at [`AUTOSCROLL_MAX_STEP`].
-/// Vertical only for now (horizontal pairs with `SCROLL-CROSS-AXIS-1`).
+/// The vertical band wins when the pointer is in both.
 pub(crate) fn autoscroll_step_for(
     dom: &TuiDom,
     container: NodeId,
@@ -452,27 +460,38 @@ pub(crate) fn autoscroll_step_for(
         .map(|c| c.border)
         .unwrap_or_default();
     let pb = rdom_style::layout::compute_padding_box(ext.layout, border);
-    let (viewport, offset, content) = (pb.height as usize, ext.scroll_y, ext.scroll_content_height);
-    let py = pointer.1 as i32;
     let zone = AUTOSCROLL_EDGE_ZONE.max(1);
-    let last_row = pb.y + pb.height as i32 - 1;
-    // Down: within `zone` rows of (or past) the bottom edge, room to scroll down.
-    let into_bottom = py - (last_row - (zone - 1));
-    if into_bottom >= 0 && offset + viewport < content {
-        return Some((
-            ScrollAxis::Vertical,
-            (into_bottom + 1).clamp(1, AUTOSCROLL_MAX_STEP),
-        ));
+    // Along one axis: the step into / past the far edge, or out of the
+    // near edge, when there is room to scroll that way.
+    let band = |pos: i32, start: i32, len: u16, offset: usize, content: usize| -> Option<i32> {
+        let last = start + len as i32 - 1;
+        let into_far = pos - (last - (zone - 1));
+        if into_far >= 0 && offset + usize::from(len) < content {
+            return Some((into_far + 1).clamp(1, AUTOSCROLL_MAX_STEP));
+        }
+        let into_near = (start + (zone - 1)) - pos;
+        if into_near >= 0 && offset > 0 {
+            return Some(-((into_near + 1).clamp(1, AUTOSCROLL_MAX_STEP)));
+        }
+        None
+    };
+    if let Some(step) = band(
+        pointer.1 as i32,
+        pb.y,
+        pb.height,
+        ext.scroll_y,
+        ext.scroll_content_height,
+    ) {
+        return Some((ScrollAxis::Vertical, step));
     }
-    // Up: within `zone` rows of (or above) the top edge, not already at the top.
-    let into_top = (pb.y + (zone - 1)) - py;
-    if into_top >= 0 && offset > 0 {
-        return Some((
-            ScrollAxis::Vertical,
-            -((into_top + 1).clamp(1, AUTOSCROLL_MAX_STEP)),
-        ));
-    }
-    None
+    band(
+        pointer.0 as i32,
+        pb.x,
+        pb.width,
+        ext.scroll_x,
+        ext.scroll_content_width,
+    )
+    .map(|step| (ScrollAxis::Horizontal, step))
 }
 
 /// Scroll `container` by `step` cells on `axis` (clamped); returns `true` if the
@@ -681,18 +700,8 @@ pub(crate) fn handle_scroll_key(dom: &mut TuiDom, key: crossterm::event::KeyEven
     // included). So a focused `<input>` inside a scroll pane still pages the
     // pane (the focused element isn't a scroll container, an ancestor is) —
     // the web's "scroll keys act on the scrolling element the focus is in".
-    let mut cur = Some(focused);
-    let el = loop {
-        match cur {
-            Some(id)
-                if is_vertical_scroll_container(dom, id)
-                    || is_horizontal_scroll_container(dom, id) =>
-            {
-                break id;
-            }
-            Some(id) => cur = dom.node(id).parent_node().map(|p| p.id()),
-            None => return false,
-        }
+    let Some(el) = nearest_scroll_container(dom, focused) else {
+        return false;
     };
     let vert = is_vertical_scroll_container(dom, el);
     let horiz = is_horizontal_scroll_container(dom, el);

@@ -4104,3 +4104,91 @@ fn auto_height_block_includes_a_permanent_scrollbar_row() {
     assert_eq!(content_rect_of(&dom, bx).height, 1);
     assert_eq!(layout_rect_of(&dom, bx).height, 2);
 }
+
+// ── SCROLL-CROSS-AXIS-1: cross-axis scrolling ───────────────────────
+
+/// `SCROLL-CROSS-AXIS-1`: a column flex container is its own
+/// horizontal scroll container. Its scrollable width is the widest
+/// descendant box (CSS Overflow 3 §2.2 counts descendants, not only
+/// children), and `scroll_x` shifts every row together.
+#[test]
+fn column_flex_container_scrolls_its_cross_axis() {
+    let mut dom = tui_dom();
+    let root = dom.root();
+    let col = dom.create_element("col");
+    let mut cells = Vec::new();
+    for _ in 0..2 {
+        let row = dom.create_element("row");
+        for _ in 0..2 {
+            let cell = dom.create_element("cell");
+            dom.append_child(row, cell).unwrap();
+            cells.push(cell);
+        }
+        dom.append_child(col, row).unwrap();
+    }
+    dom.append_child(root, col).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "col",
+            TuiStyle::new()
+                .flow(Flow::Flex)
+                .direction(Direction::Column)
+                .width(Size::Fixed(10))
+                .height(Size::Fixed(4))
+                .overflow_x(Overflow::Auto),
+        )
+        .rule_unchecked(
+            "row",
+            TuiStyle::new()
+                .flow(Flow::Flex)
+                .direction(Direction::Row)
+                .height(Size::Fixed(1)),
+        )
+        .rule_unchecked("cell", TuiStyle::new().width(Size::Fixed(8)).flex_shrink(0));
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 40, 10));
+    let ext = dom.node(col).ext().unwrap();
+    assert_eq!(ext.scroll_content_width, 16, "two 8-cell cells per row");
+    assert_eq!(layout_rect_of(&dom, cells[0]).x, 0);
+
+    dom.node_mut(col).ext_mut().unwrap().scroll_x = 6;
+    dom.layout_dom(Rect::new(0, 0, 40, 10));
+    assert_eq!(layout_rect_of(&dom, cells[0]).x, -6, "first row shifted");
+    assert_eq!(
+        layout_rect_of(&dom, cells[2]).x,
+        -6,
+        "second row shifted alike"
+    );
+    assert_eq!(layout_rect_of(&dom, cells[1]).x, 2);
+}
+
+/// `SCROLL-CROSS-AXIS-1`: block flow honors `scroll_x` too.
+#[test]
+fn block_container_scrolls_horizontally() {
+    let mut dom = tui_dom();
+    let root = dom.root();
+    let bx = dom.create_element("bx");
+    let wide = dom.create_element("wide");
+    dom.append_child(bx, wide).unwrap();
+    dom.append_child(root, bx).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "bx",
+            TuiStyle::new()
+                .width(Size::Fixed(10))
+                .height(Size::Fixed(3))
+                .overflow_x(Overflow::Auto),
+        )
+        .rule_unchecked(
+            "wide",
+            TuiStyle::new()
+                .width(Size::Fixed(25))
+                .height(Size::Fixed(1)),
+        );
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 40, 10));
+    assert_eq!(dom.node(bx).ext().unwrap().scroll_content_width, 25);
+    dom.node_mut(bx).ext_mut().unwrap().scroll_x = 4;
+    dom.layout_dom(Rect::new(0, 0, 40, 10));
+    assert_eq!(layout_rect_of(&dom, wide).x, -4);
+}

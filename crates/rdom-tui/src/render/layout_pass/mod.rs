@@ -364,25 +364,24 @@ fn record_scroll_content_size(
     let mut max_right: i32 = 0;
     let mut max_bottom: i32 = 0;
     let mut any = false;
+    let mut extend = |rect: LayoutRect| {
+        let top = rect.y + scroll_y;
+        let left = rect.x + scroll_x;
+        min_x = Some(min_x.map_or(left, |m: i32| m.min(left)));
+        min_y = Some(min_y.map_or(top, |m: i32| m.min(top)));
+        max_right = max_right.max(left + rect.width as i32);
+        max_bottom = max_bottom.max(top + rect.height as i32);
+        any = true;
+    };
+    // CSS Overflow 3 §2.2: the scrollable overflow area covers the
+    // in-flow descendants' boxes, not only the children's — a row that
+    // stretches to the container still contributes the cells that
+    // stick out of it. The walk stops at a descendant that clips its
+    // own content (it owns whatever overflows it) and skips out-of-flow
+    // boxes: `display:none` takes no space and positioned boxes are
+    // placed in phase 2 against their own containing block.
     for child in element_children_of(dom, id) {
-        // Skip out-of-flow children: `display:none` takes no space and
-        // positioned children are placed in phase-2 against their own CB, not
-        // the parent's content area — neither enlarges the scroll extent.
-        if !is_in_flow(dom, child) {
-            continue;
-        }
-        if let Some(ext) = dom.node(child).ext() {
-            let rect = ext.layout;
-            let top = rect.y + scroll_y;
-            let left = rect.x + scroll_x;
-            let bottom = top + rect.height as i32;
-            let right = left + rect.width as i32;
-            min_x = Some(min_x.map_or(left, |m: i32| m.min(left)));
-            min_y = Some(min_y.map_or(top, |m: i32| m.min(top)));
-            max_right = max_right.max(right);
-            max_bottom = max_bottom.max(bottom);
-            any = true;
-        }
+        extend_scrollable_overflow(dom, child, &mut extend);
     }
 
     // Text content: a pure-text leaf or IFC block packs its lines from
@@ -484,6 +483,31 @@ fn clamp_scroll_offset(dom: &mut Dom<TuiExt>, id: NodeId, computed: &ComputedSty
         ext.scroll_y = new_y;
     }
     true
+}
+
+/// Feed `extend` the boxes `id`'s subtree contributes to an ancestor's
+/// scrollable overflow: its own layout rect, its anonymous boxes, and
+/// — unless it clips — its in-flow descendants' boxes.
+fn extend_scrollable_overflow(dom: &Dom<TuiExt>, id: NodeId, extend: &mut impl FnMut(LayoutRect)) {
+    if !is_in_flow(dom, id) {
+        return;
+    }
+    let Some(ext) = dom.node(id).ext() else {
+        return;
+    };
+    extend(ext.layout);
+    for anon in &ext.anonymous_blocks {
+        extend(anon.rect);
+    }
+    let clips = ext.computed.as_ref().is_some_and(|c| {
+        !matches!(c.overflow_x, Overflow::Visible) || !matches!(c.overflow_y, Overflow::Visible)
+    });
+    if clips {
+        return;
+    }
+    for child in element_children_of(dom, id) {
+        extend_scrollable_overflow(dom, child, extend);
+    }
 }
 
 /// CSS 2.1 §10.6.3: resolve `height: Auto` on a block-flow element

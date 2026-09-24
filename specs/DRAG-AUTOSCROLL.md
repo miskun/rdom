@@ -2,8 +2,9 @@
 
 **Status:** **SHIPPED** (2026-06-05). Substrate in rdom-core 0.3.5 + rdom-tui 0.3.11; native text
 selection adopted in-tree; `rdom-virtualtable` adopted as the first external consumer (against the
-published crate, no path patch). All phases below DONE except the deferred horizontal axis (pairs
-with `SCROLL-CROSS-AXIS-1`). Design history (v1→v3, two reviews) retained below for the rationale.
+published crate, no path patch). All phases below DONE; the horizontal axis landed with
+`SCROLL-CROSS-AXIS-1` (2026-09-24, `autoscroll_step_for`'s horizontal band). Design history
+(v1→v3, two reviews) retained below for the rationale.
 
 **v3 changes (second review — feasibility/honesty, surfaced by tracing the data flow):**
 - **Capture state lives in `rdom-core` dispatch** (it's a DOM API), including a generic

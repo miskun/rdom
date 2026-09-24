@@ -154,6 +154,9 @@ pub(super) fn layout_block_children(
     // reads it via the *children's* `parent_scroll` helper, which we
     // reuse here so block and flex agree on the offset.
     let scroll_y = super::parent_scroll(dom, &in_flow_ids, crate::layout::Direction::Column);
+    // `SCROLL-CROSS-AXIS-1`: horizontal scroll shifts every box left.
+    let scroll_x = super::parent_scroll(dom, &in_flow_ids, crate::layout::Direction::Row);
+    let content_x = container.x - scroll_x;
     let mut y_cursor: i32 = container.y - scroll_y;
     let mut anon_blocks: Vec<AnonymousIfc> = Vec::new();
 
@@ -267,7 +270,12 @@ pub(super) fn layout_block_children(
                         dom,
                         child,
                         BlockPlace {
-                            container,
+                            container: LayoutRect::new(
+                                content_x,
+                                container.y,
+                                container.width,
+                                container.height,
+                            ),
                             containing_block_width,
                             y_cursor,
                             margin_acc: &mut margin_acc,
@@ -297,7 +305,7 @@ pub(super) fn layout_block_children(
                 let resolved_gap = margin_acc.resolved();
                 margin_acc = MarginAccumulator::new();
                 let anon_y = y_cursor + resolved_gap as i32;
-                let rect = LayoutRect::new(container.x, anon_y, containing_block_width, height);
+                let rect = LayoutRect::new(content_x, anon_y, containing_block_width, height);
                 // Layout atomic inline-block children at their
                 // fragment rects. This both writes their layout
                 // rects (so hit-test descends into them — e.g.
