@@ -9,6 +9,11 @@ For the durable architectural divergences (web-platform departures shipped on pu
 ### Style crate — from HARDENING-2026-09 Batch 2
 
 
+### Style crate — from the STABILIZE-2026-09 Phase 3+4 gates
+
+- **`STYLE-DISPATCH-SPLIT-1` — `property_dispatch.rs` (~2 300 lines) mixes the field table, `set`, `serialize` and their tests.** Split into `property_dispatch/{table,set,serialize}.rs` (tests alongside); no behavior change.
+- **`STYLE-VALUES-SPLIT-1` — `parse/values.rs` (~1 800 lines) holds every value parser.** Split per value type (`color`, `length`, `calc` entry, `transition`, `content`); no behavior change. Also over the few-hundred-line bar: `layout.rs`, `ua.rs`, `tui_style.rs`, `stylesheet.rs`, and in `rdom-tui` `cascade/apply.rs` and `cascade/tests.rs`.
+
 ### Layout & cascade
 
 - **`D-M2-2` — Static-position resolution simplified.** When `top: auto; bottom: auto` (or `left: auto; right: auto`), CSS uses the "hypothetical in-flow position" the element would have had. rdom simplifies to "containing block top-left edge." Real CSS resolution would require phase-1 to track hypothetical positions for absolute children — substantial layout work. Lift if real apps trip on it.
@@ -34,6 +39,9 @@ For the durable architectural divergences (web-platform departures shipped on pu
 
 ### Animations
 
+
+### Animations
+
 - **`D-M3-3` — Pseudo-element transitions deferred.** The cascade produces `computed_before` / `computed_after` / `computed_backdrop` / `computed_selection` on `TuiExt`, but `diff_and_register` only inspects the main `computed` slot. Apps can't transition pseudo-element styles.
 - **`D-M3-5` — Microtask integration runs three drains per tick.** Could batch into one. Profile-driven if it becomes hot.
 - **`D-M3-6` — Discrete properties under `transition: all` are not midpoint-toggled.** CSS L1 says discrete properties (display, position, content, …) under `transition: all` switch at midpoint; rdom's diff loop only registers animations for properties in the animatable enum. Apps explicitly transitioning a discrete property via `transition-property: display` get a warning.
@@ -48,7 +56,6 @@ For the durable architectural divergences (web-platform departures shipped on pu
 - **`INLINE-PAINT-SPLIT-1` — `paint_pass/inline_paint.rs` (~950 lines) mixes text paint, the selection overlay, the caret, and `<select>` / password / gauge chrome substitution.** Paint knowing builtin internals is the coupling the module doc forbids; move chrome substitution behind a runtime-registered hook and the caret / selection overlay into their own files.
 - **`PACKER-STRING-ALLOC-1` — the line packer allocates one `String` per grapheme** (`render/inline/packer.rs` `PendingGrapheme { text }` + `g.to_string()`), and text is packed at least twice per frame (intrinsic measure + layout). Store byte ranges into the source text and cache the packed layout per `(node, width)` within a frame.
 - **`PAINT-INLINE-LAYOUT-CLONE-1` — paint clones each element's `InlineLayout` / `anonymous_blocks`** (every fragment `String`) per frame (`inline_paint.rs` `paint_ifc`, anonymous-box paint). Borrow through the ext or put the layout behind an `Rc` like `computed`.
-- **`CASCADE-INITIAL-ALLOC-1` — `ComputedStyle::initial()` is built twice per matched rule per element** in `cascade/apply.rs` (for `.fg` / `.bg` defaults), allocating its `Rc<HashMap>` each time; hoist the constants. The rule walk also scans every rule of every sheet per element with no rightmost-selector index (5–7 passes per element for the pseudos).
 - **`SGR-ALLOC-1` — SGR emission allocates a `Vec` per changed cell** and formats each code with `write!` (`render/sgr.rs`). Minor, but it is the byte hot path.
 
 ### Paint pipeline

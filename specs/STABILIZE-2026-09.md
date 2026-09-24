@@ -84,7 +84,7 @@ Everything else is real. Disposition per item:
 | `SGR-ALLOC-1` | fix — allocation-free SGR emission | 6 |
 | `CARET-REVEAL-STALE-LAYOUT-1` | fix — pending-reveal flag serviced after `layout_dom` | 6 |
 | `POINTER-EVENTS-IFC-1` | fix — resolve `pointer-events` through the fragment owner chain | 6 |
-| `FLEX-RS-SPLIT-1`, `SCROLLBAR-SPLIT-1`, `HIT-TEST-SPLIT-1`, `SELECT-SPLIT-1`, `APP-MOD-SPLIT-1`, `INLINE-PAINT-SPLIT-1` (+ `cssom/declaration.rs`, `render/buffer.rs`, `virtual_screen` behind `cfg(test)` / a `test-util` feature) | fix — split by concern, no behavior change; chrome substitution behind a runtime hook | 6 |
+| `FLEX-RS-SPLIT-1`, `SCROLLBAR-SPLIT-1`, `HIT-TEST-SPLIT-1`, `SELECT-SPLIT-1`, `APP-MOD-SPLIT-1`, `INLINE-PAINT-SPLIT-1`, `STYLE-DISPATCH-SPLIT-1`, `STYLE-VALUES-SPLIT-1` (+ `cssom/declaration.rs`, `render/buffer.rs`, `virtual_screen` behind `cfg(test)` / a `test-util` feature) | fix — split by concern, no behavior change; chrome substitution behind a runtime hook | 6 |
 | `SHOWCASE-EVT-1` | fix — `AppHandle` gains stylesheet intents drained after the current event | 6 |
 | `FORM-DEFAULTS-1` | fix — `defaultValue` / `defaultChecked` separate from the dirty value; reset restores | 6 |
 | `EDIT-2` | fix — `user-select: contain` clamps to the nearest in-host fragment | 6 |
@@ -97,8 +97,8 @@ Everything else is real. Disposition per item:
 | 0 | docs | this plan; stale rows deleted | done 2026-09-23 |
 | 1 | process | toolchain pin, dev-dep inversion | done 2026-09-23 |
 | 2 | rdom-core, rdom-parser | 3 core + 2 parser | done 2026-09-23 |
-| 3 | rdom-style, rdom-css | 12 style / css / UA items incl. counters and custom-property storage | |
-| 4 | rdom-tui cascade + animation | custom-property cascade, inherits mask, initial hoist + rule index, three animation items | |
+| 3 | rdom-style, rdom-css | 12 style / css / UA items incl. counters and custom-property storage | done 2026-09-24 |
+| 4 | rdom-tui cascade + animation | custom-property cascade, inherits mask, initial hoist + rule index, three animation items | done 2026-09-24 |
 | 5 | rdom-tui layout | 22 layout items incl. stacking contexts, static position, cross-axis scroll, spans | |
 | 6 | rdom-tui paint + runtime + forms | 18 items incl. group opacity, splits, form defaults, app intents | |
 | 7 | completeness | scope confirmation with Miska: form validation, `:focus-visible`, `::placeholder` / `:placeholder-shown`, undo coalescing, blinking caret, clipboard whitespace, `scroll-behavior`, live `<style>` — the README's "open polish" list and DIVERGENCES §3 "Not yet shipped" | |
@@ -156,6 +156,32 @@ Each phase ends with the two review gates; each commit carries the item id.
   `UA-OL-1` (CSS counters: data model in `rdom_style::counters`, `Content::Counter`, tree-order
   `CounterState` in the cascade with `::after` moved after the children and subtree replay, UA `<ol>`
   numbering; `ua_chrome` snapshot regenerated).
+- 2026-09-24 — Phase 4: `CASCADE-INITIAL-ALLOC-1` (constants hoisted, lazily built `RuleIndex` per
+  sheet drives candidate matching).
+- 2026-09-24 — Phase 3+4 API gate: root `README.md` had been overwritten with `rdom-css`'s README by a
+  commit-split script (restored from history); `ul` / `menu` reset `list-item` per HTML §15.3.8 so a
+  nested bullet list no longer advances the enclosing `<ol>`; `RuleIndex` tag keys are case-exact like
+  the matcher (`DIV` rule vs `div` element); DIVERGENCES swept (stale transitions / calc-gap entries
+  removed, `::scrollbar*` family framed as a WebKit-modeled extension, z-index range, input-event
+  checkpoint residual, counters entry lists `start` / `reversed` / `li[value]`); three displaced doc
+  comments and the `INHERITS_MASK` / `:root-only` leftovers fixed; READMEs refreshed. Deferred to
+  Phase 8: reorganize CHANGELOG "Unreleased" into one Breaking / Added / Changed / Fixed block per
+  crate. Ergonomics filed: `gap(impl Into<GapValue>)`, a `Content::resolve` context type.
+- 2026-09-24 — Phase 3+4 architect gate: two blockers fixed — subtree cascades with counters now run
+  one tree-ordered walk that cascades each dirty root as it is reached (exact after insertions in any
+  root order, O(N) per frame; `CascadeExt` and `App` insertion tests) and the pseudo-element styles
+  live behind `Rc` with an identity short-circuit in the transition diff (no per-frame deep clones;
+  paint borrows the presentation slots). Also: pseudo-elements apply their own counter ops, `--x:
+  initial | inherit | unset`, any `<custom-ident>` transition name, one rounding helper
+  (`calc::round_half_to_even`), one `push_rules` writer, `caret-color` inherits (CSS UI 4), CSSOM
+  `--x` stores the rendered value once, two more D-M3-5 tests, stale `AnimatableProperty` doc. New
+  rows: `STYLE-DISPATCH-SPLIT-1`, `STYLE-VALUES-SPLIT-1` (Phase 6 splits). DESIGN records the
+  dual-published `:root` variables as deliberate.
+- 2026-09-24 — Workspace gate after the architect fixes caught a starvation bug in the new
+  tree-ordered counter walk: a *detached* dirty root (the subtree a showcase demo swap removes)
+  sorted first and was never reached, so no connected root behind it was cascaded — the showcase's
+  stale-drag hover test hit stale layout. The walk now takes connected roots only (a detached
+  subtree renders nothing); regression test `detached_dirty_root_does_not_starve_connected_roots`.
 - Found while mapping Phase 3 (not on the ledger): `ImportantMask::FLOW` and `POINTER_EVENTS` share
   bit 39 (`tui_style.rs`), custom-property inheritance in the cascade is overwritten by the merged
   root map (`walk.rs`), and tokenizer errors inside a block are body-relative (`declarations.rs`).

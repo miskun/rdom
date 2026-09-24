@@ -43,6 +43,9 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 
 ### Added — `rdom-style`, `rdom-tui`
 
+- `caret-color` (CSS UI 4 §7.1) and rdom's `caret-text-color` inherit; `property_dispatch::inherits` and the cascade agree.
+- `--x: initial` undefines a custom property and `--x: inherit` / `unset` take the parent's value (CSS Variables 1 §2); a pseudo-element's own `counter-reset` / `counter-increment` apply (`h2::before { counter-increment: sec }`); `transition-property` accepts any `<custom-ident>`.
+- `Content::resolve` takes one `&impl ContentContext` (variables, attributes, counters) instead of separate lookups; `HashMap<String, String>` implements it as variables-only. `TuiStyle::gap` / `gap_important` take `impl Into<GapValue>` (`u16` and `CalcExpr` convert), so `gap(2)` still works and `gap_value` is gone.
 - **CSS counters** (CSS Lists 3 §3): `counter-reset` / `counter-increment` properties, `counter(name[, style])` in `content` with `decimal`, `lower-alpha`, `upper-alpha`, `lower-roman`, `upper-roman`, and `content` now accepts a sequence of strings / `attr()` / `counter()` items plus `none`. The cascade keeps the counter state in tree order (scoped to the creating element, its descendants and following siblings; `::after` sees the children's increments; subtree re-cascades replay the state before their root). The UA numbers `<ol>` items (`1. `, `2. `, …; nested lists restart) instead of bulleting them. `Content::resolve` takes a counter lookup. (`UA-OL-1`)
 - **`::scrollbar-thumb:vertical` / `::scrollbar-thumb:horizontal`** style one axis; the axis rule layers over the axis-neutral `::scrollbar-thumb` at equal specificity. `TuiExt::computed_scrollbar_thumb` is split into `computed_scrollbar_thumb_vertical` / `_horizontal` (breaking). (`UA-SB-1`)
 
@@ -79,6 +82,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 
 ### Changed — `rdom-tui`
 
+- **The cascade tests only candidate rules.** Each `Stylesheet` keeps a lazily built rightmost-selector index (`Stylesheet::rule_index`, `RuleIndex`), so an element is matched against the rules keyed by its tag / id / classes plus the universal ones, not every rule of every sheet; the two per-rule `ComputedStyle::initial()` allocations in the color applicators are gone. (`CASCADE-INITIAL-ALLOC-1`)
 - **Examples and demo snapshots moved.** `rdom-tui/examples/` now holds three self-contained programs (`counter_button`, `tab_form`, `parse_and_render`); the ten showcase-backed shims and their sixteen paint snapshots live in `rdom-showcase/{examples,tests}/` (`cargo run -p rdom-showcase --example <name>`). `rdom-tui` no longer dev-depends on `rdom-showcase`, and the published tarball ships `examples/`, `tests/` and `benches/` again (the `exclude` is gone). (`PROC-TUI-DEV-DEP-1`)
 
 ### Changed — workspace

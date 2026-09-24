@@ -32,39 +32,108 @@ pub(super) fn merge_root_vars(sheets: &[&Stylesheet]) -> VarMap {
     std::rc::Rc::new(merged)
 }
 
-/// The counter state at the moment a full cascade would reach `target`:
-/// replay the stored computed `counter-reset` / `counter-increment` of
-/// every element before it in tree order (ancestors are entered, earlier
-/// siblings and their subtrees are entered and left). Used by subtree
-/// cascades, whose root can sit after arbitrary counter activity.
-pub(super) fn counter_state_before(dom: &Dom<TuiExt>, target: NodeId) -> CounterState {
-    let mut state = CounterState::default();
-    let root = dom.root();
-    if root == target {
-        return state;
-    }
-    replay(dom, root, target, &mut state);
-    state
+/// The computed style a subtree root inherits from: its parent's, or
+/// the initial style seeded with the sheet-level variables when the
+/// parent is the fragment root.
+pub(super) fn parent_computed_for(
+    dom: &Dom<TuiExt>,
+    root: NodeId,
+    merged_vars: &VarMap,
+) -> std::rc::Rc<ComputedStyle> {
+    dom.node(root)
+        .parent_node()
+        .and_then(|p| p.ext().and_then(|e| e.computed.clone()))
+        .unwrap_or_else(|| {
+            let mut initial = ComputedStyle::initial();
+            initial.vars = merged_vars.clone();
+            std::rc::Rc::new(initial)
+        })
 }
 
-/// Depth-first replay; returns `true` once `target` is reached (its own
-/// ops are not applied — the cascade will apply them).
-fn replay(dom: &Dom<TuiExt>, id: NodeId, target: NodeId, state: &mut CounterState) -> bool {
-    if id == target {
-        return true;
+/// If a partial cascade introduced a positioned pseudo or a
+/// `border-collapse: collapse` element anywhere in `root`'s subtree,
+/// bubble `true` up through the ancestors so the document-level
+/// early-exit checks don't stale-`false`. Never bubbles `false` — that
+/// would require seeing every ancestor's other subtrees.
+pub(super) fn bubble_subtree_flags(dom: &mut Dom<TuiExt>, root: NodeId, flags: SubtreeFlags) {
+    if !(flags.has_positioned_pseudo || flags.has_collapse) {
+        return;
+    }
+    let mut cur = dom.node(root).parent_node().map(|p| p.id());
+    while let Some(p) = cur {
+        if let Some(ext) = dom.node_mut(p).ext_mut() {
+            if flags.has_positioned_pseudo {
+                ext.tree_has_positioned_pseudo = true;
+            }
+            if flags.has_collapse {
+                ext.tree_has_collapse = true;
+            }
+        }
+        cur = dom.node(p).parent_node().map(|n| n.id());
+    }
+}
+
+/// Pre-order walk from `id` that cascades each of `roots` (sorted in
+/// tree order) when it reaches it and replays the stored counter ops of
+/// every element in between, so counters are exact for all roots in one
+/// pass. Roots nested inside an earlier root are covered by it and
+/// skipped. Stops after the last root.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn cascade_roots_in_order(
+    dom: &mut Dom<TuiExt>,
+    sheets: &[&Stylesheet],
+    merged_vars: &VarMap,
+    roots: &[NodeId],
+    next: &mut usize,
+    id: NodeId,
+    counters: &mut CounterState,
+) {
+    if *next >= roots.len() {
+        return;
+    }
+    if id == roots[*next] {
+        let parent_computed = parent_computed_for(dom, id, merged_vars);
+        let flags = cascade_subtree(dom, sheets, id, &parent_computed, counters);
+        bubble_subtree_flags(dom, id, flags);
+        *next += 1;
+        // Roots inside this subtree were just cascaded with it.
+        while *next < roots.len()
+            && dom
+                .compare_document_position(id, roots[*next])
+                .contains(rdom_core::DocumentPosition::CONTAINED_BY)
+        {
+            *next += 1;
+        }
+        return;
     }
     let parent_id = dom.node(id).parent_node().map(|p| p.id());
+    // An element between roots keeps its computed style; replay its
+    // counter ops. (A node with no computed style here is one nothing
+    // cascaded yet — it contributes no ops, and its own cascade will.)
     if let Some(c) = dom.node(id).ext().and_then(|e| e.computed.as_ref()) {
-        state.enter(parent_id, &c.counter_reset, &c.counter_increment);
+        counters.enter(parent_id, &c.counter_reset, &c.counter_increment);
     }
     let children: Vec<NodeId> = dom.node(id).child_nodes().map(|n| n.id()).collect();
     for child in children {
-        if replay(dom, child, target, state) {
-            return true;
+        cascade_roots_in_order(dom, sheets, merged_vars, roots, next, child, counters);
+        if *next >= roots.len() {
+            break;
         }
     }
-    state.exit(id);
-    false
+    counters.exit(id);
+}
+
+/// The rules of `sheet` that can match `id`, by the sheet's
+/// rightmost-selector index (`CASCADE-INITIAL-ALLOC-1`): a superset of
+/// the matches, in source order.
+fn candidate_rules(dom: &Dom<TuiExt>, id: NodeId, sheet: &Stylesheet, out: &mut Vec<u32>) {
+    let node = dom.node(id);
+    sheet.rule_index().candidates(
+        node.tag_name(),
+        node.id_attr(),
+        node.class_list().iter(),
+        out,
+    );
 }
 
 /// Bottom-up flags aggregated up the tree during cascade. Each
@@ -256,8 +325,8 @@ pub(super) fn cascade_subtree(
 
     // Write the bottom-up aggregates.
     if let Some(ext) = dom.node_mut(id).ext_mut() {
-        ext.computed_before = computed_before;
-        ext.computed_after = computed_after;
+        ext.computed_before = computed_before.map(std::rc::Rc::new);
+        ext.computed_after = computed_after.map(std::rc::Rc::new);
         ext.tree_has_positioned_pseudo = flags.has_positioned_pseudo;
         ext.tree_has_collapse = flags.has_collapse;
     }
@@ -287,8 +356,11 @@ fn compute_element_style(
     // same-specificity contests just like later rules in a single
     // sheet do.
     let mut matching: Vec<(usize, &Rule)> = Vec::new();
+    let mut candidates = Vec::new();
     for (sheet_idx, sheet) in sheets.iter().enumerate() {
-        for rule in sheet.rules() {
+        candidate_rules(dom, id, sheet, &mut candidates);
+        for &ri in &candidates {
+            let rule = &sheet.rules()[ri as usize];
             if rule.pseudo == PseudoElementTarget::None && dom.matches_list(id, &rule.selector) {
                 matching.push((sheet_idx, rule));
             }
@@ -344,7 +416,7 @@ fn compute_pseudo_style(
     id: NodeId,
     host_computed: &ComputedStyle,
     target: PseudoElementTarget,
-    counters: &CounterState,
+    counters: &mut CounterState,
 ) -> Option<ComputedStyle> {
     compute_pseudo_style_layered(dom, sheets, id, host_computed, &[target], counters)
 }
@@ -360,7 +432,7 @@ fn compute_pseudo_style_layered(
     id: NodeId,
     host_computed: &ComputedStyle,
     targets: &[PseudoElementTarget],
-    counters: &CounterState,
+    counters: &mut CounterState,
 ) -> Option<ComputedStyle> {
     let target = targets[0];
     if target == PseudoElementTarget::None {
@@ -378,8 +450,11 @@ fn compute_pseudo_style_layered(
     // Collect matching rules for this pseudo across all sheets, with
     // sheet_idx as the secondary tiebreaker.
     let mut matching: Vec<(usize, usize, &Rule)> = Vec::new();
+    let mut candidates = Vec::new();
     for (sheet_idx, sheet) in sheets.iter().enumerate() {
-        for rule in sheet.rules() {
+        candidate_rules(dom, id, sheet, &mut candidates);
+        for &ri in &candidates {
+            let rule = &sheet.rules()[ri as usize];
             if let Some(rank) = targets.iter().position(|t| *t == rule.pseudo)
                 && dom.matches_list(id, &rule.selector)
             {
@@ -403,6 +478,10 @@ fn compute_pseudo_style_layered(
     //   - Some(Some(s)) = content resolved to string
     // Pseudo-elements read attributes from the HOST element — `attr(label)`
     // on `optgroup::before` looks up the `<optgroup>`'s `label` attribute.
+    // The pseudo-element's own `counter-reset` / `counter-increment`
+    // (the `h2::before { counter-increment: sec }` idiom). It is a child
+    // of the host, so its instances are scoped to the host's subtree.
+    counters.enter(Some(id), &working.counter_reset, &working.counter_increment);
     let attr_lookup = |name: &str| dom.node(id).get_attribute(name).map(|s| s.to_string());
     let counter_lookup = |name: &str| counters.value(name);
     let declared = resolve_content_on(&working, &sorted, None, &attr_lookup, &counter_lookup);

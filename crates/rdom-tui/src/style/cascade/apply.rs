@@ -92,11 +92,33 @@ fn apply_custom_properties(
     if !declares {
         return;
     }
+    // CSS Variables 1 §2: the CSS-wide keywords apply to custom
+    // properties too — `initial` is the guaranteed-invalid value (the
+    // property is undefined), `inherit` / `unset` take the parent's.
+    let inherited = working.vars.clone();
     let map = std::rc::Rc::make_mut(&mut working.vars);
     let mut put = |style: &TuiStyle, important_pass: bool| {
         for d in &style.custom_properties {
-            if d.important == important_pass {
-                map.insert(d.name.clone(), d.value.clone());
+            if d.important != important_pass {
+                continue;
+            }
+            match d.value.trim() {
+                v if v.eq_ignore_ascii_case("initial") => {
+                    map.remove(&d.name);
+                }
+                v if v.eq_ignore_ascii_case("inherit") || v.eq_ignore_ascii_case("unset") => {
+                    match inherited.get(&d.name) {
+                        Some(parent_value) => {
+                            map.insert(d.name.clone(), parent_value.clone());
+                        }
+                        None => {
+                            map.remove(&d.name);
+                        }
+                    }
+                }
+                _ => {
+                    map.insert(d.name.clone(), d.value.clone());
+                }
             }
         }
     };
@@ -177,7 +199,7 @@ fn apply_style(
         style.important.contains(ImportantMask::FG),
         important_pass,
         parent.fg,
-        ComputedStyle::initial().fg,
+        Color::Reset,
         &vars,
     );
     apply_color(
@@ -186,7 +208,7 @@ fn apply_style(
         style.important.contains(ImportantMask::BG),
         important_pass,
         parent.bg,
-        ComputedStyle::initial().bg,
+        Color::Reset,
         &vars,
     );
     apply_color(

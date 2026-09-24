@@ -168,11 +168,100 @@ impl From<(&str, ParseError)> for StyleError {
     }
 }
 
+/// Rules bucketed by the most selective simple selector of their
+/// subject compound (`#id` > `.class` > `tag` > everything else), so a
+/// cascade only tests the rules that can possibly match an element
+/// instead of every rule of every sheet (`CASCADE-INITIAL-ALLOC-1`).
+/// Built lazily by [`Stylesheet::rule_index`], dropped on mutation.
+#[derive(Debug, Clone, Default)]
+pub struct RuleIndex {
+    by_id: std::collections::HashMap<String, Vec<u32>>,
+    by_class: std::collections::HashMap<String, Vec<u32>>,
+    by_tag: std::collections::HashMap<String, Vec<u32>>,
+    /// Rules whose subject has no id / class / type key (`*`,
+    /// `:not(…)`, `[attr]`, `:hover`, …): candidates for every element.
+    universal: Vec<u32>,
+}
+
+impl RuleIndex {
+    fn build(rules: &[Rule]) -> Self {
+        use rdom_core::selectors::SimpleSelector;
+        let mut index = RuleIndex::default();
+        for (i, rule) in rules.iter().enumerate() {
+            let i = i as u32;
+            let simples = rule
+                .selector
+                .0
+                .first()
+                .map(|c| c.subject.simples.as_slice())
+                .unwrap_or(&[]);
+            let id = simples.iter().find_map(|s| match s {
+                SimpleSelector::Id(id) => Some(id),
+                _ => None,
+            });
+            let class = simples.iter().find_map(|s| match s {
+                SimpleSelector::Class(c) => Some(c),
+                _ => None,
+            });
+            let tag = simples.iter().find_map(|s| match s {
+                SimpleSelector::Type(t) => Some(t),
+                _ => None,
+            });
+            if let Some(id) = id {
+                index.by_id.entry(id.clone()).or_default().push(i);
+            } else if let Some(class) = class {
+                index.by_class.entry(class.clone()).or_default().push(i);
+            } else if let Some(tag) = tag {
+                // Exact case, like the matcher (`Type(t)` compares `tag != t`).
+                index.by_tag.entry(tag.clone()).or_default().push(i);
+            } else {
+                index.universal.push(i);
+            }
+        }
+        index
+    }
+
+    /// Indices (into `Stylesheet::rules()`, ascending, deduplicated) of
+    /// every rule that can match an element with this tag, id and class
+    /// list. A superset of the rules that do match; the caller still runs
+    /// the full selector matcher on each.
+    pub fn candidates<'a>(
+        &self,
+        tag: Option<&str>,
+        id: Option<&str>,
+        classes: impl Iterator<Item = &'a str>,
+        out: &mut Vec<u32>,
+    ) {
+        out.clear();
+        out.extend_from_slice(&self.universal);
+        if let Some(tag) = tag
+            && let Some(v) = self.by_tag.get(tag)
+        {
+            out.extend_from_slice(v);
+        }
+        if let Some(id) = id
+            && let Some(v) = self.by_id.get(id)
+        {
+            out.extend_from_slice(v);
+        }
+        for class in classes {
+            if let Some(v) = self.by_class.get(class) {
+                out.extend_from_slice(v);
+            }
+        }
+        out.sort_unstable();
+        out.dedup();
+    }
+}
+
 /// A parsed, specificity-tagged collection of rules. Built with the
 /// fluent `rule()` / `define_var()` API.
 #[derive(Debug, Clone, Default)]
 pub struct Stylesheet {
     rules: Vec<Rule>,
+    /// Lazily built rightmost-selector index; reset whenever `rules`
+    /// changes.
+    index: std::cell::OnceCell<RuleIndex>,
     /// Next `source_idx` to assign.
     next_source_idx: u32,
     /// Custom-property (`--foo: bar;`) root values. `define_var` adds
@@ -197,7 +286,7 @@ impl Stylesheet {
             let rule = sheet
                 .build_rule(selector, style, RuleOrigin::UserAgent)
                 .expect("UA rule must parse");
-            sheet.rules.extend(rule);
+            sheet.push_rules(rule);
         }
         sheet
     }
@@ -215,7 +304,7 @@ impl Stylesheet {
     /// A selector list (`a, b.foo`) expands into one `Rule` per list item.
     pub fn rule(mut self, selector: &str, style: TuiStyle) -> Result<Self, StyleError> {
         let new_rules = self.build_rule(selector, style, RuleOrigin::Author)?;
-        self.rules.extend(new_rules);
+        self.push_rules(new_rules);
         Ok(self)
     }
 
@@ -236,7 +325,7 @@ impl Stylesheet {
     /// Used by `rdom-css` and any other accumulator-style consumer.
     pub fn add_rule(&mut self, selector: &str, style: TuiStyle) -> Result<(), StyleError> {
         let new_rules = self.build_rule(selector, style, RuleOrigin::Author)?;
-        self.rules.extend(new_rules);
+        self.push_rules(new_rules);
         Ok(())
     }
 
@@ -256,6 +345,19 @@ impl Stylesheet {
     pub fn define_var_mut(&mut self, name: &str, value: &str) -> &mut Self {
         self.root_vars.insert(name.to_string(), value.to_string());
         self
+    }
+
+    /// The only writer of `rules`: appends and drops the cached index.
+    fn push_rules(&mut self, new_rules: impl IntoIterator<Item = Rule>) {
+        self.rules.extend(new_rules);
+        self.index = std::cell::OnceCell::new();
+    }
+
+    /// The rightmost-selector index for this sheet (built on first use).
+    /// A backend hook: the cascade asks it for candidate rules; authors
+    /// never need it.
+    pub fn rule_index(&self) -> &RuleIndex {
+        self.index.get_or_init(|| RuleIndex::build(&self.rules))
     }
 
     /// All rules in source order.
@@ -607,6 +709,67 @@ mod tests {
     }
 
     // ── Stylesheet builder ───────────────────────────────────────────
+
+    /// `CASCADE-INITIAL-ALLOC-1`: for every UA rule (plus a few author
+    /// shapes), an element carrying the subject's tag / id / classes gets
+    /// that rule back from the index — the index never hides a match.
+    #[test]
+    fn rule_index_never_drops_a_matching_rule() {
+        use rdom_core::selectors::SimpleSelector;
+        let sheet = Stylesheet::new()
+            .rule_unchecked("#hero.big span", TuiStyle::new())
+            .rule_unchecked("*:hover", TuiStyle::new())
+            .rule_unchecked("[role=tree] > li.leaf", TuiStyle::new())
+            .rule_unchecked(":not(.x)", TuiStyle::new())
+            .rule_unchecked("DIV.Mixed", TuiStyle::new());
+        let index = sheet.rule_index();
+        let mut out = Vec::new();
+        for (i, rule) in sheet.rules().iter().enumerate() {
+            let simples = &rule.selector.0[0].subject.simples;
+            let tag = simples.iter().find_map(|s| match s {
+                SimpleSelector::Type(t) => Some(t.as_str()),
+                _ => None,
+            });
+            let id = simples.iter().find_map(|s| match s {
+                SimpleSelector::Id(v) => Some(v.as_str()),
+                _ => None,
+            });
+            let classes: Vec<&str> = simples
+                .iter()
+                .filter_map(|s| match s {
+                    SimpleSelector::Class(c) => Some(c.as_str()),
+                    _ => None,
+                })
+                .collect();
+            index.candidates(tag, id, classes.iter().copied(), &mut out);
+            assert!(
+                out.contains(&(i as u32)),
+                "rule {i} `{}` missing",
+                rule.source_text
+            );
+            assert!(out.windows(2).all(|w| w[0] < w[1]), "sorted, deduplicated");
+        }
+        // Case is exact on both sides, like the matcher: a `DIV` rule is a
+        // candidate for a `DIV` element and not for a `div` one.
+        index.candidates(Some("DIV"), None, ["Mixed"].into_iter(), &mut out);
+        assert!(
+            out.iter()
+                .any(|&i| sheet.rules()[i as usize].source_text == "DIV.Mixed")
+        );
+        index.candidates(Some("div"), None, ["mixed"].into_iter(), &mut out);
+        assert!(
+            !out.iter()
+                .any(|&i| sheet.rules()[i as usize].source_text == "DIV.Mixed")
+        );
+        // Nothing keyed leaks onto an element it cannot match.
+        index.candidates(Some("zzz"), None, std::iter::empty(), &mut out);
+        assert!(out.iter().all(|&i| {
+            let simples = &sheet.rules()[i as usize].selector.0[0].subject.simples;
+            !simples
+                .iter()
+                .any(|s| matches!(s, SimpleSelector::Id(_) | SimpleSelector::Class(_)))
+        }));
+    }
 
     #[test]
     fn bare_has_no_rules() {
