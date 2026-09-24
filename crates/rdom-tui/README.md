@@ -336,6 +336,10 @@ wheel deltas + modifiers). Translation from crossterm's `KeyEvent`
 the `TuiEvent::keydown` / `keyup` / `keypress` / `click` / mouse /
 `wheel` builders.
 
+## Terminal notes
+
+- **iTerm2 and hover.** iTerm2 may ignore the any-motion mouse mode until it sees a real click, at launch and after every refocus, so `:hover` styles start following the pointer only after one click. Other terminals (Alacritty, Kitty, Ghostty, WezTerm) honor it immediately. The cause and the failed re-arm attempts are recorded in `specs/DIVERGENCES.md` §4.
+
 ## Examples
 
 ```text
