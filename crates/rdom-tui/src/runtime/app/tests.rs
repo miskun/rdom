@@ -3424,3 +3424,51 @@ fn scroll_focus_marker_tolerates_a_removed_carrier() {
     app.draw_if_dirty().unwrap();
     assert!(app.dom().node(outer).has_attribute(SCROLL_FOCUS_ATTR));
 }
+
+// ── SHOWCASE-EVT-1: stylesheet intents from handlers ────────────────
+
+/// A tick / injected closure can change the App's stylesheet stack
+/// through `AppContext`: the intents are applied after it returns and
+/// the next frame cascades with the new sheets. The ids it hands out
+/// are the ones the App assigns.
+#[test]
+fn app_context_stylesheet_intents_apply_after_the_handler() {
+    use crate::node::TuiNodeExt;
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let d = dom.create_element("d");
+    dom.append_child(root, d).unwrap();
+    let sheet = Stylesheet::bare().rule_unchecked("d", TuiStyle::new().height(Size::Fixed(1)));
+    let mut app = test_app(dom, sheet, Rect::new(0, 0, 10, 3));
+    app.draw_if_dirty().unwrap();
+    let blue = Color::Rgb(0, 0, 255);
+
+    let handle = app.handle();
+    let pushed: std::sync::Arc<std::sync::Mutex<Option<crate::runtime::app::StylesheetId>>> =
+        Default::default();
+    let slot = pushed.clone();
+    handle.inject(move |ctx| {
+        let id =
+            ctx.push_stylesheet(Stylesheet::bare().rule_unchecked("d", TuiStyle::new().bg(blue)));
+        *slot.lock().unwrap() = Some(id);
+    });
+    app.drain_handle_injections();
+    app.draw_if_dirty().unwrap();
+    let bg = |app: &App<TestBackend>| {
+        app.dom()
+            .node(d)
+            .tui_ext()
+            .and_then(|e| e.computed.as_ref())
+            .map(|c| c.bg)
+    };
+    assert_eq!(bg(&app), Some(blue), "the pushed sheet cascaded");
+    let id = pushed.lock().unwrap().expect("the intent handed out an id");
+    assert_eq!(app.style_sheets().len(), 2);
+
+    let handle = app.handle();
+    handle.inject(move |ctx| ctx.remove_stylesheet(id));
+    app.drain_handle_injections();
+    app.draw_if_dirty().unwrap();
+    assert_ne!(bg(&app), Some(blue), "the removed sheet no longer applies");
+    assert_eq!(app.style_sheets().len(), 1);
+}

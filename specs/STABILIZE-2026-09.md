@@ -257,6 +257,9 @@ Each phase ends with the two review gates; each commit carries the item id.
   now that a pack allocates per fragment only.
 - 2026-09-24 — Phase 6: `POINTER-EVENTS-IFC-1` — fragment owner resolved through the
   `pointer-events` chain up to the block.
+- 2026-09-24 — Phase 6: `SHOWCASE-EVT-1` — `AppContext` stylesheet intents, drained after the tick /
+  injection; listeners use `AppHandle::inject`. The showcase keeps its pre-pushed sheets (a demo
+  switch through intents is a showcase change, not substrate).
 - Found while mapping Phase 3 (not on the ledger): `ImportantMask::FLOW` and `POINTER_EVENTS` share
   bit 39 (`tui_style.rs`), custom-property inheritance in the cascade is overwritten by the merged
   root map (`walk.rs`), and tokenizer errors inside a block are body-relative (`declarations.rs`).

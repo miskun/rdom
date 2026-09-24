@@ -35,7 +35,6 @@ For the durable architectural divergences (web-platform departures shipped on pu
 
 ### Events
 
-- **`SHOWCASE-EVT-1` — Event handlers cannot mutate the App's stylesheet stack.** Listeners registered via `dom.add_event_listener` receive an `EventCtx` with mutable access to the `Dom` but NOT the `App`. They can mutate the tree freely (`append_child`, `clear_children`, `set_attribute`) but cannot call `App::push_stylesheet` / `App::remove_stylesheet` because the App owns the cascade pipeline and event dispatch happens inside its outer loop. The showcase works around this by pre-pushing every demo's stylesheet at startup and relying on each demo's class-scoped selectors (`.flex-row-demo`, `.hover-demo`, etc.) for isolation — an unenforced-in-substrate convention pinned by a registry-level test in `rdom-showcase`. The workaround scales linearly: at N demos, every cascade pass walks N× the rules per element regardless of which demo is mounted. **Pay down with a substrate hook** — either (a) lifecycle observers the App installs that can mutate sheets in response to mutation records, or (b) a deferred-queue API on `EventCtx` for "App-level intents" the dispatch loop drains after the current event completes. Option (b) is the smaller change; option (a) is the more general one and aligns with how M5's implicit-event work needs to thread through the App anyway. **Defer to M5 or M7** — M5 already touches the App / observer plumbing for `EVT-DETACH-1`; do it then.
 
 ### Forms
 

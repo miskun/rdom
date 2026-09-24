@@ -35,6 +35,14 @@ pub enum ControlFlow {
 /// cross-thread (`!Send`, `!Sync`) — it borrows the DOM
 /// exclusively. For cross-thread poking, use `AppHandle` (shipped
 /// in a follow-up commit).
+/// A change to the App's stylesheet stack requested through an
+/// [`AppContext`]; the App applies it right after the handler returns.
+pub(super) enum StylesheetIntent {
+    Set(super::StylesheetId, crate::style::Stylesheet),
+    Push(super::StylesheetId, crate::style::Stylesheet),
+    Remove(super::StylesheetId),
+}
+
 pub struct AppContext<'a> {
     /// Mutable DOM access. Mutations flow through the
     /// `DirtyTracker` automatically; the runtime invalidates the
@@ -49,16 +57,55 @@ pub struct AppContext<'a> {
     /// after the tick/handler returns, before the next
     /// crossterm-event poll.
     pub(super) queued_dispatches: Vec<(NodeId, Event)>,
+    /// Stylesheet-stack changes requested through this context; the
+    /// App applies them after the handler returns (`SHOWCASE-EVT-1`).
+    pub(super) stylesheet_intents: Vec<StylesheetIntent>,
+    /// The next id the App will assign; advanced here so a handler
+    /// gets the real id back synchronously.
+    pub(super) next_stylesheet_id: u64,
 }
 
 impl<'a> AppContext<'a> {
-    pub(super) fn new(dom: &'a mut TuiDom) -> Self {
+    pub(super) fn new(dom: &'a mut TuiDom, next_stylesheet_id: u64) -> Self {
         Self {
             dom,
             redraw_requested: false,
             quit_requested: false,
             queued_dispatches: Vec::new(),
+            stylesheet_intents: Vec::new(),
+            next_stylesheet_id,
         }
+    }
+
+    fn next_stylesheet_id(&mut self) -> super::StylesheetId {
+        let id = super::StylesheetId(self.next_stylesheet_id);
+        self.next_stylesheet_id += 1;
+        id
+    }
+
+    /// Replace every registered stylesheet with `sheet` once this
+    /// handler returns; see [`App::set_stylesheet`](super::App::set_stylesheet).
+    pub fn set_stylesheet(&mut self, sheet: crate::style::Stylesheet) -> super::StylesheetId {
+        let id = self.next_stylesheet_id();
+        self.stylesheet_intents
+            .push(StylesheetIntent::Set(id, sheet));
+        id
+    }
+
+    /// Push `sheet` onto the stack once this handler returns; see
+    /// [`App::push_stylesheet`](super::App::push_stylesheet). The
+    /// returned id is the one the App assigns.
+    pub fn push_stylesheet(&mut self, sheet: crate::style::Stylesheet) -> super::StylesheetId {
+        let id = self.next_stylesheet_id();
+        self.stylesheet_intents
+            .push(StylesheetIntent::Push(id, sheet));
+        id
+    }
+
+    /// Remove the sheet `id` once this handler returns; see
+    /// [`App::remove_stylesheet`](super::App::remove_stylesheet).
+    pub fn remove_stylesheet(&mut self, id: super::StylesheetId) {
+        self.stylesheet_intents.push(StylesheetIntent::Remove(id));
     }
 
     /// Request a paint after the current tick/event completes —

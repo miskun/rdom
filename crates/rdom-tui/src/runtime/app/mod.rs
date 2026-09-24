@@ -709,6 +709,26 @@ impl<B: Backend> App<B> {
     /// from the previous sheet stack. Draining + `needs_redraw=true`
     /// is what gets the empty-`dirty_roots` branch of `draw_if_dirty`
     /// to run the full cascade.
+    /// Apply the stylesheet-stack changes a handler requested through
+    /// its [`AppContext`], in order. The ids the context handed out are
+    /// the ones assigned here: the context started from
+    /// `next_stylesheet_id` and advanced it the same way.
+    fn apply_stylesheet_intents(&mut self, intents: Vec<context::StylesheetIntent>) {
+        for intent in intents {
+            match intent {
+                context::StylesheetIntent::Set(id, sheet) => {
+                    debug_assert_eq!(id.0, self.next_stylesheet_id);
+                    self.set_stylesheet(sheet);
+                }
+                context::StylesheetIntent::Push(id, sheet) => {
+                    debug_assert_eq!(id.0, self.next_stylesheet_id);
+                    self.push_stylesheet(sheet);
+                }
+                context::StylesheetIntent::Remove(id) => self.remove_stylesheet(id),
+            }
+        }
+    }
+
     fn invalidate_cascade(&mut self) {
         self.tracker.take_roots();
         self.needs_redraw = true;
@@ -969,13 +989,17 @@ impl<B: Backend> App<B> {
         // can use the `TuiTimers` extension surface too (apps
         // that schedule fade-outs from a tick callback, etc.).
         let _scheduler_guard = crate::runtime::timers::SchedulerGuard::install(&self.scheduler);
-        let queued = {
-            let mut ctx = AppContext::new(&mut self.dom);
+        let (queued, intents) = {
+            let mut ctx = AppContext::new(&mut self.dom, self.next_stylesheet_id);
             let flow = cb(&mut ctx);
             self.needs_redraw |= ctx.redraw_requested;
             self.should_quit |= ctx.quit_requested || flow == ControlFlow::Quit;
-            std::mem::take(&mut ctx.queued_dispatches)
+            (
+                std::mem::take(&mut ctx.queued_dispatches),
+                std::mem::take(&mut ctx.stylesheet_intents),
+            )
         };
+        self.apply_stylesheet_intents(intents);
         self.on_tick = Some(cb);
         // Fire queued dispatches now — after the tick returns but
         // before the next event poll, matching the HTML microtask
@@ -1006,11 +1030,13 @@ impl<B: Backend> App<B> {
         let _current = crate::runtime::timers::SchedulerGuard::install(&self.scheduler);
         let mut queued = Vec::new();
         for f in injections {
-            let mut ctx = AppContext::new(&mut self.dom);
+            let mut ctx = AppContext::new(&mut self.dom, self.next_stylesheet_id);
             f(&mut ctx);
             self.needs_redraw |= ctx.redraw_requested;
             self.should_quit |= ctx.quit_requested;
             queued.extend(std::mem::take(&mut ctx.queued_dispatches));
+            let intents = std::mem::take(&mut ctx.stylesheet_intents);
+            self.apply_stylesheet_intents(intents);
         }
         for (target, mut event) in queued {
             let _ = self.dom.dispatch_event(target, &mut event);
