@@ -51,6 +51,7 @@ use crate::ext::TuiExt;
 use crate::layout::{LayoutRect, Overflow};
 use crate::node::TuiNodeExt;
 use crate::render::inline::{InlineFragment, has_inline_layout};
+use crate::render::layout_pass::{is_in_flow, positioned_z_list};
 use crate::runtime::selection::user_select;
 
 /// Extension trait adding hit-test lookup to `Dom<TuiExt>`.
@@ -568,7 +569,9 @@ fn descend_children_reverse(
 ) -> bool {
     let child_ids: Vec<NodeId> = dom.node(id).child_nodes().map(|n| n.id()).collect();
     for &child in child_ids.iter().rev() {
-        if is_positioned(dom, child) {
+        // Same in-flow filter as layout and paint (`DRY-1`); positioned
+        // children are tried first via `collect_positioned_reverse_z`.
+        if !is_in_flow(dom, child) {
             continue;
         }
         if descend(dom, child, x, y, path) {
@@ -578,56 +581,17 @@ fn descend_children_reverse(
     false
 }
 
-fn is_positioned(dom: &Dom<TuiExt>, id: NodeId) -> bool {
-    dom.node(id)
-        .ext()
-        .and_then(|e| e.computed.as_ref())
-        .map(|c| {
-            matches!(
-                c.position,
-                crate::layout::Position::Absolute | crate::layout::Position::Fixed
-            )
-        })
-        .unwrap_or(false)
-}
-
 /// Collect every positioned (absolute / fixed) element in the
 /// tree, sorted in **reverse paint order** — highest z-index
 /// first, with reverse-document-order as the tiebreaker (so the
 /// last-painted element of a same-z group is tried first).
 fn collect_positioned_reverse_z(dom: &Dom<TuiExt>) -> Vec<NodeId> {
-    let mut list: Vec<(i16, usize, NodeId)> = Vec::new();
-    let mut order: usize = 0;
-    walk_for_positioned(dom, dom.root(), &mut list, &mut order);
+    let mut list = positioned_z_list(dom);
     // Sort by (z, order) ascending, then reverse → highest z and
     // latest order are at the front (= reverse paint order).
     list.sort_by_key(|(z, ord, _)| (*z, *ord));
     list.reverse();
     list.into_iter().map(|(_, _, id)| id).collect()
-}
-
-fn walk_for_positioned(
-    dom: &Dom<TuiExt>,
-    id: NodeId,
-    out: &mut Vec<(i16, usize, NodeId)>,
-    order: &mut usize,
-) {
-    if let Some(computed) = dom.node(id).ext().and_then(|e| e.computed.as_ref())
-        && matches!(
-            computed.position,
-            crate::layout::Position::Absolute | crate::layout::Position::Fixed
-        )
-    {
-        let z = match computed.z_index {
-            crate::layout::ZIndex::Auto => 0,
-            crate::layout::ZIndex::Value(n) => n,
-        };
-        out.push((z, *order, id));
-        *order += 1;
-    }
-    for child in dom.node(id).child_nodes() {
-        walk_for_positioned(dom, child.id(), out, order);
-    }
 }
 
 /// Look up the inline fragment under `(x, y)` inside an IFC block's

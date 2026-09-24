@@ -60,7 +60,7 @@ use rdom_core::{Dom, NodeId, NodeType};
 use crate::ext::TuiExt;
 use crate::layout::{Display, LayoutRect, Overflow};
 use crate::node::TuiNodeExt;
-use crate::render::layout_pass::is_ifc_block;
+use crate::render::layout_pass::{is_ifc_block, is_in_flow, positioned_z_list};
 use crate::render::{Buffer, Rect};
 use crate::style::{Color, ComputedStyle};
 
@@ -120,49 +120,10 @@ impl PaintExt for Dom<TuiExt> {
 /// them. Nested positioned elements collapse into the same flat
 /// sort against the root viewport.
 fn paint_z_list(dom: &Dom<TuiExt>, buf: &mut Buffer, clip: Rect) {
-    let mut list: Vec<(i16, usize, NodeId)> = Vec::new();
-    let mut order: usize = 0;
-    collect_z_list(dom, dom.root(), &mut list, &mut order);
+    let mut list = positioned_z_list(dom);
     list.sort_by_key(|(z, ord, _)| (*z, *ord));
     for (_, _, id) in list {
         paint_node(dom, id, buf, clip);
-    }
-}
-
-fn collect_z_list(
-    dom: &Dom<TuiExt>,
-    id: NodeId,
-    out: &mut Vec<(i16, usize, NodeId)>,
-    order: &mut usize,
-) {
-    if dom.node(id).node_type() == NodeType::Element {
-        let computed = dom.node(id).ext().and_then(|e| e.computed.as_ref());
-        let positioned = computed
-            .map(|c| {
-                matches!(
-                    c.position,
-                    crate::layout::Position::Absolute | crate::layout::Position::Fixed
-                )
-            })
-            .unwrap_or(false);
-        if positioned {
-            let z = computed
-                .map(|c| match c.z_index {
-                    crate::layout::ZIndex::Auto => 0,
-                    crate::layout::ZIndex::Value(n) => n,
-                })
-                .unwrap_or(0);
-            out.push((z, *order, id));
-            *order += 1;
-        }
-    }
-    for child in dom.node(id).child_nodes() {
-        match child.node_type() {
-            NodeType::Element | NodeType::Fragment => {
-                collect_z_list(dom, child.id(), out, order);
-            }
-            _ => {}
-        }
     }
 }
 
@@ -488,20 +449,11 @@ fn recurse_children(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect)
                 if is_inline && !has_inline_layout {
                     continue;
                 }
-                // M2: position: absolute / fixed children are
-                // skipped here — they paint via the z-list post-
-                // pass after the document walk completes (see
-                // `paint_z_list`). Lifted into the global stacking
-                // context.
-                let is_positioned = computed_ref
-                    .map(|c| {
-                        matches!(
-                            c.position,
-                            crate::layout::Position::Absolute | crate::layout::Position::Fixed
-                        )
-                    })
-                    .unwrap_or(false);
-                if is_positioned {
+                // Out-of-flow children (absolute / fixed) paint via the
+                // z-list post-pass, not here — the same filter layout
+                // uses (`DRY-1`); `display: none` is handled in
+                // `paint_node`.
+                if !is_in_flow(dom, cid) {
                     continue;
                 }
                 paint_node(dom, cid, buf, clip);

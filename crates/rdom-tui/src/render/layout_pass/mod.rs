@@ -69,6 +69,7 @@ mod ifc;
 pub(crate) mod intrinsic;
 mod positioned_pseudos;
 mod positioning;
+pub(crate) use positioning::positioned_z_list;
 mod sticky;
 
 #[cfg(test)]
@@ -567,7 +568,7 @@ pub(super) fn resolve_gap(
     computed.gap.resolve(basis)
 }
 
-pub(super) fn is_in_flow(dom: &Dom<TuiExt>, id: NodeId) -> bool {
+pub(crate) fn is_in_flow(dom: &Dom<TuiExt>, id: NodeId) -> bool {
     let node = dom.node(id);
     if node.node_type() != NodeType::Element {
         return true; // text, comments, fragments

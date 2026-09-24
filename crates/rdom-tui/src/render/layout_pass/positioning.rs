@@ -166,6 +166,28 @@ fn collect_positioned(dom: &Dom<TuiExt>, id: NodeId) -> Vec<NodeId> {
     out
 }
 
+/// Every absolutely / fixed positioned element with its `z-index`
+/// (`auto` sorts as 0) and document order: the one list that paint
+/// sorts ascending and hit-testing walks in reverse (`DRY-2`).
+pub(crate) fn positioned_z_list(dom: &Dom<TuiExt>) -> Vec<(i16, usize, NodeId)> {
+    collect_positioned(dom, dom.root())
+        .into_iter()
+        .enumerate()
+        .map(|(order, id)| {
+            let z = dom
+                .node(id)
+                .ext()
+                .and_then(|e| e.computed.as_ref())
+                .map(|c| match c.z_index {
+                    crate::layout::ZIndex::Auto => 0,
+                    crate::layout::ZIndex::Value(n) => n,
+                })
+                .unwrap_or(0);
+            (z, order, id)
+        })
+        .collect()
+}
+
 fn walk_for_positioned(dom: &Dom<TuiExt>, id: NodeId, out: &mut Vec<NodeId>) {
     if dom.node(id).node_type() == NodeType::Element {
         let pos = computed_position(dom, id);
