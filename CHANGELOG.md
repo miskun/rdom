@@ -12,6 +12,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 ### Fixed — `rdom-core`
 
 - `drop_subtree`, `remove_child_dropping` and `clear_children_dropping` free the subtree even when a `MutationObserver` panics in any record they fire after the unlink (`ChildListChanged`, or the focus / hover / selection purge); the panic still propagates afterwards. A panic in the `PreDetach` window leaves the still-attached subtree alone. (`CORE-DROP-PANIC-LEAK-1`)
+- `compare_document_position`, `compare_boundary_points` and `common_ancestor` no longer allocate: a depth walk replaces the two materialized ancestor paths. Selection paint called this twice per text node per frame. (`CORE-DOCPOS-ALLOC-1`)
 
 ### Changed — `rdom-tui`
 

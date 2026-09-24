@@ -41,68 +41,100 @@ impl<Ext> Dom<Ext> {
         if a == b {
             return DocumentPosition::empty();
         }
-
-        // Walk ancestors of each, record paths root → node.
-        let a_path = self.ancestor_path(a);
-        let b_path = self.ancestor_path(b);
-
-        // Disconnected: one is not reachable from a shared ancestor.
-        // For this arena we consider "disconnected" = different roots.
-        match (a_path.first(), b_path.first()) {
-            (Some(&ra), Some(&rb)) if ra != rb => {
-                return DocumentPosition::DISCONNECTED
-                    | DocumentPosition::IMPLEMENTATION_SPECIFIC
-                    | DocumentPosition::PRECEDING;
+        // DOM §4.4 step 6: different trees.
+        const IN_DIFFERENT_TREES: DocumentPosition = DocumentPosition::from_bits_truncate(
+            DocumentPosition::DISCONNECTED.bits()
+                | DocumentPosition::IMPLEMENTATION_SPECIFIC.bits()
+                | DocumentPosition::PRECEDING.bits(),
+        );
+        let (Some(da), Some(db)) = (self.depth_of(a), self.depth_of(b)) else {
+            return IN_DIFFERENT_TREES;
+        };
+        // Bring both cursors to the same depth. If they meet, one node is
+        // an ancestor of the other. No paths are materialized: this runs
+        // per text node per frame while a selection is painted
+        // (`CORE-DOCPOS-ALLOC-1`).
+        let (mut x, mut y) = (a, b);
+        for _ in db..da {
+            x = self.parent_of(x);
+        }
+        for _ in da..db {
+            y = self.parent_of(y);
+        }
+        if x == y {
+            return if da < db {
+                // b is a descendant of a: contained by a and, in tree
+                // order, after it.
+                DocumentPosition::CONTAINED_BY | DocumentPosition::FOLLOWING
+            } else {
+                // b is an ancestor of a: contains a and precedes it.
+                DocumentPosition::CONTAINS | DocumentPosition::PRECEDING
+            };
+        }
+        // Walk up in lockstep until the parents coincide; `x` / `y` are
+        // then the two branches under the lowest common ancestor.
+        let lca = loop {
+            match (
+                self.get_node(x).and_then(|n| n.parent),
+                self.get_node(y).and_then(|n| n.parent),
+            ) {
+                (Some(px), Some(py)) if px == py => break px,
+                (Some(px), Some(py)) => {
+                    x = px;
+                    y = py;
+                }
+                // Different roots.
+                _ => return IN_DIFFERENT_TREES,
             }
-            (None, _) | (_, None) => {
-                return DocumentPosition::DISCONNECTED
-                    | DocumentPosition::IMPLEMENTATION_SPECIFIC
-                    | DocumentPosition::PRECEDING;
-            }
-            _ => {}
-        }
-
-        // Find the common prefix length (lowest common ancestor).
-        let mut common = 0;
-        while common < a_path.len() && common < b_path.len() && a_path[common] == b_path[common] {
-            common += 1;
-        }
-
-        // If one path is a prefix of the other, it's an ancestor relationship.
-        if common == a_path.len() && common < b_path.len() {
-            // b is a descendant of a: b is contained by a and, in tree
-            // order, comes after it.
-            return DocumentPosition::CONTAINED_BY | DocumentPosition::FOLLOWING;
-        }
-        if common == b_path.len() && common < a_path.len() {
-            // b is an ancestor of a: b contains a and precedes it.
-            return DocumentPosition::CONTAINS | DocumentPosition::PRECEDING;
-        }
-
-        // Otherwise we diverged at `common`. Compare child positions under
-        // the common ancestor at index `common - 1`. If `common == 0`
-        // something is wrong (handled by the disconnected check above).
-        debug_assert!(common > 0, "compare_document_position: no LCA found");
-        let lca = a_path[common - 1];
-        let a_branch = a_path[common];
-        let b_branch = b_path[common];
-
-        // Which branch comes first in the child order of `lca`?
-        // The returned flags describe b's position relative to a:
-        // - if we encounter a_branch first → b comes after a → FOLLOWING
-        // - if we encounter b_branch first → b comes before a → PRECEDING
+        };
+        // Which branch comes first among `lca`'s children? The flags
+        // describe b relative to a: a's branch first → b FOLLOWING.
         let mut cur = self.get_node(lca).and_then(|n| n.first_child);
         while let Some(c) = cur {
-            if c == a_branch {
+            if c == x {
                 return DocumentPosition::FOLLOWING;
             }
-            if c == b_branch {
+            if c == y {
                 return DocumentPosition::PRECEDING;
             }
             cur = self.get_node(c).and_then(|n| n.next_sibling);
         }
-        // Shouldn't reach here.
+        debug_assert!(
+            false,
+            "compare_document_position: branches not under their LCA"
+        );
         DocumentPosition::empty()
+    }
+
+    /// Depth of `id` below its root (root = 0); `None` if `id` is not in
+    /// the arena.
+    fn depth_of(&self, id: NodeId) -> Option<usize> {
+        let mut node = self.get_node(id)?;
+        let mut depth = 0;
+        while let Some(p) = node.parent {
+            node = self.get_node(p)?;
+            depth += 1;
+        }
+        Some(depth)
+    }
+
+    /// Parent of a node known to be live and non-root (callers have
+    /// measured its depth).
+    fn parent_of(&self, id: NodeId) -> NodeId {
+        self.get_node(id)
+            .and_then(|n| n.parent)
+            .expect("parent_of: node has a parent (depth checked by caller)")
+    }
+
+    /// The root of the tree `id` is in; `None` if `id` is not live.
+    pub(crate) fn root_of(&self, id: NodeId) -> Option<NodeId> {
+        let mut cur = id;
+        let mut node = self.get_node(cur)?;
+        while let Some(p) = node.parent {
+            cur = p;
+            node = self.get_node(cur)?;
+        }
+        Some(cur)
     }
 
     /// Is `a` equal to `b` structurally (same tag, attrs, classes, text,
@@ -193,9 +225,15 @@ impl<Ext> Dom<Ext> {
         // `a.node` is an ancestor of `b.node`: find `a.node`'s child on
         // the way down to `b.node` and compare its index with `a.offset`.
         if pos.contains(DocumentPosition::CONTAINED_BY) {
-            let b_path = self.ancestor_path(b.node);
-            let depth = b_path.iter().position(|&n| n == a.node)?;
-            let child = *b_path.get(depth + 1)?;
+            // Climb from `b.node` to the child of `a.node` on its path.
+            let mut child = b.node;
+            loop {
+                let parent = self.get_node(child)?.parent?;
+                if parent == a.node {
+                    break;
+                }
+                child = parent;
+            }
             let index = self.child_index_of(child)?;
             return Some(if index < a.offset {
                 Ordering::Greater
@@ -250,28 +288,21 @@ impl<Ext> Dom<Ext> {
     /// When `a == b`, returns `Some(a)`. When one is an ancestor
     /// of the other, returns the ancestor.
     pub fn common_ancestor(&self, a: NodeId, b: NodeId) -> Option<NodeId> {
-        if a == b {
-            return self.get_node(a).map(|_| a);
+        let (da, db) = (self.depth_of(a)?, self.depth_of(b)?);
+        let (mut x, mut y) = (a, b);
+        for _ in db..da {
+            x = self.parent_of(x);
         }
-        let a_path = self.ancestor_path(a);
-        let b_path = self.ancestor_path(b);
-        // Different roots → no common ancestor.
-        match (a_path.first(), b_path.first()) {
-            (Some(ra), Some(rb)) if ra != rb => return None,
-            (None, _) | (_, None) => return None,
-            _ => {}
+        for _ in da..db {
+            y = self.parent_of(y);
         }
-        // Walk both paths in lock-step from the root, keeping the
-        // last matching node.
-        let mut last = None;
-        for (x, y) in a_path.iter().zip(b_path.iter()) {
-            if x == y {
-                last = Some(*x);
-            } else {
-                break;
-            }
+        while x != y {
+            // Same depth: both have parents or neither does. Neither →
+            // two roots → disconnected.
+            x = self.get_node(x)?.parent?;
+            y = self.get_node(y)?.parent?;
         }
-        last
+        Some(x)
     }
 }
 
@@ -335,6 +366,100 @@ macro_rules! bitflags_like {
 mod tests {
     use super::*;
     use crate::Dom;
+
+    /// The original path-materializing algorithm, kept as the oracle for
+    /// the allocation-free depth walk.
+    fn reference_compare(dom: &Dom, a: NodeId, b: NodeId) -> DocumentPosition {
+        if a == b {
+            return DocumentPosition::empty();
+        }
+        let a_path = dom.ancestor_path(a);
+        let b_path = dom.ancestor_path(b);
+        if a_path.first() != b_path.first() || a_path.is_empty() {
+            return DocumentPosition::DISCONNECTED
+                | DocumentPosition::IMPLEMENTATION_SPECIFIC
+                | DocumentPosition::PRECEDING;
+        }
+        let mut common = 0;
+        while common < a_path.len() && common < b_path.len() && a_path[common] == b_path[common] {
+            common += 1;
+        }
+        if common == a_path.len() {
+            return DocumentPosition::CONTAINED_BY | DocumentPosition::FOLLOWING;
+        }
+        if common == b_path.len() {
+            return DocumentPosition::CONTAINS | DocumentPosition::PRECEDING;
+        }
+        let lca = a_path[common - 1];
+        let mut cur = dom.get_node(lca).and_then(|n| n.first_child);
+        while let Some(c) = cur {
+            if c == a_path[common] {
+                return DocumentPosition::FOLLOWING;
+            }
+            if c == b_path[common] {
+                return DocumentPosition::PRECEDING;
+            }
+            cur = dom.get_node(c).and_then(|n| n.next_sibling);
+        }
+        unreachable!()
+    }
+
+    /// `CORE-DOCPOS-ALLOC-1`: the depth walk agrees with the path oracle
+    /// on every ordered pair of a bushy tree plus a detached subtree.
+    #[test]
+    fn depth_walk_matches_the_path_oracle_on_every_pair() {
+        let mut dom: Dom = Dom::new();
+        let root = dom.root();
+        let mut all = vec![root];
+        // Three levels, three children each: 1 + 3 + 9 + 27 nodes.
+        let mut frontier = vec![root];
+        for _ in 0..3 {
+            let mut next = Vec::new();
+            for &p in &frontier {
+                for _ in 0..3 {
+                    let c = dom.create_element("n");
+                    dom.append_child(p, c).unwrap();
+                    all.push(c);
+                    next.push(c);
+                }
+            }
+            frontier = next;
+        }
+        // A detached subtree with its own root.
+        let loose = dom.create_element("loose");
+        let loose_child = dom.create_element("lc");
+        dom.append_child(loose, loose_child).unwrap();
+        all.push(loose);
+        all.push(loose_child);
+        // A freed node.
+        let gone = dom.create_element("gone");
+        dom.drop_subtree(gone).unwrap();
+        all.push(gone);
+
+        for &a in &all {
+            for &b in &all {
+                assert_eq!(
+                    dom.compare_document_position(a, b),
+                    reference_compare(&dom, a, b),
+                    "pair ({a:?}, {b:?})"
+                );
+                let expected_lca = {
+                    let pa = dom.ancestor_path(a);
+                    let pb = dom.ancestor_path(b);
+                    pa.iter()
+                        .zip(pb.iter())
+                        .take_while(|(x, y)| x == y)
+                        .last()
+                        .map(|(x, _)| *x)
+                };
+                assert_eq!(
+                    dom.common_ancestor(a, b),
+                    expected_lca,
+                    "lca ({a:?}, {b:?})"
+                );
+            }
+        }
+    }
 
     fn build() -> (Dom, NodeId, NodeId, NodeId, NodeId) {
         // root

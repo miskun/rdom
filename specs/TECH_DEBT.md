@@ -8,7 +8,6 @@ For the durable architectural divergences (web-platform departures shipped on pu
 
 ### Substrate (rdom-core) — from the HARDENING-2026-09 Batch 1 gates
 
-- **`CORE-DOCPOS-ALLOC-1` — `compare_document_position` / `compare_boundary_points` allocate.** Each call builds two `ancestor_path` `Vec`s (plus one more and a recursion in the ancestor case). rdom-tui's selection paint calls `compare_boundary_points` twice per text node per frame while a selection exists (`render/paint_pass/inline_paint.rs`, `selection_byte_range_in`). Pay down with a depth-walk comparison that allocates nothing, or compute selection membership once per paint instead of per text node.
 - **`CORE-GEN-COLOCATE-1` — the slot generation lives in a `Vec` parallel to `nodes`.** Every `get_node` touches two vectors (two bounds checks, two cache lines) on the hottest lookup in layout and paint. Colocating `(generation, Option<Node>)` in one slot removes one of each. Measure on a quiet machine before and after; do not record numbers taken under SentinelOne load.
 
 ### Style crate — from HARDENING-2026-09 Batch 2

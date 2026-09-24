@@ -171,7 +171,7 @@ impl<Ext> Dom<Ext> {
         let root = self.root();
         let mut best: Option<NodeId> = None;
         for &candidate in bucket {
-            let connected = self.ancestor_path(candidate).first() == Some(&root);
+            let connected = self.root_of(candidate) == Some(root);
             if !connected {
                 continue;
             }
