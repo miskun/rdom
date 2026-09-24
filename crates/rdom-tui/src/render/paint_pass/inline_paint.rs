@@ -253,161 +253,28 @@ fn paint_single_row_chrome(
 fn paint_lines(
     dom: &Dom<TuiExt>,
     id: NodeId,
-    block_computed: &ComputedStyle,
+    _block_computed: &ComputedStyle,
     layout: &crate::render::inline::InlineLayout,
     inner: LayoutRect,
     buf: &mut Buffer,
     clip: Rect,
     emit_pseudos: bool,
 ) {
-    let selection_range = dom.selection_range().filter(|r| !r.is_collapsed());
-
-    let last_line_index = layout.lines.len().saturating_sub(1);
     // `inner` is the *scrolled* content rect (see
     // `inline::scrolled_content_rect`): the block shows `inner.height`
-    // lines starting at its own `scroll_y`; earlier lines sit above
-    // the scrollport and later ones below the content box.
+    // lines starting at its own `scroll_y`.
     let first_visible_line = dom.node(id).ext().map_or(0, |e| e.scroll_y as i32);
-
-    for (line_index, line) in layout.lines.iter().enumerate() {
-        let line_y = inner.y + line_index as i32;
-        if line_y < clip.y as i32 || line_y >= clip.bottom() as i32 {
-            continue;
-        }
-        let li = line_index as i32;
-        if li < first_visible_line || li >= first_visible_line + inner.height as i32 {
-            continue;
-        }
-
-        let mut leading_cursor: Option<u16> = None;
-
-        // ::before on line 0.
-        if emit_pseudos
-            && line_index == 0
-            && let Some(before) = dom.node(id).computed_before()
-            && before.position == crate::layout::Position::Static
-            && let Some(ref text) = before.content
-        {
-            let line_right = clip
-                .right()
-                .min((inner.x + inner.width as i32).max(0) as u16);
-            // The fragments shift by the pseudo's full width whether or
-            // not its start is clipped away.
-            let logical_end = paint_text_from(
-                buf,
-                inner.x,
-                line_y as u16,
-                clip.x,
-                line_right,
-                text,
-                pseudo_style(
-                    before,
-                    presentation_of(dom, id, crate::ext::StyleSlot::Before),
-                ),
-            );
-            leading_cursor = Some((logical_end - inner.x).clamp(0, i32::from(u16::MAX)) as u16);
-        }
-
-        for fragment in &line.fragments {
-            let mut frag_x = inner.x + fragment.x as i32;
-            // Shift fragments on line 0 over by the ::before width
-            // (only meaningful for the pure-text path where line 0
-            // fragment.x starts at 0).
-            if let Some(shift) = leading_cursor {
-                frag_x = frag_x.saturating_add(shift as i32);
-            }
-            if frag_x >= clip.right() as i32 {
-                continue;
-            }
-
-            let computed = dom
-                .node(fragment.node)
-                .ext()
-                .and_then(|e| e.computed.clone())
-                .unwrap_or_else(|| std::rc::Rc::new(block_computed.clone()));
-            let style = if fragment.node == id {
-                glyph_style_from_computed(&computed)
-            } else {
-                style_from_computed(&computed)
-            };
-
-            let start_x = frag_x.max(clip.x as i32) as u16;
-            let skip = start_x as i32 - frag_x;
-            let budget_right = clip
-                .right()
-                .min(inner.x.saturating_add(inner.width as i32).max(0) as u16);
-            if start_x >= budget_right {
-                continue;
-            }
-            let max_width = budget_right - start_x;
-
-            let text_to_paint: &str = if skip > 0 {
-                advance_text_by_cells(&fragment.text, skip as u16)
-            } else {
-                &fragment.text
-            };
-
-            // Route through `paint_text` so painted content occludes any
-            // border the joiner would re-derive beneath it (z-aware borders).
-            paint_text(
-                buf,
-                start_x,
-                line_y as u16,
-                budget_right,
-                text_to_paint,
-                style,
-            );
-
-            if let Some(href) = anchor_href_for(dom, fragment.node) {
-                let written_cells = text_to_paint
-                    .chars()
-                    .map(|_| 1u16)
-                    .sum::<u16>()
-                    .min(max_width);
-                if written_cells > 0 {
-                    buf.set_link_range(start_x, line_y as u16, written_cells, Some(&href));
-                }
-            }
-
-            if let Some(ref sr) = selection_range {
-                apply_selection_overlay(dom, buf, line_y as u16, frag_x, clip, fragment, sr);
-            }
-        }
-
-        // ::after on the last line, after the line's fragments.
-        if emit_pseudos
-            && line_index == last_line_index
-            && let Some(after) = dom.node(id).computed_after()
-            && after.position == crate::layout::Position::Static
-            && let Some(ref text) = after.content
-        {
-            // Account for the ::before prefix on line 0 — fragments
-            // are shifted by `leading_cursor`, so the line's visual
-            // extent on screen ends at `inner.x + leading_cursor +
-            // line.width`, not `inner.x + line.width`.
-            let line_visual_end = line.width as i32 + leading_cursor.map(|c| c as i32).unwrap_or(0);
-            let after_x = inner.x + line_visual_end;
-            if after_x < clip.right() as i32 {
-                let start_x = after_x.max(clip.x as i32) as u16;
-                let budget_right = clip
-                    .right()
-                    .min((inner.x + inner.width as i32).max(0) as u16);
-                if start_x < budget_right {
-                    paint_text(
-                        buf,
-                        start_x,
-                        line_y as u16,
-                        budget_right,
-                        text,
-                        pseudo_style(
-                            after,
-                            presentation_of(dom, id, crate::ext::StyleSlot::After),
-                        ),
-                    );
-                }
-            }
-        }
-    }
+    let pseudos = emit_pseudos.then(|| Pseudos::both(id));
+    paint_inline_layout(
+        dom,
+        layout,
+        inner,
+        first_visible_line,
+        id,
+        buf,
+        clip,
+        pseudos,
+    );
 
     // Anchor href tagging for whole-element anchors (e.g.
     // block-level `<a>` with text content and no inline descendants).
@@ -463,7 +330,16 @@ pub(super) fn paint_ifc(
         return;
     };
     let first_visible_line = dom.node(id).ext().map_or(0, |e| e.scroll_y as i32);
-    paint_inline_layout(dom, inline_layout, inner, first_visible_line, id, buf, clip);
+    paint_inline_layout(
+        dom,
+        inline_layout,
+        inner,
+        first_visible_line,
+        id,
+        buf,
+        clip,
+        Some(Pseudos::both(id)),
+    );
     // Caret is painted by `paint_node` once per element that owns
     // an inline-flow container (IFC blocks AND pure-text leaf
     // blocks); the call used to live here, but textareas/inputs go
@@ -491,7 +367,26 @@ pub(super) fn paint_anonymous_blocks(
     let Some(ext) = dom.node(container_id).tui_ext() else {
         return;
     };
+    // CSS 2.1 §9.2.1.1: the host's `::before` / `::after` are
+    // inline-level content, so they join the first / last anonymous
+    // box when the first / last in-flow child is inline-level. When a
+    // block-level child comes first (or last), CSS would wrap the
+    // pseudo in an anonymous box of its own; rdom does not create that
+    // box (DIVERGENCES).
+    let in_flow: Vec<usize> = dom
+        .node(container_id)
+        .child_nodes()
+        .enumerate()
+        .filter(|(_, c)| crate::render::layout_pass::is_in_flow(dom, c.id()))
+        .map(|(i, _)| i)
+        .collect();
+    let (first, last) = (in_flow.first().copied(), in_flow.last().copied());
     for anon in &ext.anonymous_blocks {
+        let pseudos = Some(Pseudos {
+            host: container_id,
+            before: first.is_some_and(|i| anon.child_range.0 == i),
+            after: last.is_some_and(|i| anon.child_range.1 == i + 1),
+        });
         paint_inline_layout(
             dom,
             &anon.inline_layout,
@@ -500,7 +395,28 @@ pub(super) fn paint_anonymous_blocks(
             container_id,
             buf,
             clip,
+            pseudos,
         );
+    }
+}
+
+/// Which of a host's static `::before` / `::after` an inline layout
+/// paints: `::before` at the start of line 0 (shifting the line's
+/// fragments by its width), `::after` after the last line's fragments.
+#[derive(Clone, Copy)]
+struct Pseudos {
+    host: NodeId,
+    before: bool,
+    after: bool,
+}
+
+impl Pseudos {
+    fn both(host: NodeId) -> Self {
+        Pseudos {
+            host,
+            before: true,
+            after: true,
+        }
     }
 }
 
@@ -509,6 +425,7 @@ pub(super) fn paint_anonymous_blocks(
 /// `fill_bg` already covers fragments owned by it — those fragments
 /// paint with `glyph_style` to avoid double-applying bg under
 /// `opacity`.
+#[allow(clippy::too_many_arguments)]
 fn paint_inline_layout(
     dom: &Dom<TuiExt>,
     inline_layout: &crate::render::inline::InlineLayout,
@@ -517,11 +434,29 @@ fn paint_inline_layout(
     bg_dedup_owner: NodeId,
     buf: &mut Buffer,
     clip: Rect,
+    pseudos: Option<Pseudos>,
 ) {
     // The current selection range (document-ordered) — computed once
     // per IFC paint, reused across fragments. `None` when there's no
     // selection or it's collapsed (caret only, nothing to highlight).
     let selection_range = dom.selection_range().filter(|r| !r.is_collapsed());
+    let last_line_index = inline_layout.lines.len().saturating_sub(1);
+    let static_pseudo = |slot: crate::ext::StyleSlot| -> Option<(String, Style)> {
+        let host = pseudos?.host;
+        let node = dom.node(host);
+        let computed = match slot {
+            crate::ext::StyleSlot::Before => node.computed_before(),
+            _ => node.computed_after(),
+        }?;
+        if computed.position != crate::layout::Position::Static {
+            return None;
+        }
+        let text = computed.content.clone()?;
+        Some((
+            text,
+            pseudo_style(computed, presentation_of(dom, host, slot)),
+        ))
+    };
 
     for (line_index, line) in inline_layout.lines.iter().enumerate() {
         let line_y = inner.y + line_index as i32;
@@ -539,8 +474,30 @@ fn paint_inline_layout(
             continue;
         }
 
+        // `::before` on line 0: the fragments shift by its full width
+        // whether or not its start is clipped away.
+        let mut leading_cursor: i32 = 0;
+        if pseudos.is_some_and(|p| p.before)
+            && line_index == 0
+            && let Some((text, style)) = static_pseudo(crate::ext::StyleSlot::Before)
+        {
+            let line_right = clip
+                .right()
+                .min((inner.x + inner.width as i32).max(0) as u16);
+            let logical_end = paint_text_from(
+                buf,
+                inner.x,
+                line_y as u16,
+                clip.x,
+                line_right,
+                &text,
+                style,
+            );
+            leading_cursor = (logical_end - inner.x).max(0);
+        }
+
         for fragment in &line.fragments {
-            let frag_x = inner.x + fragment.x as i32;
+            let frag_x = inner.x + fragment.x as i32 + leading_cursor;
             if frag_x >= clip.right() as i32 {
                 continue;
             }
@@ -639,6 +596,29 @@ fn paint_inline_layout(
             // without selection restores the original appearance.
             if let Some(ref sr) = selection_range {
                 apply_selection_overlay(dom, buf, line_y as u16, frag_x, clip, fragment, sr);
+            }
+        }
+
+        // `::after` on the last line, after the line's fragments (which
+        // sit `leading_cursor` further right on line 0).
+        if pseudos.is_some_and(|p| p.after)
+            && line_index == last_line_index
+            && let Some((text, style)) = static_pseudo(crate::ext::StyleSlot::After)
+        {
+            let after_x = inner.x + line.width as i32 + leading_cursor;
+            let budget_right = clip
+                .right()
+                .min((inner.x + inner.width as i32).max(0) as u16);
+            if after_x < i32::from(budget_right) {
+                paint_text_from(
+                    buf,
+                    after_x,
+                    line_y as u16,
+                    clip.x,
+                    budget_right,
+                    &text,
+                    style,
+                );
             }
         }
     }

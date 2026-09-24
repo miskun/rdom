@@ -27,7 +27,6 @@ For the durable architectural divergences (web-platform departures shipped on pu
 
   Proper fix is subtree group rendering: each element with `opacity < 1.0` renders its entire subtree into a temporary `Buffer` at full opacity, then composites that buffer at the element's opacity. Eliminates both pockets. Defer until a real consumer hits a case the approximation produces wrong output for.
 
-- **`TREE-BFC-PSEUDO-1` — the `::before` / `::after` prefix on a true mixed-content block is dropped.** The duplicate-text class of this bug is fixed (own text no longer double-paints on pseudo- or mixed-content blocks); what remains is that a block with both a pseudo `content` and mixed inline + block children paints the pseudo nowhere. Emit the pseudo into the first / last anonymous box's line.
 
 ### UA stylesheet
 

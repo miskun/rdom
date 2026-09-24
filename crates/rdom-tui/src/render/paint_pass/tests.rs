@@ -3913,9 +3913,8 @@ fn pseudo_before_on_mixed_content_block_paints_text_once() {
     // an in-flow element child (mixed content → anonymous blocks) + `::before`
     // must paint the own text exactly ONCE — not duplicate its tail
     // (`<li>Label<ul>` → "Labelel"). The own text lives in an anonymous block;
-    // Path 4 no longer re-paints it. (The `::before` PREFIX on a mixed-content
-    // block is dropped for now — folding it into the anon block is the remaining
-    // layout half; tracked in TECH_DEBT.)
+    // Path 4 no longer re-paints it, and the `::before` prefix rides the first
+    // in-flow anonymous run (the second half of TREE-BFC-PSEUDO-1).
     use crate::layout::{Direction, Display, Flow};
     use crate::style::Content;
     let mut dom = TuiDom::new();
@@ -3936,10 +3935,10 @@ fn pseudo_before_on_mixed_content_block_paints_text_once() {
         TuiStyle::new().content(Content::Str("> ".into())),
     );
     let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 12, 3));
-    // Own text appears once, undisturbed — no "Labelel" duplication.
+    // Own text appears once, prefixed — no "Labelel" duplication.
     assert_eq!(
         row(&buf, 0).trim_end(),
-        "Label",
+        "> Label",
         "own text painted once, no duplicate"
     );
 }
@@ -4325,4 +4324,70 @@ fn relative_inline_block_atom_paints_from_the_positioned_layer() {
     let once = crate::render::compose::alpha_blend(BLUE, 0.5, white);
     assert_eq!(bg_at(&buf, 3, 0), once, "blended over the white once");
     assert!(row(&buf, 0).starts_with("hi x"), "{:?}", row(&buf, 0));
+}
+
+// ── TREE-BFC-PSEUDO-1: pseudos on IFC blocks and anonymous boxes ───
+
+fn pseudo_dom(children: &[(&str, &str)]) -> (TuiDom, NodeId) {
+    // `host` with the given children: ("text", data) or (tag, text).
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let host = dom.create_element("host");
+    for &(kind, data) in children {
+        if kind == "text" {
+            let t = dom.create_text_node(data);
+            dom.append_child(host, t).unwrap();
+        } else {
+            let el = dom.create_element(kind);
+            let t = dom.create_text_node(data);
+            dom.append_child(el, t).unwrap();
+            dom.append_child(host, el).unwrap();
+        }
+    }
+    dom.append_child(root, host).unwrap();
+    (dom, host)
+}
+
+/// A block with inline element children (an inline formatting
+/// context) shows its `::before` on line 0 and its `::after` after
+/// the last line, like a pure-text block does.
+#[test]
+fn ifc_block_paints_its_pseudo_elements() {
+    let (mut dom, _host) = pseudo_dom(&[("text", "ab "), ("b", "cd")]);
+    let sheet = Stylesheet::bare()
+        .rule_unchecked("host", TuiStyle::new().width(Size::Fixed(20)))
+        .rule_unchecked("b", TuiStyle::new().display(Display::Inline))
+        .rule_unchecked(
+            "host::before",
+            TuiStyle::new().content(Content::Str("> ".into())),
+        )
+        .rule_unchecked(
+            "host::after",
+            TuiStyle::new().content(Content::Str(" <".into())),
+        );
+    let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 20, 3));
+    assert_eq!(row(&buf, 0).trim_end(), "> ab cd <");
+}
+
+/// Mixed content: the `::before` rides the first anonymous box when
+/// the first in-flow child is inline-level, the `::after` rides the
+/// last anonymous box when the last child is inline-level.
+#[test]
+fn mixed_content_block_paints_pseudos_on_its_anonymous_boxes() {
+    let (mut dom, _host) = pseudo_dom(&[("text", "lead"), ("p", "block"), ("text", "tail")]);
+    let sheet = Stylesheet::bare()
+        .rule_unchecked("host", TuiStyle::new().width(Size::Fixed(20)))
+        .rule_unchecked("p", TuiStyle::new().height(Size::Fixed(1)))
+        .rule_unchecked(
+            "host::before",
+            TuiStyle::new().content(Content::Str("* ".into())),
+        )
+        .rule_unchecked(
+            "host::after",
+            TuiStyle::new().content(Content::Str(" !".into())),
+        );
+    let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 20, 4));
+    assert_eq!(row(&buf, 0).trim_end(), "* lead");
+    assert_eq!(row(&buf, 1).trim_end(), "block");
+    assert_eq!(row(&buf, 2).trim_end(), "tail !");
 }

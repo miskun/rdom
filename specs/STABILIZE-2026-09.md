@@ -260,6 +260,8 @@ Each phase ends with the two review gates; each commit carries the item id.
 - 2026-09-24 — Phase 6: `SHOWCASE-EVT-1` — `AppContext` stylesheet intents, drained after the tick /
   injection; listeners use `AppHandle::inject`. The showcase keeps its pre-pushed sheets (a demo
   switch through intents is a showcase change, not substrate).
+- 2026-09-24 — Phase 6: `TREE-BFC-PSEUDO-1` — `paint_inline_layout` owns pseudo emission for text
+  leaves, IFCs and anonymous boxes; block-first / block-last hosts recorded in DIVERGENCES.
 - Found while mapping Phase 3 (not on the ledger): `ImportantMask::FLOW` and `POINTER_EVENTS` share
   bit 39 (`tui_style.rs`), custom-property inheritance in the cascade is overwritten by the merged
   root map (`walk.rs`), and tokenizer errors inside a block are body-relative (`declarations.rs`).
