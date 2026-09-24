@@ -113,11 +113,6 @@ For the durable architectural divergences (web-platform departures shipped on pu
 - **`PARSER-VOID-TAGS-1` — the void-tag list exists twice.** `rdom_core::markup::VOID_TAGS` (serializer) and `rdom_parser::parser::VOID_TAGS` are hand-mirrored, and both carry the non-HTML `vr`. A consumer who adds a void tag to one and not the other gets asymmetric round-trips. Export the list from `rdom-core` (it already owns markup) and have the parser import it, and decide whether `vr` is a real element or leaves both lists.
 - **`PARSER-ENTITIES-1` — the named-reference table is a curated ~100-entry subset**, and legacy no-semicolon references are not decoded. Either is a correctness gap only for markup pasted from the web; a full table is ~2 231 entries (a generated `static` sorted array, ~40 KB) and belongs behind a feature flag if it ever lands. Tracked so the subset isn't mistaken for the spec.
 
-### Process
-
-- **`PROC-TUI-DEV-DEP-1` — `rdom-tui` dev-depends on its own consumer `rdom-showcase`.** The examples are one-line shims around showcase demos and the integration snapshot tests build the same DOMs, so `cargo test -p rdom-tui` fails whenever the showcase fails to compile, and the coupling direction is inverted (substrate → consumer). Mitigated 2026-09-24 by `exclude = ["examples/**", "tests/**", "benches/**"]` in `rdom-tui/Cargo.toml`, so the published tarball no longer ships files that cannot build from crates.io. Real fix: keep two or three self-contained examples in-crate and move the showcase-backed shims and snapshot tests into `rdom-showcase`.
-- **`PROC-TOOLCHAIN-PIN-1` — the toolchain "pin" is `channel = "stable"`.** `rust-toolchain.toml` and CI's `dtolnay/rust-toolchain@stable` both float, so a new stable can break `-D warnings` on every PR and CONTRIBUTING's "local and CI agree on rustfmt/clippy versions" is only true by coincidence. Pin `channel = "1.xx"` and bump deliberately, or drop the claim.
-
 ## Accepted simplifications (forever-state)
 
 These won't be paid down — they reflect deliberate architectural choices.

@@ -193,20 +193,22 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 ```
 
-Examples (smoke, when touching `rdom-tui`):
+Examples (smoke, when touching `rdom-tui`). The three in `rdom-tui` are self-contained programs; the ten in `rdom-showcase/examples/` are shims around `rdom_showcase::demos::*`, whose paint is pinned by the snapshot tests in `rdom-showcase/tests/`:
 
 ```bash
 cargo run -p rdom-tui --example counter_button
-cargo run -p rdom-tui --example scrollable_list
-cargo run -p rdom-tui --example selectable_text
 cargo run -p rdom-tui --example tab_form
 cargo run -p rdom-tui --example parse_and_render
-cargo run -p rdom-tui --example ua_chrome
-cargo run -p rdom-tui --example app_shell
-cargo run -p rdom-tui --example tree_nav
+cargo run -p rdom-showcase
+cargo run -p rdom-showcase --example scrollable_list
+cargo run -p rdom-showcase --example selectable_text
+cargo run -p rdom-showcase --example ua_chrome
+cargo run -p rdom-showcase --example tree_nav
 ```
 
-CI (`.github/workflows/ci.yml`) runs all three gates on `[ubuntu-latest, macos-latest, windows-latest]` for every push and PR against `main`. The toolchain is pinned via `rust-toolchain.toml` so local dev and CI use the same `rustfmt` / `clippy` versions.
+`rdom-tui` must not depend on `rdom-showcase`, not even as a dev-dependency: the substrate never builds against its consumer, and the published tarball ships its own examples and tests.
+
+CI (`.github/workflows/ci.yml`) runs all three gates on `[ubuntu-latest, macos-latest, windows-latest]` for every push and PR against `main`. The toolchain is pinned to an exact version in `rust-toolchain.toml`; CI reads that file, so local dev and CI use the same `rustc` / `rustfmt` / `clippy`. Bump it in its own commit after running the full gate.
 
 If a command cannot run because dependencies or the environment are wrong, say that clearly in the final response — do not commit.
 
@@ -290,7 +292,7 @@ Do not start the next milestone until key findings are addressed or explicitly t
 
 ## Repository Boundaries
 
-- `crates/` — the five published crates (`rdom-core`, `rdom-style`, `rdom-css`, `rdom-parser`, `rdom-tui`) plus `rdom-showcase`, an in-tree demo binary (`publish = false`) that doubles as `rdom-tui`'s example and snapshot fixture (`PROC-TUI-DEV-DEP-1`). Roles and durable rules in §Substrate First, Backend Second.
+- `crates/` — the five published crates (`rdom-core`, `rdom-style`, `rdom-css`, `rdom-parser`, `rdom-tui`) plus `rdom-showcase`, an in-tree demo binary (`publish = false`) that owns the demo examples and their paint snapshots. Roles and durable rules in §Substrate First, Backend Second.
 - `specs/` — the three contract docs (`DESIGN.md`, `DIVERGENCES.md`, `TECH_DEBT.md`) plus per-initiative design and history files (`STABILIZE-2026-09.md`, `HARDENING-2026-09.md`, `BFC-1.md`, `DRAG-AUTOSCROLL.md`, `SHOWCASE.md`, `SUBSTRATE-0.3.0.md`, `HISTORY-2026-05.md`). Initiative files carry a status line at the top; only the three contract docs are load-bearing for agents.
 - Versions: crates bump **independently** ("divergent bumps") — only a crate whose source changed bumps, plus every crate that pins it. Tags are per crate (`rdom-tui-vX.Y.Z`); a workspace-wide release uses a plain `vX.Y.Z` tag. The root `Cargo.toml` workspace version is a default for crates that have not diverged, not a shared release number.
 - `.claude/skills/` — operational checklists (`/commit`, `/push`, `/publish`).

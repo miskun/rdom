@@ -5,7 +5,7 @@
 //! header stays pinned at y=0 while items move past it.
 //!
 //! Shared with the standalone example at
-//! `crates/rdom-tui/examples/sticky_demo.rs` via `run_standalone()`.
+//! `crates/rdom-showcase/examples/sticky_demo.rs` via `run_standalone()`.
 
 use std::io;
 

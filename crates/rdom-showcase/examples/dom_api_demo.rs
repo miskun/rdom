@@ -8,7 +8,7 @@
 //! version (browsable under "Built-ins → DOM API walkthrough")
 //! renders the same report into a `<pre>` block.
 //!
-//! Run: `cargo run -p rdom-tui --example dom_api_demo`
+//! Run: `cargo run -p rdom-showcase --example dom_api_demo`
 //!
 //! Implementation lives in `rdom_showcase::demos::dom_api`.
 

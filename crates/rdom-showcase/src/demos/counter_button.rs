@@ -6,7 +6,7 @@
 //! - `stylesheet() -> Stylesheet` returns the demo's CSS.
 //! - `source()` exposes the strings for the M7 Source tab.
 //! - `run_standalone()` is the standalone-example entry point —
-//!   `crates/rdom-tui/examples/counter_button.rs` is a thin shim
+//!   `crates/rdom-showcase/examples/counter_button.rs` is a thin shim
 //!   that calls it.
 //!
 //! Exercises the click event + a `Rc<Cell<u32>>`-backed counter
@@ -91,7 +91,7 @@ pub fn stylesheet() -> Stylesheet {
 
 /// Standalone-example entry point. Builds a one-off `App` with the
 /// demo subtree mounted directly under the root. Used by the
-/// `crates/rdom-tui/examples/counter_button.rs` shim.
+/// `crates/rdom-showcase/examples/counter_button.rs` shim.
 pub fn run_standalone() -> io::Result<()> {
     let mut dom: TuiDom = TuiDom::new();
     let root = dom.root();

@@ -12,7 +12,7 @@ Thanks for your interest. This is a small project and we keep it boring, correct
    cargo clippy --workspace --all-targets -- -D warnings
    cargo test --workspace
    ```
-   CI runs the same three on `[ubuntu-latest, macos-latest, windows-latest]`. The toolchain is pinned via `rust-toolchain.toml`, so local dev and CI agree on `rustfmt` / `clippy` versions.
+   CI runs the same three on `[ubuntu-latest, macos-latest, windows-latest]`. The toolchain is pinned to an exact version in `rust-toolchain.toml`; CI reads that file, so local dev and CI agree on `rustc` / `rustfmt` / `clippy`.
 4. **Code and docs move together.** A behavior change that affects [`DIVERGENCES.md`](specs/DIVERGENCES.md) or [`DESIGN.md`](specs/DESIGN.md) updates them in the same commit.
 5. **Keep commits scoped.** One step per commit. Don't ship `fix: drop unused …` follow-up commits — those are evidence the pre-commit gate was skipped.
 

@@ -3,6 +3,22 @@
 
 #![allow(dead_code)]
 
+pub mod common;
+
+// Paint snapshots for every demo (also the standalone examples).
+mod animations_demos_snapshot;
+mod border_collapse_snapshot;
+mod counter_button_snapshot;
+mod dom_api_snapshot;
+mod mutation_observer_snapshot;
+mod parse_and_render_snapshot;
+mod scrollable_list_snapshot;
+mod selectable_text_snapshot;
+mod sticky_snapshot;
+mod tab_form_snapshot;
+mod text_demos_snapshot;
+mod ua_chrome_snapshot;
+
 mod chrome_dump;
 mod chrome_layout_contract;
 mod details_toggle_regression;

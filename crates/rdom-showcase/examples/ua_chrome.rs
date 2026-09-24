@@ -1,7 +1,7 @@
 //! UA chrome showcase — what naked HTML built-ins look like with
 //! rdom's UA stylesheet only.
 //!
-//! Run: `cargo run -p rdom-tui --example ua_chrome`
+//! Run: `cargo run -p rdom-showcase --example ua_chrome`
 //!
 //! Implementation lives in `rdom_showcase::demos::ua_chrome` — same
 //! DOM is browsable in the showcase under "Built-ins → UA chrome".

@@ -1,7 +1,7 @@
 //! Scrollable list — scroll a long list with the mouse wheel, watch
 //! `:hover` follow the cursor.
 //!
-//! Run: `cargo run -p rdom-tui --example scrollable_list`
+//! Run: `cargo run -p rdom-showcase --example scrollable_list`
 //!
 //! Implementation lives in `rdom_showcase::demos::scrollable_list`
 //! so the showcase ("Layout → Scrollable list") and this binary

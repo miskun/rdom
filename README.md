@@ -45,7 +45,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-See [`crates/rdom-tui/examples/`](crates/rdom-tui/examples/) for ten working demos including buttons with state, scrollable lists, text selection, focusable forms, an ARIA tree with lazy children, end-to-end parse+render, and a naked-UA chrome showcase.
+See [`crates/rdom-tui/examples/`](crates/rdom-tui/examples/) for three self-contained programs (counter button, tab form, parse + render) and [`crates/rdom-showcase/examples/`](crates/rdom-showcase/examples/) for the ten showcase demos runnable standalone: scrollable lists, text selection, an ARIA tree with lazy children, sticky headers, border collapse, and the naked-UA chrome tour.
 
 ## Crates
 
@@ -105,7 +105,7 @@ See [`CHANGELOG.md`](CHANGELOG.md) for the full 0.2.0 notes, including breaking 
 - **Layout + paint.** Flexbox for flex containers. `display: inline-block` for content-hugging chrome (buttons, badges, tags). Inline formatting (word wrap at whitespace + CJK + hyphens, `<br>`, `white-space: normal|pre|nowrap`, per-grapheme source tracking). Positioned `::before` / `::after` pseudo-elements (`position: relative | absolute | fixed` honoring `top` / `right` / `bottom` / `left`). Truecolor / 256-color fallback. ANSI emission with synchronized output (DEC 2026).
 - **Runtime.** Event loop with rendering-steps model (drain, tick, rAF, cascade + layout + paint, sleep). Hit testing, mouse routing (`mousedown` / `mouseup` / `click` synthesized on nearest common ancestor — matches HTML), keyboard routing, focus navigation (`tabindex`, `Tab` / `Shift-Tab`, autofocus), pointer capture, text selection (mouse drag, `Shift+arrow` including vertical with sticky-x and line-edge via `Shift+Home`/`End`, `Ctrl-A`, double/triple-click, `user-select: none|all|contain`) + system clipboard (`arboard`, OSC 52 fallback), panic safety (terminal state restored on panic).
 - **Native HTML built-ins.** `<button>`, `<label>`, `<details>` / `<summary>`, `<input>` family (text, password, number, checkbox, radio, range, submit, button, reset, hidden, color, search, email, tel, url), `<textarea>`, `<select>` / `<option>`, `<form>`, `<dialog>`, `<progress>`, `<meter>`, `<table>` family + column-width sync, `<canvas>` + `RenderContext` escape hatch, `<a href>` with scheme dispatch. Editable surfaces honor `caret-color` (cell bg) and the rdom-extension `caret-text-color` (glyph fg); both default to inverting the cell's cascaded fg/bg. `readonly` fires cancelable `beforeinput` (matches UI Events L2 §5). `contenteditable` supports cross-text-node edits across inline boundaries.
-- **User-agent stylesheet.** 136 UA rules ship visual chrome on every native element so naked HTML looks attractive out of the box. Bracketed `[ Label ]` buttons in accent fg. Rounded LightBlue-bordered modal dialogs. `▸`/`▾` disclosure triangles. `•` list bullets. `│` blockquote rail, `─` `<hr>` rule, `▾` `<select>` chevron. Subtle background-tint `:focus` indicator (a single `!important` rule, color-only — no reverse-video, no glyph shift) that authors can override with their own `!important` rule. Run `cargo run -p rdom-tui --example ua_chrome` to see it.
+- **User-agent stylesheet.** 136 UA rules ship visual chrome on every native element so naked HTML looks attractive out of the box. Bracketed `[ Label ]` buttons in accent fg. Rounded LightBlue-bordered modal dialogs. `▸`/`▾` disclosure triangles. `•` list bullets. `│` blockquote rail, `─` `<hr>` rule, `▾` `<select>` chevron. Subtle background-tint `:focus` indicator (a single `!important` rule, color-only — no reverse-video, no glyph shift) that authors can override with their own `!important` rule. Run `cargo run -p rdom-showcase --example ua_chrome` to see it.
 - **DOM API completeness.** Per-tag accessors (`input_value`, `select_options`, `details_open`, `form_elements`, …), CSSOM (`style.set_property`, `style_declaration`, camelCase aliases), scroll APIs (`scroll_top` / `scroll_into_view`), document hit-testing (`element_from_point`), `bounding_rect`, focus/blur/click programmatic dispatch.
 - **Positioning.** `position: {static, relative, absolute, fixed}`, `z-index` parsing, `top` / `right` / `bottom` / `left`, `inset` shorthand. Paint order is document order (no nested stacking contexts).
 - **Timers + transitions.** `setTimeout` / `setInterval`, `requestAnimationFrame` with `DOMHighResTimeStamp`, CSS `transition` with the keyword timing functions (`ease`, `linear`, `ease-in`, …; `cubic-bezier()` is not parsed yet).
@@ -129,16 +129,19 @@ Open polish items (no fixed milestone): form validation (`:required` / `:invalid
 ## Examples
 
 ```bash
-cargo run -p rdom-tui --example counter_button     # button + state
-cargo run -p rdom-tui --example scrollable_list    # overflow + wheel scrolling
-cargo run -p rdom-tui --example selectable_text    # text selection + clipboard
-cargo run -p rdom-tui --example tab_form           # focus navigation + form controls
-cargo run -p rdom-tui --example tree_nav           # ARIA tree: guides, keyboard nav, lazy load
-cargo run -p rdom-tui --example border_collapse_demo  # border-collapse junctions
-cargo run -p rdom-tui --example sticky_demo        # position: sticky in a scroll container
-cargo run -p rdom-tui --example parse_and_render   # rdom-parser + rdom-css + rdom-tui
-cargo run -p rdom-tui --example dom_api_demo       # form-edit / tree-walk / cssom
-cargo run -p rdom-tui --example ua_chrome          # naked HTML built-ins with UA defaults
+# Self-contained programs (each file is the whole example):
+cargo run -p rdom-tui --example counter_button          # button + state
+cargo run -p rdom-tui --example tab_form                # focus navigation + form controls
+cargo run -p rdom-tui --example parse_and_render        # rdom-parser + rdom-css + rdom-tui
+# Showcase demos, standalone:
+cargo run -p rdom-showcase                              # the whole tour
+cargo run -p rdom-showcase --example scrollable_list    # overflow + wheel scrolling
+cargo run -p rdom-showcase --example selectable_text    # text selection + clipboard
+cargo run -p rdom-showcase --example tree_nav           # ARIA tree: guides, keyboard nav, lazy load
+cargo run -p rdom-showcase --example border_collapse_demo  # border-collapse junctions
+cargo run -p rdom-showcase --example sticky_demo        # position: sticky in a scroll container
+cargo run -p rdom-showcase --example dom_api_demo       # form-edit / tree-walk / cssom (prints, no TUI)
+cargo run -p rdom-showcase --example ua_chrome          # naked HTML built-ins with UA defaults
 ```
 
 ## Design docs

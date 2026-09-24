@@ -950,7 +950,6 @@ dependencies = [
  "rdom-core",
  "rdom-css",
  "rdom-parser",
- "rdom-showcase",
  "rdom-style",
  "unicode-segmentation",
  "unicode-width",

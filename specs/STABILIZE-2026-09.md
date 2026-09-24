@@ -95,7 +95,7 @@ Everything else is real. Disposition per item:
 | Phase | Crates | Items | Status |
 |---|---|---|---|
 | 0 | docs | this plan; stale rows deleted | done 2026-09-23 |
-| 1 | process | toolchain pin, dev-dep inversion | |
+| 1 | process | toolchain pin, dev-dep inversion | done 2026-09-23 |
 | 2 | rdom-core, rdom-parser | 3 core + 2 parser | |
 | 3 | rdom-style, rdom-css | 12 style / css / UA items incl. counters and custom-property storage | |
 | 4 | rdom-tui cascade + animation | custom-property cascade, inherits mask, initial hoist + rule index, three animation items | |
@@ -107,6 +107,12 @@ Everything else is real. Disposition per item:
 Each phase ends with the two review gates; each commit carries the item id.
 
 ## 3. Log
+
+- 2026-09-23 — Phase 1: `rust-toolchain.toml` pins `1.95.0` and CI reads the channel from it
+  (`PROC-TOOLCHAIN-PIN-1`). The ten showcase-backed example shims, the twelve demo snapshot tests and
+  the sixteen goldens moved into `rdom-showcase/{examples,tests}/`; `rdom-tui/examples/` has three
+  self-contained programs, the `rdom-showcase` dev-dep and the tarball `exclude` are gone
+  (`PROC-TUI-DEV-DEP-1`).
 
 - 2026-09-23 — Program opened. Triage: 3 stale rows deleted (`CSS-INHERIT-KEYWORD-1`,
   `CSS-BG-SHORTHAND-1`, `BORDER-MODEL-1`), 52 remain: 50 fix, 1 divergence (`TABLE-TFC-1`),

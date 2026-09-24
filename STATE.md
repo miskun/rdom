@@ -38,8 +38,6 @@ other crate pins it). Nothing has been published from this program yet.
 ## Open risks
 
 - **`CARET-REVEAL-STALE-LAYOUT-1`** and **`POINTER-EVENTS-IFC-1`** are accepted for 0.4.0 (see TECH_DEBT).
-- **`PROC-TOOLCHAIN-PIN-1`** — the toolchain floats on `stable`; a new stable can break `-D warnings` on
-  every PR.
 - **`SHOWCASE-EVT-1`** — the showcase's event surface (`AppContext`) exposes only redraw / quit /
   dispatch; consumers needing more reach into the App.
 - **`ITERM2-MOUSE-MOTION-1`** — iTerm2 motion reporting quirk, external.

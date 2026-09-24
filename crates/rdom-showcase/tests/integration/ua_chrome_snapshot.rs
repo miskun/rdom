@@ -11,7 +11,7 @@
 //! To regenerate after an intentional UA / chrome change:
 //!
 //! ```sh
-//! UPDATE_SNAPSHOTS=1 cargo test -p rdom-tui --test ua_chrome_snapshot
+//! UPDATE_SNAPSHOTS=1 cargo test -p rdom-showcase --test integration ua_chrome_snapshot
 //! ```
 use rdom_showcase::demos::ua_chrome;
 use rdom_tui::prelude::*;

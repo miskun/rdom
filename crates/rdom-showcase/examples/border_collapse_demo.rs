@@ -1,6 +1,6 @@
 //! Focused single-purpose demo of `border-collapse: collapse`.
 //!
-//! Run: `cargo run -p rdom-tui --example border_collapse_demo`.
+//! Run: `cargo run -p rdom-showcase --example border_collapse_demo`.
 //!
 //! Implementation lives in `rdom_showcase::demos::border_collapse`
 //! so the showcase ("Layout → Border collapse") and this binary

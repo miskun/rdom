@@ -1,6 +1,6 @@
 //! Paint snapshot for the `counter_button` example / showcase
 //! demo. Both the standalone example
-//! (`crates/rdom-tui/examples/counter_button.rs`) and the
+//! (`crates/rdom-showcase/examples/counter_button.rs`) and the
 //! showcase ("Events → Counter Button") share the same
 //! `rdom_showcase::demos::counter_button::{build, stylesheet}`,
 //! so the snapshot pins exactly what consumers see.
@@ -13,7 +13,7 @@
 //! To regenerate the golden after an intentional change:
 //!
 //! ```sh
-//! UPDATE_SNAPSHOTS=1 cargo test -p rdom-tui --test counter_button_snapshot
+//! UPDATE_SNAPSHOTS=1 cargo test -p rdom-showcase --test integration counter_button_snapshot
 //! ```
 //!
 //! Then `git diff` the snapshot to review the visual change
@@ -33,7 +33,7 @@ fn counter_button_initial_paint_matches_golden() {
     let sheet = counter_button::stylesheet();
     // 50×10 — fits the demo's `padding: 1 2` (2 rows of padding
     // top + bottom) + h1 + p + button row + inter-element gaps,
-    // matching how the original `cargo run --example counter_button`
+    // matching how the original `cargo run -p rdom-showcase --example counter_button`
     // looks in a typical terminal.
     let buf = render(&mut dom, &sheet, Rect::new(0, 0, 50, 10));
     let snap = buffer_to_snapshot(&buf);

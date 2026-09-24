@@ -105,12 +105,12 @@ The showcase becomes browsable.
 
 ### M4 — Examples-to-demos refactor (closes `OPS-4`) — **CLOSED 2026-05-23**
 
-The 10 existing `crates/rdom-tui/examples/*.rs` (originally planned as 7; two more had been added in the interim, plus `app_shell` which already had a snapshot) became showcase demos without losing their standalone-run shape. The canonical implementation now lives in `rdom_showcase::demos::*`; each example file is a 1-line shim calling `run_standalone()`.
+The 10 existing `crates/rdom-tui/examples/*.rs` (originally planned as 7; two more had been added in the interim, plus `app_shell` which already had a snapshot) became showcase demos without losing their standalone-run shape. The canonical implementation now lives in `rdom_showcase::demos::*`; each example file is a 1-line shim calling `run_standalone()`. (STABILIZE-2026-09: the shims and their paint snapshots moved into `crates/rdom-showcase/{examples,tests}/`, so `rdom-tui` no longer dev-depends on its consumer; `rdom-tui/examples/` keeps three self-contained programs.)
 
 **Shipped:**
 
 1. Each example exposes `pub fn build(dom: &mut TuiDom) -> NodeId` + `pub fn stylesheet() -> Stylesheet` + `pub fn source() -> Source` + `pub fn run_standalone() -> io::Result<()>` + a `Demo` impl on a unit struct.
-2. Standalone `cargo run -p rdom-tui --example <name>` still works for every one. Requires `rdom-showcase` as a `[dev-dependencies]` of `rdom-tui` (dev-deps don't participate in the runtime graph, so the coupling-direction inversion is bounded to test/example builds).
+2. Standalone `cargo run -p rdom-showcase --example <name>` still works for every one. (Originally `-p rdom-tui`, via a dev-dependency on the showcase; STABILIZE-2026-09 removed that inversion by moving the shims here.)
 3. All 10 demos registered in `DEMOS`. Showcase grew from 3 → 13 demos across 7 categories.
 4. Paint snapshots in `crates/rdom-tui/tests/snapshots/` pin every demo's output at fixed viewports. `OPS-4` retired.
 

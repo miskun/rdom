@@ -23,7 +23,7 @@ let sheet = Stylesheet::new()
 App::new(dom, sheet)?.run() // blocks, returns on Ctrl-C / quit
 ```
 
-See [`examples/`](examples/) for five working demos.
+See [`examples/`](examples/) for three self-contained programs; the in-tree `rdom-showcase` crate tours every primitive.
 
 ## Quick start
 
@@ -336,15 +336,17 @@ the `TuiEvent::keydown` / `keyup` / `keypress` / `click` / mouse /
 ## Examples
 
 ```text
-cargo run -p rdom-tui --example counter_button
-cargo run -p rdom-tui --example scrollable_list
-cargo run -p rdom-tui --example tab_form
-cargo run -p rdom-tui --example selectable_text
-cargo run -p rdom-tui --example parse_and_render
+cargo run -p rdom-tui --example counter_button    # click listener + text-node mutation
+cargo run -p rdom-tui --example tab_form          # native form controls, focus navigation, submit
+cargo run -p rdom-tui --example parse_and_render  # rdom-parser + rdom-css + rdom-tui composing
 ```
 
-All five examples use `App::run`. No manual event loops, no direct
-`enter_tui_mode` in user code.
+Each file is the whole program and uses `App::run`. No manual event
+loops, no direct `enter_tui_mode` in user code. Ten more demos
+(scrollable list, text selection, ARIA tree, sticky, border collapse,
+UA chrome, …) live in the workspace's `rdom-showcase` crate:
+`cargo run -p rdom-showcase` for the tour, or
+`cargo run -p rdom-showcase --example <name>` for one.
 
 ## Benchmarks
 
