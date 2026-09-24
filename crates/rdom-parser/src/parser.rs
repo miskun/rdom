@@ -24,20 +24,19 @@
 //! tree-construction error recovery (a mismatched or missing end tag is
 //! a hard error — this is a template parser, not a browser).
 
-use rdom_core::{Dom, NodeId};
+use rdom_core::{Dom, NodeId, is_void_element};
+
+use crate::entities::{LONGEST_LEGACY_NAME, LONGEST_NAME, NAMED_REFERENCES};
 
 use crate::error::{ParseError, Result};
 
-/// HTML5 void tag set — never have children, always self-close.
-/// Mirror of `rdom_core::markup::VOID_TAGS` (we don't depend on that
-/// private constant, so redeclare here).
-const VOID_TAGS: &[&str] = &[
-    "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source",
-    "track", "wbr", "vr",
-];
-
-fn is_void_tag(tag: &str) -> bool {
-    VOID_TAGS.contains(&tag)
+/// Where a character reference sits. HTML §13.2.5.73 leaves a legacy
+/// no-semicolon reference literal inside an attribute value when `=` or
+/// an alphanumeric follows it (`?a=1&copy=2`).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum RefContext {
+    Text,
+    Attribute,
 }
 
 /// Parse `template` into a fresh `Dom<Ext>` with a Fragment root. The
@@ -256,7 +255,7 @@ impl<'a> Parser<'a> {
             match self.peek() {
                 None | Some(b'<') => break,
                 Some(b'&') => {
-                    out.push_str(&self.parse_entity()?);
+                    out.push_str(&self.parse_entity(RefContext::Text)?);
                 }
                 _ => unreachable!(),
             }
@@ -389,13 +388,13 @@ impl<'a> Parser<'a> {
 
     // ── Entity ─────────────────────────────────────────────────────
 
-    fn parse_entity(&mut self) -> Result<String> {
-        // We've seen '&'. One scanner for the text path and the RCDATA
-        // path (`scan_reference`), so both agree on what a reference
-        // looks like; unknown or malformed input keeps the `&` literal
-        // (lenient, as browsers flush the raw characters).
+    fn parse_entity(&mut self, context: RefContext) -> Result<String> {
+        // We've seen '&'. One scanner for the text path, the RCDATA path
+        // and attribute values (`scan_reference`), so all agree on what a
+        // reference looks like; unknown or malformed input keeps the `&`
+        // literal (as browsers flush the raw characters).
         debug_assert_eq!(self.peek(), Some(b'&'));
-        match scan_reference(&self.src[self.pos + 1..]) {
+        match scan_reference(&self.src[self.pos + 1..], context) {
             Some((decoded, consumed)) => {
                 self.advance_n(1 + consumed);
                 Ok(decoded)
@@ -455,7 +454,7 @@ impl<'a> Parser<'a> {
         }
 
         // Void tag? Done.
-        if is_void_tag(&tag_lc) {
+        if is_void_element(&tag_lc) {
             dom.append_child(parent, element)
                 .map_err(|e| self.err(format!("failed to append <{}>: {:?}", tag_lc, e)))?;
             return Ok(element);
@@ -620,7 +619,7 @@ impl<'a> Parser<'a> {
                     return Ok(out);
                 }
                 Some(b'&') => {
-                    out.push_str(&self.parse_entity()?);
+                    out.push_str(&self.parse_entity(RefContext::Attribute)?);
                 }
                 _ => unreachable!(),
             }
@@ -641,7 +640,7 @@ impl<'a> Parser<'a> {
                 out.push_str(&self.src[slice_start..self.pos]);
             }
             match self.peek() {
-                Some(b'&') => out.push_str(&self.parse_entity()?),
+                Some(b'&') => out.push_str(&self.parse_entity(RefContext::Attribute)?),
                 _ => break,
             }
         }
@@ -656,68 +655,135 @@ impl<'a> Parser<'a> {
 
 // ─── Entity decoding ────────────────────────────────────────────────
 
-/// Decode an entity body (chars between `&` and `;`). Returns `None`
-/// for unrecognized input — caller emits the `&` literal.
-fn decode_entity_body(body: &str) -> Option<String> {
-    if let Some(rest) = body.strip_prefix('#') {
-        // Digits only (no sign); a value that overflows `u32` is still
-        // "a number above U+10FFFF" and yields U+FFFD (§13.2.5.80).
-        let (digits, radix) = match rest.strip_prefix('x').or_else(|| rest.strip_prefix('X')) {
-            Some(hex) => (hex, 16),
-            None => (rest, 10),
-        };
-        if digits.is_empty() || !digits.bytes().all(|b| (b as char).is_digit(radix)) {
-            return None;
-        }
-        let n = u32::from_str_radix(digits, radix).unwrap_or(u32::MAX);
-        // HTML §13.2.5.80: U+0000, surrogates, and code points above
-        // U+10FFFF are parse errors that yield U+FFFD.
-        let c = match n {
-            0 | 0xD800..=0xDFFF => '\u{FFFD}',
-            _ => char::from_u32(n).unwrap_or('\u{FFFD}'),
-        };
-        return Some(c.to_string());
+/// HTML §13.2.5.80: the C1 control range 0x80–0x9F is remapped to the
+/// Windows-1252 code points (`&#146;` is `’`, `&#150;` is `–`); the five
+/// unmapped positions (0x81, 0x8D, 0x8F, 0x90, 0x9D) pass through.
+const C1_REMAP: [(u32, char); 27] = [
+    (0x80, '\u{20AC}'),
+    (0x82, '\u{201A}'),
+    (0x83, '\u{0192}'),
+    (0x84, '\u{201E}'),
+    (0x85, '\u{2026}'),
+    (0x86, '\u{2020}'),
+    (0x87, '\u{2021}'),
+    (0x88, '\u{02C6}'),
+    (0x89, '\u{2030}'),
+    (0x8A, '\u{0160}'),
+    (0x8B, '\u{2039}'),
+    (0x8C, '\u{0152}'),
+    (0x8E, '\u{017D}'),
+    (0x91, '\u{2018}'),
+    (0x92, '\u{2019}'),
+    (0x93, '\u{201C}'),
+    (0x94, '\u{201D}'),
+    (0x95, '\u{2022}'),
+    (0x96, '\u{2013}'),
+    (0x97, '\u{2014}'),
+    (0x98, '\u{02DC}'),
+    (0x99, '\u{2122}'),
+    (0x9A, '\u{0161}'),
+    (0x9B, '\u{203A}'),
+    (0x9C, '\u{0153}'),
+    (0x9E, '\u{017E}'),
+    (0x9F, '\u{0178}'),
+];
+
+/// Decode the digits of a numeric reference per HTML §13.2.5.80: U+0000,
+/// surrogates and values above U+10FFFF (including anything that
+/// overflows `u32`) yield U+FFFD; the C1 range is remapped.
+fn decode_numeric(digits: &str, radix: u32) -> char {
+    let n = u32::from_str_radix(digits, radix).unwrap_or(u32::MAX);
+    match n {
+        0 | 0xD800..=0xDFFF => '\u{FFFD}',
+        0x80..=0x9F => C1_REMAP
+            .iter()
+            .find(|(from, _)| *from == n)
+            .map_or_else(|| char::from_u32(n).unwrap_or('\u{FFFD}'), |(_, to)| *to),
+        _ => char::from_u32(n).unwrap_or('\u{FFFD}'),
     }
-    NAMED_REFERENCES
-        .binary_search_by(|(name, _)| (*name).cmp(body))
-        .ok()
-        .map(|i| NAMED_REFERENCES[i].1.to_string())
 }
 
-/// Scan a character reference whose `&` has just been consumed:
-/// `after_amp` starts right after it. Returns the decoded text and the
-/// number of bytes to consume (body plus `;`) when `after_amp` starts
-/// with 1..=16 name / digit / `#` / hex-marker characters followed by
-/// `;` and the body decodes; `None` otherwise (caller keeps `&`).
-fn scan_reference(after_amp: &str) -> Option<(String, usize)> {
+/// Look `name` (without `&`, with or without `;`) up in the WHATWG table.
+fn named_reference(name: &str) -> Option<&'static str> {
+    NAMED_REFERENCES
+        .binary_search_by(|(n, _)| (*n).cmp(name))
+        .ok()
+        .map(|i| NAMED_REFERENCES[i].1)
+}
+
+/// Scan a character reference whose `&` has just been consumed
+/// (`after_amp` starts right after it). Returns the decoded text and the
+/// number of bytes to consume, or `None` when the caller should keep the
+/// `&` literal. HTML §13.2.5.72–80:
+///
+/// - numeric: `#` + digits (or `#x` + hex digits), an optional `;`;
+/// - named: the *longest* table prefix wins, so `&notit;` is `¬it;`
+///   (the legacy `not`) and `&notin;` is `∉`;
+/// - a legacy (no-`;`) match inside an attribute value is left literal
+///   when the next character is `=` or alphanumeric, so query strings
+///   like `?a=1&copy=2` survive.
+fn scan_reference(after_amp: &str, context: RefContext) -> Option<(String, usize)> {
     let bytes = after_amp.as_bytes();
-    let mut end = None;
-    for (i, &b) in bytes.iter().enumerate().take(17) {
-        if b == b';' {
-            end = Some(i);
-            break;
+    if bytes.first() == Some(&b'#') {
+        // Decimal / hexadecimal character reference states consume digits
+        // of their radix only; whatever follows (`;` or not) is left for
+        // the caller (`&#65abc;` → `A` + `abc;`).
+        let (start, radix): (usize, u32) = match bytes.get(1) {
+            Some(b'x' | b'X') => (2, 16),
+            _ => (1, 10),
+        };
+        let mut n = start;
+        while n < bytes.len() && (bytes[n] as char).is_digit(radix) {
+            n += 1;
         }
-        if !(b.is_ascii_alphanumeric() || b == b'#') {
+        if n == start {
             return None;
         }
+        let c = decode_numeric(&after_amp[start..n], radix);
+        let consumed = if bytes.get(n) == Some(&b';') {
+            n + 1
+        } else {
+            n
+        };
+        return Some((c.to_string(), consumed));
     }
-    let end = end?;
-    if end == 0 {
+    let mut n = 0;
+    while n < bytes.len() && n < LONGEST_NAME && bytes[n].is_ascii_alphanumeric() {
+        n += 1;
+    }
+    if n == 0 {
         return None;
     }
-    let decoded = decode_entity_body(&after_amp[..end])?;
-    Some((decoded, end + 1))
+    if bytes.get(n) == Some(&b';')
+        && let Some(v) = named_reference(&after_amp[..=n])
+    {
+        return Some((v.to_string(), n + 1));
+    }
+    // Only legacy names can match without `;`, and they are short.
+    for len in (1..=n.min(LONGEST_LEGACY_NAME)).rev() {
+        let Some(v) = named_reference(&after_amp[..len]) else {
+            continue;
+        };
+        if context == RefContext::Attribute
+            && let Some(&next) = bytes.get(len)
+            && (next == b'=' || next.is_ascii_alphanumeric())
+        {
+            return None;
+        }
+        return Some((v.to_string(), len));
+    }
+    None
 }
 
-/// Decode every `&…;` reference in `text` (RCDATA bodies) with the same
-/// scanner the text path uses.
+/// Decode every character reference in `text` (RCDATA bodies) with the
+/// same scanner the text path uses.
 fn decode_character_references(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     let mut rest = text;
     while let Some(amp) = rest.find('&') {
         out.push_str(&rest[..amp]);
         let after = &rest[amp + 1..];
-        match scan_reference(after) {
+        match scan_reference(after, RefContext::Text) {
             Some((decoded, consumed)) => {
                 out.push_str(&decoded);
                 rest = &after[consumed..];
@@ -732,110 +798,6 @@ fn decode_character_references(text: &str) -> String {
     out
 }
 
-/// The named character references a template author is likely to type.
-/// Sorted by name for binary search; the full HTML table has 2 231
-/// entries and is not worth its size for a TUI template language.
-const NAMED_REFERENCES: &[(&str, &str)] = &[
-    ("AElig", "\u{C6}"),
-    ("Aacute", "\u{C1}"),
-    ("Agrave", "\u{C0}"),
-    ("Auml", "\u{C4}"),
-    ("Ccedil", "\u{C7}"),
-    ("Dagger", "\u{2021}"),
-    ("Eacute", "\u{C9}"),
-    ("Egrave", "\u{C8}"),
-    ("Ntilde", "\u{D1}"),
-    ("Oslash", "\u{D8}"),
-    ("Ouml", "\u{D6}"),
-    ("Prime", "\u{2033}"),
-    ("Uuml", "\u{DC}"),
-    ("aacute", "\u{E1}"),
-    ("acute", "\u{B4}"),
-    ("aelig", "\u{E6}"),
-    ("agrave", "\u{E0}"),
-    ("amp", "&"),
-    ("apos", "'"),
-    ("aring", "\u{E5}"),
-    ("asymp", "\u{2248}"),
-    ("auml", "\u{E4}"),
-    ("bdquo", "\u{201E}"),
-    ("brvbar", "\u{A6}"),
-    ("bull", "\u{2022}"),
-    ("ccedil", "\u{E7}"),
-    ("cedil", "\u{B8}"),
-    ("cent", "\u{A2}"),
-    ("check", "\u{2713}"),
-    ("clubs", "\u{2663}"),
-    ("copy", "\u{A9}"),
-    ("crarr", "\u{21B5}"),
-    ("curren", "\u{A4}"),
-    ("dagger", "\u{2020}"),
-    ("darr", "\u{2193}"),
-    ("deg", "\u{B0}"),
-    ("diams", "\u{2666}"),
-    ("divide", "\u{F7}"),
-    ("eacute", "\u{E9}"),
-    ("egrave", "\u{E8}"),
-    ("equiv", "\u{2261}"),
-    ("euro", "\u{20AC}"),
-    ("frac12", "\u{BD}"),
-    ("frac14", "\u{BC}"),
-    ("frac34", "\u{BE}"),
-    ("ge", "\u{2265}"),
-    ("gt", ">"),
-    ("harr", "\u{2194}"),
-    ("hearts", "\u{2665}"),
-    ("hellip", "\u{2026}"),
-    ("iexcl", "\u{A1}"),
-    ("infin", "\u{221E}"),
-    ("iquest", "\u{BF}"),
-    ("laquo", "\u{AB}"),
-    ("larr", "\u{2190}"),
-    ("ldquo", "\u{201C}"),
-    ("le", "\u{2264}"),
-    ("loz", "\u{25CA}"),
-    ("lsaquo", "\u{2039}"),
-    ("lsquo", "\u{2018}"),
-    ("lt", "<"),
-    ("macr", "\u{AF}"),
-    ("mdash", "\u{2014}"),
-    ("micro", "\u{B5}"),
-    ("middot", "\u{B7}"),
-    ("minus", "\u{2212}"),
-    ("nbsp", "\u{A0}"),
-    ("ndash", "\u{2013}"),
-    ("ne", "\u{2260}"),
-    ("not", "\u{AC}"),
-    ("ntilde", "\u{F1}"),
-    ("oslash", "\u{F8}"),
-    ("ouml", "\u{F6}"),
-    ("para", "\u{B6}"),
-    ("permil", "\u{2030}"),
-    ("plusmn", "\u{B1}"),
-    ("pound", "\u{A3}"),
-    ("prime", "\u{2032}"),
-    ("quot", "\""),
-    ("raquo", "\u{BB}"),
-    ("rarr", "\u{2192}"),
-    ("rdquo", "\u{201D}"),
-    ("reg", "\u{AE}"),
-    ("rsaquo", "\u{203A}"),
-    ("rsquo", "\u{2019}"),
-    ("sbquo", "\u{201A}"),
-    ("sect", "\u{A7}"),
-    ("shy", "\u{AD}"),
-    ("spades", "\u{2660}"),
-    ("sup2", "\u{B2}"),
-    ("sup3", "\u{B3}"),
-    ("szlig", "\u{DF}"),
-    ("times", "\u{D7}"),
-    ("trade", "\u{2122}"),
-    ("uarr", "\u{2191}"),
-    ("uml", "\u{A8}"),
-    ("uuml", "\u{FC}"),
-    ("yen", "\u{A5}"),
-];
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -844,10 +806,51 @@ mod tests {
         parse(s).unwrap()
     }
 
-    /// `decode_entity_body` binary-searches the table, so it must stay
-    /// byte-sorted and free of duplicates.
+    /// `named_reference` binary-searches the generated table, so it must
+    /// stay byte-sorted and free of duplicates, and it must be the whole
+    /// WHATWG list (2 231 entries, 106 legacy names without `;`).
+    /// Numeric edge cases from HTML §13.2.5.75–80: no digits → literal;
+    /// a missing `;` still decodes; the scan stops at the first non-digit.
     #[test]
-    fn named_reference_table_is_sorted_and_unique() {
+    fn numeric_reference_scanner_edges() {
+        let text = |s: &str| scan_reference(s, RefContext::Text);
+        assert_eq!(text("#;x"), None);
+        assert_eq!(text("#x;"), None);
+        assert_eq!(text("#"), None);
+        assert_eq!(text("#65 rest"), Some(("A".to_string(), 3)));
+        assert_eq!(text("#65;"), Some(("A".to_string(), 4)));
+        assert_eq!(text("#65abc;"), Some(("A".to_string(), 3)));
+        assert_eq!(text("#x41g"), Some(("A".to_string(), 4)));
+        assert_eq!(text("#X41;"), Some(("A".to_string(), 5)));
+        assert_eq!(text("#150;"), Some(("\u{2013}".to_string(), 5)));
+        assert_eq!(text("#129;"), Some(("\u{81}".to_string(), 5)));
+    }
+
+    /// Named edge cases: longest prefix, case sensitivity, the attribute
+    /// caveat only for legacy names, and the legacy-length bound.
+    #[test]
+    fn named_reference_scanner_edges() {
+        let text = |s: &str| scan_reference(s, RefContext::Text);
+        let attr = |s: &str| scan_reference(s, RefContext::Attribute);
+        assert_eq!(text("notit;"), Some(("\u{AC}".to_string(), 3)));
+        assert_eq!(text("notin;"), Some(("\u{2209}".to_string(), 6)));
+        assert_eq!(text("Amp;"), None, "names are case-sensitive");
+        assert_eq!(text("AMP;"), Some(("&".to_string(), 4)));
+        assert_eq!(attr("copy=2"), None);
+        assert_eq!(attr("copyx"), None);
+        assert_eq!(attr("copy 2"), Some(("\u{A9}".to_string(), 4)));
+        assert_eq!(attr("copy;=2"), Some(("\u{A9}".to_string(), 5)));
+        assert_eq!(text("ThisIsNotAReferenceAtAllButLong;"), None);
+    }
+
+    #[test]
+    fn named_reference_table_is_the_full_sorted_whatwg_list() {
+        assert_eq!(NAMED_REFERENCES.len(), 2231);
+        let legacy = NAMED_REFERENCES
+            .iter()
+            .filter(|(n, _)| !n.ends_with(';'))
+            .count();
+        assert_eq!(legacy, 106);
         for w in NAMED_REFERENCES.windows(2) {
             assert!(
                 w[0].0 < w[1].0,
@@ -856,6 +859,11 @@ mod tests {
                 w[1].0
             );
         }
+        assert!(
+            NAMED_REFERENCES
+                .iter()
+                .all(|(n, _)| n.len() <= LONGEST_NAME)
+        );
     }
 
     // ── Basic elements ───────────────────────────────────────────────

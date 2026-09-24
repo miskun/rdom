@@ -12,6 +12,12 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 ### Breaking — `rdom-core`
 
 - `InvariantViolation::GenerationTableMismatch` is gone: the slot generation now lives in the slot (`CORE-GEN-COLOCATE-1`), so there is no parallel table to disagree.
+- `vr` is no longer serialized as a void element; the void list is exactly HTML §13.3's (`area base basefont bgsound br col embed frame hr img input keygen link meta param source track wbr`), exported as `rdom_core::VOID_ELEMENTS` / `is_void_element` and shared with `rdom-parser` (`PARSER-VOID-TAGS-1`).
+
+### Breaking — `rdom-parser`
+
+- **The full WHATWG named-character-reference table** (2 231 entries) replaces the ~100-entry subset, with HTML's longest-prefix matching and the 106 legacy no-semicolon names: `&amp`, `&copy`, `&nbsp` … now decode in text (and in attribute values unless followed by `=` or an alphanumeric, so `?a=1&copy=2` is unchanged). `&notit;` is `¬it;` as in browsers. Numeric references without `;` (`&#65`) also decode. (`PARSER-ENTITIES-1`)
+- `<vr>` is parsed as an ordinary element (it needs an end tag), not a void one.
 
 ### Fixed — `rdom-core`
 

@@ -453,10 +453,12 @@ fn named_and_numeric_character_references() {
         only_text(&dom, ids[0]),
         "\u{A9} 2026 \u{2014} \u{2026} \u{AB}x\u{BB} \u{D7} \u{20AC}\u{A0}\u{2122}"
     );
+    // `&amp` without `;` is a legacy name HTML still decodes in text;
+    // `&bogus;` is unknown and stays literal.
     let (dom, ids) = p("<p>&bogus; &amp &#0; &#xD800; &#x1F600;</p>");
     assert_eq!(
         only_text(&dom, ids[0]),
-        "&bogus; &amp \u{FFFD} \u{FFFD} \u{1F600}"
+        "&bogus; & \u{FFFD} \u{FFFD} \u{1F600}"
     );
 }
 
@@ -562,4 +564,44 @@ fn textarea_drops_a_leading_newline() {
     assert_eq!(only_text(&dom, ids[0]), "foo\nbar");
     let (dom, ids) = p("<textarea>\n</textarea>");
     assert_eq!(dom.node(ids[0]).child_nodes().count(), 0);
+}
+
+/// `PARSER-ENTITIES-1`: the full WHATWG table, including the legacy
+/// names that decode without `;` in text (HTML §13.2.5.73) — but not in
+/// an attribute value when the next character is `=` or alphanumeric,
+/// so `?a=1&copy=2` style URLs survive.
+#[test]
+fn full_named_reference_table_and_legacy_no_semicolon_names() {
+    let (dom, ids) = parse::<()>(
+        "<p title=\"?x=1&copy=2 &copy 2026 &notin;\">&copy 2026 &CounterClockwiseContourIntegral; &notit; &frac12</p>",
+    )
+    .unwrap();
+    let p = dom.node(ids[0]);
+    assert_eq!(
+        p.text_content(),
+        "\u{A9} 2026 \u{2233} \u{AC}it; \u{BD}",
+        "text: legacy `&copy` and `&not` (longest-prefix) decode; a very long modern name decodes"
+    );
+    assert_eq!(
+        p.get_attribute("title"),
+        Some("?x=1&copy=2 \u{A9} 2026 \u{2209}"),
+        "attribute: `&copy=` stays literal, `&copy ` and `&notin;` decode"
+    );
+}
+
+/// HTML §13.2.5.80 numeric-character-reference-end state: the C1 range
+/// 0x80–0x9F maps to the Windows-1252 code points (legacy Word / web
+/// markup uses `&#146;` for `’` and `&#150;` for `–` constantly), and
+/// the decimal / hex states consume digits only, so `&#65abc;` is
+/// `Aabc;` and `&#x41g` is `Ag`.
+#[test]
+fn numeric_references_remap_c1_controls_and_stop_at_non_digits() {
+    let (dom, ids) = parse::<()>("<p>&#146;&#150;&#128;&#x9F; &#65abc; &#x41g &#159;</p>").unwrap();
+    assert_eq!(
+        dom.node(ids[0]).text_content(),
+        "\u{2019}\u{2013}\u{20AC}\u{178} Aabc; Ag \u{178}"
+    );
+    // 0x81, 0x8D, 0x8F, 0x90, 0x9D have no remap and stay as-is.
+    let (dom, ids) = parse::<()>("<p>&#129;</p>").unwrap();
+    assert_eq!(dom.node(ids[0]).text_content(), "\u{81}");
 }

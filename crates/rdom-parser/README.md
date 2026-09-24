@@ -38,7 +38,7 @@ let children = parse_into(&mut dom, "<h1>Title</h1><p>Body</p>", body)?;
 - Void elements (`<br>`, `<hr>`, `<img>`, `<input>`, …) auto-close
 - Attributes: `name="value"`, `name='value'`, `name=value`, `name` (boolean)
 - `class="a b c"` populates the classList
-- Text with character references: ~100 common named references (`&amp;`, `&lt;`, `&copy;`, `&mdash;`, `&hellip;`, …) plus `&#NNN;` / `&#xHH;`; invalid numeric references decode to U+FFFD
+- Text with character references: the full WHATWG named table (2 231 entries, legacy no-`;` names like `&amp` and `&copy` included, with HTML's attribute-value rule) plus `&#NNN;` / `&#xHH;`; invalid numeric references decode to U+FFFD
 - A `<` not followed by a letter, `/`, `!`, or `?` is text — `a < b` needs no escaping
 - `<style>` / `<script>` bodies are raw text; `<textarea>` / `<title>` bodies are RCDATA
 - Comments: `<!-- … -->` preserved as Comment nodes; `<?…>` and non-DOCTYPE `<!…>` become Comment nodes too
@@ -49,7 +49,6 @@ let children = parse_into(&mut dom, "<h1>Title</h1><p>Body</p>", body)?;
 
 - Tree-construction recovery — a mismatched, missing, or stray end tag is an error, not auto-repaired
 - CDATA sections as CDATA (they become bogus comments), namespace prefixes
-- The full named-reference table and legacy no-semicolon references
 
 ## Error reporting
 
@@ -99,4 +98,4 @@ rdom-tui's [`parse_and_render` example](../rdom-tui/examples/parse_and_render.rs
 cargo test -p rdom-parser
 ```
 
-119 tests covering parsing, entity decoding, nesting, errors, round-tripping, realistic template snippets, and Unicode content.
+Unit, integration and doc tests covering parsing, entity decoding, nesting, errors, round-tripping, realistic template snippets, and Unicode content.

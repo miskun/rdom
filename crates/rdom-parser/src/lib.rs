@@ -26,9 +26,11 @@
 //! - Void elements (`<br>`, `<hr>`, `<img>`, …) auto-close
 //! - Attributes: `name="value"`, `name='value'`, `name=value`, `name`
 //!   (boolean). `class="a b c"` populates the classList.
-//! - Text with character references: the common named ones (`&amp;
-//!   &lt; &copy; &mdash; …`, ~100) plus `&#NNN;` / `&#xHH;`; U+0000,
-//!   surrogates and out-of-range values decode to U+FFFD
+//! - Text with character references: the full WHATWG named table
+//!   (2 231 entries, including the legacy no-`;` names such as `&amp`
+//!   and `&copy`, with HTML's attribute-value caveat) plus `&#NNN;` /
+//!   `&#xHH;`; U+0000, surrogates and out-of-range values decode to
+//!   U+FFFD
 //! - A `<` not followed by an ASCII letter, `/`, `!`, or `?` is text
 //!   (`a < b` needs no escaping)
 //! - `<style>` / `<script>` bodies are raw text; `<textarea>` /
@@ -45,8 +47,6 @@
 //!   prefixes
 //! - Tree-construction recovery: a mismatched or missing end tag, or a
 //!   stray end tag at the top level, is an error, not auto-repaired
-//! - The full 2 231-entry named-reference table and the legacy
-//!   no-semicolon references (`&amp` without `;` stays literal)
 //!
 //! ## Error reporting
 //!
@@ -61,6 +61,7 @@
 //! ```
 
 mod dom_ext;
+mod entities;
 mod error;
 mod parser;
 

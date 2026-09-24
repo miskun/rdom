@@ -9,15 +9,19 @@ use crate::dom::Dom;
 use crate::node::NodeData;
 use crate::node_id::NodeId;
 
-/// HTML5 void elements — never have children, always self-close.
-/// Extended slightly to include terminal-oriented tags like `hr` / `vr`.
-const VOID_TAGS: &[&str] = &[
-    "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source",
-    "track", "wbr", "vr",
+/// The void elements of HTML §13.3 (serialization) — elements that
+/// never have children and are serialized without an end tag. Shared
+/// with `rdom-parser`, which treats a start tag of one of these as the
+/// whole element; keeping one list means what the parser accepts is
+/// exactly what the serializer emits.
+pub const VOID_ELEMENTS: &[&str] = &[
+    "area", "base", "basefont", "bgsound", "br", "col", "embed", "frame", "hr", "img", "input",
+    "keygen", "link", "meta", "param", "source", "track", "wbr",
 ];
 
-fn is_void_tag(tag: &str) -> bool {
-    VOID_TAGS.contains(&tag)
+/// Is `tag` (lowercase) one of [`VOID_ELEMENTS`]?
+pub fn is_void_element(tag: &str) -> bool {
+    VOID_ELEMENTS.contains(&tag)
 }
 
 /// Entity-encode a string for use inside an attribute value or text node.
@@ -143,7 +147,7 @@ impl<Ext> Dom<Ext> {
                     }
                 }
 
-                if is_void_tag(tag) && node.first_child.is_none() {
+                if is_void_element(tag) && node.first_child.is_none() {
                     out.push_str("/>");
                     return;
                 }
@@ -250,6 +254,23 @@ mod tests {
         let t = dom.create_text_node("<b>&");
         dom.append_child(ta, t).unwrap();
         assert_eq!(dom.outer_markup(ta), "<textarea>&lt;b&gt;&amp;</textarea>");
+    }
+
+    /// `PARSER-VOID-TAGS-1`: one exported list, exactly HTML §13.3's
+    /// void elements. `vr` was never an HTML element.
+    #[test]
+    fn void_elements_are_the_html_serialization_set() {
+        let expected = [
+            "area", "base", "basefont", "bgsound", "br", "col", "embed", "frame", "hr", "img",
+            "input", "keygen", "link", "meta", "param", "source", "track", "wbr",
+        ];
+        assert_eq!(crate::VOID_ELEMENTS, &expected);
+        assert!(crate::is_void_element("br"));
+        assert!(!crate::is_void_element("vr"));
+        assert!(!crate::is_void_element("div"));
+        let mut dom: Dom = Dom::new();
+        let vr = dom.create_element("vr");
+        assert_eq!(dom.outer_markup(vr), "<vr></vr>");
     }
 
     #[test]
