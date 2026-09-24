@@ -1011,3 +1011,131 @@ fn scrolled_ifc_block_hits_the_fragment_owner_visible_on_that_row() {
         "scrolled by two: the third line's link is on row 0"
     );
 }
+
+// ── Stacking contexts (CSS 2.1 Appendix E; D-M2-3 / D-M2-4) ────────
+
+fn abs_box() -> TuiStyle {
+    TuiStyle::new()
+        .position(crate::layout::Position::Absolute)
+        .top(crate::layout::Length::Cells(0))
+        .left(crate::layout::Length::Cells(0))
+        .width(Size::Fixed(3))
+        .height(Size::Fixed(1))
+}
+
+/// `D-M2-3`: the click goes to the higher sibling context, not to the
+/// `z: 100` descendant of the lower one.
+#[test]
+fn nested_context_click_goes_to_the_higher_sibling_context() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let a = dom.create_element("a");
+    let a1 = dom.create_element("a1");
+    let b = dom.create_element("b");
+    dom.append_child(a, a1).unwrap();
+    dom.append_child(root, a).unwrap();
+    dom.append_child(root, b).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked("a", abs_box().z_index(crate::layout::ZIndex::Value(1)))
+        .rule_unchecked("a1", abs_box().z_index(crate::layout::ZIndex::Value(100)))
+        .rule_unchecked("b", abs_box().z_index(crate::layout::ZIndex::Value(2)));
+    prepare(&mut dom, &sheet, Rect::new(0, 0, 10, 5));
+    assert_eq!(dom.hit_test(1, 0), Some(b));
+}
+
+/// `D-M2-4`: a negative `z-index` sits under the context's in-flow
+/// content but over the context's own box.
+#[test]
+fn negative_z_click_falls_to_in_flow_content_above_it() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let wrap = dom.create_element("wrap");
+    let c = dom.create_element("c");
+    let n = dom.create_element("n");
+    dom.append_child(wrap, c).unwrap();
+    dom.append_child(wrap, n).unwrap();
+    dom.append_child(root, wrap).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "wrap",
+            TuiStyle::new()
+                .position(crate::layout::Position::Relative)
+                .z_index(crate::layout::ZIndex::Value(0))
+                .width(Size::Fixed(10))
+                .height(Size::Fixed(2)),
+        )
+        .rule_unchecked(
+            "c",
+            TuiStyle::new().width(Size::Fixed(5)).height(Size::Fixed(1)),
+        )
+        .rule_unchecked(
+            "n",
+            abs_box()
+                .width(Size::Fixed(10))
+                .z_index(crate::layout::ZIndex::Value(-1)),
+        );
+    prepare(&mut dom, &sheet, Rect::new(0, 0, 10, 5));
+    assert_eq!(dom.hit_test(1, 0), Some(c), "in-flow content above z:-1");
+    assert_eq!(
+        dom.hit_test(7, 0),
+        Some(n),
+        "z:-1 above the context's own box"
+    );
+}
+
+/// Appendix E layer 6: a `position: relative` box catches the click
+/// over a later in-flow sibling it overlaps.
+#[test]
+fn relative_element_catches_click_over_a_later_sibling() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let wrap = dom.create_element("wrap");
+    let r = dom.create_element("r");
+    let s = dom.create_element("s");
+    dom.append_child(wrap, r).unwrap();
+    dom.append_child(wrap, s).unwrap();
+    dom.append_child(root, wrap).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked("wrap", TuiStyle::new().width(Size::Fixed(10)))
+        .rule_unchecked(
+            "r",
+            TuiStyle::new()
+                .position(crate::layout::Position::Relative)
+                .top(crate::layout::Length::Cells(1))
+                .height(Size::Fixed(1)),
+        )
+        .rule_unchecked("s", TuiStyle::new().height(Size::Fixed(1)));
+    prepare(&mut dom, &sheet, Rect::new(0, 0, 10, 5));
+    assert_eq!(dom.hit_test(1, 1), Some(r));
+}
+
+/// CSS 2.1 §11.1.1: an absolutely positioned box clipped by a scroll
+/// container above its containing block is not hittable there.
+#[test]
+fn absolute_clipped_by_a_scroll_container_is_not_hittable_outside_it() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let list = dom.create_element("list");
+    let item = dom.create_element("item");
+    let pop = dom.create_element("pop");
+    dom.append_child(item, pop).unwrap();
+    dom.append_child(list, item).unwrap();
+    dom.append_child(root, list).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "list",
+            TuiStyle::new()
+                .width(Size::Fixed(10))
+                .height(Size::Fixed(2))
+                .overflow(Overflow::Hidden),
+        )
+        .rule_unchecked(
+            "item",
+            TuiStyle::new()
+                .position(crate::layout::Position::Relative)
+                .height(Size::Fixed(1)),
+        )
+        .rule_unchecked("pop", abs_box().top(crate::layout::Length::Cells(4)));
+    prepare(&mut dom, &sheet, Rect::new(0, 0, 10, 8));
+    assert_eq!(dom.hit_test(0, 4), None);
+}

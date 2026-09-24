@@ -48,11 +48,15 @@ use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
 use crate::ext::TuiExt;
-use crate::layout::{LayoutRect, Overflow};
+use crate::layout::LayoutRect;
 use crate::node::TuiNodeExt;
+use crate::render::Rect;
 use crate::render::inline::{InlineFragment, has_inline_layout};
-use crate::render::layout_pass::{is_in_flow, positioned_z_list};
+use crate::render::stacking::{
+    LayerEntry, children_clip, collect_layers, creates_stacking_context, is_positioned,
+};
 use crate::runtime::selection::user_select;
+use crate::style::ComputedStyle;
 
 /// Extension trait adding hit-test lookup to `Dom<TuiExt>`.
 pub trait HitTestExt {
@@ -116,27 +120,11 @@ impl HitTestExt for Dom<TuiExt> {
 
     fn hit_test_path(&self, x: u16, y: u16) -> Vec<NodeId> {
         let mut path = Vec::new();
-        // M2 §12.9-12.10: try positioned elements first, in
-        // reverse paint order (= reverse z-index, with reverse
-        // document order as tiebreak). The first whose layout
-        // rect contains (x, y) catches the click. `descend` then
-        // recurses into the subtree as normal — non-positioned
-        // descendants flow through, nested positioned descendants
-        // are skipped (they get their own iteration of this same
-        // loop).
-        let positioned = collect_positioned_reverse_z(self);
-        for id in positioned {
-            if let Some(rect) = self.node(id).layout_rect()
-                && rect_contains(rect, x, y)
-                && descend(self, id, x, y, &mut path)
-            {
-                return path;
-            }
-        }
-        // No positioned hit — fall back to the document-order
-        // walk over in-flow content. `descend_children_reverse`
-        // skips positioned children for the same reason.
-        descend(self, self.root(), x, y, &mut path);
+        // Reverse paint order through the stacking contexts (CSS 2.1
+        // Appendix E; `render::stacking`). Hit-testing has no viewport
+        // of its own: overflow ancestors are the only clips.
+        let unclipped = Rect::new(0, 0, u16::MAX, u16::MAX);
+        hit_stacking_context(self, self.root(), x, y, unclipped, unclipped, &mut path);
         path
     }
 
@@ -454,144 +442,207 @@ fn clamp_to_line_layout(
 /// rooted at `id`. Returns `true` when at least one node was added
 /// at this level or deeper (lets the caller skip trying earlier
 /// siblings).
-fn descend(dom: &Dom<TuiExt>, id: NodeId, x: u16, y: u16, path: &mut Vec<NodeId>) -> bool {
-    let ty = dom.node(id).node_type();
-
-    // Fragment (the default root): no box of its own, recurse into
-    // element children in reverse document order.
-    if ty == NodeType::Fragment {
-        return descend_children_reverse(dom, id, x, y, path);
-    }
-
-    if ty != NodeType::Element {
+/// Hit-test the stacking context rooted at `root` in reverse paint
+/// order: child contexts with positive `z-index` (highest first), the
+/// `z-index: auto | 0` layer in reverse tree order, the root's in-flow
+/// content, child contexts with negative `z-index`, and finally the
+/// root's own box. `clip` is the region the context paints into.
+fn hit_stacking_context(
+    dom: &Dom<TuiExt>,
+    root: NodeId,
+    x: u16,
+    y: u16,
+    clip: Rect,
+    viewport: Rect,
+    path: &mut Vec<NodeId>,
+) -> bool {
+    if !clip.contains(x, y) {
         return false;
     }
-
-    // `display: none` generates no boxes per CSS Display 3 §2.5. The
-    // layout pass leaves these elements with stale rects from the
-    // last cascade in which they DID lay out (e.g. a `<details>` child
-    // that was visible when `[open]` was set, then hidden when `open`
-    // was removed — the pre's old open-state rect lingers). Hit-test
-    // must skip them or stale rects catch clicks meant for the
-    // elements actually painted at those cells (regression repro:
-    // `<details>` expand → collapse → expand failed because the hidden
-    // `<pre>`'s stale rect intercepted the third click).
-    let display = dom
-        .node(id)
-        .computed()
-        .map(|c| c.display)
-        .unwrap_or(crate::layout::Display::Block);
-    if matches!(display, crate::layout::Display::None) {
-        return false;
+    let root_box = element_box(dom, root);
+    if dom.node(root).node_type() == NodeType::Element && root_box.is_none() {
+        return false; // `display: none`
     }
-
-    // Element — check containment against its outer layout rect.
-    let outer = match dom.node(id).layout_rect() {
-        Some(r) if rect_contains(r, x, y) => r,
-        _ => return false,
+    let content_clip = root_box
+        .as_ref()
+        .map_or(clip, |(c, _)| children_clip(dom, root, c, clip));
+    let layers = collect_layers(dom, root, content_clip, viewport);
+    if hit_layers(dom, &layers.positive, x, y, viewport, path)
+        || hit_layers(dom, &layers.zero_auto, x, y, viewport, path)
+    {
+        return true;
+    }
+    let Some((computed, outer)) = root_box else {
+        // The document root: in-flow content, then the negative layer.
+        return descend_children_reverse(dom, root, x, y, content_clip, viewport, path)
+            || hit_layers(dom, &layers.negative, x, y, viewport, path);
     };
+    let contains = rect_contains(outer, x, y);
+    let transparent = computed.pointer_events == crate::layout::PointerEvents::None;
+    if contains && content_clip.contains(x, y) {
+        let mark = path.len();
+        if !transparent {
+            path.push(root);
+        }
+        if hit_content(dom, root, x, y, content_clip, viewport, path) {
+            return true;
+        }
+        path.truncate(mark);
+    }
+    if hit_layers(dom, &layers.negative, x, y, viewport, path) {
+        return true;
+    }
+    if contains && !transparent {
+        path.push(root);
+        return true;
+    }
+    false
+}
+
+/// Try the entries of one layer in reverse paint order.
+fn hit_layers(
+    dom: &Dom<TuiExt>,
+    entries: &[LayerEntry],
+    x: u16,
+    y: u16,
+    viewport: Rect,
+    path: &mut Vec<NodeId>,
+) -> bool {
+    entries.iter().rev().any(|e| {
+        if e.context {
+            hit_stacking_context(dom, e.id, x, y, e.clip, viewport, path)
+        } else {
+            descend_plain(dom, e.id, x, y, e.clip, viewport, path)
+        }
+    })
+}
+
+/// An element's style and outer rect; `None` for non-elements and
+/// `display: none` (CSS Display 3 §2.5: no box — the layout pass may
+/// leave a stale rect behind, which must not catch clicks).
+fn element_box(dom: &Dom<TuiExt>, id: NodeId) -> Option<(std::rc::Rc<ComputedStyle>, LayoutRect)> {
+    let node = dom.node(id);
+    if node.node_type() != NodeType::Element {
+        return None;
+    }
+    let computed = node
+        .computed_rc()
+        .unwrap_or_else(|| std::rc::Rc::new(ComputedStyle::initial()));
+    if matches!(computed.display, crate::layout::Display::None) {
+        return None;
+    }
+    let outer = node.layout_rect()?;
+    Some((computed, outer))
+}
+
+/// Hit-test an element as a plain box: its outer rect must contain the
+/// point; its content is searched inside its content clip. Used for
+/// in-flow elements and for `z-index: auto` positioned boxes, whose
+/// positioned descendants belong to the enclosing context's layers.
+/// Returns whether the element or a descendant was appended to `path`.
+fn descend_plain(
+    dom: &Dom<TuiExt>,
+    id: NodeId,
+    x: u16,
+    y: u16,
+    clip: Rect,
+    viewport: Rect,
+    path: &mut Vec<NodeId>,
+) -> bool {
+    if !clip.contains(x, y) {
+        return false;
+    }
+    let Some((computed, outer)) = element_box(dom, id) else {
+        return false;
+    };
+    if !rect_contains(outer, x, y) {
+        return false;
+    }
+    let content_clip = children_clip(dom, id, &computed, clip);
 
     // `pointer-events: none`: the element is transparent to the
     // pointer. Its subtree is still searched — a descendant that sets
     // `pointer-events: auto` is a target — but the element itself is
     // never on the path; with no hittable descendant the point falls
     // through to earlier siblings / the parent.
-    let transparent = dom
-        .node(id)
-        .computed()
-        .is_some_and(|c| c.pointer_events == crate::layout::PointerEvents::None);
-    if transparent {
-        return descend_children_reverse(dom, id, x, y, path);
+    if computed.pointer_events == crate::layout::PointerEvents::None {
+        return content_clip.contains(x, y)
+            && hit_content(dom, id, x, y, content_clip, viewport, path);
     }
 
     path.push(id);
-
-    // Overflow clipping: if the element clips its children, check
-    // whether (x, y) is in the scrollport (CSS Overflow 3 §3 = padding-
-    // box). If not, the hit stays on THIS element (its padding/border)
-    // — no recurse. Hit-test must agree with paint's clip rect; both
-    // use the padding-box, not `content_layout` (which under M5.5b
-    // border-collapse can widen into the border ring).
-    let computed = dom.node(id).computed();
-    let clips_children = computed.is_some_and(|c| {
-        !matches!(c.overflow_x, Overflow::Visible) || !matches!(c.overflow_y, Overflow::Visible)
-    });
-
-    // Text rows are addressed through the *scrolled* content rect so a
-    // scrolled IFC block resolves the owner visible on that row (paint
-    // and the caret use the same rect).
-    let inner = crate::render::inline::scrolled_content_rect(dom, id).unwrap_or(outer);
-    let scrollport = computed
-        .map(|c| rdom_style::layout::compute_padding_box(outer, c.border))
-        .unwrap_or(outer);
-    if clips_children && !rect_contains(scrollport, x, y) {
-        return true; // hit on padding/border, no descent
+    // Overflow clipping (CSS Overflow 3 §3 = padding-box; the same rect
+    // paint clips to): outside the scrollport the hit stays on THIS
+    // element's padding / border — no descent.
+    if content_clip.contains(x, y) {
+        hit_content(dom, id, x, y, content_clip, viewport, path);
     }
-
-    // Inline-flow container: descend into the inline layout to find
-    // the fragment's owner element. Then walk that owner's ancestor
-    // chain back up, appending outer → inner.
-    if has_inline_layout(dom, id) {
-        if let Some(owner) = hit_fragment(dom, id, inner, x, y)
-            && owner != id
-        {
-            append_inline_ancestors(dom, id, owner, path);
-        }
-        return true;
-    }
-
-    // Normal block: recurse into element children in REVERSE
-    // document order. First one that hits wins (matches paint order).
-    //
-    // Note: when `clips_children` is true, an overflowing child
-    // still shouldn't be hittable past the inner rect. Children
-    // laid out *within* inner remain hittable; children that happen
-    // to be positioned outside (negative scroll offset etc.) miss
-    // cleanly because their layout_rect doesn't contain (x, y).
-    descend_children_reverse(dom, id, x, y, path);
     true
 }
 
-/// Recurse into direct element children in reverse document order.
-/// Returns `true` when any child (or its subtree) added to `path`.
-///
-/// M2: positioned children (`position: absolute | fixed`) are
-/// skipped here — they're handled by the z-list pass at the top
-/// of `hit_test_path`. This matches the paint pass, which also
-/// pulls positioned children out of the document walk into a
-/// global stacking context.
+/// Search an element's content for the point: the inline fragment's
+/// owner inside an inline-flow container, otherwise the in-flow
+/// children in reverse tree order. Returns whether a descendant was
+/// appended to `path`.
+fn hit_content(
+    dom: &Dom<TuiExt>,
+    id: NodeId,
+    x: u16,
+    y: u16,
+    content_clip: Rect,
+    viewport: Rect,
+    path: &mut Vec<NodeId>,
+) -> bool {
+    if has_inline_layout(dom, id) {
+        // Text rows are addressed through the *scrolled* content rect so
+        // a scrolled IFC block resolves the owner visible on that row
+        // (paint and the caret use the same rect).
+        let outer = dom.node(id).layout_rect().unwrap_or_default();
+        let inner = crate::render::inline::scrolled_content_rect(dom, id).unwrap_or(outer);
+        return match hit_fragment(dom, id, inner, x, y) {
+            Some(owner) if owner != id => {
+                append_inline_ancestors(dom, id, owner, path);
+                true
+            }
+            _ => false,
+        };
+    }
+    descend_children_reverse(dom, id, x, y, content_clip, viewport, path)
+}
+
+/// Recurse into the in-flow element children in reverse document
+/// order; the first hit wins (matches paint order). Positioned children
+/// are skipped — they are tried from their stacking context's layers —
+/// and a child that establishes a stacking context without being
+/// positioned (`opacity < 1`) is searched as one atomic unit.
 fn descend_children_reverse(
     dom: &Dom<TuiExt>,
     id: NodeId,
     x: u16,
     y: u16,
+    clip: Rect,
+    viewport: Rect,
     path: &mut Vec<NodeId>,
 ) -> bool {
     let child_ids: Vec<NodeId> = dom.node(id).child_nodes().map(|n| n.id()).collect();
     for &child in child_ids.iter().rev() {
-        // Same in-flow filter as layout and paint (`DRY-1`); positioned
-        // children are tried first via `collect_positioned_reverse_z`.
-        if !is_in_flow(dom, child) {
-            continue;
-        }
-        if descend(dom, child, x, y, path) {
+        let node = dom.node(child);
+        let hit = match node.node_type() {
+            NodeType::Fragment => descend_children_reverse(dom, child, x, y, clip, viewport, path),
+            NodeType::Element => match node.ext().and_then(|e| e.computed.as_ref()) {
+                Some(c) if is_positioned(c) => false,
+                Some(c) if creates_stacking_context(c) => {
+                    hit_stacking_context(dom, child, x, y, clip, viewport, path)
+                }
+                _ => descend_plain(dom, child, x, y, clip, viewport, path),
+            },
+            _ => false,
+        };
+        if hit {
             return true;
         }
     }
     false
-}
-
-/// Collect every positioned (absolute / fixed) element in the
-/// tree, sorted in **reverse paint order** — highest z-index
-/// first, with reverse-document-order as the tiebreaker (so the
-/// last-painted element of a same-z group is tried first).
-fn collect_positioned_reverse_z(dom: &Dom<TuiExt>) -> Vec<NodeId> {
-    let mut list = positioned_z_list(dom);
-    // Sort by (z, order) ascending, then reverse → highest z and
-    // latest order are at the front (= reverse paint order).
-    list.sort_by_key(|(z, ord, _)| (*z, *ord));
-    list.reverse();
-    list.into_iter().map(|(_, _, id)| id).collect()
 }
 
 /// Look up the inline fragment under `(x, y)` inside an IFC block's

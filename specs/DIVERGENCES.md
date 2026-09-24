@@ -58,7 +58,8 @@ These are intrinsic to terminals. They will not change.
 
 ### Positioning
 
-- **Stacking is flat at the document root.** `z-index` is parsed; paint order is document order with z-sort at the root only. No nested stacking contexts.
+- **Stacking contexts form from the root, positioned elements with a numeric `z-index`, and `opacity < 1` only.** Paint and hit-test follow CSS 2.1 Appendix E inside each context (negative `z-index` below in-flow content, positioned boxes above it, positive `z-index` on top). The other triggers — `transform`, `filter`, `isolation: isolate`, `will-change`, `mix-blend-mode`, `contain: paint` — do not exist.
+- **Positioned `::before` / `::after` pseudo-elements paint in one flat pass above every stacking context**, ordered by the host's `z-index` and tree order; they are not part of their host's context.
 - **Sticky containing block is the element's parent's content box**, not the CSS "nearest scroll container" for nested-scroller edge cases.
 - **The static position inside a flex container ignores `justify-content` / `align-items`.** Flexbox §4.1 places an absolutely positioned child's hypothetical box as if it were the sole flex item, so `justify-content: center` would center it; rdom uses the content box's start corner (`flex-start`). In block and inline flow the static position follows CSS 2.1 §10.3.7 / §10.6.4.
 - **No `transform`, `rotate`, `scale`, `matrix`, `isolation: isolate`, `will-change`.**

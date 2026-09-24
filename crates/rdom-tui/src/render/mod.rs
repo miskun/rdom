@@ -24,6 +24,7 @@ pub mod layout_pass;
 pub mod paint_pass;
 pub mod rect;
 pub mod sgr;
+pub(crate) mod stacking;
 pub mod style;
 pub mod terminal;
 pub mod virtual_screen;

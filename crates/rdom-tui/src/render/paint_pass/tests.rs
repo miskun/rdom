@@ -4021,3 +4021,273 @@ fn scrolled_text_leaf_paints_lines_from_its_scroll_offset() {
     );
     assert!(!row(&buf, 2).contains("one") && !row(&buf, 3).contains("two"));
 }
+
+// ── Stacking contexts (CSS 2.1 Appendix E; D-M2-3 / D-M2-4) ────────
+
+/// Three overlapping 3×1 boxes at the origin, all `position: absolute`.
+fn abs_box() -> TuiStyle {
+    TuiStyle::new()
+        .position(crate::layout::Position::Absolute)
+        .top(crate::layout::Length::Cells(0))
+        .left(crate::layout::Length::Cells(0))
+        .width(Size::Fixed(3))
+        .height(Size::Fixed(1))
+}
+
+const RED: Color = Color::Rgb(255, 0, 0);
+const GREEN: Color = Color::Rgb(0, 128, 0);
+const BLUE: Color = Color::Rgb(0, 0, 255);
+
+/// `D-M2-3`: a positioned element with a numeric `z-index` forms a
+/// stacking context; its descendants' `z-index` competes only inside
+/// it. `z: 100` inside `z: 1` stays below a sibling context at `z: 2`.
+#[test]
+fn nested_stacking_context_keeps_descendants_below_a_higher_sibling_context() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let a = dom.create_element("a");
+    let a1 = dom.create_element("a1");
+    let b = dom.create_element("b");
+    dom.append_child(a, a1).unwrap();
+    dom.append_child(root, a).unwrap();
+    dom.append_child(root, b).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "a",
+            abs_box().bg(RED).z_index(crate::layout::ZIndex::Value(1)),
+        )
+        .rule_unchecked(
+            "a1",
+            abs_box()
+                .bg(GREEN)
+                .z_index(crate::layout::ZIndex::Value(100)),
+        )
+        .rule_unchecked(
+            "b",
+            abs_box().bg(BLUE).z_index(crate::layout::ZIndex::Value(2)),
+        );
+    let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 10, 5));
+    assert_eq!(bg_at(&buf, 0, 0), BLUE, "z:2 context above the z:1 context");
+}
+
+/// `D-M2-3`: `z-index: auto` does not form a stacking context — the
+/// element's positioned descendants join the enclosing context.
+#[test]
+fn z_index_auto_positioned_element_does_not_form_a_stacking_context() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let a = dom.create_element("a");
+    let a1 = dom.create_element("a1");
+    let b = dom.create_element("b");
+    dom.append_child(a, a1).unwrap();
+    dom.append_child(root, a).unwrap();
+    dom.append_child(root, b).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked("a", abs_box().bg(RED))
+        .rule_unchecked(
+            "a1",
+            abs_box()
+                .bg(GREEN)
+                .z_index(crate::layout::ZIndex::Value(100)),
+        )
+        .rule_unchecked(
+            "b",
+            abs_box().bg(BLUE).z_index(crate::layout::ZIndex::Value(2)),
+        );
+    let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 10, 5));
+    assert_eq!(bg_at(&buf, 0, 0), GREEN, "z:100 escapes its z:auto parent");
+}
+
+/// `D-M2-4`: a negative `z-index` paints above its stacking context's
+/// own background but below the context's in-flow content.
+#[test]
+fn negative_z_index_paints_below_in_flow_content_and_above_the_context_background() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let wrap = dom.create_element("wrap");
+    let c = dom.create_element("c");
+    let n = dom.create_element("n");
+    dom.append_child(wrap, c).unwrap();
+    dom.append_child(wrap, n).unwrap();
+    dom.append_child(root, wrap).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "wrap",
+            TuiStyle::new()
+                .position(crate::layout::Position::Relative)
+                .z_index(crate::layout::ZIndex::Value(0))
+                .width(Size::Fixed(10))
+                .height(Size::Fixed(2))
+                .bg(Color::Rgb(255, 255, 255)),
+        )
+        .rule_unchecked(
+            "c",
+            TuiStyle::new()
+                .width(Size::Fixed(5))
+                .height(Size::Fixed(1))
+                .bg(RED),
+        )
+        .rule_unchecked(
+            "n",
+            abs_box()
+                .width(Size::Fixed(10))
+                .bg(BLUE)
+                .z_index(crate::layout::ZIndex::Value(-1)),
+        );
+    let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 10, 5));
+    assert_eq!(bg_at(&buf, 0, 0), RED, "in-flow content above z:-1");
+    assert_eq!(
+        bg_at(&buf, 7, 0),
+        BLUE,
+        "z:-1 above the context's own background"
+    );
+}
+
+/// Appendix E layer 6: a `position: relative` box paints above later
+/// in-flow siblings it overlaps.
+#[test]
+fn relative_element_paints_above_a_later_in_flow_sibling() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let wrap = dom.create_element("wrap");
+    let r = dom.create_element("r");
+    let s = dom.create_element("s");
+    dom.append_child(wrap, r).unwrap();
+    dom.append_child(wrap, s).unwrap();
+    dom.append_child(root, wrap).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked("wrap", TuiStyle::new().width(Size::Fixed(10)))
+        .rule_unchecked(
+            "r",
+            TuiStyle::new()
+                .position(crate::layout::Position::Relative)
+                .top(crate::layout::Length::Cells(1))
+                .height(Size::Fixed(1))
+                .bg(RED),
+        )
+        .rule_unchecked("s", TuiStyle::new().height(Size::Fixed(1)).bg(BLUE));
+    let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 10, 5));
+    assert_eq!(
+        bg_at(&buf, 0, 1),
+        RED,
+        "relative box above the sibling under it"
+    );
+}
+
+/// Appendix E layer 6 for `position: sticky`: a pinned header paints
+/// above the content that scrolled under it.
+#[test]
+fn sticky_header_paints_above_content_scrolled_under_it() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let port = dom.create_element("port");
+    let header = dom.create_element("header");
+    let body = dom.create_element("body");
+    dom.append_child(port, header).unwrap();
+    dom.append_child(port, body).unwrap();
+    dom.append_child(root, port).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "port",
+            TuiStyle::new()
+                .width(Size::Fixed(10))
+                .height(Size::Fixed(3))
+                .overflow(crate::layout::Overflow::Hidden),
+        )
+        .rule_unchecked(
+            "header",
+            TuiStyle::new()
+                .position(crate::layout::Position::Sticky)
+                .top(crate::layout::Length::Cells(0))
+                .height(Size::Fixed(1))
+                .bg(RED),
+        )
+        .rule_unchecked("body", TuiStyle::new().height(Size::Fixed(10)).bg(BLUE));
+    dom.cascade(&sheet);
+    dom.node_mut(port).ext_mut().unwrap().scroll_y = 2;
+    let viewport = Rect::new(0, 0, 10, 5);
+    dom.layout_dom(viewport);
+    let mut buf = Buffer::empty(viewport);
+    dom.paint_dom(&mut buf, viewport);
+    assert_eq!(
+        bg_at(&buf, 0, 0),
+        RED,
+        "pinned header above the scrolled body"
+    );
+    assert_eq!(bg_at(&buf, 0, 1), BLUE);
+}
+
+/// CSS 2.1 §11.1.1: an overflow-clipping ancestor of the containing
+/// block clips an absolutely positioned descendant.
+#[test]
+fn absolute_is_clipped_by_a_scroll_container_above_its_containing_block() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let list = dom.create_element("list");
+    let item = dom.create_element("item");
+    let pop = dom.create_element("pop");
+    dom.append_child(item, pop).unwrap();
+    dom.append_child(list, item).unwrap();
+    dom.append_child(root, list).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "list",
+            TuiStyle::new()
+                .width(Size::Fixed(10))
+                .height(Size::Fixed(2))
+                .overflow(crate::layout::Overflow::Hidden),
+        )
+        .rule_unchecked(
+            "item",
+            TuiStyle::new()
+                .position(crate::layout::Position::Relative)
+                .height(Size::Fixed(1)),
+        )
+        .rule_unchecked(
+            "pop",
+            abs_box().top(crate::layout::Length::Cells(4)).bg(RED),
+        );
+    let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 10, 8));
+    assert_eq!(
+        bg_at(&buf, 0, 4),
+        Color::Reset,
+        "clipped at the list's edge"
+    );
+}
+
+/// CSS 2.1 §11.1.1: an overflow-clipping element between the
+/// containing block and the positioned descendant does NOT clip it.
+#[test]
+fn absolute_escapes_a_scroll_container_below_its_containing_block() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let wrap = dom.create_element("wrap");
+    let list = dom.create_element("list");
+    let pop = dom.create_element("pop");
+    dom.append_child(list, pop).unwrap();
+    dom.append_child(wrap, list).unwrap();
+    dom.append_child(root, wrap).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "wrap",
+            TuiStyle::new()
+                .position(crate::layout::Position::Relative)
+                .width(Size::Fixed(10)),
+        )
+        .rule_unchecked(
+            "list",
+            TuiStyle::new()
+                .height(Size::Fixed(2))
+                .overflow(crate::layout::Overflow::Hidden),
+        )
+        .rule_unchecked(
+            "pop",
+            abs_box().top(crate::layout::Length::Cells(4)).bg(RED),
+        );
+    let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 10, 8));
+    assert_eq!(
+        bg_at(&buf, 0, 4),
+        RED,
+        "the list is not the pop's containing block"
+    );
+}

@@ -193,6 +193,10 @@ Each phase ends with the two review gates; each commit carries the item id.
 - 2026-09-24 — Phase 5: `D-M2-2` — phase-1 block, inline and flex layout record each positioned
   child's static position (`TuiExt::static_position`); phase 2 uses it for an axis with both insets
   `auto`. Flex ignores `justify-content` / `align-items` for it (DIVERGENCES).
+- 2026-09-24 — Phase 5: `D-M2-3` / `D-M2-4` — `render::stacking` collects Appendix E layers per
+  context with the §11.1.1 clip for each entry; paint walks them forward, hit-test backward.
+  `relative` / `sticky` join the positioned layer; `opacity < 1` forms a context. Supersedes
+  `positioned_z_list` (DRY-2).
 - Found while mapping Phase 3 (not on the ledger): `ImportantMask::FLOW` and `POINTER_EVENTS` share
   bit 39 (`tui_style.rs`), custom-property inheritance in the cascade is overwritten by the merged
   root map (`walk.rs`), and tokenizer errors inside a block are body-relative (`declarations.rs`).

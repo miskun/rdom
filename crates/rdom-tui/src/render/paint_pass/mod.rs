@@ -17,8 +17,15 @@
 //! 3. **Inline content** — either the classic `::before` then own
 //!    text then `::after` path (non-IFC elements) or the IFC fragment
 //!    path (blocks establishing an inline formatting context).
-//! 4. **Recurse** — element children paint at their own `layout`
-//!    rects.
+//! 4. **Recurse** — in-flow element children paint at their own
+//!    `layout` rects.
+//!
+//! ## Stacking
+//!
+//! Positioned children do not paint in the recursion: they belong to
+//! the layers of the nearest stacking context (CSS 2.1 Appendix E),
+//! which [`paint_stacking_context`] paints around the context root's
+//! in-flow content — see [`crate::render::stacking`].
 //!
 //! ## Clipping
 //!
@@ -28,14 +35,18 @@
 //! - Each element's paint is intersected with `clip` via
 //!   [`layout_rect_to_grid`].
 //! - For `overflow: Hidden | Scroll | Auto`, children are recursed
-//!   with a tighter clip = `element.content_layout ∩ clip`.
+//!   with a tighter clip = padding box ∩ clip.
 //! - `overflow: Visible` keeps the incoming clip — children can
 //!   draw past the parent.
+//! - A positioned descendant is clipped by an overflow ancestor only
+//!   when its containing block is that ancestor or inside it (CSS 2.1
+//!   §11.1.1); `stacking::collect_layers` resolves that clip.
 //!
 //! ## Module layout
 //!
-//! - `mod.rs` — public `PaintExt` trait + `paint_node` dispatch +
-//!   `recurse_children` + the shared `layout_rect_to_grid` clip
+//! - `mod.rs` — public `PaintExt` trait, the stacking-context walk
+//!   (`paint_stacking_context` / `paint_box` / `paint_content` /
+//!   `recurse_children`) and the shared `layout_rect_to_grid` clip
 //!   utility.
 //! - [`border`] — background fill + border drawing (box-drawing
 //!   chars, edge selection).
@@ -58,9 +69,12 @@ mod tests;
 use rdom_core::{Dom, NodeId, NodeType};
 
 use crate::ext::TuiExt;
-use crate::layout::{Display, LayoutRect, Overflow};
+use crate::layout::{Display, LayoutRect};
 use crate::node::TuiNodeExt;
-use crate::render::layout_pass::{is_ifc_block, is_in_flow, positioned_z_list};
+use crate::render::layout_pass::is_ifc_block;
+use crate::render::stacking::{
+    LayerEntry, children_clip, collect_layers, creates_stacking_context, is_positioned,
+};
 use crate::render::{Buffer, Rect};
 use crate::style::{Color, ComputedStyle};
 
@@ -80,17 +94,14 @@ pub trait PaintExt {
 
 impl PaintExt for Dom<TuiExt> {
     fn paint_dom(&self, buf: &mut Buffer, clip: Rect) {
-        paint_node(self, self.root(), buf, clip);
-        // Positioned elements paint after the document walk in
-        // z-order (= flat stacking context). `recurse_children`
-        // already skipped them.
-        paint_z_list(self, buf, clip);
-        // Positioned `::before` / `::after` pseudo-elements paint
-        // AFTER the z-list. Pseudos have no `NodeId` and can't be
-        // widened into `z_list` cleanly; the separate pass also
-        // matches the "pseudos don't participate in hit-test" rule
-        // and reuses the same `(host.z_index, doc_order,
-        // pseudo_order)` sort key.
+        // The document is the root stacking context (CSS 2.1 Appendix
+        // E): positioned descendants paint from its layers, nested
+        // contexts recursively.
+        paint_stacking_context(self, self.root(), buf, clip, clip);
+        // Positioned `::before` / `::after` pseudo-elements paint after
+        // every stacking context, in one flat pass ordered by the
+        // host's `z-index` (DIVERGENCES): a pseudo has no `NodeId` and
+        // no layer slot of its own, and it does not hit-test.
         positioned_pseudos::paint_positioned_pseudos(self, buf, clip);
         // Overlay backdrop behind modal dialogs. Runs AFTER the main
         // paint pass so the backdrop reliably sits on top of whatever
@@ -109,22 +120,60 @@ impl PaintExt for Dom<TuiExt> {
     }
 }
 
-/// Walk the entire tree, collect every `position: absolute | fixed`
-/// element, sort by `(z_index, document_order)`, and paint each
-/// element's subtree in turn. `z-index: auto` resolves to 0 for
-/// sorting; document order is the tiebreaker.
+/// Paint `root` and everything stacked inside it in CSS 2.1 Appendix E
+/// order: the root's own box, child contexts with negative `z-index`,
+/// the root's in-flow content, positioned descendants with `z-index:
+/// auto | 0` in tree order, child contexts with positive `z-index`.
 ///
-/// `paint_node` for a positioned element drops back to the regular
-/// recursive walk — `recurse_children` skips nested positioned
-/// descendants, so they only paint when this z-list itself reaches
-/// them. Nested positioned elements collapse into the same flat
-/// sort against the root viewport.
-fn paint_z_list(dom: &Dom<TuiExt>, buf: &mut Buffer, clip: Rect) {
-    let mut list = positioned_z_list(dom);
-    list.sort_by_key(|(z, ord, _)| (*z, *ord));
-    for (_, _, id) in list {
-        paint_node(dom, id, buf, clip);
+/// `clip` is the region this context paints into; `viewport` the
+/// document's clip, which `position: fixed` descendants clip to.
+fn paint_stacking_context(
+    dom: &Dom<TuiExt>,
+    root: NodeId,
+    buf: &mut Buffer,
+    clip: Rect,
+    viewport: Rect,
+) {
+    if dom.node(root).node_type() == NodeType::Fragment {
+        // The document root: no box of its own.
+        let layers = collect_layers(dom, root, clip, viewport);
+        paint_layers(dom, &layers.negative, buf, viewport);
+        recurse_children(dom, root, buf, clip, viewport);
+        paint_layers(dom, &layers.zero_auto, buf, viewport);
+        paint_layers(dom, &layers.positive, buf, viewport);
+        return;
     }
+    let Some(frame) = paint_box(dom, root, buf, clip) else {
+        return;
+    };
+    let layers = collect_layers(dom, root, frame.children_clip, viewport);
+    paint_layers(dom, &layers.negative, buf, viewport);
+    paint_content(dom, root, buf, clip, viewport, &frame);
+    paint_layers(dom, &layers.zero_auto, buf, viewport);
+    paint_layers(dom, &layers.positive, buf, viewport);
+    buf.exit_compose_ctx(frame.saved_ctx);
+}
+
+fn paint_layers(dom: &Dom<TuiExt>, entries: &[LayerEntry], buf: &mut Buffer, viewport: Rect) {
+    for e in entries {
+        if e.context {
+            paint_stacking_context(dom, e.id, buf, e.clip, viewport);
+        } else {
+            paint_plain(dom, e.id, buf, e.clip, viewport);
+        }
+    }
+}
+
+/// Paint an element as a plain box: its own box, then its in-flow
+/// content. Used for in-flow elements and for `z-index: auto`
+/// positioned boxes, whose positioned descendants belong to the
+/// enclosing context's layers.
+fn paint_plain(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect, viewport: Rect) {
+    let Some(frame) = paint_box(dom, id, buf, clip) else {
+        return;
+    };
+    paint_content(dom, id, buf, clip, viewport, &frame);
+    buf.exit_compose_ctx(frame.saved_ctx);
 }
 
 /// Find every open modal `<dialog>` (any element with both `open`
@@ -143,7 +192,7 @@ fn paint_modal_backdrops(dom: &Dom<TuiExt>, buf: &mut Buffer, clip: Rect) {
             continue;
         };
         fill_backdrop(buf, clip, &backdrop_style);
-        paint_node(dom, dialog_id, buf, clip);
+        paint_stacking_context(dom, dialog_id, buf, clip, clip);
     }
 }
 
@@ -184,21 +233,24 @@ fn fill_backdrop(buf: &mut Buffer, clip: Rect, style: &ComputedStyle) {
 
 // ─── Per-node paint ─────────────────────────────────────────────────
 
-fn paint_node(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect) {
-    let ty = dom.node(id).node_type();
+/// What [`paint_box`] hands to [`paint_content`]: the style with the
+/// transition presentation overlaid, the content rect, the clip the
+/// content paints into, and the compose context the caller exits once
+/// the element's content — and, for a stacking context, its layers —
+/// have painted.
+struct BoxFrame {
+    computed: ComputedStyle,
+    inner: LayoutRect,
+    children_clip: Rect,
+    saved_ctx: (f32, Color),
+}
 
-    // Fragment: no own box, just recurse into element children with
-    // the same clip. (Layout pass puts fragments through
-    // transparently too.)
-    if ty == NodeType::Fragment {
-        recurse_children(dom, id, buf, clip);
-        return;
-    }
-
-    // Text and Comment don't paint on their own — they're consumed
-    // via their parent element's "own text" pass.
-    if ty != NodeType::Element {
-        return;
+/// Paint an element's own box — background fill and border — and enter
+/// its compose context. `None` for non-elements and `display: none`,
+/// which paint nothing and have no content to paint.
+fn paint_box(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect) -> Option<BoxFrame> {
+    if dom.node(id).node_type() != NodeType::Element {
+        return None;
     }
 
     let mut computed = dom
@@ -230,12 +282,9 @@ fn paint_node(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect) {
     }
 
     // `display: none` — element takes no space and neither it
-    // nor its children paint. Matches CSS semantics. Replaces
-    // the pre-Display::None hack of `width:0; height:0;
-    // overflow:hidden` + the per-case `is_option_in_closed_dropdown`
-    // paint skip.
+    // nor its children paint. Matches CSS semantics.
     if computed.display == Display::None {
-        return;
+        return None;
     }
 
     // CSS `opacity` — cell-level compositing. We enter a compose
@@ -251,12 +300,9 @@ fn paint_node(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect) {
     // the destination — the element is visually invisible without
     // erasing the cells it overlays.
     //
-    // This replaces the pre-Phase-2 cascade-time pre-bake of
-    // `computed.fg/bg/border_fg = alpha_blend(.., parent_bg)`,
-    // which only blended against the painter's DOM parent — wrong
-    // when a z-stacked element below the painter has its own bg.
     // The per-cell blend resolves against the actual cell, which
-    // captures whatever paint deposited there earlier.
+    // captures whatever paint deposited there earlier — including a
+    // z-stacked element below the painter with its own bg.
     let parent_bg = resolve_parent_bg(dom, id);
     let saved_ctx = buf.enter_compose_ctx(computed.opacity, parent_bg);
 
@@ -319,31 +365,39 @@ fn paint_node(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect) {
                 priority,
             );
         }
-    } else {
-        // Element off-screen: skip paint but still recurse — a
-        // scrolled-off parent may have visible children when
-        // overflow: Visible.
     }
+    // Else: element off-screen — skip its box but still paint its
+    // content; a scrolled-off parent may have visible children when
+    // overflow is `Visible`.
 
     // Inner paint (text + pseudo-elements + children) happens in
     // `content_layout`, clipped by the element's overflow mode at the
-    // padding-box edge per CSS Overflow 3 §3. Either axis being
-    // non-Visible clips (matches browser behavior — you can't have a
-    // half-clipped element).
-    let clips = !matches!(computed.overflow_x, Overflow::Visible)
-        || !matches!(computed.overflow_y, Overflow::Visible);
-    let children_clip = if clips {
-        // Clip at the padding-box, NOT `content_layout`. The two
-        // diverge under M5.5b border-collapse — `content_layout` can
-        // widen into the border ring for child positioning, but CSS
-        // Overflow 3 §3 places the scrollport at the padding-box edge
-        // for every scroll container, no collapse exception. Reading
-        // `content_layout` here lets scrolled children's bg overpaint
-        // the parent's border row.
-        layout_rect_to_grid(padding_box, clip).unwrap_or_else(|| Rect::new(clip.x, clip.y, 0, 0))
-    } else {
-        clip
-    };
+    // padding-box edge per CSS Overflow 3 §3 (`stacking::children_clip`).
+    let children_clip = children_clip(dom, id, &computed, clip);
+
+    Some(BoxFrame {
+        computed,
+        inner,
+        children_clip,
+        saved_ctx,
+    })
+}
+
+/// Paint an element's content: its canvas callback, or its inline
+/// formatting context, or `::before` / own text / `::after` plus its
+/// in-flow children and anonymous blocks; then its scrollbars. The
+/// caller exits `frame.saved_ctx` afterwards.
+fn paint_content(
+    dom: &Dom<TuiExt>,
+    id: NodeId,
+    buf: &mut Buffer,
+    clip: Rect,
+    viewport: Rect,
+    frame: &BoxFrame,
+) {
+    let computed = &frame.computed;
+    let inner = frame.inner;
+    let children_clip = frame.children_clip;
 
     // C.9 `<canvas>` escape hatch: when an element has a
     // registered canvas paint callback, invoke it with a bounded
@@ -360,8 +414,7 @@ fn paint_node(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect) {
             children_clip,
         );
         paint.call(dom, &mut ctx);
-        scrollbar::paint_scrollbars(dom, id, &computed, buf, clip);
-        buf.exit_compose_ctx(saved_ctx);
+        scrollbar::paint_scrollbars(dom, id, computed, buf, clip);
         return;
     }
 
@@ -373,7 +426,7 @@ fn paint_node(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect) {
         // Text rows are addressed through the *scrolled* content rect so
         // a scroll container's first `scroll_y` lines sit above the port.
         let text_inner = crate::render::inline::scrolled_content_rect(dom, id).unwrap_or(inner);
-        paint_ifc(dom, id, &computed, text_inner, buf, children_clip);
+        paint_ifc(dom, id, computed, text_inner, buf, children_clip);
         // Caret overlay — paint at the end so it sits on top of
         // every fragment in the inline flow. IFC blocks always have
         // an `inline_layout`, so this fires unconditionally.
@@ -384,14 +437,13 @@ fn paint_node(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect) {
         // change stays correct). `clip` (the incoming clip, NOT
         // children_clip) so the scrollbar can sit in the gutter
         // which is outside children_clip when overflow clips.
-        scrollbar::paint_scrollbars(dom, id, &computed, buf, clip);
-        buf.exit_compose_ctx(saved_ctx);
+        scrollbar::paint_scrollbars(dom, id, computed, buf, clip);
         return;
     }
 
     // Compute ::before / own text / ::after paint positions.
     let text_inner = crate::render::inline::scrolled_content_rect(dom, id).unwrap_or(inner);
-    paint_inline_content(dom, id, &computed, text_inner, buf, children_clip);
+    paint_inline_content(dom, id, computed, text_inner, buf, children_clip);
 
     // Caret overlay for pure-text leaf blocks (e.g. <input>,
     // <textarea>) — they go through `paint_inline_content` rather
@@ -402,8 +454,9 @@ fn paint_node(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect) {
         paint_caret_if_editable(dom, buf, id, children_clip);
     }
 
-    // Recurse into element children (they paint at their own layouts).
-    recurse_children(dom, id, buf, children_clip);
+    // Recurse into in-flow element children (they paint at their own
+    // layouts).
+    recurse_children(dom, id, buf, children_clip, viewport);
 
     // Paint each anonymous block box synthesized by the block
     // layout pass (BFC-1 phase 3). Anonymous boxes wrap runs of
@@ -415,12 +468,14 @@ fn paint_node(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect) {
 
     // Scrollbar overlay (after children so it sits on top if
     // anything encroached).
-    scrollbar::paint_scrollbars(dom, id, &computed, buf, clip);
-
-    buf.exit_compose_ctx(saved_ctx);
+    scrollbar::paint_scrollbars(dom, id, computed, buf, clip);
 }
 
-fn recurse_children(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect) {
+/// Paint the in-flow element children of `id` in tree order. Positioned
+/// children are skipped — they paint from the enclosing stacking
+/// context's layers — and a child that establishes a stacking context
+/// without being positioned (`opacity < 1`) paints atomically in place.
+fn recurse_children(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect, viewport: Rect) {
     for child in dom.node(id).child_nodes() {
         let cid = child.id();
         match child.node_type() {
@@ -449,16 +504,15 @@ fn recurse_children(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect)
                 if is_inline && !has_inline_layout {
                     continue;
                 }
-                // Out-of-flow children (absolute / fixed) paint via the
-                // z-list post-pass, not here — the same filter layout
-                // uses (`DRY-1`); `display: none` is handled in
-                // `paint_node`.
-                if !is_in_flow(dom, cid) {
-                    continue;
+                match computed_ref {
+                    Some(c) if is_positioned(c) => continue,
+                    Some(c) if creates_stacking_context(c) => {
+                        paint_stacking_context(dom, cid, buf, clip, viewport);
+                    }
+                    _ => paint_plain(dom, cid, buf, clip, viewport),
                 }
-                paint_node(dom, cid, buf, clip);
             }
-            NodeType::Fragment => paint_node(dom, cid, buf, clip),
+            NodeType::Fragment => recurse_children(dom, cid, buf, clip, viewport),
             NodeType::Text | NodeType::Comment => {} // consumed by parent's inline pass
         }
     }
@@ -470,9 +524,9 @@ fn recurse_children(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect)
 /// clipped to `clip`. Returns `None` when the layout rect has no
 /// visible area within the clip.
 ///
-/// Used by [`paint_node`], [`inline_paint::paint_ifc`], and
-/// [`inline_paint::paint_inline_content`].
-pub(super) fn layout_rect_to_grid(layout: LayoutRect, clip: Rect) -> Option<Rect> {
+/// Used by [`paint_box`], [`inline_paint::paint_ifc`],
+/// [`inline_paint::paint_inline_content`] and `stacking::children_clip`.
+pub(crate) fn layout_rect_to_grid(layout: LayoutRect, clip: Rect) -> Option<Rect> {
     // Convert layout to inclusive-exclusive signed bounds.
     let left = layout.x;
     let top = layout.y;

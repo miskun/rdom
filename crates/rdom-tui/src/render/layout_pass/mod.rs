@@ -69,7 +69,6 @@ mod ifc;
 pub(crate) mod intrinsic;
 mod positioned_pseudos;
 mod positioning;
-pub(crate) use positioning::positioned_z_list;
 mod sticky;
 
 #[cfg(test)]
