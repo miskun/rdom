@@ -207,27 +207,29 @@ impl InlineFlow {
 /// [`inline_flow_container`] + manual `ext.inline_layout` lookup
 /// pair — see the deprecation note on `inline_flow_container`.
 pub fn inline_flow_for_text(dom: &Dom<TuiExt>, text_node: NodeId) -> Option<InlineFlow> {
-    let mut cur = Some(text_node);
+    // Walk up from the text node. At an ancestor with anonymous
+    // boxes, the box wrapping the text is the one whose `child_range`
+    // covers the direct child the text sits under — no fragment scan.
+    let mut child = text_node;
+    let mut cur = dom.node(text_node).parent_node().map(|p| p.id());
     while let Some(id) = cur {
         if has_inline_layout(dom, id) {
             return Some(InlineFlow::Ifc { block: id });
         }
-        if let Some(ext) = dom.node(id).ext() {
-            // Find the anon box whose IFC contains a fragment owned
-            // by `text_node`. Linear scan — anon-box Vecs are short.
-            for (i, anon) in ext.anonymous_blocks.iter().enumerate() {
-                for line in &anon.inline_layout.lines {
-                    for frag in &line.fragments {
-                        if frag.text_node == text_node {
-                            return Some(InlineFlow::Anonymous {
-                                container: id,
-                                index: i,
-                            });
-                        }
-                    }
-                }
-            }
+        if let Some(ext) = dom.node(id).ext()
+            && !ext.anonymous_blocks.is_empty()
+            && let Some(index) = dom.node(id).child_nodes().position(|c| c.id() == child)
+            && let Some(i) = ext
+                .anonymous_blocks
+                .iter()
+                .position(|anon| anon.child_range.0 <= index && index < anon.child_range.1)
+        {
+            return Some(InlineFlow::Anonymous {
+                container: id,
+                index: i,
+            });
         }
+        child = id;
         cur = dom.node(id).parent_node().map(|p| p.id());
     }
     None

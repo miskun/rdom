@@ -1417,6 +1417,69 @@ fn inline_flow_for_text_resolves_anon_box() {
     assert_eq!(rect.y, 1, "anon box at y=1 (below h1)");
 }
 
+/// `BFC1-PERF-INLINE-FLOW-LOOKUP-1`: the lookup resolves through the
+/// anonymous box's `child_range`, so text nested in an inline element
+/// finds its box, a second inline run finds the second box, and a
+/// whitespace-only run (no fragments) still maps to its own box.
+#[test]
+fn inline_flow_for_text_resolves_nested_text_and_later_anon_boxes() {
+    use crate::render::inline::{InlineFlow, inline_flow_for_text};
+
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let parent = dom.create_element("div");
+    let h1 = dom.create_element("h1");
+    let h1_text = dom.create_text_node("X");
+    dom.append_child(h1, h1_text).unwrap();
+    let lead = dom.create_text_node("lead ");
+    let b = dom.create_element("b");
+    let bold = dom.create_text_node("bold");
+    dom.append_child(b, bold).unwrap();
+    let h2 = dom.create_element("h1");
+    let h2_text = dom.create_text_node("Y");
+    dom.append_child(h2, h2_text).unwrap();
+    let tail = dom.create_text_node("tail");
+    let h3 = dom.create_element("h1");
+    let h3_text = dom.create_text_node("Z");
+    dom.append_child(h3, h3_text).unwrap();
+    let blank = dom.create_text_node("   ");
+    for c in [h1, lead, b, h2, tail, h3, blank] {
+        dom.append_child(parent, c).unwrap();
+    }
+    dom.append_child(root, parent).unwrap();
+
+    let sheet = Stylesheet::bare()
+        .rule_unchecked("h1", TuiStyle::new().height(Size::Fixed(1)))
+        .rule_unchecked("b", TuiStyle::new().display(crate::layout::Display::Inline));
+    dom.cascade(&sheet);
+    let parent_rect = LayoutRect::new(0, 0, 20, 10);
+    if let Some(ext) = dom.node_mut(parent).ext_mut() {
+        ext.layout = parent_rect;
+        ext.content_layout = parent_rect;
+    }
+    let parent_computed = dom.node(parent).computed().cloned().unwrap_or_default();
+    layout_block_children(
+        &mut dom as &mut Dom<TuiExt>,
+        parent,
+        parent_rect,
+        &parent_computed,
+    );
+
+    let anon = |container: NodeId, index: usize| Some(InlineFlow::Anonymous { container, index });
+    assert_eq!(inline_flow_for_text(&dom, lead), anon(parent, 0));
+    assert_eq!(
+        inline_flow_for_text(&dom, bold),
+        anon(parent, 0),
+        "nested in <b>"
+    );
+    assert_eq!(inline_flow_for_text(&dom, tail), anon(parent, 1));
+    assert_eq!(
+        inline_flow_for_text(&dom, blank),
+        anon(parent, 2),
+        "whitespace-only run"
+    );
+}
+
 // ── Hit-test integration (phase 3.3) ────────────────────────────
 
 #[test]
