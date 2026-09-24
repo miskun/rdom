@@ -416,6 +416,11 @@ pub struct TuiExt {
     /// cleared when it is laid out, so nothing outlives the pass —
     /// which is why it is not part of the public layout output.
     pub(crate) margin_chain: Option<MarginChainMemo>,
+    /// A caret move or edit asked this inline-flow container to reveal
+    /// the caret; the runtime re-runs the reveal after the next layout,
+    /// when the container's extent is current
+    /// (`CARET-REVEAL-STALE-LAYOUT-1`).
+    pub(crate) caret_reveal_pending: bool,
 
     // ── Editing state (Phase B) ──────────────────────────────────────
     /// Per-editable state (undo/redo history, coalescing metadata).

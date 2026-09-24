@@ -643,6 +643,9 @@ impl<B: Backend> App<B> {
         crate::runtime::animation::diff_and_register(&mut self.dom, &mut self.animations, now);
         self.animations.advance(&mut self.dom, now);
         self.dom.layout_dom(area);
+        if crate::runtime::scrollbar::service_caret_reveal(&mut self.dom) {
+            self.dom.layout_dom(area);
+        }
     }
 
     /// Replace every registered stylesheet with `sheet`. Returns the
@@ -1125,6 +1128,12 @@ impl<B: Backend> App<B> {
             // interpolated values into TuiExt.presentation).
             animations.advance(dom, now);
             dom.layout_dom(buf.area);
+            // A caret reveal requested by an edit this frame re-runs
+            // against the fresh extent; a changed offset needs one more
+            // layout before paint.
+            if crate::runtime::scrollbar::service_caret_reveal(dom) {
+                dom.layout_dom(buf.area);
+            }
             dom.paint_dom(buf, buf.area);
             Ok(())
         })?;

@@ -339,6 +339,38 @@ fn scroll_metrics(dom: &TuiDom, element: NodeId, axis: ScrollAxis) -> (u16, usiz
 /// inside its scrollport. No-op when the caret's container does not
 /// scroll vertically or there is no collapsed selection.
 pub(crate) fn reveal_caret(dom: &mut TuiDom) {
+    reveal_caret_with(dom, ClampTo::NextLayout, true);
+}
+
+/// Re-run a pending caret reveal against the layout that just ran.
+/// Returns `true` when a scroll offset changed, so the caller lays out
+/// once more before painting. Clears the flag either way.
+pub(crate) fn service_caret_reveal(dom: &mut TuiDom) -> bool {
+    let Some(sel) = dom.selection() else {
+        return false;
+    };
+    let focus = sel.focus;
+    let Some(crate::render::inline::InlineFlow::Ifc { block }) =
+        crate::render::inline::inline_flow_for_text(dom, focus.node)
+    else {
+        return false;
+    };
+    let pending = dom
+        .node(block)
+        .tui_ext()
+        .is_some_and(|e| e.caret_reveal_pending);
+    if !pending {
+        return false;
+    }
+    if let Some(ext) = dom.node_mut(block).ext_mut() {
+        ext.caret_reveal_pending = false;
+    }
+    let before = dom.node(block).tui_ext().map(|e| e.scroll_y);
+    reveal_caret_with(dom, ClampTo::CurrentExtent, false);
+    dom.node(block).tui_ext().map(|e| e.scroll_y) != before
+}
+
+fn reveal_caret_with(dom: &mut TuiDom, clamp: ClampTo, mark_pending: bool) {
     let Some(sel) = dom.selection() else { return };
     if !sel.is_collapsed() {
         return;
@@ -350,15 +382,23 @@ pub(crate) fn reveal_caret(dom: &mut TuiDom) {
     let crate::render::inline::InlineFlow::Ifc { block } = flow else {
         return;
     };
+    // The edit that moved the caret may have added a line the last
+    // layout's extent does not know about yet — possibly the first line
+    // that overflows at all, so the check is on `overflow-y`, not on the
+    // stale extent: reveal now against that extent (no clamp), and again
+    // after the next layout.
+    if mark_pending
+        && scrolls_vertically_by_style(dom, block)
+        && let Some(ext) = dom.node_mut(block).ext_mut()
+    {
+        ext.caret_reveal_pending = true;
+    }
     if !is_vertical_scroll_container(dom, block) {
         return;
     }
     let Some((x, y)) = crate::runtime::editing::caret::cell_of_position(dom, focus) else {
         return;
     };
-    // The edit that moved the caret may have added a line the last
-    // layout's extent does not know about yet; let the next layout
-    // clamp instead of the stale maximum.
     ensure_visible_vertical_with(
         dom,
         block,
@@ -368,7 +408,7 @@ pub(crate) fn reveal_caret(dom: &mut TuiDom) {
             width: 1,
             height: 1,
         },
-        ClampTo::NextLayout,
+        clamp,
     );
 }
 
@@ -530,16 +570,22 @@ pub(crate) fn autoscroll_step(
 
 /// `true` when `id` clips on the Y axis and has more content than its
 /// scrollport can show (i.e. there's somewhere to scroll to).
-fn is_vertical_scroll_container(dom: &TuiDom, id: NodeId) -> bool {
-    let Some(ext) = dom.node(id).tui_ext() else {
-        return false;
-    };
+/// `overflow-y` other than `visible`: the box clips and may scroll,
+/// whether or not the last layout found anything to scroll.
+fn scrolls_vertically_by_style(dom: &TuiDom, id: NodeId) -> bool {
     let overflow_y = dom
         .node(id)
         .computed()
         .map(|c| c.overflow_y)
         .unwrap_or(Overflow::Visible);
-    if matches!(overflow_y, Overflow::Visible) {
+    !matches!(overflow_y, Overflow::Visible)
+}
+
+fn is_vertical_scroll_container(dom: &TuiDom, id: NodeId) -> bool {
+    let Some(ext) = dom.node(id).tui_ext() else {
+        return false;
+    };
+    if !scrolls_vertically_by_style(dom, id) {
         return false;
     }
     let border = dom

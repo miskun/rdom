@@ -3472,3 +3472,49 @@ fn app_context_stylesheet_intents_apply_after_the_handler() {
     assert_ne!(bg(&app), Some(blue), "the removed sheet no longer applies");
     assert_eq!(app.style_sheets().len(), 1);
 }
+
+// ── CARET-REVEAL-STALE-LAYOUT-1: reveal against the fresh layout ────
+
+/// Typing the character that wraps a new line reveals the caret's new
+/// row in the SAME frame: the reveal is serviced after layout, not
+/// only at edit time against the previous frame's extent. The new
+/// line is also the first one that overflows, so the stale extent says
+/// the box does not scroll at all — the reveal must still be armed.
+#[test]
+fn caret_reveal_uses_the_layout_of_the_same_frame() {
+    use crate::layout::Overflow;
+    use crate::node::TuiNodeExt;
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let ta = dom.create_element("textarea");
+    let t = dom.create_text_node("aa bb cc dd");
+    dom.append_child(ta, t).unwrap();
+    dom.append_child(root, ta).unwrap();
+    // 6 cells wide, 2 rows: "aa bb" / "cc dd" fills the box exactly.
+    let sheet = Stylesheet::bare().rule_unchecked(
+        "textarea",
+        TuiStyle::new()
+            .width(Size::Fixed(6))
+            .height(Size::Fixed(2))
+            .overflow_y(Overflow::Auto),
+    );
+    let mut app = test_app(dom, sheet, Rect::new(0, 0, 20, 5));
+    app.draw_if_dirty().unwrap();
+    app.dom_mut().set_focused(Some(ta));
+    app.dom_mut()
+        .set_selection(Some(Selection::caret(Position::new(t, 11))));
+    let scroll_y = |app: &App<TestBackend>| app.dom().node(ta).tui_ext().map_or(0, |e| e.scroll_y);
+    assert_eq!(scroll_y(&app), 0);
+
+    // " ee" pushes a third line; the caret sits on it.
+    for ch in [' ', 'e', 'e'] {
+        app.handle_event(key(KeyCode::Char(ch)));
+        app.draw_if_dirty().unwrap();
+    }
+    assert_eq!(app.dom().node(t).node_value(), Some("aa bb cc dd ee"));
+    assert_eq!(
+        scroll_y(&app),
+        1,
+        "the frame that laid out the third line also scrolled it into view"
+    );
+}

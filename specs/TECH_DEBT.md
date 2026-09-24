@@ -13,7 +13,6 @@ For the durable architectural divergences (web-platform departures shipped on pu
 
 ### Deferred from HARDENING-2026-09 Batch 3
 
-- **`CARET-REVEAL-STALE-LAYOUT-1` — `reveal_caret` runs at edit time against the previous frame's layout.** A wrap-induced new line is revealed one keystroke late, and a `scroll` listener can observe an over-maximum offset for the frame before layout clamps it (`ClampTo::NextLayout`). Root fix: a "pending caret reveal" flag serviced by the App after `layout_dom`.
 - **`FLEX-RS-SPLIT-1`** (`layout_pass/flex.rs` ~950 lines: main-axis resolution, freeze loops, placement, cross sizing), **`SCROLLBAR-SPLIT-1`** (`runtime/scrollbar/mod.rs` ~750: hit / geometry / drag / autoscroll / reveal), **`HIT-TEST-SPLIT-1`** (`runtime/hit_test/mod.rs` ~750: descend / nearest / fragment), **`SELECT-SPLIT-1`** (`builtins/select/mod.rs` ~750: click / keyboard / type-ahead / dropdown) — over the few-hundred-line bar; split by concern, no behavior change. Also untouched but over the bar: `cssom/declaration.rs`, `render/buffer.rs`, `render/virtual_screen.rs` (test-only VT emulator that should be `cfg(test)` / a `test-util` feature rather than a public re-export).
 
 - **`APP-MOD-SPLIT-1` — `runtime/app/mod.rs` (~1350 lines, 19 fields) mixes the loop, the stylesheet stack, the autoscroll session, and the clipboard / undo / editable key defaults.** Split into `app/{keyboard_defaults,autoscroll,stylesheets}.rs`; no behavior change.
