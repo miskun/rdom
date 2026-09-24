@@ -135,7 +135,10 @@ fn flex_direction_column() {
 #[test]
 fn gap_integer() {
     let s = first_style("a { gap: 2; }");
-    assert_eq!(s.gap, Some(Value::Specified(2)));
+    assert_eq!(
+        s.gap,
+        Some(Value::Specified(rdom_style::layout::GapValue::Cells(2)))
+    );
 }
 
 #[test]
@@ -258,7 +261,10 @@ fn multiple_declarations_in_one_rule() {
         s.fg,
         Some(Value::Specified(TuiColor::Literal(Color::Rgb(255, 0, 0))))
     );
-    assert_eq!(s.gap, Some(Value::Specified(1)));
+    assert_eq!(
+        s.gap,
+        Some(Value::Specified(rdom_style::layout::GapValue::Cells(1)))
+    );
     assert_eq!(s.display, Some(Value::Specified(Display::Block)));
 }
 
@@ -269,7 +275,10 @@ fn whitespace_around_colon_and_semicolon() {
         s.fg,
         Some(Value::Specified(TuiColor::Literal(Color::Rgb(255, 0, 0))))
     );
-    assert_eq!(s.gap, Some(Value::Specified(1)));
+    assert_eq!(
+        s.gap,
+        Some(Value::Specified(rdom_style::layout::GapValue::Cells(1)))
+    );
 }
 
 #[test]

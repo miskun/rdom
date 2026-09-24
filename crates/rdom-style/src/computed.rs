@@ -55,7 +55,7 @@ pub struct ComputedStyle {
     /// Resolved margin. CSS does NOT collapse adjacent block margins
     /// (rdom divergence — `M5-MARGIN-1`).
     pub margin: crate::layout::Margin,
-    pub gap: u16,
+    pub gap: crate::layout::GapValue,
     /// CSS `flex-shrink`. Default `1` (CSS spec). When total
     /// declared sizes exceed the parent's main-axis budget, items
     /// shrink proportional to `flex_shrink * basis`. `0` opts out.
@@ -180,7 +180,7 @@ impl ComputedStyle {
             aspect_ratio: None,
             padding: Padding::default(),
             margin: crate::layout::Margin::default(),
-            gap: 0,
+            gap: crate::layout::GapValue::Cells(0),
             flex_shrink: 1,
             border: Border::none(),
             border_collapse: crate::layout::BorderCollapse::Separate,
@@ -293,7 +293,7 @@ mod tests {
         assert_eq!(s.overflow_x, Overflow::Visible);
         assert_eq!(s.overflow_y, Overflow::Visible);
         assert_eq!(s.border, Border::none());
-        assert_eq!(s.gap, 0);
+        assert_eq!(s.gap, crate::layout::GapValue::Cells(0));
         assert_eq!(s.padding, Padding::default());
         assert_eq!(s.display, Display::Block);
         assert_eq!(s.flow, crate::layout::Flow::Block);

@@ -24,7 +24,10 @@ fn seed_writes_inline_style_for_attribute() {
         inline.fg,
         Some(Value::Specified(TuiColor::Literal(Color::Rgb(255, 0, 0))))
     );
-    assert_eq!(inline.gap, Some(Value::Specified(1)));
+    assert_eq!(
+        inline.gap,
+        Some(Value::Specified(rdom_style::layout::GapValue::Cells(1)))
+    );
 }
 
 #[test]

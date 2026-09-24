@@ -264,7 +264,7 @@ fn paint_node(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect) {
             computed.padding = padding.clone();
         }
         if let Some(gap) = ext.presentation.gap {
-            computed.gap = gap;
+            computed.gap = crate::layout::GapValue::Cells(gap);
         }
     }
 

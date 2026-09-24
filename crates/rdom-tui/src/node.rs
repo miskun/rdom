@@ -70,7 +70,8 @@ pub trait TuiNodeExt<'a> {
     fn gap(&self) -> Option<u16> {
         self.inline_style()
             .and_then(|s| s.gap.as_ref())
-            .and_then(|v| v.as_specified().copied())
+            .and_then(|v| v.as_specified())
+            .and_then(|g| g.as_cells())
     }
     fn overflow(&self) -> Option<Overflow> {
         self.inline_style()
@@ -377,7 +378,7 @@ pub trait TuiNodeMutExt<'a> {
     }
     fn set_gap(&mut self, g: u16) -> &mut Self {
         if let Some(e) = self.tui_ext_mut() {
-            e.inline_style.gap = Some(Value::Specified(g));
+            e.inline_style.gap = Some(Value::Specified(crate::layout::GapValue::Cells(g)));
             e.style_dirty = true;
         }
         self

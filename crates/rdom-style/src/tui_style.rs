@@ -124,7 +124,7 @@ pub struct TuiStyle {
     pub max_height: Option<Value<u16>>,
     pub padding: Option<Value<Padding>>,
     pub margin: Option<Value<crate::layout::Margin>>,
-    pub gap: Option<Value<u16>>,
+    pub gap: Option<Value<crate::layout::GapValue>>,
     /// CSS `flex-shrink`. Default `1` per CSS spec — when total
     /// declared flex-item sizes exceed the parent's main axis,
     /// items shrink proportional to `flex_shrink * basis`. `0`
@@ -354,7 +354,24 @@ impl TuiStyle {
         self.important |= ImportantMask::MARGIN;
         self
     }
-    setter!(gap, gap, gap_important, GAP, u16);
+    /// Set `gap` to `v` whole cells. Chainable.
+    pub fn gap(mut self, v: u16) -> Self {
+        self.gap = Some(Value::Specified(crate::layout::GapValue::Cells(v)));
+        self
+    }
+
+    /// Like `gap` but also marks the declaration `!important`.
+    pub fn gap_important(mut self, v: u16) -> Self {
+        self.gap = Some(Value::Specified(crate::layout::GapValue::Cells(v)));
+        self.important |= ImportantMask::GAP;
+        self
+    }
+
+    /// Set `gap` to a `calc()` / percentage value, resolved at layout.
+    pub fn gap_value(mut self, v: crate::layout::GapValue) -> Self {
+        self.gap = Some(Value::Specified(v));
+        self
+    }
     setter!(
         flex_shrink,
         flex_shrink,
@@ -838,7 +855,10 @@ mod tests {
 
         assert_eq!(s.width, Some(Value::Specified(Size::Fixed(40))));
         assert_eq!(s.padding, Some(Value::Specified(Padding::all(2))));
-        assert_eq!(s.gap, Some(Value::Specified(1)));
+        assert_eq!(
+            s.gap,
+            Some(Value::Specified(crate::layout::GapValue::Cells(1)))
+        );
         assert_eq!(s.direction, Some(Value::Specified(Direction::Row)));
         assert_eq!(s.border, Some(Value::Specified(Border::single())));
         // `overflow` shorthand writes both longhands.

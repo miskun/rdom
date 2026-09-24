@@ -52,12 +52,12 @@ use crate::layout::{
 use crate::parse::token::{Token, tokenize};
 use crate::parse::values::{
     current_border, current_margin, current_padding, parse_aspect_ratio, parse_border,
-    parse_border_side, parse_color, parse_content, parse_flex_shorthand, parse_inset_shorthand,
-    parse_keyword, parse_length, parse_margin_longhand, parse_margin_shorthand, parse_min_size,
-    parse_opacity, parse_overflow, parse_padding_shorthand, parse_padding_value, parse_position,
-    parse_scrollbar_gutter, parse_size, parse_text_decoration, parse_time_list,
-    parse_timing_function_list, parse_transition_property_list, parse_transition_shorthand,
-    parse_unsigned, parse_z_index, unzip_transition_rules,
+    parse_border_side, parse_color, parse_content, parse_flex_shorthand, parse_gap,
+    parse_inset_shorthand, parse_keyword, parse_length, parse_margin_longhand,
+    parse_margin_shorthand, parse_min_size, parse_opacity, parse_overflow, parse_padding_shorthand,
+    parse_padding_value, parse_position, parse_scrollbar_gutter, parse_size, parse_text_decoration,
+    parse_time_list, parse_timing_function_list, parse_transition_property_list,
+    parse_transition_shorthand, parse_unsigned, parse_z_index, unzip_transition_rules,
 };
 use crate::transition::{TimingFunction, TransitionProperty};
 use crate::{Color, Content, TuiColor, TuiStyle, Value};
@@ -647,8 +647,8 @@ pub fn set_from_tokens(
         }),
 
         // Layout — gap
-        "gap" => parse_unsigned(value).map(|n| {
-            style.gap = Some(Value::Specified(n));
+        "gap" => parse_gap(value).map(|g| {
+            style.gap = Some(Value::Specified(g));
         }),
 
         // Flex shorthand — sets `width` + `height` AND `flex-shrink`.
@@ -1064,11 +1064,10 @@ pub fn serialize(name: &str, style: &TuiStyle) -> Option<String> {
             .map(|r| format!("{}/{}", r.numerator, r.denominator)),
 
         // Layout — gap
-        "gap" => style
-            .gap
-            .as_ref()
-            .and_then(specified)
-            .map(|n| n.to_string()),
+        "gap" => style.gap.as_ref().and_then(specified).map(|g| match g {
+            crate::layout::GapValue::Cells(n) => n.to_string(),
+            crate::layout::GapValue::Calc(expr) => format!("calc({})", serialize_calc(expr)),
+        }),
 
         // Padding — emit the 4-value shorthand always (round-trips
         // via parse_padding_shorthand). The longhands read a
@@ -1932,6 +1931,38 @@ mod tests {
         assert_eq!(
             serialize("transition-timing-function", &style).as_deref(),
             Some("cubic-bezier(0.1, 0.7, 1, 0.1), steps(4, jump-none), steps(1, jump-end), linear")
+        );
+    }
+
+    /// `CALC-GAP-1`: `gap` accepts `calc()` with percentages and bare
+    /// percentages, kept symbolic until layout; constant calc folds.
+    #[test]
+    fn gap_accepts_calc_and_percent() {
+        use crate::calc::CalcExpr;
+        use crate::layout::GapValue;
+        let mut style = TuiStyle::new();
+        set("gap", "calc(50% - 1)", &mut style).unwrap();
+        assert!(matches!(
+            style.gap,
+            Some(Value::Specified(GapValue::Calc(_)))
+        ));
+        assert_eq!(serialize("gap", &style).as_deref(), Some("calc(50% - 1)"));
+        set("gap", "calc(2 * 3)", &mut style).unwrap();
+        assert_eq!(style.gap, Some(Value::Specified(GapValue::Cells(6))));
+        set("gap", "10%", &mut style).unwrap();
+        assert_eq!(
+            style.gap,
+            Some(Value::Specified(GapValue::Calc(Box::new(
+                CalcExpr::Percent(10.0)
+            ))))
+        );
+        assert_eq!(
+            set("gap", "-1", &mut style),
+            Err(DispatchError::InvalidValue)
+        );
+        assert_eq!(
+            GapValue::Calc(Box::new(CalcExpr::Percent(10.0))).resolve(30),
+            3
         );
     }
 

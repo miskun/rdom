@@ -224,6 +224,40 @@ fn fractional_percent_width_rounds_once_at_layout() {
     assert_eq!(Size::percent_of(20, 12.5), 2, "2.5 rounds to even");
 }
 
+/// `CALC-GAP-1`: a percentage gap resolves against the container's
+/// content size on the gap's axis (here a 30-wide row: 10% → 3 cells).
+#[test]
+fn row_with_percent_gap_resolves_against_container_width() {
+    use rdom_style::calc::CalcExpr;
+    use rdom_style::layout::GapValue;
+    let mut dom = tui_dom();
+    let root = dom.root();
+    let c = dom.create_element("c");
+    let a = dom.create_element("a");
+    let b = dom.create_element("b");
+    dom.append_child(c, a).unwrap();
+    dom.append_child(c, b).unwrap();
+    dom.append_child(root, c).unwrap();
+
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "c",
+            TuiStyle::new()
+                .flow(Flow::Flex)
+                .direction(Direction::Row)
+                .width(Size::Fixed(30))
+                .gap_value(GapValue::Calc(Box::new(CalcExpr::Percent(10.0)))),
+        )
+        .rule_unchecked("a", TuiStyle::new().width(Size::Fixed(3)))
+        .rule_unchecked("b", TuiStyle::new().width(Size::Fixed(4)));
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 50, 10));
+
+    let la = layout_rect_of(&dom, a);
+    let lb = layout_rect_of(&dom, b);
+    assert_eq!(lb.x, la.x + 3 + 3, "10% of 30 = 3 cells of gap");
+}
+
 #[test]
 fn row_flex_distributes_remaining() {
     let mut dom = tui_dom();

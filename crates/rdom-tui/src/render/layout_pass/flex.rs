@@ -206,7 +206,7 @@ pub(super) fn layout_flex_children(
     }
 
     let direction = parent.direction;
-    let gap = parent.gap;
+    let gap = super::resolve_gap(parent, container, direction);
 
     // ── Parent-child border-collapse inset ─────────────────────────
     //

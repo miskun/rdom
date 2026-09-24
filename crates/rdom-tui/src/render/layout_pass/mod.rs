@@ -549,6 +549,24 @@ pub(super) fn element_children_of(dom: &Dom<TuiExt>, id: NodeId) -> Vec<NodeId> 
 /// out-of-flow positioned (`absolute` / `fixed`). The single source of truth
 /// for the "skip out-of-flow children" filter shared by block + flex layout and
 /// the scroll-content walk (DRY-1).
+/// Resolve a `gap` for `computed`'s children along `axis` (CSS Box
+/// Alignment 3 §8): percentages resolve against the container's
+/// content size on that axis, and against 0 when that size is
+/// indefinite — which for rdom means an `auto`-height container's
+/// block axis.
+pub(super) fn resolve_gap(
+    computed: &crate::style::ComputedStyle,
+    container: LayoutRect,
+    axis: Direction,
+) -> u16 {
+    let basis = match axis {
+        Direction::Row => container.width,
+        Direction::Column if computed.height == crate::layout::Size::Auto => 0,
+        Direction::Column => container.height,
+    };
+    computed.gap.resolve(basis)
+}
+
 pub(super) fn is_in_flow(dom: &Dom<TuiExt>, id: NodeId) -> bool {
     let node = dom.node(id);
     if node.node_type() != NodeType::Element {

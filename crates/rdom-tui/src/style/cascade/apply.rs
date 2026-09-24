@@ -264,13 +264,12 @@ fn apply_style(
         important_pass,
         parent.margin.clone(),
     );
-    apply_u16(
+    apply_gap(
         &mut working.gap,
         &style.gap,
         style.important.contains(ImportantMask::GAP),
         important_pass,
-        parent.gap,
-        0,
+        parent.gap.clone(),
     );
     apply_u16(
         &mut working.flex_shrink,
@@ -539,6 +538,23 @@ fn apply_u16(
         important_pass,
         inherit,
         initial
+    );
+}
+
+fn apply_gap(
+    target: &mut crate::layout::GapValue,
+    value: &Option<Value<crate::layout::GapValue>>,
+    important_prop: bool,
+    important_pass: bool,
+    inherit: crate::layout::GapValue,
+) {
+    apply_simple!(
+        *target,
+        value,
+        important_prop,
+        important_pass,
+        inherit,
+        crate::layout::GapValue::Cells(0)
     );
 }
 

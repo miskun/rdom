@@ -28,7 +28,10 @@ fn parse_inline_multiple_declarations() {
         Some(Value::Specified(TuiColor::Literal(Color::Rgb(255, 0, 0))))
     );
     assert_eq!(r.style.display, Some(Value::Specified(Display::Block)));
-    assert_eq!(r.style.gap, Some(Value::Specified(2)));
+    assert_eq!(
+        r.style.gap,
+        Some(Value::Specified(rdom_style::layout::GapValue::Cells(2)))
+    );
 }
 
 #[test]

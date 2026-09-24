@@ -596,7 +596,7 @@ fn padding_and_gap_cascade() {
     dom.cascade(&sheet);
     let c = computed_of(&dom, div);
     assert_eq!(c.padding, Padding::symmetric(2, 1));
-    assert_eq!(c.gap, 3);
+    assert_eq!(c.gap, rdom_style::layout::GapValue::Cells(3));
 }
 
 #[test]
@@ -2140,7 +2140,7 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
     parent.aspect_ratio = AspectRatio::new(4, 3);
     parent.padding = Padding::all(1);
     parent.margin = Margin::all_cells(1);
-    parent.gap = 2;
+    parent.gap = rdom_style::layout::GapValue::Cells(2);
     parent.flex_shrink = 3;
     parent.border = Border {
         top: BorderStyle::Solid,

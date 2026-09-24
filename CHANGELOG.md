@@ -35,6 +35,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 ### Breaking — `rdom-style`
 
 - `Length::Cells` holds an `i32` (was `i16`): `top` / `right` / `bottom` / `left` can position past ±32 k cells for virtualized surfaces; `parse_length` no longer rejects large integers. `z-index` stays `i16`. (`SUB-4`)
+- `gap` is a `GapValue` (`Cells(u16)` | `Calc(Box<CalcExpr>)`) on `TuiStyle` (`Option<Value<GapValue>>`) and `ComputedStyle`; `gap: calc(50% - 1)` and `gap: 10%` are accepted and resolve at layout against the container's content size on the gap's axis (0 when that size is indefinite, per CSS Box Alignment 3 §8). `TuiStyle::gap(u16)` is unchanged; `gap_value()` takes a `GapValue`. Only cell ↔ cell gap changes animate. (`CALC-GAP-1`)
 
 ### Added — `rdom-style`
 

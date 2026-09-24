@@ -189,7 +189,7 @@ pub(super) fn layout_block_children(
     // wrapping inline-only runs (whitespace text between block
     // siblings produces 0-height anons; counting them as gap
     // boundaries would multiply gaps unexpectedly).
-    let row_gap = parent_computed.gap;
+    let row_gap = super::resolve_gap(parent_computed, container, Direction::Column);
 
     let mut placed_block_count: usize = 0;
     // BORDER-MODEL-1 (M6): track the previous direct block sibling
