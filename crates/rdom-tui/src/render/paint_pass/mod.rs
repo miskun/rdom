@@ -134,6 +134,28 @@ fn paint_stacking_context(
     clip: Rect,
     viewport: Rect,
 ) {
+    // CSS `opacity` is group opacity: the subtree paints into a copy of
+    // the buffer at full opacity and the copy composites back at the
+    // element's alpha (`Buffer::composite_group`), so nested opacities
+    // multiply and every paint inside — backgrounds, glyphs, pseudo
+    // backgrounds — blends once against the backdrop (OPACITY-1).
+    let alpha = dom.node(root).computed().map_or(1.0, |c| c.opacity);
+    if alpha < 1.0 && dom.node(root).node_type() == NodeType::Element {
+        let mut layer = buf.clone();
+        paint_stacking_context_body(dom, root, &mut layer, clip, viewport);
+        buf.composite_group(&layer, alpha);
+        return;
+    }
+    paint_stacking_context_body(dom, root, buf, clip, viewport);
+}
+
+fn paint_stacking_context_body(
+    dom: &Dom<TuiExt>,
+    root: NodeId,
+    buf: &mut Buffer,
+    clip: Rect,
+    viewport: Rect,
+) {
     if dom.node(root).node_type() == NodeType::Fragment {
         // The document root: no box of its own.
         let layers = collect_layers(dom, root, clip, viewport);
@@ -151,7 +173,6 @@ fn paint_stacking_context(
     paint_content(dom, root, buf, clip, viewport, &frame);
     paint_layers(dom, &layers.zero_auto, buf, viewport);
     paint_layers(dom, &layers.positive, buf, viewport);
-    buf.exit_compose_ctx(frame.saved_ctx);
 }
 
 fn paint_layers(dom: &Dom<TuiExt>, entries: &[LayerEntry], buf: &mut Buffer, viewport: Rect) {
@@ -173,7 +194,6 @@ fn paint_plain(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect, view
         return;
     };
     paint_content(dom, id, buf, clip, viewport, &frame);
-    buf.exit_compose_ctx(frame.saved_ctx);
 }
 
 /// Find every open modal `<dialog>` (any element with both `open`
@@ -234,20 +254,17 @@ fn fill_backdrop(buf: &mut Buffer, clip: Rect, style: &ComputedStyle) {
 // ─── Per-node paint ─────────────────────────────────────────────────
 
 /// What [`paint_box`] hands to [`paint_content`]: the style with the
-/// transition presentation overlaid, the content rect, the clip the
-/// content paints into, and the compose context the caller exits once
-/// the element's content — and, for a stacking context, its layers —
-/// have painted.
+/// transition presentation overlaid, the content rect and the clip the
+/// content paints into.
 struct BoxFrame {
     computed: ComputedStyle,
     inner: LayoutRect,
     children_clip: Rect,
-    saved_ctx: (f32, Color),
 }
 
-/// Paint an element's own box — background fill and border — and enter
-/// its compose context. `None` for non-elements and `display: none`,
-/// which paint nothing and have no content to paint.
+/// Paint an element's own box — background fill and border. `None` for
+/// non-elements and `display: none`, which paint nothing and have no
+/// content to paint.
 fn paint_box(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect) -> Option<BoxFrame> {
     if dom.node(id).node_type() != NodeType::Element {
         return None;
@@ -286,25 +303,6 @@ fn paint_box(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect) -> Opt
     if computed.display == Display::None {
         return None;
     }
-
-    // CSS `opacity` — cell-level compositing. We enter a compose
-    // context on the buffer that turns every subsequent cell write
-    // (fill_bg, paint_border, text/inline/pseudo, builtins) into an
-    // alpha-blend against the cell's actual existing bg. The
-    // resolved `parent_bg` is the fallback when a cell's bg is
-    // `Color::Reset` (its own fallback is `#000000`, the
-    // canvas-model default — terminals don't expose their real
-    // default bg). For `opacity = 1.0` the context is a no-op
-    // fast path; the colors flow through unchanged. For
-    // `opacity = 0` the context blends every write fully toward
-    // the destination — the element is visually invisible without
-    // erasing the cells it overlays.
-    //
-    // The per-cell blend resolves against the actual cell, which
-    // captures whatever paint deposited there earlier — including a
-    // z-stacked element below the painter with its own bg.
-    let parent_bg = resolve_parent_bg(dom, id);
-    let saved_ctx = buf.enter_compose_ctx(computed.opacity, parent_bg);
 
     let outer = dom.node(id).layout_rect().unwrap_or_default();
     let inner = dom.node(id).content_layout_rect().unwrap_or(outer);
@@ -345,7 +343,7 @@ fn paint_box(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect) -> Opt
             } else {
                 outer_grid
             };
-            fill_bg(buf, fill_area, computed.bg, computed.opacity);
+            fill_bg(buf, fill_area, computed.bg);
         }
 
         // 2. Border. Writes per-cell × per-direction `BorderContribution`s
@@ -379,7 +377,6 @@ fn paint_box(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect) -> Opt
         computed,
         inner,
         children_clip,
-        saved_ctx,
     })
 }
 
@@ -554,8 +551,6 @@ pub(crate) fn layout_rect_to_grid(layout: LayoutRect, clip: Rect) -> Option<Rect
     ))
 }
 
-// ─── CSS `opacity` alpha-blend (T4) ─────────────────────────────────
-
 /// Compute the structural priority for an element's border
 /// contributions. Encodes CSS Tables 3 §11.5 rules 5 + 6:
 ///
@@ -593,24 +588,5 @@ fn border_has_half_block(border: rdom_style::layout::Border) -> bool {
         || matches!(border.left, BorderStyle::HalfBlock)
 }
 
-/// Resolve the parent background color by walking up the DOM tree.
-/// Returns the first ancestor's non-`Reset` `computed.bg`, or
-/// `Color::Reset` if no ancestor has set one. Caller decides what
-/// `Reset` means for blending — the canvas model is `#000000`.
-fn resolve_parent_bg(dom: &Dom<TuiExt>, id: NodeId) -> Color {
-    let mut cur = dom.node(id).parent_node();
-    while let Some(node) = cur {
-        if let Some(c) = node.ext().and_then(|e| e.computed.as_ref())
-            && c.bg != Color::Reset
-        {
-            return c.bg;
-        }
-        cur = node.parent_node();
-    }
-    Color::Reset
-}
-
-// `alpha_blend` lives in `render::compose` for shared use by
-// `Buffer`'s cell-write path. `paint_pass` doesn't call it directly
-// — opacity is applied at write time via the buffer's compose
-// context (see `Buffer::enter_compose_ctx`).
+// `alpha_blend` lives in `render::compose`; opacity is applied when a
+// subtree's layer composites back (`Buffer::composite_group`).

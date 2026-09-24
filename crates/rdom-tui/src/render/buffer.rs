@@ -98,7 +98,7 @@ impl BorderContribution {
 /// contribution AND a `killed` flag for the `BorderStyle::Hidden`
 /// kill-switch (CSS Tables 3 §11.5 rule 1: hidden suppresses the
 /// edge regardless of any other contributor).
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct BorderDirState {
     /// Highest-rank visible contribution so far. `None` when no
     /// non-None / non-Hidden style has been written for this
@@ -166,11 +166,9 @@ pub const QUAD_BR: u8 = 0b1000;
 
 /// 2D grid of cells.
 ///
-/// `Eq` is intentionally omitted because `compose_alpha: f32`
-/// blocks it. `PartialEq` compares only `area` + `content` —
-/// transient compose-context state is excluded so two buffers with
-/// the same rendered content are equal regardless of whatever
-/// paint context happened to be active.
+/// `PartialEq` compares only `area` + `content`: the border-direction
+/// and half-block side tables are joiner bookkeeping derived from the
+/// paints that produced the content, not content of their own.
 #[derive(Debug, Clone)]
 pub struct Buffer {
     /// The rectangle this buffer covers in terminal grid coordinates.
@@ -193,24 +191,11 @@ pub struct Buffer {
     /// borders *weld* (a tab onto a panel → `▟ █ ▌`) instead of falling back
     /// to box-drawing T-junctions — see `border_join::HALF_BLOCK_QUAD_TABLE`.
     pub half_block_quads: Vec<u8>,
-    /// Compose context — alpha applied to every cell write while
-    /// active. `1.0` (the default) is the no-compose fast path.
-    /// Set by `paint_node` via `enter_compose_ctx` before painting
-    /// a translucent element; restored by `exit_compose_ctx`
-    /// afterwards.
-    compose_alpha: f32,
-    /// Fallback bg used when the cell being written has
-    /// `cell.bg == Color::Reset` — resolved per element in
-    /// `paint_node` via the existing DOM walk. Reset itself
-    /// (no resolved parent bg) blends against `#000000` per the
-    /// `alpha_blend` canvas-model fallback.
-    compose_parent_bg: Color,
 }
 
 impl PartialEq for Buffer {
-    /// Compare only `area` + `content`. The compose context is
-    /// transient paint state and not part of the buffer's logical
-    /// content.
+    /// Compare only `area` + `content`; the side tables are joiner
+    /// bookkeeping, not logical content.
     fn eq(&self, other: &Self) -> bool {
         self.area == other.area && self.content == other.content
     }
@@ -231,8 +216,6 @@ impl Buffer {
             content: vec![cell; len],
             border_dirs: vec![BorderCell::default(); len],
             half_block_quads: vec![0u8; len],
-            compose_alpha: 1.0,
-            compose_parent_bg: Color::Reset,
         }
     }
 
@@ -252,91 +235,65 @@ impl Buffer {
             content: cells,
             border_dirs: vec![BorderCell::default(); len],
             half_block_quads: vec![0u8; len],
-            compose_alpha: 1.0,
-            compose_parent_bg: Color::Reset,
         }
     }
 
-    // ── Compose context ───────────────────────────────────────────────
-    //
-    // The compose context is set by `paint_node` before painting an
-    // element and restored on exit. While active, every cell write
-    // through `set_symbol` / `set_stringn` / `set_string` / `set_style`
-    // applies the element's `opacity` to the painter's style: the
-    // painter's `fg` and `bg` are alpha-blended against the cell's
-    // *existing* bg (falling back to `compose_parent_bg`, then to
-    // `#000000`, when the existing bg is `Color::Reset`). The atomic-
-    // glyph rule still applies — the painter's symbol (if any)
-    // overwrites the existing symbol; the painter's modifiers ride
-    // along with the painter's glyph. Modifiers don't blend (terminal
-    // can't render half-bold).
-    //
-    // `compose_alpha = 1.0` is the opaque fast path: no blend, painter
-    // writes its colors straight to the cell.
-
-    /// Enter a new compose context, returning the previous one so the
-    /// caller can restore it after the element's paint completes.
-    /// Use as `let saved = buf.enter_compose_ctx(alpha, parent_bg);
-    /// ...paint...; buf.exit_compose_ctx(saved);`.
-    pub(crate) fn enter_compose_ctx(&mut self, alpha: f32, parent_bg: Color) -> (f32, Color) {
-        let saved = (self.compose_alpha, self.compose_parent_bg);
-        self.compose_alpha = alpha;
-        self.compose_parent_bg = parent_bg;
-        saved
-    }
-
-    /// Restore a previously-saved compose context.
-    pub(crate) fn exit_compose_ctx(&mut self, saved: (f32, Color)) {
-        self.compose_alpha = saved.0;
-        self.compose_parent_bg = saved.1;
-    }
-
-    /// Resolve the effective destination bg for a per-cell compose.
-    /// Picks the cell's existing bg if it's a real color, else the
-    /// compose context's `parent_bg`, else `#000000` (canvas-model
-    /// fallback — terminals don't expose their actual default bg).
-    fn compose_dst_bg(&self, cell_bg: Color) -> Color {
-        if cell_bg != Color::Reset {
-            cell_bg
-        } else if self.compose_parent_bg != Color::Reset {
-            self.compose_parent_bg
-        } else {
-            Color::Rgb(0, 0, 0)
+    /// Composite `layer` — a copy of this buffer that a subtree painted
+    /// into at full opacity — back onto this buffer at `alpha` (CSS
+    /// group opacity). Per cell, against the backdrop this buffer
+    /// holds: a background the layer changed blends in; a visible glyph
+    /// the layer painted replaces the cell's glyph with its foreground
+    /// blended against the backdrop; a blank or space the layer wrote
+    /// keeps the backdrop's glyph (a translucent box cannot erase what
+    /// is beneath it). Border contributions and links the layer added
+    /// merge in; the layer clearing them does not clear the backdrop's.
+    pub(crate) fn composite_group(&mut self, layer: &Buffer, alpha: f32) {
+        debug_assert_eq!(self.area, layer.area);
+        let canvas = Color::Rgb(0, 0, 0);
+        for i in 0..self.content.len().min(layer.content.len()) {
+            let before = &self.content[i];
+            let after = &layer.content[i];
+            if before == after {
+                // Side tables may still differ (a border added in the
+                // layer with no cell change).
+            } else {
+                let backdrop = if before.bg == Color::Reset {
+                    canvas
+                } else {
+                    before.bg
+                };
+                let mut out = before.clone();
+                if after.bg != before.bg {
+                    out.bg = alpha_blend(after.bg, alpha, backdrop);
+                }
+                let painted_glyph = after.raw_symbol() != before.raw_symbol()
+                    && after
+                        .raw_symbol()
+                        .is_some_and(|s| !s.is_empty() && !s.chars().all(char::is_whitespace));
+                if painted_glyph {
+                    out.set_symbol(after.symbol());
+                    out.modifier = after.modifier;
+                    out.diff = after.diff;
+                    out.fg = alpha_blend(after.fg, alpha, backdrop);
+                } else if after.fg != before.fg && before.raw_symbol().is_some() {
+                    // A style-only write over an existing glyph.
+                    out.fg = alpha_blend(after.fg, alpha, backdrop);
+                }
+                if after.link != before.link && after.link.is_some() {
+                    out.set_link(after.link.as_deref());
+                }
+                self.content[i] = out;
+            }
+            for dir in 0..4 {
+                let added = layer.border_dirs[i][dir];
+                if added != self.border_dirs[i][dir] && added != BorderDirState::default() {
+                    self.border_dirs[i][dir] = added;
+                }
+            }
+            self.half_block_quads[i] |= layer.half_block_quads[i];
         }
     }
 
-    /// Compose `style` against the cell at `(x, y)` for the current
-    /// alpha. Returns the style to actually apply. Pass-through when
-    /// `compose_alpha >= 1.0` (the opaque fast path).
-    fn compose_style_for_cell(&self, x: u16, y: u16, style: Style) -> Style {
-        if self.compose_alpha >= 1.0 {
-            return style;
-        }
-        let cell_bg = self.cell(x, y).map(|c| c.bg).unwrap_or(Color::Reset);
-        let dst = self.compose_dst_bg(cell_bg);
-        Style {
-            fg: style.fg.map(|fg| alpha_blend(fg, self.compose_alpha, dst)),
-            bg: style.bg.map(|bg| alpha_blend(bg, self.compose_alpha, dst)),
-            add_modifier: style.add_modifier,
-            sub_modifier: style.sub_modifier,
-        }
-    }
-
-    /// Compose a raw bg color against the cell at `(x, y)` for the
-    /// current alpha. Used by `fill_bg`'s translucent path (it
-    /// writes `cell.bg` directly rather than through `set_symbol`).
-    /// Returns the bg value to write.
-    pub(crate) fn compose_bg_for_cell(&self, x: u16, y: u16, bg: Color) -> Color {
-        if self.compose_alpha >= 1.0 {
-            return bg;
-        }
-        let cell_bg = self.cell(x, y).map(|c| c.bg).unwrap_or(Color::Reset);
-        let dst = self.compose_dst_bg(cell_bg);
-        alpha_blend(bg, self.compose_alpha, dst)
-    }
-
-    /// Lookup: cell index from (x, y) terminal coords. Returns `None`
-    /// if outside `area`.
     pub fn index_of(&self, x: u16, y: u16) -> Option<usize> {
         if x < self.area.x || y < self.area.y || x >= self.area.right() || y >= self.area.bottom() {
             return None;
@@ -528,16 +485,10 @@ impl Buffer {
     /// Write `symbol` at `(x, y)` with `style`. Grapheme-agnostic —
     /// use `set_string` if `symbol` may be multi-byte and you want
     /// automatic wide-glyph spacer handling.
-    ///
-    /// If the current compose context is translucent
-    /// (`compose_alpha < 1.0`), the `style`'s `fg` and `bg` are
-    /// alpha-blended against the cell's existing bg before being
-    /// applied. See `compose_style_for_cell` for the rule.
     pub fn set_symbol(&mut self, x: u16, y: u16, symbol: &str, style: Style) {
-        let composed = self.compose_style_for_cell(x, y, style);
         if let Some(c) = self.cell_mut(x, y) {
             c.set_symbol(symbol);
-            c.apply_style(composed);
+            c.apply_style(style);
         }
     }
 
@@ -550,12 +501,10 @@ impl Buffer {
     }
 
     /// Write just the style at `(x, y)`, preserving whatever symbol
-    /// is currently there. Honors the compose context the same way
-    /// `set_symbol` does.
+    /// is currently there.
     pub fn set_style(&mut self, x: u16, y: u16, style: Style) {
-        let composed = self.compose_style_for_cell(x, y, style);
         if let Some(c) = self.cell_mut(x, y) {
-            c.apply_style(composed);
+            c.apply_style(style);
         }
     }
 
@@ -645,10 +594,9 @@ impl Buffer {
                 // write the ellipsis placeholder so the boundary is
                 // visually clean instead of leaving a naked half-glyph.
                 if w == 2 && budget - cells_written == 1 {
-                    let composed = self.compose_style_for_cell(cursor_x, y, style);
                     if let Some(c) = self.cell_mut(cursor_x, y) {
                         c.set_symbol(WIDE_CLIP_PLACEHOLDER);
-                        c.apply_style(composed);
+                        c.apply_style(style);
                     }
                     cursor_x = cursor_x.saturating_add(1);
                 }
@@ -656,19 +604,17 @@ impl Buffer {
             }
 
             // Write the primary cell.
-            let composed = self.compose_style_for_cell(cursor_x, y, style);
             if let Some(c) = self.cell_mut(cursor_x, y) {
                 c.set_symbol(grapheme);
-                c.apply_style(composed);
+                c.apply_style(style);
             }
 
             // For width-2 glyphs, write the trailing spacer.
             if w == 2 {
                 let spacer_x = cursor_x.saturating_add(1);
-                let spacer_composed = self.compose_style_for_cell(spacer_x, y, style);
                 if let Some(c) = self.cell_mut(spacer_x, y) {
                     c.set_spacer();
-                    c.apply_style(spacer_composed);
+                    c.apply_style(style);
                 }
             }
 

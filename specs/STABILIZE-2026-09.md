@@ -274,6 +274,8 @@ Each phase ends with the two review gates; each commit carries the item id.
   separate live state would need a core hook for one selector). Found on the way: a toggle beside
   prose lost its click to the empty-space selection snap — toggles / range are now `user-select:
   none` in the UA sheet, like buttons.
+- 2026-09-24 — Phase 6: `OPACITY-1` — group rendering (`Buffer::composite_group`); the per-write
+  compose context and its `parent_bg` fallback are gone. Recorded in DESIGN.
 - Found while mapping Phase 3 (not on the ledger): `ImportantMask::FLOW` and `POINTER_EVENTS` share
   bit 39 (`tui_style.rs`), custom-property inheritance in the cascade is overwritten by the merged
   root map (`walk.rs`), and tokenizer errors inside a block are body-relative (`declarations.rs`).

@@ -84,38 +84,24 @@ const VERTICAL: &str = "│";
 /// cleared (and vice versa for spacer cells). Without this pairing,
 /// the fill would leave half-cell residue at area boundaries that
 /// straddle a wide glyph.
-pub(super) fn fill_bg(buf: &mut Buffer, area: Rect, bg: Color, opacity: f32) {
-    let opaque = opacity >= 1.0;
+pub(super) fn fill_bg(buf: &mut Buffer, area: Rect, bg: Color) {
     for y in area.y..area.bottom() {
         for x in area.x..area.right() {
-            if opaque {
-                // Opaque fast path: clear symbol/fg/modifier so the
-                // element's subsequent border/text/pseudo paints land
-                // on a blank canvas, then write the raw bg.
-                clear_cell_for_opaque_fill(buf, x, y);
-                // BORDER-MODEL-1: an opaque fill completely occludes
-                // anything painted at this cell earlier in the walk,
-                // including border contributions from underlying
-                // elements. Clear the per-direction state so the
-                // joiner doesn't re-emit a border glyph here.
-                clear_border_dirs(buf, x, y);
-                if let Some(cell) = buf.cell_mut(x, y) {
-                    cell.bg = bg;
-                }
-            } else {
-                // Translucent: blend the painter's `bg` against the
-                // cell's existing `bg` at the current compose alpha
-                // (Phase 2 cell-level RMW). When the cell is `Reset`
-                // the compose context falls back to its
-                // `parent_bg`, then to the `#000000` canvas model.
-                // Note: `compose_bg_for_cell` honors the buffer's
-                // compose context, which `paint_node` has set to
-                // this element's `opacity` — the local `opacity`
-                // arg matches.
-                let blended = buf.compose_bg_for_cell(x, y, bg);
-                if let Some(cell) = buf.cell_mut(x, y) {
-                    cell.bg = blended;
-                }
+            // Clear symbol/fg/modifier so the element's subsequent
+            // border/text/pseudo paints land on a blank canvas, then
+            // write the raw bg. Translucency is not a per-fill concern
+            // any more: an `opacity < 1` subtree paints into its own
+            // layer at full opacity and `Buffer::composite_group` blends
+            // the layer (OPACITY-1).
+            clear_cell_for_opaque_fill(buf, x, y);
+            // BORDER-MODEL-1: an opaque fill completely occludes
+            // anything painted at this cell earlier in the walk,
+            // including border contributions from underlying
+            // elements. Clear the per-direction state so the
+            // joiner doesn't re-emit a border glyph here.
+            clear_border_dirs(buf, x, y);
+            if let Some(cell) = buf.cell_mut(x, y) {
+                cell.bg = bg;
             }
         }
     }

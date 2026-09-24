@@ -2,15 +2,11 @@
 //! buffer's cell-write methods.
 //!
 //! `alpha_blend(src, alpha, dst)` performs straight-alpha
-//! composition: `out = α·src + (1-α)·dst`. The function used to
-//! live in `paint_pass/mod.rs`, where it pre-blended an element's
-//! colors against the resolved `parent_bg` at cascade time (Phase
-//! 1 of the opacity rollout). Phase 2 moved the call site to the
-//! buffer's cell-write path so the blend resolves against the
-//! cell's actual `bg` — correct for z-stacked overlays where the
-//! cell underneath has a different bg from the painter's DOM
-//! parent. The function itself is unchanged; only its callers moved.
-
+//! composition: `out = α·src + (1-α)·dst`. It is called by
+//! `Buffer::composite_group`, which blends a subtree's opaque layer
+//! back onto the backdrop at the element's `opacity` (CSS group
+//! opacity, OPACITY-1), so nested opacities multiply and every paint
+//! inside the group blends exactly once.
 use crate::style::Color;
 
 /// Alpha-blend `src` over `dst` using `alpha` ∈ [0, 1].

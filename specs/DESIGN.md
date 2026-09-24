@@ -130,6 +130,10 @@ Instead of inventing a new property name (`border-join`), reuse the CSS property
 
 When collapse is active and an element has a border, `compute_content_area_collapsed` returns the *outer* rect, so children's outer edges coincide with the parent's border-ring cells. Sibling overlap is handled inside the flex resolver only. This concentrates the box-model special case in one function; hit-test, paint, and selection don't need to know about collapse.
 
+### `opacity` is group opacity
+
+An element with `opacity < 1` paints its whole stacking context into a copy of the frame buffer at full opacity; `Buffer::composite_group` then blends that copy back onto the backdrop at the element's alpha, cell by cell: a changed background blends in, a painted glyph replaces the cell's glyph with its foreground blended against the backdrop, and a blank or space keeps the backdrop's glyph (a translucent box cannot erase what is beneath it in a cell grid). Nested opacities therefore multiply and every paint inside the group blends once, with no per-write compose state on the buffer. The copy costs one buffer clone per translucent element per frame.
+
 ### Paint layer invariant: `fill_bg` owns `cell.bg`; glyph painters write `symbol + fg + modifiers` only
 
 Including `bg` in a glyph style during paint causes a second blend pass under opacity, producing double-blended colors. The bug surfaced as visibly brighter text on translucent cards. Two helpers: `style_from_computed` (with bg, for pseudos that paint their own bg) and `glyph_style_from_computed` (without bg, for own-text and IFC fragments whose owner is the IFC block).

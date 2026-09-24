@@ -4391,3 +4391,68 @@ fn mixed_content_block_paints_pseudos_on_its_anonymous_boxes() {
     assert_eq!(row(&buf, 1).trim_end(), "block");
     assert_eq!(row(&buf, 2).trim_end(), "tail !");
 }
+
+// ── OPACITY-1: group rendering ─────────────────────────────────────
+
+/// Nested opacity multiplies (CSS Color 4 §... group opacity): a
+/// `0.5` child of a `0.5` parent renders at `0.25`.
+#[test]
+fn nested_opacity_multiplies() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let outer = dom.create_element("outer");
+    let inner = dom.create_element("inner");
+    dom.append_child(outer, inner).unwrap();
+    dom.append_child(root, outer).unwrap();
+    let white = Color::Rgb(255, 255, 255);
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "outer",
+            TuiStyle::new()
+                .width(Size::Fixed(4))
+                .height(Size::Fixed(1))
+                .opacity(0.5),
+        )
+        .rule_unchecked(
+            "inner",
+            TuiStyle::new()
+                .width(Size::Fixed(4))
+                .height(Size::Fixed(1))
+                .bg(white)
+                .opacity(0.5),
+        );
+    let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 4, 1));
+    // White at 0.25 over the black canvas.
+    let quarter = crate::render::compose::alpha_blend(white, 0.25, Color::Rgb(0, 0, 0));
+    assert_eq!(bg_at(&buf, 0, 0), quarter);
+}
+
+/// A pseudo-element's own background under `opacity` blends once
+/// against the backdrop (the group renders opaque, then composites),
+/// not against an already-blended element background.
+#[test]
+fn pseudo_background_under_opacity_blends_once() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let host = dom.create_element("host");
+    let t = dom.create_text_node("x");
+    dom.append_child(host, t).unwrap();
+    dom.append_child(root, host).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "host",
+            TuiStyle::new()
+                .width(Size::Fixed(4))
+                .height(Size::Fixed(1))
+                .bg(RED)
+                .opacity(0.5),
+        )
+        .rule_unchecked(
+            "host::before",
+            TuiStyle::new().content(Content::Str("*".into())).bg(BLUE),
+        );
+    let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 4, 1));
+    let once = crate::render::compose::alpha_blend(BLUE, 0.5, Color::Rgb(0, 0, 0));
+    assert_eq!(bg_at(&buf, 0, 0), once, "pseudo bg over the canvas, once");
+    assert_eq!(row(&buf, 0).trim_end(), "*x");
+}

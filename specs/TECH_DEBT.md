@@ -20,13 +20,6 @@ For the durable architectural divergences (web-platform departures shipped on pu
 
 ### Paint pipeline
 
-- **`OPACITY-1` — Group rendering for proper CSS opacity composition.** The current 0.1.0 implementation composites per-paint-op (cell-level), which works correctly for the common cases (element with bg + opacity, z-stacked translucent elements). Two divergence pockets remain:
-  1. **Pseudo + own bg + opacity** — pseudo elements carry `bg` in the glyph style (they have no upstream `fill_bg`). Under `opacity < 1.0`, the compose pipeline blends pseudo's bg against the cell's already-blended element bg — a small color shift.
-  2. **No opacity multiplication / no CSS group rendering** — a parent with `opacity: 0.5` containing a child with `opacity: 0.5` renders the child at 0.5, not the CSS-correct 0.25.
-
-  Proper fix is subtree group rendering: each element with `opacity < 1.0` renders its entire subtree into a temporary `Buffer` at full opacity, then composites that buffer at the element's opacity. Eliminates both pockets. Defer until a real consumer hits a case the approximation produces wrong output for.
-
-
 ### UA stylesheet
 
 ### Substrate gaps
