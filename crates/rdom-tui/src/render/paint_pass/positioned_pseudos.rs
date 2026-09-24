@@ -16,7 +16,7 @@
 use rdom_core::{Dom, NodeId, NodeType};
 
 use crate::ext::TuiExt;
-use crate::render::paint_pass::text::{paint_text, style_from_computed};
+use crate::render::paint_pass::text::{paint_text_from, style_from_computed};
 use crate::render::{Buffer, Rect};
 use crate::style::Color;
 use crate::style::ComputedStyle;
@@ -98,13 +98,18 @@ pub(super) fn paint_positioned_pseudos(dom: &Dom<TuiExt>, buf: &mut Buffer, clip
                 }
             }
         }
+        // Text lives on the pseudo's first row; if that row is above the
+        // clip the text is genuinely off-screen. A start left of the clip
+        // shows the text's suffix, not its prefix (`D-M5N-8`).
         if let Some(text) = style.content.as_deref()
             && !text.is_empty()
+            && rect.y >= i32::from(clip.y)
         {
-            let _ = paint_text(
+            let _ = paint_text_from(
                 buf,
-                grid.x,
+                rect.x,
                 grid.y,
+                clip.x,
                 grid.right(),
                 text,
                 style_from_computed(&style),

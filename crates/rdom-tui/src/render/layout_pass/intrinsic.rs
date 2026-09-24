@@ -317,26 +317,42 @@ fn intrinsic_element(
         ),
     };
 
+    // Flexbox §9.9 / §4.5: an item's contribution is its outer size —
+    // margins on the queried axis included. Percent margins resolve
+    // against the containing block width, approximated here by the
+    // cross budget (the only width known during intrinsic sizing).
+    let outer = |c: NodeId| {
+        let inner = intrinsic_size(dom, c, direction, child_cross_budget);
+        let margins = dom
+            .node(c)
+            .ext()
+            .and_then(|e| e.computed.as_ref())
+            .map(|cs| {
+                let (a, b) = match direction {
+                    Direction::Row => (&cs.margin.left, &cs.margin.right),
+                    Direction::Column => (&cs.margin.top, &cs.margin.bottom),
+                };
+                i32::from(a.resolve(child_cross_budget)) + i32::from(b.resolve(child_cross_budget))
+            })
+            .unwrap_or(0);
+        (i32::from(inner) + margins).clamp(0, i32::from(u16::MAX)) as u16
+    };
     let intrinsic_children: u16 = if computed.direction == direction {
-        // Children flow along the queried axis — sum their main
-        // sizes plus gaps.
-        // Intrinsic sizing has no container size: percent gaps are 0.
+        // Children flow along the queried axis — sum their outer main
+        // sizes plus gaps. Intrinsic sizing has no container size:
+        // percent gaps are 0.
         let gap_total = computed
             .gap
             .resolve(0)
             .saturating_mul((children.len() as u16).saturating_sub(1));
         let children_main: u16 = children
             .iter()
-            .map(|&c| intrinsic_size(dom, c, direction, child_cross_budget))
+            .map(|&c| outer(c))
             .fold(0u16, |acc, n| acc.saturating_add(n));
         children_main.saturating_add(gap_total)
     } else {
-        // Children stack across the queried axis — take the max.
-        children
-            .iter()
-            .map(|&c| intrinsic_size(dom, c, direction, child_cross_budget))
-            .max()
-            .unwrap_or(0)
+        // Children stack across the queried axis — the largest outer size.
+        children.iter().map(|&c| outer(c)).max().unwrap_or(0)
     };
 
     intrinsic_children

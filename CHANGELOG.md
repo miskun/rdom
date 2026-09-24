@@ -84,6 +84,14 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 
 - **Pseudo-element transitions.** `::before` / `::after` paint properties (`color`, `background-color`, `border-color`) transition per the pseudo's own `transition-*`; `transitionstart` / `transitionend` / `transitioncancel` carry `pseudoElement`. Geometry of positioned pseudo-elements still switches discretely (DIVERGENCES). `TuiExt` gains `computed_{before,after}_prev`, `presentation_{before,after}` and `StyleSlot`. (`D-M3-3`)
 
+### Fixed — `rdom-tui` (layout and paint)
+
+- `position: sticky` honors `bottom` and `right` (and `calc()` / percentage insets against the scrollport), not only `top` / `left`. (`M5-STICKY-1`)
+- Text that starts left of a clip edge paints its suffix at the edge instead of its prefix: positioned pseudo-elements, the inline `::before` / body / `::after` run, and the IFC line-0 marker (which also shifted the fragments by only the visible part). (`D-M5N-8`)
+- `<input type=checkbox|radio>` no longer inherit the text field's `width: 20`: they hug their glyph (4 cells) in a flex row. The debt row blamed flex-basis resolution; the width came from the UA `input` rule. (`FLEX-BLOCK-MAIN-INTRINSIC-1`)
+- A flex container's intrinsic size counts its items' margins on the queried axis (Flexbox §9.9 / §4.5), so `margin-bottom` on dialog children no longer lands the last child on the border. (`FLEX-ITEM-MARGIN-MAIN-INTRINSIC-1`)
+- Paint and hit-testing share one positioned list (`positioned_z_list`) and the layout pass's in-flow filter. (`DRY-1`, `DRY-2`)
+
 ### Changed — `rdom-tui`
 
 - **Microtask checkpoints follow the HTML event loop:** one after every timer, interval and rAF callback (a checkpoint per task), instead of three fixed drains per tick. A microtask queued by one timeout now runs before the next due timeout's callback. (`D-M3-5`)

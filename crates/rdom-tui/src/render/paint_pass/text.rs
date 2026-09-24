@@ -5,6 +5,7 @@
 //! funnel through `paint_text` so Unicode-width handling, clipping,
 //! and wide-glyph placement stay in one place.
 
+use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
 use crate::render::{Buffer, Style};
@@ -139,4 +140,47 @@ pub(super) fn glyph_style_from_computed(c: &ComputedStyle) -> Style {
         style = style.add_modifier(mods);
     }
     style
+}
+
+pub(super) fn advance_text_by_cells(text: &str, cells: u16) -> &str {
+    let mut consumed: u16 = 0;
+    let mut byte_pos: usize = 0;
+    for (idx, g) in text.grapheme_indices(true) {
+        if consumed >= cells {
+            byte_pos = idx;
+            return &text[byte_pos..];
+        }
+        let w = UnicodeWidthStr::width(g) as u16;
+        consumed = consumed.saturating_add(w);
+        byte_pos = idx + g.len();
+    }
+    &text[byte_pos..]
+}
+
+/// Paint `text` whose logical start is `x` (which may lie left of
+/// `clip_left`): the cells that fall before the clip are skipped, not
+/// wrapped to the clip edge (`D-M5N-8`), and the rest paints from
+/// `max(x, clip_left)` up to `budget_right`. Returns the logical end
+/// cursor `x + width(text)` so callers can chain runs regardless of
+/// clipping.
+pub(super) fn paint_text_from(
+    buf: &mut Buffer,
+    x: i32,
+    y: u16,
+    clip_left: u16,
+    budget_right: u16,
+    text: &str,
+    style: Style,
+) -> i32 {
+    let logical_end = x + UnicodeWidthStr::width(text) as i32;
+    if x >= i32::from(clip_left) {
+        let _ = paint_text(buf, x as u16, y, budget_right, text, style);
+    } else {
+        let skip = (i32::from(clip_left) - x).min(i32::from(u16::MAX)) as u16;
+        let rest = advance_text_by_cells(text, skip);
+        if !rest.is_empty() {
+            let _ = paint_text(buf, clip_left, y, budget_right, rest, style);
+        }
+    }
+    logical_end
 }

@@ -59,7 +59,6 @@ These are intrinsic to terminals. They will not change.
 ### Positioning
 
 - **Stacking is flat at the document root.** `z-index` is parsed; paint order is document order with z-sort at the root only. No nested stacking contexts.
-- **`position: sticky` v1 honors `top` and `left` only.** `right` / `bottom` insets are not implemented.
 - **Sticky containing block is the element's parent's content box**, not the CSS "nearest scroll container" for nested-scroller edge cases.
 - **Static position for absolutely-positioned elements with both edges `auto`** resolves to the containing block's top-left edge (not the CSS "hypothetical in-flow position").
 - **No `transform`, `rotate`, `scale`, `matrix`, `isolation: isolate`, `will-change`.**

@@ -1756,6 +1756,35 @@ fn author_content_override_on_scrollbar_thumb_applies_to_both_axes() {
     assert!(h_thumb, "author content `█` applies to horizontal thumb");
 }
 
+/// `D-M5N-8`: a positioned pseudo-element that starts left of the
+/// viewport shows the *end* of its text at column 0, not the beginning.
+#[test]
+fn left_clipped_pseudo_paints_its_suffix() {
+    use crate::layout::{Length, Position};
+    use crate::style::TuiStyle;
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let c = dom.create_element("c");
+    dom.append_child(root, c).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "c",
+            TuiStyle::new()
+                .height(Size::Fixed(1))
+                .position(Position::Relative),
+        )
+        .rule_unchecked(
+            "c::before",
+            TuiStyle::new()
+                .content(Content::Str("ABCDEF".into()))
+                .position(Position::Absolute)
+                .left(Length::Cells(-2))
+                .top(Length::Cells(0)),
+        );
+    let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 10, 1));
+    assert_eq!(row(&buf, 0).trim_end(), "CDEF");
+}
+
 #[test]
 fn cross_axis_independence_v1() {
     // v1 deviates from CSS Overflow L3's cross-axis rule: each

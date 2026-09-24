@@ -16,9 +16,9 @@
 //!    scrolled past; sticky is clamped so it can't extend beyond
 //!    the containing block, and effectively scrolls out with it.
 //!
-//! v1 surface: vertical `top` insets and horizontal `left` insets.
-//! `right` / `bottom` sticky directions and full CSS scrollport-vs-
-//! containing-block separation are deferred polish.
+//! All four insets (`top` / `bottom` / `left` / `right`, cells or
+//! `calc()` against the scrollport) pin against the nearest scrollport;
+//! the containing block is approximated by the parent's content box.
 
 use rdom_core::{Dom, NodeId, NodeType};
 
@@ -70,7 +70,6 @@ fn place_one(dom: &mut Dom<TuiExt>, id: NodeId) {
         Some(c) => c,
         None => return,
     };
-    let (top_inset, left_inset) = (computed.top, computed.left);
 
     // Find nearest scrollable ancestor. Scrollable = overflow_x or
     // overflow_y not Visible.
@@ -92,8 +91,25 @@ fn place_one(dom: &mut Dom<TuiExt>, id: NodeId) {
 
     let mut placed = natural;
 
-    // Vertical sticky with `top: N` (cells).
-    if let Length::Cells(n) = top_inset {
+    // Insets resolve like CSS Position 3 §3.4: percentages / `calc()`
+    // against the scrollport's size on that axis; `auto` means "no
+    // constraint on this edge".
+    let inset = |len: &Length, basis: u16| -> Option<i32> {
+        match len {
+            Length::Auto => None,
+            Length::Cells(n) => Some(*n),
+            Length::Calc(expr) => {
+                Some(expr.resolve(&rdom_style::calc::ResolveCtx::new(i32::from(basis))))
+            }
+        }
+    };
+    let top_inset = inset(&computed.top, scrollport_rect.height);
+    let bottom_inset = inset(&computed.bottom, scrollport_rect.height);
+    let left_inset = inset(&computed.left, scrollport_rect.width);
+    let right_inset = inset(&computed.right, scrollport_rect.width);
+
+    // Vertical sticky with `top: N`.
+    if let Some(n) = top_inset {
         let pin_y = scrollport_rect.y.saturating_add(n);
         if placed.y < pin_y {
             // Stuck — pin to threshold.
@@ -114,8 +130,20 @@ fn place_one(dom: &mut Dom<TuiExt>, id: NodeId) {
             placed.y = natural.y;
         }
     }
-    // Horizontal sticky with `left: N` (cells).
-    if let Length::Cells(n) = left_inset {
+    // `bottom: N` — pin when the box would scroll past the scrollport's
+    // bottom edge; never above the containing block's start
+    // (`M5-STICKY-1`).
+    if let Some(n) = bottom_inset {
+        let pin_bottom = scrollport_rect.bottom().saturating_sub(n);
+        if placed.bottom() > pin_bottom {
+            placed.y = pin_bottom.saturating_sub(placed.height as i32);
+        }
+        if placed.y < cb_rect.y {
+            placed.y = cb_rect.y;
+        }
+    }
+    // Horizontal sticky with `left: N`.
+    if let Some(n) = left_inset {
         let pin_x = scrollport_rect.x.saturating_add(n);
         if placed.x < pin_x {
             placed.x = pin_x;
@@ -123,6 +151,16 @@ fn place_one(dom: &mut Dom<TuiExt>, id: NodeId) {
         let cb_far = cb_rect.right().saturating_sub(placed.width as i32);
         if placed.x > cb_far {
             placed.x = cb_far;
+        }
+    }
+    // `right: N`, mirror of `bottom`.
+    if let Some(n) = right_inset {
+        let pin_right = scrollport_rect.right().saturating_sub(n);
+        if placed.right() > pin_right {
+            placed.x = pin_right.saturating_sub(placed.width as i32);
+        }
+        if placed.x < cb_rect.x {
+            placed.x = cb_rect.x;
         }
     }
 

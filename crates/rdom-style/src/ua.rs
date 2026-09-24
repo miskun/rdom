@@ -632,16 +632,23 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
         // inline-level in HTML, so `<label><input type=checkbox> Name</label>`
         // flows on one line. Width auto-grows from the glyph
         // content; height is one cell. (`UA-CHECKBOX-INLINE-1`)
+        // `width: auto` undoes the text-field `input { width: 20 }`
+        // above: the box hugs its `::before` glyph (`[ ] ` / `( ) `),
+        // so a toggle in a flex row takes 4 cells, not 20
+        // (`FLEX-BLOCK-MAIN-INTRINSIC-1` — the width came from the UA,
+        // not from flex-basis resolution).
         (
             "input[type=checkbox]",
             TuiStyle::new()
                 .display(Display::InlineBlock)
+                .width(Size::Auto)
                 .height(Size::Fixed(1)),
         ),
         (
             "input[type=radio]",
             TuiStyle::new()
                 .display(Display::InlineBlock)
+                .width(Size::Auto)
                 .height(Size::Fixed(1)),
         ),
         (

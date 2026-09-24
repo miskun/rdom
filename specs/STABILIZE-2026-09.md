@@ -185,6 +185,11 @@ Each phase ends with the two review gates; each commit carries the item id.
   sorted first and was never reached, so no connected root behind it was cascaded — the showcase's
   stale-drag hover test hit stale layout. The walk now takes connected roots only (a detached
   subtree renders nothing); regression test `detached_dirty_root_does_not_starve_connected_roots`.
+- 2026-09-24 — Phase 5, first batch: `DRY-1` / `DRY-2` (one `positioned_z_list`, `is_in_flow` in
+  paint and hit-test), `D-M5N-8` (`paint_text_from` skips the clipped prefix at all four sites),
+  `M5-STICKY-1` (`bottom` / `right`, calc insets), `FLEX-BLOCK-MAIN-INTRINSIC-1` (root cause was the
+  UA `input` width, not flex-basis), `FLEX-ITEM-MARGIN-MAIN-INTRINSIC-1` (outer sizes in the
+  container's intrinsic).
 - Found while mapping Phase 3 (not on the ledger): `ImportantMask::FLOW` and `POINTER_EVENTS` share
   bit 39 (`tui_style.rs`), custom-property inheritance in the cascade is overwritten by the merged
   root map (`walk.rs`), and tokenizer errors inside a block are body-relative (`declarations.rs`).

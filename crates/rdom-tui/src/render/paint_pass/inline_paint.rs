@@ -23,7 +23,10 @@ use crate::render::{Buffer, Rect, Style};
 use crate::style::{ComputedStyle, Modifier};
 
 use super::layout_rect_to_grid;
-use super::text::{glyph_style_from_computed, paint_text, pseudo_style, style_from_computed};
+use super::text::{
+    advance_text_by_cells, glyph_style_from_computed, paint_text, paint_text_from, pseudo_style,
+    style_from_computed,
+};
 
 /// `::before` + own text + `::after` paint for a non-IFC element.
 ///
@@ -169,18 +172,20 @@ fn paint_single_row_chrome(
         return;
     }
     let base_y = inner.y as u16;
-    let start_x = inner_grid.x;
-    let mut cursor_x = start_x;
+    // Logical cursor: the run starts at `inner.x` even when that is left
+    // of the clip; `paint_text_from` skips the clipped prefix.
+    let mut cursor_x: i32 = inner.x;
     let budget_right = inner_grid.right();
 
     if let Some(before) = dom.node(id).computed_before()
         && before.position == crate::layout::Position::Static
         && let Some(ref text) = before.content
     {
-        cursor_x = paint_text(
+        cursor_x = paint_text_from(
             buf,
             cursor_x,
             base_y,
+            clip.x,
             budget_right,
             text,
             pseudo_style(
@@ -191,17 +196,26 @@ fn paint_single_row_chrome(
     }
 
     if !body_text.is_empty() {
-        cursor_x = paint_text(buf, cursor_x, base_y, budget_right, body_text, body_style);
+        cursor_x = paint_text_from(
+            buf,
+            cursor_x,
+            base_y,
+            clip.x,
+            budget_right,
+            body_text,
+            body_style,
+        );
     }
 
     if let Some(after) = dom.node(id).computed_after()
         && after.position == crate::layout::Position::Static
         && let Some(ref text) = after.content
     {
-        cursor_x = paint_text(
+        cursor_x = paint_text_from(
             buf,
             cursor_x,
             base_y,
+            clip.x,
             budget_right,
             text,
             pseudo_style(
@@ -212,9 +226,13 @@ fn paint_single_row_chrome(
     }
 
     if let Some(href) = anchor_href_for(dom, id) {
-        let width = cursor_x.saturating_sub(start_x);
+        // The hyperlink covers the painted span: from the clipped start to
+        // the logical end, capped at the paint budget.
+        let start = inner_grid.x;
+        let end = cursor_x.min(i32::from(budget_right));
+        let width = (end - i32::from(start)).max(0) as u16;
         if width > 0 {
-            buf.set_link_range(start_x, base_y, width, Some(&href));
+            buf.set_link_range(start, base_y, width, Some(&href));
         }
     }
 }
@@ -267,14 +285,16 @@ fn paint_lines(
             && before.position == crate::layout::Position::Static
             && let Some(ref text) = before.content
         {
-            let line_left = inner.x.max(clip.x as i32) as u16;
             let line_right = clip
                 .right()
                 .min((inner.x + inner.width as i32).max(0) as u16);
-            let new_cursor = paint_text(
+            // The fragments shift by the pseudo's full width whether or
+            // not its start is clipped away.
+            let logical_end = paint_text_from(
                 buf,
-                line_left,
+                inner.x,
                 line_y as u16,
+                clip.x,
                 line_right,
                 text,
                 pseudo_style(
@@ -282,7 +302,7 @@ fn paint_lines(
                     presentation_of(dom, id, crate::ext::StyleSlot::Before),
                 ),
             );
-            leading_cursor = Some(new_cursor.saturating_sub(line_left));
+            leading_cursor = Some((logical_end - inner.x).clamp(0, i32::from(u16::MAX)) as u16);
         }
 
         for fragment in &line.fragments {
@@ -424,12 +444,6 @@ fn anchor_href_for(dom: &Dom<TuiExt>, id: NodeId) -> Option<String> {
     None
 }
 
-/// Paint the inline flow of an IFC block from its pre-computed
-/// `InlineLayout` (populated during the layout pass). Each fragment
-/// paints with its owner element's cascaded style.
-///
-/// Phase D: line wrapping is honored — fragments span multiple lines
-/// when `compute_inline_layout` produced a multi-line layout.
 pub(super) fn paint_ifc(
     dom: &Dom<TuiExt>,
     id: NodeId,
@@ -898,21 +912,6 @@ fn presentation_of(
         .ext()
         .map(|e| e.presentation_for(slot))
         .unwrap_or(&EMPTY)
-}
-
-fn advance_text_by_cells(text: &str, cells: u16) -> &str {
-    let mut consumed: u16 = 0;
-    let mut byte_pos: usize = 0;
-    for (idx, g) in text.grapheme_indices(true) {
-        if consumed >= cells {
-            byte_pos = idx;
-            return &text[byte_pos..];
-        }
-        let w = UnicodeWidthStr::width(g) as u16;
-        consumed = consumed.saturating_add(w);
-        byte_pos = idx + g.len();
-    }
-    &text[byte_pos..]
 }
 
 /// Concatenate the text content of `id`'s direct Text-node children.

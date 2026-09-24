@@ -1240,6 +1240,61 @@ fn sticky_top_pinned_when_scrollport_scrolls_past_threshold() {
     assert_eq!(layout_rect_of(&dom, body).y, -4);
 }
 
+/// `M5-STICKY-1`: `bottom: 0` pins a footer to the scrollport's bottom
+/// while its natural position is below it, and releases once scrolling
+/// brings the natural position inside.
+#[test]
+fn sticky_bottom_pins_at_scrollport_bottom_until_scrolled_into_view() {
+    use rdom_style::layout::{Length, Position};
+    let mut dom = tui_dom();
+    let root = dom.root();
+    let scrollport = dom.create_element("scrollport");
+    let body = dom.create_element("body");
+    let footer = dom.create_element("footer");
+    // Content after the footer so the scrollport can scroll past the
+    // footer's natural position (max scroll = 41 - 20 = 21).
+    let tail = dom.create_element("tail");
+    dom.append_child(scrollport, body).unwrap();
+    dom.append_child(scrollport, footer).unwrap();
+    dom.append_child(scrollport, tail).unwrap();
+    dom.append_child(root, scrollport).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "scrollport",
+            TuiStyle::new()
+                .height(Size::Fixed(20))
+                .overflow(Overflow::Hidden),
+        )
+        .rule_unchecked("body", TuiStyle::new().height(Size::Fixed(30)))
+        .rule_unchecked("tail", TuiStyle::new().height(Size::Fixed(10)))
+        .rule_unchecked(
+            "footer",
+            TuiStyle::new()
+                .height(Size::Fixed(1))
+                .position(Position::Sticky)
+                .bottom(Length::Cells(0)),
+        );
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 40, 20));
+    // Natural y = 30 (below the 20-row scrollport): pinned to row 19.
+    assert_eq!(layout_rect_of(&dom, footer).y, 19);
+    if let Some(ext) = dom.node_mut(scrollport).ext_mut() {
+        ext.scroll_y = 11;
+    }
+    dom.layout_dom(Rect::new(0, 0, 40, 20));
+    // Natural y = 30 - 11 = 19 ≤ pin: it sits at its natural place.
+    assert_eq!(layout_rect_of(&dom, footer).y, 19);
+    if let Some(ext) = dom.node_mut(scrollport).ext_mut() {
+        ext.scroll_y = 15;
+    }
+    dom.layout_dom(Rect::new(0, 0, 40, 20));
+    assert_eq!(
+        layout_rect_of(&dom, footer).y,
+        15,
+        "released, scrolls with the content"
+    );
+}
+
 #[test]
 fn sticky_top_pre_stick_renders_in_normal_flow() {
     // CSS rule: sticky behaves like relative when the natural
@@ -2775,6 +2830,74 @@ fn intrinsic_size_ignores_display_none_children() {
         h, 1,
         "intrinsic = visible child's 1 row; hidden 5-line child contributes 0"
     );
+}
+
+/// `FLEX-BLOCK-MAIN-INTRINSIC-1`: a toggle in a flex-row `<label>` hugs
+/// its glyph (4 cells) instead of inheriting the text field width of 20;
+/// the sibling text takes its own intrinsic width.
+#[test]
+fn radio_in_a_flex_row_label_hugs_its_glyph() {
+    let mut dom = tui_dom();
+    let root = dom.root();
+    let label = dom.create_element("label");
+    let radio = dom.create_element("input");
+    dom.set_attribute(radio, "type", "radio").unwrap();
+    let span = dom.create_element("span");
+    let t = dom.create_text_node("Allow once");
+    dom.append_child(span, t).unwrap();
+    dom.append_child(label, radio).unwrap();
+    dom.append_child(label, span).unwrap();
+    dom.append_child(root, label).unwrap();
+    let sheet = Stylesheet::new().rule_unchecked(
+        "label",
+        TuiStyle::new()
+            .flow(Flow::Flex)
+            .direction(Direction::Row)
+            .width(Size::Fixed(50)),
+    );
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 50, 3));
+    assert_eq!(layout_rect_of(&dom, radio).width, 4, "`( ) ` glyph");
+    assert_eq!(layout_rect_of(&dom, span).x, 4);
+}
+
+/// `FLEX-ITEM-MARGIN-MAIN-INTRINSIC-1`: a flex column's intrinsic height
+/// counts its items' main-axis margins (Flexbox §9.9 / §4.5), and a row's
+/// intrinsic height counts the tallest item with its cross margins.
+#[test]
+fn flex_container_intrinsic_counts_item_margins() {
+    let mut dom = tui_dom();
+    let root = dom.root();
+    let col = dom.create_element("col");
+    for _ in 0..2 {
+        let item = dom.create_element("item");
+        let t = dom.create_text_node("x");
+        dom.append_child(item, t).unwrap();
+        dom.append_child(col, item).unwrap();
+    }
+    dom.append_child(root, col).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "col",
+            TuiStyle::new()
+                .flow(Flow::Flex)
+                .direction(Direction::Column),
+        )
+        .rule_unchecked(
+            "item",
+            TuiStyle::new()
+                .display(Display::Block)
+                .height(Size::Fixed(1))
+                .margin(crate::layout::Margin::new(
+                    crate::layout::MarginValue::Cells(0),
+                    crate::layout::MarginValue::Cells(0),
+                    crate::layout::MarginValue::Cells(1),
+                    crate::layout::MarginValue::Cells(0),
+                )),
+        );
+    cascade(&mut dom, &sheet);
+    let h = super::intrinsic::intrinsic_size(&dom, col, Direction::Column, 40);
+    assert_eq!(h, 4, "two 1-row items + two margin-bottom rows");
 }
 
 #[test]
