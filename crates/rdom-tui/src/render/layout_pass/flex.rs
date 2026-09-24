@@ -95,7 +95,7 @@ pub(super) fn layout_children(
             ext.inline_layout = Some(inline_layout);
         }
         for (atom_id, atom_rect) in atoms {
-            layout_node(dom, atom_id, atom_rect);
+            layout_node(dom, atom_id, atom_rect, container.width);
         }
         // IFC height is the line count — block-flow auto-height
         // resolution uses this if the IFC block has `height: auto`.
@@ -348,7 +348,9 @@ pub(super) fn layout_flex_children(
                 MainNatural::Fixed(resolved)
             }
             Size::Auto => {
-                let intrinsic = intrinsic_size(dom, child, direction, cross_budget);
+                // The container's inner width is definite here, so the
+                // item's percent padding / margins resolve against it.
+                let intrinsic = intrinsic_size(dom, child, direction, cross_budget, main_cb_w);
                 MainNatural::Auto(intrinsic)
             }
         };
@@ -713,6 +715,7 @@ pub(super) fn layout_flex_children(
             *child_id,
             &child_computed,
             cross_avail,
+            container.width,
             direction,
             MainAxisFacts {
                 size: *size,
@@ -736,7 +739,7 @@ pub(super) fn layout_flex_children(
             }
         };
 
-        layout_node(dom, *child_id, child_rect);
+        layout_node(dom, *child_id, child_rect, container.width);
 
         // Advance cursor past this child + main-end margin + gap.
         main_cursor = main_cursor.saturating_add(*size as i32);
@@ -849,7 +852,11 @@ fn resolve_auto_min(
     if matches!(specified_cap, Some(0)) {
         return 0;
     }
-    let content = content_min_size(dom, id, direction, cross_budget);
+    let cb_width = match direction {
+        Direction::Row => main_budget,
+        Direction::Column => cross_budget,
+    };
+    let content = content_min_size(dom, id, direction, cross_budget, cb_width);
     match specified_cap {
         Some(cap) => content.min(cap),
         None => content,
@@ -895,6 +902,7 @@ fn resolve_cross_size(
     child_id: NodeId,
     computed: &ComputedStyle,
     container_cross: u16,
+    container_width: u16,
     direction: Direction,
     main: MainAxisFacts,
 ) -> u16 {
@@ -938,12 +946,12 @@ fn resolve_cross_size(
                 // block's own cross-axis sizing we pass the container
                 // cross size — a conservative budget that's correct
                 // for non-IFC inline-blocks (the common case).
-                intrinsic_size(dom, child_id, cross_dir, container_cross)
+                intrinsic_size(dom, child_id, cross_dir, container_cross, container_width)
             } else if stretch {
                 container_cross
             } else {
                 // `auto` cross margin: content size, not stretch.
-                intrinsic_size(dom, child_id, cross_dir, container_cross)
+                intrinsic_size(dom, child_id, cross_dir, container_cross, container_width)
             }
         }
     };
@@ -962,9 +970,13 @@ fn resolve_cross_size(
     let min = match min_raw {
         None => None,
         Some(crate::layout::MinSize::Cells(n)) => Some(n),
-        Some(crate::layout::MinSize::Auto) => {
-            Some(intrinsic_size(dom, child_id, cross_dir, container_cross))
-        }
+        Some(crate::layout::MinSize::Auto) => Some(intrinsic_size(
+            dom,
+            child_id,
+            cross_dir,
+            container_cross,
+            container_width,
+        )),
     };
     clamp_size(natural, min, max)
 }

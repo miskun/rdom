@@ -105,7 +105,7 @@ impl LayoutExt for Dom<TuiExt> {
         );
         // Pass 1 — flex / inline flow. Skips position: absolute /
         // fixed children at every container (see flex.rs filter).
-        layout_node(self, root, root_rect);
+        layout_node(self, root, root_rect, root_rect.width);
         // Pass 2 — place absolute / fixed elements against their
         // containing blocks.
         positioning::place_positioned(self, root_rect);
@@ -124,7 +124,15 @@ impl LayoutExt for Dom<TuiExt> {
 
 /// Lay out `id` as occupying `outer_rect`, then recurse into
 /// children using this element's `content_layout` as their container.
-pub(super) fn layout_node(dom: &mut Dom<TuiExt>, id: NodeId, outer_rect: LayoutRect) {
+/// `containing_block_width` is the width percent padding and margins
+/// resolve against (CSS 2.1 §8.3 / §8.4): the parent's content width
+/// for in-flow boxes, the containing block's for positioned ones.
+pub(super) fn layout_node(
+    dom: &mut Dom<TuiExt>,
+    id: NodeId,
+    outer_rect: LayoutRect,
+    containing_block_width: u16,
+) {
     // Skip non-elements — they have no TuiExt. Fragment children
     // are visited when the parent iterates its children (text /
     // comment get pulled into intrinsic measurements).
@@ -170,6 +178,7 @@ pub(super) fn layout_node(dom: &mut Dom<TuiExt>, id: NodeId, outer_rect: LayoutR
         computed.padding.clone(),
         computed.border,
         computed.border_collapse,
+        containing_block_width,
     );
 
     // Further reduce `inner` by a 1-cell scrollbar gutter on each
@@ -249,10 +258,9 @@ pub(super) fn layout_node(dom: &mut Dom<TuiExt>, id: NodeId, outer_rect: LayoutR
             computed.max_height,
         );
         // Padding percent / calc resolves against the containing-block
-        // width on ALL four sides (CSS 2.1 §8.4). Use the element's own
-        // outer width here — same basis `compute_content_area_collapsed`
-        // already uses for this element's inset.
-        let pad_cb_w = outer_rect.width;
+        // width on ALL four sides (CSS 2.1 §8.4) — the same basis
+        // `compute_content_area_collapsed` used for this element's inset.
+        let pad_cb_w = containing_block_width;
         let pad =
             computed.padding.top.resolve(pad_cb_w) + computed.padding.bottom.resolve(pad_cb_w);
         let border = computed.border.top.cells() + computed.border.bottom.cells();
@@ -306,6 +314,7 @@ pub(super) fn layout_node(dom: &mut Dom<TuiExt>, id: NodeId, outer_rect: LayoutR
                 computed.padding.clone(),
                 computed.border,
                 computed.border_collapse,
+                containing_block_width,
             );
             let inner_v2 =
                 reserve_scrollbar_gutter_forced(inner_full, &computed, overflow_y, overflow_x);

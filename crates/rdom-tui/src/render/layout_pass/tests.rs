@@ -2867,7 +2867,7 @@ fn intrinsic_size_block_with_only_whitespace_text_is_chrome_only() {
     );
     cascade(&mut dom, &sheet);
 
-    let h = super::intrinsic::intrinsic_size(&dom, host, Direction::Column, 40);
+    let h = super::intrinsic::intrinsic_size(&dom, host, Direction::Column, 40, 40);
     assert_eq!(h, 2, "padding only — whitespace text contributes nothing");
 }
 
@@ -2902,7 +2902,7 @@ fn intrinsic_size_ignores_display_none_children() {
         .rule_unchecked("h", TuiStyle::new().display(Display::None));
     cascade(&mut dom, &sheet);
 
-    let h = super::intrinsic::intrinsic_size(&dom, host, Direction::Column, 40);
+    let h = super::intrinsic::intrinsic_size(&dom, host, Direction::Column, 40, 40);
     assert_eq!(
         h, 1,
         "intrinsic = visible child's 1 row; hidden 5-line child contributes 0"
@@ -2973,7 +2973,7 @@ fn flex_container_intrinsic_counts_item_margins() {
                 )),
         );
     cascade(&mut dom, &sheet);
-    let h = super::intrinsic::intrinsic_size(&dom, col, Direction::Column, 40);
+    let h = super::intrinsic::intrinsic_size(&dom, col, Direction::Column, 40, 40);
     assert_eq!(h, 4, "two 1-row items + two margin-bottom rows");
 }
 
@@ -3008,7 +3008,7 @@ fn intrinsic_size_ignores_absolutely_positioned_children() {
         );
     cascade(&mut dom, &sheet);
 
-    let h = super::intrinsic::intrinsic_size(&dom, host, Direction::Column, 40);
+    let h = super::intrinsic::intrinsic_size(&dom, host, Direction::Column, 40, 40);
     assert_eq!(h, 1, "absolute child contributes 0 to in-flow intrinsic");
 }
 
@@ -3028,7 +3028,7 @@ fn intrinsic_size_text_only_block_uses_inline_layout() {
     let sheet = Stylesheet::bare().rule_unchecked("note", TuiStyle::new().display(Display::Block));
     cascade(&mut dom, &sheet);
 
-    let h = super::intrinsic::intrinsic_size(&dom, note, Direction::Column, 40);
+    let h = super::intrinsic::intrinsic_size(&dom, note, Direction::Column, 40, 40);
     assert_eq!(h, 1, "short text fits on one line at width 40");
 }
 
@@ -3918,4 +3918,128 @@ fn static_position_in_inline_content_follows_the_preceding_text() {
     assert_eq!((s.x, s.y), (1 + 5, 1), "inline-level: after `Hello`");
     let d = layout_rect_of(&dom, div);
     assert_eq!((d.x, d.y), (1, 2), "block-level: next line, content-left");
+}
+
+// ── CALC-PADMARG-1 / BFC1-MARGIN-PERCENT-CHAIN-1: percent basis ─────
+
+/// `CALC-PADMARG-1`: percent padding resolves against the containing
+/// block's width (CSS 2.1 §8.4), not the element's own width.
+#[test]
+fn percent_padding_resolves_against_the_containing_block_width() {
+    use rdom_style::calc::CalcExpr;
+    use rdom_style::layout::{Padding, PaddingValue};
+    let mut dom = tui_dom();
+    let root = dom.root();
+    let wrap = dom.create_element("wrap");
+    let c = dom.create_element("c");
+    dom.append_child(wrap, c).unwrap();
+    dom.append_child(root, wrap).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked("wrap", TuiStyle::new().width(Size::Fixed(40)))
+        .rule_unchecked(
+            "c",
+            TuiStyle::new()
+                .width(Size::Fixed(20))
+                .height(Size::Fixed(3))
+                .padding(Padding {
+                    top: PaddingValue::Cells(0),
+                    right: PaddingValue::Cells(0),
+                    bottom: PaddingValue::Cells(0),
+                    left: PaddingValue::Calc(Box::new(CalcExpr::Percent(10.0))),
+                }),
+        );
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 80, 10));
+    // 10% of the 40-cell containing block = 4, not 10% of the own 20.
+    assert_eq!(content_rect_of(&dom, c).x, 4);
+    assert_eq!(content_rect_of(&dom, c).width, 16);
+}
+
+/// `BFC1-MARGIN-PERCENT-CHAIN-1`: calc / percent vertical margins
+/// resolve against the containing block's width all the way down the
+/// parent–first-child collapse chain.
+#[test]
+fn percent_margins_resolve_along_the_collapse_chain() {
+    use rdom_style::calc::CalcExpr;
+    use rdom_style::layout::{Margin, MarginValue, Padding};
+    let mut dom = tui_dom();
+    let root = dom.root();
+    let wrap = dom.create_element("wrap");
+    let outer = dom.create_element("outer");
+    let inner = dom.create_element("inner");
+    dom.append_child(outer, inner).unwrap();
+    dom.append_child(wrap, outer).unwrap();
+    dom.append_child(root, wrap).unwrap();
+    let pct = |p: f64| MarginValue::Calc(Box::new(CalcExpr::Percent(p)));
+    let sheet = Stylesheet::bare()
+        // Top padding stops the chain at `wrap`.
+        .rule_unchecked(
+            "wrap",
+            TuiStyle::new()
+                .width(Size::Fixed(40))
+                .padding(Padding::new(1, 0, 0, 0)),
+        )
+        .rule_unchecked(
+            "outer",
+            TuiStyle::new().margin(Margin {
+                top: pct(10.0),
+                right: MarginValue::Cells(0),
+                bottom: MarginValue::Cells(0),
+                left: MarginValue::Cells(0),
+            }),
+        )
+        .rule_unchecked(
+            "inner",
+            TuiStyle::new().height(Size::Fixed(1)).margin(Margin {
+                top: pct(25.0),
+                right: MarginValue::Cells(0),
+                bottom: MarginValue::Cells(0),
+                left: MarginValue::Cells(0),
+            }),
+        );
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 80, 30));
+    // outer.mt = 10% of 40 = 4; inner.mt = 25% of outer's 40 = 10;
+    // they collapse to 10 below wrap's 1-cell padding.
+    assert_eq!(layout_rect_of(&dom, outer).y, 11);
+    assert_eq!(layout_rect_of(&dom, inner).y, 11);
+}
+
+/// `CALC-PADMARG-1`: a flex item's natural main size counts percent
+/// padding against the flex container's definite width — not against
+/// the container's height, and not against zero.
+#[test]
+fn flex_item_natural_width_counts_percent_padding_against_the_container_width() {
+    use rdom_style::calc::CalcExpr;
+    use rdom_style::layout::{Padding, PaddingValue};
+    let mut dom = tui_dom();
+    let root = dom.root();
+    let row = dom.create_element("row");
+    let p = dom.create_element("p");
+    let text = dom.create_text_node("hi");
+    dom.append_child(p, text).unwrap();
+    dom.append_child(row, p).unwrap();
+    dom.append_child(root, row).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "row",
+            TuiStyle::new()
+                .flow(Flow::Flex)
+                .direction(Direction::Row)
+                .width(Size::Fixed(40))
+                .height(Size::Fixed(5)),
+        )
+        .rule_unchecked(
+            "p",
+            TuiStyle::new().padding(Padding {
+                top: PaddingValue::Cells(0),
+                right: PaddingValue::Cells(0),
+                bottom: PaddingValue::Cells(0),
+                left: PaddingValue::Calc(Box::new(CalcExpr::Percent(10.0))),
+            }),
+        );
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 80, 10));
+    // "hi" (2) + 10% of 40 (4).
+    assert_eq!(layout_rect_of(&dom, p).width, 6);
 }

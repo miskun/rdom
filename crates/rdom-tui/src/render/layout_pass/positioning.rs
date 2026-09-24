@@ -292,7 +292,7 @@ pub(super) fn place_positioned(dom: &mut Dom<TuiExt>, viewport: LayoutRect) {
             .computed_rc()
             .unwrap_or_else(|| std::rc::Rc::new(ComputedStyle::initial()));
         let placed = compute_placed_rect(dom, id, &computed, cb);
-        super::layout_node(dom, id, placed);
+        super::layout_node(dom, id, placed, cb.width);
     }
 }
 
@@ -350,10 +350,10 @@ fn compute_placed_rect(
     // measurement only runs when an `auto` axis is not pinned by both
     // edges (it walks the subtree).
     let width = resolve_size_axis(&c.width, cb.width, &c.left, &c.right, cb.width, || {
-        super::intrinsic::intrinsic_size(dom, id, Direction::Row, cb.width)
+        super::intrinsic::intrinsic_size(dom, id, Direction::Row, cb.width, cb.width)
     });
     let height = resolve_size_axis(&c.height, cb.height, &c.top, &c.bottom, cb.height, || {
-        super::intrinsic::intrinsic_size(dom, id, Direction::Column, width)
+        super::intrinsic::intrinsic_size(dom, id, Direction::Column, width, cb.width)
     });
 
     // M5.3b — absolute element centering via `margin: auto` between

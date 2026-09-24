@@ -1030,7 +1030,7 @@ impl Padding {
 /// element under `border-collapse: collapse` needs the border-overlap
 /// special case (M5.5b).
 pub fn compute_content_area(area: LayoutRect, padding: Padding, border: Border) -> LayoutRect {
-    compute_content_area_collapsed(area, padding, border, BorderCollapse::Separate)
+    compute_content_area_collapsed(area, padding, border, BorderCollapse::Separate, area.width)
 }
 
 /// Same as [`compute_content_area`] but aware of `border-collapse`.
@@ -1042,11 +1042,17 @@ pub fn compute_content_area(area: LayoutRect, padding: Padding, border: Border) 
 /// This is decision 2 from the M5 pre-prep: concentrate the box-model
 /// special case in this one function so every other layout consumer
 /// stays unchanged.
+///
+/// `containing_block_width` is the basis for percent / `calc()`
+/// padding on all four sides (CSS 2.1 §8.4). [`compute_content_area`]
+/// passes the element's own width, which is right only when the two
+/// coincide; layout passes the real containing block.
 pub fn compute_content_area_collapsed(
     area: LayoutRect,
     padding: Padding,
     border: Border,
     collapse: BorderCollapse,
+    containing_block_width: u16,
 ) -> LayoutRect {
     // Collapse + border present → the parent's border ring is shared
     // with children's outer edges. Treat the parent as having no
@@ -1065,10 +1071,8 @@ pub fn compute_content_area_collapsed(
 
     // Percent / calc padding resolves against the containing-block
     // width on ALL four sides (CSS 2.1 §8.4 — vertical padding
-    // percent also uses width). `area.width` here is the element's
-    // outer width, which under the standard box model equals
-    // the containing-block width minus any position offsets.
-    let cb_w = area.width;
+    // percent also uses width).
+    let cb_w = containing_block_width;
     let pad_l = padding.left.resolve(cb_w);
     let pad_r = padding.right.resolve(cb_w);
     let pad_t = padding.top.resolve(cb_w);

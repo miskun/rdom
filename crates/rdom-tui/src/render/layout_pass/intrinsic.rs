@@ -27,18 +27,24 @@ use super::ifc::is_ifc_block;
 /// Measure an element's intrinsic size along `direction`. Used to
 /// resolve `Size::Auto`. `cross_budget` is the container's
 /// perpendicular dimension — consulted by IFC blocks to decide how
-/// many lines their content wraps to.
+/// many lines their content wraps to. `containing_block_width` is
+/// the basis for the element's own percent padding and margins (CSS
+/// 2.1 §8.3 / §8.4); pass 0 when it is not yet known (CSS Sizing 3
+/// §5.2.1: a cyclic percentage contributes nothing to an intrinsic
+/// size).
 pub(crate) fn intrinsic_size(
     dom: &Dom<TuiExt>,
     id: NodeId,
     direction: Direction,
     cross_budget: u16,
+    containing_block_width: u16,
 ) -> u16 {
     intrinsic_size_inner(
         dom,
         id,
         direction,
         cross_budget,
+        containing_block_width,
         IntrinsicMode::BoxSize,
         Measure::MaxContent,
     )
@@ -56,12 +62,14 @@ pub(super) fn content_min_size(
     id: NodeId,
     direction: Direction,
     cross_budget: u16,
+    containing_block_width: u16,
 ) -> u16 {
     intrinsic_size_inner(
         dom,
         id,
         direction,
         cross_budget,
+        containing_block_width,
         IntrinsicMode::ContentOnly,
         Measure::MinContent,
     )
@@ -122,15 +130,22 @@ fn intrinsic_size_inner(
     id: NodeId,
     direction: Direction,
     cross_budget: u16,
+    containing_block_width: u16,
     mode: IntrinsicMode,
     measure: Measure,
 ) -> u16 {
     let kind = dom.node(id).node_type();
     match kind {
         NodeType::Text => intrinsic_text(dom, id, direction),
-        NodeType::Element | NodeType::Fragment => {
-            intrinsic_element(dom, id, direction, cross_budget, mode, measure)
-        }
+        NodeType::Element | NodeType::Fragment => intrinsic_element(
+            dom,
+            id,
+            direction,
+            cross_budget,
+            containing_block_width,
+            mode,
+            measure,
+        ),
         NodeType::Comment => 0,
     }
 }
@@ -154,6 +169,7 @@ fn intrinsic_element(
     id: NodeId,
     direction: Direction,
     cross_budget: u16,
+    containing_block_width: u16,
     mode: IntrinsicMode,
     measure: Measure,
 ) -> u16 {
@@ -192,13 +208,11 @@ fn intrinsic_element(
     }
 
     // Padding + border cost on the main axis. Padding-with-percent
-    // resolves against the containing-block width on BOTH axes
-    // per CSS 2.1 §8.4 — `cross_budget` here is the available
-    // width for the parent's content area, which is the correct
-    // basis. Calc that mixes percent with cells resolves at this
-    // point in the layout pass; constant calcs were resolved at
+    // resolves against the containing-block width on BOTH axes per
+    // CSS 2.1 §8.4. Calc that mixes percent with cells resolves at
+    // this point in the layout pass; constant calcs were resolved at
     // parse time.
-    let cb_w_for_pad = cross_budget;
+    let cb_w_for_pad = containing_block_width;
     let pad_main = match direction {
         Direction::Row => {
             computed.padding.left.resolve(cb_w_for_pad)
@@ -349,16 +363,25 @@ fn intrinsic_element(
         ),
     };
 
+    // The children's containing block is this element's content box.
+    // Measuring along the Row axis, that width is the very thing being
+    // computed — a cyclic percentage, which CSS Sizing 3 §5.2.1 treats
+    // as zero for the intrinsic contribution. Along the Column axis it
+    // is the content width the children will wrap to.
+    let child_cb_width = match direction {
+        Direction::Row => 0,
+        Direction::Column => child_cross_budget,
+    };
+
     // Flexbox §9.9 / §4.5: an item's contribution is its outer size —
-    // margins on the queried axis included. Percent margins resolve
-    // against the containing block width, approximated here by the
-    // cross budget (the only width known during intrinsic sizing).
+    // margins on the queried axis included.
     let outer = |c: NodeId| {
         let inner = intrinsic_size_inner(
             dom,
             c,
             direction,
             child_cross_budget,
+            child_cb_width,
             IntrinsicMode::BoxSize,
             measure,
         );
@@ -371,7 +394,7 @@ fn intrinsic_element(
                     Direction::Row => (&cs.margin.left, &cs.margin.right),
                     Direction::Column => (&cs.margin.top, &cs.margin.bottom),
                 };
-                i32::from(a.resolve(child_cross_budget)) + i32::from(b.resolve(child_cross_budget))
+                i32::from(a.resolve(child_cb_width)) + i32::from(b.resolve(child_cb_width))
             })
             .unwrap_or(0);
         (i32::from(inner) + margins).clamp(0, i32::from(u16::MAX)) as u16

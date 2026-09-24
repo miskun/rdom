@@ -352,7 +352,13 @@ pub(super) fn layout_block_children(
                 .node(last)
                 .computed_rc()
                 .unwrap_or_else(|| std::rc::Rc::new(ComputedStyle::initial()));
-            accumulate_outer_bottom_margin(dom, last, &last_computed, &mut trailing_margin);
+            accumulate_outer_bottom_margin(
+                dom,
+                last,
+                &last_computed,
+                containing_block_width,
+                &mut trailing_margin,
+            );
         }
         let below_last_block = y_cursor + i32::from(trailing_margin.resolved());
         for &n in &static_trailing {
@@ -412,7 +418,7 @@ fn layout_atomic_inline_blocks(
     anon_rect: LayoutRect,
 ) {
     for (id, rect) in crate::render::inline::atomic_placements(inline_layout, anon_rect) {
-        layout_node(dom, id, rect);
+        layout_node(dom, id, rect, anon_rect.width);
     }
 }
 
@@ -458,7 +464,14 @@ fn lay_out_block_child(dom: &mut Dom<TuiExt>, child: NodeId, ctx: BlockPlace<'_>
         .unwrap_or_else(|| std::rc::Rc::new(ComputedStyle::initial()));
 
     let resolved = resolve_block_width(&computed, containing_block_width);
-    let height = resolve_block_height(dom, child, &computed, resolved.width, container.height);
+    let height = resolve_block_height(
+        dom,
+        child,
+        &computed,
+        resolved.width,
+        container.height,
+        containing_block_width,
+    );
 
     // Phase 5.2 + 5.4 — fold this child's *outer top* margin into
     // the accumulator. `accumulate_outer_top_margin` walks the
@@ -472,7 +485,7 @@ fn lay_out_block_child(dom: &mut Dom<TuiExt>, child: NodeId, ctx: BlockPlace<'_>
     // already escaped upward via the parent's call to this function
     // — contribute nothing here.
     if !suppress_top_margin {
-        accumulate_outer_top_margin(dom, child, &computed, margin_acc);
+        accumulate_outer_top_margin(dom, child, &computed, containing_block_width, margin_acc);
     }
 
     // Symmetric: compute the outer bottom margin (chain through
@@ -482,7 +495,13 @@ fn lay_out_block_child(dom: &mut Dom<TuiExt>, child: NodeId, ctx: BlockPlace<'_>
     // upward (parent-last-child collapse).
     let mut outer_bottom = MarginAccumulator::new();
     if !suppress_bottom_margin {
-        accumulate_outer_bottom_margin(dom, child, &computed, &mut outer_bottom);
+        accumulate_outer_bottom_margin(
+            dom,
+            child,
+            &computed,
+            containing_block_width,
+            &mut outer_bottom,
+        );
     }
 
     // Phase 5.3 — empty-block collapse-through. A block with no
@@ -501,7 +520,7 @@ fn lay_out_block_child(dom: &mut Dom<TuiExt>, child: NodeId, ctx: BlockPlace<'_>
     let gap = margin_acc.resolved();
     let outer_y = y_cursor + gap as i32;
     let outer_rect = LayoutRect::new(outer_x, outer_y, resolved.width, height);
-    layout_node(dom, child, outer_rect);
+    layout_node(dom, child, outer_rect, containing_block_width);
 
     // `layout_node` finalizes an `Auto` height via CSS 2.1 §10.6.3
     // content measurement, which can exceed the pre-layout
@@ -683,12 +702,20 @@ fn accumulate_outer_top_margin(
     dom: &Dom<TuiExt>,
     id: NodeId,
     computed: &ComputedStyle,
+    containing_block_width: u16,
     acc: &mut MarginAccumulator,
 ) {
-    acc.add(vertical_margin(&computed.margin.top, 0));
+    acc.add(vertical_margin(
+        &computed.margin.top,
+        containing_block_width,
+    ));
     if !parent_collapses_top_with_first_child(computed) {
         return;
     }
+    // The children's margins resolve against `id`'s content width
+    // (CSS 2.1 §8.3), known from its own width resolution before it
+    // is laid out.
+    let child_cb = block_content_width(computed, containing_block_width);
     // Walk in-flow children left-to-right. The first one that
     // contributes a top margin determines where the chain stops.
     // Empty-collapse-through children fold BOTH their margins and
@@ -715,9 +742,9 @@ fn accumulate_outer_top_margin(
                     // chain.
                     return;
                 }
-                accumulate_outer_top_margin(dom, child.id(), &child_computed, acc);
+                accumulate_outer_top_margin(dom, child.id(), &child_computed, child_cb, acc);
                 if is_statically_empty_collapse_through(dom, child.id(), &child_computed) {
-                    acc.add(vertical_margin(&child_computed.margin.bottom, 0));
+                    acc.add(vertical_margin(&child_computed.margin.bottom, child_cb));
                     continue;
                 }
                 return;
@@ -741,12 +768,17 @@ fn accumulate_outer_bottom_margin(
     dom: &Dom<TuiExt>,
     id: NodeId,
     computed: &ComputedStyle,
+    containing_block_width: u16,
     acc: &mut MarginAccumulator,
 ) {
-    acc.add(vertical_margin(&computed.margin.bottom, 0));
+    acc.add(vertical_margin(
+        &computed.margin.bottom,
+        containing_block_width,
+    ));
     if !parent_collapses_bottom_with_last_child(computed) {
         return;
     }
+    let child_cb = block_content_width(computed, containing_block_width);
     let children: Vec<_> = dom.node(id).child_nodes().collect();
     for child in children.into_iter().rev() {
         if !is_in_flow(dom, child.id()) {
@@ -765,9 +797,9 @@ fn accumulate_outer_bottom_margin(
                 ) {
                     return;
                 }
-                accumulate_outer_bottom_margin(dom, child.id(), &child_computed, acc);
+                accumulate_outer_bottom_margin(dom, child.id(), &child_computed, child_cb, acc);
                 if is_statically_empty_collapse_through(dom, child.id(), &child_computed) {
-                    acc.add(vertical_margin(&child_computed.margin.top, 0));
+                    acc.add(vertical_margin(&child_computed.margin.top, child_cb));
                     continue;
                 }
                 return;
@@ -1075,6 +1107,7 @@ fn resolve_block_height(
     computed: &ComputedStyle,
     resolved_width: u16,
     container_height: u16,
+    containing_block_width: u16,
 ) -> u16 {
     // CSS 2.1 §10.5 — `height: <percent>` only resolves against
     // the containing block's height when that height is *definite*
@@ -1095,7 +1128,13 @@ fn resolve_block_height(
             // descendants will be laid out into (Direction::Column
             // queries height; cross axis is row/width). That's the
             // child's own resolved width — text wraps to it.
-            intrinsic_size(dom, id, Direction::Column, resolved_width)
+            intrinsic_size(
+                dom,
+                id,
+                Direction::Column,
+                resolved_width,
+                containing_block_width,
+            )
         }
         Size::Fixed(n) => *n,
         Size::Percent(p) => {
@@ -1103,7 +1142,13 @@ fn resolve_block_height(
                 Size::percent_of(container_height as i32, *p).clamp(0, u16::MAX as i32) as u16
             } else {
                 // Fall through to intrinsic — same as Auto.
-                intrinsic_size(dom, id, Direction::Column, resolved_width)
+                intrinsic_size(
+                    dom,
+                    id,
+                    Direction::Column,
+                    resolved_width,
+                    containing_block_width,
+                )
             }
         }
         Size::Calc(expr) => {
@@ -1117,7 +1162,13 @@ fn resolve_block_height(
                 let v = expr.resolve(&rdom_style::calc::ResolveCtx::new(container_height as i32));
                 v.max(0).min(u16::MAX as i32) as u16
             } else {
-                intrinsic_size(dom, id, Direction::Column, resolved_width)
+                intrinsic_size(
+                    dom,
+                    id,
+                    Direction::Column,
+                    resolved_width,
+                    containing_block_width,
+                )
             }
         }
     };
@@ -1245,15 +1296,17 @@ fn vertical_margin(m: &MarginValue, cb_width: u16) -> i16 {
     }
 }
 
-/// Convenience helper for `compute_content_area_collapsed` style
-/// access — currently unused in this module but retained for
-/// symmetry with `flex.rs` and to give phase 5 a single import.
-#[allow(dead_code)]
-fn content_area(outer: LayoutRect, computed: &ComputedStyle) -> LayoutRect {
+/// The content width a block's children resolve percentages against,
+/// computable before the block is laid out: its used width (CSS 2.1
+/// §10.3.3) minus its own padding and border.
+fn block_content_width(computed: &ComputedStyle, containing_block_width: u16) -> u16 {
+    let width = resolve_block_width(computed, containing_block_width).width;
     compute_content_area_collapsed(
-        outer,
+        LayoutRect::new(0, 0, width, 0),
         computed.padding.clone(),
         computed.border,
         computed.border_collapse,
+        containing_block_width,
     )
+    .width
 }

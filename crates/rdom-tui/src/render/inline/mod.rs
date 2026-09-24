@@ -457,5 +457,15 @@ fn atomic_inline_block_intrinsic_width(dom: &Dom<TuiExt>, id: NodeId) -> u16 {
     // measurement the flex layout uses to size inline-block flex
     // items. Pass `cross_budget = 0` since IFC packers don't
     // affect inline-block height; only the width matters here.
-    crate::render::layout_pass::intrinsic::intrinsic_size(dom, id, crate::layout::Direction::Row, 0)
+    // The IFC's width is not in scope here, so the atom's percent
+    // padding / margins resolve against 0 (CSS Sizing 3 §5.2.1 treats
+    // a percentage against an unknown basis as zero for an intrinsic
+    // contribution).
+    crate::render::layout_pass::intrinsic::intrinsic_size(
+        dom,
+        id,
+        crate::layout::Direction::Row,
+        0,
+        0,
+    )
 }

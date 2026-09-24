@@ -199,6 +199,9 @@ Each phase ends with the two review gates; each commit carries the item id.
   `positioned_z_list` (DRY-2).
 - 2026-09-24 — Phase 5: `M5-MIN-CONTENT-2` — `content_min_size` measures min-content by packing
   the inline content at width 0 (the packer's own break rules), threaded through the recursion.
+- 2026-09-24 — Phase 5: `CALC-PADMARG-1` + `BFC1-MARGIN-PERCENT-CHAIN-1` — `layout_node`,
+  `intrinsic_size` and the margin-chain walkers take the containing-block width; the intrinsic
+  recursion passes 0 on the measured axis (cyclic percentage).
 - Found while mapping Phase 3 (not on the ledger): `ImportantMask::FLOW` and `POINTER_EVENTS` share
   bit 39 (`tui_style.rs`), custom-property inheritance in the cascade is overwritten by the merged
   root map (`walk.rs`), and tokenizer errors inside a block are body-relative (`declarations.rs`).
