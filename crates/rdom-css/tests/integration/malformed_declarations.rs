@@ -40,3 +40,40 @@ fn empty_segments_are_not_malformed() {
     let r = parse("a { width: 5;; }");
     assert!(r.warnings.is_empty(), "{:?}", r.warnings);
 }
+
+/// `CSS-WARNING-POSITION-1`: declaration warnings carry the position of
+/// the declaration they are about, not the `{` of the block, and a
+/// tokenizer error inside a block is reported in document coordinates.
+#[test]
+fn declaration_warnings_point_at_the_declaration() {
+    let src = "a {\n  color: red;\n  bogus: 1;\n  width: nope;\n  color red\n}";
+    let r = parse(src);
+    let at = |pred: &dyn Fn(&WarningKind) -> bool| {
+        let w = r
+            .warnings
+            .iter()
+            .find(|w| pred(&w.kind))
+            .unwrap_or_else(|| panic!("no matching warning in {:?}", r.warnings));
+        (w.line, w.column)
+    };
+    assert_eq!(
+        at(&|k| matches!(k, WarningKind::UnknownProperty(p) if p == "bogus")),
+        (3, 3)
+    );
+    assert_eq!(
+        at(&|k| matches!(k, WarningKind::InvalidValue { property, .. } if property == "width")),
+        (4, 3)
+    );
+    assert_eq!(
+        at(&|k| matches!(k, WarningKind::MalformedDeclaration(t) if t == "color red")),
+        (5, 3)
+    );
+
+    let r = parse("a {\n  content: \"open\n}");
+    let w = r
+        .warnings
+        .iter()
+        .find(|w| matches!(w.kind, WarningKind::UnterminatedString))
+        .unwrap();
+    assert_eq!((w.line, w.column), (2, 12), "absolute, not body-relative");
+}

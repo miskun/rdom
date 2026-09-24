@@ -28,6 +28,10 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 
 - `PropMask`, `INHERITS_MASK` and `LAYOUT_MASK` are removed from the public API. They were exported but drove nothing; the inherited set is declared once in `rdom_style::property_dispatch::inherits` and the cascade is pinned to it by a per-property test. (`STYLE-INHERITS-TWO-SOURCES-1`)
 
+### Fixed — `rdom-css`
+
+- **Declaration warnings point at the declaration.** `UnknownProperty`, `InvalidValue` and `MalformedDeclaration` carry the line and column of the property name (they carried the block's `{`), and a tokenizer error inside a block is reported in document coordinates instead of relative to the block body. `rdom_style::parse::token::tokenize_at` returns per-token positions for this. (`CSS-WARNING-POSITION-1`)
+
 ### Breaking — `rdom-style`
 
 - `TuiStyle::transition_property` / `transition_duration` / `transition_timing_function` / `transition_delay` are `Option<Value<Vec<…>>>` (they were `Option<Vec<…>>`), so `transition: inherit` / `initial` / `unset` parse like every other property; the cascade resolves `inherit` from the parent's lists and `initial` to the empty list. Code that matched `Some(list)` reads `Some(Value::Specified(list))`; the fluent setters are unchanged. (`STYLE-TRANSITION-VALUE-1`)

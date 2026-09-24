@@ -15,11 +15,18 @@ pub struct Cursor<'a> {
 
 impl<'a> Cursor<'a> {
     pub fn new(source: &'a str) -> Self {
+        Self::at(source, 1, 1)
+    }
+
+    /// A cursor over `source` that reports positions as if `source`
+    /// started at `line:col` of a larger document — for tokenizing a
+    /// declaration block that was cut out of a stylesheet.
+    pub fn at(source: &'a str, line: u32, col: u32) -> Self {
         Self {
             source,
             pos: 0,
-            line: 1,
-            col: 1,
+            line,
+            col,
         }
     }
 

@@ -7,16 +7,15 @@
 //! `!important` → delegate one declaration at a time).
 
 use rdom_style::TuiStyle;
-use rdom_style::parse::token::{Token, TokenizerErrorKind, tokenize};
+use rdom_style::parse::token::{Token, TokenPos, TokenizerErrorKind, tokenize_at};
 use rdom_style::parse::values::render_value;
 use rdom_style::property_dispatch::{self, DispatchError};
 
 use crate::{Warning, WarningKind};
 
 /// Parse a declaration block. `block_line` / `block_col` mark the
-/// start of the body in the original source — they're used as a
-/// fallback location when token-level position info isn't tracked
-/// here yet.
+/// start of the body in the original source; every warning below
+/// carries the position of the declaration (or token) it is about.
 ///
 /// Custom-property declarations (`--name: value`) are routed into
 /// `custom_props` instead of `style`. The caller decides what to
@@ -30,7 +29,7 @@ pub(crate) fn parse_block(
     block_col: u32,
     warnings: &mut Vec<Warning>,
 ) {
-    let tokens = match tokenize(body) {
+    let (tokens, positions) = match tokenize_at(body, block_line, block_col) {
         Ok(t) => t,
         Err(e) => {
             let kind = match e.kind {
@@ -45,7 +44,7 @@ pub(crate) fn parse_block(
             return;
         }
     };
-    let mut decls = split_declarations(&tokens, block_line, block_col, warnings);
+    let mut decls = split_declarations(&tokens, &positions, warnings);
     for decl in decls.drain(..) {
         if let Some(name) = decl.name.strip_prefix("--") {
             // Custom property — skip the property table, route
@@ -56,7 +55,7 @@ pub(crate) fn parse_block(
             });
             continue;
         }
-        apply_declaration(decl, style, block_line, block_col, warnings);
+        apply_declaration(decl, style, warnings);
     }
 }
 
@@ -73,6 +72,8 @@ struct RawDeclaration<'a> {
     name: &'a str,
     value: &'a [Token],
     important: bool,
+    /// Position of the property name in the source.
+    at: TokenPos,
 }
 
 /// Split a token slice on top-level `;`s. Each non-empty segment
@@ -82,8 +83,7 @@ struct RawDeclaration<'a> {
 /// (`;;`, trailing `;`) are silently fine.
 fn split_declarations<'a>(
     tokens: &'a [Token],
-    line: u32,
-    column: u32,
+    positions: &[TokenPos],
     warnings: &mut Vec<Warning>,
 ) -> Vec<RawDeclaration<'a>> {
     let mut out = Vec::new();
@@ -94,12 +94,13 @@ fn split_declarations<'a>(
         let at_end = i == len;
         if at_end || tokens[i] == Token::Semicolon {
             let segment = &tokens[start..i];
-            match into_declaration(segment) {
+            let at = positions.get(start).copied().unwrap_or((0, 0));
+            match into_declaration(segment, at) {
                 Some(decl) => out.push(decl),
                 None if !segment.is_empty() => warnings.push(Warning {
                     kind: WarningKind::MalformedDeclaration(render_value(segment)),
-                    line,
-                    column,
+                    line: at.0,
+                    column: at.1,
                 }),
                 None => {}
             }
@@ -112,7 +113,7 @@ fn split_declarations<'a>(
     out
 }
 
-fn into_declaration(segment: &[Token]) -> Option<RawDeclaration<'_>> {
+fn into_declaration(segment: &[Token], at: TokenPos) -> Option<RawDeclaration<'_>> {
     if segment.is_empty() {
         return None;
     }
@@ -129,6 +130,7 @@ fn into_declaration(segment: &[Token]) -> Option<RawDeclaration<'_>> {
         name,
         value,
         important,
+        at,
     })
 }
 
@@ -154,15 +156,10 @@ fn strip_trailing_important(value: &mut &[Token]) -> bool {
     false
 }
 
-fn apply_declaration(
-    decl: RawDeclaration,
-    style: &mut TuiStyle,
-    line: u32,
-    column: u32,
-    warnings: &mut Vec<Warning>,
-) {
+fn apply_declaration(decl: RawDeclaration, style: &mut TuiStyle, warnings: &mut Vec<Warning>) {
     let name = decl.name;
     let value = decl.value;
+    let (line, column) = decl.at;
 
     // Single source of truth: rdom_style::property_dispatch owns
     // the name→setter table. The block parser is now a thin

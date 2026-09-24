@@ -8,7 +8,6 @@ For the durable architectural divergences (web-platform departures shipped on pu
 
 ### Style crate — from HARDENING-2026-09 Batch 2
 
-- **`CSS-WARNING-POSITION-1` — declaration warnings carry the block's position, not the declaration's.** `UnknownProperty`, `InvalidValue`, and `MalformedDeclaration` all report `parse_block`'s `(line, column)` (the `{`). At-rule and `InvalidSelector` warnings are precise. Fix by giving tokens spans and threading the segment's first token position into the warning.
 
 ### Layout & cascade
 

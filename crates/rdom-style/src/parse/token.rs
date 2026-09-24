@@ -62,15 +62,35 @@ pub enum TokenizerErrorKind {
 /// are skipped; unterminated comments / strings produce a
 /// `TokenizerError` and abort.
 pub fn tokenize(source: &str) -> Result<Vec<Token>, TokenizerError> {
-    let mut cursor = Cursor::new(source);
+    tokenize_at(source, 1, 1).map(|(tokens, _)| tokens)
+}
+
+/// `(line, column)` of a token's first character in the source.
+pub type TokenPos = (u32, u32);
+
+/// [`tokenize`] with positions: `source` is taken to start at
+/// `line:col` of the enclosing document (a declaration block cut out
+/// of a stylesheet), every token's start position is returned in a
+/// parallel `Vec`, and a tokenizer error carries the absolute
+/// position too. Parallel rather than zipped so property parsers keep
+/// taking plain `&[Token]` slices.
+pub fn tokenize_at(
+    source: &str,
+    line: u32,
+    col: u32,
+) -> Result<(Vec<Token>, Vec<TokenPos>), TokenizerError> {
+    let mut cursor = Cursor::at(source, line, col);
     let mut tokens = Vec::new();
+    let mut positions = Vec::new();
     loop {
         skip_ws_and_comments(&mut cursor)?;
         match cursor.peek() {
-            None => return Ok(tokens),
+            None => return Ok((tokens, positions)),
             Some(c) => {
+                let pos = (cursor.line(), cursor.col());
                 let tok = read_one(&mut cursor, c)?;
                 tokens.push(tok);
+                positions.push(pos);
             }
         }
     }
