@@ -4043,3 +4043,64 @@ fn flex_item_natural_width_counts_percent_padding_against_the_container_width() 
     // "hi" (2) + 10% of 40 (4).
     assert_eq!(layout_rect_of(&dom, p).width, 6);
 }
+
+// ── SCROLLBAR-AUTO-TWO-PASS-1: auto height includes the gutter ──────
+
+/// `SCROLLBAR-AUTO-TWO-PASS-1`: when pass 1 detects horizontal
+/// overflow on an `overflow-x: auto` block, pass 2 reserves the
+/// scrollbar row AND re-resolves the block's `auto` height, so the
+/// gutter row is part of the box instead of eating the last content
+/// row.
+#[test]
+fn auto_height_block_grows_by_the_scrollbar_row_reserved_in_pass_two() {
+    let mut dom = tui_dom();
+    let root = dom.root();
+    let wrap = dom.create_element("wrap");
+    let bx = dom.create_element("bx");
+    let text = dom.create_text_node("aaaaaaaaaaaaaaaaaaaa"); // 20 cells, unbreakable
+    dom.append_child(bx, text).unwrap();
+    dom.append_child(wrap, bx).unwrap();
+    dom.append_child(root, wrap).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked("wrap", TuiStyle::new().width(Size::Fixed(10)))
+        .rule_unchecked(
+            "bx",
+            TuiStyle::new()
+                .width(Size::Fixed(10))
+                .overflow_x(Overflow::Auto),
+        );
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 40, 10));
+    assert_eq!(content_rect_of(&dom, bx).height, 1, "one text row");
+    assert_eq!(
+        layout_rect_of(&dom, bx).height,
+        2,
+        "text row + scrollbar row"
+    );
+}
+
+/// The permanent gutter of `overflow-x: scroll` counts toward an
+/// `auto` height in pass 1 the same way.
+#[test]
+fn auto_height_block_includes_a_permanent_scrollbar_row() {
+    let mut dom = tui_dom();
+    let root = dom.root();
+    let wrap = dom.create_element("wrap");
+    let bx = dom.create_element("bx");
+    let text = dom.create_text_node("short");
+    dom.append_child(bx, text).unwrap();
+    dom.append_child(wrap, bx).unwrap();
+    dom.append_child(root, wrap).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked("wrap", TuiStyle::new().width(Size::Fixed(20)))
+        .rule_unchecked(
+            "bx",
+            TuiStyle::new()
+                .width(Size::Fixed(20))
+                .overflow_x(Overflow::Scroll),
+        );
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 40, 10));
+    assert_eq!(content_rect_of(&dom, bx).height, 1);
+    assert_eq!(layout_rect_of(&dom, bx).height, 2);
+}

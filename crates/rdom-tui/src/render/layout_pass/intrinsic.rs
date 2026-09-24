@@ -224,6 +224,16 @@ fn intrinsic_element(
         }
     };
     let border_main = border_main_cost(&computed, direction);
+    // A permanent scrollbar gutter (`overflow: scroll`, `scrollbar-gutter:
+    // stable`) is part of the box: the vertical bar costs a column, the
+    // horizontal bar a row. An `auto` gutter that only appears on overflow
+    // is settled by `layout_node`'s second pass instead.
+    let (gutter_col, gutter_row) = super::gutter_axes(&computed, false, false);
+    let gutter_main = match direction {
+        Direction::Row => u16::from(gutter_col),
+        Direction::Column => u16::from(gutter_row),
+    };
+    let border_main = border_main.saturating_add(gutter_main);
 
     // ::before / ::after generated content (Row only) — paints
     // inline alongside the children's first / last line. Contributes

@@ -173,7 +173,7 @@ pub(super) fn layout_node(
     // content area expanded to include the border ring (decision 2,
     // M5.5b) — children's outer edges then coincide with the parent's
     // border cells.
-    let inner = compute_content_area_collapsed(
+    let content_area = compute_content_area_collapsed(
         outer_rect,
         computed.padding.clone(),
         computed.border,
@@ -187,7 +187,7 @@ pub(super) fn layout_node(
     // the `auto` case doesn't end up showing a thumb, so children
     // never reflow when a scrollbar appears/disappears. v1 uses a
     // fixed 1-cell scrollbar (no `scrollbar-width` property).
-    let inner = reserve_scrollbar_gutter(inner, &computed);
+    let inner = reserve_scrollbar_gutter(content_area, &computed);
 
     // Write our rects.
     if let Some(ext) = dom.node_mut(id).ext_mut() {
@@ -210,66 +210,17 @@ pub(super) fn layout_node(
     // this only matters on the visible→none transition for persistent nodes.
     collapse_hidden_children(dom, id);
 
-    // CSS 2.1 §10.6.3 — Phase 6.1: resolve `height: Auto` on a
-    // block-flow element against the measured content extent.
-    //
-    // Gating:
-    // - element's own `flow == Block` (otherwise flex distribution
-    //   inside this element governs its own children, but the
-    //   element's height is already-final from above).
-    // - parent's `flow` is also `Block` — Auto height on a flex
-    //   *item* means "stretch to cross axis" (CSS Flexbox §7.5),
-    //   not "intrinsic content," and the parent's flex pass has
-    //   already written that height into our outer_rect. Touching
-    //   it would clobber the stretch.
-    // - element has an explicit `Fixed` / `Percent` / `Calc` height:
-    //   already drives `inner.height`; skip the override.
-    let parent_is_block_flow = dom
-        .node(id)
-        .parent_node()
-        .and_then(|p| {
-            use crate::node::TuiNodeExt;
-            p.tui_ext()
-                .and_then(|e| e.computed.as_ref().map(|c| c.flow))
-        })
-        .map(|f| matches!(f, crate::layout::Flow::Block))
-        .unwrap_or(true);
-    // Absolute / fixed elements get their height from
-    // `compute_placed_rect` (positioning::place_positioned) — auto
-    // height there means "derive from top/bottom against CB", NOT
-    // "intrinsic content." Don't clobber that with the block
-    // measurement.
-    let is_out_of_flow_positioned = matches!(
-        computed.position,
-        crate::layout::Position::Absolute | crate::layout::Position::Fixed
+    // CSS 2.1 §10.6.3 — resolve `height: Auto` on a block-flow element
+    // against the measured content extent, plus the gutter rows the
+    // scrollbar reservation took out of the content area.
+    resolve_auto_height(
+        dom,
+        id,
+        &computed,
+        containing_block_width,
+        measurement,
+        content_area.height.saturating_sub(inner.height),
     );
-    if let Some(measurement) = measurement
-        && matches!(computed.height, crate::layout::Size::Auto)
-        && matches!(computed.flow, crate::layout::Flow::Block)
-        && parent_is_block_flow
-        && !is_out_of_flow_positioned
-    {
-        let content_h = crate::layout::clamp_size(
-            measurement.content_height,
-            match computed.min_height {
-                Some(crate::layout::MinSize::Cells(n)) => Some(n),
-                _ => None,
-            },
-            computed.max_height,
-        );
-        // Padding percent / calc resolves against the containing-block
-        // width on ALL four sides (CSS 2.1 §8.4) — the same basis
-        // `compute_content_area_collapsed` used for this element's inset.
-        let pad_cb_w = containing_block_width;
-        let pad =
-            computed.padding.top.resolve(pad_cb_w) + computed.padding.bottom.resolve(pad_cb_w);
-        let border = computed.border.top.cells() + computed.border.bottom.cells();
-        let outer_h = content_h.saturating_add(pad).saturating_add(border);
-        if let Some(ext) = dom.node_mut(id).ext_mut() {
-            ext.layout.height = outer_h;
-            ext.content_layout.height = content_h;
-        }
-    }
 
     // Record the scrollable content extent (cells that children
     // occupied, in the parent's content-area coord space, scroll
@@ -321,7 +272,19 @@ pub(super) fn layout_node(
             if let Some(ext) = dom.node_mut(id).ext_mut() {
                 ext.content_layout = inner_v2;
             }
-            let _ = layout_children(dom, id, inner_v2, &computed);
+            // Pass 2 is a full re-layout: the content may wrap
+            // differently in the narrower area and the forced gutter
+            // row is part of this box, so the `auto` height resolves
+            // again from the new measurement.
+            let measurement = layout_children(dom, id, inner_v2, &computed);
+            resolve_auto_height(
+                dom,
+                id,
+                &computed,
+                containing_block_width,
+                measurement,
+                inner_full.height.saturating_sub(inner_v2.height),
+            );
             record_scroll_content_size(dom, id, inner_v2, &computed);
         }
     }
@@ -523,6 +486,87 @@ fn clamp_scroll_offset(dom: &mut Dom<TuiExt>, id: NodeId, computed: &ComputedSty
     true
 }
 
+/// CSS 2.1 §10.6.3: resolve `height: Auto` on a block-flow element
+/// from the measured content extent. `gutter_rows` is what the
+/// scrollbar reservation took off the content area's height; it
+/// belongs to the box, so the outer height counts it.
+///
+/// Gating:
+/// - the element's own `flow == Block` (a flex container's height is
+///   already final from its parent's distribution / declared size);
+/// - the parent's `flow` is also `Block` — Auto height on a flex
+///   *item* means "stretch to the cross axis" (CSS Flexbox §7.5), and
+///   the parent's flex pass already wrote that height;
+/// - no explicit `Fixed` / `Percent` / `Calc` height;
+/// - not `absolute` / `fixed`: `compute_placed_rect` owns that height
+///   (auto there means "derive from `top` / `bottom` against the
+///   containing block").
+fn resolve_auto_height(
+    dom: &mut Dom<TuiExt>,
+    id: NodeId,
+    computed: &ComputedStyle,
+    containing_block_width: u16,
+    measurement: Option<block::BlockMeasurement>,
+    gutter_rows: u16,
+) {
+    let parent_is_block_flow = dom
+        .node(id)
+        .parent_node()
+        .and_then(|p| {
+            use crate::node::TuiNodeExt;
+            p.tui_ext()
+                .and_then(|e| e.computed.as_ref().map(|c| c.flow))
+        })
+        .map(|f| matches!(f, crate::layout::Flow::Block))
+        .unwrap_or(true);
+    let is_out_of_flow_positioned = matches!(
+        computed.position,
+        crate::layout::Position::Absolute | crate::layout::Position::Fixed
+    );
+    if !matches!(computed.height, crate::layout::Size::Auto)
+        || !matches!(computed.flow, crate::layout::Flow::Block)
+        || !parent_is_block_flow
+        || is_out_of_flow_positioned
+    {
+        return;
+    }
+    // An IFC block or pure-text leaf has no `BlockMeasurement`; its
+    // content extent is its packed line count (at least the one row
+    // an empty editing host keeps for the caret).
+    let Some(measurement) = measurement.or_else(|| {
+        dom.node(id)
+            .ext()
+            .and_then(|e| e.inline_layout.as_ref())
+            .map(|il| block::BlockMeasurement {
+                content_height: il.height().max(1),
+            })
+    }) else {
+        return;
+    };
+    let content_h = crate::layout::clamp_size(
+        measurement.content_height,
+        match computed.min_height {
+            Some(crate::layout::MinSize::Cells(n)) => Some(n),
+            _ => None,
+        },
+        computed.max_height,
+    );
+    // Padding percent / calc resolves against the containing-block
+    // width on ALL four sides (CSS 2.1 §8.4) — the same basis
+    // `compute_content_area_collapsed` used for this element's inset.
+    let pad = computed.padding.top.resolve(containing_block_width)
+        + computed.padding.bottom.resolve(containing_block_width);
+    let border = computed.border.top.cells() + computed.border.bottom.cells();
+    let outer_h = content_h
+        .saturating_add(pad)
+        .saturating_add(border)
+        .saturating_add(gutter_rows);
+    if let Some(ext) = dom.node_mut(id).ext_mut() {
+        ext.layout.height = outer_h;
+        ext.content_layout.height = content_h;
+    }
+}
+
 /// Fragment case: children inherit our container rect directly
 /// (no padding, no border, no layout-rect write for the fragment).
 fn layout_fragment_children(dom: &mut Dom<TuiExt>, id: NodeId, container: LayoutRect) {
@@ -692,14 +736,7 @@ pub(super) fn reserve_scrollbar_gutter_forced(
     force_y: bool,
     force_x: bool,
 ) -> LayoutRect {
-    use crate::layout::ScrollbarGutter;
-    let reserves = |o: Overflow, force: bool| match o {
-        Overflow::Scroll => true,
-        Overflow::Auto => force || matches!(computed.scrollbar_gutter, ScrollbarGutter::Stable),
-        Overflow::Hidden | Overflow::Visible => false,
-    };
-    let reserve_y = reserves(computed.overflow_y, force_y);
-    let reserve_x = reserves(computed.overflow_x, force_x);
+    let (reserve_y, reserve_x) = gutter_axes(computed, force_y, force_x);
     LayoutRect::new(
         inner.x,
         inner.y,
@@ -713,6 +750,22 @@ pub(super) fn reserve_scrollbar_gutter_forced(
         } else {
             inner.height
         },
+    )
+}
+
+/// Which axes reserve a scrollbar gutter: `(vertical bar, horizontal
+/// bar)`. `Scroll` always; `Auto` when forced (pass 2 saw overflow) or
+/// under `scrollbar-gutter: stable`; never otherwise.
+pub(super) fn gutter_axes(computed: &ComputedStyle, force_y: bool, force_x: bool) -> (bool, bool) {
+    use crate::layout::ScrollbarGutter;
+    let reserves = |o: Overflow, force: bool| match o {
+        Overflow::Scroll => true,
+        Overflow::Auto => force || matches!(computed.scrollbar_gutter, ScrollbarGutter::Stable),
+        Overflow::Hidden | Overflow::Visible => false,
+    };
+    (
+        reserves(computed.overflow_y, force_y),
+        reserves(computed.overflow_x, force_x),
     )
 }
 

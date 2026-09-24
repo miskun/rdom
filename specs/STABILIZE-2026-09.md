@@ -203,6 +203,8 @@ Each phase ends with the two review gates; each commit carries the item id.
   `intrinsic_size` and the margin-chain walkers take the containing-block width; the intrinsic
   recursion passes 0 on the measured axis (cyclic percentage).
 - 2026-09-24 — Phase 5: `BFC1-PERF-INLINE-FLOW-LOOKUP-1` — anon-box lookup by `child_range`.
+- 2026-09-24 — Phase 5: `SCROLLBAR-AUTO-TWO-PASS-1` — `resolve_auto_height` runs in both passes with
+  the gutter rows; `BFC1-AUTO-HEIGHT-ORDERING-1` — recorded in DESIGN as the layout ordering rule.
 - Found while mapping Phase 3 (not on the ledger): `ImportantMask::FLOW` and `POINTER_EVENTS` share
   bit 39 (`tui_style.rs`), custom-property inheritance in the cascade is overwritten by the merged
   root map (`walk.rs`), and tokenizer errors inside a block are body-relative (`declarations.rs`).

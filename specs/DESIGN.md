@@ -82,6 +82,10 @@ CSS3 Display Module two-value mapping is the source of truth: `display: block` �
 
 **Border-collapse parent-edge inset**: shared between block and flex via `flex::collapse_parent_edge_insets` — when `border-collapse: collapse` extends the parent's content area to include its border ring, the first/last in-flow child needs an inset if it lacks its own border to share the cell with. Same per-edge logic for both layout modes.
 
+**Auto height is finalized after the children are placed.** `layout_node` writes the element's rects, lays out the children inside the pre-measured content area, then resolves `height: auto` from the measured extent (`resolve_auto_height`). A descendant therefore must not read its parent's `content_layout` during its own layout; sticky pinning and scroll extents read it after the pass, and paint clips against the final rect. A measure-then-place pass would remove the ordering but is not needed by anything today.
+
+**Classic scrollbars take two passes.** CSS Overflow 3 §3 lets `scrollbar-gutter: auto` follow the platform's scrollbar kind; terminal cells cannot be overlay-composited, so rdom takes the classic path: a scrollbar consumes a row or column. `overflow: scroll` and `scrollbar-gutter: stable` reserve the gutter up front; `overflow: auto` lays out once without it, and when the content overflows an axis, `layout_node` reserves the gutter, lays the children out again in the smaller area and re-resolves the element's `auto` height (the gutter row is part of the box). A smaller area can only increase overflow, so the second pass converges.
+
 **`establishes_new_bfc`** (Phase 1 cascade field): true for `display: flex`, `display: inline-block`, `overflow != visible`, `position: absolute|fixed`. Used by margin-collapse to gate parent-child collapse + by parent-bottom/last-child trapping (a BFC traps its children's margins inside its content height instead of letting them escape upward).
 
 ## Roadmap
