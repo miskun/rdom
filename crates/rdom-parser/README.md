@@ -99,4 +99,4 @@ rdom-tui's [`parse_and_render` example](../rdom-tui/examples/parse_and_render.rs
 cargo test -p rdom-parser
 ```
 
-100+ tests covering parsing, entity decoding, nesting, errors, round-tripping, realistic template snippets, and Unicode content.
+119 tests covering parsing, entity decoding, nesting, errors, round-tripping, realistic template snippets, and Unicode content.

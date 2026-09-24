@@ -7,7 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Work in progress under [`specs/HARDENING-2026-09.md`](specs/HARDENING-2026-09.md). Batch 1 changes `rdom-core` (→ 0.4.0); every crate that pins `rdom-core` (`rdom-style`, `rdom-css`, `rdom-parser`, `rdom-tui`) bumps with it so a consumer never ends up with two `rdom-core` versions and mismatched `Dom` types. Batch 2 changes `rdom-style` and `rdom-css`; Batch 3 changes `rdom-tui` (and adds `pointer-events` to `rdom-style`); Batch 4 changes `rdom-parser`. All five ship as 0.4.0.
+Nothing yet.
+
+## [0.4.0] - 2026-09-24
+
+All five crates ship together as **0.4.0**: `rdom-core` 0.3.5 → 0.4.0, `rdom-style` / `rdom-css` / `rdom-parser` 0.3.4 → 0.4.0, `rdom-tui` 0.3.14 → 0.4.0. The release is the [`HARDENING-2026-09`](specs/HARDENING-2026-09.md) program: a full review of the workspace, every `DIVERGENCES.md` entry re-audited against the web platform, every `TECH_DEBT.md` row resolved or re-justified, and four batches of fixes (core, style + css, tui, parser) each closed by architect and API review gates. **Migration:** read the `Breaking` sections below top to bottom; each states the old behavior, the new one, and what to change.
+
+Batch 1 changes `rdom-core` (→ 0.4.0); every crate that pins `rdom-core` (`rdom-style`, `rdom-css`, `rdom-parser`, `rdom-tui`) bumps with it so a consumer never ends up with two `rdom-core` versions and mismatched `Dom` types. Batch 2 changes `rdom-style` and `rdom-css`; Batch 3 changes `rdom-tui` (and adds `pointer-events` to `rdom-style`); Batch 4 changes `rdom-parser`. All five ship as 0.4.0.
 
 ### Breaking — `rdom-parser`
 
@@ -19,10 +25,6 @@ Templates that relied on the old, stricter-but-wrong tokenizer parse differently
 - `<p>a < b</p>` used to be a parse error; it is text.
 - `<?xml …?>` used to hang the parser; `<!x>` used to be silently dropped. Both are now Comment nodes.
 - `parse("<p>x</p></b>…")` used to return the `<p>` and silently drop the rest; it is now a `ParseError` ("unexpected closing tag at top level").
-
-### Breaking — `rdom-core`
-
-- `Dom::outer_markup` / `inner_markup` emit text under `<style>`, `<script>`, `xmp`, `iframe`, `noembed`, `noframes` and `plaintext` **verbatim** (HTML §13.3 raw-text serialization). `<style>a > b {}</style>` used to serialize as `a &gt; b {}`, which no longer parsed as the same CSS. `<textarea>` / `<title>` keep escaping.
 
 ### Fixed — `rdom-parser`
 
@@ -87,6 +89,7 @@ Migration notes for consumers moving from 0.3.x:
 - `drop_subtree(dom.root())` now returns `Err(HierarchyRequest)` instead of freeing the root and leaving `Dom::root` dead.
 - New `DomError::InvalidState(&'static str)` variant (exhaustive matches must add an arm): dispatching an `Event` that is already being dispatched returns it (DOM `InvalidStateError`), instead of running and clobbering the outer dispatch's propagation flags.
 - `set_class_name` now emits one net-diff `ClassChanged` record followed by one `AttributeChanged`, instead of one `ClassChanged` per removed and added class around the attribute write. Observers that counted records will see fewer.
+- `Dom::outer_markup` / `inner_markup` emit text under `<style>`, `<script>`, `xmp`, `iframe`, `noembed`, `noframes` and `plaintext` **verbatim** (HTML §13.3 raw-text serialization). `<style>a > b {}</style>` used to serialize as `a &gt; b {}`, which no longer parsed as the same CSS. `<textarea>` / `<title>` keep escaping.
 
 ### Added — `rdom-core`
 

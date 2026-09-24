@@ -57,6 +57,18 @@ See [`crates/rdom-tui/examples/`](crates/rdom-tui/examples/) for ten working dem
 | [`rdom-tui`](crates/rdom-tui) | Terminal backend. CSS cascade, flexbox layout, paint pass, ANSI emission, inline formatting (word wrap, CJK breaks, `<br>`, `white-space`), runtime (event loop, hit test, keyboard/mouse routing, focus, text selection + clipboard), native HTML element behaviors (`<button>`, `<input>` family, `<select>`, `<form>`, `<details>`, `<dialog>`, `<progress>`, `<meter>`, `<table>` family, `<canvas>`). |
 | [`rdom-parser`](crates/rdom-parser) | HTML-ish template parser → `Dom<Ext>`. `parseFromString` equivalent. Hand-rolled, no external parser deps. |
 
+## What's in 0.4.0
+
+A hardening release. The whole workspace was reviewed, every documented divergence from the web platform was re-audited (kept, followed, or deleted), and the tech-debt ledger was resolved or re-justified row by row. Highlights, with the web spec each one follows:
+
+- **Generational `NodeId`.** A freed slot's old id no longer resolves to whatever node reuses the slot (DOM object identity). **Breaking:** `NodeId` is no longer a bare index.
+- **Event dispatch per DOM §2.9.** Two-pass target invocation, listener-removal-during-dispatch semantics, and a `Dom::set_activation_hook` so checkbox / radio activation behavior runs even when propagation stops.
+- **CSS tokenizer per CSS Syntax 3.** Whole-number tokens (`Token::Float`, fractional `Percentage`), string escapes, at-rule consumption, out-of-range integers rejected instead of wrapped, `calc(x / 0)` rejected at parse time. CSS-wide keywords use the same inheritance table as the cascade.
+- **HTML tokenizer per HTML §13.2.** `<style>` / `<script>` are raw text, `<textarea>` / `<title>` are RCDATA, ~100 named character references, `a < b` is text, `<!DOCTYPE>` is skipped, `<?…>` / `<!…>` are bogus comments, and `<style>` round-trips through `outer_markup` without corrupting the CSS.
+- **Runtime robustness.** One shared scheduler with a re-entrancy guard on every user-code path, flex freeze loops with a fixed pass budget, scrolled hit-testing through a single line↔row mapping, compound undo for cross-node edits, `pointer-events` inherited, `Rc` computed styles.
+
+See [`CHANGELOG.md`](CHANGELOG.md) for the full 0.4.0 notes and migration guidance, and [`specs/HARDENING-2026-09.md`](specs/HARDENING-2026-09.md) for the program log.
+
 ## What's in 0.3.0
 
 A substrate-honesty release driven by the first downstream consumer. Highlights:
@@ -101,10 +113,10 @@ See [`CHANGELOG.md`](CHANGELOG.md) for the full 0.2.0 notes, including breaking 
 
 ## Roadmap
 
-- **0.3.0** — Client-side routing primitive.
-- **0.4.0** — Async tasks during event handlers.
+- **0.5.0** — Client-side routing primitive.
+- **0.6.0** — Async tasks during event handlers.
 
-Open polish items (no fixed milestone): form validation (`:required` / `:invalid` / `pattern`), `:focus-visible`, `::placeholder` / `:placeholder-shown`, cross-text-node undo (compound edit entries — see `EDIT-1`), undo/redo coalescing, blinking caret, whitespace normalization in clipboard serialization.
+Open polish items (no fixed milestone): form validation (`:required` / `:invalid` / `pattern`), `:focus-visible`, `::placeholder` / `:placeholder-shown`, undo/redo coalescing, blinking caret, whitespace normalization in clipboard serialization. Open debt is tracked in [`specs/TECH_DEBT.md`](specs/TECH_DEBT.md).
 
 ## Out of scope (by design)
 

@@ -140,7 +140,7 @@ and `unset` are accepted for every property except the transition family.
 cargo test -p rdom-style
 ```
 
-157 tests covering color parsing, modifier composition, `Specificity`
+245 tests covering color parsing, modifier composition, `Specificity`
 ordering, `ImportantMask` routing, every `property_dispatch::set` /
 `serialize` / `remove` path, length parsing, and `transition` value
 parsing.
