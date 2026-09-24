@@ -20,10 +20,30 @@
 //! - [`context`] — `AppContext` + `ControlFlow`. The handle a tick
 //!   callback / in-loop handler uses to request redraws, quit, or
 //!   mutate the DOM.
+//! - [`handle`] — `AppHandle`, the cross-thread handle.
+//! - [`panic_hook`] — the terminal-restoring panic hook.
+//!
+//! `App`'s own behavior is split by concern into private siblings;
+//! this file keeps the struct, construction, the event loop and its
+//! entry points (`run`, `handle_event`, `tick`, `advance`, the
+//! scheduler pump, the `AppHandle` drains):
+//!
+//! - `stylesheets` — the author-stylesheet stack + `StylesheetId`.
+//! - `keyboard_defaults` — the key pipeline and the runtime-owned
+//!   default actions (clipboard, undo / redo, editable keys, focus
+//!   navigation).
+//! - `autoscroll` — the DRAG-AUTOSCROLL session.
+//! - `frame` — `draw_if_dirty`, the off-frame cascade + layout, the
+//!   scroll-focus marker, and the transition-event drain.
 
 pub mod context;
 pub mod handle;
 pub mod panic_hook;
+
+mod autoscroll;
+mod frame;
+mod keyboard_defaults;
+mod stylesheets;
 
 #[cfg(test)]
 mod tests;
@@ -34,43 +54,27 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
-use crossterm::event::{
-    self, Event as CtEvent, KeyCode, KeyModifiers, MouseButton, MouseEvent as CtMouseEvent,
-    MouseEventKind,
-};
-
-/// Cadence of the drag-autoscroll tick (DRAG-AUTOSCROLL). One internal
-/// constant; the live loop floors its poll timeout to this while an autoscroll
-/// drag is armed so it wakes to tick even with the pointer held still.
-const AUTOSCROLL_PERIOD: Duration = Duration::from_millis(50);
+use crossterm::event::{self, Event as CtEvent};
 
 use std::rc::Rc;
 
 use crate::render::backend::Backend;
 use crate::render::backend_crossterm::{CrosstermBackend, enter_tui_mode, leave_tui_mode};
-use crate::render::{LayoutExt, PaintExt, Terminal, TerminalGuard};
+use crate::render::{Terminal, TerminalGuard};
 use crate::runtime::router::Router;
 use crate::runtime::selection::clipboard::{Clipboard, SystemClipboard};
 use crate::runtime::url_opener::{SystemUrlOpener, UrlOpener};
-use crate::style::{CascadeExt, DirtyTracker, Stylesheet};
+use crate::style::{DirtyTracker, Stylesheet};
 use crate::{TuiDispatchExt, TuiDom, TuiEvent};
 
 pub use context::{AppContext, ControlFlow};
 pub use handle::AppHandle;
+pub use stylesheets::StylesheetId;
+
+use autoscroll::AUTOSCROLL_PERIOD;
 use handle::AppShared;
 
 type TickCallback = Box<dyn FnMut(&mut AppContext<'_>) -> ControlFlow + 'static>;
-
-/// Opaque handle for a stylesheet registered with an [`App`]. Returned
-/// by [`App::push_stylesheet`] and consumed by [`App::remove_stylesheet`].
-///
-/// Equality is identity-based: two ids compare equal iff they refer to
-/// the same registered sheet (within the same App). Ids are never
-/// reused within an App; once removed, the id becomes stale and
-/// further `remove_stylesheet` calls with it are a no-op. Ids from
-/// one App passed to another are also no-op on lookup miss — no panic.
-#[derive(Copy, Clone, Eq, PartialEq, Debug, Hash)]
-pub struct StylesheetId(u64);
 
 /// The runtime. Owns everything needed to paint + interact.
 ///
@@ -78,7 +82,7 @@ pub struct StylesheetId(u64);
 /// `TestBackend` and drive the event loop synchronously without a
 /// real terminal.
 pub struct App<B: Backend = CrosstermBackend<Stdout>> {
-    dom: TuiDom,
+    pub(super) dom: TuiDom,
     /// Author stylesheets registered with this App, in push order,
     /// paired with their opaque ids. The cascade reads this slice;
     /// later sheets win same-specificity contests, matching
@@ -88,14 +92,14 @@ pub struct App<B: Backend = CrosstermBackend<Stdout>> {
     /// [`App::remove_stylesheet`] (delete by id), or
     /// [`App::set_stylesheet`] (clear + push). Public accessor
     /// [`App::style_sheets`] returns the sheets-only view.
-    stylesheets: Vec<(StylesheetId, Stylesheet)>,
+    pub(super) stylesheets: Vec<(StylesheetId, Stylesheet)>,
     /// Monotonic id generator. Incremented on every push (including
     /// the construction sheet and `set_stylesheet`). u64 is overkill
     /// for in-process lifetimes — chosen for simplicity.
-    next_stylesheet_id: u64,
-    terminal: Terminal<B>,
-    tracker: DirtyTracker,
-    router: Router,
+    pub(super) next_stylesheet_id: u64,
+    pub(super) terminal: Terminal<B>,
+    pub(super) tracker: DirtyTracker,
+    pub(super) router: Router,
 
     tick_rate: Duration,
     /// Frame budget (ms) when an animation or rAF callback is
@@ -117,20 +121,20 @@ pub struct App<B: Backend = CrosstermBackend<Stdout>> {
     /// disarms it. `autoscroll_pointer` is the latest pointer of the armed drag
     /// (`None` until the session arms); `autoscroll_next` is the next tick's
     /// deadline on the scheduler clock.
-    autoscroll_pointer: Option<(u16, u16)>,
-    autoscroll_next: Option<Instant>,
-    autoscroll_container: Option<crate::NodeId>,
+    pub(super) autoscroll_pointer: Option<(u16, u16)>,
+    pub(super) autoscroll_next: Option<Instant>,
+    pub(super) autoscroll_container: Option<crate::NodeId>,
     /// The element currently carrying `data-rdom-scroll-focus` (see
     /// [`Self::mark_scroll_focus`]).
-    scroll_focus_marked: Option<crate::NodeId>,
+    pub(super) scroll_focus_marked: Option<crate::NodeId>,
 
     /// Flags accumulated over a tick: if true, `draw_if_dirty`
     /// triggers a paint regardless of DirtyTracker state.
-    needs_redraw: bool,
+    pub(super) needs_redraw: bool,
     /// True once a handler / tick / top-level key combo (Ctrl-C,
     /// etc.) asked the app to exit. `run` sees this at the top of
     /// the next iteration and breaks out.
-    should_quit: bool,
+    pub(super) should_quit: bool,
 
     /// Holds a `TerminalGuard` in the real-crossterm case so
     /// terminal mode is restored even if `run` panics. `None` for
@@ -146,7 +150,7 @@ pub struct App<B: Backend = CrosstermBackend<Stdout>> {
     /// actions. Defaults to `SystemClipboard` (arboard); tests
     /// swap in `MemoryClipboard` via [`App::with_clipboard`] to
     /// avoid touching the real pasteboard.
-    clipboard: Box<dyn Clipboard>,
+    pub(super) clipboard: Box<dyn Clipboard>,
 
     /// URL opener used by the `<a href>` click default action to
     /// hand external URLs (http/https/mailto/...) to the OS.
@@ -496,271 +500,6 @@ impl<B: Backend> App<B> {
         self.draw_if_dirty()
     }
 
-    /// Clear all DRAG-AUTOSCROLL session state (pointer, deadline, and the
-    /// sticky container). Called when the capture releases or the autoscroll
-    /// opt-in is dropped.
-    fn disarm_autoscroll(&mut self) {
-        self.autoscroll_pointer = None;
-        self.autoscroll_next = None;
-        self.autoscroll_container = None;
-    }
-
-    /// Update the DRAG-AUTOSCROLL session from the latest pointer (called after
-    /// every *real* routed mouse event — never the synthetic re-dispatch, which
-    /// routes directly). The session is alive only while a captured drag opted
-    /// into autoscroll. The scroll container is resolved **once**, the first
-    /// time the pointer reaches an edge zone, then stays **sticky**: subsequent
-    /// moves only update the tracked pointer, never re-resolve the container. So
-    /// the captured node scrolling out of view, or the pointer overshooting past
-    /// the container onto a sibling, neither re-targets nor disarms the scroll.
-    fn note_autoscroll(&mut self, col: u16, row: u16) {
-        let Some(captured) = self.dom.pointer_capture() else {
-            self.disarm_autoscroll();
-            return;
-        };
-        if !self.dom.drag_autoscroll() {
-            self.disarm_autoscroll();
-            return;
-        }
-        if self.autoscroll_container.is_none() {
-            // Resolve the container only once the pointer is actually in an edge
-            // zone (so it resolves to the container under/at the edge, while the
-            // pointer is still inside it). Until then the session stays idle.
-            let resolved = crate::runtime::scrollbar::resolve_autoscroll_container(
-                &self.dom,
-                captured,
-                (col, row),
-            )
-            .filter(|&c| {
-                crate::runtime::scrollbar::autoscroll_step_for(&self.dom, c, (col, row)).is_some()
-            });
-            match resolved {
-                Some(c) => self.autoscroll_container = Some(c),
-                None => {
-                    self.autoscroll_pointer = None;
-                    self.autoscroll_next = None;
-                    return;
-                }
-            }
-        }
-        // Armed + sticky: track the pointer; the tick decides scroll vs. idle.
-        self.autoscroll_pointer = Some((col, row));
-        if self.autoscroll_next.is_none() {
-            self.autoscroll_next = Some(self.scheduler.borrow().now() + AUTOSCROLL_PERIOD);
-        }
-    }
-
-    /// Fire any due autoscroll ticks. Keyed on the scheduler clock so it works
-    /// identically under the live loop (wall-synced) and `advance` (virtual).
-    /// The session disarms only when the capture releases or the opt-in drops —
-    /// a tick that finds the pointer out of the edge zone (or the container at
-    /// its limit) simply idles, keeping the sticky container for the drag.
-    fn service_autoscroll(&mut self) {
-        // The synthetic drag move dispatches listeners that may schedule timers.
-        let _current = crate::runtime::timers::SchedulerGuard::install(&self.scheduler);
-        if self.dom.pointer_capture().is_none() || !self.dom.drag_autoscroll() {
-            self.disarm_autoscroll();
-            return;
-        }
-        let (Some((col, row)), Some(container)) =
-            (self.autoscroll_pointer, self.autoscroll_container)
-        else {
-            return;
-        };
-        let now = self.scheduler.borrow().now();
-        let mut guard = 0u8;
-        while let Some(next) = self.autoscroll_next {
-            if now < next || guard >= 8 {
-                break;
-            }
-            guard += 1;
-            self.autoscroll_tick(container, col, row);
-            self.autoscroll_next = Some(next + AUTOSCROLL_PERIOD);
-        }
-    }
-
-    /// One autoscroll tick on the drag's **sticky** `container`: if the pointer
-    /// is in an edge zone and there's room, scroll one step and re-dispatch the
-    /// drag at the held pointer (capture path) so the consumer — and native text
-    /// selection — extend against the new scroll position. Otherwise it's a
-    /// no-op idle tick (the session stays armed; it does not disarm here).
-    fn autoscroll_tick(&mut self, container: crate::NodeId, col: u16, row: u16) {
-        let Some((axis, step)) =
-            crate::runtime::scrollbar::autoscroll_step_for(&self.dom, container, (col, row))
-        else {
-            return; // not in an edge zone — idle, stay armed
-        };
-        if !crate::runtime::scrollbar::autoscroll_step(&mut self.dom, container, axis, step) {
-            return; // container at its scroll limit — idle
-        }
-        // Re-render (cascade + layout) against the new scroll offset BEFORE the
-        // synthetic move, so a layout-dependent consumer re-evaluates at the
-        // revealed content. This is the **full** frame path, not a bare
-        // `layout_dom`: the `scroll` event fired by `autoscroll_step` runs the
-        // consumer's listener, which may MUTATE the DOM (e.g. a virtualized
-        // table re-windows its rows + runs column-sizing) — those mutations
-        // need a cascade to take effect, or the re-materialized nodes lay out
-        // unstyled (collapsed column widths, wrong spacer heights → a clamped
-        // `scroll_top` and a mis-mapped pointer). Native text selection doesn't
-        // mutate here, so its cascade is a no-op.
-        let area = self.terminal.size();
-        self.cascade_and_layout(area);
-        // A synthetic left-button Drag at the held pointer carries the held
-        // coords + the held-button bitmask, so the consumer's move guard accepts
-        // it and re-evaluates against the new scroll offset.
-        let synthetic = CtMouseEvent {
-            kind: MouseEventKind::Drag(MouseButton::Left),
-            column: col,
-            row,
-            modifiers: KeyModifiers::empty(),
-        };
-        let outcome = self.router.route(&mut self.dom, CtEvent::Mouse(synthetic));
-        self.needs_redraw |= outcome.redraw_requested;
-        self.needs_redraw = true; // the scroll itself changed the view
-    }
-
-    /// Cascade the dirty subtrees + advance animations + layout — the
-    /// non-painting half of [`Self::draw_if_dirty`]'s frame. Used by
-    /// [`Self::autoscroll_tick`] for an off-frame re-render so DOM mutations a
-    /// consumer made inside a `scroll` handler are fully realized before the
-    /// synthetic move. Drains the dirty-root tracker like a real frame, so the
-    /// subsequent `draw_if_dirty` only re-cascades what the synthetic move
-    /// newly dirtied (it still paints — `needs_redraw` is set).
-    fn cascade_and_layout(&mut self, area: crate::render::Rect) {
-        let mut dirty_roots = self.tracker.roots_snapshot();
-        if !dirty_roots.is_empty() {
-            self.tracker.take_roots();
-        }
-        dirty_roots.sort_unstable();
-        dirty_roots.dedup();
-        let sheets: Vec<&Stylesheet> = self.stylesheets.iter().map(|(_, s)| s).collect();
-        if dirty_roots.is_empty() {
-            self.dom.cascade_all(&sheets);
-        } else {
-            self.dom.cascade_subtrees_all(&sheets, &dirty_roots);
-        }
-        let now = std::time::Instant::now();
-        crate::runtime::animation::diff_and_register(&mut self.dom, &mut self.animations, now);
-        self.animations.advance(&mut self.dom, now);
-        self.dom.layout_dom(area);
-        if crate::runtime::scrollbar::service_caret_reveal(&mut self.dom) {
-            self.dom.layout_dom(area);
-        }
-    }
-
-    /// Replace every registered stylesheet with `sheet`. Returns the
-    /// freshly-assigned [`StylesheetId`] for the new sheet, symmetric
-    /// with [`Self::push_stylesheet`].
-    ///
-    /// Any sheets previously pushed via [`Self::push_stylesheet`] are
-    /// dropped and their ids become stale (subsequent
-    /// `remove_stylesheet` calls with them are no-ops). The next paint
-    /// runs a full re-cascade.
-    ///
-    /// For incremental sheet management (adding a per-screen sheet
-    /// without losing the base sheet), use [`Self::push_stylesheet`].
-    pub fn set_stylesheet(&mut self, sheet: Stylesheet) -> StylesheetId {
-        let id = StylesheetId(self.next_stylesheet_id);
-        self.next_stylesheet_id += 1;
-        self.stylesheets.clear();
-        self.stylesheets.push((id, sheet));
-        self.invalidate_cascade();
-        id
-    }
-
-    /// Append a new author stylesheet onto the cascade stack. The
-    /// returned [`StylesheetId`] can later be passed to
-    /// [`Self::remove_stylesheet`] to take it back out.
-    ///
-    /// Within the cascade, later-pushed sheets win same-specificity
-    /// contests — push order is the third tiebreaker after
-    /// (specificity, source_idx). Custom-property (`var()`)
-    /// definitions are merged across sheets with later-wins
-    /// semantics per var name. Matches `Document.styleSheets`
-    /// ordering on the web.
-    ///
-    /// The next paint runs a full re-cascade.
-    pub fn push_stylesheet(&mut self, sheet: Stylesheet) -> StylesheetId {
-        let id = StylesheetId(self.next_stylesheet_id);
-        self.next_stylesheet_id += 1;
-        self.stylesheets.push((id, sheet));
-        self.invalidate_cascade();
-        id
-    }
-
-    /// Remove a previously-pushed sheet by [`StylesheetId`]. No-op
-    /// if the id is unknown (already removed, or from a different
-    /// App) — never panics. When removal actually changes the
-    /// stack, the next paint runs a full re-cascade.
-    pub fn remove_stylesheet(&mut self, id: StylesheetId) {
-        if let Some(pos) = self.stylesheets.iter().position(|(sid, _)| *sid == id) {
-            self.stylesheets.remove(pos);
-            self.invalidate_cascade();
-        }
-    }
-
-    /// Drop the dirty tracker's accumulated roots and force a full
-    /// re-cascade on the next paint. Used by stylesheet-mutation
-    /// methods.
-    ///
-    /// Critically uses `take_roots` (which drains) rather than
-    /// `roots_snapshot` (which peeks). If the DOM has pending dirty
-    /// subtrees when this is called, leaving them in the tracker
-    /// would cause the next `draw_if_dirty` to do a partial
-    /// `cascade_subtrees_all` rooted at those subtrees — skipping
-    /// every element outside them and leaving stale computed styles
-    /// from the previous sheet stack. Draining + `needs_redraw=true`
-    /// is what gets the empty-`dirty_roots` branch of `draw_if_dirty`
-    /// to run the full cascade.
-    /// Apply the stylesheet-stack changes a handler requested through
-    /// its [`AppContext`], in order. The ids the context handed out are
-    /// the ones assigned here: the context started from
-    /// `next_stylesheet_id` and advanced it the same way.
-    fn apply_stylesheet_intents(&mut self, intents: Vec<context::StylesheetIntent>) {
-        for intent in intents {
-            match intent {
-                context::StylesheetIntent::Set(id, sheet) => {
-                    debug_assert_eq!(id.0, self.next_stylesheet_id);
-                    self.set_stylesheet(sheet);
-                }
-                context::StylesheetIntent::Push(id, sheet) => {
-                    debug_assert_eq!(id.0, self.next_stylesheet_id);
-                    self.push_stylesheet(sheet);
-                }
-                context::StylesheetIntent::Remove(id) => self.remove_stylesheet(id),
-            }
-        }
-    }
-
-    fn invalidate_cascade(&mut self) {
-        self.tracker.take_roots();
-        self.needs_redraw = true;
-    }
-
-    /// All stylesheets registered with this App, in push order.
-    /// Spec-name parity with `Document.styleSheets`.
-    ///
-    /// Index 0 is the sheet passed to [`Self::new`] / [`Self::with_backend`];
-    /// further indices come from [`Self::push_stylesheet`] calls. The cascade
-    /// merges rules across all sheets, with later sheets winning
-    /// same-specificity contests.
-    ///
-    /// Returns a fresh `Vec` of references because storage pairs each
-    /// sheet with its opaque `StylesheetId`; the allocation is
-    /// negligible compared to a cascade pass.
-    ///
-    /// Note: stylesheets live on `App`, not on `TuiDom`. This is
-    /// deliberate — a stylesheet is an App-lifecycle concept
-    /// (registered at construction, mutable mid-run), whereas the
-    /// `Dom` is a pure tree structure. The other three
-    /// `TuiDocAccessors` methods (`element_from_point`,
-    /// `elements_from_point`, `caret_position_from_point`) operate
-    /// on the tree and live on `Dom`; this one operates on the
-    /// runtime and lives here.
-    pub fn style_sheets(&self) -> Vec<&Stylesheet> {
-        self.stylesheets.iter().map(|(_, s)| s).collect()
-    }
-
     /// Mutable DOM access for pre-`run` setup. Listener registration,
     /// tree construction, etc. goes here. For event-loop-era
     /// mutations, use the `AppContext` passed to `on_tick` or receive
@@ -829,102 +568,7 @@ impl<B: Backend> App<B> {
         // crossterm itself isn't producing them.
         crate::rdom_trace!("App::handle_event RAW: {event:?}");
         match &event {
-            CtEvent::Key(key) => {
-                use crossterm::event::KeyEventKind;
-                // Release events fire `keyup` to the focused
-                // element only — no clipboard handling, no Ctrl-C
-                // exit (terminals don't reliably report the
-                // release event for those anyway), no default
-                // actions. Pairs with `keydown` for symmetry.
-                if key.kind == KeyEventKind::Release {
-                    let target = self.dom.focused().unwrap_or_else(|| self.dom.root());
-                    let mut tui = TuiEvent::keyup(*key);
-                    let _ = self.dom.dispatch_tui_event(target, &mut tui);
-                    self.needs_redraw |= tui.event.redraw_requested();
-                    self.needs_redraw |= !self.tracker.roots_snapshot().is_empty();
-                    self.needs_redraw |= self.tracker.take_paint_dirty();
-                    return;
-                }
-
-                // Clipboard shortcuts intercept the key before it's
-                // dispatched as a normal `keydown`. A non-collapsed
-                // selection turns Ctrl-C into "copy" instead of
-                // "quit" — matches how terminals + browsers behave.
-                if try_handle_clipboard_key(self, *key) {
-                    return;
-                }
-
-                // Ctrl-C: universal exit. Handler listeners don't
-                // even see this — the runtime owns it.
-                if key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL) {
-                    self.should_quit = true;
-                    return;
-                }
-
-                // Dispatch `keydown` to the focused element (or root).
-                // Both `Press` and `Repeat` flow through this path;
-                // browsers don't distinguish auto-repeat keydown from
-                // initial keydown either (the DOM `KeyboardEvent.repeat`
-                // bit is on the detail, set by `key_translate`).
-                let target = self.dom.focused().unwrap_or_else(|| self.dom.root());
-                let mut tui = TuiEvent::keydown(*key);
-                let _ = self.dom.dispatch_tui_event(target, &mut tui);
-
-                // Shift+F10 → contextmenu on the focused element
-                // (accessibility / keyboard-only equivalent of
-                // right-click). Dispatched as a fresh event after
-                // keydown so a handler that wants to suppress the
-                // keydown path doesn't accidentally swallow the
-                // contextmenu intent. Synthesized; no mouse
-                // coordinates (button=Left sentinel, buttons=0).
-                if key.code == KeyCode::F(10) && key.modifiers.contains(KeyModifiers::SHIFT) {
-                    let mut cm = TuiEvent::new("contextmenu");
-                    cm.event = cm.event.clone().with_synthetic(true);
-                    let _ = self.dom.dispatch_tui_event(target, &mut cm);
-                    self.needs_redraw |= cm.event.redraw_requested();
-                }
-
-                // Default actions — only run if the handler didn't
-                // call prevent_default. Selection-keyboard defaults
-                // (Ctrl-A, Shift+arrows) run first so a selection
-                // extend doesn't get overridden by focus nav.
-                if !tui.event.default_prevented() {
-                    if crate::runtime::selection::keyboard::try_handle_key(&mut self.dom, *key)
-                        || try_handle_editable_key(&mut self.dom, *key)
-                        || crate::runtime::scrollbar::handle_scroll_key(&mut self.dom, *key)
-                    {
-                        self.needs_redraw = true;
-                    } else {
-                        match key.code {
-                            KeyCode::Tab if key.modifiers.contains(KeyModifiers::SHIFT) => {
-                                crate::runtime::focus::tabindex::focus_prev(&mut self.dom);
-                                self.needs_redraw = true;
-                            }
-                            KeyCode::Tab => {
-                                crate::runtime::focus::tabindex::focus_next(&mut self.dom);
-                                self.needs_redraw = true;
-                            }
-                            KeyCode::BackTab => {
-                                // Some terminals report Shift+Tab as BackTab.
-                                crate::runtime::focus::tabindex::focus_prev(&mut self.dom);
-                                self.needs_redraw = true;
-                            }
-                            _ => {}
-                        }
-                    }
-                }
-
-                // Listener-requested repaint (state outside the DOM the
-                // tracker can't see — e.g. a canvas reading app state).
-                self.needs_redraw |= tui.event.redraw_requested();
-                self.needs_redraw |= !self.tracker.roots_snapshot().is_empty();
-                // Text-only mutations from event handlers don't dirty
-                // the cascade (selectors don't match text content) but
-                // they DO change painted output. Without this OR, a
-                // handler that calls `set_node_value` is invisible
-                // until the next event ticks the cascade.
-                self.needs_redraw |= self.tracker.take_paint_dirty();
-            }
+            CtEvent::Key(key) => self.handle_key_event(*key),
             CtEvent::Mouse(m) => {
                 let (col, row) = (m.column, m.row);
                 let outcome = self.router.route(&mut self.dom, event);
@@ -1046,139 +690,6 @@ impl<B: Backend> App<B> {
         }
     }
 
-    /// Keep `data-rdom-scroll-focus` on the scroll container the
-    /// keyboard scrolls: the nearest overflowing scroll ancestor of the
-    /// focus, per the previous frame's layout (`scrollbar::
-    /// scroll_focus_target`). The UA sheet colors that container's
-    /// scrollbar thumb through the attribute; `:focus-within` alone
-    /// would light every overflowing ancestor (`FOCUS-THUMB-NEAREST-1`).
-    /// Runs before the cascade, so the change lands in this frame.
-    fn mark_scroll_focus(&mut self) {
-        let target = crate::runtime::scrollbar::scroll_focus_target(&self.dom);
-        if target == self.scroll_focus_marked {
-            return;
-        }
-        if let Some(prev) = self.scroll_focus_marked.take()
-            && self.dom.contains(prev)
-        {
-            self.dom
-                .remove_attribute(prev, crate::runtime::scrollbar::SCROLL_FOCUS_ATTR)
-                .expect("a live element accepts attribute removal");
-        }
-        if let Some(next) = target {
-            self.dom
-                .set_attribute(next, crate::runtime::scrollbar::SCROLL_FOCUS_ATTR, "")
-                .expect("the focused element's ancestor is a live element");
-        }
-        self.scroll_focus_marked = target;
-    }
-
-    /// Cascade + layout + paint if anything is dirty. Pairs with
-    /// [`Self::handle_event`] for apps running a custom event loop.
-    pub fn draw_if_dirty(&mut self) -> io::Result<()> {
-        // Animation events (`transitionend`) fire from in here; their
-        // listeners may schedule timers.
-        let _current = crate::runtime::timers::SchedulerGuard::install(&self.scheduler);
-        // Before the roots snapshot, so a marker move is cascaded in
-        // this frame.
-        self.mark_scroll_focus();
-        let mut dirty_roots = self.tracker.roots_snapshot();
-        // dirty_roots is a snapshot; we need to actually drain them
-        // so subsequent frames don't re-cascade the same roots.
-        if !dirty_roots.is_empty() {
-            self.tracker.take_roots();
-        }
-
-        if !self.needs_redraw && dirty_roots.is_empty() {
-            crate::rdom_trace!("draw_if_dirty: SKIP (needs_redraw=false, dirty_roots empty)");
-            return Ok(());
-        }
-        crate::rdom_trace!(
-            "draw_if_dirty: DRAW (needs_redraw={}, dirty_roots={:?})",
-            self.needs_redraw,
-            dirty_roots
-        );
-
-        // De-duplicate: multiple mutations under the same root end up
-        // registered under the same NodeId.
-        dirty_roots.sort_unstable();
-        dirty_roots.dedup();
-
-        // Cascade reads the full registered set; later sheets win
-        // same-specificity contests (push order). Build a small
-        // ref-slice view over the (id, sheet) storage — allocates
-        // a Vec of fat-pointers, negligible vs. the cascade itself.
-        let sheets: Vec<&Stylesheet> = self.stylesheets.iter().map(|(_, s)| s).collect();
-        let dom = &mut self.dom;
-        let terminal = &mut self.terminal;
-        let animations = &mut self.animations;
-        let now = std::time::Instant::now();
-
-        terminal.draw(|buf| {
-            if dirty_roots.is_empty() {
-                dom.cascade_all(&sheets);
-            } else {
-                dom.cascade_subtrees_all(&sheets, &dirty_roots);
-            }
-            // Detect cascade-driven property changes and register
-            // transitions before layout / paint pick up the new
-            // values.
-            crate::runtime::animation::diff_and_register(dom, animations, now);
-            // Then advance any in-flight animations (writes
-            // interpolated values into TuiExt.presentation).
-            animations.advance(dom, now);
-            dom.layout_dom(buf.area);
-            // A caret reveal requested by an edit this frame re-runs
-            // against the fresh extent; a changed offset needs one more
-            // layout before paint.
-            if crate::runtime::scrollbar::service_caret_reveal(dom) {
-                dom.layout_dom(buf.area);
-            }
-            dom.paint_dom(buf, buf.area);
-            Ok(())
-        })?;
-
-        // Drain transition events queued during this frame.
-        self.dispatch_animation_events();
-
-        // Force redraw next frame if any transitions are still
-        // running — interpolation needs to keep stepping.
-        self.needs_redraw = !self.animations.is_empty();
-        Ok(())
-    }
-
-    /// Dispatch transition lifecycle events queued by the
-    /// animation registry during this frame.
-    ///
-    /// Event detail is a typed `EventDetail::Transition` carrying
-    /// the CSS property name and elapsed-seconds. Apps read via
-    /// `event.detail.as_transition()`.
-    fn dispatch_animation_events(&mut self) {
-        use crate::runtime::animation::{PendingEvent, TransitionEventKind};
-        let pending = self.animations.take_pending_events();
-        for PendingEvent {
-            node,
-            slot,
-            kind,
-            property,
-            elapsed_seconds,
-        } in pending
-        {
-            let event_name = match kind {
-                TransitionEventKind::Start => "transitionstart",
-                TransitionEventKind::End => "transitionend",
-                TransitionEventKind::Cancel => "transitioncancel",
-            };
-            let mut ev = rdom_core::Event::new(event_name);
-            ev.detail = rdom_core::EventDetail::Transition(Box::new(rdom_core::TransitionDetail {
-                property_name: property.css_name().to_string(),
-                elapsed: elapsed_seconds.into(),
-                pseudo_element: slot.pseudo_element().map(str::to_string),
-            }));
-            let _ = self.dom.dispatch_event(node, &mut ev);
-        }
-    }
-
     /// Take a snapshot of known-dirty subtree roots (for test
     /// introspection).
     #[cfg(test)]
@@ -1221,203 +732,3 @@ impl<B: Backend> App<B> {
 // even on panic. Normal exit path (`run` returning Ok) also calls
 // `leave_tui_mode` explicitly, which is idempotent enough (the
 // second emission of the ANSI sequences is harmless).
-
-// ─── Clipboard key routing ──────────────────────────────────────────
-
-/// Try to consume `key` as a clipboard shortcut (Ctrl-C / Ctrl-X /
-/// Ctrl-V, or their Cmd-variants on macOS). Returns `true` when
-/// the key was claimed — caller skips the rest of its keydown
-/// pipeline (including the "Ctrl-C = quit" fallback).
-///
-/// Rules:
-/// - **`copy` / `cut`**: only fire when the selection is
-///   non-collapsed. Otherwise the key falls through (so Ctrl-C
-///   without a selection still quits).
-/// - **`paste`**: always fires when a focused element exists (or
-///   the root as fallback). Clipboard may return `None` — the
-///   event still fires so apps can trigger paste-empty UX.
-fn try_handle_clipboard_key<B: Backend>(app: &mut App<B>, key: crossterm::event::KeyEvent) -> bool {
-    let ctrl_or_super = key.modifiers.contains(KeyModifiers::CONTROL)
-        || key.modifiers.contains(KeyModifiers::SUPER);
-    if !ctrl_or_super {
-        return false;
-    }
-
-    match key.code {
-        KeyCode::Char('c') | KeyCode::Char('C') => do_copy(app),
-        KeyCode::Char('x') | KeyCode::Char('X') => do_cut(app),
-        KeyCode::Char('v') | KeyCode::Char('V') => do_paste(app),
-        _ => false,
-    }
-}
-
-fn do_copy<B: Backend>(app: &mut App<B>) -> bool {
-    let Some((text, _range)) =
-        crate::runtime::selection::clipboard::current_selection_text(&app.dom)
-    else {
-        return false;
-    };
-    let target = crate::runtime::selection::clipboard::copy_target(&app.dom)
-        .unwrap_or_else(|| app.dom.root());
-    let mut tui = TuiEvent::copy(text.clone());
-    let _ = app.dom.dispatch_tui_event(target, &mut tui);
-    if !tui.event.default_prevented() {
-        app.clipboard.write_text(text);
-    }
-    true
-}
-
-fn do_cut<B: Backend>(app: &mut App<B>) -> bool {
-    let Some((text, _range)) =
-        crate::runtime::selection::clipboard::current_selection_text(&app.dom)
-    else {
-        return false;
-    };
-    let target = crate::runtime::selection::clipboard::copy_target(&app.dom)
-        .unwrap_or_else(|| app.dom.root());
-    let mut tui = TuiEvent::cut(text.clone());
-    let _ = app.dom.dispatch_tui_event(target, &mut tui);
-    if !tui.event.default_prevented() {
-        app.clipboard.write_text(text);
-        // If the cut target is an editable, delete the selected
-        // range. Routes through `insert_at_selection(dom, "")` so
-        // the delete fires `beforeinput`/`input` events and lands an
-        // undo entry. Non-editable cut is copy-only (matches what
-        // selection-in-prose "Cmd-X" usually does — copies but
-        // doesn't delete, since prose isn't editable).
-        if crate::node::nearest_editable_ancestor(&app.dom, target).is_some() {
-            let _ = crate::runtime::editing::insert_at_selection(&mut app.dom, "");
-        }
-    }
-    true
-}
-
-/// Undo / redo keydown default. Intercepts Ctrl-Z (or Cmd-Z) as
-/// undo and Ctrl-Y / Ctrl-Shift-Z (or Cmd-Shift-Z) as redo. Gates
-/// on focused editable; routes through `runtime::editing::undo_last`
-/// / `redo_last`.
-///
-/// Runs before the movement / character handler so a bare 'z' still
-/// types as text in an editable.
-fn try_handle_history_key(dom: &mut TuiDom, key: crossterm::event::KeyEvent) -> bool {
-    let ctrl_or_super = key.modifiers.contains(KeyModifiers::CONTROL)
-        || key.modifiers.contains(KeyModifiers::SUPER);
-    if !ctrl_or_super {
-        return false;
-    }
-    let shift = key.modifiers.contains(KeyModifiers::SHIFT);
-
-    let is_undo = matches!(key.code, KeyCode::Char('z') | KeyCode::Char('Z')) && !shift;
-    let is_redo = matches!(key.code, KeyCode::Char('y') | KeyCode::Char('Y'))
-        || (matches!(key.code, KeyCode::Char('z') | KeyCode::Char('Z')) && shift);
-
-    if is_undo {
-        matches!(
-            crate::runtime::editing::undo_last(dom),
-            crate::runtime::editing::UndoOutcome::Applied
-        )
-    } else if is_redo {
-        matches!(
-            crate::runtime::editing::redo_last(dom),
-            crate::runtime::editing::UndoOutcome::Applied
-        )
-    } else {
-        false
-    }
-}
-
-fn do_paste<B: Backend>(app: &mut App<B>) -> bool {
-    let text = app.clipboard.read_text().unwrap_or_default();
-    let target = app.dom.focused().unwrap_or_else(|| app.dom.root());
-    let mut tui = TuiEvent::paste(text.clone());
-    let _ = app.dom.dispatch_tui_event(target, &mut tui);
-    // If the paste target is an editable and the event wasn't
-    // prevented, insert the clipboard text at the current selection
-    // (or replace the range if one's active). Non-editable paste is
-    // a no-op at the framework level; apps can still intercept the
-    // event to do something custom (e.g. open a pasted URL).
-    if !tui.event.default_prevented()
-        && crate::node::nearest_editable_ancestor(&app.dom, target).is_some()
-    {
-        let _ = crate::runtime::editing::insert_at_selection(&mut app.dom, &text);
-    }
-    true
-}
-
-/// Editable-keydown default action. Returns `true` when the key
-/// was consumed (caller skips remaining defaults like Tab nav).
-///
-/// Runs in order:
-/// 1. **Movement / deletion** — bare arrows, Ctrl+arrows, Home/End,
-///    Ctrl+Home/End, Backspace, Delete. Routed through
-///    `runtime::editing::movement`. Shift+arrow is already handled
-///    upstream by `selection::keyboard`.
-/// 2. **Printable character insert** — falls through when movement
-///    didn't match. Plain chars (no Ctrl/Super) insert at the
-///    current selection via `insert_at_selection`. Control
-///    combinations belong to clipboard / selection paths which
-///    already ran upstream.
-fn try_handle_editable_key(dom: &mut TuiDom, key: crossterm::event::KeyEvent) -> bool {
-    // Focused element must have an editable ancestor.
-    let Some(focused) = dom.focused() else {
-        return false;
-    };
-    if crate::node::nearest_editable_ancestor(dom, focused).is_none() {
-        return false;
-    };
-
-    // Undo / redo. Ctrl-Z / Cmd-Z undoes; Ctrl-Y or Cmd-Shift-Z /
-    // Ctrl-Shift-Z redoes. Must run before movement/character so a
-    // bare 'z' in an editable doesn't short-circuit into character
-    // insertion instead.
-    if try_handle_history_key(dom, key) {
-        return true;
-    }
-
-    // Movement / deletion keys.
-    if crate::runtime::editing::movement::try_handle_movement_key(dom, key) {
-        return true;
-    }
-
-    // Enter handling. `<input>` is single-line: bare Enter is
-    // consumed but inserts nothing (form-submit handled separately).
-    // Other editables (`<textarea>`, contenteditable) insert a
-    // literal `\n` — `white-space: pre` on the textarea turns it
-    // into a visible hard break.
-    if matches!(key.code, KeyCode::Enter)
-        && !key
-            .modifiers
-            .intersects(KeyModifiers::CONTROL | KeyModifiers::SUPER | KeyModifiers::ALT)
-    {
-        let editable = crate::node::nearest_editable_ancestor(dom, focused);
-        let is_input = editable
-            .map(|id| dom.node(id).tag_name() == Some("input"))
-            .unwrap_or(false);
-        if is_input {
-            return true;
-        }
-        let outcome = crate::runtime::editing::insert_at_selection(dom, "\n");
-        return matches!(
-            outcome,
-            crate::runtime::editing::EditOutcome::Applied
-                | crate::runtime::editing::EditOutcome::Prevented
-        );
-    }
-
-    // Printable character insert. Skip modifier combos that belong
-    // to other default actions upstream.
-    if key.modifiers.contains(KeyModifiers::CONTROL) || key.modifiers.contains(KeyModifiers::SUPER)
-    {
-        return false;
-    }
-    let ch = match key.code {
-        KeyCode::Char(c) if !c.is_control() => c,
-        _ => return false,
-    };
-    let outcome = crate::runtime::editing::insert_at_selection(dom, &ch.to_string());
-    matches!(
-        outcome,
-        crate::runtime::editing::EditOutcome::Applied
-            | crate::runtime::editing::EditOutcome::Prevented
-    )
-}

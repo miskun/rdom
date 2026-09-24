@@ -282,6 +282,8 @@ Each phase ends with the two review gates; each commit carries the item id.
   lines; `nearest_scroll_container` narrowed to the module (no crate callers).
 - 2026-09-24 — Phase 6: `HIT-TEST-SPLIT-1` — `hit_test/{descend,nearest,fragment}.rs` behind the unchanged `HitTestExt` surface.
 - 2026-09-24 — Phase 6: `SELECT-SPLIT-1` — `select/{model,state,click,keyboard,typeahead,dropdown}.rs`; stale module doc corrected.
+- 2026-09-24 — Phase 6: `APP-MOD-SPLIT-1` — `app/{stylesheets,keyboard_defaults,autoscroll,frame}.rs`; `mod.rs` 1423 → 734 lines,
+  public API unchanged.
 - Found while mapping Phase 3 (not on the ledger): `ImportantMask::FLOW` and `POINTER_EVENTS` share
   bit 39 (`tui_style.rs`), custom-property inheritance in the cascade is overwritten by the merged
   root map (`walk.rs`), and tokenizer errors inside a block are body-relative (`declarations.rs`).
