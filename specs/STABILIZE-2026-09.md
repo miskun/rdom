@@ -276,6 +276,8 @@ Each phase ends with the two review gates; each commit carries the item id.
   none` in the UA sheet, like buttons.
 - 2026-09-24 — Phase 6: `OPACITY-1` — group rendering (`Buffer::composite_group`); the per-write
   compose context and its `parent_bg` fallback are gone. Recorded in DESIGN.
+- 2026-09-24 — Phase 6: `FLEX-RS-SPLIT-1` — `flex/{mod,main_axis,cross,placement,collapse}.rs`; the gap==0 && collapse overlap gate now lives
+  in one predicate.
 - Found while mapping Phase 3 (not on the ledger): `ImportantMask::FLOW` and `POINTER_EVENTS` share
   bit 39 (`tui_style.rs`), custom-property inheritance in the cascade is overwritten by the merged
   root map (`walk.rs`), and tokenizer errors inside a block are body-relative (`declarations.rs`).

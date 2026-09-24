@@ -13,7 +13,6 @@ For the durable architectural divergences (web-platform departures shipped on pu
 
 ### Deferred from HARDENING-2026-09 Batch 3
 
-- **`FLEX-RS-SPLIT-1`** (`layout_pass/flex.rs` ~950 lines: main-axis resolution, freeze loops, placement, cross sizing), **`SCROLLBAR-SPLIT-1`** (`runtime/scrollbar/mod.rs` ~750: hit / geometry / drag / autoscroll / reveal), **`HIT-TEST-SPLIT-1`** (`runtime/hit_test/mod.rs` ~750: descend / nearest / fragment), **`SELECT-SPLIT-1`** (`builtins/select/mod.rs` ~750: click / keyboard / type-ahead / dropdown) — over the few-hundred-line bar; split by concern, no behavior change. Also untouched but over the bar: `cssom/declaration.rs`, `render/buffer.rs`, `render/virtual_screen.rs` (test-only VT emulator that should be `cfg(test)` / a `test-util` feature rather than a public re-export).
 
 - **`APP-MOD-SPLIT-1` — `runtime/app/mod.rs` (~1350 lines, 19 fields) mixes the loop, the stylesheet stack, the autoscroll session, and the clipboard / undo / editable key defaults.** Split into `app/{keyboard_defaults,autoscroll,stylesheets}.rs`; no behavior change.
 - **`INLINE-PAINT-SPLIT-1` — `paint_pass/inline_paint.rs` (~950 lines) mixes text paint, the selection overlay, the caret, and `<select>` / password / gauge chrome substitution.** Paint knowing builtin internals is the coupling the module doc forbids; move chrome substitution behind a runtime-registered hook and the caret / selection overlay into their own files.
