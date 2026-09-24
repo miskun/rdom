@@ -16,7 +16,6 @@ For the durable architectural divergences (web-platform departures shipped on pu
 
 ### Layout & cascade
 
-- **`BFC1-CODE-BLOCK-SPLIT-1` — `block.rs` is ~1200 lines mixing 6 concerns.** `MarginAccumulator`, `accumulate_outer_*`, `is_*_collapse_through`, `parent_collapses_*_with_*_child`, `nearest_block_ancestor_height_is_definite`, `resolve_block_width`/`clamp_width` and the main placement loop all live together. Split into `block/{mod,margin_collapse,width,height}.rs` before this file grows further. No behavior change; layout regression risk if margin-collapse helpers aren't kept in lockstep with the placement loop.
 
 
 ### Animations

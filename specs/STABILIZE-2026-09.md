@@ -99,7 +99,7 @@ Everything else is real. Disposition per item:
 | 2 | rdom-core, rdom-parser | 3 core + 2 parser | done 2026-09-23 |
 | 3 | rdom-style, rdom-css | 12 style / css / UA items incl. counters and custom-property storage | done 2026-09-24 |
 | 4 | rdom-tui cascade + animation | custom-property cascade, inherits mask, initial hoist + rule index, three animation items | done 2026-09-24 |
-| 5 | rdom-tui layout | 22 layout items incl. stacking contexts, static position, cross-axis scroll, spans | |
+| 5 | rdom-tui layout | 22 layout items incl. stacking contexts, static position, cross-axis scroll, spans | implemented 2026-09-24; review gates pending |
 | 6 | rdom-tui paint + runtime + forms | 18 items incl. group opacity, splits, form defaults, app intents | |
 | 7 | completeness | scope confirmation with Miska: form validation, `:focus-visible`, `::placeholder` / `:placeholder-shown`, undo coalescing, blinking caret, clipboard whitespace, `scroll-behavior`, live `<style>` — the README's "open polish" list and DIVERGENCES §3 "Not yet shipped" | |
 | 8 | release | 0.5.0 across all five crates, migration notes | |
@@ -216,6 +216,7 @@ Each phase ends with the two review gates; each commit carries the item id.
   DIVERGENCES (Layout: table model, `rowspan` included).
 - 2026-09-24 — Phase 5: `BFC1-PERF-MARGIN-CHAIN-1` — per-pass chain memo on `TuiExt`, cleared by
   `layout_node`; 60-level bench shape.
+- 2026-09-24 — Phase 5: `BFC1-CODE-BLOCK-SPLIT-1` — `block/{mod,margin_collapse,width,height}.rs`.
 - Found while mapping Phase 3 (not on the ledger): `ImportantMask::FLOW` and `POINTER_EVENTS` share
   bit 39 (`tui_style.rs`), custom-property inheritance in the cascade is overwritten by the merged
   root map (`walk.rs`), and tokenizer errors inside a block are body-relative (`declarations.rs`).
