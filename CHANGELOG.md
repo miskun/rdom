@@ -37,6 +37,10 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 - `Length::Cells` holds an `i32` (was `i16`): `top` / `right` / `bottom` / `left` can position past ±32 k cells for virtualized surfaces; `parse_length` no longer rejects large integers. `z-index` stays `i16`. (`SUB-4`)
 - `gap` is a `GapValue` (`Cells(u16)` | `Calc(Box<CalcExpr>)`) on `TuiStyle` (`Option<Value<GapValue>>`) and `ComputedStyle`; `gap: calc(50% - 1)` and `gap: 10%` are accepted and resolve at layout against the container's content size on the gap's axis (0 when that size is indefinite, per CSS Box Alignment 3 §8). `TuiStyle::gap(u16)` is unchanged; `gap_value()` takes a `GapValue`. Only cell ↔ cell gap changes animate. (`CALC-GAP-1`)
 
+### Changed — `rdom-style`
+
+- UA: `<input type=checkbox>` / `<input type=radio>` are `inline-block`, like `<button>`, so `<label><input type=checkbox> Name</label>` flows on one line as in HTML. The UA module doc now lists all twenty sections. (`UA-CHECKBOX-INLINE-1`, `SUB-3`)
+
 ### Added — `rdom-style`
 
 - **`cubic-bezier(x1, y1, x2, y2)` and `steps(n, <position>)`** (plus `step-start` / `step-end`) parse in `transition-timing-function` and the `transition` shorthand, evaluate per CSS Easing 1 (`TimingFunction::{CubicBezier, Steps}`, `StepPosition`), and serialize back. `TimingFunction` is no longer `Eq` / `Hash`. (`D-M3-2`)

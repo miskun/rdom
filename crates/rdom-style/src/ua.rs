@@ -17,18 +17,24 @@
 //!
 //! 1. Form / interaction state (`[disabled]`, `[hidden]`)
 //! 2. Inline typography (emphasis, weight, semantic inline, code, edits, highlight, abbreviation, etc.)
-//! 3. Links (`<a>` / `<a href>` / `:hover`)
+//! 3. Links (`<a>` / `<a href>` / `:hover`) — inside inline typography
 //! 4. Block typography (paragraphs, headings, pre, blockquote, hr, figures)
 //! 5. Block structural / sectioning
 //! 6. Block interactive (`<details>`, `<summary>`, `<dialog>`, `<form>`, `<fieldset>`, `<legend>`)
-//! 7. Form fields (`<input>`, `<textarea>`)
-//! 8. Toggle widgets (`<input type=checkbox/radio>` + state glyphs)
-//! 9. Select widget (`<select>`, `<option>`, `<optgroup>`)
-//! 10. Canvas
-//! 11. Tables
-//! 12. Gauge widgets (`<progress>`, `<meter>`, `<input type=range>`)
-//! 13. Lists
-//! 14. Document metadata (`<style>`)
+//! 7. Tree (`[role=tree]` guides, chevrons, cursor)
+//! 8. Form fields (`<input>`, `<textarea>`)
+//! 9. Buttons
+//! 10. Focus indicator (the FOCUS-VOCAB-1 allowlist + scrollbar accent)
+//! 11. Toggle widgets (`<input type=checkbox/radio>` + state glyphs)
+//! 12. Select widget (`<select>`, `<option>`, `<optgroup>`)
+//! 13. Canvas
+//! 14. Tables
+//! 15. Gauge widgets (`<progress>`, `<meter>`)
+//! 16. Range slider (`<input type=range>`)
+//! 17. Lists
+//! 18. Scrollbars (`::scrollbar`, `::scrollbar-thumb`)
+//! 19. Selection (`::selection`)
+//! 20. Document metadata (`<style>`)
 
 use crate::color::named;
 use crate::layout::{
@@ -621,22 +627,20 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
         // writing a more specific rule (e.g.,
         // `[type=checkbox]::before { content: "☐" }`).
         //
-        // Display `Block` so the `::before` paint path
-        // (`paint_inline_content`, the non-IFC path) handles
-        // the glyph. Width auto-grows from glyph content;
-        // height is one cell. Authors who want widgets inline
-        // with text can override with `display: inline` plus
-        // their own glyph painting strategy.
+        // `inline-block`, like `<button>`: form controls are
+        // inline-level in HTML, so `<label><input type=checkbox> Name</label>`
+        // flows on one line. Width auto-grows from the glyph
+        // content; height is one cell. (`UA-CHECKBOX-INLINE-1`)
         (
             "input[type=checkbox]",
             TuiStyle::new()
-                .display(Display::Block)
+                .display(Display::InlineBlock)
                 .height(Size::Fixed(1)),
         ),
         (
             "input[type=radio]",
             TuiStyle::new()
-                .display(Display::Block)
+                .display(Display::InlineBlock)
                 .height(Size::Fixed(1)),
         ),
         (
@@ -1002,8 +1006,7 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
         // ── Document metadata ──
         // `<style>` carries CSS source as text content; it
         // must not render. Matches HTML's display:none for
-        // the tag. Placed last so existing UA-rule tests that
-        // index by source order keep their positions.
+        // the tag.
         ("style", TuiStyle::new().display(Display::None)),
     ]
 }
