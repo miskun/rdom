@@ -34,8 +34,13 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 
 - `Size::Percent` carries an `f32` (it was `u16`): `width: 12.5%` lays out as 12.5%, rounded once onto the cell grid by `Size::percent_of` (ties to even, like `calc()`). Match arms and constructors that used integer literals need `50.0`. Times still resolve to whole milliseconds; that entry stays in DIVERGENCES. (`STYLE-PERCENT-FRACTION-1`)
 
+### Changed — `rdom-style`
+
+- The property → field mapping is one table (`property_dispatch::fields_of`); `property_mask`, `remove`, the CSS-wide keyword setter and its serializer fold over it instead of each spelling the mapping. A coverage test pins that every property has fields, every field is owned and every `ImportantMask` bit is claimed. (`STYLE-PROPERTY-TABLES-1`)
+
 ### Fixed — `rdom-style`
 
+- `removeProperty("display")` now also clears the `display`-derived `flow` that `set` writes, and `property_mask("display")` includes `FLOW`; a removed `display` used to leave a stale flow declaration behind.
 - `ImportantMask::FLOW` and `ImportantMask::POINTER_EVENTS` shared bit 39, so `pointer-events: … !important` also marked the `display`-derived flow important (and vice versa). Every flag now owns a bit, and a test pins it. (`STYLE-MASK-COLLISION-1`)
 
 ### Changed — `rdom-tui`

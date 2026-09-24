@@ -161,51 +161,140 @@ pub fn property_names() -> &'static [&'static str] {
     PROPERTY_NAMES
 }
 
-/// Map a property name to the [`ImportantMask`] bit(s) it owns.
-/// Properties that affect multiple fields (`overflow` → X + Y,
-/// `inset` → all four sides) return the OR of every bit they
-/// touch. Returns `None` for unknown names.
-///
-/// Two consumers: the `rdom-css` block parser's `!important`
-/// routing, and `rdom-tui`'s `StyleDeclaration::set_property_
-/// important` / `get_property_priority`.
-pub fn property_mask(name: &str) -> Option<crate::ImportantMask> {
-    use crate::ImportantMask;
+macro_rules! define_fields {
+    ($($variant:ident => $field:ident : $mask:ident,)+) => {
+        /// One storage field of `TuiStyle`, as a row of the property →
+        /// field table. `!important` routing, `removeProperty`, the
+        /// CSS-wide keywords and their serialization all fold over
+        /// [`fields_of`], so "which fields does this property own" is
+        /// spelled once (`STYLE-PROPERTY-TABLES-1`).
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        enum Field {
+            $($variant,)+
+        }
+
+        impl Field {
+            /// Every field, for coverage tests.
+            #[cfg(test)]
+            const ALL: &'static [Field] = &[$(Field::$variant,)+];
+
+            /// The `!important` bit this field is guarded by.
+            fn mask(self) -> crate::ImportantMask {
+                match self {
+                    $(Field::$variant => crate::ImportantMask::$mask,)+
+                }
+            }
+
+            /// Clear the field; `true` if it was set.
+            fn take(self, style: &mut TuiStyle) -> bool {
+                match self {
+                    $(Field::$variant => style.$field.take().is_some(),)+
+                }
+            }
+
+            /// Store a CSS-wide keyword (resolved for `name`).
+            fn put_css_wide(self, style: &mut TuiStyle, kw: CssWide, name: &str) {
+                match self {
+                    $(Field::$variant => style.$field = Some(kw.into_value(name)),)+
+                }
+            }
+
+            /// The CSS-wide keyword the field holds, if any.
+            fn css_wide(self, style: &TuiStyle) -> Option<&'static str> {
+                match self {
+                    $(Field::$variant => keyword_of(&style.$field),)+
+                }
+            }
+        }
+    };
+}
+
+define_fields! {
+    Fg => fg : FG,
+    Bg => bg : BG,
+    BorderFg => border_fg : BORDER_FG,
+    Bold => bold : BOLD,
+    Italic => italic : ITALIC,
+    TextDecoration => text_decoration : TEXT_DECORATION,
+    Opacity => opacity : OPACITY,
+    Display => display : DISPLAY,
+    Flow => flow : FLOW,
+    Direction => direction : DIRECTION,
+    WhiteSpace => white_space : WHITE_SPACE,
+    UserSelect => user_select : USER_SELECT,
+    PointerEvents => pointer_events : POINTER_EVENTS,
+    CaretColor => caret_color : CARET_COLOR,
+    CaretTextColor => caret_text_color : CARET_TEXT_COLOR,
+    OverflowX => overflow_x : OVERFLOW_X,
+    OverflowY => overflow_y : OVERFLOW_Y,
+    ScrollbarGutter => scrollbar_gutter : SCROLLBAR_GUTTER,
+    Width => width : WIDTH,
+    Height => height : HEIGHT,
+    MinWidth => min_width : MIN_WIDTH,
+    MaxWidth => max_width : MAX_WIDTH,
+    MinHeight => min_height : MIN_HEIGHT,
+    MaxHeight => max_height : MAX_HEIGHT,
+    AspectRatio => aspect_ratio : ASPECT_RATIO,
+    Gap => gap : GAP,
+    FlexShrink => flex_shrink : FLEX_SHRINK,
+    Padding => padding : PADDING,
+    Margin => margin : MARGIN,
+    Border => border : BORDER,
+    BorderCollapse => border_collapse : BORDER_COLLAPSE,
+    Content => content : CONTENT,
+    Position => position : POSITION,
+    Top => top : TOP,
+    Right => right : RIGHT,
+    Bottom => bottom : BOTTOM,
+    Left => left : LEFT,
+    ZIndex => z_index : Z_INDEX,
+    TransitionProperty => transition_property : TRANSITIONS,
+    TransitionDuration => transition_duration : TRANSITIONS,
+    TransitionTimingFunction => transition_timing_function : TRANSITIONS,
+    TransitionDelay => transition_delay : TRANSITIONS,
+}
+
+/// The fields a property name owns — the one property → field table.
+/// Shorthands own several (`overflow` → X + Y, `inset` → the four
+/// sides); per-side `padding-*` / `margin-*` / `border-*` longhands
+/// share the shorthand's single field. `display` owns the derived
+/// `flow` too, so removing or `inherit`ing `display` cannot leave a
+/// stale flow behind. `None` for unknown names.
+fn fields_of(name: &str) -> Option<&'static [Field]> {
+    use Field::*;
     Some(match name {
-        "color" => ImportantMask::FG,
-        "background-color" | "background" => ImportantMask::BG,
-        "border-color" => ImportantMask::BORDER_FG,
-        "font-weight" => ImportantMask::BOLD,
-        "font-style" => ImportantMask::ITALIC,
-        "text-decoration" => ImportantMask::TEXT_DECORATION,
-        "opacity" => ImportantMask::OPACITY,
-        "display" => ImportantMask::DISPLAY,
-        "flex-direction" => ImportantMask::DIRECTION,
-        "white-space" => ImportantMask::WHITE_SPACE,
-        "user-select" => ImportantMask::USER_SELECT,
-        "pointer-events" => ImportantMask::POINTER_EVENTS,
-        "caret-color" => ImportantMask::CARET_COLOR,
-        "caret-text-color" => ImportantMask::CARET_TEXT_COLOR,
-        "overflow" => ImportantMask::OVERFLOW_X | ImportantMask::OVERFLOW_Y,
-        "overflow-x" => ImportantMask::OVERFLOW_X,
-        "overflow-y" => ImportantMask::OVERFLOW_Y,
-        "scrollbar-gutter" => ImportantMask::SCROLLBAR_GUTTER,
-        "width" => ImportantMask::WIDTH,
-        "height" => ImportantMask::HEIGHT,
-        "min-width" => ImportantMask::MIN_WIDTH,
-        "max-width" => ImportantMask::MAX_WIDTH,
-        "min-height" => ImportantMask::MIN_HEIGHT,
-        "max-height" => ImportantMask::MAX_HEIGHT,
-        "aspect-ratio" => ImportantMask::ASPECT_RATIO,
-        "gap" => ImportantMask::GAP,
-        "flex" => ImportantMask::WIDTH | ImportantMask::HEIGHT | ImportantMask::FLEX_SHRINK,
-        "flex-shrink" => ImportantMask::FLEX_SHRINK,
+        "color" => &[Fg],
+        "background-color" | "background" => &[Bg],
+        "border-color" => &[BorderFg],
+        "font-weight" => &[Bold],
+        "font-style" => &[Italic],
+        "text-decoration" => &[TextDecoration],
+        "opacity" => &[Opacity],
+        "display" => &[Display, Flow],
+        "flex-direction" => &[Direction],
+        "white-space" => &[WhiteSpace],
+        "user-select" => &[UserSelect],
+        "pointer-events" => &[PointerEvents],
+        "caret-color" => &[CaretColor],
+        "caret-text-color" => &[CaretTextColor],
+        "overflow" => &[OverflowX, OverflowY],
+        "overflow-x" => &[OverflowX],
+        "overflow-y" => &[OverflowY],
+        "scrollbar-gutter" => &[ScrollbarGutter],
+        "width" => &[Width],
+        "height" => &[Height],
+        "min-width" => &[MinWidth],
+        "max-width" => &[MaxWidth],
+        "min-height" => &[MinHeight],
+        "max-height" => &[MaxHeight],
+        "aspect-ratio" => &[AspectRatio],
+        "gap" => &[Gap],
+        "flex" => &[Width, Height, FlexShrink],
+        "flex-shrink" => &[FlexShrink],
         "padding" | "padding-top" | "padding-right" | "padding-bottom" | "padding-left" => {
-            ImportantMask::PADDING
+            &[Padding]
         }
-        "margin" | "margin-top" | "margin-right" | "margin-bottom" | "margin-left" => {
-            ImportantMask::MARGIN
-        }
+        "margin" | "margin-top" | "margin-right" | "margin-bottom" | "margin-left" => &[Margin],
         "border"
         | "border-top"
         | "border-right"
@@ -215,25 +304,43 @@ pub fn property_mask(name: &str) -> Option<crate::ImportantMask> {
         | "border-top-style"
         | "border-right-style"
         | "border-bottom-style"
-        | "border-left-style" => ImportantMask::BORDER,
-        "border-collapse" => ImportantMask::BORDER_COLLAPSE,
-        "content" => ImportantMask::CONTENT,
-        "transition-property"
-        | "transition-duration"
-        | "transition-timing-function"
-        | "transition-delay"
-        | "transition" => ImportantMask::TRANSITIONS,
-        "position" => ImportantMask::POSITION,
-        "top" => ImportantMask::TOP,
-        "right" => ImportantMask::RIGHT,
-        "bottom" => ImportantMask::BOTTOM,
-        "left" => ImportantMask::LEFT,
-        "z-index" => ImportantMask::Z_INDEX,
-        "inset" => {
-            ImportantMask::TOP | ImportantMask::RIGHT | ImportantMask::BOTTOM | ImportantMask::LEFT
-        }
+        | "border-left-style" => &[Border],
+        "border-collapse" => &[BorderCollapse],
+        "content" => &[Content],
+        "position" => &[Position],
+        "top" => &[Top],
+        "right" => &[Right],
+        "bottom" => &[Bottom],
+        "left" => &[Left],
+        "z-index" => &[ZIndex],
+        "inset" => &[Top, Right, Bottom, Left],
+        "transition-property" => &[TransitionProperty],
+        "transition-duration" => &[TransitionDuration],
+        "transition-timing-function" => &[TransitionTimingFunction],
+        "transition-delay" => &[TransitionDelay],
+        "transition" => &[
+            TransitionProperty,
+            TransitionDuration,
+            TransitionTimingFunction,
+            TransitionDelay,
+        ],
         _ => return None,
     })
+}
+
+/// Map a property name to the [`ImportantMask`] bit(s) it owns: the OR
+/// of every field's bit. Returns `None` for unknown names.
+///
+/// Two consumers: the `rdom-css` block parser's `!important`
+/// routing, and `rdom-tui`'s `StyleDeclaration::set_property_
+/// important` / `get_property_priority`.
+pub fn property_mask(name: &str) -> Option<crate::ImportantMask> {
+    let fields = fields_of(name)?;
+    Some(
+        fields
+            .iter()
+            .fold(crate::ImportantMask::empty(), |m, f| m | f.mask()),
+    )
 }
 
 /// Clear the named property from `style` — reset its field(s) to
@@ -241,95 +348,28 @@ pub fn property_mask(name: &str) -> Option<crate::ImportantMask> {
 /// property was previously set (any of its fields was `Some`).
 /// Returns `false` for unknown names.
 ///
-/// `StyleDeclarationMut::remove_property` consumes this to
-/// implement CSSOM `removeProperty()` semantics.
+/// Per-side longhands (`padding-top`, …) share the shorthand's storage,
+/// so removing any of them clears the whole thing — the same way CSSOM
+/// `removeProperty("padding-top")` clears the entry.
 pub fn remove(name: &str, style: &mut TuiStyle) -> bool {
-    let was_set = match name {
-        "color" => style.fg.take().is_some(),
-        "background-color" | "background" => style.bg.take().is_some(),
-        "border-color" => style.border_fg.take().is_some(),
-        "font-weight" => style.bold.take().is_some(),
-        "font-style" => style.italic.take().is_some(),
-        "text-decoration" => style.text_decoration.take().is_some(),
-        "opacity" => style.opacity.take().is_some(),
-        "display" => style.display.take().is_some(),
-        "flex-direction" => style.direction.take().is_some(),
-        "white-space" => style.white_space.take().is_some(),
-        "user-select" => style.user_select.take().is_some(),
-        "pointer-events" => style.pointer_events.take().is_some(),
-        "caret-color" => style.caret_color.take().is_some(),
-        "caret-text-color" => style.caret_text_color.take().is_some(),
-        "overflow" => style.overflow_x.take().is_some() | style.overflow_y.take().is_some(),
-        "overflow-x" => style.overflow_x.take().is_some(),
-        "overflow-y" => style.overflow_y.take().is_some(),
-        "scrollbar-gutter" => style.scrollbar_gutter.take().is_some(),
-        "width" => style.width.take().is_some(),
-        "height" => style.height.take().is_some(),
-        "min-width" => style.min_width.take().is_some(),
-        "max-width" => style.max_width.take().is_some(),
-        "min-height" => style.min_height.take().is_some(),
-        "max-height" => style.max_height.take().is_some(),
-        "aspect-ratio" => style.aspect_ratio.take().is_some(),
-        "gap" => style.gap.take().is_some(),
-        "flex" => {
-            style.width.take().is_some()
-                | style.height.take().is_some()
-                | style.flex_shrink.take().is_some()
-        }
-        "flex-shrink" => style.flex_shrink.take().is_some(),
-        "padding" | "padding-top" | "padding-right" | "padding-bottom" | "padding-left" => {
-            // Per-side longhands don't have separate storage — the
-            // shorthand owns all four cells. Removing any longhand
-            // clears the whole thing (matches CSS the same way
-            // `removeProperty("padding-top")` clears the entry).
-            style.padding.take().is_some()
-        }
-        "margin" | "margin-top" | "margin-right" | "margin-bottom" | "margin-left" => {
-            // Same shape as padding — longhands share the shorthand
-            // storage. Clearing any longhand removes the whole margin.
-            style.margin.take().is_some()
-        }
-        "border"
-        | "border-top"
-        | "border-right"
-        | "border-bottom"
-        | "border-left"
-        | "border-style"
-        | "border-top-style"
-        | "border-right-style"
-        | "border-bottom-style"
-        | "border-left-style" => style.border.take().is_some(),
-        "border-collapse" => style.border_collapse.take().is_some(),
-        "content" => style.content.take().is_some(),
-        "position" => style.position.take().is_some(),
-        "top" => style.top.take().is_some(),
-        "right" => style.right.take().is_some(),
-        "bottom" => style.bottom.take().is_some(),
-        "left" => style.left.take().is_some(),
-        "z-index" => style.z_index.take().is_some(),
-        "inset" => {
-            style.top.take().is_some()
-                | style.right.take().is_some()
-                | style.bottom.take().is_some()
-                | style.left.take().is_some()
-        }
-        "transition-property" => style.transition_property.take().is_some(),
-        "transition-duration" => style.transition_duration.take().is_some(),
-        "transition-timing-function" => style.transition_timing_function.take().is_some(),
-        "transition-delay" => style.transition_delay.take().is_some(),
-        "transition" => {
-            style.transition_property.take().is_some()
-                | style.transition_duration.take().is_some()
-                | style.transition_timing_function.take().is_some()
-                | style.transition_delay.take().is_some()
-        }
-        _ => return false,
+    let Some(fields) = fields_of(name) else {
+        return false;
     };
-    // Also clear the !important bit for this property.
-    if let Some(mask) = property_mask(name) {
-        style.important = style.important.without(mask);
-    }
+    // `|` not `||`: every field must be cleared, not just the first.
+    let was_set = fields.iter().fold(false, |acc, f| f.take(style) | acc);
+    style.important = style
+        .important
+        .without(property_mask(name).unwrap_or_default());
     was_set
+}
+
+/// The CSS-wide keyword a field holds, if any.
+fn keyword_of<T>(v: &Option<Value<T>>) -> Option<&'static str> {
+    match v {
+        Some(Value::Inherit) => Some("inherit"),
+        Some(Value::Initial) => Some("initial"),
+        _ => None,
+    }
 }
 
 /// Does rdom inherit this property by default? Mirrors the cascade's
@@ -378,77 +418,11 @@ impl CssWide {
     }
 }
 
-/// Set every field `name` owns to the CSS-wide keyword. Same
-/// property → field table as [`remove`].
+/// Set every field `name` owns to the CSS-wide keyword.
 fn set_css_wide(name: &str, kw: CssWide, style: &mut TuiStyle) -> Result<(), DispatchError> {
-    macro_rules! put {
-        ($($field:ident),+) => {{ $( style.$field = Some(kw.into_value(name)); )+ }};
-    }
-    match name {
-        "color" => put!(fg),
-        "background-color" | "background" => put!(bg),
-        "border-color" => put!(border_fg),
-        "font-weight" => put!(bold),
-        "font-style" => put!(italic),
-        "text-decoration" => put!(text_decoration),
-        "opacity" => put!(opacity),
-        "display" => put!(display),
-        "flex-direction" => put!(direction),
-        "white-space" => put!(white_space),
-        "user-select" => put!(user_select),
-        "pointer-events" => put!(pointer_events),
-        "caret-color" => put!(caret_color),
-        "caret-text-color" => put!(caret_text_color),
-        "overflow" => put!(overflow_x, overflow_y),
-        "overflow-x" => put!(overflow_x),
-        "overflow-y" => put!(overflow_y),
-        "scrollbar-gutter" => put!(scrollbar_gutter),
-        "width" => put!(width),
-        "height" => put!(height),
-        "min-width" => put!(min_width),
-        "max-width" => put!(max_width),
-        "min-height" => put!(min_height),
-        "max-height" => put!(max_height),
-        "aspect-ratio" => put!(aspect_ratio),
-        "gap" => put!(gap),
-        "flex" => put!(width, height, flex_shrink),
-        "flex-shrink" => put!(flex_shrink),
-        "padding" | "padding-top" | "padding-right" | "padding-bottom" | "padding-left" => {
-            put!(padding)
-        }
-        "margin" | "margin-top" | "margin-right" | "margin-bottom" | "margin-left" => {
-            put!(margin)
-        }
-        "border"
-        | "border-top"
-        | "border-right"
-        | "border-bottom"
-        | "border-left"
-        | "border-style"
-        | "border-top-style"
-        | "border-right-style"
-        | "border-bottom-style"
-        | "border-left-style" => put!(border),
-        "border-collapse" => put!(border_collapse),
-        "content" => put!(content),
-        "position" => put!(position),
-        "top" => put!(top),
-        "right" => put!(right),
-        "bottom" => put!(bottom),
-        "left" => put!(left),
-        "z-index" => put!(z_index),
-        "inset" => put!(top, right, bottom, left),
-        "transition-property" => put!(transition_property),
-        "transition-duration" => put!(transition_duration),
-        "transition-timing-function" => put!(transition_timing_function),
-        "transition-delay" => put!(transition_delay),
-        "transition" => put!(
-            transition_property,
-            transition_duration,
-            transition_timing_function,
-            transition_delay
-        ),
-        _ => return Err(DispatchError::UnknownProperty),
+    let fields = fields_of(name).ok_or(DispatchError::UnknownProperty)?;
+    for f in fields {
+        f.put_css_wide(style, kw, name);
     }
     Ok(())
 }
@@ -458,89 +432,12 @@ fn set_css_wide(name: &str, kw: CssWide, style: &mut TuiStyle) -> Result<(), Dis
 /// Shorthands over mixed fields (`overflow-x: inherit; overflow-y:
 /// hidden`) therefore never claim `inherit` for the whole shorthand.
 fn css_wide_of(name: &str, style: &TuiStyle) -> Option<&'static str> {
-    fn kw<T>(v: &Option<Value<T>>) -> Option<&'static str> {
-        match v {
-            Some(Value::Inherit) => Some("inherit"),
-            Some(Value::Initial) => Some("initial"),
-            _ => None,
-        }
-    }
-    /// All fields present and all the same keyword.
-    fn agree(fields: &[Option<&'static str>]) -> Option<&'static str> {
-        let first = fields.first().copied().flatten()?;
-        fields.iter().all(|f| *f == Some(first)).then_some(first)
-    }
-    match name {
-        "color" => kw(&style.fg),
-        "background-color" | "background" => kw(&style.bg),
-        "border-color" => kw(&style.border_fg),
-        "font-weight" => kw(&style.bold),
-        "font-style" => kw(&style.italic),
-        "text-decoration" => kw(&style.text_decoration),
-        "opacity" => kw(&style.opacity),
-        "display" => kw(&style.display),
-        "flex-direction" => kw(&style.direction),
-        "white-space" => kw(&style.white_space),
-        "user-select" => kw(&style.user_select),
-        "pointer-events" => kw(&style.pointer_events),
-        "caret-color" => kw(&style.caret_color),
-        "caret-text-color" => kw(&style.caret_text_color),
-        "overflow" => agree(&[kw(&style.overflow_x), kw(&style.overflow_y)]),
-        "overflow-x" => kw(&style.overflow_x),
-        "overflow-y" => kw(&style.overflow_y),
-        "scrollbar-gutter" => kw(&style.scrollbar_gutter),
-        "width" => kw(&style.width),
-        "height" => kw(&style.height),
-        "min-width" => kw(&style.min_width),
-        "max-width" => kw(&style.max_width),
-        "min-height" => kw(&style.min_height),
-        "max-height" => kw(&style.max_height),
-        "aspect-ratio" => kw(&style.aspect_ratio),
-        "gap" => kw(&style.gap),
-        "flex" => agree(&[kw(&style.width), kw(&style.height), kw(&style.flex_shrink)]),
-        "flex-shrink" => kw(&style.flex_shrink),
-        "padding" | "padding-top" | "padding-right" | "padding-bottom" | "padding-left" => {
-            kw(&style.padding)
-        }
-        "margin" | "margin-top" | "margin-right" | "margin-bottom" | "margin-left" => {
-            kw(&style.margin)
-        }
-        "border"
-        | "border-top"
-        | "border-right"
-        | "border-bottom"
-        | "border-left"
-        | "border-style"
-        | "border-top-style"
-        | "border-right-style"
-        | "border-bottom-style"
-        | "border-left-style" => kw(&style.border),
-        "border-collapse" => kw(&style.border_collapse),
-        "content" => kw(&style.content),
-        "position" => kw(&style.position),
-        "top" => kw(&style.top),
-        "right" => kw(&style.right),
-        "bottom" => kw(&style.bottom),
-        "left" => kw(&style.left),
-        "z-index" => kw(&style.z_index),
-        "inset" => agree(&[
-            kw(&style.top),
-            kw(&style.right),
-            kw(&style.bottom),
-            kw(&style.left),
-        ]),
-        "transition-property" => kw(&style.transition_property),
-        "transition-duration" => kw(&style.transition_duration),
-        "transition-timing-function" => kw(&style.transition_timing_function),
-        "transition-delay" => kw(&style.transition_delay),
-        "transition" => agree(&[
-            kw(&style.transition_property),
-            kw(&style.transition_duration),
-            kw(&style.transition_timing_function),
-            kw(&style.transition_delay),
-        ]),
-        _ => None,
-    }
+    let fields = fields_of(name)?;
+    let first = fields.first()?.css_wide(style)?;
+    fields
+        .iter()
+        .all(|f| f.css_wide(style) == Some(first))
+        .then_some(first)
 }
 
 /// Set `name = value` on `style`. Tokenizes the value first; for
@@ -1971,6 +1868,45 @@ mod tests {
     /// CSS-wide keywords (CSS Cascade 4 §7): `inherit` and `initial`
     /// are valid for every property; `unset` is `inherit` for inherited
     /// properties and `initial` otherwise.
+    /// `STYLE-PROPERTY-TABLES-1`: the property → field table is total
+    /// over the property list, every field is reachable from some
+    /// property, and every `ImportantMask` bit is owned by a field.
+    #[test]
+    fn field_table_covers_every_property_field_and_mask_bit() {
+        for name in property_names() {
+            assert!(fields_of(name).is_some(), "{name} has no fields");
+            assert!(property_mask(name).is_some(), "{name} has no mask");
+        }
+        assert!(fields_of("bogus").is_none());
+        for field in Field::ALL {
+            assert!(
+                property_names()
+                    .iter()
+                    .any(|n| fields_of(n).unwrap().contains(field)),
+                "{field:?} is not owned by any property"
+            );
+        }
+        let owned = Field::ALL
+            .iter()
+            .fold(crate::ImportantMask::empty(), |m, f| m | f.mask());
+        assert_eq!(owned, crate::ImportantMask::all());
+    }
+
+    /// `display` writes the derived `flow` too; removing it must not
+    /// leave the flow behind.
+    #[test]
+    fn removing_display_clears_the_derived_flow() {
+        let mut style = TuiStyle::new();
+        set("display", "flex", &mut style).unwrap();
+        assert!(style.flow.is_some());
+        assert!(remove("display", &mut style));
+        assert!(style.display.is_none() && style.flow.is_none());
+        assert_eq!(
+            property_mask("display"),
+            Some(crate::ImportantMask::DISPLAY | crate::ImportantMask::FLOW)
+        );
+    }
+
     #[test]
     fn css_wide_keywords_parse_for_every_property() {
         for (name, _) in canonical_values() {

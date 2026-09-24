@@ -8,7 +8,6 @@ For the durable architectural divergences (web-platform departures shipped on pu
 
 ### Style crate — from HARDENING-2026-09 Batch 2
 
-- **`STYLE-PROPERTY-TABLES-1` — the property → field mapping is spelled four times** in `property_dispatch.rs` (`property_mask`, `remove`, `set_css_wide`, `css_wide_of`) plus `set_from_tokens` / `serialize`. Only set/serialize are exhaustively tested. Derive the four from one `fields_of(name)` table (macro) and add a `PROPERTY_NAMES` coverage test for each.
 - **`CSS-WARNING-POSITION-1` — declaration warnings carry the block's position, not the declaration's.** `UnknownProperty`, `InvalidValue`, and `MalformedDeclaration` all report `parse_block`'s `(line, column)` (the `{`). At-rule and `InvalidSelector` warnings are precise. Fix by giving tokens spans and threading the segment's first token position into the warning.
 
 ### Layout & cascade
