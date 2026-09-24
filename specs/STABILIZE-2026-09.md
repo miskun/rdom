@@ -143,8 +143,9 @@ Each phase ends with the two review gates; each commit carries the item id.
 - 2026-09-24 — `STYLE-PROPERTY-TABLES-1`: `define_fields!` + `fields_of(name)`; four functions
   collapse to folds; found and fixed the stale-`flow`-after-`removeProperty("display")` bug on the
   way.
-- 2026-09-24 — `CSS-WARNING-POSITION-1`: `tokenize_at` with per-token positions; declaration warnings
-  and in-block tokenizer errors are absolute.
+- 2026-09-24 — `CSS-WARNING-POSITION-1` (`tokenize_at` with per-token positions; declaration warnings
+  and in-block tokenizer errors are absolute) and `D-M3-2` (`cubic-bezier()` / `steps()` / step
+  keywords parsed, evaluated per CSS Easing 1, serialized).
 - Found while mapping Phase 3 (not on the ledger): `ImportantMask::FLOW` and `POINTER_EVENTS` share
   bit 39 (`tui_style.rs`), custom-property inheritance in the cascade is overwritten by the merged
   root map (`walk.rs`), and tokenizer errors inside a block are body-relative (`declarations.rs`).

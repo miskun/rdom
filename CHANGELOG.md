@@ -32,6 +32,10 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 
 - **Declaration warnings point at the declaration.** `UnknownProperty`, `InvalidValue` and `MalformedDeclaration` carry the line and column of the property name (they carried the block's `{`), and a tokenizer error inside a block is reported in document coordinates instead of relative to the block body. `rdom_style::parse::token::tokenize_at` returns per-token positions for this. (`CSS-WARNING-POSITION-1`)
 
+### Added — `rdom-style`
+
+- **`cubic-bezier(x1, y1, x2, y2)` and `steps(n, <position>)`** (plus `step-start` / `step-end`) parse in `transition-timing-function` and the `transition` shorthand, evaluate per CSS Easing 1 (`TimingFunction::{CubicBezier, Steps}`, `StepPosition`), and serialize back. `TimingFunction` is no longer `Eq` / `Hash`. (`D-M3-2`)
+
 ### Breaking — `rdom-style`
 
 - `TuiStyle::transition_property` / `transition_duration` / `transition_timing_function` / `transition_delay` are `Option<Value<Vec<…>>>` (they were `Option<Vec<…>>`), so `transition: inherit` / `initial` / `unset` parse like every other property; the cascade resolves `inherit` from the parent's lists and `initial` to the empty list. Code that matched `Some(list)` reads `Some(Value::Specified(list))`; the fluent setters are unchanged. (`STYLE-TRANSITION-VALUE-1`)

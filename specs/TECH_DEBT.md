@@ -36,7 +36,6 @@ For the durable architectural divergences (web-platform departures shipped on pu
 
 ### Animations
 
-- **`D-M3-2` — Timing function parser is named-keyword only.** `cubic-bezier(a, b, c, d)` and `steps(n, position)` are not parsed. The bezier evaluator inside `TimingFunction::ease()` is parameterized — only the parser needs the follow-up.
 - **`D-M3-3` — Pseudo-element transitions deferred.** The cascade produces `computed_before` / `computed_after` / `computed_backdrop` / `computed_selection` on `TuiExt`, but `diff_and_register` only inspects the main `computed` slot. Apps can't transition pseudo-element styles.
 - **`D-M3-5` — Microtask integration runs three drains per tick.** Could batch into one. Profile-driven if it becomes hot.
 - **`D-M3-6` — Discrete properties under `transition: all` are not midpoint-toggled.** CSS L1 says discrete properties (display, position, content, …) under `transition: all` switch at midpoint; rdom's diff loop only registers animations for properties in the animatable enum. Apps explicitly transitioning a discrete property via `transition-property: display` get a warning.

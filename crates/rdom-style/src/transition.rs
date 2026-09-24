@@ -10,7 +10,7 @@
 //! decide whether to interpolate.
 
 /// One parsed transition rule.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct TransitionRule {
     pub property: TransitionProperty,
     pub duration_ms: u32,
@@ -64,10 +64,25 @@ pub enum AnimatableProperty {
     ZIndex,
 }
 
-/// Named timing-function keywords from CSS Transitions L1. M3
-/// ships only the keyword set; `cubic-bezier(a,b,c,d)` and
-/// `steps(n, position)` are deferred per spec §10.
+/// Where a `steps()` easing jumps (CSS Easing 1 §2.3). `start` /
+/// `end` are the `jump-start` / `jump-end` aliases.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum StepPosition {
+    /// `jump-start` / `start`: the first jump happens at 0.
+    Start,
+    /// `jump-end` / `end` (the default): the last jump happens at 1.
+    #[default]
+    End,
+    /// `jump-none`: no jump at either end; `n - 1` jumps inside.
+    JumpNone,
+    /// `jump-both`: jumps at both ends; `n + 1` jumps in total.
+    JumpBoth,
+}
+
+/// `<easing-function>` (CSS Easing 1): the keyword curves,
+/// `cubic-bezier(x1, y1, x2, y2)` and `steps(n, <position>)`.
+/// `PartialEq` only — `CubicBezier` carries `f32`s.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub enum TimingFunction {
     /// Identity — `t` linearly maps to itself.
     Linear,
@@ -80,9 +95,25 @@ pub enum TimingFunction {
     EaseOut,
     /// `cubic-bezier(0.42, 0, 0.58, 1.0)`.
     EaseInOut,
+    /// `cubic-bezier(x1, y1, x2, y2)`; `x1`, `x2` ∈ [0, 1] (the
+    /// parser rejects anything else), `y` unbounded.
+    CubicBezier { x1: f32, y1: f32, x2: f32, y2: f32 },
+    /// `steps(count, position)`; `count ≥ 1` (`≥ 2` for `jump-none`).
+    Steps { count: u32, position: StepPosition },
 }
 
 impl TimingFunction {
+    /// `step-start` = `steps(1, jump-start)`.
+    pub const STEP_START: TimingFunction = TimingFunction::Steps {
+        count: 1,
+        position: StepPosition::Start,
+    };
+    /// `step-end` = `steps(1, jump-end)`.
+    pub const STEP_END: TimingFunction = TimingFunction::Steps {
+        count: 1,
+        position: StepPosition::End,
+    };
+
     /// Map normalized linear progress `t` ∈ [0, 1] to eased
     /// progress. Cubic-bezier evaluation via Newton's method —
     /// 5 iterations gives <1% error which is well below cell-
@@ -95,8 +126,28 @@ impl TimingFunction {
             TimingFunction::EaseIn => bezier(0.42, 0.0, 1.0, 1.0, t),
             TimingFunction::EaseOut => bezier(0.0, 0.0, 0.58, 1.0, t),
             TimingFunction::EaseInOut => bezier(0.42, 0.0, 0.58, 1.0, t),
+            TimingFunction::CubicBezier { x1, y1, x2, y2 } => bezier(x1, y1, x2, y2, t),
+            TimingFunction::Steps { count, position } => steps(count, position, t),
         }
     }
+}
+
+/// CSS Easing 1 §2.3.1, the step easing algorithm (without the
+/// "before flag", which only matters for animations in their delay
+/// phase).
+fn steps(count: u32, position: StepPosition, t: f32) -> f32 {
+    let count = count.max(1) as f32;
+    let mut current = (t * count).floor();
+    if matches!(position, StepPosition::Start | StepPosition::JumpBoth) {
+        current += 1.0;
+    }
+    let jumps = match position {
+        StepPosition::Start | StepPosition::End => count,
+        StepPosition::JumpNone => (count - 1.0).max(1.0),
+        StepPosition::JumpBoth => count + 1.0,
+    };
+    // Clamp as the spec does for inputs in [0, 1].
+    (current.max(0.0).min(jumps)) / jumps
 }
 
 /// Cubic-bezier with control points `(0,0), (x1,y1), (x2,y2), (1,1)`.
@@ -170,5 +221,33 @@ mod tests {
         // (the canonical reference value).
         let mid = TimingFunction::Ease.ease(0.5);
         assert!((mid - 0.8).abs() < 0.05, "ease at 0.5 = {mid}");
+    }
+}
+
+#[cfg(test)]
+mod easing_tests {
+    use super::{StepPosition, TimingFunction};
+
+    /// CSS Easing 1 §2.3.1 worked examples for `steps(4, …)` at 0.3, plus
+    /// the endpoints, and a parameterized bezier equal to a keyword one.
+    #[test]
+    fn steps_and_cubic_bezier_ease() {
+        let s4 = |position| TimingFunction::Steps { count: 4, position };
+        assert_eq!(s4(StepPosition::End).ease(0.3), 0.25);
+        assert_eq!(s4(StepPosition::Start).ease(0.3), 0.5);
+        assert!((s4(StepPosition::JumpNone).ease(0.3) - 1.0 / 3.0).abs() < 1e-6);
+        assert_eq!(s4(StepPosition::JumpBoth).ease(0.3), 0.4);
+        assert_eq!(s4(StepPosition::End).ease(0.0), 0.0);
+        assert_eq!(s4(StepPosition::End).ease(1.0), 1.0);
+        assert_eq!(s4(StepPosition::Start).ease(0.0), 0.25);
+        assert_eq!(TimingFunction::STEP_END.ease(0.99), 0.0);
+        assert_eq!(TimingFunction::STEP_START.ease(0.01), 1.0);
+        let ease_in = TimingFunction::CubicBezier {
+            x1: 0.42,
+            y1: 0.0,
+            x2: 1.0,
+            y2: 1.0,
+        };
+        assert_eq!(ease_in.ease(0.5), TimingFunction::EaseIn.ease(0.5));
     }
 }

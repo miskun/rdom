@@ -169,7 +169,6 @@ The web platform has no tree element — trees are built from `role="tree"` / `r
 
 ### Timers & animations
 
-- **CSS transitions** support named timing keywords (`linear`, `ease`, `ease-in`, `ease-out`, `ease-in-out`). `cubic-bezier(...)` and `steps(...)` are not implemented.
 - **Sub-tick precision is the tick rate** (~16ms while animating, ~50ms idle). `setTimeout(fn, 10)` fires at the next tick, not at exactly 10ms. The HTML 4ms nested-timeout minimum clamp does not apply.
 - **Transitioning to or from `auto` width/height is declined** per CSS L1.
 - **Not implemented:** `@keyframes`, `animation-*` properties, the Web Animations API, `requestIdleCallback`, `cancelIdleCallback`, `setImmediate`, scroll-linked animations.

@@ -1286,7 +1286,7 @@ pub fn serialize(name: &str, style: &TuiStyle) -> Option<String> {
             .transition_timing_function
             .as_ref()
             .and_then(specified)
-            .map(|list| join_csv(list.iter(), |f| serialize_timing_function(f).to_string())),
+            .map(|list| join_csv(list.iter(), serialize_timing_function)),
         "transition-delay" => style
             .transition_delay
             .as_ref()
@@ -1490,13 +1490,26 @@ fn serialize_transition_property(p: &TransitionProperty) -> String {
     }
 }
 
-fn serialize_timing_function(f: &TimingFunction) -> &'static str {
+fn serialize_timing_function(f: &TimingFunction) -> String {
+    use crate::transition::StepPosition;
     match f {
-        TimingFunction::Linear => "linear",
-        TimingFunction::Ease => "ease",
-        TimingFunction::EaseIn => "ease-in",
-        TimingFunction::EaseOut => "ease-out",
-        TimingFunction::EaseInOut => "ease-in-out",
+        TimingFunction::Linear => "linear".to_string(),
+        TimingFunction::Ease => "ease".to_string(),
+        TimingFunction::EaseIn => "ease-in".to_string(),
+        TimingFunction::EaseOut => "ease-out".to_string(),
+        TimingFunction::EaseInOut => "ease-in-out".to_string(),
+        TimingFunction::CubicBezier { x1, y1, x2, y2 } => {
+            format!("cubic-bezier({x1}, {y1}, {x2}, {y2})")
+        }
+        TimingFunction::Steps { count, position } => {
+            let pos = match position {
+                StepPosition::Start => "jump-start",
+                StepPosition::End => "jump-end",
+                StepPosition::JumpNone => "jump-none",
+                StepPosition::JumpBoth => "jump-both",
+            };
+            format!("steps({count}, {pos})")
+        }
     }
 }
 
@@ -1904,6 +1917,21 @@ mod tests {
         assert_eq!(
             property_mask("display"),
             Some(crate::ImportantMask::DISPLAY | crate::ImportantMask::FLOW)
+        );
+    }
+
+    #[test]
+    fn easing_functions_serialize() {
+        let mut style = TuiStyle::new();
+        set(
+            "transition-timing-function",
+            "cubic-bezier(0.1, 0.7, 1, 0.1), steps(4, jump-none), step-end, linear",
+            &mut style,
+        )
+        .unwrap();
+        assert_eq!(
+            serialize("transition-timing-function", &style).as_deref(),
+            Some("cubic-bezier(0.1, 0.7, 1, 0.1), steps(4, jump-none), steps(1, jump-end), linear")
         );
     }
 

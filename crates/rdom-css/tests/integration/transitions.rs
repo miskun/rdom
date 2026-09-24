@@ -235,3 +235,26 @@ fn transition_duration_without_unit_is_invalid() {
         "expected InvalidValue warning for unitless duration"
     );
 }
+
+/// `D-M3-2`: parameterized easing functions come through the parser.
+#[test]
+fn shorthand_accepts_cubic_bezier_and_steps() {
+    let s = first_style(
+        "a { transition: width 200ms cubic-bezier(0.4, 0, 0.2, 1), color 1s steps(2, jump-both); }",
+    );
+    assert_eq!(
+        s.transition_timing_function,
+        Some(Value::Specified(vec![
+            TimingFunction::CubicBezier {
+                x1: 0.4,
+                y1: 0.0,
+                x2: 0.2,
+                y2: 1.0
+            },
+            TimingFunction::Steps {
+                count: 2,
+                position: rdom_tui::style::transition::StepPosition::JumpBoth
+            },
+        ]))
+    );
+}

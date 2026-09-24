@@ -13,7 +13,7 @@
 use crate::calc::{CalcExpr, CalcOp};
 use crate::layout::{Border, BorderStyle, Length, Overflow, Padding, Position, Size, ZIndex};
 use crate::parse::token::Token;
-use crate::transition::{AnimatableProperty, TimingFunction, TransitionProperty};
+use crate::transition::{AnimatableProperty, StepPosition, TimingFunction, TransitionProperty};
 use crate::{Content, TuiColor, TuiStyle, Value};
 
 /// Render a `&[Token]` slice back to its source-like string form.
@@ -855,7 +855,7 @@ pub fn parse_transition_property_keyword(name: &str) -> Option<TransitionPropert
     }
 }
 
-/// Parse a single timing-function keyword.
+/// Parse a single timing-function keyword (CSS Easing 1 §2.2 / §2.3).
 pub fn parse_timing_function_keyword(name: &str) -> Option<TimingFunction> {
     match name.to_ascii_lowercase().as_str() {
         "linear" => Some(TimingFunction::Linear),
@@ -863,8 +863,92 @@ pub fn parse_timing_function_keyword(name: &str) -> Option<TimingFunction> {
         "ease-in" => Some(TimingFunction::EaseIn),
         "ease-out" => Some(TimingFunction::EaseOut),
         "ease-in-out" => Some(TimingFunction::EaseInOut),
+        "step-start" => Some(TimingFunction::STEP_START),
+        "step-end" => Some(TimingFunction::STEP_END),
         _ => None,
     }
+}
+
+/// Parse one `<easing-function>` at `value[start]`: a keyword,
+/// `cubic-bezier(x1, y1, x2, y2)` or `steps(n [, <position>])`.
+/// Returns the function and the number of tokens consumed.
+pub fn parse_timing_function_at(value: &[Token], start: usize) -> Option<(TimingFunction, usize)> {
+    match value.get(start)? {
+        Token::Ident(name) => parse_timing_function_keyword(name).map(|f| (f, 1)),
+        Token::Function(name) if name.eq_ignore_ascii_case("cubic-bezier") => {
+            let mut i = start + 1;
+            let mut args = [0f32; 4];
+            for (k, slot) in args.iter_mut().enumerate() {
+                let (n, used) = signed_number_at(value, i)?;
+                *slot = n as f32;
+                i += used;
+                let expect_comma = k < 3;
+                match value.get(i)? {
+                    Token::Comma if expect_comma => i += 1,
+                    Token::RParen if !expect_comma => i += 1,
+                    _ => return None,
+                }
+            }
+            let [x1, y1, x2, y2] = args;
+            // §2.2.1: the x coordinates must stay within [0, 1].
+            if !(0.0..=1.0).contains(&x1) || !(0.0..=1.0).contains(&x2) {
+                return None;
+            }
+            Some((TimingFunction::CubicBezier { x1, y1, x2, y2 }, i - start))
+        }
+        Token::Function(name) if name.eq_ignore_ascii_case("steps") => {
+            let mut i = start + 1;
+            let count = match value.get(i)? {
+                Token::Number(n) if *n >= 1 => *n as u32,
+                _ => return None,
+            };
+            i += 1;
+            let position = match value.get(i)? {
+                Token::RParen => StepPosition::End,
+                Token::Comma => {
+                    i += 1;
+                    let Token::Ident(pos) = value.get(i)? else {
+                        return None;
+                    };
+                    i += 1;
+                    match pos.to_ascii_lowercase().as_str() {
+                        "start" | "jump-start" => StepPosition::Start,
+                        "end" | "jump-end" => StepPosition::End,
+                        "jump-none" => StepPosition::JumpNone,
+                        "jump-both" => StepPosition::JumpBoth,
+                        _ => return None,
+                    }
+                }
+                _ => return None,
+            };
+            if !matches!(value.get(i), Some(Token::RParen)) {
+                return None;
+            }
+            i += 1;
+            // §2.3: `jump-none` needs at least two steps.
+            if position == StepPosition::JumpNone && count < 2 {
+                return None;
+            }
+            Some((TimingFunction::Steps { count, position }, i - start))
+        }
+        _ => None,
+    }
+}
+
+/// A `<number>` at `value[start]`, with an optional leading `-` /
+/// `+` delimiter. Returns the value and the tokens consumed.
+fn signed_number_at(value: &[Token], start: usize) -> Option<(f64, usize)> {
+    let (sign, i) = match value.get(start)? {
+        Token::Delim('-') => (-1.0, start + 1),
+        Token::Delim('+') => (1.0, start + 1),
+        _ => (1.0, start),
+    };
+    let n = match value.get(i)? {
+        Token::Number(n) => f64::from(*n),
+        Token::Float(f) => *f,
+        _ => return None,
+    };
+    Some((sign * n, i - start + 1))
 }
 
 /// Parse a comma-separated list of property keywords.
@@ -891,16 +975,16 @@ pub fn parse_time_list(value: &[Token]) -> Option<Vec<u32>> {
     if out.is_empty() { None } else { Some(out) }
 }
 
-/// Parse a comma-separated list of timing-function keywords.
+/// Parse a comma-separated list of easing functions.
 pub fn parse_timing_function_list(value: &[Token]) -> Option<Vec<TimingFunction>> {
     let segments = split_on_top_level_commas(value);
     let mut out = Vec::with_capacity(segments.len());
     for seg in segments {
-        let name = match seg {
-            [Token::Ident(s)] => s.as_str(),
-            _ => return None,
-        };
-        out.push(parse_timing_function_keyword(name)?);
+        let (f, used) = parse_timing_function_at(seg, 0)?;
+        if used != seg.len() {
+            return None;
+        }
+        out.push(f);
     }
     if out.is_empty() { None } else { Some(out) }
 }
@@ -990,15 +1074,19 @@ pub fn parse_transition_shorthand_single(value: &[Token]) -> Option<TransitionSh
             i += consumed;
             continue;
         }
-        // Otherwise — must be an Ident.
+        // Then an easing function (keyword or `cubic-bezier()` /
+        // `steps()`), then a property keyword.
+        if let Some((t, used)) = parse_timing_function_at(value, i) {
+            if timing.is_some() {
+                return None;
+            }
+            timing = Some(t);
+            i += used;
+            continue;
+        }
         match value.get(i)? {
             Token::Ident(name) => {
-                if let Some(t) = parse_timing_function_keyword(name) {
-                    if timing.is_some() {
-                        return None;
-                    }
-                    timing = Some(t);
-                } else if let Some(p) = parse_transition_property_keyword(name) {
+                if let Some(p) = parse_transition_property_keyword(name) {
                     if property.is_some() {
                         return None;
                     }
@@ -1261,6 +1349,65 @@ mod number_value_tests {
         assert_eq!(parse_time_ms(&t("1.6ms")), Some(2));
         assert_eq!(parse_time_ms(&t("-1s")), None);
         assert_eq!(parse_time_ms(&t("1.5")), None, "unitless is not a time");
+    }
+
+    /// `D-M3-2`: `cubic-bezier()` and `steps()` parse in the longhand
+    /// list and inside the shorthand; x coordinates outside [0, 1] and
+    /// `steps(1, jump-none)` are invalid per CSS Easing 1.
+    #[test]
+    fn easing_functions_parse() {
+        use crate::transition::StepPosition;
+        let list = |s: &str| parse_timing_function_list(&t(s));
+        assert_eq!(
+            list("cubic-bezier(0.1, 0.7, 1.0, 0.1)"),
+            Some(vec![TimingFunction::CubicBezier {
+                x1: 0.1,
+                y1: 0.7,
+                x2: 1.0,
+                y2: 0.1
+            }])
+        );
+        assert_eq!(
+            list("cubic-bezier(0, -2, 1, 3)"),
+            Some(vec![TimingFunction::CubicBezier {
+                x1: 0.0,
+                y1: -2.0,
+                x2: 1.0,
+                y2: 3.0
+            }]),
+            "y is unbounded"
+        );
+        assert_eq!(list("cubic-bezier(1.5, 0, 1, 1)"), None, "x outside [0, 1]");
+        assert_eq!(list("cubic-bezier(0, 0, 1)"), None, "arity");
+        assert_eq!(
+            list("steps(4)"),
+            Some(vec![TimingFunction::Steps {
+                count: 4,
+                position: StepPosition::End
+            }])
+        );
+        assert_eq!(
+            list("steps(4, jump-none)"),
+            Some(vec![TimingFunction::Steps {
+                count: 4,
+                position: StepPosition::JumpNone
+            }])
+        );
+        assert_eq!(list("steps(1, jump-none)"), None);
+        assert_eq!(list("steps(0)"), None);
+        assert_eq!(
+            list("step-start, ease"),
+            Some(vec![TimingFunction::STEP_START, TimingFunction::Ease])
+        );
+        let rules = parse_transition_shorthand(&t("width 1s steps(3, start) 0.5s")).unwrap();
+        assert_eq!(
+            rules[0].timing,
+            TimingFunction::Steps {
+                count: 3,
+                position: StepPosition::Start
+            }
+        );
+        assert_eq!((rules[0].duration, rules[0].delay), (1000, 500));
     }
 
     #[test]
