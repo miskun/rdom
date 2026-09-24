@@ -21,14 +21,16 @@ use crate::style::{ComputedStyle, Content, ImportantMask, Rule, RuleOrigin, TuiS
 /// `attr_lookup` is called for every `Content::Attr(name)` reference —
 /// callers pass a closure that reads from the host element's
 /// attributes (`dom.node(id).get_attribute(name)`).
-pub(super) fn resolve_content_on<F>(
+pub(super) fn resolve_content_on<F, C>(
     working: &ComputedStyle,
     sorted_by_spec: &[&Rule],
     inline: Option<&TuiStyle>,
     attr_lookup: &F,
+    counter_lookup: &C,
 ) -> Option<Option<String>>
 where
     F: Fn(&str) -> Option<String>,
+    C: Fn(&str) -> i32,
 {
     let mut declared: Option<Content> = None;
     let mut apply_from = |style: &TuiStyle, important_prop_match: bool| {
@@ -73,5 +75,5 @@ where
         }
     }
 
-    declared.map(|c| c.resolve(&working.vars, attr_lookup))
+    declared.map(|c| c.resolve(&working.vars, attr_lookup, counter_lookup))
 }

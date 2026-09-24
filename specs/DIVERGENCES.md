@@ -186,6 +186,8 @@ The web platform has no tree element — trees are built from `role="tree"` / `r
 - **Whitespace is preserved verbatim** in text nodes, including inter-element whitespace; collapsing happens in `rdom-tui`'s layout per `white-space`, as in the browser's rendering (not parsing) pipeline. The one tokenizer-level exception is honored: a newline right after `<textarea>` is dropped (HTML §13.2.6.4.7). The same rule for `<pre>` / `<listing>` is **not** implemented — `<pre>` keeps a leading newline.
 - **`</` followed by a non-letter** ends the current element's children and is then an error, rather than becoming a bogus comment. At the top level any `</…` is an error ("unexpected closing tag at top level") instead of silently truncating the template.
 
+- **Ordered lists count through UA rules, not `display: list-item`.** `ol { counter-reset: list-item } li { counter-increment: list-item } ol > li::before { content: counter(list-item) ". " }` ship in the UA stylesheet; `display: list-item`, `list-style-type`, `::marker`, `counters()` (the nested string form) and `counter-set` are not implemented. Authors override the marker with their own `ol > li::before` rule.
+
 ## 3. Not yet shipped
 
 Common web-platform surface rdom omits entirely as of 0.4.x. Schedule lives in [`DESIGN.md`](DESIGN.md#roadmap).

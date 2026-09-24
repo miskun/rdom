@@ -43,6 +43,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 
 ### Added — `rdom-style`, `rdom-tui`
 
+- **CSS counters** (CSS Lists 3 §3): `counter-reset` / `counter-increment` properties, `counter(name[, style])` in `content` with `decimal`, `lower-alpha`, `upper-alpha`, `lower-roman`, `upper-roman`, and `content` now accepts a sequence of strings / `attr()` / `counter()` items plus `none`. The cascade keeps the counter state in tree order (scoped to the creating element, its descendants and following siblings; `::after` sees the children's increments; subtree re-cascades replay the state before their root). The UA numbers `<ol>` items (`1. `, `2. `, …; nested lists restart) instead of bulleting them. `Content::resolve` takes a counter lookup. (`UA-OL-1`)
 - **`::scrollbar-thumb:vertical` / `::scrollbar-thumb:horizontal`** style one axis; the axis rule layers over the axis-neutral `::scrollbar-thumb` at equal specificity. `TuiExt::computed_scrollbar_thumb` is split into `computed_scrollbar_thumb_vertical` / `_horizontal` (breaking). (`UA-SB-1`)
 
 ### Added — `rdom-style`

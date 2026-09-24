@@ -65,10 +65,6 @@ For the durable architectural divergences (web-platform departures shipped on pu
 ### UA stylesheet
 
 
-### UA stylesheet
-
-- **`UA-OL-1` — `<ol>` UA marker is a bullet, not a counter.** Phase F shipped `ol > li::before { content: "• " }` as an honest fallback (a static `"1. "` marker would lie about ordering). When CSS counters land, upgrade to `content: counter(list-item) ". "`.
-
 ### Substrate gaps
 
 - **`SCROLL-CROSS-AXIS-1` — flex scroll only translates the MAIN axis; the cross axis isn't scrollable.** `layout_pass::flex::layout_flex_children` subtracts `parent_scroll(direction)` from the child's *main*-axis cursor only (`flex.rs:537-605`); the cross-axis scroll offset (`scroll_x` for a `Column` container, `scroll_y` for a `Row` container) is never applied to the child's cross position, and cross-axis sizing stretches children to the container, so there's nothing to scroll cross-wise at the container level anyway. **Consequence:** a vertically-stacked container — notably `<table>`, which is a `Column` flex — can't be its *own* horizontal scroll container. **Browser-faithful workaround (and the idiomatic web pattern):** wrap it in a *same-axis* `Row`-flex `overflow-x` container (the TUI analogue of `<div style="overflow-x:auto"><table>…`); the existing main-axis scroll handles it and header+body translate together — pinned by `table_in_a_horizontal_scroll_wrapper_scrolls_header_and_body_together` in `layout_pass/tests.rs`. Real fix is two parts: (1) apply cross-axis scroll in flex positioning, (2) let cross-size exceed the container under non-visible overflow so there's content to scroll. Deferred — the wrapper covers the real use case (wide tables) exactly as the web does. Absorbs the deferred horizontal half of drag-autoscroll (vertical shipped in 0.3.11): once cross-axis scroll offsets are honored, the autoscroll engine's edge zone gains a horizontal band.

@@ -37,6 +37,7 @@
 //! 20. Document metadata (`<style>`)
 
 use crate::color::named;
+use crate::counters::{CounterOp, CounterStyle};
 use crate::layout::{
     Border, Direction, Display, Length, Overflow, Padding, Position, Size, TextDecoration,
     UserSelect, WhiteSpace,
@@ -903,6 +904,10 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
         (
             "ol",
             TuiStyle::new()
+                .counter_reset(vec![CounterOp {
+                    name: "list-item".into(),
+                    value: 0,
+                }])
                 .display(Display::Block)
                 .padding(Padding::new(0, 0, 0, 2)),
         ),
@@ -912,33 +917,38 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
                 .display(Display::Block)
                 .padding(Padding::new(0, 0, 0, 2)),
         ),
-        ("li", TuiStyle::new().display(Display::Block)),
+        (
+            "li",
+            TuiStyle::new()
+                .display(Display::Block)
+                .counter_increment(vec![CounterOp {
+                    name: "list-item".into(),
+                    value: 1,
+                }]),
+        ),
         // List item markers — bullet glyph + space before the
         // `<li>` content. Child-combinator scoping: only direct
         // `<li>` children get the marker, matching CSS
         // `list-style-type: disc`. Nested lists pick up the same
         // marker from their own parent.
         //
-        // `<ol>` gets the same `• ` marker as `<ul>` in 0.1.0.
-        // Real browsers render incrementing counters (1., 2., …)
-        // there, but rdom 0.1.0 doesn't ship CSS counters and a
-        // static `"1. "` glyph repeated on every item would *lie*
-        // about ordering. A bullet on `<ol>` is a documented
-        // honest fallback: visually identifies the rows as a
-        // list without claiming positions. Tracked in
-        // `TECH_DEBT.md` as `UA-OL-1` — upgrade to real counters
-        // when CSS counters land.
-        //
-        // Authors who want numbered output either inline numbers
-        // in `<li>` text directly or override with their own
-        // `ol > li::before` rule.
+        // `<ol>` counts: the UA resets the `list-item` counter on
+        // `<ol>`, increments it on every `<li>`, and renders it in
+        // the marker (CSS Lists 3 §3, driven by explicit UA rules
+        // because rdom has no `display: list-item`).
         (
             "ul > li::before",
             TuiStyle::new().content(Content::Str("• ".into())),
         ),
         (
             "ol > li::before",
-            TuiStyle::new().content(Content::Str("• ".into())),
+            TuiStyle::new().content(Content::Concat(vec![
+                Content::Counter {
+                    name: "list-item".into(),
+                    style: CounterStyle::Decimal,
+                },
+                Content::Str(". ".into()),
+            ])),
         ),
         ("dl", TuiStyle::new().display(Display::Block)),
         ("dt", TuiStyle::new().display(Display::Block).bold(true)),

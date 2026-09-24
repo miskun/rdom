@@ -1670,11 +1670,55 @@ fn horizontal_scrollbar_thumb_paints_heavy_horizontal_by_default() {
     }
 }
 
-/// Author override of `::scrollbar-thumb { content: ... }`
-/// applies to BOTH axes (documented limitation; per-axis
-/// targeting tracked as `UA-SB-1` in TECH_DEBT). The author
-/// picks a glyph that reads both ways — block characters work,
-/// directional glyphs don't.
+/// `UA-SB-1`: `::scrollbar-thumb:horizontal` styles one axis; the
+/// axis-neutral `::scrollbar-thumb` keeps the other, and the axis rule
+/// wins over the neutral one at equal specificity.
+#[test]
+fn per_axis_scrollbar_thumb_rules_layer_over_the_neutral_one() {
+    use crate::style::TuiStyle;
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let c = dom.create_element("c");
+    dom.append_child(root, c).unwrap();
+    let sheet = Stylesheet::new()
+        .rule_unchecked(
+            "c",
+            TuiStyle::new()
+                .width(Size::Fixed(10))
+                .height(Size::Fixed(6))
+                .overflow(Overflow::Scroll),
+        )
+        .rule_unchecked(
+            "c::scrollbar-thumb:horizontal",
+            TuiStyle::new().content(Content::Str("═".into())),
+        )
+        .rule_unchecked(
+            "c::scrollbar-thumb",
+            TuiStyle::new().content(Content::Str("█".into())),
+        );
+    let _ = pipeline(&mut dom, &sheet, Rect::new(0, 0, 12, 8));
+    if let Some(ext) = dom.node_mut(c).ext_mut() {
+        ext.scroll_content_width = 100;
+        ext.scroll_content_height = 100;
+    }
+    let mut buf = Buffer::empty(Rect::new(0, 0, 12, 8));
+    dom.paint_dom(&mut buf, Rect::new(0, 0, 12, 8));
+    assert!(
+        (0..5).any(|y| buf.cell(9, y).unwrap().symbol() == "█"),
+        "vertical thumb keeps the axis-neutral glyph"
+    );
+    assert!(
+        (0..9).any(|x| buf.cell(x, 5).unwrap().symbol() == "═"),
+        "horizontal thumb takes the :horizontal glyph even though the neutral rule came later"
+    );
+    assert!(
+        !(0..9).any(|x| buf.cell(x, 5).unwrap().symbol() == "█"),
+        "the neutral glyph does not leak onto the horizontal bar"
+    );
+}
+
+/// Author override of `::scrollbar-thumb { content: ... }` with no axis
+/// applies to both axes.
 #[test]
 fn author_content_override_on_scrollbar_thumb_applies_to_both_axes() {
     use crate::style::TuiStyle;
@@ -2224,24 +2268,37 @@ fn ua_ul_renders_bullet_before_each_li() {
     assert_eq!(row(&buf, 1).trim_end(), "  • second");
 }
 
-/// `<ol>` gets the same `• ` bullet marker as `<ul>` in 0.1.0
-/// (honest fallback until CSS counters ship; a static `"1. "` on
-/// every item would lie about ordering). Tracked as `UA-OL-1`.
+/// `UA-OL-1`: `<ol>` numbers its items with the `list-item` counter
+/// (UA `counter-reset` on `ol`, `counter-increment` on `li`,
+/// `counter(list-item) ". "` in the marker); a sibling `<ol>` starts
+/// over. (A nested `<ol>` inside an `<li>` that also has text hits
+/// `TREE-BFC-PSEUDO-1` — the marker of a mixed-content block is not
+/// painted — so that shape is pinned at the cascade level until that
+/// item lands.)
 #[test]
-fn ua_ol_renders_bullet_marker() {
+fn ua_ol_renders_numbered_markers() {
     let mut dom = TuiDom::new();
     let root = dom.root();
+    fn li_with(dom: &mut TuiDom, parent: rdom_core::NodeId, text: &str) {
+        let li = dom.create_element("li");
+        let t = dom.create_text_node(text);
+        dom.append_child(li, t).unwrap();
+        dom.append_child(parent, li).unwrap();
+    }
     let ol = dom.create_element("ol");
-    let li = dom.create_element("li");
-    let t = dom.create_text_node("first");
-    dom.append_child(li, t).unwrap();
-    dom.append_child(ol, li).unwrap();
     dom.append_child(root, ol).unwrap();
+    li_with(&mut dom, ol, "first");
+    li_with(&mut dom, ol, "second");
+    li_with(&mut dom, ol, "third");
+    let ol2 = dom.create_element("ol");
+    dom.append_child(root, ol2).unwrap();
+    li_with(&mut dom, ol2, "again");
 
-    let buf = pipeline(&mut dom, &Stylesheet::new(), Rect::new(0, 0, 20, 1));
-    // Padding-left 2 from the `ol` rule + `• ` marker from the
-    // new `ol > li::before` rule.
-    assert_eq!(row(&buf, 0).trim_end(), "  • first");
+    let buf = pipeline(&mut dom, &Stylesheet::new(), Rect::new(0, 0, 24, 4));
+    assert_eq!(row(&buf, 0).trim_end(), "  1. first");
+    assert_eq!(row(&buf, 1).trim_end(), "  2. second");
+    assert_eq!(row(&buf, 2).trim_end(), "  3. third");
+    assert_eq!(row(&buf, 3).trim_end(), "  1. again");
 }
 
 // ── C.6: <progress> + <meter> gauge rendering ────────────────────

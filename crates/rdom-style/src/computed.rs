@@ -151,6 +151,12 @@ pub struct ComputedStyle {
     pub transition_timing_function: Vec<crate::transition::TimingFunction>,
     pub transition_delay: Vec<u32>,
 
+    /// `counter-reset` / `counter-increment` (CSS Lists 3 §3.1).
+    /// Non-inheriting; the cascade applies them to its counter state
+    /// in tree order.
+    pub counter_reset: Vec<crate::counters::CounterOp>,
+    pub counter_increment: Vec<crate::counters::CounterOp>,
+
     /// Custom-property values in scope. Populated from parent + own
     /// Custom-property (`--var-name: value;`) map in scope for this
     /// element. Populated from the stylesheet's `root_vars` during
@@ -208,6 +214,8 @@ impl ComputedStyle {
             transition_duration: Vec::new(),
             transition_timing_function: Vec::new(),
             transition_delay: Vec::new(),
+            counter_reset: Vec::new(),
+            counter_increment: Vec::new(),
             vars: Rc::new(std::collections::HashMap::new()),
         }
     }
@@ -236,6 +244,12 @@ pub enum Content {
     Str(String),
     Var(String),
     Attr(String),
+    /// `counter(name[, style])` — the innermost counter of that name
+    /// in scope at the pseudo-element (CSS Lists 3 §3.2).
+    Counter {
+        name: String,
+        style: crate::counters::CounterStyle,
+    },
     Concat(Vec<Content>),
     None,
 }
@@ -249,29 +263,41 @@ impl Content {
     /// Unresolved vars and missing attrs yield empty strings rather
     /// than failing — matches CSS's permissive behavior (browsers
     /// render nothing for `attr(missing)`).
-    pub fn resolve<F>(
+    pub fn resolve<F, C>(
         &self,
         vars: &std::collections::HashMap<String, String>,
         attr_lookup: &F,
+        counter_lookup: &C,
     ) -> Option<String>
     where
         F: Fn(&str) -> Option<String>,
+        C: Fn(&str) -> i32,
     {
         match self {
             Content::None => None,
             Content::Str(s) => Some(s.clone()),
             Content::Var(name) => Some(vars.get(name).cloned().unwrap_or_default()),
             Content::Attr(name) => Some(attr_lookup(name).unwrap_or_default()),
+            Content::Counter { name, style } => Some(style.format(counter_lookup(name))),
             Content::Concat(parts) => {
                 let mut out = String::new();
                 for p in parts {
-                    if let Some(s) = p.resolve(vars, attr_lookup) {
+                    if let Some(s) = p.resolve(vars, attr_lookup, counter_lookup) {
                         out.push_str(&s);
                     }
                     // Content::None inside a concat contributes nothing.
                 }
                 Some(out)
             }
+        }
+    }
+
+    /// Does this value (or any nested part) read a counter?
+    pub fn uses_counters(&self) -> bool {
+        match self {
+            Content::Counter { .. } => true,
+            Content::Concat(parts) => parts.iter().any(Content::uses_counters),
+            _ => false,
         }
     }
 }
@@ -319,7 +345,7 @@ mod tests {
     fn content_str_resolves_to_itself() {
         let vars = HashMap::new();
         assert_eq!(
-            Content::Str("→".into()).resolve(&vars, &no_attrs),
+            Content::Str("→".into()).resolve(&vars, &no_attrs, &|_: &str| 0),
             Some("→".into())
         );
     }
@@ -329,7 +355,7 @@ mod tests {
         let mut vars = HashMap::new();
         vars.insert("arrow".into(), "▾".into());
         assert_eq!(
-            Content::Var("arrow".into()).resolve(&vars, &no_attrs),
+            Content::Var("arrow".into()).resolve(&vars, &no_attrs, &|_: &str| 0),
             Some("▾".into())
         );
     }
@@ -338,7 +364,7 @@ mod tests {
     fn content_var_unresolved_empty_string() {
         let vars = HashMap::new();
         assert_eq!(
-            Content::Var("nope".into()).resolve(&vars, &no_attrs),
+            Content::Var("nope".into()).resolve(&vars, &no_attrs, &|_: &str| 0),
             Some(String::new())
         );
     }
@@ -351,7 +377,7 @@ mod tests {
             _ => None,
         };
         assert_eq!(
-            Content::Attr("label".into()).resolve(&vars, &lookup),
+            Content::Attr("label".into()).resolve(&vars, &lookup, &|_: &str| 0),
             Some("Fruit".into())
         );
     }
@@ -361,7 +387,7 @@ mod tests {
         let vars = HashMap::new();
         let lookup = |_: &str| None;
         assert_eq!(
-            Content::Attr("label".into()).resolve(&vars, &lookup),
+            Content::Attr("label".into()).resolve(&vars, &lookup, &|_: &str| 0),
             Some(String::new())
         );
     }
@@ -375,7 +401,10 @@ mod tests {
             Content::Var("x".into()),
             Content::Str(" BAZ".into()),
         ]);
-        assert_eq!(c.resolve(&vars, &no_attrs), Some("FOO BAR BAZ".into()));
+        assert_eq!(
+            c.resolve(&vars, &no_attrs, &|_: &str| 0),
+            Some("FOO BAR BAZ".into())
+        );
     }
 
     #[test]
@@ -391,13 +420,16 @@ mod tests {
             Content::Var("sep".into()),
             Content::Str("end".into()),
         ]);
-        assert_eq!(c.resolve(&vars, &lookup), Some("Group · end".into()));
+        assert_eq!(
+            c.resolve(&vars, &lookup, &|_: &str| 0),
+            Some("Group · end".into())
+        );
     }
 
     #[test]
     fn content_none_returns_none() {
         let vars = HashMap::new();
-        assert_eq!(Content::None.resolve(&vars, &no_attrs), None);
+        assert_eq!(Content::None.resolve(&vars, &no_attrs, &|_: &str| 0), None);
     }
 
     #[test]
@@ -408,6 +440,6 @@ mod tests {
             Content::None,
             Content::Str("B".into()),
         ]);
-        assert_eq!(c.resolve(&vars, &no_attrs), Some("AB".into()));
+        assert_eq!(c.resolve(&vars, &no_attrs, &|_: &str| 0), Some("AB".into()));
     }
 }
