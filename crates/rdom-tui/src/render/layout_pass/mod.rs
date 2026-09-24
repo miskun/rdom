@@ -527,6 +527,9 @@ fn layout_fragment_children(dom: &mut Dom<TuiExt>, id: NodeId, container: Layout
         .into_iter()
         .filter(|&c| is_in_flow(dom, c))
         .collect();
+    for n in positioning::out_of_flow_positioned_children(dom, id) {
+        positioning::record_static_position(dom, n, container.x, container.y);
+    }
     // Fragment uses a Column-like default with no gap/padding —
     // treat it like an invisible Column container.
     let fallback = ComputedStyle::initial();

@@ -3667,3 +3667,178 @@ fn auto_cross_margins_center_an_unstretched_item() {
     assert_eq!(r.height, 1, "not stretched: one line of content");
     assert_eq!(r.y, 4, "centered in the 10-row container ((10 − 1) / 2)");
 }
+
+// ── D-M2-2: static position (CSS 2.1 §10.3.7 / §10.6.4) ─────────────
+
+/// `D-M2-2`: with both insets of an axis `auto`, an absolutely
+/// positioned box sits at its static position — where it would have
+/// been in flow — not at the containing block's corner.
+#[test]
+fn absolute_with_auto_insets_takes_its_static_position_in_block_flow() {
+    use rdom_style::layout::{Padding, Position};
+    let mut dom = tui_dom();
+    let root = dom.root();
+    let wrap = dom.create_element("wrap");
+    let a = dom.create_element("a");
+    let abs = dom.create_element("abs");
+    let b = dom.create_element("b");
+    dom.append_child(wrap, a).unwrap();
+    dom.append_child(wrap, abs).unwrap();
+    dom.append_child(wrap, b).unwrap();
+    dom.append_child(root, wrap).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "wrap",
+            TuiStyle::new()
+                .position(Position::Relative)
+                .padding(Padding::all(1)),
+        )
+        .rule_unchecked("a", TuiStyle::new().height(Size::Fixed(3)))
+        .rule_unchecked("b", TuiStyle::new().height(Size::Fixed(2)))
+        .rule_unchecked(
+            "abs",
+            TuiStyle::new()
+                .position(Position::Absolute)
+                .width(Size::Fixed(4))
+                .height(Size::Fixed(1)),
+        );
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 40, 20));
+    // Content-left of `wrap` (x = 1), directly below `a` (y = 1 + 3).
+    let r = layout_rect_of(&dom, abs);
+    assert_eq!((r.x, r.y), (1, 4));
+    // The box takes no space in flow: `b` follows `a` directly.
+    assert_eq!(layout_rect_of(&dom, b).y, 4);
+}
+
+/// `D-M2-2`: the hypothetical box has zero margins, so it collapses
+/// through the preceding sibling's bottom margin and sits after it.
+#[test]
+fn static_position_sits_after_the_preceding_siblings_collapsed_margin() {
+    use rdom_style::layout::{Length, Margin, MarginValue, Position};
+    let mut dom = tui_dom();
+    let root = dom.root();
+    let wrap = dom.create_element("wrap");
+    let a = dom.create_element("a");
+    let abs = dom.create_element("abs");
+    dom.append_child(wrap, a).unwrap();
+    dom.append_child(wrap, abs).unwrap();
+    dom.append_child(root, wrap).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked("wrap", TuiStyle::new().position(Position::Relative))
+        .rule_unchecked(
+            "a",
+            TuiStyle::new().height(Size::Fixed(3)).margin(Margin {
+                top: MarginValue::Cells(0),
+                right: MarginValue::Cells(0),
+                bottom: MarginValue::Cells(2),
+                left: MarginValue::Cells(0),
+            }),
+        )
+        .rule_unchecked(
+            "abs",
+            TuiStyle::new()
+                .position(Position::Absolute)
+                // Only `left` is set: y still comes from the static position.
+                .left(Length::Cells(7))
+                .width(Size::Fixed(4))
+                .height(Size::Fixed(1)),
+        );
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 40, 20));
+    let r = layout_rect_of(&dom, abs);
+    assert_eq!((r.x, r.y), (7, 5), "x from `left`, y = 3 + collapsed 2");
+}
+
+/// `D-M2-2`: in a flex container the static position is the content
+/// box's start corner (Flexbox §4.1, sole item, `flex-start`), not
+/// the containing block's corner and not after the preceding items.
+#[test]
+fn static_position_in_a_flex_container_is_its_content_start() {
+    use rdom_style::layout::{Padding, Position};
+    let mut dom = tui_dom();
+    let root = dom.root();
+    let outer = dom.create_element("outer");
+    let row = dom.create_element("row");
+    let a = dom.create_element("a");
+    let abs = dom.create_element("abs");
+    dom.append_child(row, a).unwrap();
+    dom.append_child(row, abs).unwrap();
+    dom.append_child(outer, row).unwrap();
+    dom.append_child(root, outer).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "outer",
+            TuiStyle::new()
+                .position(Position::Relative)
+                .padding(Padding::all(2)),
+        )
+        .rule_unchecked(
+            "row",
+            TuiStyle::new()
+                .flow(Flow::Flex)
+                .direction(Direction::Row)
+                .height(Size::Fixed(3)),
+        )
+        .rule_unchecked("a", TuiStyle::new().width(Size::Fixed(5)))
+        .rule_unchecked(
+            "abs",
+            TuiStyle::new()
+                .position(Position::Absolute)
+                .width(Size::Fixed(2))
+                .height(Size::Fixed(1)),
+        );
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 40, 20));
+    let r = layout_rect_of(&dom, abs);
+    assert_eq!((r.x, r.y), (2, 2));
+}
+
+/// `D-M2-2`: inside inline content an inline-level hypothetical box
+/// continues the line after the preceding text; a block-level one
+/// starts on the next line at the content's left edge.
+#[test]
+fn static_position_in_inline_content_follows_the_preceding_text() {
+    use rdom_style::layout::{Padding, Position};
+    let mut dom = tui_dom();
+    let root = dom.root();
+    let outer = dom.create_element("outer");
+    let p = dom.create_element("p");
+    let text = dom.create_text_node("Hello");
+    let span = dom.create_element("span");
+    let div = dom.create_element("div");
+    dom.append_child(p, text).unwrap();
+    dom.append_child(p, span).unwrap();
+    dom.append_child(p, div).unwrap();
+    dom.append_child(outer, p).unwrap();
+    dom.append_child(root, outer).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "outer",
+            TuiStyle::new()
+                .position(Position::Relative)
+                .padding(Padding::all(1)),
+        )
+        .rule_unchecked(
+            "span",
+            TuiStyle::new()
+                .display(Display::Inline)
+                .position(Position::Absolute)
+                .width(Size::Fixed(2))
+                .height(Size::Fixed(1)),
+        )
+        .rule_unchecked(
+            "div",
+            TuiStyle::new()
+                .display(Display::Block)
+                .position(Position::Absolute)
+                .width(Size::Fixed(2))
+                .height(Size::Fixed(1)),
+        );
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 40, 20));
+    let s = layout_rect_of(&dom, span);
+    assert_eq!((s.x, s.y), (1 + 5, 1), "inline-level: after `Hello`");
+    let d = layout_rect_of(&dom, div);
+    assert_eq!((d.x, d.y), (1, 2), "block-level: next line, content-left");
+}

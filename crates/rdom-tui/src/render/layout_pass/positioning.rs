@@ -17,12 +17,21 @@
 //! `top/right/bottom/left` + `width/height`, writes it into
 //! `TuiExt.layout`, and re-runs `layout_node` on the subtree so
 //! the element's own children flow inside the placed rect.
+//!
+//! An axis whose two insets are both `auto` starts at the element's
+//! **static position** (CSS 2.1 §10.3.7 / §10.6.4): phase-1 block,
+//! inline and flex layout record it through [`record_static_position`]
+//! at the point in the flow where the element's hypothetical box would
+//! have gone, and [`compute_placed_rect`] reads it back.
+
+use std::collections::HashMap;
 
 use rdom_core::{Dom, NodeId, NodeType};
 
-use crate::ext::TuiExt;
-use crate::layout::{LayoutRect, Length, Position, Size};
+use crate::ext::{StaticPosition, TuiExt};
+use crate::layout::{Display, LayoutRect, Length, Position, Size};
 use crate::node::TuiNodeExt;
+use crate::render::inline::InlineLayout;
 use crate::style::ComputedStyle;
 
 /// Resolve the containing block rect for `id`, given the root
@@ -78,6 +87,133 @@ pub(super) fn layout_rect(dom: &Dom<TuiExt>, id: NodeId) -> Option<LayoutRect> {
 
 pub(super) fn parent_id(dom: &Dom<TuiExt>, id: NodeId) -> Option<NodeId> {
     dom.node(id).parent_node().map(|p| p.id())
+}
+
+// ── Static position (CSS 2.1 §10.3.7 / §10.6.4) ────────────────
+
+/// Record where `id` would sit if it were `position: static`. Called
+/// by phase-1 layout for each out-of-flow positioned child, in the
+/// coordinate space of the parent's content area (scroll applied).
+pub(super) fn record_static_position(dom: &mut Dom<TuiExt>, id: NodeId, x: i32, y: i32) {
+    if let Some(ext) = dom.node_mut(id).ext_mut() {
+        ext.static_position = Some(StaticPosition { x, y });
+    }
+}
+
+/// `true` for an element that phase 1 leaves out of the flow because
+/// phase 2 places it: `position: absolute | fixed` and not
+/// `display: none` (which generates no box at all).
+pub(super) fn is_out_of_flow_positioned(dom: &Dom<TuiExt>, id: NodeId) -> bool {
+    let node = dom.node(id);
+    if node.node_type() != NodeType::Element {
+        return false;
+    }
+    node.ext()
+        .and_then(|e| e.computed.as_ref())
+        .is_some_and(|c| {
+            c.display != Display::None && matches!(c.position, Position::Absolute | Position::Fixed)
+        })
+}
+
+/// The direct children of `parent` that [`is_out_of_flow_positioned`],
+/// in document order.
+pub(super) fn out_of_flow_positioned_children(dom: &Dom<TuiExt>, parent: NodeId) -> Vec<NodeId> {
+    dom.node(parent)
+        .child_nodes()
+        .map(|c| c.id())
+        .filter(|&c| is_out_of_flow_positioned(dom, c))
+        .collect()
+}
+
+/// Group a flow's out-of-flow positioned children by the in-flow
+/// sibling that follows them: `before[k]` are the positioned children
+/// immediately ahead of in-flow child `k`; `trailing` are those after
+/// the last in-flow child. Block layout records each group's static
+/// position from its flow cursor just before it places `k`.
+pub(super) fn static_anchors(
+    dom: &Dom<TuiExt>,
+    children: &[NodeId],
+) -> (HashMap<NodeId, Vec<NodeId>>, Vec<NodeId>) {
+    let mut before: HashMap<NodeId, Vec<NodeId>> = HashMap::new();
+    let mut bucket: Vec<NodeId> = Vec::new();
+    for &c in children {
+        if is_out_of_flow_positioned(dom, c) {
+            bucket.push(c);
+        } else if super::is_in_flow(dom, c) && !bucket.is_empty() {
+            before.insert(c, std::mem::take(&mut bucket));
+        }
+    }
+    (before, bucket)
+}
+
+/// Static position of an out-of-flow child of an inline formatting
+/// context. An inline-level hypothetical box continues the line after
+/// the preceding in-flow content; a block-level one starts the next
+/// line at the content's left edge (CSS 2.1 §9.2.1.1 + §10.3.7). With
+/// no preceding in-flow content the box sits at the IFC's origin.
+///
+/// `layout` is the IFC's packed lines and `origin` the rect they were
+/// packed into (the block's content area or the anonymous box's rect).
+pub(super) fn static_position_in_ifc(
+    dom: &Dom<TuiExt>,
+    parent: NodeId,
+    child: NodeId,
+    layout: &InlineLayout,
+    origin: LayoutRect,
+) -> (i32, i32) {
+    // Fragments are owned by the (possibly nested) node that carries
+    // their text; attribute each to the direct child of `parent` it
+    // sits under so it can be ordered against `child`.
+    let sibling_index: HashMap<NodeId, usize> = dom
+        .node(parent)
+        .child_nodes()
+        .enumerate()
+        .map(|(i, c)| (c.id(), i))
+        .collect();
+    let Some(&child_index) = sibling_index.get(&child) else {
+        return (origin.x, origin.y);
+    };
+    let top_level_index = |mut node: NodeId| -> Option<usize> {
+        loop {
+            if let Some(&i) = sibling_index.get(&node) {
+                return Some(i);
+            }
+            node = dom.node(node).parent_node()?.id();
+        }
+    };
+    let mut last: Option<(usize, i32)> = None;
+    for (line_idx, line) in layout.lines.iter().enumerate() {
+        for f in &line.fragments {
+            let owner = top_level_index(f.text_node).or_else(|| top_level_index(f.node));
+            if owner.is_some_and(|i| i < child_index) {
+                last = Some((line_idx, i32::from(f.x) + i32::from(f.width)));
+            }
+        }
+    }
+    let inline_level = dom
+        .node(child)
+        .ext()
+        .and_then(|e| e.computed.as_ref())
+        .is_some_and(|c| matches!(c.display, Display::Inline | Display::InlineBlock));
+    match last {
+        Some((line, end)) if inline_level => (origin.x + end, origin.y + line as i32),
+        Some((line, _)) => (origin.x, origin.y + line as i32 + 1),
+        None => (origin.x, origin.y),
+    }
+}
+
+/// Record the static position of every out-of-flow positioned child
+/// of the IFC `parent` (see [`static_position_in_ifc`]).
+pub(super) fn record_static_positions_in_ifc(
+    dom: &mut Dom<TuiExt>,
+    parent: NodeId,
+    layout: &InlineLayout,
+    origin: LayoutRect,
+) {
+    for n in out_of_flow_positioned_children(dom, parent) {
+        let (x, y) = static_position_in_ifc(dom, parent, n, layout, origin);
+        record_static_position(dom, n, x, y);
+    }
 }
 
 // ── Relative shift (M2 §12.6) ──────────────────────────────────
@@ -222,7 +358,8 @@ fn walk_for_positioned(dom: &Dom<TuiExt>, id: NodeId, out: &mut Vec<NodeId>) {
 ///     measured at the resolved width. A tooltip positioned with
 ///     only `top` / `left` is therefore as wide as its text, not 0.
 ///
-/// X / Y resolve from the offsets via [`axis_position_anchored`].
+/// X / Y resolve from the offsets via [`axis_position_anchored`];
+/// an axis with both insets `auto` takes `TuiExt::static_position`.
 fn compute_placed_rect(
     dom: &Dom<TuiExt>,
     id: NodeId,
@@ -256,6 +393,12 @@ fn compute_placed_rect(
     let basis_w = cb.width as i32;
     let basis_h = cb.height as i32;
 
+    // An axis with both insets `auto` starts at the static position
+    // phase 1 recorded (CSS 2.1 §10.3.7 / §10.6.4). It is `None` only
+    // for an element whose parent has not been laid out yet; the
+    // containing block's start stands in then.
+    let static_pos = dom.node(id).ext().and_then(|e| e.static_position);
+
     let x = if length_to_cells_opt(&c.left, basis_w).is_some()
         && length_to_cells_opt(&c.right, basis_w).is_some()
         && matches!(cx_left, MarginValue::Auto)
@@ -268,7 +411,10 @@ fn compute_placed_rect(
         let extra = span.saturating_sub(width as i32).max(0);
         cb.x + left + extra / 2
     } else {
-        let base = axis_position_anchored(&c.left, &c.right, cb.x, cb.width, width);
+        let base = match static_pos {
+            Some(sp) if matches!((&c.left, &c.right), (Length::Auto, Length::Auto)) => sp.x,
+            _ => axis_position_anchored(&c.left, &c.right, cb.x, cb.width, width),
+        };
         let start_margin = match &cx_left {
             MarginValue::Cells(n) => *n as i32,
             MarginValue::Auto => 0,
@@ -287,7 +433,10 @@ fn compute_placed_rect(
         let extra = span.saturating_sub(height as i32).max(0);
         cb.y + top + extra / 2
     } else {
-        let base = axis_position_anchored(&c.top, &c.bottom, cb.y, cb.height, height);
+        let base = match static_pos {
+            Some(sp) if matches!((&c.top, &c.bottom), (Length::Auto, Length::Auto)) => sp.y,
+            _ => axis_position_anchored(&c.top, &c.bottom, cb.y, cb.height, height),
+        };
         let start_margin = match &cy_top {
             MarginValue::Cells(n) => *n as i32,
             MarginValue::Auto => 0,
@@ -385,7 +534,10 @@ fn length_to_cells(len: &Length, basis: i32) -> Option<i32> {
 /// - `(Cells(s), _)` → `cb_start + s` (start edge wins per CSS).
 /// - `(Auto, Cells(e))` → `cb_start + cb_extent - e - size` (anchor
 ///   flips to far edge, going inward).
-/// - `(Auto, Auto)` → `cb_start` (static-position fallback).
+/// - `(Auto, Auto)` → `cb_start`. Element placement substitutes the
+///   recorded static position before reaching this case; pseudo
+///   placement and an element without one land at the containing
+///   block's start.
 pub(super) fn axis_position_anchored(
     start: &Length,
     end: &Length,

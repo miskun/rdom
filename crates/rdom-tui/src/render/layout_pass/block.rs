@@ -90,11 +90,20 @@ pub(super) fn layout_block_children(
         .enumerate()
         .filter(|(_, c)| is_in_flow(dom, *c))
         .collect();
+    // `D-M2-2`: out-of-flow positioned children take their static
+    // position (CSS 2.1 §10.3.7 / §10.6.4) from the flow cursor at the
+    // point where their hypothetical box would have gone — recorded
+    // just before the in-flow sibling that follows them is placed.
+    let (static_before, static_trailing) = super::positioning::static_anchors(dom, &raw_children);
     if in_flow.is_empty() {
         // Clear any stale anonymous boxes from a previous layout —
         // matches flex's `ext.inline_layout = None` reset.
         if let Some(ext) = dom.node_mut(id).ext_mut() {
             ext.anonymous_blocks.clear();
+        }
+        let scroll_y = dom.node(id).ext().map_or(0, |e| e.scroll_y as i32);
+        for &n in &static_trailing {
+            super::positioning::record_static_position(dom, n, container.x, container.y - scroll_y);
         }
         return BlockMeasurement::default();
     }
@@ -206,6 +215,14 @@ pub(super) fn layout_block_children(
                 let is_last_block_run = Some(run_idx) == last_block_run_idx;
                 let last_child_idx = run.children.len() - 1;
                 for (i, &child) in run.children.iter().enumerate() {
+                    if let Some(oof) = static_before.get(&child) {
+                        // The hypothetical box has zero margins: it
+                        // collapses through whatever is buffered.
+                        let y = y_cursor + i32::from(margin_acc.resolved());
+                        for &n in oof {
+                            super::positioning::record_static_position(dom, n, container.x, y);
+                        }
+                    }
                     let is_first_block_placed = placed_block_count == 0;
                     let is_last_block_placed = is_last_block_run && i == last_child_idx;
                     if !is_first_block_placed && row_gap > 0 {
@@ -289,6 +306,20 @@ pub(super) fn layout_block_children(
                 // into their subtrees (so `<button>`'s own inner
                 // text-only layout, pseudos, etc. get computed).
                 layout_atomic_inline_blocks(dom, &inline_layout, rect);
+                for c in &run.children {
+                    if let Some(oof) = static_before.get(c) {
+                        for &n in oof {
+                            let (x, y) = super::positioning::static_position_in_ifc(
+                                dom,
+                                id,
+                                n,
+                                &inline_layout,
+                                rect,
+                            );
+                            super::positioning::record_static_position(dom, n, x, y);
+                        }
+                    }
+                }
                 anon_blocks.push(AnonymousIfc {
                     rect,
                     inline_layout,
@@ -301,6 +332,41 @@ pub(super) fn layout_block_children(
                 // as the start of a fresh adjacency chain.
                 prev_block_id = None;
             }
+        }
+    }
+
+    // Positioned children after the last in-flow child: continue the
+    // last inline run, or sit below the last block and the margin that
+    // collapses with their zero-margin hypothetical box (CSS 2.1
+    // §8.3.1: as if the box had a bottom border) — including a bottom
+    // margin that escaped through the parent and so never reached the
+    // accumulator.
+    let last_run_is_inline = matches!(runs.last().map(|r| r.kind), Some(RunKind::Inline));
+    if !static_trailing.is_empty() {
+        let mut trailing_margin = margin_acc;
+        if suppress_last_bottom_margin
+            && !last_run_is_inline
+            && let Some(&last) = runs.last().and_then(|r| r.children.last())
+        {
+            let last_computed = dom
+                .node(last)
+                .computed_rc()
+                .unwrap_or_else(|| std::rc::Rc::new(ComputedStyle::initial()));
+            accumulate_outer_bottom_margin(dom, last, &last_computed, &mut trailing_margin);
+        }
+        let below_last_block = y_cursor + i32::from(trailing_margin.resolved());
+        for &n in &static_trailing {
+            let (x, y) = match anon_blocks.last() {
+                Some(anon) if last_run_is_inline => super::positioning::static_position_in_ifc(
+                    dom,
+                    id,
+                    n,
+                    &anon.inline_layout,
+                    anon.rect,
+                ),
+                _ => (container.x, below_last_block),
+            };
+            super::positioning::record_static_position(dom, n, x, y);
         }
     }
 

@@ -32,6 +32,19 @@ pub struct PseudoLayout {
     pub position: Position,
 }
 
+/// The **static position** of an out-of-flow positioned element
+/// (CSS 2.1 §10.3.7 / §10.6.4): where its top-left corner would be
+/// if it were `position: static`, in the same coordinate space as
+/// [`TuiExt::layout`]. Phase-1 layout records it at the point in the
+/// parent's flow where the element's hypothetical box would have
+/// gone; phase-2 placement reads it for every axis whose two insets
+/// are both `auto`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StaticPosition {
+    pub x: i32,
+    pub y: i32,
+}
+
 /// `<select>` type-ahead state (see `runtime::builtins::select`).
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct TypeaheadState {
@@ -224,6 +237,11 @@ pub struct TuiExt {
     pub layout: LayoutRect,
     /// Inner rect after applying padding + border. Where children lay out.
     pub content_layout: LayoutRect,
+    /// Static position of this element when it is `position: absolute
+    /// | fixed` (see [`StaticPosition`]). Written by the parent's
+    /// phase-1 layout; `None` until that has run. Meaningless for
+    /// in-flow elements.
+    pub static_position: Option<StaticPosition>,
 
     // ── Positioned pseudo-element layout (M5-now Stage B) ────────────
     /// Layout rect + cascaded `position` for the `::before` pseudo-

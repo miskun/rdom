@@ -60,7 +60,7 @@ These are intrinsic to terminals. They will not change.
 
 - **Stacking is flat at the document root.** `z-index` is parsed; paint order is document order with z-sort at the root only. No nested stacking contexts.
 - **Sticky containing block is the element's parent's content box**, not the CSS "nearest scroll container" for nested-scroller edge cases.
-- **Static position for absolutely-positioned elements with both edges `auto`** resolves to the containing block's top-left edge (not the CSS "hypothetical in-flow position").
+- **The static position inside a flex container ignores `justify-content` / `align-items`.** Flexbox §4.1 places an absolutely positioned child's hypothetical box as if it were the sole flex item, so `justify-content: center` would center it; rdom uses the content box's start corner (`flex-start`). In block and inline flow the static position follows CSS 2.1 §10.3.7 / §10.6.4.
 - **No `transform`, `rotate`, `scale`, `matrix`, `isolation: isolate`, `will-change`.**
 - **Positioned `::before` / `::after` pseudo-elements are not in the hit-test set.** Clicks on pseudo rects resolve to the underlying element.
 

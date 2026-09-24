@@ -91,6 +91,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 - `<input type=checkbox|radio>` no longer inherit the text field's `width: 20`: they hug their glyph (4 cells) in a flex row. The debt row blamed flex-basis resolution; the width came from the UA `input` rule. (`FLEX-BLOCK-MAIN-INTRINSIC-1`)
 - A flex container's intrinsic size counts its items' margins on the queried axis (Flexbox §9.9 / §4.5), so `margin-bottom` on dialog children no longer lands the last child on the border. (`FLEX-ITEM-MARGIN-MAIN-INTRINSIC-1`)
 - Paint and hit-testing share one positioned list (`positioned_z_list`) and the layout pass's in-flow filter. (`DRY-1`, `DRY-2`)
+- An absolutely or fixed positioned element with both insets of an axis `auto` sits at its static position (CSS 2.1 §10.3.7 / §10.6.4): after the preceding block sibling and its collapsed margin, after the preceding text for an inline-level box, on the next line for a block-level one, and at the content start of a flex container. Phase-1 layout records it in the new `TuiExt::static_position` (`StaticPosition`). (`D-M2-2`)
 
 ### Changed — `rdom-tui`
 

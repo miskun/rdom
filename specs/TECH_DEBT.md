@@ -16,7 +16,6 @@ For the durable architectural divergences (web-platform departures shipped on pu
 
 ### Layout & cascade
 
-- **`D-M2-2` — Static-position resolution simplified.** When `top: auto; bottom: auto` (or `left: auto; right: auto`), CSS uses the "hypothetical in-flow position" the element would have had. rdom simplifies to "containing block top-left edge." Real CSS resolution would require phase-1 to track hypothetical positions for absolute children — substantial layout work. Lift if real apps trip on it.
 - **`D-M2-3` — Flat root-level z-sort instead of nested stacking contexts.** Correct for tooltip / dropdown / modal patterns; doesn't match CSS Appendix-E for nested stacking. Apps wanting truly local z-order can wrap in `position: relative; z-index: 0`.
 - **`D-M2-4` — Negative z-index paints in flat sort order.** CSS 2.1 paints negative-z positioned elements *before* non-positioned content. rdom paints in pure `(z, doc_order)` ascending order — so a negative-z positioned element paints behind other *positioned* elements but ABOVE unpositioned content.
 - **`M5-MIN-CONTENT-2` — `min-content` width approximation.** rdom's intrinsic min-content for text uses the box's natural (unwrapped) width, not the CSS strict longest-word-after-wrap value. Difference matters only for narrow flex containers that hold long words — the floor is one cell-width higher than CSS strict. Refinement when a real consumer hits it.
