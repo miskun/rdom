@@ -1256,3 +1256,90 @@ fn transparent_context_root_falls_through_but_its_content_is_hittable() {
         "bare area falls through"
     );
 }
+
+// ── POINTER-EVENTS-IFC-1: pointer-events inside inline content ──────
+
+/// `pointer-events: none` on an inline formatting context's block
+/// hides the block, not its `auto` inline descendants: a click on
+/// `<b>` inside a transparent `<p>` hits `<b>` (without the `<p>` on
+/// the path); a click on the `<p>`'s own text falls through.
+#[test]
+fn transparent_ifc_block_still_exposes_its_auto_inline_descendants() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let under = dom.create_element("under");
+    let p = dom.create_element("p");
+    let lead = dom.create_text_node("aaaa ");
+    let b = dom.create_element("b");
+    let bt = dom.create_text_node("bbbb");
+    dom.append_child(b, bt).unwrap();
+    dom.append_child(p, lead).unwrap();
+    dom.append_child(p, b).unwrap();
+    dom.append_child(root, under).unwrap();
+    dom.append_child(root, p).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "under",
+            TuiStyle::new()
+                .width(Size::Fixed(20))
+                .height(Size::Fixed(1)),
+        )
+        .rule_unchecked(
+            "p",
+            TuiStyle::new()
+                .position(crate::layout::Position::Absolute)
+                .top(crate::layout::Length::Cells(0))
+                .left(crate::layout::Length::Cells(0))
+                .width(Size::Fixed(20))
+                .height(Size::Fixed(1))
+                .pointer_events(crate::layout::PointerEvents::None),
+        )
+        .rule_unchecked(
+            "b",
+            TuiStyle::new()
+                .display(Display::Inline)
+                .pointer_events(crate::layout::PointerEvents::Auto),
+        );
+    prepare(&mut dom, &sheet, Rect::new(0, 0, 20, 5));
+    assert_eq!(
+        dom.hit_test_path(6, 0),
+        vec![b],
+        "the auto inline is hit, the block is not on the path"
+    );
+    assert_eq!(
+        dom.hit_test_path(1, 0),
+        vec![under],
+        "the block's own text falls through"
+    );
+}
+
+/// The reverse: an inline with `pointer-events: none` inside an `auto`
+/// block resolves to the block (the nearest non-transparent ancestor).
+#[test]
+fn transparent_inline_resolves_to_its_nearest_auto_ancestor() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let p = dom.create_element("p");
+    let lead = dom.create_text_node("aaaa ");
+    let b = dom.create_element("b");
+    let bt = dom.create_text_node("bbbb");
+    dom.append_child(b, bt).unwrap();
+    dom.append_child(p, lead).unwrap();
+    dom.append_child(p, b).unwrap();
+    dom.append_child(root, p).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "p",
+            TuiStyle::new()
+                .width(Size::Fixed(20))
+                .height(Size::Fixed(1)),
+        )
+        .rule_unchecked(
+            "b",
+            TuiStyle::new()
+                .display(Display::Inline)
+                .pointer_events(crate::layout::PointerEvents::None),
+        );
+    prepare(&mut dom, &sheet, Rect::new(0, 0, 20, 5));
+    assert_eq!(dom.hit_test_path(6, 0), vec![p]);
+}

@@ -621,13 +621,31 @@ fn hit_content(
         // (paint and the caret use the same rect).
         let outer = dom.node(id).layout_rect().unwrap_or_default();
         let inner = crate::render::inline::scrolled_content_rect(dom, id).unwrap_or(outer);
-        return match hit_fragment(dom, id, inner, x, y) {
-            Some(owner) if owner != id => {
-                append_inline_ancestors(dom, id, owner, path);
-                true
-            }
-            _ => false,
+        let Some(owner) = hit_fragment(dom, id, inner, x, y) else {
+            return false;
         };
+        // `pointer-events: none` on an inline is transparent: the hit
+        // resolves to the nearest ancestor (up to and including the
+        // block) that accepts pointer events. If none does — the block
+        // itself is transparent — the point falls through.
+        let mut target = owner;
+        while is_pointer_transparent(dom, target) {
+            if target == id {
+                return false;
+            }
+            target = match dom.node(target).parent_node() {
+                Some(p) => p.id(),
+                None => return false,
+            };
+        }
+        if target == id {
+            // The block's own text (or a transparent inline resolving
+            // to it): the block was pushed by the caller, when it is
+            // not transparent itself.
+            return false;
+        }
+        append_inline_ancestors(dom, id, target, path);
+        return true;
     }
     descend_children_reverse(dom, id, x, y, content_clip, viewport, path)
 }
@@ -706,17 +724,26 @@ fn hit_fragment(
 /// Walk the ancestor chain from `owner` up to (but not including)
 /// `ifc_block`. Append each to `path` in outer → inner order so the
 /// final path stays document-ordered.
+fn is_pointer_transparent(dom: &Dom<TuiExt>, id: NodeId) -> bool {
+    dom.node(id)
+        .computed()
+        .is_some_and(|c| c.pointer_events == crate::layout::PointerEvents::None)
+}
+
 fn append_inline_ancestors(
     dom: &Dom<TuiExt>,
     ifc_block: NodeId,
     owner: NodeId,
     path: &mut Vec<NodeId>,
 ) {
-    // Collect inner → outer first, then reverse.
+    // Collect inner → outer first, then reverse. A transparent inline
+    // ancestor is never on the path.
     let mut chain = Vec::new();
     let mut cur = owner;
     while cur != ifc_block {
-        chain.push(cur);
+        if !is_pointer_transparent(dom, cur) {
+            chain.push(cur);
+        }
         match dom.node(cur).parent_node() {
             Some(parent) => cur = parent.id(),
             None => break, // defensive — should never trigger in a well-formed tree

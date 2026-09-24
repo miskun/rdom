@@ -255,6 +255,8 @@ Each phase ends with the two review gates; each commit carries the item id.
   layout pack the same text twice per frame by design (measure-then-place); a cache keyed on the
   previous frame's layout would go stale on content edits, so the double pack stays and is cheap
   now that a pack allocates per fragment only.
+- 2026-09-24 — Phase 6: `POINTER-EVENTS-IFC-1` — fragment owner resolved through the
+  `pointer-events` chain up to the block.
 - Found while mapping Phase 3 (not on the ledger): `ImportantMask::FLOW` and `POINTER_EVENTS` share
   bit 39 (`tui_style.rs`), custom-property inheritance in the cascade is overwritten by the merged
   root map (`walk.rs`), and tokenizer errors inside a block are body-relative (`declarations.rs`).
