@@ -17,7 +17,8 @@
 //!
 //! Exception: `tests/inline_flow.rs` is its own target because it
 //! uses `VirtualScreen`, which needs the `test-util` feature
-//! (`required-features` in `Cargo.toml`).
+//! (`required-features` in `Cargo.toml`; the crate's self
+//! dev-dependency enables it for every test build).
 
 #![allow(dead_code)] // Some test helpers are only used by a
 // subset of modules; the allow keeps things tidy without forcing

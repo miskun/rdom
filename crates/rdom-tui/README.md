@@ -336,6 +336,11 @@ wheel deltas + modifiers). Translation from crossterm's `KeyEvent`
 the `TuiEvent::keydown` / `keyup` / `keypress` / `click` / mouse /
 `wheel` builders.
 
+## Features
+
+- `test-util` — exposes `VirtualScreen` (`rdom_tui::VirtualScreen`, also in the prelude), a headless VT emulator that replays the ANSI bytes a backend emits into an inspectable cell grid, for asserting what a real terminal would show after a sequence of frames, resizes and clears. It is for test suites: enable it on the dev-dependency (`rdom-tui = { version = "…", features = ["test-util"] }`), not on the normal one. It is not part of the default API, and docs.rs builds with it so the type is documented.
+- `no-synchronized-output` — skips the BSU / ESU synchronized-output sequences (DEC private mode 2026) for terminals that mishandle them. Off by default; terminals without support ignore the sequences.
+
 ## Terminal notes
 
 - **iTerm2 and hover.** iTerm2 may ignore the any-motion mouse mode until it sees a real click, at launch and after every refocus, so `:hover` styles start following the pointer only after one click. Other terminals (Alacritty, Kitty, Ghostty, WezTerm) honor it immediately. The cause and the failed re-arm attempts are recorded in `specs/DIVERGENCES.md` §4.

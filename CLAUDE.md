@@ -187,7 +187,7 @@ cargo test -p rdom-style
 cargo test -p rdom-css
 ```
 
-`rdom-tui`'s test-only VT emulator, `VirtualScreen`, sits behind the `test-util` cargo feature (plus `cfg(test)` for the crate's own unit tests). Its one integration-test user, `tests/inline_flow.rs`, is a separate `[[test]]` target with `required-features = ["test-util"]`: `cargo test --workspace` runs it because `rdom-showcase`'s dev-dependency enables the feature and resolver 2 unifies it across the workspace build, while a bare `cargo test -p rdom-tui` skips it — add `--features test-util` there.
+`rdom-tui`'s test-only VT emulator, `VirtualScreen`, sits behind the `test-util` cargo feature (plus `cfg(test)` for the crate's own unit tests). Its one integration-test user, `tests/inline_flow.rs`, is a separate `[[test]]` target with `required-features = ["test-util"]`, and `rdom-tui` dev-depends on itself with that feature (`rdom-tui = { path = ".", features = ["test-util"] }`), so both `cargo test -p rdom-tui` and `cargo test --workspace` run it with no flags and rdom-tui's coverage never depends on a consumer. `cargo publish` strips that path-only dev-dependency, so a test run from the published tarball needs `--features test-util` for `inline_flow`.
 
 Workspace gate (same set CI runs, and the same set `/commit` enforces):
 

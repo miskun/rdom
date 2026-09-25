@@ -951,6 +951,7 @@ dependencies = [
  "rdom-css",
  "rdom-parser",
  "rdom-style",
+ "rdom-tui",
  "unicode-segmentation",
  "unicode-width",
 ]

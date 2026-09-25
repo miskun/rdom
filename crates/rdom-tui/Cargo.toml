@@ -27,6 +27,11 @@ no-synchronized-output = []
 # `cfg(test)`.
 test-util = []
 
+# docs.rs builds with `test-util` so `VirtualScreen` is documented; the
+# README's Features section says it is test-only.
+[package.metadata.docs.rs]
+features = ["test-util"]
+
 [dependencies]
 rdom-core = { path = "../rdom-core", version = "0.4.0" }
 rdom-css = { path = "../rdom-css", version = "0.4.0" }
@@ -71,10 +76,17 @@ criterion = { version = "0.5", default-features = false, features = ["rayon"] }
 # Used by the `parse_and_render` example (the three crates composing).
 # Not a runtime dep of rdom-tui itself.
 rdom-parser = { path = "../rdom-parser", version = "0.4.0" }
+# The crate's own integration tests need `VirtualScreen` (`test-util`):
+# a self dev-dependency turns the feature on for every test build of
+# this package, so `cargo test -p rdom-tui` and `cargo test --workspace`
+# run `tests/inline_flow.rs` without extra flags and without leaning on
+# a consumer's dev-dependency. `cargo publish` strips path-only
+# dev-dependencies, so a test run from the published tarball needs
+# `--features test-util` for that one target (it is skipped otherwise).
+rdom-tui = { path = ".", features = ["test-util"] }
 
-# Uses `VirtualScreen`, so it needs `test-util`. `cargo test --workspace`
-# enables the feature through `rdom-showcase`'s dev-dependency (resolver-2
-# feature unification); `cargo test -p rdom-tui` needs `--features test-util`.
+# Uses `VirtualScreen`, so it needs `test-util` — enabled for every test
+# build by the self dev-dependency above.
 [[test]]
 name = "inline_flow"
 path = "tests/inline_flow.rs"
