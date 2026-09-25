@@ -293,6 +293,7 @@ Each phase ends with the two review gates; each commit carries the item id.
 - 2026-09-24 — Phase 6: `STYLE-VALUES-SPLIT-1` — `parse/values/` one file per value family. The row's "also over the bar" list moves to
   its own row, `OVERSIZED-FILES-1`, for the Phase 6 architect gate to triage.
 - 2026-09-24 — Phase 6: `DECLARATION-SPLIT-1` — `cssom/declaration.rs` → `cssom/declaration/{mod,error,read,write,serialize}.rs` + `tests/{mod,read,write,css_text}.rs`; public paths unchanged; rdom-tui lib tests 1661 → 1661.
+- 2026-09-24 — Phase 6: `BUFFER-SPLIT-1` — `render/buffer.rs` → `render/buffer/{mod,border,write,composite,diff,tests}.rs`; public paths unchanged; rdom-tui lib tests 1661 → 1661.
 - Found while mapping Phase 3 (not on the ledger): `ImportantMask::FLOW` and `POINTER_EVENTS` share
   bit 39 (`tui_style.rs`), custom-property inheritance in the cascade is overwritten by the merged
   root map (`walk.rs`), and tokenizer errors inside a block are body-relative (`declarations.rs`).
