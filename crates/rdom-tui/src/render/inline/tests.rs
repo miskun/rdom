@@ -375,3 +375,62 @@ fn nowrap_keeps_everything_on_one_line() {
     // width = 19 (overflows content_width=10).
     assert_eq!(layout.lines[0].width, 19);
 }
+
+// ── P6G-PSEUDO-SHIFT-1: generated content packs with the text ───────
+
+/// The host's `::before` / `::after` are packed as its first / last
+/// inline content: they land in `LineBox::generated` (never in
+/// `fragments` — they have no DOM position), take cells on the line,
+/// and push the text after them.
+#[test]
+fn static_pseudos_pack_as_generated_fragments() {
+    use crate::ext::StyleSlot;
+    use crate::style::Content;
+    let (dom, p) = prepared(
+        |dom| {
+            let root = dom.root();
+            let p = dom.create_element("p");
+            let t = dom.create_text_node("abcdefg hi");
+            dom.append_child(p, t).unwrap();
+            dom.append_child(root, p).unwrap();
+            p
+        },
+        &default_sheet()
+            .rule_unchecked(
+                "p::before",
+                TuiStyle::new().content(Content::Str("> ".into())),
+            )
+            .rule_unchecked(
+                "p::after",
+                TuiStyle::new().content(Content::Str(" <".into())),
+            ),
+    );
+    let layout = compute_inline_layout(&dom, p, 10);
+    assert_eq!(layout.height(), 2);
+    let line0 = &layout.lines[0];
+    let gen0: Vec<_> = line0
+        .generated
+        .iter()
+        .map(|g| (g.slot, g.x, g.text.as_str()))
+        .collect();
+    assert_eq!(gen0, vec![(StyleSlot::Before, 0, "> ")]);
+    assert_eq!(line0.fragments[0].x, 2);
+    assert_eq!(line0.fragments[0].text, "abcdefg");
+    assert_eq!(line0.width, 9);
+    let line1 = &layout.lines[1];
+    assert_eq!(line1.fragments[0].text, "hi");
+    let gen1: Vec<_> = line1
+        .generated
+        .iter()
+        .map(|g| (g.host, g.slot, g.x, g.text.as_str()))
+        .collect();
+    assert_eq!(gen1, vec![(p, StyleSlot::After, 2, " <")]);
+    assert!(
+        layout
+            .lines
+            .iter()
+            .flat_map(|l| &l.fragments)
+            .all(|f| f.text_node != p),
+        "no text fragment stands for generated content"
+    );
+}

@@ -28,7 +28,7 @@ use std::collections::HashMap;
 
 use rdom_core::{Dom, NodeId, NodeType};
 
-use crate::ext::{StaticPosition, TuiExt};
+use crate::ext::{StaticPosition, StyleSlot, TuiExt};
 use crate::layout::{Display, LayoutRect, Length, Position, Size};
 use crate::node::TuiNodeExt;
 use crate::render::inline::InlineLayout;
@@ -183,6 +183,15 @@ pub(super) fn static_position_in_ifc(
     };
     let mut last: Option<(usize, i32)> = None;
     for (line_idx, line) in layout.lines.iter().enumerate() {
+        // Generated content ahead of every child: the parent's
+        // `::before` (and any list marker riding this first line).
+        for g in line
+            .generated
+            .iter()
+            .filter(|g| g.slot == StyleSlot::Before)
+        {
+            last = Some((line_idx, i32::from(g.x) + i32::from(g.width)));
+        }
         for f in &line.fragments {
             let owner = top_level_index(f.text_node).or_else(|| top_level_index(f.node));
             if owner.is_some_and(|i| i < child_index) {

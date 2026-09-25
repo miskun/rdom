@@ -46,7 +46,7 @@ mod tests;
 
 use rdom_core::{Dom, NodeId, NodeType};
 
-use crate::ext::TuiExt;
+use crate::ext::{StyleSlot, TuiExt};
 use crate::layout::WhiteSpace;
 
 use packer::LinePacker;
@@ -97,13 +97,41 @@ pub struct InlineFragment {
     pub atomic: bool,
 }
 
+/// A run of a host's static `::before` / `::after` content on one
+/// line. CSS 2.1 §12.1: generated content is an inline box, the first
+/// / last child of its host, so the packer lays it out with the text —
+/// it wraps, and the text after it starts past it.
+///
+/// Generated content has no DOM node and no DOM position, so it is kept
+/// apart from [`LineBox::fragments`]: hit-testing, the caret,
+/// selection highlight and copy only ever see text and atoms, and a
+/// click on a generated cell clamps to the nearest text position.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GeneratedFragment {
+    /// The element whose pseudo-element this is (paint reads its
+    /// `computed_before` / `computed_after`).
+    pub host: NodeId,
+    /// [`StyleSlot::Before`](crate::ext::StyleSlot::Before) or
+    /// [`StyleSlot::After`](crate::ext::StyleSlot::After).
+    pub slot: crate::ext::StyleSlot,
+    /// X offset from the inline flow's content-area left edge.
+    pub x: u16,
+    /// Visible cell width of `text`.
+    pub width: u16,
+    /// The normalized generated text on this line.
+    pub text: String,
+}
+
 /// One line of inline content.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct LineBox {
     /// Fragments in left-to-right order, each non-overlapping.
     pub fragments: Vec<InlineFragment>,
-    /// Total visible width of this line (≤ content width unless a
-    /// single word overflowed).
+    /// Generated-content runs on this line, left to right. They occupy
+    /// cells between / around `fragments` — never overlapping them.
+    pub generated: Vec<GeneratedFragment>,
+    /// Total visible width of this line, generated content included
+    /// (≤ content width unless a single word overflowed).
     pub width: u16,
 }
 
@@ -314,11 +342,42 @@ pub fn compute_inline_layout(dom: &Dom<TuiExt>, block: NodeId, content_width: u1
         .unwrap_or(WhiteSpace::Normal);
 
     let mut packer = LinePacker::new(content_width, ws);
+    push_pseudo(dom, block, StyleSlot::Before, &mut packer);
     walk_subtree(dom, block, &mut packer);
+    push_pseudo(dom, block, StyleSlot::After, &mut packer);
     packer.finish();
     InlineLayout {
         lines: packer.take_lines(),
         content_width,
+    }
+}
+
+/// The text of `host`'s `slot` pseudo-element when it takes part in
+/// the host's inline flow: a static (`position: static`) box with
+/// `content`. Positioned pseudo-elements are laid out and painted on
+/// their own (`positioned_pseudos`).
+pub(crate) fn static_pseudo_text(dom: &Dom<TuiExt>, host: NodeId, slot: StyleSlot) -> Option<&str> {
+    use crate::node::TuiNodeExt;
+    let node = dom.node(host);
+    let computed = match slot {
+        StyleSlot::Before => node.computed_before(),
+        StyleSlot::After => node.computed_after(),
+        StyleSlot::Host => None,
+    }?;
+    if computed.position != crate::layout::Position::Static {
+        return None;
+    }
+    computed.content.as_deref()
+}
+
+fn push_pseudo<'a>(
+    dom: &'a Dom<TuiExt>,
+    host: NodeId,
+    slot: StyleSlot,
+    packer: &mut LinePacker<'a>,
+) {
+    if let Some(text) = static_pseudo_text(dom, host, slot) {
+        packer.push_generated(host, slot, text);
     }
 }
 
@@ -332,10 +391,45 @@ pub fn compute_inline_layout(dom: &Dom<TuiExt>, block: NodeId, content_width: u1
 /// child of `parent` (text or element). Text-node children pack as
 /// inline runs owned by `parent`; element children pack via
 /// `walk_subtree` (same semantics as the full-subtree path).
+///
+/// `parent`'s static `::before` joins the run that starts at its first
+/// in-flow child, its `::after` the run that ends at its last one
+/// (CSS 2.1 §9.2.1.1: they are the first / last inline-level content).
 pub fn compute_inline_layout_for_run(
     dom: &Dom<TuiExt>,
     parent: NodeId,
     direct_children: &[NodeId],
+    content_width: u16,
+) -> InlineLayout {
+    let mut in_flow = dom
+        .node(parent)
+        .child_nodes()
+        .map(|c| c.id())
+        .filter(|&c| crate::render::layout_pass::is_in_flow(dom, c));
+    let first = in_flow.next();
+    let last = in_flow.last().or(first);
+    let pseudos = RunPseudos {
+        before: first.is_some() && direct_children.first().copied() == first,
+        after: last.is_some() && direct_children.last().copied() == last,
+    };
+    pack_run(dom, parent, direct_children, pseudos, content_width)
+}
+
+/// Which of the run's host pseudo-elements a [`pack_run`] includes.
+#[derive(Debug, Clone, Copy, Default)]
+pub(crate) struct RunPseudos {
+    pub(crate) before: bool,
+    pub(crate) after: bool,
+}
+
+/// Pack `direct_children` of `parent` as one inline formatting context,
+/// with `parent`'s `::before` / `::after` first / last as `pseudos`
+/// asks. An empty `direct_children` packs the pseudo-elements alone.
+pub(crate) fn pack_run(
+    dom: &Dom<TuiExt>,
+    parent: NodeId,
+    direct_children: &[NodeId],
+    pseudos: RunPseudos,
     content_width: u16,
 ) -> InlineLayout {
     let ws = dom
@@ -347,6 +441,9 @@ pub fn compute_inline_layout_for_run(
 
     use crate::layout::Display;
     let mut packer = LinePacker::new(content_width, ws);
+    if pseudos.before {
+        push_pseudo(dom, parent, StyleSlot::Before, &mut packer);
+    }
     for &child_id in direct_children {
         let child = dom.node(child_id);
         match child.node_type() {
@@ -377,6 +474,9 @@ pub fn compute_inline_layout_for_run(
             }
             _ => {}
         }
+    }
+    if pseudos.after {
+        push_pseudo(dom, parent, StyleSlot::After, &mut packer);
     }
     packer.finish();
     InlineLayout {

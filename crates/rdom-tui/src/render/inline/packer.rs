@@ -33,21 +33,49 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::layout::WhiteSpace;
 
-use super::{InlineFragment, LineBox};
+use super::{GeneratedFragment, InlineFragment, LineBox};
+use crate::ext::StyleSlot;
 
 /// One grapheme awaiting commit, with every piece of provenance we
 /// need to rebuild a source position later.
 pub(super) struct PendingGrapheme<'a> {
-    /// Direct element parent of the source text node.
-    owner: NodeId,
-    /// The source text node itself.
-    text_node: NodeId,
-    /// Byte offset of this grapheme's start in `text_node`'s data.
+    /// Where the grapheme comes from — a DOM text node or a host's
+    /// generated content.
+    origin: Origin,
+    /// Byte offset of this grapheme's start in the source string (the
+    /// text node's data, or the pseudo-element's `content`).
     source_offset: usize,
     /// The grapheme, borrowed from the source text node's data.
     text: &'a str,
     /// Visible width of the grapheme.
     width: u16,
+}
+
+/// Provenance of a run of graphemes. Consecutive graphemes with the
+/// same origin (and contiguous offsets) merge into one fragment.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Origin {
+    /// Direct element parent of the source text node; the host element
+    /// for generated content.
+    owner: NodeId,
+    /// The source text node; the host element for generated content
+    /// (which has no node of its own).
+    text_node: NodeId,
+    /// `Some(slot)` for a host's `::before` / `::after` content. Such
+    /// graphemes become [`GeneratedFragment`]s, never
+    /// [`InlineFragment`]s: they take part in line packing but have no
+    /// DOM position.
+    generated: Option<StyleSlot>,
+}
+
+impl Origin {
+    fn text(owner: NodeId, text_node: NodeId) -> Self {
+        Origin {
+            owner,
+            text_node,
+            generated: None,
+        }
+    }
 }
 
 pub(super) struct LinePacker<'a> {
@@ -58,6 +86,8 @@ pub(super) struct LinePacker<'a> {
 
     /// Committed content on the current (still-accumulating) line.
     cur_fragments: Vec<InlineFragment>,
+    /// Committed generated content on the current line.
+    cur_generated: Vec<GeneratedFragment>,
     cur_line_width: u16,
 
     /// Accumulated since the last break opportunity — not yet
@@ -75,7 +105,7 @@ pub(super) struct LinePacker<'a> {
     /// owner/text_node/offset, so a click on the space between "a"
     /// and "<b>bold</b>" routes to the enclosing `<p>` (the
     /// whitespace's text-node parent) rather than to `<b>`.
-    pending_space_source: Option<(NodeId, NodeId, usize)>,
+    pending_space_source: Option<(Origin, usize)>,
 
     /// Whether any visible grapheme has been emitted yet in this IFC.
     /// False = at IFC start; suppresses leading whitespace.
@@ -89,6 +119,7 @@ impl<'a> LinePacker<'a> {
             ws,
             lines: Vec::new(),
             cur_fragments: Vec::new(),
+            cur_generated: Vec::new(),
             cur_line_width: 0,
             word_buffer: Vec::new(),
             word_width: 0,
@@ -111,9 +142,26 @@ impl<'a> LinePacker<'a> {
     /// Feed a whole text-node's string in one shot. Walks graphemes
     /// with byte-precise source tracking.
     pub(super) fn push_text(&mut self, owner: NodeId, text_node: NodeId, text: &'a str) {
+        self.push_str(Origin::text(owner, text_node), text);
+    }
+
+    /// Feed a host's static `::before` / `::after` content (CSS 2.1
+    /// §12.1: an inline box, the host's first / last child). It packs,
+    /// collapses and wraps like text, but lands in
+    /// [`LineBox::generated`](super::LineBox::generated).
+    pub(super) fn push_generated(&mut self, host: NodeId, slot: StyleSlot, text: &'a str) {
+        let origin = Origin {
+            owner: host,
+            text_node: host,
+            generated: Some(slot),
+        };
+        self.push_str(origin, text);
+    }
+
+    fn push_str(&mut self, origin: Origin, text: &'a str) {
         let mut source_offset = 0usize;
         for g in text.graphemes(true) {
-            self.push_grapheme(owner, text_node, source_offset, g);
+            self.push_grapheme(origin, source_offset, g);
             source_offset += g.len();
         }
     }
@@ -133,13 +181,7 @@ impl<'a> LinePacker<'a> {
         self.break_line();
     }
 
-    fn push_grapheme(
-        &mut self,
-        owner: NodeId,
-        text_node: NodeId,
-        source_offset: usize,
-        g: &'a str,
-    ) {
+    fn push_grapheme(&mut self, origin: Origin, source_offset: usize, g: &'a str) {
         let first = g.chars().next().unwrap_or(' ');
 
         // Control characters require per-mode handling.
@@ -150,7 +192,7 @@ impl<'a> LinePacker<'a> {
                 // their wrap behavior on regular whitespace differs.
                 WhiteSpace::Pre | WhiteSpace::PreWrap => match g {
                     "\n" | "\r\n" => {
-                        self.push_hard_break(owner);
+                        self.push_hard_break(origin.owner);
                         return;
                     }
                     "\r" => return,
@@ -158,8 +200,7 @@ impl<'a> LinePacker<'a> {
                         // Tab → single space (tab-stop columns are a
                         // separate feature).
                         self.word_buffer.push(PendingGrapheme {
-                            owner,
-                            text_node,
+                            origin,
                             source_offset,
                             text: " ",
                             width: 1,
@@ -177,7 +218,7 @@ impl<'a> LinePacker<'a> {
                     }
                     if self.emitted_any {
                         self.pending_space = true;
-                        self.pending_space_source = Some((owner, text_node, source_offset));
+                        self.pending_space_source = Some((origin, source_offset));
                     }
                     return;
                 }
@@ -195,8 +236,7 @@ impl<'a> LinePacker<'a> {
                 // Verbatim: preserve spaces/tabs. No soft-break
                 // opportunities.
                 self.word_buffer.push(PendingGrapheme {
-                    owner,
-                    text_node,
+                    origin,
                     source_offset,
                     text: g,
                     width: w,
@@ -213,8 +253,7 @@ impl<'a> LinePacker<'a> {
                         self.commit_word();
                     }
                     self.word_buffer.push(PendingGrapheme {
-                        owner,
-                        text_node,
+                        origin,
                         source_offset,
                         text: " ",
                         width: 1,
@@ -226,8 +265,7 @@ impl<'a> LinePacker<'a> {
                         self.commit_word();
                     }
                     self.word_buffer.push(PendingGrapheme {
-                        owner,
-                        text_node,
+                        origin,
                         source_offset,
                         text: g,
                         width: w,
@@ -236,8 +274,7 @@ impl<'a> LinePacker<'a> {
                     self.commit_word();
                 } else {
                     self.word_buffer.push(PendingGrapheme {
-                        owner,
-                        text_node,
+                        origin,
                         source_offset,
                         text: g,
                         width: w,
@@ -258,7 +295,7 @@ impl<'a> LinePacker<'a> {
                     }
                     if self.emitted_any {
                         self.pending_space = true;
-                        self.pending_space_source = Some((owner, text_node, source_offset));
+                        self.pending_space_source = Some((origin, source_offset));
                     }
                     return;
                 }
@@ -270,8 +307,7 @@ impl<'a> LinePacker<'a> {
                         self.commit_word();
                     }
                     self.word_buffer.push(PendingGrapheme {
-                        owner,
-                        text_node,
+                        origin,
                         source_offset,
                         text: g,
                         width: w,
@@ -283,8 +319,7 @@ impl<'a> LinePacker<'a> {
 
                 // Hyphen: break-after.
                 self.word_buffer.push(PendingGrapheme {
-                    owner,
-                    text_node,
+                    origin,
                     source_offset,
                     text: g,
                     width: w,
@@ -317,7 +352,7 @@ impl<'a> LinePacker<'a> {
         let must_wrap = projected > self.content_width
             && matches!(self.ws, WhiteSpace::Normal | WhiteSpace::PreWrap);
 
-        if must_wrap && !self.cur_fragments.is_empty() {
+        if must_wrap && self.line_has_content() {
             self.break_line();
             self.pending_space = false;
             self.pending_space_source = None;
@@ -333,34 +368,32 @@ impl<'a> LinePacker<'a> {
         // Emit the separator space (if any) with the provenance of
         // the whitespace that produced it.
         if separator_width > 0 && !self.word_buffer.is_empty() {
-            let (sep_owner, sep_text_node, sep_source_offset) =
-                self.pending_space_source.unwrap_or_else(|| {
-                    let g = &self.word_buffer[0];
-                    (g.owner, g.text_node, g.source_offset)
-                });
-            self.append_fragment(sep_owner, sep_text_node, sep_source_offset, " ", 1);
+            let (sep_origin, sep_source_offset) = self.pending_space_source.unwrap_or_else(|| {
+                let g = &self.word_buffer[0];
+                (g.origin, g.source_offset)
+            });
+            self.append_fragment(sep_origin, sep_source_offset, " ", 1);
         }
 
-        // Group consecutive same-(owner, text_node) graphemes into
-        // fragments. A change in either starts a new fragment.
+        // Group consecutive same-origin graphemes into fragments. A
+        // change of origin starts a new fragment.
         let mut idx = 0;
         while idx < self.word_buffer.len() {
             let g0 = &self.word_buffer[idx];
-            let owner = g0.owner;
-            let text_node = g0.text_node;
+            let origin = g0.origin;
             let source_offset = g0.source_offset;
             let mut text = String::new();
             let mut width: u16 = 0;
             while idx < self.word_buffer.len() {
                 let g = &self.word_buffer[idx];
-                if g.owner != owner || g.text_node != text_node {
+                if g.origin != origin {
                     break;
                 }
                 text.push_str(g.text);
                 width = width.saturating_add(g.width);
                 idx += 1;
             }
-            self.append_fragment(owner, text_node, source_offset, &text, width);
+            self.append_fragment(origin, source_offset, &text, width);
         }
 
         self.word_buffer.clear();
@@ -371,25 +404,45 @@ impl<'a> LinePacker<'a> {
     /// Append a fragment to the current line. Merges with the
     /// previous fragment when its (owner, text_node) match AND the
     /// byte ranges are contiguous — keeps fragment counts low and
-    /// preserves correct source mapping.
-    fn append_fragment(
-        &mut self,
-        owner: NodeId,
-        text_node: NodeId,
-        source_offset: usize,
-        text: &str,
-        width: u16,
-    ) {
-        if let Some(last) = self.cur_fragments.last_mut() {
-            let contiguous = last.source_byte_offset + last.text.len() == source_offset;
-            if last.node == owner && last.text_node == text_node && contiguous {
+    /// preserves correct source mapping. Generated content goes to the
+    /// line's generated list instead.
+    fn append_fragment(&mut self, origin: Origin, source_offset: usize, text: &str, width: u16) {
+        let x = self.cur_line_width;
+        self.cur_line_width = self.cur_line_width.saturating_add(width);
+        if let Some(slot) = origin.generated {
+            if let Some(last) = self.cur_generated.last_mut()
+                && last.host == origin.owner
+                && last.slot == slot
+                && last.x + last.width == x
+            {
                 last.text.push_str(text);
                 last.width = last.width.saturating_add(width);
-                self.cur_line_width = self.cur_line_width.saturating_add(width);
+                return;
+            }
+            self.cur_generated.push(GeneratedFragment {
+                host: origin.owner,
+                slot,
+                x,
+                width,
+                text: text.to_string(),
+            });
+            return;
+        }
+        let Origin {
+            owner, text_node, ..
+        } = origin;
+        if let Some(last) = self.cur_fragments.last_mut() {
+            let contiguous = last.source_byte_offset + last.text.len() == source_offset;
+            if last.node == owner
+                && last.text_node == text_node
+                && contiguous
+                && last.x + last.width == x
+            {
+                last.text.push_str(text);
+                last.width = last.width.saturating_add(width);
                 return;
             }
         }
-        let x = self.cur_line_width;
         self.cur_fragments.push(InlineFragment {
             node: owner,
             text_node,
@@ -399,7 +452,12 @@ impl<'a> LinePacker<'a> {
             text: text.to_string(),
             atomic: false,
         });
-        self.cur_line_width = self.cur_line_width.saturating_add(width);
+    }
+
+    /// True once anything — text, an atom, generated content — sits on
+    /// the current line; a word that does not fit then wraps.
+    fn line_has_content(&self) -> bool {
+        !self.cur_fragments.is_empty() || !self.cur_generated.is_empty()
     }
 
     /// Push an **atomic inline-block** fragment — a
@@ -438,9 +496,10 @@ impl<'a> LinePacker<'a> {
             self.pending_space = false;
             self.pending_space_source = None;
         } else if separator > 0 {
-            let (sep_owner, sep_text_node, sep_offset) =
-                self.pending_space_source.unwrap_or((node, node, 0));
-            self.append_fragment(sep_owner, sep_text_node, sep_offset, " ", 1);
+            let (sep_origin, sep_offset) = self
+                .pending_space_source
+                .unwrap_or((Origin::text(node, node), 0));
+            self.append_fragment(sep_origin, sep_offset, " ", 1);
             self.pending_space = false;
             self.pending_space_source = None;
         }
@@ -463,9 +522,14 @@ impl<'a> LinePacker<'a> {
 
     fn break_line(&mut self) {
         let fragments = std::mem::take(&mut self.cur_fragments);
+        let generated = std::mem::take(&mut self.cur_generated);
         let width = self.cur_line_width;
         self.cur_line_width = 0;
-        self.lines.push(LineBox { fragments, width });
+        self.lines.push(LineBox {
+            fragments,
+            generated,
+            width,
+        });
     }
 
     /// Flush any pending word and the current line. Drops trailing
@@ -476,7 +540,7 @@ impl<'a> LinePacker<'a> {
         }
         self.pending_space = false;
         self.pending_space_source = None;
-        if !self.cur_fragments.is_empty() {
+        if self.line_has_content() {
             self.break_line();
         }
     }

@@ -21,6 +21,13 @@
 //! 4. Return `(ifc.content_rect.x + fragment.x + cell_offset,
 //!    ifc.content_rect.y + line_index)`.
 //!
+//! Generated content (`::before` / `::after`, list markers) is packed
+//! into the same lines as [`GeneratedFragment`](crate::render::inline::GeneratedFragment)s,
+//! so a text fragment's `x` already sits past it. A flow with no text
+//! fragment for the caret (an empty editable) takes the phantom path
+//! below: the caret sits at the block start, before any `::before`, as
+//! browsers draw it.
+//!
 //! End-of-text / end-of-line cases: the caret sits *after* the
 //! last fragment's last grapheme. `cells_before_byte` with a
 //! target past the fragment's own text length returns the full

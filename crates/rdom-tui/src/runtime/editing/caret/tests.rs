@@ -367,3 +367,65 @@ fn caret_does_not_paint_when_selection_is_a_range_not_a_caret() {
     assert_eq!(buf.cell(0, 0).unwrap().bg, Color::Reset);
     assert_eq!(buf.cell(4, 0).unwrap().bg, Color::Reset);
 }
+
+// ── P6G-PSEUDO-SHIFT-1: the caret shares the packer's geometry ──────
+
+/// A 10-wide editable pure-text block with `::before { content: "> " }`.
+fn editable_with_before(text: &str) -> (TuiDom, rdom_core::NodeId, rdom_core::NodeId) {
+    use crate::style::Content;
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let p = dom.create_element("p");
+    dom.set_attribute(p, "contenteditable", "true").unwrap();
+    let t = dom.create_text_node(text);
+    dom.append_child(p, t).unwrap();
+    dom.append_child(root, p).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked("p", TuiStyle::new().width(Size::Fixed(10)))
+        .rule_unchecked(
+            "p::before",
+            TuiStyle::new().content(Content::Str("> ".into())),
+        );
+    dom.cascade(&sheet);
+    dom.layout_dom(Rect::new(0, 0, 20, 5));
+    (dom, p, t)
+}
+
+#[test]
+fn caret_at_offset_zero_sits_after_the_before_pseudo() {
+    let (dom, _p, t) = editable_with_before("abcdefg hi");
+    assert_eq!(cell_of_position(&dom, Position::new(t, 0)), Some((2, 0)));
+    // Past "abcdefg " the caret is on the wrapped line, at its start.
+    assert_eq!(cell_of_position(&dom, Position::new(t, 8)), Some((0, 1)));
+    assert_eq!(cell_of_position(&dom, Position::new(t, 10)), Some((2, 1)));
+}
+
+/// An empty editable has no text fragment: the caret sits at the start
+/// of the block, before the `::before` — what browsers do for the
+/// `[contenteditable]:empty::before` placeholder idiom.
+#[test]
+fn caret_in_empty_editable_sits_at_the_block_start() {
+    let (dom, _p, t) = editable_with_before("");
+    assert_eq!(cell_of_position(&dom, Position::new(t, 0)), Some((0, 0)));
+}
+
+/// A text control showing its placeholder (`:placeholder-shown::before`,
+/// rdom's stand-in for `::placeholder`): the caret stays at the start of
+/// the field, as browsers draw it.
+#[test]
+fn caret_in_empty_input_sits_at_the_start_of_its_placeholder() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let input = dom.create_element("input");
+    dom.set_attribute(input, "placeholder", "Name").unwrap();
+    let t = dom.create_text_node("");
+    dom.append_child(input, t).unwrap();
+    dom.append_child(root, input).unwrap();
+    dom.cascade(&Stylesheet::new());
+    dom.layout_dom(Rect::new(0, 0, 20, 5));
+    let content = dom.node(input).content_layout_rect().unwrap();
+    assert_eq!(
+        cell_of_position(&dom, Position::new(t, 0)),
+        Some((content.x as u16, content.y as u16))
+    );
+}

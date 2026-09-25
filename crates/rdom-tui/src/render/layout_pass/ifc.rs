@@ -9,14 +9,11 @@
 //!
 //! **Pure-text blocks (`<note>only text</note>`) are deliberately
 //! NOT IFC.** They're routed through the non-IFC paint path
-//! (`paint_inline_content`), which handles `::before` / own text /
-//! `::after` chrome — the IFC paint path (`paint_ifc`) reads from
-//! a pre-baked `InlineLayout` that today does not include pseudo
-//! content. Their intrinsic *height* is measured via
-//! `compute_inline_layout` (see `intrinsic.rs`) so wrap is
-//! respected, but the IFC predicate stays false so paint keeps
-//! seeing the static pseudos. Unifying the two paths is deferred
-//! until pseudo content is integrated into `compute_inline_layout`.
+//! (`paint_inline_content`), which also owns chrome substitution
+//! (gauges, closed dropdowns, password masks) and the no-text
+//! single-row fallback. Both kinds still pack their text — and their
+//! static `::before` / `::after` — through `compute_inline_layout`, so
+//! wrap, caret, hit-test and paint share one geometry.
 //!
 //! **Display::InlineBlock in IFC** (BFC-1 phase 3.5b): an
 //! inline-block child participates in IFC as an atomic inline-

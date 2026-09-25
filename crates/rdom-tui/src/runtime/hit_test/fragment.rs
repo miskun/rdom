@@ -6,6 +6,10 @@
 //! `clamp_to_line_layout` (past end-of-line, above / below the block),
 //! and the grapheme-aware cell → byte walker `cells_to_bytes`. Which
 //! target to resolve in is decided upstream, in `nearest.rs`.
+//!
+//! Generated content (`LineBox::generated`) is not a fragment: it has
+//! no DOM position, so a cell it covers falls to the clamp — before the
+//! line's text → the text's start, past it → the text's end.
 
 use rdom_core::{Dom, Position};
 use unicode_segmentation::UnicodeSegmentation;

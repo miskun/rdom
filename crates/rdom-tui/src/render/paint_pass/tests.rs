@@ -4753,3 +4753,128 @@ fn translucent_element_leaves_cells_outside_its_clip_untouched() {
     assert_eq!(under.bg, Color::Reset, "outside the clip: untouched");
     assert_eq!(bg_at(&buf, 0, 3), Color::Reset);
 }
+
+// ── P6G-PSEUDO-SHIFT-1: generated content is part of the inline flow ─
+
+/// A 10-wide pure-text block with `::before { content: "> " }` and the
+/// given `::after`.
+fn shifted_leaf(text: &str, after: Option<&str>) -> (TuiDom, NodeId, NodeId, Stylesheet) {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let host = dom.create_element("host");
+    let t = dom.create_text_node(text);
+    dom.append_child(host, t).unwrap();
+    dom.append_child(root, host).unwrap();
+    let mut sheet = Stylesheet::bare()
+        .rule_unchecked("host", TuiStyle::new().width(Size::Fixed(10)))
+        .rule_unchecked(
+            "host::before",
+            TuiStyle::new().content(Content::Str("> ".into())),
+        );
+    if let Some(after) = after {
+        sheet = sheet.rule_unchecked(
+            "host::after",
+            TuiStyle::new().content(Content::Str(after.into())),
+        );
+    }
+    (dom, host, t, sheet)
+}
+
+/// CSS 2.1 §12.1: `::before` is an inline box, the first child of its
+/// host — the line packer lays it out, so the text wraps around it
+/// instead of overflowing line 0 by the pseudo's width.
+#[test]
+fn before_pseudo_takes_part_in_line_wrapping() {
+    let (mut dom, _host, _t, sheet) = shifted_leaf("abcdefg hi", None);
+    let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 10, 3));
+    assert_eq!(row(&buf, 0).trim_end(), "> abcdefg");
+    assert_eq!(row(&buf, 1).trim_end(), "hi");
+}
+
+/// `::after` is the host's last inline child: when it does not fit on
+/// the last line it wraps like any other word.
+#[test]
+fn after_pseudo_takes_part_in_line_wrapping() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let host = dom.create_element("host");
+    let t = dom.create_text_node("abcdefg hi");
+    dom.append_child(host, t).unwrap();
+    dom.append_child(root, host).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked("host", TuiStyle::new().width(Size::Fixed(10)))
+        .rule_unchecked(
+            "host::after",
+            TuiStyle::new().content(Content::Str(" <".into())),
+        );
+    let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 10, 3));
+    assert_eq!(row(&buf, 0).trim_end(), "abcdefg hi");
+    assert_eq!(row(&buf, 1).trim_end(), "<");
+}
+
+/// The block grows by the wrapped line: a sibling after it starts
+/// below the second row, not on top of it.
+#[test]
+fn wrapped_pseudo_line_counts_toward_the_block_height() {
+    let (mut dom, host, _t, sheet) = shifted_leaf("abcdefg hi", None);
+    let root = dom.root();
+    let next = dom.create_element("next");
+    let nt = dom.create_text_node("NEXT");
+    dom.append_child(next, nt).unwrap();
+    dom.append_child(root, next).unwrap();
+    let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 10, 4));
+    assert_eq!(dom.node(host).layout_rect().unwrap().height, 2);
+    assert_eq!(row(&buf, 2).trim_end(), "NEXT");
+}
+
+/// A selection over the whole text never paints the generated cells,
+/// on the line the `::before` shares or the one the `::after` wrapped to.
+#[test]
+fn selection_highlight_skips_wrapped_pseudo_cells() {
+    use rdom_core::{Position, Selection};
+    let (mut dom, _host, t, sheet) = shifted_leaf("abcdefg hi", Some(" <"));
+    let sel_bg = Color::Rgb(0x39, 0x4B, 0x7E);
+    let sheet = sheet.rule_unchecked("*::selection", TuiStyle::new().bg(sel_bg));
+    dom.set_selection(Some(Selection::new(
+        Position::new(t, 0),
+        Position::new(t, 10),
+    )));
+    let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 10, 3));
+    assert_eq!(row(&buf, 0).trim_end(), "> abcdefg");
+    assert_eq!(row(&buf, 1).trim_end(), "hi <");
+    for x in 0..2 {
+        assert_ne!(bg_at(&buf, x, 0), sel_bg, "::before cell {x} not selected");
+    }
+    for x in 2..9 {
+        assert_eq!(bg_at(&buf, x, 0), sel_bg, "text cell {x} selected");
+    }
+    for x in 0..2 {
+        assert_eq!(
+            bg_at(&buf, x, 1),
+            sel_bg,
+            "text cell {x} on line 1 selected"
+        );
+    }
+    for x in 2..4 {
+        assert_ne!(bg_at(&buf, x, 1), sel_bg, "::after cell {x} not selected");
+    }
+}
+
+/// An empty text control showing its placeholder (`:placeholder-shown
+/// ::before`, rdom's stand-in for `::placeholder`) still paints it.
+#[test]
+fn empty_input_paints_its_placeholder() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let input = dom.create_element("input");
+    dom.set_attribute(input, "placeholder", "Name").unwrap();
+    let t = dom.create_text_node("");
+    dom.append_child(input, t).unwrap();
+    dom.append_child(root, input).unwrap();
+    let buf = pipeline(&mut dom, &Stylesheet::new(), Rect::new(0, 0, 20, 3));
+    assert!(
+        (0..3).any(|y| row(&buf, y).contains("Name")),
+        "placeholder painted: {:?}",
+        (0..3).map(|y| row(&buf, y)).collect::<Vec<_>>()
+    );
+}

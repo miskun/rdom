@@ -243,6 +243,14 @@ fn intrinsic_element(
         Direction::Row => pseudo_content_width(dom, id),
         Direction::Column => 0,
     };
+    // For an inline flow of its own (IFC block, pure-text leaf) the
+    // packer lays the static pseudos out with the text, so a
+    // min-content pack already holds them; the max-content sum of text
+    // widths does not.
+    let pseudo_beside_inline = match measure {
+        Measure::MinContent => 0,
+        Measure::MaxContent => pseudo_main,
+    };
 
     // IFC block: inline content. Width = max-content (unwrapped sum
     // of text widths). Height = line count at the available content
@@ -277,7 +285,7 @@ fn intrinsic_element(
             }
         };
         return content
-            .saturating_add(pseudo_main)
+            .saturating_add(pseudo_beside_inline)
             .saturating_add(pad_main)
             .saturating_add(border_main);
     }
@@ -338,7 +346,7 @@ fn intrinsic_element(
                 }
             };
             return content
-                .saturating_add(pseudo_main)
+                .saturating_add(pseudo_beside_inline)
                 .saturating_add(pad_main)
                 .saturating_add(border_main);
         }

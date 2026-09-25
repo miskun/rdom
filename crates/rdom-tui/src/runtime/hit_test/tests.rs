@@ -1379,3 +1379,33 @@ fn transparent_inline_resolves_to_its_nearest_auto_ancestor() {
     prepare(&mut dom, &sheet, Rect::new(0, 0, 20, 5));
     assert_eq!(dom.hit_test_path(6, 0), vec![p]);
 }
+
+// ── P6G-PSEUDO-SHIFT-1: hit-testing shares the packer's geometry ────
+
+#[test]
+fn position_at_maps_cells_past_a_before_pseudo_to_text_offsets() {
+    use crate::style::Content;
+    use rdom_core::Position;
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let p = dom.create_element("p");
+    let t = dom.create_text_node("abcdefg hi");
+    dom.append_child(p, t).unwrap();
+    dom.append_child(root, p).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked("p", TuiStyle::new().width(Size::Fixed(10)))
+        .rule_unchecked(
+            "p::before",
+            TuiStyle::new().content(Content::Str("> ".into())),
+        );
+    prepare(&mut dom, &sheet, Rect::new(0, 0, 20, 5));
+    // The first text cell sits right after the pseudo.
+    assert_eq!(dom.position_at(2, 0), Some(Position::new(t, 0)));
+    assert_eq!(dom.position_at(4, 0), Some(Position::new(t, 2)));
+    // A click on the generated cells clamps to the text's start: the
+    // pseudo has no DOM position of its own.
+    assert_eq!(dom.position_at(0, 0), Some(Position::new(t, 0)));
+    assert_eq!(dom.position_at(1, 0), Some(Position::new(t, 0)));
+    // The wrapped word is on line 1.
+    assert_eq!(dom.position_at(1, 1), Some(Position::new(t, 9)));
+}
