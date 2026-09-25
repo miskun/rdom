@@ -15,6 +15,42 @@ const HIGHLIGHT_ATTR: &str = "data-rdom-highlight";
 /// Marker: anchor for shift-extend range selection (multi-select).
 const ANCHOR_ATTR: &str = "data-rdom-anchor";
 
+// ── Defaults (defaultSelected) ─────────────────────────────────────
+
+/// Record every option's current `selected` attribute as its
+/// `defaultSelected`, where not yet known. The attribute is the live
+/// selectedness (as `checked` is for toggles), so it is captured before
+/// the select's first change; options added later are captured before
+/// the next one. Every runtime write below calls this first.
+pub(crate) fn note_default_selected(dom: &mut TuiDom, select: NodeId) {
+    for opt in options(dom, select) {
+        let selected = dom.node(opt).has_attribute("selected");
+        if let Some(ext) = dom.node_mut(opt).ext_mut()
+            && ext.default_selected.is_none()
+        {
+            ext.default_selected = Some(selected);
+        }
+    }
+}
+
+/// HTML §4.10.7 reset algorithm for `<select>`: every option goes back
+/// to its `defaultSelected`. An option never captured still holds its
+/// authored attribute and is left alone. No events fire. rdom runs no
+/// selectedness setting algorithm (DIVERGENCES), here or at load.
+pub(crate) fn reset_to_default(dom: &mut TuiDom, select: NodeId) {
+    for opt in options(dom, select) {
+        match dom.node(opt).ext().and_then(|e| e.default_selected) {
+            Some(true) => {
+                let _ = dom.set_attribute(opt, "selected", "");
+            }
+            Some(false) => {
+                let _ = dom.remove_attribute(opt, "selected");
+            }
+            None => {}
+        }
+    }
+}
+
 // ── Selection writes ───────────────────────────────────────────────
 
 pub(super) fn select_single(dom: &mut TuiDom, select: NodeId, option: NodeId) {
@@ -23,13 +59,15 @@ pub(super) fn select_single(dom: &mut TuiDom, select: NodeId, option: NodeId) {
     if already {
         return;
     }
+    note_default_selected(dom, select);
     for opt in current {
         let _ = dom.remove_attribute(opt, "selected");
     }
     let _ = dom.set_attribute(option, "selected", "");
 }
 
-pub(super) fn toggle_option(dom: &mut TuiDom, _select: NodeId, option: NodeId) {
+pub(super) fn toggle_option(dom: &mut TuiDom, select: NodeId, option: NodeId) {
+    note_default_selected(dom, select);
     if dom.node(option).has_attribute("selected") {
         let _ = dom.remove_attribute(option, "selected");
     } else {
@@ -55,6 +93,7 @@ pub(super) fn extend_selection_to(dom: &mut TuiDom, select: NodeId, target: Node
     let (Some(a_idx), Some(t_idx)) = (a_idx, t_idx) else {
         return;
     };
+    note_default_selected(dom, select);
     let (lo, hi) = if a_idx <= t_idx {
         (a_idx, t_idx)
     } else {

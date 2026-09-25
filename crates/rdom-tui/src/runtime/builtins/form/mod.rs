@@ -16,15 +16,12 @@
 //!   default action (a TUI app's submit handler usually
 //!   `preventDefault`s and reads form data via [`collect`]).
 //! - Reset fires the `reset` event on the form, also cancelable.
-//!   Default reset action (restoring `defaultValue` / `defaultChecked`)
-//!   is deferred to polish — v1 just fires the event so apps can
-//!   react.
+//!   Unless canceled, every control goes back to its default:
+//!   `defaultValue` (text controls, ranges), `defaultChecked`
+//!   (checkboxes, radios), `defaultSelected` (`<select>` options).
 //!
 //! ## v1 deliberate simplifications
 //!
-//! - No automatic field reset on `reset` event (would require
-//!   `defaultValue` / `defaultChecked` tracking the cascade
-//!   doesn't yet provide).
 //! - No `formaction` / `formmethod` overrides on individual buttons.
 //! - No client-side validation gate (`required`, `pattern`, `min`,
 //!   `max` `valueMissing` blocking submit). Apps validate manually
@@ -271,9 +268,10 @@ pub(crate) fn fire_submit(dom: &mut TuiDom, form: NodeId, submitter: Option<Node
 }
 
 /// HTML §4.10.21.5 reset algorithm: every control under `form` goes back
-/// to its default — text controls to `defaultValue`, checkboxes and
-/// radios to `defaultChecked` (`FORM-DEFAULTS-1`). No `input` / `change`
-/// events fire, as on the web.
+/// to its default — text controls and ranges to `defaultValue`,
+/// checkboxes and radios to `defaultChecked` (`FORM-DEFAULTS-1`), a
+/// `<select>`'s options to `defaultSelected` (`P6G-FORM-RESET-1`). No
+/// `input` / `change` events fire, as on the web.
 fn reset_controls(dom: &mut TuiDom, form: NodeId) {
     let mut stack = vec![form];
     while let Some(id) = stack.pop() {
@@ -285,6 +283,9 @@ fn reset_controls(dom: &mut TuiDom, form: NodeId) {
                 }
                 Some("input") | Some("textarea") => {
                     crate::runtime::builtins::input::reset_to_default(dom, kid);
+                }
+                Some("select") => {
+                    crate::runtime::builtins::select::reset_to_default(dom, kid);
                 }
                 _ => {}
             }

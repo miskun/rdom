@@ -759,3 +759,42 @@ fn typeahead_buffer_is_per_select() {
     let other = app.dom_mut().create_element("select");
     assert!(app.dom().node(other).ext().unwrap().typeahead.is_none());
 }
+
+// ── P6G-FORM-RESET-1: defaultSelected capture on user changes ──────
+
+fn default_selected(app: &App<TestBackend>, opt: NodeId) -> Option<bool> {
+    app.dom().node(opt).ext().and_then(|e| e.default_selected)
+}
+
+#[test]
+fn keyboard_pick_captures_default_selected_and_reset_restores_it() {
+    let (mut app, sel, opts) = select_fixture(false, &["a", "b", "c"]);
+    app.dom_mut()
+        .set_attribute(opts[0], "selected", "")
+        .unwrap();
+    app.dom_mut().set_focused(Some(sel));
+    app.handle_event(key(KeyCode::Down, KeyModifiers::empty()));
+    assert_eq!(select::value(app.dom(), sel), "b");
+    assert_eq!(default_selected(&app, opts[0]), Some(true));
+    assert_eq!(default_selected(&app, opts[1]), Some(false));
+
+    select::reset_to_default(app.dom_mut(), sel);
+    assert_eq!(select::value(app.dom(), sel), "a");
+}
+
+#[test]
+fn multi_select_toggle_and_select_all_capture_default_selected() {
+    let (mut app, sel, opts) = select_fixture(true, &["a", "b"]);
+    app.dom_mut().set_focused(Some(sel));
+    app.handle_event(key(KeyCode::Char(' '), KeyModifiers::empty()));
+    app.handle_event(key(KeyCode::Char('a'), KeyModifiers::CONTROL));
+    assert!(
+        opts.iter()
+            .all(|&o| app.dom().node(o).has_attribute("selected"))
+    );
+    assert_eq!(default_selected(&app, opts[0]), Some(false));
+    assert_eq!(default_selected(&app, opts[1]), Some(false));
+
+    select::reset_to_default(app.dom_mut(), sel);
+    assert_eq!(select::value(app.dom(), sel), "");
+}

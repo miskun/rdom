@@ -84,6 +84,7 @@ use crate::TuiDom;
 pub(crate) use dropdown::inline_chrome;
 pub use dropdown::{close, is_dropdown, is_open, open};
 pub use model::{option_label, option_value, options, selected_options, value};
+pub(crate) use state::{note_default_selected, reset_to_default};
 
 /// Install the select default actions: two root-level listeners,
 /// click (select / toggle / open-close) and keydown (arrow navigation

@@ -690,3 +690,198 @@ fn reset_restores_default_value_and_default_checked() {
     assert!(!app.dom().node(cb).checked());
     assert!(app.dom().node(ra).checked() && !app.dom().node(rb).checked());
 }
+
+// ── P6G-FORM-RESET-1: select, range, textarea, default setters ──────
+
+/// A form with `controls` and a trailing reset button, built into an
+/// App (seeded + listeners installed). Returns the app and the reset
+/// button.
+fn form_app(
+    build: impl FnOnce(&mut TuiDom, rdom_core::NodeId),
+) -> (App<TestBackend>, rdom_core::NodeId) {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let form = dom.create_element("form");
+    dom.append_child(root, form).unwrap();
+    build(&mut dom, form);
+    let reset = dom.create_element("input");
+    dom.set_attribute(reset, "type", "reset").unwrap();
+    dom.append_child(form, reset).unwrap();
+    let mut app = test_app(dom, Stylesheet::new());
+    app.draw_if_dirty().unwrap();
+    (app, reset)
+}
+
+fn click_reset(app: &mut App<TestBackend>, reset: rdom_core::NodeId) {
+    use crate::accessors::TuiAccessorsMut;
+    app.dom_mut().node_mut(reset).click();
+}
+
+fn option(
+    dom: &mut TuiDom,
+    select: rdom_core::NodeId,
+    value: &str,
+    selected: bool,
+) -> rdom_core::NodeId {
+    let o = dom.create_element("option");
+    dom.set_attribute(o, "value", value).unwrap();
+    let t = dom.create_text_node(value);
+    dom.append_child(o, t).unwrap();
+    if selected {
+        dom.set_attribute(o, "selected", "").unwrap();
+    }
+    dom.append_child(select, o).unwrap();
+    o
+}
+
+/// HTML §4.10.7 reset algorithm for `<select>`: every `<option>` goes
+/// back to its `defaultSelected` (the authored `selected` attribute).
+#[test]
+fn reset_restores_select_options_to_default_selected() {
+    use crate::accessors::{TuiAccessors, TuiAccessorsMut};
+    let mut ids = Vec::new();
+    let (mut app, reset) = form_app(|dom, form| {
+        let single = dom.create_element("select");
+        dom.append_child(form, single).unwrap();
+        ids.push(single);
+        ids.push(option(dom, single, "a", false));
+        ids.push(option(dom, single, "b", true));
+        let multi = dom.create_element("select");
+        dom.set_attribute(multi, "multiple", "").unwrap();
+        dom.append_child(form, multi).unwrap();
+        ids.push(multi);
+        ids.push(option(dom, multi, "x", true));
+        ids.push(option(dom, multi, "y", false));
+    });
+    let [single, a, b, multi, x, y] = ids[..] else {
+        unreachable!()
+    };
+    app.dom_mut().node_mut(single).set_value("a").unwrap();
+    app.dom_mut().node_mut(multi).set_value("y").unwrap();
+    assert_eq!(app.dom().node(single).value(), Some("a".into()));
+    assert_eq!(app.dom().node(multi).value(), Some("y".into()));
+
+    click_reset(&mut app, reset);
+    assert!(!app.dom().node(a).has_attribute("selected"));
+    assert!(app.dom().node(b).has_attribute("selected"));
+    assert!(app.dom().node(x).has_attribute("selected"));
+    assert!(!app.dom().node(y).has_attribute("selected"));
+    assert_eq!(app.dom().node(single).value(), Some("b".into()));
+}
+
+/// A slider's `defaultValue` is its `value` content attribute; reset
+/// writes it back (removing the attribute when there was none, which
+/// puts the thumb back at the midpoint).
+#[test]
+fn reset_restores_range_to_its_default_value() {
+    use crate::accessors::TuiAccessors;
+    use crate::runtime::builtins::range;
+    let mut ids = Vec::new();
+    let (mut app, reset) = form_app(|dom, form| {
+        for value in [Some("30"), None] {
+            let r = dom.create_element("input");
+            dom.set_attribute(r, "type", "range").unwrap();
+            if let Some(v) = value {
+                dom.set_attribute(r, "value", v).unwrap();
+            }
+            dom.append_child(form, r).unwrap();
+            ids.push(r);
+        }
+    });
+    let [r30, rmid] = ids[..] else { unreachable!() };
+    range::set_value(app.dom_mut(), r30, 70.0);
+    range::set_value(app.dom_mut(), rmid, 10.0);
+    assert_eq!(app.dom().node(r30).default_value(), Some("30".into()));
+    assert_eq!(app.dom().node(rmid).default_value(), Some("".into()));
+
+    click_reset(&mut app, reset);
+    assert_eq!(app.dom().node(r30).get_attribute("value"), Some("30"));
+    assert_eq!(app.dom().node(rmid).get_attribute("value"), None);
+    assert_eq!(range::value_of(app.dom(), rmid), 50.0);
+}
+
+/// `TuiAccessorsMut::set_value` on a `<textarea>` is `.value =`: it
+/// leaves `defaultValue` (the authored text) alone.
+#[test]
+fn textarea_set_value_keeps_the_authored_default_value() {
+    use crate::accessors::{TuiAccessors, TuiAccessorsMut};
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let ta = dom.create_element("textarea");
+    let t = dom.create_text_node("orig");
+    dom.append_child(ta, t).unwrap();
+    dom.append_child(root, ta).unwrap();
+    dom.node_mut(ta).set_value("new").unwrap();
+    assert_eq!(dom.node(ta).value(), Some("new".into()));
+    assert_eq!(dom.node(ta).default_value(), Some("orig".into()));
+}
+
+/// HTML: `defaultValue` of an `<input>` whose value mode is not
+/// "value" (hidden, submit, checkbox, …) — and of any input before a
+/// change — is its `value` content attribute.
+#[test]
+fn default_value_of_non_text_inputs_is_the_value_attribute() {
+    use crate::accessors::TuiAccessors;
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let mut make = |ty: &str, value: &str| {
+        let i = dom.create_element("input");
+        dom.set_attribute(i, "type", ty).unwrap();
+        dom.set_attribute(i, "value", value).unwrap();
+        dom.append_child(root, i).unwrap();
+        i
+    };
+    let range = make("range", "30");
+    let hidden = make("hidden", "h");
+    let submit = make("submit", "Go");
+    let cb = make("checkbox", "yes");
+    assert_eq!(dom.node(range).default_value(), Some("30".into()));
+    assert_eq!(dom.node(hidden).default_value(), Some("h".into()));
+    assert_eq!(dom.node(submit).default_value(), Some("Go".into()));
+    assert_eq!(dom.node(cb).default_value(), Some("yes".into()));
+}
+
+/// `defaultValue = …` / `defaultChecked = …`: the new default is what
+/// a reset restores; the live state is left alone.
+#[test]
+fn default_setters_change_what_reset_restores() {
+    use crate::accessors::{TuiAccessors, TuiAccessorsMut};
+    let mut ids = Vec::new();
+    let (mut app, reset) = form_app(|dom, form| {
+        let text = dom.create_element("input");
+        dom.set_attribute(text, "value", "a").unwrap();
+        let cb = dom.create_element("input");
+        dom.set_attribute(cb, "type", "checkbox").unwrap();
+        let ta = dom.create_element("textarea");
+        let hidden = dom.create_element("input");
+        dom.set_attribute(hidden, "type", "hidden").unwrap();
+        for c in [text, cb, ta, hidden] {
+            dom.append_child(form, c).unwrap();
+            ids.push(c);
+        }
+    });
+    let [text, cb, ta, hidden] = ids[..] else {
+        unreachable!()
+    };
+    let dom = app.dom_mut();
+    dom.node_mut(text).set_default_value("z").unwrap();
+    dom.node_mut(ta).set_default_value("body").unwrap();
+    dom.node_mut(cb).set_default_checked(true).unwrap();
+    dom.node_mut(hidden).set_default_value("q").unwrap();
+    assert_eq!(
+        dom.node(text).value(),
+        Some("a".into()),
+        "live value untouched"
+    );
+    assert!(!dom.node(cb).checked(), "live checkedness untouched");
+    assert_eq!(dom.node(text).default_value(), Some("z".into()));
+    assert_eq!(dom.node(cb).default_checked(), Some(true));
+    // A hidden input's value *is* its default (value mode "default").
+    assert_eq!(dom.node(hidden).get_attribute("value"), Some("q"));
+
+    click_reset(&mut app, reset);
+    let dom = app.dom();
+    assert_eq!(dom.node(text).value(), Some("z".into()));
+    assert_eq!(dom.node(ta).value(), Some("body".into()));
+    assert!(dom.node(cb).checked());
+}

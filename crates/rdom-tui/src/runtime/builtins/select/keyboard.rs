@@ -199,6 +199,7 @@ fn toggle_highlighted(dom: &mut TuiDom, select: NodeId) {
 }
 
 fn select_all(dom: &mut TuiDom, select: NodeId) {
+    super::state::note_default_selected(dom, select);
     for opt in options(dom, select) {
         if !dom.node(opt).has_attribute("disabled") {
             let _ = dom.set_attribute(opt, "selected", "");

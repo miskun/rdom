@@ -123,38 +123,82 @@ pub fn seed_all(dom: &mut TuiDom) {
     }
 }
 
-/// Record the control's current text as its `defaultValue` unless a
+/// Does `id` keep a `defaultValue` apart from its live value — HTML's
+/// value mode "value"? `<textarea>`, text-family `<input>`s and
+/// `<input type=range>`. Every other `<input>` (hidden, submit, the
+/// toggles, …) *is* its `value` attribute: its default is that
+/// attribute and nothing is recorded.
+pub(crate) fn keeps_default_value(dom: &TuiDom, id: NodeId) -> bool {
+    match dom.node(id).tag_name() {
+        Some("textarea") => true,
+        Some("input") => is_text_family_input(dom, id) || is_range_input(dom, id),
+        _ => false,
+    }
+}
+
+fn is_range_input(dom: &TuiDom, id: NodeId) -> bool {
+    dom.node(id).get_attribute("type") == Some("range")
+}
+
+/// The live value a default is captured from: a text control's text,
+/// a range's `value` attribute (`""` when absent).
+fn live_value(dom: &TuiDom, id: NodeId) -> String {
+    if is_range_input(dom, id) {
+        return dom
+            .node(id)
+            .get_attribute("value")
+            .unwrap_or("")
+            .to_string();
+    }
+    value(dom, id)
+}
+
+/// Record the control's current value as its `defaultValue` unless a
 /// default is already known (`FORM-DEFAULTS-1`). Called when a control
 /// is seeded and before its first change, so the authored value is the
-/// one a `<form>` reset restores.
-pub(crate) fn note_default_value(dom: &mut TuiDom, editable: NodeId) {
+/// one a `<form>` reset restores. No-op on controls without a separate
+/// default ([`keeps_default_value`]).
+pub(crate) fn note_default_value(dom: &mut TuiDom, control: NodeId) {
+    if !keeps_default_value(dom, control) {
+        return;
+    }
     let known = dom
-        .node(editable)
+        .node(control)
         .ext()
         .is_some_and(|e| e.default_value.is_some());
     if known {
         return;
     }
-    let current = value(dom, editable);
-    if let Some(ext) = dom.node_mut(editable).ext_mut() {
+    let current = live_value(dom, control);
+    if let Some(ext) = dom.node_mut(control).ext_mut() {
         ext.default_value = Some(current);
     }
 }
 
-/// Restore a text control to its `defaultValue`: the text content and,
-/// for an `<input>`, the mirrored `value` attribute. No-op without a
-/// recorded default.
-pub(crate) fn reset_to_default(dom: &mut TuiDom, editable: NodeId) {
+/// Restore a control to its `defaultValue`: a text control's text
+/// content and, for an `<input>`, the mirrored `value` attribute; a
+/// range's `value` attribute (removed when the default is `""`, which
+/// puts the thumb back at the midpoint, as a browser sanitizes an empty
+/// value). No-op without a recorded default.
+pub(crate) fn reset_to_default(dom: &mut TuiDom, control: NodeId) {
     let Some(default) = dom
-        .node(editable)
+        .node(control)
         .ext()
         .and_then(|e| e.default_value.clone())
     else {
         return;
     };
-    let _ = crate::node::install_text_content(dom, editable, &default);
-    if dom.node(editable).tag_name() == Some("input") {
-        let _ = dom.set_attribute(editable, "value", &default);
+    if is_range_input(dom, control) {
+        if default.is_empty() {
+            let _ = dom.remove_attribute(control, "value");
+        } else {
+            let _ = dom.set_attribute(control, "value", &default);
+        }
+        return;
+    }
+    let _ = crate::node::install_text_content(dom, control, &default);
+    if dom.node(control).tag_name() == Some("input") {
+        let _ = dom.set_attribute(control, "value", &default);
     }
 }
 

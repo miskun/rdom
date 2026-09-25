@@ -76,9 +76,14 @@ pub trait TuiAccessors<'a> {
     /// the attribute).
     fn checked(&self) -> bool;
 
-    /// `defaultValue` of a text control: what it was authored / seeded
-    /// with, or its text before the first change; a `<form>` reset
-    /// restores it. `None` for other elements.
+    /// `defaultValue` of an `<input>` / `<textarea>`: the value a
+    /// `<form>` reset restores. For a text control or a range, what it
+    /// was authored / seeded with, captured before its first change
+    /// (or set with `set_default_value`); before any capture, an
+    /// `<input>`'s `value` attribute (`""` when absent) and a
+    /// `<textarea>`'s text. For the other `<input>` types (hidden,
+    /// submit, checkbox, …) it is the `value` attribute, as in HTML.
+    /// `None` for other elements.
     fn default_value(&self) -> Option<String>;
 
     /// `defaultChecked` of a checkbox / radio: its checkedness before the
@@ -417,6 +422,21 @@ pub trait TuiAccessorsMut<'a> {
     /// IDL `.checked` property into one source — flipping false
     /// removes the attribute, mirroring the runtime toggle handler.
     fn set_checked(&mut self, value: bool) -> Result<()>;
+
+    /// Set `defaultValue` — the value a `<form>` reset restores (HTML
+    /// `defaultValue = …`). For `<textarea>`, text-family `<input>`s
+    /// and `<input type=range>` it replaces the recorded default and
+    /// leaves the live value alone (rdom has no dirty-value flag, so
+    /// every control behaves as a dirty one; DIVERGENCES). For the
+    /// other `<input>` types the `value` attribute is both value and
+    /// default, so it is written. No-op on other tags.
+    fn set_default_value(&mut self, value: impl Into<String>) -> Result<()>;
+
+    /// Set `defaultChecked` of a checkbox / radio — the checkedness a
+    /// `<form>` reset restores (HTML `defaultChecked = …`). The live
+    /// `checked` attribute is left alone (no dirty-checkedness flag;
+    /// DIVERGENCES). No-op on other elements.
+    fn set_default_checked(&mut self, value: bool) -> Result<()>;
 
     /// Set the `[indeterminate]` attribute presence on `<input>`.
     /// No-op on other tags. Browsers expose this as an IDL-only

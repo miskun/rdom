@@ -29,16 +29,16 @@ impl<'a> TuiAccessors<'a> for rdom_core::NodeRef<'a, TuiExt> {
     }
 
     fn default_value(&self) -> Option<String> {
+        let recorded = || self.ext().and_then(|e| e.default_value.clone());
         match self.tag_name()? {
-            "input" if !crate::runtime::builtins::toggle::is_toggle(self.dom(), self.id()) => {}
-            "textarea" => {}
-            _ => return None,
+            // Nothing recorded yet (or an input whose value *is* its
+            // attribute): the authored `value` content attribute.
+            "input" => Some(
+                recorded().unwrap_or_else(|| self.get_attribute("value").unwrap_or("").to_string()),
+            ),
+            "textarea" => Some(recorded().unwrap_or_else(|| self.text_content())),
+            _ => None,
         }
-        Some(
-            self.ext()
-                .and_then(|e| e.default_value.clone())
-                .unwrap_or_else(|| crate::runtime::builtins::input::value(self.dom(), self.id())),
-        )
     }
 
     fn default_checked(&self) -> Option<bool> {

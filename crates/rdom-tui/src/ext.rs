@@ -416,14 +416,27 @@ pub struct TuiExt {
     /// cleared when it is laid out, so nothing outlives the pass —
     /// which is why it is not part of the public layout output.
     pub(crate) margin_chain: Option<MarginChainMemo>,
-    /// `defaultValue` of a text control: the value it was authored /
-    /// seeded with, captured before its first change. `None` until a
-    /// control has been seeded or changed (`FORM-DEFAULTS-1`); `<form>`
-    /// reset restores it.
+    /// `defaultValue` of a text control or `<input type=range>`: the
+    /// value it was authored / seeded with, captured before its first
+    /// change. `None` until a control has been seeded or changed
+    /// (`FORM-DEFAULTS-1`); `<form>` reset restores it.
+    ///
+    /// **Runtime-managed**: the builtins capture it and `<form>` reset
+    /// reads it. Read it through `TuiAccessors::default_value` and set
+    /// it through `TuiAccessorsMut::set_default_value`, which also
+    /// cover the controls whose default is the `value` attribute.
     pub default_value: Option<String>,
     /// `defaultChecked` of a checkbox / radio, captured before its first
-    /// flip; `<form>` reset restores it.
+    /// flip; `<form>` reset restores it. **Runtime-managed** — use
+    /// `TuiAccessors::default_checked` /
+    /// `TuiAccessorsMut::set_default_checked`.
     pub default_checked: Option<bool>,
+    /// `defaultSelected` of an `<option>`: its `selected` attribute as
+    /// authored, captured (for every option of the select) before the
+    /// select's first change; `<form>` reset restores it. `None` until
+    /// then — the attribute is still the authored state.
+    /// **Runtime-managed.**
+    pub default_selected: Option<bool>,
     /// A caret move or edit asked this inline-flow container to reveal
     /// the caret; the runtime re-runs the reveal after the next layout,
     /// when the container's extent is current

@@ -62,6 +62,7 @@ pub(super) fn is_text_family_input(dom: &TuiDom, id: NodeId) -> bool {
 /// No match → every option ends up unselected. Matches
 /// `HTMLSelectElement.value` setter.
 pub(super) fn set_select_value(dom: &mut TuiDom, select: NodeId, target: &str) -> Result<()> {
+    crate::runtime::builtins::select::note_default_selected(dom, select);
     let options: Vec<NodeId> = collect_options(dom, select);
     // Find the first match in document order.
     let first_match: Option<NodeId> = options

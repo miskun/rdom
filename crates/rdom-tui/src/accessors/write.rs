@@ -26,11 +26,17 @@ impl<'a> TuiAccessorsMut<'a> for rdom_core::NodeMut<'a, TuiExt> {
                 if is_text_family_input(dom, id) {
                     crate::runtime::builtins::input::set_value(dom, id, &new_value);
                 } else {
+                    // A range keeps its authored default; for the other
+                    // types the attribute *is* the default (no-op).
+                    crate::runtime::builtins::input::note_default_value(dom, id);
                     dom.set_attribute(id, "value", &new_value)?;
                 }
                 Ok(())
             }
-            "textarea" => install_text_content(dom, id, &new_value),
+            "textarea" => {
+                crate::runtime::builtins::input::note_default_value(dom, id);
+                install_text_content(dom, id, &new_value)
+            }
             "select" => set_select_value(dom, id, &new_value),
             _ => Ok(()),
         }
@@ -45,6 +51,34 @@ impl<'a> TuiAccessorsMut<'a> for rdom_core::NodeMut<'a, TuiExt> {
             crate::runtime::builtins::toggle::note_default_checked(self.dom_mut(), id);
         }
         write_boolean_attribute(self, "checked", value)
+    }
+
+    fn set_default_value(&mut self, value: impl Into<String>) -> Result<()> {
+        let value = value.into();
+        let id = self.id();
+        let dom = self.dom_mut();
+        if crate::runtime::builtins::input::keeps_default_value(dom, id) {
+            if let Some(ext) = dom.node_mut(id).ext_mut() {
+                ext.default_value = Some(value);
+            }
+            return Ok(());
+        }
+        if dom.node(id).tag_name() == Some("input") {
+            // Value mode "default" / "default/on": the attribute is both.
+            dom.set_attribute(id, "value", &value)?;
+        }
+        Ok(())
+    }
+
+    fn set_default_checked(&mut self, value: bool) -> Result<()> {
+        let id = self.id();
+        let dom = self.dom_mut();
+        if crate::runtime::builtins::toggle::is_toggle(dom, id)
+            && let Some(ext) = dom.node_mut(id).ext_mut()
+        {
+            ext.default_checked = Some(value);
+        }
+        Ok(())
     }
 
     fn set_indeterminate(&mut self, value: bool) -> Result<()> {

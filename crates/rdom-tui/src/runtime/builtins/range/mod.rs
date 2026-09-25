@@ -157,6 +157,8 @@ pub fn set_value(dom: &mut TuiDom, input: NodeId, v: f64) {
     if (clamped - current).abs() < f64::EPSILON {
         return;
     }
+    // `.value =` leaves `defaultValue` (the authored attribute) alone.
+    crate::runtime::builtins::input::note_default_value(dom, input);
     let _ = dom.set_attribute(input, "value", &format_number(clamped));
     // Range slider value updates are UI affordances, not text
     // entry. Use InsertReplacementText + data: null per the DOM
