@@ -290,6 +290,8 @@ Each phase ends with the two review gates; each commit carries the item id.
   paint chrome without an `App`; a per-`Dom` slot would be a separate, behavior-changing item.
 - 2026-09-24 — Phase 6: `STYLE-DISPATCH-SPLIT-1` — `property_dispatch/{table,css_wide,set,serialize,value_serializers}.rs`; public paths
   unchanged.
+- 2026-09-24 — Phase 6: `STYLE-VALUES-SPLIT-1` — `parse/values/` one file per value family. The row's "also over the bar" list moves to
+  its own row, `OVERSIZED-FILES-1`, for the Phase 6 architect gate to triage.
 - Found while mapping Phase 3 (not on the ledger): `ImportantMask::FLOW` and `POINTER_EVENTS` share
   bit 39 (`tui_style.rs`), custom-property inheritance in the cascade is overwritten by the merged
   root map (`walk.rs`), and tokenizer errors inside a block are body-relative (`declarations.rs`).

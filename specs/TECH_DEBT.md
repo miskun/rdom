@@ -8,10 +8,11 @@ For the durable architectural divergences (web-platform departures shipped on pu
 
 ### Style crate — from the STABILIZE-2026-09 Phase 3+4 gates
 
-- **`STYLE-VALUES-SPLIT-1` — `parse/values.rs` (~1 800 lines) holds every value parser.** Split per value type (`color`, `length`, `calc` entry, `transition`, `content`); no behavior change. Also over the few-hundred-line bar: `layout.rs`, `ua.rs`, `tui_style.rs`, `stylesheet.rs`, and in `rdom-tui` `cascade/apply.rs` and `cascade/tests.rs`.
 
 ### Deferred from HARDENING-2026-09 Batch 3
 
+- **`DECLARATION-SPLIT-1`** (`cssom/declaration.rs` ~1 190 lines), **`BUFFER-SPLIT-1`** (`render/buffer.rs` ~1 090), **`VIRTUAL-SCREEN-TEST-UTIL-1`** (`render/virtual_screen.rs` ~1 090: a test-only VT emulator shipped as a public re-export; belongs behind `cfg(test)` / a `test-util` feature) — over the few-hundred-line bar; split by concern, no behavior change.
+- **`OVERSIZED-FILES-1` — files still over the few-hundred-line bar after the Phase 6 splits.** `rdom-style`: `layout.rs`, `ua.rs`, `tui_style.rs`, `stylesheet.rs`; `rdom-tui`: `style/cascade/apply.rs`, `style/cascade/tests.rs`. Each is one concern at length (a data model, the UA rule list, a builder, a test table) rather than mixed responsibilities; the Phase 6 architect gate decides per file whether to split or accept.
 
 ### Paint pipeline
 
