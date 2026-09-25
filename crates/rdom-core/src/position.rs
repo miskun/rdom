@@ -1,7 +1,7 @@
 //! `compare_document_position` — DOM spec bitflag describing how two nodes
 //! relate (precedes / follows / contains / is-contained-by / disconnected).
 //!
-//! Spec: https://dom.spec.whatwg.org/#dom-node-comparedocumentposition
+//! Spec: <https://dom.spec.whatwg.org/#dom-node-comparedocumentposition>
 
 use crate::bitflags_like;
 use crate::dom::Dom;

@@ -35,7 +35,7 @@ use crate::runtime::url_opener::{UrlOpener, is_external_scheme, scheme_of};
 /// Shareable "current url opener" handle. Double-`Rc` lets `App`
 /// keep one of these as a field while the click listener holds
 /// an independent clone; inner `RefCell` lets
-/// [`App::with_url_opener`] swap the backend at any time, with the
+/// [`App::with_url_opener`](crate::App::with_url_opener) swap the backend at any time, with the
 /// swap visible to the listener on the next click.
 pub type SharedOpener = Rc<RefCell<Rc<dyn UrlOpener>>>;
 

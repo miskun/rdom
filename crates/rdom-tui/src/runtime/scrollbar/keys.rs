@@ -13,7 +13,7 @@ use super::scroll::set_scroll;
 use crate::TuiDom;
 
 /// Attribute the runtime keeps on the scroll container the keyboard
-/// scrolls (see [`scroll_focus_target`]); the UA sheet colors that
+/// scrolls (see `scroll_focus_target`); the UA sheet colors that
 /// container's scrollbar thumb through it. Author rules may match it
 /// too. Written with `set_attribute` / `remove_attribute` before the
 /// frame's cascade, so mutation observers see the moves.

@@ -4,8 +4,8 @@
 use crate::Content;
 use crate::parse::token::Token;
 
-/// `content`: `none` | `normal` | [ <string> | attr(<ident>) |
-/// counter(<ident> [, <counter-style>]) ]+ (CSS Generated Content 3
+/// `content`: `none` | `normal` | `[ <string> | attr(<ident>) |
+/// counter(<ident> [, <counter-style>]) ]+` (CSS Generated Content 3
 /// §1.2, the subset rdom renders). Several items concatenate.
 pub fn parse_content(value: &[Token]) -> Option<Content> {
     use crate::counters::CounterStyle;
@@ -62,7 +62,7 @@ pub fn parse_content(value: &[Token]) -> Option<Content> {
     }
 }
 
-/// `counter-reset` / `counter-increment`: `none` | [ <ident> <integer>? ]+
+/// `counter-reset` / `counter-increment`: `none` | `[ <ident> <integer>? ]+`
 /// with `default` as the implied integer (0 for reset, 1 for increment).
 pub fn parse_counter_ops(value: &[Token], default: i32) -> Option<Vec<crate::counters::CounterOp>> {
     use crate::counters::CounterOp;

@@ -92,7 +92,7 @@ pub fn size_all_tables(dom: &mut TuiDom) {
 ///   pass runs before cascade and reads only inline/author widths. Full CSS
 ///   table layout is `TABLE-TFC-1`.)*
 /// - **Content (fallback):** the widest cell's text width + the UA cell
-///   padding ([`CELL_H_PADDING`]).
+///   padding (`CELL_H_PADDING`).
 ///
 /// Crucially this **does not touch `inline_style`** (so author intent and the
 /// computed result never conflate, the dead-`Column.width` / `::after`-clip

@@ -158,7 +158,7 @@ pub struct TuiStyle {
     /// Some(Block)` + `flow = Some(Block)`; etc.
     pub display: Option<Value<Display>>,
     /// Inner display — how this element lays out its children.
-    /// Written alongside `display` by the same parser. See [`Flow`]
+    /// Written alongside `display` by the same parser. See [`Flow`](crate::layout::Flow)
     /// for the mapping table.
     pub flow: Option<Value<crate::layout::Flow>>,
     pub white_space: Option<Value<WhiteSpace>>,

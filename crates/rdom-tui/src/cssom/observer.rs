@@ -16,7 +16,7 @@
 //!
 //! ## What it skips
 //!
-//! When [`super::reentry::is_in_cssom_write`] is `true`, the
+//! When `super::reentry::is_in_cssom_write` is `true`, the
 //! observer bails. `StyleDeclarationMut` sets that flag while
 //! writing its serialized declaration back to the `style="…"`
 //! attribute (per §8.5 lock); the inline_style field has already

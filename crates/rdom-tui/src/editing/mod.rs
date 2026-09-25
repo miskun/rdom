@@ -3,24 +3,17 @@
 //!
 //! Depends on `runtime` (focus, keyboard, selection, clipboard).
 //!
-//! ## Module layout (planned)
+//! ## Where it lives
 //!
-//! - [`caret`] — blinking cursor rendering via `::caret` pseudo on a
-//!   collapsed selection in a focused editable. Blink timer owned by
-//!   `App`.
-//! - [`mutation`] — the `beforeinput` → mutate → `input` lifecycle.
-//!   Compose `InputEvent` with `input_type` + optional `data`;
-//!   cancelable via `prevent_default` on `beforeinput`.
-//! - [`undo`] — per-element bounded history stack (default 100
-//!   entries). Coalescing of consecutive printable-char inserts.
-//!   Ctrl-Z / Ctrl-Shift-Z (Cmd on macOS).
-//! - [`input`] — `<input>` built-in element: single-line editor with
-//!   `value`, `placeholder`, `type` (text / password / number),
-//!   `maxlength`, `readonly`, `disabled`.
-//! - [`textarea`] — `<textarea>` built-in: multi-line editor,
-//!   `rows`/`cols`/`wrap` attributes.
-//! - [`contenteditable`] — generalization: any element becomes
-//!   editable via `contenteditable="true" | plaintext-only"`.
+//! This module is an empty placeholder; the editing implementation
+//! landed elsewhere:
+//!
+//! - [`crate::runtime::editing`] — the caret (`(node, byte_offset) →
+//!   cell` mapping), caret movement, the `beforeinput` → mutate →
+//!   `input` lifecycle ([`perform_edit`](crate::runtime::editing::perform_edit)),
+//!   and the per-element undo / redo history.
+//! - [`crate::runtime::builtins::input`] — the `<input>` / `<textarea>`
+//!   built-ins and `contenteditable` hosts.
 
 // Placeholders — Phase 14.7 fills these in.
 // pub mod caret;

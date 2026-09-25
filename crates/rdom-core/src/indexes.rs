@@ -1,4 +1,4 @@
-//! Indexes: id → set<NodeId>, tag → set<NodeId>, class → set<NodeId>.
+//! Indexes: id → `set<NodeId>`, tag → `set<NodeId>`, class → `set<NodeId>`.
 //!
 //! Every mutation entry point calls a hook that keeps these in sync. The
 //! payoff: `get_element_by_id` is a hashmap hit; tag/class getters return

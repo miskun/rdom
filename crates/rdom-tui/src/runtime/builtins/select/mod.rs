@@ -51,23 +51,23 @@
 //!
 //! ## Module map
 //!
-//! - [`model`] — option list + read API (`options`,
+//! - `model` — option list + read API (`options`,
 //!   `selected_options`, `value`, `option_value`, `option_label`),
 //!   `multiple` / display-size queries, and the option / select
 //!   ancestor walks.
-//! - [`selectedness`] — the HTML selectedness setting algorithm (one
+//! - `selectedness` — the HTML selectedness setting algorithm (one
 //!   option shown by a single-select dropdown) and when it runs: mount
 //!   ([`seed_all`]), reset, and option insertion / removal.
-//! - [`state`] — selection writes shared by every input path
+//! - `state` — selection writes shared by every input path
 //!   (single pick, toggle, anchor range extend), the highlight /
 //!   anchor markers, and `input` + `change` firing.
-//! - [`click`] — the `click` default action: option pick / toggle,
+//! - `click` — the `click` default action: option pick / toggle,
 //!   shift-click extend, dropdown chrome toggle and auto-close.
-//! - [`keyboard`] — the `keydown` default action: arrow / Home /
+//! - `keyboard` — the `keydown` default action: arrow / Home /
 //!   End stepping, Space, Ctrl+A, Enter / Escape on a dropdown.
-//! - [`typeahead`] — the per-select type-ahead buffer and its
+//! - `typeahead` — the per-select type-ahead buffer and its
 //!   prefix / cycle match.
-//! - [`dropdown`] — dropdown-vs-listbox test and the open / close
+//! - `dropdown` — dropdown-vs-listbox test and the open / close
 //!   marker (`is_dropdown`, `is_open`, `open`, `close`), and the
 //!   closed-dropdown label the paint pass substitutes for the
 //!   select's own text (`inline_chrome`).

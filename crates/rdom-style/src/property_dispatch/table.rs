@@ -266,7 +266,7 @@ pub(super) fn fields_of(name: &str) -> Option<&'static [Field]> {
     })
 }
 
-/// Map a property name to the [`ImportantMask`] bit(s) it owns: the OR
+/// Map a property name to the [`ImportantMask`](crate::tui_style::ImportantMask) bit(s) it owns: the OR
 /// of every field's bit. Returns `None` for unknown names.
 ///
 /// Two consumers: the `rdom-css` block parser's `!important`

@@ -1,7 +1,7 @@
 //! Property dispatch table — single source for the
 //! `name → (setter, serializer)` mapping that drives:
 //!
-//! - [`crate::declarations::apply_declaration`] (block parser)
+//! - `rdom_css`'s declaration block parser (`apply_declaration`)
 //! - `rdom_tui::cssom::StyleDeclaration` (step 26)
 //!
 //! ## Why this exists

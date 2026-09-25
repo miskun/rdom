@@ -138,9 +138,9 @@ impl TuiEvent {
 
     /// Construct a `contextmenu` event from a crossterm
     /// `MouseEvent`. Fired on right-mouse-button down (and on
-    /// `Shift+F10` / context-menu key — those paths construct
-    /// via the [`Self::contextmenu_keyboard`] variant since they
-    /// have no mouse coordinates). Bubbles, cancelable.
+    /// `Shift+F10`, which has no mouse coordinates — the keyboard
+    /// default action builds that one with [`Self::new`]). Bubbles,
+    /// cancelable.
     pub fn contextmenu(mouse: MouseEvent) -> Self {
         let mut e = Self::new("contextmenu");
         e.event.detail = EventDetail::Mouse(key_translate::translate_mouse_event(mouse));
@@ -207,7 +207,7 @@ impl TuiEvent {
         e
     }
 
-    /// Construct a `cut` event. Same detail semantics as [`copy`].
+    /// Construct a `cut` event. Same detail semantics as [`Self::copy`].
     /// Default action copies the detail to the system clipboard;
     /// actually deleting the selected content is the handler's job
     /// (an `<input>` editor listens for `cut` and removes the

@@ -146,7 +146,7 @@ pub trait TuiAccessors<'a> {
     /// space. Returns `None` for non-element nodes (text, comment).
     ///
     /// **Divergence from DOM:** browsers return `DOMRect` with f64
-    /// fields; rdom returns [`LayoutRect`] (i32 + u16) because the
+    /// fields; rdom returns [`LayoutRect`](crate::LayoutRect) (i32 + u16) because the
     /// substrate is cell-grained. `DomRect` is re-exported below as
     /// a type alias for spec-name parity.
     fn bounding_rect(&self) -> Option<DomRect>;
@@ -386,7 +386,7 @@ pub trait TuiAccessors<'a> {
     fn form_length(&self) -> Option<usize>;
 }
 
-/// Spec-name alias for [`LayoutRect`] — the type returned by
+/// Spec-name alias for [`LayoutRect`](crate::LayoutRect) — the type returned by
 /// [`TuiAccessors::bounding_rect`]. Browsers return `DOMRect` for
 /// the equivalent IDL; this alias lets call sites read `DomRect`
 /// without reaching for the layout module.

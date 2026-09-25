@@ -138,7 +138,7 @@ pub fn translate_modifiers(m: CtKeyModifiers) -> KeyboardModifiers {
 /// [`MouseDetail`]. Cell-grained coordinates flow through to
 /// `client_x` / `client_y` (DOM `MouseEvent.clientX/Y`); the
 /// button-that-transitioned + held-buttons bitmask come from
-/// [`mouse_kind_to_button`].
+/// `mouse_kind_to_button`.
 pub fn translate_mouse_event(ev: MouseEvent) -> MouseDetail {
     let (button, buttons) = mouse_kind_to_button(ev.kind);
     let (delta_x, delta_y) = wheel_delta(ev.kind);

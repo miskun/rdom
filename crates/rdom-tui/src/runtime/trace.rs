@@ -58,7 +58,7 @@ fn state() -> &'static Option<TraceState> {
 
 /// Returns true when tracing is enabled (env var set + file open
 /// succeeded). Callers use this to skip expensive `format!` work
-/// when tracing is off — the [`trace!`] macro does this for you.
+/// when tracing is off — the [`rdom_trace!`](crate::rdom_trace) macro does this for you.
 #[inline]
 pub fn enabled() -> bool {
     state().is_some()

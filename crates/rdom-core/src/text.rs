@@ -1,7 +1,7 @@
 //! `textContent` — getter concatenates descendant Text data; setter
 //! replaces all children with a single Text node.
 //!
-//! Spec: https://dom.spec.whatwg.org/#dom-node-textcontent
+//! Spec: <https://dom.spec.whatwg.org/#dom-node-textcontent>
 
 use crate::dom::Dom;
 use crate::error::Result;

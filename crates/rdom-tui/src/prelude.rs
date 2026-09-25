@@ -9,12 +9,12 @@
 //! The prelude re-exports the M4b accessor traits so a single
 //! `use rdom_tui::prelude::*;` brings them in scope:
 //!
-//! - [`TuiAccessors`](crate::TuiAccessors) — per-element read
+//! - [`TuiAccessors`] — per-element read
 //!   methods (`value`, `checked`, `style`, per-tag accessors).
-//! - [`TuiAccessorsMut`](crate::TuiAccessorsMut) — per-element
+//! - [`TuiAccessorsMut`] — per-element
 //!   write methods (`set_value`, `style_mut`, `focus`, `click`,
 //!   …).
-//! - [`TuiDocAccessors`](crate::TuiDocAccessors) — document-level
+//! - [`TuiDocAccessors`] — document-level
 //!   read methods (`element_from_point`,
 //!   `caret_position_from_point`).
 //!

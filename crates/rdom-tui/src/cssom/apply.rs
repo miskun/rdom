@@ -1,6 +1,6 @@
 //! `<style>` block extraction + inline-style seeding — the
 //! parse-and-apply glue between [`rdom_css`] (the parser) and
-//! [`TuiDom`](crate::TuiDom) (the tree being styled).
+//! [`TuiDom`] (the tree being styled).
 //!
 //! Two helpers:
 //!

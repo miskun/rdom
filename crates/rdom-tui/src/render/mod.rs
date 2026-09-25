@@ -6,8 +6,10 @@
 //!
 //! ## Module layout
 //!
-//! - [`color`] — `Color` enum (Reset, ANSI-16 named, Indexed, Rgb)
-//! - [`modifier`] — `Modifier` bitflags (9 SGR effects)
+//! - [`Color`] — `Color` enum (Reset, ANSI-16 named, Indexed, Rgb),
+//!   re-exported from `rdom_style`
+//! - [`Modifier`] — `Modifier` bitflags (9 SGR effects), re-exported
+//!   from `rdom_style`
 //! - [`style`] — `Style` with `add_modifier`/`sub_modifier` + `patch()`
 //! - [`rect`] — `Rect` (unsigned grid rectangle with saturating math)
 //!

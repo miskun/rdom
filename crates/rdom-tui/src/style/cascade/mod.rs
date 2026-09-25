@@ -10,21 +10,21 @@
 //!
 //! 1. Start from `ComputedStyle::initial()`.
 //! 2. Inherit the inherited properties (`rdom_style::property_dispatch::inherits`) from the parent
-//!    ([`inherit`]).
+//!    (`inherit`).
 //! 3. Collect matching rules via `rdom_core::Dom::matches_list`.
 //! 4. Sort candidates by (specificity, source_idx). Ascending =
 //!    late-wins.
-//! 5. Apply declarations in origin + importance order ([`apply`]):
+//! 5. Apply declarations in origin + importance order (`apply`):
 //!    1. UA normal, Author normal, Inline normal,
 //!    2. Inline important, Author important, UA important.
 //!
 //!    Within each ladder step, sort by (specificity, source_idx).
 //! 6. Resolve `Value::Inherit` / `Value::Initial` per-property.
-//! 7. Resolve `content` ([`content`]) — pseudo-element body.
+//! 7. Resolve `content` (`content`) — pseudo-element body.
 //! 8. Finalize `border_fg` (fall back to final `fg`).
 //! 9. Write to `TuiExt.computed` and flip `style_dirty=false`; if
 //!    any layout-affecting property's new value differs, set
-//!    `layout_dirty=true` ([`inherit::layout_differs`]).
+//!    `layout_dirty=true` (`inherit::layout_differs`).
 //!
 //! Pseudo-elements use the same algorithm but start from the host's
 //! computed style (not the parent's). They contribute a concrete
@@ -34,17 +34,17 @@
 //!
 //! ## Module layout
 //!
-//! - [`walk`] — `cascade_subtree`, `compute_element_style`,
+//! - `walk` — `cascade_subtree`, `compute_element_style`,
 //!   `compute_pseudo_style`. The tree recursion lives here.
-//! - [`apply`] — cascade ladder + per-property applicators.
-//! - [`inherit`] — `inherit_inheritable_from`, `layout_differs`.
-//! - [`content`] — pseudo-element `content` resolution.
+//! - `apply` — cascade ladder + per-property applicators.
+//! - `inherit` — `inherit_inheritable_from`, `layout_differs`.
+//! - `content` — pseudo-element `content` resolution.
 //!
 //! ## Inheritance model
 //!
 //! Which properties inherit is a fact about the property, declared once
 //! in `rdom_style::property_dispatch::inherits` (it also decides what
-//! `unset` means). [`inherit::inherit_inheritable_from`] copies exactly
+//! `unset` means). `inherit::inherit_inheritable_from` copies exactly
 //! that set from parent to child, and a cascade test probes every
 //! property against the table so the two cannot drift.
 

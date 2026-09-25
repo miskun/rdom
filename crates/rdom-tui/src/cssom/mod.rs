@@ -53,13 +53,13 @@ pub use rdom_style::property_dispatch::DispatchError;
 /// refreshes [`crate::TuiExt::inline_style`] whenever the
 /// `style="…"` attribute mutates after build. Apps that
 /// construct a [`crate::TuiDom`] directly (without going through
-/// [`crate::App::build`]) should call this once before they
+/// `crate::App::build`) should call this once before they
 /// expect inline-style mutations to flow through to the cascade,
 /// otherwise the old `D-M1-4` symptom recurs: programmatic
 /// `set_attribute("style", "…")` writes don't update the typed
 /// `inline_style` field.
 ///
-/// [`crate::App::build`] calls this internally; you only need to
+/// `crate::App::build` calls this internally; you only need to
 /// call it directly when bypassing `App`.
 pub fn install_default_observers(dom: &mut rdom_core::Dom<crate::TuiExt>) {
     let _ = install_inline_style_observer(dom);

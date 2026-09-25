@@ -6,13 +6,13 @@
 //!
 //! ## Algorithm
 //!
-//! 1. Walk the block's subtree in document order (see [`walk_subtree`]),
+//! 1. Walk the block's subtree in document order (see `walk_subtree`),
 //!    producing a stream of (owner-element, source-text-node,
 //!    byte-offset, grapheme) tuples. Owner is the direct element
 //!    parent of the text node — for hit-test routing we need to know
 //!    which `<code>` / `<b>` / `<p>` a click lands in.
 //! 2. Normalize whitespace per the block's cascaded `white_space`
-//!    (see [`packer`]). `Normal` / `NoWrap` collapse runs to a single
+//!    (see `packer`). `Normal` / `NoWrap` collapse runs to a single
 //!    space and trim IFC edges; `Pre` passes through verbatim.
 //! 3. Accumulate visible graphemes into a *pending word* — a run
 //!    bracketed by break opportunities (whitespace, CJK boundaries,
@@ -115,8 +115,7 @@ pub struct GeneratedFragment {
     /// The element whose pseudo-element this is (paint reads its
     /// `computed_before` / `computed_after`).
     pub host: NodeId,
-    /// [`StyleSlot::Before`](crate::ext::StyleSlot::Before) or
-    /// [`StyleSlot::After`](crate::ext::StyleSlot::After).
+    /// [`StyleSlot::Before`] or [`StyleSlot::After`].
     pub slot: crate::ext::StyleSlot,
     /// X offset from the inline flow's content-area left edge.
     pub x: u16,

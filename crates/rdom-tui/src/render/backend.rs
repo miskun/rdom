@@ -10,7 +10,7 @@
 //! - [`TestBackend`] — captures bytes into a `Vec<u8>` for tests.
 //!   Also exposes its internal state model (cursor position, cursor
 //!   visibility) for assertion.
-//! - [`CrosstermBackend`] (see `backend_crossterm.rs`) — real
+//! - [`CrosstermBackend`](super::CrosstermBackend) (see `backend_crossterm.rs`) — real
 //!   terminal I/O via crossterm.
 //!
 //! ## Diff-driven draw

@@ -196,8 +196,8 @@ pub struct Stylesheet {
 impl Stylesheet {
     /// Create a stylesheet with the baked-in UA defaults.
     ///
-    /// The UA rules live in [`crate::ua`] — see
-    /// [`crate::ua::user_agent_defaults`] for the full slice.
+    /// The UA rules live in `crate::ua` — see
+    /// `crate::ua::user_agent_defaults` for the full slice.
     ///
     /// Authors override any rule by writing a more-specific or
     /// `!important` rule; UA rules carry `RuleOrigin::UserAgent`

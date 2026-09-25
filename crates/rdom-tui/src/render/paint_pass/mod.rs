@@ -24,8 +24,8 @@
 //!
 //! Positioned children do not paint in the recursion: they belong to
 //! the layers of the nearest stacking context (CSS 2.1 Appendix E),
-//! which [`paint_stacking_context`] paints around the context root's
-//! in-flow content — see [`crate::render::stacking`].
+//! which `paint_stacking_context` paints around the context root's
+//! in-flow content — see `crate::render::stacking`.
 //!
 //! ## Clipping
 //!
@@ -33,7 +33,7 @@
 //!   caller wants to paint into. Nothing outside `clip` is ever
 //!   written.
 //! - Each element's paint is intersected with `clip` via
-//!   [`layout_rect_to_grid`].
+//!   `layout_rect_to_grid`.
 //! - For `overflow: Hidden | Scroll | Auto`, children are recursed
 //!   with a tighter clip = padding box ∩ clip.
 //! - `overflow: Visible` keeps the incoming clip — children can
@@ -48,15 +48,15 @@
 //!   (`paint_stacking_context` / `paint_box` / `paint_content` /
 //!   `recurse_children`) and the shared `layout_rect_to_grid` clip
 //!   utility.
-//! - [`border`] — background fill + border drawing (box-drawing
+//! - `border` — background fill + border drawing (box-drawing
 //!   chars, edge selection).
-//! - [`group`] — `opacity` group rendering through a bounded layer.
-//! - [`inline_paint`] — `::before` + own text + `::after` for
+//! - `group` — `opacity` group rendering through a bounded layer.
+//! - `inline_paint` — `::before` + own text + `::after` for
 //!   non-IFC elements; fragment-driven IFC paint. Split into the
 //!   fragment painter (`mod.rs`), the chrome-substitution seam
 //!   (`chrome`), the single-row painter (`single_row`), the caret
 //!   (`caret`) and the `::selection` overlay (`selection_overlay`).
-//! - [`text`] — `paint_text` low-level helper + `ComputedStyle` →
+//! - `text` — `paint_text` low-level helper + `ComputedStyle` →
 //!   `Style` conversion.
 
 mod border;

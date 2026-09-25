@@ -22,7 +22,7 @@
 //!
 //! ## Sub-modules
 //!
-//! - [`mouse`] — `mousedown` / `mouseup` / `mousemove` / `click`
+//! - `mouse` — `mousedown` / `mouseup` / `mousemove` / `click`
 //!   (common-ancestor synthesis), plus hover transition triggers.
 
 pub(crate) mod mouse;

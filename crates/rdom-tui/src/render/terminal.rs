@@ -228,7 +228,7 @@ impl<B: Backend> Terminal<B> {
 /// let backend = CrosstermBackend::new(stdout);
 /// let mut term = Terminal::new(backend)?;
 /// // Even if this panics, TerminalGuard::drop restores the terminal.
-/// term.draw(|buf| { … })?;
+/// term.draw(|buf| { /* paint into buf */ })?;
 /// ```
 pub struct TerminalGuard {
     active: bool,

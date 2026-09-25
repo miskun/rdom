@@ -100,7 +100,7 @@ pub struct ComputedStyle {
     /// Inner display — how this element lays out its children.
     /// Default `Block` (children stack at natural heights, CSS 2.1
     /// §10 block flow). `display: flex` flips this to `Flex`. See
-    /// [`Flow`] for the full table.
+    /// [`Flow`](crate::layout::Flow) for the full table.
     pub flow: crate::layout::Flow,
     /// True when this element establishes a new **block formatting
     /// context** per CSS 2.1 §9.4.1. Triggers: root element, flex

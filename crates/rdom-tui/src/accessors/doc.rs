@@ -1,16 +1,16 @@
 //! `TuiDocAccessors` — document-level read accessors that
 //! complement the per-element [`TuiAccessors`](super::TuiAccessors).
 //!
-//! Wraps the existing [`HitTestExt`](crate::HitTestExt) hit-test
+//! Wraps the existing [`HitTestExt`] hit-test
 //! pipeline with browser-IDL-shaped names and `NodeRef` returns
 //! (rather than the runtime-flavored `NodeId`):
 //!
 //! - [`Document.elementFromPoint`](https://developer.mozilla.org/docs/Web/API/Document/elementFromPoint)
-//!   → [`Self::element_from_point`].
+//!   → [`TuiDocAccessors::element_from_point`].
 //! - [`Document.elementsFromPoint`](https://developer.mozilla.org/docs/Web/API/Document/elementsFromPoint)
-//!   → [`Self::elements_from_point`].
+//!   → [`TuiDocAccessors::elements_from_point`].
 //! - [`Document.caretPositionFromPoint`](https://developer.mozilla.org/docs/Web/API/Document/caretPositionFromPoint)
-//!   → [`Self::caret_position_from_point`].
+//!   → [`TuiDocAccessors::caret_position_from_point`].
 //!
 //! ## Coordinate types
 //!

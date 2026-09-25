@@ -34,13 +34,13 @@
 //!
 //! ## Module map
 //!
-//! - [`descend`] — the stacking-context walk behind `hit_test_path`:
+//! - `descend` — the stacking-context walk behind `hit_test_path`:
 //!   layers, plain boxes, in-flow content, inline-fragment owners,
 //!   `pointer-events` transparency.
-//! - [`nearest`] — `InlineTarget` and the choice of inline-flow target
+//! - `nearest` — `InlineTarget` and the choice of inline-flow target
 //!   for a text position: containment (`inline_target_at`) and the
 //!   empty-space nearest-by-distance fallback.
-//! - [`fragment`] — resolving a cell inside a chosen target to a
+//! - `fragment` — resolving a cell inside a chosen target to a
 //!   `Position`: fragment lookup, line clamp, grapheme cell → byte.
 //!
 //! This file keeps the [`HitTestExt`] trait and its impl — the thin

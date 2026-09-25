@@ -2,7 +2,7 @@
 //! around an element's inline `TuiStyle`.
 //!
 //! Reads/writes route through
-//! [`rdom_style::property_dispatch`](rdom_style::property_dispatch),
+//! [`rdom_style::property_dispatch`],
 //! the single source of truth for the name→(setter, serializer)
 //! mapping shared with the block parser.
 //!

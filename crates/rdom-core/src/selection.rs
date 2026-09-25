@@ -53,8 +53,10 @@ impl Position {
 }
 
 /// A range of text in document order — `start` precedes or equals
-/// `end`. Always normalized on construction via [`Range::new`] to
-/// accept any two positions and sort them.
+/// `end`. Built in document order by
+/// [`Dom::selection_range`](crate::Dom::selection_range), which accepts
+/// any two positions and sorts them; [`Range::ordered_unchecked`] trusts
+/// the caller's order.
 ///
 /// Use [`Range::is_collapsed`] to detect zero-length ranges (the
 /// "caret" case).

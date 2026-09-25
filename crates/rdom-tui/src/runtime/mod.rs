@@ -11,12 +11,12 @@
 //! - [`focus`] — tabindex, focus navigation, modal focus trap.
 //! - [`selection`] — text selection, clipboard, `::selection`,
 //!   `user-select`.
-//! - [`pointer_capture`] — drag routing.
+//! - Pointer capture (drag routing) is DOM state in `rdom-core`
+//!   (`Dom::set_pointer_capture`); the router honors it.
 //! - [`app`] — `App`, `AppContext`, `AppHandle`, lifecycle, panic
 //!   safety, the main loop.
-//! - [`abort`] — `AbortController` / `AbortSignal` for listener
-//!   lifetime cancellation (lives here in rdom-tui for v1; may move
-//!   to rdom-core if the primitive gets broader use).
+//! - `AbortController` / `AbortSignal` (listener lifetime
+//!   cancellation) live in `rdom-core` (`rdom_core::AbortSignal`).
 //!
 //! Every sub-module is independently testable and usable. `App`
 //! composes them; apps can alternatively drive `Router::route`

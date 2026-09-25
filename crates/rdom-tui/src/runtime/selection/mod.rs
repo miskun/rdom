@@ -4,15 +4,15 @@
 //! ## Sub-modules
 //!
 //! - types: `Selection`, `Range`, `Position` — core data model.
-//! - [`drag`] — mouse-drag selection (router state; no pointer capture).
-//! - [`keyboard`] — Shift+arrow extend, Shift+Ctrl+arrow word, Ctrl-A.
+//! - `drag` — mouse-drag selection (router state; no pointer capture).
+//! - `keyboard` — Shift+arrow extend, Shift+Ctrl+arrow word, Ctrl-A.
 //!   Double-click word-select; triple-click line-select.
 //! - [`clipboard`] — copy / cut / paste. `arboard` integration.
 //!   Serialization walks the range in document order with whitespace
 //!   normalization.
-//! - [`paint`] — `::selection` pseudo-element overlay on cells in the
-//!   range; `::caret` for collapsed selection on focused editable.
-//! - [`user_select`] — `UserSelect::{Auto, Text, None, All, Contain}`
+//! - The `::selection` overlay on the range's cells is painted by
+//!   `crate::render::paint_pass` (`selection_overlay`), as is the caret.
+//! - `user_select` — `UserSelect::{Auto, Text, None, All, Contain}`
 //!   CSS property + cascade hook that shapes what the drag machinery
 //!   considers selectable.
 

@@ -10,10 +10,10 @@
 //! Given a container's `content_layout` (inner rect after padding +
 //! border on the container itself) and its children:
 //!
-//! 1. **Main-axis sizing** (see [`flex`]). For `Row`, main = width;
+//! 1. **Main-axis sizing** (see `flex`). For `Row`, main = width;
 //!    for `Column`, main = height. Children contribute:
 //!    - `Fixed(n)` → `n` main-axis cells
-//!    - `Auto` → intrinsic size ([`intrinsic`])
+//!    - `Auto` → intrinsic size (`intrinsic`)
 //!    - `Flex(w)` → share of the remaining space proportional to `w`
 //! 2. **Cross-axis sizing**: stretch to fill unless `Fixed(n)`.
 //! 3. **Min/max clamping** per CSS rules.
@@ -31,7 +31,7 @@
 //! ## IFC blocks
 //!
 //! A block whose element children are all `display: inline`
-//! establishes an inline formatting context ([`ifc`]). Its children
+//! establishes an inline formatting context (`ifc`). Its children
 //! don't participate in flex — they get zero-sized layout rects and
 //! their paint is fragment-driven via `TuiExt.inline_layout`.
 //!
@@ -40,11 +40,11 @@
 //! - `mod.rs` — public `LayoutExt` trait + `layout_node` dispatch +
 //!   shared helpers (element_children_of, parent_scroll) +
 //!   fragment handling.
-//! - [`flex`] — flex distribution: `layout_children`,
+//! - `flex` — flex distribution: `layout_children`,
 //!   `layout_flex_children`, `resolve_cross_size`.
-//! - [`intrinsic`] — `Size::Auto` resolution via content
+//! - `intrinsic` — `Size::Auto` resolution via content
 //!   measurement. Text / element / IFC paths.
-//! - [`ifc`] — IFC detection.
+//! - `ifc` — IFC detection.
 //!
 //! ## Scroll
 //!
