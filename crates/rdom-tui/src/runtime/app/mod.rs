@@ -99,6 +99,10 @@ pub struct App<B: Backend = CrosstermBackend<Stdout>> {
     pub(super) next_stylesheet_id: u64,
     pub(super) terminal: Terminal<B>,
     pub(super) tracker: DirtyTracker,
+    /// Runs the `<select>` selectedness setting algorithm on selects
+    /// whose options were inserted / removed; flushed before each event
+    /// and each frame.
+    pub(super) selectedness: crate::runtime::builtins::select::Selectedness,
     pub(super) router: Router,
 
     tick_rate: Duration,
@@ -342,6 +346,11 @@ impl<B: Backend> App<B> {
         // type="range">` declaratively present in the tree.
         // Dynamically-added ranges call `range::attach` themselves.
         crate::runtime::builtins::range::attach_all(&mut dom);
+        // HTML §4.10.7: a single-select dropdown shows one option — run
+        // the selectedness setting algorithm on every `<select>` now,
+        // and on each select whose options change from here on.
+        crate::runtime::builtins::select::seed_all(&mut dom);
+        let selectedness = crate::runtime::builtins::select::Selectedness::install(&mut dom);
         // Sync column widths across every `<table>` so cells in
         // different rows align. v1 uses content-based measurement;
         // apps that mutate tables at runtime can call the helper
@@ -363,6 +372,7 @@ impl<B: Backend> App<B> {
             next_stylesheet_id: 1,
             terminal,
             tracker,
+            selectedness,
             router: Router::new(),
             tick_rate: Duration::from_millis(50),
             animation_frame_ms: 16,
@@ -567,6 +577,9 @@ impl<B: Backend> App<B> {
         // motion events are NOT crossing this boundary — i.e.,
         // crossterm itself isn't producing them.
         crate::rdom_trace!("App::handle_event RAW: {event:?}");
+        // Option lists the app changed since the last event: settle the
+        // selects before any default action reads them.
+        self.selectedness.flush(&mut self.dom);
         match &event {
             CtEvent::Key(key) => self.handle_key_event(*key),
             CtEvent::Mouse(m) => {

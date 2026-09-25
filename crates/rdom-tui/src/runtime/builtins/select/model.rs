@@ -109,6 +109,16 @@ fn walk_options(dom: &TuiDom, id: NodeId, out: &mut Vec<NodeId>) {
     }
 }
 
+/// HTML §4.10.10: an `<option>` is disabled when it has the `disabled`
+/// attribute or is a child of a disabled `<optgroup>`.
+pub(super) fn option_disabled(dom: &TuiDom, option: NodeId) -> bool {
+    let node = dom.node(option);
+    node.has_attribute("disabled")
+        || node
+            .parent_node()
+            .is_some_and(|p| p.tag_name() == Some("optgroup") && p.has_attribute("disabled"))
+}
+
 pub(super) fn closest_option(dom: &TuiDom, id: NodeId) -> Option<NodeId> {
     let mut cur = Some(id);
     while let Some(n) = cur {

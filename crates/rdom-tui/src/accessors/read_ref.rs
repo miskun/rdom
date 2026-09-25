@@ -52,6 +52,17 @@ impl<'a> TuiAccessors<'a> for rdom_core::NodeRef<'a, TuiExt> {
         )
     }
 
+    fn default_selected(&self) -> Option<bool> {
+        if self.tag_name() != Some("option") {
+            return None;
+        }
+        Some(
+            self.ext()
+                .and_then(|e| e.default_selected)
+                .unwrap_or_else(|| self.has_attribute("selected")),
+        )
+    }
+
     fn indeterminate(&self) -> bool {
         self.has_attribute("indeterminate")
     }

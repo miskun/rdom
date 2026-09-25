@@ -436,9 +436,11 @@ pub struct TuiExt {
     pub default_checked: Option<bool>,
     /// `defaultSelected` of an `<option>`: its `selected` attribute as
     /// authored, captured (for every option of the select) before the
-    /// select's first change; `<form>` reset restores it. `None` until
-    /// then — the attribute is still the authored state.
-    /// **Runtime-managed.**
+    /// select's first change, and for one option before the
+    /// selectedness setting algorithm flips it; `<form>` reset restores
+    /// it. `None` until then — the attribute is still the authored
+    /// state. **Runtime-managed** — use `TuiAccessors::default_selected`
+    /// / `TuiAccessorsMut::set_default_selected`.
     pub default_selected: Option<bool>,
     /// A caret move or edit asked this inline-flow container to reveal
     /// the caret; the runtime re-runs the reveal after the next layout,

@@ -53,6 +53,9 @@
 //!   `selected_options`, `value`, `option_value`, `option_label`),
 //!   `multiple` / display-size queries, and the option / select
 //!   ancestor walks.
+//! - [`selectedness`] — the HTML selectedness setting algorithm (one
+//!   option shown by a single-select dropdown) and when it runs: mount
+//!   ([`seed_all`]), reset, and option insertion / removal.
 //! - [`state`] — selection writes shared by every input path
 //!   (single pick, toggle, anchor range extend), the highlight /
 //!   anchor markers, and `input` + `change` firing.
@@ -74,6 +77,7 @@ mod click;
 mod dropdown;
 mod keyboard;
 mod model;
+mod selectedness;
 mod state;
 mod typeahead;
 
@@ -84,6 +88,8 @@ use crate::TuiDom;
 pub(crate) use dropdown::inline_chrome;
 pub use dropdown::{close, is_dropdown, is_open, open};
 pub use model::{option_label, option_value, options, selected_options, value};
+pub(crate) use selectedness::Selectedness;
+pub use selectedness::seed_all;
 pub(crate) use state::{note_default_selected, reset_to_default};
 
 /// Install the select default actions: two root-level listeners,

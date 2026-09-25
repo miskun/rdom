@@ -81,6 +81,17 @@ impl<'a> TuiAccessorsMut<'a> for rdom_core::NodeMut<'a, TuiExt> {
         Ok(())
     }
 
+    fn set_default_selected(&mut self, value: bool) -> Result<()> {
+        let id = self.id();
+        let dom = self.dom_mut();
+        if dom.node(id).tag_name() == Some("option")
+            && let Some(ext) = dom.node_mut(id).ext_mut()
+        {
+            ext.default_selected = Some(value);
+        }
+        Ok(())
+    }
+
     fn set_indeterminate(&mut self, value: bool) -> Result<()> {
         if self.as_ref().tag_name() != Some("input") {
             return Ok(());

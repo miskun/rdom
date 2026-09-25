@@ -91,6 +91,12 @@ pub trait TuiAccessors<'a> {
     /// elements.
     fn default_checked(&self) -> Option<bool>;
 
+    /// `defaultSelected` of an `<option>`: its selectedness as authored
+    /// (the `selected` attribute before the select's first change),
+    /// which a `<form>` reset restores. A pick by the selectedness
+    /// setting algorithm is not a default. `None` for other elements.
+    fn default_selected(&self) -> Option<bool>;
+
     /// `[indeterminate]` attribute presence — used by the
     /// `:indeterminate` pseudo-class. Browsers expose this as an
     /// IDL-only bit; v1 reflects it via attribute presence so a
@@ -437,6 +443,12 @@ pub trait TuiAccessorsMut<'a> {
     /// `checked` attribute is left alone (no dirty-checkedness flag;
     /// DIVERGENCES). No-op on other elements.
     fn set_default_checked(&mut self, value: bool) -> Result<()>;
+
+    /// Set `defaultSelected` of an `<option>` — the selectedness a
+    /// `<form>` reset restores (HTML `defaultSelected = …`). The live
+    /// `selected` attribute is left alone (DIVERGENCES). No-op on other
+    /// elements.
+    fn set_default_selected(&mut self, value: bool) -> Result<()>;
 
     /// Set the `[indeterminate]` attribute presence on `<input>`.
     /// No-op on other tags. Browsers expose this as an IDL-only

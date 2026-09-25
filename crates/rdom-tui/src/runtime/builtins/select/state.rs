@@ -34,9 +34,9 @@ pub(crate) fn note_default_selected(dom: &mut TuiDom, select: NodeId) {
 }
 
 /// HTML §4.10.7 reset algorithm for `<select>`: every option goes back
-/// to its `defaultSelected`. An option never captured still holds its
-/// authored attribute and is left alone. No events fire. rdom runs no
-/// selectedness setting algorithm (DIVERGENCES), here or at load.
+/// to its `defaultSelected` (an option never captured still holds its
+/// authored attribute and is left alone), then the selectedness setting
+/// algorithm runs. No events fire.
 pub(crate) fn reset_to_default(dom: &mut TuiDom, select: NodeId) {
     for opt in options(dom, select) {
         match dom.node(opt).ext().and_then(|e| e.default_selected) {
@@ -49,6 +49,7 @@ pub(crate) fn reset_to_default(dom: &mut TuiDom, select: NodeId) {
             None => {}
         }
     }
+    super::selectedness::run(dom, select);
 }
 
 // ── Selection writes ───────────────────────────────────────────────

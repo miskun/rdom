@@ -30,6 +30,16 @@ fn key(code: KeyCode, modifiers: KeyModifiers) -> CtEvent {
 
 /// Build `<select>` with N options. Returns (app, select_id, option_ids).
 fn select_fixture(multi: bool, labels: &[&str]) -> (App<TestBackend>, NodeId, Vec<NodeId>) {
+    select_fixture_marked(multi, labels, &[])
+}
+
+/// [`select_fixture`] with the options at `marked` authored `selected`
+/// (marked before the App mounts, as markup would).
+fn select_fixture_marked(
+    multi: bool,
+    labels: &[&str],
+    marked: &[usize],
+) -> (App<TestBackend>, NodeId, Vec<NodeId>) {
     let mut dom: TuiDom = TuiDom::new();
     let root = dom.root();
     let sel = dom.create_element("select");
@@ -45,6 +55,9 @@ fn select_fixture(multi: bool, labels: &[&str]) -> (App<TestBackend>, NodeId, Ve
         dom.append_child(sel, opt).unwrap();
         opts.push(opt);
     }
+    for &i in marked {
+        dom.set_attribute(opts[i], "selected", "").unwrap();
+    }
     dom.append_child(root, sel).unwrap();
     let app = test_app(dom);
     (app, sel, opts)
@@ -54,16 +67,15 @@ fn select_fixture(multi: bool, labels: &[&str]) -> (App<TestBackend>, NodeId, Ve
 
 #[test]
 fn value_returns_empty_when_nothing_selected() {
-    let (app, sel, _) = select_fixture(false, &["a", "b", "c"]);
+    // A multi-select has no selectedness algorithm fallback: nothing
+    // marked is nothing selected.
+    let (app, sel, _) = select_fixture(true, &["a", "b", "c"]);
     assert_eq!(select::value(app.dom(), sel), "");
 }
 
 #[test]
 fn value_returns_single_selected_option_value() {
-    let (mut app, sel, opts) = select_fixture(false, &["a", "b", "c"]);
-    app.dom_mut()
-        .set_attribute(opts[1], "selected", "")
-        .unwrap();
+    let (app, sel, _opts) = select_fixture_marked(false, &["a", "b", "c"], &[1]);
     assert_eq!(select::value(app.dom(), sel), "b");
 }
 
@@ -709,10 +721,7 @@ fn space_in_single_select_does_not_trigger_type_ahead() {
     // single-select it's currently a no-op (polish: dropdown
     // open on space). Confirm it's not accidentally treated as
     // a search char.
-    let (mut app, sel, opts) = select_fixture(false, &[" Apple", "Banana"]);
-    app.dom_mut()
-        .set_attribute(opts[1], "selected", "")
-        .unwrap();
+    let (mut app, sel, _opts) = select_fixture_marked(false, &[" Apple", "Banana"], &[1]);
     app.dom_mut().set_focused(Some(sel));
     app.handle_event(key(KeyCode::Char(' '), KeyModifiers::empty()));
     assert_eq!(select::value(app.dom(), sel), "Banana");
@@ -768,10 +777,7 @@ fn default_selected(app: &App<TestBackend>, opt: NodeId) -> Option<bool> {
 
 #[test]
 fn keyboard_pick_captures_default_selected_and_reset_restores_it() {
-    let (mut app, sel, opts) = select_fixture(false, &["a", "b", "c"]);
-    app.dom_mut()
-        .set_attribute(opts[0], "selected", "")
-        .unwrap();
+    let (mut app, sel, opts) = select_fixture_marked(false, &["a", "b", "c"], &[0]);
     app.dom_mut().set_focused(Some(sel));
     app.handle_event(key(KeyCode::Down, KeyModifiers::empty()));
     assert_eq!(select::value(app.dom(), sel), "b");
@@ -797,4 +803,195 @@ fn multi_select_toggle_and_select_all_capture_default_selected() {
 
     select::reset_to_default(app.dom_mut(), sel);
     assert_eq!(select::value(app.dom(), sel), "");
+}
+
+// ── P6G-SELECT-SELECTEDNESS-1: HTML §4.10.7 selectedness setting ───
+
+/// Build a `<select>` (single, display size 1 unless `attrs` says
+/// otherwise) whose options carry the given attributes, then mount it.
+fn marked_select(
+    select_attrs: &[(&str, &str)],
+    options: &[(&str, &[&str])],
+) -> (App<TestBackend>, NodeId, Vec<NodeId>) {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let sel = dom.create_element("select");
+    for (k, v) in select_attrs {
+        dom.set_attribute(sel, k, v).unwrap();
+    }
+    let mut opts = Vec::new();
+    for (label, attrs) in options {
+        let opt = dom.create_element("option");
+        dom.set_attribute(opt, "value", label).unwrap();
+        for a in *attrs {
+            dom.set_attribute(opt, a, "").unwrap();
+        }
+        let t = dom.create_text_node(label);
+        dom.append_child(opt, t).unwrap();
+        dom.append_child(sel, opt).unwrap();
+        opts.push(opt);
+    }
+    dom.append_child(root, sel).unwrap();
+    (test_app(dom), sel, opts)
+}
+
+fn is_selected(app: &App<TestBackend>, opt: NodeId) -> bool {
+    app.dom().node(opt).has_attribute("selected")
+}
+
+/// A single-select with display size 1 and nothing marked selects its
+/// first option at load; the algorithm's pick is not the option's
+/// default (`defaultSelected` stays false).
+#[test]
+fn single_select_with_nothing_marked_selects_its_first_option_at_load() {
+    use crate::TuiAccessors;
+    let (app, sel, opts) = marked_select(&[], &[("a", &[]), ("b", &[])]);
+    assert_eq!(select::value(app.dom(), sel), "a");
+    assert!(is_selected(&app, opts[0]));
+    assert_eq!(app.dom().node(opts[0]).default_selected(), Some(false));
+    assert_eq!(app.dom().node(opts[1]).default_selected(), Some(false));
+}
+
+#[test]
+fn a_disabled_first_option_is_skipped() {
+    let (app, sel, _) = marked_select(&[], &[("a", &["disabled"]), ("b", &[]), ("c", &[])]);
+    assert_eq!(select::value(app.dom(), sel), "b");
+}
+
+#[test]
+fn an_option_in_a_disabled_optgroup_is_skipped() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let sel = dom.create_element("select");
+    let group = dom.create_element("optgroup");
+    dom.set_attribute(group, "disabled", "").unwrap();
+    dom.append_child(sel, group).unwrap();
+    for (parent, label) in [(group, "a"), (sel, "b")] {
+        let opt = dom.create_element("option");
+        dom.set_attribute(opt, "value", label).unwrap();
+        dom.append_child(parent, opt).unwrap();
+    }
+    dom.append_child(root, sel).unwrap();
+    let app = test_app(dom);
+    assert_eq!(select::value(app.dom(), sel), "b");
+}
+
+/// With several options marked, a single-select keeps only the last.
+#[test]
+fn last_of_several_selected_options_wins() {
+    let (app, sel, opts) = marked_select(
+        &[],
+        &[("a", &["selected"]), ("b", &[]), ("c", &["selected"])],
+    );
+    assert_eq!(select::value(app.dom(), sel), "c");
+    assert!(!is_selected(&app, opts[0]));
+    assert!(is_selected(&app, opts[2]));
+}
+
+/// The algorithm is single-select, display-size-1 only: a list box
+/// (`size > 1`) and a multi-select keep an empty selection, and a
+/// multi-select keeps every marked option.
+#[test]
+fn list_boxes_and_multi_selects_keep_their_marks() {
+    let (app, sel, _) = marked_select(&[("size", "3")], &[("a", &[]), ("b", &[])]);
+    assert_eq!(select::value(app.dom(), sel), "");
+    let (app, sel, _) = marked_select(
+        &[("multiple", "")],
+        &[("a", &["selected"]), ("b", &["selected"])],
+    );
+    assert_eq!(select::value(app.dom(), sel), "a b");
+}
+
+/// Reset restores the defaults, then runs the algorithm: nothing marked
+/// by the author → the first option again.
+#[test]
+fn reset_returns_to_the_algorithms_result() {
+    let (mut app, sel, opts) = marked_select(&[], &[("a", &[]), ("b", &[])]);
+    app.dom_mut().set_focused(Some(sel));
+    app.handle_event(key(KeyCode::Down, KeyModifiers::empty()));
+    assert_eq!(select::value(app.dom(), sel), "b");
+    select::reset_to_default(app.dom_mut(), sel);
+    assert_eq!(select::value(app.dom(), sel), "a");
+    assert!(!is_selected(&app, opts[1]));
+}
+
+/// Removing the selected option re-runs the algorithm: the first
+/// remaining option is selected.
+#[test]
+fn removing_the_selected_option_selects_the_first_remaining() {
+    let (mut app, sel, opts) = marked_select(&[], &[("a", &[]), ("b", &[]), ("c", &[])]);
+    app.dom_mut().set_focused(Some(sel));
+    app.handle_event(key(KeyCode::Down, KeyModifiers::empty()));
+    assert_eq!(select::value(app.dom(), sel), "b");
+    app.dom_mut().remove_child(sel, opts[1]).unwrap();
+    app.draw_if_dirty().unwrap();
+    assert_eq!(select::value(app.dom(), sel), "a");
+}
+
+/// Options inserted into an empty single-select after mount: the first
+/// becomes selected; a later-inserted `selected` option takes over.
+#[test]
+fn inserting_options_runs_the_algorithm() {
+    let (mut app, sel, _) = marked_select(&[], &[]);
+    assert_eq!(select::value(app.dom(), sel), "");
+    let dom = app.dom_mut();
+    let a = dom.create_element("option");
+    dom.set_attribute(a, "value", "a").unwrap();
+    dom.append_child(sel, a).unwrap();
+    app.draw_if_dirty().unwrap();
+    assert_eq!(select::value(app.dom(), sel), "a");
+
+    let dom = app.dom_mut();
+    let b = dom.create_element("option");
+    dom.set_attribute(b, "value", "b").unwrap();
+    dom.set_attribute(b, "selected", "").unwrap();
+    dom.append_child(sel, b).unwrap();
+    app.draw_if_dirty().unwrap();
+    assert_eq!(select::value(app.dom(), sel), "b");
+}
+
+/// `defaultSelected` accessors on `<option>`, mirroring the toggles'
+/// `defaultChecked`: the authored mark before any capture, the captured
+/// value after, and a setter that changes only what a reset restores.
+#[test]
+fn option_default_selected_accessors() {
+    use crate::{TuiAccessors, TuiAccessorsMut};
+    let (mut app, sel, opts) =
+        marked_select(&[("multiple", "")], &[("a", &[]), ("b", &["selected"])]);
+    assert_eq!(app.dom().node(opts[0]).default_selected(), Some(false));
+    assert_eq!(app.dom().node(opts[1]).default_selected(), Some(true));
+    assert_eq!(app.dom().node(sel).default_selected(), None);
+    app.dom_mut()
+        .node_mut(opts[0])
+        .set_default_selected(true)
+        .unwrap();
+    assert!(!is_selected(&app, opts[0]), "the live state is left alone");
+    assert_eq!(app.dom().node(opts[0]).default_selected(), Some(true));
+    select::reset_to_default(app.dom_mut(), sel);
+    assert_eq!(select::value(app.dom(), sel), "a b");
+}
+
+/// A consumer marking a single-select's option `selected` after mount
+/// makes it the only selected option (settled before the next event or
+/// frame): the algorithm's earlier pick does not linger beside it, and
+/// of two marked in one batch the last wins.
+#[test]
+fn marking_an_option_selected_after_mount_makes_it_the_only_one() {
+    let (mut app, sel, opts) = select_fixture(false, &["a", "b", "c"]);
+    assert_eq!(select::value(app.dom(), sel), "a");
+    app.dom_mut()
+        .set_attribute(opts[1], "selected", "")
+        .unwrap();
+    app.draw_if_dirty().unwrap();
+    assert_eq!(select::value(app.dom(), sel), "b");
+    assert!(!is_selected(&app, opts[0]));
+
+    app.dom_mut()
+        .set_attribute(opts[2], "selected", "")
+        .unwrap();
+    app.dom_mut()
+        .set_attribute(opts[0], "selected", "")
+        .unwrap();
+    app.draw_if_dirty().unwrap();
+    assert_eq!(select::selected_options(app.dom(), sel), vec![opts[0]]);
 }

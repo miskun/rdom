@@ -45,8 +45,10 @@ impl<B: Backend> App<B> {
         // Animation events (`transitionend`) fire from in here; their
         // listeners may schedule timers.
         let _current = crate::runtime::timers::SchedulerGuard::install(&self.scheduler);
-        // Before the roots snapshot, so a marker move is cascaded in
-        // this frame.
+        // Before the roots snapshot, so a marker move and the options
+        // the selectedness algorithm (re)selects are cascaded in this
+        // frame.
+        self.selectedness.flush(&mut self.dom);
         self.mark_scroll_focus();
         let mut dirty_roots = self.tracker.roots_snapshot();
         // dirty_roots is a snapshot; we need to actually drain them
@@ -153,6 +155,7 @@ impl<B: Backend> App<B> {
     /// subsequent `draw_if_dirty` only re-cascades what the synthetic move
     /// newly dirtied (it still paints — `needs_redraw` is set).
     pub(super) fn cascade_and_layout(&mut self, area: crate::render::Rect) {
+        self.selectedness.flush(&mut self.dom);
         let mut dirty_roots = self.tracker.roots_snapshot();
         if !dirty_roots.is_empty() {
             self.tracker.take_roots();
