@@ -181,21 +181,29 @@ pub(super) fn static_position_in_ifc(
             node = dom.node(node).parent_node()?.id();
         }
     };
+    // The end of the preceding content: the furthest `(line, x)` any
+    // ahead item reaches (items on a line are left to right, generated
+    // runs interleaved with the fragments).
     let mut last: Option<(usize, i32)> = None;
     for (line_idx, line) in layout.lines.iter().enumerate() {
-        // Generated content ahead of every child: the parent's
-        // `::before` (and any list marker riding this first line).
-        for g in line
-            .generated
-            .iter()
-            .filter(|g| g.slot == StyleSlot::Before)
-        {
-            last = Some((line_idx, i32::from(g.x) + i32::from(g.width)));
+        // Generated content hosted by a child's subtree is ordered with
+        // that child (an inline element's pseudos sit at its start /
+        // end); otherwise it is the parent's own (or a list marker
+        // riding this first line): its `::before` is ahead of every
+        // child, its `::after` after them all.
+        for g in &line.generated {
+            let ahead = match top_level_index(g.host) {
+                Some(i) => i < child_index,
+                None => g.slot == StyleSlot::Before,
+            };
+            if ahead {
+                last = last.max(Some((line_idx, i32::from(g.x) + i32::from(g.width))));
+            }
         }
         for f in &line.fragments {
             let owner = top_level_index(f.text_node).or_else(|| top_level_index(f.node));
             if owner.is_some_and(|i| i < child_index) {
-                last = Some((line_idx, i32::from(f.x) + i32::from(f.width)));
+                last = last.max(Some((line_idx, i32::from(f.x) + i32::from(f.width))));
             }
         }
     }

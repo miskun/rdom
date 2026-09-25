@@ -463,7 +463,7 @@ pub(crate) fn pack_run(
                     packer.push_atomic_inline_block(child_id, intrinsic);
                     continue;
                 }
-                walk_subtree(dom, child_id, &mut packer);
+                walk_inline_box(dom, child_id, &mut packer);
             }
             _ => {}
         }
@@ -480,7 +480,8 @@ pub(crate) fn pack_run(
 
 /// Recursively walk `id`'s descendants in document order, feeding
 /// every text node's graphemes to `packer`. Descends into
-/// `display: inline` elements; `<br>` emits a hard line break.
+/// `display: inline` elements (their pseudo-elements included — see
+/// [`walk_inline_box`]); `<br>` emits a hard line break.
 ///
 /// Non-element children (comments, fragments) are passed through
 /// their descendant element walk.
@@ -540,10 +541,25 @@ fn walk_subtree<'a>(dom: &'a Dom<TuiExt>, id: NodeId, packer: &mut LinePacker<'a
                     packer.push_atomic_inline_block(child.id(), intrinsic);
                     continue;
                 }
-                walk_subtree(dom, child.id(), packer);
+                walk_inline_box(dom, child.id(), packer);
             }
             _ => {}
         }
+    }
+}
+
+/// Feed one in-flow inline element: its static `::before`, its
+/// content, its static `::after`. CSS 2.1 §12.1: the pseudo-elements
+/// are the element's first / last inline children, so they pack at its
+/// start / end, in its line flow (they wrap, and the text beside them
+/// shifts). They land in [`LineBox::generated`], hosted by the element.
+fn walk_inline_box<'a>(dom: &'a Dom<TuiExt>, id: NodeId, packer: &mut LinePacker<'a>) {
+    if let Some(text) = generated::static_pseudo_text(dom, id, StyleSlot::Before) {
+        packer.push_generated(id, StyleSlot::Before, text);
+    }
+    walk_subtree(dom, id, packer);
+    if let Some(text) = generated::static_pseudo_text(dom, id, StyleSlot::After) {
+        packer.push_generated(id, StyleSlot::After, text);
     }
 }
 

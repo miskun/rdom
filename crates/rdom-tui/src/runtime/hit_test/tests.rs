@@ -1409,3 +1409,83 @@ fn position_at_maps_cells_past_a_before_pseudo_to_text_offsets() {
     // The wrapped word is on line 1.
     assert_eq!(dom.position_at(1, 1), Some(Position::new(t, 9)));
 }
+
+// ── P6G-INLINE-PSEUDO-1: an inline element's pseudos in hit-testing ──
+
+/// `<p>a <b>bold</b> c</p>` with `b::before { "[" }` / `b::after { "]" }`
+/// paints "a [bold] c": text cells map to their own offsets past the
+/// generated ones, and a click on a generated cell clamps to text.
+#[test]
+fn position_at_skips_an_inline_elements_generated_cells() {
+    use crate::style::Content;
+    use rdom_core::Position;
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let p = dom.create_element("p");
+    let a = dom.create_text_node("a ");
+    let b = dom.create_element("b");
+    let bold = dom.create_text_node("bold");
+    let c = dom.create_text_node(" c");
+    dom.append_child(b, bold).unwrap();
+    dom.append_child(p, a).unwrap();
+    dom.append_child(p, b).unwrap();
+    dom.append_child(p, c).unwrap();
+    dom.append_child(root, p).unwrap();
+    let sheet = Stylesheet::new()
+        .rule_unchecked(
+            "b::before",
+            TuiStyle::new().content(Content::Str("[".into())),
+        )
+        .rule_unchecked(
+            "b::after",
+            TuiStyle::new().content(Content::Str("]".into())),
+        );
+    prepare(&mut dom, &sheet, Rect::new(0, 0, 20, 2));
+    assert_eq!(dom.position_at(0, 0), Some(Position::new(a, 0)));
+    assert_eq!(dom.position_at(3, 0), Some(Position::new(bold, 0)));
+    assert_eq!(dom.position_at(6, 0), Some(Position::new(bold, 3)));
+    assert_eq!(dom.position_at(9, 0), Some(Position::new(c, 1)));
+    // The generated cells carry no text of their own.
+    for x in [2, 7] {
+        let pos = dom.position_at(x, 0).expect("clamps to text");
+        assert!(
+            [a, bold, c].contains(&pos.node),
+            "cell {x} resolved to {pos:?}"
+        );
+    }
+}
+
+/// A pseudo-element is part of its host's box: a click on an inline
+/// `<a>`'s `::before` targets the `<a>` (a click on the link's marker
+/// follows the link), unless the pseudo is `pointer-events: none`.
+#[test]
+fn hit_test_on_an_inline_elements_generated_cell_targets_the_host() {
+    use crate::layout::PointerEvents;
+    use crate::style::Content;
+    let build = |pe: Option<PointerEvents>| {
+        let mut dom: TuiDom = TuiDom::new();
+        let root = dom.root();
+        let p = dom.create_element("p");
+        let x = dom.create_text_node("x ");
+        let a = dom.create_element("a");
+        dom.set_attribute(a, "href", "https://example.com").unwrap();
+        let go = dom.create_text_node("go");
+        dom.append_child(a, go).unwrap();
+        dom.append_child(p, x).unwrap();
+        dom.append_child(p, a).unwrap();
+        dom.append_child(root, p).unwrap();
+        let mut before = TuiStyle::new().content(Content::Str("> ".into()));
+        if let Some(pe) = pe {
+            before = before.pointer_events(pe);
+        }
+        let sheet = Stylesheet::new().rule_unchecked("a::before", before);
+        prepare(&mut dom, &sheet, Rect::new(0, 0, 20, 2));
+        (dom, p, a)
+    };
+    // "x > go": the `>` is at column 2.
+    let (dom, _p, a) = build(None);
+    assert_eq!(dom.hit_test(2, 0), Some(a));
+    assert_eq!(dom.hit_test(4, 0), Some(a));
+    let (dom, p, _a) = build(Some(PointerEvents::None));
+    assert_eq!(dom.hit_test(2, 0), Some(p));
+}

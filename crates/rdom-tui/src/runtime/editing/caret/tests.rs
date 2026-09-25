@@ -429,3 +429,40 @@ fn caret_in_empty_input_sits_at_the_start_of_its_placeholder() {
         Some((content.x as u16, content.y as u16))
     );
 }
+
+// ── P6G-INLINE-PSEUDO-1: the caret around an inline element's pseudos ─
+
+/// `<p contenteditable>a <b>bold</b> c</p>` with `b::before { "[" }` /
+/// `b::after { "]" }` paints "a [bold] c": the caret at the end of "a "
+/// sits before the `[`, inside `<b>` after it.
+#[test]
+fn caret_around_an_inline_elements_pseudos_follows_the_packed_text() {
+    use crate::style::Content;
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let p = dom.create_element("p");
+    dom.set_attribute(p, "contenteditable", "true").unwrap();
+    let a = dom.create_text_node("a ");
+    let b = dom.create_element("b");
+    let bold = dom.create_text_node("bold");
+    let c = dom.create_text_node(" c");
+    dom.append_child(b, bold).unwrap();
+    dom.append_child(p, a).unwrap();
+    dom.append_child(p, b).unwrap();
+    dom.append_child(p, c).unwrap();
+    dom.append_child(root, p).unwrap();
+    let sheet = Stylesheet::new()
+        .rule_unchecked(
+            "b::before",
+            TuiStyle::new().content(Content::Str("[".into())),
+        )
+        .rule_unchecked(
+            "b::after",
+            TuiStyle::new().content(Content::Str("]".into())),
+        );
+    dom.cascade(&sheet);
+    dom.layout_dom(Rect::new(0, 0, 20, 2));
+    assert_eq!(cell_of_position(&dom, Position::new(bold, 0)), Some((3, 0)));
+    assert_eq!(cell_of_position(&dom, Position::new(bold, 4)), Some((7, 0)));
+    assert_eq!(cell_of_position(&dom, Position::new(c, 1)), Some((9, 0)));
+}

@@ -434,3 +434,56 @@ fn static_pseudos_pack_as_generated_fragments() {
         "no text fragment stands for generated content"
     );
 }
+
+/// P6G-INLINE-PSEUDO-1: an inline element's `::before` / `::after` are
+/// its first / last inline children (CSS 2.1 §12.1) — generated
+/// fragments hosted by the element, at its start / end.
+#[test]
+fn inline_element_pseudos_pack_at_its_start_and_end() {
+    use crate::ext::StyleSlot;
+    use crate::style::Content;
+    let (dom, p) = prepared(
+        |dom| {
+            let root = dom.root();
+            let p = dom.create_element("p");
+            let a = dom.create_text_node("a ");
+            let b = dom.create_element("b");
+            let bold = dom.create_text_node("bold");
+            let c = dom.create_text_node(" c");
+            dom.append_child(b, bold).unwrap();
+            dom.append_child(p, a).unwrap();
+            dom.append_child(p, b).unwrap();
+            dom.append_child(p, c).unwrap();
+            dom.append_child(root, p).unwrap();
+            p
+        },
+        &default_sheet()
+            .rule_unchecked(
+                "b::before",
+                TuiStyle::new().content(Content::Str("[".into())),
+            )
+            .rule_unchecked(
+                "b::after",
+                TuiStyle::new().content(Content::Str("]".into())),
+            ),
+    );
+    let b = dom.node(p).child_nodes().nth(1).unwrap().id();
+    let layout = compute_inline_layout(&dom, p, 20);
+    assert_eq!(layout.height(), 1);
+    let line = &layout.lines[0];
+    let generated: Vec<_> = line
+        .generated
+        .iter()
+        .map(|g| (g.host, g.slot, g.x, g.text.as_str()))
+        .collect();
+    assert_eq!(
+        generated,
+        vec![
+            (b, StyleSlot::Before, 2, "["),
+            (b, StyleSlot::After, 7, "]")
+        ]
+    );
+    let bold = line.fragments.iter().find(|f| f.node == b).unwrap();
+    assert_eq!((bold.x, bold.text.as_str()), (3, "bold"));
+    assert_eq!(line.width, 10);
+}

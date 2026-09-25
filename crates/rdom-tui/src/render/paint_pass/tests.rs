@@ -5119,3 +5119,174 @@ fn marker_without_a_reachable_line_takes_its_own_line() {
     assert_eq!(row(&buf, 0).trim(), "1.");
     assert_eq!(row(&buf, 1).trim(), "flex");
 }
+
+// ── P6G-INLINE-PSEUDO-1: an inline element's ::before / ::after ─────
+
+/// `<p>a <b>bold</b> c</p>` with the given extra rules.
+fn bold_in_prose(sheet: Stylesheet) -> (TuiDom, Stylesheet) {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let p = dom.create_element("p");
+    let a = dom.create_text_node("a ");
+    let b = dom.create_element("b");
+    let bold = dom.create_text_node("bold");
+    let c = dom.create_text_node(" c");
+    dom.append_child(b, bold).unwrap();
+    dom.append_child(p, a).unwrap();
+    dom.append_child(p, b).unwrap();
+    dom.append_child(p, c).unwrap();
+    dom.append_child(root, p).unwrap();
+    (dom, sheet)
+}
+
+/// CSS 2.1 §12.1: an inline element's `::before` / `::after` are its
+/// first / last inline children, painted in the pseudo's own style.
+#[test]
+fn inline_element_pseudos_render_around_its_text() {
+    use crate::style::Color;
+    let (mut dom, sheet) = bold_in_prose(
+        Stylesheet::new()
+            .rule_unchecked(
+                "b::before",
+                TuiStyle::new()
+                    .content(Content::Str("[".into()))
+                    .fg(Color::Rgb(255, 0, 0)),
+            )
+            .rule_unchecked(
+                "b::after",
+                TuiStyle::new().content(Content::Str("]".into())),
+            ),
+    );
+    let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 20, 2));
+    assert_eq!(row(&buf, 0).trim_end(), "a [bold] c");
+    assert_eq!(
+        buf.cell(2, 0).unwrap().fg,
+        Color::Rgb(255, 0, 0),
+        "::before style"
+    );
+}
+
+/// An inline pseudo wraps with the text: "[bold]" is one word.
+#[test]
+fn inline_element_pseudos_take_part_in_wrapping() {
+    let (mut dom, sheet) = bold_in_prose(
+        Stylesheet::new()
+            .rule_unchecked("p", TuiStyle::new().width(Size::Fixed(8)))
+            .rule_unchecked(
+                "b::before",
+                TuiStyle::new().content(Content::Str("[".into())),
+            )
+            .rule_unchecked(
+                "b::after",
+                TuiStyle::new().content(Content::Str("]".into())),
+            ),
+    );
+    // "a bold c" fits 8 cells; "a [bold] c" does not.
+    let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 20, 3));
+    assert_eq!(row(&buf, 0).trim_end(), "a [bold]");
+    assert_eq!(row(&buf, 1).trim_end(), "c");
+}
+
+/// An `<a href>`'s `::before` is part of the link: its cells carry the
+/// OSC 8 target like the anchor's text.
+#[test]
+fn anchor_before_pseudo_cells_are_part_of_the_link() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let p = dom.create_element("p");
+    let a = dom.create_element("a");
+    dom.set_attribute(a, "href", "https://example.com").unwrap();
+    let t = dom.create_text_node("go");
+    dom.append_child(a, t).unwrap();
+    dom.append_child(p, a).unwrap();
+    dom.append_child(root, p).unwrap();
+    let sheet = Stylesheet::new().rule_unchecked(
+        "a::before",
+        TuiStyle::new().content(Content::Str("> ".into())),
+    );
+    let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 10, 1));
+    assert_eq!(row(&buf, 0).trim_end(), "> go");
+    for x in 0..4 {
+        assert_eq!(
+            buf.cell(x, 0).unwrap().link(),
+            Some("https://example.com"),
+            "cell {x} should carry the anchor's link"
+        );
+    }
+}
+
+/// `counter()` in an inline element's pseudo resolves against the
+/// counters in scope at that element.
+#[test]
+fn counters_in_inline_pseudos_resolve() {
+    use rdom_style::CounterOp;
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let p = dom.create_element("p");
+    for word in ["x", "y"] {
+        let span = dom.create_element("span");
+        let t = dom.create_text_node(word);
+        dom.append_child(span, t).unwrap();
+        dom.append_child(p, span).unwrap();
+    }
+    dom.append_child(root, p).unwrap();
+    let op = |value| {
+        vec![CounterOp {
+            name: "n".into(),
+            value,
+        }]
+    };
+    let sheet = Stylesheet::new()
+        .rule_unchecked("p", TuiStyle::new().counter_reset(op(0)))
+        .rule_unchecked("span", TuiStyle::new().counter_increment(op(1)))
+        .rule_unchecked(
+            "span::before",
+            TuiStyle::new().content(Content::Counter {
+                name: "n".into(),
+                style: Default::default(),
+            }),
+        );
+    let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 10, 1));
+    assert_eq!(row(&buf, 0).trim_end(), "1x2y");
+}
+
+/// Max-content sizing counts an inline element's pseudos: a flex item
+/// holding "a [bold] c" is 10 cells wide, so its sibling starts after it.
+#[test]
+fn inline_element_pseudos_count_toward_max_content_width() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let bar = dom.create_element("bar");
+    let p = dom.create_element("p");
+    let a = dom.create_text_node("a ");
+    let b = dom.create_element("b");
+    let bold = dom.create_text_node("bold");
+    let c = dom.create_text_node(" c");
+    dom.append_child(b, bold).unwrap();
+    dom.append_child(p, a).unwrap();
+    dom.append_child(p, b).unwrap();
+    dom.append_child(p, c).unwrap();
+    let x = dom.create_element("x");
+    let xt = dom.create_text_node("X");
+    dom.append_child(x, xt).unwrap();
+    dom.append_child(bar, p).unwrap();
+    dom.append_child(bar, x).unwrap();
+    dom.append_child(root, bar).unwrap();
+    let sheet = Stylesheet::new()
+        .rule_unchecked(
+            "bar",
+            TuiStyle::new().flow(Flow::Flex).direction(Direction::Row),
+        )
+        .rule_unchecked(
+            "b::before",
+            TuiStyle::new().content(Content::Str("[".into())),
+        )
+        .rule_unchecked(
+            "b::after",
+            TuiStyle::new().content(Content::Str("]".into())),
+        );
+    let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 20, 1));
+    assert_eq!(row(&buf, 0).trim_end(), "a [bold] cX");
+    assert_eq!(dom.node(p).layout_rect().unwrap().width, 10);
+    assert_eq!(dom.node(x).layout_rect().unwrap().x, 10);
+}

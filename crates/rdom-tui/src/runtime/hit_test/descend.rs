@@ -313,7 +313,36 @@ fn hit_fragment(
             return Some(fragment.node);
         }
     }
-    None
+    // A pseudo-element is part of its host's box: a generated cell of
+    // an inline descendant's `::before` / `::after` targets that host
+    // (a click on an `<a>`'s marker follows the link), unless the
+    // pseudo itself is `pointer-events: none`. The block's own pseudos
+    // (and list markers) resolve to the block, which the caller holds.
+    line.generated
+        .iter()
+        .find(|g| x_local >= g.x && x_local < g.x + g.width)
+        .filter(|g| is_descendant(dom, g.host, ifc_block))
+        .filter(|g| {
+            let node = dom.node(g.host);
+            let pseudo = match g.slot {
+                crate::ext::StyleSlot::Before => node.computed_before(),
+                _ => node.computed_after(),
+            };
+            pseudo.is_none_or(|c| c.pointer_events != crate::layout::PointerEvents::None)
+        })
+        .map(|g| g.host)
+}
+
+/// `id` is a strict descendant of `ancestor`.
+fn is_descendant(dom: &Dom<TuiExt>, id: NodeId, ancestor: NodeId) -> bool {
+    let mut cur = dom.node(id).parent_node().map(|p| p.id());
+    while let Some(n) = cur {
+        if n == ancestor {
+            return true;
+        }
+        cur = dom.node(n).parent_node().map(|p| p.id());
+    }
+    false
 }
 
 /// Walk the ancestor chain from `owner` up to (but not including)

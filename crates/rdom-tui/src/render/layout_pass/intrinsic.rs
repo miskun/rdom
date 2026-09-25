@@ -537,9 +537,6 @@ pub(super) fn border_main_cost(computed: &ComputedStyle, direction: Direction) -
     }
 }
 
-/// Sum of visible cell widths of all text in an IFC block's inline
-/// subtree. Walks text nodes and descends into inline element
-/// children. Used as the intrinsic max-content width for IFC blocks.
 /// Inline content width of `id` on the Row axis for `measure`.
 fn inline_width(dom: &Dom<TuiExt>, id: NodeId, measure: Measure) -> u16 {
     match measure {
@@ -562,9 +559,16 @@ fn min_content_inline_width(dom: &Dom<TuiExt>, id: NodeId) -> u16 {
         .unwrap_or(0)
 }
 
+/// Sum of visible cell widths of all text in an IFC block's inline
+/// subtree, its inline descendants' static pseudo-elements included
+/// (`id`'s own are added by the caller). Walks text nodes and descends
+/// into inline element children. Used as the intrinsic max-content
+/// width for IFC blocks.
 pub(super) fn inline_content_width(dom: &Dom<TuiExt>, id: NodeId) -> u16 {
     fn walk(dom: &Dom<TuiExt>, id: NodeId, acc: &mut u32) {
+        use crate::ext::StyleSlot;
         use crate::layout::{Display, Position};
+        use crate::render::inline::generated;
         for child in dom.node(id).child_nodes() {
             match child.node_type() {
                 NodeType::Text => {
@@ -590,6 +594,14 @@ pub(super) fn inline_content_width(dom: &Dom<TuiExt>, id: NodeId) -> u16 {
                         || matches!(position, Position::Absolute | Position::Fixed)
                     {
                         continue;
+                    }
+                    // The element's static `::before` / `::after` are its
+                    // first / last inline children (CSS 2.1 §12.1), packed
+                    // with the text (`render::inline::walk_inline_box`).
+                    for slot in [StyleSlot::Before, StyleSlot::After] {
+                        let text = generated::static_pseudo_text(dom, child.id(), slot);
+                        *acc = acc
+                            .saturating_add(text.map_or(0, |t| UnicodeWidthStr::width(t) as u32));
                     }
                     walk(dom, child.id(), acc);
                 }

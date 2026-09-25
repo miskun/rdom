@@ -3,7 +3,10 @@
 //! sizing and the margin-collapse walker share.
 //!
 //! CSS 2.1 §12.1: a static `::before` / `::after` is an inline box, the
-//! host's first / last child. Three placements follow:
+//! host's first / last child. An *inline* host's pseudos simply pack at
+//! its start / end in the enclosing inline flow (`walk_inline_box`);
+//! paint tags them with the host's link and hit-testing routes their
+//! cells to the host. For a block host, three placements follow:
 //!
 //! 1. **In the host's own inline flow** — the host is an IFC block or a
 //!    pure-text leaf, or its first (last) in-flow content is

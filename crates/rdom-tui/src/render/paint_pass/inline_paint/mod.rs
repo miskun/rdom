@@ -432,7 +432,8 @@ fn paint_inline_layout(
 }
 
 /// Paint one generated-content run at its packed cell, in the style of
-/// its host's pseudo-element (transition overrides included). The run
+/// its host's pseudo-element (transition overrides included), tagged
+/// with the host's enclosing `<a href>` link, if any. The run
 /// starts at its logical x even when that is left of the clip —
 /// `paint_text_from` skips the clipped prefix.
 fn paint_generated(
@@ -457,15 +458,17 @@ fn paint_generated(
         computed,
         presentation_of(dom, generated.host, generated.slot),
     );
-    paint_text_from(
-        buf,
-        origin_x + i32::from(generated.x),
-        y,
-        clip_left,
-        right,
-        &generated.text,
-        style,
-    );
+    let x = origin_x + i32::from(generated.x);
+    let end = paint_text_from(buf, x, y, clip_left, right, &generated.text, style);
+    // A pseudo-element is part of its host: an `<a href>`'s (or its
+    // descendant's) generated cells belong to the link.
+    if let Some(href) = anchor_href_for(dom, generated.host) {
+        let start = x.max(i32::from(clip_left));
+        let end = end.min(i32::from(right));
+        if end > start {
+            buf.set_link_range(start as u16, y, (end - start) as u16, Some(&href));
+        }
+    }
 }
 
 /// The in-flight transition overrides for one of `id`'s pseudo-element

@@ -3920,6 +3920,66 @@ fn static_position_in_inline_content_follows_the_preceding_text() {
     assert_eq!((d.x, d.y), (1, 2), "block-level: next line, content-left");
 }
 
+/// `P6G-INLINE-PSEUDO-1`: an inline element's `::before` / `::after`
+/// sit at its start / end, so they precede an out-of-flow sibling that
+/// follows the element, and not one that comes before it.
+#[test]
+fn static_position_in_inline_content_orders_inline_pseudos_with_their_host() {
+    use crate::style::Content;
+    use rdom_style::layout::Position;
+    let mut dom = tui_dom();
+    let root = dom.root();
+    let p = dom.create_element("p");
+    let first = dom.create_element("b");
+    let ab = dom.create_text_node("ab");
+    let abs1 = dom.create_element("abs");
+    let cd = dom.create_text_node("cd");
+    let abs2 = dom.create_element("abs");
+    let second = dom.create_element("i");
+    let ef = dom.create_text_node("ef");
+    dom.append_child(first, ab).unwrap();
+    dom.append_child(second, ef).unwrap();
+    for c in [first, abs1, cd, abs2, second] {
+        dom.append_child(p, c).unwrap();
+    }
+    dom.append_child(root, p).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked("p", TuiStyle::new().position(Position::Relative))
+        .rule_unchecked("b", TuiStyle::new().display(Display::Inline))
+        .rule_unchecked("i", TuiStyle::new().display(Display::Inline))
+        .rule_unchecked(
+            "b::before",
+            TuiStyle::new().content(Content::Str("[".into())),
+        )
+        .rule_unchecked(
+            "b::after",
+            TuiStyle::new().content(Content::Str("]".into())),
+        )
+        .rule_unchecked(
+            "i::before",
+            TuiStyle::new().content(Content::Str("<".into())),
+        )
+        .rule_unchecked(
+            "abs",
+            TuiStyle::new()
+                .display(Display::Inline)
+                .position(Position::Absolute)
+                .width(Size::Fixed(1))
+                .height(Size::Fixed(1)),
+        );
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 40, 5));
+    // "[ab]" + abs1 + "cd" + abs2 + "<ef"
+    let r1 = layout_rect_of(&dom, abs1);
+    assert_eq!((r1.x, r1.y), (4, 0), "after `[ab]`, its ::after included");
+    let r2 = layout_rect_of(&dom, abs2);
+    assert_eq!(
+        (r2.x, r2.y),
+        (6, 0),
+        "before `<ef`: the later ::before is not ahead"
+    );
+}
+
 // ── CALC-PADMARG-1 / BFC1-MARGIN-PERCENT-CHAIN-1: percent basis ─────
 
 /// `CALC-PADMARG-1`: percent padding resolves against the containing
