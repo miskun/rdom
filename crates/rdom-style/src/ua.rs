@@ -326,16 +326,14 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
         // a `<ul role=group>`. `runtime::builtins::tree` drives the
         // keyboard / pointer behavior; the guide-line paint pass
         // (`render::paint_pass::tree_guides`) draws BOTH the `│ ├ └`
-        // connectors AND the `▾ ▸` disclosure chevron into the
+        // connectors AND the `▼` / `▶` disclosure chevron into the
         // gutter these paddings reserve.
         //
-        // Why the chevron is painted, not a `::before`: a branch
-        // treeitem holds a text label AND a child `[role=group]`
-        // (mixed inline+block content), and rdom doesn't yet paint
-        // `::before` correctly on such blocks (see TREE-BFC-PSEUDO-1
-        // in TECH_DEBT.md). Painting the chevron in the gutter
-        // sidesteps that and keeps connectors + chevron visually
-        // unified.
+        // Why the chevron is painted, not a `::before`: it lives in
+        // the reserved padding gutter next to the connectors, not in
+        // the label's content box, so painting both in one pass keeps
+        // them aligned and visually unified regardless of the row's
+        // own pseudo content (DIVERGENCES §ARIA tree).
         //
         // State is attribute-driven (presence of `aria-expanded` =
         // branch; `true`/`false` = open/closed; `aria-busy` =

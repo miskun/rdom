@@ -86,7 +86,7 @@ See [`CHANGELOG.md`](CHANGELOG.md) for the full 0.3.0 notes (incl. breaking chan
 0.2.0 adds, on top of the 0.1.0 substrate below:
 
 - **Block formatting context.** Semantic HTML stacks per the web platform with no CSS at all — `<div><h1></h1><p></p></div>` is a block-flow column at intrinsic heights. CSS 2.1 normal flow + margin collapse + height resolution + CSS3 `gap` on blocks + atomic `inline-block` in inline formatting contexts, on top of the original flex pass.
-- **Native ARIA tree.** `<ul role=tree>` / `role=treeitem` / `role=group` with `│ ├ └` guides + `▾`/`▸` chevrons, keyboard nav (Arrows / Home / End / Enter / Space) via an `aria-activedescendant` cursor, collapse/expand (`aria-expanded`), lazy children (`aria-busy`), and scroll-into-view that follows the cursor.
+- **Native ARIA tree.** `<ul role=tree>` / `role=treeitem` / `role=group` with `│ ├ └` guides + `▼`/`▶` chevrons, keyboard nav (Arrows / Home / End / Enter / Space) via an `aria-activedescendant` cursor, collapse/expand (`aria-expanded`), lazy children (`aria-busy`), and scroll-into-view that follows the cursor.
 - **`calc()` value system.** `width` / `height` / inset / length axes — CSS precedence, parentheses, nested `calc()`, banker's rounding onto the cell grid.
 - **More events.** `keyup` (kitty keyboard protocol), `contextmenu` (right-click + Shift+F10), `dblclick`, `resize`, `scroll`, plus implicit `blur` / `focusout` / `mouseout` / `mouseleave` dispatched before structural detach.
 - **Layered border model.** `border-collapse` is non-inheriting and applies to any container's direct children; per-direction conflict resolution (CSS Tables 3 §11.5); full `border-style` keyword set + the rdom-specific `half-block` pill style.

@@ -217,8 +217,9 @@ fn paint_item(
     // `aria-expanded` attribute (presence, not child count, so an
     // unloaded lazy branch still shows an arrow). Full-cell `▼`/`▶`,
     // painted in the guide color. Painted here rather than via
-    // `::before` to dodge the mixed-content pseudo gap
-    // (TREE-BFC-PSEUDO-1). First label row only.
+    // `::before` so it shares the gutter (and the guide color) with
+    // the connectors, independent of the row's own pseudo content
+    // (DIVERGENCES §ARIA tree). First label row only.
     if let Some(expanded) = dom.node(item).get_attribute("aria-expanded") {
         let glyph = if expanded == "true" { "▼" } else { "▶" };
         put_glyph(buf, clip, rect.x, row_y, glyph, color);

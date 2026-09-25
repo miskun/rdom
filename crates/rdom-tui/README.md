@@ -182,13 +182,15 @@ What's out of scope:
 - `text-align`, justification, baseline alignment.
 - UAX #14 line breaking (we use whitespace + CJK + hyphen).
 
-Mixed block+inline children are a **cascade error** (§4 of
-`RDOM_INLINE.md`) — the block degrades to non-IFC and the inline
-kids are skipped at paint. Keep your children all-inline or
-all-block per container.
+Mixed block + inline children work as in CSS 2.1 §9.2.1.1: each run
+of inline content between block children is wrapped in an anonymous
+block box with its own inline formatting context. Static `::before` /
+`::after` are laid out as the host's first / last inline content, so
+text wraps around them; a `::before` on a host that starts with a
+block child gets a line of its own (an `<li>`'s marker rides its
+block child's first line).
 
-See `RDOM_INLINE.md` for the full algorithm and the
-`parse_and_render` example for a working template.
+See the `parse_and_render` example for a working template.
 
 ## Interaction state: `:hover` and `:focus`
 
@@ -314,8 +316,12 @@ phases:
   drag, `Shift+arrow` (grapheme), `Shift+Ctrl+arrow` (word),
   `Ctrl-A` (select-all within focused element), double-click
   (word), triple-click (line). `user-select: { Auto, Text, None,
-  All, Contain }` gates selectability. `::selection` pseudo-element
-  paints selected cells with a reversed-fg/bg overlay.
+  All, Contain }` gates selectability; it is not inherited (CSS UI 4
+  §6.1) — the runtime resolves `auto`'s used value from the parent.
+  The selection drag takes no pointer capture: `mousemove` /
+  `mouseup` keep targeting the element under the pointer and `click`
+  goes to the common ancestor, as in browsers. `::selection`
+  pseudo-element paints selected cells with a reversed-fg/bg overlay.
 - **Clipboard** — Ctrl-C / Ctrl-X / Ctrl-V dispatch `copy` /
   `cut` / `paste` events (cancelable). Default action writes the
   serialized selection to the system clipboard via `arboard`;
