@@ -534,10 +534,11 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
         // `computed_after()` content alongside DOM children when
         // measuring along `Direction::Row`.
         //
-        // `user-select: none` matches modern browser UAs (Chrome,
-        // Firefox, Safari all ship it on `<button>` and the button-
-        // family inputs): a button's label is a click affordance,
+        // `user-select: none`: a button's label is a click affordance,
         // not prose, so drag-selecting it would be a distraction.
+        // Browsers get the same effect mostly from form-control
+        // internals rather than a declared UA rule (DIVERGENCES
+        // §Selection & editing).
         // The `[disabled]` rule already covers disabled buttons via
         // its own `user-select: none`; these rules cover the
         // enabled case.
@@ -644,27 +645,22 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
         // (`FLEX-BLOCK-MAIN-INTRINSIC-1` — the width came from the UA,
         // not from flex-basis resolution).
         //
-        // `user-select: none`: a toggle is a widget with no prose, like
-        // a browser's replaced checkbox. Without it a mousedown on the
-        // box fell through `position_at`'s empty-space snap to the
-        // nearest text elsewhere on the page and started a selection
-        // drag there — whose pointer capture then retargeted the click
-        // away from the toggle (found by `FORM-DEFAULTS-1`).
+        // No `user-select`, as in browsers' UA sheets: a click on a
+        // toggle beside prose reaches it because the text-selection
+        // drag takes no pointer capture (P6G-SELECTION-CAPTURE-1).
         (
             "input[type=checkbox]",
             TuiStyle::new()
                 .display(Display::InlineBlock)
                 .width(Size::Auto)
-                .height(Size::Fixed(1))
-                .user_select(UserSelect::None),
+                .height(Size::Fixed(1)),
         ),
         (
             "input[type=radio]",
             TuiStyle::new()
                 .display(Display::InlineBlock)
                 .width(Size::Auto)
-                .height(Size::Fixed(1))
-                .user_select(UserSelect::None),
+                .height(Size::Fixed(1)),
         ),
         (
             "input[type=checkbox]::before",
@@ -905,17 +901,13 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
         // glyphs within this rect. Accent color is LightBlue
         // (matching `<progress>` and the rest of the accent
         // family).
-        // `user-select: none` for the same reason as the toggles: a
-        // slider is a widget, and a mousedown on it must not start a
-        // selection drag in the nearest prose.
         (
             "input[type=range]",
             TuiStyle::new()
                 .display(Display::Block)
                 .width(Size::Fixed(20))
                 .height(Size::Fixed(1))
-                .fg(ACCENT)
-                .user_select(UserSelect::None),
+                .fg(ACCENT),
         ),
         // ── Lists ──
         // `ul` / `ol` / `menu` use left padding so nested list
@@ -1273,8 +1265,8 @@ mod tests {
     /// Buttons are not text — their label is a click affordance, not
     /// selectable prose. The base button rules (`<button>` and the
     /// three button-family input types) must declare
-    /// `user-select: none` so drag-selection skips them, matching the
-    /// modern browser UA convention. The `[disabled]` rule already
+    /// `user-select: none` so drag-selection skips them (a deliberate
+    /// UA declaration — see DIVERGENCES). The `[disabled]` rule already
     /// covers the disabled case; this pins the enabled case.
     #[test]
     fn ua_buttons_are_unselectable() {
@@ -1293,9 +1285,6 @@ mod tests {
             "input[type=button]",
             "input[type=submit]",
             "input[type=reset]",
-            "input[type=checkbox]",
-            "input[type=radio]",
-            "input[type=range]",
         ] {
             let r = ua
                 .get(sel)
@@ -1303,9 +1292,38 @@ mod tests {
             assert_eq!(
                 r.style.user_select,
                 Some(Value::Specified(UserSelect::None)),
-                "`{sel}` must declare user-select: none: a widget, not prose, and a mousedown on \
-                 it must not start a selection drag elsewhere"
+                "`{sel}` must declare user-select: none: a button label is not prose"
             );
         }
+    }
+
+    /// Toggles and range declare no `user-select` (P6G-TOGGLE-USER-SELECT-REVERT-1):
+    /// browsers' UA sheets do not, and a click on them reaches them without it
+    /// because the text-selection drag takes no pointer capture.
+    #[test]
+    fn ua_toggles_and_range_leave_user_select_alone() {
+        let s = Stylesheet::new();
+        let mut seen = 0;
+        for r in s
+            .rules()
+            .iter()
+            .filter(|r| r.origin == RuleOrigin::UserAgent)
+            .filter(|r| {
+                [
+                    "input[type=checkbox]",
+                    "input[type=radio]",
+                    "input[type=range]",
+                ]
+                .contains(&r.source_text.as_str())
+            })
+        {
+            seen += 1;
+            assert_eq!(
+                r.style.user_select, None,
+                "`{}` must not declare user-select",
+                r.source_text
+            );
+        }
+        assert_eq!(seen, 3, "all three UA rules present");
     }
 }

@@ -315,13 +315,16 @@ fn space_on_focused_radio_selects_it() {
 
 // ── A toggle next to prose is still a toggle ─────────────────────
 
-/// A mousedown on a checkbox must not start a selection drag in the
-/// nearest text on the page (the empty-space snap of `position_at`):
-/// that drag's pointer capture retargeted the click to the text's
-/// container and the box never flipped. Toggles are `user-select:
-/// none` widgets in the UA sheet, so the snap does not engage.
+/// A click on a checkbox beside prose flips it and selects no text.
+/// The mousedown may still collapse the selection at the nearest text
+/// (the empty-space snap of `position_at`, like a browser mousedown
+/// outside text — the collapsed caret is invisible in non-editable
+/// content), but the drag takes no pointer capture, so the click
+/// reaches the box. The UA sheet declares no `user-select` on toggles
+/// (P6G-TOGGLE-USER-SELECT-REVERT-1); this pins that the click works
+/// without it.
 #[test]
-fn click_on_checkbox_beside_text_toggles_and_starts_no_selection() {
+fn click_on_checkbox_beside_text_toggles_and_selects_no_text() {
     let mut dom: TuiDom = TuiDom::new();
     let root = dom.root();
     let p = dom.create_element("p");
@@ -350,8 +353,8 @@ fn click_on_checkbox_beside_text_toggles_and_starts_no_selection() {
         "the click reached the box"
     );
     assert!(
-        app.dom().selection().is_none(),
-        "no selection drag began in the prose"
+        app.dom().selection().is_none_or(|s| s.is_collapsed()),
+        "no text was selected"
     );
 }
 
