@@ -89,6 +89,7 @@ use crate::TuiDom;
 
 pub(crate) use dropdown::inline_chrome;
 pub use dropdown::{close, is_dropdown, is_open, open};
+pub(crate) use model::option_disabled;
 pub use model::{option_label, option_value, options, selected_options, value};
 pub(crate) use selectedness::Selectedness;
 pub use selectedness::seed_all;

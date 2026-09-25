@@ -885,3 +885,50 @@ fn default_setters_change_what_reset_restores() {
     assert_eq!(dom.node(ta).value(), Some("body".into()));
     assert!(dom.node(cb).checked());
 }
+
+// ── P6G-FORM-COLLECT-DISABLED-1: disabled options are not submitted ──
+
+/// HTML §4.10.21.4 "constructing the entry list": a `<select>` appends
+/// one entry per option that is selected **and not disabled**. An
+/// option is disabled by its own attribute or by a disabled
+/// `<optgroup>` parent (HTML §4.10.10).
+#[test]
+fn collect_skips_selected_options_that_are_disabled() {
+    let mut form_id = None;
+    let (app, _reset) = form_app(|dom, form| {
+        form_id = Some(form);
+        let multi = dom.create_element("select");
+        dom.set_attribute(multi, "name", "m").unwrap();
+        dom.set_attribute(multi, "multiple", "").unwrap();
+        dom.append_child(form, multi).unwrap();
+        option(dom, multi, "kept", true);
+        let own = option(dom, multi, "own-disabled", true);
+        dom.set_attribute(own, "disabled", "").unwrap();
+        let group = dom.create_element("optgroup");
+        dom.set_attribute(group, "disabled", "").unwrap();
+        dom.append_child(multi, group).unwrap();
+        option(dom, group, "group-disabled", true);
+    });
+    assert_eq!(
+        form::collect(app.dom(), form_id.unwrap()),
+        vec![("m".to_string(), "kept".to_string())]
+    );
+}
+
+/// A single-select whose only selected option is disabled submits
+/// nothing (the selectedness algorithm leaves an explicit selection
+/// alone, so the disabled option stays selected).
+#[test]
+fn collect_single_select_with_disabled_selected_option_submits_nothing() {
+    let mut form_id = None;
+    let (app, _reset) = form_app(|dom, form| {
+        form_id = Some(form);
+        let single = dom.create_element("select");
+        dom.set_attribute(single, "name", "s").unwrap();
+        dom.append_child(form, single).unwrap();
+        option(dom, single, "a", false);
+        let b = option(dom, single, "b", true);
+        dom.set_attribute(b, "disabled", "").unwrap();
+    });
+    assert!(form::collect(app.dom(), form_id.unwrap()).is_empty());
+}

@@ -147,7 +147,12 @@ pub fn install(dom: &mut TuiDom) {
 ///   is set (HTML rule).
 /// - Text-family inputs and `<textarea>` contribute their current
 ///   text content.
-/// - `<select>` / `<button>` not supported in v1.
+/// - `<select>` contributes one pair per selected option that is not
+///   disabled — by its own attribute or a disabled `<optgroup>`
+///   (HTML §4.10.21.4).
+/// - `<button>` is not collected.
+/// - `<fieldset disabled>` does not disable its descendants
+///   (DIVERGENCES).
 pub fn collect(dom: &TuiDom, form: NodeId) -> Vec<(String, String)> {
     let mut out = Vec::new();
     walk_collect(dom, form, &mut out);
@@ -388,13 +393,17 @@ fn walk_collect(dom: &TuiDom, id: NodeId, out: &mut Vec<(String, String)>) {
                     out.push((name, text));
                 }
                 (Some("select"), _) => {
-                    // Multi-select submits each selected option
-                    // as a separate (name, value) pair (matches
-                    // URLSearchParams array convention). Single-
-                    // select submits the one selected option —
-                    // or nothing when no option is selected.
-                    let selected = crate::runtime::builtins::select::selected_options(dom, id);
-                    for opt in selected {
+                    // HTML §4.10.21.4: one (name, value) entry per
+                    // option that is selected and not disabled (own
+                    // attribute or disabled `<optgroup>` parent). A
+                    // multi-select yields several entries; a single-
+                    // select at most one.
+                    use crate::runtime::builtins::select;
+                    let selected = select::selected_options(dom, id);
+                    for opt in selected
+                        .into_iter()
+                        .filter(|&o| !select::option_disabled(dom, o))
+                    {
                         let value = crate::runtime::builtins::select::option_value(dom, opt);
                         out.push((name.clone(), value));
                     }
