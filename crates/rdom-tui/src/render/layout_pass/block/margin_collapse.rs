@@ -8,7 +8,7 @@
 use rdom_core::{Dom, NodeId, NodeType};
 
 use crate::ext::{MarginChainMemo, TuiExt};
-use crate::layout::{MarginValue, Size};
+use crate::layout::{Flow, MarginValue, Size};
 use crate::render::inline::generated::{inline_content_at_edge, own_line_pseudos};
 use crate::style::ComputedStyle;
 
@@ -92,7 +92,7 @@ pub(super) fn parent_collapses_top_with_first_child(
 ) -> bool {
     parent.padding.top.is_zero()
         && parent.border.top.is_none()
-        && !parent.establishes_new_bfc
+        && !establishes_independent_formatting_context(dom, id, parent)
         && !inline_content_at_edge(dom, id, false)
         && !own_line_pseudos(dom, id).before
 }
@@ -107,9 +107,56 @@ pub(super) fn parent_collapses_bottom_with_last_child(
 ) -> bool {
     parent.padding.bottom.is_zero()
         && parent.border.bottom.is_none()
-        && !parent.establishes_new_bfc
+        && !establishes_independent_formatting_context(dom, id, parent)
         && !inline_content_at_edge(dom, id, true)
         && !own_line_pseudos(dom, id).after
+}
+
+/// Does `id` establish an independent formatting context for its
+/// children, so their margins never collapse with its own? Either its
+/// own style makes it one (`establishes_new_bfc`: flex container,
+/// inline-block, non-visible overflow, absolute / fixed — CSS 2.1
+/// §9.4.1), or its place in the tree does:
+///
+/// - the root (CSS 2.1 §8.3.1: "margins of the root element's box do
+///   not collapse"; §9.4.1: the root element establishes a BFC);
+/// - a flex item (Flexbox §4: "A flex item establishes an independent
+///   formatting context for its contents") — including every element
+///   child of a Fragment root, which lays its children out as the items
+///   of an invisible column (`layout_fragment_children`), the way the
+///   viewport holds `<html>`.
+///
+/// Fragments between an element and its layout parent are transparent
+/// (`element_children_of` unwraps them).
+fn establishes_independent_formatting_context(
+    dom: &Dom<TuiExt>,
+    id: NodeId,
+    computed: &ComputedStyle,
+) -> bool {
+    if computed.establishes_new_bfc || id == dom.root() {
+        return true;
+    }
+    let mut parent = dom.node(id).parent_node();
+    while let Some(p) = parent {
+        if p.id() == dom.root() {
+            // A Fragment root lays its children out as flex items; an
+            // element root lays them out by its own `flow`.
+            return p.node_type() == NodeType::Fragment
+                || p.ext()
+                    .and_then(|e| e.computed.as_ref())
+                    .is_some_and(|c| c.flow == Flow::Flex);
+        }
+        match p.node_type() {
+            NodeType::Fragment => parent = p.parent_node(),
+            _ => {
+                return p
+                    .ext()
+                    .and_then(|e| e.computed.as_ref())
+                    .is_some_and(|c| c.flow == Flow::Flex);
+            }
+        }
+    }
+    false
 }
 
 /// CSS 2.1 §8.3.1 vertical-margin collapse accumulator.

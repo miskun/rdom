@@ -113,7 +113,7 @@ The DOM API is Rust-shaped rather than JS-shaped. The semantics match WHATWG DOM
 - **Boundary-point ordering is a `Dom` method**, `compare_boundary_points(a, b) -> Option<Ordering>` (DOM §5.2's internal algorithm), rather than `Range.compareBoundaryPoints(how, range)`; `None` means the two nodes are in different trees.
 - **Attributes are a flat `BTreeMap<String, String>`** exposed as iterator pairs. The `Attr` interface is not implemented.
 - **No `Window` vs `Document` split.** The TUI `App` plays both roles.
-- **`Dom::root()` is a Fragment, not `<html>`.** `<body>` and `<head>` are not auto-inserted.
+- **`Dom::root()` is a Fragment, not `<html>`.** `<body>` and `<head>` are not auto-inserted. The Fragment lays its element children out as the items of an invisible column (the viewport), so each top-level element behaves like the root element: it establishes an independent formatting context, and its first / last child's margins stay inside it instead of collapsing through (CSS 2.1 §8.3.1, §9.4.1; Flexbox §4 for flex items generally). With an `<html>` child, `<body>`'s first-child margin collapses through `<body>` and stops at `<html>`, as in a browser.
 - **`textContent.len()` returns bytes**, not UTF-16 code units.
 - **No XML namespaces.** `namespaceURI`, `prefix`, `*NS` method variants are not applicable.
 - **No Shadow DOM, no custom elements registry, no `<template>` cloning semantics.**

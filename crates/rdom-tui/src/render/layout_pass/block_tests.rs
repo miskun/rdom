@@ -757,13 +757,16 @@ fn parent_top_margin_collapses_with_first_child_when_no_padding_or_border() {
     //
     // We test the OBSERVABLE consequence: the first child's
     // y-offset *relative to the parent* is 0, not the child's
-    // own margin-top.
+    // own margin-top. (`p` sits in a plain block: a root child is a
+    // collapse boundary — P6G-ROOT-MARGIN-1.)
     let mut dom = dom();
     let root = dom.root();
+    let outer = dom.create_element("outer");
     let parent = dom.create_element("p");
     let child = dom.create_element("c");
     dom.append_child(parent, child).unwrap();
-    dom.append_child(root, parent).unwrap();
+    dom.append_child(outer, parent).unwrap();
+    dom.append_child(root, outer).unwrap();
 
     let sheet = Stylesheet::bare()
         .rule_unchecked(
@@ -2238,16 +2241,20 @@ fn negative_top_with_positive_bottom_partially_cancels() {
 fn parent_with_only_empty_collapse_through_children_has_zero_content() {
     // All children are empty-collapse-through. Their margins fold
     // together; with no real content, the parent's content height
-    // is 0 (and the merged margin escapes upward).
+    // is 0 (and the merged margin escapes upward). `p` sits in a
+    // plain block: a root child is a collapse boundary and would keep
+    // the margins (P6G-ROOT-MARGIN-1).
     use crate::render::Rect;
     let mut dom = dom();
     let root = dom.root();
+    let outer = dom.create_element("outer");
     let parent = dom.create_element("p");
     let e1 = dom.create_element("e1");
     let e2 = dom.create_element("e2");
     dom.append_child(parent, e1).unwrap();
     dom.append_child(parent, e2).unwrap();
-    dom.append_child(root, parent).unwrap();
+    dom.append_child(outer, parent).unwrap();
+    dom.append_child(root, outer).unwrap();
 
     let sheet = Stylesheet::bare()
         .rule_unchecked(
@@ -2748,4 +2755,136 @@ fn whitespace_only_text_at_the_edges_still_collapses_margins() {
         3 + 1 + 3,
         "c's margin-bottom below p"
     );
+}
+
+// ── P6G-ROOT-MARGIN-1: the root's children are collapse boundaries ─
+//
+// The root Fragment lays its children out as the items of an invisible
+// column (like the viewport around `<html>`), and a flex item — like the
+// root element (CSS 2.1 §8.3.1: "margins of the root element's box do
+// not collapse") — establishes an independent formatting context
+// (Flexbox §4): its children's margins stay inside it.
+
+/// The root's own first child keeps its `margin-top`.
+#[test]
+fn root_first_child_margin_top_pushes_it_down() {
+    let mut dom = dom();
+    let root = dom.root();
+    let c = dom.create_element("c");
+    dom.append_child(root, c).unwrap();
+    let sheet = Stylesheet::bare().rule_unchecked(
+        "c",
+        TuiStyle::new().height(Size::Fixed(1)).margin(margin_top(2)),
+    );
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 40, 10));
+    assert_eq!(layout_of(&dom, c).y, 2);
+}
+
+/// A first child's `margin-top` inside a root child pushes it down
+/// inside that box instead of collapsing through it (and being dropped).
+#[test]
+fn first_child_margin_top_stays_inside_a_root_child() {
+    let mut dom = dom();
+    let root = dom.root();
+    let p = dom.create_element("p");
+    let c = dom.create_element("c");
+    dom.append_child(p, c).unwrap();
+    dom.append_child(root, p).unwrap();
+    let sheet = Stylesheet::bare().rule_unchecked(
+        "c",
+        TuiStyle::new().height(Size::Fixed(1)).margin(margin_top(2)),
+    );
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 40, 10));
+    assert_eq!(layout_of(&dom, p).y, 0);
+    assert_eq!(layout_of(&dom, c).y, 2, "c's margin-top is inside p");
+    assert_eq!(layout_of(&dom, p).height, 3, "p's auto height holds it");
+}
+
+/// Deeper down, margins still collapse through ordinary blocks — up to
+/// the root child, which keeps them.
+#[test]
+fn nested_margin_collapses_up_to_the_root_child_and_stops() {
+    let mut dom = dom();
+    let root = dom.root();
+    let outer = dom.create_element("outer");
+    let p = dom.create_element("p");
+    let c = dom.create_element("c");
+    dom.append_child(p, c).unwrap();
+    dom.append_child(outer, p).unwrap();
+    dom.append_child(root, outer).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked("outer", TuiStyle::new().margin(margin_top(1)))
+        .rule_unchecked(
+            "c",
+            TuiStyle::new().height(Size::Fixed(1)).margin(margin_top(3)),
+        );
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 40, 10));
+    assert_eq!(layout_of(&dom, outer).y, 1, "outer's own margin only");
+    assert_eq!(
+        layout_of(&dom, p).y,
+        1 + 3,
+        "c's margin collapses through p"
+    );
+    assert_eq!(layout_of(&dom, c).y, 1 + 3);
+    assert_eq!(layout_of(&dom, outer).height, 3 + 1);
+}
+
+/// Symmetric: the last child's `margin-bottom` counts toward the root
+/// child's height, and its sibling sits below it.
+#[test]
+fn last_child_margin_bottom_counts_toward_a_root_childs_height() {
+    let mut dom = dom();
+    let root = dom.root();
+    let p = dom.create_element("p");
+    let c = dom.create_element("c");
+    let next = dom.create_element("n");
+    dom.append_child(p, c).unwrap();
+    dom.append_child(root, p).unwrap();
+    dom.append_child(root, next).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "c",
+            TuiStyle::new()
+                .height(Size::Fixed(1))
+                .margin(margin_bottom(2)),
+        )
+        .rule_unchecked("n", TuiStyle::new().height(Size::Fixed(1)));
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 40, 10));
+    assert_eq!(layout_of(&dom, p).height, 1 + 2);
+    assert_eq!(layout_of(&dom, next).y, 1 + 2);
+}
+
+/// Flexbox §4: any flex item establishes an independent formatting
+/// context, so a block item's first child's margin stays inside it.
+#[test]
+fn first_child_margin_top_stays_inside_a_flex_item() {
+    let mut dom = dom();
+    let root = dom.root();
+    let flex = dom.create_element("f");
+    let p = dom.create_element("p");
+    let c = dom.create_element("c");
+    dom.append_child(p, c).unwrap();
+    dom.append_child(flex, p).unwrap();
+    dom.append_child(root, flex).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "f",
+            TuiStyle::new()
+                .flow(Flow::Flex)
+                .direction(Direction::Column)
+                .height(Size::Fixed(8)),
+        )
+        .rule_unchecked(
+            "c",
+            TuiStyle::new().height(Size::Fixed(1)).margin(margin_top(2)),
+        );
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 40, 10));
+    assert_eq!(layout_of(&dom, p).y, 0);
+    assert_eq!(layout_of(&dom, c).y, 2);
+    assert_eq!(layout_of(&dom, p).height, 3);
 }
