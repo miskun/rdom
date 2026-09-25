@@ -37,6 +37,8 @@ pub enum ControlFlow {
 /// in a follow-up commit).
 /// A change to the App's stylesheet stack requested through an
 /// [`AppContext`]; the App applies it right after the handler returns.
+/// `Set` / `Push` carry the id already allocated for the sheet — the
+/// App registers the sheet under it and allocates nothing.
 pub(super) enum StylesheetIntent {
     Set(super::StylesheetId, crate::style::Stylesheet),
     Push(super::StylesheetId, crate::style::Stylesheet),
@@ -60,33 +62,30 @@ pub struct AppContext<'a> {
     /// Stylesheet-stack changes requested through this context; the
     /// App applies them after the handler returns (`SHOWCASE-EVT-1`).
     pub(super) stylesheet_intents: Vec<StylesheetIntent>,
-    /// The next id the App will assign; advanced here so a handler
-    /// gets the real id back synchronously.
-    pub(super) next_stylesheet_id: u64,
+    /// The App's id allocator, borrowed: a handler gets the id its
+    /// intent will be registered under synchronously.
+    stylesheet_ids: &'a mut super::stylesheets::StylesheetIdAllocator,
 }
 
 impl<'a> AppContext<'a> {
-    pub(super) fn new(dom: &'a mut TuiDom, next_stylesheet_id: u64) -> Self {
+    pub(super) fn new(
+        dom: &'a mut TuiDom,
+        stylesheet_ids: &'a mut super::stylesheets::StylesheetIdAllocator,
+    ) -> Self {
         Self {
             dom,
             redraw_requested: false,
             quit_requested: false,
             queued_dispatches: Vec::new(),
             stylesheet_intents: Vec::new(),
-            next_stylesheet_id,
+            stylesheet_ids,
         }
-    }
-
-    fn next_stylesheet_id(&mut self) -> super::StylesheetId {
-        let id = super::StylesheetId(self.next_stylesheet_id);
-        self.next_stylesheet_id += 1;
-        id
     }
 
     /// Replace every registered stylesheet with `sheet` once this
     /// handler returns; see [`App::set_stylesheet`](super::App::set_stylesheet).
     pub fn set_stylesheet(&mut self, sheet: crate::style::Stylesheet) -> super::StylesheetId {
-        let id = self.next_stylesheet_id();
+        let id = self.stylesheet_ids.allocate();
         self.stylesheet_intents
             .push(StylesheetIntent::Set(id, sheet));
         id
@@ -96,7 +95,7 @@ impl<'a> AppContext<'a> {
     /// [`App::push_stylesheet`](super::App::push_stylesheet). The
     /// returned id is the one the App assigns.
     pub fn push_stylesheet(&mut self, sheet: crate::style::Stylesheet) -> super::StylesheetId {
-        let id = self.next_stylesheet_id();
+        let id = self.stylesheet_ids.allocate();
         self.stylesheet_intents
             .push(StylesheetIntent::Push(id, sheet));
         id

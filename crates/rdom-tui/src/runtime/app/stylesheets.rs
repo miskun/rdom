@@ -1,6 +1,7 @@
 //! The author-stylesheet stack of an [`App`]: registration
 //! ([`App::set_stylesheet`] / [`App::push_stylesheet`] /
-//! [`App::remove_stylesheet`]), the opaque [`StylesheetId`] allocation,
+//! [`App::remove_stylesheet`]), the opaque [`StylesheetId`] and its one
+//! allocator (shared with every [`AppContext`](super::AppContext)),
 //! the [`App::style_sheets`] accessor, applying the intents an
 //! [`AppContext`](super::AppContext) queued, and the cascade
 //! invalidation that a stack change implies.
@@ -18,7 +19,25 @@ use crate::style::Stylesheet;
 /// further `remove_stylesheet` calls with it are a no-op. Ids from
 /// one App passed to another are also no-op on lookup miss — no panic.
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Hash)]
-pub struct StylesheetId(pub(super) u64);
+pub struct StylesheetId(u64);
+
+/// Hands out [`StylesheetId`]s, monotonically, never reusing one. An
+/// [`App`] owns exactly one; its [`AppContext`](super::AppContext)s
+/// borrow it, so every id — from a direct call or a handler's intent —
+/// comes from the same counter. u64 is overkill for in-process
+/// lifetimes — chosen for simplicity.
+#[derive(Debug, Default)]
+pub(super) struct StylesheetIdAllocator {
+    next: u64,
+}
+
+impl StylesheetIdAllocator {
+    pub(super) fn allocate(&mut self) -> StylesheetId {
+        let id = StylesheetId(self.next);
+        self.next += 1;
+        id
+    }
+}
 
 impl<B: Backend> App<B> {
     /// Replace every registered stylesheet with `sheet`. Returns the
@@ -33,11 +52,8 @@ impl<B: Backend> App<B> {
     /// For incremental sheet management (adding a per-screen sheet
     /// without losing the base sheet), use [`Self::push_stylesheet`].
     pub fn set_stylesheet(&mut self, sheet: Stylesheet) -> StylesheetId {
-        let id = StylesheetId(self.next_stylesheet_id);
-        self.next_stylesheet_id += 1;
-        self.stylesheets.clear();
-        self.stylesheets.push((id, sheet));
-        self.invalidate_cascade();
+        let id = self.stylesheet_ids.allocate();
+        self.replace_stylesheets(id, sheet);
         id
     }
 
@@ -54,11 +70,27 @@ impl<B: Backend> App<B> {
     ///
     /// The next paint runs a full re-cascade.
     pub fn push_stylesheet(&mut self, sheet: Stylesheet) -> StylesheetId {
-        let id = StylesheetId(self.next_stylesheet_id);
-        self.next_stylesheet_id += 1;
+        let id = self.stylesheet_ids.allocate();
+        self.append_stylesheet(id, sheet);
+        id
+    }
+
+    /// Register `sheet` under the already-allocated `id` as the only
+    /// sheet.
+    fn replace_stylesheets(&mut self, id: StylesheetId, sheet: Stylesheet) {
+        self.stylesheets.clear();
+        self.append_stylesheet(id, sheet);
+    }
+
+    /// Register `sheet` under the already-allocated `id` at the end of
+    /// the stack.
+    fn append_stylesheet(&mut self, id: StylesheetId, sheet: Stylesheet) {
+        debug_assert!(
+            self.stylesheets.iter().all(|(sid, _)| *sid != id),
+            "a StylesheetId is registered at most once"
+        );
         self.stylesheets.push((id, sheet));
         self.invalidate_cascade();
-        id
     }
 
     /// Remove a previously-pushed sheet by [`StylesheetId`]. No-op
@@ -73,20 +105,14 @@ impl<B: Backend> App<B> {
     }
 
     /// Apply the stylesheet-stack changes a handler requested through
-    /// its [`AppContext`], in order. The ids the context handed out are
-    /// the ones assigned here: the context started from
-    /// `next_stylesheet_id` and advanced it the same way.
+    /// its [`AppContext`], in order. Each sheet is registered under the
+    /// id the context allocated (from this App's allocator) and handed
+    /// back to the handler.
     pub(super) fn apply_stylesheet_intents(&mut self, intents: Vec<context::StylesheetIntent>) {
         for intent in intents {
             match intent {
-                context::StylesheetIntent::Set(id, sheet) => {
-                    debug_assert_eq!(id.0, self.next_stylesheet_id);
-                    self.set_stylesheet(sheet);
-                }
-                context::StylesheetIntent::Push(id, sheet) => {
-                    debug_assert_eq!(id.0, self.next_stylesheet_id);
-                    self.push_stylesheet(sheet);
-                }
+                context::StylesheetIntent::Set(id, sheet) => self.replace_stylesheets(id, sheet),
+                context::StylesheetIntent::Push(id, sheet) => self.append_stylesheet(id, sheet),
                 context::StylesheetIntent::Remove(id) => self.remove_stylesheet(id),
             }
         }

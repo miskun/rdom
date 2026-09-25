@@ -3483,6 +3483,50 @@ fn app_context_stylesheet_intents_apply_after_the_handler() {
     assert_eq!(app.style_sheets().len(), 1);
 }
 
+/// P6G-FRAME-DEDUPE-1: every id a context hands out is the id its sheet
+/// is registered under, whatever mix of context intents (set, push,
+/// remove, in one handler) and direct App calls came before — the App
+/// and its contexts share one id allocator.
+#[test]
+fn stylesheet_ids_from_contexts_and_direct_calls_are_the_registered_ids() {
+    use crate::runtime::app::StylesheetId;
+    type Ids = std::sync::Arc<std::sync::Mutex<Vec<StylesheetId>>>;
+    let mut app = test_app(TuiDom::new(), Stylesheet::bare(), Rect::new(0, 0, 10, 3));
+    let registered = |app: &App<TestBackend>| -> Vec<StylesheetId> {
+        app.stylesheets.iter().map(|(id, _)| *id).collect()
+    };
+
+    let direct_first = app.push_stylesheet(Stylesheet::bare());
+    let handed: Ids = Default::default();
+    let slot = handed.clone();
+    app.handle().inject(move |ctx| {
+        let set = ctx.set_stylesheet(Stylesheet::bare());
+        let dropped = ctx.push_stylesheet(Stylesheet::bare());
+        let kept = ctx.push_stylesheet(Stylesheet::bare());
+        ctx.remove_stylesheet(dropped);
+        slot.lock().unwrap().extend([set, dropped, kept]);
+    });
+    app.drain_handle_injections();
+    let [set, dropped, kept] = handed.lock().unwrap()[..] else {
+        panic!("three ids handed out");
+    };
+    assert_eq!(registered(&app), vec![set, kept]);
+
+    let direct = app.push_stylesheet(Stylesheet::bare());
+    let slot = handed.clone();
+    app.handle().inject(move |ctx| {
+        let later = ctx.push_stylesheet(Stylesheet::bare());
+        slot.lock().unwrap().push(later);
+    });
+    app.drain_handle_injections();
+    let later = handed.lock().unwrap()[3];
+    assert_eq!(registered(&app), vec![set, kept, direct, later]);
+
+    let all = [direct_first, set, dropped, kept, direct, later];
+    let unique: std::collections::HashSet<_> = all.iter().collect();
+    assert_eq!(unique.len(), all.len(), "ids are never reused: {all:?}");
+}
+
 // ── CARET-REVEAL-STALE-LAYOUT-1: reveal against the fresh layout ────
 
 /// Typing the character that wraps a new line reveals the caret's new

@@ -93,10 +93,11 @@ pub struct App<B: Backend = CrosstermBackend<Stdout>> {
     /// [`App::set_stylesheet`] (clear + push). Public accessor
     /// [`App::style_sheets`] returns the sheets-only view.
     pub(super) stylesheets: Vec<(StylesheetId, Stylesheet)>,
-    /// Monotonic id generator. Incremented on every push (including
-    /// the construction sheet and `set_stylesheet`). u64 is overkill
-    /// for in-process lifetimes — chosen for simplicity.
-    pub(super) next_stylesheet_id: u64,
+    /// The one [`StylesheetId`] allocator: the App's own
+    /// `set_stylesheet` / `push_stylesheet` and every [`AppContext`]
+    /// (which borrows it) draw from it, so an id a handler gets back is
+    /// the id its sheet is registered under.
+    stylesheet_ids: stylesheets::StylesheetIdAllocator,
     pub(super) terminal: Terminal<B>,
     pub(super) tracker: DirtyTracker,
     /// Runs the `<select>` selectedness setting algorithm on selects
@@ -366,10 +367,11 @@ impl<B: Backend> App<B> {
         // element. No-op when something is already focused or when no
         // matching element exists.
         crate::runtime::autofocus::focus_first_autofocus(&mut dom);
+        let mut stylesheet_ids = stylesheets::StylesheetIdAllocator::default();
         Ok(Self {
             dom,
-            stylesheets: vec![(StylesheetId(0), stylesheet)],
-            next_stylesheet_id: 1,
+            stylesheets: vec![(stylesheet_ids.allocate(), stylesheet)],
+            stylesheet_ids,
             terminal,
             tracker,
             selectedness,
@@ -650,7 +652,7 @@ impl<B: Backend> App<B> {
         // that schedule fade-outs from a tick callback, etc.).
         let _scheduler_guard = crate::runtime::timers::SchedulerGuard::install(&self.scheduler);
         let (queued, intents) = {
-            let mut ctx = AppContext::new(&mut self.dom, self.next_stylesheet_id);
+            let mut ctx = AppContext::new(&mut self.dom, &mut self.stylesheet_ids);
             let flow = cb(&mut ctx);
             self.needs_redraw |= ctx.redraw_requested;
             self.should_quit |= ctx.quit_requested || flow == ControlFlow::Quit;
@@ -690,7 +692,7 @@ impl<B: Backend> App<B> {
         let _current = crate::runtime::timers::SchedulerGuard::install(&self.scheduler);
         let mut queued = Vec::new();
         for f in injections {
-            let mut ctx = AppContext::new(&mut self.dom, self.next_stylesheet_id);
+            let mut ctx = AppContext::new(&mut self.dom, &mut self.stylesheet_ids);
             f(&mut ctx);
             self.needs_redraw |= ctx.redraw_requested;
             self.should_quit |= ctx.quit_requested;

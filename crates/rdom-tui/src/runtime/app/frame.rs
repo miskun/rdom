@@ -6,9 +6,13 @@
 
 use std::io;
 
-use super::App;
+use rdom_core::NodeId;
+
+use super::{App, StylesheetId};
+use crate::TuiDom;
 use crate::render::backend::Backend;
-use crate::render::{LayoutExt, PaintExt};
+use crate::render::{LayoutExt, PaintExt, Rect};
+use crate::runtime::animation::AnimationRegistry;
 use crate::style::{CascadeExt, Stylesheet};
 
 impl<B: Backend> App<B> {
@@ -45,17 +49,12 @@ impl<B: Backend> App<B> {
         // Animation events (`transitionend`) fire from in here; their
         // listeners may schedule timers.
         let _current = crate::runtime::timers::SchedulerGuard::install(&self.scheduler);
-        // Before the roots snapshot, so a marker move and the options
+        // Before the roots are taken, so a marker move and the options
         // the selectedness algorithm (re)selects are cascaded in this
         // frame.
         self.selectedness.flush(&mut self.dom);
         self.mark_scroll_focus();
-        let mut dirty_roots = self.tracker.roots_snapshot();
-        // dirty_roots is a snapshot; we need to actually drain them
-        // so subsequent frames don't re-cascade the same roots.
-        if !dirty_roots.is_empty() {
-            self.tracker.take_roots();
-        }
+        let dirty_roots = self.take_dirty_roots();
 
         if !self.needs_redraw && dirty_roots.is_empty() {
             crate::rdom_trace!("draw_if_dirty: SKIP (needs_redraw=false, dirty_roots empty)");
@@ -67,41 +66,11 @@ impl<B: Backend> App<B> {
             dirty_roots
         );
 
-        // De-duplicate: multiple mutations under the same root end up
-        // registered under the same NodeId.
-        dirty_roots.sort_unstable();
-        dirty_roots.dedup();
-
-        // Cascade reads the full registered set; later sheets win
-        // same-specificity contests (push order). Build a small
-        // ref-slice view over the (id, sheet) storage — allocates
-        // a Vec of fat-pointers, negligible vs. the cascade itself.
-        let sheets: Vec<&Stylesheet> = self.stylesheets.iter().map(|(_, s)| s).collect();
         let dom = &mut self.dom;
-        let terminal = &mut self.terminal;
+        let stylesheets = &self.stylesheets;
         let animations = &mut self.animations;
-        let now = std::time::Instant::now();
-
-        terminal.draw(|buf| {
-            if dirty_roots.is_empty() {
-                dom.cascade_all(&sheets);
-            } else {
-                dom.cascade_subtrees_all(&sheets, &dirty_roots);
-            }
-            // Detect cascade-driven property changes and register
-            // transitions before layout / paint pick up the new
-            // values.
-            crate::runtime::animation::diff_and_register(dom, animations, now);
-            // Then advance any in-flight animations (writes
-            // interpolated values into TuiExt.presentation).
-            animations.advance(dom, now);
-            dom.layout_dom(buf.area);
-            // A caret reveal requested by an edit this frame re-runs
-            // against the fresh extent; a changed offset needs one more
-            // layout before paint.
-            if crate::runtime::scrollbar::service_caret_reveal(dom) {
-                dom.layout_dom(buf.area);
-            }
+        self.terminal.draw(|buf| {
+            style_and_layout(dom, stylesheets, animations, &dirty_roots, buf.area);
             dom.paint_dom(buf, buf.area);
             Ok(())
         })?;
@@ -113,6 +82,22 @@ impl<B: Backend> App<B> {
         // running — interpolation needs to keep stepping.
         self.needs_redraw = !self.animations.is_empty();
         Ok(())
+    }
+
+    /// Drain the dirty tracker: the subtree roots this frame
+    /// re-cascades, sorted and de-duplicated (several mutations under
+    /// one root register it more than once). Empty means "no subtree is
+    /// dirty" — a frame that still runs cascades the whole tree.
+    fn take_dirty_roots(&mut self) -> Vec<NodeId> {
+        let mut dirty_roots = self.tracker.roots_snapshot();
+        // Drain only when there is something to drain, so the tracker's
+        // bookkeeping is left alone on a clean frame.
+        if !dirty_roots.is_empty() {
+            self.tracker.take_roots();
+        }
+        dirty_roots.sort_unstable();
+        dirty_roots.dedup();
+        dirty_roots
     }
 
     /// Dispatch transition lifecycle events queued by the
@@ -154,26 +139,48 @@ impl<B: Backend> App<B> {
     /// synthetic move. Drains the dirty-root tracker like a real frame, so the
     /// subsequent `draw_if_dirty` only re-cascades what the synthetic move
     /// newly dirtied (it still paints — `needs_redraw` is set).
-    pub(super) fn cascade_and_layout(&mut self, area: crate::render::Rect) {
+    pub(super) fn cascade_and_layout(&mut self, area: Rect) {
         self.selectedness.flush(&mut self.dom);
-        let mut dirty_roots = self.tracker.roots_snapshot();
-        if !dirty_roots.is_empty() {
-            self.tracker.take_roots();
-        }
-        dirty_roots.sort_unstable();
-        dirty_roots.dedup();
-        let sheets: Vec<&Stylesheet> = self.stylesheets.iter().map(|(_, s)| s).collect();
-        if dirty_roots.is_empty() {
-            self.dom.cascade_all(&sheets);
-        } else {
-            self.dom.cascade_subtrees_all(&sheets, &dirty_roots);
-        }
-        let now = std::time::Instant::now();
-        crate::runtime::animation::diff_and_register(&mut self.dom, &mut self.animations, now);
-        self.animations.advance(&mut self.dom, now);
-        self.dom.layout_dom(area);
-        if crate::runtime::scrollbar::service_caret_reveal(&mut self.dom) {
-            self.dom.layout_dom(area);
-        }
+        let dirty_roots = self.take_dirty_roots();
+        style_and_layout(
+            &mut self.dom,
+            &self.stylesheets,
+            &mut self.animations,
+            &dirty_roots,
+            area,
+        );
+    }
+}
+
+/// The frame pipeline up to paint, shared by [`App::draw_if_dirty`] and
+/// [`App::cascade_and_layout`]: cascade (`dirty_roots`' subtrees, or the
+/// whole tree when there are none) → register the transitions the
+/// cascade's property changes start and advance the running ones
+/// (writing interpolated values into `TuiExt::presentation`) → layout →
+/// service a caret reveal requested this frame against the fresh
+/// extent, re-laying out when it moved a scroll offset.
+///
+/// A free function over split borrows because `draw_if_dirty` runs it
+/// inside `Terminal::draw` while the terminal is borrowed.
+fn style_and_layout(
+    dom: &mut TuiDom,
+    stylesheets: &[(StylesheetId, Stylesheet)],
+    animations: &mut AnimationRegistry,
+    dirty_roots: &[NodeId],
+    area: Rect,
+) {
+    // Later sheets win same-specificity contests (push order).
+    let sheets: Vec<&Stylesheet> = stylesheets.iter().map(|(_, s)| s).collect();
+    let now = std::time::Instant::now();
+    if dirty_roots.is_empty() {
+        dom.cascade_all(&sheets);
+    } else {
+        dom.cascade_subtrees_all(&sheets, dirty_roots);
+    }
+    crate::runtime::animation::diff_and_register(dom, animations, now);
+    animations.advance(dom, now);
+    dom.layout_dom(area);
+    if crate::runtime::scrollbar::service_caret_reveal(dom) {
+        dom.layout_dom(area);
     }
 }
