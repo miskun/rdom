@@ -55,6 +55,8 @@ mod inherit;
 mod walk;
 
 #[cfg(test)]
+mod apply_tests;
+#[cfg(test)]
 mod tests;
 
 use rdom_core::{Dom, NodeId};

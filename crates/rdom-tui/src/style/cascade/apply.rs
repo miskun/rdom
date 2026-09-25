@@ -6,15 +6,14 @@
 //! Don't shortcut the ladder — the inversion is observable and tests
 //! depend on it.
 //!
-//! Applicators (`apply_color`, `apply_size`, …) handle the three
-//! `Value<T>` variants: `Specified`, `Inherit`, `Initial`. They also
-//! honor the `important_pass` / `important_prop` pairing so normal
-//! and important declarations apply in separate passes.
+//! Applicators handle the three `Value<T>` variants: `Specified`,
+//! `Inherit`, `Initial`. Most properties share one generic path
+//! (`apply_value`); `initial` always reads `ComputedStyle::initial()`
+//! (via `Initials`), the table every element's cascade starts from.
+//! They also honor the `important_pass` / `important_prop` pairing so
+//! normal and important declarations apply in separate passes.
 
-use crate::layout::{
-    Border, CaretColor, CaretTextColor, Direction, Display, Overflow, Padding, Size, UserSelect,
-    WhiteSpace,
-};
+use crate::layout::Display;
 use crate::style::{
     Color, ComputedStyle, ImportantMask, Modifier, Rule, RuleOrigin, TuiColor, TuiStyle, Value,
     resolve_tui_color,
@@ -32,37 +31,44 @@ pub(super) fn apply_cascade_ladder(
     // 0. Custom properties (CSS Variables 1 §2) — same ladder, folded
     //    into the element's own map before any `var()` consumer runs.
     apply_custom_properties(working, sorted_by_spec, inline);
+    let initial = Initials::default();
     // 1. UA normal.
     for rule in sorted_by_spec {
         if rule.origin == RuleOrigin::UserAgent {
-            apply_style(working, &rule.style, parent, /*important_pass=*/ false);
+            apply_style(
+                working,
+                &rule.style,
+                parent,
+                /*important_pass=*/ false,
+                &initial,
+            );
         }
     }
     // 2. Author normal.
     for rule in sorted_by_spec {
         if rule.origin == RuleOrigin::Author {
-            apply_style(working, &rule.style, parent, false);
+            apply_style(working, &rule.style, parent, false, &initial);
         }
     }
     // 3. Inline normal.
     if let Some(s) = inline {
-        apply_style(working, s, parent, false);
+        apply_style(working, s, parent, false, &initial);
     }
     // 4. Inline important (beats normal inline, Author important beats this).
     if let Some(s) = inline {
-        apply_style(working, s, parent, /*important_pass=*/ true);
+        apply_style(working, s, parent, /*important_pass=*/ true, &initial);
     }
     // 5. Author important.
     for rule in sorted_by_spec {
         if rule.origin == RuleOrigin::Author {
-            apply_style(working, &rule.style, parent, true);
+            apply_style(working, &rule.style, parent, true, &initial);
         }
     }
     // 6. UA important — final word, can't be overridden. Matches the
     //    CSS rule that `!important` inverts the origin priority.
     for rule in sorted_by_spec {
         if rule.origin == RuleOrigin::UserAgent {
-            apply_style(working, &rule.style, parent, true);
+            apply_style(working, &rule.style, parent, true, &initial);
         }
     }
 
@@ -187,10 +193,42 @@ fn apply_style(
     style: &TuiStyle,
     parent: &ComputedStyle,
     important_pass: bool,
+    initial: &Initials,
 ) {
     // Clone the vars Rc once per apply; all color resolutions below
     // share the same snapshot. Rc::clone is a refcount bump — cheap.
     let vars = working.vars.clone();
+
+    // One declared value → one `ComputedStyle` field of the same type:
+    // specified as written, `inherit` the parent's field, `initial` the
+    // field of `ComputedStyle::initial()`.
+    macro_rules! value {
+        ($($field:ident: $mask:ident),* $(,)?) => {$(
+            apply_value(
+                &mut working.$field,
+                &style.$field,
+                style.important.contains(ImportantMask::$mask),
+                important_pass,
+                &parent.$field,
+                initial,
+                |c| &c.$field,
+            );
+        )*};
+    }
+    // `min-*` / `max-*` / `aspect-ratio`: `Option` fields, `None` = unset.
+    macro_rules! optional {
+        ($($field:ident: $mask:ident),* $(,)?) => {$(
+            apply_optional(
+                &mut working.$field,
+                &style.$field,
+                style.important.contains(ImportantMask::$mask),
+                important_pass,
+                parent.$field,
+                initial,
+                |c| c.$field,
+            );
+        )*};
+    }
 
     // Paint properties.
     apply_color(
@@ -199,7 +237,7 @@ fn apply_style(
         style.important.contains(ImportantMask::FG),
         important_pass,
         parent.fg,
-        Color::Reset,
+        || initial.get().fg,
         &vars,
     );
     apply_color(
@@ -208,17 +246,19 @@ fn apply_style(
         style.important.contains(ImportantMask::BG),
         important_pass,
         parent.bg,
-        Color::Reset,
+        || initial.get().bg,
         &vars,
     );
+    // `border-color`'s initial value is `currentColor` (CSS Backgrounds
+    // 3 §3.1): the element's `color` as cascaded so far.
+    let current_color = working.fg;
     apply_color(
         &mut working.border_fg,
         &style.border_fg,
         style.important.contains(ImportantMask::BORDER_FG),
         important_pass,
-        // border_fg's initial is "inherit from fg" per property catalog.
         parent.border_fg,
-        working.fg,
+        || current_color,
         &vars,
     );
 
@@ -228,7 +268,8 @@ fn apply_style(
         &style.bold,
         style.important.contains(ImportantMask::BOLD),
         important_pass,
-        parent.modifiers.contains(Modifier::BOLD),
+        parent.modifiers,
+        initial,
     );
     // Pre-T8 had a `.dim(true)` modifier here; dropped in the
     // pre-publish OOTB color overhaul. SGR-2 is theme-dependent and
@@ -241,7 +282,8 @@ fn apply_style(
         &style.italic,
         style.important.contains(ImportantMask::ITALIC),
         important_pass,
-        parent.modifiers.contains(Modifier::ITALIC),
+        parent.modifiers,
+        initial,
     );
     // `text-decoration` writes the UNDERLINED / CROSSED_OUT bits.
     // T10 made this the sole entry point — there's no longer a
@@ -254,6 +296,7 @@ fn apply_style(
         style.important.contains(ImportantMask::TEXT_DECORATION),
         important_pass,
         parent.modifiers,
+        initial,
     );
     apply_opacity(
         working,
@@ -261,95 +304,24 @@ fn apply_style(
         style.important.contains(ImportantMask::OPACITY),
         important_pass,
         parent.opacity,
+        initial,
     );
 
     // Layout properties.
-    apply_size(
-        &mut working.width,
-        &style.width,
-        style.important.contains(ImportantMask::WIDTH),
-        important_pass,
-        parent.width.clone(),
-        Size::Auto,
+    value!(width: WIDTH, height: HEIGHT);
+    optional!(
+        min_width: MIN_WIDTH,
+        max_width: MAX_WIDTH,
+        min_height: MIN_HEIGHT,
+        max_height: MAX_HEIGHT,
+        aspect_ratio: ASPECT_RATIO,
     );
-    apply_size(
-        &mut working.height,
-        &style.height,
-        style.important.contains(ImportantMask::HEIGHT),
-        important_pass,
-        parent.height.clone(),
-        Size::Auto,
-    );
-    apply_opt_copy(
-        &mut working.min_width,
-        &style.min_width,
-        style.important.contains(ImportantMask::MIN_WIDTH),
-        important_pass,
-        parent.min_width,
-    );
-    apply_opt_copy(
-        &mut working.max_width,
-        &style.max_width,
-        style.important.contains(ImportantMask::MAX_WIDTH),
-        important_pass,
-        parent.max_width,
-    );
-    apply_opt_copy(
-        &mut working.min_height,
-        &style.min_height,
-        style.important.contains(ImportantMask::MIN_HEIGHT),
-        important_pass,
-        parent.min_height,
-    );
-    apply_opt_copy(
-        &mut working.max_height,
-        &style.max_height,
-        style.important.contains(ImportantMask::MAX_HEIGHT),
-        important_pass,
-        parent.max_height,
-    );
-    apply_opt_copy(
-        &mut working.aspect_ratio,
-        &style.aspect_ratio,
-        style.important.contains(ImportantMask::ASPECT_RATIO),
-        important_pass,
-        parent.aspect_ratio,
-    );
-    apply_padding(
-        &mut working.padding,
-        &style.padding,
-        style.important.contains(ImportantMask::PADDING),
-        important_pass,
-        parent.padding.clone(),
-    );
-    apply_margin(
-        &mut working.margin,
-        &style.margin,
-        style.important.contains(ImportantMask::MARGIN),
-        important_pass,
-        parent.margin.clone(),
-    );
-    apply_gap(
-        &mut working.gap,
-        &style.gap,
-        style.important.contains(ImportantMask::GAP),
-        important_pass,
-        parent.gap.clone(),
-    );
-    apply_u16(
-        &mut working.flex_shrink,
-        &style.flex_shrink,
-        style.important.contains(ImportantMask::FLEX_SHRINK),
-        important_pass,
-        parent.flex_shrink,
-        1, // CSS default
-    );
-    apply_border(
-        &mut working.border,
-        &style.border,
-        style.important.contains(ImportantMask::BORDER),
-        important_pass,
-        parent.border,
+    value!(
+        padding: PADDING,
+        margin: MARGIN,
+        gap: GAP,
+        flex_shrink: FLEX_SHRINK,
+        border: BORDER,
     );
     apply_border_collapse(
         &mut working.border_collapse,
@@ -358,188 +330,42 @@ fn apply_style(
         style.important.contains(ImportantMask::BORDER_COLLAPSE),
         important_pass,
         parent.border_collapse,
+        initial,
     );
-    apply_direction(
-        &mut working.direction,
-        &style.direction,
-        style.important.contains(ImportantMask::DIRECTION),
-        important_pass,
-        parent.direction,
+    value!(
+        direction: DIRECTION,
+        overflow_x: OVERFLOW_X,
+        overflow_y: OVERFLOW_Y,
+        scrollbar_gutter: SCROLLBAR_GUTTER,
+        // `display` owns both halves: `display: inherit` takes the
+        // parent's outer and inner display.
+        display: DISPLAY,
+        flow: FLOW,
+        white_space: WHITE_SPACE,
+        user_select: USER_SELECT,
+        pointer_events: POINTER_EVENTS,
+        caret_color: CARET_COLOR,
+        caret_text_color: CARET_TEXT_COLOR,
     );
-    apply_overflow(
-        &mut working.overflow_x,
-        &style.overflow_x,
-        style.important.contains(ImportantMask::OVERFLOW_X),
-        important_pass,
-        parent.overflow_x,
-    );
-    apply_overflow(
-        &mut working.overflow_y,
-        &style.overflow_y,
-        style.important.contains(ImportantMask::OVERFLOW_Y),
-        important_pass,
-        parent.overflow_y,
-    );
-    apply_scrollbar_gutter(
-        &mut working.scrollbar_gutter,
-        &style.scrollbar_gutter,
-        style.important.contains(ImportantMask::SCROLLBAR_GUTTER),
-        important_pass,
-        parent.scrollbar_gutter,
-    );
-    apply_display(
-        &mut working.display,
-        &style.display,
-        style.important.contains(ImportantMask::DISPLAY),
-        important_pass,
-        parent.display,
-    );
-    apply_flow(
-        &mut working.flow,
-        &style.flow,
-        style.important.contains(ImportantMask::FLOW),
-        important_pass,
-    );
-    apply_white_space(
-        &mut working.white_space,
-        &style.white_space,
-        style.important.contains(ImportantMask::WHITE_SPACE),
-        important_pass,
-        parent.white_space,
-    );
-    apply_user_select(
-        &mut working.user_select,
-        &style.user_select,
-        style.important.contains(ImportantMask::USER_SELECT),
-        important_pass,
-        parent.user_select,
-    );
-    apply_pointer_events(
-        &mut working.pointer_events,
-        &style.pointer_events,
-        style.important.contains(ImportantMask::POINTER_EVENTS),
-        important_pass,
-        parent.pointer_events,
-    );
-    apply_caret_color(
-        &mut working.caret_color,
-        &style.caret_color,
-        style.important.contains(ImportantMask::CARET_COLOR),
-        important_pass,
-        &parent.caret_color,
-    );
-    apply_caret_text_color(
-        &mut working.caret_text_color,
-        &style.caret_text_color,
-        style.important.contains(ImportantMask::CARET_TEXT_COLOR),
-        important_pass,
-        &parent.caret_text_color,
-    );
-    // ── Positioning (M2). Non-inheriting.
-    apply_position(
-        &mut working.position,
-        &style.position,
-        style.important.contains(ImportantMask::POSITION),
-        important_pass,
-        parent.position,
-    );
-    apply_length(
-        &mut working.top,
-        &style.top,
-        style.important.contains(ImportantMask::TOP),
-        important_pass,
-        parent.top.clone(),
-    );
-    apply_length(
-        &mut working.right,
-        &style.right,
-        style.important.contains(ImportantMask::RIGHT),
-        important_pass,
-        parent.right.clone(),
-    );
-    apply_length(
-        &mut working.bottom,
-        &style.bottom,
-        style.important.contains(ImportantMask::BOTTOM),
-        important_pass,
-        parent.bottom.clone(),
-    );
-    apply_length(
-        &mut working.left,
-        &style.left,
-        style.important.contains(ImportantMask::LEFT),
-        important_pass,
-        parent.left.clone(),
-    );
-    apply_z_index(
-        &mut working.z_index,
-        &style.z_index,
-        style.important.contains(ImportantMask::Z_INDEX),
-        important_pass,
-        parent.z_index,
-    );
-    // Transitions (M3). Non-inheriting; latest wins. `inherit` copies
-    // the parent's list, `initial` is the empty list.
-    apply_transition_lists(working, style, important_pass, parent);
-    // Counters (CSS Lists 3 §3.1). Non-inheriting; `inherit` copies the
-    // parent's declaration lists.
-    apply_counter_ops(
-        &mut working.counter_reset,
-        &style.counter_reset,
-        style.important.contains(ImportantMask::COUNTER_RESET),
-        important_pass,
-        &parent.counter_reset,
-    );
-    apply_counter_ops(
-        &mut working.counter_increment,
-        &style.counter_increment,
-        style.important.contains(ImportantMask::COUNTER_INCREMENT),
-        important_pass,
-        &parent.counter_increment,
+    // Positioning (M2), transitions (M3; latest list wins) and counters
+    // (CSS Lists 3 §3.1). None inherit by default.
+    value!(
+        position: POSITION,
+        top: TOP,
+        right: RIGHT,
+        bottom: BOTTOM,
+        left: LEFT,
+        z_index: Z_INDEX,
+        transition_property: TRANSITIONS,
+        transition_duration: TRANSITIONS,
+        transition_timing_function: TRANSITIONS,
+        transition_delay: TRANSITIONS,
+        counter_reset: COUNTER_RESET,
+        counter_increment: COUNTER_INCREMENT,
     );
 }
 
-fn apply_transition_lists(
-    working: &mut ComputedStyle,
-    style: &crate::style::TuiStyle,
-    important_pass: bool,
-    parent: &ComputedStyle,
-) {
-    let important = style.important.contains(ImportantMask::TRANSITIONS);
-    if !matches_pass(important, important_pass) {
-        return;
-    }
-    fn resolve<T: Clone>(slot: &mut Vec<T>, declared: &Option<Value<Vec<T>>>, parent: &[T]) {
-        match declared {
-            None => {}
-            Some(Value::Specified(list)) => *slot = list.clone(),
-            Some(Value::Inherit) => *slot = parent.to_vec(),
-            Some(Value::Initial) => slot.clear(),
-        }
-    }
-    resolve(
-        &mut working.transition_property,
-        &style.transition_property,
-        &parent.transition_property,
-    );
-    resolve(
-        &mut working.transition_duration,
-        &style.transition_duration,
-        &parent.transition_duration,
-    );
-    resolve(
-        &mut working.transition_timing_function,
-        &style.transition_timing_function,
-        &parent.transition_timing_function,
-    );
-    resolve(
-        &mut working.transition_delay,
-        &style.transition_delay,
-        &parent.transition_delay,
-    );
-}
-
-// ─── Tiny per-type applicator helpers ───────────────────────────────
+// ─── Applicators ────────────────────────────────────────────────────
 
 /// Should this declaration actually apply during the current pass?
 /// Normal pass applies normal declarations; important pass applies
@@ -549,21 +375,63 @@ fn matches_pass(important_prop: bool, important_pass: bool) -> bool {
     important_prop == important_pass
 }
 
-macro_rules! apply_simple {
-    ($working:expr, $value_opt:expr, $important_prop:expr, $important_pass:expr, $inherit:expr, $initial:expr) => {
-        if let Some(v) = $value_opt {
-            if matches_pass($important_prop, $important_pass) {
-                // `.clone()` works for both Copy and Clone-only
-                // types; Copy types still memcpy because their
-                // `Clone` impl forwards to Copy.
-                $working = match v {
-                    Value::Specified(x) => x.clone(),
-                    Value::Inherit => $inherit,
-                    Value::Initial => $initial,
-                };
-            }
-        }
-    };
+/// The initial values `initial` resolves to: `ComputedStyle::initial()`,
+/// the same table every element's cascade starts from, so the two
+/// cannot drift (`P6G-APPLY-INITIALS-1`). Built on the first `initial`
+/// keyword an element's cascade meets; most elements never build it.
+#[derive(Default)]
+pub(super) struct Initials(std::cell::OnceCell<ComputedStyle>);
+
+impl Initials {
+    fn get(&self) -> &ComputedStyle {
+        self.0.get_or_init(ComputedStyle::initial)
+    }
+}
+
+/// The CSS-wide keyword resolution every property shares: specified
+/// as written, `inherit` the parent's computed value (inherited
+/// property or not — CSS Cascade 4 §7.2), `initial` the property's
+/// initial value (`field` of [`Initials`]).
+fn apply_value<T: Clone>(
+    target: &mut T,
+    value: &Option<Value<T>>,
+    important_prop: bool,
+    important_pass: bool,
+    inherit: &T,
+    initial: &Initials,
+    field: fn(&ComputedStyle) -> &T,
+) {
+    if let Some(v) = value
+        && matches_pass(important_prop, important_pass)
+    {
+        *target = match v {
+            Value::Specified(x) => x.clone(),
+            Value::Inherit => inherit.clone(),
+            Value::Initial => field(initial.get()).clone(),
+        };
+    }
+}
+
+/// [`apply_value`] for the `Option` fields, whose declared value is the
+/// inner `T`.
+fn apply_optional<T: Copy>(
+    target: &mut Option<T>,
+    value: &Option<Value<T>>,
+    important_prop: bool,
+    important_pass: bool,
+    inherit: Option<T>,
+    initial: &Initials,
+    field: fn(&ComputedStyle) -> Option<T>,
+) {
+    if let Some(v) = value
+        && matches_pass(important_prop, important_pass)
+    {
+        *target = match v {
+            Value::Specified(x) => Some(*x),
+            Value::Inherit => inherit,
+            Value::Initial => field(initial.get()),
+        };
+    }
 }
 
 fn apply_color(
@@ -572,7 +440,7 @@ fn apply_color(
     important_prop: bool,
     important_pass: bool,
     inherit: Color,
-    initial: Color,
+    initial: impl FnOnce() -> Color,
     vars: &std::collections::HashMap<String, String>,
 ) {
     if let Some(v) = value
@@ -581,148 +449,9 @@ fn apply_color(
         *target = match v {
             Value::Specified(tc) => resolve_tui_color(tc, vars, inherit),
             Value::Inherit => inherit,
-            Value::Initial => initial,
+            Value::Initial => initial(),
         };
     }
-}
-
-fn apply_size(
-    target: &mut Size,
-    value: &Option<Value<Size>>,
-    important_prop: bool,
-    important_pass: bool,
-    inherit: Size,
-    initial: Size,
-) {
-    apply_simple!(
-        *target,
-        value,
-        important_prop,
-        important_pass,
-        inherit,
-        initial
-    );
-}
-
-fn apply_u16(
-    target: &mut u16,
-    value: &Option<Value<u16>>,
-    important_prop: bool,
-    important_pass: bool,
-    inherit: u16,
-    initial: u16,
-) {
-    apply_simple!(
-        *target,
-        value,
-        important_prop,
-        important_pass,
-        inherit,
-        initial
-    );
-}
-
-fn apply_gap(
-    target: &mut crate::layout::GapValue,
-    value: &Option<Value<crate::layout::GapValue>>,
-    important_prop: bool,
-    important_pass: bool,
-    inherit: crate::layout::GapValue,
-) {
-    apply_simple!(
-        *target,
-        value,
-        important_prop,
-        important_pass,
-        inherit,
-        crate::layout::GapValue::Cells(0)
-    );
-}
-
-fn apply_counter_ops(
-    target: &mut Vec<crate::style::CounterOp>,
-    value: &Option<Value<Vec<crate::style::CounterOp>>>,
-    important_prop: bool,
-    important_pass: bool,
-    inherit: &[crate::style::CounterOp],
-) {
-    apply_simple!(
-        *target,
-        value,
-        important_prop,
-        important_pass,
-        inherit.to_vec(),
-        Vec::new()
-    );
-}
-
-fn apply_opt_copy<T: Copy>(
-    target: &mut Option<T>,
-    value: &Option<Value<T>>,
-    important_prop: bool,
-    important_pass: bool,
-    inherit: Option<T>,
-) {
-    if let Some(v) = value
-        && matches_pass(important_prop, important_pass)
-    {
-        *target = match v {
-            Value::Specified(x) => Some(*x),
-            Value::Inherit => inherit,
-            Value::Initial => None,
-        };
-    }
-}
-
-fn apply_padding(
-    target: &mut Padding,
-    value: &Option<Value<Padding>>,
-    important_prop: bool,
-    important_pass: bool,
-    inherit: Padding,
-) {
-    apply_simple!(
-        *target,
-        value,
-        important_prop,
-        important_pass,
-        inherit,
-        Padding::default()
-    );
-}
-
-fn apply_margin(
-    target: &mut crate::layout::Margin,
-    value: &Option<Value<crate::layout::Margin>>,
-    important_prop: bool,
-    important_pass: bool,
-    inherit: crate::layout::Margin,
-) {
-    apply_simple!(
-        *target,
-        value,
-        important_prop,
-        important_pass,
-        inherit,
-        crate::layout::Margin::default()
-    );
-}
-
-fn apply_border(
-    target: &mut Border,
-    value: &Option<Value<Border>>,
-    important_prop: bool,
-    important_pass: bool,
-    inherit: Border,
-) {
-    apply_simple!(
-        *target,
-        value,
-        important_prop,
-        important_pass,
-        inherit,
-        Border::none()
-    );
 }
 
 fn apply_border_collapse(
@@ -732,6 +461,7 @@ fn apply_border_collapse(
     important_prop: bool,
     important_pass: bool,
     inherit: crate::layout::BorderCollapse,
+    initial: &Initials,
 ) {
     if let Some(v) = value
         && matches_pass(important_prop, important_pass)
@@ -753,7 +483,7 @@ fn apply_border_collapse(
                 *target = inherit;
             }
             Value::Initial => {
-                *target = crate::layout::BorderCollapse::Separate;
+                *target = initial.get().border_collapse;
                 // `initial` resets to the property's initial value
                 // (`separate`); the author IS declaring something on
                 // this element, so it's a (trivial) collapse-root.
@@ -763,211 +493,39 @@ fn apply_border_collapse(
     }
 }
 
-fn apply_direction(
-    target: &mut Direction,
-    value: &Option<Value<Direction>>,
-    important_prop: bool,
-    important_pass: bool,
-    inherit: Direction,
-) {
-    apply_simple!(
-        *target,
-        value,
-        important_prop,
-        important_pass,
-        inherit,
-        Direction::Column
-    );
-}
-
-fn apply_overflow(
-    target: &mut Overflow,
-    value: &Option<Value<Overflow>>,
-    important_prop: bool,
-    important_pass: bool,
-    inherit: Overflow,
-) {
-    apply_simple!(
-        *target,
-        value,
-        important_prop,
-        important_pass,
-        inherit,
-        Overflow::Visible
-    );
-}
-
-/// `scrollbar-gutter` is non-inheriting (matches `overflow`'s
-/// non-inheriting nature). Initial value: `Auto` — CSS default.
-fn apply_scrollbar_gutter(
-    target: &mut crate::layout::ScrollbarGutter,
-    value: &Option<Value<crate::layout::ScrollbarGutter>>,
-    important_prop: bool,
-    important_pass: bool,
-    inherit: crate::layout::ScrollbarGutter,
-) {
-    if important_prop != important_pass {
-        return;
-    }
-    match value {
-        Some(Value::Specified(v)) => *target = *v,
-        // Non-inherited property: `inherit` still means "the parent's
-        // computed value" when written explicitly; `initial` is `auto`.
-        Some(Value::Inherit) => *target = inherit,
-        Some(Value::Initial) => *target = crate::layout::ScrollbarGutter::default(),
-        None => {}
-    }
-}
-
-fn apply_display(
-    target: &mut Display,
-    value: &Option<Value<Display>>,
-    important_prop: bool,
-    important_pass: bool,
-    inherit: Display,
-) {
-    apply_simple!(
-        *target,
-        value,
-        important_prop,
-        important_pass,
-        inherit,
-        Display::Block
-    );
-}
-
-/// `flow` is non-inheriting (matches `display`'s non-inheriting nature).
-/// Default is `Flow::Block`. Initial-value reset means absent writes
-/// fall back to Block, not to the parent's flow.
-fn apply_flow(
-    target: &mut crate::layout::Flow,
-    value: &Option<Value<crate::layout::Flow>>,
-    important_prop: bool,
-    important_pass: bool,
-) {
-    apply_simple!(
-        *target,
-        value,
-        important_prop,
-        important_pass,
-        crate::layout::Flow::Block, // non-inheriting; inherit slot = initial
-        crate::layout::Flow::Block
-    );
-}
-
-fn apply_white_space(
-    target: &mut WhiteSpace,
-    value: &Option<Value<WhiteSpace>>,
-    important_prop: bool,
-    important_pass: bool,
-    inherit: WhiteSpace,
-) {
-    apply_simple!(
-        *target,
-        value,
-        important_prop,
-        important_pass,
-        inherit,
-        WhiteSpace::Normal
-    );
-}
-
-fn apply_user_select(
-    target: &mut UserSelect,
-    value: &Option<Value<UserSelect>>,
-    important_prop: bool,
-    important_pass: bool,
-    inherit: UserSelect,
-) {
-    apply_simple!(
-        *target,
-        value,
-        important_prop,
-        important_pass,
-        inherit,
-        UserSelect::Auto
-    );
-}
-
-fn apply_pointer_events(
-    target: &mut crate::layout::PointerEvents,
-    value: &Option<Value<crate::layout::PointerEvents>>,
-    important_prop: bool,
-    important_pass: bool,
-    inherit: crate::layout::PointerEvents,
-) {
-    apply_simple!(
-        *target,
-        value,
-        important_prop,
-        important_pass,
-        inherit,
-        crate::layout::PointerEvents::Auto
-    );
-}
-
-/// Apply `caret-color`. Hand-rolled (not `apply_simple!`) because
-/// `CaretColor::Color(TuiColor)` is not `Copy` — TuiColor's `Var`
-/// variant holds a `String`. Same shape as the macro, with `.clone()`.
-fn apply_caret_color(
-    target: &mut CaretColor,
-    value: &Option<Value<CaretColor>>,
-    important_prop: bool,
-    important_pass: bool,
-    inherit: &CaretColor,
-) {
-    if let Some(v) = value
-        && matches_pass(important_prop, important_pass)
-    {
-        *target = match v {
-            Value::Specified(x) => x.clone(),
-            Value::Inherit => inherit.clone(),
-            Value::Initial => CaretColor::Auto,
-        };
-    }
-}
-
-fn apply_caret_text_color(
-    target: &mut CaretTextColor,
-    value: &Option<Value<CaretTextColor>>,
-    important_prop: bool,
-    important_pass: bool,
-    inherit: &CaretTextColor,
-) {
-    if let Some(v) = value
-        && matches_pass(important_prop, important_pass)
-    {
-        *target = match v {
-            Value::Specified(x) => x.clone(),
-            Value::Inherit => inherit.clone(),
-            Value::Initial => CaretTextColor::Auto,
-        };
-    }
-}
-
-/// Apply CSS `opacity` to the working `ComputedStyle`. Does NOT
-/// inherit per CSS spec — `Value::Inherit` resolves to the
-/// initial value `1.0`. Clamped to `[0.0, 1.0]` defensively at
-/// cascade time even though `.opacity(f)` setter already clamps.
+/// Apply CSS `opacity` to the working `ComputedStyle`. Does not
+/// inherit by default, but an explicit `inherit` takes the parent's
+/// computed opacity. Clamped to `[0.0, 1.0]` defensively at cascade
+/// time even though the `.opacity(f)` setter already clamps.
 fn apply_opacity(
     working: &mut ComputedStyle,
     value: &Option<Value<f32>>,
     important_prop: bool,
     important_pass: bool,
     inherit: f32,
+    initial: &Initials,
 ) {
-    if important_prop != important_pass {
-        return;
+    if let Some(v) = value
+        && matches_pass(important_prop, important_pass)
+    {
+        working.opacity = match v {
+            Value::Specified(v) => v.clamp(0.0, 1.0),
+            Value::Inherit => inherit,
+            Value::Initial => initial.get().opacity,
+        };
     }
-    let resolved = match value {
-        Some(Value::Specified(v)) => v.clamp(0.0, 1.0),
-        // Not inherited by default, but an explicit `inherit` takes the
-        // parent's computed opacity; `initial` is 1.
-        Some(Value::Inherit) => inherit,
-        Some(Value::Initial) => 1.0,
-        None => return,
-    };
-    working.opacity = resolved;
+}
+
+/// The `text-decoration` a set of modifier bits spells.
+fn decoration_of(modifiers: Modifier) -> crate::layout::TextDecoration {
+    use crate::layout::TextDecoration;
+    if modifiers.contains(Modifier::UNDERLINED) {
+        TextDecoration::Underline
+    } else if modifiers.contains(Modifier::CROSSED_OUT) {
+        TextDecoration::LineThrough
+    } else {
+        TextDecoration::None
+    }
 }
 
 /// Apply CSS `text-decoration` to the working `ComputedStyle`. Maps
@@ -982,24 +540,17 @@ fn apply_text_decoration(
     important_prop: bool,
     important_pass: bool,
     parent_modifiers: Modifier,
+    initial: &Initials,
 ) {
     use crate::layout::TextDecoration;
-    if important_prop != important_pass {
+    let Some(v) = value else { return };
+    if !matches_pass(important_prop, important_pass) {
         return;
     }
-    let resolved = match value {
-        Some(Value::Specified(v)) => *v,
-        Some(Value::Inherit) => {
-            if parent_modifiers.contains(Modifier::UNDERLINED) {
-                TextDecoration::Underline
-            } else if parent_modifiers.contains(Modifier::CROSSED_OUT) {
-                TextDecoration::LineThrough
-            } else {
-                TextDecoration::None
-            }
-        }
-        Some(Value::Initial) => TextDecoration::None,
-        None => return,
+    let resolved = match v {
+        Value::Specified(v) => *v,
+        Value::Inherit => decoration_of(parent_modifiers),
+        Value::Initial => decoration_of(initial.get().modifiers),
     };
     // Wipe both decoration bits, then set the one this property
     // selected (if any).
@@ -1013,77 +564,24 @@ fn apply_text_decoration(
     }
 }
 
-fn apply_position(
-    target: &mut crate::layout::Position,
-    value: &Option<Value<crate::layout::Position>>,
-    important_prop: bool,
-    important_pass: bool,
-    inherit: crate::layout::Position,
-) {
-    apply_simple!(
-        *target,
-        value,
-        important_prop,
-        important_pass,
-        inherit,
-        crate::layout::Position::Static
-    );
-}
-
-fn apply_length(
-    target: &mut crate::layout::Length,
-    value: &Option<Value<crate::layout::Length>>,
-    important_prop: bool,
-    important_pass: bool,
-    inherit: crate::layout::Length,
-) {
-    apply_simple!(
-        *target,
-        value,
-        important_prop,
-        important_pass,
-        inherit,
-        crate::layout::Length::Auto
-    );
-}
-
-fn apply_z_index(
-    target: &mut crate::layout::ZIndex,
-    value: &Option<Value<crate::layout::ZIndex>>,
-    important_prop: bool,
-    important_pass: bool,
-    inherit: crate::layout::ZIndex,
-) {
-    apply_simple!(
-        *target,
-        value,
-        important_prop,
-        important_pass,
-        inherit,
-        crate::layout::ZIndex::Auto
-    );
-}
-
+/// `font-weight: bold` / `font-style: italic` — one modifier bit each.
 fn apply_modifier_bit(
     working: &mut ComputedStyle,
     bit: Modifier,
     value: &Option<Value<bool>>,
     important_prop: bool,
     important_pass: bool,
-    inherit: bool,
+    parent_modifiers: Modifier,
+    initial: &Initials,
 ) {
     if let Some(v) = value
         && matches_pass(important_prop, important_pass)
     {
         let on = match v {
             Value::Specified(b) => *b,
-            Value::Inherit => inherit,
-            Value::Initial => false,
+            Value::Inherit => parent_modifiers.contains(bit),
+            Value::Initial => initial.get().modifiers.contains(bit),
         };
-        if on {
-            working.modifiers |= bit;
-        } else {
-            working.modifiers.remove(bit);
-        }
+        working.modifiers.set(bit, on);
     }
 }

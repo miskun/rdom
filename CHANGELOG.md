@@ -154,6 +154,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 - An `<option>` inside a disabled `<optgroup>` is now disabled for user interaction too: arrow keys, Home / End, type-ahead, Space, Ctrl+A and shift-extend skip it, and clicking it does nothing (HTML §4.10.10). (`P6G-SELECT-OPTGROUP-DISABLED-1`)
 - A flex item — including every top-level element under the root Fragment — now establishes an independent formatting context: its first / last child's vertical margins stay inside it (pushing the child down and counting toward its auto height) instead of collapsing through it and being dropped (CSS 2.1 §8.3.1, Flexbox §4). (`P6G-ROOT-MARGIN-1`)
 - `form::collect` no longer submits a selected `<option>` that is disabled — by its own `disabled` attribute or a disabled `<optgroup>` parent (HTML §4.10.21.4). `<fieldset disabled>` is documented as not yet disabling its descendants. (`P6G-FORM-COLLECT-DISABLED-1`)
+- `display: inherit` now takes the parent's inner display too, so a child of a flex container with `display: inherit` is itself a flex container (CSS Cascade 4 §7.2); it used to fall back to block flow. (`P6G-APPLY-INITIALS-1`)
 
 ## [0.4.0] - 2026-09-24
 
