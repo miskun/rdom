@@ -265,8 +265,10 @@ pub struct InputDetail {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SubmitDetail {
     /// The element that triggered submission (the `<button>` /
-    /// `<input type="submit">`), or `None` for programmatic
-    /// `form.requestSubmit()` calls.
+    /// `<input type="submit">` that was activated, or the form's default
+    /// button on implicit submission), or `None` when the form itself
+    /// submitted: implicit submission from a form with no submit button,
+    /// or `form.requestSubmit()` without a submitter.
     pub submitter: Option<NodeId>,
 }
 

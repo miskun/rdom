@@ -932,3 +932,291 @@ fn collect_single_select_with_disabled_selected_option_submits_nothing() {
     });
     assert!(form::collect(app.dom(), form_id.unwrap()).is_empty());
 }
+
+// ── P6G-FORM-SUBMITTER-1: only the submitter contributes a button entry ──
+
+/// Focus `input`, park the caret in it and press Enter.
+fn press_enter_in(app: &mut App<TestBackend>, input: rdom_core::NodeId) {
+    app.dom_mut().set_focused(Some(input));
+    let t = app
+        .dom()
+        .node(input)
+        .child_nodes()
+        .next()
+        .map(|c| c.id())
+        .unwrap();
+    app.dom_mut()
+        .set_selection(Some(Selection::caret(Position::new(t, 0))));
+    app.handle_event(key(KeyCode::Enter));
+}
+
+fn named(
+    dom: &mut TuiDom,
+    form: rdom_core::NodeId,
+    tag: &str,
+    attrs: &[(&str, &str)],
+) -> rdom_core::NodeId {
+    let el = dom.create_element(tag);
+    for (k, v) in attrs {
+        dom.set_attribute(el, k, v).unwrap();
+    }
+    dom.append_child(form, el).unwrap();
+    el
+}
+
+/// Records every `submit` on `form` as its `SubmitEvent.submitter` and
+/// the entry list built for that submitter.
+type Submissions = Rc<RefCell<Vec<(Option<rdom_core::NodeId>, Vec<(String, String)>)>>>;
+
+fn record_submissions(app: &mut App<TestBackend>, form: rdom_core::NodeId) -> Submissions {
+    let log: Submissions = Rc::new(RefCell::new(Vec::new()));
+    let l = log.clone();
+    app.dom_mut()
+        .add_event_listener(form, "submit", ListenerOptions::default(), move |ctx| {
+            ctx.event.prevent_default();
+            let submitter = ctx
+                .event
+                .detail
+                .as_submit()
+                .expect("submit detail")
+                .submitter;
+            let entries = form::collect_with_submitter(ctx.dom, form, submitter);
+            l.borrow_mut().push((submitter, entries));
+        })
+        .unwrap();
+    log
+}
+
+fn pairs(list: &[(&str, &str)]) -> Vec<(String, String)> {
+    list.iter()
+        .map(|(n, v)| (n.to_string(), v.to_string()))
+        .collect()
+}
+
+/// HTML §4.10.21.4: a button contributes an entry only when it is the
+/// submitter; `new FormData(form)` (no submitter) has no button entry at
+/// all, and reset / plain buttons never contribute.
+#[test]
+fn collect_includes_only_the_submitter_among_buttons() {
+    let mut ids = Vec::new();
+    let mut form_id = None;
+    let (app, _reset) = form_app(|dom, form| {
+        form_id = Some(form);
+        named(dom, form, "input", &[("name", "q"), ("value", "rust")]);
+        ids.push(named(
+            dom,
+            form,
+            "input",
+            &[("type", "submit"), ("name", "a"), ("value", "A")],
+        ));
+        ids.push(named(dom, form, "button", &[("name", "b"), ("value", "B")]));
+        ids.push(named(
+            dom,
+            form,
+            "input",
+            &[("type", "reset"), ("name", "r"), ("value", "R")],
+        ));
+        ids.push(named(
+            dom,
+            form,
+            "input",
+            &[("type", "button"), ("name", "x"), ("value", "X")],
+        ));
+        ids.push(named(
+            dom,
+            form,
+            "button",
+            &[("type", "button"), ("name", "y"), ("value", "Y")],
+        ));
+    });
+    let form = form_id.unwrap();
+    let dom = app.dom();
+    assert_eq!(form::collect(dom, form), pairs(&[("q", "rust")]));
+    assert_eq!(
+        form::collect_with_submitter(dom, form, Some(ids[0])),
+        pairs(&[("q", "rust"), ("a", "A")])
+    );
+    assert_eq!(
+        form::collect_with_submitter(dom, form, Some(ids[1])),
+        pairs(&[("q", "rust"), ("b", "B")])
+    );
+    for &not_submit in &ids[2..] {
+        assert_eq!(
+            form::collect_with_submitter(dom, form, Some(not_submit)),
+            pairs(&[("q", "rust")]),
+            "a non-submit button never contributes"
+        );
+    }
+}
+
+/// A submitter without a `value` attribute contributes the empty string;
+/// one without a `name` contributes nothing.
+#[test]
+fn submitter_without_value_contributes_empty_string_and_without_name_nothing() {
+    let mut ids = Vec::new();
+    let mut form_id = None;
+    let (app, _reset) = form_app(|dom, form| {
+        form_id = Some(form);
+        ids.push(named(dom, form, "button", &[("name", "go")]));
+        ids.push(named(
+            dom,
+            form,
+            "input",
+            &[("type", "submit"), ("value", "unnamed")],
+        ));
+    });
+    let form = form_id.unwrap();
+    assert_eq!(
+        form::collect_with_submitter(app.dom(), form, Some(ids[0])),
+        pairs(&[("go", "")])
+    );
+    assert!(form::collect_with_submitter(app.dom(), form, Some(ids[1])).is_empty());
+}
+
+/// Clicking the second of two named submit buttons submits with it as
+/// the submitter, and only its entry is in the list.
+#[test]
+fn clicked_submit_button_is_the_submitter_and_the_only_button_entry() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let form = dom.create_element("form");
+    dom.append_child(root, form).unwrap();
+    named(
+        &mut dom,
+        form,
+        "input",
+        &[("type", "submit"), ("name", "act"), ("value", "save")],
+    );
+    let second = named(
+        &mut dom,
+        form,
+        "input",
+        &[("type", "submit"), ("name", "act"), ("value", "delete")],
+    );
+    let mut app = test_app(dom, Stylesheet::new());
+    let log = record_submissions(&mut app, form);
+    use crate::accessors::TuiAccessorsMut;
+    app.dom_mut().node_mut(second).click();
+    assert_eq!(
+        *log.borrow(),
+        vec![(Some(second), pairs(&[("act", "delete")]))]
+    );
+}
+
+/// HTML §4.10.21.2 implicit submission: when the form has a default
+/// button (its first submit button in tree order), Enter fires a
+/// `click` at it — so the default button is the submitter, and the
+/// "only one field blocks implicit submission" rule does not apply.
+#[test]
+fn enter_with_a_default_button_clicks_it_and_submits_with_it() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let form = dom.create_element("form");
+    dom.append_child(root, form).unwrap();
+    let q = named(&mut dom, form, "input", &[("name", "q"), ("value", "rust")]);
+    named(&mut dom, form, "input", &[("name", "r"), ("value", "tui")]);
+    named(
+        &mut dom,
+        form,
+        "button",
+        &[("type", "button"), ("name", "n"), ("value", "N")],
+    );
+    named(&mut dom, form, "input", &[("type", "reset")]);
+    let default = named(
+        &mut dom,
+        form,
+        "button",
+        &[("type", "submit"), ("name", "go"), ("value", "1")],
+    );
+    named(
+        &mut dom,
+        form,
+        "input",
+        &[("type", "submit"), ("name", "later"), ("value", "2")],
+    );
+    let mut app = test_app(dom, Stylesheet::new());
+    let log = record_submissions(&mut app, form);
+    let clicks = Rc::new(RefCell::new(Vec::new()));
+    let c = clicks.clone();
+    app.dom_mut()
+        .add_event_listener(form, "click", ListenerOptions::default(), move |ctx| {
+            c.borrow_mut().push(ctx.event.target);
+        })
+        .unwrap();
+    press_enter_in(&mut app, q);
+    assert_eq!(*clicks.borrow(), vec![Some(default)]);
+    assert_eq!(
+        *log.borrow(),
+        vec![(
+            Some(default),
+            pairs(&[("q", "rust"), ("r", "tui"), ("go", "1")])
+        )]
+    );
+}
+
+/// HTML: if the default button is disabled, implicit submission does
+/// nothing — even in a form with a single text field.
+#[test]
+fn enter_with_a_disabled_default_button_does_not_submit() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let form = dom.create_element("form");
+    dom.append_child(root, form).unwrap();
+    let q = named(&mut dom, form, "input", &[("name", "q")]);
+    named(
+        &mut dom,
+        form,
+        "input",
+        &[("type", "submit"), ("disabled", "")],
+    );
+    named(&mut dom, form, "input", &[("type", "submit")]);
+    let mut app = test_app(dom, Stylesheet::new());
+    let log = record_submissions(&mut app, form);
+    press_enter_in(&mut app, q);
+    assert!(log.borrow().is_empty());
+}
+
+/// HTML §4.10.6: a `<button>` whose `type` is missing **or invalid** is
+/// in the Submit Button state.
+#[test]
+fn button_with_an_invalid_type_is_a_submit_button() {
+    let mut ids = Vec::new();
+    let mut form_id = None;
+    let (app, _reset) = form_app(|dom, form| {
+        form_id = Some(form);
+        ids.push(named(
+            dom,
+            form,
+            "button",
+            &[("type", "bogus"), ("name", "a"), ("value", "A")],
+        ));
+        ids.push(named(
+            dom,
+            form,
+            "button",
+            &[("type", "reset"), ("name", "b"), ("value", "B")],
+        ));
+    });
+    let form = form_id.unwrap();
+    let dom = app.dom();
+    assert_eq!(
+        form::collect_with_submitter(dom, form, Some(ids[0])),
+        pairs(&[("a", "A")])
+    );
+    assert!(form::collect_with_submitter(dom, form, Some(ids[1])).is_empty());
+}
+
+/// Clicking a `<button type="bogus">` submits its form.
+#[test]
+fn click_on_button_with_invalid_type_submits() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let form = dom.create_element("form");
+    dom.append_child(root, form).unwrap();
+    let btn = named(&mut dom, form, "button", &[("type", "bogus")]);
+    let mut app = test_app(dom, Stylesheet::new());
+    let log = record_submissions(&mut app, form);
+    use crate::accessors::TuiAccessorsMut;
+    app.dom_mut().node_mut(btn).click();
+    assert_eq!(*log.borrow(), vec![(Some(btn), vec![])]);
+}

@@ -205,6 +205,7 @@ Common web-platform surface rdom omits entirely as of 0.4.x. Schedule lives in [
 - **`transition-behavior: allow-discrete`** (CSS Transitions 2): discrete properties (`display`, `position`, …) never transition; `transition-property: display` (or any other `<custom-ident>`) parses and is inert, exactly as Transitions Level 1 behaves without the Level 2 property.
 
 - **Form validation:** `pattern`, `required`, `minlength`/`maxlength`, `ValidityState`, `checkValidity()`, the `:valid` / `:invalid` / `:required` pseudo-classes, constraint-validation API.
+- **The `form` content attribute and the per-button overrides.** A control's form owner is its nearest `<form>` ancestor (so implicit submission's default button, `form::elements` and `form::collect` all walk that subtree); `form="id"`, `formaction`, `formmethod`, `formenctype`, `formtarget` and `formnovalidate` are not implemented.
 - **`<fieldset disabled>`.** A control is disabled only by its own `disabled` attribute (an `<option>` also by a disabled `<optgroup>` parent); a disabled `<fieldset>` does not disable its descendants for focus, activation or `form::collect` (HTML §4.10.18.2 does, except inside its first `<legend>`).
 - **Smooth scrolling.** `scroll-behavior` is not parsed; every scroll is instant.
 - **Live `<style>` sheets.** A `<style>` element's text is snapshotted when the stylesheet is built; editing its text later does not re-parse. (Inline `style="…"` *is* live — the CSSOM observer re-parses it on every attribute write.)

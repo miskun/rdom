@@ -6,9 +6,17 @@
 //!   - Click on `<input type="submit">`, `<button type="submit">`,
 //!     or `<button>` without a `type` attribute (HTML default for
 //!     buttons in a form is "submit").
-//!   - **Implicit submission**: pressing Enter inside a form whose
-//!     only submittable single-line text input is the focused one
-//!     submits the form.
+//!   - **Implicit submission** (HTML §4.10.21.2): Enter in a
+//!     single-line text input fires a `click` at the form's *default
+//!     button* — its first submit button in tree order — which then
+//!     submits with that button as the submitter; a disabled default
+//!     button makes Enter do nothing. A form with no submit button
+//!     submits (submitter `None`) only when the focused input is its
+//!     one field that blocks implicit submission.
+//! - The `submit` event carries `EventDetail::Submit { submitter }`
+//!   (`SubmitEvent.submitter`); a handler passes it to
+//!   [`collect_with_submitter`] so the entry list holds the
+//!   submitter's name / value, as `new FormData(form, submitter)`.
 //! - **Reset triggers**: click on `<input type="reset">` or
 //!   `<button type="reset">`.
 //! - Submit fires the `submit` event on the `<form>` element —
@@ -87,13 +95,8 @@ pub fn install(dom: &mut TuiDom) {
     })
     .expect("form click listener install");
 
-    // Implicit Enter submission: per HTML, Enter pressed in a
-    // single-line text-family input that's the only such input
-    // in its form submits the form. v1 uses the broader rule
-    // "the focused input is a single-line text-family input AND
-    // it's the only such input in its enclosing form" — close
-    // enough to the spec for TUI apps without parsing every
-    // edge case.
+    // Implicit submission (HTML §4.10.21.2), from Enter in a
+    // single-line text-family input.
     dom.add_event_listener(root, "keydown", ListenerOptions::default(), move |ctx| {
         if ctx.event.default_prevented() {
             return;
@@ -117,26 +120,39 @@ pub fn install(dom: &mut TuiDom) {
         let Some(form) = enclosing_form(ctx.dom, focused) else {
             return;
         };
+        if let Some(default) = default_button(ctx.dom, form) {
+            // The default button's activation behavior does the
+            // submitting (and the `method="dialog"` close) through the
+            // click listener above, with it as the submitter. A
+            // disabled default button blocks implicit submission.
+            if !ctx.dom.node(default).has_attribute("disabled") {
+                use crate::accessors::TuiAccessorsMut;
+                ctx.dom.node_mut(default).click();
+            }
+            return;
+        }
+        // No submit button: submit from the form itself, only when
+        // the focused input is the one field that blocks implicit
+        // submission.
         if count_text_inputs(ctx.dom, form) != 1 {
             return;
         }
-        // Implicit-Enter submit: HTML reports submitter=None.
         let prevented = fire_submit(ctx.dom, form, None);
         if !prevented
             && is_dialog_form(ctx.dom, form)
             && let Some(dialog) = crate::runtime::builtins::dialog::enclosing_dialog(ctx.dom, form)
         {
-            // No submit button known on the implicit-Enter
-            // path — close with empty returnValue.
+            // No submit button — close with an empty returnValue.
             crate::runtime::builtins::dialog::close(ctx.dom, dialog, "");
         }
     })
     .expect("form implicit-enter submit listener install");
 }
 
-/// Walk descendants of `form` and collect every form-controlled
-/// element's `(name, value)` pair. Apps call this from their
-/// `submit` handler to read the form's data.
+/// The form's entry list with no submitter — `new FormData(form)`:
+/// every form-controlled element's `(name, value)` pair, and no button
+/// entry at all. A `submit` handler that wants the clicked button's
+/// entry calls [`collect_with_submitter`] instead.
 ///
 /// Rules (v1):
 /// - Only elements with a non-empty `name` attribute participate.
@@ -150,12 +166,31 @@ pub fn install(dom: &mut TuiDom) {
 /// - `<select>` contributes one pair per selected option that is not
 ///   disabled — by its own attribute or a disabled `<optgroup>`
 ///   (HTML §4.10.21.4).
-/// - `<button>` is not collected.
+/// - Buttons (`<button>`, `<input type=submit|reset|button>`) are not
+///   collected; see [`collect_with_submitter`] for the submitter.
+/// - `<input type=hidden>` contributes its `value` attribute.
 /// - `<fieldset disabled>` does not disable its descendants
 ///   (DIVERGENCES).
 pub fn collect(dom: &TuiDom, form: NodeId) -> Vec<(String, String)> {
+    collect_with_submitter(dom, form, None)
+}
+
+/// The entry list for a submission by `submitter` — HTML §4.10.21.4,
+/// `new FormData(form, submitter)`. As [`collect`], plus one entry for
+/// the submitter, in tree order, when it is a submit button (`<button>`
+/// with a missing / invalid / `submit` type, `<input type=submit>`) that
+/// has a non-empty `name` and is not disabled; its value is its `value`
+/// attribute, or `""`. Any other button never contributes.
+///
+/// A `submit` handler passes the event's submitter:
+/// `ctx.event.detail.as_submit().and_then(|s| s.submitter)`.
+pub fn collect_with_submitter(
+    dom: &TuiDom,
+    form: NodeId,
+    submitter: Option<NodeId>,
+) -> Vec<(String, String)> {
     let mut out = Vec::new();
-    walk_collect(dom, form, &mut out);
+    walk_collect(dom, form, submitter, &mut out);
     out
 }
 
@@ -168,19 +203,34 @@ enum ButtonAction {
     Button,
 }
 
-/// HTML default for `<button>` is `type="submit"` when inside a
-/// form and the attribute is absent. `<input type=submit/reset/button>`
-/// uses the literal type. Anything else is `Button` (no default).
+/// HTML §4.10.6: a `<button>` is a submit button unless its `type` is
+/// `reset` or `button` — the missing and the invalid value default are
+/// both Submit. `<input type=submit/reset/button>` uses the literal
+/// type. Anything else is `Button` (no default action).
 fn button_action(dom: &TuiDom, id: NodeId) -> ButtonAction {
     let node = dom.node(id);
     let ty = node.get_attribute("type");
     match (node.tag_name(), ty) {
-        (Some("button"), None)
-        | (Some("button"), Some("submit"))
-        | (Some("input"), Some("submit")) => ButtonAction::Submit,
         (Some("button"), Some("reset")) | (Some("input"), Some("reset")) => ButtonAction::Reset,
+        (Some("button"), Some("button")) => ButtonAction::Button,
+        (Some("button"), _) | (Some("input"), Some("submit")) => ButtonAction::Submit,
         _ => ButtonAction::Button,
     }
+}
+
+/// The form's default button (HTML §4.10.21.2): its first submit button
+/// in tree order, disabled or not.
+fn default_button(dom: &TuiDom, form: NodeId) -> Option<NodeId> {
+    let mut stack: Vec<NodeId> = dom.node(form).child_nodes().map(|c| c.id()).collect();
+    stack.reverse();
+    while let Some(id) = stack.pop() {
+        if button_action(dom, id) == ButtonAction::Submit {
+            return Some(id);
+        }
+        let kids: Vec<NodeId> = dom.node(id).child_nodes().map(|c| c.id()).collect();
+        stack.extend(kids.into_iter().rev());
+    }
+    None
 }
 
 /// Walk up from `id` (inclusive) to the nearest `<button>` or
@@ -254,8 +304,9 @@ fn is_form_control(dom: &TuiDom, id: NodeId) -> bool {
 /// Fire a `submit` event on `form` with typed
 /// `EventDetail::Submit { submitter }`. `submitter` is the
 /// element that triggered submission (the clicked `<button>` /
-/// `<input type=submit>`), or `None` for implicit-Enter submits
-/// where there's no clicked button.
+/// `<input type=submit>`, or the default button on implicit
+/// submission), or `None` for an implicit submission from a form with
+/// no submit button and for `requestSubmit()` without one.
 ///
 /// Returns `true` when the submit was `preventDefault`-ed.
 /// Callers chain post-submit defaults (the `<form method="dialog">`
@@ -350,7 +401,12 @@ fn count_text_inputs(dom: &TuiDom, form: NodeId) -> usize {
     n
 }
 
-fn walk_collect(dom: &TuiDom, id: NodeId, out: &mut Vec<(String, String)>) {
+fn walk_collect(
+    dom: &TuiDom,
+    id: NodeId,
+    submitter: Option<NodeId>,
+    out: &mut Vec<(String, String)>,
+) {
     let node = dom.node(id);
     if !node.has_attribute("disabled") {
         let name = node.get_attribute("name").unwrap_or("").to_string();
@@ -370,10 +426,15 @@ fn walk_collect(dom: &TuiDom, id: NodeId, out: &mut Vec<(String, String)>) {
                         out.push((name, value));
                     }
                 }
-                (Some("input"), Some("submit"))
-                | (Some("input"), Some("reset"))
-                | (Some("input"), Some("button"))
-                | (Some("input"), Some("hidden")) => {
+                // HTML §4.10.21.4: a button contributes only as the
+                // submitter, and only a submit button can be one.
+                (Some("input"), Some("submit" | "reset" | "button")) | (Some("button"), _) => {
+                    if submitter == Some(id) && button_action(dom, id) == ButtonAction::Submit {
+                        let value = node.get_attribute("value").unwrap_or("").to_string();
+                        out.push((name, value));
+                    }
+                }
+                (Some("input"), Some("hidden")) => {
                     if let Some(value) = node.get_attribute("value") {
                         out.push((name, value.to_string()));
                     }
@@ -413,7 +474,7 @@ fn walk_collect(dom: &TuiDom, id: NodeId, out: &mut Vec<(String, String)>) {
         }
     }
     for child in node.child_nodes() {
-        walk_collect(dom, child.id(), out);
+        walk_collect(dom, child.id(), submitter, out);
     }
 }
 
