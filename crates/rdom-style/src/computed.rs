@@ -52,8 +52,8 @@ pub struct ComputedStyle {
     /// integers so the CSS round-trip recovers the original form.
     pub aspect_ratio: Option<crate::layout::AspectRatio>,
     pub padding: Padding,
-    /// Resolved margin. CSS does NOT collapse adjacent block margins
-    /// (rdom divergence — `M5-MARGIN-1`).
+    /// Resolved margin. Vertical margins collapse in block flow
+    /// (CSS 2.1 §8.3.1) at layout time; this is the element's own value.
     pub margin: crate::layout::Margin,
     pub gap: crate::layout::GapValue,
     /// CSS `flex-shrink`. Default `1` (CSS spec). When total

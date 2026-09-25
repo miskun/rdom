@@ -118,6 +118,8 @@ Watch for:
 - APIs that are hard to test without spinning up a full terminal
 - files growing past a few hundred lines because multiple responsibilities are accumulating
 
+The few-hundred-line bar applies to production modules. Test files may run long when they are organized by section headers, one section per behavior; a test file is split when a section outgrows its module — typically one test file per submodule after a production split.
+
 If a god object or oversized module is emerging, split it earlier rather than later. Prefer small domain types, explicit interfaces, and narrow modules over clever central objects.
 
 At regular intervals, stop and inspect the codebase organization before adding more surface area.
