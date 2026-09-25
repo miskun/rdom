@@ -14,6 +14,10 @@
 //!
 //! Adding a new integration test: drop the file alongside this
 //! `main.rs` and add a `mod <filename_without_rs>;` line below.
+//!
+//! Exception: `tests/inline_flow.rs` is its own target because it
+//! uses `VirtualScreen`, which needs the `test-util` feature
+//! (`required-features` in `Cargo.toml`).
 
 #![allow(dead_code)] // Some test helpers are only used by a
 // subset of modules; the allow keeps things tidy without forcing
@@ -33,7 +37,6 @@ mod flex_shorthand;
 mod flex_shrink;
 mod flex_two_slot_layout;
 mod implicit_detach_events;
-mod inline_flow;
 mod input_render_integration;
 mod m5_abortsignal;
 mod nested_collapse_content_inset;

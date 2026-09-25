@@ -27,3 +27,8 @@ rdom-parser = { path = "../rdom-parser", version = "0.4.0" }
 # drive App::handle_event directly. Not a runtime dep — the
 # showcase binary uses crossterm transitively via rdom-tui.
 crossterm = "0.28"
+# `test-util` exposes `rdom_tui::VirtualScreen` to test code. Enabling it
+# here also switches it on for rdom-tui's own `inline_flow` integration
+# test in a `cargo test --workspace` run (resolver 2 unifies features
+# across the workspace build), so the plain workspace gate runs every test.
+rdom-tui = { path = "../rdom-tui", version = "0.4.0", features = ["test-util"] }

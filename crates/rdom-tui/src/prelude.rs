@@ -50,6 +50,9 @@
 //! For the full surface use `rdom_tui::*` directly; for access to
 //! `rdom-core` internals use `rdom_tui::core_api::…`.
 
+/// Test-only VT emulator (`test-util` feature).
+#[cfg(any(test, feature = "test-util"))]
+pub use crate::VirtualScreen;
 pub use crate::{
     // Selected rdom-core re-exports most apps will need
     AdjacentPosition,
@@ -137,6 +140,5 @@ pub use crate::{
     UserSelect,
     Value,
     VarMap,
-    VirtualScreen,
     WhiteSpace,
 };

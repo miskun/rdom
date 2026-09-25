@@ -75,9 +75,12 @@ pub use layout::{
     WhiteSpace,
 };
 pub use node::{TuiNodeExt, TuiNodeMutExt};
+/// Test-only VT emulator; see [`render::virtual_screen`].
+#[cfg(any(test, feature = "test-util"))]
+pub use render::VirtualScreen;
 pub use render::{
     Backend, Buffer, Cell, CellDiff, CompletedFrame, CrosstermBackend, LayoutExt, PaintExt, Rect,
-    Style, Terminal, TerminalGuard, TestBackend, VirtualScreen,
+    Style, Terminal, TerminalGuard, TestBackend,
 };
 /// The canvas paint surface a `<canvas>` `set_paint` callback receives.
 /// (Re-exported here as the canonical `RenderContext`; the old, unused

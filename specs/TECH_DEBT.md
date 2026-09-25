@@ -11,7 +11,6 @@ For the durable architectural divergences (web-platform departures shipped on pu
 
 ### Deferred from HARDENING-2026-09 Batch 3
 
-- **`VIRTUAL-SCREEN-TEST-UTIL-1`** (`render/virtual_screen.rs` ~1 090: a test-only VT emulator shipped as a public re-export; belongs behind `cfg(test)` / a `test-util` feature) — over the few-hundred-line bar; split by concern, no behavior change.
 - **`OVERSIZED-FILES-1` — files still over the few-hundred-line bar after the Phase 6 splits.** `rdom-style`: `layout.rs`, `ua.rs`, `tui_style.rs`, `stylesheet.rs`; `rdom-tui`: `style/cascade/apply.rs`, `style/cascade/tests.rs`. Each is one concern at length (a data model, the UA rule list, a builder, a test table) rather than mixed responsibilities; the Phase 6 architect gate decides per file whether to split or accept.
 
 ### Paint pipeline

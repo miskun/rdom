@@ -27,6 +27,7 @@ pub mod sgr;
 pub(crate) mod stacking;
 pub mod style;
 pub mod terminal;
+#[cfg(any(test, feature = "test-util"))]
 pub mod virtual_screen;
 
 pub use backend::{Backend, TestBackend};
@@ -47,4 +48,5 @@ pub use rect::Rect;
 pub use sgr::{SgrState, emit_cup, emit_reset, emit_sgr_transition};
 pub use style::Style;
 pub use terminal::{CompletedFrame, Terminal, TerminalGuard};
+#[cfg(any(test, feature = "test-util"))]
 pub use virtual_screen::VirtualScreen;

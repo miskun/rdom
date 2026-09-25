@@ -185,6 +185,8 @@ cargo test -p rdom-style
 cargo test -p rdom-css
 ```
 
+`rdom-tui`'s test-only VT emulator, `VirtualScreen`, sits behind the `test-util` cargo feature (plus `cfg(test)` for the crate's own unit tests). Its one integration-test user, `tests/inline_flow.rs`, is a separate `[[test]]` target with `required-features = ["test-util"]`: `cargo test --workspace` runs it because `rdom-showcase`'s dev-dependency enables the feature and resolver 2 unifies it across the workspace build, while a bare `cargo test -p rdom-tui` skips it — add `--features test-util` there.
+
 Workspace gate (same set CI runs, and the same set `/commit` enforces):
 
 ```bash

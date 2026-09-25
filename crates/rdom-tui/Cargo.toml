@@ -21,6 +21,11 @@ default = []
 # handle DEC private mode 2026 gracefully). Default off = emit them;
 # non-supporting terminals ignore.
 no-synchronized-output = []
+# Test utilities for downstream test suites: `VirtualScreen`, a headless
+# VT emulator that replays emitted ANSI bytes into an inspectable grid.
+# Not part of the default API; this crate's own unit tests get it via
+# `cfg(test)`.
+test-util = []
 
 [dependencies]
 rdom-core = { path = "../rdom-core", version = "0.4.0" }
@@ -66,6 +71,14 @@ criterion = { version = "0.5", default-features = false, features = ["rayon"] }
 # Used by the `parse_and_render` example (the three crates composing).
 # Not a runtime dep of rdom-tui itself.
 rdom-parser = { path = "../rdom-parser", version = "0.4.0" }
+
+# Uses `VirtualScreen`, so it needs `test-util`. `cargo test --workspace`
+# enables the feature through `rdom-showcase`'s dev-dependency (resolver-2
+# feature unification); `cargo test -p rdom-tui` needs `--features test-util`.
+[[test]]
+name = "inline_flow"
+path = "tests/inline_flow.rs"
+required-features = ["test-util"]
 
 [[bench]]
 name = "runtime"
