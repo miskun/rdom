@@ -10,8 +10,10 @@
 //! - `<option selected>` marks a selected option. Presence-only
 //!   (any value counts), matching HTML's boolean-attribute
 //!   semantics and the `:checked` pattern from C.4b.
-//! - `<option disabled>` is skipped in keyboard navigation and
-//!   cannot be selected by user action.
+//! - `<option disabled>` — or any option inside an
+//!   `<optgroup disabled>` (HTML §4.10.10, `model::option_disabled`)
+//!   — is skipped in keyboard navigation, type-ahead, Ctrl+A and
+//!   shift-extend, and cannot be picked or toggled by user action.
 //! - `<optgroup label="Group">` renders the label as a bold,
 //!   non-selectable separator line.
 //! - `<select disabled>` blocks all interaction.

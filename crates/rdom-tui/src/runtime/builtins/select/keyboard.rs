@@ -8,7 +8,7 @@
 use rdom_core::NodeId;
 
 use super::dropdown::{close, is_dropdown, is_open, open};
-use super::model::{is_multi, options, selected_options};
+use super::model::{is_multi, option_disabled, options, selected_options};
 use super::state::{
     anchor, extend_selection_to, fire_input_and_change, highlight, select_single, set_anchor,
     set_highlight, toggle_option,
@@ -104,11 +104,10 @@ fn step_navigation(dom: &mut TuiDom, select: NodeId, dir: i32, multi: bool, shif
     let current = highlight(dom, select).or_else(|| {
         // Initial highlight: first selected option, else first
         // non-disabled option.
-        selected_options(dom, select).first().copied().or_else(|| {
-            all.iter()
-                .find(|&&o| !dom.node(o).has_attribute("disabled"))
-                .copied()
-        })
+        selected_options(dom, select)
+            .first()
+            .copied()
+            .or_else(|| all.iter().find(|&&o| !option_disabled(dom, o)).copied())
     });
     let next = match current {
         Some(c) => step_from(dom, &all, c, dir),
@@ -155,7 +154,7 @@ fn step_from(dom: &TuiDom, list: &[NodeId], from: NodeId, dir: i32) -> Option<No
             return None;
         }
         let candidate = list[i as usize];
-        if !dom.node(candidate).has_attribute("disabled") {
+        if !option_disabled(dom, candidate) {
             return Some(candidate);
         }
     }
@@ -164,13 +163,11 @@ fn step_from(dom: &TuiDom, list: &[NodeId], from: NodeId, dir: i32) -> Option<No
 fn jump_to_end(dom: &mut TuiDom, select: NodeId, home: bool, multi: bool, shift: bool) {
     let all = options(dom, select);
     let target = if home {
-        all.iter()
-            .find(|&&o| !dom.node(o).has_attribute("disabled"))
-            .copied()
+        all.iter().find(|&&o| !option_disabled(dom, o)).copied()
     } else {
         all.iter()
             .rev()
-            .find(|&&o| !dom.node(o).has_attribute("disabled"))
+            .find(|&&o| !option_disabled(dom, o))
             .copied()
     };
     let Some(target) = target else { return };
@@ -191,7 +188,7 @@ fn toggle_highlighted(dom: &mut TuiDom, select: NodeId) {
     let Some(h) = highlight(dom, select) else {
         return;
     };
-    if dom.node(h).has_attribute("disabled") {
+    if option_disabled(dom, h) {
         return;
     }
     toggle_option(dom, select, h);
@@ -201,7 +198,7 @@ fn toggle_highlighted(dom: &mut TuiDom, select: NodeId) {
 fn select_all(dom: &mut TuiDom, select: NodeId) {
     super::state::note_default_selected(dom, select);
     for opt in options(dom, select) {
-        if !dom.node(opt).has_attribute("disabled") {
+        if !option_disabled(dom, opt) {
             let _ = dom.set_attribute(opt, "selected", "");
         }
     }

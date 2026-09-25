@@ -7,7 +7,7 @@
 use rdom_core::NodeId;
 
 use super::dropdown::{close, is_dropdown, is_open, open};
-use super::model::{closest_option, closest_select, enclosing_select, is_multi};
+use super::model::{closest_option, closest_select, enclosing_select, is_multi, option_disabled};
 use super::state::{
     extend_selection_to, fire_input_and_change, select_single, set_highlight, toggle_option,
 };
@@ -56,7 +56,7 @@ pub(super) fn on_click(ctx: &mut TuiEventCtx<'_>) {
         .unwrap_or(false);
 
     match option {
-        Some(opt) if !ctx.dom.node(opt).has_attribute("disabled") => {
+        Some(opt) if !option_disabled(ctx.dom, opt) => {
             click_option(ctx.dom, select, opt, shift);
             // Single-select dropdown auto-closes after a
             // pick — matches browser behavior. Listbox

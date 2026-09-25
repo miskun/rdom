@@ -995,3 +995,129 @@ fn marking_an_option_selected_after_mount_makes_it_the_only_one() {
     app.draw_if_dirty().unwrap();
     assert_eq!(select::selected_options(app.dom(), sel), vec![opts[0]]);
 }
+
+// ── P6G-SELECT-OPTGROUP-DISABLED-1: a disabled <optgroup> disables its options ──
+
+/// `<select [multiple]>` with `head`, then `<optgroup disabled>` holding
+/// `grouped`, then `tail`. Returns (app, select, options in tree order).
+fn disabled_group_select(
+    multi: bool,
+    head: &[&str],
+    grouped: &[&str],
+    tail: &[&str],
+) -> (App<TestBackend>, NodeId, Vec<NodeId>) {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let sel = dom.create_element("select");
+    if multi {
+        dom.set_attribute(sel, "multiple", "").unwrap();
+    }
+    let group = dom.create_element("optgroup");
+    dom.set_attribute(group, "label", "G").unwrap();
+    dom.set_attribute(group, "disabled", "").unwrap();
+    let mut opts = Vec::new();
+    let mut add = |dom: &mut TuiDom, parent: NodeId, label: &str| {
+        let opt = dom.create_element("option");
+        dom.set_attribute(opt, "value", label).unwrap();
+        let t = dom.create_text_node(label);
+        dom.append_child(opt, t).unwrap();
+        dom.append_child(parent, opt).unwrap();
+        opts.push(opt);
+    };
+    for l in head {
+        add(&mut dom, sel, l);
+    }
+    dom.append_child(sel, group).unwrap();
+    for l in grouped {
+        add(&mut dom, group, l);
+    }
+    for l in tail {
+        add(&mut dom, sel, l);
+    }
+    dom.append_child(root, sel).unwrap();
+    (test_app(dom), sel, opts)
+}
+
+#[test]
+fn down_arrow_skips_options_in_a_disabled_optgroup() {
+    let (mut app, sel, _) = disabled_group_select(false, &["a"], &["b", "c"], &["d"]);
+    app.dom_mut().set_focused(Some(sel));
+    app.handle_event(key(KeyCode::Down, KeyModifiers::empty()));
+    assert_eq!(select::value(app.dom(), sel), "d");
+}
+
+#[test]
+fn up_arrow_skips_options_in_a_disabled_optgroup() {
+    let (mut app, sel, opts) = disabled_group_select(false, &["a"], &["b", "c"], &["d"]);
+    app.dom_mut()
+        .set_attribute(opts[3], "selected", "")
+        .unwrap();
+    app.dom_mut().set_focused(Some(sel));
+    app.handle_event(key(KeyCode::Up, KeyModifiers::empty()));
+    assert_eq!(select::value(app.dom(), sel), "a");
+}
+
+#[test]
+fn home_and_end_skip_options_in_a_disabled_optgroup() {
+    let (mut app, sel, _) = disabled_group_select(false, &[], &["a"], &["b", "c"]);
+    app.dom_mut().set_focused(Some(sel));
+    app.handle_event(key(KeyCode::End, KeyModifiers::empty()));
+    assert_eq!(select::value(app.dom(), sel), "c");
+    app.handle_event(key(KeyCode::Home, KeyModifiers::empty()));
+    assert_eq!(select::value(app.dom(), sel), "b");
+    let (mut app, sel, _) = disabled_group_select(false, &["a", "b"], &["c"], &[]);
+    app.dom_mut().set_focused(Some(sel));
+    app.handle_event(key(KeyCode::End, KeyModifiers::empty()));
+    assert_eq!(select::value(app.dom(), sel), "b");
+}
+
+#[test]
+fn clicking_an_option_in_a_disabled_optgroup_does_nothing() {
+    let (mut app, sel, opts) = disabled_group_select(false, &["a"], &["b"], &["c"]);
+    let changes = Rc::new(Cell::new(0));
+    let c = changes.clone();
+    app.dom_mut()
+        .add_event_listener(sel, "change", ListenerOptions::default(), move |_| {
+            c.set(c.get() + 1);
+        })
+        .unwrap();
+    dispatch_click(&mut app, opts[1]);
+    assert!(!app.dom().node(opts[1]).has_attribute("selected"));
+    assert_eq!(select::value(app.dom(), sel), "a");
+    assert_eq!(changes.get(), 0);
+}
+
+#[test]
+fn type_ahead_skips_options_in_a_disabled_optgroup() {
+    let (mut app, sel, _) = disabled_group_select(false, &["Cherry"], &["Apple"], &["Apricot"]);
+    app.dom_mut().set_focused(Some(sel));
+    app.handle_event(key(KeyCode::Char('a'), KeyModifiers::empty()));
+    assert_eq!(select::value(app.dom(), sel), "Apricot");
+}
+
+#[test]
+fn multi_select_ctrl_a_space_and_shift_extend_skip_a_disabled_optgroup() {
+    // Ctrl+A leaves the grouped option unselected.
+    let (mut app, sel, opts) = disabled_group_select(true, &["a"], &["b"], &["c"]);
+    app.dom_mut().set_focused(Some(sel));
+    app.handle_event(key(KeyCode::Char('a'), KeyModifiers::CONTROL));
+    assert_eq!(select::value(app.dom(), sel), "a c");
+    assert!(!app.dom().node(opts[1]).has_attribute("selected"));
+
+    // Space on a highlighted grouped option does not toggle it.
+    let (mut app, sel, opts) = disabled_group_select(true, &["a"], &["b"], &["c"]);
+    app.dom_mut()
+        .set_attribute(opts[1], "data-rdom-highlight", "")
+        .unwrap();
+    app.dom_mut().set_focused(Some(sel));
+    app.handle_event(key(KeyCode::Char(' '), KeyModifiers::empty()));
+    assert!(!app.dom().node(opts[1]).has_attribute("selected"));
+
+    // Shift-extend across the group selects the ends only.
+    let (mut app, sel, opts) = disabled_group_select(true, &["a"], &["b"], &["c"]);
+    app.dom_mut().set_focused(Some(sel));
+    dispatch_click(&mut app, opts[0]);
+    app.handle_event(key(KeyCode::Down, KeyModifiers::SHIFT));
+    assert_eq!(select::value(app.dom(), sel), "a c");
+    assert!(!app.dom().node(opts[1]).has_attribute("selected"));
+}

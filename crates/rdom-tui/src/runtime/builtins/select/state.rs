@@ -6,7 +6,7 @@
 
 use rdom_core::NodeId;
 
-use super::model::{options, selected_options};
+use super::model::{option_disabled, options, selected_options};
 use crate::tui_event::TuiDispatchExt;
 use crate::{TuiDom, TuiEvent};
 
@@ -101,7 +101,7 @@ pub(super) fn extend_selection_to(dom: &mut TuiDom, select: NodeId, target: Node
         (t_idx, a_idx)
     };
     for (i, &opt) in all.iter().enumerate() {
-        if dom.node(opt).has_attribute("disabled") {
+        if option_disabled(dom, opt) {
             continue;
         }
         if i >= lo && i <= hi {

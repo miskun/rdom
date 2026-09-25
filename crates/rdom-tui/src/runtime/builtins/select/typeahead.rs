@@ -28,7 +28,7 @@ use std::time::{Duration, Instant};
 
 use rdom_core::NodeId;
 
-use super::model::{option_label, options};
+use super::model::{option_disabled, option_label, options};
 use super::state::{fire_input_and_change, highlight, select_single, set_anchor, set_highlight};
 use crate::TuiDom;
 
@@ -106,7 +106,7 @@ pub(super) fn typeahead_search(dom: &mut TuiDom, select: NodeId, ch: char, multi
     let target = (0..len).find_map(|offset| {
         let i = (start_idx + offset) % len;
         let opt = all[i];
-        if dom.node(opt).has_attribute("disabled") {
+        if option_disabled(dom, opt) {
             return None;
         }
         let label = option_label(dom, opt).to_ascii_lowercase();
