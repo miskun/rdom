@@ -295,6 +295,32 @@ Each phase ends with the two review gates; each commit carries the item id.
 - 2026-09-24 — Phase 6: `DECLARATION-SPLIT-1` — `cssom/declaration.rs` → `cssom/declaration/{mod,error,read,write,serialize}.rs` + `tests/{mod,read,write,css_text}.rs`; public paths unchanged; rdom-tui lib tests 1661 → 1661.
 - 2026-09-24 — Phase 6: `BUFFER-SPLIT-1` — `render/buffer.rs` → `render/buffer/{mod,border,write,composite,diff,tests}.rs`; public paths unchanged; rdom-tui lib tests 1661 → 1661.
 - 2026-09-24 — Phase 6: `VIRTUAL-SCREEN-TEST-UTIL-1` — `VirtualScreen` behind `#[cfg(any(test, feature = "test-util"))]`; `virtual_screen/{mod,parse}.rs` + `tests/{mod,parser,terminal}.rs`; `tests/inline_flow.rs` is its own `[[test]]` with `required-features = ["test-util"]`, enabled in the workspace run by `rdom-showcase`'s dev-dependency; lib tests 1661 → 1661, integration 191 → 163 + 28 (`inline_flow`).
+- 2026-09-24 — Phase 6 API gate (3 blocking): B1 — the UA `user-select: none` on toggles / range
+  and `user-select` inheriting (CSS UI 4: not inherited; nested `contain` merges into the outer host)
+  are undocumented divergences; B2 — CHANGELOG files new API, a breaking change and an rdom-style UA
+  change under "Fixed", and `TuiAccessors` gained required methods unflagged; B3 — `<form>` reset
+  skips `<select>` and range. Non-blocking: selection-drag capture retargets clicks (root cause of
+  the toggle patch), block-first `::before` gap (`ol > li > p` shows no numbers), stale comments,
+  `test-util` invisible to consumers, no default setters, showcase not migrated to the intents, no
+  demo exercises the new features.
+- 2026-09-24 — Phase 6 architect gate (3 blocking): B1 — group opacity misses borders (joiner runs
+  after compositing at full fg) and `Reset` fg, and an `opacity: 0` glyph erases the backdrop; B2 —
+  `composite_group` splits wide-glyph pairs; B3 — the toggle `user-select` rule is a symptom patch:
+  the selection drag takes DOM-visible pointer capture and retargets `click`. Non-blocking: backdrop
+  glyphs untinted and links inherited under a translucent box, full-screen layer cost, form reset
+  gaps, nested `contain`, duplicated frame pipeline, stylesheet ids allocated twice, `::before`
+  shift paint-only (packer / hit-test / caret disagree), `render/` helpers living in `runtime/`,
+  duplicate `cells_before_byte`, `test-util` coverage depending on the showcase. OVERSIZED-FILES-1:
+  split `layout.rs` (geometry out of the style crate), move `stylesheet.rs` tests, dedupe the
+  `cascade/apply.rs` initials against `ComputedStyle::default()`, accept `ua.rs` / `tui_style.rs`,
+  state a policy for test files.
+  Decision: fix rather than record, one item per commit (`P6G-*` ids): OPACITY-COMPOSITE,
+  OPACITY-LAYER-COST, SELECTION-CAPTURE (then drop the toggle / range UA rule), USER-SELECT-INHERIT,
+  FORM-RESET (select, range, textarea capture, default setters), PSEUDO-SHIFT, BLOCK-FIRST-PSEUDO,
+  FRAME-DEDUPE (+ carried stylesheet ids), RENDER-HELPERS, LAYOUT-RS-SPLIT, STYLESHEET-TESTS,
+  APPLY-INITIALS, TEST-UTIL, SHOWCASE-INTENTS, DOCS (CHANGELOG reorganised per crate and kind,
+  stale comments, DESIGN opacity paragraph). Demos for the new features go to the Phase 7 scope
+  question.
 - Found while mapping Phase 3 (not on the ledger): `ImportantMask::FLOW` and `POINTER_EVENTS` share
   bit 39 (`tui_style.rs`), custom-property inheritance in the cascade is overwritten by the merged
   root map (`walk.rs`), and tokenizer errors inside a block are body-relative (`declarations.rs`).
