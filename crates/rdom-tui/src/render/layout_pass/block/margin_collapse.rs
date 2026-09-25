@@ -9,7 +9,7 @@ use rdom_core::{Dom, NodeId, NodeType};
 
 use crate::ext::{MarginChainMemo, TuiExt};
 use crate::layout::{MarginValue, Size};
-use crate::render::inline::generated::own_line_pseudos;
+use crate::render::inline::generated::{inline_content_at_edge, own_line_pseudos};
 use crate::style::ComputedStyle;
 
 use super::super::is_in_flow;
@@ -81,9 +81,10 @@ fn is_collapse_through_shape(dom: &Dom<TuiExt>, id: NodeId, computed: &ComputedS
 /// `margin-top`." All conditions must hold: no top padding, no top
 /// border, no clearance (always true in v1 — `clear` isn't a
 /// property we model), the container doesn't establish a new
-/// block formatting context, and no line box comes first — a
-/// `::before` on a line of its own (CSS 2.1 §9.2.1.1) separates the
-/// margins.
+/// block formatting context, and no line box comes first — neither
+/// inline content ahead of the first block child (text, an inline
+/// box: an anonymous block with a line, CSS 2.1 §9.2.1.1) nor a
+/// `::before` on a line of its own separates the margins.
 pub(super) fn parent_collapses_top_with_first_child(
     dom: &Dom<TuiExt>,
     id: NodeId,
@@ -92,11 +93,13 @@ pub(super) fn parent_collapses_top_with_first_child(
     parent.padding.top.is_zero()
         && parent.border.top.is_none()
         && !parent.establishes_new_bfc
+        && !inline_content_at_edge(dom, id, false)
         && !own_line_pseudos(dom, id).before
 }
 
 /// Symmetric to `parent_collapses_top_with_first_child` — for the
-/// bottom edge (an `::after` on a line of its own separates).
+/// bottom edge (inline content after the last block child, or an
+/// `::after` on a line of its own, separates).
 pub(super) fn parent_collapses_bottom_with_last_child(
     dom: &Dom<TuiExt>,
     id: NodeId,
@@ -105,6 +108,7 @@ pub(super) fn parent_collapses_bottom_with_last_child(
     parent.padding.bottom.is_zero()
         && parent.border.bottom.is_none()
         && !parent.establishes_new_bfc
+        && !inline_content_at_edge(dom, id, true)
         && !own_line_pseudos(dom, id).after
 }
 

@@ -2608,3 +2608,144 @@ fn mixed_content_block_advances_sibling_past_full_height() {
         "sibling must clear first's full height, not overlap inner"
     );
 }
+
+// ── P6G-TEXT-BEFORE-BLOCK-MARGIN-1: a line box separates the margins ─
+
+fn margin_top(n: i16) -> Margin {
+    Margin::new(
+        MarginValue::Cells(n),
+        MarginValue::Cells(0),
+        MarginValue::Cells(0),
+        MarginValue::Cells(0),
+    )
+}
+
+fn margin_bottom(n: i16) -> Margin {
+    Margin::new(
+        MarginValue::Cells(0),
+        MarginValue::Cells(0),
+        MarginValue::Cells(n),
+        MarginValue::Cells(0),
+    )
+}
+
+/// CSS 2.1 §8.3.1: a parent's top margin collapses with its first
+/// in-flow child's only when nothing separates them. Text before the
+/// first block child is an anonymous block with a line box, so the
+/// child's `margin-top` applies between that line and the child.
+#[test]
+fn text_before_the_first_block_child_keeps_its_top_margin() {
+    let mut dom = dom();
+    let root = dom.root();
+    let outer = dom.create_element("outer");
+    let p = dom.create_element("p");
+    let t = dom.create_text_node("text");
+    let c = dom.create_element("c");
+    dom.append_child(p, t).unwrap();
+    dom.append_child(p, c).unwrap();
+    dom.append_child(outer, p).unwrap();
+    dom.append_child(root, outer).unwrap();
+    let sheet = Stylesheet::bare().rule_unchecked(
+        "c",
+        TuiStyle::new().height(Size::Fixed(1)).margin(margin_top(2)),
+    );
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 40, 10));
+    assert_eq!(
+        layout_of(&dom, p).y,
+        0,
+        "c's margin does not escape through p"
+    );
+    assert_eq!(
+        layout_of(&dom, c).y,
+        1 + 2,
+        "text line, then c's margin-top"
+    );
+    assert_eq!(layout_of(&dom, p).height, 4);
+}
+
+/// Symmetric: text after the last block child keeps that child's
+/// `margin-bottom` between the child and the text line.
+#[test]
+fn text_after_the_last_block_child_keeps_its_bottom_margin() {
+    let mut dom = dom();
+    let root = dom.root();
+    let outer = dom.create_element("outer");
+    let p = dom.create_element("p");
+    let c = dom.create_element("c");
+    let t = dom.create_text_node("text");
+    let next = dom.create_element("n");
+    dom.append_child(p, c).unwrap();
+    dom.append_child(p, t).unwrap();
+    dom.append_child(outer, p).unwrap();
+    dom.append_child(outer, next).unwrap();
+    dom.append_child(root, outer).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "c",
+            TuiStyle::new()
+                .height(Size::Fixed(1))
+                .margin(margin_bottom(2)),
+        )
+        .rule_unchecked("n", TuiStyle::new().height(Size::Fixed(1)));
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 40, 10));
+    let anon = dom.node(p).ext().unwrap().anonymous_blocks[0].rect;
+    assert_eq!(anon.y, 1 + 2, "c, its margin-bottom, then the text line");
+    assert_eq!(layout_of(&dom, p).height, 4);
+    assert_eq!(
+        layout_of(&dom, next).y,
+        4,
+        "c's margin does not escape through p"
+    );
+}
+
+/// Whitespace-only text generates no line box: it does not separate
+/// the margins, so the first child's `margin-top` still collapses
+/// through its parent (and the last child's `margin-bottom`).
+#[test]
+fn whitespace_only_text_at_the_edges_still_collapses_margins() {
+    let mut dom = dom();
+    let root = dom.root();
+    let outer = dom.create_element("outer");
+    let head = dom.create_element("n");
+    let p = dom.create_element("p");
+    let lead = dom.create_text_node("\n    ");
+    let c = dom.create_element("c");
+    let trail = dom.create_text_node("\n  ");
+    let next = dom.create_element("n");
+    dom.append_child(p, lead).unwrap();
+    dom.append_child(p, c).unwrap();
+    dom.append_child(p, trail).unwrap();
+    dom.append_child(outer, head).unwrap();
+    dom.append_child(outer, p).unwrap();
+    dom.append_child(outer, next).unwrap();
+    dom.append_child(root, outer).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "c",
+            TuiStyle::new().height(Size::Fixed(1)).margin(Margin::new(
+                MarginValue::Cells(2),
+                MarginValue::Cells(0),
+                MarginValue::Cells(3),
+                MarginValue::Cells(0),
+            )),
+        )
+        .rule_unchecked("n", TuiStyle::new().height(Size::Fixed(1)));
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 40, 10));
+    // `head` (1 row), c's margin-top above p, p = c, c's margin-bottom
+    // below p.
+    assert_eq!(
+        layout_of(&dom, p).y,
+        1 + 2,
+        "c's margin-top surfaces above p"
+    );
+    assert_eq!(layout_of(&dom, c).y, 1 + 2);
+    assert_eq!(layout_of(&dom, p).height, 1);
+    assert_eq!(
+        layout_of(&dom, next).y,
+        3 + 1 + 3,
+        "c's margin-bottom below p"
+    );
+}

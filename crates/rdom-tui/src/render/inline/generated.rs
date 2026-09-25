@@ -122,6 +122,16 @@ pub(crate) fn deferred_markers(dom: &Dom<TuiExt>, holder: NodeId) -> Vec<NodeId>
     markers
 }
 
+/// Whether `host`'s first (`from_end = false`) or last in-flow content
+/// is inline-level — text or an inline box, which CSS 2.1 §9.2.1.1
+/// wraps in an anonymous block holding a line box. Such a line
+/// separates `host`'s top (bottom) margin from its first (last) block
+/// child's (§8.3.1). Collapsible whitespace-only text holds no line and
+/// does not count.
+pub(crate) fn inline_content_at_edge(dom: &Dom<TuiExt>, host: NodeId, from_end: bool) -> bool {
+    line_bearing_child(dom, host, from_end).is_some_and(|c| !is_block_level(dom, c))
+}
+
 /// The first line of `el` is its own when its first line-bearing
 /// content is inline-level; a block-level first child passes it down.
 /// `None` when no line box is reachable (an empty block, a flex
