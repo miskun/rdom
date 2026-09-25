@@ -68,8 +68,12 @@ pub(super) struct ClickRecord {
 /// - `selection_drag`: `Some(InlineFlow)` while a mouse-drag
 ///   text-selection is in progress. Set by
 ///   `runtime::selection::drag::begin` on `mousedown`, consulted by
-///   `handle_move` to route through the drag extension default
-///   action, cleared on `mouseup`. The stored `InlineFlow` identifies
+///   `handle_move` to extend the selection on every button-held move
+///   (whatever element is under the pointer), cleared on `mouseup` or
+///   a button-less move. This state — not DOM pointer capture — is the
+///   whole drag: a browser's text-selection drag takes no capture, so
+///   `mousemove` / `mouseup` / `click` keep their hit-test targets.
+///   `App`'s edge autoscroll keys on it too. The stored `InlineFlow` identifies
 ///   the inline-flow container holding the anchor — either a classic
 ///   IFC block or one of a parent's anonymous block boxes (BFC-1
 ///   phase 3).

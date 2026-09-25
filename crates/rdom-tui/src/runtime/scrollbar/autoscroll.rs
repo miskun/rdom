@@ -1,5 +1,6 @@
-//! Drag-autoscroll (DRAG-AUTOSCROLL) — while a pointer drag is
-//! captured, holding the pointer in a band at a scroll container's
+//! Drag-autoscroll (DRAG-AUTOSCROLL) — during an autoscrolling drag
+//! (a captured drag that opted in, or a text-selection drag), holding
+//! the pointer in a band at a scroll container's
 //! edge (or past it) scrolls the container a few cells per tick.
 //!
 //! Owns the edge-zone / step constants, the one-shot resolution of
@@ -30,25 +31,26 @@ fn scroll_container_from_hit(dom: &TuiDom, x: u16, y: u16) -> Option<NodeId> {
     nearest_scroll_container(dom, hit)
 }
 
-/// Resolve the vertical scroll container a captured drag should autoscroll
+/// Resolve the vertical scroll container a drag should autoscroll
 /// (DRAG-AUTOSCROLL). Called **once** when the autoscroll session arms; the
 /// runtime then keeps the result **sticky** for the rest of the drag, so the
-/// captured node scrolling out of view — or the pointer overshooting past the
+/// drag's `source` (the captured node, or a text-selection drag's anchor
+/// container) scrolling out of view — or the pointer overshooting past the
 /// container onto a sibling — never re-targets or disarms it.
 ///
 /// Resolution prefers the **raw pointer** (held at an edge the pointer is still
 /// inside the container, so a hit-test finds the nearest vertical scroll
-/// container directly, independent of the captured node). It falls back to
-/// hit-testing the pointer **clamped into the captured node's box** — for a
-/// descendant scroller whose owner is the captured node (the virtual table's
+/// container directly, independent of `source`). It falls back to
+/// hit-testing the pointer **clamped into `source`'s box** — for a
+/// descendant scroller whose owner is the source (the virtual table's
 /// `<tbody>` inside the captured `<table>`).
 pub(crate) fn resolve_autoscroll_container(
     dom: &TuiDom,
-    captured: NodeId,
+    source: NodeId,
     pointer: (u16, u16),
 ) -> Option<NodeId> {
     scroll_container_from_hit(dom, pointer.0, pointer.1).or_else(|| {
-        let cap = dom.node(captured).tui_ext()?.layout;
+        let cap = dom.node(source).tui_ext()?.layout;
         if cap.width == 0 || cap.height == 0 {
             return None;
         }

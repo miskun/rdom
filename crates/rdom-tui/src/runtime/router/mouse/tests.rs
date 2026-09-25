@@ -1774,8 +1774,9 @@ fn mousedown_on_text_starts_drag_and_sets_caret_selection() {
     assert!(sel.is_collapsed());
     assert_eq!(sel.anchor, Position::new(t, 2));
 
-    // Pointer capture held on the IFC block (the <p>).
-    assert_eq!(dom.pointer_capture(), Some(p));
+    // No DOM pointer capture: a browser's text-selection drag does not
+    // capture (P6G-SELECTION-CAPTURE-1). The drag lives in router state.
+    assert_eq!(dom.pointer_capture(), None);
 
     // Router knows a drag is in progress — anchor is the IFC flow
     // for `<p>`, not the raw NodeId (BFC-1 phase 3.5a refactor).
@@ -2144,4 +2145,183 @@ fn drag_extend_clamps_to_user_select_contain_boundary() {
     );
     // t2 must NOT be involved.
     assert_ne!(sel.focus.node, t2);
+}
+
+// ── selection drag takes no pointer capture (P6G-SELECTION-CAPTURE-1) ──
+//
+// Browsers do not capture the pointer for a text-selection drag: during it
+// `mousemove` / `mouseup` target what is under the pointer and `click` goes to
+// the common ancestor of the mousedown and mouseup targets (UI Events). The
+// drag itself lives in router-private state (`router.selection_drag`).
+
+/// Row 0: a paragraph of prose. Row 1: a 10×1 block `<div>` with no text of
+/// its own (its `::before` gets content when `pseudo` is set). Returns
+/// (dom, p, text, div).
+fn prose_beside_box_fixture(pseudo: bool) -> (TuiDom, NodeId, NodeId, NodeId) {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let p = dom.create_element("p");
+    let t = dom.create_text_node("some prose");
+    dom.append_child(p, t).unwrap();
+    let span = dom.create_element("span");
+    dom.append_child(p, span).unwrap();
+    dom.append_child(root, p).unwrap();
+    let div = dom.create_element("div");
+    dom.append_child(root, div).unwrap();
+
+    let mut sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "p",
+            TuiStyle::new()
+                .display(Display::Block)
+                .width(Size::Fixed(12))
+                .height(Size::Fixed(1)),
+        )
+        .rule_unchecked("span", TuiStyle::new().display(Display::Inline))
+        .rule_unchecked(
+            "div",
+            TuiStyle::new()
+                .display(Display::Block)
+                .width(Size::Fixed(10))
+                .height(Size::Fixed(1)),
+        );
+    if pseudo {
+        sheet = sheet.rule_unchecked(
+            "div::before",
+            TuiStyle::new().content(crate::style::Content::Str("[x]".into())),
+        );
+    }
+    prepare(&mut dom, &sheet, Rect::new(0, 0, 20, 10));
+    (dom, p, t, div)
+}
+
+fn count_events(dom: &mut TuiDom, node: NodeId, ty: &str) -> Rc<Cell<usize>> {
+    let n = Rc::new(Cell::new(0));
+    let c = n.clone();
+    dom.add_event_listener(node, ty, ListenerOptions::default(), move |ctx| {
+        // Count only events whose target is `node` itself.
+        if ctx.event.target == Some(node) {
+            c.set(c.get() + 1);
+        }
+    })
+    .unwrap();
+    n
+}
+
+#[test]
+fn click_on_empty_box_beside_prose_reaches_the_box() {
+    let (mut dom, p, _t, div) = prose_beside_box_fixture(false);
+    let div_clicks = count_events(&mut dom, div, "click");
+    let p_clicks = count_events(&mut dom, p, "click");
+
+    let mut router = Router::new();
+    router.route(&mut dom, crossterm::event::Event::Mouse(down_at(3, 1)));
+    // The empty-space snap still starts a selection at the nearest prose
+    // (a browser mousedown in empty space does too) — but takes no capture.
+    assert!(
+        router.selection_drag.is_some(),
+        "mousedown in empty space starts a selection drag"
+    );
+    assert_eq!(
+        dom.pointer_capture(),
+        None,
+        "a text-selection drag takes no DOM pointer capture"
+    );
+    router.route(&mut dom, crossterm::event::Event::Mouse(up_at(3, 1)));
+
+    assert_eq!(div_clicks.get(), 1, "the click reached the empty box");
+    assert_eq!(p_clicks.get(), 0, "the prose container stole no click");
+    assert_eq!(router.selection_drag, None, "mouseup ends the drag");
+}
+
+#[test]
+fn click_on_before_only_box_beside_prose_reaches_the_box() {
+    let (mut dom, p, _t, div) = prose_beside_box_fixture(true);
+    let div_clicks = count_events(&mut dom, div, "click");
+    let p_clicks = count_events(&mut dom, p, "click");
+
+    let mut router = Router::new();
+    router.route(&mut dom, crossterm::event::Event::Mouse(down_at(1, 1)));
+    router.route(&mut dom, crossterm::event::Event::Mouse(up_at(1, 1)));
+
+    assert_eq!(div_clicks.get(), 1, "the click reached the ::before box");
+    assert_eq!(p_clicks.get(), 0, "the prose container stole no click");
+}
+
+#[test]
+fn selection_drag_over_other_elements_extends_and_targets_the_hit() {
+    // A drag from the prose down over the box keeps extending the selection
+    // (router state, not capture) while `mousemove` targets the box under the
+    // pointer, like a browser.
+    let (mut dom, p, t, div) = prose_beside_box_fixture(false);
+    let div_moves = count_events(&mut dom, div, "mousemove");
+    let p_moves = count_events(&mut dom, p, "mousemove");
+
+    let mut router = Router::new();
+    router.route(&mut dom, crossterm::event::Event::Mouse(down_at(1, 0)));
+    router.route(
+        &mut dom,
+        crossterm::event::Event::Mouse(mouse_at(MouseEventKind::Drag(MouseButton::Left), 4, 0)),
+    );
+    assert_eq!(dom.selection().unwrap().focus, Position::new(t, 4));
+
+    router.route(
+        &mut dom,
+        crossterm::event::Event::Mouse(mouse_at(MouseEventKind::Drag(MouseButton::Left), 8, 1)),
+    );
+    let sel = dom.selection().expect("selection survives the drag");
+    assert_eq!(sel.anchor, Position::new(t, 1));
+    assert_ne!(
+        sel.focus,
+        Position::new(t, 4),
+        "the drag over the box kept extending the selection"
+    );
+    assert_eq!(div_moves.get(), 1, "mousemove over the box targets the box");
+    assert_eq!(p_moves.get(), 1, "only the move over the prose targets it");
+}
+
+#[test]
+fn mouseup_after_selection_drag_clicks_the_common_ancestor() {
+    // Down on the prose, drag, up over the box: `click` goes to the common
+    // ancestor of the two targets (the root), not to the prose container.
+    let (mut dom, p, _t, div) = prose_beside_box_fixture(false);
+    let root = dom.root();
+    let root_clicks = count_events(&mut dom, root, "click");
+    let p_clicks = count_events(&mut dom, p, "click");
+    let div_ups = count_events(&mut dom, div, "mouseup");
+
+    let mut router = Router::new();
+    router.route(&mut dom, crossterm::event::Event::Mouse(down_at(1, 0)));
+    router.route(
+        &mut dom,
+        crossterm::event::Event::Mouse(mouse_at(MouseEventKind::Drag(MouseButton::Left), 5, 1)),
+    );
+    router.route(&mut dom, crossterm::event::Event::Mouse(up_at(5, 1)));
+
+    assert_eq!(
+        div_ups.get(),
+        1,
+        "mouseup targets the box under the pointer"
+    );
+    assert_eq!(root_clicks.get(), 1, "click goes to the common ancestor");
+    assert_eq!(p_clicks.get(), 0, "not to the prose container");
+    assert!(dom.selection().is_some_and(|s| !s.is_collapsed()));
+}
+
+#[test]
+fn buttonless_move_ends_a_stale_selection_drag() {
+    // The mouseup was lost (button released outside the terminal): the next
+    // button-less motion ends the drag, as it does a stale capture.
+    let (mut dom, _p, t, _div) = prose_beside_box_fixture(false);
+    let mut router = Router::new();
+    router.route(&mut dom, crossterm::event::Event::Mouse(down_at(1, 0)));
+    assert!(router.selection_drag.is_some());
+
+    router.route(&mut dom, crossterm::event::Event::Mouse(move_at(6, 0)));
+    assert_eq!(router.selection_drag, None, "stale drag ended");
+    assert_eq!(
+        dom.selection().unwrap().focus,
+        Position::new(t, 1),
+        "a button-less move does not extend the selection"
+    );
 }

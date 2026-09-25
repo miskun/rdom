@@ -165,8 +165,8 @@ fn drag_off_screen_then_back_in_does_not_strand_pointer_capture() {
     app.draw_if_dirty().unwrap();
 
     // Now simulate "user starts a drag, drags off-window, no mouseup
-    // is delivered." Mousedown on a row engages selection drag-
-    // capture (selection/drag.rs:93). We DON'T send the mouseup.
+    // is delivered." Mousedown on a row starts a selection drag
+    // (router state, no pointer capture). We DON'T send the mouseup.
     let row = find_by_class(app.dom(), app.dom().root(), "row").expect("`.row` exists");
     let row_rect = app.dom().node(row).tui_ext().unwrap().layout;
     let rx = (row_rect.x + (row_rect.width as i32) / 2) as u16;

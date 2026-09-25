@@ -5,23 +5,27 @@
 //! on the mouse pipeline:
 //!
 //! - `begin`: tries to start a drag on `mousedown`. Returns true
-//!   when the click landed on selectable text and a drag is now
-//!   active — caller relies on pointer capture (which `begin` sets)
-//!   to route subsequent `mousemove`/`mouseup` back here.
-//! - `extend`: on `mousemove` while a drag is active, moves the
-//!   selection's `focus` to the cursor's current position. Preserves
-//!   the original anchor so dragging backward shrinks the selection
-//!   symmetrically.
-//! - `end`: clears router drag state. Pointer capture is released
-//!   by the router's own `handle_up` (browser-faithful auto-release).
+//!   when the press resolved to selectable text and a drag is now
+//!   active — recorded in `router.selection_drag`.
+//! - `extend`: on a button-held `mousemove` while a drag is active,
+//!   moves the selection's `focus` to the cursor's current position,
+//!   wherever the pointer is. Preserves the original anchor so
+//!   dragging backward shrinks the selection symmetrically.
+//! - `end`: clears router drag state (on `mouseup`, or on a
+//!   button-less move that shows the `mouseup` was lost).
 //!
-//! ## Why pointer capture
+//! ## No pointer capture
 //!
-//! Without capture, dragging off the original paragraph routes
-//! subsequent moves to whatever chrome happens to sit underneath —
-//! selection would "jump" or freeze. Holding capture on the IFC
-//! block means every move comes back to us while the button is
-//! down. Matches browser `setPointerCapture` semantics.
+//! A browser does not capture the pointer for a text-selection drag:
+//! during it `mousemove` / `mouseup` target whatever is under the
+//! pointer, and `click` goes to the common ancestor of the mousedown
+//! and mouseup targets (UI Events). So the drag lives in router-private
+//! state, not in `Dom::pointer_capture` — the router extends the
+//! selection on every button-held move regardless of the hit target,
+//! and the event targeting stays untouched. (Taking capture here once
+//! retargeted the `click` of any widget beside prose to the prose
+//! container: P6G-SELECTION-CAPTURE-1.) Edge autoscroll keys on the
+//! same router state (`App::note_autoscroll`).
 //!
 //! ## What "selectable" means here
 //!
@@ -45,10 +49,9 @@ use crate::runtime::selection::user_select;
 /// Default action for `mousedown`: begin a drag-select if the
 /// click landed on selectable text.
 ///
-/// Returns `true` when a drag was started. The router uses this
-/// only to keep symmetry with other default actions — the real
-/// "we're dragging" signal for follow-up moves is
-/// `router.selection_drag.is_some()`, set by this function.
+/// Returns `true` when a drag was started. The "we're dragging"
+/// signal for follow-up moves is `router.selection_drag.is_some()`,
+/// set by this function.
 pub(crate) fn begin(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> bool {
     let Some(anchor) = dom.position_at(mouse.column, mouse.row) else {
         return false;
@@ -62,16 +65,14 @@ pub(crate) fn begin(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) ->
     // Position whose `node` is that element. Engaging drag-select
     // there is wrong — atomic inline-blocks are interactive
     // widgets (`<button>`, `<input type=submit>`), not selectable
-    // text. The click event must route to the widget itself, which
-    // pointer capture would clobber by retargeting to the IFC
-    // owner. Bail out so the click flow stays intact.
+    // text.
     if dom.node(anchor.node).node_type() != rdom_core::NodeType::Text {
         return false;
     }
 
     // `user-select: all`: a click anywhere inside the host element
     // selects its entire text content as a single unit. The drag
-    // still engages capture, but `extend` becomes a no-op for the
+    // still begins, but `extend` becomes a no-op for the
     // duration — the highlight doesn't shrink as the user moves the
     // mouse.
     let initial = match user_select::host_with(dom, anchor.node, UserSelect::All) {
@@ -82,20 +83,12 @@ pub(crate) fn begin(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) ->
     };
     dom.set_selection(Some(initial));
 
-    // Hold pointer capture on the inline-flow container that holds
-    // the anchor. For a classic IFC, the holder is the IFC block;
-    // for an anonymous block box (BFC-1 phase 3), it's the parent
-    // container — pointer capture is a per-NodeId concept, and the
-    // container is the closest real node. The follow-up mousemove /
-    // mouseup events route through that holder.
+    // The drag is router state, keyed on the inline-flow container that
+    // holds the anchor (a classic IFC block, or one of a parent's anonymous
+    // block boxes — BFC-1 phase 3). No DOM pointer capture: see the module
+    // doc. The same state opts the drag into edge autoscroll
+    // (DRAG-AUTOSCROLL), like a browser's native selection.
     let anchor_flow = inline_flow_for_text(dom, anchor.node);
-    let capture_holder = anchor_flow.map(|f| f.owner()).unwrap_or(anchor.node);
-    let _ = dom.set_pointer_capture(capture_holder);
-    // Opt the text-selection drag into edge autoscroll (DRAG-AUTOSCROLL): when
-    // the drag dwells at a scroll container's edge, the runtime scrolls it and
-    // re-extends the selection at the revealed content — like a browser.
-    dom.set_drag_autoscroll(true);
-
     router.selection_drag = anchor_flow;
     true
 }
@@ -166,12 +159,8 @@ pub(crate) fn extend(dom: &mut TuiDom, mouse: MouseEvent) -> bool {
 // `clamp_to_line_layout`, shared by both the contained and nearest paths.
 
 /// Clear router drag state. Call from `mouseup` regardless of
-/// whether the up landed on text — the pointer capture is what
-/// kept the drag alive, and it's auto-released by the router.
+/// whether the up landed on text, and from a button-less move (the
+/// `mouseup` was lost outside the terminal).
 pub(crate) fn end(router: &mut Router) {
     router.selection_drag = None;
 }
-
-// `ifc_block_of` retired — drag now stores `InlineFlow` directly,
-// resolved via `inline_flow_for_text`. The pointer-capture holder
-// falls back to `InlineFlow::owner()` (the container node id).

@@ -145,9 +145,12 @@ fn handle_down(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> Rout
             }
         }
 
-        // Drag-select default action: if the click landed on
-        // selectable text, set a caret selection at that position
-        // and engage pointer capture so subsequent moves extend it.
+        // Drag-select default action: if the press resolves to
+        // selectable text (directly, or through the empty-space snap
+        // to the nearest prose), set a caret there and record the drag
+        // in router state so subsequent button-held moves extend it.
+        // No pointer capture — the follow-up `mouseup` / `click` keep
+        // their browser targets (P6G-SELECTION-CAPTURE-1).
         let drag_started = crate::runtime::selection::drag::begin(router, dom, mouse);
         crate::rdom_trace!(
             "handle_down: selection::drag::begin returned {drag_started}; \
@@ -186,10 +189,14 @@ fn handle_down(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> Rout
 /// synthesized `click` to the common ancestor of down+up targets
 /// (matches HTML semantics).
 ///
-/// **Pointer capture**: while `dom.pointer_capture()` is set, both
+/// **Pointer capture**: while `dom.pointer_capture()` is set (a
+/// consumer's `set_pointer_capture`, or a scrollbar-thumb drag), both
 /// the `mouseup` and synthesized `click` route to the captured
 /// element regardless of the cursor's actual position. The capture
-/// is auto-released on `mouseup` (also browser-faithful).
+/// is auto-released on `mouseup` (also browser-faithful). A
+/// text-selection drag takes no capture, so after one the `mouseup`
+/// targets the hit and the `click` the common ancestor, as in a
+/// browser.
 fn handle_up(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> RouteOutcome {
     let captured = dom.pointer_capture();
     let hit = dom.hit_test(mouse.column, mouse.row);
@@ -280,6 +287,10 @@ fn handle_up(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> RouteO
 /// what drag-interaction apps (slider scrubbing, resize handles,
 /// rubber-band selection) need: the captured handler sees every
 /// move, and the rest of the UI doesn't flicker its hover state.
+///
+/// **Text-selection drag**: not a capture. The `mousemove` targets
+/// the hit and hover updates as usual; the selection extends to the
+/// pointer on every button-held move (`router.selection_drag`).
 fn handle_move(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> RouteOutcome {
     // Stale pointer-capture release: a `Moved` event (button NOT
     // held) arriving while `pointer_capture` is set means the
@@ -301,10 +312,14 @@ fn handle_move(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> Rout
     // Without this fix, hover updates were dead until the user
     // clicked an element to force the mouseup auto-release path
     // (`handle_up` → `release_pointer_capture`).
-    if dom.pointer_capture().is_some() && matches!(mouse.kind, MouseEventKind::Moved) {
+    // The same evidence ends a text-selection drag, which lives in
+    // router state rather than in capture.
+    let drag_in_progress = dom.pointer_capture().is_some() || router.selection_drag.is_some();
+    if drag_in_progress && matches!(mouse.kind, MouseEventKind::Moved) {
         crate::rdom_trace!(
-            "handle_move: stale capture detected (Moved with capture={:?}) — releasing",
-            dom.pointer_capture()
+            "handle_move: stale drag detected (Moved with capture={:?}, selection_drag={}) — ending",
+            dom.pointer_capture(),
+            router.selection_drag.is_some()
         );
         dom.release_pointer_capture();
         crate::runtime::selection::drag::end(router);
@@ -317,11 +332,9 @@ fn handle_move(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> Rout
         let mut tui = TuiEvent::mousemove(mouse);
         dispatch(router, dom, captured, &mut tui);
 
-        // Drag-select default action: extend selection focus to the
-        // current cursor position. Runs alongside the mousemove
-        // dispatch so a handler that wants custom drag behavior can
-        // `prevent_default` on `selectstart` (Phase 6.5.5) — but not
-        // on mousemove itself, since browsers don't wire it that way.
+        // Drag-select default action, for a consumer that captured the
+        // pointer on mousedown without cancelling the selection default:
+        // the selection still follows the pointer.
         let mut redraw = false;
         if router.selection_drag.is_some() && crate::runtime::selection::drag::extend(dom, mouse) {
             redraw = true;
@@ -367,14 +380,24 @@ fn handle_move(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> Rout
         dispatch(router, dom, target, &mut tui);
     }
 
+    // Drag-select default action: extend the selection focus to the
+    // pointer, whatever element is under it. The drag is router state,
+    // not pointer capture — the `mousemove` above targeted the hit, as
+    // a browser's does during a text-selection drag.
+    let extended =
+        router.selection_drag.is_some() && crate::runtime::selection::drag::extend(dom, mouse);
+
     // Hover transition?
     let changed = hit != router.hover_target;
     if !changed {
         crate::rdom_trace!(
-            "handle_move: no hover change ({:?} == hover_target); returning no-op",
+            "handle_move: no hover change ({:?} == hover_target); extended={extended}",
             hit
         );
-        return RouteOutcome::default();
+        return RouteOutcome {
+            redraw_requested: extended,
+            quit_requested: false,
+        };
     }
 
     let prev = router.hover_target;

@@ -354,3 +354,43 @@ fn click_on_checkbox_beside_text_toggles_and_starts_no_selection() {
         "no selection drag began in the prose"
     );
 }
+
+/// P6G-SELECTION-CAPTURE-1: the click reaches the toggle because the
+/// selection drag takes no pointer capture — not because of a UA
+/// `user-select: none`. With `user-select` set back to `auto` the empty-
+/// space snap may start a selection in the prose, and the box still flips.
+#[test]
+fn click_on_user_select_auto_checkbox_beside_text_still_toggles() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let p = dom.create_element("p");
+    let t = dom.create_text_node("some prose");
+    dom.append_child(p, t).unwrap();
+    let cb = dom.create_element("input");
+    dom.set_attribute(cb, "type", "checkbox").unwrap();
+    dom.append_child(root, p).unwrap();
+    dom.append_child(root, cb).unwrap();
+    let sheet = Stylesheet::new()
+        .rule_unchecked("p", TuiStyle::new().height(Size::Fixed(1)))
+        .rule_unchecked(
+            "input[type=checkbox]",
+            TuiStyle::new()
+                .display(crate::layout::Display::Block)
+                .width(Size::Fixed(10))
+                .height(Size::Fixed(1))
+                .user_select(crate::layout::UserSelect::Auto),
+        );
+    let mut app = test_app(dom, sheet);
+    app.draw_if_dirty().unwrap();
+
+    click_at(&mut app, 1, 1);
+    assert!(
+        app.dom().node(cb).has_attribute("checked"),
+        "the click reached the box"
+    );
+    click_at(&mut app, 1, 1);
+    assert!(
+        !app.dom().node(cb).has_attribute("checked"),
+        "and a second click flips it back"
+    );
+}

@@ -142,6 +142,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 - **Toolchain pinned to `1.95.0`** in `rust-toolchain.toml`; CI reads the channel from that file instead of floating on `stable`. (`PROC-TOOLCHAIN-PIN-1`)
 - `opacity` compositing now covers borders (a bordered box at `opacity: 0` is invisible), default-coloured text (`Reset` blends as white on a black canvas), backdrop glyphs (kept at low opacity, tinted under a translucent background), OSC-8 links and wide glyphs; rules in DESIGN / DIVERGENCES (`P6G-OPACITY-COMPOSITE-1`)
 - A translucent element's compositing layer now covers only the rows its subtree paints (full width, one row of margin), so N fading items no longer cost N full-frame copies per frame; output is unchanged (`P6G-OPACITY-LAYER-COST-1`)
+- The runtime's text-selection drag no longer takes DOM pointer capture: during it `mousemove` / `mouseup` target the element under the pointer and `click` goes to the common ancestor of the mousedown and mouseup targets, as in browsers. A widget without its own text beside prose (an empty `<div>` with a click listener, a `::before`-only button, a toggle with `user-select: auto`) now receives its `click`; `dom.pointer_capture()` / `dom.drag_autoscroll()` stay `None` / `false` during a selection drag, which still extends and edge-autoscrolls. (`P6G-SELECTION-CAPTURE-1`)
 
 ## [0.4.0] - 2026-09-24
 

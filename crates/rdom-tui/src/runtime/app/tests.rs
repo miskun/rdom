@@ -1059,13 +1059,13 @@ fn mousedown_alone_leaves_collapsed_caret_not_whole_paragraph() {
         sel.anchor,
         sel.focus,
     );
-    // A text-selection drag opts into edge autoscroll (DRAG-AUTOSCROLL phase 4
-    // hook), so dragging past a scroll container's edge keeps the selection
-    // growing — same primitive the grid uses.
+    // A text-selection drag lives in router state, not DOM pointer capture
+    // (P6G-SELECTION-CAPTURE-1); the autoscroll session keys on that state.
     assert!(
-        app.dom().drag_autoscroll(),
-        "text-selection drag arms autoscroll"
+        app.router.selection_drag.is_some(),
+        "text-selection drag is in progress"
     );
+    assert_eq!(app.dom().pointer_capture(), None, "and takes no capture");
 }
 
 /// Companion to `mousedown_alone_leaves_collapsed_caret_not_whole_paragraph`:
@@ -2849,7 +2849,7 @@ fn text_selection_drag_past_edge_autoscrolls_and_keeps_extending() {
         app.dom().selection().map(|s| s.focus.offset).unwrap_or(0)
     };
 
-    // Press near the top of the prose (anchors + captures + arms autoscroll),
+    // Press near the top of the prose (anchors the selection drag),
     // then hold a drag at the bottom visible row.
     app.handle_event(mev(MouseEventKind::Down(MouseButton::Left), 1, 0));
     assert!(
@@ -2857,9 +2857,10 @@ fn text_selection_drag_past_edge_autoscrolls_and_keeps_extending() {
         "mousedown on text starts a selection"
     );
     assert!(
-        app.dom().drag_autoscroll(),
-        "text-selection drag arms autoscroll"
+        app.router.selection_drag.is_some(),
+        "text-selection drag is in progress"
     );
+    assert_eq!(app.dom().pointer_capture(), None, "and takes no capture");
     app.handle_event(mev(MouseEventKind::Drag(MouseButton::Left), 1, 2));
     let focus_before = focus_off(&app);
 
@@ -3082,6 +3083,15 @@ fn autoscroll_keeps_scrolling_when_pointer_overshoots_past_the_container() {
         max_scroll,
         "the drag owns its scroll container — overshooting onto the sibling \
          keeps scrolling the scroller to the end"
+    );
+    assert!(
+        app.dom().selection().is_some_and(|s| !s.is_collapsed()),
+        "the drag over the sibling kept extending the selection"
+    );
+    assert_eq!(
+        app.dom().pointer_capture(),
+        None,
+        "a text-selection drag autoscrolls without DOM pointer capture"
     );
 }
 
@@ -3671,5 +3681,70 @@ fn all_host_spans_every_paragraph_of_the_declaring_element() {
         sel.focus,
         Position::new(t2, 10),
         "to the host's last text end"
+    );
+}
+
+#[test]
+fn selection_drag_autoscroll_survives_its_anchor_block_being_dropped() {
+    // P6G-SELECTION-CAPTURE-1: the text-selection drag is router state, not a
+    // pointer capture (which the arena clears when its captor is freed). A
+    // consumer dropping the anchor's block mid-drag must end the autoscroll
+    // session cleanly — never resolve a scroll container from a freed node.
+    use crate::layout::{Display, Overflow};
+
+    let mev = |kind, x: u16, y: u16| {
+        CtEvent::Mouse(CtMouseEvent {
+            kind,
+            column: x,
+            row: y,
+            modifiers: KeyModifiers::empty(),
+        })
+    };
+
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let scroller = dom.create_element("div");
+    dom.append_child(root, scroller).unwrap();
+    let p = dom.create_element("p");
+    let text: String = (0..40)
+        .map(|i| format!("w{}", i % 10))
+        .collect::<Vec<_>>()
+        .join(" ");
+    let t = dom.create_text_node(&text);
+    dom.append_child(p, t).unwrap();
+    let tail = dom.create_element("span");
+    dom.append_child(p, tail).unwrap();
+    dom.append_child(scroller, p).unwrap();
+
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "div",
+            TuiStyle::new()
+                .width(Size::Fixed(12))
+                .height(Size::Fixed(3))
+                .overflow(Overflow::Auto),
+        )
+        .rule_unchecked(
+            "p",
+            TuiStyle::new()
+                .display(Display::Block)
+                .width(Size::Fixed(12)),
+        )
+        .rule_unchecked("span", TuiStyle::new().display(Display::Inline));
+    let mut app = test_app(dom, sheet, Rect::new(0, 0, 14, 6));
+    app.draw_if_dirty().unwrap();
+
+    app.handle_event(mev(MouseEventKind::Down(MouseButton::Left), 1, 0));
+    assert!(app.router.selection_drag.is_some());
+    app.dom_mut().drop_subtree(p).unwrap();
+    // Pointer below the (now empty) scroller: the session must not arm
+    // against the freed anchor block.
+    app.handle_event(mev(MouseEventKind::Drag(MouseButton::Left), 1, 5));
+    for _ in 0..4 {
+        app.advance(50).unwrap();
+    }
+    assert!(
+        app.dom().selection().is_none(),
+        "the selection went with its text"
     );
 }

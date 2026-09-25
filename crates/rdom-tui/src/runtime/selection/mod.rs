@@ -4,7 +4,7 @@
 //! ## Sub-modules
 //!
 //! - types: `Selection`, `Range`, `Position` — core data model.
-//! - [`drag`] — mouse-drag selection (uses pointer capture).
+//! - [`drag`] — mouse-drag selection (router state; no pointer capture).
 //! - [`keyboard`] — Shift+arrow extend, Shift+Ctrl+arrow word, Ctrl-A.
 //!   Double-click word-select; triple-click line-select.
 //! - [`clipboard`] — copy / cut / paste. `arboard` integration.

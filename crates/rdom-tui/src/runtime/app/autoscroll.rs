@@ -1,6 +1,11 @@
 //! DRAG-AUTOSCROLL — the drag-autoscroll session of an [`App`]: arming
 //! from the routed pointer, the periodic tick, and disarming when the
-//! capture releases or the opt-in drops.
+//! drag ends.
+//!
+//! Two drags autoscroll: a captured drag that opted in
+//! (`Dom::set_drag_autoscroll`), and the runtime's own text-selection
+//! drag, which is router state and takes no pointer capture
+//! (P6G-SELECTION-CAPTURE-1) — see [`App::autoscroll_drag_source`].
 //!
 //! A drag **owns one scroll container** for its lifetime; see the
 //! `autoscroll_*` fields on [`App`]. The session is keyed on the
@@ -22,9 +27,21 @@ use crate::render::backend::Backend;
 pub(super) const AUTOSCROLL_PERIOD: Duration = Duration::from_millis(50);
 
 impl<B: Backend> App<B> {
+    /// The node the active autoscrolling drag started from, or `None` when no
+    /// drag autoscrolls. A pointer capture owns the drag when present — it
+    /// autoscrolls only if it opted in; otherwise a text-selection drag
+    /// autoscrolls from its anchor's inline-flow container, like a browser's
+    /// native selection.
+    fn autoscroll_drag_source(&self) -> Option<crate::NodeId> {
+        match self.dom.pointer_capture() {
+            Some(captured) => self.dom.drag_autoscroll().then_some(captured),
+            None => self.router.selection_drag.map(|flow| flow.owner()),
+        }
+    }
+
     /// Clear all DRAG-AUTOSCROLL session state (pointer, deadline, and the
-    /// sticky container). Called when the capture releases or the autoscroll
-    /// opt-in is dropped.
+    /// sticky container). Called when the drag ends (capture released, opt-in
+    /// dropped, or the text-selection drag over).
     fn disarm_autoscroll(&mut self) {
         self.autoscroll_pointer = None;
         self.autoscroll_next = None;
@@ -33,28 +50,24 @@ impl<B: Backend> App<B> {
 
     /// Update the DRAG-AUTOSCROLL session from the latest pointer (called after
     /// every *real* routed mouse event — never the synthetic re-dispatch, which
-    /// routes directly). The session is alive only while a captured drag opted
-    /// into autoscroll. The scroll container is resolved **once**, the first
+    /// routes directly). The session is alive only while an autoscrolling drag
+    /// is in progress ([`Self::autoscroll_drag_source`]). The scroll container is resolved **once**, the first
     /// time the pointer reaches an edge zone, then stays **sticky**: subsequent
     /// moves only update the tracked pointer, never re-resolve the container. So
     /// the captured node scrolling out of view, or the pointer overshooting past
     /// the container onto a sibling, neither re-targets nor disarms the scroll.
     pub(super) fn note_autoscroll(&mut self, col: u16, row: u16) {
-        let Some(captured) = self.dom.pointer_capture() else {
+        let Some(source) = self.autoscroll_drag_source() else {
             self.disarm_autoscroll();
             return;
         };
-        if !self.dom.drag_autoscroll() {
-            self.disarm_autoscroll();
-            return;
-        }
         if self.autoscroll_container.is_none() {
             // Resolve the container only once the pointer is actually in an edge
             // zone (so it resolves to the container under/at the edge, while the
             // pointer is still inside it). Until then the session stays idle.
             let resolved = crate::runtime::scrollbar::resolve_autoscroll_container(
                 &self.dom,
-                captured,
+                source,
                 (col, row),
             )
             .filter(|&c| {
@@ -78,13 +91,13 @@ impl<B: Backend> App<B> {
 
     /// Fire any due autoscroll ticks. Keyed on the scheduler clock so it works
     /// identically under the live loop (wall-synced) and `advance` (virtual).
-    /// The session disarms only when the capture releases or the opt-in drops —
+    /// The session disarms only when the drag ends —
     /// a tick that finds the pointer out of the edge zone (or the container at
     /// its limit) simply idles, keeping the sticky container for the drag.
     pub(super) fn service_autoscroll(&mut self) {
         // The synthetic drag move dispatches listeners that may schedule timers.
         let _current = crate::runtime::timers::SchedulerGuard::install(&self.scheduler);
-        if self.dom.pointer_capture().is_none() || !self.dom.drag_autoscroll() {
+        if self.autoscroll_drag_source().is_none() {
             self.disarm_autoscroll();
             return;
         }
@@ -107,7 +120,7 @@ impl<B: Backend> App<B> {
 
     /// One autoscroll tick on the drag's **sticky** `container`: if the pointer
     /// is in an edge zone and there's room, scroll one step and re-dispatch the
-    /// drag at the held pointer (capture path) so the consumer — and native text
+    /// drag at the held pointer (routed like a real move) so the consumer — and native text
     /// selection — extend against the new scroll position. Otherwise it's a
     /// no-op idle tick (the session stays armed; it does not disarm here).
     fn autoscroll_tick(&mut self, container: crate::NodeId, col: u16, row: u16) {
