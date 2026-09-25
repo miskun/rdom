@@ -50,6 +50,7 @@
 //!   utility.
 //! - [`border`] — background fill + border drawing (box-drawing
 //!   chars, edge selection).
+//! - [`group`] — `opacity` group rendering through a bounded layer.
 //! - [`inline_paint`] — `::before` + own text + `::after` for
 //!   non-IFC elements; fragment-driven IFC paint. Split into the
 //!   fragment painter (`mod.rs`), the chrome-substitution seam
@@ -60,6 +61,7 @@
 
 mod border;
 mod border_join;
+mod group;
 mod inline_paint;
 mod positioned_pseudos;
 pub(crate) mod scrollbar;
@@ -140,16 +142,16 @@ fn paint_stacking_context(
     clip: Rect,
     viewport: Rect,
 ) {
-    // CSS `opacity` is group opacity: the subtree paints into a copy of
-    // the buffer at full opacity and the copy composites back at the
-    // element's alpha (`Buffer::composite_group`), so nested opacities
-    // multiply and every paint inside — backgrounds, glyphs, pseudo
-    // backgrounds — blends once against the backdrop (OPACITY-1).
+    // CSS `opacity` is group opacity: the subtree paints into a layer
+    // at full opacity and the layer composites back at the element's
+    // alpha, so nested opacities multiply and every paint inside —
+    // backgrounds, glyphs, borders — blends once against the backdrop
+    // (OPACITY-1; see `group`).
     let alpha = dom.node(root).computed().map_or(1.0, |c| c.opacity);
     if alpha < 1.0 && dom.node(root).node_type() == NodeType::Element {
-        let mut layer = buf.clone();
-        paint_stacking_context_body(dom, root, &mut layer, clip, viewport);
-        buf.composite_group(&layer, alpha);
+        group::paint_group(dom, root, buf, alpha, |layer| {
+            paint_stacking_context_body(dom, root, layer, clip, viewport);
+        });
         return;
     }
     paint_stacking_context_body(dom, root, buf, clip, viewport);

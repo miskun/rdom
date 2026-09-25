@@ -4564,3 +4564,95 @@ fn translucent_card_tints_text_beneath() {
     assert_eq!(cell.bg, Color::Rgb(230, 230, 230));
     assert_eq!(cell.fg, Color::Rgb(255, 230, 230), "red tinted 90% white");
 }
+
+// ── P6G-OPACITY-LAYER-COST-1: the group layer is bounded ─────────
+
+/// A translucent element's layer covers the rows its subtree can
+/// paint (plus a one-row margin), not the whole frame: N fading
+/// one-row items cost O(N·W), not O(N·W·H).
+#[test]
+fn group_layer_region_is_bounded_to_the_translucent_subtree() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let filler = dom.create_element("filler");
+    let item = dom.create_element("item");
+    let t = dom.create_text_node("fading");
+    dom.append_child(item, t).unwrap();
+    dom.append_child(root, filler).unwrap();
+    dom.append_child(root, item).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "filler",
+            TuiStyle::new()
+                .width(Size::Fixed(40))
+                .height(Size::Fixed(10)),
+        )
+        .rule_unchecked(
+            "item",
+            TuiStyle::new()
+                .width(Size::Fixed(40))
+                .height(Size::Fixed(1))
+                .opacity(0.5),
+        );
+    let viewport = Rect::new(0, 0, 40, 20);
+    let _ = pipeline(&mut dom, &sheet, viewport);
+    let region = super::group::layer_region(&dom, item, viewport);
+    assert_eq!(
+        region,
+        Rect::new(0, 9, 40, 3),
+        "row 10 plus a row of margin"
+    );
+}
+
+/// Compositing a translucent element touches nothing outside the
+/// clip it paints into: its overflow below an `overflow: hidden`
+/// parent stays unpainted and the sibling beneath keeps its cells.
+#[test]
+fn translucent_element_leaves_cells_outside_its_clip_untouched() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let port = dom.create_element("port");
+    let fade = dom.create_element("fade");
+    let ft = dom.create_text_node("a\nb\nc\nd");
+    dom.append_child(fade, ft).unwrap();
+    dom.append_child(port, fade).unwrap();
+    let below = dom.create_element("below");
+    let bt = dom.create_text_node("under");
+    dom.append_child(below, bt).unwrap();
+    dom.append_child(root, port).unwrap();
+    dom.append_child(root, below).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "port",
+            TuiStyle::new()
+                .width(Size::Fixed(8))
+                .height(Size::Fixed(2))
+                .overflow(crate::layout::Overflow::Hidden),
+        )
+        .rule_unchecked(
+            "fade",
+            TuiStyle::new()
+                .width(Size::Fixed(8))
+                .height(Size::Fixed(4))
+                .bg(Color::Rgb(255, 255, 255))
+                .opacity(0.5),
+        )
+        .rule_unchecked(
+            "below",
+            TuiStyle::new()
+                .width(Size::Fixed(8))
+                .height(Size::Fixed(1))
+                .fg(RED),
+        );
+    let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 8, 4));
+    assert_eq!(
+        bg_at(&buf, 0, 1),
+        Color::Rgb(128, 128, 128),
+        "inside the clip"
+    );
+    let under = buf.cell(0, 2).unwrap();
+    assert_eq!(under.symbol(), "u");
+    assert_eq!(under.fg, RED);
+    assert_eq!(under.bg, Color::Reset, "outside the clip: untouched");
+    assert_eq!(bg_at(&buf, 0, 3), Color::Reset);
+}

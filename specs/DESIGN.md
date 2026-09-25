@@ -143,7 +143,7 @@ An element with `opacity < 1` paints its whole stacking context into a copy of t
 
 `Color::Reset` has to become a colour before it can blend. Terminals do not report their default colours, so the canvas model assumes a dark terminal: `Reset` background is `#000000`, `Reset` foreground `#FFFFFF` (`render::compose::{CANVAS_BG, CANVAS_FG}`). A translucent element's default-coloured text is thus written as an explicit grey, and on a light terminal it composites toward the wrong end.
 
-The copy costs one buffer clone per translucent element per frame.
+The layer is bounded: it copies and composites only the rows the element's subtree can paint (every box, anonymous box, pseudo box and inline line in it, plus one row of margin), across the full frame width, so a translucent element costs O(W · its height) per frame rather than O(W · H). Full width and the margin keep the paint pass's buffer-edge rules (the border off-buffer filter, the wide-glyph right-edge ellipsis) exactly as they are on the frame. In the crate's own tests every group is also painted through a full-frame layer and the two results are asserted equal, so the bound is checked by every paint test that uses `opacity`.
 
 ### Paint layer invariant: `fill_bg` owns `cell.bg`; glyph painters write `symbol + fg + modifiers` only
 

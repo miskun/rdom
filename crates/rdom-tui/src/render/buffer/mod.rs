@@ -201,6 +201,34 @@ impl Buffer {
         true
     }
 
+    /// A copy of the cells (and their border side tables) in `area ∩
+    /// self.area`, as a buffer covering exactly that region. The
+    /// paint pass hands one to an `opacity` group as its layer, so a
+    /// group costs its region, not the frame.
+    pub(crate) fn copy_region(&self, area: Rect) -> Buffer {
+        let region = self.area.intersection(area);
+        let len = region.area() as usize;
+        let mut out = Buffer {
+            area: region,
+            content: Vec::with_capacity(len),
+            border_dirs: Vec::with_capacity(len),
+            half_block_quads: Vec::with_capacity(len),
+        };
+        for y in region.y..region.bottom() {
+            let (Some(a), Some(b)) = (
+                self.index_of(region.x, y),
+                self.index_of(region.right() - 1, y),
+            ) else {
+                continue;
+            };
+            out.content.extend_from_slice(&self.content[a..=b]);
+            out.border_dirs.extend_from_slice(&self.border_dirs[a..=b]);
+            out.half_block_quads
+                .extend_from_slice(&self.half_block_quads[a..=b]);
+        }
+        out
+    }
+
     /// Copy every cell from `other` into `self`, position-aligned.
     /// Cells outside `self.area` are skipped. Useful for compositing
     /// a child buffer into a parent.
