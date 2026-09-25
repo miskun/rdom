@@ -109,6 +109,70 @@ fn serialize_skips_user_select_none_subtree() {
 }
 
 #[test]
+fn serialize_keeps_explicit_text_inside_a_user_select_none_subtree() {
+    // <p>ab<span class=chrome>NO<b>YES</b></span>cd</p> with
+    // `.chrome{none} b{text}`: `text` stops the propagation of `none`
+    // (CSS UI 4 §6.1), so the `<b>` text is copied.
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let p = dom.create_element("p");
+    let t_ab = dom.create_text_node("ab");
+    dom.append_child(p, t_ab).unwrap();
+    let chrome = dom.create_element("span");
+    dom.add_class(chrome, "chrome").unwrap();
+    let t_no = dom.create_text_node("NO");
+    dom.append_child(chrome, t_no).unwrap();
+    let b = dom.create_element("b");
+    let t_yes = dom.create_text_node("YES");
+    dom.append_child(b, t_yes).unwrap();
+    dom.append_child(chrome, b).unwrap();
+    dom.append_child(p, chrome).unwrap();
+    let t_cd = dom.create_text_node("cd");
+    dom.append_child(p, t_cd).unwrap();
+    dom.append_child(root, p).unwrap();
+
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "p",
+            TuiStyle::new()
+                .display(Display::Block)
+                .width(Size::Fixed(40)),
+        )
+        .rule_unchecked(".chrome", TuiStyle::new().user_select(UserSelect::None))
+        .rule_unchecked("b", TuiStyle::new().user_select(UserSelect::Text));
+    prepare(&mut dom, &sheet);
+
+    let range = Range::ordered_unchecked(Position::new(t_ab, 0), Position::new(t_cd, 2));
+    assert_eq!(serialize_selection(&dom, &range), "abYEScd");
+}
+
+#[test]
+fn serialize_stops_at_an_end_inside_user_select_none_text() {
+    // <p>ab<span class=chrome>NN</span>cd</p>, range ab[0] → NN[1]: the
+    // end sits in unselectable text, so the copy stops there instead of
+    // running on to "cd".
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let p = dom.create_element("p");
+    let t_ab = dom.create_text_node("ab");
+    dom.append_child(p, t_ab).unwrap();
+    let chrome = dom.create_element("span");
+    dom.add_class(chrome, "chrome").unwrap();
+    let t_nn = dom.create_text_node("NN");
+    dom.append_child(chrome, t_nn).unwrap();
+    dom.append_child(p, chrome).unwrap();
+    let t_cd = dom.create_text_node("cd");
+    dom.append_child(p, t_cd).unwrap();
+    dom.append_child(root, p).unwrap();
+    let sheet =
+        Stylesheet::bare().rule_unchecked(".chrome", TuiStyle::new().user_select(UserSelect::None));
+    prepare(&mut dom, &sheet);
+
+    let range = Range::ordered_unchecked(Position::new(t_ab, 0), Position::new(t_nn, 1));
+    assert_eq!(serialize_selection(&dom, &range), "ab");
+}
+
+#[test]
 fn serialize_cjk_preserves_bytes() {
     // Byte offsets into a CJK string should pull out the exact bytes,
     // which decode back to valid UTF-8 because the offsets land on

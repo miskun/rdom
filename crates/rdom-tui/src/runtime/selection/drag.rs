@@ -39,7 +39,6 @@ use crossterm::event::MouseEvent;
 use rdom_core::Selection;
 
 use crate::TuiDom;
-use crate::layout::UserSelect;
 use crate::node::is_descendant_or_self;
 use crate::render::inline::inline_flow_for_text;
 use crate::runtime::hit_test::HitTestExt;
@@ -75,7 +74,7 @@ pub(crate) fn begin(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) ->
     // still begins, but `extend` becomes a no-op for the
     // duration — the highlight doesn't shrink as the user moves the
     // mouse.
-    let initial = match user_select::host_with(dom, anchor.node, UserSelect::All) {
+    let initial = match user_select::all_host(dom, anchor.node) {
         Some(host) => {
             user_select::span_all_text(dom, host).unwrap_or_else(|| Selection::caret(anchor))
         }
@@ -110,7 +109,7 @@ pub(crate) fn extend(dom: &mut TuiDom, mouse: MouseEvent) -> bool {
 
     // `user-select: all`: the host is selected as a unit, so the
     // drag doesn't update focus while the cursor moves.
-    if user_select::ancestor_with(dom, sel.anchor.node, UserSelect::All).is_some() {
+    if user_select::all_host(dom, sel.anchor.node).is_some() {
         return false;
     }
 
@@ -134,7 +133,7 @@ pub(crate) fn extend(dom: &mut TuiDom, mouse: MouseEvent) -> bool {
     // `user-select: contain`: the host traps the selection. If
     // `raw_focus` escaped the contain host, clamp it back to the
     // nearest in-host position.
-    let focus = match user_select::host_with(dom, sel.anchor.node, UserSelect::Contain) {
+    let focus = match user_select::contain_host(dom, sel.anchor.node) {
         Some(host) if !is_descendant_or_self(dom, raw_focus.node, host) => {
             match user_select::clamp_to_contain_host(dom, host, mouse) {
                 Some(p) => p,

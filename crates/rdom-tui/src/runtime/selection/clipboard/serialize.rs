@@ -9,12 +9,16 @@
 //!   `<br>` → `\n` expansion. A follow-up phase will mirror the
 //!   visual normalization ("clipboard text matches what the user
 //!   sees").
-//! - Elements with `user-select: none` are skipped so the chrome
-//!   inside a selection range doesn't leak into the clipboard.
+//! - Text whose used `user-select` is `none` is skipped so the chrome
+//!   inside a selection range doesn't leak into the clipboard. The
+//!   walk carries the used value down (CSS UI 4 §6.1), so an explicit
+//!   `text` descendant of a `none` element is still copied.
 //! - Comments and element nodes contribute nothing on their own;
 //!   their text descendants are what get concatenated.
 
 use rdom_core::{Dom, NodeId, NodeType, Range};
+
+use crate::layout::UserSelect;
 
 use crate::ext::TuiExt;
 use crate::runtime::selection::user_select;
@@ -25,7 +29,9 @@ use crate::runtime::selection::user_select;
 pub fn serialize_selection(dom: &Dom<TuiExt>, range: &Range) -> String {
     let mut out = String::new();
     let mut state = WalkState::Before;
-    visit(dom, dom.root(), range, &mut state, &mut out);
+    let root = dom.root();
+    let used = user_select::used_value(dom, root);
+    visit(dom, root, used, range, &mut state, &mut out);
     out
 }
 
@@ -37,24 +43,40 @@ enum WalkState {
     Done,
 }
 
-fn visit(dom: &Dom<TuiExt>, id: NodeId, range: &Range, state: &mut WalkState, out: &mut String) {
+/// `used` is the used `user-select` of `id` (for a non-element, its
+/// parent element's).
+fn visit(
+    dom: &Dom<TuiExt>,
+    id: NodeId,
+    used: UserSelect,
+    range: &Range,
+    state: &mut WalkState,
+    out: &mut String,
+) {
     if matches!(state, WalkState::Done) {
-        return;
-    }
-    // Skip user-select:none subtrees entirely.
-    if user_select::has_none_ancestor(dom, id) {
         return;
     }
 
     match dom.node(id).node_type() {
         NodeType::Text => {
-            append_text(dom, id, range, state, out);
+            if used != UserSelect::None {
+                append_text(dom, id, range, state, out);
+            } else {
+                // Unselectable text still moves the walk past the
+                // range's boundaries.
+                advance_past(id, range, state);
+            }
         }
         _ => {
             // Element / Comment / Fragment: recurse into children.
             let children: Vec<NodeId> = dom.node(id).child_nodes().map(|c| c.id()).collect();
             for child in children {
-                visit(dom, child, range, state, out);
+                let child_used = if dom.node(child).node_type() == NodeType::Element {
+                    user_select::resolve_child(dom, child, used)
+                } else {
+                    used
+                };
+                visit(dom, child, child_used, range, state, out);
                 if matches!(state, WalkState::Done) {
                     return;
                 }
@@ -104,6 +126,18 @@ fn append_text(
             // Before the start, or after the end in some edge case —
             // contribute nothing.
         }
+    }
+}
+
+/// State transition for an unselectable text node: it contributes no
+/// text, but a range boundary inside it still opens or closes the
+/// selection (otherwise an end inside `none` chrome would copy on to
+/// the end of the document).
+fn advance_past(id: NodeId, range: &Range, state: &mut WalkState) {
+    if range.end.node == id && (range.start.node == id || matches!(state, WalkState::Inside)) {
+        *state = WalkState::Done;
+    } else if range.start.node == id {
+        *state = WalkState::Inside;
     }
 }
 

@@ -662,22 +662,25 @@ pub enum PointerEvents {
 }
 
 /// Controls whether the user can select text inside the element.
-/// Matches the CSS `user-select` property. Inherits (so a chrome
-/// subtree can be marked unselectable with a single rule on the
-/// wrapper). Default is `Auto`.
+/// Matches the CSS `user-select` property (CSS UI 4 §6.1). **Not
+/// inherited** — an element without a declaration computes `Auto` —
+/// but the *used* value of `Auto` follows the parent's used value
+/// where that is `None` or `All`, so one rule on a wrapper still marks
+/// a chrome subtree unselectable. The renderer resolves the used
+/// value. Default is `Auto`.
 ///
 /// Variants:
-/// - `Auto` — the selection algorithm decides based on element
-///   type: text-bearing elements are selectable, UA-default
-///   chrome (`<button>`) isn't.
-/// - `Text` — always selectable.
-/// - `None` — not selectable. Drag-select skips this subtree;
-///   its edges are clamped to the nearest selectable ancestor.
+/// - `Auto` — used value `Contain` on an editable element; otherwise
+///   `None` / `All` when the parent's used value is that, else `Text`.
+/// - `Text` — selectable; stops a `None` / `All` parent from reaching
+///   its descendants.
+/// - `None` — not selectable. Drag-select skips this subtree (except
+///   descendants that declare `Text` / `Contain` / `All`).
 ///   Use for UI chrome (sidebars, status bars, buttons).
 /// - `All` — click anywhere inside selects the entire element as
 ///   one unit (one-tap-to-copy tokens, URLs, code snippets).
-/// - `Contain` — selection cannot cross this element's boundary.
-///   Drag into the element clamps to its outer edge.
+/// - `Contain` — a selection started inside cannot leave this
+///   element. Does not propagate: a nested `Contain` is its own host.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum UserSelect {
     /// Default. Selectable when the element carries text.

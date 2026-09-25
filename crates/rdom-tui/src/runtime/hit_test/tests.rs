@@ -664,9 +664,10 @@ fn position_at_empty_space_in_user_select_none_does_not_snap_out() {
 }
 
 #[test]
-fn position_at_user_select_none_inherits_to_subtree() {
-    // user-select inherits; a child inside a user-select: none
-    // parent is also unselectable even without its own declaration.
+fn position_at_user_select_none_reaches_the_auto_subtree() {
+    // user-select does not inherit, but the *used* value of `auto`
+    // under a `none` parent is `none` (CSS UI 4 §6.1): a child without
+    // its own declaration is unselectable too.
     let mut dom: TuiDom = TuiDom::new();
     let root = dom.root();
     let wrapper = dom.create_element("wrapper");
@@ -689,9 +690,43 @@ fn position_at_user_select_none_inherits_to_subtree() {
         .rule_unchecked("span", TuiStyle::new().display(Display::Inline));
     prepare(&mut dom, &sheet, Rect::new(0, 0, 20, 10));
 
-    // `p` doesn't declare user_select but inherits None from
-    // wrapper.
+    // `p` computes `auto`; its used value is `none` from wrapper.
     assert_eq!(dom.position_at(0, 0), None);
+}
+
+#[test]
+fn position_at_finds_explicit_text_inside_a_user_select_none_block() {
+    // `p{none} > b{text}`: the `<b>` text is selectable (CSS UI 4 §6.1 —
+    // `text` stops the propagation of `none`); the `none` text is not.
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let p = dom.create_element("p");
+    let t_no = dom.create_text_node("NO");
+    dom.append_child(p, t_no).unwrap();
+    let b = dom.create_element("b");
+    let t_yes = dom.create_text_node("YES");
+    dom.append_child(b, t_yes).unwrap();
+    dom.append_child(p, b).unwrap();
+    dom.append_child(root, p).unwrap();
+
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "p",
+            TuiStyle::new()
+                .display(Display::Block)
+                .width(Size::Fixed(10))
+                .user_select(UserSelect::None),
+        )
+        .rule_unchecked(
+            "b",
+            TuiStyle::new()
+                .display(Display::Inline)
+                .user_select(UserSelect::Text),
+        );
+    prepare(&mut dom, &sheet, Rect::new(0, 0, 20, 10));
+
+    assert_eq!(dom.position_at(0, 0), None, "the `none` text");
+    assert_eq!(dom.position_at(3, 0), Some(Position::new(t_yes, 1)));
 }
 
 // ── M2 §12.9-12.10 — Hit-test reverse z-order ────────────────────

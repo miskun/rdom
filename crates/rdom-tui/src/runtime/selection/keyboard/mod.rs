@@ -51,17 +51,12 @@ use crate::node::{first_text_descendant, last_text_descendant, text_len};
 ///   own all-host short-circuit.
 pub(crate) fn try_handle_key(dom: &mut TuiDom, key: KeyEvent) -> bool {
     if let Some(focused) = dom.focused()
-        && crate::runtime::selection::user_select::has_none_ancestor(dom, focused)
+        && crate::runtime::selection::user_select::is_unselectable(dom, focused)
     {
         return false;
     }
     if let Some(sel) = dom.selection()
-        && crate::runtime::selection::user_select::ancestor_with(
-            dom,
-            sel.focus.node,
-            crate::layout::UserSelect::All,
-        )
-        .is_some()
+        && crate::runtime::selection::user_select::all_host(dom, sel.focus.node).is_some()
     {
         return false;
     }

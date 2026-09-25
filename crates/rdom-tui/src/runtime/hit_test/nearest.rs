@@ -31,7 +31,7 @@ pub(crate) fn nearest_inline_target_in_subtree(
     let y = y as i32;
     let mut best: Option<(i32, InlineTarget)> = None;
     let mut consider = |target: InlineTarget, top: i32, bottom: i32| {
-        if user_select::has_none_ancestor(dom, target.node()) {
+        if user_select::is_unselectable(dom, target.node()) {
             return;
         }
         let dist = if y < top {

@@ -3634,6 +3634,48 @@ fn contain_host_clamps_to_the_line_at_the_pointers_row() {
     assert_eq!(sel.focus, Position::new(t2, 10), "end of the last line");
 }
 
+/// `.panel{contain} > .card{contain}`: a drag started in the card
+/// stays in the card — `contain` does not inherit, so the card is its
+/// own host rather than merging into the panel's (CSS UI 4 §6.1).
+#[test]
+fn nested_contain_host_keeps_the_drag_inside_the_inner_host() {
+    use crate::layout::{Direction, UserSelect};
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let panel = dom.create_element("panel");
+    let card = dom.create_element("card");
+    let t1 = dom.create_text_node("card text");
+    dom.append_child(card, t1).unwrap();
+    let p2 = dom.create_element("p");
+    let t2 = dom.create_text_node("panel text");
+    dom.append_child(p2, t2).unwrap();
+    dom.append_child(panel, card).unwrap();
+    dom.append_child(panel, p2).unwrap();
+    dom.append_child(root, panel).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "panel",
+            TuiStyle::new()
+                .direction(Direction::Column)
+                .width(Size::Fixed(20))
+                .user_select(UserSelect::Contain),
+        )
+        .rule_unchecked(
+            "card",
+            TuiStyle::new()
+                .height(Size::Fixed(1))
+                .user_select(UserSelect::Contain),
+        )
+        .rule_unchecked("p", TuiStyle::new().height(Size::Fixed(1)));
+    let mut app = test_app(dom, sheet, Rect::new(0, 0, 20, 6));
+    app.draw_if_dirty().unwrap();
+    app.handle_event(mouse(MouseEventKind::Down(MouseButton::Left), 1, 0));
+    // Onto the panel's paragraph at row 1: below the card → the card's end.
+    app.handle_event(mouse(MouseEventKind::Drag(MouseButton::Left), 4, 1));
+    let sel = app.dom().selection().cloned().expect("a drag selection");
+    assert_eq!(sel.focus, Position::new(t1, 9), "clamped inside the card");
+}
+
 /// A click inside the second paragraph of a `user-select: all` host
 /// selects the whole host, not just that paragraph: the host is the
 /// element that declared `all`, not the innermost element inheriting

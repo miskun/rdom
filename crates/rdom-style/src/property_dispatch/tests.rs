@@ -629,3 +629,14 @@ fn round_trip_every_property() {
         );
     }
 }
+
+/// CSS UI 4 §6.1: `user-select` is not inherited (initial `auto`), so
+/// `unset` means `initial`; the used value of `auto` is resolved by the
+/// renderer against the parent's used value.
+#[test]
+fn user_select_is_not_inherited_and_unset_means_initial() {
+    assert!(!inherits("user-select"));
+    let mut style = TuiStyle::new();
+    set("user-select", "unset", &mut style).unwrap();
+    assert_eq!(style.user_select, Some(Value::Initial));
+}

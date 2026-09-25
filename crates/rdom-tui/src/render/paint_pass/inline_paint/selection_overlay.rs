@@ -42,7 +42,7 @@ pub(super) fn apply_selection_overlay(
     // (and from copy) even when the selection spans across it — e.g. dragging
     // from a title down through a `user-select: none` chrome bar into the body
     // must not paint the bar. Browsers skip such content; so do we.
-    if crate::runtime::selection::user_select::has_none_ancestor(dom, fragment.text_node) {
+    if crate::runtime::selection::user_select::is_unselectable(dom, fragment.text_node) {
         return;
     }
 

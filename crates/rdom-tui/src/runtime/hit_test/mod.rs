@@ -157,7 +157,7 @@ impl HitTestExt for Dom<TuiExt> {
         {
             // user-select gate: any ancestor of the hit with
             // `user-select: none` kills the position.
-            if user_select::has_none_ancestor(self, *path.last()?) {
+            if user_select::is_unselectable(self, *path.last()?) {
                 return None;
             }
             return resolve_in_target(self, target, x, y);
@@ -171,7 +171,7 @@ impl HitTestExt for Dom<TuiExt> {
         // (`nearest_selectable_position`) is unaffected — it deliberately skips
         // *over* user-select:none regions to keep extending an existing drag.
         if let Some(&deepest) = path.last()
-            && user_select::has_none_ancestor(self, deepest)
+            && user_select::is_unselectable(self, deepest)
         {
             return None;
         }

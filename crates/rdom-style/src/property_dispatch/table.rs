@@ -316,7 +316,6 @@ pub fn inherits(name: &str) -> bool {
             | "font-weight"
             | "font-style"
             | "white-space"
-            | "user-select"
             | "pointer-events"
             | "caret-color"
             | "caret-text-color"

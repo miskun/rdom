@@ -1351,6 +1351,103 @@ fn selection_across_inline_element_highlights_both_fragments() {
 }
 
 #[test]
+fn before_pseudo_of_a_user_select_text_element_is_not_highlighted() {
+    // CSS UI 4 §6.1: the used value of `user-select` on `::before` /
+    // `::after` is `none`, even when the host declares `text`.
+    // Generated content has no DOM position, so a selection covering
+    // the host's whole text leaves the pseudo's cells unpainted.
+    use crate::layout::UserSelect;
+    use rdom_core::{Position, Selection};
+
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let s = dom.create_element("s");
+    let t = dom.create_text_node("item");
+    dom.append_child(s, t).unwrap();
+    dom.append_child(root, s).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked("s", TuiStyle::new().user_select(UserSelect::Text))
+        .rule_unchecked(
+            "s::before",
+            TuiStyle::new().content(Content::Str("> ".into())),
+        )
+        .rule_unchecked(
+            "*::selection",
+            TuiStyle::new().bg(Color::Rgb(0x39, 0x4B, 0x7E)),
+        );
+    dom.set_selection(Some(Selection::new(
+        Position::new(t, 0),
+        Position::new(t, 4),
+    )));
+    let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 20, 1));
+    assert_eq!(row(&buf, 0).trim_end(), "> item");
+    let sel_bg = Color::Rgb(0x39, 0x4B, 0x7E);
+    assert_ne!(buf.cell(0, 0).unwrap().bg, sel_bg, "::before not selected");
+    assert_ne!(buf.cell(1, 0).unwrap().bg, sel_bg, "::before not selected");
+    for x in 2..6 {
+        assert_eq!(buf.cell(x, 0).unwrap().bg, sel_bg, "own text selected");
+    }
+}
+
+#[test]
+fn selection_highlights_explicit_text_inside_a_user_select_none_block() {
+    // `.chrome{none} > b{text}`: the `<b>` text is selectable (CSS UI 4
+    // §6.1 — `text` stops the propagation of `none`), so a spanning
+    // selection paints it while the chrome's own text stays plain.
+    use crate::layout::UserSelect;
+    use rdom_core::{Position, Selection};
+
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let p = dom.create_element("p");
+    dom.set_attribute(p, "class", "chrome").unwrap();
+    let t_no = dom.create_text_node("NO");
+    dom.append_child(p, t_no).unwrap();
+    let b = dom.create_element("b");
+    let t_yes = dom.create_text_node("YES");
+    dom.append_child(b, t_yes).unwrap();
+    dom.append_child(p, b).unwrap();
+    dom.append_child(root, p).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "p",
+            TuiStyle::new()
+                .display(Display::Block)
+                .width(Size::Fixed(20)),
+        )
+        .rule_unchecked(
+            "b",
+            TuiStyle::new()
+                .display(Display::Inline)
+                .user_select(UserSelect::Text),
+        )
+        .rule_unchecked(".chrome", TuiStyle::new().user_select(UserSelect::None))
+        .rule_unchecked(
+            "*::selection",
+            TuiStyle::new().bg(Color::Rgb(0x39, 0x4B, 0x7E)),
+        );
+    dom.set_selection(Some(Selection::new(
+        Position::new(t_no, 0),
+        Position::new(t_yes, 3),
+    )));
+    let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 20, 1));
+    assert_eq!(row(&buf, 0).trim_end(), "NOYES");
+    let sel_bg = Color::Rgb(0x39, 0x4B, 0x7E);
+    assert_ne!(
+        buf.cell(0, 0).unwrap().bg,
+        sel_bg,
+        "none text unhighlighted"
+    );
+    for x in 2..5 {
+        assert_eq!(
+            buf.cell(x, 0).unwrap().bg,
+            sel_bg,
+            "explicit text highlighted"
+        );
+    }
+}
+
+#[test]
 fn selection_spanning_user_select_none_skips_its_highlight() {
     // selectable_text repro: a selection started in the title and dragged
     // down past the `user-select: none` chrome bar must NOT highlight the
