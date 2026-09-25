@@ -19,7 +19,10 @@
 //! - Width formula + auto margins + min/max clamp (phase 2).
 //! - Vertical stacking with §8.3.1 margin collapsing (`margin_collapse`).
 //! - Anonymous box generation around inline-level children (phase 3),
-//!   including atomic inline-block packing (phase 3.5b).
+//!   including atomic inline-block packing (phase 3.5b), and a box of
+//!   its own for a `::before` / `::after` beside a block-level edge
+//!   child (CSS 2.1 §9.2.1.1; placement rules in
+//!   `render::inline::generated`).
 //! - Live dispatch from `layout_children` via cascaded `Flow::Block`
 //!   (phase 4.1); border-collapse parent-edge inset + scroll cursor
 //!   offset mirror flex behavior so the two modes agree.
@@ -42,7 +45,7 @@ use rdom_core::{Dom, NodeId, NodeType};
 use crate::ext::{AnonymousIfc, TuiExt};
 use crate::layout::{Direction, LayoutRect};
 use crate::node::TuiNodeExt;
-use crate::render::inline::compute_inline_layout_for_run;
+use crate::render::inline::{RunPseudos, pack_run};
 use crate::style::ComputedStyle;
 
 use super::is_in_flow;
@@ -156,6 +159,21 @@ pub(super) fn layout_block_children(
         }
     }
 
+    // CSS 2.1 §9.2.1.1: a `::before` (`::after`) whose host starts
+    // (ends) with a block-level child is an inline box with no inline
+    // run to join — it gets an anonymous block box of its own: an
+    // empty inline run the placement loop packs with the pseudo alone.
+    // (A leading / trailing whitespace run already carries it.)
+    let own_line = crate::render::inline::generated::own_line_pseudos(dom, id);
+    if own_line.before && runs.first().is_some_and(|r| r.kind == RunKind::Block) {
+        let at = runs[0].child_range.0;
+        runs.insert(0, Run::pseudo_only(at));
+    }
+    if own_line.after && runs.last().is_some_and(|r| r.kind == RunKind::Block) {
+        let at = runs[runs.len() - 1].child_range.1;
+        runs.push(Run::pseudo_only(at));
+    }
+
     // Parent-child border-collapse inset (CSS 2.1 §17.6.3 +
     // BFC-1 invariant): when this container is `border-collapse:
     // collapse` with its own border, `layout_node` already expanded
@@ -214,8 +232,9 @@ pub(super) fn layout_block_children(
     // doesn't create extra space inside the parent's content area.
     // The upward-merge half is tracked as known incompleteness in
     // [[bfc1-margin-collapse-upward-propagation]] (`TECH_DEBT.md`).
-    let suppress_first_top_margin = parent_collapses_top_with_first_child(parent_computed);
-    let suppress_last_bottom_margin = parent_collapses_bottom_with_last_child(parent_computed);
+    let suppress_first_top_margin = parent_collapses_top_with_first_child(dom, id, parent_computed);
+    let suppress_last_bottom_margin =
+        parent_collapses_bottom_with_last_child(dom, id, parent_computed);
     let last_block_run_idx = runs
         .iter()
         .enumerate()
@@ -326,8 +345,16 @@ pub(super) fn layout_block_children(
                 // identity), so the accumulator empties after this
                 // placement — the next block starts a fresh
                 // accumulator.
+                // Runs cover the in-flow children in order (a
+                // pseudo-only run stands in front of / behind a block
+                // edge), so the host's `::before` / `::after` belong to
+                // the first / last run.
+                let pseudos = RunPseudos {
+                    before: run_idx == 0,
+                    after: run_idx == runs.len() - 1,
+                };
                 let inline_layout =
-                    compute_inline_layout_for_run(dom, id, &run.children, containing_block_width);
+                    pack_run(dom, id, &run.children, pseudos, containing_block_width);
                 let height = inline_layout.height();
                 let resolved_gap = margin_acc.resolved();
                 margin_acc = MarginAccumulator::new();
@@ -602,6 +629,18 @@ struct Run {
     /// `[start, end)`. Stored on the resulting `AnonymousIfc` so
     /// paint / hit-test can map back to surrounding context.
     child_range: (usize, usize),
+}
+
+impl Run {
+    /// The anonymous block box of a pseudo-element with no inline run to
+    /// join: no children, an empty child range at `at`.
+    fn pseudo_only(at: usize) -> Self {
+        Run {
+            kind: RunKind::Inline,
+            children: Vec::new(),
+            child_range: (at, at),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

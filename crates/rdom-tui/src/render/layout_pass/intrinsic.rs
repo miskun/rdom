@@ -442,6 +442,14 @@ fn intrinsic_element(
         Direction::Column => text_runs.fold(intrinsic_children, |acc, n| acc.saturating_add(n)),
         Direction::Row => text_runs.fold(intrinsic_children, |acc, n| acc.max(n)),
     };
+    // A `::before` / `::after` beside a block-level edge child is a line
+    // box of its own (CSS 2.1 §9.2.1.1) — its rows add on the Column axis.
+    let with_text = match direction {
+        Direction::Column => {
+            with_text.saturating_add(own_line_pseudo_rows(dom, id, child_cross_budget))
+        }
+        Direction::Row => with_text,
+    };
 
     with_text
         .saturating_add(pseudo_main)
@@ -455,19 +463,53 @@ fn intrinsic_element(
 /// here, an auto-width element with pseudo chrome (e.g. `<button>` with
 /// bracketed `::before` / `::after`) would size to its text content
 /// only and clip the pseudos at paint time.
+///
+/// A list marker counts where it is laid out: on the block whose first
+/// line it rides (`inline::generated`), not on its `<li>`.
 fn pseudo_content_width(dom: &Dom<TuiExt>, id: NodeId) -> u16 {
+    use crate::ext::StyleSlot;
+    use crate::render::inline::generated;
+    let width = |host: NodeId, slot: StyleSlot| -> u32 {
+        let node = dom.node(host);
+        let computed = match slot {
+            StyleSlot::Before => node.computed_before(),
+            _ => node.computed_after(),
+        };
+        computed
+            .and_then(|c| c.content.as_deref())
+            .map_or(0, |t| UnicodeWidthStr::width(t) as u32)
+    };
     let mut acc: u32 = 0;
-    if let Some(before) = dom.node(id).computed_before()
-        && let Some(text) = before.content.as_deref()
-    {
-        acc = acc.saturating_add(UnicodeWidthStr::width(text) as u32);
+    for item in generated::deferred_markers(dom, id) {
+        acc = acc.saturating_add(width(item, StyleSlot::Before));
     }
-    if let Some(after) = dom.node(id).computed_after()
-        && let Some(text) = after.content.as_deref()
-    {
-        acc = acc.saturating_add(UnicodeWidthStr::width(text) as u32);
+    if generated::marker_line_holder(dom, id).is_none() {
+        acc = acc.saturating_add(width(id, StyleSlot::Before));
     }
+    acc = acc.saturating_add(width(id, StyleSlot::After));
     acc.min(u16::MAX as u32) as u16
+}
+
+/// Rows of `id`'s pseudo-elements that take a line of their own, packed
+/// at `content_width` as the block pass packs them.
+fn own_line_pseudo_rows(dom: &Dom<TuiExt>, id: NodeId, content_width: u16) -> u16 {
+    use crate::render::inline::{RunPseudos, generated, pack_run};
+    let own_line = generated::own_line_pseudos(dom, id);
+    let rows = |pseudos: RunPseudos| pack_run(dom, id, &[], pseudos, content_width).height();
+    let mut total = 0u16;
+    if own_line.before {
+        total = total.saturating_add(rows(RunPseudos {
+            before: true,
+            after: false,
+        }));
+    }
+    if own_line.after {
+        total = total.saturating_add(rows(RunPseudos {
+            before: false,
+            after: true,
+        }));
+    }
+    total
 }
 
 /// True iff `id` has at least one direct text child whose contents

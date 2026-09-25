@@ -9,6 +9,7 @@ use rdom_core::{Dom, NodeId, NodeType};
 
 use crate::ext::{MarginChainMemo, TuiExt};
 use crate::layout::{MarginValue, Size};
+use crate::render::inline::generated::own_line_pseudos;
 use crate::style::ComputedStyle;
 
 use super::super::is_in_flow;
@@ -79,16 +80,32 @@ fn is_collapse_through_shape(dom: &Dom<TuiExt>, id: NodeId, computed: &ComputedS
 /// collapses through to its first in-flow block child's
 /// `margin-top`." All conditions must hold: no top padding, no top
 /// border, no clearance (always true in v1 — `clear` isn't a
-/// property we model), and the container doesn't establish a new
-/// block formatting context.
-pub(super) fn parent_collapses_top_with_first_child(parent: &ComputedStyle) -> bool {
-    parent.padding.top.is_zero() && parent.border.top.is_none() && !parent.establishes_new_bfc
+/// property we model), the container doesn't establish a new
+/// block formatting context, and no line box comes first — a
+/// `::before` on a line of its own (CSS 2.1 §9.2.1.1) separates the
+/// margins.
+pub(super) fn parent_collapses_top_with_first_child(
+    dom: &Dom<TuiExt>,
+    id: NodeId,
+    parent: &ComputedStyle,
+) -> bool {
+    parent.padding.top.is_zero()
+        && parent.border.top.is_none()
+        && !parent.establishes_new_bfc
+        && !own_line_pseudos(dom, id).before
 }
 
 /// Symmetric to `parent_collapses_top_with_first_child` — for the
-/// bottom edge.
-pub(super) fn parent_collapses_bottom_with_last_child(parent: &ComputedStyle) -> bool {
-    parent.padding.bottom.is_zero() && parent.border.bottom.is_none() && !parent.establishes_new_bfc
+/// bottom edge (an `::after` on a line of its own separates).
+pub(super) fn parent_collapses_bottom_with_last_child(
+    dom: &Dom<TuiExt>,
+    id: NodeId,
+    parent: &ComputedStyle,
+) -> bool {
+    parent.padding.bottom.is_zero()
+        && parent.border.bottom.is_none()
+        && !parent.establishes_new_bfc
+        && !own_line_pseudos(dom, id).after
 }
 
 /// CSS 2.1 §8.3.1 vertical-margin collapse accumulator.
@@ -268,11 +285,11 @@ fn outer_edge_margin(
     let (own, collapses) = match edge {
         Edge::Top => (
             &computed.margin.top,
-            parent_collapses_top_with_first_child(computed),
+            parent_collapses_top_with_first_child(dom, id, computed),
         ),
         Edge::Bottom => (
             &computed.margin.bottom,
-            parent_collapses_bottom_with_last_child(computed),
+            parent_collapses_bottom_with_last_child(dom, id, computed),
         ),
     };
     let mut acc = MarginAccumulator::new();

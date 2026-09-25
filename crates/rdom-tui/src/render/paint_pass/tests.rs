@@ -4878,3 +4878,244 @@ fn empty_input_paints_its_placeholder() {
         (0..3).map(|y| row(&buf, y)).collect::<Vec<_>>()
     );
 }
+
+// ── P6G-BLOCK-FIRST-PSEUDO-1: pseudos of block-first / block-last hosts ─
+
+/// `<list><li><p>text</p></li>…</list>`, optionally with whitespace
+/// text between the tags (the shape a parsed / markdown-rendered list
+/// has).
+fn list_of_paragraphs(tag: &str, items: &[&str], whitespace: bool) -> (TuiDom, NodeId) {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let list = dom.create_element(tag);
+    for item in items {
+        let li = dom.create_element("li");
+        if whitespace {
+            let ws = dom.create_text_node("\n  ");
+            dom.append_child(li, ws).unwrap();
+        }
+        let p = dom.create_element("p");
+        let t = dom.create_text_node(item);
+        dom.append_child(p, t).unwrap();
+        dom.append_child(li, p).unwrap();
+        if whitespace {
+            let ws = dom.create_text_node("\n");
+            dom.append_child(li, ws).unwrap();
+        }
+        dom.append_child(list, li).unwrap();
+    }
+    dom.append_child(root, list).unwrap();
+    (dom, list)
+}
+
+/// The UA's `ol > li::before` stands in for `::marker`: with a
+/// block-level first child it rides that child's first line, as a
+/// browser shows `<ol><li><p>Step</p></li></ol>` ("1. Step").
+#[test]
+fn ol_li_p_renders_its_number_on_the_paragraph_line() {
+    for whitespace in [false, true] {
+        let (mut dom, _) = list_of_paragraphs("ol", &["Step"], whitespace);
+        let buf = pipeline(&mut dom, &Stylesheet::new(), Rect::new(0, 0, 20, 3));
+        assert_eq!(
+            row(&buf, 0).trim(),
+            "1. Step",
+            "whitespace = {whitespace}: {:?}",
+            (0..3).map(|y| row(&buf, y)).collect::<Vec<_>>()
+        );
+        assert_eq!(row(&buf, 1).trim(), "", "whitespace = {whitespace}");
+    }
+}
+
+#[test]
+fn ul_li_p_renders_its_bullet_on_the_paragraph_line() {
+    let (mut dom, _) = list_of_paragraphs("ul", &["Item"], true);
+    let buf = pipeline(&mut dom, &Stylesheet::new(), Rect::new(0, 0, 20, 3));
+    assert_eq!(row(&buf, 0).trim(), "• Item");
+}
+
+/// The `list-item` counter still counts every item.
+#[test]
+fn ol_li_p_numbers_count_across_items() {
+    let (mut dom, _) = list_of_paragraphs("ol", &["A", "B", "C"], true);
+    let buf = pipeline(&mut dom, &Stylesheet::new(), Rect::new(0, 0, 20, 4));
+    let rows: Vec<String> = (0..3).map(|y| row(&buf, y).trim().to_string()).collect();
+    assert_eq!(rows, vec!["1. A", "2. B", "3. C"]);
+}
+
+/// CSS 2.1 §9.2.1.1: a `::before` whose host's first in-flow child is
+/// block-level forms an anonymous block of its own — a line before
+/// the child.
+#[test]
+fn before_pseudo_of_a_block_first_host_takes_its_own_line() {
+    let (mut dom, host) = pseudo_dom(&[("p", "block")]);
+    let root = dom.root();
+    let next = dom.create_element("next");
+    let nt = dom.create_text_node("NEXT");
+    dom.append_child(next, nt).unwrap();
+    dom.append_child(root, next).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked("host", TuiStyle::new().width(Size::Fixed(20)))
+        .rule_unchecked(
+            "host::before",
+            TuiStyle::new().content(Content::Str("* head".into())),
+        );
+    let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 20, 4));
+    assert_eq!(row(&buf, 0).trim_end(), "* head");
+    assert_eq!(row(&buf, 1).trim_end(), "block");
+    assert_eq!(dom.node(host).layout_rect().unwrap().height, 2);
+    assert_eq!(row(&buf, 2).trim_end(), "NEXT");
+}
+
+/// The mirror: an `::after` after a block-level last child is a line of
+/// its own after it.
+#[test]
+fn after_pseudo_of_a_block_last_host_takes_its_own_line() {
+    let (mut dom, host) = pseudo_dom(&[("p", "block")]);
+    let sheet = Stylesheet::bare()
+        .rule_unchecked("host", TuiStyle::new().width(Size::Fixed(20)))
+        .rule_unchecked(
+            "host::after",
+            TuiStyle::new().content(Content::Str("-- end".into())),
+        );
+    let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 20, 3));
+    assert_eq!(row(&buf, 0).trim_end(), "block");
+    assert_eq!(row(&buf, 1).trim_end(), "-- end");
+    assert_eq!(dom.node(host).layout_rect().unwrap().height, 2);
+}
+
+/// Whitespace text around the block child (a parsed document) does not
+/// change that: the pseudo still takes a line of its own.
+#[test]
+fn block_first_pseudo_with_surrounding_whitespace_takes_its_own_line() {
+    let (mut dom, _host) = pseudo_dom(&[("text", "\n  "), ("p", "block"), ("text", "\n")]);
+    let sheet = Stylesheet::bare()
+        .rule_unchecked("host", TuiStyle::new().width(Size::Fixed(20)))
+        .rule_unchecked(
+            "host::before",
+            TuiStyle::new().content(Content::Str("* head".into())),
+        )
+        .rule_unchecked(
+            "host::after",
+            TuiStyle::new().content(Content::Str("-- end".into())),
+        );
+    let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 20, 4));
+    assert_eq!(row(&buf, 0).trim_end(), "* head");
+    assert_eq!(row(&buf, 1).trim_end(), "block");
+    assert_eq!(row(&buf, 2).trim_end(), "-- end");
+}
+
+/// The pseudo's own line separates the host's top margin from its first
+/// child's (CSS 2.1 §8.3.1: a line box in between) — the child's margin
+/// stays inside the host, below the pseudo.
+#[test]
+fn own_line_before_pseudo_keeps_the_first_child_margin_inside() {
+    use crate::layout::{Margin, MarginValue};
+    let (mut dom, host) = pseudo_dom(&[("p", "block")]);
+    let sheet = Stylesheet::bare()
+        .rule_unchecked("host", TuiStyle::new().width(Size::Fixed(20)))
+        .rule_unchecked(
+            "p",
+            TuiStyle::new().margin(Margin::new(
+                MarginValue::Cells(1),
+                MarginValue::Cells(0),
+                MarginValue::Cells(0),
+                MarginValue::Cells(0),
+            )),
+        )
+        .rule_unchecked(
+            "host::before",
+            TuiStyle::new().content(Content::Str("* head".into())),
+        );
+    let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 20, 4));
+    assert_eq!(dom.node(host).layout_rect().unwrap().y, 0);
+    assert_eq!(row(&buf, 0).trim_end(), "* head");
+    assert_eq!(row(&buf, 1).trim_end(), "");
+    assert_eq!(row(&buf, 2).trim_end(), "block");
+}
+
+/// A flex column sizes a block-first host from its intrinsic height,
+/// which counts the pseudo's line.
+#[test]
+fn own_line_pseudo_counts_in_the_intrinsic_height() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let col = dom.create_element("col");
+    let host = dom.create_element("host");
+    let p = dom.create_element("p");
+    let t = dom.create_text_node("block");
+    dom.append_child(p, t).unwrap();
+    dom.append_child(host, p).unwrap();
+    dom.append_child(col, host).unwrap();
+    let next = dom.create_element("next");
+    let nt = dom.create_text_node("NEXT");
+    dom.append_child(next, nt).unwrap();
+    dom.append_child(col, next).unwrap();
+    dom.append_child(root, col).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "col",
+            TuiStyle::new()
+                .flow(Flow::Flex)
+                .direction(Direction::Column)
+                .width(Size::Fixed(20)),
+        )
+        .rule_unchecked(
+            "host::before",
+            TuiStyle::new().content(Content::Str("* head".into())),
+        )
+        .rule_unchecked(
+            "host::after",
+            TuiStyle::new().content(Content::Str("-- end".into())),
+        );
+    let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 20, 5));
+    assert_eq!(dom.node(host).layout_rect().unwrap().height, 3);
+    assert_eq!(row(&buf, 0).trim_end(), "* head");
+    assert_eq!(row(&buf, 1).trim_end(), "block");
+    assert_eq!(row(&buf, 2).trim_end(), "-- end");
+    assert_eq!(row(&buf, 3).trim_end(), "NEXT");
+}
+
+/// A nested item's first line carries both markers; the counters stay
+/// scoped per list.
+#[test]
+fn nested_list_first_line_carries_both_markers() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let outer = dom.create_element("ol");
+    let li = dom.create_element("li");
+    let inner = dom.create_element("ol");
+    for label in ["x", "y"] {
+        let item = dom.create_element("li");
+        let t = dom.create_text_node(label);
+        dom.append_child(item, t).unwrap();
+        dom.append_child(inner, item).unwrap();
+    }
+    dom.append_child(li, inner).unwrap();
+    dom.append_child(outer, li).unwrap();
+    dom.append_child(root, outer).unwrap();
+    let buf = pipeline(&mut dom, &Stylesheet::new(), Rect::new(0, 0, 20, 3));
+    assert_eq!(row(&buf, 0).trim(), "1. 1. x");
+    assert_eq!(row(&buf, 1).trim(), "2. y");
+}
+
+/// With no line box reachable through block-flow children (a flex
+/// container first), the marker falls back to a line of its own.
+#[test]
+fn marker_without_a_reachable_line_takes_its_own_line() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let ol = dom.create_element("ol");
+    let li = dom.create_element("li");
+    let row_el = dom.create_element("bar");
+    let span = dom.create_element("span");
+    let t = dom.create_text_node("flex");
+    dom.append_child(span, t).unwrap();
+    dom.append_child(row_el, span).unwrap();
+    dom.append_child(li, row_el).unwrap();
+    dom.append_child(ol, li).unwrap();
+    dom.append_child(root, ol).unwrap();
+    let sheet = Stylesheet::new().rule_unchecked("bar", TuiStyle::new().flow(Flow::Flex));
+    let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 20, 3));
+    assert_eq!(row(&buf, 0).trim(), "1.");
+    assert_eq!(row(&buf, 1).trim(), "flex");
+}

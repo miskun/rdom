@@ -39,6 +39,7 @@
 //! break opportunities. UAX #14 line breaking (soft hyphen, complex-
 //! script clustering) is out of scope.
 
+pub(crate) mod generated;
 mod packer;
 
 #[cfg(test)]
@@ -352,31 +353,23 @@ pub fn compute_inline_layout(dom: &Dom<TuiExt>, block: NodeId, content_width: u1
     }
 }
 
-/// The text of `host`'s `slot` pseudo-element when it takes part in
-/// the host's inline flow: a static (`position: static`) box with
-/// `content`. Positioned pseudo-elements are laid out and painted on
-/// their own (`positioned_pseudos`).
-pub(crate) fn static_pseudo_text(dom: &Dom<TuiExt>, host: NodeId, slot: StyleSlot) -> Option<&str> {
-    use crate::node::TuiNodeExt;
-    let node = dom.node(host);
-    let computed = match slot {
-        StyleSlot::Before => node.computed_before(),
-        StyleSlot::After => node.computed_after(),
-        StyleSlot::Host => None,
-    }?;
-    if computed.position != crate::layout::Position::Static {
-        return None;
-    }
-    computed.content.as_deref()
-}
-
+/// Push `host`'s `slot` pseudo-element if it joins `host`'s own inline
+/// content (see [`generated`]). `::before` first pushes the markers of
+/// the list items whose first line this is.
 fn push_pseudo<'a>(
     dom: &'a Dom<TuiExt>,
     host: NodeId,
     slot: StyleSlot,
     packer: &mut LinePacker<'a>,
 ) {
-    if let Some(text) = static_pseudo_text(dom, host, slot) {
+    if slot == StyleSlot::Before {
+        for item in generated::deferred_markers(dom, host) {
+            if let Some(text) = generated::static_pseudo_text(dom, item, StyleSlot::Before) {
+                packer.push_generated(item, StyleSlot::Before, text);
+            }
+        }
+    }
+    if let Some(text) = generated::own_inline_pseudo_text(dom, host, slot) {
         packer.push_generated(host, slot, text);
     }
 }

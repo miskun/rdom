@@ -124,6 +124,20 @@ pub(super) fn paint_inline_content(
         return;
     }
 
+    // A block container whose in-flow children the block pass laid out
+    // has no own text here, and its `::before` / `::after` were placed
+    // by that pass (a line of their own, or a list marker on a
+    // descendant's first line — `inline::generated`). Painting them
+    // again at its first row would draw them under its first child.
+    if computed.flow == crate::layout::Flow::Block
+        && dom
+            .node(id)
+            .child_nodes()
+            .any(|c| crate::render::layout_pass::is_in_flow(dom, c.id()))
+    {
+        return;
+    }
+
     // Path 3: no inline_layout (either because the element is IFC-
     // zeroed as a flex/IFC child OR because it has no own text and
     // no children). Fall back to single-row chrome — render
