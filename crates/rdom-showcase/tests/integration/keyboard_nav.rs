@@ -39,7 +39,8 @@ fn key_press(code: KeyCode) -> CtEvent {
 }
 
 /// Build the showcase app exactly as `main::run` does: mount demo 0,
-/// seed the tree cursor, wire the single click handler. Returns the
+/// seed the tree cursor, wire the single click handler, register the
+/// mounted demo's stylesheet (only that one). Returns the
 /// App, the shared nav state (for asserting which demo is mounted),
 /// and the shell handles.
 fn build_app(viewport: Rect) -> (App<TestBackend>, Rc<RefCell<ShowcaseState>>, ShellHandles) {
@@ -54,9 +55,7 @@ fn build_app(viewport: Rect) -> (App<TestBackend>, Rc<RefCell<ShowcaseState>>, S
     let backend = TestBackend::new(viewport.width, viewport.height);
     let terminal = Terminal::new(backend).unwrap();
     let mut app = App::with_backend(dom, base_stylesheet(), terminal).unwrap();
-    for demo in DEMOS {
-        app.push_stylesheet(demo.stylesheet());
-    }
+    state.borrow_mut().attach_sheet(&mut app);
     app.draw_if_dirty().unwrap();
     (app, state, handles)
 }
@@ -436,5 +435,47 @@ fn every_visible_sidebar_treeitem_paints_at_a_unique_row() {
     assert!(
         collisions.is_empty(),
         "multiple sidebar treeitems painted at the same y row: {collisions:#?}"
+    );
+}
+
+/// The rules of `sheet`, by source text — enough to tell one demo's
+/// sheet from another's.
+fn rule_sources(sheet: &rdom_tui::Stylesheet) -> Vec<String> {
+    sheet
+        .rules()
+        .iter()
+        .map(|r| r.source_text.clone())
+        .collect()
+}
+
+/// P6G-SHOWCASE-INTENTS-1: the App's stylesheet stack holds the shell's
+/// base sheet plus the mounted demo's sheet only. Switching demos from
+/// the sidebar (an event listener) swaps that sheet through the
+/// `AppContext` intents (`AppHandle::inject`), applied before the next
+/// frame.
+#[test]
+fn switching_demos_swaps_the_mounted_demos_stylesheet() {
+    let (mut app, state, handles) = build_app(Rect::new(0, 0, 80, 24));
+    let sheets = |app: &App<TestBackend>| -> Vec<Vec<String>> {
+        app.style_sheets().into_iter().map(rule_sources).collect()
+    };
+    let base = rule_sources(&base_stylesheet());
+    assert_eq!(
+        sheets(&app),
+        vec![base.clone(), rule_sources(&DEMOS[0].stylesheet())],
+        "boot: base + demo 0's sheet"
+    );
+
+    let tree = nav_tree(app.dom(), handles.sidebar);
+    app.handle_event(key_press(KeyCode::Down));
+    app.handle_event(key_press(KeyCode::Enter));
+    app.advance(0).unwrap();
+    let next = state.borrow().current_idx;
+    assert_ne!(next, 0, "Enter mounted another demo");
+    assert!(active_descendant(app.dom(), tree).is_some());
+    assert_eq!(
+        sheets(&app),
+        vec![base, rule_sources(&DEMOS[next].stylesheet())],
+        "after the switch: base + the new demo's sheet, the old one removed"
     );
 }

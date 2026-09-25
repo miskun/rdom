@@ -3,10 +3,10 @@
 //! The showcase mounts exactly one demo at a time into the shell's
 //! `<main>` element. Switching to another demo is a subtree swap:
 //! clear `<main>`'s children, build the new demo's subtree, append.
-//! Per-demo CSS is preloaded as separate stylesheets on the App at
-//! startup; since each demo's CSS uses unique class-scoped selectors
-//! (convention enforced by review), the cascade naturally applies
-//! only the active demo's rules.
+//! Only the mounted demo's CSS is on the App's stylesheet stack:
+//! [`mount_demo`] swaps it through the `AppContext` stylesheet intents
+//! (see [`crate::demo_sheet`]) once [`ShowcaseState::attach_sheet`] has
+//! registered the first one.
 //!
 //! The actual subtree replacement exercises M1 D2's substrate
 //! contract — focus / selection / hover / pointer-capture state
@@ -47,6 +47,11 @@ pub struct ShowcaseState {
     /// is OWNED by a separate listener and lives in its own div
     /// sibling, so writes here don't disturb it.
     pub status_bar_hints_id: NodeId,
+    /// The mounted demo's stylesheet slot, once
+    /// [`Self::attach_sheet`] ran. `None` for a bare-DOM state (tests
+    /// that drive [`mount_demo`] without an `App`): demo switches then
+    /// leave the stylesheet stack alone.
+    pub sheet: Option<crate::DemoSheet>,
 }
 
 impl ShowcaseState {
@@ -59,7 +64,19 @@ impl ShowcaseState {
             main_id: handles.main,
             source_disclosure_id: handles.source_disclosure,
             status_bar_hints_id: handles.status_bar_hints,
+            sheet: None,
         }
+    }
+
+    /// Register the mounted demo's stylesheet on `app` and let every
+    /// later [`mount_demo`] swap it (see [`crate::demo_sheet`]). Call
+    /// once, after the initial mount and before the first frame.
+    pub fn attach_sheet<B: rdom_tui::Backend>(&mut self, app: &mut rdom_tui::App<B>) {
+        assert!(
+            self.current_idx < DEMOS.len(),
+            "attach_sheet: mount a demo first"
+        );
+        self.sheet = Some(crate::DemoSheet::attach(app, self.current_idx));
     }
 }
 
@@ -67,7 +84,9 @@ impl ShowcaseState {
 ///
 /// Mechanics: clear `<main>`'s view-content, rebuild the source
 /// disclosure body, clear the scroll indicator (the previous
-/// demo's scrollable element is gone). `clear_children` fires a
+/// demo's scrollable element is gone), and — once
+/// [`ShowcaseState::attach_sheet`] ran — queue the swap to this demo's
+/// stylesheet. `clear_children` fires a
 /// `ChildListChanged` record with every detached child + runs
 /// the purge step from `rdom-core::tree::detach_from_parent`.
 ///
@@ -120,6 +139,13 @@ pub fn mount_demo(state: &mut ShowcaseState, dom: &mut TuiDom, demo_idx: usize) 
     //    new demo's state. Re-seed with the global default hints so
     //    the bar isn't empty between scroll events.
     crate::status_bar::seed_default_hints(dom, state.status_bar_hints_id);
+
+    // 4. Swap the demo stylesheet: the previous demo's sheet comes off
+    //    the App's stack and this one's goes on, applied before the
+    //    next frame (`crate::demo_sheet`).
+    if let Some(sheet) = &state.sheet {
+        sheet.switch_to(demo_idx);
+    }
 }
 
 /// Replace the body of the `<details class="source-disclosure">`

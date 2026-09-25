@@ -12,14 +12,15 @@ use rdom_tui::{NodeId, Stylesheet, TuiDom};
 ///
 /// ## Authoring conventions
 ///
-/// **Class-scoped CSS only.** Per-demo stylesheets are pre-pushed
-/// onto the App at startup (see `SHOWCASE-EVT-1` in
-/// [`specs/TECH_DEBT.md`](../../../specs/TECH_DEBT.md)) — so a
-/// bare `div { … }` rule would bleed into every other demo's
-/// subtree. Every CSS rule must reference the demo's wrapper
-/// class somewhere in its selector. Enforced by the
-/// `every_demo_stylesheet_uses_only_class_scoped_selectors` test
-/// in `crates/rdom-showcase/src/registry.rs`.
+/// **Class-scoped CSS only.** Only the mounted demo's stylesheet is
+/// on the App's stack ([`crate::demo_sheet`]), so demos no longer see
+/// each other's rules — but that sheet applies to the whole document,
+/// shell chrome included, so a bare `div { … }` rule would restyle the
+/// sidebar, header and status bar while the demo is mounted. Every CSS
+/// rule must reference the demo's wrapper class somewhere in its
+/// selector. Enforced by the
+/// `every_demo_stylesheet_uses_only_class_scoped_selectors` test in
+/// `crates/rdom-showcase/src/registry.rs`.
 ///
 /// **Default flow is block; opt into flex with `display: flex`.**
 /// Post-BFC-1, semantic HTML behaves like the web platform:
@@ -55,8 +56,8 @@ pub trait Demo {
 
     /// CSS that applies while this demo is mounted. The showcase
     /// pushes it onto the App's sheet stack when the demo activates
-    /// and removes it on deactivation. Use `Stylesheet::bare()` if
-    /// the demo doesn't need its own styles.
+    /// and removes it on deactivation ([`crate::demo_sheet`]). Use
+    /// `Stylesheet::bare()` if the demo doesn't need its own styles.
     fn stylesheet(&self) -> Stylesheet;
 
     /// Source strings shown in the demo's Source tab (M7). Stub for

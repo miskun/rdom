@@ -169,10 +169,11 @@ fn find_by_role(dom: &TuiDom, id: NodeId, role: &str) -> Option<NodeId> {
 
 #[test]
 fn sidebar_tree_carries_only_its_own_inset_not_demo_padding() {
-    // The sidebar navigator is a `[role=tree]` in the chrome. Every
-    // demo stylesheet is pre-pushed onto the App at startup, so the
+    // The sidebar navigator is a `[role=tree]` in the chrome. The
+    // mounted demo's stylesheet applies to the whole document, so the
     // chrome must NOT reuse a demo's class name — or that demo's
-    // class-scoped rules bleed onto it.
+    // class-scoped rules bleed onto it while it is mounted. (This
+    // test pushes every demo's sheet at once, the worst case.)
     //
     // Regression (TREE-2): the sidebar tree once carried
     // `class="nav-tree"`, colliding with the tree_nav demo's

@@ -200,19 +200,17 @@ fn swap_renders_clean_at_full_viewport() {
     let terminal = Terminal::new(backend).unwrap();
     let mut app =
         App::with_backend(dom, rdom_showcase::shell::base_stylesheet(), terminal).unwrap();
-    for demo in rdom_showcase::DEMOS {
-        app.push_stylesheet(demo.stylesheet());
-    }
-
-    let mut state = ShowcaseState {
-        current_idx: initial_state.current_idx,
-        main_id: initial_state.main_id,
-        source_disclosure_id: initial_state.source_disclosure_id,
-        status_bar_hints_id: initial_state.status_bar_hints_id,
-    };
+    let mut state = initial_state;
+    state.attach_sheet(&mut app);
     for idx in [1usize, 2, 0, 2, 1] {
         mount_demo(&mut state, app.dom_mut(), idx);
-        app.draw_if_dirty().unwrap();
+        // `advance` applies the queued sheet swap, then draws.
+        app.advance(0).unwrap();
+        assert_eq!(
+            app.style_sheets().len(),
+            2,
+            "base + the mounted demo's sheet"
+        );
     }
 }
 

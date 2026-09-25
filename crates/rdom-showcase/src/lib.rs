@@ -15,11 +15,14 @@
 //!
 //! - [`demo`] — the `Demo` trait, `Category` enum, `Source` struct.
 //! - [`registry`] — the hardcoded `DEMOS` table.
+//! - [`demo_sheet`] — the mounted demo's slot on the App's stylesheet
+//!   stack, swapped through the `AppContext` intents on a demo switch.
 //! - [`shell`] — `build_shell` constructs the sidebar + main view +
 //!   header and returns the `NodeId` consumers mount the active
 //!   demo into.
 
 pub mod demo;
+pub mod demo_sheet;
 pub mod demos;
 pub mod nav;
 pub mod registry;
@@ -27,6 +30,7 @@ pub mod shell;
 pub mod status_bar;
 
 pub use demo::{Category, Demo, Source};
+pub use demo_sheet::DemoSheet;
 pub use nav::{
     ShowcaseState, mount_demo, seed_tree_cursor, wire_mouse_position_indicator,
     wire_scroll_indicator, wire_sidebar_click,

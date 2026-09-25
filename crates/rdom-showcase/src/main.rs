@@ -1,7 +1,7 @@
 //! `rdom-showcase` binary entry point.
 //!
-//! Builds the shell, mounts a demo into the main view, pushes
-//! per-demo stylesheets onto the App's sheet stack, runs the
+//! Builds the shell, mounts a demo into the main view, registers
+//! that demo's stylesheet (swapped on every demo switch), runs the
 //! event loop.
 //!
 //! ## CLI
@@ -146,18 +146,12 @@ fn run(initial_idx: usize) -> std::io::Result<()> {
     // with the global default; this listener handles changes.
     rdom_showcase::wire_focus_hints(&mut dom, handles.status_bar_hints);
 
-    // Construct the App with the shell's base stylesheet.
+    // Construct the App with the shell's base stylesheet, then
+    // register the mounted demo's sheet. Only that one is on the stack:
+    // every later `mount_demo` (from the sidebar listener) swaps it
+    // through the `AppContext` stylesheet intents.
     let mut app = App::new(dom, base_stylesheet())?;
-
-    // Pre-push every demo's stylesheet onto the App's sheet stack.
-    // Each demo's CSS uses unique class-scoped selectors (e.g.
-    // `.hello`, `.flex-row-demo`, `.hover-demo`), so the cascade
-    // naturally applies only the mounted demo's rules — switching
-    // demos is just a subtree swap, no per-demo sheet push/remove
-    // required.
-    for demo in DEMOS {
-        app.push_stylesheet(demo.stylesheet());
-    }
+    state.borrow_mut().attach_sheet(&mut app);
 
     app.run()
 }

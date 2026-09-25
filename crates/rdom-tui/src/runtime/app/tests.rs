@@ -2399,6 +2399,22 @@ fn dropping_a_sibling_then_a_dirtied_sibling_does_not_panic() {
     assert!(!app.dom().contains(b));
 }
 
+/// P6G-SHOWCASE-INTENTS-1: `advance` services a loop iteration's work
+/// "exactly as the loop would" — including the closures an `AppHandle`
+/// injected (an event listener's only route to the stylesheet intents),
+/// before it draws. A headless driver otherwise never runs them.
+#[test]
+fn advance_runs_injected_closures_before_drawing() {
+    let mut app = test_app(TuiDom::new(), Stylesheet::bare(), Rect::new(0, 0, 10, 3));
+    app.draw_if_dirty().unwrap();
+    app.handle().inject(|ctx| {
+        ctx.push_stylesheet(Stylesheet::bare());
+    });
+    app.advance(0).unwrap();
+    assert_eq!(app.style_sheets().len(), 2, "the injected push ran");
+    assert!(!app.needs_redraw(), "and the frame it dirtied was drawn");
+}
+
 #[test]
 fn advance_drives_a_scheduler_interval_deterministically() {
     // Phase-0 gate for timer-driven runtime behavior (autoscroll): `advance`

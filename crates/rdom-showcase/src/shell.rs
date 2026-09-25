@@ -34,8 +34,8 @@
 //!
 //! M2 mounts the demo at `DEMOS[0]` into `<main>` statically. M3
 //! makes the sidebar interactive (click/keyboard to switch demos)
-//! and wires per-demo stylesheet push/pop via M1's multi-slot
-//! stylesheet API.
+//! and swaps the mounted demo's stylesheet on every switch
+//! (`crate::demo_sheet`).
 
 use rdom_tui::{NodeId, Stylesheet, TuiDom};
 
@@ -164,10 +164,11 @@ pub fn build_shell(dom: &mut TuiDom) -> ShellHandles {
 
     let tree = dom.create_element("ul");
     dom.set_attribute(tree, "role", "tree").unwrap();
-    // Chrome-specific class — NOT `nav-tree`. Every demo stylesheet
-    // is pre-pushed onto the App, so reusing a demo's class name
-    // bleeds that demo's rules onto the chrome: the `tree_nav` demo's
-    // `.nav-tree { padding: 1 2 }` would inset the whole sidebar nav.
+    // Chrome-specific class — NOT `nav-tree`. The mounted demo's
+    // stylesheet applies to the whole document, so reusing a demo's
+    // class name bleeds that demo's rules onto the chrome while it is
+    // mounted: the `tree_nav` demo's `.nav-tree { padding: 1 2 }` would
+    // inset the whole sidebar nav.
     // The chrome owns the `sidebar-tree` namespace; demos never use it.
     dom.set_attribute(tree, "class", "sidebar-tree").unwrap();
     dom.set_attribute(tree, "autofocus", "").unwrap();
@@ -295,8 +296,8 @@ pub fn build_shell(dom: &mut TuiDom) -> ShellHandles {
 }
 
 /// The shell's base stylesheet — chrome layout (header height,
-/// sidebar width, main-view flex), no demo styles. Demos push
-/// their own sheets on top via M1's multi-slot stylesheet API.
+/// sidebar width, main-view flex), no demo styles. The mounted
+/// demo's sheet sits on top of it (`crate::demo_sheet`).
 pub fn base_stylesheet() -> Stylesheet {
     rdom_css::from_css(BASE_CSS)
 }

@@ -157,6 +157,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 - `display: inherit` now takes the parent's inner display too, so a child of a flex container with `display: inherit` is itself a flex container (CSS Cascade 4 §7.2); it used to fall back to block flow. (`P6G-APPLY-INITIALS-1`)
 - `<form>` submission follows HTML's submitter model: `form::collect` (`new FormData(form)`) no longer submits any button's name / value, and the new `form::collect_with_submitter(dom, form, submitter)` adds the submitter's entry — pass the `submit` event's `SubmitDetail::submitter`. Implicit submission (Enter in a text input) now clicks the form's default button (its first submit button), which becomes the submitter; a disabled default button blocks it; only a form with no submit button falls back to the one-text-field rule. A `<button>` with an invalid `type` is a submit button (`P6G-FORM-SUBMITTER-1`)
 - rdom-tui's README documents its cargo features (`test-util` for `VirtualScreen`, `no-synchronized-output`), and docs.rs builds with `test-util` so `VirtualScreen` is documented (`P6G-TEST-UTIL-1`)
+- `App::advance` now also runs the closures queued by `AppHandle::inject` before it draws, as the live loop does, so a headless / test driver sees an event listener's stylesheet intents (and any other injected work) applied; `advance(0)` finishes the current iteration without moving the clock (`P6G-SHOWCASE-INTENTS-1`)
 
 ## [0.4.0] - 2026-09-24
 

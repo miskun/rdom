@@ -499,9 +499,12 @@ impl<B: Backend> App<B> {
     /// comes due, then redraw if dirty. For **headless / simulation / test**
     /// drivers that don't run the live [`run`](Self::run) loop (which syncs to
     /// wall time). Fires timeouts, intervals, rAF, and microtasks whose deadline
-    /// falls within the elapsed window, exactly as the loop would — making
-    /// timer-driven runtime behavior (animations, autoscroll) deterministically
-    /// testable. Advance one period at a time to step a repeating timer
+    /// falls within the elapsed window, services drag autoscroll, and runs the
+    /// closures queued by [`AppHandle::inject`], exactly as the loop would —
+    /// making timer-driven runtime behavior (animations, autoscroll) and
+    /// handler-queued work (stylesheet intents) deterministically testable.
+    /// `advance(0)` finishes the current loop iteration without moving the
+    /// clock. Advance one period at a time to step a repeating timer
     /// tick-by-tick.
     pub fn advance(&mut self, ms: u64) -> io::Result<()> {
         let _current = crate::runtime::timers::SchedulerGuard::install(&self.scheduler);
@@ -509,6 +512,7 @@ impl<B: Backend> App<B> {
         self.scheduler.borrow_mut().set_now(target);
         self.pump_due();
         self.service_autoscroll();
+        self.drain_handle_injections();
         self.draw_if_dirty()
     }
 
