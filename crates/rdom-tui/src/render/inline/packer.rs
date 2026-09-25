@@ -34,7 +34,7 @@ use unicode_width::UnicodeWidthStr;
 use crate::layout::WhiteSpace;
 
 use super::{GeneratedFragment, InlineFragment, LineBox};
-use crate::ext::StyleSlot;
+use crate::ext::PseudoSlot;
 
 /// One grapheme awaiting commit, with every piece of provenance we
 /// need to rebuild a source position later.
@@ -65,7 +65,7 @@ struct Origin {
     /// graphemes become [`GeneratedFragment`]s, never
     /// [`InlineFragment`]s: they take part in line packing but have no
     /// DOM position.
-    generated: Option<StyleSlot>,
+    generated: Option<PseudoSlot>,
 }
 
 impl Origin {
@@ -149,7 +149,7 @@ impl<'a> LinePacker<'a> {
     /// §12.1: an inline box, the host's first / last child). It packs,
     /// collapses and wraps like text, but lands in
     /// [`LineBox::generated`](super::LineBox::generated).
-    pub(super) fn push_generated(&mut self, host: NodeId, slot: StyleSlot, text: &'a str) {
+    pub(super) fn push_generated(&mut self, host: NodeId, slot: PseudoSlot, text: &'a str) {
         let origin = Origin {
             owner: host,
             text_node: host,

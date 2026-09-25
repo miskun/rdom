@@ -384,7 +384,6 @@ fn nowrap_keeps_everything_on_one_line() {
 /// and push the text after them.
 #[test]
 fn static_pseudos_pack_as_generated_fragments() {
-    use crate::ext::StyleSlot;
     use crate::style::Content;
     let (dom, p) = prepared(
         |dom| {
@@ -413,7 +412,7 @@ fn static_pseudos_pack_as_generated_fragments() {
         .iter()
         .map(|g| (g.slot, g.x, g.text.as_str()))
         .collect();
-    assert_eq!(gen0, vec![(StyleSlot::Before, 0, "> ")]);
+    assert_eq!(gen0, vec![(PseudoSlot::Before, 0, "> ")]);
     assert_eq!(line0.fragments[0].x, 2);
     assert_eq!(line0.fragments[0].text, "abcdefg");
     assert_eq!(line0.width, 9);
@@ -424,7 +423,7 @@ fn static_pseudos_pack_as_generated_fragments() {
         .iter()
         .map(|g| (g.host, g.slot, g.x, g.text.as_str()))
         .collect();
-    assert_eq!(gen1, vec![(p, StyleSlot::After, 2, " <")]);
+    assert_eq!(gen1, vec![(p, PseudoSlot::After, 2, " <")]);
     assert!(
         layout
             .lines
@@ -440,7 +439,6 @@ fn static_pseudos_pack_as_generated_fragments() {
 /// fragments hosted by the element, at its start / end.
 #[test]
 fn inline_element_pseudos_pack_at_its_start_and_end() {
-    use crate::ext::StyleSlot;
     use crate::style::Content;
     let (dom, p) = prepared(
         |dom| {
@@ -479,11 +477,65 @@ fn inline_element_pseudos_pack_at_its_start_and_end() {
     assert_eq!(
         generated,
         vec![
-            (b, StyleSlot::Before, 2, "["),
-            (b, StyleSlot::After, 7, "]")
+            (b, PseudoSlot::Before, 2, "["),
+            (b, PseudoSlot::After, 7, "]")
         ]
     );
     let bold = line.fragments.iter().find(|f| f.node == b).unwrap();
     assert_eq!((bold.x, bold.text.as_str()), (3, "bold"));
     assert_eq!(line.width, 10);
+}
+
+/// P6G-RUN-LAYOUT-VIS-1: the public run entry point places the host's
+/// pseudos by the same rule as the block pass — the run holding the
+/// host's first / last *line-bearing* child gets them, so collapsible
+/// whitespace-only text around the content does not steal them.
+#[test]
+fn run_layout_packs_host_pseudos_past_whitespace_only_edges() {
+    use crate::style::Content;
+    let (dom, p) = prepared(
+        |dom| {
+            let root = dom.root();
+            let p = dom.create_element("p");
+            let lead = dom.create_text_node("\n");
+            let span = dom.create_element("span");
+            let x = dom.create_text_node("x");
+            let trail = dom.create_text_node("\n");
+            dom.append_child(span, x).unwrap();
+            dom.append_child(p, lead).unwrap();
+            dom.append_child(p, span).unwrap();
+            dom.append_child(p, trail).unwrap();
+            dom.append_child(root, p).unwrap();
+            p
+        },
+        &default_sheet()
+            .rule_unchecked(
+                "p::before",
+                TuiStyle::new().content(Content::Str("<".into())),
+            )
+            .rule_unchecked(
+                "p::after",
+                TuiStyle::new().content(Content::Str(">".into())),
+            ),
+    );
+    let span = dom.node(p).child_nodes().nth(1).unwrap().id();
+    let generated = |children: &[NodeId]| -> Vec<(NodeId, PseudoSlot, String)> {
+        compute_inline_layout_for_run(&dom, p, children, 20)
+            .lines
+            .iter()
+            .flat_map(|l| &l.generated)
+            .map(|g| (g.host, g.slot, g.text.clone()))
+            .collect()
+    };
+    let children: Vec<NodeId> = dom.node(p).child_nodes().map(|c| c.id()).collect();
+    let both = vec![
+        (p, PseudoSlot::Before, "<".to_string()),
+        (p, PseudoSlot::After, ">".to_string()),
+    ];
+    assert_eq!(generated(&children), both, "whole child list");
+    assert_eq!(
+        generated(&[span]),
+        both,
+        "the span alone is the whole content"
+    );
 }

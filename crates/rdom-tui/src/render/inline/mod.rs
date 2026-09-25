@@ -48,7 +48,7 @@ mod tests;
 
 use rdom_core::{Dom, NodeId, NodeType};
 
-use crate::ext::{StyleSlot, TuiExt};
+use crate::ext::{PseudoSlot, StyleSlot, TuiExt};
 use crate::layout::WhiteSpace;
 
 pub use caret::cell_of_position;
@@ -115,8 +115,8 @@ pub struct GeneratedFragment {
     /// The element whose pseudo-element this is (paint reads its
     /// `computed_before` / `computed_after`).
     pub host: NodeId,
-    /// [`StyleSlot::Before`] or [`StyleSlot::After`].
-    pub slot: crate::ext::StyleSlot,
+    /// Which of the host's pseudo-elements this run belongs to.
+    pub slot: PseudoSlot,
     /// X offset from the inline flow's content-area left edge.
     pub x: u16,
     /// Visible cell width of `text`.
@@ -345,9 +345,9 @@ pub fn compute_inline_layout(dom: &Dom<TuiExt>, block: NodeId, content_width: u1
         .unwrap_or(WhiteSpace::Normal);
 
     let mut packer = LinePacker::new(content_width, ws);
-    push_pseudo(dom, block, StyleSlot::Before, &mut packer);
+    push_pseudo(dom, block, PseudoSlot::Before, &mut packer);
     walk_subtree(dom, block, &mut packer);
-    push_pseudo(dom, block, StyleSlot::After, &mut packer);
+    push_pseudo(dom, block, PseudoSlot::After, &mut packer);
     packer.finish();
     InlineLayout {
         lines: packer.take_lines(),
@@ -361,24 +361,25 @@ pub fn compute_inline_layout(dom: &Dom<TuiExt>, block: NodeId, content_width: u1
 fn push_pseudo<'a>(
     dom: &'a Dom<TuiExt>,
     host: NodeId,
-    slot: StyleSlot,
+    slot: PseudoSlot,
     packer: &mut LinePacker<'a>,
 ) {
-    if slot == StyleSlot::Before {
+    if slot == PseudoSlot::Before {
         for item in generated::deferred_markers(dom, host) {
             if let Some(text) = generated::static_pseudo_text(dom, item, StyleSlot::Before) {
-                packer.push_generated(item, StyleSlot::Before, text);
+                packer.push_generated(item, PseudoSlot::Before, text);
             }
         }
     }
-    if let Some(text) = generated::own_inline_pseudo_text(dom, host, slot) {
+    if let Some(text) = generated::own_inline_pseudo_text(dom, host, slot.into()) {
         packer.push_generated(host, slot, text);
     }
 }
 
 /// Pack a **range of direct children** of `parent` as an inline
-/// formatting context. Used by `layout_block_children` to populate
-/// anonymous block boxes per CSS 2.1 §9.2.1.1 — the block container
+/// formatting context, as the block pass populates an anonymous block
+/// box per CSS 2.1 §9.2.1.1 (it calls the crate-internal `pack_run`
+/// with the pseudos it already knows) — the block container
 /// holds the IFC's whitespace context, but only the listed
 /// `direct_children` participate in this anonymous block's content.
 ///
@@ -387,26 +388,19 @@ fn push_pseudo<'a>(
 /// inline runs owned by `parent`; element children pack via
 /// `walk_subtree` (same semantics as the full-subtree path).
 ///
-/// `parent`'s static `::before` joins the run that starts at its first
-/// in-flow child, its `::after` the run that ends at its last one
-/// (CSS 2.1 §9.2.1.1: they are the first / last inline-level content).
+/// `parent`'s static `::before` joins the run that holds its first
+/// line-bearing child, its `::after` the run that holds its last one
+/// (CSS 2.1 §9.2.1.1: they are the first / last inline-level content;
+/// collapsible whitespace-only text and comments bear no line) — the
+/// placement the block pass gives the same run
+/// (`generated::run_pseudos`).
 pub fn compute_inline_layout_for_run(
     dom: &Dom<TuiExt>,
     parent: NodeId,
     direct_children: &[NodeId],
     content_width: u16,
 ) -> InlineLayout {
-    let mut in_flow = dom
-        .node(parent)
-        .child_nodes()
-        .map(|c| c.id())
-        .filter(|&c| crate::render::layout_pass::is_in_flow(dom, c));
-    let first = in_flow.next();
-    let last = in_flow.last().or(first);
-    let pseudos = RunPseudos {
-        before: first.is_some() && direct_children.first().copied() == first,
-        after: last.is_some() && direct_children.last().copied() == last,
-    };
+    let pseudos = generated::run_pseudos(dom, parent, direct_children);
     pack_run(dom, parent, direct_children, pseudos, content_width)
 }
 
@@ -437,7 +431,7 @@ pub(crate) fn pack_run(
     use crate::layout::Display;
     let mut packer = LinePacker::new(content_width, ws);
     if pseudos.before {
-        push_pseudo(dom, parent, StyleSlot::Before, &mut packer);
+        push_pseudo(dom, parent, PseudoSlot::Before, &mut packer);
     }
     for &child_id in direct_children {
         let child = dom.node(child_id);
@@ -471,7 +465,7 @@ pub(crate) fn pack_run(
         }
     }
     if pseudos.after {
-        push_pseudo(dom, parent, StyleSlot::After, &mut packer);
+        push_pseudo(dom, parent, PseudoSlot::After, &mut packer);
     }
     packer.finish();
     InlineLayout {
@@ -557,11 +551,11 @@ fn walk_subtree<'a>(dom: &'a Dom<TuiExt>, id: NodeId, packer: &mut LinePacker<'a
 /// shifts). They land in [`LineBox::generated`], hosted by the element.
 fn walk_inline_box<'a>(dom: &'a Dom<TuiExt>, id: NodeId, packer: &mut LinePacker<'a>) {
     if let Some(text) = generated::static_pseudo_text(dom, id, StyleSlot::Before) {
-        packer.push_generated(id, StyleSlot::Before, text);
+        packer.push_generated(id, PseudoSlot::Before, text);
     }
     walk_subtree(dom, id, packer);
     if let Some(text) = generated::static_pseudo_text(dom, id, StyleSlot::After) {
-        packer.push_generated(id, StyleSlot::After, text);
+        packer.push_generated(id, PseudoSlot::After, text);
     }
 }
 

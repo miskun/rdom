@@ -447,16 +447,15 @@ fn paint_generated(
 ) {
     let node = dom.node(generated.host);
     let computed = match generated.slot {
-        crate::ext::StyleSlot::Before => node.computed_before(),
-        crate::ext::StyleSlot::After => node.computed_after(),
-        crate::ext::StyleSlot::Host => None,
+        crate::ext::PseudoSlot::Before => node.computed_before(),
+        crate::ext::PseudoSlot::After => node.computed_after(),
     };
     let Some(computed) = computed else {
         return;
     };
     let style = pseudo_style(
         computed,
-        presentation_of(dom, generated.host, generated.slot),
+        presentation_of(dom, generated.host, generated.slot.into()),
     );
     let x = origin_x + i32::from(generated.x);
     let end = paint_text_from(buf, x, y, clip_left, right, &generated.text, style);

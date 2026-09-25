@@ -156,6 +156,24 @@ impl StyleSlot {
     }
 }
 
+/// Which generated pseudo-element a piece of generated content belongs
+/// to: a [`StyleSlot`] that can never be [`StyleSlot::Host`]. Laid-out
+/// generated content (`GeneratedFragment::slot`) carries one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum PseudoSlot {
+    Before,
+    After,
+}
+
+impl From<PseudoSlot> for StyleSlot {
+    fn from(slot: PseudoSlot) -> Self {
+        match slot {
+            PseudoSlot::Before => StyleSlot::Before,
+            PseudoSlot::After => StyleSlot::After,
+        }
+    }
+}
+
 impl TuiExt {
     /// The animation overrides for `slot`.
     pub fn presentation_for(&self, slot: StyleSlot) -> &PresentationStyle {

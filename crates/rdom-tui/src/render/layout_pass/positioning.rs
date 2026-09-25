@@ -28,7 +28,7 @@ use std::collections::HashMap;
 
 use rdom_core::{Dom, NodeId, NodeType};
 
-use crate::ext::{StaticPosition, StyleSlot, TuiExt};
+use crate::ext::{PseudoSlot, StaticPosition, TuiExt};
 use crate::layout::{Display, LayoutRect, Length, Position, Size};
 use crate::node::TuiNodeExt;
 use crate::render::inline::InlineLayout;
@@ -194,7 +194,7 @@ pub(super) fn static_position_in_ifc(
         for g in &line.generated {
             let ahead = match top_level_index(g.host) {
                 Some(i) => i < child_index,
-                None => g.slot == StyleSlot::Before,
+                None => g.slot == PseudoSlot::Before,
             };
             if ahead {
                 last = last.max(Some((line_idx, i32::from(g.x) + i32::from(g.width))));

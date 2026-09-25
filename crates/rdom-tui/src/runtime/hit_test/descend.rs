@@ -325,8 +325,8 @@ fn hit_fragment(
         .filter(|g| {
             let node = dom.node(g.host);
             let pseudo = match g.slot {
-                crate::ext::StyleSlot::Before => node.computed_before(),
-                _ => node.computed_after(),
+                crate::ext::PseudoSlot::Before => node.computed_before(),
+                crate::ext::PseudoSlot::After => node.computed_after(),
             };
             pseudo.is_none_or(|c| c.pointer_events != crate::layout::PointerEvents::None)
         })

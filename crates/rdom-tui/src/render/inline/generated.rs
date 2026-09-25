@@ -132,6 +132,26 @@ pub(crate) fn inline_content_at_edge(dom: &Dom<TuiExt>, host: NodeId, from_end: 
     line_bearing_child(dom, host, from_end).is_some_and(|c| !is_block_level(dom, c))
 }
 
+/// Which of `host`'s pseudo-elements a run over `direct_children` (an
+/// inline run of `host`'s children, as an anonymous block box holds
+/// it) carries: the `::before` when the run holds `host`'s first
+/// line-bearing child, the `::after` when it holds the last. A host
+/// with no line-bearing child gives any run both (the pseudos stand
+/// alone).
+pub(crate) fn run_pseudos(
+    dom: &Dom<TuiExt>,
+    host: NodeId,
+    direct_children: &[NodeId],
+) -> super::RunPseudos {
+    let holds_edge = |from_end| {
+        line_bearing_child(dom, host, from_end).is_none_or(|c| direct_children.contains(&c))
+    };
+    super::RunPseudos {
+        before: holds_edge(false),
+        after: holds_edge(true),
+    }
+}
+
 /// The first line of `el` is its own when its first line-bearing
 /// content is inline-level; a block-level first child passes it down.
 /// `None` when no line box is reachable (an empty block, a flex
