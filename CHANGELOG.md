@@ -37,6 +37,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 - `compute_content_area_collapsed` takes a fifth argument, `containing_block_width`, the basis for percent padding. Migration: pass the containing block's width, or `area.width` to keep the previous behavior; `compute_content_area` keeps its three-argument form and resolves against the box's own width. (`CALC-PADMARG-1`)
 - `Length::Cells` holds an `i32` (was `i16`): `top` / `right` / `bottom` / `left` can position past ±32 k cells for virtualized surfaces; `parse_length` no longer rejects large integers. `z-index` stays `i16`. (`SUB-4`)
 - `gap` is a `GapValue` (`Cells(u16)` | `Calc(Box<CalcExpr>)`) on `TuiStyle` (`Option<Value<GapValue>>`) and `ComputedStyle`; `gap: calc(50% - 1)` and `gap: 10%` are accepted and resolve at layout against the container's content size on the gap's axis (0 when that size is indefinite, per CSS Box Alignment 3 §8). `TuiStyle::gap(u16)` is unchanged; `gap_value()` takes a `GapValue`. Only cell ↔ cell gap changes animate. (`CALC-GAP-1`)
+- The box geometry moved out of `rdom_style::layout` into rdom-tui, the layout pass that is its only caller: `compute_content_area`, `compute_content_area_collapsed`, `compute_padding_box` and `clamp_size` are now `rdom_tui::layout::*` (unchanged signatures; the `rdom_tui::layout::` paths keep working). Every `rdom_style::layout` type keeps its path. (`P6G-LAYOUT-RS-SPLIT-1`)
 
 ### Changed — `rdom-style`
 

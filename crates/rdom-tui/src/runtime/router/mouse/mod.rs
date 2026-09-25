@@ -502,7 +502,7 @@ fn handle_wheel(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> Rou
                 .map(|c| c.border)
                 .unwrap_or_default();
             let (old_x, old_y, new_x, new_y) = if let Some(ext) = dom.node_mut(id).ext_mut() {
-                let pb = rdom_style::layout::compute_padding_box(ext.layout, border);
+                let pb = crate::layout::compute_padding_box(ext.layout, border);
                 let old_x = ext.scroll_x;
                 let old_y = ext.scroll_y;
                 if wants_y && y_scrollable {

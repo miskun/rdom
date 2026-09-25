@@ -54,16 +54,13 @@ pub mod accessors;
 pub mod cssom;
 pub mod editing;
 pub mod ext;
+pub mod layout;
 pub mod node;
 pub mod prelude;
 pub mod render;
 pub mod runtime;
 pub mod style;
 pub mod tui_event;
-
-// `layout` moved to `rdom-style` (M4b mid-stream restructure). The
-// `rdom_tui::layout::*` path stays valid through this re-export.
-pub use rdom_style::layout;
 
 pub use accessors::{TuiAccessors, TuiAccessorsMut, TuiDocAccessors};
 pub use cssom::{extend_from_style_tags, seed_inline_styles};

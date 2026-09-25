@@ -79,7 +79,7 @@ pub(crate) fn children_clip(dom: &Dom<TuiExt>, id: NodeId, c: &ComputedStyle, cl
         return clip;
     }
     let outer = dom.node(id).layout_rect().unwrap_or_default();
-    let padding_box = rdom_style::layout::compute_padding_box(outer, c.border);
+    let padding_box = crate::layout::compute_padding_box(outer, c.border);
     layout_rect_to_grid(padding_box, clip).unwrap_or_else(|| Rect::new(clip.x, clip.y, 0, 0))
 }
 

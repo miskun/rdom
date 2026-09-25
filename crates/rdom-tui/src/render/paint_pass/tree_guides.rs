@@ -105,7 +105,7 @@ fn clip_for_tree(dom: &Dom<TuiExt>, tree: NodeId, base_clip: Rect) -> Rect {
             let clips = !matches!(computed.overflow_x, Overflow::Visible)
                 || !matches!(computed.overflow_y, Overflow::Visible);
             if clips && let Some(outer) = dom.node(id).layout_rect() {
-                let padding_box = rdom_style::layout::compute_padding_box(outer, computed.border);
+                let padding_box = crate::layout::compute_padding_box(outer, computed.border);
                 clip = match super::layout_rect_to_grid(padding_box, clip) {
                     Some(grid) => clip.intersection(grid),
                     None => return Rect::new(clip.x, clip.y, 0, 0),
@@ -128,7 +128,7 @@ fn tree_padding_box(dom: &Dom<TuiExt>, tree: NodeId) -> Option<crate::layout::La
         .and_then(|e| e.computed.as_ref())
         .map(|c| c.border)
         .unwrap_or_default();
-    Some(rdom_style::layout::compute_padding_box(outer, border))
+    Some(crate::layout::compute_padding_box(outer, border))
 }
 
 /// Does the tree currently paint a vertical scrollbar (so its gutter — the

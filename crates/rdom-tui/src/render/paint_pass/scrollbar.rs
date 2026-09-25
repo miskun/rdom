@@ -167,7 +167,7 @@ pub(super) fn paint_scrollbars(
     // the border ring (a child-positioning concern); the scrollbar
     // track must NOT paint there. `padding_box` defines the spec-correct
     // outer bound for the track extent on both axes.
-    let padding_box = rdom_style::layout::compute_padding_box(ext.layout, computed.border);
+    let padding_box = crate::layout::compute_padding_box(ext.layout, computed.border);
 
     let (scroll_x, scroll_y) = (ext.scroll_x, ext.scroll_y);
     let (content_w, content_h) = (ext.scroll_content_width, ext.scroll_content_height);

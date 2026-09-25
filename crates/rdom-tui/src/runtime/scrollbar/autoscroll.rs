@@ -77,7 +77,7 @@ pub(crate) fn autoscroll_step_for(
         .computed()
         .map(|c| c.border)
         .unwrap_or_default();
-    let pb = rdom_style::layout::compute_padding_box(ext.layout, border);
+    let pb = crate::layout::compute_padding_box(ext.layout, border);
     let zone = AUTOSCROLL_EDGE_ZONE.max(1);
     // Along one axis: the step into / past the far edge, or out of the
     // near edge, when there is room to scroll that way.

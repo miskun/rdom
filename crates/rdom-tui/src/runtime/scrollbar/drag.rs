@@ -101,7 +101,7 @@ pub(crate) fn extend_drag(router: &Router, dom: &mut TuiDom, mouse_x: u16, mouse
         .computed()
         .map(|c| c.border)
         .unwrap_or_default();
-    let content = rdom_style::layout::compute_padding_box(ext.layout, border);
+    let content = crate::layout::compute_padding_box(ext.layout, border);
     let (viewport, content_size, track_len) = match drag.axis {
         ScrollAxis::Vertical => {
             let x_reserves = dom

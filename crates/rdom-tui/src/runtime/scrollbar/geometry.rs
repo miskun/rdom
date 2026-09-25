@@ -25,7 +25,7 @@ pub(super) fn scroll_metrics(dom: &TuiDom, element: NodeId, axis: ScrollAxis) ->
         .computed()
         .map(|c| c.border)
         .unwrap_or_default();
-    let pb = rdom_style::layout::compute_padding_box(ext.layout, border);
+    let pb = crate::layout::compute_padding_box(ext.layout, border);
     match axis {
         ScrollAxis::Vertical => (pb.height, ext.scroll_y),
         ScrollAxis::Horizontal => (pb.width, ext.scroll_x),
@@ -72,7 +72,7 @@ pub(super) fn is_vertical_scroll_container(dom: &TuiDom, id: NodeId) -> bool {
         .computed()
         .map(|c| c.border)
         .unwrap_or_default();
-    let pb = rdom_style::layout::compute_padding_box(ext.layout, border);
+    let pb = crate::layout::compute_padding_box(ext.layout, border);
     ext.scroll_content_height > pb.height as usize
 }
 
@@ -95,6 +95,6 @@ pub(super) fn is_horizontal_scroll_container(dom: &TuiDom, id: NodeId) -> bool {
         .computed()
         .map(|c| c.border)
         .unwrap_or_default();
-    let pb = rdom_style::layout::compute_padding_box(ext.layout, border);
+    let pb = crate::layout::compute_padding_box(ext.layout, border);
     ext.scroll_content_width > pb.width as usize
 }

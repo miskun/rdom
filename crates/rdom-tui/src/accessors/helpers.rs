@@ -132,7 +132,7 @@ pub(super) fn write_scroll_clamped(dom: &mut TuiDom, id: NodeId, x: i32, y: i32)
                 .computed()
                 .map(|c| c.border)
                 .unwrap_or_default();
-            let pb = rdom_style::layout::compute_padding_box(e.layout, border);
+            let pb = crate::layout::compute_padding_box(e.layout, border);
             (
                 pb.width as i32,
                 pb.height as i32,

@@ -65,6 +65,7 @@ mod block;
 mod block_tests;
 mod border_collapse;
 mod flex;
+pub(crate) mod geometry;
 mod ifc;
 pub(crate) mod intrinsic;
 mod positioned_pseudos;

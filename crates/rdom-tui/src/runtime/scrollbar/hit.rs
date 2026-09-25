@@ -61,7 +61,7 @@ fn check_element(dom: &TuiDom, id: NodeId, x: u16, y: u16) -> Option<ScrollbarHi
     // for by `reserve_scrollbar_gutter`); track extent is clamped to
     // padding-box so a click on a border-row column doesn't register
     // as a scrollbar hit under M5.5b border-collapse.
-    let padding_box = rdom_style::layout::compute_padding_box(ext.layout, computed.border);
+    let padding_box = crate::layout::compute_padding_box(ext.layout, computed.border);
 
     let y_reserves = matches!(computed.overflow_y, Overflow::Scroll | Overflow::Auto);
     let x_reserves = matches!(computed.overflow_x, Overflow::Scroll | Overflow::Auto);

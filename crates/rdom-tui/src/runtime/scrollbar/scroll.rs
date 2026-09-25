@@ -47,7 +47,7 @@ pub(super) fn set_scroll_with(
             .computed()
             .map(|c| c.border)
             .unwrap_or_default();
-        let pb = rdom_style::layout::compute_padding_box(ext.layout, border);
+        let pb = crate::layout::compute_padding_box(ext.layout, border);
         match axis {
             ScrollAxis::Vertical => (pb.height as usize, ext.scroll_content_height),
             ScrollAxis::Horizontal => (pb.width as usize, ext.scroll_content_width),

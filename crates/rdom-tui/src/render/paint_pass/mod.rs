@@ -319,7 +319,7 @@ fn paint_box(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect) -> Opt
     // never the layout-side `content_layout` (which under M5.5b border-
     // collapse can widen into the border ring for child positioning —
     // a layout concern, not a paint-clipping one).
-    let padding_box = rdom_style::layout::compute_padding_box(outer, computed.border);
+    let padding_box = crate::layout::compute_padding_box(outer, computed.border);
 
     // Fast path: element entirely outside the clip.
     if let Some(outer_grid) = layout_rect_to_grid(outer, clip) {
