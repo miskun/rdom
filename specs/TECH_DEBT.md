@@ -8,7 +8,6 @@ For the durable architectural divergences (web-platform departures shipped on pu
 
 ### Style crate — from the STABILIZE-2026-09 Phase 3+4 gates
 
-- **`STYLE-DISPATCH-SPLIT-1` — `property_dispatch.rs` (~2 300 lines) mixes the field table, `set`, `serialize` and their tests.** Split into `property_dispatch/{table,set,serialize}.rs` (tests alongside); no behavior change.
 - **`STYLE-VALUES-SPLIT-1` — `parse/values.rs` (~1 800 lines) holds every value parser.** Split per value type (`color`, `length`, `calc` entry, `transition`, `content`); no behavior change. Also over the few-hundred-line bar: `layout.rs`, `ua.rs`, `tui_style.rs`, `stylesheet.rs`, and in `rdom-tui` `cascade/apply.rs` and `cascade/tests.rs`.
 
 ### Deferred from HARDENING-2026-09 Batch 3
