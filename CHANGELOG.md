@@ -125,6 +125,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 - An `<option>` inside a disabled `<optgroup>` is disabled for user interaction too: arrow keys, Home / End, type-ahead, Space, Ctrl+A and shift-extend skip it, and clicking it does nothing (HTML §4.10.10). (`P6G-SELECT-OPTGROUP-DISABLED-1`)
 - `form::collect` no longer submits a selected `<option>` that is disabled — by its own `disabled` attribute or a disabled `<optgroup>` parent (HTML §4.10.21.4). `<fieldset disabled>` is documented as not yet disabling its descendants. (`P6G-FORM-COLLECT-DISABLED-1`)
 - `display: inherit` takes the parent's inner display too, so a child of a flex container with `display: inherit` is itself a flex container (CSS Cascade 4 §7.2); it used to fall back to block flow. (`P6G-APPLY-INITIALS-1`)
+- A mousedown ends any previous text-selection drag before it acts: after a `mouseup` lost outside the window (on a terminal that reports no button-less motion), a press on a scrollbar thumb, on nothing, or a cancelled press no longer leaves the old drag armed to extend the selection on later button-held moves. (`P6G-DRAG-RESET-1`)
 
 ### Internal — `rdom-tui`
 

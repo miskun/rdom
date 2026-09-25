@@ -100,6 +100,16 @@ fn handle_down(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> Rout
     // calls prevent_default on the mousedown.
     router.register_click(&mouse);
 
+    // A new press ends any previous selection drag before deciding what
+    // this press does. The drag normally ends on mouseup, or on the next
+    // button-less move; a mouseup lost outside the window on a terminal
+    // that reports no button-less motion (ITERM2-MOUSE-MOTION-1) skips
+    // both, and the drag would otherwise stay armed through a scrollbar
+    // press, a press on nothing, or a cancelled mousedown — extending the
+    // old selection on every button-held move (P6G-DRAG-RESET-1). A press
+    // that starts a new drag re-arms it in `drag::begin`.
+    crate::runtime::selection::drag::end(router);
+
     let hit = dom.hit_test(mouse.column, mouse.row);
     router.down_target = hit;
     crate::rdom_trace!(

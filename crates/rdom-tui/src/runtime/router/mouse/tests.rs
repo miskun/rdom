@@ -2325,3 +2325,129 @@ fn buttonless_move_ends_a_stale_selection_drag() {
         "a button-less move does not extend the selection"
     );
 }
+
+// ── a new mousedown ends a stale selection drag (P6G-DRAG-RESET-1) ──
+//
+// A lost mouseup (button released outside the window) on a terminal that
+// reports no button-less motion leaves the drag armed. Every new mousedown
+// ends it before deciding what the press does, so whatever the press turns
+// into — a scrollbar drag, nothing, a cancelled default — it never extends
+// the old selection.
+
+/// Row 0: prose. Rows 1–4: a 10×4 `overflow-y: scroll` box whose 30 rows of
+/// content put the vertical thumb at (9, 1). Returns (dom, text, scroller).
+fn prose_above_scroller_fixture() -> (TuiDom, NodeId, NodeId) {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let p = dom.create_element("p");
+    let t = dom.create_text_node("some prose");
+    dom.append_child(p, t).unwrap();
+    let span = dom.create_element("span");
+    dom.append_child(p, span).unwrap();
+    dom.append_child(root, p).unwrap();
+    let c = dom.create_element("c");
+    dom.append_child(root, c).unwrap();
+
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "p",
+            TuiStyle::new()
+                .display(Display::Block)
+                .width(Size::Fixed(12))
+                .height(Size::Fixed(1)),
+        )
+        .rule_unchecked("span", TuiStyle::new().display(Display::Inline))
+        .rule_unchecked(
+            "c",
+            TuiStyle::new()
+                .display(Display::Block)
+                .width(Size::Fixed(10))
+                .height(Size::Fixed(4))
+                .overflow_y(Overflow::Scroll),
+        );
+    prepare(&mut dom, &sheet, Rect::new(0, 0, 20, 10));
+    if let Some(ext) = dom.node_mut(c).ext_mut() {
+        ext.scroll_content_height = 30;
+    }
+    (dom, t, c)
+}
+
+fn held_move_at(x: u16, y: u16) -> crossterm::event::Event {
+    crossterm::event::Event::Mouse(mouse_at(MouseEventKind::Drag(MouseButton::Left), x, y))
+}
+
+/// Select bytes 1..4 of the prose by dragging, then lose the mouseup.
+fn select_and_lose_mouseup(router: &mut Router, dom: &mut TuiDom, t: NodeId) -> Selection {
+    router.route(dom, crossterm::event::Event::Mouse(down_at(1, 0)));
+    router.route(dom, held_move_at(4, 0));
+    let sel = *dom.selection().expect("drag selected text");
+    assert_eq!(sel.focus, Position::new(t, 4));
+    assert!(router.selection_drag.is_some(), "the drag is still armed");
+    sel
+}
+
+#[test]
+fn press_on_scrollbar_thumb_after_lost_mouseup_does_not_extend_the_old_selection() {
+    let (mut dom, t, c) = prose_above_scroller_fixture();
+    let mut router = Router::new();
+    let before = select_and_lose_mouseup(&mut router, &mut dom, t);
+
+    router.route(&mut dom, crossterm::event::Event::Mouse(down_at(9, 1)));
+    assert!(
+        router.scrollbar_drag.is_some(),
+        "the press grabbed the thumb"
+    );
+    assert_eq!(router.selection_drag, None, "the press ended the old drag");
+    router.route(&mut dom, held_move_at(9, 3));
+
+    assert!(
+        dom.node(c).ext().unwrap().scroll_y > 0,
+        "the thumb drag scrolled"
+    );
+    assert_eq!(
+        dom.selection().copied(),
+        Some(before),
+        "selection untouched"
+    );
+}
+
+#[test]
+fn press_on_nothing_after_lost_mouseup_does_not_extend_the_old_selection() {
+    let (mut dom, t, _c) = prose_above_scroller_fixture();
+    let mut router = Router::new();
+    let before = select_and_lose_mouseup(&mut router, &mut dom, t);
+
+    use crate::runtime::hit_test::HitTestExt;
+    // Below every box: the hit test finds nothing.
+    router.route(&mut dom, crossterm::event::Event::Mouse(down_at(15, 8)));
+    assert_eq!(dom.hit_test(15, 8), None);
+    assert_eq!(router.selection_drag, None, "the press ended the old drag");
+    router.route(&mut dom, held_move_at(8, 0));
+
+    assert_eq!(
+        dom.selection().copied(),
+        Some(before),
+        "selection untouched"
+    );
+}
+
+#[test]
+fn cancelled_press_after_lost_mouseup_does_not_extend_the_old_selection() {
+    let (mut dom, t, c) = prose_above_scroller_fixture();
+    dom.add_event_listener(c, "mousedown", ListenerOptions::default(), |ctx| {
+        ctx.event.prevent_default();
+    })
+    .unwrap();
+    let mut router = Router::new();
+    let before = select_and_lose_mouseup(&mut router, &mut dom, t);
+
+    router.route(&mut dom, crossterm::event::Event::Mouse(down_at(3, 2)));
+    assert_eq!(router.selection_drag, None, "the press ended the old drag");
+    router.route(&mut dom, held_move_at(8, 0));
+
+    assert_eq!(
+        dom.selection().copied(),
+        Some(before),
+        "selection untouched"
+    );
+}

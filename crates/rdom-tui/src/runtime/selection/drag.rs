@@ -11,8 +11,9 @@
 //!   moves the selection's `focus` to the cursor's current position,
 //!   wherever the pointer is. Preserves the original anchor so
 //!   dragging backward shrinks the selection symmetrically.
-//! - `end`: clears router drag state (on `mouseup`, or on a
-//!   button-less move that shows the `mouseup` was lost).
+//! - `end`: clears router drag state (on `mouseup`, on a
+//!   button-less move that shows the `mouseup` was lost, and at the
+//!   start of every `mousedown`).
 //!
 //! ## No pointer capture
 //!
@@ -158,8 +159,9 @@ pub(crate) fn extend(dom: &mut TuiDom, mouse: MouseEvent) -> bool {
 // `clamp_to_line_layout`, shared by both the contained and nearest paths.
 
 /// Clear router drag state. Call from `mouseup` regardless of
-/// whether the up landed on text, and from a button-less move (the
-/// `mouseup` was lost outside the terminal).
+/// whether the up landed on text, from a button-less move (the
+/// `mouseup` was lost outside the terminal), and at the start of every
+/// `mousedown` (a lost `mouseup` with no button-less motion reported).
 pub(crate) fn end(router: &mut Router) {
     router.selection_drag = None;
 }
