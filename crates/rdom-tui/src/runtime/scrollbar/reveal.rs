@@ -79,7 +79,7 @@ fn reveal_caret_with(dom: &mut TuiDom, clamp: ClampTo, mark_pending: bool) {
     if !is_vertical_scroll_container(dom, block) {
         return;
     }
-    let Some((x, y)) = crate::runtime::editing::caret::cell_of_position(dom, focus) else {
+    let Some((x, y)) = crate::render::inline::cell_of_position(dom, focus) else {
         return;
     };
     ensure_visible_vertical_with(

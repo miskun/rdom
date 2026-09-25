@@ -29,8 +29,7 @@ pub(super) fn inherit_inheritable_from(working: &mut ComputedStyle, parent: &Com
     working.modifiers = parent.modifiers & inherit_mods;
     // white_space inherits; display does not. Neither does
     // `user-select` (CSS UI 4 §6.1): its *used* value of `auto` depends
-    // on the parent's used value, resolved by the runtime
-    // (`runtime::selection::user_select`).
+    // on the parent's used value, resolved in `style::user_select`.
     working.white_space = parent.white_space;
     working.pointer_events = parent.pointer_events;
     // CSS UI 4 §7.1: `caret-color` inherits; rdom's `caret-text-color`

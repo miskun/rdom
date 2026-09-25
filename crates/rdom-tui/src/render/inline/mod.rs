@@ -39,6 +39,7 @@
 //! break opportunities. UAX #14 line breaking (soft hyphen, complex-
 //! script clustering) is out of scope.
 
+mod caret;
 pub(crate) mod generated;
 mod packer;
 
@@ -50,6 +51,8 @@ use rdom_core::{Dom, NodeId, NodeType};
 use crate::ext::{StyleSlot, TuiExt};
 use crate::layout::WhiteSpace;
 
+pub use caret::cell_of_position;
+pub(crate) use caret::cells_before_byte;
 use packer::LinePacker;
 
 /// One visible chunk of text painted contiguously on a single line

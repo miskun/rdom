@@ -4,17 +4,15 @@
 //! re-paint without selection restores the original appearance.
 //!
 //! Owns the byte-range → cell-range mapping for a fragment
-//! (`selection_byte_range_in`, `cells_before_byte`) and the walk to
-//! the nearest ancestor with a cascaded `::selection` style. The
-//! runtime's `user-select: none` rule decides what is excluded from
-//! the highlight; paint only asks.
+//! (`selection_byte_range_in`, then `render::inline::cells_before_byte`)
+//! and the walk to the nearest ancestor with a cascaded `::selection`
+//! style. The used `user-select` (`style::user_select`) decides what is
+//! excluded from the highlight; paint only asks.
 
 use rdom_core::{Dom, NodeId, Position, Range};
-use unicode_segmentation::UnicodeSegmentation;
-use unicode_width::UnicodeWidthStr;
 
 use crate::ext::TuiExt;
-use crate::render::inline::InlineFragment;
+use crate::render::inline::{InlineFragment, cells_before_byte};
 use crate::render::paint_pass::text::style_from_computed;
 use crate::render::{Buffer, Rect, Style};
 use crate::style::ComputedStyle;
@@ -42,7 +40,7 @@ pub(super) fn apply_selection_overlay(
     // (and from copy) even when the selection spans across it — e.g. dragging
     // from a title down through a `user-select: none` chrome bar into the body
     // must not paint the bar. Browsers skip such content; so do we.
-    if crate::runtime::selection::user_select::is_unselectable(dom, fragment.text_node) {
+    if crate::style::user_select::is_unselectable(dom, fragment.text_node) {
         return;
     }
 
@@ -157,19 +155,4 @@ fn selection_byte_range_in(
     } else {
         None
     }
-}
-
-/// Count visible cells before byte offset `target` in `text`. If
-/// `target` falls between graphemes, returns the cells up to that
-/// boundary. Mid-grapheme targets round up to the next boundary
-/// (shouldn't happen — selection offsets land on grapheme edges).
-fn cells_before_byte(text: &str, target: usize) -> u16 {
-    let mut cells: u16 = 0;
-    for (idx, g) in text.grapheme_indices(true) {
-        if idx >= target {
-            return cells;
-        }
-        cells = cells.saturating_add(UnicodeWidthStr::width(g) as u16);
-    }
-    cells
 }

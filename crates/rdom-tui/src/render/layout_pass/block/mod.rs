@@ -104,8 +104,12 @@ pub(super) fn layout_block_children(
         return BlockMeasurement::default();
     }
 
-    // Filter out-of-flow elements; text nodes are always in flow.
-    // The `child_range` indices below are into THIS filtered list.
+    // Filter out-of-flow elements; text nodes are always in flow. Each
+    // entry keeps its index into `raw_children` (every child node), and
+    // the runs' `child_range`s are those RAW indices — not positions in
+    // this filtered list — so an anonymous box's range can be matched
+    // against a child's index among all its parent's child nodes
+    // (`inline_flow_for_text`, TREE-BFC-PSEUDO-1).
     let in_flow: Vec<(usize, NodeId)> = raw_children
         .iter()
         .copied()

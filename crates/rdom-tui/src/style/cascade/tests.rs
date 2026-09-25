@@ -1042,7 +1042,7 @@ fn user_select_defaults_to_auto() {
 
 /// CSS UI 4 §6.1: `user-select` is not inherited — the child of a
 /// `none` parent computes `auto`; its *used* value is `none`
-/// (resolved by the runtime, `runtime::selection::user_select`).
+/// (resolved by `style::user_select`).
 #[test]
 fn user_select_is_not_inherited() {
     use crate::layout::UserSelect;
@@ -1063,7 +1063,7 @@ fn user_select_is_not_inherited() {
         "user-select does not inherit"
     );
     assert_eq!(
-        crate::runtime::selection::user_select::used_value(&dom, child),
+        crate::style::user_select::used_value(&dom, child),
         UserSelect::None,
         "the used value of `auto` under a `none` parent is `none`"
     );

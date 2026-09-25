@@ -25,7 +25,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use rdom_core::{NodeId, Position, Selection};
 
 use crate::TuiDom;
-use crate::runtime::editing::caret::cell_of_position;
+use crate::render::inline::cell_of_position;
 use crate::runtime::editing::perform::{Edit, EditOutcome, perform_edit};
 use crate::runtime::hit_test::HitTestExt;
 use crate::runtime::selection::keyboard::{

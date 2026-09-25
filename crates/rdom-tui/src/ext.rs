@@ -90,8 +90,8 @@ pub struct TypeaheadState {
 /// allocated per cascade). Their `inline_layout` carries text
 /// fragments owned by real source nodes; hit-test and selection
 /// resolve through those owners. `child_range` records the
-/// document-order indices (within the parent's element-or-text
-/// child list) the anon box wraps. The host's static `::before` /
+/// document-order indices (within the parent's full list of child
+/// nodes) the anon box wraps. The host's static `::before` /
 /// `::after` are packed into the first / last box's `inline_layout`
 /// (as `LineBox::generated`); a pseudo whose host starts / ends with a
 /// block-level child gets a box of its own, with an empty

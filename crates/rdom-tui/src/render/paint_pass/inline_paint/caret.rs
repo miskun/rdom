@@ -5,10 +5,9 @@
 //! Colors come from the cascade (`caret-color` / `caret-text-color`);
 //! `Auto` swaps the focused element's cascaded `color` and
 //! `background-color`, with a high-contrast fallback when either is
-//! the terminal default. The caret's cell position comes from the
-//! runtime's caret model (`runtime::editing::caret`), which is the
-//! same mapping the editing pipeline uses — paint does not re-derive
-//! it.
+//! the terminal default. The caret's cell position comes from
+//! [`crate::render::inline::cell_of_position`], the same mapping the
+//! runtime's editing pipeline uses — paint does not re-derive it.
 
 use rdom_core::{Dom, NodeId};
 
@@ -53,7 +52,7 @@ pub(in crate::render::paint_pass) fn paint_caret_if_editable(
     if matches!(computed.caret_color, CaretColor::Transparent) {
         return;
     }
-    let Some((x, y)) = crate::runtime::editing::caret::cell_of_position(dom, sel.focus) else {
+    let Some((x, y)) = crate::render::inline::cell_of_position(dom, sel.focus) else {
         return;
     };
     if x < clip.x || x >= clip.right() || y < clip.y || y >= clip.bottom() {
