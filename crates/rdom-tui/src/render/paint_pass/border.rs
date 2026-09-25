@@ -47,33 +47,20 @@ const VERTICAL: &str = "│";
 
 // ─── Background ─────────────────────────────────────────────────────
 
-/// Fill `area` cells with `bg`. Behavior depends on the painter's
-/// effective `opacity` — the project's three-regime compositing
-/// rule:
+/// Fill `area` cells with `bg` as an opaque CSS box: writes
+/// `cell.bg = bg` AND **clears `cell.symbol` to SPACE**, clears
+/// `cell.fg` to `Color::Reset`, clears `cell.modifier`, and clears
+/// the cell's border contributions. Any glyph an earlier paint
+/// deposited in this cell is replaced by a blank canvas, ready for
+/// this element's own border / text / pseudo content to paint over
+/// it. Without this clear, glyphs from lower z-layers (or earlier
+/// tree-order paints) leak through an opaque overlay's bg — the
+/// visible bug in `positioning_demo` before 2026-05-18.
 ///
-/// - **Opaque** (`opacity >= 1.0`) — full CSS opaque box. Writes
-///   `cell.bg = bg` AND **clears `cell.symbol` to SPACE**, clears
-///   `cell.fg` to `Color::Reset`, and clears `cell.modifier`. Any
-///   glyph an earlier paint deposited in this cell is replaced by
-///   a blank canvas, ready for this element's own border / text /
-///   pseudo content to paint over it. Without this clear, glyphs
-///   from lower z-layers (or earlier tree-order paints) leak
-///   through an opaque overlay's bg — the visible bug in
-///   `positioning_demo` before 2026-05-18.
-///
-/// - **Translucent** (`0.0 < opacity < 1.0`) — sets `cell.bg`
-///   only, preserving the cell's existing `symbol`, `fg`, and
-///   `modifier`. Underlying glyphs bleed through, tinted by the
-///   blended bg (the painter's bg is alpha-blended against
-///   `parent_bg` at cascade time before reaching `fill_bg`). This
-///   is what CSS authors expect from `opacity < 1`: the layer is
-///   semi-transparent, content underneath shows through.
-///
-/// - **Invisible** (`opacity <= 0.0`) — caller is responsible for
-///   skipping the call. We don't gate here because `alpha_blend`
-///   in `mod.rs` already collapses fg/bg to `parent_bg` for
-///   `opacity = 0`, so calling `fill_bg` with that collapsed bg
-///   is a no-op visually; gating would be a small optimization.
+/// There is one regime: `opacity` is not a per-fill concern. An
+/// `opacity < 1` subtree paints into its own layer at full opacity
+/// and `Buffer::composite_group` folds the layer back, which is
+/// where a translucent box's glyphs beneath show through (OPACITY-1).
 ///
 /// `Color::Reset` for `bg` is honored at the call site (caller
 /// gates `if computed.bg != Color::Reset`); this function assumes

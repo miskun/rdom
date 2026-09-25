@@ -132,11 +132,22 @@ When collapse is active and an element has a border, `compute_content_area_colla
 
 ### `opacity` is group opacity
 
-An element with `opacity < 1` paints its whole stacking context into a copy of the frame buffer at full opacity; `Buffer::composite_group` then blends that copy back onto the backdrop at the element's alpha, cell by cell: a changed background blends in, a painted glyph replaces the cell's glyph with its foreground blended against the backdrop, and a blank or space keeps the backdrop's glyph (a translucent box cannot erase what is beneath it in a cell grid). Nested opacities therefore multiply and every paint inside the group blends once, with no per-write compose state on the buffer. The copy costs one buffer clone per translucent element per frame.
+An element with `opacity < 1` paints its whole stacking context into a copy of the frame buffer at full opacity; `Buffer::composite_group` then folds that copy back onto the backdrop at the element's alpha, so nested opacities multiply and every paint inside the group blends exactly once, with no per-write compose state on the buffer. A cell holds one glyph, one foreground and one background, so the fold cannot mix two glyphs the way a pixel renderer mixes coverage. The rules, per cell:
+
+- **Background.** A background the layer changed blends over the backdrop's: `α·layer + (1-α)·backdrop`.
+- **Glyph contest.** A glyph the layer painted — text, or a border it contributed — takes the cell when the backdrop cell shows no glyph, or when `α ≥ 0.5` (the layer covers at least half of what shows). Its colour blends against the backdrop background, and it carries the layer's modifiers and link state (including no link). Otherwise the backdrop glyph stays. Over an empty backdrop a glyph therefore fades in smoothly from `α = 0`; between two visible glyphs the one with more coverage wins.
+- **Tint.** A backdrop glyph that stays under a background the layer changed is tinted toward it: `α·layer_bg + (1-α)·fg` — a 0.9-opacity white card leaves the text beneath at 10% contrast, not full contrast.
+- **Borders.** Border glyphs are materialised after all painting by the joiner, from per-direction contributions that carry their colour. Compositing therefore blends the contributions, not glyphs: those the layer added follow the glyph contest and blend like a glyph; backdrop contributions under a changed background tint like a backdrop glyph. The joiner stays the single source of border glyphs and colours, and a translucent box's border joins opaque neighbours' borders from the same tables. (Joining the layer before compositing would have materialised the translucent border twice and lost those junctions.)
+- **Wide glyphs** composite as a unit: a layer's wide glyph takes its spacer cell with it, and a primary that loses its spacer, or a spacer that loses its primary, becomes a space.
+- **`opacity: 0`** composites nothing.
+
+`Color::Reset` has to become a colour before it can blend. Terminals do not report their default colours, so the canvas model assumes a dark terminal: `Reset` background is `#000000`, `Reset` foreground `#FFFFFF` (`render::compose::{CANVAS_BG, CANVAS_FG}`). A translucent element's default-coloured text is thus written as an explicit grey, and on a light terminal it composites toward the wrong end.
+
+The copy costs one buffer clone per translucent element per frame.
 
 ### Paint layer invariant: `fill_bg` owns `cell.bg`; glyph painters write `symbol + fg + modifiers` only
 
-Including `bg` in a glyph style during paint causes a second blend pass under opacity, producing double-blended colors. The bug surfaced as visibly brighter text on translucent cards. Two helpers: `style_from_computed` (with bg, for pseudos that paint their own bg) and `glyph_style_from_computed` (without bg, for own-text and IFC fragments whose owner is the IFC block).
+Each cell's background has one owner. Before group opacity, a `bg` in a glyph style blended a second time under `opacity` and surfaced as visibly brighter text on translucent cards; group compositing removed that failure mode, and the split keeps the ownership explicit. Two helpers: `style_from_computed` (with bg, for pseudos that paint their own bg) and `glyph_style_from_computed` (without bg, for own-text and IFC fragments whose owner is the IFC block).
 
 ### NodeId is arena-scoped and never reused within a `Dom`
 

@@ -321,6 +321,7 @@ Each phase ends with the two review gates; each commit carries the item id.
   APPLY-INITIALS, TEST-UTIL, SHOWCASE-INTENTS, DOCS (CHANGELOG reorganised per crate and kind,
   stale comments, DESIGN opacity paragraph). Demos for the new features go to the Phase 7 scope
   question.
+- 2026-09-24 — Phase 6 gate fix: `P6G-OPACITY-COMPOSITE-1` — `composite_group` rewritten around a per-cell glyph contest (layer glyph wins at α ≥ 0.5 or over an empty cell), border contributions blended / tinted before the joiner, canvas fg model, wide pairs as a unit, α = 0 no-op. `opacity_zero_collapses_fg_to_parent_bg` now expects nothing painted.
 - Found while mapping Phase 3 (not on the ledger): `ImportantMask::FLOW` and `POINTER_EVENTS` share
   bit 39 (`tui_style.rs`), custom-property inheritance in the cascade is overwritten by the merged
   root map (`walk.rs`), and tokenizer errors inside a block are body-relative (`declarations.rs`).

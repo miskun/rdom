@@ -321,11 +321,10 @@ fn paint_box(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect) -> Opt
 
     // Fast path: element entirely outside the clip.
     if let Some(outer_grid) = layout_rect_to_grid(outer, clip) {
-        // 1. Background fill over outer rect. Pass `computed.opacity`
-        // so the fill chooses the right compositing regime: opaque
-        // fills clear glyphs from earlier paints (full CSS occlusion);
-        // translucent fills set `cell.bg` only and let underlying
-        // glyphs bleed through. See `border.rs::fill_bg` for the rule.
+        // 1. Background fill over outer rect: an opaque fill that
+        // clears glyphs from earlier paints (full CSS occlusion).
+        // `opacity` is applied when the stacking context's layer
+        // composites back, not here. See `border.rs::fill_bg`.
         // Tree rows defer their background to the guide pass
         // (`tree_guides`), which fills the FULL row — including the
         // guide gutter to the left of the indented box — so the

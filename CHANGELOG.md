@@ -140,6 +140,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 
 - **`rust-version` is `1.88`** (the crates use let-chains); it was declared `1.85` while already requiring more.
 - **Toolchain pinned to `1.95.0`** in `rust-toolchain.toml`; CI reads the channel from that file instead of floating on `stable`. (`PROC-TOOLCHAIN-PIN-1`)
+- `opacity` compositing now covers borders (a bordered box at `opacity: 0` is invisible), default-coloured text (`Reset` blends as white on a black canvas), backdrop glyphs (kept at low opacity, tinted under a translucent background), OSC-8 links and wide glyphs; rules in DESIGN / DIVERGENCES (`P6G-OPACITY-COMPOSITE-1`)
 
 ## [0.4.0] - 2026-09-24
 

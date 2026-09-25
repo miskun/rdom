@@ -9,18 +9,42 @@
 //! inside the group blends exactly once.
 use crate::style::Color;
 
+/// The canvas model's background: what `Color::Reset` (the
+/// terminal's default background) is taken to be when a colour has
+/// to be blended against it. Terminals do not report their default
+/// colours, so compositing assumes a dark terminal: black.
+pub(crate) const CANVAS_BG: Color = Color::Rgb(0, 0, 0);
+
+/// The canvas model's foreground: what `Color::Reset` (the
+/// terminal's default foreground, the initial `color`) is taken to be
+/// when a glyph colour has to be blended. The counterpart of
+/// [`CANVAS_BG`]: white on black.
+pub(crate) const CANVAS_FG: Color = Color::Rgb(255, 255, 255);
+
+/// Resolve a background colour through the canvas model.
+pub(crate) fn canvas_bg(c: Color) -> Color {
+    if c == Color::Reset { CANVAS_BG } else { c }
+}
+
+/// Resolve a foreground colour through the canvas model.
+pub(crate) fn canvas_fg(c: Color) -> Color {
+    if c == Color::Reset { CANVAS_FG } else { c }
+}
+
 /// Alpha-blend `src` over `dst` using `alpha` ∈ [0, 1].
 /// Straight-alpha compositing: `out = α·src + (1-α)·dst`.
 ///
 /// - `alpha >= 1.0` → returns `src` unchanged.
 /// - `src == Color::Reset` → returns `Color::Reset` (no source color
-///   to blend; preserves the "transparent" sentinel).
+///   to blend; preserves the "transparent" sentinel). Callers that
+///   mean a default colour resolve it first with [`canvas_fg`] /
+///   [`canvas_bg`].
 /// - `src` is non-`Rgb` (Indexed, ANSI palette) → returns `src`
 ///   unchanged. T6 collapsed ANSI to RGB at the cascade level, but
 ///   the through-path is preserved for defensive parsing.
-/// - `dst == Color::Reset` (or other non-`Rgb`) → blends against the
-///   `#000000` canvas model. Terminals don't expose their actual
-///   default bg, so we pick a deterministic fallback.
+/// - `dst == Color::Reset` (or other non-`Rgb`) → blends against
+///   [`CANVAS_BG`]. Terminals don't expose their actual default bg,
+///   so we pick a deterministic fallback.
 pub(crate) fn alpha_blend(src: Color, alpha: f32, dst: Color) -> Color {
     if alpha >= 1.0 {
         return src;

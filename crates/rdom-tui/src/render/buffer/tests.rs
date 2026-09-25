@@ -409,3 +409,183 @@ proptest! {
         prop_assert_eq!(a.diff_iter(&a).count(), 0);
     }
 }
+
+// ── Group compositing (`composite_group`) ─────────────────────────
+
+const WHITE: Color = Color::Rgb(255, 255, 255);
+const RED: Color = Color::Rgb(255, 0, 0);
+
+fn fg_style(fg: Color) -> Style {
+    Style::new().fg(fg)
+}
+
+/// A one-row backdrop holding `text` in red, and a layer cloned from it.
+fn backdrop_and_layer(width: u16, text: &str) -> (Buffer, Buffer) {
+    let mut backdrop = Buffer::empty(Rect::new(0, 0, width, 1));
+    backdrop.set_string(0, 0, text, fg_style(RED));
+    let layer = backdrop.clone();
+    (backdrop, layer)
+}
+
+/// Simulate an opaque `fill_bg` in the layer: blank glyph, reset fg,
+/// the fill colour, and the cell's border state occluded.
+fn layer_fill(layer: &mut Buffer, x: u16, bg: Color) {
+    let cell = layer.cell_mut(x, 0).unwrap();
+    cell.set_symbol(" ");
+    cell.fg = Color::Reset;
+    cell.bg = bg;
+    layer.clear_border_at(x, 0);
+}
+
+fn contribution(fg: Color) -> BorderContribution {
+    BorderContribution {
+        style: rdom_style::layout::BorderStyle::Solid,
+        fg,
+        priority: BorderContribution::pack_priority(1, 0),
+        corner_style: rdom_style::layout::CornerStyle::Square,
+        side: BorderSide::Top,
+    }
+}
+
+#[test]
+fn composite_alpha_zero_leaves_backdrop_untouched() {
+    let (mut backdrop, mut layer) = backdrop_and_layer(3, "abc");
+    layer.set_string(0, 0, "xyz", fg_style(WHITE));
+    layer_fill(&mut layer, 2, WHITE);
+    layer.add_border_dir(1, 0, DIR_E, contribution(WHITE));
+    let before = backdrop.clone();
+    backdrop.composite_group(&layer, 0.0);
+    assert_eq!(backdrop, before);
+    assert_eq!(
+        backdrop.border_dir_at(1, 0, DIR_E),
+        BorderDirState::default()
+    );
+}
+
+#[test]
+fn composite_reset_fg_glyph_blends_from_the_canvas_fg() {
+    let (mut backdrop, mut layer) = backdrop_and_layer(3, "");
+    layer.set_string(0, 0, "H", Style::new());
+    backdrop.composite_group(&layer, 0.5);
+    let cell = backdrop.cell(0, 0).unwrap();
+    assert_eq!(cell.symbol(), "H");
+    // Canvas fg (white) at 0.5 over the canvas bg (black).
+    assert_eq!(cell.fg, Color::Rgb(128, 128, 128));
+}
+
+#[test]
+fn composite_low_alpha_keeps_a_visible_backdrop_glyph() {
+    let (mut backdrop, mut layer) = backdrop_and_layer(1, "a");
+    layer.set_string(0, 0, "b", fg_style(WHITE));
+    let mut low = backdrop.clone();
+    low.composite_group(&layer, 0.3);
+    assert_eq!(low.cell(0, 0).unwrap().symbol(), "a");
+    assert_eq!(low.cell(0, 0).unwrap().fg, RED);
+    backdrop.composite_group(&layer, 0.5);
+    assert_eq!(backdrop.cell(0, 0).unwrap().symbol(), "b");
+}
+
+#[test]
+fn composite_low_alpha_glyph_over_a_blank_backdrop_fades_in() {
+    let (mut backdrop, mut layer) = backdrop_and_layer(1, "");
+    layer.set_string(0, 0, "b", fg_style(WHITE));
+    backdrop.composite_group(&layer, 0.2);
+    let cell = backdrop.cell(0, 0).unwrap();
+    assert_eq!(cell.symbol(), "b");
+    assert_eq!(cell.fg, Color::Rgb(51, 51, 51));
+}
+
+#[test]
+fn composite_tints_a_backdrop_glyph_under_a_translucent_background() {
+    let (mut backdrop, mut layer) = backdrop_and_layer(1, "a");
+    layer_fill(&mut layer, 0, WHITE);
+    backdrop.composite_group(&layer, 0.9);
+    let cell = backdrop.cell(0, 0).unwrap();
+    assert_eq!(cell.symbol(), "a");
+    assert_eq!(cell.bg, Color::Rgb(230, 230, 230));
+    // 0.9 · white + 0.1 · red.
+    assert_eq!(cell.fg, Color::Rgb(255, 230, 230));
+}
+
+#[test]
+fn composite_glyph_carries_the_layer_link_state() {
+    let (mut backdrop, mut layer) = backdrop_and_layer(2, "ab");
+    backdrop.set_link_range(0, 0, 2, Some("https://under"));
+    layer.set_link_range(0, 0, 2, Some("https://under"));
+    // The layer paints an unlinked glyph at 0 and only a bg at 1.
+    layer.set_string(0, 0, "x", fg_style(WHITE));
+    layer.cell_mut(0, 0).unwrap().set_link(None);
+    layer_fill(&mut layer, 1, WHITE);
+    backdrop.composite_group(&layer, 0.6);
+    assert_eq!(backdrop.cell(0, 0).unwrap().link(), None);
+    assert_eq!(backdrop.cell(1, 0).unwrap().link(), Some("https://under"));
+}
+
+#[test]
+fn composite_wide_layer_glyph_keeps_its_spacer() {
+    let (mut backdrop, mut layer) = backdrop_and_layer(3, "abc");
+    layer.set_string(0, 0, "中", fg_style(WHITE));
+    backdrop.composite_group(&layer, 0.6);
+    assert_eq!(backdrop.cell(0, 0).unwrap().symbol(), "中");
+    assert!(backdrop.cell(1, 0).unwrap().is_spacer());
+    assert_eq!(backdrop.cell(2, 0).unwrap().symbol(), "c");
+}
+
+#[test]
+fn composite_wide_layer_glyph_over_a_backdrop_wide_glyph_leaves_no_orphan_spacer() {
+    let (mut backdrop, mut layer) = backdrop_and_layer(3, "a中");
+    layer.set_string(0, 0, "中", fg_style(WHITE));
+    backdrop.composite_group(&layer, 0.6);
+    assert_eq!(backdrop.cell(0, 0).unwrap().symbol(), "中");
+    assert!(backdrop.cell(1, 0).unwrap().is_spacer());
+    assert!(
+        !backdrop.cell(2, 0).unwrap().is_spacer(),
+        "the backdrop's spacer lost its primary"
+    );
+}
+
+#[test]
+fn composite_glyph_over_a_backdrop_spacer_clears_the_wide_primary() {
+    let (mut backdrop, mut layer) = backdrop_and_layer(3, "中");
+    layer.set_string(1, 0, "x", fg_style(WHITE));
+    backdrop.composite_group(&layer, 0.6);
+    assert_eq!(backdrop.cell(1, 0).unwrap().symbol(), "x");
+    assert_ne!(
+        backdrop.cell(0, 0).unwrap().cell_width(),
+        2,
+        "a wide primary must not survive without its spacer"
+    );
+}
+
+#[test]
+fn composite_blends_the_border_colour_the_layer_added() {
+    let (mut backdrop, mut layer) = backdrop_and_layer(1, "");
+    layer.add_border_dir(0, 0, DIR_E, contribution(WHITE));
+    backdrop.composite_group(&layer, 0.5);
+    let winner = backdrop.border_dir_at(0, 0, DIR_E).winner.unwrap();
+    assert_eq!(winner.fg, Color::Rgb(128, 128, 128));
+}
+
+#[test]
+fn composite_low_alpha_border_yields_to_a_visible_backdrop_glyph() {
+    let (mut backdrop, mut layer) = backdrop_and_layer(1, "a");
+    layer.add_border_dir(0, 0, DIR_E, contribution(WHITE));
+    backdrop.composite_group(&layer, 0.3);
+    assert_eq!(
+        backdrop.border_dir_at(0, 0, DIR_E),
+        BorderDirState::default()
+    );
+    assert_eq!(backdrop.cell(0, 0).unwrap().symbol(), "a");
+}
+
+#[test]
+fn composite_tints_a_backdrop_border_under_a_translucent_background() {
+    let (mut backdrop, _) = backdrop_and_layer(1, "");
+    backdrop.add_border_dir(0, 0, DIR_E, contribution(RED));
+    let mut layer = backdrop.clone();
+    layer_fill(&mut layer, 0, WHITE);
+    backdrop.composite_group(&layer, 0.5);
+    let winner = backdrop.border_dir_at(0, 0, DIR_E).winner.unwrap();
+    // 0.5 · white + 0.5 · red.
+    assert_eq!(winner.fg, Color::Rgb(255, 128, 128));
+}

@@ -261,8 +261,8 @@ pub(super) fn paint_ifc(
 ///
 /// `bg_dedup_owner` is the parent block container — fragments
 /// whose `node` matches it get their bg painted by the parent's
-/// own `fill_bg`, so they paint with `glyph_style` to avoid double-
-/// apply under `opacity`.
+/// own `fill_bg`, so they paint with `glyph_style` (one owner per
+/// cell bg).
 pub(super) fn paint_anonymous_blocks(
     dom: &Dom<TuiExt>,
     container_id: NodeId,
@@ -328,8 +328,7 @@ impl Pseudos {
 /// Shared body: paint `inline_layout` at `rect` (the IFC's content
 /// area in viewport coords). `bg_dedup_owner` is the element whose
 /// `fill_bg` already covers fragments owned by it — those fragments
-/// paint with `glyph_style` to avoid double-applying bg under
-/// `opacity`.
+/// paint with `glyph_style`, leaving that bg to its owner.
 #[allow(clippy::too_many_arguments)]
 fn paint_inline_layout(
     dom: &Dom<TuiExt>,
@@ -442,8 +441,8 @@ fn paint_inline_layout(
                 .unwrap_or_else(|| std::rc::Rc::new(ComputedStyle::initial()));
             // Fragments owned by the bg-dedup owner (text directly
             // inside the block / anon box) have their bg painted by
-            // the owner's `fill_bg`; using `style_from_computed`
-            // here would double-apply the bg under opacity. Inline-
+            // the owner's `fill_bg`, which stays the one owner of the
+            // cell bg (`glyph_style_from_computed`). Inline-
             // child fragments (`<span>` etc.) DO need their own bg
             // in the glyph style since they have no `fill_bg` of
             // their own.

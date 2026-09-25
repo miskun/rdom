@@ -3156,11 +3156,11 @@ fn opacity_one_overlay_occludes_underlying_glyphs() {
     }
 }
 
-/// `opacity: 0.5` over an existing glyph: the painter blends bg
-/// against the underlying area (via the cascade-time `alpha_blend`
-/// pre-bake against `parent_bg`), and the painter does NOT clear
-/// underlying symbols — translucent overlays let what's beneath
-/// bleed through.
+/// `opacity: 0.5` over an existing glyph: the overlay's layer
+/// composites back at 0.5 (`Buffer::composite_group`) — its bg blends
+/// over the backdrop's, and a layer that paints no glyph of its own
+/// keeps the underlying glyphs (a translucent box cannot erase what
+/// is beneath it).
 #[test]
 fn opacity_half_overlay_blends_bg_and_preserves_underlying_glyphs() {
     let mut dom = TuiDom::new();
@@ -3192,9 +3192,9 @@ fn opacity_half_overlay_blends_bg_and_preserves_underlying_glyphs() {
         );
     let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 10, 5));
 
-    // bg pre-baked: alpha_blend((200,100,0), 0.5, parent_bg=Reset
-    // → black fallback) = (100, 50, 0). All cells in the overlay's
-    // rect get the blended bg.
+    // alpha_blend((200,100,0), 0.5, backdrop bg Reset → the black
+    // canvas) = (100, 50, 0). All cells in the overlay's rect get the
+    // blended bg.
     for x in 0..6 {
         let cell = buf.cell(x, 0).unwrap();
         assert_eq!(
@@ -3222,10 +3222,8 @@ fn opacity_half_overlay_blends_bg_and_preserves_underlying_glyphs() {
     );
 }
 
-/// `opacity: 0.0` over an existing glyph: the painter is invisible.
-/// `alpha_blend` collapses the painter's bg to exactly `parent_bg`,
-/// which gets written to the cell; the cell's existing symbol stays
-/// (translucent regime — no occlusion).
+/// `opacity: 0.0` over an existing glyph: the overlay is invisible —
+/// compositing at α = 0 changes nothing, so the border beneath stays.
 #[test]
 fn opacity_zero_overlay_is_invisible_keeps_symbols() {
     let mut dom = TuiDom::new();
@@ -3257,9 +3255,9 @@ fn opacity_zero_overlay_is_invisible_keeps_symbols() {
         );
     let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 10, 5));
 
-    // At opacity 0, bg collapses to parent_bg (Reset → black fallback
-    // in the alpha_blend implementation). And — critically — the
-    // border glyphs underneath remain.
+    // At opacity 0 nothing composites: the backdrop's bg and its
+    // border glyphs remain.
+    assert_eq!(buf.cell(0, 0).unwrap().bg, Color::Reset);
     assert_eq!(buf.cell(0, 0).unwrap().symbol(), "╭");
     assert_eq!(buf.cell(2, 0).unwrap().symbol(), "─");
     assert_eq!(buf.cell(5, 0).unwrap().symbol(), "╮");
@@ -3390,10 +3388,10 @@ fn translucent_overlay_blends_against_actual_cell_bg_not_parent_bg() {
     }
 }
 
-/// `opacity: 0.0` blends fully toward the parent bg → exactly the
-/// parent's bg color for fg.
+/// `opacity: 0.0` paints nothing: the child's glyph does not reach
+/// the parent's background (not even as an fg-equals-bg glyph).
 #[test]
-fn opacity_zero_collapses_fg_to_parent_bg() {
+fn opacity_zero_paints_nothing_over_the_parent_bg() {
     let mut dom: TuiDom = TuiDom::new();
     let root = dom.root();
     let parent = dom.create_element("p");
@@ -3419,8 +3417,9 @@ fn opacity_zero_collapses_fg_to_parent_bg() {
                 .opacity(0.0),
         );
     let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 5, 1));
-    // fg blends with 0% src + 100% parent bg → parent bg.
-    assert_eq!(buf.cell(0, 0).unwrap().fg, Color::Rgb(50, 100, 150));
+    let cell = buf.cell(0, 0).unwrap();
+    assert_eq!(cell.symbol(), " ", "the glyph is not painted");
+    assert_eq!(cell.bg, Color::Rgb(50, 100, 150));
 }
 
 // ── Border collapse paint joiner (M5.5c) ─────────────────────────
@@ -4455,4 +4454,113 @@ fn pseudo_background_under_opacity_blends_once() {
     let once = crate::render::compose::alpha_blend(BLUE, 0.5, Color::Rgb(0, 0, 0));
     assert_eq!(bg_at(&buf, 0, 0), once, "pseudo bg over the canvas, once");
     assert_eq!(row(&buf, 0).trim_end(), "*x");
+}
+
+// ── P6G-OPACITY-COMPOSITE-1: group compositing covers every paint ──
+
+/// A bordered box at `opacity: 0` paints nothing — its border
+/// included (the joiner runs after compositing and must not
+/// resurrect the ring at full strength).
+#[test]
+fn bordered_box_at_opacity_zero_is_invisible() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let b = dom.create_element("b");
+    dom.append_child(root, b).unwrap();
+    let sheet = Stylesheet::bare().rule_unchecked(
+        "b",
+        TuiStyle::new()
+            .width(Size::Fixed(6))
+            .height(Size::Fixed(3))
+            .border(Border::rounded())
+            .border_fg(Color::Rgb(200, 200, 200))
+            .opacity(0.0),
+    );
+    let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 8, 4));
+    for y in 0..4 {
+        assert_eq!(row(&buf, y).trim(), "", "row {y} must be empty");
+    }
+}
+
+/// A bordered box at `opacity: 0.5` blends its border colour against
+/// the backdrop like any other paint.
+#[test]
+fn bordered_box_at_half_opacity_blends_its_border() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let b = dom.create_element("b");
+    dom.append_child(root, b).unwrap();
+    let sheet = Stylesheet::bare().rule_unchecked(
+        "b",
+        TuiStyle::new()
+            .width(Size::Fixed(6))
+            .height(Size::Fixed(3))
+            .border(Border::single())
+            .border_fg(Color::Rgb(200, 200, 200))
+            .opacity(0.5),
+    );
+    let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 8, 4));
+    let cell = buf.cell(0, 0).unwrap();
+    assert_eq!(cell.symbol(), "┌");
+    assert_eq!(cell.fg, Color::Rgb(100, 100, 100));
+}
+
+/// Text in the default colour (`color` unset → `Reset`) at
+/// `opacity: 0` is invisible.
+#[test]
+fn default_fg_text_at_opacity_zero_is_invisible() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let d = dom.create_element("div");
+    let t = dom.create_text_node("Hello");
+    dom.append_child(d, t).unwrap();
+    dom.append_child(root, d).unwrap();
+    let sheet = Stylesheet::bare().rule_unchecked(
+        "div",
+        TuiStyle::new()
+            .width(Size::Fixed(8))
+            .height(Size::Fixed(1))
+            .opacity(0.0),
+    );
+    let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 8, 1));
+    assert_eq!(row(&buf, 0).trim(), "");
+}
+
+/// A translucent card tints the glyphs beneath it: the backdrop
+/// glyph shows through with its colour blended toward the card's
+/// background.
+#[test]
+fn translucent_card_tints_text_beneath() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let under = dom.create_element("u");
+    let t = dom.create_text_node("abc");
+    dom.append_child(under, t).unwrap();
+    let card = dom.create_element("card");
+    dom.append_child(root, under).unwrap();
+    dom.append_child(root, card).unwrap();
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "u",
+            TuiStyle::new()
+                .width(Size::Fixed(6))
+                .height(Size::Fixed(1))
+                .fg(RED),
+        )
+        .rule_unchecked(
+            "card",
+            TuiStyle::new()
+                .position(crate::layout::Position::Absolute)
+                .top(crate::layout::Length::Cells(0))
+                .left(crate::layout::Length::Cells(0))
+                .width(Size::Fixed(6))
+                .height(Size::Fixed(1))
+                .bg(Color::Rgb(255, 255, 255))
+                .opacity(0.9),
+        );
+    let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 6, 1));
+    let cell = buf.cell(0, 0).unwrap();
+    assert_eq!(cell.symbol(), "a");
+    assert_eq!(cell.bg, Color::Rgb(230, 230, 230));
+    assert_eq!(cell.fg, Color::Rgb(255, 230, 230), "red tinted 90% white");
 }
