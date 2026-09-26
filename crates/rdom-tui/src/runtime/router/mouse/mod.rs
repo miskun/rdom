@@ -109,6 +109,12 @@ fn handle_down(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> Rout
     // old selection on every button-held move (P6G-DRAG-RESET-1). A press
     // that starts a new drag re-arms it in `drag::begin`.
     crate::runtime::selection::drag::end(router);
+    // The same lost mouseup leaves a scrollbar-thumb drag armed, with the
+    // pointer captured on the scrolled element: every button-held move
+    // would keep scrolling it. The press ends that drag and drops the
+    // capture it took; an author's capture is left alone
+    // (P6G-PRESS-RESET-2).
+    crate::runtime::scrollbar::cancel_drag(router, dom);
 
     let hit = dom.hit_test(mouse.column, mouse.row);
     router.down_target = hit;

@@ -253,6 +253,77 @@ fn reset_clears_drag_state() {
     assert!(router.scrollbar_drag.is_none());
 }
 
+// ── P6G-PRESS-RESET-2: a lost mouseup never continues a thumb drag ──
+
+/// The vertical scroller of [`vertical_scrollbar_dom`] with a `<p>` of
+/// selectable text below it at row 6.
+fn scroller_above_text_dom() -> (TuiDom, NodeId, NodeId) {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let c = dom.create_element("c");
+    dom.append_child(root, c).unwrap();
+    let p = dom.create_element("p");
+    let t = dom.create_text_node("hello world");
+    dom.append_child(p, t).unwrap();
+    dom.append_child(root, p).unwrap();
+
+    let sheet = Stylesheet::bare().rule_unchecked(
+        "c",
+        TuiStyle::new()
+            .width(Size::Fixed(10))
+            .height(Size::Fixed(6))
+            .overflow_y(Overflow::Scroll),
+    );
+    dom.cascade(&sheet);
+    dom.layout_dom(Rect::new(0, 0, 12, 8));
+    if let Some(ext) = dom.node_mut(c).ext_mut() {
+        ext.scroll_content_height = 30;
+    }
+    (dom, c, p)
+}
+
+#[test]
+fn press_on_text_after_lost_thumb_mouseup_does_not_drag_the_thumb() {
+    let (mut dom, c, p) = scroller_above_text_dom();
+    assert_eq!(dom.hit_test(1, 6), Some(p), "fixture: text at row 6");
+    let mut router = Router::new();
+    router.route(&mut dom, down(9, 0)); // thumb
+    router.route(&mut dom, drag(9, 3));
+    assert_eq!(dom.node(c).ext().unwrap().scroll_y, 14);
+    // The mouseup is lost (released outside the window). The next
+    // press lands on the text, and the button-held move after it
+    // must extend a text selection, not the old thumb drag.
+    router.route(&mut dom, down(1, 6));
+    router.route(&mut dom, drag(2, 7));
+    assert_eq!(
+        dom.node(c).ext().unwrap().scroll_y,
+        14,
+        "the thumb stays put"
+    );
+    assert!(
+        router.scrollbar_drag.is_none(),
+        "the press ended the thumb drag"
+    );
+    assert_eq!(
+        dom.pointer_capture(),
+        None,
+        "the press released the capture the thumb drag took"
+    );
+}
+
+#[test]
+fn press_after_lost_mouseup_keeps_an_author_pointer_capture() {
+    // Author capture is released by the mouseup (or a button-less
+    // move), as a browser releases it on pointerup; a press does not
+    // release it. Only the capture rdom's own thumb drag took is
+    // rdom's to drop.
+    let (mut dom, _c, p) = scroller_above_text_dom();
+    let mut router = Router::new();
+    dom.set_pointer_capture(p).unwrap();
+    router.route(&mut dom, down(1, 6));
+    assert_eq!(dom.pointer_capture(), Some(p));
+}
+
 // ── SCROLL-CROSS-AXIS-1: horizontal autoscroll band ─────────────────
 
 /// A horizontal scroll container 10×3 with 30 cells of content.

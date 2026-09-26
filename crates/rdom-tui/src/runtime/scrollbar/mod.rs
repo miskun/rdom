@@ -47,7 +47,7 @@ mod reveal;
 mod scroll;
 
 pub(crate) use autoscroll::{autoscroll_step, autoscroll_step_for, resolve_autoscroll_container};
-pub(crate) use drag::{ScrollbarDrag, end_drag, extend_drag, handle_mousedown};
+pub(crate) use drag::{ScrollbarDrag, cancel_drag, end_drag, extend_drag, handle_mousedown};
 pub(crate) use hit::hit;
 pub use hit::{ScrollbarHit, ScrollbarPart};
 pub use keys::SCROLL_FOCUS_ATTR;

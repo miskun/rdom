@@ -12,6 +12,9 @@
 //!   cursor's movement along the track.
 //! - On `mouseup`: the router's existing pointer-capture release
 //!   auto-triggers. [`end_drag`] clears the drag record.
+//! - On the next `mousedown`, when that mouseup was lost:
+//!   [`cancel_drag`] clears the record and drops the capture the drag
+//!   took, so the new press never continues the old drag.
 
 use rdom_core::NodeId;
 
@@ -157,4 +160,23 @@ pub(crate) fn extend_drag(router: &Router, dom: &mut TuiDom, mouse_x: u16, mouse
 /// router's existing mouseup path (browser-faithful auto-release).
 pub(crate) fn end_drag(router: &mut Router) {
     router.scrollbar_drag = None;
+}
+
+/// End a thumb drag whose `mouseup` never arrived (the button was
+/// released outside the terminal window), releasing the pointer capture
+/// [`begin_drag`] took. Called by every left `mousedown` before it does
+/// anything else, so a new press never continues the old drag
+/// (P6G-PRESS-RESET-2).
+///
+/// Only rdom's own capture is dropped: the capture is released only
+/// while it is still on the drag's scrollbar owner. A capture an author
+/// took is theirs, and like a browser's it lasts until the `mouseup`
+/// (or the next button-less move, the runtime's stand-in for
+/// `pointercancel`).
+pub(crate) fn cancel_drag(router: &mut Router, dom: &mut TuiDom) {
+    if let Some(drag) = router.scrollbar_drag.take()
+        && dom.pointer_capture() == Some(drag.element)
+    {
+        dom.release_pointer_capture();
+    }
 }
