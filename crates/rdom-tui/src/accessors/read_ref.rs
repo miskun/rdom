@@ -375,4 +375,28 @@ impl<'a> TuiAccessors<'a> for rdom_core::NodeRef<'a, TuiExt> {
             _ => None,
         }
     }
+
+    fn validity(&self) -> Option<crate::ValidityState> {
+        has_validity(self.tag_name()?)
+            .then(|| crate::runtime::builtins::validation::validity(self.dom(), self.id()))
+    }
+
+    fn will_validate(&self) -> bool {
+        self.dom().will_validate(self.id())
+    }
+
+    fn validation_message(&self) -> Option<String> {
+        has_validity(self.tag_name()?).then(|| {
+            crate::runtime::builtins::validation::validation_message(self.dom(), self.id())
+        })
+    }
+}
+
+/// The elements HTML gives the constraint validation API (`validity`,
+/// `setCustomValidity`, …): the listed elements except `<object>`.
+pub(super) fn has_validity(tag: &str) -> bool {
+    matches!(
+        tag,
+        "button" | "fieldset" | "input" | "output" | "select" | "textarea"
+    )
 }

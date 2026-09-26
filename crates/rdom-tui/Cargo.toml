@@ -63,6 +63,13 @@ arboard = { workspace = true }
 # use `MemoryUrlOpener` to avoid shelling out.
 open = { workspace = true }
 
+# The `pattern` attribute (HTML constraint validation) — the `regex`
+# crate stands in for a JavaScript RegExp engine; the syntax
+# differences are listed in specs/DIVERGENCES.md. Already in the
+# workspace lockfile (criterion pulls it in); nothing lighter parses
+# Unicode classes.
+regex = "1"
+
 [build-dependencies]
 # Read `property_dispatch::property_names()` at build time to emit
 # camelCase aliases (one method per shipped CSS property) onto

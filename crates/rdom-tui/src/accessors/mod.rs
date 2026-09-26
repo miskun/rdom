@@ -388,6 +388,28 @@ pub trait TuiAccessors<'a> {
     /// Equivalent to `form_elements().map(|v| v.len())` but
     /// avoids materializing the `Vec`.
     fn form_length(&self) -> Option<usize>;
+
+    // ── Constraint validation (HTML §4.10.20, P7-VALIDATION-1) ───
+
+    /// `validity` — the control's [`ValidityState`](crate::ValidityState),
+    /// computed from its current value and attributes (for a barred
+    /// control too, as the web's getters report). `Some` on the
+    /// elements HTML gives a `validity` (`<button>`, `<fieldset>`,
+    /// `<input>`, `<output>`, `<select>`, `<textarea>`); `None`
+    /// elsewhere. See `runtime::builtins::validation` for each state.
+    fn validity(&self) -> Option<crate::ValidityState>;
+
+    /// `willValidate` — whether the element is a candidate for
+    /// constraint validation (`Dom::will_validate`): a submittable
+    /// control that is not disabled, `readonly`, a hidden / reset /
+    /// button input, a non-submit button, or inside a `<datalist>`.
+    fn will_validate(&self) -> bool;
+
+    /// `validationMessage` — rdom's fixed English message for the first
+    /// state the control suffers from (a custom error's own message
+    /// first), `Some("")` when it is valid or barred. `None` on the
+    /// elements without a `validity`.
+    fn validation_message(&self) -> Option<String>;
 }
 
 /// Spec-name alias for [`LayoutRect`](crate::LayoutRect) — the type returned by
@@ -575,9 +597,12 @@ pub trait TuiAccessorsMut<'a> {
 
     /// `<form>.requestSubmit(submitter?)` (HTML §4.10.3) — runs the
     /// form submission algorithm, the same path a submit-button click
-    /// and implicit submission take (`form::submit`): a cancelable
-    /// `submit` event with `EventDetail::Submit(Dom::submit_detail(form,
-    /// submitter))`, then, unless canceled, the method-`dialog` close.
+    /// and implicit submission take (`form::submit`): interactive
+    /// constraint validation unless `novalidate` / the submitter's
+    /// `formnovalidate` applies (an invalid control stops it with
+    /// `SubmitOutcome::Invalid`), a cancelable `submit` event with
+    /// `EventDetail::Submit(Dom::submit_detail(form, submitter))`, then,
+    /// unless canceled, the method-`dialog` close.
     /// `submitter` is the submit button to report (`None` submits from
     /// the form itself).
     ///
@@ -593,4 +618,27 @@ pub trait TuiAccessorsMut<'a> {
         &mut self,
         submitter: Option<NodeId>,
     ) -> Result<crate::runtime::builtins::form::SubmitOutcome>;
+
+    // ── Constraint validation (HTML §4.10.20, P7-VALIDATION-1) ───
+
+    /// `checkValidity()`. On a control: when it is a candidate that
+    /// does not satisfy its constraints, fire a cancelable,
+    /// non-bubbling `invalid` event at it and return `false`; else
+    /// `true`. On a `<form>`: fire `invalid` at every such control the
+    /// form owns, in tree order, and return whether there were none.
+    /// `true` on any other element.
+    fn check_validity(&mut self) -> bool;
+
+    /// `reportValidity()`: [`check_validity`](Self::check_validity),
+    /// then report the problem. Browsers show a bubble with the
+    /// validation message; rdom has none, so it focuses the invalid
+    /// control (on a `<form>`, the first one) whose `invalid` event was
+    /// not canceled.
+    fn report_validity(&mut self) -> bool;
+
+    /// `setCustomValidity(message)`: a non-empty `message` makes the
+    /// control suffer from a custom error (`validity().custom_error`,
+    /// `validation_message()` = `message`); `""` clears it. Owning tags
+    /// as for [`TuiAccessors::validity`]; elsewhere a silent `Ok(())`.
+    fn set_custom_validity(&mut self, message: &str) -> Result<()>;
 }

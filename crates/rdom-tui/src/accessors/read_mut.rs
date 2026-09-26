@@ -207,4 +207,16 @@ impl<'a> TuiAccessors<'a> for rdom_core::NodeMut<'a, TuiExt> {
     fn form_length(&self) -> Option<usize> {
         self.as_ref().form_length()
     }
+
+    fn validity(&self) -> Option<crate::ValidityState> {
+        self.as_ref().validity()
+    }
+
+    fn will_validate(&self) -> bool {
+        self.as_ref().will_validate()
+    }
+
+    fn validation_message(&self) -> Option<String> {
+        self.as_ref().validation_message()
+    }
 }

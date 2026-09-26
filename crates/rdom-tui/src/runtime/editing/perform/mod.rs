@@ -145,6 +145,7 @@ pub fn perform_edit(dom: &mut TuiDom, edit: Edit) -> EditOutcome {
         ext.editor_state
             .get_or_insert_with(|| Box::new(EditorState::new()))
             .record(entry, Instant::now());
+        ext.value_user_edited = true;
     }
 
     // `<input>` value-attribute mirror — keep the attribute in

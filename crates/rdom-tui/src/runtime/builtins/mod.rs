@@ -40,3 +40,4 @@ pub mod select;
 pub mod table;
 pub mod toggle;
 pub mod tree;
+pub mod validation;

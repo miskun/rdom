@@ -1592,3 +1592,131 @@ fn button_and_input_type_keywords_are_case_insensitive() {
     );
     assert_eq!(log.borrow()[1].0, Some(submit), "via the default button");
 }
+
+// ── P7-VALIDATION-1: interactive validation gates submission ─────────
+
+/// A form with a required text field `r` (empty), a text field `t` and
+/// a submit button; plus `extra` attributes on the form.
+fn invalid_form_app(
+    form_attrs: &[(&str, &str)],
+    button_attrs: &[(&str, &str)],
+) -> (App<TestBackend>, [rdom_core::NodeId; 4]) {
+    let mut ids = Vec::new();
+    let app = owner_app(|dom, root| {
+        let f = named(dom, root, "form", form_attrs);
+        let r = named(dom, f, "input", &[("name", "r"), ("required", "")]);
+        let t = named(dom, f, "input", &[("name", "t")]);
+        let b = named(dom, f, "button", button_attrs);
+        ids.extend([f, r, t, b]);
+    });
+    (app, [ids[0], ids[1], ids[2], ids[3]])
+}
+
+fn count_invalid(app: &mut App<TestBackend>, id: rdom_core::NodeId) -> Rc<Cell<u32>> {
+    let n = Rc::new(Cell::new(0u32));
+    let c = n.clone();
+    app.dom_mut()
+        .add_event_listener(id, "invalid", ListenerOptions::default(), move |_| {
+            c.set(c.get() + 1);
+        })
+        .unwrap();
+    n
+}
+
+/// HTML §4.10.21.3 step 6.3: a submit-button click interactively
+/// validates first — `invalid` fires, the first invalid control is
+/// focused, and no `submit` fires. Once valid, it submits.
+#[test]
+fn an_invalid_form_blocks_click_submission() {
+    let (mut app, [f, r, _, b]) = invalid_form_app(&[], &[]);
+    let log = record_submissions(&mut app, f);
+    let invalid = count_invalid(&mut app, r);
+    click_reset(&mut app, b);
+    assert!(log.borrow().is_empty(), "no submit while invalid");
+    assert_eq!(invalid.get(), 1);
+    assert_eq!(app.dom().focused(), Some(r));
+
+    use crate::accessors::TuiAccessorsMut;
+    app.dom_mut().node_mut(r).set_value("x").unwrap();
+    click_reset(&mut app, b);
+    assert_eq!(log.borrow().len(), 1);
+}
+
+#[test]
+fn an_invalid_form_blocks_implicit_submission() {
+    let (mut app, [f, r, t, _]) = invalid_form_app(&[], &[]);
+    let log = record_submissions(&mut app, f);
+    press_enter_in(&mut app, t);
+    assert!(log.borrow().is_empty());
+    assert_eq!(app.dom().focused(), Some(r));
+}
+
+/// Canceling `invalid` suppresses the report (no focus) but the
+/// submission stays blocked (HTML: the result is still negative).
+#[test]
+fn a_canceled_invalid_event_still_blocks_submission_without_focusing() {
+    let (mut app, [f, r, _, b]) = invalid_form_app(&[], &[]);
+    let log = record_submissions(&mut app, f);
+    app.dom_mut()
+        .add_event_listener(r, "invalid", ListenerOptions::default(), |ctx| {
+            ctx.event.prevent_default();
+        })
+        .unwrap();
+    click_reset(&mut app, b);
+    assert!(log.borrow().is_empty());
+    assert_ne!(app.dom().focused(), Some(r));
+}
+
+#[test]
+fn an_invalid_form_blocks_request_submit() {
+    use crate::SubmitOutcome;
+    use crate::accessors::TuiAccessorsMut;
+    let (mut app, [f, r, _, b]) = invalid_form_app(&[], &[]);
+    let log = record_submissions(&mut app, f);
+    let invalid = count_invalid(&mut app, r);
+    assert_eq!(
+        app.dom_mut().node_mut(f).form_request_submit(Some(b)),
+        Ok(SubmitOutcome::Invalid)
+    );
+    assert_eq!(
+        app.dom_mut().node_mut(f).form_request_submit(None),
+        Ok(SubmitOutcome::Invalid)
+    );
+    assert!(log.borrow().is_empty());
+    assert_eq!(invalid.get(), 2);
+}
+
+/// `novalidate` on the form, or `formnovalidate` on the submitter
+/// (`SubmitDetail::no_validate`), skips validation.
+#[test]
+fn novalidate_and_formnovalidate_skip_validation() {
+    use crate::SubmitOutcome;
+    use crate::accessors::TuiAccessorsMut;
+    let (mut app, [f, r, _, b]) = invalid_form_app(&[("novalidate", "")], &[]);
+    let log = record_submissions(&mut app, f);
+    let invalid = count_invalid(&mut app, r);
+    click_reset(&mut app, b);
+    assert_eq!(log.borrow().len(), 1, "form novalidate");
+    assert_eq!(invalid.get(), 0, "no validation ran");
+
+    let (mut app, [f, r, t, b]) = invalid_form_app(&[], &[("formnovalidate", "")]);
+    let log = record_submissions(&mut app, f);
+    click_reset(&mut app, b);
+    press_enter_in(&mut app, t);
+    assert_eq!(
+        app.dom_mut().node_mut(f).form_request_submit(Some(b)),
+        Ok(SubmitOutcome::Canceled),
+        "the recorder cancels, so the submit fired"
+    );
+    assert_eq!(
+        log.borrow().len(),
+        3,
+        "click, Enter (default button), requestSubmit"
+    );
+    assert_eq!(
+        app.dom_mut().node_mut(f).form_request_submit(None),
+        Ok(SubmitOutcome::Invalid),
+        "without the submitter, the form validates"
+    );
+    let _ = r;
+}

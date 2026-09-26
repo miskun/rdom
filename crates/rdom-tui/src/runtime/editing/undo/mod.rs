@@ -136,6 +136,9 @@ fn push_entry(dom: &mut TuiDom, editable: rdom_core::NodeId, entry: HistoryItem,
     if let Some(ext) = dom.node_mut(editable).ext_mut()
         && let Some(state) = ext.editor_state.as_mut()
     {
+        // An undo / redo is a user edit of the value (HTML dirty value
+        // flag); `push_entry` runs once per transition.
+        ext.value_user_edited = true;
         match side {
             StackSide::Undo => state.push_undo(entry),
             StackSide::Redo => state.push_redo(entry),

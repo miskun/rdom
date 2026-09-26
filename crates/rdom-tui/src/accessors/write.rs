@@ -35,6 +35,7 @@ impl<'a> TuiAccessorsMut<'a> for rdom_core::NodeMut<'a, TuiExt> {
             }
             "textarea" => {
                 crate::runtime::builtins::input::note_default_value(dom, id);
+                crate::runtime::builtins::input::clear_user_edited(dom, id);
                 install_text_content(dom, id, &new_value)
             }
             "select" => set_select_value(dom, id, &new_value),
@@ -240,5 +241,28 @@ impl<'a> TuiAccessorsMut<'a> for rdom_core::NodeMut<'a, TuiExt> {
         let id = self.id();
         let dom = self.dom_mut();
         crate::runtime::builtins::form::request_submit(dom, id, submitter)
+    }
+
+    fn check_validity(&mut self) -> bool {
+        let id = self.id();
+        crate::runtime::builtins::validation::check_validity(self.dom_mut(), id)
+    }
+
+    fn report_validity(&mut self) -> bool {
+        let id = self.id();
+        crate::runtime::builtins::validation::report_validity(self.dom_mut(), id)
+    }
+
+    fn set_custom_validity(&mut self, message: &str) -> Result<()> {
+        if !self
+            .as_ref()
+            .tag_name()
+            .is_some_and(super::read_ref::has_validity)
+        {
+            return Ok(());
+        }
+        let id = self.id();
+        crate::runtime::builtins::validation::set_custom_validity(self.dom_mut(), id, message);
+        Ok(())
     }
 }

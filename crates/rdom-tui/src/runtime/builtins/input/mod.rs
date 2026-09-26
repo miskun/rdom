@@ -63,6 +63,7 @@ pub fn set_value(dom: &mut TuiDom, input: NodeId, new_value: &str) {
     // (HTML: `.value =` does not touch `defaultValue`), so record the
     // authored value first if nothing has yet.
     note_default_value(dom, input);
+    clear_user_edited(dom, input);
     let _ = dom.set_attribute(input, "value", new_value);
     // Errors discarded at the boundary — see the function-level
     // docstring. The canonical helper (`crate::node::install_text_content`)
@@ -180,6 +181,7 @@ pub(crate) fn note_default_value(dom: &mut TuiDom, control: NodeId) {
 /// puts the thumb back at the midpoint, as a browser sanitizes an empty
 /// value). No-op without a recorded default.
 pub(crate) fn reset_to_default(dom: &mut TuiDom, control: NodeId) {
+    clear_user_edited(dom, control);
     let Some(default) = dom
         .node(control)
         .ext()
@@ -198,6 +200,15 @@ pub(crate) fn reset_to_default(dom: &mut TuiDom, control: NodeId) {
     let _ = crate::node::install_text_content(dom, control, &default);
     if dom.node(control).tag_name() == Some("input") {
         let _ = dom.set_attribute(control, "value", &default);
+    }
+}
+
+/// A programmatic value or a reset: the value is no longer the user's
+/// edit, so `maxlength` / `minlength` stop applying (HTML: the "last
+/// changed by a user edit" flag).
+pub(crate) fn clear_user_edited(dom: &mut TuiDom, control: NodeId) {
+    if let Some(ext) = dom.node_mut(control).ext_mut() {
+        ext.value_user_edited = false;
     }
 }
 

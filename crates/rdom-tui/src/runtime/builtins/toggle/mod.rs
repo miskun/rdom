@@ -189,7 +189,7 @@ fn pre_activate(dom: &mut TuiDom, widget: NodeId) -> ToggleUndo {
         if was_checked {
             return ToggleUndo::Nothing;
         }
-        let siblings = collect_radio_group(dom, widget);
+        let siblings = radio_group(dom, widget);
         for &sib in &siblings {
             note_default_checked(dom, sib);
         }
@@ -279,7 +279,7 @@ fn fire_input_and_change(dom: &mut TuiDom, widget: NodeId) {
 /// same `name`-keyed group as `focused`. Wraps. No-op when the
 /// group has only the focused element.
 fn move_focus_within_group(dom: &mut TuiDom, focused: NodeId, direction: i32) {
-    let group = collect_radio_group(dom, focused);
+    let group = radio_group(dom, focused);
     if group.len() < 2 {
         return;
     }
@@ -296,7 +296,7 @@ fn move_focus_within_group(dom: &mut TuiDom, focused: NodeId, direction: i32) {
 /// itself. Radios without a `name` attribute (or with empty `name`)
 /// don't form a group — return just `widget` so callers see a
 /// single-element list and treat the navigation as a no-op.
-fn collect_radio_group(dom: &TuiDom, widget: NodeId) -> Vec<NodeId> {
+pub(crate) fn radio_group(dom: &TuiDom, widget: NodeId) -> Vec<NodeId> {
     let name = dom
         .node(widget)
         .get_attribute("name")

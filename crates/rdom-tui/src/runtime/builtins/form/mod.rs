@@ -44,11 +44,13 @@
 //!   `<dialog>` with the submitter's `value` unless the submit was
 //!   canceled.
 //!
+//! - **Constraint validation** (HTML §4.10.21.3 step 6.3): every
+//!   submission path interactively validates the form first unless the
+//!   form has `novalidate` or the submitter `formnovalidate`; an invalid
+//!   control blocks the `submit` event (`validation`).
+//!
 //! ## v1 deliberate simplifications
 //!
-//! - No client-side validation gate (`required`, `pattern`, `min`,
-//!   `max` `valueMissing` blocking submit). Apps validate manually
-//!   inside their `submit` handler.
 //! - No `formdata` event (would require a `FormData` shim).
 
 use rdom_core::{FormMethod, InputTypeState, ListenerOptions, NodeId};
@@ -270,6 +272,10 @@ pub enum SubmitOutcome {
     /// The `submit` event fired and a listener called
     /// `preventDefault()`; nothing else happened.
     Canceled,
+    /// Interactive validation found invalid controls: `invalid` fired
+    /// at each, the first uncanceled one was focused, and no `submit`
+    /// fired.
+    Invalid,
     /// The node is not a `<form>`: nothing happened (the accessors'
     /// wrong-tag no-op).
     NotAForm,
@@ -279,10 +285,15 @@ pub enum SubmitOutcome {
 /// the one path click activation, implicit submission and
 /// `requestSubmit()` share:
 ///
-/// 1. fire a bubbling, cancelable `submit` at `form` carrying
+/// 1. unless the no-validate state is set (the form's `novalidate`, the
+///    submit button's `formnovalidate` — `SubmitDetail::no_validate`),
+///    interactively validate the form (`validation`): an invalid owned
+///    control fires `invalid`, the first uncanceled one is focused, and
+///    the submission stops → [`SubmitOutcome::Invalid`];
+/// 2. fire a bubbling, cancelable `submit` at `form` carrying
 ///    `EventDetail::Submit(Dom::submit_detail(form, submitter))`;
-/// 2. canceled → [`SubmitOutcome::Canceled`];
-/// 3. otherwise, when the effective method is `dialog` (the form's
+/// 3. canceled → [`SubmitOutcome::Canceled`];
+/// 4. otherwise, when the effective method is `dialog` (the form's
 ///    `method`, or the submit button's `formmethod`), close the form's
 ///    nearest ancestor `<dialog>` with the submitter's `value` (`""`
 ///    without a submitter) as its `returnValue`.
@@ -294,6 +305,11 @@ pub enum SubmitOutcome {
 /// means.
 pub(crate) fn submit(dom: &mut TuiDom, form: NodeId, submitter: Option<NodeId>) -> SubmitOutcome {
     let detail = dom.submit_detail(form, submitter);
+    if !detail.no_validate
+        && !crate::runtime::builtins::validation::interactively_validate(dom, form)
+    {
+        return SubmitOutcome::Invalid;
+    }
     let method = detail.method;
     let mut ev = TuiEvent::new("submit");
     ev.event.detail = rdom_core::EventDetail::Submit(Box::new(detail));

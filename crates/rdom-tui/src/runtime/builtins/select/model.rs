@@ -75,14 +75,14 @@ pub fn option_label(dom: &TuiDom, option: NodeId) -> String {
 /// Is this select a multi-select? Only the `multiple` attribute makes
 /// one (HTML §4.10.7); a `size > 1` list box without `multiple` is
 /// still single-select.
-pub(super) fn is_multi(dom: &TuiDom, select: NodeId) -> bool {
+pub(crate) fn is_multi(dom: &TuiDom, select: NodeId) -> bool {
     dom.node(select).has_attribute("multiple")
 }
 
 /// HTML §4.10.7 "display size": the `size` attribute parsed as a
 /// non-negative integer greater than zero, else the default of 1
 /// (4 when `multiple`, which does not matter for the dropdown test).
-pub(super) fn display_size(dom: &TuiDom, select: NodeId) -> u32 {
+pub(crate) fn display_size(dom: &TuiDom, select: NodeId) -> u32 {
     dom.node(select)
         .get_attribute("size")
         .and_then(|s| s.trim().parse::<u32>().ok())

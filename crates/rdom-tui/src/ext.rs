@@ -491,6 +491,20 @@ pub struct TuiExt {
     ///
     /// See `runtime::builtins::canvas` for the registration helpers.
     pub canvas_paint: Option<crate::runtime::builtins::canvas::CanvasPaint>,
+
+    // ── Constraint validation (P7-VALIDATION-1) ──────────────────────
+    /// The custom validity error message (`setCustomValidity`); empty =
+    /// no custom error. **Runtime-managed** — use
+    /// `TuiAccessorsMut::set_custom_validity`.
+    pub(crate) custom_validity: String,
+    /// The text control's value was last changed by a user edit (HTML's
+    /// dirty value flag + "last changed by a user edit"): typing, delete,
+    /// paste, undo / redo set it; a programmatic value or a form reset
+    /// clears it. Only such a value is subject to `maxlength` /
+    /// `minlength`.
+    pub(crate) value_user_edited: bool,
+    /// The compiled `pattern` attribute, cached per control.
+    pub(crate) pattern_cache: crate::runtime::builtins::validation::PatternCache,
 }
 
 impl TuiExt {
