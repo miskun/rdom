@@ -37,6 +37,11 @@ pub enum DomError {
     /// `InvalidStateError`) — e.g. dispatching an `Event` that is
     /// already being dispatched.
     InvalidState(&'static str),
+
+    /// An argument has the wrong kind (the web's `TypeError`) — e.g.
+    /// `form.requestSubmit(submitter)` with a submitter that is not a
+    /// submit button.
+    TypeError(&'static str),
 }
 
 impl std::fmt::Display for DomError {
@@ -55,6 +60,7 @@ impl std::fmt::Display for DomError {
                 )
             }
             DomError::InvalidState(what) => write!(f, "invalid state: {what}"),
+            DomError::TypeError(what) => write!(f, "type error: {what}"),
         }
     }
 }

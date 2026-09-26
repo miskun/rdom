@@ -1,5 +1,6 @@
 use super::*;
 use crate::TuiDom;
+use crate::runtime::builtins::form::SubmitOutcome;
 
 fn dom_with(tag: &str) -> (TuiDom, NodeId) {
     let mut dom: TuiDom = TuiDom::new();
@@ -906,11 +907,11 @@ fn form_request_submit_fires_submit_with_submitter_detail() {
         )
         .unwrap();
     }
-    let prevented = dom
+    let outcome = dom
         .node_mut(form)
         .form_request_submit(Some(button))
         .unwrap();
-    assert!(!prevented);
+    assert_eq!(outcome, SubmitOutcome::Submitted);
     let detail = captured.borrow().clone().expect("submit listener fired");
     let submitter = match detail {
         EventDetail::Submit(s) => s.submitter,
@@ -948,7 +949,7 @@ fn form_request_submit_with_none_submitter() {
 }
 
 #[test]
-fn form_request_submit_returns_true_when_prevented() {
+fn form_request_submit_reports_a_canceled_submit() {
     let (mut dom, form, _, _, _) = dom_with_form();
     dom.add_event_listener(
         form,
@@ -957,15 +958,156 @@ fn form_request_submit_returns_true_when_prevented() {
         |ctx| ctx.event.prevent_default(),
     )
     .unwrap();
-    let prevented = dom.node_mut(form).form_request_submit(None).unwrap();
-    assert!(prevented);
+    let outcome = dom.node_mut(form).form_request_submit(None).unwrap();
+    assert_eq!(outcome, SubmitOutcome::Canceled);
 }
 
 #[test]
 fn form_request_submit_no_op_on_wrong_tag() {
     let (mut dom, div) = dom_with("div");
-    let prevented = dom.node_mut(div).form_request_submit(None).unwrap();
-    assert!(!prevented);
+    let outcome = dom.node_mut(div).form_request_submit(None).unwrap();
+    assert_eq!(outcome, SubmitOutcome::NotAForm);
+}
+
+/// Counts `submit` events on `form`.
+fn count_submits(dom: &mut TuiDom, form: NodeId) -> std::rc::Rc<std::cell::Cell<u32>> {
+    let n = std::rc::Rc::new(std::cell::Cell::new(0u32));
+    let c = n.clone();
+    dom.add_event_listener(
+        form,
+        "submit",
+        rdom_core::ListenerOptions::default(),
+        move |_| c.set(c.get() + 1),
+    )
+    .unwrap();
+    n
+}
+
+/// HTML §4.10.3 `requestSubmit(submitter)`: a submitter that is not a
+/// submit button is a `TypeError` — reset / plain buttons, a text input,
+/// a non-control — and nothing is submitted.
+#[test]
+fn form_request_submit_rejects_a_submitter_that_is_not_a_submit_button() {
+    let (mut dom, form, input, _, _) = dom_with_form();
+    let reset = dom.create_element("button");
+    dom.set_attribute(reset, "type", "reset").unwrap();
+    dom.append_child(form, reset).unwrap();
+    let plain = dom.create_element("input");
+    dom.set_attribute(plain, "type", "button").unwrap();
+    dom.append_child(form, plain).unwrap();
+    let div = dom.create_element("div");
+    dom.append_child(form, div).unwrap();
+    let submits = count_submits(&mut dom, form);
+    for s in [reset, plain, input, div] {
+        let r = dom.node_mut(form).form_request_submit(Some(s));
+        assert!(
+            matches!(r, Err(rdom_core::DomError::TypeError(_))),
+            "{s:?}: {r:?}"
+        );
+    }
+    assert_eq!(submits.get(), 0);
+}
+
+/// HTML §4.10.3: a submit button whose form owner is not this form is a
+/// `NotFoundError`; one outside the form that names it with `form=` is
+/// its own.
+#[test]
+fn form_request_submit_rejects_a_submitter_owned_by_another_form() {
+    let (mut dom, form, _, button, _) = dom_with_form();
+    let root = dom.root();
+    dom.set_attribute(form, "id", "f").unwrap();
+    let other = dom.create_element("form");
+    dom.append_child(root, other).unwrap();
+    let foreign = dom.create_element("button");
+    dom.append_child(other, foreign).unwrap();
+    let outside = dom.create_element("button");
+    dom.set_attribute(outside, "form", "f").unwrap();
+    dom.append_child(root, outside).unwrap();
+    let submits = count_submits(&mut dom, form);
+    assert_eq!(
+        dom.node_mut(form).form_request_submit(Some(foreign)),
+        Err(rdom_core::DomError::NotFound)
+    );
+    assert_eq!(submits.get(), 0);
+    assert_eq!(
+        dom.node_mut(form).form_request_submit(Some(outside)),
+        Ok(SubmitOutcome::Submitted)
+    );
+    assert_eq!(
+        dom.node_mut(form).form_request_submit(Some(button)),
+        Ok(SubmitOutcome::Submitted)
+    );
+    assert_eq!(submits.get(), 2);
+}
+
+/// A `<dialog>` holding a form with a submit button (`value="ok"`).
+fn dialog_form(method_on_form: bool) -> (TuiDom, NodeId, NodeId, NodeId) {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let dialog = dom.create_element("dialog");
+    dom.append_child(root, dialog).unwrap();
+    let form = dom.create_element("form");
+    if method_on_form {
+        dom.set_attribute(form, "method", "dialog").unwrap();
+    }
+    dom.append_child(dialog, form).unwrap();
+    let button = dom.create_element("button");
+    dom.set_attribute(button, "value", "ok").unwrap();
+    if !method_on_form {
+        dom.set_attribute(button, "formmethod", "dialog").unwrap();
+    }
+    dom.append_child(form, button).unwrap();
+    crate::runtime::builtins::dialog::show(&mut dom, dialog);
+    (dom, dialog, form, button)
+}
+
+/// `requestSubmit()` runs the same submit algorithm as a click: an
+/// effective method of `dialog` (the form's `method` or the submitter's
+/// `formmethod`) closes the form's dialog with the submitter's value.
+#[test]
+fn form_request_submit_closes_a_method_dialog_dialog() {
+    use crate::runtime::builtins::dialog;
+    let (mut dom, dlg, form, button) = dialog_form(true);
+    assert_eq!(
+        dom.node_mut(form).form_request_submit(Some(button)),
+        Ok(SubmitOutcome::Submitted)
+    );
+    assert!(!dom.node(dlg).has_attribute("open"));
+    assert_eq!(dialog::return_value(&dom, dlg), "ok");
+
+    let (mut dom, dlg, form, _) = dialog_form(true);
+    dom.node_mut(form).form_request_submit(None).unwrap();
+    assert!(
+        !dom.node(dlg).has_attribute("open"),
+        "no submitter: closes too"
+    );
+    assert_eq!(dialog::return_value(&dom, dlg), "");
+
+    let (mut dom, dlg, form, button) = dialog_form(false);
+    dom.node_mut(form)
+        .form_request_submit(Some(button))
+        .unwrap();
+    assert!(
+        !dom.node(dlg).has_attribute("open"),
+        "the submitter's formmethod=dialog closes it"
+    );
+}
+
+#[test]
+fn form_request_submit_canceled_does_not_close_the_dialog() {
+    let (mut dom, dlg, form, button) = dialog_form(true);
+    dom.add_event_listener(
+        form,
+        "submit",
+        rdom_core::ListenerOptions::default(),
+        |ctx| ctx.event.prevent_default(),
+    )
+    .unwrap();
+    assert_eq!(
+        dom.node_mut(form).form_request_submit(Some(button)),
+        Ok(SubmitOutcome::Canceled)
+    );
+    assert!(dom.node(dlg).has_attribute("open"));
 }
 
 // ── set_value() ──────────────────────────────────────────────

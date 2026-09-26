@@ -230,12 +230,15 @@ impl<'a> TuiAccessorsMut<'a> for rdom_core::NodeMut<'a, TuiExt> {
         Ok(())
     }
 
-    fn form_request_submit(&mut self, submitter: Option<NodeId>) -> Result<bool> {
+    fn form_request_submit(
+        &mut self,
+        submitter: Option<NodeId>,
+    ) -> Result<crate::runtime::builtins::form::SubmitOutcome> {
         if self.as_ref().tag_name() != Some("form") {
-            return Ok(false);
+            return Ok(crate::runtime::builtins::form::SubmitOutcome::NotAForm);
         }
         let id = self.id();
         let dom = self.dom_mut();
-        Ok(crate::runtime::builtins::form::fire_submit(dom, id, submitter).0)
+        crate::runtime::builtins::form::request_submit(dom, id, submitter)
     }
 }

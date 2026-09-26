@@ -12,7 +12,7 @@
     form_elements count   → 4
     form_length           → Some(4)
     after set_value       → Some("new@addr.test")
-    form_request_submit   → prevented=false, submitter=NodeId(9)
+    form_request_submit   → Submitted, submitter=NodeId(9)
 
   ─── tree-walk ──────────────────────────────────
     element_from_point(2,1)   → Some(NodeId(2))

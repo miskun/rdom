@@ -83,6 +83,7 @@ pub use render::{
 /// (Re-exported here as the canonical `RenderContext`; the old, unused
 /// `render::RenderContext` was removed in `RENDERCTX-DEDUP-1`.)
 pub use runtime::builtins::canvas::RenderContext;
+pub use runtime::builtins::form::SubmitOutcome;
 pub use runtime::{
     App, AppContext, AppHandle, ControlFlow, HitTestExt, RouteOutcome, Router, StylesheetId,
 };

@@ -80,24 +80,7 @@ pub fn install(dom: &mut TuiDom) {
         };
         match button_action(ctx.dom, button) {
             ButtonAction::Submit => {
-                let (prevented, method) = fire_submit(ctx.dom, form, Some(button));
-                // Method `dialog` (the form's `method` or the button's
-                // `formmethod`): when submit isn't prevented, close the
-                // form's nearest ancestor dialog with the submit
-                // button's `value` as the returnValue (HTML §4.10.21.3).
-                if !prevented
-                    && method == FormMethod::Dialog
-                    && let Some(dialog) =
-                        crate::runtime::builtins::dialog::enclosing_dialog(ctx.dom, form)
-                {
-                    let rv = ctx
-                        .dom
-                        .node(button)
-                        .get_attribute("value")
-                        .unwrap_or("")
-                        .to_string();
-                    crate::runtime::builtins::dialog::close(ctx.dom, dialog, &rv);
-                }
+                submit(ctx.dom, form, Some(button));
             }
             ButtonAction::Reset => {
                 if !fire_reset(ctx.dom, form) {
@@ -151,14 +134,7 @@ pub fn install(dom: &mut TuiDom) {
         if count_text_inputs(ctx.dom, form) != 1 {
             return;
         }
-        let (prevented, method) = fire_submit(ctx.dom, form, None);
-        if !prevented
-            && method == FormMethod::Dialog
-            && let Some(dialog) = crate::runtime::builtins::dialog::enclosing_dialog(ctx.dom, form)
-        {
-            // No submit button — close with an empty returnValue.
-            crate::runtime::builtins::dialog::close(ctx.dom, dialog, "");
-        }
+        submit(ctx.dom, form, None);
     })
     .expect("form implicit-enter submit listener install");
 }
@@ -282,31 +258,81 @@ pub fn elements(dom: &TuiDom, form: NodeId) -> Vec<NodeId> {
     dom.form_listed_elements(form)
 }
 
-/// Fire a `submit` event on `form` with typed
-/// `EventDetail::Submit(Dom::submit_detail(form, submitter))`.
-/// `submitter` is the element that triggered submission (the clicked
-/// `<button>` / `<input type=submit>`, or the default button on implicit
-/// submission), or `None` for an implicit submission from a form with
-/// no submit button and for `requestSubmit()` without one.
+/// What one run of the form submission algorithm did.
 ///
-/// Returns whether the submit was `preventDefault`-ed and the effective
-/// method. Callers chain post-submit defaults (the method-`dialog`
-/// auto-close) on the not-prevented case.
+/// Returned by [`crate::accessors::TuiAccessorsMut::form_request_submit`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum SubmitOutcome {
+    /// The `submit` event fired and no listener canceled it; the form's
+    /// default action ran (a method-`dialog` form closed its dialog).
+    Submitted,
+    /// The `submit` event fired and a listener called
+    /// `preventDefault()`; nothing else happened.
+    Canceled,
+    /// The node is not a `<form>`: nothing happened (the accessors'
+    /// wrong-tag no-op).
+    NotAForm,
+}
+
+/// The form submission algorithm (HTML §4.10.21.3) from `submitter` —
+/// the one path click activation, implicit submission and
+/// `requestSubmit()` share:
 ///
-/// `pub(crate)` so [`crate::accessors::TuiAccessorsMut::form_request_submit`]
-/// (step 31) can fire the same event with the same detail
-/// shape as the implicit/button-triggered paths.
-pub(crate) fn fire_submit(
-    dom: &mut TuiDom,
-    form: NodeId,
-    submitter: Option<NodeId>,
-) -> (bool, FormMethod) {
+/// 1. fire a bubbling, cancelable `submit` at `form` carrying
+///    `EventDetail::Submit(Dom::submit_detail(form, submitter))`;
+/// 2. canceled → [`SubmitOutcome::Canceled`];
+/// 3. otherwise, when the effective method is `dialog` (the form's
+///    `method`, or the submit button's `formmethod`), close the form's
+///    nearest ancestor `<dialog>` with the submitter's `value` (`""`
+///    without a submitter) as its `returnValue`.
+///
+/// `submitter` is the clicked submit button, the default button on
+/// implicit submission, or `None` for an implicit submission from a
+/// form with no submit button and for `requestSubmit()` without one.
+/// rdom has no navigation: the `submit` handler decides what submitting
+/// means.
+pub(crate) fn submit(dom: &mut TuiDom, form: NodeId, submitter: Option<NodeId>) -> SubmitOutcome {
     let detail = dom.submit_detail(form, submitter);
     let method = detail.method;
     let mut ev = TuiEvent::new("submit");
     ev.event.detail = rdom_core::EventDetail::Submit(Box::new(detail));
     let _ = dom.dispatch_tui_event(form, &mut ev);
-    (ev.event.default_prevented(), method)
+    if ev.event.default_prevented() {
+        return SubmitOutcome::Canceled;
+    }
+    if method == FormMethod::Dialog
+        && let Some(dialog) = crate::runtime::builtins::dialog::enclosing_dialog(dom, form)
+    {
+        let rv = submitter
+            .and_then(|b| dom.node(b).get_attribute("value"))
+            .unwrap_or("")
+            .to_string();
+        crate::runtime::builtins::dialog::close(dom, dialog, &rv);
+    }
+    SubmitOutcome::Submitted
+}
+
+/// `form.requestSubmit(submitter)` (HTML §4.10.3): a `submitter` must
+/// be a submit button (`DomError::TypeError` otherwise) whose form
+/// owner is `form` (`DomError::NotFound` otherwise); then the shared
+/// [`submit`] path runs with it. `form` must be a `<form>`.
+pub(crate) fn request_submit(
+    dom: &mut TuiDom,
+    form: NodeId,
+    submitter: Option<NodeId>,
+) -> rdom_core::Result<SubmitOutcome> {
+    if let Some(s) = submitter {
+        if !dom.is_submit_button(s) {
+            return Err(rdom_core::DomError::TypeError(
+                "requestSubmit: the submitter is not a submit button",
+            ));
+        }
+        if dom.form_owner(s) != Some(form) {
+            return Err(rdom_core::DomError::NotFound);
+        }
+    }
+    Ok(submit(dom, form, submitter))
 }
 
 /// HTML §4.10.21.5 reset algorithm: every control whose form owner is

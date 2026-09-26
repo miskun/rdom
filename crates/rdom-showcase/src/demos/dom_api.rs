@@ -174,13 +174,13 @@ fn write_form_edit(out: &mut String) {
         dom.node(input).input_value()
     );
 
-    let prevented = dom
+    let outcome = dom
         .node_mut(form)
         .form_request_submit(Some(button))
         .unwrap();
     let _ = writeln!(
         out,
-        "  form_request_submit   → prevented={prevented}, submitter={button:?}"
+        "  form_request_submit   → {outcome:?}, submitter={button:?}"
     );
 }
 

@@ -573,23 +573,24 @@ pub trait TuiAccessorsMut<'a> {
 
     // ── Per-tag setters — `<form>` (step 31) ─────────────────────
 
-    /// `<form>.requestSubmit(submitter?)` — fires a synthetic
-    /// `submit` event on this form with typed
-    /// `EventDetail::Submit(Dom::submit_detail(form, submitter))`
-    /// (effective `action` / `method` / … included). The `submitter`
-    /// argument is the `NodeId` of the `<button>` / `<input
-    /// type=submit>` that should be reported as the trigger
-    /// (`None` for implicit-Enter / programmatic submits).
+    /// `<form>.requestSubmit(submitter?)` (HTML §4.10.3) — runs the
+    /// form submission algorithm, the same path a submit-button click
+    /// and implicit submission take (`form::submit`): a cancelable
+    /// `submit` event with `EventDetail::Submit(Dom::submit_detail(form,
+    /// submitter))`, then, unless canceled, the method-`dialog` close.
+    /// `submitter` is the submit button to report (`None` submits from
+    /// the form itself).
     ///
-    /// Returns `Ok(true)` when the event was
-    /// `preventDefault`-ed, `Ok(false)` otherwise. No-op on
-    /// non-`<form>` elements (returns `Ok(false)`).
+    /// Errors, as the web throws them:
+    /// - `DomError::TypeError` — `submitter` is not a submit button;
+    /// - `DomError::NotFound` — `submitter`'s form owner is not this
+    ///   form (the web's `NotFoundError`).
     ///
-    /// **Skips form validation** — the validation layer (per
-    /// spec §3.2) is polish. Browser `requestSubmit` runs the
-    /// "constraint validation" step before firing the event;
-    /// rdom doesn't yet have that step, so this method is a
-    /// straight pass-through to the existing fire path that
-    /// implicit-Enter and button-click already use.
-    fn form_request_submit(&mut self, submitter: Option<NodeId>) -> Result<bool>;
+    /// Returns what happened ([`SubmitOutcome`](crate::SubmitOutcome));
+    /// on a non-`<form>` element it does nothing and returns
+    /// `Ok(SubmitOutcome::NotAForm)`.
+    fn form_request_submit(
+        &mut self,
+        submitter: Option<NodeId>,
+    ) -> Result<crate::runtime::builtins::form::SubmitOutcome>;
 }
