@@ -427,7 +427,10 @@ fn walk_collect(
                     }
                 }
                 // HTML §4.10.21.4: a button contributes only as the
-                // submitter, and only a submit button can be one.
+                // submitter, and only a submit button can be one. Its
+                // value is the `value` attribute or `""` (value mode
+                // default) — not the "Submit" default label browsers
+                // send (DIVERGENCES).
                 (Some("input"), Some("submit" | "reset" | "button")) | (Some("button"), _) => {
                     if submitter == Some(id) && button_action(dom, id) == ButtonAction::Submit {
                         let value = node.get_attribute("value").unwrap_or("").to_string();

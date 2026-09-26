@@ -1073,6 +1073,30 @@ fn submitter_without_value_contributes_empty_string_and_without_name_nothing() {
     assert!(form::collect_with_submitter(app.dom(), form, Some(ids[1])).is_empty());
 }
 
+/// P6G-SUBMIT-DEFAULT-LABEL-1: a value-less `<input type=submit>`
+/// submitter contributes `""` — HTML's entry list takes the element's
+/// value (value mode *default*: the attribute or `""`), not the
+/// implementation-defined "Submit" label (DIVERGENCES).
+#[test]
+fn value_less_submit_input_submitter_contributes_empty_string() {
+    let mut ids = Vec::new();
+    let mut form_id = None;
+    let (app, _reset) = form_app(|dom, form| {
+        form_id = Some(form);
+        ids.push(named(
+            dom,
+            form,
+            "input",
+            &[("type", "submit"), ("name", "a")],
+        ));
+    });
+    let form = form_id.unwrap();
+    assert_eq!(
+        form::collect_with_submitter(app.dom(), form, Some(ids[0])),
+        pairs(&[("a", "")])
+    );
+}
+
 /// Clicking the second of two named submit buttons submits with it as
 /// the submitter, and only its entry is in the list.
 #[test]
