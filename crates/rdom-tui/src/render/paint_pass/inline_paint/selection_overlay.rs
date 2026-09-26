@@ -36,14 +36,6 @@ pub(super) fn apply_selection_overlay(
     fragment: &InlineFragment,
     range: &Range,
 ) {
-    // `user-select: none` content is excluded from a selection's highlight
-    // (and from copy) even when the selection spans across it — e.g. dragging
-    // from a title down through a `user-select: none` chrome bar into the body
-    // must not paint the bar. Browsers skip such content; so do we.
-    if crate::style::user_select::is_unselectable(dom, fragment.text_node) {
-        return;
-    }
-
     let Some((byte_start, byte_end)) = selection_byte_range_in(dom, range, fragment.text_node)
     else {
         return;
@@ -66,6 +58,16 @@ pub(super) fn apply_selection_overlay(
     let cell_start = cells_before_byte(&fragment.text, off_start);
     let cell_end = cells_before_byte(&fragment.text, off_end);
     if cell_start >= cell_end {
+        return;
+    }
+
+    // `user-select: none` content is excluded from a selection's highlight
+    // (and from copy) even when the selection spans across it — e.g. dragging
+    // from a title down through a `user-select: none` chrome bar into the body
+    // must not paint the bar. Browsers skip such content; so do we. Checked
+    // after the byte-range tests: it walks the ancestors, and most fragments
+    // lie outside the selection.
+    if crate::style::user_select::is_unselectable(dom, fragment.text_node) {
         return;
     }
 
