@@ -57,7 +57,7 @@ pub fn install(dom: &mut TuiDom) {
         let Some(button) = closest_form_button(ctx.dom, target) else {
             return;
         };
-        if ctx.dom.node(button).has_attribute("disabled") {
+        if ctx.dom.is_actually_disabled(button) {
             return;
         }
         let Some(form) = enclosing_form(ctx.dom, button) else {
@@ -125,7 +125,7 @@ pub fn install(dom: &mut TuiDom) {
             // submitting (and the `method="dialog"` close) through the
             // click listener above, with it as the submitter. A
             // disabled default button blocks implicit submission.
-            if !ctx.dom.node(default).has_attribute("disabled") {
+            if !ctx.dom.is_actually_disabled(default) {
                 use crate::accessors::TuiAccessorsMut;
                 ctx.dom.node_mut(default).click();
             }
@@ -156,7 +156,9 @@ pub fn install(dom: &mut TuiDom) {
 ///
 /// Rules (v1):
 /// - Only elements with a non-empty `name` attribute participate.
-/// - `disabled` elements are skipped.
+/// - Actually disabled controls are skipped: own `disabled`, or inside a
+///   `<fieldset disabled>` outside its first `<legend>` (HTML
+///   §4.10.18.5, `Dom::is_actually_disabled`).
 /// - `<input type="checkbox">` / `<input type="radio">` only
 ///   contribute when `checked` (matches HTML form-encoding).
 /// - Checkbox value defaults to `"on"` when no `value` attribute
@@ -169,8 +171,6 @@ pub fn install(dom: &mut TuiDom) {
 /// - Buttons (`<button>`, `<input type=submit|reset|button>`) are not
 ///   collected; see [`collect_with_submitter`] for the submitter.
 /// - `<input type=hidden>` contributes its `value` attribute.
-/// - `<fieldset disabled>` does not disable its descendants
-///   (DIVERGENCES).
 pub fn collect(dom: &TuiDom, form: NodeId) -> Vec<(String, String)> {
     collect_with_submitter(dom, form, None)
 }
@@ -408,7 +408,7 @@ fn walk_collect(
     out: &mut Vec<(String, String)>,
 ) {
     let node = dom.node(id);
-    if !node.has_attribute("disabled") {
+    if !dom.is_actually_disabled(id) {
         let name = node.get_attribute("name").unwrap_or("").to_string();
         if !name.is_empty() {
             // The clippy::collapsible_match suggestion here is unsafe:

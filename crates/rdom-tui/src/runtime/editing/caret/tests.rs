@@ -131,6 +131,28 @@ fn disabled_textarea_is_not_editable() {
     assert!(!dom.node(el).is_editable());
 }
 
+/// P7-FIELDSET-DISABLED-1: a text control inside a `<fieldset disabled>`
+/// is disabled, so not editable; one in its first `<legend>` is.
+#[test]
+fn text_controls_in_a_disabled_fieldset_are_not_editable() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let fs = dom.create_element("fieldset");
+    dom.set_attribute(fs, "disabled", "").unwrap();
+    dom.append_child(root, fs).unwrap();
+    let legend = dom.create_element("legend");
+    dom.append_child(fs, legend).unwrap();
+    let in_legend = dom.create_element("input");
+    dom.append_child(legend, in_legend).unwrap();
+    let input = dom.create_element("input");
+    dom.append_child(fs, input).unwrap();
+    let textarea = dom.create_element("textarea");
+    dom.append_child(fs, textarea).unwrap();
+    assert!(!dom.node(input).is_editable());
+    assert!(!dom.node(textarea).is_editable());
+    assert!(dom.node(in_legend).is_editable());
+}
+
 #[test]
 fn readonly_input_is_still_editable_for_focus_routing() {
     // `readonly` does NOT make the element non-editable in the

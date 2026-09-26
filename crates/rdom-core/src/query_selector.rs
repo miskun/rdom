@@ -324,6 +324,8 @@ impl<Ext> Dom<Ext> {
                     _ => false,
                 })
                 .unwrap_or(false),
+            PseudoClass::Disabled => self.is_actually_disabled(id),
+            PseudoClass::Enabled => self.is_enabled_control(id),
         }
     }
 

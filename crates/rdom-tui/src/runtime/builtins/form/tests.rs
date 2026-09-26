@@ -1244,3 +1244,59 @@ fn click_on_button_with_invalid_type_submits() {
     app.dom_mut().node_mut(btn).click();
     assert_eq!(*log.borrow(), vec![(Some(btn), vec![])]);
 }
+
+// ── P7-FIELDSET-DISABLED-1: a disabled fieldset disables its controls ──
+
+/// HTML §4.10.18.5 / §4.10.21.4: a control inside a `<fieldset
+/// disabled>` is disabled and is not submitted; one inside the
+/// fieldset's first `<legend>` stays enabled and is.
+#[test]
+fn collect_skips_controls_in_a_disabled_fieldset_but_not_its_first_legend() {
+    let mut form_id = None;
+    let (app, _reset) = form_app(|dom, form| {
+        form_id = Some(form);
+        named(dom, form, "input", &[("name", "a"), ("value", "A")]);
+        let fs = named(dom, form, "fieldset", &[("disabled", "")]);
+        let legend = named(dom, fs, "legend", &[]);
+        named(dom, legend, "input", &[("name", "l"), ("value", "L")]);
+        named(dom, fs, "input", &[("name", "b"), ("value", "B")]);
+        named(
+            dom,
+            fs,
+            "input",
+            &[("type", "checkbox"), ("name", "c"), ("checked", "")],
+        );
+        let inner = named(dom, fs, "fieldset", &[]);
+        named(dom, inner, "input", &[("name", "d"), ("value", "D")]);
+    });
+    assert_eq!(
+        form::collect(app.dom(), form_id.unwrap()),
+        pairs(&[("a", "A"), ("l", "L")])
+    );
+}
+
+/// A submit button inside a disabled fieldset does not submit when
+/// clicked, and as the form's default button blocks implicit submission.
+#[test]
+fn submit_button_in_a_disabled_fieldset_does_not_submit() {
+    let mut form_id = None;
+    let mut input_id = None;
+    let mut button_id = None;
+    let (mut app, _reset) = form_app(|dom, form| {
+        form_id = Some(form);
+        input_id = Some(named(dom, form, "input", &[("value", "q")]));
+        let fs = named(dom, form, "fieldset", &[("disabled", "")]);
+        button_id = Some(named(dom, fs, "button", &[("name", "go")]));
+    });
+    let log = record_submissions(&mut app, form_id.unwrap());
+    click_reset(&mut app, button_id.unwrap()); // `.click()` on the button
+    assert!(
+        log.borrow().is_empty(),
+        "a disabled-by-fieldset button does not submit"
+    );
+    press_enter_in(&mut app, input_id.unwrap());
+    assert!(
+        log.borrow().is_empty(),
+        "a disabled-by-fieldset default button blocks implicit submission"
+    );
+}

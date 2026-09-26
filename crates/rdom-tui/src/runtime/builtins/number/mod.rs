@@ -83,8 +83,7 @@ pub fn install(dom: &mut TuiDom) {
         if !is_number_input(ctx.dom, focused) {
             return;
         }
-        if ctx.dom.node(focused).has_attribute("disabled")
-            || ctx.dom.node(focused).has_attribute("readonly")
+        if ctx.dom.is_actually_disabled(focused) || ctx.dom.node(focused).has_attribute("readonly")
         {
             return;
         }

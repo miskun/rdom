@@ -74,7 +74,7 @@ pub fn install(dom: &mut TuiDom) {
         };
         match phase {
             rdom_core::ActivationPhase::Pre => {
-                if dom.node(widget).has_attribute("disabled") {
+                if dom.is_actually_disabled(widget) {
                     return;
                 }
                 let undo = pre_activate(dom, widget);

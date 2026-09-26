@@ -27,7 +27,7 @@ pub(super) fn on_keydown(ctx: &mut TuiEventCtx<'_>) {
     if ctx.dom.node(focused).tag_name() != Some("select") {
         return;
     }
-    if ctx.dom.node(focused).has_attribute("disabled") {
+    if ctx.dom.is_actually_disabled(focused) {
         return;
     }
     let Some(key) = ctx.event.detail.as_keyboard() else {

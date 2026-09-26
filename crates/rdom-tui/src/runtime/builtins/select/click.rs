@@ -37,7 +37,7 @@ pub(super) fn on_click(ctx: &mut TuiEventCtx<'_>) {
     let Some(select) = select else {
         return;
     };
-    if ctx.dom.node(select).has_attribute("disabled") {
+    if ctx.dom.is_actually_disabled(select) {
         return;
     }
 

@@ -138,7 +138,9 @@ pub trait TuiNodeExt<'a> {
     ///   `password`, `email`, `url`, `tel`, `search`, plus the
     ///   default-type input where `type` is missing.
     ///
-    /// `disabled` overrides everything (never editable). `readonly`
+    /// Being actually disabled — own `disabled` or inside a
+    /// `<fieldset disabled>` (`Dom::is_actually_disabled`) — overrides
+    /// everything (never editable). `readonly`
     /// keeps the element editable for focus / selection routing but
     /// `perform_edit` blocks mutation — see
     /// `runtime::editing::perform`.
@@ -174,7 +176,7 @@ impl<'a> TuiNodeExt<'a> for NodeRef<'a, TuiExt> {
     }
 
     fn is_editable(&self) -> bool {
-        if self.has_attribute("disabled") {
+        if self.dom().is_actually_disabled(self.id()) {
             return false;
         }
         if matches!(

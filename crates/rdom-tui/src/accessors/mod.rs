@@ -104,7 +104,10 @@ pub trait TuiAccessors<'a> {
     /// reads.
     fn indeterminate(&self) -> bool;
 
-    /// `[disabled]` attribute presence.
+    /// `[disabled]` attribute presence — the reflected IDL attribute.
+    /// Whether the control is *actually disabled* (also true inside a
+    /// `<fieldset disabled>`) is
+    /// [`Dom::is_actually_disabled`](rdom_core::Dom::is_actually_disabled).
     fn disabled(&self) -> bool;
 
     /// `[readonly]` attribute presence. Name is `read_only` (snake)
@@ -130,7 +133,8 @@ pub trait TuiAccessors<'a> {
     /// Effective tabindex honoring HTML's implicit-focusability
     /// rules (per `runtime::focus::tabindex`):
     ///
-    /// - `[disabled]` → never focusable, returns `None`.
+    /// - actually disabled (own `disabled`, or inside a `<fieldset
+    ///   disabled>`) → never focusable, returns `None`.
     /// - explicit `[tabindex]` → that value.
     /// - implicit focusable tag (`<button>`, `<input>` (non-hidden),
     ///   `<textarea>`, `<select>`, `<summary>`, `<a[href]>`,
@@ -460,8 +464,8 @@ pub trait TuiAccessorsMut<'a> {
     /// `disabled` IDL property: `<button>`, `<input>`, `<select>`,
     /// `<textarea>`, `<option>`, `<optgroup>`, `<fieldset>`. No-op
     /// on other tags. The cascade picks up `[disabled]` changes via
-    /// the existing dirty tracker, so `:disabled` / UA `[disabled]
-    /// { dim }` re-resolve on next cascade.
+    /// the existing dirty tracker, so `:disabled` (and the UA
+    /// `:disabled` muting) re-resolve on next cascade.
     fn set_disabled(&mut self, value: bool) -> Result<()>;
 
     /// Set the `[readonly]` attribute presence on `<input>` /
@@ -509,8 +513,8 @@ pub trait TuiAccessorsMut<'a> {
     ///
     /// Dispatches through the standard capture → target → bubble
     /// walk, so any author + built-in listeners (toggle, button,
-    /// label, …) fire. Built-in handlers gate on `[disabled]`
-    /// themselves, so clicking a disabled checkbox is a tree-level
+    /// label, …) fire. Built-in handlers gate on
+    /// `Dom::is_actually_disabled` themselves, so clicking a disabled checkbox is a tree-level
     /// no-op even though the event still walks the listener chain.
     fn click(&mut self);
 

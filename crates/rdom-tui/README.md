@@ -83,7 +83,7 @@ type+pseudo_element)` compared lexicographically. Same-specificity
 ties break on source order. `!important` inverts origin priority, so
 a UA `!important` rule beats an author `!important` rule.
 
-`Stylesheet::new()` bakes in UA defaults (`[disabled] { dim: true; }`).
+`Stylesheet::new()` bakes in UA defaults (`:disabled { color: <muted>; user-select: none }`, …).
 `Stylesheet::bare()` skips them for tests.
 
 ## Pseudo-elements and `content`

@@ -146,13 +146,17 @@ fn important_inline_beats_important_author() {
 
 #[test]
 fn ua_rule_loses_to_author() {
-    // UA stylesheet has [disabled] { color: gray; }. Author can
+    // UA stylesheet has :disabled { color: gray; }. Author can
     // override with their own rule at the same specificity and later
-    // source order.
-    let (mut dom, div) = dom_with_div();
+    // source order. (A disabled `<input>`: `:disabled` does not match a
+    // `<div disabled>` — P7-FIELDSET-DISABLED-1.)
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let div = dom.create_element("input");
     dom.set_attribute(div, "disabled", "").unwrap();
+    dom.append_child(root, div).unwrap();
 
-    // Plain UA: disabled div takes the muted fg (TEXT_MUTED).
+    // Plain UA: disabled input takes the muted fg (TEXT_MUTED).
     dom.cascade(&Stylesheet::new());
     assert_eq!(computed_of(&dom, div).fg, Color::Rgb(127, 134, 139));
 
@@ -467,13 +471,48 @@ fn focus_pseudo_affects_cascade() {
 
 #[test]
 fn ua_disabled_rule_mutes_by_default() {
-    // T8: `[disabled]` UA rule sets `fg: TEXT_MUTED` (#7F868B —
-    // was `dim: true` pre-T8, briefly CSS gray pre-palette
-    // refresh).
+    // T8: the UA `:disabled` rule (`[disabled]` before
+    // P7-FIELDSET-DISABLED-1) sets `fg: TEXT_MUTED` (#7F868B — was
+    // `dim: true` pre-T8, briefly CSS gray pre-palette refresh).
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let input = dom.create_element("input");
+    dom.set_attribute(input, "disabled", "").unwrap();
+    dom.append_child(root, input).unwrap();
+    dom.cascade(&Stylesheet::new());
+    assert_eq!(computed_of(&dom, input).fg, Color::Rgb(127, 134, 139));
+}
+
+/// HTML: `disabled` means nothing on a `<div>`, so `:disabled` does not
+/// match it and the UA muting does not apply (P7-FIELDSET-DISABLED-1).
+#[test]
+fn ua_disabled_rule_ignores_a_disabled_attribute_on_a_non_control() {
     let (mut dom, div) = dom_with_div();
     dom.set_attribute(div, "disabled", "").unwrap();
     dom.cascade(&Stylesheet::new());
-    assert_eq!(computed_of(&dom, div).fg, Color::Rgb(127, 134, 139));
+    assert_eq!(computed_of(&dom, div).fg, Color::Reset);
+}
+
+/// P7-FIELDSET-DISABLED-1: controls inside a `<fieldset disabled>` match
+/// `:disabled`, so the UA rule mutes them — a button's own accent color
+/// included — and makes them unselectable.
+#[test]
+fn ua_disabled_rule_covers_controls_in_a_disabled_fieldset() {
+    use crate::layout::UserSelect;
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let fs = dom.create_element("fieldset");
+    dom.set_attribute(fs, "disabled", "").unwrap();
+    dom.append_child(root, fs).unwrap();
+    let input = dom.create_element("input");
+    dom.append_child(fs, input).unwrap();
+    let button = dom.create_element("button");
+    dom.append_child(fs, button).unwrap();
+    dom.cascade(&Stylesheet::new());
+    for c in [fs, input, button] {
+        assert_eq!(computed_of(&dom, c).fg, Color::Rgb(127, 134, 139));
+        assert_eq!(computed_of(&dom, c).user_select, UserSelect::None);
+    }
 }
 
 #[test]

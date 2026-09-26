@@ -186,6 +186,21 @@ fn disabled_range_ignores_keyboard() {
     assert_eq!(range::value_of(app.dom(), inp), 50.0);
 }
 
+/// P7-FIELDSET-DISABLED-1: a range inside a `<fieldset disabled>` is
+/// disabled and ignores the keyboard.
+#[test]
+fn range_in_a_disabled_fieldset_ignores_keyboard() {
+    let (mut app, inp) = range_app(0.0, 100.0, Some(50.0));
+    let root = app.dom().root();
+    let fs = app.dom_mut().create_element("fieldset");
+    app.dom_mut().set_attribute(fs, "disabled", "").unwrap();
+    app.dom_mut().append_child(root, fs).unwrap();
+    app.dom_mut().append_child(fs, inp).unwrap();
+    app.dom_mut().set_focused(Some(inp));
+    app.handle_event(key(KeyCode::Right));
+    assert_eq!(range::value_of(app.dom(), inp), 50.0);
+}
+
 #[test]
 fn ctrl_modifier_skips_range_keyboard_handler() {
     let (mut app, inp) = range_app(0.0, 100.0, Some(50.0));

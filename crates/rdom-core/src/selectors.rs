@@ -9,6 +9,7 @@
 //! - Pseudo-classes: `:not(selector)`, `:where(selector-list)`,
 //!   `:first-child`, `:last-child`, `:only-child`, `:empty`, `:root`,
 //!   plus the interaction pseudos (`:hover`, `:focus`, `:focus-within`, …)
+//!   and the form-state pseudos (`:checked`, `:disabled`, `:enabled`, …)
 //! - Selector list: `a, b, c`
 //!
 //! `:where()` matches like `:is()` (any item in its list) but contributes
@@ -148,6 +149,16 @@ pub enum PseudoClass {
     /// expanded state of disclosure widgets via CSS without having
     /// to write attribute selectors themselves.
     Open,
+    /// `:disabled` — matches elements that are *actually disabled*
+    /// (HTML §4.16.3): a form control with `disabled` or inside a
+    /// `<fieldset disabled>` (outside its first `<legend>`), a disabled
+    /// `<fieldset>` / `<optgroup>`, a disabled `<option>`. See
+    /// [`Dom::is_actually_disabled`](crate::Dom::is_actually_disabled).
+    Disabled,
+    /// `:enabled` — matches the elements that can be disabled
+    /// (`<button>`, `<input>`, `<select>`, `<textarea>`, `<fieldset>`,
+    /// `<optgroup>`, `<option>`) when they are not actually disabled.
+    Enabled,
 }
 
 // ─── Error ───────────────────────────────────────────────────────────
@@ -496,6 +507,8 @@ impl<'a> Parser<'a> {
             "placeholder-shown" => Ok(SimpleSelector::Pseudo(PseudoClass::PlaceholderShown)),
             "indeterminate" => Ok(SimpleSelector::Pseudo(PseudoClass::Indeterminate)),
             "open" => Ok(SimpleSelector::Pseudo(PseudoClass::Open)),
+            "disabled" => Ok(SimpleSelector::Pseudo(PseudoClass::Disabled)),
+            "enabled" => Ok(SimpleSelector::Pseudo(PseudoClass::Enabled)),
             other => Err(self.err(format!("unsupported pseudo-class `:{other}`"))),
         }
     }

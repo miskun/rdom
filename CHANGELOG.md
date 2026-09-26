@@ -13,6 +13,11 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 
 - `InvariantViolation::GenerationTableMismatch` is gone: the slot generation now lives in the slot, so there is no parallel table to disagree. Migration: drop the match arm. (`CORE-GEN-COLOCATE-1`)
 - `vr` is no longer serialized as a void element; the void list is exactly HTML §13.3's (`area base basefont bgsound br col embed frame hr img input keygen link meta param source track wbr`), exported as `rdom_core::VOID_ELEMENTS` / `is_void_element` and shared with `rdom-parser`. Migration: `<vr>` now serializes with its `</vr>` end tag; nothing to change unless output was compared byte for byte. (`PARSER-VOID-TAGS-1`)
+- `selectors::PseudoClass` gains `Disabled` and `Enabled` variants (`:disabled` / `:enabled`). Migration: add the two arms to exhaustive matches. (`P7-FIELDSET-DISABLED-1`)
+
+### Added — `rdom-core`
+
+- `Dom::is_actually_disabled` (HTML §4.10.18.5: own `disabled`, or inside a `<fieldset disabled>` outside its first `<legend>`; `<optgroup>` / `<option>` rules) and `Dom::is_enabled_control`, and the `:disabled` / `:enabled` pseudo-classes built on them. (`P7-FIELDSET-DISABLED-1`)
 
 ### Changed — `rdom-core`
 
@@ -47,6 +52,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 
 - UA: `<input type=checkbox>` / `<input type=radio>` are `inline-block`, like `<button>`, so `<label><input type=checkbox> Name</label>` flows on one line as in HTML, and they no longer inherit the text field's `width: 20`: they hug their glyph (4 cells) in a flex row. The UA module doc now lists all twenty sections. (`UA-CHECKBOX-INLINE-1`, `SUB-3`, `FLEX-BLOCK-MAIN-INTRINSIC-1`)
 - UA: `input[type=checkbox]`, `input[type=radio]` and `input[type=range]` declare no `user-select`, as in browsers' UA sheets; a click on them beside prose reaches them because the text-selection drag takes no pointer capture. The button family keeps its UA `user-select: none`, now listed in DIVERGENCES. (`FORM-DEFAULTS-1`, `P6G-TOGGLE-USER-SELECT-REVERT-1`)
+- The UA `[disabled]` rule is now `:disabled`: controls inside a `<fieldset disabled>` are muted and unselectable, and a `<div disabled>` is no longer muted. (`P7-FIELDSET-DISABLED-1`)
 
 ### Fixed — `rdom-style`
 
@@ -107,6 +113,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 - **Examples and demo snapshots moved.** `rdom-tui/examples/` now holds three self-contained programs (`counter_button`, `tab_form`, `parse_and_render`); the ten showcase-backed shims and their sixteen paint snapshots live in `rdom-showcase/{examples,tests}/` (`cargo run -p rdom-showcase --example <name>`). `rdom-tui` no longer dev-depends on `rdom-showcase` (its own tests enable `test-util` through a self dev-dependency), and the published tarball ships `examples/`, `tests/` and `benches/` again (the `exclude` is gone). (`PROC-TUI-DEV-DEP-1`, `P6G-TEST-UTIL-1`)
 - Docs: iTerm2's dropped any-motion mouse mode (hover follows the pointer only after a first click) is recorded as an external limitation in `DIVERGENCES.md` §4 and the rdom-tui README. (`ITERM2-MOUSE-MOTION-1`)
 - `render::inline::compute_inline_layout_for_run` gives the host's `::before` / `::after` to the run that holds its first / last line-bearing child, as block layout does: collapsible whitespace-only text or a comment at the host's edge no longer keeps a run from carrying them (`<div>\n<span>x</span>\n</div>` with `div::before` packs the pseudo whichever way the run is sliced). (`P6G-RUN-LAYOUT-VIS-1`)
+- A `<fieldset disabled>` disables its controls (except inside its first `<legend>`): they leave the Tab order, ignore clicks and keys, are not editable, are not submitted by `form::collect`, and a disabled-by-fieldset default button blocks implicit submission. Conversely a `disabled` attribute on a non-control (`<div disabled tabindex=0>`) no longer blocks focus, as in HTML. (`P7-FIELDSET-DISABLED-1`)
 
 ### Fixed — `rdom-tui`
 

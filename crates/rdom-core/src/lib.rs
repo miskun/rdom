@@ -40,6 +40,7 @@ mod dom_string_map;
 mod error;
 mod event;
 mod event_detail;
+mod form_control;
 mod html_collection;
 mod indexes;
 mod insert_adjacent;

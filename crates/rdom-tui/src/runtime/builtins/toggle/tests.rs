@@ -144,6 +144,34 @@ fn disabled_checkbox_does_not_toggle_on_click() {
     assert!(!app.dom().node(cb).has_attribute("checked"));
 }
 
+/// P7-FIELDSET-DISABLED-1: a checkbox inside a `<fieldset disabled>` is
+/// disabled (HTML §4.10.18.5) and a click does not toggle it; one inside
+/// the fieldset's first `<legend>` does toggle.
+#[test]
+fn checkbox_in_a_disabled_fieldset_does_not_toggle_but_one_in_its_legend_does() {
+    use crate::accessors::TuiAccessorsMut;
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let fs = dom.create_element("fieldset");
+    dom.set_attribute(fs, "disabled", "").unwrap();
+    dom.append_child(root, fs).unwrap();
+    let legend = dom.create_element("legend");
+    dom.append_child(fs, legend).unwrap();
+    let in_legend = dom.create_element("input");
+    dom.set_attribute(in_legend, "type", "checkbox").unwrap();
+    dom.append_child(legend, in_legend).unwrap();
+    let inside = dom.create_element("input");
+    dom.set_attribute(inside, "type", "checkbox").unwrap();
+    dom.append_child(fs, inside).unwrap();
+    let mut app = test_app(dom, Stylesheet::new());
+    app.draw_if_dirty().unwrap();
+
+    app.dom_mut().node_mut(inside).click();
+    assert!(!app.dom().node(inside).has_attribute("checked"));
+    app.dom_mut().node_mut(in_legend).click();
+    assert!(app.dom().node(in_legend).has_attribute("checked"));
+}
+
 #[test]
 fn initially_checked_checkbox_unchecks_on_click() {
     let (mut app, cb) = checkbox_app();

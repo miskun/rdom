@@ -204,6 +204,24 @@ fn disabled_select_ignores_keyboard() {
     assert_eq!(select::value(app.dom(), sel), "a");
 }
 
+/// P7-FIELDSET-DISABLED-1: a `<select>` inside a `<fieldset disabled>`
+/// is disabled and ignores the keyboard.
+#[test]
+fn select_in_a_disabled_fieldset_ignores_keyboard() {
+    let (mut app, sel, opts) = select_fixture(false, &["a", "b", "c"]);
+    let root = app.dom().root();
+    let fs = app.dom_mut().create_element("fieldset");
+    app.dom_mut().set_attribute(fs, "disabled", "").unwrap();
+    app.dom_mut().append_child(root, fs).unwrap();
+    app.dom_mut().append_child(fs, sel).unwrap();
+    app.dom_mut()
+        .set_attribute(opts[0], "selected", "")
+        .unwrap();
+    app.dom_mut().set_focused(Some(sel));
+    app.handle_event(key(KeyCode::Down, KeyModifiers::empty()));
+    assert_eq!(select::value(app.dom(), sel), "a");
+}
+
 // ── Multi-select keyboard ─────────────────────────────────────────
 
 #[test]

@@ -30,7 +30,9 @@ use crate::node::TuiNodeExt;
 /// "focusable area" rules — not just the literal `tabindex`
 /// attribute:
 ///
-/// 1. `disabled` elements are NEVER focusable (returns `None`).
+/// 1. Actually disabled controls (`Dom::is_actually_disabled`: own
+///    `disabled`, or inside a `<fieldset disabled>`) are NEVER focusable
+///    (returns `None`).
 /// 2. Explicit `tabindex` attribute wins when present.
 /// 3. **Implicit focusability**: certain tags are tab-reachable
 ///    without needing `tabindex="0"` — `<button>`, `<input>`
@@ -42,8 +44,9 @@ use crate::node::TuiNodeExt;
 /// attribute directly; `tab_index` is semantic.
 pub fn tab_index(dom: &TuiDom, id: NodeId) -> Option<i32> {
     let node = dom.node(id);
-    // Disabled elements never focus.
-    if node.has_attribute("disabled") {
+    // Actually disabled controls never focus (HTML §4.10.18.5: own
+    // `disabled`, or inside a `<fieldset disabled>`).
+    if dom.is_actually_disabled(id) {
         return None;
     }
     // HTML: an element that is not being rendered is not a focusable
@@ -131,7 +134,7 @@ fn has_focusable_descendant(dom: &TuiDom, id: NodeId) -> bool {
             .get_attribute("tabindex")
             .and_then(|s| s.parse::<i32>().ok())
             .is_some_and(|t| t >= 0);
-        let enabled = !node.has_attribute("disabled");
+        let enabled = !dom.is_actually_disabled(d);
         if (enabled && (explicit_nonneg || intrinsic_tag_focusable(dom, d)))
             || is_scroll_container(dom, d)
         {

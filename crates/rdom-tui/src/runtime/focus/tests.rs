@@ -409,10 +409,63 @@ fn disabled_overrides_focusability() {
 fn disabled_overrides_explicit_tabindex() {
     // Explicit tabindex=0 + disabled — still not focusable.
     let mut dom: TuiDom = TuiDom::new();
-    let b = dom.create_element("div");
+    let b = dom.create_element("input");
     dom.set_attribute(b, "tabindex", "0").unwrap();
     dom.set_attribute(b, "disabled", "").unwrap();
     assert_eq!(tab_index(&dom, b), None);
+}
+
+/// HTML: `disabled` means nothing on a `<div>` — it is not a form
+/// control, so it is never *actually disabled* and its `tabindex` keeps
+/// it focusable (P7-FIELDSET-DISABLED-1).
+#[test]
+fn disabled_attribute_on_a_non_control_does_not_block_focus() {
+    let mut dom: TuiDom = TuiDom::new();
+    let d = dom.create_element("div");
+    dom.set_attribute(d, "tabindex", "0").unwrap();
+    dom.set_attribute(d, "disabled", "").unwrap();
+    assert_eq!(tab_index(&dom, d), Some(0));
+}
+
+/// HTML §4.10.18.5 (P7-FIELDSET-DISABLED-1): controls inside a
+/// `<fieldset disabled>` are disabled and leave the Tab order, except
+/// those inside the fieldset's first `<legend>`; a nested fieldset
+/// inherits the outer one's disabled state.
+#[test]
+fn tab_skips_controls_in_a_disabled_fieldset_but_not_its_first_legend() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let before = dom.create_element("button");
+    dom.append_child(root, before).unwrap();
+    let fs = dom.create_element("fieldset");
+    dom.set_attribute(fs, "disabled", "").unwrap();
+    dom.append_child(root, fs).unwrap();
+    let legend = dom.create_element("legend");
+    dom.append_child(fs, legend).unwrap();
+    let in_legend = dom.create_element("input");
+    dom.append_child(legend, in_legend).unwrap();
+    let inside = dom.create_element("input");
+    dom.append_child(fs, inside).unwrap();
+    let inner = dom.create_element("fieldset");
+    dom.append_child(fs, inner).unwrap();
+    let nested = dom.create_element("button");
+    dom.append_child(inner, nested).unwrap();
+    let after = dom.create_element("button");
+    dom.append_child(root, after).unwrap();
+
+    assert_eq!(focusable_elements(&dom), vec![before, in_legend, after]);
+    assert_eq!(tab_index(&dom, inside), None);
+    assert_eq!(tab_index(&dom, nested), None);
+
+    dom.set_focused(Some(before));
+    focus_next(&mut dom);
+    assert_eq!(dom.focused(), Some(in_legend));
+    focus_next(&mut dom);
+    assert_eq!(
+        dom.focused(),
+        Some(after),
+        "Tab skips the disabled fieldset's controls"
+    );
 }
 
 #[test]

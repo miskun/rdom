@@ -74,7 +74,7 @@ pub fn install(dom: &mut TuiDom) {
         if !is_range(ctx.dom, focused) {
             return;
         }
-        if ctx.dom.node(focused).has_attribute("disabled") {
+        if ctx.dom.is_actually_disabled(focused) {
             return;
         }
         let Some(key) = ctx.event.detail.as_keyboard() else {

@@ -15,7 +15,7 @@
 //!
 //! Rules are grouped by element family for grep-ability:
 //!
-//! 1. Form / interaction state (`[disabled]`, `[hidden]`)
+//! 1. Form / interaction state (`:disabled`, `[hidden]`)
 //! 2. Inline typography (emphasis, weight, semantic inline, code, edits, highlight, abbreviation, etc.)
 //! 3. Links (`<a>` / `<a href>` / `:hover`) — inside inline typography
 //! 4. Block typography (paragraphs, headings, pre, blockquote, hr, figures)
@@ -51,7 +51,7 @@ use crate::{Color, Content, TuiStyle};
 const FIELD_BG: Color = Color::Rgb(0x1f, 0x21, 0x23);
 /// Muted text — #7F868B. Cool gray that reads as supporting
 /// prose against both light and dark surfaces. Used for
-/// `[disabled]`, placeholder, `<small>`, `<abbr>`, blockquote
+/// `:disabled`, placeholder, `<small>`, `<abbr>`, blockquote
 /// text, scrollbar glyphs, helper text, etc.
 const TEXT_MUTED: Color = Color::Rgb(0x7F, 0x86, 0x8B);
 /// Default border — #3B4042. Subtle gray for box-drawing borders
@@ -88,8 +88,13 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
         // interacted with" intent — and it falls out of the existing
         // user-select gate in hit_test::position_at without any
         // disabled-specific plumbing.
+        //
+        // `:disabled`, not `[disabled]` (P7-FIELDSET-DISABLED-1): it
+        // matches only actually disabled controls (HTML §4.16.3) —
+        // controls inside a `<fieldset disabled>` included, a
+        // `<div disabled>` excluded.
         (
-            "[disabled]",
+            ":disabled",
             TuiStyle::new().fg(TEXT_MUTED).user_select(UserSelect::None),
         ),
         // Global `hidden` attribute — HTML treats it as a boolean,
@@ -537,7 +542,7 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
         // Browsers get the same effect mostly from form-control
         // internals rather than a declared UA rule (DIVERGENCES
         // §Selection & editing).
-        // The `[disabled]` rule already covers disabled buttons via
+        // The `:disabled` rule already covers disabled buttons via
         // its own `user-select: none`; these rules cover the
         // enabled case.
         (
@@ -1108,8 +1113,8 @@ mod tests {
         assert_eq!(ua.len(), 144);
         let disabled = ua
             .iter()
-            .find(|r| r.source_text == "[disabled]")
-            .expect("[disabled] rule must exist");
+            .find(|r| r.source_text == ":disabled")
+            .expect(":disabled rule must exist");
         assert_eq!(
             disabled.style.fg,
             Some(Value::Specified(TuiColor::Literal(TEXT_MUTED))),
@@ -1295,7 +1300,7 @@ mod tests {
     /// selectable prose. The base button rules (`<button>` and the
     /// three button-family input types) must declare
     /// `user-select: none` so drag-selection skips them (a deliberate
-    /// UA declaration — see DIVERGENCES). The `[disabled]` rule already
+    /// UA declaration — see DIVERGENCES). The `:disabled` rule already
     /// covers the disabled case; this pins the enabled case.
     #[test]
     fn ua_buttons_are_unselectable() {
