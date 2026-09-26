@@ -136,7 +136,7 @@ pub(crate) fn keeps_default_value(dom: &TuiDom, id: NodeId) -> bool {
 }
 
 fn is_range_input(dom: &TuiDom, id: NodeId) -> bool {
-    dom.node(id).get_attribute("type") == Some("range")
+    dom.input_type_state(id) == Some(rdom_core::InputTypeState::Range)
 }
 
 /// The live value a default is captured from: a text control's text,
@@ -234,20 +234,8 @@ pub fn ensure_seeded(dom: &mut TuiDom, id: NodeId) {
     }
 }
 
-/// Same text-family list as `node::is_text_input_type`. Lives
-/// here too because `node` keeps it private. Both must stay in
-/// sync — adding a new text-family type means updating both.
 fn is_text_family_input(dom: &TuiDom, id: NodeId) -> bool {
-    matches!(
-        dom.node(id).get_attribute("type"),
-        None | Some("text")
-            | Some("password")
-            | Some("email")
-            | Some("url")
-            | Some("tel")
-            | Some("search")
-            | Some("number")
-    )
+    crate::node::is_text_input(dom, id)
 }
 
 /// Mirror the input's current text content into its `value`
@@ -295,8 +283,7 @@ fn walk_by_tag(dom: &TuiDom, id: NodeId, tag: &str, out: &mut Vec<NodeId>) {
 
 /// True iff `id` is `<input type="password">`.
 fn is_password(dom: &TuiDom, id: NodeId) -> bool {
-    let node = dom.node(id);
-    node.tag_name() == Some("input") && node.get_attribute("type") == Some("password")
+    dom.input_type_state(id) == Some(rdom_core::InputTypeState::Password)
 }
 
 /// The paint pass's chrome for a password input (see

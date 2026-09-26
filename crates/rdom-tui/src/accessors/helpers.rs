@@ -30,19 +30,6 @@ pub(super) fn write_boolean_attribute(
     }
 }
 
-pub(super) fn is_text_family_input(dom: &TuiDom, id: NodeId) -> bool {
-    matches!(
-        dom.node(id).get_attribute("type"),
-        None | Some("text")
-            | Some("password")
-            | Some("email")
-            | Some("url")
-            | Some("tel")
-            | Some("search")
-            | Some("number")
-    )
-}
-
 /// Mark the first descendant `<option>` whose effective value matches
 /// `target` as `selected`; clear `selected` from every other option.
 /// No match → every option ends up unselected. Matches

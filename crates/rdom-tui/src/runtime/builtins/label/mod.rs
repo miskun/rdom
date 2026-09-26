@@ -171,7 +171,7 @@ fn is_labelable(dom: &TuiDom, id: NodeId) -> bool {
     match tag {
         "button" | "meter" | "output" | "progress" | "select" | "textarea" => true,
         // Input is labelable UNLESS type="hidden".
-        "input" => !matches!(node.get_attribute("type"), Some("hidden")),
+        "input" => dom.input_type_state(id) != Some(rdom_core::InputTypeState::Hidden),
         _ => false,
     }
 }

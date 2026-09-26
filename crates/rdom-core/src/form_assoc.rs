@@ -12,6 +12,7 @@
 
 use crate::dom::Dom;
 use crate::event_detail::{FormEnctype, FormMethod, SubmitDetail};
+use crate::input_type::InputTypeState;
 use crate::node_id::NodeId;
 
 /// HTML §4.10.2 *listed* elements: the form-associated elements that
@@ -91,11 +92,14 @@ impl<Ext> Dom<Ext> {
 
     /// Whether `id` is a *submit button* (HTML §4.10.6, §4.10.5.1.19): a
     /// `<button>` whose `type` is missing, invalid or `submit`, or an
-    /// `<input type="submit">`.
+    /// `<input type="submit">`. `type` keywords match ASCII
+    /// case-insensitively (§2.3.3).
     pub fn is_submit_button(&self, id: NodeId) -> bool {
         match self.get_node(id).and_then(|n| n.tag_name()) {
-            Some("button") => !matches!(self.get_attribute(id, "type"), Some("reset" | "button")),
-            Some("input") => self.get_attribute(id, "type") == Some("submit"),
+            Some("button") => !self.get_attribute(id, "type").is_some_and(|t| {
+                t.eq_ignore_ascii_case("reset") || t.eq_ignore_ascii_case("button")
+            }),
+            Some("input") => self.input_type_state(id) == Some(InputTypeState::Submit),
             _ => false,
         }
     }
@@ -250,6 +254,24 @@ mod tests {
             dom.form_listed_elements(form),
             vec![before, fs, inner, after]
         );
+    }
+
+    /// HTML §2.3.3: `type` is an enumerated attribute, matched ASCII
+    /// case-insensitively — `SUBMIT` is Submit, `Reset` is Reset.
+    #[test]
+    fn submit_button_type_matches_ascii_case_insensitively() {
+        let mut dom: Dom = Dom::new();
+        let root = dom.root();
+        let upper_submit_input = el(&mut dom, root, "input", &[("type", "SUBMIT")]);
+        let mixed_submit_input = el(&mut dom, root, "input", &[("type", "Submit")]);
+        let upper_reset = el(&mut dom, root, "button", &[("type", "RESET")]);
+        let mixed_button = el(&mut dom, root, "button", &[("type", "Button")]);
+        let upper_submit_button = el(&mut dom, root, "button", &[("type", "SUBMIT")]);
+        assert!(dom.is_submit_button(upper_submit_input));
+        assert!(dom.is_submit_button(mixed_submit_input));
+        assert!(!dom.is_submit_button(upper_reset));
+        assert!(!dom.is_submit_button(mixed_button));
+        assert!(dom.is_submit_button(upper_submit_button));
     }
 
     #[test]

@@ -6,8 +6,8 @@ use rdom_core::NodeId;
 
 use super::TuiAccessorsMut;
 use super::helpers::{
-    is_text_family_input, nearest_scrollable_ancestor, pre_scroll_offset_within, read_scroll_x,
-    read_scroll_y, set_select_value, write_boolean_attribute, write_scroll_clamped,
+    nearest_scrollable_ancestor, pre_scroll_offset_within, read_scroll_x, read_scroll_y,
+    set_select_value, write_boolean_attribute, write_scroll_clamped,
 };
 use crate::node::install_text_content;
 use crate::{Result, TuiExt};
@@ -23,7 +23,7 @@ impl<'a> TuiAccessorsMut<'a> for rdom_core::NodeMut<'a, TuiExt> {
         let dom = self.dom_mut();
         match tag.as_str() {
             "input" => {
-                if is_text_family_input(dom, id) {
+                if crate::node::is_text_input(dom, id) {
                     crate::runtime::builtins::input::set_value(dom, id, &new_value);
                 } else {
                     // A range keeps its authored default; for the other

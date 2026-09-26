@@ -1553,3 +1553,42 @@ fn submit_event_reports_the_effective_submission_attributes() {
         )
     );
 }
+
+// ── P7-FORM-ENUM-CASE-1: enumerated keywords are ASCII case-insensitive ──
+
+/// HTML §2.3.3: `<button type="RESET">` is a reset button and
+/// `<input type="Submit">` a submit button; Enter in `type="TEXT"`
+/// submits implicitly.
+#[test]
+fn button_and_input_type_keywords_are_case_insensitive() {
+    let mut ids = Vec::new();
+    let mut app = owner_app(|dom, root| {
+        let f = named(dom, root, "form", &[]);
+        let text = named(dom, f, "input", &[("type", "TEXT"), ("name", "t")]);
+        let reset = named(dom, f, "button", &[("type", "RESET")]);
+        let submit = named(dom, f, "input", &[("type", "Submit")]);
+        ids.extend([f, text, reset, submit]);
+    });
+    let (f, text, reset, submit) = (ids[0], ids[1], ids[2], ids[3]);
+    let log = record_submissions(&mut app, f);
+    let resets = Rc::new(Cell::new(0u32));
+    let r = resets.clone();
+    app.dom_mut()
+        .add_event_listener(f, "reset", ListenerOptions::default(), move |_| {
+            r.set(r.get() + 1);
+        })
+        .unwrap();
+    click_reset(&mut app, reset);
+    assert_eq!(resets.get(), 1, "type=RESET resets");
+    assert!(log.borrow().is_empty(), "type=RESET does not submit");
+    click_reset(&mut app, submit);
+    assert_eq!(log.borrow().len(), 1, "type=Submit submits");
+    assert_eq!(log.borrow()[0].0, Some(submit));
+    press_enter_in(&mut app, text);
+    assert_eq!(
+        log.borrow().len(),
+        2,
+        "Enter in type=TEXT submits implicitly"
+    );
+    assert_eq!(log.borrow()[1].0, Some(submit), "via the default button");
+}

@@ -425,3 +425,31 @@ fn click_on_user_select_auto_checkbox_beside_text_still_toggles() {
         "and a second click flips it back"
     );
 }
+
+/// HTML §2.3.3: `type="CHECKBOX"` is the Checkbox state — the toggle
+/// behavior and the UA glyph rule both apply (`P7-FORM-ENUM-CASE-1`).
+#[test]
+fn uppercase_checkbox_type_toggles_and_gets_the_ua_glyph() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let cb = dom.create_element("input");
+    dom.set_attribute(cb, "type", "CHECKBOX").unwrap();
+    dom.set_attribute(cb, "class", "box").unwrap();
+    dom.append_child(root, cb).unwrap();
+    let sheet = Stylesheet::new().rule_unchecked(
+        ".box",
+        TuiStyle::new()
+            .width(Size::Fixed(10))
+            .height(Size::Fixed(1)),
+    );
+    let mut app = test_app(dom, sheet);
+    app.draw_if_dirty().unwrap();
+    click_at(&mut app, 1, 0);
+    assert!(app.dom().node(cb).has_attribute("checked"));
+    assert!(
+        app.dom()
+            .matches(cb, "input[type=checkbox]:checked")
+            .unwrap(),
+        "the UA `input[type=checkbox]` rules match an uppercase type"
+    );
+}

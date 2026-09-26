@@ -354,6 +354,60 @@ impl<Ext> Dom<Ext> {
     }
 }
 
+/// HTML §4.16.2 "case-sensitivity of selectors": attribute selectors on
+/// an HTML element treat the values of these attributes as ASCII
+/// case-insensitive. Every rdom element is an HTML element in an HTML
+/// document. (HTML exempts `type` in its rendering section's `ol[type]`
+/// rules via the `s` flag, which rdom does not parse.)
+const HTML_CASE_INSENSITIVE_ATTRS: [&str; 46] = [
+    "accept",
+    "accept-charset",
+    "align",
+    "alink",
+    "axis",
+    "bgcolor",
+    "charset",
+    "checked",
+    "clear",
+    "codetype",
+    "color",
+    "compact",
+    "declare",
+    "defer",
+    "dir",
+    "direction",
+    "disabled",
+    "enctype",
+    "face",
+    "frame",
+    "hreflang",
+    "http-equiv",
+    "lang",
+    "language",
+    "link",
+    "media",
+    "method",
+    "multiple",
+    "nohref",
+    "noresize",
+    "noshade",
+    "nowrap",
+    "readonly",
+    "rel",
+    "rev",
+    "rules",
+    "scope",
+    "scrolling",
+    "selected",
+    "shape",
+    "target",
+    "text",
+    "type",
+    "valign",
+    "valuetype",
+    "vlink",
+];
+
 fn match_attribute(
     attrs: &std::collections::BTreeMap<String, String>,
     name: &str,
@@ -365,6 +419,16 @@ fn match_attribute(
     };
     let Some(op) = op else { return true }; // `[name]` — presence only.
     let want = want.unwrap_or("");
+    if HTML_CASE_INSENSITIVE_ATTRS.contains(&name) {
+        if op == AttrOp::Exact {
+            return have.eq_ignore_ascii_case(want);
+        }
+        return match_value(op, &have.to_ascii_lowercase(), &want.to_ascii_lowercase());
+    }
+    match_value(op, have, want)
+}
+
+fn match_value(op: AttrOp, have: &str, want: &str) -> bool {
     match op {
         AttrOp::Exact => have == want,
         AttrOp::Includes => have.split_ascii_whitespace().any(|tok| tok == want),
@@ -824,6 +888,34 @@ mod tests {
         dom.append_child(root, d).unwrap();
         assert!(dom.matches(d, "details:open").unwrap());
         assert!(!dom.matches(d, "dialog:open").unwrap());
+    }
+
+    /// HTML §4.16.2: attribute selectors treat the values of `type`,
+    /// `method`, `enctype`, `lang`, … on HTML elements as ASCII
+    /// case-insensitive; every other attribute stays case-sensitive.
+    #[test]
+    fn html_case_insensitive_attribute_values_match_regardless_of_case() {
+        let mut dom: Dom = Dom::new();
+        let root = dom.root();
+        let cb = dom.create_element("input");
+        dom.set_attribute(cb, "type", "CheckBox").unwrap();
+        dom.set_attribute(cb, "data-kind", "Big").unwrap();
+        dom.append_child(root, cb).unwrap();
+        let form = dom.create_element("form");
+        dom.set_attribute(form, "method", "POST").unwrap();
+        dom.set_attribute(form, "lang", "EN-us").unwrap();
+        dom.append_child(root, form).unwrap();
+
+        assert!(dom.matches(cb, "input[type=checkbox]").unwrap());
+        assert!(dom.matches(cb, "[type^=check]").unwrap());
+        assert!(dom.matches(cb, ":not([type=radio])").unwrap());
+        assert!(dom.matches(form, "[method=post]").unwrap());
+        assert!(dom.matches(form, "[lang|=en]").unwrap());
+        assert!(
+            !dom.matches(cb, "[data-kind=big]").unwrap(),
+            "attributes outside the HTML list stay case-sensitive"
+        );
+        assert!(dom.matches(cb, "[data-kind=Big]").unwrap());
     }
 
     #[test]

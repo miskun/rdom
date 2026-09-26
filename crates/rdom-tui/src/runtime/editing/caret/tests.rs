@@ -488,3 +488,25 @@ fn caret_around_an_inline_elements_pseudos_follows_the_packed_text() {
     assert_eq!(cell_of_position(&dom, Position::new(bold, 4)), Some((7, 0)));
     assert_eq!(cell_of_position(&dom, Position::new(c, 1)), Some((9, 0)));
 }
+
+/// HTML §2.3.3: the `type` keyword is ASCII case-insensitive, and an
+/// invalid value falls back to the Text state (`P7-FORM-ENUM-CASE-1`).
+#[test]
+fn input_type_keywords_are_ascii_case_insensitive() {
+    for (ty, editable) in [
+        ("Text", true),
+        ("PASSWORD", true),
+        ("eMail", true),
+        ("bogus", true),
+        ("CheckBox", false),
+        ("SUBMIT", false),
+        ("Hidden", false),
+    ] {
+        let mut dom: TuiDom = TuiDom::new();
+        let root = dom.root();
+        let el = dom.create_element("input");
+        dom.set_attribute(el, "type", ty).unwrap();
+        dom.append_child(root, el).unwrap();
+        assert_eq!(dom.node(el).is_editable(), editable, "type={ty}");
+    }
+}

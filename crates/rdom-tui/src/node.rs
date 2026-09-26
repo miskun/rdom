@@ -150,23 +150,23 @@ pub trait TuiNodeExt<'a> {
     fn is_editable(&self) -> bool;
 }
 
-/// Text-family `<input>` `type` values per HTML living standard.
-/// `<input>` without `type` defaults to `text`. Toggle types
-/// (checkbox, radio) and form-action types (submit, reset,
-/// button, hidden, image, file, color) are not text-editable.
+/// Whether `id` is a text-family `<input>`: its `type` state
+/// (`Dom::input_type_state` — case-insensitive, Text when missing or
+/// invalid) is one whose value is a single line of text the user edits
+/// (HTML §4.10.5.1: text, search, tel, url, email, password). Toggles,
+/// buttons, hidden, range and the unshipped date / color / file types
+/// are not.
 ///
 /// `number` is included: it edits as text but with a numeric
 /// `beforeinput` filter installed by `runtime::builtins::number`.
-fn is_text_input_type(ty: Option<&str>) -> bool {
+///
+/// The one text-family predicate: editing, seeding, `set_value`,
+/// implicit submission and validation all ask it.
+pub(crate) fn is_text_input<Ext>(dom: &rdom_core::Dom<Ext>, id: rdom_core::NodeId) -> bool {
+    use rdom_core::InputTypeState as T;
     matches!(
-        ty,
-        None | Some("text")
-            | Some("password")
-            | Some("email")
-            | Some("url")
-            | Some("tel")
-            | Some("search")
-            | Some("number")
+        dom.input_type_state(id),
+        Some(T::Text | T::Search | T::Tel | T::Url | T::Email | T::Password | T::Number)
     )
 }
 
@@ -187,7 +187,7 @@ impl<'a> TuiNodeExt<'a> for NodeRef<'a, TuiExt> {
         }
         match self.tag_name() {
             Some("textarea") => true,
-            Some("input") => is_text_input_type(self.get_attribute("type")),
+            Some("input") => is_text_input(self.dom(), self.id()),
             _ => false,
         }
     }

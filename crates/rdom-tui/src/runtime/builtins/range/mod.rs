@@ -213,7 +213,7 @@ fn style_from_dom(dom: &Dom<TuiExt>, id: NodeId) -> Style {
 // ── Helpers ───────────────────────────────────────────────────────
 
 fn is_range(dom: &TuiDom, id: NodeId) -> bool {
-    dom.node(id).tag_name() == Some("input") && dom.node(id).get_attribute("type") == Some("range")
+    dom.input_type_state(id) == Some(rdom_core::InputTypeState::Range)
 }
 
 fn collect_ranges(dom: &TuiDom) -> Vec<NodeId> {

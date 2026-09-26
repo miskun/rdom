@@ -20,6 +20,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 
 - `Dom::is_actually_disabled` (HTML §4.10.18.5: own `disabled`, or inside a `<fieldset disabled>` outside its first `<legend>`; `<optgroup>` / `<option>` rules) and `Dom::is_enabled_control`, and the `:disabled` / `:enabled` pseudo-classes built on them. (`P7-FIELDSET-DISABLED-1`)
 - **Form owner and submitter overrides** (HTML §4.10.17.3, §4.10.19.6): `Dom::form_owner` (`form="id"`, else the nearest ancestor `<form>`), `Dom::form_listed_elements` (`form.elements`, tree order of the whole document), `Dom::is_submit_button`, and `Dom::submit_detail`, which resolves the effective `action` / `method` / `enctype` / `target` / no-validate state from the form and the submitter's `formaction` / `formmethod` / `formenctype` / `formtarget` / `formnovalidate`. New `FormMethod` / `FormEnctype` enums (also re-exported by rdom-tui). (`P7-FORM-OWNER-1`)
+- `InputTypeState` and `Dom::input_type_state`: the state of an `<input>`'s `type` attribute (HTML §4.10.5), keywords matched ASCII case-insensitively, Text when missing or invalid. (`P7-FORM-ENUM-CASE-1`)
 
 ### Changed — `rdom-core`
 
@@ -28,6 +29,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 ### Fixed — `rdom-core`
 
 - `drop_subtree`, `remove_child_dropping` and `clear_children_dropping` free the subtree even when a `MutationObserver` panics in any record they fire after the unlink (`ChildListChanged`, or the focus / hover / selection purge); the panic still propagates afterwards. A panic in the `PreDetach` window leaves the still-attached subtree alone. (`CORE-DROP-PANIC-LEAK-1`)
+- `Dom::is_submit_button` matches `type` keywords ASCII case-insensitively (`<button type="RESET">` is not a submit button), and attribute selectors treat the values of HTML §4.16.2's list (`type`, `method`, `enctype`, `lang`, `checked`, …) as ASCII case-insensitive, so `input[type=checkbox]` matches `type="CheckBox"`. (`P7-FORM-ENUM-CASE-1`)
 
 ### Breaking — `rdom-style`
 
@@ -117,6 +119,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 - `render::inline::compute_inline_layout_for_run` gives the host's `::before` / `::after` to the run that holds its first / last line-bearing child, as block layout does: collapsible whitespace-only text or a comment at the host's edge no longer keeps a run from carrying them (`<div>\n<span>x</span>\n</div>` with `div::before` packs the pseudo whichever way the run is sliced). (`P6G-RUN-LAYOUT-VIS-1`)
 - A `<fieldset disabled>` disables its controls (except inside its first `<legend>`): they leave the Tab order, ignore clicks and keys, are not editable, are not submitted by `form::collect`, and a disabled-by-fieldset default button blocks implicit submission. Conversely a `disabled` attribute on a non-control (`<div disabled tabindex=0>`) no longer blocks focus, as in HTML. (`P7-FIELDSET-DISABLED-1`)
 - Forms follow the form owner: a control outside a `<form>` with `form="id"` is submitted, reset, listed by `form::elements` and considered for implicit submission with that form, a control inside one form can belong to another, and a `form` attribute naming no form leaves the control unowned. The `submit` event reports the effective submission attributes, and a submitter's `formmethod="dialog"` closes the dialog as `method="dialog"` does. `input_form()` and siblings return the form owner. (`P7-FORM-OWNER-1`)
+- `TuiAccessors::input_type` returns the canonical keyword of the type state, like `input.type`: `type="PassWord"` reads `"password"`, an invalid value reads `"text"`. (`P7-FORM-ENUM-CASE-1`)
 
 ### Fixed — `rdom-tui`
 
@@ -141,6 +144,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 - `display: inherit` takes the parent's inner display too, so a child of a flex container with `display: inherit` is itself a flex container (CSS Cascade 4 §7.2); it used to fall back to block flow. (`P6G-APPLY-INITIALS-1`)
 - A mousedown ends any previous text-selection drag before it acts: after a `mouseup` lost outside the window (on a terminal that reports no button-less motion), a press on a scrollbar thumb, on nothing, or a cancelled press no longer leaves the old drag armed to extend the selection on later button-held moves. (`P6G-DRAG-RESET-1`)
 - A left `mousedown` after a lost `mouseup` now also ends a scrollbar-thumb drag and releases the pointer capture that drag took, so button-held moves after the new press no longer keep scrolling the old scroller; an author's pointer capture is left alone. (`P6G-PRESS-RESET-2`)
+- `<input>` / `<button>` `type` keywords are ASCII case-insensitive everywhere (editing, toggles, range, number, password mask, form submit / reset / collect / implicit submission, focus, labels), and an invalid `type` is the Text state, as in HTML (`type="bogus"` is now an editable text field). (`P7-FORM-ENUM-CASE-1`)
 
 ### Internal — `rdom-tui`
 

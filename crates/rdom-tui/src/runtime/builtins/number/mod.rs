@@ -143,7 +143,7 @@ fn is_numeric_char(c: char) -> bool {
 }
 
 fn is_number_input(dom: &TuiDom, id: NodeId) -> bool {
-    dom.node(id).tag_name() == Some("input") && dom.node(id).get_attribute("type") == Some("number")
+    dom.input_type_state(id) == Some(rdom_core::InputTypeState::Number)
 }
 
 /// Parse `step` attribute into a positive f64. Defaults to `1.0`

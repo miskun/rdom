@@ -12,6 +12,11 @@
 //!   and the form-state pseudos (`:checked`, `:disabled`, `:enabled`, …)
 //! - Selector list: `a, b, c`
 //!
+//! Attribute values match case-sensitively, except the attributes HTML
+//! §4.16.2 lists as ASCII case-insensitive on HTML elements (`type`,
+//! `method`, `enctype`, `lang`, `checked`, …), so the UA sheet's
+//! `input[type=checkbox]` matches `<input type="CheckBox">`.
+//!
 //! `:where()` matches like `:is()` (any item in its list) but contributes
 //! **zero specificity** (Selectors L4) — the mechanism a component library
 //! uses to ship default styles that any author rule overrides freely.

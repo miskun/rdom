@@ -337,17 +337,14 @@ fn closest_toggle(dom: &TuiDom, id: NodeId) -> Option<NodeId> {
 }
 
 pub(crate) fn is_toggle(dom: &TuiDom, id: NodeId) -> bool {
-    if dom.node(id).tag_name() != Some("input") {
-        return false;
-    }
     matches!(
-        dom.node(id).get_attribute("type"),
-        Some("checkbox") | Some("radio")
+        dom.input_type_state(id),
+        Some(rdom_core::InputTypeState::Checkbox | rdom_core::InputTypeState::Radio)
     )
 }
 
 fn is_radio(dom: &TuiDom, id: NodeId) -> bool {
-    dom.node(id).tag_name() == Some("input") && dom.node(id).get_attribute("type") == Some("radio")
+    dom.input_type_state(id) == Some(rdom_core::InputTypeState::Radio)
 }
 
 #[cfg(test)]

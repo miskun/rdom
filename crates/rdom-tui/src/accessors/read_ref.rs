@@ -128,7 +128,10 @@ impl<'a> TuiAccessors<'a> for rdom_core::NodeRef<'a, TuiExt> {
 
     fn input_type(&self) -> Option<String> {
         match self.tag_name()? {
-            "input" => Some(self.get_attribute("type").unwrap_or("text").to_string()),
+            "input" => self
+                .dom()
+                .input_type_state(self.id())
+                .map(|t| t.as_str().to_string()),
             _ => None,
         }
     }

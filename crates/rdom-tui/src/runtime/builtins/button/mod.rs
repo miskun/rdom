@@ -97,15 +97,12 @@ pub fn install(dom: &mut TuiDom) {
 /// (`submit`, `reset`, `button`). These three input types render
 /// as buttons in HTML and share its keyboard activation.
 pub(super) fn is_button_like(dom: &TuiDom, id: rdom_core::NodeId) -> bool {
-    let node = dom.node(id);
-    match node.tag_name() {
-        Some("button") => true,
-        Some("input") => matches!(
-            node.get_attribute("type"),
-            Some("submit") | Some("reset") | Some("button")
-        ),
-        _ => false,
-    }
+    use rdom_core::InputTypeState as T;
+    dom.node(id).tag_name() == Some("button")
+        || matches!(
+            dom.input_type_state(id),
+            Some(T::Submit | T::Reset | T::Button)
+        )
 }
 
 #[cfg(test)]

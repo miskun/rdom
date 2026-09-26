@@ -94,7 +94,7 @@ fn intrinsic_tag_focusable(dom: &TuiDom, id: NodeId) -> bool {
     };
     match tag {
         // `<input type="hidden">` is NOT focusable. Every other input type is.
-        "input" => !matches!(node.get_attribute("type"), Some("hidden")),
+        "input" => dom.input_type_state(id) != Some(rdom_core::InputTypeState::Hidden),
         "button" | "textarea" | "select" => true,
         // `<summary>` is the focus target of a `<details>` disclosure widget.
         "summary" => true,
@@ -239,10 +239,7 @@ fn dedupe_radio_groups(dom: &TuiDom, list: Vec<NodeId>) -> Vec<NodeId> {
 /// group and so don't get deduped).
 fn named_radio_name(dom: &TuiDom, id: NodeId) -> Option<String> {
     let node = dom.node(id);
-    if node.tag_name() != Some("input") {
-        return None;
-    }
-    if node.get_attribute("type") != Some("radio") {
+    if dom.input_type_state(id) != Some(rdom_core::InputTypeState::Radio) {
         return None;
     }
     let name = node.get_attribute("name")?;

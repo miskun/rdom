@@ -51,7 +51,7 @@
 //!   inside their `submit` handler.
 //! - No `formdata` event (would require a `FormData` shim).
 
-use rdom_core::{FormMethod, ListenerOptions, NodeId};
+use rdom_core::{FormMethod, InputTypeState, ListenerOptions, NodeId};
 
 use crate::tui_event::TuiDispatchExt;
 use crate::{TuiDom, TuiEvent};
@@ -222,15 +222,23 @@ enum ButtonAction {
 /// HTML §4.10.6: a `<button>` is a submit button unless its `type` is
 /// `reset` or `button` — the missing and the invalid value default are
 /// both Submit (`Dom::is_submit_button`). `<input type=submit/reset/button>`
-/// uses the literal type. Anything else is `Button` (no default action).
+/// uses its type state. Keywords match ASCII case-insensitively
+/// (§2.3.3). Anything else is `Button` (no default action).
 fn button_action(dom: &TuiDom, id: NodeId) -> ButtonAction {
     if dom.is_submit_button(id) {
         return ButtonAction::Submit;
     }
-    let node = dom.node(id);
-    match (node.tag_name(), node.get_attribute("type")) {
-        (Some("button" | "input"), Some("reset")) => ButtonAction::Reset,
-        _ => ButtonAction::Button,
+    let reset = match dom.node(id).tag_name() {
+        Some("button") => dom
+            .node(id)
+            .get_attribute("type")
+            .is_some_and(|t| t.eq_ignore_ascii_case("reset")),
+        _ => dom.input_type_state(id) == Some(InputTypeState::Reset),
+    };
+    if reset {
+        ButtonAction::Reset
+    } else {
+        ButtonAction::Button
     }
 }
 
@@ -248,20 +256,15 @@ fn default_button(dom: &TuiDom, form: NodeId) -> Option<NodeId> {
 fn closest_form_button(dom: &TuiDom, id: NodeId) -> Option<NodeId> {
     let mut cur = Some(id);
     while let Some(n) = cur {
-        let node = dom.node(n);
-        match node.tag_name() {
-            Some("button") => return Some(n),
-            Some("input") => {
-                if matches!(
-                    node.get_attribute("type"),
-                    Some("submit") | Some("reset") | Some("button")
-                ) {
-                    return Some(n);
-                }
-            }
-            _ => {}
+        if dom.node(n).tag_name() == Some("button")
+            || matches!(
+                dom.input_type_state(n),
+                Some(InputTypeState::Submit | InputTypeState::Reset | InputTypeState::Button)
+            )
+        {
+            return Some(n);
         }
-        cur = node.parent_node().map(|p| p.id());
+        cur = dom.node(n).parent_node().map(|p| p.id());
     }
     None
 }
@@ -334,23 +337,10 @@ fn fire_reset(dom: &mut TuiDom, form: NodeId) -> bool {
     ev.event.default_prevented()
 }
 
-/// Single-line text-family input: an `<input>` whose `type` is
-/// one of the text-family values (or absent). Excludes
+/// Single-line text-family input (`node::is_text_input`). Excludes
 /// `<textarea>` (multi-line, where Enter inserts a newline).
 fn is_single_line_text_input(dom: &TuiDom, id: NodeId) -> bool {
-    if dom.node(id).tag_name() != Some("input") {
-        return false;
-    }
-    matches!(
-        dom.node(id).get_attribute("type"),
-        None | Some("text")
-            | Some("password")
-            | Some("email")
-            | Some("url")
-            | Some("tel")
-            | Some("search")
-            | Some("number")
-    )
+    crate::node::is_text_input(dom, id)
 }
 
 /// The form's fields that block implicit submission (HTML §4.10.21.2):
@@ -369,6 +359,7 @@ fn collect_entry(
     submitter: Option<NodeId>,
     out: &mut Vec<(String, String)>,
 ) {
+    use InputTypeState as T;
     let node = dom.node(id);
     if !dom.is_actually_disabled(id) {
         let name = node.get_attribute("name").unwrap_or("").to_string();
@@ -381,8 +372,8 @@ fn collect_entry(
             // unchecked checkbox values from form submission, requires
             // the explicit no-op on miss.
             #[allow(clippy::collapsible_match, clippy::collapsible_if)]
-            match (node.tag_name(), node.get_attribute("type")) {
-                (Some("input"), Some("checkbox")) | (Some("input"), Some("radio")) => {
+            match (node.tag_name(), dom.input_type_state(id)) {
+                (_, Some(T::Checkbox | T::Radio)) => {
                     if node.has_attribute("checked") {
                         let value = node.get_attribute("value").unwrap_or("on").to_string();
                         out.push((name, value));
@@ -393,13 +384,13 @@ fn collect_entry(
                 // value is the `value` attribute or `""` (value mode
                 // default) — not the "Submit" default label browsers
                 // send (DIVERGENCES).
-                (Some("input"), Some("submit" | "reset" | "button")) | (Some("button"), _) => {
+                (_, Some(T::Submit | T::Reset | T::Button)) | (Some("button"), _) => {
                     if submitter == Some(id) && button_action(dom, id) == ButtonAction::Submit {
                         let value = node.get_attribute("value").unwrap_or("").to_string();
                         out.push((name, value));
                     }
                 }
-                (Some("input"), Some("hidden")) => {
+                (_, Some(T::Hidden)) => {
                     if let Some(value) = node.get_attribute("value") {
                         out.push((name, value.to_string()));
                     }

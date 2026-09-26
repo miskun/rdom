@@ -44,6 +44,7 @@ mod form_assoc;
 mod form_control;
 mod html_collection;
 mod indexes;
+mod input_type;
 mod insert_adjacent;
 mod markup;
 mod node;
@@ -74,6 +75,7 @@ pub use event_detail::{
     TransitionDetail,
 };
 pub use html_collection::{FormControlsCollection, HtmlCollection};
+pub use input_type::InputTypeState;
 pub use markup::{VOID_ELEMENTS, is_void_element};
 pub use node::{NodeData, NodeType};
 pub use node_id::NodeId;

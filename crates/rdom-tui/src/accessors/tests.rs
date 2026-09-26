@@ -1608,3 +1608,20 @@ fn click_toggles_checkbox_via_runtime_listener() {
     dom.node_mut(cb).click();
     assert!(!dom.node(cb).has_attribute("checked"));
 }
+
+/// HTML `input.type` reflects the *state* of the enumerated `type`
+/// attribute (§4.10.5): the canonical lowercase keyword, matched ASCII
+/// case-insensitively, `text` for an invalid value (`P7-FORM-ENUM-CASE-1`).
+#[test]
+fn input_type_is_the_canonical_keyword_of_the_state() {
+    let (mut dom, input) = dom_with("input");
+    dom.set_attribute(input, "type", "PassWord").unwrap();
+    assert_eq!(dom.node(input).input_type(), Some("password".to_string()));
+    dom.set_attribute(input, "type", "bogus").unwrap();
+    assert_eq!(dom.node(input).input_type(), Some("text".to_string()));
+    dom.set_attribute(input, "type", "datetime-LOCAL").unwrap();
+    assert_eq!(
+        dom.node(input).input_type(),
+        Some("datetime-local".to_string())
+    );
+}
