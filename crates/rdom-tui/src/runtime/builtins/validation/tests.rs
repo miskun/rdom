@@ -554,3 +554,85 @@ fn form_report_validity_focuses_the_first_unhandled_invalid_control() {
     dom.node_mut(b).set_value("y").unwrap();
     assert!(dom.node_mut(form).report_validity());
 }
+
+// ── P7-VALIDATION-SELECTORS-1 ───────────────────────────────────────
+
+/// `validation::install` hooks the real validity states into the
+/// selector engine: `:invalid` / `:valid` follow values, custom errors
+/// and the form's owned controls.
+#[test]
+fn installed_hook_drives_valid_and_invalid() {
+    let (mut dom, form) = form_dom();
+    crate::runtime::builtins::validation::install(&mut dom);
+    let text = input(&mut dom, form, &[("required", "")]);
+    assert!(dom.matches(text, "input:invalid:required").unwrap());
+    assert!(dom.matches(form, "form:invalid").unwrap());
+    dom.node_mut(text).set_value("x").unwrap();
+    assert!(dom.matches(text, ":valid").unwrap());
+    assert!(dom.matches(form, ":valid").unwrap());
+    dom.node_mut(text).set_custom_validity("no").unwrap();
+    assert!(dom.matches(text, ":invalid").unwrap());
+}
+
+/// The UA sheet does not style `:invalid` / `:valid` (browsers show
+/// only the bubble), so a page without author validity rules pays for
+/// no validity walk.
+#[test]
+fn the_ua_sheet_has_no_validity_rules() {
+    assert!(!super::marks::uses_validity(&crate::Stylesheet::new()));
+    let author = crate::Stylesheet::bare().rule_unchecked(
+        "form :not(:where(input:invalid)) + p",
+        crate::TuiStyle::new(),
+    );
+    assert!(super::marks::uses_validity(&author));
+}
+
+/// Selectors re-match when validity changes without a cascade-dirtying
+/// mutation: a textarea's text edit (character data) and
+/// `set_custom_validity` (no mutation at all) both restyle the control
+/// and its form on the next frame.
+#[test]
+fn validity_changes_restyle_on_the_next_frame() {
+    use crate::render::{Terminal, TestBackend};
+    use crate::runtime::app::App;
+    use crate::style::cascade::computed_of;
+    use crate::style::{Color, Stylesheet, TuiStyle};
+
+    let (mut dom, form) = form_dom();
+    let area = el(&mut dom, form, "textarea", &[("required", "")]);
+    let t = dom.create_text_node("");
+    dom.append_child(area, t).unwrap();
+    let text = input(&mut dom, form, &[("value", "ok")]);
+    let red = Color::Rgb(255, 0, 0);
+    let sheet = Stylesheet::new()
+        .rule_unchecked("input:invalid", TuiStyle::new().fg(red))
+        .rule_unchecked("textarea:invalid", TuiStyle::new().fg(red))
+        .rule_unchecked("form:invalid", TuiStyle::new().bg(red));
+    let mut app =
+        App::with_backend(dom, sheet, Terminal::new(TestBackend::new(40, 6)).unwrap()).unwrap();
+    app.draw_if_dirty().unwrap();
+    assert_eq!(computed_of(app.dom(), area).fg, red);
+    assert_eq!(computed_of(app.dom(), form).bg, red);
+    assert_ne!(computed_of(app.dom(), text).fg, red);
+
+    app.dom_mut().node_mut(t).set_node_value("filled").unwrap();
+    app.draw_if_dirty().unwrap();
+    assert_ne!(
+        computed_of(app.dom(), area).fg,
+        red,
+        "textarea edit restyles"
+    );
+    assert_ne!(computed_of(app.dom(), form).bg, red, "and its form");
+
+    app.dom_mut()
+        .node_mut(text)
+        .set_custom_validity("taken")
+        .unwrap();
+    app.draw_if_dirty().unwrap();
+    assert_eq!(
+        computed_of(app.dom(), text).fg,
+        red,
+        "custom error restyles"
+    );
+    assert_eq!(computed_of(app.dom(), form).bg, red);
+}

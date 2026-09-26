@@ -68,6 +68,9 @@ pub struct Dom<Ext: 'static = ()> {
     /// `stopPropagation()`, which only affects listeners. `None` = no
     /// element in this Dom has activation behavior.
     pub(crate) activation_hook: crate::dispatch::ActivationSlot<Ext>,
+    /// The backend's constraint check behind `:valid` / `:invalid`
+    /// (`Dom::set_validity_hook`). `None` = every candidate is valid.
+    pub(crate) validity_hook: crate::constraint::ValiditySlot<Ext>,
     /// O(1) indexes for id / tag / class lookups. Kept in sync with every
     /// mutation via `hook_register` / `hook_unregister` and the attr/class
     /// accessors in `attrs.rs`.
@@ -134,6 +137,7 @@ impl<Ext: Default> Dom<Ext> {
             observers: ObserverStore::default(),
             is_observing: false,
             activation_hook: crate::dispatch::ActivationSlot(None),
+            validity_hook: crate::constraint::ValiditySlot(None),
         }
     }
 }
@@ -408,6 +412,7 @@ impl<Ext: Default> Dom<Ext> {
             observers: ObserverStore::default(),
             is_observing: false,
             activation_hook: crate::dispatch::ActivationSlot(None),
+            validity_hook: crate::constraint::ValiditySlot(None),
         };
         dom.hook_register(root);
         dom

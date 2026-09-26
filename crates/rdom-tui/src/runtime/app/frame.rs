@@ -1,7 +1,8 @@
 //! The frame of an [`App`]: [`App::draw_if_dirty`] (cascade + animation
 //! step + layout + caret-reveal servicing + paint), the off-frame
 //! [`App::cascade_and_layout`] half used by the autoscroll tick, the
-//! keyboard scroll-focus marker that runs before the cascade, and the
+//! keyboard scroll-focus marker and the `:valid` / `:invalid` marks that
+//! run before the cascade, and the
 //! transition-event drain that follows a painted frame.
 
 use std::io;
@@ -43,6 +44,17 @@ impl<B: Backend> App<B> {
         self.scroll_focus_marked = target;
     }
 
+    /// Mark the elements whose `:valid` / `:invalid` state changed since
+    /// the last frame style-dirty (`validation::ValidityMarks`). Runs
+    /// before the roots are taken, so they re-cascade in this frame.
+    fn flush_validity_marks(&mut self) {
+        self.validity_marks.flush(
+            &mut self.dom,
+            &self.tracker,
+            self.stylesheets.iter().map(|(_, s)| s),
+        );
+    }
+
     /// Cascade + layout + paint if anything is dirty. Pairs with
     /// [`Self::handle_event`] for apps running a custom event loop.
     pub fn draw_if_dirty(&mut self) -> io::Result<()> {
@@ -54,6 +66,7 @@ impl<B: Backend> App<B> {
         // frame.
         self.selectedness.flush(&mut self.dom);
         self.mark_scroll_focus();
+        self.flush_validity_marks();
         let dirty_roots = self.take_dirty_roots();
 
         if !self.needs_redraw && dirty_roots.is_empty() {
@@ -141,6 +154,7 @@ impl<B: Backend> App<B> {
     /// newly dirtied (it still paints — `needs_redraw` is set).
     pub(super) fn cascade_and_layout(&mut self, area: Rect) {
         self.selectedness.flush(&mut self.dom);
+        self.flush_validity_marks();
         let dirty_roots = self.take_dirty_roots();
         style_and_layout(
             &mut self.dom,

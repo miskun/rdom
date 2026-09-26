@@ -106,7 +106,7 @@ The work that fed into 0.1.0 was organized in five internal milestones (M1 CSS p
 
 Current progress + the full release ledger live in [`../STATE.md`](../STATE.md).
 
-Open polish items (no fixed milestone): form validation (`:required` / `:invalid` / `pattern`), `:focus-visible`, `::placeholder` / `:placeholder-shown`, multi-text-node `contenteditable`, undo/redo coalescing, blinking caret, line-based selection extension (`Shift+Up` / `Shift+Down`), whitespace normalization in clipboard serialization.
+Open polish items (no fixed milestone): `:focus-visible`, `::placeholder` / `:placeholder-shown`, multi-text-node `contenteditable`, undo/redo coalescing, blinking caret, line-based selection extension (`Shift+Up` / `Shift+Down`), whitespace normalization in clipboard serialization.
 
 Deferred polish lives in [`TECH_DEBT.md`](TECH_DEBT.md).
 

@@ -16,6 +16,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 - `selectors::PseudoClass` gains `Disabled` and `Enabled` variants (`:disabled` / `:enabled`). Migration: add the two arms to exhaustive matches. (`P7-FIELDSET-DISABLED-1`)
 - `SubmitDetail` gains `action`, `method` (`FormMethod`), `enctype` (`FormEnctype`), `target` and `no_validate`, and is now `#[non_exhaustive]`. Migration: replace `SubmitDetail { submitter }` with `SubmitDetail::new(submitter)` (HTML defaults) or `dom.submit_detail(form, submitter)` (reads the attributes). (`P7-FORM-OWNER-1`)
 - `DomError` gains `TypeError(&'static str)` (the web's `TypeError`, used by `requestSubmit`). Migration: add the arm to exhaustive matches. (`P7-REQUEST-SUBMIT-1`)
+- `selectors::PseudoClass` gains `Valid`, `Invalid`, `Required` and `Optional`. Migration: add the four arms to exhaustive matches. (`P7-VALIDATION-SELECTORS-1`)
 
 ### Added — `rdom-core`
 
@@ -23,6 +24,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 - **Form owner and submitter overrides** (HTML §4.10.17.3, §4.10.19.6): `Dom::form_owner` (`form="id"`, else the nearest ancestor `<form>`), `Dom::form_listed_elements` (`form.elements`, tree order of the whole document), `Dom::is_submit_button`, and `Dom::submit_detail`, which resolves the effective `action` / `method` / `enctype` / `target` / no-validate state from the form and the submitter's `formaction` / `formmethod` / `formenctype` / `formtarget` / `formnovalidate`. New `FormMethod` / `FormEnctype` enums (also re-exported by rdom-tui). (`P7-FORM-OWNER-1`)
 - `InputTypeState` and `Dom::input_type_state`: the state of an `<input>`'s `type` attribute (HTML §4.10.5), keywords matched ASCII case-insensitively, Text when missing or invalid. (`P7-FORM-ENUM-CASE-1`)
 - `Dom::will_validate`: whether an element is a candidate for constraint validation (HTML §4.10.20.1) — a submittable control that is not disabled, `readonly` (where it applies), a hidden / reset / button input, a non-submit button or inside a `<datalist>`. (`P7-VALIDATION-1`)
+- `:valid`, `:invalid`, `:required` and `:optional` (HTML §4.16.3): `:required` / `:optional` from attributes (`Dom::is_required_control` / `is_optional_control`), `:valid` / `:invalid` for candidates, forms and fieldsets (`Dom::constraint_validity`) with the per-control verdict from a backend hook (`Dom::set_validity_hook`, `ValidityHook`). (`P7-VALIDATION-SELECTORS-1`)
 
 ### Changed — `rdom-core`
 
@@ -59,6 +61,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 - UA: `<input type=checkbox>` / `<input type=radio>` are `inline-block`, like `<button>`, so `<label><input type=checkbox> Name</label>` flows on one line as in HTML, and they no longer inherit the text field's `width: 20`: they hug their glyph (4 cells) in a flex row. The UA module doc now lists all twenty sections. (`UA-CHECKBOX-INLINE-1`, `SUB-3`, `FLEX-BLOCK-MAIN-INTRINSIC-1`)
 - UA: `input[type=checkbox]`, `input[type=radio]` and `input[type=range]` declare no `user-select`, as in browsers' UA sheets; a click on them beside prose reaches them because the text-selection drag takes no pointer capture. The button family keeps its UA `user-select: none`, now listed in DIVERGENCES. (`FORM-DEFAULTS-1`, `P6G-TOGGLE-USER-SELECT-REVERT-1`)
 - The UA `[disabled]` rule is now `:disabled`: controls inside a `<fieldset disabled>` are muted and unselectable, and a `<div disabled>` is no longer muted. (`P7-FIELDSET-DISABLED-1`)
+- Specificity counts `:valid`, `:invalid`, `:required` and `:optional` as pseudo-classes (0,1,0). (`P7-VALIDATION-SELECTORS-1`)
 
 ### Fixed — `rdom-style`
 
@@ -112,6 +115,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 - `SCROLL_FOCUS_ATTR` (public): the runtime keeps `data-rdom-scroll-focus` on the scroll container the keyboard scrolls, which the UA's focus-thumb rule keys on. (`FOCUS-THUMB-NEAREST-1`)
 - New public paths for generated content and caret geometry: `render::inline::GeneratedFragment` (a host's `::before` / `::after` run on a line, with `host`, `slot`, `x`, `width`, `text`), read through the new `LineBox::generated` (see Breaking); `ext::PseudoSlot` (`Before` / `After`, converts into `StyleSlot`); and `render::inline::cell_of_position`, the caret-cell lookup (`runtime::editing::caret::cell_of_position` stays as a re-export). (`P6G-PSEUDO-SHIFT-1`, `P6G-RUN-LAYOUT-VIS-1`, `P6G-RENDER-HELPERS-1`)
 - **Constraint validation** (HTML §4.10.20) in new `runtime::builtins::validation`: `ValidityState` (`value_missing`, `type_mismatch`, `pattern_mismatch`, `too_long`, `too_short`, `range_underflow`, `range_overflow`, `step_mismatch`, `bad_input`, `custom_error`, `valid()`) for text-family inputs, email / url, number, checkbox, radio groups, `<select>` (placeholder label option) and `<textarea>`; `required`, `pattern` (anchored, via the `regex` crate), `minlength` / `maxlength` (UTF-16 code units, user-edited values only), `min` / `max` / `step`; the accessors `validity`, `will_validate`, `validation_message`, `check_validity`, `report_validity` (focuses the first invalid control; no bubble) and `set_custom_validity`, on controls and on `<form>`; a cancelable, non-bubbling `invalid` event; and interactive validation before every submission (click, implicit, `form_request_submit` → `SubmitOutcome::Invalid`) unless `novalidate` / `formnovalidate`. (`P7-VALIDATION-1`)
+- `:valid` / `:invalid` match by the constraint-validation states: `validation::install` (run by `App`; call it on a bare `TuiDom`) hooks them into rdom-core, and the App re-cascades every control, form and fieldset whose validity changed before each frame, even when nothing mutated (a textarea edit, `set_custom_validity`). The UA sheet does not style them. (`P7-VALIDATION-SELECTORS-1`)
 
 ### Changed — `rdom-tui`
 

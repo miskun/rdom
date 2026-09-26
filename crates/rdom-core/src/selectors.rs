@@ -9,7 +9,8 @@
 //! - Pseudo-classes: `:not(selector)`, `:where(selector-list)`,
 //!   `:first-child`, `:last-child`, `:only-child`, `:empty`, `:root`,
 //!   plus the interaction pseudos (`:hover`, `:focus`, `:focus-within`, …)
-//!   and the form-state pseudos (`:checked`, `:disabled`, `:enabled`, …)
+//!   and the form-state pseudos (`:checked`, `:disabled`, `:enabled`,
+//!   `:valid`, `:invalid`, `:required`, `:optional`, …)
 //! - Selector list: `a, b, c`
 //!
 //! Attribute values match case-sensitively, except the attributes HTML
@@ -164,6 +165,22 @@ pub enum PseudoClass {
     /// (`<button>`, `<input>`, `<select>`, `<textarea>`, `<fieldset>`,
     /// `<optgroup>`, `<option>`) when they are not actually disabled.
     Enabled,
+    /// `:valid` — HTML §4.16.3: a candidate for constraint validation
+    /// that satisfies its constraints, a `<form>` owning no invalid
+    /// candidate, a `<fieldset>` with no invalid descendant candidate.
+    /// The verdict per candidate comes from the backend's validity hook
+    /// ([`Dom::set_validity_hook`](crate::Dom::set_validity_hook)); see
+    /// [`Dom::constraint_validity`](crate::Dom::constraint_validity).
+    Valid,
+    /// `:invalid` — the complement of `:valid` among the same elements:
+    /// an invalid candidate, a form or fieldset with one.
+    Invalid,
+    /// `:required` — an `<input>` (in a state `required` applies to),
+    /// `<select>` or `<textarea>` with the `required` attribute.
+    Required,
+    /// `:optional` — an `<input>`, `<select>` or `<textarea>` that is
+    /// not `:required`.
+    Optional,
 }
 
 // ─── Error ───────────────────────────────────────────────────────────
@@ -514,6 +531,10 @@ impl<'a> Parser<'a> {
             "open" => Ok(SimpleSelector::Pseudo(PseudoClass::Open)),
             "disabled" => Ok(SimpleSelector::Pseudo(PseudoClass::Disabled)),
             "enabled" => Ok(SimpleSelector::Pseudo(PseudoClass::Enabled)),
+            "valid" => Ok(SimpleSelector::Pseudo(PseudoClass::Valid)),
+            "invalid" => Ok(SimpleSelector::Pseudo(PseudoClass::Invalid)),
+            "required" => Ok(SimpleSelector::Pseudo(PseudoClass::Required)),
+            "optional" => Ok(SimpleSelector::Pseudo(PseudoClass::Optional)),
             other => Err(self.err(format!("unsupported pseudo-class `:{other}`"))),
         }
     }

@@ -79,10 +79,10 @@ These are intrinsic to terminals. They will not change.
 
 ### Cascade & selectors
 
-Supported selector grammar: type, class, ID, attribute, descendant, child (`>`), adjacent sibling (`+`), general sibling (`~`), comma list. Supported pseudo-classes: `:hover`, `:focus`, `:focus-within`, `:checked`, `:indeterminate`, `:open`, `:disabled`, `:enabled`, `:first-child`, `:last-child`, `:only-child`, `:empty`, `:root`, `:not(<list>)`, `:where(<list>)`, `:placeholder-shown`.
+Supported selector grammar: type, class, ID, attribute, descendant, child (`>`), adjacent sibling (`+`), general sibling (`~`), comma list. Supported pseudo-classes: `:hover`, `:focus`, `:focus-within`, `:checked`, `:indeterminate`, `:open`, `:disabled`, `:enabled`, `:valid`, `:invalid`, `:required`, `:optional`, `:first-child`, `:last-child`, `:only-child`, `:empty`, `:root`, `:not(<list>)`, `:where(<list>)`, `:placeholder-shown`.
 
 - **`:where(<list>)`** matches like `:is()` (any complex selector in its list) but contributes **zero specificity** (Selectors L4) — the mechanism a component library uses to ship default styles that any author rule overrides. `:is()` (specificity = most-specific argument) is *not* yet implemented.
-- **Not implemented:** attribute selector case flags (`[x=v i]`, `[type=a s]`), `:nth-child(an+b)`, `:nth-of-type`, `:has()`, `:is()`, `:focus-visible`, `:read-only`, `:read-write`, `:required`, `:invalid`, `:valid`, `:modal`.
+- **Not implemented:** attribute selector case flags (`[x=v i]`, `[type=a s]`), `:nth-child(an+b)`, `:nth-of-type`, `:has()`, `:is()`, `:focus-visible`, `:read-only`, `:read-write`, `:user-valid`, `:user-invalid`, `:modal`.
 - **Not implemented as author-styleable pseudo-elements:** `::marker`, `::placeholder`, `::caret`, `::first-line`, `::first-letter`. List markers use `::before` content; placeholder text uses `:placeholder-shown::before { content: attr(placeholder) }`.
 - **`::scrollbar`, `::scrollbar-thumb`, `::scrollbar-thumb:vertical` / `:horizontal` are rdom pseudo-elements** modeled on WebKit's `::-webkit-scrollbar` / `::-webkit-scrollbar-thumb` / `:vertical` / `:horizontal`; there is no standard equivalent (CSS Scrollbars 1 has only `scrollbar-color` / `scrollbar-width`, not shipped). They style the gutter cells that `scrollbar-gutter` reserves; `content` is the cell glyph.
 - **`var()` is consumed in color positions and in `content` only.** Custom properties themselves follow CSS Variables 1: any selector, per-element scope, inherited, `!important` honored, inline `style="--x: …"` included. But `padding: var(--gap)` and every other non-color, non-`content` property do not substitute; the declaration is invalid at parse time and warns. Reason: rdom's property values are typed at parse time, and a general substitution pass (parse-time tokens → computed-time re-parse) is not built.
@@ -212,7 +212,7 @@ Common web-platform surface rdom omits entirely as of 0.4.x. Schedule lives in [
 
 - **`transition-behavior: allow-discrete`** (CSS Transitions 2): discrete properties (`display`, `position`, …) never transition; `transition-property: display` (or any other `<custom-ident>`) parses and is inert, exactly as Transitions Level 1 behaves without the Level 2 property.
 
-- **Form-validation pseudo-classes:** `:valid`, `:invalid`, `:required`, `:optional`, `:user-valid` and `:user-invalid` are not matched. Constraint validation itself ships (`runtime::builtins::validation`). The date / time / month / week / color / file input types, which rdom does not render, suffer only `valueMissing` and `customError`.
+- **Validation after user interaction:** `:user-valid` / `:user-invalid` are not matched (rdom tracks no "user interacted" flag per control). Constraint validation, its API and `:valid` / `:invalid` / `:required` / `:optional` ship; the date / time / month / week / color / file input types, which rdom does not render, suffer only `valueMissing` and `customError`.
 - **Smooth scrolling.** `scroll-behavior` is not parsed; every scroll is instant.
 - **Live `<style>` sheets.** A `<style>` element's text is snapshotted when the stylesheet is built; editing its text later does not re-parse. (Inline `style="…"` *is* live — the CSSOM observer re-parses it on every attribute write.)
 

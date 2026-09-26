@@ -5,10 +5,125 @@
 //!
 //! - [`Dom::will_validate`] — a submittable element that is not *barred
 //!   from constraint validation*: the `willValidate` IDL attribute.
+//! - [`Dom::constraint_validity`] — what `:valid` / `:invalid` match
+//!   (HTML §4.16.3), with the per-candidate verdict delegated to the
+//!   backend's [`ValidityHook`].
+//! - [`Dom::is_required_control`] / [`Dom::is_optional_control`] — what
+//!   `:required` / `:optional` match.
 
 use crate::dom::Dom;
 use crate::input_type::InputTypeState;
 use crate::node_id::NodeId;
+
+/// A backend's constraint check: whether candidate `id` satisfies its
+/// constraints. The validity states need values, patterns and state the
+/// substrate does not model (rdom-tui's `validation` builtin computes
+/// them), so the substrate asks the backend through this hook — a plain
+/// `fn`, so matching (`&self`) can call it. Installed with
+/// [`Dom::set_validity_hook`].
+pub type ValidityHook<Ext> = fn(&Dom<Ext>, NodeId) -> bool;
+
+/// Storage for the hook with a `Debug` impl.
+pub(crate) struct ValiditySlot<Ext: 'static>(pub(crate) Option<ValidityHook<Ext>>);
+
+impl<Ext: 'static> std::fmt::Debug for ValiditySlot<Ext> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(if self.0.is_some() {
+            "ValiditySlot(Some(hook))"
+        } else {
+            "ValiditySlot(None)"
+        })
+    }
+}
+
+impl<Ext: 'static> Dom<Ext> {
+    /// Install (or remove, with `None`) the backend's constraint check
+    /// behind `:valid` / `:invalid`. Without one, every candidate is
+    /// valid. rdom-tui installs its own in `App` construction (and
+    /// `runtime::builtins::validation::install` for a bare `TuiDom`).
+    pub fn set_validity_hook(&mut self, hook: Option<ValidityHook<Ext>>) {
+        self.validity_hook = ValiditySlot(hook);
+    }
+
+    /// What `:valid` / `:invalid` match (HTML §4.16.3):
+    ///
+    /// - a [candidate](Self::will_validate): `Some(verdict)` of the
+    ///   validity hook (`Some(true)` without one);
+    /// - a `<form>`: `Some(false)` when a candidate it owns
+    ///   ([`form_listed_elements`](Self::form_listed_elements)) is
+    ///   invalid, else `Some(true)`;
+    /// - a `<fieldset>`: the same over its descendant candidates;
+    /// - anything else, barred controls included: `None` (neither).
+    pub fn constraint_validity(&self, id: NodeId) -> Option<bool> {
+        let tag = self.get_node(id)?.tag_name()?;
+        match tag {
+            "form" => Some(
+                !self
+                    .form_listed_elements(id)
+                    .into_iter()
+                    .any(|c| self.suffers(c)),
+            ),
+            "fieldset" => Some(!self.any_descendant_suffers(id)),
+            _ if self.will_validate(id) => Some(self.satisfies(id)),
+            _ => None,
+        }
+    }
+
+    /// Whether `id` matches `:required` (HTML §4.16.3): an `<input>` in
+    /// a state the `required` attribute applies to (not hidden, range,
+    /// color or the button types), a `<select>` or a `<textarea>`, with
+    /// `required`.
+    pub fn is_required_control(&self, id: NodeId) -> bool {
+        use InputTypeState as T;
+        let applies = match self.get_node(id).and_then(|n| n.tag_name()) {
+            Some("select" | "textarea") => true,
+            Some("input") => !matches!(
+                self.input_type_state(id),
+                Some(T::Hidden | T::Range | T::Color | T::Submit | T::Image | T::Reset | T::Button)
+            ),
+            _ => false,
+        };
+        applies && self.has_attribute(id, "required")
+    }
+
+    /// Whether `id` matches `:optional`: an `<input>`, `<select>` or
+    /// `<textarea>` that is not [required](Self::is_required_control).
+    pub fn is_optional_control(&self, id: NodeId) -> bool {
+        matches!(
+            self.get_node(id).and_then(|n| n.tag_name()),
+            Some("input" | "select" | "textarea")
+        ) && !self.is_required_control(id)
+    }
+
+    /// The hook's verdict for candidate `id` (valid without a hook).
+    fn satisfies(&self, id: NodeId) -> bool {
+        self.validity_hook.0.is_none_or(|hook| hook(self, id))
+    }
+
+    /// A candidate that does not satisfy its constraints.
+    fn suffers(&self, id: NodeId) -> bool {
+        self.will_validate(id) && !self.satisfies(id)
+    }
+
+    fn any_descendant_suffers(&self, id: NodeId) -> bool {
+        let mut stack: Vec<NodeId> = Vec::new();
+        let push_children = |stack: &mut Vec<NodeId>, of: NodeId| {
+            let mut c = self.get_node(of).and_then(|n| n.first_child);
+            while let Some(cid) = c {
+                stack.push(cid);
+                c = self.get_node(cid).and_then(|n| n.next_sibling);
+            }
+        };
+        push_children(&mut stack, id);
+        while let Some(n) = stack.pop() {
+            if self.suffers(n) {
+                return true;
+            }
+            push_children(&mut stack, n);
+        }
+        false
+    }
+}
 
 impl<Ext> Dom<Ext> {
     /// Whether `id` is a *candidate for constraint validation* (HTML

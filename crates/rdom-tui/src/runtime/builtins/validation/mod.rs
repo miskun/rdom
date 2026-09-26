@@ -37,11 +37,15 @@
 //!   focuses the (first) invalid control whose `invalid` was not
 //!   canceled. [`validation_message`] is rdom's English message for the
 //!   first failing state (`messages`), `""` for a valid or barred control.
+//! - **Selectors** — [`install`] gives rdom-core's `:valid` /
+//!   `:invalid` their verdict; `ValidityMarks` (module `marks`) keeps
+//!   them current in the App's incremental cascade.
 //! - **Submission** — `form::submit` runs `interactively_validate`
 //!   unless `SubmitDetail::no_validate` (the form's `novalidate`, the
 //!   submitter's `formnovalidate`): any invalid control blocks the
 //!   `submit` event, whether or not its `invalid` was canceled.
 
+mod marks;
 mod messages;
 mod pattern;
 mod states;
@@ -55,6 +59,7 @@ use rdom_core::NodeId;
 use crate::tui_event::TuiDispatchExt;
 use crate::{TuiDom, TuiEvent};
 
+pub(crate) use marks::ValidityMarks;
 pub(crate) use pattern::PatternCache;
 
 /// The validity states of a control (HTML `ValidityState`). Every flag
@@ -80,6 +85,21 @@ impl ValidityState {
     pub fn valid(&self) -> bool {
         *self == Self::default()
     }
+}
+
+/// Hook the validity states into the selector engine: `:valid` /
+/// `:invalid` then match by [`validity`] (`Dom::set_validity_hook`).
+/// `App` construction calls it; a bare `TuiDom` that matches those
+/// pseudo-classes calls it once itself. The App also re-cascades the
+/// elements whose validity changed before each frame
+/// (`ValidityMarks`).
+pub fn install(dom: &mut TuiDom) {
+    dom.set_validity_hook(Some(satisfies));
+}
+
+/// The [`rdom_core::ValidityHook`] rdom-tui installs.
+fn satisfies(dom: &TuiDom, id: NodeId) -> bool {
+    validity(dom, id).valid()
 }
 
 /// The validity states of `id`, computed from its current value and

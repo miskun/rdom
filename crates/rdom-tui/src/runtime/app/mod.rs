@@ -104,6 +104,10 @@ pub struct App<B: Backend = CrosstermBackend<Stdout>> {
     /// whose options were inserted / removed; flushed before each event
     /// and each frame.
     pub(super) selectedness: crate::runtime::builtins::select::Selectedness,
+    /// Each element's `:valid` / `:invalid` state as of the last frame;
+    /// flushed before each frame's cascade so a validity change with no
+    /// cascade-dirtying mutation still restyles.
+    pub(super) validity_marks: crate::runtime::builtins::validation::ValidityMarks,
     pub(super) router: Router,
 
     tick_rate: Duration,
@@ -338,6 +342,7 @@ impl<B: Backend> App<B> {
         crate::runtime::builtins::select::install(&mut dom);
         crate::runtime::builtins::range::install(&mut dom);
         crate::runtime::builtins::tree::install(&mut dom);
+        crate::runtime::builtins::validation::install(&mut dom);
         // Make sure every `<input>` has a text-node child reflecting
         // its `value` attribute. Parsed templates (`<input value="x">`
         // with no children) and direct-API users alike land in the
@@ -375,6 +380,7 @@ impl<B: Backend> App<B> {
             terminal,
             tracker,
             selectedness,
+            validity_marks: Default::default(),
             router: Router::new(),
             tick_rate: Duration::from_millis(50),
             animation_frame_ms: 16,

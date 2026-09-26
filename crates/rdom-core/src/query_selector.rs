@@ -326,6 +326,10 @@ impl<Ext> Dom<Ext> {
                 .unwrap_or(false),
             PseudoClass::Disabled => self.is_actually_disabled(id),
             PseudoClass::Enabled => self.is_enabled_control(id),
+            PseudoClass::Valid => self.constraint_validity(id) == Some(true),
+            PseudoClass::Invalid => self.constraint_validity(id) == Some(false),
+            PseudoClass::Required => self.is_required_control(id),
+            PseudoClass::Optional => self.is_optional_control(id),
         }
     }
 
@@ -935,5 +939,99 @@ mod tests {
         let root = dom.root();
         assert!(dom.query_selector_in(root, ":nope").is_err());
         assert!(dom.query_selector_all_in(root, "").is_err());
+    }
+
+    // ── P7-VALIDATION-SELECTORS-1 ─────────────────────────────────────
+
+    /// HTML §4.16.3: `:required` matches an `<input>` (in a state
+    /// `required` applies to), `<select>` or `<textarea>` with
+    /// `required`; `:optional` the rest of those three.
+    #[test]
+    fn required_and_optional_match_the_three_form_controls() {
+        let mut dom: Dom = Dom::new();
+        let root = dom.root();
+        let mk = |dom: &mut Dom, tag: &str, attrs: &[(&str, &str)]| {
+            let e = dom.create_element(tag);
+            for (k, v) in attrs {
+                dom.set_attribute(e, k, v).unwrap();
+            }
+            dom.append_child(root, e).unwrap();
+            e
+        };
+        let req_text = mk(&mut dom, "input", &[("required", "")]);
+        let req_box = mk(&mut dom, "input", &[("type", "checkbox"), ("required", "")]);
+        let req_range = mk(&mut dom, "input", &[("type", "range"), ("required", "")]);
+        let req_hidden = mk(&mut dom, "input", &[("type", "hidden"), ("required", "")]);
+        let plain = mk(&mut dom, "input", &[]);
+        let req_select = mk(&mut dom, "select", &[("required", "")]);
+        let area = mk(&mut dom, "textarea", &[]);
+        let req_div = mk(&mut dom, "div", &[("required", "")]);
+        let button = mk(&mut dom, "button", &[("required", "")]);
+        for id in [req_text, req_box, req_select] {
+            assert!(dom.matches(id, ":required").unwrap(), "{id:?}");
+            assert!(!dom.matches(id, ":optional").unwrap(), "{id:?}");
+        }
+        for id in [req_range, req_hidden, plain, area] {
+            assert!(dom.matches(id, ":optional").unwrap(), "{id:?}");
+            assert!(!dom.matches(id, ":required").unwrap(), "{id:?}");
+        }
+        for id in [req_div, button] {
+            assert!(!dom.matches(id, ":required").unwrap(), "{id:?}");
+            assert!(!dom.matches(id, ":optional").unwrap(), "{id:?}");
+        }
+    }
+
+    /// Test backend: a candidate is invalid while it has `data-bad`.
+    fn bad_attr_hook(dom: &Dom, id: NodeId) -> bool {
+        !dom.has_attribute(id, "data-bad")
+    }
+
+    /// HTML §4.16.3: `:valid` / `:invalid` match candidates for
+    /// constraint validation by the backend's verdict (the validity
+    /// hook), forms by their owned candidates and fieldsets by their
+    /// descendant candidates; barred and other elements match neither.
+    #[test]
+    fn valid_and_invalid_follow_the_validity_hook() {
+        let mut dom: Dom = Dom::new();
+        let root = dom.root();
+        let form = dom.create_element("form");
+        dom.append_child(root, form).unwrap();
+        let fieldset = dom.create_element("fieldset");
+        dom.append_child(form, fieldset).unwrap();
+        let bad = dom.create_element("input");
+        dom.set_attribute(bad, "data-bad", "").unwrap();
+        dom.append_child(fieldset, bad).unwrap();
+        let good = dom.create_element("textarea");
+        dom.append_child(form, good).unwrap();
+        let barred = dom.create_element("input");
+        dom.set_attribute(barred, "data-bad", "").unwrap();
+        dom.set_attribute(barred, "disabled", "").unwrap();
+        dom.append_child(form, barred).unwrap();
+        let div = dom.create_element("div");
+        dom.append_child(form, div).unwrap();
+        let empty_form = dom.create_element("form");
+        dom.append_child(root, empty_form).unwrap();
+
+        // No hook installed: every candidate is valid.
+        assert!(dom.matches(bad, ":valid").unwrap());
+        assert!(dom.matches(form, ":valid").unwrap());
+
+        dom.set_validity_hook(Some(bad_attr_hook));
+        assert!(dom.matches(bad, ":invalid").unwrap());
+        assert!(!dom.matches(bad, ":valid").unwrap());
+        assert!(dom.matches(good, ":valid").unwrap());
+        assert!(dom.matches(fieldset, ":invalid").unwrap());
+        assert!(dom.matches(form, ":invalid").unwrap());
+        assert!(dom.matches(empty_form, ":valid").unwrap());
+        for id in [barred, div] {
+            assert!(!dom.matches(id, ":valid").unwrap(), "{id:?}");
+            assert!(!dom.matches(id, ":invalid").unwrap(), "{id:?}");
+        }
+        assert_eq!(dom.constraint_validity(bad), Some(false));
+        assert_eq!(dom.constraint_validity(div), None);
+
+        dom.remove_attribute(bad, "data-bad").unwrap();
+        assert!(dom.matches(form, ":valid").unwrap());
+        assert!(dom.matches(fieldset, ":valid").unwrap());
     }
 }

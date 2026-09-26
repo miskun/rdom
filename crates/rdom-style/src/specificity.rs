@@ -110,7 +110,11 @@ impl Specificity {
                 | PseudoClass::Indeterminate
                 | PseudoClass::Open
                 | PseudoClass::Disabled
-                | PseudoClass::Enabled => self.class_attr_pseudo += 1,
+                | PseudoClass::Enabled
+                | PseudoClass::Valid
+                | PseudoClass::Invalid
+                | PseudoClass::Required
+                | PseudoClass::Optional => self.class_attr_pseudo += 1,
             },
             // `:not(X)` contributes the specificity of X (max across its list).
             SimpleSelector::Not(inner) => {
