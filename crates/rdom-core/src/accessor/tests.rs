@@ -700,6 +700,44 @@ fn content_editable_defaults_to_inherit() {
     assert_eq!(dom.node(el).content_editable(), "plaintext-only");
 }
 
+/// HTML §6.8.1 `contentEditable` getter: the state's keyword — matched
+/// ASCII case-insensitively, `""` is true, an invalid value is
+/// `"inherit"`.
+#[test]
+fn content_editable_getter_reports_the_normalized_state() {
+    let mut dom: Dom = Dom::new();
+    let el = dom.create_element("div");
+    for (raw, idl) in [
+        ("TRUE", "true"),
+        ("", "true"),
+        ("False", "false"),
+        ("PlainText-Only", "plaintext-only"),
+        ("bogus", "inherit"),
+        ("inherit", "inherit"),
+    ] {
+        dom.set_attribute(el, "contenteditable", raw).unwrap();
+        assert_eq!(dom.node(el).content_editable(), idl, "raw {raw:?}");
+    }
+}
+
+/// HTML §6.8.1 `contentEditable` setter: `inherit` removes the
+/// attribute, the three keywords are written lowercase, anything else
+/// throws a `SyntaxError` and leaves the attribute alone.
+#[test]
+fn content_editable_setter_validates_its_keyword() {
+    let mut dom: Dom = Dom::new();
+    let el = dom.create_element("div");
+    dom.node_mut(el).set_content_editable("TRUE").unwrap();
+    assert_eq!(dom.node(el).get_attribute("contenteditable"), Some("true"));
+    assert!(matches!(
+        dom.node_mut(el).set_content_editable("yes"),
+        Err(DomError::Syntax(_))
+    ));
+    assert_eq!(dom.node(el).get_attribute("contenteditable"), Some("true"));
+    dom.node_mut(el).set_content_editable("Inherit").unwrap();
+    assert!(!dom.node(el).has_attribute("contenteditable"));
+}
+
 #[test]
 fn inner_html_and_outer_html_getters_delegate_to_markup() {
     let mut dom: Dom = Dom::new();

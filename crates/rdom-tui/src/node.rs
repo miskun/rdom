@@ -131,8 +131,11 @@ pub trait TuiNodeExt<'a> {
     /// `true` when this element opts into text editing.
     ///
     /// Three sources of editability:
-    /// - `contenteditable="true"` / `""` (HTML boolean shorthand) on
-    ///   any element (Phase B).
+    /// - an editing host: `contenteditable` in the true (`true` / `""`)
+    ///   or plaintext-only state, keywords ASCII case-insensitive (HTML
+    ///   §6.8.1, `Dom::content_editable_state`). rdom's editing is
+    ///   plain text in both states (Enter inserts `\n`, paste inserts
+    ///   text), so `plaintext-only` behaves exactly like `true`.
     /// - `<textarea>` tag (Phase C.4a).
     /// - `<input>` of a text-family `type` (Phase C.4a) — `text`,
     ///   `password`, `email`, `url`, `tel`, `search`, plus the
@@ -179,10 +182,11 @@ impl<'a> TuiNodeExt<'a> for NodeRef<'a, TuiExt> {
         if self.dom().is_actually_disabled(self.id()) {
             return false;
         }
-        if matches!(
-            self.get_attribute("contenteditable"),
-            Some("true") | Some("")
-        ) {
+        if self
+            .dom()
+            .content_editable_state(self.id())
+            .is_some_and(rdom_core::ContentEditableState::is_editing_host)
+        {
             return true;
         }
         match self.tag_name() {
@@ -193,9 +197,12 @@ impl<'a> TuiNodeExt<'a> for NodeRef<'a, TuiExt> {
     }
 }
 
-/// Walk up from `node_id` (inclusive) to the nearest element with
-/// `contenteditable="true"`. Returns the editable ancestor's id, or
-/// `None` when neither `node_id` nor any ancestor is editable.
+/// Walk up from `node_id` (inclusive) to the nearest editing host or
+/// text control ([`TuiNodeExt::is_editable`]). Returns its id, or
+/// `None` when `node_id` is not editable: nothing on the way up is
+/// editable, or the walk first meets a `contenteditable` element in
+/// the false state — a non-editable island inside an editing host
+/// (HTML §6.8.1: the false state stops inheritance).
 /// Used by runtime paths that need to route an edit or caret action
 /// to the enclosing editable scope.
 pub fn nearest_editable_ancestor(
@@ -206,6 +213,9 @@ pub fn nearest_editable_ancestor(
     while let Some(id) = cur {
         if dom.node(id).is_editable() {
             return Some(id);
+        }
+        if dom.content_editable_state(id) == Some(rdom_core::ContentEditableState::False) {
+            return None;
         }
         cur = dom.node(id).parent_node().map(|p| p.id());
     }

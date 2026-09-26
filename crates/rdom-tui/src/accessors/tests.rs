@@ -162,6 +162,39 @@ fn is_content_editable_false_overrides_inherited_true() {
     assert!(!dom.node(inner).is_content_editable());
 }
 
+/// HTML §6.8.1: keywords match ASCII case-insensitively; an invalid
+/// value is the inherit state.
+#[test]
+fn is_content_editable_is_ascii_case_insensitive_and_invalid_inherits() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let outer = dom.create_element("div");
+    let island = dom.create_element("span");
+    let bogus = dom.create_element("span");
+    let loose = dom.create_element("div");
+    dom.append_child(root, outer).unwrap();
+    dom.append_child(outer, island).unwrap();
+    dom.append_child(outer, bogus).unwrap();
+    dom.append_child(root, loose).unwrap();
+    dom.set_attribute(outer, "contenteditable", "TRUE").unwrap();
+    dom.set_attribute(island, "contenteditable", "FaLsE")
+        .unwrap();
+    dom.set_attribute(bogus, "contenteditable", "maybe")
+        .unwrap();
+    dom.set_attribute(loose, "contenteditable", "maybe")
+        .unwrap();
+    assert!(dom.node(outer).is_content_editable());
+    assert!(!dom.node(island).is_content_editable());
+    assert!(
+        dom.node(bogus).is_content_editable(),
+        "invalid inherits true"
+    );
+    assert!(
+        !dom.node(loose).is_content_editable(),
+        "invalid inherits false"
+    );
+}
+
 #[test]
 fn is_content_editable_does_not_match_native_input() {
     // `<input>` is editable via `TuiNodeExt::is_editable` but

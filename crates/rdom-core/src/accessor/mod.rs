@@ -397,10 +397,14 @@ impl<'a, Ext: 'static> NodeRef<'a, Ext> {
         self.has_attribute("hidden")
     }
 
-    /// DOM `HTMLElement.contentEditable` — IDL string. Returns the
-    /// raw attribute when set, else `"inherit"` per spec.
-    pub fn content_editable(&self) -> &'a str {
-        self.get_attribute("contenteditable").unwrap_or("inherit")
+    /// DOM `HTMLElement.contentEditable` getter (HTML §6.8.1): the
+    /// canonical keyword of the attribute's state — `"true"`, `"false"`
+    /// or `"plaintext-only"`, matched ASCII case-insensitively — and
+    /// `"inherit"` when the attribute is missing or invalid.
+    pub fn content_editable(&self) -> &'static str {
+        self.dom
+            .content_editable_state(self.id)
+            .map_or("inherit", crate::ContentEditableState::keyword)
     }
 
     /// DOM `Element.innerHTML` getter — markup of this element's

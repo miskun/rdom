@@ -144,13 +144,23 @@ impl<'a, Ext: 'static> NodeMut<'a, Ext> {
         }
     }
 
-    /// DOM `HTMLElement.contentEditable` setter. Writes the
-    /// `contenteditable` attribute literally; the spec-recognized
-    /// values are `"true"`, `"false"`, `"plaintext-only"`,
-    /// `"inherit"`, but any string is accepted (browser-faithful —
-    /// the IDL doesn't validate at assignment time).
+    /// DOM `HTMLElement.contentEditable` setter (HTML §6.8.1), matched
+    /// ASCII case-insensitively: `"inherit"` removes the attribute;
+    /// `"true"`, `"false"` and `"plaintext-only"` write that keyword
+    /// in lowercase; anything else is a [`DomError::Syntax`] and leaves
+    /// the attribute untouched.
     pub fn set_content_editable(&mut self, value: &str) -> Result<()> {
-        self.set_attribute("contenteditable", value)
+        if value.eq_ignore_ascii_case("inherit") {
+            return self.remove_attribute("contenteditable").map(|_| ());
+        }
+        match crate::ContentEditableState::from_attribute(value) {
+            Some(state) if !value.is_empty() => {
+                self.set_attribute("contenteditable", state.keyword())
+            }
+            _ => Err(DomError::Syntax(
+                "contentEditable must be true, false, plaintext-only or inherit",
+            )),
+        }
     }
 
     /// Toggle an attribute with optional force. DOM

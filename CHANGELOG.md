@@ -17,6 +17,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 - `SubmitDetail` gains `action`, `method` (`FormMethod`), `enctype` (`FormEnctype`), `target` and `no_validate`, and is now `#[non_exhaustive]`. Migration: replace `SubmitDetail { submitter }` with `SubmitDetail::new(submitter)` (HTML defaults) or `dom.submit_detail(form, submitter)` (reads the attributes). (`P7-FORM-OWNER-1`)
 - `DomError` gains `TypeError(&'static str)` (the web's `TypeError`, used by `requestSubmit`). Migration: add the arm to exhaustive matches. (`P7-REQUEST-SUBMIT-1`)
 - `selectors::PseudoClass` gains `Valid`, `Invalid`, `Required` and `Optional`. Migration: add the four arms to exhaustive matches. (`P7-VALIDATION-SELECTORS-1`)
+- `NodeMut::set_content_editable` follows the HTML IDL setter: keywords are ASCII case-insensitive and written lowercase, `"inherit"` removes the attribute, anything else (including `""`) returns the new `DomError::Syntax`; `NodeRef::content_editable` returns the normalized keyword (`"inherit"` for an invalid value). Migration: handle `DomError::Syntax` in exhaustive matches and pass one of the four keywords. (`P7-CONTENTEDITABLE-CASE-1`)
 
 ### Added — `rdom-core`
 
@@ -26,6 +27,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 - `Dom::will_validate`: whether an element is a candidate for constraint validation (HTML §4.10.20.1) — a submittable control that is not disabled, `readonly` (where it applies), a hidden / reset / button input, a non-submit button or inside a `<datalist>`. (`P7-VALIDATION-1`)
 - `:valid`, `:invalid`, `:required` and `:optional` (HTML §4.16.3): `:required` / `:optional` from attributes (`Dom::is_required_control` / `is_optional_control`), `:valid` / `:invalid` for candidates, forms and fieldsets (`Dom::constraint_validity`) with the per-control verdict from a backend hook (`Dom::set_validity_hook`, `ValidityHook`). (`P7-VALIDATION-SELECTORS-1`)
 - `Dom::radio_group` and `Dom::in_same_radio_group` implement HTML's radio button group: same tree, same form owner (honouring `form=`) and the same non-empty `name`, compared exactly. (`P7-RADIO-GROUP-OWNER-1`)
+- `ContentEditableState` and `Dom::content_editable_state` parse the `contenteditable` enumerated attribute per HTML §6.8.1. (`P7-CONTENTEDITABLE-CASE-1`)
 
 ### Changed — `rdom-core`
 
@@ -157,6 +159,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 - A left `mousedown` after a lost `mouseup` now also ends a scrollbar-thumb drag and releases the pointer capture that drag took, so button-held moves after the new press no longer keep scrolling the old scroller; an author's pointer capture is left alone. (`P6G-PRESS-RESET-2`)
 - `<input>` / `<button>` `type` keywords are ASCII case-insensitive everywhere (editing, toggles, range, number, password mask, form submit / reset / collect / implicit submission, focus, labels), and an invalid `type` is the Text state, as in HTML (`type="bogus"` is now an editable text field). (`P7-FORM-ENUM-CASE-1`)
 - Radio groups follow the form owner: same-named radios in two forms no longer uncheck each other, and arrow keys, the single Tab stop and `required` validity use the same grouping. (`P7-RADIO-GROUP-OWNER-1`)
+- `contenteditable` keywords match ASCII case-insensitively (`TRUE`, `PlainText-Only`), an invalid value inherits, and a `contenteditable="false"` island inside an editing host is no longer editable. (`P7-CONTENTEDITABLE-CASE-1`)
 
 ### Internal — `rdom-tui`
 

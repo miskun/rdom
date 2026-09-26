@@ -61,6 +61,31 @@ fn is_editable_absent_returns_false() {
     assert!(!dom.node(el).is_editable());
 }
 
+/// HTML §6.8.1: `contenteditable` is an enumerated attribute whose
+/// keywords match ASCII case-insensitively; `plaintext-only` is an
+/// editing host too; an invalid value is the inherit state (not a host).
+#[test]
+fn is_editable_matches_contenteditable_keywords_case_insensitively() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let mut make = |v: &str| {
+        let el = dom.create_element("div");
+        dom.set_attribute(el, "contenteditable", v).unwrap();
+        dom.append_child(root, el).unwrap();
+        el
+    };
+    let upper = make("TRUE");
+    let mixed = make("True");
+    let plain = make("PlainText-Only");
+    let false_upper = make("FALSE");
+    let bogus = make("yes");
+    assert!(dom.node(upper).is_editable());
+    assert!(dom.node(mixed).is_editable());
+    assert!(dom.node(plain).is_editable());
+    assert!(!dom.node(false_upper).is_editable());
+    assert!(!dom.node(bogus).is_editable());
+}
+
 // ── C.4a: tag-based editability ────────────────────────────────────
 
 #[test]
@@ -200,6 +225,37 @@ fn nearest_editable_ancestor_none_when_nothing_editable() {
     let plain = dom.create_element("div");
     dom.append_child(root, plain).unwrap();
     assert_eq!(nearest_editable_ancestor(&dom, plain), None);
+}
+
+/// A `contenteditable="false"` island inside an editing host is not
+/// editable (HTML §6.8.1: the false state stops inheritance), in any
+/// letter case; an invalid value inherits.
+#[test]
+fn nearest_editable_ancestor_stops_at_a_false_island() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let host = dom.create_element("div");
+    dom.set_attribute(host, "contenteditable", "true").unwrap();
+    dom.append_child(root, host).unwrap();
+    let island = dom.create_element("span");
+    dom.set_attribute(island, "contenteditable", "False")
+        .unwrap();
+    dom.append_child(host, island).unwrap();
+    let text = dom.create_text_node("fixed");
+    dom.append_child(island, text).unwrap();
+    let inherits = dom.create_element("span");
+    dom.set_attribute(inherits, "contenteditable", "bogus")
+        .unwrap();
+    dom.append_child(host, inherits).unwrap();
+    // A host nested in the island is editable again.
+    let nested = dom.create_element("em");
+    dom.set_attribute(nested, "contenteditable", "").unwrap();
+    dom.append_child(island, nested).unwrap();
+
+    assert_eq!(nearest_editable_ancestor(&dom, text), None);
+    assert_eq!(nearest_editable_ancestor(&dom, island), None);
+    assert_eq!(nearest_editable_ancestor(&dom, inherits), Some(host));
+    assert_eq!(nearest_editable_ancestor(&dom, nested), Some(nested));
 }
 
 // ── cell_of_position ───────────────────────────────────────────────

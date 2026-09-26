@@ -42,6 +42,10 @@ pub enum DomError {
     /// `form.requestSubmit(submitter)` with a submitter that is not a
     /// submit button.
     TypeError(&'static str),
+
+    /// A string argument does not parse (spec `SyntaxError`) — e.g.
+    /// `el.contentEditable = "yes"`.
+    Syntax(&'static str),
 }
 
 impl std::fmt::Display for DomError {
@@ -61,6 +65,7 @@ impl std::fmt::Display for DomError {
             }
             DomError::InvalidState(what) => write!(f, "invalid state: {what}"),
             DomError::TypeError(what) => write!(f, "type error: {what}"),
+            DomError::Syntax(what) => write!(f, "syntax error: {what}"),
         }
     }
 }

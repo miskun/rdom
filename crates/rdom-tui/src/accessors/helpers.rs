@@ -203,25 +203,23 @@ pub(super) fn pre_scroll_offset_within(
     (accum_x, accum_y)
 }
 
-/// Walk ancestors honoring `contenteditable="inherit"` semantics:
+/// `HTMLElement.isContentEditable` (HTML §6.8.1): walk ancestors
+/// through the inherit state (`Dom::content_editable_state` — keywords
+/// ASCII case-insensitive, an invalid value inherits):
 ///
-/// - `"true"`, `""` (HTML boolean shorthand), `"plaintext-only"`
-///   → effective `true`.
-/// - `"false"` → effective `false` (overrides any inherited true
-///   from a higher ancestor).
-/// - absent / unrecognized → continue walking.
+/// - true (`true` / `""`) or plaintext-only → `true`;
+/// - false → `false` (overrides any inherited true from a higher
+///   ancestor);
+/// - inherit (absent / invalid) → continue walking.
 ///
-/// Falls off the root as `false`. Matches HTMLElement.isContentEditable.
+/// Falls off the root as `false`.
 pub(super) fn effective_content_editable(dom: &TuiDom, id: NodeId) -> bool {
     let mut cur = Some(id);
     while let Some(node_id) = cur {
-        let node = dom.node(node_id);
-        match node.get_attribute("contenteditable") {
-            Some("true") | Some("") | Some("plaintext-only") => return true,
-            Some("false") => return false,
-            _ => {}
+        if let Some(state) = dom.content_editable_state(node_id) {
+            return state.is_editing_host();
         }
-        cur = node.parent_node().map(|p| p.id());
+        cur = dom.node(node_id).parent_node().map(|p| p.id());
     }
     false
 }
