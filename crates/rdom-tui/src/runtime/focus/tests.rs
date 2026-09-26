@@ -514,7 +514,7 @@ fn non_focusable_tags_stay_non_focusable() {
 }
 
 // ── Radio-group single tab stop ──────────────────────────────────────
-// Per HTML, a `name`-keyed `<input type=radio>` group is one tab stop.
+// Per HTML, a radio button group (§4.10.5.1.18) is one tab stop.
 // Tab moves focus IN/OUT of the group as a unit; only the checked
 // radio (or the first if none is checked) is in the sequential focus
 // chain. Arrow-key navigation among the other group members is handled
@@ -601,6 +601,26 @@ fn distinct_radio_groups_each_contribute_one_tab_stop() {
     }
     let list = focusable_elements(&dom);
     assert_eq!(list, vec![g1a, g2b], "one tab stop per distinct group");
+}
+
+/// HTML §4.10.5.1.18: same-named radios in two forms are two groups,
+/// so each form contributes its own tab stop.
+#[test]
+fn same_named_radio_groups_in_two_forms_each_contribute_a_tab_stop() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let fa = dom.create_element("form");
+    let fb = dom.create_element("form");
+    dom.append_child(root, fa).unwrap();
+    dom.append_child(root, fb).unwrap();
+    let a1 = make_radio(&mut dom, "g", "a1", false);
+    let a2 = make_radio(&mut dom, "g", "a2", false);
+    let b1 = make_radio(&mut dom, "g", "b1", false);
+    dom.append_child(fa, a1).unwrap();
+    dom.append_child(fa, a2).unwrap();
+    dom.append_child(fb, b1).unwrap();
+    let list = focusable_elements(&dom);
+    assert_eq!(list, vec![a1, b1]);
 }
 
 #[test]

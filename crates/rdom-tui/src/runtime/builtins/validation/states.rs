@@ -7,7 +7,7 @@ use rdom_core::{InputTypeState, NodeId};
 use super::ValidityState;
 use super::syntax::{is_valid_absolute_url, is_valid_email, parse_float, parse_non_negative};
 use crate::TuiDom;
-use crate::runtime::builtins::{input, select, toggle};
+use crate::runtime::builtins::{input, select};
 
 pub(super) fn compute(dom: &TuiDom, id: NodeId) -> ValidityState {
     let mut s = ValidityState {
@@ -92,10 +92,10 @@ fn email_values(value: &str, multiple: bool) -> Vec<&str> {
 }
 
 /// HTML §4.10.5.1.18: any member of the radio group is required and no
-/// member is checked. rdom's radio group is the radios sharing a
-/// non-empty `name` across the document (`toggle::radio_group`).
+/// member is checked. The group is HTML's (same tree, form owner and
+/// `name`; `Dom::radio_group`).
 fn radio_group_missing(dom: &TuiDom, id: NodeId) -> bool {
-    let group = toggle::radio_group(dom, id);
+    let group = dom.radio_group(id);
     group.iter().any(|&r| required(dom, r))
         && !group.iter().any(|&r| dom.node(r).has_attribute("checked"))
 }

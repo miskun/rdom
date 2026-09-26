@@ -25,6 +25,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 - `InputTypeState` and `Dom::input_type_state`: the state of an `<input>`'s `type` attribute (HTML §4.10.5), keywords matched ASCII case-insensitively, Text when missing or invalid. (`P7-FORM-ENUM-CASE-1`)
 - `Dom::will_validate`: whether an element is a candidate for constraint validation (HTML §4.10.20.1) — a submittable control that is not disabled, `readonly` (where it applies), a hidden / reset / button input, a non-submit button or inside a `<datalist>`. (`P7-VALIDATION-1`)
 - `:valid`, `:invalid`, `:required` and `:optional` (HTML §4.16.3): `:required` / `:optional` from attributes (`Dom::is_required_control` / `is_optional_control`), `:valid` / `:invalid` for candidates, forms and fieldsets (`Dom::constraint_validity`) with the per-control verdict from a backend hook (`Dom::set_validity_hook`, `ValidityHook`). (`P7-VALIDATION-SELECTORS-1`)
+- `Dom::radio_group` and `Dom::in_same_radio_group` implement HTML's radio button group: same tree, same form owner (honouring `form=`) and the same non-empty `name`, compared exactly. (`P7-RADIO-GROUP-OWNER-1`)
 
 ### Changed — `rdom-core`
 
@@ -155,6 +156,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 - A mousedown ends any previous text-selection drag before it acts: after a `mouseup` lost outside the window (on a terminal that reports no button-less motion), a press on a scrollbar thumb, on nothing, or a cancelled press no longer leaves the old drag armed to extend the selection on later button-held moves. (`P6G-DRAG-RESET-1`)
 - A left `mousedown` after a lost `mouseup` now also ends a scrollbar-thumb drag and releases the pointer capture that drag took, so button-held moves after the new press no longer keep scrolling the old scroller; an author's pointer capture is left alone. (`P6G-PRESS-RESET-2`)
 - `<input>` / `<button>` `type` keywords are ASCII case-insensitive everywhere (editing, toggles, range, number, password mask, form submit / reset / collect / implicit submission, focus, labels), and an invalid `type` is the Text state, as in HTML (`type="bogus"` is now an editable text field). (`P7-FORM-ENUM-CASE-1`)
+- Radio groups follow the form owner: same-named radios in two forms no longer uncheck each other, and arrow keys, the single Tab stop and `required` validity use the same grouping. (`P7-RADIO-GROUP-OWNER-1`)
 
 ### Internal — `rdom-tui`
 

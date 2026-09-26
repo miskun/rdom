@@ -56,6 +56,7 @@ mod observer;
 mod position;
 mod query;
 mod query_selector;
+mod radio_group;
 mod selection;
 pub mod selectors;
 mod text;

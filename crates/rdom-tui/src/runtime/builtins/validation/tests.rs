@@ -134,6 +134,40 @@ fn a_radio_group_with_a_required_member_is_missing_until_one_is_checked() {
     assert!(validity(&dom, b).valid());
 }
 
+/// The group behind `valueMissing` is the form-owner group: a checked
+/// same-named radio in another form does not satisfy it, one pointing
+/// at this form with `form=` does.
+#[test]
+fn required_radio_validity_follows_the_form_owner_group() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let fa = el(&mut dom, root, "form", &[("id", "a")]);
+    let fb = el(&mut dom, root, "form", &[("id", "b")]);
+    let req = input(
+        &mut dom,
+        fa,
+        &[("type", "radio"), ("name", "g"), ("required", "")],
+    );
+    let other_form = input(&mut dom, fb, &[("type", "radio"), ("name", "g")]);
+    dom.node_mut(other_form).set_checked(true).unwrap();
+    assert!(
+        validity(&dom, req).value_missing,
+        "another form's radio is another group"
+    );
+    assert!(validity(&dom, other_form).valid());
+    let pointing = input(
+        &mut dom,
+        root,
+        &[("type", "radio"), ("name", "g"), ("form", "a")],
+    );
+    assert!(
+        validity(&dom, pointing).value_missing,
+        "form=a joins a's group"
+    );
+    dom.node_mut(pointing).set_checked(true).unwrap();
+    assert!(validity(&dom, req).valid());
+}
+
 /// HTML §4.10.7: a required select is missing when nothing is selected
 /// or only its placeholder label option (first option, value `""`,
 /// child of the select, single-select with display size 1).

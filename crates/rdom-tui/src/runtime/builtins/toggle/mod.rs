@@ -134,7 +134,7 @@ pub fn install(dom: &mut TuiDom) {
     .expect("toggle space listener install");
 
     // Arrow keys on focused radio → move focus within the
-    // `name`-keyed radio group. Up/Left = previous, Down/Right =
+    // radio button group (same form owner and `name`). Up/Left = previous, Down/Right =
     // next. Wraps. Per HTML, the radio group is a single tab
     // stop; Tab still moves to the next focusable area outside
     // the group (handled by the standard tabindex flow, which
@@ -189,7 +189,7 @@ fn pre_activate(dom: &mut TuiDom, widget: NodeId) -> ToggleUndo {
         if was_checked {
             return ToggleUndo::Nothing;
         }
-        let siblings = radio_group(dom, widget);
+        let siblings = dom.radio_group(widget);
         for &sib in &siblings {
             note_default_checked(dom, sib);
         }
@@ -275,11 +275,11 @@ fn fire_input_and_change(dom: &mut TuiDom, widget: NodeId) {
 
 // ── Radio group navigation ─────────────────────────────────────────
 
-/// Move focus to the previous (`-1`) or next (`+1`) radio in the
-/// same `name`-keyed group as `focused`. Wraps. No-op when the
+/// Move focus to the previous (`-1`) or next (`+1`) radio in
+/// `focused`'s radio button group. Wraps. No-op when the
 /// group has only the focused element.
 fn move_focus_within_group(dom: &mut TuiDom, focused: NodeId, direction: i32) {
-    let group = radio_group(dom, focused);
+    let group = dom.radio_group(focused);
     if group.len() < 2 {
         return;
     }
@@ -289,33 +289,6 @@ fn move_focus_within_group(dom: &mut TuiDom, focused: NodeId, direction: i32) {
     let len = group.len() as i32;
     let next = ((idx as i32 + direction).rem_euclid(len)) as usize;
     crate::runtime::focus::focus_node(dom, Some(group[next]));
-}
-
-/// Collect every `<input type="radio">` with the same `name`
-/// attribute as `widget`, in document order. Includes `widget`
-/// itself. Radios without a `name` attribute (or with empty `name`)
-/// don't form a group — return just `widget` so callers see a
-/// single-element list and treat the navigation as a no-op.
-pub(crate) fn radio_group(dom: &TuiDom, widget: NodeId) -> Vec<NodeId> {
-    let name = dom
-        .node(widget)
-        .get_attribute("name")
-        .map(|s| s.to_string());
-    let Some(name) = name.filter(|s| !s.is_empty()) else {
-        return vec![widget];
-    };
-    let mut out = Vec::new();
-    walk_radios_with_name(dom, dom.root(), &name, &mut out);
-    out
-}
-
-fn walk_radios_with_name(dom: &TuiDom, id: NodeId, name: &str, out: &mut Vec<NodeId>) {
-    if is_radio(dom, id) && dom.node(id).get_attribute("name") == Some(name) {
-        out.push(id);
-    }
-    for child in dom.node(id).child_nodes() {
-        walk_radios_with_name(dom, child.id(), name, out);
-    }
 }
 
 // ── Tag / type helpers ─────────────────────────────────────────────

@@ -267,6 +267,100 @@ fn radio_groups_with_different_names_are_independent() {
     assert!(app.dom().node(r_other).has_attribute("checked"));
 }
 
+// ── Radio: the group follows the form owner (HTML §4.10.5.1.18) ───
+
+/// A radio with the given attributes under `parent`.
+fn radio_under(dom: &mut TuiDom, parent: NodeId, attrs: &[(&str, &str)]) -> NodeId {
+    let r = dom.create_element("input");
+    dom.set_attribute(r, "type", "radio").unwrap();
+    for (k, v) in attrs {
+        dom.set_attribute(r, k, v).unwrap();
+    }
+    dom.append_child(parent, r).unwrap();
+    r
+}
+
+fn form_under(dom: &mut TuiDom, parent: NodeId, id: &str) -> NodeId {
+    let f = dom.create_element("form");
+    dom.set_attribute(f, "id", id).unwrap();
+    dom.append_child(parent, f).unwrap();
+    f
+}
+
+fn press_space_on(app: &mut App<TestBackend>, radio: NodeId) {
+    app.dom_mut().set_focused(Some(radio));
+    app.handle_event(key_press(KeyCode::Char(' '), KeyModifiers::empty()));
+}
+
+#[test]
+fn same_named_radios_in_two_forms_toggle_independently() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let fa = form_under(&mut dom, root, "a");
+    let fb = form_under(&mut dom, root, "b");
+    let a1 = radio_under(&mut dom, fa, &[("name", "g"), ("checked", "")]);
+    let b1 = radio_under(&mut dom, fb, &[("name", "g")]);
+    let mut app = test_app(dom, Stylesheet::new());
+
+    press_space_on(&mut app, b1);
+    assert!(app.dom().node(b1).has_attribute("checked"));
+    assert!(
+        app.dom().node(a1).has_attribute("checked"),
+        "a radio in another form is in another group"
+    );
+}
+
+#[test]
+fn a_radio_outside_a_form_with_a_form_attribute_groups_with_that_form() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let f = form_under(&mut dom, root, "f");
+    let inside = radio_under(&mut dom, f, &[("name", "g"), ("checked", "")]);
+    let pointing = radio_under(&mut dom, root, &[("name", "g"), ("form", "f")]);
+    let unowned = radio_under(&mut dom, root, &[("name", "g"), ("checked", "")]);
+    let mut app = test_app(dom, Stylesheet::new());
+
+    press_space_on(&mut app, pointing);
+    assert!(app.dom().node(pointing).has_attribute("checked"));
+    assert!(
+        !app.dom().node(inside).has_attribute("checked"),
+        "form=f puts the radio in f's group"
+    );
+    assert!(
+        app.dom().node(unowned).has_attribute("checked"),
+        "an unowned radio is in the no-owner group"
+    );
+}
+
+/// The name comparison is exact (HTML: "equals"), not case-folded.
+#[test]
+fn radio_names_that_differ_in_case_are_different_groups() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let upper = radio_under(&mut dom, root, &[("name", "G"), ("checked", "")]);
+    let lower = radio_under(&mut dom, root, &[("name", "g")]);
+    let mut app = test_app(dom, Stylesheet::new());
+
+    press_space_on(&mut app, lower);
+    assert!(app.dom().node(upper).has_attribute("checked"));
+}
+
+#[test]
+fn arrow_navigation_stays_inside_the_form_owners_group() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let fa = form_under(&mut dom, root, "a");
+    let fb = form_under(&mut dom, root, "b");
+    let a1 = radio_under(&mut dom, fa, &[("name", "g")]);
+    let a2 = radio_under(&mut dom, fa, &[("name", "g")]);
+    let _b1 = radio_under(&mut dom, fb, &[("name", "g")]);
+    let mut app = test_app(dom, Stylesheet::new());
+
+    app.dom_mut().set_focused(Some(a2));
+    app.handle_event(key_press(KeyCode::Down, KeyModifiers::empty()));
+    assert_eq!(app.dom().focused(), Some(a1), "wraps within form a");
+}
+
 // ── Radio: arrow-key navigation ────────────────────────────────────
 
 #[test]
