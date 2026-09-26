@@ -53,6 +53,25 @@ jobs:
       # Examples therefore can't ship warnings either.
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
+  rustdoc:
+    name: Rustdoc
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # One source of truth for the toolchain: rust-toolchain.toml.
+      - id: toolchain
+        shell: bash
+        run: echo "channel=$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml | tr -d '\r')" >> "$GITHUB_OUTPUT"
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ steps.toolchain.outputs.channel }}
+      - uses: Swatinem/rust-cache@v2
+      # Broken intra-doc links, links to private items, bare URLs: all
+      # errors. `test-util` so `VirtualScreen` is documented, as on docs.rs.
+      - run: cargo doc --workspace --no-deps --locked --features rdom-tui/test-util
+        env:
+          RUSTDOCFLAGS: -D warnings
+
   fmt:
     name: Rustfmt
     runs-on: ubuntu-latest

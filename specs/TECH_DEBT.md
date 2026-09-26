@@ -6,23 +6,7 @@ For the durable architectural divergences (web-platform departures shipped on pu
 
 ## Open
 
-### Style crate — from the STABILIZE-2026-09 Phase 3+4 gates
-
-
-### Deferred from HARDENING-2026-09 Batch 3
-
-
-### Paint pipeline
-
-### UA stylesheet
-
-### Substrate gaps
-
-### Events
-
-
-### Forms
-
+None.
 
 ## Accepted simplifications (forever-state)
 

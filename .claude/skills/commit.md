@@ -7,19 +7,20 @@ description: Pre-commit hygiene gate for the rdom project. Run before any push-b
 
 Use this whenever you're about to make a commit destined to be pushed to `origin/main`. The gate is **mandatory** per `CLAUDE.md` §"Commit Discipline".
 
-## The gate (all three must pass)
+## The gate (all four must pass)
 
 ```bash
 cargo fmt
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
+RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --features rdom-tui/test-util
 ```
 
-Run all three. **If any fails, fix it, then re-run the entire gate.** Don't move past a failure with "I'll fix it in the next commit."
+Run all four. **If any fails, fix it, then re-run the entire gate.** Don't move past a failure with "I'll fix it in the next commit."
 
 ### Doc-only commits
 
-Files under `specs/`, `CLAUDE.md`, `README.md`, `CHANGELOG.md`, `CONTRIBUTING.md`, and `.claude/` skip `cargo test --workspace` because no code changed. Steps 1 and 2 still run — doc-only commits sometimes touch tests-as-doctests or update example code blocks that compile.
+Files under `specs/`, `CLAUDE.md`, `README.md`, `CHANGELOG.md`, `CONTRIBUTING.md`, and `.claude/` skip `cargo test --workspace` because no code changed. The other three still run — doc-only commits sometimes touch tests-as-doctests or update example code blocks that compile.
 
 If the commit mixes doc and code, run the full gate.
 

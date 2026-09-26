@@ -94,6 +94,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 - `AppContext` gains `set_stylesheet` / `push_stylesheet` / `remove_stylesheet`: a tick callback or an `AppHandle::inject` closure can change the stylesheet stack, and the App applies the intents right after the handler returns (ids are assigned synchronously). Event listeners reach it through `AppHandle::inject`. (`SHOWCASE-EVT-1`)
 - `TuiExt::static_position` (`StaticPosition`), a read-only layout output like `layout` (see the static-position fix below). (`D-M2-2`)
 - `SCROLL_FOCUS_ATTR` (public): the runtime keeps `data-rdom-scroll-focus` on the scroll container the keyboard scrolls, which the UA's focus-thumb rule keys on. (`FOCUS-THUMB-NEAREST-1`)
+- New public paths for generated content and caret geometry: `render::inline::GeneratedFragment` (a host's `::before` / `::after` run on a line, with `host`, `slot`, `x`, `width`, `text`), read through the new `LineBox::generated` (see Breaking); `ext::PseudoSlot` (`Before` / `After`, converts into `StyleSlot`); and `render::inline::cell_of_position`, the caret-cell lookup (`runtime::editing::caret::cell_of_position` stays as a re-export). (`P6G-PSEUDO-SHIFT-1`, `P6G-RUN-LAYOUT-VIS-1`, `P6G-RENDER-HELPERS-1`)
 
 ### Changed — `rdom-tui`
 
@@ -142,6 +143,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 
 - **`rust-version` is `1.88`** (the crates use let-chains); it was declared `1.85` while already requiring more.
 - **Toolchain pinned to `1.95.0`** in `rust-toolchain.toml`; CI reads the channel from that file instead of floating on `stable`. (`PROC-TOOLCHAIN-PIN-1`)
+- CI runs rustdoc: a `Rustdoc` job (ubuntu) builds `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --features rdom-tui/test-util`, so broken intra-doc links, links to private items and bare URLs fail the build; the command is part of the documented workspace gate (CLAUDE.md, `/commit`). (`P6G-DOCS-2`)
 
 ### Internal — workspace
 

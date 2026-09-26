@@ -195,6 +195,7 @@ Workspace gate (same set CI runs, and the same set `/commit` enforces):
 cargo fmt --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
+RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --features rdom-tui/test-util
 ```
 
 Examples (smoke, when touching `rdom-tui`). The three in `rdom-tui` are self-contained programs; the ten in `rdom-showcase/examples/` are shims around `rdom_showcase::demos::*`, whose paint is pinned by the snapshot tests in `rdom-showcase/tests/`:
@@ -212,7 +213,7 @@ cargo run -p rdom-showcase --example tree_nav
 
 `rdom-tui` must not depend on `rdom-showcase`, not even as a dev-dependency: the substrate never builds against its consumer, and the published tarball ships its own examples and tests.
 
-CI (`.github/workflows/ci.yml`) runs all three gates on `[ubuntu-latest, macos-latest, windows-latest]` for every push and PR against `main`. The toolchain is pinned to an exact version in `rust-toolchain.toml`; CI reads that file, so local dev and CI use the same `rustc` / `rustfmt` / `clippy`. Bump it in its own commit after running the full gate.
+CI (`.github/workflows/ci.yml`) runs build + test on `[ubuntu-latest, macos-latest, windows-latest]` and clippy, fmt and rustdoc on `ubuntu-latest`, for every push and PR against `main`. The toolchain is pinned to an exact version in `rust-toolchain.toml`; CI reads that file, so local dev and CI use the same `rustc` / `rustfmt` / `clippy`. Bump it in its own commit after running the full gate.
 
 If a command cannot run because dependencies or the environment are wrong, say that clearly in the final response — do not commit.
 
@@ -230,7 +231,7 @@ Guidelines:
 
 ### Pre-commit hygiene gate (mandatory)
 
-Before every commit destined for push, the three-command gate (`cargo fmt` / `cargo clippy --workspace --all-targets -- -D warnings` / `cargo test --workspace`) must pass clean. Doc-only commits skip the test pass.
+Before every commit destined for push, the gate (`cargo fmt` / `cargo clippy --workspace --all-targets -- -D warnings` / `cargo test --workspace` / `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --features rdom-tui/test-util`) must pass clean. Doc-only commits skip the test pass.
 
 **Rule:** if any gate command fails, fix and re-run before committing. Do not ship `fix: drop unused …` follow-up commits — those are evidence the gate was skipped.
 

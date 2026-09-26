@@ -11,6 +11,12 @@
 //! right-edge ellipsis) identical; the one-row margin above and below
 //! keeps the top / bottom rules identical, because no paint of the
 //! subtree lands on a margin row that is not also a frame edge.
+//!
+//! Under `cfg(test)` every group paints **twice**: once through the
+//! bounded layer and once through a full-frame layer, and the two
+//! composites are asserted equal (the check that the bound is exact).
+//! Nested groups therefore cost 2^depth paints in the crate's lib tests,
+//! and a `<canvas>` paint callback inside a group runs twice there.
 
 use rdom_core::{Dom, NodeId, NodeType};
 
