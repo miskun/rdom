@@ -8,15 +8,27 @@
 //!     buttons in a form is "submit").
 //!   - **Implicit submission** (HTML §4.10.21.2): Enter in a
 //!     single-line text input fires a `click` at the form's *default
-//!     button* — its first submit button in tree order — which then
+//!     button* — the first submit button it owns, in tree order — which then
 //!     submits with that button as the submitter; a disabled default
 //!     button makes Enter do nothing. A form with no submit button
 //!     submits (submitter `None`) only when the focused input is its
 //!     one field that blocks implicit submission.
-//! - The `submit` event carries `EventDetail::Submit { submitter }`
-//!   (`SubmitEvent.submitter`); a handler passes it to
-//!   [`collect_with_submitter`] so the entry list holds the
-//!   submitter's name / value, as `new FormData(form, submitter)`.
+//! - **Form owner** (HTML §4.10.17.3, `Dom::form_owner`): a control's
+//!   form is the `<form>` its `form="id"` attribute names, else its
+//!   nearest ancestor `<form>`; a `form` attribute naming no form means
+//!   no owner. Submission, reset, [`elements`], [`collect`] and implicit
+//!   submission all work on the controls a form *owns*, in tree order
+//!   of the whole document — controls outside the form that name it
+//!   included.
+//! - The `submit` event carries `EventDetail::Submit(SubmitDetail)`
+//!   (`Dom::submit_detail`): `submitter` (`SubmitEvent.submitter`) and
+//!   the effective `action` / `method` / `enctype` / `target` /
+//!   `no_validate` — the submitter's `formaction` / `formmethod` /
+//!   `formenctype` / `formtarget` / `formnovalidate` over the form's
+//!   attributes (§4.10.19.6). rdom has no navigation; the handler
+//!   decides what submitting means. A handler passes the submitter to
+//!   [`collect_with_submitter`] so the entry list holds the submitter's
+//!   name / value, as `new FormData(form, submitter)`.
 //! - **Reset triggers**: click on `<input type="reset">` or
 //!   `<button type="reset">`.
 //! - Submit fires the `submit` event on the `<form>` element —
@@ -27,16 +39,19 @@
 //!   Unless canceled, every control goes back to its default:
 //!   `defaultValue` (text controls, ranges), `defaultChecked`
 //!   (checkboxes, radios), `defaultSelected` (`<select>` options).
+//! - An effective method of `dialog` (the form's `method` or the
+//!   submitter's `formmethod`) closes the form's nearest ancestor
+//!   `<dialog>` with the submitter's `value` unless the submit was
+//!   canceled.
 //!
 //! ## v1 deliberate simplifications
 //!
-//! - No `formaction` / `formmethod` overrides on individual buttons.
 //! - No client-side validation gate (`required`, `pattern`, `min`,
 //!   `max` `valueMissing` blocking submit). Apps validate manually
 //!   inside their `submit` handler.
 //! - No `formdata` event (would require a `FormData` shim).
 
-use rdom_core::{ListenerOptions, NodeId};
+use rdom_core::{FormMethod, ListenerOptions, NodeId};
 
 use crate::tui_event::TuiDispatchExt;
 use crate::{TuiDom, TuiEvent};
@@ -60,19 +75,18 @@ pub fn install(dom: &mut TuiDom) {
         if ctx.dom.is_actually_disabled(button) {
             return;
         }
-        let Some(form) = enclosing_form(ctx.dom, button) else {
+        let Some(form) = ctx.dom.form_owner(button) else {
             return;
         };
         match button_action(ctx.dom, button) {
             ButtonAction::Submit => {
-                let prevented = fire_submit(ctx.dom, form, Some(button));
-                // `<form method="dialog">` integration: when
-                // submit isn't prevented, close the enclosing
-                // dialog with the submit button's `value` as
-                // the returnValue. Matches MDN's HTMLDialogElement
-                // form-submission behavior.
+                let (prevented, method) = fire_submit(ctx.dom, form, Some(button));
+                // Method `dialog` (the form's `method` or the button's
+                // `formmethod`): when submit isn't prevented, close the
+                // form's nearest ancestor dialog with the submit
+                // button's `value` as the returnValue (HTML §4.10.21.3).
                 if !prevented
-                    && is_dialog_form(ctx.dom, form)
+                    && method == FormMethod::Dialog
                     && let Some(dialog) =
                         crate::runtime::builtins::dialog::enclosing_dialog(ctx.dom, form)
                 {
@@ -117,7 +131,7 @@ pub fn install(dom: &mut TuiDom) {
         if !is_single_line_text_input(ctx.dom, focused) {
             return;
         }
-        let Some(form) = enclosing_form(ctx.dom, focused) else {
+        let Some(form) = ctx.dom.form_owner(focused) else {
             return;
         };
         if let Some(default) = default_button(ctx.dom, form) {
@@ -137,9 +151,9 @@ pub fn install(dom: &mut TuiDom) {
         if count_text_inputs(ctx.dom, form) != 1 {
             return;
         }
-        let prevented = fire_submit(ctx.dom, form, None);
+        let (prevented, method) = fire_submit(ctx.dom, form, None);
         if !prevented
-            && is_dialog_form(ctx.dom, form)
+            && method == FormMethod::Dialog
             && let Some(dialog) = crate::runtime::builtins::dialog::enclosing_dialog(ctx.dom, form)
         {
             // No submit button — close with an empty returnValue.
@@ -190,7 +204,9 @@ pub fn collect_with_submitter(
     submitter: Option<NodeId>,
 ) -> Vec<(String, String)> {
     let mut out = Vec::new();
-    walk_collect(dom, form, submitter, &mut out);
+    for id in dom.form_listed_elements(form) {
+        collect_entry(dom, id, submitter, &mut out);
+    }
     out
 }
 
@@ -205,32 +221,25 @@ enum ButtonAction {
 
 /// HTML §4.10.6: a `<button>` is a submit button unless its `type` is
 /// `reset` or `button` — the missing and the invalid value default are
-/// both Submit. `<input type=submit/reset/button>` uses the literal
-/// type. Anything else is `Button` (no default action).
+/// both Submit (`Dom::is_submit_button`). `<input type=submit/reset/button>`
+/// uses the literal type. Anything else is `Button` (no default action).
 fn button_action(dom: &TuiDom, id: NodeId) -> ButtonAction {
+    if dom.is_submit_button(id) {
+        return ButtonAction::Submit;
+    }
     let node = dom.node(id);
-    let ty = node.get_attribute("type");
-    match (node.tag_name(), ty) {
-        (Some("button"), Some("reset")) | (Some("input"), Some("reset")) => ButtonAction::Reset,
-        (Some("button"), Some("button")) => ButtonAction::Button,
-        (Some("button"), _) | (Some("input"), Some("submit")) => ButtonAction::Submit,
+    match (node.tag_name(), node.get_attribute("type")) {
+        (Some("button" | "input"), Some("reset")) => ButtonAction::Reset,
         _ => ButtonAction::Button,
     }
 }
 
-/// The form's default button (HTML §4.10.21.2): its first submit button
-/// in tree order, disabled or not.
+/// The form's default button (HTML §4.10.21.2): the first submit button
+/// in tree order whose form owner is `form`, disabled or not.
 fn default_button(dom: &TuiDom, form: NodeId) -> Option<NodeId> {
-    let mut stack: Vec<NodeId> = dom.node(form).child_nodes().map(|c| c.id()).collect();
-    stack.reverse();
-    while let Some(id) = stack.pop() {
-        if button_action(dom, id) == ButtonAction::Submit {
-            return Some(id);
-        }
-        let kids: Vec<NodeId> = dom.node(id).child_nodes().map(|c| c.id()).collect();
-        stack.extend(kids.into_iter().rev());
-    }
-    None
+    dom.form_listed_elements(form)
+        .into_iter()
+        .find(|&id| dom.is_submit_button(id))
 }
 
 /// Walk up from `id` (inclusive) to the nearest `<button>` or
@@ -257,95 +266,64 @@ fn closest_form_button(dom: &TuiDom, id: NodeId) -> Option<NodeId> {
     None
 }
 
-/// Walk up from `id` (exclusive of `<form>` self-match — i.e.
-/// inclusive, but a form IS its own enclosing form) to the
-/// nearest `<form>` ancestor.
-fn enclosing_form(dom: &TuiDom, id: NodeId) -> Option<NodeId> {
-    let mut cur = Some(id);
-    while let Some(n) = cur {
-        if dom.node(n).tag_name() == Some("form") {
-            return Some(n);
-        }
-        cur = dom.node(n).parent_node().map(|p| p.id());
-    }
-    None
-}
-
-/// Collect every form-control descendant of `form` in
-/// document order. Form controls per HTML's "listed elements"
-/// definition: `<button>`, `<fieldset>`, `<input>`,
-/// `<object>`, `<output>`, `<select>`, `<textarea>`. Excludes
-/// `<form>` itself (consistent with `form.elements`).
+/// The form's controls — HTML `form.elements` (§4.10.3): every listed
+/// element (`<button>`, `<fieldset>`, `<input>`, `<object>`, `<output>`,
+/// `<select>`, `<textarea>`) whose form owner is `form`, in tree order
+/// of the whole document, so a control outside the form that names it
+/// with `form="id"` is included and one inside that names another form
+/// is not (`Dom::form_listed_elements`).
 ///
 /// Public for [`crate::accessors::TuiAccessors::form_elements`]
 /// (step 31).
 pub fn elements(dom: &TuiDom, form: NodeId) -> Vec<NodeId> {
-    let mut out = Vec::new();
-    walk_elements(dom, form, form, &mut out);
-    out
-}
-
-fn walk_elements(dom: &TuiDom, form: NodeId, id: NodeId, out: &mut Vec<NodeId>) {
-    if id != form && is_form_control(dom, id) {
-        out.push(id);
-    }
-    for child in dom.node(id).child_nodes() {
-        walk_elements(dom, form, child.id(), out);
-    }
-}
-
-fn is_form_control(dom: &TuiDom, id: NodeId) -> bool {
-    matches!(
-        dom.node(id).tag_name(),
-        Some("button" | "fieldset" | "input" | "object" | "output" | "select" | "textarea")
-    )
+    dom.form_listed_elements(form)
 }
 
 /// Fire a `submit` event on `form` with typed
-/// `EventDetail::Submit { submitter }`. `submitter` is the
-/// element that triggered submission (the clicked `<button>` /
-/// `<input type=submit>`, or the default button on implicit
+/// `EventDetail::Submit(Dom::submit_detail(form, submitter))`.
+/// `submitter` is the element that triggered submission (the clicked
+/// `<button>` / `<input type=submit>`, or the default button on implicit
 /// submission), or `None` for an implicit submission from a form with
 /// no submit button and for `requestSubmit()` without one.
 ///
-/// Returns `true` when the submit was `preventDefault`-ed.
-/// Callers chain post-submit defaults (the `<form method="dialog">`
+/// Returns whether the submit was `preventDefault`-ed and the effective
+/// method. Callers chain post-submit defaults (the method-`dialog`
 /// auto-close) on the not-prevented case.
 ///
 /// `pub(crate)` so [`crate::accessors::TuiAccessorsMut::form_request_submit`]
 /// (step 31) can fire the same event with the same detail
 /// shape as the implicit/button-triggered paths.
-pub(crate) fn fire_submit(dom: &mut TuiDom, form: NodeId, submitter: Option<NodeId>) -> bool {
+pub(crate) fn fire_submit(
+    dom: &mut TuiDom,
+    form: NodeId,
+    submitter: Option<NodeId>,
+) -> (bool, FormMethod) {
+    let detail = dom.submit_detail(form, submitter);
+    let method = detail.method;
     let mut ev = TuiEvent::new("submit");
-    ev.event.detail =
-        rdom_core::EventDetail::Submit(Box::new(rdom_core::SubmitDetail { submitter }));
+    ev.event.detail = rdom_core::EventDetail::Submit(Box::new(detail));
     let _ = dom.dispatch_tui_event(form, &mut ev);
-    ev.event.default_prevented()
+    (ev.event.default_prevented(), method)
 }
 
-/// HTML §4.10.21.5 reset algorithm: every control under `form` goes back
-/// to its default — text controls and ranges to `defaultValue`,
+/// HTML §4.10.21.5 reset algorithm: every control whose form owner is
+/// `form` goes back to its default — text controls and ranges to `defaultValue`,
 /// checkboxes and radios to `defaultChecked` (`FORM-DEFAULTS-1`), a
 /// `<select>`'s options to `defaultSelected` (`P6G-FORM-RESET-1`). No
 /// `input` / `change` events fire, as on the web.
 fn reset_controls(dom: &mut TuiDom, form: NodeId) {
-    let mut stack = vec![form];
-    while let Some(id) = stack.pop() {
-        let kids: Vec<NodeId> = dom.node(id).child_nodes().map(|c| c.id()).collect();
-        for kid in kids {
-            match dom.node(kid).tag_name() {
-                Some("input") if crate::runtime::builtins::toggle::is_toggle(dom, kid) => {
-                    crate::runtime::builtins::toggle::reset_to_default(dom, kid);
-                }
-                Some("input") | Some("textarea") => {
-                    crate::runtime::builtins::input::reset_to_default(dom, kid);
-                }
-                Some("select") => {
-                    crate::runtime::builtins::select::reset_to_default(dom, kid);
-                }
-                _ => {}
+    for id in dom.form_listed_elements(form) {
+        match dom.node(id).tag_name() {
+            Some("input") if crate::runtime::builtins::toggle::is_toggle(dom, id) => {
+                crate::runtime::builtins::toggle::reset_to_default(dom, id);
             }
-            stack.push(kid);
+            Some("input") | Some("textarea") => {
+                crate::runtime::builtins::input::reset_to_default(dom, id);
+            }
+            Some("select") => {
+                crate::runtime::builtins::select::reset_to_default(dom, id);
+            }
+            _ => {}
         }
     }
 }
@@ -354,18 +332,6 @@ fn fire_reset(dom: &mut TuiDom, form: NodeId) -> bool {
     let mut ev = TuiEvent::new("reset");
     let _ = dom.dispatch_tui_event(form, &mut ev);
     ev.event.default_prevented()
-}
-
-/// True for `<form method="dialog">` (case-insensitive). Used by
-/// the post-submit hook to decide whether to close an enclosing
-/// dialog with the submit button's `value`.
-fn is_dialog_form(dom: &TuiDom, form: NodeId) -> bool {
-    matches!(
-        dom.node(form)
-            .get_attribute("method")
-            .map(|s| s.to_ascii_lowercase()),
-        Some(ref m) if m == "dialog"
-    )
 }
 
 /// Single-line text-family input: an `<input>` whose `type` is
@@ -387,21 +353,17 @@ fn is_single_line_text_input(dom: &TuiDom, id: NodeId) -> bool {
     )
 }
 
+/// The form's fields that block implicit submission (HTML §4.10.21.2):
+/// its owned single-line text inputs.
 fn count_text_inputs(dom: &TuiDom, form: NodeId) -> usize {
-    fn walk(dom: &TuiDom, id: NodeId, count: &mut usize) {
-        if is_single_line_text_input(dom, id) {
-            *count += 1;
-        }
-        for child in dom.node(id).child_nodes() {
-            walk(dom, child.id(), count);
-        }
-    }
-    let mut n = 0;
-    walk(dom, form, &mut n);
-    n
+    dom.form_listed_elements(form)
+        .into_iter()
+        .filter(|&id| is_single_line_text_input(dom, id))
+        .count()
 }
 
-fn walk_collect(
+/// The entries one owned control contributes to the entry list.
+fn collect_entry(
     dom: &TuiDom,
     id: NodeId,
     submitter: Option<NodeId>,
@@ -475,9 +437,6 @@ fn walk_collect(
                 _ => {}
             }
         }
-    }
-    for child in node.child_nodes() {
-        walk_collect(dom, child.id(), submitter, out);
     }
 }
 

@@ -40,6 +40,7 @@ mod dom_string_map;
 mod error;
 mod event;
 mod event_detail;
+mod form_assoc;
 mod form_control;
 mod html_collection;
 mod indexes;
@@ -68,8 +69,9 @@ pub use dom_string_map::{DomStringMap, DomStringMapMut};
 pub use error::{DomError, Result};
 pub use event::{Event, EventPhase};
 pub use event_detail::{
-    EventDetail, InputDetail, InputType, KeyboardDetail, KeyboardModifiers, MouseButton,
-    MouseDetail, SubmitDetail, ToggleDetail, ToggleState, TransitionDetail,
+    EventDetail, FormEnctype, FormMethod, InputDetail, InputType, KeyboardDetail,
+    KeyboardModifiers, MouseButton, MouseDetail, SubmitDetail, ToggleDetail, ToggleState,
+    TransitionDetail,
 };
 pub use html_collection::{FormControlsCollection, HtmlCollection};
 pub use markup::{VOID_ELEMENTS, is_void_element};

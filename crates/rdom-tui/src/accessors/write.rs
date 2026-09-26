@@ -236,8 +236,6 @@ impl<'a> TuiAccessorsMut<'a> for rdom_core::NodeMut<'a, TuiExt> {
         }
         let id = self.id();
         let dom = self.dom_mut();
-        Ok(crate::runtime::builtins::form::fire_submit(
-            dom, id, submitter,
-        ))
+        Ok(crate::runtime::builtins::form::fire_submit(dom, id, submitter).0)
     }
 }

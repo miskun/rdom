@@ -305,6 +305,43 @@ fn form_method_dialog_submit_does_not_close_if_submit_handler_prevents() {
     assert!(app.dom().node(dlg).has_attribute("open"));
 }
 
+/// P7-FORM-OWNER-1 (HTML §4.10.19.6): the submitter's `formmethod`
+/// overrides the form's `method` — `formmethod="dialog"` closes the
+/// dialog from a `method="get"` form, `formmethod="get"` keeps it open
+/// from a `method="dialog"` form.
+#[test]
+fn submitter_formmethod_overrides_the_forms_method_for_dialog_close() {
+    use crate::accessors::TuiAccessorsMut;
+    for (form_method, button_method, closes) in [("get", "dialog", true), ("dialog", "get", false)]
+    {
+        let mut dom: TuiDom = TuiDom::new();
+        let root = dom.root();
+        let dlg = dom.create_element("dialog");
+        let form = dom.create_element("form");
+        dom.set_attribute(form, "method", form_method).unwrap();
+        let btn = dom.create_element("button");
+        dom.set_attribute(btn, "formmethod", button_method).unwrap();
+        dom.set_attribute(btn, "value", "ok").unwrap();
+        dom.append_child(form, btn).unwrap();
+        dom.append_child(dlg, form).unwrap();
+        dom.append_child(root, dlg).unwrap();
+        let mut app = test_app(dom, Stylesheet::new());
+        dialog::show_modal(app.dom_mut(), dlg);
+        app.draw_if_dirty().unwrap();
+
+        app.dom_mut().node_mut(btn).click();
+
+        assert_eq!(
+            !app.dom().node(dlg).has_attribute("open"),
+            closes,
+            "method={form_method} formmethod={button_method}"
+        );
+        if closes {
+            assert_eq!(dialog::return_value(app.dom(), dlg), "ok");
+        }
+    }
+}
+
 #[test]
 fn form_with_method_get_does_not_close_dialog_on_submit() {
     // Regression guard: only `method="dialog"` triggers the

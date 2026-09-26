@@ -96,11 +96,11 @@ impl<Ext> Dom<Ext> {
         None
     }
 
-    fn parent_element_id(&self, id: NodeId) -> Option<NodeId> {
+    pub(crate) fn parent_element_id(&self, id: NodeId) -> Option<NodeId> {
         self.get_node(id).and_then(|n| n.parent)
     }
 
-    fn tag_is(&self, id: NodeId, tag: &str) -> bool {
+    pub(crate) fn tag_is(&self, id: NodeId, tag: &str) -> bool {
         self.get_node(id).and_then(|n| n.tag_name()) == Some(tag)
     }
 }

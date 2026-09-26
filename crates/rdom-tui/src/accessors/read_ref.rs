@@ -4,7 +4,7 @@
 
 use rdom_core::NodeId;
 
-use super::helpers::{effective_content_editable, nearest_form_ancestor, parse_numeric_attribute};
+use super::helpers::{effective_content_editable, parse_numeric_attribute};
 use super::{DomRect, TuiAccessors};
 use crate::TuiExt;
 
@@ -149,7 +149,7 @@ impl<'a> TuiAccessors<'a> for rdom_core::NodeRef<'a, TuiExt> {
 
     fn input_form(&self) -> Option<NodeId> {
         match self.tag_name()? {
-            "input" => nearest_form_ancestor(self.dom(), self.id()),
+            "input" => self.dom().form_owner(self.id()),
             _ => None,
         }
     }
@@ -170,7 +170,7 @@ impl<'a> TuiAccessors<'a> for rdom_core::NodeRef<'a, TuiExt> {
 
     fn textarea_form(&self) -> Option<NodeId> {
         match self.tag_name()? {
-            "textarea" => nearest_form_ancestor(self.dom(), self.id()),
+            "textarea" => self.dom().form_owner(self.id()),
             _ => None,
         }
     }
@@ -222,7 +222,7 @@ impl<'a> TuiAccessors<'a> for rdom_core::NodeRef<'a, TuiExt> {
 
     fn select_form(&self) -> Option<NodeId> {
         match self.tag_name()? {
-            "select" => nearest_form_ancestor(self.dom(), self.id()),
+            "select" => self.dom().form_owner(self.id()),
             _ => None,
         }
     }
@@ -271,7 +271,7 @@ impl<'a> TuiAccessors<'a> for rdom_core::NodeRef<'a, TuiExt> {
 
     fn button_form(&self) -> Option<NodeId> {
         match self.tag_name()? {
-            "button" => nearest_form_ancestor(self.dom(), self.id()),
+            "button" => self.dom().form_owner(self.id()),
             _ => None,
         }
     }

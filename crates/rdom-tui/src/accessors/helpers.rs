@@ -18,20 +18,6 @@ pub(super) fn parse_numeric_attribute(
     node.get_attribute(name).and_then(|s| s.parse().ok())
 }
 
-/// Walk up from `start` (inclusive) to the nearest `<form>`
-/// ancestor. Returns `None` when no ancestor matches.
-pub(super) fn nearest_form_ancestor(dom: &TuiDom, start: NodeId) -> Option<NodeId> {
-    let mut cur = Some(start);
-    while let Some(id) = cur {
-        let node = dom.node(id);
-        if node.tag_name() == Some("form") {
-            return Some(id);
-        }
-        cur = node.parent_node().map(|p| p.id());
-    }
-    None
-}
-
 pub(super) fn write_boolean_attribute(
     node: &mut rdom_core::NodeMut<'_, TuiExt>,
     name: &str,

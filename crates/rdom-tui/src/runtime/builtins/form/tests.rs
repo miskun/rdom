@@ -1300,3 +1300,256 @@ fn submit_button_in_a_disabled_fieldset_does_not_submit() {
         "a disabled-by-fieldset default button blocks implicit submission"
     );
 }
+
+// ── P7-FORM-OWNER-1: the `form` attribute and the submitter overrides ──
+
+/// Builds a tree under the root with `build` into a seeded App.
+fn owner_app(build: impl FnOnce(&mut TuiDom, rdom_core::NodeId)) -> App<TestBackend> {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    build(&mut dom, root);
+    let mut app = test_app(dom, Stylesheet::new());
+    app.draw_if_dirty().unwrap();
+    app
+}
+
+/// HTML §4.10.17.3: a control outside the form that names it with
+/// `form="f"` belongs to it — submitted and reset with it, in tree order
+/// of the whole document; `form::elements` lists it.
+#[test]
+fn control_outside_the_form_with_a_form_attribute_is_submitted_and_reset_with_it() {
+    let mut ids = Vec::new();
+    let mut app = owner_app(|dom, root| {
+        ids.push(named(
+            dom,
+            root,
+            "input",
+            &[("name", "before"), ("form", "f"), ("value", "1")],
+        ));
+        let form = named(dom, root, "form", &[("id", "f")]);
+        ids.push(form);
+        ids.push(named(
+            dom,
+            form,
+            "input",
+            &[("name", "inside"), ("value", "2")],
+        ));
+        ids.push(named(
+            dom,
+            root,
+            "input",
+            &[("name", "after"), ("form", "f"), ("value", "3")],
+        ));
+        named(dom, root, "input", &[("name", "stray"), ("value", "4")]);
+        ids.push(named(
+            dom,
+            root,
+            "input",
+            &[("type", "reset"), ("form", "f")],
+        ));
+    });
+    let (before, form, inside, after, reset) = (ids[0], ids[1], ids[2], ids[3], ids[4]);
+    assert_eq!(
+        form::elements(app.dom(), form),
+        vec![before, inside, after, reset]
+    );
+    {
+        use crate::accessors::TuiAccessors;
+        assert_eq!(app.dom().node(before).input_form(), Some(form));
+        assert_eq!(app.dom().node(reset).input_form(), Some(form));
+    }
+    assert_eq!(
+        form::collect(app.dom(), form),
+        pairs(&[("before", "1"), ("inside", "2"), ("after", "3")])
+    );
+
+    {
+        use crate::accessors::TuiAccessorsMut;
+        app.dom_mut().node_mut(before).set_value("changed").unwrap();
+        app.dom_mut().node_mut(after).set_value("changed").unwrap();
+    }
+    click_reset(&mut app, reset);
+    assert_eq!(
+        form::collect(app.dom(), form),
+        pairs(&[("before", "1"), ("inside", "2"), ("after", "3")]),
+        "the reset button outside the form resets its owner's controls"
+    );
+}
+
+/// A control inside form A with `form="b"` belongs to B; a submit button
+/// inside A with `form="b"` submits B.
+#[test]
+fn control_inside_one_form_can_belong_to_another() {
+    let mut ids = Vec::new();
+    let mut app = owner_app(|dom, root| {
+        let a = named(dom, root, "form", &[("id", "a")]);
+        let b = named(dom, root, "form", &[("id", "b")]);
+        named(dom, a, "input", &[("name", "for_a"), ("value", "A")]);
+        named(
+            dom,
+            a,
+            "input",
+            &[("name", "for_b"), ("form", "b"), ("value", "B")],
+        );
+        let go = named(dom, a, "button", &[("form", "b"), ("name", "go")]);
+        ids.extend([a, b, go]);
+    });
+    let (a, b, go) = (ids[0], ids[1], ids[2]);
+    assert_eq!(form::collect(app.dom(), a), pairs(&[("for_a", "A")]));
+    assert_eq!(form::collect(app.dom(), b), pairs(&[("for_b", "B")]));
+
+    let log_a = record_submissions(&mut app, a);
+    let log_b = record_submissions(&mut app, b);
+    click_reset(&mut app, go); // `.click()` on the submit button
+    assert!(log_a.borrow().is_empty(), "form A is not submitted");
+    assert_eq!(
+        *log_b.borrow(),
+        vec![(Some(go), pairs(&[("for_b", "B"), ("go", "")]))]
+    );
+}
+
+/// HTML §4.10.17.3: a `form` attribute that names no `<form>` means no
+/// owner — even for a control nested inside a form.
+#[test]
+fn unknown_form_attribute_means_no_owner_even_inside_a_form() {
+    let mut ids = Vec::new();
+    let mut app = owner_app(|dom, root| {
+        let f = named(dom, root, "form", &[("id", "f")]);
+        named(dom, f, "input", &[("name", "ok"), ("value", "1")]);
+        named(
+            dom,
+            f,
+            "input",
+            &[("name", "lost"), ("form", "nope"), ("value", "2")],
+        );
+        let go = named(dom, f, "button", &[("form", "nope")]);
+        ids.extend([f, go]);
+    });
+    let (f, go) = (ids[0], ids[1]);
+    assert_eq!(form::collect(app.dom(), f), pairs(&[("ok", "1")]));
+    let log = record_submissions(&mut app, f);
+    click_reset(&mut app, go);
+    assert!(
+        log.borrow().is_empty(),
+        "an unowned submit button submits nothing"
+    );
+}
+
+/// Implicit submission uses the focused input's form owner and that
+/// form's default button, both through `form=`.
+#[test]
+fn implicit_submission_follows_the_form_attribute() {
+    let mut ids = Vec::new();
+    let mut app = owner_app(|dom, root| {
+        let f = named(dom, root, "form", &[("id", "f")]);
+        let input = named(
+            dom,
+            root,
+            "input",
+            &[("form", "f"), ("name", "q"), ("value", "x")],
+        );
+        let go = named(
+            dom,
+            root,
+            "button",
+            &[("form", "f"), ("name", "go"), ("value", "G")],
+        );
+        ids.extend([f, input, go]);
+    });
+    let (f, input, go) = (ids[0], ids[1], ids[2]);
+    let log = record_submissions(&mut app, f);
+    press_enter_in(&mut app, input);
+    assert_eq!(
+        *log.borrow(),
+        vec![(Some(go), pairs(&[("q", "x"), ("go", "G")]))]
+    );
+}
+
+/// The `submit` event reports the effective `action` / `method` /
+/// `enctype` / `target` / no-validate state: the form's attributes, or
+/// the submitter's `form*` overrides (HTML §4.10.19.6).
+#[test]
+fn submit_event_reports_the_effective_submission_attributes() {
+    use rdom_core::{FormEnctype, FormMethod, SubmitDetail};
+    let mut ids = Vec::new();
+    let mut app = owner_app(|dom, root| {
+        let f = named(
+            dom,
+            root,
+            "form",
+            &[
+                ("action", "/save"),
+                ("method", "post"),
+                ("enctype", "multipart/form-data"),
+                ("target", "_blank"),
+            ],
+        );
+        let plain = named(dom, f, "button", &[]);
+        let over = named(
+            dom,
+            f,
+            "input",
+            &[
+                ("type", "submit"),
+                ("formaction", "/other"),
+                ("formmethod", "get"),
+                ("formenctype", "text/plain"),
+                ("formtarget", "_self"),
+                ("formnovalidate", ""),
+            ],
+        );
+        ids.extend([f, plain, over]);
+    });
+    let (f, plain, over) = (ids[0], ids[1], ids[2]);
+    let seen: Rc<RefCell<Vec<SubmitDetail>>> = Rc::new(RefCell::new(Vec::new()));
+    let s = seen.clone();
+    app.dom_mut()
+        .add_event_listener(f, "submit", ListenerOptions::default(), move |ctx| {
+            ctx.event.prevent_default();
+            s.borrow_mut()
+                .push(ctx.event.detail.as_submit().unwrap().clone());
+        })
+        .unwrap();
+    click_reset(&mut app, plain);
+    click_reset(&mut app, over);
+    let seen = seen.borrow();
+    assert_eq!(seen.len(), 2);
+    let d = &seen[0];
+    assert_eq!(
+        (
+            d.submitter,
+            d.action.as_str(),
+            d.method,
+            d.enctype,
+            d.target.as_str(),
+            d.no_validate
+        ),
+        (
+            Some(plain),
+            "/save",
+            FormMethod::Post,
+            FormEnctype::MultipartFormData,
+            "_blank",
+            false
+        )
+    );
+    let d = &seen[1];
+    assert_eq!(
+        (
+            d.submitter,
+            d.action.as_str(),
+            d.method,
+            d.enctype,
+            d.target.as_str(),
+            d.no_validate
+        ),
+        (
+            Some(over),
+            "/other",
+            FormMethod::Get,
+            FormEnctype::TextPlain,
+            "_self",
+            true
+        )
+    );
+}

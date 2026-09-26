@@ -14,10 +14,12 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 - `InvariantViolation::GenerationTableMismatch` is gone: the slot generation now lives in the slot, so there is no parallel table to disagree. Migration: drop the match arm. (`CORE-GEN-COLOCATE-1`)
 - `vr` is no longer serialized as a void element; the void list is exactly HTML §13.3's (`area base basefont bgsound br col embed frame hr img input keygen link meta param source track wbr`), exported as `rdom_core::VOID_ELEMENTS` / `is_void_element` and shared with `rdom-parser`. Migration: `<vr>` now serializes with its `</vr>` end tag; nothing to change unless output was compared byte for byte. (`PARSER-VOID-TAGS-1`)
 - `selectors::PseudoClass` gains `Disabled` and `Enabled` variants (`:disabled` / `:enabled`). Migration: add the two arms to exhaustive matches. (`P7-FIELDSET-DISABLED-1`)
+- `SubmitDetail` gains `action`, `method` (`FormMethod`), `enctype` (`FormEnctype`), `target` and `no_validate`, and is now `#[non_exhaustive]`. Migration: replace `SubmitDetail { submitter }` with `SubmitDetail::new(submitter)` (HTML defaults) or `dom.submit_detail(form, submitter)` (reads the attributes). (`P7-FORM-OWNER-1`)
 
 ### Added — `rdom-core`
 
 - `Dom::is_actually_disabled` (HTML §4.10.18.5: own `disabled`, or inside a `<fieldset disabled>` outside its first `<legend>`; `<optgroup>` / `<option>` rules) and `Dom::is_enabled_control`, and the `:disabled` / `:enabled` pseudo-classes built on them. (`P7-FIELDSET-DISABLED-1`)
+- **Form owner and submitter overrides** (HTML §4.10.17.3, §4.10.19.6): `Dom::form_owner` (`form="id"`, else the nearest ancestor `<form>`), `Dom::form_listed_elements` (`form.elements`, tree order of the whole document), `Dom::is_submit_button`, and `Dom::submit_detail`, which resolves the effective `action` / `method` / `enctype` / `target` / no-validate state from the form and the submitter's `formaction` / `formmethod` / `formenctype` / `formtarget` / `formnovalidate`. New `FormMethod` / `FormEnctype` enums (also re-exported by rdom-tui). (`P7-FORM-OWNER-1`)
 
 ### Changed — `rdom-core`
 
@@ -114,6 +116,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 - Docs: iTerm2's dropped any-motion mouse mode (hover follows the pointer only after a first click) is recorded as an external limitation in `DIVERGENCES.md` §4 and the rdom-tui README. (`ITERM2-MOUSE-MOTION-1`)
 - `render::inline::compute_inline_layout_for_run` gives the host's `::before` / `::after` to the run that holds its first / last line-bearing child, as block layout does: collapsible whitespace-only text or a comment at the host's edge no longer keeps a run from carrying them (`<div>\n<span>x</span>\n</div>` with `div::before` packs the pseudo whichever way the run is sliced). (`P6G-RUN-LAYOUT-VIS-1`)
 - A `<fieldset disabled>` disables its controls (except inside its first `<legend>`): they leave the Tab order, ignore clicks and keys, are not editable, are not submitted by `form::collect`, and a disabled-by-fieldset default button blocks implicit submission. Conversely a `disabled` attribute on a non-control (`<div disabled tabindex=0>`) no longer blocks focus, as in HTML. (`P7-FIELDSET-DISABLED-1`)
+- Forms follow the form owner: a control outside a `<form>` with `form="id"` is submitted, reset, listed by `form::elements` and considered for implicit submission with that form, a control inside one form can belong to another, and a `form` attribute naming no form leaves the control unowned. The `submit` event reports the effective submission attributes, and a submitter's `formmethod="dialog"` closes the dialog as `method="dialog"` does. `input_form()` and siblings return the form owner. (`P7-FORM-OWNER-1`)
 
 ### Fixed — `rdom-tui`
 

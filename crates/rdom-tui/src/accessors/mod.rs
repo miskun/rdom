@@ -212,11 +212,12 @@ pub trait TuiAccessors<'a> {
     /// `<input>` or when the attribute is absent.
     fn input_placeholder(&self) -> Option<String>;
 
-    /// `NodeId` of the nearest `<form>` ancestor (or `self` if
-    /// already a `<form>`) for an `<input>` element. Returns
-    /// `None` when:
-    /// - this isn't an `<input>` element, or
-    /// - no `<form>` ancestor exists.
+    /// `input.form` — the form owner of an `<input>` (HTML §4.10.17.3,
+    /// `Dom::form_owner`): the `<form>` its `form="id"` attribute
+    /// names, else its nearest `<form>` ancestor. Returns `None` when:
+    /// - this isn't an `<input>` element,
+    /// - its `form` attribute names no `<form>`, or
+    /// - it has no `form` attribute and no `<form>` ancestor.
     ///
     /// Returns `NodeId` rather than `NodeRef` to avoid
     /// lifetime entanglement with the source `NodeRef`/`NodeMut`
@@ -234,8 +235,7 @@ pub trait TuiAccessors<'a> {
     /// `<textarea>` or when the attribute is absent.
     fn textarea_name(&self) -> Option<String>;
 
-    /// `NodeId` of the nearest `<form>` ancestor for a
-    /// `<textarea>` element. Same shape as
+    /// Form owner of a `<textarea>`. Same shape as
     /// [`Self::input_form`].
     fn textarea_form(&self) -> Option<NodeId>;
 
@@ -265,7 +265,7 @@ pub trait TuiAccessors<'a> {
     /// `<select>` elements.
     fn select_selected_index(&self) -> Option<i32>;
 
-    /// Nearest `<form>` ancestor of a `<select>`. Same shape
+    /// Form owner of a `<select>`. Same shape
     /// as [`Self::input_form`].
     fn select_form(&self) -> Option<NodeId>;
 
@@ -304,7 +304,7 @@ pub trait TuiAccessors<'a> {
     /// closed. `None` for non-`<dialog>` elements.
     fn dialog_return_value(&self) -> Option<String>;
 
-    /// Nearest `<form>` ancestor of a `<button>`. Same shape as
+    /// Form owner of a `<button>`. Same shape as
     /// [`Self::input_form`].
     fn button_form(&self) -> Option<NodeId>;
 
@@ -575,7 +575,8 @@ pub trait TuiAccessorsMut<'a> {
 
     /// `<form>.requestSubmit(submitter?)` — fires a synthetic
     /// `submit` event on this form with typed
-    /// `EventDetail::Submit { submitter }`. The `submitter`
+    /// `EventDetail::Submit(Dom::submit_detail(form, submitter))`
+    /// (effective `action` / `method` / … included). The `submitter`
     /// argument is the `NodeId` of the `<button>` / `<input
     /// type=submit>` that should be reported as the trigger
     /// (`None` for implicit-Enter / programmatic submits).
