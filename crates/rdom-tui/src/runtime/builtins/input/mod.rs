@@ -85,9 +85,8 @@ pub fn seed_all(dom: &mut TuiDom) {
     for id in inputs {
         // Only text-family inputs participate in the seed: a
         // checkbox / radio / submit button has no editable text
-        // surface — its `value` attribute is what gets submitted,
-        // not what's displayed (the glyph comes from a UA
-        // `::before` content rule).
+        // surface. What it displays — a toggle's glyph, a button's
+        // `[ label ]` — comes from a UA `::before` content rule.
         if !is_text_family_input(dom, id) {
             continue;
         }

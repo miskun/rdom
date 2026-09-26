@@ -53,6 +53,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 - `caret-color` (CSS UI 4 §7.1) and rdom's `caret-text-color` inherit; `property_dispatch::inherits` and the rdom-tui cascade agree.
 - `removeProperty("display")` now also clears the `display`-derived `flow` that `set` writes, and `property_mask("display")` includes `FLOW`; a removed `display` used to leave a stale flow declaration behind.
 - `ImportantMask::FLOW` and `ImportantMask::POINTER_EVENTS` shared bit 39, so `pointer-events: … !important` also marked the `display`-derived flow important (and vice versa). Every flag now owns a bit, and a test pins it. (`STYLE-MASK-COLLISION-1`)
+- `<input type=submit|reset|button>` now paints its label — the `value` attribute, or `Submit` / `Reset` when it is absent (nothing for `type=button`) — as UA `::before` content, and the box sizes to it (`width: auto` instead of the text field's 20 cells), so layout, paint and hit-testing all see `[ Go ]`. A value-less submit input still submits `""`. (`P6G-INPUT-BUTTON-LABEL-1`)
 
 ### Internal — `rdom-style`
 

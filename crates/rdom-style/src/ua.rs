@@ -548,17 +548,44 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
                 .bold(true)
                 .user_select(UserSelect::None),
         ),
+        // `width: auto` undoes the text-field `input { width: 20 }`
+        // above, as for the toggles: the box hugs `[ label ]`.
         (
             "input[type=button], input[type=submit], input[type=reset]",
             TuiStyle::new()
                 .display(Display::InlineBlock)
+                .width(Size::Auto)
                 .fg(ACCENT)
                 .bold(true)
                 .user_select(UserSelect::None),
         ),
         (
-            "button::before, input[type=button]::before, input[type=submit]::before, input[type=reset]::before",
+            "button::before",
             TuiStyle::new().content(Content::Str("[ ".into())),
+        ),
+        // The button-family `<input>` label (HTML §4.10.5.1.19–21):
+        // the `value` attribute, or — when it is absent — "Submit" /
+        // "Reset" for those two types and nothing for `type=button`.
+        // A `<button>` labels itself with its children; an `<input>`
+        // has none, so its label is generated content alongside the
+        // opening bracket, where layout, paint and hit-testing already
+        // see it (`P6G-INPUT-BUTTON-LABEL-1`). An author `::before`
+        // rule on these inputs replaces bracket and label together
+        // (DIVERGENCES §Selection & editing).
+        (
+            "input[type=button]::before, input[type=submit]::before, input[type=reset]::before",
+            TuiStyle::new().content(Content::Concat(vec![
+                Content::Str("[ ".into()),
+                Content::Attr("value".into()),
+            ])),
+        ),
+        (
+            "input[type=submit]:not([value])::before",
+            TuiStyle::new().content(Content::Str("[ Submit".into())),
+        ),
+        (
+            "input[type=reset]:not([value])::before",
+            TuiStyle::new().content(Content::Str("[ Reset".into())),
         ),
         (
             "button::after, input[type=button]::after, input[type=submit]::after, input[type=reset]::after",
@@ -1074,7 +1101,11 @@ mod tests {
         // (`button/summary/a/area:focus`, +4) and the `:focus::scrollbar-thumb`
         // accent (+1) — alongside the retained 3-selector
         // `input/textarea/select:focus` !important tint.
-        assert_eq!(ua.len(), 142);
+        // 144: the button-family `<input>` label (P6G-INPUT-BUTTON-LABEL-1)
+        // adds the value-less `[type=submit]` / `[type=reset]` default
+        // labels (+2); `button::before` split from the input `::before`
+        // list is net 0.
+        assert_eq!(ua.len(), 144);
         let disabled = ua
             .iter()
             .find(|r| r.source_text == "[disabled]")

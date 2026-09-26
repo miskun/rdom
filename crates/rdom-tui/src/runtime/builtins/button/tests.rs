@@ -193,3 +193,156 @@ fn enter_on_text_input_does_not_synthesize_click() {
     app.handle_event(key_press(KeyCode::Enter, KeyModifiers::empty()));
     assert_eq!(count.get(), 0);
 }
+
+// ── P6G-INPUT-BUTTON-LABEL-1: the button-family `<input>` label ────
+//
+// HTML §4.10.5.1.19–21: a submit / reset / button input's label is its
+// `value` attribute; without one, submit and reset show an
+// implementation-defined "Submit" / "Reset" and a plain button shows
+// nothing. The label must reach layout (intrinsic width), paint and
+// hit-testing alike.
+
+fn input_button(ty: &str, value: Option<&str>) -> (TuiDom, NodeId) {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let inp = dom.create_element("input");
+    dom.set_attribute(inp, "type", ty).unwrap();
+    if let Some(v) = value {
+        dom.set_attribute(inp, "value", v).unwrap();
+    }
+    dom.append_child(root, inp).unwrap();
+    (dom, inp)
+}
+
+/// Cascade (UA sheet) → layout → paint into a 20×1 buffer; row 0.
+fn painted_row(dom: &mut TuiDom) -> String {
+    use crate::prelude::*;
+    let viewport = Rect::new(0, 0, 20, 1);
+    dom.cascade(&Stylesheet::new());
+    dom.layout_dom(viewport);
+    let mut buf = Buffer::empty(viewport);
+    dom.paint_dom(&mut buf, viewport);
+    let mut s = String::new();
+    for x in 0..viewport.width {
+        if let Some(c) = buf.cell(x, 0)
+            && !c.is_spacer()
+        {
+            s.push_str(c.symbol());
+        }
+    }
+    s.trim_end().to_string()
+}
+
+#[test]
+fn submit_input_paints_its_value_as_the_label() {
+    let (mut dom, _) = input_button("submit", Some("Go"));
+    assert_eq!(painted_row(&mut dom), "[ Go ]");
+}
+
+#[test]
+fn value_less_submit_input_paints_the_default_submit_label() {
+    let (mut dom, _) = input_button("submit", None);
+    assert_eq!(painted_row(&mut dom), "[ Submit ]");
+}
+
+#[test]
+fn value_less_reset_input_paints_the_default_reset_label() {
+    let (mut dom, _) = input_button("reset", None);
+    assert_eq!(painted_row(&mut dom), "[ Reset ]");
+}
+
+#[test]
+fn reset_input_paints_its_value_as_the_label() {
+    let (mut dom, _) = input_button("reset", Some("Clear"));
+    assert_eq!(painted_row(&mut dom), "[ Clear ]");
+}
+
+#[test]
+fn button_input_paints_its_value_as_the_label() {
+    let (mut dom, _) = input_button("button", Some("Open"));
+    assert_eq!(painted_row(&mut dom), "[ Open ]");
+}
+
+#[test]
+fn value_less_button_input_paints_an_empty_label() {
+    // HTML: a `type=button` input without a value has an empty label.
+    let (mut dom, _) = input_button("button", None);
+    assert_eq!(painted_row(&mut dom), "[  ]");
+}
+
+#[test]
+fn empty_value_submit_input_paints_an_empty_label() {
+    // The default label applies only when the attribute is absent.
+    let (mut dom, _) = input_button("submit", Some(""));
+    assert_eq!(painted_row(&mut dom), "[  ]");
+}
+
+#[test]
+fn submit_input_label_follows_a_later_value_change() {
+    let (mut dom, inp) = input_button("submit", Some("Go"));
+    assert_eq!(painted_row(&mut dom), "[ Go ]");
+    dom.set_attribute(inp, "value", "Send").unwrap();
+    assert_eq!(painted_row(&mut dom), "[ Send ]");
+}
+
+#[test]
+fn submit_input_box_is_as_wide_as_its_label() {
+    use crate::node::TuiNodeExt;
+    let (mut dom, inp) = input_button("submit", Some("Go"));
+    painted_row(&mut dom);
+    let rect = dom.node(inp).layout_rect().expect("laid out");
+    assert_eq!(rect.width, 6, "`[ Go ]` is 6 cells: {rect:?}");
+}
+
+#[test]
+fn a_button_element_keeps_its_own_children_as_the_label() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let btn = dom.create_element("button");
+    // A `value` on `<button>` is submitted, never displayed.
+    dom.set_attribute(btn, "value", "v").unwrap();
+    let t = dom.create_text_node("Save");
+    dom.append_child(btn, t).unwrap();
+    dom.append_child(root, btn).unwrap();
+    assert_eq!(painted_row(&mut dom), "[ Save ]");
+}
+
+#[test]
+fn a_click_on_the_label_activates_the_submit_input() {
+    use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
+    let (dom, inp) = input_button("submit", Some("Go"));
+    // The UA sheet (`Stylesheet::new`) supplies the chrome and label.
+    let terminal = Terminal::new(TestBackend::new(20, 5)).unwrap();
+    let mut app = App::with_backend(dom, Stylesheet::new(), terminal).unwrap();
+    let count = record_click_count(&mut app, inp);
+    app.draw_if_dirty().unwrap();
+    // `[ Go ]` spans x 0..6; every cell of it, the label's `G` / `o`
+    // and the closing bracket included, is the button.
+    for x in 0..6 {
+        for kind in [
+            MouseEventKind::Down(MouseButton::Left),
+            MouseEventKind::Up(MouseButton::Left),
+        ] {
+            app.handle_event(CtEvent::Mouse(MouseEvent {
+                kind,
+                column: x,
+                row: 0,
+                modifiers: KeyModifiers::empty(),
+            }));
+        }
+        assert_eq!(count.get(), u32::from(x) + 1, "click at x={x}");
+    }
+    // Past the closing bracket is not the button.
+    for kind in [
+        MouseEventKind::Down(MouseButton::Left),
+        MouseEventKind::Up(MouseButton::Left),
+    ] {
+        app.handle_event(CtEvent::Mouse(MouseEvent {
+            kind,
+            column: 6,
+            row: 0,
+            modifiers: KeyModifiers::empty(),
+        }));
+    }
+    assert_eq!(count.get(), 6, "click at x=6 is past the box");
+}
