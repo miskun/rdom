@@ -101,7 +101,7 @@ Everything else is real. Disposition per item:
 | 4 | rdom-tui cascade + animation | custom-property cascade, inherits mask, initial hoist + rule index, three animation items | done 2026-09-24 |
 | 5 | rdom-tui layout | 22 layout items incl. stacking contexts, static position, cross-axis scroll, spans | done 2026-09-24 (both gates) |
 | 6 | rdom-tui paint + runtime + forms | 18 items incl. group opacity, splits, form defaults, app intents; 34 gate fixes (`P6G-*`) | done 2026-09-25 (both gates + re-review) |
-| 7 | completeness | scope confirmation with Miska: form validation, `:focus-visible`, `::placeholder` / `:placeholder-shown`, undo coalescing, blinking caret, clipboard whitespace, `scroll-behavior`, live `<style>` — the README's "open polish" list and DIVERGENCES §3 "Not yet shipped" | |
+| 7 | completeness | scope confirmed 2026-09-26: fieldset[disabled], form owner + button overrides, constraint validation, `:focus-visible`, `::placeholder`, undo coalescing, blinking caret, clipboard whitespace, `scroll-behavior`, live `<style>`, showcase demos | |
 | 8 | release | 0.5.0 across all five crates, migration notes | |
 
 Each phase ends with the two review gates; each commit carries the item id.
@@ -360,6 +360,15 @@ Each phase ends with the two review gates; each commit carries the item id.
   Carried to the Phase 7 scope question: `fieldset[disabled]`, demos for the Phase 6 features.
   Carried to Phase 8: rdom-style must bump before rdom-tui can verify a publish; a tarball test run
   needs `--features test-util` for `inline_flow` (path dev-dependency stripped on publish).
+- 2026-09-26 — Phase 7 scope confirmed with Miska: everything offered. Items, in order:
+  `P7-FIELDSET-DISABLED-1`, `P7-FORM-OWNER-1` (`form=` + `formaction` / `formmethod` / `formenctype` /
+  `formtarget` / `formnovalidate`), `P7-VALIDATION-1` (constraint validation: `required`, `pattern`,
+  `minlength` / `maxlength`, `min` / `max` / `step`, type mismatch, `ValidityState`, `checkValidity` /
+  `reportValidity` / `setCustomValidity`, `invalid` event, `:valid` / `:invalid` / `:required` /
+  `:optional`, submission blocked unless `novalidate` / `formnovalidate`), `P7-FOCUS-VISIBLE-1`,
+  `P7-PLACEHOLDER-PSEUDO-1`, `P7-UNDO-COALESCE-1`, `P7-CARET-BLINK-1`, `P7-CLIPBOARD-WS-1`,
+  `P7-SCROLL-BEHAVIOR-1`, `P7-LIVE-STYLE-1`, `P7-DEMOS-1`. Each ends its DIVERGENCES §3 line or
+  README open-polish mention.
 - Found while mapping Phase 3 (not on the ledger): `ImportantMask::FLOW` and `POINTER_EVENTS` share
   bit 39 (`tui_style.rs`), custom-property inheritance in the cascade is overwritten by the merged
   root map (`walk.rs`), and tokenizer errors inside a block are body-relative (`declarations.rs`).
