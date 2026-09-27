@@ -25,6 +25,8 @@
 //! - `geometry.rs` — padding-box scroll metrics and scroll-container
 //!   predicates (`nearest_scroll_container`).
 //! - `scroll.rs` — the scroll writers: clamp + `scroll` event.
+//! - `painted.rs` — the offsets the last frame painted, so any offset
+//!   change repaints (`moved_since_paint`, `note_painted`).
 //!
 //! Hooks into `router::mouse`:
 //!
@@ -43,6 +45,7 @@ mod drag;
 mod geometry;
 mod hit;
 mod keys;
+mod painted;
 mod reveal;
 mod scroll;
 
@@ -52,6 +55,7 @@ pub(crate) use hit::hit;
 pub use hit::{ScrollbarHit, ScrollbarPart};
 pub use keys::SCROLL_FOCUS_ATTR;
 pub(crate) use keys::{handle_scroll_key, scroll_focus_target};
+pub(crate) use painted::{moved_since_paint, note_painted};
 pub(crate) use reveal::{reveal_caret, scroll_into_view, service_caret_reveal};
 pub(crate) use scroll::{max_offsets, write_offsets};
 

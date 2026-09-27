@@ -46,6 +46,8 @@ mod keyboard_defaults;
 mod stylesheets;
 
 #[cfg(test)]
+mod scroll_repaint_tests;
+#[cfg(test)]
 mod tests;
 
 use std::io::{self, Stdout};

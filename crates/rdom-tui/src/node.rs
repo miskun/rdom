@@ -433,6 +433,11 @@ pub trait TuiNodeMutExt<'a> {
         }
         self
     }
+    /// Write the raw scroll offsets (`TuiExt::scroll_x` / `scroll_y`).
+    /// Builder-time setup; at run time prefer
+    /// [`TuiAccessorsMut::scroll_to`](crate::TuiAccessorsMut::scroll_to),
+    /// which clamps and fires `scroll`. Either way the `App` repaints
+    /// on its next frame.
     fn set_scroll(&mut self, x: usize, y: usize) -> &mut Self {
         if let Some(e) = self.tui_ext_mut() {
             e.scroll_x = x;

@@ -90,6 +90,9 @@ impl<B: Backend> App<B> {
         let now = self.scheduler.borrow().now();
         self.needs_redraw |= self.caret_blink.update(&mut self.dom, now);
         self.step_smooth_scrolls(now);
+        // Any scroll offset change repaints, whoever wrote it
+        // (`P7-SCROLL-REPAINT-1`).
+        self.needs_redraw |= crate::runtime::scrollbar::moved_since_paint(&self.dom);
         let dirty_roots = self.take_dirty_roots();
 
         if !self.needs_redraw && dirty_roots.is_empty() {
@@ -110,6 +113,7 @@ impl<B: Backend> App<B> {
             dom.paint_dom(buf, buf.area);
             Ok(())
         })?;
+        crate::runtime::scrollbar::note_painted(&mut self.dom);
 
         // Drain transition events queued during this frame.
         self.dispatch_animation_events();

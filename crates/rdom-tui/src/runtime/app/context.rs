@@ -5,7 +5,8 @@
 //!
 //! - `dom` — mutable DOM access.
 //! - `request_redraw()` — explicit dirty bit for mutations the
-//!   observer didn't see (scroll offset, direct ext writes, etc.).
+//!   observer didn't see (direct `TuiExt` writes that change paint).
+//!   Scroll offsets need none: any change repaints on its own.
 //! - `quit()` — exit the loop after this tick / event completes.
 //! - `dispatch(target, event)` — synchronous nested dispatch.
 //! - `queue_dispatch(target, event)` — runs after the current
@@ -109,8 +110,10 @@ impl<'a> AppContext<'a> {
 
     /// Request a paint after the current tick/event completes —
     /// even when the `DirtyTracker` didn't see a mutation
-    /// (e.g., the app wrote `ext.scroll_y` directly, which
-    /// bypasses the observer).
+    /// (e.g., the app wrote a paint-affecting `TuiExt` field
+    /// directly, which bypasses the observer). A scroll offset change
+    /// needs none — the App repaints it on its own
+    /// (`P7-SCROLL-REPAINT-1`).
     pub fn request_redraw(&mut self) {
         self.redraw_requested = true;
     }

@@ -268,10 +268,20 @@ pub struct TuiExt {
     pub table_used_width: Option<u16>,
 
     // ── Scroll ────────────────────────────────────────────────────────
-    /// Horizontal scroll offset in cells.
+    /// Horizontal scroll offset in cells. **Runtime-managed**: write it
+    /// through [`TuiAccessorsMut`](crate::TuiAccessorsMut)
+    /// (`set_scroll_left`, `scroll_to`, …), which clamps it, fires
+    /// `scroll` and honors `scroll-behavior`. A direct write still
+    /// repaints on the `App`'s next frame (`P7-SCROLL-REPAINT-1`) and is
+    /// clamped by the next layout, but fires no `scroll` event and
+    /// leaves a smooth scroll in flight running.
     pub scroll_x: usize,
-    /// Vertical scroll offset in cells.
+    /// Vertical scroll offset in cells. Runtime-managed, as
+    /// [`scroll_x`](Self::scroll_x).
     pub scroll_y: usize,
+    /// `(scroll_x, scroll_y)` as the `App`'s last frame painted them
+    /// (`runtime::scrollbar::painted`): a difference asks for a frame.
+    pub(crate) painted_scroll: (usize, usize),
     /// Total content size (max of children's extents). Used to compute
     /// scrollbar size and thumb position.
     pub scroll_content_width: usize,
