@@ -270,3 +270,6 @@ pub(crate) fn current_selection_text(dom: &TuiDom) -> Option<(String, Range)> {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod rendered_text_tests;

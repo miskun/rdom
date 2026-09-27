@@ -144,6 +144,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 - `TuiAccessors::input_type` returns the canonical keyword of the type state, like `input.type`: `type="PassWord"` reads `"password"`, an invalid value reads `"text"`. (`P7-FORM-ENUM-CASE-1`)
 - The UA focus tint and the accent scroll-focus thumb key on `:focus-visible`: a button, toggle or select focused by a mouse click shows no indicator, keyboard focus and clicked text fields do, and the next key press turns it on — the browsers' focus-ring heuristics. (`P7-FOCUS-VISIBLE-1`)
 - The UA's Delete key, paste and cut report the Input Events `inputType`s `deleteContentForward`, `insertFromPaste` and `deleteByCut` (they reported `deleteContentBackward` / `insertText`); new `perform_edit_as` / `insert_at_selection_as` take an explicit `InputType` (`P7-UNDO-COALESCE-1`)
+- Copy / cut put the selection's rendered text on the clipboard (HTML rendered text collection steps): whitespace collapsed per `white-space` and trimmed at line edges, one line break between blocks (two around a `<p>` with a vertical margin), `<br>` → newline, tab-separated table cells and newline-separated rows, no `display: none` content; `pre` / `pre-wrap` text is verbatim, generated content and list markers are never copied (`P7-CLIPBOARD-WS-1`)
 
 ### Fixed — `rdom-tui`
 

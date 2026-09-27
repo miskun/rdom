@@ -70,7 +70,11 @@ fn serialize_cross_node_range_concats_text_in_doc_order() {
     let t_cd = dom.create_text_node("cd");
     dom.append_child(p, t_cd).unwrap();
     dom.append_child(root, p).unwrap();
-    prepare(&mut dom, &Stylesheet::bare());
+    // `code` is inline (as in the UA sheet): the copy is one line.
+    prepare(
+        &mut dom,
+        &Stylesheet::bare().rule_unchecked("code", TuiStyle::new().display(Display::Inline)),
+    );
 
     let range = Range::ordered_unchecked(Position::new(t_ab, 1), Position::new(t_cd, 1));
     assert_eq!(serialize_selection(&dom, &range), "bXYc");
@@ -101,7 +105,12 @@ fn serialize_skips_user_select_none_subtree() {
                 .display(Display::Block)
                 .width(Size::Fixed(40)),
         )
-        .rule_unchecked(".chrome", TuiStyle::new().user_select(UserSelect::None));
+        .rule_unchecked(
+            ".chrome",
+            TuiStyle::new()
+                .display(Display::Inline)
+                .user_select(UserSelect::None),
+        );
     prepare(&mut dom, &sheet);
 
     let range = Range::ordered_unchecked(Position::new(t_ab, 0), Position::new(t_cd, 2));
@@ -138,8 +147,18 @@ fn serialize_keeps_explicit_text_inside_a_user_select_none_subtree() {
                 .display(Display::Block)
                 .width(Size::Fixed(40)),
         )
-        .rule_unchecked(".chrome", TuiStyle::new().user_select(UserSelect::None))
-        .rule_unchecked("b", TuiStyle::new().user_select(UserSelect::Text));
+        .rule_unchecked(
+            ".chrome",
+            TuiStyle::new()
+                .display(Display::Inline)
+                .user_select(UserSelect::None),
+        )
+        .rule_unchecked(
+            "b",
+            TuiStyle::new()
+                .display(Display::Inline)
+                .user_select(UserSelect::Text),
+        );
     prepare(&mut dom, &sheet);
 
     let range = Range::ordered_unchecked(Position::new(t_ab, 0), Position::new(t_cd, 2));
@@ -164,8 +183,12 @@ fn serialize_stops_at_an_end_inside_user_select_none_text() {
     let t_cd = dom.create_text_node("cd");
     dom.append_child(p, t_cd).unwrap();
     dom.append_child(root, p).unwrap();
-    let sheet =
-        Stylesheet::bare().rule_unchecked(".chrome", TuiStyle::new().user_select(UserSelect::None));
+    let sheet = Stylesheet::bare().rule_unchecked(
+        ".chrome",
+        TuiStyle::new()
+            .display(Display::Inline)
+            .user_select(UserSelect::None),
+    );
     prepare(&mut dom, &sheet);
 
     let range = Range::ordered_unchecked(Position::new(t_ab, 0), Position::new(t_nn, 1));
