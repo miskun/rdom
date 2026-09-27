@@ -39,12 +39,17 @@ use crate::dom::Dom;
 use crate::node_id::NodeId;
 
 /// Which interaction state changed. Fired by `Dom::set_hovered` /
-/// `Dom::set_focused` so pseudo-class matches (`:hover`, `:focus`)
-/// can invalidate cleanly.
+/// `Dom::set_focused` / `Dom::set_focus_visible` so pseudo-class
+/// matches (`:hover`, `:focus`, `:focus-visible`) can invalidate
+/// cleanly.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum InteractionKind {
     Hover,
     Focus,
+    /// `Dom::focus_visible` flipped while focus stayed put; `prev` and
+    /// `next` both name the focused element (`None` when nothing is
+    /// focused).
+    FocusVisible,
 }
 
 /// One DOM mutation notification.
@@ -584,6 +589,31 @@ mod tests {
             }
             _ => unreachable!(),
         }
+    }
+
+    /// `set_focus_visible` fires one record per change, naming the
+    /// focused element as both `prev` and `next` (the element whose
+    /// `:focus-visible` match flipped); a no-op write fires nothing.
+    #[test]
+    fn interaction_changed_fires_on_set_focus_visible() {
+        let mut dom: Dom = Dom::new();
+        let el = dom.create_element("div");
+        dom.set_focused(Some(el));
+        let (_, records) = install_collector(&mut dom);
+        dom.set_focus_visible(false);
+        dom.set_focus_visible(false);
+        dom.set_focus_visible(true);
+
+        let interactions: Vec<_> = records
+            .borrow()
+            .iter()
+            .filter_map(|r| match r {
+                Mutation::InteractionChanged { prev, next, kind } => Some((*prev, *next, *kind)),
+                _ => None,
+            })
+            .collect();
+        let rec = (Some(el), Some(el), InteractionKind::FocusVisible);
+        assert_eq!(interactions, vec![rec, rec]);
     }
 
     #[test]

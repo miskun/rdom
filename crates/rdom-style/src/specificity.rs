@@ -105,6 +105,7 @@ impl Specificity {
                 | PseudoClass::Hover
                 | PseudoClass::Focus
                 | PseudoClass::FocusWithin
+                | PseudoClass::FocusVisible
                 | PseudoClass::Checked
                 | PseudoClass::PlaceholderShown
                 | PseudoClass::Indeterminate
@@ -217,6 +218,13 @@ mod tests {
         // A :where()-wrapped selector loses to even a single class — the
         // property that lets author rules override library defaults freely.
         assert!(spec(":where(table:focus td)") < spec(".cell"));
+    }
+
+    /// Selectors 4 §17: `:focus-visible` is a pseudo-class, (0,1,0).
+    #[test]
+    fn focus_visible_counts_as_a_pseudo_class() {
+        assert_eq!(spec(":focus-visible"), spec(".x"));
+        assert_eq!(spec("button:focus-visible"), spec("button:focus"));
     }
 
     #[test]

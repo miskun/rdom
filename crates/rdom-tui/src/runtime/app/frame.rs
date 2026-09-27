@@ -23,9 +23,13 @@ impl<B: Backend> App<B> {
     /// scroll_focus_target`). The UA sheet colors that container's
     /// scrollbar thumb through the attribute; `:focus-within` alone
     /// would light every overflowing ancestor (`FOCUS-THUMB-NEAREST-1`).
-    /// Runs before the cascade, so the change lands in this frame.
+    /// Only while the focus is evident (`Dom::focus_visible`,
+    /// `P7-FOCUS-VISIBLE-1`). Runs before the cascade, so the change lands in this frame.
     fn mark_scroll_focus(&mut self) {
-        let target = crate::runtime::scrollbar::scroll_focus_target(&self.dom);
+        // The accent thumb is a focus indicator: shown only while the
+        // focus is evident (`:focus-visible`), like the control tint.
+        let target = crate::runtime::scrollbar::scroll_focus_target(&self.dom)
+            .filter(|_| self.dom.focus_visible());
         if target == self.scroll_focus_marked {
             return;
         }

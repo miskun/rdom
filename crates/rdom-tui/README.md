@@ -204,6 +204,13 @@ Both setters fire `Mutation::InteractionChanged` records so a
 the newly-hovered node, causing the next cascade to re-evaluate
 `:hover` / `:focus` matches on both sides.
 
+`:focus-visible` matches the focused element while
+`dom.focus_visible()` is `true`. The `App` keeps that bit with the
+browsers' heuristics — a key press makes focus evident, a mouse click
+does so only on a text field or editing host — and the UA focus tint
+keys on it; `dom.set_focus_visible(bool)` sets it directly (it fires
+`InteractionChanged(FocusVisible)`).
+
 ## Incremental re-cascade
 
 Full cascade walks the whole tree. For apps with many elements and

@@ -132,6 +132,11 @@ pub enum PseudoClass {
     /// the focused node upward through parents; every ancestor
     /// in the chain matches, plus the focused node itself.
     FocusWithin,
+    /// `:focus-visible` — Selectors 4 §13.2: the focused node while
+    /// the UA judges its focus should be evident
+    /// ([`Dom::focus_visible`](crate::Dom::focus_visible), driven by
+    /// the backend's keyboard / pointer heuristics).
+    FocusVisible,
     /// `:checked` — matches when the element has a `checked`
     /// attribute (any value, presence-only). The user-toggle
     /// builtins flip this attribute on click / Space, so this
@@ -525,6 +530,7 @@ impl<'a> Parser<'a> {
             "hover" => Ok(SimpleSelector::Pseudo(PseudoClass::Hover)),
             "focus" => Ok(SimpleSelector::Pseudo(PseudoClass::Focus)),
             "focus-within" => Ok(SimpleSelector::Pseudo(PseudoClass::FocusWithin)),
+            "focus-visible" => Ok(SimpleSelector::Pseudo(PseudoClass::FocusVisible)),
             "checked" => Ok(SimpleSelector::Pseudo(PseudoClass::Checked)),
             "placeholder-shown" => Ok(SimpleSelector::Pseudo(PseudoClass::PlaceholderShown)),
             "indeterminate" => Ok(SimpleSelector::Pseudo(PseudoClass::Indeterminate)),

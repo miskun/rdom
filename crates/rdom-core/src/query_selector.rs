@@ -260,6 +260,7 @@ impl<Ext> Dom<Ext> {
             PseudoClass::Root => id == self.root(),
             PseudoClass::Hover => self.hovered() == Some(id),
             PseudoClass::Focus => self.focused() == Some(id),
+            PseudoClass::FocusVisible => self.focus_visible && self.focused() == Some(id),
             PseudoClass::FocusWithin => {
                 // Walk up from the focused node to the root; if
                 // `id` is the focused node itself or any ancestor
@@ -982,6 +983,34 @@ mod tests {
     }
 
     /// Test backend: a candidate is invalid while it has `data-bad`.
+    /// Selectors 4 §13.2: `:focus-visible` matches the focused element
+    /// while the UA judges its focus should be evident
+    /// (`Dom::focus_visible`, on until a backend says otherwise); it
+    /// never matches an unfocused element.
+    #[test]
+    fn focus_visible_matches_the_focused_element_while_focus_is_evident() {
+        let mut dom: Dom = Dom::new();
+        let root = dom.root();
+        let a = dom.create_element("button");
+        let b = dom.create_element("button");
+        dom.append_child(root, a).unwrap();
+        dom.append_child(root, b).unwrap();
+        assert!(dom.focus_visible(), "focus is evident by default");
+        assert!(
+            !dom.matches(a, ":focus-visible").unwrap(),
+            "nothing focused"
+        );
+
+        dom.set_focused(Some(a));
+        assert!(dom.matches(a, ":focus-visible").unwrap());
+        assert!(!dom.matches(b, ":focus-visible").unwrap());
+
+        dom.set_focus_visible(false);
+        assert!(dom.matches(a, ":focus").unwrap());
+        assert!(!dom.matches(a, ":focus-visible").unwrap());
+        assert!(dom.matches(a, ":focus:not(:focus-visible)").unwrap());
+    }
+
     fn bad_attr_hook(dom: &Dom, id: NodeId) -> bool {
         !dom.has_attribute(id, "data-bad")
     }

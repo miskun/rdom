@@ -18,6 +18,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 - `DomError` gains `TypeError(&'static str)` (the web's `TypeError`, used by `requestSubmit`). Migration: add the arm to exhaustive matches. (`P7-REQUEST-SUBMIT-1`)
 - `selectors::PseudoClass` gains `Valid`, `Invalid`, `Required` and `Optional`. Migration: add the four arms to exhaustive matches. (`P7-VALIDATION-SELECTORS-1`)
 - `NodeMut::set_content_editable` follows the HTML IDL setter: keywords are ASCII case-insensitive and written lowercase, `"inherit"` removes the attribute, anything else (including `""`) returns the new `DomError::Syntax`; `NodeRef::content_editable` returns the normalized keyword (`"inherit"` for an invalid value). Migration: handle `DomError::Syntax` in exhaustive matches and pass one of the four keywords. (`P7-CONTENTEDITABLE-CASE-1`)
+- `selectors::PseudoClass` gains `FocusVisible` and `InteractionKind` gains `FocusVisible`. Migration: add the arms to exhaustive matches. (`P7-FOCUS-VISIBLE-1`)
 
 ### Added — `rdom-core`
 
@@ -28,6 +29,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 - `:valid`, `:invalid`, `:required` and `:optional` (HTML §4.16.3): `:required` / `:optional` from attributes (`Dom::is_required_control` / `is_optional_control`), `:valid` / `:invalid` for candidates, forms and fieldsets (`Dom::constraint_validity`) with the per-control verdict from a backend hook (`Dom::set_validity_hook`, `ValidityHook`). (`P7-VALIDATION-SELECTORS-1`)
 - `Dom::radio_group` and `Dom::in_same_radio_group` implement HTML's radio button group: same tree, same form owner (honouring `form=`) and the same non-empty `name`, compared exactly. (`P7-RADIO-GROUP-OWNER-1`)
 - `ContentEditableState` and `Dom::content_editable_state` parse the `contenteditable` enumerated attribute per HTML §6.8.1. (`P7-CONTENTEDITABLE-CASE-1`)
+- `:focus-visible` and `Dom::focus_visible` / `Dom::set_focus_visible`: the selector matches the focused element while the backend judges its focus should be evident (Selectors 4 §13.2). (`P7-FOCUS-VISIBLE-1`)
 
 ### Changed — `rdom-core`
 
@@ -133,6 +135,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 - A `<fieldset disabled>` disables its controls (except inside its first `<legend>`): they leave the Tab order, ignore clicks and keys, are not editable, are not submitted by `form::collect`, and a disabled-by-fieldset default button blocks implicit submission. Conversely a `disabled` attribute on a non-control (`<div disabled tabindex=0>`) no longer blocks focus, as in HTML. (`P7-FIELDSET-DISABLED-1`)
 - Forms follow the form owner: a control outside a `<form>` with `form="id"` is submitted, reset, listed by `form::elements` and considered for implicit submission with that form, a control inside one form can belong to another, and a `form` attribute naming no form leaves the control unowned. The `submit` event reports the effective submission attributes, and a submitter's `formmethod="dialog"` closes the dialog as `method="dialog"` does. `input_form()` and siblings return the form owner. (`P7-FORM-OWNER-1`)
 - `TuiAccessors::input_type` returns the canonical keyword of the type state, like `input.type`: `type="PassWord"` reads `"password"`, an invalid value reads `"text"`. (`P7-FORM-ENUM-CASE-1`)
+- The UA focus tint and the accent scroll-focus thumb key on `:focus-visible`: a button, toggle or select focused by a mouse click shows no indicator, keyboard focus and clicked text fields do, and the next key press turns it on — the browsers' focus-ring heuristics. (`P7-FOCUS-VISIBLE-1`)
 
 ### Fixed — `rdom-tui`
 

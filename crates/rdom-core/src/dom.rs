@@ -85,6 +85,11 @@ pub struct Dom<Ext: 'static = ()> {
     /// in to fire `InteractionChanged` records.
     pub(crate) hovered: Option<NodeId>,
     pub(crate) focused: Option<NodeId>,
+    /// Whether the focused element's focus should be made evident
+    /// (`:focus-visible`, Selectors 4 §13.2). The backend applies the
+    /// UA heuristics (keyboard vs. pointer); `true` until it says
+    /// otherwise.
+    pub(crate) focus_visible: bool,
     /// The element that currently owns the pointer, via
     /// `set_pointer_capture`. While set, the runtime routes every
     /// `mousemove`, drag, and `mouseup` to this element regardless of
@@ -131,6 +136,7 @@ impl<Ext: Default> Dom<Ext> {
             listeners: ListenerStore::default(),
             hovered: None,
             focused: None,
+            focus_visible: true,
             pointer_capture: None,
             drag_autoscroll: false,
             selection: None,
@@ -152,6 +158,19 @@ impl<Ext> Dom<Ext> {
     /// The node currently flagged as focused (see `:focus`).
     pub fn focused(&self) -> Option<NodeId> {
         self.focused
+    }
+
+    /// Whether the focused element's focus should be made evident —
+    /// the UA's judgement behind `:focus-visible` (Selectors 4 §13.2),
+    /// which matches the focused element exactly while this is `true`.
+    /// Starts `true` (focus before any pointer interaction is evident,
+    /// as browsers treat script focus on a fresh page); a backend flips
+    /// it with [`set_focus_visible`](Self::set_focus_visible) from its
+    /// input-modality heuristics. It persists across focus changes, so
+    /// focus moved by script keeps the previous element's visibility,
+    /// as the spec asks.
+    pub fn focus_visible(&self) -> bool {
+        self.focus_visible
     }
 
     /// The node that currently owns the pointer via
@@ -218,6 +237,23 @@ impl<Ext: 'static> Dom<Ext> {
             prev,
             next: id,
             kind: InteractionKind::Focus,
+        });
+    }
+
+    /// Set whether the focused element's focus should be made evident
+    /// (see [`focus_visible`](Self::focus_visible)). Fires an
+    /// `InteractionChanged { kind: FocusVisible }` record naming the
+    /// focused element as both `prev` and `next` when the value
+    /// changes; no-op otherwise.
+    pub fn set_focus_visible(&mut self, visible: bool) {
+        if self.focus_visible == visible {
+            return;
+        }
+        self.focus_visible = visible;
+        self.fire_mutation(Mutation::InteractionChanged {
+            prev: self.focused,
+            next: self.focused,
+            kind: InteractionKind::FocusVisible,
         });
     }
 
@@ -406,6 +442,7 @@ impl<Ext: Default> Dom<Ext> {
             listeners: ListenerStore::default(),
             hovered: None,
             focused: None,
+            focus_visible: true,
             pointer_capture: None,
             drag_autoscroll: false,
             selection: None,

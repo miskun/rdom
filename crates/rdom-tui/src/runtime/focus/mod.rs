@@ -24,6 +24,7 @@
 //! 5. `focusin` on new (bubbling)
 
 pub mod tabindex;
+pub(crate) mod visible;
 
 #[cfg(test)]
 mod tests;

@@ -609,8 +609,12 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
         // old generic `:focus` tint + its per-element opt-out hacks
         // (`canvas:focus`, `[role=tree]:focus`). Non-important so authors
         // override freely. See DIVERGENCES.md "Focus affordances".
+        // Keyed on `:focus-visible` (Selectors 4 §13.2), as browsers key
+        // their focus ring: a button, toggle or select focused by a mouse
+        // click shows no tint; keyboard focus and text fields do
+        // (`runtime::focus::visible` in rdom-tui decides).
         (
-            "button:focus, summary:focus, a:focus, area:focus",
+            "button:focus-visible, summary:focus-visible, a:focus-visible, area:focus-visible",
             TuiStyle::new().bg(Color::Rgb(0x2d, 0x2f, 0x31)),
         ),
         // The text-field background chain
@@ -619,7 +623,7 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
         // scoped to just these controls — small widgets where a forced
         // tint is the right affordance, not app-painted surfaces.
         (
-            "input:focus, textarea:focus, select:focus",
+            "input:focus-visible, textarea:focus-visible, select:focus-visible",
             TuiStyle::new().bg_important(Color::Rgb(0x2d, 0x2f, 0x31)),
         ),
         // Focus indicator for SCROLL CONTAINERS: the scroll region that
@@ -1105,7 +1109,8 @@ mod tests {
         // opt-out hacks (net -3) with a 4-selector control allowlist
         // (`button/summary/a/area:focus`, +4) and the `:focus::scrollbar-thumb`
         // accent (+1) — alongside the retained 3-selector
-        // `input/textarea/select:focus` !important tint.
+        // `input/textarea/select:focus` !important tint. P7-FOCUS-VISIBLE-1
+        // re-keyed both control lists on `:focus-visible` (net 0).
         // 144: the button-family `<input>` label (P6G-INPUT-BUTTON-LABEL-1)
         // adds the value-less `[type=submit]` / `[type=reset]` default
         // labels (+2); `button::before` split from the input `::before`

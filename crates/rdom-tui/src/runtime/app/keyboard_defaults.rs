@@ -18,6 +18,9 @@ impl<B: Backend> App<B> {
     /// [`App::handle_event`] with the scheduler guard already installed.
     pub(super) fn handle_key_event(&mut self, key: KeyEvent) {
         use crossterm::event::KeyEventKind;
+        // Keyboard use makes the focus evident (`:focus-visible`) —
+        // before dispatch, so listeners and a Tab move see it.
+        crate::runtime::focus::visible::note_key(&mut self.dom, key);
         // Release events fire `keyup` to the focused
         // element only — no clipboard handling, no Ctrl-C
         // exit (terminals don't reliably report the

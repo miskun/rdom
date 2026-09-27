@@ -596,7 +596,9 @@ impl<B: Backend> App<B> {
             CtEvent::Key(key) => self.handle_key_event(*key),
             CtEvent::Mouse(m) => {
                 let (col, row) = (m.column, m.row);
+                let focused_before = self.dom.focused();
                 let outcome = self.router.route(&mut self.dom, event);
+                crate::runtime::focus::visible::note_pointer_focus(&mut self.dom, focused_before);
                 self.needs_redraw |= outcome.redraw_requested;
                 self.should_quit |= outcome.quit_requested;
                 self.needs_redraw |= self.tracker.take_paint_dirty();
