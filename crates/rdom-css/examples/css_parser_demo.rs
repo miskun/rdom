@@ -4,9 +4,9 @@
 //! `var(--name)` in author rules.
 //!
 //! The demo parses an HTML-ish template via `rdom-parser`, then
-//! calls `rdom_css::extend_from_style_tags` and
-//! `rdom_css::seed_inline_styles` before handing the populated
-//! `Dom<TuiExt>` to `App::run`. From there the cascade resolves
+//! calls `rdom_tui::seed_inline_styles` before handing the populated
+//! `Dom<TuiExt>` to `App::run`, which applies the `<style>` block
+//! itself (and keeps it live). From there the cascade resolves
 //! var references, applies `!important` precedence, and paints.
 //!
 //! Press Ctrl-C to exit.
@@ -17,7 +17,7 @@ use std::io;
 
 use rdom_parser::parse_into;
 use rdom_tui::prelude::*;
-use rdom_tui::{extend_from_style_tags, seed_inline_styles};
+use rdom_tui::seed_inline_styles;
 
 const TEMPLATE: &str = r#"
 <screen>
@@ -82,13 +82,11 @@ fn main() -> io::Result<()> {
     let root = dom.root();
     parse_into(&mut dom, TEMPLATE, root).expect("template parses");
 
-    let mut sheet = Stylesheet::new();
-    let style_warnings = extend_from_style_tags(&dom, &mut sheet);
+    // The App applies the template's `<style>` blocks itself, and keeps
+    // them live; `App::style_element_warnings` lists their parse warnings.
+    let sheet = Stylesheet::new();
     let inline_warnings = seed_inline_styles(&mut dom);
 
-    if !style_warnings.is_empty() {
-        eprintln!("warnings from <style> blocks: {style_warnings:?}");
-    }
     if !inline_warnings.is_empty() {
         eprintln!("warnings from inline style: {inline_warnings:?}");
     }

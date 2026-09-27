@@ -58,7 +58,7 @@ parallel grammar.
 | Surface | Entry point | Notes |
 |---|---|---|
 | Standalone stylesheet string | `from_css(s)` / `parse(s)` / `parse_strict(s)` | Full rule list, custom-property declarations under any selector, `<color>` `var()` references. |
-| `<style>…</style>` in a template | `rdom_tui::cssom::apply::extend_from_style_tags(&mut sheet, &dom)` | Walks the parsed `Dom`, finds every `<style>` element, feeds its text content through `parse`, appends to the sheet. |
+| `<style>…</style>` in a template | automatic under `rdom_tui::App` (live: re-parsed when the text changes, dropped when removed; warnings from `App::style_element_warnings`); `rdom_tui::extend_from_style_tags(&dom, &mut sheet)` for a snapshot without an `App` | Finds every `<style>` element, feeds its text content through `parse`. |
 | Inline `style="…"` attribute | `parse_inline(s)` / `parse_inline_strict(s)` | Declaration list (no selectors, no braces). Returns a `TuiStyle` and any warnings. Drives `style="…"` attribute writes via `rdom-tui`'s `StyleDeclaration` and the `InlineStyleObserver`. |
 
 ## Supported grammar

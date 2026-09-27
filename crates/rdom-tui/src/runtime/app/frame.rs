@@ -55,7 +55,9 @@ impl<B: Backend> App<B> {
         self.validity_marks.flush(
             &mut self.dom,
             &self.tracker,
-            self.stylesheets.iter().map(|(_, s)| s),
+            self.style_elements
+                .sheets()
+                .chain(self.stylesheets.iter().map(|(_, s)| s)),
         );
     }
 
@@ -82,6 +84,7 @@ impl<B: Backend> App<B> {
         // the selectedness algorithm (re)selects are cascaded in this
         // frame.
         self.selectedness.flush(&mut self.dom);
+        self.flush_style_elements();
         self.mark_scroll_focus();
         self.flush_validity_marks();
         let now = self.scheduler.borrow().now();
@@ -100,10 +103,10 @@ impl<B: Backend> App<B> {
         );
 
         let dom = &mut self.dom;
-        let stylesheets = &self.stylesheets;
+        let sheets = cascade_order(&self.style_elements, &self.stylesheets);
         let animations = &mut self.animations;
         self.terminal.draw(|buf| {
-            style_and_layout(dom, stylesheets, animations, &dirty_roots, buf.area);
+            style_and_layout(dom, &sheets, animations, &dirty_roots, buf.area);
             dom.paint_dom(buf, buf.area);
             Ok(())
         })?;
@@ -174,18 +177,34 @@ impl<B: Backend> App<B> {
     /// newly dirtied (it still paints — `needs_redraw` is set).
     pub(super) fn cascade_and_layout(&mut self, area: Rect) {
         self.selectedness.flush(&mut self.dom);
+        self.flush_style_elements();
         self.flush_validity_marks();
         let now = self.scheduler.borrow().now();
         self.needs_redraw |= self.caret_blink.update(&mut self.dom, now);
         let dirty_roots = self.take_dirty_roots();
+        let sheets = cascade_order(&self.style_elements, &self.stylesheets);
         style_and_layout(
             &mut self.dom,
-            &self.stylesheets,
+            &sheets,
             &mut self.animations,
             &dirty_roots,
             area,
         );
     }
+}
+
+/// Every sheet the cascade reads, in cascade order: the document's
+/// `<style>` sheets in tree order, then the App's own in push order
+/// (`cssom::style_elements`). Later sheets win same-specificity
+/// contests.
+fn cascade_order<'a>(
+    style_elements: &'a crate::cssom::style_elements::StyleElements,
+    stylesheets: &'a [(StylesheetId, Stylesheet)],
+) -> Vec<&'a Stylesheet> {
+    style_elements
+        .sheets()
+        .chain(stylesheets.iter().map(|(_, s)| s))
+        .collect()
 }
 
 /// The frame pipeline up to paint, shared by [`App::draw_if_dirty`] and
@@ -200,18 +219,16 @@ impl<B: Backend> App<B> {
 /// inside `Terminal::draw` while the terminal is borrowed.
 fn style_and_layout(
     dom: &mut TuiDom,
-    stylesheets: &[(StylesheetId, Stylesheet)],
+    sheets: &[&Stylesheet],
     animations: &mut AnimationRegistry,
     dirty_roots: &[NodeId],
     area: Rect,
 ) {
-    // Later sheets win same-specificity contests (push order).
-    let sheets: Vec<&Stylesheet> = stylesheets.iter().map(|(_, s)| s).collect();
     let now = std::time::Instant::now();
     if dirty_roots.is_empty() {
-        dom.cascade_all(&sheets);
+        dom.cascade_all(sheets);
     } else {
-        dom.cascade_subtrees_all(&sheets, dirty_roots);
+        dom.cascade_subtrees_all(sheets, dirty_roots);
     }
     crate::runtime::animation::diff_and_register(dom, animations, now);
     animations.advance(dom, now);

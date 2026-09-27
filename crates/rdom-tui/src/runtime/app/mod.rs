@@ -93,6 +93,9 @@ pub struct App<B: Backend = CrosstermBackend<Stdout>> {
     /// [`App::set_stylesheet`] (clear + push). Public accessor
     /// [`App::style_sheets`] returns the sheets-only view.
     pub(super) stylesheets: Vec<(StylesheetId, Stylesheet)>,
+    /// The document's `<style>` sheets, live (`cssom::style_elements`):
+    /// they cascade before `stylesheets`, in tree order.
+    pub(super) style_elements: crate::cssom::style_elements::StyleElements,
     /// The one [`StylesheetId`] allocator: the App's own
     /// `set_stylesheet` / `push_stylesheet` and every [`AppContext`]
     /// (which borrows it) draw from it, so an id a handler gets back is
@@ -366,6 +369,7 @@ impl<B: Backend> App<B> {
         // and on each select whose options change from here on.
         crate::runtime::builtins::select::seed_all(&mut dom);
         let selectedness = crate::runtime::builtins::select::Selectedness::install(&mut dom);
+        let style_elements = crate::cssom::style_elements::StyleElements::install(&mut dom);
         // Sync column widths across every `<table>` so cells in
         // different rows align. v1 uses content-based measurement;
         // apps that mutate tables at runtime can call the helper
@@ -385,6 +389,7 @@ impl<B: Backend> App<B> {
         Ok(Self {
             dom,
             stylesheets: vec![(stylesheet_ids.allocate(), stylesheet)],
+            style_elements,
             stylesheet_ids,
             terminal,
             tracker,

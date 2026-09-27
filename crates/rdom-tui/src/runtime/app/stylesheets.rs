@@ -131,13 +131,16 @@ impl<B: Backend> App<B> {
     /// from the previous sheet stack. Draining + `needs_redraw=true`
     /// is what gets the empty-`dirty_roots` branch of `draw_if_dirty`
     /// to run the full cascade.
-    fn invalidate_cascade(&mut self) {
+    pub(super) fn invalidate_cascade(&mut self) {
         self.tracker.take_roots();
         self.needs_redraw = true;
     }
 
     /// All stylesheets registered with this App, in push order.
-    /// Spec-name parity with `Document.styleSheets`.
+    /// Spec-name parity with `Document.styleSheets`. The document's
+    /// `<style>` element sheets are not in this list: the App keeps them
+    /// itself, live, and cascades them before these
+    /// (`cssom::style_elements`).
     ///
     /// Index 0 is the sheet passed to [`Self::new`] / [`Self::with_backend`];
     /// further indices come from [`Self::push_stylesheet`] calls. The cascade
@@ -158,5 +161,23 @@ impl<B: Backend> App<B> {
     /// runtime and lives here.
     pub fn style_sheets(&self) -> Vec<&Stylesheet> {
         self.stylesheets.iter().map(|(_, s)| s).collect()
+    }
+
+    /// The parse warnings of the document's `<style>` elements, in tree
+    /// order, as of the last frame (`cssom::style_elements`) — what
+    /// [`extend_from_style_tags`](crate::extend_from_style_tags) returns
+    /// for a snapshot.
+    pub fn style_element_warnings(&self) -> Vec<&rdom_css::Warning> {
+        self.style_elements.warnings().collect()
+    }
+
+    /// Re-parse the `<style>` elements whose text changed and pick up
+    /// inserted / removed ones (`cssom::style_elements`); invalidate the
+    /// cascade when the document's sheets changed. Runs at the frame
+    /// boundary, before the cascade.
+    pub(super) fn flush_style_elements(&mut self) {
+        if self.style_elements.flush(&self.dom) {
+            self.invalidate_cascade();
+        }
     }
 }

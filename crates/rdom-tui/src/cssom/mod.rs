@@ -12,6 +12,9 @@
 //!   [`extend_from_style_tags`] walks `<style>` blocks into a
 //!   `Stylesheet`; [`seed_inline_styles`] writes `style="…"`
 //!   attribute values into each element's `TuiExt::inline_style`.
+//! - `style_elements` — the live `<style>` sheets an `App` keeps
+//!   (`P7-LIVE-STYLE-1`): a mutation observer marks them dirty, the
+//!   App re-parses at the frame boundary.
 //! - **M4b step 26 (coming)** — `StyleDeclaration` /
 //!   `StyleDeclarationMut`: the IDL-style CSSOM wrapper around
 //!   `TuiStyle` that drives `element.style.color = "red"` /
@@ -41,6 +44,7 @@ pub mod observer;
 // One method per name in `property_dispatch::property_names()`.
 mod aliases;
 pub(crate) mod reentry;
+pub(crate) mod style_elements;
 
 pub use apply::{extend_from_style_tags, seed_inline_styles};
 pub use declaration::{SetPropertyError, StyleDeclaration, StyleDeclarationMut};

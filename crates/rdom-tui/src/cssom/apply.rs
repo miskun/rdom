@@ -14,9 +14,11 @@
 //!   writes the resulting `TuiStyle` into the element's
 //!   `TuiExt::inline_style` slot.
 //!
-//! Both are pre-`App::build` setup hooks: the cascade reads what
-//! they wrote on its first pass. M1 limitation: re-running after
-//! later DOM mutation requires a fresh call.
+//! Both are one-shot snapshots. An [`App`](crate::runtime::App) needs
+//! neither for later changes: it keeps `<style>` sheets live itself
+//! (`cssom::style_elements`) and the CSSOM observer re-parses
+//! `style="…"` on every write. `seed_inline_styles` still seeds the
+//! attributes present before `App::new`.
 //!
 //! ## Layering
 //!
@@ -39,6 +41,12 @@ use crate::{TuiDom, TuiNodeMutExt};
 /// are preserved; the parsed rules are appended at the end (giving
 /// them later source order, so they win cascade ties at equal
 /// specificity).
+///
+/// A snapshot, for a cascade run without an `App`. An
+/// [`App`](crate::runtime::App) applies the document's `<style>`
+/// elements itself and keeps them live; merging them into a sheet
+/// handed to an `App` as well applies their rules twice, and the
+/// merged copy goes stale when the element's text changes.
 pub fn extend_from_style_tags(dom: &TuiDom, sheet: &mut Stylesheet) -> Vec<Warning> {
     let mut warnings = Vec::new();
     let style_ids = collect_style_elements(dom);

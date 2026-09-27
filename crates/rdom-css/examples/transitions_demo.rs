@@ -40,7 +40,7 @@ use rdom_parser::parse_into;
 use rdom_tui::ListenerOptions;
 use rdom_tui::prelude::*;
 use rdom_tui::runtime::timers::TuiTimers;
-use rdom_tui::{extend_from_style_tags, seed_inline_styles};
+use rdom_tui::seed_inline_styles;
 
 const TEMPLATE: &str = r#"
 <screen>
@@ -157,13 +157,11 @@ fn main() -> io::Result<()> {
     let root = dom.root();
     parse_into(&mut dom, TEMPLATE, root).expect("template parses");
 
-    let mut sheet = Stylesheet::new();
-    let style_warnings = extend_from_style_tags(&dom, &mut sheet);
+    // The App applies the template's `<style>` blocks itself, and keeps
+    // them live; `App::style_element_warnings` lists their parse warnings.
+    let sheet = Stylesheet::new();
     let inline_warnings = seed_inline_styles(&mut dom);
 
-    if !style_warnings.is_empty() {
-        eprintln!("warnings from <style>: {style_warnings:?}");
-    }
     if !inline_warnings.is_empty() {
         eprintln!("warnings from inline style: {inline_warnings:?}");
     }
