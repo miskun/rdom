@@ -1494,6 +1494,82 @@ fn placeholder_disappears_when_input_has_text_content() {
     );
 }
 
+/// An empty input showing `placeholder` under `sheet`; returns its
+/// placeholder box (the host's `::before`).
+fn placeholder_box(sheet: &Stylesheet, text: Option<&str>) -> Option<crate::style::ComputedStyle> {
+    use crate::node::TuiNodeExt;
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let inp = dom.create_element("input");
+    dom.set_attribute(inp, "placeholder", "Search").unwrap();
+    if let Some(t) = text {
+        let t = dom.create_text_node(t);
+        dom.append_child(inp, t).unwrap();
+    }
+    dom.append_child(root, inp).unwrap();
+    dom.cascade(sheet);
+    dom.node(inp).computed_before().cloned()
+}
+
+/// CSS Pseudo-Elements 4 §4.3: `::placeholder` styles the placeholder
+/// text; the UA's muted color lives on it, and an author rule wins.
+#[test]
+fn author_placeholder_rule_styles_the_placeholder_text() {
+    let ua = placeholder_box(&Stylesheet::new(), None).unwrap();
+    assert_eq!(ua.fg, Color::Rgb(127, 134, 139), "UA default");
+    let red = Color::Rgb(255, 0, 0);
+    let sheet =
+        Stylesheet::new().rule_unchecked("input::placeholder", TuiStyle::new().fg(red).bold(true));
+    let styled = placeholder_box(&sheet, None).unwrap();
+    assert_eq!(styled.content.as_deref(), Some("Search"));
+    assert_eq!(styled.fg, red);
+    assert!(styled.modifiers.contains(Modifier::BOLD));
+}
+
+/// `::placeholder` applies only while the placeholder shows.
+#[test]
+fn placeholder_style_disappears_once_the_field_has_a_value() {
+    let red = Color::Rgb(255, 0, 0);
+    let sheet = Stylesheet::new().rule_unchecked("input::placeholder", TuiStyle::new().fg(red));
+    let filled = placeholder_box(&sheet, Some("typed"));
+    assert!(
+        filled.is_none_or(|b| b.fg != red && b.content.as_deref().is_none_or(str::is_empty)),
+        "no placeholder box once the field has text"
+    );
+}
+
+/// Ordinary cascade order among `::placeholder` rules: specificity
+/// first (`input:placeholder-shown::placeholder` beats
+/// `input::placeholder` whatever the order), then source order.
+#[test]
+fn placeholder_rules_cascade_by_specificity_then_order() {
+    let red = Color::Rgb(255, 0, 0);
+    let blue = Color::Rgb(0, 0, 255);
+    let sheet = Stylesheet::new()
+        .rule_unchecked(
+            "input:placeholder-shown::placeholder",
+            TuiStyle::new().fg(blue),
+        )
+        .rule_unchecked("input::placeholder", TuiStyle::new().fg(red));
+    assert_eq!(placeholder_box(&sheet, None).unwrap().fg, blue);
+    let sheet = Stylesheet::new()
+        .rule_unchecked("input::placeholder", TuiStyle::new().fg(red))
+        .rule_unchecked("input::placeholder", TuiStyle::new().fg(blue));
+    assert_eq!(placeholder_box(&sheet, None).unwrap().fg, blue);
+}
+
+/// Properties outside the `::first-line` set do not apply to
+/// `::placeholder`: `content` cannot replace the placeholder text.
+#[test]
+fn placeholder_rule_cannot_set_content() {
+    let sheet = Stylesheet::new().rule_unchecked(
+        "input::placeholder",
+        TuiStyle::new().content(Content::Str("other".into())),
+    );
+    let b = placeholder_box(&sheet, None).unwrap();
+    assert_eq!(b.content.as_deref(), Some("Search"));
+}
+
 #[test]
 fn textarea_placeholder_shown_also_renders() {
     let mut dom: TuiDom = TuiDom::new();

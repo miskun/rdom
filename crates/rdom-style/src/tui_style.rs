@@ -249,6 +249,32 @@ impl TuiStyle {
         Self::default()
     }
 
+    /// This block restricted to the properties that apply to
+    /// `::first-line` — and so to `::placeholder` (CSS Pseudo-Elements 4
+    /// §2.1.1, §4.3) — among those rdom has: `color`, `background-color`,
+    /// the font properties (`font-weight` / `font-style`),
+    /// `text-decoration`, `opacity`, and custom properties. Everything
+    /// else is dropped with its `!important` bit.
+    pub fn first_line_subset(&self) -> Self {
+        let keep = ImportantMask::FG
+            | ImportantMask::BG
+            | ImportantMask::BOLD
+            | ImportantMask::ITALIC
+            | ImportantMask::TEXT_DECORATION
+            | ImportantMask::OPACITY;
+        Self {
+            fg: self.fg.clone(),
+            bg: self.bg.clone(),
+            bold: self.bold,
+            italic: self.italic,
+            text_decoration: self.text_decoration,
+            opacity: self.opacity,
+            custom_properties: self.custom_properties.clone(),
+            important: self.important & keep,
+            ..Self::default()
+        }
+    }
+
     // Paint color setters — accept both `Color::Rgb(255, 0, 0)` and
     // `TuiColor::var("accent")` via `impl Into<TuiColor>`.
     pub fn fg(mut self, color: impl Into<TuiColor>) -> Self {

@@ -30,6 +30,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 - `Dom::radio_group` and `Dom::in_same_radio_group` implement HTML's radio button group: same tree, same form owner (honouring `form=`) and the same non-empty `name`, compared exactly. (`P7-RADIO-GROUP-OWNER-1`)
 - `ContentEditableState` and `Dom::content_editable_state` parse the `contenteditable` enumerated attribute per HTML §6.8.1. (`P7-CONTENTEDITABLE-CASE-1`)
 - `:focus-visible` and `Dom::focus_visible` / `Dom::set_focus_visible`: the selector matches the focused element while the backend judges its focus should be evident (Selectors 4 §13.2). (`P7-FOCUS-VISIBLE-1`)
+- `Dom::is_placeholder_shown(id)` — the `:placeholder-shown` test as a method. (`P7-PLACEHOLDER-PSEUDO-1`)
 
 ### Changed — `rdom-core`
 
@@ -52,6 +53,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 - `Content::resolve` takes one `&impl ContentContext` (variables, attributes, counters) instead of separate lookups; `HashMap<String, String>` implements it as variables-only. Migration: pass your variable map (or a `ContentContext` impl) as the single argument.
 - `user-select` is no longer inherited (CSS UI 4 §6.1): `property_dispatch::inherits("user-select")` is `false`, and `user-select: unset` now means `initial`. See `Breaking — rdom-tui` for the used-value rules. Migration: write `user-select: inherit` where `unset` was meant to inherit. (`P6G-USER-SELECT-INHERIT-1`)
 - UA: the focus scrollbar-thumb rule is `[data-rdom-scroll-focus]::scrollbar-thumb` (was `:focus-within::scrollbar-thumb`, which lit every overflowing ancestor); the rdom-tui runtime keeps that attribute on the scroll container the keyboard scrolls. Migration: an author override of the old selector must move to the new one. (`FOCUS-THUMB-NEAREST-1`)
+- `PseudoElementTarget` gains the `Placeholder` variant. Migration: add a `PseudoElementTarget::Placeholder` arm to exhaustive matches. (`P7-PLACEHOLDER-PSEUDO-1`)
 
 ### Added — `rdom-style`
 
@@ -60,6 +62,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 - **Custom properties on any rule.** `TuiStyle::custom_properties` (`Vec<CustomDeclaration { name, value, important }>`), `custom_property()` / `set_custom_property()` / `custom_property_value()` / `remove_custom_property()`; `property_dispatch::{set, remove, serialize}` accept `--*` names. (`CSS-VARS-SCOPE-1`)
 - **`::scrollbar-thumb:vertical` / `::scrollbar-thumb:horizontal`** style one axis; the axis rule layers over the axis-neutral `::scrollbar-thumb` at equal specificity. (`UA-SB-1`)
 - `rdom_style::parse::token::tokenize_at` returns per-token positions (used by rdom-css's positioned warnings). (`CSS-WARNING-POSITION-1`)
+- `::placeholder` (CSS Pseudo-Elements 4 §4.3) is a supported pseudo-element: `input::placeholder { color: … }` styles an `<input>` / `<textarea>` placeholder while it is `:placeholder-shown`. Only the `::first-line` properties apply (color, background, font weight / style, text-decoration, opacity, custom properties); others are dropped when the rule is built (`TuiStyle::first_line_subset`). The UA's muted placeholder color moved to a `::placeholder` rule. (`P7-PLACEHOLDER-PSEUDO-1`)
 
 ### Changed — `rdom-style`
 

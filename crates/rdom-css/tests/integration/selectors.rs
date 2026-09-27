@@ -98,3 +98,20 @@ fn invalid_selector_does_not_drop_other_rules() {
     assert_eq!(texts, vec!["a", "b"]);
     assert_eq!(r.warnings.len(), 1);
 }
+
+/// `::placeholder` (CSS Pseudo-Elements 4 §4.3) parses to a
+/// placeholder rule that keeps only the `::first-line` properties:
+/// `color` survives, `width` is dropped.
+#[test]
+fn placeholder_pseudo_element_keeps_first_line_properties() {
+    use rdom_style::{Color, PseudoElementTarget, TuiColor, Value};
+    let r = parse("input::placeholder { color: #ff0000; width: 3; }");
+    assert_eq!(r.stylesheet.rules().len(), 1);
+    let rule = &r.stylesheet.rules()[0];
+    assert_eq!(rule.pseudo, PseudoElementTarget::Placeholder);
+    assert!(matches!(
+        rule.style.fg,
+        Some(Value::Specified(TuiColor::Literal(Color::Rgb(255, 0, 0))))
+    ));
+    assert_eq!(rule.style.width, None);
+}

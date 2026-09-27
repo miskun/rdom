@@ -22,6 +22,16 @@ use crate::selectors::{
 };
 
 impl<Ext> Dom<Ext> {
+    /// Whether `id` matches `:placeholder-shown`: it has a non-empty
+    /// `placeholder` attribute and no text content, i.e. it is showing
+    /// its placeholder hint. Also what decides whether `::placeholder`
+    /// rules style anything.
+    pub fn is_placeholder_shown(&self, id: NodeId) -> bool {
+        self.get_attribute(id, "placeholder")
+            .is_some_and(|v| !v.is_empty())
+            && self.text_content(id).is_empty()
+    }
+
     /// Find the first descendant of `root_id` matching `selector`, in
     /// document order. Returns `None` if none matches. Errors if the
     /// selector is malformed.
@@ -286,25 +296,7 @@ impl<Ext> Dom<Ext> {
                     _ => false,
                 })
                 .unwrap_or(false),
-            PseudoClass::PlaceholderShown => {
-                // Must have a non-empty `placeholder` attribute AND
-                // empty text content. Matches form controls showing
-                // their placeholder hint.
-                let has_placeholder = self
-                    .get_node(id)
-                    .map(|n| match &n.data {
-                        NodeData::Element { attrs, .. } => attrs
-                            .get("placeholder")
-                            .map(|v| !v.is_empty())
-                            .unwrap_or(false),
-                        _ => false,
-                    })
-                    .unwrap_or(false);
-                if !has_placeholder {
-                    return false;
-                }
-                self.text_content(id).is_empty()
-            }
+            PseudoClass::PlaceholderShown => self.is_placeholder_shown(id),
             PseudoClass::Indeterminate => self
                 .get_node(id)
                 .map(|n| match &n.data {

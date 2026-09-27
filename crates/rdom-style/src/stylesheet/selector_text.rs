@@ -46,6 +46,13 @@ pub(super) fn extract_pseudo_suffix(selector: &str) -> Result<(&str, PseudoEleme
         }
         return Ok((core, PseudoElementTarget::Backdrop));
     }
+    if let Some(core) = s.strip_suffix("::placeholder") {
+        let core = core.trim_end();
+        if core.is_empty() {
+            return Err("`::placeholder` requires a host selector".to_string());
+        }
+        return Ok((core, PseudoElementTarget::Placeholder));
+    }
     if let Some(core) = s.strip_suffix("::selection") {
         let core = core.trim_end();
         if core.is_empty() {
@@ -91,7 +98,7 @@ pub(super) fn extract_pseudo_suffix(selector: &str) -> Result<(&str, PseudoEleme
     // A bare `::other` anywhere is rejected (unsupported pseudo-element).
     if pseudo_count == 1 {
         return Err(
-            "unsupported pseudo-element; only ::before, ::after, ::backdrop, ::selection, ::scrollbar, ::scrollbar-thumb (optionally :vertical / :horizontal) allowed"
+            "unsupported pseudo-element; only ::before, ::after, ::backdrop, ::selection, ::placeholder, ::scrollbar, ::scrollbar-thumb (optionally :vertical / :horizontal) allowed"
                 .to_string(),
         );
     }

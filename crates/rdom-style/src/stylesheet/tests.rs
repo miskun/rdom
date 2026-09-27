@@ -441,3 +441,56 @@ fn error_display_shows_position() {
     let msg = format!("{err}");
     assert!(msg.contains("div..foo"));
 }
+
+// ── ::placeholder (CSS Pseudo-Elements 4 §4.3) ──────────────────────
+
+#[test]
+fn extract_placeholder() {
+    assert_eq!(
+        extract_pseudo_suffix("input::placeholder").unwrap(),
+        ("input", PseudoElementTarget::Placeholder)
+    );
+    assert!(extract_pseudo_suffix("::placeholder").is_err());
+}
+
+/// Only the properties that apply to `::first-line` apply to
+/// `::placeholder` (CSS Pseudo-Elements 4 §4.3): in rdom that is color,
+/// background, font weight / style, `text-decoration`, `opacity` and
+/// custom properties. Anything else (here `width`, `content`,
+/// `display`) is dropped from the rule when it is built, with its
+/// `!important` bit. A `::placeholder` rule is a pseudo-element rule
+/// for specificity.
+#[test]
+fn placeholder_rules_keep_only_first_line_properties() {
+    use crate::Content;
+    use crate::layout::TextDecoration;
+    use crate::layout::{Display, Size};
+    let style = TuiStyle::new()
+        .fg_important(Color::Rgb(255, 0, 0))
+        .bg(Color::Rgb(0, 0, 255))
+        .bold(true)
+        .italic(true)
+        .opacity(0.5)
+        .text_decoration(TextDecoration::Underline)
+        .width_important(Size::Fixed(3))
+        .display(Display::Block)
+        .content(Content::Str("x".into()));
+    let sheet = Stylesheet::bare().rule_unchecked("input::placeholder", style.clone());
+    let rule = &sheet.rules()[0];
+    assert_eq!(rule.pseudo, PseudoElementTarget::Placeholder);
+    let kept = &rule.style;
+    assert_eq!(kept.fg, style.fg);
+    assert_eq!(kept.bg, style.bg);
+    assert_eq!(kept.bold, style.bold);
+    assert_eq!(kept.italic, style.italic);
+    assert_eq!(kept.opacity, style.opacity);
+    assert_eq!(kept.text_decoration, style.text_decoration);
+    assert_eq!(kept.width, None);
+    assert_eq!(kept.display, None);
+    assert_eq!(kept.content, None);
+    assert!(kept.important.contains(crate::ImportantMask::FG));
+    assert!(!kept.important.contains(crate::ImportantMask::WIDTH));
+
+    let before = Stylesheet::bare().rule_unchecked("input::before", TuiStyle::new());
+    assert_eq!(rule.specificity, before.rules()[0].specificity);
+}

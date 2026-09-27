@@ -646,20 +646,22 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
         // Placeholder rendering via `:placeholder-shown` +
         // `attr()` content. When the input / textarea has a
         // non-empty `placeholder` attribute and is empty, the
-        // `::before` pseudo-element injects the placeholder text
-        // at DarkGray+dim. Authors override with more-specific
-        // rules.
+        // `::before` pseudo-element injects the placeholder text.
+        // That box is the `::placeholder` pseudo-element: its muted
+        // color is a `::placeholder` rule, which authors override
+        // with their own `::placeholder` rules (CSS Pseudo-Elements 4
+        // §4.3; the backend layers them over `::before`).
         (
             "input:placeholder-shown::before",
-            TuiStyle::new()
-                .content(Content::Attr("placeholder".into()))
-                .fg(TEXT_MUTED),
+            TuiStyle::new().content(Content::Attr("placeholder".into())),
         ),
         (
             "textarea:placeholder-shown::before",
-            TuiStyle::new()
-                .content(Content::Attr("placeholder".into()))
-                .fg(TEXT_MUTED),
+            TuiStyle::new().content(Content::Attr("placeholder".into())),
+        ),
+        (
+            "input::placeholder, textarea::placeholder",
+            TuiStyle::new().fg(TEXT_MUTED),
         ),
         // ── Toggle widgets ──
         // `<input type="checkbox">` and `<input type="radio">`
@@ -1115,7 +1117,9 @@ mod tests {
         // adds the value-less `[type=submit]` / `[type=reset]` default
         // labels (+2); `button::before` split from the input `::before`
         // list is net 0.
-        assert_eq!(ua.len(), 144);
+        // 146: `::placeholder` (P7-PLACEHOLDER-PSEUDO-1) takes the
+        // placeholder color in a 2-selector rule (+2).
+        assert_eq!(ua.len(), 146);
         let disabled = ua
             .iter()
             .find(|r| r.source_text == ":disabled")

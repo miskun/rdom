@@ -87,6 +87,15 @@ pub enum PseudoElementTarget {
     ScrollbarThumbVertical,
     /// `::scrollbar-thumb:horizontal` — the horizontal thumb only.
     ScrollbarThumbHorizontal,
+    /// `::placeholder` (CSS Pseudo-Elements 4 §4.3) — the placeholder
+    /// text of an `<input>` / `<textarea>` while it is
+    /// `:placeholder-shown`. rdom paints that text as the host's
+    /// generated `::before` box (UA `:placeholder-shown::before
+    /// { content: attr(placeholder) }`), so the backend layers these
+    /// rules over the `::before` rules of a host showing its
+    /// placeholder. Only the `::first-line` property subset applies
+    /// ([`TuiStyle::first_line_subset`]); a rule keeps nothing else.
+    Placeholder,
 }
 
 impl PseudoElementTarget {
@@ -354,10 +363,17 @@ impl Stylesheet {
                 let single_list = SelectorList(vec![complex]);
                 let idx = self.next_source_idx;
                 self.next_source_idx += 1;
+                // CSS Pseudo-Elements 4 §4.3: only the `::first-line`
+                // properties apply to `::placeholder`.
+                let style = if pseudo == PseudoElementTarget::Placeholder {
+                    style.first_line_subset()
+                } else {
+                    style.clone()
+                };
                 out.push(Rule {
                     selector: single_list,
                     pseudo,
-                    style: style.clone(),
+                    style,
                     specificity,
                     origin,
                     source_idx: idx,

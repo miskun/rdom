@@ -206,12 +206,12 @@ pub(super) fn cascade_subtree(
     ) = {
         let parent_id = dom.node(id).parent_node().map(|p| p.id());
         let computed = compute_element_style(dom, sheets, id, parent_computed, parent_id, counters);
-        let cb = compute_pseudo_style(
+        let cb = compute_pseudo_style_layered(
             dom,
             sheets,
             id,
             &computed,
-            PseudoElementTarget::Before,
+            before_targets(dom, id),
             counters,
         );
         let cbd = compute_pseudo_style(
@@ -406,6 +406,30 @@ fn compute_element_style(
     working
 }
 
+/// The rule targets that style `id`'s `::before` box. An `<input>` /
+/// `<textarea>` showing its placeholder paints the placeholder text as
+/// its `::before` (UA `:placeholder-shown::before { content:
+/// attr(placeholder) }`), so that box *is* the `::placeholder`
+/// pseudo-element (CSS Pseudo-Elements 4 §4.3) and its rules layer on
+/// top — a `::placeholder` rule wins a specificity tie with a
+/// `::before` one. The rules were cut to the `::first-line` property
+/// subset when they were built, so they can restyle the text but not
+/// replace or move it.
+fn before_targets(dom: &Dom<TuiExt>, id: NodeId) -> &'static [PseudoElementTarget] {
+    const BEFORE: &[PseudoElementTarget] = &[PseudoElementTarget::Before];
+    const PLACEHOLDER: &[PseudoElementTarget] = &[
+        PseudoElementTarget::Before,
+        PseudoElementTarget::Placeholder,
+    ];
+    let node = dom.node(id);
+    let control = matches!(node.tag_name(), Some("input" | "textarea"));
+    if control && dom.is_placeholder_shown(id) {
+        PLACEHOLDER
+    } else {
+        BEFORE
+    }
+}
+
 /// Pseudo-element computation. Returns `None` if the pseudo-element
 /// should not render (no matching rules AND no legacy
 /// `before_content` / `after_content` text set AND no `content`
@@ -500,6 +524,7 @@ fn compute_pseudo_style_layered(
         | PseudoElementTarget::ScrollbarThumb
         | PseudoElementTarget::ScrollbarThumbVertical
         | PseudoElementTarget::ScrollbarThumbHorizontal
+        | PseudoElementTarget::Placeholder
         | PseudoElementTarget::None => None,
     });
     let final_content = match declared {
