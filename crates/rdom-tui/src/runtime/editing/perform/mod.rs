@@ -16,8 +16,6 @@
 //! - Backspace / Delete in B.3.
 //! - Paste default in B.5.
 
-use std::time::Instant;
-
 use rdom_core::{NodeId, Position, Selection};
 
 use crate::node::nearest_editable_ancestor;
@@ -58,7 +56,24 @@ pub enum EditOutcome {
 /// caret: at `caret_after(edit)` — byte offset where the
 /// replacement text ends. The edit is recorded on the editable's
 /// `EditorState` for undo/redo (Phase B.4).
+///
+/// The `inputType` is inferred from the edit's shape (see
+/// [`perform_edit_as`] to name it — the UA's Delete, paste and cut
+/// paths do, and the name decides undo grouping).
 pub fn perform_edit(dom: &mut TuiDom, edit: Edit) -> EditOutcome {
+    let input_type = classify_input_type(&edit);
+    perform_edit_as(dom, edit, input_type)
+}
+
+/// [`perform_edit`] with an explicit Input Events `inputType`: it is
+/// what `beforeinput` / `input` report, and its [`EditKind`] decides
+/// whether the edit joins the open undo group (typing and Backspace /
+/// Delete runs do; paste, cut and the rest are steps of their own).
+pub fn perform_edit_as(
+    dom: &mut TuiDom,
+    edit: Edit,
+    input_type: rdom_core::InputType,
+) -> EditOutcome {
     let editable = match nearest_editable_ancestor(dom, edit.node) {
         Some(id) => id,
         None => return EditOutcome::NoEditableTarget,
@@ -83,9 +98,8 @@ pub fn perform_edit(dom: &mut TuiDom, edit: Edit) -> EditOutcome {
         None => return EditOutcome::NoEditableTarget,
     };
 
-    // Classify the edit and build the detail payload once — both
-    // beforeinput and input share the same shape.
-    let input_type = classify_input_type(&edit);
+    // Build the detail payload once — both beforeinput and input share
+    // the same shape.
     let data = if edit.text.is_empty() {
         None
     } else {
@@ -123,15 +137,19 @@ pub fn perform_edit(dom: &mut TuiDom, edit: Edit) -> EditOutcome {
         return EditOutcome::Prevented;
     }
 
-    // Update the selection to a caret at the edit's end-of-insert.
+    // Update the selection to a caret at the edit's end-of-insert. The
+    // serial readings around it tell undo grouping this caret move is
+    // the edit's own.
+    let selection_before = dom.selection_serial();
     let caret_offset = edit.range.start + edit.text.len();
     let caret_after = Position::new(edit.node, caret_offset);
     dom.set_selection(Some(Selection::caret(caret_after)));
+    let selection_after = dom.selection_serial();
     crate::runtime::scrollbar::reveal_caret(dom);
 
     // Record on the editable's history stack. Lazily allocate
     // `EditorState` on first edit (keeps non-editable elements at
-    // 8 bytes / no heap). `record` handles coalescing internally.
+    // 8 bytes / no heap). `record` handles grouping internally.
     if let Some(ext) = dom.node_mut(editable).ext_mut() {
         let entry = EditEntry {
             node: edit.node,
@@ -140,11 +158,11 @@ pub fn perform_edit(dom: &mut TuiDom, edit: Edit) -> EditOutcome {
             new: edit.text.clone(),
             caret_before,
             caret_after,
-            kind: classify_kind(&edit),
+            kind: EditKind::of(&input_type),
         };
         ext.editor_state
             .get_or_insert_with(|| Box::new(EditorState::new()))
-            .record(entry, Instant::now());
+            .record(entry, selection_before, selection_after);
         ext.value_user_edited = true;
     }
 
@@ -182,21 +200,6 @@ fn classify_input_type(edit: &Edit) -> rdom_core::InputType {
     }
 }
 
-/// Classify an `Edit` for coalescing purposes.
-///
-/// - Empty range + non-empty text → `Insert` (coalescable).
-/// - Non-empty range + empty text → `Delete`.
-/// - Anything else (range + text, or both empty) → `Replace`,
-///   which is non-coalescable and gets its own undo step.
-fn classify_kind(edit: &Edit) -> EditKind {
-    let range_empty = edit.range.start == edit.range.end;
-    match (range_empty, edit.text.is_empty()) {
-        (true, false) => EditKind::Insert,
-        (false, true) => EditKind::Delete,
-        _ => EditKind::Replace,
-    }
-}
-
 /// Convenience: insert `text` at the current selection. If the
 /// selection is a non-collapsed range, the range is replaced;
 /// otherwise the text is inserted at the caret.
@@ -207,8 +210,27 @@ fn classify_kind(edit: &Edit) -> EditKind {
 /// `<b>`) dispatch to [`perform_cross_node_edit`].
 ///
 /// Returns `Applied` / `Prevented` / `NoEditableTarget` — same
-/// contract as `perform_edit`.
+/// contract as `perform_edit`. The `inputType` is inferred as in
+/// [`perform_edit`]; [`insert_at_selection_as`] names it.
 pub fn insert_at_selection(dom: &mut TuiDom, text: &str) -> EditOutcome {
+    let input_type = if !text.is_empty() {
+        match dom.selection() {
+            Some(s) if !s.is_collapsed() => rdom_core::InputType::InsertReplacementText,
+            _ => rdom_core::InputType::InsertText,
+        }
+    } else {
+        rdom_core::InputType::DeleteContentBackward
+    };
+    insert_at_selection_as(dom, text, input_type)
+}
+
+/// [`insert_at_selection`] with an explicit `inputType` (see
+/// [`perform_edit_as`]).
+pub fn insert_at_selection_as(
+    dom: &mut TuiDom,
+    text: &str,
+    input_type: rdom_core::InputType,
+) -> EditOutcome {
     let Some(sel) = dom.selection().copied() else {
         return EditOutcome::NoEditableTarget;
     };
@@ -218,16 +240,17 @@ pub fn insert_at_selection(dom: &mut TuiDom, text: &str) -> EditOutcome {
         } else {
             (sel.focus.offset, sel.anchor.offset)
         };
-        return perform_edit(
+        return perform_edit_as(
             dom,
             Edit {
                 node: sel.anchor.node,
                 range: start..end,
                 text: text.to_string(),
             },
+            input_type,
         );
     }
-    perform_cross_node_edit(dom, sel.anchor, sel.focus, text)
+    cross_node_edit(dom, sel.anchor, sel.focus, text, input_type)
 }
 
 /// Apply a replacement spanning multiple text nodes. The covered
@@ -247,6 +270,23 @@ pub fn perform_cross_node_edit(
     anchor: Position,
     focus: Position,
     text: &str,
+) -> EditOutcome {
+    let input_type = if text.is_empty() {
+        rdom_core::InputType::DeleteContentBackward
+    } else {
+        rdom_core::InputType::InsertReplacementText
+    };
+    cross_node_edit(dom, anchor, focus, text, input_type)
+}
+
+/// [`perform_cross_node_edit`] reporting `input_type`. The compound step
+/// it records is never part of an undo group.
+fn cross_node_edit(
+    dom: &mut TuiDom,
+    anchor: Position,
+    focus: Position,
+    text: &str,
+    input_type: rdom_core::InputType,
 ) -> EditOutcome {
     // Both endpoints must resolve to the same editable host —
     // selections crossing out of a contenteditable into a sibling
@@ -269,22 +309,18 @@ pub fn perform_cross_node_edit(
         None => return EditOutcome::NoEditableTarget,
     };
     if start.node == end.node {
-        return perform_edit(
+        return perform_edit_as(
             dom,
             Edit {
                 node: start.node,
                 range: start.offset..end.offset,
                 text: text.to_string(),
             },
+            input_type,
         );
     }
 
     // Single beforeinput up front.
-    let input_type = if text.is_empty() {
-        rdom_core::InputType::DeleteContentBackward
-    } else {
-        rdom_core::InputType::InsertReplacementText
-    };
     let data = if text.is_empty() {
         None
     } else {
@@ -316,7 +352,7 @@ pub fn perform_cross_node_edit(
         new: new.to_string(),
         caret_before,
         caret_after,
-        kind: EditKind::Replace,
+        kind: EditKind::Standalone,
     };
 
     let start_text = match dom.node(start.node).node_value() {
@@ -367,7 +403,7 @@ pub fn perform_cross_node_edit(
     if let Some(ext) = dom.node_mut(host).ext_mut() {
         ext.editor_state
             .get_or_insert_with(|| Box::new(EditorState::new()))
-            .record_compound(parts, Instant::now());
+            .record_compound(parts);
     }
 
     let mut after = TuiEvent::input(input_type, data);

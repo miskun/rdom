@@ -179,7 +179,11 @@ fn do_cut<B: Backend>(app: &mut App<B>) -> bool {
         // selection-in-prose "Cmd-X" usually does — copies but
         // doesn't delete, since prose isn't editable).
         if crate::node::nearest_editable_ancestor(&app.dom, target).is_some() {
-            let _ = crate::runtime::editing::insert_at_selection(&mut app.dom, "");
+            let _ = crate::runtime::editing::insert_at_selection_as(
+                &mut app.dom,
+                "",
+                rdom_core::InputType::DeleteByCut,
+            );
         }
     }
     true
@@ -232,7 +236,11 @@ fn do_paste<B: Backend>(app: &mut App<B>) -> bool {
     if !tui.event.default_prevented()
         && crate::node::nearest_editable_ancestor(&app.dom, target).is_some()
     {
-        let _ = crate::runtime::editing::insert_at_selection(&mut app.dom, &text);
+        let _ = crate::runtime::editing::insert_at_selection_as(
+            &mut app.dom,
+            &text,
+            rdom_core::InputType::InsertFromPaste,
+        );
     }
     true
 }
@@ -307,7 +315,13 @@ fn try_handle_editable_key(dom: &mut TuiDom, key: crossterm::event::KeyEvent) ->
         KeyCode::Char(c) if !c.is_control() => c,
         _ => return false,
     };
-    let outcome = crate::runtime::editing::insert_at_selection(dom, &ch.to_string());
+    // Typing over a selection is still `insertText` (and opens a
+    // typing group that the following keystrokes join).
+    let outcome = crate::runtime::editing::insert_at_selection_as(
+        dom,
+        &ch.to_string(),
+        rdom_core::InputType::InsertText,
+    );
     matches!(
         outcome,
         crate::runtime::editing::EditOutcome::Applied

@@ -148,3 +148,6 @@ fn push_entry(dom: &mut TuiDom, editable: rdom_core::NodeId, entry: HistoryItem,
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod coalescing_tests;

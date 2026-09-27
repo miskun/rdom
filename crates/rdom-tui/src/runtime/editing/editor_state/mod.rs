@@ -1,5 +1,14 @@
-//! Per-editable mutable state — undo/redo history + coalescing
-//! metadata.
+//! Per-editable mutable state — undo/redo history + undo grouping.
+//!
+//! ## Undo grouping (`P7-UNDO-COALESCE-1`)
+//!
+//! Blink's `TypingCommand` model (Chrome is the de-facto reference for
+//! text-field undo; the HTML and Input Events specs leave grouping to
+//! the UA): a typing run, a Backspace run and a forward-Delete run are
+//! each one undo step; a switch between them, a selection change the
+//! edit did not make (arrow keys, clicks, script, focus moving), paste,
+//! cut, undo and redo close the group. No timer and no word-boundary
+//! split. The rules live in [`EditKind`] and [`EditorState::record`].
 //!
 //! Lives on the editable element's `TuiExt.editor_state` so
 //! `Drop` of the node takes the state with it (no side table, no
@@ -7,36 +16,55 @@
 //! at 8 bytes for non-editable elements.
 
 use std::ops::Range;
-use std::time::{Duration, Instant};
 
-use rdom_core::{NodeId, Position};
+use rdom_core::{InputType, NodeId, Position};
 
-/// Max gap between successive `Insert` edits that still coalesce
-/// into a single undo entry. Matches the "typical editor" 500 ms
-/// pause window — if the user stops typing for half a second, the
-/// next keystroke starts a new undo chunk.
-pub const COALESCE_WINDOW: Duration = Duration::from_millis(500);
-
-/// The kind of edit an entry describes. Drives coalescing: only
-/// `Insert` coalesces with an adjacent prior `Insert`; everything
-/// else is always a fresh entry.
+/// The kind of edit an entry describes — which undo group it can join.
 ///
-/// `Replace` covers "typing with a range selection" — the single
-/// `edit_text` call both deletes the selected range and inserts
-/// the typed char. Browsers treat such an edit as atomic for undo
-/// (Ctrl-Z brings the whole range back), so it doesn't coalesce.
+/// Derived from the edit's Input Events `inputType`
+/// ([`EditKind::of`]). The grouping model is Blink's `TypingCommand`
+/// (`third_party/blink/renderer/core/editing/commands/typing_command.cc`),
+/// the de-facto reference for `<input>` / `<textarea>` /
+/// `contenteditable`:
+///
+/// - a run of typed text (`insertText`, `insertLineBreak`,
+///   `insertParagraph`) is one step, whitespace and word boundaries
+///   included;
+/// - a run of Backspaces is one step, and a run of forward Deletes is
+///   another (Blink: "group continuous delete commands alone");
+/// - switching between those kinds starts a new step;
+/// - everything else — paste, cut, drop, replacement, word deletion —
+///   is a step of its own and closes the group.
+///
+/// Browsers use no timer: a pause does not split a run. What closes a
+/// group besides a kind switch is a selection change the edit did not
+/// make itself (see [`EditorState::record`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum EditKind {
-    /// Inserted text into an empty range (pure insert). Coalesces
-    /// with the prior entry if same-node + adjacent + within
-    /// `COALESCE_WINDOW`.
+    /// Typed text. Joins an open typing group.
     Insert,
-    /// Deleted a non-empty range, replacement empty (Backspace,
-    /// Delete, range-selection Delete).
-    Delete,
-    /// Non-empty range replaced with non-empty text (typing over
-    /// selection, paste-over-selection).
-    Replace,
+    /// Backspace (`deleteContentBackward`). Joins an open Backspace group.
+    DeleteBackward,
+    /// Forward Delete (`deleteContentForward`). Joins an open Delete group.
+    DeleteForward,
+    /// Paste, cut, drop, replacement text, word deletion, … — always its
+    /// own step, and closes whatever group was open.
+    Standalone,
+}
+
+impl EditKind {
+    /// The undo-grouping kind of an edit with `input_type`.
+    pub fn of(input_type: &InputType) -> Self {
+        match input_type {
+            InputType::InsertText | InputType::InsertLineBreak | InputType::InsertParagraph => {
+                Self::Insert
+            }
+            InputType::DeleteContentBackward => Self::DeleteBackward,
+            InputType::DeleteContentForward => Self::DeleteForward,
+            _ => Self::Standalone,
+        }
+    }
 }
 
 /// One step in the undo/redo history.
@@ -77,10 +105,12 @@ pub type HistoryItem = Vec<EditEntry>;
 pub struct EditorState {
     undo: Vec<HistoryItem>,
     redo: Vec<HistoryItem>,
-    /// Time the last entry's edit committed. Used together with
-    /// `COALESCE_WINDOW` to decide whether the next insert extends
-    /// the pending entry or starts a fresh one.
-    last_commit: Option<Instant>,
+    /// The open group: `Some(serial)` while the top undo step can still
+    /// absorb the next edit, `serial` being the
+    /// [`Dom::selection_serial`](rdom_core::Dom::selection_serial) the
+    /// last recorded edit left behind. `None` once the group is closed
+    /// (a standalone or compound step, undo, redo).
+    open_group: Option<u64>,
     /// Sticky cell-column for vertical caret motion.
     ///
     /// `Some(x)` when the previous applied caret action was Up or
@@ -121,43 +151,50 @@ impl EditorState {
         self.sticky_x = None;
     }
 
-    /// Record a just-applied edit. Either coalesces into the top
-    /// of the undo stack (when the rules permit) or pushes a fresh
-    /// entry. Clears the redo stack — branching off history throws
-    /// away the abandoned future.
+    /// Record a just-applied edit. Either joins the open group on top
+    /// of the undo stack or pushes a fresh step. Clears the redo stack —
+    /// branching off history throws away the abandoned future.
     ///
-    /// `now` is injected so tests can drive coalescing without
-    /// racing the real clock; production callers pass
-    /// `Instant::now()`.
-    pub fn record(&mut self, entry: EditEntry, now: Instant) {
+    /// `selection_before` is the document's
+    /// [`selection_serial`](rdom_core::Dom::selection_serial) read before
+    /// the edit moved the caret, `selection_after` the reading after.
+    /// The edit joins the group only when `selection_before` is the
+    /// serial the group's last edit left — any selection change in
+    /// between (an arrow key, a click, script, focus moving away and
+    /// back) closes it, even one that returns the caret to the same
+    /// spot. Then the kinds must match and the edit must continue the
+    /// run on the same text node (see [`EditKind`]).
+    pub fn record(&mut self, entry: EditEntry, selection_before: u64, selection_after: u64) {
         self.redo.clear();
 
-        let coalesce = match self.undo.last() {
-            Some(top) if top.len() == 1 => {
-                Self::can_coalesce_with_previous(&top[0], &entry, self.last_commit, now)
-            }
-            _ => false,
-        };
-        if coalesce {
-            let top = &mut self.undo.last_mut().unwrap()[0];
+        let open = self.open_group == Some(selection_before);
+        let joins = open
+            && match self.undo.last() {
+                Some(top) if top.len() == 1 => Self::continues(&top[0], &entry),
+                _ => false,
+            };
+        let kind = entry.kind;
+        if joins {
+            let top = &mut self.undo.last_mut().expect("joins implies a top step")[0];
             Self::extend_in_place(top, &entry);
         } else {
             self.undo.push(vec![entry]);
         }
-        self.last_commit = Some(now);
+        self.open_group = match kind {
+            EditKind::Standalone => None,
+            _ => Some(selection_after),
+        };
     }
 
-    /// Record a multi-node edit as one history step. Never coalesces
-    /// (with the previous step or the next one). Clears redo.
-    pub fn record_compound(&mut self, parts: HistoryItem, now: Instant) {
+    /// Record a multi-node edit as one history step. Never joins a
+    /// group, and closes the open one. Clears redo.
+    pub fn record_compound(&mut self, parts: HistoryItem) {
         if parts.is_empty() {
             return;
         }
         self.redo.clear();
         self.undo.push(parts);
-        // A compound step is a coalescing barrier.
-        self.last_commit = None;
-        let _ = now;
+        self.open_group = None;
     }
 
     /// Pop the top undo entry. Caller reverses it against the DOM
@@ -165,10 +202,8 @@ impl EditorState {
     /// `push_redo`. Returns `None` when the undo stack is empty.
     pub fn pop_undo(&mut self) -> Option<HistoryItem> {
         let entry = self.undo.pop()?;
-        // Taking from undo breaks any pending coalescing window —
-        // a subsequent edit must start a new entry regardless of
-        // timing.
-        self.last_commit = None;
+        // Undo closes the group: the next edit starts a new step.
+        self.open_group = None;
         Some(entry)
     }
 
@@ -176,7 +211,7 @@ impl EditorState {
     /// and pushes back onto the undo stack via `push_undo`.
     pub fn pop_redo(&mut self) -> Option<HistoryItem> {
         let entry = self.redo.pop()?;
-        self.last_commit = None;
+        self.open_group = None;
         Some(entry)
     }
 
@@ -202,53 +237,46 @@ impl EditorState {
 
     // ── Coalescing internals ────────────────────────────────────────
 
-    /// Decide whether `new_entry` should extend the top-of-undo
-    /// entry rather than push a fresh one. The rules:
-    ///
-    /// - Both entries must be `Insert` kind.
-    /// - Same text node.
-    /// - New entry's insert position is right at the previous
-    ///   entry's `caret_after` (adjacent typing).
-    /// - Less than `COALESCE_WINDOW` elapsed since the previous
-    ///   commit.
-    fn can_coalesce_with_previous(
-        top: &EditEntry,
-        new_entry: &EditEntry,
-        last_commit: Option<Instant>,
-        now: Instant,
-    ) -> bool {
-        if new_entry.kind != EditKind::Insert {
+    /// Whether `next` continues the run `top` describes: same kind (not
+    /// standalone), same text node, and adjacent in the way the kind
+    /// implies — typing inserts at the caret the run left, Backspace
+    /// deletes just before the run's start, Delete removes the bytes
+    /// that slid into the run's start.
+    fn continues(top: &EditEntry, next: &EditEntry) -> bool {
+        if top.kind != next.kind || top.node != next.node {
             return false;
         }
-        if top.kind != EditKind::Insert {
-            return false;
+        match next.kind {
+            EditKind::Insert => next.range.is_empty() && next.range.start == top.caret_after.offset,
+            EditKind::DeleteBackward => {
+                top.new.is_empty() && next.new.is_empty() && next.range.end == top.range.start
+            }
+            EditKind::DeleteForward => {
+                top.new.is_empty() && next.new.is_empty() && next.range.start == top.range.start
+            }
+            EditKind::Standalone => false,
         }
-        if top.node != new_entry.node {
-            return false;
-        }
-        if new_entry.range.start != top.caret_after.offset {
-            return false;
-        }
-        let Some(last) = last_commit else {
-            return false;
-        };
-        if now.duration_since(last) > COALESCE_WINDOW {
-            return false;
-        }
-        true
     }
 
-    /// Extend `top` with `incoming` — called only after
-    /// `can_coalesce_with_previous` returns true. Merges the two
-    /// inserts into one undo step.
-    fn extend_in_place(top: &mut EditEntry, incoming: &EditEntry) {
-        // Both entries are pure inserts on the same node; the new
-        // entry's range is collapsed (start == end) at
-        // `top.caret_after`.
-        top.new.push_str(&incoming.new);
-        top.caret_after = incoming.caret_after;
-        // `old` stays the empty string (pure insert). `range`
-        // stays the original (the position where insertion began).
+    /// Fold `next` into `top` — called only after
+    /// [`continues`](Self::continues) returned true — so one undo
+    /// reverses both and one redo re-applies both.
+    fn extend_in_place(top: &mut EditEntry, next: &EditEntry) {
+        match next.kind {
+            // `range` / `old` stay those of the run's first edit (a
+            // typing run may have begun by replacing a selection).
+            EditKind::Insert => top.new.push_str(&next.new),
+            EditKind::DeleteBackward => {
+                top.old.insert_str(0, &next.old);
+                top.range.start = next.range.start;
+            }
+            EditKind::DeleteForward => {
+                top.old.push_str(&next.old);
+                top.range.end += next.old.len();
+            }
+            EditKind::Standalone => unreachable!("standalone edits never join a group"),
+        }
+        top.caret_after = next.caret_after;
     }
 }
 

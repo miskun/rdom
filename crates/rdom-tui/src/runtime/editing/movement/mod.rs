@@ -26,7 +26,7 @@ use rdom_core::{NodeId, Position, Selection};
 
 use crate::TuiDom;
 use crate::render::inline::cell_of_position;
-use crate::runtime::editing::perform::{Edit, EditOutcome, perform_edit};
+use crate::runtime::editing::perform::{Edit, EditOutcome, perform_edit_as};
 use crate::runtime::hit_test::HitTestExt;
 use crate::runtime::selection::keyboard::{
     next_grapheme_byte, next_word_byte, prev_grapheme_byte, prev_word_byte,
@@ -317,7 +317,7 @@ fn delete_back(dom: &mut TuiDom) -> bool {
             text: String::new(),
         }
     };
-    apply_edit(dom, edit)
+    apply_edit(dom, edit, rdom_core::InputType::DeleteContentBackward)
 }
 
 /// Delete — delete the grapheme after the caret, or delete the
@@ -351,12 +351,12 @@ fn delete_forward(dom: &mut TuiDom) -> bool {
             text: String::new(),
         }
     };
-    apply_edit(dom, edit)
+    apply_edit(dom, edit, rdom_core::InputType::DeleteContentForward)
 }
 
-fn apply_edit(dom: &mut TuiDom, edit: Edit) -> bool {
+fn apply_edit(dom: &mut TuiDom, edit: Edit, input_type: rdom_core::InputType) -> bool {
     matches!(
-        perform_edit(dom, edit),
+        perform_edit_as(dom, edit, input_type),
         EditOutcome::Applied | EditOutcome::Prevented
     )
 }

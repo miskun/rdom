@@ -108,6 +108,8 @@ pub struct Dom<Ext: 'static = ()> {
     /// Mutations fire `Mutation::SelectionChanged`. Paint observers
     /// use those records to refresh the `::selection` overlay.
     pub(crate) selection: Option<crate::Selection>,
+    /// Count of actual selection changes (see [`Dom::selection_serial`]).
+    pub(crate) selection_serial: u64,
     /// Mutation observers. Fires `Mutation` records on every DOM change.
     pub(crate) observers: ObserverStore<Ext>,
     /// Re-entrancy guard: true while an observer callback is running.
@@ -140,6 +142,7 @@ impl<Ext: Default> Dom<Ext> {
             pointer_capture: None,
             drag_autoscroll: false,
             selection: None,
+            selection_serial: 0,
             observers: ObserverStore::default(),
             is_observing: false,
             activation_hook: crate::dispatch::ActivationSlot(None),
@@ -328,7 +331,23 @@ impl<Ext: 'static> Dom<Ext> {
         }
         let prev = self.selection.take();
         self.selection = next;
+        self.selection_serial = self.selection_serial.wrapping_add(1);
         self.fire_mutation(Mutation::SelectionChanged { prev, next });
+    }
+
+    /// A counter that advances on every actual selection change —
+    /// every [`set_selection`](Self::set_selection) that fires
+    /// `Mutation::SelectionChanged`, including the clear when the
+    /// selected nodes leave the tree. Equal readings mean the selection
+    /// was not touched in between, even if it moved away and back.
+    ///
+    /// Backends use it to tell their own caret updates from foreign
+    /// ones without observing mutations — rdom-tui's undo grouping
+    /// keeps a typing run open only while the selection is the one its
+    /// last edit left (Blink closes the typing command on any other
+    /// selection change). No web API exposes this; it is bookkeeping.
+    pub fn selection_serial(&self) -> u64 {
+        self.selection_serial
     }
 
     // ── Dom-level shortcuts ──────────────────────────────────────
@@ -446,6 +465,7 @@ impl<Ext: Default> Dom<Ext> {
             pointer_capture: None,
             drag_autoscroll: false,
             selection: None,
+            selection_serial: 0,
             observers: ObserverStore::default(),
             is_observing: false,
             activation_hook: crate::dispatch::ActivationSlot(None),
@@ -845,6 +865,26 @@ mod tests {
         dom.set_selection(Some(Selection::caret(Position::new(t, 0))));
         dom.set_selection(None);
         assert_eq!(dom.selection(), None);
+    }
+
+    #[test]
+    fn selection_serial_advances_on_every_actual_change() {
+        use crate::{Position, Selection};
+        let mut dom: Dom = Dom::new();
+        let t = dom.create_text_node("hello");
+        let s0 = dom.selection_serial();
+        dom.set_selection(Some(Selection::caret(Position::new(t, 1))));
+        let s1 = dom.selection_serial();
+        assert_ne!(s0, s1);
+        dom.set_selection(Some(Selection::caret(Position::new(t, 1))));
+        assert_eq!(dom.selection_serial(), s1, "a no-op set does not advance");
+        dom.set_selection(Some(Selection::caret(Position::new(t, 2))));
+        dom.set_selection(Some(Selection::caret(Position::new(t, 1))));
+        assert_ne!(
+            dom.selection_serial(),
+            s1,
+            "moving away and back is two changes"
+        );
     }
 
     #[test]

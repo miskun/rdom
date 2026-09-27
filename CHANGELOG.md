@@ -31,6 +31,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 - `ContentEditableState` and `Dom::content_editable_state` parse the `contenteditable` enumerated attribute per HTML §6.8.1. (`P7-CONTENTEDITABLE-CASE-1`)
 - `:focus-visible` and `Dom::focus_visible` / `Dom::set_focus_visible`: the selector matches the focused element while the backend judges its focus should be evident (Selectors 4 §13.2). (`P7-FOCUS-VISIBLE-1`)
 - `Dom::is_placeholder_shown(id)` — the `:placeholder-shown` test as a method. (`P7-PLACEHOLDER-PSEUDO-1`)
+- `Dom::selection_serial` — a counter that advances on every actual selection change, so a backend can tell its own caret moves from foreign ones (`P7-UNDO-COALESCE-1`)
 
 ### Changed — `rdom-core`
 
@@ -111,6 +112,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 - `TuiAccessorsMut::form_request_submit` returns `Result<SubmitOutcome>` (`Submitted` / `Canceled` / `NotAForm`, new `rdom_tui::SubmitOutcome`) instead of `Result<bool>`, rejects a submitter that is not a submit button (`DomError::TypeError`) or whose form owner is another form (`DomError::NotFound`), as HTML `requestSubmit` throws, and runs the same submission path as a click, so a method-`dialog` form now closes its dialog. Migration: `Ok(true)` (prevented) is `Ok(SubmitOutcome::Canceled)`, `Ok(false)` is `Ok(SubmitOutcome::Submitted)` (or `NotAForm` on a non-form). (`P7-REQUEST-SUBMIT-1`)
 - `TuiAccessors` gains the required methods `validity`, `will_validate` and `validation_message`, and `TuiAccessorsMut` gains `check_validity`, `report_validity` and `set_custom_validity`. Migration: only an out-of-tree implementation of these traits must add them. (`P7-VALIDATION-1`)
 - Form submission (submit-button click, implicit Enter, `form_request_submit`) now runs interactive constraint validation first: a form with an invalid control (e.g. an empty `required` field) fires `invalid`, focuses the first invalid control and does not fire `submit`. Migration: add `novalidate` to the `<form>` (or `formnovalidate` to the button) to keep validating in the `submit` handler instead. (`P7-VALIDATION-1`)
+- Undo grouping follows Blink's typing-command model: a typing run (spaces included), a Backspace run and a forward-Delete run are one undo step each; a switch between them, any selection change the edit did not make, paste, cut, undo and redo close the group; no idle timer. `EditKind` is now `Insert` / `DeleteBackward` / `DeleteForward` / `Standalone` (`#[non_exhaustive]`, `EditKind::of(&InputType)`), `EditorState::record(entry, selection_before, selection_after)` takes `Dom::selection_serial` readings instead of an `Instant`, `record_compound` drops its `Instant`, and `COALESCE_WINDOW` is gone — migration: build entries with `EditKind::of` and pass the serials read around the caret update (`P7-UNDO-COALESCE-1`)
 
 ### Added — `rdom-tui`
 
@@ -139,6 +141,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 - Forms follow the form owner: a control outside a `<form>` with `form="id"` is submitted, reset, listed by `form::elements` and considered for implicit submission with that form, a control inside one form can belong to another, and a `form` attribute naming no form leaves the control unowned. The `submit` event reports the effective submission attributes, and a submitter's `formmethod="dialog"` closes the dialog as `method="dialog"` does. `input_form()` and siblings return the form owner. (`P7-FORM-OWNER-1`)
 - `TuiAccessors::input_type` returns the canonical keyword of the type state, like `input.type`: `type="PassWord"` reads `"password"`, an invalid value reads `"text"`. (`P7-FORM-ENUM-CASE-1`)
 - The UA focus tint and the accent scroll-focus thumb key on `:focus-visible`: a button, toggle or select focused by a mouse click shows no indicator, keyboard focus and clicked text fields do, and the next key press turns it on — the browsers' focus-ring heuristics. (`P7-FOCUS-VISIBLE-1`)
+- The UA's Delete key, paste and cut report the Input Events `inputType`s `deleteContentForward`, `insertFromPaste` and `deleteByCut` (they reported `deleteContentBackward` / `insertText`); new `perform_edit_as` / `insert_at_selection_as` take an explicit `InputType` (`P7-UNDO-COALESCE-1`)
 
 ### Fixed — `rdom-tui`
 
