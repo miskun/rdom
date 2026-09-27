@@ -26,6 +26,7 @@ pub mod animation;
 pub mod app;
 pub mod autofocus;
 pub mod builtins;
+pub mod caret_blink;
 pub mod editing;
 pub mod focus;
 pub mod hit_test;

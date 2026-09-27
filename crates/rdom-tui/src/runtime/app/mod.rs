@@ -136,6 +136,9 @@ pub struct App<B: Backend = CrosstermBackend<Stdout>> {
     /// The element currently carrying `data-rdom-scroll-focus` (see
     /// [`Self::mark_scroll_focus`]).
     pub(super) scroll_focus_marked: Option<crate::NodeId>,
+    /// Caret blink phase (`runtime::caret_blink`). Off unless enabled —
+    /// `App::new` enables it at the default rate.
+    pub(crate) caret_blink: crate::runtime::caret_blink::CaretBlink,
 
     /// Flags accumulated over a tick: if true, `draw_if_dirty`
     /// triggers a paint regardless of DirtyTracker state.
@@ -195,6 +198,8 @@ impl App<CrosstermBackend<Stdout>> {
         let terminal = Terminal::new(backend)?;
         let mut app = Self::build(dom, stylesheet, terminal)?;
         app.guard = Some(guard);
+        app.caret_blink
+            .set_period(Some(crate::runtime::caret_blink::DEFAULT_CARET_BLINK));
         Ok(app)
     }
 
@@ -393,6 +398,7 @@ impl<B: Backend> App<B> {
             autoscroll_next: None,
             autoscroll_container: None,
             scroll_focus_marked: None,
+            caret_blink: crate::runtime::caret_blink::CaretBlink::new(None),
             needs_redraw: true,
             should_quit: false,
             guard: None,
@@ -408,6 +414,28 @@ impl<B: Backend> App<B> {
     pub fn set_animation_frame_rate(&mut self, fps: u16) {
         let fps = fps.clamp(1, 120);
         self.animation_frame_ms = (1000 / fps as u32).max(1);
+    }
+
+    /// Set the caret blink half-period: the caret of a focused editable
+    /// is painted for `period`, then hidden for `period`, restarting
+    /// visible on every caret move, edit, key or click. `None` (or a zero
+    /// duration) keeps a steady caret. Browsers follow the OS setting and
+    /// no CSS property controls it, so this is an App option.
+    /// [`App::new`] blinks at
+    /// [`DEFAULT_CARET_BLINK`](crate::runtime::caret_blink::DEFAULT_CARET_BLINK)
+    /// (530 ms); [`App::with_backend`] starts steady, so paint snapshots
+    /// do not depend on the clock. Blinking wakes the event loop only
+    /// while an editable with a caret is focused and the terminal has
+    /// focus.
+    pub fn with_caret_blink(mut self, period: Option<Duration>) -> Self {
+        self.caret_blink.set_period(period);
+        self
+    }
+
+    /// When the caret blink next flips, on the scheduler clock.
+    #[cfg(test)]
+    pub(crate) fn caret_blink_deadline(&self) -> Option<Instant> {
+        self.caret_blink.next_deadline()
     }
 
     /// Replace the clipboard backend. Useful for tests
@@ -458,7 +486,10 @@ impl<B: Backend> App<B> {
         } else {
             self.tick_rate
         };
-        let base = to_deadline.min(frame_floor).min(self.tick_rate);
+        let mut base = to_deadline.min(frame_floor).min(self.tick_rate);
+        if let Some(flip) = self.caret_blink.next_deadline() {
+            base = base.min(flip.saturating_duration_since(now));
+        }
         // While a drag-autoscroll is armed, wake at least once per period so the
         // tick fires even with the pointer held still (no new input events).
         if self.autoscroll_pointer.is_some() {
@@ -593,8 +624,16 @@ impl<B: Backend> App<B> {
         // selects before any default action reads them.
         self.selectedness.flush(&mut self.dom);
         match &event {
-            CtEvent::Key(key) => self.handle_key_event(*key),
+            CtEvent::Key(key) => {
+                // A key may edit without moving the caret (Delete): the
+                // caret blink restarts visible on every key, as in browsers.
+                self.caret_blink.note_input();
+                self.handle_key_event(*key)
+            }
             CtEvent::Mouse(m) => {
+                if matches!(m.kind, crossterm::event::MouseEventKind::Down(_)) {
+                    self.caret_blink.note_input();
+                }
                 let (col, row) = (m.column, m.row);
                 let focused_before = self.dom.focused();
                 let outcome = self.router.route(&mut self.dom, event);
@@ -634,6 +673,7 @@ impl<B: Backend> App<B> {
                 }
             }
             CtEvent::FocusGained => {
+                self.caret_blink.set_terminal_focused(true);
                 crate::rdom_trace!(
                     "App::handle_event: FocusGained (capture={:?}, hovered={:?})",
                     self.dom.pointer_capture(),
@@ -641,6 +681,7 @@ impl<B: Backend> App<B> {
                 );
             }
             CtEvent::FocusLost => {
+                self.caret_blink.set_terminal_focused(false);
                 crate::rdom_trace!(
                     "App::handle_event: FocusLost (capture={:?}, hovered={:?})",
                     self.dom.pointer_capture(),

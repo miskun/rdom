@@ -35,9 +35,14 @@ pub(in crate::render::paint_pass) fn paint_caret_if_editable(
     let Some(focused) = dom.focused() else {
         return;
     };
-    if crate::node::nearest_editable_ancestor(dom, focused).is_none() {
+    let Some(host) = crate::node::nearest_editable_ancestor(dom, focused) else {
         return;
     };
+    // The runtime's caret blink is in its off phase (or the terminal is
+    // unfocused) — `runtime::caret_blink`.
+    if dom.node(host).ext().is_some_and(|e| e.caret_blink_off) {
+        return;
+    }
     let caret_ifc = inline_flow_container(dom, sel.focus.node);
     if caret_ifc != Some(id) {
         return;

@@ -465,6 +465,11 @@ pub struct TuiExt {
     /// when the container's extent is current
     /// (`CARET-REVEAL-STALE-LAYOUT-1`).
     pub(crate) caret_reveal_pending: bool,
+    /// The caret blink is in its off phase for this editing host, so the
+    /// caret painter skips it. **Runtime-managed** by the App's caret
+    /// blink (`runtime::caret_blink`); `false` (steady caret) outside
+    /// an `App`.
+    pub(crate) caret_blink_off: bool,
 
     // ── Editing state (Phase B) ──────────────────────────────────────
     /// Per-editable state (undo/redo history, coalescing metadata).

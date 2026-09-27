@@ -71,6 +71,8 @@ impl<B: Backend> App<B> {
         self.selectedness.flush(&mut self.dom);
         self.mark_scroll_focus();
         self.flush_validity_marks();
+        let now = self.scheduler.borrow().now();
+        self.needs_redraw |= self.caret_blink.update(&mut self.dom, now);
         let dirty_roots = self.take_dirty_roots();
 
         if !self.needs_redraw && dirty_roots.is_empty() {
@@ -159,6 +161,8 @@ impl<B: Backend> App<B> {
     pub(super) fn cascade_and_layout(&mut self, area: Rect) {
         self.selectedness.flush(&mut self.dom);
         self.flush_validity_marks();
+        let now = self.scheduler.borrow().now();
+        self.needs_redraw |= self.caret_blink.update(&mut self.dom, now);
         let dirty_roots = self.take_dirty_roots();
         style_and_layout(
             &mut self.dom,
