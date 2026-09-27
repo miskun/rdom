@@ -174,6 +174,13 @@ pub fn serialize(name: &str, style: &TuiStyle) -> Option<String> {
                 }
                 .to_string()
             }),
+        "scroll-behavior" => style.scroll_behavior.as_ref().and_then(specified).map(|b| {
+            match b {
+                crate::layout::ScrollBehavior::Auto => "auto",
+                crate::layout::ScrollBehavior::Smooth => "smooth",
+            }
+            .to_string()
+        }),
 
         // Flex shorthand. Serializes only when width and height
         // agree, matching the shape `parse_flex_shorthand` outputs

@@ -1,5 +1,5 @@
-//! The frame of an [`App`]: [`App::draw_if_dirty`] (cascade + animation
-//! step + layout + caret-reveal servicing + paint), the off-frame
+//! The frame of an [`App`]: [`App::draw_if_dirty`] (smooth-scroll step +
+//! cascade + animation step + layout + caret-reveal servicing + paint), the off-frame
 //! [`App::cascade_and_layout`] half used by the autoscroll tick, the
 //! keyboard scroll-focus marker and the `:valid` / `:invalid` marks that
 //! run before the cascade, and the
@@ -59,6 +59,19 @@ impl<B: Backend> App<B> {
         );
     }
 
+    /// Advance the smooth scrolls in flight to `now`
+    /// (`runtime::smooth_scroll`) before this frame's layout, and wake
+    /// for the next step one animation frame later while any is still
+    /// running. The steps' `scroll` listeners run here, before the
+    /// cascade, so their mutations land in this frame.
+    fn step_smooth_scrolls(&mut self, now: std::time::Instant) {
+        let step = crate::runtime::smooth_scroll::step_all(&mut self.dom, now);
+        self.needs_redraw |= step.moved;
+        self.smooth_scroll_next = step
+            .active
+            .then(|| now + std::time::Duration::from_millis(u64::from(self.animation_frame_ms)));
+    }
+
     /// Cascade + layout + paint if anything is dirty. Pairs with
     /// [`Self::handle_event`] for apps running a custom event loop.
     pub fn draw_if_dirty(&mut self) -> io::Result<()> {
@@ -73,6 +86,7 @@ impl<B: Backend> App<B> {
         self.flush_validity_marks();
         let now = self.scheduler.borrow().now();
         self.needs_redraw |= self.caret_blink.update(&mut self.dom, now);
+        self.step_smooth_scrolls(now);
         let dirty_roots = self.take_dirty_roots();
 
         if !self.needs_redraw && dirty_roots.is_empty() {

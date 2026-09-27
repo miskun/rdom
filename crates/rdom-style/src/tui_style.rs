@@ -83,6 +83,7 @@ bitflags_like! {
         FLOW = 1 << 41;
         COUNTER_RESET = 1 << 42;
         COUNTER_INCREMENT = 1 << 43;
+        SCROLL_BEHAVIOR = 1 << 44;
     }
 }
 
@@ -148,6 +149,9 @@ pub struct TuiStyle {
     /// `scrollbar-gutter: auto | stable`. Gates the layout pass's
     /// gutter reservation for scrollable elements. Default `Auto`.
     pub scrollbar_gutter: Option<Value<crate::layout::ScrollbarGutter>>,
+    /// `scroll-behavior: auto | smooth` (CSSOM View §12.1). Whether a
+    /// programmatic scroll of this container animates. Default `Auto`.
+    pub scroll_behavior: Option<Value<crate::layout::ScrollBehavior>>,
 
     // ── Inline formatting ────────────────────────────────────────────
     /// Outer display. Set by `display: <kw>` keywords. The companion
@@ -561,6 +565,13 @@ impl TuiStyle {
         crate::layout::ScrollbarGutter
     );
     setter!(
+        scroll_behavior,
+        scroll_behavior,
+        scroll_behavior_important,
+        SCROLL_BEHAVIOR,
+        crate::layout::ScrollBehavior
+    );
+    setter!(
         white_space,
         white_space,
         white_space_important,
@@ -776,6 +787,9 @@ impl TuiStyle {
         if self.scrollbar_gutter.is_some() {
             n += 1
         }
+        if self.scroll_behavior.is_some() {
+            n += 1
+        }
         if self.display.is_some() {
             n += 1
         }
@@ -859,6 +873,7 @@ mod tests {
             M::COUNTER_RESET,
             M::COUNTER_INCREMENT,
             M::SCROLLBAR_GUTTER,
+            M::SCROLL_BEHAVIOR,
         ];
         for (i, a) in all.iter().enumerate() {
             for b in &all[i + 1..] {
@@ -1118,6 +1133,7 @@ mod tests {
             .counter_increment_important(vec![])
             .pointer_events_important(crate::layout::PointerEvents::None)
             .scrollbar_gutter_important(crate::layout::ScrollbarGutter::Stable)
+            .scroll_behavior_important(crate::layout::ScrollBehavior::Smooth)
             .white_space_important(WhiteSpace::Pre)
             .user_select_important(UserSelect::None)
             .caret_color_important(CaretColor::Transparent)

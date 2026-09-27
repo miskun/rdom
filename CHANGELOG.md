@@ -64,6 +64,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 - **`::scrollbar-thumb:vertical` / `::scrollbar-thumb:horizontal`** style one axis; the axis rule layers over the axis-neutral `::scrollbar-thumb` at equal specificity. (`UA-SB-1`)
 - `rdom_style::parse::token::tokenize_at` returns per-token positions (used by rdom-css's positioned warnings). (`CSS-WARNING-POSITION-1`)
 - `::placeholder` (CSS Pseudo-Elements 4 §4.3) is a supported pseudo-element: `input::placeholder { color: … }` styles an `<input>` / `<textarea>` placeholder while it is `:placeholder-shown`. Only the `::first-line` properties apply (color, background, font weight / style, text-decoration, opacity, custom properties); others are dropped when the rule is built (`TuiStyle::first_line_subset`). The UA's muted placeholder color moved to a `::placeholder` rule. (`P7-PLACEHOLDER-PSEUDO-1`)
+- `scroll-behavior: auto | smooth` (CSSOM View §12.1) parses, serializes and cascades (not inherited; `inherit` / `initial` / `unset`); `layout::ScrollBehavior`, `TuiStyle::scroll_behavior`, `ComputedStyle::scroll_behavior` (`P7-SCROLL-BEHAVIOR-1`)
 
 ### Changed — `rdom-style`
 
@@ -128,6 +129,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 - **Constraint validation** (HTML §4.10.20) in new `runtime::builtins::validation`: `ValidityState` (`value_missing`, `type_mismatch`, `pattern_mismatch`, `too_long`, `too_short`, `range_underflow`, `range_overflow`, `step_mismatch`, `bad_input`, `custom_error`, `valid()`) for text-family inputs, email / url, number, checkbox, radio groups, `<select>` (placeholder label option) and `<textarea>`; `required`, `pattern` (anchored, via the `regex` crate), `minlength` / `maxlength` (UTF-16 code units, user-edited values only), `min` / `max` / `step`; the accessors `validity`, `will_validate`, `validation_message`, `check_validity`, `report_validity` (focuses the first invalid control; no bubble) and `set_custom_validity`, on controls and on `<form>`; a cancelable, non-bubbling `invalid` event; and interactive validation before every submission (click, implicit, `form_request_submit` → `SubmitOutcome::Invalid`) unless `novalidate` / `formnovalidate`. (`P7-VALIDATION-1`)
 - `:valid` / `:invalid` match by the constraint-validation states: `validation::install` (run by `App`; call it on a bare `TuiDom`) hooks them into rdom-core, and the App re-cascades every control, form and fieldset whose validity changed before each frame, even when nothing mutated (a textarea edit, `set_custom_validity`). The UA sheet does not style them. (`P7-VALIDATION-SELECTORS-1`)
 - The painted caret blinks like a browser's: on / off at `App::with_caret_blink(Option<Duration>)` (`runtime::caret_blink::DEFAULT_CARET_BLINK`, 530 ms), restarting visible on every caret move, edit, key or click, hidden while the terminal is unfocused; the event loop is woken for it only while an editable with a caret is focused (`P7-CARET-BLINK-1`)
+- Smooth scrolling: programmatic scrolls (`set_scroll_top` / `scroll_to` / `scroll_by` / `scroll_into_view`) and keyboard scrolling animate under `scroll-behavior: smooth` (250 ms ease-out, `scroll` per step); new `scroll_with` / `scroll_by_with` / `scroll_into_view_with` take `ScrollToOptions` / `ScrollIntoViewOptions` with a `ScrollBehaviorOption` that overrides the property. Wheel and scrollbar drags stay instant and abort a smooth scroll (`P7-SCROLL-BEHAVIOR-1`)
 
 ### Changed — `rdom-tui`
 
@@ -172,6 +174,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 - `<input>` / `<button>` `type` keywords are ASCII case-insensitive everywhere (editing, toggles, range, number, password mask, form submit / reset / collect / implicit submission, focus, labels), and an invalid `type` is the Text state, as in HTML (`type="bogus"` is now an editable text field). (`P7-FORM-ENUM-CASE-1`)
 - Radio groups follow the form owner: same-named radios in two forms no longer uncheck each other, and arrow keys, the single Tab stop and `required` validity use the same grouping. (`P7-RADIO-GROUP-OWNER-1`)
 - `contenteditable` keywords match ASCII case-insensitively (`TRUE`, `PlainText-Only`), an invalid value inherits, and a `contenteditable="false"` island inside an editing host is no longer editable. (`P7-CONTENTEDITABLE-CASE-1`)
+- `scroll_into_view` inside a scroll container that is already scrolled measures from the container's content origin; it used to scroll back toward the top (`P7-SCROLL-BEHAVIOR-1`)
 
 ### Internal — `rdom-tui`
 

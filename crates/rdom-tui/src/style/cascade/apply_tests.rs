@@ -50,6 +50,7 @@ const PERTURB: &[(&str, &str)] = &[
     ("overflow-x", "scroll"),
     ("overflow-y", "hidden"),
     ("scrollbar-gutter", "stable"),
+    ("scroll-behavior", "smooth"),
     ("width", "10"),
     ("height", "5"),
     ("min-width", "2"),
@@ -123,6 +124,7 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
         overflow_x,
         overflow_y,
         scrollbar_gutter,
+        scroll_behavior,
         display,
         flow,
         // Derived at finalization from display / position / overflow.
@@ -179,6 +181,7 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
         overflow_x,
         overflow_y,
         scrollbar_gutter,
+        scroll_behavior,
         display,
         flow,
         white_space,

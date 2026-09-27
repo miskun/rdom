@@ -337,6 +337,7 @@ fn apply_style(
         overflow_x: OVERFLOW_X,
         overflow_y: OVERFLOW_Y,
         scrollbar_gutter: SCROLLBAR_GUTTER,
+        scroll_behavior: SCROLL_BEHAVIOR,
         // `display` owns both halves: `display: inherit` takes the
         // parent's outer and inner display.
         display: DISPLAY,

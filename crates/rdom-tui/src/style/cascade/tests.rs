@@ -2242,6 +2242,40 @@ fn scrollbar_gutter_keywords_resolve() {
     );
 }
 
+/// `scroll-behavior` (CSSOM View §12.1) cascades, does not inherit,
+/// and resolves `inherit` / `initial` / `unset`.
+#[test]
+fn scroll_behavior_cascades_and_resolves_css_wide_keywords() {
+    use crate::layout::ScrollBehavior;
+    let (mut dom, parent, child) = parent_child();
+    let smooth = || TuiStyle::new().scroll_behavior(ScrollBehavior::Smooth);
+    let sheet = Stylesheet::bare().rule_unchecked("div", smooth());
+    dom.cascade(&sheet);
+    assert_eq!(
+        computed_of(&dom, parent).scroll_behavior,
+        ScrollBehavior::Smooth
+    );
+    assert_eq!(
+        computed_of(&dom, child).scroll_behavior,
+        ScrollBehavior::Auto,
+        "not inherited"
+    );
+
+    for (kw, want) in [
+        ("inherit", ScrollBehavior::Smooth),
+        ("initial", ScrollBehavior::Auto),
+        ("unset", ScrollBehavior::Auto),
+    ] {
+        let mut span = smooth();
+        rdom_style::property_dispatch::set("scroll-behavior", kw, &mut span).unwrap();
+        let sheet = Stylesheet::bare()
+            .rule_unchecked("div", smooth())
+            .rule_unchecked("span", span);
+        dom.cascade(&sheet);
+        assert_eq!(computed_of(&dom, child).scroll_behavior, want, "{kw:?}");
+    }
+}
+
 /// The style crate's `property_dispatch::inherits` is the one
 /// declaration of which properties inherit (it also decides `unset`).
 /// `inherit_inheritable_from` must copy exactly that set: give every
@@ -2254,7 +2288,7 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
     use rdom_style::layout::{
         AspectRatio, Border, BorderCollapse, BorderStyle, CaretColor, CaretTextColor, Direction,
         Display, Length, Margin, MinSize, Overflow, Padding, PointerEvents, Position,
-        ScrollbarGutter, Size, UserSelect, WhiteSpace, ZIndex,
+        ScrollBehavior, ScrollbarGutter, Size, UserSelect, WhiteSpace, ZIndex,
     };
     use rdom_style::property_dispatch::{inherits, property_names};
     use rdom_style::transition::{TimingFunction, TransitionProperty};
@@ -2287,6 +2321,7 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
     parent.overflow_x = Overflow::Hidden;
     parent.overflow_y = Overflow::Scroll;
     parent.scrollbar_gutter = ScrollbarGutter::Stable;
+    parent.scroll_behavior = ScrollBehavior::Smooth;
     parent.display = Display::Inline;
     parent.white_space = WhiteSpace::Pre;
     parent.user_select = UserSelect::None;
@@ -2343,6 +2378,10 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
         (
             "scrollbar-gutter",
             child.scrollbar_gutter == parent.scrollbar_gutter,
+        ),
+        (
+            "scroll-behavior",
+            child.scroll_behavior == parent.scroll_behavior,
         ),
         ("display", child.display == parent.display),
         ("white-space", child.white_space == parent.white_space),

@@ -34,6 +34,7 @@ pub(crate) mod implicit_events;
 pub mod router;
 pub mod scrollbar;
 pub mod selection;
+pub mod smooth_scroll;
 pub mod timers;
 pub mod trace;
 pub mod url_opener;

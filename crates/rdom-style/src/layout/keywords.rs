@@ -57,6 +57,22 @@ pub enum ScrollbarGutter {
     Stable,
 }
 
+/// CSS `scroll-behavior` (CSSOM View §12.1): how a programmatic scroll
+/// of this scroll container moves when its caller asks for behavior
+/// `auto` — `element.scrollTo(…)`, `scrollTop = n`, `scrollIntoView()`,
+/// and keyboard scrolling. User wheel and scrollbar drags are always
+/// instant. Applies to scroll containers.
+///
+/// Does not inherit (matches CSS). Initial value: `Auto`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ScrollBehavior {
+    /// The scroll is instant. CSS default.
+    #[default]
+    Auto,
+    /// The scroll animates over a user-agent-defined duration.
+    Smooth,
+}
+
 /// Cross-axis alignment. Maps to CSS `align-items`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Align {

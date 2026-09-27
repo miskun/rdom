@@ -41,6 +41,9 @@ mod write;
 #[cfg(test)]
 mod tests;
 
+pub use crate::runtime::smooth_scroll::{
+    ScrollBehaviorOption, ScrollIntoViewOptions, ScrollToOptions,
+};
 pub use doc::TuiDocAccessors;
 
 use rdom_core::NodeId;
@@ -545,6 +548,13 @@ pub trait TuiAccessorsMut<'a> {
     /// On non-scrollable elements (no scrollable content) the
     /// clamp range collapses to `[0, 0]`, so the call is a no-op
     /// — browser-faithful.
+    ///
+    /// Like every programmatic scroll here (CSSOM View "perform a
+    /// scroll" with behavior `auto`), it animates when the element's
+    /// computed `scroll-behavior` is `smooth`: the offset then moves
+    /// over the following frames of the `App`
+    /// (`runtime::smooth_scroll`), and reads return the intermediate
+    /// position.
     fn set_scroll_top(&mut self, value: i32) -> Result<()>;
 
     /// `Element.scrollLeft = n` — horizontal companion to
@@ -559,15 +569,28 @@ pub trait TuiAccessorsMut<'a> {
     /// scroll offsets. Each axis re-clamps after the add.
     fn scroll_by(&mut self, dx: i32, dy: i32) -> Result<()>;
 
+    /// `Element.scroll(options)` / `scrollTo(options)` — scroll to
+    /// `left` / `top` (an absent axis stays put) with
+    /// `options.behavior`: `Instant` jumps, `Smooth` animates, `Auto`
+    /// follows the computed `scroll-behavior`.
+    fn scroll_with(&mut self, options: ScrollToOptions) -> Result<()>;
+
+    /// `Element.scrollBy(options)` — add `left` / `top` to the current
+    /// offsets, with `options.behavior` as in [`Self::scroll_with`].
+    fn scroll_by_with(&mut self, options: ScrollToOptions) -> Result<()>;
+
     /// `Element.scrollIntoView()` (no options form). Walks up to
     /// the nearest scrollable ancestor and adjusts its scroll
     /// offsets so this element appears at the top-left of the
     /// ancestor's content area. No-op when this element has no
-    /// scrollable ancestor.
-    ///
-    /// M4 ships only the no-args form; `ScrollIntoViewOptions`
-    /// (`{block, inline, behavior}`) is polish.
+    /// scrollable ancestor. Behavior `auto`: animates under the
+    /// ancestor's `scroll-behavior: smooth`.
     fn scroll_into_view(&mut self) -> Result<()>;
+
+    /// `Element.scrollIntoView(options)` — [`Self::scroll_into_view`]
+    /// with `options.behavior`. `block` / `inline` are not supported:
+    /// the alignment is always `start`.
+    fn scroll_into_view_with(&mut self, options: ScrollIntoViewOptions) -> Result<()>;
 
     /// CSSOM-style write handle to the element's inline
     /// `TuiStyle` — `el.style.setProperty(name, value)`,

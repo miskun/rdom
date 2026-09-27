@@ -27,7 +27,7 @@ pub use box_model::{
 };
 pub use keywords::{
     Align, CaretColor, CaretTextColor, Direction, Display, Flow, Overflow, PointerEvents, Position,
-    ScrollbarGutter, TextDecoration, UserSelect, WhiteSpace, ZIndex,
+    ScrollBehavior, ScrollbarGutter, TextDecoration, UserSelect, WhiteSpace, ZIndex,
 };
 pub use rect::LayoutRect;
 pub use sizing::{AspectRatio, GapValue, Length, MinSize, Size};

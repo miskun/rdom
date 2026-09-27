@@ -85,61 +85,6 @@ pub(super) fn read_scroll_y(dom: &TuiDom, id: NodeId) -> i32 {
         .unwrap_or(0)
 }
 
-/// Clamp `(x, y)` to `[0, content - viewport]` and write to the
-/// element's scroll offsets. Non-scrollable elements (no
-/// scrollable content beyond their viewport) end up pinned to
-/// `(0, 0)` — the browser-faithful silent no-op behavior.
-///
-/// Viewport is the **padding-box** dimensions, NOT `content_layout`.
-/// CSSOM View defines `scrollTop` / `scrollLeft` clamping against the
-/// scrollport, which CSS Overflow 3 §3 places at the padding-box edge.
-/// Under M5.5b border-collapse, `content_layout` can widen into the
-/// border ring; using it here would under-clamp by 1 cell per
-/// expanded edge and let `scrollTop = N` slide past the true max.
-pub(super) fn write_scroll_clamped(dom: &mut TuiDom, id: NodeId, x: i32, y: i32) {
-    use crate::node::TuiNodeExt;
-    let (viewport_w, viewport_h, content_w, content_h) = match dom.node(id).tui_ext() {
-        Some(e) => {
-            let border = dom
-                .node(id)
-                .computed()
-                .map(|c| c.border)
-                .unwrap_or_default();
-            let pb = crate::layout::compute_padding_box(e.layout, border);
-            (
-                pb.width as i32,
-                pb.height as i32,
-                e.scroll_content_width as i32,
-                e.scroll_content_height as i32,
-            )
-        }
-        None => return,
-    };
-    let max_x = (content_w - viewport_w).max(0);
-    let max_y = (content_h - viewport_h).max(0);
-    let clamped_x = x.clamp(0, max_x) as usize;
-    let clamped_y = y.clamp(0, max_y) as usize;
-    let (changed, _old) = if let Some(ext) = dom.node_mut(id).ext_mut() {
-        let old = (ext.scroll_x, ext.scroll_y);
-        ext.scroll_x = clamped_x;
-        ext.scroll_y = clamped_y;
-        ((old.0, old.1) != (clamped_x, clamped_y), old)
-    } else {
-        return;
-    };
-    if changed {
-        // M5 D5: fire `scroll` on the element whose offset moved.
-        // Programmatic + scrollbar + wheel all converge here when
-        // they touch ext.scroll_*; the wheel path also has its own
-        // dispatch site for the case where it walks past the
-        // initial hit to find a scrollable ancestor.
-        // `scroll`: bubbles, NOT cancelable per HTML.
-        let mut tui = crate::TuiEvent::new("scroll");
-        tui.event.cancelable = false;
-        let _ = crate::TuiDispatchExt::dispatch_tui_event(dom, id, &mut tui);
-    }
-}
-
 /// Walk up from `start` to find the nearest ancestor whose
 /// computed `overflow` is `Hidden`, `Scroll`, or `Auto` (the
 /// scrollable values). Returns `None` when no ancestor is
@@ -169,7 +114,8 @@ pub(super) fn nearest_scrollable_ancestor(dom: &TuiDom, start: NodeId) -> Option
 /// pre-scroll content area. Walks the parent chain from
 /// `descendant` up to (but not including) `ancestor`, summing each
 /// step's `ext.layout` position and undoing the scroll offset that
-/// the layout pass already applied at each intermediate parent.
+/// the layout pass already applied at each parent, the ancestor
+/// included.
 pub(super) fn pre_scroll_offset_within(
     dom: &TuiDom,
     descendant: NodeId,
@@ -190,11 +136,10 @@ pub(super) fn pre_scroll_offset_within(
         let parent_id = parent.id();
         // The parent's own scroll offset was already applied when
         // positioning `cur`. Undo it so the accumulator stays in
-        // pre-scroll coords — except for the final ancestor, whose
-        // scroll offset we're about to overwrite anyway.
-        if parent_id != ancestor
-            && let Some(parent_ext) = dom.node(parent_id).tui_ext()
-        {
+        // pre-scroll coords — the final ancestor's too: the result is
+        // the scroll offset that brings `descendant` to its top-left,
+        // which does not depend on where it is scrolled now.
+        if let Some(parent_ext) = dom.node(parent_id).tui_ext() {
             accum_x += parent_ext.scroll_x as i32;
             accum_y += parent_ext.scroll_y as i32;
         }

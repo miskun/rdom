@@ -39,7 +39,8 @@ pub use calc::{looks_like_calc, parse_calc};
 pub use color::{parse_color, parse_color_at, parse_rgb_args, parse_rgba_args, parse_var_args};
 pub use content::{parse_content, parse_counter_ops};
 pub use keyword::{
-    parse_keyword, parse_overflow, parse_position, parse_scrollbar_gutter, parse_text_decoration,
+    parse_keyword, parse_overflow, parse_position, parse_scroll_behavior, parse_scrollbar_gutter,
+    parse_text_decoration,
 };
 pub use length::{
     parse_flex_shorthand, parse_inset_shorthand, parse_length, parse_min_size, parse_size,

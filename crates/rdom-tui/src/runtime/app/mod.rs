@@ -139,6 +139,10 @@ pub struct App<B: Backend = CrosstermBackend<Stdout>> {
     /// Caret blink phase (`runtime::caret_blink`). Off unless enabled —
     /// `App::new` enables it at the default rate.
     pub(crate) caret_blink: crate::runtime::caret_blink::CaretBlink,
+    /// When the next smooth-scroll step is due (`runtime::smooth_scroll`),
+    /// on the scheduler clock; `None` when no scroll container is
+    /// animating.
+    pub(super) smooth_scroll_next: Option<Instant>,
 
     /// Flags accumulated over a tick: if true, `draw_if_dirty`
     /// triggers a paint regardless of DirtyTracker state.
@@ -399,6 +403,7 @@ impl<B: Backend> App<B> {
             autoscroll_container: None,
             scroll_focus_marked: None,
             caret_blink: crate::runtime::caret_blink::CaretBlink::new(None),
+            smooth_scroll_next: None,
             needs_redraw: true,
             should_quit: false,
             guard: None,
@@ -436,6 +441,12 @@ impl<B: Backend> App<B> {
     #[cfg(test)]
     pub(crate) fn caret_blink_deadline(&self) -> Option<Instant> {
         self.caret_blink.next_deadline()
+    }
+
+    /// When the next smooth-scroll step is due, on the scheduler clock.
+    #[cfg(test)]
+    pub(crate) fn smooth_scroll_deadline(&self) -> Option<Instant> {
+        self.smooth_scroll_next
     }
 
     /// Replace the clipboard backend. Useful for tests
@@ -489,6 +500,9 @@ impl<B: Backend> App<B> {
         let mut base = to_deadline.min(frame_floor).min(self.tick_rate);
         if let Some(flip) = self.caret_blink.next_deadline() {
             base = base.min(flip.saturating_duration_since(now));
+        }
+        if let Some(step) = self.smooth_scroll_next {
+            base = base.min(step.saturating_duration_since(now));
         }
         // While a drag-autoscroll is armed, wake at least once per period so the
         // tick fires even with the pointer held still (no new input events).

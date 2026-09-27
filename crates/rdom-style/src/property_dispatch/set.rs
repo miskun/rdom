@@ -13,9 +13,10 @@ use crate::parse::values::{
     parse_border_side, parse_color, parse_content, parse_counter_ops, parse_flex_shorthand,
     parse_gap, parse_inset_shorthand, parse_keyword, parse_length, parse_margin_longhand,
     parse_margin_shorthand, parse_min_size, parse_opacity, parse_overflow, parse_padding_shorthand,
-    parse_padding_value, parse_position, parse_scrollbar_gutter, parse_size, parse_text_decoration,
-    parse_time_list, parse_timing_function_list, parse_transition_property_list,
-    parse_transition_shorthand, parse_unsigned, parse_z_index, unzip_transition_rules,
+    parse_padding_value, parse_position, parse_scroll_behavior, parse_scrollbar_gutter, parse_size,
+    parse_text_decoration, parse_time_list, parse_timing_function_list,
+    parse_transition_property_list, parse_transition_shorthand, parse_unsigned, parse_z_index,
+    unzip_transition_rules,
 };
 use crate::{TuiStyle, Value};
 
@@ -210,6 +211,9 @@ pub fn set_from_tokens(
         }),
         "scrollbar-gutter" => parse_scrollbar_gutter(value).map(|g| {
             style.scrollbar_gutter = Some(Value::Specified(g));
+        }),
+        "scroll-behavior" => parse_scroll_behavior(value).map(|b| {
+            style.scroll_behavior = Some(Value::Specified(b));
         }),
 
         // Layout — sizing

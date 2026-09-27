@@ -1,9 +1,12 @@
-//! The scroll writer — the single place a scroll offset is set.
+//! The scroll writers — the places a scroll offset is set.
 //!
-//! Every interaction (wheel, scrollbar page / drag, keyboard,
-//! drag-autoscroll, caret / node reveal) funnels through
-//! [`set_scroll_with`], so the clamp to `[0, content − viewport]` and
-//! the `scroll` event dispatch are shared.
+//! Scrollbar page / drag, instant keyboard scrolling, drag-autoscroll
+//! and caret / node reveal funnel through [`set_scroll_with`] (one
+//! axis); the programmatic scroll API and the smooth-scroll steps
+//! through [`write_offsets`] (both axes). Both share the clamp to
+//! `[0, content − viewport]` and the `scroll` event dispatch. An
+//! instant write through [`set_scroll_with`] aborts the box's smooth
+//! scroll in flight (CSSOM View "perform a scroll", step 1).
 
 use rdom_core::NodeId;
 
@@ -37,6 +40,7 @@ pub(super) fn set_scroll_with(
     value: i32,
     clamp: ClampTo,
 ) -> usize {
+    crate::runtime::smooth_scroll::abort(dom, element);
     let (viewport, content_size) = {
         let ext = match dom.node(element).tui_ext() {
             Some(e) => e,
@@ -84,4 +88,52 @@ pub(super) fn set_scroll_with(
         let _ = crate::TuiDispatchExt::dispatch_tui_event(dom, element, &mut tui);
     }
     clamped
+}
+
+/// The largest legal `(scroll_left, scroll_top)` of `element` against
+/// the extent the last layout recorded; `None` for a non-element.
+pub(crate) fn max_offsets(dom: &TuiDom, element: NodeId) -> Option<(i32, i32)> {
+    let ext = dom.node(element).tui_ext()?;
+    let border = dom
+        .node(element)
+        .computed()
+        .map(|c| c.border)
+        .unwrap_or_default();
+    let pb = crate::layout::compute_padding_box(ext.layout, border);
+    Some((
+        (ext.scroll_content_width as i32 - pb.width as i32).max(0),
+        (ext.scroll_content_height as i32 - pb.height as i32).max(0),
+    ))
+}
+
+/// Clamp `(x, y)` to `[0, max_offsets]` and write both offsets of
+/// `element`, firing one `scroll` event when either moved. Does not
+/// touch a smooth scroll in flight — the caller decides (the
+/// programmatic API aborts it first, a smooth-scroll step is it).
+/// Returns whether an offset moved.
+///
+/// Viewport is the **padding-box** dimensions, NOT `content_layout`:
+/// CSSOM View clamps against the scrollport, which CSS Overflow 3 §3
+/// places at the padding-box edge.
+pub(crate) fn write_offsets(dom: &mut TuiDom, element: NodeId, x: i32, y: i32) -> bool {
+    let Some((max_x, max_y)) = max_offsets(dom, element) else {
+        return false;
+    };
+    let (x, y) = (x.clamp(0, max_x) as usize, y.clamp(0, max_y) as usize);
+    let changed = match dom.node_mut(element).ext_mut() {
+        Some(ext) => {
+            let changed = (ext.scroll_x, ext.scroll_y) != (x, y);
+            ext.scroll_x = x;
+            ext.scroll_y = y;
+            changed
+        }
+        None => false,
+    };
+    if changed {
+        // `scroll`: bubbles, NOT cancelable per HTML.
+        let mut tui = crate::TuiEvent::new("scroll");
+        tui.event.cancelable = false;
+        let _ = crate::TuiDispatchExt::dispatch_tui_event(dom, element, &mut tui);
+    }
+    changed
 }

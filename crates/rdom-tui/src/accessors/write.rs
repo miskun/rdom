@@ -7,9 +7,10 @@ use rdom_core::NodeId;
 use super::TuiAccessorsMut;
 use super::helpers::{
     nearest_scrollable_ancestor, pre_scroll_offset_within, read_scroll_x, read_scroll_y,
-    set_select_value, write_boolean_attribute, write_scroll_clamped,
+    set_select_value, write_boolean_attribute,
 };
 use crate::node::install_text_content;
+use crate::runtime::smooth_scroll::{ScrollIntoViewOptions, ScrollToOptions, perform_scroll};
 use crate::{Result, TuiExt};
 
 impl<'a> TuiAccessorsMut<'a> for rdom_core::NodeMut<'a, TuiExt> {
@@ -163,45 +164,65 @@ impl<'a> TuiAccessorsMut<'a> for rdom_core::NodeMut<'a, TuiExt> {
     }
 
     fn set_scroll_top(&mut self, value: i32) -> Result<()> {
-        let id = self.id();
-        let dom = self.dom_mut();
-        let cur_x = read_scroll_x(dom, id);
-        write_scroll_clamped(dom, id, cur_x, value);
-        Ok(())
+        self.scroll_with(ScrollToOptions {
+            top: Some(value),
+            ..ScrollToOptions::default()
+        })
     }
 
     fn set_scroll_left(&mut self, value: i32) -> Result<()> {
-        let id = self.id();
-        let dom = self.dom_mut();
-        let cur_y = read_scroll_y(dom, id);
-        write_scroll_clamped(dom, id, value, cur_y);
-        Ok(())
+        self.scroll_with(ScrollToOptions {
+            left: Some(value),
+            ..ScrollToOptions::default()
+        })
     }
 
     fn scroll_to(&mut self, x: i32, y: i32) -> Result<()> {
-        let id = self.id();
-        let dom = self.dom_mut();
-        write_scroll_clamped(dom, id, x, y);
-        Ok(())
+        self.scroll_with(ScrollToOptions {
+            left: Some(x),
+            top: Some(y),
+            ..ScrollToOptions::default()
+        })
     }
 
     fn scroll_by(&mut self, dx: i32, dy: i32) -> Result<()> {
+        self.scroll_by_with(ScrollToOptions {
+            left: Some(dx),
+            top: Some(dy),
+            ..ScrollToOptions::default()
+        })
+    }
+
+    fn scroll_with(&mut self, options: ScrollToOptions) -> Result<()> {
         let id = self.id();
         let dom = self.dom_mut();
-        let new_x = read_scroll_x(dom, id).saturating_add(dx);
-        let new_y = read_scroll_y(dom, id).saturating_add(dy);
-        write_scroll_clamped(dom, id, new_x, new_y);
+        let x = options.left.unwrap_or_else(|| read_scroll_x(dom, id));
+        let y = options.top.unwrap_or_else(|| read_scroll_y(dom, id));
+        perform_scroll(dom, id, x, y, options.behavior);
+        Ok(())
+    }
+
+    fn scroll_by_with(&mut self, options: ScrollToOptions) -> Result<()> {
+        let id = self.id();
+        let dom = self.dom_mut();
+        let x = read_scroll_x(dom, id).saturating_add(options.left.unwrap_or(0));
+        let y = read_scroll_y(dom, id).saturating_add(options.top.unwrap_or(0));
+        perform_scroll(dom, id, x, y, options.behavior);
         Ok(())
     }
 
     fn scroll_into_view(&mut self) -> Result<()> {
+        self.scroll_into_view_with(ScrollIntoViewOptions::new())
+    }
+
+    fn scroll_into_view_with(&mut self, options: ScrollIntoViewOptions) -> Result<()> {
         let id = self.id();
         let dom = self.dom_mut();
         let Some(ancestor) = nearest_scrollable_ancestor(dom, id) else {
             return Ok(());
         };
         let (rel_x, rel_y) = pre_scroll_offset_within(dom, id, ancestor);
-        write_scroll_clamped(dom, ancestor, rel_x, rel_y);
+        perform_scroll(dom, ancestor, rel_x, rel_y, options.behavior);
         Ok(())
     }
 

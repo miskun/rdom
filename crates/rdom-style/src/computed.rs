@@ -91,6 +91,10 @@ pub struct ComputedStyle {
     /// `Scroll`). `Stable` always reserves to prevent reflow when
     /// a scrollbar appears.
     pub scrollbar_gutter: crate::layout::ScrollbarGutter,
+    /// CSS `scroll-behavior` — whether a programmatic scroll of this
+    /// scroll container animates (`Smooth`) or jumps (`Auto`, default).
+    /// Read by the runtime's scroll paths, not by layout.
+    pub scroll_behavior: crate::layout::ScrollBehavior,
 
     // ── Inline formatting ────────────────────────────────────────────
     /// Outer display — how this element participates in its parent's
@@ -195,6 +199,7 @@ impl ComputedStyle {
             overflow_x: Overflow::Visible,
             overflow_y: Overflow::Visible,
             scrollbar_gutter: crate::layout::ScrollbarGutter::Auto,
+            scroll_behavior: crate::layout::ScrollBehavior::Auto,
             display: Display::Block,
             flow: crate::layout::Flow::Block,
             establishes_new_bfc: false,

@@ -31,6 +31,7 @@ fn canonical_values() -> &'static [(&'static str, &'static str)] {
         ("overflow-x", "auto"),
         ("overflow-y", "hidden"),
         ("scrollbar-gutter", "stable"),
+        ("scroll-behavior", "smooth"),
         ("width", "40"),
         ("height", "auto"),
         ("min-width", "10"),
@@ -501,6 +502,41 @@ fn pointer_events_parses_serializes_and_inherits() {
     assert!(inherits("pointer-events"));
     assert!(remove("pointer-events", &mut style));
     assert_eq!(serialize("pointer-events", &style), None);
+}
+
+/// `scroll-behavior: auto | smooth` (CSSOM View §12.1): parses,
+/// serializes, does not inherit, and owns its own `!important` bit.
+#[test]
+fn scroll_behavior_parses_serializes_and_does_not_inherit() {
+    let mut style = TuiStyle::new();
+    set("scroll-behavior", "smooth", &mut style).unwrap();
+    assert_eq!(
+        style.scroll_behavior,
+        Some(Value::Specified(crate::layout::ScrollBehavior::Smooth))
+    );
+    assert_eq!(
+        serialize("scroll-behavior", &style).as_deref(),
+        Some("smooth")
+    );
+    set("scroll-behavior", "AUTO", &mut style).unwrap();
+    assert_eq!(
+        serialize("scroll-behavior", &style).as_deref(),
+        Some("auto")
+    );
+    assert_eq!(
+        set("scroll-behavior", "instant", &mut TuiStyle::new()),
+        Err(DispatchError::InvalidValue),
+        "`instant` is a ScrollBehavior IDL value, not a property keyword"
+    );
+    assert!(!inherits("scroll-behavior"));
+    assert_eq!(
+        property_mask("scroll-behavior"),
+        Some(crate::ImportantMask::SCROLL_BEHAVIOR)
+    );
+    set("scroll-behavior", "inherit", &mut style).unwrap();
+    assert_eq!(style.scroll_behavior, Some(Value::Inherit));
+    assert!(remove("scroll-behavior", &mut style));
+    assert_eq!(serialize("scroll-behavior", &style), None);
 }
 
 /// `background` shorthand with only a color is `background-color`.

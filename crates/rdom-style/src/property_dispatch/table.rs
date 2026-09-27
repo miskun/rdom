@@ -32,6 +32,7 @@ const PROPERTY_NAMES: &[&str] = &[
     "overflow-x",
     "overflow-y",
     "scrollbar-gutter",
+    "scroll-behavior",
     // Layout — sizing
     "width",
     "height",
@@ -162,6 +163,7 @@ define_fields! {
     OverflowX => overflow_x : OVERFLOW_X,
     OverflowY => overflow_y : OVERFLOW_Y,
     ScrollbarGutter => scrollbar_gutter : SCROLLBAR_GUTTER,
+    ScrollBehavior => scroll_behavior : SCROLL_BEHAVIOR,
     Width => width : WIDTH,
     Height => height : HEIGHT,
     MinWidth => min_width : MIN_WIDTH,
@@ -217,6 +219,7 @@ pub(super) fn fields_of(name: &str) -> Option<&'static [Field]> {
         "overflow-x" => &[OverflowX],
         "overflow-y" => &[OverflowY],
         "scrollbar-gutter" => &[ScrollbarGutter],
+        "scroll-behavior" => &[ScrollBehavior],
         "width" => &[Width],
         "height" => &[Height],
         "min-width" => &[MinWidth],

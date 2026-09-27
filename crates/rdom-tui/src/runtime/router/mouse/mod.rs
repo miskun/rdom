@@ -534,6 +534,10 @@ fn handle_wheel(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> Rou
                 (0, 0, 0, 0)
             };
             if old_x != new_x || old_y != new_y {
+                // A user scroll is instant whatever `scroll-behavior`
+                // says, and aborts this box's smooth scroll in flight
+                // (CSSOM View "perform a scroll", step 1).
+                crate::runtime::smooth_scroll::abort(dom, id);
                 // `scroll`: bubbles, NOT cancelable per HTML.
                 let mut tui_scroll = TuiEvent::new("scroll");
                 tui_scroll.event.cancelable = false;

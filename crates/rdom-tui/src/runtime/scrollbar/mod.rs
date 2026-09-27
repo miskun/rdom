@@ -24,7 +24,7 @@
 //!   (`reveal_caret`, `service_caret_reveal`, `scroll_into_view`).
 //! - `geometry.rs` — padding-box scroll metrics and scroll-container
 //!   predicates (`nearest_scroll_container`).
-//! - `scroll.rs` — the one scroll writer: clamp + `scroll` event.
+//! - `scroll.rs` — the scroll writers: clamp + `scroll` event.
 //!
 //! Hooks into `router::mouse`:
 //!
@@ -53,6 +53,7 @@ pub use hit::{ScrollbarHit, ScrollbarPart};
 pub use keys::SCROLL_FOCUS_ATTR;
 pub(crate) use keys::{handle_scroll_key, scroll_focus_target};
 pub(crate) use reveal::{reveal_caret, scroll_into_view, service_caret_reveal};
+pub(crate) use scroll::{max_offsets, write_offsets};
 
 /// Which scrollbar axis a user is interacting with.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

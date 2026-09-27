@@ -1,0 +1,262 @@
+//! Smooth scrolling (`P7-SCROLL-BEHAVIOR-1`) — CSSOM View §4.1
+//! "perform a scroll" and §12.1 `scroll-behavior`.
+//!
+//! A programmatic scroll (`scrollTo` / `scrollBy` / `scrollTop = n` /
+//! `scrollIntoView`, [`TuiAccessorsMut`](crate::TuiAccessorsMut)) and
+//! keyboard scrolling of a focused scroll container go through
+//! `perform_scroll` with a [`ScrollBehaviorOption`]: `instant` jumps,
+//! `smooth` animates, and `auto` — the default — follows the scroll
+//! container's computed `scroll-behavior`. User wheel scrolling and
+//! scrollbar track / thumb interaction are always instant, as in
+//! browsers, and — like every instant scroll of the same box — abort a
+//! smooth scroll in flight (§4.1 step 1).
+//!
+//! ## The animation
+//!
+//! A smooth scroll is recorded on the scroll container
+//! (`TuiExt::smooth_scroll`: from, to, start) and stepped by the
+//! [`App`](crate::runtime::App) once per frame on the scheduler clock
+//! (virtual under `App::advance`, so tests are deterministic) by
+//! `step_all`: it starts at the first frame after the request and
+//! reaches its target [`SMOOTH_SCROLL_DURATION`] later, easing out
+//! (cubic), at whole-cell positions. Each step that moves the offset
+//! fires `scroll`, as a browser does once per animation frame. A new
+//! request on the same box retargets it: the new animation starts from
+//! the current (intermediate) position. While a smooth scroll is in
+//! flight the App wakes once per animation frame; once every box has
+//! settled it schedules nothing.
+//!
+//! Relative requests: `scrollBy` adds to the current position (CSSOM
+//! View §4.2 `scrollBy` reads `scrollX` / `scrollY`); keyboard scrolling
+//! steps from the destination of the smooth scroll in flight, so a held
+//! PageDown pages on at the key-repeat rate instead of stalling on the
+//! eased first cells — keyboard scrolling is UA-defined, and browsers
+//! accumulate the same way.
+//!
+//! Not smooth: the caret reveal of a text control and the widget
+//! cursor reveal (listbox / tree keyboard navigation) — both instant in
+//! browsers. rdom has no viewport scrolling, so `scroll-behavior` on the
+//! root element has nothing to apply to.
+
+use std::time::{Duration, Instant};
+
+use rdom_core::NodeId;
+
+use crate::TuiDom;
+use crate::layout::ScrollBehavior;
+use crate::node::TuiNodeExt;
+use crate::runtime::scrollbar::{max_offsets, write_offsets};
+
+/// How long a smooth scroll takes, whatever its distance. Browsers use
+/// a UA-defined duration (Firefox about 150–400 ms, Chromium a
+/// distance-dependent curve in the same range); a fixed quarter second
+/// reads as smooth at terminal frame rates without delaying a page
+/// scroll noticeably.
+pub const SMOOTH_SCROLL_DURATION: Duration = Duration::from_millis(250);
+
+/// CSSOM View's `ScrollBehavior` IDL enum (`auto | instant | smooth`),
+/// the `behavior` member of [`ScrollToOptions`] and
+/// [`ScrollIntoViewOptions`]. Named apart from the `scroll-behavior`
+/// property keyword ([`crate::layout::ScrollBehavior`],
+/// `auto | smooth`) that `Auto` defers to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ScrollBehaviorOption {
+    /// Follow the scroll container's computed `scroll-behavior`.
+    #[default]
+    Auto,
+    /// Jump to the target.
+    Instant,
+    /// Animate to the target.
+    Smooth,
+}
+
+/// CSSOM View `ScrollToOptions`: the argument of
+/// [`TuiAccessorsMut::scroll_with`](crate::TuiAccessorsMut::scroll_with)
+/// (`element.scroll(options)` / `scrollTo(options)`) and
+/// [`scroll_by_with`](crate::TuiAccessorsMut::scroll_by_with)
+/// (`scrollBy(options)`). An absent `left` / `top` leaves that axis
+/// where it is (for `scrollBy`, adds nothing).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct ScrollToOptions {
+    pub left: Option<i32>,
+    pub top: Option<i32>,
+    pub behavior: ScrollBehaviorOption,
+}
+
+/// CSSOM View `ScrollIntoViewOptions`, the argument of
+/// [`TuiAccessorsMut::scroll_into_view_with`](crate::TuiAccessorsMut::scroll_into_view_with).
+/// Only `behavior` is supported; `block` / `inline` alignment is always
+/// `start` (DIVERGENCES).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub struct ScrollIntoViewOptions {
+    pub behavior: ScrollBehaviorOption,
+}
+
+impl ScrollIntoViewOptions {
+    /// `{}` — behavior `auto`.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set `behavior`.
+    pub fn behavior(mut self, behavior: ScrollBehaviorOption) -> Self {
+        self.behavior = behavior;
+        self
+    }
+}
+
+/// A smooth scroll in flight on one scroll container.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct SmoothScroll {
+    /// `(scroll_left, scroll_top)` when the animation (re)started.
+    from: (usize, usize),
+    /// The destination, clamped when requested.
+    to: (usize, usize),
+    /// The frame the animation started on; `None` until the first
+    /// frame after the request.
+    start: Option<Instant>,
+}
+
+/// CSSOM View §4.1 "perform a scroll" of `element` to `(x, y)`: abort
+/// the smooth scroll in flight, then jump or start a smooth scroll per
+/// `behavior`. The target is clamped to the scroll range the last
+/// layout recorded.
+pub(crate) fn perform_scroll(
+    dom: &mut TuiDom,
+    element: NodeId,
+    x: i32,
+    y: i32,
+    behavior: ScrollBehaviorOption,
+) {
+    abort(dom, element);
+    if !is_smooth(dom, element, behavior) {
+        write_offsets(dom, element, x, y);
+        return;
+    }
+    let Some((max_x, max_y)) = max_offsets(dom, element) else {
+        return;
+    };
+    let to = (x.clamp(0, max_x) as usize, y.clamp(0, max_y) as usize);
+    let mut node = dom.node_mut(element);
+    let Some(ext) = node.ext_mut() else {
+        return;
+    };
+    let from = (ext.scroll_x, ext.scroll_y);
+    if from != to {
+        ext.smooth_scroll = Some(SmoothScroll {
+            from,
+            to,
+            start: None,
+        });
+    }
+}
+
+/// Abort the smooth scroll in flight on `element`, if any.
+pub(crate) fn abort(dom: &mut TuiDom, element: NodeId) {
+    if let Some(ext) = dom.node_mut(element).ext_mut() {
+        ext.smooth_scroll = None;
+    }
+}
+
+/// Where `element` is scrolling to: the smooth scroll's destination
+/// while one is in flight, else its current offsets.
+pub(crate) fn destination(dom: &TuiDom, element: NodeId) -> (usize, usize) {
+    match dom.node(element).tui_ext() {
+        Some(ext) => ext
+            .smooth_scroll
+            .map_or((ext.scroll_x, ext.scroll_y), |s| s.to),
+        None => (0, 0),
+    }
+}
+
+/// Whether a scroll of `element` with `behavior` animates: CSSOM View
+/// §4.1 — `smooth`, or `auto` on a box whose `scroll-behavior` is
+/// `smooth`.
+fn is_smooth(dom: &TuiDom, element: NodeId, behavior: ScrollBehaviorOption) -> bool {
+    match behavior {
+        ScrollBehaviorOption::Instant => false,
+        ScrollBehaviorOption::Smooth => true,
+        ScrollBehaviorOption::Auto => dom
+            .node(element)
+            .computed()
+            .is_some_and(|c| c.scroll_behavior == ScrollBehavior::Smooth),
+    }
+}
+
+/// What a frame's [`step_all`] did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub(crate) struct StepOutcome {
+    /// Some scroll offset moved: the frame must be laid out and painted.
+    pub moved: bool,
+    /// Some smooth scroll is still in flight: step again next frame.
+    pub active: bool,
+}
+
+/// Advance every smooth scroll in the tree to `now`.
+pub(crate) fn step_all(dom: &mut TuiDom, now: Instant) -> StepOutcome {
+    let mut outcome = StepOutcome::default();
+    for element in in_flight(dom) {
+        step(dom, element, now, &mut outcome);
+    }
+    outcome
+}
+
+/// The connected elements with a smooth scroll in flight, in tree order.
+fn in_flight(dom: &TuiDom) -> Vec<NodeId> {
+    let mut found = Vec::new();
+    let mut stack = vec![dom.root()];
+    while let Some(id) = stack.pop() {
+        let node = dom.node(id);
+        if node.tui_ext().is_some_and(|e| e.smooth_scroll.is_some()) {
+            found.push(id);
+        }
+        let first = stack.len();
+        stack.extend(node.child_nodes().map(|c| c.id()));
+        stack[first..].reverse();
+    }
+    found
+}
+
+fn step(dom: &mut TuiDom, element: NodeId, now: Instant, outcome: &mut StepOutcome) {
+    let (x, y) = {
+        let mut node = dom.node_mut(element);
+        let Some(ext) = node.ext_mut() else {
+            return;
+        };
+        let Some(mut anim) = ext.smooth_scroll else {
+            return;
+        };
+        let start = *anim.start.get_or_insert(now);
+        let t = now.saturating_duration_since(start).as_secs_f64()
+            / SMOOTH_SCROLL_DURATION.as_secs_f64();
+        if t >= 1.0 {
+            ext.smooth_scroll = None;
+            anim.to
+        } else {
+            ext.smooth_scroll = Some(anim);
+            outcome.active = true;
+            let p = ease_out(t);
+            (
+                lerp(anim.from.0, anim.to.0, p),
+                lerp(anim.from.1, anim.to.1, p),
+            )
+        }
+    };
+    // The state is settled before the write: a `scroll` listener that
+    // starts another scroll of this box retargets or aborts it.
+    outcome.moved |= write_offsets(dom, element, x as i32, y as i32);
+}
+
+/// Cubic ease-out: fast start, gentle landing.
+fn ease_out(t: f64) -> f64 {
+    1.0 - (1.0 - t).powi(3)
+}
+
+/// `from → to` at progress `p`, rounded to a whole cell.
+fn lerp(from: usize, to: usize, p: f64) -> usize {
+    (from as f64 + (to as f64 - from as f64) * p).round() as usize
+}
+
+#[cfg(test)]
+mod tests;

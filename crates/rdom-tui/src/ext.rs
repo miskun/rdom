@@ -276,6 +276,11 @@ pub struct TuiExt {
     /// scrollbar size and thumb position.
     pub scroll_content_width: usize,
     pub scroll_content_height: usize,
+    /// The smooth scroll in flight on this scroll container
+    /// (`runtime::smooth_scroll`), `None` when it is at rest.
+    /// **Runtime-managed** — started by the programmatic scroll API and
+    /// keyboard scrolling, stepped by the `App` each frame.
+    pub(crate) smooth_scroll: Option<crate::runtime::smooth_scroll::SmoothScroll>,
 
     // ── Geometry (written by layout pass) ─────────────────────────────
     /// The outer rectangle this element occupies in its parent's
