@@ -159,10 +159,9 @@ impl<'a> AppContext<'a> {
     /// pattern).
     ///
     /// A `target` dropped before the queue runs is skipped: there is
-    /// nothing left to dispatch at. `event` must not be mid-dispatch
-    /// (a clone taken inside a listener) — dispatching it would be the
-    /// `InvalidStateError` of DOM §2.9 step 1, with no caller left to
-    /// return it to, so the runtime panics.
+    /// nothing left to dispatch at. A clone of an in-flight event is a
+    /// fresh event (see [`Event`]'s "Cloning"), so a listener may
+    /// queue one.
     pub fn queue_dispatch(&mut self, target: NodeId, event: Event) {
         self.queued_dispatches.push((target, event));
     }

@@ -29,7 +29,29 @@ pub enum EventPhase {
 /// Users typically build one with `Event::new("click")`, optionally
 /// call `with_bubbles(false)` / `with_cancelable(true)`, then pass to
 /// `Dom::dispatch_event(target, &mut event)`.
-#[derive(Debug, Clone)]
+///
+/// # Cloning
+///
+/// `clone()` is the web's `new Event(e.type, e)`: a fresh,
+/// undispatched event. It copies `event_type`, the init flags
+/// (`bubbles`, `cancelable`) and `detail`; everything a dispatch
+/// writes starts over — `target` and `current_target` are `None`,
+/// `phase` is [`EventPhase::None`], the stop-propagation and canceled
+/// flags are clear, the dispatch flag is unset and
+/// [`redraw_requested`](Event::redraw_requested) is `false`. A copy
+/// is script-made, so it is not [synthetic](Event::is_synthetic)
+/// (a scripted copy has `isTrusted` false on the web). A clone taken
+/// inside a listener can therefore be dispatched or queued; the
+/// in-flight original still cannot (DOM §2.9 step 1).
+///
+/// `Event` has no `timeStamp`, so there is no creation time to copy
+/// or restart; should one be added, a copy takes its own creation
+/// time, as `new Event()` does (DOM §2.2).
+///
+/// Read what a listener needs from the dispatch state (`target`,
+/// `phase`, `default_prevented()`) inside the listener: a clone does
+/// not carry it.
+#[derive(Debug)]
 #[non_exhaustive]
 pub struct Event {
     /// Event type string — "click", "input", etc. Case-sensitive.
@@ -92,6 +114,17 @@ pub struct Event {
     /// `rdom-tui` runtime ORs it into its repaint decision). Read via
     /// [`Event::redraw_requested`].
     pub(crate) redraw_requested: bool,
+}
+
+/// DOM §2.2 `new Event(e.type, e)` — see [`Event`]'s "Cloning".
+impl Clone for Event {
+    fn clone(&self) -> Self {
+        let mut copy = Event::new(self.event_type.clone())
+            .with_bubbles(self.bubbles)
+            .with_cancelable(self.cancelable);
+        copy.detail = self.detail.clone();
+        copy
+    }
 }
 
 impl Event {
@@ -267,5 +300,117 @@ mod tests {
         assert!(!e.cancelable);
         assert!(e.is_propagation_stopped());
         assert!(!e.default_prevented()); // cancelable=false blocks prevent_default
+    }
+
+    // ── Clone is `new Event(e.type, e)` (P7G-EVENT-CLONE-1) ──────────
+
+    use crate::dispatch::ListenerOptions;
+    use crate::{Dom, DomError, EventDetail};
+    use std::cell::RefCell;
+    use std::rc::Rc;
+
+    /// DOM §2.2 / §2.9: a copy is a fresh event — type, init flags and
+    /// detail carry over; the dispatch flag, target, current target,
+    /// phase and the stop / canceled flags do not.
+    #[test]
+    fn clone_taken_mid_dispatch_is_a_fresh_undispatched_event() {
+        let mut dom: Dom = Dom::new();
+        let root = dom.root();
+        let b = dom.create_element("b");
+        dom.append_child(root, b).unwrap();
+        let stash = Rc::new(RefCell::new(Vec::new()));
+        {
+            // Cancel and stop the event first, so the clone has every
+            // flag to (not) copy.
+            let stash = stash.clone();
+            dom.add_event_listener(b, "ping", ListenerOptions::default(), move |ctx| {
+                ctx.event.prevent_default();
+                ctx.event.stop_immediate_propagation();
+                ctx.request_redraw();
+                stash.borrow_mut().push(ctx.event.clone());
+            })
+            .unwrap();
+        }
+        let mut e = Event::new("ping")
+            .with_bubbles(false)
+            .with_cancelable(true)
+            .with_detail("payload");
+        dom.dispatch_event(b, &mut e).unwrap();
+        let copy = stash.borrow_mut().pop().expect("listener ran");
+        assert_eq!(copy.event_type, "ping");
+        assert!(!copy.bubbles);
+        assert!(copy.cancelable);
+        assert_eq!(copy.detail, EventDetail::String("payload".into()));
+        assert_eq!(copy.phase, EventPhase::None);
+        assert_eq!(copy.target, None);
+        assert_eq!(copy.current_target, None);
+        assert!(
+            !copy.default_prevented(),
+            "a copy of a canceled event is not canceled"
+        );
+        assert!(!copy.is_propagation_stopped());
+        assert!(!copy.is_immediate_propagation_stopped());
+        assert!(!copy.redraw_requested());
+    }
+
+    /// The copy dispatches normally, both after the original's dispatch
+    /// and nested inside it, while re-dispatching the original in
+    /// flight is still `InvalidStateError` (DOM §2.9 step 1).
+    #[test]
+    fn clone_dispatches_while_the_original_in_flight_still_cannot() {
+        let mut dom: Dom = Dom::new();
+        let root = dom.root();
+        let a = dom.create_element("a");
+        dom.append_child(root, a).unwrap();
+        let results = Rc::new(RefCell::new(Vec::new()));
+        let fired = Rc::new(RefCell::new(Vec::new()));
+        {
+            let fired = fired.clone();
+            dom.add_event_listener(a, "ping", ListenerOptions::default(), move |ctx| {
+                fired.borrow_mut().push(ctx.event.detail.clone());
+            })
+            .unwrap();
+        }
+        {
+            // A listener is skipped while it is running, so the nested
+            // dispatch reaches only the recorder above.
+            let results = results.clone();
+            dom.add_event_listener(a, "ping", ListenerOptions::default(), move |ctx| {
+                if ctx.event.detail == EventDetail::String("outer".into()) {
+                    let original = ctx.dom.dispatch_event(a, ctx.event);
+                    let mut copy = ctx.event.clone();
+                    copy.detail = EventDetail::String("copy".into());
+                    let nested = ctx.dom.dispatch_event(a, &mut copy);
+                    results.borrow_mut().push((original, nested, copy));
+                }
+            })
+            .unwrap();
+        }
+        let mut e = Event::new("ping").with_detail("outer");
+        dom.dispatch_event(a, &mut e).unwrap();
+        let (original, nested, mut copy) = results.borrow_mut().pop().unwrap();
+        assert!(matches!(original, Err(DomError::InvalidState(_))));
+        assert_eq!(nested, Ok(()));
+        assert_eq!(
+            *fired.borrow(),
+            vec![
+                EventDetail::String("outer".into()),
+                EventDetail::String("copy".into())
+            ]
+        );
+        dom.dispatch_event(a, &mut copy).unwrap();
+        assert_eq!(
+            fired.borrow().len(),
+            3,
+            "the copy dispatches again afterwards"
+        );
+    }
+
+    /// A copy of a runtime-synthesized event is script-made: untrusted
+    /// on the web (`isTrusted` false), not synthetic here.
+    #[test]
+    fn clone_is_not_synthetic() {
+        let e = Event::new("click").with_synthetic(true);
+        assert!(!e.clone().is_synthetic());
     }
 }

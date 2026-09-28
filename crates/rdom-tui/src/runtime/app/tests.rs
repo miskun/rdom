@@ -858,6 +858,46 @@ fn context_queue_dispatch_runs_after_tick_returns() {
     );
 }
 
+/// A clone taken inside a listener is a fresh event (DOM §2.2
+/// `new Event(e.type, e)`), so queueing it dispatches normally instead
+/// of tripping the in-flight check (`P7G-EVENT-CLONE-1`).
+#[test]
+fn context_queue_dispatch_of_a_clone_taken_in_a_listener_dispatches() {
+    use rdom_core::Event;
+
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let btn = dom.create_element("btn");
+    dom.append_child(root, btn).unwrap();
+
+    let fired = Rc::new(Cell::new(0));
+    let stash = Rc::new(std::cell::RefCell::new(None::<Event>));
+    {
+        let (fired, stash) = (fired.clone(), stash.clone());
+        dom.add_event_listener(btn, "ping", ListenerOptions::default(), move |ctx| {
+            fired.set(fired.get() + 1);
+            ctx.event.prevent_default();
+            stash.borrow_mut().get_or_insert_with(|| ctx.event.clone());
+        })
+        .unwrap();
+    }
+
+    let (btn_id, s) = (btn, stash.clone());
+    let mut app = test_app(dom, Stylesheet::bare(), Rect::new(0, 0, 20, 5)).on_tick(move |ctx| {
+        if let Some(copy) = s.borrow_mut().take() {
+            ctx.queue_dispatch(btn_id, copy);
+        } else {
+            ctx.dispatch(btn_id, &mut Event::new("ping"))
+                .expect("live target");
+        }
+        ControlFlow::Continue
+    });
+    app.tick();
+    assert_eq!(fired.get(), 1);
+    app.tick();
+    assert_eq!(fired.get(), 2, "the queued clone dispatched");
+}
+
 // ── AppHandle (3.B) ─────────────────────────────────────────────────
 
 #[test]
