@@ -53,6 +53,7 @@ mod keys;
 mod painted;
 mod reveal;
 mod scroll;
+pub(crate) mod state;
 
 pub(crate) use autoscroll::{autoscroll_step, autoscroll_step_for, resolve_autoscroll_container};
 pub(crate) use drag::{ScrollbarDrag, cancel_drag, end_drag, extend_drag, handle_mousedown};

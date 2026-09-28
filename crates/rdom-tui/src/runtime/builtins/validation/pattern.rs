@@ -19,19 +19,21 @@ use crate::TuiDom;
 /// compiled from and the result (`None` when it did not compile).
 /// Validity is computed on every check and on every `:invalid` match;
 /// recompiling each time would dominate. A cache, not state: clones
-/// start empty and every two caches compare equal.
+/// start empty, and it has no `PartialEq` — the form state's equality
+/// leaves it out (`FormControlState`).
 #[derive(Debug, Default)]
 pub(crate) struct PatternCache(RefCell<Option<(String, Option<regex::Regex>)>>);
+
+impl PatternCache {
+    #[cfg(test)]
+    pub(crate) fn cell(&self) -> &RefCell<Option<(String, Option<regex::Regex>)>> {
+        &self.0
+    }
+}
 
 impl Clone for PatternCache {
     fn clone(&self) -> Self {
         Self::default()
-    }
-}
-
-impl PartialEq for PatternCache {
-    fn eq(&self, _: &Self) -> bool {
-        true
     }
 }
 
@@ -44,7 +46,7 @@ pub(super) fn mismatch(dom: &TuiDom, id: NodeId, values: &[&str]) -> bool {
     let Some(ext) = dom.node(id).ext() else {
         return false;
     };
-    let mut cache = ext.pattern_cache.0.borrow_mut();
+    let mut cache = ext.form_state.get_or_init().pattern_cache.0.borrow_mut();
     if cache.as_ref().is_none_or(|(s, _)| s != source) {
         let compiled = regex::Regex::new(&format!("^(?:{source})$")).ok();
         *cache = Some((source.to_string(), compiled));

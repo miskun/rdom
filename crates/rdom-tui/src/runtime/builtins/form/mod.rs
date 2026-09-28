@@ -387,7 +387,7 @@ impl<'a> FiringSubmissionEvents<'a> {
         let already = {
             let mut node = dom.node_mut(form);
             let ext = node.ext_mut()?;
-            std::mem::replace(&mut ext.firing_submission_events, true)
+            std::mem::replace(&mut ext.form_state.get_mut().firing_submission_events, true)
         };
         // Not `then_some`: it would build (and drop) a guard for the
         // already-set case, clearing the outer submission's flag.
@@ -406,8 +406,8 @@ impl Drop for FiringSubmissionEvents<'_> {
             return;
         }
         let mut node = self.dom.node_mut(self.form);
-        if let Some(ext) = node.ext_mut() {
-            ext.firing_submission_events = false;
+        if let Some(state) = node.ext_mut().and_then(|e| e.form_state.existing_mut()) {
+            state.firing_submission_events = false;
         }
     }
 }

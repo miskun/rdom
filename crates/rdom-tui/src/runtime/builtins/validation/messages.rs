@@ -20,7 +20,7 @@ pub(super) fn message(dom: &TuiDom, id: NodeId, s: &ValidityState) -> String {
     if s.custom_error {
         return node
             .ext()
-            .map(|e| e.custom_validity.clone())
+            .and_then(|e| e.form_state.get().map(|f| f.custom_validity.clone()))
             .unwrap_or_default();
     }
     if s.value_missing {

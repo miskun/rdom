@@ -11,7 +11,7 @@
 //! The boxes come from the last layout, and a scroll written since
 //! then (a `scrollTo` earlier in the same listener) has not moved them
 //! yet: each container's drift from the offsets its last layout used
-//! (`TuiExt::laid_out_scroll`) is folded in, and after a container is
+//! (`ScrollState::laid_out`) is folded in, and after a container is
 //! scrolled the element's box is carried along to where that scroll
 //! puts it, so the next container out aligns the element's new
 //! position — the rect CSSOM re-reads per container.
@@ -82,7 +82,8 @@ fn scroll_container(
         .unwrap_or_default();
     let port = crate::layout::compute_padding_box(ext.layout, border);
     let (cur_x, cur_y) = (ext.scroll_x as i32, ext.scroll_y as i32);
-    let (laid_x, laid_y) = (ext.laid_out_scroll.0 as i32, ext.laid_out_scroll.1 as i32);
+    let laid = super::state::laid_out(ext);
+    let (laid_x, laid_y) = (laid.0 as i32, laid.1 as i32);
     // The element's edges relative to the scrollport at the current
     // offsets.
     let rel_x = rect.x - port.x - (cur_x - laid_x);

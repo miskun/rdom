@@ -48,10 +48,11 @@ pub(super) fn compute_in(dom: &TuiDom, id: NodeId, groups: &mut RadioGroups) -> 
 
 fn compute_with(dom: &TuiDom, id: NodeId, groups: Option<&mut RadioGroups>) -> ValidityState {
     let mut s = ValidityState {
-        custom_error: dom
-            .node(id)
-            .ext()
-            .is_some_and(|e| !e.custom_validity.is_empty()),
+        custom_error: dom.node(id).ext().is_some_and(|e| {
+            e.form_state
+                .get()
+                .is_some_and(|f| !f.custom_validity.is_empty())
+        }),
         ..ValidityState::default()
     };
     match dom.node(id).tag_name() {
@@ -166,7 +167,11 @@ fn placeholder_label_option(dom: &TuiDom, id: NodeId) -> Option<NodeId> {
 /// the user last edited (the dirty value flag) is constrained; length
 /// is in UTF-16 code units; an empty value is never too short.
 fn length_states(dom: &TuiDom, id: NodeId, value: &str, s: &mut ValidityState) {
-    if !dom.node(id).ext().is_some_and(|e| e.value_user_edited) {
+    if !dom
+        .node(id)
+        .ext()
+        .is_some_and(|e| e.form_state.get().is_some_and(|f| f.value_user_edited))
+    {
         return;
     }
     let len = value.encode_utf16().count();

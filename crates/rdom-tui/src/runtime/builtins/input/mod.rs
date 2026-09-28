@@ -207,8 +207,12 @@ pub(crate) fn reset_to_default(dom: &mut TuiDom, control: NodeId) {
 /// edit, so `maxlength` / `minlength` stop applying (HTML: the "last
 /// changed by a user edit" flag).
 pub(crate) fn clear_user_edited(dom: &mut TuiDom, control: NodeId) {
-    if let Some(ext) = dom.node_mut(control).ext_mut() {
-        ext.value_user_edited = false;
+    if let Some(state) = dom
+        .node_mut(control)
+        .ext_mut()
+        .and_then(|e| e.form_state.existing_mut())
+    {
+        state.value_user_edited = false;
     }
 }
 

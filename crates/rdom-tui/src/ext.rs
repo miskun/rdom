@@ -284,22 +284,15 @@ pub struct TuiExt {
     /// Vertical scroll offset in cells. Runtime-managed, as
     /// [`scroll_x`](Self::scroll_x).
     pub scroll_y: usize,
-    /// `(scroll_x, scroll_y)` as the `App`'s last frame painted them
-    /// (`runtime::scrollbar::painted`): a difference asks for a frame.
-    pub(crate) painted_scroll: (usize, usize),
-    /// `(scroll_x, scroll_y)` as the last layout placed this box's
-    /// children with them: how far a later scroll has moved them since
-    /// (`runtime::scrollbar::into_view`).
-    pub(crate) laid_out_scroll: (usize, usize),
+    /// Scroll bookkeeping only scroll containers use — the offsets last
+    /// painted and last laid out, and the smooth scroll in flight —
+    /// boxed on first use (`runtime::scrollbar::state`,
+    /// `P7G-FORM-STATE-BOX-1`). **Runtime-managed.**
+    pub(crate) scroll_state: Option<Box<crate::runtime::scrollbar::state::ScrollState>>,
     /// Total content size (max of children's extents). Used to compute
     /// scrollbar size and thumb position.
     pub scroll_content_width: usize,
     pub scroll_content_height: usize,
-    /// The smooth scroll in flight on this scroll container
-    /// (`runtime::smooth_scroll`), `None` when it is at rest.
-    /// **Runtime-managed** — started by the programmatic scroll API and
-    /// keyboard scrolling, stepped by the `App` each frame.
-    pub(crate) smooth_scroll: Option<crate::runtime::smooth_scroll::SmoothScroll>,
 
     // ── Geometry (written by layout pass) ─────────────────────────────
     /// The outer rectangle this element occupies in its parent's
@@ -521,24 +514,12 @@ pub struct TuiExt {
     /// See `runtime::builtins::canvas` for the registration helpers.
     pub canvas_paint: Option<crate::runtime::builtins::canvas::CanvasPaint>,
 
-    // ── Constraint validation (P7-VALIDATION-1) ──────────────────────
-    /// The custom validity error message (`setCustomValidity`); empty =
-    /// no custom error. **Runtime-managed** — use
-    /// `TuiAccessorsMut::set_custom_validity`.
-    pub(crate) custom_validity: String,
-    /// The text control's value was last changed by a user edit (HTML's
-    /// dirty value flag + "last changed by a user edit"): typing, delete,
-    /// paste, undo / redo set it; a programmatic value or a form reset
-    /// clears it. Only such a value is subject to `maxlength` /
-    /// `minlength`.
-    pub(crate) value_user_edited: bool,
-    /// A `<form>`'s "firing submission events" flag (HTML §4.10.21.3
-    /// step 6): set while its submission runs interactive validation and
-    /// fires `submit`, so a listener's nested submission returns early.
-    /// **Runtime-managed** by `runtime::builtins::form::submit`.
-    pub(crate) firing_submission_events: bool,
-    /// The compiled `pattern` attribute, cached per control.
-    pub(crate) pattern_cache: crate::runtime::builtins::validation::PatternCache,
+    // ── Form state (P7-VALIDATION-1, P7G-SUBMIT-REENTRY-1) ───────────
+    /// Custom validity, the user-edited flag, a `<form>`'s "firing
+    /// submission events" flag and the compiled `pattern`, boxed on
+    /// first use (`P7G-FORM-STATE-BOX-1`). **Runtime-managed** — use
+    /// `TuiAccessorsMut::set_custom_validity` and the form builtins.
+    pub(crate) form_state: crate::runtime::builtins::form_state::FormControlSlot,
 }
 
 impl TuiExt {
@@ -598,6 +579,25 @@ mod tests {
             cloned.inline_style.padding,
             Some(crate::style::Value::Specified(Padding::all(2)))
         );
+    }
+
+    /// Every element pays for `TuiExt`, so growth should be a decision:
+    /// state only some elements use (form controls, scroll containers,
+    /// editing hosts, selects) lives behind a lazily created box
+    /// (`P7G-FORM-STATE-BOX-1`: 4496 → 4344 bytes on 64-bit targets).
+    /// Raise the bound deliberately, with the reason in the commit.
+    #[test]
+    fn tui_ext_size_tripwire() {
+        const MAX: usize = 4344;
+        let size = std::mem::size_of::<TuiExt>();
+        let computed = std::mem::size_of::<ComputedStyle>();
+        let inline = std::mem::size_of::<TuiStyle>();
+        let presentation = std::mem::size_of::<PresentationStyle>();
+        eprintln!(
+            "TuiExt {size} B; ComputedStyle {computed} B, TuiStyle {inline} B, \
+             PresentationStyle {presentation} B"
+        );
+        assert!(size <= MAX, "size_of::<TuiExt>() = {size}, bound {MAX}");
     }
 
     #[test]

@@ -30,6 +30,7 @@ pub mod canvas;
 pub mod details;
 pub mod dialog;
 pub mod form;
+pub(crate) mod form_state;
 pub mod gauge;
 pub(crate) mod inline_chrome;
 pub mod input;

@@ -336,7 +336,7 @@ pub(super) fn layout_node(
     }
     // The offsets the children were just placed with.
     if let Some(ext) = dom.node_mut(id).ext_mut() {
-        ext.laid_out_scroll = (ext.scroll_x, ext.scroll_y);
+        crate::runtime::scrollbar::state::note_laid_out(ext);
     }
 }
 

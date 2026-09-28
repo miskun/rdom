@@ -145,8 +145,16 @@ pub fn validation_message(dom: &TuiDom, id: NodeId) -> String {
 /// `setCustomValidity(message)`: a non-empty `message` makes `id`
 /// suffer from a custom error with that message; `""` clears it.
 pub fn set_custom_validity(dom: &mut TuiDom, id: NodeId, message: &str) {
-    if let Some(ext) = dom.node_mut(id).ext_mut() {
-        ext.custom_validity = message.to_string();
+    let mut node = dom.node_mut(id);
+    let Some(ext) = node.ext_mut() else {
+        return;
+    };
+    if message.is_empty() {
+        if let Some(state) = ext.form_state.existing_mut() {
+            state.custom_validity.clear();
+        }
+    } else {
+        ext.form_state.get_mut().custom_validity = message.to_string();
     }
 }
 

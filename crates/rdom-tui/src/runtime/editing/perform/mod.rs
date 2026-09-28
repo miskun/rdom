@@ -164,7 +164,7 @@ pub fn perform_edit_as(
         ext.editor_state
             .get_or_insert_with(|| Box::new(EditorState::new()))
             .record(entry, selection_before, selection_after);
-        ext.value_user_edited = true;
+        ext.form_state.get_mut().value_user_edited = true;
     }
 
     // `<input>` value-attribute mirror — keep the attribute in

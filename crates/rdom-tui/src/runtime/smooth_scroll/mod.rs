@@ -14,7 +14,7 @@
 //! ## The animation
 //!
 //! A smooth scroll is recorded on the scroll container
-//! (`TuiExt::smooth_scroll`: from, to, start) and stepped by the
+//! (`ScrollState::smooth` in `TuiExt::scroll_state`: from, to, start) and stepped by the
 //! [`App`](crate::runtime::App) once per frame on the scheduler clock
 //! (virtual under `App::advance`, so tests are deterministic) by
 //! `step_all`: it starts at the first frame after the request and
@@ -38,6 +38,7 @@
 //! browsers. rdom has no viewport scrolling, so `scroll-behavior` on the
 //! root element has nothing to apply to.
 
+use crate::runtime::scrollbar::state;
 use std::time::{Duration, Instant};
 
 use rdom_core::NodeId;
@@ -232,18 +233,21 @@ pub(crate) fn perform_scroll(
     };
     let from = (ext.scroll_x, ext.scroll_y);
     if from != to {
-        ext.smooth_scroll = Some(SmoothScroll {
-            from,
-            to,
-            start: None,
-        });
+        state::set_smooth(
+            ext,
+            Some(SmoothScroll {
+                from,
+                to,
+                start: None,
+            }),
+        );
     }
 }
 
 /// Abort the smooth scroll in flight on `element`, if any.
 pub(crate) fn abort(dom: &mut TuiDom, element: NodeId) {
     if let Some(ext) = dom.node_mut(element).ext_mut() {
-        ext.smooth_scroll = None;
+        state::set_smooth(ext, None);
     }
 }
 
@@ -251,9 +255,7 @@ pub(crate) fn abort(dom: &mut TuiDom, element: NodeId) {
 /// while one is in flight, else its current offsets.
 pub(crate) fn destination(dom: &TuiDom, element: NodeId) -> (usize, usize) {
     match dom.node(element).tui_ext() {
-        Some(ext) => ext
-            .smooth_scroll
-            .map_or((ext.scroll_x, ext.scroll_y), |s| s.to),
+        Some(ext) => state::smooth(ext).map_or((ext.scroll_x, ext.scroll_y), |s| s.to),
         None => (0, 0),
     }
 }
@@ -296,7 +298,7 @@ fn in_flight(dom: &TuiDom) -> Vec<NodeId> {
     let mut stack = vec![dom.root()];
     while let Some(id) = stack.pop() {
         let node = dom.node(id);
-        if node.tui_ext().is_some_and(|e| e.smooth_scroll.is_some()) {
+        if node.tui_ext().is_some_and(|e| state::smooth(e).is_some()) {
             found.push(id);
         }
         let first = stack.len();
@@ -312,17 +314,17 @@ fn step(dom: &mut TuiDom, element: NodeId, now: Instant, outcome: &mut StepOutco
         let Some(ext) = node.ext_mut() else {
             return;
         };
-        let Some(mut anim) = ext.smooth_scroll else {
+        let Some(mut anim) = state::smooth(ext) else {
             return;
         };
         let start = *anim.start.get_or_insert(now);
         let t = now.saturating_duration_since(start).as_secs_f64()
             / SMOOTH_SCROLL_DURATION.as_secs_f64();
         if t >= 1.0 {
-            ext.smooth_scroll = None;
+            state::set_smooth(ext, None);
             anim.to
         } else {
-            ext.smooth_scroll = Some(anim);
+            state::set_smooth(ext, Some(anim));
             outcome.active = true;
             let p = ease_out(t);
             (

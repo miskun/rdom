@@ -34,7 +34,7 @@ pub(crate) fn moved_since_paint(dom: &TuiDom) -> bool {
         let node = dom.node(id);
         if node
             .tui_ext()
-            .is_some_and(|e| (e.scroll_x, e.scroll_y) != e.painted_scroll)
+            .is_some_and(|e| (e.scroll_x, e.scroll_y) != super::state::painted(e))
         {
             return true;
         }
@@ -51,7 +51,7 @@ pub(crate) fn note_painted(dom: &mut TuiDom) {
     while let Some(id) = stack.pop() {
         stack.extend(dom.node(id).child_nodes().map(|c| c.id()));
         if let Some(ext) = dom.node_mut(id).ext_mut() {
-            ext.painted_scroll = (ext.scroll_x, ext.scroll_y);
+            super::state::note_painted(ext);
         }
     }
 }

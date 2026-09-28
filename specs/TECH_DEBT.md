@@ -6,7 +6,7 @@ For the durable architectural divergences (web-platform departures shipped on pu
 
 ## Open
 
-None.
+- **`PERF-TUIEXT-SIZE-1` — `TuiExt` is 4344 bytes per element.** `P7G-FORM-STATE-BOX-1` boxed the form and scroll state (4496 → 4344, pinned by `ext::tests::tui_ext_size_tripwire`). Most of what is left is five inline `Option<ComputedStyle>` (552 B each: `computed_backdrop`, `computed_selection`, `computed_scrollbar`, `computed_scrollbar_thumb_vertical` / `_horizontal`), the inline `TuiStyle` (672 B) and three `PresentationStyle`s (184 B each). Sharing the pseudo-element styles as `Option<Rc<ComputedStyle>>` like `computed` changes public field types, so it waits for the 0.5.0 API pass.
 
 ## Accepted simplifications (forever-state)
 
