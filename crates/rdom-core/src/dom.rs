@@ -109,7 +109,7 @@ pub struct Dom<Ext: 'static = ()> {
     /// use those records to refresh the `::selection` overlay.
     pub(crate) selection: Option<crate::Selection>,
     /// Count of actual selection changes (see [`Dom::selection_serial`]).
-    pub(crate) selection_serial: u64,
+    pub(crate) selection_serial: crate::SelectionSerial,
     /// Mutation observers. Fires `Mutation` records on every DOM change.
     pub(crate) observers: ObserverStore<Ext>,
     /// Re-entrancy guard: true while an observer callback is running.
@@ -142,7 +142,7 @@ impl<Ext: Default> Dom<Ext> {
             pointer_capture: None,
             drag_autoscroll: false,
             selection: None,
-            selection_serial: 0,
+            selection_serial: crate::SelectionSerial::new(0),
             observers: ObserverStore::default(),
             is_observing: false,
             activation_hook: crate::dispatch::ActivationSlot(None),
@@ -331,7 +331,7 @@ impl<Ext: 'static> Dom<Ext> {
         }
         let prev = self.selection.take();
         self.selection = next;
-        self.selection_serial = self.selection_serial.wrapping_add(1);
+        self.selection_serial = self.selection_serial.next();
         self.fire_mutation(Mutation::SelectionChanged { prev, next });
     }
 
@@ -346,7 +346,7 @@ impl<Ext: 'static> Dom<Ext> {
     /// keeps a typing run open only while the selection is the one its
     /// last edit left (Blink closes the typing command on any other
     /// selection change). No web API exposes this; it is bookkeeping.
-    pub fn selection_serial(&self) -> u64 {
+    pub fn selection_serial(&self) -> crate::SelectionSerial {
         self.selection_serial
     }
 
@@ -465,7 +465,7 @@ impl<Ext: Default> Dom<Ext> {
             pointer_capture: None,
             drag_autoscroll: false,
             selection: None,
-            selection_serial: 0,
+            selection_serial: crate::SelectionSerial::new(0),
             observers: ObserverStore::default(),
             is_observing: false,
             activation_hook: crate::dispatch::ActivationSlot(None),
@@ -885,6 +885,8 @@ mod tests {
             s1,
             "moving away and back is two changes"
         );
+        let later: crate::SelectionSerial = dom.selection_serial();
+        assert!(later > s1, "serials are ordered: {later:?} after {s1:?}");
     }
 
     #[test]

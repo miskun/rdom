@@ -17,7 +17,7 @@
 
 use std::ops::Range;
 
-use rdom_core::{InputType, NodeId, Position};
+use rdom_core::{InputType, NodeId, Position, SelectionSerial};
 
 /// The kind of edit an entry describes — which undo group it can join.
 ///
@@ -110,7 +110,7 @@ pub struct EditorState {
     /// [`Dom::selection_serial`](rdom_core::Dom::selection_serial) the
     /// last recorded edit left behind. `None` once the group is closed
     /// (a standalone or compound step, undo, redo).
-    open_group: Option<u64>,
+    open_group: Option<SelectionSerial>,
     /// Sticky cell-column for vertical caret motion.
     ///
     /// `Some(x)` when the previous applied caret action was Up or
@@ -164,7 +164,12 @@ impl EditorState {
     /// back) closes it, even one that returns the caret to the same
     /// spot. Then the kinds must match and the edit must continue the
     /// run on the same text node (see [`EditKind`]).
-    pub fn record(&mut self, entry: EditEntry, selection_before: u64, selection_after: u64) {
+    pub fn record(
+        &mut self,
+        entry: EditEntry,
+        selection_before: SelectionSerial,
+        selection_after: SelectionSerial,
+    ) {
         self.redo.clear();
 
         let open = self.open_group == Some(selection_before);

@@ -405,7 +405,7 @@ impl Drop for FiringSubmissionEvents<'_> {
 }
 
 /// `form.requestSubmit(submitter)` (HTML §4.10.3): a `submitter` must
-/// be a submit button (`DomError::TypeError` otherwise) whose form
+/// be a submit button (`DomError::Type` otherwise) whose form
 /// owner is `form` (`DomError::NotFound` otherwise); then the shared
 /// [`submit`] path runs with it. `form` must be a `<form>`.
 pub(crate) fn request_submit(
@@ -415,7 +415,7 @@ pub(crate) fn request_submit(
 ) -> rdom_core::Result<SubmitOutcome> {
     if let Some(s) = submitter {
         if !dom.is_submit_button(s) {
-            return Err(rdom_core::DomError::TypeError(
+            return Err(rdom_core::DomError::Type(
                 "requestSubmit: the submitter is not a submit button",
             ));
         }

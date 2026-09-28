@@ -47,7 +47,7 @@ struct Shown {
     /// The editing host whose `caret_blink_off` this controller owns.
     host: NodeId,
     /// `Dom::selection_serial` when the phase last restarted.
-    serial: u64,
+    serial: rdom_core::SelectionSerial,
     /// When the current on-phase began.
     epoch: Instant,
     /// Whether the caret is currently painted off.

@@ -39,10 +39,13 @@ pub enum DomError {
     /// already being dispatched.
     InvalidState(&'static str),
 
-    /// An argument has the wrong kind (the web's `TypeError`) — e.g.
+    /// An argument has the wrong kind — the web's `TypeError` (Web IDL
+    /// §3.14.1 simple exception, not a `DOMException`), named without
+    /// the `Error` suffix like the `DOMException` names above
+    /// (`InvalidStateError` → `InvalidState`). E.g.
     /// `form.requestSubmit(submitter)` with a submitter that is not a
     /// submit button.
-    TypeError(&'static str),
+    Type(&'static str),
 
     /// A string argument does not parse (spec `SyntaxError`) — e.g.
     /// `el.contentEditable = "yes"`.
@@ -65,7 +68,7 @@ impl std::fmt::Display for DomError {
                 )
             }
             DomError::InvalidState(what) => write!(f, "invalid state: {what}"),
-            DomError::TypeError(what) => write!(f, "type error: {what}"),
+            DomError::Type(what) => write!(f, "type error: {what}"),
             DomError::Syntax(what) => write!(f, "syntax error: {what}"),
         }
     }

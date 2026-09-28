@@ -88,7 +88,7 @@ pub use node_list::NodeList;
 pub use node_or_string::NodeOrString;
 pub use observer::{InteractionKind, Mutation, MutationObserver, ObserverId};
 pub use position::DocumentPosition;
-pub use selection::{Position, Range, Selection};
+pub use selection::{Position, Range, Selection, SelectionSerial};
 pub use token_list::{DomTokenList, DomTokenListMut};
 pub use tree::AdjacentPosition;
 pub use validate::InvariantViolation;

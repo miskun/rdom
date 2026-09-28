@@ -92,6 +92,33 @@ impl Range {
     }
 }
 
+/// A reading of [`Dom::selection_serial`](crate::Dom::selection_serial):
+/// a counter that advances on every actual selection change. Two equal
+/// readings mean the selection was not touched in between; a later
+/// reading compares greater (the counter is a `u64`, so it does not
+/// wrap in practice). An opaque bookkeeping value — no web API exposes
+/// it; [`new`](Self::new) / [`get`](Self::get) exist for tests and for
+/// backends that persist a reading.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+pub struct SelectionSerial(u64);
+
+impl SelectionSerial {
+    /// The serial with raw value `n`.
+    pub const fn new(n: u64) -> Self {
+        Self(n)
+    }
+
+    /// The raw counter value.
+    pub const fn get(self) -> u64 {
+        self.0
+    }
+
+    /// The next reading, after one more selection change.
+    pub(crate) const fn next(self) -> Self {
+        Self(self.0.wrapping_add(1))
+    }
+}
+
 /// Document-level selection. Two positions — `anchor` at the
 /// start of the interaction (e.g., mousedown, Shift+Click origin)
 /// and `focus` at the current cursor position.

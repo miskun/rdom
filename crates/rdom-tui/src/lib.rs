@@ -114,16 +114,35 @@ pub type TuiEventCtx<'a> = core::EventCtx<'a, TuiExt>;
 // `rdom_tui::core_api::…` (re-exported below).
 pub use rdom_core as core_api;
 pub use rdom_core::{
-    AdjacentPosition, DocumentPosition, DomError, Event, EventDetail, EventPhase, FormEnctype,
-    FormMethod, InputDetail, InputType, InteractionKind, KeyboardDetail, KeyboardModifiers,
-    ListenerId, ListenerOptions, MouseButton, MouseDetail, Mutation, MutationObserver, NodeData,
-    NodeId, NodeType, ObserverId, Position, Range, Result, Selection, SubmitDetail, ToggleDetail,
-    ToggleState, TransitionDetail,
+    AdjacentPosition, ContentEditableState, DocumentPosition, DomError, Event, EventDetail,
+    EventPhase, FormEnctype, FormMethod, InputDetail, InputType, InputTypeState, InteractionKind,
+    KeyboardDetail, KeyboardModifiers, ListenerId, ListenerOptions, MouseButton, MouseDetail,
+    Mutation, MutationObserver, NodeData, NodeId, NodeType, ObserverId, Position, Range, Result,
+    Selection, SelectionSerial, SubmitDetail, ToggleDetail, ToggleState, TransitionDetail,
+    ValidityHook,
 };
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// `P7G-API-NAMES-1`: the rdom-core form / editing vocabulary a
+    /// consumer names alongside `FormMethod` is re-exported here.
+    #[test]
+    fn form_and_editing_vocabulary_is_reexported() {
+        let mut dom: TuiDom = TuiDom::new();
+        let input = dom.create_element("input");
+        assert_eq!(dom.input_type_state(input), Some(InputTypeState::Text));
+        dom.set_attribute(input, "contenteditable", "").unwrap();
+        assert_eq!(
+            dom.content_editable_state(input),
+            Some(ContentEditableState::True)
+        );
+        let hook: ValidityHook<TuiExt> = |_, _| true;
+        dom.set_validity_hook(Some(hook));
+        let serial: SelectionSerial = dom.selection_serial();
+        assert_eq!(serial, dom.selection_serial());
+    }
 
     #[test]
     fn tui_dom_aliases_compile() {

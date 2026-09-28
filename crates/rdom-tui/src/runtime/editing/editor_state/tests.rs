@@ -2,10 +2,15 @@
 //! `(n, n + 1)` is an edit that moved the caret itself; a `before` that
 //! differs from the previous `after` is a foreign selection change.
 
-use rdom_core::{NodeId, Position};
+use rdom_core::{NodeId, Position, SelectionSerial};
 
 use crate::TuiDom;
 use crate::runtime::editing::editor_state::{EditEntry, EditKind, EditorState};
+
+/// A hand-made selection serial.
+fn sel(n: u64) -> SelectionSerial {
+    SelectionSerial::new(n)
+}
 
 fn make_two_text_nodes() -> (TuiDom, NodeId, NodeId) {
     let mut dom: TuiDom = TuiDom::new();
@@ -88,8 +93,8 @@ fn edit_kind_follows_the_input_type() {
 fn adjacent_inserts_join_the_open_group() {
     let (_dom, t, _other) = make_two_text_nodes();
     let mut s = EditorState::new();
-    s.record(insert_entry(t, 0, "h"), 0, 1);
-    s.record(insert_entry(t, 1, "i"), 1, 2);
+    s.record(insert_entry(t, 0, "h"), sel(0), sel(1));
+    s.record(insert_entry(t, 1, "i"), sel(1), sel(2));
     assert_eq!(s.undo_depth(), 1);
     let step = s.pop_undo().unwrap();
     assert_eq!(step.len(), 1, "grouped into one part");
@@ -102,9 +107,9 @@ fn adjacent_inserts_join_the_open_group() {
 fn a_foreign_selection_change_closes_the_group() {
     let (_dom, t, _other) = make_two_text_nodes();
     let mut s = EditorState::new();
-    s.record(insert_entry(t, 0, "h"), 0, 1);
+    s.record(insert_entry(t, 0, "h"), sel(0), sel(1));
     // Serial 1 → 3: the caret moved away and back between the edits.
-    s.record(insert_entry(t, 1, "i"), 3, 4);
+    s.record(insert_entry(t, 1, "i"), sel(3), sel(4));
     assert_eq!(s.undo_depth(), 2);
 }
 
@@ -112,8 +117,8 @@ fn a_foreign_selection_change_closes_the_group() {
 fn non_adjacent_inserts_do_not_join() {
     let (_dom, t, _other) = make_two_text_nodes();
     let mut s = EditorState::new();
-    s.record(insert_entry(t, 0, "h"), 0, 1);
-    s.record(insert_entry(t, 5, "!"), 1, 2);
+    s.record(insert_entry(t, 0, "h"), sel(0), sel(1));
+    s.record(insert_entry(t, 5, "!"), sel(1), sel(2));
     assert_eq!(s.undo_depth(), 2);
 }
 
@@ -121,8 +126,8 @@ fn non_adjacent_inserts_do_not_join() {
 fn inserts_on_different_nodes_do_not_join() {
     let (_dom, a, b) = make_two_text_nodes();
     let mut s = EditorState::new();
-    s.record(insert_entry(a, 0, "a"), 0, 1);
-    s.record(insert_entry(b, 0, "b"), 1, 2);
+    s.record(insert_entry(a, 0, "a"), sel(0), sel(1));
+    s.record(insert_entry(b, 0, "b"), sel(1), sel(2));
     assert_eq!(s.undo_depth(), 2);
 }
 
@@ -130,8 +135,8 @@ fn inserts_on_different_nodes_do_not_join() {
 fn a_delete_does_not_join_a_typing_group() {
     let (_dom, t, _other) = make_two_text_nodes();
     let mut s = EditorState::new();
-    s.record(insert_entry(t, 0, "h"), 0, 1);
-    s.record(backspace_entry(t, 0, 1, "h"), 1, 2);
+    s.record(insert_entry(t, 0, "h"), sel(0), sel(1));
+    s.record(backspace_entry(t, 0, 1, "h"), sel(1), sel(2));
     assert_eq!(s.undo_depth(), 2);
 }
 
@@ -140,8 +145,8 @@ fn a_backspace_run_folds_into_one_step() {
     let (_dom, t, _other) = make_two_text_nodes();
     let mut s = EditorState::new();
     // "hello|" → Backspace ×2 → "hel|".
-    s.record(backspace_entry(t, 4, 5, "o"), 0, 1);
-    s.record(backspace_entry(t, 3, 4, "l"), 1, 2);
+    s.record(backspace_entry(t, 4, 5, "o"), sel(0), sel(1));
+    s.record(backspace_entry(t, 3, 4, "l"), sel(1), sel(2));
     assert_eq!(s.undo_depth(), 1);
     let e = &s.pop_undo().unwrap()[0];
     assert_eq!(e.range, 3..5);
@@ -155,10 +160,10 @@ fn a_forward_delete_run_folds_into_one_step_apart_from_backspace() {
     let (_dom, t, _other) = make_two_text_nodes();
     let mut s = EditorState::new();
     // "he|llo" → Delete ×2 → "he|o".
-    s.record(delete_forward_entry(t, 2, 3, "l"), 0, 1);
-    s.record(delete_forward_entry(t, 2, 3, "l"), 1, 2);
+    s.record(delete_forward_entry(t, 2, 3, "l"), sel(0), sel(1));
+    s.record(delete_forward_entry(t, 2, 3, "l"), sel(1), sel(2));
     assert_eq!(s.undo_depth(), 1);
-    s.record(backspace_entry(t, 1, 2, "e"), 2, 3);
+    s.record(backspace_entry(t, 1, 2, "e"), sel(2), sel(3));
     assert_eq!(s.undo_depth(), 2, "Backspace after Delete opens a step");
     let _ = s.pop_undo();
     let e = &s.pop_undo().unwrap()[0];
@@ -170,9 +175,9 @@ fn a_forward_delete_run_folds_into_one_step_apart_from_backspace() {
 fn a_standalone_edit_neither_joins_nor_is_joined() {
     let (_dom, t, _other) = make_two_text_nodes();
     let mut s = EditorState::new();
-    s.record(insert_entry(t, 0, "a"), 0, 1);
-    s.record(standalone_entry(t, 1, 1, "", "XY"), 1, 2);
-    s.record(insert_entry(t, 3, "b"), 2, 3);
+    s.record(insert_entry(t, 0, "a"), sel(0), sel(1));
+    s.record(standalone_entry(t, 1, 1, "", "XY"), sel(1), sel(2));
+    s.record(insert_entry(t, 3, "b"), sel(2), sel(3));
     assert_eq!(s.undo_depth(), 3);
 }
 
@@ -182,14 +187,14 @@ fn a_standalone_edit_neither_joins_nor_is_joined() {
 fn recording_a_new_edit_clears_redo_stack() {
     let (_dom, t, _other) = make_two_text_nodes();
     let mut s = EditorState::new();
-    s.record(insert_entry(t, 0, "h"), 0, 1);
+    s.record(insert_entry(t, 0, "h"), sel(0), sel(1));
     // Simulate Ctrl-Z: pop undo, push redo.
     let entry = s.pop_undo().unwrap();
     s.push_redo(entry);
     assert_eq!(s.redo_depth(), 1);
 
     // Fresh edit clears redo.
-    s.record(insert_entry(t, 0, "x"), 1, 2);
+    s.record(insert_entry(t, 0, "x"), sel(1), sel(2));
     assert_eq!(s.redo_depth(), 0);
 }
 
@@ -199,12 +204,12 @@ fn recording_a_new_edit_clears_redo_stack() {
 fn pop_undo_closes_the_group() {
     let (_dom, t, _other) = make_two_text_nodes();
     let mut s = EditorState::new();
-    s.record(insert_entry(t, 0, "a"), 0, 1);
-    s.record(backspace_entry(t, 0, 1, "a"), 1, 2);
+    s.record(insert_entry(t, 0, "a"), sel(0), sel(1));
+    s.record(backspace_entry(t, 0, 1, "a"), sel(1), sel(2));
     let _ = s.pop_undo();
     // The serial is unchanged, but the group under the popped step must
     // not absorb the next edit.
-    s.record(insert_entry(t, 1, "b"), 2, 3);
+    s.record(insert_entry(t, 1, "b"), sel(2), sel(3));
     assert_eq!(s.undo_depth(), 2);
     assert_eq!(s.pop_undo().unwrap()[0].new, "b");
 }

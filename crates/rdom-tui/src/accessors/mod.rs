@@ -638,7 +638,7 @@ pub trait TuiAccessorsMut<'a> {
     /// (`SubmitOutcome::AlreadySubmitting`).
     ///
     /// Errors, as the web throws them:
-    /// - `DomError::TypeError` — `submitter` is not a submit button;
+    /// - `DomError::Type` — `submitter` is not a submit button;
     /// - `DomError::NotFound` — `submitter`'s form owner is not this
     ///   form (the web's `NotFoundError`).
     ///

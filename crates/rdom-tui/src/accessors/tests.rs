@@ -1034,7 +1034,7 @@ fn form_request_submit_rejects_a_submitter_that_is_not_a_submit_button() {
     for s in [reset, plain, input, div] {
         let r = dom.node_mut(form).form_request_submit(Some(s));
         assert!(
-            matches!(r, Err(rdom_core::DomError::TypeError(_))),
+            matches!(r, Err(rdom_core::DomError::Type(_))),
             "{s:?}: {r:?}"
         );
     }
