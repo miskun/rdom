@@ -35,6 +35,7 @@
 //! - `autoscroll` — the DRAG-AUTOSCROLL session.
 //! - `frame` — `draw_if_dirty`, the off-frame cascade + layout, the
 //!   scroll-focus marker, and the transition-event drain.
+//! - `redraw` — `Redraw`, what the next frame must redo.
 
 pub mod context;
 pub mod handle;
@@ -48,6 +49,8 @@ mod stylesheets;
 
 #[cfg(test)]
 mod frame_work_tests;
+#[cfg(test)]
+mod idle_tests;
 #[cfg(test)]
 mod scroll_repaint_tests;
 #[cfg(test)]
@@ -153,6 +156,15 @@ pub struct App<B: Backend = CrosstermBackend<Stdout>> {
     /// animating.
     pub(super) smooth_scroll_next: Option<Instant>,
 
+    /// Code that may have changed the tree or runtime-managed `TuiExt`
+    /// state (scroll offsets, a custom validity, a user edit) ran since
+    /// the last frame's checks: an event, a timer / microtask / rAF
+    /// callback, an injected closure, the `on_tick` callback, a
+    /// stylesheet change, or `dom_mut()` access. The frame's whole-tree
+    /// checks (validity marks, scroll offsets moved since paint, smooth
+    /// scrolls in flight) run only then, so an idle tick walks nothing
+    /// (`P7G-IDLE-WALKS-1`).
+    pub(super) touched: bool,
     /// What the next frame must redo, accumulated over a tick
     /// (`redraw::Redraw`): `draw_if_dirty` draws when it is not
     /// `Clean` or the DirtyTracker has roots.
@@ -419,6 +431,7 @@ impl<B: Backend> App<B> {
             scroll_focus_marked: None,
             caret_blink: crate::runtime::caret_blink::CaretBlink::new(None),
             smooth_scroll_next: None,
+            touched: true,
             redraw: Redraw::Cascade,
             #[cfg(test)]
             frame_stats: Default::default(),
@@ -556,11 +569,13 @@ impl<B: Backend> App<B> {
         // One checkpoint for anything queued since the last task; each
         // pump then checkpoints after every callback it runs (HTML
         // §8.1.7.3), so nothing is left for a trailing drain.
-        t::drain_microtasks(&sched, &mut self.dom);
-        t::pump_timeouts(&sched, &mut self.dom);
+        let mut ran = t::drain_microtasks(&sched, &mut self.dom);
+        ran |= t::pump_timeouts(&sched, &mut self.dom);
         let due = sched.borrow().drain_expired_interval_ids();
+        ran |= !due.is_empty();
         t::pump_intervals(&sched, &mut self.dom, &due);
-        t::pump_raf(&sched, &mut self.dom);
+        ran |= t::pump_raf(&sched, &mut self.dom);
+        self.touched |= ran;
     }
 
     /// Advance the virtual scheduler clock by `ms` and service everything that
@@ -589,6 +604,8 @@ impl<B: Backend> App<B> {
     /// mutations, use the `AppContext` passed to `on_tick` or receive
     /// `EventCtx` inside an `add_event_listener` callback.
     pub fn dom_mut(&mut self) -> &mut TuiDom {
+        // The caller may change anything, scroll offsets included.
+        self.touched = true;
         &mut self.dom
     }
 
@@ -654,6 +671,7 @@ impl<B: Backend> App<B> {
         // Option lists the app changed since the last event: settle the
         // selects before any default action reads them.
         self.selectedness.flush(&mut self.dom);
+        self.touched = true;
         match &event {
             CtEvent::Key(key) => {
                 // A key may edit without moving the caret (Delete): the
@@ -733,6 +751,7 @@ impl<B: Backend> App<B> {
         let Some(mut cb) = self.on_tick.take() else {
             return;
         };
+        self.touched = true;
         // Install the scheduler thread-local so on_tick handlers
         // can use the `TuiTimers` extension surface too (apps
         // that schedule fade-outs from a tick callback, etc.).
@@ -775,6 +794,7 @@ impl<B: Backend> App<B> {
         if injections.is_empty() {
             return;
         }
+        self.touched = true;
         let _current = crate::runtime::timers::SchedulerGuard::install(&self.scheduler);
         let mut queued = Vec::new();
         for f in injections {

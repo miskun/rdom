@@ -13,6 +13,13 @@
 //!
 //! Only elements in the tree count: a detached subtree is not painted,
 //! and re-inserting it is a tree mutation that repaints anyway.
+//!
+//! Both are whole-tree walks, so the App runs them only when needed
+//! (`P7G-IDLE-WALKS-1`): [`moved_since_paint`] after code ran since the
+//! last frame (an event, a timer, an injected closure, `dom_mut()` —
+//! nothing else writes offsets between frames), [`note_painted`] after a
+//! frame that laid out (only layout's clamp and the caret reveal move
+//! offsets inside a frame).
 
 use rdom_core::NodeId;
 

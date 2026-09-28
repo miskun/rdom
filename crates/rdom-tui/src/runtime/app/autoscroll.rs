@@ -114,6 +114,7 @@ impl<B: Backend> App<B> {
                 break;
             }
             guard += 1;
+            self.touched = true;
             self.autoscroll_tick(container, col, row);
             self.autoscroll_next = Some(next + AUTOSCROLL_PERIOD);
         }

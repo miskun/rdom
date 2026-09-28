@@ -60,13 +60,23 @@ impl<B: Backend> App<B> {
     /// the last frame style-dirty (`validation::ValidityMarks`). Runs
     /// before the roots are taken, so they re-cascade in this frame.
     fn flush_validity_marks(&mut self) {
-        self.validity_marks.flush(
+        let walked = self.validity_marks.flush(
             &mut self.dom,
             &self.tracker,
             self.style_elements
                 .sheets()
                 .chain(self.stylesheets.iter().map(|(_, s)| s)),
         );
+        self.note_walk(walked);
+    }
+
+    /// Count a whole-tree walk (test instrumentation).
+    #[cfg_attr(not(test), allow(unused_variables, clippy::unused_self))]
+    fn note_walk(&mut self, walked: bool) {
+        #[cfg(test)]
+        {
+            self.frame_stats.walks += u32::from(walked);
+        }
     }
 
     /// Advance the smooth scrolls in flight to `now`
@@ -74,13 +84,16 @@ impl<B: Backend> App<B> {
     /// for the next step one animation frame later while any is still
     /// running. The steps' `scroll` listeners run here, before the
     /// cascade, so their mutations land in this frame.
-    fn step_smooth_scrolls(&mut self, now: std::time::Instant) {
+    /// Returns whether a step moved an offset (and fired `scroll`).
+    fn step_smooth_scrolls(&mut self, now: std::time::Instant) -> bool {
         let step = crate::runtime::smooth_scroll::step_all(&mut self.dom, now);
+        self.note_walk(true);
         // Scroll offsets feed layout (children are placed after scroll).
         self.redraw.note_if(step.moved, Redraw::Layout);
         self.smooth_scroll_next = step
             .active
             .then(|| now + std::time::Duration::from_millis(u64::from(self.animation_frame_ms)));
+        step.moved
     }
 
     /// Cascade + layout + paint if anything is dirty. Pairs with
@@ -95,16 +108,31 @@ impl<B: Backend> App<B> {
         self.selectedness.flush(&mut self.dom);
         self.flush_style_elements();
         self.mark_scroll_focus();
-        self.flush_validity_marks();
+        // The whole-tree checks look for changes only code can make: skip
+        // them when none ran since the last frame (`P7G-IDLE-WALKS-1`).
+        let mut touched = std::mem::take(&mut self.touched);
+        if touched {
+            self.flush_validity_marks();
+        }
         let now = self.scheduler.borrow().now();
         // A blink flip only changes what the caret painter reads.
         let flipped = self.caret_blink.update(&mut self.dom, now);
         self.redraw.note_if(flipped, Redraw::Paint);
-        self.step_smooth_scrolls(now);
+        // A smooth scroll starts from code (the scroll API, a scroll
+        // key) and then steps each animation frame until it lands.
+        if (touched || self.smooth_scroll_next.is_some()) && self.step_smooth_scrolls(now) {
+            // The steps fired `scroll`: listeners ran.
+            touched = true;
+            self.touched = true;
+        }
         // Any scroll offset change repaints, whoever wrote it
-        // (`P7-SCROLL-REPAINT-1`), and lays out again.
-        let moved = crate::runtime::scrollbar::moved_since_paint(&self.dom);
-        self.redraw.note_if(moved, Redraw::Layout);
+        // (`P7-SCROLL-REPAINT-1`), and lays out again. Only code writes
+        // offsets between frames.
+        if touched {
+            let moved = crate::runtime::scrollbar::moved_since_paint(&self.dom);
+            self.note_walk(true);
+            self.redraw.note_if(moved, Redraw::Layout);
+        }
         let dirty_roots = self.take_dirty_roots();
         let redraw = self.redraw;
 
@@ -125,7 +153,13 @@ impl<B: Backend> App<B> {
         })?;
         self.note_pass(pass, true);
         self.redraw = Redraw::Clean;
-        crate::runtime::scrollbar::note_painted(&mut self.dom);
+        // Only a frame that laid out can have moved an offset (layout's
+        // clamp, the caret reveal); a paint-only frame draws the offsets
+        // already noted.
+        if pass.laid_out {
+            crate::runtime::scrollbar::note_painted(&mut self.dom);
+            self.note_walk(true);
+        }
 
         // Drain transition events queued during this frame.
         self.dispatch_animation_events();
@@ -162,6 +196,8 @@ impl<B: Backend> App<B> {
     pub(super) fn dispatch_animation_events(&mut self) {
         use crate::runtime::animation::{PendingEvent, TransitionEventKind};
         let pending = self.animations.take_pending_events();
+        // Their listeners are code the next frame's checks must see.
+        self.touched |= !pending.is_empty();
         for PendingEvent {
             node,
             slot,

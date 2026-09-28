@@ -135,6 +135,8 @@ impl<B: Backend> App<B> {
     pub(super) fn invalidate_cascade(&mut self) {
         self.tracker.take_roots();
         self.redraw.note(Redraw::Cascade);
+        self.validity_marks.sheets_changed();
+        self.touched = true;
     }
 
     /// All stylesheets registered with this App, in push order.

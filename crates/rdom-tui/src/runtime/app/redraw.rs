@@ -63,4 +63,8 @@ pub(crate) struct FrameStats {
     pub(crate) layouts: u32,
     /// Frames painted.
     pub(crate) paints: u32,
+    /// Whole-tree walks the frame's pre-cascade checks and post-paint
+    /// bookkeeping made (validity marks, scroll offsets moved since
+    /// paint, smooth scrolls in flight, offsets noted as painted).
+    pub(crate) walks: u32,
 }

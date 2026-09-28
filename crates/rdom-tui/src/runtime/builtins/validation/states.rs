@@ -9,7 +9,44 @@ use super::syntax::{is_valid_absolute_url, is_valid_email, parse_float, parse_no
 use crate::TuiDom;
 use crate::runtime::builtins::{input, select};
 
+/// Radio-group verdicts memoized over one batch of [`compute_in`]
+/// calls: the first radio of a group computes whether the group is
+/// missing a value (one walk of its tree, `Dom::radio_group`) and every
+/// member reuses it, so a batch walks once per group, not per radio.
+#[derive(Debug, Default)]
+pub(super) struct RadioGroups {
+    missing: std::collections::HashMap<NodeId, bool>,
+}
+
+impl RadioGroups {
+    fn missing(&mut self, dom: &TuiDom, id: NodeId) -> bool {
+        if let Some(&m) = self.missing.get(&id) {
+            return m;
+        }
+        let group = dom.radio_group(id);
+        let m = group_missing(dom, &group);
+        for r in group {
+            self.missing.insert(r, m);
+        }
+        m
+    }
+
+    /// Forget the verdicts (the tree may have changed).
+    pub(super) fn clear(&mut self) {
+        self.missing.clear();
+    }
+}
+
 pub(super) fn compute(dom: &TuiDom, id: NodeId) -> ValidityState {
+    compute_with(dom, id, None)
+}
+
+/// [`compute`], with radio-group verdicts from (and into) `groups`.
+pub(super) fn compute_in(dom: &TuiDom, id: NodeId, groups: &mut RadioGroups) -> ValidityState {
+    compute_with(dom, id, Some(groups))
+}
+
+fn compute_with(dom: &TuiDom, id: NodeId, groups: Option<&mut RadioGroups>) -> ValidityState {
     let mut s = ValidityState {
         custom_error: dom
             .node(id)
@@ -18,7 +55,7 @@ pub(super) fn compute(dom: &TuiDom, id: NodeId) -> ValidityState {
         ..ValidityState::default()
     };
     match dom.node(id).tag_name() {
-        Some("input") => input_states(dom, id, &mut s),
+        Some("input") => input_states(dom, id, &mut s, groups),
         Some("textarea") => {
             let value = dom.node(id).text_content();
             s.value_missing = required(dom, id) && value.is_empty();
@@ -34,7 +71,7 @@ fn required(dom: &TuiDom, id: NodeId) -> bool {
     dom.node(id).has_attribute("required")
 }
 
-fn input_states(dom: &TuiDom, id: NodeId, s: &mut ValidityState) {
+fn input_states(dom: &TuiDom, id: NodeId, s: &mut ValidityState, groups: Option<&mut RadioGroups>) {
     use InputTypeState as T;
     let Some(state) = dom.input_type_state(id) else {
         return;
@@ -43,7 +80,12 @@ fn input_states(dom: &TuiDom, id: NodeId, s: &mut ValidityState) {
         T::Checkbox => {
             s.value_missing = required(dom, id) && !dom.node(id).has_attribute("checked")
         }
-        T::Radio => s.value_missing = radio_group_missing(dom, id),
+        T::Radio => {
+            s.value_missing = match groups {
+                Some(groups) => groups.missing(dom, id),
+                None => group_missing(dom, &dom.radio_group(id)),
+            }
+        }
         // `required` does not apply; a range is sanitized into range and
         // onto a step, so it suffers none of the value states.
         T::Hidden | T::Range | T::Color | T::Submit | T::Image | T::Reset | T::Button => {}
@@ -94,8 +136,7 @@ fn email_values(value: &str, multiple: bool) -> Vec<&str> {
 /// HTML §4.10.5.1.18: any member of the radio group is required and no
 /// member is checked. The group is HTML's (same tree, form owner and
 /// `name`; `Dom::radio_group`).
-fn radio_group_missing(dom: &TuiDom, id: NodeId) -> bool {
-    let group = dom.radio_group(id);
+fn group_missing(dom: &TuiDom, group: &[NodeId]) -> bool {
     group.iter().any(|&r| required(dom, r))
         && !group.iter().any(|&r| dom.node(r).has_attribute("checked"))
 }

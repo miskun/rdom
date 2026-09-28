@@ -461,10 +461,12 @@ pub(crate) fn pump_intervals(scheduler: &SharedScheduler, dom: &mut TuiDom, expi
 }
 
 /// Drain expired timeouts and invoke each callback with a real
-/// `TimerCtx`. Convenience for App's tick loop.
-pub(crate) fn pump_timeouts(scheduler: &SharedScheduler, dom: &mut TuiDom) {
+/// `TimerCtx`. Convenience for App's tick loop. Returns whether any
+/// callback ran.
+pub(crate) fn pump_timeouts(scheduler: &SharedScheduler, dom: &mut TuiDom) -> bool {
     let _current = SchedulerGuard::install(scheduler);
     let cbs = scheduler.borrow_mut().drain_expired_timeouts();
+    let ran = !cbs.is_empty();
     for cb in cbs {
         {
             let mut ctx = TimerCtx::new(dom, scheduler.clone());
@@ -474,17 +476,20 @@ pub(crate) fn pump_timeouts(scheduler: &SharedScheduler, dom: &mut TuiDom) {
         // (HTML event loop §8.1.7.3 step 8).
         drain_microtasks(scheduler, dom);
     }
+    ran
 }
 
 /// Drain queued rAF callbacks for the current frame. All callbacks
 /// in this drain receive the same `frame_timestamp_ms()` value —
 /// matches the browser contract that one frame = one timestamp.
-pub(crate) fn pump_raf(scheduler: &SharedScheduler, dom: &mut TuiDom) {
+/// Returns whether any callback ran.
+pub(crate) fn pump_raf(scheduler: &SharedScheduler, dom: &mut TuiDom) -> bool {
     let _current = SchedulerGuard::install(scheduler);
     let (timestamp, cbs) = {
         let mut s = scheduler.borrow_mut();
         (s.frame_timestamp_ms(), s.drain_raf())
     };
+    let ran = !cbs.is_empty();
     for cb in cbs {
         {
             let mut ctx = TimerCtx::new(dom, scheduler.clone());
@@ -495,6 +500,7 @@ pub(crate) fn pump_raf(scheduler: &SharedScheduler, dom: &mut TuiDom) {
         // "clean up after running script").
         drain_microtasks(scheduler, dom);
     }
+    ran
 }
 
 /// Extension trait on `TuiEventCtx<'_>` exposing the HTML timer
@@ -581,15 +587,18 @@ impl<'a> TuiTimers for crate::TuiEventCtx<'a> {
 
 /// Drain microtask queue to empty. Microtasks queued *during*
 /// this drain are appended and drained in the same loop —
-/// matches HTML spec.
-pub(crate) fn drain_microtasks(scheduler: &SharedScheduler, dom: &mut TuiDom) {
+/// matches HTML spec. Returns whether any microtask ran.
+pub(crate) fn drain_microtasks(scheduler: &SharedScheduler, dom: &mut TuiDom) -> bool {
     let _current = SchedulerGuard::install(scheduler);
+    let mut ran = false;
     loop {
         let next = scheduler.borrow_mut().pop_microtask();
         let Some(cb) = next else { break };
+        ran = true;
         let mut ctx = TimerCtx::new(dom, scheduler.clone());
         cb(&mut ctx);
     }
+    ran
 }
 
 #[cfg(test)]
