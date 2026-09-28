@@ -1720,3 +1720,172 @@ fn novalidate_and_formnovalidate_skip_validation() {
     );
     let _ = r;
 }
+
+// ── P7G-SUBMIT-REENTRY-1: the submission algorithm's early returns ───
+
+/// A form with one named text field and a submit button, `submit`
+/// events counted.
+fn reentry_app() -> (App<TestBackend>, [rdom_core::NodeId; 2], Rc<Cell<u32>>) {
+    let mut ids = Vec::new();
+    let mut app = owner_app(|dom, root| {
+        let f = named(dom, root, "form", &[]);
+        named(dom, f, "input", &[("name", "t")]);
+        let b = named(dom, f, "button", &[]);
+        ids.extend([f, b]);
+    });
+    let (f, b) = (ids[0], ids[1]);
+    let n = Rc::new(Cell::new(0u32));
+    let c = n.clone();
+    app.dom_mut()
+        .add_event_listener(f, "submit", ListenerOptions::default(), move |_| {
+            c.set(c.get() + 1);
+        })
+        .unwrap();
+    (app, [f, b], n)
+}
+
+/// HTML §4.10.21.3 step 6.1: "If form's firing submission events is
+/// true, then return." A `submit` listener that calls `requestSubmit()`
+/// on its own form gets [`SubmitOutcome::AlreadySubmitting`] and no
+/// second `submit` fires.
+#[test]
+fn request_submit_from_a_submit_listener_does_not_resubmit() {
+    use crate::SubmitOutcome;
+    use crate::accessors::TuiAccessorsMut;
+    let (mut app, [f, b], submits) = reentry_app();
+    let inner: Rc<RefCell<Vec<SubmitOutcome>>> = Rc::default();
+    let log = inner.clone();
+    app.dom_mut()
+        .add_event_listener(f, "submit", ListenerOptions::default(), move |ctx| {
+            log.borrow_mut()
+                .push(ctx.dom.node_mut(f).form_request_submit(None).unwrap());
+            log.borrow_mut()
+                .push(ctx.dom.node_mut(f).form_request_submit(Some(b)).unwrap());
+        })
+        .unwrap();
+    assert_eq!(
+        app.dom_mut().node_mut(f).form_request_submit(Some(b)),
+        Ok(SubmitOutcome::Submitted)
+    );
+    assert_eq!(submits.get(), 1, "submit fires exactly once");
+    assert_eq!(
+        *inner.borrow(),
+        vec![SubmitOutcome::AlreadySubmitting; 2],
+        "the nested requestSubmit calls return early"
+    );
+    // The flag is cleared afterwards: the next submission fires again.
+    app.dom_mut().node_mut(f).form_request_submit(None).unwrap();
+    assert_eq!(submits.get(), 2);
+}
+
+/// Same guard for the click path: a `submit` listener that `click()`s
+/// the submitter does not submit the form a second time.
+#[test]
+fn clicking_the_submitter_from_a_submit_listener_does_not_resubmit() {
+    use crate::accessors::TuiAccessorsMut;
+    let (mut app, [f, b], submits) = reentry_app();
+    app.dom_mut()
+        .add_event_listener(f, "submit", ListenerOptions::default(), move |ctx| {
+            ctx.dom.node_mut(b).click();
+        })
+        .unwrap();
+    app.dom_mut().node_mut(b).click();
+    assert_eq!(submits.get(), 1, "submit fires exactly once");
+}
+
+/// An `invalid` listener that re-requests submission is inside the
+/// same firing-submission-events window (the flag covers validation).
+#[test]
+fn request_submit_from_an_invalid_listener_does_not_revalidate() {
+    use crate::SubmitOutcome;
+    use crate::accessors::TuiAccessorsMut;
+    let (mut app, [f, r, _, b]) = invalid_form_app(&[], &[]);
+    let invalid = count_invalid(&mut app, r);
+    let inner: Rc<RefCell<Vec<SubmitOutcome>>> = Rc::default();
+    let log = inner.clone();
+    app.dom_mut()
+        .add_event_listener(r, "invalid", ListenerOptions::default(), move |ctx| {
+            log.borrow_mut()
+                .push(ctx.dom.node_mut(f).form_request_submit(None).unwrap());
+        })
+        .unwrap();
+    assert_eq!(
+        app.dom_mut().node_mut(f).form_request_submit(Some(b)),
+        Ok(SubmitOutcome::Invalid)
+    );
+    assert_eq!(invalid.get(), 1);
+    assert_eq!(*inner.borrow(), vec![SubmitOutcome::AlreadySubmitting]);
+}
+
+/// A panicking `submit` listener must not leave the form stuck in the
+/// firing-submission-events state (the flag is restored on unwind).
+#[test]
+fn a_panicking_submit_listener_does_not_leave_the_form_submitting() {
+    use crate::SubmitOutcome;
+    use crate::accessors::TuiAccessorsMut;
+    use std::panic::{AssertUnwindSafe, catch_unwind};
+    let (mut app, [f, _], submits) = reentry_app();
+    let armed = Rc::new(Cell::new(true));
+    let a = armed.clone();
+    app.dom_mut()
+        .add_event_listener(f, "submit", ListenerOptions::default(), move |_| {
+            if a.replace(false) {
+                panic!("submit listener bomb");
+            }
+        })
+        .unwrap();
+    let first = catch_unwind(AssertUnwindSafe(|| {
+        app.dom_mut().node_mut(f).form_request_submit(None)
+    }));
+    assert!(first.is_err(), "the bomb must fire");
+    assert_eq!(
+        app.dom_mut().node_mut(f).form_request_submit(None),
+        Ok(SubmitOutcome::Submitted),
+        "the form submits again after the panic"
+    );
+    assert_eq!(submits.get(), 2);
+}
+
+/// HTML §4.10.21.3 step 1: a form that "cannot navigate" — here, one
+/// that is not connected — does not submit: no validation, no `submit`.
+#[test]
+fn a_disconnected_form_does_not_submit() {
+    use crate::SubmitOutcome;
+    use crate::accessors::TuiAccessorsMut;
+    let (mut app, [f, b], submits) = reentry_app();
+    let root = app.dom().root();
+    app.dom_mut().remove_child(root, f).unwrap();
+    assert_eq!(
+        app.dom_mut().node_mut(f).form_request_submit(Some(b)),
+        Ok(SubmitOutcome::Disconnected)
+    );
+    app.dom_mut().node_mut(b).click();
+    assert_eq!(submits.get(), 0);
+}
+
+/// HTML §4.10.21.3 step 6.9: a `submit` listener that disconnects the
+/// form stops the submission after the event — the method-`dialog`
+/// close does not run.
+#[test]
+fn a_submit_listener_that_disconnects_the_form_stops_the_default_action() {
+    use crate::SubmitOutcome;
+    use crate::accessors::TuiAccessorsMut;
+    let mut ids = Vec::new();
+    let mut app = owner_app(|dom, root| {
+        let d = named(dom, root, "dialog", &[("open", "")]);
+        let f = named(dom, d, "form", &[("method", "dialog")]);
+        let b = named(dom, f, "button", &[("value", "ok")]);
+        ids.extend([d, f, b]);
+    });
+    let (d, f, b) = (ids[0], ids[1], ids[2]);
+    app.dom_mut()
+        .add_event_listener(f, "submit", ListenerOptions::default(), move |ctx| {
+            ctx.dom.remove_child(d, f).unwrap();
+        })
+        .unwrap();
+    assert_eq!(
+        app.dom_mut().node_mut(f).form_request_submit(Some(b)),
+        Ok(SubmitOutcome::Disconnected)
+    );
+    assert!(app.dom().node(d).has_attribute("open"), "dialog stays open");
+}

@@ -279,21 +279,40 @@ pub enum SubmitOutcome {
     /// The node is not a `<form>`: nothing happened (the accessors'
     /// wrong-tag no-op).
     NotAForm,
+    /// The form was already firing submission events — this call came
+    /// from an `invalid` or `submit` listener of a submission of the
+    /// same form (HTML §4.10.21.3 step 6.1): nothing happened.
+    AlreadySubmitting,
+    /// The form cannot navigate because it is not connected (HTML
+    /// §4.10.21.3 steps 1 and 6.9). Either nothing happened (it was
+    /// disconnected before the call) or the `submit` event fired
+    /// uncanceled and one of its listeners disconnected the form, so the
+    /// default action (the method-`dialog` close) did not run.
+    Disconnected,
 }
 
 /// The form submission algorithm (HTML §4.10.21.3) from `submitter` —
 /// the one path click activation, implicit submission and
 /// `requestSubmit()` share:
 ///
-/// 1. unless the no-validate state is set (the form's `novalidate`, the
+/// 1. a form that cannot navigate — one that is not connected — does
+///    nothing → [`SubmitOutcome::Disconnected`] (step 1);
+/// 2. a form already firing submission events — this call comes from
+///    one of its own `invalid` / `submit` listeners — does nothing →
+///    [`SubmitOutcome::AlreadySubmitting`] (step 6.1); otherwise the
+///    flag is set until the `submit` event returns (steps 6.2 / 6.7),
+///    and restored even when a listener panics;
+/// 3. unless the no-validate state is set (the form's `novalidate`, the
 ///    submit button's `formnovalidate` — `SubmitDetail::no_validate`),
 ///    interactively validate the form (`validation`): an invalid owned
 ///    control fires `invalid`, the first uncanceled one is focused, and
 ///    the submission stops → [`SubmitOutcome::Invalid`];
-/// 2. fire a bubbling, cancelable `submit` at `form` carrying
+/// 4. fire a bubbling, cancelable `submit` at `form` carrying
 ///    `EventDetail::Submit(Dom::submit_detail(form, submitter))`;
-/// 3. canceled → [`SubmitOutcome::Canceled`];
-/// 4. otherwise, when the effective method is `dialog` (the form's
+/// 5. canceled → [`SubmitOutcome::Canceled`];
+/// 6. a listener disconnected the form → [`SubmitOutcome::Disconnected`]
+///    (step 6.9);
+/// 7. otherwise, when the effective method is `dialog` (the form's
 ///    `method`, or the submit button's `formmethod`), close the form's
 ///    nearest ancestor `<dialog>` with the submitter's `value` (`""`
 ///    without a submitter) as its `returnValue`.
@@ -302,20 +321,35 @@ pub enum SubmitOutcome {
 /// implicit submission, or `None` for an implicit submission from a
 /// form with no submit button and for `requestSubmit()` without one.
 /// rdom has no navigation: the `submit` handler decides what submitting
-/// means.
+/// means. The other early returns of step 1 / 2 (a document that is not
+/// fully active, a form constructing its entry list for `formdata`) have
+/// no rdom counterpart.
 pub(crate) fn submit(dom: &mut TuiDom, form: NodeId, submitter: Option<NodeId>) -> SubmitOutcome {
-    let detail = dom.submit_detail(form, submitter);
-    if !detail.no_validate
-        && !crate::runtime::builtins::validation::interactively_validate(dom, form)
-    {
-        return SubmitOutcome::Invalid;
+    if !dom.node(form).is_connected() {
+        return SubmitOutcome::Disconnected;
     }
-    let method = detail.method;
-    let mut ev = TuiEvent::new("submit");
-    ev.event.detail = rdom_core::EventDetail::Submit(Box::new(detail));
-    let _ = dom.dispatch_tui_event(form, &mut ev);
-    if ev.event.default_prevented() {
+    let (method, canceled) = {
+        let Some(firing) = FiringSubmissionEvents::enter(&mut *dom, form) else {
+            return SubmitOutcome::AlreadySubmitting;
+        };
+        let dom = &mut *firing.dom;
+        let detail = dom.submit_detail(form, submitter);
+        if !detail.no_validate
+            && !crate::runtime::builtins::validation::interactively_validate(dom, form)
+        {
+            return SubmitOutcome::Invalid;
+        }
+        let method = detail.method;
+        let mut ev = TuiEvent::new("submit");
+        ev.event.detail = rdom_core::EventDetail::Submit(Box::new(detail));
+        let _ = dom.dispatch_tui_event(form, &mut ev);
+        (method, ev.event.default_prevented())
+    };
+    if canceled {
         return SubmitOutcome::Canceled;
+    }
+    if !dom.node(form).is_connected() {
+        return SubmitOutcome::Disconnected;
     }
     if method == FormMethod::Dialog
         && let Some(dialog) = crate::runtime::builtins::dialog::enclosing_dialog(dom, form)
@@ -327,6 +361,47 @@ pub(crate) fn submit(dom: &mut TuiDom, form: NodeId, submitter: Option<NodeId>) 
         crate::runtime::builtins::dialog::close(dom, dialog, &rv);
     }
     SubmitOutcome::Submitted
+}
+
+/// The form's "firing submission events" flag held set for a scope:
+/// [`Self::enter`] sets it (or reports it already set), `Drop` clears
+/// it — on unwind too, so a panicking `invalid` / `submit` listener
+/// cannot leave the form unable to submit again. The guard owns the
+/// `&mut TuiDom` borrow; the algorithm reaches the tree through it.
+struct FiringSubmissionEvents<'a> {
+    dom: &'a mut TuiDom,
+    form: NodeId,
+}
+
+impl<'a> FiringSubmissionEvents<'a> {
+    /// `None` when `form` is already firing submission events.
+    fn enter(dom: &'a mut TuiDom, form: NodeId) -> Option<Self> {
+        let already = {
+            let mut node = dom.node_mut(form);
+            let ext = node.ext_mut()?;
+            std::mem::replace(&mut ext.firing_submission_events, true)
+        };
+        // Not `then_some`: it would build (and drop) a guard for the
+        // already-set case, clearing the outer submission's flag.
+        if already {
+            None
+        } else {
+            Some(Self { dom, form })
+        }
+    }
+}
+
+impl Drop for FiringSubmissionEvents<'_> {
+    fn drop(&mut self) {
+        // A listener may have dropped the form node itself.
+        if !self.dom.contains(self.form) {
+            return;
+        }
+        let mut node = self.dom.node_mut(self.form);
+        if let Some(ext) = node.ext_mut() {
+            ext.firing_submission_events = false;
+        }
+    }
 }
 
 /// `form.requestSubmit(submitter)` (HTML §4.10.3): a `submitter` must

@@ -631,7 +631,11 @@ pub trait TuiAccessorsMut<'a> {
     /// `EventDetail::Submit(Dom::submit_detail(form, submitter))`, then,
     /// unless canceled, the method-`dialog` close.
     /// `submitter` is the submit button to report (`None` submits from
-    /// the form itself).
+    /// the form itself). A form that is not connected does nothing
+    /// (`SubmitOutcome::Disconnected`), and a call from one of the
+    /// form's own `invalid` / `submit` listeners, while that submission
+    /// is firing its events, does nothing
+    /// (`SubmitOutcome::AlreadySubmitting`).
     ///
     /// Errors, as the web throws them:
     /// - `DomError::TypeError` — `submitter` is not a submit button;

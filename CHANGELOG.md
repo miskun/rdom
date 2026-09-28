@@ -179,6 +179,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 - `contenteditable` keywords match ASCII case-insensitively (`TRUE`, `PlainText-Only`), an invalid value inherits, and a `contenteditable="false"` island inside an editing host is no longer editable. (`P7-CONTENTEDITABLE-CASE-1`)
 - `scroll_into_view` inside a scroll container that is already scrolled measures from the container's content origin; it used to scroll back toward the top (`P7-SCROLL-BEHAVIOR-1`)
 - A scroll offset change now repaints on the App's next frame whoever made it — `scroll_to` / `set_scroll_top` / `scroll_by` / `scroll_into_view` from a listener, a timer or `AppHandle::inject`, or a direct `TuiExt::scroll_x` / `scroll_y` write — with no `request_redraw`; an unchanged offset draws nothing. (`P7-SCROLL-REPAINT-1`)
+- Form submission honors HTML §4.10.21.3's early returns: a `submit` / `invalid` listener that calls `form_request_submit` (or clicks the submitter) on its own form no longer re-submits — the nested call returns the new `SubmitOutcome::AlreadySubmitting` — and a form that is not connected does not submit (`SubmitOutcome::Disconnected`, also when a `submit` listener disconnects it, which skips the method-`dialog` close). (`P7G-SUBMIT-REENTRY-1`)
 
 ### Internal — `rdom-tui`
 

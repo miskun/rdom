@@ -527,6 +527,11 @@ pub struct TuiExt {
     /// clears it. Only such a value is subject to `maxlength` /
     /// `minlength`.
     pub(crate) value_user_edited: bool,
+    /// A `<form>`'s "firing submission events" flag (HTML §4.10.21.3
+    /// step 6): set while its submission runs interactive validation and
+    /// fires `submit`, so a listener's nested submission returns early.
+    /// **Runtime-managed** by `runtime::builtins::form::submit`.
+    pub(crate) firing_submission_events: bool,
     /// The compiled `pattern` attribute, cached per control.
     pub(crate) pattern_cache: crate::runtime::builtins::validation::PatternCache,
 }
