@@ -13,6 +13,7 @@ mod counter_button_snapshot;
 mod dom_api_snapshot;
 mod mutation_observer_snapshot;
 mod parse_and_render_snapshot;
+mod phase7_demos;
 mod scrollable_list_snapshot;
 mod selectable_text_snapshot;
 mod sticky_snapshot;

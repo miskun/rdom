@@ -197,6 +197,18 @@ The showcase becomes a permanent fixture; 0.2.0 ships.
 
 **Exit criteria:** showcase regressions break CI; docs updated; substrate crates published; 0.2.0 tagged; review gate run.
 
+### Later coverage — Phase 6 / 7 demos (`P7-DEMOS-1`, 2026-09)
+
+Five focused demos for the STABILIZE-2026-09 Phase 6 / 7 substrate work, each built from its `MARKUP` through `rdom_parser::parse_into` (the markup the Source tab shows is the tree the demo builds), each with an App-painted snapshot and interaction tests in `tests/integration/phase7_demos.rs`:
+
+- **Forms → Form lifecycle** (`forms/form-lifecycle`): `required` / `pattern` with author `:invalid` / `:valid` rules, `<fieldset disabled>`, Save (validates; blocked while invalid), Draft (`formnovalidate`), Reset; the status line reports the `submit` event's detail.
+- **Cascade → Translucency** (`cascade/translucency`): nested group `opacity` cards over text and a bordered box.
+- **Selection → Selection hosts** (`selection/selection-hosts`): `user-select: contain` and `user-select: all`.
+- **Pseudo-elements → Lists + generated content** (`pseudo-elements/lists-generated`): `<ol><li><p>` markers and inline `::before` / `::after`.
+- **Animations → Smooth scroll + live style** (`animations/scroll-live-style`): `scroll-behavior: smooth`, `scrollIntoView()` / `scrollIntoView(false)`, and a button that rewrites a `<style>` element's text.
+
+The demo tests read the App's paint through `VirtualScreen`, so `rdom-showcase` dev-depends on `rdom-tui` with `test-util`.
+
 ## Out of scope for 0.2.0
 
 By design, things this release will not include:

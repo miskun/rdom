@@ -1,0 +1,14 @@
+
+  Free text: a drag from here selects across the boxes
+  below.
+
+  ╭──────────────────────────────────────────────────────╮
+  │ user-select: contain. Start a drag in this box and   │
+  │ drag out of it: the selection stays inside.          │
+  ╰──────────────────────────────────────────────────────╯
+
+  user-select: all. One click selects this whole line.
+
+  More free text after the hosts.
+
+

@@ -1,0 +1,16 @@
+
+  Page the log (smooth) • Top / Bottom: scrollIntoView • Theme: edit the style
+
+  ╭──────────────────────────────────────╮
+  │entry 01: boot                       ┃│
+  │entry 02: config loaded              ││
+  │entry 03: listening                  ││
+  │entry 04: request /                  ││
+  ╰──────────────────────────────────────╯
+
+  [ Top ] [ Bottom ] [ Theme ]
+
+  theme: cool
+
+
+

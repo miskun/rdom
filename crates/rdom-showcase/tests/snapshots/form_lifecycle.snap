@@ -1,0 +1,16 @@
+
+  Form lifecycle
+
+  Tab: focus • type • Enter: activate • Save validates, Draft skips it
+
+  Name*
+  Code     abc
+
+   Disabled fieldset
+   Note     not sent
+
+  [ Save ] [ Draft ] [ Reset ]
+
+  (not submitted)
+
+

@@ -27,3 +27,6 @@ rdom-parser = { path = "../rdom-parser", version = "0.4.0" }
 # drive App::handle_event directly. Not a runtime dep — the
 # showcase binary uses crossterm transitively via rdom-tui.
 crossterm = "0.28"
+# The demo tests read what a headless `App` painted through
+# `VirtualScreen` (`test-util`).
+rdom-tui = { path = "../rdom-tui", version = "0.4.0", features = ["test-util"] }

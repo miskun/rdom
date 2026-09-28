@@ -7,20 +7,25 @@ use crate::demos::border_collapse::BorderCollapse;
 use crate::demos::counter_button::CounterButton;
 use crate::demos::dom_api::DomApi;
 use crate::demos::flex_row::FlexRow;
+use crate::demos::form_lifecycle::FormLifecycle;
 use crate::demos::headings::Headings;
 use crate::demos::hello::HelloWorld;
 use crate::demos::hover::Hover;
 use crate::demos::inline_formatting::InlineFormatting;
 use crate::demos::interval_counter::IntervalCounter;
+use crate::demos::lists_generated::ListsGenerated;
 use crate::demos::mutation_observer::MutationObserverDemo;
 use crate::demos::parse_and_render::ParseAndRender;
 use crate::demos::permission_dialog::PermissionDialog;
 use crate::demos::raf_progress::RafProgress;
+use crate::demos::scroll_live_style::ScrollLiveStyle;
 use crate::demos::scrollable_list::ScrollableList;
 use crate::demos::selectable_text::SelectableText;
+use crate::demos::selection_hosts::SelectionHosts;
 use crate::demos::sticky::Sticky;
 use crate::demos::tab_form::TabForm;
 use crate::demos::transition_box::TransitionBox;
+use crate::demos::translucency::Translucency;
 use crate::demos::tree_nav::TreeNav;
 use crate::demos::ua_chrome::UaChrome;
 use crate::demos::whitespace_modes::WhitespaceModes;
@@ -50,6 +55,11 @@ pub const DEMOS: &[&dyn Demo] = &[
     &Headings,
     &WhitespaceModes,
     &TreeNav,
+    &FormLifecycle,
+    &Translucency,
+    &SelectionHosts,
+    &ListsGenerated,
+    &ScrollLiveStyle,
 ];
 
 #[cfg(test)]
