@@ -128,6 +128,7 @@ use crate::node_id::NodeId;
 /// assert_eq!(e.detail.as_string(), Some("payload"));
 /// ```
 #[derive(Debug, Clone, PartialEq, Default)]
+#[non_exhaustive]
 pub enum EventDetail {
     /// No detail attached. Default for plain events (`click`,
     /// `focus`, `blur`, …) and the initial state on `Event::new`.
@@ -234,6 +235,7 @@ impl EventDetail {
 /// `transitionstart` / `transitionend` / `transitioncancel` event
 /// payload. CSS Transitions Level 1 §5.1.
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub struct TransitionDetail {
     /// Animatable property whose value crossed a transition
     /// boundary, in CSS-canonical kebab-case (`"color"`,
@@ -247,9 +249,27 @@ pub struct TransitionDetail {
     pub pseudo_element: Option<String>,
 }
 
+impl TransitionDetail {
+    /// A transition event payload (`TransitionEventInit`): the property
+    /// in CSS kebab-case, the elapsed seconds and the pseudo-element
+    /// (`"::before"`), if any.
+    pub fn new(
+        property_name: impl Into<String>,
+        elapsed: f64,
+        pseudo_element: Option<String>,
+    ) -> Self {
+        Self {
+            property_name: property_name.into(),
+            elapsed,
+            pseudo_element,
+        }
+    }
+}
+
 /// `beforeinput` / `input` event payload, per UI Events / Input
 /// Events Level 2.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub struct InputDetail {
     /// What kind of edit produced this event. See [`InputType`].
     pub input_type: InputType,
@@ -259,6 +279,18 @@ pub struct InputDetail {
     /// sequence. rdom doesn't model IME directly; always `false`
     /// in M4. Reserved for future polish.
     pub is_composing: bool,
+}
+
+impl InputDetail {
+    /// An input event payload (`InputEventInit`) outside a composition
+    /// (`is_composing` false).
+    pub fn new(input_type: InputType, data: Option<String>) -> Self {
+        Self {
+            input_type,
+            data,
+            is_composing: false,
+        }
+    }
 }
 
 /// `submit` event payload, per HTML §4.10.21.3 form submission.
@@ -320,6 +352,7 @@ impl SubmitDetail {
 /// attribute (HTML §4.10.19.6). Keywords are ASCII case-insensitive;
 /// the missing and invalid value default is `Get`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
 pub enum FormMethod {
     /// `get` — the default.
     #[default]
@@ -360,6 +393,7 @@ impl FormMethod {
 /// case-insensitive; the missing and invalid value default is
 /// `UrlEncoded`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
 pub enum FormEnctype {
     /// `application/x-www-form-urlencoded` — the default.
     #[default]
@@ -395,11 +429,22 @@ impl FormEnctype {
 /// `toggle` event payload — emitted by `<details>` and
 /// `<dialog>` when their open/closed state changes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub struct ToggleDetail {
     /// State before the toggle.
     pub old_state: ToggleState,
     /// State after the toggle.
     pub new_state: ToggleState,
+}
+
+impl ToggleDetail {
+    /// A `toggle` payload (`ToggleEventInit`).
+    pub const fn new(old_state: ToggleState, new_state: ToggleState) -> Self {
+        Self {
+            old_state,
+            new_state,
+        }
+    }
 }
 
 /// Pointer event payload — `click`, `mousedown`, `mouseup`,
@@ -416,6 +461,7 @@ pub struct ToggleDetail {
 /// `delta_z` and `delta_mode` are omitted because terminals don't
 /// surface them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub struct MouseDetail {
     /// Which button transitioned (for press/release/click), or
     /// `MouseButton::Left` (DOM "main button" sentinel for `0`)
@@ -439,8 +485,50 @@ pub struct MouseDetail {
     pub modifiers: KeyboardModifiers,
 }
 
+impl MouseDetail {
+    /// A pointer payload (`MouseEventInit`) at cell (`client_x`,
+    /// `client_y`): `button` transitioned, no button held, no wheel
+    /// delta, no modifier. The `with_*` builders set the rest.
+    pub const fn new(button: MouseButton, client_x: i32, client_y: i32) -> Self {
+        Self {
+            button,
+            buttons: 0,
+            client_x,
+            client_y,
+            delta_x: 0,
+            delta_y: 0,
+            modifiers: KeyboardModifiers {
+                ctrl: false,
+                shift: false,
+                alt: false,
+                meta: false,
+            },
+        }
+    }
+
+    /// Set the held-buttons bitmask (`MouseEvent.buttons`).
+    pub const fn with_buttons(mut self, buttons: u8) -> Self {
+        self.buttons = buttons;
+        self
+    }
+
+    /// Set the wheel deltas (`WheelEvent.deltaX` / `deltaY`).
+    pub const fn with_delta(mut self, delta_x: i32, delta_y: i32) -> Self {
+        self.delta_x = delta_x;
+        self.delta_y = delta_y;
+        self
+    }
+
+    /// Set the modifiers held.
+    pub const fn with_modifiers(mut self, modifiers: KeyboardModifiers) -> Self {
+        self.modifiers = modifiers;
+        self
+    }
+}
+
 /// `keydown` / `keypress` / `keyup` payload.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub struct KeyboardDetail {
     /// DOM `KeyboardEvent.key` — the printable character or named
     /// key value (`"Enter"`, `"ArrowLeft"`, `"a"`, `"F5"`, …).
@@ -451,6 +539,24 @@ pub struct KeyboardDetail {
     pub modifiers: KeyboardModifiers,
     /// `true` for OS-generated repeats of a held key.
     pub repeat: bool,
+}
+
+impl KeyboardDetail {
+    /// A key payload (`KeyboardEventInit`) for `key` with `modifiers`,
+    /// not a repeat.
+    pub fn new(key: impl Into<String>, modifiers: KeyboardModifiers) -> Self {
+        Self {
+            key: key.into(),
+            modifiers,
+            repeat: false,
+        }
+    }
+
+    /// Set `repeat` (an OS-generated repeat of a held key).
+    pub fn with_repeat(mut self, repeat: bool) -> Self {
+        self.repeat = repeat;
+        self
+    }
 }
 
 #[cfg(test)]

@@ -14,6 +14,7 @@ pub struct CounterOp {
 
 /// `<counter-style>` subset accepted by `counter(name, style)`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
 pub enum CounterStyle {
     #[default]
     Decimal,

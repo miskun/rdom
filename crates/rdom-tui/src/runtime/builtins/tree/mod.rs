@@ -171,10 +171,7 @@ fn set_expanded(dom: &mut TuiDom, item: NodeId, open: bool) {
     };
     let mut ev = TuiEvent::new("toggle");
     ev.event = ev.event.clone().with_bubbles(false);
-    ev.event.detail = EventDetail::Toggle(Box::new(ToggleDetail {
-        old_state,
-        new_state,
-    }));
+    ev.event.detail = EventDetail::Toggle(Box::new(ToggleDetail::new(old_state, new_state)));
     let _ = dom.dispatch_tui_event(item, &mut ev);
 }
 

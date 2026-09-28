@@ -30,6 +30,7 @@ pub enum EventPhase {
 /// call `with_bubbles(false)` / `with_cancelable(true)`, then pass to
 /// `Dom::dispatch_event(target, &mut event)`.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct Event {
     /// Event type string — "click", "input", etc. Case-sensitive.
     pub event_type: String,

@@ -108,6 +108,8 @@ impl MutationObserver<TuiExt> for CaptureMutations {
                 focused,
                 hovered,
             } => format!("PreDetach {detached_root:?} focused={focused:?} hovered={hovered:?}"),
+            // `Mutation` is `#[non_exhaustive]`.
+            other => format!("{other:?}"),
         };
         self.records.borrow_mut().push(CapturedRecord(line));
     }

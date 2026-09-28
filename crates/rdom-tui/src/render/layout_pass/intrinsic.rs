@@ -146,7 +146,9 @@ fn intrinsic_size_inner(
             mode,
             measure,
         ),
-        NodeType::Comment => 0,
+        // Comments and any later non-rendered node kind (`NodeType` is
+        // `#[non_exhaustive]`): only elements and text render.
+        _ => 0,
     }
 }
 

@@ -8,6 +8,7 @@
 use crate::parse::cursor::Cursor;
 
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub enum Token {
     /// `[-_a-zA-Z][-_a-zA-Z0-9]*`. Includes custom-property names
     /// like `--accent` (CSS treats them as idents).
@@ -46,6 +47,7 @@ pub enum Token {
 }
 
 #[derive(Debug)]
+#[non_exhaustive]
 pub struct TokenizerError {
     pub kind: TokenizerErrorKind,
     pub line: u32,
@@ -53,6 +55,7 @@ pub struct TokenizerError {
 }
 
 #[derive(Debug, PartialEq)]
+#[non_exhaustive]
 pub enum TokenizerErrorKind {
     UnterminatedString,
     UnterminatedComment,

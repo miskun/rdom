@@ -33,6 +33,14 @@ pub(crate) fn parse_block(
             let kind = match e.kind {
                 TokenizerErrorKind::UnterminatedComment => WarningKind::UnterminatedComment,
                 TokenizerErrorKind::UnterminatedString => WarningKind::UnterminatedString,
+                // `TokenizerErrorKind` is `#[non_exhaustive]`; a kind added
+                // upstream without a warning of its own drops the block
+                // as malformed (and trips this assert in the workspace's
+                // tests until it gets one).
+                other => {
+                    debug_assert!(false, "unmapped tokenizer error {other:?}");
+                    WarningKind::MalformedDeclaration(body.to_string())
+                }
             };
             warnings.push(Warning {
                 kind,
@@ -166,7 +174,14 @@ fn apply_declaration(decl: RawDeclaration, style: &mut TuiStyle, warnings: &mut 
                 column,
             });
         }
-        Err(DispatchError::InvalidValue) => {
+        // `DispatchError` is `#[non_exhaustive]`; an error added upstream
+        // without a warning of its own reports as an invalid value (and
+        // trips the assert in the workspace's tests until it gets one).
+        Err(e) => {
+            debug_assert!(
+                matches!(e, DispatchError::InvalidValue),
+                "unmapped dispatch error {e:?}"
+            );
             let value_text = render_value(value);
             warnings.push(Warning {
                 kind: WarningKind::InvalidValue {

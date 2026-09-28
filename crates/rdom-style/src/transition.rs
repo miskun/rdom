@@ -42,6 +42,7 @@ pub enum TransitionProperty {
 /// allow-discrete` is Level 2 and not shipped), so `transition: all`
 /// covers exactly this set.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum AnimatableProperty {
     /// `color` (= TuiStyle.fg)
     Color,

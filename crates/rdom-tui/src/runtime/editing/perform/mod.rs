@@ -40,6 +40,7 @@ pub struct Edit {
 /// caret is at `caret_after`. `Prevented` = `beforeinput` was
 /// cancelled by a handler; the DOM is unchanged.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum EditOutcome {
     Applied,
     Prevented,

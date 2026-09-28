@@ -51,6 +51,7 @@ pub struct ComplexSelector {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Combinator {
     /// `a b` — b descends from a.
     Descendant,
@@ -68,7 +69,60 @@ pub struct CompoundSelector {
     pub simples: Vec<SimpleSelector>,
 }
 
+impl ComplexSelector {
+    /// The selector's specificity `(A, B, C)` per
+    /// [Selectors 4 §17](https://www.w3.org/TR/selectors-4/#specificity):
+    /// `A` counts ID selectors; `B` class selectors, attribute selectors
+    /// and pseudo-classes; `C` type selectors (pseudo-elements live
+    /// outside this AST, so the caller adds them). `*` counts nothing,
+    /// `:not(X)` counts as its most specific argument and `:where(X)` as
+    /// zero. The match over the selector vocabulary lives here, next to
+    /// the (`#[non_exhaustive]`) AST, so a new simple selector is counted
+    /// where it is defined.
+    pub fn specificity(&self) -> (u16, u16, u16) {
+        let mut abc = (0, 0, 0);
+        add_compound_specificity(&mut abc, &self.subject);
+        for (_, compound) in &self.ancestors {
+            add_compound_specificity(&mut abc, compound);
+        }
+        abc
+    }
+}
+
+impl SelectorList {
+    /// The largest [`ComplexSelector::specificity`] of the list's
+    /// selectors — how `:not()` and `:is()` count their argument
+    /// (Selectors 4 §17). `(0, 0, 0)` for an empty list.
+    pub fn max_specificity(&self) -> (u16, u16, u16) {
+        self.0
+            .iter()
+            .map(ComplexSelector::specificity)
+            .max()
+            .unwrap_or((0, 0, 0))
+    }
+}
+
+fn add_compound_specificity(abc: &mut (u16, u16, u16), compound: &CompoundSelector) {
+    for simple in &compound.simples {
+        match simple {
+            SimpleSelector::Universal | SimpleSelector::Where(_) => {}
+            SimpleSelector::Type(_) => abc.2 += 1,
+            SimpleSelector::Id(_) => abc.0 += 1,
+            SimpleSelector::Class(_)
+            | SimpleSelector::Attribute { .. }
+            | SimpleSelector::Pseudo(_) => abc.1 += 1,
+            SimpleSelector::Not(inner) => {
+                let (a, b, c) = inner.max_specificity();
+                abc.0 += a;
+                abc.1 += b;
+                abc.2 += c;
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub enum SimpleSelector {
     /// `*`.
     Universal,
@@ -112,6 +166,7 @@ pub enum AttrOp {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum PseudoClass {
     FirstChild,
     LastChild,
@@ -191,6 +246,7 @@ pub enum PseudoClass {
 // ─── Error ───────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct ParseError {
     pub msg: String,
     pub pos: usize,

@@ -14,6 +14,7 @@ use crate::render::paint_pass::scrollbar::{should_paint, thumb_geometry};
 
 /// What part of a scrollbar got clicked.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ScrollbarPart {
     /// Mouse on the track above / left of the thumb — page back.
     TrackBefore,
@@ -25,6 +26,7 @@ pub enum ScrollbarPart {
 
 /// Result of a scrollbar hit test.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct ScrollbarHit {
     pub element: NodeId,
     pub axis: ScrollAxis,

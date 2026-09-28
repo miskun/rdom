@@ -67,6 +67,8 @@ impl MutationObserver<()> for Logger {
                 focused.map(id_fmt),
                 hovered.map(id_fmt),
             ),
+            // `Mutation` is `#[non_exhaustive]`: later record kinds.
+            other => format!("other: {other:?}"),
         };
         self.log.borrow_mut().push(line);
     }

@@ -4,6 +4,7 @@ use std::fmt;
 
 /// Parse error with position + optional hint.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct ParseError {
     /// Human-readable error message.
     pub msg: String,

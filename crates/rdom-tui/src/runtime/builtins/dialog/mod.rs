@@ -185,10 +185,9 @@ fn fire_toggle(dom: &mut TuiDom, dialog: NodeId, old_state: rdom_core::ToggleSta
     };
     let mut ev = TuiEvent::new("toggle");
     ev.event = ev.event.clone().with_bubbles(false);
-    ev.event.detail = rdom_core::EventDetail::Toggle(Box::new(rdom_core::ToggleDetail {
-        old_state,
-        new_state,
-    }));
+    ev.event.detail = rdom_core::EventDetail::Toggle(Box::new(rdom_core::ToggleDetail::new(
+        old_state, new_state,
+    )));
     let _ = dom.dispatch_tui_event(dialog, &mut ev);
 }
 

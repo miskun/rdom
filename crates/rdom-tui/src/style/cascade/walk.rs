@@ -526,6 +526,9 @@ fn compute_pseudo_style_layered(
         | PseudoElementTarget::ScrollbarThumbHorizontal
         | PseudoElementTarget::Placeholder
         | PseudoElementTarget::None => None,
+        // `PseudoElementTarget` is `#[non_exhaustive]`: a later
+        // pseudo-element has no legacy content field either.
+        _ => None,
     });
     let final_content = match declared {
         Some(explicit) => explicit, // declared (even as None) → use as-is

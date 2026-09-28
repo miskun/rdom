@@ -255,6 +255,7 @@ fn mutation_record_order_predetach_then_childlist_then_interaction() {
                 Mutation::ClassChanged { .. } => "ClassChanged",
                 Mutation::CharacterDataChanged { .. } => "CharacterDataChanged",
                 Mutation::SelectionChanged { .. } => "SelectionChanged",
+                _ => "other",
             };
             self.order.borrow_mut().push(name.to_string());
         }

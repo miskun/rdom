@@ -25,6 +25,7 @@ use rdom_style::property_dispatch::DispatchError;
 /// [`StyleDeclarationMut::try_set_property_important`]: super::StyleDeclarationMut::try_set_property_important
 /// [`StyleDeclarationMut::set_property`]: super::StyleDeclarationMut::set_property
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum SetPropertyError {
     /// `name` wasn't in the property-dispatch table or `value`
     /// failed to parse. Wraps the inner [`DispatchError`].
@@ -55,6 +56,8 @@ impl core::fmt::Display for SetPropertyError {
             Self::Parse(DispatchError::InvalidValue) => {
                 write!(f, "invalid value for property")
             }
+            // `DispatchError` is `#[non_exhaustive]`.
+            Self::Parse(e) => write!(f, "CSS parse error: {e:?}"),
             Self::Tree(e) => write!(f, "DOM tree error: {e:?}"),
         }
     }

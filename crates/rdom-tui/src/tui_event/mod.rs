@@ -175,11 +175,8 @@ impl TuiEvent {
     /// `InputEvent` convention.
     pub fn input(input_type: rdom_core::InputType, data: Option<String>) -> Self {
         let mut e = Self::new("input");
-        e.event.detail = rdom_core::EventDetail::Input(Box::new(rdom_core::InputDetail {
-            input_type,
-            data,
-            is_composing: false,
-        }));
+        e.event.detail =
+            rdom_core::EventDetail::Input(Box::new(rdom_core::InputDetail::new(input_type, data)));
         e
     }
 
@@ -189,11 +186,8 @@ impl TuiEvent {
     /// Detail shape matches [`Self::input`].
     pub fn before_input(input_type: rdom_core::InputType, data: Option<String>) -> Self {
         let mut e = Self::new("beforeinput");
-        e.event.detail = rdom_core::EventDetail::Input(Box::new(rdom_core::InputDetail {
-            input_type,
-            data,
-            is_composing: false,
-        }));
+        e.event.detail =
+            rdom_core::EventDetail::Input(Box::new(rdom_core::InputDetail::new(input_type, data)));
         e
     }
 

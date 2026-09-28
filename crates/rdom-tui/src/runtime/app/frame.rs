@@ -212,11 +212,12 @@ impl<B: Backend> App<B> {
                 TransitionEventKind::Cancel => "transitioncancel",
             };
             let mut ev = rdom_core::Event::new(event_name);
-            ev.detail = rdom_core::EventDetail::Transition(Box::new(rdom_core::TransitionDetail {
-                property_name: property.css_name().to_string(),
-                elapsed: elapsed_seconds.into(),
-                pseudo_element: slot.pseudo_element().map(str::to_string),
-            }));
+            ev.detail =
+                rdom_core::EventDetail::Transition(Box::new(rdom_core::TransitionDetail::new(
+                    property.css_name(),
+                    elapsed_seconds.into(),
+                    slot.pseudo_element().map(str::to_string),
+                )));
             let _ = self.dom.dispatch_event(node, &mut ev);
         }
     }

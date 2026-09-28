@@ -43,6 +43,7 @@ use crate::node_id::NodeId;
 /// matches (`:hover`, `:focus`, `:focus-visible`) can invalidate
 /// cleanly.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum InteractionKind {
     Hover,
     Focus,
@@ -54,6 +55,7 @@ pub enum InteractionKind {
 
 /// One DOM mutation notification.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum Mutation {
     /// `set_attribute` / `remove_attribute` / `toggle_attribute`.
     /// `old == None && new.is_some()` → attribute added.

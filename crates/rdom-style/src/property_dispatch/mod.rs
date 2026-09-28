@@ -85,6 +85,7 @@ pub use table::{inherits, property_mask, property_names, remove};
 /// no-op (browser-faithful — `element.style.bogus = 'x'`
 /// doesn't throw).
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum DispatchError {
     /// `name` isn't in the dispatch table.
     UnknownProperty,

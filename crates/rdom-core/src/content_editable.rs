@@ -13,6 +13,7 @@ use crate::node_id::NodeId;
 /// A `contenteditable` attribute's explicit state (HTML §6.8.1). The
 /// inherit state is the absence of one (`None`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ContentEditableState {
     /// `true` or `""`: the element is an editing host.
     True,

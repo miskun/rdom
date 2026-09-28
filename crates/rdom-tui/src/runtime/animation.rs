@@ -21,6 +21,7 @@ use crate::style::{Color, ComputedStyle};
 /// `AnimatableProperty` plus the cascade-internal modifiers stored
 /// on `ComputedStyle.modifiers`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum AnimatedProp {
     Fg,
     Bg,
@@ -54,8 +55,13 @@ impl AnimatedProp {
         }
     }
 
-    fn from_animatable(ap: AnimatableProperty) -> Self {
-        match ap {
+    /// The runtime property a named `transition-property` animates, or
+    /// `None` for one this runtime does not interpolate
+    /// (`AnimatableProperty` is `#[non_exhaustive]`): such a property
+    /// changes discretely, as CSS Transitions 1 §2 does for any
+    /// property that is not animatable.
+    fn from_animatable(ap: AnimatableProperty) -> Option<Self> {
+        Some(match ap {
             AnimatableProperty::Color => AnimatedProp::Fg,
             AnimatableProperty::BackgroundColor => AnimatedProp::Bg,
             AnimatableProperty::BorderColor => AnimatedProp::BorderFg,
@@ -68,13 +74,15 @@ impl AnimatedProp {
             AnimatableProperty::Bottom => AnimatedProp::Bottom,
             AnimatableProperty::Left => AnimatedProp::Left,
             AnimatableProperty::ZIndex => AnimatedProp::ZIndex,
-        }
+            _ => return None,
+        })
     }
 }
 
 /// Boxed value of any animatable property. The variant matches
 /// the property type 1:1; mismatched lerps just snap at midpoint.
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub enum AnimatedValue {
     Color(Color),
     Size(Size),
@@ -159,6 +167,7 @@ pub struct PendingEvent {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum TransitionEventKind {
     Start,
     End,
@@ -487,7 +496,7 @@ fn lookup_rule(style: &ComputedStyle, prop: AnimatedProp) -> Option<MatchedRule>
     let idx = props.iter().position(|p| match p {
         TransitionProperty::All => true,
         TransitionProperty::None | TransitionProperty::Discrete(_) => false,
-        TransitionProperty::Named(ap) => AnimatedProp::from_animatable(*ap) == prop,
+        TransitionProperty::Named(ap) => AnimatedProp::from_animatable(*ap) == Some(prop),
     })?;
     // None entries disable transitions for the matched property.
     if matches!(props[idx], TransitionProperty::None) {

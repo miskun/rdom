@@ -60,6 +60,7 @@ pub const SMOOTH_SCROLL_DURATION: Duration = Duration::from_millis(250);
 /// property keyword ([`crate::layout::ScrollBehavior`],
 /// `auto | smooth`) that `Auto` defers to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
 pub enum ScrollBehaviorOption {
     /// Follow the scroll container's computed `scroll-behavior`.
     #[default]
@@ -77,10 +78,36 @@ pub enum ScrollBehaviorOption {
 /// (`scrollBy(options)`). An absent `left` / `top` leaves that axis
 /// where it is (for `scrollBy`, adds nothing).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
 pub struct ScrollToOptions {
     pub left: Option<i32>,
     pub top: Option<i32>,
     pub behavior: ScrollBehaviorOption,
+}
+
+impl ScrollToOptions {
+    /// `{}` — neither axis, behavior `auto`.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set `left`.
+    pub fn left(mut self, left: i32) -> Self {
+        self.left = Some(left);
+        self
+    }
+
+    /// Set `top`.
+    pub fn top(mut self, top: i32) -> Self {
+        self.top = Some(top);
+        self
+    }
+
+    /// Set `behavior`.
+    pub fn behavior(mut self, behavior: ScrollBehaviorOption) -> Self {
+        self.behavior = behavior;
+        self
+    }
 }
 
 /// CSSOM View's `ScrollLogicalPosition` IDL enum: where
@@ -89,6 +116,7 @@ pub struct ScrollToOptions {
 /// rdom's writing mode is always horizontal-tb, left to right, so the
 /// block axis is vertical and the inline axis horizontal.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ScrollLogicalPosition {
     /// Align the element's start edge with the scrollport's.
     Start,

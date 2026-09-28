@@ -308,6 +308,13 @@ impl MutationObserver<TuiExt> for Shim {
                 // PreDetach itself is a pure event-pipeline hook
                 // and doesn't carry any cascade implication.
             }
+            // `Mutation` is `#[non_exhaustive]`. A record kind added
+            // upstream must get an arm here; until it does, repaint and
+            // trip the assert in the workspace's tests.
+            other => {
+                debug_assert!(false, "DirtyTracker: unhandled mutation {other:?}");
+                state.paint_dirty = true;
+            }
         }
     }
 }

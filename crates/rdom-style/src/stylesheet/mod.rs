@@ -48,6 +48,7 @@ use selector_text::{extract_pseudo_suffix, split_top_level_commas};
 
 /// Which pseudo-element a rule targets. `None` = the host element itself.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum PseudoElementTarget {
     None,
     Before,
@@ -119,6 +120,7 @@ impl PseudoElementTarget {
 
 /// Whether a rule comes from the built-in defaults or from the author.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum RuleOrigin {
     /// Baked-in defaults like `[disabled] { dim: true; }`. Always sort
     /// first. Author rules with equal-or-greater specificity override.
@@ -130,6 +132,7 @@ pub enum RuleOrigin {
 /// One cascade rule: a selector (AST), the style block, and its origin +
 /// source position so the cascade can sort them deterministically.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct Rule {
     /// Parsed selector AST. Each rule holds exactly one `ComplexSelector`
     /// inside the list — selector lists are flattened at parse time.
@@ -150,6 +153,7 @@ pub struct Rule {
 
 /// Error produced while parsing a stylesheet rule.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct StyleError {
     /// Human-readable message.
     pub msg: String,

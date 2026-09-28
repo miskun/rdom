@@ -14,6 +14,7 @@ use crate::node_id::NodeId;
 /// rest are still recognized so an unshipped type such as `date` is not
 /// mistaken for Text.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum InputTypeState {
     Hidden,
     Text,

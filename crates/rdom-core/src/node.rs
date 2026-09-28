@@ -11,6 +11,7 @@ use crate::NodeId;
 
 /// Per-type payload.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum NodeData<Ext = ()> {
     Element {
         tag: String,
@@ -37,6 +38,7 @@ pub enum NodeData<Ext = ()> {
 /// DOM-spec node types with the numeric values the spec assigns.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
+#[non_exhaustive]
 pub enum NodeType {
     Element = 1,
     Text = 3,

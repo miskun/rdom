@@ -8,6 +8,7 @@ use crate::NodeId;
 use crate::node::NodeType;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum DomError {
     /// NodeId doesn't exist in this arena (may have been freed).
     InvalidNode(NodeId),

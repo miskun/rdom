@@ -214,6 +214,7 @@ impl Router {
 /// dispatch. The caller (usually `App`) uses them to decide
 /// whether to run cascade + layout + paint and whether to exit.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct RouteOutcome {
     /// Something visible changed (hover transition, focus change,
     /// scroll via wheel, etc.) — the frame should be repainted.

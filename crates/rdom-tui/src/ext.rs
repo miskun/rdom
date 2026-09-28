@@ -119,6 +119,7 @@ pub struct AnonymousIfc {
 /// position, content, etc.) toggle in `ComputedStyle` directly
 /// at midpoint and are not covered here.
 #[derive(Debug, Clone, Default, PartialEq)]
+#[non_exhaustive]
 pub struct PresentationStyle {
     pub fg: Option<Color>,
     pub bg: Option<Color>,
@@ -138,6 +139,7 @@ pub struct PresentationStyle {
 /// its generated pseudo-elements (CSS Transitions 1 §5:
 /// `TransitionEvent.pseudoElement`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
 pub enum StyleSlot {
     #[default]
     Host,
@@ -160,6 +162,7 @@ impl StyleSlot {
 /// to: a [`StyleSlot`] that can never be [`StyleSlot::Host`]. Laid-out
 /// generated content (`GeneratedFragment::slot`) carries one.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum PseudoSlot {
     Before,
     After,

@@ -120,6 +120,7 @@ impl<Ext: 'static> std::fmt::Debug for ActivationSlot<Ext> {
 /// Not `Copy` because `signal: Option<AbortSignal>` holds an `Rc`.
 /// Cloning is cheap (refcount bump).
 #[derive(Debug, Clone, Default)]
+#[non_exhaustive]
 pub struct ListenerOptions {
     /// Fire during the capture phase instead of the bubble phase.
     pub capture: bool,
@@ -146,6 +147,16 @@ impl ListenerOptions {
             once: true,
             ..Default::default()
         }
+    }
+    /// Builder-style: set `capture`.
+    pub fn with_capture(mut self, capture: bool) -> Self {
+        self.capture = capture;
+        self
+    }
+    /// Builder-style: set `once`.
+    pub fn with_once(mut self, once: bool) -> Self {
+        self.once = once;
+        self
     }
     /// Builder-style: attach an abort signal. When the signal fires,
     /// this listener is removed on the next dispatch visit.

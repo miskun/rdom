@@ -517,7 +517,10 @@ fn recurse_children(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect,
                 }
             }
             NodeType::Fragment => recurse_children(dom, cid, buf, clip, viewport),
-            NodeType::Text | NodeType::Comment => {} // consumed by parent's inline pass
+            // Text is consumed by the parent's inline pass; comments and
+            // any later node kind (`NodeType` is `#[non_exhaustive]`)
+            // do not render.
+            _ => {}
         }
     }
 }

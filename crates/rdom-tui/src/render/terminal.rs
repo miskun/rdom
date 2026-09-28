@@ -50,6 +50,7 @@ pub struct Terminal<B: Backend> {
 
 /// Returned by `draw` so callers can inspect what happened this frame.
 #[derive(Debug, Clone, Copy)]
+#[non_exhaustive]
 pub struct CompletedFrame {
     pub area: Rect,
     pub cells_emitted: usize,

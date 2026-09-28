@@ -95,5 +95,8 @@ fn walk(dom: &Dom<()>, id: NodeId, depth: usize) {
                 walk(dom, child.id(), depth);
             }
         }
+        // `NodeType` is `#[non_exhaustive]`: later node kinds print
+        // their type.
+        other => println!("{indent}<!-- {other:?} -->"),
     }
 }

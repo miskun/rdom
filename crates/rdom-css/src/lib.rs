@@ -131,18 +131,21 @@ fn warning_to_error(w: &Warning) -> ParseError {
 }
 
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct ParseResult {
     pub stylesheet: Stylesheet,
     pub warnings: Vec<Warning>,
 }
 
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct InlineParseResult {
     pub style: TuiStyle,
     pub warnings: Vec<Warning>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub struct ParseError {
     pub kind: ParseErrorKind,
     pub line: u32,
@@ -150,6 +153,7 @@ pub struct ParseError {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub enum ParseErrorKind {
     UnexpectedEof,
     UnterminatedComment,
@@ -159,6 +163,7 @@ pub enum ParseErrorKind {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub struct Warning {
     pub kind: WarningKind,
     pub line: u32,
@@ -166,6 +171,7 @@ pub struct Warning {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub enum WarningKind {
     UnknownProperty(String),
     InvalidValue {

@@ -17,7 +17,7 @@
 //!
 //! Reference: [Selectors Level 4 §17](https://www.w3.org/TR/selectors-4/#specificity).
 
-use rdom_core::selectors::{CompoundSelector, PseudoClass, SelectorList, SimpleSelector};
+use rdom_core::selectors::{ComplexSelector, SelectorList};
 
 /// 4-tuple specificity. `Ord` compares field-by-field in declaration
 /// order, which is exactly the CSS rule.
@@ -48,22 +48,19 @@ impl Specificity {
         type_pseudo_el: 0,
     };
 
-    /// Compute specificity for one complex selector. Adds counts from
-    /// every compound in the chain (subject + ancestors). Pseudo-element
-    /// targets (`::before` / `::after`) are passed separately because
-    /// they live outside the core selector AST — pass 1 to add a type-
-    /// level bump, 0 otherwise.
-    pub fn of_complex(
-        complex: &rdom_core::selectors::ComplexSelector,
-        pseudo_element_count: u16,
-    ) -> Self {
-        let mut s = Self::ZERO;
-        s.add_compound(&complex.subject);
-        for (_combinator, compound) in &complex.ancestors {
-            s.add_compound(compound);
+    /// Compute specificity for one complex selector: rdom-core's
+    /// [`ComplexSelector::specificity`] `(A, B, C)`, plus
+    /// `pseudo_element_count` type-level bumps for the rule's
+    /// `::before` / `::after` target, which lives outside the core
+    /// selector AST — pass 1 for a pseudo-element rule, 0 otherwise.
+    pub fn of_complex(complex: &ComplexSelector, pseudo_element_count: u16) -> Self {
+        let (id, class_attr_pseudo, type_pseudo_el) = complex.specificity();
+        Self {
+            inline: 0,
+            id,
+            class_attr_pseudo,
+            type_pseudo_el: type_pseudo_el + pseudo_element_count,
         }
-        s.type_pseudo_el += pseudo_element_count;
-        s
     }
 
     /// Compute the max specificity across a selector list. `.foo, #bar`
@@ -79,55 +76,6 @@ impl Specificity {
             .map(|complex| Self::of_complex(complex, pseudo_element_count))
             .max()
             .unwrap_or(Self::ZERO)
-    }
-
-    fn add_compound(&mut self, compound: &CompoundSelector) {
-        for simple in &compound.simples {
-            self.add_simple(simple);
-        }
-    }
-
-    fn add_simple(&mut self, simple: &SimpleSelector) {
-        match simple {
-            SimpleSelector::Universal => {}
-            SimpleSelector::Type(_) => self.type_pseudo_el += 1,
-            SimpleSelector::Id(_) => self.id += 1,
-            SimpleSelector::Class(_) | SimpleSelector::Attribute { .. } => {
-                self.class_attr_pseudo += 1
-            }
-            SimpleSelector::Pseudo(pc) => match pc {
-                // Structural + interaction pseudos count as class-level.
-                PseudoClass::FirstChild
-                | PseudoClass::LastChild
-                | PseudoClass::OnlyChild
-                | PseudoClass::Empty
-                | PseudoClass::Root
-                | PseudoClass::Hover
-                | PseudoClass::Focus
-                | PseudoClass::FocusWithin
-                | PseudoClass::FocusVisible
-                | PseudoClass::Checked
-                | PseudoClass::PlaceholderShown
-                | PseudoClass::Indeterminate
-                | PseudoClass::Open
-                | PseudoClass::Disabled
-                | PseudoClass::Enabled
-                | PseudoClass::Valid
-                | PseudoClass::Invalid
-                | PseudoClass::Required
-                | PseudoClass::Optional => self.class_attr_pseudo += 1,
-            },
-            // `:not(X)` contributes the specificity of X (max across its list).
-            SimpleSelector::Not(inner) => {
-                let inner_spec = Self::max_of_list(inner, 0);
-                self.id += inner_spec.id;
-                self.class_attr_pseudo += inner_spec.class_attr_pseudo;
-                self.type_pseudo_el += inner_spec.type_pseudo_el;
-            }
-            // `:where(X)` matches like `:is(X)` but contributes ZERO
-            // specificity (Selectors L4) — the whole point of the pseudo.
-            SimpleSelector::Where(_) => {}
-        }
     }
 }
 

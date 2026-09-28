@@ -734,7 +734,9 @@ fn collect_element_children(dom: &Dom<TuiExt>, id: NodeId, out: &mut Vec<NodeId>
         match child.node_type() {
             NodeType::Element => out.push(child.id()),
             NodeType::Fragment => collect_element_children(dom, child.id(), out),
-            NodeType::Text | NodeType::Comment => {}
+            // Text, comments, and any later node kind (`NodeType` is
+            // `#[non_exhaustive]`) are not element children.
+            _ => {}
         }
     }
 }

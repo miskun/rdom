@@ -65,6 +65,7 @@ pub enum ScrollbarGutter {
 ///
 /// Does not inherit (matches CSS). Initial value: `Auto`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
 pub enum ScrollBehavior {
     /// The scroll is instant. CSS default.
     #[default]

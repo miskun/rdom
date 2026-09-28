@@ -130,11 +130,7 @@ fn wire(dom: &mut TuiDom, parts: Parts) {
         } else {
             "validated"
         };
-        let method = match method {
-            FormMethod::Get => "get",
-            FormMethod::Post => "post",
-            FormMethod::Dialog => "dialog",
-        };
+        let method = method.as_str();
         let values: Vec<String> = form::collect(ctx.dom, form)
             .iter()
             .map(|(k, v)| format!("{k}={v:?}"))
@@ -147,10 +143,7 @@ fn wire(dom: &mut TuiDom, parts: Parts) {
     })
     .unwrap();
     // `invalid` does not bubble: listen in the capture phase.
-    let capture = ListenerOptions {
-        capture: true,
-        ..ListenerOptions::default()
-    };
+    let capture = ListenerOptions::capture();
     dom.add_event_listener(form, "invalid", capture, move |ctx| {
         set_status(ctx.dom, status, "blocked: fix the fields in red");
     })

@@ -47,11 +47,11 @@ use rdom_core::{KeyboardDetail, KeyboardModifiers, MouseButton, MouseDetail};
 /// bitflags into the four-bool DOM shape; `repeat` is set for
 /// `KeyEventKind::Repeat` only.
 pub fn translate_key_event(ev: KeyEvent) -> KeyboardDetail {
-    KeyboardDetail {
-        key: key_code_to_string(ev.code),
-        modifiers: translate_modifiers(ev.modifiers),
-        repeat: matches!(ev.kind, KeyEventKind::Repeat),
-    }
+    KeyboardDetail::new(
+        key_code_to_string(ev.code),
+        translate_modifiers(ev.modifiers),
+    )
+    .with_repeat(matches!(ev.kind, KeyEventKind::Repeat))
 }
 
 /// Map a crossterm [`KeyCode`] to its DOM `KeyboardEvent.key`
@@ -142,15 +142,10 @@ pub fn translate_modifiers(m: CtKeyModifiers) -> KeyboardModifiers {
 pub fn translate_mouse_event(ev: MouseEvent) -> MouseDetail {
     let (button, buttons) = mouse_kind_to_button(ev.kind);
     let (delta_x, delta_y) = wheel_delta(ev.kind);
-    MouseDetail {
-        button,
-        buttons,
-        client_x: ev.column as i32,
-        client_y: ev.row as i32,
-        delta_x,
-        delta_y,
-        modifiers: translate_modifiers(ev.modifiers),
-    }
+    MouseDetail::new(button, ev.column as i32, ev.row as i32)
+        .with_buttons(buttons)
+        .with_delta(delta_x, delta_y)
+        .with_modifiers(translate_modifiers(ev.modifiers))
 }
 
 /// Wheel `(delta_x, delta_y)` in cell units — `0` for non-wheel

@@ -13,6 +13,7 @@ use crate::node::NodeData;
 use crate::node_id::NodeId;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum InvariantViolation {
     /// A `parent` pointer on some node doesn't appear in that parent's
     /// children (chain from first_child via next_sibling).

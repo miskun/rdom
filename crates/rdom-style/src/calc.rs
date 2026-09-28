@@ -80,6 +80,7 @@ pub enum CalcExpr {
 /// - `padding-*` / `margin-*` per CSS resolve against parent
 ///   **width** for ALL sides (CSS Box Model §8.4).
 #[derive(Debug, Clone, Copy)]
+#[non_exhaustive]
 pub struct ResolveCtx {
     /// The dimension percentage operands resolve against, in
     /// cells. Caller provides — see doc above for which dimension

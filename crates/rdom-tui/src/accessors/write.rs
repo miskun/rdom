@@ -143,19 +143,11 @@ impl<'a> TuiAccessorsMut<'a> for rdom_core::NodeMut<'a, TuiExt> {
     }
 
     fn click(&mut self) {
-        use rdom_core::{EventDetail, KeyboardModifiers, MouseButton, MouseDetail};
+        use rdom_core::{EventDetail, MouseButton, MouseDetail};
         let id = self.id();
         let dom = self.dom_mut();
         let mut event = rdom_core::Event::new("click").with_synthetic(true);
-        event.detail = EventDetail::Mouse(MouseDetail {
-            button: MouseButton::Left,
-            buttons: 0,
-            client_x: 0,
-            client_y: 0,
-            delta_x: 0,
-            delta_y: 0,
-            modifiers: KeyboardModifiers::default(),
-        });
+        event.detail = EventDetail::Mouse(MouseDetail::new(MouseButton::Left, 0, 0));
         let mut tui = crate::TuiEvent { event };
         let _ = crate::TuiDispatchExt::dispatch_tui_event(dom, id, &mut tui);
     }

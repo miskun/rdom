@@ -13,12 +13,9 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 
 - `InvariantViolation::GenerationTableMismatch` is gone: the slot generation now lives in the slot, so there is no parallel table to disagree. Migration: drop the match arm. (`CORE-GEN-COLOCATE-1`)
 - `vr` is no longer serialized as a void element; the void list is exactly HTML §13.3's (`area base basefont bgsound br col embed frame hr img input keygen link meta param source track wbr`), exported as `rdom_core::VOID_ELEMENTS` / `is_void_element` and shared with `rdom-parser`. Migration: `<vr>` now serializes with its `</vr>` end tag; nothing to change unless output was compared byte for byte. (`PARSER-VOID-TAGS-1`)
-- `selectors::PseudoClass` gains `Disabled` and `Enabled` variants (`:disabled` / `:enabled`). Migration: add the two arms to exhaustive matches. (`P7-FIELDSET-DISABLED-1`)
 - `SubmitDetail` gains `action`, `method` (`FormMethod`), `enctype` (`FormEnctype`), `target` and `no_validate`, and is now `#[non_exhaustive]`. Migration: replace `SubmitDetail { submitter }` with `SubmitDetail::new(submitter)` (HTML defaults) or `dom.submit_detail(form, submitter)` (reads the attributes). (`P7-FORM-OWNER-1`)
-- `DomError` gains `TypeError(&'static str)` (the web's `TypeError`, used by `requestSubmit`). Migration: add the arm to exhaustive matches. (`P7-REQUEST-SUBMIT-1`)
-- `selectors::PseudoClass` gains `Valid`, `Invalid`, `Required` and `Optional`. Migration: add the four arms to exhaustive matches. (`P7-VALIDATION-SELECTORS-1`)
-- `NodeMut::set_content_editable` follows the HTML IDL setter: keywords are ASCII case-insensitive and written lowercase, `"inherit"` removes the attribute, anything else (including `""`) returns the new `DomError::Syntax`; `NodeRef::content_editable` returns the normalized keyword (`"inherit"` for an invalid value). Migration: handle `DomError::Syntax` in exhaustive matches and pass one of the four keywords. (`P7-CONTENTEDITABLE-CASE-1`)
-- `selectors::PseudoClass` gains `FocusVisible` and `InteractionKind` gains `FocusVisible`. Migration: add the arms to exhaustive matches. (`P7-FOCUS-VISIBLE-1`)
+- `NodeMut::set_content_editable` follows the HTML IDL setter: keywords are ASCII case-insensitive and written lowercase, `"inherit"` removes the attribute, anything else (including `""`) returns the new `DomError::Syntax`; `NodeRef::content_editable` returns the normalized keyword (`"inherit"` for an invalid value). Migration: pass one of the four keywords. (`P7-CONTENTEDITABLE-CASE-1`)
+- Public types that model an open web vocabulary, an error set or an options bag are `#[non_exhaustive]` (the rule is in DESIGN "Which public types are `#[non_exhaustive]`"): the enums `PseudoClass` (new this release: `Disabled`, `Enabled`, `Valid`, `Invalid`, `Required`, `Optional`, `FocusVisible`), `DomError` (new: `TypeError`, `Syntax`), `InteractionKind` (new: `FocusVisible`), `Combinator`, `SimpleSelector`, `Mutation`, `NodeType`, `NodeData`, `InputTypeState`, `ContentEditableState`, `FormMethod`, `FormEnctype`, `EventDetail`, `InvariantViolation`, and the structs `Event`, `ListenerOptions`, `TransitionDetail`, `InputDetail`, `ToggleDetail`, `MouseDetail`, `KeyboardDetail`, `selectors::ParseError`. Migration: add a wildcard arm to matches on these enums and `..` to struct patterns; build the structs with their constructors instead of literals — `ListenerOptions::capture()` / `once()` / `default()` with the new `with_capture` / `with_once` (and `with_signal`), and the new `TransitionDetail::new`, `InputDetail::new`, `ToggleDetail::new`, `MouseDetail::new(button, x, y)` + `with_buttons` / `with_delta` / `with_modifiers`, `KeyboardDetail::new(key, modifiers)` + `with_repeat` (`P7G-NON-EXHAUSTIVE-1`)
 
 ### Added — `rdom-core`
 
@@ -32,6 +29,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 - `:focus-visible` and `Dom::focus_visible` / `Dom::set_focus_visible`: the selector matches the focused element while the backend judges its focus should be evident (Selectors 4 §13.2). (`P7-FOCUS-VISIBLE-1`)
 - `Dom::is_placeholder_shown(id)` — the `:placeholder-shown` test as a method. (`P7-PLACEHOLDER-PSEUDO-1`)
 - `Dom::selection_serial` — a counter that advances on every actual selection change, so a backend can tell its own caret moves from foreign ones (`P7-UNDO-COALESCE-1`)
+- `ComplexSelector::specificity()` and `SelectorList::max_specificity()` return the Selectors 4 §17 `(A, B, C)` specificity; rdom-style's `Specificity::of_complex` is built on them (`P7G-NON-EXHAUSTIVE-1`)
 
 ### Changed — `rdom-core`
 
@@ -55,7 +53,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 - `Content::resolve` takes one `&impl ContentContext` (variables, attributes, counters) instead of separate lookups; `HashMap<String, String>` implements it as variables-only. Migration: pass your variable map (or a `ContentContext` impl) as the single argument.
 - `user-select` is no longer inherited (CSS UI 4 §6.1): `property_dispatch::inherits("user-select")` is `false`, and `user-select: unset` now means `initial`. See `Breaking — rdom-tui` for the used-value rules. Migration: write `user-select: inherit` where `unset` was meant to inherit. (`P6G-USER-SELECT-INHERIT-1`)
 - UA: the focus scrollbar-thumb rule is `[data-rdom-scroll-focus]::scrollbar-thumb` (was `:focus-within::scrollbar-thumb`, which lit every overflowing ancestor); the rdom-tui runtime keeps that attribute on the scroll container the keyboard scrolls. Migration: an author override of the old selector must move to the new one. (`FOCUS-THUMB-NEAREST-1`)
-- `PseudoElementTarget` gains the `Placeholder` variant. Migration: add a `PseudoElementTarget::Placeholder` arm to exhaustive matches. (`P7-PLACEHOLDER-PSEUDO-1`)
+- `#[non_exhaustive]` (see DESIGN): the enums `PseudoElementTarget` (new this release: `Placeholder`), `RuleOrigin`, `AnimatableProperty`, `CounterStyle`, `ScrollBehavior`, `Token`, `TokenizerErrorKind`, `DispatchError`, and the structs `Rule`, `StyleError`, `TokenizerError`, `ResolveCtx` (build it with `ResolveCtx::new`). CSS value and style-record types (`Value<T>`, `Display`, `Size`, `Length`, `TuiStyle`, `ComputedStyle`, …) stay exhaustive. Migration: add a wildcard arm to matches on these enums and `..` to struct patterns (`P7G-NON-EXHAUSTIVE-1`)
 
 ### Added — `rdom-style`
 
@@ -88,6 +86,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 ### Breaking — `rdom-css`
 
 - `WarningKind::UnsupportedCustomPropertyScope` is gone: `--name: value` is accepted under any selector and in `style="…"`, and rides on the rule as `TuiStyle::custom_properties`. `:root` declarations still also populate `Stylesheet::vars()`. Migration: drop the match arm; stylesheets that were strict-mode errors for a `--x` outside `:root` now parse. (`CSS-VARS-SCOPE-1`)
+- `ParseErrorKind` and `WarningKind` and the structs `ParseError`, `Warning`, `ParseResult`, `InlineParseResult` are `#[non_exhaustive]`. Migration: add a wildcard arm to matches on the enums and `..` to struct patterns (`P7G-NON-EXHAUSTIVE-1`)
 
 ### Fixed — `rdom-css`
 
@@ -97,6 +96,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 
 - **The full WHATWG named-character-reference table** (2 231 entries) replaces the ~100-entry subset, with HTML's longest-prefix matching and the 106 legacy no-semicolon names: `&amp`, `&copy`, `&nbsp` … now decode in text (and in attribute values unless followed by `=` or an alphanumeric, so `?a=1&copy=2` is unchanged). `&notit;` is `¬it;` as in browsers. Numeric references without `;` (`&#65`) also decode. Migration: write `&amp;` for a literal `&` in text that must not decode. (`PARSER-ENTITIES-1`)
 - `<vr>` is parsed as an ordinary element (it needs an end tag), not a void one. Migration: close `<vr>` with `</vr>`. (`PARSER-VOID-TAGS-1`)
+- `ParseError` is `#[non_exhaustive]`. Migration: add `..` to struct patterns (`P7G-NON-EXHAUSTIVE-1`)
 
 ### Breaking — `rdom-tui`
 
@@ -118,6 +118,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 - `App::new` now blinks the caret (530 ms). Migration: `.with_caret_blink(None)` keeps the steady caret (`P7-CARET-BLINK-1`)
 - The `App` now applies the document's `<style>` elements itself and keeps them live (HTML §4.2.6): editing a `<style>`'s text re-parses it, inserting / removing one adds / drops its rules, at the next frame; `App::style_element_warnings` lists their parse warnings. They cascade in tree order before the App's own sheets. Migration: drop the `extend_from_style_tags(&dom, &mut sheet)` call before `App::new` (it would apply the rules twice, and its copy goes stale on edits); keep it only for a cascade run without an `App` (`P7-LIVE-STYLE-1`)
 - `scroll_into_view()` / `scroll_into_view_with` now align per CSSOM View: `inline` defaults to `nearest` (was always left-aligned), every scroll container on the ancestor chain scrolls (was the nearest only), and the alignment is measured from the scrollport wherever it sits on screen (it was off by the container's own position). Migration: pass `ScrollIntoViewOptions::new().inline(ScrollLogicalPosition::Start)` for the old horizontal alignment. (`P7-SCROLL-INTO-VIEW-ALIGN-1`)
+- `#[non_exhaustive]` (see DESIGN): the enums `ScrollBehaviorOption`, `ScrollLogicalPosition`, `StyleSlot`, `PseudoSlot`, `AnimatedProp`, `AnimatedValue`, `TransitionEventKind`, `EditOutcome`, `UndoOutcome`, `ScrollbarPart`, `SetPropertyError`, and the structs `RouteOutcome`, `ScrollToOptions`, `CompletedFrame`, `ScrollbarHit`, `PresentationStyle`. Migration: add a wildcard arm to matches on these enums and `..` to struct patterns; build `ScrollToOptions` with the new `ScrollToOptions::new().left(x).top(y).behavior(b)` (`P7G-NON-EXHAUSTIVE-1`)
 
 ### Added — `rdom-tui`
 

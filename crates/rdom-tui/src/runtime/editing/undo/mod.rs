@@ -27,6 +27,7 @@ use crate::{TuiDom, TuiEvent};
 
 /// Result of an undo/redo attempt.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum UndoOutcome {
     /// The history moved one step (a mutation was applied and
     /// `input` fired).
