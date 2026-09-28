@@ -173,6 +173,27 @@ pub(crate) fn is_text_input<Ext>(dom: &rdom_core::Dom<Ext>, id: rdom_core::NodeI
     )
 }
 
+/// Whether `id` generates a box as far as `display` goes: neither it nor
+/// any ancestor has a computed `display: none` (CSS Display 3 §2.5 — the
+/// element and its descendants generate no boxes). `display` does not
+/// inherit, so the ancestors must be walked; the cascade still computes
+/// styles inside such a subtree and layout leaves their rects zeroed.
+/// O(depth). Elements never cascaded do not count as `none`.
+pub(crate) fn is_rendered(dom: &crate::TuiDom, id: rdom_core::NodeId) -> bool {
+    let mut cur = Some(id);
+    while let Some(n) = cur {
+        let node = dom.node(n);
+        if node
+            .computed()
+            .is_some_and(|c| c.display == crate::layout::Display::None)
+        {
+            return false;
+        }
+        cur = node.parent_node().map(|p| p.id());
+    }
+    true
+}
+
 /// The DOM Standard's "child text content" (§4.2): the concatenated
 /// data of `id`'s Text children, in tree order — not of deeper
 /// descendants. A `<style>` element's sheet, a `<textarea>`'s value, an

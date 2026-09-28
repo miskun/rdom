@@ -403,3 +403,24 @@ fn nested_containers_paint_the_element_at_the_top_of_the_outer_pane() {
     let line_top = app.dom().node(inner_8).tui_ext().unwrap().layout.y;
     assert_eq!(line_top, port_top);
 }
+
+/// `P7G-INTO-VIEW-NONE-1`, CSSOM View §5.2 step 1: a descendant of a
+/// `display: none` element has no box, so `scrollIntoView` returns —
+/// the rect layout leaves on it (zeroed) is no position to scroll to.
+#[test]
+fn a_child_of_a_display_none_parent_does_not_scroll() {
+    let (mut app, pane, _, tall) = vpane();
+    let child = line(app.dom_mut(), tall, "inside tall");
+    app.advance(0).unwrap();
+    assert!(
+        app.dom().node(child).tui_ext().unwrap().layout.height > 0,
+        "laid out while shown"
+    );
+    app.dom_mut()
+        .set_attribute(tall, "style", "display: none")
+        .unwrap();
+    scrolled(&mut app, pane, 0, 10);
+    into_view(&mut app, child, block(Start));
+    app.advance(0).unwrap();
+    assert_eq!(top(&app, pane), 10, "no box, no scroll");
+}

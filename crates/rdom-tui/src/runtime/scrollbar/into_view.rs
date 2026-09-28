@@ -24,22 +24,21 @@ use rdom_core::NodeId;
 
 use super::scroll::max_offsets;
 use crate::TuiDom;
-use crate::layout::{Display, LayoutRect, Overflow};
+use crate::layout::{LayoutRect, Overflow};
 use crate::node::TuiNodeExt;
 use crate::runtime::smooth_scroll::{ScrollIntoViewOptions, ScrollLogicalPosition, perform_scroll};
 
 /// Scroll every scroll container on `element`'s ancestor chain so it is
 /// aligned per `options`. No-op for an element that is not rendered
-/// (`display: none`, or never laid out).
+/// (it or an ancestor is `display: none`, or it was never cascaded).
 pub(crate) fn scroll_element_into_view(
     dom: &mut TuiDom,
     element: NodeId,
     options: ScrollIntoViewOptions,
 ) {
-    let rendered = dom
-        .node(element)
-        .computed()
-        .is_some_and(|c| c.display != Display::None);
+    // CSSOM View §5.2 step 1: no box → return. An element never
+    // cascaded has none either.
+    let rendered = dom.node(element).computed().is_some() && crate::node::is_rendered(dom, element);
     let Some(mut rect) = dom.node(element).tui_ext().map(|e| e.layout) else {
         return;
     };

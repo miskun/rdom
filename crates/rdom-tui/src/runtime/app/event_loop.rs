@@ -198,7 +198,7 @@ impl<B: Backend> App<B> {
     /// drivers that don't run the live [`run`](Self::run) loop (which syncs to
     /// wall time). Fires timeouts, intervals, rAF, and microtasks whose deadline
     /// falls within the elapsed window, services drag autoscroll, and runs the
-    /// closures queued by [`AppHandle::inject`], exactly as the loop would —
+    /// closures queued by [`AppHandle::inject`](super::AppHandle::inject), exactly as the loop would —
     /// making timer-driven runtime behavior (animations, autoscroll) and
     /// handler-queued work (stylesheet intents) deterministically testable.
     /// `advance(0)` finishes the current loop iteration without moving the
