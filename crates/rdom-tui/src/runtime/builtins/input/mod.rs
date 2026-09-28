@@ -40,15 +40,7 @@ use crate::render::paint_pass::ChromeText;
 /// child (typically a programmatically-created `<input>` that
 /// wasn't routed through [`seed_all`] or [`set_value`]).
 pub fn value(dom: &TuiDom, input: NodeId) -> String {
-    let mut out = String::new();
-    for child in dom.node(input).child_nodes() {
-        if child.node_type() == rdom_core::NodeType::Text
-            && let Some(s) = child.node_value()
-        {
-            out.push_str(s);
-        }
-    }
-    out
+    crate::node::child_text(dom, input)
 }
 
 /// Write the value of an `<input>` programmatically. Sets the
@@ -88,7 +80,7 @@ pub fn seed_all(dom: &mut TuiDom) {
         // checkbox / radio / submit button has no editable text
         // surface. What it displays — a toggle's glyph, a button's
         // `[ label ]` — comes from a UA `::before` content rule.
-        if !is_text_family_input(dom, id) {
+        if !crate::node::is_text_input(dom, id) {
             continue;
         }
         let want = dom
@@ -131,7 +123,7 @@ pub fn seed_all(dom: &mut TuiDom) {
 pub(crate) fn keeps_default_value(dom: &TuiDom, id: NodeId) -> bool {
     match dom.node(id).tag_name() {
         Some("textarea") => true,
-        Some("input") => is_text_family_input(dom, id) || is_range_input(dom, id),
+        Some("input") => crate::node::is_text_input(dom, id) || is_range_input(dom, id),
         _ => false,
     }
 }
@@ -234,7 +226,7 @@ pub fn ensure_seeded(dom: &mut TuiDom, id: NodeId) {
         return;
     }
     match dom.node(id).tag_name() {
-        Some("input") if is_text_family_input(dom, id) => {
+        Some("input") if crate::node::is_text_input(dom, id) => {
             let want = dom
                 .node(id)
                 .get_attribute("value")
@@ -247,10 +239,6 @@ pub fn ensure_seeded(dom: &mut TuiDom, id: NodeId) {
         }
         _ => {}
     }
-}
-
-fn is_text_family_input(dom: &TuiDom, id: NodeId) -> bool {
-    crate::node::is_text_input(dom, id)
 }
 
 /// Mirror the input's current text content into its `value`

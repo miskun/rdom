@@ -37,7 +37,7 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
-use rdom_core::{Dom, Mutation, MutationObserver, NodeId, NodeType};
+use rdom_core::{Dom, Mutation, MutationObserver, NodeId};
 use rdom_css::Warning;
 use rdom_style::Stylesheet;
 
@@ -86,7 +86,7 @@ impl StyleElements {
         let mut reparsed = false;
         let styles = dom.elements_by_tag("style");
         for &element in styles.ids() {
-            let source = child_text(dom, element);
+            let source = crate::node::child_text(dom, element);
             let reused = previous
                 .iter()
                 .position(|e| e.element == element && e.source == source)
@@ -117,20 +117,6 @@ impl StyleElements {
     pub(crate) fn warnings(&self) -> impl Iterator<Item = &Warning> {
         self.entries.iter().flat_map(|e| &e.warnings)
     }
-}
-
-/// HTML "child text content": the concatenated data of the element's
-/// Text children, in tree order.
-fn child_text(dom: &TuiDom, element: NodeId) -> String {
-    let mut out = String::new();
-    for child in dom.node(element).child_nodes() {
-        if child.node_type() == NodeType::Text
-            && let Some(s) = child.node_value()
-        {
-            out.push_str(s);
-        }
-    }
-    out
 }
 
 /// Marks [`StyleElements`] dirty on the mutations that can change a

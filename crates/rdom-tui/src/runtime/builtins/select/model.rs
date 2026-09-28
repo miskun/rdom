@@ -59,15 +59,7 @@ pub fn option_label(dom: &TuiDom, option: NodeId) -> String {
     if let Some(v) = dom.node(option).get_attribute("label") {
         return v.to_string();
     }
-    let mut text = String::new();
-    for child in dom.node(option).child_nodes() {
-        if child.node_type() == rdom_core::NodeType::Text
-            && let Some(s) = child.node_value()
-        {
-            text.push_str(s);
-        }
-    }
-    text
+    crate::node::child_text(dom, option)
 }
 
 // ── Tree traversal helpers ─────────────────────────────────────────

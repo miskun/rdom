@@ -173,6 +173,23 @@ pub(crate) fn is_text_input<Ext>(dom: &rdom_core::Dom<Ext>, id: rdom_core::NodeI
     )
 }
 
+/// The DOM Standard's "child text content" (§4.2): the concatenated
+/// data of `id`'s Text children, in tree order — not of deeper
+/// descendants. A `<style>` element's sheet, a `<textarea>`'s value, an
+/// `<input>`'s value (its text child) and an `<option>`'s label all read
+/// it.
+pub(crate) fn child_text<Ext>(dom: &rdom_core::Dom<Ext>, id: rdom_core::NodeId) -> String {
+    let mut out = String::new();
+    for child in dom.node(id).child_nodes() {
+        if child.node_type() == NodeType::Text
+            && let Some(s) = child.node_value()
+        {
+            out.push_str(s);
+        }
+    }
+    out
+}
+
 impl<'a> TuiNodeExt<'a> for NodeRef<'a, TuiExt> {
     fn tui_ext(&self) -> Option<&'a TuiExt> {
         self.ext()

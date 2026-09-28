@@ -87,16 +87,24 @@ impl<Ext: 'static> Dom<Ext> {
     /// color or the button types), a `<select>` or a `<textarea>`, with
     /// `required`.
     pub fn is_required_control(&self, id: NodeId) -> bool {
+        self.required_applies(id) && self.has_attribute(id, "required")
+    }
+
+    /// Whether the `required` attribute applies to `id` (HTML §4.10.5.3.4
+    /// and the per-state lists of §4.10.5.1): a `<select>`, a
+    /// `<textarea>`, or an `<input>` in any state but hidden, range,
+    /// color and the button types — the one list behind `:required` /
+    /// `:optional` and a backend's `valueMissing` check.
+    pub fn required_applies(&self, id: NodeId) -> bool {
         use InputTypeState as T;
-        let applies = match self.get_node(id).and_then(|n| n.tag_name()) {
+        match self.get_node(id).and_then(|n| n.tag_name()) {
             Some("select" | "textarea") => true,
             Some("input") => !matches!(
                 self.input_type_state(id),
                 Some(T::Hidden | T::Range | T::Color | T::Submit | T::Image | T::Reset | T::Button)
             ),
             _ => false,
-        };
-        applies && self.has_attribute(id, "required")
+        }
     }
 
     /// Whether `id` matches `:optional`: an `<input>`, `<select>` or

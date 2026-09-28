@@ -31,6 +31,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 - `Dom::is_placeholder_shown(id)` — the `:placeholder-shown` test as a method. (`P7-PLACEHOLDER-PSEUDO-1`)
 - `Dom::selection_serial` — a counter that advances on every actual selection change, so a backend can tell its own caret moves from foreign ones (`P7-UNDO-COALESCE-1`)
 - `ComplexSelector::specificity()` and `SelectorList::max_specificity()` return the Selectors 4 §17 `(A, B, C)` specificity; rdom-style's `Specificity::of_complex` is built on them (`P7G-NON-EXHAUSTIVE-1`)
+- `Dom::required_applies(id)`: whether the `required` attribute applies to a control (HTML §4.10.5.3.4) — the one list behind `:required` / `:optional` and a backend's `valueMissing` check. (`P7G-DEDUPE-HELPERS-1`)
 
 ### Changed — `rdom-core`
 

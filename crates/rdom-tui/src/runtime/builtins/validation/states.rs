@@ -87,9 +87,10 @@ fn input_states(dom: &TuiDom, id: NodeId, s: &mut ValidityState, groups: Option<
                 None => group_missing(dom, &dom.radio_group(id)),
             }
         }
-        // `required` does not apply; a range is sanitized into range and
-        // onto a step, so it suffers none of the value states.
-        T::Hidden | T::Range | T::Color | T::Submit | T::Image | T::Reset | T::Button => {}
+        // `required` does not apply (`Dom::required_applies`: hidden,
+        // range, color, the buttons), nor does any other value state — a
+        // range is sanitized into range and onto a step.
+        _ if !dom.required_applies(id) => {}
         _ => {
             let value = input::value(dom, id);
             s.value_missing = required(dom, id) && value.is_empty();

@@ -114,7 +114,7 @@ pub fn install(dom: &mut TuiDom) {
         if !no_mods || key.key != "Enter" {
             return;
         }
-        if !is_single_line_text_input(ctx.dom, focused) {
+        if !crate::node::is_text_input(ctx.dom, focused) {
             return;
         }
         let Some(form) = ctx.dom.form_owner(focused) else {
@@ -237,17 +237,7 @@ fn default_button(dom: &TuiDom, form: NodeId) -> Option<NodeId> {
 fn closest_form_button(dom: &TuiDom, id: NodeId) -> Option<NodeId> {
     let mut cur = Some(id);
     while let Some(n) = cur {
-        if dom.node(n).tag_name() == Some("button")
-            || matches!(
-                dom.input_type_state(n),
-                Some(
-                    InputTypeState::Submit
-                        | InputTypeState::Image
-                        | InputTypeState::Reset
-                        | InputTypeState::Button
-                )
-            )
-        {
+        if super::button::is_button_like(dom, n) {
             return Some(n);
         }
         cur = dom.node(n).parent_node().map(|p| p.id());
@@ -462,18 +452,12 @@ fn fire_reset(dom: &mut TuiDom, form: NodeId) -> bool {
     ev.event.default_prevented()
 }
 
-/// Single-line text-family input (`node::is_text_input`). Excludes
-/// `<textarea>` (multi-line, where Enter inserts a newline).
-fn is_single_line_text_input(dom: &TuiDom, id: NodeId) -> bool {
-    crate::node::is_text_input(dom, id)
-}
-
 /// The form's fields that block implicit submission (HTML §4.10.21.2):
 /// its owned single-line text inputs.
 fn count_text_inputs(dom: &TuiDom, form: NodeId) -> usize {
     dom.form_listed_elements(form)
         .into_iter()
-        .filter(|&id| is_single_line_text_input(dom, id))
+        .filter(|&id| crate::node::is_text_input(dom, id))
         .count()
 }
 
@@ -526,7 +510,8 @@ fn collect_entry(
                 // value is the `value` attribute or `""` (value mode
                 // default) — not the "Submit" default label browsers
                 // send (DIVERGENCES).
-                (_, Some(T::Submit | T::Reset | T::Button)) | (Some("button"), _) => {
+                // (`Image` returned above.)
+                _ if super::button::is_button_like(dom, id) => {
                     if submitter == Some(id) && button_action(dom, id) == ButtonAction::Submit {
                         let value = node.get_attribute("value").unwrap_or("").to_string();
                         out.push((name, value));
@@ -541,15 +526,7 @@ fn collect_entry(
                     out.push((name, crate::runtime::builtins::input::value(dom, id)));
                 }
                 (Some("textarea"), _) => {
-                    let mut text = String::new();
-                    for child in node.child_nodes() {
-                        if child.node_type() == rdom_core::NodeType::Text
-                            && let Some(s) = child.node_value()
-                        {
-                            text.push_str(s);
-                        }
-                    }
-                    out.push((name, text));
+                    out.push((name, crate::node::child_text(dom, id)));
                 }
                 (Some("select"), _) => {
                     // HTML §4.10.21.4: one (name, value) entry per
