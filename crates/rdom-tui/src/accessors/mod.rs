@@ -42,7 +42,7 @@ mod write;
 mod tests;
 
 pub use crate::runtime::smooth_scroll::{
-    ScrollBehaviorOption, ScrollIntoViewOptions, ScrollToOptions,
+    ScrollBehaviorOption, ScrollIntoViewOptions, ScrollLogicalPosition, ScrollToOptions,
 };
 pub use doc::TuiDocAccessors;
 
@@ -579,17 +579,21 @@ pub trait TuiAccessorsMut<'a> {
     /// offsets, with `options.behavior` as in [`Self::scroll_with`].
     fn scroll_by_with(&mut self, options: ScrollToOptions) -> Result<()>;
 
-    /// `Element.scrollIntoView()` (no options form). Walks up to
-    /// the nearest scrollable ancestor and adjusts its scroll
-    /// offsets so this element appears at the top-left of the
-    /// ancestor's content area. No-op when this element has no
-    /// scrollable ancestor. Behavior `auto`: animates under the
-    /// ancestor's `scroll-behavior: smooth`.
+    /// `Element.scrollIntoView()` — the no-argument form, i.e.
+    /// `{block: "start", inline: "nearest"}` with behavior `auto`
+    /// ([`ScrollIntoViewOptions::new`]). See
+    /// [`Self::scroll_into_view_with`].
     fn scroll_into_view(&mut self) -> Result<()>;
 
-    /// `Element.scrollIntoView(options)` — [`Self::scroll_into_view`]
-    /// with `options.behavior`. `block` / `inline` are not supported:
-    /// the alignment is always `start`.
+    /// `Element.scrollIntoView(options)` — CSSOM View §5.2: scroll
+    /// every scroll container on the ancestor chain, innermost first,
+    /// so this element is aligned per `options.block` (vertical) and
+    /// `options.inline` (horizontal), each scroll with
+    /// `options.behavior` (`auto` animates under the container's
+    /// `scroll-behavior: smooth`). The legacy
+    /// `scrollIntoView(alignToTop)` form is
+    /// `scroll_into_view_with(align_to_top.into())`. No-op for an
+    /// element that is not rendered or has no scroll container.
     fn scroll_into_view_with(&mut self, options: ScrollIntoViewOptions) -> Result<()>;
 
     /// CSSOM-style write handle to the element's inline

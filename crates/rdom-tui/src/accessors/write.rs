@@ -5,10 +5,7 @@
 use rdom_core::NodeId;
 
 use super::TuiAccessorsMut;
-use super::helpers::{
-    nearest_scrollable_ancestor, pre_scroll_offset_within, read_scroll_x, read_scroll_y,
-    set_select_value, write_boolean_attribute,
-};
+use super::helpers::{read_scroll_x, read_scroll_y, set_select_value, write_boolean_attribute};
 use crate::node::install_text_content;
 use crate::runtime::smooth_scroll::{ScrollIntoViewOptions, ScrollToOptions, perform_scroll};
 use crate::{Result, TuiExt};
@@ -217,12 +214,7 @@ impl<'a> TuiAccessorsMut<'a> for rdom_core::NodeMut<'a, TuiExt> {
 
     fn scroll_into_view_with(&mut self, options: ScrollIntoViewOptions) -> Result<()> {
         let id = self.id();
-        let dom = self.dom_mut();
-        let Some(ancestor) = nearest_scrollable_ancestor(dom, id) else {
-            return Ok(());
-        };
-        let (rel_x, rel_y) = pre_scroll_offset_within(dom, id, ancestor);
-        perform_scroll(dom, ancestor, rel_x, rel_y, options.behavior);
+        crate::runtime::scrollbar::scroll_element_into_view(self.dom_mut(), id, options);
         Ok(())
     }
 

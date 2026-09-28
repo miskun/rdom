@@ -282,6 +282,10 @@ pub struct TuiExt {
     /// `(scroll_x, scroll_y)` as the `App`'s last frame painted them
     /// (`runtime::scrollbar::painted`): a difference asks for a frame.
     pub(crate) painted_scroll: (usize, usize),
+    /// `(scroll_x, scroll_y)` as the last layout placed this box's
+    /// children with them: how far a later scroll has moved them since
+    /// (`runtime::scrollbar::into_view`).
+    pub(crate) laid_out_scroll: (usize, usize),
     /// Total content size (max of children's extents). Used to compute
     /// scrollbar size and thumb position.
     pub scroll_content_width: usize,

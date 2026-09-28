@@ -1664,7 +1664,7 @@ fn dom_with_scrollable_div() -> (TuiDom, NodeId) {
         ext.scroll_content_width = 200;
         ext.scroll_content_height = 100;
         // (scroll clamping reads `layout` / `scroll_content_*`, not
-        // overflow — overflow only gates `nearest_scrollable_ancestor`.)
+        // overflow — overflow only gates `scrollIntoView`'s container walk.)
     }
     (dom, div)
 }
@@ -1742,7 +1742,7 @@ fn scroll_into_view_scrolls_direct_parent() {
     {
         let mut nm = dom.node_mut(parent);
         let pe = nm.ext_mut().unwrap();
-        // `nearest_scrollable_ancestor` reads computed overflow now.
+        // `scrollIntoView` walks the containers by computed overflow.
         let mut computed = crate::style::ComputedStyle::initial();
         computed.overflow_x = Overflow::Auto;
         computed.overflow_y = Overflow::Auto;
@@ -1755,6 +1755,8 @@ fn scroll_into_view_scrolls_direct_parent() {
     {
         let mut nm = dom.node_mut(child);
         let ce = nm.ext_mut().unwrap();
+        // Rendered: an element never cascaded has no box to reveal.
+        ce.computed = Some(std::rc::Rc::new(crate::style::ComputedStyle::initial()));
         ce.layout.x = 0;
         ce.layout.y = 50;
     }

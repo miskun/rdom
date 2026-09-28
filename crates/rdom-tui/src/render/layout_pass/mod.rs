@@ -334,6 +334,10 @@ pub(super) fn layout_node(
         let _ = layout_children(dom, id, final_inner, &computed);
         record_scroll_content_size(dom, id, final_inner, &computed);
     }
+    // The offsets the children were just placed with.
+    if let Some(ext) = dom.node_mut(id).ext_mut() {
+        ext.laid_out_scroll = (ext.scroll_x, ext.scroll_y);
+    }
 }
 
 /// Walk `id`'s direct element children (transparently descending

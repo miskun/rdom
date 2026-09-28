@@ -85,69 +85,6 @@ pub(super) fn read_scroll_y(dom: &TuiDom, id: NodeId) -> i32 {
         .unwrap_or(0)
 }
 
-/// Walk up from `start` to find the nearest ancestor whose
-/// computed `overflow` is `Hidden`, `Scroll`, or `Auto` (the
-/// scrollable values). Returns `None` when no ancestor is
-/// scrollable — `scroll_into_view` becomes a no-op in that case,
-/// matching browser behavior.
-pub(super) fn nearest_scrollable_ancestor(dom: &TuiDom, start: NodeId) -> Option<NodeId> {
-    use crate::layout::Overflow;
-    use crate::node::TuiNodeExt;
-    let scrollable =
-        |o: Overflow| matches!(o, Overflow::Hidden | Overflow::Scroll | Overflow::Auto);
-    let mut cur = dom.node(start).parent_node().map(|p| p.id());
-    while let Some(id) = cur {
-        // Read the post-cascade overflow (per-axis): an ancestor is a
-        // scroll container if either axis is non-visible. (Was reading the
-        // raw `ext.overflow` field, which CSS overflow never populated.)
-        if let Some(c) = dom.node(id).computed()
-            && (scrollable(c.overflow_x) || scrollable(c.overflow_y))
-        {
-            return Some(id);
-        }
-        cur = dom.node(id).parent_node().map(|p| p.id());
-    }
-    None
-}
-
-/// Cumulative `(x, y)` position of `descendant` inside `ancestor`'s
-/// pre-scroll content area. Walks the parent chain from
-/// `descendant` up to (but not including) `ancestor`, summing each
-/// step's `ext.layout` position and undoing the scroll offset that
-/// the layout pass already applied at each parent, the ancestor
-/// included.
-pub(super) fn pre_scroll_offset_within(
-    dom: &TuiDom,
-    descendant: NodeId,
-    ancestor: NodeId,
-) -> (i32, i32) {
-    use crate::node::TuiNodeExt;
-    let (mut accum_x, mut accum_y) = (0i32, 0i32);
-    let mut cur = descendant;
-    while cur != ancestor {
-        let Some(ext) = dom.node(cur).tui_ext() else {
-            break;
-        };
-        accum_x += ext.layout.x;
-        accum_y += ext.layout.y;
-        let Some(parent) = dom.node(cur).parent_node() else {
-            break;
-        };
-        let parent_id = parent.id();
-        // The parent's own scroll offset was already applied when
-        // positioning `cur`. Undo it so the accumulator stays in
-        // pre-scroll coords — the final ancestor's too: the result is
-        // the scroll offset that brings `descendant` to its top-left,
-        // which does not depend on where it is scrolled now.
-        if let Some(parent_ext) = dom.node(parent_id).tui_ext() {
-            accum_x += parent_ext.scroll_x as i32;
-            accum_y += parent_ext.scroll_y as i32;
-        }
-        cur = parent_id;
-    }
-    (accum_x, accum_y)
-}
-
 /// `HTMLElement.isContentEditable` (HTML §6.8.1): walk ancestors
 /// through the inherit state (`Dom::content_editable_state` — keywords
 /// ASCII case-insensitive, an invalid value inherits):

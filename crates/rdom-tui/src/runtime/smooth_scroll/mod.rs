@@ -83,18 +83,52 @@ pub struct ScrollToOptions {
     pub behavior: ScrollBehaviorOption,
 }
 
+/// CSSOM View's `ScrollLogicalPosition` IDL enum: where
+/// [`ScrollIntoViewOptions`] aligns the element on one axis of each
+/// scroll container (§5.1 "determine the scroll-into-view position").
+/// rdom's writing mode is always horizontal-tb, left to right, so the
+/// block axis is vertical and the inline axis horizontal.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScrollLogicalPosition {
+    /// Align the element's start edge with the scrollport's.
+    Start,
+    /// Center the element in the scrollport.
+    Center,
+    /// Align the element's end edge with the scrollport's.
+    End,
+    /// Scroll as little as brings the element into view: nothing when
+    /// it is already fully visible (or covers the whole scrollport),
+    /// else align the nearer edge — the start edge of an element
+    /// larger than the scrollport.
+    Nearest,
+}
+
 /// CSSOM View `ScrollIntoViewOptions`, the argument of
-/// [`TuiAccessorsMut::scroll_into_view_with`](crate::TuiAccessorsMut::scroll_into_view_with).
-/// Only `behavior` is supported; `block` / `inline` alignment is always
-/// `start` (DIVERGENCES).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+/// [`TuiAccessorsMut::scroll_into_view_with`](crate::TuiAccessorsMut::scroll_into_view_with):
+/// `behavior`, and the alignment on the `block` (vertical) and
+/// `inline` (horizontal) axes. [`new`](Self::new) is the options
+/// dictionary's defaults, `{block: "start", inline: "nearest"}`;
+/// `From<bool>` is the legacy `scrollIntoView(alignToTop)` form.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct ScrollIntoViewOptions {
     pub behavior: ScrollBehaviorOption,
+    pub block: ScrollLogicalPosition,
+    pub inline: ScrollLogicalPosition,
+}
+
+impl Default for ScrollIntoViewOptions {
+    fn default() -> Self {
+        Self {
+            behavior: ScrollBehaviorOption::Auto,
+            block: ScrollLogicalPosition::Start,
+            inline: ScrollLogicalPosition::Nearest,
+        }
+    }
 }
 
 impl ScrollIntoViewOptions {
-    /// `{}` — behavior `auto`.
+    /// `{}` — behavior `auto`, block `start`, inline `nearest`.
     pub fn new() -> Self {
         Self::default()
     }
@@ -103,6 +137,32 @@ impl ScrollIntoViewOptions {
     pub fn behavior(mut self, behavior: ScrollBehaviorOption) -> Self {
         self.behavior = behavior;
         self
+    }
+
+    /// Set the `block` (vertical) alignment.
+    pub fn block(mut self, block: ScrollLogicalPosition) -> Self {
+        self.block = block;
+        self
+    }
+
+    /// Set the `inline` (horizontal) alignment.
+    pub fn inline(mut self, inline: ScrollLogicalPosition) -> Self {
+        self.inline = inline;
+        self
+    }
+}
+
+/// The legacy `scrollIntoView(alignToTop)` argument (CSSOM View §5.2
+/// step 3): `true` is `{block: "start", inline: "nearest"}`, `false`
+/// is `{block: "end", inline: "nearest"}`, both with behavior `auto`.
+impl From<bool> for ScrollIntoViewOptions {
+    fn from(align_to_top: bool) -> Self {
+        let block = if align_to_top {
+            ScrollLogicalPosition::Start
+        } else {
+            ScrollLogicalPosition::End
+        };
+        Self::new().block(block)
     }
 }
 

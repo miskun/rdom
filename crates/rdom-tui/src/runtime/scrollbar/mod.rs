@@ -20,6 +20,8 @@
 //! - `autoscroll.rs` — edge-zone autoscroll for captured drags
 //!   (`resolve_autoscroll_container`, `autoscroll_step_for`,
 //!   `autoscroll_step`).
+//! - `into_view.rs` — `Element.scrollIntoView` over every scroll
+//!   container on the ancestor chain (`scroll_element_into_view`).
 //! - `reveal.rs` — scroll the caret or a node's region into view
 //!   (`reveal_caret`, `service_caret_reveal`, `scroll_into_view`).
 //! - `geometry.rs` — padding-box scroll metrics and scroll-container
@@ -44,6 +46,9 @@ mod autoscroll;
 mod drag;
 mod geometry;
 mod hit;
+mod into_view;
+#[cfg(test)]
+mod into_view_tests;
 mod keys;
 mod painted;
 mod reveal;
@@ -53,6 +58,7 @@ pub(crate) use autoscroll::{autoscroll_step, autoscroll_step_for, resolve_autosc
 pub(crate) use drag::{ScrollbarDrag, cancel_drag, end_drag, extend_drag, handle_mousedown};
 pub(crate) use hit::hit;
 pub use hit::{ScrollbarHit, ScrollbarPart};
+pub(crate) use into_view::scroll_element_into_view;
 pub use keys::SCROLL_FOCUS_ATTR;
 pub(crate) use keys::{handle_scroll_key, scroll_focus_target};
 pub(crate) use painted::{moved_since_paint, note_painted};

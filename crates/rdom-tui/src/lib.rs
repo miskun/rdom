@@ -63,8 +63,8 @@ pub mod style;
 pub mod tui_event;
 
 pub use accessors::{
-    ScrollBehaviorOption, ScrollIntoViewOptions, ScrollToOptions, TuiAccessors, TuiAccessorsMut,
-    TuiDocAccessors,
+    ScrollBehaviorOption, ScrollIntoViewOptions, ScrollLogicalPosition, ScrollToOptions,
+    TuiAccessors, TuiAccessorsMut, TuiDocAccessors,
 };
 pub use cssom::{extend_from_style_tags, seed_inline_styles};
 pub use tui_event::{TuiDispatchExt, TuiEvent};
