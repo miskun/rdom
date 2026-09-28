@@ -1889,3 +1889,94 @@ fn a_submit_listener_that_disconnects_the_form_stops_the_default_action() {
     );
     assert!(app.dom().node(d).has_attribute("open"), "dialog stays open");
 }
+
+/// HTML §4.10.5.1.20 Image Button state: an `<input type=image>` is a
+/// submit button; as the submitter it contributes `name.x` / `name.y`,
+/// the selected coordinate — `(0, 0)` in rdom, which has no image to
+/// measure a click against (DIVERGENCES) — and never its `value`.
+#[test]
+fn clicking_an_image_button_submits_its_coordinates() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let form = dom.create_element("form");
+    dom.append_child(root, form).unwrap();
+    named(&mut dom, form, "input", &[("name", "q"), ("value", "rust")]);
+    let image = named(
+        &mut dom,
+        form,
+        "input",
+        &[
+            ("type", "image"),
+            ("name", "go"),
+            ("alt", "Go"),
+            ("value", "ignored"),
+        ],
+    );
+    let mut app = test_app(dom, Stylesheet::new());
+    let log = record_submissions(&mut app, form);
+    use crate::accessors::TuiAccessorsMut;
+    app.dom_mut().node_mut(image).click();
+    assert_eq!(
+        *log.borrow(),
+        vec![(
+            Some(image),
+            pairs(&[("q", "rust"), ("go.x", "0"), ("go.y", "0")])
+        )]
+    );
+}
+
+/// Without a `name` the coordinates are submitted as plain `x` / `y`;
+/// an image button that is not the submitter contributes nothing.
+#[test]
+fn an_unnamed_image_button_submits_x_and_y_and_only_as_the_submitter() {
+    let mut ids = Vec::new();
+    let mut form_id = None;
+    let (app, _reset) = form_app(|dom, form| {
+        form_id = Some(form);
+        ids.push(named(dom, form, "input", &[("type", "image")]));
+        ids.push(named(
+            dom,
+            form,
+            "input",
+            &[("type", "submit"), ("name", "s")],
+        ));
+    });
+    let form = form_id.unwrap();
+    let dom = app.dom();
+    assert_eq!(
+        form::collect_with_submitter(dom, form, Some(ids[0])),
+        pairs(&[("x", "0"), ("y", "0")])
+    );
+    assert_eq!(
+        form::collect_with_submitter(dom, form, Some(ids[1])),
+        pairs(&[("s", "")])
+    );
+    assert_eq!(form::collect(dom, form), pairs(&[]));
+}
+
+/// The form's default button can be an image button: Enter in its text
+/// field submits with it (HTML §4.10.21.2).
+#[test]
+fn enter_submits_with_a_default_image_button() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let form = dom.create_element("form");
+    dom.append_child(root, form).unwrap();
+    let q = named(&mut dom, form, "input", &[("name", "q"), ("value", "rust")]);
+    let image = named(
+        &mut dom,
+        form,
+        "input",
+        &[("type", "image"), ("name", "go")],
+    );
+    let mut app = test_app(dom, Stylesheet::new());
+    let log = record_submissions(&mut app, form);
+    press_enter_in(&mut app, q);
+    assert_eq!(
+        *log.borrow(),
+        vec![(
+            Some(image),
+            pairs(&[("q", "rust"), ("go.x", "0"), ("go.y", "0")])
+        )]
+    );
+}

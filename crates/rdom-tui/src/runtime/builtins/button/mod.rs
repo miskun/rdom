@@ -94,14 +94,15 @@ pub fn install(dom: &mut TuiDom) {
 }
 
 /// True for `<button>` and for the button-like `<input>` types
-/// (`submit`, `reset`, `button`). These three input types render
-/// as buttons in HTML and share its keyboard activation.
+/// (`submit`, `image`, `reset`, `button`). These input types render
+/// as buttons (an image button, having no image in rdom, as one
+/// labelled with its `alt`) and share its keyboard activation.
 pub(super) fn is_button_like(dom: &TuiDom, id: rdom_core::NodeId) -> bool {
     use rdom_core::InputTypeState as T;
     dom.node(id).tag_name() == Some("button")
         || matches!(
             dom.input_type_state(id),
-            Some(T::Submit | T::Reset | T::Button)
+            Some(T::Submit | T::Image | T::Reset | T::Button)
         )
 }
 

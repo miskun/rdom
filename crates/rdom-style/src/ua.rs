@@ -484,7 +484,7 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
         // rule so they render with the same text affordance,
         // matching browsers' "unknown type → text" behavior.
         (
-            "input:not([type=button]):not([type=submit]):not([type=reset]):not([type=checkbox]):not([type=radio]):not([type=range]):not([type=hidden])",
+            "input:not([type=button]):not([type=submit]):not([type=image]):not([type=reset]):not([type=checkbox]):not([type=radio]):not([type=range]):not([type=hidden])",
             TuiStyle::new()
                 .padding(Padding::new(0, 1, 0, 1))
                 .bg(FIELD_BG),
@@ -556,7 +556,7 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
         // `width: auto` undoes the text-field `input { width: 20 }`
         // above, as for the toggles: the box hugs `[ label ]`.
         (
-            "input[type=button], input[type=submit], input[type=reset]",
+            "input[type=button], input[type=submit], input[type=image], input[type=reset]",
             TuiStyle::new()
                 .display(Display::InlineBlock)
                 .width(Size::Auto)
@@ -592,8 +592,23 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
             "input[type=reset]:not([value])::before",
             TuiStyle::new().content(Content::Str("[ Reset".into())),
         ),
+        // An image button (HTML §4.10.5.1.20) has no image to show in a
+        // terminal; browsers show a missing image's `alt` text, so it is
+        // a button labelled with `alt` — "Submit" without one, the
+        // UA-defined label HTML allows (`P7G-INPUT-IMAGE-1`).
         (
-            "button::after, input[type=button]::after, input[type=submit]::after, input[type=reset]::after",
+            "input[type=image]::before",
+            TuiStyle::new().content(Content::Concat(vec![
+                Content::Str("[ ".into()),
+                Content::Attr("alt".into()),
+            ])),
+        ),
+        (
+            "input[type=image]:not([alt])::before",
+            TuiStyle::new().content(Content::Str("[ Submit".into())),
+        ),
+        (
+            "button::after, input[type=button]::after, input[type=submit]::after, input[type=image]::after, input[type=reset]::after",
             TuiStyle::new().content(Content::Str(" ]".into())),
         ),
         // ── Focus indicator: background tint, scoped to atomic controls ──
@@ -1119,7 +1134,10 @@ mod tests {
         // list is net 0.
         // 146: `::placeholder` (P7-PLACEHOLDER-PSEUDO-1) takes the
         // placeholder color in a 2-selector rule (+2).
-        assert_eq!(ua.len(), 146);
+        // 150: `<input type=image>` (P7G-INPUT-IMAGE-1) joins the button
+        // family's box and `::after` lists (+2) and gets its `alt` /
+        // default `::before` labels (+2).
+        assert_eq!(ua.len(), 150);
         let disabled = ua
             .iter()
             .find(|r| r.source_text == ":disabled")
@@ -1327,6 +1345,7 @@ mod tests {
             "button",
             "input[type=button]",
             "input[type=submit]",
+            "input[type=image]",
             "input[type=reset]",
         ] {
             let r = ua

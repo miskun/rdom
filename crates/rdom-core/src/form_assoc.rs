@@ -90,16 +90,19 @@ impl<Ext> Dom<Ext> {
         out
     }
 
-    /// Whether `id` is a *submit button* (HTML §4.10.6, §4.10.5.1.19): a
-    /// `<button>` whose `type` is missing, invalid or `submit`, or an
-    /// `<input type="submit">`. `type` keywords match ASCII
-    /// case-insensitively (§2.3.3).
+    /// Whether `id` is a *submit button* (HTML §4.10.6, §4.10.5.1.19–20):
+    /// a `<button>` whose `type` is missing, invalid or `submit`, or an
+    /// `<input type="submit">` / `<input type="image">`. `type` keywords
+    /// match ASCII case-insensitively (§2.3.3).
     pub fn is_submit_button(&self, id: NodeId) -> bool {
         match self.get_node(id).and_then(|n| n.tag_name()) {
             Some("button") => !self.get_attribute(id, "type").is_some_and(|t| {
                 t.eq_ignore_ascii_case("reset") || t.eq_ignore_ascii_case("button")
             }),
-            Some("input") => self.input_type_state(id) == Some(InputTypeState::Submit),
+            Some("input") => matches!(
+                self.input_type_state(id),
+                Some(InputTypeState::Submit | InputTypeState::Image)
+            ),
             _ => false,
         }
     }
@@ -272,6 +275,26 @@ mod tests {
         assert!(!dom.is_submit_button(upper_reset));
         assert!(!dom.is_submit_button(mixed_button));
         assert!(dom.is_submit_button(upper_submit_button));
+    }
+
+    /// HTML §4.10.5.1.20: the Image Button state is a submit button,
+    /// and its `formaction` / `formmethod` overrides apply.
+    #[test]
+    fn an_image_input_is_a_submit_button() {
+        let mut dom: Dom = Dom::new();
+        let root = dom.root();
+        let form = el(&mut dom, root, "form", &[("method", "get")]);
+        let image = el(
+            &mut dom,
+            form,
+            "input",
+            &[("type", "Image"), ("formmethod", "post")],
+        );
+        assert!(dom.is_submit_button(image));
+        assert_eq!(
+            dom.submit_detail(form, Some(image)).method,
+            FormMethod::Post
+        );
     }
 
     #[test]

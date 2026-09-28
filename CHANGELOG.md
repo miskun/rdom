@@ -36,6 +36,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 
 - `compare_document_position`, `compare_boundary_points` and `common_ancestor` no longer allocate: a depth walk replaces the two materialized ancestor paths. Selection paint called this twice per text node per frame. (`CORE-DOCPOS-ALLOC-1`)
 - Attribute-selector matching no longer allocates: the HTML case-insensitive attribute list is a `match` instead of a linear scan of 46 names, and `=`, `~=`, `|=`, `^=`, `$=`, `*=` compare ASCII-case-insensitively (or exactly) in place instead of lowercasing both strings — `|=` included, which formatted a `"{want}-"` string on every test. Matching results are unchanged. (`P7G-ATTR-CI-FAST-1`)
+- `Dom::is_submit_button` accepts `<input type=image>` (HTML §4.10.5.1.20: the Image Button state is a submit button), so its `formaction` / `formmethod` / … overrides apply and it can be a form's default button (`P7G-INPUT-IMAGE-1`)
 
 ### Fixed — `rdom-core`
 
@@ -139,6 +140,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 - `ScrollIntoViewOptions` gains `block` / `inline` (`ScrollLogicalPosition`: `Start` / `Center` / `End` / `Nearest`, defaults `start` / `nearest`) and `From<bool>` for the legacy `scrollIntoView(alignToTop)` form; `scroll_into_view*` now scrolls every scroll container on the ancestor chain (CSSOM View §5.2). (`P7-SCROLL-INTO-VIEW-ALIGN-1`)
 - `DirtyTracker::set_sibling_combinators` and `style::dirty_tracker::uses_sibling_combinators`: a standalone tracker dirties an element's siblings on its state changes while the sheets may use `+` / `~` (the default); tell it they do not to skip that work (`P7G-ROUTE-REDRAW-1`)
 - Re-exports `InputTypeState`, `ContentEditableState`, `ValidityHook` and `SelectionSerial` from rdom-core, next to `FormMethod` / `FormEnctype` (`P7G-API-NAMES-1`)
+- `<input type=image>` is a submit button labelled with its `alt` text (`Submit` without one): clicking it, Enter / Space on it, or implicit submission with it as the default button submits the form, and `form::collect_with_submitter` gives it `name.x=0` / `name.y=0` (`x` / `y` without a name) (`P7G-INPUT-IMAGE-1`)
 
 ### Changed — `rdom-tui`
 

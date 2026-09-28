@@ -346,3 +346,19 @@ fn a_click_on_the_label_activates_the_submit_input() {
     }
     assert_eq!(count.get(), 6, "click at x=6 is past the box");
 }
+
+/// HTML §4.10.5.1.20: with no image to show, an image button is a
+/// button labelled with its `alt` text (what browsers show for a
+/// missing image), "Submit" without one.
+#[test]
+fn image_input_paints_its_alt_text_as_the_label() {
+    let (mut dom, inp) = input_button("image", Some("ignored"));
+    dom.set_attribute(inp, "alt", "Go").unwrap();
+    assert_eq!(painted_row(&mut dom), "[ Go ]");
+}
+
+#[test]
+fn alt_less_image_input_paints_the_default_submit_label() {
+    let (mut dom, _) = input_button("image", None);
+    assert_eq!(painted_row(&mut dom), "[ Submit ]");
+}

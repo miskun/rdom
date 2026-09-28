@@ -3,7 +3,8 @@
 //! ## Contract (from MDN)
 //!
 //! - **Submit triggers**:
-//!   - Click on `<input type="submit">`, `<button type="submit">`,
+//!   - Click on `<input type="submit">`, `<input type="image">`,
+//!     `<button type="submit">`,
 //!     or `<button>` without a `type` attribute (HTML default for
 //!     buttons in a form is "submit").
 //!   - **Implicit submission** (HTML §4.10.21.2): Enter in a
@@ -172,7 +173,9 @@ pub fn collect(dom: &TuiDom, form: NodeId) -> Vec<(String, String)> {
 /// the submitter, in tree order, when it is a submit button (`<button>`
 /// with a missing / invalid / `submit` type, `<input type=submit>`) that
 /// has a non-empty `name` and is not disabled; its value is its `value`
-/// attribute, or `""`. Any other button never contributes.
+/// attribute, or `""`. An image button submitter contributes `name.x` /
+/// `name.y` (`x` / `y` without a name) instead, both `"0"`. Any other
+/// button never contributes.
 ///
 /// A `submit` handler passes the event's submitter:
 /// `ctx.event.detail.as_submit().and_then(|s| s.submitter)`.
@@ -237,7 +240,12 @@ fn closest_form_button(dom: &TuiDom, id: NodeId) -> Option<NodeId> {
         if dom.node(n).tag_name() == Some("button")
             || matches!(
                 dom.input_type_state(n),
-                Some(InputTypeState::Submit | InputTypeState::Reset | InputTypeState::Button)
+                Some(
+                    InputTypeState::Submit
+                        | InputTypeState::Image
+                        | InputTypeState::Reset
+                        | InputTypeState::Button
+                )
             )
         {
             return Some(n);
@@ -478,6 +486,23 @@ fn collect_entry(
 ) {
     use InputTypeState as T;
     let node = dom.node(id);
+    // HTML §4.10.21.4 step 5.5: an image button contributes only as the
+    // submitter, as `name.x` / `name.y` (plain `x` / `y` without a
+    // name) holding its selected coordinate, never its `value`. rdom has
+    // no image to measure the activation point against, so the
+    // coordinate is (0, 0) — what HTML gives a keyboard or scripted
+    // activation (DIVERGENCES).
+    if dom.input_type_state(id) == Some(T::Image) {
+        if submitter == Some(id) && !dom.is_actually_disabled(id) {
+            let prefix = match node.get_attribute("name") {
+                Some(name) if !name.is_empty() => format!("{name}."),
+                _ => String::new(),
+            };
+            out.push((format!("{prefix}x"), "0".to_string()));
+            out.push((format!("{prefix}y"), "0".to_string()));
+        }
+        return;
+    }
     if !dom.is_actually_disabled(id) {
         let name = node.get_attribute("name").unwrap_or("").to_string();
         if !name.is_empty() {
