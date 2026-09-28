@@ -119,3 +119,59 @@ fn seed_inline_style_important_bit_propagates() {
     let inline = dom.node(div).inline_style().unwrap();
     assert!(inline.important.contains(ImportantMask::FG));
 }
+
+// ── P7G-INLINE-STYLE-SEED-1: the App seeds mount-time inline styles ──
+
+/// Parse `markup` into a fresh `TuiDom` (optionally seeding its inline
+/// styles first), mount it in an `App` and draw one frame; returns the
+/// App and the markup's `<p>`.
+fn mounted(
+    markup: &str,
+    seed_first: bool,
+) -> (
+    rdom_tui::runtime::app::App<rdom_tui::render::TestBackend>,
+    rdom_tui::NodeId,
+) {
+    use rdom_tui::render::{Terminal, TestBackend};
+    use rdom_tui::runtime::app::App;
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    rdom_parser::parse_into(&mut dom, markup, root).expect("markup parses");
+    if seed_first {
+        assert!(seed_inline_styles(&mut dom).is_empty());
+    }
+    let p = dom
+        .query_selector_in(root, "p")
+        .unwrap()
+        .expect("markup has a <p>");
+    let terminal = Terminal::new(TestBackend::new(20, 3)).unwrap();
+    let mut app = App::with_backend(dom, rdom_tui::Stylesheet::new(), terminal).unwrap();
+    app.draw_if_dirty().unwrap();
+    (app, p)
+}
+
+fn computed_fg(
+    app: &rdom_tui::runtime::app::App<rdom_tui::render::TestBackend>,
+    id: rdom_tui::NodeId,
+) -> Color {
+    app.dom().node(id).computed().expect("cascaded").fg
+}
+
+#[test]
+fn an_inline_style_in_parsed_markup_applies_under_the_app_without_seeding() {
+    let (app, p) = mounted(r#"<p style="color: red">hi</p>"#, false);
+    assert_eq!(computed_fg(&app, p), Color::Rgb(255, 0, 0));
+}
+
+#[test]
+fn seeding_before_the_app_does_not_change_the_result() {
+    let markup = r#"<p style="color: red; --x: 1">hi</p>"#;
+    let (unseeded, p) = mounted(markup, false);
+    let (seeded, q) = mounted(markup, true);
+    assert_eq!(computed_fg(&seeded, q), Color::Rgb(255, 0, 0));
+    assert_eq!(
+        seeded.dom().node(q).inline_style(),
+        unseeded.dom().node(p).inline_style(),
+        "seeding twice applies the declarations once"
+    );
+}

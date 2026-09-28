@@ -15,10 +15,12 @@
 //!   `TuiExt::inline_style` slot.
 //!
 //! Both are one-shot snapshots. An [`App`](crate::runtime::App) needs
-//! neither for later changes: it keeps `<style>` sheets live itself
-//! (`cssom::style_elements`) and the CSSOM observer re-parses
-//! `style="…"` on every write. `seed_inline_styles` still seeds the
-//! attributes present before `App::new`.
+//! neither: it keeps `<style>` sheets live itself
+//! (`cssom::style_elements`), seeds the `style="…"` attributes present
+//! at mount, and the CSSOM observer re-parses `style="…"` on every
+//! later write (`P7G-INLINE-STYLE-SEED-1`). Calling
+//! `seed_inline_styles` before `App::new` is optional — it is
+//! idempotent, and it is how to get the mount-time parse warnings.
 //!
 //! ## Layering
 //!
@@ -113,10 +115,13 @@ fn collect_text_content(dom: &TuiDom, id: NodeId) -> String {
 /// Returns the warnings collected from every inline parse,
 /// concatenated in document order.
 ///
-/// M1 limitation: this is a one-shot pass run before `App::new`.
-/// Mutating the `style` attribute later does not re-trigger the
-/// parse — apps that need that should call `seed_inline_styles`
-/// again or use the typed `set_inline_style` API.
+/// Idempotent: each element's slot is *replaced* by the parse of its
+/// current attribute, so a second call changes nothing. `App::build`
+/// runs it (discarding the warnings — call it yourself first to see
+/// them), and the CSSOM observer keeps the slots in step with later
+/// `style` writes. Call it directly only for a `TuiDom` cascaded
+/// without an `App`, whose `style` attributes were set before
+/// `cssom::install_default_observers`.
 pub fn seed_inline_styles(dom: &mut TuiDom) -> Vec<Warning> {
     let mut warnings = Vec::new();
     let candidates = collect_styled_elements(dom);
@@ -131,17 +136,31 @@ pub fn seed_inline_styles(dom: &mut TuiDom) -> Vec<Warning> {
     warnings
 }
 
+/// Every node carrying a `style` attribute, in tree order: a pre-order
+/// walk over the parent / sibling links — no recursion, so a very deep
+/// tree cannot overflow the stack at mount.
 fn collect_styled_elements(dom: &TuiDom) -> Vec<NodeId> {
     let mut out = Vec::new();
-    walk_styled(dom, dom.root(), &mut out);
+    let root = dom.root();
+    let mut cur = Some(root);
+    while let Some(id) = cur {
+        let node = dom.node(id);
+        if node.has_attribute("style") {
+            out.push(id);
+        }
+        cur = node.first_child().map(|c| c.id()).or_else(|| {
+            let mut up = Some(node);
+            while let Some(n) = up {
+                if n.id() == root {
+                    return None;
+                }
+                if let Some(next) = n.next_sibling() {
+                    return Some(next.id());
+                }
+                up = n.parent_node();
+            }
+            None
+        });
+    }
     out
-}
-
-fn walk_styled(dom: &TuiDom, id: NodeId, out: &mut Vec<NodeId>) {
-    if dom.node(id).has_attribute("style") {
-        out.push(id);
-    }
-    for child in dom.node(id).child_nodes() {
-        walk_styled(dom, child.id(), out);
-    }
 }

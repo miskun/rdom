@@ -3,10 +3,11 @@
 //! elements, and a `:root { --var: … }` block referenced via
 //! `var(--name)` in author rules.
 //!
-//! The demo parses an HTML-ish template via `rdom-parser`, then
-//! calls `rdom_tui::seed_inline_styles` before handing the populated
-//! `Dom<TuiExt>` to `App::run`, which applies the `<style>` block
-//! itself (and keeps it live). From there the cascade resolves
+//! The demo parses an HTML-ish template via `rdom-parser` and hands
+//! the populated `Dom<TuiExt>` to `App::run`, which applies the
+//! `<style>` block and the inline `style="…"` attributes itself (and
+//! keeps both live); the optional `rdom_tui::seed_inline_styles` call
+//! first only reports the inline parse warnings. From there the cascade resolves
 //! var references, applies `!important` precedence, and paints.
 //!
 //! Press Ctrl-C to exit.
@@ -85,6 +86,9 @@ fn main() -> io::Result<()> {
     // The App applies the template's `<style>` blocks itself, and keeps
     // them live; `App::style_element_warnings` lists their parse warnings.
     let sheet = Stylesheet::new();
+    // Optional: the App seeds the inline `style="…"` attributes itself;
+    // calling `seed_inline_styles` first (it is idempotent) is how to
+    // see their parse warnings.
     let inline_warnings = seed_inline_styles(&mut dom);
 
     if !inline_warnings.is_empty() {

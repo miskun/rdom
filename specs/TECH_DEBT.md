@@ -13,7 +13,6 @@ None.
 These won't be paid down — they reflect deliberate architectural choices.
 
 - **`D-M1-1` — `from_css` is a free function in `rdom-css`, not `impl Stylesheet`.** Original draft proposed inherent methods on `Stylesheet`. Couldn't ship — `rdom-tui` already depends on `rdom-css` for the inline-style cascade rung; making the inverse import work would require either a cycle or splitting `Stylesheet` to a third crate.
-- **`D-M1-2` — inline-style seeding is a free function called explicitly**, not an auto-run in `App::build`. Apps call `seed_inline_styles(&mut dom)` between `parse_into` and `App::new` (later `style="…"` writes are live through the CSSOM observer). `<style>` elements no longer need a call: the `App` keeps their sheets live (`P7-LIVE-STYLE-1`); `extend_from_style_tags` remains as the snapshot form for a cascade without an `App`.
 
 ## How to use this file
 

@@ -167,6 +167,9 @@ fn main() -> io::Result<()> {
     // The App applies the template's `<style>` blocks itself, and keeps
     // them live; `App::style_element_warnings` lists their parse warnings.
     let sheet = Stylesheet::new();
+    // Optional: the App seeds the inline `style="…"` attributes itself;
+    // calling `seed_inline_styles` first (it is idempotent) is how to
+    // see their parse warnings.
     let inline_warnings = seed_inline_styles(&mut dom);
 
     if !inline_warnings.is_empty() {

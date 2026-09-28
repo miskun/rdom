@@ -359,6 +359,13 @@ impl<B: Backend> App<B> {
         // Apps constructing a `TuiDom` directly should call
         // `cssom::install_default_observers` themselves.
         crate::cssom::install_default_observers(&mut dom);
+        // The `style="…"` attributes present at mount — parsed markup,
+        // or set before the observer above existed — have not been
+        // parsed into `TuiExt::inline_style` yet; later writes are the
+        // observer's (`P7G-INLINE-STYLE-SEED-1`). Idempotent, so a
+        // consumer's own `seed_inline_styles` call before `App::new`
+        // is harmless; that call is also where its warnings surface.
+        crate::cssom::seed_inline_styles(&mut dom);
         let default_opener: Rc<dyn UrlOpener> = Rc::new(SystemUrlOpener);
         let url_opener: crate::runtime::builtins::a_href::SharedOpener =
             Rc::new(std::cell::RefCell::new(default_opener));

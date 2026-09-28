@@ -159,6 +159,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 - The UA's Delete key, paste and cut report the Input Events `inputType`s `deleteContentForward`, `insertFromPaste` and `deleteByCut` (they reported `deleteContentBackward` / `insertText`); new `perform_edit_as` / `insert_at_selection_as` take an explicit `InputType` (`P7-UNDO-COALESCE-1`)
 - Copy / cut put the selection's rendered text on the clipboard (HTML rendered text collection steps): whitespace collapsed per `white-space` and trimmed at line edges, one line break between blocks (two around a `<p>` with a vertical margin), `<br>` → newline, tab-separated table cells and newline-separated rows, no `display: none` content; `pre` / `pre-wrap` text is verbatim, generated content and list markers are never copied (`P7-CLIPBOARD-WS-1`)
 - A mouse route no longer re-cascades the whole tree: a hover change cascades the elements whose `:hover` flipped, a wheel scroll, scrollbar press or selection drag only lays out and repaints; a listener's `request_redraw` still cascades everything. New `RouteOutcome::cascade_requested` tells the two apart (a custom event loop should run a full cascade only when it is set) (`P7G-ROUTE-REDRAW-1`)
+- The `App` seeds the inline `style="…"` attributes present at mount itself, so `<p style="color: red">` in parsed markup is styled under `App::new` with no extra call; `seed_inline_styles` before `App::new` is now optional (idempotent — call it to see the parse warnings) (`P7G-INLINE-STYLE-SEED-1`)
 
 ### Fixed — `rdom-tui`
 
