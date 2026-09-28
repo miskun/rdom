@@ -35,7 +35,6 @@ use crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
 
 use rdom_core::ListenerOptions;
 
-use crate::tui_event::TuiDispatchExt;
 use crate::{TuiDom, TuiEvent};
 
 /// Install the button keyboard-activation default action. Called
@@ -83,7 +82,7 @@ pub fn install(dom: &mut TuiDom) {
         };
         let mut click = TuiEvent::click(fake_mouse);
         click.event = click.event.clone().with_synthetic(true);
-        let _ = ctx.dom.dispatch_tui_event(focused, &mut click);
+        crate::tui_event::dispatch_to_live(ctx.dom, focused, &mut click);
         // Claim the activation key so the app's default-action chain
         // (focused-scroll-container keymap, Tab focus nav) doesn't ALSO act on
         // it — e.g. Space would otherwise both activate the button and page

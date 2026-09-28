@@ -50,7 +50,6 @@ use crate::ext::TuiExt;
 use crate::render::Style;
 use crate::runtime::builtins::canvas;
 use crate::style::Color;
-use crate::tui_event::TuiDispatchExt;
 use crate::{TuiDom, TuiEvent};
 
 /// Glyph painted along the full width of the range track.
@@ -164,9 +163,9 @@ pub fn set_value(dom: &mut TuiDom, input: NodeId, v: f64) {
     // entry. Use InsertReplacementText + data: null per the DOM
     // convention for synthetic value-update events.
     let mut input_ev = TuiEvent::input(rdom_core::InputType::InsertReplacementText, None);
-    let _ = dom.dispatch_tui_event(input, &mut input_ev);
+    crate::tui_event::dispatch_to_live(dom, input, &mut input_ev);
     let mut change_ev = TuiEvent::new("change");
-    let _ = dom.dispatch_tui_event(input, &mut change_ev);
+    crate::tui_event::dispatch_to_live(dom, input, &mut change_ev);
 }
 
 // ── Paint ─────────────────────────────────────────────────────────

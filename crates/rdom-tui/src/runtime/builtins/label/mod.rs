@@ -42,7 +42,7 @@ use rdom_core::{ListenerOptions, NodeId};
 
 use crate::TuiDom;
 use crate::runtime::builtins::toggle;
-use crate::tui_event::{TuiDispatchExt, TuiEvent};
+use crate::tui_event::TuiEvent;
 
 /// Install the label-click default action. Called once from
 /// `App::build`.
@@ -93,7 +93,7 @@ pub fn install(dom: &mut TuiDom) {
             };
             let mut click = TuiEvent::click(fake_mouse);
             click.event = click.event.clone().with_synthetic(true);
-            let _ = ctx.dom.dispatch_tui_event(control, &mut click);
+            crate::tui_event::dispatch_to_live(ctx.dom, control, &mut click);
         }
     })
     .expect("root label click listener install");

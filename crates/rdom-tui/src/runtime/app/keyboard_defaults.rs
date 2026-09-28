@@ -9,7 +9,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use super::App;
 use crate::render::backend::Backend;
-use crate::{TuiDispatchExt, TuiDom, TuiEvent};
+use crate::{TuiDom, TuiEvent};
 
 impl<B: Backend> App<B> {
     /// Process one crossterm key event: `keyup` on release, otherwise
@@ -30,7 +30,7 @@ impl<B: Backend> App<B> {
         if key.kind == KeyEventKind::Release {
             let target = self.dom.focused().unwrap_or_else(|| self.dom.root());
             let mut tui = TuiEvent::keyup(key);
-            let _ = self.dom.dispatch_tui_event(target, &mut tui);
+            crate::tui_event::dispatch_to_live(&mut self.dom, target, &mut tui);
             self.redraw
                 .note_if(tui.event.redraw_requested(), Redraw::Cascade);
             self.redraw.note_if(
@@ -62,7 +62,7 @@ impl<B: Backend> App<B> {
         // bit is on the detail, set by `key_translate`).
         let target = self.dom.focused().unwrap_or_else(|| self.dom.root());
         let mut tui = TuiEvent::keydown(key);
-        let _ = self.dom.dispatch_tui_event(target, &mut tui);
+        crate::tui_event::dispatch_to_live(&mut self.dom, target, &mut tui);
 
         // Shift+F10 → contextmenu on the focused element
         // (accessibility / keyboard-only equivalent of
@@ -74,7 +74,7 @@ impl<B: Backend> App<B> {
         if key.code == KeyCode::F(10) && key.modifiers.contains(KeyModifiers::SHIFT) {
             let mut cm = TuiEvent::new("contextmenu");
             cm.event = cm.event.clone().with_synthetic(true);
-            let _ = self.dom.dispatch_tui_event(target, &mut cm);
+            crate::tui_event::dispatch_to_live(&mut self.dom, target, &mut cm);
             self.redraw
                 .note_if(cm.event.redraw_requested(), Redraw::Cascade);
         }
@@ -163,7 +163,7 @@ fn do_copy<B: Backend>(app: &mut App<B>) -> bool {
     let target = crate::runtime::selection::clipboard::copy_target(&app.dom)
         .unwrap_or_else(|| app.dom.root());
     let mut tui = TuiEvent::copy(text.clone());
-    let _ = app.dom.dispatch_tui_event(target, &mut tui);
+    crate::tui_event::dispatch_to_live(&mut app.dom, target, &mut tui);
     if !tui.event.default_prevented() {
         app.clipboard.write_text(text);
     }
@@ -179,7 +179,7 @@ fn do_cut<B: Backend>(app: &mut App<B>) -> bool {
     let target = crate::runtime::selection::clipboard::copy_target(&app.dom)
         .unwrap_or_else(|| app.dom.root());
     let mut tui = TuiEvent::cut(text.clone());
-    let _ = app.dom.dispatch_tui_event(target, &mut tui);
+    crate::tui_event::dispatch_to_live(&mut app.dom, target, &mut tui);
     if !tui.event.default_prevented() {
         app.clipboard.write_text(text);
         // If the cut target is an editable, delete the selected
@@ -237,7 +237,7 @@ fn do_paste<B: Backend>(app: &mut App<B>) -> bool {
     let text = app.clipboard.read_text().unwrap_or_default();
     let target = app.dom.focused().unwrap_or_else(|| app.dom.root());
     let mut tui = TuiEvent::paste(text.clone());
-    let _ = app.dom.dispatch_tui_event(target, &mut tui);
+    crate::tui_event::dispatch_to_live(&mut app.dom, target, &mut tui);
     // If the paste target is an editable and the event wasn't
     // prevented, insert the clipboard text at the current selection
     // (or replace the range if one's active). Non-editable paste is

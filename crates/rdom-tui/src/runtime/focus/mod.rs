@@ -33,7 +33,7 @@ mod tests;
 use rdom_core::{NodeId, NodeType, Position, Selection};
 
 use crate::node::{TuiNodeExt, is_descendant_or_self};
-use crate::{TuiDispatchExt, TuiDom, TuiEvent};
+use crate::{TuiDom, TuiEvent};
 
 /// Change focus. Fires `blur` + `focusout` on the old focus,
 /// commits the new focus (which updates the `:focus` pseudo via
@@ -66,13 +66,21 @@ fn focus_node_with(dom: &mut TuiDom, new_focus: Option<NodeId>, visible: Option<
         return;
     }
 
-    // blur + focusout on the old target.
+    // blur + focusout on the old target; a `blur` listener that dropped
+    // it leaves no target for `focusout`.
     if let Some(old_id) = old {
         let mut blur = TuiEvent::blur();
-        let _ = dom.dispatch_tui_event(old_id, &mut blur);
-        let mut out = TuiEvent::focusout();
-        let _ = dom.dispatch_tui_event(old_id, &mut out);
+        if crate::tui_event::dispatch_to_live(dom, old_id, &mut blur) {
+            let mut out = TuiEvent::focusout();
+            crate::tui_event::dispatch_to_live(dom, old_id, &mut out);
+        }
     }
+    // A `blur` / `focusout` listener that dropped the new target leaves
+    // nothing to focus: the old focus is already blurred, so focus
+    // clears. Committing the dead id would leave `Dom::focused` naming
+    // a freed node, which `Dom` otherwise never does (a dropped
+    // subtree purges its interaction state).
+    let new_focus = new_focus.filter(|&id| dom.contains(id));
 
     // Commit the new state — drives :focus cascade via the
     // InteractionChanged mutation the DirtyTracker observes.
@@ -99,9 +107,10 @@ fn focus_node_with(dom: &mut TuiDom, new_focus: Option<NodeId>, visible: Option<
     // focus + focusin on the new target.
     if let Some(new_id) = new_focus {
         let mut foc = TuiEvent::focus();
-        let _ = dom.dispatch_tui_event(new_id, &mut foc);
-        let mut fin = TuiEvent::focusin();
-        let _ = dom.dispatch_tui_event(new_id, &mut fin);
+        if crate::tui_event::dispatch_to_live(dom, new_id, &mut foc) {
+            let mut fin = TuiEvent::focusin();
+            crate::tui_event::dispatch_to_live(dom, new_id, &mut fin);
+        }
     }
 }
 

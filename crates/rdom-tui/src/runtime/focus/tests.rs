@@ -640,3 +640,54 @@ fn radio_group_dedupe_does_not_affect_other_focusables() {
     let list = focusable_elements(&dom);
     assert_eq!(list, vec![b1, r2, b2]);
 }
+
+// ── Dead targets mid-ceremony (DISPATCH-RESULTS-2) ─────────────────
+
+/// A `blur` listener that drops the element about to gain focus leaves
+/// focus cleared: `Dom::focused` never names a freed node, and no
+/// `focus` / `focusin` fires.
+#[test]
+fn a_blur_listener_that_drops_the_new_target_clears_focus() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let a = dom.create_element("button");
+    let b = dom.create_element("button");
+    dom.append_child(root, a).unwrap();
+    dom.append_child(root, b).unwrap();
+    focus_node(&mut dom, Some(a));
+
+    dom.add_event_listener(a, "blur", ListenerOptions::default(), move |ctx| {
+        ctx.dom.drop_subtree(b).unwrap();
+    })
+    .unwrap();
+    let focus_events = Rc::new(RefCell::new(0));
+    let seen = focus_events.clone();
+    dom.add_event_listener(root, "focusin", ListenerOptions::default(), move |_| {
+        *seen.borrow_mut() += 1;
+    })
+    .unwrap();
+
+    focus_node(&mut dom, Some(b));
+    assert_eq!(dom.focused(), None);
+    assert_eq!(*focus_events.borrow(), 0);
+}
+
+/// A `blur` listener that drops the element losing focus skips its
+/// `focusout`, and focus still moves.
+#[test]
+fn a_blur_listener_that_drops_the_old_target_still_moves_focus() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let a = dom.create_element("button");
+    let b = dom.create_element("button");
+    dom.append_child(root, a).unwrap();
+    dom.append_child(root, b).unwrap();
+    focus_node(&mut dom, Some(a));
+
+    dom.add_event_listener(a, "blur", ListenerOptions::default(), move |ctx| {
+        ctx.dom.drop_subtree(a).unwrap();
+    })
+    .unwrap();
+    focus_node(&mut dom, Some(b));
+    assert_eq!(dom.focused(), Some(b));
+}

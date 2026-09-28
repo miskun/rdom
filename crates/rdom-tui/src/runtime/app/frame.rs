@@ -139,7 +139,9 @@ impl<B: Backend> App<B> {
                     elapsed_seconds.into(),
                     slot.pseudo_element().map(str::to_string),
                 )));
-            let _ = self.dom.dispatch_event(node, &mut ev);
+            // A listener of an earlier event in the batch may have dropped
+            // `node`; a dropped element's transition events go nowhere.
+            crate::tui_event::dispatch_event_to_live(&mut self.dom, node, &mut ev);
         }
     }
 

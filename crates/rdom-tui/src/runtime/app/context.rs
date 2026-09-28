@@ -134,8 +134,17 @@ impl<'a> AppContext<'a> {
     /// Re-entrancy is supported: a listener fired as a result of
     /// this call may itself dispatch more events; each inner
     /// dispatch completes before returning to the outer one.
-    pub fn dispatch(&mut self, target: NodeId, event: &mut Event) {
-        let _ = self.dom.dispatch_event(target, event);
+    ///
+    /// # Errors
+    ///
+    /// As [`Dom::dispatch_event`](rdom_core::Dom::dispatch_event):
+    /// [`DomError::InvalidNode`](rdom_core::DomError::InvalidNode) when
+    /// `target` is not a node of the document, and
+    /// [`DomError::InvalidState`](rdom_core::DomError::InvalidState)
+    /// when `event` is already being dispatched (DOM §2.9 step 1, the
+    /// `InvalidStateError` `dispatchEvent()` throws).
+    pub fn dispatch(&mut self, target: NodeId, event: &mut Event) -> rdom_core::Result<()> {
+        self.dom.dispatch_event(target, event)
     }
 
     /// Queue an event to dispatch after the current task's
@@ -148,6 +157,12 @@ impl<'a> AppContext<'a> {
     /// signal to a dialog ancestor — queueing keeps the dispatch
     /// stack shallow and matches legacy-rdom's queued-event
     /// pattern).
+    ///
+    /// A `target` dropped before the queue runs is skipped: there is
+    /// nothing left to dispatch at. `event` must not be mid-dispatch
+    /// (a clone taken inside a listener) — dispatching it would be the
+    /// `InvalidStateError` of DOM §2.9 step 1, with no caller left to
+    /// return it to, so the runtime panics.
     pub fn queue_dispatch(&mut self, target: NodeId, event: Event) {
         self.queued_dispatches.push((target, event));
     }

@@ -950,7 +950,7 @@ mod tests {
         let _g = SchedulerGuard::install(&sched);
         // Dispatch the click event manually.
         let mut ev = rdom_core::Event::new("click");
-        let _ = dom.dispatch_event(div, &mut ev);
+        dom.dispatch_event(div, &mut ev).unwrap();
         drop(_g);
 
         // Before the deadline.

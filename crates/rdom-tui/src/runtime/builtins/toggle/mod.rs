@@ -45,7 +45,6 @@ use crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
 
 use rdom_core::{ListenerOptions, NodeId};
 
-use crate::tui_event::TuiDispatchExt;
 use crate::{TuiDom, TuiEvent};
 
 /// Install the checkbox/radio default actions: the Dom's activation
@@ -129,7 +128,7 @@ pub fn install(dom: &mut TuiDom) {
         };
         let mut click = TuiEvent::click(fake_mouse);
         click.event = click.event.clone().with_synthetic(true);
-        let _ = ctx.dom.dispatch_tui_event(focused, &mut click);
+        crate::tui_event::dispatch_to_live(ctx.dom, focused, &mut click);
     })
     .expect("toggle space listener install");
 
@@ -268,9 +267,9 @@ fn revert(dom: &mut TuiDom, widget: NodeId, undo: ToggleUndo) {
 /// cancelable hook is the click event upstream).
 fn fire_input_and_change(dom: &mut TuiDom, widget: NodeId) {
     let mut input_ev = TuiEvent::new("input");
-    let _ = dom.dispatch_tui_event(widget, &mut input_ev);
+    crate::tui_event::dispatch_to_live(dom, widget, &mut input_ev);
     let mut change_ev = TuiEvent::new("change");
-    let _ = dom.dispatch_tui_event(widget, &mut change_ev);
+    crate::tui_event::dispatch_to_live(dom, widget, &mut change_ev);
 }
 
 // ── Radio group navigation ─────────────────────────────────────────

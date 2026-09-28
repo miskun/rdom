@@ -22,7 +22,6 @@ use rdom_core::Selection;
 
 use crate::node::nearest_editable_ancestor;
 use crate::runtime::editing::editor_state::{EditEntry, HistoryItem};
-use crate::tui_event::TuiDispatchExt;
 use crate::{TuiDom, TuiEvent};
 
 /// Result of an undo/redo attempt.
@@ -60,7 +59,7 @@ pub fn undo(dom: &mut TuiDom) -> UndoOutcome {
     // `data: null` for history events; listeners read the new
     // value off the target's text content / `value` attribute.
     let mut ev = TuiEvent::input(rdom_core::InputType::HistoryUndo, None);
-    let _ = dom.dispatch_tui_event(editable, &mut ev);
+    crate::tui_event::dispatch_to_live(dom, editable, &mut ev);
     UndoOutcome::Applied
 }
 
@@ -82,7 +81,7 @@ pub fn redo(dom: &mut TuiDom) -> UndoOutcome {
     }
     push_entry(dom, editable, item, StackSide::Undo);
     let mut ev = TuiEvent::input(rdom_core::InputType::HistoryRedo, None);
-    let _ = dom.dispatch_tui_event(editable, &mut ev);
+    crate::tui_event::dispatch_to_live(dom, editable, &mut ev);
     UndoOutcome::Applied
 }
 

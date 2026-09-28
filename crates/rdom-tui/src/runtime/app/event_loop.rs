@@ -242,7 +242,8 @@ impl<B: Backend> App<B> {
         // queue. Each dispatch may itself mutate the DOM, triggering
         // DirtyTracker updates.
         for (target, mut event) in queued {
-            let _ = self.dom.dispatch_event(target, &mut event);
+            // A target dropped before the queue ran is skipped.
+            crate::tui_event::dispatch_event_to_live(&mut self.dom, target, &mut event);
         }
     }
 
@@ -276,7 +277,8 @@ impl<B: Backend> App<B> {
             self.apply_stylesheet_intents(intents);
         }
         for (target, mut event) in queued {
-            let _ = self.dom.dispatch_event(target, &mut event);
+            // A target dropped before the queue ran is skipped.
+            crate::tui_event::dispatch_event_to_live(&mut self.dom, target, &mut event);
         }
     }
 }

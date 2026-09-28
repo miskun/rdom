@@ -7,7 +7,6 @@
 use rdom_core::NodeId;
 
 use super::model::{option_disabled, options, selected_options};
-use crate::tui_event::TuiDispatchExt;
 use crate::{TuiDom, TuiEvent};
 
 /// Marker: the currently-focused option within a multi-select.
@@ -118,9 +117,9 @@ pub(super) fn extend_selection_to(dom: &mut TuiDom, select: NodeId, target: Node
 /// from C.4b toggle). Both non-cancelable; apps observe.
 pub(super) fn fire_input_and_change(dom: &mut TuiDom, select: NodeId) {
     let mut input_ev = TuiEvent::new("input");
-    let _ = dom.dispatch_tui_event(select, &mut input_ev);
+    crate::tui_event::dispatch_to_live(dom, select, &mut input_ev);
     let mut change_ev = TuiEvent::new("change");
-    let _ = dom.dispatch_tui_event(select, &mut change_ev);
+    crate::tui_event::dispatch_to_live(dom, select, &mut change_ev);
 }
 
 // ── Highlight / anchor attribute helpers ───────────────────────────

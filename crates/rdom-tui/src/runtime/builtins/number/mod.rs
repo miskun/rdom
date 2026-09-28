@@ -27,7 +27,6 @@
 
 use rdom_core::{ListenerOptions, NodeId};
 
-use crate::tui_event::TuiDispatchExt;
 use crate::{TuiDom, TuiEvent};
 
 /// Install the number-input default actions. Two root-level
@@ -128,9 +127,9 @@ fn step(dom: &mut TuiDom, input: NodeId, direction: f64) {
     // for these synthetic value-update inputs (listeners read the
     // new value off the input's `value` attribute).
     let mut input_ev = TuiEvent::input(rdom_core::InputType::InsertReplacementText, None);
-    let _ = dom.dispatch_tui_event(input, &mut input_ev);
+    crate::tui_event::dispatch_to_live(dom, input, &mut input_ev);
     let mut change_ev = TuiEvent::new("change");
-    let _ = dom.dispatch_tui_event(input, &mut change_ev);
+    crate::tui_event::dispatch_to_live(dom, input, &mut change_ev);
 }
 
 // ── Helpers ────────────────────────────────────────────────────────

@@ -313,17 +313,30 @@ impl TuiDispatchExt for rdom_core::Dom<crate::TuiExt> {
 /// dropped it) — the one failure a fresh event can meet; the caller maps
 /// it to its documented outcome. Any other error means `tui` was already
 /// being dispatched, a runtime bug, and panics.
+///
+/// A step whose event went nowhere has nothing left to do, so a caller
+/// with no outcome to map may drop the `bool`.
 pub(crate) fn dispatch_to_live(
     dom: &mut rdom_core::Dom<crate::TuiExt>,
     target: rdom_core::NodeId,
     tui: &mut TuiEvent,
 ) -> bool {
-    match dom.dispatch_tui_event(target, tui) {
+    dispatch_event_to_live(dom, target, &mut tui.event)
+}
+
+/// [`dispatch_to_live`] for a bare [`rdom_core::Event`] (transition
+/// events, the `App`'s queued dispatches).
+pub(crate) fn dispatch_event_to_live(
+    dom: &mut rdom_core::Dom<crate::TuiExt>,
+    target: rdom_core::NodeId,
+    event: &mut rdom_core::Event,
+) -> bool {
+    match dom.dispatch_event(target, event) {
         Ok(()) => true,
         Err(rdom_core::DomError::InvalidNode(_)) => false,
         Err(e) => panic!(
             "dispatching a fresh `{}` event failed: {e:?}",
-            tui.event.event_type
+            event.event_type
         ),
     }
 }

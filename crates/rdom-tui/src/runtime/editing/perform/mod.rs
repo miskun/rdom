@@ -20,7 +20,6 @@ use rdom_core::{NodeId, Position, Selection};
 
 use crate::node::nearest_editable_ancestor;
 use crate::runtime::editing::editor_state::{EditEntry, EditKind, EditorState};
-use crate::tui_event::TuiDispatchExt;
 use crate::{TuiDom, TuiEvent};
 
 /// A proposed byte-range edit on a single text node.
@@ -112,7 +111,9 @@ pub fn perform_edit_as(
     // observe attempted edits on readonly fields (analytics,
     // validation feedback), and the UA cancels them by default.
     let mut before = TuiEvent::before_input(input_type.clone(), data.clone());
-    let _ = dom.dispatch_tui_event(editable, &mut before);
+    if !crate::tui_event::dispatch_to_live(dom, editable, &mut before) {
+        return EditOutcome::NoEditableTarget;
+    }
     if before.event.default_prevented() {
         return EditOutcome::Prevented;
     }
@@ -178,7 +179,7 @@ pub fn perform_edit_as(
     // Fire `input` — non-cancelable post-commit signal. Same
     // detail shape as the `beforeinput` we fired above.
     let mut after = TuiEvent::input(input_type, data);
-    let _ = dom.dispatch_tui_event(editable, &mut after);
+    crate::tui_event::dispatch_to_live(dom, editable, &mut after);
 
     EditOutcome::Applied
 }
@@ -328,7 +329,9 @@ fn cross_node_edit(
         Some(text.to_string())
     };
     let mut before = TuiEvent::before_input(input_type.clone(), data.clone());
-    let _ = dom.dispatch_tui_event(host, &mut before);
+    if !crate::tui_event::dispatch_to_live(dom, host, &mut before) {
+        return EditOutcome::NoEditableTarget;
+    }
     if before.event.default_prevented() {
         return EditOutcome::Prevented;
     }
@@ -408,7 +411,7 @@ fn cross_node_edit(
     }
 
     let mut after = TuiEvent::input(input_type, data);
-    let _ = dom.dispatch_tui_event(host, &mut after);
+    crate::tui_event::dispatch_to_live(dom, host, &mut after);
     EditOutcome::Applied
 }
 

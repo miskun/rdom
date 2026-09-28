@@ -149,7 +149,7 @@ impl<'a> TuiAccessorsMut<'a> for rdom_core::NodeMut<'a, TuiExt> {
         let mut event = rdom_core::Event::new("click").with_synthetic(true);
         event.detail = EventDetail::Mouse(MouseDetail::new(MouseButton::Left, 0, 0));
         let mut tui = crate::TuiEvent { event };
-        let _ = crate::TuiDispatchExt::dispatch_tui_event(dom, id, &mut tui);
+        crate::tui_event::dispatch_to_live(dom, id, &mut tui);
     }
 
     fn set_scroll_top(&mut self, value: i32) -> Result<()> {

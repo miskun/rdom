@@ -26,7 +26,6 @@ mod tests;
 use rdom_core::{EventDetail, ListenerOptions, NodeId, ToggleDetail, ToggleState};
 
 use crate::runtime::focus::focus_node;
-use crate::tui_event::TuiDispatchExt;
 use crate::{TuiDom, TuiEvent};
 
 /// Attribute the tree builtin keeps on the active row (the ARIA
@@ -172,7 +171,7 @@ fn set_expanded(dom: &mut TuiDom, item: NodeId, open: bool) {
     let mut ev = TuiEvent::new("toggle");
     ev.event = ev.event.clone().with_bubbles(false);
     ev.event.detail = EventDetail::Toggle(Box::new(ToggleDetail::new(old_state, new_state)));
-    let _ = dom.dispatch_tui_event(item, &mut ev);
+    crate::tui_event::dispatch_to_live(dom, item, &mut ev);
 }
 
 /// Dispatch a bubbling `click` on `item` so apps get one activation
@@ -180,7 +179,7 @@ fn set_expanded(dom: &mut TuiDom, item: NodeId, open: bool) {
 /// action treats a detail-less (keyboard) click as cursor-only.
 fn activate(dom: &mut TuiDom, item: NodeId) {
     let mut ev = TuiEvent::new("click");
-    let _ = dom.dispatch_tui_event(item, &mut ev);
+    crate::tui_event::dispatch_to_live(dom, item, &mut ev);
 }
 
 /// Move the `data-rdom-active` cursor to `item`, clearing it from

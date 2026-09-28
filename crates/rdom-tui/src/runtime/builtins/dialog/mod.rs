@@ -36,7 +36,6 @@
 
 use rdom_core::{ListenerOptions, NodeId};
 
-use crate::tui_event::TuiDispatchExt;
 use crate::{TuiDom, TuiEvent};
 
 /// Marker attribute set by `show_modal` and cleared by `show` /
@@ -158,7 +157,8 @@ pub fn close(dom: &mut TuiDom, dialog: NodeId, return_value: &str) {
 
     let mut ev = TuiEvent::new("close");
     ev.event = ev.event.clone().with_bubbles(false);
-    let _ = dom.dispatch_tui_event(dialog, &mut ev); // Return focus to the previously focused element (HTML §4.11.4)
+    crate::tui_event::dispatch_to_live(dom, dialog, &mut ev);
+    // Return focus to the previously focused element (HTML §4.11.4)
     // when it is still in the tree; the current focus leaves with the
     // dialog either way if it was inside it.
     let previous = dom
@@ -188,7 +188,7 @@ fn fire_toggle(dom: &mut TuiDom, dialog: NodeId, old_state: rdom_core::ToggleSta
     ev.event.detail = rdom_core::EventDetail::Toggle(Box::new(rdom_core::ToggleDetail::new(
         old_state, new_state,
     )));
-    let _ = dom.dispatch_tui_event(dialog, &mut ev);
+    crate::tui_event::dispatch_to_live(dom, dialog, &mut ev);
 }
 
 /// Read the dialog's `returnValue` (set by the last `close()`).
@@ -265,8 +265,9 @@ pub fn install(dom: &mut TuiDom) {
         // open. Otherwise fall through to close with the
         // current return value (typically empty).
         let mut cancel = TuiEvent::new("cancel");
-        let _ = ctx.dom.dispatch_tui_event(dialog, &mut cancel);
-        if cancel.event.default_prevented() {
+        if !crate::tui_event::dispatch_to_live(ctx.dom, dialog, &mut cancel)
+            || cancel.event.default_prevented()
+        {
             return;
         }
         let rv = return_value(ctx.dom, dialog);

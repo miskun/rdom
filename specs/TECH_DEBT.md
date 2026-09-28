@@ -6,7 +6,7 @@ For the durable architectural divergences (web-platform departures shipped on pu
 
 ## Open
 
-- **`DISPATCH-RESULTS-2` — 46 runtime dispatches still discard their `Result`.** `P7G-DISPATCH-RESULTS-1` fixed the four added in Phases 6–7 (form `submit` / `reset`, validation `invalid`, `write_offsets`' `scroll`) through `tui_event::dispatch_to_live`, which maps the one error a fresh event can meet (a target dropped by an earlier listener) to the caller's documented outcome and panics on any other. The older `let _ = dom.dispatch_tui_event(...)` sites (focus / blur ceremony, keyboard and mouse routing, toggle / range / number / select / details / dialog / tree / label builtins, editing `beforeinput` / `input`, undo, timers, resize, implicit detach events, the `AppContext` / accessor dispatch, transition events) predate the phase; each needs its outcome decided the same way.
+None.
 
 ## Accepted simplifications (forever-state)
 

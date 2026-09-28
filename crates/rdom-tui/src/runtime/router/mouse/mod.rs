@@ -8,7 +8,7 @@ use crate::layout::Overflow;
 use crate::node::TuiNodeExt;
 use crate::runtime::hit_test::HitTestExt;
 use crate::style::ComputedStyle;
-use crate::{TuiDispatchExt, TuiDom, TuiEvent};
+use crate::{TuiDom, TuiEvent};
 
 use super::{RouteOutcome, Router};
 
@@ -17,7 +17,7 @@ use super::{RouteOutcome, Router};
 /// into the router. `Router::route` folds the accumulated flag into the
 /// `RouteOutcome` once per mouse event.
 fn dispatch(router: &mut Router, dom: &mut TuiDom, target: crate::NodeId, ev: &mut TuiEvent) {
-    let _ = dom.dispatch_tui_event(target, ev);
+    crate::tui_event::dispatch_to_live(dom, target, ev);
     router.pending_redraw |= ev.event.redraw_requested();
 }
 

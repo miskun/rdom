@@ -85,7 +85,7 @@ pub(super) fn set_scroll_with(
         // `scroll`: bubbles, NOT cancelable per HTML.
         let mut tui = crate::TuiEvent::new("scroll");
         tui.event.cancelable = false;
-        let _ = crate::TuiDispatchExt::dispatch_tui_event(dom, element, &mut tui);
+        crate::tui_event::dispatch_to_live(dom, element, &mut tui);
     }
     clamped
 }

@@ -500,7 +500,9 @@ impl<B: Backend> App<B> {
                 // `resize`: bubbles, NOT cancelable per HTML.
                 let mut tui = TuiEvent::new("resize");
                 tui.event.cancelable = false;
-                let _ = self.dom.dispatch_tui_event(root, &mut tui);
+                self.dom
+                    .dispatch_tui_event(root, &mut tui)
+                    .expect("the document root is never dropped, and `tui` is fresh");
                 self.redraw.note(Redraw::Cascade);
 
                 // Re-arm mouse tracking after the resize signal.

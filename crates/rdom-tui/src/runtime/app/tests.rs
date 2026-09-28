@@ -792,12 +792,34 @@ fn context_dispatch_fires_synchronously() {
     let btn_id = btn;
     let mut app = test_app(dom, Stylesheet::bare(), Rect::new(0, 0, 20, 5)).on_tick(move |ctx| {
         let mut e = Event::new("custom");
-        ctx.dispatch(btn_id, &mut e);
+        ctx.dispatch(btn_id, &mut e).expect("live target");
         ControlFlow::Continue
     });
     assert!(!fired.get());
     app.tick();
     assert!(fired.get());
+}
+
+/// `AppContext::dispatch` is `dispatchEvent()`: its errors reach the
+/// caller instead of vanishing (`DISPATCH-RESULTS-2`).
+#[test]
+fn context_dispatch_reports_a_dropped_target() {
+    use rdom_core::{DomError, Event};
+
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let gone = dom.create_element("div");
+    dom.append_child(root, gone).unwrap();
+    dom.drop_subtree(gone).unwrap();
+
+    let result = Rc::new(Cell::new(None));
+    let r = result.clone();
+    let mut app = test_app(dom, Stylesheet::bare(), Rect::new(0, 0, 20, 5)).on_tick(move |ctx| {
+        r.set(Some(ctx.dispatch(gone, &mut Event::new("custom"))));
+        ControlFlow::Continue
+    });
+    app.tick();
+    assert_eq!(result.take(), Some(Err(DomError::InvalidNode(gone))));
 }
 
 #[test]
@@ -2522,7 +2544,8 @@ fn listener_reached_from_an_injected_dispatch_can_schedule_timers() {
     let mut app = test_app(dom, Stylesheet::new(), Rect::new(0, 0, 10, 3));
     let handle = app.handle();
     handle.inject(move |ctx: &mut AppContext<'_>| {
-        ctx.dispatch(el, &mut rdom_core::Event::new("probe"));
+        ctx.dispatch(el, &mut rdom_core::Event::new("probe"))
+            .expect("live target");
     });
     app.drain_handle_injections();
     app.advance(5).unwrap();

@@ -30,7 +30,6 @@
 
 use rdom_core::{ListenerOptions, NodeId};
 
-use crate::tui_event::TuiDispatchExt;
 use crate::{TuiDom, TuiEvent};
 
 /// Install the details/summary default actions. Called once
@@ -105,7 +104,7 @@ fn toggle(dom: &mut TuiDom, details: NodeId) {
     ev.event.detail = rdom_core::EventDetail::Toggle(Box::new(rdom_core::ToggleDetail::new(
         old_state, new_state,
     )));
-    let _ = dom.dispatch_tui_event(details, &mut ev);
+    crate::tui_event::dispatch_to_live(dom, details, &mut ev);
 }
 
 /// Walk up from `id` (inclusive) to the nearest `<summary>`.

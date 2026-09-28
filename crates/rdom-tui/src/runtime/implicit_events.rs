@@ -46,7 +46,7 @@
 
 use rdom_core::Mutation;
 
-use crate::{TuiDispatchExt, TuiDom, TuiEvent};
+use crate::{TuiDom, TuiEvent};
 
 /// Observer that translates `Mutation::PreDetach` records into
 /// the implicit DOM events browsers fire when the focused or
@@ -73,13 +73,13 @@ impl rdom_core::MutationObserver<crate::TuiExt> for ImplicitDetachEvents {
             blur.event.bubbles = false;
             blur.event.cancelable = false;
             blur.event = blur.event.clone().with_synthetic(true);
-            let _ = dom.dispatch_tui_event(*target, &mut blur);
+            crate::tui_event::dispatch_to_live(dom, *target, &mut blur);
 
             // `focusout`: bubbles, non-cancelable per UI Events.
             let mut focusout = TuiEvent::new("focusout");
             focusout.event.cancelable = false;
             focusout.event = focusout.event.clone().with_synthetic(true);
-            let _ = dom.dispatch_tui_event(*target, &mut focusout);
+            crate::tui_event::dispatch_to_live(dom, *target, &mut focusout);
         }
         // Hover loss ceremony — `mouseout` bubbling, `mouseleave`
         // non-bubbling. Order: mouseout first (matches browser).
@@ -87,14 +87,14 @@ impl rdom_core::MutationObserver<crate::TuiExt> for ImplicitDetachEvents {
             // `mouseout`: bubbles, cancelable per UI Events.
             let mut mouseout = TuiEvent::new("mouseout");
             mouseout.event = mouseout.event.clone().with_synthetic(true);
-            let _ = dom.dispatch_tui_event(*target, &mut mouseout);
+            crate::tui_event::dispatch_to_live(dom, *target, &mut mouseout);
 
             // `mouseleave`: non-bubbling, non-cancelable per UI Events.
             let mut mouseleave = TuiEvent::new("mouseleave");
             mouseleave.event.bubbles = false;
             mouseleave.event.cancelable = false;
             mouseleave.event = mouseleave.event.clone().with_synthetic(true);
-            let _ = dom.dispatch_tui_event(*target, &mut mouseleave);
+            crate::tui_event::dispatch_to_live(dom, *target, &mut mouseleave);
         }
     }
 }
