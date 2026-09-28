@@ -38,9 +38,20 @@ impl<Ext: 'static> std::fmt::Debug for ValiditySlot<Ext> {
 
 impl<Ext: 'static> Dom<Ext> {
     /// Install (or remove, with `None`) the backend's constraint check
-    /// behind `:valid` / `:invalid`. Without one, every candidate is
-    /// valid. rdom-tui installs its own in `App` construction (and
-    /// `runtime::builtins::validation::install` for a bare `TuiDom`).
+    /// behind `:valid` / `:invalid` and [`constraint_validity`](Self::constraint_validity).
+    ///
+    /// **A `Dom` has no hook until one is installed**, and rdom-core
+    /// cannot compute validity states itself (they need values and
+    /// patterns). Asking about a candidate without a hook — matching
+    /// `:valid` / `:invalid` against an `<input>`, `<select>`,
+    /// `<textarea>` or submit button, or against a `<form>` /
+    /// `<fieldset>` holding one — is a misconfiguration: a debug build
+    /// panics (`no validity hook`), a release build answers "valid".
+    /// rdom-tui's `App` installs its hook at construction; a bare
+    /// `TuiDom` cascaded without an `App` must call
+    /// `rdom_tui::runtime::builtins::validation::install`, and a
+    /// backend-less `Dom` that matches these pseudo-classes installs its
+    /// own (`|_, _| true` for "every control is valid").
     pub fn set_validity_hook(&mut self, hook: Option<ValidityHook<Ext>>) {
         self.validity_hook = ValiditySlot(hook);
     }
@@ -48,7 +59,9 @@ impl<Ext: 'static> Dom<Ext> {
     /// What `:valid` / `:invalid` match (HTML §4.16.3):
     ///
     /// - a [candidate](Self::will_validate): `Some(verdict)` of the
-    ///   validity hook (`Some(true)` without one);
+    ///   validity hook — which must be installed
+    ///   ([`set_validity_hook`](Self::set_validity_hook); a debug build
+    ///   panics without one, a release build answers `Some(true)`);
     /// - a `<form>`: `Some(false)` when a candidate it owns
     ///   ([`form_listed_elements`](Self::form_listed_elements)) is
     ///   invalid, else `Some(true)`;
@@ -95,9 +108,23 @@ impl<Ext: 'static> Dom<Ext> {
         ) && !self.is_required_control(id)
     }
 
-    /// The hook's verdict for candidate `id` (valid without a hook).
+    /// The hook's verdict for candidate `id`. Without a hook the
+    /// question has no answer (`set_validity_hook`): loud in a debug
+    /// build, "valid" in a release build.
     fn satisfies(&self, id: NodeId) -> bool {
-        self.validity_hook.0.is_none_or(|hook| hook(self, id))
+        match self.validity_hook.0 {
+            Some(hook) => hook(self, id),
+            None => {
+                debug_assert!(
+                    false,
+                    "no validity hook: `:valid` / `:invalid` / `constraint_validity` asked about \
+                     candidate {id:?}, but rdom-core cannot compute validity states — install \
+                     one with `Dom::set_validity_hook` (rdom-tui: \
+                     `runtime::builtins::validation::install`, which `App` does itself)"
+                );
+                true
+            }
+        }
     }
 
     /// A candidate that does not satisfy its constraints.

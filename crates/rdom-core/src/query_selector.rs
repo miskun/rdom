@@ -1103,6 +1103,38 @@ mod tests {
         !dom.has_attribute(id, "data-bad")
     }
 
+    /// `P7G-VALIDITY-HOOK-DEFAULT-1`: rdom-core has no validity states,
+    /// so asking whether a candidate is valid without a backend hook is a
+    /// misconfiguration — loud in a debug build rather than a silent
+    /// "every control is valid".
+    #[test]
+    #[cfg(debug_assertions)]
+    #[should_panic(expected = "no validity hook")]
+    fn matching_invalid_on_a_candidate_without_a_validity_hook_panics_in_debug_builds() {
+        let mut dom: Dom = Dom::new();
+        let root = dom.root();
+        let input = dom.create_element("input");
+        dom.append_child(root, input).unwrap();
+        let _ = dom.matches(input, ":invalid");
+    }
+
+    /// Elements that are not candidates answer `:valid` / `:invalid`
+    /// without consulting the hook, so they need none.
+    #[test]
+    fn non_candidates_match_neither_validity_class_without_a_hook() {
+        let mut dom: Dom = Dom::new();
+        let root = dom.root();
+        let div = dom.create_element("div");
+        dom.append_child(root, div).unwrap();
+        let hidden = dom.create_element("input");
+        dom.set_attribute(hidden, "type", "hidden").unwrap();
+        dom.append_child(root, hidden).unwrap();
+        for id in [div, hidden] {
+            assert!(!dom.matches(id, ":valid").unwrap());
+            assert!(!dom.matches(id, ":invalid").unwrap());
+        }
+    }
+
     /// HTML §4.16.3: `:valid` / `:invalid` match candidates for
     /// constraint validation by the backend's verdict (the validity
     /// hook), forms by their owned candidates and fieldsets by their
@@ -1128,10 +1160,6 @@ mod tests {
         dom.append_child(form, div).unwrap();
         let empty_form = dom.create_element("form");
         dom.append_child(root, empty_form).unwrap();
-
-        // No hook installed: every candidate is valid.
-        assert!(dom.matches(bad, ":valid").unwrap());
-        assert!(dom.matches(form, ":valid").unwrap());
 
         dom.set_validity_hook(Some(bad_attr_hook));
         assert!(dom.matches(bad, ":invalid").unwrap());
