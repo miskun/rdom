@@ -581,21 +581,25 @@ fn clear_presentation(dom: &mut Dom<TuiExt>, node: NodeId, slot: StyleSlot, prop
     let Some(ext) = node_mut.ext_mut() else {
         return;
     };
-    let ext = ext.presentation_for_mut(slot);
-    match prop {
-        AnimatedProp::Fg => ext.fg = None,
-        AnimatedProp::Bg => ext.bg = None,
-        AnimatedProp::BorderFg => ext.border_fg = None,
-        AnimatedProp::Width => ext.width = None,
-        AnimatedProp::Height => ext.height = None,
-        AnimatedProp::Padding => ext.padding = None,
-        AnimatedProp::Gap => ext.gap = None,
-        AnimatedProp::Top => ext.top = None,
-        AnimatedProp::Right => ext.right = None,
-        AnimatedProp::Bottom => ext.bottom = None,
-        AnimatedProp::Left => ext.left = None,
-        AnimatedProp::ZIndex => ext.z_index = None,
+    if ext.presentation_for(slot).is_none() {
+        return;
     }
+    let presentation = ext.presentation_for_mut(slot);
+    match prop {
+        AnimatedProp::Fg => presentation.fg = None,
+        AnimatedProp::Bg => presentation.bg = None,
+        AnimatedProp::BorderFg => presentation.border_fg = None,
+        AnimatedProp::Width => presentation.width = None,
+        AnimatedProp::Height => presentation.height = None,
+        AnimatedProp::Padding => presentation.padding = None,
+        AnimatedProp::Gap => presentation.gap = None,
+        AnimatedProp::Top => presentation.top = None,
+        AnimatedProp::Right => presentation.right = None,
+        AnimatedProp::Bottom => presentation.bottom = None,
+        AnimatedProp::Left => presentation.left = None,
+        AnimatedProp::ZIndex => presentation.z_index = None,
+    }
+    ext.release_empty_presentation(slot);
 }
 
 // ── Interpolation primitives ──────────────────────────────────────
@@ -755,29 +759,32 @@ fn color_to_rgb_approx(c: Color) -> (u8, u8, u8) {
 
 pub fn effective_fg(ext: &TuiExt) -> Color {
     ext.presentation
-        .fg
+        .as_deref()
+        .and_then(|p| p.fg)
         .or(ext.computed.as_ref().map(|c| c.fg))
         .unwrap_or(Color::Reset)
 }
 
 pub fn effective_bg(ext: &TuiExt) -> Color {
     ext.presentation
-        .bg
+        .as_deref()
+        .and_then(|p| p.bg)
         .or(ext.computed.as_ref().map(|c| c.bg))
         .unwrap_or(Color::Reset)
 }
 
 pub fn effective_border_fg(ext: &TuiExt) -> Color {
     ext.presentation
-        .border_fg
+        .as_deref()
+        .and_then(|p| p.border_fg)
         .or(ext.computed.as_ref().map(|c| c.border_fg))
         .unwrap_or(Color::Reset)
 }
 
 pub fn effective_padding(ext: &TuiExt) -> crate::layout::Padding {
     ext.presentation
-        .padding
-        .clone()
+        .as_deref()
+        .and_then(|p| p.padding.clone())
         .or_else(|| ext.computed.as_ref().map(|c| c.padding.clone()))
         .unwrap_or_default()
 }
@@ -856,8 +863,8 @@ mod tests {
 
         reg.advance(&mut dom, start + Duration::from_millis(50));
         let ext = dom.node(div).ext().unwrap();
-        assert!(ext.presentation.fg.is_none(), "host slot untouched");
-        let Some(Color::Rgb(r, _, b)) = ext.presentation_before.fg else {
+        assert!(ext.presentation.is_none(), "host slot untouched");
+        let Some(Color::Rgb(r, _, b)) = ext.presentation_before.as_ref().and_then(|p| p.fg) else {
             panic!("no ::before override");
         };
         assert!((r as i16 - 128).abs() <= 2 && (b as i16 - 128).abs() <= 2);
@@ -871,12 +878,8 @@ mod tests {
         reg.advance(&mut dom, start + Duration::from_millis(120));
         assert!(reg.is_empty());
         assert!(
-            dom.node(div)
-                .ext()
-                .unwrap()
-                .presentation_before
-                .fg
-                .is_none()
+            dom.node(div).ext().unwrap().presentation_before.is_none(),
+            "the finished transition releases the override box"
         );
     }
 
@@ -924,7 +927,15 @@ mod tests {
         // blue (0,0,255) = (128, 0, 128) (within ±2 due to rounding).
         let mid = start + Duration::from_millis(50);
         reg.advance(&mut dom, mid);
-        let pres_fg = dom.node(div).ext().unwrap().presentation.fg.unwrap();
+        let pres_fg = dom
+            .node(div)
+            .ext()
+            .unwrap()
+            .presentation
+            .as_ref()
+            .unwrap()
+            .fg
+            .unwrap();
         match pres_fg {
             Color::Rgb(r, g, b) => {
                 assert!((r as i16 - 128).abs() <= 2, "r = {r}");
@@ -938,7 +949,7 @@ mod tests {
         let end = start + Duration::from_millis(120);
         reg.advance(&mut dom, end);
         assert!(reg.is_empty());
-        assert!(dom.node(div).ext().unwrap().presentation.fg.is_none());
+        assert!(dom.node(div).ext().unwrap().presentation.is_none());
     }
 
     #[test]

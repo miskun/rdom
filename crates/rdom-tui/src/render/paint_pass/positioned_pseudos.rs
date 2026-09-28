@@ -53,12 +53,12 @@ pub(super) fn paint_positioned_pseudos(dom: &Dom<TuiExt>, buf: &mut Buffer, clip
                 PseudoEnd::Before => (
                     &ext.before_layout,
                     &ext.computed_before,
-                    &ext.presentation_before,
+                    ext.presentation_before.as_deref(),
                 ),
                 PseudoEnd::After => (
                     &ext.after_layout,
                     &ext.computed_after,
-                    &ext.presentation_after,
+                    ext.presentation_after.as_deref(),
                 ),
             };
             let (Some(layout), Some(style)) = (layout, style) else {
@@ -66,14 +66,16 @@ pub(super) fn paint_positioned_pseudos(dom: &Dom<TuiExt>, buf: &mut Buffer, clip
             };
             let mut style = ComputedStyle::clone(style);
             // In-flight transitions on the pseudo's paint properties.
-            if let Some(fg) = overrides.fg {
-                style.fg = fg;
-            }
-            if let Some(bg) = overrides.bg {
-                style.bg = bg;
-            }
-            if let Some(border_fg) = overrides.border_fg {
-                style.border_fg = border_fg;
+            if let Some(overrides) = overrides {
+                if let Some(fg) = overrides.fg {
+                    style.fg = fg;
+                }
+                if let Some(bg) = overrides.bg {
+                    style.bg = bg;
+                }
+                if let Some(border_fg) = overrides.border_fg {
+                    style.border_fg = border_fg;
+                }
             }
             (layout.rect, style)
         };

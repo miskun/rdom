@@ -288,20 +288,20 @@ fn paint_box(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect) -> Opt
     // into `TuiExt.presentation` each tick. Paint reads them by
     // overlaying onto the local `computed` clone — keeps the
     // existing paint logic unchanged otherwise.
-    if let Some(ext) = dom.node(id).ext() {
-        if let Some(fg) = ext.presentation.fg {
+    if let Some(presentation) = dom.node(id).ext().and_then(|e| e.presentation.as_deref()) {
+        if let Some(fg) = presentation.fg {
             computed.fg = fg;
         }
-        if let Some(bg) = ext.presentation.bg {
+        if let Some(bg) = presentation.bg {
             computed.bg = bg;
         }
-        if let Some(border_fg) = ext.presentation.border_fg {
+        if let Some(border_fg) = presentation.border_fg {
             computed.border_fg = border_fg;
         }
-        if let Some(padding) = &ext.presentation.padding {
+        if let Some(padding) = &presentation.padding {
             computed.padding = padding.clone();
         }
-        if let Some(gap) = ext.presentation.gap {
+        if let Some(gap) = presentation.gap {
             computed.gap = crate::layout::GapValue::Cells(gap);
         }
     }

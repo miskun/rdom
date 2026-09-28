@@ -481,7 +481,7 @@ fn presentation_of(
         std::sync::LazyLock::new(crate::ext::PresentationStyle::default);
     dom.node(id)
         .ext()
-        .map(|e| e.presentation_for(slot))
+        .and_then(|e| e.presentation_for(slot))
         .unwrap_or(&EMPTY)
 }
 

@@ -97,7 +97,7 @@ fn nearest_selection_style(dom: &Dom<TuiExt>, text_node: NodeId) -> Option<&Comp
     let mut cur = dom.node(text_node).parent_node().map(|p| p.id());
     while let Some(id) = cur {
         if let Some(ext) = dom.node(id).ext()
-            && let Some(sel) = ext.computed_selection.as_ref()
+            && let Some(sel) = ext.computed_selection.as_deref()
         {
             return Some(sel);
         }

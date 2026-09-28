@@ -281,7 +281,7 @@ fn size_columns_leaves_inline_style_untouched() {
     let inline = dom
         .node(r1[0])
         .ext()
-        .and_then(|e| e.inline_style.width.clone());
+        .and_then(|e| e.inline_style.as_ref().and_then(|s| s.width.clone()));
     assert!(
         inline.is_none(),
         "size_columns must not write inline_style.width"

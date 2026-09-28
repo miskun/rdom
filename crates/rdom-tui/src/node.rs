@@ -79,7 +79,7 @@ pub trait TuiNodeExt<'a> {
             .and_then(|v| v.as_specified().copied())
     }
     fn inline_style(&self) -> Option<&'a TuiStyle> {
-        self.tui_ext().map(|e| &e.inline_style)
+        self.tui_ext().map(TuiExt::inline_style_or_empty)
     }
     fn layout_rect(&self) -> Option<LayoutRect> {
         self.tui_ext().map(|e| e.layout)
@@ -365,85 +365,85 @@ pub trait TuiNodeMutExt<'a> {
     // ignored, so the setters silently did nothing for layout.)
     fn set_width(&mut self, w: Size) -> &mut Self {
         if let Some(e) = self.tui_ext_mut() {
-            e.inline_style.width = Some(Value::Specified(w));
+            e.inline_style_mut().width = Some(Value::Specified(w));
             e.style_dirty = true;
         }
         self
     }
     fn set_height(&mut self, h: Size) -> &mut Self {
         if let Some(e) = self.tui_ext_mut() {
-            e.inline_style.height = Some(Value::Specified(h));
+            e.inline_style_mut().height = Some(Value::Specified(h));
             e.style_dirty = true;
         }
         self
     }
     fn set_min_width(&mut self, v: Option<rdom_style::layout::MinSize>) -> &mut Self {
         if let Some(e) = self.tui_ext_mut() {
-            e.inline_style.min_width = v.map(Value::Specified);
+            e.inline_style_mut().min_width = v.map(Value::Specified);
             e.style_dirty = true;
         }
         self
     }
     fn set_max_width(&mut self, v: Option<u16>) -> &mut Self {
         if let Some(e) = self.tui_ext_mut() {
-            e.inline_style.max_width = v.map(Value::Specified);
+            e.inline_style_mut().max_width = v.map(Value::Specified);
             e.style_dirty = true;
         }
         self
     }
     fn set_min_height(&mut self, v: Option<rdom_style::layout::MinSize>) -> &mut Self {
         if let Some(e) = self.tui_ext_mut() {
-            e.inline_style.min_height = v.map(Value::Specified);
+            e.inline_style_mut().min_height = v.map(Value::Specified);
             e.style_dirty = true;
         }
         self
     }
     fn set_max_height(&mut self, v: Option<u16>) -> &mut Self {
         if let Some(e) = self.tui_ext_mut() {
-            e.inline_style.max_height = v.map(Value::Specified);
+            e.inline_style_mut().max_height = v.map(Value::Specified);
             e.style_dirty = true;
         }
         self
     }
     fn set_direction(&mut self, d: Direction) -> &mut Self {
         if let Some(e) = self.tui_ext_mut() {
-            e.inline_style.direction = Some(Value::Specified(d));
+            e.inline_style_mut().direction = Some(Value::Specified(d));
             e.style_dirty = true;
         }
         self
     }
     fn set_padding(&mut self, p: Padding) -> &mut Self {
         if let Some(e) = self.tui_ext_mut() {
-            e.inline_style.padding = Some(Value::Specified(p));
+            e.inline_style_mut().padding = Some(Value::Specified(p));
             e.style_dirty = true;
         }
         self
     }
     fn set_border(&mut self, b: Border) -> &mut Self {
         if let Some(e) = self.tui_ext_mut() {
-            e.inline_style.border = Some(Value::Specified(b));
+            e.inline_style_mut().border = Some(Value::Specified(b));
             e.style_dirty = true;
         }
         self
     }
     fn set_gap(&mut self, g: u16) -> &mut Self {
         if let Some(e) = self.tui_ext_mut() {
-            e.inline_style.gap = Some(Value::Specified(crate::layout::GapValue::Cells(g)));
+            e.inline_style_mut().gap = Some(Value::Specified(crate::layout::GapValue::Cells(g)));
             e.style_dirty = true;
         }
         self
     }
     fn set_overflow(&mut self, o: Overflow) -> &mut Self {
         if let Some(e) = self.tui_ext_mut() {
-            e.inline_style.overflow_x = Some(Value::Specified(o));
-            e.inline_style.overflow_y = Some(Value::Specified(o));
+            e.inline_style_mut().overflow_x = Some(Value::Specified(o));
+            e.inline_style_mut().overflow_y = Some(Value::Specified(o));
             e.style_dirty = true;
         }
         self
     }
     fn set_inline_style(&mut self, s: TuiStyle) -> &mut Self {
         if let Some(e) = self.tui_ext_mut() {
-            e.inline_style = s;
+            e.set_inline_style(s);
         }
         self
     }
@@ -533,15 +533,21 @@ mod tests {
         let e = dom.node(div).tui_ext().unwrap();
         use crate::style::Value;
         assert_eq!(
-            e.inline_style.min_width,
+            e.inline_style_or_empty().min_width,
             Some(Value::Specified(MinSize::Cells(10)))
         );
-        assert_eq!(e.inline_style.max_width, Some(Value::Specified(100)));
         assert_eq!(
-            e.inline_style.min_height,
+            e.inline_style_or_empty().max_width,
+            Some(Value::Specified(100))
+        );
+        assert_eq!(
+            e.inline_style_or_empty().min_height,
             Some(Value::Specified(MinSize::Cells(5)))
         );
-        assert_eq!(e.inline_style.max_height, Some(Value::Specified(50)));
+        assert_eq!(
+            e.inline_style_or_empty().max_height,
+            Some(Value::Specified(50))
+        );
     }
 
     #[test]

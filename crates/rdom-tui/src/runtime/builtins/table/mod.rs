@@ -202,7 +202,7 @@ fn colspan_of(dom: &TuiDom, cell: NodeId) -> usize {
 /// The cell's *author-specified* fixed width (`inline_style.width: Fixed(n)`),
 /// or `None`. The column-sizing input — read, never written.
 fn cell_author_width(dom: &TuiDom, cell: NodeId) -> Option<u16> {
-    match dom.node(cell).ext()?.inline_style.width {
+    match dom.node(cell).ext()?.inline_style.as_deref()?.width {
         Some(Value::Specified(Size::Fixed(w))) => Some(w),
         _ => None,
     }

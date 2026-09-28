@@ -6,6 +6,8 @@
 //! Text/Comment/Fragment nodes have no `TuiExt` and get skipped
 //! structurally (their element children are still visited).
 
+use std::rc::Rc;
+
 use rdom_core::{Dom, NodeId, NodeType};
 
 use crate::ext::TuiExt;
@@ -284,11 +286,11 @@ pub(super) fn cascade_subtree(
     // Write back.
     if let Some(ext) = dom.node_mut(id).ext_mut() {
         ext.computed = Some(std::rc::Rc::new(computed.clone()));
-        ext.computed_backdrop = computed_backdrop;
-        ext.computed_selection = computed_selection;
-        ext.computed_scrollbar = computed_scrollbar;
-        ext.computed_scrollbar_thumb_vertical = computed_scrollbar_thumb_vertical;
-        ext.computed_scrollbar_thumb_horizontal = computed_scrollbar_thumb_horizontal;
+        ext.computed_backdrop = computed_backdrop.map(Rc::new);
+        ext.computed_selection = computed_selection.map(Rc::new);
+        ext.computed_scrollbar = computed_scrollbar.map(Rc::new);
+        ext.computed_scrollbar_thumb_vertical = computed_scrollbar_thumb_vertical.map(Rc::new);
+        ext.computed_scrollbar_thumb_horizontal = computed_scrollbar_thumb_horizontal.map(Rc::new);
         ext.style_dirty = false;
         if layout_changed {
             ext.layout_dirty = true;
@@ -370,7 +372,7 @@ fn compute_element_style(
     let sorted: Vec<&Rule> = matching.iter().map(|(_, r)| *r).collect();
 
     // Inline style on this element (may be empty).
-    let inline = dom.node(id).ext().map(|e| &e.inline_style);
+    let inline = dom.node(id).ext().and_then(|e| e.inline_style.as_deref());
 
     apply_cascade_ladder(&mut working, &sorted, inline, parent);
 

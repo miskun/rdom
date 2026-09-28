@@ -75,7 +75,7 @@ impl MutationObserver<TuiExt> for InlineStyleObserver {
         // so we don't trip the `is_observing` re-entrancy panic
         // in `Dom::fire_mutation`.
         if let Some(ext) = dom.node_mut(id).ext_mut() {
-            ext.inline_style = parsed;
+            ext.set_inline_style(parsed);
         }
     }
 }
@@ -103,7 +103,13 @@ mod tests {
         // was the `D-M1-4` debt.
         let (mut dom, div) = dom_with_div();
         dom.set_attribute(div, "style", "color: red").unwrap();
-        let fg = dom.node(div).tui_ext().unwrap().inline_style.fg.clone();
+        let fg = dom
+            .node(div)
+            .tui_ext()
+            .unwrap()
+            .inline_style_or_empty()
+            .fg
+            .clone();
         assert_eq!(
             fg,
             Some(Value::Specified(TuiColor::Literal(Color::Rgb(255, 0, 0))))
@@ -115,7 +121,13 @@ mod tests {
         let (mut dom, div) = dom_with_div();
         dom.set_attribute(div, "style", "color: red").unwrap();
         dom.remove_attribute(div, "style").unwrap();
-        let fg = dom.node(div).tui_ext().unwrap().inline_style.fg.clone();
+        let fg = dom
+            .node(div)
+            .tui_ext()
+            .unwrap()
+            .inline_style_or_empty()
+            .fg
+            .clone();
         assert!(fg.is_none(), "removing style attribute should clear fg");
     }
 
@@ -137,7 +149,12 @@ mod tests {
         // !important; if the observer fired it'd preserve the
         // bit). The key check is that the typed value isn't
         // mangled — fg is Red.
-        let inline = dom.node(div).tui_ext().unwrap().inline_style.clone();
+        let inline = dom
+            .node(div)
+            .tui_ext()
+            .unwrap()
+            .inline_style_or_empty()
+            .clone();
         assert_eq!(
             inline.fg,
             Some(Value::Specified(TuiColor::Literal(Color::Rgb(255, 0, 0))))
@@ -153,7 +170,13 @@ mod tests {
         // Other attribute writes shouldn't touch inline_style.
         let (mut dom, div) = dom_with_div();
         dom.set_attribute(div, "class", "hero").unwrap();
-        let fg = dom.node(div).tui_ext().unwrap().inline_style.fg.clone();
+        let fg = dom
+            .node(div)
+            .tui_ext()
+            .unwrap()
+            .inline_style_or_empty()
+            .fg
+            .clone();
         assert!(fg.is_none());
     }
 
@@ -168,7 +191,13 @@ mod tests {
             .unwrap();
         // No panic = test passes. Inline style stays empty (no
         // recognized properties parsed).
-        let fg = dom.node(div).tui_ext().unwrap().inline_style.fg.clone();
+        let fg = dom
+            .node(div)
+            .tui_ext()
+            .unwrap()
+            .inline_style_or_empty()
+            .fg
+            .clone();
         assert!(fg.is_none());
     }
 
@@ -188,7 +217,13 @@ mod tests {
         crate::cssom::install_default_observers(&mut dom);
 
         dom.set_attribute(div, "style", "color: red").unwrap();
-        let fg = dom.node(div).tui_ext().unwrap().inline_style.fg.clone();
+        let fg = dom
+            .node(div)
+            .tui_ext()
+            .unwrap()
+            .inline_style_or_empty()
+            .fg
+            .clone();
         assert_eq!(
             fg,
             Some(Value::Specified(TuiColor::Literal(Color::Rgb(255, 0, 0))))

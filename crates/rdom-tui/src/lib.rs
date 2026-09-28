@@ -166,7 +166,7 @@ mod tests {
         let ext: TuiExt = TuiExt::default();
         // Geometry lives in `inline_style` (empty by default) since
         // EXT-LAYOUT-SETTERS-1 removed the raw `ext` geometry fields.
-        assert!(ext.inline_style.is_empty());
+        assert!(ext.inline_style.is_none());
     }
 
     #[test]

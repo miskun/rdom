@@ -196,9 +196,9 @@ pub(super) fn paint_scrollbars(
 
     if y_paints {
         let (track_glyph, track_style) =
-            track_cell(ext.computed_scrollbar.as_ref(), ScrollbarAxis::Vertical);
+            track_cell(ext.computed_scrollbar.as_deref(), ScrollbarAxis::Vertical);
         let (thumb_glyph, thumb_style) = thumb_cell(
-            ext.computed_scrollbar_thumb_vertical.as_ref(),
+            ext.computed_scrollbar_thumb_vertical.as_deref(),
             ScrollbarAxis::Vertical,
         );
         paint_vertical_scrollbar(
@@ -218,9 +218,9 @@ pub(super) fn paint_scrollbars(
     }
     if x_paints {
         let (track_glyph, track_style) =
-            track_cell(ext.computed_scrollbar.as_ref(), ScrollbarAxis::Horizontal);
+            track_cell(ext.computed_scrollbar.as_deref(), ScrollbarAxis::Horizontal);
         let (thumb_glyph, thumb_style) = thumb_cell(
-            ext.computed_scrollbar_thumb_horizontal.as_ref(),
+            ext.computed_scrollbar_thumb_horizontal.as_deref(),
             ScrollbarAxis::Horizontal,
         );
         paint_horizontal_scrollbar(

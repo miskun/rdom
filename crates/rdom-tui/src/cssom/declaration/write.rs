@@ -127,12 +127,16 @@ impl<'a> StyleDeclarationMut<'a> {
         let Some(ext) = nm.ext_mut() else {
             return Ok(String::new());
         };
-        let prev = property_dispatch::serialize(name, &ext.inline_style).unwrap_or_default();
-        let removed = property_dispatch::remove(name, &mut ext.inline_style);
+        let prev =
+            property_dispatch::serialize(name, ext.inline_style_or_empty()).unwrap_or_default();
+        let removed = ext
+            .inline_style
+            .as_deref_mut()
+            .is_some_and(|style| property_dispatch::remove(name, style));
         if !removed {
             return Ok(prev);
         }
-        let css_text = css_text_of(&ext.inline_style);
+        let css_text = css_text_of(ext.inline_style_or_empty());
         // Drop the NodeMut borrow before re-borrowing dom for
         // `set_attribute`.
         let _ = nm;
@@ -156,8 +160,8 @@ impl<'a> StyleDeclarationMut<'a> {
         let Some(ext) = nm.ext_mut() else {
             return Ok(());
         };
-        ext.inline_style = parsed.style;
-        let css_text = css_text_of(&ext.inline_style);
+        ext.set_inline_style(parsed.style);
+        let css_text = css_text_of(ext.inline_style_or_empty());
         let _ = nm;
         write_style_attribute(dom, id, &css_text)?;
         Ok(())
@@ -186,12 +190,12 @@ impl<'a> StyleDeclarationMut<'a> {
             return Ok(());
         };
         // Surface the parse channel verbatim from property_dispatch.
-        property_dispatch::set(name, value, &mut ext.inline_style)?;
+        let style = ext.inline_style_mut();
+        property_dispatch::set(name, value, style)?;
         // Custom properties carry importance per declaration (`set`
         // stored the value already, rendered from tokens like CSS source).
         if let Some(custom) = name.strip_prefix("--")
-            && let Some(d) = ext
-                .inline_style
+            && let Some(d) = style
                 .custom_properties
                 .iter_mut()
                 .find(|d| d.name == custom)
@@ -201,14 +205,14 @@ impl<'a> StyleDeclarationMut<'a> {
         // Flip the !important bit for this property's mask.
         if let Some(mask) = property_dispatch::property_mask(name) {
             if important {
-                ext.inline_style.important |= mask;
+                style.important |= mask;
             } else {
                 // setProperty without "important" CLEARS any
                 // prior important bit (browser semantics).
-                ext.inline_style.important = ext.inline_style.important.without(mask);
+                style.important = style.important.without(mask);
             }
         }
-        let css_text = css_text_of(&ext.inline_style);
+        let css_text = css_text_of(ext.inline_style_or_empty());
         // Drop the NodeMut binding before re-borrowing dom for
         // `set_attribute`.
         let _ = nm;

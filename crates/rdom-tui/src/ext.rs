@@ -178,21 +178,54 @@ impl From<PseudoSlot> for StyleSlot {
 }
 
 impl TuiExt {
-    /// The animation overrides for `slot`.
-    pub fn presentation_for(&self, slot: StyleSlot) -> &PresentationStyle {
+    /// The animation overrides for `slot`; `None` while no transition
+    /// drives it.
+    pub fn presentation_for(&self, slot: StyleSlot) -> Option<&PresentationStyle> {
         match slot {
-            StyleSlot::Host => &self.presentation,
-            StyleSlot::Before => &self.presentation_before,
-            StyleSlot::After => &self.presentation_after,
+            StyleSlot::Host => self.presentation.as_deref(),
+            StyleSlot::Before => self.presentation_before.as_deref(),
+            StyleSlot::After => self.presentation_after.as_deref(),
         }
     }
 
+    /// The animation overrides for `slot`, boxed on first use.
     pub fn presentation_for_mut(&mut self, slot: StyleSlot) -> &mut PresentationStyle {
+        self.presentation_slot(slot)
+            .get_or_insert_with(Default::default)
+    }
+
+    /// Drop `slot`'s override box once no property is overridden, so an
+    /// element whose transitions finished is back to one `None`.
+    pub fn release_empty_presentation(&mut self, slot: StyleSlot) {
+        let boxed = self.presentation_slot(slot);
+        if boxed.as_deref().is_some_and(PresentationStyle::is_empty) {
+            *boxed = None;
+        }
+    }
+
+    fn presentation_slot(&mut self, slot: StyleSlot) -> &mut Option<Box<PresentationStyle>> {
         match slot {
             StyleSlot::Host => &mut self.presentation,
             StyleSlot::Before => &mut self.presentation_before,
             StyleSlot::After => &mut self.presentation_after,
         }
+    }
+
+    /// The inline style, or the empty style when none is set.
+    pub fn inline_style_or_empty(&self) -> &TuiStyle {
+        static EMPTY: std::sync::LazyLock<TuiStyle> = std::sync::LazyLock::new(TuiStyle::default);
+        self.inline_style.as_deref().unwrap_or(&EMPTY)
+    }
+
+    /// The inline style, boxed on first use. Prefer
+    /// [`set_inline_style`](Self::set_inline_style) to replace it.
+    pub fn inline_style_mut(&mut self) -> &mut TuiStyle {
+        self.inline_style.get_or_insert_with(Default::default)
+    }
+
+    /// Replace the inline style; an empty style is stored as `None`.
+    pub fn set_inline_style(&mut self, style: TuiStyle) {
+        self.inline_style = (!style.is_empty()).then(|| Box::new(style));
     }
 }
 
@@ -243,7 +276,16 @@ impl PresentationStyle {
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct TuiExt {
     // ── Style (inline) ────────────────────────────────────────────────
-    pub inline_style: TuiStyle,
+    /// The element's inline style (the `style` attribute, and the
+    /// `TuiNodeMutExt` setters). `None` is the empty style (a box
+    /// whose declarations were all removed may stay `Some`): most
+    /// elements carry none, so the 600-odd-byte `TuiStyle` is boxed
+    /// on first write (`PERF-TUIEXT-SIZE-1`). Read it with
+    /// `.as_deref()` or [`inline_style_or_empty`](Self::inline_style_or_empty),
+    /// write it through
+    /// [`inline_style_mut`](Self::inline_style_mut) or
+    /// [`set_inline_style`](Self::set_inline_style).
+    pub inline_style: Option<Box<TuiStyle>>,
 
     /// Fallback text for `::before` when no matching stylesheet rule
     /// supplies a `content:` value. Author-facing setters are
@@ -389,7 +431,14 @@ pub struct TuiExt {
     /// populated; everything else falls back to `computed`. Paint,
     /// layout, and hit-test consult this first via the
     /// `effective_*` helpers.
-    pub presentation: PresentationStyle,
+    ///
+    /// `None` while no transition drives any property: the box is
+    /// created by the first animated write and dropped when the last
+    /// override clears (`PERF-TUIEXT-SIZE-1`), so an element that never
+    /// animates pays one pointer for it. Read it through
+    /// [`presentation_for`](Self::presentation_for), write it through
+    /// [`presentation_for_mut`](Self::presentation_for_mut).
+    pub presentation: Option<Box<PresentationStyle>>,
     /// `::before` pseudo-element computed style. `None` if no content
     /// and no matching `::before` rules.
     pub computed_before: Option<std::rc::Rc<ComputedStyle>>,
@@ -403,14 +452,16 @@ pub struct TuiExt {
     /// Animation overrides for `::before` / `::after` paint
     /// properties (`color`, `background-color`, `border-color`).
     /// Geometry of positioned pseudo-elements does not transition.
-    pub presentation_before: PresentationStyle,
-    pub presentation_after: PresentationStyle,
+    /// Boxed and `None` while no transition drives the slot, like
+    /// [`presentation`](Self::presentation).
+    pub presentation_before: Option<Box<PresentationStyle>>,
+    pub presentation_after: Option<Box<PresentationStyle>>,
     /// `::backdrop` pseudo-element computed style — populated for
     /// modal `<dialog>` elements whose stylesheet has a matching
     /// `dialog::backdrop` rule. The paint pass overlays the
     /// backdrop across the viewport after normal paint and before
     /// re-painting the dialog. See Polish #8.
-    pub computed_backdrop: Option<ComputedStyle>,
+    pub computed_backdrop: Option<std::rc::Rc<ComputedStyle>>,
     /// `::selection` pseudo-element computed style — populated
     /// for elements whose stylesheet has a matching `::selection`
     /// rule. The selection-overlay paint walks up from each
@@ -420,7 +471,7 @@ pub struct TuiExt {
     /// color: white }` rule, so every selectable always has a
     /// computed selection style unless an author explicitly
     /// overrides it back to `initial`.
-    pub computed_selection: Option<ComputedStyle>,
+    pub computed_selection: Option<std::rc::Rc<ComputedStyle>>,
     /// `::scrollbar` pseudo-element computed style — populated
     /// for elements with non-`Visible`/`Hidden` overflow on at
     /// least one axis. Drives the scrollbar track paint: `bg`
@@ -428,16 +479,16 @@ pub struct TuiExt {
     /// (default `" "` from UA — a colored gutter via `bg` is the
     /// modern look). Authors override via
     /// `selector::scrollbar { bg: …; content: "▒"; }` to retheme.
-    pub computed_scrollbar: Option<ComputedStyle>,
+    pub computed_scrollbar: Option<std::rc::Rc<ComputedStyle>>,
     /// `::scrollbar-thumb` computed style for the **vertical** bar:
     /// axis-neutral `::scrollbar-thumb` rules with
     /// `::scrollbar-thumb:vertical` layered on top (default content
     /// `┃`). Authors override via `selector::scrollbar-thumb { … }`
     /// or the axis form.
-    pub computed_scrollbar_thumb_vertical: Option<ComputedStyle>,
+    pub computed_scrollbar_thumb_vertical: Option<std::rc::Rc<ComputedStyle>>,
     /// Same for the **horizontal** bar (`::scrollbar-thumb` +
     /// `::scrollbar-thumb:horizontal`, default content `━`).
-    pub computed_scrollbar_thumb_horizontal: Option<ComputedStyle>,
+    pub computed_scrollbar_thumb_horizontal: Option<std::rc::Rc<ComputedStyle>>,
 
     // ── Dirty flags (read by cascade + layout, set by mutation hooks) ─
     /// This element needs re-cascade next frame. Set by the
@@ -538,10 +589,10 @@ mod tests {
         let ext = TuiExt::new();
         // Geometry now lives in `inline_style` (empty by default) — the
         // raw `ext` geometry fields were removed in EXT-LAYOUT-SETTERS-1.
-        assert!(ext.inline_style.is_empty());
+        assert!(ext.inline_style.is_none());
         assert_eq!(ext.scroll_x, 0);
         assert_eq!(ext.scroll_y, 0);
-        assert!(ext.inline_style.is_empty());
+        assert!(ext.inline_style.is_none());
         assert!(ext.before_content.is_none());
         assert!(ext.after_content.is_none());
         assert_eq!(ext.layout, LayoutRect::default());
@@ -558,25 +609,27 @@ mod tests {
     #[test]
     fn clone_preserves_fields() {
         let ext = TuiExt {
-            inline_style: TuiStyle::new()
-                .fg(Color::Rgb(255, 0, 0))
-                .width(Size::Fixed(80))
-                .padding(Padding::all(2)),
+            inline_style: Some(Box::new(
+                TuiStyle::new()
+                    .fg(Color::Rgb(255, 0, 0))
+                    .width(Size::Fixed(80))
+                    .padding(Padding::all(2)),
+            )),
             ..Default::default()
         };
         let cloned = ext.clone();
         assert_eq!(
-            cloned.inline_style.fg,
+            cloned.inline_style.as_ref().unwrap().fg,
             Some(crate::style::Value::Specified(
                 crate::style::TuiColor::Literal(Color::Rgb(255, 0, 0))
             ))
         );
         assert_eq!(
-            cloned.inline_style.width,
+            cloned.inline_style.as_ref().unwrap().width,
             Some(crate::style::Value::Specified(Size::Fixed(80)))
         );
         assert_eq!(
-            cloned.inline_style.padding,
+            cloned.inline_style.as_ref().unwrap().padding,
             Some(crate::style::Value::Specified(Padding::all(2)))
         );
     }
@@ -584,11 +637,13 @@ mod tests {
     /// Every element pays for `TuiExt`, so growth should be a decision:
     /// state only some elements use (form controls, scroll containers,
     /// editing hosts, selects) lives behind a lazily created box
-    /// (`P7G-FORM-STATE-BOX-1`: 4496 → 4344 bytes on 64-bit targets).
-    /// Raise the bound deliberately, with the reason in the commit.
+    /// (`P7G-FORM-STATE-BOX-1`: 4496 → 4344 bytes on 64-bit targets),
+    /// and so do the pseudo-element styles (`Rc`), the transition
+    /// overrides and the inline style (`PERF-TUIEXT-SIZE-1`: 4344 →
+    /// 432). Raise the bound deliberately, with the reason in the commit.
     #[test]
     fn tui_ext_size_tripwire() {
-        const MAX: usize = 4344;
+        const MAX: usize = 432;
         let size = std::mem::size_of::<TuiExt>();
         let computed = std::mem::size_of::<ComputedStyle>();
         let inline = std::mem::size_of::<TuiStyle>();
@@ -603,15 +658,15 @@ mod tests {
     #[test]
     fn partial_eq_works() {
         let a = TuiExt {
-            inline_style: TuiStyle::new().width(Size::Fixed(10)),
+            inline_style: Some(Box::new(TuiStyle::new().width(Size::Fixed(10)))),
             ..Default::default()
         };
         let b = TuiExt {
-            inline_style: TuiStyle::new().width(Size::Fixed(10)),
+            inline_style: Some(Box::new(TuiStyle::new().width(Size::Fixed(10)))),
             ..Default::default()
         };
         let c = TuiExt {
-            inline_style: TuiStyle::new().width(Size::Fixed(11)),
+            inline_style: Some(Box::new(TuiStyle::new().width(Size::Fixed(11)))),
             ..Default::default()
         };
         assert_eq!(a, b);

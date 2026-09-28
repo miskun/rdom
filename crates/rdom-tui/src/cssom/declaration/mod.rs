@@ -46,5 +46,7 @@ pub use write::StyleDeclarationMut;
 /// snapshot declaration view of `node`'s inline style. Returns
 /// `None` for non-element nodes (those without a `TuiExt`).
 pub(crate) fn from_node_ref(node: &NodeRef<'_, TuiExt>) -> Option<StyleDeclaration> {
-    Some(StyleDeclaration::new(node.tui_ext()?.inline_style.clone()))
+    Some(StyleDeclaration::new(
+        node.tui_ext()?.inline_style_or_empty().clone(),
+    ))
 }
