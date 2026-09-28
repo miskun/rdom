@@ -147,3 +147,76 @@ fn parse_warnings_are_reported_and_refreshed() {
     app.advance(0).unwrap();
     assert!(app.style_element_warnings().is_empty());
 }
+
+// ── P7G-STYLE-HOLDS-1: cheap relevance checks ─────────────────────────
+
+/// A 10 000-deep chain built bottom-up — each new parent adopting the
+/// chain so far, a `<style>` at the bottom — in a detached subtree, then
+/// inserted. The observer neither recurses (no stack overflow) nor
+/// walks the detached build (a `<style>` that is not connected has no
+/// sheet, HTML §4.2.6), and the one insertion is relevant.
+#[test]
+fn a_deep_bottom_up_build_does_not_recurse_and_only_its_insertion_counts() {
+    let mut dom: TuiDom = TuiDom::new();
+    let elements = super::StyleElements::install(&mut dom);
+    elements.dirty.set(false);
+    let mut top = style(&mut dom, "p { color: red; }");
+    for _ in 0..10_000 {
+        let parent = dom.create_element("div");
+        dom.append_child(parent, top).unwrap();
+        top = parent;
+    }
+    assert!(!elements.dirty.get(), "a detached build holds no sheet");
+    let root = dom.root();
+    dom.append_child(root, top).unwrap();
+    assert!(elements.dirty.get(), "inserting it adds one");
+    elements.dirty.set(false);
+    dom.remove_child(root, top).unwrap();
+    assert!(elements.dirty.get(), "removing it drops it");
+}
+
+/// Mutations under the document that involve no `<style>` leave the
+/// set clean; a text edit inside a detached `<style>` too.
+#[test]
+fn mutations_without_a_connected_style_element_are_not_relevant() {
+    let mut dom: TuiDom = TuiDom::new();
+    let elements = super::StyleElements::install(&mut dom);
+    elements.dirty.set(false);
+    let root = dom.root();
+    let list = dom.create_element("ul");
+    dom.append_child(root, list).unwrap();
+    for _ in 0..3 {
+        let li = dom.create_element("li");
+        let t = dom.create_text_node("x");
+        dom.append_child(li, t).unwrap();
+        dom.append_child(list, li).unwrap();
+    }
+    let detached = style(&mut dom, "p {}");
+    let text = dom.node(detached).first_child().unwrap().id();
+    dom.node_mut(text)
+        .set_node_value("p { color: red; }")
+        .unwrap();
+    assert!(!elements.dirty.get());
+}
+
+/// The subtree search itself is iterative: a 10 000-deep chain is
+/// searched to its bottom without growing the stack.
+#[test]
+fn holds_style_searches_a_deep_chain_without_recursing() {
+    let mut dom: TuiDom = TuiDom::new();
+    let mut with = style(&mut dom, "");
+    let mut without = dom.create_element("span");
+    for _ in 0..10_000 {
+        for top in [&mut with, &mut without] {
+            let parent = dom.create_element("div");
+            dom.append_child(parent, *top).unwrap();
+            *top = parent;
+        }
+    }
+    assert!(super::holds_style(&dom, with));
+    assert!(!super::holds_style(&dom, without));
+    // A sibling after a deep branch is still searched.
+    let s = style(&mut dom, "");
+    dom.append_child(without, s).unwrap();
+    assert!(super::holds_style(&dom, without));
+}

@@ -7,12 +7,20 @@
 //!
 //! [`StyleElements`] keeps one parsed sheet per connected `<style>`
 //! element, in tree order. A mutation observer marks the set dirty when
-//! a `<style>` element's text or children change, or a `<style>`
-//! element (or a subtree holding one) is inserted or removed — observers
-//! may not mutate or re-enter the tree, and the cascade reads the sheets
-//! only at a frame, so the [`App`](crate::runtime::App) flushes it
-//! before handling each event and before each frame's cascade, and
-//! invalidates the cascade when the sheets changed. A flush re-parses
+//! a connected `<style>` element's text or children change, or a
+//! `<style>` element (or a subtree holding one) is inserted into or
+//! removed from the document — observers may not mutate or re-enter the
+//! tree, and the cascade reads the sheets only at a frame, so the
+//! [`App`](crate::runtime::App) flushes it at the frame boundary (before
+//! each frame's cascade, `draw_if_dirty` and the off-frame
+//! `cascade_and_layout`), and invalidates the cascade when the sheets
+//! changed.
+//!
+//! The observer's check is cheap (`P7G-STYLE-HOLDS-1`): a mutation of a
+//! detached subtree is skipped (a `<style>` that is not connected has no
+//! sheet — building a subtree bottom-up before inserting it costs
+//! nothing here), and an inserted or removed subtree is searched once,
+//! iteratively, stopping at the first `<style>`. A flush re-parses
 //! only the elements whose text changed; each sheet's parse warnings
 //! are kept with it ([`App::style_element_warnings`](crate::runtime::App::style_element_warnings)).
 //!
@@ -140,19 +148,21 @@ impl MutationObserver<TuiExt> for StyleObserver {
             Mutation::CharacterDataChanged { id, .. } => dom
                 .node(*id)
                 .parent_node()
-                .is_some_and(|p| p.tag_name() == Some("style")),
+                .is_some_and(|p| p.tag_name() == Some("style") && p.is_connected()),
             Mutation::ChildListChanged {
                 parent,
                 added,
                 removed,
             } => {
-                dom.node(*parent).tag_name() == Some("style")
-                    || added
-                        .iter()
-                        .chain(removed)
-                        // A dropped node's subtree is gone: it may have
-                        // held one.
-                        .any(|&id| !dom.contains(id) || holds_style(dom, id))
+                // Only the document's `<style>` elements have sheets.
+                dom.node(*parent).is_connected()
+                    && (dom.node(*parent).tag_name() == Some("style")
+                        || added
+                            .iter()
+                            .chain(removed)
+                            // A dropped node's subtree is gone: it may have
+                            // held one.
+                            .any(|&id| !dom.contains(id) || holds_style(dom, id)))
             }
             _ => false,
         };
@@ -162,10 +172,37 @@ impl MutationObserver<TuiExt> for StyleObserver {
     }
 }
 
-/// `id` is a `<style>` element or has one among its descendants.
+/// `id` is a `<style>` element or has one among its descendants. A
+/// pre-order walk over the parent / sibling links — no recursion, no
+/// allocation — that stops at the first `<style>`.
 fn holds_style(dom: &TuiDom, id: NodeId) -> bool {
-    let node = dom.node(id);
-    node.tag_name() == Some("style") || node.child_nodes().any(|c| holds_style(dom, c.id()))
+    let mut cur = id;
+    loop {
+        let node = dom.node(cur);
+        if node.tag_name() == Some("style") {
+            return true;
+        }
+        if let Some(child) = node.first_child() {
+            cur = child.id();
+            continue;
+        }
+        // No children: the next sibling of the nearest node on the way
+        // back up to `id` that has one.
+        loop {
+            if cur == id {
+                return false;
+            }
+            let node = dom.node(cur);
+            if let Some(next) = node.next_sibling() {
+                cur = next.id();
+                break;
+            }
+            match node.parent_node() {
+                Some(parent) => cur = parent.id(),
+                None => return false,
+            }
+        }
+    }
 }
 
 #[cfg(test)]
