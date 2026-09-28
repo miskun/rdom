@@ -36,6 +36,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 ### Changed — `rdom-core`
 
 - `compare_document_position`, `compare_boundary_points` and `common_ancestor` no longer allocate: a depth walk replaces the two materialized ancestor paths. Selection paint called this twice per text node per frame. (`CORE-DOCPOS-ALLOC-1`)
+- Attribute-selector matching no longer allocates: the HTML case-insensitive attribute list is a `match` instead of a linear scan of 46 names, and `=`, `~=`, `|=`, `^=`, `$=`, `*=` compare ASCII-case-insensitively (or exactly) in place instead of lowercasing both strings — `|=` included, which formatted a `"{want}-"` string on every test. Matching results are unchanged. (`P7G-ATTR-CI-FAST-1`)
 
 ### Fixed — `rdom-core`
 

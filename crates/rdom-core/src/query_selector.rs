@@ -353,57 +353,61 @@ impl<Ext> Dom<Ext> {
 
 /// HTML §4.16.2 "case-sensitivity of selectors": attribute selectors on
 /// an HTML element treat the values of these attributes as ASCII
-/// case-insensitive. Every rdom element is an HTML element in an HTML
+/// case-insensitive (a `match`: this runs on every attribute-selector
+/// test of the cascade). Every rdom element is an HTML element in an HTML
 /// document. (HTML exempts `type` in its rendering section's `ol[type]`
 /// rules via the `s` flag, which rdom does not parse.)
-const HTML_CASE_INSENSITIVE_ATTRS: [&str; 46] = [
-    "accept",
-    "accept-charset",
-    "align",
-    "alink",
-    "axis",
-    "bgcolor",
-    "charset",
-    "checked",
-    "clear",
-    "codetype",
-    "color",
-    "compact",
-    "declare",
-    "defer",
-    "dir",
-    "direction",
-    "disabled",
-    "enctype",
-    "face",
-    "frame",
-    "hreflang",
-    "http-equiv",
-    "lang",
-    "language",
-    "link",
-    "media",
-    "method",
-    "multiple",
-    "nohref",
-    "noresize",
-    "noshade",
-    "nowrap",
-    "readonly",
-    "rel",
-    "rev",
-    "rules",
-    "scope",
-    "scrolling",
-    "selected",
-    "shape",
-    "target",
-    "text",
-    "type",
-    "valign",
-    "valuetype",
-    "vlink",
-];
+fn is_html_case_insensitive_attr(name: &str) -> bool {
+    matches!(
+        name,
+        "accept"
+            | "accept-charset"
+            | "align"
+            | "alink"
+            | "axis"
+            | "bgcolor"
+            | "charset"
+            | "checked"
+            | "clear"
+            | "codetype"
+            | "color"
+            | "compact"
+            | "declare"
+            | "defer"
+            | "dir"
+            | "direction"
+            | "disabled"
+            | "enctype"
+            | "face"
+            | "frame"
+            | "hreflang"
+            | "http-equiv"
+            | "lang"
+            | "language"
+            | "link"
+            | "media"
+            | "method"
+            | "multiple"
+            | "nohref"
+            | "noresize"
+            | "noshade"
+            | "nowrap"
+            | "readonly"
+            | "rel"
+            | "rev"
+            | "rules"
+            | "scope"
+            | "scrolling"
+            | "selected"
+            | "shape"
+            | "target"
+            | "text"
+            | "type"
+            | "valign"
+            | "valuetype"
+            | "vlink"
+    )
+}
 
 fn match_attribute(
     attrs: &std::collections::BTreeMap<String, String>,
@@ -416,23 +420,61 @@ fn match_attribute(
     };
     let Some(op) = op else { return true }; // `[name]` — presence only.
     let want = want.unwrap_or("");
-    if HTML_CASE_INSENSITIVE_ATTRS.contains(&name) {
-        if op == AttrOp::Exact {
-            return have.eq_ignore_ascii_case(want);
-        }
-        return match_value(op, &have.to_ascii_lowercase(), &want.to_ascii_lowercase());
+    if is_html_case_insensitive_attr(name) {
+        match_value::<AsciiCaseInsensitive>(op, have, want)
+    } else {
+        match_value::<CaseSensitive>(op, have, want)
     }
-    match_value(op, have, want)
 }
 
-fn match_value(op: AttrOp, have: &str, want: &str) -> bool {
+/// How [`match_value`] compares attribute-value bytes. Comparing bytes
+/// is sound for UTF-8: ASCII case folding never touches the bytes of a
+/// multi-byte character, so a match starts and ends on char boundaries
+/// whenever `want` is valid UTF-8.
+trait ValueCase {
+    fn eq(a: &[u8], b: &[u8]) -> bool;
+
+    /// `want` (non-empty) occurs in `have`.
+    fn contains(have: &str, want: &str) -> bool {
+        have.as_bytes()
+            .windows(want.len())
+            .any(|win| Self::eq(win, want.as_bytes()))
+    }
+}
+
+struct CaseSensitive;
+impl ValueCase for CaseSensitive {
+    fn eq(a: &[u8], b: &[u8]) -> bool {
+        a == b
+    }
+
+    fn contains(have: &str, want: &str) -> bool {
+        have.contains(want)
+    }
+}
+
+/// HTML §4.16.2: ASCII case-insensitive, without allocating.
+struct AsciiCaseInsensitive;
+impl ValueCase for AsciiCaseInsensitive {
+    fn eq(a: &[u8], b: &[u8]) -> bool {
+        a.eq_ignore_ascii_case(b)
+    }
+}
+
+/// Selectors 4 §6.1 / §6.2: the attribute-value operators, comparing
+/// per `C`.
+fn match_value<C: ValueCase>(op: AttrOp, have: &str, want: &str) -> bool {
+    let (h, w) = (have.as_bytes(), want.as_bytes());
+    let starts = |h: &[u8]| h.get(..w.len()).is_some_and(|p| C::eq(p, w));
     match op {
-        AttrOp::Exact => have == want,
-        AttrOp::Includes => have.split_ascii_whitespace().any(|tok| tok == want),
-        AttrOp::DashMatch => have == want || have.starts_with(&format!("{want}-")),
-        AttrOp::Prefix => !want.is_empty() && have.starts_with(want),
-        AttrOp::Suffix => !want.is_empty() && have.ends_with(want),
-        AttrOp::Substring => !want.is_empty() && have.contains(want),
+        AttrOp::Exact => C::eq(h, w),
+        AttrOp::Includes => have
+            .split_ascii_whitespace()
+            .any(|tok| C::eq(tok.as_bytes(), w)),
+        AttrOp::DashMatch => C::eq(h, w) || (starts(h) && h.get(w.len()) == Some(&b'-')),
+        AttrOp::Prefix => !w.is_empty() && starts(h),
+        AttrOp::Suffix => !w.is_empty() && h.len() >= w.len() && C::eq(&h[h.len() - w.len()..], w),
+        AttrOp::Substring => !w.is_empty() && C::contains(have, want),
     }
 }
 
@@ -913,6 +955,60 @@ mod tests {
             "attributes outside the HTML list stay case-sensitive"
         );
         assert!(dom.matches(cb, "[data-kind=Big]").unwrap());
+    }
+
+    /// Every attribute operator honors HTML §4.16.2's case-insensitive
+    /// values — `=`, `~=`, `|=`, `^=`, `$=`, `*=` — on a listed attribute
+    /// (`rel`, `lang`, `type`), and stays case-sensitive on others.
+    #[test]
+    fn every_attribute_operator_is_ascii_case_insensitive_on_listed_attributes() {
+        let mut dom: Dom = Dom::new();
+        let root = dom.root();
+        let a = dom.create_element("a");
+        dom.set_attribute(a, "rel", "NoOpener External").unwrap();
+        dom.set_attribute(a, "lang", "EN-GB").unwrap();
+        dom.set_attribute(a, "type", "Text/HTML").unwrap();
+        dom.set_attribute(a, "title", "Text/HTML").unwrap();
+        dom.append_child(root, a).unwrap();
+        for sel in [
+            "[type='text/html']",
+            "[rel~=external]",
+            "[rel~=NOOPENER]",
+            "[lang|=en]",
+            "[lang|=en-gb]",
+            "[type^=TEXT]",
+            "[type$='/html']",
+            "[type*='T/h']",
+        ] {
+            assert!(dom.matches(a, sel).unwrap(), "{sel}");
+        }
+        for sel in [
+            "[rel~=noop]",
+            "[lang|=e]",
+            "[lang|=gb]",
+            "[type^=html]",
+            "[type$=text]",
+            "[type*=xml]",
+            "[type^='']",
+        ] {
+            assert!(!dom.matches(a, sel).unwrap(), "{sel}");
+        }
+        for sel in [
+            "[title='text/html']",
+            "[title^=text]",
+            "[title$='/html']",
+            "[title*='t/h']",
+        ] {
+            assert!(
+                !dom.matches(a, sel).unwrap(),
+                "{sel}: title is case-sensitive"
+            );
+        }
+        assert!(dom.matches(a, "[title*='t/H']").unwrap());
+        // Non-ASCII letters never fold.
+        dom.set_attribute(a, "lang", "ÉN").unwrap();
+        assert!(!dom.matches(a, "[lang|='én']").unwrap());
+        assert!(dom.matches(a, "[lang|='ÉN']").unwrap());
     }
 
     #[test]
