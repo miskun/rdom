@@ -173,9 +173,12 @@ pub enum PseudoClass {
     OnlyChild,
     Empty,
     Root,
-    /// `:hover` — matches when the node is the Dom's currently-hovered
-    /// node (tracked via `Dom::set_hovered`).
+    /// `:hover` — matches the Dom's currently-hovered node (tracked via
+    /// `Dom::set_hovered`) and every ancestor of it (Selectors 4 §9.2).
     Hover,
+    /// `:active` — matches the element being activated (tracked via
+    /// `Dom::set_active`) and every ancestor of it (Selectors 4 §9.4).
+    Active,
     /// `:focus` — matches when the node is the Dom's currently-focused
     /// node (tracked via `Dom::set_focused`).
     Focus,
@@ -586,6 +589,7 @@ impl<'a> Parser<'a> {
             "empty" => Ok(SimpleSelector::Pseudo(PseudoClass::Empty)),
             "root" => Ok(SimpleSelector::Pseudo(PseudoClass::Root)),
             "hover" => Ok(SimpleSelector::Pseudo(PseudoClass::Hover)),
+            "active" => Ok(SimpleSelector::Pseudo(PseudoClass::Active)),
             "focus" => Ok(SimpleSelector::Pseudo(PseudoClass::Focus)),
             "focus-within" => Ok(SimpleSelector::Pseudo(PseudoClass::FocusWithin)),
             "focus-visible" => Ok(SimpleSelector::Pseudo(PseudoClass::FocusVisible)),

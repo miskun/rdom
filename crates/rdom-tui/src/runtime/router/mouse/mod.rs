@@ -127,7 +127,11 @@ fn handle_down(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> Rout
     );
 
     let Some(target) = hit else {
-        return RouteOutcome::default();
+        // A press on nothing activates nothing; it also ends an
+        // activation whose release was lost outside the window.
+        let deactivated = dom.active().is_some();
+        dom.set_active(None);
+        return RouteOutcome::redraw(deactivated);
     };
 
     let mut tui = TuiEvent::mousedown(mouse);
@@ -147,9 +151,22 @@ fn handle_down(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> Rout
         if let Some(sb_hit) = crate::runtime::scrollbar::hit(dom, &path, mouse.column, mouse.row)
             && crate::runtime::scrollbar::handle_mousedown(router, dom, sb_hit)
         {
+            dom.set_active(None);
             return RouteOutcome::redraw(true);
         }
+    }
 
+    // `:active` (Selectors 4 §9.4): the pressed element — and through
+    // the selector, its ancestors — is being activated until the button
+    // is released. A cancelled `mousedown` still activates, as in Blink;
+    // a scrollbar press (returned above) activates nothing. A listener
+    // that disconnected the target leaves nothing to activate.
+    if dom.active() != Some(target) && dom.node(target).is_connected() {
+        dom.set_active(Some(target));
+        redraw = true;
+    }
+
+    if !tui.event.default_prevented() {
         if let Some(focusable) = crate::runtime::focus::nearest_focusable_ancestor(dom, target) {
             let prev = dom.focused();
             crate::runtime::focus::focus_node(dom, Some(focusable));
@@ -208,6 +225,10 @@ fn handle_down(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> Rout
 /// targets the hit and the `click` the common ancestor, as in a
 /// browser.
 fn handle_up(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> RouteOutcome {
+    // The release ends the activation (`:active`) before `mouseup` /
+    // `click` run.
+    let deactivated = dom.active().is_some();
+    dom.set_active(None);
     let captured = dom.pointer_capture();
     let hit = dom.hit_test(mouse.column, mouse.row);
     let down_target = router.down_target.take();
@@ -280,7 +301,7 @@ fn handle_up(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> RouteO
         dom.hovered()
     );
 
-    RouteOutcome::default()
+    RouteOutcome::redraw(deactivated)
 }
 
 /// `mousemove` (or drag with left button held). Hit-tests; if

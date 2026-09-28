@@ -79,8 +79,9 @@ These are intrinsic to terminals. They will not change.
 
 ### Cascade & selectors
 
-Supported selector grammar: type, class, ID, attribute, descendant, child (`>`), adjacent sibling (`+`), general sibling (`~`), comma list. Supported pseudo-classes: `:hover`, `:focus`, `:focus-within`, `:focus-visible`, `:checked`, `:indeterminate`, `:open`, `:disabled`, `:enabled`, `:valid`, `:invalid`, `:required`, `:optional`, `:first-child`, `:last-child`, `:only-child`, `:empty`, `:root`, `:not(<list>)`, `:where(<list>)`, `:placeholder-shown`.
+Supported selector grammar: type, class, ID, attribute, descendant, child (`>`), adjacent sibling (`+`), general sibling (`~`), comma list. Supported pseudo-classes: `:hover`, `:active`, `:focus`, `:focus-within`, `:focus-visible`, `:checked`, `:indeterminate`, `:open`, `:disabled`, `:enabled`, `:valid`, `:invalid`, `:required`, `:optional`, `:first-child`, `:last-child`, `:only-child`, `:empty`, `:root`, `:not(<list>)`, `:where(<list>)`, `:placeholder-shown`.
 
+- **`:active` follows the primary pointer button only.** The `App` activates the pressed element (Selectors 4 §9.4; `:hover` / `:active` / `:focus-within` match its ancestors too, as on the web) from a left-button press to its release, including a press whose `mousedown` was cancelled (as in Blink); a scrollbar press activates nothing. Browsers also activate a button held down with Space and the labeled control of an active `<label>` (HTML §4.16.3); rdom does neither.
 - **`:where(<list>)`** matches like `:is()` (any complex selector in its list) but contributes **zero specificity** (Selectors L4) — the mechanism a component library uses to ship default styles that any author rule overrides. `:is()` (specificity = most-specific argument) is *not* yet implemented.
 - **Not implemented:** attribute selector case flags (`[x=v i]`, `[type=a s]`), `:nth-child(an+b)`, `:nth-of-type`, `:has()`, `:is()`, `:read-only`, `:read-write`, `:user-valid`, `:user-invalid`, `:modal`.
 - **Not implemented as author-styleable pseudo-elements:** `::marker`, `::caret`, `::first-line`, `::first-letter`. List markers use `::before` content.

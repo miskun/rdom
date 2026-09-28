@@ -399,15 +399,18 @@ impl<Ext: 'static> Dom<Ext> {
     /// on parent. Safe no-op if the node has no parent.
     ///
     /// Also clears any interaction state (`focused`, `hovered`,
-    /// `pointer_capture`, `selection`) that pointed into the
+    /// `active`, `pointer_capture`, `selection`) that pointed into the
     /// detached subtree. Without this, a `set_focused`/etc. pointing
     /// at a now-orphaned node leaves the Dom in an internally
     /// inconsistent state — `dom.focused()` returns a NodeId that's
     /// no longer in the tree, and `:focus` keeps matching it.
     ///
-    /// Record-emission order is: structural pointer update, then
+    /// Record-emission order is: `PreDetach`, then
     /// `InteractionChanged`/`SelectionChanged` for any cleared
-    /// state. The `ChildListChanged` record that motivates the
+    /// state — both while the subtree is still connected, so an
+    /// observer can walk the cleared node's ancestors (whose
+    /// `:hover` / `:active` / `:focus-within` flip) — then the
+    /// structural pointer update. The `ChildListChanged` record that motivates the
     /// detach is fired by the caller (`remove_child`,
     /// `replace_with`, `clear_children`, ...) AFTER this returns,
     /// so observers see the interaction-state changes before the
@@ -416,6 +419,7 @@ impl<Ext: 'static> Dom<Ext> {
     /// step — centralizing in this function trades that
     /// observability nuance for a structurally-guaranteed cleanup.
     pub(crate) fn detach_from_parent(&mut self, id: NodeId) -> Result<()> {
+        self.node_or_err(id)?;
         // **Pre-detach event window** — fire `Mutation::PreDetach`
         // BEFORE structural unlink, while focused/hovered's
         // ancestor chains are still intact. Observers (notably
@@ -424,30 +428,28 @@ impl<Ext: 'static> Dom<Ext> {
         // events with normal bubbling semantics. Only emitted
         // when at least one of focused/hovered is actually inside
         // the subtree being detached — empty PreDetach records
-        // would be noise.
-        //
-        // Walks the detached subtree at most ONCE per detach: the
-        // collected `Vec<NodeId>` is reused by
-        // `purge_interaction_state_for_subtree` below via the
-        // `_with_subtree` variant. Saves an O(N) re-walk per
-        // detach for non-trivial subtrees.
-        let subtree: Option<Vec<NodeId>> =
-            if self.focused.is_some() || self.hovered.is_some() || self.selection.is_some() {
-                let mut v = Vec::new();
-                self.collect_descendants(id, &mut v);
-                let focused_in = self.focused.filter(|f| v.contains(f));
-                let hovered_in = self.hovered.filter(|h| v.contains(h));
-                if focused_in.is_some() || hovered_in.is_some() {
-                    self.fire_mutation(Mutation::PreDetach {
-                        detached_root: id,
-                        focused: focused_in,
-                        hovered: hovered_in,
-                    });
-                }
-                Some(v)
-            } else {
-                None
-            };
+        // would be noise. Membership is an O(depth) ancestor walk
+        // from the state's node, not a walk of the subtree.
+        let focused_in = self.focused.filter(|&f| self.is_ancestor(id, f));
+        let hovered_in = self.hovered.filter(|&h| self.is_ancestor(id, h));
+        if focused_in.is_some() || hovered_in.is_some() {
+            self.fire_mutation(Mutation::PreDetach {
+                detached_root: id,
+                focused: focused_in,
+                hovered: hovered_in,
+            });
+        }
+
+        // Clear the interaction state inside the subtree while it is
+        // still connected: `:hover`, `:active` and `:focus-within` also
+        // match the ancestors, so an observer of the `InteractionChanged`
+        // record must be able to walk from `prev` to them. A panicking
+        // observer does not stop the unlink (the caller frees a dropped
+        // subtree on the way out); whatever the purge had not reached
+        // yet is cleared silently before the panic resumes.
+        let purged = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            self.purge_interaction_state_for_subtree(id, true);
+        }));
 
         let node = self.node_or_err(id)?;
         let parent = node.parent;
@@ -474,72 +476,70 @@ impl<Ext: 'static> Dom<Ext> {
         n.prev_sibling = None;
         n.next_sibling = None;
 
-        self.purge_interaction_state_for_subtree(id, subtree);
+        if let Err(payload) = purged {
+            self.purge_interaction_state_for_subtree(id, false);
+            std::panic::resume_unwind(payload);
+        }
         Ok(())
     }
 
     /// Clear any document-level interaction state
-    /// (`focused`, `hovered`, `pointer_capture`, `selection`) whose
-    /// referenced node lives inside the subtree rooted at `root`
+    /// (`focused`, `hovered`, `active`, `pointer_capture`, `selection`)
+    /// whose referenced node lives inside the subtree rooted at `root`
     /// (inclusive). Called by `detach_from_parent` so detachment
     /// can never leave dangling interaction pointers.
     ///
-    /// Each cleared field that has a mutation type (`focused`,
-    /// `hovered`, `selection`) goes through its public setter so
-    /// the appropriate `InteractionChanged` / `SelectionChanged`
-    /// record fires; `pointer_capture` clears silently because it
-    /// has no associated record type (it's a runtime-routing flag,
-    /// not a cascade-affecting state).
+    /// With `notify`, each cleared field that has a mutation type
+    /// (`focused`, `hovered`, `active`, `selection`) goes through its
+    /// public setter so the appropriate `InteractionChanged` /
+    /// `SelectionChanged` record fires; without it (the cleanup after a
+    /// panicking observer) the fields are cleared directly.
+    /// `pointer_capture` always clears silently because it has no
+    /// associated record type (it's a runtime-routing flag, not a
+    /// cascade-affecting state).
     ///
-    /// Accepts an optional pre-computed `subtree` list — the
-    /// `detach_from_parent` PreDetach pass already walks the
-    /// detached subtree and threads its result through to avoid a
-    /// duplicate O(N) walk. `None` falls back to walking here.
-    fn purge_interaction_state_for_subtree(
-        &mut self,
-        root: NodeId,
-        cached_subtree: Option<Vec<NodeId>>,
-    ) {
-        // Common-case early exit: when no interaction state is set
-        // (headless DOM consumers, doc-building scripts, tests that
-        // don't touch focus/hover/selection), skip the descendant
-        // walk + allocation.
-        if self.focused.is_none()
-            && self.hovered.is_none()
-            && self.pointer_capture.is_none()
-            && self.selection.is_none()
-        {
-            return;
+    /// Membership is `is_ancestor(root, node)`: O(depth) per field, no
+    /// subtree walk, correct before and after `root` is unlinked (the
+    /// links inside the subtree stay).
+    fn purge_interaction_state_for_subtree(&mut self, root: NodeId, notify: bool) {
+        let inside =
+            |dom: &Self, node: Option<NodeId>| node.is_some_and(|n| dom.is_ancestor(root, n));
+        if inside(self, self.focused) {
+            if notify {
+                self.set_focused(None);
+            } else {
+                self.focused = None;
+            }
         }
-
-        let subtree: Vec<NodeId> = cached_subtree.unwrap_or_else(|| {
-            let mut v = Vec::new();
-            self.collect_descendants(root, &mut v);
-            v
-        });
-
-        let in_subtree = |candidate: NodeId| subtree.contains(&candidate);
-
-        if let Some(f) = self.focused
-            && in_subtree(f)
-        {
-            self.set_focused(None);
+        if inside(self, self.hovered) {
+            if notify {
+                self.set_hovered(None);
+            } else {
+                self.hovered = None;
+            }
         }
-        if let Some(h) = self.hovered
-            && in_subtree(h)
-        {
-            self.set_hovered(None);
+        if inside(self, self.active) {
+            if notify {
+                self.set_active(None);
+            } else {
+                self.active = None;
+            }
         }
-        if let Some(p) = self.pointer_capture
-            && in_subtree(p)
-        {
+        if inside(self, self.pointer_capture) {
             self.pointer_capture = None;
         }
-        if let Some(sel) = self.selection.as_ref() {
-            let anchor = sel.anchor.node;
-            let focus = sel.focus.node;
-            if in_subtree(anchor) || in_subtree(focus) {
+        let selected = self
+            .selection
+            .as_ref()
+            .map(|sel| (sel.anchor.node, sel.focus.node));
+        if let Some((anchor, focus)) = selected
+            && (inside(self, Some(anchor)) || inside(self, Some(focus)))
+        {
+            if notify {
                 self.set_selection(None);
+            } else {
+                self.selection = None;
+                self.selection_serial = self.selection_serial.next();
             }
         }
     }
@@ -651,8 +651,9 @@ mod tests {
 
     /// A panicking observer on the *purge* records that `detach_from_parent`
     /// fires (`InteractionChanged` for a focused descendant, `SelectionChanged`
-    /// for a selection anchored inside) must not leak either: the unlink has
-    /// already happened, so the subtree is freed on the way out.
+    /// for a selection anchored inside) must not leak either: those fire while
+    /// the subtree is still connected, but the unlink still happens (the rest
+    /// of the purge runs silently), so the subtree is freed on the way out.
     #[test]
     fn drop_subtree_frees_when_the_focus_purge_observer_panics() {
         struct Bomb;

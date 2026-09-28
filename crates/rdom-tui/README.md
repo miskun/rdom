@@ -192,17 +192,21 @@ block child's first line).
 
 See the `parse_and_render` example for a working template.
 
-## Interaction state: `:hover` and `:focus`
+## Interaction state: `:hover`, `:active` and `:focus`
 
 ```rust
 dom.set_hovered(Some(button));   // fires InteractionChanged(Hover)
+dom.set_active(Some(button));    // fires InteractionChanged(Active)
 dom.set_focused(Some(input));    // fires InteractionChanged(Focus)
 ```
 
-Both setters fire `Mutation::InteractionChanged` records so a
-`DirtyTracker` can invalidate both the previously-hovered node and
-the newly-hovered node, causing the next cascade to re-evaluate
-`:hover` / `:focus` matches on both sides.
+The setters fire `Mutation::InteractionChanged` records so a
+`DirtyTracker` can invalidate the elements whose match flipped.
+`:hover`, `:active` and `:focus-within` also match every ancestor of
+the element holding the state (Selectors 4 §9.2 / §9.4), so `li:hover`
+applies while the pointer is over a `<span>` inside the `<li>`; the
+tracker restyles the old and new ancestor chains minus their common
+part. The `App` sets `:active` for the duration of a left-button press.
 
 `:focus-visible` matches the focused element while
 `dom.focus_visible()` is `true`. The `App` keeps that bit with the
@@ -239,8 +243,9 @@ dom.cascade_subtrees(&sheet, &roots);
 
 `DirtyTracker` handles: attribute + class changes (node+subtree),
 tree insertions/removals (with sibling-dependent re-matching for
-`:first-child`, `+`, `~`), hover/focus changes (both previous and
-next targets), and stylesheet swap. Text-content changes do NOT
+`:first-child`, `+`, `~`), hover / active / focus changes (the
+previous and next targets' ancestor chains, minus their common part),
+and stylesheet swap. Text-content changes do NOT
 dirty — text doesn't affect selector matching.
 
 Bypass the observer (e.g. writing `TuiExt.inline_style` directly via

@@ -52,6 +52,8 @@ mod frame_work_tests;
 #[cfg(test)]
 mod idle_tests;
 #[cfg(test)]
+mod interaction_chain_tests;
+#[cfg(test)]
 mod route_redraw_tests;
 #[cfg(test)]
 mod scroll_repaint_tests;

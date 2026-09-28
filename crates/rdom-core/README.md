@@ -83,7 +83,7 @@ Full spec-subset matching via `query_selector`, `query_selector_all`,
 | child | `ul > li` |
 | next-sibling | `h1 + p` |
 | subsequent | `h1 ~ p` |
-| pseudo-classes | `:not(...)`, `:first-child`, `:last-child`, `:only-child`, `:empty`, `:root`, `:hover`, `:focus` |
+| pseudo-classes | `:not(...)`, `:first-child`, `:last-child`, `:only-child`, `:empty`, `:root`, `:hover`, `:active`, `:focus`, `:focus-within` |
 
 Pseudo-elements (`::before`, `::after`) are recognized as selector
 suffixes; they're extracted before parsing and delivered to

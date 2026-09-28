@@ -39,9 +39,11 @@ use crate::dom::Dom;
 use crate::node_id::NodeId;
 
 /// Which interaction state changed. Fired by `Dom::set_hovered` /
-/// `Dom::set_focused` / `Dom::set_focus_visible` so pseudo-class
-/// matches (`:hover`, `:focus`, `:focus-visible`) can invalidate
-/// cleanly.
+/// `Dom::set_focused` / `Dom::set_focus_visible` / `Dom::set_active`
+/// so pseudo-class matches (`:hover`, `:focus`, `:focus-within`,
+/// `:focus-visible`, `:active`) can invalidate cleanly. `:hover`,
+/// `:focus-within` and `:active` also match every ancestor of the
+/// element named, so their `prev` / `next` stand for those chains.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum InteractionKind {
@@ -51,6 +53,9 @@ pub enum InteractionKind {
     /// `next` both name the focused element (`None` when nothing is
     /// focused).
     FocusVisible,
+    /// The element being activated changed (`Dom::set_active`,
+    /// `:active`).
+    Active,
 }
 
 /// One DOM mutation notification.
@@ -740,5 +745,80 @@ mod tests {
             .filter(|r| matches!(r, Mutation::AttributeChanged { .. }))
             .count();
         assert_eq!(attr_count, 2);
+    }
+
+    #[test]
+    fn interaction_changed_fires_on_set_active() {
+        let mut dom: Dom = Dom::new();
+        let (_, records) = install_collector(&mut dom);
+        let el = dom.create_element("div");
+        dom.set_active(Some(el));
+        dom.set_active(Some(el));
+        dom.set_active(None);
+
+        let interactions: Vec<_> = records
+            .borrow()
+            .iter()
+            .filter_map(|r| match r {
+                Mutation::InteractionChanged { prev, next, kind } => Some((*prev, *next, *kind)),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            interactions,
+            vec![
+                (None, Some(el), InteractionKind::Active),
+                (Some(el), None, InteractionKind::Active),
+            ]
+        );
+    }
+
+    /// `P7G-HOVER-ANCESTORS-1`: detaching the hovered / focused / active
+    /// node clears that state while the node is still in the tree, so an
+    /// observer can walk the `prev` node's ancestors — the elements whose
+    /// `:hover` / `:focus-within` / `:active` match flips.
+    #[test]
+    fn detach_clears_interaction_state_while_the_ancestor_chain_is_intact() {
+        type Seen = Rc<RefCell<Vec<(InteractionKind, Option<NodeId>)>>>;
+        struct ParentAtRecord {
+            seen: Seen,
+        }
+        impl MutationObserver<()> for ParentAtRecord {
+            fn observe(&mut self, dom: &mut Dom<()>, record: &Mutation) {
+                if let Mutation::InteractionChanged {
+                    prev: Some(p),
+                    next: None,
+                    kind,
+                } = record
+                {
+                    let parent = dom.get_node(*p).and_then(|n| n.parent);
+                    self.seen.borrow_mut().push((*kind, parent));
+                }
+            }
+        }
+        let mut dom: Dom = Dom::new();
+        let root = dom.root();
+        let li = dom.create_element("li");
+        let span = dom.create_element("span");
+        dom.append_child(root, li).unwrap();
+        dom.append_child(li, span).unwrap();
+        dom.set_hovered(Some(span));
+        dom.set_focused(Some(span));
+        dom.set_active(Some(span));
+        let seen: Seen = Rc::new(RefCell::new(Vec::new()));
+        dom.add_mutation_observer(Box::new(ParentAtRecord { seen: seen.clone() }));
+        dom.remove_child(li, span).unwrap();
+        assert_eq!(
+            (dom.hovered(), dom.focused(), dom.active()),
+            (None, None, None)
+        );
+        assert_eq!(
+            *seen.borrow(),
+            vec![
+                (InteractionKind::Focus, Some(li)),
+                (InteractionKind::Hover, Some(li)),
+                (InteractionKind::Active, Some(li)),
+            ]
+        );
     }
 }

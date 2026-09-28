@@ -85,6 +85,9 @@ pub struct Dom<Ext: 'static = ()> {
     /// in to fire `InteractionChanged` records.
     pub(crate) hovered: Option<NodeId>,
     pub(crate) focused: Option<NodeId>,
+    /// The element being activated (`:active`, Selectors 4 §9.4) —
+    /// the backend sets it while the primary pointer button is held.
+    pub(crate) active: Option<NodeId>,
     /// Whether the focused element's focus should be made evident
     /// (`:focus-visible`, Selectors 4 §13.2). The backend applies the
     /// UA heuristics (keyboard vs. pointer); `true` until it says
@@ -138,6 +141,7 @@ impl<Ext: Default> Dom<Ext> {
             listeners: ListenerStore::default(),
             hovered: None,
             focused: None,
+            active: None,
             focus_visible: true,
             pointer_capture: None,
             drag_autoscroll: false,
@@ -161,6 +165,13 @@ impl<Ext> Dom<Ext> {
     /// The node currently flagged as focused (see `:focus`).
     pub fn focused(&self) -> Option<NodeId> {
         self.focused
+    }
+
+    /// The element currently being activated (see `:active`): the
+    /// backend sets it for the duration of a primary-button press.
+    /// `None` when nothing is being activated.
+    pub fn active(&self) -> Option<NodeId> {
+        self.active
     }
 
     /// Whether the focused element's focus should be made evident —
@@ -225,6 +236,23 @@ impl<Ext: 'static> Dom<Ext> {
             prev,
             next: id,
             kind: InteractionKind::Hover,
+        });
+    }
+
+    /// Set or clear the element being activated (`:active`). Fires an
+    /// `InteractionChanged { kind: Active }` record when the value
+    /// changes; no-op otherwise. Detaching the element clears it, like
+    /// hover and focus.
+    pub fn set_active(&mut self, id: Option<NodeId>) {
+        if self.active == id {
+            return;
+        }
+        let prev = self.active;
+        self.active = id;
+        self.fire_mutation(Mutation::InteractionChanged {
+            prev,
+            next: id,
+            kind: InteractionKind::Active,
         });
     }
 
@@ -461,6 +489,7 @@ impl<Ext: Default> Dom<Ext> {
             listeners: ListenerStore::default(),
             hovered: None,
             focused: None,
+            active: None,
             focus_visible: true,
             pointer_capture: None,
             drag_autoscroll: false,

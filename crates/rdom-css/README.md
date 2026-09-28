@@ -75,7 +75,7 @@ value       := token+
 - **Selectors** — full coverage of `rdom-core`'s selector engine. Type
   (`div`, `h1`), universal (`*`), id (`#app`), class (`.hero`), attribute
   (`[lang]`, `[lang="en"]`, `~=`, `|=`, `^=`, `$=`, `*=`), pseudo-classes
-  (`:hover`, `:focus`, `:not(...)`, `:first-child`, `:last-child`,
+  (`:hover`, `:active`, `:focus`, `:not(...)`, `:first-child`, `:last-child`,
   `:only-child`, `:empty`, `:root`, `:checked`, `:indeterminate`,
   `:open`, …), pseudo-elements (`::before`, `::after`, `::selection`,
   `::backdrop`), descendant / child / next-sibling / subsequent-sibling

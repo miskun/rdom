@@ -44,6 +44,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 - `drop_subtree`, `remove_child_dropping` and `clear_children_dropping` free the subtree even when a `MutationObserver` panics in any record they fire after the unlink (`ChildListChanged`, or the focus / hover / selection purge); the panic still propagates afterwards. A panic in the `PreDetach` window leaves the still-attached subtree alone. (`CORE-DROP-PANIC-LEAK-1`)
 - `Dom::is_submit_button` matches `type` keywords ASCII case-insensitively (`<button type="RESET">` is not a submit button), and attribute selectors treat the values of HTML §4.16.2's list (`type`, `method`, `enctype`, `lang`, `checked`, …) as ASCII case-insensitive, so `input[type=checkbox]` matches `type="CheckBox"`. (`P7-FORM-ENUM-CASE-1`)
 - Three Selectors / DOM fixes: tree walks no longer recurse, so `elements_by_tag`, `get_elements_by_*`, `text_content`, `clone_node(_, true)`, `is_equal_node`, `outer_markup` / `inner_markup` and `drop_subtree` handle a 100 000-deep tree without overflowing the stack; `:empty` ignores zero-length text nodes (Selectors 4 §14.2 — comments already did, whitespace-only text still counts); and the selector parser accepts non-ASCII identifiers (CSS Syntax 3 §4.2), so `[lang|=én]`, `.café`, `#naïve` and `élément` parse (`P7G-CORE-SMALL-1`)
+- `:hover` now matches the ancestors of the hovered element (Selectors 4 §9.2), so `li:hover` applies while the pointer is over a child; new `:active` (`Dom::active` / `Dom::set_active`, `InteractionKind::Active`) with the same ancestor semantics. Detaching the hovered / focused / active element now clears that state (and fires its `InteractionChanged`) while the subtree is still connected. (`P7G-HOVER-ANCESTORS-1`)
 
 ### Breaking — `rdom-style`
 
@@ -197,6 +198,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 - The live `<style>` observer no longer walks (or recurses into) every inserted and removed subtree: mutations of detached subtrees are skipped — building a subtree bottom-up before inserting it costs nothing — and an inserted or removed subtree is searched once, iteratively, stopping at the first `<style>`; a 10 000-deep subtree no longer overflows the stack. (`P7G-STYLE-HOLDS-1`)
 - A sibling-combinator rule reading a previous sibling's state (`a:hover + b`, `[data-x] ~ p`, `.e:empty + p`, `:placeholder-shown + label`) restyles the sibling on the next frame after an attribute, class, hover, focus or content change; only the changed element's subtree used to be restyled (`P7G-ROUTE-REDRAW-1`)
 - The dirty tracker restyles an element whose `:empty` flips because a child text node was filled or emptied, or an element arrived beside a zero-length text node (`P7G-CORE-SMALL-1`)
+- `li:hover` / `li:active` restyle while the pointer is over, or presses, a descendant; the App sets `:active` for a left-button press, and the DirtyTracker restyles only the part of the old and new ancestor chains that differs. (`P7G-HOVER-ANCESTORS-1`)
 
 ### Internal — `rdom-tui`
 

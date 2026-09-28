@@ -273,27 +273,15 @@ impl<Ext> Dom<Ext> {
                 true
             }
             PseudoClass::Root => id == self.root(),
-            PseudoClass::Hover => self.hovered() == Some(id),
+            // Selectors 4 §9.2 / §9.4 / §13.3: `:hover`, `:active` and
+            // `:focus-within` match the element holding the state and
+            // every ancestor of it (the flat tree is the node tree:
+            // rdom has no shadow roots).
+            PseudoClass::Hover => self.hovered().is_some_and(|h| self.is_ancestor(id, h)),
+            PseudoClass::Active => self.active().is_some_and(|h| self.is_ancestor(id, h)),
             PseudoClass::Focus => self.focused() == Some(id),
             PseudoClass::FocusVisible => self.focus_visible && self.focused() == Some(id),
-            PseudoClass::FocusWithin => {
-                // Walk up from the focused node to the root; if
-                // `id` is the focused node itself or any ancestor
-                // in that chain, it matches. O(depth) per query,
-                // which is fine — focus depth is bounded by tree
-                // height.
-                let Some(focused) = self.focused() else {
-                    return false;
-                };
-                let mut cur = Some(focused);
-                while let Some(n) = cur {
-                    if n == id {
-                        return true;
-                    }
-                    cur = self.get_node(n).and_then(|node| node.parent);
-                }
-                false
-            }
+            PseudoClass::FocusWithin => self.focused().is_some_and(|h| self.is_ancestor(id, h)),
             PseudoClass::Checked => self
                 .get_node(id)
                 .map(|n| match &n.data {
@@ -780,6 +768,39 @@ mod tests {
         // Clear hover.
         dom.set_hovered(None);
         assert!(!dom.matches(div, ":hover").unwrap());
+    }
+
+    /// Selectors 4 §9.2: an element also matches `:hover` while one of
+    /// its descendants is the hovered element (`P7G-HOVER-ANCESTORS-1`).
+    #[test]
+    fn hover_matches_the_ancestors_of_the_hovered_element() {
+        let (mut dom, [div, s1, s2, p, em]) = build();
+        dom.set_hovered(Some(em));
+        assert!(dom.matches(em, ":hover").unwrap(), "the hovered element");
+        assert!(dom.matches(p, ":hover").unwrap(), "its parent");
+        assert!(dom.matches(div, ":hover").unwrap(), "its grandparent");
+        assert!(dom.matches(em, ".outer:hover em").unwrap());
+        assert!(!dom.matches(s1, ":hover").unwrap(), "a sibling subtree");
+        assert!(!dom.matches(s2, ":hover").unwrap(), "a sibling subtree");
+        dom.set_hovered(None);
+        assert!(!dom.matches(div, ":hover").unwrap());
+    }
+
+    /// Selectors 4 §9.4: `:active` matches the activated element and,
+    /// like `:hover`, its ancestors.
+    #[test]
+    fn active_matches_the_activated_element_and_its_ancestors() {
+        let (mut dom, [div, s1, _, p, em]) = build();
+        assert!(!dom.matches(em, ":active").unwrap());
+        dom.set_active(Some(em));
+        assert_eq!(dom.active(), Some(em));
+        assert!(dom.matches(em, ":active").unwrap());
+        assert!(dom.matches(p, ":active").unwrap());
+        assert!(dom.matches(div, "div:active").unwrap());
+        assert!(!dom.matches(s1, ":active").unwrap());
+        dom.set_active(None);
+        assert!(!dom.matches(div, ":active").unwrap());
+        assert!(!dom.matches(em, ":active").unwrap());
     }
 
     #[test]

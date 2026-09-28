@@ -33,8 +33,12 @@
 //! - Tree mutations (insert / remove / clear) → **inserted subtree +
 //!   all element children of the affected parent** (for
 //!   sibling-dependent selectors like `:first-child`, `+`, `~`)
-//! - Interaction changes (hover / focus) → **both the old and new
-//!   target's subtree** (so pseudo matches re-evaluate)
+//! - Interaction changes (hover / active / focus) → the elements whose
+//!   match flipped. `:hover`, `:active` and `:focus-within` match every
+//!   ancestor of the element holding the state (Selectors 4 §9.2 /
+//!   §9.4 / §13.3), so that is **the old and new ancestor chains minus
+//!   their common part**, marked at each side's topmost element
+//!   (`:focus-visible` flips on the focused element alone)
 //! - Sibling combinators: `a:hover + b`, `[x] ~ p`, `.e:empty + p` let
 //!   an element's match read a *previous sibling's* state. When the
 //!   sheets may use `+` / `~` ([`DirtyTracker::set_sibling_combinators`],
@@ -292,27 +296,20 @@ impl MutationObserver<TuiExt> for Shim {
                     "DirtyTracker::observe InteractionChanged kind={kind:?} prev={prev:?} next={next:?}; \
                      marking style_dirty + pushing roots"
                 );
-                if let Some(p) = prev {
-                    mark_state_dirty(dom, &mut state, *p);
-                }
-                if let Some(n) = next {
-                    mark_state_dirty(dom, &mut state, *n);
-                }
-                // For focus changes, the `:focus-within` pseudo
-                // class also flips on every ancestor of the
-                // prev/next focused node. Walk up and mark the
-                // topmost element ancestor — `mark_style_dirty`'s
-                // ancestor-already-dirty check then dedupes the
-                // descendants we marked above. Hover doesn't
-                // propagate up via a `:hover-within` (no such
-                // selector exists in CSS) so we skip this for
-                // non-focus kinds.
-                if matches!(kind, InteractionKind::Focus) {
-                    if let Some(p) = prev {
-                        mark_ancestor_chain_style_dirty(dom, &mut state, *p);
+                match kind {
+                    // `:hover`, `:active` and `:focus-within` match the
+                    // element holding the state and every ancestor of it
+                    // (Selectors 4 §9.2 / §9.4 / §13.3); `:focus` rides
+                    // along with `:focus-within`.
+                    InteractionKind::Hover | InteractionKind::Focus | InteractionKind::Active => {
+                        mark_chain_change(dom, &mut state, *prev, *next);
                     }
-                    if let Some(n) = next {
-                        mark_ancestor_chain_style_dirty(dom, &mut state, *n);
+                    // `:focus-visible` flips on the focused element alone
+                    // (`prev == next`).
+                    _ => {
+                        for id in [prev, next].into_iter().flatten() {
+                            mark_state_dirty(dom, &mut state, *id);
+                        }
                     }
                 }
                 crate::rdom_trace!(
@@ -364,31 +361,42 @@ fn mark_placeholder_hosts(dom: &mut Dom<TuiExt>, state: &mut DirtyState, from: N
     }
 }
 
-/// Walk from `id`'s parent upward through the element ancestor
-/// chain and mark each as style-dirty. Used when an interaction
-/// state propagates upward through `:focus-within` — every
-/// ancestor's selector match flips.
-///
-/// The walk goes innermost-to-outermost; `mark_style_dirty`'s
-/// own ancestor-already-dirty check kicks in once the outermost
-/// ancestor is marked, so we don't push an exploding number of
-/// roots for deep trees.
-fn mark_ancestor_chain_style_dirty(dom: &mut Dom<TuiExt>, state: &mut DirtyState, id: NodeId) {
-    // Collect element ancestors first so `mark_style_dirty` can
-    // process them outermost-first — the topmost ancestor's push
-    // covers every descendant via the subtree cascade, so the
-    // closer ancestors hit the dirty-ancestor dedupe path and
-    // don't end up as extra roots.
-    let mut chain: Vec<NodeId> = Vec::new();
-    let mut cur = dom.node(id).parent_node().map(|p| p.id());
-    while let Some(a) = cur {
-        if dom.node(a).ext().is_some() {
-            chain.push(a);
+/// An ancestor-matched state (`:hover`, `:active`, `:focus-within`)
+/// moved from `prev` to `next`: the elements whose match flipped are
+/// the two inclusive ancestor chains minus their common part. Each
+/// side's topmost flipped element is marked — its subtree cascade
+/// covers the rest of that side's chain, and `mark_state_dirty` reaches
+/// its siblings for `+` / `~` — so moving between two children of a
+/// hovered `<li>` restyles the two children, not the `<li>`.
+/// O(depth), two small allocations.
+fn mark_chain_change(
+    dom: &mut Dom<TuiExt>,
+    state: &mut DirtyState,
+    prev: Option<NodeId>,
+    next: Option<NodeId>,
+) {
+    let chain = |dom: &Dom<TuiExt>, from: Option<NodeId>| {
+        let mut chain: Vec<NodeId> = Vec::new();
+        let mut cur = from;
+        while let Some(id) = cur {
+            let node = dom.node(id);
+            if node.ext().is_some() {
+                chain.push(id);
+            }
+            cur = node.parent_node().map(|p| p.id());
         }
-        cur = dom.node(a).parent_node().map(|p| p.id());
+        chain
+    };
+    let mut old = chain(dom, prev);
+    let mut new = chain(dom, next);
+    // Both chains end at the same root when both nodes are connected:
+    // drop the shared tail, whose match does not change.
+    while !old.is_empty() && old.last() == new.last() {
+        old.pop();
+        new.pop();
     }
-    for ancestor in chain.into_iter().rev() {
-        mark_state_dirty(dom, state, ancestor);
+    for top in [old.last(), new.last()].into_iter().flatten() {
+        mark_state_dirty(dom, state, *top);
     }
 }
 
@@ -708,6 +716,134 @@ mod tests {
         // Both the old (a) and new (b) should now be dirty.
         assert!(roots2.contains(&a));
         assert!(roots2.contains(&b));
+    }
+
+    /// Clear every `style_dirty` flag, as a cascade pass would, so the
+    /// next record's marks can be read on their own.
+    fn settle(dom: &mut TuiDom, tracker: &DirtyTracker, nodes: [NodeId; 4]) {
+        tracker.take_roots();
+        for id in std::iter::once(dom.root()).chain(nodes) {
+            if let Some(ext) = dom.node_mut(id).ext_mut() {
+                ext.style_dirty = false;
+            }
+        }
+    }
+
+    /// `root > ul > li > (s1, s2)`, a tracker with no sibling
+    /// combinators in play.
+    fn hover_chain() -> (TuiDom, DirtyTracker, [NodeId; 4]) {
+        let mut dom: TuiDom = TuiDom::new();
+        let root = dom.root();
+        let ul = dom.create_element("ul");
+        let li = dom.create_element("li");
+        let s1 = dom.create_element("span");
+        let s2 = dom.create_element("span");
+        dom.append_child(root, ul).unwrap();
+        dom.append_child(ul, li).unwrap();
+        dom.append_child(li, s1).unwrap();
+        dom.append_child(li, s2).unwrap();
+        let tracker = DirtyTracker::install(&mut dom);
+        tracker.set_sibling_combinators(false);
+        (dom, tracker, [ul, li, s1, s2])
+    }
+
+    fn dirty(dom: &TuiDom, id: NodeId) -> bool {
+        dom.node(id).ext().is_some_and(|e| e.style_dirty)
+    }
+
+    /// Whether a subtree cascade of `roots` restyles `id`.
+    fn covered(dom: &TuiDom, roots: &[NodeId], id: NodeId) -> bool {
+        let mut cur = Some(id);
+        while let Some(n) = cur {
+            if roots.contains(&n) {
+                return true;
+            }
+            cur = dom.node(n).parent_node().map(|p| p.id());
+        }
+        false
+    }
+
+    /// `P7G-HOVER-ANCESTORS-1`: `:hover` matches the hovered element's
+    /// ancestors (Selectors 4 §9.2), so entering a child restyles the
+    /// whole chain it joins.
+    #[test]
+    fn hovering_a_child_restyles_its_ancestor_chain() {
+        let (mut dom, tracker, [ul, li, s1, s2]) = hover_chain();
+        dom.set_hovered(Some(s1));
+        let roots = tracker.take_roots();
+        assert_eq!(roots, vec![ul], "the topmost element that became hovered");
+        assert!([ul, li, s1].iter().all(|&id| covered(&dom, &roots, id)));
+        assert!(!dirty(&dom, s2), "a sibling is not marked on its own");
+    }
+
+    /// Moving between two children of the hovered `<li>` leaves the
+    /// shared part of the chain (`li` and up) hovered: only the two
+    /// children restyle.
+    #[test]
+    fn moving_between_siblings_restyles_only_the_unshared_chain() {
+        let (mut dom, tracker, nodes @ [ul, li, s1, s2]) = hover_chain();
+        dom.set_hovered(Some(s1));
+        settle(&mut dom, &tracker, nodes);
+        dom.set_hovered(Some(s2));
+        assert_eq!(tracker.take_roots(), vec![s1, s2]);
+        assert!(
+            !dirty(&dom, li) && !dirty(&dom, ul),
+            "the shared chain keeps :hover"
+        );
+    }
+
+    /// Moving from a child to its parent: the parent stays hovered, only
+    /// the child leaves the chain.
+    #[test]
+    fn moving_from_a_child_to_its_parent_restyles_only_the_child() {
+        let (mut dom, tracker, nodes @ [_, li, s1, _]) = hover_chain();
+        dom.set_hovered(Some(s1));
+        settle(&mut dom, &tracker, nodes);
+        dom.set_hovered(Some(li));
+        assert_eq!(tracker.take_roots(), vec![s1]);
+        assert!(!dirty(&dom, li));
+    }
+
+    /// Leaving the document restyles the whole old chain.
+    #[test]
+    fn leaving_restyles_the_whole_old_chain() {
+        let (mut dom, tracker, nodes @ [ul, li, s1, _]) = hover_chain();
+        dom.set_hovered(Some(s1));
+        settle(&mut dom, &tracker, nodes);
+        dom.set_hovered(None);
+        let roots = tracker.take_roots();
+        assert_eq!(roots, vec![ul]);
+        assert!(covered(&dom, &roots, li) && covered(&dom, &roots, s1));
+    }
+
+    /// `:active` (Selectors 4 §9.4) follows the same chain.
+    #[test]
+    fn active_changes_restyle_the_unshared_chain() {
+        let (mut dom, tracker, nodes @ [ul, li, s1, s2]) = hover_chain();
+        dom.set_active(Some(s1));
+        assert_eq!(tracker.take_roots(), vec![ul]);
+        settle(&mut dom, &tracker, nodes);
+        dom.set_active(Some(s2));
+        assert_eq!(tracker.take_roots(), vec![s1, s2]);
+        assert!(!dirty(&dom, li));
+        settle(&mut dom, &tracker, nodes);
+        dom.set_active(None);
+        assert_eq!(tracker.take_roots(), vec![ul]);
+    }
+
+    /// Removing the hovered element clears hover while its old ancestors
+    /// are still reachable, so their `:hover` restyles.
+    #[test]
+    fn removing_the_hovered_element_restyles_its_old_ancestors() {
+        let (mut dom, tracker, nodes @ [_, li, s1, _]) = hover_chain();
+        dom.set_hovered(Some(s1));
+        settle(&mut dom, &tracker, nodes);
+        dom.remove_child(li, s1).unwrap();
+        let roots = tracker.take_roots();
+        assert!(
+            covered(&dom, &roots, li),
+            "li no longer contains the hovered element: {roots:?}"
+        );
     }
 
     #[test]
