@@ -56,7 +56,6 @@ mod tests;
 
 use rdom_core::NodeId;
 
-use crate::tui_event::TuiDispatchExt;
 use crate::{TuiDom, TuiEvent};
 
 pub(crate) use marks::ValidityMarks;
@@ -183,7 +182,7 @@ pub fn report_validity(dom: &mut TuiDom, id: NodeId) -> bool {
     if !is_invalid(dom, id) {
         return true;
     }
-    if fire_invalid(dom, id) {
+    if fire_invalid(dom, id) == Some(true) {
         report(dom, id);
     }
     false
@@ -197,7 +196,10 @@ pub(crate) fn interactively_validate(dom: &mut TuiDom, form: NodeId) -> bool {
     if invalid.is_empty() {
         return true;
     }
-    if let Some(&(first, _)) = invalid.iter().find(|(_, unhandled)| *unhandled) {
+    if let Some(&(first, _)) = invalid
+        .iter()
+        .find(|(_, unhandled)| *unhandled == Some(true))
+    {
         report(dom, first);
     }
     false
@@ -205,8 +207,10 @@ pub(crate) fn interactively_validate(dom: &mut TuiDom, form: NodeId) -> bool {
 
 /// HTML §4.10.20.2 "statically validate the constraints": snapshot the
 /// invalid candidates `form` owns, then fire `invalid` at each in tree
-/// order. Returns each with whether its event went uncanceled.
-fn statically_validate(dom: &mut TuiDom, form: NodeId) -> Vec<(NodeId, bool)> {
+/// order. Returns each with whether its event went uncanceled (`None`:
+/// dropped by an earlier listener before its turn — still counted
+/// invalid, as it was in the snapshot, but never reported).
+fn statically_validate(dom: &mut TuiDom, form: NodeId) -> Vec<(NodeId, Option<bool>)> {
     let invalid: Vec<NodeId> = dom
         .form_listed_elements(form)
         .into_iter()
@@ -218,14 +222,15 @@ fn statically_validate(dom: &mut TuiDom, form: NodeId) -> Vec<(NodeId, bool)> {
         .collect()
 }
 
-/// Fire a cancelable, non-bubbling `invalid` at `id`. Returns true when
-/// no listener canceled it.
-fn fire_invalid(dom: &mut TuiDom, id: NodeId) -> bool {
+/// Fire a cancelable, non-bubbling `invalid` at `id`. Returns whether
+/// no listener canceled it, or `None` when `id` is no longer a node — a
+/// listener of an earlier control's `invalid` dropped it: nothing was
+/// fired and there is nothing to report.
+fn fire_invalid(dom: &mut TuiDom, id: NodeId) -> Option<bool> {
     let mut ev = TuiEvent::new("invalid");
     ev.event.bubbles = false;
     ev.event.cancelable = true;
-    let _ = dom.dispatch_tui_event(id, &mut ev);
-    !ev.event.default_prevented()
+    crate::tui_event::dispatch_to_live(dom, id, &mut ev).then(|| !ev.event.default_prevented())
 }
 
 /// Report a problem with `id` to the user: focus it (browsers also show

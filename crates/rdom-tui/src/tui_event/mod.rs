@@ -307,6 +307,27 @@ impl TuiDispatchExt for rdom_core::Dom<crate::TuiExt> {
     }
 }
 
+/// Dispatch a freshly built `tui` at `target` for a runtime algorithm,
+/// returning whether it reached a live target: `false` when `target` is
+/// no longer a node of `dom` (a listener earlier in the algorithm
+/// dropped it) — the one failure a fresh event can meet; the caller maps
+/// it to its documented outcome. Any other error means `tui` was already
+/// being dispatched, a runtime bug, and panics.
+pub(crate) fn dispatch_to_live(
+    dom: &mut rdom_core::Dom<crate::TuiExt>,
+    target: rdom_core::NodeId,
+    tui: &mut TuiEvent,
+) -> bool {
+    match dom.dispatch_tui_event(target, tui) {
+        Ok(()) => true,
+        Err(rdom_core::DomError::InvalidNode(_)) => false,
+        Err(e) => panic!(
+            "dispatching a fresh `{}` event failed: {e:?}",
+            tui.event.event_type
+        ),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

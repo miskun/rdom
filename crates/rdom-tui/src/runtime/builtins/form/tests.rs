@@ -1890,6 +1890,34 @@ fn a_submit_listener_that_disconnects_the_form_stops_the_default_action() {
     assert!(app.dom().node(d).has_attribute("open"), "dialog stays open");
 }
 
+/// `P7G-DISPATCH-RESULTS-1`: a `submit` listener that drops the form
+/// (the node is freed, not just detached) ends the algorithm as
+/// `Disconnected` — never `Submitted`, and no dialog is looked up.
+#[test]
+fn a_submit_listener_that_drops_the_form_reports_disconnected() {
+    use crate::SubmitOutcome;
+    use crate::accessors::TuiAccessorsMut;
+    let mut ids = Vec::new();
+    let mut app = owner_app(|dom, root| {
+        let d = named(dom, root, "dialog", &[("open", "")]);
+        let f = named(dom, d, "form", &[("method", "dialog")]);
+        let b = named(dom, f, "button", &[("value", "ok")]);
+        ids.extend([d, f, b]);
+    });
+    let (d, f, b) = (ids[0], ids[1], ids[2]);
+    app.dom_mut()
+        .add_event_listener(f, "submit", ListenerOptions::default(), move |ctx| {
+            ctx.dom.drop_subtree(f).unwrap();
+        })
+        .unwrap();
+    assert_eq!(
+        app.dom_mut().node_mut(f).form_request_submit(Some(b)),
+        Ok(SubmitOutcome::Disconnected)
+    );
+    assert!(!app.dom().contains(f));
+    assert!(app.dom().node(d).has_attribute("open"), "dialog stays open");
+}
+
 /// HTML §4.10.5.1.20 Image Button state: an `<input type=image>` is a
 /// submit button; as the submitter it contributes `name.x` / `name.y`,
 /// the selected coordinate — `(0, 0)` in rdom, which has no image to

@@ -133,7 +133,9 @@ pub(crate) fn write_offsets(dom: &mut TuiDom, element: NodeId, x: i32, y: i32) -
         // `scroll`: bubbles, NOT cancelable per HTML.
         let mut tui = crate::TuiEvent::new("scroll");
         tui.event.cancelable = false;
-        let _ = crate::TuiDispatchExt::dispatch_tui_event(dom, element, &mut tui);
+        // `element` held the offsets just written, so it is live.
+        let live = crate::tui_event::dispatch_to_live(dom, element, &mut tui);
+        debug_assert!(live, "a scroll container that just scrolled is a live node");
     }
     changed
 }

@@ -201,6 +201,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 - The dirty tracker restyles an element whose `:empty` flips because a child text node was filled or emptied, or an element arrived beside a zero-length text node (`P7G-CORE-SMALL-1`)
 - `li:hover` / `li:active` restyle while the pointer is over, or presses, a descendant; the App sets `:active` for a left-button press, and the DirtyTracker restyles only the part of the old and new ancestor chains that differs. (`P7G-HOVER-ANCESTORS-1`)
 - A `focus` / `focusin` listener that asks `matches(":focus-visible")` now sees the answer for the input that moved focus (false after a click on a button, true after Tab), as in browsers, instead of the previous modality's. (`P7G-FOCUS-VISIBLE-ORDER-1`)
+- A form's `reportValidity()` / interactive validation no longer tries to report a control that an earlier control's `invalid` listener dropped: that control is skipped and the next unhandled one is focused (before, nothing was focused). (`P7G-DISPATCH-RESULTS-1`)
 
 ### Internal — `rdom-tui`
 

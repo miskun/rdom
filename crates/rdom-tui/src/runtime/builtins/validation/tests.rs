@@ -589,6 +589,26 @@ fn form_report_validity_focuses_the_first_unhandled_invalid_control() {
     assert!(dom.node_mut(form).report_validity());
 }
 
+/// `P7G-DISPATCH-RESULTS-1`: an `invalid` listener that drops a later
+/// control of the snapshot leaves nothing to fire at or report: the
+/// dropped control is neither handled nor unhandled, and the next
+/// unhandled one is focused.
+#[test]
+fn a_control_dropped_by_an_earlier_invalid_listener_is_not_reported() {
+    let (mut dom, form) = form_dom();
+    let a = input(&mut dom, form, &[("required", "")]);
+    let b = input(&mut dom, form, &[("required", "")]);
+    let c = input(&mut dom, form, &[("required", "")]);
+    dom.add_event_listener(a, "invalid", ListenerOptions::default(), move |ctx| {
+        ctx.event.prevent_default();
+        ctx.dom.drop_subtree(b).unwrap();
+    })
+    .unwrap();
+    assert!(!dom.node_mut(form).report_validity());
+    assert!(!dom.contains(b));
+    assert_eq!(dom.focused(), Some(c));
+}
+
 // ── P7-VALIDATION-SELECTORS-1 ───────────────────────────────────────
 
 /// `validation::install` hooks the real validity states into the

@@ -56,7 +56,6 @@
 
 use rdom_core::{FormMethod, InputTypeState, ListenerOptions, NodeId};
 
-use crate::tui_event::TuiDispatchExt;
 use crate::{TuiDom, TuiEvent};
 
 /// Install the form default actions. Two root-level listeners:
@@ -86,7 +85,7 @@ pub fn install(dom: &mut TuiDom) {
                 submit(ctx.dom, form, Some(button));
             }
             ButtonAction::Reset => {
-                if !fire_reset(ctx.dom, form) {
+                if fire_reset(ctx.dom, form) {
                     reset_controls(ctx.dom, form);
                 }
             }
@@ -340,7 +339,12 @@ pub(crate) fn submit(dom: &mut TuiDom, form: NodeId, submitter: Option<NodeId>) 
         let method = detail.method;
         let mut ev = TuiEvent::new("submit");
         ev.event.detail = rdom_core::EventDetail::Submit(Box::new(detail));
-        let _ = dom.dispatch_tui_event(form, &mut ev);
+        // Validation passed without firing `invalid` (no listener ran
+        // since the connected check), so the form is live here; a dead
+        // target would be a form that cannot navigate.
+        if !crate::tui_event::dispatch_to_live(dom, form, &mut ev) {
+            return SubmitOutcome::Disconnected;
+        }
         (method, ev.event.default_prevented())
     };
     if canceled {
@@ -446,10 +450,12 @@ fn reset_controls(dom: &mut TuiDom, form: NodeId) {
     }
 }
 
+/// Fire a cancelable `reset` at `form`; returns whether the controls
+/// should be reset — the event went uncanceled at a live form (a form
+/// that is no longer a node has nothing to reset).
 fn fire_reset(dom: &mut TuiDom, form: NodeId) -> bool {
     let mut ev = TuiEvent::new("reset");
-    let _ = dom.dispatch_tui_event(form, &mut ev);
-    ev.event.default_prevented()
+    crate::tui_event::dispatch_to_live(dom, form, &mut ev) && !ev.event.default_prevented()
 }
 
 /// The form's fields that block implicit submission (HTML §4.10.21.2):
