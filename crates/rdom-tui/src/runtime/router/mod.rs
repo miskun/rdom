@@ -15,8 +15,11 @@
 //! ```ignore
 //! let mut router = Router::new();
 //! let outcome = router.route(&mut dom, crossterm_event);
-//! if outcome.redraw_requested {
-//!     // cascade + layout + paint
+//! if outcome.cascade_requested {
+//!     // a listener asked: cascade the whole tree, lay out, paint
+//! } else if outcome.redraw_requested {
+//!     // the router's own work: cascade the dirty tracker's roots,
+//!     // lay out, paint
 //! }
 //! ```
 //!
@@ -147,8 +150,11 @@ impl Router {
                 self.pending_redraw = false;
                 let mut outcome = mouse::route_mouse(self, dom, m);
                 // Fold in any listener-requested repaints from the
-                // dispatches this mouse event fanned out.
+                // dispatches this mouse event fanned out: those may
+                // follow a style write no mutation reports, so they ask
+                // for a whole-tree cascade.
                 outcome.redraw_requested |= self.pending_redraw;
+                outcome.cascade_requested |= self.pending_redraw;
                 outcome
             }
             _ => RouteOutcome::default(),
@@ -211,25 +217,46 @@ impl Router {
 }
 
 /// Hints returned by [`Router::route`] about what changed this
-/// dispatch. The caller (usually `App`) uses them to decide
-/// whether to run cascade + layout + paint and whether to exit.
+/// dispatch. The caller (usually `App`) uses them to decide how much
+/// of cascade → layout → paint to rerun and whether to exit.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct RouteOutcome {
     /// Something visible changed (hover transition, focus change,
-    /// scroll via wheel, etc.) — the frame should be repainted.
+    /// scroll via wheel, selection extension, etc.) — the frame should
+    /// be laid out and repainted. The router's own work changes only
+    /// state the dirty tracker sees (hover and focus fire
+    /// `InteractionChanged`, the scrollbar focus marker is an
+    /// attribute) or state layout reads (scroll offsets, the
+    /// selection), so cascading the tracker's roots is enough for it.
     pub redraw_requested: bool,
+    /// A listener called
+    /// [`request_redraw`](rdom_core::EventCtx::request_redraw) during
+    /// the route. It may have written a `TuiExt` style directly, which
+    /// no mutation reports, so the whole tree must be cascaded.
+    /// Implies `redraw_requested`.
+    pub cascade_requested: bool,
     /// A handler or default action asked the app to exit the loop.
     pub quit_requested: bool,
 }
 
 impl RouteOutcome {
+    /// The router's own outcome: `redraw` when its work changed
+    /// something visible; no listener request, no quit.
+    pub(crate) fn redraw(redraw: bool) -> Self {
+        Self {
+            redraw_requested: redraw,
+            ..Self::default()
+        }
+    }
+
     /// Merge another outcome into `self` — OR the flags. Used when
     /// a single crossterm event fans out to multiple dispatches
     /// (e.g., `mouseup` + synthesized `click`, each of which may
     /// request redraw).
     pub fn merge(&mut self, other: RouteOutcome) {
         self.redraw_requested |= other.redraw_requested;
+        self.cascade_requested |= other.cascade_requested;
         self.quit_requested |= other.quit_requested;
     }
 }

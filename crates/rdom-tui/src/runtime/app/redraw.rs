@@ -22,14 +22,18 @@ pub(crate) enum Redraw {
     /// changing any selector match or declaration — scroll offsets
     /// (layout places children after scroll), text content (the dirty
     /// tracker queues the elements whose selector state text feeds),
-    /// focus and selection moves (their restyles are tracker roots),
+    /// hover, focus and selection moves (their restyles are tracker
+    /// roots), a mouse route's own work (`RouteOutcome::redraw_requested`
+    /// without `cascade_requested`: wheel, scrollbar press, drag),
     /// running transitions (they write `TuiExt::presentation`).
     Layout,
     /// Cascade the whole tree, lay out and repaint: something the dirty
     /// tracker cannot see may have changed the cascade — the
     /// stylesheets (`App::invalidate_cascade`), the viewport, the first
-    /// frame, a router or listener `request_redraw` (which may follow a
-    /// direct `TuiExt` style write that no mutation reports).
+    /// frame, a listener's `request_redraw` (which may follow a direct
+    /// `TuiExt` style write that no mutation reports). A mouse route's
+    /// own work is `Layout`: `RouteOutcome::cascade_requested` is set
+    /// only by a listener.
     Cascade,
 }
 

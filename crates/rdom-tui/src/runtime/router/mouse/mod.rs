@@ -147,10 +147,7 @@ fn handle_down(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> Rout
         if let Some(sb_hit) = crate::runtime::scrollbar::hit(dom, &path, mouse.column, mouse.row)
             && crate::runtime::scrollbar::handle_mousedown(router, dom, sb_hit)
         {
-            return RouteOutcome {
-                redraw_requested: true,
-                quit_requested: false,
-            };
+            return RouteOutcome::redraw(true);
         }
 
         if let Some(focusable) = crate::runtime::focus::nearest_focusable_ancestor(dom, target) {
@@ -194,10 +191,7 @@ fn handle_down(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> Rout
         }
     }
 
-    RouteOutcome {
-        redraw_requested: redraw,
-        quit_requested: false,
-    }
+    RouteOutcome::redraw(redraw)
 }
 
 /// `mouseup` with the left button. Dispatches `mouseup` to the
@@ -365,10 +359,7 @@ fn handle_move(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> Rout
         {
             redraw = true;
         }
-        return RouteOutcome {
-            redraw_requested: redraw,
-            quit_requested: false,
-        };
+        return RouteOutcome::redraw(redraw);
     }
 
     let hit = dom.hit_test(mouse.column, mouse.row);
@@ -410,10 +401,7 @@ fn handle_move(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> Rout
             "handle_move: no hover change ({:?} == hover_target); extended={extended}",
             hit
         );
-        return RouteOutcome {
-            redraw_requested: extended,
-            quit_requested: false,
-        };
+        return RouteOutcome::redraw(extended);
     }
 
     let prev = router.hover_target;
@@ -437,10 +425,7 @@ fn handle_move(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> Rout
     // Update Dom-level hover state so cascade picks up :hover.
     dom.set_hovered(hit);
 
-    RouteOutcome {
-        redraw_requested: true,
-        quit_requested: false,
-    }
+    RouteOutcome::redraw(true)
 }
 
 /// Wheel (scroll) event. Dispatches a cancelable `wheel` event on
@@ -542,10 +527,7 @@ fn handle_wheel(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> Rou
                 let mut tui_scroll = TuiEvent::new("scroll");
                 tui_scroll.event.cancelable = false;
                 dispatch(router, dom, id, &mut tui_scroll);
-                return RouteOutcome {
-                    redraw_requested: true,
-                    quit_requested: false,
-                };
+                return RouteOutcome::redraw(true);
             }
             // At the rail end in this direction: chain to the next
             // scrollable ancestor.

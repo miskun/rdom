@@ -52,6 +52,8 @@ mod frame_work_tests;
 #[cfg(test)]
 mod idle_tests;
 #[cfg(test)]
+mod route_redraw_tests;
+#[cfg(test)]
 mod scroll_repaint_tests;
 #[cfg(test)]
 mod tests;
@@ -70,7 +72,7 @@ use std::rc::Rc;
 use crate::render::backend::Backend;
 use crate::render::backend_crossterm::{CrosstermBackend, enter_tui_mode, leave_tui_mode};
 use crate::render::{Terminal, TerminalGuard};
-use crate::runtime::router::Router;
+use crate::runtime::router::{RouteOutcome, Router};
 use crate::runtime::selection::clipboard::{Clipboard, SystemClipboard};
 use crate::runtime::url_opener::{SystemUrlOpener, UrlOpener};
 use crate::style::{DirtyTracker, Stylesheet};
@@ -408,7 +410,7 @@ impl<B: Backend> App<B> {
         // matching element exists.
         crate::runtime::autofocus::focus_first_autofocus(&mut dom);
         let mut stylesheet_ids = stylesheets::StylesheetIdAllocator::default();
-        Ok(Self {
+        let mut app = Self {
             dom,
             stylesheets: vec![(stylesheet_ids.allocate(), stylesheet)],
             style_elements,
@@ -440,7 +442,9 @@ impl<B: Backend> App<B> {
             shared: AppShared::new(),
             clipboard: Box::new(SystemClipboard::new()),
             url_opener,
-        })
+        };
+        app.sync_sibling_combinators();
+        Ok(app)
     }
 
     /// Override the animation-frame budget when timers / rAF /
@@ -650,6 +654,20 @@ impl<B: Backend> App<B> {
 
     // ─── Event + frame plumbing (test + internal entry points) ──────
 
+    /// Fold a mouse route's outcome into the next frame's work
+    /// (`P7G-ROUTE-REDRAW-1`): the router's own work — a hover change,
+    /// a wheel scroll, a scrollbar press, a selection drag — lays out
+    /// and repaints, cascading only the dirty tracker's roots (the
+    /// elements whose `:hover` / `:focus` flipped); a listener's
+    /// `request_redraw` cascades the whole tree.
+    fn note_route(&mut self, outcome: RouteOutcome) {
+        self.redraw
+            .note_if(outcome.redraw_requested, Redraw::Layout);
+        self.redraw
+            .note_if(outcome.cascade_requested, Redraw::Cascade);
+        self.should_quit |= outcome.quit_requested;
+    }
+
     /// Process one crossterm event. Routes mouse events through
     /// `Router`; dispatches key events to the focused element;
     /// marks redraw on resize.
@@ -687,9 +705,7 @@ impl<B: Backend> App<B> {
                 let focused_before = self.dom.focused();
                 let outcome = self.router.route(&mut self.dom, event);
                 crate::runtime::focus::visible::note_pointer_focus(&mut self.dom, focused_before);
-                self.redraw
-                    .note_if(outcome.redraw_requested, Redraw::Cascade);
-                self.should_quit |= outcome.quit_requested;
+                self.note_route(outcome);
                 self.redraw
                     .note_if(self.tracker.take_paint_dirty(), Redraw::Layout);
                 // DRAG-AUTOSCROLL: (re)arm from the pointer's current position.

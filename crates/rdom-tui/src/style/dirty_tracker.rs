@@ -35,6 +35,13 @@
 //!   sibling-dependent selectors like `:first-child`, `+`, `~`)
 //! - Interaction changes (hover / focus) → **both the old and new
 //!   target's subtree** (so pseudo matches re-evaluate)
+//! - Sibling combinators: `a:hover + b`, `[x] ~ p`, `.e:empty + p` let
+//!   an element's match read a *previous sibling's* state. When the
+//!   sheets may use `+` / `~` ([`DirtyTracker::set_sibling_combinators`],
+//!   `true` until told otherwise; the App keeps it in step with its
+//!   sheets), an element whose own state changed (attribute, class,
+//!   hover / focus, `:empty`, `:placeholder-shown`) also dirties its
+//!   parent's element children, once per parent per drain
 //! - The parent of a tree mutation is dirtied too when its own match
 //!   can change: `:empty` (its first element / text child arrived or
 //!   its last one left) and, when text nodes come or go,
@@ -92,6 +99,10 @@ struct DirtyState {
     /// `set_node_value` call from inside an event handler is invisible
     /// until something else dirties the cascade.
     paint_dirty: bool,
+    /// The sheets use no `+` / `~` combinator, so a state change cannot
+    /// reach a sibling's match (`DirtyTracker::set_sibling_combinators`).
+    /// `false` (the conservative default) dirties the siblings.
+    no_sibling_combinators: bool,
 }
 
 impl DirtyTracker {
@@ -157,6 +168,17 @@ impl DirtyTracker {
         self.observer_id
     }
 
+    /// Say whether the stylesheets cascaded against this tree use a
+    /// sibling combinator (`+` / `~`) anywhere
+    /// ([`uses_sibling_combinators`]). While they may (the default), an
+    /// element whose own state changes also dirties its siblings, whose
+    /// match can read that state (`a:hover + b`); with `false` it does
+    /// not, which keeps a hover move in a long list from re-cascading
+    /// the list. The App sets it whenever its sheets change.
+    pub fn set_sibling_combinators(&self, used: bool) {
+        self.inner.borrow_mut().no_sibling_combinators = !used;
+    }
+
     /// Manually mark a subtree dirty. Escape hatch for cases the
     /// `MutationObserver` doesn't cover — most importantly, writing
     /// `TuiExt.inline_style` directly via `set_inline_style` (which
@@ -180,7 +202,7 @@ impl MutationObserver<TuiExt> for Shim {
         let mut state = self.inner.borrow_mut();
         match record {
             Mutation::AttributeChanged { id, .. } | Mutation::ClassChanged { id, .. } => {
-                mark_style_dirty(dom, &mut state, *id);
+                mark_state_dirty(dom, &mut state, *id);
             }
             Mutation::ChildListChanged {
                 parent,
@@ -239,7 +261,7 @@ impl MutationObserver<TuiExt> for Shim {
                     .nth(added.len())
                     .is_none();
                 if emptiness_may_flip || text_changed {
-                    mark_style_dirty(dom, &mut state, *parent);
+                    mark_state_dirty(dom, &mut state, *parent);
                 }
                 if text_changed {
                     mark_placeholder_hosts(dom, &mut state, *parent);
@@ -265,10 +287,10 @@ impl MutationObserver<TuiExt> for Shim {
                      marking style_dirty + pushing roots"
                 );
                 if let Some(p) = prev {
-                    mark_style_dirty(dom, &mut state, *p);
+                    mark_state_dirty(dom, &mut state, *p);
                 }
                 if let Some(n) = next {
-                    mark_style_dirty(dom, &mut state, *n);
+                    mark_state_dirty(dom, &mut state, *n);
                 }
                 // For focus changes, the `:focus-within` pseudo
                 // class also flips on every ancestor of the
@@ -331,7 +353,7 @@ fn mark_placeholder_hosts(dom: &mut Dom<TuiExt>, state: &mut DirtyState, from: N
             .get_attribute("placeholder")
             .is_some_and(|v| !v.is_empty())
         {
-            mark_style_dirty(dom, state, id);
+            mark_state_dirty(dom, state, id);
         }
     }
 }
@@ -360,8 +382,58 @@ fn mark_ancestor_chain_style_dirty(dom: &mut Dom<TuiExt>, state: &mut DirtyState
         cur = dom.node(a).parent_node().map(|p| p.id());
     }
     for ancestor in chain.into_iter().rev() {
-        mark_style_dirty(dom, state, ancestor);
+        mark_state_dirty(dom, state, ancestor);
     }
+}
+
+/// `id`'s own selector state changed: mark its subtree, and — while the
+/// sheets may use `+` / `~` — its parent's element children, whose
+/// match can read `id`'s state through a sibling combinator. The
+/// children are marked once per parent per drain (`sibling_marked`).
+fn mark_state_dirty(dom: &mut Dom<TuiExt>, state: &mut DirtyState, id: NodeId) {
+    mark_style_dirty(dom, state, id);
+    if state.no_sibling_combinators {
+        return;
+    }
+    let Some(parent) = dom.node(id).parent_node().map(|p| p.id()) else {
+        return;
+    };
+    if !state.sibling_marked.insert(parent) {
+        return;
+    }
+    let mut sib = dom.node(parent).first_element_child().map(|c| c.id());
+    while let Some(s) = sib {
+        mark_style_dirty(dom, state, s);
+        sib = dom.node(s).next_element_sibling().map(|c| c.id());
+    }
+}
+
+/// Whether any rule of `sheet` has a sibling combinator (`+` / `~`),
+/// anywhere in its selector (inside `:not()` / `:where()` too) — the
+/// input of [`DirtyTracker::set_sibling_combinators`].
+pub fn uses_sibling_combinators(sheet: &crate::style::Stylesheet) -> bool {
+    sheet
+        .rules()
+        .iter()
+        .any(|r| r.selector.0.iter().any(complex_uses_siblings))
+}
+
+fn complex_uses_siblings(c: &rdom_core::selectors::ComplexSelector) -> bool {
+    use rdom_core::selectors::{Combinator, SimpleSelector};
+    c.ancestors.iter().any(|(comb, _)| {
+        matches!(
+            comb,
+            Combinator::AdjacentSibling | Combinator::GeneralSibling
+        )
+    }) || std::iter::once(&c.subject)
+        .chain(c.ancestors.iter().map(|(_, compound)| compound))
+        .flat_map(|compound| &compound.simples)
+        .any(|s| match s {
+            SimpleSelector::Not(list) | SimpleSelector::Where(list) => {
+                list.0.iter().any(complex_uses_siblings)
+            }
+            _ => false,
+        })
 }
 
 /// Mark `id`'s subtree as dirty. Sets `style_dirty=true` on the node
@@ -424,6 +496,8 @@ mod tests {
         dom.append_child(plain, pt).unwrap();
         dom.append_child(root, plain).unwrap();
         let tracker = DirtyTracker::install(&mut dom);
+        // No `+` / `~` in play: only the host itself restyles.
+        tracker.set_sibling_combinators(false);
 
         dom.node_mut(t).set_node_value("a").unwrap();
         assert_eq!(tracker.take_roots(), vec![ta], "empty → text");
@@ -441,6 +515,49 @@ mod tests {
         assert!(
             tracker.take_roots().is_empty(),
             "no placeholder above: no restyle"
+        );
+    }
+
+    /// `P7G-ROUTE-REDRAW-1`: `a[x] + b` reads `a`'s attribute, so while
+    /// the sheets may use a sibling combinator an attribute change on
+    /// `a` dirties `b` too; told they do not, only `a`'s subtree.
+    #[test]
+    fn a_state_change_dirties_siblings_only_while_sibling_combinators_may_apply() {
+        let mut dom: TuiDom = TuiDom::new();
+        let root = dom.root();
+        let a = dom.create_element("div");
+        let b = dom.create_element("p");
+        dom.append_child(root, a).unwrap();
+        dom.append_child(root, b).unwrap();
+        let tracker = DirtyTracker::install(&mut dom);
+
+        dom.set_attribute(a, "x", "1").unwrap();
+        let roots = tracker.take_roots();
+        assert!(roots.contains(&a) && roots.contains(&b), "{roots:?}");
+        for id in [a, b] {
+            dom.node_mut(id).ext_mut().unwrap().style_dirty = false;
+        }
+
+        tracker.set_sibling_combinators(false);
+        dom.set_attribute(a, "x", "2").unwrap();
+        assert_eq!(tracker.take_roots(), vec![a]);
+    }
+
+    #[test]
+    fn sibling_combinators_are_found_anywhere_in_a_selector() {
+        use crate::style::Stylesheet;
+        let uses = |sel: &str| {
+            uses_sibling_combinators(&Stylesheet::bare().rule_unchecked(sel, TuiStyle::new()))
+        };
+        assert!(uses("a + b"));
+        assert!(uses("a ~ b c"));
+        assert!(uses("p:not(a + b)"));
+        assert!(uses(":where(a ~ b) > c"));
+        assert!(!uses("a > b c"));
+        assert!(!uses("p:not(.x)"));
+        assert!(
+            !uses_sibling_combinators(&Stylesheet::new()),
+            "the UA sheet has none"
         );
     }
 

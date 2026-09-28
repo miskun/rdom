@@ -295,7 +295,7 @@ struct Pass {
 /// `<style>` sheets in tree order, then the App's own in push order
 /// (`cssom::style_elements`). Later sheets win same-specificity
 /// contests.
-fn cascade_order<'a>(
+pub(super) fn cascade_order<'a>(
     style_elements: &'a crate::cssom::style_elements::StyleElements,
     stylesheets: &'a [(StylesheetId, Stylesheet)],
 ) -> Vec<&'a Stylesheet> {

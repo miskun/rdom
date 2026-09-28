@@ -133,10 +133,21 @@ impl<B: Backend> App<B> {
     /// is what gets the empty-`dirty_roots` branch of `draw_if_dirty`
     /// to run the full cascade.
     pub(super) fn invalidate_cascade(&mut self) {
+        self.sync_sibling_combinators();
         self.tracker.take_roots();
         self.redraw.note(Redraw::Cascade);
         self.validity_marks.sheets_changed();
         self.touched = true;
+    }
+
+    /// Tell the dirty tracker whether the sheets now cascaded use `+` /
+    /// `~` (`DirtyTracker::set_sibling_combinators`), so a state change
+    /// dirties its siblings only when a selector can read it there.
+    pub(super) fn sync_sibling_combinators(&mut self) {
+        let used = super::frame::cascade_order(&self.style_elements, &self.stylesheets)
+            .into_iter()
+            .any(crate::style::dirty_tracker::uses_sibling_combinators);
+        self.tracker.set_sibling_combinators(used);
     }
 
     /// All stylesheets registered with this App, in push order.

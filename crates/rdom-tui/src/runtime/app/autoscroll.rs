@@ -156,8 +156,7 @@ impl<B: Backend> App<B> {
             modifiers: KeyModifiers::empty(),
         };
         let outcome = self.router.route(&mut self.dom, CtEvent::Mouse(synthetic));
-        self.redraw
-            .note_if(outcome.redraw_requested, Redraw::Cascade);
+        self.note_route(outcome);
         self.redraw.note(Redraw::Layout); // the scroll itself changed the view
     }
 }

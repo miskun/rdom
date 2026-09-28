@@ -6,7 +6,7 @@ For the durable architectural divergences (web-platform departures shipped on pu
 
 ## Open
 
-- **`PERF-ROUTE-REDRAW-1` — a mouse route's redraw still re-cascades the whole tree.** `P7G-PAINT-ONLY-FRAME-1` split frame work into paint / layout / cascade (`runtime::app::redraw::Redraw`), but the public `RouteOutcome` has a single `redraw_requested` that carries both a listener's `request_redraw` (which may follow a direct `TuiExt` style write, so it must cascade) and the router's own tracked work (a hover change, a wheel scroll, a scrollbar press — layout + paint would do). The App cannot tell them apart, so those mouse events keep the whole-tree cascade. Fix with the 0.5.0 `#[non_exhaustive]` pass: a separate field for the router's own work.
+None.
 
 ## Accepted simplifications (forever-state)
 
