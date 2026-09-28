@@ -6,7 +6,6 @@
 //! [`AppContext`](super::AppContext) queued, and the cascade
 //! invalidation that a stack change implies.
 
-use super::redraw::Redraw;
 use super::{App, context};
 use crate::render::backend::Backend;
 use crate::style::Stylesheet;
@@ -133,21 +132,8 @@ impl<B: Backend> App<B> {
     /// is what gets the empty-`dirty_roots` branch of `draw_if_dirty`
     /// to run the full cascade.
     pub(super) fn invalidate_cascade(&mut self) {
-        self.sync_sibling_combinators();
-        self.tracker.take_roots();
-        self.redraw.note(Redraw::Cascade);
-        self.validity_marks.sheets_changed();
-        self.touched = true;
-    }
-
-    /// Tell the dirty tracker whether the sheets now cascaded use `+` /
-    /// `~` (`DirtyTracker::set_sibling_combinators`), so a state change
-    /// dirties its siblings only when a selector can read it there.
-    pub(super) fn sync_sibling_combinators(&mut self) {
-        let used = super::frame::cascade_order(&self.style_elements, &self.stylesheets)
-            .into_iter()
-            .any(crate::style::dirty_tracker::uses_sibling_combinators);
-        self.tracker.set_sibling_combinators(used);
+        self.prelude
+            .sheets_changed(&self.tracker, &self.stylesheets, &mut self.redraw);
     }
 
     /// All stylesheets registered with this App, in push order.
@@ -182,16 +168,6 @@ impl<B: Backend> App<B> {
     /// [`extend_from_style_tags`](crate::extend_from_style_tags) returns
     /// for a snapshot.
     pub fn style_element_warnings(&self) -> Vec<&rdom_css::Warning> {
-        self.style_elements.warnings().collect()
-    }
-
-    /// Re-parse the `<style>` elements whose text changed and pick up
-    /// inserted / removed ones (`cssom::style_elements`); invalidate the
-    /// cascade when the document's sheets changed. Runs at the frame
-    /// boundary, before the cascade.
-    pub(super) fn flush_style_elements(&mut self) {
-        if self.style_elements.flush(&self.dom) {
-            self.invalidate_cascade();
-        }
+        self.prelude.style_elements.warnings().collect()
     }
 }

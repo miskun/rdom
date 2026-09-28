@@ -7,8 +7,8 @@
 //! drag, which is router state and takes no pointer capture
 //! (P6G-SELECTION-CAPTURE-1) — see [`App::autoscroll_drag_source`].
 //!
-//! A drag **owns one scroll container** for its lifetime; see the
-//! `autoscroll_*` fields on [`App`]. The session is keyed on the
+//! A drag **owns one scroll container** for its lifetime; see
+//! [`AutoscrollSession`]. The session is keyed on the
 //! scheduler clock so it behaves identically under the live loop and
 //! [`App::advance`].
 
@@ -27,6 +27,22 @@ use crate::render::backend::Backend;
 /// drag is armed so it wakes to tick even with the pointer held still.
 pub(super) const AUTOSCROLL_PERIOD: Duration = Duration::from_millis(50);
 
+/// DRAG-AUTOSCROLL session state. A drag **owns one scroll container** for
+/// its lifetime: `container` is resolved **once** the first time the pointer
+/// reaches an edge zone, then stays sticky until the capture releases — so
+/// the captured node scrolling out of view, or the pointer overshooting past
+/// the container onto a sibling, neither re-targets nor disarms it.
+#[derive(Debug, Default)]
+pub(super) struct AutoscrollSession {
+    /// The latest pointer of the armed drag (`None` until the session
+    /// arms).
+    pub(super) pointer: Option<(u16, u16)>,
+    /// The next tick's deadline on the scheduler clock.
+    pub(super) next: Option<std::time::Instant>,
+    /// The scroll container the drag owns, once resolved.
+    pub(super) container: Option<crate::NodeId>,
+}
+
 impl<B: Backend> App<B> {
     /// The node the active autoscrolling drag started from, or `None` when no
     /// drag autoscrolls. A pointer capture owns the drag when present — it
@@ -44,9 +60,9 @@ impl<B: Backend> App<B> {
     /// sticky container). Called when the drag ends (capture released, opt-in
     /// dropped, or the text-selection drag over).
     fn disarm_autoscroll(&mut self) {
-        self.autoscroll_pointer = None;
-        self.autoscroll_next = None;
-        self.autoscroll_container = None;
+        self.autoscroll.pointer = None;
+        self.autoscroll.next = None;
+        self.autoscroll.container = None;
     }
 
     /// Update the DRAG-AUTOSCROLL session from the latest pointer (called after
@@ -62,7 +78,7 @@ impl<B: Backend> App<B> {
             self.disarm_autoscroll();
             return;
         };
-        if self.autoscroll_container.is_none() {
+        if self.autoscroll.container.is_none() {
             // Resolve the container only once the pointer is actually in an edge
             // zone (so it resolves to the container under/at the edge, while the
             // pointer is still inside it). Until then the session stays idle.
@@ -75,18 +91,18 @@ impl<B: Backend> App<B> {
                 crate::runtime::scrollbar::autoscroll_step_for(&self.dom, c, (col, row)).is_some()
             });
             match resolved {
-                Some(c) => self.autoscroll_container = Some(c),
+                Some(c) => self.autoscroll.container = Some(c),
                 None => {
-                    self.autoscroll_pointer = None;
-                    self.autoscroll_next = None;
+                    self.autoscroll.pointer = None;
+                    self.autoscroll.next = None;
                     return;
                 }
             }
         }
         // Armed + sticky: track the pointer; the tick decides scroll vs. idle.
-        self.autoscroll_pointer = Some((col, row));
-        if self.autoscroll_next.is_none() {
-            self.autoscroll_next = Some(self.scheduler.borrow().now() + AUTOSCROLL_PERIOD);
+        self.autoscroll.pointer = Some((col, row));
+        if self.autoscroll.next.is_none() {
+            self.autoscroll.next = Some(self.scheduler.borrow().now() + AUTOSCROLL_PERIOD);
         }
     }
 
@@ -103,20 +119,20 @@ impl<B: Backend> App<B> {
             return;
         }
         let (Some((col, row)), Some(container)) =
-            (self.autoscroll_pointer, self.autoscroll_container)
+            (self.autoscroll.pointer, self.autoscroll.container)
         else {
             return;
         };
         let now = self.scheduler.borrow().now();
         let mut guard = 0u8;
-        while let Some(next) = self.autoscroll_next {
+        while let Some(next) = self.autoscroll.next {
             if now < next || guard >= 8 {
                 break;
             }
             guard += 1;
-            self.touched = true;
+            self.prelude.touched = true;
             self.autoscroll_tick(container, col, row);
-            self.autoscroll_next = Some(next + AUTOSCROLL_PERIOD);
+            self.autoscroll.next = Some(next + AUTOSCROLL_PERIOD);
         }
     }
 

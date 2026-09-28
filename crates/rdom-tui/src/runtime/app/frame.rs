@@ -1,9 +1,8 @@
-//! The frame of an [`App`]: [`App::draw_if_dirty`] (smooth-scroll step +
-//! cascade + animation step + layout + caret-reveal servicing + paint), the off-frame
-//! [`App::cascade_and_layout`] half used by the autoscroll tick, the
-//! keyboard scroll-focus marker and the `:valid` / `:invalid` marks that
-//! run before the cascade, and the
-//! transition-event drain that follows a painted frame.
+//! The frame of an [`App`]: [`App::draw_if_dirty`] (the frame prelude —
+//! `prelude::FramePrelude`, the pre-cascade stages in order — then
+//! cascade + animation step + layout + caret-reveal servicing + paint),
+//! the off-frame [`App::cascade_and_layout`] half used by the autoscroll
+//! tick, and the transition-event drain that follows a painted frame.
 //!
 //! Each frame reruns only the stages its causes need (`redraw::Redraw`,
 //! `P7G-PAINT-ONLY-FRAME-1`): a caret-blink flip only paints, a scroll
@@ -16,8 +15,9 @@ use std::io;
 
 use rdom_core::NodeId;
 
+use super::App;
+use super::prelude::{PreludeCx, PreludeRun};
 use super::redraw::Redraw;
-use super::{App, StylesheetId};
 use crate::TuiDom;
 use crate::render::backend::Backend;
 use crate::render::{LayoutExt, PaintExt, Rect};
@@ -25,75 +25,29 @@ use crate::runtime::animation::AnimationRegistry;
 use crate::style::{CascadeExt, Stylesheet};
 
 impl<B: Backend> App<B> {
-    /// Keep `data-rdom-scroll-focus` on the scroll container the
-    /// keyboard scrolls: the nearest overflowing scroll ancestor of the
-    /// focus, per the previous frame's layout (`scrollbar::
-    /// scroll_focus_target`). The UA sheet colors that container's
-    /// scrollbar thumb through the attribute; `:focus-within` alone
-    /// would light every overflowing ancestor (`FOCUS-THUMB-NEAREST-1`).
-    /// Only while the focus is evident (`Dom::focus_visible`,
-    /// `P7-FOCUS-VISIBLE-1`). Runs before the cascade, so the change lands in this frame.
-    fn mark_scroll_focus(&mut self) {
-        // The accent thumb is a focus indicator: shown only while the
-        // focus is evident (`:focus-visible`), like the control tint.
-        let target = crate::runtime::scrollbar::scroll_focus_target(&self.dom)
-            .filter(|_| self.dom.focus_visible());
-        if target == self.scroll_focus_marked {
-            return;
-        }
-        if let Some(prev) = self.scroll_focus_marked.take()
-            && self.dom.contains(prev)
-        {
-            self.dom
-                .remove_attribute(prev, crate::runtime::scrollbar::SCROLL_FOCUS_ATTR)
-                .expect("a live element accepts attribute removal");
-        }
-        if let Some(next) = target {
-            self.dom
-                .set_attribute(next, crate::runtime::scrollbar::SCROLL_FOCUS_ATTR, "")
-                .expect("the focused element's ancestor is a live element");
-        }
-        self.scroll_focus_marked = target;
+    /// Run the frame prelude (`prelude::FramePrelude::run`: the
+    /// pre-cascade stages, in order) against this App.
+    fn run_prelude(&mut self, run: PreludeRun) {
+        let now = self.scheduler.borrow().now();
+        let mut cx = PreludeCx {
+            dom: &mut self.dom,
+            tracker: &self.tracker,
+            app_sheets: &self.stylesheets,
+            redraw: &mut self.redraw,
+            now,
+            animation_frame: std::time::Duration::from_millis(u64::from(self.animation_frame_ms)),
+        };
+        let walks = self.prelude.run(&mut cx, run);
+        self.note_walks(walks);
     }
 
-    /// Mark the elements whose `:valid` / `:invalid` state changed since
-    /// the last frame style-dirty (`validation::ValidityMarks`). Runs
-    /// before the roots are taken, so they re-cascade in this frame.
-    fn flush_validity_marks(&mut self) {
-        let walked = self.validity_marks.flush(
-            &mut self.dom,
-            &self.tracker,
-            self.style_elements
-                .sheets()
-                .chain(self.stylesheets.iter().map(|(_, s)| s)),
-        );
-        self.note_walk(walked);
-    }
-
-    /// Count a whole-tree walk (test instrumentation).
+    /// Count whole-tree walks (test instrumentation).
     #[cfg_attr(not(test), allow(unused_variables, clippy::unused_self))]
-    fn note_walk(&mut self, walked: bool) {
+    fn note_walks(&mut self, walks: u32) {
         #[cfg(test)]
         {
-            self.frame_stats.walks += u32::from(walked);
+            self.frame_stats.walks += walks;
         }
-    }
-
-    /// Advance the smooth scrolls in flight to `now`
-    /// (`runtime::smooth_scroll`) before this frame's layout, and wake
-    /// for the next step one animation frame later while any is still
-    /// running. The steps' `scroll` listeners run here, before the
-    /// cascade, so their mutations land in this frame.
-    /// Returns whether a step moved an offset (and fired `scroll`).
-    fn step_smooth_scrolls(&mut self, now: std::time::Instant) -> bool {
-        let step = crate::runtime::smooth_scroll::step_all(&mut self.dom, now);
-        self.note_walk(true);
-        // Scroll offsets feed layout (children are placed after scroll).
-        self.redraw.note_if(step.moved, Redraw::Layout);
-        self.smooth_scroll_next = step
-            .active
-            .then(|| now + std::time::Duration::from_millis(u64::from(self.animation_frame_ms)));
-        step.moved
     }
 
     /// Cascade + layout + paint if anything is dirty. Pairs with
@@ -102,37 +56,9 @@ impl<B: Backend> App<B> {
         // Animation events (`transitionend`) fire from in here; their
         // listeners may schedule timers.
         let _current = crate::runtime::timers::SchedulerGuard::install(&self.scheduler);
-        // Before the roots are taken, so a marker move and the options
-        // the selectedness algorithm (re)selects are cascaded in this
-        // frame.
-        self.selectedness.flush(&mut self.dom);
-        self.flush_style_elements();
-        self.mark_scroll_focus();
-        // The whole-tree checks look for changes only code can make: skip
-        // them when none ran since the last frame (`P7G-IDLE-WALKS-1`).
-        let mut touched = std::mem::take(&mut self.touched);
-        if touched {
-            self.flush_validity_marks();
-        }
-        let now = self.scheduler.borrow().now();
-        // A blink flip only changes what the caret painter reads.
-        let flipped = self.caret_blink.update(&mut self.dom, now);
-        self.redraw.note_if(flipped, Redraw::Paint);
-        // A smooth scroll starts from code (the scroll API, a scroll
-        // key) and then steps each animation frame until it lands.
-        if (touched || self.smooth_scroll_next.is_some()) && self.step_smooth_scrolls(now) {
-            // The steps fired `scroll`: listeners ran.
-            touched = true;
-            self.touched = true;
-        }
-        // Any scroll offset change repaints, whoever wrote it
-        // (`P7-SCROLL-REPAINT-1`), and lays out again. Only code writes
-        // offsets between frames.
-        if touched {
-            let moved = crate::runtime::scrollbar::moved_since_paint(&self.dom);
-            self.note_walk(true);
-            self.redraw.note_if(moved, Redraw::Layout);
-        }
+        // Before the roots are taken, so what the stages dirty is
+        // cascaded in this frame.
+        self.run_prelude(PreludeRun::Frame);
         let dirty_roots = self.take_dirty_roots();
         let redraw = self.redraw;
 
@@ -143,7 +69,7 @@ impl<B: Backend> App<B> {
         crate::rdom_trace!("draw_if_dirty: DRAW (redraw={redraw:?}, dirty_roots={dirty_roots:?})");
 
         let dom = &mut self.dom;
-        let sheets = cascade_order(&self.style_elements, &self.stylesheets);
+        let sheets = self.prelude.cascade_order(&self.stylesheets);
         let animations = &mut self.animations;
         let mut pass = Pass::default();
         self.terminal.draw(|buf| {
@@ -153,13 +79,8 @@ impl<B: Backend> App<B> {
         })?;
         self.note_pass(pass, true);
         self.redraw = Redraw::Clean;
-        // Only a frame that laid out can have moved an offset (layout's
-        // clamp, the caret reveal); a paint-only frame draws the offsets
-        // already noted.
-        if pass.laid_out {
-            crate::runtime::scrollbar::note_painted(&mut self.dom);
-            self.note_walk(true);
-        }
+        let walks = self.prelude.after_paint(&mut self.dom, pass.laid_out);
+        self.note_walks(walks);
 
         // Drain transition events queued during this frame.
         self.dispatch_animation_events();
@@ -197,7 +118,7 @@ impl<B: Backend> App<B> {
         use crate::runtime::animation::{PendingEvent, TransitionEventKind};
         let pending = self.animations.take_pending_events();
         // Their listeners are code the next frame's checks must see.
-        self.touched |= !pending.is_empty();
+        self.prelude.touched |= !pending.is_empty();
         for PendingEvent {
             node,
             slot,
@@ -233,15 +154,10 @@ impl<B: Backend> App<B> {
     /// tree when `Redraw::Cascade` is pending (then left at `Layout`, as
     /// the cascade is done), else the dirty roots.
     pub(super) fn cascade_and_layout(&mut self, area: Rect) {
-        self.selectedness.flush(&mut self.dom);
-        self.flush_style_elements();
-        self.flush_validity_marks();
-        let now = self.scheduler.borrow().now();
-        let flipped = self.caret_blink.update(&mut self.dom, now);
-        self.redraw.note_if(flipped, Redraw::Paint);
+        self.run_prelude(PreludeRun::OffFrame);
         let dirty_roots = self.take_dirty_roots();
         let redraw = self.redraw.max(Redraw::Layout);
-        let sheets = cascade_order(&self.style_elements, &self.stylesheets);
+        let sheets = self.prelude.cascade_order(&self.stylesheets);
         let pass = style_and_layout(
             &mut self.dom,
             &sheets,
@@ -289,20 +205,6 @@ enum CascadeScope {
 struct Pass {
     cascade: Option<CascadeScope>,
     laid_out: bool,
-}
-
-/// Every sheet the cascade reads, in cascade order: the document's
-/// `<style>` sheets in tree order, then the App's own in push order
-/// (`cssom::style_elements`). Later sheets win same-specificity
-/// contests.
-pub(super) fn cascade_order<'a>(
-    style_elements: &'a crate::cssom::style_elements::StyleElements,
-    stylesheets: &'a [(StylesheetId, Stylesheet)],
-) -> Vec<&'a Stylesheet> {
-    style_elements
-        .sheets()
-        .chain(stylesheets.iter().map(|(_, s)| s))
-        .collect()
 }
 
 /// The frame pipeline up to paint, shared by [`App::draw_if_dirty`] and
