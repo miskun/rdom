@@ -65,8 +65,9 @@ impl AppHandle {
         Self { shared }
     }
 
-    /// Request the runtime paint on its next iteration. Thread-
-    /// safe; the flag is checked via an atomic load.
+    /// Request the runtime paint on its next iteration — a frame that
+    /// re-cascades the whole tree, lays out and paints. Thread-safe;
+    /// the flag is checked via an atomic load.
     pub fn request_redraw(&self) {
         self.shared.redraw_requested.store(true, Ordering::Relaxed);
     }

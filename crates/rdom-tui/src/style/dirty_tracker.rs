@@ -35,11 +35,20 @@
 //!   sibling-dependent selectors like `:first-child`, `+`, `~`)
 //! - Interaction changes (hover / focus) → **both the old and new
 //!   target's subtree** (so pseudo matches re-evaluate)
-//! - Character-data changes do NOT dirty the cascade — text content
-//!   doesn't affect selector matching. But they DO change the painted
-//!   output, so the tracker maintains a separate `paint_dirty` flag
-//!   (consumed via `take_paint_dirty()`) for the runtime to know it
-//!   must repaint even though no cascade work is queued.
+//! - The parent of a tree mutation is dirtied too when its own match
+//!   can change: `:empty` (its first element / text child arrived or
+//!   its last one left) and, when text nodes come or go,
+//!   `:placeholder-shown` / `::placeholder`, which read the text
+//!   content (`Dom::is_placeholder_shown`)
+//! - Character-data changes dirty only the elements whose selector
+//!   state reads text: an ancestor with a `placeholder` attribute,
+//!   when the text went from empty to non-empty or back
+//!   (`P7G-PAINT-ONLY-FRAME-1` — the runtime no longer re-cascades the
+//!   whole tree on a text edit, so the tracker must name them). Every
+//!   text change also changes layout and painted output, so the tracker
+//!   keeps a separate `paint_dirty` flag (consumed via
+//!   `take_paint_dirty()`) for the runtime to lay out and repaint even
+//!   though no cascade work is queued.
 //!
 //! ## Dedupe policy
 //!
@@ -195,40 +204,59 @@ impl MutationObserver<TuiExt> for Shim {
                         mark_style_dirty(dom, &mut state, sib);
                     }
                 }
-                // Text-only mutations (a `<div></div>` getting a
-                // text node appended, or the inverse) don't touch
-                // any element with a TuiExt — `mark_style_dirty`
-                // on a text node early-returns, and the element-
-                // children loop above doesn't see text nodes. The
-                // mutation IS visible-content-changing though, so
-                // flag paint_dirty: the runtime's event loop ORs
-                // this into `needs_redraw`, which triggers a fresh
-                // `draw_if_dirty` that re-runs `layout_dom`
-                // (full-tree re-flow) and picks up the new text in
-                // intrinsic-size / flex-distribution / IFC packing.
-                //
-                // We don't mark the parent element style_dirty
-                // because that would trigger cascade work that
-                // text-only changes don't need (CSS selectors don't
-                // match text content) and that empirically breaks
-                // pseudo-element-driven built-ins (form/input
-                // seeding, label `for` resolution).
+                // Text nodes coming or going (a `<div></div>` getting a
+                // text node appended, or the inverse) change layout and
+                // paint: flag paint_dirty, which the runtime turns into
+                // a layout + paint frame (`Redraw::Layout`) that picks
+                // up the new text in intrinsic-size / flex-distribution
+                // / IFC packing. Their cascade effect is the parent's
+                // own match, handled below.
                 let any_text_added = added
                     .iter()
                     .any(|&n| dom.node(n).node_type() == rdom_core::NodeType::Text);
                 let any_text_removed = removed
                     .iter()
                     .any(|&n| dom.node(n).node_type() == rdom_core::NodeType::Text);
-                if any_text_added || any_text_removed {
+                let text_changed = any_text_added || any_text_removed;
+                if text_changed {
                     state.paint_dirty = true;
                 }
+                // The parent's own match: `:empty` flips when it had no
+                // element / text children before (all of them are the
+                // added ones) or has none now — both mean at most
+                // `added.len()` such children remain — and text coming
+                // or going can flip `:placeholder-shown` on it and on
+                // any ancestor carrying a placeholder.
+                let emptiness_may_flip = dom
+                    .node(*parent)
+                    .child_nodes()
+                    .filter(|c| {
+                        matches!(
+                            c.node_type(),
+                            rdom_core::NodeType::Element | rdom_core::NodeType::Text
+                        )
+                    })
+                    .nth(added.len())
+                    .is_none();
+                if emptiness_may_flip || text_changed {
+                    mark_style_dirty(dom, &mut state, *parent);
+                }
+                if text_changed {
+                    mark_placeholder_hosts(dom, &mut state, *parent);
+                }
             }
-            Mutation::CharacterDataChanged { .. } => {
-                // Text data doesn't affect selector matching — no
-                // cascade work needed. But the painted output for the
-                // text-bearing element changed, so flag paint-dirty
-                // so the runtime knows to repaint even though no
-                // cascade roots queued.
+            Mutation::CharacterDataChanged { id, old, new } => {
+                // Selectors do not match text, but `:placeholder-shown`
+                // (and the `::placeholder` it gates) reads whether the
+                // text content is empty: dirty the placeholder hosts
+                // above when that flipped. Every text change also lays
+                // out and paints anew: flag paint-dirty so the runtime
+                // does, even though no cascade roots are queued.
+                if old.is_empty() != new.is_empty()
+                    && let Some(parent) = dom.node(*id).parent_node().map(|p| p.id())
+                {
+                    mark_placeholder_hosts(dom, &mut state, parent);
+                }
                 state.paint_dirty = true;
             }
             Mutation::InteractionChanged { prev, next, kind } => {
@@ -268,8 +296,8 @@ impl MutationObserver<TuiExt> for Shim {
                 // Selection changes don't affect cascade — the
                 // `::selection` pseudo-element overlay is applied by
                 // paint directly from `dom.selection()`, not via
-                // the style cascade. The runtime flips needs_redraw
-                // out-of-band when it updates the selection (via
+                // the style cascade. The runtime asks for a layout +
+                // paint frame out-of-band when it updates the selection (via
                 // the Router / selection helper). Nothing to do
                 // here.
             }
@@ -280,6 +308,23 @@ impl MutationObserver<TuiExt> for Shim {
                 // PreDetach itself is a pure event-pipeline hook
                 // and doesn't carry any cascade implication.
             }
+        }
+    }
+}
+
+/// Mark `from` and each of its ancestors that carries a non-empty
+/// `placeholder` attribute — the elements whose `:placeholder-shown`
+/// reads the text below them. O(depth), no allocation.
+fn mark_placeholder_hosts(dom: &mut Dom<TuiExt>, state: &mut DirtyState, from: NodeId) {
+    let mut cur = Some(from);
+    while let Some(id) = cur {
+        let node = dom.node(id);
+        cur = node.parent_node().map(|p| p.id());
+        if node
+            .get_attribute("placeholder")
+            .is_some_and(|v| !v.is_empty())
+        {
+            mark_style_dirty(dom, state, id);
         }
     }
 }
@@ -354,6 +399,44 @@ mod tests {
     use super::*;
     use crate::{Color, TuiDom, TuiNodeExt, TuiNodeMutExt, TuiStyle};
 
+    /// `P7G-PAINT-ONLY-FRAME-1`: a text edit dirties the placeholder host
+    /// above it only when the text went from empty to non-empty (or
+    /// back) — the one selector state (`:placeholder-shown`) text feeds —
+    /// and always flags paint-dirty.
+    #[test]
+    fn text_emptiness_flips_dirty_the_placeholder_host() {
+        let mut dom: TuiDom = TuiDom::new();
+        let root = dom.root();
+        let ta = dom.create_element("textarea");
+        dom.set_attribute(ta, "placeholder", "p").unwrap();
+        let t = dom.create_text_node("");
+        dom.append_child(ta, t).unwrap();
+        dom.append_child(root, ta).unwrap();
+        let plain = dom.create_element("p");
+        let pt = dom.create_text_node("");
+        dom.append_child(plain, pt).unwrap();
+        dom.append_child(root, plain).unwrap();
+        let tracker = DirtyTracker::install(&mut dom);
+
+        dom.node_mut(t).set_node_value("a").unwrap();
+        assert_eq!(tracker.take_roots(), vec![ta], "empty → text");
+        dom.node_mut(ta).ext_mut().unwrap().style_dirty = false;
+        assert!(tracker.take_paint_dirty());
+
+        dom.node_mut(t).set_node_value("ab").unwrap();
+        assert!(tracker.take_roots().is_empty(), "text → text: no restyle");
+        assert!(tracker.take_paint_dirty(), "but a relayout");
+
+        dom.node_mut(t).set_node_value("").unwrap();
+        assert_eq!(tracker.take_roots(), vec![ta], "text → empty");
+
+        dom.node_mut(pt).set_node_value("x").unwrap();
+        assert!(
+            tracker.take_roots().is_empty(),
+            "no placeholder above: no restyle"
+        );
+    }
+
     /// Appending children one at a time marks each parent's siblings
     /// once per drain (they stay dirty until the cascade), and a drain
     /// re-arms the sibling marking so `:first-child` / `+` / `~`
@@ -364,6 +447,10 @@ mod tests {
         let root = dom.root();
         let list = dom.create_element("ul");
         dom.append_child(root, list).unwrap();
+        // A non-empty list: appending to an empty one would also dirty
+        // the list itself (its `:empty` flips), covering every child.
+        let first = dom.create_element("li");
+        dom.append_child(list, first).unwrap();
         let tracker = DirtyTracker::install(&mut dom);
 
         let mut items = Vec::new();
@@ -376,10 +463,14 @@ mod tests {
             assert!(dom.node(li).ext().unwrap().style_dirty);
         }
         let roots = tracker.take_roots();
-        assert_eq!(roots.len(), 2000, "each appended child is its own root");
+        assert_eq!(
+            roots.len(),
+            2001,
+            "each appended child is its own root, plus the sibling marked once"
+        );
         assert_eq!(
             roots.iter().collect::<std::collections::HashSet<_>>().len(),
-            2000,
+            2001,
             "no duplicate roots"
         );
 

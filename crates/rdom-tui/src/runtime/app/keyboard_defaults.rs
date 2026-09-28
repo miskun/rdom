@@ -4,6 +4,7 @@
 //! editable-key defaults (movement, Enter, character insert), selection
 //! and scroll keys, focus navigation, and the Ctrl-C exit.
 
+use super::redraw::Redraw;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use super::App;
@@ -30,9 +31,12 @@ impl<B: Backend> App<B> {
             let target = self.dom.focused().unwrap_or_else(|| self.dom.root());
             let mut tui = TuiEvent::keyup(key);
             let _ = self.dom.dispatch_tui_event(target, &mut tui);
-            self.needs_redraw |= tui.event.redraw_requested();
-            self.needs_redraw |= !self.tracker.roots_snapshot().is_empty();
-            self.needs_redraw |= self.tracker.take_paint_dirty();
+            self.redraw
+                .note_if(tui.event.redraw_requested(), Redraw::Cascade);
+            self.redraw.note_if(
+                !self.tracker.roots_snapshot().is_empty() || self.tracker.take_paint_dirty(),
+                Redraw::Layout,
+            );
             return;
         }
 
@@ -71,7 +75,8 @@ impl<B: Backend> App<B> {
             let mut cm = TuiEvent::new("contextmenu");
             cm.event = cm.event.clone().with_synthetic(true);
             let _ = self.dom.dispatch_tui_event(target, &mut cm);
-            self.needs_redraw |= cm.event.redraw_requested();
+            self.redraw
+                .note_if(cm.event.redraw_requested(), Redraw::Cascade);
         }
 
         // Default actions — only run if the handler didn't
@@ -83,21 +88,23 @@ impl<B: Backend> App<B> {
                 || try_handle_editable_key(&mut self.dom, key)
                 || crate::runtime::scrollbar::handle_scroll_key(&mut self.dom, key)
             {
-                self.needs_redraw = true;
+                // Their restyles (focus, text, attributes) are tracker
+                // roots; the selection and scroll offsets feed layout.
+                self.redraw.note(Redraw::Layout);
             } else {
                 match key.code {
                     KeyCode::Tab if key.modifiers.contains(KeyModifiers::SHIFT) => {
                         crate::runtime::focus::tabindex::focus_prev(&mut self.dom);
-                        self.needs_redraw = true;
+                        self.redraw.note(Redraw::Layout);
                     }
                     KeyCode::Tab => {
                         crate::runtime::focus::tabindex::focus_next(&mut self.dom);
-                        self.needs_redraw = true;
+                        self.redraw.note(Redraw::Layout);
                     }
                     KeyCode::BackTab => {
                         // Some terminals report Shift+Tab as BackTab.
                         crate::runtime::focus::tabindex::focus_prev(&mut self.dom);
-                        self.needs_redraw = true;
+                        self.redraw.note(Redraw::Layout);
                     }
                     _ => {}
                 }
@@ -106,14 +113,17 @@ impl<B: Backend> App<B> {
 
         // Listener-requested repaint (state outside the DOM the
         // tracker can't see — e.g. a canvas reading app state).
-        self.needs_redraw |= tui.event.redraw_requested();
-        self.needs_redraw |= !self.tracker.roots_snapshot().is_empty();
+        self.redraw
+            .note_if(tui.event.redraw_requested(), Redraw::Cascade);
+        self.redraw
+            .note_if(!self.tracker.roots_snapshot().is_empty(), Redraw::Layout);
         // Text-only mutations from event handlers don't dirty
         // the cascade (selectors don't match text content) but
         // they DO change painted output. Without this OR, a
         // handler that calls `set_node_value` is invisible
         // until the next event ticks the cascade.
-        self.needs_redraw |= self.tracker.take_paint_dirty();
+        self.redraw
+            .note_if(self.tracker.take_paint_dirty(), Redraw::Layout);
     }
 }
 

@@ -43,8 +43,11 @@ pub mod panic_hook;
 mod autoscroll;
 mod frame;
 mod keyboard_defaults;
+mod redraw;
 mod stylesheets;
 
+#[cfg(test)]
+mod frame_work_tests;
 #[cfg(test)]
 mod scroll_repaint_tests;
 #[cfg(test)]
@@ -57,6 +60,7 @@ use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
 use crossterm::event::{self, Event as CtEvent};
+use redraw::Redraw;
 
 use std::rc::Rc;
 
@@ -149,9 +153,13 @@ pub struct App<B: Backend = CrosstermBackend<Stdout>> {
     /// animating.
     pub(super) smooth_scroll_next: Option<Instant>,
 
-    /// Flags accumulated over a tick: if true, `draw_if_dirty`
-    /// triggers a paint regardless of DirtyTracker state.
-    pub(super) needs_redraw: bool,
+    /// What the next frame must redo, accumulated over a tick
+    /// (`redraw::Redraw`): `draw_if_dirty` draws when it is not
+    /// `Clean` or the DirtyTracker has roots.
+    pub(super) redraw: Redraw,
+    /// What the frames drawn since the last `take_frame_stats` ran.
+    #[cfg(test)]
+    pub(super) frame_stats: redraw::FrameStats,
     /// True once a handler / tick / top-level key combo (Ctrl-C,
     /// etc.) asked the app to exit. `run` sees this at the top of
     /// the next iteration and breaks out.
@@ -222,7 +230,7 @@ impl App<CrosstermBackend<Stdout>> {
     pub fn run(mut self) -> io::Result<()> {
         // Initial paint — user should see something even before any
         // event fires.
-        self.needs_redraw = true;
+        self.redraw.note(Redraw::Cascade);
 
         // Wrap the whole loop in catch_unwind. If a listener panics
         // mid-handler, the terminal state is still restored via the
@@ -411,7 +419,9 @@ impl<B: Backend> App<B> {
             scroll_focus_marked: None,
             caret_blink: crate::runtime::caret_blink::CaretBlink::new(None),
             smooth_scroll_next: None,
-            needs_redraw: true,
+            redraw: Redraw::Cascade,
+            #[cfg(test)]
+            frame_stats: Default::default(),
             should_quit: false,
             guard: None,
             shared: AppShared::new(),
@@ -659,9 +669,11 @@ impl<B: Backend> App<B> {
                 let focused_before = self.dom.focused();
                 let outcome = self.router.route(&mut self.dom, event);
                 crate::runtime::focus::visible::note_pointer_focus(&mut self.dom, focused_before);
-                self.needs_redraw |= outcome.redraw_requested;
+                self.redraw
+                    .note_if(outcome.redraw_requested, Redraw::Cascade);
                 self.should_quit |= outcome.quit_requested;
-                self.needs_redraw |= self.tracker.take_paint_dirty();
+                self.redraw
+                    .note_if(self.tracker.take_paint_dirty(), Redraw::Layout);
                 // DRAG-AUTOSCROLL: (re)arm from the pointer's current position.
                 self.note_autoscroll(col, row);
             }
@@ -678,7 +690,7 @@ impl<B: Backend> App<B> {
                 let mut tui = TuiEvent::new("resize");
                 tui.event.cancelable = false;
                 let _ = self.dom.dispatch_tui_event(root, &mut tui);
-                self.needs_redraw = true;
+                self.redraw.note(Redraw::Cascade);
 
                 // Re-arm mouse tracking after the resize signal.
                 // Terminals (and tmux in some configurations) reset
@@ -728,7 +740,7 @@ impl<B: Backend> App<B> {
         let (queued, intents) = {
             let mut ctx = AppContext::new(&mut self.dom, &mut self.stylesheet_ids);
             let flow = cb(&mut ctx);
-            self.needs_redraw |= ctx.redraw_requested;
+            self.redraw.note_if(ctx.redraw_requested, Redraw::Cascade);
             self.should_quit |= ctx.quit_requested || flow == ControlFlow::Quit;
             (
                 std::mem::take(&mut ctx.queued_dispatches),
@@ -750,7 +762,7 @@ impl<B: Backend> App<B> {
     /// at the top of every loop iteration.
     pub(crate) fn drain_handle_signals(&mut self) {
         if self.shared.redraw_requested.swap(false, Ordering::Relaxed) {
-            self.needs_redraw = true;
+            self.redraw.note(Redraw::Cascade);
         }
         if self.shared.quit_requested.load(Ordering::Relaxed) {
             self.should_quit = true;
@@ -768,7 +780,7 @@ impl<B: Backend> App<B> {
         for f in injections {
             let mut ctx = AppContext::new(&mut self.dom, &mut self.stylesheet_ids);
             f(&mut ctx);
-            self.needs_redraw |= ctx.redraw_requested;
+            self.redraw.note_if(ctx.redraw_requested, Redraw::Cascade);
             self.should_quit |= ctx.quit_requested;
             queued.extend(std::mem::take(&mut ctx.queued_dispatches));
             let intents = std::mem::take(&mut ctx.stylesheet_intents);
@@ -788,7 +800,13 @@ impl<B: Backend> App<B> {
 
     #[cfg(test)]
     pub(crate) fn needs_redraw(&self) -> bool {
-        self.needs_redraw
+        self.redraw != Redraw::Clean
+    }
+
+    /// The pipeline stages run since the last call, and reset them.
+    #[cfg(test)]
+    pub(crate) fn take_frame_stats(&mut self) -> redraw::FrameStats {
+        std::mem::take(&mut self.frame_stats)
     }
 
     #[cfg(test)]

@@ -12,6 +12,7 @@
 //! scheduler clock so it behaves identically under the live loop and
 //! [`App::advance`].
 
+use super::redraw::Redraw;
 use std::time::Duration;
 
 use crossterm::event::{
@@ -154,7 +155,8 @@ impl<B: Backend> App<B> {
             modifiers: KeyModifiers::empty(),
         };
         let outcome = self.router.route(&mut self.dom, CtEvent::Mouse(synthetic));
-        self.needs_redraw |= outcome.redraw_requested;
-        self.needs_redraw = true; // the scroll itself changed the view
+        self.redraw
+            .note_if(outcome.redraw_requested, Redraw::Cascade);
+        self.redraw.note(Redraw::Layout); // the scroll itself changed the view
     }
 }

@@ -113,7 +113,9 @@ impl<'a> AppContext<'a> {
     /// (e.g., the app wrote a paint-affecting `TuiExt` field
     /// directly, which bypasses the observer). A scroll offset change
     /// needs none — the App repaints it on its own
-    /// (`P7-SCROLL-REPAINT-1`).
+    /// (`P7-SCROLL-REPAINT-1`). The frame it asks for re-cascades the
+    /// whole tree, lays out and paints, as nothing tells the App which
+    /// part of the tree changed.
     pub fn request_redraw(&mut self) {
         self.redraw_requested = true;
     }

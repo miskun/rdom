@@ -4,11 +4,19 @@
 //! keyboard scroll-focus marker and the `:valid` / `:invalid` marks that
 //! run before the cascade, and the
 //! transition-event drain that follows a painted frame.
+//!
+//! Each frame reruns only the stages its causes need (`redraw::Redraw`,
+//! `P7G-PAINT-ONLY-FRAME-1`): a caret-blink flip only paints, a scroll
+//! offset change lays out and paints, the dirty tracker's roots are
+//! cascaded as subtrees, and only what the tracker cannot see
+//! (stylesheet changes, resizes, `request_redraw`) cascades the whole
+//! tree.
 
 use std::io;
 
 use rdom_core::NodeId;
 
+use super::redraw::Redraw;
 use super::{App, StylesheetId};
 use crate::TuiDom;
 use crate::render::backend::Backend;
@@ -68,7 +76,8 @@ impl<B: Backend> App<B> {
     /// cascade, so their mutations land in this frame.
     fn step_smooth_scrolls(&mut self, now: std::time::Instant) {
         let step = crate::runtime::smooth_scroll::step_all(&mut self.dom, now);
-        self.needs_redraw |= step.moved;
+        // Scroll offsets feed layout (children are placed after scroll).
+        self.redraw.note_if(step.moved, Redraw::Layout);
         self.smooth_scroll_next = step
             .active
             .then(|| now + std::time::Duration::from_millis(u64::from(self.animation_frame_ms)));
@@ -88,39 +97,43 @@ impl<B: Backend> App<B> {
         self.mark_scroll_focus();
         self.flush_validity_marks();
         let now = self.scheduler.borrow().now();
-        self.needs_redraw |= self.caret_blink.update(&mut self.dom, now);
+        // A blink flip only changes what the caret painter reads.
+        let flipped = self.caret_blink.update(&mut self.dom, now);
+        self.redraw.note_if(flipped, Redraw::Paint);
         self.step_smooth_scrolls(now);
         // Any scroll offset change repaints, whoever wrote it
-        // (`P7-SCROLL-REPAINT-1`).
-        self.needs_redraw |= crate::runtime::scrollbar::moved_since_paint(&self.dom);
+        // (`P7-SCROLL-REPAINT-1`), and lays out again.
+        let moved = crate::runtime::scrollbar::moved_since_paint(&self.dom);
+        self.redraw.note_if(moved, Redraw::Layout);
         let dirty_roots = self.take_dirty_roots();
+        let redraw = self.redraw;
 
-        if !self.needs_redraw && dirty_roots.is_empty() {
-            crate::rdom_trace!("draw_if_dirty: SKIP (needs_redraw=false, dirty_roots empty)");
+        if redraw == Redraw::Clean && dirty_roots.is_empty() {
+            crate::rdom_trace!("draw_if_dirty: SKIP (clean, dirty_roots empty)");
             return Ok(());
         }
-        crate::rdom_trace!(
-            "draw_if_dirty: DRAW (needs_redraw={}, dirty_roots={:?})",
-            self.needs_redraw,
-            dirty_roots
-        );
+        crate::rdom_trace!("draw_if_dirty: DRAW (redraw={redraw:?}, dirty_roots={dirty_roots:?})");
 
         let dom = &mut self.dom;
         let sheets = cascade_order(&self.style_elements, &self.stylesheets);
         let animations = &mut self.animations;
+        let mut pass = Pass::default();
         self.terminal.draw(|buf| {
-            style_and_layout(dom, &sheets, animations, &dirty_roots, buf.area);
+            pass = style_and_layout(dom, &sheets, animations, redraw, &dirty_roots, buf.area);
             dom.paint_dom(buf, buf.area);
             Ok(())
         })?;
+        self.note_pass(pass, true);
+        self.redraw = Redraw::Clean;
         crate::runtime::scrollbar::note_painted(&mut self.dom);
 
         // Drain transition events queued during this frame.
         self.dispatch_animation_events();
 
-        // Force redraw next frame if any transitions are still
-        // running — interpolation needs to keep stepping.
-        self.needs_redraw = !self.animations.is_empty();
+        // Lay out and paint the next frame too while any transition is
+        // still running — interpolation needs to keep stepping.
+        self.redraw
+            .note_if(!self.animations.is_empty(), Redraw::Layout);
         Ok(())
     }
 
@@ -178,23 +191,67 @@ impl<B: Backend> App<B> {
     /// consumer made inside a `scroll` handler are fully realized before the
     /// synthetic move. Drains the dirty-root tracker like a real frame, so the
     /// subsequent `draw_if_dirty` only re-cascades what the synthetic move
-    /// newly dirtied (it still paints — `needs_redraw` is set).
+    /// newly dirtied (it still paints — the autoscroll notes `Redraw::Layout`).
+    /// It always lays out, and cascades what a frame would: the whole
+    /// tree when `Redraw::Cascade` is pending (then left at `Layout`, as
+    /// the cascade is done), else the dirty roots.
     pub(super) fn cascade_and_layout(&mut self, area: Rect) {
         self.selectedness.flush(&mut self.dom);
         self.flush_style_elements();
         self.flush_validity_marks();
         let now = self.scheduler.borrow().now();
-        self.needs_redraw |= self.caret_blink.update(&mut self.dom, now);
+        let flipped = self.caret_blink.update(&mut self.dom, now);
+        self.redraw.note_if(flipped, Redraw::Paint);
         let dirty_roots = self.take_dirty_roots();
+        let redraw = self.redraw.max(Redraw::Layout);
         let sheets = cascade_order(&self.style_elements, &self.stylesheets);
-        style_and_layout(
+        let pass = style_and_layout(
             &mut self.dom,
             &sheets,
             &mut self.animations,
+            redraw,
             &dirty_roots,
             area,
         );
+        self.note_pass(pass, false);
+        if redraw == Redraw::Cascade {
+            self.redraw = Redraw::Layout;
+        }
     }
+
+    /// Count what one pipeline run did (test instrumentation).
+    #[cfg_attr(not(test), allow(unused_variables, clippy::unused_self))]
+    fn note_pass(&mut self, pass: Pass, painted: bool) {
+        #[cfg(test)]
+        {
+            let stats = &mut self.frame_stats;
+            match pass.cascade {
+                Some(CascadeScope::Full) => stats.full_cascades += 1,
+                Some(CascadeScope::Subtrees) => stats.subtree_cascades += 1,
+                None => {}
+            }
+            stats.layouts += u32::from(pass.laid_out);
+            stats.paints += u32::from(painted);
+        }
+    }
+}
+
+/// Which cascade a pipeline run did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CascadeScope {
+    /// The whole tree.
+    Full,
+    /// The dirty tracker's subtree roots.
+    Subtrees,
+}
+
+/// What one run of the frame pipeline up to paint did (read by the
+/// test instrumentation only).
+#[derive(Debug, Clone, Copy, Default)]
+#[cfg_attr(not(test), allow(dead_code))]
+struct Pass {
+    cascade: Option<CascadeScope>,
+    laid_out: bool,
 }
 
 /// Every sheet the cascade reads, in cascade order: the document's
@@ -212,12 +269,16 @@ fn cascade_order<'a>(
 }
 
 /// The frame pipeline up to paint, shared by [`App::draw_if_dirty`] and
-/// [`App::cascade_and_layout`]: cascade (`dirty_roots`' subtrees, or the
-/// whole tree when there are none) → register the transitions the
-/// cascade's property changes start and advance the running ones
-/// (writing interpolated values into `TuiExt::presentation`) → layout →
+/// [`App::cascade_and_layout`], each stage only when `redraw` or the
+/// dirty roots need it (`redraw::Redraw`, `P7G-PAINT-ONLY-FRAME-1`):
+/// cascade (the whole tree for `Redraw::Cascade`, else `dirty_roots`'
+/// subtrees, else nothing) → register the transitions a cascade's
+/// property changes start → when anything was cascaded or `redraw` is
+/// at least `Layout`: advance the running transitions (writing
+/// interpolated values into `TuiExt::presentation`), lay out, and
 /// service a caret reveal requested this frame against the fresh
-/// extent, re-laying out when it moved a scroll offset.
+/// extent, re-laying out when it moved a scroll offset. A
+/// `Redraw::Paint` frame with no dirty roots runs none of it.
 ///
 /// A free function over split borrows because `draw_if_dirty` runs it
 /// inside `Terminal::draw` while the terminal is borrowed.
@@ -225,19 +286,30 @@ fn style_and_layout(
     dom: &mut TuiDom,
     sheets: &[&Stylesheet],
     animations: &mut AnimationRegistry,
+    redraw: Redraw,
     dirty_roots: &[NodeId],
     area: Rect,
-) {
+) -> Pass {
     let now = std::time::Instant::now();
-    if dirty_roots.is_empty() {
+    let cascade = if redraw == Redraw::Cascade {
         dom.cascade_all(sheets);
-    } else {
+        Some(CascadeScope::Full)
+    } else if !dirty_roots.is_empty() {
         dom.cascade_subtrees_all(sheets, dirty_roots);
+        Some(CascadeScope::Subtrees)
+    } else {
+        None
+    };
+    if cascade.is_some() {
+        crate::runtime::animation::diff_and_register(dom, animations, now);
     }
-    crate::runtime::animation::diff_and_register(dom, animations, now);
-    animations.advance(dom, now);
-    dom.layout_dom(area);
-    if crate::runtime::scrollbar::service_caret_reveal(dom) {
+    let laid_out = cascade.is_some() || redraw >= Redraw::Layout;
+    if laid_out {
+        animations.advance(dom, now);
         dom.layout_dom(area);
+        if crate::runtime::scrollbar::service_caret_reveal(dom) {
+            dom.layout_dom(area);
+        }
     }
+    Pass { cascade, laid_out }
 }

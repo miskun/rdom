@@ -6,6 +6,7 @@
 //! [`AppContext`](super::AppContext) queued, and the cascade
 //! invalidation that a stack change implies.
 
+use super::redraw::Redraw;
 use super::{App, context};
 use crate::render::backend::Backend;
 use crate::style::Stylesheet;
@@ -128,12 +129,12 @@ impl<B: Backend> App<B> {
     /// would cause the next `draw_if_dirty` to do a partial
     /// `cascade_subtrees_all` rooted at those subtrees — skipping
     /// every element outside them and leaving stale computed styles
-    /// from the previous sheet stack. Draining + `needs_redraw=true`
+    /// from the previous sheet stack. Draining + `Redraw::Cascade`
     /// is what gets the empty-`dirty_roots` branch of `draw_if_dirty`
     /// to run the full cascade.
     pub(super) fn invalidate_cascade(&mut self) {
         self.tracker.take_roots();
-        self.needs_redraw = true;
+        self.redraw.note(Redraw::Cascade);
     }
 
     /// All stylesheets registered with this App, in push order.
