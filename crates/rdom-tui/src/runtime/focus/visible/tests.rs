@@ -104,6 +104,61 @@ fn mouse_focus_in_a_text_input_matches_focus_visible() {
     assert!(visible(&app, text), "text fields always show focus");
 }
 
+/// `P7G-FOCUS-VISIBLE-ORDER-1`: browsers decide `:focus-visible` before
+/// the focus events fire, so a `focus` / `focusin` listener that asks
+/// sees the answer for the input that moved focus — not the previous
+/// modality's.
+#[test]
+fn focus_listeners_see_the_focus_visible_answer_of_the_moving_input() {
+    use std::cell::RefCell;
+    use std::rc::Rc;
+    let (mut app, [a, b, text, _]) = controls_app();
+    type Log = Rc<RefCell<Vec<(NodeId, &'static str, bool)>>>;
+    let log: Log = Rc::default();
+    for id in [a, b, text] {
+        for ty in ["focus", "focusin"] {
+            let log = log.clone();
+            app.dom_mut()
+                .add_event_listener(id, ty, rdom_core::ListenerOptions::default(), move |ctx| {
+                    let visible = ctx.dom.matches(id, ":focus-visible").unwrap();
+                    log.borrow_mut().push((id, ty, visible));
+                })
+                .unwrap();
+        }
+    }
+    let step = |app: &mut App<TestBackend>, act: &dyn Fn(&mut App<TestBackend>)| {
+        log.borrow_mut().clear();
+        act(app);
+        log.borrow().clone()
+    };
+    let tab = |app: &mut App<TestBackend>| press(app, KeyCode::Tab, KeyModifiers::empty());
+    assert_eq!(
+        step(&mut app, &tab),
+        vec![(a, "focus", true), (a, "focusin", true)],
+        "Tab"
+    );
+    assert_eq!(
+        step(&mut app, &|app| click_at(app, 1, 1)),
+        vec![(b, "focus", false), (b, "focusin", false)],
+        "a click on a button after Tab"
+    );
+    assert_eq!(
+        step(&mut app, &|app| click_at(app, 1, 2)),
+        vec![(text, "focus", true), (text, "focusin", true)],
+        "a click on a text field"
+    );
+    assert_eq!(
+        step(&mut app, &|app| click_at(app, 1, 0)),
+        vec![(a, "focus", false), (a, "focusin", false)],
+        "a click on a button after a text field"
+    );
+    assert_eq!(
+        step(&mut app, &tab),
+        vec![(b, "focus", true), (b, "focusin", true)],
+        "Tab after a click"
+    );
+}
+
 /// Browsers switch `:focus-visible` on when the user presses a key
 /// while a mouse-focused element keeps focus; a key chord with Ctrl /
 /// Alt / Super (a shortcut, not typing or navigation) does not.

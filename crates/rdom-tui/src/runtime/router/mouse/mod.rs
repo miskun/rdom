@@ -169,7 +169,7 @@ fn handle_down(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> Rout
     if !tui.event.default_prevented() {
         if let Some(focusable) = crate::runtime::focus::nearest_focusable_ancestor(dom, target) {
             let prev = dom.focused();
-            crate::runtime::focus::focus_node(dom, Some(focusable));
+            crate::runtime::focus::focus_node_by_pointer(dom, Some(focusable));
             if prev != Some(focusable) {
                 redraw = true;
             }

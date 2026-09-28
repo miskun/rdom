@@ -20,6 +20,7 @@
 //! 1. `blur` on old (non-bubbling)
 //! 2. `focusout` on old (bubbling)
 //! 3. `dom.set_focused(new)` commits — `:focus` cascade picks up
+//!    (with a pointer-moved focus, `:focus-visible` is decided here too)
 //! 4. `focus` on new (non-bubbling)
 //! 5. `focusin` on new (bubbling)
 
@@ -44,6 +45,22 @@ use crate::{TuiDispatchExt, TuiDom, TuiEvent};
 ///
 /// Pass `None` to clear focus (fires only blur + focusout).
 pub fn focus_node(dom: &mut TuiDom, new_focus: Option<NodeId>) {
+    focus_node_with(dom, new_focus, None);
+}
+
+/// [`focus_node`] for focus moved by a pointer press: the new element's
+/// `:focus-visible` answer ([`visible::pointer_focus_is_evident`]) is
+/// committed with the focus, before `focus` / `focusin` fire —
+/// browsers decide it before the focus events, so a listener that asks
+/// sees the pointer's answer, not the previous modality's.
+pub(crate) fn focus_node_by_pointer(dom: &mut TuiDom, new_focus: Option<NodeId>) {
+    let evident = new_focus.map(|id| visible::pointer_focus_is_evident(dom, id));
+    focus_node_with(dom, new_focus, evident);
+}
+
+/// The focus-change steps; `visible`, when given, is committed as
+/// `Dom::focus_visible` right after the focus itself.
+fn focus_node_with(dom: &mut TuiDom, new_focus: Option<NodeId>, visible: Option<bool>) {
     let old = dom.focused();
     if old == new_focus {
         return;
@@ -60,6 +77,9 @@ pub fn focus_node(dom: &mut TuiDom, new_focus: Option<NodeId>) {
     // Commit the new state — drives :focus cascade via the
     // InteractionChanged mutation the DirtyTracker observes.
     dom.set_focused(new_focus);
+    if let Some(visible) = visible {
+        dom.set_focus_visible(visible);
+    }
 
     // Seed a collapsed caret for editable focus targets. The
     // mouse-click drag-select path does this automatically (it

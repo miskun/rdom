@@ -12,7 +12,11 @@
 //!   takes keyboard input — a text control or editing host
 //!   ([`TuiNodeExt::is_editable`]) — so a clicked button, toggle or
 //!   select shows no indicator while a clicked text field does
-//!   ([`note_pointer_focus`]);
+//!   ([`pointer_focus_is_evident`]). Both decisions land before the
+//!   focus events fire, as in browsers: [`note_key`] runs before the key
+//!   is routed, and the router's focus-on-press commits the answer with
+//!   the focus; [`note_pointer_focus`] settles focus a pointer event's
+//!   listener moved by script;
 //! - focus moved by script outside an input event leaves the bit alone,
 //!   so it keeps the previously focused element's visibility, as the
 //!   spec asks; script focus from a click handler counts as pointer
@@ -42,15 +46,26 @@ pub(crate) fn note_key(dom: &mut TuiDom, key: KeyEvent) {
     dom.set_focus_visible(true);
 }
 
+/// Focus moved onto `id` by a pointer event is evident iff `id` takes
+/// keyboard input. The router's focus-on-press commits this with the
+/// focus ([`focus_node_by_pointer`](super::focus_node_by_pointer)), so
+/// `focus` listeners see it.
+pub(crate) fn pointer_focus_is_evident(dom: &TuiDom, id: NodeId) -> bool {
+    dom.node(id).is_editable()
+}
+
 /// After a pointer event: if it moved focus off `before` onto an
 /// element, that focus is evident iff the element takes keyboard input.
+/// Covers script focus from a pointer event's listener (a `click`
+/// handler's `focus()`), which the router's own focus path does not
+/// see; that focus's own listeners ran before this correction.
 pub(crate) fn note_pointer_focus(dom: &mut TuiDom, before: Option<NodeId>) {
     let after = dom.focused();
     if after == before {
         return;
     }
     if let Some(now) = after {
-        let evident = dom.node(now).is_editable();
+        let evident = pointer_focus_is_evident(dom, now);
         dom.set_focus_visible(evident);
     }
 }
