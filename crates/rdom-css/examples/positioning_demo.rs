@@ -164,14 +164,25 @@ fn main() -> io::Result<()> {
     let root = dom.root();
     parse_into(&mut dom, TEMPLATE, root).expect("template parses");
 
-    // The App applies the template's `<style>` blocks itself, and keeps
-    // them live; `App::style_element_warnings` lists their parse warnings.
+    // The App applies the template's `<style>` blocks itself and keeps
+    // them live; `App::style_element_warnings` lists their parse warnings
+    // once a frame has run. Parsing their text here, before the TUI takes
+    // the screen, reports those warnings on stderr.
+    let style_warnings: Vec<_> = dom
+        .elements_by_tag("style")
+        .ids()
+        .iter()
+        .flat_map(|&id| rdom_css::parse(&dom.node(id).text_content()).warnings)
+        .collect();
     let sheet = Stylesheet::new();
     // Optional: the App seeds the inline `style="…"` attributes itself;
     // calling `seed_inline_styles` first (it is idempotent) is how to
     // see their parse warnings.
     let inline_warnings = seed_inline_styles(&mut dom);
 
+    if !style_warnings.is_empty() {
+        eprintln!("warnings from <style>: {style_warnings:?}");
+    }
     if !inline_warnings.is_empty() {
         eprintln!("warnings from inline style: {inline_warnings:?}");
     }

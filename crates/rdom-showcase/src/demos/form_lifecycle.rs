@@ -23,11 +23,11 @@ pub const MARKUP: &str = r#"<div class="form-life">
   <h1>Form lifecycle</h1>
   <p class="hint">Tab: focus  •  type  •  Enter: activate  •  Save validates, Draft skips it</p>
   <form class="signup" method="post">
-    <div class="row"><label>Name*</label><input name="name" required></div>
-    <div class="row"><label>Code</label><input name="code" pattern="[A-Z]{3}" value="abc"></div>
+    <div class="row"><label for="form-life-name">Name*</label><input id="form-life-name" name="name" required></div>
+    <div class="row"><label for="form-life-code">Code</label><input id="form-life-code" name="code" pattern="[A-Z]{3}" value="abc"></div>
     <fieldset disabled>
       <legend>Disabled fieldset</legend>
-      <div class="row"><label>Note</label><input name="note" value="not sent"></div>
+      <div class="row"><label for="form-life-note">Note</label><input id="form-life-note" name="note" value="not sent"></div>
     </fieldset>
     <div class="row buttons"><button>Save</button><button formnovalidate>Draft</button><button type="reset">Reset</button></div>
   </form>
@@ -131,7 +131,9 @@ fn wire(dom: &mut TuiDom, parts: Parts) {
             "validated"
         };
         let method = method.as_str();
-        let values: Vec<String> = form::collect(ctx.dom, form)
+        // The entry list the submission builds: the submitter's own
+        // `name=value` joins it (none here — the buttons are unnamed).
+        let values: Vec<String> = form::collect_with_submitter(ctx.dom, form, submitter)
             .iter()
             .map(|(k, v)| format!("{k}={v:?}"))
             .collect();

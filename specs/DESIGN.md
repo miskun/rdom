@@ -106,9 +106,7 @@ The work that fed into 0.1.0 was organized in five internal milestones (M1 CSS p
 
 Current progress + the full release ledger live in [`../STATE.md`](../STATE.md).
 
-Open polish items (no fixed milestone): multi-text-node `contenteditable`, line-based selection extension (`Shift+Up` / `Shift+Down`).
-
-Deferred polish lives in [`TECH_DEBT.md`](TECH_DEBT.md).
+Web-platform surface not yet shipped is listed in [`DIVERGENCES.md`](DIVERGENCES.md) §3; open debt, if any, in [`TECH_DEBT.md`](TECH_DEBT.md).
 
 ## Decision archive
 

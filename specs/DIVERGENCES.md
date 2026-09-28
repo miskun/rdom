@@ -217,13 +217,13 @@ The web platform has no tree element — trees are built from `role="tree"` / `r
 
 ## 3. Not yet shipped
 
-Common web-platform surface rdom omits entirely as of 0.4.x. Schedule lives in [`DESIGN.md`](DESIGN.md#roadmap).
+Common web-platform surface rdom omits entirely as of 0.5.0. Schedule lives in [`DESIGN.md`](DESIGN.md#roadmap).
 
 - **`transition-behavior: allow-discrete`** (CSS Transitions 2): discrete properties (`display`, `position`, …) never transition; `transition-property: display` (or any other `<custom-ident>`) parses and is inert, exactly as Transitions Level 1 behaves without the Level 2 property.
 
 - **`scroll-padding` / `scroll-margin`** (CSS Scroll Snap 1): not parsed; `scrollIntoView` aligns the element's border box with the scroll container's padding box, as with both at `0`.
 
-- **Validation after user interaction:** `:user-valid` / `:user-invalid` are not matched (rdom tracks no "user interacted" flag per control). Constraint validation, its API and `:valid` / `:invalid` / `:required` / `:optional` ship; the date / time / month / week / color / file input types, which rdom does not render, suffer only `valueMissing` and `customError`.
+- **Validation after user interaction:** `:user-valid` / `:user-invalid` are not matched (rdom keeps no per-control "user validity" flag). Constraint validation, its API and `:valid` / `:invalid` / `:required` / `:optional` ship; the date / time / month / week / color / file input types, which rdom does not render, suffer only `valueMissing` and `customError`.
 
 ## 4. Known limitations within shipped features
 

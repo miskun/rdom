@@ -126,13 +126,20 @@ fn wire(dom: &mut TuiDom, parts: Parts, style: NodeId) {
     let first = parts.first;
     dom.add_event_listener(parts.top, "click", click.clone(), move |ctx| {
         // `scrollIntoView()`: block start, inline nearest.
-        let _ = ctx.dom.node_mut(first).scroll_into_view();
+        // The log entries are never removed, so the call cannot fail.
+        ctx.dom
+            .node_mut(first)
+            .scroll_into_view()
+            .expect("the first entry is a live element");
     })
     .unwrap();
     let last = parts.last;
     dom.add_event_listener(parts.bottom, "click", click.clone(), move |ctx| {
         // `scrollIntoView(false)`: block end, inline nearest.
-        let _ = ctx.dom.node_mut(last).scroll_into_view_with(false.into());
+        ctx.dom
+            .node_mut(last)
+            .scroll_into_view_with(false.into())
+            .expect("the last entry is a live element");
     })
     .unwrap();
     let theme_name = parts.theme_name;

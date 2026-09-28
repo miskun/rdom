@@ -133,6 +133,25 @@ fn reset_restores_the_default_values() {
     assert_eq!(text(&app, parts.status), "reset: defaults restored");
 }
 
+/// Each field's `<label>` is associated with its control (`for=`), so
+/// activating the label focuses the field, as in HTML §4.10.4.
+#[test]
+fn clicking_a_label_focuses_its_field() {
+    let (mut app, parts) = form_app();
+    for (index, field) in [(0, parts.name), (1, parts.code)] {
+        let label = app
+            .dom()
+            .node(parts.form)
+            .query_selector_all("label")
+            .iter()
+            .map(|l| l.id())
+            .nth(index)
+            .expect("the label");
+        click(&mut app, label);
+        assert_eq!(app.dom().focused(), Some(field));
+    }
+}
+
 // ── Translucency, lists, selection hosts ────────────────────────────
 
 #[test]
