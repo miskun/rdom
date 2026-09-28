@@ -83,7 +83,9 @@ impl<Ext> Dom<Ext> {
         }
     }
 
-    /// Pre-order DFS *including* `id` itself.
+    /// Pre-order DFS *including* `id` itself. Iterative — it follows
+    /// the child / sibling / parent links with no stack of its own, so
+    /// any depth is safe (`P7G-CORE-SMALL-1`).
     pub(crate) fn walk_subtree<F>(&self, id: NodeId, f: &mut F)
     where
         F: FnMut(NodeId, &NodeData<Ext>),
@@ -92,12 +94,29 @@ impl<Ext> Dom<Ext> {
             return;
         };
         f(id, &node.data);
-
-        let mut child = node.first_child;
-        while let Some(c) = child {
-            self.walk_subtree(c, f);
-            child = self.get_node(c).and_then(|n| n.next_sibling);
+        let mut cur = node.first_child;
+        while let Some(c) = cur {
+            let Some(n) = self.get_node(c) else {
+                return;
+            };
+            f(c, &n.data);
+            cur = n.first_child.or_else(|| self.next_in_subtree(c, id));
         }
+    }
+
+    /// The pre-order successor of `from` that is not one of its
+    /// descendants, inside `root`'s subtree: `from`'s next sibling, else
+    /// the nearest ancestor's (below `root`). `None` at the subtree's end.
+    fn next_in_subtree(&self, from: NodeId, root: NodeId) -> Option<NodeId> {
+        let mut up = from;
+        while up != root {
+            let n = self.get_node(up)?;
+            if let Some(next) = n.next_sibling {
+                return Some(next);
+            }
+            up = n.parent?;
+        }
+        None
     }
 }
 
@@ -229,5 +248,35 @@ mod tests {
         assert_eq!(dom.get_element_by_id_within(section, "target"), Some(p));
         // From p itself (no descendants) we can't find itself.
         assert!(dom.get_element_by_id_within(p, "target").is_none());
+    }
+
+    /// `P7G-CORE-SMALL-1`: the tree walks are iterative, so a very deep
+    /// tree does not overflow the stack (a test thread has 2 MiB).
+    #[test]
+    fn tree_walks_handle_a_100_000_deep_chain() {
+        const DEPTH: usize = 100_000;
+        let mut dom: Dom = Dom::new();
+        let root = dom.root();
+        // Built bottom-up, so each insertion's cycle check is O(1).
+        let mut top = dom.create_text_node("x");
+        for _ in 0..DEPTH {
+            let parent = dom.create_element("div");
+            dom.append_child(parent, top).unwrap();
+            top = parent;
+        }
+        dom.append_child(root, top).unwrap();
+
+        assert_eq!(dom.elements_by_tag("div").len(), DEPTH);
+        assert_eq!(dom.get_elements_by_tag_name(root, "div").len(), DEPTH);
+        assert_eq!(dom.text_content(root), "x");
+        let copy = dom.clone_node(top, true);
+        assert!(dom.is_equal_node(top, copy));
+        assert_eq!(
+            dom.outer_markup(top),
+            format!("{}x{}", "<div>".repeat(DEPTH), "</div>".repeat(DEPTH))
+        );
+        dom.drop_subtree(copy).unwrap();
+        dom.drop_subtree(top).unwrap();
+        assert_eq!(dom.elements_by_tag("div").len(), 0);
     }
 }

@@ -48,8 +48,9 @@
 //!   `:placeholder-shown` / `::placeholder`, which read the text
 //!   content (`Dom::is_placeholder_shown`)
 //! - Character-data changes dirty only the elements whose selector
-//!   state reads text: an ancestor with a `placeholder` attribute,
-//!   when the text went from empty to non-empty or back
+//!   state reads text, when the text went from empty to non-empty or
+//!   back: the parent (its `:empty`) and an ancestor with a
+//!   `placeholder` attribute
 //!   (`P7G-PAINT-ONLY-FRAME-1` — the runtime no longer re-cascades the
 //!   whole tree on a text edit, so the tracker must name them). Every
 //!   text change also changes layout and painted output, so the tracker
@@ -249,14 +250,15 @@ impl MutationObserver<TuiExt> for Shim {
                 // `added.len()` such children remain — and text coming
                 // or going can flip `:placeholder-shown` on it and on
                 // any ancestor carrying a placeholder.
+                // Children that count for `:empty` (Selectors 4 §14.2):
+                // elements and non-empty text.
                 let emptiness_may_flip = dom
                     .node(*parent)
                     .child_nodes()
-                    .filter(|c| {
-                        matches!(
-                            c.node_type(),
-                            rdom_core::NodeType::Element | rdom_core::NodeType::Text
-                        )
+                    .filter(|c| match c.node_type() {
+                        rdom_core::NodeType::Element => true,
+                        rdom_core::NodeType::Text => c.node_value().is_some_and(|t| !t.is_empty()),
+                        _ => false,
                     })
                     .nth(added.len())
                     .is_none();
@@ -274,9 +276,13 @@ impl MutationObserver<TuiExt> for Shim {
                 // above when that flipped. Every text change also lays
                 // out and paints anew: flag paint-dirty so the runtime
                 // does, even though no cascade roots are queued.
+                // A text node going empty ↔ non-empty can also flip its
+                // parent's `:empty` (a zero-length text node does not
+                // count, Selectors 4 §14.2).
                 if old.is_empty() != new.is_empty()
                     && let Some(parent) = dom.node(*id).parent_node().map(|p| p.id())
                 {
+                    mark_state_dirty(dom, &mut state, parent);
                     mark_placeholder_hosts(dom, &mut state, parent);
                 }
                 state.paint_dirty = true;
@@ -479,9 +485,10 @@ mod tests {
     use crate::{Color, TuiDom, TuiNodeExt, TuiNodeMutExt, TuiStyle};
 
     /// `P7G-PAINT-ONLY-FRAME-1`: a text edit dirties the placeholder host
-    /// above it only when the text went from empty to non-empty (or
-    /// back) — the one selector state (`:placeholder-shown`) text feeds —
-    /// and always flags paint-dirty.
+    /// above it and its parent only when the text went from empty to
+    /// non-empty (or back) — the selector states text feeds
+    /// (`:placeholder-shown`, and `:empty`, `P7G-CORE-SMALL-1`) — and
+    /// always flags paint-dirty.
     #[test]
     fn text_emptiness_flips_dirty_the_placeholder_host() {
         let mut dom: TuiDom = TuiDom::new();
@@ -511,11 +518,14 @@ mod tests {
         dom.node_mut(t).set_node_value("").unwrap();
         assert_eq!(tracker.take_roots(), vec![ta], "text → empty");
 
+        // No placeholder above, but the parent's `:empty` flips: a
+        // zero-length text node does not count (Selectors 4 §14.2).
         dom.node_mut(pt).set_node_value("x").unwrap();
-        assert!(
-            tracker.take_roots().is_empty(),
-            "no placeholder above: no restyle"
-        );
+        assert_eq!(tracker.take_roots(), vec![plain], "the parent's :empty");
+        dom.node_mut(plain).ext_mut().unwrap().style_dirty = false;
+
+        dom.node_mut(pt).set_node_value("xy").unwrap();
+        assert!(tracker.take_roots().is_empty(), "text → text: no restyle");
     }
 
     /// `P7G-ROUTE-REDRAW-1`: `a[x] + b` reads `a`'s attribute, so while

@@ -616,12 +616,18 @@ impl<'a> Parser<'a> {
     }
 }
 
+/// CSS Syntax 3 §4.2 ident-start code point, byte-wise: a letter, `_`,
+/// or any non-ASCII code point (every byte of a multi-byte UTF-8
+/// sequence is ≥ 0x80, so a byte scan stays on `char` boundaries). `-`
+/// is accepted too, for `-foo` / custom idents.
 fn is_ident_start(b: u8) -> bool {
-    b.is_ascii_alphabetic() || b == b'_' || b == b'-'
+    b.is_ascii_alphabetic() || b == b'_' || b == b'-' || !b.is_ascii()
 }
 
+/// CSS Syntax 3 §4.2 ident code point, byte-wise: an ident-start code
+/// point, a digit or `-`.
 fn is_ident_continue(b: u8) -> bool {
-    b.is_ascii_alphanumeric() || b == b'_' || b == b'-'
+    b.is_ascii_alphanumeric() || b == b'_' || b == b'-' || !b.is_ascii()
 }
 
 // ─── Tests ───────────────────────────────────────────────────────────
@@ -663,6 +669,31 @@ mod tests {
         assert_eq!(
             sl.0[0].subject.simples,
             vec![SimpleSelector::Class("foo".into())]
+        );
+    }
+
+    /// CSS Syntax 3 §4.2 (`P7G-CORE-SMALL-1`): a code point at or above
+    /// U+0080 is an ident code point, start included.
+    #[test]
+    fn non_ascii_idents_parse() {
+        match &parse("[lang|=én]").unwrap().0[0].subject.simples[0] {
+            SimpleSelector::Attribute { value, .. } => assert_eq!(value.as_deref(), Some("én")),
+            other => panic!("expected an attribute selector, got {other:?}"),
+        }
+        assert_eq!(
+            parse(".café#naïve").unwrap().0[0].subject.simples,
+            vec![
+                SimpleSelector::Class("café".into()),
+                SimpleSelector::Id("naïve".into()),
+            ]
+        );
+        assert_eq!(
+            parse("élément").unwrap().0[0].subject.simples,
+            vec![s("élément")]
+        );
+        assert_eq!(
+            parse(".日本").unwrap().0[0].subject.simples,
+            vec![SimpleSelector::Class("日本".into())]
         );
     }
 

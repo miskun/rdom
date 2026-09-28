@@ -13,6 +13,37 @@ impl<Ext: Clone> Dom<Ext> {
     /// Returns the new orphan's `NodeId`. The caller must attach it with
     /// `append_child` / `insert_before` to make it live in the tree.
     pub fn clone_node(&mut self, id: NodeId, deep: bool) -> NodeId {
+        let new_id = self.clone_one(id);
+        if !deep {
+            return new_id;
+        }
+        // Iterative post-order (`P7G-CORE-SMALL-1`): each frame is a
+        // source node, its clone and the next source child to clone. A
+        // clone is appended to its parent's clone once its own children
+        // are in, while that parent is still detached — so each append's
+        // ancestor check is O(1) and any depth is safe.
+        let first = |dom: &Self, n: NodeId| dom.get_node(n).and_then(|n| n.first_child);
+        let mut stack = vec![(new_id, first(self, id))];
+        while let Some(top) = stack.last_mut() {
+            let dst = top.0;
+            if let Some(src) = top.1 {
+                top.1 = self.get_node(src).and_then(|n| n.next_sibling);
+                let clone = self.clone_one(src);
+                stack.push((clone, first(self, src)));
+                continue;
+            }
+            stack.pop();
+            if let Some(&(parent, _)) = stack.last() {
+                self.append_child(parent, dst)
+                    .expect("clone_node deep: append failed");
+            }
+        }
+        new_id
+    }
+
+    /// A detached copy of `id` alone: its data (tag, attributes, classes,
+    /// `ext`, text), no children.
+    fn clone_one(&mut self, id: NodeId) -> NodeId {
         let data = match &self.get_node(id).expect("clone_node: invalid id").data {
             NodeData::Element {
                 tag,
@@ -29,20 +60,7 @@ impl<Ext: Clone> Dom<Ext> {
             NodeData::Comment { data } => NodeData::Comment { data: data.clone() },
             NodeData::Fragment => NodeData::Fragment,
         };
-        let new_id = self.alloc(Node::new(data));
-
-        if deep {
-            // Clone each child and append to the clone.
-            let mut child_id = self.get_node(id).and_then(|n| n.first_child);
-            while let Some(c) = child_id {
-                let cloned = self.clone_node(c, true);
-                self.append_child(new_id, cloned)
-                    .expect("clone_node deep: append failed");
-                child_id = self.get_node(c).and_then(|n| n.next_sibling);
-            }
-        }
-
-        new_id
+        self.alloc(Node::new(data))
     }
 }
 

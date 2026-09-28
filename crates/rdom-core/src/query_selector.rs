@@ -254,14 +254,19 @@ impl<Ext> Dom<Ext> {
                     && self.next_element_sibling_id(id).is_none()
             }
             PseudoClass::Empty => {
-                // No child elements or text nodes (comments are allowed).
+                // Selectors 4 §14.2: no element children and no text
+                // children with non-empty data — comments and zero-length
+                // text nodes do not count; whitespace-only text does
+                // (Level 3, and browsers today).
                 let mut c = node.first_child;
                 while let Some(cid) = c {
                     let Some(cn) = self.get_node(cid) else {
                         return false;
                     };
-                    if matches!(cn.data, NodeData::Element { .. } | NodeData::Text { .. }) {
-                        return false;
+                    match &cn.data {
+                        NodeData::Element { .. } => return false,
+                        NodeData::Text { data } if !data.is_empty() => return false,
+                        _ => {}
                     }
                     c = cn.next_sibling;
                 }
@@ -684,6 +689,55 @@ mod tests {
         dom.append_child(root, not_empty).unwrap();
         let r = dom.query_selector_all_in(root, "div:empty").unwrap();
         assert_eq!(r, vec![empty]);
+    }
+
+    /// Selectors 4 §14.2 (`P7G-CORE-SMALL-1`): `:empty` means no element
+    /// children and no text children with non-empty data — a zero-length
+    /// text node, a comment do not count; whitespace-only text does
+    /// (Level 3, and browsers today).
+    #[test]
+    fn empty_ignores_zero_length_text_and_comments_but_not_whitespace() {
+        let mut dom: Dom = Dom::new();
+        let root = dom.root();
+        let with = |dom: &mut Dom, kids: &[Option<&str>]| {
+            let div = dom.create_element("div");
+            for k in kids {
+                let child = match k {
+                    Some(text) => dom.create_text_node(text),
+                    None => dom.create_comment("c"),
+                };
+                dom.append_child(div, child).unwrap();
+            }
+            dom.append_child(root, div).unwrap();
+            div
+        };
+        let zero_length = with(&mut dom, &[Some("")]);
+        let comment = with(&mut dom, &[None]);
+        let both = with(&mut dom, &[Some(""), None, Some("")]);
+        let space = with(&mut dom, &[Some(" ")]);
+        let text = with(&mut dom, &[Some(""), Some("x")]);
+        for id in [zero_length, comment, both] {
+            assert!(dom.matches(id, ":empty").unwrap(), "{id:?}");
+        }
+        for id in [space, text] {
+            assert!(!dom.matches(id, ":empty").unwrap(), "{id:?}");
+        }
+    }
+
+    /// CSS Syntax 3 §4.2: non-ASCII code points are ident code points,
+    /// so unquoted values, classes and ids may use them.
+    #[test]
+    fn non_ascii_identifiers_match() {
+        let mut dom: Dom = Dom::new();
+        let root = dom.root();
+        let el = dom.create_element("p");
+        dom.set_attribute(el, "lang", "én-CA").unwrap();
+        dom.set_attribute(el, "id", "naïve").unwrap();
+        dom.add_class(el, "café").unwrap();
+        dom.append_child(root, el).unwrap();
+        for sel in ["[lang|=én]", "p.café", "#naïve", "[lang^=é]"] {
+            assert!(dom.matches(el, sel).unwrap(), "{sel}");
+        }
     }
 
     #[test]

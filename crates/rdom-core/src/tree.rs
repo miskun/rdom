@@ -544,14 +544,10 @@ impl<Ext: 'static> Dom<Ext> {
         }
     }
 
-    /// Depth-first descendants including `root`. Used by `drop_subtree`.
+    /// Depth-first descendants including `root` (iterative). Used by
+    /// `drop_subtree`.
     fn collect_descendants(&self, root: NodeId, out: &mut Vec<NodeId>) {
-        out.push(root);
-        let mut child = self.get_node(root).and_then(|n| n.first_child);
-        while let Some(c) = child {
-            self.collect_descendants(c, out);
-            child = self.get_node(c).and_then(|n| n.next_sibling);
-        }
+        self.walk_subtree(root, &mut |id, _| out.push(id));
     }
 }
 

@@ -139,17 +139,39 @@ impl<Ext> Dom<Ext> {
 
     /// Is `a` equal to `b` structurally (same tag, attrs, classes, text,
     /// and recursively equal children)? Compares the tree shape — IDs +
-    /// parents are not considered.
+    /// parents are not considered. Iterative over a stack of node pairs,
+    /// so any depth is safe (`P7G-CORE-SMALL-1`).
     pub fn is_equal_node(&self, a: NodeId, b: NodeId) -> bool {
-        use crate::node::NodeData;
-        let Some(na) = self.get_node(a) else {
-            return false;
-        };
-        let Some(nb) = self.get_node(b) else {
-            return false;
-        };
+        let mut pending = vec![(a, b)];
+        while let Some((a, b)) = pending.pop() {
+            let (Some(na), Some(nb)) = (self.get_node(a), self.get_node(b)) else {
+                return false;
+            };
+            if !Self::same_node_data(&na.data, &nb.data) {
+                return false;
+            }
+            // Children pairwise, in order; a length mismatch is unequal.
+            let (mut ca, mut cb) = (na.first_child, nb.first_child);
+            loop {
+                match (ca, cb) {
+                    (None, None) => break,
+                    (Some(x), Some(y)) => {
+                        pending.push((x, y));
+                        ca = self.get_node(x).and_then(|n| n.next_sibling);
+                        cb = self.get_node(y).and_then(|n| n.next_sibling);
+                    }
+                    _ => return false,
+                }
+            }
+        }
+        true
+    }
 
-        match (&na.data, &nb.data) {
+    /// `is_equal_node`'s per-node test: same kind, and the same tag /
+    /// attributes / classes or the same data.
+    fn same_node_data(a: &crate::node::NodeData<Ext>, b: &crate::node::NodeData<Ext>) -> bool {
+        use crate::node::NodeData;
+        match (a, b) {
             (
                 NodeData::Element {
                     tag: ta,
@@ -163,36 +185,11 @@ impl<Ext> Dom<Ext> {
                     classes: cb,
                     ..
                 },
-            ) => {
-                if ta != tb || aa != ab || ca != cb {
-                    return false;
-                }
-            }
-            (NodeData::Text { data: da }, NodeData::Text { data: db }) => {
-                return da == db;
-            }
-            (NodeData::Comment { data: da }, NodeData::Comment { data: db }) => {
-                return da == db;
-            }
-            (NodeData::Fragment, NodeData::Fragment) => {}
-            _ => return false,
-        }
-
-        // Compare children in order.
-        let mut ca = na.first_child;
-        let mut cb = nb.first_child;
-        loop {
-            match (ca, cb) {
-                (None, None) => return true,
-                (Some(ca_id), Some(cb_id)) => {
-                    if !self.is_equal_node(ca_id, cb_id) {
-                        return false;
-                    }
-                    ca = self.get_node(ca_id).and_then(|n| n.next_sibling);
-                    cb = self.get_node(cb_id).and_then(|n| n.next_sibling);
-                }
-                _ => return false,
-            }
+            ) => ta == tb && aa == ab && ca == cb,
+            (NodeData::Text { data: da }, NodeData::Text { data: db })
+            | (NodeData::Comment { data: da }, NodeData::Comment { data: db }) => da == db,
+            (NodeData::Fragment, NodeData::Fragment) => true,
+            _ => false,
         }
     }
 

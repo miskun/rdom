@@ -21,21 +21,14 @@ impl<Ext> Dom<Ext> {
         out
     }
 
+    /// The text nodes' data in tree order (an iterative walk, so any
+    /// depth is safe); comments contribute nothing.
     fn collect_text(&self, id: NodeId, out: &mut String) {
-        let Some(node) = self.get_node(id) else {
-            return;
-        };
-        match &node.data {
-            NodeData::Text { data } => out.push_str(data),
-            NodeData::Comment { .. } => {}
-            NodeData::Element { .. } | NodeData::Fragment => {
-                let mut child = node.first_child;
-                while let Some(c) = child {
-                    self.collect_text(c, out);
-                    child = self.get_node(c).and_then(|n| n.next_sibling);
-                }
+        self.walk_subtree(id, &mut |_, data| {
+            if let NodeData::Text { data } = data {
+                out.push_str(data);
             }
-        }
+        });
     }
 }
 

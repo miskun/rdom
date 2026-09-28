@@ -104,72 +104,96 @@ impl<Ext> Dom<Ext> {
     }
 
     /// `raw_text` is true when `id`'s parent serializes its text
-    /// children verbatim (see [`serializes_children_raw`]).
+    /// children verbatim (see [`serializes_children_raw`]). Iterative —
+    /// an explicit stack of open nodes and pending end tags — so any
+    /// depth is safe (`P7G-CORE-SMALL-1`).
     fn write_node(&self, id: NodeId, out: &mut String, raw_text: bool) {
-        let Some(node) = self.get_node(id) else {
-            return;
+        enum Step<'a> {
+            Node(NodeId, bool),
+            EndTag(&'a str),
+        }
+        let mut stack = vec![Step::Node(id, raw_text)];
+        // Children go on the stack last-first, so they pop in order.
+        let push_children = |stack: &mut Vec<Step<'_>>, id: NodeId, raw: bool| {
+            let mut child = self.get_node(id).and_then(|n| n.last_child);
+            while let Some(c) = child {
+                stack.push(Step::Node(c, raw));
+                child = self.get_node(c).and_then(|n| n.prev_sibling);
+            }
         };
-        match &node.data {
-            NodeData::Element {
-                tag,
-                attrs,
-                classes,
-                ..
-            } => {
-                out.push('<');
-                out.push_str(tag);
-                // class attribute (if any).
-                if !classes.is_empty() {
-                    out.push_str(" class=\"");
-                    let mut first = true;
-                    for c in classes {
-                        if !first {
-                            out.push(' ');
+        while let Some(step) = stack.pop() {
+            let (id, raw_text) = match step {
+                Step::EndTag(tag) => {
+                    out.push_str("</");
+                    out.push_str(tag);
+                    out.push('>');
+                    continue;
+                }
+                Step::Node(id, raw) => (id, raw),
+            };
+            let Some(node) = self.get_node(id) else {
+                continue;
+            };
+            match &node.data {
+                NodeData::Element {
+                    tag,
+                    attrs,
+                    classes,
+                    ..
+                } => {
+                    out.push('<');
+                    out.push_str(tag);
+                    // class attribute (if any).
+                    if !classes.is_empty() {
+                        out.push_str(" class=\"");
+                        let mut first = true;
+                        for c in classes {
+                            if !first {
+                                out.push(' ');
+                            }
+                            first = false;
+                            escape_for_attr(c, out);
                         }
-                        first = false;
-                        escape_for_attr(c, out);
-                    }
-                    out.push('"');
-                }
-                // Other attributes, alphabetically via BTreeMap — skip
-                // "class" because we rendered it from the classList above.
-                for (k, v) in attrs.iter().filter(|(k, _)| k.as_str() != "class") {
-                    out.push(' ');
-                    out.push_str(k);
-                    if !v.is_empty() {
-                        out.push_str("=\"");
-                        escape_for_attr(v, out);
                         out.push('"');
+                    }
+                    // Other attributes, alphabetically via BTreeMap — skip
+                    // "class" because we rendered it from the classList above.
+                    for (k, v) in attrs.iter().filter(|(k, _)| k.as_str() != "class") {
+                        out.push(' ');
+                        out.push_str(k);
+                        if !v.is_empty() {
+                            out.push_str("=\"");
+                            escape_for_attr(v, out);
+                            out.push('"');
+                        } else {
+                            // Boolean attribute — `disabled`, `hidden`, etc.
+                            // Empty string value is the canonical "present"
+                            // form in HTML5.
+                        }
+                    }
+
+                    if is_void_element(tag) && node.first_child.is_none() {
+                        out.push_str("/>");
+                        continue;
+                    }
+                    out.push('>');
+                    stack.push(Step::EndTag(tag));
+                    push_children(&mut stack, id, serializes_children_raw(tag));
+                }
+                NodeData::Text { data } => {
+                    if raw_text {
+                        out.push_str(data);
                     } else {
-                        // Boolean attribute — `disabled`, `hidden`, etc.
-                        // Empty string value is the canonical "present"
-                        // form in HTML5.
+                        escape_for_text(data, out);
                     }
                 }
-
-                if is_void_element(tag) && node.first_child.is_none() {
-                    out.push_str("/>");
-                    return;
+                NodeData::Comment { data } => {
+                    out.push_str("<!--");
+                    out.push_str(data); // comments pass through unescaped in HTML
+                    out.push_str("-->");
                 }
-                out.push('>');
-                self.write_children(id, out, serializes_children_raw(tag));
-                out.push_str("</");
-                out.push_str(tag);
-                out.push('>');
+                NodeData::Fragment => push_children(&mut stack, id, false),
             }
-            NodeData::Text { data } => {
-                if raw_text {
-                    out.push_str(data);
-                } else {
-                    escape_for_text(data, out);
-                }
-            }
-            NodeData::Comment { data } => {
-                out.push_str("<!--");
-                out.push_str(data); // comments pass through unescaped in HTML
-                out.push_str("-->");
-            }
-            NodeData::Fragment => self.write_children(id, out, false),
         }
     }
 }

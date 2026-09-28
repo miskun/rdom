@@ -218,3 +218,32 @@ fn a_stylesheet_change_still_cascades_everything() {
     assert_eq!(stats.full_cascades, 1, "{stats:?}");
     assert_eq!(stats.paints, 1, "{stats:?}");
 }
+
+/// Selectors 4 §14.2 (`P7G-CORE-SMALL-1`): a zero-length text node does
+/// not keep an element from being `:empty`, so text filling or emptying,
+/// and an element arriving beside such a node, restyle it next frame.
+#[test]
+fn empty_follows_zero_length_text() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let div = dom.create_element("div");
+    let t = dom.create_text_node("");
+    dom.append_child(div, t).unwrap();
+    dom.append_child(root, div).unwrap();
+    let sheet =
+        Stylesheet::new().rule_unchecked("div:empty", TuiStyle::new().fg(Color::Rgb(0, 0, 255)));
+    let terminal = Terminal::new(TestBackend::new(20, 3)).unwrap();
+    let mut app = App::with_backend(dom, sheet, terminal).unwrap();
+    app.advance(0).unwrap();
+    assert_eq!(fg(&app, div), Color::Rgb(0, 0, 255), "empty text is empty");
+    app.dom_mut().node_mut(t).set_node_value("x").unwrap();
+    app.advance(0).unwrap();
+    assert_ne!(fg(&app, div), Color::Rgb(0, 0, 255), "text filled");
+    app.dom_mut().node_mut(t).set_node_value("").unwrap();
+    app.advance(0).unwrap();
+    assert_eq!(fg(&app, div), Color::Rgb(0, 0, 255), "text emptied");
+    let span = app.dom_mut().create_element("span");
+    app.dom_mut().append_child(div, span).unwrap();
+    app.advance(0).unwrap();
+    assert_ne!(fg(&app, div), Color::Rgb(0, 0, 255), "an element arrived");
+}
