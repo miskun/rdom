@@ -101,7 +101,7 @@ Everything else is real. Disposition per item:
 | 4 | rdom-tui cascade + animation | custom-property cascade, inherits mask, initial hoist + rule index, three animation items | done 2026-09-24 |
 | 5 | rdom-tui layout | 22 layout items incl. stacking contexts, static position, cross-axis scroll, spans | done 2026-09-24 (both gates) |
 | 6 | rdom-tui paint + runtime + forms | 18 items incl. group opacity, splits, form defaults, app intents; 34 gate fixes (`P6G-*`) | done 2026-09-25 (both gates + re-review) |
-| 7 | completeness | scope confirmed 2026-09-26: fieldset[disabled], form owner + button overrides, constraint validation, `:focus-visible`, `::placeholder`, undo coalescing, blinking caret, clipboard whitespace, `scroll-behavior`, live `<style>`, showcase demos | |
+| 7 | completeness | scope confirmed 2026-09-26: fieldset[disabled], form owner + button overrides, constraint validation, `:focus-visible`, `::placeholder`, undo coalescing, blinking caret, clipboard whitespace, `scroll-behavior`, live `<style>`, showcase demos | done 2026-09-29 (both gates + re-review) |
 | 8 | release | 0.5.0 across all five crates, migration notes | |
 
 Each phase ends with the two review gates; each commit carries the item id.
@@ -441,6 +441,11 @@ Each phase ends with the two review gates; each commit carries the item id.
 - 2026-09-27 — Phase 7 gate fix: `P7G-SIBLING-MARK-NARROW-1` — new `style::sibling_triggers` (`SiblingTriggers::of_sheets`, computed once per stylesheet set in the prelude's `sync_sibling_combinators`) replaces the any-`+`/`~` boolean; `mark_state_dirty` takes a `Cause` (state / attribute name). `DirtyTracker::set_sibling_combinators(bool)` keeps its all-or-nothing meaning. Tests: `runtime::app::sibling_mark_tests`, `style::sibling_triggers::tests`.
 - 2026-09-27 — Phase 7 gate fix: `P7G-PUBLIC-SURFACE-2` — `TuiExt::presentation_for_mut` / `release_empty_presentation` are `pub(crate)` (transition-engine plumbing, new this cycle, so no 0.4.0 break); the validity hook's missing-hook answer is "valid" in every build — the `debug_assert!` is gone (rdom-core has no warning channel, so the contract is documented at `set_validity_hook` / `constraint_validity` / `PseudoClass::Valid` instead) and the CHANGELOG's P7G-VALIDITY-HOOK-DEFAULT-1 Breaking bullet is folded into the P7-VALIDATION-SELECTORS-1 Added one; DIVERGENCES' `:focus-visible` entry gains the script-moved-focus caveat. Test: `query_selector::tests::a_candidate_without_a_validity_hook_is_valid_in_every_build` (replaces the debug-only `should_panic` test).
 - 2026-09-27 — Phase 7 gate fix: `P7G-CHANGELOG-2` — CHANGELOG only: `:hover` / `:active` ancestor matching moved from Fixed to Breaking — `rdom-core` with a migration hint; the `P7G-PAINT-ONLY-FRAME-1` / `P7G-ROUTE-REDRAW-1` bullets merged into one Breaking — `rdom-tui` bullet restated after `P7G-OFF-EVENT-PAINT-1` / `P7G-SETTER-MUTATION-1` (what the tracker sees, what needs `request_redraw`), their `:empty` / `:placeholder-shown` fix kept in Fixed; the disconnected-form `Disconnected` outcome split out of `P7G-SUBMIT-REENTRY-1`'s Fixed bullet into Breaking; the `form_request_submit` hint lists all six `SubmitOutcome` variants.
+- 2026-09-29 — Phase 7 closed. Re-review of the gate fixes (`a93a6d7..c22ee9e`): 2 blocking
+  (off-event text / selection changes never drawn; direct style setters lost in listeners and
+  masking later roots) and 7 smaller findings, all fixed (`P7G-OFF-EVENT-PAINT-1` …
+  `P7G-CHANGELOG-2`). Workspace tests 3399 → 3430. TECH_DEBT Open: none. Open question for
+  Miska: `P7G-ACTIVE-UNTIL-CLICK-1` keeps `:active` through `click`; not verified against Chrome.
 - Found while mapping Phase 3 (not on the ledger): `ImportantMask::FLOW` and `POINTER_EVENTS` share
   bit 39 (`tui_style.rs`), custom-property inheritance in the cascade is overwritten by the merged
   root map (`walk.rs`), and tokenizer errors inside a block are body-relative (`declarations.rs`).
