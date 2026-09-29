@@ -273,7 +273,10 @@ impl PresentationStyle {
 /// `Eq` is omitted because nested `TuiStyle` / `ComputedStyle`
 /// contain `f32` opacity. `PartialEq` suffices for the cascade
 /// diff comparisons.
-#[derive(Debug, Default, Clone, PartialEq)]
+///
+/// `Clone` is the element's cloning steps, not a field-for-field copy
+/// (see its impl): it is what `Dom::clone_node` runs.
+#[derive(Debug, Default, PartialEq)]
 pub struct TuiExt {
     // ── Style (inline) ────────────────────────────────────────────────
     /// The element's inline style (the `style` attribute, and the
@@ -579,6 +582,47 @@ impl TuiExt {
     }
 }
 
+/// The element's **cloning steps** (DOM §4.5 "clone a node", step
+/// "run any cloning steps"; `P7G-CLONE-RESET-1`) — `Dom::clone_node` is
+/// the only caller that needs `TuiExt: Clone`. A clone is a new
+/// element: it keeps what the author gave the original and starts every
+/// piece of per-activation runtime state fresh.
+///
+/// **Copied:** the inline style (the `style` attribute's cache — the
+/// attribute itself is copied by rdom-core), `before_content` /
+/// `after_content`, and the captured `default_value` /
+/// `default_checked` / `default_selected` (rdom keeps HTML's
+/// `defaultValue` / `defaultChecked` / `defaultSelected` here while the
+/// live `value` / `checked` / `selected` attributes, which HTML §4.10.5's
+/// input cloning steps propagate, are copied with the other attributes;
+/// see DIVERGENCES).
+///
+/// **Reset** (HTML copies none of it): the custom validity message, the
+/// "last changed by a user edit" flag and a `<form>`'s "firing
+/// submission events" flag; scroll offsets and the smooth scroll in
+/// flight (a new element is unscrolled); caret blink and reveal state;
+/// the undo history; a `<dialog>`'s return focus and a `<select>`'s
+/// type-ahead buffer; the `<canvas>` paint callback (a cloned canvas
+/// starts with a blank bitmap; listeners are not cloned either); the
+/// cascade, transition and layout caches and the dirty flags, which a
+/// new element gets from its first cascade and layout once inserted.
+///
+/// A field added to `TuiExt` is therefore reset by default; copying it
+/// is a decision made here.
+impl Clone for TuiExt {
+    fn clone(&self) -> Self {
+        Self {
+            inline_style: self.inline_style.clone(),
+            before_content: self.before_content.clone(),
+            after_content: self.after_content.clone(),
+            default_value: self.default_value.clone(),
+            default_checked: self.default_checked,
+            default_selected: self.default_selected,
+            ..Self::default()
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -606,32 +650,59 @@ mod tests {
         assert!(!ext.layout_dirty);
     }
 
+    /// `P7G-CLONE-RESET-1`: cloning is the element's cloning steps —
+    /// the author inputs and the captured defaults are copied, the
+    /// per-activation runtime state starts fresh.
     #[test]
-    fn clone_preserves_fields() {
-        let ext = TuiExt {
+    fn clone_copies_author_inputs_and_resets_runtime_state() {
+        let mut dom: crate::TuiDom = crate::TuiDom::new();
+        let opener = dom.create_element("button");
+        let mut ext = TuiExt {
             inline_style: Some(Box::new(
                 TuiStyle::new()
                     .fg(Color::Rgb(255, 0, 0))
                     .width(Size::Fixed(80))
                     .padding(Padding::all(2)),
             )),
+            before_content: Some("▾ ".into()),
+            after_content: Some(" ←".into()),
+            default_value: Some("hi".into()),
+            default_checked: Some(true),
+            default_selected: Some(false),
+            scroll_x: 3,
+            scroll_y: 9,
+            scroll_state: Some(Box::default()),
+            caret_reveal_pending: true,
+            caret_blink_off: true,
+            style_dirty: true,
+            dialog_return_focus: Some(opener),
             ..Default::default()
         };
+        {
+            let form = ext.form_state.get_mut();
+            form.custom_validity = "taken".into();
+            form.value_user_edited = true;
+            form.firing_submission_events = true;
+        }
         let cloned = ext.clone();
-        assert_eq!(
-            cloned.inline_style.as_ref().unwrap().fg,
-            Some(crate::style::Value::Specified(
-                crate::style::TuiColor::Literal(Color::Rgb(255, 0, 0))
-            ))
-        );
-        assert_eq!(
-            cloned.inline_style.as_ref().unwrap().width,
-            Some(crate::style::Value::Specified(Size::Fixed(80)))
-        );
-        assert_eq!(
-            cloned.inline_style.as_ref().unwrap().padding,
-            Some(crate::style::Value::Specified(Padding::all(2)))
-        );
+        assert_eq!(cloned.inline_style, ext.inline_style);
+        assert_eq!(cloned.before_content, ext.before_content);
+        assert_eq!(cloned.after_content, ext.after_content);
+        assert_eq!(cloned.default_value, ext.default_value);
+        assert_eq!(cloned.default_checked, ext.default_checked);
+        assert_eq!(cloned.default_selected, ext.default_selected);
+        let fresh = TuiExt {
+            inline_style: ext.inline_style.clone(),
+            before_content: ext.before_content.clone(),
+            after_content: ext.after_content.clone(),
+            default_value: ext.default_value.clone(),
+            default_checked: ext.default_checked,
+            default_selected: ext.default_selected,
+            ..Default::default()
+        };
+        assert_eq!(cloned, fresh, "everything else is at its default");
+        assert!(cloned.form_state.get().is_none(), "no form state carried");
+        assert!(cloned.scroll_state.is_none(), "no scroll in flight");
     }
 
     /// Every element pays for `TuiExt`, so growth should be a decision:

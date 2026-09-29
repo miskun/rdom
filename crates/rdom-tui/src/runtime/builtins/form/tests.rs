@@ -2008,3 +2008,48 @@ fn enter_submits_with_a_default_image_button() {
         )]
     );
 }
+
+/// `P7G-CLONE-RESET-1`: a deep clone of a form taken inside its own
+/// `submit` listener is a fresh form — HTML's cloning steps copy no
+/// "firing submission events" flag (§4.10.21.3) — so, once connected,
+/// its `requestSubmit()` submits.
+#[test]
+fn a_form_cloned_inside_its_own_submit_listener_submits_normally() {
+    use crate::SubmitOutcome;
+    use crate::accessors::TuiAccessorsMut;
+    let (mut app, [f, _], _) = reentry_app();
+    let clone: Rc<Cell<Option<rdom_core::NodeId>>> = Rc::default();
+    let slot = clone.clone();
+    app.dom_mut()
+        .add_event_listener(f, "submit", ListenerOptions::default(), move |ctx| {
+            slot.set(Some(ctx.dom.clone_node(f, true)));
+        })
+        .unwrap();
+    app.dom_mut().node_mut(f).form_request_submit(None).unwrap();
+    let copy = clone.get().expect("the listener cloned the form");
+    let root = app.dom().root();
+    app.dom_mut().append_child(root, copy).unwrap();
+    assert_eq!(
+        app.dom_mut().node_mut(copy).form_request_submit(None),
+        Ok(SubmitOutcome::Submitted)
+    );
+}
+
+/// `P7G-CLONE-RESET-1`: the custom validity error message is not part
+/// of an input's cloning steps (HTML §4.10.5: value, dirty value flag,
+/// checkedness, dirty checkedness flag), so the clone is valid.
+#[test]
+fn a_cloned_input_has_no_custom_validity() {
+    use crate::accessors::{TuiAccessors, TuiAccessorsMut};
+    let mut dom: TuiDom = TuiDom::new();
+    let input = dom.create_element("input");
+    dom.append_child(dom.root(), input).unwrap();
+    dom.node_mut(input).set_custom_validity("taken").unwrap();
+    assert_eq!(
+        dom.node(input).validation_message().as_deref(),
+        Some("taken")
+    );
+    let copy = dom.clone_node(input, false);
+    dom.append_child(dom.root(), copy).unwrap();
+    assert_eq!(dom.node(copy).validation_message().as_deref(), Some(""));
+}

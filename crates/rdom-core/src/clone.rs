@@ -1,6 +1,10 @@
 //! `clone_node(id, deep)` — copy a node (or subtree) into a new orphan in
 //! the same arena. Matches MDN semantics: attrs/classes/text preserved,
 //! `parent` on the clone is `None`, event listeners **not** copied.
+//! An element's `Ext` is copied with `Ext::clone`, which acts as the
+//! backend's cloning steps (DOM §4.5): a backend whose `Ext` carries
+//! per-activation state implements `Clone` to reset it (rdom-tui's
+//! `TuiExt` does).
 
 use crate::dom::Dom;
 use crate::node::{Node, NodeData};
