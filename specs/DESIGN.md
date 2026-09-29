@@ -100,7 +100,7 @@ The work that fed into 0.1.0 was organized in five internal milestones (M1 CSS p
 | **0.3.0** | **Substrate honesty** — the seven friction points the first downstream consumer hit (geometry setters drive layout, repaint-from-listeners, arena ergonomics). Routing slid out to 0.4.0. | ✅ Released 2026-06-02 |
 | **0.3.1 – 0.3.14** | Divergent `rdom-tui`-only patch releases, mostly driven by the `rdom-virtualtable` consumer: focus/`:where()`/`drop_subtree` fixes, table column-sizing, layout stale-state, half-block borders, **drag-autoscroll** + its robustness/selection-precision follow-ups. See [`../CHANGELOG.md`](../CHANGELOG.md) + [`../STATE.md`](../STATE.md). | ✅ Released (latest 0.3.14, 2026-06-06) |
 | **0.4.0** | **Hardening** ([`HARDENING-2026-09.md`](HARDENING-2026-09.md)): full workspace review, DIVERGENCES / TECH_DEBT re-audit, four gated fix batches (core, style + css, tui, parser). All five crates ship together. | ✅ Released 2026-09-24 |
-| **0.5.0** | **Stabilize** ([`STABILIZE-2026-09.md`](STABILIZE-2026-09.md)): every open `TECH_DEBT.md` row fixed, reclassified as a documented divergence, or documented as external; plus form validation, `:focus-visible`, live `<style>` and the rest of Phase 7. All five crates ship together. | Release prep done 2026-09-29; publish pending |
+| **0.5.0** | **Stabilize** ([`STABILIZE-2026-09.md`](STABILIZE-2026-09.md)): every open `TECH_DEBT.md` row fixed, reclassified as a documented divergence, or documented as external; plus form validation, `:focus-visible`, live `<style>` and the rest of Phase 7. All five crates ship together. | Shipped 2026-09-29 |
 | **0.6.0** | Client-side routing primitive. | Planned |
 | **0.7.0** | Async tasks during event handlers. | Planned |
 

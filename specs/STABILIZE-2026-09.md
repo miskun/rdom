@@ -1,6 +1,6 @@
 # STABILIZE-2026-09 — pay down every open debt item before 0.5.0
 
-**Status:** IN PROGRESS (started 2026-09-23, the day after 0.4.0 shipped).
+**Status:** DONE (2026-09-23 → 2026-09-29). Shipped as 0.5.0 — all five crates on crates.io, tag `v0.5.0` at `59bec30`.
 
 **Goal.** The next release, **0.5.0**, is the "stable and complete" line: it ships with an empty
 `## Open` section in [`TECH_DEBT.md`](TECH_DEBT.md). Every item there is handled one of three ways,
@@ -102,7 +102,7 @@ Everything else is real. Disposition per item:
 | 5 | rdom-tui layout | 22 layout items incl. stacking contexts, static position, cross-axis scroll, spans | done 2026-09-24 (both gates) |
 | 6 | rdom-tui paint + runtime + forms | 18 items incl. group opacity, splits, form defaults, app intents; 34 gate fixes (`P6G-*`) | done 2026-09-25 (both gates + re-review) |
 | 7 | completeness | scope confirmed 2026-09-26: fieldset[disabled], form owner + button overrides, constraint validation, `:focus-visible`, `::placeholder`, undo coalescing, blinking caret, clipboard whitespace, `scroll-behavior`, live `<style>`, showcase demos | done 2026-09-29 (both gates + re-review) |
-| 8 | release | 0.5.0 across all five crates, migration notes | in progress — prep done 2026-09-29, publish awaits Miska |
+| 8 | release | 0.5.0 across all five crates, migration notes | done 2026-09-29 — published, tagged `v0.5.0` |
 
 Each phase ends with the two review gates; each commit carries the item id.
 
@@ -476,3 +476,6 @@ Each phase ends with the two review gates; each commit carries the item id.
 - 2026-09-23 — Program opened. Triage: 3 stale rows deleted (`CSS-INHERIT-KEYWORD-1`,
   `CSS-BG-SHORTHAND-1`, `BORDER-MODEL-1`), 52 remain: 50 fix, 1 divergence (`TABLE-TFC-1`),
   1 external (`ITERM2-MOUSE-MOTION-1`).
+- 2026-09-29 — Phase 8 done: rdom-core, rdom-style, rdom-css, rdom-parser and rdom-tui 0.5.0
+  published to crates.io in dependency order (each verified by `cargo publish`), `v0.5.0` tagged
+  at `59bec30` and pushed. Program closed.
