@@ -93,3 +93,35 @@ fn li_active_applies_while_a_child_span_is_pressed() {
     assert_eq!(app.dom().active(), None, "the release ends the activation");
     assert_eq!(fg(&app, li), RED, "back to :hover only");
 }
+
+/// `P7G-ACTIVE-UNTIL-CLICK-1`: the activation lasts through the
+/// release's own events — `mouseup` and `click` listeners still see the
+/// pressed element as `:active` (as in Blink, which clears it after the
+/// release is handled) — and ends once they have run.
+#[test]
+fn active_holds_through_mouseup_and_click_and_clears_after() {
+    use std::cell::RefCell;
+    use std::rc::Rc;
+    let (mut app, li, span) = list_app();
+    /// Event type, `Dom::active()`, whether the `<li>` matched `:active`.
+    type Seen = Vec<(&'static str, Option<NodeId>, bool)>;
+    let seen: Rc<RefCell<Seen>> = Rc::default();
+    for ty in ["mouseup", "click"] {
+        let seen = seen.clone();
+        app.dom_mut()
+            .add_event_listener(li, ty, rdom_core::ListenerOptions::default(), move |ctx| {
+                let matches = ctx.dom.node(li).matches(":active");
+                seen.borrow_mut().push((ty, ctx.dom.active(), matches));
+            })
+            .unwrap();
+    }
+    mouse(&mut app, MouseEventKind::Moved, 1, 0);
+    mouse(&mut app, MouseEventKind::Down(MouseButton::Left), 1, 0);
+    mouse(&mut app, MouseEventKind::Up(MouseButton::Left), 1, 0);
+    assert_eq!(
+        *seen.borrow(),
+        vec![("mouseup", Some(span), true), ("click", Some(span), true)]
+    );
+    assert_eq!(app.dom().active(), None, "cleared after the click");
+    assert_eq!(fg(&app, li), RED, "and restyled: back to :hover only");
+}

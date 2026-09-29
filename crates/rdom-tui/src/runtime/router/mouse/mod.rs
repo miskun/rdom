@@ -225,10 +225,6 @@ fn handle_down(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> Rout
 /// targets the hit and the `click` the common ancestor, as in a
 /// browser.
 fn handle_up(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> RouteOutcome {
-    // The release ends the activation (`:active`) before `mouseup` /
-    // `click` run.
-    let deactivated = dom.active().is_some();
-    dom.set_active(None);
     let captured = dom.pointer_capture();
     let hit = dom.hit_test(mouse.column, mouse.row);
     let down_target = router.down_target.take();
@@ -282,6 +278,13 @@ fn handle_up(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> RouteO
             dispatch(router, dom, target, &mut tui_dbl);
         }
     }
+
+    // The release ends the activation (`:active`, Selectors 4 §9.4) once
+    // its own events have run: `mouseup`, `click` and `dblclick`
+    // listeners still see the pressed element active, as in Blink, which
+    // clears it after handling the release (`P7G-ACTIVE-UNTIL-CLICK-1`).
+    let deactivated = dom.active().is_some();
+    dom.set_active(None);
 
     // Auto-release the pointer. Browser-faithful: capture ends on
     // the next mouseup unless the handler explicitly re-captures.

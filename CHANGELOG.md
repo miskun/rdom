@@ -214,6 +214,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 - An element with both markup `style="…"` and a `set_width()` (or CSSOM write) made before `App::build` keeps both: seeding re-parses only an attribute that disagrees with the inline-style cache, and a pre-build write builds on the attribute's declarations. (`P7G-SEED-PRESERVE-1`)
 - `clone_node` of an element runs HTML's cloning steps on its `TuiExt`: the inline style, `::before` / `::after` text and captured form defaults are copied, while the custom validity message, the user-edited and "firing submission events" flags, scroll offsets and any smooth scroll, caret and undo state, dialog return focus, type-ahead, the canvas paint callback and every cascade / layout cache start fresh. A form cloned inside its own `submit` listener now submits instead of returning `AlreadySubmitting` forever. (`P7G-CLONE-RESET-1`)
 - `AppContext::queue_dispatch` of an event moved out of a dispatch in progress (`mem::replace(ctx.event, …)`) no longer panics the runtime: the queue runs after that dispatch ended, so the event is dispatched as its fresh clone (`new Event(e.type, e)`), as the same object would dispatch again on the web. (`P7G-QUEUED-INFLIGHT-1`)
+- `:active` now lasts through the release's own events: `mouseup`, `click` and `dblclick` listeners still see the pressed element (and its ancestors) as `:active`, and it clears after them, as in Blink. (`P7G-ACTIVE-UNTIL-CLICK-1`)
 
 ### Internal — `rdom-tui`
 
