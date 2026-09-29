@@ -79,3 +79,101 @@ pub(crate) fn write_style_attribute(
     let _g = super::reentry::ReentryGuard::enter();
     dom.set_attribute(id, "style", css_text)
 }
+
+#[cfg(test)]
+mod tests {
+    //! `P7G-SEED-PRESERVE-1`: inline-style seeding at `App::build` keeps
+    //! what a setter or CSSOM write stored before the App existed,
+    //! alongside the markup's own `style` declarations.
+
+    use rdom_core::NodeId;
+    use rdom_style::{Color, TuiColor, TuiStyle, Value};
+
+    use crate::layout::Size;
+    use crate::node::{TuiNodeExt, TuiNodeMutExt};
+    use crate::render::{Terminal, TestBackend};
+    use crate::runtime::app::App;
+    use crate::{Stylesheet, TuiAccessorsMut, TuiDom};
+
+    /// A `<div style="color: red">` in a fresh tree.
+    fn styled_div() -> (TuiDom, NodeId) {
+        let mut dom: TuiDom = TuiDom::new();
+        let div = dom.create_element("div");
+        dom.set_attribute(div, "style", "color: red").unwrap();
+        dom.append_child(dom.root(), div).unwrap();
+        (dom, div)
+    }
+
+    fn built(dom: TuiDom) -> App<TestBackend> {
+        let terminal = Terminal::new(TestBackend::new(20, 4)).unwrap();
+        let mut app = App::with_backend(dom, Stylesheet::bare(), terminal).unwrap();
+        app.advance(0).unwrap();
+        app
+    }
+
+    fn inline(app: &App<TestBackend>, id: NodeId) -> TuiStyle {
+        app.dom()
+            .node(id)
+            .tui_ext()
+            .unwrap()
+            .inline_style_or_empty()
+            .clone()
+    }
+
+    const RED: Value<TuiColor> = Value::Specified(TuiColor::Literal(Color::Rgb(255, 0, 0)));
+
+    #[test]
+    fn a_setter_before_build_survives_seeding_beside_the_markup_style() {
+        let (mut dom, div) = styled_div();
+        dom.node_mut(div).set_width(Size::Fixed(7));
+        let app = built(dom);
+        let style = inline(&app, div);
+        assert_eq!(style.width, Some(Value::Specified(Size::Fixed(7))));
+        assert_eq!(style.fg, Some(RED), "the markup's declaration too");
+    }
+
+    #[test]
+    fn a_cssom_write_before_build_survives_seeding_beside_the_markup_style() {
+        let (mut dom, div) = styled_div();
+        dom.node_mut(div)
+            .style_mut()
+            .unwrap()
+            .set_property("height", "2")
+            .unwrap();
+        let app = built(dom);
+        let style = inline(&app, div);
+        assert_eq!(style.height, Some(Value::Specified(Size::Fixed(2))));
+        assert_eq!(style.fg, Some(RED));
+    }
+
+    /// A value the serializer cannot round-trip (`Color::Indexed`) stays
+    /// exact: seeding finds the attribute in sync and keeps the slot.
+    #[test]
+    fn a_setter_value_that_does_not_round_trip_survives_seeding() {
+        let mut dom: TuiDom = TuiDom::new();
+        let div = dom.create_element("div");
+        dom.append_child(dom.root(), div).unwrap();
+        dom.node_mut(div)
+            .set_inline_style(TuiStyle::new().fg(Color::Indexed(3)));
+        let app = built(dom);
+        assert_eq!(
+            inline(&app, div).fg,
+            Some(Value::Specified(TuiColor::Literal(Color::Indexed(3))))
+        );
+    }
+
+    /// A raw attribute write after a setter, with no observer to see it,
+    /// is newer: seeding takes the attribute (the declarations it states
+    /// replace the old ones, as a `style` attribute write does).
+    #[test]
+    fn a_raw_attribute_write_after_a_setter_wins_at_seeding() {
+        let (mut dom, div) = styled_div();
+        dom.node_mut(div).set_width(Size::Fixed(7));
+        dom.set_attribute(div, "style", "height: 3").unwrap();
+        let app = built(dom);
+        let style = inline(&app, div);
+        assert_eq!(style.height, Some(Value::Specified(Size::Fixed(3))));
+        assert_eq!(style.width, None);
+        assert_eq!(style.fg, None);
+    }
+}
