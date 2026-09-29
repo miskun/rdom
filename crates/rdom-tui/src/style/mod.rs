@@ -25,6 +25,7 @@
 
 pub mod cascade;
 pub mod dirty_tracker;
+pub(crate) mod sibling_triggers;
 pub(crate) mod user_select;
 
 pub use cascade::CascadeExt;

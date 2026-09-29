@@ -40,12 +40,14 @@
 //!   their common part**, marked at each side's topmost element
 //!   (`:focus-visible` flips on the focused element alone)
 //! - Sibling combinators: `a:hover + b`, `[x] ~ p`, `.e:empty + p` let
-//!   an element's match read a *previous sibling's* state. When the
-//!   sheets may use `+` / `~` ([`DirtyTracker::set_sibling_combinators`],
-//!   `true` until told otherwise; the App keeps it in step with its
-//!   sheets), an element whose own state changed (attribute, class,
-//!   hover / focus, `:empty`, `:placeholder-shown`) also dirties its
-//!   parent's element children, once per parent per drain
+//!   an element's match read a *previous sibling's* state. When a
+//!   compound left of a `+` / `~` in the sheets can read the kind of
+//!   change made — a pseudo-class for hover / focus / text / `:empty`,
+//!   the attribute's own name (`class`, `id` included) for an attribute
+//!   change (`style::sibling_triggers`, `P7G-SIBLING-MARK-NARROW-1`;
+//!   everything until the App tells the tracker its sheets) — an
+//!   element whose own state changed also dirties its parent's element
+//!   children, once per parent per drain
 //! - The parent of a tree mutation is dirtied too when its own match
 //!   can change: `:empty` (its first element / text child arrived or
 //!   its last one left) and, when text nodes come or go,
@@ -81,6 +83,7 @@ use std::rc::Rc;
 use rdom_core::{Dom, InteractionKind, Mutation, MutationObserver, NodeId, ObserverId};
 
 use crate::ext::TuiExt;
+use crate::style::sibling_triggers::{Cause, SiblingTriggers};
 
 /// Shared handle to the dirty-roots list. Created by
 /// `DirtyTracker::install`; the tracker uses it internally, and
@@ -91,7 +94,7 @@ pub struct DirtyTracker {
     observer_id: Option<ObserverId>,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct DirtyState {
     roots: Vec<NodeId>,
     /// Mirror of `roots` for O(1) membership (the Vec keeps insertion
@@ -117,10 +120,25 @@ struct DirtyState {
     /// Records observed since install — evidence that code changed the
     /// tree (`records_seen`, `P7G-TICK-TOUCHED-1`).
     records: u64,
-    /// The sheets use no `+` / `~` combinator, so a state change cannot
-    /// reach a sibling's match (`DirtyTracker::set_sibling_combinators`).
-    /// `false` (the conservative default) dirties the siblings.
-    no_sibling_combinators: bool,
+    /// Which changes can reach a sibling's match through a `+` / `~`
+    /// combinator (`style::sibling_triggers`,
+    /// `P7G-SIBLING-MARK-NARROW-1`). Every change until the App says
+    /// otherwise.
+    siblings: SiblingTriggers,
+}
+
+impl Default for DirtyState {
+    fn default() -> Self {
+        Self {
+            roots: Vec::new(),
+            roots_set: std::collections::HashSet::new(),
+            sibling_marked: std::collections::HashSet::new(),
+            paint_dirty: false,
+            selection_dirty: false,
+            records: 0,
+            siblings: SiblingTriggers::all(),
+        }
+    }
 }
 
 impl DirtyTracker {
@@ -220,7 +238,20 @@ impl DirtyTracker {
     /// not, which keeps a hover move in a long list from re-cascading
     /// the list. The App sets it whenever its sheets change.
     pub fn set_sibling_combinators(&self, used: bool) {
-        self.inner.borrow_mut().no_sibling_combinators = !used;
+        self.inner.borrow_mut().siblings = if used {
+            SiblingTriggers::all()
+        } else {
+            SiblingTriggers::none()
+        };
+    }
+
+    /// Say which changes can reach a sibling's match under the sheets
+    /// now cascaded — the precise form of
+    /// [`set_sibling_combinators`](Self::set_sibling_combinators) the
+    /// App uses (`P7G-SIBLING-MARK-NARROW-1`): `h1 + p` reads nothing a
+    /// change can flip, `a:hover + b` reads state, `[x] + b` reads `x`.
+    pub(crate) fn set_sibling_triggers(&self, triggers: SiblingTriggers) {
+        self.inner.borrow_mut().siblings = triggers;
     }
 
     /// Manually mark a subtree dirty. Escape hatch for cases the
@@ -248,8 +279,11 @@ impl MutationObserver<TuiExt> for Shim {
         let mut state = self.inner.borrow_mut();
         state.records = state.records.wrapping_add(1);
         match record {
-            Mutation::AttributeChanged { id, .. } | Mutation::ClassChanged { id, .. } => {
-                mark_state_dirty(dom, &mut state, *id);
+            Mutation::AttributeChanged { id, name, .. } => {
+                mark_state_dirty(dom, &mut state, *id, Cause::Attribute(name));
+            }
+            Mutation::ClassChanged { id, .. } => {
+                mark_state_dirty(dom, &mut state, *id, Cause::Attribute("class"));
             }
             Mutation::ChildListChanged {
                 parent,
@@ -309,7 +343,7 @@ impl MutationObserver<TuiExt> for Shim {
                     .nth(added.len())
                     .is_none();
                 if emptiness_may_flip || text_changed {
-                    mark_state_dirty(dom, &mut state, *parent);
+                    mark_state_dirty(dom, &mut state, *parent, Cause::State);
                 }
                 if text_changed {
                     mark_placeholder_hosts(dom, &mut state, *parent);
@@ -328,7 +362,7 @@ impl MutationObserver<TuiExt> for Shim {
                 if old.is_empty() != new.is_empty()
                     && let Some(parent) = dom.node(*id).parent_node().map(|p| p.id())
                 {
-                    mark_state_dirty(dom, &mut state, parent);
+                    mark_state_dirty(dom, &mut state, parent, Cause::State);
                     mark_placeholder_hosts(dom, &mut state, parent);
                 }
                 state.paint_dirty = true;
@@ -350,7 +384,7 @@ impl MutationObserver<TuiExt> for Shim {
                     // (`prev == next`).
                     _ => {
                         for id in [prev, next].into_iter().flatten() {
-                            mark_state_dirty(dom, &mut state, *id);
+                            mark_state_dirty(dom, &mut state, *id, Cause::State);
                         }
                     }
                 }
@@ -398,7 +432,7 @@ fn mark_placeholder_hosts(dom: &mut Dom<TuiExt>, state: &mut DirtyState, from: N
             .get_attribute("placeholder")
             .is_some_and(|v| !v.is_empty())
         {
-            mark_state_dirty(dom, state, id);
+            mark_state_dirty(dom, state, id, Cause::State);
         }
     }
 }
@@ -438,17 +472,18 @@ fn mark_chain_change(
         new.pop();
     }
     for top in [old.last(), new.last()].into_iter().flatten() {
-        mark_state_dirty(dom, state, *top);
+        mark_state_dirty(dom, state, *top, Cause::State);
     }
 }
 
-/// `id`'s own selector state changed: mark its subtree, and — while the
-/// sheets may use `+` / `~` — its parent's element children, whose
-/// match can read `id`'s state through a sibling combinator. The
+/// `id`'s own selector state changed (`cause`): mark its subtree, and —
+/// when some `+` / `~` in the sheets can read that kind of change
+/// (`SiblingTriggers::fires`) — its parent's element children, whose
+/// match can read `id`'s state through the sibling combinator. The
 /// children are marked once per parent per drain (`sibling_marked`).
-fn mark_state_dirty(dom: &mut Dom<TuiExt>, state: &mut DirtyState, id: NodeId) {
+fn mark_state_dirty(dom: &mut Dom<TuiExt>, state: &mut DirtyState, id: NodeId, cause: Cause<'_>) {
     mark_style_dirty(dom, state, id);
-    if state.no_sibling_combinators {
+    if !state.siblings.fires(cause) {
         return;
     }
     let Some(parent) = dom.node(id).parent_node().map(|p| p.id()) else {

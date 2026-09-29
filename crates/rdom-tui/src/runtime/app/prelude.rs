@@ -221,19 +221,19 @@ impl FramePrelude {
         self.touched = true;
     }
 
-    /// Tell the dirty tracker whether the sheets now cascaded use `+` /
-    /// `~` (`DirtyTracker::set_sibling_combinators`), so a state change
-    /// dirties its siblings only when a selector can read it there.
+    /// Tell the dirty tracker which changes the sheets now cascaded can
+    /// read through `+` / `~` (`style::sibling_triggers`,
+    /// `P7G-SIBLING-MARK-NARROW-1`), so a state change dirties its
+    /// siblings only when a selector can read it there. Once per
+    /// stylesheet set.
     pub(super) fn sync_sibling_combinators(
         &self,
         tracker: &DirtyTracker,
         app_sheets: &[(StylesheetId, Stylesheet)],
     ) {
-        let used = self
-            .cascade_order(app_sheets)
-            .into_iter()
-            .any(crate::style::dirty_tracker::uses_sibling_combinators);
-        tracker.set_sibling_combinators(used);
+        tracker.set_sibling_triggers(crate::style::sibling_triggers::SiblingTriggers::of_sheets(
+            self.cascade_order(app_sheets),
+        ));
     }
 
     /// Every sheet the cascade reads, in cascade order: the document's

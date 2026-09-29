@@ -68,6 +68,8 @@ mod scroll_repaint_tests;
 #[cfg(test)]
 mod setter_mutation_tests;
 #[cfg(test)]
+mod sibling_mark_tests;
+#[cfg(test)]
 mod tests;
 
 use std::io::{self, Stdout};
