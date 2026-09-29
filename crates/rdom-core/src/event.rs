@@ -100,9 +100,9 @@ pub struct Event {
     pub(crate) default_prevented: bool,
     /// DOM "dispatch flag": set for the duration of `dispatch_event`.
     /// Re-dispatching an in-flight event is `InvalidStateError` on the
-    /// web; here it returns `DomError::InvalidState`. A listener panic
-    /// that unwinds out of `dispatch_event` leaves the flag set on that
-    /// `Event` value (the value is normally dropped with the unwind).
+    /// web; here it returns `DomError::InvalidState`. Cleared by a drop
+    /// guard on every way out of `dispatch_event`, a listener panic
+    /// unwinding through included (`P7G-DISPATCH-FLAG-1`).
     pub(crate) dispatching: bool,
 
     /// Set by [`EventCtx::request_redraw`](crate::EventCtx::request_redraw)

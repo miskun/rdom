@@ -103,6 +103,38 @@ pub enum ActivationPhase {
 pub type ActivationHook<Ext> =
     Box<dyn FnMut(&mut Dom<Ext>, NodeId, &Event, ActivationPhase) + 'static>;
 
+/// The DOM "dispatch flag" of one [`Dom::dispatch_event`] call: set on
+/// construction, cleared on drop, so no return path — an early error,
+/// a listener panic unwinding through — leaves an `Event` flagged as in
+/// flight (`P7G-DISPATCH-FLAG-1`).
+struct DispatchFlag<'e>(&'e mut Event);
+
+impl<'e> DispatchFlag<'e> {
+    fn set(event: &'e mut Event) -> Self {
+        event.dispatching = true;
+        Self(event)
+    }
+}
+
+impl Drop for DispatchFlag<'_> {
+    fn drop(&mut self) {
+        self.0.dispatching = false;
+    }
+}
+
+impl std::ops::Deref for DispatchFlag<'_> {
+    type Target = Event;
+    fn deref(&self) -> &Event {
+        self.0
+    }
+}
+
+impl std::ops::DerefMut for DispatchFlag<'_> {
+    fn deref_mut(&mut self) -> &mut Event {
+        self.0
+    }
+}
+
 /// Storage for the hook with a `Debug` impl (the closure has none).
 pub(crate) struct ActivationSlot<Ext: 'static>(pub(crate) Option<ActivationHook<Ext>>);
 
@@ -297,8 +329,23 @@ impl<Ext> Dom<Ext> {
             // dispatch's propagation flags when it finished.
             return Err(DomError::InvalidState("event is already being dispatched"));
         }
-        event.dispatching = true;
+        // The flag is set for the passes and cleared when the guard
+        // drops — on every return, early (`InvalidNode`) or not, and when
+        // a listener panic unwinds (`P7G-DISPATCH-FLAG-1`).
+        self.dispatch_passes(target, &mut DispatchFlag::set(event))?;
 
+        // Activation behavior (DOM §2.9 step 11): after dispatch, once,
+        // whether or not propagation was stopped; `canceled` tells the
+        // hook to run the legacy-canceled-activation step instead.
+        let canceled = event.default_prevented();
+        self.run_activation_hook(target, event, ActivationPhase::Post { canceled });
+        Ok(())
+    }
+
+    /// The part of [`Self::dispatch_event`] run with the dispatch flag
+    /// set: the pre-activation step, the capture and bubble passes and
+    /// the end-of-dispatch reset (DOM §2.9 steps 5.5–5.9).
+    fn dispatch_passes(&mut self, target: NodeId, event: &mut Event) -> Result<()> {
         event.target = Some(target);
 
         // Legacy-pre-activation behavior (DOM §2.9 step 5.5): before any
@@ -360,13 +407,6 @@ impl<Ext> Dom<Ext> {
         event.current_target = None;
         event.propagation_stopped = false;
         event.immediate_propagation_stopped = false;
-        event.dispatching = false;
-
-        // Activation behavior (DOM §2.9 step 11): after dispatch, once,
-        // whether or not propagation was stopped; `canceled` tells the
-        // hook to run the legacy-canceled-activation step instead.
-        let canceled = event.default_prevented();
-        self.run_activation_hook(target, event, ActivationPhase::Post { canceled });
         Ok(())
     }
 
@@ -529,6 +569,50 @@ mod tests {
         let mut e = Event::new("click");
         dom.dispatch_event(el, &mut e).unwrap();
         assert_eq!(fired.get(), 2);
+    }
+
+    /// `P7G-DISPATCH-FLAG-1`: a pre-activation hook that drops the
+    /// target makes `dispatch_event` return `InvalidNode` — and leaves
+    /// the event undispatched, so the caller can retry it elsewhere
+    /// instead of getting `InvalidState`.
+    #[test]
+    fn an_early_invalid_node_return_clears_the_dispatch_flag() {
+        let (mut dom, a, _, c, _) = build_chain();
+        dom.set_activation_hook(Some(Box::new(|dom, target, _, phase| {
+            if phase == ActivationPhase::Pre && dom.contains(target) {
+                let parent = dom.node(target).parent_node().unwrap().id();
+                dom.remove_child_dropping(parent, target).unwrap();
+            }
+        })));
+        let mut e = Event::new("click");
+        assert!(matches!(
+            dom.dispatch_event(c, &mut e),
+            Err(DomError::InvalidNode(_))
+        ));
+        dom.set_activation_hook(None);
+        assert_eq!(dom.dispatch_event(a, &mut e), Ok(()), "retry succeeds");
+    }
+
+    /// `P7G-DISPATCH-FLAG-1`: a listener panic that unwinds out of
+    /// `dispatch_event` clears the dispatch flag on the way out, so the
+    /// same `Event` value can be dispatched again.
+    #[test]
+    fn a_listener_panic_clears_the_dispatch_flag() {
+        let mut dom: Dom = Dom::new();
+        let el = dom.create_element("div");
+        dom.add_event_listener(el, "boom", ListenerOptions::default(), |_| {
+            panic!("listener bomb");
+        })
+        .unwrap();
+        let mut e = Event::new("click");
+        let mut boom = Event::new("boom");
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _ = dom.dispatch_event(el, &mut boom);
+        }));
+        assert!(result.is_err());
+        boom.event_type = "click".into();
+        assert_eq!(dom.dispatch_event(el, &mut boom), Ok(()));
+        assert_eq!(dom.dispatch_event(el, &mut e), Ok(()));
     }
 
     fn cap() -> ListenerOptions {
