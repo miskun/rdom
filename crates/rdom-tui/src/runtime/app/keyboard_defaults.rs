@@ -33,10 +33,6 @@ impl<B: Backend> App<B> {
             crate::tui_event::dispatch_to_live(&mut self.dom, target, &mut tui);
             self.redraw
                 .note_if(tui.event.redraw_requested(), Redraw::Cascade);
-            self.redraw.note_if(
-                !self.tracker.roots_snapshot().is_empty() || self.tracker.take_paint_dirty(),
-                Redraw::Layout,
-            );
             return;
         }
 
@@ -115,15 +111,9 @@ impl<B: Backend> App<B> {
         // tracker can't see — e.g. a canvas reading app state).
         self.redraw
             .note_if(tui.event.redraw_requested(), Redraw::Cascade);
-        self.redraw
-            .note_if(!self.tracker.roots_snapshot().is_empty(), Redraw::Layout);
-        // Text-only mutations from event handlers don't dirty
-        // the cascade (selectors don't match text content) but
-        // they DO change painted output. Without this OR, a
-        // handler that calls `set_node_value` is invisible
-        // until the next event ticks the cascade.
-        self.redraw
-            .note_if(self.tracker.take_paint_dirty(), Redraw::Layout);
+        // What the listeners changed through the DOM — restyles, text,
+        // selection — the dirty tracker recorded; the next frame reads
+        // it (frame prelude stage 8, `P7G-OFF-EVENT-PAINT-1`).
     }
 }
 

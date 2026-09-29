@@ -207,6 +207,7 @@ Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 - A form's `reportValidity()` / interactive validation no longer tries to report a control that an earlier control's `invalid` listener dropped: that control is skipped and the next unhandled one is focused (before, nothing was focused). (`P7G-DISPATCH-RESULTS-1`)
 - `scrollIntoView` on a descendant of a `display: none` element no longer scrolls: the element has no box (CSSOM View §5.2 step 1). (`P7G-INTO-VIEW-NONE-1`)
 - A `blur` or `focusout` listener that drops the element about to gain focus no longer leaves `Dom::focused` naming the freed node: focus clears and no `focus` / `focusin` fires (`DISPATCH-RESULTS-2`)
+- A text change or selection move made outside an input event — a `set_interval` clock, `on_tick`, `AppHandle::inject`, a `transitionend` listener, `dom_mut()` — now draws on the next frame instead of waiting for the next key or mouse event: the frame prelude reads the dirty tracker's paint flags on every frame (text lays out and repaints, a selection move only repaints). New `DirtyTracker::take_selection_dirty`. (`P7G-OFF-EVENT-PAINT-1`)
 
 ### Internal — `rdom-tui`
 

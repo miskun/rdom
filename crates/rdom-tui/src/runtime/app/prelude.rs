@@ -17,7 +17,10 @@
 //! 5. **caret blink** — flip the caret phase (a paint-only change);
 //! 6. **smooth scrolls** — step the scrolls in flight (frames only);
 //! 7. **painted check** — any scroll offset moved since the last paint
-//!    lays out and repaints (frames only).
+//!    lays out and repaints (frames only);
+//! 8. **tracker flags** — a text change the dirty tracker saw lays out
+//!    and repaints, a selection change repaints (frames only; the
+//!    off-frame run leaves them for the next frame).
 //!
 //! Stages 4, 6 and 7 walk the whole tree, so a frame runs them only when
 //! code ran since the last frame ([`FramePrelude::touched`],
@@ -172,6 +175,16 @@ impl FramePrelude {
             walks += 1;
             cx.redraw.note_if(moved, Redraw::Layout);
         }
+        // 8. What the dirty tracker recorded beyond its cascade roots
+        // (which the frame drains itself), whoever made the change —
+        // a listener, a timer, an injected closure, `dom_mut()`
+        // (`P7G-OFF-EVENT-PAINT-1`): text lays out and repaints, a
+        // selection move repaints. Last, so the stages' own listeners
+        // (stage 6's `scroll`) are covered.
+        cx.redraw
+            .note_if(cx.tracker.take_paint_dirty(), Redraw::Layout);
+        cx.redraw
+            .note_if(cx.tracker.take_selection_dirty(), Redraw::Paint);
         walks
     }
 

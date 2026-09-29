@@ -61,6 +61,12 @@
 //!   keeps a separate `paint_dirty` flag (consumed via
 //!   `take_paint_dirty()`) for the runtime to lay out and repaint even
 //!   though no cascade work is queued.
+//! - Selection changes (`SelectionChanged`) dirty no element — paint
+//!   reads `Dom::selection` — but set a `selection_dirty` flag
+//!   (`take_selection_dirty()`) the runtime turns into a repaint.
+//!
+//! The App's frame prelude consumes both flags on every frame, not only
+//! after an input event (`P7G-OFF-EVENT-PAINT-1`).
 //!
 //! ## Dedupe policy
 //!
@@ -104,6 +110,10 @@ struct DirtyState {
     /// `set_node_value` call from inside an event handler is invisible
     /// until something else dirties the cascade.
     paint_dirty: bool,
+    /// The selection or caret moved (`SelectionChanged`): paint draws
+    /// the `::selection` overlay and the caret from `Dom::selection`,
+    /// so only a repaint is due. Consumed via `take_selection_dirty()`.
+    selection_dirty: bool,
     /// The sheets use no `+` / `~` combinator, so a state change cannot
     /// reach a sibling's match (`DirtyTracker::set_sibling_combinators`).
     /// `false` (the conservative default) dirties the siblings.
@@ -154,11 +164,13 @@ impl DirtyTracker {
         self.inner.borrow().roots.clone()
     }
 
-    /// Consume and return the paint-dirty flag (text-only mutations
-    /// like `set_node_value` that don't dirty the cascade but DO
-    /// change painted output). Read by the App's event loop after
-    /// dispatching a user event so a handler that mutates text content
-    /// triggers an immediate redraw.
+    /// Consume and return the paint-dirty flag: a mutation that queues
+    /// no (or not only) cascade work but changes layout and painted
+    /// output — text edits like `set_node_value`, text nodes coming or
+    /// going. The App's frame prelude reads it on every frame, whoever
+    /// made the change (a listener, a timer, an injected closure,
+    /// `dom_mut()`), and lays out and repaints
+    /// (`P7G-OFF-EVENT-PAINT-1`).
     pub fn take_paint_dirty(&self) -> bool {
         std::mem::take(&mut self.inner.borrow_mut().paint_dirty)
     }
@@ -166,6 +178,23 @@ impl DirtyTracker {
     /// Peek at the paint-dirty flag without clearing. Useful in tests.
     pub fn paint_dirty_snapshot(&self) -> bool {
         self.inner.borrow().paint_dirty
+    }
+
+    /// Consume and return the selection-dirty flag: the selection or
+    /// caret moved since the last call. Paint reads the selection
+    /// directly, so the App's frame prelude repaints without laying out
+    /// (`P7G-OFF-EVENT-PAINT-1`).
+    pub fn take_selection_dirty(&self) -> bool {
+        std::mem::take(&mut self.inner.borrow_mut().selection_dirty)
+    }
+
+    /// Whether the next frame has anything the tracker recorded to
+    /// draw: dirty roots, the paint-dirty flag or the selection-dirty
+    /// flag. Does not clear anything.
+    #[cfg(test)]
+    pub(crate) fn has_pending(&self) -> bool {
+        let state = self.inner.borrow();
+        !state.roots.is_empty() || state.paint_dirty || state.selection_dirty
     }
 
     /// Registered observer's handle. `None` after `uninstall`.
@@ -319,12 +348,12 @@ impl MutationObserver<TuiExt> for Shim {
             }
             Mutation::SelectionChanged { .. } => {
                 // Selection changes don't affect cascade — the
-                // `::selection` pseudo-element overlay is applied by
-                // paint directly from `dom.selection()`, not via
-                // the style cascade. The runtime asks for a layout +
-                // paint frame out-of-band when it updates the selection (via
-                // the Router / selection helper). Nothing to do
-                // here.
+                // `::selection` pseudo-element overlay and the caret
+                // are applied by paint directly from `dom.selection()`,
+                // not via the style cascade. They do change painted
+                // output, whoever moved the selection (a script's
+                // `select()`, a timer): flag a repaint.
+                state.selection_dirty = true;
             }
             Mutation::PreDetach { .. } => {
                 // Cascade-relevant state changes (focused / hovered

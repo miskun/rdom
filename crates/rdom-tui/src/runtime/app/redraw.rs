@@ -16,14 +16,15 @@ pub(crate) enum Redraw {
     #[default]
     Clean,
     /// Repaint from the current layout and computed styles: only
-    /// paint-time state changed — a caret-blink flip.
+    /// paint-time state changed — a caret-blink flip, a selection or
+    /// caret move made by code (the dirty tracker's selection flag).
     Paint,
     /// Lay out and repaint: state layout reads changed without
     /// changing any selector match or declaration — scroll offsets
     /// (layout places children after scroll), text content (the dirty
     /// tracker queues the elements whose selector state text feeds),
-    /// hover, focus and selection moves (their restyles are tracker
-    /// roots), a mouse route's own work (`RouteOutcome::redraw_requested`
+    /// hover and focus moves (their restyles are tracker roots), a
+    /// mouse route's own work (`RouteOutcome::redraw_requested`
     /// without `cascade_requested`: wheel, scrollbar press, drag),
     /// running transitions (they write `TuiExt::presentation`).
     Layout,

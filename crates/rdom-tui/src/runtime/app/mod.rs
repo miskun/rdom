@@ -60,6 +60,8 @@ mod idle_tests;
 #[cfg(test)]
 mod interaction_chain_tests;
 #[cfg(test)]
+mod off_event_paint_tests;
+#[cfg(test)]
 mod route_redraw_tests;
 #[cfg(test)]
 mod scroll_repaint_tests;
@@ -483,8 +485,6 @@ impl<B: Backend> App<B> {
                 let outcome = self.router.route(&mut self.dom, event);
                 crate::runtime::focus::visible::note_pointer_focus(&mut self.dom, focused_before);
                 self.note_route(outcome);
-                self.redraw
-                    .note_if(self.tracker.take_paint_dirty(), Redraw::Layout);
                 // DRAG-AUTOSCROLL: (re)arm from the pointer's current position.
                 self.note_autoscroll(col, row);
             }
@@ -549,7 +549,7 @@ impl<B: Backend> App<B> {
 
     #[cfg(test)]
     pub(crate) fn needs_redraw(&self) -> bool {
-        self.redraw != Redraw::Clean
+        self.redraw != Redraw::Clean || self.tracker.has_pending()
     }
 
     /// The pipeline stages run since the last call, and reset them.
