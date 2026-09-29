@@ -446,6 +446,12 @@ Each phase ends with the two review gates; each commit carries the item id.
   masking later roots) and 7 smaller findings, all fixed (`P7G-OFF-EVENT-PAINT-1` …
   `P7G-CHANGELOG-2`). Workspace tests 3399 → 3430. TECH_DEBT Open: none. Open question for
   Miska: `P7G-ACTIVE-UNTIL-CLICK-1` keeps `:active` through `click`; not verified against Chrome.
+- 2026-09-29 — `P7G-ACTIVE-CLEARS-ON-RELEASE-1` resolves that question against Chromium's source:
+  `EventHandler::HandleMouseReleaseEvent` performs the `kRelease` hit test first, and
+  `Document::PerformMouseEventHitTest` → `UpdateHoverActiveState(false, …)` → `UpdateActiveState`
+  clears the whole `:active` chain before `pointerup` / `mouseup` and then `click` are dispatched.
+  So `P7G-ACTIVE-UNTIL-CLICK-1` was wrong; the release clears `:active` before its events again
+  (the pre-P7G behavior), pinned by `active_clears_on_release_before_mouseup_and_click`.
 - 2026-09-29 — Phase 8: release prep done. All five crates 0.4.0 → 0.5.0 (workspace version,
   `rdom-core` / `rdom-tui` pins, every inter-crate `version` pin, `Cargo.lock`; the cyclic rdom-css
   dev-deps and rdom-tui's `test-util` self dev-dep stay path-only). CHANGELOG `[Unreleased]` →

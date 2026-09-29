@@ -94,15 +94,17 @@ fn li_active_applies_while_a_child_span_is_pressed() {
     assert_eq!(fg(&app, li), RED, "back to :hover only");
 }
 
-/// `P7G-ACTIVE-UNTIL-CLICK-1`: the activation lasts through the
-/// release's own events — `mouseup` and `click` listeners still see the
-/// pressed element as `:active` (as in Blink, which clears it after the
-/// release is handled) — and ends once they have run.
+/// `P7G-ACTIVE-CLEARS-ON-RELEASE-1`: the release ends the activation
+/// before its own events run, as in Blink — `EventHandler::
+/// HandleMouseReleaseEvent` performs the `kRelease` hit test, whose
+/// `Document::UpdateHoverActiveState(false, …)` clears the whole
+/// `:active` chain, before it dispatches `pointerup` / `mouseup` and then
+/// `click`. So neither `mouseup` nor `click` listeners see `:active`.
 #[test]
-fn active_holds_through_mouseup_and_click_and_clears_after() {
+fn active_clears_on_release_before_mouseup_and_click() {
     use std::cell::RefCell;
     use std::rc::Rc;
-    let (mut app, li, span) = list_app();
+    let (mut app, li, _span) = list_app();
     /// Event type, `Dom::active()`, whether the `<li>` matched `:active`.
     type Seen = Vec<(&'static str, Option<NodeId>, bool)>;
     let seen: Rc<RefCell<Seen>> = Rc::default();
@@ -120,8 +122,8 @@ fn active_holds_through_mouseup_and_click_and_clears_after() {
     mouse(&mut app, MouseEventKind::Up(MouseButton::Left), 1, 0);
     assert_eq!(
         *seen.borrow(),
-        vec![("mouseup", Some(span), true), ("click", Some(span), true)]
+        vec![("mouseup", None, false), ("click", None, false)]
     );
-    assert_eq!(app.dom().active(), None, "cleared after the click");
+    assert_eq!(app.dom().active(), None, "cleared by the release");
     assert_eq!(fg(&app, li), RED, "and restyled: back to :hover only");
 }
