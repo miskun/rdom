@@ -232,9 +232,9 @@ pub enum PseudoClass {
     /// that satisfies its constraints, a `<form>` owning no invalid
     /// candidate, a `<fieldset>` with no invalid descendant candidate.
     /// The verdict per candidate comes from the backend's validity hook
-    /// ([`Dom::set_validity_hook`](crate::Dom::set_validity_hook)), which
-    /// must be installed — matching a candidate without one panics in a
-    /// debug build; see
+    /// ([`Dom::set_validity_hook`](crate::Dom::set_validity_hook)); without
+    /// one every candidate is valid, so a backend matching this installs
+    /// its hook — see
     /// [`Dom::constraint_validity`](crate::Dom::constraint_validity).
     Valid,
     /// `:invalid` — the complement of `:valid` among the same elements:

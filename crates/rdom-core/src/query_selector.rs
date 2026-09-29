@@ -1178,19 +1178,19 @@ mod tests {
         !dom.has_attribute(id, "data-bad")
     }
 
-    /// `P7G-VALIDITY-HOOK-DEFAULT-1`: rdom-core has no validity states,
-    /// so asking whether a candidate is valid without a backend hook is a
-    /// misconfiguration — loud in a debug build rather than a silent
-    /// "every control is valid".
+    /// `P7G-PUBLIC-SURFACE-2`: rdom-core has no validity states, and a
+    /// `Dom` without a validity hook answers "valid" for every candidate
+    /// — in a debug build as in a release build (it used to panic in
+    /// debug only). The documented contract (`Dom::set_validity_hook`)
+    /// is that a backend matching these pseudo-classes installs one.
     #[test]
-    #[cfg(debug_assertions)]
-    #[should_panic(expected = "no validity hook")]
-    fn matching_invalid_on_a_candidate_without_a_validity_hook_panics_in_debug_builds() {
+    fn a_candidate_without_a_validity_hook_is_valid_in_every_build() {
         let mut dom: Dom = Dom::new();
         let root = dom.root();
         let input = dom.create_element("input");
         dom.append_child(root, input).unwrap();
-        let _ = dom.matches(input, ":invalid");
+        assert!(!dom.matches(input, ":invalid").unwrap());
+        assert!(dom.matches(input, ":valid").unwrap());
     }
 
     /// Elements that are not candidates answer `:valid` / `:invalid`

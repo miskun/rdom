@@ -189,14 +189,16 @@ impl TuiExt {
     }
 
     /// The animation overrides for `slot`, boxed on first use.
-    pub fn presentation_for_mut(&mut self, slot: StyleSlot) -> &mut PresentationStyle {
+    /// Transition-engine plumbing (`runtime::animation`).
+    pub(crate) fn presentation_for_mut(&mut self, slot: StyleSlot) -> &mut PresentationStyle {
         self.presentation_slot(slot)
             .get_or_insert_with(Default::default)
     }
 
     /// Drop `slot`'s override box once no property is overridden, so an
     /// element whose transitions finished is back to one `None`.
-    pub fn release_empty_presentation(&mut self, slot: StyleSlot) {
+    /// Transition-engine plumbing (`runtime::animation`).
+    pub(crate) fn release_empty_presentation(&mut self, slot: StyleSlot) {
         let boxed = self.presentation_slot(slot);
         if boxed.as_deref().is_some_and(PresentationStyle::is_empty) {
             *boxed = None;
@@ -442,8 +444,8 @@ pub struct TuiExt {
     /// created by the first animated write and dropped when the last
     /// override clears (`PERF-TUIEXT-SIZE-1`), so an element that never
     /// animates pays one pointer for it. Read it through
-    /// [`presentation_for`](Self::presentation_for), write it through
-    /// [`presentation_for_mut`](Self::presentation_for_mut).
+    /// [`presentation_for`](Self::presentation_for); the transition
+    /// engine writes it.
     pub presentation: Option<Box<PresentationStyle>>,
     /// `::before` pseudo-element computed style. `None` if no content
     /// and no matching `::before` rules.
