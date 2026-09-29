@@ -231,6 +231,7 @@ All five crates ship together as **0.5.0**: `rdom-core`, `rdom-style`, `rdom-css
 ### Changed — `rdom-showcase`
 
 - The showcase (not published) owns the ten demo examples and their sixteen paint snapshots (`PROC-TUI-DEV-DEP-1`), and no longer pre-pushes every demo's stylesheet: the stack is the shell's base sheet plus the mounted demo's (`DemoSheet`), swapped on a demo switch through the `AppContext` stylesheet intents via `AppHandle::inject`. (`P6G-SHOWCASE-INTENTS-1`)
+- Its `counter_button`, `tab_form` and `parse_and_render` examples are renamed `counter_button_demo`, `tab_form_demo` and `parse_and_render_demo`, so they no longer collide with `rdom-tui`'s examples of the same names (cargo's output-filename collision warning). `cargo run -p rdom-tui --example …` is unchanged. (`SHOWCASE-EXAMPLE-NAMES-1`)
 
 ### Changed — workspace
 

@@ -7,7 +7,7 @@
 //!
 //! Controls: click to increment. Ctrl-C to quit.
 //!
-//! Run: `cargo run -p rdom-showcase --example counter_button`
+//! Run: `cargo run -p rdom-showcase --example counter_button_demo`
 //!
 //! The DOM-building + CSS lives in
 //! `rdom-showcase::demos::counter_button` so it can be both run
