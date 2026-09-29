@@ -100,7 +100,7 @@ The work that fed into 0.1.0 was organized in five internal milestones (M1 CSS p
 | **0.3.0** | **Substrate honesty** — the seven friction points the first downstream consumer hit (geometry setters drive layout, repaint-from-listeners, arena ergonomics). Routing slid out to 0.4.0. | ✅ Released 2026-06-02 |
 | **0.3.1 – 0.3.14** | Divergent `rdom-tui`-only patch releases, mostly driven by the `rdom-virtualtable` consumer: focus/`:where()`/`drop_subtree` fixes, table column-sizing, layout stale-state, half-block borders, **drag-autoscroll** + its robustness/selection-precision follow-ups. See [`../CHANGELOG.md`](../CHANGELOG.md) + [`../STATE.md`](../STATE.md). | ✅ Released (latest 0.3.14, 2026-06-06) |
 | **0.4.0** | **Hardening** ([`HARDENING-2026-09.md`](HARDENING-2026-09.md)): full workspace review, DIVERGENCES / TECH_DEBT re-audit, four gated fix batches (core, style + css, tui, parser). All five crates ship together. | ✅ Released 2026-09-24 |
-| **0.5.0** | **Stabilize** ([`STABILIZE-2026-09.md`](STABILIZE-2026-09.md)): every open `TECH_DEBT.md` row fixed, reclassified as a documented divergence, or documented as external. | In progress |
+| **0.5.0** | **Stabilize** ([`STABILIZE-2026-09.md`](STABILIZE-2026-09.md)): every open `TECH_DEBT.md` row fixed, reclassified as a documented divergence, or documented as external; plus form validation, `:focus-visible`, live `<style>` and the rest of Phase 7. All five crates ship together. | Release prep done 2026-09-29; publish pending |
 | **0.6.0** | Client-side routing primitive. | Planned |
 | **0.7.0** | Async tasks during event handlers. | Planned |
 
@@ -115,6 +115,10 @@ Architectural decisions worth preserving past their original context.
 ### `rdom-style` exists as a leaf crate
 
 Originally `rdom-tui` owned the CSS data model. When `rdom-css` (the CSS parser) was added, both `rdom-css` and `rdom-tui` needed to depend on the data model — but `rdom-tui` already depended on `rdom-css`, creating a Cargo cycle. Extracting `rdom-style` as a leaf crate (CSS data model + property dispatch + value parsers, no backend deps) resolved the cycle and gave the parser a stable target.
+
+### `from_css` is a free function in `rdom-css`, not `impl Stylesheet`
+
+(Formerly TECH_DEBT `D-M1-1`, accepted permanently; moved here in 0.5.0.) The first draft made CSS parsing inherent methods on `Stylesheet`. `Stylesheet` and `TuiStyle` live in `rdom-style`, and `rdom-css` depends on `rdom-style`, so an inherent method would need `rdom-style` to depend on its own parser — a Cargo cycle — or the parser folded into the data-model crate, which the parser/data-model split exists to prevent. The parser therefore exposes free functions (`rdom_css::from_css`, `parse`, `parse_inline`, and their `_strict` forms).
 
 ### CSS cascade lives in `rdom-tui`, not `rdom-style`
 
@@ -190,7 +194,6 @@ Same as UI Events. The `is_synthetic` flag inverts the spec's `isTrusted` for er
 cargo fmt --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
-bash scripts/spec-lint.sh
 ```
 
 CI runs the same three gates (fmt, clippy, test) on `[ubuntu-latest, macos-latest, windows-latest]` for every push and PR. Toolchain pinned via `rust-toolchain.toml`.

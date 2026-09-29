@@ -7,7 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Work in progress under [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md): every open `TECH_DEBT.md` row is paid down before 0.5.0. Sections are per crate, then per kind; **migration:** read every `Breaking` section top to bottom — each bullet ends with what to change.
+Nothing yet.
+
+## [0.5.0] - 2026-09-29
+
+All five crates ship together as **0.5.0**: `rdom-core`, `rdom-style`, `rdom-css`, `rdom-parser` and `rdom-tui` 0.4.0 → 0.5.0. The release is the [`STABILIZE-2026-09`](specs/STABILIZE-2026-09.md) program: every open `TECH_DEBT.md` row fixed, moved to `DIVERGENCES.md`, or documented as external, plus the form-validation / `:focus-visible` / live-`<style>` completeness work. Sections are per crate, then per kind; **migration:** read every `Breaking` section top to bottom — each bullet ends with what to change.
 
 ### Breaking — `rdom-core`
 

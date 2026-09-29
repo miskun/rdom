@@ -1,18 +1,16 @@
 # TECH_DEBT — open debt + accepted simplifications
 
-Things rdom owes the codebase. The [`STABILIZE-2026-09`](STABILIZE-2026-09.md) program is paying every open item down before 0.5.0; each row's disposition is in that file. Every item has a stable ID so it can be referenced from PRs, commit messages, and code comments without quoting the whole entry.
+Things rdom owes the codebase. The [`STABILIZE-2026-09`](STABILIZE-2026-09.md) program paid every open item down for 0.5.0; each row's disposition is in that file. Every item has a stable ID so it can be referenced from PRs, commit messages, and code comments without quoting the whole entry.
 
-For the durable architectural divergences (web-platform departures shipped on purpose, intended to stay), see [`DIVERGENCES.md`](DIVERGENCES.md). This file is for the *temporary* simplifications and known follow-ups.
+For the durable architectural divergences (web-platform departures shipped on purpose, intended to stay), see [`DIVERGENCES.md`](DIVERGENCES.md); for permanent architectural choices, see the decision archive in [`DESIGN.md`](DESIGN.md#decision-archive). This file is for the *temporary* simplifications and known follow-ups.
 
 ## Open
 
 None.
 
-## Accepted simplifications (forever-state)
+## Accepted simplifications
 
-These won't be paid down — they reflect deliberate architectural choices.
-
-- **`D-M1-1` — `from_css` is a free function in `rdom-css`, not `impl Stylesheet`.** Original draft proposed inherent methods on `Stylesheet`. Couldn't ship — `rdom-tui` already depends on `rdom-css` for the inline-style cascade rung; making the inverse import work would require either a cycle or splitting `Stylesheet` to a third crate.
+None. A review-gate finding accepted as a risk is recorded here until it is paid down; a choice that is permanent goes to the [`DESIGN.md` decision archive](DESIGN.md#decision-archive) instead (`D-M1-1` moved there in 0.5.0).
 
 ## How to use this file
 

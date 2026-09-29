@@ -142,9 +142,11 @@ let sheet    = rdom_css::from_css_strict(source)?;
 ## Warnings
 
 ```rust
+#[non_exhaustive]
 pub enum WarningKind {
     UnknownProperty(String),
     InvalidValue { property: String, value: String },
+    MalformedDeclaration(String),   // not `name: value`; dropped
     UnsupportedAtRule(String),
     InvalidSelector(String),
     UnterminatedComment,

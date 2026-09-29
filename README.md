@@ -12,9 +12,9 @@ Install:
 
 ```toml
 [dependencies]
-rdom-tui    = "0.3"
-rdom-parser = "0.3"   # optional: HTML-ish template strings
-rdom-css    = "0.3"   # optional: parse real CSS at runtime
+rdom-tui    = "0.5"
+rdom-parser = "0.5"   # optional: HTML-ish template strings
+rdom-css    = "0.5"   # optional: parse real CSS at runtime
 ```
 
 `rdom-core` and `rdom-style` are pulled in transitively. For headless DOM work — building and querying a tree without rendering anything — depend on `rdom-core` alone.
@@ -57,9 +57,9 @@ See [`crates/rdom-tui/examples/`](crates/rdom-tui/examples/) for three self-cont
 | [`rdom-tui`](crates/rdom-tui) | Terminal backend. CSS cascade, flexbox layout, paint pass, ANSI emission, inline formatting (word wrap, CJK breaks, `<br>`, `white-space`), runtime (event loop, hit test, keyboard/mouse routing, focus, text selection + clipboard), native HTML element behaviors (`<button>`, `<input>` family, `<select>`, `<form>`, `<details>`, `<dialog>`, `<progress>`, `<meter>`, `<table>` family, `<canvas>`). |
 | [`rdom-parser`](crates/rdom-parser) | HTML-ish template parser → `Dom<Ext>`. `parseFromString` equivalent. Hand-rolled, no external parser deps. |
 
-## Coming in 0.5.0 (unreleased)
+## What's in 0.5.0
 
-The Stabilize program ([`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md)) plus these web-platform features; [`CHANGELOG.md`](CHANGELOG.md) `[Unreleased]` has the details and migration notes.
+A stabilization release ([`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md)): every open row in the tech-debt ledger was fixed, moved to `DIVERGENCES.md` as a deliberate departure, or documented as an external limitation, so 0.5.0 ships with no open debt. On top of that, these web-platform features:
 
 - **Form validation** (HTML §4.10.20): `required`, `pattern`, length / range / step and type checks, `ValidityState`, `check_validity` / `report_validity` / `set_custom_validity`, the `invalid` event, `:valid` / `:invalid` / `:required` / `:optional`; submission is blocked unless `novalidate` / `formnovalidate`.
 - **`fieldset[disabled]`**: disables its controls outside the first `<legend>`; `:disabled` / `:enabled`.
@@ -71,6 +71,8 @@ The Stabilize program ([`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md
 - **Live `<style>`**: the `App` applies the document's `<style>` elements and re-parses them when they change.
 - **Caret blink** at 530 ms under `App::new` (`App::with_caret_blink`).
 - **Blink-model undo**: typing, Backspace and Delete runs are one undo step each; `inputType`s per Input Events.
+
+**Breaking** changes in every crate. See [`CHANGELOG.md`](CHANGELOG.md) for the full 0.5.0 notes; each `Breaking` bullet ends with what to change.
 
 ## What's in 0.4.0
 
@@ -128,7 +130,6 @@ See [`CHANGELOG.md`](CHANGELOG.md) for the full 0.2.0 notes, including breaking 
 
 ## Roadmap
 
-- **0.5.0** — Stabilize: every open item in `specs/TECH_DEBT.md` paid down.
 - **0.6.0** — Client-side routing primitive.
 - **0.7.0** — Async tasks during event handlers.
 
@@ -173,7 +174,6 @@ Detailed behavior lives in the code: each module has a top-level doc comment, an
 cargo test --workspace                                  # all unit + integration tests
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --check
-bash scripts/spec-lint.sh                               # spec voice-drift lint
 ```
 
 CI runs the same gates on `[ubuntu-latest, macos-latest, windows-latest]` for every push and PR against `main`.

@@ -102,7 +102,7 @@ Everything else is real. Disposition per item:
 | 5 | rdom-tui layout | 22 layout items incl. stacking contexts, static position, cross-axis scroll, spans | done 2026-09-24 (both gates) |
 | 6 | rdom-tui paint + runtime + forms | 18 items incl. group opacity, splits, form defaults, app intents; 34 gate fixes (`P6G-*`) | done 2026-09-25 (both gates + re-review) |
 | 7 | completeness | scope confirmed 2026-09-26: fieldset[disabled], form owner + button overrides, constraint validation, `:focus-visible`, `::placeholder`, undo coalescing, blinking caret, clipboard whitespace, `scroll-behavior`, live `<style>`, showcase demos | done 2026-09-29 (both gates + re-review) |
-| 8 | release | 0.5.0 across all five crates, migration notes | |
+| 8 | release | 0.5.0 across all five crates, migration notes | in progress — prep done 2026-09-29, publish awaits Miska |
 
 Each phase ends with the two review gates; each commit carries the item id.
 
@@ -446,6 +446,16 @@ Each phase ends with the two review gates; each commit carries the item id.
   masking later roots) and 7 smaller findings, all fixed (`P7G-OFF-EVENT-PAINT-1` …
   `P7G-CHANGELOG-2`). Workspace tests 3399 → 3430. TECH_DEBT Open: none. Open question for
   Miska: `P7G-ACTIVE-UNTIL-CLICK-1` keeps `:active` through `click`; not verified against Chrome.
+- 2026-09-29 — Phase 8: release prep done. All five crates 0.4.0 → 0.5.0 (workspace version,
+  `rdom-core` / `rdom-tui` pins, every inter-crate `version` pin, `Cargo.lock`; the cyclic rdom-css
+  dev-deps and rdom-tui's `test-util` self dev-dep stay path-only). CHANGELOG `[Unreleased]` →
+  `[0.5.0] - 2026-09-29` with a migration preamble; root README "Coming in 0.5.0" → "What's in
+  0.5.0", install snippet → `"0.5"`, 0.5.0 dropped from its roadmap; rdom-css README `WarningKind`
+  block matches the enum; README / DESIGN no longer cite a `scripts/spec-lint.sh` that never existed.
+  Housekeeping: TECH_DEBT `D-M1-1` (accepted forever) moved to the DESIGN decision archive. Gates
+  green: fmt, clippy `-D warnings`, `cargo test --workspace` 3430 passed / 0 failed / 9 ignored over
+  22 targets, rustdoc `-D warnings`, `cargo build --examples`. The publish loop (publish.md §7) and
+  the `v0.5.0` tag await Miska's go-ahead.
 - Found while mapping Phase 3 (not on the ledger): `ImportantMask::FLOW` and `POINTER_EVENTS` share
   bit 39 (`tui_style.rs`), custom-property inheritance in the cascade is overwritten by the merged
   root map (`walk.rs`), and tokenizer errors inside a block are body-relative (`declarations.rs`).

@@ -8,19 +8,10 @@ per-release notes in [`CHANGELOG.md`](CHANGELOG.md), the architecture in
 
 ## Current focus
 
-**[`specs/HARDENING-2026-09.md`](specs/HARDENING-2026-09.md)** — the program opened by the 2026-09-21
-full-project review: fix the substrate invariants the review found broken, audit every DIVERGENCES and
-TECH_DEBT entry against the code, and pay the debt down in crate-grouped batches so version bumps batch.
-
-| Batch | Crates | Status |
-|---|---|---|
-| 1 | `rdom-core` | done, gated (architect + API), follow-ups landed |
-| 2 | `rdom-style`, `rdom-css` | done, gated, follow-ups landed |
-| 3 | `rdom-tui` | done, gated (architect + API); blocking follow-ups landed (flex pass budget, scrolled-IFC hit test, activation-behavior hook for checkboxes, UA `select[size]`, interval self-clear, dialog focus return, clock sync) |
-| 4 | `rdom-parser` | done; gated 2026-09-24 (bogus comments, raw-body line tracking, raw-text serialization in `rdom-core`) |
-
-Release plan: 0.4.0 across every crate whose source changed (all five — `rdom-core` changed, and every
-other crate pins it). Nothing has been published from this program yet.
+**0.5.0 release** — [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md) Phase 8. Phases 0–7 are
+done and gated; TECH_DEBT has no open rows. Release prep (all five crates → 0.5.0, CHANGELOG header,
+README refresh, gates, dry-run) is committed; the publish loop and the `v0.5.0` tag wait for Miska's
+go-ahead. The previous program, [`specs/HARDENING-2026-09.md`](specs/HARDENING-2026-09.md), shipped as 0.4.0.
 
 ## Release track
 
@@ -31,13 +22,12 @@ other crate pins it). Nothing has been published from this program yet.
 | 0.3.0 – 0.3.4 | 2026-06-02/03 | Substrate honesty for `rdom-extensions`; focus / `:where()` / `drop_subtree` fixes (`rdom-core` 0.3.4 → 0.3.5 at 0.3.11) |
 | 0.3.5 – 0.3.14 | 2026-06-03 → 06-06 | `rdom-tui`-only patch line driven by `rdom-virtualtable`: table column sizing, stale-layout fixes, half-block borders, drag-autoscroll and its robustness follow-ups. Latest published: **`rdom-tui` 0.3.14**, tag `rdom-tui-v0.3.14` |
 | 0.4.0 | **released 2026-09-24**, tag `v0.4.0`, all five crates on crates.io | HARDENING-2026-09: generational `NodeId`, spec-correct dispatch and document position, whole-literal CSS numbers, at-rule recovery, CSS-wide keywords, `pointer-events`, scrollable text leaves, flex §9.7, and the rest of the program. Breaking notes in CHANGELOG "0.4.0" |
-| 0.5.0 | in progress | STABILIZE-2026-09: empty TECH_DEBT open list, "stable and complete" |
+| 0.5.0 | **prep committed 2026-09-29, publish pending** (awaits Miska) | STABILIZE-2026-09: empty TECH_DEBT open list, "stable and complete"; form validation, `:focus-visible`, live `<style>`. Breaking notes in CHANGELOG "0.5.0" |
 | 0.6.0 | planned | Client-side routing primitive (slid from 0.5.0) |
 | later | — | Async tasks during event handlers; `TABLE-TFC-1` real table formatting context |
 
 ## Open risks
 
-- **`CARET-REVEAL-STALE-LAYOUT-1`** and **`POINTER-EVENTS-IFC-1`** are accepted for 0.4.0 (see TECH_DEBT).
 - **`SHOWCASE-EVT-1`** — the showcase's event surface (`AppContext`) exposes only redraw / quit /
   dispatch; consumers needing more reach into the App.
 - **`ITERM2-MOUSE-MOTION-1`** — iTerm2 motion reporting quirk, external.
