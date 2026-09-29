@@ -30,10 +30,10 @@
 //! not scattered through the tree.
 
 use rdom_core::{NodeId, NodeType};
-use rdom_css::{Warning, parse, parse_inline};
+use rdom_css::{Warning, parse};
 use rdom_style::Stylesheet;
 
-use crate::{TuiDom, TuiNodeMutExt};
+use crate::TuiDom;
 
 /// Walk `dom` for `<style>` elements and merge their parsed CSS
 /// into `sheet`. Returns the warnings collected from every
@@ -107,7 +107,7 @@ fn collect_text_content(dom: &TuiDom, id: NodeId) -> String {
 }
 
 /// Walk `dom` for every element with a `style="…"` attribute, parse
-/// the value via [`parse_inline`], and write the resulting
+/// the value via [`rdom_css::parse_inline`], and write the resulting
 /// `TuiStyle` into the element's `TuiExt::inline_style` slot. The
 /// cascade then reads it through its existing inline rung — beating
 /// every author rule short of `!important` per the CSS spec.
@@ -115,8 +115,13 @@ fn collect_text_content(dom: &TuiDom, id: NodeId) -> String {
 /// Returns the warnings collected from every inline parse,
 /// concatenated in document order.
 ///
-/// Idempotent: each element's slot is *replaced* by the parse of its
-/// current attribute, so a second call changes nothing. `App::build`
+/// Idempotent: an element whose slot disagrees with its attribute has
+/// the slot *replaced* by the attribute's parse; one whose attribute
+/// already reads as the slot's serialization — a direct style setter or
+/// CSSOM write since, which reflect into the attribute — keeps its slot
+/// exactly (`cssom::inline`, `P7G-SEED-PRESERVE-1`). So a second call
+/// changes nothing, and `set_width` before `App::build` survives it
+/// alongside the markup's own `style` declarations. `App::build`
 /// runs it (discarding the warnings — call it yourself first to see
 /// them), and the CSSOM observer keeps the slots in step with later
 /// `style` writes. Call it directly only for a `TuiDom` cascaded
@@ -126,12 +131,7 @@ pub fn seed_inline_styles(dom: &mut TuiDom) -> Vec<Warning> {
     let mut warnings = Vec::new();
     let candidates = collect_styled_elements(dom);
     for id in candidates {
-        let Some(text) = dom.node(id).get_attribute("style").map(|s| s.to_string()) else {
-            continue;
-        };
-        let result = parse_inline(&text);
-        warnings.extend(result.warnings);
-        dom.node_mut(id).set_inline_style(result.style);
+        warnings.extend(crate::cssom::inline::sync_from_attribute(dom, id));
     }
     warnings
 }

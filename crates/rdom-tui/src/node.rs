@@ -358,93 +358,81 @@ pub(crate) fn install_text_content(
 pub trait TuiNodeMutExt<'a> {
     fn tui_ext_mut(&mut self) -> Option<&mut TuiExt>;
 
-    // Geometry setters write the element's **inline style** (the cascade
-    // input) and mark it style-dirty, so the next cascade carries them
-    // into `ComputedStyle` — the only thing layout reads. (Before
-    // `EXT-LAYOUT-SETTERS-1` these wrote raw `ext` fields that layout
-    // ignored, so the setters silently did nothing for layout.)
-    fn set_width(&mut self, w: Size) -> &mut Self {
+    /// Apply `f` to the element's inline declarations — the one write
+    /// path under every setter below. `NodeMut`'s implementation also
+    /// reflects the result into the `style` attribute, as a CSSOM write
+    /// does (`cssom::inline`, `P7G-SETTER-MUTATION-1`): that attribute
+    /// write is the DOM mutation the `App`'s dirty tracker restyles
+    /// from, so a setter called from a listener, timer or injected
+    /// closure reaches the next frame. The default, for an implementor
+    /// with no DOM access, writes the `TuiExt` slot only and marks it
+    /// style-dirty; nothing is queued for an `App`'s next cascade.
+    fn write_inline_style(&mut self, f: impl FnOnce(&mut TuiStyle)) {
         if let Some(e) = self.tui_ext_mut() {
-            e.inline_style_mut().width = Some(Value::Specified(w));
+            f(e.inline_style_mut());
             e.style_dirty = true;
         }
+    }
+
+    // Geometry setters write the element's **inline style** (the cascade
+    // input) through `write_inline_style`, so the next cascade carries
+    // them into `ComputedStyle` — the only thing layout reads. (Before
+    // `EXT-LAYOUT-SETTERS-1` these wrote raw `ext` fields that layout
+    // ignored.) On a `NodeMut` each call also rewrites the `style`
+    // attribute.
+    fn set_width(&mut self, w: Size) -> &mut Self {
+        self.write_inline_style(|s| s.width = Some(Value::Specified(w)));
         self
     }
     fn set_height(&mut self, h: Size) -> &mut Self {
-        if let Some(e) = self.tui_ext_mut() {
-            e.inline_style_mut().height = Some(Value::Specified(h));
-            e.style_dirty = true;
-        }
+        self.write_inline_style(|s| s.height = Some(Value::Specified(h)));
         self
     }
     fn set_min_width(&mut self, v: Option<rdom_style::layout::MinSize>) -> &mut Self {
-        if let Some(e) = self.tui_ext_mut() {
-            e.inline_style_mut().min_width = v.map(Value::Specified);
-            e.style_dirty = true;
-        }
+        self.write_inline_style(|s| s.min_width = v.map(Value::Specified));
         self
     }
     fn set_max_width(&mut self, v: Option<u16>) -> &mut Self {
-        if let Some(e) = self.tui_ext_mut() {
-            e.inline_style_mut().max_width = v.map(Value::Specified);
-            e.style_dirty = true;
-        }
+        self.write_inline_style(|s| s.max_width = v.map(Value::Specified));
         self
     }
     fn set_min_height(&mut self, v: Option<rdom_style::layout::MinSize>) -> &mut Self {
-        if let Some(e) = self.tui_ext_mut() {
-            e.inline_style_mut().min_height = v.map(Value::Specified);
-            e.style_dirty = true;
-        }
+        self.write_inline_style(|s| s.min_height = v.map(Value::Specified));
         self
     }
     fn set_max_height(&mut self, v: Option<u16>) -> &mut Self {
-        if let Some(e) = self.tui_ext_mut() {
-            e.inline_style_mut().max_height = v.map(Value::Specified);
-            e.style_dirty = true;
-        }
+        self.write_inline_style(|s| s.max_height = v.map(Value::Specified));
         self
     }
     fn set_direction(&mut self, d: Direction) -> &mut Self {
-        if let Some(e) = self.tui_ext_mut() {
-            e.inline_style_mut().direction = Some(Value::Specified(d));
-            e.style_dirty = true;
-        }
+        self.write_inline_style(|s| s.direction = Some(Value::Specified(d)));
         self
     }
     fn set_padding(&mut self, p: Padding) -> &mut Self {
-        if let Some(e) = self.tui_ext_mut() {
-            e.inline_style_mut().padding = Some(Value::Specified(p));
-            e.style_dirty = true;
-        }
+        self.write_inline_style(|s| s.padding = Some(Value::Specified(p)));
         self
     }
     fn set_border(&mut self, b: Border) -> &mut Self {
-        if let Some(e) = self.tui_ext_mut() {
-            e.inline_style_mut().border = Some(Value::Specified(b));
-            e.style_dirty = true;
-        }
+        self.write_inline_style(|s| s.border = Some(Value::Specified(b)));
         self
     }
     fn set_gap(&mut self, g: u16) -> &mut Self {
-        if let Some(e) = self.tui_ext_mut() {
-            e.inline_style_mut().gap = Some(Value::Specified(crate::layout::GapValue::Cells(g)));
-            e.style_dirty = true;
-        }
+        self.write_inline_style(|s| {
+            s.gap = Some(Value::Specified(crate::layout::GapValue::Cells(g)))
+        });
         self
     }
     fn set_overflow(&mut self, o: Overflow) -> &mut Self {
-        if let Some(e) = self.tui_ext_mut() {
-            e.inline_style_mut().overflow_x = Some(Value::Specified(o));
-            e.inline_style_mut().overflow_y = Some(Value::Specified(o));
-            e.style_dirty = true;
-        }
+        self.write_inline_style(|s| {
+            s.overflow_x = Some(Value::Specified(o));
+            s.overflow_y = Some(Value::Specified(o));
+        });
         self
     }
-    fn set_inline_style(&mut self, s: TuiStyle) -> &mut Self {
-        if let Some(e) = self.tui_ext_mut() {
-            e.set_inline_style(s);
-        }
+    /// Replace the inline declarations wholesale (an empty style clears
+    /// them); reflected into `style` like the other setters.
+    fn set_inline_style(&mut self, style: TuiStyle) -> &mut Self {
+        self.write_inline_style(|s| *s = style);
         self
     }
     fn set_before_content(&mut self, text: impl Into<String>) -> &mut Self {
@@ -488,6 +476,11 @@ pub trait TuiNodeMutExt<'a> {
 impl<'a> TuiNodeMutExt<'a> for NodeMut<'a, TuiExt> {
     fn tui_ext_mut(&mut self) -> Option<&mut TuiExt> {
         self.ext_mut()
+    }
+
+    fn write_inline_style(&mut self, f: impl FnOnce(&mut TuiStyle)) {
+        let id = self.id();
+        crate::cssom::inline::write_inline_style(self.dom_mut(), id, f);
     }
 }
 

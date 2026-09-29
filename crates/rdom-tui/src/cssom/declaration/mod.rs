@@ -42,6 +42,8 @@ pub use error::SetPropertyError;
 pub use read::StyleDeclaration;
 pub use write::StyleDeclarationMut;
 
+pub(crate) use serialize::css_text_of;
+
 /// Helper for [`crate::TuiAccessors::style`] — constructs a
 /// snapshot declaration view of `node`'s inline style. Returns
 /// `None` for non-element nodes (those without a `TuiExt`).

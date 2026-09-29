@@ -245,11 +245,15 @@ dom.cascade_subtrees(&sheet, &roots);
 tree insertions/removals (with sibling-dependent re-matching for
 `:first-child`, `+`, `~`), hover / active / focus changes (the
 previous and next targets' ancestor chains, minus their common part),
-and stylesheet swap. Text-content changes do NOT
-dirty — text doesn't affect selector matching.
+and stylesheet swap. Text-content changes dirty only the elements
+whose `:empty` / `:placeholder-shown` they can flip; they (and
+selection moves) set flags an `App` turns into a layout / repaint.
 
-Bypass the observer (e.g. writing `TuiExt.inline_style` directly via
-`set_inline_style`)? Call `tracker.mark_dirty(&mut dom, id)` manually.
+The `TuiNodeMutExt` style setters (`set_width`, `set_padding`, …,
+`set_inline_style`) reflect into the `style` attribute like a CSSOM
+write, so the tracker sees them. Bypass the observer (e.g. writing a
+`TuiExt` field directly, such as `TuiExt::set_inline_style`)? Call
+`tracker.mark_dirty(&mut dom, id)` manually.
 
 ## `!important` ladder
 

@@ -9,6 +9,7 @@ use rdom_style::property_dispatch;
 use super::SetPropertyError;
 use super::serialize::css_text_of;
 use crate::TuiExt;
+use crate::cssom::inline::{sync_from_attribute, write_style_attribute};
 
 /// Write-only handle to an element's inline `TuiStyle` — the
 /// CSSOM `setter` half of `el.style`.
@@ -123,6 +124,9 @@ impl<'a> StyleDeclarationMut<'a> {
     pub fn remove_property(&mut self, name: &str) -> rdom_core::Result<String> {
         let id = self.node.id();
         let dom = self.node.dom_mut();
+        // Build on the declarations the attribute states
+        // (`cssom::inline`, `P7G-SEED-PRESERVE-1`).
+        sync_from_attribute(dom, id);
         let mut nm = dom.node_mut(id);
         let Some(ext) = nm.ext_mut() else {
             return Ok(String::new());
@@ -185,6 +189,9 @@ impl<'a> StyleDeclarationMut<'a> {
     ) -> Result<(), SetPropertyError> {
         let id = self.node.id();
         let dom = self.node.dom_mut();
+        // Build on the declarations the attribute states
+        // (`cssom::inline`, `P7G-SEED-PRESERVE-1`).
+        sync_from_attribute(dom, id);
         let mut nm = dom.node_mut(id);
         let Some(ext) = nm.ext_mut() else {
             return Ok(());
@@ -231,17 +238,4 @@ fn swallow_parse_errors(result: Result<(), SetPropertyError>) -> rdom_core::Resu
         Ok(()) | Err(SetPropertyError::Parse(_)) => Ok(()),
         Err(SetPropertyError::Tree(e)) => Err(e),
     }
-}
-
-/// Write the `style="…"` attribute under the
-/// `CSSOM_REENTRY` guard so the inline-style observer (step 28)
-/// doesn't re-parse what we just serialized. Drop semantics
-/// restore the guard even on panic.
-fn write_style_attribute(
-    dom: &mut crate::TuiDom,
-    id: rdom_core::NodeId,
-    css_text: &str,
-) -> rdom_core::Result<()> {
-    let _g = crate::cssom::reentry::ReentryGuard::enter();
-    dom.set_attribute(id, "style", css_text)
 }

@@ -71,7 +71,7 @@
 //! ## Dedupe policy
 //!
 //! When marking `X` dirty, we check whether any ancestor of `X` is
-//! already dirty (and in the roots list). If yes, the ancestor will
+//! already in the roots list. If yes, the ancestor will
 //! re-cascade the whole subtree including `X`, so we skip pushing.
 //! This keeps the roots list small even under bursts of mutations.
 
@@ -214,9 +214,11 @@ impl DirtyTracker {
     }
 
     /// Manually mark a subtree dirty. Escape hatch for cases the
-    /// `MutationObserver` doesn't cover — most importantly, writing
-    /// `TuiExt.inline_style` directly via `set_inline_style` (which
-    /// mutates the ext data, not DOM state, so no `Mutation` fires).
+    /// `MutationObserver` doesn't cover — a direct write to a `TuiExt`
+    /// field the cascade reads, such as `TuiExt::set_inline_style`
+    /// (which mutates the ext data, not DOM state, so no `Mutation`
+    /// fires). The `TuiNodeMutExt` setters on a `NodeMut` reflect into
+    /// the `style` attribute and need no manual mark.
     ///
     /// Behavior matches the automatic path: flips `style_dirty` on the
     /// node, dedupes against dirty ancestors, pushes to the roots list
@@ -481,7 +483,7 @@ fn complex_uses_siblings(c: &rdom_core::selectors::ComplexSelector) -> bool {
 
 /// Mark `id`'s subtree as dirty. Sets `style_dirty=true` on the node
 /// itself and pushes it to the roots worklist — unless an ancestor is
-/// already a dirty root (the ancestor's cascade will re-cascade us).
+/// already a queued root (the ancestor's cascade will re-cascade us).
 fn mark_style_dirty(dom: &mut Dom<TuiExt>, state: &mut DirtyState, id: NodeId) {
     // Non-element nodes (text/comment/fragment root) don't have a TuiExt
     // and don't participate in the cascade directly. But their parent
@@ -490,13 +492,16 @@ fn mark_style_dirty(dom: &mut Dom<TuiExt>, state: &mut DirtyState, id: NodeId) {
         return;
     }
 
-    // Walk ancestors. If any ancestor already has style_dirty, its
-    // cascade covers us — don't push to roots, but still flip our flag
-    // for completeness.
+    // Walk ancestors. If any ancestor is a queued root, its cascade
+    // covers us — don't push to roots, but still flip our flag for
+    // completeness. The test is roots-set membership, not the
+    // ancestor's `style_dirty` flag: a flag set without a queued root
+    // (a direct `TuiExt` write, a stale flag) would otherwise swallow
+    // every root below it (`P7G-SETTER-MUTATION-1`).
     let mut ancestor_dirty = false;
     let mut cur = dom.node(id).parent_node().map(|p| p.id());
     while let Some(a) = cur {
-        if dom.node(a).ext().is_some_and(|e| e.style_dirty) {
+        if state.roots_set.contains(&a) {
             ancestor_dirty = true;
             break;
         }
@@ -1035,23 +1040,34 @@ mod tests {
 
     #[test]
     fn inline_style_setter_marks_dirty() {
-        // TuiNodeMutExt::set_inline_style writes to the TuiExt directly —
-        // no rdom-core mutation fires. So the dirty tracker CANNOT see
-        // it. Document this limitation: callers who set inline_style
-        // must also call dom.mark_style_dirty manually, OR mutate via
-        // DOM operations (set_attribute, add_class) that flow through
-        // the observer.
-        //
-        // For now: call tracker.mark_dirty(&mut dom, id) manually to
-        // fire invalidation; see the positive test below.
+        // `P7G-SETTER-MUTATION-1`: `TuiNodeMutExt::set_inline_style`
+        // (like every direct style setter) reflects into the `style`
+        // attribute, so the tracker sees an `AttributeChanged` and
+        // queues the element — no manual `mark_dirty` needed.
         let mut dom: TuiDom = TuiDom::new();
         let div = dom.create_element("div");
         dom.append_child(dom.root(), div).unwrap();
         let tracker = DirtyTracker::install(&mut dom);
         dom.node_mut(div)
             .set_inline_style(TuiStyle::new().fg(Color::Rgb(255, 0, 0)));
-        // No mutation fired → no dirty roots.
-        assert!(tracker.take_roots().is_empty());
+        assert_eq!(tracker.take_roots(), vec![div]);
+    }
+
+    /// `P7G-SETTER-MUTATION-1`: the dedupe skips a node only when an
+    /// ancestor is a queued root. An ancestor whose `style_dirty` flag is
+    /// set without being queued (a stale flag, a direct `TuiExt` write)
+    /// no longer swallows the roots below it.
+    #[test]
+    fn an_unqueued_dirty_flag_above_does_not_swallow_a_root() {
+        let mut dom: TuiDom = TuiDom::new();
+        let outer = dom.create_element("div");
+        let inner = dom.create_element("div");
+        dom.append_child(dom.root(), outer).unwrap();
+        dom.append_child(outer, inner).unwrap();
+        let tracker = DirtyTracker::install(&mut dom);
+        dom.node_mut(outer).ext_mut().unwrap().style_dirty = true;
+        dom.set_attribute(inner, "data-x", "1").unwrap();
+        assert!(tracker.take_roots().contains(&inner));
     }
 
     #[test]

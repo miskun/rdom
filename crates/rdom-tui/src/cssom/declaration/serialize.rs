@@ -26,7 +26,7 @@ use rdom_style::property_dispatch;
 /// preserve "only padding-top was set" via per-side independent
 /// storage; rdom v1 normalizes to the shorthand. Round-trip stays
 /// lossless.
-pub(super) fn css_text_of(style: &TuiStyle) -> String {
+pub(crate) fn css_text_of(style: &TuiStyle) -> String {
     let mut out = String::new();
     for &name in property_dispatch::property_names() {
         // Suppress longhand emission when its shorthand fires —

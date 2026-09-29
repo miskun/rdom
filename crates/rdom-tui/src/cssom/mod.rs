@@ -39,6 +39,8 @@ pub mod apply;
 pub mod declaration;
 pub mod observer;
 
+pub(crate) mod inline;
+
 // Build-script-generated camelCase aliases on `StyleDeclaration`
 // — `el.style().color()`, `el.style().background_color()`, etc.
 // One method per name in `property_dispatch::property_names()`.
