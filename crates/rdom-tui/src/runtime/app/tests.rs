@@ -898,6 +898,50 @@ fn context_queue_dispatch_of_a_clone_taken_in_a_listener_dispatches() {
     assert_eq!(fired.get(), 2, "the queued clone dispatched");
 }
 
+/// `P7G-QUEUED-INFLIGHT-1`: an event moved out of a dispatch in
+/// progress (`mem::replace(ctx.event, …)`) still carries that
+/// dispatch's flags. The queue runs after that dispatch ended — when on
+/// the web the same object dispatches again — so queueing it dispatches
+/// a fresh copy instead of panicking on the in-flight check.
+#[test]
+fn context_queue_dispatch_of_an_event_moved_out_of_a_dispatch_dispatches() {
+    use rdom_core::Event;
+
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let btn = dom.create_element("btn");
+    dom.append_child(root, btn).unwrap();
+
+    let fired = Rc::new(Cell::new(0));
+    let stash = Rc::new(std::cell::RefCell::new(None::<Event>));
+    {
+        let (fired, stash) = (fired.clone(), stash.clone());
+        dom.add_event_listener(btn, "ping", ListenerOptions::default(), move |ctx| {
+            fired.set(fired.get() + 1);
+            if stash.borrow().is_none() && fired.get() == 1 {
+                let moved = std::mem::replace(ctx.event, Event::new("ping"));
+                *stash.borrow_mut() = Some(moved);
+            }
+        })
+        .unwrap();
+    }
+
+    let (btn_id, s) = (btn, stash.clone());
+    let mut app = test_app(dom, Stylesheet::bare(), Rect::new(0, 0, 20, 5)).on_tick(move |ctx| {
+        if let Some(moved) = s.borrow_mut().take() {
+            ctx.queue_dispatch(btn_id, moved);
+        } else {
+            ctx.dispatch(btn_id, &mut Event::new("ping"))
+                .expect("live target");
+        }
+        ControlFlow::Continue
+    });
+    app.tick();
+    assert_eq!(fired.get(), 1);
+    app.tick();
+    assert_eq!(fired.get(), 2, "the queued event dispatched");
+}
+
 // ── AppHandle (3.B) ─────────────────────────────────────────────────
 
 #[test]

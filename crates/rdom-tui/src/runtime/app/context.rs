@@ -161,8 +161,35 @@ impl<'a> AppContext<'a> {
     /// A `target` dropped before the queue runs is skipped: there is
     /// nothing left to dispatch at. A clone of an in-flight event is a
     /// fresh event (see [`Event`]'s "Cloning"), so a listener may
-    /// queue one.
+    /// stash one for queueing. An event *moved* out of a dispatch in
+    /// progress (`mem::replace(ctx.event, …)`) still carries that
+    /// dispatch's flags; the queue runs after that dispatch ended —
+    /// when on the web the same object dispatches again rather than
+    /// throwing `InvalidStateError` — so it is dispatched as its clone,
+    /// `new Event(e.type, e)` (`P7G-QUEUED-INFLIGHT-1`). No queued event
+    /// panics the runtime.
     pub fn queue_dispatch(&mut self, target: NodeId, event: Event) {
         self.queued_dispatches.push((target, event));
+    }
+}
+
+/// Run the dispatches [`AppContext::queue_dispatch`] queued, in order
+/// (the tick's and the injected closures' queues share it). A dropped
+/// target is skipped; an event still flagged by a finished dispatch it
+/// was moved out of is dispatched as a fresh copy (see
+/// `queue_dispatch`).
+pub(super) fn run_queued_dispatches(dom: &mut TuiDom, queued: Vec<(NodeId, Event)>) {
+    for (target, mut event) in queued {
+        match dom.dispatch_event(target, &mut event) {
+            Ok(()) | Err(rdom_core::DomError::InvalidNode(_)) => {}
+            Err(rdom_core::DomError::InvalidState(_)) => {
+                let mut fresh = event.clone();
+                crate::tui_event::dispatch_event_to_live(dom, target, &mut fresh);
+            }
+            Err(e) => panic!(
+                "dispatching a queued `{}` event failed: {e:?}",
+                event.event_type
+            ),
+        }
     }
 }

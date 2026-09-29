@@ -241,10 +241,7 @@ impl<B: Backend> App<B> {
         // before the next event poll, matching the HTML microtask
         // queue. Each dispatch may itself mutate the DOM, triggering
         // DirtyTracker updates.
-        for (target, mut event) in queued {
-            // A target dropped before the queue ran is skipped.
-            crate::tui_event::dispatch_event_to_live(&mut self.dom, target, &mut event);
-        }
+        super::context::run_queued_dispatches(&mut self.dom, queued);
     }
 
     /// Pull flags from the shared state into the local ones. Called
@@ -276,9 +273,6 @@ impl<B: Backend> App<B> {
             let intents = std::mem::take(&mut ctx.stylesheet_intents);
             self.apply_stylesheet_intents(intents);
         }
-        for (target, mut event) in queued {
-            // A target dropped before the queue ran is skipped.
-            crate::tui_event::dispatch_event_to_live(&mut self.dom, target, &mut event);
-        }
+        super::context::run_queued_dispatches(&mut self.dom, queued);
     }
 }
