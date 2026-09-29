@@ -65,6 +65,7 @@ pub(crate) fn set_smooth(ext: &mut TuiExt, smooth: Option<SmoothScroll>) {
     if smooth.is_none() && ext.scroll_state.is_none() {
         return;
     }
+    crate::runtime::state_writes::note();
     state_mut(ext).smooth = smooth;
 }
 

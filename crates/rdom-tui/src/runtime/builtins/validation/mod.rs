@@ -148,6 +148,8 @@ pub fn set_custom_validity(dom: &mut TuiDom, id: NodeId, message: &str) {
     let Some(ext) = node.ext_mut() else {
         return;
     };
+    // No mutation reports it; the App's validity check must still run.
+    crate::runtime::state_writes::note();
     if message.is_empty() {
         if let Some(state) = ext.form_state.existing_mut() {
             state.custom_validity.clear();

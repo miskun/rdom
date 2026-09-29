@@ -184,13 +184,30 @@ impl<B: Backend> App<B> {
         // One checkpoint for anything queued since the last task; each
         // pump then checkpoints after every callback it runs (HTML
         // §8.1.7.3), so nothing is left for a trailing drain.
-        let mut ran = t::drain_microtasks(&sched, &mut self.dom);
-        ran |= t::pump_timeouts(&sched, &mut self.dom);
+        // The callbacks count as having touched the App only when they
+        // left evidence of a change (`P7G-TICK-TOUCHED-1`): an interval
+        // that fires and changes nothing leaves the next frame's
+        // whole-tree checks skipped.
+        let before = self.change_evidence();
+        t::drain_microtasks(&sched, &mut self.dom);
+        t::pump_timeouts(&sched, &mut self.dom);
         let due = sched.borrow().drain_expired_interval_ids();
-        ran |= !due.is_empty();
         t::pump_intervals(&sched, &mut self.dom, &due);
-        ran |= t::pump_raf(&sched, &mut self.dom);
-        self.prelude.touched |= ran;
+        t::pump_raf(&sched, &mut self.dom);
+        self.prelude.touched |= self.change_evidence() != before;
+    }
+
+    /// Evidence that code the App ran changed what the frame's
+    /// whole-tree checks read (`P7G-TICK-TOUCHED-1`): the mutation
+    /// records the dirty tracker observed, and the runtime-managed
+    /// `TuiExt` writes no mutation reports (`runtime::state_writes`:
+    /// scroll offsets through the scroll API, smooth scrolls, custom
+    /// validity). Compared before and after a callback.
+    fn change_evidence(&self) -> (u64, u64) {
+        (
+            self.tracker.records_seen(),
+            crate::runtime::state_writes::generation(),
+        )
     }
 
     /// Advance the virtual scheduler clock by `ms` and service everything that
@@ -220,7 +237,10 @@ impl<B: Backend> App<B> {
         let Some(mut cb) = self.on_tick.take() else {
             return;
         };
-        self.prelude.touched = true;
+        // Touched only on evidence of a change: the documented pattern of
+        // draining an (often empty) channel here must not walk the tree
+        // every tick (`P7G-TICK-TOUCHED-1`).
+        let before = self.change_evidence();
         // Install the scheduler thread-local so on_tick handlers
         // can use the `TuiTimers` extension surface too (apps
         // that schedule fade-outs from a tick callback, etc.).
@@ -229,6 +249,8 @@ impl<B: Backend> App<B> {
             let mut ctx = AppContext::new(&mut self.dom, &mut self.stylesheet_ids);
             let flow = cb(&mut ctx);
             self.redraw.note_if(ctx.redraw_requested, Redraw::Cascade);
+            // A `request_redraw` may follow a direct `TuiExt` write.
+            self.prelude.touched |= ctx.redraw_requested;
             self.should_quit |= ctx.quit_requested || flow == ControlFlow::Quit;
             (
                 std::mem::take(&mut ctx.queued_dispatches),
@@ -242,6 +264,7 @@ impl<B: Backend> App<B> {
         // queue. Each dispatch may itself mutate the DOM, triggering
         // DirtyTracker updates.
         super::context::run_queued_dispatches(&mut self.dom, queued);
+        self.prelude.touched |= self.change_evidence() != before;
     }
 
     /// Pull flags from the shared state into the local ones. Called
@@ -261,18 +284,21 @@ impl<B: Backend> App<B> {
         if injections.is_empty() {
             return;
         }
-        self.prelude.touched = true;
+        // As for `on_tick`: touched on evidence of a change only.
+        let before = self.change_evidence();
         let _current = crate::runtime::timers::SchedulerGuard::install(&self.scheduler);
         let mut queued = Vec::new();
         for f in injections {
             let mut ctx = AppContext::new(&mut self.dom, &mut self.stylesheet_ids);
             f(&mut ctx);
             self.redraw.note_if(ctx.redraw_requested, Redraw::Cascade);
+            self.prelude.touched |= ctx.redraw_requested;
             self.should_quit |= ctx.quit_requested;
             queued.extend(std::mem::take(&mut ctx.queued_dispatches));
             let intents = std::mem::take(&mut ctx.stylesheet_intents);
             self.apply_stylesheet_intents(intents);
         }
         super::context::run_queued_dispatches(&mut self.dom, queued);
+        self.prelude.touched |= self.change_evidence() != before;
     }
 }

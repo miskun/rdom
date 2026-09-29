@@ -86,12 +86,16 @@ pub(super) struct FramePrelude {
     /// on the scheduler clock; `None` when no scroll container is
     /// animating.
     pub(super) smooth_scroll_next: Option<Instant>,
-    /// Code that may have changed the tree or runtime-managed `TuiExt`
-    /// state (scroll offsets, a custom validity, a user edit) ran since
-    /// the last frame's checks: an event, a timer / microtask / rAF
-    /// callback, an injected closure, the `on_tick` callback, a
-    /// stylesheet change, or `dom_mut()` access. The whole-tree stages
-    /// run only then, so an idle tick walks nothing (`P7G-IDLE-WALKS-1`).
+    /// Something may have changed the tree or runtime-managed `TuiExt`
+    /// state (scroll offsets, a custom validity, a user edit) since the
+    /// last frame's checks: an input event, a stylesheet change,
+    /// `dom_mut()` access, or a timer / microtask / rAF callback, an
+    /// injected closure or the `on_tick` callback that left evidence of
+    /// a change — a mutation record, a runtime-managed state write
+    /// (`runtime::state_writes`), a `request_redraw`
+    /// (`P7G-TICK-TOUCHED-1`). The whole-tree stages run only then, so
+    /// an idle tick — or an `on_tick` that finds nothing to do — walks
+    /// nothing (`P7G-IDLE-WALKS-1`).
     pub(super) touched: bool,
 }
 

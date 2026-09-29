@@ -79,6 +79,7 @@ pub(super) fn set_scroll_with(
         false
     };
     if changed {
+        crate::runtime::state_writes::note();
         // M5 D5: scrollbar drag dispatches `scroll` like wheel +
         // programmatic mutation. Only fires when the offset
         // actually moved (dragging at the rail end is a no-op).
@@ -130,6 +131,7 @@ pub(crate) fn write_offsets(dom: &mut TuiDom, element: NodeId, x: i32, y: i32) -
         None => false,
     };
     if changed {
+        crate::runtime::state_writes::note();
         // `scroll`: bubbles, NOT cancelable per HTML.
         let mut tui = crate::TuiEvent::new("scroll");
         tui.event.cancelable = false;

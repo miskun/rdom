@@ -320,11 +320,14 @@ pub struct TuiExt {
     /// through [`TuiAccessorsMut`](crate::TuiAccessorsMut)
     /// (`set_scroll_left`, `scroll_to`, …), which clamps it, fires
     /// `scroll` and honors `scroll-behavior`. A direct write — through
-    /// `App::dom_mut`, or from a listener, timer or injected closure —
-    /// still repaints on the `App`'s next frame (`P7-SCROLL-REPAINT-1`;
-    /// the App checks offsets after such code ran, `P7G-IDLE-WALKS-1`)
-    /// and is clamped by the next layout, but fires no `scroll` event
-    /// and leaves a smooth scroll in flight running.
+    /// `App::dom_mut`, or from an input event's listener — still
+    /// repaints on the `App`'s next frame (`P7-SCROLL-REPAINT-1`; the
+    /// App checks offsets after such code ran, `P7G-IDLE-WALKS-1`), as
+    /// does one from a timer, injected closure or `on_tick` that also
+    /// left evidence of a change (a mutation, `request_redraw`;
+    /// `P7G-TICK-TOUCHED-1`). It is clamped by the next layout, but
+    /// fires no `scroll` event and leaves a smooth scroll in flight
+    /// running.
     pub scroll_x: usize,
     /// Vertical scroll offset in cells. Runtime-managed, as
     /// [`scroll_x`](Self::scroll_x).

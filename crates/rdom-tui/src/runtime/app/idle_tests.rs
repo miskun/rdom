@@ -150,3 +150,72 @@ fn checking_a_radio_still_restyles_its_whole_group() {
     assert_ne!(computed_of(app.dom(), a).fg, RED, "its group is satisfied");
     assert_ne!(computed_of(app.dom(), b).fg, RED);
 }
+
+/// `P7G-TICK-TOUCHED-1`: an `on_tick` that runs and changes nothing —
+/// the documented channel-draining pattern on an empty channel — walks
+/// no tree and draws nothing.
+#[test]
+fn an_on_tick_that_changes_nothing_walks_no_tree() {
+    let Page { app, .. } = page();
+    let mut app = app.on_tick(|_: &mut AppContext<'_>| super::ControlFlow::Continue);
+    app.advance(0).unwrap();
+    app.take_frame_stats();
+    for _ in 0..3 {
+        app.tick();
+        app.advance(50).unwrap();
+    }
+    assert_eq!(app.take_frame_stats(), FrameStats::default());
+}
+
+/// `P7G-TICK-TOUCHED-1`: an interval that fires and changes nothing
+/// leaves the App clean too.
+#[test]
+fn an_interval_that_changes_nothing_walks_no_tree() {
+    let Page { mut app, .. } = page();
+    app.scheduler.borrow_mut().set_interval(|_| true, 50);
+    app.advance(0).unwrap();
+    app.take_frame_stats();
+    for _ in 0..3 {
+        app.advance(50).unwrap();
+    }
+    assert_eq!(app.take_frame_stats(), FrameStats::default());
+}
+
+/// `P7G-TICK-TOUCHED-1`: an `on_tick` that mutates still repaints, and
+/// one that sets a custom validity (no DOM mutation) still restyles.
+#[test]
+fn an_on_tick_that_changes_something_still_draws() {
+    let Page {
+        app, name, other, ..
+    } = page();
+    let mut step = 0;
+    let mut app = app.on_tick(move |ctx: &mut AppContext<'_>| {
+        step += 1;
+        match step {
+            1 => {
+                ctx.dom.set_attribute(name, "data-seen", "1").unwrap();
+            }
+            2 => {
+                ctx.dom
+                    .node_mut(other)
+                    .set_custom_validity("taken")
+                    .unwrap();
+            }
+            _ => {}
+        }
+        super::ControlFlow::Continue
+    });
+    app.advance(0).unwrap();
+    app.take_frame_stats();
+    app.tick();
+    app.advance(0).unwrap();
+    assert_eq!(app.take_frame_stats().paints, 1, "a mutation repaints");
+    assert_ne!(computed_of(app.dom(), other).fg, RED);
+    app.tick();
+    app.advance(0).unwrap();
+    assert_eq!(
+        computed_of(app.dom(), other).fg,
+        RED,
+        "a custom validity from on_tick restyles :invalid"
+    );
+}

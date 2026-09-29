@@ -205,6 +205,7 @@ pub(crate) fn clear_user_edited(dom: &mut TuiDom, control: NodeId) {
         .and_then(|e| e.form_state.existing_mut())
     {
         state.value_user_edited = false;
+        crate::runtime::state_writes::note();
     }
 }
 

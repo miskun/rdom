@@ -35,6 +35,7 @@ pub mod router;
 pub mod scrollbar;
 pub mod selection;
 pub mod smooth_scroll;
+pub(crate) mod state_writes;
 pub mod timers;
 pub mod trace;
 pub mod url_opener;

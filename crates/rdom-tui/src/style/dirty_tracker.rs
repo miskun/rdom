@@ -114,6 +114,9 @@ struct DirtyState {
     /// the `::selection` overlay and the caret from `Dom::selection`,
     /// so only a repaint is due. Consumed via `take_selection_dirty()`.
     selection_dirty: bool,
+    /// Records observed since install — evidence that code changed the
+    /// tree (`records_seen`, `P7G-TICK-TOUCHED-1`).
+    records: u64,
     /// The sheets use no `+` / `~` combinator, so a state change cannot
     /// reach a sibling's match (`DirtyTracker::set_sibling_combinators`).
     /// `false` (the conservative default) dirties the siblings.
@@ -197,6 +200,13 @@ impl DirtyTracker {
         !state.roots.is_empty() || state.paint_dirty || state.selection_dirty
     }
 
+    /// How many mutation records the tracker has observed since it was
+    /// installed. The App compares it around a callback to tell whether
+    /// the callback changed the tree (`P7G-TICK-TOUCHED-1`).
+    pub(crate) fn records_seen(&self) -> u64 {
+        self.inner.borrow().records
+    }
+
     /// Registered observer's handle. `None` after `uninstall`.
     pub fn observer_id(&self) -> Option<ObserverId> {
         self.observer_id
@@ -236,6 +246,7 @@ struct Shim {
 impl MutationObserver<TuiExt> for Shim {
     fn observe(&mut self, dom: &mut Dom<TuiExt>, record: &Mutation) {
         let mut state = self.inner.borrow_mut();
+        state.records = state.records.wrapping_add(1);
         match record {
             Mutation::AttributeChanged { id, .. } | Mutation::ClassChanged { id, .. } => {
                 mark_state_dirty(dom, &mut state, *id);
