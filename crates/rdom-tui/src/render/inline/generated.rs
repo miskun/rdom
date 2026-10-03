@@ -70,13 +70,23 @@ pub(crate) fn own_line_pseudos(dom: &Dom<TuiExt>, host: NodeId) -> super::RunPse
     if !is_block_flow_container(dom, host) {
         return super::RunPseudos::default();
     }
-    let visible =
-        |slot| own_inline_pseudo_text(dom, host, slot).is_some_and(|t| !t.trim().is_empty());
+    let visible = visible_inline_pseudos(dom, host);
     let block_edge =
         |from_end| line_bearing_child(dom, host, from_end).is_some_and(|c| is_block_level(dom, c));
     super::RunPseudos {
-        before: visible(StyleSlot::Before) && block_edge(false),
-        after: visible(StyleSlot::After) && block_edge(true),
+        before: visible.before && block_edge(false),
+        after: visible.after && block_edge(true),
+    }
+}
+
+/// Which of `host`'s `::before` / `::after` generate visible inline
+/// text — text a line box would hold wherever the pseudo is placed.
+pub(crate) fn visible_inline_pseudos(dom: &Dom<TuiExt>, host: NodeId) -> super::RunPseudos {
+    let visible =
+        |slot| own_inline_pseudo_text(dom, host, slot).is_some_and(|t| !t.trim().is_empty());
+    super::RunPseudos {
+        before: visible(StyleSlot::Before),
+        after: visible(StyleSlot::After),
     }
 }
 
@@ -169,31 +179,36 @@ fn first_line_holder(dom: &Dom<TuiExt>, el: NodeId) -> Option<NodeId> {
 }
 
 /// `host`'s first (`from_end = false`) or last in-flow child that can
-/// hold content of a line: collapsible whitespace-only text and
-/// comments generate no line box and are skipped.
+/// hold content of a line (see [`bears_line`]).
 fn line_bearing_child(dom: &Dom<TuiExt>, host: NodeId, from_end: bool) -> Option<NodeId> {
-    let collapses = dom
-        .node(host)
-        .computed()
-        .is_none_or(|c| matches!(c.white_space, WhiteSpace::Normal | WhiteSpace::NoWrap));
-    let bears_line = |c: NodeId| {
-        let node = dom.node(c);
-        match node.node_type() {
-            NodeType::Text => {
-                !(collapses
-                    && node
-                        .node_value()
-                        .is_none_or(|t| t.chars().all(char::is_whitespace)))
-            }
-            NodeType::Element => crate::render::layout_pass::is_in_flow(dom, c),
-            _ => false,
-        }
-    };
     let mut children = dom.node(host).child_nodes().map(|c| c.id());
     if from_end {
-        children.filter(|&c| bears_line(c)).last()
+        children.filter(|&c| bears_line(dom, host, c)).last()
     } else {
-        children.find(|&c| bears_line(c))
+        children.find(|&c| bears_line(dom, host, c))
+    }
+}
+
+/// Whether `child`, a child node of `host`, can hold content of a line:
+/// text other than whitespace that `host`'s `white-space` collapses
+/// away, or an in-flow element. Collapsible whitespace-only text,
+/// comments and fragments generate no line box (CSS 2.1 §9.2.1.1 /
+/// §16.6.1), nor do out-of-flow elements.
+pub(crate) fn bears_line(dom: &Dom<TuiExt>, host: NodeId, child: NodeId) -> bool {
+    let node = dom.node(child);
+    match node.node_type() {
+        NodeType::Text => {
+            let collapses = dom
+                .node(host)
+                .computed()
+                .is_none_or(|c| matches!(c.white_space, WhiteSpace::Normal | WhiteSpace::NoWrap));
+            !(collapses
+                && node
+                    .node_value()
+                    .is_none_or(|t| t.chars().all(char::is_whitespace)))
+        }
+        NodeType::Element => crate::render::layout_pass::is_in_flow(dom, child),
+        _ => false,
     }
 }
 

@@ -40,6 +40,8 @@ mod height;
 mod margin_collapse;
 mod width;
 
+use std::collections::HashMap;
+
 use rdom_core::{Dom, NodeId, NodeType};
 
 use crate::ext::{AnonymousIfc, TuiExt};
@@ -120,7 +122,8 @@ pub(super) fn layout_block_children(
     // position (CSS 2.1 §10.3.7 / §10.6.4) from the flow cursor at the
     // point where their hypothetical box would have gone — recorded
     // just before the in-flow sibling that follows them is placed.
-    let (static_before, static_trailing) = super::positioning::static_anchors(dom, &raw_children);
+    let (mut static_before, mut static_trailing) =
+        super::positioning::static_anchors(dom, &raw_children);
     if in_flow.is_empty() {
         // Clear any stale anonymous boxes from a previous layout —
         // matches flex's `ext.inline_layout = None` reset.
@@ -162,6 +165,8 @@ pub(super) fn layout_block_children(
             }),
         }
     }
+
+    let mut runs = drop_lineless_runs(dom, id, runs, &mut static_before, &mut static_trailing);
 
     // CSS 2.1 §9.2.1.1: a `::before` (`::after`) whose host starts
     // (ends) with a block-level child is an inline box with no inline
@@ -645,6 +650,57 @@ impl Run {
             child_range: (at, at),
         }
     }
+}
+
+/// CSS 2.1 §9.2.1.1 / §16.6.1: white space that the `white-space`
+/// property collapses away generates no inline box, so an inline run
+/// holding nothing else — collapsible whitespace-only text, comments —
+/// generates no anonymous block box: no zero-height box between block
+/// siblings to break their margin collapsing, and none for a nested
+/// scroll container to report. A run is kept when it carries the
+/// host's visible `::before` (as the first run) or `::after` (as the
+/// last); the generated text holds a line.
+///
+/// The out-of-flow boxes anchored on a dropped run's children take
+/// their static position from what follows instead: the next kept
+/// run's first child, else the trailing position.
+fn drop_lineless_runs(
+    dom: &Dom<TuiExt>,
+    id: NodeId,
+    runs: Vec<Run>,
+    static_before: &mut HashMap<NodeId, Vec<NodeId>>,
+    static_trailing: &mut Vec<NodeId>,
+) -> Vec<Run> {
+    use crate::render::inline::generated::{bears_line, visible_inline_pseudos};
+    let pseudos = visible_inline_pseudos(dom, id);
+    let last = runs.len().saturating_sub(1);
+    let mut carried: Vec<NodeId> = Vec::new();
+    let mut kept = Vec::with_capacity(runs.len());
+    for (i, run) in runs.into_iter().enumerate() {
+        let holds_line = run.kind == RunKind::Block
+            || run.children.iter().any(|&c| bears_line(dom, id, c))
+            || (i == 0 && pseudos.before)
+            || (i == last && pseudos.after);
+        if !holds_line {
+            for c in &run.children {
+                carried.extend(static_before.remove(c).unwrap_or_default());
+            }
+            continue;
+        }
+        if !carried.is_empty()
+            && let Some(&first) = run.children.first()
+        {
+            let mut anchored = std::mem::take(&mut carried);
+            anchored.extend(static_before.remove(&first).unwrap_or_default());
+            static_before.insert(first, anchored);
+        }
+        kept.push(run);
+    }
+    if !carried.is_empty() {
+        carried.append(static_trailing);
+        *static_trailing = carried;
+    }
+    kept
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

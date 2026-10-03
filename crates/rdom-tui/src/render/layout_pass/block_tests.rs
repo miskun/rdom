@@ -1422,8 +1422,9 @@ fn inline_flow_for_text_resolves_anon_box() {
 
 /// `BFC1-PERF-INLINE-FLOW-LOOKUP-1`: the lookup resolves through the
 /// anonymous box's `child_range`, so text nested in an inline element
-/// finds its box, a second inline run finds the second box, and a
-/// whitespace-only run (no fragments) still maps to its own box.
+/// finds its box and a second inline run finds the second box. A
+/// collapsible whitespace-only run generates no box
+/// (`ANON-WHITESPACE-RUN-1`), so its text has no inline flow.
 #[test]
 fn inline_flow_for_text_resolves_nested_text_and_later_anon_boxes() {
     use crate::render::inline::{InlineFlow, inline_flow_for_text};
@@ -1478,9 +1479,10 @@ fn inline_flow_for_text_resolves_nested_text_and_later_anon_boxes() {
     assert_eq!(inline_flow_for_text(&dom, tail), anon(parent, 1));
     assert_eq!(
         inline_flow_for_text(&dom, blank),
-        anon(parent, 2),
-        "whitespace-only run"
+        None,
+        "a collapsible whitespace-only run has no box"
     );
+    assert_eq!(dom.node(parent).ext().unwrap().anonymous_blocks.len(), 2);
 }
 
 // ── Hit-test integration (phase 3.3) ────────────────────────────
@@ -2887,4 +2889,144 @@ fn first_child_margin_top_stays_inside_a_flex_item() {
     assert_eq!(layout_of(&dom, p).y, 0);
     assert_eq!(layout_of(&dom, c).y, 2);
     assert_eq!(layout_of(&dom, p).height, 3);
+}
+
+// ── ANON-WHITESPACE-RUN-1: collapsible whitespace generates no box ─
+//
+// CSS 2.1 §9.2.1.1 / §16.6.1: white space that the `white-space`
+// property collapses away generates no inline box, so an inline run
+// between block children holding only such white space generates no
+// anonymous block box either.
+
+fn layout_css(dom: &mut TuiDom, css: &str) {
+    dom.cascade(&rdom_css::from_css(css));
+    dom.layout_dom(Rect::new(0, 0, 40, 20));
+}
+
+/// `<w>` holding two `<b>` blocks, with `between` as the text before,
+/// between and after them. Returns `(dom, w, [b1, b2])`.
+fn blocks_separated_by(between: &str) -> (TuiDom, NodeId, [NodeId; 2]) {
+    let mut dom = dom();
+    let root = dom.root();
+    let w = dom.create_element("w");
+    let b1 = dom.create_element("b");
+    let b2 = dom.create_element("b");
+    for child in [None, Some(b1), None, Some(b2), None] {
+        let id = child.unwrap_or_else(|| dom.create_text_node(between));
+        dom.append_child(w, id).unwrap();
+    }
+    dom.append_child(root, w).unwrap();
+    (dom, w, [b1, b2])
+}
+
+const BLOCKS_CSS: &str = "w { display: block; } b { display: block; height: 1; }";
+
+#[test]
+fn collapsible_whitespace_between_blocks_generates_no_anonymous_box() {
+    for white_space in ["normal", "nowrap"] {
+        let (mut dom, w, _) = blocks_separated_by("\n    ");
+        layout_css(
+            &mut dom,
+            &format!("{BLOCKS_CSS} w {{ white-space: {white_space}; }}"),
+        );
+        assert!(
+            anon_blocks_of(&dom, w).is_empty(),
+            "white-space: {white_space}"
+        );
+        assert_eq!(layout_of(&dom, w).height, 2);
+    }
+}
+
+#[test]
+fn text_between_blocks_keeps_its_anonymous_boxes() {
+    let (mut dom, w, [b1, b2]) = blocks_separated_by(" x ");
+    layout_css(&mut dom, BLOCKS_CSS);
+    let anons = anon_blocks_of(&dom, w);
+    assert_eq!(anons.len(), 3, "before, between and after the blocks");
+    assert!(anons.iter().all(|a| a.rect.height == 1));
+    assert_eq!(layout_of(&dom, b1).y, 1);
+    assert_eq!(layout_of(&dom, b2).y, 3);
+}
+
+/// `pre` / `pre-wrap` preserve the white space (CSS Text 3 §4.1.1):
+/// each run holds a line.
+#[test]
+fn preserved_whitespace_between_blocks_keeps_its_anonymous_boxes() {
+    for white_space in ["pre", "pre-wrap"] {
+        let (mut dom, w, _) = blocks_separated_by("\n");
+        layout_css(
+            &mut dom,
+            &format!("{BLOCKS_CSS} w {{ white-space: {white_space}; }}"),
+        );
+        let anons = anon_blocks_of(&dom, w);
+        assert_eq!(anons.len(), 3, "white-space: {white_space}");
+        assert!(
+            anons.iter().all(|a| a.rect.height > 0),
+            "white-space: {white_space}: {anons:?}"
+        );
+    }
+}
+
+/// With no box between them, adjacent siblings' margins collapse
+/// (CSS 2.1 §8.3.1: no line box separates them).
+#[test]
+fn sibling_margins_collapse_across_collapsible_whitespace() {
+    let (mut dom, _, [b1, b2]) = blocks_separated_by("\n    ");
+    layout_css(&mut dom, &format!("{BLOCKS_CSS} b {{ margin: 1 0; }}"));
+    let b1 = layout_of(&dom, b1);
+    assert_eq!(
+        layout_of(&dom, b2).y,
+        b1.y + 1 + 1,
+        "one collapsed 1-row margin between the blocks"
+    );
+}
+
+/// A whitespace-only run that carries the host's visible `::before`
+/// keeps its box: the generated text holds a line. (Driven through
+/// `layout_block_children` directly — `layout_node` sends a host whose
+/// only in-flow content is text down the IFC path.)
+#[test]
+fn whitespace_only_run_carrying_generated_text_keeps_its_box() {
+    let mut dom = dom();
+    let root = dom.root();
+    let w = dom.create_element("w");
+    let blank = dom.create_text_node("   ");
+    dom.append_child(w, blank).unwrap();
+    dom.append_child(root, w).unwrap();
+    let sheet = Stylesheet::bare().rule_unchecked(
+        "w::before",
+        TuiStyle::new().content(crate::style::Content::Str("x".into())),
+    );
+    cascade(&mut dom, &sheet);
+    run_block(&mut dom, w, LayoutRect::new(0, 0, 20, 10));
+    let anons = anon_blocks_of(&dom, w);
+    assert_eq!(anons.len(), 1);
+    assert_eq!(anons[0].rect.height, 1, "the line holding the ::before");
+}
+
+/// An absolutely positioned box between blocks still takes its static
+/// position from the flow when the white space around it is dropped.
+#[test]
+fn absolute_box_between_whitespace_runs_keeps_its_static_position() {
+    let mut dom = dom();
+    let root = dom.root();
+    let w = dom.create_element("w");
+    let b1 = dom.create_element("b");
+    let abs = dom.create_element("a");
+    let b2 = dom.create_element("b");
+    for child in [Some(b1), None, Some(abs), None, Some(b2)] {
+        let id = child.unwrap_or_else(|| dom.create_text_node("\n  "));
+        dom.append_child(w, id).unwrap();
+    }
+    dom.append_child(root, w).unwrap();
+    layout_css(
+        &mut dom,
+        &format!(
+            "{BLOCKS_CSS} w {{ position: relative; }} \
+             a {{ display: block; position: absolute; width: 3; height: 1; }}"
+        ),
+    );
+    assert!(anon_blocks_of(&dom, w).is_empty());
+    assert_eq!(layout_of(&dom, abs).y, 1, "right below the first block");
+    assert_eq!(layout_of(&dom, b2).y, 1);
 }
