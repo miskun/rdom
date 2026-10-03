@@ -10,7 +10,7 @@ per-release notes in [`CHANGELOG.md`](CHANGELOG.md), the architecture in
 
 **0.5.0 shipped 2026-09-29.** [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md) is done: all five
 crates are on crates.io at 0.5.0, tagged `v0.5.0`, and TECH_DEBT has no open or accepted rows. Next on
-the release track: 0.6.0, the client-side routing primitive. The previous program,
+the release track: 0.6.0, CSS completeness ([`specs/CSS-COMPLETE-2026-10.md`](specs/CSS-COMPLETE-2026-10.md)); routing moves to 0.7.0. The previous program,
 [`specs/HARDENING-2026-09.md`](specs/HARDENING-2026-09.md), shipped as 0.4.0.
 
 ## Release track
@@ -23,7 +23,8 @@ the release track: 0.6.0, the client-side routing primitive. The previous progra
 | 0.3.5 – 0.3.14 | 2026-06-03 → 06-06 | `rdom-tui`-only patch line driven by `rdom-virtualtable`: table column sizing, stale-layout fixes, half-block borders, drag-autoscroll and its robustness follow-ups. Latest published: **`rdom-tui` 0.3.14**, tag `rdom-tui-v0.3.14` |
 | 0.4.0 | **released 2026-09-24**, tag `v0.4.0`, all five crates on crates.io | HARDENING-2026-09: generational `NodeId`, spec-correct dispatch and document position, whole-literal CSS numbers, at-rule recovery, CSS-wide keywords, `pointer-events`, scrollable text leaves, flex §9.7, and the rest of the program. Breaking notes in CHANGELOG "0.4.0" |
 | 0.5.0 | **shipped 2026-09-29** | STABILIZE-2026-09: empty TECH_DEBT open list, "stable and complete"; form validation, `:focus-visible`, live `<style>`. Breaking notes in CHANGELOG "0.5.0" |
-| 0.6.0 | planned | Client-side routing primitive (slid from 0.5.0) |
+| 0.6.0 | **in progress** | CSS-COMPLETE-2026-10: every CSS feature meaningful in a terminal; acid test |
+| 0.7.0 | planned | Client-side routing primitive (slid from 0.6.0) |
 | later | — | Async tasks during event handlers; `TABLE-TFC-1` real table formatting context |
 
 ## Open risks
