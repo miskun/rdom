@@ -8,12 +8,15 @@
 //! operates on text nodes — so an `<input>` needs a text-node child
 //! that mirrors the `value` attribute.
 //!
-//! Two integration points keep them in lockstep:
+//! Three integration points keep them in lockstep:
 //!
 //! - [`seed_all`] — walks the DOM once and gives every `<input>` a
 //!   single text-child reflecting its `value` attribute (or empty
 //!   string when absent). Called from `App::build` so parsed pages
 //!   and direct API users land in the same shape.
+//! - `ControlSeeding` — seeds the controls inserted after that, at the
+//!   `App`'s next event or frame boundary, before layout (see
+//!   `seeding`). [`ensure_seeded`] covers a control focused before then.
 //! - [`mirror_to_attribute`] — called after a successful edit on an
 //!   `<input>` text child, copies the new text content back into the
 //!   `value` attribute so `dom.node(input).get_attribute("value")`
@@ -28,8 +31,13 @@
 //!   email, url, tel, search, default). `type="checkbox"` etc. land
 //!   in C.4b and use a different model.
 
+mod seeding;
+
 use rdom_core::NodeId;
 use unicode_segmentation::UnicodeSegmentation;
+
+pub(crate) use seeding::ControlSeeding;
+pub use seeding::{ensure_seeded, seed_all};
 
 use crate::TuiDom;
 use crate::render::paint_pass::ChromeText;
@@ -61,58 +69,6 @@ pub fn set_value(dom: &mut TuiDom, input: NodeId, new_value: &str) {
     // docstring. The canonical helper (`crate::node::install_text_content`)
     // propagates, callers that want the forgiving style swallow here.
     let _ = crate::node::install_text_content(dom, input, new_value);
-}
-
-/// Walk the DOM under `root` and ensure every `<input>` has a
-/// single text-node child whose content matches its `value`
-/// attribute (or `""` if none). Re-seeding an already-seeded input
-/// is idempotent — the text child gets rewritten only when the
-/// attribute and text content disagree, or when no text child
-/// exists at all (caret needs a Text node to live on).
-///
-/// Called from `App::build` so parsed templates (`<input value="x">`
-/// with no text child) and direct-API users (who may forget to
-/// append a text child) both work.
-pub fn seed_all(dom: &mut TuiDom) {
-    let inputs: Vec<NodeId> = collect_inputs(dom, dom.root());
-    for id in inputs {
-        // Only text-family inputs participate in the seed: a
-        // checkbox / radio / submit button has no editable text
-        // surface. What it displays — a toggle's glyph, a button's
-        // `[ label ]` — comes from a UA `::before` content rule.
-        if !crate::node::is_text_input(dom, id) {
-            continue;
-        }
-        let want = dom
-            .node(id)
-            .get_attribute("value")
-            .unwrap_or("")
-            .to_string();
-        let have = value(dom, id);
-        let has_text_child = dom
-            .node(id)
-            .child_nodes()
-            .any(|c| c.node_type() == rdom_core::NodeType::Text);
-        if !has_text_child || want != have {
-            let _ = crate::node::install_text_content(dom, id, &want);
-        }
-        note_default_value(dom, id);
-    }
-
-    // Textareas need an editable text child too. Unlike `<input>`,
-    // a `<textarea>`'s initial content is its existing text child
-    // (no `value` attribute), so we only seed when there isn't one.
-    let textareas: Vec<NodeId> = collect_textareas(dom, dom.root());
-    for id in textareas {
-        let has_text_child = dom
-            .node(id)
-            .child_nodes()
-            .any(|c| c.node_type() == rdom_core::NodeType::Text);
-        if !has_text_child {
-            let _ = crate::node::install_text_content(dom, id, "");
-        }
-        note_default_value(dom, id);
-    }
 }
 
 /// Does `id` keep a `defaultValue` apart from its live value — HTML's
@@ -209,39 +165,6 @@ pub(crate) fn clear_user_edited(dom: &mut TuiDom, control: NodeId) {
     }
 }
 
-/// Ensure a single editable `<input>` / `<textarea>` has its text-node child,
-/// seeding it (from the `value` attribute, for text-family inputs) if missing.
-/// Idempotent.
-///
-/// [`seed_all`] only runs once at `App::build`, so an editable added to the
-/// DOM *after* that (a dynamically-mounted view, a runtime-built form) had no
-/// text child — and editing/caret seeding silently no-op'd against it. The
-/// focus path calls this so a freshly-focused editable is always typeable,
-/// whenever it was created.
-pub fn ensure_seeded(dom: &mut TuiDom, id: NodeId) {
-    let has_text_child = dom
-        .node(id)
-        .child_nodes()
-        .any(|c| c.node_type() == rdom_core::NodeType::Text);
-    if has_text_child {
-        return;
-    }
-    match dom.node(id).tag_name() {
-        Some("input") if crate::node::is_text_input(dom, id) => {
-            let want = dom
-                .node(id)
-                .get_attribute("value")
-                .unwrap_or("")
-                .to_string();
-            let _ = crate::node::install_text_content(dom, id, &want);
-        }
-        Some("textarea") => {
-            let _ = crate::node::install_text_content(dom, id, "");
-        }
-        _ => {}
-    }
-}
-
 /// Mirror the input's current text content into its `value`
 /// attribute. Called from `perform_edit` after a successful edit
 /// commits, so apps reading `get_attribute("value")` always see
@@ -259,31 +182,6 @@ pub fn mirror_to_attribute(dom: &mut TuiDom, editable: NodeId) {
 }
 
 // ── Internals ──────────────────────────────────────────────────────
-
-/// Recursively collect every `<input>` element id under `root`
-/// (inclusive). Used by `seed_all`.
-fn collect_inputs(dom: &TuiDom, root: NodeId) -> Vec<NodeId> {
-    let mut out = Vec::new();
-    walk_by_tag(dom, root, "input", &mut out);
-    out
-}
-
-/// Recursively collect every `<textarea>` element id under `root`
-/// (inclusive). Used by `seed_all`.
-fn collect_textareas(dom: &TuiDom, root: NodeId) -> Vec<NodeId> {
-    let mut out = Vec::new();
-    walk_by_tag(dom, root, "textarea", &mut out);
-    out
-}
-
-fn walk_by_tag(dom: &TuiDom, id: NodeId, tag: &str, out: &mut Vec<NodeId>) {
-    if dom.node(id).tag_name() == Some(tag) {
-        out.push(id);
-    }
-    for child in dom.node(id).child_nodes() {
-        walk_by_tag(dom, child.id(), tag, out);
-    }
-}
 
 /// True iff `id` is `<input type="password">`.
 fn is_password(dom: &TuiDom, id: NodeId) -> bool {

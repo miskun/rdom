@@ -63,7 +63,8 @@ pub trait TuiAccessors<'a> {
     ///
     /// - `<input>` (any type) → the live editing value, mirrored
     ///   from the text-node child seeded by
-    ///   `runtime::builtins::input::seed_all`. For button-family
+    ///   `runtime::builtins::input` (at mount, on insertion, on
+    ///   focus). For button-family
     ///   inputs (`submit`, `reset`, `button`, `hidden`) the seed
     ///   leaves the text child empty, so this returns `""` and
     ///   callers wanting the submit string should read the
@@ -195,8 +196,8 @@ pub trait TuiAccessors<'a> {
     // wrong tag.
 
     /// Live editing value of an `<input>` — mirror of the
-    /// text-node child seeded by
-    /// `runtime::builtins::input::seed_all`. `None` for
+    /// text-node child seeded by `runtime::builtins::input` (at
+    /// mount, on insertion, on focus). `None` for
     /// non-`<input>` elements (including non-element nodes).
     /// Narrow variant of [`Self::value`].
     fn input_value(&self) -> Option<String>;

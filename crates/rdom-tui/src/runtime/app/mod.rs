@@ -56,6 +56,8 @@ mod stylesheets;
 #[cfg(test)]
 mod control_click_tests;
 #[cfg(test)]
+mod control_seeding_tests;
+#[cfg(test)]
 mod frame_work_tests;
 #[cfg(test)]
 mod idle_tests;
@@ -471,8 +473,10 @@ impl<B: Backend> App<B> {
         // motion events are NOT crossing this boundary — i.e.,
         // crossterm itself isn't producing them.
         crate::rdom_trace!("App::handle_event RAW: {event:?}");
-        // Option lists the app changed since the last event: settle the
-        // selects before any default action reads them.
+        // Controls the app inserted since the last event get their text
+        // node, and option lists it changed settle, before any default
+        // action reads them.
+        self.prelude.control_seeding.flush(&mut self.dom);
         self.prelude.selectedness.flush(&mut self.dom);
         self.prelude.touched = true;
         match &event {

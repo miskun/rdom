@@ -113,7 +113,7 @@ impl<B: Backend> App<B> {
             .note_if(tui.event.redraw_requested(), Redraw::Cascade);
         // What the listeners changed through the DOM — restyles, text,
         // selection — the dirty tracker recorded; the next frame reads
-        // it (frame prelude stage 8, `P7G-OFF-EVENT-PAINT-1`).
+        // it (frame prelude stage 9, `P7G-OFF-EVENT-PAINT-1`).
     }
 }
 

@@ -124,11 +124,13 @@ fn seed_caret_for_editable_focus(dom: &mut TuiDom, id: NodeId) {
         return;
     }
 
-    // Ensure the editable has its text-node child. `input::seed_all` only
-    // runs once at `App::build`, so an editable mounted later (a switched-in
-    // view, a runtime-built form) had none — and the caret seed + first
-    // keystroke silently no-op'd. Seed it lazily here so any focused editable
-    // is typeable, whenever it was created.
+    // Ensure the editable has its text-node child. The `App` seeds a
+    // control inserted after `App::build` at its next event or frame
+    // (`input::ControlSeeding`), but one focused before that boundary — a
+    // listener that mounts a form and focuses a field, `[autofocus]` run on
+    // a freshly mounted view, a `TuiDom` with no `App` — has none yet, and
+    // the caret seed + first keystroke would silently no-op. Seed it here so
+    // any focused editable is typeable, whenever it was created.
     crate::runtime::builtins::input::ensure_seeded(dom, id);
 
     // Preserve any pre-existing selection that already lives inside
@@ -141,9 +143,9 @@ fn seed_caret_for_editable_focus(dom: &mut TuiDom, id: NodeId) {
     }
 
     // Find the first Text-node child of `id`. `<input>` and
-    // `<textarea>` always have one after `seed_all` runs (called
-    // from `App::build`); `contenteditable` elements may or may
-    // not — skip seeding if there's none.
+    // `<textarea>` always have one after `ensure_seeded` above;
+    // `contenteditable` elements may or may not — skip seeding if
+    // there's none.
     let text_child = dom
         .node(id)
         .child_nodes()

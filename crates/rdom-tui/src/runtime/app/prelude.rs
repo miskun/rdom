@@ -4,29 +4,32 @@
 //!
 //! [`FramePrelude::run`] is the one place the order is written:
 //!
-//! 1. **`<select>` selectedness** — settle the selects whose options
+//! 1. **control seeding** — give the text controls inserted since the
+//!    last boundary their text node (`input::ControlSeeding`,
+//!    `INPUT-SEED-ON-INSERT-1`), so this frame lays them out with it;
+//! 2. **`<select>` selectedness** — settle the selects whose options
 //!    changed (`select::Selectedness`), so the options it (re)selects
 //!    cascade this frame;
-//! 2. **`<style>` elements** — re-parse the sheets whose text changed
+//! 3. **`<style>` elements** — re-parse the sheets whose text changed
 //!    (`cssom::style_elements`); a change invalidates the cascade
 //!    ([`FramePrelude::sheets_changed`]);
-//! 3. **scroll-focus marker** — move `data-rdom-scroll-focus` to the
+//! 4. **scroll-focus marker** — move `data-rdom-scroll-focus` to the
 //!    container the keyboard scrolls (frames only);
-//! 4. **validity marks** — dirty the elements whose `:valid` /
+//! 5. **validity marks** — dirty the elements whose `:valid` /
 //!    `:invalid` flipped (`validation::ValidityMarks`);
-//! 5. **caret blink** — flip the caret phase (a paint-only change);
-//! 6. **smooth scrolls** — step the scrolls in flight (frames only);
-//! 7. **painted check** — any scroll offset moved since the last paint
+//! 6. **caret blink** — flip the caret phase (a paint-only change);
+//! 7. **smooth scrolls** — step the scrolls in flight (frames only);
+//! 8. **painted check** — any scroll offset moved since the last paint
 //!    lays out and repaints (frames only);
-//! 8. **tracker flags** — a text change the dirty tracker saw lays out
+//! 9. **tracker flags** — a text change the dirty tracker saw lays out
 //!    and repaints, a selection change repaints (frames only; the
 //!    off-frame run leaves them for the next frame).
 //!
-//! Stages 4, 6 and 7 walk the whole tree, so a frame runs them only when
+//! Stages 5, 7 and 8 walk the whole tree, so a frame runs them only when
 //! code ran since the last frame ([`FramePrelude::touched`],
-//! `P7G-IDLE-WALKS-1`) — and 6 also while a smooth scroll is in flight.
+//! `P7G-IDLE-WALKS-1`) — and 7 also while a smooth scroll is in flight.
 //! After the paint, [`FramePrelude::after_paint`] records the painted
-//! offsets stage 7 compares against.
+//! offsets stage 8 compares against.
 
 use std::time::{Duration, Instant};
 
@@ -36,6 +39,7 @@ use super::StylesheetId;
 use super::redraw::Redraw;
 use crate::TuiDom;
 use crate::cssom::style_elements::StyleElements;
+use crate::runtime::builtins::input::ControlSeeding;
 use crate::runtime::builtins::select::Selectedness;
 use crate::runtime::builtins::validation::ValidityMarks;
 use crate::runtime::caret_blink::CaretBlink;
@@ -44,7 +48,7 @@ use crate::style::dirty_tracker::DirtyTracker;
 
 /// Which run of the prelude: a drawn frame's, or the off-frame cascade
 /// and layout of the autoscroll tick (`App::cascade_and_layout`), which
-/// runs stages 1, 2, 4 (always) and 5 only.
+/// runs stages 1, 2, 3, 5 (always) and 6 only.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum PreludeRun {
     Frame,
@@ -68,6 +72,9 @@ pub(super) struct PreludeCx<'a> {
 
 /// The state of the pre-cascade stages.
 pub(super) struct FramePrelude {
+    /// Seeds the text controls inserted after `App::build`; flushed
+    /// before each event and each frame.
+    pub(super) control_seeding: ControlSeeding,
     /// Runs the `<select>` selectedness setting algorithm on selects
     /// whose options were inserted / removed; flushed before each event
     /// and each frame.
@@ -100,10 +107,12 @@ pub(super) struct FramePrelude {
 }
 
 impl FramePrelude {
-    /// Install the prelude's observers on `dom` (selectedness, `<style>`
-    /// elements). Starts touched, so the first frame runs every check.
+    /// Install the prelude's observers on `dom` (control seeding,
+    /// selectedness, `<style>` elements). Starts touched, so the first
+    /// frame runs every check.
     pub(super) fn install(dom: &mut TuiDom) -> Self {
         Self {
+            control_seeding: ControlSeeding::install(dom),
             selectedness: Selectedness::install(dom),
             style_elements: StyleElements::install(dom),
             scroll_focus_marked: None,
@@ -120,12 +129,14 @@ impl FramePrelude {
         let mut walks = 0;
         let frame = run == PreludeRun::Frame;
         // 1.
-        self.selectedness.flush(cx.dom);
+        self.control_seeding.flush(cx.dom);
         // 2.
+        self.selectedness.flush(cx.dom);
+        // 3.
         if self.style_elements.flush(cx.dom) {
             self.sheets_changed(cx.tracker, cx.app_sheets, cx.redraw);
         }
-        // 3.
+        // 4.
         if frame {
             self.mark_scroll_focus(cx.dom);
         }
@@ -137,7 +148,7 @@ impl FramePrelude {
         } else {
             true
         };
-        // 4.
+        // 5.
         if touched {
             let walked = self.validity_marks.flush(
                 cx.dom,
@@ -148,13 +159,13 @@ impl FramePrelude {
             );
             walks += u32::from(walked);
         }
-        // 5. A blink flip only changes what the caret painter reads.
+        // 6. A blink flip only changes what the caret painter reads.
         let flipped = self.caret_blink.update(cx.dom, cx.now);
         cx.redraw.note_if(flipped, Redraw::Paint);
         if !frame {
             return walks;
         }
-        // 6. A smooth scroll starts from code (the scroll API, a scroll
+        // 7. A smooth scroll starts from code (the scroll API, a scroll
         // key) and then steps each animation frame until it lands. The
         // steps' `scroll` listeners run here, before the cascade, so
         // their mutations land in this frame.
@@ -171,7 +182,7 @@ impl FramePrelude {
                 self.touched = true;
             }
         }
-        // 7. Any scroll offset change repaints, whoever wrote it
+        // 8. Any scroll offset change repaints, whoever wrote it
         // (`P7-SCROLL-REPAINT-1`), and lays out again. Only code writes
         // offsets between frames.
         if touched {
@@ -179,12 +190,12 @@ impl FramePrelude {
             walks += 1;
             cx.redraw.note_if(moved, Redraw::Layout);
         }
-        // 8. What the dirty tracker recorded beyond its cascade roots
+        // 9. What the dirty tracker recorded beyond its cascade roots
         // (which the frame drains itself), whoever made the change —
         // a listener, a timer, an injected closure, `dom_mut()`
         // (`P7G-OFF-EVENT-PAINT-1`): text lays out and repaints, a
         // selection move repaints. Last, so the stages' own listeners
-        // (stage 6's `scroll`) are covered.
+        // (stage 7's `scroll`) are covered.
         cx.redraw
             .note_if(cx.tracker.take_paint_dirty(), Redraw::Layout);
         cx.redraw
@@ -192,7 +203,7 @@ impl FramePrelude {
         walks
     }
 
-    /// After a drawn frame: record the painted scroll offsets stage 7
+    /// After a drawn frame: record the painted scroll offsets stage 8
     /// compares against. Only a frame that laid out can have moved one
     /// (layout's clamp, the caret reveal); a paint-only frame draws the
     /// offsets already noted. Returns the walks made.
