@@ -8,7 +8,7 @@ tasks to 0.8.0.
 meaning on a character grid. Rows classed *Not applicable* (fonts, images, sub-cell geometry,
 print, 3D) stay out, each with its one-line reason in `DIVERGENCES.md`.
 
-**Decided exclusions** (spec unstable or at risk, recorded in `DIVERGENCES.md` §3 with the reason):
+**Decided exclusions** (spec unstable or at risk, recorded in `DIVERGENCES.md` §2 with the reason):
 `masonry` / `grid-lanes` (Grid 3 WD, syntax still moving), `:blank` (Selectors 4 marks it at
 risk), `nav-up` / `nav-down` / `nav-left` / `nav-right` (UI 4 at risk). Everything else in the
 audit's two classes is in scope — including `float` / `clear` and a real table formatting context,
@@ -29,7 +29,7 @@ the commit that lands it (`done <sha>`), and the log at the end records phase ga
 
 | Phase | Scope | Status |
 |---|---|---|
-| 0 | Docs truthful: DIVERGENCES contradictions fixed, every undocumented gap listed, roadmap moved | |
+| 0 | Docs truthful: DIVERGENCES contradictions fixed, every undocumented gap listed, roadmap moved | done |
 | 1 | Syntax, cascade, custom properties | |
 | 2 | Values, units, math functions | |
 | 3 | Color | |
@@ -268,3 +268,11 @@ row comes from.
 - 2026-10-03 — Program opened at Miska's request: "address all partials and missing but meaningful
   in a terminal", CSS completeness as 0.6.0 before routing (now 0.7.0). Built from the 307-row
   audit in `CSS-COVERAGE.md` (`ba585c7`).
+- 2026-10-03 — Phase 0 done (C0-CONTRADICTIONS, C0-NOT-SHIPPED): the six `DIVERGENCES.md`
+  statements of `CSS-COVERAGE.md` §6 corrected against the code; the four undocumented rdom
+  extensions of §4 documented; DIVERGENCES §3 rewritten as the complete gap list, grouped by
+  module with item ids; the decided exclusions recorded in §2 (the header above said §3; corrected —
+  they are permanent divergences, not scheduled work); N/A rows grouped into one §1 entry;
+  README roadmap and feature lists corrected. Found while verifying: `marker-side` has no item
+  row (listed under C10-LIST-ITEM); the audit classes color alpha and `direction` N/A while
+  C3-ALPHA and C5-WRITING schedule them — the program's items win.

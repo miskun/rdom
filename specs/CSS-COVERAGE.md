@@ -878,6 +878,9 @@ Also undocumented: the rdom extensions marked `No` in §4.
 
 Found while grounding the rows above; each should be corrected when the related row is decided.
 
+*All six corrected in `DIVERGENCES.md` by CSS-COMPLETE-2026-10 item C0 (2026-10-03); the
+undocumented gaps of §5 and extensions of §4 are now listed there too (§3 and §2 Values).*
+
 1. **`text-decoration: line-through` is said to be unimplemented** (§2 Layout, "`text-align`,
    `vertical-align`, `text-decoration: line-through` are not implemented"). It parses
    (`V/keyword.rs::parse_text_decoration`) and paints as SGR 9 (`CASC/apply.rs`,

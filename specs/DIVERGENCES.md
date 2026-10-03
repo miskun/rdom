@@ -2,11 +2,11 @@
 
 The rdom default rule is: **track the web platform.** WHATWG DOM, CSS Working Group specs, and UI Events are the reference. If a behavior is not listed here, it should match the web platform within the supported subset.
 
-This document collects every deliberate departure in the shipped crates (current line: 0.4.x, heading to 0.5.0 under [`STABILIZE-2026-09.md`](STABILIZE-2026-09.md)). Departures fall into three groups:
+This document collects every deliberate departure in the shipped crates (current line: 0.5.x, heading to 0.6.0 under [`CSS-COMPLETE-2026-10.md`](CSS-COMPLETE-2026-10.md)). Departures fall into three groups:
 
 1. **TUI medium constraints** — fixed by the fact that we render to a character grid.
 2. **Simplifications** — places where rdom keeps a smaller model than the web platform.
-3. **Not yet shipped** — common web features rdom still omits.
+3. **Not yet shipped** — web features rdom still omits, each named with the program item that will ship it.
 
 Roadmap for what's coming next: see [`DESIGN.md`](DESIGN.md#roadmap).
 
@@ -19,18 +19,24 @@ These are intrinsic to terminals. They will not change.
 - **Integer cells only.** No subpixel positioning, no fractional widths, no anti-aliasing. Coordinates are `u16` cells.
 - **Monospaced advance.** Variable-width fonts are out of scope.
 - **No images, no SVG, no pixel painting.** `<canvas>` is a cell-painting escape hatch via `RenderContext`, not a pixel-painting surface.
-- **Length units.** Sizing accepts cells (unitless integers), the flex `fr` unit, and `%` (resolves against the parent's content-area dimension at layout time). `px`, `em`, `rem`, `ch`, and viewport units (`vh`/`vw`) are tokenized but produce a warning and are dropped — they depend on a pixel or font-size concept the terminal grid doesn't have. `%` is *relative* to parent dimensions (which the layout pass already knows), so it ships as a first-class unit.
+- **Length units.** Sizing accepts cells (unitless integers), rdom's flex `fr` unit, and `%` (resolves against the parent's content-area dimension at layout time, on the properties that take it — §3 lists those that still reject it). The absolute units (`px`, `cm`, `mm`, `Q`, `in`, `pt`, `pc`) and the font-relative units (`em`, `rem`, `ex`, `cap`, `ic`) depend on a pixel or a font size the terminal grid does not have: a declaration using them is dropped as an invalid value, with a warning. `ch`, `lh` / `rlh` and the viewport units (`vw`, `vh`, `vmin`, `vmax`, …) are **not** in that group — `1ch` is exactly one column on a monospaced grid, and `vw` / `vh` are percentages of the terminal size rdom already tracks. They are dropped the same way today, as a gap, not a medium constraint (C2-CH, C2-LH, C2-VIEWPORT in §3).
 - **Color.** `Color::Rgb` emits truecolor SGR sequences unconditionally; there is no `COLORTERM` runtime autodetection. A separate 256-color fallback exists as an explicit code path.
 - **UA stylesheet glyphs assume BMP box-drawing support** (U+25xx, U+250x, U+256x). Terminals without these blocks are out of scope.
-- **Tabs in `<pre>` render as a single space.** Full 8-column tab expansion is not implemented.
-- **No bidirectional text (RTL), soft hyphens, `letter-spacing`, `word-spacing`.**
+- **No bidirectional text.** The Unicode bidi algorithm and `unicode-bidi` are out of scope; `direction` / `writing-mode` are scheduled only for the forms a terminal can render (C5-WRITING, §3). Soft hyphens are a gap, not a constraint (C9-BREAKING, §3).
 - **Synchronized output (DEC 2026 BSU/ESU) is always emitted** unless the `no-synchronized-output` feature flag is set.
+- **CSS with no meaning on a character grid.** The *N/A* rows of [`CSS-COVERAGE.md`](CSS-COVERAGE.md). rdom rejects them like any unsupported CSS — the declaration, rule or at-rule is dropped with a warning — and will not implement them:
+  - *Fonts* — the terminal owns the font: one monospaced face at one size. `font-family`, `font-size`, `font-stretch`, `font-size-adjust`, `font-optical-sizing`, `font-kerning`, `font-feature-settings`, `font-variation-settings`, `font-language-override`, `font-synthesis*`, `font-palette`, `font-variant*`; `@font-face`, `@font-feature-values`, `@font-palette-values`. (`font-weight` / `font-style` map onto SGR bold / italic and ship.)
+  - *Images* — there are no pixels to draw them into. `url()`, `<image>`, gradients, `image-set()`, `<resolution>`; `background-image` / `-position` / `-size` / `-repeat` / `-attachment` / `-origin`, `background-blend-mode`, `border-image*`, `list-style-image`, `mask*` / `mask-border*`, `shape-outside` / `shape-margin` / `shape-image-threshold`, `object-fit` / `object-position`, `image-rendering` / `image-orientation` / `image-resolution`.
+  - *Sub-cell geometry* — a cell is the smallest addressable unit, and a glyph cannot be offset, scaled or rotated inside it. Absolute and font-relative length units (above); `letter-spacing` / `word-spacing`; `text-shadow`; `text-emphasis*`; `initial-letter`; `hanging-punctuation`; `text-decoration-thickness` / `text-underline-offset` / `text-underline-position` / `text-decoration-skip*`; `dominant-baseline` / `alignment-baseline` / `baseline-shift` / `baseline-source` (one baseline per row); `display: ruby*`; vertical glyph orientation (`text-orientation`, `text-combine-upright`); `transform` functions other than `translate()`, `rotate`, `scale`, `transform-origin`, `transform-box`; `zoom`; `filter: blur()` / `drop-shadow()`; `box-shadow` blur and spread.
+  - *3D* — a grid has no depth. `transform-style`, `perspective`, `perspective-origin`, `backface-visibility`.
+  - *Print and paged media* — a terminal is one continuous screen. `@page` and the page properties; fragmentation (`break-*`, `page-break-*`, `orphans`, `widows`, `box-decoration-break`); `string-set`, `bookmark-*`, `running()`, `content()`, `leader()`, `target-counter()`; `print-color-adjust`.
+  - *Platform features a terminal app lacks* — speech (`speak`, `voice-*`, `pause*`, `rest*`, `cue*`): no aural output. `:visited`, `:local-link`, `:target`, `:target-within`, `::target-text`: no navigation history or URL fragments. `:autofill`, `:fullscreen`, `:picture-in-picture`, the media-playback pseudo-classes, `:current` / `:past` / `:future`, `::cue`, `::view-transition*`, `::spelling-error` / `::grammar-error`: no autofill, fullscreen, media, timed text, view transitions or spellchecker. `env()` and `forced-color-adjust`: display hardware and modes a terminal does not report. `@namespace` and namespace selectors, `::part()` / `::slotted()`, `:defined` / `:state()` / `:host*`: no XML namespaces, Shadow DOM or custom elements (§2 DOM API shape). `:dir()`: no bidi (above). `::file-selector-button`: `<input type=file>` is not rendered. `input-security`: masking is control behavior here, not styling. `display: run-in`: implemented by no browser. `clip`: superseded by `clip-path`. `@charset`: sources are Rust `&str`, already UTF-8.
 
 ## 2. Simplifications from the web platform
 
 ### Layout
 
-- **Tables are flex rows with a column-sizing pre-pass, not a Table Formatting Context.** `<table>` is block flow, `<tr>` a flex row, cells flex items; `size_columns` (`runtime::builtins::table`) aligns each column from the author widths and the cells' content, keeps that used width apart from author intent (`TABLE-COLSYNC-1`), and settles `colspan` cells by spreading their excess over the spanned columns (CSS 2.2 §17.5.2.2). Not implemented: `rowspan` (rows are independent flex containers; the attribute is ignored), `display: table*` on arbitrary elements, anonymous table-box fixup (a stray `<td>`, a missing `<tr>`), the full §17.5.2 automatic algorithm with min-/max-content redistribution, percentage column widths, and CSS-rule (non-inline, non-`<col>`) cell widths. A real Table Formatting Context is a self-contained milestone to take up when a consumer needs `rowspan` or `display: table`.
+- **Tables are flex rows with a column-sizing pre-pass, not a Table Formatting Context.** `<table>` is block flow, `<tr>` a flex row, cells flex items; `size_columns` (`runtime::builtins::table`) aligns each column from the author widths and the cells' content, keeps that used width apart from author intent (`TABLE-COLSYNC-1`), and settles `colspan` cells by spreading their excess over the spanned columns (CSS 2.2 §17.5.2.2). Not implemented: `rowspan` (rows are independent flex containers; the attribute is ignored), `display: table*` on arbitrary elements, anonymous table-box fixup (a stray `<td>`, a missing `<tr>`), the full §17.5.2 automatic algorithm with min-/max-content redistribution, percentage column widths, and CSS-rule (non-inline, non-`<col>`) cell widths. A real Table Formatting Context is scheduled (C13-TFC, §3).
 - **`border-collapse` is a layout-only, non-inheriting opt-in that applies to any container's direct children, not only `<table>`s.** Three divergence axes from CSS:
   1. *Scope.* CSS restricts `border-collapse: collapse` to `<table>` boxes; rdom honors it on any container (flex or block). Terminal UIs lean on shared-border rendering for non-table chrome.
   2. *Inheritance.* CSS makes `border-collapse` inheritable. rdom makes it non-inheriting. A container that wants its direct children to participate must declare `border-collapse: collapse` itself — no spooky action across subtrees. The reset means demo / consumer subtrees never inherit a chrome's collapse decision implicitly.
@@ -46,60 +52,58 @@ These are intrinsic to terminals. They will not change.
 
 - **`border-style: hidden` is honored as CSS Tables 3 §11.5's kill-switch on any rdom collapse subtree, not only tables.** Wherever `hidden` appears in a border conflict, that direction is suppressed regardless of any other contributor. Same divergence axis as the scope extension above — rdom adopts the table conflict-resolution algorithm wholesale and applies it to the non-table cases the substrate enables.
 - **Border-style support is the full CSS keyword set, with terminal-faithful degradation:** `none`, `hidden`, `solid`, and `double` render with distinct glyphs (`│─┌┐└┘` / `║═╔╗╚╝`). `dashed`, `dotted`, `ridge`, `outset`, `groove`, `inset` parse and rank correctly in conflict resolution but render as `solid` (matching CSS's "render as best you can on this medium" principle — the data model is faithful even where the glyphs aren't yet distinguishable).
-- **Vertical margins collapse in block flow per CSS 2.1 §8.3.1** (`render/layout_pass/block/margin_collapse.rs`): adjacent in-flow siblings; a block and its first / last in-flow child when no padding, border or line box (inline content, an own-line `::before` / `::after`) separates them; empty collapse-through blocks; any number of levels up. Resolution is largest positive plus most negative. As on the web, nothing collapses horizontally, between flex items or inline-level boxes, or across an element that establishes an independent formatting context (flex container, flex item, inline-block, non-visible `overflow`, absolute / fixed position, the root, and each top-level element under the Fragment root). Because the Fragment root lays its children out as flex items, margins between adjacent **top-level** siblings add rather than collapse: a bottom margin of 2 followed by a top margin of 3 leaves 5 rows, where a browser's `<body>` would collapse them to 3; the same holds between any flex items. Wrap the content in `<html><body>` to get browser behavior (the siblings are then block-flow children of `<body>`). The one gap is clearance: there is no `float` / `clear`, so a margin is never separated by clearance.
-- **`flex: <N>` shorthand collapses `<basis>` to 0%.** rdom's parser stores both `flex: 1` and `flex: 1 1 auto` as `Size::Flex(1)`; the basis token is parsed-and-accepted but ignored. Effective behavior: any `flex: <N>` form is treated as `flex: <N> 1 0%`. Authors who need `flex-basis: auto` semantics (specified suggestion = the item's `width`) write `width: auto; flex-grow: 1` instead. Parser doc at `crates/rdom-style/src/parse/values.rs::parse_flex_shorthand` documents the ignore; this entry surfaces the user-visible consequence.
+- **Vertical margins collapse in block flow per CSS 2.1 §8.3.1** (`render/layout_pass/block/margin_collapse.rs`): adjacent in-flow siblings; a block and its first / last in-flow child when no padding, border or line box (inline content, an own-line `::before` / `::after`) separates them; empty collapse-through blocks; any number of levels up. Resolution is largest positive plus most negative. As on the web, nothing collapses horizontally, between flex items or inline-level boxes, or across an element that establishes an independent formatting context (flex container, flex item, inline-block, non-visible `overflow`, absolute / fixed position, the root, and each top-level element under the Fragment root). Because the Fragment root lays its children out as flex items, margins between adjacent **top-level** siblings add rather than collapse: a bottom margin of 2 followed by a top margin of 3 leaves 5 rows, where a browser's `<body>` would collapse them to 3; the same holds between any flex items. Wrap the content in `<html><body>` to get browser behavior (the siblings are then block-flow children of `<body>`). The one gap is clearance: there is no `float` / `clear` yet (C8-FLOAT, §3), so a margin is never separated by clearance.
+- **`flex: <N>` shorthand collapses `<basis>` to 0%.** rdom's parser stores both `flex: 1` and `flex: 1 1 auto` as `Size::Flex(1)`; the basis token is parsed-and-accepted but ignored. Effective behavior: any `flex: <N>` form is treated as `flex: <N> 1 0%`. `flex-basis: auto` semantics cannot be expressed today: the `flex-grow` and `flex-basis` longhands are not properties yet (`flex-grow: 1` is dropped as an unknown property); they arrive with C6-FLEX-LONGHANDS (§3). Parser doc at `crates/rdom-style/src/parse/values.rs::parse_flex_shorthand` documents the ignore; this entry surfaces the user-visible consequence.
 - **Percentage height resolves against a flex-sized ancestor only when that ancestor *flexes*.** Per CSS Flexbox §9.8 a flex item in a definite-size flex container has a definite post-flex size, so `height: <pct>%` on its content resolves against it — rdom honors this when the ancestor's height is `flex: <N>` (a growing/flexing item, including the chrome's `flex: 1` panes and the document root's viewport-sized children). The remaining gap: a flex item with a bare `height: auto` (e.g. a row flex item stretched on the cross axis, which CSS treats as definite) is still treated as **indefinite**, so a percentage-height child falls back to content size. Block-flow `auto` heights are indefinite exactly as CSS 2.1 §10.5 requires. Gate: `nearest_block_ancestor_height_is_definite` in `crates/rdom-tui/src/render/layout_pass/block.rs`.
-- **`aspect-ratio` requires the explicit `<w>/<h>` form.** Bare numbers, decimals, and the `auto && <ratio>` fallback form are not parsed. Half-to-even (banker's) rounding is used when discretizing onto the cell grid.
+- **`aspect-ratio` requires the explicit `<w>/<h>` form.** Bare numbers, decimals, and the `auto && <ratio>` fallback form are not parsed. Half-to-even (banker's) rounding is used when discretizing onto the cell grid. The full `<ratio>` grammar is scheduled (C2-RATIO, §3).
 - **Anonymous block boxes (CSS 2.1 §9.2.1.1), not anonymous inline boxes.** Mixed inline + block children inside a block-flow container produce **anonymous BLOCK boxes** wrapping each inline run (text + `display: inline` + atomic `display: inline-block`). Each anon box establishes its own IFC. This matches CSS for block containers; what rdom does NOT yet generate is anonymous *inline* boxes for the `<span>foo <span>bar</span> baz</span>` text-around-inline-around-text shape inside an existing IFC (inline-ancestor-breaking). Texts inside one inline element render as a single fragment; nested inline-ancestor-breaking is deferred.
-- **No floats.** `float: left` / `float: right` are not parsed and not supported. CSS float layout (line-box exclusion, clearance, float resolution) is not in scope for rdom; flex / block / IFC cover the TUI use cases. Authors targeting browser-faithful float behavior should restructure with flex.
 - **Inline backgrounds only.** Inline borders are not painted.
-- **No `display: grid`.** Flexbox is the only multi-axis layout. `display: inline-block` ships for content-hugging chrome (buttons, badges, tags).
-- **`text-align`, `vertical-align`, `text-decoration: line-through` are not implemented.** Left alignment only; single baseline.
+- **No `masonry` / `grid-lanes`, by decision.** CSS Grid 3's masonry layout is a Working Draft whose syntax is still moving (`display: masonry` against `display: grid-lanes`), so rdom does not implement it until the spec settles. Grid Level 1 / 2 is scheduled (C7-*, §3).
 
 ### Positioning
 
-- **Stacking contexts form from the root, positioned elements with a numeric `z-index`, and `opacity < 1` only.** Paint and hit-test follow CSS 2.1 Appendix E inside each context (negative `z-index` below in-flow content, positioned boxes above it, positive `z-index` on top). The other triggers — `transform`, `filter`, `isolation: isolate`, `will-change`, `mix-blend-mode`, `contain: paint` — do not exist.
-- **An `<li>`'s `::before` is its list marker, and rides the item's first line box.** rdom has no `::marker` / `display: list-item`; the UA numbers `ol > li` and bullets `ul > li` through `li::before`. A browser puts the marker on the list item's first line even when that line belongs to a block child, so `<ol><li><p>Step</p></li></ol>` reads "1. Step": when an `<li>`'s first in-flow content (whitespace aside) is a block-level child, its `::before` is packed at the start of the first line of that block descendant, instead of forming the anonymous block box of its own that CSS 2.1 §9.2.1.1 gives any other block-first `::before` (which rdom does, for every non-`li` host and for `::after`). This applies to an author's `li::before` too. The marker sits inside the line, where `list-style-position: inside` would put it, not hung in the list's padding; a nested item's first line carries the enclosing items' markers as well (`1. 1. x`); and when no line box is reachable through block-flow children (an empty block, a flex container) the marker takes a line of its own.
+- **Stacking contexts form from the root, positioned elements with a numeric `z-index`, and `opacity < 1` only.** Paint and hit-test follow CSS 2.1 Appendix E inside each context (negative `z-index` below in-flow content, positioned boxes above it, positive `z-index` on top). The other triggers — `transform`, `filter`, `isolation: isolate`, `will-change`, `mix-blend-mode`, `contain: paint` — do not exist yet (C15-TRANSLATE, C15-FILTER, C15-BLEND, C14-CONTAIN, §3).
+- **An `<li>`'s `::before` is its list marker, and rides the item's first line box.** rdom has no `::marker` / `display: list-item` yet (C10-LIST-ITEM, §3); the UA numbers `ol > li` and bullets `ul > li` through `li::before`. A browser puts the marker on the list item's first line even when that line belongs to a block child, so `<ol><li><p>Step</p></li></ol>` reads "1. Step": when an `<li>`'s first in-flow content (whitespace aside) is a block-level child, its `::before` is packed at the start of the first line of that block descendant, instead of forming the anonymous block box of its own that CSS 2.1 §9.2.1.1 gives any other block-first `::before` (which rdom does, for every non-`li` host and for `::after`). This applies to an author's `li::before` too. The marker sits inside the line, where `list-style-position: inside` would put it, not hung in the list's padding; a nested item's first line carries the enclosing items' markers as well (`1. 1. x`); and when no line box is reachable through block-flow children (an empty block, a flex container) the marker takes a line of its own.
 - **Positioned `::before` / `::after` pseudo-elements paint in one flat pass above every stacking context**, ordered by the host's `z-index` and tree order; they are not part of their host's context.
 - **Inside an `opacity < 1` context, an absolutely positioned descendant whose containing block lies above the context clips to the context's content clip.** CSS 2.1 §11.1.1 would use the clip in effect at the containing block; the difference shows only when an `overflow` box sits between that containing block and the `opacity` element.
 - **Sticky containing block is the element's parent's content box**, not the CSS "nearest scroll container" for nested-scroller edge cases.
 - **The static position inside a flex container ignores `justify-content` / `align-items`.** Flexbox §4.1 places an absolutely positioned child's hypothetical box as if it were the sole flex item, so `justify-content: center` would center it; rdom uses the content box's start corner (`flex-start`). In block and inline flow the static position follows CSS 2.1 §10.3.7 / §10.6.4.
-- **No `transform`, `rotate`, `scale`, `matrix`, `isolation: isolate`, `will-change`.**
 - **Positioned `::before` / `::after` pseudo-elements are not in the hit-test set.** Clicks on pseudo rects resolve to the underlying element.
 
 ### Values
 
 - **`calc()` accepts both `5+5` and `5 + 5` inside the call.** CSS Values L3 requires whitespace around `+`/`-`; rdom's tokenizer doesn't preserve whitespace so the parser accepts either form. `*` and `/` don't need whitespace in CSS either, so those match.
-- **A bare percentage is invalid on `padding` / `margin`.** They take cells or `calc()`: `padding: calc(10% + 1)` and `margin-left: calc(25% - 2)` resolve at layout time against the containing block's width (CSS 2.1 §8.3 / §8.4), while `padding: 10%` is dropped as an invalid value. Width/height/top/right/bottom/left/gap take both forms. A `calc()` / percent `gap` does not animate at all (cell ↔ cell gaps do); `Size` / `Length` calc values snap at the midpoint. A percent `gap` resolves against the container's content size on the gap's axis, and against 0 when that axis is indefinite — rdom takes `height: auto` on a column container as "indefinite" (CSS also treats `height: 50%` under an indefinite parent that way; rdom resolves it against the available height).
-- **`calc()` does NOT support `min(...)` / `max(...)` / `clamp(...)`.** CSS Values L4 functions. Deferred.
+- **A bare percentage is invalid on `padding` / `margin`.** They take cells or `calc()` (bare `%` is C2-PERCENT, §3): `padding: calc(10% + 1)` and `margin-left: calc(25% - 2)` resolve at layout time against the containing block's width (CSS 2.1 §8.3 / §8.4), while `padding: 10%` is dropped as an invalid value. `width` / `height` / `gap` take both forms. `top` / `right` / `bottom` / `left` take only the `calc()` form (`top: 50%` is dropped; `top: calc(50%)` resolves), and the `inset` shorthand takes neither (C8-INSETS, §3). A `calc()` / percent `gap` does not animate at all (cell ↔ cell gaps do); `Size` / `Length` calc values snap at the midpoint. A percent `gap` resolves against the container's content size on the gap's axis, and against 0 when that axis is indefinite — rdom takes `height: auto` on a column container as "indefinite" (CSS also treats `height: 50%` under an indefinite parent that way; rdom resolves it against the available height).
 - **CSS transitions don't smoothly tween between `calc()` values.** When either endpoint of a `transition` carries a `calc()` expression (Size or Length axis), the engine snaps at midpoint instead of interpolating. Smooth tweening would require resolving both endpoints to concrete cells using the current layout's parent dimensions at every animation tick — straightforward but unwired in M6.
 - **`border-style: half-block` is rdom-specific.** Not a CSS-spec keyword. Each border cell fills the **quadrants that point inward** toward the bordered element's content — an edge fills a half (`▄ ▀ ▌ ▐`, U+2584/U+2580/U+258C/U+2590), a corner fills a single quadrant (`▗ ▖ ▝ ▘`, U+2596/U+2597/U+259D/U+2598). Pairs with a `background-color`-filled interior to produce a "pill"-style primary-CTA button that reads as ~2 cells tall on a 3-row layout (the half-blocks contribute half-cells of color each, joining the filled interior into a continuous accent region).
 - **Half-block borders weld across elements (quadrant union).** When two half-block borders share a cell, the joiner **unions their inward quadrants** and emits the matching block glyph — so a "tab" box whose bottom edge overlaps a panel's top row welds into one tab-panel outline (`▟ █ ▌` at the junction), and any T-junction / cross resolves too. All 16 quadrant combinations have a Unicode block element (`▘▝▖▗ ▀▄▌▐ ▚▞ ▛▜▙▟ █`), so — unlike single-line borders, which have no rounded T-junctions — there are no gaps. This is the half-block analog of `border-collapse` welding and needs no opt-in (two adjacent half-block borders just join).
-- **`border: half-block` clips `background-color` to the padding box implicitly.** The half-block paint phase resets the cell's bg to `Color::Reset` (terminal default) on every border cell after writing the glyph. Without this, the element's own `background-color` — which `fill_bg` paints across the entire outer rect including border cells — would cover the "empty" half of each half-block glyph, collapsing the silhouette back into a solid rectangle. Strict CSS would require an explicit `background-clip: padding-box`; rdom doesn't ship that property yet, so the half-block style hard-codes the equivalent behavior. Consequence: any parent `background-color` shows through the outer half of the half-block cells (intentional — it's what makes the pill visually "round"). To avoid the bg-clear, switch to `solid` or `rounded` border style.
+- **`border: half-block` clips `background-color` to the padding box implicitly.** The half-block paint phase resets the cell's bg to `Color::Reset` (terminal default) on every border cell after writing the glyph. Without this, the element's own `background-color` — which `fill_bg` paints across the entire outer rect including border cells — would cover the "empty" half of each half-block glyph, collapsing the silhouette back into a solid rectangle. Strict CSS would require an explicit `background-clip: padding-box`; rdom doesn't ship that property yet (C4-BG-CLIP, §3), so the half-block style hard-codes the equivalent behavior. Consequence: any parent `background-color` shows through the outer half of the half-block cells (intentional — it's what makes the pill visually "round"). To avoid the bg-clear, switch to `solid` or `rounded` border style.
+- **`border: rounded`, `border: single` and the one-side `border: top` / `bottom` / `left` / `right` are rdom-specific keywords.** `rounded` is a solid ring with rounded corner glyphs (`╭╮╰╯`); `single` is a synonym for `solid`; `top` / `bottom` / `left` / `right` draw that one side solid and no other. On `border-style`, `border-<side>` and `border-<side>-style`, `single` and `rounded` are accepted as `solid` (the corners are unchanged). None is a CSS keyword: a web author writes `border: solid` plus `border-radius` for rounded corners (which C4-RADIUS maps onto the same glyphs), and `border-top: solid` with the other sides `none` for a single side.
+- **A bare integer `0`–`255` is a color: an xterm-256 palette index** (`color: 208`, emitted as SGR 38;5;n / 48;5;n). CSS has no such form. The low sixteen indices follow the user's terminal theme, which is the point of using them; a web author would write the hex or `rgb()` value of the palette entry instead.
+- **`reset` is an rdom color keyword** for the terminal's default foreground or background (SGR 39 / 49). CSS has no equivalent keyword: a web author leaves `background-color` at `transparent` to show the terminal background, and would use the system color `CanvasText` (C3-SYSTEM, §3) for the default text color.
+- **Boxes size as `box-sizing: border-box`.** `width` / `height` are the border-box size in both block flow and flex layout — padding and border sit inside them — and the layout passes store outer rects. CSS's initial value is `content-box`, and the `box-sizing` property is not parsed, so content-box sizing cannot be expressed. Pages that already apply the common `*, *::before, *::after { box-sizing: border-box }` reset see the same sizes as in a browser. C5-BOX-SIZING (§3) adds the property with the CSS initial value (a breaking default change).
 
 ### Cascade & selectors
 
-Supported selector grammar: type, class, ID, attribute, descendant, child (`>`), adjacent sibling (`+`), general sibling (`~`), comma list. Supported pseudo-classes: `:hover`, `:active`, `:focus`, `:focus-within`, `:focus-visible`, `:checked`, `:indeterminate`, `:open`, `:disabled`, `:enabled`, `:valid`, `:invalid`, `:required`, `:optional`, `:first-child`, `:last-child`, `:only-child`, `:empty`, `:root`, `:not(<list>)`, `:where(<list>)`, `:placeholder-shown`.
+Supported selector grammar: type, class, ID, attribute, descendant, child (`>`), adjacent sibling (`+`), general sibling (`~`), comma list. Supported pseudo-classes: `:hover`, `:active`, `:focus`, `:focus-within`, `:focus-visible`, `:checked`, `:indeterminate` (`<progress>` without `value` only), `:open`, `:disabled`, `:enabled`, `:valid`, `:invalid`, `:required`, `:optional`, `:first-child`, `:last-child`, `:only-child`, `:empty`, `:root`, `:not(<list>)`, `:where(<list>)`, `:placeholder-shown`.
 
 - **`:active` follows the primary pointer button only.** The `App` activates the pressed element (Selectors 4 §9.4; `:hover` / `:active` / `:focus-within` match its ancestors too, as on the web) from a left-button press to its release — the release clears it before its own `mouseup` / `click` / `dblclick` run, as in Blink — including a press whose `mousedown` was cancelled (as in Blink); a scrollbar press activates nothing. Browsers also activate a button held down with Space and the labeled control of an active `<label>` (HTML §4.16.3); rdom does neither.
-- **`:where(<list>)`** matches like `:is()` (any complex selector in its list) but contributes **zero specificity** (Selectors L4) — the mechanism a component library uses to ship default styles that any author rule overrides. `:is()` (specificity = most-specific argument) is *not* yet implemented.
-- **Not implemented:** attribute selector case flags (`[x=v i]`, `[type=a s]`), `:nth-child(an+b)`, `:nth-of-type`, `:has()`, `:is()`, `:read-only`, `:read-write`, `:user-valid`, `:user-invalid`, `:modal`.
-- **Not implemented as author-styleable pseudo-elements:** `::marker`, `::caret`, `::first-line`, `::first-letter`. List markers use `::before` content.
+- **`:where(<list>)`** matches like `:is()` (any complex selector in its list) but contributes **zero specificity** (Selectors L4) — the mechanism a component library uses to ship default styles that any author rule overrides. `:is()` (specificity = most-specific argument) is scheduled (C11-IS, §3).
 - **`::placeholder` is the host's `::before` box.** rdom paints an `<input>` / `<textarea>` placeholder as generated content (UA `:placeholder-shown::before { content: attr(placeholder) }`), so `::placeholder` rules (CSS Pseudo-Elements 4 §4.3) are layered onto that box while the control is `:placeholder-shown`; at equal specificity a `::placeholder` rule beats a `::before` one. The UA's muted color is a `::placeholder` rule. Only the `::first-line` properties rdom has apply — `color`, `background-color`, `font-weight`, `font-style`, `text-decoration`, `opacity`, custom properties — and any other declaration in a `::placeholder` rule is dropped when the rule is built (no warning). Observable difference from the web: an author `input::before` rule also styles the placeholder text, since it is the same box.
-- **`::scrollbar`, `::scrollbar-thumb`, `::scrollbar-thumb:vertical` / `:horizontal` are rdom pseudo-elements** modeled on WebKit's `::-webkit-scrollbar` / `::-webkit-scrollbar-thumb` / `:vertical` / `:horizontal`; there is no standard equivalent (CSS Scrollbars 1 has only `scrollbar-color` / `scrollbar-width`, not shipped). They style the gutter cells that `scrollbar-gutter` reserves; `content` is the cell glyph.
-- **`var()` is consumed in color positions and in `content` only.** Custom properties themselves follow CSS Variables 1: any selector, per-element scope, inherited, `!important` honored, inline `style="--x: …"` included. But `padding: var(--gap)` and every other non-color, non-`content` property do not substitute; the declaration is invalid at parse time and warns. Reason: rdom's property values are typed at parse time, and a general substitution pass (parse-time tokens → computed-time re-parse) is not built.
+- **`::scrollbar`, `::scrollbar-thumb`, `::scrollbar-thumb:vertical` / `:horizontal` are rdom pseudo-elements** modeled on WebKit's `::-webkit-scrollbar` / `::-webkit-scrollbar-thumb` / `:vertical` / `:horizontal`; there is no standard equivalent (CSS Scrollbars 1 has only `scrollbar-color` / `scrollbar-width`, scheduled as C8-SCROLLBAR). They style the gutter cells that `scrollbar-gutter` reserves; `content` is the cell glyph.
+- **`var()` is consumed in color positions only.** Custom properties themselves follow CSS Variables 1: any selector, per-element scope, inherited, `!important` honored, inline `style="--x: …"` included. But `padding: var(--gap)`, `content: var(--label)` and every other non-color property do not substitute; the declaration is invalid at parse time and warns. A `var()` fallback must itself be a color. (The Rust builder's `Content::Var` does resolve a custom property in `content`; CSS text cannot produce it.) Reason: rdom's property values are typed at parse time, and a general substitution pass (parse-time tokens → computed-time re-parse) is not built. Scheduled: C1-VAR-ANY (§3).
+- **`:blank` is not implemented, by decision.** Selectors 4 marks it at risk and its meaning has changed between drafts (first `:empty` ignoring whitespace, now an empty form control), so rdom does not add it until it is stable. It is rejected as an unsupported pseudo-class.
 - **`unset` is resolved at parse time** from the inherited-property table — an implementation detail with the same observable result as the web; see `DESIGN.md`.
-- **`z-index` accepts the `i16` range** (±32 767); larger integers are invalid and the declaration is dropped, where browsers accept any `<integer>`. Insets (`top` / `left` / …) take `i32`.
-- **Not implemented:** `min()`, `max()`, `clamp()`, `currentColor`, CSS Nesting (`&`). (`calc()` shipped in 0.2.0; see the Values section above.)
-- **`rgba()` alpha is dropped at parse time.** Translucency is handled by the dedicated `opacity` property, which composes alpha at paint time.
+- **`z-index` accepts the `i16` range** (±32 767); larger integers are invalid and the declaration is dropped, where browsers accept any `<integer>` (C8-Z-INDEX, §3). Insets (`top` / `left` / …) take `i32`.
+- **`rgba()` alpha is dropped at parse time.** Translucency is handled by the dedicated `opacity` property, which composes alpha at paint time. Color alpha composited over the backdrop is scheduled (C3-ALPHA, §3).
 - **`opacity` composites per cell, one glyph per cell.** Group opacity is CSS's (the subtree renders opaque, then blends once), but where a translucent element's glyph overlaps a backdrop glyph only one can show: the element's when `opacity ≥ 0.5` or the backdrop cell is empty, otherwise the backdrop's, tinted toward the element's background. The exception is a layer that repaints the backdrop's own symbol with other state (modifiers, link): the symbol is the same, so there is no contest, and the layer's modifiers and link win at any alpha (only the foreground blends) — this is what lets a translucent `::selection` or highlight overlay restyle text beneath it. `Color::Reset` blends as white text on a black canvas, since terminals do not report their colours. Rules in `DESIGN.md`.
 - **An `App`'s own sheets cascade after the document's `<style>` sheets.** The `App` keeps each connected `<style>` element's sheet live (HTML §4.2.6: re-parsed when its text changes, added / dropped when it is inserted / removed) and orders them in tree order, *before* every sheet registered with the `App` (`App::new`'s, `push_stylesheet`'s) — those play the part of `adoptedStyleSheets`, which CSSOM also orders after the document's sheets. The sheets update at the next frame, not synchronously, as every rdom computed style does. The `media` attribute is not evaluated (no media queries, see the at-rule entry). `extend_from_style_tags` is the snapshot form for a cascade run without an `App`.
-- **No at-rule is evaluated.** Every at-rule (`@import`, `@charset`, `@media`, `@supports`, `@keyframes`, `@font-face`, vendor-prefixed ones) is consumed whole per CSS Syntax 3 §5.4.2 — statement form through `;`, block form through its `{…}` — and reported as `WarningKind::UnsupportedAtRule(name)`; the rules around it are unaffected. `@keyframes` is on the roadmap; `@media` has no meaningful queries in a cell grid beyond viewport size, which rdom does not expose to CSS.
-- **`background` is color-only.** The shorthand accepts a single `<color>` (it sets `background-color`); images, positions, repeat, and attachment have no cell-grid meaning, so any other value is dropped as invalid rather than partially applied.
+- **No at-rule is evaluated.** Every at-rule (`@import`, `@charset`, `@media`, `@supports`, `@keyframes`, `@font-face`, vendor-prefixed ones) is consumed whole per CSS Syntax 3 §5.4.2 — statement form through `;`, block form through its `{…}` — and reported as `WarningKind::UnsupportedAtRule(name)`; the rules around it are unaffected. `@import`, `@layer`, `@scope`, `@property`, `@media`, `@supports`, `@container`, `@keyframes`, `@starting-style`, `@counter-style` and `@position-try` are scheduled (§3); `@font-face` and the other font at-rules, `@page`, `@namespace` and `@charset` are not applicable (§1).
+- **`background` is color-only.** The shorthand accepts a single `<color>` (it sets `background-color`); images, positions, repeat, and attachment have no cell-grid meaning, so any other value is dropped as invalid rather than partially applied. The full shorthand, with image layers parsed and inert, is scheduled (C4-BACKGROUND, §3).
 - **Times resolve to whole milliseconds.** `1.5ms` rounds to 2ms: the animation clock ticks in milliseconds and a terminal frame is ~16ms, so sub-millisecond precision has no observable effect. (Percentages keep their fraction — `Size::Percent(f32)` — and round once, onto the cell grid, at layout.)
 - **Per-side longhands share the shorthand's storage.** `padding-top: inherit` (or `margin-*`, `border-*`) marks the whole `padding` as inherited, and a later `padding-left: 2` on the same element replaces it entirely. The web keeps four independent longhands.
-- **Flex factors are whole numbers.** `flex-grow` / `flex-shrink` / `flex: <n>` accept integers only (`flex: 1.5` is dropped as invalid); a fractional *shrink* factor in the 3-value shorthand is accepted and ignored like the rest of the shrink value. Cells are integers, so fractional grow rarely changes a result.
-- **`flex: inherit` inherits the parent's main-axis size**, because `flex` maps onto `width` / `height` (see the flex entry above), not onto separate grow / shrink / basis longhands.
+- **Flex factors are whole numbers** (C2-NUMBER, §3). `flex-shrink` and `flex: <n>` accept integers only (`flex: 1.5` is dropped as invalid; `flex-grow` is not a property yet, §3); a fractional *shrink* factor in the 3-value shorthand is accepted and ignored like the rest of the shrink value. Cells are integers, so fractional grow rarely changes a result.
+- **`flex: inherit` inherits the parent's main-axis size**, because `flex` maps onto `width` / `height` (see the flex entry above), not onto separate grow / shrink / basis longhands (C6-FLEX-LONGHANDS, §3).
 
 ### DOM API shape
 
@@ -162,6 +166,7 @@ The DOM API is Rust-shaped rather than JS-shaped. The semantics match WHATWG DOM
 - **Form submission navigates nowhere; the `submit` event carries what it would have used.** The web's submission algorithm builds a request from the form's `action` / `method` / `enctype` / `target` (a submit button's `formaction` / `formmethod` / `formenctype` / `formtarget` overriding them, HTML §4.10.19.6) and navigates. rdom has no navigation: `SubmitDetail` carries those effective values (`Dom::submit_detail`) plus the `no_validate` flag, and the `submit` handler decides what submitting means. `action` and `target` are the raw attribute strings — an empty or relative `action` is not resolved against a document URL, which rdom does not have. Only method `dialog` has a built-in default action (closing the form's ancestor `<dialog>`).
 - **`pattern` is a Rust `regex`, not a JavaScript `v`-flag RegExp.** HTML compiles `pattern` as `^(?:pattern)$` with the `v` flag; rdom compiles the same wrapper with the `regex` crate. Ordinary patterns (`[A-Z]{3}`, `\d+`, alternation, `\p{L}`) behave alike, but `\d` / `\w` / `\b` are Unicode-aware in Rust (ASCII in JavaScript), look-around and backreferences do not compile, and the `v` flag's string literals (`\q{…}`) and properties of strings (`\p{RGI_Emoji}`) are not supported (its nested classes and `--` / `&&` set operations are). A pattern that does not compile imposes no constraint, as HTML specifies for an invalid pattern.
 - **`type=url` validity is a syntax check.** A URL input suffers `typeMismatch` unless its value, trimmed of ASCII whitespace, is a scheme (`ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )`), `:` and a non-empty remainder without whitespace. The URL Standard's parser (host, port, percent-encoding validation) is not run, so `http://exa%mple` passes where a browser may reject it.
+- **Constraint validation on unrendered input types is partial.** The date / time / month / week / color / file input types, which rdom does not render, suffer only `valueMissing` and `customError`.
 - **No validation bubble.** `reportValidity()` and a submission blocked by interactive validation focus the first invalid control whose `invalid` event was not canceled; browsers also show its validation message in a bubble. `validationMessage` is rdom's fixed English (listed on `runtime::builtins::validation::validation_message`), not localized.
 - **The button family declares `user-select: none` in the UA stylesheet** (`button`, `input[type=button|submit|reset]`). Browsers also keep a drag from selecting a button's label, but mostly through form-control internals rather than a declared UA rule, so a browser's computed `user-select` on a button is typically `auto` where rdom's is `none`, and an author `user-select: auto` on a button makes its label selectable in rdom. Toggles and `input[type=range]` declare nothing (a click reaches them either way — the text-selection drag takes no pointer capture).
 - **A button-family `<input>`'s label is UA `::before` content.** A browser renders the label of `<input type=submit|reset|button>` inside the control (its `value` attribute; without one, an implementation-defined `Submit` / `Reset` for those two types and nothing for `type=button`, HTML §4.10.5.1.19–21). rdom has no form-control internals, so the UA sheet generates it: `input[type=…]::before { content: "[ " attr(value) }`, with `"[ Submit"` / `"[ Reset"` when the attribute is absent, and the box sizes to it (`width: auto`). The label therefore shows in the computed `::before` `content`, follows `value` changes on the next cascade, and an author `::before` rule on these inputs replaces bracket and label together. `<button>` labels itself with its children; its `::before` is only the bracket.
@@ -174,6 +179,7 @@ The DOM API is Rust-shaped rather than JS-shaped. The semantics match WHATWG DOM
   - **Scroll containers** (anything that clips and overflows) → the **scrollbar thumb glyph** of the scroll region the keyboard scrolls turns accent (foreground — a colored handle rather than a filled block); other thumbs are gray. That region is the nearest *overflowing* scroll ancestor of the focus, which no selector can express, so the runtime keeps the attribute `data-rdom-scroll-focus` on it (updated every frame from the previous layout, and only while the focus is evident — `:focus-visible` — like the control tint) and the UA sheet styles `[data-rdom-scroll-focus]::scrollbar-thumb`. Authors may match the attribute too. Zero extra area — it reuses chrome the scroll already owns. Such regions are also keyboard-focusable when they're the focus target (see below) and keyboard-scrollable from wherever the focus is.
   - **Grid / tree / listbox** → the internal cursor (active cell/row) is the cue.
   - **Everything else** (a bare focusable `<div>`/`<table>` with no scrollbar) → **no default cue**; the consumer expresses focus in CSS (e.g. `:focus { border-color }`). A full-area background fill on a large container is destructive and unlike the web's outline, so the substrate does *not* apply one. This replaced the old generic `:focus` tint and its per-element opt-out hacks (`canvas:focus`, `[role=tree]:focus`).
+- **No `nav-up` / `nav-down` / `nav-left` / `nav-right`, by decision.** CSS UI 4 marks the directional-focus properties at risk and no browser ships them; focus moves by sequential navigation (Tab / Shift-Tab) and the built-ins' own arrow keys. The properties are unknown and dropped with a warning.
 - **`pointer-events` supports `auto` and `none` only.** The SVG-era values (`visiblePainted`, `stroke`, …) have no cell-grid meaning and are invalid. `none` falls through to what is beneath and `auto` descendants are hittable, as on the web.
 
 ### ARIA tree (no `<tree>` element on the web)
@@ -199,7 +205,7 @@ The web platform has no tree element — trees are built from `role="tree"` / `r
 
 - **Sub-tick precision is the tick rate** (~16ms while animating, ~50ms idle). `setTimeout(fn, 10)` fires at the next tick, not at exactly 10ms. The HTML 4ms nested-timeout minimum clamp does not apply.
 - **Transitioning to or from `auto` width/height is declined** per CSS L1.
-- **Not implemented:** `@keyframes`, `animation-*` properties, the Web Animations API, `requestIdleCallback`, `cancelIdleCallback`, `setImmediate`, scroll-linked animations.
+- **Not implemented:** the Web Animations API, `requestIdleCallback`, `cancelIdleCallback`, `setImmediate`. (`@keyframes`, the `animation-*` properties and scroll-driven animations are scheduled, §3.)
 
 ### HTML parsing (`rdom-parser`)
 
@@ -214,17 +220,214 @@ The web platform has no tree element — trees are built from `role="tree"` / `r
 - **Whitespace is preserved verbatim** in text nodes, including inter-element whitespace; collapsing happens in `rdom-tui`'s layout per `white-space`, as in the browser's rendering (not parsing) pipeline. The one tokenizer-level exception is honored: a newline right after `<textarea>` is dropped (HTML §13.2.6.4.7). The same rule for `<pre>` / `<listing>` is **not** implemented — `<pre>` keeps a leading newline.
 - **`</` followed by a non-letter** ends the current element's children and is then an error, rather than becoming a bogus comment. At the top level any `</…` is an error ("unexpected closing tag at top level") instead of silently truncating the template.
 
-- **Ordered lists count through UA rules, not `display: list-item`.** `ol { counter-reset: list-item } li { counter-increment: list-item } ol > li::before { content: counter(list-item) ". " }` ship in the UA stylesheet; `display: list-item`, `list-style-type`, `::marker`, `counters()` (the nested string form), `counter-set`, `<ol start>`, `<ol reversed>` and `<li value>` are not implemented. `ul`, `ol` and `menu` all reset `list-item` (HTML §15.3.8), so a nested bullet list does not advance the enclosing numbering. Authors override the marker with their own `ol > li::before` rule.
+- **Ordered lists count through UA rules, not `display: list-item`.** `ol { counter-reset: list-item } li { counter-increment: list-item } ol > li::before { content: counter(list-item) ". " }` ship in the UA stylesheet; `display: list-item`, `list-style-type`, `::marker`, `counters()` (the nested string form), `counter-set`, `<ol start>`, `<ol reversed>` and `<li value>` are not implemented (the CSS ones: C10-LIST-ITEM, C10-COUNTERS, §3). `ul`, `ol` and `menu` all reset `list-item` (HTML §15.3.8), so a nested bullet list does not advance the enclosing numbering. Authors override the marker with their own `ol > li::before` rule.
 
 ## 3. Not yet shipped
 
-Common web-platform surface rdom omits entirely as of 0.5.0. Schedule lives in [`DESIGN.md`](DESIGN.md#roadmap).
+Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by CSS module. All are scheduled for **0.6.0** under [`CSS-COMPLETE-2026-10.md`](CSS-COMPLETE-2026-10.md); each line names the item that ships it. Until then a declaration, selector or at-rule using one is dropped with a warning (or, where noted in §2, behaves as described there). Not-applicable CSS is in §1; the program's decided exclusions (`masonry` / `grid-lanes`, `:blank`, `nav-*`) are in §2.
 
-- **`transition-behavior: allow-discrete`** (CSS Transitions 2): discrete properties (`display`, `position`, …) never transition; `transition-property: display` (or any other `<custom-ident>`) parses and is inert, exactly as Transitions Level 1 behaves without the Level 2 property.
+### Syntax and cascade
 
-- **`scroll-padding` / `scroll-margin`** (CSS Scroll Snap 1): not parsed; `scrollIntoView` aligns the element's border box with the scroll container's padding box, as with both at `0`.
+- Identifier escapes in selectors and values (`\31 0`, `\:`) — C1-ESCAPES
+- ASCII case-insensitive property names and keywords (`COLOR: red`, `text-decoration: UNDERLINE`) — C1-CASE
+- `revert` — C1-REVERT
+- `@layer`, `revert-layer` — C1-LAYER
+- `all` — C1-ALL
+- `@import` — C1-IMPORT
+- `@scope` (and `:scope` inside it) — C1-SCOPE
+- CSS Nesting (`&`, nested rules) — C1-NESTING
 
-- **Validation after user interaction:** `:user-valid` / `:user-invalid` are not matched (rdom keeps no per-control "user validity" flag). Constraint validation, its API and `:valid` / `:invalid` / `:required` / `:optional` ship; the date / time / month / week / color / file input types, which rdom does not render, suffer only `valueMissing` and `customError`.
+### Custom properties
+
+- `var()` outside color positions (incl. `content` from CSS text), fallback with arbitrary tokens — C1-VAR-ANY
+- `@property` — C1-PROPERTY
+
+### Values and units
+
+- Bare `<percentage>` on `padding`, `margin`, `min-*` / `max-*`, `opacity` — C2-PERCENT (insets: C8-INSETS)
+- Fractional `<number>` (flex factors) — C2-NUMBER
+- `min()` / `max()` / `clamp()` — C2-MINMAX
+- `round()` / `mod()` / `rem()` / `abs()` / `sign()` — C2-STEPPED
+- `sin()` … `atan2()`, `pow()` / `sqrt()` / `hypot()` / `log()` / `exp()` — C2-TRIG
+- `ch` — C2-CH
+- `lh` / `rlh` — C2-LH
+- `vw` / `vh` / `vmin` / `vmax` and the `sv*` / `lv*` / `dv*` / `vi` / `vb` variants — C2-VIEWPORT
+- `cqw` / `cqh` / `cqi` / `cqb` / `cqmin` / `cqmax` — C14-CONTAINER
+- `<angle>` (`deg` / `grad` / `rad` / `turn`) — C2-ANGLE
+- Full `<ratio>` (bare numbers, decimals, `auto && <ratio>`) — C2-RATIO
+- `attr()` outside `content`, with fallback and `type()` — C2-ATTR
+
+### Color
+
+- Modern `rgb()` / `rgba()` (space syntax, `/ alpha`, percentages, `none`) — C3-RGB
+- `transparent` as a fully transparent color (today `reset`: as `color` it is the default foreground) — C3-TRANSPARENT
+- `currentColor` — C3-CURRENTCOLOR
+- `hsl()` / `hsla()` / `hwb()` — C3-HSL-HWB
+- `lab()` / `lch()` / `oklab()` / `oklch()` / `color()` — C3-LAB
+- `color-mix()` — C3-MIX
+- Relative color syntax (`rgb(from …)`) — C3-RELATIVE
+- System colors (`Canvas`, `CanvasText`, `LinkText`, `ButtonFace`, …) — C3-SYSTEM
+- `color-scheme`, `light-dark()` — C3-SCHEME
+- Color alpha composited over the backdrop (today dropped) — C3-ALPHA
+
+### Backgrounds and borders
+
+- `background` shorthand beyond a single color — C4-BACKGROUND
+- `background-clip` — C4-BG-CLIP
+- `border` / `border-<side>` with width and color components (`border: 1px solid red`) — C4-BORDER-SHORTHAND
+- 2–4-value `border-style` / `border-color` / `border-width`; per-side color and width longhands — C4-BORDER-SIDES
+- `border-width` (`0`, `thin` / `medium`, `thick`) — C4-BORDER-WIDTH
+- `border-radius` and per-corner longhands — C4-RADIUS
+- `box-shadow` — C4-SHADOW
+- `border-spacing` — C4-SPACING (with C13-TABLE-PROPS)
+
+### Box model and sizing
+
+- `box-sizing` (`content-box`; rdom is implicitly `border-box`, §2 Values) — C5-BOX-SIZING
+- `min-content` / `max-content` / `fit-content()` / `stretch` sizes — C5-INTRINSIC
+- `min-*` / `max-*`: `none`, `%`, `calc()` — C5-MINMAX-SIZE
+- `margin-trim` — C5-MARGIN-TRIM
+- `contain-intrinsic-size` (+ longhands) — C5-CONTAIN-SIZE
+
+### Logical properties and writing modes
+
+- `inline-size` / `block-size`, logical `margin-*` / `padding-*` / `border-*` / `inset-*` / radius properties, `overflow-block` / `-inline` — C5-LOGICAL (overflow: C8-OVERFLOW-CLIP)
+- Logical keywords (`text-align: start / end`, `float: inline-start`, `resize: block / inline`) — with C9-TEXT-ALIGN, C8-FLOAT, C12-CONTROLS
+- `direction` / `writing-mode` for the forms a terminal can render — C5-WRITING
+
+### Display and visibility
+
+- `display: contents`, `display: flow-root`, multi-keyword `display` — C6-DISPLAY-KEYWORDS
+- `display: list-item` — C10-LIST-ITEM
+- `display: grid` / `inline-grid` — C7-GRID-CORE
+- `display: table` family — C13-TFC
+- `visibility` — C6-VISIBILITY
+- `order` — C6-ORDER
+
+### Flexbox and box alignment
+
+- `flex-direction: row-reverse` / `column-reverse` — C6-DIRECTION-REVERSE
+- `flex-grow` / `flex-basis` longhands, `flex` shorthand basis — C6-FLEX-LONGHANDS
+- `flex-wrap`, `flex-flow` — C6-WRAP
+- `justify-content` — C6-JUSTIFY
+- `align-items`, `align-self` — C6-ALIGN
+- `align-content` — C6-ALIGN-CONTENT
+- `place-content` / `place-items` / `place-self`, `justify-items` / `justify-self` — C6-PLACE
+- `row-gap` / `column-gap`, two-value `gap` — C6-GAP
+
+### Grid
+
+- `grid-template-columns` / `-rows` (cells, `%`, `fr`, `auto`, `minmax()`, `repeat()`) — C7-GRID-CORE
+- `grid-row` / `grid-column` / `grid-area`, auto-placement, `grid-auto-flow` — C7-GRID-PLACE
+- `grid-template-areas`, `grid-template`, `grid` — C7-GRID-AREAS
+- `grid-auto-columns` / `grid-auto-rows` — C7-GRID-AUTO
+- Box alignment in grid — C7-GRID-ALIGN
+- `subgrid` — C7-SUBGRID
+
+### Positioned layout
+
+- `top` / `right` / `bottom` / `left` with bare `%`; `inset` with `%` and `calc()` — C8-INSETS
+- `z-index` beyond the `i16` range — C8-Z-INDEX
+- `float` / `clear` — C8-FLOAT
+- Anchor positioning (`anchor-name`, `position-anchor`, `position-area`, `@position-try`) — C15-ANCHOR
+
+### Overflow and scrolling
+
+- `overflow: clip`, two-value `overflow`, `overflow-clip-margin` — C8-OVERFLOW-CLIP
+- `text-overflow` — C8-TEXT-OVERFLOW
+- `line-clamp` / `max-lines` / `block-ellipsis` / `continue` — C8-LINE-CLAMP
+- `scrollbar-gutter: both-edges`, `scrollbar-width`, `scrollbar-color` — C8-SCROLLBAR
+- `overscroll-behavior` (+ longhands) — C8-OVERSCROLL
+- `scroll-padding*` / `scroll-margin*` (today `scrollIntoView` aligns as if both were `0`) — C8-SCROLL-PADDING
+- `scroll-snap-type` / `-align` / `-stop` — C8-SNAP
+- A non-clipping descendant's overflowing line boxes in the ancestor's scrollable overflow — C8-OVERFLOW-TEXT
+
+### Inline text
+
+- `white-space: pre-line` / `break-spaces`; `white-space-collapse`, `text-wrap-mode` — C9-WHITE-SPACE
+- `text-wrap` / `text-wrap-style` — C9-TEXT-WRAP
+- `text-align`, `text-align-last`, `text-justify` (lines are left-aligned) — C9-TEXT-ALIGN
+- `text-indent` — C9-TEXT-INDENT
+- `text-transform` — C9-TEXT-TRANSFORM
+- `tab-size` and tab stops (a tab in `<pre>` renders as one space) — C9-TAB-SIZE
+- `word-break`, `overflow-wrap` / `word-wrap`, `line-break`, `hyphens` and soft hyphens — C9-BREAKING
+- `line-height` — C9-LINE-HEIGHT
+- `vertical-align` (one baseline per row) — C9-VERTICAL-ALIGN (table cells: C13-TABLE-PROPS)
+
+### Text decoration
+
+- Full `text-decoration` shorthand (combinations, `overline`, color and style), `text-decoration-line` / `-color` / `-style` — C9-DECORATION. (`underline` and `line-through` ship, as SGR 4 / 9.)
+
+### Fonts
+
+- Numeric `font-weight`, `bolder` / `lighter`, `font-style: oblique`, the `font` shorthand — C9-FONT
+
+### Lists, counters and generated content
+
+- `content`: `open-quote` / `close-quote` / `no-*-quote`, `counters()`, `var()`, alt text — C10-CONTENT
+- `quotes` — C10-QUOTES
+- `counter-reset: reversed()`, `counter-set`, `counters()`, the other predefined counter styles — C10-COUNTERS
+- `@counter-style`, `symbols()` — C10-COUNTER-STYLE
+- `list-style-type` / `-position` / `list-style`, `::marker`, `marker-side` — C10-LIST-ITEM
+
+### Pseudo-elements
+
+- `::first-line`, `::first-letter` — C10-FIRST
+- Legacy single-colon `:before` / `:after` / `:first-line` / `:first-letter` — C10-LEGACY-COLON
+- `::highlight()` — C10-HIGHLIGHT
+- `::details-content` — C10-DETAILS-CONTENT
+- A pseudo-element followed by a pseudo-class (`::before:hover`), nested pseudo-elements — C10-PSEUDO-CHAINS
+
+### Selectors
+
+- Attribute case flags `i` / `s` — C11-ATTR-FLAGS
+- `:is()` — C11-IS
+- `:has()` — C11-HAS
+- `:nth-child()` / `:nth-last-child()` (+ `of S`), `:nth-of-type()` / `:nth-last-of-type()`, `:first-of-type` / `:last-of-type` / `:only-of-type` — C11-NTH
+- `:scope` — C11-SCOPE
+- `:indeterminate` on checkboxes and radio groups, `:user-valid` / `:user-invalid`, `:read-only` / `:read-write`, `:in-range` / `:out-of-range`, `:default` — C11-FORM-STATES
+- `:modal`, the `popover` attribute and `:popover-open` — C11-MODAL-POPOVER
+- `:link` / `:any-link`, `:lang()` — C11-LINK-LANG
+- Column combinator `||` — C11-COLUMN
+
+### Transitions and animations
+
+- `linear()` easing, negative `transition-delay` — C12-TIMING
+- `transition-behavior: allow-discrete` (discrete properties never transition; `transition-property: display` is inert) — C12-BEHAVIOR
+- Animating `opacity`, `margin`, `min-*` / `max-*`, `inset` and the properties this program adds — C12-ANIMATABLE
+- `@keyframes`, `animation` and the `animation-*` longhands, animation events — C12-KEYFRAMES
+- `@starting-style` — C12-STARTING
+- Scroll-driven animations (`scroll-timeline*`, `view-timeline*`, `animation-timeline`, `animation-range*`) — C12-SCROLL-DRIVEN
+
+### User interface
+
+- `outline` and longhands — C12-OUTLINE
+- `cursor` — C12-CURSOR
+- `caret-shape` / `caret-animation` / `caret` — C12-CARET
+- `accent-color`, `appearance`, `field-sizing`, `resize` — C12-CONTROLS
+
+### Tables
+
+- A real table formatting context: `display: table*` on any element, `rowspan`, anonymous table boxes, the automatic and `fixed` `table-layout` algorithms — C13-TFC
+- `caption-side`, `empty-cells`, `border-spacing`, `vertical-align` on cells — C13-TABLE-PROPS
+
+### Conditional rules and containment
+
+- `@media`, `matchMedia` — C14-MEDIA
+- `@supports`, `CSS.supports` — C14-SUPPORTS
+- `@container`, `container-type` / `-name` / `container` — C14-CONTAINER
+- `contain`, `content-visibility`, `will-change` — C14-CONTAIN
+
+### Transforms, filters and compositing
+
+- `translate`, `transform: translate()` (whole cells) — C15-TRANSLATE
+- `filter` color-matrix functions, `backdrop-filter` — C15-FILTER
+- `mix-blend-mode`, `isolation` — C15-BLEND
+- `clip-path: inset()` — C15-CLIP-PATH
+
+### Multi-column layout
+
+- `columns`, `column-count` / `-width` / `-rule*` / `-span` / `-fill` — C15-COLUMNS
 
 ## 4. Known limitations within shipped features
 

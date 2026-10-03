@@ -93,7 +93,8 @@ value       := token+
   `style` attribute) rides on the rule as `TuiStyle::custom_properties`;
   the cascade scopes it per element and inherits it. `:root` declarations
   additionally populate the `Stylesheet::vars` map. `var()` is consumed in
-  `<color>` values and `content`; `padding: var(--gap)` is not shipped.
+  `<color>` values only; `padding: var(--gap)` and `content: var(--x)`
+  are not shipped.
 - **`!important`** — recognized on any declaration; routed to the
   property's `ImportantMask` bit. Cascade ladder lives in `rdom-tui`.
 - **Comments** — `/* … */`, nested or unterminated handled with
@@ -110,14 +111,15 @@ behavior, so copy-pasting CSS from MDN doesn't blow up:
 - **At-rules.** Every at-rule (`@import`, `@charset`, `@media`,
   `@keyframes`, `@supports`, `@font-face`, …) is consumed whole per CSS
   Syntax 3 §5.4.2 and reported with `WarningKind::UnsupportedAtRule(name)`;
-  the rules around it are unaffected. `@keyframes` is on the roadmap.
+  the rules around it are unaffected. The applicable ones (`@media`,
+  `@supports`, `@keyframes`, `@layer`, …) are scheduled for 0.6.0.
 - **`min()` / `max()` / `clamp()`.** Not yet; `calc()` is supported
   (percentages, nesting, CSS precedence).
 - **Length units other than cells, `fr`, and `%`.** `px`, `em`, `rem`
-  have no cell-grid meaning and are rejected.
+  have no cell-grid meaning and are rejected. `ch`, `lh` and the viewport
+  units (`vw`, `vh`, …) are rejected today too; they are scheduled for 0.6.0.
 - **CSS variables in non-color values.** `padding: var(--gap)` — not shipped.
-- **CSS Nesting** (`.parent { .child { … } }`). Modern CSS feature; not
-  in M1.
+- **CSS Nesting** (`.parent { .child { … } }`). Scheduled for 0.6.0.
 - **`&` parent reference.** Same.
 
 ## Lenient vs. strict

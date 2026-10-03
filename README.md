@@ -104,7 +104,7 @@ See [`CHANGELOG.md`](CHANGELOG.md) for the full 0.3.0 notes (incl. breaking chan
 
 - **Block formatting context.** Semantic HTML stacks per the web platform with no CSS at all — `<div><h1></h1><p></p></div>` is a block-flow column at intrinsic heights. CSS 2.1 normal flow + margin collapse + height resolution + CSS3 `gap` on blocks + atomic `inline-block` in inline formatting contexts, on top of the original flex pass.
 - **Native ARIA tree.** `<ul role=tree>` / `role=treeitem` / `role=group` with `│ ├ └` guides + `▼`/`▶` chevrons, keyboard nav (Arrows / Home / End / Enter / Space) via an `aria-activedescendant` cursor, collapse/expand (`aria-expanded`), lazy children (`aria-busy`), and scroll-into-view that follows the cursor.
-- **`calc()` value system.** `width` / `height` / inset / length axes — CSS precedence, parentheses, nested `calc()`, banker's rounding onto the cell grid.
+- **`calc()` value system.** `width` / `height` / `top` / `right` / `bottom` / `left` and the other length axes — CSS precedence, parentheses, nested `calc()`, banker's rounding onto the cell grid.
 - **More events.** `keyup` (kitty keyboard protocol), `contextmenu` (right-click + Shift+F10), `dblclick`, `resize`, `scroll`, plus implicit `blur` / `focusout` / `mouseout` / `mouseleave` dispatched before structural detach.
 - **Layered border model.** `border-collapse` is non-inheriting and applies to any container's direct children; per-direction conflict resolution (CSS Tables 3 §11.5); full `border-style` keyword set + the rdom-specific `half-block` pill style.
 - **Multi-slot stylesheets.** `push_stylesheet` / `remove_stylesheet` + `cascade_all` to stack and swap author sheets over the UA sheet.
@@ -117,7 +117,7 @@ See [`CHANGELOG.md`](CHANGELOG.md) for the full 0.2.0 notes, including breaking 
 - **HTML template parser.** Hand-rolled, no external deps. `parseFromString` equivalent. Round-trippable for the supported subset.
 - **`pointer-events: none`, modal `<dialog>` focus trap, scrollable `<textarea>`.** Overlays let clicks through; `showModal()` traps Tab and Esc inside the dialog and returns focus on close; text leaves taller than their box scroll with the caret kept in view.
 
-- **CSS string parser.** Real CSS in, `Stylesheet` out. Three surfaces unified: standalone stylesheets, `<style>` blocks in templates, inline `style="…"`. Selectors, all properties in the dispatch table (color, sizing, padding, border, positioning, transitions), `!important`, custom properties (`var()` in color positions and `content`), the CSS-wide keywords `inherit` / `initial` / `unset`, comma-separated rules, lenient + strict modes with positioned warnings.
+- **CSS string parser.** Real CSS in, `Stylesheet` out. Three surfaces unified: standalone stylesheets, `<style>` blocks in templates, inline `style="…"`. Selectors, all properties in the dispatch table (color, sizing, padding, border, positioning, transitions), `!important`, custom properties (`var()` in color positions), the CSS-wide keywords `inherit` / `initial` / `unset`, comma-separated rules, lenient + strict modes with positioned warnings.
 - **Cascade.** UA / author / inline ladder with `!important` inversion. CSS-faithful specificity. Interaction pseudo-classes (`:hover`, `:active`, `:focus`, `:focus-visible`, `:checked`, `:indeterminate`, `:open`, `:disabled`, `:enabled`, `:valid`, `:invalid`, `:required`, `:optional`, …). Pseudo-elements (`::before`, `::after`, `::selection`, `::backdrop`, `::placeholder`, `::scrollbar`, `::scrollbar-thumb`). `content` property. Custom properties.
 - **Layout + paint.** Flexbox for flex containers. `display: inline-block` for content-hugging chrome (buttons, badges, tags). Inline formatting (word wrap at whitespace + CJK + hyphens, `<br>`, `white-space: normal|pre|nowrap`, per-grapheme source tracking). Positioned `::before` / `::after` pseudo-elements (`position: relative | absolute | fixed` honoring `top` / `right` / `bottom` / `left`). Truecolor / 256-color fallback. ANSI emission with synchronized output (DEC 2026).
 - **Runtime.** Event loop with rendering-steps model (drain, tick, rAF, cascade + layout + paint, sleep). Hit testing, mouse routing (`mousedown` / `mouseup` / `click` synthesized on nearest common ancestor — matches HTML), keyboard routing, focus navigation (`tabindex`, `Tab` / `Shift-Tab`, autofocus), pointer capture, text selection (mouse drag, `Shift+arrow` including vertical with sticky-x and line-edge via `Shift+Home`/`End`, `Ctrl-A`, double/triple-click, `user-select: none|all|contain`) + system clipboard (`arboard`, OSC 52 fallback), panic safety (terminal state restored on panic).
@@ -130,15 +130,16 @@ See [`CHANGELOG.md`](CHANGELOG.md) for the full 0.2.0 notes, including breaking 
 
 ## Roadmap
 
-- **0.6.0** — Client-side routing primitive.
-- **0.7.0** — Async tasks during event handlers.
+- **0.6.0** — CSS completeness: every CSS feature that means something in a terminal ([`specs/CSS-COMPLETE-2026-10.md`](specs/CSS-COMPLETE-2026-10.md)). What is still missing today is listed in [`specs/DIVERGENCES.md`](specs/DIVERGENCES.md) §3.
+- **0.7.0** — Client-side routing primitive.
+- **0.8.0** — Async tasks during event handlers.
 
 Open debt is tracked in [`specs/TECH_DEBT.md`](specs/TECH_DEBT.md).
 
 ## Out of scope (by design)
 
 - **Subpixel anything.** Terminal cells are integer-aligned, monospaced. No subpixel positioning, no fractional widths, no anti-aliasing.
-- **`@media` / `@keyframes` / `@font-face` / `@supports`.** Consumed whole and reported with `WarningKind::UnsupportedAtRule`; the surrounding rules are unaffected. CSS animation lands incrementally through named milestones, not via `@keyframes`.
+- **CSS with no meaning on a character grid.** Fonts (`font-family`, `font-size`, `@font-face`), images, pixel and font-relative units (`px`, `em`), rotation and 3D transforms, print and paged media. These are dropped with a warning; the full list is in [`specs/DIVERGENCES.md`](specs/DIVERGENCES.md) §1. (Every at-rule is consumed whole with `WarningKind::UnsupportedAtRule` today; `@media`, `@supports`, `@keyframes` and the other applicable ones are scheduled for 0.6.0.)
 - **Touch, IME / composition, drag-and-drop, long-press gestures.** Web-platform features tied to input devices or interaction models that don't map onto a terminal.
 - **Higher-level component libraries.** The substrate ships native HTML elements and zero opinionated components — same shape as the browser. Component libraries that compose those primitives belong in downstream consumer crates, not in this workspace. See [`CLAUDE.md`](CLAUDE.md) §"Substrate First, Backend Second" for the rationale.
 
