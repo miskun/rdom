@@ -37,6 +37,7 @@ mod source_overflow_regression;
 mod status_bar_renders;
 mod subtree_swap_integration;
 
+mod scroll_live_style_pane;
 mod tab_form_typing_repro;
 
 mod sticky_single_scrollbar;

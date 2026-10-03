@@ -509,8 +509,11 @@ fn clamp_scroll_offset(dom: &mut Dom<TuiExt>, id: NodeId, computed: &ComputedSty
 }
 
 /// Feed `extend` the boxes `id`'s subtree contributes to an ancestor's
-/// scrollable overflow: its own layout rect, its anonymous boxes, and
-/// — unless it clips — its in-flow descendants' boxes.
+/// scrollable overflow: its own layout rect and — unless it clips — its
+/// anonymous boxes and in-flow descendants' boxes. A clipping box (an
+/// intermediate scroll container) contributes its border box alone:
+/// everything inside it, anonymous boxes included, is its own
+/// scrollable overflow (CSS Overflow 3 §2.2).
 fn extend_scrollable_overflow(dom: &Dom<TuiExt>, id: NodeId, extend: &mut impl FnMut(LayoutRect)) {
     if !is_in_flow(dom, id) {
         return;
@@ -519,14 +522,14 @@ fn extend_scrollable_overflow(dom: &Dom<TuiExt>, id: NodeId, extend: &mut impl F
         return;
     };
     extend(ext.layout);
-    for anon in &ext.anonymous_blocks {
-        extend(anon.rect);
-    }
     let clips = ext.computed.as_ref().is_some_and(|c| {
         !matches!(c.overflow_x, Overflow::Visible) || !matches!(c.overflow_y, Overflow::Visible)
     });
     if clips {
         return;
+    }
+    for anon in &ext.anonymous_blocks {
+        extend(anon.rect);
     }
     for child in dom.node(id).child_nodes() {
         match child.node_type() {
