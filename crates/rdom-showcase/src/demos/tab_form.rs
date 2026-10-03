@@ -1,6 +1,11 @@
 //! Tab-navigable form built from native `<form>` + `<input>` +
 //! `<textarea>` + `<button>` builtins.
 //!
+//! The Name field carries `autofocus`: the showcase runs the
+//! `[autofocus]` algorithm on every mounted demo, so switching here
+//! (including Enter on the sidebar entry) moves focus into the form and
+//! typing goes straight into Name.
+//!
 //! No keydown listeners — the runtime supplies caret, character
 //! insertion, Backspace, OS clipboard, `:focus` cascade, and form
 //! submission entirely from the built-ins. The only app-level code
@@ -18,7 +23,7 @@ pub const MARKUP: &str = r#"<div class="tab-form-demo">
   <h1>Tab-navigable form demo</h1>
   <p class="hint">Tab/Shift-Tab: focus  •  letters/digits: type  •  Backspace: delete  •  Enter: submit  •  Ctrl-C: quit</p>
   <form>
-    <div class="row"><label>  Name: </label><input type="text" name="name"></div>
+    <div class="row"><label>  Name: </label><input type="text" name="name" autofocus></div>
     <div class="row"><label> Email: </label><input type="email" name="email"></div>
     <div class="row"><label> Notes: </label><textarea name="notes"></textarea></div>
     <div class="row"><button>Submit</button></div>
@@ -91,6 +96,11 @@ pub fn build(dom: &mut TuiDom) -> NodeId {
         let input = dom.create_element("input");
         dom.set_attribute(input, "type", ty).unwrap();
         dom.set_attribute(input, "name", name).unwrap();
+        if name == "name" {
+            // Switching to the demo focuses the first field, as a
+            // browser does for `[autofocus]` on navigation.
+            dom.set_attribute(input, "autofocus", "").unwrap();
+        }
 
         dom.append_child(row, label_el).unwrap();
         dom.append_child(row, input).unwrap();

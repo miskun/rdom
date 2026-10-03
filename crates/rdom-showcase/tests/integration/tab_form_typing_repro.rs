@@ -3,10 +3,11 @@
 //! `input::seed_all` runs once at `App::build`, so inputs in a demo mounted
 //! *later* (the user switches to Tab Form from another demo) had no text-node
 //! child — focusing them seeded no caret and the first keystroke was dropped
-//! ("the input is focused but I can't type"). The focus path now seeds the
-//! editable lazily (`input::ensure_seeded`), so a switched-in input is
-//! typeable. Without the demo switch the bug doesn't reproduce — `seed_all`
-//! covered the initial demo.
+//! ("the input is focused but I can't type"). The `App` now seeds inserted
+//! controls at its next boundary (`INPUT-SEED-ON-INSERT-1`), and the focus
+//! path seeds one focused before then (`input::ensure_seeded`) — which is
+//! what the demo's `autofocus` Name input relies on, since `mount_demo`
+//! focuses it right after inserting it.
 
 use crossterm::event::{
     Event as CtEvent, KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers,
@@ -107,7 +108,8 @@ fn switched_in_tab_form_input_accepts_typed_text() {
 
     let input = find_by_tag(app.dom(), app.dom().root(), "input").expect("tab-form input");
 
-    // Tab from the autofocused sidebar tree to the first input.
+    // The switch autofocuses the Name input (SHOWCASE-TAB-FORM-AUTOFOCUS-1);
+    // the loop only Tabs if focus is elsewhere.
     for _ in 0..12 {
         if app.dom().focused() == Some(input) {
             break;
@@ -172,4 +174,89 @@ fn pagedown_in_a_focused_input_scrolls_the_containing_pane() {
          (before={before}, after={})",
         scroll_y(&app)
     );
+}
+
+/// `SHOWCASE-TAB-FORM-AUTOFOCUS-1`: the Name input carries `autofocus`,
+/// so switching to Tab form moves focus into it (the showcase runs the
+/// `[autofocus]` algorithm on every mounted demo, as a browser does on
+/// navigation) and typing lands there with no click and no Tab.
+#[test]
+fn switching_to_tab_form_focuses_the_name_input_and_typing_goes_into_it() {
+    let (mut app, input, _pane) = tab_form_app(123, 26);
+    assert_eq!(app.dom().node(input).get_attribute("name"), Some("name"));
+    assert_eq!(
+        app.dom().focused(),
+        Some(input),
+        "the switch focuses the autofocus Name input"
+    );
+    for c in "Ada".chars() {
+        app.handle_event(key(KeyCode::Char(c)));
+    }
+    app.draw_if_dirty().unwrap();
+    assert_eq!(app.dom().node(input).get_attribute("value"), Some("Ada"));
+}
+
+/// The demo's `MARKUP` (shown in the source disclosure) and its
+/// hand-built DOM agree: the Name input, and only it, is `autofocus`.
+#[test]
+fn tab_form_markup_and_build_both_autofocus_the_name_input() {
+    use rdom_showcase::demos::tab_form;
+    let autofocused = |dom: &TuiDom| -> Vec<String> {
+        fn walk(dom: &TuiDom, id: NodeId, out: &mut Vec<String>) {
+            let n = dom.node(id);
+            if n.has_attribute("autofocus") {
+                out.push(format!(
+                    "{}[name={}]",
+                    n.tag_name().unwrap_or("?"),
+                    n.get_attribute("name").unwrap_or("")
+                ));
+            }
+            for c in n.child_nodes() {
+                walk(dom, c.id(), out);
+            }
+        }
+        let mut out = Vec::new();
+        walk(dom, dom.root(), &mut out);
+        out
+    };
+    let mut built: TuiDom = TuiDom::new();
+    let root = built.root();
+    let demo = tab_form::build(&mut built);
+    built.append_child(root, demo).unwrap();
+    let (parsed, _): (TuiDom, _) = rdom_parser::parse(tab_form::MARKUP).expect("MARKUP parses");
+    let want = vec!["input[name=name]".to_string()];
+    assert_eq!(autofocused(&built), want, "build()");
+    assert_eq!(autofocused(&parsed), want, "MARKUP");
+}
+
+/// The user report behind `EDIT-CLICK-IN-CONTROL-1`: after switching to
+/// Tab form, clicking into the empty Name input put the caret in the
+/// "  Name: " label beside it, and the typed `Z` was lost.
+#[test]
+fn clicking_into_the_switched_in_name_input_types_into_it() {
+    use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
+    let (mut app, input, _pane) = tab_form_app(123, 26);
+    let r = app.dom().node(input).layout_rect().unwrap();
+    let (x, y) = (r.x as u16 + 2, r.y as u16);
+    for kind in [
+        MouseEventKind::Down(MouseButton::Left),
+        MouseEventKind::Up(MouseButton::Left),
+    ] {
+        app.handle_event(CtEvent::Mouse(MouseEvent {
+            kind,
+            column: x,
+            row: y,
+            modifiers: KeyModifiers::empty(),
+        }));
+        app.draw_if_dirty().unwrap();
+    }
+    assert_eq!(app.dom().focused(), Some(input));
+    let sel = *app.dom().selection().expect("a caret");
+    assert_eq!(
+        app.dom().node(sel.focus.node).parent_node().map(|p| p.id()),
+        Some(input),
+        "the caret is in the input's text, not the label's"
+    );
+    app.handle_event(key(KeyCode::Char('Z')));
+    assert_eq!(app.dom().node(input).get_attribute("value"), Some("Z"));
 }
