@@ -54,6 +54,8 @@ mod redraw;
 mod stylesheets;
 
 #[cfg(test)]
+mod control_click_tests;
+#[cfg(test)]
 mod frame_work_tests;
 #[cfg(test)]
 mod idle_tests;

@@ -11,6 +11,7 @@ use std::rc::Rc;
 
 use crate::TuiDom;
 use crate::layout::{Display, Overflow, Padding, Size, UserSelect};
+use crate::node::TuiNodeExt;
 use crate::render::{LayoutExt, Rect};
 use crate::runtime::router::{RouteOutcome, Router};
 use crate::style::{CascadeExt, Stylesheet, TuiStyle};
@@ -2449,5 +2450,98 @@ fn cancelled_press_after_lost_mouseup_does_not_extend_the_old_selection() {
         dom.selection().copied(),
         Some(before),
         "selection untouched"
+    );
+}
+
+// ── EDIT-CLICK-IN-CONTROL-1: a press in an editing host stays in it ──
+
+/// `<div><label>  Name: </label><input value="abc"></div>`, cascaded and
+/// laid out *before* the input was seeded (no text node, no inline
+/// layout) — a control inserted after `App::build` and drawn before its
+/// seeding. Returns `(input, label_text)`.
+fn unseeded_input_beside_a_label() -> (TuiDom, NodeId, NodeId) {
+    use crate::layout::{Direction, Flow};
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let row = dom.create_element("div");
+    let label = dom.create_element("label");
+    let label_text = dom.create_text_node("  Name: ");
+    dom.append_child(label, label_text).unwrap();
+    let input = dom.create_element("input");
+    dom.set_attribute(input, "value", "abc").unwrap();
+    dom.append_child(row, label).unwrap();
+    dom.append_child(row, input).unwrap();
+    dom.append_child(root, row).unwrap();
+    let sheet = Stylesheet::new()
+        .rule_unchecked(
+            "div",
+            TuiStyle::new().flow(Flow::Flex).direction(Direction::Row),
+        )
+        .rule_unchecked("label", TuiStyle::new().width(Size::Fixed(9)))
+        .rule_unchecked("input", TuiStyle::new().width(Size::Flex(1)));
+    prepare(&mut dom, &sheet, Rect::new(0, 0, 40, 4));
+    assert_eq!(
+        dom.node(input).child_nodes().count(),
+        0,
+        "precondition: the input is laid out unseeded"
+    );
+    (dom, input, label_text)
+}
+
+#[test]
+fn a_press_in_an_input_laid_out_before_seeding_puts_the_caret_at_its_value_end() {
+    // Its text has no layout yet, so no fragment can resolve the column:
+    // the caret goes to the end of the value, where a browser puts it for
+    // a press past the text — never into the label beside the input.
+    let (mut dom, input, label_text) = unseeded_input_beside_a_label();
+    let r = dom.node(input).layout_rect().unwrap();
+    let mut router = Router::new();
+    router.route(
+        &mut dom,
+        crossterm::event::Event::Mouse(down_at(r.x as u16 + 2, r.y as u16)),
+    );
+    assert_eq!(dom.focused(), Some(input));
+    let text = dom
+        .node(input)
+        .first_child()
+        .expect("focus seeded the input")
+        .id();
+    let sel = *dom.selection().expect("the press sets a caret");
+    assert_ne!(sel.focus.node, label_text, "never the label's text");
+    assert_eq!(sel, Selection::caret(Position::new(text, 3)));
+}
+
+#[test]
+fn a_triple_click_in_an_inline_editing_host_selects_only_its_part_of_the_line() {
+    // `<p>before <span contenteditable>inside</span> after</p>`: the line
+    // runs through the host, but a selection that starts in an editing
+    // host stays in it (the host's used `user-select` is `contain`).
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let p = dom.create_element("p");
+    let before = dom.create_text_node("before ");
+    let host = dom.create_element("span");
+    dom.set_attribute(host, "contenteditable", "true").unwrap();
+    let inside = dom.create_text_node("inside");
+    let after = dom.create_text_node(" after");
+    dom.append_child(host, inside).unwrap();
+    dom.append_child(p, before).unwrap();
+    dom.append_child(p, host).unwrap();
+    dom.append_child(p, after).unwrap();
+    dom.append_child(root, p).unwrap();
+    let sheet = Stylesheet::new().rule_unchecked("p", TuiStyle::new().display(Display::Block));
+    prepare(&mut dom, &sheet, Rect::new(0, 0, 40, 3));
+
+    let mut router = Router::new();
+    // Column 9 is inside "inside" (columns 7..13).
+    for _ in 0..3 {
+        router.route(&mut dom, crossterm::event::Event::Mouse(down_at(9, 0)));
+        router.route(&mut dom, crossterm::event::Event::Mouse(up_at(9, 0)));
+    }
+    let sel = *dom.selection().expect("a selection");
+    assert_eq!(
+        sel,
+        Selection::new(Position::new(inside, 0), Position::new(inside, 6)),
+        "the line selection is clamped to the editing host"
     );
 }

@@ -24,14 +24,18 @@
 //! - **Line**: uses the IFC block's `inline_layout` line data. The
 //!   line that contains the anchor's fragment is selected end to
 //!   end, spanning whatever text nodes / inline elements make it
-//!   up.
+//!   up — clamped to the anchor's `user-select: contain` host (an
+//!   editing host included), so a triple-click in an inline
+//!   `contenteditable` selects only the host's part of the line.
 
 use unicode_segmentation::UnicodeSegmentation;
 
 use rdom_core::{NodeId, NodeType, Position, Selection};
 
 use crate::TuiDom;
+use crate::node::is_descendant_or_self;
 use crate::render::inline::{InlineLayout, inline_flow_for_text, inline_flow_layout};
+use crate::runtime::selection::user_select;
 
 /// Expand the current selection to the word containing
 /// `selection.anchor`. Returns `true` when the selection actually
@@ -78,13 +82,18 @@ pub(crate) fn expand_to_line(dom: &mut TuiDom) -> bool {
     let Some(line_idx) = line_containing(layout, sel.anchor.node, sel.anchor.offset) else {
         return false;
     };
-    let line = &layout.lines[line_idx];
-    let Some(first) = line.fragments.first() else {
+    // A selection that starts in a `user-select: contain` host — an
+    // editing host's used value — stays in it: an inline host's part of
+    // the line, not the prose around it (`EDIT-CLICK-IN-CONTROL-1`).
+    let host = user_select::contain_host(dom, sel.anchor.node);
+    let mut in_host = layout.lines[line_idx]
+        .fragments
+        .iter()
+        .filter(|f| host.is_none_or(|h| is_descendant_or_self(dom, f.text_node, h)));
+    let Some(first) = in_host.next() else {
         return false;
     };
-    let Some(last) = line.fragments.last() else {
-        return false;
-    };
+    let last = in_host.next_back().unwrap_or(first);
     let next = Selection::new(
         Position::new(first.text_node, first.source_byte_offset),
         Position::new(last.text_node, last.source_byte_offset + last.text.len()),

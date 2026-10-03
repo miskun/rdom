@@ -7,7 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed — `rdom-tui`
+
+- **A press in a text control puts the caret in it.** A left press whose hit target is inside an editing host (a text-family `<input>`, a `<textarea>`, a `contenteditable` host) anchors the selection inside that host: at the fragment under the pointer, else on the host's line nearest the pointer, else — when the host's text has no layout yet — at the end of its text. The empty-space snap to the nearest prose no longer applies there: clicking an empty input mounted after `App::build` used to put the caret in the `<label>` beside it, and the next keystroke was lost. A triple-click in an inline `contenteditable` selects only the host's part of the line, as the drag already stays in the host. (`EDIT-CLICK-IN-CONTROL-1`)
 
 ## [0.5.0] - 2026-09-29
 

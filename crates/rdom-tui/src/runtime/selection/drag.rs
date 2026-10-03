@@ -34,15 +34,27 @@
 //! `Some(_)`. That function already walks to the innermost IFC
 //! block and rejects `user-select: none` subtrees, so this file
 //! doesn't duplicate those checks.
+//!
+//! ## Editing hosts keep their selection
+//!
+//! A press inside a text control or `contenteditable` host anchors
+//! inside that host, never in the prose around it (`press_position`):
+//! `position_at`'s empty-space snap to the nearest prose would otherwise
+//! put the caret in a `<label>` beside an input whose text has no layout
+//! yet, and the next keystroke would be lost (`EDIT-CLICK-IN-CONTROL-1`).
+//! The drag that follows stays in the host too: an editing host's used
+//! `user-select` is `contain`, so `extend` clamps the focus back into it.
 
 use crossterm::event::MouseEvent;
 
-use rdom_core::Selection;
+use rdom_core::{Position, Selection};
 
 use crate::TuiDom;
-use crate::node::is_descendant_or_self;
+use crate::node::{
+    is_descendant_or_self, last_text_descendant, nearest_editable_ancestor, text_len,
+};
 use crate::render::inline::inline_flow_for_text;
-use crate::runtime::hit_test::HitTestExt;
+use crate::runtime::hit_test::{HitTestExt, nearest_inline_target_in_subtree, resolve_in_target};
 use crate::runtime::router::Router;
 use crate::runtime::selection::user_select;
 
@@ -53,7 +65,7 @@ use crate::runtime::selection::user_select;
 /// signal for follow-up moves is `router.selection_drag.is_some()`,
 /// set by this function.
 pub(crate) fn begin(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> bool {
-    let Some(anchor) = dom.position_at(mouse.column, mouse.row) else {
+    let Some(anchor) = press_position(dom, mouse) else {
         return false;
     };
 
@@ -91,6 +103,52 @@ pub(crate) fn begin(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) ->
     let anchor_flow = inline_flow_for_text(dom, anchor.node);
     router.selection_drag = anchor_flow;
     true
+}
+
+/// Where a press at `mouse` puts the selection anchor.
+///
+/// A press whose hit target is inside an editing host — a text-family
+/// `<input>`, a `<textarea>`, a `contenteditable` host
+/// ([`nearest_editable_ancestor`]) — resolves *inside that host*, as a
+/// browser's does: clicking a text control always puts the caret in it,
+/// and never starts a selection in the page around it
+/// (`EDIT-CLICK-IN-CONTROL-1`). In order:
+///
+/// 1. the fragment-exact position under the pointer, when it is the
+///    host's own text;
+/// 2. the host's inline flow nearest the pointer's row, resolved like
+///    any hit on it (past a line's end → that line's end);
+/// 3. with no laid-out text in the host — its text was inserted after
+///    the last layout — the end of its text (`0` when empty): with no
+///    layout the column cannot be mapped, and the end is where a browser
+///    puts the caret for a press past the text.
+///
+/// `None` (no drag) when the host is `user-select: none` or holds no
+/// text node at all. Any other press resolves through
+/// [`HitTestExt::position_at`], whose empty-space snap to the nearest
+/// prose only applies outside editing hosts.
+fn press_position(dom: &TuiDom, mouse: MouseEvent) -> Option<Position> {
+    let host = dom
+        .hit_test(mouse.column, mouse.row)
+        .and_then(|hit| nearest_editable_ancestor(dom, hit));
+    let Some(host) = host else {
+        return dom.position_at(mouse.column, mouse.row);
+    };
+    if user_select::is_unselectable(dom, host) {
+        return None;
+    }
+    if let Some(pos) = dom.position_at(mouse.column, mouse.row)
+        && is_descendant_or_self(dom, pos.node, host)
+    {
+        return Some(pos);
+    }
+    if let Some(target) = nearest_inline_target_in_subtree(dom, host, mouse.row)
+        && let Some(pos) = resolve_in_target(dom, target, mouse.column, mouse.row)
+    {
+        return Some(pos);
+    }
+    let last = last_text_descendant(dom, host)?;
+    Some(Position::new(last, text_len(dom, last)))
 }
 
 /// Default action for `mousemove` (while `router.selection_drag` is
