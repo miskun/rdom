@@ -5,8 +5,10 @@
 //! it, is `opacity: 0.5` of its own, so it shows at 0.35 overall. Each
 //! card composes as a group (CSS Color 4 §3.2: the subtree renders
 //! opaque, then blends once), so the inner card's text never shows the
-//! outer card's through it. Where a card's glyph overlaps a backdrop
-//! glyph one of them shows per cell (DIVERGENCES §opacity).
+//! outer card's through it. The cards' padding keeps their text off the
+//! backdrop's text: what shows through each card is the paragraph and the
+//! bordered box, tinted toward the card's background. Where glyphs would
+//! overlap, a terminal cell can show only one (DIVERGENCES §opacity).
 
 use std::io;
 
@@ -28,7 +30,7 @@ pub const CSS: &str = r#"
 .translucency {
   position: relative;
   padding: 1 2;
-  height: 12;
+  height: 17;
 }
 .translucency .backdrop {
   color: rgb(200, 200, 200);
@@ -44,23 +46,23 @@ pub const CSS: &str = r#"
 .translucency .card {
   position: absolute;
   border: rounded;
-  padding: 0 1;
+  padding: 1;
 }
 .translucency .outer {
   top: 2;
   left: 10;
   width: 34;
-  height: 8;
+  height: 14;
   opacity: 0.7;
   background: rgb(30, 60, 120);
   border-color: rgb(120, 170, 255);
   color: rgb(230, 240, 255);
 }
 .translucency .inner {
-  top: 3;
+  top: 6;
   left: 6;
   width: 26;
-  height: 3;
+  height: 5;
   opacity: 0.5;
   background: rgb(120, 30, 90);
   border-color: rgb(255, 140, 200);

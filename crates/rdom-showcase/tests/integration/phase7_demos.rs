@@ -160,7 +160,7 @@ fn translucency_initial_paint() {
         mount(translucency::build),
         translucency::stylesheet(),
         60,
-        14,
+        20,
     );
     assert_snapshot(&painted(&app), "translucency.snap");
 }

@@ -1,11 +1,17 @@
 
   The quick brown fox jumps over the lazy dog.
   The quic╭────────────────────────────────╮g.
-  The quic│ Outer card,uopacityr0.7e lazy d│g.
+  The quic│ brown fox jumps over the lazy d│g.
+          │ Outer card, opacity 0.7        │
+  ╭───────│──────────────────────────────╮ │
+  │A borde│ed box under the cards        │ │
+  ╰───────│──────────────────────────────╯ │
+          │     ╭────────────────────────╮ │
+          │     │                        │ │
+          │     │ Inner card, 0.5 of 0.7 │ │
+          │     │                        │ │
+          │     ╰────────────────────────╯ │
           │                                │
-  ╭───────│─────╭────────────────────────╮ │
-  │A borde│ed bo│ Inner card,a0.5 of 0.7 │ │
-  ╰───────│─────╰────────────────────────╯ │
           │                                │
           ╰────────────────────────────────╯
 
