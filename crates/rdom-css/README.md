@@ -80,7 +80,7 @@ value       := token+
   `:open`, …), pseudo-elements (`::before`, `::after`, `::selection`,
   `::backdrop`), descendant / child / next-sibling / subsequent-sibling
   combinators, comma-separated lists.
-- **Properties** — the `rdom-style::property_dispatch` table (72 names incl. `counter-reset` / `counter-increment`; `transition-timing-function` takes `cubic-bezier()` and `steps()`):
+- **Properties** — the `rdom-style::property_dispatch` table (`property_names()` lists them; incl. `counter-reset` / `counter-increment`; `transition-timing-function` takes `cubic-bezier()` and `steps()`):
   color/text, block model, sizing, content, positioning, transitions.
   See [`rdom-style`](../rdom-style/#supported-properties) for the
   current list.

@@ -200,7 +200,7 @@ row comes from.
 | C10-QUOTES | `quotes` | |
 | C10-COUNTERS | `counter-reset reversed()`, `counter-set`, `counters()`, all predefined counter styles | |
 | C10-COUNTER-STYLE | `@counter-style` and `symbols()` | |
-| C10-LIST-ITEM | `display: list-item`, `list-style-type` / `-position` / `list-style`, `::marker` (replaces the `li::before` divergence) | |
+| C10-LIST-ITEM | `display: list-item`, `list-style-type` / `-position` / `list-style`, `marker-side`, `::marker` (replaces the `li::before` divergence) | |
 | C10-FIRST | `::first-line` / `::first-letter` | |
 | C10-LEGACY-COLON | Single-colon `:before` / `:after` / `:first-line` / `:first-letter` | |
 | C10-HIGHLIGHT | `::highlight()` with a Custom Highlight API surface | |
