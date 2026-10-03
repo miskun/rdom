@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — `rdom-core`
+
+- **Selectors decode CSS escapes** (CSS Syntax 3 §4.3.7). Type, class, id and attribute names and attribute values — quoted or not — decode `\` + 1–6 hex digits (one following whitespace belongs to the escape) and `\` + any other code point: `.\31 0` matches class `10`, `#a\:b` matches id `a:b`, `[title="a\"b"]` matches `a"b`. A `\` before a newline does not continue an identifier. The decoder is the new public module `rdom_core::css_syntax` (`consume_escape`, `consume_ident`, `consume_string`, `would_start_ident`, …), which rdom-style's tokenizer shares. (C1-ESCAPES)
+
+### Added — `rdom-style`
+
+- **The value tokenizer decodes identifier escapes** (CSS Syntax 3 §4.3.7 / §4.3.11) through `rdom_core::css_syntax`, so they work in property names (`col\6f r: red`) and keyword values (`display: fl\65x`); an identifier may start with an escape. A selector list no longer splits on an escaped comma. New `Cursor::rest` / `Cursor::advance`. (C1-ESCAPES)
+
+### Fixed — `rdom-css`
+
+- **Escapes in a selector prelude are copied through intact**, so an escaped `{`, `}`, quote or `,` (`.x\{\,y`) neither ends the prelude nor splits the selector list. (C1-ESCAPES)
+
 ### Fixed — `rdom-tui`
 
 - **A press in a text control puts the caret in it.** A left press whose hit target is inside an editing host (a text-family `<input>`, a `<textarea>`, a `contenteditable` host) anchors the selection inside that host: at the fragment under the pointer, else on the host's line nearest the pointer, else — when the host's text has no layout yet — at the end of its text. The empty-space snap to the nearest prose no longer applies there: clicking an empty input mounted after `App::build` used to put the caret in the `<label>` beside it, and the next keystroke was lost. A triple-click in an inline `contenteditable` selects only the host's part of the line, as the drag already stays in the host. (`EDIT-CLICK-IN-CONTROL-1`)

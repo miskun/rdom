@@ -56,6 +56,19 @@ impl<'a> Cursor<'a> {
         self.source[self.pos..].chars().nth(2)
     }
 
+    /// The unconsumed remainder of the source.
+    pub fn rest(&self) -> &'a str {
+        &self.source[self.pos..]
+    }
+
+    /// Consume `bytes` bytes (a count a `rdom_core::css_syntax`
+    /// function returned for [`Cursor::rest`], so it ends on a `char`
+    /// boundary), keeping line and column current.
+    pub fn advance(&mut self, bytes: usize) {
+        let end = self.pos + bytes;
+        while self.pos < end && self.bump().is_some() {}
+    }
+
     pub fn bump(&mut self) -> Option<char> {
         let c = self.peek()?;
         self.pos += c.len_utf8();

@@ -5,13 +5,16 @@
 //! operates on the captured body string and produces value-level
 //! tokens that the property parsers consume.
 
+use rdom_core::css_syntax;
+
 use crate::parse::cursor::Cursor;
 
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum Token {
-    /// `[-_a-zA-Z][-_a-zA-Z0-9]*`. Includes custom-property names
-    /// like `--accent` (CSS treats them as idents).
+    /// An ident sequence (CSS Syntax 3 §4.3.11), escapes decoded
+    /// (`col\6f r` is `color`). Includes custom-property names like
+    /// `--accent` (CSS treats them as idents).
     Ident(String),
     /// `<number-token>` with the *integer* type flag (CSS Syntax 3
     /// §4.3.12): digits only, in `i32` range. Negative numbers are
@@ -142,25 +145,17 @@ fn skip_comment_body(cursor: &mut Cursor) -> bool {
 }
 
 fn read_one(cursor: &mut Cursor, c: char) -> Result<Token, TokenizerError> {
-    // CSS syntax: a leading `-` starts an identifier only when
-    // followed by another ident-start char (letter / underscore /
-    // dash). `-foo`, `--name`, `-_a` are idents; `-5`, `-)`,
-    // `-` (alone) are punctuation and start a `Delim('-')` /
-    // signed number sequence.
-    if c == '-' {
-        let next = cursor.peek_two().1;
-        match next {
-            Some(c2) if is_ident_start(c2) || c2 == '-' => {
-                return Ok(read_ident_or_function(cursor));
-            }
-            _ => {
-                cursor.bump();
-                return Ok(Token::Delim('-'));
-            }
-        }
-    }
-    if is_ident_start(c) {
+    // §4.3.1: an ident-start code point, a valid escape (`\31`), or a
+    // `-` followed by either of those or another `-` begins an
+    // identifier. `-5`, `-)` and a lone `-` are punctuation and start a
+    // `Delim('-')` / signed number sequence; a `\` before a newline is
+    // a `Delim('\\')` (parse error).
+    if css_syntax::would_start_ident(cursor.rest()) {
         return Ok(read_ident_or_function(cursor));
+    }
+    if c == '-' {
+        cursor.bump();
+        return Ok(Token::Delim('-'));
     }
     if c.is_ascii_digit() || (c == '.' && cursor.peek_two().1.is_some_and(|d| d.is_ascii_digit())) {
         return Ok(read_number(cursor));
@@ -184,28 +179,12 @@ fn read_one(cursor: &mut Cursor, c: char) -> Result<Token, TokenizerError> {
     Ok(tok)
 }
 
-/// CSS Syntax 3 §4.2 "ident-start code point": a letter, `_`, or any
-/// non-ASCII code point. `-` is handled specially in `read_one` (it's
-/// only an ident start when followed by another ident-start char).
-fn is_ident_start(c: char) -> bool {
-    c.is_ascii_alphabetic() || c == '_' || !c.is_ascii()
-}
-
-/// §4.2 "ident code point": ident-start, a digit, or `-`.
-fn is_ident_continue(c: char) -> bool {
-    is_ident_start(c) || c.is_ascii_digit() || c == '-'
-}
-
+/// §4.3.4 "consume an ident-like token" (minus `url(`): an ident
+/// sequence with its escapes decoded (§4.3.11), promoted to a
+/// `Function` when `(` follows directly.
 fn read_ident_or_function(cursor: &mut Cursor) -> Token {
-    let mut name = String::new();
-    while let Some(c) = cursor.peek() {
-        if is_ident_continue(c) {
-            name.push(c);
-            cursor.bump();
-        } else {
-            break;
-        }
-    }
+    let (name, used) = css_syntax::consume_ident(cursor.rest());
+    cursor.advance(used);
     if cursor.peek() == Some('(') {
         cursor.bump();
         return Token::Function(name);
@@ -289,32 +268,6 @@ fn read_number(cursor: &mut Cursor) -> Token {
     Token::Float(value)
 }
 
-/// §4.3.7 "consume an escaped code point", hex form: the cursor is on
-/// the first of 1..=6 hex digits (the `\` is already consumed). One
-/// whitespace after the digits is part of the escape. Zero, surrogates,
-/// and values above U+10FFFF become U+FFFD.
-fn read_hex_escape(cursor: &mut Cursor) -> char {
-    let mut value: u32 = 0;
-    let mut digits = 0;
-    while digits < 6 {
-        match cursor.peek() {
-            Some(c) if c.is_ascii_hexdigit() => {
-                value = value * 16 + c.to_digit(16).unwrap_or(0);
-                cursor.bump();
-                digits += 1;
-            }
-            _ => break,
-        }
-    }
-    if cursor.peek().is_some_and(char::is_whitespace) {
-        cursor.bump();
-    }
-    match value {
-        0 | 0xD800..=0xDFFF => '\u{FFFD}',
-        v => char::from_u32(v).unwrap_or('\u{FFFD}'),
-    }
-}
-
 fn read_hash(cursor: &mut Cursor) -> Token {
     cursor.bump(); // consume '#'
     let mut hex = String::new();
@@ -351,13 +304,10 @@ fn read_string(cursor: &mut Cursor) -> Result<Token, TokenizerError> {
                 Some('\n') => {
                     cursor.bump();
                 }
-                Some(c) if c.is_ascii_hexdigit() => {
-                    out.push(read_hex_escape(cursor));
-                }
                 Some(_) => {
-                    if let Some(esc) = cursor.bump() {
-                        out.push(esc);
-                    }
+                    let (decoded, used) = css_syntax::consume_escape(cursor.rest());
+                    out.push(decoded);
+                    cursor.advance(used);
                 }
                 None => {} // `\` at EOF: the unterminated-string path reports it
             },
@@ -498,6 +448,24 @@ mod tests {
         assert_eq!(toks("größe"), vec![Token::Ident("größe".to_string())]);
         assert_eq!(toks("--größe"), vec![Token::Ident("--größe".to_string())]);
         assert_eq!(toks("日本語"), vec![Token::Ident("日本語".to_string())]);
+    }
+
+    /// CSS Syntax 3 §4.3.7 / §4.3.11: an identifier may contain (and
+    /// start with) escapes, decoded in the token; `\` + newline is not
+    /// a valid escape (§4.3.8), so it ends the identifier and is a
+    /// `Delim('\\')`.
+    #[test]
+    fn identifier_escapes_decode() {
+        let ident = |s: &str| Token::Ident(s.to_string());
+        assert_eq!(toks(r"col\6f r"), vec![ident("color")]);
+        assert_eq!(toks(r"\31 0"), vec![ident("10")]);
+        assert_eq!(toks(r"-\31 x"), vec![ident("-1x")]);
+        assert_eq!(toks(r"a\:b"), vec![ident("a:b")]);
+        assert_eq!(toks(r"r\67 b("), vec![Token::Function("rgb".to_string())]);
+        assert_eq!(
+            toks("a\\\nb"),
+            vec![ident("a"), Token::Delim('\\'), ident("b")]
+        );
     }
 
     #[test]

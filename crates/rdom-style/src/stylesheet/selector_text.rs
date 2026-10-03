@@ -123,8 +123,16 @@ pub(super) fn split_top_level_commas(input: &str) -> Vec<&str> {
     let mut start = 0;
     let mut out = Vec::new();
 
+    let mut escaped = false;
     for (i, &b) in bytes.iter().enumerate() {
+        // `\,` is an escaped comma inside an identifier (CSS Syntax 3
+        // §4.3.7), not a list separator.
+        if escaped {
+            escaped = false;
+            continue;
+        }
         match b {
+            b'\\' => escaped = true,
             b'(' => depth_paren += 1,
             b')' => depth_paren = (depth_paren - 1).max(0),
             b'[' => depth_bracket += 1,

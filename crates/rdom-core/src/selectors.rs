@@ -13,6 +13,10 @@
 //!   `:valid`, `:invalid`, `:required`, `:optional`, …)
 //! - Selector list: `a, b, c`
 //!
+//! Identifiers and attribute values decode CSS escapes (`.\31 0` is
+//! class `10`, `#a\:b` is id `a:b`) through [`crate::css_syntax`], the
+//! same decoder the value tokenizer in `rdom-style` uses.
+//!
 //! Attribute values match case-sensitively, except the attributes HTML
 //! §4.16.2 lists as ASCII case-insensitive on HTML elements (`type`,
 //! `method`, `enctype`, `lang`, `checked`, …), so the UA sheet's
@@ -27,6 +31,8 @@
 //!   case flags (`[attr="v" i]`), pseudo-elements (`::before`, `::after`).
 
 use std::fmt;
+
+use crate::css_syntax;
 
 // ─── AST ─────────────────────────────────────────────────────────────
 
@@ -427,7 +433,7 @@ impl<'a> Parser<'a> {
                 self.pos += 1;
                 simples.push(SimpleSelector::Universal);
             }
-            Some(b) if is_ident_start(b) => {
+            Some(b) if is_ident_start(b) || self.at_valid_escape() => {
                 let name = self.parse_ident();
                 simples.push(SimpleSelector::Type(name));
             }
@@ -520,31 +526,16 @@ impl<'a> Parser<'a> {
 
     fn parse_attr_value(&mut self) -> Result<String, ParseError> {
         match self.peek() {
-            Some(b'"') => {
+            Some(q @ (b'"' | b'\'')) => {
                 self.pos += 1;
-                let start = self.pos;
-                while let Some(b) = self.peek() {
-                    if b == b'"' {
-                        break;
-                    }
-                    self.pos += 1;
-                }
-                let s = self.src[start..self.pos].to_string();
-                self.expect(b'"', "quoted attribute value")?;
-                Ok(s)
-            }
-            Some(b'\'') => {
-                self.pos += 1;
-                let start = self.pos;
-                while let Some(b) = self.peek() {
-                    if b == b'\'' {
-                        break;
-                    }
-                    self.pos += 1;
-                }
-                let s = self.src[start..self.pos].to_string();
-                self.expect(b'\'', "quoted attribute value")?;
-                Ok(s)
+                let Some((value, used)) =
+                    css_syntax::consume_string(&self.src[self.pos..], q as char)
+                else {
+                    self.pos = self.bytes.len();
+                    return Err(self.err("unterminated quoted attribute value".to_string()));
+                };
+                self.pos += used;
+                Ok(value)
             }
             _ => {
                 let id = self.parse_ident();
@@ -607,16 +598,19 @@ impl<'a> Parser<'a> {
         }
     }
 
+    /// §4.3.11 "consume an ident sequence", escapes decoded (§4.3.7).
+    /// The selector grammar is lenient about the start (`.10` is class
+    /// `10`), so this does not check §4.3.9.
     fn parse_ident(&mut self) -> String {
-        let start = self.pos;
-        while let Some(b) = self.peek() {
-            if is_ident_continue(b) {
-                self.pos += 1;
-            } else {
-                break;
-            }
-        }
-        self.src[start..self.pos].to_string()
+        let (name, used) = css_syntax::consume_ident(&self.src[self.pos..]);
+        self.pos += used;
+        name
+    }
+
+    /// `\` not followed by a newline (§4.3.8) — an escape that starts
+    /// an identifier.
+    fn at_valid_escape(&self) -> bool {
+        css_syntax::is_valid_escape(&self.src[self.pos..])
     }
 }
 
@@ -626,12 +620,6 @@ impl<'a> Parser<'a> {
 /// is accepted too, for `-foo` / custom idents.
 fn is_ident_start(b: u8) -> bool {
     b.is_ascii_alphabetic() || b == b'_' || b == b'-' || !b.is_ascii()
-}
-
-/// CSS Syntax 3 §4.2 ident code point, byte-wise: an ident-start code
-/// point, a digit or `-`.
-fn is_ident_continue(b: u8) -> bool {
-    b.is_ascii_alphanumeric() || b == b'_' || b == b'-' || !b.is_ascii()
 }
 
 // ─── Tests ───────────────────────────────────────────────────────────

@@ -728,6 +728,46 @@ mod tests {
         }
     }
 
+    /// CSS Syntax 3 §4.3.7 "consume an escaped code point": `\` + 1–6
+    /// hex digits is that code point (one whitespace after the digits
+    /// belongs to the escape), `\` + any other code point is that code
+    /// point. Escapes work in type, class, id and attribute names and
+    /// in attribute values, quoted or not.
+    #[test]
+    fn escaped_identifiers_match() {
+        let mut dom: Dom = Dom::new();
+        let root = dom.root();
+        let el = dom.create_element("p");
+        dom.add_class(el, "10").unwrap();
+        dom.set_attribute(el, "id", "a:b").unwrap();
+        dom.set_attribute(el, "data-x", "q\"r").unwrap();
+        dom.set_attribute(el, "da:ta", "1 2").unwrap();
+        dom.append_child(root, el).unwrap();
+        for sel in [
+            r".\31 0",
+            r"#a\:b",
+            r"#a\3a b",
+            r"#a\00003Ab",
+            r"\70",
+            r".\31\30",
+            r#"[data-x="q\"r"]"#,
+            r#"[data-x='q\22r']"#,
+            r"[da\:ta=\31\ 2]",
+        ] {
+            assert!(dom.matches(el, sel).unwrap(), "{sel}");
+        }
+        assert_eq!(dom.query_selector(r".\31 0").map(|n| n.id()), Some(el));
+        // `#a:b` is id `a` plus an (unknown) pseudo-class, not id `a:b`.
+        assert!(dom.matches(el, "#a:b").is_err());
+    }
+
+    /// §4.3.7: a `\` followed by a newline is not a valid escape, so it
+    /// cannot continue an identifier — the selector is invalid.
+    #[test]
+    fn escaped_newline_is_not_an_identifier_escape() {
+        assert!(crate::selectors::parse(".a\\\nb").is_err());
+    }
+
     #[test]
     fn root_pseudo() {
         let (dom, _) = build();

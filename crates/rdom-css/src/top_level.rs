@@ -263,6 +263,10 @@ fn read_selector_text(cursor: &mut Cursor, warnings: &mut Vec<Warning>) -> Optio
                     return None;
                 }
             }
+            // An escape (CSS Syntax 3 §4.3.7) is copied through
+            // undecoded — the selector parser decodes it — so `.x\{`
+            // does not end the prelude.
+            Some('\\') => copy_escape_into(cursor, &mut out),
             Some('/') => {
                 if let (_, Some('*')) = cursor.peek_two() {
                     if !skip_comment(cursor, warnings) {
@@ -335,6 +339,7 @@ fn read_block_body(cursor: &mut Cursor, warnings: &mut Vec<Warning>) -> Option<S
                     return None;
                 }
             }
+            Some('\\') => copy_escape_into(cursor, &mut out),
             Some(q @ ('"' | '\'')) => {
                 out.push(q);
                 cursor.bump();
@@ -370,6 +375,17 @@ fn skip_comment_into(cursor: &mut Cursor, out: &mut String) -> bool {
                 cursor.bump();
             }
         }
+    }
+}
+
+/// With the cursor on `\`, copy the backslash and the code point it
+/// escapes verbatim, so an escaped `{`, `}`, quote or `,` is never read
+/// as structure. Decoding is the consumer's job.
+fn copy_escape_into(cursor: &mut Cursor, out: &mut String) {
+    out.push('\\');
+    cursor.bump();
+    if let Some(c) = cursor.bump() {
+        out.push(c);
     }
 }
 

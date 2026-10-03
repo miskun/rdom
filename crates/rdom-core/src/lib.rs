@@ -36,6 +36,7 @@ mod attrs;
 mod clone;
 mod constraint;
 mod content_editable;
+pub mod css_syntax;
 mod dispatch;
 mod dom;
 mod dom_string_map;

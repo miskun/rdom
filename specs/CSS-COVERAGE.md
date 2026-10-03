@@ -69,7 +69,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 
 | Module | Supported | Partial | Missing | N/A | Total |
 |---|---:|---:|---:|---:|---:|
-| 3.1 Syntax, cascade and inheritance (Syntax 3, Cascade 4/5, CSS 2.1 §6) | 9 | 2 | 8 | 2 | 21 |
+| 3.1 Syntax, cascade and inheritance (Syntax 3, Cascade 4/5, CSS 2.1 §6) | 10 | 2 | 7 | 2 | 21 |
 | 3.2 Custom properties (CSS Variables 1) | 2 | 1 | 3 | 1 | 7 |
 | 3.3 Values and units (Values 4) | 5 | 5 | 8 | 4 | 22 |
 | 3.4 Color (Color 4 / 5) | 3 | 3 | 9 | 2 | 17 |
@@ -93,7 +93,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 0 | 0 | 6 | 3 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **52** | **45** | **160** | **50** | **307** |
+| **Total** | **53** | **45** | **159** | **50** | **307** |
 
 Of the 205 Partial / Missing rows, **133 are not documented** in `DIVERGENCES.md` (6 of them because the document states the opposite of the code) — see §5 and §6.
 
@@ -219,7 +219,7 @@ dropped:
 |---|---|---|---|---|
 | Rule / declaration parsing with Syntax 3 error recovery | Supported | Qualified rules, stray `}`, EOF inside a block, malformed declarations warn and continue. | — | `AT`, `DECL` |
 | Comments, strings, string escapes | Supported | `/* */`; `"…"` / `'…'` with hex and newline escapes. | — | `TOK::read_string` |
-| Identifier escapes (`\31 0`, `\:`) | Missing | Backslash escapes in identifiers and selectors are not decoded. | No | `TOK`, `SEL::parse_ident` |
+| Identifier escapes (`\31 0`, `\:`) | Supported | Syntax 3 §4.3.7 escapes decode in selectors (type / class / id / attribute names and values), property names and keyword values; one decoder, `rdom_core::css_syntax`, serves the selector parser and the value tokenizer (C1-ESCAPES). | — | `rdom-core/src/css_syntax.rs`, `TOK`, `SEL::parse_ident` |
 | Property-name case-insensitivity | Partial | Names are matched exactly: `COLOR: red` is `UnknownProperty` (CSS property names are ASCII case-insensitive). | No | `DECL::apply_declaration`, `DISP` |
 | Keyword case-insensitivity | Partial | `parse_keyword` is case-insensitive, but `text-decoration` (`V/keyword.rs::parse_text_decoration`) matches exactly. | No | `V/keyword.rs` |
 | `!important` | Supported | Per-field `ImportantMask`; inline and sheet; custom properties too. | — | `DECL::strip_trailing_important` |
@@ -670,7 +670,7 @@ implementation or a `DIVERGENCES.md` entry before the acid page's coverage test 
 
 **3.1 Syntax, cascade and inheritance (Syntax 3, Cascade 4/5, CSS 2.1 §6)**
 
-- Identifier escapes (`\31 0`, `\:`) — Missing: Backslash escapes in identifiers and selectors are not decoded.
+- Identifier escapes (`\31 0`, `\:`) — Missing: Backslash escapes in identifiers and selectors are not decoded. *Shipped: C1-ESCAPES.*
 - Property-name case-insensitivity — Partial: Names are matched exactly: `COLOR: red` is `UnknownProperty` (CSS property names are ASCII case-insensitive).
 - Keyword case-insensitivity — Partial: `parse_keyword` is case-insensitive, but `text-decoration` (`V/keyword.rs::parse_text_decoration`) matches exactly.
 - `revert` — Missing: Roll back to the UA-origin value.

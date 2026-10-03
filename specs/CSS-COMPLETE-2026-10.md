@@ -61,7 +61,7 @@ row comes from.
 
 | Id | Item | Status |
 |---|---|---|
-| C1-ESCAPES | Identifier escapes in selectors and values (`\31 0`, `\:`) — Syntax 3 §4.3.7 | |
+| C1-ESCAPES | Identifier escapes in selectors and values (`\31 0`, `\:`) — Syntax 3 §4.3.7 | done |
 | C1-CASE | Property names and all keywords ASCII case-insensitive | |
 | C1-REVERT | `revert` (roll back to the UA origin) | |
 | C1-LAYER | `@layer` (statement + block, anonymous layers, layer order) and `revert-layer` | |
