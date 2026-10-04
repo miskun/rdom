@@ -164,6 +164,12 @@ pub struct ComputedStyle {
     pub counter_reset: Vec<crate::counters::CounterOp>,
     pub counter_increment: Vec<crate::counters::CounterOp>,
 
+    /// `color-scheme` (CSS Color Adjust 1 §2). Inherits; initial
+    /// `normal`. The used scheme is
+    /// [`ColorSchemeList::used`](crate::color::ColorSchemeList::used)
+    /// of the document's preferred one.
+    pub color_scheme: crate::color::ColorSchemeList,
+
     /// Custom-property values in scope. Populated from parent + own
     /// Custom-property (`--var-name: value;`) map in scope for this
     /// element. Populated from the stylesheet's `root_vars` during
@@ -231,6 +237,7 @@ impl ComputedStyle {
             transition_delay: Vec::new(),
             counter_reset: Vec::new(),
             counter_increment: Vec::new(),
+            color_scheme: crate::color::ColorSchemeList::normal(),
             vars: Rc::new(std::collections::HashMap::new()),
             animated_vars: None,
         }

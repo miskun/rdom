@@ -26,6 +26,9 @@ impl App<CrosstermBackend<Stdout>> {
     /// This is also guaranteed on panic — the `Drop` impl on `App`
     /// runs it if `run` unwinds.
     pub fn run(mut self) -> io::Result<()> {
+        // The terminal's color scheme, asked before the input reader
+        // starts (it would see the replies as keys).
+        self.detect_color_scheme();
         // Initial paint — user should see something even before any
         // event fires.
         self.redraw.note(Redraw::Cascade);

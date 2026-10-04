@@ -40,6 +40,7 @@
 //! - `frame` — `draw_if_dirty`, the off-frame cascade + layout, and the
 //!   transition-event drain.
 //! - `redraw` — `Redraw`, what the next frame must redo.
+//! - `scheme` — the color-scheme options and the startup query.
 
 pub mod context;
 pub mod handle;
@@ -52,6 +53,7 @@ mod input;
 mod keyboard_defaults;
 mod prelude;
 mod redraw;
+mod scheme;
 mod stylesheets;
 
 #[cfg(test)]
@@ -148,6 +150,9 @@ pub struct App<B: Backend = CrosstermBackend<Stdout>> {
     /// viewport-percentage units against (CSS Values 4 §6.1.2); a frame
     /// at another size cascades the whole tree again.
     cascaded_viewport: Option<rdom_style::calc::Viewport>,
+    /// True once the app set the color scheme (`App::with_color_scheme`
+    /// / `set_color_scheme`): the terminal is not asked at startup.
+    color_scheme_explicit: bool,
     on_tick: Option<TickCallback>,
     /// Timer / rAF / microtask scheduler.
     pub(crate) scheduler: crate::runtime::timers::SharedScheduler,
@@ -314,6 +319,7 @@ impl<B: Backend> App<B> {
             tick_rate: Duration::from_millis(50),
             animation_frame_ms: 16,
             cascaded_viewport: None,
+            color_scheme_explicit: false,
             on_tick: None,
             scheduler: std::rc::Rc::new(std::cell::RefCell::new(
                 crate::runtime::timers::Scheduler::new(std::time::Instant::now()),

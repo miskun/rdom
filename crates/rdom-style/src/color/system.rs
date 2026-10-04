@@ -15,10 +15,10 @@
 //! | `GrayText` | the UA muted text `#7F868B` |
 //!
 //! Inside a color function, which needs a definite color, the terminal
-//! defaults take the canvas model's values: black background, white
-//! text.
+//! defaults take the canvas model's values: black background and white
+//! text under a dark color scheme, white and black under a light one.
 
-use super::{Color, named};
+use super::{Color, ColorScheme, named};
 
 /// Field background tint — subtle dark warm gray. On dark
 /// terminals it reads as a soft pillow under input/textarea text
@@ -44,10 +44,15 @@ pub(crate) const ACCENT: Color = named::DODGERBLUE;
 /// selection distinct from the caret.
 pub(crate) const HIGHLIGHT: Color = Color::Rgb(0x39, 0x4B, 0x7E);
 
-/// The canvas model's background and text: what the terminal's default
-/// colors count as where a definite color is needed.
-const CANVAS: Color = named::BLACK;
-const CANVAS_TEXT: Color = named::WHITE;
+/// The canvas model: what the terminal's default background and text
+/// count as where a definite color is needed — black and white under a
+/// dark scheme, white and black under a light one.
+pub fn canvas(scheme: ColorScheme) -> (Color, Color) {
+    match scheme {
+        ColorScheme::Dark => (named::BLACK, named::WHITE),
+        ColorScheme::Light => (named::WHITE, named::BLACK),
+    }
+}
 
 /// A CSS system color (CSS Color 4 §6.2).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -175,12 +180,20 @@ impl SystemColor {
         }
     }
 
+    /// True for the colors that are the terminal's defaults, whose
+    /// definite value depends on the color scheme.
+    pub fn is_canvas(self) -> bool {
+        self.color() == Color::Reset
+    }
+
     /// The color as a definite sRGB color, for use inside a color
-    /// function: the terminal defaults take the canvas model's values.
-    pub fn definite(self) -> Color {
+    /// function: the terminal defaults take the canvas model's values
+    /// for `scheme` ([`canvas`]).
+    pub fn definite(self, scheme: ColorScheme) -> Color {
+        let (background, text) = canvas(scheme);
         match self {
-            SystemColor::Canvas | SystemColor::ButtonFace => CANVAS,
-            SystemColor::CanvasText | SystemColor::FieldText => CANVAS_TEXT,
+            SystemColor::Canvas | SystemColor::ButtonFace => background,
+            SystemColor::CanvasText | SystemColor::FieldText => text,
             other => other.color(),
         }
     }

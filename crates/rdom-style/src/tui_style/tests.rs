@@ -50,6 +50,7 @@ fn important_mask_bits_are_unique() {
         M::COUNTER_INCREMENT,
         M::SCROLLBAR_GUTTER,
         M::SCROLL_BEHAVIOR,
+        M::COLOR_SCHEME,
     ];
     for (i, a) in all.iter().enumerate() {
         for b in &all[i + 1..] {
@@ -317,6 +318,7 @@ fn every_property_has_important_setter() {
         .pointer_events_important(crate::layout::PointerEvents::None)
         .scrollbar_gutter_important(crate::layout::ScrollbarGutter::Stable)
         .scroll_behavior_important(crate::layout::ScrollBehavior::Smooth)
+        .color_scheme_important(crate::color::ColorSchemeList::normal())
         .white_space_important(WhiteSpace::Pre)
         .user_select_important(UserSelect::None)
         .caret_color_important(CaretColor::Transparent)

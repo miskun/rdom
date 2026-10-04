@@ -186,7 +186,7 @@ fn top_level_comma(args: &[Token]) -> bool {
 }
 
 /// `args` cut at every top-level `sep`.
-fn split_top_level<'a>(args: &'a [Token], sep: &Token) -> Vec<&'a [Token]> {
+pub(super) fn split_top_level<'a>(args: &'a [Token], sep: &Token) -> Vec<&'a [Token]> {
     let mut out = Vec::new();
     let mut depth = 0usize;
     let mut start = 0;

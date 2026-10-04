@@ -12,6 +12,7 @@ use std::rc::Rc;
 
 use rdom_style::LayerOrder;
 use rdom_style::calc::Viewport;
+use rdom_style::color::ColorScheme;
 
 use super::ladder::Plan;
 use super::registered::PropertyRegistry;
@@ -24,22 +25,31 @@ pub(super) struct Sheets<'a> {
     layers: LayerOrder,
     registry: Rc<PropertyRegistry>,
     viewport: Viewport,
+    color_scheme: ColorScheme,
 }
 
 impl<'a> Sheets<'a> {
     /// `list`, with the custom properties it registers (`registry`, built
-    /// from `list`), cascaded for a terminal of `viewport`'s size.
+    /// from `list`), cascaded for a terminal of `viewport`'s size whose
+    /// preferred color scheme is `color_scheme`.
     pub(super) fn new(
         list: &'a [&'a Stylesheet],
         registry: Rc<PropertyRegistry>,
         viewport: Viewport,
+        color_scheme: ColorScheme,
     ) -> Self {
         Sheets {
             list,
             layers: LayerOrder::new(list),
             registry,
             viewport,
+            color_scheme,
         }
+    }
+
+    /// The document's preferred color scheme (CSS Color Adjust 1 §2.1).
+    pub(super) fn color_scheme(&self) -> ColorScheme {
+        self.color_scheme
     }
 
     /// The terminal size the viewport-percentage units resolve against.

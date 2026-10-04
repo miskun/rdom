@@ -27,7 +27,7 @@ use super::walk::{
     Mode, Scratch, Sheets, SubtreeFlags, cascade_subtree, first_child, merge_root_vars,
     next_sibling,
 };
-use super::{PropertyRegistry, document_viewport};
+use super::{PropertyRegistry, document_color_scheme, document_viewport};
 use crate::ext::TuiExt;
 use crate::style::{ComputedStyle, Content, Stylesheet, VarMap};
 
@@ -47,7 +47,12 @@ pub(super) fn subtrees(
         return roots;
     }
     let registry = registry.unwrap_or_else(|| document_registry(dom, stylesheets));
-    let sheets = Sheets::new(stylesheets, registry, document_viewport(dom));
+    let sheets = Sheets::new(
+        stylesheets,
+        registry,
+        document_viewport(dom),
+        document_color_scheme(dom),
+    );
     let merged_vars = merge_root_vars(dom, &sheets);
     let mut scratch = Scratch::default();
     let mut cascade_alone = |dom: &mut Dom<TuiExt>, root: NodeId| {

@@ -102,11 +102,11 @@ pub use runtime::{
     App, AppContext, AppHandle, ControlFlow, HitTestExt, RouteOutcome, Router, StylesheetId,
 };
 pub use style::{
-    CascadeExt, Color, ColorContext, ComputedStyle, Content, CustomValue, DirtyTracker,
-    ImportantMask, LayerId, Modifier, PropertyRegistration, PropertySyntax, PropertySyntaxError,
-    PseudoElementTarget, RegisterPropertyError, Rule, RuleContext, RuleOrigin, Specificity,
-    StyleError, StyleSelector, Stylesheet, TuiColor, TuiStyle, Value, VarMap, parse_color,
-    resolve_tui_color,
+    CascadeExt, Color, ColorContext, ColorScheme, ComputedStyle, Content, CustomValue,
+    DirtyTracker, ImportantMask, LayerId, Modifier, PropertyRegistration, PropertySyntax,
+    PropertySyntaxError, PseudoElementTarget, RegisterPropertyError, Rule, RuleContext, RuleOrigin,
+    Specificity, StyleError, StyleSelector, Stylesheet, TuiColor, TuiStyle, Value, VarMap,
+    parse_color, resolve_tui_color,
 };
 
 /// `Dom<TuiExt>` — the full TUI document.

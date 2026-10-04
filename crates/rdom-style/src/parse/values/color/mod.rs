@@ -1,7 +1,7 @@
 //! The `<color>` grammar (CSS Color 4 §4.1): named colors, hex,
 //! `rgb()` / `rgba()`, `hsl()` / `hsla()`, `hwb()`, `lab()` / `lch()`
 //! / `oklab()` / `oklch()`, `color()`, `color-mix()`, relative colors,
-//! `currentcolor`, the system colors, and rdom's `reset` and
+//! `light-dark()`, `currentcolor`, the system colors, and rdom's `reset` and
 //! palette-index forms.
 //! `var()` is not part of this grammar: a declaration holding one is
 //! substituted by the cascade before it is parsed (`crate::var`).
@@ -98,7 +98,7 @@ fn parse_absolute(component: &[Token], cx: &ColorCx) -> Option<AbsoluteColor> {
     match component {
         [Token::Ident(name)] if name.eq_ignore_ascii_case("currentcolor") => cx.current_color(),
         [Token::Ident(name)] if SystemColor::from_keyword(name).is_some() => {
-            cx.absolute(SystemColor::from_keyword(name)?.definite())
+            cx.system(SystemColor::from_keyword(name)?)
         }
         [Token::Ident(name)] => cx.absolute(crate::tui_color::parse_simple_color(name)?),
         [Token::HexColor(hex)] => {
@@ -126,6 +126,7 @@ fn parse_function(value: &[Token], start: usize, cx: &ColorCx) -> Option<(Absolu
     }
     let color = match name.as_str() {
         "color-mix" => mix::parse(args, cx)?,
+        "light-dark" => light_dark(args, cx)?,
         "rgb" | "rgba" => rgb::parse(args)?,
         "hsl" | "hsla" => hsl::parse_hsl(args)?,
         "hwb" => hsl::parse_hwb(args)?,
@@ -137,6 +138,24 @@ fn parse_function(value: &[Token], start: usize, cx: &ColorCx) -> Option<(Absolu
         _ => return None,
     };
     Some((color, close + 1 - start))
+}
+
+/// `light-dark(<color>, <color>)` (CSS Color 5 §5.1): the first under a
+/// light color scheme, the second otherwise. Both must parse.
+fn light_dark(args: &[Token], cx: &ColorCx) -> Option<AbsoluteColor> {
+    let [light, dark] = channel::split_top_level(args, &Token::Comma)[..] else {
+        return None;
+    };
+    let one = |tokens: &[Token]| match crate::parse::values::numeric::components(tokens)?.as_slice()
+    {
+        [color] => parse_absolute(color, cx),
+        _ => None,
+    };
+    let (light, dark) = (one(light)?, one(dark)?);
+    Some(match cx.scheme() {
+        crate::color::ColorScheme::Light => light,
+        crate::color::ColorScheme::Dark => dark,
+    })
 }
 
 /// Index of the `)` closing the function token at `open`.

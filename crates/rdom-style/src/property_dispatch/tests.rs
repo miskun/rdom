@@ -78,6 +78,7 @@ fn canonical_values() -> &'static [(&'static str, &'static str)] {
         ("transition", "width 300ms ease 0ms"),
         ("counter-reset", "chapter 0"),
         ("counter-increment", "chapter 1"),
+        ("color-scheme", "light dark"),
     ]
 }
 

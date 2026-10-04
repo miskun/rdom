@@ -46,8 +46,10 @@ mod interpolate;
 mod matrices;
 pub mod named;
 pub mod palette;
+mod scheme;
 pub(crate) mod system;
 
+pub use scheme::{ColorScheme, ColorSchemeList};
 pub use system::SystemColor;
 
 pub use interpolate::interpolate_oklab;

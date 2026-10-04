@@ -97,8 +97,9 @@ pub(super) fn compute_pseudo_style(
         cx.sheets.viewport(),
     );
     let decls = decls.with(substituted.as_ref());
-    let colors = apply_cascade_ladder(&mut working, plan, decls, host_computed);
-    colors.finalize(&mut working);
+    let preferred = cx.sheets.color_scheme();
+    let colors = apply_cascade_ladder(&mut working, plan, decls, host_computed, preferred);
+    colors.finalize(&mut working, host_computed.fg, preferred);
 
     // Border_fg fallback (same rule as for host elements).
     finalize_border_fg(&mut working, decls);

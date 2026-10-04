@@ -308,6 +308,13 @@ impl TuiStyle {
         COUNTER_INCREMENT,
         Vec<crate::counters::CounterOp>
     );
+    setter!(
+        color_scheme,
+        color_scheme,
+        color_scheme_important,
+        COLOR_SCHEME,
+        crate::color::ColorSchemeList
+    );
 
     /// `display: flex` — outer [`Display::Block`] + inner
     /// [`Flow::Flex`](crate::layout::Flow::Flex). Mirrors the CSS

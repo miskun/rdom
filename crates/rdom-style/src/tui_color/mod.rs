@@ -178,12 +178,26 @@ pub struct ColorContext {
     /// The element's `color` — what `currentcolor` is (CSS Color 4
     /// §6.4). For the `color` property itself, the parent's.
     pub current_color: Color,
+    /// The element's used color scheme (CSS Color Adjust 1 §2.1):
+    /// what `light-dark()` picks by, and what the terminal's default
+    /// colors count as inside a color function.
+    pub scheme: crate::color::ColorScheme,
 }
 
 impl ColorContext {
-    /// A context whose `currentcolor` is `current_color`.
+    /// A context whose `currentcolor` is `current_color`, under the
+    /// default (dark) color scheme.
     pub fn new(current_color: Color) -> Self {
-        Self { current_color }
+        Self {
+            current_color,
+            scheme: crate::color::ColorScheme::default(),
+        }
+    }
+
+    /// This context under `scheme`.
+    pub fn with_scheme(mut self, scheme: crate::color::ColorScheme) -> Self {
+        self.scheme = scheme;
+        self
     }
 }
 

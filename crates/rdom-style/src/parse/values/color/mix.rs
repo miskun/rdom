@@ -13,6 +13,7 @@
 //! complement, a sum other than 100% scales them, and a sum below 100%
 //! scales the result's alpha too; a zero sum is invalid.
 
+use super::channel::split_top_level;
 use super::context::ColorCx;
 use super::parse_absolute;
 use crate::calc::{CalcKind, ResolveCtx};
@@ -23,7 +24,7 @@ use crate::parse::values::numeric::components;
 
 /// Parse the arguments of `color-mix()`.
 pub(super) fn parse(args: &[Token], cx: &ColorCx) -> Option<AbsoluteColor> {
-    let parts = split_commas(args);
+    let parts = split_top_level(args, &Token::Comma);
     let (method, colors) = match parts.as_slice() {
         [method, a, b] => (Some(*method), [*a, *b]),
         [a, b] => (None, [*a, *b]),
@@ -106,24 +107,4 @@ fn percentage(component: &[Token]) -> Option<Option<f64>> {
         }
         _ => None,
     }
-}
-
-/// `args` cut at its top-level commas.
-fn split_commas(args: &[Token]) -> Vec<&[Token]> {
-    let mut out = Vec::new();
-    let mut depth = 0usize;
-    let mut start = 0;
-    for (i, t) in args.iter().enumerate() {
-        match t {
-            Token::Function(_) | Token::LParen => depth += 1,
-            Token::RParen => depth = depth.saturating_sub(1),
-            Token::Comma if depth == 0 => {
-                out.push(&args[start..i]);
-                start = i + 1;
-            }
-            _ => {}
-        }
-    }
-    out.push(&args[start..]);
-    out
 }

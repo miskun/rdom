@@ -464,9 +464,11 @@ fn compute_element_style(
         sheets.viewport(),
     );
     let decls = decls.with(substituted.as_ref());
-    let colors = apply_cascade_ladder(&mut working, plan, decls, parent);
-    // `currentcolor` takes the element's final `color`.
-    colors.finalize(&mut working);
+    let preferred = sheets.color_scheme();
+    let colors = apply_cascade_ladder(&mut working, plan, decls, parent, preferred);
+    // `currentcolor` takes the element's final `color`, `light-dark()`
+    // its final `color-scheme`.
+    colors.finalize(&mut working, parent.fg, preferred);
 
     // This element's `counter-reset` / `counter-increment` take effect
     // before its own generated content and its children are seen.

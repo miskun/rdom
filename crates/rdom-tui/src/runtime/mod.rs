@@ -15,6 +15,8 @@
 //!   (`Dom::set_pointer_capture`); the router honors it.
 //! - [`app`] — `App`, `AppContext`, `AppHandle`, lifecycle, panic
 //!   safety, the main loop.
+//! - `color_scheme` — the terminal's color scheme, asked at startup
+//!   (OSC 11).
 //! - `AbortController` / `AbortSignal` (listener lifetime
 //!   cancellation) live in `rdom-core` (`rdom_core::AbortSignal`).
 //!
@@ -27,6 +29,7 @@ pub mod app;
 pub mod autofocus;
 pub mod builtins;
 pub mod caret_blink;
+pub(crate) mod color_scheme;
 pub mod editing;
 pub mod focus;
 pub mod hit_test;

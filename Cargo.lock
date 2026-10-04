@@ -953,6 +953,7 @@ dependencies = [
  "rdom-style",
  "rdom-tui",
  "regex",
+ "rustix 0.38.44",
  "unicode-segmentation",
  "unicode-width",
 ]

@@ -39,6 +39,7 @@ pub use dirty_tracker::DirtyTracker;
 // rdom-style extraction keeps working through these re-exports.
 // Internal rdom-tui code uses `rdom_style::X` directly for clarity.
 
+pub use rdom_style::color::{ColorScheme, ColorSchemeList, SystemColor};
 pub use rdom_style::transition;
 pub use rdom_style::{
     AnimatableProperty, Color, ColorContext, ComputedStyle, Content, CounterOp, CounterStyle,

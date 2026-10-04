@@ -134,3 +134,49 @@ fn relative_color_from_currentcolor() {
     let c = div("div { background-color: rgb(from currentcolor r g b / 50%) } .x { color: red }");
     assert_eq!(c.bg, Color::Rgba(255, 0, 0, 128));
 }
+
+// ── color-scheme / light-dark(): CSS Color Adjust 1 §2, Color 5 §5 ──
+
+/// The `<div>`'s computed style under `css`, the document preferring
+/// `scheme`.
+fn div_under(css: &str, scheme: rdom_style::color::ColorScheme) -> ComputedStyle {
+    let (mut dom, _, div) = tree();
+    dom.set_color_scheme(scheme);
+    dom.cascade(&sheet(css));
+    computed_of(&dom, div)
+}
+
+/// `light-dark()` follows the document's preferred scheme for an
+/// element whose `color-scheme` is `normal`; dark by default.
+#[test]
+fn light_dark_follows_the_document_scheme() {
+    use rdom_style::color::ColorScheme::{Dark, Light};
+    let css = "div { color: light-dark(red, blue) }";
+    assert_eq!(div_under(css, Light).fg, RED);
+    assert_eq!(div_under(css, Dark).fg, BLUE);
+    assert_eq!(div(css).fg, BLUE);
+}
+
+/// `color-scheme` (inherited) picks the element's used scheme, which
+/// `light-dark()` follows — in any color property, whichever rule
+/// declares `color-scheme`.
+#[test]
+fn color_scheme_picks_the_used_scheme() {
+    use rdom_style::color::ColorScheme::{Dark, Light};
+    let c = div_under(
+        "section { color-scheme: light } div { color: light-dark(red, blue) }",
+        Dark,
+    );
+    assert_eq!(c.fg, RED);
+    let c = div_under(
+        "div { color-scheme: light dark; color: light-dark(red, blue) }",
+        Light,
+    );
+    assert_eq!(c.fg, RED);
+    let c = div_under(
+        "div { background-color: light-dark(red, blue) } .x { color-scheme: only light }",
+        Dark,
+    );
+    assert_eq!(c.bg, RED);
+    assert_eq!(c.color_scheme.to_css(), "light only");
+}

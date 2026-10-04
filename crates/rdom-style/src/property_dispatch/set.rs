@@ -265,6 +265,9 @@ pub fn set_parsed(name: &str, value: &[Token], style: &mut TuiStyle) -> Result<(
         "scroll-behavior" => parse_scroll_behavior(value).map(|b| {
             style.scroll_behavior = Some(Value::Specified(b));
         }),
+        "color-scheme" => crate::color::ColorSchemeList::parse(value).map(|s| {
+            style.color_scheme = Some(Value::Specified(s));
+        }),
 
         // Layout — sizing
         "width" => parse_size(value).map(|s| {

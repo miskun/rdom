@@ -12,17 +12,20 @@
 //! also honor the `important_pass` / `important_prop` pairing so normal
 //! and important declarations apply in separate passes.
 
+pub(super) use super::colors::ElementColors;
+use super::colors::apply_colors;
 use super::ladder::Declarations;
 use crate::layout::Display;
-use crate::style::{
-    Color, ColorContext, ComputedStyle, ImportantMask, Modifier, TuiColor, TuiStyle, Value,
-};
+use crate::style::{ComputedStyle, ImportantMask, Modifier, TuiStyle, Value};
 
 /// Where the CSS-wide keywords of one ladder pass take their values
 /// from.
 pub(super) struct Keywords<'a> {
     /// `inherit`: the parent's computed style (CSS Cascade 4 §7.2).
     pub parent: &'a ComputedStyle,
+    /// The document's preferred color scheme (CSS Color Adjust 1
+    /// §2.1), which the colors cascaded so far resolve under.
+    pub preferred_scheme: rdom_style::color::ColorScheme,
     /// `initial`: the initial values (§7.1).
     pub initial: &'a Initials,
     /// `revert`: the cascade rolled back to the previous origin
@@ -35,13 +38,13 @@ pub(super) struct Keywords<'a> {
 
 /// A declared value, resolved for one pass: the specified value, or
 /// the computed style a CSS-wide keyword copies the field from.
-enum Resolved<'v, 'a, T> {
+pub(super) enum Resolved<'v, 'a, T> {
     Specified(&'v T),
     From(&'a ComputedStyle),
 }
 
 impl<'a> Keywords<'a> {
-    fn resolve<'v, T>(&self, value: &'v Value<T>) -> Resolved<'v, 'a, T> {
+    pub(super) fn resolve<'v, T>(&self, value: &'v Value<T>) -> Resolved<'v, 'a, T> {
         match value {
             Value::Specified(x) => Resolved::Specified(x),
             Value::Inherit => Resolved::From(self.parent),
@@ -88,35 +91,6 @@ pub(super) fn finalize_border_fg(working: &mut ComputedStyle, decls: Declaration
     }
 }
 
-/// The winning color declarations whose value depends on the element
-/// (`currentcolor`, CSS Color 4 §6.4), kept by the ladder until the
-/// element's `color` is final. `color` itself resolves against the
-/// parent's, so it never waits.
-#[derive(Debug, Default)]
-pub(super) struct ElementColors {
-    bg: Option<TuiColor>,
-    border_fg: Option<TuiColor>,
-}
-
-impl ElementColors {
-    /// Resolve the waiting colors against the element's final `color`.
-    /// Runs after the cascade ladder.
-    pub(super) fn finalize(self, working: &mut ComputedStyle) {
-        let cx = ColorContext::new(working.fg);
-        let vars = working.vars.clone();
-        for (slot, target) in [
-            (self.bg, &mut working.bg),
-            (self.border_fg, &mut working.border_fg),
-        ] {
-            if let Some(color) = slot
-                && let Some(c) = color.resolve(&vars, &cx)
-            {
-                *target = c;
-            }
-        }
-    }
-}
-
 /// Apply one `TuiStyle` to `working`, for one ladder pass. Paints +
 /// layout + display + white_space all in one pass.
 pub(super) fn apply_style(
@@ -126,10 +100,6 @@ pub(super) fn apply_style(
     important_pass: bool,
     kw: &Keywords<'_>,
 ) {
-    // Clone the vars Rc once per apply; all color resolutions below
-    // share the same snapshot. Rc::clone is a refcount bump — cheap.
-    let vars = working.vars.clone();
-
     // One declared value → one `ComputedStyle` field of the same type:
     // specified as written, `inherit` the parent's field, `initial` the
     // field of `ComputedStyle::initial()`.
@@ -159,56 +129,8 @@ pub(super) fn apply_style(
         )*};
     }
 
-    // Paint properties. In `color`, `currentcolor` is the parent's
-    // color (CSS Color 4 §6.4); elsewhere it is this element's, which
-    // `ElementColors::finalize` applies once `color` is final — the
-    // value resolved here against the color cascaded so far stands in
-    // until then.
-    apply_color(
-        ColorSlot {
-            target: &mut working.fg,
-            waiting: None,
-            field: |c| c.fg,
-            initial: None,
-        },
-        &style.fg,
-        matches_pass(style.important.contains(ImportantMask::FG), important_pass),
-        kw,
-        &vars,
-        &ColorContext::new(kw.parent.fg),
-    );
-    let cx = ColorContext::new(working.fg);
-    apply_color(
-        ColorSlot {
-            target: &mut working.bg,
-            waiting: Some(&mut colors.bg),
-            field: |c| c.bg,
-            initial: None,
-        },
-        &style.bg,
-        matches_pass(style.important.contains(ImportantMask::BG), important_pass),
-        kw,
-        &vars,
-        &cx,
-    );
-    // `border-color`'s initial value is `currentcolor` (CSS Backgrounds
-    // 3 §3.1).
-    apply_color(
-        ColorSlot {
-            target: &mut working.border_fg,
-            waiting: Some(&mut colors.border_fg),
-            field: |c| c.border_fg,
-            initial: Some(TuiColor::CurrentColor),
-        },
-        &style.border_fg,
-        matches_pass(
-            style.important.contains(ImportantMask::BORDER_FG),
-            important_pass,
-        ),
-        kw,
-        &vars,
-        &cx,
-    );
+    // Paint properties (`colors.rs`).
+    apply_colors(working, colors, style, important_pass, kw);
 
     apply_modifier_bit(
         working,
@@ -307,6 +229,8 @@ pub(super) fn apply_style(
         transition_delay: TRANSITIONS,
         counter_reset: COUNTER_RESET,
         counter_increment: COUNTER_INCREMENT,
+        // Inherits; `light-dark()` picks by it (CSS Color Adjust 1 §2).
+        color_scheme: COLOR_SCHEME,
     );
 }
 
@@ -316,7 +240,7 @@ pub(super) fn apply_style(
 /// Normal pass applies normal declarations; important pass applies
 /// important ones.
 #[inline]
-fn matches_pass(important_prop: bool, important_pass: bool) -> bool {
+pub(super) fn matches_pass(important_prop: bool, important_pass: bool) -> bool {
     important_prop == important_pass
 }
 
@@ -373,63 +297,6 @@ fn apply_optional<T: Clone>(
             Resolved::Specified(x) => Some(x.clone()),
             Resolved::From(source) => field(source).clone(),
         };
-    }
-}
-
-/// One color property's computed field and its bookkeeping.
-struct ColorSlot<'w> {
-    target: &'w mut Color,
-    /// Where a value that depends on the element waits for the final
-    /// `color` (`None` for `color` itself).
-    waiting: Option<&'w mut Option<TuiColor>>,
-    /// The field in another computed style (`inherit`, `revert`, …).
-    field: fn(&ComputedStyle) -> Color,
-    /// The property's initial value where it is not the initial
-    /// table's (`border-color`: `currentcolor`).
-    initial: Option<TuiColor>,
-}
-
-/// A color property (`in_pass`: the declaration's importance matches
-/// the pass), resolved against `vars` and `cx`. A `var()` chain that
-/// finds no color takes the parent's value.
-fn apply_color(
-    slot: ColorSlot<'_>,
-    value: &Option<Value<TuiColor>>,
-    in_pass: bool,
-    kw: &Keywords<'_>,
-    vars: &std::collections::HashMap<String, rdom_style::CustomValue>,
-    cx: &ColorContext,
-) {
-    let Some(v) = value else { return };
-    if !in_pass {
-        return;
-    }
-    let specified = match (v, &slot.initial) {
-        (Value::Initial, Some(initial)) => Some(initial),
-        _ => match kw.resolve(v) {
-            Resolved::Specified(tc) => Some(tc),
-            Resolved::From(source) => {
-                *slot.target = (slot.field)(source);
-                None
-            }
-        },
-    };
-    let waits = match specified.and_then(|tc| tc.substitute_vars(vars)) {
-        Some(color) => {
-            *slot.target = color
-                .resolve(vars, cx)
-                .unwrap_or_else(|| (slot.field)(kw.parent));
-            color.depends_on_element().then_some(color)
-        }
-        None => {
-            if specified.is_some() {
-                *slot.target = (slot.field)(kw.parent);
-            }
-            None
-        }
-    };
-    if let Some(waiting) = slot.waiting {
-        *waiting = waits;
     }
 }
 

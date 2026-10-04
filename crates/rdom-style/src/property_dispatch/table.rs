@@ -87,6 +87,8 @@ const PROPERTY_NAMES: &[&str] = &[
     // Counters (CSS Lists 3)
     "counter-reset",
     "counter-increment",
+    // Color adjustment (CSS Color Adjust 1)
+    "color-scheme",
 ];
 
 /// `name` as the table spells it. CSS property names are ASCII
@@ -237,6 +239,7 @@ define_fields! {
     TransitionDelay => transition_delay : TRANSITIONS,
     CounterReset => counter_reset : COUNTER_RESET,
     CounterIncrement => counter_increment : COUNTER_INCREMENT,
+    ColorScheme => color_scheme : COLOR_SCHEME,
 }
 
 /// The fields a property name owns — the one property → field table.
@@ -312,6 +315,7 @@ pub(super) fn fields_of(name: &str) -> Option<&'static [Field]> {
         ],
         "counter-reset" => &[CounterReset],
         "counter-increment" => &[CounterIncrement],
+        "color-scheme" => &[ColorScheme],
         // CSS Cascade 4 §3.2: every property in the table.
         "all" => all_fields(),
         _ => return None,
@@ -379,5 +383,6 @@ pub fn inherits(name: &str) -> bool {
             | "pointer-events"
             | "caret-color"
             | "caret-text-color"
+            | "color-scheme"
     )
 }

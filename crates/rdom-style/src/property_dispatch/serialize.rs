@@ -186,6 +186,11 @@ pub fn serialize(name: &str, style: &TuiStyle) -> Option<String> {
                 }
                 .to_string()
             }),
+        "color-scheme" => style
+            .color_scheme
+            .as_ref()
+            .and_then(specified)
+            .map(|s| s.to_css()),
         "scroll-behavior" => style.scroll_behavior.as_ref().and_then(specified).map(|b| {
             match b {
                 crate::layout::ScrollBehavior::Auto => "auto",

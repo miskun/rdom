@@ -230,7 +230,7 @@ fn root_vars_attr_reads_the_root_element() {
     let root = dom.root();
     dom.set_attribute(root, "data-w", "7").unwrap();
     let registry = Rc::new(PropertyRegistry::new(&sheets));
-    let s = walk::Sheets::new(&sheets, registry, Default::default());
+    let s = walk::Sheets::new(&sheets, registry, Default::default(), Default::default());
     let merged = walk::merge_root_vars(&dom, &s);
     assert_eq!(merged.get("w").map(|v| v.as_str()), Some("7"));
 

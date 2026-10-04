@@ -78,7 +78,10 @@ pub(crate) use matching::probe as match_probe;
 pub(crate) use registered::PropertyRegistry;
 #[cfg(test)]
 pub(crate) use registered::probe as registry_probe;
+pub(crate) use scheme::{document_color_scheme, set_document_color_scheme};
 pub(crate) use viewport::{document_viewport, set_document_viewport};
+mod colors;
+mod scheme;
 mod scope;
 mod sheets;
 mod subtrees;
@@ -174,6 +177,18 @@ pub trait CascadeExt {
     /// The viewport the document's style resolves against
     /// ([`Self::set_viewport`]).
     fn viewport(&self) -> Viewport;
+
+    /// Set the document's preferred color scheme (CSS Color Adjust 1
+    /// §2.1): what an element with `color-scheme: normal` uses, and so
+    /// what `light-dark()` picks by. The `App` sets it from the
+    /// terminal's background (or `App::with_color_scheme`); dark until
+    /// set. A new scheme does not re-cascade: cascade the whole tree
+    /// again (`App::set_color_scheme` does).
+    fn set_color_scheme(&mut self, scheme: rdom_style::color::ColorScheme);
+
+    /// The document's preferred color scheme
+    /// ([`Self::set_color_scheme`]).
+    fn color_scheme(&self) -> rdom_style::color::ColorScheme;
 }
 
 impl CascadeExt for Dom<TuiExt> {
@@ -200,6 +215,14 @@ impl CascadeExt for Dom<TuiExt> {
     fn viewport(&self) -> Viewport {
         document_viewport(self)
     }
+
+    fn set_color_scheme(&mut self, scheme: rdom_style::color::ColorScheme) {
+        set_document_color_scheme(self, scheme);
+    }
+
+    fn color_scheme(&self) -> rdom_style::color::ColorScheme {
+        document_color_scheme(self)
+    }
 }
 
 /// [`CascadeExt::cascade_all`] with the sheets' registrations already
@@ -212,7 +235,12 @@ pub(crate) fn cascade_all_with(
     registry: Option<Rc<PropertyRegistry>>,
 ) {
     let registry = registry.unwrap_or_else(|| registered::document_registry(dom, stylesheets));
-    let sheets = walk::Sheets::new(stylesheets, registry, document_viewport(dom));
+    let sheets = walk::Sheets::new(
+        stylesheets,
+        registry,
+        document_viewport(dom),
+        document_color_scheme(dom),
+    );
     let merged_vars = walk::merge_root_vars(dom, &sheets);
     let root = dom.root();
     // The root's parent carries the sheet-level (`define_var` /

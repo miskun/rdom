@@ -85,6 +85,7 @@ bitflags_like! {
         COUNTER_INCREMENT = 1 << 43;
         SCROLL_BEHAVIOR = 1 << 44;
         FLEX_BASIS = 1 << 45;
+        COLOR_SCHEME = 1 << 46;
     }
 }
 
@@ -213,6 +214,11 @@ pub struct TuiStyle {
     // ── Counters (CSS Lists 3 §3.1) ──────────────────────────────────
     pub counter_reset: Option<Value<Vec<crate::counters::CounterOp>>>,
     pub counter_increment: Option<Value<Vec<crate::counters::CounterOp>>>,
+
+    // ── Color adjustment (CSS Color Adjust 1) ────────────────────────
+    /// `color-scheme` (§2): the color schemes the element supports,
+    /// which pick `light-dark()`'s color. Inherits.
+    pub color_scheme: Option<Value<crate::color::ColorSchemeList>>,
 
     // ── Custom properties (CSS Variables 1) ──────────────────────────
     /// `--name: value` declarations, in source order, names without
@@ -410,6 +416,9 @@ impl TuiStyle {
             n += 1
         }
         if self.content.is_some() {
+            n += 1
+        }
+        if self.color_scheme.is_some() {
             n += 1
         }
         n += self.custom_properties.len();

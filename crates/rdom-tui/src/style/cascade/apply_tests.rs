@@ -79,6 +79,7 @@ const PERTURB: &[(&str, &str)] = &[
     ("transition-delay", "10ms"),
     ("counter-reset", "a"),
     ("counter-increment", "a"),
+    ("color-scheme", "light"),
 ];
 
 /// `P6G-APPLY-INITIALS-1`: `<property>: initial` computes to exactly
@@ -152,6 +153,7 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
         transition_delay,
         counter_reset,
         counter_increment,
+        color_scheme,
         // Custom properties, not a property value.
         vars: _,
         animated_vars: _,
@@ -207,6 +209,7 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
         transition_delay,
         counter_reset,
         counter_increment,
+        color_scheme,
     );
 }
 

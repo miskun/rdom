@@ -600,19 +600,51 @@ fn system_colors_parse_and_resolve() {
 }
 
 /// Inside a color function a system color needs a definite color:
-/// `Canvas` / `CanvasText` take the canvas model's (black / white).
+/// `Canvas` / `CanvasText` take the canvas model's, which follows the
+/// color scheme (dark: black / white, light: white / black), so such a
+/// function is computed for the element.
 #[test]
 fn system_colors_inside_functions() {
-    assert_eq!(
-        parse_color("color-mix(in srgb, Canvas, white)"),
-        rgb(128, 128, 128)
-    );
-    assert_eq!(
-        parse_color("color-mix(in srgb, CanvasText, black)"),
-        rgb(128, 128, 128)
-    );
+    use crate::color::ColorScheme;
+    use crate::{ColorContext, TuiColor};
+    let vars = std::collections::HashMap::new();
+    let mix = TuiColor::parse("color-mix(in srgb, Canvas, black)").unwrap();
+    assert!(mix.depends_on_element());
+    let dark = ColorContext::new(Color::Reset);
+    let light = dark.with_scheme(ColorScheme::Light);
+    assert_eq!(mix.resolve(&vars, &dark), rgb(0, 0, 0));
+    assert_eq!(mix.resolve(&vars, &light), rgb(128, 128, 128));
+    let text = TuiColor::parse("color-mix(in srgb, CanvasText, black)").unwrap();
+    assert_eq!(text.resolve(&vars, &dark), rgb(128, 128, 128));
+    assert_eq!(text.resolve(&vars, &light), rgb(0, 0, 0));
     assert_eq!(
         parse_color("rgb(from LinkText r g b / 50%)"),
         rgba(30, 144, 255, 128)
     );
+}
+
+// ── light-dark(): CSS Color 5 §5 ────────────────────────────────
+
+/// §5.1: `light-dark(<light>, <dark>)` is the first color under a
+/// light color scheme, the second otherwise — at computed-value time.
+#[test]
+fn light_dark_picks_by_the_color_scheme() {
+    use crate::color::ColorScheme;
+    use crate::{ColorContext, TuiColor};
+    let vars = std::collections::HashMap::new();
+    let dark = ColorContext::new(Color::Reset);
+    let light = dark.with_scheme(ColorScheme::Light);
+    let c = TuiColor::parse("light-dark(red, blue)").unwrap();
+    assert!(c.depends_on_element());
+    assert_eq!(c.resolve(&vars, &light), rgb(255, 0, 0));
+    assert_eq!(c.resolve(&vars, &dark), rgb(0, 0, 255));
+    let nested = TuiColor::parse("color-mix(in srgb, LIGHT-DARK(white, black), red)").unwrap();
+    assert_eq!(nested.resolve(&vars, &light), rgb(255, 128, 128));
+    for bad in [
+        "light-dark(red)",
+        "light-dark(red, blue, lime)",
+        "light-dark(red blue)",
+    ] {
+        assert_eq!(TuiColor::parse(bad), None, "{bad}");
+    }
 }

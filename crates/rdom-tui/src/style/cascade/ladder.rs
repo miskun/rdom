@@ -332,6 +332,7 @@ pub(super) fn apply_cascade_ladder(
     plan: &Plan,
     decls: Declarations<'_>,
     parent: &ComputedStyle,
+    preferred_scheme: rdom_style::color::ColorScheme,
 ) -> ElementColors {
     let mut colors = ElementColors::default();
     // No declarations: every step is empty.
@@ -354,29 +355,18 @@ pub(super) fn apply_cascade_ladder(
     };
     // A rolled-back state resolves `currentcolor` against the color it
     // has cascaded so far.
+    let env = StepEnv {
+        parent,
+        initial: &initial,
+        preferred_scheme,
+    };
     let apply = |state: &mut ComputedStyle, i: usize, rollback: &Rollback<'_, ComputedStyle>| {
         let mut colors = ElementColors::default();
-        apply_step(
-            state,
-            &mut colors,
-            &plan.steps()[i],
-            decls,
-            parent,
-            &initial,
-            rollback,
-        );
+        apply_step(state, &mut colors, &plan.steps()[i], decls, &env, rollback);
     };
     let rollback = Rollback::new(plan.steps().len(), &base, &apply);
     for step in plan.steps() {
-        apply_step(
-            working,
-            &mut colors,
-            step,
-            decls,
-            parent,
-            &initial,
-            &rollback,
-        );
+        apply_step(working, &mut colors, step, decls, &env, &rollback);
     }
 
     // NOTE — CSS Overflow L3's cross-axis rule ("if one axis is
@@ -390,18 +380,25 @@ pub(super) fn apply_cascade_ladder(
     colors
 }
 
+/// What every step of one element's ladder resolves against.
+struct StepEnv<'a> {
+    parent: &'a ComputedStyle,
+    initial: &'a Initials,
+    preferred_scheme: rdom_style::color::ColorScheme,
+}
+
 fn apply_step(
     working: &mut ComputedStyle,
     colors: &mut ElementColors,
     step: &Step,
     decls: Declarations<'_>,
-    parent: &ComputedStyle,
-    initial: &Initials,
+    env: &StepEnv<'_>,
     rollback: &Rollback<'_, ComputedStyle>,
 ) {
     let keywords = Keywords {
-        parent,
-        initial,
+        parent: env.parent,
+        preferred_scheme: env.preferred_scheme,
+        initial: env.initial,
         revert: &|| rollback.state_before(step.revert_to),
         revert_layer: &|| rollback.state_before(step.revert_layer_to),
     };

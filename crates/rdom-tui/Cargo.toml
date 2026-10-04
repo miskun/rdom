@@ -67,6 +67,12 @@ open = { workspace = true }
 # Unicode classes.
 regex = "1"
 
+# The startup color-scheme query reads the terminal's OSC 11 reply
+# with a timeout (poll + read on stdin) before crossterm's input reader
+# starts. Already in the tree through crossterm; `event` adds `poll`.
+[target.'cfg(unix)'.dependencies]
+rustix = { version = "0.38", default-features = false, features = ["std", "event"] }
+
 [build-dependencies]
 # Read `property_dispatch::property_names()` at build time to emit
 # camelCase aliases (one method per shipped CSS property) onto
