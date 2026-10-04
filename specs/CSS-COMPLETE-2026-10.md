@@ -85,7 +85,7 @@ row comes from.
 | C2-CH | `ch` (one column) | done |
 | C2-LH | `lh` / `rlh` (one row × `line-height`; lands with C9-LINE-HEIGHT) | partial — revisit with C9-LINE-HEIGHT (one row each until `line-height` exists) |
 | C2-VIEWPORT | `vw` / `vh` / `vmin` / `vmax` and the `sv*` / `lv*` / `dv*` / `vi` / `vb` variants (terminal size) | done |
-| C2-ANGLE | `<angle>` (`deg` / `grad` / `rad` / `turn`) | |
+| C2-ANGLE | `<angle>` (`deg` / `grad` / `rad` / `turn`) | done |
 | C2-RATIO | Full `<ratio>` (bare numbers, decimals, `auto && <ratio>`) | |
 | C2-ATTR | `attr()` with fallback and `type()` (Values 5) | |
 
@@ -456,3 +456,6 @@ row comes from.
   `cascade_all_in` / `cascade_subtrees_all_in`; the old forms use a 0 × 0 viewport (documented).
   Also: `CalcExpr`'s `#[non_exhaustive]` from C2-MINMAX reverted (DESIGN classes it closed data);
   DESIGN's lists name the new value types.
+- 2026-10-04 — C2-ANGLE: `CalcUnit::{Deg, Grad, Rad, Turn}` (type `<angle>`, radians inside the
+  evaluator); `parse::values::parse_angle` returns degrees for Phase 3's hues; `@property` takes
+  `<angle>` (was rejected) and a registered angle interpolates in degrees.

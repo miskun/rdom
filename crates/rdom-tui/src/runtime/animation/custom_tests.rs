@@ -171,3 +171,35 @@ fn no_restyle_while_the_value_holds_during_the_delay() {
     reg.advance(&mut dom, start + Duration::from_millis(1050));
     assert_eq!(reg.take_restyle().len(), 1, "running: the value moves");
 }
+
+/// `C2-ANGLE` — CSS Properties and Values 1 §6.2: a registered `<angle>`
+/// interpolates (as degrees); a trigonometric consumer follows it.
+#[test]
+fn registered_angle_property_transitions() {
+    let css = |angle: &str| {
+        let parsed = rdom_css::parse(&format!(
+            "@property --a {{ syntax: '<angle>'; inherits: false; initial-value: 0deg }} \
+             div {{ --a: {angle}; transition: --a 100ms linear; width: calc(sin(var(--a)) * 20) }}"
+        ));
+        assert!(parsed.warnings.is_empty(), "{:?}", parsed.warnings);
+        parsed.stylesheet
+    };
+    let (mut dom, div) = div();
+    let (from, to) = (css("0deg"), css("0.25turn"));
+    let start = Instant::now();
+    let mut reg = AnimationRegistry::new();
+    reg.set_registered_properties(std::rc::Rc::new(
+        crate::style::cascade::PropertyRegistry::new(&[&from]),
+    ));
+    dom.cascade(&from);
+    diff_and_register(&mut dom, &mut reg, start);
+    dom.cascade(&to);
+    diff_and_register(&mut dom, &mut reg, start);
+    assert_eq!(reg.len(), 1, "the angle animates");
+    frame(&mut dom, &mut reg, &to, start + Duration::from_millis(50));
+    assert_eq!(
+        computed(&dom, div).width,
+        crate::layout::Size::Fixed(14),
+        "sin(45deg) × 20 = 14.1"
+    );
+}

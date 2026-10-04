@@ -1,6 +1,6 @@
-//! Units a math expression or a length value can carry besides rdom's
-//! unitless cell and the percentage (CSS Values 4 §6 – §7), each with its
-//! terminal meaning.
+//! Units a math expression or a value can carry besides rdom's unitless
+//! cell and the percentage (CSS Values 4 §6 – §7) — lengths and angles —
+//! each with its terminal meaning.
 
 use super::{CalcExpr, CalcKind, ResolveCtx};
 
@@ -19,6 +19,14 @@ pub enum CalcUnit {
     /// A viewport-percentage unit (`vw`, `svh`, `dvmax`, …): 1% of the
     /// terminal on an axis (Values 4 §6.1.2).
     Viewport(ViewportUnit),
+    /// `deg` — 1/360 of a turn (Values 4 §7.1).
+    Deg,
+    /// `grad` — 1/400 of a turn (Values 4 §7.1).
+    Grad,
+    /// `rad` — 1/(2π) of a turn (Values 4 §7.1).
+    Rad,
+    /// `turn` (Values 4 §7.1).
+    Turn,
 }
 
 /// The terminal's size in cells: the viewport the viewport-percentage
@@ -142,6 +150,10 @@ impl CalcUnit {
             ("ch", CalcUnit::Ch),
             ("lh", CalcUnit::Lh),
             ("rlh", CalcUnit::Rlh),
+            ("deg", CalcUnit::Deg),
+            ("grad", CalcUnit::Grad),
+            ("rad", CalcUnit::Rad),
+            ("turn", CalcUnit::Turn),
         ];
         TABLE
             .iter()
@@ -157,6 +169,10 @@ impl CalcUnit {
             CalcUnit::Lh => "lh",
             CalcUnit::Rlh => "rlh",
             CalcUnit::Viewport(v) => v.css_name(),
+            CalcUnit::Deg => "deg",
+            CalcUnit::Grad => "grad",
+            CalcUnit::Rad => "rad",
+            CalcUnit::Turn => "turn",
         }
     }
 
@@ -164,6 +180,7 @@ impl CalcUnit {
     pub fn kind(self) -> CalcKind {
         match self {
             CalcUnit::Ch | CalcUnit::Lh | CalcUnit::Rlh | CalcUnit::Viewport(_) => CalcKind::Length,
+            CalcUnit::Deg | CalcUnit::Grad | CalcUnit::Rad | CalcUnit::Turn => CalcKind::Angle,
         }
     }
 
@@ -172,19 +189,30 @@ impl CalcUnit {
     /// cascade makes it absolute ([`CalcExpr::absolutize`]).
     pub fn needs_context(self) -> bool {
         match self {
-            CalcUnit::Ch | CalcUnit::Lh | CalcUnit::Rlh => false,
+            CalcUnit::Ch
+            | CalcUnit::Lh
+            | CalcUnit::Rlh
+            | CalcUnit::Deg
+            | CalcUnit::Grad
+            | CalcUnit::Rad
+            | CalcUnit::Turn => false,
             CalcUnit::Viewport(_) => true,
         }
     }
 
     /// `value` in this unit, in the evaluator's canonical unit — cells
-    /// for lengths.
+    /// for lengths, radians for angles.
     pub(super) fn canonical(self, value: f64, cx: &ResolveCtx) -> f64 {
         match self {
             CalcUnit::Viewport(v) => value * v.percent_of(cx.viewport),
             // One column; one row (the fixed line height) — a cell
             // either way.
             CalcUnit::Ch | CalcUnit::Lh | CalcUnit::Rlh => value,
+            // Angles are radians inside the evaluator.
+            CalcUnit::Deg => value.to_radians(),
+            CalcUnit::Grad => value * std::f64::consts::PI / 200.0,
+            CalcUnit::Rad => value,
+            CalcUnit::Turn => value * std::f64::consts::TAU,
         }
     }
 }

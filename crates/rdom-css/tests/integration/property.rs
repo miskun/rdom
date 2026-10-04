@@ -28,7 +28,7 @@ fn invalid_property_rules_register_nothing() {
         "@property --a { syntax: '<color>'; initial-value: red }",
         "@property --a { syntax: '<color>'; inherits: false }",
         "@property --a { syntax: '<color>'; inherits: false; initial-value: 12 }",
-        "@property --a { syntax: '<angle>'; inherits: false; initial-value: 0deg }",
+        "@property --a { syntax: '<image>'; inherits: false; initial-value: none }",
         "@property a { syntax: '*'; inherits: false }",
     ] {
         let r = parse(css);

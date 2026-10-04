@@ -365,3 +365,30 @@ fn computed_viewport_units_become_cells() {
     assert_eq!(c.margin.left, MarginValue::Cells(-2), "-2.5 × 0.8 = -2");
     assert_eq!(c.top, Length::Cells(3));
 }
+
+// ── C2-ANGLE ─────────────────────────────────────────────────────────
+
+/// CSS Values 4 §7.1: `deg`, `grad`, `rad`, `turn` (ASCII
+/// case-insensitive), and math functions of type `<angle>`, as degrees —
+/// the form the color hues of Phase 3 take. A bare number is no angle,
+/// and an angle is no length.
+#[test]
+fn angles_parse_to_degrees() {
+    let deg = |src: &str| super::parse_angle(&t(src));
+    let close = |a: Option<f64>, b: f64| a.is_some_and(|a| (a - b).abs() < 1e-9);
+    assert!(close(deg("90deg"), 90.0));
+    assert!(close(deg("-90DEG"), -90.0));
+    assert!(close(deg("0.25turn"), 90.0));
+    assert!(close(deg("100grad"), 90.0));
+    assert!(close(deg("calc(pi / 2 * 1rad)"), 90.0));
+    assert!(close(deg("asin(1)"), 90.0));
+    assert!(close(deg("atan2(1, 1)"), 45.0));
+    assert!(close(deg("calc(1turn - 90deg)"), 270.0));
+    assert_eq!(deg("90"), None);
+    assert_eq!(deg("calc(90deg + 1)"), None, "an angle plus a number");
+    assert_eq!(length_percentage(&t("90deg"), Range::Any), None);
+    let syntax = crate::PropertySyntax::parse("<angle>").unwrap();
+    assert!(syntax.matches("45deg"));
+    assert!(syntax.matches("calc(10deg + 1turn)"));
+    assert!(!syntax.matches("45"));
+}

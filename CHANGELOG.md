@@ -57,6 +57,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`ch`** (CSS Values 4 §6.1.1): one column, in every length property and math function (`width: 10ch`, `calc(50% - 2.5ch)`), ASCII case-insensitive; a fraction rounds where the value becomes a length. New `CalcExpr::Dimension { value, unit }` and `CalcUnit` (`#[non_exhaustive]`), the leaf Phase 2's units share; a registered `<length>` takes unit dimensions. (C2-CH)
 - **`lh` / `rlh`** (CSS Values 4 §6.1.1): one row each — rdom's fixed line height — in every length property and math function; `CalcUnit::{Lh, Rlh}`. They follow `line-height` when it lands (C9-LINE-HEIGHT). (C2-LH)
 - **Viewport-percentage units** (CSS Values 4 §6.1.2): `vw`, `vh`, `vi`, `vb`, `vmin`, `vmax` and their `sv*` / `lv*` / `dv*` forms — 1% of the terminal's columns / rows (all four viewport sizes are the terminal's). `CalcUnit::Viewport(ViewportUnit { size, axis })`, `Viewport { cols, rows }`, `ResolveCtx::with_viewport`, `CalcExpr::absolutize` / `needs_context`, and `ComputedStyle::resolve_viewport_units`, which makes them absolute at computed-value time (a percentage beside them stays for layout). (C2-VIEWPORT)
+- **`<angle>`** (CSS Values 4 §7.1): `deg`, `grad`, `rad`, `turn` (`CalcUnit::{Deg, Grad, Rad, Turn}`) in the trigonometric functions (`sin(30deg)`); `parse::values::parse_angle` reads an angle dimension or angle-typed math function as degrees (for the color hues). `@property` accepts `syntax: '<angle>'` (`SyntaxComponent::Angle`), which was rejected. (C2-ANGLE)
 
 ### Changed — `rdom-style`
 
@@ -108,6 +109,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Re-exports for the App-level style APIs**: `rdom_tui::{PropertyRegistration, PropertySyntax, ImportLoader, LoadedSheet, LayerId, StyleSelector, RuleContext, CustomValue}` (and the rdom-style ones under `rdom_tui::style`), so `App::register_property`, `App::set_import_loader`, cascade layers and `Stylesheet::add_style_rule` need no direct `rdom-style` / `rdom-css` dependency; `App::register_property` has a doc example using `rdom_tui` paths only. (C1G-REEXPORTS)
 - Layout resolves `min-*` / `max-*` percentages against the containing block on their axis — the block width, a definite block height (else `0` / `none`, CSS 2.1 §10.7), a flex container's main or cross size. (C2-PERCENT)
 - **Viewport units resolve against the terminal.** The cascade makes `vw` / `vh` / … absolute per element (`CascadeExt::cascade_all_in` / `cascade_subtrees_all_in` take the `Viewport`; `rdom_tui::Viewport`); the `App` cascades at its terminal's size and cascades the whole tree again whenever that size changes. (C2-VIEWPORT)
+- A registered `<angle>` custom property interpolates (in degrees), and its `var()` consumers follow it. (C2-ANGLE)
 
 ### Changed — `rdom-tui`
 

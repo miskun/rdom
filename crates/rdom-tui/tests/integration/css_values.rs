@@ -459,3 +459,24 @@ fn viewport_units_follow_a_terminal_resize() {
         (20, 2)
     );
 }
+
+// ── C2-ANGLE ─────────────────────────────────────────────────────────
+
+/// CSS Values 4 §7.1: `<angle>` — `deg`, `grad` (400 to a turn), `rad`
+/// and `turn` — the argument type of the trigonometric functions
+/// (§10.4), which an inverse function returns.
+#[test]
+fn angles_feed_the_trigonometric_functions() {
+    let r = block_rects(
+        ".a { width: calc(sin(30deg) * 20); height: calc(cos(0.5turn) * -4) }
+         .b { width: calc(tan(50GRAD) * 6); height: calc(sin(1.5707963rad) * 3) }
+         .c { width: calc(sin(asin(1) - 60deg) * 10); height: calc(cos(atan2(1deg, 1deg) + 15deg) * 8) }",
+        &["a", "b", "c"],
+    );
+    let wh: Vec<(u16, u16)> = r.iter().map(|r| (r.width, r.height)).collect();
+    assert_eq!(
+        wh,
+        [(10, 4), (6, 3), (5, 4)],
+        "sin 30°, cos 180°, tan 45°, sin 90°, sin 30°, cos 60°"
+    );
+}

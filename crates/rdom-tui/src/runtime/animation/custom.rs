@@ -29,6 +29,8 @@ use crate::style::{Color, ComputedStyle};
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(super) enum Kind {
     Color,
+    /// An `<angle>`, interpolated in degrees.
+    Angle,
     /// A number; `whole` rounds it (`<integer>`, `<length>` in cells).
     Number {
         whole: bool,
@@ -47,6 +49,7 @@ impl Kind {
     fn of(registration: &PropertyRegistration) -> Option<Kind> {
         Some(match registration.syntax.interpolation()? {
             SyntaxComponent::Color => Kind::Color,
+            SyntaxComponent::Angle => Kind::Angle,
             SyntaxComponent::Integer | SyntaxComponent::Length => Kind::Number {
                 whole: true,
                 percent: false,
@@ -65,6 +68,10 @@ impl Kind {
     fn parse(self, text: &str) -> Option<Value> {
         match self {
             Kind::Color => crate::style::parse_color(text).map(Value::Color),
+            Kind::Angle => rdom_style::parse::token::tokenize(text)
+                .ok()
+                .and_then(|tokens| rdom_style::parse::values::parse_angle(&tokens))
+                .map(Value::Number),
             Kind::Number { percent, .. } => {
                 let text = text.replace(' ', "");
                 let text = if percent {
@@ -83,6 +90,7 @@ impl Kind {
             (_, Value::Color(Color::Indexed(i))) => i.to_string(),
             (_, Value::Color(Color::Reset)) => "reset".to_string(),
             (Kind::Number { whole: true, .. }, Value::Number(n)) => format!("{}", n.round() as i64),
+            (Kind::Angle, Value::Number(n)) => format!("{}deg", (n * 1000.0).round() / 1000.0),
             (Kind::Number { percent, .. }, Value::Number(n)) => {
                 let n = (n * 1000.0).round() / 1000.0;
                 if percent {

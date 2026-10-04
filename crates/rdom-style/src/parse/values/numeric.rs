@@ -114,6 +114,34 @@ pub(crate) fn number(component: &[Token], range: Range) -> Option<f64> {
     Some(if negative { -n } else { n })
 }
 
+/// Parse a value as an `<angle>` (CSS Values 4 §7.1): a dimension in
+/// `deg`, `grad`, `rad` or `turn`, or a math function of type `<angle>`
+/// (`calc(1turn - 90deg)`, `atan2(1, 1)`). Returns degrees, the unit the
+/// color hues take. A bare number is no angle here — a hue grammar that
+/// takes one parses it itself.
+pub fn parse_angle(value: &[Token]) -> Option<f64> {
+    let (negative, rest) = match value {
+        [Token::Delim('-'), rest @ ..] => (true, rest),
+        _ => (false, value),
+    };
+    let radians = match rest {
+        [Token::Dimension { value, unit, .. }] => {
+            let unit = CalcUnit::parse(unit).filter(|u| u.kind() == CalcKind::Angle)?;
+            CalcExpr::Dimension {
+                value: *value,
+                unit,
+            }
+            .resolve_f64(&ResolveCtx::new(0))
+        }
+        _ if !negative && looks_like_calc(rest) => parse_calc(rest)
+            .filter(|e| e.kind() == Some(CalcKind::Angle))?
+            .resolve_f64(&ResolveCtx::new(0)),
+        _ => return None,
+    };
+    let degrees = radians.to_degrees();
+    Some(if negative { -degrees } else { degrees })
+}
+
 /// Split a declaration value into its component values (CSS Syntax 3
 /// §5.4.9): a function runs to its matching `)`, a `-` delimiter
 /// belongs to the numeric token after it, and every other token

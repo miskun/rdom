@@ -34,6 +34,8 @@ mod keyword;
 mod length;
 mod number;
 mod numeric;
+
+pub use numeric::parse_angle;
 mod spacing;
 mod transition;
 

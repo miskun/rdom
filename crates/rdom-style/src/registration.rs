@@ -13,24 +13,28 @@
 //!   ([`PropertySyntax::interpolation`]).
 //!
 //! The syntax components rdom checks are those its value parsers can:
-//! `*`, `<length>` (cells and `calc()`), `<number>`, `<integer>`,
-//! `<percentage>`, `<length-percentage>`, `<color>`, `<time>`,
-//! `<custom-ident>` and literal identifiers, each optionally with the
-//! `+` (space-separated) or `#` (comma-separated) multiplier, combined
-//! with `|`. `<angle>`, `<resolution>`, `<image>`, `<url>`,
+//! `*`, `<length>` (cells, units and math functions), `<number>`,
+//! `<integer>`, `<percentage>`, `<length-percentage>`, `<angle>`,
+//! `<color>`, `<time>`, `<custom-ident>` and literal identifiers, each
+//! optionally with the `+` (space-separated) or `#` (comma-separated)
+//! multiplier, combined with `|`. `<resolution>`, `<image>`, `<url>`,
 //! `<transform-function>` and `<transform-list>` have no terminal
 //! value parser; a syntax naming one is rejected, so the registration
 //! is invalid (Properties and Values 1 §5.4: an unsupported syntax is a
 //! syntax error).
 
 use crate::parse::token::{Token, tokenize};
-use crate::parse::values::{looks_like_calc, parse_color, parse_color_at, parse_length};
+use crate::parse::values::{
+    looks_like_calc, parse_angle, parse_color, parse_color_at, parse_length,
+};
 
 /// One component of a registered syntax.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum SyntaxComponent {
     Length,
+    /// `<angle>` (CSS Values 4 §7.1).
+    Angle,
     Number,
     Integer,
     Percentage,
@@ -68,7 +72,7 @@ pub enum PropertySyntax {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum PropertySyntaxError {
-    /// A data type rdom has no value parser for (`<angle>`, `<image>`,
+    /// A data type rdom has no value parser for (`<resolution>`, `<image>`,
     /// …; §5.4 treats an unsupported syntax as a syntax error).
     UnsupportedComponent(String),
     /// Neither a data type name nor a keyword (`a b`, `initial`, an
@@ -179,6 +183,7 @@ impl PropertySyntax {
             };
             let component = match body {
                 "<length>" => SyntaxComponent::Length,
+                "<angle>" => SyntaxComponent::Angle,
                 "<number>" => SyntaxComponent::Number,
                 "<integer>" => SyntaxComponent::Integer,
                 "<percentage>" => SyntaxComponent::Percentage,
@@ -220,6 +225,7 @@ impl PropertySyntax {
                 [(c, Multiplier::One)] => matches!(
                     c,
                     SyntaxComponent::Color
+                        | SyntaxComponent::Angle
                         | SyntaxComponent::Number
                         | SyntaxComponent::Integer
                         | SyntaxComponent::Length
@@ -371,6 +377,14 @@ fn consume(component: &SyntaxComponent, tokens: &[Token], at: usize) -> Option<u
                 && (percent || !calc.iter().any(|t| matches!(t, Token::Percentage(_)))))
             .then_some(at + end)
         }
+        SyntaxComponent::Angle => {
+            let end = match rest {
+                [Token::Delim('-'), Token::Dimension { .. }, ..] => 2,
+                [Token::Dimension { .. }, ..] => 1,
+                _ => calc_end(rest)?,
+            };
+            parse_angle(&rest[..end]).map(|_| at + end)
+        }
         SyntaxComponent::Color => {
             if parse_color(rest).is_some() {
                 return Some(tokens.len());
@@ -450,7 +464,7 @@ mod tests {
     #[test]
     fn unsupported_components_are_rejected() {
         for s in [
-            "<angle>",
+            "<resolution>",
             "<image>",
             "<url>",
             "<transform-list>",
@@ -481,8 +495,8 @@ mod tests {
         use PropertySyntaxError as S;
         use RegisterPropertyError as E;
         assert_eq!(
-            PropertySyntax::parse("<angle>"),
-            Err(S::UnsupportedComponent("<angle>".into()))
+            PropertySyntax::parse("<image>"),
+            Err(S::UnsupportedComponent("<image>".into()))
         );
         assert_eq!(
             PropertySyntax::parse("a b"),
