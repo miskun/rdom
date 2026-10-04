@@ -1,0 +1,208 @@
+//! Phase-2 placement of `position: absolute | fixed` elements: the
+//! containing block, the placed rect (CSS 2.1 §10.3.7 / §10.6.4), then
+//! the subtree laid out inside it.
+
+use rdom_core::{Dom, NodeId, NodeType};
+
+use crate::ext::TuiExt;
+use crate::layout::{LayoutRect, Length, Position, Size};
+use crate::node::TuiNodeExt;
+use crate::style::ComputedStyle;
+
+use super::axis::axis_size_from_edges;
+use super::*;
+
+/// After phase-1 flex layout completes, walk the tree in document
+/// order and place every `position: absolute | fixed` element
+/// against its containing block. For each placed element, re-run
+/// `layout_node` on the subtree so the element's own children flow
+/// inside the placed rect.
+///
+/// Document-order walk guarantees that an outer positioned element
+/// is placed before any positioned descendants — so when a nested
+/// absolute resolves its containing block, the outer's
+/// `TuiExt.layout` is already populated.
+pub(in crate::render::layout_pass) fn place_positioned(
+    dom: &mut Dom<TuiExt>,
+    viewport: LayoutRect,
+) {
+    let positioned = collect_positioned(dom, dom.root());
+    for id in positioned {
+        let cb = containing_block(dom, id, viewport);
+        let computed = dom
+            .node(id)
+            .computed_rc()
+            .unwrap_or_else(|| std::rc::Rc::new(ComputedStyle::initial()));
+        let placed = compute_placed_rect(dom, id, &computed, cb);
+        crate::render::layout_pass::layout_node(dom, id, placed, cb.width);
+    }
+}
+
+fn collect_positioned(dom: &Dom<TuiExt>, id: NodeId) -> Vec<NodeId> {
+    let mut out = Vec::new();
+    walk_for_positioned(dom, id, &mut out);
+    out
+}
+
+fn walk_for_positioned(dom: &Dom<TuiExt>, id: NodeId, out: &mut Vec<NodeId>) {
+    if dom.node(id).node_type() == NodeType::Element {
+        let pos = computed_position(dom, id);
+        if matches!(pos, Position::Absolute | Position::Fixed) {
+            out.push(id);
+        }
+    }
+    for child in dom.node(id).child_nodes() {
+        match child.node_type() {
+            NodeType::Element | NodeType::Fragment => {
+                walk_for_positioned(dom, child.id(), out);
+            }
+            _ => {}
+        }
+    }
+}
+
+/// Compute the placed rect for an absolute/fixed element given its
+/// computed style and resolved containing block.
+///
+/// Width / height resolve in this order:
+/// - `Size::Fixed(n)` → `n`.
+/// - `Size::Flex(_)` → fills the containing block on that axis.
+/// - `Size::Percent(p)` → `cb_axis * p / 100`. Resolves against the
+///   *containing block* — for absolute/fixed positioning, that's the
+///   nearest positioned ancestor (or the viewport for `fixed`).
+/// - `Size::Auto`:
+///   - When both edges of the axis are `Cells`, derive from
+///     `cb_axis - left - right` (or `cb_axis - top - bottom`).
+///   - Otherwise shrink-to-fit the content (CSS 2.1 §10.3.7 /
+///     §10.6.4): the element's intrinsic size on that axis, height
+///     measured at the resolved width. A tooltip positioned with
+///     only `top` / `left` is therefore as wide as its text, not 0.
+///
+/// X / Y resolve from the offsets via [`axis_position_anchored`];
+/// an axis with both insets `auto` takes `TuiExt::static_position`.
+fn compute_placed_rect(
+    dom: &Dom<TuiExt>,
+    id: NodeId,
+    c: &ComputedStyle,
+    cb: LayoutRect,
+) -> LayoutRect {
+    use crate::layout::Direction;
+    // Resolve width/height — percentage AND Calc both resolve
+    // against the containing-block's matching axis. The intrinsic
+    // measurement only runs when an `auto` axis is not pinned by both
+    // edges (it walks the subtree).
+    let width = resolve_size_axis(&c.width, cb.width, &c.left, &c.right, cb.width, || {
+        crate::render::layout_pass::intrinsic::intrinsic_size(
+            dom,
+            id,
+            Direction::Row,
+            cb.width,
+            cb.width,
+        )
+    });
+    let height = resolve_size_axis(&c.height, cb.height, &c.top, &c.bottom, cb.height, || {
+        crate::render::layout_pass::intrinsic::intrinsic_size(
+            dom,
+            id,
+            Direction::Column,
+            width,
+            cb.width,
+        )
+    });
+
+    // M5.3b — absolute element centering via `margin: auto` between
+    // resolved insets. CSS rule: when both axis insets are `Cells`
+    // (non-auto) AND the corresponding axis margins are both `Auto`,
+    // distribute remaining space equally to both margins — i.e.
+    // center the element between the insets.
+    use crate::layout::MarginValue;
+    let (cx_left, cx_right) = (c.margin.left.clone(), c.margin.right.clone());
+    let (cy_top, cy_bottom) = (c.margin.top.clone(), c.margin.bottom.clone());
+    // Margin percent / calc resolves against the containing-block
+    // width on ALL four sides (CSS 2.1 §8.3).
+    let margin_cb_w = cb.width;
+
+    let basis_w = cb.width as i32;
+    let basis_h = cb.height as i32;
+
+    // An axis with both insets `auto` starts at the static position
+    // phase 1 recorded (CSS 2.1 §10.3.7 / §10.6.4). It is `None` only
+    // for an element whose parent has not been laid out yet; the
+    // containing block's start stands in then.
+    let static_pos = dom.node(id).ext().and_then(|e| e.static_position);
+
+    let x = if c.left.cells(basis_w).is_some()
+        && c.right.cells(basis_w).is_some()
+        && matches!(cx_left, MarginValue::Auto)
+        && matches!(cx_right, MarginValue::Auto)
+    {
+        // Center horizontally between left + right insets.
+        let left = c.left.cells(basis_w).unwrap_or(0);
+        let right = c.right.cells(basis_w).unwrap_or(0);
+        let span = basis_w.saturating_sub(left + right);
+        let extra = span.saturating_sub(width as i32).max(0);
+        cb.x + left + extra / 2
+    } else {
+        let base = match static_pos {
+            Some(sp) if matches!((&c.left, &c.right), (Length::Auto, Length::Auto)) => sp.x,
+            _ => axis_position_anchored(&c.left, &c.right, cb.x, cb.width, width),
+        };
+        let start_margin = match &cx_left {
+            MarginValue::Cells(n) => *n as i32,
+            MarginValue::Auto => 0,
+            MarginValue::Calc(_) => cx_left.resolve(margin_cb_w) as i32,
+        };
+        base + start_margin
+    };
+    let y = if c.top.cells(basis_h).is_some()
+        && c.bottom.cells(basis_h).is_some()
+        && matches!(cy_top, MarginValue::Auto)
+        && matches!(cy_bottom, MarginValue::Auto)
+    {
+        let top = c.top.cells(basis_h).unwrap_or(0);
+        let bottom = c.bottom.cells(basis_h).unwrap_or(0);
+        let span = basis_h.saturating_sub(top + bottom);
+        let extra = span.saturating_sub(height as i32).max(0);
+        cb.y + top + extra / 2
+    } else {
+        let base = match static_pos {
+            Some(sp) if matches!((&c.top, &c.bottom), (Length::Auto, Length::Auto)) => sp.y,
+            _ => axis_position_anchored(&c.top, &c.bottom, cb.y, cb.height, height),
+        };
+        let start_margin = match &cy_top {
+            MarginValue::Cells(n) => *n as i32,
+            MarginValue::Auto => 0,
+            MarginValue::Calc(_) => cy_top.resolve(margin_cb_w) as i32,
+        };
+        base + start_margin
+    };
+    LayoutRect::new(x, y, width, height)
+}
+
+/// Resolve a positioned box's `Size` on one axis (CSS 2.1 §10.3.7 /
+/// §10.6.4) against the containing block's extent: a definite size is
+/// the size; `auto` spans between the start / end edges when both are
+/// non-auto, else is `shrink_to_fit` (the content's size). Shared by
+/// positioned elements and positioned pseudo-elements.
+pub(in crate::render::layout_pass) fn resolve_size_axis(
+    size: &Size,
+    cb_extent: u16,
+    start: &Length,
+    end: &Length,
+    edges_basis: u16,
+    shrink_to_fit: impl FnOnce() -> u16,
+) -> u16 {
+    match (size, size.cells(Some(cb_extent))) {
+        (_, Some(cells)) => cells,
+        (Size::Flex(_), _) => cb_extent,
+        _ => {
+            let both_edges = start.cells(edges_basis as i32).is_some()
+                && end.cells(edges_basis as i32).is_some();
+            if both_edges {
+                axis_size_from_edges(start, end, edges_basis, 0)
+            } else {
+                shrink_to_fit()
+            }
+        }
+    }
+}

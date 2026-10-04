@@ -46,8 +46,8 @@ something the code contradicts (see §6). `—` for Supported / N/A rows.
 | `FLEX` | `rdom-tui/src/render/layout_pass/flex/` (`main_axis.rs`, `cross.rs`, `placement.rs`) |
 | `BLOCK` | `rdom-tui/src/render/layout_pass/block/` |
 | `IFC` | `rdom-tui/src/render/layout_pass/ifc.rs` + `rdom-tui/src/render/inline/` |
-| `POS` | `rdom-tui/src/render/layout_pass/{positioning,sticky}.rs` + `render/stacking.rs` |
-| `PAINT` | `rdom-tui/src/render/paint_pass/` (`border.rs`, `border_join.rs`, `text.rs`, `scrollbar.rs`, `group.rs`) |
+| `POS` | `rdom-tui/src/render/layout_pass/positioning/` + `layout_pass/sticky.rs` + `render/stacking.rs` |
+| `PAINT` | `rdom-tui/src/render/paint_pass/` (`background.rs`, `border/`, `border_join.rs`, `text.rs`, `scrollbar.rs`, `group.rs`) |
 | `SGR` | `rdom-tui/src/render/sgr.rs` + `rdom-style/src/modifier.rs` |
 | `SEL` | `rdom-core/src/selectors.rs` (+ matching in `rdom-core/src/query_selector.rs`) |
 | `PE` | `rdom-style/src/stylesheet/selector_text.rs` + `stylesheet/mod.rs::PseudoElementTarget` |
@@ -307,14 +307,14 @@ dropped:
 | `background-color` | Supported | Any parsed color. | — | `DISP/set.rs` |
 | `background` | Partial | A lone `<color>` only (documented). | Yes | `DISP/set.rs` |
 | `background-image` / `-position` / `-size` / `-repeat` / `-attachment` / `-origin` | N/A | No images (documented). | — | — |
-| `background-clip` | Missing | `padding-box` / `content-box` fill. | Yes | `PAINT/border.rs::fill_bg` |
+| `background-clip` | Missing | `padding-box` / `content-box` fill. | Yes | `PAINT/background.rs::fill_bg` |
 | `border` | Partial | One keyword only: a style (`none` / `hidden` / `solid` / `double` / `dashed` / `dotted` / `ridge` / `groove` / `inset` / `outset`) plus rdom keywords; no width or color component — `border: 1px solid red` is dropped. | No | `V/border.rs::parse_border` |
 | `border-top` / `-right` / `-bottom` / `-left` | Partial | One style keyword only; no width / color. | No | `V/border.rs::parse_border_side` |
 | `border-style` | Partial | One value applied to all four sides; the 2–4-value form is rejected. | No | `DISP/set.rs` |
 | `border-*-style` | Supported | Every CSS keyword parses; `dashed` / `dotted` / `ridge` / `groove` / `inset` / `outset` render as `solid` (documented). | Yes | `DISP/set.rs` |
 | `border-color` | Partial | One color for all sides; 2–4 values rejected. | No | `DISP/set.rs`, `TS::border_fg` |
 | `border-top-color` / `-right-color` / `-bottom-color` / `-left-color` | Missing | Per-side glyph color. | No | `DISP`, `BOX::Border`, `PAINT/border_join.rs` |
-| `border-width` / `border-*-width` | Missing | `0` = none; `thin` / `medium` = light; `thick` = heavy glyphs. | No | `DISP`, `BOX`, `PAINT/border.rs` |
+| `border-width` / `border-*-width` | Missing | `0` = none; `thin` / `medium` = light; `thick` = heavy glyphs. | No | `DISP`, `BOX`, `PAINT/border/` |
 | `border-radius` / `border-*-radius` | Missing | Non-zero → rounded corner glyphs. | No | `DISP`, `BOX::CornerStyle` |
 | `border-image*` | N/A | Image-sliced borders. | — | — |
 | `box-shadow` | Missing | One-cell offset shade; blur / spread N/A. | No | `PAINT` |

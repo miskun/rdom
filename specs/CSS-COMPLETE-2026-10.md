@@ -880,3 +880,15 @@ row comes from.
   found: a `position: relative` pseudo with both horizontal insets still derives its width from them
   (relative positioning should only shift); `min-*` / `max-*` are not applied to positioned boxes,
   element or pseudo (both pre-existing, unchanged here).
+- 2026-10-05 — C3G-SPLITS: no behaviour change. `paint_pass/border.rs` (566) → `background.rs` (96:
+  `fill_bg` and its cell / border-state clears) + `border/mod.rs` (270: `paint_border`; the ten
+  identical `add_dir` calls go through a `Pen { fg, priority, corner_style }`, so Phase 4's
+  per-side widths and colors change one place) + `border/half_block.rs` (84); the ten
+  `#[allow(dead_code)]` box-drawing constants (the joiner owns the glyphs) and a `let _ =
+  Style::new()` are deleted. `node.rs` (641) → `node/{mod (45), read (154: TuiNodeExt), write (160:
+  TuiNodeMutExt), tree (180: editable scope, text descendants, child text, rendered-ness), tests
+  (135)}.rs`, re-exported at the old paths. `layout_pass/positioning.rs` (697 after C3G-PSEUDO-SIZE)
+  → `positioning/{mod (108: containing block, accessors, re-exports), static_pos (158), relative
+  (78), place (193: phase 2, `resolve_size_axis`), axis (93), tests (128)}.rs`; the items the rest
+  of `layout_pass` uses are `pub(in crate::render::layout_pass)` and re-exported from `mod.rs`.
+  CSS-COVERAGE's `PAINT` / `POS` keys point at the new paths. The suites pass unchanged.

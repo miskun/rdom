@@ -48,8 +48,9 @@
 //!   (`paint_stacking_context` / `paint_box` / `paint_content` /
 //!   `recurse_children`) and the shared `layout_rect_to_grid` clip
 //!   utility.
-//! - `border` — background fill + border drawing (box-drawing
-//!   chars, edge selection).
+//! - `background` — the opaque `background-color` fill.
+//! - `border` — border drawing: per-direction contributions for the
+//!   joiner (`border_join`), and half-block quadrants (`half_block`).
 //! - `group` — `opacity` group rendering through a bounded layer.
 //! - `backdrop` — the `::backdrop` of open modal dialogs.
 //! - `inline_paint` — `::before` + own text + `::after` for
@@ -61,6 +62,7 @@
 //!   `Style` conversion.
 
 mod backdrop;
+mod background;
 mod border;
 mod border_join;
 mod group;
@@ -87,7 +89,8 @@ use crate::render::stacking::{
 use crate::render::{Buffer, Rect};
 use crate::style::{Color, ComputedStyle};
 
-use border::{fill_bg, paint_border};
+use background::fill_bg;
+use border::paint_border;
 use inline_paint::{
     paint_anonymous_blocks, paint_caret_if_editable, paint_ifc, paint_inline_content,
 };
@@ -278,7 +281,7 @@ fn paint_box(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect) -> Opt
         // 1. Background fill over outer rect: an opaque fill that
         // clears glyphs from earlier paints (full CSS occlusion).
         // `opacity` is applied when the stacking context's layer
-        // composites back, not here. See `border.rs::fill_bg`.
+        // composites back, not here. See `background.rs::fill_bg`.
         // Tree rows defer their background to the guide pass
         // (`tree_guides`), which fills the FULL row — including the
         // guide gutter to the left of the indented box — so the
