@@ -8,6 +8,7 @@ use crate::layout::{BorderStyle, BorderWidth, CornerStyle, PaintLength, Sides};
 use crate::parse::token::Token;
 use crate::parse::values::{
     current_border, parse_border, parse_border_side, parse_border_side_shorthand, parse_color,
+    parse_line_width, parse_sides,
 };
 use crate::{TuiColor, TuiStyle, Value};
 
@@ -41,6 +42,15 @@ impl Side {
             Side::Right => &sides.right,
             Side::Bottom => &sides.bottom,
             Side::Left => &sides.left,
+        }
+    }
+
+    fn style_of(self, b: &crate::layout::Border) -> BorderStyle {
+        match self {
+            Side::Top => b.top,
+            Side::Right => b.right,
+            Side::Bottom => b.bottom,
+            Side::Left => b.left,
         }
     }
 
@@ -82,17 +92,26 @@ pub(super) fn set(name: &str, value: &[Token], style: &mut TuiStyle) -> Option<O
             style.border_width = Sides::all(spec(width));
             style.border_color = Sides::all(spec(color));
         }),
-        // The whole ring: rdom's `rounded` rounds its corners, any
-        // other style squares them.
-        "border-style" => parse_border_side(value).map(|s| {
-            let mut b = crate::layout::Border::ring(s);
+        // §4.2, the whole ring: rdom's one-value `rounded` rounds its
+        // corners, anything else squares them.
+        "border-style" => parse_sides(value, parse_border_side).map(|s| {
+            let mut b = crate::layout::Border {
+                top: s.top,
+                right: s.right,
+                bottom: s.bottom,
+                left: s.left,
+                corner_style: CornerStyle::Square,
+            };
             if is_rounded(value) {
                 b.corner_style = CornerStyle::Rounded;
             }
             style.border = spec(b);
         }),
-        "border-color" => parse_color(value).map(|c| {
-            style.border_color = Sides::all(spec(c));
+        "border-color" => parse_sides(value, parse_color).map(|c| {
+            style.border_color = c.map(spec);
+        }),
+        "border-width" => parse_sides(value, parse_line_width).map(|w| {
+            style.border_width = w.map(spec);
         }),
         _ => {
             let (side, suffix) = side_of(name)?;
@@ -109,6 +128,12 @@ pub(super) fn set(name: &str, value: &[Token], style: &mut TuiStyle) -> Option<O
                     let mut b = current_border(style);
                     *side.style(&mut b) = s;
                     style.border = spec(b);
+                }),
+                "-color" => parse_color(value).map(|c| {
+                    *side.of(&mut style.border_color) = spec(c);
+                }),
+                "-width" => parse_line_width(value).map(|w| {
+                    *side.of(&mut style.border_width) = spec(w);
                 }),
                 _ => return None,
             }
@@ -158,31 +183,63 @@ pub(super) fn serialize(name: &str, style: &TuiStyle) -> Option<Option<String>> 
         "border-style" => border.and_then(|b| {
             let styles = Sides::new(b.top, b.right, b.bottom, b.left);
             match b.corner_style {
-                _ if !styles.uniform() => None,
                 CornerStyle::Rounded => {
-                    (b.top == BorderStyle::Solid).then(|| "rounded".to_string())
+                    (styles.uniform() && b.top == BorderStyle::Solid).then(|| "rounded".to_string())
                 }
-                CornerStyle::Square => Some(border_style_keyword(b.top).to_string()),
+                CornerStyle::Square => Some(shortest_sides(
+                    styles.map(|s| border_style_keyword(s).to_string()),
+                )),
             }
         }),
-        "border-color" => uniform(&style.border_color).map(serialize_color),
+        "border-color" => {
+            all_specified(&style.border_color).map(|c| shortest_sides(c.map(serialize_color)))
+        }
+        "border-width" => {
+            all_specified(&style.border_width).map(|w| shortest_sides(w.map(serialize_line_width)))
+        }
         _ => {
             let (side, suffix) = side_of(name)?;
-            let mut b = *border?;
-            let side_style = *side.style(&mut b);
+            let side_style = border.map(|b| side.style_of(b));
+            let width = side.get(&style.border_width).as_ref().and_then(specified);
+            let color = side.get(&style.border_color).as_ref().and_then(specified);
             match suffix {
-                "" => {
-                    let width = side.get(&style.border_width).as_ref().and_then(specified);
-                    let color = side.get(&style.border_color).as_ref().and_then(specified);
-                    width
-                        .zip(color)
-                        .map(|(w, c)| line(w, border_style_keyword(side_style), c))
-                }
-                "-style" => Some(border_style_keyword(side_style).to_string()),
+                "" => side_style
+                    .zip(width)
+                    .zip(color)
+                    .map(|((s, w), c)| line(w, border_style_keyword(s), c)),
+                "-style" => side_style.map(|s| border_style_keyword(s).to_string()),
+                "-color" => color.map(serialize_color),
+                "-width" => width.map(serialize_line_width),
                 _ => return None,
             }
         }
     })
+}
+
+/// Every side's specified value, if each side has one.
+fn all_specified<T>(sides: &Sides<Option<Value<T>>>) -> Option<Sides<&T>> {
+    let [t, r, b, l] = sides.each().map(|s| s.as_ref().and_then(specified));
+    Some(Sides::new(t?, r?, b?, l?))
+}
+
+/// One to four side values in the shortest form that expands back to
+/// the same sides (CSSOM §6.7.2; CSS Backgrounds 3 §4.1).
+fn shortest_sides(s: Sides<String>) -> String {
+    let Sides {
+        top,
+        right,
+        bottom,
+        left,
+    } = s;
+    if left != right {
+        format!("{top} {right} {bottom} {left}")
+    } else if top != bottom {
+        format!("{top} {right} {bottom}")
+    } else if top != right {
+        format!("{top} {right}")
+    } else {
+        top
+    }
 }
 
 /// The one specified value every side holds, if they agree.

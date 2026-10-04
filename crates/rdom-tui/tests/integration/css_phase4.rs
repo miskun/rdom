@@ -190,3 +190,57 @@ fn border_side_shorthand_colors_its_side_only() {
     assert_eq!(cell(&buf, 0, 1).fg, blue, "left edge");
     assert_eq!(cell(&buf, 4, 1).fg, blue, "right edge");
 }
+
+// ── C4-BORDER-SIDES ────────────────────────────────────────────────
+
+const BLUE: Color = Color::Rgb(0, 0, 255);
+
+/// CSS Backgrounds 3 §4.1: `border-color: red blue` — top and bottom
+/// red, left and right blue. A corner cell joins two sides and can show
+/// one color: the browser splits a corner between them, the wider side
+/// taking more; at equal width and style rdom gives every corner to
+/// its horizontal side (DIVERGENCES §2), so the top and bottom read as
+/// whole lines.
+#[test]
+fn per_side_colors_and_the_corner_rule() {
+    let buf = bordered(".b { width: 5; height: 3; border: solid; border-color: red blue }");
+    assert_eq!(cell(&buf, 2, 0).fg, RED, "top edge");
+    assert_eq!(cell(&buf, 2, 2).fg, RED, "bottom edge");
+    assert_eq!(cell(&buf, 0, 1).fg, BLUE, "left edge");
+    assert_eq!(cell(&buf, 4, 1).fg, BLUE, "right edge");
+    for (x, y) in [(0, 0), (4, 0), (0, 2), (4, 2)] {
+        assert_eq!(cell(&buf, x, y).fg, RED, "corner ({x}, {y})");
+    }
+}
+
+/// The dominant side of a corner is the heavier style first (CSS
+/// Tables 3 §11.5's ranking, `double` above `solid`): a double left
+/// side owns its corners — glyph and color.
+#[test]
+fn a_corner_goes_to_the_dominant_style() {
+    let buf = bordered(".b { width: 5; height: 3; border: solid red; border-left: double blue }");
+    assert_eq!(cell(&buf, 0, 0).fg, BLUE);
+    assert_eq!(cell(&buf, 0, 2).fg, BLUE);
+    assert_eq!(cell(&buf, 4, 0).fg, RED);
+}
+
+/// §4.1: each side's color is its own longhand in the cascade — a later
+/// rule's `border-left-color` leaves the other sides of an earlier
+/// `border-color`.
+#[test]
+fn a_side_color_longhand_cascades_alone() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let b = el(&mut dom, root, "b", "");
+    dom.set_attribute(b, "id", "x").unwrap();
+    let buf = paint(
+        &mut dom,
+        ".b { width: 5; height: 3; border: solid; border-color: red } \
+         #x { border-left-color: blue }",
+        5,
+        3,
+    );
+    assert_eq!(cell(&buf, 0, 1).fg, BLUE);
+    assert_eq!(cell(&buf, 4, 1).fg, RED);
+    assert_eq!(cell(&buf, 2, 0).fg, RED);
+}

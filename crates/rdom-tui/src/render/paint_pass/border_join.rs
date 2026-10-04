@@ -173,7 +173,18 @@ fn visible_mask(cell_state: &[BorderDirState; 4]) -> u8 {
 /// (more nested, then earlier-DOM) contribution wins. The dominant
 /// contribution's style chooses the glyph table; its color paints
 /// the cell.
+///
+/// Within one element — a corner, where two of its sides meet — the
+/// browser splits the cell between the sides, the wider one taking
+/// more (CSS Backgrounds 3 §4.4 "corner shaping" geometry); a cell has
+/// one color, so the dominant side takes it whole: the heavier style,
+/// and on a tie the horizontal side (top / bottom), so the top and
+/// bottom of a box read as whole lines (DIVERGENCES §2).
 fn dominant_contribution(cell_state: &[BorderDirState; 4]) -> BorderContribution {
+    let dominance = |c: &BorderContribution| {
+        let horizontal = matches!(c.side, BorderSide::Top | BorderSide::Bottom);
+        (c.style.rank(), c.priority, horizontal)
+    };
     let mut best: Option<BorderContribution> = None;
     for dir_state in cell_state {
         if !dir_state.is_visible() {
@@ -182,7 +193,7 @@ fn dominant_contribution(cell_state: &[BorderDirState; 4]) -> BorderContribution
         let Some(c) = dir_state.winner else { continue };
         let win = match best {
             None => true,
-            Some(prev) => (c.style.rank(), c.priority) > (prev.style.rank(), prev.priority),
+            Some(prev) => dominance(&c) > dominance(&prev),
         };
         if win {
             best = Some(c);

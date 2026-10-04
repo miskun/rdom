@@ -7,7 +7,7 @@
 use super::color::parse_color;
 use super::keyword::parse_keyword;
 use super::numeric::{LengthPercentage, Range, components, length_percentage};
-use crate::layout::{Border, BorderStyle, BorderWidth, CornerStyle, PaintLength};
+use crate::layout::{Border, BorderStyle, BorderWidth, CornerStyle, PaintLength, Sides};
 use crate::parse::token::Token;
 use crate::{TuiColor, TuiStyle, Value};
 
@@ -45,6 +45,17 @@ const LINE_STYLES: &[(&str, BorderStyle)] = &[
 /// → `None` so the caller emits a warning.
 pub fn parse_border_side(value: &[Token]) -> Option<BorderStyle> {
     parse_keyword(value, LINE_STYLES)
+}
+
+/// One to four values of `one`, expanded clockwise from the top (CSS
+/// Backgrounds 3 §4.1–§4.3: `border-color`, `border-style`,
+/// `border-width`).
+pub fn parse_sides<T: Clone>(value: &[Token], one: fn(&[Token]) -> Option<T>) -> Option<Sides<T>> {
+    let values = components(value)?
+        .into_iter()
+        .map(one)
+        .collect::<Option<Vec<T>>>()?;
+    Sides::from_values(&values)
 }
 
 /// One `<line-width>` (§4.3): `thin | medium | thick | <length

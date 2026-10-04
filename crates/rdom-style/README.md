@@ -79,8 +79,9 @@ The leaf crate carries the **values**, not the cascade. Cascade lives in
   `min-height`, `max-height`, `aspect-ratio`, `gap`, `padding` and
   `margin` (+ four longhands each, `margin: auto`), `border` and
   `border-top` / `-right` / `-bottom` / `-left` (width, style and color
-  in any order: `border: 1px solid red`), `border-style` (+ four
-  longhands), `border-collapse`.
+  in any order: `border: 1px solid red`), `border-style`,
+  `border-color` and `border-width` (1–4 values, + four per-side
+  longhands each), `border-collapse`.
 - **Generated content** — `content`, `counter-reset`,
   `counter-increment`.
 - **Positioning** — `position` (incl. `sticky`), `top`, `right`,

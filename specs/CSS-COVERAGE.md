@@ -73,7 +73,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.2 Custom properties (CSS Variables 1) | 6 | 0 | 0 | 1 | 7 |
 | 3.3 Values and units (Values 4) | 15 | 2 | 1 | 4 | 22 |
 | 3.4 Color (Color 4 / 5) | 15 | 1 | 0 | 1 | 17 |
-| 3.5 Backgrounds and borders (Backgrounds 3, Borders 4) | 7 | 2 | 5 | 2 | 16 |
+| 3.5 Backgrounds and borders (Backgrounds 3, Borders 4) | 10 | 1 | 3 | 2 | 16 |
 | 3.6 Box model and sizing (Box 3, Sizing 3/4) | 3 | 3 | 3 | 0 | 9 |
 | 3.7 Display and visibility (Display 3) | 1 | 0 | 8 | 2 | 11 |
 | 3.8 Flexbox and box alignment (Flexbox 1, Align 3) | 3 | 3 | 11 | 0 | 17 |
@@ -93,9 +93,9 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 0 | 0 | 6 | 3 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **98** | **30** | **130** | **49** | **307** |
+| **Total** | **101** | **29** | **128** | **49** | **307** |
 
-When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 160 rows Partial / Missing.
+When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 157 rows Partial / Missing.
 
 Headline: rdom parses **70 property names** (`PROPERTY_NAMES`). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are flex alignment (`justify-content`, `align-items`), `flex-wrap`, the `flex-grow` / `flex-basis` longhands, `line-height`, `text-align`, `visibility`, `box-sizing`, and grid.
 
@@ -120,7 +120,7 @@ pasted CSS. The first block is what a typical component stylesheet hits in its f
 | 10 | `outline` (+ `-color`, `-style`, `-width`, `-offset`) | A border ring drawn one cell outside the border box, taking no layout space, painted over neighbors on the top layer; `outline-offset` in whole cells. The natural keyboard-focus ring a TUI otherwise lacks. | M | No |
 | 11 | `overflow-wrap` / `word-break` | `overflow-wrap: anywhere / break-word` and `word-break: break-all` break an over-long word at a cell boundary instead of overflowing and clipping (today's `overflow-wrap: normal`); `word-break: keep-all` for CJK. | M | No |
 | 12 | `text-overflow` | `ellipsis`: the last visible cell of a clipped line becomes `…`; `<string>` form uses that string; applies with `overflow: hidden` + `white-space: nowrap`. | S | No |
-| 13 | Per-side border colors (`border-*-color`, multi-value `border-color`) | Each side's glyphs in its own color; the joiner's existing conflict winner picks the junction color. | M | No |
+| 13 | Per-side border colors (`border-*-color`, multi-value `border-color`) | Shipped (C4-BORDER-SIDES; §3.5): each side's glyphs in its own color; a corner takes its dominant side's. | M | Yes |
 | 14 | `currentColor` | Shipped (C3-CURRENTCOLOR; §3.4): the element's computed `color`, and `border-color`'s initial value; `outline-color` / `text-decoration-color` take it as their initial value when they land (C12-OUTLINE, C9-DECORATION). | S | Yes |
 | 15 | `min()` / `max()` / `clamp()` | Comparison functions inside every `calc()` position; resolve at layout like percent-bearing `calc()`. | S | Yes |
 | 16 | `hsl()` / `hwb()` / `lab()` / `lch()` / `oklab()` / `oklch()` / `color()` | Shipped (C3-HSL-HWB, C3-LAB; §3.4): converted to sRGB at parse time (gamut-mapped), emitted as truecolor `Color::Rgb` — `Color::Rgba` with an alpha below opaque. | S | No |
@@ -309,11 +309,11 @@ dropped. The audit's six, with where each stands:
 | `background-clip` | Supported | `border-box` (initial: under the border) / `padding-box` / `content-box`, the final layer's clipping the color; a half-block border keeps its cells clear (documented); `text` is N/A (documented) (C4-BG-CLIP). | — | `PAINT/background.rs::clip_box`, `CASC/decoration.rs` |
 | `border` | Supported | `<line-width> || <line-style> || <color>` in any order on all four sides, omitted components reset (`border: 1px solid red`); widths in pixels pick a glyph weight (documented); rdom keywords kept (documented) (C4-BORDER-SHORTHAND). | — | `V/border.rs::parse_border`, `DISP/border.rs` |
 | `border-top` / `-right` / `-bottom` / `-left` | Supported | The same grammar for one side's style, width and color (C4-BORDER-SHORTHAND). | — | `V/border.rs::parse_border_side_shorthand`, `DISP/border.rs` |
-| `border-style` | Partial | One value applied to all four sides; the 2–4-value form is rejected. | No | `DISP/set.rs` |
+| `border-style` | Supported | 1–4 values, clockwise from the top (C4-BORDER-SIDES); rdom's one-value `rounded` rounds the ring (documented). | — | `DISP/border.rs`, `V/border.rs::parse_sides` |
 | `border-*-style` | Supported | Every CSS keyword parses; `dashed` / `dotted` / `ridge` / `groove` / `inset` / `outset` render as `solid` (documented). | Yes | `DISP/set.rs` |
-| `border-color` | Partial | One color for all sides; 2–4 values rejected. | No | `DISP/set.rs`, `TS::border_fg` |
-| `border-top-color` / `-right-color` / `-bottom-color` / `-left-color` | Missing | Per-side glyph color. | No | `DISP`, `BOX::Border`, `PAINT/border_join.rs` |
-| `border-width` / `border-*-width` | Missing | `0` = none; `thin` / `medium` = light; `thick` = heavy glyphs. | No | `DISP`, `BOX`, `PAINT/border/` |
+| `border-color` | Supported | 1–4 colors, clockwise from the top (C4-BORDER-SIDES). | — | `DISP/border.rs`, `TS::border_color` |
+| `border-top-color` / `-right-color` / `-bottom-color` / `-left-color` | Supported | One longhand per side, cascaded independently; a corner cell takes its dominant side's color — the heavier style, then the horizontal side (documented) (C4-BORDER-SIDES). | — | `DISP/border.rs`, `CASC/colors.rs`, `PAINT/border_join.rs::dominant_contribution` |
+| `border-width` / `border-*-width` | Partial | Parsed: 1–4 values, per-side longhands, `thin` / `medium` / `thick` / cells / pixel lengths (C4-BORDER-SIDES); the glyph weight and `0` = no border land with C4-BORDER-WIDTH. | Yes | `DISP/border.rs`, `TS::border_width` |
 | `border-radius` / `border-*-radius` | Missing | Non-zero → rounded corner glyphs. | No | `DISP`, `BOX::CornerStyle` |
 | `border-image*` | N/A | Image-sliced borders. | — | — |
 | `box-shadow` | Missing | One-cell offset shade; blur / spread N/A. | No | `PAINT` |

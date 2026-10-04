@@ -210,3 +210,145 @@ fn border_shorthands_own_their_longhands() {
     assert!(style.border.is_none() && style.border_color.top.is_none());
     assert!(style.border_width.left.is_none());
 }
+
+// ── 1–4 values and per-side longhands (§4.1–§4.3) ──────────────────
+
+/// §4.1: `border-color` takes one to four colors, clockwise from the
+/// top, and serializes in the shortest form that reads back the same.
+#[test]
+fn border_color_takes_one_to_four_values() {
+    let blue = TuiColor::Literal(Color::Rgb(0, 0, 255));
+    let green = TuiColor::Literal(Color::Rgb(0, 128, 0));
+    for (value, expected, serialized) in [
+        ("red", Sides::all(red()), "red"),
+        (
+            "red blue",
+            Sides::new(red(), blue.clone(), red(), blue.clone()),
+            "red blue",
+        ),
+        (
+            "red blue green",
+            Sides::new(red(), blue.clone(), green.clone(), blue.clone()),
+            "red blue green",
+        ),
+        (
+            "red blue green red",
+            Sides::new(red(), blue.clone(), green.clone(), red()),
+            "red blue green red",
+        ),
+        ("red red red red", Sides::all(red()), "red"),
+        (
+            "red blue red blue",
+            Sides::new(red(), blue.clone(), red(), blue.clone()),
+            "red blue",
+        ),
+    ] {
+        let mut style = TuiStyle::new();
+        set("border-color", value, &mut style).unwrap_or_else(|e| panic!("{value}: {e:?}"));
+        assert_eq!(sides(&style.border_color), expected, "{value}");
+        assert_eq!(
+            serialize("border-color", &style).as_deref(),
+            Some(serialized),
+            "{value}"
+        );
+    }
+    assert_eq!(
+        set("border-color", "red red red red red", &mut TuiStyle::new()),
+        Err(DispatchError::InvalidValue)
+    );
+}
+
+/// §4.2: `border-style` takes one to four styles. rdom's `rounded`
+/// rounds the ring in the one-value form only; among several values it
+/// is `solid`.
+#[test]
+fn border_style_takes_one_to_four_values() {
+    let mut style = TuiStyle::new();
+    set("border-style", "solid none dashed", &mut style).unwrap();
+    let b = specified(&style.border);
+    assert_eq!(
+        (b.top, b.right, b.bottom, b.left),
+        (
+            BorderStyle::Solid,
+            BorderStyle::None,
+            BorderStyle::Dashed,
+            BorderStyle::None
+        )
+    );
+    assert_eq!(
+        serialize("border-style", &style).as_deref(),
+        Some("solid none dashed")
+    );
+    set("border-style", "rounded double", &mut style).unwrap();
+    let b = specified(&style.border);
+    assert_eq!(
+        (b.top, b.right, b.corner_style),
+        (BorderStyle::Solid, BorderStyle::Double, CornerStyle::Square)
+    );
+}
+
+/// §4.3: `border-width` takes one to four `<line-width>`s.
+#[test]
+fn border_width_takes_one_to_four_values() {
+    let mut style = TuiStyle::new();
+    set("border-width", "thin 2 thick 1px", &mut style).unwrap();
+    assert_eq!(
+        sides(&style.border_width),
+        Sides::new(
+            BorderWidth::Thin,
+            BorderWidth::Length(PaintLength::Cells(2.0)),
+            BorderWidth::Thick,
+            BorderWidth::Length(PaintLength::Px(1.0)),
+        )
+    );
+    assert_eq!(
+        serialize("border-width", &style).as_deref(),
+        Some("thin 2 thick 1px")
+    );
+    for bad in ["red", "-1", "10%", "1 2 3 4 5"] {
+        assert_eq!(
+            set("border-width", bad, &mut TuiStyle::new()),
+            Err(DispatchError::InvalidValue),
+            "{bad}"
+        );
+    }
+}
+
+/// §4.1 / §4.3: `border-<side>-color` and `border-<side>-width` set one
+/// side; each is its own longhand with its own `!important` bit.
+#[test]
+fn per_side_color_and_width_longhands() {
+    let mut style = TuiStyle::new();
+    set("border-color", "red", &mut style).unwrap();
+    set("border-left-color", "blue", &mut style).unwrap();
+    set("border-bottom-width", "thick", &mut style).unwrap();
+    assert_eq!(specified(&style.border_color.top), red());
+    assert_eq!(
+        specified(&style.border_color.left),
+        TuiColor::Literal(Color::Rgb(0, 0, 255))
+    );
+    assert_eq!(specified(&style.border_width.bottom), BorderWidth::Thick);
+    assert!(style.border_width.top.is_none());
+    assert_eq!(
+        serialize("border-left-color", &style).as_deref(),
+        Some("blue")
+    );
+    assert_eq!(
+        serialize("border-bottom-width", &style).as_deref(),
+        Some("thick")
+    );
+    assert_eq!(
+        property_mask("border-left-color"),
+        Some(crate::ImportantMask::BORDER_LEFT_COLOR)
+    );
+    assert_eq!(
+        property_mask("border-width").unwrap(),
+        crate::ImportantMask::BORDER_TOP_WIDTH
+            | crate::ImportantMask::BORDER_RIGHT_WIDTH
+            | crate::ImportantMask::BORDER_BOTTOM_WIDTH
+            | crate::ImportantMask::BORDER_LEFT_WIDTH
+    );
+    set("border-left-color", "inherit", &mut style).unwrap();
+    assert_eq!(style.border_color.left, Some(Value::Inherit));
+    assert_eq!(specified(&style.border_color.right), red());
+}

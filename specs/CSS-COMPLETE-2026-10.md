@@ -113,7 +113,7 @@ row comes from.
 | C4-BACKGROUND | `background` shorthand (color layer; image layers parse and are inert, documented) | done |
 | C4-BG-CLIP | `background-clip` (`border-box` / `padding-box` / `content-box`) | done |
 | C4-BORDER-SHORTHAND | `border` / `border-top` … with width, style and color in any order | done |
-| C4-BORDER-SIDES | `border-style` / `border-color` / `border-width` 1–4 values; per-side longhands for style, color and width | |
+| C4-BORDER-SIDES | `border-style` / `border-color` / `border-width` 1–4 values; per-side longhands for style, color and width | done |
 | C4-BORDER-WIDTH | `border-width` mapping (`0` = none, thin / medium = light, thick = heavy glyphs) | |
 | C4-RADIUS | `border-radius` and per-corner longhands → rounded corner glyphs | |
 | C4-SHADOW | `box-shadow` (one-cell offset shade; blur / spread documented N/A) | |
@@ -1000,3 +1000,17 @@ row comes from.
   `border-style: rounded` test red before their code. Green after. Changed expectations: tests reading
   `computed.border_fg` read `border_color.top`; `declared_count` counts `border_fg(..)` as four. No
   showcase snapshot changes.
+- 2026-10-06 — C4-BORDER-SIDES: `border-style` / `-color` / `-width` take 1–4 values
+  (`V/border.rs::parse_sides` over `Sides::from_values`), serialized in the shortest form; the eight
+  `border-<side>-color` / `-width` names join the table, one field each. Decided — the corner rule: a
+  corner cell of one box goes to its dominant side, the heavier style (Tables 3 §11.5's ranking) and
+  then the horizontal side (`border_join.rs::dominant_contribution`, a third key after rank and
+  priority); the browser's diagonal split cannot fit one glyph, and giving the cell to the top /
+  bottom keeps those edges whole lines — documented in DIVERGENCES §2. (C4-BORDER-WIDTH puts the
+  weight first.) Kept: the styles still share one field — they split per side with C4-RADIUS, where
+  the corner flag they carry becomes `border-radius`. `rounded` rounds the ring only as
+  `border-style`'s one value. Red: four dispatch tests (`red blue` → `InvalidValue`, the longhands
+  `UnknownProperty`) and `per_side_colors_and_the_corner_rule` (the top-right corner blue: the
+  joiner read the right side's S first). Green after; the per-side cascade and double-dominance paint
+  tests were green on first run (characterisation of C4-BORDER-SHORTHAND's storage and the existing
+  rank rule). No showcase snapshot changes (no demo colors sides differently).
