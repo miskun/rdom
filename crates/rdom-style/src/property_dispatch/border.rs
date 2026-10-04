@@ -1,15 +1,17 @@
 //! The border properties (CSS Backgrounds 3 §4–§5): `set` and
 //! `serialize` arms for `border`, `border-<side>`, `border-style` /
 //! `-color` / `-width` and their per-side longhands, and
-//! `border-radius` and its per-corner longhands. `border-collapse` is a
-//! table property and stays in `set.rs` / `serialize.rs`.
+//! `border-radius` and its per-corner longhands, and `border-spacing`.
+//! `border-collapse` stays in `set.rs` / `serialize.rs`.
 
 use super::value_serializers::{border_style_keyword, serialize_color, serialize_math, specified};
-use crate::layout::{BorderRadius, BorderStyle, BorderWidth, Corners, PaintLength, Sides};
+use crate::layout::{
+    BorderRadius, BorderStyle, BorderWidth, Corners, GapValue, PaintLength, Sides,
+};
 use crate::parse::token::Token;
 use crate::parse::values::{
-    parse_border, parse_border_radius, parse_border_side, parse_border_side_shorthand, parse_color,
-    parse_corner_radius, parse_line_width, parse_sides,
+    parse_border, parse_border_radius, parse_border_side, parse_border_side_shorthand,
+    parse_border_spacing, parse_color, parse_corner_radius, parse_line_width, parse_sides,
 };
 use crate::{TuiColor, TuiStyle, Value};
 
@@ -97,6 +99,9 @@ pub(super) fn set(name: &str, value: &[Token], style: &mut TuiStyle) -> Option<O
         "border-radius" => parse_border_radius(value).map(|r| {
             style.border_radius = r.map(spec);
         }),
+        "border-spacing" => parse_border_spacing(value).map(|s| {
+            style.border_spacing = spec(s);
+        }),
         _ if name.ends_with("-radius") => {
             let r = parse_corner_radius(value);
             let corner = corner_of(name, &mut style.border_radius)?;
@@ -141,6 +146,17 @@ pub(super) fn serialize(name: &str, style: &TuiStyle) -> Option<Option<String>> 
             all_specified(&style.border_width).map(|w| shortest_sides(w.map(serialize_line_width)))
         }
         "border-radius" => serialize_border_radius(&style.border_radius),
+        "border-spacing" => style.border_spacing.as_ref().and_then(specified).map(|s| {
+            let gap = |g: &GapValue| match g {
+                GapValue::Cells(n) => n.to_string(),
+                GapValue::Calc(e) => serialize_math(e),
+            };
+            if s.horizontal == s.vertical {
+                gap(&s.horizontal)
+            } else {
+                format!("{} {}", gap(&s.horizontal), gap(&s.vertical))
+            }
+        }),
         _ if name.ends_with("-radius") => {
             let mut radii = style.border_radius.clone();
             corner_of(name, &mut radii)?

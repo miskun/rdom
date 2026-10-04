@@ -279,6 +279,16 @@ impl BorderRadius {
     }
 }
 
+/// `border-spacing` (CSS 2.1 §17.6.1): the space between the borders
+/// of adjacent cells of a separated-borders table, horizontally and
+/// vertically, in cells. Inherited; initial `0`. Stored and cascaded;
+/// the layout that uses it is the table formatting context (C13-TFC).
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct BorderSpacing {
+    pub horizontal: super::GapValue,
+    pub vertical: super::GapValue,
+}
+
 /// CSS `border-collapse` (M5.5). Default is `Separate` — every box
 /// draws its own border ring. `Collapse` makes adjacent borders
 /// share their cells: parent + child meeting at an edge use **one**

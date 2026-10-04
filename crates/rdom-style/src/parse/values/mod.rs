@@ -54,7 +54,8 @@ pub(crate) use background::{
 };
 pub use border::{
     BorderRing, BorderShorthand, parse_border, parse_border_radius, parse_border_side,
-    parse_border_side_shorthand, parse_corner_radius, parse_line_width, parse_sides,
+    parse_border_side_shorthand, parse_border_spacing, parse_corner_radius, parse_line_width,
+    parse_sides,
 };
 pub use calc::{MAX_CALC_DEPTH, MAX_CALC_NESTING, looks_like_calc, parse_calc};
 pub(crate) use color::{ColorExpr, compute_function as compute_color_function};

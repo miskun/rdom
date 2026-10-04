@@ -73,7 +73,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.2 Custom properties (CSS Variables 1) | 6 | 0 | 0 | 1 | 7 |
 | 3.3 Values and units (Values 4) | 15 | 2 | 1 | 4 | 22 |
 | 3.4 Color (Color 4 / 5) | 15 | 1 | 0 | 1 | 17 |
-| 3.5 Backgrounds and borders (Backgrounds 3, Borders 4) | 13 | 0 | 1 | 2 | 16 |
+| 3.5 Backgrounds and borders (Backgrounds 3, Borders 4) | 13 | 1 | 0 | 2 | 16 |
 | 3.6 Box model and sizing (Box 3, Sizing 3/4) | 3 | 3 | 3 | 0 | 9 |
 | 3.7 Display and visibility (Display 3) | 1 | 0 | 8 | 2 | 11 |
 | 3.8 Flexbox and box alignment (Flexbox 1, Align 3) | 3 | 3 | 11 | 0 | 17 |
@@ -93,7 +93,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 0 | 0 | 6 | 3 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **104** | **28** | **126** | **49** | **307** |
+| **Total** | **104** | **29** | **125** | **49** | **307** |
 
 When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 154 rows Partial / Missing.
 
@@ -318,7 +318,7 @@ dropped. The audit's six, with where each stands:
 | `border-image*` | N/A | Image-sliced borders. | — | — |
 | `box-shadow` | Supported | Shadows as whole-cell shades: outer under the background and outside the box, `inset` inside the padding box, first on top, offsets / spread in cells (a pixel length one cell), colors with alpha composited; blur N/A (documented) (C4-SHADOW). | — | `V/shadow.rs`, `DISP/shadow.rs`, `CASC/colors.rs`, `PAINT/shadow.rs` |
 | `border-collapse` | Supported | `separate` / `collapse`, with the documented scope / inheritance divergences. | Yes | `DISP/set.rs`, `rdom-tui/src/render/layout_pass/border_collapse.rs` |
-| `border-spacing` | Missing | Gaps between separated table cells. | No | `DISP`, `rdom-tui/src/runtime/builtins/table` |
+| `border-spacing` | Partial | Parsed (one or two cell lengths), cascaded and inherited (C4-SPACING); the gaps between separated table cells land with the table formatting context (C13-TFC). | Yes | `DISP/border.rs`, `V/border.rs::parse_border_spacing`, `CASC/apply.rs` |
 
 ### 3.6 Box model and sizing (Box 3, Sizing 3/4)
 
@@ -583,7 +583,7 @@ dropped. The audit's six, with where each stands:
 | Item | Class | Detail | Doc'd | Where |
 |---|---|---|---|---|
 | `border-collapse` | Supported | See §3.5. | Yes | — |
-| `border-spacing` | Missing | See §3.5. | No | — |
+| `border-spacing` | Partial | See §3.5. | Yes | — |
 | `table-layout` | Missing | `fixed` algorithm. | No | `rdom-tui/src/runtime/builtins/table` |
 | `caption-side` | Missing | `top` / `bottom`. | No | table builtin |
 | `empty-cells` | Missing | `show` / `hide`. | No | table builtin |

@@ -259,7 +259,7 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 
 ### Backgrounds and borders
 
-- `border-spacing` — C4-SPACING (with C13-TABLE-PROPS)
+- `border-spacing` in layout: it parses, cascades and inherits (C4-SPACING), but spacing a table's cells needs the separated-borders table model — C13-TFC / C13-TABLE-PROPS
 
 ### Box model and sizing
 
@@ -386,7 +386,7 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 ### Tables
 
 - A real table formatting context: `display: table*` on any element, `rowspan`, anonymous table boxes, the automatic and `fixed` `table-layout` algorithms — C13-TFC
-- `caption-side`, `empty-cells`, `border-spacing`, `vertical-align` on cells — C13-TABLE-PROPS
+- `caption-side`, `empty-cells`, `border-spacing` (layout; parsed since C4-SPACING), `vertical-align` on cells — C13-TABLE-PROPS
 
 ### Conditional rules and containment
 

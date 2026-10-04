@@ -2309,6 +2309,7 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
     parent.modifiers = Modifier::BOLD | Modifier::ITALIC | Modifier::UNDERLINED;
     parent.opacity = 0.5;
     parent.background_clip = rdom_style::layout::VisualBox::ContentBox;
+    parent.border_spacing.vertical = rdom_style::layout::GapValue::Cells(2);
     parent.width = Size::Fixed(7);
     parent.height = Size::Fixed(8);
     parent.min_width = MinSize::Cells(1);
@@ -2432,6 +2433,10 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
         (
             "background-clip",
             child.background_clip == parent.background_clip,
+        ),
+        (
+            "border-spacing",
+            child.border_spacing == parent.border_spacing,
         ),
     ];
     for (name, took) in probes {

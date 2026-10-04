@@ -210,6 +210,8 @@ pub(super) fn apply_style(
         counter_increment: COUNTER_INCREMENT,
         // Inherits; `light-dark()` picks by it (CSS Color Adjust 1 §2).
         color_scheme: COLOR_SCHEME,
+        // Inherits (CSS 2.1 §17.6.1); laid out with C13-TFC.
+        border_spacing: BORDER_SPACING,
     );
 }
 

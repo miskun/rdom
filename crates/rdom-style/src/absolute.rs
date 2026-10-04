@@ -43,9 +43,13 @@ impl ComputedStyle {
                 )
             });
         }
-        absolutize(&mut self.gap, vp, GapValue::Calc, |v| {
-            GapValue::Cells(cells_u16(v))
-        });
+        for gap in [
+            &mut self.gap,
+            &mut self.border_spacing.horizontal,
+            &mut self.border_spacing.vertical,
+        ] {
+            absolutize(gap, vp, GapValue::Calc, |v| GapValue::Cells(cells_u16(v)));
+        }
         absolutize(&mut self.flex_basis, vp, FlexBasis::Calc, |v| {
             FlexBasis::Cells(cells_u16(v))
         });

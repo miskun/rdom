@@ -114,6 +114,7 @@ bitflags_like! {
         BORDER_BOTTOM_RIGHT_RADIUS = 1 << 68;
         BORDER_BOTTOM_LEFT_RADIUS = 1 << 69;
         BOX_SHADOW = 1 << 70;
+        BORDER_SPACING = 1 << 71;
     }
 }
 
@@ -196,6 +197,8 @@ pub struct TuiStyle {
     /// `box-shadow` (CSS Backgrounds 3 §6.1): the shadows front to back;
     /// `none` is the empty list.
     pub box_shadow: Option<Value<Vec<crate::layout::BoxShadow>>>,
+    /// `border-spacing` (CSS 2.1 §17.6.1). Inherited.
+    pub border_spacing: Option<Value<crate::layout::BorderSpacing>>,
     /// `border-collapse: separate | collapse`. CSS-faithful name but
     /// rdom extends the property's scope from `<table>` only to any
     /// flex container. See `crate::layout::BorderCollapse` for the

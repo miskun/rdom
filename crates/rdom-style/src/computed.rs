@@ -86,6 +86,9 @@ pub struct ComputedStyle {
     /// resolved (`currentcolor` against the element's `color`), viewport
     /// units resolved.
     pub box_shadow: Vec<crate::layout::BoxShadow<Color>>,
+    /// `border-spacing` (CSS 2.1 §17.6.1), viewport units resolved.
+    /// Inherited. Not laid out yet (C13-TFC).
+    pub border_spacing: crate::layout::BorderSpacing,
     /// `border-collapse: separate | collapse`. CSS-faithful name,
     /// extended to apply to any flex container (rdom divergence).
     /// **Inherits** — the cascade propagates parent's value to
@@ -236,6 +239,7 @@ impl ComputedStyle {
             border_width: crate::layout::Sides::default(),
             border_radius: crate::layout::Corners::default(),
             box_shadow: Vec::new(),
+            border_spacing: crate::layout::BorderSpacing::default(),
             border_collapse: crate::layout::BorderCollapse::Separate,
             border_collapse_declared: false,
             direction: Direction::Column,

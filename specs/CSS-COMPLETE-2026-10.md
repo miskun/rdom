@@ -117,7 +117,7 @@ row comes from.
 | C4-BORDER-WIDTH | `border-width` mapping (`0` = none, thin / medium = light, thick = heavy glyphs) | done |
 | C4-RADIUS | `border-radius` and per-corner longhands → rounded corner glyphs | done |
 | C4-SHADOW | `box-shadow` (one-cell offset shade; blur / spread documented N/A) | done |
-| C4-SPACING | `border-spacing` (lands with the table phase if it needs the TFC) | |
+| C4-SPACING | `border-spacing` (lands with the table phase if it needs the TFC) | partial — layout lands with C13-TFC |
 
 ### Phase 5 — Box model and sizing (audit §3.6, §3.22)
 
@@ -1066,3 +1066,13 @@ row comes from.
   `css_phase4.rs` tests failed to parse `box-shadow`; green after (the spread test's own setup was
   fixed — it set a `style` attribute the headless cascade does not read). No showcase snapshot
   changes (no demo declares a shadow).
+- 2026-10-06 — C4-SPACING (partial): `border-spacing` parses one or two non-negative cell lengths
+  (`V/border.rs::parse_border_spacing`; `GapValue` per axis, viewport units resolved at computed-value
+  time like `gap`), cascades (`value!`) and inherits (CSS 2.1 §17.6.1: added to `inherits` and
+  `inherit_inheritable_from`, probed by the inherited-set test). Decided: no layout now — rdom's
+  tables are flex rows with a column-sync pass, and border spacing belongs to the separated-borders
+  table model (spacing between cells *and* between the cells and the table's border); emulating it
+  with `gap` would be wrong at the table's edges. Status `partial — layout lands with C13-TFC`. Pixel
+  lengths are not taken: unlike a border width this length is geometry. Red: the dispatch test
+  (`UnknownProperty`); green after, with the cascade test in `css_phase4.rs`. No showcase snapshot
+  changes.

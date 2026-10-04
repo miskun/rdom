@@ -91,6 +91,7 @@ const PROPERTY_NAMES: &[&str] = &[
     "border-bottom-left-radius",
     "box-shadow",
     "border-collapse",
+    "border-spacing",
     "content",
     // Positioning (M2)
     "position",
@@ -269,6 +270,7 @@ define_fields! {
     BorderBottomRightRadius => border_radius.bottom_right : BORDER_BOTTOM_RIGHT_RADIUS,
     BorderBottomLeftRadius => border_radius.bottom_left : BORDER_BOTTOM_LEFT_RADIUS,
     BoxShadow => box_shadow : BOX_SHADOW,
+    BorderSpacing => border_spacing : BORDER_SPACING,
     BorderCollapse => border_collapse : BORDER_COLLAPSE,
     Content => content : CONTENT,
     Position => position : POSITION,
@@ -408,6 +410,7 @@ pub(super) fn fields_of(name: &str) -> Option<&'static [Field]> {
         "border-bottom-left-radius" => &[BorderBottomLeftRadius],
         "box-shadow" => &[BoxShadow],
         "border-collapse" => &[BorderCollapse],
+        "border-spacing" => &[BorderSpacing],
         "content" => &[Content],
         "position" => &[Position],
         "top" => &[Top],
@@ -497,5 +500,6 @@ pub fn inherits(name: &str) -> bool {
             | "caret-color"
             | "caret-text-color"
             | "color-scheme"
+            | "border-spacing"
     )
 }

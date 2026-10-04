@@ -239,3 +239,28 @@ pub fn parse_border_radius(value: &[Token]) -> Option<Corners<BorderRadius>> {
             }),
     )
 }
+
+/// `border-spacing` (CSS 2.1 §17.6.1): `<length [0,∞]> <length
+/// [0,∞]>?` — horizontal, then vertical (the horizontal when omitted);
+/// rdom's cell lengths, no percentages.
+pub fn parse_border_spacing(value: &[Token]) -> Option<crate::layout::BorderSpacing> {
+    use crate::layout::GapValue;
+    let one = |c: &[Token]| match length_percentage(c, Range::NonNegative)? {
+        LengthPercentage::Integer(n) => u16::try_from(n).ok().map(GapValue::Cells),
+        LengthPercentage::Cells(v) => Some(GapValue::Cells(super::numeric::cells_u16(v))),
+        LengthPercentage::Expr(e) if !e.contains_percent() => Some(GapValue::Calc(Box::new(e))),
+        LengthPercentage::Expr(_) => None,
+    };
+    let (horizontal, vertical) = match components(value)?.as_slice() {
+        [h] => {
+            let h = one(h)?;
+            (h.clone(), h)
+        }
+        [h, v] => (one(h)?, one(v)?),
+        _ => return None,
+    };
+    Some(crate::layout::BorderSpacing {
+        horizontal,
+        vertical,
+    })
+}

@@ -30,8 +30,8 @@ mod sizing;
 
 pub use background::{BackgroundAttachment, BackgroundRepeat, BoxShadow, RepeatStyle, VisualBox};
 pub use border::{
-    Border, BorderCollapse, BorderRadius, BorderStyle, BorderWeight, BorderWidth, CornerStyle,
-    PaintLength,
+    Border, BorderCollapse, BorderRadius, BorderSpacing, BorderStyle, BorderWeight, BorderWidth,
+    CornerStyle, PaintLength,
 };
 pub use box_model::{Margin, MarginValue, Padding, PaddingValue};
 pub use keywords::{

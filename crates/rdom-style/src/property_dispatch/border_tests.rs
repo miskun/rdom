@@ -414,3 +414,37 @@ fn per_side_style_longhands_are_independent() {
         )
     );
 }
+
+// ── `border-spacing` (CSS 2.1 §17.6.1) ─────────────────────────────
+
+/// CSS 2.1 §17.6.1 / Tables 3: `border-spacing: <length> <length>?` —
+/// the horizontal then the vertical spacing (the horizontal again when
+/// omitted), non-negative lengths, no percentages; inherited.
+#[test]
+fn border_spacing_grammar() {
+    use crate::layout::{BorderSpacing, GapValue};
+    let mut style = TuiStyle::new();
+    set("border-spacing", "1 2", &mut style).unwrap();
+    assert_eq!(
+        specified(&style.border_spacing),
+        BorderSpacing {
+            horizontal: GapValue::Cells(1),
+            vertical: GapValue::Cells(2),
+        }
+    );
+    assert_eq!(serialize("border-spacing", &style).as_deref(), Some("1 2"));
+    set("border-spacing", "3", &mut style).unwrap();
+    assert_eq!(
+        specified(&style.border_spacing).vertical,
+        GapValue::Cells(3)
+    );
+    assert_eq!(serialize("border-spacing", &style).as_deref(), Some("3"));
+    assert!(inherits("border-spacing"));
+    for bad in ["-1", "10%", "1 2 3", "1px", "red"] {
+        assert_eq!(
+            set("border-spacing", bad, &mut TuiStyle::new()),
+            Err(DispatchError::InvalidValue),
+            "{bad}"
+        );
+    }
+}

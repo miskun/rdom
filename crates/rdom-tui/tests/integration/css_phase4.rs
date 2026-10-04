@@ -522,3 +522,27 @@ fn box_shadow_colors() {
     );
     assert_eq!(cell(&buf, 3, 0).bg, Color::Rgb(200, 0, 0));
 }
+
+// ── C4-SPACING ─────────────────────────────────────────────────────
+
+/// CSS 2.1 §17.6.1: `border-spacing` is inherited, and computes to two
+/// absolute lengths. (It spaces a separated-borders table's cells; that
+/// layout lands with the table formatting context, C13-TFC.)
+#[test]
+fn border_spacing_computes_and_inherits() {
+    use rdom_tui::layout::GapValue;
+    use rdom_tui::style::cascade::computed_of;
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let t = el(&mut dom, root, "t", "");
+    let c = el(&mut dom, t, "c", "");
+    let sheet = rdom_css::from_css_strict(".t { border-spacing: 2 1 }").unwrap();
+    dom.cascade(&sheet);
+    for id in [t, c] {
+        let s = computed_of(&dom, id).border_spacing;
+        assert_eq!(
+            (s.horizontal, s.vertical),
+            (GapValue::Cells(2), GapValue::Cells(1))
+        );
+    }
+}

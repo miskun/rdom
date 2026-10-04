@@ -105,4 +105,11 @@ impl TuiStyle {
         BOX_SHADOW,
         Vec<BoxShadow>
     );
+    setter!(
+        border_spacing,
+        border_spacing,
+        border_spacing_important,
+        BORDER_SPACING,
+        crate::layout::BorderSpacing
+    );
 }
