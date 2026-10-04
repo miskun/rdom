@@ -30,7 +30,7 @@ the commit that lands it (`done <sha>`), and the log at the end records phase ga
 | Phase | Scope | Status |
 |---|---|---|
 | 0 | Docs truthful: DIVERGENCES contradictions fixed, every undocumented gap listed, roadmap moved | done |
-| 1 | Syntax, cascade, custom properties | |
+| 1 | Syntax, cascade, custom properties | done 2026-10-05 (both gates; 20 gate fixes `C1G-*`; their re-review rides with the Phase 2 gate) |
 | 2 | Values, units, math functions | |
 | 3 | Color | |
 | 4 | Backgrounds and borders | |
@@ -415,3 +415,5 @@ row comes from.
   on first run — it pins the batch's features working together; it guards against vacuous passes by
   asserting each expected value differs from the initial one. Second batch of Phase 1 gate fixes
   complete.
+- 2026-10-05 — Phase 1 closed: 11 items + 20 gate fixes. The gate fixes' re-review is folded into the
+  Phase 2 gate (range from the first C1G commit).
