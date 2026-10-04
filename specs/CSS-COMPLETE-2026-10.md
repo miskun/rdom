@@ -304,3 +304,7 @@ row comes from.
   (`declarations::DeclarationRun`) and applies normal ones first, then important ones, each in
   order — Cascade 4 §6.4 within one block, for typed fields, shorthands, `var()` declarations
   (`TuiStyle::pending`) and custom properties alike, without a per-property importance check.
+- 2026-10-04 — C1G-REGISTERED-ORDER: `var::resolve_custom_properties_with` takes a computed-value
+  step; the cascade passes the registered-syntax check (`Registry::computed_value`) so a dependent
+  substitutes the validated value, at the element and at the sheet level (`Registry::seed_root`
+  replaces `settle_root`; `validate_declared` is gone).

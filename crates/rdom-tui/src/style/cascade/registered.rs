@@ -67,48 +67,40 @@ impl Registry {
         }
     }
 
-    /// The registered properties among `declared`, after `var()`
-    /// substitution: a value missing (substitution failed) or not
-    /// matching the syntax is invalid at computed-value time, so the
-    /// property is `unset` — the parent's value when it inherits, else
-    /// the initial value (§2.4).
-    pub(super) fn validate_declared(
+    /// The computed value of custom property `name` given its
+    /// substituted `value` (`None`: guaranteed-invalid): unchanged when
+    /// `name` is not registered or the value matches its syntax; else
+    /// invalid at computed-value time, so `unset` — `inherited`'s value
+    /// when it inherits, the initial value otherwise (§2.4). The cascade
+    /// runs it inside `var()` resolution, so a property that reads
+    /// `name` substitutes this result.
+    pub(super) fn computed_value(
         &self,
-        map: &mut std::rc::Rc<Map>,
-        declared: &HashSet<&str>,
+        name: &str,
+        value: Option<String>,
         inherited: &Map,
-    ) {
-        for name in declared {
-            let Some(reg) = self.get(name) else {
-                continue;
-            };
-            let current = map.get(*name).cloned();
-            if current.as_deref().is_some_and(|v| reg.syntax.matches(v)) {
-                continue;
-            }
-            let want = if reg.inherits {
-                inherited.get(*name).or(reg.initial_value.as_ref())
-            } else {
-                reg.initial_value.as_ref()
-            };
-            set(map, name, current, want.cloned());
+    ) -> Option<String> {
+        let Some(reg) = self.get(name) else {
+            return value;
+        };
+        if value.as_deref().is_some_and(|v| reg.syntax.matches(v)) {
+            return value;
+        }
+        if reg.inherits {
+            inherited.get(name).or(reg.initial_value.as_ref()).cloned()
+        } else {
+            reg.initial_value.clone()
         }
     }
 
-    /// The sheet-level variables (the root's parent): every registered
-    /// property present, and valid.
-    pub(super) fn settle_root(&self, map: &mut Map) {
+    /// The sheet-level variables (the root's parent) before their
+    /// `var()`s resolve: every registered property they lack gets its
+    /// initial value, so a dependent can read it (§2.1). Validation runs
+    /// during resolution ([`computed_value`](Self::computed_value)).
+    pub(super) fn seed_root(&self, map: &mut Map) {
         for (name, reg) in &self.0 {
-            let valid = map.get(name).is_some_and(|v| reg.syntax.matches(v));
-            if !valid {
-                match &reg.initial_value {
-                    Some(v) => {
-                        map.insert(name.clone(), v.clone());
-                    }
-                    None => {
-                        map.remove(name);
-                    }
-                }
+            if let (false, Some(v)) = (map.contains_key(name), &reg.initial_value) {
+                map.insert(name.clone(), v.clone());
             }
         }
     }

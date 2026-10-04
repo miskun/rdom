@@ -36,11 +36,24 @@ pub(super) fn merge_root_vars(sheets: &Sheets<'_>) -> VarMap {
         }
     }
     // Their `var()`s substitute against each other (CSS Variables 1 §3).
-    let names: Vec<String> = merged.keys().cloned().collect();
-    rdom_style::var::resolve_custom_properties(&mut merged, names.iter().map(String::as_str));
-    // Registered properties start at their initial value (Properties
-    // and Values 1 §2.1).
-    sheets.registry().settle_root(&mut merged);
+    // Registered properties start at their initial value and are
+    // validated as they resolve, before a dependent reads them
+    // (Properties and Values 1 §2.1, §2.4); the root has no parent, so
+    // an invalid one is its initial value.
+    let registry = sheets.registry();
+    if registry.is_empty() {
+        let names: Vec<String> = merged.keys().cloned().collect();
+        rdom_style::var::resolve_custom_properties(&mut merged, names.iter().map(String::as_str));
+    } else {
+        registry.seed_root(&mut merged);
+        let names: Vec<String> = merged.keys().cloned().collect();
+        let no_parent = std::collections::HashMap::new();
+        rdom_style::var::resolve_custom_properties_with(
+            &mut merged,
+            names.iter().map(String::as_str),
+            &mut |name, value| registry.computed_value(name, value, &no_parent),
+        );
+    }
     std::rc::Rc::new(merged)
 }
 

@@ -46,11 +46,18 @@ pub(super) fn apply_custom_properties(
     }
     if !declared.is_empty() {
         // CSS Variables 1 §3: a custom property's own `var()`s substitute
-        // here, where it is declared; descendants inherit the result.
+        // here, where it is declared; descendants inherit the result. A
+        // registered one is validated as it resolves (Properties and
+        // Values 1 §2.4), so its dependents read the computed value.
         let map = std::rc::Rc::make_mut(&mut working.vars);
-        rdom_style::var::resolve_custom_properties(map, declared.iter().copied());
-        if !registry.is_empty() {
-            registry.validate_declared(&mut working.vars, &declared, &inherited);
+        if registry.is_empty() {
+            rdom_style::var::resolve_custom_properties(map, declared.iter().copied());
+        } else {
+            rdom_style::var::resolve_custom_properties_with(
+                map,
+                declared.iter().copied(),
+                &mut |name, value| registry.computed_value(name, value, &inherited),
+            );
         }
     }
     apply_transitions(working, &inherited, &declared, registry, transitions);

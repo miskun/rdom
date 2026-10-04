@@ -117,3 +117,46 @@ fn register_property_in_rust() {
     s.register_property(PropertyRegistration::new("--c", "<color>", false, Some("blue")).unwrap());
     assert_eq!(div_with(&s).fg, BLUE);
 }
+
+/// `C1G-REGISTERED-ORDER` — Properties and Values 1 §2.4: a registered
+/// property's computed value (its value checked against the syntax, an
+/// invalid one `unset`) is what another property's `var()` substitutes,
+/// so the check runs before the dependents resolve. `--b: 10px` is not
+/// a `<color>`, so `--b` is `unset` (inherited: the initial `red`), and
+/// `--a: var(--b)` and `color: var(--a)` are red.
+#[test]
+fn a_dependent_substitutes_the_validated_registered_value() {
+    const B: &str = "@property --b { syntax: '<color>'; inherits: true; initial-value: red } ";
+    let got = div(&format!(
+        "{B} div {{ --b: 10px; --a: var(--b); color: var(--a) }}"
+    ));
+    assert_eq!(got.vars.get("a").map(String::as_str), Some("red"));
+    assert_eq!(got.fg, RED);
+    // The same through a `var()` in the registered property itself.
+    let got = div(&format!(
+        "{B} div {{ --x: 10px; --b: var(--x); --a: var(--b); color: var(--a) }}"
+    ));
+    assert_eq!(got.fg, RED);
+}
+
+/// The same order for the sheet-level variables (`define_var`, the
+/// root's parent): an invalid registered value, and a registered
+/// property no sheet declares, are their initial value before a
+/// dependent substitutes them.
+#[test]
+fn sheet_level_dependents_substitute_the_validated_registered_value() {
+    let mut s = sheet("div { color: var(--a) } section { color: var(--d) }");
+    s.register_property(PropertyRegistration::new("--b", "<color>", true, Some("red")).unwrap());
+    s.register_property(PropertyRegistration::new("--u", "<color>", true, Some("blue")).unwrap());
+    s.define_var_mut("b", "10px");
+    s.define_var_mut("a", "var(--b)");
+    s.define_var_mut("d", "var(--u)");
+    let (mut dom, section, div) = tree();
+    dom.cascade(&s);
+    assert_eq!(computed_of(&dom, div).fg, RED, "`--b: 10px` is invalid");
+    assert_eq!(
+        computed_of(&dom, section).fg,
+        BLUE,
+        "undeclared `--u` is its initial value"
+    );
+}

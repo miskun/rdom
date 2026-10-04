@@ -171,6 +171,34 @@ pub fn resolve_custom_properties<'n>(
         .filter(|n| vars.get(*n).is_some_and(|v| has_var_text(v)))
         .map(str::to_string)
         .collect();
+    resolve(vars, pending, None);
+}
+
+/// [`resolve_custom_properties`] with a computed-value step: `computed`
+/// maps each of `names`' substituted value (`None`: guaranteed-invalid)
+/// to its computed value, and a property's dependents substitute that
+/// — every one of `names` goes through it, `var()` or not. The cascade
+/// passes the registered-property check here (CSS Properties and Values
+/// API 1 §2.4: a value not matching the syntax is invalid at
+/// computed-value time, and a `var()` reading the property sees the
+/// result).
+pub fn resolve_custom_properties_with<'n>(
+    vars: &mut HashMap<String, String>,
+    names: impl IntoIterator<Item = &'n str>,
+    computed: &mut dyn FnMut(&str, Option<String>) -> Option<String>,
+) {
+    let pending: Vec<String> = names.into_iter().map(str::to_string).collect();
+    resolve(vars, pending, Some(computed));
+}
+
+/// A computed-value step ([`resolve_custom_properties_with`]).
+type ComputedStep<'c> = &'c mut dyn FnMut(&str, Option<String>) -> Option<String>;
+
+fn resolve(
+    vars: &mut HashMap<String, String>,
+    pending: Vec<String>,
+    computed: Option<ComputedStep<'_>>,
+) {
     if pending.is_empty() {
         return;
     }
@@ -179,6 +207,7 @@ pub fn resolve_custom_properties<'n>(
         done: HashMap::new(),
         stack: Vec::new(),
         cyclic: HashSet::new(),
+        computed,
     };
     for name in &pending {
         resolver.resolve(name, vars);
@@ -195,7 +224,7 @@ pub fn resolve_custom_properties<'n>(
     }
 }
 
-struct Resolver {
+struct Resolver<'c> {
     /// The names still to substitute.
     pending: HashSet<String>,
     /// Substituted values (`None`: invalid).
@@ -204,9 +233,12 @@ struct Resolver {
     stack: Vec<String>,
     /// Names found on a dependency cycle.
     cyclic: HashSet<String>,
+    /// The computed-value step, if any
+    /// ([`resolve_custom_properties_with`]).
+    computed: Option<ComputedStep<'c>>,
 }
 
-impl Resolver {
+impl Resolver<'_> {
     fn resolve(&mut self, name: &str, vars: &HashMap<String, String>) -> Option<String> {
         if let Some(done) = self.done.get(name) {
             return done.clone();
@@ -217,21 +249,29 @@ impl Resolver {
             return None;
         }
         self.stack.push(name.to_string());
-        let tokens = vars.get(name).and_then(|v| tokenize(v).ok());
-        let result = tokens.and_then(|tokens| {
-            substitute(&tokens, &mut |n| {
-                if self.pending.contains(n) {
-                    self.resolve(n, vars).and_then(|v| tokenize(&v).ok())
-                } else {
-                    lookup_in(vars, n)
-                }
-            })
-        });
+        let result = match vars.get(name) {
+            // No `var()`: the value as declared, untouched.
+            Some(v) if !has_var_text(v) => Some(v.clone()),
+            v => v.and_then(|v| tokenize(v).ok()).and_then(|tokens| {
+                substitute(&tokens, &mut |n| {
+                    if self.pending.contains(n) {
+                        self.resolve(n, vars).and_then(|v| tokenize(&v).ok())
+                    } else {
+                        lookup_in(vars, n)
+                    }
+                })
+                .map(|t| render_value(&t))
+            }),
+        };
         self.stack.pop();
         let value = if self.cyclic.contains(name) {
             None
         } else {
-            result.map(|t| render_value(&t))
+            result
+        };
+        let value = match self.computed.as_mut() {
+            Some(computed) => computed(name, value),
+            None => value,
         };
         self.done.insert(name.to_string(), value.clone());
         value
