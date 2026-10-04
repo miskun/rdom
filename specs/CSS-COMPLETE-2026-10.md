@@ -33,7 +33,7 @@ the commit that lands it (`done <sha>`), and the log at the end records phase ga
 | 1 | Syntax, cascade, custom properties | done 2026-10-05 (both gates; 20 gate fixes `C1G-*`; their re-review rides with the Phase 2 gate) |
 | 2 | Values, units, math functions | done 2026-10-05 (both gates; 20 gate fixes `C2G-*`; their re-review rides with the Phase 3 gate; C2-LH partial until C9-LINE-HEIGHT) |
 | 3 | Color | done 2026-10-06 (both gates; 16 gate fixes `C3G-*` incl. rdom's own terminal input reader; re-review rides with the Phase 4 gate) |
-| 4 | Backgrounds and borders | |
+| 4 | Backgrounds and borders | gates run 2026-10-06; `C4G-*` fixes in progress (C4-SPACING layout with C13-TFC) |
 | 5 | Box model and sizing (incl. logical properties) | |
 | 6 | Display, visibility, flexbox, box alignment | |
 | 7 | Grid | |
@@ -1076,3 +1076,28 @@ row comes from.
   lengths are not taken: unlike a border width this length is geometry. Red: the dispatch test
   (`UnknownProperty`); green after, with the cascade test in `css_phase4.rs`. No showcase snapshot
   changes.
+- 2026-10-06 — Phase 4 gates (with the C3G re-review: all 16 at the root; the input reader matches
+  crossterm 0.28 case by case and is stricter on unknown CSI, C0 inside CSI, zero mouse coordinates,
+  EOF and EINTR). Architect: 1 blocking — the ESC grace check flushes a lone ESC *before* reading
+  bytes already queued, so a loop late by > 25 ms splits a sequence and types its tail into the
+  focused field. API: 1 blocking — `box-shadow` offsets / spread saturate to `i32::MAX` and overflow
+  in shadow geometry (debug panic from a `style=""` attribute). Non-blocking: the OSC cap does not
+  discard (and CR does not end an OSC, so Alt+`]` + digit can swallow typing); `ESC ESC` drops one;
+  `CSI >` / `=` / DCS / APC unframed; Ctrl+F3 eaten as a cursor report; `leave_tui_mode` skips
+  cleanup after a failed write; mixed double / single corners use the dominant table's glyph; an
+  opaque outer shadow erases an earlier sibling's text (Appendix E paints shadows with backgrounds,
+  before text); `paint_border_sides` allocates per frame and composites the whole box for a
+  translucent side; `ImportantMask` at `u128` already 72 bits used; `paint_pass/mod.rs` 534 lines;
+  pixel lengths only bare (not inside `calc()`); CHANGELOG corner rule stale; coverage audit stale on
+  `border-style: rounded` and §5's Phase 4 rows; the `border: rounded` radius surviving a later
+  `border` and the `border` colour reset are undocumented behaviour changes; Phase 4 value types and
+  `MinSize` / `MaxSize` not in the prelude or root (the CHANGELOG hint does not compile prelude-only),
+  no `set_border_radius`, `MinSize` lacks `Default`; DESIGN does not classify the new public types;
+  kept image / position text serializes with stray spaces and `url(0001.png)` loses zeros; README
+  gaps; only `CascadeExt` sealed. Accepted: pixel-to-cell conventions (rule to be written into
+  DESIGN), `dashed` / `dotted` solid, inert images, a partial CSI never timing out, C1 controls
+  dropped, no pty test for the tty paths. Fix all as `C4G-*`, two batches: A — input reader and
+  paint (`C4G-ESC-GRACE`, `C4G-OSC-DISCARD`, `C4G-ESC-ESC`, `C4G-CSI-FRAMING`, `C4G-CTRL-F3`,
+  `C4G-LEAVE-TUI`, `C4G-SHADOW-CLAMP`, `C4G-MIXED-CORNERS`, `C4G-SHADOW-ORDER`, `C4G-BORDER-COST`,
+  `C4G-PAINT-SPLIT`); B — API and docs (`C4G-IMPORTANT-BITSET`, `C4G-REEXPORTS`, `C4G-SERIALIZE`,
+  `C4G-PX-CALC`, `C4G-SEALED`, `C4G-DOCS`, `C4G-EDGE-TESTS`).
