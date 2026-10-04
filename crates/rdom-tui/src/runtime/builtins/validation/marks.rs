@@ -26,7 +26,7 @@
 
 use std::collections::HashMap;
 
-use rdom_core::selectors::{ComplexSelector, PseudoClass, SimpleSelector};
+use rdom_core::selectors::{PseudoClass, SimpleSelector};
 use rdom_core::{NodeId, NodeType};
 
 use super::states::{RadioGroups, compute_in};
@@ -138,26 +138,19 @@ fn current(dom: &TuiDom, out: &mut HashMap<NodeId, bool>, groups: &mut RadioGrou
     }
 }
 
-/// Whether any rule of `sheet` mentions `:valid` or `:invalid`,
-/// anywhere in its selector (inside `:not()` / `:where()` too).
+/// Whether any selector `sheet` matches with mentions `:valid` or
+/// `:invalid` — in a rule's selector or an `@scope`'s start / end,
+/// inside `:not()` / `:is()` / `:where()` too (`style::selector_walk`).
 pub(super) fn uses_validity(sheet: &Stylesheet) -> bool {
-    sheet
-        .rules()
-        .iter()
-        .any(|r| r.selector.0.iter().any(complex_uses_validity))
-}
-
-fn complex_uses_validity(c: &ComplexSelector) -> bool {
-    std::iter::once(&c.subject)
-        .chain(c.ancestors.iter().map(|(_, compound)| compound))
-        .flat_map(|compound| &compound.simples)
-        .any(|s| match s {
-            SimpleSelector::Pseudo(p) => matches!(p, PseudoClass::Valid | PseudoClass::Invalid),
-            SimpleSelector::Not(list) | SimpleSelector::Where(list) => {
-                list.0.iter().any(complex_uses_validity)
-            }
-            _ => false,
+    use crate::style::selector_walk::{any_simple, sheet_selectors};
+    sheet_selectors(sheet).any(|c| {
+        any_simple(c, &|s| {
+            matches!(
+                s,
+                SimpleSelector::Pseudo(PseudoClass::Valid | PseudoClass::Invalid)
+            )
         })
+    })
 }
 
 #[cfg(test)]

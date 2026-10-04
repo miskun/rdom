@@ -26,6 +26,7 @@
 
 pub mod cascade;
 pub mod dirty_tracker;
+pub(crate) mod selector_walk;
 pub(crate) mod sibling_triggers;
 pub(crate) mod user_select;
 

@@ -23,17 +23,20 @@
 //! - `[name]`, `.class`, `#id` → a change of that attribute (`name`,
 //!   `class`, `id`) does.
 //!
-//! `:not()` / `:where()` arguments are walked the same way wherever they
-//! appear, and every compound inside one that sits left of a sibling
-//! combinator counts in full. A type selector (`h1 + p`) reads nothing
-//! that can change. A simple selector this module does not know marks
-//! everything (conservative).
+//! The selectors walked are every one the cascade matches with — rule
+//! selectors and `@scope` starts / ends — and the `:not()` / `:is()` /
+//! `:where()` arguments inside them, wherever they appear
+//! (`selector_walk`); every compound inside an argument that sits left
+//! of a sibling combinator counts in full. A type selector (`h1 + p`)
+//! reads nothing that can change. A simple selector this module does
+//! not know marks everything (conservative) and trips a `debug_assert!`.
 
 use rdom_core::selectors::{
     Combinator, ComplexSelector, CompoundSelector, PseudoClass, SimpleSelector,
 };
 
 use crate::style::Stylesheet;
+use crate::style::selector_walk::{any_complex, compounds, sheet_selectors};
 
 /// What kinds of change can reach a sibling's match under a set of
 /// stylesheets — computed once per stylesheet set, like the validity
@@ -79,10 +82,8 @@ impl SiblingTriggers {
     pub(crate) fn of_sheets<'a>(sheets: impl IntoIterator<Item = &'a Stylesheet>) -> Self {
         let mut t = Self::none();
         for sheet in sheets {
-            for rule in sheet.rules() {
-                for complex in &rule.selector.0 {
-                    t.visit_complex(complex);
-                }
+            for complex in sheet_selectors(sheet) {
+                t.visit_complex(complex);
             }
         }
         t
@@ -101,25 +102,22 @@ impl SiblingTriggers {
             }
     }
 
+    /// Record every compound left of a `+` / `~` in `complex` and in
+    /// the selectors nested in its arguments (`selector_walk`).
     fn visit_complex(&mut self, complex: &ComplexSelector) {
-        for (combinator, compound) in &complex.ancestors {
-            if matches!(
-                combinator,
-                Combinator::AdjacentSibling | Combinator::GeneralSibling
-            ) {
-                self.add_left(compound);
-            }
-        }
-        for compound in std::iter::once(&complex.subject)
-            .chain(complex.ancestors.iter().map(|(_, compound)| compound))
-        {
-            for simple in &compound.simples {
-                if let SimpleSelector::Not(list) | SimpleSelector::Where(list) = simple {
-                    for inner in &list.0 {
-                        self.visit_complex(inner);
-                    }
+        let unknown = any_complex(complex, &mut |c| {
+            for (combinator, compound) in &c.ancestors {
+                if matches!(
+                    combinator,
+                    Combinator::AdjacentSibling | Combinator::GeneralSibling
+                ) {
+                    self.add_left(compound);
                 }
             }
+            false
+        });
+        if unknown {
+            self.all = true;
         }
     }
 
@@ -138,15 +136,21 @@ impl SiblingTriggers {
                 // The argument is matched against the same element: every
                 // compound in it reads that element's (or its relatives')
                 // state.
-                SimpleSelector::Not(list) | SimpleSelector::Where(list) => {
+                SimpleSelector::Not(list)
+                | SimpleSelector::Is(list)
+                | SimpleSelector::Where(list) => {
                     for inner in &list.0 {
-                        self.add_left(&inner.subject);
-                        for (_, c) in &inner.ancestors {
+                        for c in compounds(inner) {
                             self.add_left(c);
                         }
                     }
                 }
-                _ => self.all = true,
+                // `SimpleSelector` is `#[non_exhaustive]`: an unknown
+                // kind marks everything (`selector_walk`).
+                other => {
+                    debug_assert!(false, "sibling_triggers: unknown simple selector {other:?}");
+                    self.all = true;
+                }
             }
         }
     }

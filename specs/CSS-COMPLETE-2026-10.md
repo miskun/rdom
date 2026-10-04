@@ -292,3 +292,11 @@ row comes from.
   as unsupported; DIVERGENCES no longer schedules `@property`; COVERAGE `@import` is *Partial*
   (conditions ignored) and the §1 counts are recounted (192 Partial / Missing, 124 undocumented at
   audit time); `define_var` rustdoc and the C1-ALL / `TuiStyle::pending` CHANGELOG bullets corrected.
+- 2026-10-04 — C1G-INVALIDATION: one walker (`rdom-tui/src/style/selector_walk.rs`) over rule
+  selectors and `@scope` starts / ends, recursing into `:not()` / `:is()` / `:where()`, feeds the
+  sibling-combinator check, the sibling triggers and the validity check; unknown `SimpleSelector`
+  kinds `debug_assert!`. The gate's example (inserting `.a` before `.b`) was already correct — a
+  child-list change marks every sibling unconditionally — and is kept as a regression test; the
+  real gaps were attribute / class / state changes (prelude start and limit, nested `&`).
+  Specificity (rdom-core, exhaustive) and the rule index (keys only, `:is()` falls to the universal
+  bucket) needed no change.

@@ -499,32 +499,24 @@ fn mark_state_dirty(dom: &mut Dom<TuiExt>, state: &mut DirtyState, id: NodeId, c
     }
 }
 
-/// Whether any rule of `sheet` has a sibling combinator (`+` / `~`),
-/// anywhere in its selector (inside `:not()` / `:where()` too) — the
-/// input of [`DirtyTracker::set_sibling_combinators`].
+/// Whether any selector `sheet` matches with has a sibling combinator
+/// (`+` / `~`) anywhere — in a rule's selector or an `@scope`'s start /
+/// end, inside `:not()` / `:is()` / `:where()` too
+/// (`style::selector_walk`) — the input of
+/// [`DirtyTracker::set_sibling_combinators`].
 pub fn uses_sibling_combinators(sheet: &crate::style::Stylesheet) -> bool {
-    sheet
-        .rules()
-        .iter()
-        .any(|r| r.selector.0.iter().any(complex_uses_siblings))
-}
-
-fn complex_uses_siblings(c: &rdom_core::selectors::ComplexSelector) -> bool {
-    use rdom_core::selectors::{Combinator, SimpleSelector};
-    c.ancestors.iter().any(|(comb, _)| {
-        matches!(
-            comb,
-            Combinator::AdjacentSibling | Combinator::GeneralSibling
-        )
-    }) || std::iter::once(&c.subject)
-        .chain(c.ancestors.iter().map(|(_, compound)| compound))
-        .flat_map(|compound| &compound.simples)
-        .any(|s| match s {
-            SimpleSelector::Not(list) | SimpleSelector::Where(list) => {
-                list.0.iter().any(complex_uses_siblings)
-            }
-            _ => false,
+    use crate::style::selector_walk::{any_complex, sheet_selectors};
+    use rdom_core::selectors::Combinator;
+    sheet_selectors(sheet).any(|c| {
+        any_complex(c, &mut |c| {
+            c.ancestors.iter().any(|(comb, _)| {
+                matches!(
+                    comb,
+                    Combinator::AdjacentSibling | Combinator::GeneralSibling
+                )
+            })
         })
+    })
 }
 
 /// Mark `id`'s subtree as dirty. Sets `style_dirty=true` on the node
@@ -657,6 +649,26 @@ mod tests {
             !uses_sibling_combinators(&Stylesheet::new()),
             "the UA sheet has none"
         );
+    }
+
+    /// `C1G-INVALIDATION`: an `@scope`'s `<scope-start>` / `<scope-end>`
+    /// (CSS Cascade 6 §2.5) and an `:is()` argument (the nesting `&`,
+    /// CSS Nesting 1 §2) are matched too.
+    #[test]
+    fn sibling_combinators_are_found_in_scope_preludes_and_is() {
+        use rdom_style::{RuleContext, StyleSelector, Stylesheet};
+        let uses = |css: &str| uses_sibling_combinators(&rdom_css::parse(css).stylesheet);
+        assert!(uses("@scope (.a + .b) { p { color: red } }"));
+        assert!(uses("@scope (main) to (.a ~ .b) { p { color: red } }"));
+        assert!(!uses("@scope (main) to (.b) { p { color: red } }"));
+        let parent = StyleSelector::parse(".a + .b, .q + .b").unwrap();
+        let mut sheet = Stylesheet::bare();
+        sheet.add_style_rule(
+            &StyleSelector::parse_nested("p", &parent).unwrap(),
+            TuiStyle::new(),
+            RuleContext::default(),
+        );
+        assert!(uses_sibling_combinators(&sheet), "inside `:is()`");
     }
 
     /// Appending children one at a time marks each parent's siblings

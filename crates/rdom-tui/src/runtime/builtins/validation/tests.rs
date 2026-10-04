@@ -641,6 +641,27 @@ fn the_ua_sheet_has_no_validity_rules() {
     assert!(super::marks::uses_validity(&author));
 }
 
+/// `C1G-INVALIDATION`: validity read by an `@scope` prelude (CSS
+/// Cascade 6 §2.5) or inside `:is()` (the nesting `&`, CSS Nesting 1 §2)
+/// counts too.
+#[test]
+fn validity_in_scope_preludes_and_is_counts() {
+    use rdom_style::{RuleContext, StyleSelector};
+    let uses = |css: &str| super::marks::uses_validity(&rdom_css::parse(css).stylesheet);
+    assert!(uses("@scope (form:invalid) { p { color: red } }"));
+    assert!(uses(
+        "@scope (form) to (fieldset:valid) { p { color: red } }"
+    ));
+    let parent = StyleSelector::parse("input:invalid, .x").unwrap();
+    let mut sheet = crate::Stylesheet::bare();
+    sheet.add_style_rule(
+        &StyleSelector::parse_nested("+ p", &parent).unwrap(),
+        crate::TuiStyle::new(),
+        RuleContext::default(),
+    );
+    assert!(super::marks::uses_validity(&sheet), "inside `:is()`");
+}
+
 /// Selectors re-match when validity changes without a cascade-dirtying
 /// mutation: a textarea's text edit (character data) and
 /// `set_custom_validity` (no mutation at all) both restyle the control
