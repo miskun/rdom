@@ -71,7 +71,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 |---|---:|---:|---:|---:|---:|
 | 3.1 Syntax, cascade and inheritance (Syntax 3, Cascade 4/5, CSS 2.1 §6) | 18 | 1 | 0 | 2 | 21 |
 | 3.2 Custom properties (CSS Variables 1) | 6 | 0 | 0 | 1 | 7 |
-| 3.3 Values and units (Values 4) | 7 | 3 | 8 | 4 | 22 |
+| 3.3 Values and units (Values 4) | 8 | 3 | 7 | 4 | 22 |
 | 3.4 Color (Color 4 / 5) | 3 | 3 | 9 | 2 | 17 |
 | 3.5 Backgrounds and borders (Backgrounds 3, Borders 4) | 3 | 5 | 6 | 2 | 16 |
 | 3.6 Box model and sizing (Box 3, Sizing 3/4) | 2 | 4 | 3 | 0 | 9 |
@@ -93,7 +93,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 0 | 0 | 6 | 3 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **73** | **37** | **147** | **50** | **307** |
+| **Total** | **74** | **37** | **146** | **50** | **307** |
 
 Of the 191 Partial / Missing rows, **123 were not documented** in `DIVERGENCES.md` when audited (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3.
 
@@ -259,7 +259,7 @@ dropped:
 | `<percentage>` | Supported | Every length-bearing property (`width` / `height`, `min-*` / `max-*`, `padding`, `margin`, the insets, `gap`), bare and in math functions, each against its spec's basis; `opacity`. (`flex-basis` takes it when the property lands, C6-FLEX-LONGHANDS.) C2-PERCENT. | — | `V/numeric.rs::length_percentage` |
 | `<number>` (fractional) | Supported | `opacity`, `cubic-bezier()`, times, flex factors (`flex: 0.5`, `flex-shrink: 1.5`, `1.5fr`; factors summing below one share that fraction of the free space, Flexbox §9.7) (C2-NUMBER). | — | `V/numeric.rs::number`, `V/length.rs` |
 | `calc()` | Supported | `+ - * /`, parentheses, nested `calc()`, percent-bearing forms resolved at layout, divide-by-zero rejected. Whitespace relaxation documented. | Yes | `CALC` |
-| `min()` / `max()` / `clamp()` | Missing | Comparison functions. | Yes | `CALC` |
+| `min()` / `max()` / `clamp()` | Supported | Inside and outside `calc()`, nested, mixed with percentages (resolved at layout), `clamp()` with `none` bounds (C2-MINMAX). | — | `CALC` |
 | `round()` / `mod()` / `rem()` / `abs()` / `sign()` | Missing | Stepped-value / sign functions — natural on an integer grid. | No | `CALC` |
 | `sin()` … `atan2()`, `pow()` / `sqrt()` / `hypot()` / `log()` / `exp()` | Missing | Numeric functions; low value, cheap once the evaluator is general. | No | `CALC` |
 | `px`, `cm`, `mm`, `Q`, `in`, `pt`, `pc` | N/A | No pixel / physical length on a cell grid (documented). | — | — |

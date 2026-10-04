@@ -72,7 +72,7 @@ These are intrinsic to terminals. They will not change.
 
 ### Values
 
-- **`calc()` accepts both `5+5` and `5 + 5` inside the call.** CSS Values L3 requires whitespace around `+`/`-`; rdom's tokenizer doesn't preserve whitespace so the parser accepts either form. `*` and `/` don't need whitespace in CSS either, so those match.
+- **Math functions (`calc()`, `min()`, …) accept both `5+5` and `5 + 5` inside the call.** CSS Values L3 requires whitespace around `+`/`-`; rdom's tokenizer doesn't preserve whitespace so the parser accepts either form. `*` and `/` don't need whitespace in CSS either, so those match.
 - **Percentages on box properties.** `padding` and `margin` percentages (bare or in `calc()`) resolve against the containing block's width on all four sides (CSS Box 3 §3.2 / §4.2); `top` / `right` / `bottom` / `left` / `inset` against the containing block's height or width on the matching axis; `min-*` / `max-*` against the containing block on their axis — against an indefinite height a `min-height` percentage is `0` and a `max-height` percentage is `none` (CSS 2.1 §10.7). A `calc()` / percent `gap` does not animate at all (cell ↔ cell gaps do); `Size` / `Length` calc values snap at the midpoint. A percent `gap` resolves against the container's content size on the gap's axis, and against 0 when that axis is indefinite — rdom takes `height: auto` on a column container as "indefinite" (CSS also treats `height: 50%` under an indefinite parent that way; rdom resolves it against the available height).
 - **CSS transitions don't smoothly tween between `calc()` values.** When either endpoint of a `transition` carries a `calc()` expression (Size or Length axis), the engine snaps at midpoint instead of interpolating. Smooth tweening would require resolving both endpoints to concrete cells using the current layout's parent dimensions at every animation tick — straightforward but unwired in M6.
 - **`border-style: half-block` is rdom-specific.** Not a CSS-spec keyword. Each border cell fills the **quadrants that point inward** toward the bordered element's content — an edge fills a half (`▄ ▀ ▌ ▐`, U+2584/U+2580/U+258C/U+2590), a corner fills a single quadrant (`▗ ▖ ▝ ▘`, U+2596/U+2597/U+259D/U+2598). Pairs with a `background-color`-filled interior to produce a "pill"-style primary-CTA button that reads as ~2 cells tall on a 3-row layout (the half-blocks contribute half-cells of color each, joining the filled interior into a continuous accent region).
@@ -235,7 +235,6 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 
 ### Values and units
 
-- `min()` / `max()` / `clamp()` — C2-MINMAX
 - `round()` / `mod()` / `rem()` / `abs()` / `sign()` — C2-STEPPED
 - `sin()` … `atan2()`, `pow()` / `sqrt()` / `hypot()` / `log()` / `exp()` — C2-TRIG
 - `ch` — C2-CH

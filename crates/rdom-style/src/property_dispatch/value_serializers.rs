@@ -89,11 +89,14 @@ pub(super) fn serialize_max_size(m: &crate::layout::MaxSize) -> String {
     }
 }
 
-/// A stored math expression as a value: a lone percentage as itself
-/// (`10%`, as written), anything else wrapped in `calc()`.
+/// A stored math expression as a value: a lone percentage or math
+/// function as itself (`10%`, `min(50%, 30)`), anything else wrapped
+/// in `calc()`.
 pub(super) fn serialize_math(expr: &crate::calc::CalcExpr) -> String {
     match expr {
-        crate::calc::CalcExpr::Percent(_) => serialize_calc(expr),
+        crate::calc::CalcExpr::Percent(_) | crate::calc::CalcExpr::Function { .. } => {
+            serialize_calc(expr)
+        }
         _ => format!("calc({})", serialize_calc(expr)),
     }
 }
@@ -152,6 +155,11 @@ pub(super) fn serialize_calc(expr: &crate::calc::CalcExpr) -> String {
             }
         }
         CalcExpr::Length(c) => format!("{c}"),
+        CalcExpr::None => "none".to_string(),
+        CalcExpr::Function { func, args } => {
+            let args: Vec<String> = args.iter().map(serialize_calc).collect();
+            format!("{}({})", func.name(), args.join(", "))
+        }
         CalcExpr::Percent(p) => {
             if p.fract() == 0.0 {
                 format!("{}%", *p as i64)

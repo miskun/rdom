@@ -82,3 +82,42 @@ fn percent_round_trips_through_every_length_property() {
         assert!(set(name, value, &mut s).is_err(), "{name}: {value}");
     }
 }
+
+// ── C2-MINMAX ────────────────────────────────────────────────────────
+
+/// CSS Values 4 §10.2: `min( <calc-sum># )`, `max( <calc-sum># )`,
+/// `clamp( [<calc-sum> | none], <calc-sum>, [<calc-sum> | none] )`. A
+/// constant one folds to cells at parse time; a percent-bearing one
+/// stays symbolic and serializes as written.
+#[test]
+fn comparison_functions_parse_fold_and_serialize() {
+    use crate::TuiStyle;
+    use crate::property_dispatch::{serialize, set};
+    assert_eq!(
+        length_percentage(&t("max(3, 7.5)"), Range::NonNegative),
+        Some(LengthPercentage::Cells(7.5))
+    );
+    assert_eq!(
+        length_percentage(&t("clamp(1, 5, none)"), Range::NonNegative),
+        Some(LengthPercentage::Cells(5.0))
+    );
+    for (name, value) in [
+        ("width", "min(50%, 30)"),
+        ("max-width", "clamp(none, 90%, 20)"),
+        ("padding-left", "calc(min(10%, 3) * 2)"),
+        ("left", "max(-5, 10%)"),
+    ] {
+        let mut s = TuiStyle::default();
+        set(name, value, &mut s).unwrap_or_else(|e| panic!("{name}: {value}: {e:?}"));
+        assert_eq!(serialize(name, &s).as_deref(), Some(value), "{name}");
+    }
+    for bad in [
+        "min()",
+        "max(1,)",
+        "clamp(1, 2)",
+        "clamp(1, none, 3)",
+        "min(1 2)",
+    ] {
+        assert_eq!(length_percentage(&t(bad), Range::Any), None, "{bad}");
+    }
+}

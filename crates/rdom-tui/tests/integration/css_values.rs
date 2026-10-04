@@ -253,3 +253,49 @@ fn fractional_flex_shrink_scales_by_base_size() {
         "factors sum to 0.5: half the overflow is taken"
     );
 }
+
+// ── C2-MINMAX ────────────────────────────────────────────────────────
+
+/// Lay out `items` (one class each) as blocks in a 40 × 20 containing
+/// block under `css` and return their border-box rects.
+fn block_rects(css: &str, items: &[&str]) -> Vec<LayoutRect> {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let cb = el(&mut dom, root, "cb");
+    let ids: Vec<NodeId> = items.iter().map(|c| el(&mut dom, cb, c)).collect();
+    lay_out(
+        &mut dom,
+        &format!(".cb {{ position: relative; width: 40; height: 20 }} {css}"),
+        80,
+        30,
+    );
+    ids.iter().map(|&id| rect(&dom, id)).collect()
+}
+
+/// CSS Values 4 §10.2: `min()` / `max()` take the smallest / largest
+/// of their comma-separated calculations, `clamp(MIN, VAL, MAX)` is
+/// `max(MIN, min(VAL, MAX))` (MIN wins a conflict) with `none` for an
+/// absent bound; percentages resolve at layout like any calculation,
+/// and the functions nest inside `calc()` and each other.
+#[test]
+fn min_max_clamp_resolve_with_percentages_at_layout() {
+    let r = block_rects(
+        ".a { width: min(50%, 30); height: 1 }
+         .b { width: max(25%, 15); height: 1 }
+         .c { width: clamp(10, 50% + 5, 22); height: 1 }
+         .d { width: clamp(30, 10, 20); height: 1 }
+         .e { width: clamp(none, 90%, 20); height: 1 }
+         .f { width: calc(min(10%, 3) * 2 + max(1, 2)); height: 1 }
+         .g { width: MAX(3, 7); height: min(5, 10%, 30) }
+         .h { position: absolute; left: max(-5, 10%); top: clamp(1, 50%, 3); width: 1; height: 1 }",
+        &["a", "b", "c", "d", "e", "f", "g", "h"],
+    );
+    let w: Vec<u16> = r.iter().map(|r| r.width).collect();
+    assert_eq!(w[..7], [20, 15, 22, 30, 20, 8, 7]);
+    assert_eq!(r[6].height, 2, "min(5, 10% of 20, 30)");
+    assert_eq!(
+        (r[7].x, r[7].y),
+        (4, 3),
+        "insets: max(-5, 10% of 40), clamp(1, 10, 3)"
+    );
+}

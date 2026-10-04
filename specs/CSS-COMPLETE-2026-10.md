@@ -79,7 +79,7 @@ row comes from.
 |---|---|---|
 | C2-PERCENT | `<percentage>` everywhere the spec allows (padding, margin, insets, min/max sizes, opacity) | done |
 | C2-NUMBER | Fractional `<number>` where the spec allows (flex factors, …) | done |
-| C2-MINMAX | `min()` / `max()` / `clamp()` | |
+| C2-MINMAX | `min()` / `max()` / `clamp()` | done |
 | C2-STEPPED | `round()` / `mod()` / `rem()` / `abs()` / `sign()` | |
 | C2-TRIG | `sin()` … `atan2()`, `pow()` / `sqrt()` / `hypot()` / `log()` / `exp()` | |
 | C2-CH | `ch` (one column) | |
@@ -429,3 +429,7 @@ row comes from.
   distribute in `f64` with the rolling floor kept (integer weights lay out exactly as before), and
   §9.7 step 4.b applies: factors summing below one share only that fraction of the free space /
   overflow. The C6 flex longhands build on `numeric::number` / `parse_flex_factor`.
+- 2026-10-04 — C2-MINMAX: `CalcExpr` gains `Function { func: MathFunction, args }` and `None` (an
+  absent `clamp()` bound) and becomes `#[non_exhaustive]`; the parser recognizes a math function at
+  top level and nested, so every property on the shared leaf takes them. NaN propagates through
+  `min` / `max` and resolves to 0 at the top (Values 4 §10.9). `calc.rs` became `calc/{mod,tests}.rs`.

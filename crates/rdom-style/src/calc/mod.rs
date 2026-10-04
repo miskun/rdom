@@ -1,32 +1,26 @@
-//! `calc()` expression AST + resolver.
+//! Math-function expression AST + resolver (CSS Values 4 §10).
 //!
-//! CSS Values L3 §10.1: `calc(<sum>)` where `<sum>` is a chain of
-//! `+`/`-` operators on terms, terms are chains of `*`/`/` on
-//! factors, and factors are leaf values or parenthesised sub-sums.
+//! `calc(<sum>)` where `<sum>` is a chain of `+`/`-` operators on terms,
+//! terms are chains of `*`/`/` on factors, and factors are leaf values,
+//! parenthesised sub-sums or nested math functions — `min()`, `max()`,
+//! `clamp()` ([`MathFunction`]).
 //!
-//! Leaf value kinds rdom supports inside `calc()`:
+//! Leaf value kinds rdom supports:
 //!
-//! - **Number** — bare numeric literal (used in multiplication
-//!   factors and division divisors; CSS forbids using a bare
-//!   number where a length is required).
+//! - **Number** — bare numeric literal. A bare number doubles as rdom's
+//!   cell (DIVERGENCES §1), so `calc(100% - 4)` subtracts four cells.
 //! - **Length** — integer cells. Negative permitted.
 //! - **Percentage** — resolved against a containing-block axis at
-//!   layout time. The axis depends on which property the calc
+//!   layout time. The axis depends on which property the expression
 //!   appears in (`width` → parent content width, `top` → parent
 //!   content height, etc.). See `ResolveCtx::percent_basis`.
 //!
-//! Resolution returns a signed integer-cell value
+//! Resolution evaluates in `f64` and returns a signed integer-cell value
 //! (`i32` — rdom layout uses `i32` for offsets and clamps to
-//! `i16`/`u16` at the property boundary). Rounding: half-to-even
-//! after summing.
-//!
-//! ## What's NOT supported in 0.2.0
-//!
-//! - `min(...)` / `max(...)` / `clamp(...)` — CSS Values L4, future
-//!   milestone.
-//! - Mixed-unit `<length>` arithmetic (px / em / rem) — terminals
-//!   are cell-only, so length operands are always cells.
-//! - `<angle>` / `<time>` / colors in calc() — out of M6 scope.
+//! `i16`/`u16` at the property boundary), rounded half-to-even once,
+//! after the whole expression: the value becomes a length there. A NaN
+//! result is 0 and an infinite one clamps to the range (Values 4
+//! §10.9).
 
 use std::fmt;
 
@@ -51,8 +45,36 @@ impl fmt::Display for CalcOp {
     }
 }
 
-/// One node of a calc() expression tree.
+/// A math function other than `calc()` (CSS Values 4 §10), which is a
+/// plain parenthesised sum in the tree.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum MathFunction {
+    /// `min(A, B, …)` — the smallest argument (§10.2).
+    Min,
+    /// `max(A, B, …)` — the largest argument (§10.2).
+    Max,
+    /// `clamp(MIN, VAL, MAX)` — `max(MIN, min(VAL, MAX))`, so `MIN`
+    /// wins a conflict (§10.2). A `none` bound is absent: the
+    /// arguments are `[MIN?, VAL, MAX?]` as written, with
+    /// [`CalcExpr::None`] in place of an absent bound.
+    Clamp,
+}
+
+impl MathFunction {
+    /// The function's CSS name.
+    pub fn name(self) -> &'static str {
+        match self {
+            MathFunction::Min => "min",
+            MathFunction::Max => "max",
+            MathFunction::Clamp => "clamp",
+        }
+    }
+}
+
+/// One node of a math-function expression tree.
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub enum CalcExpr {
     /// Bare number (no unit). Used as a multiplier / divisor.
     Number(f64),
@@ -67,6 +89,13 @@ pub enum CalcExpr {
         lhs: Box<CalcExpr>,
         rhs: Box<CalcExpr>,
     },
+    /// A math function over its arguments.
+    Function {
+        func: MathFunction,
+        args: Vec<CalcExpr>,
+    },
+    /// The keyword `none` in a `clamp()` bound: no bound.
+    None,
 }
 
 /// Resolution context — the dimensions the percentage operands
@@ -97,19 +126,25 @@ impl ResolveCtx {
 impl CalcExpr {
     /// Resolve to an integer-cell value given the containing-block
     /// dimensions. Float arithmetic during the walk; round half-
-    /// to-even on the final result.
+    /// to-even on the final result. NaN resolves to 0 and ±∞ clamps
+    /// to the `i32` range (CSS Values 4 §10.9).
     pub fn resolve(&self, cx: &ResolveCtx) -> i32 {
         let v = self.resolve_f64(cx);
-        round_half_to_even(v)
+        if v.is_nan() {
+            0
+        } else {
+            round_half_to_even(v.clamp(f64::from(i32::MIN), f64::from(i32::MAX)))
+        }
     }
 
     /// Float-domain resolution. Pub for tests + paint paths that
-    /// need the unrounded value.
+    /// need the unrounded value. NaN propagates (Values 4 §10.9).
     pub fn resolve_f64(&self, cx: &ResolveCtx) -> f64 {
         match self {
             CalcExpr::Number(n) => *n,
-            CalcExpr::Length(c) => *c as f64,
-            CalcExpr::Percent(p) => (*p / 100.0) * cx.percent_basis as f64,
+            CalcExpr::Length(c) => f64::from(*c),
+            CalcExpr::Percent(p) => (*p / 100.0) * f64::from(cx.percent_basis),
+            CalcExpr::None => f64::NAN,
             CalcExpr::Binary { op, lhs, rhs } => {
                 let l = lhs.resolve_f64(cx);
                 let r = rhs.resolve_f64(cx);
@@ -134,6 +169,7 @@ impl CalcExpr {
                     }
                 }
             }
+            CalcExpr::Function { func, args } => eval_function(*func, args, cx),
         }
     }
 
@@ -145,8 +181,9 @@ impl CalcExpr {
     pub fn contains_percent(&self) -> bool {
         match self {
             CalcExpr::Percent(_) => true,
-            CalcExpr::Number(_) | CalcExpr::Length(_) => false,
+            CalcExpr::Number(_) | CalcExpr::Length(_) | CalcExpr::None => false,
             CalcExpr::Binary { lhs, rhs, .. } => lhs.contains_percent() || rhs.contains_percent(),
+            CalcExpr::Function { args, .. } => args.iter().any(CalcExpr::contains_percent),
         }
     }
 
@@ -157,6 +194,54 @@ impl CalcExpr {
             lhs: Box::new(lhs),
             rhs: Box::new(rhs),
         }
+    }
+
+    /// Convenience for math-function node construction.
+    pub fn function(func: MathFunction, args: Vec<CalcExpr>) -> CalcExpr {
+        CalcExpr::Function { func, args }
+    }
+}
+
+/// Evaluate a math function over its arguments (CSS Values 4 §10).
+/// Any NaN argument makes the result NaN (§10.9).
+fn eval_function(func: MathFunction, args: &[CalcExpr], cx: &ResolveCtx) -> f64 {
+    let values = args.iter().map(|a| a.resolve_f64(cx));
+    match func {
+        MathFunction::Min => values.fold(f64::INFINITY, nan_min),
+        MathFunction::Max => values.fold(f64::NEG_INFINITY, nan_max),
+        MathFunction::Clamp => {
+            let [lo, val, hi] = args else {
+                return f64::NAN;
+            };
+            let bound = |e: &CalcExpr, absent: f64| match e {
+                CalcExpr::None => absent,
+                e => e.resolve_f64(cx),
+            };
+            let (lo, val, hi) = (
+                bound(lo, f64::NEG_INFINITY),
+                val.resolve_f64(cx),
+                bound(hi, f64::INFINITY),
+            );
+            nan_max(lo, nan_min(val, hi))
+        }
+    }
+}
+
+/// `f64::min` that propagates NaN instead of ignoring it.
+fn nan_min(a: f64, b: f64) -> f64 {
+    if a.is_nan() || b.is_nan() {
+        f64::NAN
+    } else {
+        a.min(b)
+    }
+}
+
+/// `f64::max` that propagates NaN instead of ignoring it.
+fn nan_max(a: f64, b: f64) -> f64 {
+    if a.is_nan() || b.is_nan() {
+        f64::NAN
+    } else {
+        a.max(b)
     }
 }
 
@@ -174,83 +259,4 @@ pub fn round_half_to_even(v: f64) -> i32 {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn cx(basis: i32) -> ResolveCtx {
-        ResolveCtx::new(basis)
-    }
-
-    #[test]
-    fn number_resolves_to_self() {
-        assert_eq!(CalcExpr::Number(5.0).resolve(&cx(100)), 5);
-    }
-
-    #[test]
-    fn length_resolves_to_cell_count() {
-        assert_eq!(CalcExpr::Length(7).resolve(&cx(100)), 7);
-    }
-
-    #[test]
-    fn percent_resolves_against_basis() {
-        assert_eq!(CalcExpr::Percent(50.0).resolve(&cx(100)), 50);
-        assert_eq!(CalcExpr::Percent(50.0).resolve(&cx(40)), 20);
-        assert_eq!(CalcExpr::Percent(25.0).resolve(&cx(80)), 20);
-    }
-
-    #[test]
-    fn add_percent_and_length_resolves_against_basis() {
-        // calc(50% + 2) where basis = 40 → 22.
-        let e = CalcExpr::binary(CalcOp::Add, CalcExpr::Percent(50.0), CalcExpr::Length(2));
-        assert_eq!(e.resolve(&cx(40)), 22);
-    }
-
-    #[test]
-    fn sub_basis_minus_length() {
-        // calc(100% - 4) where basis = 40 → 36.
-        let e = CalcExpr::binary(CalcOp::Sub, CalcExpr::Percent(100.0), CalcExpr::Length(4));
-        assert_eq!(e.resolve(&cx(40)), 36);
-    }
-
-    #[test]
-    fn mul_basis_by_number() {
-        // calc(50% * 2) where basis = 40 → 40.
-        let e = CalcExpr::binary(CalcOp::Mul, CalcExpr::Percent(50.0), CalcExpr::Number(2.0));
-        assert_eq!(e.resolve(&cx(40)), 40);
-    }
-
-    #[test]
-    fn div_basis_by_number() {
-        // calc(100% / 2) where basis = 40 → 20.
-        let e = CalcExpr::binary(CalcOp::Div, CalcExpr::Percent(100.0), CalcExpr::Number(2.0));
-        assert_eq!(e.resolve(&cx(40)), 20);
-    }
-
-    #[test]
-    fn div_by_zero_saturates_to_zero() {
-        let e = CalcExpr::binary(CalcOp::Div, CalcExpr::Length(10), CalcExpr::Number(0.0));
-        assert_eq!(e.resolve(&cx(100)), 0);
-    }
-
-    #[test]
-    fn contains_percent_walks_subtree() {
-        let constant = CalcExpr::binary(CalcOp::Add, CalcExpr::Length(3), CalcExpr::Length(4));
-        assert!(!constant.contains_percent());
-
-        let withp = CalcExpr::binary(
-            CalcOp::Add,
-            CalcExpr::Length(3),
-            CalcExpr::binary(CalcOp::Mul, CalcExpr::Percent(50.0), CalcExpr::Number(1.0)),
-        );
-        assert!(withp.contains_percent());
-    }
-
-    #[test]
-    fn half_to_even_rounding() {
-        // 0.5 → 0, 1.5 → 2, 2.5 → 2, 3.5 → 4 (banker's rounding)
-        assert_eq!(round_half_to_even(0.5), 0);
-        assert_eq!(round_half_to_even(1.5), 2);
-        assert_eq!(round_half_to_even(2.5), 2);
-        assert_eq!(round_half_to_even(3.5), 4);
-    }
-}
+mod tests;
