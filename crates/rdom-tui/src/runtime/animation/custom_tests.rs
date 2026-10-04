@@ -51,7 +51,9 @@ fn registered_color_property_transitions() {
     let blue = sheet("<color>", "red", "rgb(0, 0, 255)", "color");
     let start = Instant::now();
     let mut reg = AnimationRegistry::new();
-    reg.set_registered_properties(&[&red]);
+    reg.set_registered_properties(std::rc::Rc::new(
+        crate::style::cascade::PropertyRegistry::new(&[&red]),
+    ));
     dom.cascade(&red);
     diff_and_register(&mut dom, &mut reg, start);
     dom.cascade(&blue);
@@ -92,7 +94,9 @@ fn registered_length_property_transitions() {
     let wide = sheet("<length>", "0", "12", "width");
     let start = Instant::now();
     let mut reg = AnimationRegistry::new();
-    reg.set_registered_properties(&[&narrow]);
+    reg.set_registered_properties(std::rc::Rc::new(
+        crate::style::cascade::PropertyRegistry::new(&[&narrow]),
+    ));
     dom.cascade(&narrow);
     diff_and_register(&mut dom, &mut reg, start);
     dom.cascade(&wide);
@@ -119,7 +123,9 @@ fn unregistered_and_discrete_custom_properties_do_not_transition() {
         let two = sheet(syntax, "x", b, "--d");
         let start = Instant::now();
         let mut reg = AnimationRegistry::new();
-        reg.set_registered_properties(&[&one]);
+        reg.set_registered_properties(std::rc::Rc::new(
+            crate::style::cascade::PropertyRegistry::new(&[&one]),
+        ));
         dom.cascade(&one);
         diff_and_register(&mut dom, &mut reg, start);
         dom.cascade(&two);

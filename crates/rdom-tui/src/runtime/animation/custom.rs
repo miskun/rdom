@@ -23,7 +23,7 @@ use super::interpolate::lerp_color;
 use super::{AnimationRegistry, TransitionEventKind};
 use crate::ext::{StyleSlot, TuiExt};
 use crate::style::transition::{TimingFunction, TransitionProperty};
-use crate::style::{Color, ComputedStyle, Stylesheet};
+use crate::style::{Color, ComputedStyle};
 
 /// How a registered property's values interpolate.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -154,25 +154,16 @@ pub struct PendingCustomEvent {
     pub elapsed_seconds: f32,
 }
 
-/// The registered, interpolating custom properties of one cascade
-/// run, by name (without dashes).
-#[derive(Debug, Default)]
-pub(super) struct Registered(HashMap<String, Kind>);
-
 impl AnimationRegistry {
-    /// Take the registered custom properties of `sheets` (in cascade
-    /// order; a later registration of a name wins) — the ones whose
-    /// changes can transition. The App calls this before
-    /// [`diff_and_register`](super::diff_and_register).
-    pub fn set_registered_properties(&mut self, sheets: &[&Stylesheet]) {
-        let mut map = HashMap::new();
-        for reg in sheets.iter().flat_map(|s| s.registered_properties()) {
-            match Kind::of(reg) {
-                Some(kind) => map.insert(reg.name.clone(), kind),
-                None => map.remove(&reg.name),
-            };
-        }
-        self.registered = Registered(map);
+    /// Follow the registered custom properties the cascade reads — the
+    /// one registry an `App` builds per stylesheet change; the ones
+    /// whose syntax interpolates can transition. The App calls this
+    /// before [`diff_and_register`](super::diff_and_register).
+    pub(crate) fn set_registered_properties(
+        &mut self,
+        registry: Rc<crate::style::cascade::PropertyRegistry>,
+    ) {
+        self.registered = registry;
     }
 
     /// The elements whose animated custom properties moved since the
@@ -200,15 +191,14 @@ impl AnimationRegistry {
         curr: &ComputedStyle,
         now: Instant,
     ) {
-        if self.registered.0.is_empty() || Rc::ptr_eq(&prev.vars, &curr.vars) {
+        if self.registered.is_empty() || Rc::ptr_eq(&prev.vars, &curr.vars) {
             return;
         }
         let changed: Vec<(String, Kind)> = self
             .registered
-            .0
             .iter()
             .filter(|(name, _)| prev.vars.get(*name) != curr.vars.get(*name))
-            .map(|(n, k)| (n.clone(), *k))
+            .filter_map(|(name, reg)| Some((name.to_string(), Kind::of(reg)?)))
             .collect();
         for (name, kind) in changed {
             let Some(rule) = rule_for(curr, &name) else {

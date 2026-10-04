@@ -85,6 +85,10 @@ pub(super) struct FramePrelude {
     /// `CSS.registerProperty` registrations (`App::register_property`),
     /// cascaded after every other sheet so they win over `@property`.
     pub(super) registrations: crate::style::Stylesheet,
+    /// The custom properties every sheet registers ("later wins"), the
+    /// one registry the cascade and the transition engine share; rebuilt
+    /// when the sheets change ([`Self::sheets_changed`]).
+    pub(super) registry: std::rc::Rc<crate::style::cascade::PropertyRegistry>,
     /// The element currently carrying `data-rdom-scroll-focus`.
     scroll_focus_marked: Option<NodeId>,
     /// Each element's `:valid` / `:invalid` state as of the last frame.
@@ -119,6 +123,7 @@ impl FramePrelude {
             selectedness: Selectedness::install(dom),
             style_elements: StyleElements::install(dom),
             registrations: crate::style::Stylesheet::bare(),
+            registry: std::rc::Rc::default(),
             scroll_focus_marked: None,
             validity_marks: ValidityMarks::default(),
             caret_blink: CaretBlink::new(None),
@@ -220,7 +225,8 @@ impl FramePrelude {
     }
 
     /// The sheets changed (an App sheet added / removed, a `<style>`
-    /// element re-parsed): re-read the sibling-combinator hint, drop the
+    /// element re-parsed, a property registered): rebuild the property
+    /// registry, re-read the sibling-combinator hint, drop the
     /// tracker's roots and cascade the whole tree, refresh the validity
     /// marks' sheet check, and run the whole-tree checks next frame.
     pub(super) fn sheets_changed(
@@ -229,11 +235,25 @@ impl FramePrelude {
         app_sheets: &[(StylesheetId, Stylesheet)],
         redraw: &mut Redraw,
     ) {
-        self.sync_sibling_combinators(tracker, app_sheets);
+        self.sync_sheet_set(tracker, app_sheets);
         tracker.take_roots();
         redraw.note(Redraw::Cascade);
         self.validity_marks.sheets_changed();
         self.touched = true;
+    }
+
+    /// Rebuild what is derived from the stylesheet set: the property
+    /// registry and the dirty tracker's sibling-combinator hint. Once per
+    /// stylesheet set (construction, [`Self::sheets_changed`]).
+    pub(super) fn sync_sheet_set(
+        &mut self,
+        tracker: &DirtyTracker,
+        app_sheets: &[(StylesheetId, Stylesheet)],
+    ) {
+        self.registry = std::rc::Rc::new(crate::style::cascade::PropertyRegistry::new(
+            &self.cascade_order(app_sheets),
+        ));
+        self.sync_sibling_combinators(tracker, app_sheets);
     }
 
     /// Tell the dirty tracker which changes the sheets now cascaded can
@@ -241,7 +261,7 @@ impl FramePrelude {
     /// `P7G-SIBLING-MARK-NARROW-1`), so a state change dirties its
     /// siblings only when a selector can read it there. Once per
     /// stylesheet set.
-    pub(super) fn sync_sibling_combinators(
+    fn sync_sibling_combinators(
         &self,
         tracker: &DirtyTracker,
         app_sheets: &[(StylesheetId, Stylesheet)],

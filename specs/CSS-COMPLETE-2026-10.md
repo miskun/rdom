@@ -347,3 +347,9 @@ row comes from.
   counters (`ladder::probe`): one `div` with one rule now walks 2 ladders (element + UA
   `*::selection`), was 5, and allocates no rollback memo, was 5. `walk.rs` (666 after the change)
   split into `walk` / `matching` / `pseudo`.
+- 2026-10-04 — C1G-REGISTERED-CLONES: `cascade::PropertyRegistry` (was `Registry`) is the one
+  registry; `FramePrelude::sheets_changed` rebuilds it, the frame hands it to the cascade
+  (`cascade_all_with` / `cascade_subtrees_all_with`) and to `AnimationRegistry` (an `Rc`; the
+  animation side derives the interpolation kind per lookup). The stateless `CascadeExt` methods still
+  build one per call. Counter test: restyles and transition frames build none, a sheet change one
+  (was 5 for the same sequence). `settle_undeclared` compares `Option<&String>` before cloning.

@@ -8,10 +8,12 @@
 //! means the same layer in every sheet and the first declaration in
 //! any of them fixes its place ([`LayerOrder`]).
 
+use std::rc::Rc;
+
 use rdom_style::LayerOrder;
 
 use super::ladder::Plan;
-use super::registered::Registry;
+use super::registered::PropertyRegistry;
 use crate::style::{Rule, RuleOrigin, Stylesheet};
 
 /// The stylesheets of one cascade run, in cascade order, and the
@@ -19,20 +21,22 @@ use crate::style::{Rule, RuleOrigin, Stylesheet};
 pub(super) struct Sheets<'a> {
     list: &'a [&'a Stylesheet],
     layers: LayerOrder,
-    registry: Registry,
+    registry: Rc<PropertyRegistry>,
 }
 
 impl<'a> Sheets<'a> {
-    pub(super) fn new(list: &'a [&'a Stylesheet]) -> Self {
+    /// `list`, with the custom properties it registers (`registry`,
+    /// built from `list` when the caller has none at hand).
+    pub(super) fn new(list: &'a [&'a Stylesheet], registry: Option<Rc<PropertyRegistry>>) -> Self {
         Sheets {
             list,
             layers: LayerOrder::new(list),
-            registry: Registry::new(list),
+            registry: registry.unwrap_or_else(|| Rc::new(PropertyRegistry::new(list))),
         }
     }
 
     /// The custom properties the sheets register.
-    pub(super) fn registry(&self) -> &Registry {
+    pub(super) fn registry(&self) -> &PropertyRegistry {
         &self.registry
     }
 

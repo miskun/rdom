@@ -245,7 +245,7 @@ pub(super) fn prepare(
     working: &mut ComputedStyle,
     plan: &Plan,
     decls: Declarations<'_>,
-    registry: &super::registered::Registry,
+    registry: &super::registered::PropertyRegistry,
     transitions: Option<&HashMap<String, String>>,
 ) -> Option<Substituted> {
     // CSS Variables 1 §2 — same ladder, folded into the element's own

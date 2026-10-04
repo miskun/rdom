@@ -11,26 +11,38 @@ use crate::style::Stylesheet;
 
 type Map = HashMap<String, String>;
 
-/// The custom properties registered by the sheets of one cascade run,
-/// by name; a later registration of a name replaces an earlier one
-/// (sheets in cascade order — an `App`'s `CSS.registerProperty` sheet
-/// comes last).
-#[derive(Default)]
-pub(super) struct Registry(HashMap<String, PropertyRegistration>);
+/// The custom properties registered by a list of sheets, by name; a
+/// later registration of a name replaces an earlier one (sheets in
+/// cascade order — an `App`'s `CSS.registerProperty` sheet comes last).
+///
+/// The one registry both the cascade and the transition engine
+/// (`runtime::animation`) read. An `App` builds it when its sheets
+/// change (`FramePrelude::sheets_changed`) and shares it; the
+/// stateless [`CascadeExt`](super::CascadeExt) entry points build one
+/// per call.
+#[derive(Debug, Default)]
+pub(crate) struct PropertyRegistry(HashMap<String, PropertyRegistration>);
 
-impl Registry {
-    pub(super) fn new(sheets: &[&Stylesheet]) -> Self {
+impl PropertyRegistry {
+    pub(crate) fn new(sheets: &[&Stylesheet]) -> Self {
+        #[cfg(test)]
+        probe::BUILDS.with(|c| c.set(c.get() + 1));
         let mut map = HashMap::new();
         for sheet in sheets {
             for reg in sheet.registered_properties() {
                 map.insert(reg.name.clone(), reg.clone());
             }
         }
-        Registry(map)
+        PropertyRegistry(map)
     }
 
-    pub(super) fn is_empty(&self) -> bool {
+    pub(crate) fn is_empty(&self) -> bool {
         self.0.is_empty()
+    }
+
+    /// Every registration, by name, in no particular order.
+    pub(crate) fn iter(&self) -> impl Iterator<Item = (&str, &PropertyRegistration)> {
+        self.0.iter().map(|(name, reg)| (name.as_str(), reg))
     }
 
     pub(super) fn get(&self, name: &str) -> Option<&PropertyRegistration> {
@@ -63,7 +75,21 @@ impl Registry {
             } else {
                 reg.initial_value.as_ref()
             };
-            set(map, name, current.cloned(), want.cloned());
+            // Compared by reference: the common case (an inherited value
+            // kept, an initial value already in place) copies nothing.
+            if current == want {
+                continue;
+            }
+            let want = want.cloned();
+            let map = std::rc::Rc::make_mut(map);
+            match want {
+                Some(v) => {
+                    map.insert(name.clone(), v);
+                }
+                None => {
+                    map.remove(name);
+                }
+            }
         }
     }
 
@@ -106,18 +132,14 @@ impl Registry {
     }
 }
 
-/// Make `map[name]` `want`, copying the map only on a change.
-fn set(map: &mut std::rc::Rc<Map>, name: &str, current: Option<String>, want: Option<String>) {
-    if current == want {
-        return;
+/// Test-only: how many registries were built on this thread.
+#[cfg(test)]
+pub(crate) mod probe {
+    thread_local! {
+        pub static BUILDS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
     }
-    let map = std::rc::Rc::make_mut(map);
-    match want {
-        Some(v) => {
-            map.insert(name.to_string(), v);
-        }
-        None => {
-            map.remove(name);
-        }
+
+    pub fn take_builds() -> usize {
+        BUILDS.with(|c| c.replace(0))
     }
 }

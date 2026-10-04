@@ -160,7 +160,7 @@ pub struct AnimationRegistry {
     /// the elements whose animated values moved.
     custom: Vec<custom::CustomAnimation>,
     custom_events: Vec<PendingCustomEvent>,
-    registered: custom::Registered,
+    registered: std::rc::Rc<crate::style::cascade::PropertyRegistry>,
     restyle: Vec<NodeId>,
 }
 

@@ -70,6 +70,9 @@ mod ladder;
 mod matching;
 mod pseudo;
 mod registered;
+pub(crate) use registered::PropertyRegistry;
+#[cfg(test)]
+pub(crate) use registered::probe as registry_probe;
 mod scope;
 mod sheets;
 mod walk;
@@ -92,6 +95,8 @@ mod scope_tests;
 mod tests;
 #[cfg(test)]
 mod var_tests;
+
+use std::rc::Rc;
 
 use rdom_core::{Dom, NodeId};
 
@@ -150,20 +155,7 @@ impl CascadeExt for Dom<TuiExt> {
     }
 
     fn cascade_all(&mut self, stylesheets: &[&Stylesheet]) {
-        let sheets = walk::Sheets::new(stylesheets);
-        let merged_vars = walk::merge_root_vars(&sheets);
-        let root = self.root();
-        // The root's parent carries the sheet-level (`define_var` /
-        // `:root`) variables; every element then inherits its parent's
-        // map and layers its own declarations on top.
-        let mut parent = ComputedStyle::initial();
-        parent.vars = merged_vars.clone();
-        // Full-tree cascade: `tree_has_positioned_pseudo` flags get
-        // written authoritatively, top-to-bottom. No bubble-up needed
-        // because the walk visits every ancestor.
-        let mut counters = walk::CounterState::default();
-        let mut scratch = walk::Scratch::default();
-        let _ = walk::cascade_subtree(self, &sheets, root, &parent, &mut counters, &mut scratch);
+        cascade_all_with(self, stylesheets, None);
     }
 
     fn cascade_subtrees(&mut self, stylesheet: &Stylesheet, roots: &[NodeId]) {
@@ -171,11 +163,46 @@ impl CascadeExt for Dom<TuiExt> {
     }
 
     fn cascade_subtrees_all(&mut self, stylesheets: &[&Stylesheet], roots: &[NodeId]) {
-        let sheets = walk::Sheets::new(stylesheets);
-        let merged_vars = walk::merge_root_vars(&sheets);
-        let uses_counters = stylesheets.iter().any(|s| {
-            s.rules().iter().any(|r| {
-                r.style.counter_reset.is_some()
+        cascade_subtrees_all_with(self, stylesheets, None, roots);
+    }
+}
+
+/// [`CascadeExt::cascade_all`] with the sheets' registrations already
+/// built (`None`: build them) — the `App` keeps one per stylesheet set.
+pub(crate) fn cascade_all_with(
+    dom: &mut Dom<TuiExt>,
+    stylesheets: &[&Stylesheet],
+    registry: Option<Rc<PropertyRegistry>>,
+) {
+    let sheets = walk::Sheets::new(stylesheets, registry);
+    let merged_vars = walk::merge_root_vars(&sheets);
+    let root = dom.root();
+    // The root's parent carries the sheet-level (`define_var` /
+    // `:root`) variables; every element then inherits its parent's
+    // map and layers its own declarations on top.
+    let mut parent = ComputedStyle::initial();
+    parent.vars = merged_vars.clone();
+    // Full-tree cascade: `tree_has_positioned_pseudo` flags get
+    // written authoritatively, top-to-bottom. No bubble-up needed
+    // because the walk visits every ancestor.
+    let mut counters = walk::CounterState::default();
+    let mut scratch = walk::Scratch::default();
+    let _ = walk::cascade_subtree(dom, &sheets, root, &parent, &mut counters, &mut scratch);
+}
+
+/// [`CascadeExt::cascade_subtrees_all`] with the sheets' registrations
+/// already built (`None`: build them).
+pub(crate) fn cascade_subtrees_all_with(
+    dom: &mut Dom<TuiExt>,
+    stylesheets: &[&Stylesheet],
+    registry: Option<Rc<PropertyRegistry>>,
+    roots: &[NodeId],
+) {
+    let sheets = walk::Sheets::new(stylesheets, registry);
+    let merged_vars = walk::merge_root_vars(&sheets);
+    let uses_counters = stylesheets.iter().any(|s| {
+        s.rules().iter().any(|r| {
+            r.style.counter_reset.is_some()
                     || r.style.counter_increment.is_some()
                     // A `var()` declaration may be any of these.
                     || r.style.has_pending()
@@ -184,72 +211,67 @@ impl CascadeExt for Dom<TuiExt> {
                         .as_ref()
                         .and_then(|c| c.as_specified())
                         .is_some_and(Content::uses_counters)
-            })
+        })
+    });
+    // A queued root can have been FREED between when it was marked
+    // dirty and now: dropping one child fires `ChildListChanged`, whose
+    // dirty-tracker handler marks every remaining sibling dirty (sibling
+    // selectors), and one of those siblings may itself be dropped later
+    // in the same teardown. A freed node has no subtree to cascade —
+    // skip it rather than dereferencing a reclaimed arena slot.
+    let mut live: Vec<NodeId> = roots.iter().copied().filter(|r| dom.contains(*r)).collect();
+    if live.is_empty() {
+        return;
+    }
+    let mut scratch = walk::Scratch::default();
+    if uses_counters {
+        // Counters make every root depend on everything before it in
+        // tree order. One pre-order walk carries the state, replays the
+        // stored ops of untouched elements and cascades each root when
+        // the walk reaches it, so an earlier root is recomputed before a
+        // later root's counters are read: O(N) for any number of roots,
+        // and correct after insertions (a fresh node has no stored ops
+        // to replay — its own cascade supplies them).
+        // Only roots inside the document take part: a detached
+        // subtree that was marked dirty (the previous demo of a
+        // swap, a removed row) renders nothing, and the walk from the
+        // document root would never reach it — it must not sit at the
+        // head of the queue and starve every root behind it.
+        let root = dom.root();
+        live.retain(|r| {
+            *r == root
+                || dom
+                    .compare_document_position(root, *r)
+                    .contains(rdom_core::DocumentPosition::CONTAINED_BY)
         });
-        // A queued root can have been FREED between when it was marked
-        // dirty and now: dropping one child fires `ChildListChanged`, whose
-        // dirty-tracker handler marks every remaining sibling dirty (sibling
-        // selectors), and one of those siblings may itself be dropped later
-        // in the same teardown. A freed node has no subtree to cascade —
-        // skip it rather than dereferencing a reclaimed arena slot.
-        let mut live: Vec<NodeId> = roots
-            .iter()
-            .copied()
-            .filter(|r| self.contains(*r))
-            .collect();
-        if live.is_empty() {
-            return;
-        }
-        let mut scratch = walk::Scratch::default();
-        if uses_counters {
-            // Counters make every root depend on everything before it in
-            // tree order. One pre-order walk carries the state, replays the
-            // stored ops of untouched elements and cascades each root when
-            // the walk reaches it, so an earlier root is recomputed before a
-            // later root's counters are read: O(N) for any number of roots,
-            // and correct after insertions (a fresh node has no stored ops
-            // to replay — its own cascade supplies them).
-            // Only roots inside the document take part: a detached
-            // subtree that was marked dirty (the previous demo of a
-            // swap, a removed row) renders nothing, and the walk from the
-            // document root would never reach it — it must not sit at the
-            // head of the queue and starve every root behind it.
-            let root = self.root();
-            live.retain(|r| {
-                *r == root
-                    || self
-                        .compare_document_position(root, *r)
-                        .contains(rdom_core::DocumentPosition::CONTAINED_BY)
-            });
-            live.sort_by(|a, b| tree_order(self, *a, *b));
-            live.dedup();
-            let mut next = 0usize;
-            let mut counters = walk::CounterState::default();
-            walk::cascade_roots_in_order(
-                self,
-                &sheets,
-                &merged_vars,
-                &live,
-                &mut next,
-                root,
-                &mut counters,
-                &mut scratch,
-            );
-            return;
-        }
-        for root in live {
-            let parent_computed = walk::parent_computed_for(self, root, &merged_vars);
-            let mut counters = walk::CounterState::default();
-            let flags = walk::cascade_subtree(
-                self,
-                &sheets,
-                root,
-                &parent_computed,
-                &mut counters,
-                &mut scratch,
-            );
-            walk::bubble_subtree_flags(self, root, flags);
-        }
+        live.sort_by(|a, b| tree_order(dom, *a, *b));
+        live.dedup();
+        let mut next = 0usize;
+        let mut counters = walk::CounterState::default();
+        walk::cascade_roots_in_order(
+            dom,
+            &sheets,
+            &merged_vars,
+            &live,
+            &mut next,
+            root,
+            &mut counters,
+            &mut scratch,
+        );
+        return;
+    }
+    for root in live {
+        let parent_computed = walk::parent_computed_for(dom, root, &merged_vars);
+        let mut counters = walk::CounterState::default();
+        let flags = walk::cascade_subtree(
+            dom,
+            &sheets,
+            root,
+            &parent_computed,
+            &mut counters,
+            &mut scratch,
+        );
+        walk::bubble_subtree_flags(dom, root, flags);
     }
 }
 

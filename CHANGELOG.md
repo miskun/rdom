@@ -83,6 +83,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed — `rdom-tui`
 
 - **The per-element cascade allocates less.** The rollback states `revert` / `revert-layer` read are allocated on the first such value, not per ladder; a pseudo-element no rule matches and with no legacy content computes nothing (it used to walk an empty ladder — five per element); an element with no declarations skips its ladder; and the match / sort / layer-rank / ladder buffers are kept for the whole cascade pass instead of five fresh sets per element. The C1-REVERT note that "a cascade without `revert` does no extra work" now holds. `cascade/walk.rs` is split into `walk`, `matching` and `pseudo`. (C1G-CASCADE-ALLOC)
+- **One property registry, built once per stylesheet change.** The cascade and the transition engine each rebuilt the "later registration wins" map of `@property` / `CSS.registerProperty` from the sheets on every cascade; an `App` now builds one when its sheets change and both read it. `AnimationRegistry::set_registered_properties` (new in this release) is crate-internal. A registered property an element does not declare is compared by reference before anything is copied. (C1G-REGISTERED-CLONES)
 
 ### Fixed — `rdom-tui`
 

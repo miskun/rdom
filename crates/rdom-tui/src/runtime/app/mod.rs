@@ -299,7 +299,7 @@ impl<B: Backend> App<B> {
         // matching element exists.
         crate::runtime::autofocus::focus_first_autofocus(&mut dom);
         let mut stylesheet_ids = stylesheets::StylesheetIdAllocator::default();
-        let app = Self {
+        let mut app = Self {
             dom,
             stylesheets: vec![(stylesheet_ids.allocate(), stylesheet)],
             prelude,
@@ -324,8 +324,7 @@ impl<B: Backend> App<B> {
             clipboard: Box::new(SystemClipboard::new()),
             url_opener,
         };
-        app.prelude
-            .sync_sibling_combinators(&app.tracker, &app.stylesheets);
+        app.prelude.sync_sheet_set(&app.tracker, &app.stylesheets);
         Ok(app)
     }
 

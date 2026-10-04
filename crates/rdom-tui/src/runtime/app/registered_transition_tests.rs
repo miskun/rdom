@@ -71,3 +71,43 @@ fn an_unrelated_restyle_mid_transition_starts_no_transition() {
         cancelled.borrow()
     );
 }
+
+/// `C1G-REGISTERED-CLONES`: the registrations ("later wins" over every
+/// sheet, Properties and Values 1 §3) are built once per stylesheet
+/// change and shared by the cascade and the transition engine — not
+/// rebuilt by every cascade, restyle or transition frame.
+#[test]
+fn registrations_are_built_once_per_stylesheet_change() {
+    use crate::style::cascade::registry_probe::take_builds;
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let div = dom.create_element("div");
+    dom.append_child(root, div).unwrap();
+    let sheet = rdom_css::parse(
+        "@property --c { syntax: '<color>'; inherits: true; initial-value: red } \
+         div { color: var(--c); transition: all 1s linear } \
+         div.on { --c: blue }",
+    );
+    let mut app = App::with_backend(
+        dom,
+        Stylesheet::new(),
+        Terminal::new(TestBackend::new(10, 3)).unwrap(),
+    )
+    .unwrap();
+    app.push_stylesheet(sheet.stylesheet);
+    app.advance(0).unwrap();
+    take_builds();
+    // Restyles and transition frames: no sheet changed.
+    app.dom_mut().set_attribute(div, "class", "on").unwrap();
+    app.advance(0).unwrap();
+    std::thread::sleep(Duration::from_millis(20));
+    app.advance(0).unwrap();
+    app.dom_mut().set_attribute(div, "class", "on x").unwrap();
+    app.advance(0).unwrap();
+    assert_eq!(take_builds(), 0, "no sheet changed");
+    // A sheet change rebuilds them, once.
+    app.push_stylesheet(Stylesheet::bare());
+    app.advance(0).unwrap();
+    app.advance(0).unwrap();
+    assert_eq!(take_builds(), 1, "one sheet change");
+}

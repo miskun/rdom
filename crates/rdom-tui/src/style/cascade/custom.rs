@@ -8,7 +8,7 @@
 use std::collections::{HashMap, HashSet};
 
 use super::ladder::{Declarations, Plan, Rollback, Step};
-use super::registered::Registry;
+use super::registered::PropertyRegistry;
 use crate::style::ComputedStyle;
 
 type Map = HashMap<String, String>;
@@ -22,7 +22,7 @@ pub(super) fn apply_custom_properties(
     working: &mut ComputedStyle,
     plan: &Plan,
     decls: Declarations<'_>,
-    registry: &Registry,
+    registry: &PropertyRegistry,
     transitions: Option<&Map>,
 ) {
     let inherited = working.vars.clone();
@@ -71,7 +71,7 @@ fn apply_transitions(
     working: &mut ComputedStyle,
     inherited: &Map,
     declared: &HashSet<&str>,
-    registry: &Registry,
+    registry: &PropertyRegistry,
     transitions: Option<&Map>,
 ) {
     let parent = working.animated_vars.take();
@@ -107,7 +107,7 @@ fn put_step(
     decls: Declarations<'_>,
     inherited: &Map,
     rollback: &Rollback<'_, Map>,
-    registry: &Registry,
+    registry: &PropertyRegistry,
 ) {
     for style in decls.of(step) {
         for d in &style.custom_properties {

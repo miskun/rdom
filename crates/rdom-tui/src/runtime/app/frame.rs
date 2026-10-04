@@ -12,6 +12,7 @@
 //! tree.
 
 use std::io;
+use std::rc::Rc;
 
 use rdom_core::NodeId;
 
@@ -22,7 +23,8 @@ use crate::TuiDom;
 use crate::render::backend::Backend;
 use crate::render::{LayoutExt, PaintExt, Rect};
 use crate::runtime::animation::AnimationRegistry;
-use crate::style::{CascadeExt, Stylesheet};
+use crate::style::Stylesheet;
+use crate::style::cascade::{PropertyRegistry, cascade_all_with, cascade_subtrees_all_with};
 
 impl<B: Backend> App<B> {
     /// Run the frame prelude (`prelude::FramePrelude::run`: the
@@ -70,10 +72,18 @@ impl<B: Backend> App<B> {
 
         let dom = &mut self.dom;
         let sheets = self.prelude.cascade_order(&self.stylesheets);
+        let registry = &self.prelude.registry;
         let animations = &mut self.animations;
         let mut pass = Pass::default();
         self.terminal.draw(|buf| {
-            pass = style_and_layout(dom, &sheets, animations, redraw, &dirty_roots, buf.area);
+            pass = style_and_layout(
+                dom,
+                (&sheets, registry),
+                animations,
+                redraw,
+                &dirty_roots,
+                buf.area,
+            );
             dom.paint_dom(buf, buf.area);
             Ok(())
         })?;
@@ -177,7 +187,7 @@ impl<B: Backend> App<B> {
         let sheets = self.prelude.cascade_order(&self.stylesheets);
         let pass = style_and_layout(
             &mut self.dom,
-            &sheets,
+            (&sheets, &self.prelude.registry),
             &mut self.animations,
             redraw,
             &dirty_roots,
@@ -240,7 +250,7 @@ struct Pass {
 /// inside `Terminal::draw` while the terminal is borrowed.
 fn style_and_layout(
     dom: &mut TuiDom,
-    sheets: &[&Stylesheet],
+    (sheets, registry): (&[&Stylesheet], &Rc<PropertyRegistry>),
     animations: &mut AnimationRegistry,
     redraw: Redraw,
     dirty_roots: &[NodeId],
@@ -248,16 +258,16 @@ fn style_and_layout(
 ) -> Pass {
     let now = std::time::Instant::now();
     let cascade = if redraw == Redraw::Cascade {
-        dom.cascade_all(sheets);
+        cascade_all_with(dom, sheets, Some(registry.clone()));
         Some(CascadeScope::Full)
     } else if !dirty_roots.is_empty() {
-        dom.cascade_subtrees_all(sheets, dirty_roots);
+        cascade_subtrees_all_with(dom, sheets, Some(registry.clone()), dirty_roots);
         Some(CascadeScope::Subtrees)
     } else {
         None
     };
     if cascade.is_some() {
-        animations.set_registered_properties(sheets);
+        animations.set_registered_properties(registry.clone());
         crate::runtime::animation::diff_and_register(dom, animations, now);
     }
     let laid_out = cascade.is_some() || redraw >= Redraw::Layout;
@@ -267,7 +277,7 @@ fn style_and_layout(
         // `var()` consumers through the cascade.
         let restyle = animations.take_restyle();
         if !restyle.is_empty() {
-            dom.cascade_subtrees_all(sheets, &restyle);
+            cascade_subtrees_all_with(dom, sheets, Some(registry.clone()), &restyle);
             // The animated result is the before-change style of the
             // next style change (CSS Transitions 1 §3).
             crate::runtime::animation::settle_restyled(dom, &restyle);
