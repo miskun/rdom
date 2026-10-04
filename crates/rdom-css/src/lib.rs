@@ -21,6 +21,7 @@ mod declarations;
 mod import;
 mod layer;
 mod property;
+mod root_vars;
 mod scope;
 mod top_level;
 
@@ -194,6 +195,7 @@ fn parse_in(source: &str, loader: Option<&dyn ImportLoader>, url: Option<&str>) 
     let mut warnings = Vec::new();
     let mut imports = import::Imports::new(loader, url);
     top_level::parse_stylesheet(&mut cursor, &mut sheet, &mut warnings, &mut imports);
+    root_vars::mirror_root_vars(&mut sheet);
     ParseResult {
         stylesheet: sheet,
         warnings,

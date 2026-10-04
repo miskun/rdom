@@ -325,3 +325,9 @@ row comes from.
   sets each `<style>` sheet's owner) keeps prelude-less `@scope` roots;
   `extend_from_style_tags_with_loader`. The `App`'s `<style>` sheets have no URL, so their imports
   get no base (decided: an inline sheet's base would be the document URL, which rdom has none of).
+- 2026-10-04 — C1G-ROOT-SEED: the `:root` mirror is computed after the parse in cascade order
+  (`rdom-css/src/root_vars.rs`) instead of eagerly per block; DESIGN's "published twice" section
+  rewritten. Found: `:root` matches the tree's root node, which has no computed style, so the
+  mirror is the only path by which `:root` custom properties reach elements — the gate's "the
+  cascaded root `--c` is blue" did not hold; every element saw the mirror's `red`. Cross-sheet
+  layer / importance precedence of the seed stays last-sheet-wins (accepted, DESIGN).

@@ -106,7 +106,9 @@ fn custom_property_under_any_selector_stays_on_the_rule() {
 }
 
 /// `:root` inside a selector list is one rule for every selector; the
-/// declaration rides on the rule and the sheet-level map is untouched.
+/// declaration rides on each rule, and the `:root` one is mirrored into
+/// the sheet-level map like a lone `:root` rule (`C1G-ROOT-SEED`: the
+/// mirror is the `:root` rules in cascade order, list items included).
 #[test]
 fn root_in_a_selector_list_keeps_the_declaration_on_the_rule() {
     let r = parse(":root, body { --accent: red }");
@@ -117,6 +119,7 @@ fn root_in_a_selector_list_keeps_the_declaration_on_the_rule() {
             .iter()
             .all(|rule| rule.style.custom_property_value("accent") == Some("red"))
     );
+    assert_eq!(r.stylesheet.var("accent"), Some("red"));
 }
 
 /// A `style="--x: …"` attribute declares the property on that element.
@@ -129,5 +132,85 @@ fn inline_custom_property_is_kept() {
     assert_eq!(
         (d.name.as_str(), d.value.as_str(), d.important),
         ("accent", "red", true)
+    );
+}
+
+// ── `:root` mirror in cascade order (C1G-ROOT-SEED) ─────────────────
+//
+// The mirror into `Stylesheet::vars()` is what every element inherits
+// as the `:root` values, so it must follow the cascade: CSS Cascade 5 §6.4 (unlayered beats layered for
+// normal declarations, later layers beat earlier ones, reversed for
+// `!important`) and Cascade 4 §6.4 (important beats normal, then order
+// of appearance — imported rules come at the import's position).
+
+fn mirrored(css: &str) -> Option<String> {
+    let loader = |url: &str| match url {
+        "x.css" => Ok(":root { --c: red }".to_string()),
+        other => Err(format!("no {other}")),
+    };
+    let r = rdom_css::parse_with_loader(css, &loader);
+    assert!(r.warnings.is_empty(), "{:?}", r.warnings);
+    let mirrored = r.stylesheet.var("c").map(str::to_string);
+    // The document's elements see the same value: `:root` matches the
+    // tree's root node, whose custom properties every element inherits
+    // through the sheet-level map.
+    use rdom_tui::CascadeExt;
+    let mut dom: rdom_tui::TuiDom = rdom_tui::TuiDom::new();
+    let root = dom.root();
+    let html = dom.create_element("html");
+    dom.append_child(root, html).unwrap();
+    dom.cascade(&r.stylesheet);
+    let cascaded = rdom_tui::style::cascade::computed_of(&dom, html)
+        .vars
+        .get("c")
+        .cloned();
+    assert_eq!(mirrored, cascaded, "mirror vs elements for {css}");
+    mirrored
+}
+
+#[test]
+fn unlayered_root_beats_a_layered_one() {
+    assert_eq!(
+        mirrored(":root { --c: blue } @layer a { :root { --c: red } }").as_deref(),
+        Some("blue")
+    );
+}
+
+#[test]
+fn a_later_layer_beats_an_earlier_one() {
+    assert_eq!(
+        mirrored("@layer b, a; @layer a { :root { --c: red } } @layer b { :root { --c: green } }")
+            .as_deref(),
+        Some("red")
+    );
+}
+
+#[test]
+fn important_beats_a_later_normal_declaration() {
+    assert_eq!(
+        mirrored(":root { --c: blue !important } :root { --c: red }").as_deref(),
+        Some("blue")
+    );
+    assert_eq!(
+        mirrored("@layer a { :root { --c: red !important } } :root { --c: blue !important }")
+            .as_deref(),
+        Some("red"),
+        "important layered beats important unlayered"
+    );
+}
+
+#[test]
+fn imported_roots_sit_at_the_import() {
+    assert_eq!(
+        mirrored("@import 'x.css'; :root { --c: blue }").as_deref(),
+        Some("blue")
+    );
+    assert_eq!(
+        mirrored("@import 'x.css' layer(l); :root { --c: blue }").as_deref(),
+        Some("blue")
+    );
+    assert_eq!(
+        mirrored("@import 'x.css' layer(l);").as_deref(),
+        Some("red")
     );
 }

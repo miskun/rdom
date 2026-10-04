@@ -71,11 +71,10 @@ pub(crate) fn consume_style_rule(
     match consume_rule_head(cursor, warnings, ctx) {
         Head::End => false,
         Head::Dropped => true,
-        Head::Rule(selector, root_vars) => {
+        Head::Rule(selector) => {
             let block = Block {
                 selector: &selector,
                 ctx: ctx.rule,
-                root_vars,
                 children: Children::Nested,
             };
             consume_block_contents(cursor, sheet, warnings, block, true);
@@ -86,9 +85,8 @@ pub(crate) fn consume_style_rule(
 
 /// A style rule's prelude, consumed through its `{`.
 enum Head {
-    /// A valid rule; the cursor is just inside its block. The flag
-    /// marks a top-level `:root` rule (`Block::root_vars`).
-    Rule(StyleSelector, bool),
+    /// A valid rule; the cursor is just inside its block.
+    Rule(StyleSelector),
     /// No rule: an invalid selector (its block skipped, warned), or —
     /// nested — an item that ended at `;` / `}` before a block.
     Dropped,
@@ -127,9 +125,7 @@ fn consume_rule_head(cursor: &mut Cursor, warnings: &mut Vec<Warning>, ctx: Cont
         Parent::Scope => StyleSelector::parse_scoped(text),
     };
     match selector {
-        Ok(selector) if !text.is_empty() => {
-            Head::Rule(selector, !nested && text.eq_ignore_ascii_case(":root"))
-        }
+        Ok(selector) if !text.is_empty() => Head::Rule(selector),
         result => {
             if result.is_err() && !text.is_empty() {
                 warnings.push(Warning {
@@ -151,9 +147,6 @@ struct Block<'a> {
     ctx: RuleContext,
     /// How the block's nested style rules parse their selectors.
     children: Children,
-    /// A top-level `:root` rule: its custom properties are also the
-    /// sheet's root variables (`Stylesheet::vars`).
-    root_vars: bool,
 }
 
 /// CSS Syntax 3 "consume a block's contents", from just inside `{`
@@ -209,14 +202,13 @@ fn consume_block_contents(
                 match consume_rule_head(cursor, warnings, ctx) {
                     Head::End => break,
                     Head::Dropped => {}
-                    Head::Rule(selector, _) => {
+                    Head::Rule(selector) => {
                         // Only a rule that parses ends the run of
                         // declarations before it.
                         flush(sheet, warnings, block, &mut run, &mut pending_own);
                         let child = Block {
                             selector: &selector,
                             ctx: block.ctx,
-                            root_vars: false,
                             children: Children::Nested,
                         };
                         consume_block_contents(cursor, sheet, warnings, child, true);
@@ -245,11 +237,6 @@ fn flush(
         None => return,
     }
     *pending_own = false;
-    if block.root_vars {
-        for d in &style.custom_properties {
-            sheet.define_var_mut(&d.name, &d.value);
-        }
-    }
     sheet.add_style_rule(block.selector, style, block.ctx);
 }
 
@@ -271,7 +258,6 @@ fn consume_nested_at_rule(
                         layer: Option<LayerId>| {
             let inner = Block {
                 ctx: block.ctx.in_layer(layer),
-                root_vars: false,
                 ..block
             };
             consume_block_contents(cursor, sheet, warnings, inner, false);
@@ -322,7 +308,6 @@ pub(crate) fn consume_scope_body(
     let block = Block {
         selector: &root,
         ctx,
-        root_vars: false,
         children: Children::Scoped,
     };
     consume_block_contents(cursor, sheet, warnings, block, false);
