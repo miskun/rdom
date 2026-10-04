@@ -17,7 +17,7 @@ use crate::style::{ComputedStyle, PseudoElementTarget, VarMap};
 use super::apply::{finalize_bfc_formation, finalize_border_fg};
 use super::content::resolve_content_on;
 pub(super) use super::counters::CounterState;
-use super::counters::StoredOps;
+use super::counters::{StoredOps, has_ops, takes_part};
 use super::inherit::{inherit_inheritable_from, layout_differs};
 use super::ladder::{Declarations, apply_cascade_ladder, prepare};
 pub(super) use super::matching::Scratch;
@@ -75,107 +75,6 @@ pub(super) fn merge_root_vars(dom: &Dom<TuiExt>, sheets: &Sheets<'_>) -> VarMap 
     std::rc::Rc::new(merged)
 }
 
-/// The computed style a subtree root inherits from: its parent's, or
-/// the initial style seeded with the sheet-level variables when the
-/// parent is the fragment root.
-pub(super) fn parent_computed_for(
-    dom: &Dom<TuiExt>,
-    root: NodeId,
-    merged_vars: &VarMap,
-) -> std::rc::Rc<ComputedStyle> {
-    dom.node(root)
-        .parent_node()
-        .and_then(|p| p.ext().and_then(|e| e.computed.clone()))
-        .unwrap_or_else(|| {
-            let mut initial = ComputedStyle::initial();
-            initial.vars = merged_vars.clone();
-            std::rc::Rc::new(initial)
-        })
-}
-
-/// If a partial cascade introduced a positioned pseudo or a
-/// `border-collapse: collapse` element anywhere in `root`'s subtree,
-/// bubble `true` up through the ancestors so the document-level
-/// early-exit checks don't stale-`false`. Never bubbles `false` — that
-/// would require seeing every ancestor's other subtrees.
-pub(super) fn bubble_subtree_flags(dom: &mut Dom<TuiExt>, root: NodeId, flags: SubtreeFlags) {
-    if !(flags.has_positioned_pseudo || flags.has_collapse) {
-        return;
-    }
-    let mut cur = dom.node(root).parent_node().map(|p| p.id());
-    while let Some(p) = cur {
-        if let Some(ext) = dom.node_mut(p).ext_mut() {
-            if flags.has_positioned_pseudo {
-                ext.tree_has_positioned_pseudo = true;
-            }
-            if flags.has_collapse {
-                ext.tree_has_collapse = true;
-            }
-        }
-        cur = dom.node(p).parent_node().map(|n| n.id());
-    }
-}
-
-/// Pre-order walk from `id` that cascades each of `roots` (sorted in
-/// tree order) when it reaches it and replays the stored counter ops of
-/// every element in between, so counters are exact for all roots in one
-/// pass. Roots nested inside an earlier root are covered by it and
-/// skipped. Stops after the last root.
-#[allow(clippy::too_many_arguments)]
-pub(super) fn cascade_roots_in_order<'a>(
-    dom: &mut Dom<TuiExt>,
-    sheets: &Sheets<'a>,
-    merged_vars: &VarMap,
-    roots: &[NodeId],
-    next: &mut usize,
-    id: NodeId,
-    counters: &mut CounterState,
-    scratch: &mut Scratch<'a>,
-    mode: Mode,
-) {
-    if *next >= roots.len() {
-        return;
-    }
-    if id == roots[*next] {
-        let parent_computed = parent_computed_for(dom, id, merged_vars);
-        let flags = cascade_subtree(dom, sheets, id, &parent_computed, counters, scratch, mode);
-        bubble_subtree_flags(dom, id, flags);
-        *next += 1;
-        // Roots inside this subtree were just cascaded with it.
-        while *next < roots.len()
-            && dom
-                .compare_document_position(id, roots[*next])
-                .contains(rdom_core::DocumentPosition::CONTAINED_BY)
-        {
-            *next += 1;
-        }
-        return;
-    }
-    let parent_id = dom.node(id).parent_node().map(|p| p.id());
-    // An element between roots keeps its computed styles; replay their
-    // counter ops around the walk into its children.
-    let ops = StoredOps::of(dom, id);
-    let children: Vec<NodeId> = dom.node(id).child_nodes().map(|n| n.id()).collect();
-    counters.replay_element(parent_id, id, &ops, |counters| {
-        for child in children {
-            cascade_roots_in_order(
-                dom,
-                sheets,
-                merged_vars,
-                roots,
-                next,
-                child,
-                counters,
-                scratch,
-                mode,
-            );
-            if *next >= roots.len() {
-                break;
-            }
-        }
-    });
-}
-
 /// Bottom-up flags aggregated up the tree during cascade. Each
 /// flag mirrors a `TuiExt` field that layout / paint use to skip
 /// walks when nothing in the subtree needs them.
@@ -183,13 +82,37 @@ pub(super) fn cascade_roots_in_order<'a>(
 pub(super) struct SubtreeFlags {
     pub has_positioned_pseudo: bool,
     pub has_collapse: bool,
+    /// `TuiExt::tree_has_counters`.
+    pub has_counters: bool,
 }
 
 impl SubtreeFlags {
     fn merge(&mut self, other: SubtreeFlags) {
         self.has_positioned_pseudo |= other.has_positioned_pseudo;
         self.has_collapse |= other.has_collapse;
+        self.has_counters |= other.has_counters;
     }
+
+    /// The flags `id` recorded at its last cascade.
+    fn stored(dom: &Dom<TuiExt>, id: NodeId) -> Self {
+        let ext = dom.node(id).ext();
+        SubtreeFlags {
+            has_positioned_pseudo: ext.is_some_and(|e| e.tree_has_positioned_pseudo),
+            has_collapse: ext.is_some_and(|e| e.tree_has_collapse),
+            has_counters: ext.is_some_and(|e| e.tree_has_counters),
+        }
+    }
+}
+
+/// `id`'s first child.
+pub(super) fn first_child(dom: &Dom<TuiExt>, id: NodeId) -> Option<NodeId> {
+    dom.node(id).first_child().map(|n| n.id())
+}
+
+/// `id`'s next sibling. The walks step through children with these
+/// rather than collecting them: a cascade changes no tree structure.
+pub(super) fn next_sibling(dom: &Dom<TuiExt>, id: NodeId) -> Option<NodeId> {
+    dom.node(id).next_sibling().map(|n| n.id())
 }
 
 /// How a subtree walk gets each element's rules.
@@ -249,10 +172,8 @@ pub(super) fn cascade_subtree<'a>(
     scratch: &mut Scratch<'a>,
     mode: Mode,
 ) -> SubtreeFlags {
-    // Collect child ids up-front; mutations below don't change structure
-    // but borrow rules need shared → exclusive swap.
-    let child_ids: Vec<NodeId> = dom.node(id).child_nodes().map(|n| n.id()).collect();
-
+    #[cfg(test)]
+    probe::visit();
     // Non-element nodes (text / comment / fragment): still recurse so
     // their element children get cascaded — the root is a Fragment by
     // default — but don't compute style for them (TuiExt only carries
@@ -261,16 +182,18 @@ pub(super) fn cascade_subtree<'a>(
     let is_element = dom.node(id).node_type() == NodeType::Element;
     if !is_element {
         let mut flags = SubtreeFlags::default();
-        for child in child_ids {
+        let mut child = first_child(dom, id);
+        while let Some(c) = child {
             flags.merge(cascade_subtree(
                 dom,
                 sheets,
-                child,
+                c,
                 parent_computed,
                 counters,
                 scratch,
                 mode,
             ));
+            child = next_sibling(dom, c);
         }
         counters.exit(id);
         return flags;
@@ -287,6 +210,8 @@ pub(super) fn cascade_subtree<'a>(
 
     let mut recorder = Recorder::new(recorded.clone(), mode == Mode::Restyle);
     let parent_id = dom.node(id).parent_node().map(|p| p.id());
+    // Track this element's counter reads (`TuiExt::reads_counters`).
+    counters.take_read();
 
     let computed = {
         let mut cx = ElementCx {
@@ -305,22 +230,39 @@ pub(super) fn cascade_subtree<'a>(
         )
     };
     let previous = dom.node(id).ext().and_then(|e| e.computed.clone());
-    if mode == Mode::Restyle && previous.as_deref() == Some(&computed) {
+    // Counter values before this element moved and its boxes read one:
+    // they must be recomputed even when the element's style is unchanged.
+    let reads_moved_counters =
+        counters.is_changed() && dom.node(id).ext().is_some_and(|e| e.reads_counters);
+    if mode == Mode::Restyle && previous.as_deref() == Some(&computed) && !reads_moved_counters {
         // Nothing this element passes down changed: its boxes and its
         // subtree keep their styles.
         if let Some(ext) = dom.node_mut(id).ext_mut() {
             ext.matched = Some(recorder.finish(sheets));
         }
         // Its own ops were applied computing it; its boxes and its
-        // subtree are replayed.
+        // subtree are replayed — except, once counter values moved, the
+        // children that take part in counters: they may read one.
         let ops = StoredOps::pseudos_of(dom, id);
-        counters.replay_element(parent_id, id, &ops, |c| c.replay_children(dom, id));
-        let ext = dom.node(id).ext();
-        return SubtreeFlags {
-            has_positioned_pseudo: ext.is_some_and(|e| e.tree_has_positioned_pseudo),
-            has_collapse: ext.is_some_and(|e| e.tree_has_collapse),
-        };
+        let mut flags = SubtreeFlags::stored(dom, id);
+        if counters.is_changed() && flags.has_counters {
+            counters.replay_element(parent_id, id, &ops, |counters| {
+                let mut child = first_child(dom, id);
+                while let Some(c) = child {
+                    if takes_part(dom, c) {
+                        flags.merge(cascade_subtree(
+                            dom, sheets, c, &computed, counters, scratch, mode,
+                        ));
+                    }
+                    child = next_sibling(dom, c);
+                }
+            });
+        } else {
+            counters.replay_element(parent_id, id, &ops, |c| c.replay_children(dom, id));
+        }
+        return flags;
     }
+    counters.note_ops(previous.as_deref(), Some(&computed));
 
     // Compute under a shared borrow. `::after` is computed after the
     // children (below): it sits after them in tree order, so a
@@ -378,6 +320,15 @@ pub(super) fn cascade_subtree<'a>(
         };
         (cb, cbd, csel, csb, csbt_v, csbt_h)
     };
+    let mut reads_counters = counters.take_read();
+    // `::before` comes before the children: a changed op there moves
+    // their counters.
+    counters.note_ops(
+        dom.node(id)
+            .ext()
+            .and_then(|e| e.computed_before.as_deref()),
+        computed_before.as_ref(),
+    );
 
     // Diff for layout invalidation. "No previous computed" counts as a
     // change (first cascade).
@@ -405,12 +356,17 @@ pub(super) fn cascade_subtree<'a>(
     let mut flags = SubtreeFlags {
         has_positioned_pseudo: false,
         has_collapse: computed.border_collapse == crate::layout::BorderCollapse::Collapse,
+        has_counters: false,
     };
-    for child in child_ids {
+    let mut child = first_child(dom, id);
+    while let Some(c) = child {
         flags.merge(cascade_subtree(
-            dom, sheets, child, &computed, counters, scratch, mode,
+            dom, sheets, c, &computed, counters, scratch, mode,
         ));
+        child = next_sibling(dom, c);
     }
+    // A kept child leaves its own reads behind: only `::after`'s count.
+    counters.take_read();
 
     // `::after` comes after the children in tree order.
     let computed_after = {
@@ -425,6 +381,7 @@ pub(super) fn cascade_subtree<'a>(
             compute_pseudo_style(cx, &computed, &[PseudoElementTarget::After], rules)
         })
     };
+    reads_counters |= counters.take_read();
     counters.exit(id);
     let own_has_positioned_pseudo = computed_before
         .as_ref()
@@ -434,12 +391,20 @@ pub(super) fn cascade_subtree<'a>(
             .is_some_and(|c| c.position != Position::Static);
     flags.has_positioned_pseudo |= own_has_positioned_pseudo;
 
+    flags.has_counters |= reads_counters
+        || has_ops(&computed)
+        || computed_before.as_ref().is_some_and(has_ops)
+        || computed_after.as_ref().is_some_and(has_ops);
+
     // Write the bottom-up aggregates.
     if let Some(ext) = dom.node_mut(id).ext_mut() {
+        counters.note_ops(ext.computed_after.as_deref(), computed_after.as_ref());
         ext.computed_before = computed_before.map(std::rc::Rc::new);
         ext.computed_after = computed_after.map(std::rc::Rc::new);
         ext.tree_has_positioned_pseudo = flags.has_positioned_pseudo;
         ext.tree_has_collapse = flags.has_collapse;
+        ext.tree_has_counters = flags.has_counters;
+        ext.reads_counters = reads_counters;
         ext.matched = Some(recorder.finish(sheets));
     }
     flags
@@ -532,4 +497,21 @@ fn compute_element_style(
     working.resolve_viewport_units(sheets.viewport());
 
     working
+}
+
+/// Test-only: how many nodes the cascade's walks visited on this thread
+/// (cascaded, or walked to replay their counter ops).
+#[cfg(test)]
+pub(super) mod probe {
+    thread_local! {
+        static VISITS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    }
+
+    pub fn visit() {
+        VISITS.with(|c| c.set(c.get() + 1));
+    }
+
+    pub fn take() -> usize {
+        VISITS.with(|c| c.replace(0))
+    }
 }

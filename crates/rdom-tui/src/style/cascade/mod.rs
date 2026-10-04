@@ -40,6 +40,8 @@
 //!
 //! - `walk` — `cascade_subtree`, `compute_element_style`. The tree
 //!   recursion lives here.
+//! - `subtrees` — partial cascades over a set of roots, and the ordered
+//!   walk that keeps counters exact (`counters`) across them.
 //! - `matching` — the rules matching one element or pseudo-element, in
 //!   cascade order; its buffers are reused for a whole pass.
 //! - `pseudo` — `compute_pseudo_style` (`::before`, `::after`, …).
@@ -79,6 +81,7 @@ pub(crate) use registered::probe as registry_probe;
 pub(crate) use viewport::{document_viewport, set_document_viewport};
 mod scope;
 mod sheets;
+mod subtrees;
 mod viewport;
 mod walk;
 
@@ -108,7 +111,7 @@ use std::rc::Rc;
 use rdom_core::{Dom, NodeId};
 
 use crate::ext::TuiExt;
-use crate::style::{ComputedStyle, Content, Stylesheet};
+use crate::style::{ComputedStyle, Stylesheet};
 use rdom_style::calc::Viewport;
 
 // ─── Public entry point ─────────────────────────────────────────────
@@ -236,137 +239,25 @@ pub(crate) fn cascade_subtrees_all_with(
     registry: Option<Rc<PropertyRegistry>>,
     roots: &[NodeId],
 ) {
-    subtrees(dom, stylesheets, registry, roots, walk::Mode::Cascade);
+    subtrees::subtrees(dom, stylesheets, registry, roots, walk::Mode::Cascade);
 }
 
 /// Restyle the subtrees at `roots` after a change no selector can see —
 /// a registered custom property's animated value moving
 /// (`runtime::animation`, CSS Properties and Values 1 §6.2): each
 /// element's recorded matches are reused (`walk::Mode::Restyle`), and
-/// an element whose style comes out unchanged keeps its subtree. With
-/// counters in play every root depends on the elements before it, so
-/// that case cascades in full.
+/// an element whose style comes out unchanged keeps its subtree. A root
+/// whose counter ops move (`counter-increment: c var(--step)`) moves the
+/// counters after it, and the elements after it that read one are
+/// restyled too (`subtrees`). Returns the roots of every subtree it
+/// restyled.
 pub(crate) fn restyle_vars(
     dom: &mut Dom<TuiExt>,
     stylesheets: &[&Stylesheet],
     registry: Rc<PropertyRegistry>,
     roots: &[NodeId],
-) {
-    subtrees(dom, stylesheets, Some(registry), roots, walk::Mode::Restyle);
-}
-
-fn subtrees(
-    dom: &mut Dom<TuiExt>,
-    stylesheets: &[&Stylesheet],
-    registry: Option<Rc<PropertyRegistry>>,
-    roots: &[NodeId],
-    mode: walk::Mode,
-) {
-    let sheets = walk::Sheets::new(stylesheets, registry, document_viewport(dom));
-    let merged_vars = walk::merge_root_vars(dom, &sheets);
-    let uses_counters = uses_counters(stylesheets);
-    // A queued root can have been FREED between when it was marked
-    // dirty and now: dropping one child fires `ChildListChanged`, whose
-    // dirty-tracker handler marks every remaining sibling dirty (sibling
-    // selectors), and one of those siblings may itself be dropped later
-    // in the same teardown. A freed node has no subtree to cascade —
-    // skip it rather than dereferencing a reclaimed arena slot.
-    let mut live: Vec<NodeId> = roots.iter().copied().filter(|r| dom.contains(*r)).collect();
-    if live.is_empty() {
-        return;
-    }
-    let mut scratch = walk::Scratch::default();
-    if uses_counters {
-        // Counters make every root depend on everything before it in
-        // tree order. One pre-order walk carries the state, replays the
-        // stored ops of untouched elements and cascades each root when
-        // the walk reaches it, so an earlier root is recomputed before a
-        // later root's counters are read: O(N) for any number of roots,
-        // and correct after insertions (a fresh node has no stored ops
-        // to replay — its own cascade supplies them).
-        // Only roots inside the document take part: a detached
-        // subtree that was marked dirty (the previous demo of a
-        // swap, a removed row) renders nothing, and the walk from the
-        // document root would never reach it — it must not sit at the
-        // head of the queue and starve every root behind it.
-        let root = dom.root();
-        live.retain(|r| {
-            *r == root
-                || dom
-                    .compare_document_position(root, *r)
-                    .contains(rdom_core::DocumentPosition::CONTAINED_BY)
-        });
-        live.sort_by(|a, b| tree_order(dom, *a, *b));
-        live.dedup();
-        let mut next = 0usize;
-        let mut counters = walk::CounterState::exact();
-        walk::cascade_roots_in_order(
-            dom,
-            &sheets,
-            &merged_vars,
-            &live,
-            &mut next,
-            root,
-            &mut counters,
-            &mut scratch,
-            mode,
-        );
-        return;
-    }
-    for root in live {
-        let parent_computed = walk::parent_computed_for(dom, root, &merged_vars);
-        let mut counters = walk::CounterState::default();
-        let flags = walk::cascade_subtree(
-            dom,
-            &sheets,
-            root,
-            &parent_computed,
-            &mut counters,
-            &mut scratch,
-            mode,
-        );
-        walk::bubble_subtree_flags(dom, root, flags);
-    }
-}
-
-/// Can any rule of `stylesheets` create, increment or read a counter
-/// (CSS Lists 3 §3)? Then every subtree root depends on the elements
-/// before it in tree order. A `var()` declaration counts when it is one
-/// of those properties (or `all`): only its substitution can tell.
-fn uses_counters(stylesheets: &[&Stylesheet]) -> bool {
-    stylesheets.iter().any(|s| {
-        s.rules().iter().any(|r| {
-            r.style.counter_reset.is_some()
-                || r.style.counter_increment.is_some()
-                || r.style.pending.iter().any(|d| {
-                    d.has_var
-                        && matches!(
-                            d.name.as_str(),
-                            "counter-reset" | "counter-increment" | "content" | "all"
-                        )
-                })
-                || r.style
-                    .content
-                    .as_ref()
-                    .and_then(|c| c.as_specified())
-                    .is_some_and(Content::uses_counters)
-        })
-    })
-}
-
-/// Tree order (DOM §4.2.1) for two live nodes; equal only for the same node.
-fn tree_order(dom: &Dom<TuiExt>, a: NodeId, b: NodeId) -> std::cmp::Ordering {
-    use rdom_core::DocumentPosition;
-    use std::cmp::Ordering;
-    if a == b {
-        return Ordering::Equal;
-    }
-    let pos = dom.compare_document_position(a, b);
-    if pos.contains(DocumentPosition::FOLLOWING) {
-        Ordering::Less
-    } else {
-        Ordering::Greater
-    }
+) -> Vec<NodeId> {
+    subtrees::subtrees(dom, stylesheets, Some(registry), roots, walk::Mode::Restyle)
 }
 
 // ─── Small helper re-exported for test support ──────────────────────

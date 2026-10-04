@@ -197,6 +197,19 @@ pub struct TuiExt {
     /// bubbles up so the flag never stale-`false`s.
     pub tree_has_collapse: bool,
 
+    /// Bottom-up flag: `true` when this element, its pseudo-elements or
+    /// any descendant creates, increments or reads a counter (CSS Lists 3
+    /// §3) — as of its last cascade. A partial walk that must keep
+    /// counters exact skips a subtree without one: it neither changes nor
+    /// reads any counter. Conservative like `tree_has_collapse` (a
+    /// subtree that drops its counters may leave ancestors stale-`true`).
+    pub(crate) tree_has_counters: bool,
+
+    /// `true` when this element's own `content` or one of its
+    /// pseudo-elements' read a counter (`counter()`), as of its last
+    /// cascade: a walk whose counter values moved before it recomputes it.
+    pub(crate) reads_counters: bool,
+
     // ── Inline layout (populated when this is an IFC block) ───────────
     /// Line-packed layout of inline content. `Some` for elements that
     /// establish an inline formatting context; `None` otherwise. Used

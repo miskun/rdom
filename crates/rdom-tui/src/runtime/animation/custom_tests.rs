@@ -240,3 +240,50 @@ fn registered_angle_transition_between_infinities_stays_finite() {
     frame(&mut dom, &mut reg, &to, start + Duration::from_millis(100));
     assert_eq!(computed(&dom, div).width, crate::layout::Size::Fixed(15));
 }
+
+/// `C2G-RESTYLE-WALK` — CSS Lists 3 §3.1: a counter's value at an element
+/// is the sum of the increments before it in tree order, so a transitioning
+/// `--step` feeding `counter-increment: c var(--step)` moves `counter(c)`
+/// for every element after the animated one. Mid-transition (`--step` 1 →
+/// 11, half way: 6) the later sibling's `::before` reads 6, through the
+/// App's restyle (`restyle_vars`), not the cascaded end value 11.
+#[test]
+fn animated_counter_increment_reaches_later_siblings() {
+    let css = |step: u32| {
+        let parsed = rdom_css::parse(&format!(
+            "@property --step {{ syntax: '<integer>'; inherits: false; initial-value: 0 }} \
+             main {{ counter-reset: c }} \
+             .a {{ --step: {step}; transition: --step 100ms linear; counter-increment: c var(--step) }} \
+             .b::before {{ content: counter(c) }}"
+        ));
+        assert!(parsed.warnings.is_empty(), "{:?}", parsed.warnings);
+        parsed.stylesheet
+    };
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let main = dom.create_element("main");
+    dom.append_child(root, main).unwrap();
+    let a = dom.create_element("div");
+    dom.set_attribute(a, "class", "a").unwrap();
+    dom.append_child(main, a).unwrap();
+    let b = dom.create_element("div");
+    dom.set_attribute(b, "class", "b").unwrap();
+    dom.append_child(main, b).unwrap();
+    let (from, to) = (css(1), css(11));
+    let registry = std::rc::Rc::new(crate::style::cascade::PropertyRegistry::new(&[&from]));
+    let start = Instant::now();
+    let mut reg = AnimationRegistry::new();
+    reg.set_registered_properties(registry.clone());
+    dom.cascade(&from);
+    diff_and_register(&mut dom, &mut reg, start);
+    dom.cascade(&to);
+    diff_and_register(&mut dom, &mut reg, start);
+    assert_eq!(reg.len(), 1, "--step animates");
+
+    reg.advance(&mut dom, start + Duration::from_millis(50));
+    let restyle = reg.take_restyle();
+    assert_eq!(restyle, vec![a]);
+    crate::style::cascade::restyle_vars(&mut dom, &[&to], registry, &restyle);
+    let before = dom.node(b).ext().unwrap().computed_before.clone().unwrap();
+    assert_eq!(before.content.as_deref(), Some("6"));
+}

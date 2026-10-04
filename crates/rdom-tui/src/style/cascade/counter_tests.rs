@@ -145,3 +145,89 @@ fn restyle_replays_before_ops_before_the_children() {
     restyle_vars(&mut dom, &sheets, registry, &[div, last]);
     assert_eq!(before(&dom, last).as_deref(), Some("1. "));
 }
+
+/// `C2G-RESTYLE-WALK` — the UA sheet uses counters (`ol` / `ul` reset
+/// `list-item`, `li` increments it), so every sheet set does. A restyle
+/// of a leaf that creates, increments and reads no counter cannot change
+/// any counter's value (CSS Lists 3 §3.1), so it must not walk the tree
+/// before it to rebuild counter state: 50 lists of 100 items, the leaf a
+/// `span` in the last item — the restyle visits the leaf, not 10 000
+/// elements.
+#[test]
+fn restyle_of_a_counter_free_leaf_visits_its_subtree_only() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let mut leaf = root;
+    for _ in 0..50 {
+        let ol = dom.create_element("ol");
+        dom.append_child(root, ol).unwrap();
+        for _ in 0..100 {
+            let li = dom.create_element("li");
+            dom.append_child(ol, li).unwrap();
+            leaf = dom.create_element("span");
+            dom.append_child(li, leaf).unwrap();
+        }
+    }
+    let sheet = sheet(".x { color: red }");
+    dom.cascade(&sheet);
+    dom.node_mut(leaf)
+        .ext_mut()
+        .unwrap()
+        .set_inline_style(TuiStyle::new().fg(Color::Rgb(255, 0, 0)));
+    let sheets = [&sheet];
+    let registry = Rc::new(PropertyRegistry::new(&sheets));
+    walk::probe::take();
+    restyle_vars(&mut dom, &sheets, registry, &[leaf]);
+    let visits = walk::probe::take();
+    assert_eq!(computed_of(&dom, leaf).fg, Color::Rgb(255, 0, 0));
+    assert!(visits <= 4, "visited {visits} nodes for one leaf");
+}
+
+/// `C2G-RESTYLE-WALK` — a subtree root inside another root is cascaded
+/// with it (DOM §4.2.1 tree order: the outer root comes first), not
+/// again on its own — whatever order the roots are given in. With and
+/// without the UA sheet (whose counters take a different path).
+#[test]
+fn nested_subtree_roots_are_cascaded_once() {
+    for ua in [false, true] {
+        let mut dom = TuiDom::new();
+        let root = dom.root();
+        // The inner element is created first: its id sorts first.
+        let inner = dom.create_element("p");
+        let outer = dom.create_element("div");
+        dom.append_child(root, outer).unwrap();
+        dom.append_child(outer, inner).unwrap();
+        let mut sheet = if ua {
+            Stylesheet::new()
+        } else {
+            Stylesheet::bare()
+        };
+        sheet.add_rule("p", TuiStyle::new().bold(true)).unwrap();
+        dom.cascade(&sheet);
+        match_probe::take();
+        dom.cascade_subtrees(&sheet, &[outer]);
+        let once = match_probe::take();
+        dom.cascade_subtrees(&sheet, &[inner, outer]);
+        let both = match_probe::take();
+        assert_eq!(both, once, "ua: {ua}");
+    }
+}
+
+/// `C2G-RESTYLE-WALK` — CSS Lists 3 §3.1: a subtree root whose counter
+/// ops change moves the counters of everything after it. A class change
+/// makes the first `h2::before` count 10; the third `h2` — not a root —
+/// reads 12 after the partial cascade, as after a full one.
+#[test]
+fn changed_counter_ops_renumber_later_elements() {
+    let css = format!("{SECTIONS} .big::before {{ counter-increment: sec 10 }}");
+    let mut dom = TuiDom::new();
+    let root = main_el(&mut dom);
+    let ids: Vec<NodeId> = (0..3).map(|_| h2(&mut dom, root)).collect();
+    let sheet = sheet(&css);
+    dom.cascade(&sheet);
+    assert_eq!(before(&dom, ids[2]).as_deref(), Some("3. "));
+    dom.set_attribute(ids[0], "class", "big").unwrap();
+    dom.cascade_subtrees(&sheet, &[ids[0]]);
+    assert_eq!(before(&dom, ids[0]).as_deref(), Some("10. "));
+    assert_eq!(before(&dom, ids[2]).as_deref(), Some("12. "));
+}

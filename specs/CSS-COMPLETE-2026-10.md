@@ -578,3 +578,18 @@ row comes from.
   the container's height: an `auto`-height column (main) or row (cross) resolves them as 0 / `none`
   (was: 25% of the available height). `flex/main_axis.rs` is 545 lines, under the split bar.
   Phase 2 gate batch A (C2G-FLEX-SUM … C2G-LAYOUT-SAFETY) complete.
+- 2026-10-05 — C2G-RESTYLE-WALK: partial walks moved to `style/cascade/subtrees.rs`. Roots are reduced
+  to the outermost (a root inside another was cascaded twice when it came first) and ordered by tree
+  order. `TuiExt` gains `tree_has_counters` (bottom-up: an op or a `counter()` read in the subtree,
+  pseudo-elements included) and `reads_counters`; a root whose subtree takes no part in counters is
+  cascaded alone (cascaded again through the ordered walk if it gained one), and the ordered walk
+  skips subtrees without counters, so a counter-free leaf restyle visits 1 node where it visited
+  10 052 (probe test, 50 × 100 list items). Decided over cached per-node counter state: the snapshot
+  per element costs O(N × instances) memory for the one case (a counter-using root) the scoping does
+  not already make cheap. `CounterState` notes a changed op (element, `::before` before the children,
+  `::after`); the walk then goes on past the last root and restyles (`Mode::Restyle`) every later
+  subtree that takes part, recomputing an element that reads a counter even when its style is
+  unchanged — so a transitioning `counter-increment: c var(--step)` reaches a later sibling's
+  `counter(c)` (was the cascaded end value), and a `cascade_subtrees` class change renumbers later
+  headings. `restyle_vars` returns every root it restyled, and the App settles those. The walks step
+  through children by sibling links (no child `Vec` per node).

@@ -56,6 +56,22 @@ impl StoredOps {
     }
 }
 
+/// Does `id`'s subtree take part in counters — create, increment or
+/// read one (`TuiExt::tree_has_counters`)? A node without an `Ext` (text,
+/// a fragment) counts when it has children, which may.
+pub(super) fn takes_part(dom: &Dom<TuiExt>, id: NodeId) -> bool {
+    let node = dom.node(id);
+    match node.ext() {
+        Some(ext) => ext.tree_has_counters,
+        None => node.first_child().is_some(),
+    }
+}
+
+/// Does `style` create or increment a counter?
+pub(super) fn has_ops(style: &ComputedStyle) -> bool {
+    !style.counter_reset.is_empty() || !style.counter_increment.is_empty()
+}
+
 /// Counter instances in creation order (later = innermost).
 #[derive(Debug, Default, Clone)]
 pub(super) struct CounterState {
@@ -64,6 +80,12 @@ pub(super) struct CounterState {
     /// sheets use counters — so a subtree it skips has its stored ops
     /// replayed ([`replay_children`](Self::replay_children)).
     exact: bool,
+    /// An exact walk met a counter op that differs from the last
+    /// cascade's: every counter value after it in tree order may differ,
+    /// so the walk recomputes the elements after it that read one.
+    changed: bool,
+    /// A counter was read since the last [`take_read`](Self::take_read).
+    read: std::cell::Cell<bool>,
 }
 
 impl CounterState {
@@ -71,9 +93,40 @@ impl CounterState {
     /// exact (sheets that use counters).
     pub(super) fn exact() -> Self {
         CounterState {
-            instances: Vec::new(),
             exact: true,
+            ..Self::default()
         }
+    }
+
+    /// Have the counter values moved since the last cascade — an op
+    /// before this point in the walk differs ([`note_ops`](Self::note_ops))?
+    pub(super) fn is_changed(&self) -> bool {
+        self.changed
+    }
+
+    /// The values from here on may differ from the last cascade's.
+    pub(super) fn mark_changed(&mut self) {
+        self.changed = self.exact;
+    }
+
+    /// A box was recomputed with `new` where it had `old` (`None`: no
+    /// box, no ops): when an exact walk sees their counter ops differ,
+    /// the counter values after it [are changed](Self::is_changed).
+    pub(super) fn note_ops(&mut self, old: Option<&ComputedStyle>, new: Option<&ComputedStyle>) {
+        if !self.exact || self.changed {
+            return;
+        }
+        fn ops(c: Option<&ComputedStyle>) -> (&[CounterOp], &[CounterOp]) {
+            c.map_or((&[], &[]), |c| (&c.counter_reset, &c.counter_increment))
+        }
+        if ops(old) != ops(new) {
+            self.changed = true;
+        }
+    }
+
+    /// Was a counter read ([`value`](Self::value)) since the last call?
+    pub(super) fn take_read(&self) -> bool {
+        self.read.replace(false)
     }
 
     /// Account for the elements under `id` (its children's subtrees),
@@ -85,6 +138,12 @@ impl CounterState {
             return;
         }
         for child in dom.node(id).child_nodes().map(|n| n.id()) {
+            // A subtree without counters has no op to replay.
+            if !takes_part(dom, child) {
+                continue;
+            }
+            #[cfg(test)]
+            super::walk::probe::visit();
             let ops = StoredOps::of(dom, child);
             self.replay_element(Some(id), child, &ops, |s| s.replay_children(dom, child));
         }
@@ -156,6 +215,7 @@ impl CounterState {
     /// The innermost instance of `name` in scope, or 0 (CSS Lists 3
     /// §3.2: a missing counter reads as 0).
     pub(super) fn value(&self, name: &str) -> i32 {
+        self.read.set(true);
         self.instances
             .iter()
             .rev()
