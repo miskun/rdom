@@ -136,7 +136,26 @@ use rdom_style::calc::Viewport;
 /// (`@layer`, CSS Cascade 5 §6.4): a layer name is one layer across
 /// them, placed by its first declaration in slice order. The single-sheet form is a thin wrapper around
 /// the slice form with a one-element slice.
-pub trait CascadeExt {
+///
+/// The trait is sealed: only `Dom<TuiExt>` implements it, so a new
+/// document-level setting (like the viewport or the color scheme) can
+/// join it without breaking anyone.
+///
+/// ```compile_fail
+/// use rdom_tui::{CascadeExt, ColorScheme, NodeId, Stylesheet, Viewport};
+/// struct Mine;
+/// impl CascadeExt for Mine {
+///     fn cascade(&mut self, _: &Stylesheet) {}
+///     fn cascade_all(&mut self, _: &[&Stylesheet]) {}
+///     fn cascade_subtrees(&mut self, _: &Stylesheet, _: &[NodeId]) {}
+///     fn cascade_subtrees_all(&mut self, _: &[&Stylesheet], _: &[NodeId]) {}
+///     fn set_viewport(&mut self, _: Viewport) {}
+///     fn viewport(&self) -> Viewport { Viewport::new(0, 0) }
+///     fn set_color_scheme(&mut self, _: ColorScheme) {}
+///     fn color_scheme(&self) -> ColorScheme { ColorScheme::Dark }
+/// }
+/// ```
+pub trait CascadeExt: sealed::Sealed {
     /// Cascade the whole document against `stylesheet`. Writes
     /// `ComputedStyle` entries to every element's `TuiExt`, clears
     /// `style_dirty`, sets `layout_dirty` on elements whose
@@ -189,6 +208,13 @@ pub trait CascadeExt {
     /// The document's preferred color scheme
     /// ([`Self::set_color_scheme`]).
     fn color_scheme(&self) -> rdom_style::color::ColorScheme;
+}
+
+/// [`CascadeExt`]'s seal: a public trait in a private module, so no
+/// other crate can name it to implement it.
+mod sealed {
+    pub trait Sealed {}
+    impl Sealed for rdom_core::Dom<crate::ext::TuiExt> {}
 }
 
 impl CascadeExt for Dom<TuiExt> {

@@ -100,6 +100,7 @@ pub(super) fn serialize_flex_basis(b: &crate::layout::FlexBasis) -> String {
 
 pub(super) fn serialize_max_size(m: &crate::layout::MaxSize) -> String {
     match m {
+        crate::layout::MaxSize::None => "none".to_string(),
         crate::layout::MaxSize::Cells(n) => n.to_string(),
         crate::layout::MaxSize::Calc(expr) => serialize_math(expr),
     }

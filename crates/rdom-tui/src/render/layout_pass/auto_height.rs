@@ -81,7 +81,7 @@ pub(crate) fn resolve_auto_height(
             | Some(m @ crate::layout::MinSize::Cells(_)) => m.cells(basis),
             _ => None,
         },
-        computed.max_height.as_ref().and_then(|m| m.cells(basis)),
+        computed.max_height.cells(basis),
     );
     // Padding percent / calc resolves against the containing-block
     // width on ALL four sides (CSS 2.1 §8.4) — the same basis

@@ -46,7 +46,7 @@ pub(super) fn resolve_block_height(
     let definite = match &computed.height {
         Size::Fixed(n) => Some(*n),
         Size::Percent(_) | Size::Calc(_) if parent_height_definite => {
-            computed.height.cells_u16(container_height as i32)
+            computed.height.cells(Some(container_height))
         }
         _ => None,
     };
@@ -72,7 +72,7 @@ pub(super) fn resolve_block_height(
     // is definite (CSS 2.1 §10.7: else `0` / `none`).
     let basis = parent_height_definite.then_some(container_height);
     let min_cells = computed.min_height.as_ref().and_then(|m| m.cells(basis));
-    let max_cells = computed.max_height.as_ref().and_then(|m| m.cells(basis));
+    let max_cells = computed.max_height.cells(basis);
     clamp_size(raw, min_cells, max_cells)
 }
 

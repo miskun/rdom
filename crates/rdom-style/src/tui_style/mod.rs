@@ -124,11 +124,9 @@ pub struct TuiStyle {
     pub width: Option<Value<Size>>,
     pub height: Option<Value<Size>>,
     pub min_width: Option<Value<crate::layout::MinSize>>,
-    /// `max-width`: `Some(Value::Specified(None))` is `none`.
-    pub max_width: Option<Value<Option<crate::layout::MaxSize>>>,
+    pub max_width: Option<Value<crate::layout::MaxSize>>,
     pub min_height: Option<Value<crate::layout::MinSize>>,
-    /// `max-height`: `Some(Value::Specified(None))` is `none`.
-    pub max_height: Option<Value<Option<crate::layout::MaxSize>>>,
+    pub max_height: Option<Value<crate::layout::MaxSize>>,
     pub padding: Option<Value<Padding>>,
     pub margin: Option<Value<crate::layout::Margin>>,
     pub gap: Option<Value<crate::layout::GapValue>>,

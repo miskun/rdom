@@ -130,16 +130,16 @@ fn every_setter_reflects_a_round_tripping_style_attribute() {
             n.set_height(Size::Fixed(3));
         }),
         ("min-width", |n| {
-            n.set_min_width(Some(MinSize::Cells(4)));
+            n.set_min_width(MinSize::Cells(4));
         }),
         ("max-width", |n| {
-            n.set_max_width(Some(MaxSize::Cells(40)));
+            n.set_max_width(40u16);
         }),
         ("min-height", |n| {
-            n.set_min_height(Some(MinSize::Auto));
+            n.set_min_height(MinSize::Auto);
         }),
         ("max-height", |n| {
-            n.set_max_height(Some(MaxSize::Cells(9)));
+            n.set_max_height(MaxSize::Cells(9));
         }),
         ("direction", |n| {
             n.set_direction(Direction::Row);

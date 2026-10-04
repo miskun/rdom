@@ -382,38 +382,43 @@ pub trait TuiNodeMutExt<'a> {
     // attribute.
     /// Declare `width` inline. A flex weight is kept in `<number [0,∞]>`
     /// ([`Size::validated`]).
-    fn set_width(&mut self, w: Size) -> &mut Self {
-        let w = w.validated();
+    fn set_width(&mut self, w: impl Into<Size>) -> &mut Self {
+        let w = w.into().validated();
         self.write_inline_style(|s| s.width = Some(Value::Specified(w)));
         self
     }
     /// Declare `height` inline. A flex weight is kept in `<number
     /// [0,∞]>` ([`Size::validated`]).
-    fn set_height(&mut self, h: Size) -> &mut Self {
-        let h = h.validated();
+    fn set_height(&mut self, h: impl Into<Size>) -> &mut Self {
+        let h = h.into().validated();
         self.write_inline_style(|s| s.height = Some(Value::Specified(h)));
         self
     }
-    fn set_min_width(&mut self, v: Option<rdom_style::layout::MinSize>) -> &mut Self {
-        self.write_inline_style(|s| s.min_width = v.map(Value::Specified));
+    /// Declare `min-width` inline: a `u16` (cells) or a
+    /// [`MinSize`](rdom_style::layout::MinSize). Remove the declaration
+    /// with `style_mut().remove_property("min-width")`.
+    fn set_min_width(&mut self, v: impl Into<rdom_style::layout::MinSize>) -> &mut Self {
+        let v = v.into();
+        self.write_inline_style(|s| s.min_width = Some(Value::Specified(v)));
         self
     }
-    /// Declare `max-width` inline: a [`MaxSize`](rdom_style::layout::MaxSize),
-    /// or `None` for `none` (CSS Sizing 3 §5.2). Remove the declaration
-    /// with `style_mut().remove_property("max-width")`.
-    fn set_max_width(&mut self, v: impl Into<Option<rdom_style::layout::MaxSize>>) -> &mut Self {
+    /// Declare `max-width` inline: a `u16` (cells) or a
+    /// [`MaxSize`](rdom_style::layout::MaxSize) — `MaxSize::None` for
+    /// `none` (CSS Sizing 3 §5.2). Remove the declaration with
+    /// `style_mut().remove_property("max-width")`.
+    fn set_max_width(&mut self, v: impl Into<rdom_style::layout::MaxSize>) -> &mut Self {
         let v = v.into();
         self.write_inline_style(|s| s.max_width = Some(Value::Specified(v)));
         self
     }
-    fn set_min_height(&mut self, v: Option<rdom_style::layout::MinSize>) -> &mut Self {
-        self.write_inline_style(|s| s.min_height = v.map(Value::Specified));
+    /// Declare `min-height` inline ([`Self::set_min_width`]).
+    fn set_min_height(&mut self, v: impl Into<rdom_style::layout::MinSize>) -> &mut Self {
+        let v = v.into();
+        self.write_inline_style(|s| s.min_height = Some(Value::Specified(v)));
         self
     }
-    /// Declare `max-height` inline: a [`MaxSize`](rdom_style::layout::MaxSize),
-    /// or `None` for `none`. Remove the declaration with
-    /// `style_mut().remove_property("max-height")`.
-    fn set_max_height(&mut self, v: impl Into<Option<rdom_style::layout::MaxSize>>) -> &mut Self {
+    /// Declare `max-height` inline ([`Self::set_max_width`]).
+    fn set_max_height(&mut self, v: impl Into<rdom_style::layout::MaxSize>) -> &mut Self {
         let v = v.into();
         self.write_inline_style(|s| s.max_height = Some(Value::Specified(v)));
         self
@@ -547,10 +552,10 @@ mod tests {
         let mut dom: TuiDom = TuiDom::new();
         let div = dom.create_element("div");
         dom.node_mut(div)
-            .set_min_width(Some(MinSize::Cells(10)))
-            .set_max_width(Some(MaxSize::Cells(100)))
-            .set_min_height(Some(MinSize::Cells(5)))
-            .set_max_height(Some(MaxSize::Cells(50)));
+            .set_min_width(10u16)
+            .set_max_width(100u16)
+            .set_min_height(MinSize::Cells(5))
+            .set_max_height(MaxSize::Cells(50));
         let e = dom.node(div).tui_ext().unwrap();
         use crate::style::Value;
         assert_eq!(
@@ -559,7 +564,7 @@ mod tests {
         );
         assert_eq!(
             e.inline_style_or_empty().max_width,
-            Some(Value::Specified(Some(MaxSize::Cells(100))))
+            Some(Value::Specified(MaxSize::Cells(100)))
         );
         assert_eq!(
             e.inline_style_or_empty().min_height,
@@ -567,17 +572,17 @@ mod tests {
         );
         assert_eq!(
             e.inline_style_or_empty().max_height,
-            Some(Value::Specified(Some(MaxSize::Cells(50))))
+            Some(Value::Specified(MaxSize::Cells(50)))
         );
-        // `None` declares `none` (C2G-MAX-NONE).
-        dom.node_mut(div).set_max_width(None);
+        // `MaxSize::None` declares `none` (C3G-API).
+        dom.node_mut(div).set_max_width(MaxSize::None);
         assert_eq!(
             dom.node(div)
                 .tui_ext()
                 .unwrap()
                 .inline_style_or_empty()
                 .max_width,
-            Some(Value::Specified(None))
+            Some(Value::Specified(MaxSize::None))
         );
     }
 

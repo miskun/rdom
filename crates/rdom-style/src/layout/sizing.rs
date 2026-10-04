@@ -46,24 +46,30 @@ impl Size {
         (f64::from(basis) * f64::from(p) / 100.0).round_ties_even() as i32
     }
 
-    /// This size in cells, a percentage or `calc()` resolved against
-    /// `basis` (the containing block's extent on this axis); `None` for
-    /// `auto` and a flex weight, which the caller sizes. Unclamped: a
-    /// `calc()` can be negative.
-    pub fn cells(&self, basis: i32) -> Option<i32> {
-        match self {
-            Size::Fixed(n) => Some(i32::from(*n)),
-            Size::Percent(p) => Some(Size::percent_of(basis, *p)),
-            Size::Calc(expr) => Some(expr.resolve(&crate::calc::ResolveCtx::new(basis))),
-            Size::Flex(_) | Size::Auto => None,
-        }
+    /// `width` / `height: <p>%` — `p` percent of the containing block's
+    /// extent on this axis.
+    pub fn percent(p: f32) -> Self {
+        Size::Percent(p)
     }
 
-    /// [`cells`](Self::cells) clamped to a box's extent, `0..=u16::MAX`
-    /// (a negative size is 0).
-    pub fn cells_u16(&self, basis: i32) -> Option<u16> {
-        self.cells(basis)
-            .map(|v| v.clamp(0, i32::from(u16::MAX)) as u16)
+    /// This size in cells: a percentage or `calc()` resolved against
+    /// `basis`, the containing block's extent on this axis — `None` when
+    /// it is indefinite, so a percentage (or a `calc()` holding one) is
+    /// `auto` (CSS 2.1 §10.5). `None` for `auto` and a flex weight, which
+    /// the caller sizes. Clamped to an extent, `0..=u16::MAX` (a negative
+    /// `calc()` is 0, CSS Values 4 §10.12).
+    pub fn cells(&self, basis: Option<u16>) -> Option<u16> {
+        match self {
+            Size::Fixed(n) => Some(*n),
+            Size::Percent(p) => basis
+                .map(|b| Size::percent_of(i32::from(b), *p).clamp(0, i32::from(u16::MAX)) as u16),
+            Size::Calc(expr) => match basis {
+                Some(b) => Some(resolve_u16(expr, b)),
+                None if expr.contains_percent() => None,
+                None => Some(resolve_u16(expr, 0)),
+            },
+            Size::Flex(_) | Size::Auto => None,
+        }
     }
 
     /// Resolve `Calc` to `Fixed`, leaving other variants unchanged.
@@ -104,11 +110,17 @@ pub enum MinSize {
     Calc(Box<crate::calc::CalcExpr>),
 }
 
+impl From<u16> for Size {
+    fn from(n: u16) -> Self {
+        Size::Fixed(n)
+    }
+}
+
 impl MinSize {
     /// `min-* : <p>%` — `p` percent of the containing block's extent on
     /// this axis (CSS Sizing 3 §5.2), as the parser stores it.
-    pub fn percent(p: f64) -> Self {
-        MinSize::Calc(Box::new(crate::calc::CalcExpr::Percent(p)))
+    pub fn percent(p: f32) -> Self {
+        MinSize::Calc(Box::new(crate::calc::CalcExpr::Percent(f64::from(p))))
     }
 
     /// The floor in cells, `None` for `auto`. `basis` is the
@@ -134,12 +146,15 @@ impl From<u16> for MinSize {
     }
 }
 
-/// Value of `max-width` / `max-height` (`none` is the absent value,
-/// `Option::None` on the style). `Calc` holds a percentage or a
-/// percent-bearing math function, resolved against the containing
-/// block on the same axis (CSS Sizing 3 §5.2).
-#[derive(Debug, Clone, PartialEq)]
+/// Value of `max-width` / `max-height`: `none | <length-percentage>`
+/// (CSS Sizing 3 §5.2). `Calc` holds a percentage or a percent-bearing
+/// math function, resolved against the containing block on the same
+/// axis.
+#[derive(Debug, Clone, PartialEq, Default)]
 pub enum MaxSize {
+    /// `none` — no limit. The initial value.
+    #[default]
+    None,
     /// Explicit cell count.
     Cells(u16),
     /// `<percentage>` or a math function holding one.
@@ -149,16 +164,17 @@ pub enum MaxSize {
 impl MaxSize {
     /// `max-* : <p>%` — `p` percent of the containing block's extent on
     /// this axis (CSS Sizing 3 §5.2), as the parser stores it.
-    pub fn percent(p: f64) -> Self {
-        MaxSize::Calc(Box::new(crate::calc::CalcExpr::Percent(p)))
+    pub fn percent(p: f32) -> Self {
+        MaxSize::Calc(Box::new(crate::calc::CalcExpr::Percent(f64::from(p))))
     }
 
-    /// The limit in cells. `basis` is the containing block's size on
-    /// the property's axis, `None` when indefinite — a percentage
-    /// against an indefinite basis is treated as `none` (CSS 2.1
-    /// §10.7), so no limit.
+    /// The limit in cells, `None` for `none`. `basis` is the containing
+    /// block's size on the property's axis, `None` when indefinite — a
+    /// percentage against an indefinite basis is treated as `none` (CSS
+    /// 2.1 §10.7), so no limit.
     pub fn cells(&self, basis: Option<u16>) -> Option<u16> {
         match self {
+            MaxSize::None => None,
             MaxSize::Cells(n) => Some(*n),
             MaxSize::Calc(expr) => match basis {
                 Some(b) => Some(resolve_u16(expr, b)),
@@ -391,19 +407,42 @@ mod tests {
     /// `C2G-CELLS-CONVERSIONS`: the one conversion of a size or an
     /// inset to cells — percentages through `Size::percent_of`, `calc()`
     /// against the same basis, `auto` (and a flex weight) left to the
-    /// caller.
+    /// caller. A size is an extent: clamped to `0..=u16::MAX` (CSS
+    /// Values 4 §10.12, a negative width is 0); an inset is signed.
     #[test]
     fn sizes_and_lengths_to_cells() {
-        assert_eq!(Size::Fixed(7).cells(80), Some(7));
-        assert_eq!(Size::Percent(12.5).cells(80), Some(10));
+        assert_eq!(Size::Fixed(7).cells(Some(80)), Some(7));
+        assert_eq!(Size::Percent(12.5).cells(Some(80)), Some(10));
         let minus = calc(CalcExpr::Percent(50.0), CalcExpr::Number(50.0));
-        assert_eq!(Size::Calc(minus.clone()).cells(80), Some(-10));
-        assert_eq!(Size::Calc(minus.clone()).cells_u16(80), Some(0));
-        assert_eq!(Size::Percent(200.0).cells_u16(40_000), Some(u16::MAX));
-        assert_eq!(Size::Auto.cells(80), None);
-        assert_eq!(Size::Flex(1.0).cells(80), None);
+        assert_eq!(Size::Calc(minus.clone()).cells(Some(80)), Some(0));
+        assert_eq!(Size::Percent(200.0).cells(Some(40_000)), Some(u16::MAX));
+        assert_eq!(Size::Auto.cells(Some(80)), None);
+        assert_eq!(Size::Flex(1.0).cells(Some(80)), None);
         assert_eq!(Length::Cells(-3).cells(80), Some(-3));
         assert_eq!(Length::Calc(minus).cells(80), Some(-10));
         assert_eq!(Length::Auto.cells(80), None);
+    }
+
+    /// C3G-API: `Size`, `MinSize` and `MaxSize` share one convention —
+    /// a `u16` converts to cells, `percent(p: f32)` builds a percentage,
+    /// `cells(basis: Option<u16>) -> Option<u16>` resolves against the
+    /// containing block's extent (`None` when indefinite: a percentage
+    /// is then `auto` for a size, `0` for a minimum and `none` for a
+    /// maximum, CSS 2.1 §10.5 / §10.7), and each carries its keyword
+    /// (`Size::Auto`, `MinSize::Auto`, `MaxSize::None`).
+    #[test]
+    fn sizing_types_share_one_convention() {
+        let (s, min, max): (Size, MinSize, MaxSize) = (20u16.into(), 5u16.into(), 40u16.into());
+        assert_eq!(s.cells(None), Some(20));
+        assert_eq!(min.cells(None), Some(5));
+        assert_eq!(max.cells(None), Some(40));
+        assert_eq!(Size::percent(50.0_f32).cells(Some(80)), Some(40));
+        assert_eq!(MinSize::percent(50.0_f32).cells(Some(80)), Some(40));
+        assert_eq!(MaxSize::percent(50.0_f32).cells(Some(80)), Some(40));
+        assert_eq!(Size::percent(50.0).cells(None), None);
+        assert_eq!(MinSize::percent(50.0).cells(None), Some(0));
+        assert_eq!(MaxSize::percent(50.0).cells(None), None);
+        assert_eq!(MaxSize::None.cells(Some(80)), None);
+        assert_eq!(MaxSize::default(), MaxSize::None);
     }
 }

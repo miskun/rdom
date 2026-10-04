@@ -129,15 +129,15 @@ pub fn parse_min_size(value: &[Token]) -> Option<MinSize> {
 }
 
 /// `max-width` / `max-height` value: `none | <length-percentage [0,∞]>`
-/// (CSS Sizing 3 §5.2). `Some(None)` is `none`; `None` is invalid.
-pub fn parse_max_size(value: &[Token]) -> Option<Option<MaxSize>> {
+/// (CSS Sizing 3 §5.2). `None` is invalid.
+pub fn parse_max_size(value: &[Token]) -> Option<MaxSize> {
     if matches!(value, [Token::Ident(s)] if s.eq_ignore_ascii_case("none")) {
-        return Some(None);
+        return Some(MaxSize::None);
     }
     match length_percentage(value, Range::NonNegative)? {
-        LengthPercentage::Integer(n) => u16::try_from(n).ok().map(|n| Some(MaxSize::Cells(n))),
-        LengthPercentage::Cells(v) => Some(Some(MaxSize::Cells(cells_u16(v)))),
-        LengthPercentage::Expr(e) => Some(Some(MaxSize::Calc(Box::new(e)))),
+        LengthPercentage::Integer(n) => u16::try_from(n).ok().map(MaxSize::Cells),
+        LengthPercentage::Cells(v) => Some(MaxSize::Cells(cells_u16(v))),
+        LengthPercentage::Expr(e) => Some(MaxSize::Calc(Box::new(e))),
     }
 }
 

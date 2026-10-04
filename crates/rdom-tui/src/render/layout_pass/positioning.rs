@@ -467,7 +467,7 @@ fn resolve_size_axis(
     edges_basis: u16,
     shrink_to_fit: impl FnOnce() -> u16,
 ) -> u16 {
-    match (size, size.cells_u16(cb_extent as i32)) {
+    match (size, size.cells(Some(cb_extent))) {
         (_, Some(cells)) => cells,
         (Size::Flex(_), _) => cb_extent,
         _ => {

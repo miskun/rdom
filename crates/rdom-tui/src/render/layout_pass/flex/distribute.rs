@@ -295,7 +295,7 @@ fn resolve_auto_min(
     // Specified size suggestion per spec.
     let specified_cap: Option<u16> = match main_size {
         Size::Flex(_) => Some(0),
-        definite => definite.cells_u16(main_budget as i32),
+        definite => definite.cells(Some(main_budget)),
     };
     // `flex: N` (basis 0%) trivially has specified=0, so auto-min
     // = min(content, 0) = 0. Skip the content walk.

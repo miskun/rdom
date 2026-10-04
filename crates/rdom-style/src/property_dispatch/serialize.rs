@@ -237,19 +237,21 @@ pub fn serialize(name: &str, style: &TuiStyle) -> Option<String> {
             .as_ref()
             .and_then(specified)
             .map(serialize_min_size),
-        "max-width" => style.max_width.as_ref().and_then(specified).map(|m| {
-            m.as_ref()
-                .map_or_else(|| "none".to_string(), serialize_max_size)
-        }),
+        "max-width" => style
+            .max_width
+            .as_ref()
+            .and_then(specified)
+            .map(serialize_max_size),
         "min-height" => style
             .min_height
             .as_ref()
             .and_then(specified)
             .map(serialize_min_size),
-        "max-height" => style.max_height.as_ref().and_then(specified).map(|m| {
-            m.as_ref()
-                .map_or_else(|| "none".to_string(), serialize_max_size)
-        }),
+        "max-height" => style
+            .max_height
+            .as_ref()
+            .and_then(specified)
+            .map(serialize_max_size),
         "aspect-ratio" => style
             .aspect_ratio
             .as_ref()

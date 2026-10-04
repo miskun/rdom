@@ -172,15 +172,9 @@ fn min_max_layout_setters() {
         .min_height(5)
         .max_height(50);
     assert_eq!(s.min_width, Some(Value::Specified(MinSize::Cells(10))));
-    assert_eq!(
-        s.max_width,
-        Some(Value::Specified(Some(MaxSize::Cells(100))))
-    );
+    assert_eq!(s.max_width, Some(Value::Specified(MaxSize::Cells(100))));
     assert_eq!(s.min_height, Some(Value::Specified(MinSize::Cells(5))));
-    assert_eq!(
-        s.max_height,
-        Some(Value::Specified(Some(MaxSize::Cells(50))))
-    );
+    assert_eq!(s.max_height, Some(Value::Specified(MaxSize::Cells(50))));
 }
 
 #[test]

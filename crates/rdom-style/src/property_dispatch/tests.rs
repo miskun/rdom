@@ -802,7 +802,11 @@ fn max_size_none_is_a_declared_value() {
         } else {
             &s.max_height
         };
-        assert_eq!(field, &Some(Value::Specified(None)), "{name}");
+        assert_eq!(
+            field,
+            &Some(Value::Specified(crate::layout::MaxSize::None)),
+            "{name}"
+        );
         assert_eq!(serialize(name, &s).as_deref(), Some("none"), "{name}");
         set(name, "12", &mut s).unwrap();
         assert_eq!(serialize(name, &s).as_deref(), Some("12"), "{name}");

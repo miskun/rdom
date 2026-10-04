@@ -28,10 +28,7 @@ impl ComputedStyle {
         {
             absolutize(min, vp, MinSize::Calc, |v| MinSize::Cells(cells_u16(v)));
         }
-        for max in [&mut self.max_width, &mut self.max_height]
-            .into_iter()
-            .flatten()
-        {
+        for max in [&mut self.max_width, &mut self.max_height] {
             absolutize(max, vp, MaxSize::Calc, |v| MaxSize::Cells(cells_u16(v)));
         }
         let p = &mut self.padding;

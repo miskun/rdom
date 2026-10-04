@@ -113,17 +113,32 @@ impl TuiStyle {
 
     // Layout setters.
     // A flex weight is kept in `<number [0,∞]>` (`Size::validated`).
-    setter!(width, width, width_important, WIDTH, Size, Size::validated);
-    setter!(
-        height,
-        height,
-        height_important,
-        HEIGHT,
-        Size,
-        Size::validated
-    );
-    /// Set the `min-width` property. Accepts a `u16` (cells) or
-    /// `MinSize::Auto`. Chainable.
+    /// Set the `width` property. Accepts a `u16` (cells) or a
+    /// [`Size`]; a flex weight is kept in `<number [0,∞]>`. Chainable.
+    pub fn width(mut self, v: impl Into<Size>) -> Self {
+        self.width = Some(Value::Specified(v.into().validated()));
+        self
+    }
+    /// Like `width` but marks the declaration `!important`.
+    pub fn width_important(mut self, v: impl Into<Size>) -> Self {
+        self.width = Some(Value::Specified(v.into().validated()));
+        self.important |= ImportantMask::WIDTH;
+        self
+    }
+    /// Set the `height` property. Accepts a `u16` (cells) or a
+    /// [`Size`]; a flex weight is kept in `<number [0,∞]>`. Chainable.
+    pub fn height(mut self, v: impl Into<Size>) -> Self {
+        self.height = Some(Value::Specified(v.into().validated()));
+        self
+    }
+    /// Like `height` but marks the declaration `!important`.
+    pub fn height_important(mut self, v: impl Into<Size>) -> Self {
+        self.height = Some(Value::Specified(v.into().validated()));
+        self.important |= ImportantMask::HEIGHT;
+        self
+    }
+    /// Set the `min-width` property. Accepts a `u16` (cells) or a
+    /// [`MinSize`](crate::layout::MinSize). Chainable.
     pub fn min_width(mut self, v: impl Into<crate::layout::MinSize>) -> Self {
         self.min_width = Some(Value::Specified(v.into()));
         self
@@ -137,17 +152,17 @@ impl TuiStyle {
     /// Set the `max-width` property. Accepts a `u16` (cells) or a
     /// [`MaxSize`](crate::layout::MaxSize). Chainable.
     pub fn max_width(mut self, v: impl Into<crate::layout::MaxSize>) -> Self {
-        self.max_width = Some(Value::Specified(Some(v.into())));
+        self.max_width = Some(Value::Specified(v.into()));
         self
     }
     /// Like `max_width` but marks the declaration `!important`.
     pub fn max_width_important(mut self, v: impl Into<crate::layout::MaxSize>) -> Self {
-        self.max_width = Some(Value::Specified(Some(v.into())));
+        self.max_width = Some(Value::Specified(v.into()));
         self.important |= ImportantMask::MAX_WIDTH;
         self
     }
-    /// Set the `min-height` property. Accepts a `u16` (cells) or
-    /// `MinSize::Auto`. Chainable.
+    /// Set the `min-height` property. Accepts a `u16` (cells) or a
+    /// [`MinSize`](crate::layout::MinSize). Chainable.
     pub fn min_height(mut self, v: impl Into<crate::layout::MinSize>) -> Self {
         self.min_height = Some(Value::Specified(v.into()));
         self
@@ -161,12 +176,12 @@ impl TuiStyle {
     /// Set the `max-height` property. Accepts a `u16` (cells) or a
     /// [`MaxSize`](crate::layout::MaxSize). Chainable.
     pub fn max_height(mut self, v: impl Into<crate::layout::MaxSize>) -> Self {
-        self.max_height = Some(Value::Specified(Some(v.into())));
+        self.max_height = Some(Value::Specified(v.into()));
         self
     }
     /// Like `max_height` but marks the declaration `!important`.
     pub fn max_height_important(mut self, v: impl Into<crate::layout::MaxSize>) -> Self {
-        self.max_height = Some(Value::Specified(Some(v.into())));
+        self.max_height = Some(Value::Specified(v.into()));
         self.important |= ImportantMask::MAX_HEIGHT;
         self
     }

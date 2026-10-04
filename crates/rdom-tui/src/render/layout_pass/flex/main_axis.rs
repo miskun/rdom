@@ -91,7 +91,7 @@ pub(super) fn collect_main_axis_items(
         };
         // `min-*` / `max-*` percentages resolve against the container's
         // main size, as the main size's own do (CSS Sizing 3 §5.2).
-        let max = max.as_ref().and_then(|m| m.cells(main_basis));
+        let max = max.cells(main_basis);
         // TABLE-COLSYNC-1: a table cell's *used* column width — computed by
         // `size_columns` from the column's author widths + content and stored
         // on the cell's ext (layout output, NOT author `inline_style`) —
@@ -139,7 +139,7 @@ pub(super) fn collect_main_axis_items(
         // main-axis content area at layout time, and is a fixed cell
         // value once resolved — it does NOT take part in flex weight
         // distribution.
-        let natural = match (&main_size, main_size.cells_u16(main_budget as i32)) {
+        let natural = match (&main_size, main_size.cells(Some(main_budget))) {
             (Size::Flex(w), _) => MainNatural::Flex(*w),
             (_, Some(cells)) => MainNatural::Fixed(cells),
             _ => {

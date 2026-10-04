@@ -195,14 +195,14 @@ fn resolve_cross_size(
         }
         Direction::Column => Some(container_cross),
     };
-    let max = max.as_ref().and_then(|m| m.cells(basis));
+    let max = max.cells(basis);
     let cross_dir = match direction {
         Direction::Row => Direction::Column,
         Direction::Column => Direction::Row,
     };
     // A cross-axis percentage or `calc()` resolves against the
     // container's cross-axis dimension.
-    let natural = match (cross_size, cross_size.cells_u16(container_cross as i32)) {
+    let natural = match (cross_size, cross_size.cells(Some(container_cross))) {
         (_, Some(cells)) => cells,
         (Size::Flex(_), _) => container_cross,
         _ => {

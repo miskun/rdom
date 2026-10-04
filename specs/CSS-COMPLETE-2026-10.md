@@ -767,3 +767,28 @@ row comes from.
   partial OSC 11, `wait_left` zero for a begun reply, `detected_background` `None` after an answer;
   green: all three, plus the late-reply guard. The `/dev/tty` path has no automated test (needs a
   pty).
+- 2026-10-05 — C3G-API: CHANGELOG hints fixed (`s.definite(scheme)`; `ColorContext::new(..)
+  .with_scheme(..)`). DESIGN names `Color`, `TuiColor`, `ColorScheme` as closed data and
+  `ColorContext` as an options bag, and sealed traits beside sealed types. `CascadeExt:
+  sealed::Sealed` (private module; only `Dom<TuiExt>`); red: a `compile_fail` doctest implementing it
+  for a local type compiled; green: it fails to compile. `ColorFunction`, `SystemColor`,
+  `ColorSchemeList` at the `rdom_tui` root (red: unresolved imports). Sizing — one convention, decided:
+  each type carries its keyword as a variant (`Size::Auto`, `MinSize::Auto`, new `MaxSize::None`,
+  replacing C2G-MAX-NONE's `Option<MaxSize>`, so `TuiStyle::max_*: Option<Value<MaxSize>>`,
+  `ComputedStyle::max_*: MaxSize`); a `u16` converts to cells for all three (`From<u16> for Size`
+  added); `percent(p: f32)` on all three (`Size::percent` added; `MinSize` / `MaxSize` took `f64`);
+  `cells(basis: Option<u16>) -> Option<u16>` on all three (`Size::cells` took `i32` and returned a
+  signed value, `cells_u16` is gone; a size's percentage against an indefinite basis is `None`, i.e.
+  `auto`; `Length::cells(i32) -> Option<i32>` stays signed — an inset is an offset, not an extent);
+  the builder and the node setters all take `impl Into<T>` (`set_min_*` took `Option<MinSize>`,
+  `set_max_*` `impl Into<Option<MaxSize>>`, so `set_max_width(40u16)` did not compile). Red: the new
+  sizing tests did not compile (`From<u16> for Size`, `MaxSize::None`, `Size::percent` missing);
+  green. Behaviour: block width now clamps a negative `calc()` width to 0 before the margin
+  equation (it fed the negative value in, then clamped the result) — CSS Values 4 §10.12; no
+  existing test changed for it. Changed expectations: tests that built `Some(MaxSize::…)` /
+  `Value::Specified(None)` / `set_min_width(Some(..))` now use the variant forms; the
+  `Size::cells` unit test reads `Some(0)` for `calc(50% - 50)` of 80 (was `-10`), and `cells_u16`
+  cases moved to `cells`. Left as found: `ComputedStyle::min_*` stays `Option<MinSize>` — the flex
+  cross axis treats an unset `min-*` (no floor) unlike an explicit `auto` (intrinsic floor), which
+  CSS does not distinguish; making it `MinSize` would change that layout, so it is recorded in
+  TECH_DEBT (`MIN-AUTO-UNSET-1`).

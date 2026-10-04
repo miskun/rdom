@@ -67,3 +67,59 @@ fn relative_color_with_a_comma_math_function_from_var() {
     let expected = rdom_tui::parse_color("oklch(from rgb(200 10 20) 0.5 c h)").expect("a color");
     assert_eq!(computed_of(&dom, b).fg, expected);
 }
+
+// ── C3G-API ──────────────────────────────────────────────────────────
+
+/// The color vocabulary is reachable from the crate root, as `Color`,
+/// `TuiColor`, `ColorContext` and `ColorScheme` are: a kept color
+/// function, a system color and a `color-scheme` list.
+#[test]
+fn color_types_are_reexported_at_the_root() {
+    use rdom_tui::{ColorFunction, ColorScheme, ColorSchemeList, SystemColor, TuiColor};
+    let Some(TuiColor::Function(f)) = TuiColor::parse("color-mix(in srgb, currentcolor, red)")
+    else {
+        panic!("a kept color function");
+    };
+    let _: &ColorFunction = &f;
+    assert_eq!(
+        SystemColor::from_keyword("Canvas").map(|s| s.is_canvas()),
+        Some(true)
+    );
+    assert_eq!(
+        ColorSchemeList::default().used(ColorScheme::Light),
+        ColorScheme::Light
+    );
+}
+
+/// The sizing API takes one shape for `width`, `min-*` and `max-*`: a
+/// `u16` is cells and `percent(p: f32)` a percentage, on the node
+/// setters as on the builder (`set_max_width(40u16)` did not compile).
+#[test]
+fn sizing_setters_share_one_shape() {
+    use rdom_tui::layout::{MaxSize, MinSize, Size};
+    use rdom_tui::render::Rect;
+    use rdom_tui::{LayoutExt, TuiNodeExt, TuiNodeMutExt};
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let a = el(&mut dom, root, "");
+    let b = el(&mut dom, root, "");
+    dom.node_mut(a)
+        .set_width(30u16)
+        .set_max_width(20u16)
+        .set_min_width(5u16)
+        .set_height(1u16);
+    dom.node_mut(b)
+        .set_width(Size::percent(100.0))
+        .set_max_width(MaxSize::percent(25.0))
+        .set_min_width(MinSize::percent(10.0))
+        .set_height(1u16);
+    cascade(&mut dom, "");
+    dom.layout_dom(Rect::new(0, 0, 80, 5));
+    let width = |id| dom.node(id).layout_rect().expect("laid out").width;
+    assert_eq!(width(a), 20);
+    assert_eq!(width(b), 20);
+    dom.node_mut(a).set_max_width(MaxSize::None);
+    cascade(&mut dom, "");
+    dom.layout_dom(Rect::new(0, 0, 80, 5));
+    assert_eq!(dom.node(a).layout_rect().unwrap().width, 30);
+}
