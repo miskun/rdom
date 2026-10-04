@@ -47,6 +47,20 @@ pub enum Token {
     RParen,
     /// Any other single character: `/`, `*`, `+`, `>`, `~`, `=`, etc.
     Delim(char),
+    /// `<dimension-token>` (CSS Syntax 3 §4.3.3): a numeric literal
+    /// immediately followed by an identifier — `1fr`, `300ms`, `1.5s`
+    /// (escapes in the unit decoded). With whitespace between, the two
+    /// are a `Number` / `Float` and an `Ident`, which no unit grammar
+    /// accepts, and so are a number token from a `var()` and an ident
+    /// after it (`var(--n)fr`, CSS Variables 1 §3). The sign is not
+    /// part of it, as for numbers.
+    Dimension {
+        value: f64,
+        /// The number part alone would be a `Number` (integer-typed, in
+        /// `i32` range) rather than a `Float`.
+        integer: bool,
+        unit: String,
+    },
 }
 
 #[derive(Debug)]
@@ -158,7 +172,7 @@ fn read_one(cursor: &mut Cursor, c: char) -> Result<Token, TokenizerError> {
         return Ok(Token::Delim('-'));
     }
     if c.is_ascii_digit() || (c == '.' && cursor.peek_two().1.is_some_and(|d| d.is_ascii_digit())) {
-        return Ok(read_number(cursor));
+        return Ok(read_numeric(cursor));
     }
     if c == '#' {
         return Ok(read_hash(cursor));
@@ -190,6 +204,27 @@ fn read_ident_or_function(cursor: &mut Cursor) -> Token {
         return Token::Function(name);
     }
     Token::Ident(name)
+}
+
+/// CSS Syntax 3 §4.3.3 "consume a numeric token": a number, then a
+/// `Dimension` when an identifier starts right after it.
+fn read_numeric(cursor: &mut Cursor) -> Token {
+    let number = read_number(cursor);
+    let (value, integer) = match number {
+        Token::Number(n) => (f64::from(n), true),
+        Token::Float(f) => (f, false),
+        other => return other,
+    };
+    if !css_syntax::would_start_ident(cursor.rest()) {
+        return number;
+    }
+    let (unit, used) = css_syntax::consume_ident(cursor.rest());
+    cursor.advance(used);
+    Token::Dimension {
+        value,
+        integer,
+        unit,
+    }
 }
 
 /// CSS Syntax 3 §4.3.12 "consume a number": digits, an optional
@@ -340,11 +375,8 @@ mod tests {
     fn exponents_are_part_of_the_number() {
         assert_eq!(toks("1e3"), vec![Token::Float(1000.0)]);
         assert_eq!(toks("2.5E-1"), vec![Token::Float(0.25)]);
-        // `e` not followed by a digit is an ident, not an exponent.
-        assert_eq!(
-            toks("1em"),
-            vec![Token::Number(1), Token::Ident("em".to_string())]
-        );
+        // `e` not followed by a digit starts a unit, not an exponent.
+        assert_eq!(toks("1em"), vec![dim(1.0, true, "em")]);
     }
 
     #[test]
@@ -382,18 +414,8 @@ mod tests {
 
     #[test]
     fn more_number_edge_cases() {
-        assert_eq!(
-            toks("1e"),
-            vec![Token::Number(1), Token::Ident("e".to_string())]
-        );
-        assert_eq!(
-            toks("1e+"),
-            vec![
-                Token::Number(1),
-                Token::Ident("e".to_string()),
-                Token::Delim('+')
-            ]
-        );
+        assert_eq!(toks("1e"), vec![dim(1.0, true, "e")]);
+        assert_eq!(toks("1e+"), vec![dim(1.0, true, "e"), Token::Delim('+')]);
         assert_eq!(toks("-.5"), vec![Token::Delim('-'), Token::Float(0.5)]);
         assert_eq!(toks("1.5.5"), vec![Token::Float(1.5), Token::Float(0.5)]);
         assert_eq!(
@@ -469,14 +491,30 @@ mod tests {
     }
 
     #[test]
-    fn dimension_is_number_then_ident() {
+    fn times_are_dimensions() {
+        assert_eq!(toks("1.05s"), vec![dim(1.05, false, "s")]);
+        assert_eq!(toks("200ms"), vec![dim(200.0, true, "ms")]);
+    }
+
+    /// CSS Syntax 3 §4.3.3: a number immediately followed by an ident
+    /// is one `<dimension-token>`; with whitespace between, a number and
+    /// an ident (`C1G-VAR-TOKENS`).
+    #[test]
+    fn a_number_and_a_following_ident_form_a_dimension_only_when_adjacent() {
+        assert_eq!(toks("1fr"), vec![dim(1.0, true, "fr")]);
+        assert_eq!(toks("1.5s"), vec![dim(1.5, false, "s")]);
         assert_eq!(
-            toks("1.05s"),
-            vec![Token::Float(1.05), Token::Ident("s".to_string())]
+            toks("1 fr"),
+            vec![Token::Number(1), Token::Ident("fr".to_string())]
         );
-        assert_eq!(
-            toks("200ms"),
-            vec![Token::Number(200), Token::Ident("ms".to_string())]
-        );
+        assert_eq!(toks(r"2\66 r"), vec![dim(2.0, true, "fr")]);
+    }
+
+    fn dim(value: f64, integer: bool, unit: &str) -> Token {
+        Token::Dimension {
+            value,
+            integer,
+            unit: unit.to_string(),
+        }
     }
 }

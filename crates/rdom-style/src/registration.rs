@@ -277,9 +277,9 @@ fn consume(component: &SyntaxComponent, tokens: &[Token], at: usize) -> Option<u
             let (_, used) = parse_color_at(tokens, at)?;
             Some(at + used)
         }
-        SyntaxComponent::Time => (1..=2)
-            .find(|&n| rest.len() >= n && crate::parse::values::parse_time_ms(&rest[..n]).is_some())
-            .map(|n| at + n),
+        SyntaxComponent::Time => {
+            crate::parse::values::parse_time_ms(rest.get(..1)?).map(|_| at + 1)
+        }
         SyntaxComponent::CustomIdent => match rest.first()? {
             Token::Ident(s) if is_keyword(s) => Some(at + 1),
             _ => None,

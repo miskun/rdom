@@ -17,8 +17,14 @@ pub fn parse_size(value: &[Token]) -> Option<Size> {
     match value {
         [Token::Ident(s)] if s.eq_ignore_ascii_case("auto") => Some(Size::Auto),
         [Token::Number(n)] if *n >= 0 => u16::try_from(*n).ok().map(Size::Fixed),
-        [Token::Number(n), Token::Ident(unit)] if *n >= 0 && unit.eq_ignore_ascii_case("fr") => {
-            u16::try_from(*n).ok().map(Size::Flex)
+        [
+            Token::Dimension {
+                value,
+                integer: true,
+                unit,
+            },
+        ] if *value >= 0.0 && unit.eq_ignore_ascii_case("fr") => {
+            (*value <= f64::from(u16::MAX)).then_some(Size::Flex(*value as u16))
         }
         [Token::Percentage(n)] if *n >= 0.0 => Some(Size::Percent(percent_fraction(*n)?)),
         // calc(...) — parse to a CalcExpr. If the expression has

@@ -308,3 +308,9 @@ row comes from.
   step; the cascade passes the registered-syntax check (`Registry::computed_value`) so a dependent
   substitutes the validated value, at the element and at the sheet level (`Registry::seed_root`
   replaces `settle_root`; `validate_declared` is gone).
+- 2026-10-04 — C1G-VAR-TOKENS: CSSOM string / identifier serializers in `rdom_core::css_syntax`,
+  used by `render_value` (custom-property storage); a real `<dimension-token>` (`Token::Dimension`)
+  so adjacency is kept — `var(--n)fr` and `1 fr` are a number and an ident, rejected by the unit
+  grammars; a 65 536-token substitution limit (`var::MAX_SUBSTITUTED_TOKENS`). No existing
+  property test depended on `<number> <unit>` with whitespace; the tokenizer's own tests for
+  `1em` / `1e` / `200ms` now expect a dimension.

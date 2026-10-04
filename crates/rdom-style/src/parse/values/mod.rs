@@ -59,33 +59,39 @@ pub use transition::{
 
 use crate::parse::token::Token;
 
-/// Render a `&[Token]` slice back to its source-like string form.
-/// Used by the block parser's `InvalidValue` warning path.
+/// Render a `&[Token]` slice back to CSS text, one space between
+/// tokens. Reading it back gives the same tokens (CSSOM §2.1
+/// serialization): strings and identifiers — function names and
+/// dimension units included — keep their escapes
+/// (`rdom_core::css_syntax`), and a dimension stays one token while a
+/// number and an ident stay two. Custom properties are stored this way;
+/// the block parser's `InvalidValue` warnings show it too.
 pub fn render_value(value: &[Token]) -> String {
+    use rdom_core::css_syntax::{serialize_identifier, serialize_string};
     let mut out = String::new();
     for (i, t) in value.iter().enumerate() {
         if i > 0 {
             out.push(' ');
         }
         match t {
-            Token::Ident(s) => out.push_str(s),
+            Token::Ident(s) => out.push_str(&serialize_identifier(s)),
             Token::Number(n) => out.push_str(&n.to_string()),
             Token::Float(f) => out.push_str(&f.to_string()),
             Token::Percentage(n) => {
                 out.push_str(&n.to_string());
                 out.push('%');
             }
-            Token::String(s) => {
-                out.push('"');
-                out.push_str(s);
-                out.push('"');
+            Token::Dimension { value, unit, .. } => {
+                out.push_str(&value.to_string());
+                out.push_str(&serialize_unit(unit));
             }
+            Token::String(s) => out.push_str(&serialize_string(s)),
             Token::HexColor(h) => {
                 out.push('#');
                 out.push_str(h);
             }
             Token::Function(name) => {
-                out.push_str(name);
+                out.push_str(&serialize_identifier(name));
                 out.push('(');
             }
             Token::Colon => out.push(':'),
@@ -98,4 +104,23 @@ pub fn render_value(value: &[Token]) -> String {
         }
     }
     out
+}
+
+/// A dimension's unit as an identifier, with a leading `e` escaped when
+/// it would read as an exponent (`1\65 3`, not `1e3`).
+fn serialize_unit(unit: &str) -> String {
+    let ident = rdom_core::css_syntax::serialize_identifier(unit);
+    let mut chars = unit.chars();
+    let exponent_like = matches!(chars.next(), Some('e' | 'E'))
+        && match chars.next() {
+            Some(d) if d.is_ascii_digit() => true,
+            Some('+' | '-') => chars.next().is_some_and(|d| d.is_ascii_digit()),
+            _ => false,
+        };
+    if exponent_like {
+        let first = unit.chars().next().map_or(0, u32::from);
+        format!("\\{first:x} {}", &ident[1..])
+    } else {
+        ident
+    }
 }

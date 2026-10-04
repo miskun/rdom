@@ -28,6 +28,16 @@ use crate::TuiStyle;
 use crate::parse::token::{Token, tokenize};
 use crate::parse::values::render_value;
 
+/// The most tokens one `var()` substitution may produce (CSS Variables
+/// 1 §3.3 "safely handling overly-long variables": a UA-defined limit,
+/// past which the property is invalid at computed-value time). 65 536
+/// tokens is far beyond any real value and stops a doubling chain
+/// (`--b: var(--a) var(--a)`, `--c: var(--b) var(--b)`, …) after 16
+/// links: a custom property's value is never longer, and each one is
+/// resolved once, so a cascade's substitution work is bounded by the
+/// number of `var()` references times this limit.
+pub const MAX_SUBSTITUTED_TOKENS: usize = 1 << 16;
+
 /// A declaration kept as tokens until the cascade substitutes `var()`.
 ///
 /// Once a block holds a `var()` declaration, every later declaration of
@@ -92,7 +102,10 @@ pub fn valid_var_syntax(tokens: &[Token]) -> bool {
 
 /// Substitute every `var()` in `tokens` (§3): `lookup` gives a custom
 /// property's value tokens (name without the dashes), `None` when it is
-/// not defined. `None` when a `var()` has neither value nor fallback.
+/// not defined. `None` when a `var()` has neither value nor fallback,
+/// or the result would exceed [`MAX_SUBSTITUTED_TOKENS`] (§3.3).
+/// Substitution is token-level: a substituted number before an ident
+/// stays a number and an ident, never a dimension.
 pub fn substitute(
     tokens: &[Token],
     lookup: &mut dyn FnMut(&str) -> Option<Vec<Token>>,
@@ -115,6 +128,9 @@ pub fn substitute(
         match lookup(name) {
             Some(value) => out.extend(value),
             None => out.extend(substitute(fallback?, lookup)?),
+        }
+        if out.len() > MAX_SUBSTITUTED_TOKENS {
+            return None;
         }
         i = end + 1;
     }
@@ -366,5 +382,72 @@ mod tests {
         assert_eq!(v.get("a").map(String::as_str), Some("2"));
         assert!(!v.contains_key("c") && !v.contains_key("d"));
         assert_eq!(v.get("e").map(String::as_str), Some("7"));
+    }
+
+    fn with(decls: &[(&str, &str)]) -> TuiStyle {
+        let mut s = TuiStyle::new();
+        for (name, value) in decls {
+            crate::property_dispatch::set(name, value, &mut s).unwrap();
+        }
+        s
+    }
+
+    /// `C1G-VAR-TOKENS` — §3: substitution is token-level, so a number
+    /// substituted before an ident stays a number and an ident, never
+    /// the dimension `1fr` / `300ms`; the property is invalid at
+    /// computed-value time (`unset`).
+    #[test]
+    fn substitution_never_forms_a_dimension() {
+        let v = vars(&[("n", "1"), ("t", "300")]);
+        let got = with(&[
+            ("width", "var(--n)fr"),
+            ("transition-duration", "var(--t)ms"),
+        ])
+        .substituted(&v);
+        let unset = with(&[("width", "unset"), ("transition-duration", "unset")]);
+        assert_eq!(got.width, unset.width);
+        assert_eq!(got.transition_duration, unset.transition_duration);
+        // A dimension inside the custom property substitutes whole.
+        let v = vars(&[("w", "1fr")]);
+        let got = with(&[("width", "var(--w)")]).substituted(&v);
+        assert_eq!(got.width, with(&[("width", "1fr")]).width);
+    }
+
+    /// `C1G-VAR-TOKENS` — a custom property's value is kept as text: a
+    /// string or ident with escaped characters serializes with its
+    /// escapes (CSSOM §2.1), so substituting it gives the same tokens.
+    #[test]
+    fn strings_and_idents_survive_storage_with_their_escapes() {
+        let s = with(&[
+            ("--q", r#""say \"hi\"""#),
+            ("--i", r"a\:b"),
+            ("--d", "2\\66 r"),
+        ]);
+        let stored = |n: &str| tokenize(s.custom_property_value(n).unwrap()).unwrap();
+        assert_eq!(stored("q"), vec![Token::String(r#"say "hi""#.to_string())]);
+        assert_eq!(stored("i"), vec![Token::Ident("a:b".to_string())]);
+        assert_eq!(stored("d"), toks("2fr"));
+        let v = vars(&[("q", s.custom_property_value("q").unwrap())]);
+        let got = with(&[("content", "var(--q)")]).substituted(&v);
+        assert_eq!(got.content, with(&[("content", r#""say \"hi\"""#)]).content);
+    }
+
+    /// `C1G-VAR-TOKENS` — §3.3: a `var()` that expands past
+    /// [`MAX_SUBSTITUTED_TOKENS`] is invalid at computed-value time, so
+    /// a doubling chain (`--b: var(--a) var(--a)`, …) cannot grow
+    /// exponentially; the short links still resolve.
+    #[test]
+    fn overlong_substitutions_are_invalid() {
+        let mut pairs = vec![("p0".to_string(), "x".to_string())];
+        for i in 1..40 {
+            pairs.push((format!("p{i}"), format!("var(--p{0}) var(--p{0})", i - 1)));
+        }
+        let mut v: HashMap<String, String> = pairs.into_iter().collect();
+        let names: Vec<String> = v.keys().cloned().collect();
+        resolve_custom_properties(&mut v, names.iter().map(String::as_str));
+        assert_eq!(v.get("p2").map(String::as_str), Some("x x x x"));
+        assert!(v.contains_key("p16"), "2^16 tokens is the limit");
+        assert!(!v.contains_key("p17"), "2^17 tokens is over it");
+        assert!(!v.contains_key("p39"));
     }
 }

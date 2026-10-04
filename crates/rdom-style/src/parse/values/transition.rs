@@ -180,11 +180,10 @@ pub fn parse_timing_function_list(value: &[Token]) -> Option<Vec<TimingFunction>
 
 /// Parse a single `<time>` value (`200ms`, `0.5s`, `1.05s`, `0s`) into
 /// whole milliseconds, rounding half away from zero. The literal is one
-/// token (`Number` or `Float`) followed by the unit ident.
+/// `Dimension` token (CSS Syntax 3 §4.3.3).
 pub fn parse_time_ms(tokens: &[Token]) -> Option<u32> {
     let (n, unit) = match tokens {
-        [Token::Number(n), Token::Ident(unit)] => (f64::from(*n), unit),
-        [Token::Float(f), Token::Ident(unit)] => (*f, unit),
+        [Token::Dimension { value, unit, .. }] => (*value, unit),
         _ => return None,
     };
     if n < 0.0 {
@@ -303,13 +302,9 @@ pub fn parse_transition_shorthand_single(value: &[Token]) -> Option<TransitionSh
 /// Try to parse a `<time>` value starting at `value[start]`.
 /// Returns `(ms, tokens_consumed)`.
 fn try_parse_time_at(value: &[Token], start: usize) -> Option<(u32, usize)> {
-    // A `<time>` is always one numeric token plus its unit ident.
-    if start + 2 <= value.len()
-        && let Some(ms) = parse_time_ms(&value[start..start + 2])
-    {
-        return Some((ms, 2));
-    }
-    None
+    // A `<time>` is one `Dimension` token.
+    let ms = parse_time_ms(value.get(start..start + 1)?)?;
+    Some((ms, 1))
 }
 
 pub fn unzip_transition_rules(

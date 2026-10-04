@@ -7,7 +7,9 @@
 //! All functions work on a `&str` that starts at the code point being
 //! examined and return how many **bytes** they consumed, so a byte-wise
 //! parser (the selector parser) and a char cursor (the tokenizer) can
-//! both drive them. Input is taken as already preprocessed in the
+//! both drive them. [`serialize_string`] and [`serialize_identifier`]
+//! are their inverses (CSSOM §2.1), for writing token text back out.
+//! Input is taken as already preprocessed in the
 //! sense of §3.3 except that `\r\n`, `\r` and `\x0C` are treated as
 //! newlines where the spec checks for one.
 
@@ -149,6 +151,64 @@ pub fn consume_string(s: &str, quote: char) -> Option<(String, usize)> {
     None
 }
 
+/// CSSOM §2.1 "serialize a string": `s` in double quotes, `"` and `\`
+/// escaped with a backslash, control characters (U+0001–U+001F, U+007F)
+/// as hex escapes, NUL as U+FFFD. [`consume_string`] reads it back.
+pub fn serialize_string(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() + 2);
+    out.push('"');
+    for c in s.chars() {
+        match c {
+            '\0' => out.push('\u{FFFD}'),
+            c if is_control(c) => push_hex_escape(&mut out, c),
+            '"' | '\\' => {
+                out.push('\\');
+                out.push(c);
+            }
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
+}
+
+/// CSSOM §2.1 "serialize an identifier": name code points as they are;
+/// control characters, a leading digit and a digit after a leading `-`
+/// as hex escapes; a lone `-` and every other ASCII character escaped
+/// with a backslash; NUL as U+FFFD. [`consume_ident`] reads it back.
+pub fn serialize_identifier(s: &str) -> String {
+    if s == "-" {
+        return "\\-".to_string();
+    }
+    let mut out = String::with_capacity(s.len());
+    let leading_dash = s.starts_with('-');
+    for (i, c) in s.chars().enumerate() {
+        match c {
+            '\0' => out.push('\u{FFFD}'),
+            c if is_control(c) => push_hex_escape(&mut out, c),
+            c if c.is_ascii_digit() && (i == 0 || (i == 1 && leading_dash)) => {
+                push_hex_escape(&mut out, c)
+            }
+            c if !c.is_ascii() || c == '-' || c == '_' || c.is_ascii_alphanumeric() => out.push(c),
+            c => {
+                out.push('\\');
+                out.push(c);
+            }
+        }
+    }
+    out
+}
+
+fn is_control(c: char) -> bool {
+    ('\u{1}'..='\u{1F}').contains(&c) || c == '\u{7F}'
+}
+
+/// `\` + the code point in lowercase hex + one space (§2.1 "escape a
+/// character as code point").
+fn push_hex_escape(out: &mut String, c: char) {
+    out.push_str(&format!("\\{:x} ", u32::from(c)));
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -189,5 +249,41 @@ mod tests {
         assert_eq!(consume_string("a\\\nb'", '\''), Some(("ab".into(), 5)));
         assert_eq!(consume_string(r"\22 x'", '\''), Some(("\"x".into(), 6)));
         assert_eq!(consume_string("abc", '"'), None);
+    }
+
+    /// CSSOM §2.1 "serialize a string": `"` and `\\` escaped with a
+    /// backslash, control characters as hex escapes; reading the result
+    /// back gives the string (`C1G-VAR-TOKENS`).
+    #[test]
+    fn strings_serialize_and_round_trip() {
+        assert_eq!(serialize_string(r#"say "hi""#), r#""say \"hi\"""#);
+        assert_eq!(serialize_string(r"a\b"), r#""a\\b""#);
+        assert_eq!(serialize_string("a\nb"), r#""a\a b""#);
+        assert_eq!(serialize_string("\0"), "\"\u{FFFD}\"");
+        for text in [r#"say "hi""#, r"a\b", "a\nb", "tab\tx", "\u{7f}", "ünï"] {
+            let ser = serialize_string(text);
+            let (back, used) = consume_string(&ser[1..], '"').unwrap();
+            assert_eq!((back.as_str(), used + 1), (text, ser.len()), "{ser}");
+        }
+    }
+
+    /// CSSOM §2.1 "serialize an identifier": a leading digit (or `-`
+    /// then a digit) and control characters as hex escapes, a lone `-`
+    /// and any other non-name ASCII character backslash-escaped; reading
+    /// the result back gives the name (`C1G-VAR-TOKENS`).
+    #[test]
+    fn identifiers_serialize_and_round_trip() {
+        assert_eq!(serialize_identifier("color"), "color");
+        assert_eq!(serialize_identifier("--x-y_1"), "--x-y_1");
+        assert_eq!(serialize_identifier("a:b"), r"a\:b");
+        assert_eq!(serialize_identifier("10"), r"\31 0");
+        assert_eq!(serialize_identifier("-1x"), r"-\31 x");
+        assert_eq!(serialize_identifier("-"), r"\-");
+        assert_eq!(serialize_identifier("a b"), r"a\ b");
+        for name in ["a:b", "10", "-1x", "a b", "x\u{1}y", "über", "a\\b", "--"] {
+            let ser = serialize_identifier(name);
+            assert!(would_start_ident(&ser), "{ser}");
+            assert_eq!(consume_ident(&ser), (name.to_string(), ser.len()), "{ser}");
+        }
     }
 }
