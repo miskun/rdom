@@ -203,3 +203,110 @@ fn hwb_syntax() {
     // No legacy syntax.
     assert_eq!(parse_color("hwb(0, 0%, 0%)"), None);
 }
+
+// ── lab() / lch() / oklab() / oklch(): CSS Color 4 §9 ───────────
+
+/// `color` parses to an opaque sRGB color within one step per channel
+/// of `(r, g, b)` (the reference values are rounded).
+#[track_caller]
+fn assert_near(css: &str, (r, g, b): (u8, u8, u8)) {
+    let Some(Color::Rgb(pr, pg, pb)) = parse_color(css) else {
+        panic!("{css} → {:?}", parse_color(css));
+    };
+    let close = |x: u8, y: u8| x.abs_diff(y) <= 1;
+    assert!(
+        close(pr, r) && close(pg, g) && close(pb, b),
+        "{css} → rgb({pr}, {pg}, {pb}), expected rgb({r}, {g}, {b})"
+    );
+}
+
+/// §9.2: CIE Lab (D50) — the sRGB primaries and white / black.
+#[test]
+fn lab_converts_to_srgb() {
+    assert_near("lab(54.29% 80.80 69.89)", (255, 0, 0));
+    assert_near("lab(87.82 -79.27 80.99)", (0, 255, 0));
+    assert_near("lab(29.57 68.29 -112.03)", (0, 0, 255));
+    assert_near("lab(100 0 0)", (255, 255, 255));
+    assert_near("lab(0% 0 0)", (0, 0, 0));
+    // §9.1: a / b percentages are of 125; L clamps to 0–100.
+    assert_near("lab(54.29% 64.64% 55.912%)", (255, 0, 0));
+    assert_near("lab(150 0 0)", (255, 255, 255));
+    assert_eq!(
+        parse_color("lab(50 0 0 / 50%)").map(|c| c.alpha()),
+        Some(128)
+    );
+}
+
+/// §9.3: LCH — chroma (100% = 150, negative clamps to 0) and hue.
+#[test]
+fn lch_converts_to_srgb() {
+    assert_near("lch(54.29% 106.84 40.85)", (255, 0, 0));
+    assert_near("lch(54.29% 106.84 40.85deg)", (255, 0, 0));
+    assert_near("lch(50% -10 0)", lab_gray());
+    assert_near("lch(50% 0 none)", lab_gray());
+}
+
+/// `lab(50 0 0)`: a mid gray.
+fn lab_gray() -> (u8, u8, u8) {
+    (119, 119, 119)
+}
+
+/// §9.4: Oklab and Oklch — L 0–1 (100% = 1), a / b / C 100% = 0.4.
+#[test]
+fn oklab_and_oklch_convert_to_srgb() {
+    assert_near("oklab(0.62796 0.22486 0.12585)", (255, 0, 0));
+    assert_near("oklab(62.796% 56.215% 31.4625%)", (255, 0, 0));
+    assert_near("oklab(0.86644 -0.23389 0.1795)", (0, 255, 0));
+    assert_near("oklab(0.45201 -0.03246 -0.31153)", (0, 0, 255));
+    assert_near("oklch(0.62796 0.25768 29.2339)", (255, 0, 0));
+    assert_near("oklch(44.027% 0.1603 303.37)", (102, 51, 153));
+    assert_near("oklch(1 0 0)", (255, 255, 255));
+}
+
+// ── color(): CSS Color 4 §10 ────────────────────────────────────
+
+/// §10: the predefined RGB spaces and XYZ, numbers or percentages.
+#[test]
+fn color_function_predefined_spaces() {
+    assert_near("color(srgb 1 0 0)", (255, 0, 0));
+    assert_near("color(srgb 100% 50% 0%)", (255, 128, 0));
+    assert_near("color(srgb-linear 0.2 0.2 0.2)", (124, 124, 124));
+    assert_near("color(display-p3 0.5 0.5 0.5)", (128, 128, 128));
+    assert_near("color(display-p3 1 1 1)", (255, 255, 255));
+    assert_near("color(a98-rgb 1 1 1)", (255, 255, 255));
+    assert_near("color(prophoto-rgb 1 1 1)", (255, 255, 255));
+    assert_near("color(rec2020 0 0 0)", (0, 0, 0));
+    assert_near("color(rec2020 1 1 1)", (255, 255, 255));
+    assert_near("color(xyz-d65 0.41239 0.21264 0.01933)", (255, 0, 0));
+    assert_near("color(xyz 0.41239 0.21264 0.01933)", (255, 0, 0));
+    assert_near("color(xyz-d50 0.43607 0.22249 0.01392)", (255, 0, 0));
+    assert_eq!(parse_color("color(srgb 1 0 0 / 0.5)"), rgba(255, 0, 0, 128));
+    assert_near("color(srgb none 0 0)", (0, 0, 0));
+    assert_eq!(parse_color("color(nope 1 0 0)"), None);
+    assert_eq!(parse_color("color(srgb 1 0)"), None);
+    assert_eq!(parse_color("color(srgb, 1, 0, 0)"), None);
+}
+
+/// §13.2: an out-of-gamut color maps into sRGB by reducing its OKLCh
+/// chroma — the lightness and hue are kept, not each channel clipped.
+#[test]
+fn out_of_gamut_colors_are_gamut_mapped() {
+    // Display P3 red keeps its hue: still a red, no channel past red's.
+    let Some(Color::Rgb(r, g, b)) = parse_color("color(display-p3 1 0 0)") else {
+        panic!()
+    };
+    assert_eq!(r, 255);
+    assert!(g < 40 && b < 40, "rgb({r}, {g}, {b})");
+    // A chroma far past sRGB at oklch L 0.7, hue 150 (green).
+    let Some(Color::Rgb(r, g, b)) = parse_color("oklch(0.7 0.4 150)") else {
+        panic!()
+    };
+    assert!(g > r && g > b, "rgb({r}, {g}, {b})");
+    let [l, _, h] = crate::color::oklch_of(parse_color("oklch(0.7 0.4 150)").unwrap());
+    assert!((l - 0.7).abs() < 0.02, "L {l}");
+    assert!((h - 150.0).abs() < 5.0, "h {h}");
+    // Clipping each channel would change the lightness; mapping keeps it.
+    let origin = crate::color::oklch_of(Color::Rgb(255, 128, 128));
+    let [l, _, _] = crate::color::oklch_of(parse_color("color(srgb 1.2 0.5 0.5)").unwrap());
+    assert!(l > origin[0], "mapped L {l} ≤ {}", origin[0]);
+}

@@ -16,6 +16,50 @@ pub(crate) enum ColorSpace {
     Hsl,
     /// HWB (§8): hue in degrees, whiteness and blackness `0..=100`.
     Hwb,
+    /// Linear-light sRGB (§10.3).
+    SrgbLinear,
+    /// Display P3 (§10.4).
+    DisplayP3,
+    /// A98 RGB (§10.5).
+    A98Rgb,
+    /// ProPhoto RGB (§10.6), a D50 space.
+    ProphotoRgb,
+    /// ITU-R BT.2020 (§10.7).
+    Rec2020,
+    /// CIE XYZ with the D50 white point (§10.8).
+    XyzD50,
+    /// CIE XYZ with the D65 white point (§10.8).
+    XyzD65,
+    /// CIE Lab (§9.2): lightness `0..=100`, a / b unbounded.
+    Lab,
+    /// CIE LCH (§9.3): lightness, chroma, hue in degrees.
+    Lch,
+    /// Oklab (§9.4): lightness `0..=1`, a / b unbounded.
+    Oklab,
+    /// Oklch (§9.4): lightness, chroma, hue in degrees.
+    Oklch,
+}
+
+impl ColorSpace {
+    /// The space a `color()` function names (CSS Color 4 §10.1), ASCII
+    /// case-insensitive; `xyz` is `xyz-d65`.
+    pub fn predefined(name: &str) -> Option<ColorSpace> {
+        const TABLE: &[(&str, ColorSpace)] = &[
+            ("srgb", ColorSpace::Srgb),
+            ("srgb-linear", ColorSpace::SrgbLinear),
+            ("display-p3", ColorSpace::DisplayP3),
+            ("a98-rgb", ColorSpace::A98Rgb),
+            ("prophoto-rgb", ColorSpace::ProphotoRgb),
+            ("rec2020", ColorSpace::Rec2020),
+            ("xyz", ColorSpace::XyzD65),
+            ("xyz-d50", ColorSpace::XyzD50),
+            ("xyz-d65", ColorSpace::XyzD65),
+        ];
+        TABLE
+            .iter()
+            .find(|(n, _)| n.eq_ignore_ascii_case(name))
+            .map(|(_, s)| *s)
+    }
 }
 
 /// A color in `space`: three components and an alpha (`0..=1`), each
@@ -29,6 +73,20 @@ pub(crate) struct AbsoluteColor {
 }
 
 impl AbsoluteColor {
+    /// An 8-bit sRGB color as an absolute one; `None` for the terminal
+    /// default and palette colors, which have no sRGB value here.
+    pub fn from_color(color: Color) -> Option<AbsoluteColor> {
+        let (r, g, b) = match color {
+            Color::Rgb(r, g, b) | Color::Rgba(r, g, b, _) => (r, g, b),
+            Color::Reset | Color::Indexed(_) => return None,
+        };
+        Some(AbsoluteColor {
+            space: ColorSpace::Srgb,
+            coords: [r, g, b].map(|c| Some(f64::from(c) / 255.0)),
+            alpha: Some(f64::from(color.alpha()) / 255.0),
+        })
+    }
+
     /// The components with missing ones as zero.
     pub fn values(self) -> [f64; 3] {
         self.coords.map(|c| c.unwrap_or(0.0))
@@ -39,12 +97,11 @@ impl AbsoluteColor {
         clamp_unit(self.alpha.unwrap_or(0.0))
     }
 
-    /// The 8-bit sRGB color: each component clamped to the gamut and
-    /// rounded to the nearest byte, ties toward +∞ (CSS Color 4 §5.1);
-    /// alpha likewise.
+    /// The 8-bit sRGB color: gamut-mapped into sRGB (CSS Color 4
+    /// §13.2) and each component rounded to the nearest byte, ties
+    /// toward +∞ (§5.1); alpha likewise.
     pub fn to_color(self) -> Color {
-        let srgb = super::convert::to_srgb(self);
-        let [r, g, b] = srgb.values();
+        let [r, g, b] = super::gamut::map_to_srgb(self);
         Color::rgba(
             to_byte(r),
             to_byte(g),

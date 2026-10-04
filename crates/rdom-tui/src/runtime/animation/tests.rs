@@ -71,10 +71,9 @@ fn pseudo_element_color_transitions_in_its_own_slot() {
     reg.advance(&mut dom, start + Duration::from_millis(50));
     let ext = dom.node(div).ext().unwrap();
     assert!(ext.presentation.is_none(), "host slot untouched");
-    let Some(Color::Rgb(r, _, b)) = ext.presentation_before.as_ref().and_then(|p| p.fg) else {
-        panic!("no ::before override");
-    };
-    assert!((r as i16 - 128).abs() <= 2 && (b as i16 - 128).abs() <= 2);
+    let fg = ext.presentation_before.as_ref().and_then(|p| p.fg);
+    // Red → blue at the midpoint, in Oklab (CSS Color 4 §12.1).
+    assert_eq!(fg, Some(Color::Rgb(140, 83, 162)), "the ::before override");
     let events = reg.take_pending_events();
     assert!(
         events
@@ -130,8 +129,8 @@ fn transition_color_interpolates_at_midpoint() {
     // One animation registered for fg.
     assert_eq!(reg.len(), 1);
 
-    // Advance 50ms — linear midpoint of red (255,0,0) →
-    // blue (0,0,255) = (128, 0, 128) (within ±2 due to rounding).
+    // Advance 50ms — the midpoint of red → blue, interpolated in
+    // Oklab (CSS Color 4 §12.1): a light purple, (140, 83, 162).
     let mid = start + Duration::from_millis(50);
     reg.advance(&mut dom, mid);
     let pres_fg = dom
@@ -143,14 +142,7 @@ fn transition_color_interpolates_at_midpoint() {
         .unwrap()
         .fg
         .unwrap();
-    match pres_fg {
-        Color::Rgb(r, g, b) => {
-            assert!((r as i16 - 128).abs() <= 2, "r = {r}");
-            assert_eq!(g, 0);
-            assert!((b as i16 - 128).abs() <= 2, "b = {b}");
-        }
-        other => panic!("expected Rgb, got {other:?}"),
-    }
+    assert_eq!(pres_fg, Color::Rgb(140, 83, 162));
 
     // Advance to end — animation retires, presentation cleared.
     let end = start + Duration::from_millis(120);

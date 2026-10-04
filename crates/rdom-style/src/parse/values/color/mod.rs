@@ -1,5 +1,6 @@
 //! The `<color>` grammar (CSS Color 4 §4.1): named colors, hex,
-//! `rgb()` / `rgba()`, `hsl()` / `hsla()`, `hwb()`, `currentcolor`, and rdom's `reset` and
+//! `rgb()` / `rgba()`, `hsl()` / `hsla()`, `hwb()`, `lab()` / `lch()`
+//! / `oklab()` / `oklch()`, `color()`, `currentcolor`, and rdom's `reset` and
 //! palette-index forms.
 //! `var()` is not part of this grammar: a declaration holding one is
 //! substituted by the cascade before it is parsed (`crate::var`).
@@ -8,13 +9,15 @@
 //!   argument split.
 //! - `rgb` — `rgb()` / `rgba()`.
 //! - `hsl` — `hsl()` / `hsla()` / `hwb()`.
+//! - `lab` — `lab()` / `lch()` / `oklab()` / `oklch()` / `color()`.
 
 mod channel;
 mod hsl;
+mod lab;
 mod rgb;
 
 use crate::TuiColor;
-use crate::color::AbsoluteColor;
+use crate::color::{AbsoluteColor, ColorSpace};
 use crate::parse::token::Token;
 
 /// Parse a whole value as a `<color>`.
@@ -69,6 +72,11 @@ fn parse_function(value: &[Token], start: usize) -> Option<(AbsoluteColor, usize
         "rgb" | "rgba" => rgb::parse(args)?,
         "hsl" | "hsla" => hsl::parse_hsl(args)?,
         "hwb" => hsl::parse_hwb(args)?,
+        "lab" => lab::parse_lab(args, ColorSpace::Lab)?,
+        "lch" => lab::parse_lab(args, ColorSpace::Lch)?,
+        "oklab" => lab::parse_lab(args, ColorSpace::Oklab)?,
+        "oklch" => lab::parse_lab(args, ColorSpace::Oklch)?,
+        "color" => lab::parse_color_function(args)?,
         _ => return None,
     };
     Some((color, close + 1 - start))

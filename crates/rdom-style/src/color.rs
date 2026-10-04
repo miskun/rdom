@@ -41,7 +41,12 @@
 
 mod absolute;
 mod convert;
+mod gamut;
+mod interpolate;
+mod matrices;
 pub mod named;
+
+pub use interpolate::interpolate_oklab;
 
 pub(crate) use absolute::{AbsoluteColor, ColorSpace};
 
@@ -127,6 +132,13 @@ impl Color {
     }
 }
 
+/// `color`'s Oklch coordinates `[L, C, h]` (tests of the gamut mapping).
+#[cfg(test)]
+pub(crate) fn oklch_of(color: Color) -> [f64; 3] {
+    let abs = AbsoluteColor::from_color(color).expect("an sRGB color");
+    convert::convert(abs, ColorSpace::Oklch).values()
+}
+
 /// An 8-bit alpha as the CSSOM serializes it (CSS Color 4 §15.2): the
 /// shortest of two or three decimals that reads back as the same byte
 /// (`128` is `0.5`, `1` is `0.004`).
@@ -152,6 +164,23 @@ mod tests {
         assert!(!Color::Rgb(255, 0, 0).is_reset());
         assert!(!Color::Rgb(0, 0, 0).is_reset());
         assert!(!Color::Indexed(200).is_reset());
+    }
+
+    /// CSS Color 4 §12.1: colors interpolate in Oklab, premultiplied —
+    /// red to blue passes through a light purple, not sRGB's dark one,
+    /// and white to black through Oklab's perceptual mid gray.
+    #[test]
+    fn interpolation_is_in_oklab() {
+        let mid = interpolate_oklab(Color::Rgb(255, 0, 0), Color::Rgb(0, 0, 255), 0.5);
+        assert_eq!(mid, Some(Color::Rgb(140, 83, 162)));
+        let gray = interpolate_oklab(Color::Rgb(255, 255, 255), Color::Rgb(0, 0, 0), 0.5);
+        assert_eq!(gray, Some(Color::Rgb(99, 99, 99)));
+        let fade = interpolate_oklab(Color::TRANSPARENT, Color::Rgb(255, 0, 0), 0.5);
+        assert_eq!(fade, Some(Color::Rgba(255, 0, 0, 128)));
+        assert_eq!(
+            interpolate_oklab(Color::Reset, Color::Rgb(1, 2, 3), 0.5),
+            None
+        );
     }
 
     /// CSS Color 4 §15.2: alpha serializes with the fewest decimals

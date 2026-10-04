@@ -72,7 +72,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.1 Syntax, cascade and inheritance (Syntax 3, Cascade 4/5, CSS 2.1 §6) | 18 | 1 | 0 | 2 | 21 |
 | 3.2 Custom properties (CSS Variables 1) | 6 | 0 | 0 | 1 | 7 |
 | 3.3 Values and units (Values 4) | 15 | 2 | 1 | 4 | 22 |
-| 3.4 Color (Color 4 / 5) | 8 | 1 | 6 | 2 | 17 |
+| 3.4 Color (Color 4 / 5) | 10 | 1 | 4 | 2 | 17 |
 | 3.5 Backgrounds and borders (Backgrounds 3, Borders 4) | 3 | 5 | 6 | 2 | 16 |
 | 3.6 Box model and sizing (Box 3, Sizing 3/4) | 3 | 3 | 3 | 0 | 9 |
 | 3.7 Display and visibility (Display 3) | 1 | 0 | 8 | 2 | 11 |
@@ -93,9 +93,9 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 0 | 0 | 6 | 3 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **87** | **33** | **137** | **50** | **307** |
+| **Total** | **89** | **33** | **135** | **50** | **307** |
 
-When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 170 rows Partial / Missing.
+When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 168 rows Partial / Missing.
 
 Headline: rdom parses **70 property names** (`PROPERTY_NAMES`). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are flex alignment (`justify-content`, `align-items`), `flex-wrap`, the `flex-grow` / `flex-basis` longhands, the `border: 1px solid red` shorthand form, `line-height`, `text-align`, `visibility`, `box-sizing`, and grid.
 
@@ -123,7 +123,7 @@ pasted CSS. The first block is what a typical component stylesheet hits in its f
 | 13 | Per-side border colors (`border-*-color`, multi-value `border-color`) | Each side's glyphs in its own color; the joiner's existing conflict winner picks the junction color. | M | No |
 | 14 | `currentColor` | Shipped (C3-CURRENTCOLOR; §3.4): the element's computed `color`, and `border-color`'s initial value; `outline-color` / `text-decoration-color` take it as their initial value when they land (C12-OUTLINE, C9-DECORATION). | S | Yes |
 | 15 | `min()` / `max()` / `clamp()` | Comparison functions inside every `calc()` position; resolve at layout like percent-bearing `calc()`. | S | Yes |
-| 16 | `hsl()` / `hwb()` / `lab()` / `lch()` / `oklab()` / `oklch()` / `color()` | Convert to sRGB at parse time (gamut-mapped), emit as truecolor `Color::Rgb`. Common in design-token CSS. | S | No |
+| 16 | `hsl()` / `hwb()` / `lab()` / `lch()` / `oklab()` / `oklch()` / `color()` | Shipped (C3-HSL-HWB, C3-LAB; §3.4): converted to sRGB at parse time (gamut-mapped), emitted as truecolor `Color::Rgb`. | S | No |
 | 17 | `:nth-child()` / `:nth-last-child()` / `:nth-of-type()` / `:nth-last-of-type()` / `:first-of-type` / `:last-of-type` / `:only-of-type` | Structural matching (`An+B`, `odd` / `even`, `of S`); zebra-striped lists and tables. | S | Partial — `:nth-child`, `:nth-of-type` Yes; the `*-of-type` trio No |
 | 18 | `:is()` / `:has()` | `:is()` shipped (C1G-IS-PARSE); `:has()` relational matching with invalidation on descendant change (M). | S / M | Yes |
 | 19 | `@media` | Evaluate `width` / `height` (in cells) / `orientation` / `aspect-ratio`, `color` / `monochrome`, `prefers-color-scheme` (from the terminal's reported background), `prefers-reduced-motion`, `hover` / `pointer`; re-cascade on `resize`. Also the `<style media>` attribute. | M | Yes |
@@ -290,8 +290,8 @@ dropped:
 | `currentColor` | Supported | `TuiColor::CurrentColor`, any case: the element's final `color` in `background-color` / `border-color` (resolved after the ladder, `apply::ElementColors`), the inherited color in `color`; `caret-color` / `caret-text-color` keep it and resolve at paint; `border-color`'s initial value (C3-CURRENTCOLOR). An `inherit`ed `currentcolor` is the parent's resolved color (documented). | — | `V/color/mod.rs`, `tui_color.rs`, `CASC/apply.rs` |
 | `hsl()` / `hsla()` | Supported | Modern syntax (hue as a number or `<angle>`, saturation / lightness as percentages or numbers, `none`, `/ alpha`, math functions) and the legacy comma syntax (percentages only); converted to sRGB at parse time, as CSS computes it (C3-HSL-HWB). | — | `V/color/hsl.rs`, `rdom-style/src/color/convert.rs` |
 | `hwb()` | Supported | Hue, whiteness, blackness (`none`, `/ alpha`, math functions); whiteness + blackness ≥ 100% is a gray; converted to sRGB at parse time (C3-HSL-HWB). | — | `V/color/hsl.rs`, `rdom-style/src/color/convert.rs` |
-| `lab()` / `lch()` / `oklab()` / `oklch()` | Missing | Convert + gamut-map to sRGB. | No | `COL` |
-| `color()` | Missing | Predefined spaces (`srgb`, `display-p3`, …) converted to sRGB. | No | `COL` |
+| `lab()` / `lch()` / `oklab()` / `oklch()` | Supported | Numbers, percentages (Lab a / b: 100% = 125, LCH C: 150, Oklab a / b / C: 0.4), hues, `none`, `/ alpha`, math functions; lightness and chroma clamp at parsed-value time; converted to sRGB with CSS gamut mapping (OKLCh chroma reduction, §13.2) at parse time — the computed color is sRGB (documented) (C3-LAB). | — | `V/color/lab.rs`, `rdom-style/src/color/{convert,gamut}.rs` |
+| `color()` | Supported | `srgb`, `srgb-linear`, `display-p3`, `a98-rgb`, `prophoto-rgb`, `rec2020`, `xyz` / `xyz-d65`, `xyz-d50`; numbers or percentages (100% = 1), `none`, `/ alpha`; gamut-mapped to sRGB at parse time (C3-LAB). | — | `V/color/lab.rs`, `rdom-style/src/color/{convert,gamut}.rs` |
 | `color-mix()` (Color 5) | Missing | Mix at parse time (or computed time with `var()` / `currentColor`). | No | `COL` |
 | Relative color syntax (Color 5) | Missing | `rgb(from var(--x) r g b / 50%)`. | No | `COL` |
 | System colors (`Canvas`, `CanvasText`, `LinkText`, `ButtonFace`, …) | Missing | `Canvas` / `CanvasText` = terminal default bg / fg (`Color::Reset`); others map to UA palette entries. | No | `COL` |
@@ -698,8 +698,8 @@ implementation or a `DIVERGENCES.md` entry before the acid page's coverage test 
 - `transparent` — Partial: Maps to `Color::Reset`: as a background it does not fill (ancestor shows through — correct); as `color` / `border-color` it is the terminal's default foreground, not invisible. *Shipped: C3-TRANSPARENT.*
 - `hsl()` / `hsla()` — Missing: Convert to sRGB. *Shipped: C3-HSL-HWB.*
 - `hwb()` — Missing: Convert to sRGB. *Shipped: C3-HSL-HWB.*
-- `lab()` / `lch()` / `oklab()` / `oklch()` — Missing: Convert + gamut-map to sRGB.
-- `color()` — Missing: Predefined spaces (`srgb`, `display-p3`, …) converted to sRGB.
+- `lab()` / `lch()` / `oklab()` / `oklch()` — Missing: Convert + gamut-map to sRGB. *Shipped: C3-LAB.*
+- `color()` — Missing: Predefined spaces (`srgb`, `display-p3`, …) converted to sRGB. *Shipped: C3-LAB.*
 - `color-mix()` (Color 5) — Missing: Mix at parse time (or computed time with `var()` / `currentColor`).
 - Relative color syntax (Color 5) — Missing: `rgb(from var(--x) r g b / 50%)`.
 - System colors (`Canvas`, `CanvasText`, `LinkText`, `ButtonFace`, …) — Missing: `Canvas` / `CanvasText` = terminal default bg / fg (`Color::Reset`); others map to UA palette entries.

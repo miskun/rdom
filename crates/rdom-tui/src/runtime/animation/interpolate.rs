@@ -38,9 +38,14 @@ pub(super) fn interpolate(from: &AnimatedValue, to: &AnimatedValue, t: f32) -> A
     }
 }
 
-/// Interpolate two colors with premultiplied alpha (CSS Color 4
-/// §12.3), so a fade from `transparent` does not pass through black.
+/// Interpolate two colors in Oklab with premultiplied alpha (CSS Color
+/// 4 §12.1, §12.3), so a fade from `transparent` does not pass through
+/// black. An endpoint that is the terminal default or a palette index
+/// has no sRGB value: those interpolate in sRGB from an approximation.
 pub(super) fn lerp_color(a: Color, b: Color, t: f32) -> Color {
+    if let Some(c) = rdom_style::color::interpolate_oklab(a, b, f64::from(t)) {
+        return c;
+    }
     let (ar, ag, ab) = color_to_rgb_approx(a);
     let (br, bg, bb) = color_to_rgb_approx(b);
     let (aa, ba) = (f32::from(a.alpha()) / 255.0, f32::from(b.alpha()) / 255.0);
