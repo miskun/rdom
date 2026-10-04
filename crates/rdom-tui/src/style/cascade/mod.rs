@@ -201,12 +201,15 @@ impl CascadeExt for Dom<TuiExt> {
 }
 
 /// [`CascadeExt::cascade_all`] with the sheets' registrations already
-/// built (`None`: build them) — the `App` keeps one per stylesheet set.
+/// built — the `App` keeps one per stylesheet set; `None`: the one the
+/// document keeps for the last sheet set it was cascaded with
+/// (`registered::document_registry`).
 pub(crate) fn cascade_all_with(
     dom: &mut Dom<TuiExt>,
     stylesheets: &[&Stylesheet],
     registry: Option<Rc<PropertyRegistry>>,
 ) {
+    let registry = registry.unwrap_or_else(|| registered::document_registry(dom, stylesheets));
     let sheets = walk::Sheets::new(stylesheets, registry, document_viewport(dom));
     let merged_vars = walk::merge_root_vars(dom, &sheets);
     let root = dom.root();
@@ -232,7 +235,7 @@ pub(crate) fn cascade_all_with(
 }
 
 /// [`CascadeExt::cascade_subtrees_all`] with the sheets' registrations
-/// already built (`None`: build them).
+/// already built (`None`: the document's, as for [`cascade_all_with`]).
 pub(crate) fn cascade_subtrees_all_with(
     dom: &mut Dom<TuiExt>,
     stylesheets: &[&Stylesheet],

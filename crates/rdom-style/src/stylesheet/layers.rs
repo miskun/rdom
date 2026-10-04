@@ -70,6 +70,7 @@ impl Stylesheet {
     /// anonymous one stays apart, and every rule keeps its origin and
     /// layer and takes the next source index.
     pub fn append(&mut self, other: &Stylesheet) {
+        self.touch();
         let mut map: Vec<LayerId> = Vec::with_capacity(other.layers.len());
         for layer in &other.layers {
             let parent = layer.parent.map(|p| map[p.index()]);
@@ -120,6 +121,7 @@ impl Stylesheet {
     }
 
     fn push_layer(&mut self, layer: Layer) -> LayerId {
+        self.touch();
         self.layers.push(layer);
         LayerId(self.layers.len() as u32 - 1)
     }

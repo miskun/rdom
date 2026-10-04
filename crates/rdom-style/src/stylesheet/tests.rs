@@ -519,3 +519,27 @@ fn placeholder_rules_keep_only_first_line_properties() {
     let before = Stylesheet::bare().rule_unchecked("input::before", TuiStyle::new());
     assert_eq!(rule.specificity, before.rules()[0].specificity);
 }
+
+/// `C2G-STATELESS-REGISTRY`: a sheet's version stays while it is
+/// unchanged, and every mutation — and a clone — gives a new one.
+#[test]
+fn version_is_renewed_by_mutation_and_clone() {
+    let mut sheet = Stylesheet::bare();
+    let v = sheet.version();
+    assert_eq!(sheet.version(), v, "reading changes nothing");
+    sheet.add_rule("p", TuiStyle::new()).unwrap();
+    let after_rule = sheet.version();
+    assert_ne!(after_rule, v);
+    sheet.define_var_mut("x", "1");
+    assert_ne!(sheet.version(), after_rule);
+    let clone = sheet.clone();
+    assert_ne!(clone.version(), sheet.version(), "a clone is another sheet");
+    let before = sheet.version();
+    sheet.register_property(crate::PropertyRegistration {
+        name: "w".into(),
+        syntax: crate::PropertySyntax::Universal,
+        inherits: false,
+        initial_value: None,
+    });
+    assert_ne!(sheet.version(), before);
+}

@@ -52,6 +52,7 @@ mod selector_text;
 mod style_selector;
 #[cfg(test)]
 mod tests;
+mod version;
 
 pub use imports::Import;
 pub use index::RuleIndex;
@@ -235,6 +236,8 @@ pub struct Stylesheet {
     scopes: Vec<Scope>,
     /// CSSOM `ownerNode`: the `<style>` element the sheet came from.
     owner_node: Option<rdom_core::NodeId>,
+    /// Renewed by every mutation ([`Stylesheet::version`]).
+    version: version::Version,
 }
 
 impl Stylesheet {
@@ -301,6 +304,7 @@ impl Stylesheet {
     /// value, inherited), so a `var(--name)` in any property substitutes
     /// it and parses the result with that property's grammar.
     pub fn define_var(mut self, name: &str, value: impl Into<crate::CustomValue>) -> Self {
+        self.touch();
         self.root_vars.insert(name.to_string(), value.into());
         self
     }
@@ -315,14 +319,29 @@ impl Stylesheet {
         name: &str,
         value: impl Into<crate::CustomValue>,
     ) -> &mut Self {
+        self.touch();
         self.root_vars.insert(name.to_string(), value.into());
         self
     }
 
     /// The only writer of `rules`: appends and drops the cached index.
     fn push_rules(&mut self, new_rules: impl IntoIterator<Item = Rule>) {
+        self.touch();
         self.rules.extend(new_rules);
         self.index = std::cell::OnceCell::new();
+    }
+
+    /// Every mutation renews the version.
+    fn touch(&mut self) {
+        self.version = version::Version::next();
+    }
+
+    /// This sheet's content version: unique in the process and renewed by
+    /// every mutation — a clone gets its own — so an unchanged version
+    /// is the same sheet with the same content. A backend hook: the
+    /// cascade keys what it builds from a sheet set by it.
+    pub fn version(&self) -> u64 {
+        self.version.get()
     }
 
     /// The rightmost-selector index for this sheet (built on first use).

@@ -4,9 +4,13 @@
 //! `inherits: false`, and syntax validation at computed-value time.
 
 use std::collections::{HashMap, HashSet};
+use std::rc::Rc;
+
+use rdom_core::Dom;
 
 use rdom_style::{CustomValue, PropertyRegistration};
 
+use crate::ext::TuiExt;
 use crate::style::Stylesheet;
 
 type Map = HashMap<String, CustomValue>;
@@ -25,10 +29,41 @@ struct Entry {
 /// The one registry both the cascade and the transition engine
 /// (`runtime::animation`) read. An `App` builds it when its sheets
 /// change (`FramePrelude::sheets_changed`) and shares it; the
-/// stateless [`CascadeExt`](super::CascadeExt) entry points build one
-/// per call.
+/// stateless [`CascadeExt`](super::CascadeExt) entry points keep one on
+/// the document ([`document_registry`]).
 #[derive(Debug, Default)]
 pub(crate) struct PropertyRegistry(HashMap<String, Entry>);
+
+/// The document-data slot holding the registry of the sheet set the
+/// document was last cascaded with through a stateless form, keyed by
+/// each sheet's [`Stylesheet::version`] in order.
+struct DocumentRegistry {
+    key: Vec<u64>,
+    registry: Rc<PropertyRegistry>,
+}
+
+/// The registry for `sheets`: the document's (kept as document data)
+/// while the same sheets, unchanged, come back — so the stateless
+/// cascade forms build it once per sheet set, and the match records
+/// stamped with it (`matching::MatchedRules`) stay valid between calls —
+/// else a new one, which replaces it.
+pub(super) fn document_registry(
+    dom: &mut Dom<TuiExt>,
+    sheets: &[&Stylesheet],
+) -> Rc<PropertyRegistry> {
+    let versions = || sheets.iter().map(|s| s.version());
+    if let Some(slot) = dom.document_data::<DocumentRegistry>()
+        && slot.key.iter().copied().eq(versions())
+    {
+        return slot.registry.clone();
+    }
+    let registry = Rc::new(PropertyRegistry::new(sheets));
+    dom.set_document_data(DocumentRegistry {
+        key: versions().collect(),
+        registry: registry.clone(),
+    });
+    registry
+}
 
 impl PropertyRegistry {
     pub(crate) fn new(sheets: &[&Stylesheet]) -> Self {

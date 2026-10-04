@@ -27,18 +27,17 @@ pub(super) struct Sheets<'a> {
 }
 
 impl<'a> Sheets<'a> {
-    /// `list`, with the custom properties it registers (`registry`,
-    /// built from `list` when the caller has none at hand), cascaded for
-    /// a terminal of `viewport`'s size.
+    /// `list`, with the custom properties it registers (`registry`, built
+    /// from `list`), cascaded for a terminal of `viewport`'s size.
     pub(super) fn new(
         list: &'a [&'a Stylesheet],
-        registry: Option<Rc<PropertyRegistry>>,
+        registry: Rc<PropertyRegistry>,
         viewport: Viewport,
     ) -> Self {
         Sheets {
             list,
             layers: LayerOrder::new(list),
-            registry: registry.unwrap_or_else(|| Rc::new(PropertyRegistry::new(list))),
+            registry,
             viewport,
         }
     }

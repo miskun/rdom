@@ -229,7 +229,8 @@ fn root_vars_attr_reads_the_root_element() {
     let mut dom = TuiDom::with_root_tag("html");
     let root = dom.root();
     dom.set_attribute(root, "data-w", "7").unwrap();
-    let s = walk::Sheets::new(&sheets, None, Default::default());
+    let registry = Rc::new(PropertyRegistry::new(&sheets));
+    let s = walk::Sheets::new(&sheets, registry, Default::default());
     let merged = walk::merge_root_vars(&dom, &s);
     assert_eq!(merged.get("w").map(|v| v.as_str()), Some("7"));
 

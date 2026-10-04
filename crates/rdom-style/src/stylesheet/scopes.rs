@@ -81,6 +81,7 @@ impl Stylesheet {
     /// Declare an `@scope` and return its id, for
     /// [`RuleContext::in_scope`](super::RuleContext::in_scope).
     pub fn declare_scope(&mut self, scope: Scope) -> ScopeId {
+        self.touch();
         self.scopes.push(scope);
         ScopeId(self.scopes.len() as u32 - 1)
     }
@@ -93,6 +94,7 @@ impl Stylesheet {
 
     /// Set the owning node (the backend does this for `<style>` sheets).
     pub fn set_owner_node(&mut self, node: Option<NodeId>) {
+        self.touch();
         self.owner_node = node;
     }
 

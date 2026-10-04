@@ -17,6 +17,7 @@ impl Stylesheet {
     /// Register a custom property (`@property`, or a Rust-built sheet's
     /// `CSS.registerProperty`).
     pub fn register_property(&mut self, registration: crate::PropertyRegistration) {
+        self.touch();
         self.registrations.push(registration);
     }
 }

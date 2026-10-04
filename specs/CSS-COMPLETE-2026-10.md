@@ -593,3 +593,11 @@ row comes from.
   `counter(c)` (was the cascaded end value), and a `cascade_subtrees` class change renumbers later
   headings. `restyle_vars` returns every root it restyled, and the App settles those. The walks step
   through children by sibling links (no child `Vec` per node).
+- 2026-10-05 — C2G-STATELESS-REGISTRY: the stateless `CascadeExt` forms take the registry from
+  `registered::document_registry` — document data holding the last sheet set's registry, keyed by
+  each sheet's `Stylesheet::version()` (new in rdom-style: a process-unique stamp from one atomic
+  counter, renewed by every `&mut` / builder mutation, fresh on `Clone`, so equal keys are the same
+  sheets unchanged; decided over pointer identity, which a dropped-and-reallocated sheet would
+  alias). `Sheets::new` takes the registry (no `Option`). Test: two `cascade`s and a
+  `cascade_subtrees` with one sheet build 1 registry (was 3) and keep the element's match record
+  (`Rc::ptr_eq`); a mutated sheet and another list each build one.

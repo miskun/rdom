@@ -48,6 +48,7 @@ impl Stylesheet {
 
     /// Record an `@import` (the parser does this).
     pub fn record_import(&mut self, import: Import) {
+        self.touch();
         self.imports.push(import);
     }
 }

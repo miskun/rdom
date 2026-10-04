@@ -22,6 +22,7 @@ use std::rc::Rc;
 use rdom_core::{DocumentPosition, Dom, NodeId};
 
 use super::counters::{CounterState, StoredOps, takes_part};
+use super::registered::document_registry;
 use super::walk::{
     Mode, Scratch, Sheets, SubtreeFlags, cascade_subtree, first_child, merge_root_vars,
     next_sibling,
@@ -45,6 +46,7 @@ pub(super) fn subtrees(
     if roots.is_empty() {
         return roots;
     }
+    let registry = registry.unwrap_or_else(|| document_registry(dom, stylesheets));
     let sheets = Sheets::new(stylesheets, registry, document_viewport(dom));
     let merged_vars = merge_root_vars(dom, &sheets);
     let mut scratch = Scratch::default();

@@ -59,3 +59,31 @@ fn revert_in_a_pseudo_allocates_its_rollback_only() {
     assert_eq!(take(&LADDER_WALKS), 3, "element, ::before, ::selection");
     assert_eq!(take(&ROLLBACK_ALLOCS), 1, "only ::before met a revert");
 }
+
+/// `C2G-STATELESS-REGISTRY` — the stateless `CascadeExt` forms keep the
+/// sheet set's property registry (CSS Properties and Values 1 §2) on the
+/// document: two cascades with the same, unchanged sheets build it once
+/// and keep each element's match record (no reallocation); a changed
+/// sheet builds it again.
+#[test]
+fn headless_cascades_with_the_same_sheets_build_one_registry() {
+    use super::registry_probe::take_builds;
+    let mut dom = one_div();
+    let div = dom.node(dom.root()).first_child().unwrap().id();
+    let mut css = sheet("div { color: red }");
+    take_builds();
+    dom.cascade(&css);
+    let record = dom.node(div).ext().unwrap().matched.clone().unwrap();
+    dom.cascade(&css);
+    dom.cascade_subtrees(&css, &[div]);
+    assert_eq!(take_builds(), 1, "one registry for one sheet set");
+    let again = dom.node(div).ext().unwrap().matched.clone().unwrap();
+    assert!(Rc::ptr_eq(&record, &again), "the match record is kept");
+
+    css.add_rule("p", crate::style::TuiStyle::new()).unwrap();
+    dom.cascade(&css);
+    assert_eq!(take_builds(), 1, "a changed sheet is a new sheet set");
+    let other = sheet("div { color: blue }");
+    dom.cascade_all(&[&css, &other]);
+    assert_eq!(take_builds(), 1, "so is another list");
+}
