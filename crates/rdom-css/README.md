@@ -108,11 +108,14 @@ value       := token+
 These produce a `Warning` and the parse continues — matching browser
 behavior, so copy-pasting CSS from MDN doesn't blow up:
 
-- **At-rules.** Every at-rule (`@import`, `@charset`, `@media`,
-  `@keyframes`, `@supports`, `@font-face`, …) is consumed whole per CSS
-  Syntax 3 §5.4.2 and reported with `WarningKind::UnsupportedAtRule(name)`;
-  the rules around it are unaffected. The applicable ones (`@media`,
-  `@supports`, `@keyframes`, `@layer`, …) are scheduled for 0.6.0.
+- **At-rules other than `@layer`.** Every other at-rule (`@import`,
+  `@charset`, `@media`, `@keyframes`, `@supports`, `@font-face`, …) is
+  consumed whole per CSS Syntax 3 §5.4.2 and reported with
+  `WarningKind::UnsupportedAtRule(name)`; the rules around it are
+  unaffected. The applicable ones (`@media`, `@supports`, `@keyframes`,
+  …) are scheduled for 0.6.0. `@layer` (statement and block forms,
+  anonymous and nested layers) is parsed into the sheet's cascade layers;
+  an invalid `@layer` prelude reports `WarningKind::InvalidAtRulePrelude`.
 - **`min()` / `max()` / `clamp()`.** Not yet; `calc()` is supported
   (percentages, nesting, CSS precedence).
 - **Length units other than cells, `fr`, and `%`.** `px`, `em`, `rem`
@@ -150,6 +153,7 @@ pub enum WarningKind {
     InvalidValue { property: String, value: String },
     MalformedDeclaration(String),   // not `name: value`; dropped
     UnsupportedAtRule(String),
+    InvalidAtRulePrelude { name: String, prelude: String },
     InvalidSelector(String),
     UnterminatedComment,
     UnterminatedString,

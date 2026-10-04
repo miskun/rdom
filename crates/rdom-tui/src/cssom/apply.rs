@@ -55,21 +55,10 @@ pub fn extend_from_style_tags(dom: &TuiDom, sheet: &mut Stylesheet) -> Vec<Warni
     for id in style_ids {
         let css = collect_text_content(dom, id);
         let result = parse(&css);
-        // Merge rules — re-parse each selector via add_rule. The
-        // alternative would be a Stylesheet::append_rules method
-        // that copies pre-parsed Rule values; deferred until the
-        // perf becomes a concern. add_rule's internal split-on-
-        // commas + selector::parse path matches what the inner
-        // parser already produced, so this round-trips cleanly.
-        for rule in result.stylesheet.rules() {
-            let _ = sheet.add_rule(&rule.source_text, rule.style.clone());
-        }
-        // Merge vars. Stylesheet::define_var is fluent (consumes
-        // self) so we mem-swap.
-        for (k, v) in result.stylesheet.vars() {
-            let owned = std::mem::take(sheet);
-            *sheet = owned.define_var(k, v);
-        }
+        // Merge rules, cascade layers and vars: `append` keeps each
+        // rule's layer (merging layer names with `sheet`'s, as the
+        // document's sheets share one layer order).
+        sheet.append(&result.stylesheet);
         warnings.extend(result.warnings);
     }
     warnings

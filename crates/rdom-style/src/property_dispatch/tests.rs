@@ -748,3 +748,17 @@ fn all_shorthand_sets_every_property_in_the_table() {
         Err(DispatchError::InvalidValue)
     );
 }
+
+/// CSS Cascade 5 §7.4: `revert-layer` is a CSS-wide keyword too.
+#[test]
+fn revert_layer_is_a_css_wide_keyword() {
+    for &name in property_names() {
+        let mut style = TuiStyle::new();
+        set(name, "Revert-Layer", &mut style).unwrap_or_else(|e| panic!("{name}: {e:?}"));
+        assert_eq!(
+            serialize(name, &style).as_deref(),
+            Some("revert-layer"),
+            "{name}"
+        );
+    }
+}

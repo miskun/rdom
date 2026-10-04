@@ -3,10 +3,13 @@
 //! states `revert` needs.
 //!
 //! The ladder is a [`Plan`] of [`Step`]s, each one origin + importance
-//! group applied in specificity / source order on top of the previous:
+//! (+ cascade layer) group applied in specificity / source order on
+//! top of the previous:
 //!
-//! 1. UA normal, Author normal, Inline normal,
-//! 2. Inline important, Author important, UA important.
+//! 1. UA normal, Author normal (one step per layer, unlayered last),
+//!    Inline normal,
+//! 2. Inline important, Author important (layers reversed), UA
+//!    important.
 //!
 //! `!important` inverts origin priority, matching CSS. Don't shortcut
 //! the ladder — the inversion is observable and tests depend on it.
@@ -21,7 +24,9 @@
 //! ([`Step::revert_to`]). [`Rollback`] computes those states on demand
 //! by replaying the plan from the element's base state (initial values
 //! plus inherited ones), memoized per step — so an element whose
-//! declarations hold no `revert` pays nothing.
+//! declarations hold no `revert` pays nothing. `revert-layer` (Cascade
+//! 5 §7.4) reads the same memo, at the step's own start
+//! ([`Step::revert_layer_to`]).
 
 use std::cell::OnceCell;
 
@@ -34,8 +39,10 @@ use crate::style::{ComputedStyle, Rule, RuleOrigin, TuiStyle};
 pub(super) enum Source {
     /// Matched rules of the user-agent origin.
     UserAgent,
-    /// Matched rules of the author origin.
-    Author,
+    /// Matched rules of the author origin in the cascade layer of this
+    /// rank (`rdom_style::LayerOrder`; `UNLAYERED` for unlayered
+    /// rules).
+    Author(u32),
     /// The element's `style` attribute.
     Inline,
 }
@@ -50,27 +57,52 @@ pub(super) struct Step {
     /// back to: `0` (nothing applied — `unset`) for the UA origin, `1`
     /// (after UA normal) for author and inline declarations.
     pub revert_to: usize,
+    /// The step whose starting state a `revert-layer` rolls back to:
+    /// this step's own start (the cascade without this layer and the
+    /// ones above it, Cascade 5 §7.4) for author and inline
+    /// declarations, `0` for the UA origin, which has no layers.
+    pub revert_layer_to: usize,
 }
 
 /// The ladder for one element, in application order.
 pub(super) struct Plan(Vec<Step>);
 
 impl Plan {
-    /// The six-step ladder of Cascade 4 §6.1.
-    pub(super) fn new() -> Plan {
-        let step = |source, important, revert_to| Step {
-            source,
-            important,
-            revert_to,
+    /// The ladder of CSS Cascade 5 §6.1 for an element whose matched
+    /// author rules sit in the layers of `author_ranks` (any order,
+    /// duplicates allowed): UA normal; author normal, one step per
+    /// layer from the lowest rank up, unlayered last; inline normal;
+    /// inline important; author important with the layer order
+    /// reversed (unlayered first); UA important.
+    pub(super) fn new(author_ranks: impl IntoIterator<Item = u32>) -> Plan {
+        let mut ranks: Vec<u32> = author_ranks.into_iter().collect();
+        ranks.sort_unstable();
+        ranks.dedup();
+        let mut steps = Vec::with_capacity(2 * ranks.len() + 4);
+        let mut push = |source, important| {
+            let own = steps.len();
+            let (revert_to, revert_layer_to) = match source {
+                Source::UserAgent => (0, 0),
+                Source::Author(_) | Source::Inline => (1, own),
+            };
+            steps.push(Step {
+                source,
+                important,
+                revert_to,
+                revert_layer_to,
+            });
         };
-        Plan(vec![
-            step(Source::UserAgent, false, 0),
-            step(Source::Author, false, 1),
-            step(Source::Inline, false, 1),
-            step(Source::Inline, true, 1),
-            step(Source::Author, true, 1),
-            step(Source::UserAgent, true, 0),
-        ])
+        push(Source::UserAgent, false);
+        for &rank in &ranks {
+            push(Source::Author(rank), false);
+        }
+        push(Source::Inline, false);
+        push(Source::Inline, true);
+        for &rank in ranks.iter().rev() {
+            push(Source::Author(rank), true);
+        }
+        push(Source::UserAgent, true);
+        Plan(steps)
     }
 
     pub(super) fn steps(&self) -> &[Step] {
@@ -79,28 +111,30 @@ impl Plan {
 }
 
 /// The declarations of one element's cascade: its matched rules
-/// (sorted ascending by specificity, then source order) and its inline
-/// style.
+/// (sorted ascending by specificity, then source order), each rule's
+/// layer rank (parallel to `sorted`), and its inline style.
 #[derive(Clone, Copy)]
 pub(super) struct Declarations<'a> {
     pub sorted: &'a [&'a Rule],
+    pub ranks: &'a [u32],
     pub inline: Option<&'a TuiStyle>,
 }
 
 impl<'a> Declarations<'a> {
     /// Every declaration block `step` applies, in order.
     pub(super) fn of(self, step: &Step) -> impl Iterator<Item = &'a TuiStyle> + 'a {
-        let origin = match step.source {
-            Source::UserAgent => Some(RuleOrigin::UserAgent),
-            Source::Author => Some(RuleOrigin::Author),
-            Source::Inline => None,
-        };
+        let source = step.source;
         let rules = self
             .sorted
             .iter()
-            .filter(move |r| origin == Some(r.origin))
-            .map(|r| &r.style);
-        let inline = self.inline.filter(|_| origin.is_none());
+            .zip(self.ranks)
+            .filter(move |(r, rank)| match source {
+                Source::UserAgent => r.origin == RuleOrigin::UserAgent,
+                Source::Author(layer) => r.origin == RuleOrigin::Author && **rank == layer,
+                Source::Inline => false,
+            })
+            .map(|(r, _)| &r.style);
+        let inline = self.inline.filter(|_| source == Source::Inline);
         rules.chain(inline)
     }
 }
@@ -193,6 +227,7 @@ fn apply_step(
         parent,
         initial,
         revert: &|| rollback.state_before(step.revert_to),
+        revert_layer: &|| rollback.state_before(step.revert_layer_to),
     };
     for style in decls.of(step) {
         apply_style(working, style, step.important, &keywords);
@@ -209,16 +244,53 @@ mod tests {
     /// the user-agent origin (the state after UA normal, step 1).
     #[test]
     fn revert_targets_follow_the_origin() {
-        let plan = Plan::new();
+        let plan = Plan::new([]);
         for step in plan.steps() {
             let want = match step.source {
                 Source::UserAgent => 0,
-                Source::Author | Source::Inline => 1,
+                Source::Author(_) | Source::Inline => 1,
             };
             assert_eq!(step.revert_to, want, "{step:?}");
         }
         assert_eq!(plan.steps()[0].source, Source::UserAgent);
         assert!(!plan.steps()[0].important);
+    }
+
+    /// Cascade 5 §6.4: normal author steps run layer by layer, lowest
+    /// rank first and unlayered last; important ones in the reverse
+    /// order; `revert-layer` rolls back to the step's own start.
+    #[test]
+    fn layers_order_the_author_steps() {
+        const U: u32 = rdom_style::LayerOrder::UNLAYERED;
+        let plan = Plan::new([U, 3, 1, 3]);
+        let order: Vec<(Source, bool)> = plan
+            .steps()
+            .iter()
+            .map(|s| (s.source, s.important))
+            .collect();
+        assert_eq!(
+            order,
+            vec![
+                (Source::UserAgent, false),
+                (Source::Author(1), false),
+                (Source::Author(3), false),
+                (Source::Author(U), false),
+                (Source::Inline, false),
+                (Source::Inline, true),
+                (Source::Author(U), true),
+                (Source::Author(3), true),
+                (Source::Author(1), true),
+                (Source::UserAgent, true),
+            ]
+        );
+        for (i, step) in plan.steps().iter().enumerate() {
+            let want = if step.source == Source::UserAgent {
+                0
+            } else {
+                i
+            };
+            assert_eq!(step.revert_layer_to, want, "{step:?}");
+        }
     }
 
     /// `state_before(i)` replays steps `0..i` from the base, once each.

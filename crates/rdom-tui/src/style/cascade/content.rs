@@ -86,6 +86,7 @@ fn declare_step(
                 Value::Inherit => declared.clone(),
                 Value::Initial => Some(Content::None),
                 Value::Revert => rollback.state_before(step.revert_to).clone(),
+                Value::RevertLayer => rollback.state_before(step.revert_layer_to).clone(),
             };
         }
     }

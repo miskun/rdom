@@ -3,7 +3,8 @@
 //! `ladder.rs`).
 //!
 //! Applicators handle the `Value<T>` variants: `Specified`, and the
-//! CSS-wide keywords `inherit` / `initial` / `revert`, each of which
+//! CSS-wide keywords `inherit` / `initial` / `revert` / `revert-layer`,
+//! each of which
 //! takes the field from a whole computed style ([`Keywords::resolve`]):
 //! the parent's, `ComputedStyle::initial()` (via `Initials`, the table
 //! every element's cascade starts from), or the ladder's rollback
@@ -27,6 +28,9 @@ pub(super) struct Keywords<'a> {
     /// `revert`: the cascade rolled back to the previous origin
     /// (§7.3), computed on first use.
     pub revert: &'a dyn Fn() -> &'a ComputedStyle,
+    /// `revert-layer`: the cascade rolled back to the previous cascade
+    /// layer (Cascade 5 §7.4), computed on first use.
+    pub revert_layer: &'a dyn Fn() -> &'a ComputedStyle,
 }
 
 /// A declared value, resolved for one pass: the specified value, or
@@ -43,6 +47,7 @@ impl<'a> Keywords<'a> {
             Value::Inherit => Resolved::From(self.parent),
             Value::Initial => Resolved::From(self.initial.get()),
             Value::Revert => Resolved::From((self.revert)()),
+            Value::RevertLayer => Resolved::From((self.revert_layer)()),
         }
     }
 }
@@ -390,10 +395,14 @@ fn apply_border_collapse(
                 // this element, so it's a (trivial) collapse-root.
                 *declared = true;
             }
-            Value::Revert => {
+            Value::Revert | Value::RevertLayer => {
                 // Whatever the rolled-back cascade had, collapse-root
                 // flag included.
-                let source = (kw.revert)();
+                let source = if matches!(v, Value::Revert) {
+                    (kw.revert)()
+                } else {
+                    (kw.revert_layer)()
+                };
                 *target = source.border_collapse;
                 *declared = source.border_collapse_declared;
             }

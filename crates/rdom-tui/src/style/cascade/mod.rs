@@ -38,7 +38,9 @@
 //! - `walk` — `cascade_subtree`, `compute_element_style`,
 //!   `compute_pseudo_style`. The tree recursion lives here.
 //! - `ladder` — the cascade ladder (`Plan` / `Step`) and the memoized
-//!   rollback states `revert` reads.
+//!   rollback states `revert` / `revert-layer` read.
+//! - `sheets` — the sheets of one run and their shared cascade-layer
+//!   order.
 //! - `custom` — custom properties through the ladder.
 //! - `apply` — per-property applicators.
 //! - `inherit` — `inherit_inheritable_from`, `layout_differs`.
@@ -58,12 +60,15 @@ mod counters;
 mod custom;
 mod inherit;
 mod ladder;
+mod sheets;
 mod walk;
 
 #[cfg(test)]
 mod apply_tests;
 #[cfg(test)]
 mod css_wide_tests;
+#[cfg(test)]
+mod layer_tests;
 #[cfg(test)]
 mod tests;
 
@@ -85,7 +90,9 @@ use crate::style::{ComputedStyle, Content, Stylesheet};
 /// multiple sheets registered (`push_stylesheet` / `set_stylesheet` /
 /// construction). Within the slice, later sheets win same-specificity
 /// contests — push order is the tiebreaker, matching `Document.styleSheets`
-/// ordering on the web. The single-sheet form is a thin wrapper around
+/// ordering on the web — and the sheets share one cascade-layer order
+/// (`@layer`, CSS Cascade 5 §6.4): a layer name is one layer across
+/// them, placed by its first declaration in slice order. The single-sheet form is a thin wrapper around
 /// the slice form with a one-element slice.
 pub trait CascadeExt {
     /// Cascade the whole document against `stylesheet`. Writes
@@ -133,7 +140,8 @@ impl CascadeExt for Dom<TuiExt> {
         // written authoritatively, top-to-bottom. No bubble-up needed
         // because the walk visits every ancestor.
         let mut counters = walk::CounterState::default();
-        let _ = walk::cascade_subtree(self, stylesheets, root, &parent, &mut counters);
+        let sheets = walk::Sheets::new(stylesheets);
+        let _ = walk::cascade_subtree(self, &sheets, root, &parent, &mut counters);
     }
 
     fn cascade_subtrees(&mut self, stylesheet: &Stylesheet, roots: &[NodeId]) {
@@ -193,7 +201,7 @@ impl CascadeExt for Dom<TuiExt> {
             let mut counters = walk::CounterState::default();
             walk::cascade_roots_in_order(
                 self,
-                stylesheets,
+                &walk::Sheets::new(stylesheets),
                 &merged_vars,
                 &live,
                 &mut next,
@@ -202,11 +210,11 @@ impl CascadeExt for Dom<TuiExt> {
             );
             return;
         }
+        let sheets = walk::Sheets::new(stylesheets);
         for root in live {
             let parent_computed = walk::parent_computed_for(self, root, &merged_vars);
             let mut counters = walk::CounterState::default();
-            let flags =
-                walk::cascade_subtree(self, stylesheets, root, &parent_computed, &mut counters);
+            let flags = walk::cascade_subtree(self, &sheets, root, &parent_computed, &mut counters);
             walk::bubble_subtree_flags(self, root, flags);
         }
     }

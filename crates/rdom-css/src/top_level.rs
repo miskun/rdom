@@ -3,9 +3,11 @@
 //!
 //! - a qualified rule is `<prelude> { <block> }`; the prelude is read
 //!   up to the first `{` outside strings and comments;
-//! - an at-rule (`@name …`) is consumed whole — statement form through
-//!   `;`, block form through a depth-tracked `{…}` — and reported as
-//!   `UnsupportedAtRule` (rdom evaluates none of them yet);
+//! - `@layer` is evaluated (`layer.rs`); its block form parses a nested
+//!   list of rules into the layer;
+//! - any other at-rule (`@name …`) is consumed whole — statement form
+//!   through `;`, block form through a depth-tracked `{…}` — and
+//!   reported as `UnsupportedAtRule`;
 //! - a stray `}` at the top level is a parse error and is ignored
 //!   (§5.4.1);
 //! - EOF inside a block closes the block and keeps the rule (§5.4.7).
@@ -14,7 +16,7 @@
 //! `@media {…}` were read as the *next* rule's selector text and
 //! swallowed that rule.
 
-use rdom_style::{Stylesheet, TuiStyle};
+use rdom_style::{LayerId, Stylesheet, TuiStyle};
 
 use crate::declarations;
 use crate::{Warning, WarningKind};
@@ -27,6 +29,20 @@ pub(crate) fn parse_stylesheet(
     sheet: &mut Stylesheet,
     warnings: &mut Vec<Warning>,
 ) {
+    parse_rule_list(cursor, sheet, warnings, None, false);
+}
+
+/// §5.4.1 "consume a list of rules" into `layer` (`None`: unlayered).
+/// `nested`: the list is a block's body (`@layer x { … }`) — its `}`
+/// ends it and is consumed; at the top level a stray `}` is dropped.
+/// EOF ends either (§5.4.7).
+pub(crate) fn parse_rule_list(
+    cursor: &mut Cursor,
+    sheet: &mut Stylesheet,
+    warnings: &mut Vec<Warning>,
+    layer: Option<LayerId>,
+    nested: bool,
+) {
     loop {
         if !skip_ws_and_comments(cursor, warnings) {
             return;
@@ -37,10 +53,13 @@ pub(crate) fn parse_stylesheet(
             // and carry on with the next rule.
             Some('}') => {
                 cursor.bump();
+                if nested {
+                    return;
+                }
             }
-            Some('@') => consume_at_rule(cursor, warnings),
+            Some('@') => consume_at_rule(cursor, sheet, warnings, layer),
             Some(_) => {
-                if !parse_one_rule(cursor, sheet, warnings) {
+                if !parse_one_rule(cursor, sheet, warnings, layer) {
                     return;
                 }
             }
@@ -52,19 +71,23 @@ pub(crate) fn parse_stylesheet(
 /// the name, then the prelude up to either `;` (statement at-rule,
 /// e.g. `@import`, `@charset`) or a `{…}` block (e.g. `@media`,
 /// `@keyframes`, `@font-face`), whose nested blocks are skipped by
-/// depth. Emits `UnsupportedAtRule(name)` positioned at the `@`.
-fn consume_at_rule(cursor: &mut Cursor, warnings: &mut Vec<Warning>) {
+/// depth. `@layer` goes to `layer.rs`; any other at-rule emits
+/// `UnsupportedAtRule(name)` positioned at the `@`. At-rule names are
+/// ASCII case-insensitive.
+fn consume_at_rule(
+    cursor: &mut Cursor,
+    sheet: &mut Stylesheet,
+    warnings: &mut Vec<Warning>,
+    layer: Option<LayerId>,
+) {
     let line = cursor.line();
     let column = cursor.col();
     cursor.bump(); // '@'
-    let mut name = String::new();
-    while let Some(c) = cursor.peek() {
-        if c.is_ascii_alphanumeric() || c == '-' || c == '_' {
-            name.push(c);
-            cursor.bump();
-        } else {
-            break;
-        }
+    let (name, used) = rdom_core::css_syntax::consume_ident(cursor.rest());
+    cursor.advance(used);
+    if name.eq_ignore_ascii_case("layer") {
+        crate::layer::consume_layer_rule(cursor, sheet, warnings, layer, (line, column));
+        return;
     }
     warnings.push(Warning {
         kind: WarningKind::UnsupportedAtRule(name),
@@ -105,7 +128,7 @@ fn consume_at_rule(cursor: &mut Cursor, warnings: &mut Vec<Warning>) {
 /// With the cursor on `{`, consume through the matching `}` (nested
 /// blocks, strings, and comments respected). At EOF the block is
 /// treated as closed (§5.4.7).
-fn skip_balanced_block(cursor: &mut Cursor) {
+pub(crate) fn skip_balanced_block(cursor: &mut Cursor) {
     let mut depth = 0usize;
     loop {
         match cursor.peek() {
@@ -168,7 +191,7 @@ pub(crate) fn skip_ws_and_comments(cursor: &mut Cursor, warnings: &mut Vec<Warni
 
 /// Consume a `/* … */` comment. The cursor is at `/`; we already
 /// know the next char is `*`. Returns `false` on unterminated.
-fn skip_comment(cursor: &mut Cursor, warnings: &mut Vec<Warning>) -> bool {
+pub(crate) fn skip_comment(cursor: &mut Cursor, warnings: &mut Vec<Warning>) -> bool {
     let start_line = cursor.line();
     let start_col = cursor.col();
     cursor.bump(); // /
@@ -201,6 +224,7 @@ fn parse_one_rule(
     cursor: &mut Cursor,
     sheet: &mut Stylesheet,
     warnings: &mut Vec<Warning>,
+    layer: Option<LayerId>,
 ) -> bool {
     // Read selector text up to `{`, stripping comments inline. A
     // prelude that hits EOF without a block is dropped (§5.4.3).
@@ -237,7 +261,7 @@ fn parse_one_rule(
         }
     }
 
-    if !trimmed.is_empty() && sheet.add_rule(trimmed, style).is_err() {
+    if !trimmed.is_empty() && sheet.add_rule_in_layer(trimmed, style, layer).is_err() {
         warnings.push(Warning {
             kind: WarningKind::InvalidSelector(trimmed.to_string()),
             line: selector_line,
@@ -389,7 +413,7 @@ fn copy_escape_into(cursor: &mut Cursor, out: &mut String) {
     }
 }
 
-fn read_string_into(cursor: &mut Cursor, quote: char, out: &mut String) -> bool {
+pub(crate) fn read_string_into(cursor: &mut Cursor, quote: char, out: &mut String) -> bool {
     loop {
         match cursor.peek() {
             None => return false,

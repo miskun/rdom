@@ -18,16 +18,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Breaking — `rdom-style`
 
 - `Value<T>` gains `Revert`, the CSS-wide keyword `revert` (CSS Cascade 4 §7.3), which depends on the declaration's origin and so is stored as written for the cascade to resolve (`unset` stays resolved at parse time). `Value` is closed data by design (DESIGN: non-exhaustive rule), so this is breaking. Migration: add a `Value::Revert` arm to matches on `Value` — in a cascade, roll back to the user-agent origin's value; elsewhere treat it like the other keywords. (C1-REVERT)
+- `Value<T>` gains `RevertLayer`, the CSS-wide keyword `revert-layer` (CSS Cascade 5 §7.4), resolved by the cascade like `Revert`. Migration: add a `Value::RevertLayer` arm next to `Value::Revert`. (C1-LAYER)
 
 ### Added — `rdom-style`
 
 - **The value tokenizer decodes identifier escapes** (CSS Syntax 3 §4.3.7 / §4.3.11) through `rdom_core::css_syntax`, so they work in property names (`col\6f r: red`) and keyword values (`display: fl\65x`); an identifier may start with an escape. A selector list no longer splits on an escaped comma. New `Cursor::rest` / `Cursor::advance`. (C1-ESCAPES)
 - **`revert`** is accepted for every property (ASCII case-insensitive) and serializes as written. (C1-REVERT)
 - **The `all` shorthand** (CSS Cascade 4 §3.2): `all: initial | inherit | unset | revert` sets every property in the dispatch table — `unset` resolved per property — except `direction`, `unicode-bidi` (when they land) and custom properties; `!important` covers every property, `removeProperty("all")` clears them, any other value is invalid. It is derived from `PROPERTY_NAMES`, so a property added to the table is covered automatically. (C1-ALL)
+- **Cascade layers in the data model** (CSS Cascade 5 §6.4): `Rule::layer: Option<LayerId>`; a sheet records the layers it declares in order of first declaration (`Stylesheet::layers`, `Layer { name, parent }`) through `declare_layer(parent, &["a", "b"])` / `declare_anonymous_layer(parent)`, and `add_rule_in_layer` adds a rule to one. `LayerOrder::new(&sheets)` merges the layers of the sheets of one cascade by name in sheet order and ranks them (siblings by first declaration, sublayers below their parent's own rules, unlayered last). `Stylesheet::append(&other)` appends another sheet's rules, layers (named ones merged) and root variables. `revert-layer` is accepted for every property. (C1-LAYER)
 
 ### Fixed — `rdom-style`
 
 - **Property names, keywords and units are ASCII case-insensitive** (CSS Values 4 §2.1; CSSOM `setProperty` folds the name). New `property_dispatch::canonical_property_name`, which `set` / `set_from_tokens` / `serialize` / `property_mask` / `remove` / `inherits` all fold through, so `COLOR: RED` is `color: red` in a sheet, an inline style and CSSOM alike; custom property names (`--Foo` vs `--foo`) stay case-sensitive (CSS Variables 1 §2). `text-decoration: UNDERLINE` and `transition-duration: 2S` parse — they were the last keyword and unit matched exactly. (C1-CASE)
+
+### Added — `rdom-css`
+
+- **`@layer`** (CSS Cascade 5 §6.4.1): the statement form `@layer a, b.c;` declares layers, the block form `@layer a { … }` / `@layer { … }` parses its rules into a named or anonymous layer, and an `@layer` inside a block nests under it; at-rule names match ASCII case-insensitively. An invalid prelude (two names on a block, whitespace around a `.`, a reserved CSS-wide keyword) drops the rule with the new `WarningKind::InvalidAtRulePrelude { name, prelude }`. (C1-LAYER)
+
+### Changed — `rdom-css`
+
+- `from_css` / `from_css_strict` merge the parsed sheet with `Stylesheet::append` instead of re-adding each rule by its selector text, so rules keep their cascade layer. (C1-LAYER)
 
 ### Fixed — `rdom-css`
 
@@ -37,6 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added — `rdom-tui`
 
 - **The cascade resolves `revert`** (CSS Cascade 4 §7.3): in an author rule or inline style it rolls the property back to the value the user-agent origin gives (`button { color: revert }` is the UA button color), and to the `unset` value where the UA declares nothing; in a UA rule it acts as `unset`. Custom properties and `content` revert too. The ladder is now one plan (`cascade/ladder.rs`) that properties, custom properties and `content` all walk — `content` had its own copy — and the rollback states are replayed on demand and memoized per step, so a cascade without `revert` does no extra work. (C1-REVERT)
+- **Cascade layers** (CSS Cascade 5 §6.4): author rules cascade layer by layer — later layers beat earlier ones whatever the specificity, unlayered rules beat every layer, and `!important` reverses the order; a layer's own rules beat its sublayers. `revert-layer` rolls a property back to the cascade without its layer (and the ones above it), from the first layer to the UA origin. All the sheets of one cascade run share one layer order, merged by name in run order — for an `App`, its `<style>` sheets in tree order, then its own sheets in push order (DIVERGENCES). `extend_from_style_tags` keeps layers (`Stylesheet::append`). (C1-LAYER)
 
 ### Fixed — `rdom-tui`
 

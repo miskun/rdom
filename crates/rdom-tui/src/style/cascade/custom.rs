@@ -43,8 +43,8 @@ pub(super) fn apply_custom_properties(
 /// One ladder step's custom-property declarations. CSS Variables 1 §2:
 /// the CSS-wide keywords apply to custom properties too — `initial` is
 /// the guaranteed-invalid value (the property is undefined), `inherit`
-/// / `unset` take the parent's, `revert` the value of the step the
-/// ladder rolls back to (Cascade 4 §7.3).
+/// / `unset` take the parent's, `revert` / `revert-layer` the value of
+/// the step the ladder rolls back to (Cascade 4 §7.3, Cascade 5 §7.4).
 fn put_step(
     map: &mut Map,
     step: &Step,
@@ -64,6 +64,8 @@ fn put_step(
                 Some(inherited)
             } else if v.eq_ignore_ascii_case("revert") {
                 Some(rollback.state_before(step.revert_to))
+            } else if v.eq_ignore_ascii_case("revert-layer") {
+                Some(rollback.state_before(step.revert_layer_to))
             } else {
                 map.insert(d.name.clone(), d.value.clone());
                 continue;

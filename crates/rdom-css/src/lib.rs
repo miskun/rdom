@@ -17,6 +17,7 @@
 use rdom_style::{Stylesheet, TuiStyle};
 
 mod declarations;
+mod layer;
 mod top_level;
 
 /// The single `name → (setter, serializer)` table both this crate
@@ -33,13 +34,7 @@ pub use rdom_style::property_dispatch;
 pub fn from_css(source: &str) -> Stylesheet {
     let parsed = parse(source);
     let mut sheet = Stylesheet::new();
-    for rule in parsed.stylesheet.rules() {
-        let _ = sheet.add_rule(&rule.source_text, rule.style.clone());
-    }
-    for (k, v) in parsed.stylesheet.vars() {
-        let owned = std::mem::take(&mut sheet);
-        sheet = owned.define_var(k, v);
-    }
+    sheet.append(&parsed.stylesheet);
     sheet
 }
 
@@ -51,13 +46,7 @@ pub fn from_css_strict(source: &str) -> Result<Stylesheet, ParseError> {
         return Err(warning_to_error(w));
     }
     let mut sheet = Stylesheet::new();
-    for rule in parsed.stylesheet.rules() {
-        let _ = sheet.add_rule(&rule.source_text, rule.style.clone());
-    }
-    for (k, v) in parsed.stylesheet.vars() {
-        let owned = std::mem::take(&mut sheet);
-        sheet = owned.define_var(k, v);
-    }
+    sheet.append(&parsed.stylesheet);
     Ok(sheet)
 }
 
@@ -122,6 +111,9 @@ fn warning_to_error(w: &Warning) -> ParseError {
             ParseErrorKind::ExpectedToken("valid declaration")
         }
         WarningKind::UnsupportedAtRule(_) => ParseErrorKind::ExpectedToken("rule"),
+        WarningKind::InvalidAtRulePrelude { .. } => {
+            ParseErrorKind::ExpectedToken("at-rule prelude")
+        }
     };
     ParseError {
         kind,
@@ -183,6 +175,13 @@ pub enum WarningKind {
     /// the payload is the segment's rendered text.
     MalformedDeclaration(String),
     UnsupportedAtRule(String),
+    /// An at-rule rdom evaluates whose prelude is invalid — `@layer a
+    /// b;`, `@layer a, b { … }`, a reserved layer name. The whole rule
+    /// (block included) is dropped (CSS Syntax 3 §5.4.2).
+    InvalidAtRulePrelude {
+        name: String,
+        prelude: String,
+    },
     InvalidSelector(String),
     UnterminatedComment,
     UnterminatedString,

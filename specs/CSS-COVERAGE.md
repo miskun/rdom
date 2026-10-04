@@ -69,7 +69,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 
 | Module | Supported | Partial | Missing | N/A | Total |
 |---|---:|---:|---:|---:|---:|
-| 3.1 Syntax, cascade and inheritance (Syntax 3, Cascade 4/5, CSS 2.1 §6) | 14 | 0 | 5 | 2 | 21 |
+| 3.1 Syntax, cascade and inheritance (Syntax 3, Cascade 4/5, CSS 2.1 §6) | 16 | 0 | 3 | 2 | 21 |
 | 3.2 Custom properties (CSS Variables 1) | 2 | 1 | 3 | 1 | 7 |
 | 3.3 Values and units (Values 4) | 5 | 5 | 8 | 4 | 22 |
 | 3.4 Color (Color 4 / 5) | 3 | 3 | 9 | 2 | 17 |
@@ -93,7 +93,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 0 | 0 | 6 | 3 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **57** | **43** | **157** | **50** | **307** |
+| **Total** | **59** | **43** | **155** | **50** | **307** |
 
 Of the 205 Partial / Missing rows, **133 are not documented** in `DIVERGENCES.md` (6 of them because the document states the opposite of the code) — see §5 and §6.
 
@@ -229,9 +229,9 @@ dropped:
 | `initial` | Supported | All properties. | — | `DISP/css_wide.rs` |
 | `unset` | Supported | Resolved at parse time from `inherits()` (documented implementation detail). | — | `DISP/table.rs::inherits` |
 | `revert` | Supported | `Value::Revert`; the cascade ladder rolls author / inline declarations back to the UA origin and UA declarations to `unset`, custom properties and `content` included (C1-REVERT). | — | `DISP/css_wide.rs`, `CASC/ladder.rs` |
-| `revert-layer` | Missing | Needs `@layer`. | No | `DISP/css_wide.rs`, `CASC` |
+| `revert-layer` | Supported | Rolls back to the cascade without the declaration's layer (and the ones above it), important layers included; outside author layers, as `revert` (C1-LAYER). | — | `DISP/css_wide.rs`, `CASC/ladder.rs` |
 | `all` | Supported | Takes a CSS-wide keyword and sets every property of the dispatch table (`unset` resolved per property); `direction` / `unicode-bidi` (when they land) and custom properties excluded; driven by `PROPERTY_NAMES`, so a new property is covered without touching `all` (C1-ALL). | — | `DISP/table.rs` |
-| `@layer` | Missing | Cascade layers. | Blanket | `AT`, `CASC` |
+| `@layer` | Supported | Statement and block forms, anonymous layers, `a.b` / nested sublayers, order by first declaration; unlayered beats layered for normal declarations, reversed for `!important`; one layer order across all the sheets of a cascade (C1-LAYER). | — | `rdom-css/src/layer.rs`, `rdom-style/src/stylesheet/layers.rs`, `CASC/ladder.rs` |
 | `@import` | Missing | Load another sheet through a host-provided loader; media / supports / layer conditions. | Blanket | `AT` |
 | `@scope` | Missing | Scoped style rules with an optional lower bound. | Blanket | `AT`, `SEL` |
 | `@charset` | N/A | Sources are Rust `&str` (already UTF-8); consumed harmlessly. | — | `AT` |
@@ -674,7 +674,7 @@ implementation or a `DIVERGENCES.md` entry before the acid page's coverage test 
 - Property-name case-insensitivity — Partial: Names are matched exactly: `COLOR: red` is `UnknownProperty` (CSS property names are ASCII case-insensitive). *Shipped: C1-CASE.*
 - Keyword case-insensitivity — Partial: `parse_keyword` is case-insensitive, but `text-decoration` (`V/keyword.rs::parse_text_decoration`) matches exactly. *Shipped: C1-CASE.*
 - `revert` — Missing: Roll back to the UA-origin value. *Shipped: C1-REVERT.*
-- `revert-layer` — Missing: Needs `@layer`.
+- `revert-layer` — Missing: Needs `@layer`. *Shipped: C1-LAYER.*
 - `all` — Missing: Shorthand for every property in the table (custom properties excluded). *Shipped: C1-ALL.*
 
 **3.2 Custom properties (CSS Variables 1)**

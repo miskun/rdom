@@ -25,6 +25,11 @@
 //! 3. Inline style is not a rule — it's applied separately by the
 //!    cascade with `Specificity::INLINE`.
 //!
+//! Author rules may sit in cascade layers (`@layer`, CSS Cascade 5
+//! §6.4): each sheet records the layers it declares and each rule its
+//! layer; [`LayerOrder`] merges the layers of the sheets of one cascade
+//! into one order (`layers.rs`).
+//!
 //! ## Errors
 //!
 //! `Stylesheet::rule()` returns `Result<Self, StyleError>`. Parse errors
@@ -39,11 +44,13 @@ use rdom_core::selectors::{self, ParseError, SelectorList};
 use crate::{Specificity, TuiStyle};
 
 mod index;
+mod layers;
 mod selector_text;
 #[cfg(test)]
 mod tests;
 
 pub use index::RuleIndex;
+pub use layers::{Layer, LayerId, LayerOrder};
 use selector_text::{extract_pseudo_suffix, split_top_level_commas};
 
 /// Which pseudo-element a rule targets. `None` = the host element itself.
@@ -149,6 +156,10 @@ pub struct Rule {
     pub source_idx: u32,
     /// Original selector text (kept for debug / devtools / error messages).
     pub source_text: String,
+    /// The cascade layer the rule sits in (`@layer`, CSS Cascade 5
+    /// §6.4), as declared in its own sheet; `None` for an unlayered
+    /// rule (and every UA rule).
+    pub layer: Option<LayerId>,
 }
 
 /// Error produced while parsing a stylesheet rule.
@@ -204,6 +215,9 @@ pub struct Stylesheet {
     /// `ComputedStyle.vars` via `root_vars_rc()` so `var(--foo)`
     /// references in rules resolve to concrete values.
     root_vars: std::collections::HashMap<String, String>,
+    /// Declared cascade layers, in order of first declaration
+    /// (`layers.rs`).
+    layers: Vec<Layer>,
 }
 
 impl Stylesheet {
@@ -382,6 +396,7 @@ impl Stylesheet {
                     origin,
                     source_idx: idx,
                     source_text: trimmed.to_string(),
+                    layer: None,
                 });
             }
         }

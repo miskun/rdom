@@ -126,7 +126,7 @@ Custom properties (`TuiStyle::custom_properties`) are declared under any
 selector and scoped per element by the cascade; `var()` is consumed in
 `<color>` values and in `content`. Generalization to other property types
 (`padding: var(--gap)`) is not shipped; see `DIVERGENCES.md`. The CSS-wide
-keywords `inherit`, `initial`, `unset` and `revert` are accepted for every property, and
+keywords `inherit`, `initial`, `unset`, `revert` and `revert-layer` are accepted for every property, and
 `all` sets one of them on every property at once.
 
 ## Pointers

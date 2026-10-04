@@ -12,6 +12,8 @@
 //!   property back to the previous origin (CSS Cascade 4 §7.3). Unlike
 //!   `unset`, this depends on the declaration's origin, so it is kept
 //!   as written and resolved by the cascade.
+//! - `RevertLayer` — `color: revert-layer;`: the same, rolled back to
+//!   the previous cascade layer (CSS Cascade 5 §7.4).
 //!
 //! The outer `Option<Value<T>>` on `TuiStyle` fields adds a fourth state:
 //!
@@ -42,6 +44,11 @@ pub enum Value<T> {
     /// value the user-agent origin gives; in a user-agent declaration,
     /// the `unset` value.
     Revert,
+    /// Roll back to the previous cascade layer: `color: revert-layer;`
+    /// (CSS Cascade 5 §7.4) — the value the cascade gives without this
+    /// declaration's layer and the ones above it; outside any author
+    /// layer (or in the first one), as `revert`.
+    RevertLayer,
 }
 
 impl<T> Value<T> {
@@ -76,6 +83,7 @@ impl<T> Value<T> {
             Value::Inherit => Value::Inherit,
             Value::Initial => Value::Initial,
             Value::Revert => Value::Revert,
+            Value::RevertLayer => Value::RevertLayer,
         }
     }
 }

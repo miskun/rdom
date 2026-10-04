@@ -18,7 +18,8 @@ use super::apply::{finalize_bfc_formation, finalize_border_fg};
 use super::content::resolve_content_on;
 pub(super) use super::counters::CounterState;
 use super::inherit::{inherit_inheritable_from, layout_differs};
-use super::ladder::{Declarations, Plan, apply_cascade_ladder};
+use super::ladder::{Declarations, apply_cascade_ladder};
+pub(super) use super::sheets::Sheets;
 
 /// Merge `root_vars` across all registered sheets into a single
 /// `VarMap`. Later sheets win per var name — push order is the
@@ -84,7 +85,7 @@ pub(super) fn bubble_subtree_flags(dom: &mut Dom<TuiExt>, root: NodeId, flags: S
 #[allow(clippy::too_many_arguments)]
 pub(super) fn cascade_roots_in_order(
     dom: &mut Dom<TuiExt>,
-    sheets: &[&Stylesheet],
+    sheets: &Sheets<'_>,
     merged_vars: &VarMap,
     roots: &[NodeId],
     next: &mut usize,
@@ -165,7 +166,7 @@ impl SubtreeFlags {
 /// conservatism rules.
 pub(super) fn cascade_subtree(
     dom: &mut Dom<TuiExt>,
-    sheets: &[&Stylesheet],
+    sheets: &Sheets<'_>,
     id: NodeId,
     parent_computed: &ComputedStyle,
     counters: &mut CounterState,
@@ -341,7 +342,7 @@ pub(super) fn cascade_subtree(
 /// `border_fg`.
 fn compute_element_style(
     dom: &Dom<TuiExt>,
-    sheets: &[&Stylesheet],
+    sheets: &Sheets<'_>,
     id: NodeId,
     parent: &ComputedStyle,
     parent_id: Option<NodeId>,
@@ -371,13 +372,14 @@ fn compute_element_style(
     }
     matching.sort_by_key(|(sheet_idx, r)| (r.specificity, *sheet_idx, r.source_idx));
     let sorted: Vec<&Rule> = matching.iter().map(|(_, r)| *r).collect();
+    let (ranks, plan) = sheets.plan_for(&matching);
 
     // Inline style on this element (may be empty).
     let inline = dom.node(id).ext().and_then(|e| e.inline_style.as_deref());
 
-    let plan = Plan::new();
     let decls = Declarations {
         sorted: &sorted,
+        ranks: &ranks,
         inline,
     };
     apply_cascade_ladder(&mut working, &plan, decls, parent);
@@ -444,7 +446,7 @@ fn before_targets(dom: &Dom<TuiExt>, id: NodeId) -> &'static [PseudoElementTarge
 /// resolved).
 fn compute_pseudo_style(
     dom: &Dom<TuiExt>,
-    sheets: &[&Stylesheet],
+    sheets: &Sheets<'_>,
     id: NodeId,
     host_computed: &ComputedStyle,
     target: PseudoElementTarget,
@@ -460,7 +462,7 @@ fn compute_pseudo_style(
 /// `Some`-ness rule are those of the first target.
 fn compute_pseudo_style_layered(
     dom: &Dom<TuiExt>,
-    sheets: &[&Stylesheet],
+    sheets: &Sheets<'_>,
     id: NodeId,
     host_computed: &ComputedStyle,
     targets: &[PseudoElementTarget],
@@ -496,11 +498,13 @@ fn compute_pseudo_style_layered(
     }
     matching.sort_by_key(|(rank, sheet_idx, r)| (r.specificity, *rank, *sheet_idx, r.source_idx));
     let sorted: Vec<&Rule> = matching.iter().map(|(_, _, r)| *r).collect();
+    let by_sheet: Vec<(usize, &Rule)> = matching.iter().map(|(_, s, r)| (*s, *r)).collect();
+    let (ranks, plan) = sheets.plan_for(&by_sheet);
 
     // Pseudo-elements don't have their own inline_style on `TuiExt`.
-    let plan = Plan::new();
     let decls = Declarations {
         sorted: &sorted,
+        ranks: &ranks,
         inline: None,
     };
     apply_cascade_ladder(&mut working, &plan, decls, host_computed);
