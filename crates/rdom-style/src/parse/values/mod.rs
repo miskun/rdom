@@ -16,6 +16,7 @@
 //! - `number.rs` — `opacity`, unsigned counts, `z-index`, `aspect-ratio`.
 //! - `length.rs` — sizes, `flex`, `min-*`, signed lengths, `inset`.
 //! - `spacing.rs` — `gap`, `padding`, `margin`.
+//! - `background.rs` — the `background` shorthand and its longhands.
 //! - `border.rs` — `border` shorthand and per-side styles.
 //! - `content.rs` — `content` and counter operations.
 //! - `transition.rs` — easing, `<time>`, transition lists and shorthand.
@@ -26,6 +27,7 @@
 //! Every parser is re-exported here, so `parse::values::parse_*`
 //! stays the single public path.
 
+mod background;
 mod border;
 mod calc;
 mod color;
@@ -40,6 +42,14 @@ pub use numeric::{MAX_ANGLE_DEGREES, parse_angle};
 mod spacing;
 mod transition;
 
+pub use background::{
+    BackgroundLayer, BackgroundShorthand, parse_background, parse_background_attachment,
+    parse_background_image, parse_background_position, parse_background_repeat,
+    parse_background_size, parse_visual_box_list,
+};
+pub(crate) use background::{
+    INITIAL_CLIP, INITIAL_IMAGE, INITIAL_ORIGIN, INITIAL_POSITION, INITIAL_SIZE,
+};
 pub use border::{current_border, parse_border, parse_border_side};
 pub use calc::{MAX_CALC_DEPTH, MAX_CALC_NESTING, looks_like_calc, parse_calc};
 pub(crate) use color::{ColorExpr, compute_function as compute_color_function};

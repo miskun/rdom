@@ -66,8 +66,10 @@ The leaf crate carries the **values**, not the cascade. Cascade lives in
 (also driving `rdom-tui`'s `StyleDeclaration` camelCase aliases via
 `build.rs`). The current set:
 
-- **Color / text / interaction** — `color`, `background-color` (and the
-  color-only `background` shorthand), `border-color`, `opacity`,
+- **Color / text / interaction** — `color`, `background-color`, the
+  `background` shorthand and its longhands (`background-image` /
+  `-position` / `-size` / `-repeat` / `-attachment` / `-origin` /
+  `-clip`; images parse but draw nothing), `border-color`, `opacity`,
   `color-scheme`, `caret-color`, `caret-text-color`, `font-weight`,
   `font-style`, `text-decoration`, `pointer-events`, `user-select`.
 - **Block model** — `display`, `flex-direction`, `flex`, `flex-shrink`,

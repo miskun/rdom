@@ -73,7 +73,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.2 Custom properties (CSS Variables 1) | 6 | 0 | 0 | 1 | 7 |
 | 3.3 Values and units (Values 4) | 15 | 2 | 1 | 4 | 22 |
 | 3.4 Color (Color 4 / 5) | 15 | 1 | 0 | 1 | 17 |
-| 3.5 Backgrounds and borders (Backgrounds 3, Borders 4) | 3 | 5 | 6 | 2 | 16 |
+| 3.5 Backgrounds and borders (Backgrounds 3, Borders 4) | 4 | 4 | 6 | 2 | 16 |
 | 3.6 Box model and sizing (Box 3, Sizing 3/4) | 3 | 3 | 3 | 0 | 9 |
 | 3.7 Display and visibility (Display 3) | 1 | 0 | 8 | 2 | 11 |
 | 3.8 Flexbox and box alignment (Flexbox 1, Align 3) | 3 | 3 | 11 | 0 | 17 |
@@ -93,9 +93,9 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 0 | 0 | 6 | 3 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **94** | **33** | **131** | **49** | **307** |
+| **Total** | **95** | **32** | **131** | **49** | **307** |
 
-When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 164 rows Partial / Missing.
+When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 163 rows Partial / Missing.
 
 Headline: rdom parses **70 property names** (`PROPERTY_NAMES`). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are flex alignment (`justify-content`, `align-items`), `flex-wrap`, the `flex-grow` / `flex-basis` longhands, the `border: 1px solid red` shorthand form, `line-height`, `text-align`, `visibility`, `box-sizing`, and grid.
 
@@ -304,8 +304,8 @@ dropped. The audit's six, with where each stands:
 | Item | Class | Detail | Doc'd | Where |
 |---|---|---|---|---|
 | `background-color` | Supported | Any parsed color. | — | `DISP/set.rs` |
-| `background` | Partial | A lone `<color>` only (documented). | Yes | `DISP/set.rs` |
-| `background-image` / `-position` / `-size` / `-repeat` / `-attachment` / `-origin` | N/A | No images (documented). | — | — |
+| `background` | Supported | The full Backgrounds 3 §3.10 grammar: layers, the color on the final one; image layers parse and are stored but draw nothing (documented, C4-BACKGROUND). | — | `DISP/background.rs`, `V/background.rs` |
+| `background-image` / `-position` / `-size` / `-repeat` / `-attachment` / `-origin` | N/A | No images (documented); they parse and are stored, inert (C4-BACKGROUND). | — | `DISP/background.rs` |
 | `background-clip` | Missing | `padding-box` / `content-box` fill. | Yes | `PAINT/background.rs::fill_bg` |
 | `border` | Partial | One keyword only: a style (`none` / `hidden` / `solid` / `double` / `dashed` / `dotted` / `ridge` / `groove` / `inset` / `outset`) plus rdom keywords; no width or color component — `border: 1px solid red` is dropped. | No | `V/border.rs::parse_border` |
 | `border-top` / `-right` / `-bottom` / `-left` | Partial | One style keyword only; no width / color. | No | `V/border.rs::parse_border_side` |

@@ -14,7 +14,17 @@ fn canonical_values() -> &'static [(&'static str, &'static str)] {
     &[
         ("color", "red"),
         ("background-color", "blue"),
-        ("background", "green"),
+        (
+            "background",
+            "url(\"a.png\") center / cover no-repeat green",
+        ),
+        ("background-image", "url(\"a.png\"), none"),
+        ("background-position", "left 10% top"),
+        ("background-size", "auto 50%"),
+        ("background-repeat", "repeat-x"),
+        ("background-attachment", "fixed"),
+        ("background-origin", "content-box"),
+        ("background-clip", "padding-box"),
         ("border-color", "rgb(10, 20, 30)"),
         ("font-weight", "bold"),
         ("font-style", "italic"),
@@ -543,7 +553,9 @@ fn scroll_behavior_parses_serializes_and_does_not_inherit() {
     assert_eq!(serialize("scroll-behavior", &style), None);
 }
 
-/// `background` shorthand with only a color is `background-color`.
+/// `background` shorthand with only a color is `background-color`
+/// (CSS Backgrounds 3 §3.10); the full shorthand is
+/// `background_tests.rs`.
 #[test]
 fn background_shorthand_sets_background_color() {
     let mut style = TuiStyle::new();
@@ -553,14 +565,10 @@ fn background_shorthand_sets_background_color() {
         Some("red")
     );
     assert_eq!(serialize("background", &style).as_deref(), Some("red"));
-    assert_eq!(
-        property_mask("background"),
-        property_mask("background-color")
-    );
-    // Anything beyond a color (images, positions) is unsupported.
-    assert_eq!(
-        set("background", "url(x.png) red", &mut TuiStyle::new()),
-        Err(DispatchError::InvalidValue)
+    assert!(
+        property_mask("background")
+            .unwrap()
+            .contains(property_mask("background-color").unwrap())
     );
 }
 

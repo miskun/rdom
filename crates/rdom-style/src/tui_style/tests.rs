@@ -51,6 +51,13 @@ fn important_mask_bits_are_unique() {
         M::SCROLLBAR_GUTTER,
         M::SCROLL_BEHAVIOR,
         M::COLOR_SCHEME,
+        M::BACKGROUND_IMAGE,
+        M::BACKGROUND_POSITION,
+        M::BACKGROUND_SIZE,
+        M::BACKGROUND_REPEAT,
+        M::BACKGROUND_ATTACHMENT,
+        M::BACKGROUND_ORIGIN,
+        M::BACKGROUND_CLIP,
     ];
     for (i, a) in all.iter().enumerate() {
         for b in &all[i + 1..] {
@@ -302,6 +309,13 @@ fn every_property_has_important_setter() {
         .flex_shrink_important(1.0)
         .flex_basis_important(crate::layout::FlexBasis::Auto)
         .border_important(Border::single())
+        .background_image_important(vec![])
+        .background_position_important(vec![])
+        .background_size_important(vec![])
+        .background_repeat_important(vec![])
+        .background_attachment_important(vec![])
+        .background_origin_important(vec![])
+        .background_clip_important(vec![])
         .border_collapse_important(crate::layout::BorderCollapse::Collapse)
         .direction_important(Direction::Row)
         .overflow_important(Overflow::Hidden)

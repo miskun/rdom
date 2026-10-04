@@ -110,7 +110,7 @@ row comes from.
 
 | Id | Item | Status |
 |---|---|---|
-| C4-BACKGROUND | `background` shorthand (color layer; image layers parse and are inert, documented) | |
+| C4-BACKGROUND | `background` shorthand (color layer; image layers parse and are inert, documented) | done |
 | C4-BG-CLIP | `background-clip` (`border-box` / `padding-box` / `content-box`) | |
 | C4-BORDER-SHORTHAND | `border` / `border-top` … with width, style and color in any order | |
 | C4-BORDER-SIDES | `border-style` / `border-color` / `border-width` 1–4 values; per-side longhands for style, color and width | |
@@ -957,3 +957,15 @@ row comes from.
 - 2026-10-06 — Phase 3 closed: 10 items + 16 gate fixes. Found during C3G-PSEUDO-SIZE: positioned boxes ignore
   `min-*` / `max-*` — added as C8-POS-MINMAX. The input reader (C3G-INPUT-READER) gets a focused look in the
   Phase 4 gate's re-review.
+- 2026-10-06 — C4-BACKGROUND: `background` parses Backgrounds 3 §3.10 in full (`V/background.rs`):
+  comma-separated layers, each sub-value at most once and in any order, the color on the final layer
+  only; omitted sub-values reset to their initial values. The six image longhands and
+  `background-clip` are new `TuiStyle` fields (one importance bit each, bits 47–53); images,
+  positions and sizes are stored as validated CSS text (`url()` normalized to `url("…")`), the keyword
+  families typed (`VisualBox`, `BackgroundRepeat`, `BackgroundAttachment`). Set / serialize arms live
+  in the new `property_dispatch/background.rs`. Decided: `background-clip: text` (Backgrounds 4) is
+  rejected — a cell cannot show a background through a glyph's shape (DIVERGENCES §1). Red: seven
+  dispatch tests (`url(x.png) red` → `InvalidValue`, the longhands `UnknownProperty`); green after
+  wiring; `css_phase4.rs` paints an image layer's color end to end. Changed expectation: the old
+  `background_shorthand_sets_background_color` asserted `url(x.png) red` is invalid. No showcase
+  snapshot changes (every demo `background:` is a lone color).

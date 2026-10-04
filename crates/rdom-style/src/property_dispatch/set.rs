@@ -98,15 +98,15 @@ pub fn set_parsed(name: &str, value: &[Token], style: &mut TuiStyle) -> Result<(
     if let Some(kw) = css_wide_keyword(value) {
         return set_css_wide(name, kw, style);
     }
+    if let Some(outcome) = super::background::set(name, value, style) {
+        return outcome.ok_or(DispatchError::InvalidValue);
+    }
     let outcome: Option<()> = match name {
         // Color / modifiers
         "color" => parse_color(value).map(|c| {
             style.fg = Some(Value::Specified(c));
         }),
-        // `background` shorthand: only the color component exists in a
-        // cell grid (no images, positions, or repeat), so a lone color
-        // is `background-color` and anything else is invalid.
-        "background-color" | "background" => parse_color(value).map(|c| {
+        "background-color" => parse_color(value).map(|c| {
             style.bg = Some(Value::Specified(c));
         }),
         "border-color" => parse_color(value).map(|c| {

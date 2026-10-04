@@ -41,12 +41,13 @@ pub fn serialize(name: &str, style: &TuiStyle) -> Option<String> {
     if let Some(kw) = css_wide_of(name, style) {
         return Some(kw.to_string());
     }
+    if let Some(out) = super::background::serialize(name, style) {
+        return out;
+    }
     match name {
         // Color / modifiers
         "color" => style.fg.as_ref().and_then(specified).map(serialize_color),
-        "background-color" | "background" => {
-            style.bg.as_ref().and_then(specified).map(serialize_color)
-        }
+        "background-color" => style.bg.as_ref().and_then(specified).map(serialize_color),
         "border-color" => style
             .border_fg
             .as_ref()

@@ -16,12 +16,15 @@
 //! - `keywords` — keyword-valued properties
 //! - `sizing` — `Size`, `MinSize`, `MaxSize`, `AspectRatio`, `GapValue`, `Length`
 //! - `box_model` — borders, `border-collapse`, padding, margin
+//! - `background` — the background longhands' keyword families
 
+mod background;
 mod box_model;
 mod keywords;
 mod rect;
 mod sizing;
 
+pub use background::{BackgroundAttachment, BackgroundRepeat, RepeatStyle, VisualBox};
 pub use box_model::{
     Border, BorderCollapse, BorderStyle, CornerStyle, Margin, MarginValue, Padding, PaddingValue,
 };

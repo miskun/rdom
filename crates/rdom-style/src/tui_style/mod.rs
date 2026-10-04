@@ -86,6 +86,14 @@ bitflags_like! {
         SCROLL_BEHAVIOR = 1 << 44;
         FLEX_BASIS = 1 << 45;
         COLOR_SCHEME = 1 << 46;
+        // ── Backgrounds (CSS Backgrounds 3 §3) ──
+        BACKGROUND_IMAGE = 1 << 47;
+        BACKGROUND_POSITION = 1 << 48;
+        BACKGROUND_SIZE = 1 << 49;
+        BACKGROUND_REPEAT = 1 << 50;
+        BACKGROUND_ATTACHMENT = 1 << 51;
+        BACKGROUND_ORIGIN = 1 << 52;
+        BACKGROUND_CLIP = 1 << 53;
     }
 }
 
@@ -101,6 +109,22 @@ pub struct TuiStyle {
     pub fg: Option<Value<TuiColor>>,
     pub bg: Option<Value<TuiColor>>,
     pub border_fg: Option<Value<TuiColor>>,
+    /// `background-image` (CSS Backgrounds 3 §3.3), one entry per
+    /// layer, each `none`, `url("…")` or a gradient as CSS text. Inert:
+    /// rdom draws no images (DIVERGENCES §1).
+    pub background_image: Option<Value<Vec<String>>>,
+    /// `background-position` (§3.6), per layer, as CSS text. Inert.
+    pub background_position: Option<Value<Vec<String>>>,
+    /// `background-size` (§3.9), per layer, as CSS text. Inert.
+    pub background_size: Option<Value<Vec<String>>>,
+    /// `background-repeat` (§3.4), per layer. Inert.
+    pub background_repeat: Option<Value<Vec<crate::layout::BackgroundRepeat>>>,
+    /// `background-attachment` (§3.5), per layer. Inert.
+    pub background_attachment: Option<Value<Vec<crate::layout::BackgroundAttachment>>>,
+    /// `background-origin` (§3.7), per layer. Inert.
+    pub background_origin: Option<Value<Vec<crate::layout::VisualBox>>>,
+    /// `background-clip` (§3.8), per layer.
+    pub background_clip: Option<Value<Vec<crate::layout::VisualBox>>>,
     pub bold: Option<Value<bool>>,
     pub italic: Option<Value<bool>>,
     /// CSS `opacity`: 0.0–1.0 (clamped at cascade time). The
@@ -341,6 +365,18 @@ impl TuiStyle {
         if self.border_fg.is_some() {
             n += 1
         }
+        n += [
+            self.background_image.is_some(),
+            self.background_position.is_some(),
+            self.background_size.is_some(),
+            self.background_repeat.is_some(),
+            self.background_attachment.is_some(),
+            self.background_origin.is_some(),
+            self.background_clip.is_some(),
+        ]
+        .iter()
+        .filter(|set| **set)
+        .count();
         if self.bold.is_some() {
             n += 1
         }

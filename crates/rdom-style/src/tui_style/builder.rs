@@ -229,6 +229,57 @@ impl TuiStyle {
         crate::layout::FlexBasis
     );
     setter!(border, border, border_important, BORDER, Border);
+    // Backgrounds (CSS Backgrounds 3 §3), one entry per layer. Only the
+    // clip of the final layer has an effect; the rest are inert.
+    setter!(
+        background_image,
+        background_image,
+        background_image_important,
+        BACKGROUND_IMAGE,
+        Vec<String>
+    );
+    setter!(
+        background_position,
+        background_position,
+        background_position_important,
+        BACKGROUND_POSITION,
+        Vec<String>
+    );
+    setter!(
+        background_size,
+        background_size,
+        background_size_important,
+        BACKGROUND_SIZE,
+        Vec<String>
+    );
+    setter!(
+        background_repeat,
+        background_repeat,
+        background_repeat_important,
+        BACKGROUND_REPEAT,
+        Vec<crate::layout::BackgroundRepeat>
+    );
+    setter!(
+        background_attachment,
+        background_attachment,
+        background_attachment_important,
+        BACKGROUND_ATTACHMENT,
+        Vec<crate::layout::BackgroundAttachment>
+    );
+    setter!(
+        background_origin,
+        background_origin,
+        background_origin_important,
+        BACKGROUND_ORIGIN,
+        Vec<crate::layout::VisualBox>
+    );
+    setter!(
+        background_clip,
+        background_clip,
+        background_clip_important,
+        BACKGROUND_CLIP,
+        Vec<crate::layout::VisualBox>
+    );
     /// `.collapse_borders()` — sets `border-collapse: collapse` on
     /// this element. Convenience shortcut over the verbose
     /// `.border_collapse(BorderCollapse::Collapse)`. Chainable.
