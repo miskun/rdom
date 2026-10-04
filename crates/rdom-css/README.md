@@ -86,9 +86,14 @@ value       := token+
   current list.
 - **Values** — colors (`#rgb`, `#rrggbb`, `#rrggbbaa` (alpha dropped),
   `rgb()`, `rgba()`, named colors, `reset`), lengths (cells, `fr`,
-  `auto`), `var(--name)` and `var(--name, fallback)` in any property
-  (see *Custom properties* below), modifiers (`bold`, `italic`, `underline`), shorthands (4-/3-/2-/1-value
-  `padding`), comma-separated `transition` lists.
+  `auto`, `%`, `ch`, the viewport units `vw` / `vh` / `vmin` / `vmax` / …),
+  fractional numbers, angles, math functions (`calc()`, `min()`, `max()`,
+  `clamp()`, `round()`, `mod()`, `rem()`, `abs()`, `sign()`, the
+  trigonometric and exponential functions), `var(--name)` and
+  `var(--name, fallback)` and `attr(name type(<syntax>), fallback)` in any
+  property (see *Custom properties* below), modifiers (`bold`, `italic`,
+  `underline`), shorthands (4-/3-/2-/1-value `padding`), comma-separated
+  `transition` lists.
 - **Custom properties** — `--name: value;` under any selector (and in a
   `style` attribute) rides on the rule as `TuiStyle::custom_properties`;
   the cascade scopes it per element and inherits it. `:root` declarations

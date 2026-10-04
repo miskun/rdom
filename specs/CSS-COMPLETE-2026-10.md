@@ -651,3 +651,15 @@ row comes from.
   `MinSize::percent` / `MaxSize::percent` (`Calc(Percent(p))`, the parser's form). Red: the integration
   test did not compile (no `rdom_tui::calc`, no `percent`); green: a `set_max_width(MaxSize::percent(50.0))`
   child of an 80-column box is 40 wide.
+- 2026-10-05 — C2G-DOCS: README's 0.2.0 bullet restored to its released text ("`calc()` value system",
+  from before `4252faf`); the math-function text moves to a new "Unreleased (0.6.0, in progress)"
+  section. CHANGELOG: the C2-ATTR bullet names the final `backend::` / `SubstitutionContext` API
+  (done with C2G-SUBSTITUTION-ERRORS); `parse_content` no longer parsing `attr()` is a "Breaking —
+  rdom-style" bullet with a migration; the `AspectRatio` hint covers `f32` terms, the accessors, zero
+  terms and `value()` vs `as_f32()`; the `MaxSize` hint (checked against C2G-MAX-NONE's shape) names
+  `MaxSize::percent`. The `aspect_ratio` builder doc no longer claims a panic. CSS-COVERAGE §1:
+  recounted from the §3 tables (82 / 35 / 140 / 50 = 307 — unchanged; cross-references not counted),
+  the headline no longer lists `var()` outside colors, §2 row 31 and the `attr()` appendix line say
+  shipped. rdom-css README "Values" lists `%`, `ch`, viewport units, math functions, angles and
+  `attr()`. DIVERGENCES: the `flex` entry checked current after C2G-FLEX-SHORTHAND; §1 gains "a
+  literal fractional length is invalid; a computed one rounds".

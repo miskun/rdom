@@ -91,9 +91,11 @@ impl TuiStyle {
         self
     }
 
-    /// `aspect-ratio: <w> / <h>`. Both must be positive — non-positive
-    /// arguments panic. Use the CSS parser if your numerator or
-    /// denominator are author-provided.
+    /// `aspect-ratio: <w> / <h>`. Never fails: a `u16` term is finite and
+    /// non-negative, and a zero term makes a degenerate ratio, which
+    /// behaves as `auto` (CSS Sizing 4 §5.1). For fractional terms or
+    /// `auto && <ratio>`, build an [`AspectRatio`](crate::layout::AspectRatio)
+    /// or use the CSS parser.
     pub fn aspect_ratio(mut self, w: u16, h: u16) -> Self {
         let ratio = crate::layout::AspectRatio::new(f32::from(w), f32::from(h))
             .expect("u16 terms are finite and non-negative");

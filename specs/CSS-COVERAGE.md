@@ -95,9 +95,9 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
 | **Total** | **82** | **35** | **140** | **50** | **307** |
 
-Of the 191 Partial / Missing rows, **123 were not documented** in `DIVERGENCES.md` when audited (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3.
+When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates): 175 rows Partial / Missing.
 
-Headline: rdom parses **70 property names** (`PROPERTY_NAMES`). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are flex alignment (`justify-content`, `align-items`), `flex-wrap`, the `flex-grow` / `flex-basis` longhands, the `border: 1px solid red` shorthand form, `var()` outside colors, `line-height`, `text-align`, `visibility`, `box-sizing`, and grid.
+Headline: rdom parses **70 property names** (`PROPERTY_NAMES`). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are flex alignment (`justify-content`, `align-items`), `flex-wrap`, the `flex-grow` / `flex-basis` longhands, the `border: 1px solid red` shorthand form, `line-height`, `text-align`, `visibility`, `box-sizing`, and grid.
 
 ---
 
@@ -138,7 +138,7 @@ pasted CSS. The first block is what a typical component stylesheet hits in its f
 | 28 | `border-width` (+ per-side) and width component of `border` | `0` = no border on that side; `thin` / `medium` / `1` = light glyphs; `thick` / `≥2` = heavy box-drawing glyphs (`━┃┏┓┗┛`); never more than one cell. | S | No |
 | 29 | `list-style-type` / `list-style-position` / `list-style` / `::marker` / `display: list-item` | Marker from a counter style or `<string>`; `outside` hangs it in the padding, `inside` puts it on the first line (today's behavior via `li::before`). | M | Yes |
 | 30 | `::first-line` / `::first-letter` | Style the first line box / first typographic letter (color, bold, italic, decoration, background). | M | Yes |
-| 31 | `var()` outside colors | Covered under Partial (§3.2): substitution in every property. Listed here because of its impact — design-token CSS uses `padding: var(--space-2)` everywhere. | M | Yes |
+| 31 | `var()` outside colors | Shipped (C1-VAR-ANY; §3.2): substitution in every property. Listed here because of its impact — design-token CSS uses `padding: var(--space-2)` everywhere. | M | Yes |
 | 32 | CSS Nesting (`&`, nested rules, nested `@media`) | Nested style rules desugared to `:is(parent) child` at parse time. | M | Yes |
 | 33 | `all` / `revert` / `revert-layer` | `all: unset` (or `revert`) resets every property (common "CSS reset" idiom); `revert` rolls back to the UA origin. | S | No |
 | 34 | `@layer` | Cascade layers ordering author rules; anonymous / named / nested layers, `@layer a, b;` statements. | M | Blanket |
@@ -690,7 +690,7 @@ implementation or a `DIVERGENCES.md` entry before the acid page's coverage test 
 - `lh`, `rlh` — Missing: One row (× `line-height` once that exists).
 - `cqw` / `cqh` / `cqi` / `cqb` / `cqmin` / `cqmax` — Missing: Need `@container`.
 - `<angle>` (`deg`, `grad`, `rad`, `turn`) — Missing: Only needed for color hues (`hsl()`, `oklch()`); no rotation exists.
-- `attr()` — Partial: In `content` only, no fallback, no type (`attr(x type(<length>))`, Values 5).
+- *(shipped: C2-ATTR)* `attr()` — Partial: In `content` only, no fallback, no type (`attr(x type(<length>))`, Values 5).
 
 **3.4 Color (Color 4 / 5)**
 

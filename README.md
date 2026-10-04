@@ -57,6 +57,12 @@ See [`crates/rdom-tui/examples/`](crates/rdom-tui/examples/) for three self-cont
 | [`rdom-tui`](crates/rdom-tui) | Terminal backend. CSS cascade, flexbox layout, paint pass, ANSI emission, inline formatting (word wrap, CJK breaks, `<br>`, `white-space`), runtime (event loop, hit test, keyboard/mouse routing, focus, text selection + clipboard), native HTML element behaviors (`<button>`, `<input>` family, `<select>`, `<form>`, `<details>`, `<dialog>`, `<progress>`, `<meter>`, `<table>` family, `<canvas>`). |
 | [`rdom-parser`](crates/rdom-parser) | HTML-ish template parser → `Dom<Ext>`. `parseFromString` equivalent. Hand-rolled, no external parser deps. |
 
+## Unreleased (0.6.0, in progress)
+
+CSS completeness ([`specs/CSS-COMPLETE-2026-10.md`](specs/CSS-COMPLETE-2026-10.md)) is landing on `main` and is not yet published; [`CHANGELOG.md`](CHANGELOG.md) `[Unreleased]` lists everything so far. Among it:
+
+- **Math functions.** `calc()`, `min()`, `max()`, `clamp()`, `round()`, `mod()`, `rem()`, `abs()`, `sign()`, the trigonometric and exponential functions and the constants `e` / `pi` / `infinity` / `NaN` on `width` / `height` / `top` / `right` / `bottom` / `left` and the other length axes — CSS precedence, parentheses, nesting, percentages resolved at layout, banker's rounding onto the cell grid.
+
 ## What's in 0.5.0
 
 A stabilization release ([`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md)): every open row in the tech-debt ledger was fixed, moved to `DIVERGENCES.md` as a deliberate departure, or documented as an external limitation, so 0.5.0 ships with no open debt. On top of that, these web-platform features:
@@ -104,7 +110,7 @@ See [`CHANGELOG.md`](CHANGELOG.md) for the full 0.3.0 notes (incl. breaking chan
 
 - **Block formatting context.** Semantic HTML stacks per the web platform with no CSS at all — `<div><h1></h1><p></p></div>` is a block-flow column at intrinsic heights. CSS 2.1 normal flow + margin collapse + height resolution + CSS3 `gap` on blocks + atomic `inline-block` in inline formatting contexts, on top of the original flex pass.
 - **Native ARIA tree.** `<ul role=tree>` / `role=treeitem` / `role=group` with `│ ├ └` guides + `▼`/`▶` chevrons, keyboard nav (Arrows / Home / End / Enter / Space) via an `aria-activedescendant` cursor, collapse/expand (`aria-expanded`), lazy children (`aria-busy`), and scroll-into-view that follows the cursor.
-- **Math functions.** `calc()`, `min()`, `max()`, `clamp()`, `round()`, `mod()`, `rem()`, `abs()`, `sign()`, the trigonometric and exponential functions and the constants `e` / `pi` / `infinity` / `NaN` on `width` / `height` / `top` / `right` / `bottom` / `left` and the other length axes — CSS precedence, parentheses, nesting, percentages resolved at layout, banker's rounding onto the cell grid.
+- **`calc()` value system.** `width` / `height` / `top` / `right` / `bottom` / `left` and the other length axes — CSS precedence, parentheses, nested `calc()`, banker's rounding onto the cell grid.
 - **More events.** `keyup` (kitty keyboard protocol), `contextmenu` (right-click + Shift+F10), `dblclick`, `resize`, `scroll`, plus implicit `blur` / `focusout` / `mouseout` / `mouseleave` dispatched before structural detach.
 - **Layered border model.** `border-collapse` is non-inheriting and applies to any container's direct children; per-direction conflict resolution (CSS Tables 3 §11.5); full `border-style` keyword set + the rdom-specific `half-block` pill style.
 - **Multi-slot stylesheets.** `push_stylesheet` / `remove_stylesheet` + `cascade_all` to stack and swap author sheets over the UA sheet.
