@@ -73,12 +73,15 @@ pub(crate) struct AbsoluteColor {
 }
 
 impl AbsoluteColor {
-    /// An 8-bit sRGB color as an absolute one; `None` for the terminal
-    /// default and palette colors, which have no sRGB value here.
+    /// An 8-bit color as an absolute sRGB one — a palette index as the
+    /// xterm palette's color ([`super::palette::xterm_rgb`]); `None` for
+    /// the terminal default, which is a foreground or a background
+    /// depending on where it is used.
     pub fn from_color(color: Color) -> Option<AbsoluteColor> {
         let (r, g, b) = match color {
             Color::Rgb(r, g, b) | Color::Rgba(r, g, b, _) => (r, g, b),
-            Color::Reset | Color::Indexed(_) => return None,
+            Color::Indexed(n) => super::palette::xterm_rgb(n),
+            Color::Reset => return None,
         };
         Some(AbsoluteColor {
             space: ColorSpace::Srgb,

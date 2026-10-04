@@ -72,7 +72,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.1 Syntax, cascade and inheritance (Syntax 3, Cascade 4/5, CSS 2.1 §6) | 18 | 1 | 0 | 2 | 21 |
 | 3.2 Custom properties (CSS Variables 1) | 6 | 0 | 0 | 1 | 7 |
 | 3.3 Values and units (Values 4) | 15 | 2 | 1 | 4 | 22 |
-| 3.4 Color (Color 4 / 5) | 10 | 1 | 4 | 2 | 17 |
+| 3.4 Color (Color 4 / 5) | 11 | 1 | 3 | 2 | 17 |
 | 3.5 Backgrounds and borders (Backgrounds 3, Borders 4) | 3 | 5 | 6 | 2 | 16 |
 | 3.6 Box model and sizing (Box 3, Sizing 3/4) | 3 | 3 | 3 | 0 | 9 |
 | 3.7 Display and visibility (Display 3) | 1 | 0 | 8 | 2 | 11 |
@@ -93,9 +93,9 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 0 | 0 | 6 | 3 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **89** | **33** | **135** | **50** | **307** |
+| **Total** | **90** | **33** | **134** | **50** | **307** |
 
-When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 168 rows Partial / Missing.
+When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 167 rows Partial / Missing.
 
 Headline: rdom parses **70 property names** (`PROPERTY_NAMES`). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are flex alignment (`justify-content`, `align-items`), `flex-wrap`, the `flex-grow` / `flex-basis` longhands, the `border: 1px solid red` shorthand form, `line-height`, `text-align`, `visibility`, `box-sizing`, and grid.
 
@@ -292,7 +292,7 @@ dropped:
 | `hwb()` | Supported | Hue, whiteness, blackness (`none`, `/ alpha`, math functions); whiteness + blackness ≥ 100% is a gray; converted to sRGB at parse time (C3-HSL-HWB). | — | `V/color/hsl.rs`, `rdom-style/src/color/convert.rs` |
 | `lab()` / `lch()` / `oklab()` / `oklch()` | Supported | Numbers, percentages (Lab a / b: 100% = 125, LCH C: 150, Oklab a / b / C: 0.4), hues, `none`, `/ alpha`, math functions; lightness and chroma clamp at parsed-value time; converted to sRGB with CSS gamut mapping (OKLCh chroma reduction, §13.2) at parse time — the computed color is sRGB (documented) (C3-LAB). | — | `V/color/lab.rs`, `rdom-style/src/color/{convert,gamut}.rs` |
 | `color()` | Supported | `srgb`, `srgb-linear`, `display-p3`, `a98-rgb`, `prophoto-rgb`, `rec2020`, `xyz` / `xyz-d65`, `xyz-d50`; numbers or percentages (100% = 1), `none`, `/ alpha`; gamut-mapped to sRGB at parse time (C3-LAB). | — | `V/color/lab.rs`, `rdom-style/src/color/{convert,gamut}.rs` |
-| `color-mix()` (Color 5) | Missing | Mix at parse time (or computed time with `var()` / `currentColor`). | No | `COL` |
+| `color-mix()` (Color 5) | Supported | Every rectangular and polar interpolation space, the four hue methods, percentages (either order, math functions, §2.2 normalization and alpha scaling), the default Oklab method; missing components carried forward and powerless hues (Color 4 §12); nested functions. Mixed at parse time; with `currentcolor` inside, kept as `TuiColor::Function` and mixed at computed-value time (`var()` is substituted before parsing) (C3-MIX). | — | `V/color/mix.rs`, `rdom-style/src/color/interpolate.rs` |
 | Relative color syntax (Color 5) | Missing | `rgb(from var(--x) r g b / 50%)`. | No | `COL` |
 | System colors (`Canvas`, `CanvasText`, `LinkText`, `ButtonFace`, …) | Missing | `Canvas` / `CanvasText` = terminal default bg / fg (`Color::Reset`); others map to UA palette entries. | No | `COL` |
 | `light-dark()` + `color-scheme` | Missing | Pick by the terminal's reported background (OSC 11 / mode 2031). | No | `COL`, `RT` |
@@ -700,7 +700,7 @@ implementation or a `DIVERGENCES.md` entry before the acid page's coverage test 
 - `hwb()` — Missing: Convert to sRGB. *Shipped: C3-HSL-HWB.*
 - `lab()` / `lch()` / `oklab()` / `oklch()` — Missing: Convert + gamut-map to sRGB. *Shipped: C3-LAB.*
 - `color()` — Missing: Predefined spaces (`srgb`, `display-p3`, …) converted to sRGB. *Shipped: C3-LAB.*
-- `color-mix()` (Color 5) — Missing: Mix at parse time (or computed time with `var()` / `currentColor`).
+- `color-mix()` (Color 5) — Missing: Mix at parse time (or computed time with `var()` / `currentColor`). *Shipped: C3-MIX.*
 - Relative color syntax (Color 5) — Missing: `rgb(from var(--x) r g b / 50%)`.
 - System colors (`Canvas`, `CanvasText`, `LinkText`, `ButtonFace`, …) — Missing: `Canvas` / `CanvasText` = terminal default bg / fg (`Color::Reset`); others map to UA palette entries.
 - `light-dark()` + `color-scheme` — Missing: Pick by the terminal's reported background (OSC 11 / mode 2031).

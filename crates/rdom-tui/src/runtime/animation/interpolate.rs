@@ -40,8 +40,9 @@ pub(super) fn interpolate(from: &AnimatedValue, to: &AnimatedValue, t: f32) -> A
 
 /// Interpolate two colors in Oklab with premultiplied alpha (CSS Color
 /// 4 §12.1, §12.3), so a fade from `transparent` does not pass through
-/// black. An endpoint that is the terminal default or a palette index
-/// has no sRGB value: those interpolate in sRGB from an approximation.
+/// black; a palette index counts as its xterm color. An endpoint that
+/// is the terminal default has no sRGB value: that pair interpolates in
+/// sRGB from an approximation.
 pub(super) fn lerp_color(a: Color, b: Color, t: f32) -> Color {
     if let Some(c) = rdom_style::color::interpolate_oklab(a, b, f64::from(t)) {
         return c;
@@ -152,22 +153,13 @@ fn lerp_zindex(a: ZIndex, b: ZIndex, t: f32) -> ZIndex {
     }
 }
 
-/// Map a `Color` to an approximate sRGB triple for interpolation.
-/// Named colors use the canonical ANSI-16 palette values.
-/// `Reset` and `Indexed(_)` fall back to mid-gray since we don't
-/// know the terminal's actual palette — interpolation through
-/// these is best-effort and apps that want exact lerps should
-/// use `Color::Rgb` endpoints.
-/// Resolve a `Color` to its (r, g, b) for interpolation. Now
-/// trivial in the truecolor-only world: `Rgb` returns its
-/// channels, `Indexed` falls back to a neutral midgray placeholder
-/// (a future commit could read the xterm-256 RGB table), and
-/// `Reset` returns a neutral light-gray since the actual terminal
-/// default is unknowable from inside the engine.
+/// A color's (r, g, b) for the sRGB fallback interpolation: `Reset`
+/// as a neutral light gray, since the terminal's default is not known
+/// here; a palette index as its xterm color.
 fn color_to_rgb_approx(c: Color) -> (u8, u8, u8) {
     match c {
         Color::Reset => (192, 192, 192),
-        Color::Indexed(_) => (128, 128, 128),
+        Color::Indexed(n) => rdom_style::color::palette::xterm_rgb(n),
         Color::Rgb(r, g, b) | Color::Rgba(r, g, b, _) => (r, g, b),
     }
 }

@@ -108,3 +108,20 @@ fn inherited_caret_color_keeps_currentcolor() {
     let c = div("section { caret-color: currentcolor; color: red } div { color: blue }");
     assert_eq!(c.caret_color, CaretColor::Color(TuiColor::CurrentColor));
 }
+
+// ── color-mix(): CSS Color 5 §2 ─────────────────────────────────
+
+/// A mix with `currentcolor` takes the element's final color; one with
+/// `var()` is substituted first; in `color`, `currentcolor` is the
+/// parent's.
+#[test]
+fn color_mix_resolves_at_computed_value_time() {
+    let c =
+        div("div { background-color: color-mix(in srgb, currentcolor, blue) } .x { color: red }");
+    assert_eq!(c.bg, Color::Rgb(128, 0, 128));
+    let c =
+        div("section { --c: red } div { background-color: color-mix(in srgb, var(--c), blue) }");
+    assert_eq!(c.bg, Color::Rgb(128, 0, 128));
+    let c = div("section { color: red } div { color: color-mix(in srgb, currentcolor, blue) }");
+    assert_eq!(c.fg, Color::Rgb(128, 0, 128));
+}

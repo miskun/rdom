@@ -43,6 +43,10 @@ pub enum TuiColor {
     /// `color` itself, the inherited one. Resolved at computed-value
     /// time against [`ColorContext::current_color`].
     CurrentColor,
+    /// A color function whose value depends on the element
+    /// (`color-mix(in srgb, currentcolor, blue)`), computed at
+    /// computed-value time against a [`ColorContext`].
+    Function(ColorFunction),
     /// Reference to a custom property (`var(--name)` or `var(--name,
     /// fallback)`). Resolved during cascade against `ComputedStyle.vars`.
     Var {
@@ -112,7 +116,7 @@ impl TuiColor {
     /// is known. A `var()` is not looked through: call
     /// [`Self::substitute_vars`] first.
     pub fn depends_on_element(&self) -> bool {
-        matches!(self, TuiColor::CurrentColor)
+        matches!(self, TuiColor::CurrentColor | TuiColor::Function(_))
     }
 
     /// The computed color: `var()` references looked up in `vars`
@@ -126,9 +130,34 @@ impl TuiColor {
         match self.substitute_vars(vars)? {
             TuiColor::Literal(c) => Some(c),
             TuiColor::CurrentColor => Some(cx.current_color),
+            TuiColor::Function(f) => f.compute(cx),
             // `substitute_vars` leaves no reference.
             TuiColor::Var { .. } => None,
         }
+    }
+}
+
+/// A color function kept for computed-value time
+/// ([`TuiColor::Function`]): its CSS text, which parsed as one color
+/// function when it was created.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ColorFunction(Box<str>);
+
+impl ColorFunction {
+    /// Wrap the text of a color function the parser accepted.
+    pub(crate) fn new(text: String) -> Self {
+        ColorFunction(text.into_boxed_str())
+    }
+
+    /// The function as CSS text.
+    pub fn css_text(&self) -> &str {
+        &self.0
+    }
+
+    /// The color against `cx`. `None` only if the text no longer parses,
+    /// which a value from the parser cannot.
+    pub fn compute(&self, cx: &ColorContext) -> Option<Color> {
+        crate::parse::values::compute_color_function(&self.0, cx)
     }
 }
 
@@ -186,7 +215,7 @@ pub fn parse_color(input: &str) -> Option<Color> {
         TuiColor::Literal(c) => Some(c),
         // Not a color on its own: it needs the element
         // (`TuiColor::parse` keeps it).
-        TuiColor::CurrentColor | TuiColor::Var { .. } => None,
+        TuiColor::CurrentColor | TuiColor::Function(_) | TuiColor::Var { .. } => None,
     }
 }
 

@@ -10,15 +10,22 @@
 //! - `rgb` — `rgb()` / `rgba()`.
 //! - `hsl` — `hsl()` / `hsla()` / `hwb()`.
 //! - `lab` — `lab()` / `lch()` / `oklab()` / `oklch()` / `color()`.
+//! - `mix` — `color-mix()`.
+//! - `context` — what a color inside a function resolves against
+//!   (`currentcolor`), and the rule that defers a function holding one
+//!   to computed-value time.
 
 mod channel;
+mod context;
 mod hsl;
 mod lab;
+mod mix;
 mod rgb;
 
-use crate::TuiColor;
 use crate::color::{AbsoluteColor, ColorSpace};
 use crate::parse::token::Token;
+use crate::{Color, ColorContext, TuiColor};
+use context::ColorCx;
 
 /// Parse a whole value as a `<color>`.
 pub fn parse_color(value: &[Token]) -> Option<TuiColor> {
@@ -53,8 +60,44 @@ pub fn parse_color_at(value: &[Token], start: usize) -> Option<(TuiColor, usize)
             Some((TuiColor::Literal(c), 1))
         }
         Token::Function(_) => {
-            let (color, used) = parse_function(value, start)?;
-            Some((TuiColor::Literal(color.to_color()), used))
+            // Parsed without an element: a color function that needs one
+            // (`currentcolor` inside) is kept, as written, for the
+            // cascade to compute.
+            let cx = ColorCx::parse_time();
+            let (color, used) = parse_function(value, start, &cx)?;
+            Some(if cx.needs_element() {
+                let text = context::render(&value[start..start + used]);
+                (TuiColor::Function(crate::ColorFunction::new(text)), used)
+            } else {
+                (TuiColor::Literal(color.to_color()), used)
+            })
+        }
+        _ => None,
+    }
+}
+
+/// Compute a color function kept for computed-value time
+/// ([`TuiColor::Function`]) against `context`. `None` when the text
+/// does not parse as one color function.
+pub(crate) fn compute_function(text: &str, context: &ColorContext) -> Option<Color> {
+    let tokens = crate::parse::tokenize(text).ok()?;
+    let cx = ColorCx::computed(context);
+    let (color, used) = parse_function(&tokens, 0, &cx)?;
+    (used == tokens.len()).then(|| color.to_color())
+}
+
+/// Parse one `<color>` that is the whole of `component` (a color inside
+/// a color function) as an absolute color.
+fn parse_absolute(component: &[Token], cx: &ColorCx) -> Option<AbsoluteColor> {
+    match component {
+        [Token::Ident(name)] if name.eq_ignore_ascii_case("currentcolor") => cx.current_color(),
+        [Token::Ident(name)] => cx.absolute(crate::tui_color::parse_simple_color(name)?),
+        [Token::HexColor(hex)] => {
+            cx.absolute(crate::tui_color::parse_simple_color(&format!("#{hex}"))?)
+        }
+        [Token::Function(_), ..] => {
+            let (color, used) = parse_function(component, 0, cx)?;
+            (used == component.len()).then_some(color)
         }
         _ => None,
     }
@@ -62,13 +105,14 @@ pub fn parse_color_at(value: &[Token], start: usize) -> Option<(TuiColor, usize)
 
 /// Parse the color function whose token is `value[start]`: the color
 /// and the tokens used, its `)` included.
-fn parse_function(value: &[Token], start: usize) -> Option<(AbsoluteColor, usize)> {
+fn parse_function(value: &[Token], start: usize, cx: &ColorCx) -> Option<(AbsoluteColor, usize)> {
     let Token::Function(name) = value.get(start)? else {
         return None;
     };
     let close = closing_paren(value, start)?;
     let args = &value[start + 1..close];
     let color = match name.to_ascii_lowercase().as_str() {
+        "color-mix" => mix::parse(args, cx)?,
         "rgb" | "rgba" => rgb::parse(args)?,
         "hsl" | "hsla" => hsl::parse_hsl(args)?,
         "hwb" => hsl::parse_hwb(args)?,
@@ -83,7 +127,7 @@ fn parse_function(value: &[Token], start: usize) -> Option<(AbsoluteColor, usize
 }
 
 /// Index of the `)` closing the function token at `open`.
-fn closing_paren(value: &[Token], open: usize) -> Option<usize> {
+pub(super) fn closing_paren(value: &[Token], open: usize) -> Option<usize> {
     close_from(value, open + 1)
 }
 

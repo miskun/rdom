@@ -13,9 +13,69 @@ pub(crate) enum HueMethod {
     /// The arc of at most 180°.
     #[default]
     Shorter,
+    /// The arc of at least 180°.
+    Longer,
+    /// Hue only increases.
+    Increasing,
+    /// Hue only decreases.
+    Decreasing,
+}
+
+impl HueMethod {
+    /// The method a `<hue-interpolation-method>` keyword names, ASCII
+    /// case-insensitive.
+    pub fn from_keyword(name: &str) -> Option<HueMethod> {
+        const TABLE: &[(&str, HueMethod)] = &[
+            ("shorter", HueMethod::Shorter),
+            ("longer", HueMethod::Longer),
+            ("increasing", HueMethod::Increasing),
+            ("decreasing", HueMethod::Decreasing),
+        ];
+        TABLE
+            .iter()
+            .find(|(n, _)| n.eq_ignore_ascii_case(name))
+            .map(|(_, m)| *m)
+    }
+}
+
+/// The kinds of component Color 4 §12.2 calls analogous: a missing one
+/// stays missing through a conversion to a space with the same kind.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Analog {
+    Red,
+    Green,
+    Blue,
+    Lightness,
+    Colorfulness,
+    Hue,
+    OpponentA,
+    OpponentB,
 }
 
 impl ColorSpace {
+    /// The space a `<color-interpolation-method>` names (CSS Color 4
+    /// §12.1), ASCII case-insensitive.
+    pub fn interpolation(name: &str) -> Option<ColorSpace> {
+        const TABLE: &[(&str, ColorSpace)] = &[
+            ("lab", ColorSpace::Lab),
+            ("oklab", ColorSpace::Oklab),
+            ("hsl", ColorSpace::Hsl),
+            ("hwb", ColorSpace::Hwb),
+            ("lch", ColorSpace::Lch),
+            ("oklch", ColorSpace::Oklch),
+        ];
+        TABLE
+            .iter()
+            .find(|(n, _)| n.eq_ignore_ascii_case(name))
+            .map(|(_, s)| *s)
+            .or_else(|| ColorSpace::predefined(name))
+    }
+
+    /// True for the cylindrical spaces, which have a hue.
+    pub fn is_polar(self) -> bool {
+        self.hue_index().is_some()
+    }
+
     /// The index of the hue component in a polar space.
     fn hue_index(self) -> Option<usize> {
         match self {
@@ -24,11 +84,32 @@ impl ColorSpace {
             _ => None,
         }
     }
+
+    /// What kind each component is (§12.2).
+    fn analogs(self) -> [Option<Analog>; 3] {
+        use Analog::*;
+        match self {
+            ColorSpace::Srgb
+            | ColorSpace::SrgbLinear
+            | ColorSpace::DisplayP3
+            | ColorSpace::A98Rgb
+            | ColorSpace::ProphotoRgb
+            | ColorSpace::Rec2020
+            | ColorSpace::XyzD50
+            | ColorSpace::XyzD65 => [Some(Red), Some(Green), Some(Blue)],
+            ColorSpace::Hsl => [Some(Hue), Some(Colorfulness), Some(Lightness)],
+            ColorSpace::Hwb => [Some(Hue), None, None],
+            ColorSpace::Lab | ColorSpace::Oklab => {
+                [Some(Lightness), Some(OpponentA), Some(OpponentB)]
+            }
+            ColorSpace::Lch | ColorSpace::Oklch => [Some(Lightness), Some(Colorfulness), Some(Hue)],
+        }
+    }
 }
 
 /// Interpolate from `a` (`t = 0`) to `b` (`t = 1`) in `space`
 /// (CSS Color 4 §12.1–§12.4). The result is in `space`.
-pub(crate) fn interpolate(
+pub(crate) fn mix(
     a: AbsoluteColor,
     b: AbsoluteColor,
     space: ColorSpace,
@@ -80,13 +161,24 @@ pub(crate) fn interpolate(
     }
 }
 
-/// `color` in `space`. A hue that is powerless after the conversion (an
-/// achromatic color) is missing (§12.2), so it takes the other color's.
+/// `color` in `space`. A component missing in `color` stays missing in
+/// its analogous component (§12.2: "carried forward"), and a hue that
+/// is powerless after the conversion (an achromatic color) is missing,
+/// so it takes the other color's.
 fn in_space(color: AbsoluteColor, space: ColorSpace) -> AbsoluteColor {
     if color.space == space {
         return color;
     }
     let mut out = convert(color, space);
+    let missing: Vec<Analog> = (0..3)
+        .filter(|&i| color.coords[i].is_none())
+        .filter_map(|i| color.space.analogs()[i])
+        .collect();
+    for (i, analog) in space.analogs().into_iter().enumerate() {
+        if analog.is_some_and(|a| missing.contains(&a)) {
+            out.coords[i] = None;
+        }
+    }
     let [c0, c1, c2] = out.values();
     let powerless = match space {
         ColorSpace::Hsl => c1.abs() < 1e-6 || c2 <= 1e-6 || c2 >= 100.0 - 1e-6,
@@ -113,6 +205,23 @@ fn fix_hues(mut h1: f64, mut h2: f64, method: HueMethod) -> (f64, f64) {
                 h2 += 360.0;
             }
         }
+        HueMethod::Longer => {
+            if 0.0 < d && d < 180.0 {
+                h1 += 360.0;
+            } else if -180.0 < d && d <= 0.0 {
+                h2 += 360.0;
+            }
+        }
+        HueMethod::Increasing => {
+            if h2 < h1 {
+                h2 += 360.0;
+            }
+        }
+        HueMethod::Decreasing => {
+            if h1 < h2 {
+                h1 += 360.0;
+            }
+        }
     }
     (h1, h2)
 }
@@ -123,11 +232,11 @@ fn lerp(a: f64, b: f64, t: f64) -> f64 {
 
 /// Interpolate two sRGB colors in Oklab (CSS Color 4 §12.1: the
 /// default space for interpolating colors, as transitions do), with
-/// premultiplied alpha; the result is gamut-mapped to 8-bit sRGB.
-/// `None` when either color is the terminal default or a palette
-/// index, which have no sRGB value here.
+/// premultiplied alpha; the result is gamut-mapped to 8-bit sRGB. A
+/// palette index counts as its xterm color; `None` when either color is
+/// the terminal default (`reset`), which has no one sRGB value.
 pub fn interpolate_oklab(from: Color, to: Color, t: f64) -> Option<Color> {
     let a = AbsoluteColor::from_color(from)?;
     let b = AbsoluteColor::from_color(to)?;
-    Some(interpolate(a, b, ColorSpace::Oklab, HueMethod::Shorter, t).to_color())
+    Some(mix(a, b, ColorSpace::Oklab, HueMethod::Shorter, t).to_color())
 }

@@ -45,8 +45,10 @@ mod gamut;
 mod interpolate;
 mod matrices;
 pub mod named;
+pub mod palette;
 
 pub use interpolate::interpolate_oklab;
+pub(crate) use interpolate::{HueMethod, mix};
 
 pub(crate) use absolute::{AbsoluteColor, ColorSpace};
 

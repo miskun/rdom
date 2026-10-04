@@ -310,3 +310,161 @@ fn out_of_gamut_colors_are_gamut_mapped() {
     let [l, _, _] = crate::color::oklch_of(parse_color("color(srgb 1.2 0.5 0.5)").unwrap());
     assert!(l > origin[0], "mapped L {l} ≤ {}", origin[0]);
 }
+
+// ── color-mix(): CSS Color 5 §2 ─────────────────────────────────
+
+/// §2.1: two colors mixed in the named space, by default half each.
+#[test]
+fn color_mix_in_rectangular_spaces() {
+    assert_eq!(
+        parse_color("color-mix(in srgb, red, blue)"),
+        rgb(128, 0, 128)
+    );
+    assert_eq!(
+        parse_color("color-mix(in srgb, red 25%, blue)"),
+        rgb(64, 0, 191)
+    );
+    assert_eq!(
+        parse_color("color-mix(in srgb, 25% red, blue)"),
+        rgb(64, 0, 191)
+    );
+    assert_eq!(
+        parse_color("color-mix(in srgb, red, blue 75%)"),
+        rgb(64, 0, 191)
+    );
+    assert_eq!(
+        parse_color("color-mix(in srgb, red calc(25%), blue)"),
+        rgb(64, 0, 191)
+    );
+    assert_eq!(
+        parse_color("color-mix(in oklab, red, blue)"),
+        rgb(140, 83, 162)
+    );
+    assert_eq!(
+        parse_color("color-mix(in srgb-linear, black, white)"),
+        rgb(188, 188, 188)
+    );
+    assert_eq!(parse_color("color-mix(in xyz, red, red)"), rgb(255, 0, 0));
+    assert_eq!(
+        parse_color("COLOR-MIX(IN SRGB, red, blue)"),
+        rgb(128, 0, 128)
+    );
+}
+
+/// Color 5: without an interpolation method the mix is in Oklab.
+#[test]
+fn color_mix_defaults_to_oklab() {
+    assert_eq!(parse_color("color-mix(red, blue)"), rgb(140, 83, 162));
+}
+
+/// §2.2: percentages that do not sum to 100% scale; below 100% the
+/// result's alpha scales too; a zero sum or one outside 0–100% is
+/// invalid.
+#[test]
+fn color_mix_percentage_normalization() {
+    assert_eq!(
+        parse_color("color-mix(in srgb, red 20%, blue 20%)"),
+        rgba(128, 0, 128, 102)
+    );
+    assert_eq!(
+        parse_color("color-mix(in srgb, red 60%, blue 60%)"),
+        rgb(128, 0, 128)
+    );
+    assert_eq!(parse_color("color-mix(in srgb, red 0%, blue 0%)"), None);
+    assert_eq!(parse_color("color-mix(in srgb, red 150%, blue)"), None);
+    assert_eq!(parse_color("color-mix(in srgb, red -5%, blue)"), None);
+}
+
+/// Color 4 §12.4: the hue interpolation methods of a polar space.
+#[test]
+fn color_mix_hue_methods() {
+    assert_eq!(
+        parse_color("color-mix(in hsl, red, lime)"),
+        rgb(255, 255, 0)
+    );
+    assert_eq!(
+        parse_color("color-mix(in hsl shorter hue, red, lime)"),
+        rgb(255, 255, 0)
+    );
+    assert_eq!(
+        parse_color("color-mix(in hsl longer hue, red, lime)"),
+        rgb(0, 0, 255)
+    );
+    assert_eq!(
+        parse_color("color-mix(in hsl increasing hue, lime, red)"),
+        rgb(0, 0, 255)
+    );
+    assert_eq!(
+        parse_color("color-mix(in hsl decreasing hue, red, lime)"),
+        rgb(0, 0, 255)
+    );
+    // A hue method needs a polar space.
+    assert_eq!(
+        parse_color("color-mix(in srgb longer hue, red, lime)"),
+        None
+    );
+}
+
+/// Color 4 §12.2–§12.3: a missing component takes the other color's;
+/// an achromatic color's hue is powerless; alpha is premultiplied.
+#[test]
+fn color_mix_missing_powerless_and_alpha() {
+    assert_eq!(
+        parse_color("color-mix(in srgb, rgb(none 0 0), rgb(255 0 0))"),
+        rgb(255, 0, 0)
+    );
+    let Some(Color::Rgb(r, g, b)) = parse_color("color-mix(in oklch, white, blue)") else {
+        panic!()
+    };
+    assert!(b > r && b > g, "rgb({r}, {g}, {b}) keeps blue's hue");
+    assert_eq!(
+        parse_color("color-mix(in srgb, transparent, red)"),
+        rgba(255, 0, 0, 128)
+    );
+}
+
+/// Colors nest, and a malformed mix is invalid.
+#[test]
+fn color_mix_nests_and_rejects_malformed() {
+    assert_eq!(
+        parse_color("color-mix(in srgb, color-mix(in srgb, red, blue), white)"),
+        rgb(191, 128, 191)
+    );
+    for bad in [
+        "color-mix(in srgb, red)",
+        "color-mix(in srgb red, blue)",
+        "color-mix(in nope, red, blue)",
+        "color-mix(in srgb, red, blue, lime)",
+        "color-mix(srgb, red, blue)",
+        "color-mix(in srgb, red 10% 20%, blue)",
+        "color-mix(in srgb, reset, blue)",
+    ] {
+        assert_eq!(parse_color(bad), None, "{bad}");
+    }
+}
+
+/// Color 5 §2: a mix holding `currentcolor` is computed at
+/// computed-value time, against the element's color; it serializes
+/// as written.
+#[test]
+fn color_mix_with_currentcolor_waits_for_the_element() {
+    use crate::{ColorContext, TuiColor};
+    let mix = TuiColor::parse("color-mix(in srgb, currentColor, blue)").unwrap();
+    assert!(mix.depends_on_element());
+    let vars = std::collections::HashMap::new();
+    assert_eq!(
+        mix.resolve(&vars, &ColorContext::new(Color::Rgb(255, 0, 0))),
+        rgb(128, 0, 128)
+    );
+    let mut style = crate::TuiStyle::new();
+    crate::property_dispatch::set(
+        "background-color",
+        "color-mix(in srgb, currentColor 25%, blue)",
+        &mut style,
+    )
+    .unwrap();
+    let text = crate::property_dispatch::serialize("background-color", &style).unwrap();
+    let mut again = crate::TuiStyle::new();
+    crate::property_dispatch::set("background-color", &text, &mut again).unwrap();
+    assert_eq!(style, again, "{text}");
+}
