@@ -10,7 +10,7 @@
 //! here reaches every property at once.
 
 use super::calc::{looks_like_calc, parse_calc};
-use crate::calc::{CalcExpr, ResolveCtx};
+use crate::calc::{CalcExpr, CalcKind, ResolveCtx};
 use crate::parse::token::Token;
 
 /// Which signs a property accepts for a literal (CSS Values 4 §4.1:
@@ -41,14 +41,19 @@ pub(crate) enum LengthPercentage {
 }
 
 /// `v` cells rounded onto the grid (ties to even, as `calc()` rounds)
-/// and clamped to `0..=u16::MAX`.
+/// and clamped to `0..=u16::MAX`; NaN is 0 (CSS Values 4 §10.9).
 pub(crate) fn cells_u16(v: f64) -> u16 {
-    crate::calc::round_half_to_even(v).clamp(0, i32::from(u16::MAX)) as u16
+    cells_i32(v).clamp(0, i32::from(u16::MAX)) as u16
 }
 
-/// `v` cells rounded onto the grid, as a signed cell count.
+/// `v` cells rounded onto the grid, as a signed cell count: NaN is 0
+/// and an infinity clamps to the range (CSS Values 4 §10.9).
 pub(crate) fn cells_i32(v: f64) -> i32 {
-    crate::calc::round_half_to_even(v)
+    if v.is_nan() {
+        0
+    } else {
+        crate::calc::round_half_to_even(v.clamp(f64::from(i32::MIN), f64::from(i32::MAX)))
+    }
 }
 
 /// Parse one component value as a `<length-percentage>`: a bare
@@ -67,7 +72,7 @@ pub(crate) fn length_percentage(component: &[Token], range: Range) -> Option<Len
         [Token::Number(n)] => Some(LengthPercentage::Integer(if negative { -*n } else { *n })),
         [Token::Percentage(p)] => Some(LengthPercentage::Expr(CalcExpr::Percent(sign * *p))),
         _ if !negative && looks_like_calc(rest) => {
-            let expr = parse_calc(rest)?;
+            let expr = parse_calc(rest).filter(|e| e.kind().is_some_and(|k| k.is_length()))?;
             Some(if expr.contains_percent() {
                 LengthPercentage::Expr(expr)
             } else {
@@ -79,8 +84,9 @@ pub(crate) fn length_percentage(component: &[Token], range: Range) -> Option<Len
 }
 
 /// Parse one component value as a `<number>` (CSS Values 4 §5.4):
-/// an integer or a fraction (`0.5`, `.5`, `1e3`). A leading `-` is
-/// the literal's sign.
+/// an integer or a fraction (`0.5`, `.5`, `1e3`), or a math function
+/// of type `<number>` (`calc(1 / 3)`, `sin(1)`). A leading `-` is the
+/// literal's sign.
 pub(crate) fn number(component: &[Token], range: Range) -> Option<f64> {
     let (negative, rest) = match component {
         [Token::Delim('-'), rest @ ..] => (true, rest),
@@ -92,6 +98,18 @@ pub(crate) fn number(component: &[Token], range: Range) -> Option<f64> {
     let n = match rest {
         [Token::Number(n)] => f64::from(*n),
         [Token::Float(f)] => *f,
+        _ if !negative && looks_like_calc(rest) => {
+            let expr = parse_calc(rest).filter(|e| e.kind() == Some(CalcKind::Number))?;
+            // A NaN number is 0 (Values 4 §10.9); a range-restricted
+            // property clamps a computed value rather than rejecting it.
+            let v = expr.resolve_f64(&ResolveCtx::new(0));
+            let v = if v.is_nan() { 0.0 } else { v };
+            return Some(if range == Range::NonNegative {
+                v.max(0.0)
+            } else {
+                v
+            });
+        }
         _ => return None,
     };
     Some(if negative { -n } else { n })

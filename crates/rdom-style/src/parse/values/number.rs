@@ -2,27 +2,24 @@
 //! constant `calc()`), `z-index` and `aspect-ratio`.
 
 use super::calc::{looks_like_calc, parse_calc};
+use super::numeric::{Range, number};
 use crate::layout::ZIndex;
 use crate::parse::token::Token;
 
-/// `opacity: <number> | <percentage>` — clamped to `0..=1` per CSS
+/// `opacity: <number> | <percentage>` (a math function of type
+/// `<number>` included) — clamped to `0..=1` per CSS
 /// Color 4 §11.1; a percentage is the number divided by 100. The
 /// tokenizer delivers the literal whole (`Number` for integers, `Float`
 /// otherwise), so `0.05` is 0.05.
 pub fn parse_opacity(value: &[Token]) -> Option<f32> {
     // Out-of-range values (including negatives, which arrive as
     // `Delim('-')` + literal) are valid and clamp — CSS Color 4 §11.1.
-    let (sign, rest) = match value {
-        [Token::Delim('-'), rest @ ..] => (-1.0, rest),
-        _ => (1.0, value),
-    };
-    let n = match rest {
-        [Token::Number(n)] => f64::from(*n),
-        [Token::Float(f)] => *f,
+    let n = match value {
         [Token::Percentage(p)] => *p / 100.0,
-        _ => return None,
+        [Token::Delim('-'), Token::Percentage(p)] => -*p / 100.0,
+        _ => number(value, Range::Any)?,
     };
-    Some(((sign * n) as f32).clamp(0.0, 1.0))
+    Some((n as f32).clamp(0.0, 1.0))
 }
 
 pub fn parse_unsigned(value: &[Token]) -> Option<u16> {

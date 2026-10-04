@@ -147,8 +147,12 @@ pub(super) fn serialize_length(l: &Length) -> String {
 pub(super) fn serialize_calc(expr: &crate::calc::CalcExpr) -> String {
     use crate::calc::{CalcExpr, CalcOp};
     match expr {
+        CalcExpr::Number(n) if n.is_nan() => "NaN".to_string(),
+        CalcExpr::Number(n) if n.is_infinite() => {
+            if *n > 0.0 { "infinity" } else { "-infinity" }.to_string()
+        }
         CalcExpr::Number(n) => {
-            if n.fract() == 0.0 {
+            if n.fract() == 0.0 && n.abs() < 1e15 {
                 format!("{}", *n as i64)
             } else {
                 format!("{n}")
@@ -167,7 +171,7 @@ pub(super) fn serialize_calc(expr: &crate::calc::CalcExpr) -> String {
             format!("{}({})", func.name(), parts.join(", "))
         }
         CalcExpr::Percent(p) => {
-            if p.fract() == 0.0 {
+            if p.fract() == 0.0 && p.abs() < 1e15 {
                 format!("{}%", *p as i64)
             } else {
                 format!("{p}%")

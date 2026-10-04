@@ -81,7 +81,7 @@ row comes from.
 | C2-NUMBER | Fractional `<number>` where the spec allows (flex factors, …) | done |
 | C2-MINMAX | `min()` / `max()` / `clamp()` | done |
 | C2-STEPPED | `round()` / `mod()` / `rem()` / `abs()` / `sign()` | done |
-| C2-TRIG | `sin()` … `atan2()`, `pow()` / `sqrt()` / `hypot()` / `log()` / `exp()` | |
+| C2-TRIG | `sin()` … `atan2()`, `pow()` / `sqrt()` / `hypot()` / `log()` / `exp()` | done |
 | C2-CH | `ch` (one column) | |
 | C2-LH | `lh` / `rlh` (one row × `line-height`; lands with C9-LINE-HEIGHT) | |
 | C2-VIEWPORT | `vw` / `vh` / `vmin` / `vmax` and the `sv*` / `lv*` / `dv*` / `vi` / `vb` variants (terminal size) | |
@@ -433,3 +433,10 @@ row comes from.
   absent `clamp()` bound) and becomes `#[non_exhaustive]`; the parser recognizes a math function at
   top level and nested, so every property on the shared leaf takes them. NaN propagates through
   `min` / `max` and resolves to 0 at the top (Values 4 §10.9). `calc.rs` became `calc/{mod,tests}.rs`.
+- 2026-10-04 — C2-TRIG: math expressions are type-checked (`CalcExpr::kind` → `CalcKind::{Number,
+  Length, Angle}`, Values 4 §10.9) with rdom's number-is-a-cell relaxation (a number unifies with a
+  length); `parse_calc` rejects an ill-typed tree and each property checks the kind it takes. Newly
+  rejected as ill-typed: a product of two lengths (`calc(50% * 10%)`), a division by a length.
+  Angles are radians inside the evaluator. `<number>` properties (`opacity`, flex factors) take math
+  functions of type `<number>`. Constants are numbers once parsed (`pi` serializes as its value).
+  `calc/mod.rs` split into `functions.rs` (the functions and their evaluation) and `types.rs`.

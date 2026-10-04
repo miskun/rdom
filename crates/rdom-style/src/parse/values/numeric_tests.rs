@@ -159,3 +159,81 @@ fn stepped_functions_parse_and_serialize() {
         assert_eq!(length_percentage(&t(bad), Range::Any), None, "{bad}");
     }
 }
+
+// ── C2-TRIG ──────────────────────────────────────────────────────────
+
+/// CSS Values 4 §10.4 – §10.7 grammars and §10.9 type checking: the
+/// inverse trigonometric functions return an `<angle>`, which a length
+/// property rejects; `pow()` / `sqrt()` / `log()` / `exp()` take
+/// `<number>`s; a product of two lengths is no length. The functions
+/// serialize as written, constants included.
+#[test]
+fn trig_functions_type_check_and_serialize() {
+    use crate::TuiStyle;
+    use crate::property_dispatch::{serialize, set};
+    assert_eq!(
+        length_percentage(&t("calc(2 * pi)"), Range::NonNegative),
+        Some(LengthPercentage::Cells(2.0 * std::f64::consts::PI))
+    );
+    // Constants are numbers once parsed: `e` / `pi` serialize as their
+    // value, the infinities and NaN as their keywords.
+    for (value, expected) in [
+        (
+            "calc(50% * sin(pi / 6))",
+            "calc(50% * sin(3.141592653589793 / 6))",
+        ),
+        ("hypot(50%, 3)", "hypot(50%, 3)"),
+        ("calc(50% * pow(2, 3))", "calc(50% * pow(2, 3))"),
+        ("calc(50% + e)", "calc(50% + 2.718281828459045)"),
+        ("min(50%, infinity)", "min(50%, infinity)"),
+        ("max(50%, -infinity)", "max(50%, -infinity)"),
+        ("max(50%, NaN)", "max(50%, NaN)"),
+        ("calc(50% * exp(log(2)))", "calc(50% * exp(log(2)))"),
+    ] {
+        let mut s = TuiStyle::default();
+        set("width", value, &mut s).unwrap_or_else(|e| panic!("{value}: {e:?}"));
+        assert_eq!(serialize("width", &s).as_deref(), Some(expected));
+    }
+    for bad in [
+        "asin(1)",
+        "calc(acos(1) * 2)",
+        "atan2(1, 2)",
+        "sqrt(50%)",
+        "pow(2, 50%)",
+        "calc(50% * 10%)",
+        "calc(1 / 50%)",
+        "sin(1, 2)",
+        "log()",
+        "calc(pie)",
+        "sin(50%)",
+    ] {
+        assert_eq!(length_percentage(&t(bad), Range::Any), None, "{bad}");
+    }
+}
+
+/// CSS Values 4 §10: a math function of type `<number>` is valid where a
+/// `<number>` is — `opacity`, flex factors.
+#[test]
+fn number_properties_take_number_math_functions() {
+    use crate::TuiStyle;
+    use crate::layout::Size;
+    use crate::property_dispatch::set;
+    let mut s = TuiStyle::default();
+    set("opacity", "calc(1 / 4)", &mut s).unwrap();
+    assert_eq!(s.opacity, Some(crate::Value::Specified(0.25)));
+    set("flex", "calc(1 / 2)", &mut s).unwrap();
+    assert_eq!(s.width, Some(crate::Value::Specified(Size::Flex(0.5))));
+    set("flex-shrink", "max(2, pi)", &mut s).unwrap();
+    assert_eq!(
+        s.flex_shrink,
+        Some(crate::Value::Specified(std::f32::consts::PI))
+    );
+    assert!(
+        set("opacity", "calc(50%)", &mut s).is_err(),
+        "a percentage is no <number>"
+    );
+    assert!(
+        set("flex-shrink", "asin(1)", &mut s).is_err(),
+        "an angle is no <number>"
+    );
+}

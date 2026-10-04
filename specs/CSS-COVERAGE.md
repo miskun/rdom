@@ -71,7 +71,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 |---|---:|---:|---:|---:|---:|
 | 3.1 Syntax, cascade and inheritance (Syntax 3, Cascade 4/5, CSS 2.1 §6) | 18 | 1 | 0 | 2 | 21 |
 | 3.2 Custom properties (CSS Variables 1) | 6 | 0 | 0 | 1 | 7 |
-| 3.3 Values and units (Values 4) | 9 | 3 | 6 | 4 | 22 |
+| 3.3 Values and units (Values 4) | 10 | 3 | 5 | 4 | 22 |
 | 3.4 Color (Color 4 / 5) | 3 | 3 | 9 | 2 | 17 |
 | 3.5 Backgrounds and borders (Backgrounds 3, Borders 4) | 3 | 5 | 6 | 2 | 16 |
 | 3.6 Box model and sizing (Box 3, Sizing 3/4) | 2 | 4 | 3 | 0 | 9 |
@@ -93,7 +93,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 0 | 0 | 6 | 3 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **75** | **37** | **145** | **50** | **307** |
+| **Total** | **76** | **37** | **144** | **50** | **307** |
 
 Of the 191 Partial / Missing rows, **123 were not documented** in `DIVERGENCES.md` when audited (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3.
 
@@ -261,7 +261,7 @@ dropped:
 | `calc()` | Supported | `+ - * /`, parentheses, nested `calc()`, percent-bearing forms resolved at layout, divide-by-zero rejected. Whitespace relaxation documented. | Yes | `CALC` |
 | `min()` / `max()` / `clamp()` | Supported | Inside and outside `calc()`, nested, mixed with percentages (resolved at layout), `clamp()` with `none` bounds (C2-MINMAX). | — | `CALC` |
 | `round()` / `mod()` / `rem()` / `abs()` / `sign()` | Supported | All four rounding strategies, the argument-range rules (NaN / infinities), percentages resolved at layout (C2-STEPPED). | — | `CALC` |
-| `sin()` … `atan2()`, `pow()` / `sqrt()` / `hypot()` / `log()` / `exp()` | Missing | Numeric functions; low value, cheap once the evaluator is general. | No | `CALC` |
+| `sin()` … `atan2()`, `pow()` / `sqrt()` / `hypot()` / `log()` / `exp()` | Supported | With the constants `e`, `pi`, `infinity`, `-infinity`, `NaN` and Values 4 §10.9 type checking (an `<angle>` result is no length); math functions of type `<number>` also work in `opacity` and flex factors (C2-TRIG). | — | `CALC` |
 | `px`, `cm`, `mm`, `Q`, `in`, `pt`, `pc` | N/A | No pixel / physical length on a cell grid (documented). | — | — |
 | `em`, `rem`, `ex`, `cap`, `ic` | N/A | No font size or font metrics to scale against (documented). | — | — |
 | `ch` | Missing | Exactly one column on a monospaced grid. Currently dropped as if pixel-based. | Yes | `V/length.rs` |

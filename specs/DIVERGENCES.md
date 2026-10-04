@@ -235,7 +235,6 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 
 ### Values and units
 
-- `sin()` … `atan2()`, `pow()` / `sqrt()` / `hypot()` / `log()` / `exp()` — C2-TRIG
 - `ch` — C2-CH
 - `lh` / `rlh` — C2-LH
 - `vw` / `vh` / `vmin` / `vmax` and the `sv*` / `lv*` / `dv*` / `vi` / `vb` variants — C2-VIEWPORT

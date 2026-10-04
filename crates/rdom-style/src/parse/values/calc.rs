@@ -8,6 +8,8 @@ use crate::parse::token::Token;
 // Recursive-descent over the token stream. Grammar:
 //
 //   math       = calc | min | max | clamp | round | mod | rem | abs | sign
+//              | sin | cos | tan | asin | acos | atan | atan2
+//              | pow | sqrt | hypot | log | exp
 //   calc       = 'calc(' sum ')'
 //   min / max  = 'min(' sum [',' sum]* ')'   ('max(' likewise)
 //   clamp      = 'clamp(' (sum | 'none') ',' sum ',' (sum | 'none') ')'
@@ -15,10 +17,18 @@ use crate::parse::token::Token;
 //   mod / rem  = 'mod(' sum ',' sum ')'     ('rem(' likewise)
 //   abs / sign = 'abs(' sum ')'             ('sign(' likewise)
 //   strategy   = 'nearest' | 'up' | 'down' | 'to-zero'
+//   unary      = 'sin(' sum ')'  (cos, tan, asin, acos, atan, sqrt, exp)
+//   binary     = 'atan2(' sum ',' sum ')'   (pow)
+//   hypot      = 'hypot(' sum [',' sum]* ')'
+//   log        = 'log(' sum [',' sum] ')'
+//   constant   = 'e' | 'pi' | 'infinity' | '-infinity' | 'NaN'
 //   sum        = product (('+' | '-') product)*
 //   product    = factor (('*' | '/') factor)*
-//   factor     = leaf | '(' sum ')' | math
+//   factor     = leaf | '(' sum ')' | math | constant
 //   leaf       = Number | Length | Percentage
+//
+// The parsed tree is then type-checked (`CalcExpr::kind`, Values 4
+// §10.9); one that does not type-check is invalid.
 //
 // Whitespace is already eaten by the tokenizer. Operator
 // precedence follows CSS Values 4 §10.8: * and / bind tighter
@@ -44,11 +54,39 @@ fn math_function(name: &str) -> Option<Option<MathFunction>> {
         ("rem", Some(MathFunction::Rem)),
         ("abs", Some(MathFunction::Abs)),
         ("sign", Some(MathFunction::Sign)),
+        ("sin", Some(MathFunction::Sin)),
+        ("cos", Some(MathFunction::Cos)),
+        ("tan", Some(MathFunction::Tan)),
+        ("asin", Some(MathFunction::Asin)),
+        ("acos", Some(MathFunction::Acos)),
+        ("atan", Some(MathFunction::Atan)),
+        ("atan2", Some(MathFunction::Atan2)),
+        ("pow", Some(MathFunction::Pow)),
+        ("sqrt", Some(MathFunction::Sqrt)),
+        ("hypot", Some(MathFunction::Hypot)),
+        ("log", Some(MathFunction::Log)),
+        ("exp", Some(MathFunction::Exp)),
     ];
     TABLE
         .iter()
         .find(|(n, _)| n.eq_ignore_ascii_case(name))
         .map(|(_, f)| *f)
+}
+
+/// A `<calc-keyword>` constant (CSS Values 4 §10.7.1), ASCII
+/// case-insensitive.
+fn constant(name: &str) -> Option<f64> {
+    const TABLE: &[(&str, f64)] = &[
+        ("e", std::f64::consts::E),
+        ("pi", std::f64::consts::PI),
+        ("infinity", f64::INFINITY),
+        ("-infinity", f64::NEG_INFINITY),
+        ("nan", f64::NAN),
+    ];
+    TABLE
+        .iter()
+        .find(|(n, _)| n.eq_ignore_ascii_case(name))
+        .map(|(_, v)| *v)
 }
 
 /// Parser cursor over a `&[Token]`. Tracks position only.
@@ -160,6 +198,11 @@ impl<'a> CalcParser<'a> {
                 self.advance();
                 self.parse_function_body(func)
             }
+            Token::Ident(name) => {
+                let value = constant(name)?;
+                self.advance();
+                Some(CalcExpr::Number(value))
+            }
             _ => None,
         }
     }
@@ -169,7 +212,7 @@ impl<'a> CalcParser<'a> {
     fn parse_function_body(&mut self, func: Option<MathFunction>) -> Option<CalcExpr> {
         let expr = match func {
             None => self.parse_sum()?,
-            Some(f @ (MathFunction::Min | MathFunction::Max)) => {
+            Some(f @ (MathFunction::Min | MathFunction::Max | MathFunction::Hypot)) => {
                 let mut args = vec![self.parse_sum()?];
                 while self.peek() == Some(&Token::Comma) {
                     self.advance();
@@ -194,13 +237,35 @@ impl<'a> CalcParser<'a> {
                 }
                 CalcExpr::function(MathFunction::Round(strategy), args)
             }
-            Some(f @ (MathFunction::Mod | MathFunction::Rem)) => {
+            Some(
+                f @ (MathFunction::Mod
+                | MathFunction::Rem
+                | MathFunction::Atan2
+                | MathFunction::Pow),
+            ) => {
                 let a = self.parse_sum()?;
                 self.expect(&Token::Comma)?;
                 CalcExpr::function(f, vec![a, self.parse_sum()?])
             }
-            Some(f @ (MathFunction::Abs | MathFunction::Sign)) => {
-                CalcExpr::function(f, vec![self.parse_sum()?])
+            Some(
+                f @ (MathFunction::Abs
+                | MathFunction::Sign
+                | MathFunction::Sin
+                | MathFunction::Cos
+                | MathFunction::Tan
+                | MathFunction::Asin
+                | MathFunction::Acos
+                | MathFunction::Atan
+                | MathFunction::Sqrt
+                | MathFunction::Exp),
+            ) => CalcExpr::function(f, vec![self.parse_sum()?]),
+            Some(MathFunction::Log) => {
+                let mut args = vec![self.parse_sum()?];
+                if self.peek() == Some(&Token::Comma) {
+                    self.advance();
+                    args.push(self.parse_sum()?);
+                }
+                CalcExpr::function(MathFunction::Log, args)
             }
         };
         self.expect(&Token::RParen)?;
@@ -243,9 +308,11 @@ impl<'a> CalcParser<'a> {
     }
 }
 
-/// Parse a math function — `calc()`, `min()`, `max()`, `clamp()` —
+/// Parse a math function (`calc()`, `min()`, `round()`, `sin()`, …)
 /// that is the whole of `tokens`. `None` on a parse failure, an
-/// unbalanced parenthesis or trailing tokens.
+/// unbalanced parenthesis, trailing tokens or an expression that does
+/// not type-check (CSS Values 4 §10.9) — whether its type suits the
+/// property is the caller's check ([`CalcExpr::kind`]).
 pub fn parse_calc(tokens: &[Token]) -> Option<CalcExpr> {
     if !looks_like_calc(tokens) {
         return None;
@@ -256,11 +323,12 @@ pub fn parse_calc(tokens: &[Token]) -> Option<CalcExpr> {
     if parser.peek().is_some() {
         return None;
     }
+    expr.kind()?;
     Some(expr)
 }
 
 /// `true` iff `tokens` starts with a math-function token (`calc(`,
-/// `min(`, `max(`, `clamp(`). Used by per-property parsers to detect
+/// `min(`, `sin(`, …). Used by per-property parsers to detect
 /// the math path before trying the bare-value patterns.
 pub fn looks_like_calc(tokens: &[Token]) -> bool {
     matches!(tokens.first(), Some(Token::Function(n)) if math_function(n).is_some())

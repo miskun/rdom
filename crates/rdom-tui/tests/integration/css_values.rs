@@ -326,3 +326,30 @@ fn stepped_and_sign_functions_resolve_at_layout() {
     let cb = r[0].y; // `a` sits at the containing block's top edge
     assert_eq!((r[7].x, r[7].y - cb), (-2, -3), "rem: A's sign; mod: B's");
 }
+
+// ── C2-TRIG ──────────────────────────────────────────────────────────
+
+/// CSS Values 4 §10.4 – §10.6: trigonometric (`sin()` … `atan2()`, a
+/// `<number>` argument in radians, the inverse functions returning an
+/// `<angle>`) and exponential functions (`pow()`, `sqrt()`, `hypot()`,
+/// `log()`, `exp()`); §10.7.1 the constants `e`, `pi`, `infinity`,
+/// `-infinity` and `NaN`. The value becomes whole cells where it
+/// becomes a length; a top-level NaN is 0 and infinity clamps (§10.9).
+#[test]
+fn trig_exponential_functions_and_constants() {
+    let r = block_rects(
+        ".a { width: calc(sin(pi / 6) * 20); height: calc(cos(0) * 7) }
+         .b { width: calc(tan(atan(2)) * 5); height: calc(sin(atan2(1, 1)) * sin(atan2(1, 1)) * 10) }
+         .c { width: pow(2, 3); height: sqrt(81) }
+         .d { width: hypot(30%, 16); height: calc(log(e) * 5) }
+         .e { width: calc(log(8, 2) + exp(0)); height: min(infinity, 4) }
+         .f { width: max(-infinity, 3); height: 1 }
+         .g { width: calc(NaN); height: max(nan, 5) }",
+        &["a", "b", "c", "d", "e", "f", "g"],
+    );
+    let wh: Vec<(u16, u16)> = r.iter().map(|r| (r.width, r.height)).collect();
+    assert_eq!(
+        wh,
+        [(10, 7), (10, 5), (8, 9), (20, 5), (4, 4), (3, 1), (0, 0)]
+    );
+}

@@ -79,7 +79,10 @@ fn parse_margin_value(value: &[Token]) -> Option<MarginValue> {
         [Token::Ident(s)] if s.eq_ignore_ascii_case("auto") => Some(MarginValue::Auto),
         _ => match length_percentage(value, Range::Any)? {
             LengthPercentage::Integer(n) => i16::try_from(n).ok().map(MarginValue::Cells),
-            LengthPercentage::Cells(v) => i16::try_from(cells_i32(v)).ok().map(MarginValue::Cells),
+            // A computed value clamps to the storage range (Values 4 §10.9).
+            LengthPercentage::Cells(v) => Some(MarginValue::Cells(
+                cells_i32(v).clamp(i32::from(i16::MIN), i32::from(i16::MAX)) as i16,
+            )),
             LengthPercentage::Expr(e) => Some(MarginValue::Calc(Box::new(e))),
         },
     }

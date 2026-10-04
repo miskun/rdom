@@ -2,8 +2,12 @@
 //!
 //! `calc(<sum>)` where `<sum>` is a chain of `+`/`-` operators on terms,
 //! terms are chains of `*`/`/` on factors, and factors are leaf values,
-//! parenthesised sub-sums or nested math functions — `min()`, `max()`,
-//! `clamp()` ([`MathFunction`]).
+//! parenthesised sub-sums or nested math functions ([`MathFunction`]:
+//! comparison, stepped-value, trigonometric, exponential and
+//! sign-related functions) and constants (`e`, `pi`, `infinity`, `NaN`).
+//! Every expression has a type ([`CalcKind`], §10.9): a property takes
+//! the ones its grammar allows. Angles are radians inside the
+//! evaluator.
 //!
 //! Leaf value kinds rdom supports:
 //!
@@ -24,6 +28,13 @@
 
 use std::fmt;
 
+mod functions;
+mod types;
+
+use functions::eval_function;
+pub use functions::{MathFunction, RoundingStrategy};
+pub use types::CalcKind;
+
 /// One operator in a calc() expression.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CalcOp {
@@ -42,75 +53,6 @@ impl fmt::Display for CalcOp {
             CalcOp::Div => "/",
         };
         f.write_str(s)
-    }
-}
-
-/// A math function other than `calc()` (CSS Values 4 §10), which is a
-/// plain parenthesised sum in the tree.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[non_exhaustive]
-pub enum MathFunction {
-    /// `min(A, B, …)` — the smallest argument (§10.2).
-    Min,
-    /// `max(A, B, …)` — the largest argument (§10.2).
-    Max,
-    /// `clamp(MIN, VAL, MAX)` — `max(MIN, min(VAL, MAX))`, so `MIN`
-    /// wins a conflict (§10.2). A `none` bound is absent: the
-    /// arguments are `[MIN?, VAL, MAX?]` as written, with
-    /// [`CalcExpr::None`] in place of an absent bound.
-    Clamp,
-    /// `round(<strategy>?, A, B?)` — A rounded to a multiple of B (1
-    /// when omitted) (§10.3.1).
-    Round(RoundingStrategy),
-    /// `mod(A, B)` — the remainder with B's sign (§10.3.2).
-    Mod,
-    /// `rem(A, B)` — the remainder with A's sign (§10.3.2).
-    Rem,
-    /// `abs(A)` (§10.7.1).
-    Abs,
-    /// `sign(A)` — -1, 0 or 1 (zero keeps its sign) (§10.7.2).
-    Sign,
-}
-
-/// `round()`'s `<rounding-strategy>` (CSS Values 4 §10.3.1).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum RoundingStrategy {
-    /// The nearer multiple; a tie goes toward +∞. The default.
-    #[default]
-    Nearest,
-    /// The multiple toward +∞.
-    Up,
-    /// The multiple toward −∞.
-    Down,
-    /// The multiple toward zero.
-    ToZero,
-}
-
-impl RoundingStrategy {
-    /// The strategy's CSS keyword.
-    pub fn keyword(self) -> &'static str {
-        match self {
-            RoundingStrategy::Nearest => "nearest",
-            RoundingStrategy::Up => "up",
-            RoundingStrategy::Down => "down",
-            RoundingStrategy::ToZero => "to-zero",
-        }
-    }
-}
-
-impl MathFunction {
-    /// The function's CSS name.
-    pub fn name(self) -> &'static str {
-        match self {
-            MathFunction::Min => "min",
-            MathFunction::Max => "max",
-            MathFunction::Clamp => "clamp",
-            MathFunction::Round(_) => "round",
-            MathFunction::Mod => "mod",
-            MathFunction::Rem => "rem",
-            MathFunction::Abs => "abs",
-            MathFunction::Sign => "sign",
-        }
     }
 }
 
@@ -241,137 +183,6 @@ impl CalcExpr {
     /// Convenience for math-function node construction.
     pub fn function(func: MathFunction, args: Vec<CalcExpr>) -> CalcExpr {
         CalcExpr::Function { func, args }
-    }
-}
-
-/// Evaluate a math function over its arguments (CSS Values 4 §10).
-/// Any NaN argument makes the result NaN (§10.9).
-fn eval_function(func: MathFunction, args: &[CalcExpr], cx: &ResolveCtx) -> f64 {
-    let values = args.iter().map(|a| a.resolve_f64(cx));
-    match func {
-        MathFunction::Min => values.fold(f64::INFINITY, nan_min),
-        MathFunction::Max => values.fold(f64::NEG_INFINITY, nan_max),
-        MathFunction::Clamp => {
-            let [lo, val, hi] = args else {
-                return f64::NAN;
-            };
-            let bound = |e: &CalcExpr, absent: f64| match e {
-                CalcExpr::None => absent,
-                e => e.resolve_f64(cx),
-            };
-            let (lo, val, hi) = (
-                bound(lo, f64::NEG_INFINITY),
-                val.resolve_f64(cx),
-                bound(hi, f64::INFINITY),
-            );
-            nan_max(lo, nan_min(val, hi))
-        }
-        MathFunction::Round(strategy) => {
-            let mut v = values;
-            let a = v.next().unwrap_or(f64::NAN);
-            round(strategy, a, v.next().unwrap_or(1.0))
-        }
-        MathFunction::Mod | MathFunction::Rem => {
-            let mut v = values;
-            let (a, b) = (v.next().unwrap_or(f64::NAN), v.next().unwrap_or(f64::NAN));
-            remainder(func == MathFunction::Mod, a, b)
-        }
-        MathFunction::Abs => values.map(f64::abs).next().unwrap_or(f64::NAN),
-        MathFunction::Sign => values
-            .map(|a| {
-                if a == 0.0 || a.is_nan() {
-                    a
-                } else {
-                    a.signum()
-                }
-            })
-            .next()
-            .unwrap_or(f64::NAN),
-    }
-}
-
-/// `round(strategy, a, b)` (CSS Values 4 §10.3.1). B's sign is
-/// irrelevant (its multiples are the same); a zero B is NaN.
-fn round(strategy: RoundingStrategy, a: f64, b: f64) -> f64 {
-    let b = b.abs();
-    if a.is_nan() || b.is_nan() || b == 0.0 || (a.is_infinite() && b.is_infinite()) {
-        return f64::NAN;
-    }
-    if a.is_infinite() {
-        return a;
-    }
-    if b.is_infinite() {
-        // A finite A rounds to zero (keeping its sign) or, toward an
-        // infinity in the strategy's direction, to that infinity.
-        return match strategy {
-            RoundingStrategy::Up if a > 0.0 => f64::INFINITY,
-            RoundingStrategy::Down if a < 0.0 => f64::NEG_INFINITY,
-            _ => 0.0f64.copysign(a),
-        };
-    }
-    let lower = (a / b).floor() * b;
-    if lower == a {
-        return a;
-    }
-    let upper = lower + b;
-    match strategy {
-        RoundingStrategy::Nearest => {
-            if a - lower < upper - a {
-                lower
-            } else {
-                upper
-            }
-        }
-        RoundingStrategy::Up => upper,
-        RoundingStrategy::Down => lower,
-        RoundingStrategy::ToZero => {
-            if a > 0.0 {
-                lower
-            } else {
-                upper
-            }
-        }
-    }
-}
-
-/// `mod(a, b)` (`modulo`: the result takes B's sign) or `rem(a, b)`
-/// (A's sign) (CSS Values 4 §10.3.2). A zero B or an infinite A is NaN;
-/// an infinite B leaves A, except that `mod()` of oppositely signed
-/// values is NaN.
-fn remainder(modulo: bool, a: f64, b: f64) -> f64 {
-    if a.is_nan() || b.is_nan() || b == 0.0 || a.is_infinite() {
-        return f64::NAN;
-    }
-    if b.is_infinite() {
-        return if modulo && a != 0.0 && a.is_sign_negative() != b.is_sign_negative() {
-            f64::NAN
-        } else {
-            a
-        };
-    }
-    let r = a % b; // `rem()`: truncated division, A's sign
-    if modulo && r != 0.0 && (r < 0.0) != (b < 0.0) {
-        r + b
-    } else {
-        r
-    }
-}
-
-/// `f64::min` that propagates NaN instead of ignoring it.
-fn nan_min(a: f64, b: f64) -> f64 {
-    if a.is_nan() || b.is_nan() {
-        f64::NAN
-    } else {
-        a.min(b)
-    }
-}
-
-/// `f64::max` that propagates NaN instead of ignoring it.
-fn nan_max(a: f64, b: f64) -> f64 {
-    if a.is_nan() || b.is_nan() {
-        f64::NAN
-    } else {
-        a.max(b)
     }
 }
 
