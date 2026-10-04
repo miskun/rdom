@@ -172,7 +172,7 @@ pub(super) fn split_arguments(args: &[Token]) -> Option<Arguments<'_>> {
 }
 
 /// True when `args` holds a comma outside any nested function.
-fn top_level_comma(args: &[Token]) -> bool {
+pub(super) fn top_level_comma(args: &[Token]) -> bool {
     let mut depth = 0usize;
     for t in args {
         match t {

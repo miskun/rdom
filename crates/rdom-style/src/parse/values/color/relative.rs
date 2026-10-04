@@ -9,6 +9,7 @@
 //! substituted as numbers and the function's own (modern) grammar
 //! parses the result, so every channel form it takes works here too.
 
+use super::channel::top_level_comma;
 use super::context::ColorCx;
 use super::{hsl, lab, parse_absolute, rgb};
 use crate::color::{AbsoluteColor, ColorSpace, convert};
@@ -22,7 +23,9 @@ pub(super) fn parse(name: &str, args: &[Token], cx: &ColorCx) -> Option<Absolute
     let origin_tokens = *components(after_from)?.first()?;
     let origin = parse_absolute(origin_tokens, cx)?;
     let rest = &after_from[origin_tokens.len()..];
-    if rest.contains(&Token::Comma) {
+    // Relative colors take the modern syntax only; a comma inside a math
+    // function (`min(r, 100)`) is that function's own.
+    if top_level_comma(rest) {
         return None;
     }
     let (space, keywords, scale) = target(name, rest)?;

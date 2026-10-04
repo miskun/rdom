@@ -45,3 +45,25 @@ fn hostile_attr_color_is_invalid_not_a_stack_overflow() {
     );
     assert_eq!(computed_of(&dom, a).fg, Color::Rgb(0, 0, 255), "fallback");
 }
+
+// ── C3G-RELATIVE-COMMA ───────────────────────────────────────────────
+
+/// CSS Color 5 §4: a relative color's channel keywords work inside math
+/// functions, whose arguments are comma-separated (Values 4 §10.2) —
+/// with the origin from `var()`, substituted before the color parses.
+#[test]
+fn relative_color_with_a_comma_math_function_from_var() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let a = el(&mut dom, root, "a");
+    let b = el(&mut dom, root, "b");
+    cascade(
+        &mut dom,
+        ":root { --c: rgb(200 10 20) } \
+         .a { color: rgb(from var(--c) min(r, 100) g b) } \
+         .b { color: oklch(from var(--c) clamp(0.2, l, 0.5) c h) }",
+    );
+    assert_eq!(computed_of(&dom, a).fg, Color::Rgb(100, 10, 20));
+    let expected = rdom_tui::parse_color("oklch(from rgb(200 10 20) 0.5 c h)").expect("a color");
+    assert_eq!(computed_of(&dom, b).fg, expected);
+}

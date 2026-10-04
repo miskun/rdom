@@ -552,6 +552,20 @@ fn relative_colors_reject_malformed() {
     }
 }
 
+/// CSS Color 5 §4: a channel keyword resolves to a `<number>` "alone or
+/// inside a math function", and comma-separated math functions
+/// (`min()`, `clamp()`, Values 4 §10.2) take commas of their own — only
+/// a comma between the channels is the (rejected) legacy syntax.
+#[test]
+fn relative_colors_take_math_functions_with_commas() {
+    assert_eq!(parse_color("rgb(from red min(r, 100) g b)"), rgb(100, 0, 0));
+    assert_eq!(
+        parse_color("oklch(from red clamp(0.2, l, 0.5) c h)"),
+        parse_color("oklch(from red 0.5 c h)")
+    );
+    assert_eq!(parse_color("rgb(from red min(r, 100), g, b)"), None);
+}
+
 /// A relative color from `currentcolor` is computed for the element.
 #[test]
 fn relative_color_from_currentcolor_waits_for_the_element() {

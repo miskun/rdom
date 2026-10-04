@@ -709,3 +709,8 @@ row comes from.
   `(128, 0, 0)`; the four other cases pass before and after. Found: a positioned pseudo's
   `width` / `height` are not read (its size comes from the insets or the content) — the test sizes
   it with `right`.
+- 2026-10-05 — C3G-RELATIVE-COMMA: `relative::parse` rejects a comma only at the arguments' top level
+  (`channel::top_level_comma`, the check the legacy split already used), so a math function's own
+  commas pass. Red: `rgb(from red min(r, 100) g b)` parsed to `None`; green: `rgb(100, 0, 0)`, and
+  `oklch(from red clamp(0.2, l, 0.5) c h)` equals `oklch(from red 0.5 c h)`; through `var()` end to
+  end in `css_phase3_gates.rs`. A comma between channels stays invalid.
