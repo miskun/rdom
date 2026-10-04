@@ -43,6 +43,7 @@ use rdom_core::selectors::{ParseError, SelectorList};
 
 use crate::{Specificity, TuiStyle};
 
+mod imports;
 mod index;
 mod layers;
 mod scopes;
@@ -51,6 +52,7 @@ mod style_selector;
 #[cfg(test)]
 mod tests;
 
+pub use imports::Import;
 pub use index::RuleIndex;
 pub use layers::{Layer, LayerId, LayerOrder};
 pub use scopes::{Scope, ScopeId};
@@ -224,6 +226,8 @@ pub struct Stylesheet {
     /// Declared cascade layers, in order of first declaration
     /// (`layers.rs`).
     layers: Vec<Layer>,
+    /// The `@import`s that loaded (`imports.rs`).
+    imports: Vec<Import>,
     /// Declared `@scope` rules, in source order (`scopes.rs`).
     scopes: Vec<Scope>,
     /// CSSOM `ownerNode`: the `<style>` element the sheet came from.

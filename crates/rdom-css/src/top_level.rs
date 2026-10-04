@@ -3,6 +3,7 @@
 //!
 //! - a qualified rule is a style rule, `<prelude> { <block> }`
 //!   (`block.rs`, which also parses the rules nested in its block);
+//! - `@import` is evaluated (`import.rs`) while it leads the sheet;
 //! - `@layer` is evaluated (`layer.rs`); its block form parses a nested
 //!   list of rules into the layer; `@scope` is evaluated (`scope.rs`);
 //! - any other at-rule (`@name …`) is consumed whole — statement form
@@ -19,6 +20,7 @@
 use rdom_style::{LayerId, RuleContext, Stylesheet};
 
 use crate::block::{Context, Parent, consume_style_rule};
+use crate::import::Imports;
 use crate::{Warning, WarningKind};
 use rdom_style::parse::Cursor;
 
@@ -28,24 +30,49 @@ pub(crate) fn parse_stylesheet(
     cursor: &mut Cursor,
     sheet: &mut Stylesheet,
     warnings: &mut Vec<Warning>,
+    imports: &mut Imports<'_>,
 ) {
-    parse_rule_list(cursor, sheet, warnings, None, false);
+    parse_rule_list(cursor, sheet, warnings, None, Some(imports));
 }
 
 /// §5.4.1 "consume a list of rules" into `layer` (`None`: unlayered).
-/// `nested`: the list is a block's body (`@layer x { … }`) — its `}`
-/// ends it and is consumed; at the top level a stray `}` is dropped.
-/// EOF ends either (§5.4.7).
+/// `imports`: the list is a sheet's top level, where `@import` may
+/// lead (CSS Cascade 5 §3); `None` for a block's body (`@layer x { … }`)
+/// — its `}` ends it and is consumed, while at the top level a stray
+/// `}` is dropped. EOF ends either (§5.4.7).
 pub(crate) fn parse_rule_list(
     cursor: &mut Cursor,
     sheet: &mut Stylesheet,
     warnings: &mut Vec<Warning>,
     layer: Option<LayerId>,
-    nested: bool,
+    mut imports: Option<&mut Imports<'_>>,
 ) {
+    let nested = imports.is_none();
+    // `@import` is valid only before every rule but `@charset` and
+    // `@layer` statements.
+    let mut imports_allowed = !nested;
     loop {
         if !skip_ws_and_comments(cursor, warnings) {
             return;
+        }
+        if cursor.peek() == Some('@') {
+            match crate::import::leading_at_rule(cursor.rest()) {
+                crate::import::Leading::Import => {
+                    let allowed = imports_allowed;
+                    crate::import::consume_import(
+                        cursor,
+                        sheet,
+                        warnings,
+                        layer,
+                        imports.as_deref_mut().filter(|_| allowed),
+                    );
+                    continue;
+                }
+                crate::import::Leading::KeepsImports => {}
+                crate::import::Leading::Other => imports_allowed = false,
+            }
+        } else if !matches!(cursor.peek(), None | Some('}')) {
+            imports_allowed = false;
         }
         match cursor.peek() {
             None => return,
@@ -94,7 +121,7 @@ fn consume_at_rule(
                         sheet: &mut Stylesheet,
                         warnings: &mut Vec<Warning>,
                         layer: Option<LayerId>| {
-            parse_rule_list(cursor, sheet, warnings, layer, true);
+            parse_rule_list(cursor, sheet, warnings, layer, None);
         };
         crate::layer::consume_layer_rule(cursor, sheet, warnings, layer, (line, column), &mut body);
         return;

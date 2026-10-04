@@ -115,11 +115,13 @@ value       := token+
 These produce a `Warning` and the parse continues — matching browser
 behavior, so copy-pasting CSS from MDN doesn't blow up:
 
-- **At-rules other than `@layer` and `@scope`.** Every other at-rule (`@import`,
+- **At-rules other than `@import`, `@layer` and `@scope`.** Every other at-rule (`@import`,
   `@charset`, `@media`, `@keyframes`, `@supports`, `@font-face`, …) is
   consumed whole per CSS Syntax 3 §5.4.2 and reported with
   `WarningKind::UnsupportedAtRule(name)`; the rules around it are
-  unaffected (`@scope` is parsed into the sheet's scopes:
+  unaffected (`@import` loads through the host's `ImportLoader` with
+  `parse_with_loader`, its conditions recorded but not yet evaluated;
+  `@scope` is parsed into the sheet's scopes:
   `Stylesheet::scopes`, `Rule::scope`). The applicable ones (`@media`, `@supports`, `@keyframes`,
   …) are scheduled for 0.6.0. `@layer` (statement and block forms,
   anonymous and nested layers) is parsed into the sheet's cascade layers;

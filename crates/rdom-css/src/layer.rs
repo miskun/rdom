@@ -119,7 +119,7 @@ pub(crate) fn read_prelude(cursor: &mut Cursor, warnings: &mut Vec<Warning>) -> 
 /// The comma-separated `<layer-name>` list of a prelude, each name as
 /// its segments; `Some(vec![])` for an empty prelude, `None` when it is
 /// not a valid list.
-fn layer_names(prelude: &str) -> Option<Vec<Vec<String>>> {
+pub(crate) fn layer_names(prelude: &str) -> Option<Vec<Vec<String>>> {
     // No whitespace may surround a `.` (escaped dots are inside an
     // ident and decode there).
     let chars: Vec<char> = prelude.chars().collect();

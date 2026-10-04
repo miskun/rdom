@@ -96,6 +96,11 @@ impl Stylesheet {
             map.push(id);
         }
         let scopes = self.append_scopes(other);
+        for import in &other.imports {
+            let mut import = import.clone();
+            import.layer = import.layer.map(|l| map[l.index()]);
+            self.imports.push(import);
+        }
         let rules: Vec<Rule> = other
             .rules
             .iter()

@@ -18,15 +18,16 @@ fn selectors(src: &str) -> Vec<String> {
 
 #[test]
 fn statement_at_rule_is_skipped_and_the_next_rule_survives() {
-    let r = parse(r#"@import url("x.css"); button { color: red }"#);
+    // `@namespace` (not applicable to rdom; `@import` is evaluated now).
+    let r = parse(r#"@namespace svg url("x"); button { color: red }"#);
     assert_eq!(
-        selectors(r#"@import url("x.css"); button { color: red }"#),
+        selectors(r#"@namespace svg url("x"); button { color: red }"#),
         vec!["button"]
     );
     assert!(
-        r.warnings
-            .iter()
-            .any(|w| matches!(&w.kind, WarningKind::UnsupportedAtRule(name) if name == "import")),
+        r.warnings.iter().any(
+            |w| matches!(&w.kind, WarningKind::UnsupportedAtRule(name) if name == "namespace")
+        ),
         "{:?}",
         r.warnings
     );
@@ -82,7 +83,7 @@ fn brace_inside_attribute_selector_string_does_not_end_the_prelude() {
 
 #[test]
 fn at_rule_warning_carries_the_at_rule_position() {
-    let r = parse("a { color: red }\n@import 'x';");
+    let r = parse("a { color: red }\n@namespace 'x';");
     let w = r
         .warnings
         .iter()

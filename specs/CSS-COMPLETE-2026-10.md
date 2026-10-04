@@ -66,7 +66,7 @@ row comes from.
 | C1-REVERT | `revert` (roll back to the UA origin) | done |
 | C1-LAYER | `@layer` (statement + block, anonymous layers, layer order) and `revert-layer` | done |
 | C1-ALL | `all` shorthand | done |
-| C1-IMPORT | `@import` through a host-provided loader, with layer / supports / media conditions | |
+| C1-IMPORT | `@import` through a host-provided loader, with layer / supports / media conditions | done |
 | C1-SCOPE | `@scope` with an optional lower bound, and `:scope` inside it | done |
 | C1-NESTING | CSS Nesting (`&`, nested style rules, nested at-rules) | done |
 | C1-VAR-ANY | `var()` in every property via token-level substitution at computed-value time; fallback with arbitrary tokens; `var()` in `content` | |

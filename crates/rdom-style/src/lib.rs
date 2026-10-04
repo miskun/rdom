@@ -68,8 +68,8 @@ pub use counters::{CounterOp, CounterStyle};
 pub use modifier::Modifier;
 pub use specificity::Specificity;
 pub use stylesheet::{
-    Layer, LayerId, LayerOrder, PseudoElementTarget, Rule, RuleContext, RuleIndex, RuleOrigin,
-    Scope, ScopeId, StyleError, StyleSelector, Stylesheet,
+    Import, Layer, LayerId, LayerOrder, PseudoElementTarget, Rule, RuleContext, RuleIndex,
+    RuleOrigin, Scope, ScopeId, StyleError, StyleSelector, Stylesheet,
 };
 pub use transition::{AnimatableProperty, TimingFunction, TransitionProperty, TransitionRule};
 pub use tui_color::{TuiColor, parse_color, resolve_tui_color};

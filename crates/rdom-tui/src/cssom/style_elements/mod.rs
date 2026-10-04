@@ -31,6 +31,10 @@
 //! document's own sheets. Origin and specificity still decide first;
 //! the order breaks ties between author rules.
 //!
+//! `@import` in a `<style>` sheet goes through the loader set with
+//! [`App::set_import_loader`](crate::runtime::App::set_import_loader);
+//! without one it imports nothing (and warns).
+//!
 //! The `media` attribute is not evaluated (rdom evaluates no media
 //! queries), and `<style>` has no `disabled` content attribute.
 
@@ -38,7 +42,7 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 use rdom_core::{Dom, Mutation, MutationObserver, NodeId};
-use rdom_css::Warning;
+use rdom_css::{ImportLoader, Warning};
 use rdom_style::Stylesheet;
 
 use crate::{TuiDom, TuiExt};
@@ -55,10 +59,22 @@ struct StyleSheetEntry {
 
 /// The document's `<style>` sheets, kept current by a mutation
 /// observer and flushed by the App.
-#[derive(Debug)]
 pub(crate) struct StyleElements {
     dirty: Rc<Cell<bool>>,
     entries: Vec<StyleSheetEntry>,
+    /// Resolves the sheets' `@import`s (CSS Cascade 5 §3); `None`: an
+    /// `@import` imports nothing and warns.
+    loader: Option<Rc<dyn ImportLoader>>,
+}
+
+impl std::fmt::Debug for StyleElements {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("StyleElements")
+            .field("dirty", &self.dirty)
+            .field("entries", &self.entries)
+            .field("loader", &self.loader.is_some())
+            .finish()
+    }
 }
 
 impl StyleElements {
@@ -72,7 +88,16 @@ impl StyleElements {
         Self {
             dirty,
             entries: Vec::new(),
+            loader: None,
         }
+    }
+
+    /// Resolve `@import` through `loader` from now on; every sheet is
+    /// re-parsed at the next flush.
+    pub(crate) fn set_loader(&mut self, loader: Option<Rc<dyn ImportLoader>>) {
+        self.loader = loader;
+        self.entries.clear();
+        self.dirty.set(true);
     }
 
     /// Bring the sheets up to date with the tree. Returns `true` when
@@ -93,7 +118,10 @@ impl StyleElements {
                 .map(|at| previous.swap_remove(at));
             let entry = reused.unwrap_or_else(|| {
                 reparsed = true;
-                let mut parsed = rdom_css::parse(&source);
+                let mut parsed = match &self.loader {
+                    Some(loader) => rdom_css::parse_with_loader(&source, loader.as_ref()),
+                    None => rdom_css::parse(&source),
+                };
                 // CSSOM `ownerNode`: a prelude-less `@scope` roots at its
                 // parent (CSS Cascade 6 §2.5.1).
                 parsed.stylesheet.set_owner_node(Some(element));

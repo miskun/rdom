@@ -163,6 +163,19 @@ impl<B: Backend> App<B> {
         self.stylesheets.iter().map(|(_, s)| s).collect()
     }
 
+    /// Resolve the `@import` rules of the document's `<style>` elements
+    /// through `loader` (CSS Cascade 5 §3) — rdom has no network or
+    /// filesystem policy of its own, so the host decides what a URL
+    /// means. Every `<style>` sheet is re-parsed and the next paint
+    /// re-cascades. Sheets built in Rust import through
+    /// [`rdom_css::parse_with_loader`] instead.
+    pub fn set_import_loader(&mut self, loader: impl rdom_css::ImportLoader + 'static) {
+        self.prelude
+            .style_elements
+            .set_loader(Some(std::rc::Rc::new(loader)));
+        self.invalidate_cascade();
+    }
+
     /// The parse warnings of the document's `<style>` elements, in tree
     /// order, as of the last frame (`cssom::style_elements`) — what
     /// [`extend_from_style_tags`](crate::extend_from_style_tags) returns

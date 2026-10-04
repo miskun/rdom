@@ -18,6 +18,7 @@ use rdom_style::{Stylesheet, TuiStyle};
 
 mod block;
 mod declarations;
+mod import;
 mod layer;
 mod scope;
 mod top_level;
@@ -58,11 +59,47 @@ use rdom_style::parse::Cursor;
 /// [`Warning`]s; the rest of the parse continues. Mirrors browser
 /// behavior — copy-pasting CSS from MDN works even if a property
 /// isn't supported in this build.
+///
+/// An `@import` has no loader here and imports nothing
+/// (`WarningKind::ImportFailed`); use [`parse_with_loader`].
 pub fn parse(source: &str) -> ParseResult {
+    parse_in(source, None)
+}
+
+/// Fetches the sheets `@import` names (CSS Cascade 5 §3). rdom has no
+/// network or filesystem policy of its own: the host decides what a
+/// URL means — a file under an asset directory, an embedded string, a
+/// refusal. `Err(reason)` imports nothing and reports
+/// `WarningKind::ImportFailed`. Closures `Fn(&str) -> Result<String,
+/// String>` implement it.
+pub trait ImportLoader {
+    /// The text of the sheet at `url`, as written in the `@import`.
+    fn load(&self, url: &str) -> Result<String, String>;
+}
+
+impl<F: Fn(&str) -> Result<String, String>> ImportLoader for F {
+    fn load(&self, url: &str) -> Result<String, String> {
+        self(url)
+    }
+}
+
+/// [`parse`], resolving `@import` through `loader`: each imported
+/// sheet's rules are parsed in at the import's position (in its
+/// `layer(…)`, if any), recorded in `Stylesheet::imports`; cycles are
+/// cut with `WarningKind::ImportCycle`.
+pub fn parse_with_loader(source: &str, loader: &dyn ImportLoader) -> ParseResult {
+    parse_in(source, Some(loader))
+}
+
+fn parse_in(source: &str, loader: Option<&dyn ImportLoader>) -> ParseResult {
     let mut cursor = Cursor::new(source);
     let mut sheet = Stylesheet::bare();
     let mut warnings = Vec::new();
-    top_level::parse_stylesheet(&mut cursor, &mut sheet, &mut warnings);
+    let mut imports = import::Imports {
+        loader,
+        stack: Vec::new(),
+    };
+    top_level::parse_stylesheet(&mut cursor, &mut sheet, &mut warnings, &mut imports);
     ParseResult {
         stylesheet: sheet,
         warnings,
@@ -112,7 +149,12 @@ fn warning_to_error(w: &Warning) -> ParseError {
         | WarningKind::MalformedDeclaration(_) => {
             ParseErrorKind::ExpectedToken("valid declaration")
         }
-        WarningKind::UnsupportedAtRule(_) => ParseErrorKind::ExpectedToken("rule"),
+        WarningKind::UnsupportedAtRule(_) | WarningKind::ImportIgnored(_) => {
+            ParseErrorKind::ExpectedToken("rule")
+        }
+        WarningKind::ImportCycle(_) | WarningKind::ImportFailed { .. } => {
+            ParseErrorKind::ExpectedToken("importable sheet")
+        }
         WarningKind::InvalidAtRulePrelude { .. } => {
             ParseErrorKind::ExpectedToken("at-rule prelude")
         }
@@ -185,6 +227,18 @@ pub enum WarningKind {
         prelude: String,
     },
     InvalidSelector(String),
+    /// An `@import` (its URL) after a rule other than `@charset` and
+    /// `@layer` statements, or inside a block: ignored (CSS Cascade 5 §3).
+    ImportIgnored(String),
+    /// An `@import` (its URL) that would import a sheet already being
+    /// imported: skipped.
+    ImportCycle(String),
+    /// An `@import` whose sheet did not load: no loader was given, or
+    /// the loader refused (`reason`). Nothing is imported.
+    ImportFailed {
+        url: String,
+        reason: String,
+    },
     UnterminatedComment,
     UnterminatedString,
 }

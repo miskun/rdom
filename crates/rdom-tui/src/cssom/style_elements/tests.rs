@@ -242,3 +242,23 @@ fn a_prelude_less_scope_roots_at_the_style_elements_parent() {
     assert_eq!(fg(&app, inside), RED);
     assert_ne!(fg(&app, outside), RED);
 }
+
+/// CSS Cascade 5 §3: a `<style>` element's `@import` goes through the
+/// loader set on the App; without one it imports nothing and warns.
+#[test]
+fn style_element_imports_go_through_the_apps_loader() {
+    let (mut app, p, _) = app(&["@import 'theme.css'; p { background: blue; }"]);
+    assert_ne!(fg(&app, p), RED);
+    assert!(
+        app.style_element_warnings()
+            .iter()
+            .any(|w| matches!(w.kind, rdom_css::WarningKind::ImportFailed { .. }))
+    );
+    app.set_import_loader(|url: &str| match url {
+        "theme.css" => Ok("p { color: red; }".to_string()),
+        other => Err(format!("unknown {other}")),
+    });
+    app.advance(0).unwrap();
+    assert_eq!(fg(&app, p), RED);
+    assert!(app.style_element_warnings().is_empty());
+}

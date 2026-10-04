@@ -102,7 +102,7 @@ fn strip_keyword<'s>(text: &'s str, keyword: &str) -> Option<&'s str> {
 
 /// Split `(…)…` at its balanced closing parenthesis (strings and
 /// escapes respected): the inside and the rest.
-fn parenthesized(text: &str) -> Option<(&str, &str)> {
+pub(crate) fn parenthesized(text: &str) -> Option<(&str, &str)> {
     let mut depth = 0usize;
     let mut quote = None;
     let mut chars = text.char_indices();
