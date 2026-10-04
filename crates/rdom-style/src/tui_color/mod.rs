@@ -31,6 +31,9 @@
 //! Anything else returns `None` and the cascade uses the fallback
 //! chain.
 
+use std::fmt;
+use std::sync::Arc;
+
 use crate::Color;
 use crate::color::SystemColor;
 
@@ -148,26 +151,59 @@ impl TuiColor {
 }
 
 /// A color function kept for computed-value time
-/// ([`TuiColor::Function`]): its CSS text, which parsed as one color
-/// function when it was created.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct ColorFunction(Box<str>);
+/// ([`TuiColor::Function`]): parsed once, when its value is, into a form
+/// in which only what depends on the element (`currentcolor`,
+/// `light-dark()`, the terminal's default colors) is left to compute;
+/// with its CSS text for serialization. Cheap to clone (two reference
+/// counts; atomic, so a `TuiStyle` holding one stays `Send + Sync`).
+/// Equality and hashing are by text — the parsed form is a function of
+/// it.
+#[derive(Clone)]
+pub struct ColorFunction {
+    text: Arc<str>,
+    expr: Arc<crate::parse::values::ColorExpr>,
+}
 
 impl ColorFunction {
-    /// Wrap the text of a color function the parser accepted.
-    pub(crate) fn new(text: String) -> Self {
-        ColorFunction(text.into_boxed_str())
+    /// Wrap a color function the parser accepted: its text and parsed
+    /// form.
+    pub(crate) fn new(text: String, expr: crate::parse::values::ColorExpr) -> Self {
+        ColorFunction {
+            text: Arc::from(text),
+            expr: Arc::new(expr),
+        }
     }
 
     /// The function as CSS text.
     pub fn css_text(&self) -> &str {
-        &self.0
+        &self.text
     }
 
-    /// The color against `cx`. `None` only if the text no longer parses,
-    /// which a value from the parser cannot.
+    /// The color against `cx`. `None` when a color it names has no
+    /// value there (a `currentcolor` the parser could not foresee
+    /// failing, which a value from the parser does not produce).
     pub fn compute(&self, cx: &ColorContext) -> Option<Color> {
-        crate::parse::values::compute_color_function(&self.0, cx)
+        crate::parse::values::compute_color_function(&self.expr, cx)
+    }
+}
+
+impl fmt::Debug for ColorFunction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("ColorFunction").field(&self.text).finish()
+    }
+}
+
+impl PartialEq for ColorFunction {
+    fn eq(&self, other: &Self) -> bool {
+        self.text == other.text
+    }
+}
+
+impl Eq for ColorFunction {}
+
+impl std::hash::Hash for ColorFunction {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.text.hash(state);
     }
 }
 

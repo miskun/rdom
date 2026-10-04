@@ -835,3 +835,21 @@ row comes from.
   `#[global_allocator]` under `cfg(test)`) measures it. Red: three 1×1 translucent writes after a
   warm-up made 12 allocations (four layers × three `Vec`s); green: 0, and the cells composite as
   before (the translucent buffer and paint suites pass unchanged).
+- 2026-10-05 — C3G-COLOR-FUNCTION-PARSED: `ColorFunction { text: Arc<str>, expr: Arc<ColorExpr> }`
+  (`parse/values/color/expr.rs`): the parsers of `color-mix()`, `light-dark()`, relative colors and
+  a function's color arguments return a `ColorExpr` — `Absolute` (folded at parse time) or a node
+  for what needs the element: `CurrentColor`, `Canvas(SystemColor)`, `LightDark`, `Mix` (the
+  method and percentages parsed: `mix::Method`), `Relative` (origin node + the channel tokens,
+  `Arc<[Token]>`). `ColorFunction::compute` evaluates it; nothing is tokenized or parsed per element,
+  and the text (`context::render`) is only `css_text` now, so the render → tokenize round trip is
+  gone from computation. `ColorCx` keeps only the nesting cap (its parse-time stand-ins and the
+  `needs_element` flag are replaced by the node kinds). Decided: `Arc`, not `Rc` — `TuiStyle` is
+  `Send + Sync` (as `CustomValue` decided); equality and hashing by text (the form is a function of
+  it, and holds `f64`s). A relative color whose origin needs the element re-binds its kept channel
+  tokens per element (the channels' math reads the origin's values); its grammar is checked at
+  parse time against a stand-in origin, as before. `var()`: a custom property's color is still parsed
+  per element by the substitution (its tokens can differ per element) but no longer a second time
+  to compute. Red: computing `rgb(from color-mix(in srgb, currentcolor 50%, light-dark(white,
+  black)) r g b / 50%)` for ten elements made 10 top-level function parses (test probe in
+  `parse_function`); green: 0 after the declaration's 1, with the same colors as the functions
+  written out. This supersedes the text-based deferral decision of C3-CURRENTCOLOR / C3-MIX.

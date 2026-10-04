@@ -13,12 +13,13 @@
 //! - `lab` — `lab()` / `lch()` / `oklab()` / `oklch()` / `color()`.
 //! - `mix` — `color-mix()`.
 //! - `relative` — relative color syntax (`rgb(from <color> r g b)`).
-//! - `context` — what a color inside a function resolves against
-//!   (`currentcolor`), and the rule that defers a function holding one
-//!   to computed-value time.
+//! - `context` — the parse's nesting depth, and a kept function's text.
+//! - `expr` — the parsed form of a function that needs the element
+//!   (`currentcolor`, `light-dark()`), computed per element.
 
 mod channel;
 mod context;
+mod expr;
 mod hsl;
 mod lab;
 mod mix;
@@ -29,6 +30,7 @@ use crate::color::{AbsoluteColor, ColorSpace, SystemColor};
 use crate::parse::token::Token;
 use crate::{Color, ColorContext, TuiColor};
 use context::ColorCx;
+pub(crate) use expr::ColorExpr;
 
 /// How many color functions may nest in one value
 /// (`color-mix(in srgb, color-mix(…), …)`, a relative color's origin,
@@ -80,43 +82,54 @@ pub fn parse_color_at(value: &[Token], start: usize) -> Option<(TuiColor, usize)
         }
         Token::Function(_) => {
             // Parsed without an element: a color function that needs one
-            // (`currentcolor` inside) is kept, as written, for the
+            // (`currentcolor` inside) is kept in its parsed form for the
             // cascade to compute.
-            let cx = ColorCx::parse_time();
-            let (color, used) = parse_function(value, start, &cx)?;
-            Some(if cx.needs_element() {
-                let text = context::render(&value[start..start + used]);
-                (TuiColor::Function(crate::ColorFunction::new(text)), used)
-            } else {
-                (TuiColor::Literal(color.to_color()), used)
+            let (expr, used) = parse_function(value, start, &ColorCx::new())?;
+            Some(match expr {
+                ColorExpr::Absolute(color) => (TuiColor::Literal(color.to_color()), used),
+                expr => {
+                    let text = context::render(&value[start..start + used]);
+                    (
+                        TuiColor::Function(crate::ColorFunction::new(text, expr)),
+                        used,
+                    )
+                }
             })
         }
         _ => None,
     }
 }
 
-/// Compute a color function kept for computed-value time
-/// ([`TuiColor::Function`]) against `context`. `None` when the text
-/// does not parse as one color function.
-pub(crate) fn compute_function(text: &str, context: &ColorContext) -> Option<Color> {
-    let tokens = crate::parse::tokenize(text).ok()?;
-    let cx = ColorCx::computed(context);
-    let (color, used) = parse_function(&tokens, 0, &cx)?;
-    (used == tokens.len()).then(|| color.to_color())
+/// Compute a kept color function's parsed form against `context`.
+pub(crate) fn compute_function(expr: &ColorExpr, context: &ColorContext) -> Option<Color> {
+    expr.eval(context).map(AbsoluteColor::to_color)
 }
 
 /// Parse one `<color>` that is the whole of `component` — one component
 /// value, as `components` splits them (a color inside a color function)
 /// — as an absolute color.
-fn parse_absolute(component: &[Token], cx: &ColorCx) -> Option<AbsoluteColor> {
+fn parse_absolute(component: &[Token], cx: &ColorCx) -> Option<ColorExpr> {
+    let literal = |c: Color| AbsoluteColor::from_color(c).map(ColorExpr::Absolute);
     match component {
-        [Token::Ident(name)] if name.eq_ignore_ascii_case("currentcolor") => cx.current_color(),
-        [Token::Ident(name)] if SystemColor::from_keyword(name).is_some() => {
-            cx.system(SystemColor::from_keyword(name)?)
+        [Token::Ident(name)] if name.eq_ignore_ascii_case("currentcolor") => {
+            Some(ColorExpr::CurrentColor)
         }
-        [Token::Ident(name)] => cx.absolute(crate::tui_color::parse_simple_color(name)?),
+        [Token::Ident(name)] if SystemColor::from_keyword(name).is_some() => {
+            let system = SystemColor::from_keyword(name)?;
+            if system.is_canvas() {
+                // The terminal's default: the canvas model's color for
+                // the element's scheme.
+                Some(ColorExpr::Canvas(system))
+            } else {
+                literal(system.color())
+            }
+        }
+        // `reset` names no one color (the terminal's default foreground
+        // or background, by property), so it is invalid in a function:
+        // `from_color` refuses it.
+        [Token::Ident(name)] => literal(crate::tui_color::parse_simple_color(name)?),
         [Token::HexColor(hex)] => {
-            cx.absolute(crate::tui_color::parse_simple_color(&format!("#{hex}"))?)
+            literal(crate::tui_color::parse_simple_color(&format!("#{hex}"))?)
         }
         // One component value (`components`): the function runs to the
         // `)` that ends it, so its arguments need no second scan.
@@ -127,10 +140,12 @@ fn parse_absolute(component: &[Token], cx: &ColorCx) -> Option<AbsoluteColor> {
 
 /// Parse the color function whose token is `value[start]`: the color
 /// and the tokens used, its `)` included.
-fn parse_function(value: &[Token], start: usize, cx: &ColorCx) -> Option<(AbsoluteColor, usize)> {
+fn parse_function(value: &[Token], start: usize, cx: &ColorCx) -> Option<(ColorExpr, usize)> {
     let Token::Function(name) = value.get(start)? else {
         return None;
     };
+    #[cfg(test)]
+    probe::PARSED.with(|c| c.set(c.get() + 1));
     let close = closing_paren(value, start)?;
     let color = function(name, &value[start + 1..close], cx)?;
     Some((color, close + 1 - start))
@@ -139,15 +154,15 @@ fn parse_function(value: &[Token], start: usize, cx: &ColorCx) -> Option<(Absolu
 /// The color function `name` applied to `args` (the tokens between the
 /// function token and its `)`), one nesting level deeper than the caller
 /// — `None` past [`MAX_COLOR_NESTING`].
-fn function(name: &str, args: &[Token], cx: &ColorCx) -> Option<AbsoluteColor> {
+fn function(name: &str, args: &[Token], cx: &ColorCx) -> Option<ColorExpr> {
     cx.nested(|| {
         let name = name.to_ascii_lowercase();
         if matches!(args.first(), Some(Token::Ident(from)) if from.eq_ignore_ascii_case("from")) {
             return relative::parse(&name, args, cx);
         }
-        match name.as_str() {
-            "color-mix" => mix::parse(args, cx),
-            "light-dark" => light_dark(args, cx),
+        let absolute = match name.as_str() {
+            "color-mix" => return mix::parse(args, cx),
+            "light-dark" => return light_dark(args, cx),
             "rgb" | "rgba" => rgb::parse(args),
             "hsl" | "hsla" => hsl::parse_hsl(args),
             "hwb" => hsl::parse_hwb(args),
@@ -157,13 +172,15 @@ fn function(name: &str, args: &[Token], cx: &ColorCx) -> Option<AbsoluteColor> {
             "oklch" => lab::parse_lab(args, ColorSpace::Oklch),
             "color" => lab::parse_color_function(args),
             _ => None,
-        }
+        };
+        absolute.map(ColorExpr::Absolute)
     })
 }
 
 /// `light-dark(<color>, <color>)` (CSS Color 5 §5.1): the first under a
-/// light color scheme, the second otherwise. Both must parse.
-fn light_dark(args: &[Token], cx: &ColorCx) -> Option<AbsoluteColor> {
+/// light color scheme, the second otherwise — the element's, so it is
+/// always kept for computed-value time. Both must parse.
+fn light_dark(args: &[Token], cx: &ColorCx) -> Option<ColorExpr> {
     let [light, dark] = channel::split_top_level(args, &Token::Comma)[..] else {
         return None;
     };
@@ -173,10 +190,7 @@ fn light_dark(args: &[Token], cx: &ColorCx) -> Option<AbsoluteColor> {
         _ => None,
     };
     let (light, dark) = (one(light)?, one(dark)?);
-    Some(match cx.scheme() {
-        crate::color::ColorScheme::Light => light,
-        crate::color::ColorScheme::Dark => dark,
-    })
+    Some(ColorExpr::LightDark(Box::new(light), Box::new(dark)))
 }
 
 /// Index of the `)` closing the function token at `open`.
@@ -216,6 +230,19 @@ pub fn parse_rgb_args(value: &[Token], start: usize) -> Option<(crate::Color, us
 /// §5.1).
 pub fn parse_rgba_args(value: &[Token], start: usize) -> Option<(crate::Color, usize)> {
     parse_rgb_args(value, start)
+}
+
+/// Counts top-level color-function parses on this thread (tests).
+#[cfg(test)]
+pub(crate) mod probe {
+    thread_local! {
+        pub static PARSED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    }
+
+    /// The count since the last call.
+    pub fn take() -> usize {
+        PARSED.with(|c| c.replace(0))
+    }
 }
 
 #[cfg(test)]

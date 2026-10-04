@@ -715,3 +715,51 @@ fn hostile_color_nesting_is_invalid_not_a_stack_overflow() {
         assert_eq!(TuiColor::parse(&value), None);
     }
 }
+
+// ── Kept color functions are parsed once (C3G-COLOR-FUNCTION-PARSED) ──
+
+/// CSS Color 4 §6.4, Color 5 §2, §4, §5.1: a color function that needs
+/// the element (`currentcolor`, `light-dark()`) is kept for
+/// computed-value time — parsed once, when its declaration is, and
+/// computed per element from the parsed form, not re-tokenized and
+/// re-parsed for each. The result is the color the same function gives
+/// with the element's values written in.
+#[test]
+fn a_kept_color_function_is_parsed_once_not_per_element() {
+    use crate::color::ColorScheme;
+    use crate::{ColorContext, TuiColor};
+
+    super::probe::take();
+    let kept = TuiColor::parse(
+        "rgb(from color-mix(in srgb, currentcolor 50%, light-dark(white, black)) r g b / 50%)",
+    )
+    .unwrap();
+    assert!(matches!(kept, TuiColor::Function(_)));
+    assert_eq!(super::probe::take(), 1, "parsed with its declaration");
+
+    let vars = std::collections::HashMap::new();
+    let mut computed = Vec::new();
+    for i in 0..10u8 {
+        let scheme = if i % 2 == 0 {
+            ColorScheme::Light
+        } else {
+            ColorScheme::Dark
+        };
+        let cx = ColorContext::new(Color::Rgb(i * 20, 0, 0)).with_scheme(scheme);
+        computed.push(kept.resolve(&vars, &cx));
+    }
+    assert_eq!(
+        super::probe::take(),
+        0,
+        "ten elements computed, nothing parsed"
+    );
+
+    assert_eq!(
+        computed[2],
+        parse_color("rgb(from color-mix(in srgb, rgb(40 0 0) 50%, white) r g b / 50%)")
+    );
+    assert_eq!(
+        computed[3],
+        parse_color("rgb(from color-mix(in srgb, rgb(60 0 0) 50%, black) r g b / 50%)")
+    );
+}

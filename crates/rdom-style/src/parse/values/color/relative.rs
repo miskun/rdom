@@ -9,25 +9,53 @@
 //! substituted as numbers and the function's own (modern) grammar
 //! parses the result, so every channel form it takes works here too.
 
+use std::sync::Arc;
+
 use super::channel::top_level_comma;
 use super::context::ColorCx;
+use super::expr::{ColorExpr, Relative};
 use super::{hsl, lab, parse_absolute, rgb};
 use crate::color::{AbsoluteColor, ColorSpace, convert};
 use crate::parse::token::Token;
 use crate::parse::values::numeric::components;
 
 /// Parse `args` — `from <color> …` — of the color function `name`
-/// (lower case).
-pub(super) fn parse(name: &str, args: &[Token], cx: &ColorCx) -> Option<AbsoluteColor> {
+/// (lower case): folded to a color when the origin is known at parse
+/// time, else kept with its channel arguments — checked now against a
+/// stand-in origin, so an invalid value is invalid at parse time.
+pub(super) fn parse(name: &str, args: &[Token], cx: &ColorCx) -> Option<ColorExpr> {
     let after_from = args.get(1..)?;
     let origin_tokens = *components(after_from)?.first()?;
     let origin = parse_absolute(origin_tokens, cx)?;
-    let rest = &after_from[origin_tokens.len()..];
+    let channels = &after_from[origin_tokens.len()..];
     // Relative colors take the modern syntax only; a comma inside a math
     // function (`min(r, 100)`) is that function's own.
-    if top_level_comma(rest) {
+    if top_level_comma(channels) {
         return None;
     }
+    match origin {
+        ColorExpr::Absolute(origin) => apply(name, origin, channels).map(ColorExpr::Absolute),
+        origin => {
+            let stand_in = AbsoluteColor::from_color(crate::Color::Rgb(0, 0, 0))?;
+            apply(name, stand_in, channels)?;
+            Some(ColorExpr::Relative(Box::new(Relative {
+                name: name.into(),
+                origin,
+                channels: Arc::from(channels),
+            })))
+        }
+    }
+}
+
+/// The color `name(from origin channels)`: `origin` converted to the
+/// function's space, its channels bound to the keywords in `channels`,
+/// and the function's own grammar applied.
+pub(super) fn apply(
+    name: &str,
+    origin: AbsoluteColor,
+    channels: &[Token],
+) -> Option<AbsoluteColor> {
+    let rest = channels;
     let (space, keywords, scale) = target(name, rest)?;
     let converted = convert(origin, space);
     let values = converted.values().map(|v| v * scale);

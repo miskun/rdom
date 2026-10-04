@@ -15,6 +15,7 @@
 
 use super::channel::split_top_level;
 use super::context::ColorCx;
+use super::expr::{ColorExpr, Mix};
 use super::parse_absolute;
 use crate::calc::{CalcKind, ResolveCtx};
 use crate::color::{AbsoluteColor, ColorSpace, HueMethod, mix};
@@ -22,8 +23,32 @@ use crate::parse::token::Token;
 use crate::parse::values::calc::{looks_like_calc, parse_math};
 use crate::parse::values::numeric::components;
 
-/// Parse the arguments of `color-mix()`.
-pub(super) fn parse(args: &[Token], cx: &ColorCx) -> Option<AbsoluteColor> {
+/// How two colors mix: the interpolation space and hue method, and the
+/// percentages as written (normalized when applied).
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct Method {
+    space: ColorSpace,
+    hue: HueMethod,
+    p1: f64,
+    p2: f64,
+}
+
+impl Method {
+    /// Mix `c1` and `c2` (§2.2: the percentages scale to a sum of 100%,
+    /// and a sum below 100% scales the result's alpha).
+    pub fn apply(self, c1: AbsoluteColor, c2: AbsoluteColor) -> AbsoluteColor {
+        let sum = self.p1 + self.p2;
+        let mut out = mix(c1, c2, self.space, self.hue, self.p2 / sum);
+        if sum < 100.0 {
+            out.alpha = out.alpha.map(|a| a * sum / 100.0);
+        }
+        out
+    }
+}
+
+/// Parse the arguments of `color-mix()`: folded to a color when both
+/// colors are known at parse time.
+pub(super) fn parse(args: &[Token], cx: &ColorCx) -> Option<ColorExpr> {
     let parts = split_top_level(args, &Token::Comma);
     let (method, colors) = match parts.as_slice() {
         [method, a, b] => (Some(*method), [*a, *b]),
@@ -44,15 +69,17 @@ pub(super) fn parse(args: &[Token], cx: &ColorCx) -> Option<AbsoluteColor> {
         (None, Some(p2)) => (100.0 - p2, p2),
         (Some(p1), Some(p2)) => (p1, p2),
     };
-    let sum = p1 + p2;
-    if sum <= 0.0 {
+    if p1 + p2 <= 0.0 {
         return None;
     }
-    let mut out = mix(c1, c2, space, hue, p2 / sum);
-    if sum < 100.0 {
-        out.alpha = out.alpha.map(|a| a * sum / 100.0);
-    }
-    Some(out)
+    let method = Method { space, hue, p1, p2 };
+    Some(match (c1, c2) {
+        (ColorExpr::Absolute(a), ColorExpr::Absolute(b)) => ColorExpr::Absolute(method.apply(a, b)),
+        (a, b) => ColorExpr::Mix(Box::new(Mix {
+            method,
+            colors: [a, b],
+        })),
+    })
 }
 
 /// `in <space> [<hue-method> hue]?`.
@@ -78,7 +105,7 @@ fn interpolation_method(tokens: &[Token]) -> Option<(ColorSpace, HueMethod)> {
 
 /// `<color> && <percentage [0,100]>?`: the color and the percentage
 /// (as written, 50% is 50).
-fn color_and_percentage(tokens: &[Token], cx: &ColorCx) -> Option<(AbsoluteColor, Option<f64>)> {
+fn color_and_percentage(tokens: &[Token], cx: &ColorCx) -> Option<(ColorExpr, Option<f64>)> {
     match components(tokens)?.as_slice() {
         [color] => Some((parse_absolute(color, cx)?, None)),
         [a, b] => match (percentage(a), percentage(b)) {
