@@ -488,3 +488,9 @@ row comes from.
   unrepresentable, `flex` shorthand ignores shrink, parse-time `attr()` validation, `:root` `attr()`,
   u16 overflows, unvalidated `AspectRatio` / `Flex`, restyle walk cost, renames, re-exports, README
   0.2.0 history edit, changelog paths and hints). Decision: fix all as `C2G-*` items, two batches.
+- 2026-10-05 — C2G-FLEX-SUM: §9.7 step 4.b's "sum below one" and the rolling floors of grow and
+  shrink use one relative tolerance (`FACTOR_TOLERANCE`, four `f32` epsilons) instead of an exact
+  `f64` comparison and a fixed `1e-9`. Decided against summing in `f32`: it only moves the rounding
+  (`10 × 0.1` sums to 1.0000001 in `f32`) and leaves the floors seeing `71.9999999`, which also lost
+  a cell for a genuine 0.9 sum. Tests: 0.1 / 0.2 / 0.7 fills 80 (grow and shrink), 0.2 + 0.7 takes
+  exactly 72, a 0.1 item frozen by `max-width` leaves 0.9 to share 72.

@@ -268,6 +268,38 @@ pub(super) fn resolve_flexible_lengths(
     final_main
 }
 
+/// Relative tolerance for arithmetic on flex factors.
+///
+/// Factors are CSS `<number>`s parsed into `f32` (24-bit mantissa), so
+/// a decimal factor carries a relative error of up to 2⁻²⁴ and a sum or
+/// product of them a few times that: `0.1 + 0.2 + 0.7` is
+/// 0.99999999255 once widened to `f64`, and `80 × (0.2 + 0.7)` is
+/// 71.9999999. Comparisons against one and the floors that turn shares
+/// into cells treat values within this tolerance as equal.
+///
+/// Why a tolerance and not an `f32` sum: summing in `f32` only moves
+/// the rounding (it happens to give exactly 1.0 for `0.1 + 0.2 + 0.7`,
+/// but `10 × 0.1` gives 1.0000001), and the floors still see products
+/// a hair below an integer. The tolerance cannot misfire on a real
+/// fraction: four `f32` epsilons (≈ 4.8e-7) of the largest main size
+/// (`u16::MAX` cells) is 0.03 of a cell, and a factor sum within it of
+/// one is one at the precision an `f32` factor holds.
+const FACTOR_TOLERANCE: f64 = 4.0 * f32::EPSILON as f64;
+
+/// §9.7 step 4.b's "sum of the flex factors is less than one", with
+/// the factors' `f32` rounding forgiven ([`FACTOR_TOLERANCE`]).
+fn sums_below_one(sum: f64) -> bool {
+    sum < 1.0 - FACTOR_TOLERANCE
+}
+
+/// Floor a rolling share target to whole cells, forgiving the factors'
+/// `f32` rounding ([`FACTOR_TOLERANCE`]) so `71.9999999` is 72.
+fn floor_cells(x: f64) -> u32 {
+    (x + x.abs() * FACTOR_TOLERANCE + 1e-9)
+        .floor()
+        .clamp(0.0, f64::from(u32::MAX)) as u32
+}
+
 /// The grow half of §9.7: split `flex_remaining` across `Flex(w)`
 /// items by weight, freezing any item its min/max clamps. Weights are
 /// `<number>`s; when the unfrozen items' weights sum to less than one
@@ -298,7 +330,7 @@ fn distribute_grow(child_info: &[ChildMain], final_main: &mut [u16], flex_remain
         // subtracted only after the pass (a mid-pass subtraction made
         // later items' shares shrink and falsely froze them at their
         // floors).
-        let pass_budget = if weight < 1.0 {
+        let pass_budget = if sums_below_one(weight) {
             budget.min(initial * weight)
         } else {
             budget
@@ -317,10 +349,8 @@ fn distribute_grow(child_info: &[ChildMain], final_main: &mut [u16], flex_remain
             accumulated_weight += f64::from(w);
             // Rolling (Bresenham) targets: the running total is floored
             // once, so no cell of the remainder is dropped between
-            // items. The epsilon absorbs float error on exact ratios.
-            let target = (pass_budget * accumulated_weight / weight + 1e-9)
-                .floor()
-                .clamp(0.0, f64::from(u32::MAX)) as u32;
+            // items.
+            let target = floor_cells(pass_budget * accumulated_weight / weight);
             let share = target.saturating_sub(accumulated).min(u32::from(u16::MAX)) as u16;
             accumulated = target;
             let clamped = clamp_size(share, ci.min, ci.max);
@@ -385,7 +415,7 @@ fn distribute_shrink(
         // that fraction of the initial overflow.
         let factor_sum: f64 = unfrozen().map(|(_, ci)| shrink_of(ci)).sum();
         let mut overflow = f64::from(total - net_budget);
-        if factor_sum < 1.0 {
+        if sums_below_one(factor_sum) {
             overflow = overflow.min(initial_overflow * factor_sum);
         }
         // §9.7 step 4.c: shared in proportion to the scaled shrink
@@ -404,9 +434,7 @@ fn distribute_shrink(
                 continue;
             }
             accumulated_basis += f64::from(basis[i]) * shrink_of(ci);
-            let target_total_shrink = (accumulated_basis * overflow / divisor + 1e-9)
-                .floor()
-                .clamp(0.0, f64::from(u32::MAX)) as u32;
+            let target_total_shrink = floor_cells(accumulated_basis * overflow / divisor);
             let my_shrink = target_total_shrink.saturating_sub(accumulated_shrink);
             let my_shrink = my_shrink.min(u32::from(u16::MAX)) as u16;
             accumulated_shrink = target_total_shrink;
