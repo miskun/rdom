@@ -89,3 +89,9 @@ pub use tui_color::{ColorContext, ColorFunction, TuiColor, parse_color, resolve_
 pub use tui_style::{CustomDeclaration, ImportantMask, TuiStyle};
 pub use value::Value;
 pub use var::PendingDeclaration;
+
+/// The README's examples, compiled and run as doctests so they keep
+/// compiling as the API moves.
+#[cfg(doctest)]
+#[doc = include_str!("../README.md")]
+struct ReadmeDoctests;

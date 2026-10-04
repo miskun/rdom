@@ -12,15 +12,17 @@ The pure DOM tree lives in `rdom-core`. This crate parameterises
 `Dom<Ext>` with `TuiExt` and layers on everything presentational
 and interactive.
 
-```rust
+```rust,no_run
 use rdom_tui::prelude::*;
 
-let mut dom: TuiDom = TuiDom::new();
-// ... build the tree ...
-let sheet = Stylesheet::new()
-    .rule(".hero", TuiStyle::new().fg(Color::Red))?;
+fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    let dom: TuiDom = TuiDom::new();
+    // ... build the tree ...
+    let sheet = Stylesheet::new().rule(".hero", TuiStyle::new().fg(Color::Rgb(255, 0, 0)))?;
 
-App::new(dom, sheet)?.run() // blocks, returns on Ctrl-C / quit
+    App::new(dom, sheet)?.run()?; // blocks, returns on Ctrl-C / quit
+    Ok(())
+}
 ```
 
 See [`examples/`](examples/) for three self-contained programs; the in-tree `rdom-showcase` crate tours every primitive.
@@ -39,9 +41,10 @@ dom.node_mut(hero).add_class("hero").unwrap();
 dom.append_child(root, hero).unwrap();
 
 // Author some rules.
+let red = Color::Rgb(255, 0, 0);
 let sheet = Stylesheet::new()
     .rule(".hero", TuiStyle::new()
-        .fg(Color::Red)
+        .fg(red)
         .padding(Padding::all(1))
         .border(Border::single()))
     .unwrap();
@@ -51,7 +54,7 @@ dom.cascade(&sheet);
 
 // Read the final values.
 let c = dom.node(hero).computed().unwrap();
-assert_eq!(c.fg, Color::Red);
+assert_eq!(c.fg, red);
 assert_eq!(c.padding, Padding::all(1));
 assert_eq!(c.border, Border::single());
 ```
@@ -62,12 +65,17 @@ Build rules with the fluent API. Selector errors surface at
 stylesheet-build time — not at render time.
 
 ```rust
-let sheet = Stylesheet::new()
-    .rule("#nav",             TuiStyle::new().width(Size::Fixed(24)))?
-    .rule(".row:hover",       TuiStyle::new().bg(Color::DarkGray))?
-    .rule("input:focus",      TuiStyle::new().border_fg(Color::Blue))?
-    .rule("tree-item::before", TuiStyle::new().content(Content::Str("▾ ".into())))?
-    .rule(":not(.active) a", TuiStyle::new().dim(true))?;
+use rdom_tui::prelude::*;
+
+fn main() -> std::result::Result<(), StyleError> {
+    let sheet = Stylesheet::new()
+        .rule("#nav", TuiStyle::new().width(Size::Fixed(24)))?
+        .rule(".row:hover", TuiStyle::new().bg(Color::Rgb(64, 64, 64)))?
+        .rule("input:focus", TuiStyle::new().border_fg(Color::Rgb(0, 0, 255)))?
+        .rule("tree-item::before", TuiStyle::new().content(Content::Str("▾ ".into())))?
+        .rule(":not(.active) a", TuiStyle::new().italic(true))?;
+    Ok(())
+}
 ```
 
 Selector grammar is the same as `rdom_core::selectors`: type, universal
@@ -89,23 +97,30 @@ a UA `!important` rule beats an author `!important` rule.
 ## Pseudo-elements and `content`
 
 ```rust
+use rdom_tui::prelude::*;
+
 let sheet = Stylesheet::new()
     .rule("tree-item::before", TuiStyle::new()
         .content(Content::Str("▾ ".into()))
-        .fg(Color::Gray))?;
+        .fg(Color::Rgb(128, 128, 128)))
+    .unwrap();
 ```
 
 Content can be a literal string, a `var()` reference, a concat of
 parts, or explicit suppression:
 
 ```rust
-Content::Str("▾ ".into())
-Content::Var("arrow".into())
-Content::Concat(vec![
+use rdom_tui::prelude::*;
+
+let forms = [
     Content::Str("▾ ".into()),
-    Content::Var("label".into()),
-])
-Content::None  // content: none; — suppresses the pseudo-element
+    Content::Var("arrow".into()),
+    Content::Concat(vec![
+        Content::Str("▾ ".into()),
+        Content::Var("label".into()),
+    ]),
+    Content::None, // content: none; — suppresses the pseudo-element
+];
 ```
 
 Pseudo-elements inherit from the *host* element's computed style, not
@@ -118,12 +133,17 @@ back to `TuiExt.before_content` / `after_content` (settable via
 ## Custom properties and `var()`
 
 ```rust
-let sheet = Stylesheet::new()
-    .define_var("accent", "#3d90ce")
-    .define_var("muted",  "gray")
-    .rule(".primary",   TuiStyle::new().fg_var("accent"))?
-    .rule(".secondary", TuiStyle::new().fg(TuiColor::var_with(
-        "unknown", TuiColor::Literal(Color::White))))?;
+use rdom_tui::prelude::*;
+
+fn main() -> std::result::Result<(), StyleError> {
+    let white = TuiColor::Literal(Color::Rgb(255, 255, 255));
+    let sheet = Stylesheet::new()
+        .define_var("accent", "#3d90ce")
+        .define_var("muted", "gray")
+        .rule(".primary", TuiStyle::new().fg_var("accent"))?
+        .rule(".secondary", TuiStyle::new().fg(TuiColor::var_with("unknown", white)))?;
+    Ok(())
+}
 ```
 
 In CSS text, `var()` works in every property (`padding: var(--gap)`,
@@ -144,8 +164,9 @@ The builder's typed `TuiColor::Var` references are tried in this order:
 3. If all fail, fall back to the property's inherit value (typically
    the parent's computed color).
 
-The string color grammar is hex (`#rgb`, `#rrggbb`), ANSI named
-(`red`, `blue`, `gray`, `lightcyan`, ...), `reset`, or decimal
+A custom property's text is parsed with the full CSS `<color>` grammar
+(hex, named colors, `rgb()` / `hsl()` / `oklch()` / `color-mix()` / …,
+system colors, `light-dark()`), plus rdom's `reset` and a decimal
 `0..=255` for `Color::Indexed`.
 
 ## Inline formatting
@@ -156,8 +177,11 @@ cascaded values — `<p>prefix <code>inline</code> suffix</p>` renders
 on one line with `inline` yellow while the rest stays default.
 
 ```rust
-let sheet = Stylesheet::new()  // UA defaults include display: inline
-    .rule("p",    TuiStyle::new().width(Size::Fixed(40)))?;
+use rdom_tui::prelude::*;
+
+let sheet = Stylesheet::new() // UA defaults include display: inline
+    .rule("p", TuiStyle::new().width(Size::Fixed(40)))
+    .unwrap();
 // Authors usually don't need to set display — UA defaults cover
 // b, strong, em, i, u, code, span, a, br as inline; p, h1-3, pre
 // as block.
@@ -203,9 +227,14 @@ See the `parse_and_render` example for a working template.
 ## Interaction state: `:hover`, `:active` and `:focus`
 
 ```rust
-dom.set_hovered(Some(button));   // fires InteractionChanged(Hover)
-dom.set_active(Some(button));    // fires InteractionChanged(Active)
-dom.set_focused(Some(input));    // fires InteractionChanged(Focus)
+use rdom_tui::prelude::*;
+
+let mut dom: TuiDom = TuiDom::new();
+let button = dom.create_element("button");
+let input = dom.create_element("input");
+dom.set_hovered(Some(button)); // fires InteractionChanged(Hover)
+dom.set_active(Some(button)); // fires InteractionChanged(Active)
+dom.set_focused(Some(input)); // fires InteractionChanged(Focus)
 ```
 
 The setters fire `Mutation::InteractionChanged` records so a
@@ -230,10 +259,12 @@ frequent small mutations, install a `DirtyTracker` and cascade only
 the affected subtrees:
 
 ```rust
+use rdom_tui::prelude::*;
+
 let mut dom: TuiDom = TuiDom::new();
 let tracker = DirtyTracker::install(&mut dom);
 let sheet = Stylesheet::new()
-    .rule("div", TuiStyle::new().fg(Color::Red))
+    .rule("div", TuiStyle::new().fg(Color::Rgb(255, 0, 0)))
     .unwrap();
 
 // The size `vw` / `vh` resolve against, for every cascade below
@@ -307,21 +338,29 @@ ladder: in an author or inline declaration to the value after pass 1
 
 ## Runtime — `App`, event loop, hit test, routing
 
-`App::run` is the app-facing entry point. It wraps the DOM in a
-crossterm-driven loop that runs the "rendering steps" model
+`App::run` is the app-facing entry point. It wraps the DOM in an
+event loop (rdom's own terminal input reader on Unix, crossterm's
+elsewhere) that runs the "rendering steps" model
 borrowed from the HTML spec: drain events, tick, run
 `requestAnimationFrame` callbacks, cascade + layout + paint when
 dirty, then sleep on the next event. One paint per task-end, no
 matter how many mutations happen inside a single handler.
 
-```rust
-App::new(dom, sheet)?
-    .tick_rate(Duration::from_millis(50))
-    .on_tick(|ctx| {
-        // drain background channels, mutate DOM, request redraw
-        ControlFlow::Continue
-    })
-    .run()
+```rust,no_run
+use std::time::Duration;
+
+use rdom_tui::prelude::*;
+
+fn main() -> std::io::Result<()> {
+    let (dom, sheet) = (TuiDom::new(), Stylesheet::new());
+    App::new(dom, sheet)?
+        .tick_rate(Duration::from_millis(50))
+        .on_tick(|_ctx| {
+            // drain background channels, mutate DOM, request redraw
+            ControlFlow::Continue
+        })
+        .run()
+}
 ```
 
 What the runtime gives you, roughly in order of the `RDOM_RUNTIME`

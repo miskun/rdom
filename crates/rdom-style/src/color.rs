@@ -1,23 +1,15 @@
 //! `Color` — terminal color model.
 //!
-//! Five flavours:
+//! Four shapes:
 //!
 //! - **`Reset`** — the terminal's default foreground or background.
 //!   Emits SGR `39` / `49` (reset fg / reset bg) — the one color that
 //!   doesn't set a specific value, just releases the slot.
-//! - **ANSI-16 named** (`Black`, `Red`, ..., `White`, plus the eight
-//!   `Light*` variants) — the classic `0..=15` palette. Most themeable,
-//!   least precise; two different terminals will render them
-//!   differently. *(Marked for removal: subsequent OOTB pre-publish
-//!   commits delete the ANSI variants in favor of CSS named colors —
-//!   see `color::named`. Browser-faithful naming wins over the ANSI
-//!   16-entry theme-dependent palette.)*
-//! - **`Indexed(u8)`** — 256-color palette (`\x1b[38;5;Nm`). Wider
-//!   gamut than ANSI-16 but still discrete; the lower 16 entries
-//!   overlap with the ANSI-16 set.
-//! - **`Rgb(r, g, b)`** — truecolor (`\x1b[38;2;R;G;Bm`). Full 24-bit.
-//!   The future-canonical wire format; once the ANSI variants are
-//!   gone, `Rgb` and `Indexed` are the only non-`Reset` shapes.
+//! - **`Indexed(u8)`** — the 256-color palette (`\x1b[38;5;Nm`); the
+//!   terminal applies its own palette (the first 16 entries are its
+//!   theme's ANSI colors).
+//! - **`Rgb(r, g, b)`** — truecolor (`\x1b[38;2;R;G;Bm`), full 24-bit:
+//!   what every CSS color keyword and color function computes to.
 //! - **`Rgba(r, g, b, a)`** — truecolor with alpha below 255 (CSS
 //!   Color 4 §4.2: `rgb(255 0 0 / 50%)`, `#ff000080`, `transparent`).
 //!   A terminal cell is opaque, so paint composites a translucent

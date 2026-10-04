@@ -23,21 +23,22 @@ you are:
 ## Quick start
 
 ```rust
-use rdom_style::{Stylesheet, TuiStyle, Color, property_dispatch};
+use rdom_style::{Stylesheet, TuiStyle, color::named, property_dispatch};
 
 // Build a TuiStyle by hand.
 let mut style = TuiStyle::new()
-    .fg(Color::Red)
+    .fg(named::RED)
     .bold(true);
 
 // Or drive the property table by name (this is what
 // rdom-css's parser and rdom-tui's StyleDeclaration both do).
-property_dispatch::set("color", "#3d90ce", &mut style)?;
-property_dispatch::set("font-weight", "bold", &mut style)?;
+property_dispatch::set("color", "#3d90ce", &mut style).expect("a valid color");
+property_dispatch::set("font-weight", "bold", &mut style).expect("a valid weight");
 
 // A Stylesheet is a list of (selector, style) rules + a vars map.
-let sheet = Stylesheet::new()                         // UA defaults baked in
-    .rule(".hero", style)?
+let sheet = Stylesheet::new() // UA defaults baked in
+    .rule(".hero", style)
+    .expect("a valid selector")
     .define_var("accent", "#3d90ce");
 ```
 
@@ -51,7 +52,7 @@ The leaf crate carries the **values**, not the cascade. Cascade lives in
 | `TuiStyle` | Author-input style block. Every cascade rule writes here. Optional per-field — `None` means "not set; inherit / default". |
 | `ComputedStyle` | Post-cascade snapshot. What layout and paint read. |
 | `Stylesheet`, `Rule` | Rule collection + UA defaults + `var()` map. Built via `Stylesheet::new().rule(sel, style)`; `Stylesheet::bare()` skips UA defaults (tests). |
-| `Color`, `TuiColor`, `Modifier` | Color + modifier primitives. `Color` is the concrete terminal palette (named, indexed, truecolor). `TuiColor` is the unresolved cascade form (`Literal`, `Var`, fallback chain). |
+| `Color`, `TuiColor`, `Modifier` | Color + modifier primitives. `Color` is the concrete terminal color: `Reset` (the terminal default), `Indexed` (the 256-color palette), `Rgb` and `Rgba` (truecolor, with alpha); the 148 CSS named colors are constants in `color::named`. `TuiColor` is the declared form the cascade resolves: `Literal`, `CurrentColor`, `System` (system colors), `Function` (a color function that needs the element — `currentcolor` inside, `light-dark()`), and `Var` with its fallback chain. `ColorScheme` / `ColorSchemeList` carry `color-scheme`. |
 | `Specificity`, `ImportantMask` | Cascade primitives — `(inline, id, class+attr+pc, type+pe)` lexicographic order; per-property `!important` bits. |
 | `Value` | The raw token-tree value produced by `parse::Cursor`. What property setters consume. |
 | `property_dispatch` | The **single** `name → (setter, serializer, mask, remover)` table. Both `rdom-css` (parser) and `rdom-tui`'s `StyleDeclaration` consume this — there is no parallel list to drift. |
@@ -63,24 +64,27 @@ The leaf crate carries the **values**, not the cascade. Cascade lives in
 
 `property_dispatch::property_names()` is the source of truth at runtime
 (also driving `rdom-tui`'s `StyleDeclaration` camelCase aliases via
-`build.rs`). The current set covers the M1–M3 milestones:
+`build.rs`). The current set:
 
-- **Color / text / interaction** — `color`, `background-color` (and the color-only `background` shorthand), `border-color`, `pointer-events`,
-  `font-weight`, `font-style`, `text-decoration`.
-- **Block model** — `display`, `flex-direction`, `white-space`,
-  `user-select`, `overflow`, `overflow-x`, `overflow-y`.
-- **Sizing** — `width`, `height`, `gap`, `padding` (+ four longhands),
-  `border`.
-- **Generated content** — `content`.
-- **Positioning** — `position`, `top`, `right`, `bottom`, `left`,
-  `z-index`, `inset`.
+- **Color / text / interaction** — `color`, `background-color` (and the
+  color-only `background` shorthand), `border-color`, `opacity`,
+  `color-scheme`, `caret-color`, `caret-text-color`, `font-weight`,
+  `font-style`, `text-decoration`, `pointer-events`, `user-select`.
+- **Block model** — `display`, `flex-direction`, `flex`, `flex-shrink`,
+  `white-space`, `overflow`, `overflow-x`, `overflow-y`,
+  `scrollbar-gutter`, `scroll-behavior`.
+- **Sizing and box** — `width`, `height`, `min-width`, `max-width`,
+  `min-height`, `max-height`, `aspect-ratio`, `gap`, `padding` and
+  `margin` (+ four longhands each, `margin: auto`), `border`,
+  `border-top` / `-right` / `-bottom` / `-left`, `border-style` (+ four
+  longhands), `border-collapse`.
+- **Generated content** — `content`, `counter-reset`,
+  `counter-increment`.
+- **Positioning** — `position` (incl. `sticky`), `top`, `right`,
+  `bottom`, `left`, `inset`, `z-index`.
 - **Transitions** — `transition` (+ `-property`, `-duration`,
   `-timing-function`, `-delay` longhands).
-
-- **Layout primitives** — `margin` (+ longhands + `auto`), `min-width`,
-  `max-width`, `min-height`, `max-height`, `aspect-ratio`,
-  `border-collapse`, plus `display: inline-block` and
-  `position: sticky`.
+- **Custom properties** — `--*`, and `all`.
 
 See [`DESIGN.md`](../../specs/DESIGN.md#roadmap) for what's coming next.
 
@@ -113,13 +117,16 @@ cascade; the *data model* — `TuiColor::Var { name, fallback }`,
 `VarMap`, the cascade primitive — lives here.
 
 ```rust
-use rdom_style::{Stylesheet, TuiStyle, TuiColor, Color};
+use rdom_style::{Color, StyleError, Stylesheet, TuiColor, TuiStyle};
 
-let sheet = Stylesheet::new()
-    .define_var("accent", "#3d90ce")
-    .rule(".primary", TuiStyle::new().fg_var("accent"))?
-    .rule(".fallback", TuiStyle::new().fg(TuiColor::var_with(
-        "missing", TuiColor::Literal(Color::White))))?;
+fn main() -> Result<(), StyleError> {
+    let white = TuiColor::Literal(Color::Rgb(255, 255, 255));
+    let sheet = Stylesheet::new()
+        .define_var("accent", "#3d90ce")
+        .rule(".primary", TuiStyle::new().fg_var("accent"))?
+        .rule(".fallback", TuiStyle::new().fg(TuiColor::var_with("missing", white)))?;
+    Ok(())
+}
 ```
 
 Custom properties (`TuiStyle::custom_properties`) are declared under any

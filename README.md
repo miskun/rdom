@@ -62,6 +62,7 @@ See [`crates/rdom-tui/examples/`](crates/rdom-tui/examples/) for three self-cont
 CSS completeness ([`specs/CSS-COMPLETE-2026-10.md`](specs/CSS-COMPLETE-2026-10.md)) is landing on `main` and is not yet published; [`CHANGELOG.md`](CHANGELOG.md) `[Unreleased]` lists everything so far. Among it:
 
 - **Math functions.** `calc()`, `min()`, `max()`, `clamp()`, `round()`, `mod()`, `rem()`, `abs()`, `sign()`, the trigonometric and exponential functions and the constants `e` / `pi` / `infinity` / `NaN` on `width` / `height` / `top` / `right` / `bottom` / `left` and the other length axes — CSS precedence, parentheses, nesting, percentages resolved at layout, banker's rounding onto the cell grid.
+- **CSS Color 4 / 5.** The whole `<color>` grammar: modern `rgb()` / `hsl()` with `/ alpha`, `hwb()`, `lab()` / `lch()` / `oklab()` / `oklch()` and `color()` gamut-mapped to sRGB, `color-mix()`, relative colors (`rgb(from var(--accent) r g b / 50%)`), `currentColor`, `transparent`, the system colors (`Canvas`, `CanvasText`, …); color alpha composited over what lies beneath; `color-scheme` and `light-dark()` following the terminal's light or dark theme (read at startup with OSC 11, followed through DEC mode 2031 reports on Unix); color transitions interpolated in Oklab.
 
 ## What's in 0.5.0
 

@@ -5,21 +5,18 @@
 use super::TuiColor;
 use crate::Color;
 
-/// Parse a string into a concrete `Color` using the full CSS color
-/// grammar — named keywords, hex (3/4/6/8 digit, with or without
-/// `#`), indexed (0–255), `rgb()`, and `rgba()`. Used by the cascade
-/// to resolve custom-property (`var(--*)`) string values stored on
-/// the stylesheet.
+/// Parse a string into a concrete `Color` using the full CSS `<color>`
+/// grammar ([`TuiColor::parse`]'s) — named keywords, hex, the color
+/// functions, system colors, rdom's `reset` and palette indices. Used
+/// for values stored as text (custom properties, registered `<color>`s).
 ///
-/// Tokenizes input and dispatches through `parse::values::parse_color`
-/// — the single canonical color grammar in `rdom-style`. Returns
-/// `None` for unparseable input *or* for parse results that aren't
-/// a `TuiColor::Literal` (e.g. a nested `var(--*)` inside a stored
-/// var value — vars-in-vars stay unsupported in v0.1.0).
+/// Returns `None` for unparseable input, and for a value that is not
+/// one color without an element: `currentcolor`, `light-dark()`, and a
+/// color function holding either (`color-mix(in srgb, currentcolor,
+/// red)`) — [`TuiColor::parse`] keeps those for the cascade to compute.
+/// A system color is its terminal value (`Canvas` is `Color::Reset`).
 ///
-/// Simple cases (single named-ident or hex token) take the fast
-/// path via `parse_simple_color` directly; the full grammar handles
-/// the function-call cases (`rgb()`, `rgba()`).
+/// Single keywords and hex take a fast path without the tokenizer.
 pub fn parse_color(input: &str) -> Option<Color> {
     let s = input.trim();
     if s.is_empty() {

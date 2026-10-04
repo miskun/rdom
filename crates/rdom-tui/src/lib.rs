@@ -279,3 +279,9 @@ mod tests {
         );
     }
 }
+
+/// The README's examples, compiled and run as doctests so they keep
+/// compiling as the API moves.
+#[cfg(doctest)]
+#[doc = include_str!("../README.md")]
+struct ReadmeDoctests;

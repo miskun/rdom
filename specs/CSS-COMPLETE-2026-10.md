@@ -674,6 +674,37 @@ row comes from.
   memory is recorded in TECH_DEBT as the accepted simplification `SCOPE-MEMO-1`, with its bound.
   Phase 2 gate batch B (C2G-RESTYLE-WALK … C2G-TEST-GAPS) complete.
 - 2026-10-05 — Phase 2 closed: 11 items + 20 gate fixes. Gate-fix re-review folded into the Phase 3 gate.
+- 2026-10-05 — Phase 3 items, recorded at C3G-DOCS (the gate found no per-item entries; the
+  commits and CHANGELOG bullets are the detailed record). C3-RGB: `Color::Rgba` (alpha < 255;
+  `Color::rgba` normalizes an opaque alpha to `Rgb`, so equal colors compare equal — decided over an
+  alpha field on every color); modern and legacy `rgb()` per CSS Color 4 §5.1, out-of-range
+  channels clamped; alpha painted opaque until C3-ALPHA. C3-TRANSPARENT: `transparent` is
+  `Rgba(0, 0, 0, 0)` (§6.3), not `Reset`; `reset` stays rdom's keyword for the terminal default;
+  a transparent color paints nothing (text keeps the glyph beneath, a border keeps its space).
+  C3-CURRENTCOLOR: `TuiColor::CurrentColor`, resolved after the whole ladder against the element's
+  final `color` (§6.4), the inherited one in `color`; `caret-color` inherits it as specified.
+  C3-HSL-HWB / C3-LAB: converted to sRGB at parse time — the computed color is sRGB, gamut-mapped by
+  §13.2 OKLCh chroma reduction (decided: a terminal cell is sRGB, so a wider computed value would
+  only be mapped later anyway; the divergence is in DIVERGENCES); conversions dependency-free
+  (`color::{convert, gamut, matrices}`). C3-MIX: mixed at parse time; one holding `currentcolor`
+  was deferred **as its CSS text** and re-parsed per element — decision superseded by
+  C3G-COLOR-FUNCTION-PARSED (a parsed form). C3-RELATIVE: channel keywords substituted as numbers,
+  then the function's own modern grammar parses the result (one grammar per function); a comma is
+  rejected at the top level only (C3G-RELATIVE-COMMA). C3-SYSTEM: `Canvas` / `ButtonFace` /
+  `CanvasText` / `FieldText` are the terminal's default colors (`reset`), the rest the UA palette
+  (`color::system`), which the UA sheet now paints with; inside a color function the canvas ones
+  take the canvas model of the element's scheme. C3-SCHEME: the document's preferred scheme from the
+  terminal's OSC 11 background (`ColorScheme::for_background`, WCAG contrast of black vs white
+  text), dark without an answer; mode 2031 left out then (crossterm could not parse the report),
+  done with C3G-INPUT-READER. C3-ALPHA: translucent paint through a layer composited by the
+  group-opacity per-cell rules (one compositor for `opacity` and color alpha). Decided: **the paint
+  pass blends `Reset` against the canvas of the document's preferred scheme, not each element's used
+  scheme** — the terminal's default colors are one pair for the whole screen whatever an element's
+  `color-scheme` says, so the document's (the terminal's) scheme is the one that matches what is
+  actually beneath; inside color functions the element's used scheme still applies (CSS Color
+  Adjust §2). Also decided then: **`Cell::set_fg` / `set_bg` composited a translucent color against
+  a fixed dark canvas** (the cell had no scheme) — superseded by C3G-SCHEME-CONSISTENCY, which made
+  the `Buffer` the one canvas model and `Cell` opaque storage.
 - 2026-10-05 — Phase 3 gates (with the C2G re-review: all 20 at the root). Architect: 2 blocking —
   color-function nesting has no depth cap (attr / var / CSS can overflow the stack; also quadratic);
   a positioned pseudo-element's translucent background composites twice under its text. API: 0
@@ -892,3 +923,20 @@ row comes from.
   (78), place (193: phase 2, `resolve_size_axis`), axis (93), tests (128)}.rs`; the items the rest
   of `layout_pass` uses are `pub(in crate::render::layout_pass)` and re-exported from `mod.rs`.
   CSS-COVERAGE's `PAINT` / `POS` keys point at the new paths. The suites pass unchanged.
+- 2026-10-05 — C3G-DOCS: rustdoc — `rdom-style/src/color.rs` lists the four `Color` shapes (the
+  ANSI-16 variants are long gone); the `tui_color` module doc names every `TuiColor` variant and the
+  full `<color>` grammar; `parse_color` documents the grammar and its `None` for `currentcolor`,
+  `light-dark()` and functions holding them. READMEs: root "Unreleased (0.6.0)" gains the color
+  work; rdom-css's color list is the CSS Color 4 / 5 grammar; rdom-style's `TuiColor` row names its
+  five variants and the property list is `PROPERTY_NAMES` (with `color-scheme`, `opacity`, the
+  caret colors, `flex`, the border longhands, counters); rdom-tui's string-color paragraph and
+  `App::run` loop description are current. Every example used a removed `Color::Red` / `White` /
+  `DarkGray` / `Blue` / `Gray` (and one `.dim(true)`, removed in 0.2): rewritten as complete
+  snippets, and the three READMEs are now doctests (`#[cfg(doctest)] #[doc =
+  include_str!("../README.md")] struct ReadmeDoctests;` per `lib.rs`; `App::run` examples
+  `no_run`), 17 blocks passing — decided over `ignore` blocks, which would rot again; no hidden `#`
+  lines (GitHub shows them), so `fn main` / `.expect` where an example needs an error type. Recorded
+  in CLAUDE.md §Testing Commands. CSS-COVERAGE: the "High-impact Partial items" mark 2–5 shipped
+  (C1-VAR-ANY, C2-PERCENT, C2G-MAX-NONE / C3G-API, C5-MINMAX-SIZE) and 1 / 6 open with their items;
+  row 16 notes `Color::Rgba` with alpha. The C3-MIX CHANGELOG bullet no longer says text. Per-item
+  Phase 3 entries added above the gate entry, with the three decisions the gate found unrecorded.

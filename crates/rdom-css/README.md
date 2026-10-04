@@ -10,33 +10,35 @@ Hand-rolled. Zero external parser dependencies (no `cssparser`, no
 
 ## Quick start
 
-```rust
+```rust,no_run
 use rdom_css::from_css;
 use rdom_tui::prelude::*;
 
-// One-shot: parse a CSS string into a Stylesheet that already has
-// the UA defaults baked in. Unknown properties become silent warnings.
-let sheet = from_css(r#"
-    :root {
-        --accent: #3d90ce;
-    }
+fn main() -> std::io::Result<()> {
+    // One-shot: parse a CSS string into a Stylesheet that already has
+    // the UA defaults baked in. Unknown properties become silent warnings.
+    let sheet = from_css(r#"
+        :root {
+            --accent: #3d90ce;
+        }
 
-    .hero {
-        color: var(--accent);
-        font-weight: bold;
-        padding: 1 2;
-        border: solid;
-    }
+        .hero {
+            color: var(--accent);
+            font-weight: bold;
+            padding: 1 2;
+            border: solid;
+        }
 
-    button:hover {
-        background-color: lightgray;
-    }
-"#);
+        button:hover {
+            background-color: lightgray;
+        }
+    "#);
 
-// Build a tree, attach the sheet, render in a terminal.
-let mut dom: TuiDom = TuiDom::new();
-// ... build the tree ...
-App::new(dom, sheet)?.run()
+    // Build a tree, attach the sheet, render in a terminal.
+    let dom: TuiDom = TuiDom::new();
+    // ... build the tree ...
+    App::new(dom, sheet)?.run()
+}
 ```
 
 For warnings-aware parsing, call `parse` (lenient) or `parse_strict`
@@ -84,9 +86,14 @@ value       := token+
   color/text, block model, sizing, content, positioning, transitions.
   See [`rdom-style`](../rdom-style/#supported-properties) for the
   current list.
-- **Values** — colors (`#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`,
-  `rgb()` / `rgba()` in the modern and legacy syntax, named colors,
-  `reset`), lengths (cells, `fr`,
+- **Values** — colors: the CSS Color 4 / 5 `<color>` grammar — hex
+  (`#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`), the 148 named colors,
+  `transparent`, `currentcolor`, the system colors (`Canvas`,
+  `CanvasText`, …), `rgb()` / `rgba()` and `hsl()` / `hsla()` in the
+  modern and legacy syntax, `hwb()`, `lab()` / `lch()` / `oklab()` /
+  `oklch()`, `color()`, `color-mix()`, relative colors (`rgb(from …)`)
+  and `light-dark()`, plus rdom's `reset` (the terminal default) —
+  and `color-scheme`; lengths (cells, `fr`,
   `auto`, `%`, `ch`, the viewport units `vw` / `vh` / `vmin` / `vmax` / …),
   fractional numbers, angles, math functions (`calc()`, `min()`, `max()`,
   `clamp()`, `round()`, `mod()`, `rem()`, `abs()`, `sign()`, the
@@ -151,31 +158,51 @@ from real-world stylesheets always has *something* unsupported in it,
 and you want the rest to still apply.
 
 ```rust
-// Lenient — Warnings collect; the rest of the parse continues.
-let result   = rdom_css::parse(source);
-let result_i = rdom_css::parse_inline(source);
-let sheet    = rdom_css::from_css(source);             // Stylesheet, warnings dropped
+fn main() -> Result<(), rdom_css::ParseError> {
+    let source = ".hero { color: red }";
+    let inline = "color: red; padding: 1";
 
-// Strict — first Warning is returned as ParseError instead.
-let sheet    = rdom_css::parse_strict(source)?;
-let style    = rdom_css::parse_inline_strict(source)?;
-let sheet    = rdom_css::from_css_strict(source)?;
+    // Lenient — Warnings collect; the rest of the parse continues.
+    let result = rdom_css::parse(source); // stylesheet + warnings
+    let result_i = rdom_css::parse_inline(inline); // style + warnings
+    let sheet = rdom_css::from_css(source); // Stylesheet, warnings dropped
+
+    // Strict — the first Warning is returned as a ParseError instead.
+    let sheet = rdom_css::parse_strict(source)?;
+    let style = rdom_css::parse_inline_strict(inline)?;
+    let sheet = rdom_css::from_css_strict(source)?;
+    Ok(())
+}
 ```
 
 ## Warnings
 
 ```rust
-#[non_exhaustive]
-pub enum WarningKind {
-    UnknownProperty(String),
-    InvalidValue { property: String, value: String },
-    MalformedDeclaration(String),   // not `name: value`; dropped
-    UnsupportedAtRule(String),
-    InvalidAtRulePrelude { name: String, prelude: String },
-    InvalidSelector(String),
-    UnterminatedComment,
-    UnterminatedString,
+use rdom_css::WarningKind;
+
+// `WarningKind` is `#[non_exhaustive]`: match what you report and keep
+// a catch-all arm.
+fn describe(kind: &WarningKind) -> String {
+    match kind {
+        WarningKind::UnknownProperty(name) => format!("unknown property {name}"),
+        WarningKind::InvalidValue { property, value } => format!("{property}: bad value {value}"),
+        WarningKind::MalformedDeclaration(text) => format!("not `name: value`: {text}"),
+        WarningKind::UnsupportedAtRule(name) => format!("@{name} is not supported"),
+        WarningKind::InvalidAtRulePrelude { name, prelude } => format!("@{name} {prelude}"),
+        WarningKind::InvalidSelector(selector) => format!("bad selector {selector}"),
+        WarningKind::ImportIgnored(url)
+        | WarningKind::ImportCycle(url)
+        | WarningKind::ImportTooDeep(url) => format!("@import {url} skipped"),
+        WarningKind::ImportFailed { url, reason } => format!("@import {url}: {reason}"),
+        WarningKind::InvalidPropertyRule { name, reason } => format!("@property {name}: {reason}"),
+        WarningKind::UnterminatedComment => "unterminated comment".into(),
+        WarningKind::UnterminatedString => "unterminated string".into(),
+        _ => "other".into(),
+    }
 }
+
+let result = rdom_css::parse(".x { font-weight: ultraviolet }");
+assert_eq!(describe(&result.warnings[0].kind), "font-weight: bad value ultraviolet");
 ```
 
 Each `Warning` carries the kind plus line + column. `ParseError`
@@ -191,13 +218,18 @@ representative set of declarations parsed from CSS and constructed
 through the builder hash-compare equal after cascade.
 
 ```rust
-let from_builder = TuiStyle::new()
-    .fg(Color::Red)
-    .padding(Padding::all(1));
+use rdom_tui::{Color, Padding, TuiStyle};
 
-let from_css = rdom_css::parse_inline_strict("color: red; padding: 1")?;
+fn main() -> Result<(), rdom_css::ParseError> {
+    let from_builder = TuiStyle::new()
+        .fg(Color::Rgb(255, 0, 0))
+        .padding(Padding::all(1));
 
-assert_eq!(from_builder, from_css);
+    let from_css = rdom_css::parse_inline_strict("color: red; padding: 1")?;
+
+    assert_eq!(from_builder, from_css);
+    Ok(())
+}
 ```
 
 ## Pointers
@@ -216,7 +248,7 @@ cargo test -p rdom-css
 Covers tokenizer (comments, whitespace, identifiers, strings, hex
 colors, function tokens), selector integration, per-property parsing
 (one test per row in `RDOM_CSS_PARSER.md` §5), `padding` shorthand
-forms, color values (hex / `rgb()` / named / `var()` chains), custom
+forms, color values (every `<color>` form, `var()` chains), custom
 properties at `:root`, `!important` routing, length parsing, lenient
 vs strict mode, `<style>` block extraction, and the
 `parse_inline` ↔ `from_css` consistency tests.

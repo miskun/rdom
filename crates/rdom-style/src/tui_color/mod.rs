@@ -1,11 +1,13 @@
-//! `TuiColor` — a concrete `Color`, a `var(--name)` reference, or a
-//! value that depends on the element (`currentcolor`).
+//! `TuiColor` — a color as declared: a concrete `Color`, a system
+//! color, a value that depends on the element (`currentcolor`, a color
+//! function holding one or `light-dark()`), or a `var(--name)`
+//! reference.
 //!
 //! Sits on the input side of the cascade (inside `TuiStyle`). The
 //! cascade resolves every `TuiColor` into a concrete `Color` via
 //! [`TuiColor::resolve`] against a [`ColorContext`] before writing
 //! into `ComputedStyle.fg` / `.bg` / `.border_fg`, so layout and paint
-//! never see a `Var` or `CurrentColor`.
+//! never see a `Var`, `CurrentColor` or `Function`.
 //!
 //! ## `var()` resolution
 //!
@@ -19,17 +21,17 @@
 //!    "inherit" fallback (passed in by the caller — parent's computed
 //!    value for that property).
 //!
-//! The string-to-Color parser accepts:
+//! ## Parsing
 //!
-//! - `#rgb` / `#rgba` / `#rrggbb` / `#rrggbbaa`: hex literals,
-//!   expanded to `Color::Rgb` (`Color::Rgba` when the 4- or 8-digit
-//!   form's alpha is below opaque).
-//! - Named ANSI colors (`red`, `blue`, `gray`, `lightcyan`, ...)
-//! - `reset` → `Color::Reset` (terminal default)
-//! - Decimal `0..=255` → `Color::Indexed`
-//!
-//! Anything else returns `None` and the cascade uses the fallback
-//! chain.
+//! [`TuiColor::parse`] and [`parse_color`] take the whole CSS
+//! `<color>` grammar (CSS Color 4 / 5): hex (`#rgb`, `#rgba`,
+//! `#rrggbb`, `#rrggbbaa`), the 148 named colors, `transparent`,
+//! `currentcolor`, the system colors, `rgb()` / `rgba()`, `hsl()` /
+//! `hsla()`, `hwb()`, `lab()` / `lch()` / `oklab()` / `oklch()`,
+//! `color()`, `color-mix()`, relative colors (`rgb(from …)`) and
+//! `light-dark()`; plus rdom's `reset` (the terminal default) and a
+//! bare `0..=255` palette index. A value that does not parse is `None`,
+//! and the cascade uses the fallback chain.
 
 use std::fmt;
 use std::sync::Arc;

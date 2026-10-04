@@ -123,7 +123,7 @@ pasted CSS. The first block is what a typical component stylesheet hits in its f
 | 13 | Per-side border colors (`border-*-color`, multi-value `border-color`) | Each side's glyphs in its own color; the joiner's existing conflict winner picks the junction color. | M | No |
 | 14 | `currentColor` | Shipped (C3-CURRENTCOLOR; §3.4): the element's computed `color`, and `border-color`'s initial value; `outline-color` / `text-decoration-color` take it as their initial value when they land (C12-OUTLINE, C9-DECORATION). | S | Yes |
 | 15 | `min()` / `max()` / `clamp()` | Comparison functions inside every `calc()` position; resolve at layout like percent-bearing `calc()`. | S | Yes |
-| 16 | `hsl()` / `hwb()` / `lab()` / `lch()` / `oklab()` / `oklch()` / `color()` | Shipped (C3-HSL-HWB, C3-LAB; §3.4): converted to sRGB at parse time (gamut-mapped), emitted as truecolor `Color::Rgb`. | S | No |
+| 16 | `hsl()` / `hwb()` / `lab()` / `lch()` / `oklab()` / `oklch()` / `color()` | Shipped (C3-HSL-HWB, C3-LAB; §3.4): converted to sRGB at parse time (gamut-mapped), emitted as truecolor `Color::Rgb` — `Color::Rgba` with an alpha below opaque. | S | No |
 | 17 | `:nth-child()` / `:nth-last-child()` / `:nth-of-type()` / `:nth-last-of-type()` / `:first-of-type` / `:last-of-type` / `:only-of-type` | Structural matching (`An+B`, `odd` / `even`, `of S`); zebra-striped lists and tables. | S | Partial — `:nth-child`, `:nth-of-type` Yes; the `*-of-type` trio No |
 | 18 | `:is()` / `:has()` | `:is()` shipped (C1G-IS-PARSE); `:has()` relational matching with invalidation on descendant change (M). | S / M | Yes |
 | 19 | `@media` | Evaluate `width` / `height` (in cells) / `orientation` / `aspect-ratio`, `color` / `monochrome`, `prefers-color-scheme` (from the terminal's reported background), `prefers-reduced-motion`, `hover` / `pointer`; re-cascade on `resize`. Also the `<style media>` attribute. | M | Yes |
@@ -183,23 +183,22 @@ pasted CSS. The first block is what a typical component stylesheet hits in its f
 
 ### High-impact *Partial* items (fix alongside the list above)
 
-These are parsed, so they do not show up as "unknown property", but common real-world values are
-dropped:
+These were parsed, so they did not show up as "unknown property", but common real-world values were
+dropped. The audit's six, with where each stands:
 
 1. **`border` shorthand is a single keyword.** `border: 1px solid red`, `border: solid red`,
    `border-top: 1px solid #ccc` are all `InvalidValue` (`V/border.rs::parse_border` and
    `parse_border_side` call `parse_keyword`, which requires exactly one token). The most common
-   border declaration on the web is dropped. **Doc'd: No.**
-2. **`var()` works in color positions only** (`V/color.rs::parse_var_args`); every other property
-   rejects it. **Doc'd: Yes**, but the claim that `content` accepts it is wrong (§6).
-3. **`max-width` / `max-height` reject `none`** (their initial value) and percentages:
-   `parse_unsigned` takes a bare integer or a constant `calc()` only. `max-width: 100%` and
-   `max-width: none` are both dropped. **Doc'd: No.**
-4. **`min-width` / `min-height` take `auto | <integer>` only** — no `%`, no `calc()`. **Doc'd: No.**
-5. **`top` / `right` / `bottom` / `left` reject a bare `%`** (`V/length.rs::parse_length` has no
-   `Token::Percentage` arm; `calc(50%)` works). **Doc'd: Wrong.**
+   border declaration on the web is dropped. **Open: C4-BORDER-SHORTHAND.**
+2. ~~**`var()` works in color positions only.**~~ *Shipped: C1-VAR-ANY* — `var()` in every
+   property, `content` included.
+3. ~~**`max-width` / `max-height` reject `none` and percentages.**~~ *Shipped: C2-PERCENT
+   (percentages), C2G-MAX-NONE / C3G-API (`none`, `MaxSize::None`).*
+4. ~~**`min-width` / `min-height` take `auto | <integer>` only.**~~ *Shipped: C2-PERCENT (`%`,
+   `calc()`; C5-MINMAX-SIZE).*
+5. ~~**`top` / `right` / `bottom` / `left` reject a bare `%`.**~~ *Shipped: C2-PERCENT.*
 6. **`width` / `height` lack `min-content` / `max-content` / `fit-content`**, although the
-   intrinsic sizes are computed (`layout_pass/intrinsic.rs`). **Doc'd: No.**
+   intrinsic sizes are computed (`layout_pass/intrinsic.rs`). **Open: C5-INTRINSIC.**
 7. **`font-weight` is `normal | bold` only** — `font-weight: 700` / `600` / `bolder` are dropped.
    **Doc'd: No.**
 8. **`text-decoration` is one keyword**, matched case-sensitively; no `overline`, no
