@@ -72,6 +72,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `PropertySyntax::computed(value, viewport)`: a registered custom property's computed value (CSS Properties and Values 1 §2.4) — a `<length>` in absolute cells, a `<length-percentage>` keeping its percentage; `CalcExpr::linear_parts()` (`cells + percent%` of a sum) and `registration::length_percentage_text`. `PropertySyntax::interpolation` includes `<length-percentage>`. (C2G-REGISTERED-ABSOLUTE)
 - **A failed substitution says why** (CSS Variables 1 §2.3, §3, §3.3; CSS Values 5 §8.7.1): `backend::substitute` returns `Result<Vec<Token>, SubstitutionError>` — `Undefined(name)`, `Cycle(name)`, `InvalidAttr(name)`, `TooLong`, `Syntax` (`#[non_exhaustive]`) — where an `Option` made a missing `var()`, a cycle and the token cap look alike; its lookup (`backend::Lookup`, `lookup_in`) returns the same `Result`, and `resolve_custom_properties` returns the declared custom properties it made invalid, with why. One `backend::SubstitutionContext { attrs, computed }` (`new`, `with_attrs`, `with_computed`) is the extra input of every hook, replacing the `substitute_with` / `resolve_custom_properties_with` / `_on` / `substituted_pending_on` variants. (C2G-SUBSTITUTION-ERRORS)
 - `Size::cells(basis)` / `Size::cells_u16(basis)` and `Length::cells(basis)`: a size or an inset in cells — a percentage or `calc()` resolved against `basis`, `None` for `auto` (and a flex weight) — the one conversion layout uses (four copies for sizes and three for insets before). (C2G-CELLS-CONVERSIONS)
+- `MinSize::percent(p)` / `MaxSize::percent(p)`: a percentage `min-*` / `max-*` as the parser stores it, without building the `CalcExpr`. (C2G-REEXPORT-CALC)
 
 ### Changed — `rdom-style`
 
@@ -131,6 +132,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A registered `<angle>` custom property interpolates (in degrees), and its `var()` consumers follow it. (C2-ANGLE)
 - `aspect-ratio: auto && <ratio>` sizes the content box: the flex cross size comes from the main size less its padding and border, plus the cross axis's (CSS Sizing 4 §5.1); a degenerate ratio is ignored. (C2-RATIO)
 - The cascade substitutes `attr()` with the element's attributes — a pseudo-element's originating element's — and an attribute change re-cascades it, so the value follows the attribute. (C2-ATTR)
+- `rdom_tui::calc` re-exports `rdom_style::calc`, so the `CalcExpr` a `Size::Calc` / `MinSize::Calc` / `MaxSize::Calc` / `Length::Calc` holds is reachable without depending on rdom-style. (C2G-REEXPORT-CALC)
 
 ### Changed — `rdom-tui`
 

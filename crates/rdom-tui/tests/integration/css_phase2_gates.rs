@@ -419,3 +419,36 @@ fn max_height_percent_in_an_auto_height_flex_container_is_none() {
     assert_eq!(heights("display: flex; height: 20"), 5);
     assert_eq!(heights(""), 8, "block flow, for reference");
 }
+
+// ── C2G-REEXPORT-CALC ────────────────────────────────────────────────
+
+/// `max-width: 50%` (CSS Sizing 3 §5.2) built from `rdom_tui` paths
+/// alone — `MaxSize::percent`, and the `calc` module for the expression
+/// a `MaxSize::Calc` holds — caps a box at half its 80-column parent.
+#[test]
+fn max_width_percent_from_rdom_tui_paths() {
+    use rdom_tui::TuiNodeMutExt;
+    use rdom_tui::calc::CalcExpr;
+    use rdom_tui::layout::{MaxSize, MinSize};
+
+    assert_eq!(
+        MaxSize::percent(50.0),
+        MaxSize::Calc(Box::new(CalcExpr::Percent(50.0)))
+    );
+    assert_eq!(
+        MinSize::percent(25.0),
+        MinSize::Calc(Box::new(CalcExpr::Percent(25.0)))
+    );
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let parent = el(&mut dom, root, "");
+    let child = el(&mut dom, parent, "");
+    dom.node_mut(child).set_max_width(MaxSize::percent(50.0));
+    lay_out(
+        &mut dom,
+        "div { width: 80 } div div { width: auto }",
+        80,
+        10,
+    );
+    assert_eq!(rect(&dom, child).width, 40);
+}

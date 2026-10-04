@@ -646,3 +646,8 @@ row comes from.
   distribution — `MainAxisBudget`, `resolve_flexible_lengths`, `FACTOR_TOLERANCE`, the grow / shrink
   freeze loops and the §4.5 auto-min floor — moves verbatim to `flex/distribute.rs` (314 lines). No
   behaviour change; flex suites unchanged.
+- 2026-10-05 — C2G-REEXPORT-CALC: `pub use rdom_style::calc` in `rdom_tui` (the module, so `CalcExpr`,
+  `ResolveCtx`, `to_cells`, … are all reachable; `Viewport` stays at the root too) and
+  `MinSize::percent` / `MaxSize::percent` (`Calc(Percent(p))`, the parser's form). Red: the integration
+  test did not compile (no `rdom_tui::calc`, no `percent`); green: a `set_max_width(MaxSize::percent(50.0))`
+  child of an 80-column box is 40 wide.

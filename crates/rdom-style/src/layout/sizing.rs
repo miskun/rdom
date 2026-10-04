@@ -105,6 +105,12 @@ pub enum MinSize {
 }
 
 impl MinSize {
+    /// `min-* : <p>%` — `p` percent of the containing block's extent on
+    /// this axis (CSS Sizing 3 §5.2), as the parser stores it.
+    pub fn percent(p: f64) -> Self {
+        MinSize::Calc(Box::new(crate::calc::CalcExpr::Percent(p)))
+    }
+
     /// The floor in cells, `None` for `auto`. `basis` is the
     /// containing block's size on the property's axis, `None` when it
     /// is indefinite — a percentage against an indefinite basis is
@@ -141,6 +147,12 @@ pub enum MaxSize {
 }
 
 impl MaxSize {
+    /// `max-* : <p>%` — `p` percent of the containing block's extent on
+    /// this axis (CSS Sizing 3 §5.2), as the parser stores it.
+    pub fn percent(p: f64) -> Self {
+        MaxSize::Calc(Box::new(crate::calc::CalcExpr::Percent(p)))
+    }
+
     /// The limit in cells. `basis` is the containing block's size on
     /// the property's axis, `None` when indefinite — a percentage
     /// against an indefinite basis is treated as `none` (CSS 2.1

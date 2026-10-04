@@ -78,6 +78,10 @@ pub use node::{TuiNodeExt, TuiNodeMutExt};
 /// `@import` resolution for the document's `<style>` sheets
 /// ([`App::set_import_loader`], [`extend_from_style_tags_with_loader`]).
 pub use rdom_css::{ImportLoader, LoadedSheet};
+/// Math expressions (`calc()`, `min()`, …, CSS Values 4 §10): the
+/// [`CalcExpr`](calc::CalcExpr) a `Size::Calc`, `MinSize::Calc`,
+/// `MaxSize::Calc` or `Length::Calc` holds, and what resolves it.
+pub use rdom_style::calc;
 /// The size the viewport-percentage units (`vw`, `vh`, …) resolve
 /// against: the document's ([`CascadeExt::set_viewport`]).
 pub use rdom_style::calc::Viewport;
