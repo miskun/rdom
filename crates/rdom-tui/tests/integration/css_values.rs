@@ -5,7 +5,7 @@
 
 use rdom_tui::render::Rect;
 use rdom_tui::style::cascade::computed_of;
-use rdom_tui::{CascadeExt, LayoutExt, LayoutRect, NodeId, TuiDom, TuiNodeExt};
+use rdom_tui::{CascadeExt, LayoutExt, LayoutRect, NodeId, TuiDom, TuiNodeExt, Viewport};
 
 fn el(dom: &mut TuiDom, parent: NodeId, class: &str) -> NodeId {
     let id = dom.create_element("div");
@@ -392,5 +392,70 @@ fn lh_and_rlh_are_one_row() {
         (r[1].height, r[1].width),
         (6, 4),
         "5 + 1.5 = 6.5, ties to even"
+    );
+}
+
+// ── C2-VIEWPORT ──────────────────────────────────────────────────────
+
+/// CSS Values 4 §6.1.2: a viewport-percentage length is 1% of the
+/// initial containing block — the terminal: `vw` / `vi` of its columns,
+/// `vh` / `vb` of its rows (horizontal-tb), `vmin` / `vmax` of the
+/// smaller / larger. A terminal has one viewport size, so the small
+/// (`sv*`), large (`lv*`) and dynamic (`dv*`) variants equal the plain
+/// ones. They are absolute at computed-value time (§6.1.2), so a
+/// percent-bearing expression keeps only its percentage for layout.
+#[test]
+fn viewport_units_are_percentages_of_the_terminal() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let cb = el(&mut dom, root, "cb");
+    let names = ["a", "b", "c", "d", "e", "f"];
+    let ids: Vec<NodeId> = names.iter().map(|c| el(&mut dom, cb, c)).collect();
+    let sheet = rdom_css::from_css_strict(
+        ".cb { width: 40; height: 30 }
+         .a { width: 50vw; height: 20vh }
+         .b { width: 10vmax; height: 10vmin }
+         .c { width: 25vi; height: 50vb }
+         .d { width: 50svw; height: 50LVH }
+         .e { width: 10dvmax; height: calc(10svmin + 1) }
+         .f { width: calc(100% - 25vw); height: min(5vh, 50%) }",
+    )
+    .unwrap();
+    dom.cascade_all_in(&[&sheet], Viewport::new(80, 20));
+    dom.layout_dom(Rect::new(0, 0, 80, 20));
+    let wh: Vec<(u16, u16)> = ids
+        .iter()
+        .map(|&id| (rect(&dom, id).width, rect(&dom, id).height))
+        .collect();
+    assert_eq!(
+        wh,
+        [(40, 4), (8, 2), (20, 10), (40, 10), (8, 3), (20, 1)],
+        "80 × 20 terminal; .f: 40 - 20, min(1, 15)"
+    );
+}
+
+/// Viewport units follow the terminal: a resize re-resolves them on the
+/// next frame (the `App` cascades the whole tree against the new size).
+#[test]
+fn viewport_units_follow_a_terminal_resize() {
+    use crossterm::event::Event as CtEvent;
+    use rdom_tui::{App, Terminal, TestBackend};
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let a = el(&mut dom, root, "a");
+    let sheet = rdom_css::from_css_strict(".a { width: 50vw; height: 20vh }").unwrap();
+    let terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
+    let mut app = App::with_backend(dom, sheet, terminal).unwrap();
+    app.draw_if_dirty().unwrap();
+    assert_eq!(
+        (rect(app.dom(), a).width, rect(app.dom(), a).height),
+        (40, 4)
+    );
+    app.terminal_mut().backend_mut().resize(40, 10);
+    app.handle_event(CtEvent::Resize(40, 10));
+    app.draw_if_dirty().unwrap();
+    assert_eq!(
+        (rect(app.dom(), a).width, rect(app.dom(), a).height),
+        (20, 2)
     );
 }

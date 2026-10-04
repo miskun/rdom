@@ -27,6 +27,7 @@ use crate::style::Stylesheet;
 use crate::style::cascade::{
     PropertyRegistry, cascade_all_with, cascade_subtrees_all_with, restyle_vars,
 };
+use rdom_style::calc::Viewport;
 
 impl<B: Backend> App<B> {
     /// Run the frame prelude (`prelude::FramePrelude::run`: the
@@ -75,6 +76,7 @@ impl<B: Backend> App<B> {
         let dom = &mut self.dom;
         let sheets = self.prelude.cascade_order(&self.stylesheets);
         let registry = &self.prelude.registry;
+        let cascaded_viewport = &mut self.cascaded_viewport;
         let animations = &mut self.animations;
         let mut pass = Pass::default();
         self.terminal.draw(|buf| {
@@ -82,7 +84,7 @@ impl<B: Backend> App<B> {
                 dom,
                 (&sheets, registry),
                 animations,
-                redraw,
+                (redraw, cascaded_viewport),
                 &dirty_roots,
                 buf.area,
             );
@@ -191,7 +193,7 @@ impl<B: Backend> App<B> {
             &mut self.dom,
             (&sheets, &self.prelude.registry),
             &mut self.animations,
-            redraw,
+            (redraw, &mut self.cascaded_viewport),
             &dirty_roots,
             area,
         );
@@ -254,16 +256,26 @@ fn style_and_layout(
     dom: &mut TuiDom,
     (sheets, registry): (&[&Stylesheet], &Rc<PropertyRegistry>),
     animations: &mut AnimationRegistry,
-    redraw: Redraw,
+    (redraw, cascaded_viewport): (Redraw, &mut Option<Viewport>),
     dirty_roots: &[NodeId],
     area: Rect,
 ) -> Pass {
     let now = std::time::Instant::now();
+    // The viewport-percentage units resolve against the terminal (CSS
+    // Values 4 §6.1.2); at a size the tree was not cascaded for, every
+    // element's are stale, so the whole tree cascades.
+    let viewport = Viewport::new(area.width, area.height);
+    let redraw = if *cascaded_viewport == Some(viewport) {
+        redraw
+    } else {
+        Redraw::Cascade
+    };
     let cascade = if redraw == Redraw::Cascade {
-        cascade_all_with(dom, sheets, Some(registry.clone()));
+        cascade_all_with(dom, sheets, Some(registry.clone()), viewport);
+        *cascaded_viewport = Some(viewport);
         Some(CascadeScope::Full)
     } else if !dirty_roots.is_empty() {
-        cascade_subtrees_all_with(dom, sheets, Some(registry.clone()), dirty_roots);
+        cascade_subtrees_all_with(dom, sheets, Some(registry.clone()), dirty_roots, viewport);
         Some(CascadeScope::Subtrees)
     } else {
         None
@@ -280,7 +292,7 @@ fn style_and_layout(
         let restyle = animations.take_restyle();
         if !restyle.is_empty() {
             // No selector can see the change: reuse the matches.
-            restyle_vars(dom, sheets, registry.clone(), &restyle);
+            restyle_vars(dom, sheets, registry.clone(), &restyle, viewport);
             // The animated result is the before-change style of the
             // next style change (CSS Transitions 1 §3).
             crate::runtime::animation::settle_restyled(dom, &restyle);

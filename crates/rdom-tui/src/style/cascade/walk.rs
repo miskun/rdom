@@ -504,6 +504,9 @@ fn compute_element_style(
     // margin-collapse pass — landing here in phase 1 so phase 5 has
     // it ready to consume.
     finalize_bfc_formation(&mut working);
+    // Viewport-percentage lengths are absolute at computed-value time
+    // (CSS Values 4 §6.1.2).
+    working.resolve_viewport_units(sheets.viewport());
 
     working
 }

@@ -35,26 +35,13 @@ pub(crate) enum LengthPercentage {
     /// a math function without a percentage. Rounded onto the grid
     /// where it becomes a property value.
     Cells(f64),
-    /// A value that needs the layout's basis: a percentage, alone or
-    /// inside a math function.
+    /// A value that needs the layout's basis or the viewport: a
+    /// percentage or a viewport-percentage length, alone or inside a
+    /// math function.
     Expr(CalcExpr),
 }
 
-/// `v` cells rounded onto the grid (ties to even, as `calc()` rounds)
-/// and clamped to `0..=u16::MAX`; NaN is 0 (CSS Values 4 §10.9).
-pub(crate) fn cells_u16(v: f64) -> u16 {
-    cells_i32(v).clamp(0, i32::from(u16::MAX)) as u16
-}
-
-/// `v` cells rounded onto the grid, as a signed cell count: NaN is 0
-/// and an infinity clamps to the range (CSS Values 4 §10.9).
-pub(crate) fn cells_i32(v: f64) -> i32 {
-    if v.is_nan() {
-        0
-    } else {
-        crate::calc::round_half_to_even(v.clamp(f64::from(i32::MIN), f64::from(i32::MAX)))
-    }
-}
+pub(crate) use crate::absolute::{cells_i32, cells_u16};
 
 /// Parse one component value as a `<length-percentage>`: a bare
 /// integer (cells), a dimension in a length unit ([`CalcUnit`]), a
@@ -85,7 +72,7 @@ pub(crate) fn length_percentage(component: &[Token], range: Range) -> Option<Len
         }
         _ if !negative && looks_like_calc(rest) => {
             let expr = parse_calc(rest).filter(|e| e.kind().is_some_and(|k| k.is_length()))?;
-            Some(if expr.contains_percent() {
+            Some(if expr.contains_percent() || expr.needs_context() {
                 LengthPercentage::Expr(expr)
             } else {
                 LengthPercentage::Cells(expr.resolve_f64(&ResolveCtx::new(0)))

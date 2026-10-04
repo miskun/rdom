@@ -84,7 +84,7 @@ row comes from.
 | C2-TRIG | `sin()` … `atan2()`, `pow()` / `sqrt()` / `hypot()` / `log()` / `exp()` | done |
 | C2-CH | `ch` (one column) | done |
 | C2-LH | `lh` / `rlh` (one row × `line-height`; lands with C9-LINE-HEIGHT) | partial — revisit with C9-LINE-HEIGHT (one row each until `line-height` exists) |
-| C2-VIEWPORT | `vw` / `vh` / `vmin` / `vmax` and the `sv*` / `lv*` / `dv*` / `vi` / `vb` variants (terminal size) | |
+| C2-VIEWPORT | `vw` / `vh` / `vmin` / `vmax` and the `sv*` / `lv*` / `dv*` / `vi` / `vb` variants (terminal size) | done |
 | C2-ANGLE | `<angle>` (`deg` / `grad` / `rad` / `turn`) | |
 | C2-RATIO | Full `<ratio>` (bare numbers, decimals, `auto && <ratio>`) | |
 | C2-ATTR | `attr()` with fallback and `type()` (Values 5) | |
@@ -430,7 +430,8 @@ row comes from.
   §9.7 step 4.b applies: factors summing below one share only that fraction of the free space /
   overflow. The C6 flex longhands build on `numeric::number` / `parse_flex_factor`.
 - 2026-10-04 — C2-MINMAX: `CalcExpr` gains `Function { func: MathFunction, args }` and `None` (an
-  absent `clamp()` bound) and becomes `#[non_exhaustive]`; the parser recognizes a math function at
+  absent `clamp()` bound) (it was briefly made `#[non_exhaustive]`; reverted in C2-VIEWPORT — DESIGN
+  classes it closed data); the parser recognizes a math function at
   top level and nested, so every property on the shared leaf takes them. NaN propagates through
   `min` / `max` and resolves to 0 at the top (Values 4 §10.9). `calc.rs` became `calc/{mod,tests}.rs`.
 - 2026-10-04 — C2-TRIG: math expressions are type-checked (`CalcExpr::kind` → `CalcKind::{Number,
@@ -446,3 +447,12 @@ row comes from.
 - 2026-10-04 — C2-LH: `lh` / `rlh` are one row each (`CalcUnit::{Lh, Rlh}`), the fixed line height.
   Partial: they must follow the element's / root's computed `line-height` once C9-LINE-HEIGHT lands —
   then `lh` needs the cascade's value, so it becomes a context unit like the viewport units.
+- 2026-10-04 — C2-VIEWPORT: decided — resolve viewport units at computed-value time (Values 4
+  §6.1.2), not in layout: the cascade (`Sheets` carries the `Viewport`) calls
+  `ComputedStyle::resolve_viewport_units` per element and pseudo-element, which folds an expression
+  left without a percentage to cells, so no layout site needs the viewport. Resize already sets
+  `Redraw::Cascade` (whole-tree cascade); the `App` also records the size it last cascaded at and
+  cascades the whole tree at any other size (a backend resize with no event). `CascadeExt` gains
+  `cascade_all_in` / `cascade_subtrees_all_in`; the old forms use a 0 × 0 viewport (documented).
+  Also: `CalcExpr`'s `#[non_exhaustive]` from C2-MINMAX reverted (DESIGN classes it closed data);
+  DESIGN's lists name the new value types.

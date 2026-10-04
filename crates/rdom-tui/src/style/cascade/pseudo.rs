@@ -91,6 +91,7 @@ pub(super) fn compute_pseudo_style(
     // Border_fg fallback (same rule as for host elements).
     finalize_border_fg(&mut working, decls);
     finalize_bfc_formation(&mut working);
+    working.resolve_viewport_units(cx.sheets.viewport());
 
     // Resolve content:
     //   - None  = no `content:` declaration at all → use legacy fallback

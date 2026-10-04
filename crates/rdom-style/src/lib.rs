@@ -57,6 +57,7 @@ pub mod registration;
 pub mod transition;
 mod var;
 
+mod absolute;
 pub mod color;
 mod computed;
 mod custom_value;

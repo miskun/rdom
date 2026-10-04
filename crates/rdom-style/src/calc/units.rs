@@ -2,7 +2,7 @@
 //! unitless cell and the percentage (CSS Values 4 §6 – §7), each with its
 //! terminal meaning.
 
-use super::{CalcKind, ResolveCtx};
+use super::{CalcExpr, CalcKind, ResolveCtx};
 
 /// A dimension's unit.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -16,6 +16,121 @@ pub enum CalcUnit {
     Lh,
     /// `rlh` — the root's line height: one row (Values 4 §6.1.1).
     Rlh,
+    /// A viewport-percentage unit (`vw`, `svh`, `dvmax`, …): 1% of the
+    /// terminal on an axis (Values 4 §6.1.2).
+    Viewport(ViewportUnit),
+}
+
+/// The terminal's size in cells: the viewport the viewport-percentage
+/// units are percentages of (CSS Values 4 §6.1.2: the initial
+/// containing block).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Viewport {
+    pub cols: u16,
+    pub rows: u16,
+}
+
+impl Viewport {
+    pub fn new(cols: u16, rows: u16) -> Self {
+        Self { cols, rows }
+    }
+}
+
+/// A viewport-percentage unit: which viewport size (`sv*` / `lv*` /
+/// `dv*` / plain) and which axis.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ViewportUnit {
+    pub size: ViewportSize,
+    pub axis: ViewportAxis,
+}
+
+/// The viewport size a unit names (CSS Values 4 §6.1.2.1). A terminal
+/// has no retractable browser chrome, so all four are the terminal's
+/// size; the spelling is kept for serialization.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ViewportSize {
+    /// `vw`, `vh`, … — the UA-default viewport.
+    Default,
+    /// `svw`, … — the small viewport.
+    Small,
+    /// `lvw`, … — the large viewport.
+    Large,
+    /// `dvw`, … — the dynamic viewport.
+    Dynamic,
+}
+
+/// The viewport axis a unit measures (CSS Values 4 §6.1.2.2).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ViewportAxis {
+    /// `*w` — the width.
+    Width,
+    /// `*h` — the height.
+    Height,
+    /// `*i` — the inline axis: the width in horizontal-tb.
+    Inline,
+    /// `*b` — the block axis: the height in horizontal-tb.
+    Block,
+    /// `*min` — the smaller of width and height.
+    Min,
+    /// `*max` — the larger of width and height.
+    Max,
+}
+
+impl ViewportUnit {
+    const SIZES: [(&'static str, ViewportSize); 4] = [
+        ("", ViewportSize::Default),
+        ("s", ViewportSize::Small),
+        ("l", ViewportSize::Large),
+        ("d", ViewportSize::Dynamic),
+    ];
+    const AXES: [(&'static str, ViewportAxis); 6] = [
+        ("vw", ViewportAxis::Width),
+        ("vh", ViewportAxis::Height),
+        ("vi", ViewportAxis::Inline),
+        ("vb", ViewportAxis::Block),
+        ("vmin", ViewportAxis::Min),
+        ("vmax", ViewportAxis::Max),
+    ];
+
+    /// The unit spelled `unit`, ASCII case-insensitive.
+    fn parse(unit: &str) -> Option<ViewportUnit> {
+        let unit = unit.to_ascii_lowercase();
+        Self::SIZES.iter().find_map(|(prefix, size)| {
+            let rest = unit.strip_prefix(prefix)?;
+            Self::AXES
+                .iter()
+                .find(|(name, _)| *name == rest)
+                .map(|(_, axis)| ViewportUnit {
+                    size: *size,
+                    axis: *axis,
+                })
+        })
+    }
+
+    /// The unit's CSS spelling.
+    pub fn css_name(self) -> &'static str {
+        const NAMES: [[&str; 6]; 4] = [
+            ["vw", "vh", "vi", "vb", "vmin", "vmax"],
+            ["svw", "svh", "svi", "svb", "svmin", "svmax"],
+            ["lvw", "lvh", "lvi", "lvb", "lvmin", "lvmax"],
+            ["dvw", "dvh", "dvi", "dvb", "dvmin", "dvmax"],
+        ];
+        let size = Self::SIZES.iter().position(|(_, s)| *s == self.size);
+        let axis = Self::AXES.iter().position(|(_, a)| *a == self.axis);
+        NAMES[size.unwrap_or(0)][axis.unwrap_or(0)]
+    }
+
+    /// The cells 1% of `viewport` is on this unit's axis.
+    fn percent_of(self, viewport: Viewport) -> f64 {
+        let (w, h) = (f64::from(viewport.cols), f64::from(viewport.rows));
+        let extent = match self.axis {
+            ViewportAxis::Width | ViewportAxis::Inline => w,
+            ViewportAxis::Height | ViewportAxis::Block => h,
+            ViewportAxis::Min => w.min(h),
+            ViewportAxis::Max => w.max(h),
+        };
+        extent / 100.0
+    }
 }
 
 impl CalcUnit {
@@ -32,6 +147,7 @@ impl CalcUnit {
             .iter()
             .find(|(n, _)| n.eq_ignore_ascii_case(unit))
             .map(|(_, u)| *u)
+            .or_else(|| ViewportUnit::parse(unit).map(CalcUnit::Viewport))
     }
 
     /// The unit's CSS spelling.
@@ -40,31 +156,68 @@ impl CalcUnit {
             CalcUnit::Ch => "ch",
             CalcUnit::Lh => "lh",
             CalcUnit::Rlh => "rlh",
+            CalcUnit::Viewport(v) => v.css_name(),
         }
     }
 
     /// The type of a value in this unit.
     pub fn kind(self) -> CalcKind {
         match self {
-            CalcUnit::Ch | CalcUnit::Lh | CalcUnit::Rlh => CalcKind::Length,
+            CalcUnit::Ch | CalcUnit::Lh | CalcUnit::Rlh | CalcUnit::Viewport(_) => CalcKind::Length,
         }
     }
 
     /// `true` when the value depends on something only known after
-    /// parsing (the viewport); such a value stays symbolic until then.
+    /// parsing (the viewport); such a value stays symbolic until the
+    /// cascade makes it absolute ([`CalcExpr::absolutize`]).
     pub fn needs_context(self) -> bool {
         match self {
             CalcUnit::Ch | CalcUnit::Lh | CalcUnit::Rlh => false,
+            CalcUnit::Viewport(_) => true,
         }
     }
 
     /// `value` in this unit, in the evaluator's canonical unit — cells
     /// for lengths.
-    pub(super) fn canonical(self, value: f64, _cx: &ResolveCtx) -> f64 {
+    pub(super) fn canonical(self, value: f64, cx: &ResolveCtx) -> f64 {
         match self {
+            CalcUnit::Viewport(v) => value * v.percent_of(cx.viewport),
             // One column; one row (the fixed line height) — a cell
             // either way.
             CalcUnit::Ch | CalcUnit::Lh | CalcUnit::Rlh => value,
+        }
+    }
+}
+
+impl CalcExpr {
+    /// `true` iff a unit needs the viewport ([`CalcUnit::needs_context`])
+    /// anywhere in the expression.
+    pub fn needs_context(&self) -> bool {
+        match self {
+            CalcExpr::Dimension { unit, .. } => unit.needs_context(),
+            CalcExpr::Binary { lhs, rhs, .. } => lhs.needs_context() || rhs.needs_context(),
+            CalcExpr::Function { args, .. } => args.iter().any(CalcExpr::needs_context),
+            _ => false,
+        }
+    }
+
+    /// The expression with every viewport-percentage length replaced by
+    /// its cells in `viewport` — the computed value (CSS Values 4
+    /// §6.1.2: viewport units are absolute lengths once computed).
+    /// Percentages stay for layout.
+    pub fn absolutize(&self, viewport: Viewport) -> CalcExpr {
+        match self {
+            CalcExpr::Dimension {
+                value,
+                unit: CalcUnit::Viewport(v),
+            } => CalcExpr::Number(value * v.percent_of(viewport)),
+            CalcExpr::Binary { op, lhs, rhs } => {
+                CalcExpr::binary(*op, lhs.absolutize(viewport), rhs.absolutize(viewport))
+            }
+            CalcExpr::Function { func, args } => {
+                CalcExpr::function(*func, args.iter().map(|a| a.absolutize(viewport)).collect())
+            }
+            other => other.clone(),
         }
     }
 }

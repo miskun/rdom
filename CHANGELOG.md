@@ -32,7 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Registration errors are typed.** `PropertyRegistration::new` returns `Result<_, RegisterPropertyError>` and `PropertySyntax::parse` `Result<_, PropertySyntaxError>` (both `#[non_exhaustive]`, `Display` + `Error`), where they returned `String`s: `InvalidName`, `InvalidSyntax(PropertySyntaxError::{UnsupportedComponent, InvalidComponent})`, `MissingInitialValue`, `InitialValueMismatch`, `NotComputationallyIndependent` — the web API's `SyntaxError` — and `AlreadyRegistered`, its `InvalidModificationError` (`is_invalid_modification()`). The messages are unchanged. Migration: `match` on the variant (with a wildcard arm), or `.to_string()` for the old message. (C1G-TYPED-ERRORS)
 - **`min-*` / `max-*` take percentages.** `MinSize` gains `Calc(Box<CalcExpr>)` and is no longer `Copy`; `max-width` / `max-height` are the new `MaxSize { Cells(u16), Calc(Box<CalcExpr>) }` (`TuiStyle::max_width: Option<Value<MaxSize>>`, `ComputedStyle::max_width: Option<MaxSize>`, likewise `max_height`), where they were `u16`. Both resolve with `cells(basis: Option<u16>)` — `None` for an indefinite basis, which makes a percentage `0` (min) or `none` (max), CSS 2.1 §10.7. Migration: `Some(n)` → `Some(MaxSize::Cells(n))`; the builder setters `max_width` / `max_height` take `impl Into<MaxSize>`, so `.max_width(20)` is unchanged; copy a `MinSize` with `.clone()`. (C2-PERCENT)
 - **Flex factors are `f32`.** `Size::Flex(u16)` is `Size::Flex(f32)` and `flex_shrink` is `f32` on `TuiStyle` (`Option<Value<f32>>`), `ComputedStyle` and the `flex_shrink` builder setters. Migration: `Size::Flex(1)` → `Size::Flex(1.0)`, `.flex_shrink(0)` → `.flex_shrink(0.0)`. (C2-NUMBER)
-- `CalcExpr` is `#[non_exhaustive]` and gains `Function { func, args }` and `None`. Migration: add a wildcard arm to matches on `CalcExpr`, or resolve it with `CalcExpr::resolve` / `resolve_f64` instead of walking it. (C2-MINMAX)
+- `CalcExpr` gains `Function { func, args }` and `None` (C2-MINMAX) and `Dimension { value, unit }` (C2-CH). It stays closed data (DESIGN), so a match on it must name them. Migration: add the arms, or resolve the expression with `CalcExpr::resolve` / `resolve_f64` instead of walking it. (C2-MINMAX)
 
 ### Added — `rdom-style`
 
@@ -56,6 +56,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Trigonometric and exponential functions and constants** (CSS Values 4 §10.4 – §10.7): `sin()`, `cos()`, `tan()`, `asin()`, `acos()`, `atan()`, `atan2()`, `pow()`, `sqrt()`, `hypot()`, `log()`, `exp()`, and `e`, `pi`, `infinity`, `-infinity`, `NaN`; the result becomes whole cells where it becomes a length, a NaN is 0 and an infinity clamps (§10.9). Expressions are type-checked (`CalcExpr::kind`, `CalcKind::{Number, Length, Angle}`): an inverse trigonometric result is an angle, which a length rejects. Math functions of type `<number>` are accepted by `opacity` and the flex factors (`opacity: calc(1 / 4)`). (C2-TRIG)
 - **`ch`** (CSS Values 4 §6.1.1): one column, in every length property and math function (`width: 10ch`, `calc(50% - 2.5ch)`), ASCII case-insensitive; a fraction rounds where the value becomes a length. New `CalcExpr::Dimension { value, unit }` and `CalcUnit` (`#[non_exhaustive]`), the leaf Phase 2's units share; a registered `<length>` takes unit dimensions. (C2-CH)
 - **`lh` / `rlh`** (CSS Values 4 §6.1.1): one row each — rdom's fixed line height — in every length property and math function; `CalcUnit::{Lh, Rlh}`. They follow `line-height` when it lands (C9-LINE-HEIGHT). (C2-LH)
+- **Viewport-percentage units** (CSS Values 4 §6.1.2): `vw`, `vh`, `vi`, `vb`, `vmin`, `vmax` and their `sv*` / `lv*` / `dv*` forms — 1% of the terminal's columns / rows (all four viewport sizes are the terminal's). `CalcUnit::Viewport(ViewportUnit { size, axis })`, `Viewport { cols, rows }`, `ResolveCtx::with_viewport`, `CalcExpr::absolutize` / `needs_context`, and `ComputedStyle::resolve_viewport_units`, which makes them absolute at computed-value time (a percentage beside them stays for layout). (C2-VIEWPORT)
 
 ### Changed — `rdom-style`
 
@@ -93,6 +94,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `App::register_property` returns `Result<(), RegisterPropertyError>` (re-exported from `rdom_tui`) instead of `Result<(), String>`; a second registration of a name is `RegisterPropertyError::AlreadyRegistered(name)`. Migration: match the variant, or `.to_string()` for the old message. (C1G-TYPED-ERRORS)
 - `TuiNodeMutExt::set_max_width` / `set_max_height` take `Option<MaxSize>` (was `Option<u16>`). Migration: `set_max_width(Some(40))` → `set_max_width(Some(MaxSize::Cells(40)))`. (C2-PERCENT)
+- `CascadeExt` gains the required methods `cascade_all_in` / `cascade_subtrees_all_in` (implemented for `Dom<TuiExt>`); an out-of-tree implementor must add them. The forms without a viewport resolve viewport units against 0 × 0. (C2-VIEWPORT)
 
 ### Added — `rdom-tui`
 
@@ -105,6 +107,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `extend_from_style_tags_with_loader(dom, sheet, loader)`: the snapshot `<style>` merge with `@import` resolved through a loader. (C1G-IMPORT-EDGES)
 - **Re-exports for the App-level style APIs**: `rdom_tui::{PropertyRegistration, PropertySyntax, ImportLoader, LoadedSheet, LayerId, StyleSelector, RuleContext, CustomValue}` (and the rdom-style ones under `rdom_tui::style`), so `App::register_property`, `App::set_import_loader`, cascade layers and `Stylesheet::add_style_rule` need no direct `rdom-style` / `rdom-css` dependency; `App::register_property` has a doc example using `rdom_tui` paths only. (C1G-REEXPORTS)
 - Layout resolves `min-*` / `max-*` percentages against the containing block on their axis — the block width, a definite block height (else `0` / `none`, CSS 2.1 §10.7), a flex container's main or cross size. (C2-PERCENT)
+- **Viewport units resolve against the terminal.** The cascade makes `vw` / `vh` / … absolute per element (`CascadeExt::cascade_all_in` / `cascade_subtrees_all_in` take the `Viewport`; `rdom_tui::Viewport`); the `App` cascades at its terminal's size and cascades the whole tree again whenever that size changes. (C2-VIEWPORT)
 
 ### Changed — `rdom-tui`
 

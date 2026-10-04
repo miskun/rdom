@@ -11,6 +11,7 @@
 use std::rc::Rc;
 
 use rdom_style::LayerOrder;
+use rdom_style::calc::Viewport;
 
 use super::ladder::Plan;
 use super::registered::PropertyRegistry;
@@ -22,17 +23,29 @@ pub(super) struct Sheets<'a> {
     list: &'a [&'a Stylesheet],
     layers: LayerOrder,
     registry: Rc<PropertyRegistry>,
+    viewport: Viewport,
 }
 
 impl<'a> Sheets<'a> {
     /// `list`, with the custom properties it registers (`registry`,
-    /// built from `list` when the caller has none at hand).
-    pub(super) fn new(list: &'a [&'a Stylesheet], registry: Option<Rc<PropertyRegistry>>) -> Self {
+    /// built from `list` when the caller has none at hand), cascaded for
+    /// a terminal of `viewport`'s size.
+    pub(super) fn new(
+        list: &'a [&'a Stylesheet],
+        registry: Option<Rc<PropertyRegistry>>,
+        viewport: Viewport,
+    ) -> Self {
         Sheets {
             list,
             layers: LayerOrder::new(list),
             registry: registry.unwrap_or_else(|| Rc::new(PropertyRegistry::new(list))),
+            viewport,
         }
+    }
+
+    /// The terminal size the viewport-percentage units resolve against.
+    pub(super) fn viewport(&self) -> Viewport {
+        self.viewport
     }
 
     /// The custom properties the sheets register.

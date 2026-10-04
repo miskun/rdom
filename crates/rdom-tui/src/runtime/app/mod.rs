@@ -144,6 +144,10 @@ pub struct App<B: Backend = CrosstermBackend<Stdout>> {
     /// when nothing is animating. Configurable via
     /// [`App::set_animation_frame_rate`].
     animation_frame_ms: u32,
+    /// The terminal size the last whole-tree cascade resolved the
+    /// viewport-percentage units against (CSS Values 4 §6.1.2); a frame
+    /// at another size cascades the whole tree again.
+    cascaded_viewport: Option<rdom_style::calc::Viewport>,
     on_tick: Option<TickCallback>,
     /// Timer / rAF / microtask scheduler.
     pub(crate) scheduler: crate::runtime::timers::SharedScheduler,
@@ -309,6 +313,7 @@ impl<B: Backend> App<B> {
             router: Router::new(),
             tick_rate: Duration::from_millis(50),
             animation_frame_ms: 16,
+            cascaded_viewport: None,
             on_tick: None,
             scheduler: std::rc::Rc::new(std::cell::RefCell::new(
                 crate::runtime::timers::Scheduler::new(std::time::Instant::now()),

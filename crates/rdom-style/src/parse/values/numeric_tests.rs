@@ -307,3 +307,61 @@ fn lh_units_parse_as_one_row() {
         Some("calc(50% - 1lh + 2rlh)")
     );
 }
+
+// ── C2-VIEWPORT ──────────────────────────────────────────────────────
+
+/// CSS Values 4 §6.1.2: the viewport-percentage units — `v*`, `sv*`,
+/// `lv*`, `dv*` over `w` / `h` / `i` / `b` / `min` / `max` — are lengths,
+/// ASCII case-insensitive, kept symbolic until the cascade knows the
+/// terminal, and serialized as written.
+#[test]
+fn viewport_units_parse_and_serialize() {
+    use crate::TuiStyle;
+    use crate::property_dispatch::{serialize, set};
+    for prefix in ["", "s", "l", "d"] {
+        for axis in ["w", "h", "i", "b", "min", "max"] {
+            let unit = format!("{prefix}v{axis}");
+            let mut s = TuiStyle::default();
+            set("width", &format!("50{}", unit.to_uppercase()), &mut s)
+                .unwrap_or_else(|e| panic!("{unit}: {e:?}"));
+            assert_eq!(serialize("width", &s), Some(format!("50{unit}")));
+        }
+    }
+    let mut s = TuiStyle::default();
+    set("margin-left", "-5vw", &mut s).unwrap();
+    assert_eq!(serialize("margin-left", &s).as_deref(), Some("-5vw"));
+    set("width", "calc(100% - 25vw)", &mut s).unwrap();
+    assert_eq!(serialize("width", &s).as_deref(), Some("calc(100% - 25vw)"));
+    assert_eq!(length_percentage(&t("5xvw"), Range::Any), None);
+}
+
+/// CSS Values 4 §6.1.2: viewport units are absolute at computed-value
+/// time: `resolve_viewport_units` folds a value left without a
+/// percentage to cells and keeps a percent-bearing one for layout.
+#[test]
+fn computed_viewport_units_become_cells() {
+    use crate::ComputedStyle;
+    use crate::calc::Viewport;
+    use crate::layout::{Length, MarginValue, Size};
+    let calc = |src: &str| match length_percentage(&t(src), Range::Any) {
+        Some(LengthPercentage::Expr(e)) => Box::new(e),
+        other => panic!("{src}: {other:?}"),
+    };
+    let mut c = ComputedStyle::initial();
+    c.width = Size::Calc(calc("50vw"));
+    c.height = Size::Calc(calc("calc(100% - 10vh)"));
+    c.margin.left = MarginValue::Calc(calc("-2.5vmax"));
+    c.top = Length::Calc(calc("calc(10vmin + 1)"));
+    c.resolve_viewport_units(Viewport::new(80, 20));
+    assert_eq!(c.width, Size::Fixed(40));
+    assert_eq!(
+        c.height,
+        Size::Calc(Box::new(crate::calc::CalcExpr::binary(
+            crate::calc::CalcOp::Sub,
+            crate::calc::CalcExpr::Percent(100.0),
+            crate::calc::CalcExpr::Number(2.0),
+        )))
+    );
+    assert_eq!(c.margin.left, MarginValue::Cells(-2), "-2.5 × 0.8 = -2");
+    assert_eq!(c.top, Length::Cells(3));
+}

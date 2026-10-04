@@ -130,9 +130,10 @@ behavior, so copy-pasting CSS from MDN doesn't blow up:
   …) are scheduled for 0.6.0. `@layer` (statement and block forms,
   anonymous and nested layers) is parsed into the sheet's cascade layers;
   an invalid `@layer` prelude reports `WarningKind::InvalidAtRulePrelude`.
-- **Length units other than cells, `fr`, `%`, `ch` and `lh` / `rlh`.** `px`,
-  `em`, `rem` have no cell-grid meaning and are rejected. The viewport
-  units (`vw`, `vh`, …) are rejected today too; they are scheduled for 0.6.0.
+- **Pixel and font-relative length units.** `px`, `em`, `rem` and the
+  other absolute and font-relative units have no cell-grid meaning and
+  are rejected; cells, `fr`, `%`, `ch`, `lh` / `rlh` and the viewport
+  units (`vw`, `vh`, `vmin`, …, of the terminal) are supported.
 - **Nested conditional rules** (`@media` / `@supports` / `@container`
   inside a style rule) — with those at-rules, in 0.6.0.
 

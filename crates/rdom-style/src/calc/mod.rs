@@ -37,7 +37,7 @@ mod units;
 use functions::eval_function;
 pub use functions::{MathFunction, RoundingStrategy};
 pub use types::CalcKind;
-pub use units::CalcUnit;
+pub use units::{CalcUnit, Viewport, ViewportAxis, ViewportSize, ViewportUnit};
 
 /// One operator in a calc() expression.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -60,9 +60,10 @@ impl fmt::Display for CalcOp {
     }
 }
 
-/// One node of a math-function expression tree.
+/// One node of a math-function expression tree. Closed data (DESIGN
+/// "Which public types are `#[non_exhaustive]`"): a walker must handle
+/// every node.
 #[derive(Debug, Clone, PartialEq)]
-#[non_exhaustive]
 pub enum CalcExpr {
     /// Bare number (no unit). Used as a multiplier / divisor.
     Number(f64),
@@ -105,11 +106,24 @@ pub struct ResolveCtx {
     /// cells. Caller provides — see doc above for which dimension
     /// each property uses.
     pub percent_basis: i32,
+    /// The terminal size viewport-percentage units resolve against.
+    /// The cascade makes them absolute ([`CalcExpr::absolutize`]), so
+    /// layout leaves this at its default.
+    pub viewport: Viewport,
 }
 
 impl ResolveCtx {
     pub fn new(percent_basis: i32) -> Self {
-        Self { percent_basis }
+        Self {
+            percent_basis,
+            viewport: Viewport::default(),
+        }
+    }
+
+    /// This context with `viewport` for the viewport-percentage units.
+    pub fn with_viewport(mut self, viewport: Viewport) -> Self {
+        self.viewport = viewport;
+        self
     }
 }
 

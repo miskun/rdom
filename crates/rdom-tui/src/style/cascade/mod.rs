@@ -105,6 +105,7 @@ use rdom_core::{Dom, NodeId};
 
 use crate::ext::TuiExt;
 use crate::style::{ComputedStyle, Content, Stylesheet};
+use rdom_style::calc::Viewport;
 
 // ─── Public entry point ─────────────────────────────────────────────
 
@@ -150,6 +151,22 @@ pub trait CascadeExt {
 
     /// Multi-sheet variant of [`Self::cascade_subtrees`].
     fn cascade_subtrees_all(&mut self, stylesheets: &[&Stylesheet], roots: &[NodeId]);
+
+    /// [`Self::cascade_all`] for a terminal of `viewport`'s size: the
+    /// viewport-percentage units (`vw`, `vh`, `vmin`, …) resolve against
+    /// it (CSS Values 4 §6.1.2). The `App` cascades this way with the
+    /// terminal's size each frame; the forms without a viewport resolve
+    /// those units against an empty (0 × 0) one.
+    fn cascade_all_in(&mut self, stylesheets: &[&Stylesheet], viewport: Viewport);
+
+    /// [`Self::cascade_subtrees_all`] for a terminal of `viewport`'s
+    /// size (see [`Self::cascade_all_in`]).
+    fn cascade_subtrees_all_in(
+        &mut self,
+        stylesheets: &[&Stylesheet],
+        roots: &[NodeId],
+        viewport: Viewport,
+    );
 }
 
 impl CascadeExt for Dom<TuiExt> {
@@ -158,7 +175,7 @@ impl CascadeExt for Dom<TuiExt> {
     }
 
     fn cascade_all(&mut self, stylesheets: &[&Stylesheet]) {
-        cascade_all_with(self, stylesheets, None);
+        self.cascade_all_in(stylesheets, Viewport::default());
     }
 
     fn cascade_subtrees(&mut self, stylesheet: &Stylesheet, roots: &[NodeId]) {
@@ -166,7 +183,20 @@ impl CascadeExt for Dom<TuiExt> {
     }
 
     fn cascade_subtrees_all(&mut self, stylesheets: &[&Stylesheet], roots: &[NodeId]) {
-        cascade_subtrees_all_with(self, stylesheets, None, roots);
+        self.cascade_subtrees_all_in(stylesheets, roots, Viewport::default());
+    }
+
+    fn cascade_all_in(&mut self, stylesheets: &[&Stylesheet], viewport: Viewport) {
+        cascade_all_with(self, stylesheets, None, viewport);
+    }
+
+    fn cascade_subtrees_all_in(
+        &mut self,
+        stylesheets: &[&Stylesheet],
+        roots: &[NodeId],
+        viewport: Viewport,
+    ) {
+        cascade_subtrees_all_with(self, stylesheets, None, roots, viewport);
     }
 }
 
@@ -176,8 +206,9 @@ pub(crate) fn cascade_all_with(
     dom: &mut Dom<TuiExt>,
     stylesheets: &[&Stylesheet],
     registry: Option<Rc<PropertyRegistry>>,
+    viewport: Viewport,
 ) {
-    let sheets = walk::Sheets::new(stylesheets, registry);
+    let sheets = walk::Sheets::new(stylesheets, registry, viewport);
     let merged_vars = walk::merge_root_vars(&sheets);
     let root = dom.root();
     // The root's parent carries the sheet-level (`define_var` /
@@ -208,8 +239,16 @@ pub(crate) fn cascade_subtrees_all_with(
     stylesheets: &[&Stylesheet],
     registry: Option<Rc<PropertyRegistry>>,
     roots: &[NodeId],
+    viewport: Viewport,
 ) {
-    subtrees(dom, stylesheets, registry, roots, walk::Mode::Cascade);
+    subtrees(
+        dom,
+        stylesheets,
+        registry,
+        roots,
+        walk::Mode::Cascade,
+        viewport,
+    );
 }
 
 /// Restyle the subtrees at `roots` after a change no selector can see —
@@ -224,8 +263,16 @@ pub(crate) fn restyle_vars(
     stylesheets: &[&Stylesheet],
     registry: Rc<PropertyRegistry>,
     roots: &[NodeId],
+    viewport: Viewport,
 ) {
-    subtrees(dom, stylesheets, Some(registry), roots, walk::Mode::Restyle);
+    subtrees(
+        dom,
+        stylesheets,
+        Some(registry),
+        roots,
+        walk::Mode::Restyle,
+        viewport,
+    );
 }
 
 fn subtrees(
@@ -234,8 +281,9 @@ fn subtrees(
     registry: Option<Rc<PropertyRegistry>>,
     roots: &[NodeId],
     mode: walk::Mode,
+    viewport: Viewport,
 ) {
-    let sheets = walk::Sheets::new(stylesheets, registry);
+    let sheets = walk::Sheets::new(stylesheets, registry, viewport);
     let merged_vars = walk::merge_root_vars(&sheets);
     let uses_counters = uses_counters(stylesheets);
     // A queued root can have been FREED between when it was marked
