@@ -1059,7 +1059,7 @@ fn aspect_ratio_round_trip_via_css() {
     use rdom_style::layout::AspectRatio;
     assert_eq!(
         style.aspect_ratio,
-        Some(Value::Specified(AspectRatio::new(16, 9).unwrap()))
+        Some(Value::Specified(Some(AspectRatio::new(16.0, 9.0).unwrap())))
     );
 }
 

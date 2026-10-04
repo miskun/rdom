@@ -86,7 +86,7 @@ row comes from.
 | C2-LH | `lh` / `rlh` (one row × `line-height`; lands with C9-LINE-HEIGHT) | partial — revisit with C9-LINE-HEIGHT (one row each until `line-height` exists) |
 | C2-VIEWPORT | `vw` / `vh` / `vmin` / `vmax` and the `sv*` / `lv*` / `dv*` / `vi` / `vb` variants (terminal size) | done |
 | C2-ANGLE | `<angle>` (`deg` / `grad` / `rad` / `turn`) | done |
-| C2-RATIO | Full `<ratio>` (bare numbers, decimals, `auto && <ratio>`) | |
+| C2-RATIO | Full `<ratio>` (bare numbers, decimals, `auto && <ratio>`) | done |
 | C2-ATTR | `attr()` with fallback and `type()` (Values 5) | |
 
 (`cq*` units land with C14-CONTAINER.)
@@ -459,3 +459,8 @@ row comes from.
 - 2026-10-04 — C2-ANGLE: `CalcUnit::{Deg, Grad, Rad, Turn}` (type `<angle>`, radians inside the
   evaluator); `parse::values::parse_angle` returns degrees for Phase 3's hues; `@property` takes
   `<angle>` (was rejected) and a registered angle interpolates in degrees.
+- 2026-10-04 — C2-RATIO: `AspectRatio { numerator: f32, denominator: f32, auto }` (breaking); the
+  style holds `Option<AspectRatio>` with `auto` alone as `None`, applied like any value. Layout uses
+  `value()` (None for a degenerate ratio) and, for `auto && <ratio>`, takes the main axis's padding
+  and border off before the ratio and adds the cross axis's back (content box, Sizing 4 §5.1). The
+  property-dispatch test "70000 / 1 is rejected" became "kept as written" (terms are numbers now).

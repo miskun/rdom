@@ -33,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`min-*` / `max-*` take percentages.** `MinSize` gains `Calc(Box<CalcExpr>)` and is no longer `Copy`; `max-width` / `max-height` are the new `MaxSize { Cells(u16), Calc(Box<CalcExpr>) }` (`TuiStyle::max_width: Option<Value<MaxSize>>`, `ComputedStyle::max_width: Option<MaxSize>`, likewise `max_height`), where they were `u16`. Both resolve with `cells(basis: Option<u16>)` — `None` for an indefinite basis, which makes a percentage `0` (min) or `none` (max), CSS 2.1 §10.7. Migration: `Some(n)` → `Some(MaxSize::Cells(n))`; the builder setters `max_width` / `max_height` take `impl Into<MaxSize>`, so `.max_width(20)` is unchanged; copy a `MinSize` with `.clone()`. (C2-PERCENT)
 - **Flex factors are `f32`.** `Size::Flex(u16)` is `Size::Flex(f32)` and `flex_shrink` is `f32` on `TuiStyle` (`Option<Value<f32>>`), `ComputedStyle` and the `flex_shrink` builder setters. Migration: `Size::Flex(1)` → `Size::Flex(1.0)`, `.flex_shrink(0)` → `.flex_shrink(0.0)`. (C2-NUMBER)
 - `CalcExpr` gains `Function { func, args }` and `None` (C2-MINMAX) and `Dimension { value, unit }` (C2-CH). It stays closed data (DESIGN), so a match on it must name them. Migration: add the arms, or resolve the expression with `CalcExpr::resolve` / `resolve_f64` instead of walking it. (C2-MINMAX)
+- **`AspectRatio` holds `f32` terms and `auto`** (`numerator: f32`, `denominator: f32`, `auto: bool`); `AspectRatio::new(f32, f32)` rejects only negative or non-finite terms (zero is a degenerate ratio, which behaves as `auto`), `with_auto`, `value`. `TuiStyle::aspect_ratio` is `Option<Value<Option<AspectRatio>>>` (`None` inside = the `auto` keyword); `parse_aspect_ratio` returns `Option<Option<AspectRatio>>`. Migration: `AspectRatio::new(16, 9)` → `AspectRatio::new(16.0, 9.0)`; wrap a specified ratio in `Some`. The `aspect_ratio(w, h)` builder is unchanged. (C2-RATIO)
 
 ### Added — `rdom-style`
 
@@ -58,6 +59,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`lh` / `rlh`** (CSS Values 4 §6.1.1): one row each — rdom's fixed line height — in every length property and math function; `CalcUnit::{Lh, Rlh}`. They follow `line-height` when it lands (C9-LINE-HEIGHT). (C2-LH)
 - **Viewport-percentage units** (CSS Values 4 §6.1.2): `vw`, `vh`, `vi`, `vb`, `vmin`, `vmax` and their `sv*` / `lv*` / `dv*` forms — 1% of the terminal's columns / rows (all four viewport sizes are the terminal's). `CalcUnit::Viewport(ViewportUnit { size, axis })`, `Viewport { cols, rows }`, `ResolveCtx::with_viewport`, `CalcExpr::absolutize` / `needs_context`, and `ComputedStyle::resolve_viewport_units`, which makes them absolute at computed-value time (a percentage beside them stays for layout). (C2-VIEWPORT)
 - **`<angle>`** (CSS Values 4 §7.1): `deg`, `grad`, `rad`, `turn` (`CalcUnit::{Deg, Grad, Rad, Turn}`) in the trigonometric functions (`sin(30deg)`); `parse::values::parse_angle` reads an angle dimension or angle-typed math function as degrees (for the color hues). `@property` accepts `syntax: '<angle>'` (`SyntaxComponent::Angle`), which was rejected. (C2-ANGLE)
+- **The full `aspect-ratio` grammar** (CSS Sizing 4 §5.1, CSS Values 4 §5.7): `auto`, a lone number (`aspect-ratio: 2`), fractional terms (`1.5 / 0.75`), math functions of type `<number>`, and `auto && <ratio>` in either order; serialized as `16 / 9`. A degenerate ratio (a zero term) behaves as `auto` (`AspectRatio::value`). (C2-RATIO)
 
 ### Changed — `rdom-style`
 
@@ -110,6 +112,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Layout resolves `min-*` / `max-*` percentages against the containing block on their axis — the block width, a definite block height (else `0` / `none`, CSS 2.1 §10.7), a flex container's main or cross size. (C2-PERCENT)
 - **Viewport units resolve against the terminal.** The cascade makes `vw` / `vh` / … absolute per element (`CascadeExt::cascade_all_in` / `cascade_subtrees_all_in` take the `Viewport`; `rdom_tui::Viewport`); the `App` cascades at its terminal's size and cascades the whole tree again whenever that size changes. (C2-VIEWPORT)
 - A registered `<angle>` custom property interpolates (in degrees), and its `var()` consumers follow it. (C2-ANGLE)
+- `aspect-ratio: auto && <ratio>` sizes the content box: the flex cross size comes from the main size less its padding and border, plus the cross axis's (CSS Sizing 4 §5.1); a degenerate ratio is ignored. (C2-RATIO)
 
 ### Changed — `rdom-tui`
 

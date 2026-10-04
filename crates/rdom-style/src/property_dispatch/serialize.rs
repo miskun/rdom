@@ -243,7 +243,15 @@ pub fn serialize(name: &str, style: &TuiStyle) -> Option<String> {
             .aspect_ratio
             .as_ref()
             .and_then(specified)
-            .map(|r| format!("{}/{}", r.numerator, r.denominator)),
+            .map(|r| match r {
+                None => "auto".to_string(),
+                Some(r) => format!(
+                    "{}{} / {}",
+                    if r.auto { "auto " } else { "" },
+                    r.numerator,
+                    r.denominator
+                ),
+            }),
 
         // Layout — gap
         "gap" => style.gap.as_ref().and_then(specified).map(|g| match g {

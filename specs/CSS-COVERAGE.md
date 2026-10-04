@@ -71,10 +71,10 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 |---|---:|---:|---:|---:|---:|
 | 3.1 Syntax, cascade and inheritance (Syntax 3, Cascade 4/5, CSS 2.1 §6) | 18 | 1 | 0 | 2 | 21 |
 | 3.2 Custom properties (CSS Variables 1) | 6 | 0 | 0 | 1 | 7 |
-| 3.3 Values and units (Values 4) | 13 | 4 | 1 | 4 | 22 |
+| 3.3 Values and units (Values 4) | 14 | 3 | 1 | 4 | 22 |
 | 3.4 Color (Color 4 / 5) | 3 | 3 | 9 | 2 | 17 |
 | 3.5 Backgrounds and borders (Backgrounds 3, Borders 4) | 3 | 5 | 6 | 2 | 16 |
-| 3.6 Box model and sizing (Box 3, Sizing 3/4) | 2 | 4 | 3 | 0 | 9 |
+| 3.6 Box model and sizing (Box 3, Sizing 3/4) | 3 | 3 | 3 | 0 | 9 |
 | 3.7 Display and visibility (Display 3) | 1 | 0 | 8 | 2 | 11 |
 | 3.8 Flexbox and box alignment (Flexbox 1, Align 3) | 3 | 3 | 11 | 0 | 17 |
 | 3.9 Grid (Grid 1/2) | 0 | 0 | 10 | 0 | 10 |
@@ -93,7 +93,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 0 | 0 | 6 | 3 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **79** | **38** | **140** | **50** | **307** |
+| **Total** | **81** | **36** | **140** | **50** | **307** |
 
 Of the 191 Partial / Missing rows, **123 were not documented** in `DIVERGENCES.md` when audited (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3.
 
@@ -274,7 +274,7 @@ dropped:
 | `<resolution>`, `<frequency>` | N/A | Image resolution / aural values. | — | — |
 | `<string>` | Supported | In `content`. | — | `V/content.rs` |
 | `url()` / `<image>` / gradients / `image-set()` | N/A | No images (documented). | — | — |
-| `<ratio>` | Partial | `aspect-ratio` only, `<int> / <int>` (documented). | Yes | `V/number.rs::parse_aspect_ratio` |
+| `<ratio>` | Supported | One or two `<number [0,∞]>` terms, fractions and math functions included (C2-RATIO). | — | `V/number.rs::parse_aspect_ratio` |
 | `attr()` | Partial | In `content` only, no fallback, no type (`attr(x type(<length>))`, Values 5). | No | `V/content.rs` |
 | `<custom-ident>` | Supported | Counter names, transition-property idents. | — | `V/content.rs`, `TR` |
 
@@ -332,7 +332,7 @@ dropped:
 | `min-width` / `min-height` | Partial | `auto`, cells, `%`, `calc()` (C2-PERCENT); no intrinsic keywords (C5-INTRINSIC). | No | `V/length.rs::parse_min_size` |
 | `max-width` / `max-height` | Partial | Cells, `%`, `calc()` (C2-PERCENT); `none` (the initial value, C5-MINMAX-SIZE) and intrinsic keywords rejected. | No | `V/length.rs::parse_max_size` |
 | `box-sizing` | Missing | rdom is implicitly `border-box`; `content-box` (CSS initial) is not expressible. | No | `BLOCK/width.rs`, `FLEX` |
-| `aspect-ratio` | Partial | `<int> / <int>` only (documented). | Yes | `V/number.rs` |
+| `aspect-ratio` | Supported | `auto || <ratio>`; `auto && <ratio>` sizes the content box; degenerate ratios behave as `auto` (C2-RATIO). Cell-grid rounding documented. | — | `V/number.rs`, `FLEX/cross.rs` |
 | `contain-intrinsic-size` (+ longhands) | Missing | Placeholder size for `content-visibility: auto`. | No | `DISP`, layout |
 
 ### 3.7 Display and visibility (Display 3)

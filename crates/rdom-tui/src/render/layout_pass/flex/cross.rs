@@ -93,20 +93,47 @@ pub(super) fn place_cross(
 }
 
 /// Compute the cross-axis cell count from the main-axis cell count and
-/// an `aspect-ratio: w/h` value. `Row` direction: cross is height, so
-/// `height = width * h / w`. `Column` direction: cross is width, so
-/// `width = height * w / h`. Half-to-even rounding to integer cells.
-fn aspect_cross_from_main(main: u16, ratio: AspectRatio, direction: Direction) -> u16 {
-    let r = ratio.as_f32();
-    let cross_f = match direction {
-        Direction::Row => (main as f32) / r,
-        Direction::Column => (main as f32) * r,
+/// an `aspect-ratio` value (CSS Sizing 4 §5.1). `Row` direction: cross
+/// is height, so `height = width * h / w`. `Column` direction: cross is
+/// width, so `width = height * w / h`. The ratio sizes the border box
+/// (rdom's box-sizing box), or the content box for `auto && <ratio>` —
+/// the main size's padding and border come off first and the cross
+/// size's are added back. Half-to-even rounding to integer cells.
+/// `None` for a degenerate ratio, which behaves as `auto`.
+fn aspect_cross_from_main(
+    main: u16,
+    ratio: AspectRatio,
+    direction: Direction,
+    computed: &ComputedStyle,
+    cb_width: u16,
+) -> Option<u16> {
+    let r = ratio.value()?;
+    // (main-axis, cross-axis) padding + border, for the content box.
+    let (main_edges, cross_edges) = if ratio.auto {
+        let p = &computed.padding;
+        let b = &computed.border;
+        let horizontal =
+            p.left.resolve(cb_width) + p.right.resolve(cb_width) + b.left.cells() + b.right.cells();
+        let vertical =
+            p.top.resolve(cb_width) + p.bottom.resolve(cb_width) + b.top.cells() + b.bottom.cells();
+        match direction {
+            Direction::Row => (horizontal, vertical),
+            Direction::Column => (vertical, horizontal),
+        }
+    } else {
+        (0, 0)
     };
-    if cross_f.is_finite() {
-        cross_f.max(0.0).round_ties_even() as u16
+    let main = f32::from(main.saturating_sub(main_edges));
+    let cross_f = match direction {
+        Direction::Row => main / r,
+        Direction::Column => main * r,
+    };
+    let cross = if cross_f.is_finite() {
+        cross_f.max(0.0).round_ties_even().min(f32::from(u16::MAX)) as u16
     } else {
         0
-    }
+    };
+    Some(cross.saturating_add(cross_edges))
 }
 
 /// What the cross-axis resolver needs to know about the main axis and
@@ -175,11 +202,14 @@ fn resolve_cross_size(
             v.max(0).min(u16::MAX as i32) as u16
         }
         Size::Auto => {
-            if let Some(ratio) = computed.aspect_ratio
-                && !main_was_auto
-                && main_size > 0
+            if let Some(cross) = computed
+                .aspect_ratio
+                .filter(|_| !main_was_auto && main_size > 0)
+                .and_then(|ratio| {
+                    aspect_cross_from_main(main_size, ratio, direction, computed, container_width)
+                })
             {
-                aspect_cross_from_main(main_size, ratio, direction)
+                cross
             } else if computed.display == Display::InlineBlock {
                 // Cross-axis intrinsic measurement. `intrinsic_size`'s
                 // `direction` argument means "measure along this axis";

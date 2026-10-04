@@ -480,3 +480,36 @@ fn angles_feed_the_trigonometric_functions() {
         "sin 30°, cos 180°, tan 45°, sin 90°, sin 30°, cos 60°"
     );
 }
+
+// ── C2-RATIO ─────────────────────────────────────────────────────────
+
+/// CSS Values 4 §5.7: `<ratio> = <number [0,∞]> [ / <number [0,∞]> ]?`
+/// (a lone number is over 1, fractions allowed); CSS Sizing 4 §5.1:
+/// `aspect-ratio: auto || <ratio>` — with `auto` (and no natural ratio,
+/// as nothing in rdom has one) the ratio sizes the content box, and a
+/// degenerate ratio (a zero term) behaves as `auto`.
+#[test]
+fn aspect_ratio_takes_the_full_ratio_grammar() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let row = el(&mut dom, root, "row");
+    let names = ["a", "b", "c", "d", "e"];
+    let ids: Vec<NodeId> = names.iter().map(|c| el(&mut dom, row, c)).collect();
+    lay_out(
+        &mut dom,
+        ".row { display: flex; flex-direction: row; width: 100; height: 30 }
+         .a { width: 20; aspect-ratio: 2 }
+         .b { width: 20; aspect-ratio: 1.5 / 0.75 }
+         .c { width: 20; aspect-ratio: auto 2/1; padding: 0 4 }
+         .d { width: 20; aspect-ratio: 0 / 1 }
+         .e { width: 20; aspect-ratio: 2 / 1 auto }",
+        120,
+        40,
+    );
+    let h: Vec<u16> = ids.iter().map(|&id| rect(&dom, id).height).collect();
+    assert_eq!(
+        h,
+        [10, 10, 6, 30, 10],
+        "c: 12 content columns → 6 rows; d stretches"
+    );
+}

@@ -149,34 +149,53 @@ fn resolve_u16(expr: &crate::calc::CalcExpr, basis: u16) -> u16 {
     v.clamp(0, i32::from(u16::MAX)) as u16
 }
 
-/// `aspect-ratio: <w> / <h>` — preserved as the original integer
-/// numerator/denominator pair so the CSS round-trip (`set → serialize
-/// → set`) recovers the same value. Use [`AspectRatio::as_f32`] when
-/// you need the ratio as a float (e.g. for size resolution in the
-/// flex layout).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// An `aspect-ratio` ratio (CSS Sizing 4 §5.1): `<ratio>` (CSS Values 4
+/// §5.7, two non-negative numbers, the second 1 when omitted) and
+/// whether `auto` came with it. The `auto` keyword alone is no ratio —
+/// `None` where the style holds an `Option<AspectRatio>`.
+///
+/// A ratio with a zero term is *degenerate* and behaves as `auto`
+/// ([`AspectRatio::value`] is `None`).
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct AspectRatio {
-    pub numerator: u16,
-    pub denominator: u16,
+    /// The width term.
+    pub numerator: f32,
+    /// The height term.
+    pub denominator: f32,
+    /// `auto && <ratio>`: a replaced element's natural ratio would win
+    /// (rdom has none), and the ratio sizes the content box rather than
+    /// the border box.
+    pub auto: bool,
 }
 
 impl AspectRatio {
-    /// Construct from numerator/denominator. Both must be positive.
-    /// Returns `None` if either is zero.
-    pub fn new(numerator: u16, denominator: u16) -> Option<Self> {
-        if numerator == 0 || denominator == 0 {
-            None
-        } else {
-            Some(Self {
-                numerator,
-                denominator,
-            })
-        }
+    /// `numerator / denominator`, without `auto`. `None` when a term is
+    /// negative or not finite (CSS Values 4 §5.7: `<number [0,∞]>`).
+    pub fn new(numerator: f32, denominator: f32) -> Option<Self> {
+        let valid = |v: f32| v.is_finite() && v >= 0.0;
+        (valid(numerator) && valid(denominator)).then_some(Self {
+            numerator,
+            denominator,
+            auto: false,
+        })
     }
 
-    /// The ratio as a single `f32` — `numerator / denominator`.
+    /// This ratio with `auto` (the `auto && <ratio>` form) or without.
+    pub fn with_auto(mut self, auto: bool) -> Self {
+        self.auto = auto;
+        self
+    }
+
+    /// The ratio `numerator / denominator`, `None` when degenerate (a
+    /// zero term), which behaves as `auto` (CSS Sizing 4 §5.1).
+    pub fn value(self) -> Option<f32> {
+        (self.numerator > 0.0 && self.denominator > 0.0).then(|| self.numerator / self.denominator)
+    }
+
+    /// The ratio as a single `f32` — `numerator / denominator` (infinite
+    /// or NaN when degenerate; see [`Self::value`]).
     pub fn as_f32(self) -> f32 {
-        (self.numerator as f32) / (self.denominator as f32)
+        self.numerator / self.denominator
     }
 }
 

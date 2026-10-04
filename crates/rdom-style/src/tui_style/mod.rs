@@ -116,7 +116,7 @@ pub struct TuiStyle {
     /// `explicit * ratio` (height-from-width), rounded half-to-even
     /// to integer cells. When both axes are explicit, the ratio is
     /// ignored (CSS rule).
-    pub aspect_ratio: Option<Value<crate::layout::AspectRatio>>,
+    pub aspect_ratio: Option<Value<Option<crate::layout::AspectRatio>>>,
 
     // ── Layout ────────────────────────────────────────────────────────
     pub width: Option<Value<Size>>,

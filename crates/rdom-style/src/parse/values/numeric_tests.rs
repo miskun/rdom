@@ -392,3 +392,44 @@ fn angles_parse_to_degrees() {
     assert!(syntax.matches("calc(10deg + 1turn)"));
     assert!(!syntax.matches("45"));
 }
+
+// ── C2-RATIO ─────────────────────────────────────────────────────────
+
+/// CSS Values 4 §5.7 and CSS Sizing 4 §5.1: `aspect-ratio: auto ||
+/// <ratio>`, `<ratio>` one or two non-negative numbers; serialized with
+/// both terms (CSSOM: `16 / 9`).
+#[test]
+fn aspect_ratio_grammar_and_serialization() {
+    use crate::TuiStyle;
+    use crate::property_dispatch::{serialize, set};
+    for (value, expected) in [
+        ("auto", "auto"),
+        ("2", "2 / 1"),
+        ("16/9", "16 / 9"),
+        ("1.5 / 0.75", "1.5 / 0.75"),
+        ("auto 1.5", "auto 1.5 / 1"),
+        ("4 / 3 AUTO", "auto 4 / 3"),
+        ("0 / 1", "0 / 1"),
+        ("calc(16 / 9)", "1.7777778 / 1"),
+    ] {
+        let mut s = TuiStyle::default();
+        set("aspect-ratio", value, &mut s).unwrap_or_else(|e| panic!("{value}: {e:?}"));
+        assert_eq!(
+            serialize("aspect-ratio", &s).as_deref(),
+            Some(expected),
+            "{value}"
+        );
+    }
+    for bad in [
+        "-1",
+        "1 / -2",
+        "auto auto",
+        "1 / 2 / 3",
+        "2 auto 1",
+        "/ 2",
+        "1 /",
+    ] {
+        let mut s = TuiStyle::default();
+        assert!(set("aspect-ratio", bad, &mut s).is_err(), "{bad}");
+    }
+}

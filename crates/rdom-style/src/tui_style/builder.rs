@@ -91,16 +91,16 @@ impl TuiStyle {
     /// arguments panic. Use the CSS parser if your numerator or
     /// denominator are author-provided.
     pub fn aspect_ratio(mut self, w: u16, h: u16) -> Self {
-        let ratio = crate::layout::AspectRatio::new(w, h)
-            .expect("aspect_ratio: numerator and denominator must be positive");
-        self.aspect_ratio = Some(Value::Specified(ratio));
+        let ratio = crate::layout::AspectRatio::new(f32::from(w), f32::from(h))
+            .expect("u16 terms are finite and non-negative");
+        self.aspect_ratio = Some(Value::Specified(Some(ratio)));
         self
     }
     /// `aspect-ratio` with `!important`.
     pub fn aspect_ratio_important(mut self, w: u16, h: u16) -> Self {
-        let ratio = crate::layout::AspectRatio::new(w, h)
-            .expect("aspect_ratio: numerator and denominator must be positive");
-        self.aspect_ratio = Some(Value::Specified(ratio));
+        let ratio = crate::layout::AspectRatio::new(f32::from(w), f32::from(h))
+            .expect("u16 terms are finite and non-negative");
+        self.aspect_ratio = Some(Value::Specified(Some(ratio)));
         self.important |= ImportantMask::ASPECT_RATIO;
         self
     }

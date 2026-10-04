@@ -2,7 +2,7 @@
 //! constant `calc()`), `z-index` and `aspect-ratio`.
 
 use super::calc::{looks_like_calc, parse_calc};
-use super::numeric::{Range, number};
+use super::numeric::{Range, components, number};
 use crate::layout::ZIndex;
 use crate::parse::token::Token;
 
@@ -54,17 +54,26 @@ pub fn parse_z_index(value: &[Token]) -> Option<ZIndex> {
     }
 }
 
-/// `aspect-ratio: <w> / <h>`. v1 surface: `<positive-int>/<positive-int>`
-/// (e.g. `16/9`, `4/3`, `1/1`). Stored as the integer pair so the
-/// round-trip recovers the original form. `auto` keyword and the
-/// single-number CSS form are deferred polish.
-pub fn parse_aspect_ratio(value: &[Token]) -> Option<crate::layout::AspectRatio> {
-    match value {
-        [Token::Number(w), Token::Delim('/'), Token::Number(h)] if *w > 0 && *h > 0 => {
-            crate::layout::AspectRatio::new(u16::try_from(*w).ok()?, u16::try_from(*h).ok()?)
-        }
-        _ => None,
-    }
+/// `aspect-ratio: auto || <ratio>` (CSS Sizing 4 §5.1), `<ratio> =
+/// <number [0,∞]> [ / <number [0,∞]> ]?` (CSS Values 4 §5.7). `auto`
+/// alone is `None` (no ratio).
+pub fn parse_aspect_ratio(value: &[Token]) -> Option<Option<crate::layout::AspectRatio>> {
+    let is_auto = |c: &[Token]| matches!(c, [Token::Ident(s)] if s.eq_ignore_ascii_case("auto"));
+    let parts = components(value)?;
+    let (auto, ratio) = match parts.as_slice() {
+        [first, rest @ ..] if is_auto(first) => (true, rest),
+        [rest @ .., last] if is_auto(last) => (true, rest),
+        all => (false, all),
+    };
+    let term = |c: &[Token]| number(c, Range::NonNegative).map(|v| v as f32);
+    let (numerator, denominator) = match ratio {
+        [] if auto => return Some(None),
+        [n] => (term(n)?, 1.0),
+        [n, [Token::Delim('/')], d] => (term(n)?, term(d)?),
+        _ => return None,
+    };
+    let ratio = crate::layout::AspectRatio::new(numerator, denominator)?;
+    Some(Some(ratio.with_auto(auto)))
 }
 
 #[cfg(test)]

@@ -467,14 +467,17 @@ fn css_wide_serialization_requires_all_owned_fields_to_agree() {
     assert_eq!(serialize("overflow-y", &style).as_deref(), Some("initial"));
 }
 
-/// `aspect-ratio` was missed by the checked-`u16` sweep.
+/// `aspect-ratio` was missed by the checked-`u16` sweep; since C2-RATIO
+/// its terms are `<number>`s (CSS Values 4 §5.7), so a large term is
+/// kept as written, never wrapped.
 #[test]
-fn aspect_ratio_out_of_range_is_rejected_not_wrapped() {
+fn aspect_ratio_large_terms_are_kept_not_wrapped() {
+    let mut style = TuiStyle::new();
+    set("aspect-ratio", "70000 / 1", &mut style).unwrap();
     assert_eq!(
-        set("aspect-ratio", "70000 / 1", &mut TuiStyle::new()),
-        Err(DispatchError::InvalidValue)
+        serialize("aspect-ratio", &style).as_deref(),
+        Some("70000 / 1")
     );
-    set("aspect-ratio", "16 / 9", &mut TuiStyle::new()).unwrap();
 }
 
 /// CSS Color 4 §11.1: out-of-range opacity is valid and clamps.

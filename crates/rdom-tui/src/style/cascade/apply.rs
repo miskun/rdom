@@ -115,7 +115,7 @@ pub(super) fn apply_style(
             );
         )*};
     }
-    // `min-*` / `max-*` / `aspect-ratio`: `Option` fields, `None` = unset.
+    // `min-*` / `max-*`: `Option` fields, `None` = unset.
     macro_rules! optional {
         ($($field:ident: $mask:ident),* $(,)?) => {$(
             apply_optional(
@@ -212,8 +212,10 @@ pub(super) fn apply_style(
         max_width: MAX_WIDTH,
         min_height: MIN_HEIGHT,
         max_height: MAX_HEIGHT,
-        aspect_ratio: ASPECT_RATIO,
     );
+    // `aspect-ratio`: the declared value is the computed `Option` itself
+    // (`auto` alone is `None`).
+    value!(aspect_ratio: ASPECT_RATIO);
     value!(
         padding: PADDING,
         margin: MARGIN,

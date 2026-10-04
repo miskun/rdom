@@ -2309,7 +2309,7 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
     parent.max_width = Some(crate::layout::MaxSize::Cells(9));
     parent.min_height = Some(MinSize::Cells(1));
     parent.max_height = Some(crate::layout::MaxSize::Cells(9));
-    parent.aspect_ratio = AspectRatio::new(4, 3);
+    parent.aspect_ratio = AspectRatio::new(4.0, 3.0);
     parent.padding = Padding::all(1);
     parent.margin = Margin::all_cells(1);
     parent.gap = rdom_style::layout::GapValue::Cells(2);
