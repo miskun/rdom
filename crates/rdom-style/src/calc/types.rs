@@ -50,6 +50,7 @@ impl CalcExpr {
         match self {
             CalcExpr::Number(_) | CalcExpr::None => Some(Number),
             CalcExpr::Length(_) | CalcExpr::Percent(_) => Some(Length),
+            CalcExpr::Dimension { unit, .. } => Some(unit.kind()),
             CalcExpr::Binary { op, lhs, rhs } => {
                 let (l, r) = (lhs.kind()?, rhs.kind()?);
                 match op {

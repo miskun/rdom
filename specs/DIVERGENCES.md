@@ -19,7 +19,7 @@ These are intrinsic to terminals. They will not change.
 - **Integer cells only.** No subpixel positioning, no fractional widths, no anti-aliasing. Coordinates are `u16` cells.
 - **Monospaced advance.** Variable-width fonts are out of scope.
 - **No images, no SVG, no pixel painting.** `<canvas>` is a cell-painting escape hatch via `RenderContext`, not a pixel-painting surface.
-- **Length units.** Sizing accepts cells (unitless integers), rdom's flex `fr` unit, and `%` (resolves at layout time against the basis each property's spec names). The absolute units (`px`, `cm`, `mm`, `Q`, `in`, `pt`, `pc`) and the font-relative units (`em`, `rem`, `ex`, `cap`, `ic`) depend on a pixel or a font size the terminal grid does not have: a declaration using them is dropped as an invalid value, with a warning. `ch`, `lh` / `rlh` and the viewport units (`vw`, `vh`, `vmin`, `vmax`, …) are **not** in that group — `1ch` is exactly one column on a monospaced grid, and `vw` / `vh` are percentages of the terminal size rdom already tracks. They are dropped the same way today, as a gap, not a medium constraint (C2-CH, C2-LH, C2-VIEWPORT in §3).
+- **Length units.** Sizing accepts cells (unitless integers), rdom's flex `fr` unit, `%` (resolves at layout time against the basis each property's spec names) and `ch` (exactly one column on a monospaced grid; a fraction rounds onto the grid where the value becomes a length). The absolute units (`px`, `cm`, `mm`, `Q`, `in`, `pt`, `pc`) and the font-relative units (`em`, `rem`, `ex`, `cap`, `ic`) depend on a pixel or a font size the terminal grid does not have: a declaration using them is dropped as an invalid value, with a warning. `lh` / `rlh` and the viewport units (`vw`, `vh`, `vmin`, `vmax`, …) are **not** in that group — `vw` / `vh` are percentages of the terminal size rdom already tracks. They are dropped the same way today, as a gap, not a medium constraint (C2-LH, C2-VIEWPORT in §3).
 - **Color.** `Color::Rgb` emits truecolor SGR sequences unconditionally; there is no `COLORTERM` runtime autodetection. A separate 256-color fallback exists as an explicit code path.
 - **UA stylesheet glyphs assume BMP box-drawing support** (U+25xx, U+250x, U+256x). Terminals without these blocks are out of scope.
 - **No bidirectional text.** The Unicode bidi algorithm and `unicode-bidi` are out of scope; `direction` / `writing-mode` are scheduled only for the forms a terminal can render (C5-WRITING, §3). Soft hyphens are a gap, not a constraint (C9-BREAKING, §3).
@@ -235,7 +235,6 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 
 ### Values and units
 
-- `ch` — C2-CH
 - `lh` / `rlh` — C2-LH
 - `vw` / `vh` / `vmin` / `vmax` and the `sv*` / `lv*` / `dv*` / `vi` / `vb` variants — C2-VIEWPORT
 - `cqw` / `cqh` / `cqi` / `cqb` / `cqmin` / `cqmax` — C14-CONTAINER

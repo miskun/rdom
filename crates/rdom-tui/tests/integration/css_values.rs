@@ -353,3 +353,24 @@ fn trig_exponential_functions_and_constants() {
         [(10, 7), (10, 5), (8, 9), (20, 5), (4, 4), (3, 1), (0, 0)]
     );
 }
+
+// ── C2-CH ────────────────────────────────────────────────────────────
+
+/// CSS Values 4 §6.1.1: `ch` is the advance of the "0" glyph — exactly
+/// one column on a monospaced character grid. It works wherever a
+/// length does, fractions rounding onto the grid where the value
+/// becomes a length.
+#[test]
+fn ch_is_one_column() {
+    let r = block_rects(
+        ".a { width: 10ch; height: 1 }
+         .b { width: calc(50% - 2.5ch); height: 1 }
+         .c { width: 4CH; margin-left: -1.5ch; height: 1 }
+         .d { position: absolute; left: 2ch; top: 0; width: max(3ch, 10%); height: 1 }",
+        &["a", "b", "c", "d"],
+    );
+    assert_eq!(r[0].width, 10);
+    assert_eq!(r[1].width, 18, "20 - 2.5 = 17.5, ties to even");
+    assert_eq!((r[2].width, r[2].x), (4, -2), "-1.5ch rounds to -2");
+    assert_eq!((r[3].x, r[3].width), (2, 4));
+}

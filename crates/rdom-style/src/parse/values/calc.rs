@@ -2,7 +2,7 @@
 //! descent parser from tokens to a [`CalcExpr`] AST. The evaluator lives
 //! in [`crate::calc`].
 
-use crate::calc::{CalcExpr, CalcOp, MathFunction, RoundingStrategy};
+use crate::calc::{CalcExpr, CalcOp, CalcUnit, MathFunction, RoundingStrategy};
 use crate::parse::token::Token;
 
 // Recursive-descent over the token stream. Grammar:
@@ -25,7 +25,7 @@ use crate::parse::token::Token;
 //   sum        = product (('+' | '-') product)*
 //   product    = factor (('*' | '/') factor)*
 //   factor     = leaf | '(' sum ')' | math | constant
-//   leaf       = Number | Length | Percentage
+//   leaf       = Number | Percentage | Dimension (a `CalcUnit`)
 //
 // The parsed tree is then type-checked (`CalcExpr::kind`, Values 4
 // §10.9); one that does not type-check is invalid.
@@ -87,6 +87,14 @@ fn constant(name: &str) -> Option<f64> {
         .iter()
         .find(|(n, _)| n.eq_ignore_ascii_case(name))
         .map(|(_, v)| *v)
+}
+
+/// A dimension leaf, `None` for a unit rdom does not take.
+fn dimension(value: f64, unit: &str) -> Option<CalcExpr> {
+    Some(CalcExpr::Dimension {
+        value,
+        unit: CalcUnit::parse(unit)?,
+    })
 }
 
 /// Parser cursor over a `&[Token]`. Tracks position only.
@@ -172,6 +180,11 @@ impl<'a> CalcParser<'a> {
                 self.advance();
                 Some(CalcExpr::Percent(n))
             }
+            Token::Dimension { value, unit, .. } => {
+                let leaf = dimension(*value, unit)?;
+                self.advance();
+                Some(leaf)
+            }
             Token::Delim('-') => {
                 // Unary minus — accept `-5` as a literal.
                 self.advance();
@@ -179,6 +192,7 @@ impl<'a> CalcParser<'a> {
                     Token::Number(n) => Some(CalcExpr::Number(-f64::from(*n))),
                     Token::Float(f) => Some(CalcExpr::Number(-*f)),
                     Token::Percentage(n) => Some(CalcExpr::Percent(-*n)),
+                    Token::Dimension { value, unit, .. } => dimension(-*value, unit),
                     _ => None,
                 }
             }

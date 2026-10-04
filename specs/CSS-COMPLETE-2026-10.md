@@ -82,7 +82,7 @@ row comes from.
 | C2-MINMAX | `min()` / `max()` / `clamp()` | done |
 | C2-STEPPED | `round()` / `mod()` / `rem()` / `abs()` / `sign()` | done |
 | C2-TRIG | `sin()` … `atan2()`, `pow()` / `sqrt()` / `hypot()` / `log()` / `exp()` | done |
-| C2-CH | `ch` (one column) | |
+| C2-CH | `ch` (one column) | done |
 | C2-LH | `lh` / `rlh` (one row × `line-height`; lands with C9-LINE-HEIGHT) | |
 | C2-VIEWPORT | `vw` / `vh` / `vmin` / `vmax` and the `sv*` / `lv*` / `dv*` / `vi` / `vb` variants (terminal size) | |
 | C2-ANGLE | `<angle>` (`deg` / `grad` / `rad` / `turn`) | |
@@ -440,3 +440,6 @@ row comes from.
   Angles are radians inside the evaluator. `<number>` properties (`opacity`, flex factors) take math
   functions of type `<number>`. Constants are numbers once parsed (`pi` serializes as its value).
   `calc/mod.rs` split into `functions.rs` (the functions and their evaluation) and `types.rs`.
+- 2026-10-04 — C2-CH: `CalcExpr::Dimension { value, unit: CalcUnit }` (`calc/units.rs`) is the leaf for
+  every unit Phase 2 adds; `ch` folds to cells outside a percent-bearing expression. A registered
+  `<length>` (`@property`) takes unit dimensions too.

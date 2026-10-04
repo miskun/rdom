@@ -237,3 +237,48 @@ fn number_properties_take_number_math_functions() {
         "an angle is no <number>"
     );
 }
+
+// ── C2-CH ────────────────────────────────────────────────────────────
+
+/// CSS Values 4 §6.1.1: `ch` is one column — a length, ASCII
+/// case-insensitive, folded to cells outside a percent-bearing
+/// expression and kept as written inside one.
+#[test]
+fn ch_unit_parses_as_one_column() {
+    use crate::TuiStyle;
+    use crate::property_dispatch::{serialize, set};
+    assert_eq!(
+        length_percentage(&t("3ch"), Range::NonNegative),
+        Some(LengthPercentage::Cells(3.0))
+    );
+    assert_eq!(
+        length_percentage(&t("-1.5CH"), Range::Any),
+        Some(LengthPercentage::Cells(-1.5))
+    );
+    assert_eq!(
+        length_percentage(&t("calc(2ch * 3)"), Range::Any),
+        Some(LengthPercentage::Cells(6.0))
+    );
+    let mut s = TuiStyle::default();
+    set("width", "calc(50% - 2ch)", &mut s).unwrap();
+    assert_eq!(serialize("width", &s).as_deref(), Some("calc(50% - 2ch)"));
+    set("width", "10ch", &mut s).unwrap();
+    assert_eq!(serialize("width", &s).as_deref(), Some("10"));
+    for bad in ["-1ch", "calc(2ch * 3ch)", "5px", "sin(1ch)"] {
+        assert_eq!(
+            length_percentage(&t(bad), Range::NonNegative),
+            None,
+            "{bad}"
+        );
+    }
+}
+
+/// CSS Properties and Values 1 §5.1: a registered `<length>` takes any
+/// `<length>` — a `ch` dimension and a math function holding one.
+#[test]
+fn registered_length_syntax_takes_ch() {
+    let syntax = crate::PropertySyntax::parse("<length>").unwrap();
+    assert!(syntax.matches("3ch"));
+    assert!(syntax.matches("calc(2ch + 1)"));
+    assert!(!syntax.matches("3px"));
+}

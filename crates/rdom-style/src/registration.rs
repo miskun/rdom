@@ -356,7 +356,10 @@ fn consume(component: &SyntaxComponent, tokens: &[Token], at: usize) -> Option<u
         SyntaxComponent::Length | SyntaxComponent::LengthPercentage => {
             let percent = *component == SyntaxComponent::LengthPercentage;
             if let Some(end) = signed(&|t| {
-                matches!(t, Token::Number(_)) || (percent && matches!(t, Token::Percentage(_)))
+                matches!(t, Token::Number(_))
+                    || (percent && matches!(t, Token::Percentage(_)))
+                    || matches!(t, Token::Dimension { unit, .. }
+                        if crate::calc::CalcUnit::parse(unit).is_some_and(|u| u.kind().is_length()))
             }) {
                 return Some(end);
             }

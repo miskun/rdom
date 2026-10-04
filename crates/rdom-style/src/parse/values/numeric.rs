@@ -10,7 +10,7 @@
 //! here reaches every property at once.
 
 use super::calc::{looks_like_calc, parse_calc};
-use crate::calc::{CalcExpr, CalcKind, ResolveCtx};
+use crate::calc::{CalcExpr, CalcKind, CalcUnit, ResolveCtx};
 use crate::parse::token::Token;
 
 /// Which signs a property accepts for a literal (CSS Values 4 §4.1:
@@ -57,7 +57,8 @@ pub(crate) fn cells_i32(v: f64) -> i32 {
 }
 
 /// Parse one component value as a `<length-percentage>`: a bare
-/// integer (cells), a percentage, or a math function. A leading `-`
+/// integer (cells), a dimension in a length unit ([`CalcUnit`]), a
+/// percentage, or a math function. A leading `-`
 /// is the literal's sign (the tokenizer emits it as a delimiter).
 pub(crate) fn length_percentage(component: &[Token], range: Range) -> Option<LengthPercentage> {
     let (negative, rest) = match component {
@@ -71,6 +72,17 @@ pub(crate) fn length_percentage(component: &[Token], range: Range) -> Option<Len
     match rest {
         [Token::Number(n)] => Some(LengthPercentage::Integer(if negative { -*n } else { *n })),
         [Token::Percentage(p)] => Some(LengthPercentage::Expr(CalcExpr::Percent(sign * *p))),
+        [Token::Dimension { value, unit, .. }] => {
+            let unit = CalcUnit::parse(unit).filter(|u| u.kind().is_length())?;
+            let value = sign * *value;
+            Some(if unit.needs_context() {
+                LengthPercentage::Expr(CalcExpr::Dimension { value, unit })
+            } else {
+                LengthPercentage::Cells(
+                    CalcExpr::Dimension { value, unit }.resolve_f64(&ResolveCtx::new(0)),
+                )
+            })
+        }
         _ if !negative && looks_like_calc(rest) => {
             let expr = parse_calc(rest).filter(|e| e.kind().is_some_and(|k| k.is_length()))?;
             Some(if expr.contains_percent() {

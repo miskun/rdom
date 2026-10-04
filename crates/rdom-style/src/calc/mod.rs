@@ -14,6 +14,8 @@
 //! - **Number** — bare numeric literal. A bare number doubles as rdom's
 //!   cell (DIVERGENCES §1), so `calc(100% - 4)` subtracts four cells.
 //! - **Length** — integer cells. Negative permitted.
+//! - **Dimension** — a number with a unit ([`CalcUnit`]): `ch` is a
+//!   column.
 //! - **Percentage** — resolved against a containing-block axis at
 //!   layout time. The axis depends on which property the expression
 //!   appears in (`width` → parent content width, `top` → parent
@@ -30,10 +32,12 @@ use std::fmt;
 
 mod functions;
 mod types;
+mod units;
 
 use functions::eval_function;
 pub use functions::{MathFunction, RoundingStrategy};
 pub use types::CalcKind;
+pub use units::CalcUnit;
 
 /// One operator in a calc() expression.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -73,6 +77,8 @@ pub enum CalcExpr {
         lhs: Box<CalcExpr>,
         rhs: Box<CalcExpr>,
     },
+    /// A number with a unit (`2ch`) — see [`CalcUnit`].
+    Dimension { value: f64, unit: CalcUnit },
     /// A math function over its arguments.
     Function {
         func: MathFunction,
@@ -129,6 +135,7 @@ impl CalcExpr {
             CalcExpr::Length(c) => f64::from(*c),
             CalcExpr::Percent(p) => (*p / 100.0) * f64::from(cx.percent_basis),
             CalcExpr::None => f64::NAN,
+            CalcExpr::Dimension { value, unit } => unit.canonical(*value, cx),
             CalcExpr::Binary { op, lhs, rhs } => {
                 let l = lhs.resolve_f64(cx);
                 let r = rhs.resolve_f64(cx);
@@ -165,7 +172,10 @@ impl CalcExpr {
     pub fn contains_percent(&self) -> bool {
         match self {
             CalcExpr::Percent(_) => true,
-            CalcExpr::Number(_) | CalcExpr::Length(_) | CalcExpr::None => false,
+            CalcExpr::Number(_)
+            | CalcExpr::Length(_)
+            | CalcExpr::None
+            | CalcExpr::Dimension { .. } => false,
             CalcExpr::Binary { lhs, rhs, .. } => lhs.contains_percent() || rhs.contains_percent(),
             CalcExpr::Function { args, .. } => args.iter().any(CalcExpr::contains_percent),
         }

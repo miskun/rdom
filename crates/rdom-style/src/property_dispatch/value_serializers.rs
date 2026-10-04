@@ -160,6 +160,13 @@ pub(super) fn serialize_calc(expr: &crate::calc::CalcExpr) -> String {
         }
         CalcExpr::Length(c) => format!("{c}"),
         CalcExpr::None => "none".to_string(),
+        CalcExpr::Dimension { value, unit } => {
+            format!(
+                "{}{}",
+                serialize_calc(&CalcExpr::Number(*value)),
+                unit.css_name()
+            )
+        }
         CalcExpr::Function { func, args } => {
             let mut parts: Vec<String> = Vec::with_capacity(args.len() + 1);
             if let crate::calc::MathFunction::Round(strategy) = func
