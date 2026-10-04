@@ -502,3 +502,10 @@ row comes from.
   three `h2::before`-numbered headings reads "3. " (was "1. "); `restyle_vars` keeping a root `h2` and
   a `div` of two reads "4. " for the next; a kept `div`'s `::after` counts after its children; a kept
   `div::before { counter-reset }` scopes its children (green before the fix too — an order guard).
+- 2026-10-05 — C2G-CALC-DEPTH: the calc parser caps nesting (`MAX_CALC_NESTING` = 32 math
+  functions / parentheses; the parser recursed ~4 frames per level) and tree depth
+  (`MAX_CALC_DEPTH` = 256, tracked as nodes are built, so an over-deep chain is rejected before it
+  exists and nothing — type check, evaluation, `absolutize`, serialization, `Drop` — ever walks one).
+  Chosen over an iterative `Drop` / balanced trees: one bound covers every walker, `-` and `/` do not
+  re-associate, and 256 operands is far past hand-written CSS. A run of unary `+` is a loop. Red: a
+  20 000-level `attr()` value aborted the test process (stack overflow); green: invalid, fallback.

@@ -229,3 +229,61 @@ fn parse_length_carries_percent_bearing_calc_as_calc_variant() {
         other => panic!("expected Length::Calc, got {other:?}"),
     }
 }
+
+// ── C2G-CALC-DEPTH ───────────────────────────────────────────────────
+
+fn tokens(src: &str) -> Vec<Token> {
+    crate::parse::token::tokenize(src).unwrap()
+}
+
+/// `calc(` opened `n` times around `1`.
+fn nested_calcs(n: usize) -> String {
+    format!("{}1{}", "calc(".repeat(n), ")".repeat(n))
+}
+
+/// CSS Values 4 §10 sets no nesting limit, and math functions take
+/// attribute data (`attr()` with `type(<length>)`, Values 5 §8.7), so
+/// the parser bounds its recursion: [`MAX_CALC_NESTING`] levels of math
+/// functions and parentheses parse, one more is invalid.
+#[test]
+fn nesting_up_to_the_cap_parses_and_one_more_is_invalid() {
+    let ok = parse_calc(&tokens(&nested_calcs(MAX_CALC_NESTING))).expect("at the cap");
+    assert_eq!(ok.resolve(&crate::calc::ResolveCtx::new(0)), 1);
+    assert_eq!(
+        parse_calc(&tokens(&nested_calcs(MAX_CALC_NESTING + 1))),
+        None
+    );
+    let parens = format!(
+        "calc({}1{})",
+        "(".repeat(MAX_CALC_NESTING),
+        ")".repeat(MAX_CALC_NESTING)
+    );
+    assert_eq!(parse_calc(&tokens(&parens)), None, "parentheses count too");
+}
+
+/// Hostile nesting far past the cap is rejected without exhausting the
+/// stack (it used to recurse once per level and abort the process).
+#[test]
+fn deep_nesting_is_rejected_without_overflow() {
+    assert_eq!(parse_calc(&tokens(&nested_calcs(100_000))), None);
+    let parens = format!("calc({}1{})", "(".repeat(100_000), ")".repeat(100_000));
+    assert_eq!(parse_calc(&tokens(&parens)), None);
+}
+
+/// A flat chain builds a left-deep tree as deep as it is long, and every
+/// walker — the type check, evaluation, viewport folding, drop —
+/// recurses down it. A 100 000-term `1 + 1 + …` is rejected (deeper than
+/// [`MAX_CALC_DEPTH`]) without overflowing; a chain within the cap
+/// parses and evaluates.
+#[test]
+fn long_flat_chains_do_not_overflow() {
+    let chain = |n: usize| format!("calc({})", vec!["1"; n].join(" + "));
+    assert_eq!(parse_calc(&tokens(&chain(100_000))), None);
+    let products = format!("calc({})", vec!["1"; 100_000].join(" * "));
+    assert_eq!(parse_calc(&tokens(&products)), None);
+    let within = parse_calc(&tokens(&chain(MAX_CALC_DEPTH))).expect("within the cap");
+    assert_eq!(
+        within.resolve(&crate::calc::ResolveCtx::new(0)),
+        MAX_CALC_DEPTH as i32
+    );
+}

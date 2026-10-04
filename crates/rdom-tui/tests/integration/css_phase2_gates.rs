@@ -93,3 +93,31 @@ fn decimal_shrink_factors_summing_to_one_absorb_the_overflow() {
     );
     assert_eq!(w.iter().sum::<u16>(), 80, "{w:?}");
 }
+
+// ── C2G-CALC-DEPTH ───────────────────────────────────────────────────
+
+/// Attribute data reaches the math-function parser through `attr()`
+/// (CSS Values 5 §8.7, `type(<length>)`). A hostile attribute nesting
+/// 20 000 `calc(` levels — or chaining 30 000 terms — is an invalid
+/// `<length>`, so the fallback applies; it used to exhaust the stack
+/// and abort the process (with the terminal left in raw mode).
+#[test]
+fn hostile_attr_calc_is_invalid_not_a_stack_overflow() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let nested = el(&mut dom, root, "a");
+    let chained = el(&mut dom, root, "a");
+    let n = 20_000;
+    let deep = format!("{}1{}", "calc(".repeat(n), ")".repeat(n));
+    dom.set_attribute(nested, "data-w", &deep).unwrap();
+    let flat = format!("calc({})", vec!["1"; 30_000].join(" + "));
+    dom.set_attribute(chained, "data-w", &flat).unwrap();
+    lay_out(
+        &mut dom,
+        ".a { width: attr(data-w type(<length>), 7); height: 1 }",
+        40,
+        5,
+    );
+    assert_eq!(rect(&dom, nested).width, 7, "fallback");
+    assert_eq!(rect(&dom, chained).width, 7, "fallback");
+}

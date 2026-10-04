@@ -97,15 +97,82 @@ fn dimension(value: f64, unit: &str) -> Option<CalcExpr> {
     })
 }
 
-/// Parser cursor over a `&[Token]`. Tracks position only.
+/// How many math functions and parentheses may nest in one value.
+///
+/// CSS Values 4 §10 sets no limit, but math functions take attribute
+/// data (`attr()` with `type(<length>)`, Values 5 §8.7), and the parser
+/// recurses once per level: a hostile attribute could exhaust the stack
+/// and abort the process. 32 levels is far past any hand-written value;
+/// a deeper one is invalid, like any other parse failure.
+pub const MAX_CALC_NESTING: usize = 32;
+
+/// How deep a parsed expression tree may be (a leaf is depth 1).
+///
+/// Every walker of a [`CalcExpr`] — the type check, evaluation, viewport
+/// folding, serialization, drop — recurses down the tree, and a flat
+/// chain (`1 + 1 + 1 …`) builds a left-deep tree as deep as it is long.
+/// Capping the depth bounds them all: a chain of up to 256 operands
+/// parses, a longer one is invalid. (A tree built in Rust is the
+/// builder's to bound.)
+pub const MAX_CALC_DEPTH: usize = 256;
+
+/// A parsed sub-expression and the depth of its tree.
+struct Node {
+    expr: CalcExpr,
+    depth: usize,
+}
+
+impl Node {
+    fn leaf(expr: CalcExpr) -> Node {
+        Node { expr, depth: 1 }
+    }
+
+    /// `None` when the result would be deeper than [`MAX_CALC_DEPTH`].
+    fn binary(op: CalcOp, lhs: Node, rhs: Node) -> Option<Node> {
+        let depth = 1 + lhs.depth.max(rhs.depth);
+        (depth <= MAX_CALC_DEPTH).then(|| Node {
+            expr: CalcExpr::binary(op, lhs.expr, rhs.expr),
+            depth,
+        })
+    }
+
+    /// `None` when the result would be deeper than [`MAX_CALC_DEPTH`].
+    fn function(func: MathFunction, args: Vec<Node>) -> Option<Node> {
+        let depth = 1 + args.iter().map(|a| a.depth).max().unwrap_or(0);
+        (depth <= MAX_CALC_DEPTH).then(|| Node {
+            expr: CalcExpr::function(func, args.into_iter().map(|a| a.expr).collect()),
+            depth,
+        })
+    }
+}
+
+/// Parser cursor over a `&[Token]`: the position and the current
+/// nesting of math functions and parentheses.
 struct CalcParser<'a> {
     tokens: &'a [Token],
     pos: usize,
+    nesting: usize,
 }
 
 impl<'a> CalcParser<'a> {
     fn new(tokens: &'a [Token]) -> Self {
-        Self { tokens, pos: 0 }
+        Self {
+            tokens,
+            pos: 0,
+            nesting: 0,
+        }
+    }
+
+    /// Parse one nested level (a math function's body, a parenthesized
+    /// sum) with `inner`; `None` past [`MAX_CALC_NESTING`].
+    fn nested(&mut self, inner: impl FnOnce(&mut Self) -> Option<Node>) -> Option<Node> {
+        if self.nesting >= MAX_CALC_NESTING {
+            return None;
+        }
+        self.nesting += 1;
+        let out = inner(self);
+        self.nesting -= 1;
+        out
     }
 
     fn peek(&self) -> Option<&'a Token> {
@@ -125,7 +192,7 @@ impl<'a> CalcParser<'a> {
         (self.advance()? == expected).then_some(())
     }
 
-    fn parse_sum(&mut self) -> Option<CalcExpr> {
+    fn parse_sum(&mut self) -> Option<Node> {
         let mut lhs = self.parse_product()?;
         loop {
             let op = match self.peek() {
@@ -135,12 +202,12 @@ impl<'a> CalcParser<'a> {
             };
             self.advance();
             let rhs = self.parse_product()?;
-            lhs = CalcExpr::binary(op, lhs, rhs);
+            lhs = Node::binary(op, lhs, rhs)?;
         }
         Some(lhs)
     }
 
-    fn parse_product(&mut self) -> Option<CalcExpr> {
+    fn parse_product(&mut self) -> Option<Node> {
         let mut lhs = self.parse_factor()?;
         loop {
             let op = match self.peek() {
@@ -153,77 +220,62 @@ impl<'a> CalcParser<'a> {
             // CSS Values 4 §10.9: dividing by a literal zero makes the
             // whole `calc()` invalid at parse time — never a silent 0
             // at layout time.
-            if op == CalcOp::Div && matches!(rhs, CalcExpr::Number(z) if z == 0.0) {
+            if op == CalcOp::Div && matches!(rhs.expr, CalcExpr::Number(z) if z == 0.0) {
                 return None;
             }
-            lhs = CalcExpr::binary(op, lhs, rhs);
+            lhs = Node::binary(op, lhs, rhs)?;
         }
         Some(lhs)
     }
 
-    fn parse_factor(&mut self) -> Option<CalcExpr> {
-        match self.peek()? {
+    fn parse_factor(&mut self) -> Option<Node> {
+        // Unary plus — accept and ignore (a loop: a run of them must not
+        // recurse).
+        while self.peek() == Some(&Token::Delim('+')) {
+            self.advance();
+        }
+        let leaf = match self.peek()? {
             // A bare number is a `<number>` leaf; in a length property
             // it reads as cells (rdom's unitless length).
-            Token::Number(n) => {
-                let n = *n;
-                self.advance();
-                Some(CalcExpr::Number(f64::from(n)))
-            }
-            Token::Float(f) => {
-                let f = *f;
-                self.advance();
-                Some(CalcExpr::Number(f))
-            }
-            Token::Percentage(n) => {
-                let n = *n;
-                self.advance();
-                Some(CalcExpr::Percent(n))
-            }
-            Token::Dimension { value, unit, .. } => {
-                let leaf = dimension(*value, unit)?;
-                self.advance();
-                Some(leaf)
-            }
+            Token::Number(n) => CalcExpr::Number(f64::from(*n)),
+            Token::Float(f) => CalcExpr::Number(*f),
+            Token::Percentage(n) => CalcExpr::Percent(*n),
+            Token::Dimension { value, unit, .. } => dimension(*value, unit)?,
             Token::Delim('-') => {
                 // Unary minus — accept `-5` as a literal.
                 self.advance();
-                match self.advance()? {
+                return match self.advance()? {
                     Token::Number(n) => Some(CalcExpr::Number(-f64::from(*n))),
                     Token::Float(f) => Some(CalcExpr::Number(-*f)),
                     Token::Percentage(n) => Some(CalcExpr::Percent(-*n)),
                     Token::Dimension { value, unit, .. } => dimension(-*value, unit),
                     _ => None,
                 }
-            }
-            Token::Delim('+') => {
-                // Unary plus — accept and ignore.
-                self.advance();
-                self.parse_factor()
+                .map(Node::leaf);
             }
             Token::LParen => {
                 self.advance();
-                let inner = self.parse_sum()?;
-                self.expect(&Token::RParen)?;
-                Some(inner)
+                return self.nested(|p| {
+                    let inner = p.parse_sum()?;
+                    p.expect(&Token::RParen)?;
+                    Some(inner)
+                });
             }
             Token::Function(name) => {
                 let func = math_function(name)?;
                 self.advance();
-                self.parse_function_body(func)
+                return self.nested(|p| p.parse_function_body(func));
             }
-            Token::Ident(name) => {
-                let value = constant(name)?;
-                self.advance();
-                Some(CalcExpr::Number(value))
-            }
-            _ => None,
-        }
+            Token::Ident(name) => CalcExpr::Number(constant(name)?),
+            _ => return None,
+        };
+        self.advance();
+        Some(Node::leaf(leaf))
     }
 
     /// The arguments of a math function and its closing `)`, the
     /// function token already consumed.
-    fn parse_function_body(&mut self, func: Option<MathFunction>) -> Option<CalcExpr> {
+    fn parse_function_body(&mut self, func: Option<MathFunction>) -> Option<Node> {
         let expr = match func {
             None => self.parse_sum()?,
             Some(f @ (MathFunction::Min | MathFunction::Max | MathFunction::Hypot)) => {
@@ -232,7 +284,7 @@ impl<'a> CalcParser<'a> {
                     self.advance();
                     args.push(self.parse_sum()?);
                 }
-                CalcExpr::function(f, args)
+                Node::function(f, args)?
             }
             Some(MathFunction::Clamp) => {
                 let lo = self.parse_bound()?;
@@ -240,7 +292,7 @@ impl<'a> CalcParser<'a> {
                 let val = self.parse_sum()?;
                 self.expect(&Token::Comma)?;
                 let hi = self.parse_bound()?;
-                CalcExpr::function(MathFunction::Clamp, vec![lo, val, hi])
+                Node::function(MathFunction::Clamp, vec![lo, val, hi])?
             }
             Some(MathFunction::Round(_)) => {
                 let strategy = self.parse_rounding_strategy();
@@ -249,7 +301,7 @@ impl<'a> CalcParser<'a> {
                     self.advance();
                     args.push(self.parse_sum()?);
                 }
-                CalcExpr::function(MathFunction::Round(strategy), args)
+                Node::function(MathFunction::Round(strategy), args)?
             }
             Some(
                 f @ (MathFunction::Mod
@@ -259,7 +311,7 @@ impl<'a> CalcParser<'a> {
             ) => {
                 let a = self.parse_sum()?;
                 self.expect(&Token::Comma)?;
-                CalcExpr::function(f, vec![a, self.parse_sum()?])
+                Node::function(f, vec![a, self.parse_sum()?])?
             }
             Some(
                 f @ (MathFunction::Abs
@@ -272,14 +324,14 @@ impl<'a> CalcParser<'a> {
                 | MathFunction::Atan
                 | MathFunction::Sqrt
                 | MathFunction::Exp),
-            ) => CalcExpr::function(f, vec![self.parse_sum()?]),
+            ) => Node::function(f, vec![self.parse_sum()?])?,
             Some(MathFunction::Log) => {
                 let mut args = vec![self.parse_sum()?];
                 if self.peek() == Some(&Token::Comma) {
                     self.advance();
                     args.push(self.parse_sum()?);
                 }
-                CalcExpr::function(MathFunction::Log, args)
+                Node::function(MathFunction::Log, args)?
             }
         };
         self.expect(&Token::RParen)?;
@@ -311,11 +363,11 @@ impl<'a> CalcParser<'a> {
     }
 
     /// A `clamp()` bound: a sum, or `none` for no bound.
-    fn parse_bound(&mut self) -> Option<CalcExpr> {
+    fn parse_bound(&mut self) -> Option<Node> {
         match self.peek()? {
             Token::Ident(s) if s.eq_ignore_ascii_case("none") => {
                 self.advance();
-                Some(CalcExpr::None)
+                Some(Node::leaf(CalcExpr::None))
             }
             _ => self.parse_sum(),
         }
@@ -324,15 +376,16 @@ impl<'a> CalcParser<'a> {
 
 /// Parse a math function (`calc()`, `min()`, `round()`, `sin()`, …)
 /// that is the whole of `tokens`. `None` on a parse failure, an
-/// unbalanced parenthesis, trailing tokens or an expression that does
-/// not type-check (CSS Values 4 §10.9) — whether its type suits the
+/// unbalanced parenthesis, trailing tokens, nesting past
+/// [`MAX_CALC_NESTING`], a tree deeper than [`MAX_CALC_DEPTH`] or an
+/// expression that does not type-check (CSS Values 4 §10.9) — whether its type suits the
 /// property is the caller's check ([`CalcExpr::kind`]).
 pub fn parse_calc(tokens: &[Token]) -> Option<CalcExpr> {
     if !looks_like_calc(tokens) {
         return None;
     }
     let mut parser = CalcParser::new(tokens);
-    let expr = parser.parse_factor()?;
+    let expr = parser.parse_factor()?.expr;
     // A math function must be the entire value.
     if parser.peek().is_some() {
         return None;
