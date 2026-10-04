@@ -14,6 +14,7 @@
 
 pub(super) use super::colors::ElementColors;
 use super::colors::apply_colors;
+use super::decoration::apply_decoration;
 use crate::layout::Display;
 use crate::style::{ComputedStyle, ImportantMask, Modifier, TuiStyle, Value};
 
@@ -107,8 +108,9 @@ pub(super) fn apply_style(
         )*};
     }
 
-    // Paint properties (`colors.rs`).
+    // Paint properties (`colors.rs`, `decoration.rs`).
     apply_colors(working, colors, style, important_pass, kw);
+    apply_decoration(working, style, important_pass, kw);
 
     apply_modifier_bit(
         working,

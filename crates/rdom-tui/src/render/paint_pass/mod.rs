@@ -8,9 +8,9 @@
 //!
 //! ## Paint order (per element)
 //!
-//! 1. **Background fill** — `computed.bg` over the element's
-//!    **outer** layout rect (CSS way; covers border cells). Skipped
-//!    for `Color::Reset`.
+//! 1. **Background fill** — `computed.bg` over the box its
+//!    `background-clip` names (the border box by default, so border
+//!    cells take it too). Skipped for `Color::Reset`.
 //! 2. **Border** — border chars at the outer rect edges using
 //!    `computed.border_fg`. Styles (Single, Rounded, Top, Bottom,
 //!    Left, Right) pick different character sets.
@@ -89,7 +89,7 @@ use crate::render::stacking::{
 use crate::render::{Buffer, Rect};
 use crate::style::{Color, ComputedStyle};
 
-use background::fill_bg;
+use background::paint_background;
 use border::paint_border;
 use inline_paint::{
     paint_anonymous_blocks, paint_caret_if_editable, paint_ifc, paint_inline_content,
@@ -269,19 +269,12 @@ fn paint_box(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect) -> Opt
 
     let outer = dom.node(id).layout_rect().unwrap_or_default();
     let inner = dom.node(id).content_layout_rect().unwrap_or(outer);
-    // CSS Overflow 3 §3: the scrollport is the padding-box. Overflow
-    // clipping, scrollbar paint, and sticky pinning all use this rect,
-    // never the layout-side `content_layout` (which under M5.5b border-
-    // collapse can widen into the border ring for child positioning —
-    // a layout concern, not a paint-clipping one).
-    let padding_box = crate::layout::compute_padding_box(outer, computed.border);
-
     // Fast path: element entirely outside the clip.
     if let Some(outer_grid) = layout_rect_to_grid(outer, clip) {
-        // 1. Background fill over outer rect: an opaque fill that
-        // clears glyphs from earlier paints (full CSS occlusion).
-        // `opacity` is applied when the stacking context's layer
-        // composites back, not here. See `background.rs::fill_bg`.
+        // 1. Background fill over the `background-clip` box: an opaque
+        // fill that clears glyphs from earlier paints (full CSS
+        // occlusion). `opacity` is applied when the stacking context's
+        // layer composites back, not here. See `background.rs`.
         // Tree rows defer their background to the guide pass
         // (`tree_guides`), which fills the FULL row — including the
         // guide gutter to the left of the indented box — so the
@@ -290,30 +283,8 @@ fn paint_box(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect) -> Opt
         // left edge AND tint the whole open subtree (the box
         // contains the nested group).
         let is_tree_row = dom.node(id).get_attribute("role") == Some("treeitem");
-        if fills(computed.bg) && !is_tree_row {
-            // For `border: half-block`, skip painting bg under the
-            // border cells — the half-block paint relies on the
-            // surrounding (parent) bg showing through the "empty"
-            // half of each glyph to produce the pill silhouette.
-            // This is the rdom analog of CSS `background-clip:
-            // padding-box`, hard-coded for the half-block style.
-            // See DIVERGENCES.md for the wider story.
-            let fill_area = if border_has_half_block(computed.border)
-                && let Some(pb_grid) = layout_rect_to_grid(padding_box, clip)
-            {
-                pb_grid
-            } else {
-                outer_grid
-            };
-            // A translucent background composites over what is beneath
-            // (C3-ALPHA): the opaque fill is made in a layer.
-            if computed.bg.is_translucent() {
-                let alpha = f32::from(computed.bg.alpha()) / 255.0;
-                let bg = computed.bg.opaque();
-                buf.paint_translucent(fill_area, alpha, |layer| fill_bg(layer, fill_area, bg));
-            } else {
-                fill_bg(buf, fill_area, computed.bg);
-            }
+        if !is_tree_row {
+            paint_background(buf, &computed, outer, inner, clip);
         }
 
         // 2. Border. Writes per-cell × per-direction `BorderContribution`s
@@ -549,19 +520,6 @@ fn compute_border_priority(dom: &Dom<TuiExt>, id: NodeId) -> u64 {
         cur = node.parent_node();
     }
     BorderContribution::pack_priority(depth, id.as_u32())
-}
-
-/// True iff any of the element's four border sides uses the
-/// half-block style. Drives the padding-box `fill_bg` clip in the
-/// paint flow above — bg under half-block border cells must NOT
-/// be painted, so the parent's bg shows through the empty half of
-/// each half-block glyph (producing the pill silhouette).
-fn border_has_half_block(border: rdom_style::layout::Border) -> bool {
-    use rdom_style::layout::BorderStyle;
-    matches!(border.top, BorderStyle::HalfBlock)
-        || matches!(border.right, BorderStyle::HalfBlock)
-        || matches!(border.bottom, BorderStyle::HalfBlock)
-        || matches!(border.left, BorderStyle::HalfBlock)
 }
 
 /// True when `bg` fills a box: not the terminal default (`Reset`,

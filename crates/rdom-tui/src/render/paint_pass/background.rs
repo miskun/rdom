@@ -1,12 +1,71 @@
-//! Background fill: an element's opaque `background-color` box.
+//! Background fill: an element's `background-color`, painted in the
+//! box its `background-clip` names (CSS Backgrounds 3 §3.8).
 //!
 //! The fill blanks every cell it covers (glyph, foreground, modifiers,
 //! border contributions) so the element's own border, text and
 //! pseudo-element content land on a clean canvas — an opaque box
 //! occludes what earlier paints left there.
 
+use super::{fills, layout_rect_to_grid};
+use crate::layout::{BorderCollapse, LayoutRect, compute_content_area, compute_padding_box};
 use crate::render::{Buffer, Modifier, Rect};
-use crate::style::Color;
+use crate::style::{Color, ComputedStyle};
+use rdom_style::layout::{Border, BorderStyle, VisualBox};
+
+/// Paint `computed`'s background color for a box whose border box is
+/// `outer` and whose laid-out content box is `inner`, clipped to
+/// `clip`. A translucent color composites over what is beneath
+/// (C3-ALPHA): the opaque fill is made in a layer.
+pub(super) fn paint_background(
+    buf: &mut Buffer,
+    computed: &ComputedStyle,
+    outer: LayoutRect,
+    inner: LayoutRect,
+    clip: Rect,
+) {
+    if !fills(computed.bg) {
+        return;
+    }
+    let Some(area) = layout_rect_to_grid(clip_box(computed, outer, inner), clip) else {
+        return;
+    };
+    if computed.bg.is_translucent() {
+        let alpha = f32::from(computed.bg.alpha()) / 255.0;
+        let bg = computed.bg.opaque();
+        buf.paint_translucent(area, alpha, |layer| fill_bg(layer, area, bg));
+    } else {
+        fill_bg(buf, area, computed.bg);
+    }
+}
+
+/// The box the background color is painted in: the final layer's
+/// `background-clip` (§3.2, §3.8) — the border box (initial), the
+/// padding box, or the content box.
+///
+/// A half-block border never takes the background in its cells: its
+/// glyph fills the inward half of the cell and the outward half must
+/// show what is beneath, or the pill silhouette is lost. So with any
+/// half-block side the box is at most the padding box (DIVERGENCES §2,
+/// half-block).
+fn clip_box(computed: &ComputedStyle, outer: LayoutRect, inner: LayoutRect) -> LayoutRect {
+    let border = computed.border;
+    match computed.background_clip {
+        VisualBox::BorderBox if !has_half_block(border) => outer,
+        VisualBox::BorderBox | VisualBox::PaddingBox => compute_padding_box(outer, border),
+        // The laid-out content box, but under `border-collapse:
+        // collapse` that box reaches into the shared border ring, so
+        // the content box is derived from the padding box instead.
+        VisualBox::ContentBox if computed.border_collapse == BorderCollapse::Collapse => {
+            compute_content_area(outer, computed.padding.clone(), border)
+        }
+        VisualBox::ContentBox => inner,
+    }
+}
+
+/// True iff any border side uses the half-block style.
+fn has_half_block(border: Border) -> bool {
+    [border.top, border.right, border.bottom, border.left].contains(&BorderStyle::HalfBlock)
+}
 
 /// Fill `area` cells with `bg` as an opaque CSS box: writes
 /// `cell.bg = bg` AND **clears `cell.symbol` to SPACE**, clears

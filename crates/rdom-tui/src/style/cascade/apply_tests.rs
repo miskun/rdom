@@ -80,6 +80,7 @@ const PERTURB: &[(&str, &str)] = &[
     ("counter-reset", "a"),
     ("counter-increment", "a"),
     ("color-scheme", "light"),
+    ("background-clip", "content-box"),
 ];
 
 /// `P6G-APPLY-INITIALS-1`: `<property>: initial` computes to exactly
@@ -109,6 +110,7 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
         border_fg,
         modifiers,
         opacity,
+        background_clip,
         width,
         height,
         min_width,
@@ -171,6 +173,7 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
         border_fg,
         modifiers,
         opacity,
+        background_clip,
         width,
         height,
         min_width,

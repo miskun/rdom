@@ -73,7 +73,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.2 Custom properties (CSS Variables 1) | 6 | 0 | 0 | 1 | 7 |
 | 3.3 Values and units (Values 4) | 15 | 2 | 1 | 4 | 22 |
 | 3.4 Color (Color 4 / 5) | 15 | 1 | 0 | 1 | 17 |
-| 3.5 Backgrounds and borders (Backgrounds 3, Borders 4) | 4 | 4 | 6 | 2 | 16 |
+| 3.5 Backgrounds and borders (Backgrounds 3, Borders 4) | 5 | 4 | 5 | 2 | 16 |
 | 3.6 Box model and sizing (Box 3, Sizing 3/4) | 3 | 3 | 3 | 0 | 9 |
 | 3.7 Display and visibility (Display 3) | 1 | 0 | 8 | 2 | 11 |
 | 3.8 Flexbox and box alignment (Flexbox 1, Align 3) | 3 | 3 | 11 | 0 | 17 |
@@ -93,9 +93,9 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 0 | 0 | 6 | 3 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **95** | **32** | **131** | **49** | **307** |
+| **Total** | **96** | **32** | **130** | **49** | **307** |
 
-When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 163 rows Partial / Missing.
+When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 162 rows Partial / Missing.
 
 Headline: rdom parses **70 property names** (`PROPERTY_NAMES`). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are flex alignment (`justify-content`, `align-items`), `flex-wrap`, the `flex-grow` / `flex-basis` longhands, the `border: 1px solid red` shorthand form, `line-height`, `text-align`, `visibility`, `box-sizing`, and grid.
 
@@ -165,7 +165,7 @@ pasted CSS. The first block is what a typical component stylesheet hits in its f
 | 55 | `line-clamp` (`max-lines`, `block-ellipsis`, `continue`) | Clamp a block to N rows, last row ends in `…`. | M | No |
 | 56 | `filter` (color functions), `backdrop-filter`, `mix-blend-mode`, `isolation` | `grayscale()` / `invert()` / `brightness()` / `contrast()` / `sepia()` / `saturate()` / `hue-rotate()` / `opacity()` as per-cell color transforms (`blur()` / `drop-shadow()` N/A); blend modes per cell; `isolation: isolate` as a stacking-context trigger. | M (isolation S) | Yes (as non-existent stacking triggers) |
 | 57 | `box-shadow` | Offset shadow one cell right / down in a darker background or `░▒▓` shade glyphs (Turbo Vision style); blur and spread N/A. | M | No |
-| 58 | `background-clip` | `padding-box` / `content-box`: fill only that area (half-block borders hard-code `padding-box` today). | S | Yes |
+| 58 | `background-clip` | Shipped (C4-BG-CLIP; §3.5): `padding-box` / `content-box` fill only that area; a half-block border keeps its cells clear. | S | Yes |
 | 59 | `contain` / `content-visibility` / `contain-intrinsic-size` / `will-change` | `contain: paint` clips and forms a stacking context; `content-visibility: hidden / auto` skips layout and paint of off-screen subtrees (large lists); `will-change` as a stacking-context trigger only. | S / M | Partial — `will-change`, `contain` Yes (as non-existent triggers); rest No |
 | 60 | `@container` + container query units | Size queries against a container's cell size (`container-type`, `container-name`). | M | Blanket |
 | 61 | `@property` | Typed custom properties: syntax, `inherits`, `initial-value`; makes `var()` interpolable. | M | Blanket |
@@ -306,7 +306,7 @@ dropped. The audit's six, with where each stands:
 | `background-color` | Supported | Any parsed color. | — | `DISP/set.rs` |
 | `background` | Supported | The full Backgrounds 3 §3.10 grammar: layers, the color on the final one; image layers parse and are stored but draw nothing (documented, C4-BACKGROUND). | — | `DISP/background.rs`, `V/background.rs` |
 | `background-image` / `-position` / `-size` / `-repeat` / `-attachment` / `-origin` | N/A | No images (documented); they parse and are stored, inert (C4-BACKGROUND). | — | `DISP/background.rs` |
-| `background-clip` | Missing | `padding-box` / `content-box` fill. | Yes | `PAINT/background.rs::fill_bg` |
+| `background-clip` | Supported | `border-box` (initial: under the border) / `padding-box` / `content-box`, the final layer's clipping the color; a half-block border keeps its cells clear (documented); `text` is N/A (documented) (C4-BG-CLIP). | — | `PAINT/background.rs::clip_box`, `CASC/decoration.rs` |
 | `border` | Partial | One keyword only: a style (`none` / `hidden` / `solid` / `double` / `dashed` / `dotted` / `ridge` / `groove` / `inset` / `outset`) plus rdom keywords; no width or color component — `border: 1px solid red` is dropped. | No | `V/border.rs::parse_border` |
 | `border-top` / `-right` / `-bottom` / `-left` | Partial | One style keyword only; no width / color. | No | `V/border.rs::parse_border_side` |
 | `border-style` | Partial | One value applied to all four sides; the 2–4-value form is rejected. | No | `DISP/set.rs` |

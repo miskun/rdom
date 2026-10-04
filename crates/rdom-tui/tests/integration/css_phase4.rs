@@ -73,3 +73,85 @@ fn background_layers_paint_the_final_layers_color() {
     );
     assert_eq!(cell(&buf, 0, 0).bg, Color::Rgb(1, 2, 3));
 }
+
+// ── C4-BG-CLIP ─────────────────────────────────────────────────────
+
+/// A 6 × 3 box with a solid border, one column of horizontal padding,
+/// a red background and `clip` (a `background-clip` value, or `None`
+/// for none declared); the buffer it paints.
+fn clipped_box(clip: Option<&str>) -> Buffer {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    el(&mut dom, root, "b", "");
+    let clip = clip.map_or(String::new(), |c| format!("background-clip: {c};"));
+    paint(
+        &mut dom,
+        &format!(
+            ".b {{ width: 6; height: 3; border: solid; padding: 0 1; \
+                   background-color: red; {clip} }}"
+        ),
+        6,
+        3,
+    )
+}
+
+const RED: Color = Color::Rgb(255, 0, 0);
+
+/// CSS Backgrounds 3 §3.8: `background-clip`'s initial value is
+/// `border-box` — the background is painted under the border, so the
+/// border cells take the box's background.
+#[test]
+fn background_clip_defaults_to_the_border_box() {
+    for buf in [clipped_box(None), clipped_box(Some("border-box"))] {
+        assert_eq!(cell(&buf, 0, 0).symbol(), "┌");
+        assert_eq!(cell(&buf, 0, 0).bg, RED, "corner under the border");
+        assert_eq!(cell(&buf, 3, 2).bg, RED, "bottom edge");
+        assert_eq!(cell(&buf, 1, 1).bg, RED, "padding");
+    }
+}
+
+/// §3.8: `padding-box` — nothing is painted under the border.
+#[test]
+fn background_clip_padding_box_leaves_the_border_cells() {
+    let buf = clipped_box(Some("padding-box"));
+    assert_eq!(cell(&buf, 0, 0).symbol(), "┌");
+    assert_eq!(cell(&buf, 0, 0).bg, Color::Reset);
+    assert_eq!(cell(&buf, 0, 1).bg, Color::Reset);
+    assert_eq!(cell(&buf, 5, 1).bg, Color::Reset);
+    assert_eq!(
+        cell(&buf, 1, 1).bg,
+        RED,
+        "padding is inside the padding box"
+    );
+    assert_eq!(cell(&buf, 2, 1).bg, RED);
+}
+
+/// §3.8: `content-box` — nothing under the border or the padding.
+#[test]
+fn background_clip_content_box_leaves_the_padding_too() {
+    let buf = clipped_box(Some("content-box"));
+    assert_eq!(cell(&buf, 0, 1).bg, Color::Reset);
+    assert_eq!(cell(&buf, 1, 1).bg, Color::Reset, "padding");
+    assert_eq!(cell(&buf, 4, 1).bg, Color::Reset, "padding");
+    assert_eq!(cell(&buf, 2, 1).bg, RED);
+    assert_eq!(cell(&buf, 3, 1).bg, RED);
+}
+
+/// §3.2 / §3.8: the color is clipped by the bottom-most (final)
+/// layer's `background-clip`; the shorthand's one box sets it.
+#[test]
+fn background_clip_of_the_final_layer_clips_the_color() {
+    let buf = clipped_box(Some("content-box, border-box"));
+    assert_eq!(cell(&buf, 0, 0).bg, RED);
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    el(&mut dom, root, "b", "");
+    let buf = paint(
+        &mut dom,
+        ".b { width: 6; height: 3; border: solid; padding: 0 1; background: padding-box red }",
+        6,
+        3,
+    );
+    assert_eq!(cell(&buf, 0, 1).bg, Color::Reset);
+    assert_eq!(cell(&buf, 1, 1).bg, RED);
+}

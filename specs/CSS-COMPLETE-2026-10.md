@@ -111,7 +111,7 @@ row comes from.
 | Id | Item | Status |
 |---|---|---|
 | C4-BACKGROUND | `background` shorthand (color layer; image layers parse and are inert, documented) | done |
-| C4-BG-CLIP | `background-clip` (`border-box` / `padding-box` / `content-box`) | |
+| C4-BG-CLIP | `background-clip` (`border-box` / `padding-box` / `content-box`) | done |
 | C4-BORDER-SHORTHAND | `border` / `border-top` … with width, style and color in any order | |
 | C4-BORDER-SIDES | `border-style` / `border-color` / `border-width` 1–4 values; per-side longhands for style, color and width | |
 | C4-BORDER-WIDTH | `border-width` mapping (`0` = none, thin / medium = light, thick = heavy glyphs) | |
@@ -969,3 +969,15 @@ row comes from.
   wiring; `css_phase4.rs` paints an image layer's color end to end. Changed expectation: the old
   `background_shorthand_sets_background_color` asserted `url(x.png) red` is invalid. No showcase
   snapshot changes (every demo `background:` is a lone color).
+- 2026-10-06 — C4-BG-CLIP: found as specified for the default — the box fill already covered the
+  border box, so border cells took the background (`border-box`, §3.8's initial value). The final
+  layer's clip computes into `ComputedStyle::background_clip` (new `cascade/decoration.rs`, which the
+  later Phase 4 applicators join); `paint_pass/background.rs::paint_background` (moved out of
+  `paint_box`) fills the border / padding / content box, a translucent color through the layer path.
+  Content box: the laid-out content rect, or under `border-collapse: collapse` (whose content rect
+  reaches into the shared ring) the box derived from the padding box. Decided: half-block keeps its
+  cells clear — with a half-block side `border-box` acts as `padding-box`, the behaviour it had
+  hard-coded, now documented against the property; `text` stays N/A (C4-BACKGROUND). Red: three of
+  four `css_phase4.rs` clip tests painted the border / padding cells red; the default test was green
+  (characterisation). Green after. No showcase snapshot changes (no demo sets `background-clip`, and
+  the default fill box is unchanged).

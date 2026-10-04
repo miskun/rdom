@@ -37,6 +37,10 @@ pub struct ComputedStyle {
     /// values (a `Color::Reset` opacity is a no-op since the
     /// terminal default bg is unknowable). Default `1.0`.
     pub opacity: f32,
+    /// `background-clip` of the final background layer — the box the
+    /// background color is painted in (CSS Backgrounds 3 §3.2, §3.8).
+    /// Initial `border-box`: under the border too.
+    pub background_clip: crate::layout::VisualBox,
 
     // ── Layout ────────────────────────────────────────────────────────
     pub width: Size,
@@ -198,6 +202,7 @@ impl ComputedStyle {
             border_fg: Color::Reset,
             modifiers: Modifier::empty(),
             opacity: 1.0,
+            background_clip: crate::layout::VisualBox::BorderBox,
             width: Size::Auto,
             height: Size::Auto,
             min_width: crate::layout::MinSize::Auto,

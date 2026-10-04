@@ -51,7 +51,8 @@
 //!   order.
 //! - `scope` — `@scope` matching and scope proximity (Cascade 6).
 //! - `custom` — custom properties through the ladder.
-//! - `apply` — per-property applicators.
+//! - `apply` — per-property applicators; `colors` / `decoration` the
+//!   color and background / border ones.
 //! - `inherit` — `inherit_inheritable_from`, `layout_differs`.
 //! - `content` — pseudo-element `content` resolution.
 //!
@@ -81,6 +82,7 @@ pub(crate) use registered::probe as registry_probe;
 pub(crate) use scheme::{document_color_scheme, set_document_color_scheme};
 pub(crate) use viewport::{document_viewport, set_document_viewport};
 mod colors;
+mod decoration;
 mod scheme;
 mod scope;
 mod sheets;

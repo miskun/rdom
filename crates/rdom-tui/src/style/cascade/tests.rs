@@ -2302,6 +2302,7 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
     parent.border_fg = Color::Rgb(7, 8, 9);
     parent.modifiers = Modifier::BOLD | Modifier::ITALIC | Modifier::UNDERLINED;
     parent.opacity = 0.5;
+    parent.background_clip = rdom_style::layout::VisualBox::ContentBox;
     parent.width = Size::Fixed(7);
     parent.height = Size::Fixed(8);
     parent.min_width = MinSize::Cells(1);
@@ -2422,6 +2423,10 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
             child.transition_delay == parent.transition_delay,
         ),
         ("color-scheme", child.color_scheme == parent.color_scheme),
+        (
+            "background-clip",
+            child.background_clip == parent.background_clip,
+        ),
     ];
     for (name, took) in probes {
         assert_eq!(
