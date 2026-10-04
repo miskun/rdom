@@ -63,10 +63,6 @@ pub(super) fn pseudo_style(c: &ComputedStyle, overrides: &crate::ext::Presentati
 /// - `::before` / `::after` static pseudo content (the pseudo's
 ///   bg, if any, paints in the pseudo's cells without a separate
 ///   `fill_bg`).
-/// - `positioned_pseudos` content (the positioning pass does its
-///   own bg fill; the bg in the glyph style repeats the same
-///   colour and is redundant — `opacity` composites the whole
-///   group once, so it cannot double-blend).
 /// - IFC fragments whose owner is an inline-level element with
 ///   its own `background-color` (the inline child has no
 ///   `fill_bg` of its own; its bg paints via the fragment glyph
@@ -74,11 +70,14 @@ pub(super) fn pseudo_style(c: &ComputedStyle, overrides: &crate::ext::Presentati
 ///
 /// For all other glyph paints (the element's own text, gauge /
 /// select chrome, password mask, IFC fragments owned by the IFC
-/// block itself) use `glyph_style_from_computed` below — the
+/// block itself, a positioned pseudo-element's content — its box is
+/// tinted first) use `glyph_style_from_computed` below — the
 /// cell's `bg` is already owned by the upstream `fill_bg`, so a
 /// glyph paint leaves it alone. (Before group opacity, OPACITY-1,
 /// a bg in the glyph style blended a second time and brightened
-/// text cells; the split keeps one owner per cell bg.)
+/// text cells; a translucent background color still would, since a
+/// glyph write composites its style's background — the split keeps
+/// one owner per cell bg.)
 ///
 /// This split is the project's paint-layer invariant in practice:
 /// `fill_bg` owns `cell.bg`; glyph painters write

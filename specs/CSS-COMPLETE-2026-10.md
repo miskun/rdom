@@ -698,3 +698,14 @@ row comes from.
   `hostile_color_nesting_is_invalid_not_a_stack_overflow` aborted the test binary (stack overflow);
   green: both pass, and a 10 000-level `attr(data-c type(<color>), …)` takes the fallback
   (`css_phase3_gates.rs`). DIVERGENCES: color functions nest at most 32 levels.
+- 2026-10-05 — C3G-PSEUDO-TINT: `positioned_pseudos` writes its `content` with
+  `glyph_style_from_computed` (the box is tinted first), so the background composites once under the
+  text; `text.rs`'s "cannot double-blend" note is gone (a glyph write composites its style's
+  background). Every other painter that fills a translucent background and then writes text was
+  checked and pinned: a block's own text (`fill_bg` layer + glyph style), an inline element (bg only
+  in its fragments' style, no fill), a static `::before` (likewise), a tree row highlight (`tint`
+  after the label's glyph-style write), `::backdrop` (no text), `::selection` (one `set_style`).
+  Red: the positioned pseudo was `(192, 0, 0)` under "hi", `(128, 0, 0)` beside it; green: both
+  `(128, 0, 0)`; the four other cases pass before and after. Found: a positioned pseudo's
+  `width` / `height` are not read (its size comes from the insets or the content) — the test sizes
+  it with `right`.

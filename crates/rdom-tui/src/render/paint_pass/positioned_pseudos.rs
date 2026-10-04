@@ -17,7 +17,7 @@
 use rdom_core::{Dom, NodeId, NodeType};
 
 use crate::ext::TuiExt;
-use crate::render::paint_pass::text::{paint_text_from, style_from_computed};
+use crate::render::paint_pass::text::{glyph_style_from_computed, paint_text_from};
 use crate::render::{Buffer, Rect};
 use crate::style::ComputedStyle;
 
@@ -94,7 +94,9 @@ pub(super) fn paint_positioned_pseudos(dom: &Dom<TuiExt>, buf: &mut Buffer, clip
         }
         // Text lives on the pseudo's first row; if that row is above the
         // clip the text is genuinely off-screen. A start left of the clip
-        // shows the text's suffix, not its prefix (`D-M5N-8`).
+        // shows the text's suffix, not its prefix (`D-M5N-8`). The box's
+        // background is painted above, so the text's style carries none:
+        // a translucent one would composite a second time under the text.
         if let Some(text) = style.content.as_deref()
             && !text.is_empty()
             && rect.y >= i32::from(clip.y)
@@ -106,7 +108,7 @@ pub(super) fn paint_positioned_pseudos(dom: &Dom<TuiExt>, buf: &mut Buffer, clip
                 clip.x,
                 grid.right(),
                 text,
-                style_from_computed(&style),
+                glyph_style_from_computed(&style),
             );
         }
     }

@@ -275,3 +275,145 @@ fn translucent_backdrop_dims_the_page() {
     assert_eq!(buf.cell(0, 0).unwrap().bg, over((0, 0, 0), (0, 0, 255)));
     assert_eq!(buf.cell(0, 0).unwrap().fg, over((0, 0, 0), (255, 255, 255)));
 }
+
+// ── One composite per background (C3G-PSEUDO-TINT) ──────────────
+
+/// The red-at-half-alpha background over black: what every cell of the
+/// box — under its text too — must show, composited once.
+fn half_red_over_black() -> Color {
+    over((255, 0, 0), (0, 0, 0))
+}
+
+/// CSS Color 4 §4.2 / Backgrounds 3 §3.10: a box's background paints
+/// once, under its content. A positioned pseudo-element's translucent
+/// background is composited over its whole box, then its text is
+/// written in a glyph style — so the cells under the text show the same
+/// color as the rest of the box (they used to composite the background
+/// a second time: (191, 0, 0) under the text, (128, 0, 0) beside it).
+#[test]
+fn positioned_pseudo_translucent_background_composites_once_under_its_text() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    element(&mut dom, root, "div", "h", "");
+    let buf = paint(
+        &mut dom,
+        ".h { position: relative; width: 6; height: 1; background-color: black } \
+         .h::after { position: absolute; top: 0; left: 0; right: 2; \
+                     content: \"hi\"; background-color: rgb(255 0 0 / 50%) }",
+        6,
+        1,
+    );
+    assert_eq!(buf.cell(0, 0).unwrap().symbol(), "h");
+    assert_eq!(
+        buf.cell(0, 0).unwrap().bg,
+        half_red_over_black(),
+        "under text"
+    );
+    assert_eq!(
+        buf.cell(3, 0).unwrap().bg,
+        half_red_over_black(),
+        "beside it"
+    );
+}
+
+/// A static `::before` has no box fill of its own: its background
+/// paints only with its text, once.
+#[test]
+fn static_pseudo_translucent_background_composites_once() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    element(&mut dom, root, "div", "h", "z");
+    let buf = paint(
+        &mut dom,
+        ".h { background-color: black } \
+         .h::before { content: \"ab\"; background-color: rgb(255 0 0 / 50%) }",
+        6,
+        1,
+    );
+    assert_eq!(row(&buf, 0).trim_end(), "abz");
+    assert_eq!(buf.cell(0, 0).unwrap().bg, half_red_over_black());
+    assert_eq!(buf.cell(2, 0).unwrap().bg, Color::Rgb(0, 0, 0), "host text");
+}
+
+/// An inline element's background paints with its fragments (it has no
+/// box fill): composited once over the block's.
+#[test]
+fn inline_translucent_background_composites_once() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let block = element(&mut dom, root, "div", "b", "");
+    let text = dom.create_text_node("a");
+    dom.append_child(block, text).unwrap();
+    element(&mut dom, block, "span", "s", "xy");
+    let buf = paint(
+        &mut dom,
+        ".b { background-color: black } \
+         .s { display: inline; background-color: rgb(255 0 0 / 50%) }",
+        6,
+        1,
+    );
+    assert_eq!(row(&buf, 0).trim_end(), "axy");
+    assert_eq!(
+        buf.cell(0, 0).unwrap().bg,
+        Color::Rgb(0, 0, 0),
+        "block text"
+    );
+    assert_eq!(buf.cell(1, 0).unwrap().bg, half_red_over_black());
+    assert_eq!(buf.cell(2, 0).unwrap().bg, half_red_over_black());
+    assert_eq!(buf.cell(3, 0).unwrap().bg, Color::Rgb(0, 0, 0));
+}
+
+/// A block's own text over its translucent background: the fill
+/// composites once and the text adds none.
+#[test]
+fn block_translucent_background_composites_once_under_its_text() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let outer = element(&mut dom, root, "div", "o", "");
+    element(&mut dom, outer, "div", "i", "xy");
+    let buf = paint(
+        &mut dom,
+        ".o { background-color: black } .i { background-color: rgb(255 0 0 / 50%) }",
+        6,
+        1,
+    );
+    assert_eq!(
+        buf.cell(0, 0).unwrap().bg,
+        half_red_over_black(),
+        "under text"
+    );
+    assert_eq!(
+        buf.cell(4, 0).unwrap().bg,
+        half_red_over_black(),
+        "beside it"
+    );
+}
+
+/// A tree row's translucent highlight composites once over the row,
+/// label cells included.
+#[test]
+fn tree_row_translucent_highlight_composites_once_under_its_label() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let tree = element(&mut dom, root, "ul", "t", "");
+    dom.set_attribute(tree, "role", "tree").unwrap();
+    let item = element(&mut dom, tree, "li", "", "ab");
+    dom.set_attribute(item, "role", "treeitem").unwrap();
+    dom.set_attribute(item, "aria-selected", "true").unwrap();
+    let buf = paint(
+        &mut dom,
+        ".t { background-color: black } \
+         [role=treeitem][aria-selected=true] { background-color: rgb(255 0 0 / 50%) }",
+        8,
+        1,
+    );
+    let label = (0..8)
+        .find(|&x| buf.cell(x, 0).unwrap().symbol() == "a")
+        .expect("label painted");
+    assert_eq!(
+        buf.cell(label, 0).unwrap().bg,
+        half_red_over_black(),
+        "label"
+    );
+    assert_eq!(buf.cell(7, 0).unwrap().bg, half_red_over_black(), "row end");
+}
