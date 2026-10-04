@@ -6,6 +6,7 @@ use rdom_core::{Dom, NodeId};
 
 use super::apply::finalize_bfc_formation;
 use super::content::resolve_content_on;
+use super::decoration::finalize_used_border;
 use super::inherit::inherit_inheritable_from;
 use super::ladder::{Declarations, apply_cascade_ladder, prepare};
 use super::matching::{Rules, Scratch};
@@ -103,6 +104,7 @@ pub(super) fn compute_pseudo_style(
 
     finalize_bfc_formation(&mut working);
     working.resolve_viewport_units(cx.sheets.viewport());
+    finalize_used_border(&mut working);
 
     // Resolve content:
     //   - None  = no `content:` declaration at all → use legacy fallback

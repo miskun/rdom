@@ -90,7 +90,7 @@ use crate::render::{Buffer, Rect};
 use crate::style::{Color, ComputedStyle};
 
 use background::paint_background;
-use border::paint_border;
+use border::{Ink, paint_border};
 use inline_paint::{
     paint_anonymous_blocks, paint_caret_if_editable, paint_ifc, paint_inline_content,
 };
@@ -501,6 +501,11 @@ fn paint_border_sides(
     priority: u64,
 ) {
     let (border, colors) = (computed.border, computed.border_color);
+    // A zero-width side is already `none` in the used border.
+    let weights = computed
+        .border_width
+        .clone()
+        .map(|w| w.weight().unwrap_or_default());
     let mut done: Vec<Color> = Vec::with_capacity(4);
     for color in colors.to_array() {
         if done.contains(&color) {
@@ -513,12 +518,16 @@ fn paint_border_sides(
         let only = colors.map(|c| c == color);
         if color.is_translucent() {
             let alpha = f32::from(color.alpha()) / 255.0;
-            let opaque = colors.map(Color::opaque);
+            let ink = Ink {
+                colors: colors.map(Color::opaque),
+                weights,
+            };
             buf.paint_translucent(outer_grid, alpha, |layer| {
-                paint_border(layer, outer, border, opaque, only, clip, priority);
+                paint_border(layer, outer, border, ink, only, clip, priority);
             });
         } else {
-            paint_border(buf, outer, border, colors, only, clip, priority);
+            let ink = Ink { colors, weights };
+            paint_border(buf, outer, border, ink, only, clip, priority);
         }
     }
 }

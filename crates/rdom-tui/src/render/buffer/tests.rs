@@ -441,6 +441,7 @@ fn contribution(fg: Color) -> BorderContribution {
     BorderContribution {
         style: rdom_style::layout::BorderStyle::Solid,
         fg,
+        weight: rdom_style::layout::BorderWeight::Light,
         priority: BorderContribution::pack_priority(1, 0),
         corner_style: rdom_style::layout::CornerStyle::Square,
         side: BorderSide::Top,

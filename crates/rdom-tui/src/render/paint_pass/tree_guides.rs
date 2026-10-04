@@ -10,7 +10,7 @@
 //! [`super::border::paint_border`] does, then lets
 //! [`super::border_join::join_borders`] turn the 4-direction masks
 //! into the right glyph (`├` = N+E+S, `└` = N+E, `│` = N+S, `─` =
-//! E+W) via its `SOLID_TABLE`. This pass therefore runs AFTER the
+//! E+W) via its single-line glyph table. This pass therefore runs AFTER the
 //! main paint walk and BEFORE the joiner (see `paint_dom`).
 //!
 //! ## Geometry (2 cells per level)
@@ -43,7 +43,7 @@ use crate::node::TuiNodeExt;
 use crate::render::buffer::{BorderContribution, BorderSide, DIR_E, DIR_N, DIR_S};
 use crate::render::{Buffer, Rect, Style};
 use crate::style::Color;
-use rdom_style::layout::BorderStyle;
+use rdom_style::layout::{BorderStyle, BorderWeight};
 
 /// Cells of indent per nesting level. MUST match the
 /// `[role=treeitem] { padding-left: N }` value in the UA stylesheet
@@ -298,6 +298,7 @@ fn put(buf: &mut Buffer, clip: Rect, x: i32, y: i32, dirs: &[usize], color: Colo
                 BorderContribution {
                     style: BorderStyle::Solid,
                     fg,
+                    weight: BorderWeight::Light,
                     priority: 0,
                     corner_style: CornerStyle::Square,
                     side: BorderSide::Top,

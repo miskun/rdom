@@ -47,7 +47,7 @@ something the code contradicts (see §6). `—` for Supported / N/A rows.
 | `BLOCK` | `rdom-tui/src/render/layout_pass/block/` |
 | `IFC` | `rdom-tui/src/render/layout_pass/ifc.rs` + `rdom-tui/src/render/inline/` |
 | `POS` | `rdom-tui/src/render/layout_pass/positioning/` + `layout_pass/sticky.rs` + `render/stacking.rs` |
-| `PAINT` | `rdom-tui/src/render/paint_pass/` (`background.rs`, `border/`, `border_join.rs`, `text.rs`, `scrollbar.rs`, `group.rs`) |
+| `PAINT` | `rdom-tui/src/render/paint_pass/` (`background.rs`, `border/`, `border_join/`, `text.rs`, `scrollbar.rs`, `group.rs`) |
 | `SGR` | `rdom-tui/src/render/sgr.rs` + `rdom-style/src/modifier.rs` |
 | `SEL` | `rdom-core/src/selectors.rs` (+ matching in `rdom-core/src/query_selector.rs`) |
 | `PE` | `rdom-style/src/stylesheet/selector_text.rs` + `stylesheet/mod.rs::PseudoElementTarget` |
@@ -73,7 +73,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.2 Custom properties (CSS Variables 1) | 6 | 0 | 0 | 1 | 7 |
 | 3.3 Values and units (Values 4) | 15 | 2 | 1 | 4 | 22 |
 | 3.4 Color (Color 4 / 5) | 15 | 1 | 0 | 1 | 17 |
-| 3.5 Backgrounds and borders (Backgrounds 3, Borders 4) | 10 | 1 | 3 | 2 | 16 |
+| 3.5 Backgrounds and borders (Backgrounds 3, Borders 4) | 11 | 0 | 3 | 2 | 16 |
 | 3.6 Box model and sizing (Box 3, Sizing 3/4) | 3 | 3 | 3 | 0 | 9 |
 | 3.7 Display and visibility (Display 3) | 1 | 0 | 8 | 2 | 11 |
 | 3.8 Flexbox and box alignment (Flexbox 1, Align 3) | 3 | 3 | 11 | 0 | 17 |
@@ -93,9 +93,9 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 0 | 0 | 6 | 3 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **101** | **29** | **128** | **49** | **307** |
+| **Total** | **102** | **28** | **128** | **49** | **307** |
 
-When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 157 rows Partial / Missing.
+When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 156 rows Partial / Missing.
 
 Headline: rdom parses **70 property names** (`PROPERTY_NAMES`). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are flex alignment (`justify-content`, `align-items`), `flex-wrap`, the `flex-grow` / `flex-basis` longhands, `line-height`, `text-align`, `visibility`, `box-sizing`, and grid.
 
@@ -135,7 +135,7 @@ pasted CSS. The first block is what a typical component stylesheet hits in its f
 | 25 | `ch` / `lh` / `rlh` and viewport units `vw` / `vh` / `vmin` / `vmax` (+ `s`/`l`/`d` variants) | `1ch` = one column exactly on a monospaced grid; `1lh` = one row; `1vw` = 1% of the terminal's columns, `1vh` = 1% of its rows (rdom knows the viewport). | S | Yes (classified as pixel-dependent; see §6) |
 | 26 | Logical properties (`inline-size`, `block-size`, `margin-inline*`, `padding-block*`, `inset-inline*`, `border-inline*`, …) | 1:1 aliases of the physical properties (rdom is horizontal-tb, LTR only). | S | No |
 | 27 | `border-radius` (+ per-corner) | Any non-zero radius → rounded corner glyphs `╭╮╰╯` (`CornerStyle::Rounded`, reachable today only via the rdom keyword `border: rounded`); `0` → square. | S | No |
-| 28 | `border-width` (+ per-side) and width component of `border` | `0` = no border on that side; `thin` / `medium` / `1` = light glyphs; `thick` / `≥2` = heavy box-drawing glyphs (`━┃┏┓┗┛`); never more than one cell. | S | No |
+| 28 | `border-width` (+ per-side) and width component of `border` | Shipped (C4-BORDER-WIDTH; §3.5): `0` = no border on that side; `thin` / `medium` / `1` = light glyphs; `thick` / `≥2` / ≥5px = heavy box-drawing glyphs (`━┃┏┓┗┛`); never more than one cell. | S | Yes |
 | 29 | `list-style-type` / `list-style-position` / `list-style` / `::marker` / `display: list-item` | Marker from a counter style or `<string>`; `outside` hangs it in the padding, `inside` puts it on the first line (today's behavior via `li::before`). | M | Yes |
 | 30 | `::first-line` / `::first-letter` | Style the first line box / first typographic letter (color, bold, italic, decoration, background). | M | Yes |
 | 31 | `var()` outside colors | Shipped (C1-VAR-ANY; §3.2): substitution in every property. Listed here because of its impact — design-token CSS uses `padding: var(--space-2)` everywhere. | M | Yes |
@@ -312,8 +312,8 @@ dropped. The audit's six, with where each stands:
 | `border-style` | Supported | 1–4 values, clockwise from the top (C4-BORDER-SIDES); rdom's one-value `rounded` rounds the ring (documented). | — | `DISP/border.rs`, `V/border.rs::parse_sides` |
 | `border-*-style` | Supported | Every CSS keyword parses; `dashed` / `dotted` / `ridge` / `groove` / `inset` / `outset` render as `solid` (documented). | Yes | `DISP/set.rs` |
 | `border-color` | Supported | 1–4 colors, clockwise from the top (C4-BORDER-SIDES). | — | `DISP/border.rs`, `TS::border_color` |
-| `border-top-color` / `-right-color` / `-bottom-color` / `-left-color` | Supported | One longhand per side, cascaded independently; a corner cell takes its dominant side's color — the heavier style, then the horizontal side (documented) (C4-BORDER-SIDES). | — | `DISP/border.rs`, `CASC/colors.rs`, `PAINT/border_join.rs::dominant_contribution` |
-| `border-width` / `border-*-width` | Partial | Parsed: 1–4 values, per-side longhands, `thin` / `medium` / `thick` / cells / pixel lengths (C4-BORDER-SIDES); the glyph weight and `0` = no border land with C4-BORDER-WIDTH. | Yes | `DISP/border.rs`, `TS::border_width` |
+| `border-top-color` / `-right-color` / `-bottom-color` / `-left-color` | Supported | One longhand per side, cascaded independently; a corner cell takes its dominant side's color — the heavier style, then the horizontal side (documented) (C4-BORDER-SIDES). | — | `DISP/border.rs`, `CASC/colors.rs`, `PAINT/border_join/mod.rs::dominant_contribution` |
+| `border-width` / `border-*-width` | Supported | 1–4 values, per-side longhands; `0` = no border, `thin` / `medium` light glyphs, `thick` (5px / two cells and up) heavy, mixed junctions; always one cell wide (documented) (C4-BORDER-SIDES, C4-BORDER-WIDTH). | — | `DISP/border.rs`, `rdom-style/src/layout/border.rs::BorderWidth::weight`, `PAINT/border_join/` |
 | `border-radius` / `border-*-radius` | Missing | Non-zero → rounded corner glyphs. | No | `DISP`, `BOX::CornerStyle` |
 | `border-image*` | N/A | Image-sliced borders. | — | — |
 | `box-shadow` | Missing | One-cell offset shade; blur / spread N/A. | No | `PAINT` |

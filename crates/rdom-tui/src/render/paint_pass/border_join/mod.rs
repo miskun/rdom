@@ -5,18 +5,19 @@
 //! `buf.border_dirs`. Each contribution carries a [`BorderStyle`],
 //! a foreground color, and a structural priority. Inside each
 //! direction the contributions are reconciled per CSS Tables 3
-//! §11.5: `hidden` kills the direction; otherwise the
-//! highest-rank, highest-priority contribution wins.
+//! §11.5: `hidden` kills the direction; otherwise the heaviest,
+//! then highest-rank, then highest-priority contribution wins.
 //!
 //! The joiner walks the buffer once and, for every cell that has
 //! at least one visible direction, emits the junction glyph + the
-//! winning direction's foreground color. The glyph is chosen from
-//! one of two 16-entry tables depending on the cell's dominant
-//! style:
+//! winning direction's foreground color. The glyph is chosen
+//! (`glyphs`) by the cell's dominant style:
 //!
 //! - `BorderStyle::Double` → double-line glyphs (`║═╔╗╚╝╠╣╦╩╬`).
 //! - Anything else (`Solid`, `Dashed`, `Dotted`, `Ridge`, `Outset`,
-//!   `Groove`, `Inset`) → single-line glyphs (`│─┌┐└┘├┤┬┴┼`).
+//!   `Groove`, `Inset`) → single-line glyphs, each direction light
+//!   (`│─┌┐└┘├┤┬┴┼`) or heavy (`┃━┏┓┗┛┣┫┳┻╋`) by its winner's
+//!   `border-width`, the mixed junctions (`┍┿╽`) where they meet.
 //!   The non-solid keywords parse and rank correctly in conflict
 //!   resolution but degrade to the single-line glyph set on the
 //!   terminal — CSS-faithful "render as best you can" per the
@@ -32,8 +33,11 @@
 //! **Paint-layer invariant preserved:** reads + writes
 //! `cell.symbol` and `cell.fg` only. Never touches `cell.bg`.
 
+mod glyphs;
+
+use glyphs::{DOUBLE_TABLE, ROUNDED_TABLE, half_block_quad_glyph, line_glyph};
 use rdom_core::Dom;
-use rdom_style::layout::{BorderStyle, CornerStyle};
+use rdom_style::layout::{BorderStyle, BorderWeight, CornerStyle};
 
 use crate::ext::TuiExt;
 use crate::render::Buffer;
@@ -96,9 +100,12 @@ pub(super) fn join_borders(_dom: &Dom<TuiExt>, buf: &mut Buffer) {
             // glyph leaves the cell's bg ALONE, so each glyph's "empty"
             // quadrants merge into whatever the parent painted — rdom's analog
             // of CSS `background-clip: padding-box` (see DIVERGENCES.md).
+            let weights = line_weights(&cell_state);
+            // Unicode's rounded corners are light only.
             if lone
                 && dominant.corner_style == CornerStyle::Rounded
                 && dominant.style != BorderStyle::Double
+                && weights.iter().all(|w| *w <= 1)
             {
                 let rounded = ROUNDED_TABLE[mask as usize];
                 if !rounded.is_empty()
@@ -111,12 +118,11 @@ pub(super) fn join_borders(_dom: &Dom<TuiExt>, buf: &mut Buffer) {
                     continue;
                 }
             }
-            let table = if dominant.style == BorderStyle::Double {
-                DOUBLE_TABLE
+            let replacement = if dominant.style == BorderStyle::Double {
+                DOUBLE_TABLE[mask as usize]
             } else {
-                SOLID_TABLE
+                line_glyph(weights)
             };
-            let replacement = table[mask as usize];
             if replacement.is_empty() {
                 continue;
             }
@@ -144,6 +150,18 @@ fn is_lone_contributor(cell_state: &[BorderDirState; 4], priority: u64) -> bool 
         }
     }
     true
+}
+
+/// Each direction's line weight, N, E, S, W: `0` not visible, `1`
+/// light, `2` heavy (its winner's `border-width`).
+fn line_weights(cell_state: &[BorderDirState; 4]) -> [u8; 4] {
+    cell_state.map(|d| match d.winner {
+        Some(c) if d.is_visible() => match c.weight {
+            BorderWeight::Light => 1,
+            BorderWeight::Heavy => 2,
+        },
+        _ => 0,
+    })
 }
 
 /// 4-bit visible-direction mask. Bit 0 = N, bit 1 = E, bit 2 = S,
@@ -177,13 +195,14 @@ fn visible_mask(cell_state: &[BorderDirState; 4]) -> u8 {
 /// Within one element — a corner, where two of its sides meet — the
 /// browser splits the cell between the sides, the wider one taking
 /// more (CSS Backgrounds 3 §4.4 "corner shaping" geometry); a cell has
-/// one color, so the dominant side takes it whole: the heavier style,
-/// and on a tie the horizontal side (top / bottom), so the top and
-/// bottom of a box read as whole lines (DIVERGENCES §2).
+/// one color, so the dominant side takes it whole: the wider (heavier
+/// weight), then the heavier style, and on a tie the horizontal side
+/// (top / bottom), so the top and bottom of a box read as whole lines
+/// (DIVERGENCES §2). Across elements, §11.5 likewise ranks width first.
 fn dominant_contribution(cell_state: &[BorderDirState; 4]) -> BorderContribution {
     let dominance = |c: &BorderContribution| {
         let horizontal = matches!(c.side, BorderSide::Top | BorderSide::Bottom);
-        (c.style.rank(), c.priority, horizontal)
+        (c.weight, c.style.rank(), c.priority, horizontal)
     };
     let mut best: Option<BorderContribution> = None;
     for dir_state in cell_state {
@@ -206,110 +225,9 @@ fn dominant_contribution(cell_state: &[BorderDirState; 4]) -> BorderContribution
     best.unwrap_or(BorderContribution {
         style: BorderStyle::Solid,
         fg: crate::style::Color::Reset,
+        weight: BorderWeight::Light,
         priority: 0,
         corner_style: CornerStyle::Square,
         side: BorderSide::Top,
     })
 }
-
-/// Half-block glyph for an inward-quadrant set (see
-/// `Buffer::half_block_quads`). Index bits: `QUAD_TL=1, QUAD_TR=2,
-/// QUAD_BL=4, QUAD_BR=8`. Every one of the 16 quadrant combinations has a
-/// Unicode block element, so half-block borders can express *any* junction
-/// (edges, corners, T-junctions, crosses, welds, full block) — unlike the
-/// single-line tables, there are no gaps. `0` (no quadrants) returns "".
-const HALF_BLOCK_QUAD_TABLE: [&str; 16] = [
-    " ", // 0000 none (unused — caller skips quads == 0)
-    "▘", // 0001 TL
-    "▝", // 0010 TR
-    "▀", // 0011 TL+TR — upper half (bottom edge)
-    "▖", // 0100 BL
-    "▌", // 0101 TL+BL — left half (right edge)
-    "▞", // 0110 TR+BL — anti-diagonal
-    "▛", // 0111 TL+TR+BL
-    "▗", // 1000 BR
-    "▚", // 1001 TL+BR — diagonal
-    "▐", // 1010 TR+BR — right half (left edge)
-    "▜", // 1011 TL+TR+BR
-    "▄", // 1100 BL+BR — lower half (top edge)
-    "▙", // 1101 TL+BL+BR
-    "▟", // 1110 TR+BL+BR
-    "█", // 1111 all — full block (welded stack)
-];
-
-/// Glyph for a half-block inward-quadrant set, or "" when empty.
-fn half_block_quad_glyph(quads: u8) -> &'static str {
-    if quads == 0 {
-        return "";
-    }
-    HALF_BLOCK_QUAD_TABLE[(quads & 0b1111) as usize]
-}
-
-// ─── Glyph lookup tables ────────────────────────────────────────
-
-/// Single-line junctions. Index encoding: bit0 = N, bit1 = E,
-/// bit2 = S, bit3 = W. Empty string means "leave the cell alone".
-const SOLID_TABLE: [&str; 16] = [
-    "",  // 0000 - none
-    "│", // 0001 - N only
-    "─", // 0010 - E only
-    "└", // 0011 - N+E
-    "│", // 0100 - S only
-    "│", // 0101 - N+S
-    "┌", // 0110 - E+S
-    "├", // 0111 - N+E+S
-    "─", // 1000 - W only
-    "┘", // 1001 - N+W
-    "─", // 1010 - E+W
-    "┴", // 1011 - N+E+W
-    "┐", // 1100 - S+W
-    "┤", // 1101 - N+S+W
-    "┬", // 1110 - E+S+W
-    "┼", // 1111 - all four
-];
-
-/// Double-line junctions. Same mask encoding as
-/// [`SOLID_TABLE`]. Used when the cell's dominant style is
-/// `BorderStyle::Double`.
-const DOUBLE_TABLE: [&str; 16] = [
-    "",  // 0000 - none
-    "║", // 0001 - N only
-    "═", // 0010 - E only
-    "╚", // 0011 - N+E
-    "║", // 0100 - S only
-    "║", // 0101 - N+S
-    "╔", // 0110 - E+S
-    "╠", // 0111 - N+E+S
-    "═", // 1000 - W only
-    "╝", // 1001 - N+W
-    "═", // 1010 - E+W
-    "╩", // 1011 - N+E+W
-    "╗", // 1100 - S+W
-    "╣", // 1101 - N+S+W
-    "╦", // 1110 - E+S+W
-    "╬", // 1111 - all four
-];
-
-/// Rounded-corner glyphs for the lone-contributor fast path. Only
-/// the four pure-corner masks have a rounded form; everything else
-/// (edges, T-junctions, crosses) returns empty so the caller
-/// falls back to the square table. Unicode has no rounded
-/// T-junctions, so any overlap demotes to square automatically.
-const ROUNDED_TABLE: [&str; 16] = [
-    "",  // 0000
-    "",  // 0001 N only — pure vertical, no rounded form
-    "",  // 0010 E only — pure horizontal
-    "╰", // 0011 N+E — bottom-left corner
-    "",  // 0100 S only
-    "",  // 0101 N+S
-    "╭", // 0110 E+S — top-left corner
-    "",  // 0111 N+E+S T-junction — square only
-    "",  // 1000 W only
-    "╯", // 1001 N+W — bottom-right corner
-    "",  // 1010 E+W
-    "",  // 1011 N+E+W
-    "╮", // 1100 S+W — top-right corner
-    "",  // 1101 N+S+W
-    "",  // 1110 E+S+W
-    "",  // 1111 all four
-];

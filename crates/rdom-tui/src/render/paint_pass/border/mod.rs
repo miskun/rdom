@@ -1,6 +1,6 @@
 //! Border drawing: each element's border ring as per-cell ×
 //! per-direction contributions (BORDER-MODEL-1), which the joiner
-//! (`border_join.rs`) turns into box-drawing glyphs.
+//! (`border_join`) turns into box-drawing glyphs.
 //!
 //! Clipping: border edges are painted cell by cell, each checked
 //! against the `clip` rect. Negative signed coords (`LayoutRect` can be
@@ -15,10 +15,10 @@ use crate::render::buffer::{BorderContribution, BorderSide, DIR_E, DIR_N, DIR_S,
 use crate::render::{Buffer, Rect};
 use crate::style::Color;
 use half_block::accumulate_half_block_quads;
-use rdom_style::layout::BorderStyle;
+use rdom_style::layout::{BorderStyle, BorderWeight};
 
 /// Paint the box-drawing characters for `border` along the edges of
-/// `outer`, each side in its `colors` entry; only the sides `only`
+/// `outer`, each side in its `ink`; only the sides `only`
 /// selects contribute (the caller paints sides of different alpha in
 /// separate passes). Writes `symbol + fg + (no modifier touch)` only — does
 /// **not** touch `cell.bg`. The cell's background is owned by
@@ -31,7 +31,7 @@ pub(super) fn paint_border(
     buf: &mut Buffer,
     outer: LayoutRect,
     border: Border,
-    colors: Sides<Color>,
+    ink: Ink,
     only: Sides<bool>,
     clip: Rect,
     priority: u64,
@@ -39,7 +39,7 @@ pub(super) fn paint_border(
     // BORDER-MODEL-1: paint writes per-cell × per-direction
     // contributions to the buffer's `border_dirs`. Each
     // contribution carries the source side's `BorderStyle`, color,
-    // and structural priority. The joiner (`border_join.rs`) reads
+    // and structural priority. The joiner (`border_join`) reads
     // every cell's per-direction state, resolves CSS Tables 3
     // §11.5 conflicts, and emits the right junction glyph + color.
     //
@@ -65,7 +65,7 @@ pub(super) fn paint_border(
     }
 
     let pen = Pen {
-        colors,
+        ink,
         only,
         priority,
         corner_style: border.corner_style,
@@ -230,11 +230,19 @@ pub(super) fn paint_border(
     }
 }
 
-/// What one element's border contributes with: each side's
-/// `border-*-color` and whether this pass paints it, the structural
-/// priority and the corner style.
+/// Each side's `border-*-color` and line weight (from its
+/// `border-*-width`).
+#[derive(Clone, Copy)]
+pub(super) struct Ink {
+    pub colors: Sides<Color>,
+    pub weights: Sides<BorderWeight>,
+}
+
+/// What one element's border contributes with: each side's ink and
+/// whether this pass paints it, the structural priority and the corner
+/// style.
 struct Pen {
-    colors: Sides<Color>,
+    ink: Ink,
     only: Sides<bool>,
     priority: u64,
     corner_style: crate::layout::CornerStyle,
@@ -255,11 +263,12 @@ impl Pen {
         style: BorderStyle,
         side: BorderSide,
     ) {
-        let (fg, painted) = match side {
-            BorderSide::Top => (self.colors.top, self.only.top),
-            BorderSide::Right => (self.colors.right, self.only.right),
-            BorderSide::Bottom => (self.colors.bottom, self.only.bottom),
-            BorderSide::Left => (self.colors.left, self.only.left),
+        let (colors, weights, only) = (&self.ink.colors, &self.ink.weights, &self.only);
+        let (fg, weight, painted) = match side {
+            BorderSide::Top => (colors.top, weights.top, only.top),
+            BorderSide::Right => (colors.right, weights.right, only.right),
+            BorderSide::Bottom => (colors.bottom, weights.bottom, only.bottom),
+            BorderSide::Left => (colors.left, weights.left, only.left),
         };
         if style.is_none() || !painted {
             return;
@@ -271,6 +280,7 @@ impl Pen {
             BorderContribution {
                 style,
                 fg,
+                weight,
                 priority: self.priority,
                 corner_style: self.corner_style,
                 side,

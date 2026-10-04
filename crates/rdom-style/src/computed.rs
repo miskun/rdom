@@ -71,7 +71,15 @@ pub struct ComputedStyle {
     /// `flex-basis` (CSS Flexbox §7.3.3), from the `flex` shorthand.
     /// Cascaded but not laid out yet (C6-FLEX-LONGHANDS).
     pub flex_basis: crate::layout::FlexBasis,
+    /// The used border: [`border_style`](Self::border_style) with every
+    /// zero-width side `none` (CSS Backgrounds 3 §4.3) — what layout
+    /// reserves cells for and paint draws.
     pub border: Border,
+    /// The cascaded `border-*-style`s (and rdom's corner style), which
+    /// `inherit` / `revert` copy.
+    pub border_style: Border,
+    /// The cascaded `border-*-width`s, viewport units resolved.
+    pub border_width: crate::layout::Sides<crate::layout::BorderWidth>,
     /// `border-collapse: separate | collapse`. CSS-faithful name,
     /// extended to apply to any flex container (rdom divergence).
     /// **Inherits** — the cascade propagates parent's value to
@@ -218,6 +226,8 @@ impl ComputedStyle {
             flex_shrink: 1.0,
             flex_basis: crate::layout::FlexBasis::Auto,
             border: Border::none(),
+            border_style: Border::none(),
+            border_width: crate::layout::Sides::default(),
             border_collapse: crate::layout::BorderCollapse::Separate,
             border_collapse_declared: false,
             direction: Direction::Column,

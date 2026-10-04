@@ -132,6 +132,25 @@ pub struct Border {
 }
 
 impl Border {
+    /// The used border: these styles with every side whose width is
+    /// zero removed (`none`) — a zero-width border takes no space and
+    /// draws nothing (CSS Backgrounds 3 §4.3). `hidden` stays: it is the
+    /// collapse kill-switch, and zero-width anyway.
+    pub fn with_widths(mut self, widths: &super::Sides<BorderWidth>) -> Self {
+        let sides = [
+            (&mut self.top, &widths.top),
+            (&mut self.right, &widths.right),
+            (&mut self.bottom, &widths.bottom),
+            (&mut self.left, &widths.left),
+        ];
+        for (style, width) in sides {
+            if !style.is_hidden() && width.weight().is_none() {
+                *style = BorderStyle::None;
+            }
+        }
+        self
+    }
+
     /// All sides off (`BorderStyle::None`). Same as `Default`.
     pub const fn none() -> Self {
         Self {
@@ -298,7 +317,8 @@ impl PaintLength {
 
 /// `<line-width>` (CSS Backgrounds 3 §4.3): a border side's width. Its
 /// initial value is `medium`. Every rdom border is one cell wide; the
-/// width only selects the glyph weight (C4-BORDER-WIDTH).
+/// width selects the glyph weight ([`BorderWidth::weight`]), and a zero
+/// width removes the side.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub enum BorderWidth {
     Thin,
@@ -306,4 +326,100 @@ pub enum BorderWidth {
     Medium,
     Thick,
     Length(PaintLength),
+}
+
+/// The glyph weight a border side draws with: the light box-drawing set
+/// (`─│┌`) or the heavy one (`━┃┏`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Hash)]
+pub enum BorderWeight {
+    #[default]
+    Light,
+    Heavy,
+}
+
+impl BorderWidth {
+    /// `thick` in CSS pixels — the width from which a pixel length is
+    /// heavy (browsers draw `thin` / `medium` / `thick` as 1 / 3 / 5px).
+    pub const THICK_PX: f32 = 5.0;
+    /// The cells from which a cell length is heavy: one cell is the
+    /// border every rdom box draws.
+    pub const HEAVY_CELLS: f64 = 2.0;
+
+    /// The weight this width draws with, `None` for a zero width (no
+    /// border, §4.3). `thin` and `medium` are light and `thick` heavy;
+    /// a pixel length is light below `thick` (5px) and heavy from it,
+    /// a cell length light below two cells (rounded onto the grid) and
+    /// heavy from them; any non-zero length is at least light, as a
+    /// browser draws a sub-pixel border one device pixel wide.
+    pub fn weight(&self) -> Option<BorderWeight> {
+        match self {
+            BorderWidth::Thin | BorderWidth::Medium => Some(BorderWeight::Light),
+            BorderWidth::Thick => Some(BorderWeight::Heavy),
+            BorderWidth::Length(l) if l.is_zero(0) => None,
+            BorderWidth::Length(PaintLength::Px(px)) => Some(if *px < Self::THICK_PX {
+                BorderWeight::Light
+            } else {
+                BorderWeight::Heavy
+            }),
+            BorderWidth::Length(cells) => {
+                let n = cells.cells(0).unwrap_or(0.0).round_ties_even();
+                Some(if n < Self::HEAVY_CELLS {
+                    BorderWeight::Light
+                } else {
+                    BorderWeight::Heavy
+                })
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// CSS Backgrounds 3 §4.3: `thin` / `medium` light, `thick` heavy;
+    /// pixel lengths light below `thick` (5px), cell lengths below two
+    /// cells; zero is no border, any other length at least light.
+    #[test]
+    fn widths_map_onto_two_weights() {
+        use BorderWeight::{Heavy, Light};
+        let px = |p| BorderWidth::Length(PaintLength::Px(p));
+        let cells = |c| BorderWidth::Length(PaintLength::Cells(c));
+        for (width, weight) in [
+            (BorderWidth::Thin, Some(Light)),
+            (BorderWidth::Medium, Some(Light)),
+            (BorderWidth::Thick, Some(Heavy)),
+            (px(0.0), None),
+            (px(0.5), Some(Light)),
+            (px(4.9), Some(Light)),
+            (px(5.0), Some(Heavy)),
+            (cells(0.0), None),
+            (cells(0.3), Some(Light)),
+            (cells(1.0), Some(Light)),
+            (cells(1.5), Some(Heavy)),
+            (cells(2.0), Some(Heavy)),
+        ] {
+            assert_eq!(width.weight(), weight, "{width:?}");
+        }
+    }
+
+    /// The used border drops zero-width sides but keeps `hidden`.
+    #[test]
+    fn used_border_drops_zero_width_sides() {
+        let zero = BorderWidth::Length(PaintLength::Cells(0.0));
+        let widths =
+            super::super::Sides::new(zero.clone(), BorderWidth::Medium, zero, BorderWidth::Thick);
+        let mut b = Border::single();
+        b.bottom = BorderStyle::Hidden;
+        let used = b.with_widths(&widths);
+        assert_eq!(
+            (used.top, used.right, used.bottom, used.left),
+            (
+                BorderStyle::None,
+                BorderStyle::Solid,
+                BorderStyle::Hidden,
+                BorderStyle::Solid
+            )
+        );
+    }
 }

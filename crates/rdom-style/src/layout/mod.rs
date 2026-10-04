@@ -29,7 +29,9 @@ mod sides;
 mod sizing;
 
 pub use background::{BackgroundAttachment, BackgroundRepeat, RepeatStyle, VisualBox};
-pub use border::{Border, BorderCollapse, BorderStyle, BorderWidth, CornerStyle, PaintLength};
+pub use border::{
+    Border, BorderCollapse, BorderStyle, BorderWeight, BorderWidth, CornerStyle, PaintLength,
+};
 pub use box_model::{Margin, MarginValue, Padding, PaddingValue};
 pub use keywords::{
     Align, CaretColor, CaretTextColor, Direction, Display, Flow, Overflow, PointerEvents, Position,

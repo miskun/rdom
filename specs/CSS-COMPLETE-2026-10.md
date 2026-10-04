@@ -114,7 +114,7 @@ row comes from.
 | C4-BG-CLIP | `background-clip` (`border-box` / `padding-box` / `content-box`) | done |
 | C4-BORDER-SHORTHAND | `border` / `border-top` … with width, style and color in any order | done |
 | C4-BORDER-SIDES | `border-style` / `border-color` / `border-width` 1–4 values; per-side longhands for style, color and width | done |
-| C4-BORDER-WIDTH | `border-width` mapping (`0` = none, thin / medium = light, thick = heavy glyphs) | |
+| C4-BORDER-WIDTH | `border-width` mapping (`0` = none, thin / medium = light, thick = heavy glyphs) | done |
 | C4-RADIUS | `border-radius` and per-corner longhands → rounded corner glyphs | |
 | C4-SHADOW | `box-shadow` (one-cell offset shade; blur / spread documented N/A) | |
 | C4-SPACING | `border-spacing` (lands with the table phase if it needs the TFC) | |
@@ -1014,3 +1014,18 @@ row comes from.
   joiner read the right side's S first). Green after; the per-side cascade and double-dominance paint
   tests were green on first run (characterisation of C4-BORDER-SHORTHAND's storage and the existing
   rank rule). No showcase snapshot changes (no demo colors sides differently).
+- 2026-10-06 — C4-BORDER-WIDTH: `BorderWidth::weight` maps a width to `BorderWeight::{Light, Heavy}` or
+  none — `thin` / `medium` light, `thick` heavy, pixel lengths heavy from `thick`'s 5px, cell lengths
+  from two cells (rounded onto the grid), any non-zero length at least light (a browser draws a
+  sub-pixel border one device pixel wide). The cascade keeps the declared styles in the new
+  `ComputedStyle::border_style` and makes `border` the used border (`Border::with_widths`, after the
+  viewport units resolve, `cascade/decoration.rs::finalize_used_border`), so layout and paint drop a
+  zero-width side without a change, and `inherit` copies the declared style. Paint: contributions
+  carry a weight; `merge` and the corner rule rank weight first (Tables 3 §11.5 rule 3); the joiner
+  draws each direction at its winner's weight from an 81-entry light / heavy table generated from the
+  Unicode names (`border_join/glyphs.rs`, split out of `border_join.rs` with the other tables), so a
+  heavy top over light sides gives `┍━┑`. Decided: always one cell wide (weight by glyph); `double`
+  ignores weight; a heavy rounded corner is square (no heavy arcs in Unicode). Red: four
+  `css_phase4.rs` tests (`thick` drew `┌`, `5px` `┌`, `border: 0 solid` took the corner cell, mixed
+  corners `┌`). Green after; the inherit test was written green against the design. No showcase
+  snapshot changes (every demo border is `medium`).

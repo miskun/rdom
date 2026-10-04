@@ -18,6 +18,7 @@ use super::apply::finalize_bfc_formation;
 use super::content::resolve_content_on;
 pub(super) use super::counters::CounterState;
 use super::counters::{StoredOps, has_ops, takes_part};
+use super::decoration::finalize_used_border;
 use super::inherit::{inherit_inheritable_from, layout_differs};
 use super::ladder::{Declarations, apply_cascade_ladder, prepare};
 pub(super) use super::matching::Scratch;
@@ -493,6 +494,7 @@ fn compute_element_style(
     // Viewport-percentage lengths are absolute at computed-value time
     // (CSS Values 4 §6.1.2).
     working.resolve_viewport_units(sheets.viewport());
+    finalize_used_border(&mut working);
 
     working
 }

@@ -244,3 +244,106 @@ fn a_side_color_longhand_cascades_alone() {
     assert_eq!(cell(&buf, 4, 1).fg, RED);
     assert_eq!(cell(&buf, 2, 0).fg, RED);
 }
+
+// ── C4-BORDER-WIDTH ────────────────────────────────────────────────
+
+/// The glyphs of a 5 × 3 box's border, row by row.
+fn ring(buf: &Buffer) -> Vec<String> {
+    (0..3)
+        .map(|y| {
+            (0..5)
+                .map(|x| cell(buf, x, y).symbol().to_string())
+                .collect()
+        })
+        .collect()
+}
+
+/// CSS Backgrounds 3 §4.3: `thin` ≤ `medium` ≤ `thick`. A border is one
+/// cell wide (DIVERGENCES §2); `thin` and `medium` (the initial value)
+/// draw the light box-drawing set, `thick` the heavy set.
+#[test]
+fn thick_borders_draw_heavy_glyphs() {
+    let light = ["┌───┐", "│   │", "└───┘"];
+    let heavy = ["┏━━━┓", "┃   ┃", "┗━━━┛"];
+    for (width, glyphs) in [("thin", light), ("medium", light), ("thick", heavy)] {
+        let buf = bordered(&format!(
+            ".b {{ width: 5; height: 3; border: {width} solid }}"
+        ));
+        assert_eq!(ring(&buf), glyphs, "{width}");
+    }
+}
+
+/// Lengths map onto the same two weights: below `thick` (5px; two
+/// cells) light, from it on heavy.
+#[test]
+fn border_width_lengths_pick_a_weight() {
+    for (width, corner) in [
+        ("1px", "┌"),
+        ("4px", "┌"),
+        ("5px", "┏"),
+        ("12px", "┏"),
+        ("1", "┌"),
+        ("2", "┏"),
+        ("0.25em", "┌"),
+    ] {
+        let buf = bordered(&format!(
+            ".b {{ width: 5; height: 3; border: {width} solid }}"
+        ));
+        assert_eq!(cell(&buf, 0, 0).symbol(), corner, "{width}");
+    }
+}
+
+/// §4.3: a side whose width is 0 has no border — it takes no cell and
+/// draws nothing, whatever its style.
+#[test]
+fn a_zero_width_side_has_no_border() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    el(&mut dom, root, "b", "x");
+    let buf = paint(
+        &mut dom,
+        ".b { width: 5; height: 3; border: 0 solid red }",
+        5,
+        3,
+    );
+    assert_eq!(
+        cell(&buf, 0, 0).symbol(),
+        "x",
+        "content at the border box's corner"
+    );
+    let buf = bordered(".b { width: 5; height: 3; border: solid; border-width: 0 1 }");
+    assert_eq!(ring(&buf), ["│   │", "│   │", "│   │"]);
+}
+
+/// Sides of different weights meet in the mixed junction glyphs: a
+/// heavy top over light sides turns its corners `┍` / `┑`.
+#[test]
+fn mixed_weights_meet_in_mixed_corners() {
+    let buf = bordered(".b { width: 5; height: 3; border: solid; border-top-width: thick }");
+    assert_eq!(ring(&buf), ["┍━━━┑", "│   │", "└───┘"]);
+}
+
+/// §4.3: the computed `border-style` is not changed by a zero width —
+/// only the used border is — so a child inheriting the style takes
+/// `solid` and, with its own width, draws it.
+#[test]
+fn a_zero_width_keeps_the_computed_style() {
+    use rdom_tui::style::cascade::computed_of;
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let p = el(&mut dom, root, "p", "");
+    let c = el(&mut dom, p, "c", "");
+    let sheet = rdom_css::from_css_strict(
+        ".p { border: 0 solid } .c { border-style: inherit; width: 3; height: 3 }",
+    )
+    .unwrap();
+    dom.cascade(&sheet);
+    let parent = computed_of(&dom, p);
+    assert!(parent.border.is_empty(), "the used border has no side");
+    assert_eq!(
+        parent.border_style.top,
+        rdom_tui::layout::BorderStyle::Solid
+    );
+    let child = computed_of(&dom, c);
+    assert_eq!(child.border.top, rdom_tui::layout::BorderStyle::Solid);
+}

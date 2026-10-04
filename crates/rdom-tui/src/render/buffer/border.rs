@@ -5,7 +5,7 @@
 
 use super::Buffer;
 use crate::render::Color;
-use rdom_style::layout::{BorderStyle, CornerStyle};
+use rdom_style::layout::{BorderStyle, BorderWeight, CornerStyle};
 
 /// Which physical side of the source element a border
 /// contribution sits on. Direction-symmetric styles (Solid, Double,
@@ -36,6 +36,10 @@ pub enum BorderSide {
 pub struct BorderContribution {
     pub style: BorderStyle,
     pub fg: Color,
+    /// The source side's line weight, from its `border-width`: light or
+    /// heavy glyphs, and the first key of conflict resolution (CSS
+    /// Tables 3 §11.5: the wider border wins).
+    pub weight: BorderWeight,
     pub priority: u64,
     /// Source element's `corner-style`. Only meaningful when this
     /// contribution lands on one of the element's corner cells AND
@@ -91,14 +95,12 @@ impl BorderDirState {
             return;
         }
         // Visible contribution. Compare against the current winner
-        // by (style rank, priority). Higher wins.
-        let new_key = (new.style.rank(), new.priority);
+        // by (weight, style rank, priority) — §11.5 rules 3–6: wider,
+        // then style, then position. Higher wins.
+        let new_key = (new.weight, new.style.rank(), new.priority);
         let win = match self.winner {
             None => true,
-            Some(prev) => {
-                let prev_key = (prev.style.rank(), prev.priority);
-                new_key > prev_key
-            }
+            Some(prev) => new_key > (prev.weight, prev.style.rank(), prev.priority),
         };
         if win {
             self.winner = Some(new);

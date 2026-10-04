@@ -7,7 +7,8 @@
 use crate::ComputedStyle;
 use crate::calc::{CalcExpr, Viewport};
 use crate::layout::{
-    FlexBasis, GapValue, Length, MarginValue, MaxSize, MinSize, PaddingValue, Size,
+    BorderWidth, FlexBasis, GapValue, Length, MarginValue, MaxSize, MinSize, PaddingValue,
+    PaintLength, Size,
 };
 
 impl ComputedStyle {
@@ -48,6 +49,14 @@ impl ComputedStyle {
         absolutize(&mut self.flex_basis, vp, FlexBasis::Calc, |v| {
             FlexBasis::Cells(cells_u16(v))
         });
+        for width in self.border_width.each_mut() {
+            absolutize(
+                width,
+                vp,
+                |e| BorderWidth::Length(PaintLength::Calc(e)),
+                |v| BorderWidth::Length(PaintLength::Cells(v as f32)),
+            );
+        }
         for inset in [
             &mut self.top,
             &mut self.right,
@@ -86,6 +95,15 @@ has_expr!(
     GapValue,
     Length
 );
+
+impl HasExpr for BorderWidth {
+    fn expr(&self) -> Option<&CalcExpr> {
+        match self {
+            BorderWidth::Length(PaintLength::Calc(e)) => Some(e),
+            _ => None,
+        }
+    }
+}
 
 /// Replace `value`'s expression, when it has a viewport unit, by the
 /// absolute one: `calc` keeps a percent-bearing expression, `fixed`
