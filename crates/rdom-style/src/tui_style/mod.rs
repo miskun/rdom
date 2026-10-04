@@ -133,7 +133,7 @@ pub struct TuiStyle {
     /// items shrink proportional to `flex_shrink * basis`. `0`
     /// opts out of shrinking (the item keeps its declared size
     /// and overflows). Larger values shrink more aggressively.
-    pub flex_shrink: Option<Value<u16>>,
+    pub flex_shrink: Option<Value<f32>>,
     pub border: Option<Value<Border>>,
     /// `border-collapse: separate | collapse`. CSS-faithful name but
     /// rdom extends the property's scope from `<table>` only to any

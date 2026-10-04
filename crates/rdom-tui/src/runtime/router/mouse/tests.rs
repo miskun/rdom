@@ -1089,7 +1089,7 @@ fn wheel_on_scrollable_ancestor_increments_scroll_y() {
             TuiStyle::new()
                 .width(Size::Fixed(5))
                 .height(Size::Fixed(20))
-                .flex_shrink(0),
+                .flex_shrink(0.0),
         );
     prepare(&mut dom, &sheet, Rect::new(0, 0, 20, 10));
     assert_eq!(dom.node(container).ext().unwrap().scroll_y, 0);
@@ -1125,7 +1125,7 @@ fn wheel_scroll_up_decrements_scroll_y_but_clamps_at_zero() {
             TuiStyle::new()
                 .width(Size::Fixed(5))
                 .height(Size::Fixed(20))
-                .flex_shrink(0),
+                .flex_shrink(0.0),
         );
     prepare(&mut dom, &sheet, Rect::new(0, 0, 20, 10));
 
@@ -1170,7 +1170,7 @@ fn wheel_scroll_down_clamps_at_content_end() {
             TuiStyle::new()
                 .width(Size::Fixed(5))
                 .height(Size::Fixed(8))
-                .flex_shrink(0),
+                .flex_shrink(0.0),
         );
     prepare(&mut dom, &sheet, Rect::new(0, 0, 20, 10));
 
@@ -1293,7 +1293,7 @@ fn wheel_walks_up_to_find_scrollable_ancestor() {
             TuiStyle::new()
                 .width(Size::Fixed(8))
                 .height(Size::Fixed(20))
-                .flex_shrink(0),
+                .flex_shrink(0.0),
         )
         .rule_unchecked(
             "leaf",
@@ -1409,7 +1409,7 @@ fn wheel_bubbles_up_to_ancestor_handlers() {
             TuiStyle::new()
                 .width(Size::Fixed(5))
                 .height(Size::Fixed(20))
-                .flex_shrink(0),
+                .flex_shrink(0.0),
         );
     prepare(&mut dom, &sheet, Rect::new(0, 0, 20, 10));
 
@@ -2478,7 +2478,7 @@ fn unseeded_input_beside_a_label() -> (TuiDom, NodeId, NodeId) {
             TuiStyle::new().flow(Flow::Flex).direction(Direction::Row),
         )
         .rule_unchecked("label", TuiStyle::new().width(Size::Fixed(9)))
-        .rule_unchecked("input", TuiStyle::new().width(Size::Flex(1)));
+        .rule_unchecked("input", TuiStyle::new().width(Size::Flex(1.0)));
     prepare(&mut dom, &sheet, Rect::new(0, 0, 40, 4));
     assert_eq!(
         dom.node(input).child_nodes().count(),

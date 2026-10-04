@@ -14,8 +14,11 @@ pub enum Size {
     /// Exact number of cells.
     Fixed(u16),
     /// Flexible: takes remaining space proportional to weight.
-    /// `Flex(1)` = equal share. `Flex(2)` = double share.
-    Flex(u16),
+    /// `Flex(1.0)` = equal share. `Flex(2.0)` = double share. A
+    /// fractional weight is a `<number>` as CSS allows (`flex: 0.5`);
+    /// weights summing below one share only that fraction of the free
+    /// space (CSS Flexbox §9.7).
+    Flex(f32),
     /// Percentage of the parent's content-area dimension on the
     /// matching axis (`width: 50%` ⇒ half of parent's content
     /// width). Carries the fraction (`12.5%` is `12.5`); resolves at

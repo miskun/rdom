@@ -19,7 +19,7 @@ use crate::style::ComputedStyle;
 /// An item's main size before flexible-length resolution.
 pub(super) enum MainNatural {
     Fixed(u16),
-    Flex(u16),
+    Flex(f32),
     Auto(u16),
 }
 
@@ -269,24 +269,28 @@ pub(super) fn resolve_flexible_lengths(
 }
 
 /// The grow half of §9.7: split `flex_remaining` across `Flex(w)`
-/// items by weight, freezing any item its min/max clamps.
+/// items by weight, freezing any item its min/max clamps. Weights are
+/// `<number>`s; when the unfrozen items' weights sum to less than one
+/// they share only that fraction of the initial free space (§9.7 step
+/// 4.b), the rest staying free.
 fn distribute_grow(child_info: &[ChildMain], final_main: &mut [u16], flex_remaining: u16) {
     let mut frozen: Vec<bool> = child_info
         .iter()
         .map(|ci| !matches!(ci.main, MainNatural::Flex(_)))
         .collect();
-    let mut budget: u32 = flex_remaining as u32;
+    let initial = f64::from(flex_remaining);
+    let mut budget = initial;
     loop {
-        let weight: u32 = child_info
+        let weight: f64 = child_info
             .iter()
             .zip(frozen.iter())
             .filter(|(_, f)| !**f)
             .map(|(ci, _)| match ci.main {
-                MainNatural::Flex(w) => w as u32,
-                _ => 0,
+                MainNatural::Flex(w) => f64::from(w),
+                _ => 0.0,
             })
             .sum();
-        if weight == 0 {
+        if weight <= 0.0 {
             break;
         }
         // Every share in a pass is computed from the pass-start
@@ -294,9 +298,13 @@ fn distribute_grow(child_info: &[ChildMain], final_main: &mut [u16], flex_remain
         // subtracted only after the pass (a mid-pass subtraction made
         // later items' shares shrink and falsely froze them at their
         // floors).
-        let pass_budget = budget;
-        let mut frozen_this_pass: u32 = 0;
-        let mut accumulated_weight: u32 = 0;
+        let pass_budget = if weight < 1.0 {
+            budget.min(initial * weight)
+        } else {
+            budget
+        };
+        let mut frozen_this_pass = 0.0;
+        let mut accumulated_weight = 0.0;
         let mut accumulated: u32 = 0;
         let mut clamped_any = false;
         for (i, ci) in child_info.iter().enumerate() {
@@ -306,26 +314,28 @@ fn distribute_grow(child_info: &[ChildMain], final_main: &mut [u16], flex_remain
             let MainNatural::Flex(w) = ci.main else {
                 continue;
             };
-            accumulated_weight = accumulated_weight.saturating_add(w as u32);
-            let target = pass_budget
-                .saturating_mul(accumulated_weight)
-                .checked_div(weight)
-                .unwrap_or(0);
-            let share = target.saturating_sub(accumulated).min(u16::MAX as u32) as u16;
+            accumulated_weight += f64::from(w);
+            // Rolling (Bresenham) targets: the running total is floored
+            // once, so no cell of the remainder is dropped between
+            // items. The epsilon absorbs float error on exact ratios.
+            let target = (pass_budget * accumulated_weight / weight + 1e-9)
+                .floor()
+                .clamp(0.0, f64::from(u32::MAX)) as u32;
+            let share = target.saturating_sub(accumulated).min(u32::from(u16::MAX)) as u16;
             accumulated = target;
             let clamped = clamp_size(share, ci.min, ci.max);
             final_main[i] = clamped;
             if clamped != share {
                 // Freeze at the clamped size; its budget is spoken for.
                 frozen[i] = true;
-                frozen_this_pass = frozen_this_pass.saturating_add(clamped as u32);
+                frozen_this_pass += f64::from(clamped);
                 clamped_any = true;
             }
         }
         if !clamped_any {
             break;
         }
-        budget = budget.saturating_sub(frozen_this_pass);
+        budget = (budget - frozen_this_pass).max(0.0);
     }
 }
 
@@ -354,42 +364,51 @@ fn distribute_shrink(
     if net_budget <= 0 {
         return;
     }
-    let shrink_of = |ci: &ChildMain| -> u32 {
+    let shrink_of = |ci: &ChildMain| -> f64 {
         dom.node(ci.id)
             .computed()
-            .map(|c| c.flex_shrink as u32)
-            .unwrap_or(1)
+            .map_or(1.0, |c| f64::from(c.flex_shrink))
     };
     // Basis = the size before any shrinking in this loop.
     let basis: Vec<u16> = final_main.to_vec();
-    let mut frozen: Vec<bool> = child_info.iter().map(|ci| shrink_of(ci) == 0).collect();
+    let mut frozen: Vec<bool> = child_info.iter().map(|ci| shrink_of(ci) <= 0.0).collect();
     let mut floors: Vec<Option<u16>> = vec![None; child_info.len()];
+    let initial_total: i32 = final_main.iter().map(|&n| i32::from(n)).sum();
+    let initial_overflow = f64::from((initial_total - net_budget).max(0));
     loop {
-        let total: i32 = final_main.iter().map(|&n| n as i32).sum();
+        let total: i32 = final_main.iter().map(|&n| i32::from(n)).sum();
         if total <= net_budget {
             break;
         }
-        let overflow = (total - net_budget) as u32;
-        let divisor: u32 = child_info
-            .iter()
-            .enumerate()
-            .filter(|(i, _)| !frozen[*i])
-            .map(|(i, ci)| (basis[i] as u32) * shrink_of(ci))
+        let unfrozen = || child_info.iter().enumerate().filter(|(i, _)| !frozen[*i]);
+        // §9.7 step 4.b: shrink factors summing below one take only
+        // that fraction of the initial overflow.
+        let factor_sum: f64 = unfrozen().map(|(_, ci)| shrink_of(ci)).sum();
+        let mut overflow = f64::from(total - net_budget);
+        if factor_sum < 1.0 {
+            overflow = overflow.min(initial_overflow * factor_sum);
+        }
+        // §9.7 step 4.c: shared in proportion to the scaled shrink
+        // factor, `flex-shrink × flex base size`.
+        let divisor: f64 = unfrozen()
+            .map(|(i, ci)| f64::from(basis[i]) * shrink_of(ci))
             .sum();
-        let Some(divisor) = std::num::NonZeroU32::new(divisor) else {
+        if divisor <= 0.0 {
             break; // nothing left that can shrink
-        };
-        let mut accumulated_basis: u32 = 0;
+        }
+        let mut accumulated_basis = 0.0;
         let mut accumulated_shrink: u32 = 0;
         let mut clamped_any = false;
         for (i, ci) in child_info.iter().enumerate() {
             if frozen[i] {
                 continue;
             }
-            accumulated_basis += (basis[i] as u32) * shrink_of(ci);
-            let target_total_shrink =
-                ((accumulated_basis as u64 * overflow as u64) / divisor.get() as u64) as u32;
-            let my_shrink = target_total_shrink.saturating_sub(accumulated_shrink) as u16;
+            accumulated_basis += f64::from(basis[i]) * shrink_of(ci);
+            let target_total_shrink = (accumulated_basis * overflow / divisor + 1e-9)
+                .floor()
+                .clamp(0.0, f64::from(u32::MAX)) as u32;
+            let my_shrink = target_total_shrink.saturating_sub(accumulated_shrink);
+            let my_shrink = my_shrink.min(u32::from(u16::MAX)) as u16;
             accumulated_shrink = target_total_shrink;
             // Honor min clamp — child can't shrink below its
             // `min-width` / `min-height`. Explicit `Cells(n)` is

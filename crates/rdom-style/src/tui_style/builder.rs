@@ -189,7 +189,7 @@ impl TuiStyle {
         flex_shrink,
         flex_shrink_important,
         FLEX_SHRINK,
-        u16
+        f32
     );
     setter!(border, border, border_important, BORDER, Border);
     /// `.collapse_borders()` — sets `border-collapse: collapse` on

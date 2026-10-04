@@ -78,6 +78,25 @@ pub(crate) fn length_percentage(component: &[Token], range: Range) -> Option<Len
     }
 }
 
+/// Parse one component value as a `<number>` (CSS Values 4 §5.4):
+/// an integer or a fraction (`0.5`, `.5`, `1e3`). A leading `-` is
+/// the literal's sign.
+pub(crate) fn number(component: &[Token], range: Range) -> Option<f64> {
+    let (negative, rest) = match component {
+        [Token::Delim('-'), rest @ ..] => (true, rest),
+        _ => (false, component),
+    };
+    if negative && range == Range::NonNegative {
+        return None;
+    }
+    let n = match rest {
+        [Token::Number(n)] => f64::from(*n),
+        [Token::Float(f)] => *f,
+        _ => return None,
+    };
+    Some(if negative { -n } else { n })
+}
+
 /// Split a declaration value into its component values (CSS Syntax 3
 /// §5.4.9): a function runs to its matching `)`, a `-` delimiter
 /// belongs to the numeric token after it, and every other token

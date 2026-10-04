@@ -643,12 +643,14 @@ fn width_and_height_cascade() {
     let (mut dom, div) = dom_with_div();
     let sheet = Stylesheet::bare().rule_unchecked(
         "div",
-        TuiStyle::new().width(Size::Fixed(40)).height(Size::Flex(1)),
+        TuiStyle::new()
+            .width(Size::Fixed(40))
+            .height(Size::Flex(1.0)),
     );
     dom.cascade(&sheet);
     let c = computed_of(&dom, div);
     assert_eq!(c.width, Size::Fixed(40));
-    assert_eq!(c.height, Size::Flex(1));
+    assert_eq!(c.height, Size::Flex(1.0));
 }
 
 #[test]
@@ -2311,7 +2313,7 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
     parent.padding = Padding::all(1);
     parent.margin = Margin::all_cells(1);
     parent.gap = rdom_style::layout::GapValue::Cells(2);
-    parent.flex_shrink = 3;
+    parent.flex_shrink = 3.0;
     parent.border = Border {
         top: BorderStyle::Solid,
         ..Border::default()

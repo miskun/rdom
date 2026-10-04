@@ -11,13 +11,13 @@ use crate::layout::{CaretColor, CaretTextColor, Direction, Display, Size, UserSe
 use crate::parse::token::{Token, tokenize};
 use crate::parse::values::{
     current_border, current_margin, current_padding, parse_aspect_ratio, parse_border,
-    parse_border_side, parse_color, parse_content, parse_counter_ops, parse_flex_shorthand,
-    parse_gap, parse_inset_shorthand, parse_keyword, parse_length, parse_margin_longhand,
-    parse_margin_shorthand, parse_max_size, parse_min_size, parse_opacity, parse_overflow,
-    parse_padding_shorthand, parse_padding_value, parse_position, parse_scroll_behavior,
-    parse_scrollbar_gutter, parse_size, parse_text_decoration, parse_time_list,
-    parse_timing_function_list, parse_transition_property_list, parse_transition_shorthand,
-    parse_unsigned, parse_z_index, unzip_transition_rules,
+    parse_border_side, parse_color, parse_content, parse_counter_ops, parse_flex_factor,
+    parse_flex_shorthand, parse_gap, parse_inset_shorthand, parse_keyword, parse_length,
+    parse_margin_longhand, parse_margin_shorthand, parse_max_size, parse_min_size, parse_opacity,
+    parse_overflow, parse_padding_shorthand, parse_padding_value, parse_position,
+    parse_scroll_behavior, parse_scrollbar_gutter, parse_size, parse_text_decoration,
+    parse_time_list, parse_timing_function_list, parse_transition_property_list,
+    parse_transition_shorthand, parse_z_index, unzip_transition_rules,
 };
 use crate::{TuiStyle, Value};
 
@@ -304,14 +304,14 @@ pub fn set_parsed(name: &str, value: &[Token], style: &mut TuiStyle) -> Result<(
             // `flex: none` ⇒ Size::Auto with flex_shrink=0. All
             // other shapes use the CSS-default shrink=1.
             let shrink = match &s {
-                Size::Auto => 0,
-                _ => 1,
+                Size::Auto => 0.0,
+                _ => 1.0,
             };
             style.width = Some(Value::Specified(s.clone()));
             style.height = Some(Value::Specified(s));
             style.flex_shrink = Some(Value::Specified(shrink));
         }),
-        "flex-shrink" => parse_unsigned(value).map(|n| {
+        "flex-shrink" => parse_flex_factor(value).map(|n| {
             style.flex_shrink = Some(Value::Specified(n));
         }),
 

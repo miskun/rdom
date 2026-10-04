@@ -59,7 +59,7 @@ pub struct ComputedStyle {
     /// CSS `flex-shrink`. Default `1` (CSS spec). When total
     /// declared sizes exceed the parent's main-axis budget, items
     /// shrink proportional to `flex_shrink * basis`. `0` opts out.
-    pub flex_shrink: u16,
+    pub flex_shrink: f32,
     pub border: Border,
     /// `border-collapse: separate | collapse`. CSS-faithful name,
     /// extended to apply to any flex container (rdom divergence).
@@ -197,7 +197,7 @@ impl ComputedStyle {
             padding: Padding::default(),
             margin: crate::layout::Margin::default(),
             gap: crate::layout::GapValue::Cells(0),
-            flex_shrink: 1,
+            flex_shrink: 1.0,
             border: Border::none(),
             border_collapse: crate::layout::BorderCollapse::Separate,
             border_collapse_declared: false,

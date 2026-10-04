@@ -496,7 +496,7 @@ mod tests {
         let div = dom.create_element("div");
         dom.node_mut(div)
             .set_width(Size::Fixed(40))
-            .set_height(Size::Flex(1))
+            .set_height(Size::Flex(1.0))
             .set_padding(Padding::symmetric(2, 1))
             .set_border(Border::single())
             .set_gap(1)
@@ -505,7 +505,7 @@ mod tests {
 
         let n = dom.node(div);
         assert_eq!(n.width(), Some(Size::Fixed(40)));
-        assert_eq!(n.height(), Some(Size::Flex(1)));
+        assert_eq!(n.height(), Some(Size::Flex(1.0)));
         assert_eq!(n.padding(), Some(Padding::symmetric(2, 1)));
         assert_eq!(n.border(), Some(Border::single()));
         assert_eq!(n.gap(), Some(1));

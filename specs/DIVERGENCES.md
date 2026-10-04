@@ -102,7 +102,6 @@ Supported selector grammar: type, class, ID, attribute, descendant, child (`>`),
 - **`background` is color-only.** The shorthand accepts a single `<color>` (it sets `background-color`); images, positions, repeat, and attachment have no cell-grid meaning, so any other value is dropped as invalid rather than partially applied. The full shorthand, with image layers parsed and inert, is scheduled (C4-BACKGROUND, §3).
 - **Times resolve to whole milliseconds.** `1.5ms` rounds to 2ms: the animation clock ticks in milliseconds and a terminal frame is ~16ms, so sub-millisecond precision has no observable effect. (Percentages keep their fraction — `Size::Percent(f32)` — and round once, onto the cell grid, at layout.)
 - **Per-side longhands share the shorthand's storage.** `padding-top: inherit` (or `margin-*`, `border-*`) marks the whole `padding` as inherited, and a later `padding-left: 2` on the same element replaces it entirely. The web keeps four independent longhands.
-- **Flex factors are whole numbers** (C2-NUMBER, §3). `flex-shrink` and `flex: <n>` accept integers only (`flex: 1.5` is dropped as invalid; `flex-grow` is not a property yet, §3); a fractional *shrink* factor in the 3-value shorthand is accepted and ignored like the rest of the shrink value. Cells are integers, so fractional grow rarely changes a result.
 - **`flex: inherit` inherits the parent's main-axis size**, because `flex` maps onto `width` / `height` (see the flex entry above), not onto separate grow / shrink / basis longhands (C6-FLEX-LONGHANDS, §3).
 
 ### DOM API shape
@@ -236,7 +235,6 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 
 ### Values and units
 
-- Fractional `<number>` (flex factors) — C2-NUMBER
 - `min()` / `max()` / `clamp()` — C2-MINMAX
 - `round()` / `mod()` / `rem()` / `abs()` / `sign()` — C2-STEPPED
 - `sin()` … `atan2()`, `pow()` / `sqrt()` / `hypot()` / `log()` / `exp()` — C2-TRIG

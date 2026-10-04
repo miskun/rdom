@@ -279,7 +279,7 @@ fn row_flex_distributes_remaining() {
             TuiStyle::new().flow(Flow::Flex).direction(Direction::Row),
         )
         .rule_unchecked("a", TuiStyle::new().width(Size::Fixed(5)))
-        .rule_unchecked("fx", TuiStyle::new().width(Size::Flex(1)))
+        .rule_unchecked("fx", TuiStyle::new().width(Size::Flex(1.0)))
         .rule_unchecked("b", TuiStyle::new().width(Size::Fixed(5)));
     cascade(&mut dom, &sheet);
     dom.layout_dom(Rect::new(0, 0, 50, 5));
@@ -306,8 +306,8 @@ fn row_flex_weights_distribute_proportionally() {
             "c",
             TuiStyle::new().flow(Flow::Flex).direction(Direction::Row),
         )
-        .rule_unchecked("a", TuiStyle::new().width(Size::Flex(1)))
-        .rule_unchecked("b", TuiStyle::new().width(Size::Flex(3)));
+        .rule_unchecked("a", TuiStyle::new().width(Size::Flex(1.0)))
+        .rule_unchecked("b", TuiStyle::new().width(Size::Flex(3.0)));
     cascade(&mut dom, &sheet);
     dom.layout_dom(Rect::new(0, 0, 40, 5));
     assert_eq!(layout_rect_of(&dom, a).width, 10);
@@ -557,7 +557,7 @@ fn max_width_clamps_flex() {
             "c",
             TuiStyle::new().flow(Flow::Flex).direction(Direction::Row),
         )
-        .rule_unchecked("a", TuiStyle::new().width(Size::Flex(1)).max_width(20));
+        .rule_unchecked("a", TuiStyle::new().width(Size::Flex(1.0)).max_width(20));
     cascade(&mut dom, &sheet);
     dom.layout_dom(Rect::new(0, 0, 100, 5));
 
@@ -676,7 +676,7 @@ fn auto_basis_flex_item_keeps_intrinsic_under_pressure() {
         .rule_unchecked("p", TuiStyle::new().min_width(MinSize::Auto))
         // An unshrinkable 30-cell sibling in a 20-cell row: `p`
         // absorbs the whole overflow and lands on its floor.
-        .rule_unchecked("g", TuiStyle::new().width(Size::Fixed(30)).flex_shrink(0));
+        .rule_unchecked("g", TuiStyle::new().width(Size::Fixed(30)).flex_shrink(0.0));
     cascade(&mut dom, &sheet);
     dom.layout_dom(Rect::new(0, 0, 20, 5));
 
@@ -716,7 +716,7 @@ fn auto_min_floor_of_nowrap_text_is_its_full_width() {
                 .min_width(MinSize::Auto)
                 .white_space(WhiteSpace::NoWrap),
         )
-        .rule_unchecked("g", TuiStyle::new().width(Size::Fixed(30)).flex_shrink(0));
+        .rule_unchecked("g", TuiStyle::new().width(Size::Fixed(30)).flex_shrink(0.0));
     cascade(&mut dom, &sheet);
     dom.layout_dom(Rect::new(0, 0, 20, 5));
     assert_eq!(layout_rect_of(&dom, protected).width, 11);
@@ -755,7 +755,7 @@ fn auto_min_floor_of_a_nested_row_sums_its_items_min_content() {
                 .min_width(MinSize::Auto),
         )
         .rule_unchecked("b", TuiStyle::new().width(Size::Fixed(3)))
-        .rule_unchecked("g", TuiStyle::new().width(Size::Fixed(30)).flex_shrink(0));
+        .rule_unchecked("g", TuiStyle::new().width(Size::Fixed(30)).flex_shrink(0.0));
     cascade(&mut dom, &sheet);
     dom.layout_dom(Rect::new(0, 0, 20, 5));
     // "aaaa" (4) + the fixed 3.
@@ -786,8 +786,8 @@ fn flex_basis_zero_shrinks_freely_per_css_strict() {
             "c",
             TuiStyle::new().flow(Flow::Flex).direction(Direction::Row),
         )
-        .rule_unchecked("p", TuiStyle::new().width(Size::Flex(1)))
-        .rule_unchecked("g", TuiStyle::new().width(Size::Flex(99)));
+        .rule_unchecked("p", TuiStyle::new().width(Size::Flex(1.0)))
+        .rule_unchecked("g", TuiStyle::new().width(Size::Flex(99.0)));
     cascade(&mut dom, &sheet);
     dom.layout_dom(Rect::new(0, 0, 80, 5));
 
@@ -842,10 +842,10 @@ fn auto_min_drops_to_zero_when_overflow_non_visible_per_css_4_5() {
         .rule_unchecked(
             "p",
             TuiStyle::new()
-                .width(Size::Flex(1))
+                .width(Size::Flex(1.0))
                 .overflow_x(crate::layout::Overflow::Hidden),
         )
-        .rule_unchecked("g", TuiStyle::new().width(Size::Flex(1)));
+        .rule_unchecked("g", TuiStyle::new().width(Size::Flex(1.0)));
     cascade(&mut dom, &sheet);
     dom.layout_dom(Rect::new(0, 0, 80, 5));
 
@@ -1208,7 +1208,7 @@ fn flex_auto_margin_starves_flex_grow() {
         )
         .rule_unchecked(
             "a",
-            TuiStyle::new().width(Size::Flex(1)).margin(Margin {
+            TuiStyle::new().width(Size::Flex(1.0)).margin(Margin {
                 top: MarginValue::Cells(0),
                 right: MarginValue::Auto,
                 bottom: MarginValue::Cells(0),
@@ -1615,8 +1615,8 @@ fn flex_distribution_redistributes_integer_remainder() {
                 .flow(Flow::Flex)
                 .direction(Direction::Row),
         )
-        .rule_unchecked("a", TuiStyle::new().width(Size::Flex(1)))
-        .rule_unchecked("b", TuiStyle::new().width(Size::Flex(1)));
+        .rule_unchecked("a", TuiStyle::new().width(Size::Flex(1.0)))
+        .rule_unchecked("b", TuiStyle::new().width(Size::Flex(1.0)));
     cascade(&mut dom, &sheet);
     dom.layout_dom(Rect::new(0, 0, 31, 5));
 
@@ -1957,7 +1957,7 @@ fn flex_phase1_skips_absolute_child() {
                 .position(crate::layout::Position::Absolute)
                 .width(Size::Fixed(20)),
         )
-        .rule_unchecked("flex", TuiStyle::new().width(Size::Flex(1)));
+        .rule_unchecked("flex", TuiStyle::new().width(Size::Flex(1.0)));
     cascade(&mut dom, &sheet);
     dom.layout_dom(Rect::new(0, 0, 30, 5));
 
@@ -1987,7 +1987,7 @@ fn flex_phase1_skips_fixed_child() {
                 .position(crate::layout::Position::Fixed)
                 .width(Size::Fixed(20)),
         )
-        .rule_unchecked("flex", TuiStyle::new().width(Size::Flex(1)));
+        .rule_unchecked("flex", TuiStyle::new().width(Size::Flex(1.0)));
     cascade(&mut dom, &sheet);
     dom.layout_dom(Rect::new(0, 0, 30, 5));
 
@@ -2385,7 +2385,7 @@ fn flex_phase1_keeps_relative_child_in_flow() {
                 .position(crate::layout::Position::Relative)
                 .width(Size::Fixed(10)),
         )
-        .rule_unchecked("flex", TuiStyle::new().width(Size::Flex(1)));
+        .rule_unchecked("flex", TuiStyle::new().width(Size::Flex(1.0)));
     cascade(&mut dom, &sheet);
     dom.layout_dom(Rect::new(0, 0, 30, 5));
 
@@ -2441,8 +2441,8 @@ fn inline_block_hugs_content_in_column_parent() {
             TuiStyle::new()
                 .flow(Flow::Flex)
                 .direction(Direction::Column)
-                .width(Size::Flex(1))
-                .height(Size::Flex(1)),
+                .width(Size::Flex(1.0))
+                .height(Size::Flex(1.0)),
         )
         .rule_unchecked("btn", TuiStyle::new().display(Display::InlineBlock));
     cascade(&mut dom, &sheet);
@@ -2475,7 +2475,7 @@ fn inline_block_with_pseudo_chrome_hugs_content_plus_pseudos() {
             TuiStyle::new()
                 .flow(Flow::Flex)
                 .direction(Direction::Column)
-                .width(Size::Flex(1)),
+                .width(Size::Flex(1.0)),
         )
         .rule_unchecked("btn", TuiStyle::new().display(Display::InlineBlock))
         .rule_unchecked(
@@ -2513,8 +2513,8 @@ fn inline_block_hugs_content_in_row_parent() {
             TuiStyle::new()
                 .flow(Flow::Flex)
                 .direction(Direction::Row)
-                .width(Size::Flex(1))
-                .height(Size::Flex(1)),
+                .width(Size::Flex(1.0))
+                .height(Size::Flex(1.0)),
         )
         .rule_unchecked("btn", TuiStyle::new().display(Display::InlineBlock));
     cascade(&mut dom, &sheet);
@@ -2545,7 +2545,7 @@ fn inline_block_fixed_width_wins_over_intrinsic() {
             TuiStyle::new()
                 .flow(Flow::Flex)
                 .direction(Direction::Column)
-                .width(Size::Flex(1)),
+                .width(Size::Flex(1.0)),
         )
         .rule_unchecked(
             "btn",
@@ -2580,7 +2580,7 @@ fn block_still_stretches_cross_axially() {
             TuiStyle::new()
                 .flow(Flow::Flex)
                 .direction(Direction::Column)
-                .width(Size::Flex(1)),
+                .width(Size::Flex(1.0)),
         )
         .rule_unchecked("btn", TuiStyle::new().display(Display::Block));
     cascade(&mut dom, &sheet);
@@ -2607,7 +2607,7 @@ fn inline_block_with_position_relative_shifts_in_flex_parent() {
             TuiStyle::new()
                 .flow(Flow::Flex)
                 .direction(Direction::Column)
-                .width(Size::Flex(1)),
+                .width(Size::Flex(1.0)),
         )
         .rule_unchecked(
             "btn",
@@ -2744,14 +2744,14 @@ fn layout_records_scroll_content_height_for_scrollable_column() {
             TuiStyle::new()
                 .flow(crate::layout::Flow::Flex)
                 .direction(crate::layout::Direction::Column)
-                .height(crate::layout::Size::Flex(1))
+                .height(crate::layout::Size::Flex(1.0))
                 .overflow(crate::layout::Overflow::Scroll),
         )
         .rule_unchecked(
             "row",
             TuiStyle::new()
                 .height(crate::layout::Size::Fixed(1))
-                .flex_shrink(0),
+                .flex_shrink(0.0),
         );
     cascade(&mut dom, &sheet);
     dom.layout_dom(Rect::new(0, 0, 80, 24));
@@ -3481,10 +3481,13 @@ fn flex_grow_redistributes_after_a_max_width_clamp() {
         .rule_unchecked(
             "capped",
             TuiStyle::new()
-                .width(crate::layout::Size::Flex(1))
+                .width(crate::layout::Size::Flex(1.0))
                 .max_width(5),
         )
-        .rule_unchecked("item", TuiStyle::new().width(crate::layout::Size::Flex(1)));
+        .rule_unchecked(
+            "item",
+            TuiStyle::new().width(crate::layout::Size::Flex(1.0)),
+        );
     cascade(&mut dom, &sheet);
     dom.layout_dom(Rect::new(0, 0, 80, 10));
     let w = |id| dom.node(id).ext().unwrap().layout.width;
@@ -3688,16 +3691,16 @@ fn flex_grow_two_clamps_in_one_pass_distribute_fairly() {
         .rule_unchecked(
             "a",
             TuiStyle::new()
-                .width(crate::layout::Size::Flex(1))
+                .width(crate::layout::Size::Flex(1.0))
                 .max_width(5),
         )
         .rule_unchecked(
             "b",
             TuiStyle::new()
-                .width(crate::layout::Size::Flex(1))
+                .width(crate::layout::Size::Flex(1.0))
                 .min_width(crate::layout::MinSize::Cells(8)),
         )
-        .rule_unchecked("c", TuiStyle::new().width(crate::layout::Size::Flex(1)));
+        .rule_unchecked("c", TuiStyle::new().width(crate::layout::Size::Flex(1.0)));
     cascade(&mut dom, &sheet);
     dom.layout_dom(Rect::new(0, 0, 80, 10));
     let w = |id| dom.node(id).ext().unwrap().layout.width;
@@ -4207,7 +4210,10 @@ fn column_flex_container_scrolls_its_cross_axis() {
                 .direction(Direction::Row)
                 .height(Size::Fixed(1)),
         )
-        .rule_unchecked("cell", TuiStyle::new().width(Size::Fixed(8)).flex_shrink(0));
+        .rule_unchecked(
+            "cell",
+            TuiStyle::new().width(Size::Fixed(8)).flex_shrink(0.0),
+        );
     cascade(&mut dom, &sheet);
     dom.layout_dom(Rect::new(0, 0, 40, 10));
     let ext = dom.node(col).ext().unwrap();

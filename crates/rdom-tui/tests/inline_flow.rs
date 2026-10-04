@@ -812,8 +812,8 @@ fn resizing_terminal_wider_then_narrower_reflows_ifc_without_stale_cells() {
             TuiStyle::new()
                 .flow(Flow::Flex)
                 .direction(Direction::Column)
-                .width(Size::Flex(1))
-                .height(Size::Flex(1)),
+                .width(Size::Flex(1.0))
+                .height(Size::Flex(1.0)),
         )
         .unwrap()
         .rule(
@@ -822,13 +822,13 @@ fn resizing_terminal_wider_then_narrower_reflows_ifc_without_stale_cells() {
                 .flow(Flow::Flex)
                 .direction(Direction::Row)
                 .padding(Padding::all(1))
-                .height(Size::Flex(1)),
+                .height(Size::Flex(1.0)),
         )
         .unwrap()
         .rule(
             "p",
             TuiStyle::new()
-                .width(Size::Flex(1))
+                .width(Size::Flex(1.0))
                 .border(Border::rounded())
                 .padding(Padding::all(1)),
         )
@@ -930,7 +930,9 @@ fn ifc_reflows_when_only_width_changes_same_height() {
     let sheet = Stylesheet::new()
         .rule(
             "p",
-            TuiStyle::new().display(Display::Block).width(Size::Flex(1)),
+            TuiStyle::new()
+                .display(Display::Block)
+                .width(Size::Flex(1.0)),
         )
         .unwrap();
 

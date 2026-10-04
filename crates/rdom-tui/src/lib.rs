@@ -248,7 +248,7 @@ mod tests {
                     .bg(Color::Rgb(0, 0, 0)),
             )
             .set_width(Size::Fixed(80))
-            .set_height(Size::Flex(1))
+            .set_height(Size::Flex(1.0))
             .set_padding(Padding::symmetric(2, 1))
             .set_border(Border::rounded())
             .set_gap(1)

@@ -71,12 +71,12 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 |---|---:|---:|---:|---:|---:|
 | 3.1 Syntax, cascade and inheritance (Syntax 3, Cascade 4/5, CSS 2.1 §6) | 18 | 1 | 0 | 2 | 21 |
 | 3.2 Custom properties (CSS Variables 1) | 6 | 0 | 0 | 1 | 7 |
-| 3.3 Values and units (Values 4) | 6 | 4 | 8 | 4 | 22 |
+| 3.3 Values and units (Values 4) | 7 | 3 | 8 | 4 | 22 |
 | 3.4 Color (Color 4 / 5) | 3 | 3 | 9 | 2 | 17 |
 | 3.5 Backgrounds and borders (Backgrounds 3, Borders 4) | 3 | 5 | 6 | 2 | 16 |
 | 3.6 Box model and sizing (Box 3, Sizing 3/4) | 2 | 4 | 3 | 0 | 9 |
 | 3.7 Display and visibility (Display 3) | 1 | 0 | 8 | 2 | 11 |
-| 3.8 Flexbox and box alignment (Flexbox 1, Align 3) | 2 | 4 | 11 | 0 | 17 |
+| 3.8 Flexbox and box alignment (Flexbox 1, Align 3) | 3 | 3 | 11 | 0 | 17 |
 | 3.9 Grid (Grid 1/2) | 0 | 0 | 10 | 0 | 10 |
 | 3.10 Positioned layout (Position 3, CSS 2.1 §9) | 3 | 1 | 2 | 1 | 7 |
 | 3.11 Overflow, scrolling and scrollbars (Overflow 3/4, Scroll Snap 1, Overscroll 1, Scrollbars 1) | 1 | 3 | 10 | 0 | 14 |
@@ -93,7 +93,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 0 | 0 | 6 | 3 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **71** | **39** | **147** | **50** | **307** |
+| **Total** | **73** | **37** | **147** | **50** | **307** |
 
 Of the 191 Partial / Missing rows, **123 were not documented** in `DIVERGENCES.md` when audited (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3.
 
@@ -257,7 +257,7 @@ dropped:
 |---|---|---|---|---|
 | `<integer>` cells (unitless) | Supported | rdom's length unit; see §4. | Yes | `V/length.rs`, `V/spacing.rs` |
 | `<percentage>` | Supported | Every length-bearing property (`width` / `height`, `min-*` / `max-*`, `padding`, `margin`, the insets, `gap`), bare and in math functions, each against its spec's basis; `opacity`. (`flex-basis` takes it when the property lands, C6-FLEX-LONGHANDS.) C2-PERCENT. | — | `V/numeric.rs::length_percentage` |
-| `<number>` (fractional) | Partial | `opacity`, `cubic-bezier()`, times; flex factors are integers (documented). | Yes | `V/number.rs`, `V/length.rs` |
+| `<number>` (fractional) | Supported | `opacity`, `cubic-bezier()`, times, flex factors (`flex: 0.5`, `flex-shrink: 1.5`, `1.5fr`; factors summing below one share that fraction of the free space, Flexbox §9.7) (C2-NUMBER). | — | `V/numeric.rs::number`, `V/length.rs` |
 | `calc()` | Supported | `+ - * /`, parentheses, nested `calc()`, percent-bearing forms resolved at layout, divide-by-zero rejected. Whitespace relaxation documented. | Yes | `CALC` |
 | `min()` / `max()` / `clamp()` | Missing | Comparison functions. | Yes | `CALC` |
 | `round()` / `mod()` / `rem()` / `abs()` / `sign()` | Missing | Stepped-value / sign functions — natural on an integer grid. | No | `CALC` |
@@ -296,7 +296,7 @@ dropped:
 | Relative color syntax (Color 5) | Missing | `rgb(from var(--x) r g b / 50%)`. | No | `COL` |
 | System colors (`Canvas`, `CanvasText`, `LinkText`, `ButtonFace`, …) | Missing | `Canvas` / `CanvasText` = terminal default bg / fg (`Color::Reset`); others map to UA palette entries. | No | `COL` |
 | `light-dark()` + `color-scheme` | Missing | Pick by the terminal's reported background (OSC 11 / mode 2031). | No | `COL`, `RT` |
-| `opacity` | Partial | `<number>` clamped to 0–1; `<percentage>` (`opacity: 50%`) rejected. Group opacity per cell (documented). | No | `V/number.rs::parse_opacity` |
+| `opacity` | Partial | `<number>` / `<percentage>` clamped to 0–1 (`50%` since C2-PERCENT). Group opacity per cell (documented). | No | `V/number.rs::parse_opacity` |
 | Alpha in colors | N/A | Terminal cells are opaque; translucency is `opacity` (documented). | — | — |
 | `forced-color-adjust`, `print-color-adjust` | N/A | No forced-colors mode or print. | — | — |
 
@@ -360,7 +360,7 @@ dropped:
 | `flex-flow` | Missing | Shorthand of the two above. | No | `DISP` |
 | `flex` | Partial | Grow from the first number; shrink partly; basis collapsed to `0%` (documented); writes `width` + `height`. | Yes | `V/length.rs::parse_flex_shorthand` |
 | `flex-grow` | Missing | Not in the property table (DIVERGENCES suggests `flex-grow: 1` as a workaround). | Wrong | `DISP`, `FLEX/main_axis.rs` |
-| `flex-shrink` | Partial | Integers only (documented). | Yes | `DISP/set.rs` |
+| `flex-shrink` | Supported | `<number [0,∞]>`, fractions included (C2-NUMBER). | — | `DISP/set.rs`, `FLEX/main_axis.rs` |
 | `flex-basis` | Missing | Basis ignored (documented as part of `flex`); the longhand does not exist. | No | `DISP`, `FLEX/main_axis.rs` |
 | `justify-content` | Missing | Main-axis distribution. | No | `FLEX/placement.rs` |
 | `align-items` | Missing | Cross-axis placement (always `stretch` unless a cross margin is `auto`). `KW::Align` exists, unused. | No | `FLEX/cross.rs` |

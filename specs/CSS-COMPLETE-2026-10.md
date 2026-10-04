@@ -78,7 +78,7 @@ row comes from.
 | Id | Item | Status |
 |---|---|---|
 | C2-PERCENT | `<percentage>` everywhere the spec allows (padding, margin, insets, min/max sizes, opacity) | done |
-| C2-NUMBER | Fractional `<number>` where the spec allows (flex factors, …) | |
+| C2-NUMBER | Fractional `<number>` where the spec allows (flex factors, …) | done |
 | C2-MINMAX | `min()` / `max()` / `clamp()` | |
 | C2-STEPPED | `round()` / `mod()` / `rem()` / `abs()` / `sign()` | |
 | C2-TRIG | `sin()` … `atan2()`, `pow()` / `sqrt()` / `hypot()` / `log()` / `exp()` | |
@@ -425,3 +425,7 @@ row comes from.
   C5-MINMAX-SIZE. Split: `layout_pass/mod.rs` (852) → `tree`, `auto_height`, `scroll_extent`,
   `gutter`; `layout_pass/intrinsic.rs` (621) → `intrinsic/{mod,inline}.rs` (the duplicated
   wrap-row measurement is one `wrapped_rows`).
+- 2026-10-04 — C2-NUMBER: `Size::Flex(f32)` and `flex_shrink: f32` (breaking). Grow and shrink
+  distribute in `f64` with the rolling floor kept (integer weights lay out exactly as before), and
+  §9.7 step 4.b applies: factors summing below one share only that fraction of the free space /
+  overflow. The C6 flex longhands build on `numeric::number` / `parse_flex_factor`.

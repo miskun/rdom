@@ -146,6 +146,7 @@ fn percent_min_and_max_sizes_clamp_against_the_containing_block() {
     let d = el(&mut dom, cb, "d");
     let row = el(&mut dom, root, "row");
     let f = el(&mut dom, row, "f");
+    let g = el(&mut dom, row, "g");
     lay_out(
         &mut dom,
         ".cb { width: 40; height: 20 }
@@ -153,8 +154,9 @@ fn percent_min_and_max_sizes_clamp_against_the_containing_block() {
          .b { width: 30; max-width: 25%; height: 1 }
          .c { height: 1; min-height: calc(25% + 2) }
          .d { height: 18; max-height: 25% }
-         .row { display: flex; width: 40; height: 3 }
-         .f { width: 30; max-width: 50% }",
+         .row { display: flex; flex-direction: row; width: 40; height: 3 }
+         .f { width: 30; max-width: 50% }
+         .g { width: 2; min-height: 50%; max-height: 1 }",
         80,
         40,
     );
@@ -162,7 +164,16 @@ fn percent_min_and_max_sizes_clamp_against_the_containing_block() {
     assert_eq!(rect(&dom, b).width, 10, "max-width: 25% of 40");
     assert_eq!(rect(&dom, c).height, 7, "min-height: 25% of 20, plus 2");
     assert_eq!(rect(&dom, d).height, 5, "max-height: 25% of 20");
-    assert_eq!(rect(&dom, f).width, 20, "flex item: max-width 50% of 40");
+    assert_eq!(
+        rect(&dom, f).width,
+        20,
+        "flex item, main axis: max-width 50% of 40"
+    );
+    assert_eq!(
+        rect(&dom, g).height,
+        2,
+        "flex item, cross axis: min-height 50% of 3, over max-height"
+    );
 }
 
 /// CSS Color 4 §11.1: `opacity: <opacity-value>` is `<number> |
@@ -174,4 +185,71 @@ fn percent_opacity_is_the_fraction() {
     let a = el(&mut dom, root, "a");
     lay_out(&mut dom, ".a { opacity: 50% }", 10, 5);
     assert_eq!(computed_of(&dom, a).opacity, 0.5);
+}
+
+// ── C2-NUMBER ────────────────────────────────────────────────────────
+
+/// Lay out `items` (one class each) in a 40-column flex row under `css`
+/// and return their widths.
+fn row_widths(css: &str, items: &[&str]) -> Vec<u16> {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let row = el(&mut dom, root, "row");
+    let ids: Vec<NodeId> = items.iter().map(|c| el(&mut dom, row, c)).collect();
+    lay_out(
+        &mut dom,
+        &format!(".row {{ display: flex; flex-direction: row; width: 40; height: 1 }} {css}"),
+        80,
+        10,
+    );
+    ids.iter().map(|&id| rect(&dom, id).width).collect()
+}
+
+/// CSS Flexbox §7.1: `<flex-grow>` and `<flex-shrink>` are `<number
+/// [0,∞]>` — fractions included — and §9.7 step 4.b: when the
+/// unfrozen items' flex factors sum to less than one, they share only
+/// that fraction of the free space.
+#[test]
+fn fractional_flex_grow_shares_by_weight() {
+    assert_eq!(
+        row_widths(".a { flex: 1.5 } .b { flex: 0.5 }", &["a", "b"]),
+        [30, 10]
+    );
+    assert_eq!(
+        row_widths(".a { flex: 0.5 }", &["a"]),
+        [20],
+        "a sum below 1 takes that share"
+    );
+    assert_eq!(
+        row_widths(".a { flex: 0.25 } .b { flex: 0.25 }", &["a", "b"]),
+        [10, 10]
+    );
+    assert_eq!(
+        row_widths(".a { width: 1.5fr } .b { width: 0.5fr }", &["a", "b"]),
+        [30, 10]
+    );
+}
+
+/// CSS Flexbox §9.7 step 4.c / 4.d: negative free space is shared in
+/// proportion to `flex-shrink × flex base size`, fractions included;
+/// with factors summing below one only that fraction of the overflow
+/// is taken away.
+#[test]
+fn fractional_flex_shrink_scales_by_base_size() {
+    assert_eq!(
+        row_widths(
+            ".a { width: 40; flex-shrink: 0.5 } .b { width: 40; flex-shrink: 1.5 }",
+            &["a", "b"]
+        ),
+        [30, 10],
+        "40 of overflow, shrunk 1 : 3"
+    );
+    assert_eq!(
+        row_widths(
+            ".a { width: 40; flex-shrink: 0.25 } .b { width: 40; flex-shrink: 0.25 }",
+            &["a", "b"]
+        ),
+        [30, 30],
+        "factors sum to 0.5: half the overflow is taken"
+    );
 }

@@ -129,7 +129,9 @@ fn rule_with_size_value_round_trip() {
     let from_builder = Stylesheet::new()
         .rule(
             "col",
-            TuiStyle::new().width(Size::Flex(1)).height(Size::Fixed(3)),
+            TuiStyle::new()
+                .width(Size::Flex(1.0))
+                .height(Size::Fixed(3)),
         )
         .unwrap();
     let from_parser = from_css("col { width: 1fr; height: 3; }");

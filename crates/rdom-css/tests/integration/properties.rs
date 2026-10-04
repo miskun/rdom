@@ -156,7 +156,7 @@ fn width_auto() {
 #[test]
 fn width_fr_units() {
     let s = first_style("a { width: 1fr; }");
-    assert_eq!(s.width, Some(Value::Specified(Size::Flex(1))));
+    assert_eq!(s.width, Some(Value::Specified(Size::Flex(1.0))));
 }
 
 #[test]

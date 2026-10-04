@@ -124,7 +124,7 @@ fn every_setter_reflects_a_round_tripping_style_attribute() {
     type Set = fn(&mut rdom_core::NodeMut<'_, crate::TuiExt>);
     let setters: [(&str, Set); 12] = [
         ("width", |n| {
-            n.set_width(Size::Flex(2));
+            n.set_width(Size::Flex(2.0));
         }),
         ("height", |n| {
             n.set_height(Size::Fixed(3));

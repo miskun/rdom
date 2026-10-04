@@ -3,7 +3,7 @@
 //! for offsets and the `inset` shorthand.
 
 use super::numeric::{
-    LengthPercentage, Range, cells_i32, cells_u16, components, length_percentage,
+    LengthPercentage, Range, cells_i32, cells_u16, components, length_percentage, number,
 };
 use crate::calc::CalcExpr;
 use crate::layout::{Length, MaxSize, MinSize, Size};
@@ -19,14 +19,8 @@ pub fn parse_size(value: &[Token]) -> Option<Size> {
     // `auto` | `<n>fr` | `<length-percentage [0,∞]>`
     match value {
         [Token::Ident(s)] if s.eq_ignore_ascii_case("auto") => Some(Size::Auto),
-        [
-            Token::Dimension {
-                value,
-                integer: true,
-                unit,
-            },
-        ] if *value >= 0.0 && unit.eq_ignore_ascii_case("fr") => {
-            (*value <= f64::from(u16::MAX)).then_some(Size::Flex(*value as u16))
+        [Token::Dimension { value, unit, .. }] if unit.eq_ignore_ascii_case("fr") => {
+            flex_factor(*value).map(Size::Flex)
         }
         _ => match length_percentage(value, Range::NonNegative)? {
             LengthPercentage::Integer(n) => u16::try_from(n).ok().map(Size::Fixed),
@@ -39,14 +33,21 @@ pub fn parse_size(value: &[Token]) -> Option<Size> {
     }
 }
 
+/// A flex factor (`<flex>` / `<number [0,∞]>`, CSS Flexbox §7.1 /
+/// Grid §7.2.3): non-negative and finite, kept as written.
+fn flex_factor(v: f64) -> Option<f32> {
+    (v >= 0.0 && v <= f64::from(f32::MAX)).then_some(v as f32)
+}
+
 /// Parse the CSS `flex` shorthand. Models the main-axis sizing
 /// of a flex child. Returns the `Size` that should be applied to
 /// the child's width AND height (cross-axis `Size::Flex` already
 /// means "stretch to container" in our layout, matching CSS
 /// default `align-items: stretch` behavior).
 ///
-/// Supported value shapes:
-/// - `flex: auto`   → `Size::Flex(1)` (grow as `flex: 1 1 auto`)
+/// Supported value shapes (factors are `<number [0,∞]>`, fractions
+/// included — CSS Flexbox §7.1):
+/// - `flex: auto`   → `Size::Flex(1.0)` (grow as `flex: 1 1 auto`)
 /// - `flex: none`   → `Size::Auto`     (don't grow as `flex: 0 0 auto`)
 /// - `flex: <n>`    → `n > 0` → `Size::Flex(n)`; `n == 0` → `Size::Auto`
 /// - `flex: <n> <m> <basis>` → use `<n>` as the grow value; `<m>`
@@ -55,54 +56,41 @@ pub fn parse_size(value: &[Token]) -> Option<Size> {
 ///   in the substrate.
 pub fn parse_flex_shorthand(value: &[Token]) -> Option<Size> {
     match value {
-        [Token::Ident(s)] if s.eq_ignore_ascii_case("auto") => Some(Size::Flex(1)),
-        [Token::Ident(s)] if s.eq_ignore_ascii_case("none") => Some(Size::Auto),
-        [Token::Number(n)] if *n >= 0 => {
-            if *n == 0 {
-                Some(Size::Auto)
-            } else {
-                u16::try_from(*n).ok().map(Size::Flex)
-            }
-        }
-        // Two-value form: `<grow> <shrink>` (basis defaults to 0).
-        // Three-value form: `<grow> <shrink> <basis>`. Both ignore
-        // shrink and basis for now; the grow value drives the Size.
-        [Token::Number(n), _rest @ ..] if *n >= 0 && !value.is_empty() => {
-            // Validate the remaining tokens look like a valid
-            // flex shorthand tail (1 or 2 more numeric/auto values).
-            // If not, reject so authors get a warning rather than a
-            // silent partial-apply.
-            // `<shrink>` is a non-negative number (integer or fractional);
-            // `<basis>` is `auto`, a cell count, or a percentage — the
-            // canonical `flex: 1 1 0%` included.
-            let is_factor = |t: &Token| match t {
-                Token::Number(n) => *n >= 0,
-                Token::Float(f) => *f >= 0.0,
-                _ => false,
-            };
-            let is_basis = |t: &Token| match t {
-                Token::Number(n) => *n >= 0,
-                Token::Percentage(p) => *p >= 0.0,
-                Token::Ident(s) => s.eq_ignore_ascii_case("auto"),
-                _ => false,
-            };
-            let tail = &value[1..];
-            let tail_ok = match tail.len() {
-                1 => is_factor(&tail[0]) || is_basis(&tail[0]),
-                2 => is_factor(&tail[0]) && is_basis(&tail[1]),
-                _ => false,
-            };
-            if !tail_ok {
-                return None;
-            }
-            if *n == 0 {
-                Some(Size::Auto)
-            } else {
-                u16::try_from(*n).ok().map(Size::Flex)
-            }
-        }
-        _ => None,
+        [Token::Ident(s)] if s.eq_ignore_ascii_case("auto") => return Some(Size::Flex(1.0)),
+        [Token::Ident(s)] if s.eq_ignore_ascii_case("none") => return Some(Size::Auto),
+        _ => {}
     }
+    let parts = components(value)?;
+    let (grow, tail) = parts.split_first()?;
+    let grow = flex_factor(number(grow, Range::NonNegative)?)?;
+    // `<shrink>` is a non-negative number; `<basis>` is `auto` or a
+    // non-negative `<length-percentage>` — the canonical `flex: 1 1 0%`
+    // included. A malformed tail rejects the whole declaration rather
+    // than applying part of it.
+    let is_factor = |c: &[Token]| number(c, Range::NonNegative).is_some();
+    let is_basis = |c: &[Token]| {
+        matches!(c, [Token::Ident(s)] if s.eq_ignore_ascii_case("auto"))
+            || length_percentage(c, Range::NonNegative).is_some()
+    };
+    let tail_ok = match tail {
+        [] => true,
+        [a] => is_factor(a) || is_basis(a),
+        [a, b] => is_factor(a) && is_basis(b),
+        _ => false,
+    };
+    if !tail_ok {
+        return None;
+    }
+    Some(if grow == 0.0 {
+        Size::Auto
+    } else {
+        Size::Flex(grow)
+    })
+}
+
+/// `flex-shrink: <number [0,∞]>` (CSS Flexbox §7.3.2).
+pub fn parse_flex_factor(value: &[Token]) -> Option<f32> {
+    flex_factor(number(value, Range::NonNegative)?)
 }
 
 /// `min-width` / `min-height` value: `auto` | `<length-percentage

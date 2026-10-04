@@ -297,7 +297,7 @@ fn every_property_has_important_setter() {
         .padding_important(Padding::all(1))
         .margin_important(crate::layout::Margin::all_cells(1))
         .gap_important(1)
-        .flex_shrink_important(1)
+        .flex_shrink_important(1.0)
         .border_important(Border::single())
         .border_collapse_important(crate::layout::BorderCollapse::Collapse)
         .direction_important(Direction::Row)

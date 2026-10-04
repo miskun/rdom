@@ -1141,7 +1141,7 @@ fn mousedown_alone_leaves_collapsed_caret_not_whole_paragraph() {
     dom.append_child(root, prose).unwrap();
 
     let sheet = Stylesheet::bare()
-        .rule_unchecked("p", TuiStyle::new().width(Size::Flex(1)))
+        .rule_unchecked("p", TuiStyle::new().width(Size::Flex(1.0)))
         .rule_unchecked("span", TuiStyle::new().display(Display::Inline));
 
     let mut app = test_app(dom, sheet, Rect::new(0, 0, 80, 5));
@@ -1195,7 +1195,7 @@ fn mousedown_then_small_drag_stays_within_dragged_range() {
     dom.append_child(root, prose).unwrap();
 
     let sheet = Stylesheet::bare()
-        .rule_unchecked("p", TuiStyle::new().width(Size::Flex(1)))
+        .rule_unchecked("p", TuiStyle::new().width(Size::Flex(1.0)))
         .rule_unchecked("span", TuiStyle::new().display(Display::Inline));
 
     let mut app = test_app(dom, sheet, Rect::new(0, 0, 80, 5));

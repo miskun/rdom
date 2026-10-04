@@ -112,7 +112,7 @@ fn tab_form_full_loop_with_typing_and_submit() {
                 .direction(Direction::Row)
                 .height(Size::Fixed(1)),
         )
-        .rule_unchecked("input", TuiStyle::new().width(Size::Flex(1)))
+        .rule_unchecked("input", TuiStyle::new().width(Size::Flex(1.0)))
         .rule_unchecked("status", TuiStyle::new().height(Size::Fixed(1)));
 
     let backend = TestBackend::new(40, 10);

@@ -74,7 +74,7 @@ fn build() -> (TuiDom, Stylesheet) {
                 .width(Size::Fixed(40))
                 .height(Size::Fixed(1)),
         )
-        .rule_unchecked(".left", TuiStyle::new().width(Size::Flex(1)));
+        .rule_unchecked(".left", TuiStyle::new().width(Size::Flex(1.0)));
 
     (dom, sheet)
 }
@@ -231,7 +231,7 @@ fn left_slot_renders_second_inline_span() {
                 .width(Size::Fixed(20))
                 .height(Size::Fixed(1)),
         )
-        .rule_unchecked(".left", TuiStyle::new().width(Size::Flex(1)));
+        .rule_unchecked(".left", TuiStyle::new().width(Size::Flex(1.0)));
 
     let buf = paint(&mut dom, &sheet, 20, 1);
     let painted = row_text(&buf, 0);

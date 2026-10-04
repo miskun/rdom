@@ -59,8 +59,8 @@ fn build_list_dom(n_rows: usize) -> (TuiDom, Stylesheet) {
             TuiStyle::new()
                 .flow(Flow::Flex)
                 .direction(Direction::Column)
-                .width(Size::Flex(1))
-                .height(Size::Flex(1)),
+                .width(Size::Flex(1.0))
+                .height(Size::Flex(1.0)),
         )
         .rule_unchecked("row", TuiStyle::new().height(Size::Fixed(1)))
         .rule_unchecked("span", TuiStyle::new().display(Display::Inline));

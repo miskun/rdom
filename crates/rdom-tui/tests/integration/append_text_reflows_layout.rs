@@ -52,7 +52,7 @@ fn text_append_to_empty_flex_item_reflows_distribution() {
                 .width(Size::Fixed(40))
                 .height(Size::Fixed(1)),
         )
-        .rule_unchecked(".left", TuiStyle::new().width(Size::Flex(1)));
+        .rule_unchecked(".left", TuiStyle::new().width(Size::Flex(1.0)));
 
     dom.cascade(&sheet);
     dom.layout_dom(Rect::new(0, 0, 40, 1));

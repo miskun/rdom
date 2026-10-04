@@ -186,8 +186,8 @@ fn main() -> io::Result<()> {
             TuiStyle::new()
                 .flow(Flow::Flex)
                 .direction(Direction::Column)
-                .width(Size::Flex(1))
-                .height(Size::Flex(1)),
+                .width(Size::Flex(1.0))
+                .height(Size::Flex(1.0)),
         )
         .unwrap();
 

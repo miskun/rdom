@@ -141,7 +141,7 @@ fn hpane() -> (App<TestBackend>, NodeId, NodeId) {
                 .display(Display::Block)
                 .width(Size::Fixed(4))
                 .height(Size::Fixed(1))
-                .flex_shrink(0),
+                .flex_shrink(0.0),
         );
     (run(dom, sheet), pane, cell_5)
 }

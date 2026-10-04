@@ -58,10 +58,12 @@ fn sheet() -> Stylesheet {
             TuiStyle::new().flow(Flow::Flex).direction(Direction::Row),
         )
         .rule_unchecked("label", TuiStyle::new().width(Size::Fixed(9)))
-        .rule_unchecked("input", TuiStyle::new().width(Size::Flex(1)))
+        .rule_unchecked("input", TuiStyle::new().width(Size::Flex(1.0)))
         .rule_unchecked(
             "textarea",
-            TuiStyle::new().width(Size::Flex(1)).height(Size::Fixed(3)),
+            TuiStyle::new()
+                .width(Size::Flex(1.0))
+                .height(Size::Fixed(3)),
         )
 }
 
