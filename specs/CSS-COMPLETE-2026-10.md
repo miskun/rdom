@@ -641,3 +641,8 @@ row comes from.
   `calc::round_half_to_even` (public since 0.5.0) is gone for `f64::round_ties_even` — Breaking,
   CHANGELOG hint. No behaviour change: the layout and calc suites pass unchanged; new unit test of the
   conversions.
+- 2026-10-05 — C2G-FLEX-SPLIT: `flex/main_axis.rs` (525 lines after C2G-CELLS-CONVERSIONS) keeps the
+  §9.2 gathering (`ChildMain`, `MainNatural`, `collect_main_axis_items`, 221 lines); the §9.7
+  distribution — `MainAxisBudget`, `resolve_flexible_lengths`, `FACTOR_TOLERANCE`, the grow / shrink
+  freeze loops and the §4.5 auto-min floor — moves verbatim to `flex/distribute.rs` (314 lines). No
+  behaviour change; flex suites unchanged.

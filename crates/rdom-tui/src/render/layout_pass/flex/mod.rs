@@ -41,6 +41,7 @@
 
 mod collapse;
 mod cross;
+mod distribute;
 mod main_axis;
 mod placement;
 
@@ -54,7 +55,8 @@ use crate::style::ComputedStyle;
 use super::ifc::is_ifc_block;
 use super::{element_children_of, layout_node};
 use collapse::SiblingOverlap;
-use main_axis::{MainAxisBudget, collect_main_axis_items, resolve_flexible_lengths};
+use distribute::{MainAxisBudget, resolve_flexible_lengths};
+use main_axis::collect_main_axis_items;
 use placement::{AutoMainMargins, FlexLine, place_items};
 
 /// Lay out the **element** children of `id` inside `container`, using
