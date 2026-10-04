@@ -14,6 +14,7 @@ use crate::ext::{StyleSlot, TuiExt};
 use crate::layout::{Length, Size, ZIndex};
 use crate::style::Color;
 use crate::style::transition::{AnimatableProperty, TimingFunction};
+use rdom_style::color::ColorScheme;
 
 // ── Property identity (engine-internal) ───────────────────────────
 
@@ -38,6 +39,19 @@ pub enum AnimatedProp {
 }
 
 impl AnimatedProp {
+    /// What a `reset` endpoint of this property stands for (the
+    /// terminal's default color has no sRGB value): the canvas model of
+    /// `scheme` for the property's role — its background for
+    /// `background-color`, its text for `color` and `border-color` (whose
+    /// default is `currentcolor`).
+    fn reset_color(self, scheme: ColorScheme) -> Color {
+        let (background, text) = scheme.canvas();
+        match self {
+            AnimatedProp::Bg => background,
+            _ => text,
+        }
+    }
+
     pub fn css_name(self) -> &'static str {
         match self {
             AnimatedProp::Fg => "color",
@@ -108,6 +122,10 @@ pub struct ActiveAnimation {
     pub delay: Duration,
     pub duration: Duration,
     pub timing: TimingFunction,
+    /// The element's used color scheme when the transition started: what
+    /// a `reset` endpoint interpolates as
+    /// (CSS Color Adjust 1 §2.1).
+    pub scheme: ColorScheme,
     /// Tracks whether `transitionstart` already fired (after delay
     /// elapses). The engine's tick advance dispatches
     /// `transitionstart` on the first tick where now ≥ started_at
@@ -139,7 +157,8 @@ impl ActiveAnimation {
     /// Eased current value. Clamped to `to` once t reaches 1.0.
     fn current(&self, now: Instant) -> AnimatedValue {
         let t = self.timing.ease(self.progress(now));
-        interpolate(&self.from, &self.to, t)
+        let reset = self.property.reset_color(self.scheme);
+        interpolate(&self.from, &self.to, t, reset)
     }
 }
 

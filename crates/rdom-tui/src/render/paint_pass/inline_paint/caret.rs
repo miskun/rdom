@@ -4,8 +4,8 @@
 //!
 //! Colors come from the cascade (`caret-color` / `caret-text-color`);
 //! `Auto` swaps the focused element's cascaded `color` and
-//! `background-color`, with a high-contrast fallback when either is
-//! the terminal default. The caret's cell position comes from
+//! `background-color`; one that is the terminal default takes the
+//! canvas model of the element's color scheme. The caret's cell position comes from
 //! [`crate::render::inline::cell_of_position`], the same mapping the
 //! runtime's editing pipeline uses — paint does not re-derive it.
 
@@ -71,19 +71,24 @@ pub(in crate::render::paint_pass) fn paint_caret_if_editable(
     // invisible caret. Using cascade values gives the predictable
     // "swap text-color and bg-color" visual that authors expect.
     //
-    // Fallback: if the cascade resolved to `Color::Reset` (no
-    // explicit value, terminal-default), the caret would be
-    // invisible (the cell paints as default-on-default). Substitute
-    // a sensible high-contrast default — White for the bg-side,
-    // Black for the fg-side — so an unstyled textarea/input still
-    // shows a visible caret. Authors override via `caret-color` /
-    // `caret-text-color`.
+    // Fallback: a cascaded `Color::Reset` (no explicit value, the
+    // terminal default) has no color to swap, and the caret would be
+    // invisible (default-on-default). It takes the canvas model of the
+    // element's used color scheme (CSS Color Adjust 1 §2.1) — the
+    // canvas text for the bg-side, the canvas background for the
+    // fg-side: white on black when dark, black on white when light — so
+    // an unstyled textarea/input still shows a visible caret. Authors
+    // override via `caret-color` / `caret-text-color`.
+    let scheme = computed
+        .color_scheme
+        .used(crate::style::CascadeExt::color_scheme(dom));
+    let (canvas_bg, canvas_fg) = scheme.canvas();
     let resolve_reset_fg = |c: crate::Color| match c {
-        crate::Color::Reset => crate::Color::Rgb(0xFF, 0xFF, 0xFF),
+        crate::Color::Reset => canvas_fg,
         other => other,
     };
     let resolve_reset_bg = |c: crate::Color| match c {
-        crate::Color::Reset => crate::Color::Rgb(0x00, 0x00, 0x00),
+        crate::Color::Reset => canvas_bg,
         other => other,
     };
     let cascaded_fg = resolve_reset_fg(computed.fg);
@@ -95,9 +100,10 @@ pub(in crate::render::paint_pass) fn paint_caret_if_editable(
     };
     let under_mod = buf.cell(x, y).map(|c| c.modifier).unwrap_or_default();
 
-    // `caret-color` inherits as specified, so `currentcolor` and
-    // `var()` resolve here, against this element (CSS Color 4 §6.4).
-    let cx = crate::ColorContext::new(cascaded_fg);
+    // `caret-color` inherits as specified, so `currentcolor`, `var()`
+    // and `light-dark()` resolve here, against this element's color and
+    // used color scheme (CSS Color 4 §6.4, CSS Color 5 §5.1).
+    let cx = crate::ColorContext::new(cascaded_fg).with_scheme(scheme);
     let caret_bg = match &computed.caret_color {
         CaretColor::Auto => cascaded_fg,
         CaretColor::Transparent => return, // already handled above

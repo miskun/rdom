@@ -243,12 +243,72 @@ fn re_setting_property_mid_flight_fires_cancel_and_restarts_from_current() {
 #[test]
 fn color_interpolation_premultiplies_alpha() {
     use super::interpolate::lerp_color;
-    let mid = lerp_color(Color::Rgba(0, 0, 0, 0), Color::Rgb(255, 0, 0), 0.5);
+    let mid = lerp_color(
+        Color::Rgba(0, 0, 0, 0),
+        Color::Rgb(255, 0, 0),
+        0.5,
+        Color::Reset,
+    );
     assert_eq!(mid, Color::Rgba(255, 0, 0, 128));
     let half = lerp_color(
         Color::Rgba(0, 0, 255, 128),
         Color::Rgba(0, 0, 255, 128),
         0.3,
+        Color::Reset,
     );
     assert_eq!(half, Color::Rgba(0, 0, 255, 128));
+}
+
+// ── A `reset` endpoint (C3G-SCHEME-CONSISTENCY) ────────────────────
+
+/// A transition from the terminal's default color (`reset`) has no sRGB
+/// endpoint; it starts from the canvas model of the element's used color
+/// scheme for the property's role — the canvas background for
+/// `background-color`, the canvas text for `color` — and interpolates in
+/// Oklab like any other pair (CSS Color 4 §12.1). It used to start from
+/// a fixed light gray in sRGB in every scheme.
+#[test]
+fn reset_endpoint_interpolates_from_the_scheme_canvas_for_its_role() {
+    use rdom_style::color::{ColorScheme, interpolate_oklab};
+    let blue = Color::Rgb(0, 0, 255);
+    for scheme in [ColorScheme::Light, ColorScheme::Dark] {
+        let mut dom: TuiDom = TuiDom::new();
+        dom.set_color_scheme(scheme);
+        let root = dom.root();
+        let div = dom.create_element("div");
+        dom.append_child(root, div).unwrap();
+        let sheet = |c: Color| {
+            Stylesheet::bare().rule_unchecked(
+                "div",
+                TuiStyle::new()
+                    .fg(c)
+                    .bg(c)
+                    .transition_property(vec![
+                        TransitionProperty::Named(AnimatableProperty::Color),
+                        TransitionProperty::Named(AnimatableProperty::BackgroundColor),
+                    ])
+                    .transition_duration(vec![100])
+                    .transition_timing_function(vec![TimingFunction::Linear]),
+            )
+        };
+        dom.cascade(&sheet(Color::Reset));
+        let mut reg = AnimationRegistry::new();
+        let start = epoch();
+        diff_and_register(&mut dom, &mut reg, start);
+        dom.cascade(&sheet(blue));
+        diff_and_register(&mut dom, &mut reg, start);
+        reg.advance(&mut dom, start + Duration::from_millis(50));
+        let p = dom.node(div).ext().unwrap().presentation.clone().unwrap();
+        let (canvas_bg, canvas_fg) = scheme.canvas();
+        assert_eq!(
+            p.bg,
+            interpolate_oklab(canvas_bg, blue, 0.5),
+            "{scheme:?} bg"
+        );
+        assert_eq!(
+            p.fg,
+            interpolate_oklab(canvas_fg, blue, 0.5),
+            "{scheme:?} fg"
+        );
+    }
 }

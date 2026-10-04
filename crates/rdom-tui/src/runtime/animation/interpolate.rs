@@ -6,10 +6,17 @@ use crate::style::Color;
 
 // ── Interpolation primitives ──────────────────────────────────────
 
-pub(super) fn interpolate(from: &AnimatedValue, to: &AnimatedValue, t: f32) -> AnimatedValue {
+/// Interpolate `from` → `to` at `t`; a color endpoint that is `reset`
+/// stands for `reset` ([`lerp_color`]).
+pub(super) fn interpolate(
+    from: &AnimatedValue,
+    to: &AnimatedValue,
+    t: f32,
+    reset: Color,
+) -> AnimatedValue {
     match (from, to) {
         (AnimatedValue::Color(a), AnimatedValue::Color(b)) => {
-            AnimatedValue::Color(lerp_color(*a, *b, t))
+            AnimatedValue::Color(lerp_color(*a, *b, t, reset))
         }
         (AnimatedValue::Size(a), AnimatedValue::Size(b)) => AnimatedValue::Size(lerp_size(a, b, t)),
         (AnimatedValue::Length(a), AnimatedValue::Length(b)) => {
@@ -40,30 +47,26 @@ pub(super) fn interpolate(from: &AnimatedValue, to: &AnimatedValue, t: f32) -> A
 
 /// Interpolate two colors in Oklab with premultiplied alpha (CSS Color
 /// 4 §12.1, §12.3), so a fade from `transparent` does not pass through
-/// black; a palette index counts as its xterm color. An endpoint that
-/// is the terminal default has no sRGB value: that pair interpolates in
-/// sRGB from an approximation.
-pub(super) fn lerp_color(a: Color, b: Color, t: f32) -> Color {
-    if let Some(c) = rdom_style::color::interpolate_oklab(a, b, f64::from(t)) {
-        return c;
+/// black; a palette index counts as its xterm color. An endpoint that is
+/// the terminal default (`reset`) has no sRGB value of its own: it
+/// interpolates as `reset` — the canvas model's color for the
+/// property's role in the element's color scheme. Given `Color::Reset`
+/// there (no role), such a pair changes discretely at the midpoint, as
+/// a value that does not interpolate does (CSS Transitions 1 §2). The
+/// endpoints themselves are returned as they are.
+pub(super) fn lerp_color(a: Color, b: Color, t: f32, reset: Color) -> Color {
+    if t <= 0.0 {
+        return a;
     }
-    let (ar, ag, ab) = color_to_rgb_approx(a);
-    let (br, bg, bb) = color_to_rgb_approx(b);
-    let (aa, ba) = (f32::from(a.alpha()) / 255.0, f32::from(b.alpha()) / 255.0);
-    let alpha = aa + (ba - aa) * t;
-    if alpha <= 0.0 {
-        return Color::TRANSPARENT;
+    if t >= 1.0 {
+        return b;
     }
-    let channel = |x: u8, y: u8| {
-        let v = (f32::from(x) * aa * (1.0 - t) + f32::from(y) * ba * t) / alpha;
-        v.round().clamp(0.0, 255.0) as u8
-    };
-    Color::rgba(
-        channel(ar, br),
-        channel(ag, bg),
-        channel(ab, bb),
-        (alpha * 255.0).round().clamp(0.0, 255.0) as u8,
-    )
+    let definite = |c: Color| if c == Color::Reset { reset } else { c };
+    match rdom_style::color::interpolate_oklab(definite(a), definite(b), f64::from(t)) {
+        Some(c) => c,
+        None if t < 0.5 => a,
+        None => b,
+    }
 }
 
 #[inline]
@@ -150,16 +153,5 @@ fn lerp_zindex(a: ZIndex, b: ZIndex, t: f32) -> ZIndex {
                 b
             }
         }
-    }
-}
-
-/// A color's (r, g, b) for the sRGB fallback interpolation: `Reset`
-/// as a neutral light gray, since the terminal's default is not known
-/// here; a palette index as its xterm color.
-fn color_to_rgb_approx(c: Color) -> (u8, u8, u8) {
-    match c {
-        Color::Reset => (192, 192, 192),
-        Color::Indexed(n) => rdom_style::color::palette::xterm_rgb(n),
-        Color::Rgb(r, g, b) | Color::Rgba(r, g, b, _) => (r, g, b),
     }
 }

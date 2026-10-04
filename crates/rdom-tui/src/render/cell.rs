@@ -26,8 +26,6 @@ use compact_str::CompactString;
 use unicode_width::UnicodeWidthStr;
 
 use super::{Color, Modifier};
-use crate::render::compose::{alpha_blend, canvas_bg};
-use rdom_style::color::ColorScheme;
 
 /// Diff-control hint on a cell.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
@@ -143,37 +141,40 @@ impl Cell {
         self
     }
 
-    /// Paint the foreground. A fully transparent color paints nothing
-    /// (CSS Color 4 §6.3): the cell keeps its foreground; a translucent
-    /// one blends with the cell's background (straight alpha, the
-    /// terminal default as the dark canvas). `Buffer`'s writes
-    /// composite with the full per-cell rules instead.
+    /// Paint the foreground. A cell is opaque storage: the color is
+    /// stored as given, and a fully transparent one paints nothing (CSS
+    /// Color 4 §6.3) — the cell keeps its foreground.
+    ///
+    /// A translucent color composites over what is beneath, which takes
+    /// the color scheme whose canvas the terminal's default colors blend
+    /// as — the `Buffer`'s. Write one through the buffer
+    /// ([`Buffer::set_style`](super::Buffer::set_style),
+    /// [`set_symbol`](super::Buffer::set_symbol),
+    /// [`set_string`](super::Buffer::set_string)), never into a cell:
+    /// debug builds panic on one; release builds store it, and it paints
+    /// as its opaque channels.
     pub fn set_fg(&mut self, fg: Color) -> &mut Self {
-        self.fg = match fg.alpha() {
-            0 => return self,
-            u8::MAX => fg,
-            a => alpha_blend(
-                fg,
-                f32::from(a) / 255.0,
-                canvas_bg(self.bg, ColorScheme::Dark),
-            ),
-        };
+        debug_assert!(
+            !(1..u8::MAX).contains(&fg.alpha()),
+            "a translucent color composites through Buffer, not into a Cell: {fg:?}"
+        );
+        if fg.alpha() != 0 {
+            self.fg = fg;
+        }
         self
     }
 
-    /// Paint the background. A fully transparent color paints nothing:
-    /// the cell keeps its background; a translucent one blends with it
-    /// (straight alpha, the terminal default as the dark canvas).
+    /// Paint the background: stored as given; a fully transparent color
+    /// paints nothing — the cell keeps its background. A translucent
+    /// color composites through the `Buffer` ([`Self::set_fg`]).
     pub fn set_bg(&mut self, bg: Color) -> &mut Self {
-        self.bg = match bg.alpha() {
-            0 => return self,
-            u8::MAX => bg,
-            a => alpha_blend(
-                bg,
-                f32::from(a) / 255.0,
-                canvas_bg(self.bg, ColorScheme::Dark),
-            ),
-        };
+        debug_assert!(
+            !(1..u8::MAX).contains(&bg.alpha()),
+            "a translucent color composites through Buffer, not into a Cell: {bg:?}"
+        );
+        if bg.alpha() != 0 {
+            self.bg = bg;
+        }
         self
     }
 
@@ -355,6 +356,34 @@ mod tests {
         c.apply_style(style);
         assert!(c.modifier.contains(Modifier::ITALIC));
         assert!(!c.modifier.contains(Modifier::BOLD));
+    }
+
+    /// A cell is opaque storage: a translucent color composites through
+    /// `Buffer`, which knows the color scheme whose canvas the terminal's
+    /// default colors blend as (C3G-SCHEME-CONSISTENCY). A translucent
+    /// color reaching a cell is a caller bug.
+    #[test]
+    #[cfg(debug_assertions)]
+    #[should_panic(expected = "translucent")]
+    fn set_bg_rejects_a_translucent_color() {
+        Cell::EMPTY.clone().set_bg(Color::Rgba(255, 0, 0, 128));
+    }
+
+    #[test]
+    #[cfg(debug_assertions)]
+    #[should_panic(expected = "translucent")]
+    fn set_fg_rejects_a_translucent_color() {
+        Cell::EMPTY.clone().set_fg(Color::Rgba(255, 0, 0, 128));
+    }
+
+    /// Opaque and fully transparent colors are what a cell takes: a
+    /// transparent one paints nothing (CSS Color 4 §6.3).
+    #[test]
+    fn set_fg_bg_take_opaque_and_ignore_transparent() {
+        let mut c = Cell::new("A");
+        c.set_fg(Color::Rgb(1, 2, 3)).set_bg(Color::Rgb(4, 5, 6));
+        c.set_fg(Color::TRANSPARENT).set_bg(Color::TRANSPARENT);
+        assert_eq!((c.fg, c.bg), (Color::Rgb(1, 2, 3), Color::Rgb(4, 5, 6)));
     }
 
     #[test]

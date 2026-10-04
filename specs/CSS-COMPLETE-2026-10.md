@@ -714,3 +714,22 @@ row comes from.
   commas pass. Red: `rgb(from red min(r, 100) g b)` parsed to `None`; green: `rgb(100, 0, 0)`, and
   `oklch(from red clamp(0.2, l, 0.5) c h)` equals `oklch(from red 0.5 c h)`; through `var()` end to
   end in `css_phase3_gates.rs`. A comma between channels stays invalid.
+- 2026-10-05 — C3G-SCHEME-CONSISTENCY: (1) the caret resolves `caret-color` / `caret-text-color` with
+  `ColorContext::with_scheme(used scheme)`, and its `reset` fallbacks take that scheme's canvas
+  (were white / black in every scheme). (2) One canvas model, the `Buffer`'s. Decided over passing
+  the scheme into `Cell`: a cell is opaque storage, and only the buffer knows the scheme a
+  translucent color blends against; the setters taking a scheme would put compositing in two places
+  again. `Cell::set_fg` / `set_bg` store the color (transparent paints nothing) and debug-assert it is
+  not translucent (release: stored, emitted as its opaque channels). The one internal path that
+  reached a cell translucent — a tree guide in a translucent `border-color`, contributed straight to
+  the buffer and written by the joiner — now contributes in a layer (`paint_translucent`) like
+  `paint_border`. (3) `ActiveAnimation` records the element's used scheme; `lerp_color(a, b, t,
+  reset)` interpolates a `reset` endpoint in Oklab as `AnimatedProp::reset_color` — the canvas
+  background for `background-color`, the canvas text for `color` / `border-color` — and returns the
+  endpoints exactly at t = 0 / 1; the sRGB fallback and its fixed `(192, 192, 192)` are deleted. A
+  registered `<color>` has no role, so a `reset` endpoint there changes discretely (decided: no
+  canvas color is right for every use of a custom property). Red: light-dark caret took the dark arm
+  `rgb(4 5 6)`; the auto caret was white-on-black in a light document; `reset` → blue in a light
+  document was `(96, 96, 224)` at the midpoint; `Cell::set_*` accepted a translucent color; the
+  translucent tree guide tripped the new assertion in the joiner. Green: all six, plus a cell test
+  that opaque / transparent writes behave as before.

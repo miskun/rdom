@@ -20,6 +20,7 @@ use crate::style::transition::{TimingFunction, TransitionProperty};
 /// `computed_prev` for next pass.
 pub fn diff_and_register(dom: &mut Dom<TuiExt>, registry: &mut AnimationRegistry, now: Instant) {
     let ids = collect_element_ids(dom, dom.root());
+    let preferred = crate::style::CascadeExt::color_scheme(dom);
     for id in ids {
         let (prev, curr) = match snapshot(dom, id) {
             Some(pair) => pair,
@@ -52,6 +53,7 @@ pub fn diff_and_register(dom: &mut Dom<TuiExt>, registry: &mut AnimationRegistry
                     delay: Duration::from_millis(rule.delay_ms as u64),
                     duration: Duration::from_millis(rule.duration_ms as u64),
                     timing: rule.timing,
+                    scheme: curr_style.color_scheme.used(preferred),
                     started_dispatched: false,
                 };
                 registry.register(anim, now);
@@ -92,6 +94,7 @@ pub fn diff_and_register(dom: &mut Dom<TuiExt>, registry: &mut AnimationRegistry
                         delay: Duration::from_millis(rule.delay_ms as u64),
                         duration: Duration::from_millis(rule.duration_ms as u64),
                         timing: rule.timing,
+                        scheme: curr_p.color_scheme.used(preferred),
                         started_dispatched: false,
                     },
                     now,

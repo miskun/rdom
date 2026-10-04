@@ -417,3 +417,38 @@ fn tree_row_translucent_highlight_composites_once_under_its_label() {
     );
     assert_eq!(buf.cell(7, 0).unwrap().bg, half_red_over_black(), "row end");
 }
+
+// ── One canvas model (C3G-SCHEME-CONSISTENCY) ────────────────────
+
+/// A translucent tree guide (the treeitem's `border-color`) is drawn by
+/// the border joiner; it composites through the buffer like a
+/// translucent border, so over the terminal's default background it
+/// blends with the canvas of the document's scheme — white when light
+/// (the joiner wrote it into the cell, which blended against black in
+/// every scheme).
+#[test]
+fn translucent_tree_guide_blends_with_the_scheme_canvas() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let tree = element(&mut dom, root, "ul", "", "");
+    dom.set_attribute(tree, "role", "tree").unwrap();
+    let branch = element(&mut dom, tree, "li", "", "A");
+    dom.set_attribute(branch, "role", "treeitem").unwrap();
+    dom.set_attribute(branch, "aria-expanded", "true").unwrap();
+    let group = element(&mut dom, branch, "ul", "", "");
+    dom.set_attribute(group, "role", "group").unwrap();
+    let leaf = element(&mut dom, group, "li", "", "b");
+    dom.set_attribute(leaf, "role", "treeitem").unwrap();
+    dom.set_color_scheme(rdom_style::color::ColorScheme::Light);
+    // With the UA sheet: it indents the group.
+    let sheet =
+        rdom_css::from_css_strict("[role=treeitem] { border-color: rgb(255 0 0 / 50%) }").unwrap();
+    let area = Rect::new(0, 0, 10, 2);
+    dom.cascade(&sheet);
+    dom.layout_dom(area);
+    let mut buf = Buffer::empty(area);
+    dom.paint_dom(&mut buf, area);
+    let connector = buf.cell(0, 1).unwrap();
+    assert_eq!(connector.symbol(), "└");
+    assert_eq!(connector.fg, over((255, 0, 0), (255, 255, 255)));
+}

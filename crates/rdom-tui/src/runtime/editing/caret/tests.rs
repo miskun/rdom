@@ -566,3 +566,52 @@ fn input_type_keywords_are_ascii_case_insensitive() {
         assert_eq!(dom.node(el).is_editable(), editable, "type={ty}");
     }
 }
+
+// ── The caret under the color scheme (C3G-SCHEME-CONSISTENCY) ───────
+
+/// Paint `editable_paragraph("hello")` with the caret at byte 3 under
+/// `css`, in a document whose preferred scheme is `scheme`; the caret
+/// cell.
+fn caret_cell(css: &str, scheme: rdom_style::color::ColorScheme) -> crate::render::Cell {
+    let (mut dom, p, t) = editable_paragraph("hello");
+    dom.set_color_scheme(scheme);
+    dom.set_focused(Some(p));
+    dom.set_selection(Some(Selection::caret(Position::new(t, 3))));
+    let sheet = rdom_css::from_css_strict(&format!(
+        "p {{ display: block; width: 20 }} span {{ display: inline }} {css}"
+    ))
+    .unwrap();
+    let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 30, 5));
+    buf.cell(3, 0).unwrap().clone()
+}
+
+/// CSS Color 5 §5.1: `light-dark()` in `caret-color` picks by the
+/// element's used color scheme (CSS Color Adjust 1 §2.1) — the light
+/// arm in a light document (it used to take the dark one: the caret's
+/// colors resolved without a scheme).
+#[test]
+fn caret_color_light_dark_follows_the_document_scheme() {
+    use rdom_style::color::ColorScheme;
+    let css = "p { caret-color: light-dark(rgb(1 2 3), rgb(4 5 6)) }";
+    assert_eq!(caret_cell(css, ColorScheme::Light).bg, Color::Rgb(1, 2, 3));
+    assert_eq!(caret_cell(css, ColorScheme::Dark).bg, Color::Rgb(4, 5, 6));
+}
+
+/// An `auto` caret over the terminal's default colors swaps the canvas
+/// model's text and background for the scheme: black on white when
+/// light (it was white on black in every scheme — invisible on a light
+/// terminal).
+#[test]
+fn auto_caret_over_default_colors_follows_the_scheme() {
+    use rdom_style::color::ColorScheme;
+    let light = caret_cell("", ColorScheme::Light);
+    assert_eq!(
+        (light.bg, light.fg),
+        (Color::Rgb(0, 0, 0), Color::Rgb(255, 255, 255))
+    );
+    let dark = caret_cell("", ColorScheme::Dark);
+    assert_eq!(
+        (dark.bg, dark.fg),
+        (Color::Rgb(255, 255, 255), Color::Rgb(0, 0, 0))
+    );
+}

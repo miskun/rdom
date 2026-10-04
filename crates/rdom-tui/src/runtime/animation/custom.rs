@@ -136,7 +136,11 @@ impl Kind {
 
 fn lerp(from: Value, to: Value, t: f32) -> Value {
     match (from, to) {
-        (Value::Color(a), Value::Color(b)) => Value::Color(lerp_color(a, b, t)),
+        // A custom property has no role, so a `reset` endpoint stands for
+        // no canvas color: such a pair changes discretely.
+        (Value::Color(a), Value::Color(b)) => {
+            Value::Color(lerp_color(a, b, t, crate::style::Color::Reset))
+        }
         (Value::Number(a), Value::Number(b)) => Value::Number(a + (b - a) * f64::from(t)),
         (Value::LengthPercentage(ca, pa), Value::LengthPercentage(cb, pb)) => {
             let t = f64::from(t);

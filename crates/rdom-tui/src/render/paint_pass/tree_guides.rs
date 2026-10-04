@@ -289,19 +289,31 @@ fn put(buf: &mut Buffer, clip: Rect, x: i32, y: i32, dirs: &[usize], color: Colo
     if !clip.contains(xu, yu) {
         return;
     }
-    for &dir in dirs {
-        buf.add_border_dir(
-            xu,
-            yu,
-            dir,
-            BorderContribution {
-                style: BorderStyle::Solid,
-                fg: color,
-                priority: 0,
-                corner_style: CornerStyle::Square,
-                side: BorderSide::Top,
-            },
-        );
+    let add = |buf: &mut Buffer, fg: Color| {
+        for &dir in dirs {
+            buf.add_border_dir(
+                xu,
+                yu,
+                dir,
+                BorderContribution {
+                    style: BorderStyle::Solid,
+                    fg,
+                    priority: 0,
+                    corner_style: CornerStyle::Square,
+                    side: BorderSide::Top,
+                },
+            );
+        }
+    };
+    if (1..u8::MAX).contains(&color.alpha()) {
+        // A translucent guide blends like a translucent border
+        // (C3-ALPHA): contributed in a layer, composited by the buffer.
+        let alpha = f32::from(color.alpha()) / 255.0;
+        buf.paint_translucent(Rect::new(xu, yu, 1, 1), alpha, |layer| {
+            add(layer, color.opaque());
+        });
+    } else {
+        add(buf, color);
     }
 }
 
