@@ -340,7 +340,7 @@ fn apply_color(
     kw: &Keywords<'_>,
     field: fn(&ComputedStyle) -> Color,
     initial_override: Option<Color>,
-    vars: &std::collections::HashMap<String, String>,
+    vars: &std::collections::HashMap<String, rdom_style::CustomValue>,
 ) {
     if let Some(v) = value
         && in_pass

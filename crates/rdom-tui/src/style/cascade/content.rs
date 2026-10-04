@@ -16,14 +16,14 @@ use crate::style::{ComputedStyle, Content, ImportantMask, Value};
 /// working style's variable map, the host's attributes, the counter
 /// state at this point of the walk.
 pub(super) struct ElementContext<'a> {
-    pub vars: &'a std::collections::HashMap<String, String>,
+    pub vars: &'a std::collections::HashMap<String, rdom_style::CustomValue>,
     pub attr: &'a dyn Fn(&str) -> Option<String>,
     pub counter: &'a dyn Fn(&str) -> i32,
 }
 
 impl ContentContext for ElementContext<'_> {
     fn var(&self, name: &str) -> Option<String> {
-        self.vars.get(name).cloned()
+        self.vars.get(name).map(|v| v.as_str().to_string())
     }
     fn attr(&self, name: &str) -> Option<String> {
         (self.attr)(name)

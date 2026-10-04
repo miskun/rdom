@@ -2339,7 +2339,7 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
     parent.transition_duration = vec![100];
     parent.transition_timing_function = vec![TimingFunction::Linear];
     parent.transition_delay = vec![5];
-    parent.vars = Rc::new(HashMap::from([("a".to_string(), "b".to_string())]));
+    parent.vars = Rc::new(HashMap::from([("a".to_string(), "b".into())]));
 
     let mut child = ComputedStyle::initial();
     inherit_inheritable_from(&mut child, &parent);

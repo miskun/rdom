@@ -137,7 +137,7 @@ pub struct PresentationStyle {
     /// without dashes → animated value). Not read by paint: the cascade
     /// applies them on top of the cascaded values
     /// (`ComputedStyle::animated_vars`) so `var()` consumers follow.
-    pub custom_properties: Option<std::collections::HashMap<String, String>>,
+    pub custom_properties: Option<std::collections::HashMap<String, rdom_style::CustomValue>>,
 }
 
 /// Which style a transition animates: the element itself or one of

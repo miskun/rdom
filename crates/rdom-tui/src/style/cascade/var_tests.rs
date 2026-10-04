@@ -191,3 +191,27 @@ fn declarations_without_var_are_not_pending() {
     assert!(s.rules()[0].style.pending.is_empty());
     assert!(!s.rules()[1].style.pending.is_empty());
 }
+
+/// `C1G-VAR-COST` — a theme-token sheet (CSS Variables 1 §2–§3): tokens
+/// on `:root`, one token defined in terms of another, overridden in a
+/// subtree, read by a shorthand, a color, a later longhand in the same
+/// block and `!important`. The substituted declarations apply after
+/// their block (no copy of it), so the block's order and importance
+/// hold exactly as in the literal sheet.
+#[test]
+fn theme_tokens_substitute_as_literal_values() {
+    let tokens = ":root { --accent: red; --space: 1; --pad: var(--space) 2; --w: 10 } \
+         section { --accent: blue }";
+    let got = div(&format!(
+        "{tokens} div {{ color: var(--accent); padding: var(--pad); padding-left: 5; \
+         width: var(--w) !important }} div {{ width: 3 }}"
+    ));
+    let lit = div(
+        "div { color: blue; padding: 1 2; padding-left: 5; width: 10 !important } \
+         div { width: 3 }",
+    );
+    assert_eq!(got.fg, lit.fg);
+    assert_eq!(got.fg, Color::Rgb(0, 0, 255), "the subtree's override");
+    assert_eq!(got.padding, lit.padding);
+    assert_eq!(got.width, lit.width);
+}

@@ -171,18 +171,18 @@ impl<'a> Declarations<'a> {
         }
     }
 
-    /// The `i`th matched rule's declarations, substituted.
-    fn rule_style(self, i: usize) -> &'a TuiStyle {
-        self.substituted
-            .and_then(|s| s.rules[i].as_ref())
-            .unwrap_or(&self.sorted[i].style)
+    /// The `i`th matched rule's declaration blocks: the rule's own, then
+    /// its substituted `var()` declarations when it has any — applying
+    /// both in order is applying the substituted block.
+    fn rule_blocks(self, i: usize) -> impl Iterator<Item = &'a TuiStyle> + 'a {
+        let overlay = self.substituted.and_then(|s| s.rules[i].as_ref());
+        std::iter::once(&self.sorted[i].style).chain(overlay)
     }
 
-    fn inline_style(self) -> Option<&'a TuiStyle> {
-        match self.substituted.and_then(|s| s.inline.as_ref()) {
-            Some(style) => Some(style),
-            None => self.inline,
-        }
+    /// The inline style's declaration blocks, the same way.
+    fn inline_blocks(self) -> impl Iterator<Item = &'a TuiStyle> + 'a {
+        let overlay = self.substituted.and_then(|s| s.inline.as_ref());
+        self.inline.into_iter().chain(overlay)
     }
 
     /// Every declaration block `step` applies, in order.
@@ -199,22 +199,27 @@ impl<'a> Declarations<'a> {
                     Source::Inline => false,
                 }
             })
-            .map(move |i| self.rule_style(i));
-        let inline = self.inline_style().filter(|_| source == Source::Inline);
+            .flat_map(move |i| self.rule_blocks(i));
+        let inline = (source == Source::Inline)
+            .then(|| self.inline_blocks())
+            .into_iter()
+            .flatten();
         rules.chain(inline)
     }
 
     /// Every declaration block, rules then inline.
     pub(super) fn all(self) -> impl Iterator<Item = &'a TuiStyle> + 'a {
         (0..self.sorted.len())
-            .map(move |i| self.rule_style(i))
-            .chain(self.inline_style())
+            .flat_map(move |i| self.rule_blocks(i))
+            .chain(self.inline_blocks())
     }
 }
 
-/// The `var()`-substituted declaration blocks of one element (CSS
-/// Variables 1 §3), parallel to [`Declarations::sorted`]; `None` where
-/// a block holds no `var()`.
+/// The `var()`-substituted declarations of one element (CSS Variables 1
+/// §3), parallel to [`Declarations::sorted`]: per block, only its
+/// pending declarations substituted ([`TuiStyle::substituted_pending`]),
+/// applied after the block itself — no copy of the block. `None` where a
+/// block holds no `var()`.
 pub(super) struct Substituted {
     rules: Vec<Option<TuiStyle>>,
     inline: Option<TuiStyle>,
@@ -230,7 +235,7 @@ impl Substituted {
         if !any {
             return None;
         }
-        let sub = |s: &TuiStyle| s.has_pending().then(|| s.substituted(vars));
+        let sub = |s: &TuiStyle| s.has_pending().then(|| s.substituted_pending(vars));
         Some(Substituted {
             rules: decls.sorted.iter().map(|r| sub(&r.style)).collect(),
             inline: decls.inline.and_then(sub),
@@ -246,7 +251,7 @@ pub(super) fn prepare(
     plan: &Plan,
     decls: Declarations<'_>,
     registry: &super::registered::PropertyRegistry,
-    transitions: Option<&HashMap<String, String>>,
+    transitions: Option<&HashMap<String, rdom_style::CustomValue>>,
 ) -> Option<Substituted> {
     // CSS Variables 1 §2 — same ladder, folded into the element's own
     // map before any `var()` consumer runs.

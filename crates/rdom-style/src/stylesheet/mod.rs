@@ -222,7 +222,7 @@ pub struct Stylesheet {
     /// entries here; the cascade clones these into every
     /// `ComputedStyle.vars` via `root_vars_rc()` so `var(--foo)`
     /// references in rules resolve to concrete values.
-    root_vars: std::collections::HashMap<String, String>,
+    root_vars: std::collections::HashMap<String, crate::CustomValue>,
     /// Declared cascade layers, in order of first declaration
     /// (`layers.rs`).
     layers: Vec<Layer>,
@@ -299,8 +299,8 @@ impl Stylesheet {
     /// every element's custom properties with it (the document root's
     /// value, inherited), so a `var(--name)` in any property substitutes
     /// it and parses the result with that property's grammar.
-    pub fn define_var(mut self, name: &str, value: &str) -> Self {
-        self.root_vars.insert(name.to_string(), value.to_string());
+    pub fn define_var(mut self, name: &str, value: impl Into<crate::CustomValue>) -> Self {
+        self.root_vars.insert(name.to_string(), value.into());
         self
     }
 
@@ -309,8 +309,12 @@ impl Stylesheet {
     /// builder or `mem::take` the sheet. Returns `&mut Self` for
     /// fluent chaining when desired. Parity with the
     /// `add_rule` / `rule` split on the rule side.
-    pub fn define_var_mut(&mut self, name: &str, value: &str) -> &mut Self {
-        self.root_vars.insert(name.to_string(), value.to_string());
+    pub fn define_var_mut(
+        &mut self,
+        name: &str,
+        value: impl Into<crate::CustomValue>,
+    ) -> &mut Self {
+        self.root_vars.insert(name.to_string(), value.into());
         self
     }
 
@@ -333,10 +337,10 @@ impl Stylesheet {
     }
 
     pub fn var(&self, name: &str) -> Option<&str> {
-        self.root_vars.get(name).map(String::as_str)
+        self.root_vars.get(name).map(crate::CustomValue::as_str)
     }
 
-    pub fn vars(&self) -> &std::collections::HashMap<String, String> {
+    pub fn vars(&self) -> &std::collections::HashMap<String, crate::CustomValue> {
         &self.root_vars
     }
 

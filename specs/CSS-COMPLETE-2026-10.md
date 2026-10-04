@@ -353,3 +353,10 @@ row comes from.
   animation side derives the interpolation kind per lookup). The stateless `CascadeExt` methods still
   build one per call. Counter test: restyles and transition frames build none, a sheet change one
   (was 5 for the same sequence). `settle_undeclared` compares `Option<&String>` before cloning.
+- 2026-10-04 — C1G-VAR-COST: `rdom_style::CustomValue` (text + `Arc<[Token]>`, tokenized once in
+  `CustomValue::new` or made from substituted tokens) is the value type of `VarMap`,
+  `CustomDeclaration`, the sheet-level vars, the registry's initial values and the animated values.
+  The cascade applies `TuiStyle::substituted_pending` after each rule's own block
+  (`ladder::Declarations::rule_blocks`) instead of cloning the block per element. `Arc`, not `Rc`, so
+  `TuiStyle` stays `Send + Sync`. Counter test (`custom_value::probe`): 50 substitutions of three
+  `var()`s tokenized 150 values before, 0 after; theme-token cascade test pins correctness.

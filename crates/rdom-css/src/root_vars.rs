@@ -26,7 +26,7 @@ use rdom_style::{LayerOrder, PseudoElementTarget, Rule, Stylesheet};
 /// variables, in cascade order (module doc).
 pub(crate) fn mirror_root_vars(sheet: &mut Stylesheet) {
     let order = LayerOrder::new(&[&*sheet]);
-    let mut winners: Vec<(String, String, Precedence)> = Vec::new();
+    let mut winners: Vec<(String, rdom_style::CustomValue, Precedence)> = Vec::new();
     for (index, rule) in sheet.rules().iter().enumerate() {
         if !is_root_rule(rule) {
             continue;
@@ -48,7 +48,7 @@ pub(crate) fn mirror_root_vars(sheet: &mut Stylesheet) {
         }
     }
     for (name, value, _) in winners {
-        sheet.define_var_mut(&name, &value);
+        sheet.define_var_mut(&name, value);
     }
 }
 

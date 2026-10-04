@@ -14,7 +14,7 @@ use crate::{Color, Modifier};
 
 /// Resolved `var()` map. Copied by reference through inheritance so
 /// child elements share their parent's vars without allocation.
-pub type VarMap = Rc<std::collections::HashMap<String, String>>;
+pub type VarMap = Rc<std::collections::HashMap<String, crate::CustomValue>>;
 
 /// Fully-concrete style. One per element + one each for `::before` /
 /// `::after` (the pseudo-element variants live in `TuiExt::computed_before`
@@ -271,7 +271,7 @@ pub enum Content {
 /// What `content` resolution needs from the element it is generated
 /// for: its custom properties, its attributes and its counters. The
 /// cascade implements this over its working state; a bare
-/// `HashMap<String, String>` implements it as "variables only" for
+/// `HashMap<String, CustomValue>` (a [`VarMap`]'s map) implements it as "variables only" for
 /// callers without an element.
 pub trait ContentContext {
     /// The value of custom property `--name` (without the dashes).
@@ -282,9 +282,9 @@ pub trait ContentContext {
     fn counter(&self, name: &str) -> i32;
 }
 
-impl ContentContext for std::collections::HashMap<String, String> {
+impl ContentContext for std::collections::HashMap<String, crate::CustomValue> {
     fn var(&self, name: &str) -> Option<String> {
-        self.get(name).cloned()
+        self.get(name).map(|v| v.as_str().to_string())
     }
     fn attr(&self, _name: &str) -> Option<String> {
         None

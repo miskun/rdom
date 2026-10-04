@@ -233,8 +233,9 @@ pub struct TuiStyle {
 pub struct CustomDeclaration {
     /// Name without the leading `--`.
     pub name: String,
-    /// Verbatim value text (custom properties are untyped).
-    pub value: String,
+    /// The value as written (custom properties are untyped), tokenized
+    /// once here.
+    pub value: crate::CustomValue,
     pub important: bool,
 }
 
@@ -288,13 +289,14 @@ impl TuiStyle {
     /// name wins, as in a CSS block.
     pub fn set_custom_property(&mut self, name: &str, value: &str, important: bool) {
         let name = name.strip_prefix("--").unwrap_or(name);
+        let value = crate::CustomValue::new(value);
         if let Some(d) = self.custom_properties.iter_mut().find(|d| d.name == name) {
-            d.value = value.to_string();
+            d.value = value;
             d.important = important;
         } else {
             self.custom_properties.push(CustomDeclaration {
                 name: name.to_string(),
-                value: value.to_string(),
+                value,
                 important,
             });
         }

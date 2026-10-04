@@ -208,7 +208,7 @@ fn hex_digit(b: u8) -> Option<u8> {
 /// is pure — no mutation of the vars map.
 pub fn resolve_tui_color(
     color: &TuiColor,
-    vars: &std::collections::HashMap<String, String>,
+    vars: &std::collections::HashMap<String, crate::CustomValue>,
     inherit_fallback: Color,
 ) -> Color {
     match color {
@@ -216,7 +216,7 @@ pub fn resolve_tui_color(
         TuiColor::Var { name, fallback } => {
             // 1. Lookup in vars.
             if let Some(v) = vars.get(name)
-                && let Some(c) = parse_color(v)
+                && let Some(c) = parse_color(v.as_str())
             {
                 return c;
             }

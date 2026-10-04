@@ -163,7 +163,7 @@ fn mirrored(css: &str) -> Option<String> {
     let cascaded = rdom_tui::style::cascade::computed_of(&dom, html)
         .vars
         .get("c")
-        .cloned();
+        .map(|v| v.as_str().to_string());
     assert_eq!(mirrored, cascaded, "mirror vs elements for {css}");
     mirrored
 }

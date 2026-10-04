@@ -119,11 +119,11 @@ fn custom_property_revert_takes_the_inherited_value() {
         "div { --x: outer } span { --x: inner } span { --x: revert }",
     ));
     assert_eq!(
-        computed_of(&dom, div).vars.get("x").map(String::as_str),
+        computed_of(&dom, div).vars.get("x").map(|v| v.as_str()),
         Some("outer")
     );
     assert_eq!(
-        computed_of(&dom, span).vars.get("x").map(String::as_str),
+        computed_of(&dom, span).vars.get("x").map(|v| v.as_str()),
         Some("outer")
     );
 }

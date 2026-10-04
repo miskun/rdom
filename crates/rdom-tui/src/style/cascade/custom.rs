@@ -11,7 +11,7 @@ use super::ladder::{Declarations, Plan, Rollback, Step};
 use super::registered::PropertyRegistry;
 use crate::style::ComputedStyle;
 
-type Map = HashMap<String, String>;
+type Map = HashMap<String, rdom_style::CustomValue>;
 
 /// Fold the element's `--*` declarations into `working.vars`, then
 /// apply the registered properties of `registry` (Properties and

@@ -49,7 +49,7 @@ const COLOR_INHERIT: &str =
 fn registered_property_starts_at_its_initial_value() {
     let got = div(&format!("{COLOR_NO_INHERIT} div {{ color: var(--c) }}"));
     assert_eq!(got.fg, RED);
-    assert_eq!(got.vars.get("c").map(String::as_str), Some("red"));
+    assert_eq!(got.vars.get("c").map(|v| v.as_str()), Some("red"));
 }
 
 /// §2.1: `inherits: false` — a child does not inherit the parent's
@@ -97,7 +97,7 @@ fn values_are_validated_against_the_syntax() {
 #[test]
 fn unregistered_properties_stay_untyped() {
     let got = div("div { --c: 12; color: var(--c, blue) }");
-    assert_eq!(got.vars.get("c").map(String::as_str), Some("12"));
+    assert_eq!(got.vars.get("c").map(|v| v.as_str()), Some("12"));
 }
 
 /// `initial` on a registered property is its initial value (§2.1).
@@ -130,7 +130,7 @@ fn a_dependent_substitutes_the_validated_registered_value() {
     let got = div(&format!(
         "{B} div {{ --b: 10px; --a: var(--b); color: var(--a) }}"
     ));
-    assert_eq!(got.vars.get("a").map(String::as_str), Some("red"));
+    assert_eq!(got.vars.get("a").map(|v| v.as_str()), Some("red"));
     assert_eq!(got.fg, RED);
     // The same through a `var()` in the registered property itself.
     let got = div(&format!(

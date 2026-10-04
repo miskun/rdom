@@ -25,8 +25,8 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::TuiStyle;
-use crate::parse::token::{Token, tokenize};
-use crate::parse::values::render_value;
+pub use crate::custom_value::CustomValue;
+use crate::parse::token::Token;
 
 /// The most tokens one `var()` substitution may produce (CSS Variables
 /// 1 §3.3 "safely handling overly-long variables": a UA-defined limit,
@@ -101,14 +101,14 @@ pub fn valid_var_syntax(tokens: &[Token]) -> bool {
 }
 
 /// Substitute every `var()` in `tokens` (§3): `lookup` gives a custom
-/// property's value tokens (name without the dashes), `None` when it is
-/// not defined. `None` when a `var()` has neither value nor fallback,
-/// or the result would exceed [`MAX_SUBSTITUTED_TOKENS`] (§3.3).
+/// property's value (name without the dashes), `None` when it is not
+/// defined. `None` when a `var()` has neither value nor fallback, or
+/// the result would exceed [`MAX_SUBSTITUTED_TOKENS`] (§3.3).
 /// Substitution is token-level: a substituted number before an ident
 /// stays a number and an ident, never a dimension.
 pub fn substitute(
     tokens: &[Token],
-    lookup: &mut dyn FnMut(&str) -> Option<Vec<Token>>,
+    lookup: &mut dyn FnMut(&str) -> Option<CustomValue>,
 ) -> Option<Vec<Token>> {
     let mut out = Vec::with_capacity(tokens.len());
     let mut i = 0;
@@ -126,7 +126,7 @@ pub fn substitute(
         };
         let name = name.strip_prefix("--")?;
         match lookup(name) {
-            Some(value) => out.extend(value),
+            Some(value) => out.extend_from_slice(value.tokens()?),
             None => out.extend(substitute(fallback?, lookup)?),
         }
         if out.len() > MAX_SUBSTITUTED_TOKENS {
@@ -137,9 +137,11 @@ pub fn substitute(
     Some(out)
 }
 
-/// The value tokens of custom property `name` in `vars`.
-pub fn lookup_in(vars: &HashMap<String, String>, name: &str) -> Option<Vec<Token>> {
-    tokenize(vars.get(name)?).ok()
+/// Custom property `name` of `vars`, when it is defined: a value whose
+/// text does not tokenize substitutes as undefined. A reference-count
+/// copy — the value's tokens are not re-made.
+pub fn lookup_in(vars: &HashMap<String, CustomValue>, name: &str) -> Option<CustomValue> {
+    vars.get(name).filter(|v| v.tokens().is_some()).cloned()
 }
 
 impl TuiStyle {
@@ -153,23 +155,41 @@ impl TuiStyle {
     /// (the element's custom properties) and parsed, in source order. A
     /// declaration invalid at computed-value time sets its property to
     /// `unset` (§3.1).
-    pub fn substituted(&self, vars: &HashMap<String, String>) -> TuiStyle {
+    pub fn substituted(&self, vars: &HashMap<String, CustomValue>) -> TuiStyle {
         let mut out = self.clone();
         out.pending.clear();
+        self.replay_pending(vars, &mut out);
+        out
+    }
+
+    /// Only the substituted pending declarations of this style, on an
+    /// otherwise empty style that keeps this one's `!important` bits:
+    /// applying this style and then the result is applying
+    /// [`substituted`](Self::substituted) — the pending declarations
+    /// come after the rest of the block in source order — without
+    /// copying the block. What the cascade uses per element.
+    pub fn substituted_pending(&self, vars: &HashMap<String, CustomValue>) -> TuiStyle {
+        let mut out = TuiStyle {
+            important: self.important,
+            ..TuiStyle::default()
+        };
+        self.replay_pending(vars, &mut out);
+        out
+    }
+
+    fn replay_pending(&self, vars: &HashMap<String, CustomValue>, out: &mut TuiStyle) {
         for decl in &self.pending {
-            let tokens = if decl.has_var {
-                substitute(&decl.value, &mut |n| lookup_in(vars, n))
+            let parsed = if decl.has_var {
+                substitute(&decl.value, &mut |n| lookup_in(vars, n)).is_some_and(|t| {
+                    crate::property_dispatch::set_parsed(&decl.name, &t, out).is_ok()
+                })
             } else {
-                Some(decl.value.clone())
+                crate::property_dispatch::set_parsed(&decl.name, &decl.value, out).is_ok()
             };
-            let parsed = tokens.is_some_and(|t| {
-                crate::property_dispatch::set_parsed(&decl.name, &t, &mut out).is_ok()
-            });
             if !parsed {
-                crate::property_dispatch::set_unset(&decl.name, &mut out);
+                crate::property_dispatch::set_unset(&decl.name, out);
             }
         }
-        out
     }
 }
 
@@ -179,12 +199,12 @@ impl TuiStyle {
 /// a dependency cycle, which takes every property on it) is removed:
 /// the guaranteed-invalid value.
 pub fn resolve_custom_properties<'n>(
-    vars: &mut HashMap<String, String>,
+    vars: &mut HashMap<String, CustomValue>,
     names: impl IntoIterator<Item = &'n str>,
 ) {
     let pending: Vec<String> = names
         .into_iter()
-        .filter(|n| vars.get(*n).is_some_and(|v| has_var_text(v)))
+        .filter(|n| vars.get(*n).is_some_and(CustomValue::has_var))
         .map(str::to_string)
         .collect();
     resolve(vars, pending, None);
@@ -199,19 +219,19 @@ pub fn resolve_custom_properties<'n>(
 /// computed-value time, and a `var()` reading the property sees the
 /// result).
 pub fn resolve_custom_properties_with<'n>(
-    vars: &mut HashMap<String, String>,
+    vars: &mut HashMap<String, CustomValue>,
     names: impl IntoIterator<Item = &'n str>,
-    computed: &mut dyn FnMut(&str, Option<String>) -> Option<String>,
+    computed: &mut dyn FnMut(&str, Option<CustomValue>) -> Option<CustomValue>,
 ) {
     let pending: Vec<String> = names.into_iter().map(str::to_string).collect();
     resolve(vars, pending, Some(computed));
 }
 
 /// A computed-value step ([`resolve_custom_properties_with`]).
-type ComputedStep<'c> = &'c mut dyn FnMut(&str, Option<String>) -> Option<String>;
+type ComputedStep<'c> = &'c mut dyn FnMut(&str, Option<CustomValue>) -> Option<CustomValue>;
 
 fn resolve(
-    vars: &mut HashMap<String, String>,
+    vars: &mut HashMap<String, CustomValue>,
     pending: Vec<String>,
     computed: Option<ComputedStep<'_>>,
 ) {
@@ -244,7 +264,7 @@ struct Resolver<'c> {
     /// The names still to substitute.
     pending: HashSet<String>,
     /// Substituted values (`None`: invalid).
-    done: HashMap<String, Option<String>>,
+    done: HashMap<String, Option<CustomValue>>,
     /// The names being substituted, outermost first.
     stack: Vec<String>,
     /// Names found on a dependency cycle.
@@ -255,7 +275,7 @@ struct Resolver<'c> {
 }
 
 impl Resolver<'_> {
-    fn resolve(&mut self, name: &str, vars: &HashMap<String, String>) -> Option<String> {
+    fn resolve(&mut self, name: &str, vars: &HashMap<String, CustomValue>) -> Option<CustomValue> {
         if let Some(done) = self.done.get(name) {
             return done.clone();
         }
@@ -267,16 +287,17 @@ impl Resolver<'_> {
         self.stack.push(name.to_string());
         let result = match vars.get(name) {
             // No `var()`: the value as declared, untouched.
-            Some(v) if !has_var_text(v) => Some(v.clone()),
-            v => v.and_then(|v| tokenize(v).ok()).and_then(|tokens| {
-                substitute(&tokens, &mut |n| {
+            Some(v) if !v.has_var() => Some(v.clone()),
+            v => v.and_then(CustomValue::tokens).and_then(|tokens| {
+                substitute(tokens, &mut |n| {
                     if self.pending.contains(n) {
-                        self.resolve(n, vars).and_then(|v| tokenize(&v).ok())
+                        self.resolve(n, vars)
                     } else {
                         lookup_in(vars, n)
                     }
                 })
-                .map(|t| render_value(&t))
+                // Tokenized here, once: the substitution is the tokens.
+                .map(CustomValue::from_tokens)
             }),
         };
         self.stack.pop();
@@ -292,10 +313,6 @@ impl Resolver<'_> {
         self.done.insert(name.to_string(), value.clone());
         value
     }
-}
-
-fn has_var_text(value: &str) -> bool {
-    value.to_ascii_lowercase().contains("var(")
 }
 
 fn is_var(token: &Token) -> bool {
@@ -327,15 +344,17 @@ fn matching_paren(tokens: &[Token], open: usize) -> Option<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::custom_value::probe;
+    use crate::parse::token::tokenize;
 
     fn toks(s: &str) -> Vec<Token> {
         tokenize(s).unwrap()
     }
 
-    fn vars(pairs: &[(&str, &str)]) -> HashMap<String, String> {
+    fn vars(pairs: &[(&str, &str)]) -> HashMap<String, CustomValue> {
         pairs
             .iter()
-            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .map(|(k, v)| (k.to_string(), CustomValue::new(v)))
             .collect()
     }
 
@@ -379,9 +398,9 @@ mod tests {
             ("e", "var(--c, 7)"),
         ]);
         resolve_custom_properties(&mut v, ["a", "b", "c", "d", "e"]);
-        assert_eq!(v.get("a").map(String::as_str), Some("2"));
+        assert_eq!(v.get("a").map(CustomValue::as_str), Some("2"));
         assert!(!v.contains_key("c") && !v.contains_key("d"));
-        assert_eq!(v.get("e").map(String::as_str), Some("7"));
+        assert_eq!(v.get("e").map(CustomValue::as_str), Some("7"));
     }
 
     fn with(decls: &[(&str, &str)]) -> TuiStyle {
@@ -442,12 +461,39 @@ mod tests {
         for i in 1..40 {
             pairs.push((format!("p{i}"), format!("var(--p{0}) var(--p{0})", i - 1)));
         }
-        let mut v: HashMap<String, String> = pairs.into_iter().collect();
+        let mut v: HashMap<String, CustomValue> = pairs
+            .into_iter()
+            .map(|(k, v)| (k, CustomValue::new(&v)))
+            .collect();
         let names: Vec<String> = v.keys().cloned().collect();
         resolve_custom_properties(&mut v, names.iter().map(String::as_str));
-        assert_eq!(v.get("p2").map(String::as_str), Some("x x x x"));
+        assert_eq!(v.get("p2").map(CustomValue::as_str), Some("x x x x"));
         assert!(v.contains_key("p16"), "2^16 tokens is the limit");
         assert!(!v.contains_key("p17"), "2^17 tokens is over it");
         assert!(!v.contains_key("p39"));
+    }
+
+    /// `C1G-VAR-COST` — CSS Variables 1 §2: a custom property's value is
+    /// a token sequence. It is tokenized once, when the value is made
+    /// (declared or substituted); substituting it into any number of
+    /// declarations — one per element in a real cascade — reuses those
+    /// tokens.
+    #[test]
+    fn custom_property_values_are_tokenized_once() {
+        let mut v = vars(&[("a", "red"), ("b", "1 2"), ("c", "var(--b) 3")]);
+        let names: Vec<String> = v.keys().cloned().collect();
+        resolve_custom_properties(&mut v, names.iter().map(String::as_str));
+        let style = with(&[
+            ("color", "var(--a)"),
+            ("padding", "var(--c)"),
+            ("margin", "var(--b)"),
+        ]);
+        probe::take();
+        for _ in 0..50 {
+            let got = style.substituted(&v);
+            assert_eq!(got.fg, with(&[("color", "red")]).fg);
+            assert_eq!(got.padding, with(&[("padding", "1 2 3")]).padding);
+        }
+        assert_eq!(probe::take(), 0, "substitution re-tokenized a value");
     }
 }

@@ -56,6 +56,7 @@ pub mod var;
 
 pub mod color;
 mod computed;
+mod custom_value;
 mod modifier;
 mod specificity;
 mod stylesheet;
@@ -67,6 +68,7 @@ mod value;
 pub use color::Color;
 pub use computed::{ComputedStyle, Content, ContentContext, VarMap};
 pub use counters::{CounterOp, CounterStyle};
+pub use custom_value::CustomValue;
 pub use modifier::Modifier;
 pub use registration::{Multiplier, PropertyRegistration, PropertySyntax, SyntaxComponent};
 pub use specificity::Specificity;

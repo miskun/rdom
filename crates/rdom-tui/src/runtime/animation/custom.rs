@@ -351,7 +351,7 @@ fn write(dom: &mut Dom<TuiExt>, node: NodeId, name: &str, value: Option<String>)
         .get_or_insert_with(HashMap::new);
     match value {
         Some(v) => {
-            map.insert(name.to_string(), v);
+            map.insert(name.to_string(), rdom_style::CustomValue::new(&v));
         }
         None => {
             map.remove(name);
