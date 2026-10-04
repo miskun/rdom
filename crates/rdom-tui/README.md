@@ -260,12 +260,15 @@ write, so the tracker sees them. Bypass the observer (e.g. writing a
 The cascade applies declarations in six ordered passes:
 
 1. UA normal  →  2. Author normal  →  3. Inline normal  →
-4. Inline important  →  5. Author important  →  6. UA important.
+4. Author important  →  5. Inline important  →  6. UA important.
 
 Within each pass, candidates are sorted by `(specificity, source_idx)`
-ascending; later wins. This means an `!important` declaration in an
-author stylesheet beats `!important` on an inline style (matches
-browser behavior).
+ascending; later wins. `!important` inverts origin priority, but the
+`style` attribute beats the author's rules at both importances (CSS
+Cascade 4 §6.1 "element-attached styles"), so an inline `!important`
+beats an author `!important` — as in browsers. Author passes run once
+per cascade layer (`@layer`); the inline passes sort above every layer
+(Cascade 5 §6.1).
 
 `revert` (CSS Cascade 4 §7.3) rolls a property back through this
 ladder: in an author or inline declaration to the value after pass 1

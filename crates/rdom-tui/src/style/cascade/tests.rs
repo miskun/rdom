@@ -133,15 +133,15 @@ fn important_rule_beats_normal_inline() {
 
 #[test]
 fn important_inline_beats_important_author() {
-    // Wait, actually per CSS: important author > important inline.
-    // So setting both important, author wins.
+    // CSS Cascade 4 §6.1 element-attached styles: within the author
+    // origin the `style` attribute beats rules at both importances.
     let (mut dom, div) = dom_with_div();
     dom.node_mut(div)
         .set_inline_style(TuiStyle::new().fg_important(Color::Rgb(0, 128, 0)));
     let sheet = Stylesheet::bare()
         .rule_unchecked("div", TuiStyle::new().fg_important(Color::Rgb(255, 0, 0)));
     dom.cascade(&sheet);
-    assert_eq!(computed_of(&dom, div).fg, Color::Rgb(255, 0, 0));
+    assert_eq!(computed_of(&dom, div).fg, Color::Rgb(0, 128, 0));
 }
 
 #[test]

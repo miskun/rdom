@@ -161,3 +161,60 @@ fn from_css_keeps_layers() {
     dom.cascade(&sheet);
     assert_eq!(computed_of(&dom, p).fg, BLUE);
 }
+
+// ── Element-attached styles (Cascade 4 §6.1, Cascade 5 §6.1) ─────────
+
+/// `<p id="x" style="…">` cascaded against `css`; its `color`.
+fn fg_with_inline(css: &str, inline: &str) -> Color {
+    use crate::TuiNodeMutExt;
+    let (mut dom, p) = para();
+    let parsed = rdom_css::parse_inline(inline);
+    assert!(parsed.warnings.is_empty(), "{:?}", parsed.warnings);
+    dom.node_mut(p).set_inline_style(parsed.style);
+    dom.cascade(&sheet(css));
+    computed_of(&dom, p).fg
+}
+
+/// Cascade 4 §6.1 "Element-Attached Styles": within one origin and
+/// importance, the `style` attribute's declarations win over rule
+/// declarations — for `!important` too, so an inline `!important`
+/// beats an author `!important`.
+#[test]
+fn inline_important_beats_author_important() {
+    assert_eq!(
+        fg_with_inline("p { color: red !important }", "color: blue !important"),
+        BLUE
+    );
+    assert_eq!(
+        fg_with_inline("#x { color: red !important }", "color: blue !important"),
+        BLUE
+    );
+    // Importance still decides first: author `!important` beats a
+    // normal inline declaration.
+    assert_eq!(
+        fg_with_inline("p { color: red !important }", "color: blue"),
+        RED
+    );
+}
+
+/// Cascade 5 §6.1: the element-attached criterion sorts above cascade
+/// layers, so the `style` attribute beats every layer at both
+/// importances — even the first layer, which wins among `!important`
+/// rules.
+#[test]
+fn inline_sorts_above_every_layer() {
+    assert_eq!(
+        fg_with_inline(
+            "@layer a { p { color: red !important } } p { color: green !important }",
+            "color: blue !important"
+        ),
+        BLUE
+    );
+    assert_eq!(
+        fg_with_inline(
+            "@layer a { #x { color: red } } p { color: green }",
+            "color: blue"
+        ),
+        BLUE
+    );
+}

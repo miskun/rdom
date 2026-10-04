@@ -222,7 +222,7 @@ dropped:
 | Identifier escapes (`\31 0`, `\:`) | Supported | Syntax 3 §4.3.7 escapes decode in selectors (type / class / id / attribute names and values), property names and keyword values; one decoder, `rdom_core::css_syntax`, serves the selector parser and the value tokenizer (C1-ESCAPES). | — | `rdom-core/src/css_syntax.rs`, `TOK`, `SEL::parse_ident` |
 | Property-name case-insensitivity | Supported | Every dispatch entry point folds the name through `property_dispatch::canonical_property_name` (`COLOR: red` is `color: red`, CSSOM `setProperty("COLOR", …)` too); custom property names stay case-sensitive (C1-CASE). | — | `DISP/table.rs` |
 | Keyword case-insensitivity | Supported | Keywords, units (`2S`, `300MS`), function names and pseudo-class names (`:HOVER`) match ASCII case-insensitively (C1-CASE). | — | `V/keyword.rs`, `V/transition.rs`, `SEL` |
-| `!important` | Supported | Per-field `ImportantMask`; inline and sheet; custom properties too. | — | `DECL::strip_trailing_important` |
+| `!important` | Supported | Per-field `ImportantMask`; inline and sheet; custom properties too. The `style` attribute beats author rules at both importances, above every layer (Cascade 4 §6.1 element-attached styles; C1-INLINE-IMPORTANT). | — | `DECL::strip_trailing_important` |
 | Origins: UA, author (sheets, `<style>`, `App` sheets), inline | Supported | Ordering documented (App sheets after `<style>`). | — | `CASC`, `UA` |
 | Specificity | Supported | Selectors 4 §17 incl. `:not()` / `:where()`; pseudo-element adds a type. | — | `SEL::ComplexSelector`, `rdom-style/src/specificity.rs` |
 | `inherit` | Supported | All properties. | — | `DISP/css_wide.rs` |

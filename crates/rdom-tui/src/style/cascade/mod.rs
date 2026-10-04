@@ -15,8 +15,10 @@
 //! 4. Sort candidates by (specificity, source_idx). Ascending =
 //!    late-wins.
 //! 5. Apply declarations in origin + importance order (`ladder`):
-//!    1. UA normal, Author normal, Inline normal,
-//!    2. Inline important, Author important, UA important.
+//!    1. UA normal, Author normal (per layer), Inline normal,
+//!    2. Author important (layers reversed), Inline important, UA
+//!       important — the `style` attribute beats rules of its
+//!       origin at both importances (Cascade 4 §6.1).
 //!
 //!    Within each ladder step, sort by (specificity, source_idx).
 //! 6. Resolve the CSS-wide keywords per property (`apply`): `inherit`

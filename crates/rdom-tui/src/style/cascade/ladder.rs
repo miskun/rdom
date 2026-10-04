@@ -8,11 +8,16 @@
 //!
 //! 1. UA normal, Author normal (one step per layer, unlayered last),
 //!    Inline normal,
-//! 2. Inline important, Author important (layers reversed), UA
+//! 2. Author important (layers reversed), Inline important, UA
 //!    important.
 //!
 //! `!important` inverts origin priority, matching CSS. Don't shortcut
 //! the ladder — the inversion is observable and tests depend on it.
+//! Within the author origin, the element-attached `style` attribute
+//! wins over rule declarations at *both* importances (Cascade 4 §6.1
+//! "Element-Attached Styles"), and that criterion sorts above cascade
+//! layers (Cascade 5 §6.1), so inline sits after every author layer in
+//! the normal half and after every author layer in the important half.
 //!
 //! ## Rollback (`revert`)
 //!
@@ -72,8 +77,8 @@ impl Plan {
     /// author rules sit in the layers of `author_ranks` (any order,
     /// duplicates allowed): UA normal; author normal, one step per
     /// layer from the lowest rank up, unlayered last; inline normal;
-    /// inline important; author important with the layer order
-    /// reversed (unlayered first); UA important.
+    /// author important with the layer order reversed (unlayered
+    /// first); inline important; UA important.
     pub(super) fn new(author_ranks: impl IntoIterator<Item = u32>) -> Plan {
         let mut ranks: Vec<u32> = author_ranks.into_iter().collect();
         ranks.sort_unstable();
@@ -97,10 +102,10 @@ impl Plan {
             push(Source::Author(rank), false);
         }
         push(Source::Inline, false);
-        push(Source::Inline, true);
         for &rank in ranks.iter().rev() {
             push(Source::Author(rank), true);
         }
+        push(Source::Inline, true);
         push(Source::UserAgent, true);
         Plan(steps)
     }
@@ -258,7 +263,9 @@ mod tests {
 
     /// Cascade 5 §6.4: normal author steps run layer by layer, lowest
     /// rank first and unlayered last; important ones in the reverse
-    /// order; `revert-layer` rolls back to the step's own start.
+    /// order; inline follows every author step of its importance
+    /// (Cascade 4 §6.1 element-attached styles sort above layers);
+    /// `revert-layer` rolls back to the step's own start.
     #[test]
     fn layers_order_the_author_steps() {
         const U: u32 = rdom_style::LayerOrder::UNLAYERED;
@@ -276,10 +283,10 @@ mod tests {
                 (Source::Author(3), false),
                 (Source::Author(U), false),
                 (Source::Inline, false),
-                (Source::Inline, true),
                 (Source::Author(U), true),
                 (Source::Author(3), true),
                 (Source::Author(1), true),
+                (Source::Inline, true),
                 (Source::UserAgent, true),
             ]
         );

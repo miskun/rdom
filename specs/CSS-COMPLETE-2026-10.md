@@ -71,7 +71,7 @@ row comes from.
 | C1-NESTING | CSS Nesting (`&`, nested style rules, nested at-rules) | |
 | C1-VAR-ANY | `var()` in every property via token-level substitution at computed-value time; fallback with arbitrary tokens; `var()` in `content` | |
 | C1-PROPERTY | `@property` (syntax, inherits, initial-value) | |
-| C1-INLINE-IMPORTANT | Inline `style="… !important"` beats author `!important` (Cascade 4 §6.1 element-attached styles; found during C1-REVERT) | |
+| C1-INLINE-IMPORTANT | Inline `style="… !important"` beats author `!important` (Cascade 4 §6.1 element-attached styles; found during C1-REVERT) | done |
 
 ### Phase 2 — Values, units, math functions (audit §3.3)
 

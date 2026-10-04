@@ -19,9 +19,10 @@
 //! ## Cascade ladder (CSS-spec faithful)
 //!
 //! 1. UA normal → 2. Author normal → 3. Inline normal →
-//!    4. Inline important → 5. Author important → 6. UA important.
+//!    4. Author important → 5. Inline important → 6. UA important.
 //!
-//! `!important` inverts origin priority.
+//! `!important` inverts origin priority; the `style` attribute beats
+//! the author's rules at both importances (Cascade 4 §6.1).
 
 pub mod cascade;
 pub mod dirty_tracker;
