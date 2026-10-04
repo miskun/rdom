@@ -1,6 +1,6 @@
 //! §11.5 — Color values. The full matrix the parser accepts:
-//! named, hex (3/4/6/8 digits — alpha dropped on 4 and 8),
-//! rgb(), rgba() (alpha dropped), var(--name), var(--name,
+//! named, hex (3/4/6/8 digits, alpha on 4 and 8), rgb() / rgba()
+//! (legacy and modern syntax, with alpha), var(--name), var(--name,
 //! fallback), and nested var() fallback.
 
 use rdom_css::parse;
@@ -36,20 +36,24 @@ fn hex_six_digit() {
 }
 
 #[test]
-fn hex_four_digit_alpha_dropped() {
-    // #rgba — short form with alpha. Alpha (4th nibble) ignored.
+fn hex_four_digit_alpha() {
+    // #rgba — short form with alpha (CSS Color 4 §5.2); opaque is Rgb.
     assert_eq!(
         fg_of("a { color: #f00f; }"),
         TuiColor::Literal(Color::Rgb(0xff, 0, 0))
     );
+    assert_eq!(
+        fg_of("a { color: #f008; }"),
+        TuiColor::Literal(Color::Rgba(0xff, 0, 0, 0x88))
+    );
 }
 
 #[test]
-fn hex_eight_digit_alpha_dropped() {
-    // #rrggbbaa — long form with alpha. Alpha (last two) ignored.
+fn hex_eight_digit_alpha() {
+    // #rrggbbaa — long form with alpha (CSS Color 4 §5.2).
     assert_eq!(
         fg_of("a { color: #ff000080; }"),
-        TuiColor::Literal(Color::Rgb(0xff, 0, 0))
+        TuiColor::Literal(Color::Rgba(0xff, 0, 0, 0x80))
     );
 }
 
@@ -72,8 +76,7 @@ fn rgb_with_extra_whitespace() {
 }
 
 #[test]
-fn rgba_drops_alpha_integer() {
-    // rgba with integer alpha; alpha dropped.
+fn rgba_opaque_alpha_is_rgb() {
     assert_eq!(
         fg_of("a { color: rgba(10, 20, 30, 1); }"),
         TuiColor::Literal(Color::Rgb(10, 20, 30))
@@ -81,14 +84,21 @@ fn rgba_drops_alpha_integer() {
 }
 
 #[test]
-fn rgba_drops_alpha_decimal() {
-    // rgba with float alpha (`0.5`). The float tokenizes as
-    // Number(0) Delim('.') Number(5); the parser consumes
-    // tokens until RParen so the actual representation doesn't
-    // matter for v1.
+fn rgba_keeps_alpha() {
+    // CSS Color 4 §5.1: the alpha is kept, as a byte.
     assert_eq!(
         fg_of("a { color: rgba(10, 20, 30, 0.5); }"),
-        TuiColor::Literal(Color::Rgb(10, 20, 30))
+        TuiColor::Literal(Color::Rgba(10, 20, 30, 128))
+    );
+}
+
+#[test]
+fn rgb_modern_syntax() {
+    // CSS Color 4 §5.1: space-separated channels, `/ alpha`,
+    // percentages, `none`.
+    assert_eq!(
+        fg_of("a { color: rgb(100% 0 none / 25%); }"),
+        TuiColor::Literal(Color::Rgba(255, 0, 0, 64))
     );
 }
 

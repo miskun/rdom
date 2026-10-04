@@ -109,6 +109,10 @@ impl Kind {
     fn format(self, value: Value) -> String {
         match (self, value) {
             (_, Value::Color(Color::Rgb(r, g, b))) => format!("rgb({r}, {g}, {b})"),
+            (_, Value::Color(Color::Rgba(r, g, b, a))) => format!(
+                "rgba({r}, {g}, {b}, {})",
+                rdom_style::color::serialize_alpha(a)
+            ),
             (_, Value::Color(Color::Indexed(i))) => i.to_string(),
             (_, Value::Color(Color::Reset)) => "reset".to_string(),
             (Kind::Number { whole: true, .. }, Value::Number(n)) => format!("{}", n.round() as i64),

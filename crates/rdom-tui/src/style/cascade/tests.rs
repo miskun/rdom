@@ -862,15 +862,15 @@ fn var_with_rgb_function_value() {
 }
 
 #[test]
-fn var_with_rgba_function_value_drops_alpha() {
+fn var_with_rgba_function_value_keeps_alpha() {
     use crate::TuiColor;
     let (mut dom, div) = dom_with_div();
     let sheet = Stylesheet::bare()
         .define_var("translucent", "rgba(200, 100, 50, 0.5)")
         .rule_unchecked("div", TuiStyle::new().fg(TuiColor::var("translucent")));
     dom.cascade(&sheet);
-    // Alpha is dropped; terminals paint opaque cells.
-    assert_eq!(computed_of(&dom, div).fg, Color::Rgb(200, 100, 50));
+    // CSS Color 4 §5.1: the alpha is part of the computed color.
+    assert_eq!(computed_of(&dom, div).fg, Color::Rgba(200, 100, 50, 128));
 }
 
 #[test]

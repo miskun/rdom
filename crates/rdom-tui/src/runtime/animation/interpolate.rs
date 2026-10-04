@@ -38,16 +38,26 @@ pub(super) fn interpolate(from: &AnimatedValue, to: &AnimatedValue, t: f32) -> A
     }
 }
 
+/// Interpolate two colors with premultiplied alpha (CSS Color 4
+/// §12.3), so a fade from `transparent` does not pass through black.
 pub(super) fn lerp_color(a: Color, b: Color, t: f32) -> Color {
     let (ar, ag, ab) = color_to_rgb_approx(a);
     let (br, bg, bb) = color_to_rgb_approx(b);
-    Color::Rgb(lerp_u8(ar, br, t), lerp_u8(ag, bg, t), lerp_u8(ab, bb, t))
-}
-
-#[inline]
-fn lerp_u8(a: u8, b: u8, t: f32) -> u8 {
-    let v = a as f32 + (b as f32 - a as f32) * t;
-    v.round().clamp(0.0, 255.0) as u8
+    let (aa, ba) = (f32::from(a.alpha()) / 255.0, f32::from(b.alpha()) / 255.0);
+    let alpha = aa + (ba - aa) * t;
+    if alpha <= 0.0 {
+        return Color::TRANSPARENT;
+    }
+    let channel = |x: u8, y: u8| {
+        let v = (f32::from(x) * aa * (1.0 - t) + f32::from(y) * ba * t) / alpha;
+        v.round().clamp(0.0, 255.0) as u8
+    };
+    Color::rgba(
+        channel(ar, br),
+        channel(ag, bg),
+        channel(ab, bb),
+        (alpha * 255.0).round().clamp(0.0, 255.0) as u8,
+    )
 }
 
 #[inline]
@@ -153,6 +163,6 @@ fn color_to_rgb_approx(c: Color) -> (u8, u8, u8) {
     match c {
         Color::Reset => (192, 192, 192),
         Color::Indexed(_) => (128, 128, 128),
-        Color::Rgb(r, g, b) => (r, g, b),
+        Color::Rgb(r, g, b) | Color::Rgba(r, g, b, _) => (r, g, b),
     }
 }

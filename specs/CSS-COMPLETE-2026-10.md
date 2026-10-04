@@ -95,7 +95,7 @@ row comes from.
 
 | Id | Item | Status |
 |---|---|---|
-| C3-RGB | Modern `rgb()` / `rgba()`: space syntax, `/ alpha`, percentages, `none` | |
+| C3-RGB | Modern `rgb()` / `rgba()`: space syntax, `/ alpha`, percentages, `none` | done |
 | C3-TRANSPARENT | `transparent` as a real fully transparent color (not `Reset`) | |
 | C3-CURRENTCOLOR | `currentColor` | |
 | C3-HSL-HWB | `hsl()` / `hsla()` / `hwb()` | |

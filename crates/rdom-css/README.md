@@ -84,8 +84,9 @@ value       := token+
   color/text, block model, sizing, content, positioning, transitions.
   See [`rdom-style`](../rdom-style/#supported-properties) for the
   current list.
-- **Values** — colors (`#rgb`, `#rrggbb`, `#rrggbbaa` (alpha dropped),
-  `rgb()`, `rgba()`, named colors, `reset`), lengths (cells, `fr`,
+- **Values** — colors (`#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`,
+  `rgb()` / `rgba()` in the modern and legacy syntax, named colors,
+  `reset`), lengths (cells, `fr`,
   `auto`, `%`, `ch`, the viewport units `vw` / `vh` / `vmin` / `vmax` / …),
   fractional numbers, angles, math functions (`calc()`, `min()`, `max()`,
   `clamp()`, `round()`, `mod()`, `rem()`, `abs()`, `sign()`, the

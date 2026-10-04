@@ -1,6 +1,6 @@
 //! `Color` — terminal color model.
 //!
-//! Four flavours:
+//! Five flavours:
 //!
 //! - **`Reset`** — the terminal's default foreground or background.
 //!   Emits SGR `39` / `49` (reset fg / reset bg) — the one color that
@@ -18,6 +18,10 @@
 //! - **`Rgb(r, g, b)`** — truecolor (`\x1b[38;2;R;G;Bm`). Full 24-bit.
 //!   The future-canonical wire format; once the ANSI variants are
 //!   gone, `Rgb` and `Indexed` are the only non-`Reset` shapes.
+//! - **`Rgba(r, g, b, a)`** — truecolor with alpha below 255 (CSS
+//!   Color 4 §4.2: `rgb(255 0 0 / 50%)`, `#ff000080`, `transparent`).
+//!   A terminal cell is opaque, so paint composites a translucent
+//!   color over what lies beneath before it reaches a cell.
 //!
 //! `Color` values are `Copy` and cheap — no heap allocation, no
 //! indirection. The SGR serialization lives in `render/sgr.rs`.
@@ -35,10 +39,14 @@
 //! Plus runtime case-insensitive lookup via [`named::lookup`]
 //! (used by the CSS parser when it sees `color: rebeccapurple`).
 
+mod absolute;
 pub mod named;
 
-/// Terminal color. Three variants: `Reset` (terminal default),
-/// `Indexed` (xterm-256 palette index), `Rgb` (24-bit truecolor).
+pub(crate) use absolute::AbsoluteColor;
+
+/// Terminal color. Four variants: `Reset` (terminal default),
+/// `Indexed` (xterm-256 palette index), `Rgb` (24-bit truecolor) and
+/// `Rgba` (truecolor with alpha).
 /// The 16 ANSI named variants (Black/Red/.../White) were removed
 /// in the pre-publish OOTB color overhaul (T6) — rdom is
 /// truecolor-only, and the CSS named colors in [`named`] cover
@@ -66,15 +74,71 @@ pub enum Color {
     /// (`Color::Rgb(30, 144, 255)`) or via the CSS named
     /// constants in [`named`] (`named::DODGERBLUE`).
     Rgb(u8, u8, u8),
+
+    /// 24-bit truecolor with an alpha below 255 (CSS Color 4 §4.2):
+    /// `0` is fully transparent. An opaque color is always `Rgb` —
+    /// build one with [`Color::rgba`], which normalizes, so equal
+    /// colors compare equal.
+    Rgba(u8, u8, u8, u8),
 }
 
 impl Color {
+    /// `transparent` (CSS Color 4 §6.3): transparent black.
+    pub const TRANSPARENT: Color = Color::Rgba(0, 0, 0, 0);
+
+    /// A truecolor with alpha `a` (`255` opaque): `Rgb` when opaque,
+    /// `Rgba` otherwise.
+    pub const fn rgba(r: u8, g: u8, b: u8, a: u8) -> Color {
+        if a == u8::MAX {
+            Color::Rgb(r, g, b)
+        } else {
+            Color::Rgba(r, g, b, a)
+        }
+    }
+
+    /// The alpha channel, `0` (transparent) to `255` (opaque). Every
+    /// color but `Rgba` is opaque.
+    pub const fn alpha(self) -> u8 {
+        match self {
+            Color::Rgba(_, _, _, a) => a,
+            _ => u8::MAX,
+        }
+    }
+
+    /// True when the alpha channel is below 255.
+    pub const fn is_translucent(self) -> bool {
+        self.alpha() < u8::MAX
+    }
+
+    /// This color with its alpha dropped (`Rgba` becomes `Rgb`).
+    pub const fn opaque(self) -> Color {
+        match self {
+            Color::Rgba(r, g, b, _) => Color::Rgb(r, g, b),
+            c => c,
+        }
+    }
+
     /// True when this color is `Reset` — helpful for paint paths that
     /// want to avoid emitting a full SGR when the effective color is
     /// "whatever the terminal default is."
     pub fn is_reset(self) -> bool {
         matches!(self, Color::Reset)
     }
+}
+
+/// An 8-bit alpha as the CSSOM serializes it (CSS Color 4 §15.2): the
+/// shortest of two or three decimals that reads back as the same byte
+/// (`128` is `0.5`, `1` is `0.004`).
+pub fn serialize_alpha(a: u8) -> String {
+    let byte = |v: f64| (v * 255.0 + 0.5).floor() as u8;
+    let v = f64::from(a) / 255.0;
+    let two = (v * 100.0).round() / 100.0;
+    let v = if byte(two) == a {
+        two
+    } else {
+        (v * 1000.0).round() / 1000.0
+    };
+    format!("{v}")
 }
 
 #[cfg(test)]
@@ -87,6 +151,29 @@ mod tests {
         assert!(!Color::Rgb(255, 0, 0).is_reset());
         assert!(!Color::Rgb(0, 0, 0).is_reset());
         assert!(!Color::Indexed(200).is_reset());
+    }
+
+    /// CSS Color 4 §15.2: alpha serializes with the fewest decimals
+    /// that round-trip.
+    #[test]
+    fn alpha_serializes_shortest_round_trip() {
+        assert_eq!(serialize_alpha(128), "0.5");
+        assert_eq!(serialize_alpha(0), "0");
+        assert_eq!(serialize_alpha(64), "0.25");
+        assert_eq!(serialize_alpha(1), "0.004");
+    }
+
+    /// CSS Color 4 §4.2: an opaque color has one representation, so
+    /// `rgba(…, 255)` and `Rgb` compare equal.
+    #[test]
+    fn rgba_normalizes_opaque_alpha() {
+        assert_eq!(Color::rgba(1, 2, 3, 255), Color::Rgb(1, 2, 3));
+        assert_eq!(Color::rgba(1, 2, 3, 128), Color::Rgba(1, 2, 3, 128));
+        assert_eq!(Color::Rgba(1, 2, 3, 128).alpha(), 128);
+        assert_eq!(Color::Rgb(1, 2, 3).alpha(), 255);
+        assert_eq!(Color::Reset.alpha(), 255);
+        assert!(Color::TRANSPARENT.is_translucent());
+        assert_eq!(Color::Rgba(1, 2, 3, 9).opaque(), Color::Rgb(1, 2, 3));
     }
 
     #[test]

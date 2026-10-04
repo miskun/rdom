@@ -142,6 +142,9 @@ fn emit_fg<W: Write>(w: &mut W, color: Color) -> io::Result<()> {
         Color::Reset => write!(w, "\x1b[39m"),
         Color::Indexed(n) => write!(w, "\x1b[38;5;{}m", n),
         Color::Rgb(r, g, b) => write!(w, "\x1b[38;2;{};{};{}m", r, g, b),
+        // A cell is opaque: only the channels can be emitted (alpha
+        // compositing is C3-ALPHA).
+        Color::Rgba(r, g, b, _) => write!(w, "\x1b[38;2;{};{};{}m", r, g, b),
     }
 }
 
@@ -151,6 +154,7 @@ fn emit_bg<W: Write>(w: &mut W, color: Color) -> io::Result<()> {
         Color::Reset => write!(w, "\x1b[49m"),
         Color::Indexed(n) => write!(w, "\x1b[48;5;{}m", n),
         Color::Rgb(r, g, b) => write!(w, "\x1b[48;2;{};{};{}m", r, g, b),
+        Color::Rgba(r, g, b, _) => write!(w, "\x1b[48;2;{};{};{}m", r, g, b),
     }
 }
 

@@ -20,8 +20,8 @@
 //! The string-to-Color parser accepts:
 //!
 //! - `#rgb` / `#rgba` / `#rrggbb` / `#rrggbbaa`: hex literals,
-//!   expanded to `Color::Rgb`. Alpha (4- and 8-digit forms) is
-//!   validated but dropped — terminal cells paint opaque.
+//!   expanded to `Color::Rgb` (`Color::Rgba` when the 4- or 8-digit
+//!   form's alpha is below opaque).
 //! - Named ANSI colors (`red`, `blue`, `gray`, `lightcyan`, ...)
 //! - `reset` → `Color::Reset` (terminal default)
 //! - Decimal `0..=255` → `Color::Indexed`
@@ -164,13 +164,12 @@ fn parse_hex(hex: &str) -> Option<Color> {
             Some(Color::Rgb(r * 17, g * 17, b * 17))
         }
         4 => {
-            // `#rgba` — short form with alpha. Alpha (4th nibble)
-            // is dropped; rdom-tui paints opaque cells.
+            // `#rgba` — short form with alpha (CSS Color 4 §5.2).
             let r = hex_digit(hex.as_bytes()[0])?;
             let g = hex_digit(hex.as_bytes()[1])?;
             let b = hex_digit(hex.as_bytes()[2])?;
-            hex_digit(hex.as_bytes()[3])?; // validate alpha nibble
-            Some(Color::Rgb(r * 17, g * 17, b * 17))
+            let a = hex_digit(hex.as_bytes()[3])?;
+            Some(Color::rgba(r * 17, g * 17, b * 17, a * 17))
         }
         6 => {
             let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
@@ -179,13 +178,12 @@ fn parse_hex(hex: &str) -> Option<Color> {
             Some(Color::Rgb(r, g, b))
         }
         8 => {
-            // `#rrggbbaa` — long form with alpha. Alpha (last
-            // byte) is dropped.
+            // `#rrggbbaa` — long form with alpha (CSS Color 4 §5.2).
             let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
             let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
             let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
-            u8::from_str_radix(&hex[6..8], 16).ok()?; // validate alpha
-            Some(Color::Rgb(r, g, b))
+            let a = u8::from_str_radix(&hex[6..8], 16).ok()?;
+            Some(Color::rgba(r, g, b, a))
         }
         _ => None,
     }
@@ -251,19 +249,20 @@ mod tests {
     }
 
     #[test]
-    fn hex4_rgba_drops_alpha() {
-        // `#rgba` — short form with alpha. The 4th nibble is
-        // validated but discarded; rdom-tui paints opaque cells.
+    fn hex4_rgba_keeps_alpha() {
+        // `#rgba` — short form with alpha (CSS Color 4 §5.2).
         assert_eq!(parse_color("#f00f"), Some(Color::Rgb(0xff, 0, 0)));
-        assert_eq!(parse_color("#f008"), Some(Color::Rgb(0xff, 0, 0)));
+        assert_eq!(parse_color("#f008"), Some(Color::Rgba(0xff, 0, 0, 0x88)));
     }
 
     #[test]
-    fn hex8_rrggbbaa_drops_alpha() {
-        // `#rrggbbaa` — long form with alpha. Alpha byte
-        // discarded.
+    fn hex8_rrggbbaa_keeps_alpha() {
+        // `#rrggbbaa` — long form with alpha (CSS Color 4 §5.2).
         assert_eq!(parse_color("#ff0000ff"), Some(Color::Rgb(0xff, 0, 0)));
-        assert_eq!(parse_color("#ff000080"), Some(Color::Rgb(0xff, 0, 0)));
+        assert_eq!(
+            parse_color("#ff000080"),
+            Some(Color::Rgba(0xff, 0, 0, 0x80))
+        );
     }
 
     #[test]

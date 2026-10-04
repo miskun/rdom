@@ -244,3 +244,19 @@ fn re_setting_property_mid_flight_fires_cancel_and_restarts_from_current() {
     // And there's exactly one animation now (the new red-ish→green).
     assert_eq!(reg.len(), 1);
 }
+
+/// CSS Color 4 §12.3: colors interpolate with premultiplied alpha, so
+/// fading in from transparent black keeps the target's hue instead of
+/// passing through gray.
+#[test]
+fn color_interpolation_premultiplies_alpha() {
+    use super::interpolate::lerp_color;
+    let mid = lerp_color(Color::Rgba(0, 0, 0, 0), Color::Rgb(255, 0, 0), 0.5);
+    assert_eq!(mid, Color::Rgba(255, 0, 0, 128));
+    let half = lerp_color(
+        Color::Rgba(0, 0, 255, 128),
+        Color::Rgba(0, 0, 255, 128),
+        0.3,
+    );
+    assert_eq!(half, Color::Rgba(0, 0, 255, 128));
+}

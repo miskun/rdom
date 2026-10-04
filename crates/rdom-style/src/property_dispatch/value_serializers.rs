@@ -36,6 +36,9 @@ pub(super) fn serialize_literal_color(c: &Color) -> String {
     match c {
         Color::Reset => "reset".to_string(),
         Color::Indexed(n) => format!("indexed-{n}"),
+        Color::Rgba(r, g, b, a) => {
+            format!("rgba({r}, {g}, {b}, {})", crate::color::serialize_alpha(*a))
+        }
         Color::Rgb(r, g, b) => {
             // Prefer the terminal-palette spellings authors write most
             // (they are also the aliases `named::name_of` would not pick
