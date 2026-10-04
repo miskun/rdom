@@ -18,6 +18,7 @@ pub(super) fn specified<T>(v: &Value<T>) -> Option<&T> {
 pub(super) fn serialize_color(c: &TuiColor) -> String {
     match c {
         TuiColor::Literal(lit) => serialize_literal_color(lit),
+        TuiColor::CurrentColor => "currentcolor".to_string(),
         TuiColor::Var { name, fallback } => match fallback {
             Some(fb) => format!("var(--{name}, {})", serialize_color(fb)),
             None => format!("var(--{name})"),

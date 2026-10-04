@@ -95,20 +95,17 @@ pub(in crate::render::paint_pass) fn paint_caret_if_editable(
     };
     let under_mod = buf.cell(x, y).map(|c| c.modifier).unwrap_or_default();
 
+    // `caret-color` inherits as specified, so `currentcolor` and
+    // `var()` resolve here, against this element (CSS Color 4 §6.4).
+    let cx = crate::ColorContext::new(cascaded_fg);
     let caret_bg = match &computed.caret_color {
         CaretColor::Auto => cascaded_fg,
         CaretColor::Transparent => return, // already handled above
-        CaretColor::Color(tc) => match tc {
-            crate::TuiColor::Literal(c) => *c,
-            crate::TuiColor::Var { .. } => cascaded_fg,
-        },
+        CaretColor::Color(tc) => tc.resolve(&computed.vars, &cx).unwrap_or(cascaded_fg),
     };
     let caret_fg = match &computed.caret_text_color {
         CaretTextColor::Auto => cascaded_bg,
-        CaretTextColor::Color(tc) => match tc {
-            crate::TuiColor::Literal(c) => *c,
-            crate::TuiColor::Var { .. } => cascaded_bg,
-        },
+        CaretTextColor::Color(tc) => tc.resolve(&computed.vars, &cx).unwrap_or(cascaded_bg),
     };
 
     let mut new_style = Style::new().fg(caret_fg).bg(caret_bg);

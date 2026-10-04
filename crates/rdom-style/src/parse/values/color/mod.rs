@@ -1,5 +1,6 @@
 //! The `<color>` grammar (CSS Color 4 §4.1): named colors, hex,
-//! `rgb()` / `rgba()`, and rdom's `reset` and palette-index forms.
+//! `rgb()` / `rgba()`, `currentcolor`, and rdom's `reset` and
+//! palette-index forms.
 //! `var()` is not part of this grammar: a declaration holding one is
 //! substituted by the cascade before it is parsed (`crate::var`).
 //!
@@ -31,6 +32,9 @@ pub fn parse_color(value: &[Token]) -> Option<TuiColor> {
 pub fn parse_color_at(value: &[Token], start: usize) -> Option<(TuiColor, usize)> {
     let tok = value.get(start)?;
     match tok {
+        Token::Ident(name) if name.eq_ignore_ascii_case("currentcolor") => {
+            Some((TuiColor::CurrentColor, 1))
+        }
         Token::Ident(name) => {
             // Use the simple-cases fast path directly — the public
             // `parse_color(&str)` dispatches through this same

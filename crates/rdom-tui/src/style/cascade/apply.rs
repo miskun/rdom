@@ -15,7 +15,7 @@
 use super::ladder::Declarations;
 use crate::layout::Display;
 use crate::style::{
-    Color, ComputedStyle, ImportantMask, Modifier, TuiColor, TuiStyle, Value, resolve_tui_color,
+    Color, ColorContext, ComputedStyle, ImportantMask, Modifier, TuiColor, TuiStyle, Value,
 };
 
 /// Where the CSS-wide keywords of one ladder pass take their values
@@ -88,10 +88,40 @@ pub(super) fn finalize_border_fg(working: &mut ComputedStyle, decls: Declaration
     }
 }
 
+/// The winning color declarations whose value depends on the element
+/// (`currentcolor`, CSS Color 4 §6.4), kept by the ladder until the
+/// element's `color` is final. `color` itself resolves against the
+/// parent's, so it never waits.
+#[derive(Debug, Default)]
+pub(super) struct ElementColors {
+    bg: Option<TuiColor>,
+    border_fg: Option<TuiColor>,
+}
+
+impl ElementColors {
+    /// Resolve the waiting colors against the element's final `color`.
+    /// Runs after the cascade ladder.
+    pub(super) fn finalize(self, working: &mut ComputedStyle) {
+        let cx = ColorContext::new(working.fg);
+        let vars = working.vars.clone();
+        for (slot, target) in [
+            (self.bg, &mut working.bg),
+            (self.border_fg, &mut working.border_fg),
+        ] {
+            if let Some(color) = slot
+                && let Some(c) = color.resolve(&vars, &cx)
+            {
+                *target = c;
+            }
+        }
+    }
+}
+
 /// Apply one `TuiStyle` to `working`, for one ladder pass. Paints +
 /// layout + display + white_space all in one pass.
 pub(super) fn apply_style(
     working: &mut ComputedStyle,
+    colors: &mut ElementColors,
     style: &TuiStyle,
     important_pass: bool,
     kw: &Keywords<'_>,
@@ -129,39 +159,55 @@ pub(super) fn apply_style(
         )*};
     }
 
-    // Paint properties.
+    // Paint properties. In `color`, `currentcolor` is the parent's
+    // color (CSS Color 4 §6.4); elsewhere it is this element's, which
+    // `ElementColors::finalize` applies once `color` is final — the
+    // value resolved here against the color cascaded so far stands in
+    // until then.
     apply_color(
-        &mut working.fg,
+        ColorSlot {
+            target: &mut working.fg,
+            waiting: None,
+            field: |c| c.fg,
+            initial: None,
+        },
         &style.fg,
         matches_pass(style.important.contains(ImportantMask::FG), important_pass),
         kw,
-        |c| c.fg,
-        None,
         &vars,
+        &ColorContext::new(kw.parent.fg),
     );
+    let cx = ColorContext::new(working.fg);
     apply_color(
-        &mut working.bg,
+        ColorSlot {
+            target: &mut working.bg,
+            waiting: Some(&mut colors.bg),
+            field: |c| c.bg,
+            initial: None,
+        },
         &style.bg,
         matches_pass(style.important.contains(ImportantMask::BG), important_pass),
         kw,
-        |c| c.bg,
-        None,
         &vars,
+        &cx,
     );
-    // `border-color`'s initial value is `currentColor` (CSS Backgrounds
-    // 3 §3.1): the element's `color` as cascaded so far.
-    let current_color = working.fg;
+    // `border-color`'s initial value is `currentcolor` (CSS Backgrounds
+    // 3 §3.1).
     apply_color(
-        &mut working.border_fg,
+        ColorSlot {
+            target: &mut working.border_fg,
+            waiting: Some(&mut colors.border_fg),
+            field: |c| c.border_fg,
+            initial: Some(TuiColor::CurrentColor),
+        },
         &style.border_fg,
         matches_pass(
             style.important.contains(ImportantMask::BORDER_FG),
             important_pass,
         ),
         kw,
-        |c| c.border_fg,
-        Some(current_color),
         &vars,
+        &cx,
     );
 
     apply_modifier_bit(
@@ -330,29 +376,60 @@ fn apply_optional<T: Clone>(
     }
 }
 
+/// One color property's computed field and its bookkeeping.
+struct ColorSlot<'w> {
+    target: &'w mut Color,
+    /// Where a value that depends on the element waits for the final
+    /// `color` (`None` for `color` itself).
+    waiting: Option<&'w mut Option<TuiColor>>,
+    /// The field in another computed style (`inherit`, `revert`, …).
+    field: fn(&ComputedStyle) -> Color,
+    /// The property's initial value where it is not the initial
+    /// table's (`border-color`: `currentcolor`).
+    initial: Option<TuiColor>,
+}
+
 /// A color property (`in_pass`: the declaration's importance matches
-/// the pass). `initial_override` replaces the initial-table
-/// value for `initial` (`border-color`'s initial value is
-/// `currentColor`, the element's `color` as cascaded so far).
+/// the pass), resolved against `vars` and `cx`. A `var()` chain that
+/// finds no color takes the parent's value.
 fn apply_color(
-    target: &mut Color,
+    slot: ColorSlot<'_>,
     value: &Option<Value<TuiColor>>,
     in_pass: bool,
     kw: &Keywords<'_>,
-    field: fn(&ComputedStyle) -> Color,
-    initial_override: Option<Color>,
     vars: &std::collections::HashMap<String, rdom_style::CustomValue>,
+    cx: &ColorContext,
 ) {
-    if let Some(v) = value
-        && in_pass
-    {
-        *target = match (v, initial_override) {
-            (Value::Initial, Some(initial)) => initial,
-            _ => match kw.resolve(v) {
-                Resolved::Specified(tc) => resolve_tui_color(tc, vars, field(kw.parent)),
-                Resolved::From(source) => field(source),
-            },
-        };
+    let Some(v) = value else { return };
+    if !in_pass {
+        return;
+    }
+    let specified = match (v, &slot.initial) {
+        (Value::Initial, Some(initial)) => Some(initial),
+        _ => match kw.resolve(v) {
+            Resolved::Specified(tc) => Some(tc),
+            Resolved::From(source) => {
+                *slot.target = (slot.field)(source);
+                None
+            }
+        },
+    };
+    let waits = match specified.and_then(|tc| tc.substitute_vars(vars)) {
+        Some(color) => {
+            *slot.target = color
+                .resolve(vars, cx)
+                .unwrap_or_else(|| (slot.field)(kw.parent));
+            color.depends_on_element().then_some(color)
+        }
+        None => {
+            if specified.is_some() {
+                *slot.target = (slot.field)(kw.parent);
+            }
+            None
+        }
+    };
+    if let Some(waiting) = slot.waiting {
+        *waiting = waits;
     }
 }
 

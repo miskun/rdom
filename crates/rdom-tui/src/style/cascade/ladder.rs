@@ -36,7 +36,7 @@
 use std::cell::OnceCell;
 use std::collections::HashMap;
 
-use super::apply::{Initials, Keywords, apply_style};
+use super::apply::{ElementColors, Initials, Keywords, apply_style};
 use super::inherit::inherit_inheritable_from;
 use crate::style::{ComputedStyle, Rule, RuleOrigin, TuiStyle};
 
@@ -324,16 +324,19 @@ impl<'a, S: Clone> Rollback<'a, S> {
     }
 }
 
-/// Walk the cascade ladder once for this element.
+/// Walk the cascade ladder once for this element. Returns the winning
+/// colors that wait for the element's final `color`
+/// ([`ElementColors::finalize`]).
 pub(super) fn apply_cascade_ladder(
     working: &mut ComputedStyle,
     plan: &Plan,
     decls: Declarations<'_>,
     parent: &ComputedStyle,
-) {
+) -> ElementColors {
+    let mut colors = ElementColors::default();
     // No declarations: every step is empty.
     if decls.is_empty() {
-        return;
+        return colors;
     }
     #[cfg(test)]
     probe::bump(&probe::LADDER_WALKS);
@@ -349,12 +352,31 @@ pub(super) fn apply_cascade_ladder(
         b.vars = vars.clone();
         b
     };
+    // A rolled-back state resolves `currentcolor` against the color it
+    // has cascaded so far.
     let apply = |state: &mut ComputedStyle, i: usize, rollback: &Rollback<'_, ComputedStyle>| {
-        apply_step(state, &plan.steps()[i], decls, parent, &initial, rollback);
+        let mut colors = ElementColors::default();
+        apply_step(
+            state,
+            &mut colors,
+            &plan.steps()[i],
+            decls,
+            parent,
+            &initial,
+            rollback,
+        );
     };
     let rollback = Rollback::new(plan.steps().len(), &base, &apply);
     for step in plan.steps() {
-        apply_step(working, step, decls, parent, &initial, &rollback);
+        apply_step(
+            working,
+            &mut colors,
+            step,
+            decls,
+            parent,
+            &initial,
+            &rollback,
+        );
     }
 
     // NOTE — CSS Overflow L3's cross-axis rule ("if one axis is
@@ -365,10 +387,12 @@ pub(super) fn apply_cascade_ladder(
     // always-reserve), so enforcing the rule would surprise
     // authors writing `overflow-y: scroll` and getting an
     // unexpected horizontal gutter. Each axis is independent.
+    colors
 }
 
 fn apply_step(
     working: &mut ComputedStyle,
+    colors: &mut ElementColors,
     step: &Step,
     decls: Declarations<'_>,
     parent: &ComputedStyle,
@@ -382,7 +406,7 @@ fn apply_step(
         revert_layer: &|| rollback.state_before(step.revert_layer_to),
     };
     for style in decls.of(step) {
-        apply_style(working, style, step.important, &keywords);
+        apply_style(working, colors, style, step.important, &keywords);
     }
 }
 

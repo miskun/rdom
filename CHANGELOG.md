@@ -42,6 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `calc::round_half_to_even` is removed: `f64::round_ties_even` is the same rounding. Migration: `round_half_to_even(v)` → `v.round_ties_even() as i32`, or `calc::to_cells(v)` for a top-level result (NaN 0, clamped). (C2G-CELLS-CONVERSIONS)
 - **`parse::values::parse_content` no longer parses `attr()`.** In 0.5.0 it turned `attr(x)` into `Content::Attr`; `attr()` is now an arbitrary substitution function (CSS Values 5 §8.7) that the cascade substitutes before the `content` grammar runs, so `parse_content` returns `None` for a value holding one, and `property_dispatch::set("content", "attr(x)", …)` keeps the declaration on `TuiStyle::pending` instead of setting `TuiStyle::content`. Migration: set `content` through `property_dispatch::set` (or a sheet) and let the cascade substitute it; to resolve one outside a cascade, `TuiStyle::substituted_pending(vars, &SubstitutionContext::new().with_attrs(&lookup))`. (C2-ATTR, C2G-DOCS)
 - `Color` gains `Rgba(r, g, b, a)`, a truecolor with alpha below 255 (CSS Color 4 §4.2), with `Color::rgba` (normalizes an opaque alpha to `Rgb`), `alpha()`, `is_translucent()`, `opaque()` and `Color::TRANSPARENT`; hex `#rgba` / `#rrggbbaa` and `rgb()` keep their alpha instead of dropping it. `Color` is closed data (DESIGN), so this is breaking. Migration: add a `Color::Rgba(r, g, b, a)` arm to matches on `Color` — or match `c.opaque()` where alpha does not matter; build a color with alpha through `Color::rgba`. (C3-RGB)
+- `TuiColor` gains `CurrentColor` (`currentcolor`, CSS Color 4 §6.4), resolved at computed-value time, and `resolve_tui_color` takes a `&ColorContext` (the new `#[non_exhaustive]` struct holding `current_color`, the color `currentcolor` is). `TuiColor` is closed data, so this is breaking. Migration: add a `TuiColor::CurrentColor` arm (resolve it to the element's color — `TuiColor::resolve` does); pass `&ColorContext::new(element_color)` to `resolve_tui_color`. (C3-CURRENTCOLOR)
 
 ### Added — `rdom-style`
 
@@ -76,6 +77,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Size::cells(basis)` / `Size::cells_u16(basis)` and `Length::cells(basis)`: a size or an inset in cells — a percentage or `calc()` resolved against `basis`, `None` for `auto` (and a flex weight) — the one conversion layout uses (four copies for sizes and three for insets before). (C2G-CELLS-CONVERSIONS)
 - `MinSize::percent(p)` / `MaxSize::percent(p)`: a percentage `min-*` / `max-*` as the parser stores it, without building the `CalcExpr`. (C2G-REEXPORT-CALC)
 - **Modern `rgb()` / `rgba()`** (CSS Color 4 §5.1): space-separated channels with `/ alpha`, `none`, numbers with fractions and percentages (mixed in the modern syntax), math functions in channels and alpha, out-of-range values clamped; the legacy comma syntax takes all-number or all-percentage channels and an optional alpha. `color::serialize_alpha` gives the CSSOM alpha text; a translucent color serializes as `rgba(r, g, b, a)`. A translucent color paints opaque until C3-ALPHA. (C3-RGB)
+- **`currentcolor`** (CSS Color 4 §6.4), in any case, in every color property; serializes as `currentcolor`. `TuiColor::parse(css)` parses the full grammar keeping it, `TuiColor::substitute_vars(vars)` looks up `var()` references, `TuiColor::resolve(vars, cx)` computes the color, and `depends_on_element()` says whether a value waits for the element's `color`. (C3-CURRENTCOLOR)
 
 ### Changed — `rdom-style`
 
@@ -137,6 +139,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `aspect-ratio: auto && <ratio>` sizes the content box: the flex cross size comes from the main size less its padding and border, plus the cross axis's (CSS Sizing 4 §5.1); a degenerate ratio is ignored. (C2-RATIO)
 - The cascade substitutes `attr()` with the element's attributes — a pseudo-element's originating element's — and an attribute change re-cascades it, so the value follows the attribute. (C2-ATTR)
 - `rdom_tui::calc` re-exports `rdom_style::calc`, so the `CalcExpr` a `Size::Calc` / `MinSize::Calc` / `MaxSize::Calc` / `Length::Calc` holds is reachable without depending on rdom-style. (C2G-REEXPORT-CALC)
+- **`currentcolor` resolves against the element's final `color`** (CSS Color 4 §6.4): `background-color` / `border-color` (including `border-color: initial`) take the `color` the whole cascade settles on, not the one cascaded so far; in `color` it is the inherited color; `caret-color` / `caret-text-color` inherit it as specified and resolve it at paint against each element, as they now do `var()` (which they used to replace with the text color). (C3-CURRENTCOLOR)
 
 ### Changed — `rdom-tui`
 

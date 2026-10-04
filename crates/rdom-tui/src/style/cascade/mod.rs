@@ -88,6 +88,8 @@ mod walk;
 #[cfg(test)]
 mod apply_tests;
 #[cfg(test)]
+mod color_tests;
+#[cfg(test)]
 mod cost_tests;
 #[cfg(test)]
 mod counter_tests;

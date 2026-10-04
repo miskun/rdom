@@ -113,3 +113,21 @@ fn hex_alpha_is_kept() {
     assert_eq!(parse_color("#ff000080"), rgba(255, 0, 0, 0x80));
     assert_eq!(parse_color("#ff0000ff"), rgb(255, 0, 0));
 }
+
+// ── currentcolor: CSS Color 4 §6.4 ──────────────────────────────
+
+/// §6.4: `currentcolor` (any case) parses, and serializes in lower
+/// case.
+#[test]
+fn currentcolor_parses_and_serializes() {
+    use crate::TuiStyle;
+    use crate::property_dispatch::{serialize, set};
+    for written in ["currentcolor", "currentColor", "CURRENTCOLOR"] {
+        let mut style = TuiStyle::new();
+        set("background-color", written, &mut style).unwrap();
+        assert_eq!(
+            serialize("background-color", &style).as_deref(),
+            Some("currentcolor")
+        );
+    }
+}

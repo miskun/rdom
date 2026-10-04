@@ -85,7 +85,7 @@ pub use stylesheet::{
     RuleOrigin, Scope, ScopeId, StyleError, StyleSelector, Stylesheet,
 };
 pub use transition::{AnimatableProperty, TimingFunction, TransitionProperty, TransitionRule};
-pub use tui_color::{TuiColor, parse_color, resolve_tui_color};
+pub use tui_color::{ColorContext, TuiColor, parse_color, resolve_tui_color};
 pub use tui_style::{CustomDeclaration, ImportantMask, TuiStyle};
 pub use value::Value;
 pub use var::PendingDeclaration;

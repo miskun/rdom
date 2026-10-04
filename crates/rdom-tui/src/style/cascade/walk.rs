@@ -464,7 +464,9 @@ fn compute_element_style(
         sheets.viewport(),
     );
     let decls = decls.with(substituted.as_ref());
-    apply_cascade_ladder(&mut working, plan, decls, parent);
+    let colors = apply_cascade_ladder(&mut working, plan, decls, parent);
+    // `currentcolor` takes the element's final `color`.
+    colors.finalize(&mut working);
 
     // This element's `counter-reset` / `counter-increment` take effect
     // before its own generated content and its children are seen.
