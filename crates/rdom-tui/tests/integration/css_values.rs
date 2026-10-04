@@ -374,3 +374,23 @@ fn ch_is_one_column() {
     assert_eq!((r[2].width, r[2].x), (4, -2), "-1.5ch rounds to -2");
     assert_eq!((r[3].x, r[3].width), (2, 4));
 }
+
+// ── C2-LH ────────────────────────────────────────────────────────────
+
+/// CSS Values 4 §6.1.1: `lh` is the element's computed `line-height`,
+/// `rlh` the root's. rdom's line is one row until `line-height` lands
+/// (C9-LINE-HEIGHT), so both are one cell.
+#[test]
+fn lh_and_rlh_are_one_row() {
+    let r = block_rects(
+        ".a { height: 3lh; width: 2rlh }
+         .b { height: calc(25% + 1.5LH); width: max(1rlh, 10%) }",
+        &["a", "b"],
+    );
+    assert_eq!((r[0].height, r[0].width), (3, 2));
+    assert_eq!(
+        (r[1].height, r[1].width),
+        (6, 4),
+        "5 + 1.5 = 6.5, ties to even"
+    );
+}

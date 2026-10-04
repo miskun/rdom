@@ -83,7 +83,7 @@ row comes from.
 | C2-STEPPED | `round()` / `mod()` / `rem()` / `abs()` / `sign()` | done |
 | C2-TRIG | `sin()` … `atan2()`, `pow()` / `sqrt()` / `hypot()` / `log()` / `exp()` | done |
 | C2-CH | `ch` (one column) | done |
-| C2-LH | `lh` / `rlh` (one row × `line-height`; lands with C9-LINE-HEIGHT) | |
+| C2-LH | `lh` / `rlh` (one row × `line-height`; lands with C9-LINE-HEIGHT) | partial — revisit with C9-LINE-HEIGHT (one row each until `line-height` exists) |
 | C2-VIEWPORT | `vw` / `vh` / `vmin` / `vmax` and the `sv*` / `lv*` / `dv*` / `vi` / `vb` variants (terminal size) | |
 | C2-ANGLE | `<angle>` (`deg` / `grad` / `rad` / `turn`) | |
 | C2-RATIO | Full `<ratio>` (bare numbers, decimals, `auto && <ratio>`) | |
@@ -443,3 +443,6 @@ row comes from.
 - 2026-10-04 — C2-CH: `CalcExpr::Dimension { value, unit: CalcUnit }` (`calc/units.rs`) is the leaf for
   every unit Phase 2 adds; `ch` folds to cells outside a percent-bearing expression. A registered
   `<length>` (`@property`) takes unit dimensions too.
+- 2026-10-04 — C2-LH: `lh` / `rlh` are one row each (`CalcUnit::{Lh, Rlh}`), the fixed line height.
+  Partial: they must follow the element's / root's computed `line-height` once C9-LINE-HEIGHT lands —
+  then `lh` needs the cascade's value, so it becomes a context unit like the viewport units.

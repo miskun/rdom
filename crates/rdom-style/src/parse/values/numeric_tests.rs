@@ -282,3 +282,28 @@ fn registered_length_syntax_takes_ch() {
     assert!(syntax.matches("calc(2ch + 1)"));
     assert!(!syntax.matches("3px"));
 }
+
+// ── C2-LH ────────────────────────────────────────────────────────────
+
+/// CSS Values 4 §6.1.1: `lh` / `rlh` are lengths — one row each while
+/// the line height is fixed at one row — and serialize as written in a
+/// percent-bearing expression.
+#[test]
+fn lh_units_parse_as_one_row() {
+    use crate::TuiStyle;
+    use crate::property_dispatch::{serialize, set};
+    assert_eq!(
+        length_percentage(&t("2lh"), Range::NonNegative),
+        Some(LengthPercentage::Cells(2.0))
+    );
+    assert_eq!(
+        length_percentage(&t("calc(1rlh * 3)"), Range::NonNegative),
+        Some(LengthPercentage::Cells(3.0))
+    );
+    let mut s = TuiStyle::default();
+    set("height", "calc(50% - 1lh + 2rlh)", &mut s).unwrap();
+    assert_eq!(
+        serialize("height", &s).as_deref(),
+        Some("calc(50% - 1lh + 2rlh)")
+    );
+}
