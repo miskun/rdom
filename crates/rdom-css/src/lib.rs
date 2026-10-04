@@ -64,18 +64,104 @@ use rdom_style::parse::Cursor;
 /// An `@import` has no loader here and imports nothing
 /// (`WarningKind::ImportFailed`); use [`parse_with_loader`].
 pub fn parse(source: &str) -> ParseResult {
-    parse_in(source, None)
+    parse_in(source, None, None)
 }
 
 /// Fetches the sheets `@import` names (CSS Cascade 5 §3). rdom has no
 /// network or filesystem policy of its own: the host decides what a
 /// URL means — a file under an asset directory, an embedded string, a
 /// refusal. `Err(reason)` imports nothing and reports
-/// `WarningKind::ImportFailed`. Closures `Fn(&str) -> Result<String,
-/// String>` implement it.
+/// `WarningKind::ImportFailed`.
+///
+/// ## Contract
+///
+/// - [`load_from`](Self::load_from) gets the URL as written in the
+///   `@import` and the **base**: the resolved URL of the sheet holding
+///   the `@import` — the root sheet's own URL when the parse was given
+///   one ([`parse_with_loader_at`]), `None` for a root without one (a
+///   `<style>` element, [`parse_with_loader`]). It returns the sheet's
+///   text and its **resolved URL**, which becomes the base of the
+///   sheet's own imports.
+/// - The resolved URL is the sheet's identity: an `@import` whose
+///   resolved URL is a sheet already being parsed (an ancestor in the
+///   import chain, the root included) closes a cycle and is skipped
+///   with `WarningKind::ImportCycle`. A loader canonicalises URLs —
+///   `css/./a.css` and `css/a.css` — by returning the same resolved URL
+///   for both.
+/// - The default `load_from` calls [`load`](Self::load) with the URL as
+///   written and takes that as the resolved URL: no base, identity by
+///   spelling. So any `Fn(&str) -> Result<String, String>` closure is a
+///   loader; annotate its parameter (`|url: &str|`), or the closure is
+///   not general over the `&str` lifetime and does not implement the
+///   trait.
+/// - Imports nest at most [`MAX_IMPORT_DEPTH`] deep; a deeper one warns
+///   (`WarningKind::ImportTooDeep`) and imports nothing.
+///
+/// ```
+/// use rdom_css::{ImportLoader, LoadedSheet, parse_with_loader, parse_with_loader_at};
+///
+/// // A closure: URLs as written.
+/// let loader = |url: &str| match url {
+///     "theme.css" => Ok("h1 { width: 2 }".to_string()),
+///     other => Err(format!("no {other}")),
+/// };
+/// let r = parse_with_loader("@import 'theme.css'; p { width: 1 }", &loader);
+/// assert!(r.warnings.is_empty());
+/// assert_eq!(r.stylesheet.rules().len(), 2);
+///
+/// // A loader resolving relative URLs against the importing sheet.
+/// struct Assets;
+/// impl ImportLoader for Assets {
+///     fn load(&self, url: &str) -> Result<String, String> {
+///         self.load_from(url, None).map(|sheet| sheet.text)
+///     }
+///     fn load_from(&self, url: &str, base: Option<&str>) -> Result<LoadedSheet, String> {
+///         let dir = base.and_then(|b| b.rfind('/').map(|i| &b[..=i])).unwrap_or("");
+///         let resolved = format!("{dir}{url}");
+///         match resolved.as_str() {
+///             "css/parts/a.css" => Ok(LoadedSheet::new(resolved, ".a { width: 1 }")),
+///             _ => Err(format!("no {resolved}")),
+///         }
+///     }
+/// }
+/// let r = parse_with_loader_at("@import 'parts/a.css';", "css/main.css", &Assets);
+/// assert!(r.warnings.is_empty());
+/// assert_eq!(r.stylesheet.rules().len(), 1);
+/// ```
 pub trait ImportLoader {
     /// The text of the sheet at `url`, as written in the `@import`.
     fn load(&self, url: &str) -> Result<String, String>;
+
+    /// The sheet `url` names in an `@import` of the sheet at `base`
+    /// (trait doc): its text and resolved URL. Defaults to
+    /// [`load`](Self::load), with `url` as the resolved URL and `base`
+    /// unused.
+    fn load_from(&self, url: &str, _base: Option<&str>) -> Result<LoadedSheet, String> {
+        self.load(url).map(|text| LoadedSheet::new(url, text))
+    }
+}
+
+/// How deep `@import`s nest before one is refused
+/// (`WarningKind::ImportTooDeep`) — a guard against a loader that
+/// produces an endless chain of distinct URLs.
+pub const MAX_IMPORT_DEPTH: usize = 16;
+
+/// A sheet an [`ImportLoader`] loaded: its resolved URL — its identity
+/// and the base of its own imports — and its text.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct LoadedSheet {
+    pub url: String,
+    pub text: String,
+}
+
+impl LoadedSheet {
+    pub fn new(url: impl Into<String>, text: impl Into<String>) -> Self {
+        LoadedSheet {
+            url: url.into(),
+            text: text.into(),
+        }
+    }
 }
 
 impl<F: Fn(&str) -> Result<String, String>> ImportLoader for F {
@@ -87,19 +173,26 @@ impl<F: Fn(&str) -> Result<String, String>> ImportLoader for F {
 /// [`parse`], resolving `@import` through `loader`: each imported
 /// sheet's rules are parsed in at the import's position (in its
 /// `layer(…)`, if any), recorded in `Stylesheet::imports`; cycles are
-/// cut with `WarningKind::ImportCycle`.
+/// cut with `WarningKind::ImportCycle`. The sheet itself has no URL:
+/// its imports get no base, and an import of it is not recognised as a
+/// cycle until the second time round — use [`parse_with_loader_at`]
+/// for a sheet loaded from a URL.
 pub fn parse_with_loader(source: &str, loader: &dyn ImportLoader) -> ParseResult {
-    parse_in(source, Some(loader))
+    parse_in(source, Some(loader), None)
 }
 
-fn parse_in(source: &str, loader: Option<&dyn ImportLoader>) -> ParseResult {
+/// [`parse_with_loader`] for a sheet whose own resolved URL is `url`:
+/// its imports resolve against it, and an import of it is a cycle
+/// ([`ImportLoader`] contract).
+pub fn parse_with_loader_at(source: &str, url: &str, loader: &dyn ImportLoader) -> ParseResult {
+    parse_in(source, Some(loader), Some(url))
+}
+
+fn parse_in(source: &str, loader: Option<&dyn ImportLoader>, url: Option<&str>) -> ParseResult {
     let mut cursor = Cursor::new(source);
     let mut sheet = Stylesheet::bare();
     let mut warnings = Vec::new();
-    let mut imports = import::Imports {
-        loader,
-        stack: Vec::new(),
-    };
+    let mut imports = import::Imports::new(loader, url);
     top_level::parse_stylesheet(&mut cursor, &mut sheet, &mut warnings, &mut imports);
     ParseResult {
         stylesheet: sheet,
@@ -153,9 +246,9 @@ fn warning_to_error(w: &Warning) -> ParseError {
         WarningKind::UnsupportedAtRule(_) | WarningKind::ImportIgnored(_) => {
             ParseErrorKind::ExpectedToken("rule")
         }
-        WarningKind::ImportCycle(_) | WarningKind::ImportFailed { .. } => {
-            ParseErrorKind::ExpectedToken("importable sheet")
-        }
+        WarningKind::ImportCycle(_)
+        | WarningKind::ImportFailed { .. }
+        | WarningKind::ImportTooDeep(_) => ParseErrorKind::ExpectedToken("importable sheet"),
         WarningKind::InvalidAtRulePrelude { .. } | WarningKind::InvalidPropertyRule { .. } => {
             ParseErrorKind::ExpectedToken("at-rule prelude")
         }
@@ -231,9 +324,12 @@ pub enum WarningKind {
     /// An `@import` (its URL) after a rule other than `@charset` and
     /// `@layer` statements, or inside a block: ignored (CSS Cascade 5 §3).
     ImportIgnored(String),
-    /// An `@import` (its URL) that would import a sheet already being
-    /// imported: skipped.
+    /// An `@import` (its URL as written) whose sheet — by the resolved
+    /// URL the loader returned — is already being parsed: skipped.
     ImportCycle(String),
+    /// An `@import` (its URL) nested deeper than [`MAX_IMPORT_DEPTH`]:
+    /// nothing is imported.
+    ImportTooDeep(String),
     /// An `@import` whose sheet did not load: no loader was given, or
     /// the loader refused (`reason`). Nothing is imported.
     ImportFailed {

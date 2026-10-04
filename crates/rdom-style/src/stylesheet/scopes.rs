@@ -35,8 +35,8 @@ pub struct Scope {
     /// `<scope-start>`: every element it matches is a scoping root. When
     /// the `@scope` sits in another, it is matched with that scope's
     /// root as `:scope`, and a root must be in that scope. `None` for a
-    /// prelude-less `@scope`, whose root is the parent element of the
-    /// sheet's owner node ([`Stylesheet::owner_node`]).
+    /// prelude-less `@scope`, whose root is the parent element of its
+    /// owner node ([`Scope::owner_in`]).
     pub start: Option<SelectorList>,
     /// `<scope-end>`: the scoping limits, matched with the root as
     /// `:scope`; an element inside a limit (or a limit) is out of
@@ -44,6 +44,11 @@ pub struct Scope {
     pub end: Option<SelectorList>,
     /// The enclosing `@scope`, if nested in one.
     pub parent: Option<ScopeId>,
+    /// The owner node of the sheet the `@scope` was parsed in, kept when
+    /// that sheet is appended to another ([`Stylesheet::append`]), so a
+    /// prelude-less `@scope` keeps its root. `None`: the owner of the
+    /// sheet holding the scope ([`Stylesheet::owner_node`]).
+    pub owner: Option<NodeId>,
 }
 
 impl Scope {
@@ -52,7 +57,18 @@ impl Scope {
         end: Option<SelectorList>,
         parent: Option<ScopeId>,
     ) -> Self {
-        Scope { start, end, parent }
+        Scope {
+            start,
+            end,
+            parent,
+            owner: None,
+        }
+    }
+
+    /// The node whose parent roots this scope when it has no
+    /// `<scope-start>`: its own owner, else `sheet`'s.
+    pub fn owner_in(&self, sheet: &Stylesheet) -> Option<NodeId> {
+        self.owner.or(sheet.owner_node())
     }
 }
 
@@ -86,6 +102,7 @@ impl Stylesheet {
         for scope in &other.scopes {
             let mut scope = scope.clone();
             scope.parent = scope.parent.map(|p: ScopeId| map[p.index()]);
+            scope.owner = scope.owner_in(other);
             map.push(self.declare_scope(scope));
         }
         map

@@ -7,7 +7,10 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 
-use rdom_css::{ImportLoader, WarningKind, parse, parse_with_loader};
+use rdom_css::{
+    ImportLoader, LoadedSheet, MAX_IMPORT_DEPTH, WarningKind, parse, parse_with_loader,
+    parse_with_loader_at,
+};
 
 /// A loader over an in-memory map of `url → source`, recording the
 /// URLs it was asked for.
@@ -170,4 +173,151 @@ fn an_import_without_a_url_is_invalid() {
     assert!(
         matches!(&r.warnings[0].kind, WarningKind::InvalidAtRulePrelude { name, .. } if name == "import")
     );
+}
+
+// ── C1G-IMPORT-EDGES ────────────────────────────────────────────────
+
+/// A loader over files in directories: it resolves a URL against the
+/// importing sheet's URL (`base`) — a path join with `.` / `..`
+/// normalised — and returns the resolved path as the sheet's URL, as a
+/// host serving an asset tree would.
+struct Tree {
+    files: HashMap<&'static str, &'static str>,
+    asked: RefCell<Vec<(String, Option<String>)>>,
+}
+
+impl Tree {
+    fn new(files: &[(&'static str, &'static str)]) -> Self {
+        Tree {
+            files: files.iter().copied().collect(),
+            asked: RefCell::new(Vec::new()),
+        }
+    }
+}
+
+fn resolve(url: &str, base: Option<&str>) -> String {
+    let dir = base
+        .and_then(|b| b.rfind('/').map(|i| &b[..=i]))
+        .unwrap_or("");
+    let joined = format!("{dir}{url}");
+    let mut parts: Vec<&str> = Vec::new();
+    for seg in joined.split('/') {
+        match seg {
+            "." | "" => {}
+            ".." => {
+                parts.pop();
+            }
+            s => parts.push(s),
+        }
+    }
+    parts.join("/")
+}
+
+impl ImportLoader for Tree {
+    fn load(&self, url: &str) -> Result<String, String> {
+        self.load_from(url, None).map(|sheet| sheet.text)
+    }
+
+    fn load_from(&self, url: &str, base: Option<&str>) -> Result<LoadedSheet, String> {
+        self.asked
+            .borrow_mut()
+            .push((url.to_string(), base.map(str::to_string)));
+        let resolved = resolve(url, base);
+        let text = self
+            .files
+            .get(resolved.as_str())
+            .ok_or(format!("no {resolved}"))?;
+        Ok(LoadedSheet::new(resolved, text.to_string()))
+    }
+}
+
+fn has_cycle_warning(r: &rdom_css::ParseResult, url: &str) -> bool {
+    r.warnings
+        .iter()
+        .any(|w| matches!(&w.kind, WarningKind::ImportCycle(u) if u == url))
+}
+
+/// CSS Cascade 5 §3 / CSSOM: an `@import` URL is relative to the sheet
+/// that holds it, so the loader is given the importing sheet's resolved
+/// URL as the base — the root's own URL for its imports.
+#[test]
+fn nested_relative_imports_resolve_against_the_importing_sheet() {
+    let tree = Tree::new(&[
+        ("css/parts/a.css", "@import 'b.css'; .a { width: 1 }"),
+        ("css/parts/b.css", ".b { width: 1 }"),
+    ]);
+    let r = parse_with_loader_at(
+        "@import 'parts/a.css'; .root { width: 1 }",
+        "css/root.css",
+        &tree,
+    );
+    assert!(r.warnings.is_empty(), "{:?}", r.warnings);
+    assert_eq!(texts(&r.stylesheet), vec![".b", ".a", ".root"]);
+    assert_eq!(
+        tree.asked.borrow().as_slice(),
+        [
+            ("parts/a.css".to_string(), Some("css/root.css".to_string())),
+            ("b.css".to_string(), Some("css/parts/a.css".to_string())),
+        ]
+    );
+}
+
+/// The root sheet is on the cycle stack: `a → b → a` imports `a` once —
+/// as the root — not a second time through `b`.
+#[test]
+fn the_root_sheet_is_on_the_cycle_stack() {
+    let tree = Tree::new(&[
+        ("a.css", "@import 'b.css'; .a { width: 1 }"),
+        ("b.css", "@import 'a.css'; .b { width: 1 }"),
+    ]);
+    let r = parse_with_loader_at("@import 'b.css'; .a { width: 1 }", "a.css", &tree);
+    assert_eq!(texts(&r.stylesheet), vec![".b", ".a"]);
+    assert!(has_cycle_warning(&r, "a.css"), "{:?}", r.warnings);
+}
+
+/// A cycle is the same sheet by the URL the loader resolved, however
+/// the `@import` spells it.
+#[test]
+fn cycles_compare_resolved_urls() {
+    let tree = Tree::new(&[
+        ("css/a.css", "@import './b.css'; .a { width: 1 }"),
+        ("css/b.css", "@import '../css/a.css'; .b { width: 1 }"),
+    ]);
+    let r = parse_with_loader_at("@import 'css/a.css';", "index.css", &tree);
+    assert_eq!(texts(&r.stylesheet), vec![".b", ".a"]);
+    assert!(has_cycle_warning(&r, "../css/a.css"), "{:?}", r.warnings);
+}
+
+/// Imports nest at most `MAX_IMPORT_DEPTH` deep; a deeper one warns
+/// (`ImportTooDeep`) and imports nothing, so an endless chain of
+/// distinct URLs terminates.
+#[test]
+fn import_depth_is_capped() {
+    struct Endless;
+    impl ImportLoader for Endless {
+        fn load(&self, url: &str) -> Result<String, String> {
+            let n: usize = url[1..].parse().unwrap();
+            Ok(format!("@import 'n{}'; .n{n} {{ width: 1 }}", n + 1))
+        }
+    }
+    let r = parse_with_loader("@import 'n1';", &Endless);
+    assert_eq!(r.stylesheet.rules().len(), MAX_IMPORT_DEPTH);
+    let deep = format!("n{}", MAX_IMPORT_DEPTH + 1);
+    assert!(
+        matches!(&r.warnings[..], [w] if matches!(&w.kind, WarningKind::ImportTooDeep(u) if *u == deep)),
+        "{:?}",
+        r.warnings
+    );
+}
+
+/// A plain closure is still a loader; the URL as written is its URL.
+#[test]
+fn a_closure_is_a_loader() {
+    let loader = |url: &str| match url {
+        "a.css" => Ok("@import 'a.css'; .a { width: 1 }".to_string()),
+        other => Err(format!("no {other}")),
+    };
+    let r = parse_with_loader_at("@import 'a.css';", "root.css", &loader);
+    assert_eq!(texts(&r.stylesheet), vec![".a"]);
+    assert!(has_cycle_warning(&r, "a.css"), "{:?}", r.warnings);
 }

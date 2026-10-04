@@ -12,11 +12,17 @@
 //! [`Import`](rdom_style::Import) record; until conditional rules land
 //! (C14) they count as true.
 //!
+//! The loader resolves each URL against the importing sheet's URL
+//! ([`ImportLoader::load_from`]) and returns the sheet's resolved URL,
+//! which is its identity: an `@import` of a sheet already open — the
+//! root included, when its URL is known (`parse_with_loader_at`) — closes
+//! a cycle and is skipped (`ImportCycle`). Imports nest at most
+//! [`MAX_IMPORT_DEPTH`](crate::MAX_IMPORT_DEPTH) deep (`ImportTooDeep`).
+//!
 //! An `@import` after any rule other than `@charset` and `@layer`
-//! statements (or inside a block) is ignored (`ImportIgnored`); one that
-//! closes a cycle is skipped (`ImportCycle`); no loader, or a loader
-//! error, imports nothing (`ImportFailed`). Warnings inside an imported
-//! sheet carry positions in that sheet's text.
+//! statements (or inside a block) is ignored (`ImportIgnored`); no
+//! loader, or a loader error, imports nothing (`ImportFailed`). Warnings
+//! inside an imported sheet carry positions in that sheet's text.
 
 use rdom_style::parse::Cursor;
 use rdom_style::{Import, LayerId, Stylesheet};
@@ -25,11 +31,25 @@ use crate::layer::{layer_names, read_prelude};
 use crate::top_level::{parse_rule_list, skip_balanced_block};
 use crate::{ImportLoader, Warning, WarningKind};
 
-/// The import state of one parse: the loader and the URLs being
-/// imported, outermost first (for cycle detection).
+/// The import state of one parse: the loader, and the resolved URLs of
+/// the sheets being parsed, outermost first — the root's own when the
+/// host gave it — for cycle detection and as each import's base URL.
 pub(crate) struct Imports<'l> {
     pub loader: Option<&'l dyn ImportLoader>,
     pub stack: Vec<String>,
+    /// How many imported sheets are open (the root not counted).
+    pub depth: usize,
+}
+
+impl<'l> Imports<'l> {
+    /// The state for parsing a root sheet at `url`.
+    pub(crate) fn new(loader: Option<&'l dyn ImportLoader>, url: Option<&str>) -> Self {
+        Imports {
+            loader,
+            stack: url.map(str::to_string).into_iter().collect(),
+            depth: 0,
+        }
+    }
 }
 
 /// What an at-rule at the head of `rest` (which starts with `@`) means
@@ -109,16 +129,17 @@ pub(crate) fn consume_import(
         warn(warnings, WarningKind::ImportIgnored(parsed.url));
         return;
     };
-    if imports.stack.contains(&parsed.url) {
-        warn(warnings, WarningKind::ImportCycle(parsed.url));
+    if imports.depth >= crate::MAX_IMPORT_DEPTH {
+        warn(warnings, WarningKind::ImportTooDeep(parsed.url));
         return;
     }
-    let source = match imports.loader {
+    let base = imports.stack.last().map(String::as_str);
+    let loaded = match imports.loader {
         None => Err("no import loader".to_string()),
-        Some(loader) => loader.load(&parsed.url),
+        Some(loader) => loader.load_from(&parsed.url, base),
     };
-    let source = match source {
-        Ok(source) => source,
+    let loaded = match loaded {
+        Ok(loaded) => loaded,
         Err(reason) => {
             warn(
                 warnings,
@@ -130,6 +151,11 @@ pub(crate) fn consume_import(
             return;
         }
     };
+    // The same sheet is the same resolved URL, however it is spelled.
+    if imports.stack.contains(&loaded.url) {
+        warn(warnings, WarningKind::ImportCycle(parsed.url));
+        return;
+    }
     let into = match &parsed.layer {
         None => layer,
         Some(None) => Some(sheet.declare_anonymous_layer(layer)),
@@ -144,9 +170,11 @@ pub(crate) fn consume_import(
         parsed.supports,
         parsed.media,
     ));
-    imports.stack.push(parsed.url);
-    let mut inner = Cursor::new(&source);
+    imports.stack.push(loaded.url);
+    imports.depth += 1;
+    let mut inner = Cursor::new(&loaded.text);
     parse_rule_list(&mut inner, sheet, warnings, into, Some(imports));
+    imports.depth -= 1;
     imports.stack.pop();
 }
 

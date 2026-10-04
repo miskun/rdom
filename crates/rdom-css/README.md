@@ -121,7 +121,9 @@ behavior, so copy-pasting CSS from MDN doesn't blow up:
   consumed whole per CSS Syntax 3 §5.4.2 and reported with
   `WarningKind::UnsupportedAtRule(name)`; the rules around it are
   unaffected (`@import` loads through the host's `ImportLoader` with
-  `parse_with_loader`, its conditions recorded but not yet evaluated;
+  `parse_with_loader` / `parse_with_loader_at` — relative URLs resolved
+  by the loader against the importing sheet — its conditions recorded but
+  not yet evaluated;
   `@property` registers a custom property, `Stylesheet::registered_properties`;
   `@scope` is parsed into the sheet's scopes:
   `Stylesheet::scopes`, `Rule::scope`). The applicable ones (`@media`, `@supports`, `@keyframes`,

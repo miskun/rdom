@@ -318,3 +318,10 @@ row comes from.
   pipeline copies `computed` (and the pseudo slots) into `computed_prev` for the restyled subtrees
   (`animation::settle_restyled`), so the next style change diffs against the animated values.
   The per-frame subtree re-cascade itself (its cost) remains a non-blocking architect finding.
+- 2026-10-04 — C1G-IMPORT-EDGES: `ImportLoader::load_from(url, base) -> LoadedSheet` (default:
+  `load`), `parse_with_loader_at` (the root's URL on the cycle stack and as the first base),
+  cycle identity = the loader's resolved URL (the loader canonicalises), `MAX_IMPORT_DEPTH` = 16
+  with `ImportTooDeep`; `Scope::owner` carried by `append`, so `extend_from_style_tags` (which now
+  sets each `<style>` sheet's owner) keeps prelude-less `@scope` roots;
+  `extend_from_style_tags_with_loader`. The `App`'s `<style>` sheets have no URL, so their imports
+  get no base (decided: an inline sheet's base would be the document URL, which rdom has none of).

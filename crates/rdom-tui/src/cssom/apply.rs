@@ -49,12 +49,42 @@ use crate::TuiDom;
 /// elements itself and keeps them live; merging them into a sheet
 /// handed to an `App` as well applies their rules twice, and the
 /// merged copy goes stale when the element's text changes.
+///
+/// An `@import` warns and imports nothing here; use
+/// [`extend_from_style_tags_with_loader`].
 pub fn extend_from_style_tags(dom: &TuiDom, sheet: &mut Stylesheet) -> Vec<Warning> {
+    extend(dom, sheet, None)
+}
+
+/// [`extend_from_style_tags`], resolving each sheet's `@import`s through
+/// `loader` (CSS Cascade 5 §3; a `<style>` sheet has no URL of its own,
+/// so its imports get no base — `rdom_css::ImportLoader`), as an `App`
+/// does with `App::set_import_loader`.
+pub fn extend_from_style_tags_with_loader(
+    dom: &TuiDom,
+    sheet: &mut Stylesheet,
+    loader: &dyn rdom_css::ImportLoader,
+) -> Vec<Warning> {
+    extend(dom, sheet, Some(loader))
+}
+
+fn extend(
+    dom: &TuiDom,
+    sheet: &mut Stylesheet,
+    loader: Option<&dyn rdom_css::ImportLoader>,
+) -> Vec<Warning> {
     let mut warnings = Vec::new();
     let style_ids = collect_style_elements(dom);
     for id in style_ids {
         let css = collect_text_content(dom, id);
-        let result = parse(&css);
+        let mut result = match loader {
+            Some(loader) => rdom_css::parse_with_loader(&css, loader),
+            None => parse(&css),
+        };
+        // The `<style>` element owns its sheet (CSSOM `ownerNode`): a
+        // prelude-less `@scope` in it roots at the element's parent
+        // (CSS Cascade 6 §2.5.1), and `append` keeps that on the scope.
+        result.stylesheet.set_owner_node(Some(id));
         // Merge rules, cascade layers and vars: `append` keeps each
         // rule's layer (merging layer names with `sheet`'s, as the
         // document's sheets share one layer order).

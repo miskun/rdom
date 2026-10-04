@@ -71,7 +71,7 @@ fn is_root(dom: &Dom<TuiExt>, node: NodeId, sheet: &Stylesheet, scope: ScopeId) 
     match &s.start {
         // Prelude-less: the parent element of the sheet's owner node,
         // or the document root for a sheet with none (§2.5.1).
-        None => node == implicit_root(dom, sheet) && in_outer(&|_| true),
+        None => node == implicit_root(dom, s.owner_in(sheet)) && in_outer(&|_| true),
         Some(start) => {
             dom.node(node).node_type() == NodeType::Element
                 && match s.parent {
@@ -84,9 +84,8 @@ fn is_root(dom: &Dom<TuiExt>, node: NodeId, sheet: &Stylesheet, scope: ScopeId) 
     }
 }
 
-fn implicit_root(dom: &Dom<TuiExt>, sheet: &Stylesheet) -> NodeId {
-    sheet
-        .owner_node()
+fn implicit_root(dom: &Dom<TuiExt>, owner: Option<NodeId>) -> NodeId {
+    owner
         .filter(|&owner| dom.contains(owner))
         .and_then(|owner| dom.node(owner).parent_node().map(|p| p.id()))
         .unwrap_or_else(|| dom.root())

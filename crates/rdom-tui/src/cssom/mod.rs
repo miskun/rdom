@@ -48,7 +48,7 @@ mod aliases;
 pub(crate) mod reentry;
 pub(crate) mod style_elements;
 
-pub use apply::{extend_from_style_tags, seed_inline_styles};
+pub use apply::{extend_from_style_tags, extend_from_style_tags_with_loader, seed_inline_styles};
 pub use declaration::{SetPropertyError, StyleDeclaration, StyleDeclarationMut};
 pub use observer::install as install_inline_style_observer;
 pub use rdom_style::property_dispatch::DispatchError;
