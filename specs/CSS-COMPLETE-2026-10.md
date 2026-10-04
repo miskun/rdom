@@ -674,3 +674,16 @@ row comes from.
   memory is recorded in TECH_DEBT as the accepted simplification `SCOPE-MEMO-1`, with its bound.
   Phase 2 gate batch B (C2G-RESTYLE-WALK … C2G-TEST-GAPS) complete.
 - 2026-10-05 — Phase 2 closed: 11 items + 20 gate fixes. Gate-fix re-review folded into the Phase 3 gate.
+- 2026-10-05 — Phase 3 gates (with the C2G re-review: all 20 at the root). Architect: 2 blocking —
+  color-function nesting has no depth cap (attr / var / CSS can overflow the stack; also quadratic);
+  a positioned pseudo-element's translucent background composites twice under its text. API: 0
+  blocking. Non-blocking: late OSC 11 replies become keystrokes and the query reads only stdin; relative
+  colors reject any comma; caret colors ignore the scheme; two canvas models (`Cell` vs `Buffer`);
+  a layer allocation per translucent write; `TuiColor::Function` deferred as text; powerless-hue
+  thresholds differ from the sample code; transition `Reset` fallback; duplicated `border-color`
+  initial; `uses_counters` ignores inline styles; files over the bar (`node.rs`, `positioning.rs`,
+  `border.rs`); missing C3 log entries and decisions; 200 ms delay undocumented; no "scheme detected"
+  accessor; a non-compiling migration hint; DESIGN lists; `CascadeExt` unsealed; sizing API asymmetry;
+  re-exports; stale color docs and READMEs. Mode 2031: crossterm cannot parse the report in any release;
+  decision — rdom owns the terminal input reader (`C3G-INPUT-READER`), which also fixes late replies.
+  Fix all as `C3G-*`, two batches.
