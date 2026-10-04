@@ -10,7 +10,7 @@
 //!
 //! ## Wake semantics
 //!
-//! Crossterm's `event::poll` doesn't support external wake-ups, so
+//! The input reader's `poll` has no external wake-up, so
 //! a background-thread `request_redraw` takes effect on the next
 //! `tick_rate` timeout (default 50 ms). Apps that need faster
 //! response can set a tighter `tick_rate`. A dedicated wake-fd

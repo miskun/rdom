@@ -196,6 +196,10 @@ Each mutation notifies every registered observer before the mutating call return
 
 Same as UI Events. The `is_synthetic` flag inverts the spec's `isTrusted` for ergonomic reasons (Rust default-`false` matches the common case).
 
+### rdom reads terminal input itself (Unix); crossterm keeps output and modes
+
+`App::run` reads the terminal through `runtime::input` (C3G-INPUT-READER): an `InputReader` polls the terminal fd (stdin, or `/dev/tty` when stdin is redirected) and a `SIGWINCH` self-pipe, and a `Parser` turns the bytes into crossterm's own `Event` / `KeyEvent` / `MouseEvent` values — so `App::handle_event`, the router and every key path are unchanged — plus the terminal's replies and reports as `Input` variants: the OSC 11 background, DA1, and the DEC mode 2031 theme report. The parser reproduces crossterm 0.28's results for every sequence crossterm parses (its unit tests are the corpus's source), but frames every control sequence by its final byte (ECMA-48 §5.4), so an unknown one — `CSI ? 997 ; 1 n`, which crossterm holds forever with every byte after it — is consumed and does not stall input; a lone escape prefix (`ESC`, `ESC [`, `ESC O`, `ESC ]`) becomes a key after a 25 ms grace. The startup color query reads its replies through the same reader, so keys typed during its wait are kept and late replies are consumed. crossterm stays for output (mode switching, alternate screen, size), and on Windows the reader wraps `crossterm::event` (console input records, no replies). Decided over patching or forking crossterm: no released crossterm parses the report, and owning the parser keeps every reply the runtime asks for in one place.
+
 ## Verification
 
 ```bash

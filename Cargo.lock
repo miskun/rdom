@@ -954,6 +954,7 @@ dependencies = [
  "rdom-tui",
  "regex",
  "rustix 0.38.44",
+ "signal-hook",
  "unicode-segmentation",
  "unicode-width",
 ]

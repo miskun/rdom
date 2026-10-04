@@ -17,6 +17,8 @@
 //!   safety, the main loop.
 //! - `color_scheme` — the terminal's color scheme, asked at startup
 //!   (OSC 11).
+//! - `input` — the terminal input reader and escape-sequence parser
+//!   (Unix; crossterm's reader elsewhere).
 //! - `AbortController` / `AbortSignal` (listener lifetime
 //!   cancellation) live in `rdom-core` (`rdom_core::AbortSignal`).
 //!
@@ -34,6 +36,7 @@ pub mod editing;
 pub mod focus;
 pub mod hit_test;
 pub(crate) mod implicit_events;
+pub(crate) mod input;
 pub mod router;
 pub mod scrollbar;
 pub mod selection;

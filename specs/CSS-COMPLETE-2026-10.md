@@ -103,7 +103,7 @@ row comes from.
 | C3-MIX | `color-mix()` | done |
 | C3-RELATIVE | Relative color syntax (`rgb(from …)`) | done |
 | C3-SYSTEM | System colors (`Canvas`, `CanvasText`, `LinkText`, `ButtonFace`, …) | done |
-| C3-SCHEME | `color-scheme` and `light-dark()` (terminal background via OSC 11 / mode 2031) | partial — mode 2031 theme-change notifications are not listened to: crossterm 0.28's input parser cannot pass the report through (`App::set_color_scheme` is the hook meanwhile) |
+| C3-SCHEME | `color-scheme` and `light-dark()` (terminal background via OSC 11 / mode 2031) | done (mode 2031 with C3G-INPUT-READER) |
 | C3-ALPHA | Color alpha composited over the backdrop (shares the opacity compositor) | done |
 
 ### Phase 4 — Backgrounds and borders (audit §3.5)
@@ -792,3 +792,35 @@ row comes from.
   cross axis treats an unset `min-*` (no floor) unlike an explicit `auto` (intrinsic floor), which
   CSS does not distinguish; making it `MinSize` would change that layout, so it is recorded in
   TECH_DEBT (`MIN-AUTO-UNSET-1`).
+- 2026-10-05 — C3G-INPUT-READER: rdom reads terminal input itself on Unix. `runtime/input/`:
+  `mod.rs` (`Input { Event, Background, DeviceAttributes, ColorScheme }`, `ESC_GRACE` 25 ms),
+  `parse/{mod,keys,mouse,csi,osc}.rs` (the parser, modeled on crossterm 0.28's
+  `event/sys/unix/parse.rs`; corpus `parse/tests.rs`, its cases taken from crossterm's own tests)
+  and `reader.rs` (rustix `poll` over the tty — stdin, or `/dev/tty` when redirected — and a
+  `signal_hook::low_level::pipe` SIGWINCH self-pipe, crossterm's mechanism; new unix dependency
+  `signal-hook`, already in the lock through crossterm). Output, modes and Windows input stay on
+  crossterm (the Windows reader wraps `crossterm::event`). Decisions: (1) every CSI is framed by its
+  final byte (ECMA-48 §5.4) and an unknown one consumed — crossterm holds every byte after
+  `CSI ? 997 ; 1 n`; (2) a C0 / DEL / non-ASCII byte inside a CSI ends it and is read again
+  (crossterm waits on); (3) `ESC ] <digit>` starts an OSC string, ended by BEL / ST, cancelled by
+  CAN / SUB, ended by any other `ESC` (re-read), capped at 4 KiB; `ESC ]` + non-digit stays Alt+`]`;
+  (4) a lone `ESC`, `ESC [`, `ESC O`, `ESC ]` is a key after 25 ms with nothing after it (crossterm:
+  `ESC` at a read's end at once, the others held) — the grace also joins a sequence split right
+  after its `ESC`; (5) `ESC [ ;` frames like a numbered CSI (crossterm's byte-wise parser drops it,
+  though its whole-buffer test passes); (6) a zero mouse coordinate is dropped, not wrapped
+  (crossterm's `- 1` underflows); (7) `\n` is Ctrl+J (raw mode, as crossterm under raw mode); (8)
+  the terminal closing (EOF / hang-up) makes `poll` an error and `run` returns it (was a swallowed
+  error per iteration). Bracketed paste is parsed but still not enabled (pastes arrive as keys, as
+  before). The startup query now reads through the reader (`reply.rs`'s byte scanner replaced by
+  `Replies::take` over parsed inputs; `wait_left` takes the reader's `in_sequence`), so keys typed
+  during its wait are put back and handled; a late OSC 11 reply is the answer
+  (`note_terminal_background`), a late DA1 nothing. Mode 2031: `enter_theme_reports` (`CSI ? 2031 h`,
+  Unix, after the query in `App::run` — not in `enter_tui_mode`, whose crossterm-reading users
+  would stall on the reports), reset in `leave_tui_mode` (guard and panic hook); a report sets the
+  document scheme and cascades (`note_terminal_scheme`). Decided: a scheme the app set
+  (`with_color_scheme` / `set_color_scheme`) is not overridden by reports or late replies.
+  C3-SCHEME done. Red: the corpus and reader tests against a parser that dropped every byte (23 of
+  26 failed; the three passing test idle / EOF / consumed replies); the scheme and theme-mode tests
+  did not compile (`handle_input`, `enter_theme_reports`). Green: 26 + 3 scheme + 1 mode test; the
+  reply tests rewritten over `Input`s (the byte-form cases moved to the corpus). The tty / SIGWINCH
+  path has no automated test (needs a pty); the reader is tested over a socket pair.

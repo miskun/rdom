@@ -1,5 +1,5 @@
-//! The event loop of an [`App`]: [`App::run`] (poll crossterm, route,
-//! tick, draw), the poll timeout that wakes it for the next timer, caret
+//! The event loop of an [`App`]: [`App::run`] (poll the terminal's
+//! input, route, tick, draw), the poll timeout that wakes it for the next timer, caret
 //! blink, smooth-scroll step or autoscroll tick, the scheduler pump, the
 //! virtual clock of [`App::advance`], the `on_tick` callback and the
 //! [`AppHandle`](super::AppHandle) drains.
@@ -9,41 +9,51 @@ use std::panic::{self, AssertUnwindSafe};
 use std::sync::atomic::Ordering;
 use std::time::Duration;
 
-use crossterm::event;
-
 use super::autoscroll::AUTOSCROLL_PERIOD;
 use super::redraw::Redraw;
 use super::{App, AppContext, ControlFlow};
 use crate::render::backend::Backend;
 use crate::render::backend_crossterm::{CrosstermBackend, leave_tui_mode};
+use crate::runtime::input::InputReader;
 
 impl App<CrosstermBackend<Stdout>> {
-    /// Block until exit. Runs the event loop: poll crossterm, route
-    /// events, tick, cascade + layout + paint when dirty. Exits on
-    /// `ControlFlow::Quit`, Ctrl-C, or `AppContext::quit()`.
+    /// Block until exit. Runs the event loop: read the terminal's input,
+    /// route events, tick, cascade + layout + paint when dirty. Exits on
+    /// `ControlFlow::Quit`, Ctrl-C, `AppContext::quit()`, or an error
+    /// reading the terminal (it closed).
     ///
     /// On exit, the terminal is restored via [`leave_tui_mode`].
     /// This is also guaranteed on panic — the `Drop` impl on `App`
     /// runs it if `run` unwinds.
     ///
+    /// **Input.** On Unix rdom reads the terminal itself (stdin, or
+    /// `/dev/tty` when stdin is redirected), parsing keys, mouse, paste
+    /// and focus into crossterm's `Event` types, plus the terminal's
+    /// replies and reports; elsewhere it uses crossterm's reader.
+    ///
     /// **Startup color-scheme query.** Before the first frame, unless
     /// the app set a scheme ([`App::with_color_scheme`] /
     /// [`App::set_color_scheme`]), `run` asks the terminal for its
     /// background (OSC 11, then DA1 to mark the end of the replies) on
-    /// Unix when stdout is a terminal, reading the replies from stdin —
-    /// or `/dev/tty` when stdin is redirected. It waits up to 200 ms for
-    /// a reply to begin — that is the worst case for a terminal that
-    /// answers neither query — and up to 800 ms more once one has (a slow
-    /// link); a terminal that answers DA1 ends the wait at once. Keys
-    /// typed during the wait are read by the query, not the input
-    /// reader, and dropped; a reply arriving after the wait ends reaches
-    /// the input reader as keystrokes. The reported background picks the
-    /// preferred scheme ([`App::detected_background`]); no answer leaves
-    /// it dark.
+    /// Unix when stdout is a terminal. It waits up to 200 ms for a reply
+    /// to begin — that is the worst case for a terminal that answers
+    /// neither query — and up to 800 ms more once one has (a slow link);
+    /// a terminal that answers DA1 ends the wait at once. Keys typed
+    /// during the wait are kept and handled after it; a reply arriving
+    /// later is still taken as the terminal's answer. The reported
+    /// background picks the preferred scheme
+    /// ([`App::detected_background`]); no answer leaves it dark.
+    ///
+    /// **Theme changes.** On Unix `run` enables DEC mode 2031, so a
+    /// terminal that supports it reports a switch between its light and
+    /// dark themes; the preferred scheme follows and the tree restyles
+    /// (unless the app set the scheme).
     pub fn run(mut self) -> io::Result<()> {
-        // The terminal's color scheme, asked before the input reader
-        // starts (it would see the replies as keys).
-        self.detect_color_scheme();
+        let mut input = InputReader::open()?;
+        // The terminal's color scheme, asked before the first frame.
+        self.detect_color_scheme(&mut input);
+        #[cfg(unix)]
+        crate::render::backend_crossterm::enter_theme_reports(&mut io::stdout())?;
         // Initial paint — user should see something even before any
         // event fires.
         self.redraw.note(Redraw::Cascade);
@@ -69,9 +79,8 @@ impl App<CrosstermBackend<Stdout>> {
                 }
 
                 let poll_timeout = self.compute_poll_timeout();
-                let has_event = event::poll(poll_timeout).unwrap_or(false);
-                if has_event {
-                    // Drain ALL currently-queued events before
+                if input.poll(poll_timeout)? {
+                    // Drain ALL currently-queued input before
                     // drawing. At ~100Hz mouse motion, processing
                     // one event then drawing then processing the
                     // next means each paint (which can be 80ms+
@@ -84,30 +93,22 @@ impl App<CrosstermBackend<Stdout>> {
                     // queued right now: an infinite tight drain
                     // would starve drawing if events arrive
                     // faster than we can drain.
-                    loop {
-                        match event::read() {
-                            Ok(ev) => {
-                                crate::rdom_trace!("event::read() -> Ok({ev:?})");
-                                // Multi-click / type-ahead windows read the
-                                // scheduler clock; sync it per event so a
-                                // drained burst does not share one stale
-                                // instant (`advance` never comes through
-                                // here, so it stays deterministic).
-                                self.scheduler
-                                    .borrow_mut()
-                                    .set_now(std::time::Instant::now());
-                                self.handle_event(ev);
-                            }
-                            Err(e) => {
-                                crate::rdom_trace!("event::read() -> Err({e:?})");
-                                break;
-                            }
-                        }
+                    while let Some(next) = input.next() {
+                        crate::rdom_trace!("input: {next:?}");
+                        // Multi-click / type-ahead windows read the
+                        // scheduler clock; sync it per event so a
+                        // drained burst does not share one stale
+                        // instant (`advance` never comes through
+                        // here, so it stays deterministic).
+                        self.scheduler
+                            .borrow_mut()
+                            .set_now(std::time::Instant::now());
+                        self.handle_input(next);
                         // Zero-timeout poll: only continue if
-                        // another event is already buffered. As
+                        // another input is already buffered. As
                         // soon as the queue drains we exit the
                         // loop and proceed to draw.
-                        if !event::poll(std::time::Duration::ZERO).unwrap_or(false) {
+                        if !input.poll(Duration::ZERO)? {
                             break;
                         }
                     }

@@ -162,8 +162,9 @@ pub fn enter_tui_mode<W: Write>(writer: &mut W) -> io::Result<()> {
 }
 
 /// Restore the terminal to its pre-`enter_tui_mode` state: disable
-/// mouse capture, show cursor, leave alt screen, reset SGR, disable
-/// raw mode. Safe to call from a drop handler — all crossterm
+/// mouse capture, show cursor, leave alt screen, stop theme-change
+/// reports (Unix, [`enter_theme_reports`]), reset SGR, disable raw
+/// mode. Safe to call from a drop handler — all crossterm
 /// operations map to idempotent-enough ANSI sequences.
 pub fn leave_tui_mode<W: Write>(writer: &mut W) -> io::Result<()> {
     execute!(
@@ -174,9 +175,31 @@ pub fn leave_tui_mode<W: Write>(writer: &mut W) -> io::Result<()> {
         cursor::Show,
         terminal::LeaveAlternateScreen,
     )?;
+    #[cfg(unix)]
+    writer.write_all(THEME_REPORTS_OFF)?;
     writer.write_all(b"\x1b[0m")?;
     writer.flush()?;
     terminal::disable_raw_mode()
+}
+
+/// DECSET 2031: report color-scheme changes (`CSI ? 997 ; 1|2 n`).
+#[cfg(unix)]
+const THEME_REPORTS_ON: &[u8] = b"\x1b[?2031h";
+/// DECRST 2031.
+#[cfg(unix)]
+const THEME_REPORTS_OFF: &[u8] = b"\x1b[?2031l";
+
+/// Ask the terminal to report color-scheme changes (DEC mode 2031,
+/// `CSI ? 2031 h`; a terminal without it ignores the request).
+/// `App::run` does, on Unix, where rdom's own input reader parses the
+/// reports; crossterm 0.28's reader cannot (it holds every byte after
+/// one), so a program reading input through crossterm must not enable
+/// it. [`leave_tui_mode`] — run by the `TerminalGuard` and the panic
+/// hook too — resets it.
+#[cfg(unix)]
+pub(crate) fn enter_theme_reports<W: Write>(writer: &mut W) -> io::Result<()> {
+    writer.write_all(THEME_REPORTS_ON)?;
+    writer.flush()
 }
 
 /// Explicitly enable mouse capture after `enter_tui_mode` has already
@@ -246,6 +269,23 @@ mod tests {
             io::ErrorKind::BrokenPipe,
             "the writer's error, not raw-mode's: {err}"
         );
+    }
+
+    /// DEC mode 2031 (theme-change reports): `enter_theme_reports` sets
+    /// it, and `leave_tui_mode` — which the guard and the panic hook run —
+    /// resets it, so a terminal left behind does not send reports to the
+    /// shell.
+    #[cfg(unix)]
+    #[test]
+    fn theme_reports_are_entered_and_left() {
+        let mut on = Sink(Vec::new());
+        enter_theme_reports(&mut on).unwrap();
+        assert_eq!(on.0, b"\x1b[?2031h");
+        let mut off = Sink(Vec::new());
+        // Raw mode was never entered here: disabling it is a no-op.
+        leave_tui_mode(&mut off).unwrap();
+        let bytes = String::from_utf8_lossy(&off.0);
+        assert!(bytes.contains("\x1b[?2031l"), "{bytes:?}");
     }
 
     #[test]

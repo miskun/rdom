@@ -67,11 +67,13 @@ open = { workspace = true }
 # Unicode classes.
 regex = "1"
 
-# The startup color-scheme query reads the terminal's OSC 11 reply
-# with a timeout (poll + read on stdin) before crossterm's input reader
-# starts. Already in the tree through crossterm; `event` adds `poll`.
+# rdom reads terminal input itself on Unix (`runtime::input`): `poll` +
+# `read` on the terminal, and the SIGWINCH self-pipe crossterm's reader
+# used. Both already in the tree through crossterm; rustix's `event`
+# adds `poll`, signal-hook's `low_level::pipe` needs no feature.
 [target.'cfg(unix)'.dependencies]
 rustix = { version = "0.38", default-features = false, features = ["std", "event"] }
+signal-hook = { version = "0.3", default-features = false }
 
 [build-dependencies]
 # Read `property_dispatch::property_names()` at build time to emit

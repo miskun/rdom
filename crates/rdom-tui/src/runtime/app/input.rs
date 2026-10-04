@@ -1,4 +1,6 @@
-//! Event intake of an [`App`]: [`App::handle_event`] routes one
+//! Event intake of an [`App`]: `handle_input` takes one thing the
+//! terminal sent (`runtime::input`) — an event, or a reply / report
+//! that changes the color scheme — and [`App::handle_event`] routes one
 //! crossterm event — keys to the focused element, mouse events through
 //! the `Router`, a resize to the document — and folds what the route did
 //! into the next frame's work.
@@ -8,6 +10,7 @@ use crossterm::event::Event as CtEvent;
 use super::App;
 use super::redraw::Redraw;
 use crate::render::backend::Backend;
+use crate::runtime::input::Input;
 use crate::runtime::router::RouteOutcome;
 use crate::{TuiDispatchExt, TuiEvent};
 
@@ -26,6 +29,20 @@ impl<B: Backend> App<B> {
         self.should_quit |= outcome.quit_requested;
     }
 
+    /// Take one input from the terminal: an event is routed
+    /// ([`Self::handle_event`]); a background color (an OSC 11 reply
+    /// later than the startup query's wait) or a mode 2031 theme report
+    /// changes the preferred color scheme unless the app set it; a DA1
+    /// reply (the end of a late startup exchange) is nothing.
+    pub(crate) fn handle_input(&mut self, input: Input) {
+        match input {
+            Input::Event(event) => self.handle_event(event),
+            Input::Background(background) => self.note_terminal_background(background),
+            Input::ColorScheme(scheme) => self.note_terminal_scheme(scheme),
+            Input::DeviceAttributes => {}
+        }
+    }
+
     /// Process one crossterm event. Routes mouse events through
     /// `Router`; dispatches key events to the focused element;
     /// marks redraw on resize.
@@ -39,7 +56,7 @@ impl<B: Backend> App<B> {
         // extension trait. Dropped at the end of this method,
         // restoring the previous value (typically null).
         let _scheduler_guard = crate::runtime::timers::SchedulerGuard::install(&self.scheduler);
-        // RAW ENTRY trace — every event from `event::read()` lands
+        // RAW ENTRY trace — every event the input reader parsed lands
         // here. If trace shows clicks but no `Moved`, we know
         // motion events are NOT crossing this boundary — i.e.,
         // crossterm itself isn't producing them.

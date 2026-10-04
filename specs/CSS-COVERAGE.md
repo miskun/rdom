@@ -72,7 +72,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.1 Syntax, cascade and inheritance (Syntax 3, Cascade 4/5, CSS 2.1 §6) | 18 | 1 | 0 | 2 | 21 |
 | 3.2 Custom properties (CSS Variables 1) | 6 | 0 | 0 | 1 | 7 |
 | 3.3 Values and units (Values 4) | 15 | 2 | 1 | 4 | 22 |
-| 3.4 Color (Color 4 / 5) | 14 | 2 | 0 | 1 | 17 |
+| 3.4 Color (Color 4 / 5) | 15 | 1 | 0 | 1 | 17 |
 | 3.5 Backgrounds and borders (Backgrounds 3, Borders 4) | 3 | 5 | 6 | 2 | 16 |
 | 3.6 Box model and sizing (Box 3, Sizing 3/4) | 3 | 3 | 3 | 0 | 9 |
 | 3.7 Display and visibility (Display 3) | 1 | 0 | 8 | 2 | 11 |
@@ -93,9 +93,9 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 0 | 0 | 6 | 3 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **93** | **34** | **131** | **49** | **307** |
+| **Total** | **94** | **33** | **131** | **49** | **307** |
 
-When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 165 rows Partial / Missing.
+When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 164 rows Partial / Missing.
 
 Headline: rdom parses **70 property names** (`PROPERTY_NAMES`). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are flex alignment (`justify-content`, `align-items`), `flex-wrap`, the `flex-grow` / `flex-basis` longhands, the `border: 1px solid red` shorthand form, `line-height`, `text-align`, `visibility`, `box-sizing`, and grid.
 
@@ -146,7 +146,7 @@ pasted CSS. The first block is what a typical component stylesheet hits in its f
 | 36 | `white-space: pre-line` / `break-spaces` (+ Text 4 `white-space-collapse`, `text-wrap-mode`) | `pre-line` collapses spaces but keeps newlines; `break-spaces` keeps and wraps trailing spaces. | S | No |
 | 37 | `flex-direction: row-reverse / column-reverse` | Reverse main-axis placement order. | S | No |
 | 38 | `row-gap` / `column-gap` / two-value `gap` | Separate gaps per axis (today `gap` is one value for both). | S | No |
-| 39 | Color syntax completeness: `rgb()` space syntax / `%` channels / `/ alpha`; `color-mix()`; relative color syntax; system colors (`Canvas`, `CanvasText`, …); `light-dark()` + `color-scheme` | Shipped (C3-RGB, C3-MIX, C3-RELATIVE, C3-SYSTEM, C3-SCHEME; §3.4) — system colors map onto the terminal's default fg / bg and the UA palette; `light-dark()` picks by the terminal's reported background (mode 2031 change notifications remain). | S–M | No |
+| 39 | Color syntax completeness: `rgb()` space syntax / `%` channels / `/ alpha`; `color-mix()`; relative color syntax; system colors (`Canvas`, `CanvasText`, …); `light-dark()` + `color-scheme` | Shipped (C3-RGB, C3-MIX, C3-RELATIVE, C3-SYSTEM, C3-SCHEME; §3.4) — system colors map onto the terminal's default fg / bg and the UA palette; `light-dark()` picks by the terminal's reported background and follows its theme changes (mode 2031). | S–M | No |
 | 40 | `:read-only` / `:read-write`, `:in-range` / `:out-of-range`, `:default`, `:user-valid` / `:user-invalid`, `:modal`, `:link` / `:any-link`, `:lang()`, `:scope`, `:popover-open` | Form / link / context state rdom already tracks (or can) for every one. | S each | Partial — `:read-*`, `:user-*`, `:modal` Yes; rest No |
 | 41 | `float` / `clear` | Line-box exclusion beside a floated box; sidebars and drop-caps. Deliberately out of scope today. | L | Yes |
 | 42 | `cursor` | OSC 22 pointer-shape request (`pointer`, `text`, `default`, `move`, resize shapes) on terminals that honor it (kitty, foot, ghostty, WezTerm); ignored elsewhere. | S | No |
@@ -295,7 +295,7 @@ dropped:
 | `color-mix()` (Color 5) | Supported | Every rectangular and polar interpolation space, the four hue methods, percentages (either order, math functions, §2.2 normalization and alpha scaling), the default Oklab method; missing components carried forward and powerless hues (Color 4 §12); nested functions. Mixed at parse time; with `currentcolor` inside, kept as `TuiColor::Function` and mixed at computed-value time (`var()` is substituted before parsing) (C3-MIX). | — | `V/color/mix.rs`, `rdom-style/src/color/interpolate.rs` |
 | Relative color syntax (Color 5) | Supported | `from <color>` in `rgb()` / `rgba()` / `hsl()` / `hsla()` / `hwb()` / `lab()` / `lch()` / `oklab()` / `oklch()` / `color()`: the origin converted to the function's space, its channels and `alpha` bound to keywords usable alone or in math functions; with `currentcolor` as the origin, computed at computed-value time (C3-RELATIVE). | — | `V/color/relative.rs` |
 | System colors (`Canvas`, `CanvasText`, `LinkText`, `ButtonFace`, …) | Supported | All nineteen (and the deprecated ones, mapped): `Canvas` / `ButtonFace` / `CanvasText` / `FieldText` are the terminal's defaults (`Color::Reset`), the rest the UA palette (`color::system`, documented); inside a color function the defaults take the canvas model's black / white (C3-SYSTEM). | — | `rdom-style/src/color/system.rs` |
-| `light-dark()` + `color-scheme` | Partial | `color-scheme` (`normal`, `light` / `dark` / custom identifiers, `only`; inherited) picks each element's used scheme from the document's preferred one, which the `App` reads off the terminal's background at startup (OSC 11, Unix) or is given (`App::with_color_scheme` / `set_color_scheme`; dark by default); `light-dark()` resolves at computed-value time, also inside other color functions. Missing: mode 2031 theme-change notifications (the input parser cannot pass them through; documented) (C3-SCHEME). | Yes | `rdom-style/src/color/scheme.rs`, `V/color/mod.rs`, `CASC/colors.rs`, `RT/color_scheme/` |
+| `light-dark()` + `color-scheme` | Supported | `color-scheme` (`normal`, `light` / `dark` / custom identifiers, `only`; inherited) picks each element's used scheme from the document's preferred one, which the `App` reads off the terminal's background at startup (OSC 11, Unix) or is given (`App::with_color_scheme` / `set_color_scheme`; dark by default); `light-dark()` resolves at computed-value time, also inside other color functions. Theme changes are followed: `App::run` enables DEC mode 2031 on Unix and rdom's own input reader parses its reports (C3-SCHEME, C3G-INPUT-READER). | — | `rdom-style/src/color/scheme.rs`, `V/color/mod.rs`, `CASC/colors.rs`, `RT/color_scheme/`, `RT/input/` |
 | `opacity` | Partial | `<number>` / `<percentage>` clamped to 0–1 (`50%` since C2-PERCENT). Group opacity per cell (documented). | No | `V/number.rs::parse_opacity` |
 | Alpha in colors | Supported | Composited per cell over the backdrop with the group-opacity rules — background blend, glyph contest, tint, canvas model of the color scheme (documented); animatable (C3-ALPHA). | — | `rdom-tui/src/render/buffer/translucent.rs`, `PAINT/mod.rs` |
 | `forced-color-adjust`, `print-color-adjust` | N/A | No forced-colors mode or print. | — | — |
@@ -703,7 +703,7 @@ implementation or a `DIVERGENCES.md` entry before the acid page's coverage test 
 - `color-mix()` (Color 5) — Missing: Mix at parse time (or computed time with `var()` / `currentColor`). *Shipped: C3-MIX.*
 - Relative color syntax (Color 5) — Missing: `rgb(from var(--x) r g b / 50%)`. *Shipped: C3-RELATIVE.*
 - System colors (`Canvas`, `CanvasText`, `LinkText`, `ButtonFace`, …) — Missing: `Canvas` / `CanvasText` = terminal default bg / fg (`Color::Reset`); others map to UA palette entries. *Shipped: C3-SYSTEM.*
-- `light-dark()` + `color-scheme` — Missing: Pick by the terminal's reported background (OSC 11 / mode 2031). *Shipped: C3-SCHEME (partial — no mode 2031).*
+- `light-dark()` + `color-scheme` — Missing: Pick by the terminal's reported background (OSC 11 / mode 2031). *Shipped: C3-SCHEME (mode 2031 with C3G-INPUT-READER).*
 - `opacity` — Partial: `<number>` clamped to 0–1; `<percentage>` (`opacity: 50%`) rejected. Group opacity per cell (documented).
 
 **3.5 Backgrounds and borders (Backgrounds 3, Borders 4)**
