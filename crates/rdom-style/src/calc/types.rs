@@ -74,7 +74,7 @@ impl CalcExpr {
     fn kind_with(&self, percent: CalcKind) -> Option<CalcKind> {
         use CalcKind::*;
         match self {
-            CalcExpr::Number(_) | CalcExpr::None => Some(Number),
+            CalcExpr::Number(_) | CalcExpr::NoBound => Some(Number),
             CalcExpr::Length(_) => Some(Length),
             CalcExpr::Percent(_) => Some(percent),
             CalcExpr::Dimension { unit, .. } => Some(unit.kind()),
@@ -100,7 +100,7 @@ fn function_kind(func: MathFunction, args: &[CalcExpr], percent: CalcKind) -> Op
     use CalcKind::*;
     let kinds = args
         .iter()
-        .filter(|a| !matches!(a, CalcExpr::None))
+        .filter(|a| !matches!(a, CalcExpr::NoBound))
         .map(|a| a.kind_with(percent))
         .collect::<Option<Vec<_>>>()?;
     let agreed = || {

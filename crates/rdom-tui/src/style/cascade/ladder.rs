@@ -239,10 +239,8 @@ impl Substituted {
         if !any {
             return None;
         }
-        let sub = |s: &TuiStyle| {
-            s.has_pending()
-                .then(|| s.substituted_pending_on(vars, Some(attrs)))
-        };
+        let cx = rdom_style::backend::SubstitutionContext::new().with_attrs(attrs);
+        let sub = |s: &TuiStyle| s.has_pending().then(|| s.substituted_pending(vars, &cx));
         Some(Substituted {
             rules: decls.sorted.iter().map(|r| sub(&r.style)).collect(),
             inline: decls.inline.and_then(sub),

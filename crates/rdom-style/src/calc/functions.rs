@@ -16,7 +16,7 @@ pub enum MathFunction {
     /// `clamp(MIN, VAL, MAX)` — `max(MIN, min(VAL, MAX))`, so `MIN`
     /// wins a conflict (§10.2). A `none` bound is absent: the
     /// arguments are `[MIN?, VAL, MAX?]` as written, with
-    /// [`CalcExpr::None`] in place of an absent bound.
+    /// [`CalcExpr::NoBound`] in place of an absent bound.
     Clamp,
     /// `round(<strategy>?, A, B?)` — A rounded to a multiple of B (1
     /// when omitted) (§10.3.1).
@@ -121,7 +121,7 @@ pub(super) fn eval_function(func: MathFunction, args: &[CalcExpr], cx: &ResolveC
                 return f64::NAN;
             };
             let bound = |e: &CalcExpr, absent: f64| match e {
-                CalcExpr::None => absent,
+                CalcExpr::NoBound => absent,
                 e => e.resolve_f64(cx),
             };
             let (lo, val, hi) = (

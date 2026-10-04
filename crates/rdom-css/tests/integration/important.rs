@@ -147,7 +147,7 @@ fn an_important_var_declaration_survives_a_later_normal_one() {
     let s = first_style("a { color: var(--c) !important; color: blue; }");
     let color: Vec<_> = s.pending.iter().filter(|d| d.name == "color").collect();
     assert_eq!(color.len(), 1, "{:?}", s.pending);
-    assert!(color[0].has_var, "the `var()` declaration is kept");
+    assert!(color[0].has_substitution, "the `var()` declaration is kept");
     assert!(s.important.contains(ImportantMask::FG));
 }
 

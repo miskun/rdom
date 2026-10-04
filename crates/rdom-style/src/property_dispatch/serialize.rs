@@ -31,7 +31,11 @@ pub fn serialize(name: &str, style: &TuiStyle) -> Option<String> {
     let name = &*canonical_property_name(name);
     // A `var()` value is kept as written until the cascade (CSS
     // Variables 1 §3).
-    if let Some(d) = style.pending.iter().find(|d| d.name == name && d.has_var) {
+    if let Some(d) = style
+        .pending
+        .iter()
+        .find(|d| d.name == name && d.has_substitution)
+    {
         return Some(crate::parse::values::render_value(&d.value));
     }
     if let Some(kw) = css_wide_of(name, style) {

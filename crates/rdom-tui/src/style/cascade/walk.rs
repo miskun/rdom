@@ -56,24 +56,23 @@ pub(super) fn merge_root_vars(dom: &Dom<TuiExt>, sheets: &Sheets<'_>) -> VarMap 
         registry.seed_root(&mut merged, sheets.viewport());
     }
     let names: Vec<String> = merged.keys().cloned().collect();
-    if registry.is_empty() {
-        rdom_style::backend::resolve_custom_properties_on(
-            &mut merged,
-            names.iter().map(String::as_str),
-            None,
-            attrs,
-        );
-    } else {
-        let no_parent = std::collections::HashMap::new();
-        rdom_style::backend::resolve_custom_properties_on(
-            &mut merged,
-            names.iter().map(String::as_str),
-            Some(&mut |name, value| {
-                registry.computed_value(name, value, &no_parent, sheets.viewport())
-            }),
-            attrs,
-        );
+    let mut cx = rdom_style::backend::SubstitutionContext::new();
+    if let Some(attrs) = attrs {
+        cx = cx.with_attrs(attrs);
     }
+    let no_parent = std::collections::HashMap::new();
+    let mut computed =
+        |name: &str, value| registry.computed_value(name, value, &no_parent, sheets.viewport());
+    if !registry.is_empty() {
+        cx = cx.with_computed(&mut computed);
+    }
+    // An invalid one is the guaranteed-invalid value (removed); the
+    // cascade does not report why.
+    let _invalid = rdom_style::backend::resolve_custom_properties(
+        &mut merged,
+        names.iter().map(String::as_str),
+        cx,
+    );
     std::rc::Rc::new(merged)
 }
 

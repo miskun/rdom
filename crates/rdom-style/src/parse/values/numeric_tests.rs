@@ -467,7 +467,7 @@ fn attr_declarations_are_kept_for_the_cascade() {
 /// element's attributes.
 #[test]
 fn attr_substitution_rules() {
-    use crate::var::substitute_with;
+    use crate::var::{SubstitutionContext, SubstitutionError, substitute};
     let attrs = |name: &str| match name {
         "n" => Some("12"),
         "s" => Some("a \"b\""),
@@ -475,7 +475,11 @@ fn attr_substitution_rules() {
         "neg" => Some("-3"),
         _ => None,
     };
-    let sub = |src: &str| substitute_with(&t(src), &mut |_| None, Some(&attrs));
+    let cx = SubstitutionContext::new().with_attrs(&attrs);
+    let undefined = |n: &str| -> Result<crate::CustomValue, SubstitutionError> {
+        Err(SubstitutionError::Undefined(n.to_string()))
+    };
+    let sub = |src: &str| substitute(&t(src), &mut |n| undefined(n), &cx).ok();
     assert_eq!(sub("attr(n type(<length>))"), Some(t("12")));
     assert_eq!(sub("attr(n type(<color>), red)"), Some(t("red")));
     assert_eq!(sub("attr(n type(<color>))"), None, "typed, no fallback");
@@ -489,8 +493,12 @@ fn attr_substitution_rules() {
     assert_eq!(sub("attr(n nounit, 1)"), Some(t("1")));
     assert_eq!(sub("attr(n type(<length> | auto))"), Some(t("12")));
     assert_eq!(
-        substitute_with(&t("attr(n)"), &mut |_| None, None),
-        Some(vec![Token::String(String::new())]),
+        substitute(
+            &t("attr(n)"),
+            &mut |n| undefined(n),
+            &SubstitutionContext::new()
+        ),
+        Ok(vec![Token::String(String::new())]),
         "no element: no attribute"
     );
 }
@@ -550,7 +558,8 @@ fn attr_heads_parse_once_per_declaration() {
     assert!(stored >= 1, "parsed when stored");
     let attrs = |name: &str| (name == "data-w").then_some("5");
     for _ in 0..50 {
-        let got = s.substituted_pending_on(&Default::default(), Some(&attrs));
+        let cx = crate::var::SubstitutionContext::new().with_attrs(&attrs);
+        let got = s.substituted_pending(&Default::default(), &cx);
         assert_eq!(
             got.width,
             Some(crate::Value::Specified(crate::layout::Size::Fixed(5)))

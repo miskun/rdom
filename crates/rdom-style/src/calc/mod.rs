@@ -85,8 +85,9 @@ pub enum CalcExpr {
         func: MathFunction,
         args: Vec<CalcExpr>,
     },
-    /// The keyword `none` in a `clamp()` bound: no bound.
-    None,
+    /// The keyword `none` in a `clamp()` bound: no bound. (Not `None`,
+    /// which would shadow `Option::None` under a glob import.)
+    NoBound,
 }
 
 /// Resolution context — the dimensions the percentage operands
@@ -149,7 +150,7 @@ impl CalcExpr {
             CalcExpr::Number(n) => *n,
             CalcExpr::Length(c) => f64::from(*c),
             CalcExpr::Percent(p) => (*p / 100.0) * f64::from(cx.percent_basis),
-            CalcExpr::None => f64::NAN,
+            CalcExpr::NoBound => f64::NAN,
             CalcExpr::Dimension { value, unit } => unit.canonical(*value, cx),
             CalcExpr::Binary { op, lhs, rhs } => {
                 let l = lhs.resolve_f64(cx);
@@ -178,7 +179,7 @@ impl CalcExpr {
             CalcExpr::Percent(_) => true,
             CalcExpr::Number(_)
             | CalcExpr::Length(_)
-            | CalcExpr::None
+            | CalcExpr::NoBound
             | CalcExpr::Dimension { .. } => false,
             CalcExpr::Binary { lhs, rhs, .. } => lhs.contains_percent() || rhs.contains_percent(),
             CalcExpr::Function { args, .. } => args.iter().any(CalcExpr::contains_percent),

@@ -251,7 +251,8 @@ fn content_attr() {
     let s = first_style("a { content: attr(placeholder); }");
     assert_eq!(s.content, None, "kept for the cascade");
     let attrs = |name: &str| (name == "placeholder").then_some("hint");
-    let got = s.substituted_pending_on(&Default::default(), Some(&attrs));
+    let cx = rdom_style::backend::SubstitutionContext::new().with_attrs(&attrs);
+    let got = s.substituted_pending(&Default::default(), &cx);
     assert_eq!(
         got.content,
         Some(Value::Specified(Content::Str("hint".to_string())))

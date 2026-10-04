@@ -300,7 +300,7 @@ fn uses_counters(stylesheets: &[&Stylesheet]) -> bool {
             r.style.counter_reset.is_some()
                 || r.style.counter_increment.is_some()
                 || r.style.pending.iter().any(|d| {
-                    d.has_var
+                    d.has_substitution
                         && matches!(
                             d.name.as_str(),
                             "counter-reset" | "counter-increment" | "content" | "all"

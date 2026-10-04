@@ -59,7 +59,7 @@ impl CustomValue {
 
     /// Does the value hold a substitution function — `var()` or `attr()`
     /// — to substitute where it is declared?
-    pub fn has_var(&self) -> bool {
+    pub fn has_substitution(&self) -> bool {
         self.tokens().is_some_and(crate::var::contains_substitution)
     }
 }

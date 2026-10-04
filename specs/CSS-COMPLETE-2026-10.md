@@ -622,3 +622,14 @@ row comes from.
   CHANGELOG migration hint. No test expectation changed; the one cascade test that built
   `Content::Attr` declares `content: attr(data-status)` instead. UA-dependent tests (placeholder,
   button labels, optgroup) green.
+- 2026-10-05 — C2G-SUBSTITUTION-ERRORS: `SubstitutionError { Undefined, Cycle, InvalidAttr, TooLong,
+  Syntax }` (`#[non_exhaustive]`, `Display` + `Error`) from `backend::substitute` and the lookup
+  (`backend::Lookup`); `resolve_custom_properties` returns the declared properties it invalidated, with
+  why (a cycle's members report `Cycle(self)`, a dependent without a fallback the property it read).
+  `SubstitutionContext<'a, 'c> { attrs, computed }` replaces `substitute_with` /
+  `resolve_custom_properties_with` / `_on` / `substituted_pending_on`; two lifetimes because an
+  `AttrLookup<'a>` (`&'a dyn Fn(&str) -> Option<&'a str>`) is invariant and cannot shrink to a
+  caller-local computed-value closure. Renames: `has_var` → `has_substitution` (`PendingDeclaration`,
+  `CustomValue`), `CalcExpr::None` → `NoBound`. `var.rs` (639 lines) split into `var/{mod,pending,
+  resolve,tests}.rs`. All unreleased: CHANGELOG bullets rewritten to the final names. Red: the new
+  test did not compile (no error type); green: each failure kind reported.

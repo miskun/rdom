@@ -363,7 +363,7 @@ impl<'a> CalcParser<'a> {
         match self.peek()? {
             Token::Ident(s) if s.eq_ignore_ascii_case("none") => {
                 self.advance();
-                Some(Node::leaf(CalcExpr::None))
+                Some(Node::leaf(CalcExpr::NoBound))
             }
             _ => self.parse_sum(),
         }

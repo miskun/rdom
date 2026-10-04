@@ -413,7 +413,7 @@ impl TuiStyle {
             n += 1
         }
         n += self.custom_properties.len();
-        n += self.pending.iter().filter(|d| d.has_var).count();
+        n += self.pending.iter().filter(|d| d.has_substitution).count();
         n
     }
 }

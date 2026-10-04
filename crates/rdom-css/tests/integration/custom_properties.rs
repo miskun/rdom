@@ -75,7 +75,7 @@ fn var_with_fallback_color_is_pending() {
     assert!(r.warnings.is_empty(), "{:?}", r.warnings);
     let style = &r.stylesheet.rules()[0].style;
     assert!(style.fg.is_none());
-    assert!(style.pending[0].has_var);
+    assert!(style.pending[0].has_substitution);
 }
 
 /// `CSS-VARS-SCOPE-1`: a custom property under any selector stays on

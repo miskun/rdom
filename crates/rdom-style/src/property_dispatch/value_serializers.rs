@@ -168,7 +168,7 @@ pub(super) fn serialize_calc(expr: &crate::calc::CalcExpr) -> String {
             }
         }
         CalcExpr::Length(c) => format!("{c}"),
-        CalcExpr::None => "none".to_string(),
+        CalcExpr::NoBound => "none".to_string(),
         CalcExpr::Dimension { value, unit } => {
             format!(
                 "{}{}",

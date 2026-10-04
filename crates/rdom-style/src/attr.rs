@@ -102,8 +102,9 @@ pub(crate) enum Replacement<'t> {
     Tokens(Vec<Token>),
     /// The fallback's tokens, to substitute in turn.
     Fallback(&'t [Token]),
-    /// The guaranteed-invalid value.
-    Invalid,
+    /// The guaranteed-invalid value: the typed attribute `name` had no
+    /// usable value and there is no fallback.
+    Invalid(String),
 }
 
 /// A parsed first argument: `<attr-name> <attr-type>?`.
@@ -157,7 +158,7 @@ pub(crate) fn replace<'t>(
         (Some(tokens), _) => Replacement::Tokens(tokens),
         (None, Some(fallback)) => Replacement::Fallback(fallback),
         (None, None) if !typed => Replacement::Tokens(vec![Token::String(String::new())]),
-        (None, None) => Replacement::Invalid,
+        (None, None) => Replacement::Invalid(parsed.map(|h| h.name.clone()).unwrap_or_default()),
     }
 }
 

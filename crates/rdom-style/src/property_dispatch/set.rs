@@ -62,7 +62,7 @@ pub fn set_from_tokens(
     set_parsed(name, value, style)?;
     if style.has_pending() {
         style.pending.retain(|d| d.name != name);
-        if style.pending.iter().any(|d| d.has_var) {
+        if style.pending.iter().any(|d| d.has_substitution) {
             style
                 .pending
                 .push(crate::var::PendingDeclaration::new(name, value, false));

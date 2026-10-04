@@ -351,7 +351,7 @@ pub fn remove(name: &str, style: &mut TuiStyle) -> bool {
     };
     let pending = style.pending.len();
     style.pending.retain(|d| d.name != name);
-    if !style.pending.iter().any(|d| d.has_var) {
+    if !style.pending.iter().any(|d| d.has_substitution) {
         style.pending.clear();
     }
     // `|` not `||`: every field must be cleared, not just the first.

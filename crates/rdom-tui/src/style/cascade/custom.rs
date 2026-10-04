@@ -10,6 +10,7 @@ use std::collections::{HashMap, HashSet};
 use super::ladder::{Declarations, Plan, Rollback, Step};
 use super::registered::PropertyRegistry;
 use crate::style::ComputedStyle;
+use rdom_style::backend::{SubstitutionContext, resolve_custom_properties};
 use rdom_style::calc::Viewport;
 
 type Map = HashMap<String, rdom_style::CustomValue>;
@@ -62,21 +63,17 @@ pub(super) fn apply_custom_properties(
         // Values 1 §2.4), so its dependents read the computed value.
         let map = std::rc::Rc::make_mut(&mut working.vars);
         // Their `attr()`s read the element's attributes (CSS Values 5 §8.7).
-        if registry.is_empty() {
-            rdom_style::backend::resolve_custom_properties_on(
-                map,
-                declared.iter().copied(),
-                None,
-                Some(attrs),
-            );
+        let cx = SubstitutionContext::new().with_attrs(attrs);
+        let mut computed =
+            |name: &str, value| registry.computed_value(name, value, &inherited, viewport);
+        let cx = if registry.is_empty() {
+            cx
         } else {
-            rdom_style::backend::resolve_custom_properties_on(
-                map,
-                declared.iter().copied(),
-                Some(&mut |name, value| registry.computed_value(name, value, &inherited, viewport)),
-                Some(attrs),
-            );
-        }
+            cx.with_computed(&mut computed)
+        };
+        // An invalid one is the guaranteed-invalid value (removed); the
+        // cascade does not report why.
+        let _invalid = resolve_custom_properties(map, declared.iter().copied(), cx);
     }
     apply_transitions(working, &inherited, &declared, registry, transitions);
 }
