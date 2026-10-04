@@ -87,3 +87,72 @@ fn multiple_declarations_each_track_separately() {
     assert!(!s.important.contains(ImportantMask::GAP));
     assert!(s.important.contains(ImportantMask::PADDING));
 }
+
+// ── Importance within one declaration block (C1G-BLOCK-IMPORTANCE) ──
+//
+// CSS Cascade 4 §6.4 / §6.2: the declarations of one block are sorted
+// by importance before order of appearance, so an important declaration
+// beats a later normal one of the same property; between two important
+// ones, or two normal ones, the later wins.
+
+use rdom_style::property_dispatch::serialize;
+
+#[test]
+fn a_later_normal_declaration_does_not_override_an_earlier_important_one() {
+    let s = first_style("a { color: red !important; color: blue; }");
+    assert_eq!(
+        s.fg,
+        Some(Value::Specified(TuiColor::Literal(Color::Rgb(255, 0, 0))))
+    );
+    assert!(s.important.contains(ImportantMask::FG));
+}
+
+#[test]
+fn a_later_important_declaration_overrides_an_earlier_important_one() {
+    let s = first_style("a { color: red !important; color: blue !important; }");
+    assert_eq!(
+        s.fg,
+        Some(Value::Specified(TuiColor::Literal(Color::Rgb(0, 0, 255))))
+    );
+}
+
+#[test]
+fn a_later_normal_longhand_does_not_override_an_important_shorthand() {
+    let s = first_style("a { padding: 1 !important; padding-left: 5; }");
+    assert_eq!(serialize("padding", &s).as_deref(), Some("1 1 1 1"));
+}
+
+#[test]
+fn a_later_normal_shorthand_does_not_override_an_important_longhand() {
+    let s = first_style("a { padding-left: 5 !important; padding: 1; }");
+    assert_eq!(serialize("padding", &s).as_deref(), Some("1 1 1 5"));
+}
+
+#[test]
+fn a_later_normal_var_declaration_does_not_override_an_important_one() {
+    let s = first_style("a { color: red !important; color: var(--c); }");
+    assert_eq!(
+        s.fg,
+        Some(Value::Specified(TuiColor::Literal(Color::Rgb(255, 0, 0))))
+    );
+    assert!(
+        s.pending.iter().all(|d| d.name != "color"),
+        "the normal `var()` declaration loses: {:?}",
+        s.pending
+    );
+}
+
+#[test]
+fn an_important_var_declaration_survives_a_later_normal_one() {
+    let s = first_style("a { color: var(--c) !important; color: blue; }");
+    let color: Vec<_> = s.pending.iter().filter(|d| d.name == "color").collect();
+    assert_eq!(color.len(), 1, "{:?}", s.pending);
+    assert!(color[0].has_var, "the `var()` declaration is kept");
+    assert!(s.important.contains(ImportantMask::FG));
+}
+
+#[test]
+fn a_later_normal_custom_property_does_not_override_an_important_one() {
+    let s = first_style("a { --x: 1 !important; --x: 2; }");
+    assert_eq!(s.custom_property_value("x"), Some("1"));
+}

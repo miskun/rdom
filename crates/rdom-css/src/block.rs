@@ -26,7 +26,7 @@
 use rdom_style::parse::Cursor;
 use rdom_style::{LayerId, RuleContext, StyleSelector, Stylesheet, TuiStyle};
 
-use crate::declarations;
+use crate::declarations::DeclarationRun;
 use crate::top_level::{
     copy_escape_into, read_string_into, skip_at_rule_rest, skip_comment, skip_comment_into,
     skip_ws_and_comments,
@@ -168,7 +168,7 @@ fn consume_block_contents(
     block: Block<'_>,
     own_rule: bool,
 ) {
-    let mut run: Option<TuiStyle> = None;
+    let mut run: Option<DeclarationRun> = None;
     let mut pending_own = own_rule;
     loop {
         if !skip_ws_and_comments(cursor, warnings) {
@@ -188,15 +188,15 @@ fn consume_block_contents(
                 // of declarations before it; a dropped one does not.
                 let name = rdom_core::css_syntax::consume_ident(&cursor.rest()[1..]).0;
                 if is_evaluated_nested_at_rule(&name) {
-                    flush(sheet, block, &mut run, &mut pending_own);
+                    flush(sheet, warnings, block, &mut run, &mut pending_own);
                 }
                 consume_nested_at_rule(cursor, sheet, warnings, block);
             }
             Some(_) if is_declaration(cursor.rest()) => {
                 let at = (cursor.line(), cursor.col());
                 let text = read_declaration(cursor);
-                let style = run.get_or_insert_with(TuiStyle::new);
-                declarations::parse_block(&text, style, at.0, at.1, warnings);
+                run.get_or_insert_with(DeclarationRun::default)
+                    .push(&text, at.0, at.1, warnings);
             }
             Some(_) => {
                 let ctx = Context {
@@ -212,7 +212,7 @@ fn consume_block_contents(
                     Head::Rule(selector, _) => {
                         // Only a rule that parses ends the run of
                         // declarations before it.
-                        flush(sheet, block, &mut run, &mut pending_own);
+                        flush(sheet, warnings, block, &mut run, &mut pending_own);
                         let child = Block {
                             selector: &selector,
                             ctx: block.ctx,
@@ -225,7 +225,7 @@ fn consume_block_contents(
             }
         }
     }
-    flush(sheet, block, &mut run, &mut pending_own);
+    flush(sheet, warnings, block, &mut run, &mut pending_own);
 }
 
 /// Add the declarations collected since the last nested rule as a rule
@@ -233,15 +233,17 @@ fn consume_block_contents(
 /// (`pending_own`, even if empty), a nested declarations rule after.
 fn flush(
     sheet: &mut Stylesheet,
+    warnings: &mut Vec<Warning>,
     block: Block<'_>,
-    run: &mut Option<TuiStyle>,
+    run: &mut Option<DeclarationRun>,
     pending_own: &mut bool,
 ) {
-    let style = match run.take() {
-        Some(style) => style,
-        None if *pending_own => TuiStyle::new(),
+    let mut style = TuiStyle::new();
+    match run.take() {
+        Some(run) => run.apply(&mut style, warnings),
+        None if *pending_own => {}
         None => return,
-    };
+    }
     *pending_own = false;
     if block.root_vars {
         for d in &style.custom_properties {

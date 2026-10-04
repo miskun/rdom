@@ -300,3 +300,7 @@ row comes from.
   real gaps were attribute / class / state changes (prelude start and limit, nested `&`).
   Specificity (rdom-core, exhaustive) and the rule index (keys only, `:is()` falls to the universal
   bucket) needed no change.
+- 2026-10-04 — C1G-BLOCK-IMPORTANCE: rdom-css collects a block's declarations
+  (`declarations::DeclarationRun`) and applies normal ones first, then important ones, each in
+  order — Cascade 4 §6.4 within one block, for typed fields, shorthands, `var()` declarations
+  (`TuiStyle::pending`) and custom properties alike, without a per-property importance check.

@@ -56,6 +56,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Escapes in a selector prelude are copied through intact**, so an escaped `{`, `}`, quote or `,` (`.x\{\,y`) neither ends the prelude nor splits the selector list. (C1-ESCAPES)
 - `:ROOT { --x: … }` publishes its custom properties to `Stylesheet::vars()` like `:root`. (C1-CASE)
+- **An important declaration beats a later normal one in the same block** (CSS Cascade 4 §6.4): `color: red !important; color: blue` is red, as important; it was blue, marked important, because the block keeps one slot per property and the later declaration overwrote it. A block's declarations are now collected and applied normal-first, then important, each in source order — so a later important declaration still beats an earlier one, a shorthand and its longhands resolve per field (`padding: 1 !important; padding-left: 5` keeps 1 on every side), a normal `var()` declaration no longer replaces an important one (nor an important `var()` one get dropped by a later normal declaration), and `--x: 1 !important; --x: 2` keeps 1. Inline `style` attributes too. Warnings stay in source order. (C1G-BLOCK-IMPORTANCE)
 
 ### Added — `rdom-tui`
 

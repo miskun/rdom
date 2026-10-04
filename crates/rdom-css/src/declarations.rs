@@ -27,39 +27,99 @@ pub(crate) fn parse_block(
     block_col: u32,
     warnings: &mut Vec<Warning>,
 ) {
-    let (tokens, positions) = match tokenize_at(body, block_line, block_col) {
-        Ok(t) => t,
-        Err(e) => {
-            let kind = match e.kind {
-                TokenizerErrorKind::UnterminatedComment => WarningKind::UnterminatedComment,
-                TokenizerErrorKind::UnterminatedString => WarningKind::UnterminatedString,
-                // `TokenizerErrorKind` is `#[non_exhaustive]`; a kind added
-                // upstream without a warning of its own drops the block
-                // as malformed (and trips this assert in the workspace's
-                // tests until it gets one).
-                other => {
-                    debug_assert!(false, "unmapped tokenizer error {other:?}");
-                    WarningKind::MalformedDeclaration(body.to_string())
-                }
-            };
-            warnings.push(Warning {
-                kind,
-                line: e.line,
-                column: e.column,
-            });
-            return;
-        }
-    };
-    let mut decls = split_declarations(&tokens, &positions, warnings);
-    for decl in decls.drain(..) {
-        if let Some(name) = decl.name.strip_prefix("--") {
-            // Custom property: untyped, kept verbatim, importance per
-            // declaration.
-            style.set_custom_property(name, &render_value(decl.value), decl.important);
-            continue;
-        }
-        apply_declaration(decl, style, warnings);
+    let mut run = DeclarationRun::default();
+    run.push(body, block_line, block_col, warnings);
+    run.apply(style, warnings);
+}
+
+/// The declarations of one block, collected and then applied together:
+/// CSS Cascade 4 §6.4 sorts a block's declarations by importance before
+/// order of appearance, so an important declaration beats a normal one
+/// of the same property whatever their order, and among declarations of
+/// equal importance the later wins. The block has one slot per
+/// property, so [`apply`](Self::apply) writes the normal declarations
+/// first, in order, then the important ones, in order — a later normal
+/// declaration cannot overwrite an important one, and a shorthand and
+/// its longhands resolve per field (`padding: 1 !important;
+/// padding-left: 5` keeps 1 on every side).
+#[derive(Default)]
+pub(crate) struct DeclarationRun {
+    decls: Vec<OwnedDeclaration>,
+    /// `warnings.len()` at the first push: the warnings from there on
+    /// are re-sorted into source order by `apply`.
+    first_warning: Option<usize>,
+}
+
+impl DeclarationRun {
+    /// Tokenize `body` (a declaration list starting at `line:col`) and
+    /// collect its declarations; a malformed one warns now.
+    pub(crate) fn push(&mut self, body: &str, line: u32, col: u32, warnings: &mut Vec<Warning>) {
+        self.first_warning.get_or_insert(warnings.len());
+        let (tokens, positions) = match tokenize_at(body, line, col) {
+            Ok(t) => t,
+            Err(e) => {
+                let kind = match e.kind {
+                    TokenizerErrorKind::UnterminatedComment => WarningKind::UnterminatedComment,
+                    TokenizerErrorKind::UnterminatedString => WarningKind::UnterminatedString,
+                    // `TokenizerErrorKind` is `#[non_exhaustive]`; a kind
+                    // added upstream without a warning of its own drops the
+                    // block as malformed (and trips this assert in the
+                    // workspace's tests until it gets one).
+                    other => {
+                        debug_assert!(false, "unmapped tokenizer error {other:?}");
+                        WarningKind::MalformedDeclaration(body.to_string())
+                    }
+                };
+                warnings.push(Warning {
+                    kind,
+                    line: e.line,
+                    column: e.column,
+                });
+                return;
+            }
+        };
+        let decls = split_declarations(&tokens, &positions, warnings);
+        self.decls
+            .extend(decls.into_iter().map(|d| OwnedDeclaration {
+                name: d.name.to_string(),
+                value: d.value.to_vec(),
+                important: d.important,
+                at: d.at,
+            }));
     }
+
+    /// Write the collected declarations onto `style`: normal ones, then
+    /// important ones (type doc). Warnings keep source order.
+    pub(crate) fn apply(self, style: &mut TuiStyle, warnings: &mut Vec<Warning>) {
+        let (important, normal): (Vec<_>, Vec<_>) =
+            self.decls.into_iter().partition(|d| d.important);
+        for decl in normal.iter().chain(&important) {
+            let decl = RawDeclaration {
+                name: &decl.name,
+                value: &decl.value,
+                important: decl.important,
+                at: decl.at,
+            };
+            if let Some(name) = decl.name.strip_prefix("--") {
+                // Custom property: untyped, kept verbatim, importance per
+                // declaration.
+                style.set_custom_property(name, &render_value(decl.value), decl.important);
+                continue;
+            }
+            apply_declaration(decl, style, warnings);
+        }
+        if let Some(first) = self.first_warning {
+            warnings[first..].sort_by_key(|w| (w.line, w.column));
+        }
+    }
+}
+
+/// A [`RawDeclaration`] that outlives its block's tokens.
+struct OwnedDeclaration {
+    name: String,
+    value: Vec<Token>,
+    important: bool,
+    at: TokenPos,
 }
 
 #[derive(Debug)]
