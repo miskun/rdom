@@ -663,3 +663,13 @@ row comes from.
   shipped. rdom-css README "Values" lists `%`, `ch`, viewport units, math functions, angles and
   `attr()`. DIVERGENCES: the `flex` entry checked current after C2G-FLEX-SHORTHAND; §1 gains "a
   literal fractional length is invalid; a computed one rounds".
+- 2026-10-05 — C2G-TEST-GAPS: every test the gate listed already exists, so none was added — calc
+  nesting depth (`parse/values/calc_tests.rs`: `MAX_CALC_NESTING` / `MAX_CALC_DEPTH` caps; the
+  gates suite's hostile `attr()`), `1/0` (`calc/semantics_tests.rs::division_by_zero_is_ieee`), an
+  inset of `-infinity` (`css_phase2_gates.rs::infinite_insets_lay_out_without_overflow`), opacity with
+  a percentage calc (`semantics_tests.rs::percentages_have_their_own_type`: `calc(50%)`, `calc(50% +
+  0.25)`, `calc(50% * 50%)`), a fractional factor with `max-width` in the freeze loop
+  (`fractional_factor_with_max_width_in_the_freeze_loop`) and an indefinite-height flex `max-height:
+  %` (`max_height_percent_in_an_auto_height_flex_container_is_none`). `ScopeMemo`'s O(N × depth)
+  memory is recorded in TECH_DEBT as the accepted simplification `SCOPE-MEMO-1`, with its bound.
+  Phase 2 gate batch B (C2G-RESTYLE-WALK … C2G-TEST-GAPS) complete.

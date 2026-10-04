@@ -10,7 +10,9 @@ None.
 
 ## Accepted simplifications
 
-None. A review-gate finding accepted as a risk is recorded here until it is paid down; a choice that is permanent goes to the [`DESIGN.md` decision archive](DESIGN.md#decision-archive) instead (`D-M1-1` moved there in 0.5.0).
+A review-gate finding accepted as a risk is recorded here until it is paid down; a choice that is permanent goes to the [`DESIGN.md` decision archive](DESIGN.md#decision-archive) instead (`D-M1-1` moved there in 0.5.0).
+
+- **`SCOPE-MEMO-1` — `@scope` memo memory is O(N × depth) per scope in one cascade pass.** `ScopeMemo` (`rdom-tui/src/style/cascade/scope.rs`, `C1G-SCOPE-COST`) keeps, per (sheet, `@scope`, node) the scoping roots that have the node in scope, with their generations, so each root and limit test runs once per pass. A node's list extends its parent's one generation farther, so it is a fresh `Rc<[(NodeId, u32)]>` per node: the bound is, per `@scope` rule set, the number of nodes the scoped rules are tested against times the number of scoping roots above each — at most N × depth entries of 12 bytes (a 5 000-node tree 20 deep with a root at every level: 100 000 entries, 1.2 MB, plus an `Rc` header and a map slot per node), freed when the pass ends (the memo lives in the pass's `Scratch`). Accepted at the Phase 2 gate: real `@scope` roots are few (components, not every level), so the lists are short; sharing a parent's list (generations stored relative to the parent) would make it O(N) but costs an extra walk per proximity read. Revisit if a profile shows the memo.
 
 ## How to use this file
 
