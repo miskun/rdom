@@ -26,6 +26,8 @@
 //! - `ESC ESC` is two Escs (crossterm reads one), and `ESC` before a CSI
 //!   or SS3 key is Alt + that key — the legacy Alt encoding rxvt and
 //!   Terminal.app send (`ESC ESC [ A`, Alt+Up).
+//! - `CSI R` / `CSI 1 ; m R` is F3 (with modifiers), which crossterm
+//!   takes for a cursor position report.
 //!
 //! Like crossterm under raw mode (the only mode rdom reads in), `\n` is
 //! Ctrl+J, not Enter.

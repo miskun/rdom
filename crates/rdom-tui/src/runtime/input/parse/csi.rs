@@ -9,7 +9,8 @@
 //! intermediate bytes or a private marker other than `<` / `?` is
 //! consumed (a DA2 reply, `CSI > … c`). Bracketed paste
 //! (`CSI 200 ~ text CSI 201 ~`) runs to its end marker. The dispatch on
-//! the final byte is crossterm 0.28's.
+//! the final byte is crossterm 0.28's, except that `CSI … R` is F3, not
+//! a cursor position report (rdom never sends DSR 6).
 
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use rdom_style::color::ColorScheme;
@@ -45,10 +46,12 @@ pub(super) fn parse(buf: &[u8]) -> Step {
         b'M' => mouse::x10(buf),
         b'I' => Step::event(Event::FocusGained),
         b'O' => Step::event(Event::FocusLost),
-        // The kitty protocol's legacy F1, F2, F4 (no `1;` without
-        // modifiers).
+        // The legacy F1–F4 (no `1;` without modifiers).
         b'P' => Step::key(KeyCode::F(1)),
         b'Q' => Step::key(KeyCode::F(2)),
+        // F3: rdom never asks for a cursor position report (DSR 6),
+        // whose reply also ends in `R`.
+        b'R' => Step::key(KeyCode::F(3)),
         b'S' => Step::key(KeyCode::F(4)),
         // Parameter (0x30–0x3F) and intermediate (0x20–0x2F) bytes.
         0x20..=0x3f => framed(buf),
@@ -87,9 +90,8 @@ fn dispatch(buf: &[u8]) -> Step {
             b'M' => mouse::rxvt(buf),
             b'~' => keys::special(buf),
             b'u' => keys::csi_u(buf),
-            // A cursor position report (`CSI row ; col R`), which
-            // crossterm also keeps out of the event stream.
-            b'R' => Step::consumed(),
+            // `CSI 1 ; m R` is F3 with modifiers, not a cursor
+            // position report: rdom never sends DSR 6.
             _ => keys::modified(buf),
         },
         _ => Step::consumed(),

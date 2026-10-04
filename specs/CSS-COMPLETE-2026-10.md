@@ -1144,4 +1144,10 @@ row comes from.
   within the grace read as a string start, the trade-off OSC already makes; no terminal sends PM or
   SOS, but framing them costs nothing. Red: DA2 typed `41;388;0c`, XTVERSION typed `>|XTerm(388)`;
   green after.
+- 2026-10-06 — C4G-CTRL-F3: grepped for a cursor position request — no `CSI 6 n`, no
+  `crossterm::cursor::position` anywhere in the workspace; the startup query sends OSC 11 and DA1 only.
+  So `csi::dispatch` no longer consumes `CSI … R`: `CSI 1 ; m R` goes to `keys::modified` (F3 with
+  modifiers) and a bare `CSI R` is F3 beside `P` / `Q` / `S`. Red: `csi_r_is_f3` (`CSI R` gave
+  nothing); green after. Changed expectation: `other_replies_are_consumed` dropped its
+  `CSI 20 ; 10 R` (now F3 with a modifier mask, as a terminal would mean it).
 

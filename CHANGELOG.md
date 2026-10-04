@@ -222,6 +222,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Caret colors follow the color scheme** (CSS Color 5 §5.1, CSS Color Adjust 1 §2.1). `caret-color` / `caret-text-color` resolved without the element's used scheme, so `caret-color: light-dark(black, white)` took the dark arm in a light document; and an `auto` caret over the terminal's default colors was white on black in every scheme — invisible on a light terminal. Both now take the element's used scheme; the default colors swap the canvas model's (black on white when light). (C3G-SCHEME-CONSISTENCY)
 - **Counter ops in `style` attributes take part in partial cascades** (CSS Lists 3 §3.1). `cascade_subtrees` / `restyle_vars` decided whether counters were in use from the sheets alone, so with no counter rule a re-cascaded root whose counters came from `style="counter-increment: c"` was numbered from scratch (`1` where the full cascade gave `7`). Inline styles in the roots' subtrees and the document's counter flags now count too. (C3G-SMALL-FIXES)
 
+- **Ctrl+F3 and the other modified F3 keys arrive** (xterm's `CSI 1 ; m R`, and the legacy `CSI R` for F3). They were taken for a cursor position report — the reply to DSR 6, which rdom never sends — and dropped. (C4G-CTRL-F3)
+
 ### Changed — `rdom-showcase`
 
 - The Tab form demo's Name input carries `autofocus` (in its `MARKUP` and its built DOM alike), so switching to the demo — including Enter on its sidebar entry — moves focus into the form and typing goes straight into Name, as a browser focuses `[autofocus]` on navigation. Focus no longer stays in the sidebar after that switch. (`SHOWCASE-TAB-FORM-AUTOFOCUS-1`)

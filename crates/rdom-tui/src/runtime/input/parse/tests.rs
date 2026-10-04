@@ -403,11 +403,22 @@ fn mode_2031_reports() {
     );
 }
 
-/// Other replies (the kitty flags reply, a cursor position report) are
-/// consumed, as crossterm keeps them out of its event stream.
+/// Other replies (the kitty flags reply) are consumed, as crossterm
+/// keeps them out of its event stream.
 #[test]
 fn other_replies_are_consumed() {
-    assert_eq!(inputs(&[b"\x1b[?1u\x1b[20;10R"]), vec![]);
+    assert_eq!(inputs(&[b"\x1b[?1u"]), vec![]);
+}
+
+/// `CSI R` is F3 and `CSI 1 ; m R` F3 with modifiers — the legacy and
+/// xterm encodings (xterm ctlseqs, "PC-Style Function Keys"). crossterm
+/// reads every `CSI … R` as a cursor position report (DSR 6's reply);
+/// rdom never sends DSR 6, so it is the key (`C4G-CTRL-F3`).
+#[test]
+fn csi_r_is_f3() {
+    assert_eq!(event(b"\x1b[R"), key(KeyCode::F(3), NONE));
+    assert_eq!(event(b"\x1b[1;5R"), key(KeyCode::F(3), CTRL));
+    assert_eq!(event(b"\x1b[1;2R"), key(KeyCode::F(3), SHIFT));
 }
 
 // ── Stream properties ────────────────────────────────────────────────
