@@ -46,6 +46,7 @@ use crate::{Specificity, TuiStyle};
 mod imports;
 mod index;
 mod layers;
+mod registrations;
 mod scopes;
 mod selector_text;
 mod style_selector;

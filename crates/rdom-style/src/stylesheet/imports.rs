@@ -40,19 +40,6 @@ impl Import {
 }
 
 impl Stylesheet {
-    /// The custom properties this sheet registers (`@property`,
-    /// Properties and Values 1 §3), in source order; for a name
-    /// registered twice the cascade uses the last.
-    pub fn registered_properties(&self) -> &[crate::PropertyRegistration] {
-        &self.registrations
-    }
-
-    /// Register a custom property (`@property`, or a Rust-built sheet's
-    /// `CSS.registerProperty`).
-    pub fn register_property(&mut self, registration: crate::PropertyRegistration) {
-        self.registrations.push(registration);
-    }
-
     /// The `@import`s that loaded, in source order (nested imports
     /// after the import that holds them).
     pub fn imports(&self) -> &[Import] {

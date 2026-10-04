@@ -389,3 +389,9 @@ row comes from.
   (`#[non_exhaustive]`, `Display` keeps the old messages, so `@property` warnings read the same);
   `PropertyRegistration::new`, `PropertySyntax::parse`, `App::register_property` return them. A test
   per variant (rdom-style) and for `AlreadyRegistered` through the `App`.
+- 2026-10-04 — C1G-API-SURFACE: `Stylesheet::add_rule_in_layer` removed (`add_style_rule` with a
+  `RuleContext` is the one way; unreleased, so only the C1-LAYER bullet changes). Decided: the
+  `var()` hooks go to a documented `rdom_style::backend` module rather than `#[doc(hidden)]` — a
+  sibling backend (CLAUDE.md "Substrate First, Backend Second") needs them, so they are public with
+  a stated contract; `var` is private, `set_parsed` / `set_unset` leave `property_dispatch`'s public
+  surface. `register_property` / `registered_properties` moved to `stylesheet/registrations.rs`.

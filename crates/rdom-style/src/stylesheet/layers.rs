@@ -11,8 +11,7 @@
 //! layer's sublayers before the layer's own rules (§6.4.3), and the
 //! unlayered rules last.
 
-use super::{Rule, RuleOrigin, StyleError, Stylesheet};
-use crate::TuiStyle;
+use super::{Rule, Stylesheet};
 
 /// A layer declared in one [`Stylesheet`]: an index into
 /// [`Stylesheet::layers`]. Meaningful only for the sheet that issued
@@ -62,21 +61,6 @@ impl Stylesheet {
     /// It is distinct from every other layer.
     pub fn declare_anonymous_layer(&mut self, parent: Option<LayerId>) -> LayerId {
         self.push_layer(Layer { name: None, parent })
-    }
-
-    /// [`Stylesheet::add_rule`] into `layer` (`None`: unlayered).
-    pub fn add_rule_in_layer(
-        &mut self,
-        selector: &str,
-        style: TuiStyle,
-        layer: Option<LayerId>,
-    ) -> Result<(), StyleError> {
-        let mut new_rules = self.build_rule(selector, style, RuleOrigin::Author)?;
-        for rule in &mut new_rules {
-            rule.layer = layer;
-        }
-        self.push_rules(new_rules);
-        Ok(())
     }
 
     /// Append `other`'s layers, rules and root variables after this
@@ -216,6 +200,7 @@ impl LayerOrder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::TuiStyle;
 
     fn ranks(sheets: &[&Stylesheet]) -> Vec<Vec<u32>> {
         LayerOrder::new(sheets).ranks
@@ -271,8 +256,11 @@ mod tests {
         let mut other = Stylesheet::bare();
         let ob = other.declare_layer(None, &["b"]);
         let oa = other.declare_layer(None, &["a"]);
-        other.add_rule_in_layer("p", TuiStyle::new(), oa).unwrap();
-        other.add_rule_in_layer("q", TuiStyle::new(), ob).unwrap();
+        let in_layer = |layer| crate::RuleContext::default().in_layer(layer);
+        let p = crate::StyleSelector::parse("p").unwrap();
+        let q = crate::StyleSelector::parse("q").unwrap();
+        other.add_style_rule(&p, TuiStyle::new(), in_layer(oa));
+        other.add_style_rule(&q, TuiStyle::new(), in_layer(ob));
         base.append(&other);
         assert_eq!(base.layers().len(), 2);
         assert_eq!(base.rules()[1].layer, b);

@@ -22,6 +22,8 @@
 //! - [`parse`] — token-level CSS parsing primitives used by
 //!   `property_dispatch` and re-exported for `rdom-css`'s block
 //!   parser.
+//! - [`backend`] — hooks a style engine's cascade calls (`var()`
+//!   substitution and custom-property resolution); not for apps.
 //!
 //! ## Why a leaf crate
 //!
@@ -45,6 +47,7 @@
 
 #![forbid(unsafe_code)]
 
+pub mod backend;
 pub mod calc;
 pub mod counters;
 pub mod layout;
@@ -52,7 +55,7 @@ pub mod parse;
 pub mod property_dispatch;
 pub mod registration;
 pub mod transition;
-pub mod var;
+mod var;
 
 pub mod color;
 mod computed;

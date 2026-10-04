@@ -67,7 +67,7 @@
 
 mod css_wide;
 mod serialize;
-mod set;
+pub(crate) mod set;
 mod table;
 mod value_serializers;
 
@@ -75,7 +75,10 @@ mod value_serializers;
 mod tests;
 
 pub use serialize::serialize;
-pub use set::{set, set_from_tokens, set_parsed, set_unset};
+pub use set::{set, set_from_tokens};
+// `set_parsed` / `set_unset` are backend hooks, public through
+// `crate::backend`.
+pub(crate) use set::{set_parsed, set_unset};
 pub use table::{canonical_property_name, inherits, property_mask, property_names, remove};
 
 /// Reason `set` / `set_from_tokens` rejected a declaration.

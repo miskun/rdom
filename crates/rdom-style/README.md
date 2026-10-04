@@ -125,8 +125,8 @@ let sheet = Stylesheet::new()
 Custom properties (`TuiStyle::custom_properties`) are declared under any
 selector and scoped per element by the cascade. `var()` works in every
 property (CSS Variables 1 §3): the dispatch table keeps a declaration
-holding it as tokens (`TuiStyle::pending`), and `rdom_style::var`
-substitutes it from an element's custom properties
+holding it as tokens (`TuiStyle::pending`), and a backend's cascade
+(through the hooks of `rdom_style::backend`) substitutes it from an element's custom properties
 (`TuiStyle::substituted`), parses it with the property's grammar, and
 makes it `unset` when that fails. The builder's typed
 `TuiColor::Var` / `Content::Var` remain for Rust-built styles. The CSS-wide

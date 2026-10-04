@@ -2,7 +2,7 @@
 //! every matched `--*` declaration folds into the element's own map in
 //! ladder order, so a later or more important declaration of the same
 //! name wins, before any `var()` consumer runs; then their own `var()`s
-//! are substituted (`rdom_style::var`) and the registered ones settled
+//! are substituted (`rdom_style::backend`) and the registered ones settled
 //! (`registered.rs`).
 
 use std::collections::{HashMap, HashSet};
@@ -51,9 +51,9 @@ pub(super) fn apply_custom_properties(
         // Values 1 §2.4), so its dependents read the computed value.
         let map = std::rc::Rc::make_mut(&mut working.vars);
         if registry.is_empty() {
-            rdom_style::var::resolve_custom_properties(map, declared.iter().copied());
+            rdom_style::backend::resolve_custom_properties(map, declared.iter().copied());
         } else {
-            rdom_style::var::resolve_custom_properties_with(
+            rdom_style::backend::resolve_custom_properties_with(
                 map,
                 declared.iter().copied(),
                 &mut |name, value| registry.computed_value(name, value, &inherited),

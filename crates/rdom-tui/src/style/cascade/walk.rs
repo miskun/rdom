@@ -44,12 +44,15 @@ pub(super) fn merge_root_vars(sheets: &Sheets<'_>) -> VarMap {
     let registry = sheets.registry();
     if registry.is_empty() {
         let names: Vec<String> = merged.keys().cloned().collect();
-        rdom_style::var::resolve_custom_properties(&mut merged, names.iter().map(String::as_str));
+        rdom_style::backend::resolve_custom_properties(
+            &mut merged,
+            names.iter().map(String::as_str),
+        );
     } else {
         registry.seed_root(&mut merged);
         let names: Vec<String> = merged.keys().cloned().collect();
         let no_parent = std::collections::HashMap::new();
-        rdom_style::var::resolve_custom_properties_with(
+        rdom_style::backend::resolve_custom_properties_with(
             &mut merged,
             names.iter().map(String::as_str),
             &mut |name, value| registry.computed_value(name, value, &no_parent),
