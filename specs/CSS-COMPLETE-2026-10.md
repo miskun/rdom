@@ -407,3 +407,11 @@ row comes from.
   edits: `rdom-core/src/query_selector.rs` (519 production of 1 388) and
   `rdom-tui/src/style/dirty_tracker.rs` (561 of 1 145) are under it once their inline tests are
   excluded.
+- 2026-10-04 — C1G-INTEGRATION: `rdom-tui/tests/integration/css_phase1.rs` cascades the gate's
+  example (layers `base, theme`, `:root` tokens, `padding: var(--p)` with `--p: 1 2`, `& > p`, nested
+  `@layer base { border-color: var(--c) }`) plus `revert-layer` (unlayered → the layers' yellow),
+  `@scope (.card) to (.slot)`, `all: revert` (UA `display: block`, inherited color, not bold), `.\31 0`
+  and an `@import 'tokens.css' layer(theme)` through a closure loader feeding `var(--w)`. It passed
+  on first run — it pins the batch's features working together; it guards against vacuous passes by
+  asserting each expected value differs from the initial one. Second batch of Phase 1 gate fixes
+  complete.
