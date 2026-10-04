@@ -1,5 +1,7 @@
 //! UA rules: Lists, scrollbars, selection, document metadata.
 
+use crate::color::named;
+use crate::color::system::HIGHLIGHT;
 use crate::counters::{CounterOp, CounterStyle};
 use crate::layout::{Display, Padding};
 use crate::{Color, Content, TuiStyle};
@@ -135,9 +137,7 @@ pub(super) fn rules() -> Vec<(&'static str, TuiStyle)> {
         // `::selection` rule at any specificity.
         (
             "*::selection",
-            TuiStyle::new()
-                .bg(Color::Rgb(0x39, 0x4B, 0x7E))
-                .fg(Color::Rgb(0xFF, 0xFF, 0xFF)),
+            TuiStyle::new().bg(HIGHLIGHT).fg(named::WHITE),
         ),
         // ── Document metadata ──
         // `<style>` carries CSS source as text content; it

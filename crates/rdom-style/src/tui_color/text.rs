@@ -35,6 +35,7 @@ pub fn parse_color(input: &str) -> Option<Color> {
     let tokens = crate::parse::tokenize(s).ok()?;
     match crate::parse::values::parse_color(&tokens)? {
         TuiColor::Literal(c) => Some(c),
+        TuiColor::System(s) => Some(s.color()),
         // Not a color on its own: it needs the element
         // (`TuiColor::parse` keeps it).
         TuiColor::CurrentColor | TuiColor::Function(_) | TuiColor::Var { .. } => None,

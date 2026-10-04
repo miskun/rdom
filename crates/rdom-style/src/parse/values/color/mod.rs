@@ -1,6 +1,7 @@
 //! The `<color>` grammar (CSS Color 4 §4.1): named colors, hex,
 //! `rgb()` / `rgba()`, `hsl()` / `hsla()`, `hwb()`, `lab()` / `lch()`
-//! / `oklab()` / `oklch()`, `color()`, `currentcolor`, and rdom's `reset` and
+//! / `oklab()` / `oklch()`, `color()`, `color-mix()`, relative colors,
+//! `currentcolor`, the system colors, and rdom's `reset` and
 //! palette-index forms.
 //! `var()` is not part of this grammar: a declaration holding one is
 //! substituted by the cascade before it is parsed (`crate::var`).
@@ -24,7 +25,7 @@ mod mix;
 mod relative;
 mod rgb;
 
-use crate::color::{AbsoluteColor, ColorSpace};
+use crate::color::{AbsoluteColor, ColorSpace, SystemColor};
 use crate::parse::token::Token;
 use crate::{Color, ColorContext, TuiColor};
 use context::ColorCx;
@@ -48,6 +49,9 @@ pub fn parse_color_at(value: &[Token], start: usize) -> Option<(TuiColor, usize)
     match tok {
         Token::Ident(name) if name.eq_ignore_ascii_case("currentcolor") => {
             Some((TuiColor::CurrentColor, 1))
+        }
+        Token::Ident(name) if SystemColor::from_keyword(name).is_some() => {
+            Some((TuiColor::System(SystemColor::from_keyword(name)?), 1))
         }
         Token::Ident(name) => {
             // Use the simple-cases fast path directly — the public
@@ -93,6 +97,9 @@ pub(crate) fn compute_function(text: &str, context: &ColorContext) -> Option<Col
 fn parse_absolute(component: &[Token], cx: &ColorCx) -> Option<AbsoluteColor> {
     match component {
         [Token::Ident(name)] if name.eq_ignore_ascii_case("currentcolor") => cx.current_color(),
+        [Token::Ident(name)] if SystemColor::from_keyword(name).is_some() => {
+            cx.absolute(SystemColor::from_keyword(name)?.definite())
+        }
         [Token::Ident(name)] => cx.absolute(crate::tui_color::parse_simple_color(name)?),
         [Token::HexColor(hex)] => {
             cx.absolute(crate::tui_color::parse_simple_color(&format!("#{hex}"))?)

@@ -32,6 +32,7 @@
 //! chain.
 
 use crate::Color;
+use crate::color::SystemColor;
 
 mod text;
 
@@ -48,6 +49,9 @@ pub enum TuiColor {
     /// `color` itself, the inherited one. Resolved at computed-value
     /// time against [`ColorContext::current_color`].
     CurrentColor,
+    /// A system color (CSS Color 4 §6.2): the terminal's default
+    /// colors or the UA palette ([`SystemColor`]).
+    System(SystemColor),
     /// A color function whose value depends on the element
     /// (`color-mix(in srgb, currentcolor, blue)`), computed at
     /// computed-value time against a [`ColorContext`].
@@ -135,6 +139,7 @@ impl TuiColor {
         match self.substitute_vars(vars)? {
             TuiColor::Literal(c) => Some(c),
             TuiColor::CurrentColor => Some(cx.current_color),
+            TuiColor::System(s) => Some(s.color()),
             TuiColor::Function(f) => f.compute(cx),
             // `substitute_vars` leaves no reference.
             TuiColor::Var { .. } => None,

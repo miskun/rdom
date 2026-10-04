@@ -286,3 +286,26 @@ fn ua_toggles_and_range_leave_user_select_alone() {
     }
     assert_eq!(seen, 3, "all three UA rules present");
 }
+
+/// CSS Color 4 §6.2: the system colors are the UA sheet's own colors —
+/// a link is `LinkText`, a mark `Mark` on `MarkText`, the selection
+/// `Highlight` / `HighlightText`, a selected option `SelectedItem`.
+#[test]
+fn system_colors_match_the_ua_chrome() {
+    use crate::TuiStyle;
+    use crate::color::system::SystemColor;
+    let ua: std::collections::HashMap<&str, TuiStyle> =
+        super::user_agent_defaults().into_iter().collect();
+    let fg = |sel: &str| ua[sel].fg.clone();
+    let bg = |sel: &str| ua[sel].bg.clone();
+    let lit = |s: SystemColor| Some(Value::Specified(TuiColor::Literal(s.color())));
+    assert_eq!(fg("a[href]"), lit(SystemColor::LinkText));
+    assert_eq!(fg("button"), lit(SystemColor::ButtonText));
+    assert_eq!(bg("mark"), lit(SystemColor::Mark));
+    assert_eq!(fg("mark"), lit(SystemColor::MarkText));
+    assert_eq!(bg("*::selection"), lit(SystemColor::Highlight));
+    assert_eq!(fg("*::selection"), lit(SystemColor::HighlightText));
+    assert_eq!(bg("option[selected]"), lit(SystemColor::SelectedItem));
+    assert_eq!(fg("option[selected]"), lit(SystemColor::SelectedItemText));
+    assert_eq!(fg(":disabled"), lit(SystemColor::GrayText));
+}

@@ -564,3 +564,55 @@ fn relative_color_from_currentcolor_waits_for_the_element() {
         rgba(255, 0, 0, 128)
     );
 }
+
+// ── System colors: CSS Color 4 §6.2 ─────────────────────────────
+
+/// §6.2: the system colors parse case-insensitively and serialize as
+/// their keyword; they map onto the terminal and the UA palette.
+#[test]
+fn system_colors_parse_and_resolve() {
+    use crate::{ColorContext, TuiColor};
+    let vars = std::collections::HashMap::new();
+    let cx = ColorContext::new(Color::Rgb(1, 2, 3));
+    let resolve = |css: &str| TuiColor::parse(css).and_then(|c| c.resolve(&vars, &cx));
+    // The terminal's own colors.
+    assert_eq!(resolve("Canvas"), Some(Color::Reset));
+    assert_eq!(resolve("canvastext"), Some(Color::Reset));
+    // The UA palette.
+    assert_eq!(resolve("LinkText"), rgb(30, 144, 255));
+    assert_eq!(resolve("VISITEDTEXT"), rgb(30, 144, 255));
+    assert_eq!(resolve("Mark"), rgb(255, 255, 0));
+    assert_eq!(resolve("MarkText"), rgb(0, 0, 0));
+    assert_eq!(resolve("GrayText"), rgb(0x7F, 0x86, 0x8B));
+    assert_eq!(resolve("Highlight"), rgb(0x39, 0x4B, 0x7E));
+    assert_eq!(resolve("AccentColor"), rgb(30, 144, 255));
+    // A deprecated keyword maps to its replacement (§6.2.1).
+    assert_eq!(
+        TuiColor::parse("ButtonHighlight"),
+        TuiColor::parse("ButtonFace")
+    );
+    let mut style = crate::TuiStyle::new();
+    crate::property_dispatch::set("color", "CanvasText", &mut style).unwrap();
+    assert_eq!(
+        crate::property_dispatch::serialize("color", &style).as_deref(),
+        Some("canvastext")
+    );
+}
+
+/// Inside a color function a system color needs a definite color:
+/// `Canvas` / `CanvasText` take the canvas model's (black / white).
+#[test]
+fn system_colors_inside_functions() {
+    assert_eq!(
+        parse_color("color-mix(in srgb, Canvas, white)"),
+        rgb(128, 128, 128)
+    );
+    assert_eq!(
+        parse_color("color-mix(in srgb, CanvasText, black)"),
+        rgb(128, 128, 128)
+    );
+    assert_eq!(
+        parse_color("rgb(from LinkText r g b / 50%)"),
+        rgba(30, 144, 255, 128)
+    );
+}

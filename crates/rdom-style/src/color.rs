@@ -48,6 +48,8 @@ pub mod named;
 pub mod palette;
 pub(crate) mod system;
 
+pub use system::SystemColor;
+
 pub use interpolate::interpolate_oklab;
 pub(crate) use interpolate::{HueMethod, mix};
 
