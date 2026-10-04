@@ -192,7 +192,7 @@ fn animatable_props_for(curr: &ComputedStyle, prev: &ComputedStyle) -> Vec<Anima
     if curr.bg != prev.bg {
         out.push(AnimatedProp::Bg);
     }
-    if curr.border_fg != prev.border_fg {
+    if curr.border_color != prev.border_color {
         out.push(AnimatedProp::BorderFg);
     }
     if curr.width != prev.width {
@@ -279,7 +279,7 @@ fn read_value(style: &ComputedStyle, prop: AnimatedProp) -> AnimatedValue {
     match prop {
         AnimatedProp::Fg => AnimatedValue::Color(style.fg),
         AnimatedProp::Bg => AnimatedValue::Color(style.bg),
-        AnimatedProp::BorderFg => AnimatedValue::Color(style.border_fg),
+        AnimatedProp::BorderFg => AnimatedValue::Colors(style.border_color),
         AnimatedProp::Width => AnimatedValue::Size(style.width.clone()),
         AnimatedProp::Height => AnimatedValue::Size(style.height.clone()),
         AnimatedProp::Padding => AnimatedValue::Padding(style.padding.clone()),
@@ -307,7 +307,7 @@ pub(super) fn write_presentation(
     match (prop, value) {
         (AnimatedProp::Fg, AnimatedValue::Color(c)) => ext.fg = Some(c),
         (AnimatedProp::Bg, AnimatedValue::Color(c)) => ext.bg = Some(c),
-        (AnimatedProp::BorderFg, AnimatedValue::Color(c)) => ext.border_fg = Some(c),
+        (AnimatedProp::BorderFg, AnimatedValue::Colors(c)) => ext.border_color = Some(c),
         (AnimatedProp::Width, AnimatedValue::Size(s)) => ext.width = Some(s),
         (AnimatedProp::Height, AnimatedValue::Size(s)) => ext.height = Some(s),
         (AnimatedProp::Padding, AnimatedValue::Padding(p)) => ext.padding = Some(p),
@@ -338,7 +338,7 @@ pub(super) fn clear_presentation(
     match prop {
         AnimatedProp::Fg => presentation.fg = None,
         AnimatedProp::Bg => presentation.bg = None,
-        AnimatedProp::BorderFg => presentation.border_fg = None,
+        AnimatedProp::BorderFg => presentation.border_color = None,
         AnimatedProp::Width => presentation.width = None,
         AnimatedProp::Height => presentation.height = None,
         AnimatedProp::Padding => presentation.padding = None,

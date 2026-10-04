@@ -18,6 +18,9 @@ pub(super) fn interpolate(
         (AnimatedValue::Color(a), AnimatedValue::Color(b)) => {
             AnimatedValue::Color(lerp_color(*a, *b, t, reset))
         }
+        (AnimatedValue::Colors(a), AnimatedValue::Colors(b)) => {
+            AnimatedValue::Colors(a.zip(*b).map(|(a, b)| lerp_color(a, b, t, reset)))
+        }
         (AnimatedValue::Size(a), AnimatedValue::Size(b)) => AnimatedValue::Size(lerp_size(a, b, t)),
         (AnimatedValue::Length(a), AnimatedValue::Length(b)) => {
             AnimatedValue::Length(lerp_length(a, b, t))

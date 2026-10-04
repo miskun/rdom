@@ -112,7 +112,7 @@ row comes from.
 |---|---|---|
 | C4-BACKGROUND | `background` shorthand (color layer; image layers parse and are inert, documented) | done |
 | C4-BG-CLIP | `background-clip` (`border-box` / `padding-box` / `content-box`) | done |
-| C4-BORDER-SHORTHAND | `border` / `border-top` … with width, style and color in any order | |
+| C4-BORDER-SHORTHAND | `border` / `border-top` … with width, style and color in any order | done |
 | C4-BORDER-SIDES | `border-style` / `border-color` / `border-width` 1–4 values; per-side longhands for style, color and width | |
 | C4-BORDER-WIDTH | `border-width` mapping (`0` = none, thin / medium = light, thick = heavy glyphs) | |
 | C4-RADIUS | `border-radius` and per-corner longhands → rounded corner glyphs | |
@@ -981,3 +981,22 @@ row comes from.
   four `css_phase4.rs` clip tests painted the border / padding cells red; the default test was green
   (characterisation). Green after. No showcase snapshot changes (no demo sets `background-clip`, and
   the default fill box is unchanged).
+- 2026-10-06 — C4-BORDER-SHORTHAND: `border` / `border-<side>` parse `<line-width> || <line-style> ||
+  <color>` (Backgrounds 3 §4.4) in `V/border.rs`; set / serialize arms moved to the new
+  `property_dispatch/border.rs` (`set.rs` / `serialize.rs` lost theirs). Storage: the colors and widths
+  are true per-side longhands — `TuiStyle::border_color` / `border_width: Sides<Option<Value<_>>>`, one
+  importance bit each (the `Field` table now addresses a path, `border_color.top`); `ImportantMask` grew
+  to `u128` (Phase 4 needs more than 64 bits). The styles keep their shared field until C4-BORDER-SIDES.
+  Computed: `border_color: Sides<Color>`, each side resolved like `color` (`currentcolor` initial per
+  side); the painter's `Pen` carries per-side colors, and sides of different alpha paint in separate
+  passes (translucent ones through the layer path). Decided: widths keep pixel / `em` lengths in pixels
+  (`PaintLength`, new in `layout/border.rs`, split out of `box_model.rs`), since a width only picks a
+  glyph weight — documented in DIVERGENCES §2; rdom's keywords kept, none deprecated (`rounded` now also
+  beside a width and color). Found: with widths and colors in `border`, a rounded ring set from Rust
+  could no longer round-trip through the `style` attribute (the corner flag was expressible only as
+  `border: rounded`); fixed by making `border-style: rounded` round the ring (and other styles square
+  it), CHANGELOG Changed. Red: `css_phase4.rs` `border: 1px solid red` and `border-top: 1px solid red`
+  failed to parse (strict sheet) against the old code; the new dispatch tests and the
+  `border-style: rounded` test red before their code. Green after. Changed expectations: tests reading
+  `computed.border_fg` read `border_color.top`; `declared_count` counts `border_fg(..)` as four. No
+  showcase snapshot changes.

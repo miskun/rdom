@@ -10,7 +10,7 @@
 
 mod half_block;
 
-use crate::layout::{Border, LayoutRect};
+use crate::layout::{Border, LayoutRect, Sides};
 use crate::render::buffer::{BorderContribution, BorderSide, DIR_E, DIR_N, DIR_S, DIR_W};
 use crate::render::{Buffer, Rect};
 use crate::style::Color;
@@ -18,7 +18,9 @@ use half_block::accumulate_half_block_quads;
 use rdom_style::layout::BorderStyle;
 
 /// Paint the box-drawing characters for `border` along the edges of
-/// `outer`. Writes `symbol + fg + (no modifier touch)` only — does
+/// `outer`, each side in its `colors` entry; only the sides `only`
+/// selects contribute (the caller paints sides of different alpha in
+/// separate passes). Writes `symbol + fg + (no modifier touch)` only — does
 /// **not** touch `cell.bg`. The cell's background is owned by
 /// whatever ran `fill_bg` (this element's, an ancestor's, or
 /// nothing). This matches CSS: a border has its own `border-color`
@@ -29,7 +31,8 @@ pub(super) fn paint_border(
     buf: &mut Buffer,
     outer: LayoutRect,
     border: Border,
-    border_fg: Color,
+    colors: Sides<Color>,
+    only: Sides<bool>,
     clip: Rect,
     priority: u64,
 ) {
@@ -62,7 +65,8 @@ pub(super) fn paint_border(
     }
 
     let pen = Pen {
-        fg: border_fg,
+        colors,
+        only,
         priority,
         corner_style: border.corner_style,
     };
@@ -226,17 +230,19 @@ pub(super) fn paint_border(
     }
 }
 
-/// What one element's border contributes with: its `border-color`,
-/// structural priority and corner style.
+/// What one element's border contributes with: each side's
+/// `border-*-color` and whether this pass paints it, the structural
+/// priority and the corner style.
 struct Pen {
-    fg: Color,
+    colors: Sides<Color>,
+    only: Sides<bool>,
     priority: u64,
     corner_style: crate::layout::CornerStyle,
 }
 
 impl Pen {
     /// Add one direction's contribution to the cell. Routes the
-    /// element's per-side `BorderStyle` + `border-color` + structural
+    /// source side's `BorderStyle` + `border-*-color` + structural
     /// priority through `add_border_dir` so CSS Tables 3 §11.5
     /// conflict resolution can decide the winner per direction.
     #[inline]
@@ -249,7 +255,13 @@ impl Pen {
         style: BorderStyle,
         side: BorderSide,
     ) {
-        if style.is_none() {
+        let (fg, painted) = match side {
+            BorderSide::Top => (self.colors.top, self.only.top),
+            BorderSide::Right => (self.colors.right, self.only.right),
+            BorderSide::Bottom => (self.colors.bottom, self.only.bottom),
+            BorderSide::Left => (self.colors.left, self.only.left),
+        };
+        if style.is_none() || !painted {
             return;
         }
         buf.add_border_dir(
@@ -258,7 +270,7 @@ impl Pen {
             dir,
             BorderContribution {
                 style,
-                fg: self.fg,
+                fg,
                 priority: self.priority,
                 corner_style: self.corner_style,
                 side,

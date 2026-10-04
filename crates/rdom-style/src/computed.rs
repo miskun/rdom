@@ -26,13 +26,15 @@ pub struct ComputedStyle {
     // ── Paint ─────────────────────────────────────────────────────────
     pub fg: Color,
     pub bg: Color,
-    pub border_fg: Color,
+    /// `border-top-color` … `border-left-color`, resolved (an
+    /// undeclared side is the element's `color`, `currentcolor`).
+    pub border_color: crate::layout::Sides<Color>,
     /// All modifier bits collapsed — bold, dim, italic, underlined,
     /// reversed. Cascade sets these from the individual `bold`/`dim`/...
     /// properties on `TuiStyle`.
     pub modifiers: Modifier,
     /// CSS `opacity` in `[0.0, 1.0]`. Cascade clamps; paint
-    /// alpha-blends `fg` / `bg` / `border_fg` against the resolved
+    /// alpha-blends `fg` / `bg` / `border_color` against the resolved
     /// parent bg. Truecolor-only — opacity only blends `Color::Rgb`
     /// values (a `Color::Reset` opacity is a no-op since the
     /// terminal default bg is unknowable). Default `1.0`.
@@ -199,7 +201,7 @@ impl ComputedStyle {
         Self {
             fg: Color::Reset,
             bg: Color::Reset,
-            border_fg: Color::Reset,
+            border_color: crate::layout::Sides::all(Color::Reset),
             modifiers: Modifier::empty(),
             opacity: 1.0,
             background_clip: crate::layout::VisualBox::BorderBox,

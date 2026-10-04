@@ -107,7 +107,7 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
     let ComputedStyle {
         fg,
         bg,
-        border_fg,
+        border_color,
         modifiers,
         opacity,
         background_clip,
@@ -170,7 +170,7 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
     check!(
         fg,
         bg,
-        border_fg,
+        border_color,
         modifiers,
         opacity,
         background_clip,

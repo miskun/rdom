@@ -43,8 +43,8 @@
 //!   properties and per-side longhand merging.
 //! - `serialize.rs`: [`serialize`] — property → CSS text, one arm
 //!   per name.
-//! - `background.rs`: the `set` / `serialize` arms of the
-//!   `background` shorthand and its longhands.
+//! - `background.rs` / `border.rs`: the `set` / `serialize` arms of
+//!   the `background` and `border` shorthands and their longhands.
 //! - `value_serializers.rs`: the per-value-type serializers
 //!   (`serialize_color`, `serialize_calc`, …) `serialize.rs` folds
 //!   over.
@@ -68,6 +68,7 @@
 //! enforces this for the full table.
 
 mod background;
+mod border;
 mod css_wide;
 mod serialize;
 pub(crate) mod set;
@@ -76,6 +77,8 @@ mod value_serializers;
 
 #[cfg(test)]
 mod background_tests;
+#[cfg(test)]
+mod border_tests;
 #[cfg(test)]
 mod tests;
 

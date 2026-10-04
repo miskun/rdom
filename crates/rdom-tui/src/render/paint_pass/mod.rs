@@ -11,8 +11,8 @@
 //! 1. **Background fill** — `computed.bg` over the box its
 //!    `background-clip` names (the border box by default, so border
 //!    cells take it too). Skipped for `Color::Reset`.
-//! 2. **Border** — border chars at the outer rect edges using
-//!    `computed.border_fg`. Styles (Single, Rounded, Top, Bottom,
+//! 2. **Border** — border chars at the outer rect edges, each side
+//!    in its `computed.border_color`. Styles (Single, Rounded, Top, Bottom,
 //!    Left, Right) pick different character sets.
 //! 3. **Inline content** — either the classic `::before` then own
 //!    text then `::after` path (non-IFC elements) or the IFC fragment
@@ -250,8 +250,8 @@ fn paint_box(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect) -> Opt
         if let Some(bg) = presentation.bg {
             computed.bg = bg;
         }
-        if let Some(border_fg) = presentation.border_fg {
-            computed.border_fg = border_fg;
+        if let Some(border_color) = presentation.border_color {
+            computed.border_color = border_color;
         }
         if let Some(padding) = &presentation.padding {
             computed.padding = padding.clone();
@@ -293,19 +293,9 @@ fn paint_box(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect) -> Opt
         // priority encodes "child wins over ancestor" (depth) and
         // "earlier DOM order wins on tie" (`NodeId` proxy for
         // geometric position).
-        // A transparent border keeps its space but draws nothing.
-        if !computed.border.is_empty() && computed.border_fg.alpha() > 0 {
+        if !computed.border.is_empty() {
             let priority = compute_border_priority(dom, id);
-            let (border, fg) = (computed.border, computed.border_fg);
-            if fg.is_translucent() {
-                // A translucent border blends like a glyph (C3-ALPHA).
-                let alpha = f32::from(fg.alpha()) / 255.0;
-                buf.paint_translucent(outer_grid, alpha, |layer| {
-                    paint_border(layer, outer, border, fg.opaque(), clip, priority);
-                });
-            } else {
-                paint_border(buf, outer, border, fg, clip, priority);
-            }
+            paint_border_sides(buf, &computed, outer, outer_grid, clip, priority);
         }
     }
     // Else: element off-screen — skip its box but still paint its
@@ -496,6 +486,41 @@ pub(crate) fn layout_rect_to_grid(layout: LayoutRect, clip: Rect) -> Option<Rect
         (r - x) as u16,
         (b - y) as u16,
     ))
+}
+
+/// Paint an element's border, the sides of one color together: an
+/// opaque color directly, a translucent one through a layer at its
+/// alpha (it blends like a glyph, C3-ALPHA), a transparent one not at
+/// all — it keeps its space and draws nothing.
+fn paint_border_sides(
+    buf: &mut Buffer,
+    computed: &ComputedStyle,
+    outer: LayoutRect,
+    outer_grid: Rect,
+    clip: Rect,
+    priority: u64,
+) {
+    let (border, colors) = (computed.border, computed.border_color);
+    let mut done: Vec<Color> = Vec::with_capacity(4);
+    for color in colors.to_array() {
+        if done.contains(&color) {
+            continue;
+        }
+        done.push(color);
+        if color.alpha() == 0 {
+            continue;
+        }
+        let only = colors.map(|c| c == color);
+        if color.is_translucent() {
+            let alpha = f32::from(color.alpha()) / 255.0;
+            let opaque = colors.map(Color::opaque);
+            buf.paint_translucent(outer_grid, alpha, |layer| {
+                paint_border(layer, outer, border, opaque, only, clip, priority);
+            });
+        } else {
+            paint_border(buf, outer, border, colors, only, clip, priority);
+        }
+    }
 }
 
 /// Compute the structural priority for an element's border

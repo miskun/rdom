@@ -15,24 +15,28 @@
 //! - `rect` — `LayoutRect`
 //! - `keywords` — keyword-valued properties
 //! - `sizing` — `Size`, `MinSize`, `MaxSize`, `AspectRatio`, `GapValue`, `Length`
-//! - `box_model` — borders, `border-collapse`, padding, margin
+//! - `border` — border styles, widths, `border-collapse`
+//! - `box_model` — padding, margin
+//! - `sides` — `Sides`, the per-side shape
 //! - `background` — the background longhands' keyword families
 
 mod background;
+mod border;
 mod box_model;
 mod keywords;
 mod rect;
+mod sides;
 mod sizing;
 
 pub use background::{BackgroundAttachment, BackgroundRepeat, RepeatStyle, VisualBox};
-pub use box_model::{
-    Border, BorderCollapse, BorderStyle, CornerStyle, Margin, MarginValue, Padding, PaddingValue,
-};
+pub use border::{Border, BorderCollapse, BorderStyle, BorderWidth, CornerStyle, PaintLength};
+pub use box_model::{Margin, MarginValue, Padding, PaddingValue};
 pub use keywords::{
     Align, CaretColor, CaretTextColor, Direction, Display, Flow, Overflow, PointerEvents, Position,
     ScrollBehavior, ScrollbarGutter, TextDecoration, UserSelect, WhiteSpace, ZIndex,
 };
 pub use rect::LayoutRect;
+pub use sides::Sides;
 pub use sizing::{
     AspectRatio, FlexBasis, GapValue, Length, MaxSize, MinSize, Size, valid_flex_factor,
 };

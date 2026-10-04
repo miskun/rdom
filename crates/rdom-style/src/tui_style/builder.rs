@@ -4,7 +4,7 @@
 use super::{ImportantMask, TuiStyle};
 #[allow(unused_imports)]
 use crate::layout::{
-    Border, CaretColor, CaretTextColor, Direction, Display, Overflow, Padding, Size,
+    Border, CaretColor, CaretTextColor, Direction, Display, Overflow, Padding, Sides, Size,
     TextDecoration, UserSelect, WhiteSpace,
 };
 use crate::{Content, TuiColor, Value};
@@ -49,13 +49,31 @@ impl TuiStyle {
         self.important |= ImportantMask::BG;
         self
     }
+    /// Set `border-color` on all four sides. Chainable.
     pub fn border_fg(mut self, color: impl Into<TuiColor>) -> Self {
-        self.border_fg = Some(Value::Specified(color.into()));
+        self.border_color = Sides::all(Some(Value::Specified(color.into())));
         self
     }
     pub fn border_fg_important(mut self, color: impl Into<TuiColor>) -> Self {
-        self.border_fg = Some(Value::Specified(color.into()));
-        self.important |= ImportantMask::BORDER_FG;
+        self.border_color = Sides::all(Some(Value::Specified(color.into())));
+        self.important |= ImportantMask::BORDER_TOP_COLOR
+            | ImportantMask::BORDER_RIGHT_COLOR
+            | ImportantMask::BORDER_BOTTOM_COLOR
+            | ImportantMask::BORDER_LEFT_COLOR;
+        self
+    }
+
+    /// Set `border-width` on all four sides. Chainable.
+    pub fn border_width(mut self, width: crate::layout::BorderWidth) -> Self {
+        self.border_width = Sides::all(Some(Value::Specified(width)));
+        self
+    }
+    pub fn border_width_important(mut self, width: crate::layout::BorderWidth) -> Self {
+        self.border_width = Sides::all(Some(Value::Specified(width)));
+        self.important |= ImportantMask::BORDER_TOP_WIDTH
+            | ImportantMask::BORDER_RIGHT_WIDTH
+            | ImportantMask::BORDER_BOTTOM_WIDTH
+            | ImportantMask::BORDER_LEFT_WIDTH;
         self
     }
 

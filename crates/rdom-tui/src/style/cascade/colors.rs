@@ -1,5 +1,5 @@
 //! The color properties' applicators: `color`, `background-color`,
-//! `border-color`, resolved at computed-value time (CSS Color 4 §14).
+//! the four `border-*-color`s, resolved at computed-value time (CSS Color 4 §14).
 //!
 //! A color resolves against a [`ColorContext`]: the element's color
 //! for `currentcolor` (§6.4; in `color` itself, the parent's) and its
@@ -13,6 +13,7 @@
 use super::apply::{Keywords, Resolved, matches_pass};
 use crate::style::{Color, ColorContext, ComputedStyle, ImportantMask, TuiColor, TuiStyle, Value};
 use rdom_style::color::ColorScheme;
+use rdom_style::layout::Sides;
 
 /// The winning color declarations whose value depends on the element
 /// (`currentcolor`, `light-dark()`, a color function holding either),
@@ -22,11 +23,28 @@ use rdom_style::color::ColorScheme;
 pub(in crate::style::cascade) struct ElementColors {
     fg: Option<TuiColor>,
     bg: Option<TuiColor>,
-    border_fg: Option<TuiColor>,
-    /// A declaration of `border-color` took part in the cascade; without
-    /// one the property takes its initial value.
-    border_declared: bool,
+    border_color: Sides<Option<TuiColor>>,
+    /// A declaration of the side's `border-*-color` took part in the
+    /// cascade; without one the side takes the initial value.
+    border_declared: Sides<bool>,
 }
+
+/// The computed `border-*-color` of each side, for the CSS-wide
+/// keywords' source styles.
+const BORDER_COLOR_FIELDS: Sides<fn(&ComputedStyle) -> Color> = Sides::new(
+    |c| c.border_color.top,
+    |c| c.border_color.right,
+    |c| c.border_color.bottom,
+    |c| c.border_color.left,
+);
+
+/// Each side's `!important` bit.
+const BORDER_COLOR_MASKS: Sides<ImportantMask> = Sides::new(
+    ImportantMask::BORDER_TOP_COLOR,
+    ImportantMask::BORDER_RIGHT_COLOR,
+    ImportantMask::BORDER_BOTTOM_COLOR,
+    ImportantMask::BORDER_LEFT_COLOR,
+);
 
 /// `border-color`'s initial value (CSS Backgrounds 3 §3.1): the one
 /// place it is defined, for an element without a declaration and for
@@ -56,12 +74,17 @@ impl ElementColors {
         resolve(self.fg, parent_color, &mut working.fg);
         let current = working.fg;
         resolve(self.bg, current, &mut working.bg);
-        let border = if self.border_declared {
-            self.border_fg
-        } else {
-            Some(BORDER_COLOR_INITIAL)
-        };
-        resolve(border, current, &mut working.border_fg);
+        let targets = working.border_color.each_mut();
+        let waiting = self.border_color.to_array();
+        let declared = self.border_declared.to_array();
+        for ((target, color), declared) in targets.into_iter().zip(waiting).zip(declared) {
+            let color = if declared {
+                color
+            } else {
+                Some(BORDER_COLOR_INITIAL)
+            };
+            resolve(color, current, target);
+        }
     }
 }
 
@@ -102,23 +125,31 @@ pub(in crate::style::cascade) fn apply_colors(
         &vars,
         &cx,
     );
-    colors.border_declared |= style.border_fg.is_some();
-    apply_color(
-        ColorSlot {
-            target: &mut working.border_fg,
-            waiting: &mut colors.border_fg,
-            field: |c| c.border_fg,
-            initial: Some(BORDER_COLOR_INITIAL),
-        },
-        &style.border_fg,
-        matches_pass(
-            style.important.contains(ImportantMask::BORDER_FG),
-            important_pass,
-        ),
-        kw,
-        &vars,
-        &cx,
-    );
+    let sides = working
+        .border_color
+        .each_mut()
+        .into_iter()
+        .zip(colors.border_color.each_mut())
+        .zip(colors.border_declared.each_mut())
+        .zip(style.border_color.each())
+        .zip(BORDER_COLOR_FIELDS.to_array())
+        .zip(BORDER_COLOR_MASKS.to_array());
+    for (((((target, waiting), declared), value), field), mask) in sides {
+        *declared |= value.is_some();
+        apply_color(
+            ColorSlot {
+                target,
+                waiting,
+                field,
+                initial: Some(BORDER_COLOR_INITIAL),
+            },
+            value,
+            matches_pass(style.important.contains(mask), important_pass),
+            kw,
+            &vars,
+            &cx,
+        );
+    }
 }
 
 /// One color property's computed field and its bookkeeping.

@@ -113,8 +113,8 @@ fn phase_one_features_cascade_together() {
     assert_ne!(literal("div { padding: 1 2 }").padding, initial.padding);
     assert_ne!(literal("div { width: 7 }").width, initial.width);
     assert_ne!(literal("div { width: 4 }").width, initial.width);
-    let yellow = literal("div { border-color: yellow }").border_fg;
-    let green = literal("div { border-color: green }").border_fg;
+    let yellow = literal("div { border-color: yellow }").border_color.top;
+    let green = literal("div { border-color: green }").border_color.top;
     assert!(yellow != green && yellow != RED && green != RED);
 
     let mut d = doc();
@@ -132,19 +132,19 @@ fn phase_one_features_cascade_together() {
 
     // Nesting 1 §3.2: declarations directly in a nested `@layer base`
     // apply to `.card` in that layer, reading the same `--c`.
-    assert_eq!(get(d.card).border_fg, RED);
+    assert_eq!(get(d.card).border_color.top, RED);
 
     // Cascade 5 §7.4: `revert-layer` in an unlayered rule rolls back to
     // the cascade of the layers alone, where `theme`'s yellow beats
     // `base`'s red.
     assert_eq!(
-        get(d.x).border_fg,
-        literal("div { border-color: yellow }").border_fg
+        get(d.x).border_color.top,
+        literal("div { border-color: yellow }").border_color.top
     );
     // Unlayered normal declarations beat every layer (§6.4).
     assert_eq!(
-        get(d.y).border_fg,
-        literal("div { border-color: green }").border_fg
+        get(d.y).border_color.top,
+        literal("div { border-color: green }").border_color.top
     );
 
     // Cascade 6 §2.5: `p` inside `.card` is in scope; the one under the

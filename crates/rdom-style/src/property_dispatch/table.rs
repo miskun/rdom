@@ -152,7 +152,7 @@ pub fn property_names() -> &'static [&'static str] {
 }
 
 macro_rules! define_fields {
-    ($($variant:ident => $field:ident : $mask:ident,)+) => {
+    ($($variant:ident => $($field:ident).+ : $mask:ident,)+) => {
         /// One storage field of `TuiStyle`, as a row of the property →
         /// field table. `!important` routing, `removeProperty`, the
         /// CSS-wide keywords and their serialization all fold over
@@ -178,21 +178,21 @@ macro_rules! define_fields {
             /// Clear the field; `true` if it was set.
             fn take(self, style: &mut TuiStyle) -> bool {
                 match self {
-                    $(Field::$variant => style.$field.take().is_some(),)+
+                    $(Field::$variant => style.$($field).+.take().is_some(),)+
                 }
             }
 
             /// Store a CSS-wide keyword (resolved for `name`).
             pub(super) fn put_css_wide(self, style: &mut TuiStyle, kw: CssWide, name: &str) {
                 match self {
-                    $(Field::$variant => style.$field = Some(kw.into_value(name)),)+
+                    $(Field::$variant => style.$($field).+ = Some(kw.into_value(name)),)+
                 }
             }
 
             /// The CSS-wide keyword the field holds, if any.
             pub(super) fn css_wide(self, style: &TuiStyle) -> Option<&'static str> {
                 match self {
-                    $(Field::$variant => keyword_of(&style.$field),)+
+                    $(Field::$variant => keyword_of(&style.$($field).+),)+
                 }
             }
         }
@@ -202,7 +202,14 @@ macro_rules! define_fields {
 define_fields! {
     Fg => fg : FG,
     Bg => bg : BG,
-    BorderFg => border_fg : BORDER_FG,
+    BorderTopColor => border_color.top : BORDER_TOP_COLOR,
+    BorderRightColor => border_color.right : BORDER_RIGHT_COLOR,
+    BorderBottomColor => border_color.bottom : BORDER_BOTTOM_COLOR,
+    BorderLeftColor => border_color.left : BORDER_LEFT_COLOR,
+    BorderTopWidth => border_width.top : BORDER_TOP_WIDTH,
+    BorderRightWidth => border_width.right : BORDER_RIGHT_WIDTH,
+    BorderBottomWidth => border_width.bottom : BORDER_BOTTOM_WIDTH,
+    BorderLeftWidth => border_width.left : BORDER_LEFT_WIDTH,
     BackgroundImage => background_image : BACKGROUND_IMAGE,
     BackgroundPosition => background_position : BACKGROUND_POSITION,
     BackgroundSize => background_size : BACKGROUND_SIZE,
@@ -285,7 +292,12 @@ pub(super) fn fields_of(name: &str) -> Option<&'static [Field]> {
         "background-attachment" => &[BackgroundAttachment],
         "background-origin" => &[BackgroundOrigin],
         "background-clip" => &[BackgroundClip],
-        "border-color" => &[BorderFg],
+        "border-color" => &[
+            BorderTopColor,
+            BorderRightColor,
+            BorderBottomColor,
+            BorderLeftColor,
+        ],
         "font-weight" => &[Bold],
         "font-style" => &[Italic],
         "text-decoration" => &[TextDecoration],
@@ -316,12 +328,25 @@ pub(super) fn fields_of(name: &str) -> Option<&'static [Field]> {
             &[Padding]
         }
         "margin" | "margin-top" | "margin-right" | "margin-bottom" | "margin-left" => &[Margin],
-        "border"
-        | "border-top"
-        | "border-right"
-        | "border-bottom"
-        | "border-left"
-        | "border-style"
+        // CSS Backgrounds 3 §4.4: `border` sets every side's style,
+        // width and color; `border-<side>` its side's. The styles share
+        // one field (DIVERGENCES §2) until C4-BORDER-SIDES.
+        "border" => &[
+            Border,
+            BorderTopColor,
+            BorderRightColor,
+            BorderBottomColor,
+            BorderLeftColor,
+            BorderTopWidth,
+            BorderRightWidth,
+            BorderBottomWidth,
+            BorderLeftWidth,
+        ],
+        "border-top" => &[Border, BorderTopColor, BorderTopWidth],
+        "border-right" => &[Border, BorderRightColor, BorderRightWidth],
+        "border-bottom" => &[Border, BorderBottomColor, BorderBottomWidth],
+        "border-left" => &[Border, BorderLeftColor, BorderLeftWidth],
+        "border-style"
         | "border-top-style"
         | "border-right-style"
         | "border-bottom-style"

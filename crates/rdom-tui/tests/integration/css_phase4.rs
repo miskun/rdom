@@ -155,3 +155,38 @@ fn background_clip_of_the_final_layer_clips_the_color() {
     assert_eq!(cell(&buf, 0, 1).bg, Color::Reset);
     assert_eq!(cell(&buf, 1, 1).bg, RED);
 }
+
+// ── C4-BORDER-SHORTHAND ────────────────────────────────────────────
+
+/// A 5 × 3 `div.b` painted under `css`.
+fn bordered(css: &str) -> Buffer {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    el(&mut dom, root, "b", "");
+    paint(&mut dom, css, 5, 3)
+}
+
+/// CSS Backgrounds 3 §4.4: `border: 1px solid red` — the most common
+/// border declaration — draws a solid red ring.
+#[test]
+fn border_shorthand_with_width_and_color_draws_a_colored_ring() {
+    let buf = bordered(".b { width: 5; height: 3; border: 1px solid red }");
+    assert_eq!(cell(&buf, 0, 0).symbol(), "┌");
+    assert_eq!(cell(&buf, 2, 0).symbol(), "─");
+    assert_eq!(cell(&buf, 0, 1).symbol(), "│");
+    for (x, y) in [(0, 0), (2, 0), (0, 1), (4, 1), (2, 2), (4, 2)] {
+        assert_eq!(cell(&buf, x, y).fg, RED, "({x}, {y})");
+    }
+}
+
+/// §4.4: `border-top: 1px solid red` after `border: solid blue` colors
+/// the top side only.
+#[test]
+fn border_side_shorthand_colors_its_side_only() {
+    let buf = bordered(".b { width: 5; height: 3; border: solid blue; border-top: 1px solid red }");
+    let blue = Color::Rgb(0, 0, 255);
+    assert_eq!(cell(&buf, 2, 0).fg, RED, "top edge");
+    assert_eq!(cell(&buf, 2, 2).fg, blue, "bottom edge");
+    assert_eq!(cell(&buf, 0, 1).fg, blue, "left edge");
+    assert_eq!(cell(&buf, 4, 1).fg, blue, "right edge");
+}

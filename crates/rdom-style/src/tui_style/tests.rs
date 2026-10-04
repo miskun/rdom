@@ -9,7 +9,14 @@ fn important_mask_bits_are_unique() {
     let all = [
         M::FG,
         M::BG,
-        M::BORDER_FG,
+        M::BORDER_TOP_COLOR,
+        M::BORDER_RIGHT_COLOR,
+        M::BORDER_BOTTOM_COLOR,
+        M::BORDER_LEFT_COLOR,
+        M::BORDER_TOP_WIDTH,
+        M::BORDER_RIGHT_WIDTH,
+        M::BORDER_BOTTOM_WIDTH,
+        M::BORDER_LEFT_WIDTH,
         M::BOLD,
         M::ITALIC,
         M::WIDTH,
@@ -264,8 +271,9 @@ fn every_property_has_a_setter() {
         .direction(Direction::Row)
         .overflow(Overflow::Hidden)
         .content(Content::Str("x".into()));
-    // The `overflow` shorthand counts as 2 (writes both axes).
-    assert_eq!(s.declared_count(), 18);
+    // The `overflow` shorthand counts as 2 (writes both axes), and
+    // `border_fg` as 4 (one `border-*-color` longhand per side).
+    assert_eq!(s.declared_count(), 21);
 }
 
 #[test]
@@ -295,6 +303,7 @@ fn every_property_has_important_setter() {
         .fg_important(Color::Rgb(255, 0, 0))
         .bg_important(Color::Rgb(0, 0, 0))
         .border_fg_important(Color::Rgb(255, 255, 255))
+        .border_width_important(crate::layout::BorderWidth::Thick)
         .bold_important(true)
         .italic_important(true)
         .width_important(Size::Fixed(1))

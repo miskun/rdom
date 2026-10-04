@@ -114,7 +114,7 @@ fn var_text(css: &str, property: &str) -> String {
     let r = parse(css);
     assert!(r.warnings.is_empty(), "warnings: {:?}", r.warnings);
     let style = &r.stylesheet.rules()[0].style;
-    assert!(style.fg.is_none() && style.border_fg.is_none());
+    assert!(style.fg.is_none() && style.border_color.top.is_none());
     assert_eq!(style.pending.len(), 1);
     rdom_css::property_dispatch::serialize(property, style).expect("serialized")
 }

@@ -413,7 +413,7 @@ pub(super) fn cascade_subtree<'a>(
 
 /// Per-element cascade: start from initial + inheritance, collect
 /// matching rules, apply the ladder, resolve `content`, finalize
-/// `border_fg`.
+/// the `border-*-color`s.
 fn compute_element_style(
     cx: &mut ElementCx<'_, '_>,
     parent: &ComputedStyle,

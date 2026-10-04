@@ -25,7 +25,7 @@
 //! 6. Resolve the CSS-wide keywords per property (`apply`): `inherit`
 //!    / `initial`, and `revert` from the ladder's rollback state.
 //! 7. Resolve `content` (`content`) — pseudo-element body.
-//! 8. Finalize `border_fg` (fall back to final `fg`).
+//! 8. Finalize the `border-*-color`s (an undeclared side is the final `fg`).
 //! 9. Write to `TuiExt.computed` and flip `style_dirty=false`; if
 //!    any layout-affecting property's new value differs, set
 //!    `layout_dirty=true` (`inherit::layout_differs`).

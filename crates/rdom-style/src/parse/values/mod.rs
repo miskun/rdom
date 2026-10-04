@@ -50,7 +50,10 @@ pub use background::{
 pub(crate) use background::{
     INITIAL_CLIP, INITIAL_IMAGE, INITIAL_ORIGIN, INITIAL_POSITION, INITIAL_SIZE,
 };
-pub use border::{current_border, parse_border, parse_border_side};
+pub use border::{
+    BorderShorthand, current_border, parse_border, parse_border_side, parse_border_side_shorthand,
+    parse_line_width,
+};
 pub use calc::{MAX_CALC_DEPTH, MAX_CALC_NESTING, looks_like_calc, parse_calc};
 pub(crate) use color::{ColorExpr, compute_function as compute_color_function};
 pub use color::{MAX_COLOR_NESTING, parse_color, parse_color_at, parse_rgb_args, parse_rgba_args};

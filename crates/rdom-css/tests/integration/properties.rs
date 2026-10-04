@@ -46,7 +46,7 @@ fn background_color_named_blue() {
 fn border_color_named_green() {
     let s = first_style("a { border-color: green; }");
     assert_eq!(
-        s.border_fg,
+        s.border_color.top,
         Some(Value::Specified(TuiColor::Literal(Color::Rgb(0, 128, 0))))
     );
 }

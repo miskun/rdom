@@ -370,7 +370,8 @@ fn is_hidden(dom: &Dom<TuiExt>, id: NodeId) -> bool {
 fn guide_color(dom: &Dom<TuiExt>, id: NodeId) -> Color {
     dom.node(id)
         .computed()
-        .map(|c| c.border_fg)
+        // The guides run down the item's left: `border-left-color`.
+        .map(|c| c.border_color.left)
         .unwrap_or(Color::Reset)
 }
 

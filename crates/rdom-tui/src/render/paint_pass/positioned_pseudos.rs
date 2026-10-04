@@ -72,8 +72,8 @@ pub(super) fn paint_positioned_pseudos(dom: &Dom<TuiExt>, buf: &mut Buffer, clip
                 if let Some(bg) = overrides.bg {
                     style.bg = bg;
                 }
-                if let Some(border_fg) = overrides.border_fg {
-                    style.border_fg = border_fg;
+                if let Some(border_color) = overrides.border_color {
+                    style.border_color = border_color;
                 }
             }
             (layout.rect, style)

@@ -99,6 +99,8 @@ impl AnimatedProp {
 #[non_exhaustive]
 pub enum AnimatedValue {
     Color(Color),
+    /// One color per side (`border-color`).
+    Colors(crate::layout::Sides<Color>),
     Size(Size),
     Length(Length),
     U16(u16),
@@ -339,12 +341,12 @@ pub fn effective_bg(ext: &TuiExt) -> Color {
         .unwrap_or(Color::Reset)
 }
 
-pub fn effective_border_fg(ext: &TuiExt) -> Color {
+pub fn effective_border_color(ext: &TuiExt) -> crate::layout::Sides<Color> {
     ext.presentation
         .as_deref()
-        .and_then(|p| p.border_fg)
-        .or(ext.computed.as_ref().map(|c| c.border_fg))
-        .unwrap_or(Color::Reset)
+        .and_then(|p| p.border_color)
+        .or(ext.computed.as_ref().map(|c| c.border_color))
+        .unwrap_or(crate::layout::Sides::all(Color::Reset))
 }
 
 pub fn effective_padding(ext: &TuiExt) -> crate::layout::Padding {

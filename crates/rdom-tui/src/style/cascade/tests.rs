@@ -596,17 +596,20 @@ fn child_can_turn_off_inherited_bold() {
     assert!(!computed_of(&dom, child).modifiers.contains(Modifier::BOLD));
 }
 
-// ── border_fg special case ───────────────────────────────────────
+// ── border-color special case ───────────────────────────────────────
 
 #[test]
 fn border_fg_initial_tracks_fg() {
     let (mut dom, div) = dom_with_div();
     let sheet = Stylesheet::bare().rule_unchecked("div", TuiStyle::new().fg(Color::Rgb(255, 0, 0)));
     dom.cascade(&sheet);
-    // border_fg not set → falls back to fg per property catalog.
+    // border-color not set → falls back to fg per property catalog.
     // Current apply_color uses working.fg as initial — by the time
-    // border_fg is processed, fg is already Red.
-    assert_eq!(computed_of(&dom, div).border_fg, Color::Rgb(255, 0, 0));
+    // border-color is processed, fg is already Red.
+    assert_eq!(
+        computed_of(&dom, div).border_color.top,
+        Color::Rgb(255, 0, 0)
+    );
 }
 
 #[test]
@@ -620,7 +623,10 @@ fn border_fg_explicit_overrides_fg() {
     );
     dom.cascade(&sheet);
     assert_eq!(computed_of(&dom, div).fg, Color::Rgb(255, 0, 0));
-    assert_eq!(computed_of(&dom, div).border_fg, Color::Rgb(0, 0, 255));
+    assert_eq!(
+        computed_of(&dom, div).border_color.top,
+        Color::Rgb(0, 0, 255)
+    );
 }
 
 // ── Layout properties cascade ────────────────────────────────────
@@ -935,7 +941,7 @@ fn bg_and_border_fg_also_support_var() {
     dom.cascade(&sheet);
     let c = computed_of(&dom, div);
     assert_eq!(c.bg, Color::Rgb(0x10, 0x10, 0x20));
-    assert_eq!(c.border_fg, Color::Rgb(0x80, 0x80, 0x80));
+    assert_eq!(c.border_color.top, Color::Rgb(0x80, 0x80, 0x80));
 }
 
 #[test]
@@ -2299,7 +2305,7 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
     let mut parent = ComputedStyle::initial();
     parent.fg = Color::Rgb(1, 2, 3);
     parent.bg = Color::Rgb(4, 5, 6);
-    parent.border_fg = Color::Rgb(7, 8, 9);
+    parent.border_color = rdom_style::layout::Sides::all(Color::Rgb(7, 8, 9));
     parent.modifiers = Modifier::BOLD | Modifier::ITALIC | Modifier::UNDERLINED;
     parent.opacity = 0.5;
     parent.background_clip = rdom_style::layout::VisualBox::ContentBox;
@@ -2352,7 +2358,7 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
     let probes: &[(&str, bool)] = &[
         ("color", child.fg == parent.fg),
         ("background-color", child.bg == parent.bg),
-        ("border-color", child.border_fg == parent.border_fg),
+        ("border-color", child.border_color == parent.border_color),
         ("font-weight", child.modifiers.contains(Modifier::BOLD)),
         ("font-style", child.modifiers.contains(Modifier::ITALIC)),
         (

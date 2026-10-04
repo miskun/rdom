@@ -18,7 +18,8 @@ use crate::style::Color;
 pub struct PresentationStyle {
     pub fg: Option<Color>,
     pub bg: Option<Color>,
-    pub border_fg: Option<Color>,
+    /// `border-color`'s four sides.
+    pub border_color: Option<crate::layout::Sides<Color>>,
     pub width: Option<Size>,
     pub height: Option<Size>,
     pub padding: Option<Padding>,
@@ -121,7 +122,7 @@ impl PresentationStyle {
         self.custom_properties.is_none()
             && self.fg.is_none()
             && self.bg.is_none()
-            && self.border_fg.is_none()
+            && self.border_color.is_none()
             && self.width.is_none()
             && self.height.is_none()
             && self.padding.is_none()

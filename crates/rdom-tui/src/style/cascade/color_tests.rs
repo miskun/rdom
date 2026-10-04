@@ -41,7 +41,7 @@ fn div(css: &str) -> ComputedStyle {
 fn currentcolor_is_the_elements_color() {
     let c = div("div { color: red; background-color: currentColor; border-color: CURRENTCOLOR }");
     assert_eq!(c.bg, RED);
-    assert_eq!(c.border_fg, RED);
+    assert_eq!(c.border_color.top, RED);
 }
 
 /// §6.4: it resolves against the element's final `color`, whichever
@@ -52,7 +52,7 @@ fn currentcolor_uses_the_final_color() {
     assert_eq!(c.fg, BLUE);
     assert_eq!(c.bg, BLUE);
     let c = div("div { border-color: initial } .x { color: blue }");
-    assert_eq!(c.border_fg, BLUE);
+    assert_eq!(c.border_color.top, BLUE);
 }
 
 /// §6.4: in `color` itself, `currentcolor` is the inherited value.
@@ -67,7 +67,7 @@ fn currentcolor_in_color_is_inherit() {
 #[test]
 fn border_color_defaults_to_the_color() {
     let c = div("div { border-style: solid } .x { color: blue }");
-    assert_eq!(c.border_fg, BLUE);
+    assert_eq!(c.border_color.top, BLUE);
 }
 
 /// A custom property holding `currentcolor` resolves where it is used

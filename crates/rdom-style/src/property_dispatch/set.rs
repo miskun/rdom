@@ -10,14 +10,14 @@ use super::table::canonical_property_name;
 use crate::layout::{CaretColor, CaretTextColor, Direction, Display, Size, UserSelect, WhiteSpace};
 use crate::parse::token::{Token, tokenize};
 use crate::parse::values::{
-    current_border, current_margin, current_padding, parse_aspect_ratio, parse_border,
-    parse_border_side, parse_color, parse_content, parse_counter_ops, parse_flex_factor,
-    parse_flex_shorthand, parse_gap, parse_inset_shorthand, parse_keyword, parse_length,
-    parse_margin_longhand, parse_margin_shorthand, parse_max_size, parse_min_size, parse_opacity,
-    parse_overflow, parse_padding_shorthand, parse_padding_value, parse_position,
-    parse_scroll_behavior, parse_scrollbar_gutter, parse_size, parse_text_decoration,
-    parse_time_list, parse_timing_function_list, parse_transition_property_list,
-    parse_transition_shorthand, parse_z_index, unzip_transition_rules,
+    current_margin, current_padding, parse_aspect_ratio, parse_color, parse_content,
+    parse_counter_ops, parse_flex_factor, parse_flex_shorthand, parse_gap, parse_inset_shorthand,
+    parse_keyword, parse_length, parse_margin_longhand, parse_margin_shorthand, parse_max_size,
+    parse_min_size, parse_opacity, parse_overflow, parse_padding_shorthand, parse_padding_value,
+    parse_position, parse_scroll_behavior, parse_scrollbar_gutter, parse_size,
+    parse_text_decoration, parse_time_list, parse_timing_function_list,
+    parse_transition_property_list, parse_transition_shorthand, parse_z_index,
+    unzip_transition_rules,
 };
 use crate::{TuiStyle, Value};
 
@@ -98,7 +98,9 @@ pub fn set_parsed(name: &str, value: &[Token], style: &mut TuiStyle) -> Result<(
     if let Some(kw) = css_wide_keyword(value) {
         return set_css_wide(name, kw, style);
     }
-    if let Some(outcome) = super::background::set(name, value, style) {
+    if let Some(outcome) = super::background::set(name, value, style)
+        .or_else(|| super::border::set(name, value, style))
+    {
         return outcome.ok_or(DispatchError::InvalidValue);
     }
     let outcome: Option<()> = match name {
@@ -108,9 +110,6 @@ pub fn set_parsed(name: &str, value: &[Token], style: &mut TuiStyle) -> Result<(
         }),
         "background-color" => parse_color(value).map(|c| {
             style.bg = Some(Value::Specified(c));
-        }),
-        "border-color" => parse_color(value).map(|c| {
-            style.border_fg = Some(Value::Specified(c));
         }),
         "font-weight" => parse_keyword(value, &[("bold", true), ("normal", false)]).map(|v| {
             style.bold = Some(Value::Specified(v));
@@ -368,67 +367,6 @@ pub fn set_parsed(name: &str, value: &[Token], style: &mut TuiStyle) -> Result<(
             style.margin = Some(Value::Specified(m));
         }),
 
-        // Border shorthand + per-side longhands. Per-side
-        // longhands READ the current border on `style` and
-        // MERGE — so `border: solid; border-top: none` correctly
-        // clears just the top side and keeps R/B/L.
-        "border" => parse_border(value).map(|b| {
-            style.border = Some(Value::Specified(b));
-        }),
-        "border-top" => parse_border_side(value).map(|bs| {
-            let mut b = current_border(style);
-            b.top = bs;
-            style.border = Some(Value::Specified(b));
-        }),
-        "border-right" => parse_border_side(value).map(|bs| {
-            let mut b = current_border(style);
-            b.right = bs;
-            style.border = Some(Value::Specified(b));
-        }),
-        "border-bottom" => parse_border_side(value).map(|bs| {
-            let mut b = current_border(style);
-            b.bottom = bs;
-            style.border = Some(Value::Specified(b));
-        }),
-        "border-left" => parse_border_side(value).map(|bs| {
-            let mut b = current_border(style);
-            b.left = bs;
-            style.border = Some(Value::Specified(b));
-        }),
-        // CSS `border-style: <style>` — sets all four sides to one
-        // style. `border-style: hidden` is the conflict kill-switch
-        // applied uniformly.
-        "border-style" => parse_border_side(value).map(|bs| {
-            let mut b = current_border(style);
-            b.top = bs;
-            b.right = bs;
-            b.bottom = bs;
-            b.left = bs;
-            style.border = Some(Value::Specified(b));
-        }),
-        // CSS per-side `*-style` longhands. Same merge semantics as
-        // `border-top` / etc.; useful when authors want to flip just
-        // one side's style without touching color (when color lands).
-        "border-top-style" => parse_border_side(value).map(|bs| {
-            let mut b = current_border(style);
-            b.top = bs;
-            style.border = Some(Value::Specified(b));
-        }),
-        "border-right-style" => parse_border_side(value).map(|bs| {
-            let mut b = current_border(style);
-            b.right = bs;
-            style.border = Some(Value::Specified(b));
-        }),
-        "border-bottom-style" => parse_border_side(value).map(|bs| {
-            let mut b = current_border(style);
-            b.bottom = bs;
-            style.border = Some(Value::Specified(b));
-        }),
-        "border-left-style" => parse_border_side(value).map(|bs| {
-            let mut b = current_border(style);
-            b.left = bs;
-            style.border = Some(Value::Specified(b));
-        }),
         "border-collapse" => parse_keyword(
             value,
             &[

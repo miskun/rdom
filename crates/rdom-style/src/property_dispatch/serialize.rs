@@ -7,11 +7,11 @@
 use super::css_wide::css_wide_of;
 use super::table::canonical_property_name;
 use super::value_serializers::{
-    border_style_keyword, join_csv, serialize_color, serialize_content, serialize_counter_ops,
-    serialize_flex_basis, serialize_length, serialize_margin_value, serialize_math,
-    serialize_max_size, serialize_min_size, serialize_overflow, serialize_padding_value,
-    serialize_size, serialize_timing_function, serialize_transition_property,
-    serialize_transition_shorthand, specified,
+    join_csv, serialize_color, serialize_content, serialize_counter_ops, serialize_flex_basis,
+    serialize_length, serialize_margin_value, serialize_math, serialize_max_size,
+    serialize_min_size, serialize_overflow, serialize_padding_value, serialize_size,
+    serialize_timing_function, serialize_transition_property, serialize_transition_shorthand,
+    specified,
 };
 use crate::layout::{
     CaretColor, CaretTextColor, Direction, Display, Position, Size, UserSelect, WhiteSpace, ZIndex,
@@ -41,18 +41,15 @@ pub fn serialize(name: &str, style: &TuiStyle) -> Option<String> {
     if let Some(kw) = css_wide_of(name, style) {
         return Some(kw.to_string());
     }
-    if let Some(out) = super::background::serialize(name, style) {
+    if let Some(out) =
+        super::background::serialize(name, style).or_else(|| super::border::serialize(name, style))
+    {
         return out;
     }
     match name {
         // Color / modifiers
         "color" => style.fg.as_ref().and_then(specified).map(serialize_color),
         "background-color" => style.bg.as_ref().and_then(specified).map(serialize_color),
-        "border-color" => style
-            .border_fg
-            .as_ref()
-            .and_then(specified)
-            .map(serialize_color),
         "font-weight" => style.bold.as_ref().and_then(specified).map(|b| {
             if *b {
                 "bold".to_string()
@@ -337,70 +334,6 @@ pub fn serialize(name: &str, style: &TuiStyle) -> Option<String> {
             .and_then(specified)
             .map(|m| serialize_margin_value(&m.left)),
 
-        // Border shorthand. Serializes only the combinations the
-        // shorthand can express (all 4 sides on/off + corner
-        // style, or exactly one side). Other combinations exist
-        // (e.g. top+bottom from per-side longhands) — those
-        // serialize via the per-side longhands, not here.
-        "border" => style.border.as_ref().and_then(specified).and_then(|b| {
-            use crate::layout::CornerStyle;
-            if b.is_empty() {
-                return Some("none".to_string());
-            }
-            // If all four sides share the same style, that style
-            // serializes as the shorthand. `rounded` is the
-            // rdom-specific spelling for `solid` ring + rounded
-            // corners; only emit it for square→rounded promotion.
-            if b.top == b.right && b.right == b.bottom && b.bottom == b.left {
-                let s = border_style_keyword(b.top);
-                if b.corner_style == CornerStyle::Rounded
-                    && b.top == crate::layout::BorderStyle::Solid
-                {
-                    return Some("rounded".to_string());
-                }
-                return Some(s.to_string());
-            }
-            // Single-side shorthand legacy syntax (rdom-specific).
-            // Only meaningful when the chosen side is Solid; mixed
-            // styles serialize via per-side longhands instead.
-            use crate::layout::BorderStyle as BS;
-            match (b.top, b.right, b.bottom, b.left) {
-                (BS::Solid, BS::None, BS::None, BS::None) => Some("top".to_string()),
-                (BS::None, BS::Solid, BS::None, BS::None) => Some("right".to_string()),
-                (BS::None, BS::None, BS::Solid, BS::None) => Some("bottom".to_string()),
-                (BS::None, BS::None, BS::None, BS::Solid) => Some("left".to_string()),
-                _ => None,
-            }
-        }),
-        "border-top" | "border-top-style" => style
-            .border
-            .as_ref()
-            .and_then(specified)
-            .map(|b| border_style_keyword(b.top).to_string()),
-        "border-right" | "border-right-style" => style
-            .border
-            .as_ref()
-            .and_then(specified)
-            .map(|b| border_style_keyword(b.right).to_string()),
-        "border-bottom" | "border-bottom-style" => style
-            .border
-            .as_ref()
-            .and_then(specified)
-            .map(|b| border_style_keyword(b.bottom).to_string()),
-        "border-left" | "border-left-style" => style
-            .border
-            .as_ref()
-            .and_then(specified)
-            .map(|b| border_style_keyword(b.left).to_string()),
-        "border-style" => style.border.as_ref().and_then(specified).and_then(|b| {
-            // `border-style` shorthand serializes when all four sides
-            // match. Otherwise consumers read the per-side longhands.
-            if b.top == b.right && b.right == b.bottom && b.bottom == b.left {
-                Some(border_style_keyword(b.top).to_string())
-            } else {
-                None
-            }
-        }),
         "border-collapse" => style
             .border_collapse
             .as_ref()

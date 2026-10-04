@@ -6,7 +6,7 @@
 //! Sits on the input side of the cascade (inside `TuiStyle`). The
 //! cascade resolves every `TuiColor` into a concrete `Color` via
 //! [`TuiColor::resolve`] against a [`ColorContext`] before writing
-//! into `ComputedStyle.fg` / `.bg` / `.border_fg`, so layout and paint
+//! into `ComputedStyle.fg` / `.bg` / `.border_color`, so layout and paint
 //! never see a `Var`, `CurrentColor` or `Function`.
 //!
 //! ## `var()` resolution

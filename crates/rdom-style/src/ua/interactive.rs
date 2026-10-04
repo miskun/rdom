@@ -98,7 +98,7 @@ pub(super) fn rules() -> Vec<(&'static str, TuiStyle)> {
         // `▼ `/`▶ ` expand-arrow field before the label; the
         // connector + ancestor trunks are painted in the gutter to
         // the left. `border-color` is the GUIDE color — the guide
-        // paint reads `computed.border_fg` for the connector/arrow
+        // paint reads `computed.border_color` for the connector/arrow
         // glyphs even though the item paints no actual CSS border.
         // Authors retheme guides with
         // `[role=treeitem] { border-color: … }`. See DIVERGENCES.md.

@@ -103,7 +103,7 @@ fn ua_tree_aria_rules() {
 
     // Guide color is sourced from the treeitem's border color.
     assert!(
-        ua["[role=treeitem]"].style.border_fg.is_some(),
+        ua["[role=treeitem]"].style.border_color.left.is_some(),
         "treeitem must declare a guide (border) color",
     );
 }

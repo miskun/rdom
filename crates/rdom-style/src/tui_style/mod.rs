@@ -18,7 +18,7 @@
 #[cfg(test)]
 use crate::Color;
 use crate::layout::{
-    Border, CaretColor, CaretTextColor, Direction, Display, Overflow, Padding, Size,
+    Border, CaretColor, CaretTextColor, Direction, Display, Overflow, Padding, Sides, Size,
     TextDecoration, UserSelect, WhiteSpace,
 };
 use crate::{Content, TuiColor, Value};
@@ -31,10 +31,10 @@ bitflags_like! {
     /// rather than wrapping each in `(Value<T>, bool)` to keep the hot
     /// property accessors cheap.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-    pub struct ImportantMask(u64) {
+    pub struct ImportantMask(u128) {
         FG         = 1 << 0;
         BG         = 1 << 1;
-        BORDER_FG  = 1 << 2;
+        // Bit 2 was `BORDER_FG`, replaced by the per-side `BORDER_*_COLOR`.
         BOLD       = 1 << 3;
         // Bits 4, 6, 7 are unused — `text-decoration` (bit 31) is
         // the sole entry point for the underlined / line-through
@@ -94,6 +94,15 @@ bitflags_like! {
         BACKGROUND_ATTACHMENT = 1 << 51;
         BACKGROUND_ORIGIN = 1 << 52;
         BACKGROUND_CLIP = 1 << 53;
+        // ── Borders (CSS Backgrounds 3 §4), one bit per longhand ──
+        BORDER_TOP_COLOR = 1 << 54;
+        BORDER_RIGHT_COLOR = 1 << 55;
+        BORDER_BOTTOM_COLOR = 1 << 56;
+        BORDER_LEFT_COLOR = 1 << 57;
+        BORDER_TOP_WIDTH = 1 << 58;
+        BORDER_RIGHT_WIDTH = 1 << 59;
+        BORDER_BOTTOM_WIDTH = 1 << 60;
+        BORDER_LEFT_WIDTH = 1 << 61;
     }
 }
 
@@ -108,7 +117,9 @@ pub struct TuiStyle {
     // ── Paint ─────────────────────────────────────────────────────────
     pub fg: Option<Value<TuiColor>>,
     pub bg: Option<Value<TuiColor>>,
-    pub border_fg: Option<Value<TuiColor>>,
+    /// `border-top-color` … `border-left-color` (CSS Backgrounds 3
+    /// §4.1), one longhand per side; initial `currentcolor`.
+    pub border_color: Sides<Option<Value<TuiColor>>>,
     /// `background-image` (CSS Backgrounds 3 §3.3), one entry per
     /// layer, each `none`, `url("…")` or a gradient as CSS text. Inert:
     /// rdom draws no images (DIVERGENCES §1).
@@ -163,6 +174,9 @@ pub struct TuiStyle {
     /// `flex-basis`, set by the `flex` shorthand (CSS Flexbox §7.2).
     pub flex_basis: Option<Value<crate::layout::FlexBasis>>,
     pub border: Option<Value<Border>>,
+    /// `border-top-width` … `border-left-width` (CSS Backgrounds 3
+    /// §4.3), one longhand per side; initial `medium`.
+    pub border_width: Sides<Option<Value<crate::layout::BorderWidth>>>,
     /// `border-collapse: separate | collapse`. CSS-faithful name but
     /// rdom extends the property's scope from `<table>` only to any
     /// flex container. See `crate::layout::BorderCollapse` for the
@@ -362,9 +376,18 @@ impl TuiStyle {
         if self.bg.is_some() {
             n += 1
         }
-        if self.border_fg.is_some() {
-            n += 1
-        }
+        n += self
+            .border_color
+            .each()
+            .iter()
+            .filter(|c| c.is_some())
+            .count();
+        n += self
+            .border_width
+            .each()
+            .iter()
+            .filter(|w| w.is_some())
+            .count();
         n += [
             self.background_image.is_some(),
             self.background_position.is_some(),
