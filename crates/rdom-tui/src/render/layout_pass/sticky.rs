@@ -94,15 +94,7 @@ fn place_one(dom: &mut Dom<TuiExt>, id: NodeId) {
     // Insets resolve like CSS Position 3 §3.4: percentages / `calc()`
     // against the scrollport's size on that axis; `auto` means "no
     // constraint on this edge".
-    let inset = |len: &Length, basis: u16| -> Option<i32> {
-        match len {
-            Length::Auto => None,
-            Length::Cells(n) => Some(*n),
-            Length::Calc(expr) => {
-                Some(expr.resolve(&rdom_style::calc::ResolveCtx::new(i32::from(basis))))
-            }
-        }
-    };
+    let inset = |len: &Length, basis: u16| len.cells(i32::from(basis));
     let top_inset = inset(&computed.top, scrollport_rect.height);
     let bottom_inset = inset(&computed.bottom, scrollport_rect.height);
     let left_inset = inset(&computed.left, scrollport_rect.width);

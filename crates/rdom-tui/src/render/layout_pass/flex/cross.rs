@@ -200,19 +200,12 @@ fn resolve_cross_size(
         Direction::Row => Direction::Column,
         Direction::Column => Direction::Row,
     };
-    let natural = match cross_size {
-        Size::Fixed(n) => *n,
-        Size::Flex(_) => container_cross,
-        Size::Percent(p) => {
-            // Cross-axis percent resolves against the container's
-            // cross-axis dimension.
-            Size::percent_of(container_cross as i32, *p).clamp(0, u16::MAX as i32) as u16
-        }
-        Size::Calc(expr) => {
-            let v = expr.resolve(&rdom_style::calc::ResolveCtx::new(container_cross as i32));
-            v.max(0).min(u16::MAX as i32) as u16
-        }
-        Size::Auto => {
+    // A cross-axis percentage or `calc()` resolves against the
+    // container's cross-axis dimension.
+    let natural = match (cross_size, cross_size.cells_u16(container_cross as i32)) {
+        (_, Some(cells)) => cells,
+        (Size::Flex(_), _) => container_cross,
+        _ => {
             if let Some(cross) = computed
                 .aspect_ratio
                 .filter(|_| !main_was_auto && main_size > 0)

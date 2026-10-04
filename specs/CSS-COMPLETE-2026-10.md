@@ -633,3 +633,11 @@ row comes from.
   `CustomValue`), `CalcExpr::None` → `NoBound`. `var.rs` (639 lines) split into `var/{mod,pending,
   resolve,tests}.rs`. All unreleased: CHANGELOG bullets rewritten to the final names. Red: the new
   test did not compile (no error type); green: each failure kind reported.
+- 2026-10-05 — C2G-CELLS-CONVERSIONS: `Size::cells` / `cells_u16` and `Length::cells` (rdom-style
+  `layout/sizing.rs`) replace the size-to-cells matches in `flex/main_axis.rs` (natural size, auto-min
+  cap), `flex/cross.rs`, `block/width.rs` (`resolve_size_to_cells` deleted), `block/height.rs` (a fifth
+  copy, found) and `positioning.rs::resolve_size_axis`, and the inset matches in `positioning.rs`
+  (`length_to_cells` / `length_to_cells_opt` deleted, `resolve_length_offset`) and `sticky.rs`.
+  `calc::round_half_to_even` (public since 0.5.0) is gone for `f64::round_ties_even` — Breaking,
+  CHANGELOG hint. No behaviour change: the layout and calc suites pass unchanged; new unit test of the
+  conversions.

@@ -293,11 +293,7 @@ pub(super) fn apply_relative_shift(
 /// `right` insets which point inward from the opposite edge).
 /// Returns `None` for `Length::Auto`.
 fn resolve_length_offset(len: &Length, basis: i32, negate: bool) -> Option<i32> {
-    let cells = match len {
-        Length::Auto => return None,
-        Length::Cells(n) => *n,
-        Length::Calc(expr) => expr.resolve(&rdom_style::calc::ResolveCtx::new(basis)),
-    };
+    let cells = len.cells(basis)?;
     Some(if negate {
         cells.saturating_neg()
     } else {
@@ -411,14 +407,14 @@ fn compute_placed_rect(
     // containing block's start stands in then.
     let static_pos = dom.node(id).ext().and_then(|e| e.static_position);
 
-    let x = if length_to_cells_opt(&c.left, basis_w).is_some()
-        && length_to_cells_opt(&c.right, basis_w).is_some()
+    let x = if c.left.cells(basis_w).is_some()
+        && c.right.cells(basis_w).is_some()
         && matches!(cx_left, MarginValue::Auto)
         && matches!(cx_right, MarginValue::Auto)
     {
         // Center horizontally between left + right insets.
-        let left = length_to_cells_opt(&c.left, basis_w).unwrap_or(0);
-        let right = length_to_cells_opt(&c.right, basis_w).unwrap_or(0);
+        let left = c.left.cells(basis_w).unwrap_or(0);
+        let right = c.right.cells(basis_w).unwrap_or(0);
         let span = basis_w.saturating_sub(left + right);
         let extra = span.saturating_sub(width as i32).max(0);
         cb.x + left + extra / 2
@@ -434,13 +430,13 @@ fn compute_placed_rect(
         };
         base + start_margin
     };
-    let y = if length_to_cells_opt(&c.top, basis_h).is_some()
-        && length_to_cells_opt(&c.bottom, basis_h).is_some()
+    let y = if c.top.cells(basis_h).is_some()
+        && c.bottom.cells(basis_h).is_some()
         && matches!(cy_top, MarginValue::Auto)
         && matches!(cy_bottom, MarginValue::Auto)
     {
-        let top = length_to_cells_opt(&c.top, basis_h).unwrap_or(0);
-        let bottom = length_to_cells_opt(&c.bottom, basis_h).unwrap_or(0);
+        let top = c.top.cells(basis_h).unwrap_or(0);
+        let bottom = c.bottom.cells(basis_h).unwrap_or(0);
         let span = basis_h.saturating_sub(top + bottom);
         let extra = span.saturating_sub(height as i32).max(0);
         cb.y + top + extra / 2
@@ -471,17 +467,12 @@ fn resolve_size_axis(
     edges_basis: u16,
     shrink_to_fit: impl FnOnce() -> u16,
 ) -> u16 {
-    match size {
-        Size::Fixed(n) => *n,
-        Size::Flex(_) => cb_extent,
-        Size::Percent(p) => Size::percent_of(cb_extent as i32, *p).clamp(0, u16::MAX as i32) as u16,
-        Size::Calc(expr) => {
-            let v = expr.resolve(&rdom_style::calc::ResolveCtx::new(cb_extent as i32));
-            v.max(0).min(u16::MAX as i32) as u16
-        }
-        Size::Auto => {
-            let both_edges = length_to_cells_opt(start, edges_basis as i32).is_some()
-                && length_to_cells_opt(end, edges_basis as i32).is_some();
+    match (size, size.cells_u16(cb_extent as i32)) {
+        (_, Some(cells)) => cells,
+        (Size::Flex(_), _) => cb_extent,
+        _ => {
+            let both_edges = start.cells(edges_basis as i32).is_some()
+                && end.cells(edges_basis as i32).is_some();
             if both_edges {
                 axis_size_from_edges(start, end, edges_basis, 0)
             } else {
@@ -489,14 +480,6 @@ fn resolve_size_axis(
             }
         }
     }
-}
-
-/// Resolve a `Length` to `Option<i32>` cells. Wrapper used by
-/// the per-axis branches above; `length_to_cells` (in the
-/// `Length` resolver section) is a private helper from the same
-/// module.
-fn length_to_cells_opt(len: &Length, basis: i32) -> Option<i32> {
-    length_to_cells(len, basis)
 }
 
 // ── Shared offset resolvers (consumed by absolute/fixed element
@@ -517,26 +500,14 @@ pub(super) fn axis_size_from_edges(
     // → Some(cells). When both are Some, derive size from the
     // extent minus both insets.
     let basis = cb_extent as i32;
-    let s = length_to_cells(start, basis);
-    let e = length_to_cells(end, basis);
+    let s = start.cells(basis);
+    let e = end.cells(basis);
     match (s, e) {
         (Some(s), Some(e)) => {
             let span = s.saturating_add(e);
             (basis.saturating_sub(span)).max(0) as u16
         }
         _ => fallback,
-    }
-}
-
-/// Resolve a `Length` to a signed integer cell count given the
-/// percent basis (parent's axis extent). Returns `None` for
-/// `Length::Auto`. Shared helper for the offset/size resolvers
-/// in this module.
-fn length_to_cells(len: &Length, basis: i32) -> Option<i32> {
-    match len {
-        Length::Auto => None,
-        Length::Cells(n) => Some(*n),
-        Length::Calc(expr) => Some(expr.resolve(&rdom_style::calc::ResolveCtx::new(basis))),
     }
 }
 
@@ -558,8 +529,8 @@ pub(super) fn axis_position_anchored(
     size: u16,
 ) -> i32 {
     let basis = cb_extent as i32;
-    let s = length_to_cells(start, basis);
-    let e = length_to_cells(end, basis);
+    let s = start.cells(basis);
+    let e = end.cells(basis);
     match (s, e) {
         (Some(s), _) => cb_start.saturating_add(s),
         (None, Some(e)) => cb_start
@@ -590,8 +561,8 @@ pub(super) fn axis_position_relative_shift(
     anchor: i32,
     basis: i32,
 ) -> i32 {
-    let s = length_to_cells(start, basis);
-    let e = length_to_cells(end, basis);
+    let s = start.cells(basis);
+    let e = end.cells(basis);
     match (s, e) {
         (Some(s), _) => anchor.saturating_add(s),
         (None, Some(e)) => anchor.saturating_sub(e),

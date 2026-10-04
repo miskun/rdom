@@ -75,10 +75,11 @@ fn contains_percent_walks_subtree() {
 #[test]
 fn half_to_even_rounding() {
     // 0.5 → 0, 1.5 → 2, 2.5 → 2, 3.5 → 4 (banker's rounding)
-    assert_eq!(round_half_to_even(0.5), 0);
-    assert_eq!(round_half_to_even(1.5), 2);
-    assert_eq!(round_half_to_even(2.5), 2);
-    assert_eq!(round_half_to_even(3.5), 4);
+    assert_eq!(to_cells(0.5), 0);
+    assert_eq!(to_cells(1.5), 2);
+    assert_eq!(to_cells(2.5), 2);
+    assert_eq!(to_cells(3.5), 4);
+    assert_eq!(to_cells(-2.5), -2);
 }
 
 // ── C2-STEPPED ───────────────────────────────────────────────────────

@@ -43,7 +43,27 @@ impl Size {
     /// even, the same rule `calc()` uses). The single place a
     /// percentage becomes cells, so `12.5%` of 80 is 10 everywhere.
     pub fn percent_of(basis: i32, p: f32) -> i32 {
-        crate::calc::round_half_to_even(f64::from(basis) * f64::from(p) / 100.0)
+        (f64::from(basis) * f64::from(p) / 100.0).round_ties_even() as i32
+    }
+
+    /// This size in cells, a percentage or `calc()` resolved against
+    /// `basis` (the containing block's extent on this axis); `None` for
+    /// `auto` and a flex weight, which the caller sizes. Unclamped: a
+    /// `calc()` can be negative.
+    pub fn cells(&self, basis: i32) -> Option<i32> {
+        match self {
+            Size::Fixed(n) => Some(i32::from(*n)),
+            Size::Percent(p) => Some(Size::percent_of(basis, *p)),
+            Size::Calc(expr) => Some(expr.resolve(&crate::calc::ResolveCtx::new(basis))),
+            Size::Flex(_) | Size::Auto => None,
+        }
+    }
+
+    /// [`cells`](Self::cells) clamped to a box's extent, `0..=u16::MAX`
+    /// (a negative size is 0).
+    pub fn cells_u16(&self, basis: i32) -> Option<u16> {
+        self.cells(basis)
+            .map(|v| v.clamp(0, i32::from(u16::MAX)) as u16)
     }
 
     /// Resolve `Calc` to `Fixed`, leaving other variants unchanged.
@@ -328,11 +348,50 @@ pub enum Length {
 }
 
 impl Length {
+    /// This length in cells, a `calc()` resolved against `basis` (the
+    /// containing block's extent on this axis); `None` for `auto`.
+    pub fn cells(&self, basis: i32) -> Option<i32> {
+        match self {
+            Length::Auto => None,
+            Length::Cells(n) => Some(*n),
+            Length::Calc(expr) => Some(expr.resolve(&crate::calc::ResolveCtx::new(basis))),
+        }
+    }
+
     /// Resolve `Calc` to `Cells`, leaving other variants unchanged.
     pub fn resolve_calc(self, basis: i32) -> Length {
         match self {
             Length::Calc(expr) => Length::Cells(expr.resolve(&crate::calc::ResolveCtx::new(basis))),
             other => other,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::calc::{CalcExpr, CalcOp};
+
+    fn calc(lhs: CalcExpr, rhs: CalcExpr) -> Box<CalcExpr> {
+        Box::new(CalcExpr::binary(CalcOp::Sub, lhs, rhs))
+    }
+
+    /// `C2G-CELLS-CONVERSIONS`: the one conversion of a size or an
+    /// inset to cells — percentages through `Size::percent_of`, `calc()`
+    /// against the same basis, `auto` (and a flex weight) left to the
+    /// caller.
+    #[test]
+    fn sizes_and_lengths_to_cells() {
+        assert_eq!(Size::Fixed(7).cells(80), Some(7));
+        assert_eq!(Size::Percent(12.5).cells(80), Some(10));
+        let minus = calc(CalcExpr::Percent(50.0), CalcExpr::Number(50.0));
+        assert_eq!(Size::Calc(minus.clone()).cells(80), Some(-10));
+        assert_eq!(Size::Calc(minus.clone()).cells_u16(80), Some(0));
+        assert_eq!(Size::Percent(200.0).cells_u16(40_000), Some(u16::MAX));
+        assert_eq!(Size::Auto.cells(80), None);
+        assert_eq!(Size::Flex(1.0).cells(80), None);
+        assert_eq!(Length::Cells(-3).cells(80), Some(-3));
+        assert_eq!(Length::Calc(minus).cells(80), Some(-10));
+        assert_eq!(Length::Auto.cells(80), None);
     }
 }

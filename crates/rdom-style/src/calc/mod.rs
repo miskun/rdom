@@ -209,20 +209,7 @@ pub fn to_cells(v: f64) -> i32 {
         0
     } else {
         let max = f64::from(i32::MAX);
-        round_half_to_even(v.clamp(-max, max))
-    }
-}
-
-/// Round half-to-even (banker's rounding) for the final calc()
-/// result. Matches CSS rounding when integer-quantised.
-pub fn round_half_to_even(v: f64) -> i32 {
-    let f = v.round();
-    if (v - v.floor() - 0.5).abs() < f64::EPSILON {
-        // Exactly halfway — pick the even neighbor.
-        let floor = v.floor() as i32;
-        if floor % 2 == 0 { floor } else { floor + 1 }
-    } else {
-        f as i32
+        v.clamp(-max, max).round_ties_even() as i32
     }
 }
 

@@ -37,61 +37,33 @@ pub(super) fn resolve_block_height(
     // Same rule applies to `Calc` expressions with percent terms.
     let parent_height_definite = nearest_block_ancestor_height_is_definite(dom, id);
 
-    let raw = match &computed.height {
-        Size::Auto | Size::Flex(_) => {
-            // Intrinsic content height — walk the child's subtree.
-            // Block items aren't "flex items" in this pass; Flex
-            // here means the shorthand was used in a non-flex
-            // context, treated as Auto.
-            //
-            // cross_budget passed to intrinsic_size = the WIDTH
-            // descendants will be laid out into (Direction::Column
-            // queries height; cross axis is row/width). That's the
-            // child's own resolved width — text wraps to it.
-            intrinsic_size(
-                dom,
-                id,
-                Direction::Column,
-                resolved_width,
-                containing_block_width,
-            )
+    // A `Fixed` height is definite; a percentage or a `calc()` (which
+    // may hold one) is only when the parent's height is — otherwise it
+    // falls through to intrinsic, as `auto`. A `calc()` without a
+    // percentage would resolve without the basis, but treating every
+    // `calc()` alike never hurts. `Flex` here means the shorthand was
+    // used in a non-flex context: `auto`.
+    let definite = match &computed.height {
+        Size::Fixed(n) => Some(*n),
+        Size::Percent(_) | Size::Calc(_) if parent_height_definite => {
+            computed.height.cells_u16(container_height as i32)
         }
-        Size::Fixed(n) => *n,
-        Size::Percent(p) => {
-            if parent_height_definite {
-                Size::percent_of(container_height as i32, *p).clamp(0, u16::MAX as i32) as u16
-            } else {
-                // Fall through to intrinsic — same as Auto.
-                intrinsic_size(
-                    dom,
-                    id,
-                    Direction::Column,
-                    resolved_width,
-                    containing_block_width,
-                )
-            }
-        }
-        Size::Calc(expr) => {
-            // Calc with percent terms needs a definite basis too.
-            // For simplicity, treat all Calc the same as Percent:
-            // definite parent → resolve; indefinite → fall back to
-            // intrinsic. Calc without percent terms still resolves
-            // correctly (the basis isn't used) so the fallback path
-            // never hurts.
-            if parent_height_definite {
-                let v = expr.resolve(&rdom_style::calc::ResolveCtx::new(container_height as i32));
-                v.max(0).min(u16::MAX as i32) as u16
-            } else {
-                intrinsic_size(
-                    dom,
-                    id,
-                    Direction::Column,
-                    resolved_width,
-                    containing_block_width,
-                )
-            }
-        }
+        _ => None,
     };
+    // Otherwise the intrinsic content height — a walk of the child's
+    // subtree. The cross budget passed to `intrinsic_size` is the WIDTH
+    // descendants are laid out into (`Direction::Column` queries height;
+    // the cross axis is the row): the child's own resolved width, which
+    // text wraps to.
+    let raw = definite.unwrap_or_else(|| {
+        intrinsic_size(
+            dom,
+            id,
+            Direction::Column,
+            resolved_width,
+            containing_block_width,
+        )
+    });
 
     // Clamp by min-height / max-height. Min:auto on block elements
     // resolves to 0 per CSS 2.1 (block boxes have no content-min

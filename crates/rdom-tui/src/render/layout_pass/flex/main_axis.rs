@@ -137,26 +137,14 @@ pub(super) fn collect_main_axis_items(
             auto_main_count += 1;
         }
 
-        let natural = match &main_size {
-            Size::Fixed(n) => MainNatural::Fixed(*n),
-            Size::Flex(w) => MainNatural::Flex(*w),
-            Size::Percent(p) => {
-                // Percent resolves against the parent's main-axis
-                // content area at layout time. Treated as a fixed
-                // cell value once resolved — does NOT participate
-                // in flex weight distribution.
-                let resolved =
-                    Size::percent_of(main_budget as i32, *p).clamp(0, u16::MAX as i32) as u16;
-                MainNatural::Fixed(resolved)
-            }
-            Size::Calc(expr) => {
-                // Calc resolves against the same axis basis as
-                // Percent — parent's main-axis content dimension.
-                let v = expr.resolve(&rdom_style::calc::ResolveCtx::new(main_budget as i32));
-                let resolved = v.max(0).min(u16::MAX as i32) as u16;
-                MainNatural::Fixed(resolved)
-            }
-            Size::Auto => {
+        // A percentage or `calc()` resolves against the parent's
+        // main-axis content area at layout time, and is a fixed cell
+        // value once resolved — it does NOT take part in flex weight
+        // distribution.
+        let natural = match (&main_size, main_size.cells_u16(main_budget as i32)) {
+            (Size::Flex(w), _) => MainNatural::Flex(*w),
+            (_, Some(cells)) => MainNatural::Fixed(cells),
+            _ => {
                 // The container's inner width is definite here, so the
                 // item's percent padding / margins resolve against it.
                 let intrinsic = intrinsic_size(dom, child, direction, cross_budget, main_cb_w);
@@ -517,16 +505,8 @@ fn resolve_auto_min(
     }
     // Specified size suggestion per spec.
     let specified_cap: Option<u16> = match main_size {
-        Size::Fixed(n) => Some(*n),
-        Size::Percent(p) => {
-            Some(Size::percent_of(main_budget as i32, *p).clamp(0, u16::MAX as i32) as u16)
-        }
-        Size::Calc(expr) => {
-            let v = expr.resolve(&rdom_style::calc::ResolveCtx::new(main_budget as i32));
-            Some(v.max(0).min(u16::MAX as i32) as u16)
-        }
         Size::Flex(_) => Some(0),
-        Size::Auto => None,
+        definite => definite.cells_u16(main_budget as i32),
     };
     // `flex: N` (basis 0%) trivially has specified=0, so auto-min
     // = min(content, 0) = 0. Skip the content walk.

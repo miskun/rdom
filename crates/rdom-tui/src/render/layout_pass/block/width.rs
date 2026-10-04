@@ -3,7 +3,7 @@
 //! with auto absorption, min / max clamping, and the content width a
 //! block's children resolve percentages against.
 
-use crate::layout::{LayoutRect, MarginValue, Size, compute_content_area_collapsed};
+use crate::layout::{LayoutRect, MarginValue, compute_content_area_collapsed};
 use crate::style::ComputedStyle;
 
 /// Result of CSS 2.1 §10.3.3 width resolution for a single block
@@ -52,7 +52,11 @@ pub(super) fn resolve_block_width(
     // Resolve the declared width to a concrete cell count when
     // possible. `Auto` stays "needs computation" — we drive it
     // from the leftover after margins.
-    let declared_width: Option<i32> = resolve_size_to_cells(width_decl, cb);
+    // `Flex` in block context is treated as `Auto` (`Size::cells`): flex
+    // factors only mean something inside a flex container, and a block
+    // child of one resolves its size from `flex-basis` (0% for the
+    // `flex: <N>` shorthand).
+    let declared_width: Option<i32> = width_decl.cells(cb);
 
     let ml_auto = matches!(ml_decl, MarginValue::Auto);
     let mr_auto = matches!(mr_decl, MarginValue::Auto);
@@ -125,24 +129,6 @@ pub(super) fn resolve_block_width(
     ResolvedWidth {
         margin_left: ml_clamped.clamp(i16::MIN as i32, i16::MAX as i32) as i16,
         width: clamped_width.max(0).min(u16::MAX as i32) as u16,
-    }
-}
-
-/// Resolve a `Size` to a definite cell count when possible. Returns
-/// `None` for `Size::Auto` (caller chooses the fallback). `Flex`
-/// in block context is treated as `Auto` — flex factors only mean
-/// something inside a flex container, and the spec says block-level
-/// flex children resolve their main size from `flex-basis` (which
-/// for the `flex: <N>` shorthand is 0%).
-fn resolve_size_to_cells(size: &Size, basis: i32) -> Option<i32> {
-    match size {
-        Size::Auto | Size::Flex(_) => None,
-        Size::Fixed(n) => Some(*n as i32),
-        Size::Percent(p) => Some(Size::percent_of(basis, *p)),
-        Size::Calc(expr) => {
-            let v = expr.resolve(&rdom_style::calc::ResolveCtx::new(basis));
-            Some(v)
-        }
     }
 }
 
