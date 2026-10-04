@@ -244,3 +244,49 @@ fn prelude_less_scope_roots_at_the_owner_nodes_parent() {
     assert_eq!(fg(&t, t.a), RED);
     assert_eq!(fg(&t, t.out), RED);
 }
+
+/// `C1G-SCOPE-COST` — CSS Cascade 6 §2.5: whether an element is in a
+/// scope depends on its scoping roots and the limits between them and
+/// it, which are the same for every rule of the scope and extend its
+/// parent's. Per cascade pass, each element is tested once per scope as
+/// a root and once per (root above it) as a limit, then once per
+/// candidate rule and root: linear in the depth, not quadratic. A
+/// 40-deep chain under one root, a limit halfway and a nested
+/// `@scope`, with three scoped rules, stays within a few matches per
+/// element — and the proximities and limits still come out right.
+#[test]
+fn scope_matching_is_bounded_per_pass() {
+    use super::scope::probe;
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let top = el(&mut dom, root, "div", &[("class", "root")]);
+    let mut chain = vec![top];
+    for i in 0..40 {
+        let class = if i == 20 { "limit" } else { "x" };
+        let parent = *chain.last().unwrap();
+        chain.push(el(&mut dom, parent, "div", &[("class", class)]));
+    }
+    let css = "@scope (.root) to (.limit) { \
+           div { background-color: red } .x { width: 3 } :scope div { border-color: red } \
+           @scope (.x) { div { padding: 1 } } \
+         }";
+    let parsed = rdom_css::parse(css);
+    assert!(parsed.warnings.is_empty(), "{:?}", parsed.warnings);
+    probe::take();
+    dom.cascade(&parsed.stylesheet);
+    let matches = probe::take();
+    let elements = chain.len();
+    assert!(
+        matches <= 12 * elements,
+        "{matches} scoping matches for {elements} elements"
+    );
+    // In scope above the limit; the limit and what is below it are out
+    // of scope (`background-color` does not inherit).
+    assert_eq!(computed_of(&dom, chain[10]).bg, RED);
+    assert_ne!(computed_of(&dom, chain[21]).bg, RED);
+    assert_ne!(computed_of(&dom, chain[30]).bg, RED);
+    // The nested scope's nearest `.x` root is the parent.
+    let padded = computed_of(&dom, chain[5]);
+    let plain = computed_of(&dom, chain[0]);
+    assert_ne!(padded.padding, plain.padding);
+}

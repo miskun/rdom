@@ -15,7 +15,7 @@ use rdom_core::{Dom, NodeId};
 
 use super::ladder::Plan;
 use super::registered::PropertyRegistry;
-use super::scope::match_rule;
+use super::scope::{ScopeMemo, SheetRef, match_rule};
 use super::sheets::Sheets;
 use crate::ext::TuiExt;
 use crate::style::{PseudoElementTarget, Rule};
@@ -27,6 +27,8 @@ use crate::style::{PseudoElementTarget, Rule};
 #[derive(Default)]
 pub(super) struct Scratch<'a> {
     candidates: Vec<u32>,
+    /// `@scope` roots learned this pass.
+    scopes: ScopeMemo,
     matching: Vec<Matched<'a>>,
     pub(super) sorted: Vec<&'a Rule>,
     pub(super) ranks: Vec<u32>,
@@ -233,7 +235,16 @@ impl<'a> Scratch<'a> {
             for &ri in &self.candidates {
                 let rule = &sheet.rules()[ri as usize];
                 if let Some(target) = targets.iter().position(|t| *t == rule.pseudo)
-                    && let Some(proximity) = match_rule(dom, id, sheet, rule)
+                    && let Some(proximity) = match_rule(
+                        dom,
+                        id,
+                        SheetRef {
+                            index: sheet_idx,
+                            sheet,
+                        },
+                        rule,
+                        &mut self.scopes,
+                    )
                 {
                     self.matching.push(Matched {
                         target,

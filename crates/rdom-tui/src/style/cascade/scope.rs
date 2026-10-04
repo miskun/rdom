@@ -11,6 +11,9 @@
 //! specificity and before order of appearance, nearer winning; an
 //! unscoped rule is infinitely far ([`UNSCOPED`]).
 
+use std::collections::HashMap;
+use std::rc::Rc;
+
 use rdom_core::{Dom, NodeId, NodeType};
 
 use crate::ext::TuiExt;
@@ -20,68 +23,119 @@ use rdom_style::ScopeId;
 /// The proximity of an unscoped rule: farther than any scoped one.
 pub(super) const UNSCOPED: u32 = u32::MAX;
 
+/// A node's scoping roots for one scope, nearest first, with the
+/// generations up to each: the roots that have the node in scope.
+type Roots = Rc<[(NodeId, u32)]>;
+
+/// What scoping learned in one cascade pass, so each answer is computed
+/// once (`C1G-SCOPE-COST`): per (sheet, scope, node), whether the node
+/// is a scoping root and which roots have it in scope. A node's roots
+/// extend its parent's — the parent's roots it is not a limit for, one
+/// generation farther, and itself when it is a root — so the work is
+/// one root test per node and one limit test per (node, root above it).
+#[derive(Default)]
+pub(super) struct ScopeMemo {
+    roots: HashMap<(usize, ScopeId, NodeId), Roots>,
+    is_root: HashMap<(usize, ScopeId, NodeId), bool>,
+}
+
+/// One sheet of the pass, by index (the memo key) and reference.
+#[derive(Clone, Copy)]
+pub(super) struct SheetRef<'s> {
+    pub index: usize,
+    pub sheet: &'s Stylesheet,
+}
+
 /// Whether `rule` (of `sheet`) matches `id`, and with which scope
-/// proximity.
+/// proximity: the generations to the nearest root that has `id` in
+/// scope and with which, as `:scope`, the rule's selector matches.
 pub(super) fn match_rule(
     dom: &Dom<TuiExt>,
     id: NodeId,
-    sheet: &Stylesheet,
+    sheet: SheetRef<'_>,
     rule: &Rule,
+    memo: &mut ScopeMemo,
 ) -> Option<u32> {
     match rule.scope {
         None => dom.matches_list(id, &rule.selector).then_some(UNSCOPED),
-        Some(scope) => nearest_root(dom, id, sheet, scope, &|root| {
-            dom.matches_list_in_scope(id, &rule.selector, Some(root))
-        }),
+        Some(scope) => roots_of(dom, id, sheet, scope, memo)
+            .iter()
+            .find(|(root, _)| counted(dom.matches_list_in_scope(id, &rule.selector, Some(*root))))
+            .map(|(_, hops)| *hops),
     }
 }
 
-/// Generations from `id` up to the nearest root of `scope` that has
-/// `id` in scope and satisfies `matches`.
-fn nearest_root(
+/// The roots of `scope` that have `node` in scope, nearest first: an
+/// inclusive ancestor that is a root, with no scoping limit on the path
+/// from `node` up to (not including) it.
+fn roots_of(
     dom: &Dom<TuiExt>,
-    id: NodeId,
-    sheet: &Stylesheet,
+    node: NodeId,
+    sheet: SheetRef<'_>,
     scope: ScopeId,
-    matches: &dyn Fn(NodeId) -> bool,
-) -> Option<u32> {
-    let mut hops = 0;
-    let mut cur = Some(id);
-    while let Some(root) = cur {
-        if is_root(dom, root, sheet, scope)
-            && in_scope(dom, id, root, sheet, scope)
-            && matches(root)
-        {
-            return Some(hops);
-        }
-        cur = dom.node(root).parent_node().map(|p| p.id());
-        hops += 1;
+    memo: &mut ScopeMemo,
+) -> Roots {
+    let key = (sheet.index, scope, node);
+    if let Some(roots) = memo.roots.get(&key) {
+        return roots.clone();
     }
-    None
+    let above = match dom.node(node).parent_node().map(|p| p.id()) {
+        Some(parent) => roots_of(dom, parent, sheet, scope, memo),
+        None => Rc::from([]),
+    };
+    let mut roots = Vec::with_capacity(above.len() + 1);
+    if is_root(dom, node, sheet, scope, memo) {
+        roots.push((node, 0));
+    }
+    let end = sheet.sheet.scopes()[scope.index()].end.as_ref();
+    for &(root, hops) in above.iter() {
+        // `node` is a scoping limit for `root`: out of its scope.
+        let limit =
+            end.is_some_and(|end| counted(dom.matches_list_in_scope(node, end, Some(root))));
+        if !limit {
+            roots.push((root, hops + 1));
+        }
+    }
+    let roots: Roots = roots.into();
+    memo.roots.insert(key, roots.clone());
+    roots
 }
 
 /// Is `node` a scoping root of `scope`?
-fn is_root(dom: &Dom<TuiExt>, node: NodeId, sheet: &Stylesheet, scope: ScopeId) -> bool {
-    let s = &sheet.scopes()[scope.index()];
-    // A nested `@scope`'s root must be in a scope of the enclosing one.
-    let in_outer = |matches: &dyn Fn(NodeId) -> bool| match s.parent {
-        None => true,
-        Some(outer) => nearest_root(dom, node, sheet, outer, matches).is_some(),
-    };
-    match &s.start {
+fn is_root(
+    dom: &Dom<TuiExt>,
+    node: NodeId,
+    sheet: SheetRef<'_>,
+    scope: ScopeId,
+    memo: &mut ScopeMemo,
+) -> bool {
+    let key = (sheet.index, scope, node);
+    if let Some(&known) = memo.is_root.get(&key) {
+        return known;
+    }
+    let s = &sheet.sheet.scopes()[scope.index()];
+    let root = match &s.start {
         // Prelude-less: the parent element of the sheet's owner node,
-        // or the document root for a sheet with none (§2.5.1).
-        None => node == implicit_root(dom, s.owner_in(sheet)) && in_outer(&|_| true),
+        // or the document root for a sheet with none (§2.5.1); a nested
+        // one's root must be in a scope of the enclosing one.
+        None => {
+            node == implicit_root(dom, s.owner_in(sheet.sheet))
+                && s.parent
+                    .is_none_or(|outer| !roots_of(dom, node, sheet, outer, memo).is_empty())
+        }
         Some(start) => {
             dom.node(node).node_type() == NodeType::Element
                 && match s.parent {
-                    None => dom.matches_list(node, start),
-                    Some(_) => {
-                        in_outer(&|outer| dom.matches_list_in_scope(node, start, Some(outer)))
-                    }
+                    None => counted(dom.matches_list(node, start)),
+                    // Matched with each enclosing root as `:scope`.
+                    Some(outer) => roots_of(dom, node, sheet, outer, memo)
+                        .iter()
+                        .any(|(r, _)| counted(dom.matches_list_in_scope(node, start, Some(*r)))),
                 }
         }
-    }
+    };
+    memo.is_root.insert(key, root);
+    root
 }
 
 fn implicit_root(dom: &Dom<TuiExt>, owner: Option<NodeId>) -> NodeId {
@@ -91,27 +145,21 @@ fn implicit_root(dom: &Dom<TuiExt>, owner: Option<NodeId>) -> NodeId {
         .unwrap_or_else(|| dom.root())
 }
 
-/// Is `id` in scope of `root` — no scoping limit on the path from `id`
-/// up to (not including) `root`?
-fn in_scope(
-    dom: &Dom<TuiExt>,
-    id: NodeId,
-    root: NodeId,
-    sheet: &Stylesheet,
-    scope: ScopeId,
-) -> bool {
-    let Some(end) = &sheet.scopes()[scope.index()].end else {
-        return true;
-    };
-    let mut cur = id;
-    while cur != root {
-        if dom.matches_list_in_scope(cur, end, Some(root)) {
-            return false;
-        }
-        match dom.node(cur).parent_node() {
-            Some(p) => cur = p.id(),
-            None => return false,
-        }
+/// Count one selector match made for scoping (test-only work counter).
+fn counted(matched: bool) -> bool {
+    #[cfg(test)]
+    probe::MATCHES.with(|c| c.set(c.get() + 1));
+    matched
+}
+
+/// Test-only: how many selector matches scoping made on this thread.
+#[cfg(test)]
+pub(super) mod probe {
+    thread_local! {
+        pub static MATCHES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
     }
-    true
+
+    pub fn take() -> usize {
+        MATCHES.with(|c| c.replace(0))
+    }
 }

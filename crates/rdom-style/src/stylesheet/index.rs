@@ -20,37 +20,31 @@ pub struct RuleIndex {
 
 impl RuleIndex {
     pub(super) fn build(rules: &[Rule]) -> Self {
-        use rdom_core::selectors::SimpleSelector;
         let mut index = RuleIndex::default();
         for (i, rule) in rules.iter().enumerate() {
             let i = i as u32;
-            let simples = rule
+            let keys = rule
                 .selector
                 .0
                 .first()
-                .map(|c| c.subject.simples.as_slice())
-                .unwrap_or(&[]);
-            let id = simples.iter().find_map(|s| match s {
-                SimpleSelector::Id(id) => Some(id),
-                _ => None,
-            });
-            let class = simples.iter().find_map(|s| match s {
-                SimpleSelector::Class(c) => Some(c),
-                _ => None,
-            });
-            let tag = simples.iter().find_map(|s| match s {
-                SimpleSelector::Type(t) => Some(t),
-                _ => None,
-            });
-            if let Some(id) = id {
-                index.by_id.entry(id.clone()).or_default().push(i);
-            } else if let Some(class) = class {
-                index.by_class.entry(class.clone()).or_default().push(i);
-            } else if let Some(tag) = tag {
-                // Exact case, like the matcher (`Type(t)` compares `tag != t`).
-                index.by_tag.entry(tag.clone()).or_default().push(i);
-            } else {
-                index.universal.push(i);
+                .and_then(|c| compound_keys(&c.subject.simples));
+            match keys {
+                Some(keys) => {
+                    for key in keys {
+                        let (map, name) = match key {
+                            Key::Id(id) => (&mut index.by_id, id),
+                            Key::Class(class) => (&mut index.by_class, class),
+                            // Exact case, like the matcher (`Type(t)`
+                            // compares `tag != t`).
+                            Key::Tag(tag) => (&mut index.by_tag, tag),
+                        };
+                        let bucket = map.entry(name.to_string()).or_default();
+                        if bucket.last() != Some(&i) {
+                            bucket.push(i);
+                        }
+                    }
+                }
+                None => index.universal.push(i),
             }
         }
         index
@@ -87,4 +81,53 @@ impl RuleIndex {
         out.sort_unstable();
         out.dedup();
     }
+}
+
+/// One bucket a rule is filed under.
+enum Key<'s> {
+    Id(&'s str),
+    Class(&'s str),
+    Tag(&'s str),
+}
+
+/// The keys an element must carry one of for a compound to match it:
+/// the compound's own most selective simple selector (an id, else a
+/// class, else a type), or else — when it holds `:is()` — the keys of every
+/// argument's subject (an element matching `:is(.a, .b)` carries `a` or
+/// `b`). `None` when some argument has none: the rule is a candidate
+/// for every element.
+fn compound_keys(simples: &[rdom_core::selectors::SimpleSelector]) -> Option<Vec<Key<'_>>> {
+    use rdom_core::selectors::SimpleSelector;
+    let own = simples
+        .iter()
+        .find_map(|s| match s {
+            SimpleSelector::Id(id) => Some(Key::Id(id)),
+            _ => None,
+        })
+        .or_else(|| {
+            simples.iter().find_map(|s| match s {
+                SimpleSelector::Class(c) => Some(Key::Class(c)),
+                _ => None,
+            })
+        })
+        .or_else(|| {
+            simples.iter().find_map(|s| match s {
+                SimpleSelector::Type(t) => Some(Key::Tag(t)),
+                _ => None,
+            })
+        });
+    if let Some(key) = own {
+        return Some(vec![key]);
+    }
+    // Any `:is()` whose every argument is keyed bounds the compound.
+    simples.iter().find_map(|s| match s {
+        SimpleSelector::Is(list) if !list.0.is_empty() => {
+            let mut keys = Vec::new();
+            for item in &list.0 {
+                keys.extend(compound_keys(&item.subject.simples)?);
+            }
+            Some(keys)
+        }
+        _ => None,
+    })
 }

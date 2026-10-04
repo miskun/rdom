@@ -373,3 +373,10 @@ row comes from.
   Counter tests: a `--theme` transition frame over 7 elements matched 35 boxes before, 0 after; no
   restyle inside the delay. C1G-TRANSITION-PREV's test still holds. `tui_ext_size_tripwire` raised
   432 → 440 (the `matched` pointer).
+- 2026-10-04 — C1G-SCOPE-COST: `scope::ScopeMemo` (in the pass's `matching::Scratch`) memoizes per
+  (sheet, scope, node) whether the node is a scoping root and its in-scope roots, nearest first —
+  built from the parent's (`roots_of`), so a node costs one root test and one limit test per root
+  above it; `match_rule` tries the rule's selector once per root. Counter test (`scope::probe`): 41
+  elements, a limit, a nested `@scope`, three rules — 13 152 matches before, 204 after.
+  `RuleIndex` files a subject keyed only inside `:is()` under each argument's key (`compound_keys`),
+  universal only when an argument has none.

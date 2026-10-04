@@ -196,6 +196,31 @@ fn rule_index_never_drops_a_matching_rule() {
     }));
 }
 
+/// `C1G-SCOPE-COST`: a subject whose only keys are inside `:is()` — a
+/// nested rule under a list parent, `.a, .b { &:hover {} }`, is
+/// `:is(.a, .b):hover` (CSS Nesting 1 §2) — is indexed under each
+/// argument's key, so it is a candidate for elements carrying one of
+/// them and not for every element; one argument without a key keeps
+/// the rule a candidate for all.
+#[test]
+fn is_arguments_key_the_rule_index() {
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(":is(.a, #x, p > b):hover", TuiStyle::new())
+        .rule_unchecked(":is(.a, *):focus", TuiStyle::new());
+    let index = sheet.rule_index();
+    let mut out = Vec::new();
+    let empty = || std::iter::empty::<&str>();
+    index.candidates(Some("span"), None, ["a"].into_iter(), &mut out);
+    assert!(out.contains(&0), "class argument");
+    index.candidates(Some("span"), Some("x"), empty(), &mut out);
+    assert!(out.contains(&0), "id argument");
+    index.candidates(Some("b"), None, empty(), &mut out);
+    assert!(out.contains(&0), "the argument's subject, `b`");
+    index.candidates(Some("span"), None, ["c"].into_iter(), &mut out);
+    assert!(!out.contains(&0), "no argument's key: not a candidate");
+    assert!(out.contains(&1), "an unkeyed argument keeps it universal");
+}
+
 #[test]
 fn bare_has_no_rules() {
     assert_eq!(Stylesheet::bare().rules().len(), 0);
