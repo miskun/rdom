@@ -218,10 +218,10 @@ impl<Ext> Dom<Ext> {
                         return false;
                     }
                 }
-                SimpleSelector::Where(inner) => {
-                    // Matches like `:is()` — any complex selector in the list
-                    // must match this element as its subject. Specificity is
-                    // handled (as zero) by `rdom-style`.
+                SimpleSelector::Is(inner) | SimpleSelector::Where(inner) => {
+                    // `:is()` matching — any complex selector in the list must
+                    // match this element as its subject. Specificity (zero for
+                    // `:where()`) is `ComplexSelector::specificity`'s.
                     if !self.matches_list(id, inner) {
                         return false;
                     }

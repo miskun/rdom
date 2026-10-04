@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added — `rdom-core`
 
 - **Selectors decode CSS escapes** (CSS Syntax 3 §4.3.7). Type, class, id and attribute names and attribute values — quoted or not — decode `\` + 1–6 hex digits (one following whitespace belongs to the escape) and `\` + any other code point: `.\31 0` matches class `10`, `#a\:b` matches id `a:b`, `[title="a\"b"]` matches `a"b`. A `\` before a newline does not continue an identifier. The decoder is the new public module `rdom_core::css_syntax` (`consume_escape`, `consume_ident`, `consume_string`, `would_start_ident`, …), which rdom-style's tokenizer shares. (C1-ESCAPES)
+- **Nested rule selectors** (CSS Nesting 1 §2): `selectors::parse_nested(text, &parent)` parses a nested style rule's selector against its parent rule's list — `&` anywhere (`&.x`, `.x &`, `:not(&)`), a leading combinator (`> p`, `+ p`, `~ p`) anchored at `&`, and an implicit `& ` descendant prefix when the selector has neither; a one-item parent is spliced in place of `&` where that is equivalent. `&` resolves to the new `SimpleSelector::Is(list)`, which matches like `:is()` and counts the specificity of its most specific item; the `:is()` text itself stays C11-IS. `selectors` is now a directory module (`parser.rs`, `nesting.rs`). (C1-NESTING)
 
 ### Fixed — `rdom-core`
 
@@ -26,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`revert`** is accepted for every property (ASCII case-insensitive) and serializes as written. (C1-REVERT)
 - **The `all` shorthand** (CSS Cascade 4 §3.2): `all: initial | inherit | unset | revert` sets every property in the dispatch table — `unset` resolved per property — except `direction`, `unicode-bidi` (when they land) and custom properties; `!important` covers every property, `removeProperty("all")` clears them, any other value is invalid. It is derived from `PROPERTY_NAMES`, so a property added to the table is covered automatically. (C1-ALL)
 - **Cascade layers in the data model** (CSS Cascade 5 §6.4): `Rule::layer: Option<LayerId>`; a sheet records the layers it declares in order of first declaration (`Stylesheet::layers`, `Layer { name, parent }`) through `declare_layer(parent, &["a", "b"])` / `declare_anonymous_layer(parent)`, and `add_rule_in_layer` adds a rule to one. `LayerOrder::new(&sheets)` merges the layers of the sheets of one cascade by name in sheet order and ranks them (siblings by first declaration, sublayers below their parent's own rules, unlayered last). `Stylesheet::append(&other)` appends another sheet's rules, layers (named ones merged) and root variables. `revert-layer` is accepted for every property. (C1-LAYER)
+- **`StyleSelector`**: a style rule's selector list parsed once — `StyleSelector::parse(text)` or, for a nested rule, `StyleSelector::parse_nested(text, &parent)` (`&` stands for the parent's items without a pseudo-element, `nesting_list()`) — and `Stylesheet::add_style_rule(&selector, style, layer)`, which adds one rule per item. `Stylesheet::rule` / `add_rule` go through it. (C1-NESTING)
 
 ### Fixed — `rdom-style`
 
@@ -34,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added — `rdom-css`
 
 - **`@layer`** (CSS Cascade 5 §6.4.1): the statement form `@layer a, b.c;` declares layers, the block form `@layer a { … }` / `@layer { … }` parses its rules into a named or anonymous layer, and an `@layer` inside a block nests under it; at-rule names match ASCII case-insensitively. An invalid prelude (two names on a block, whitespace around a `.`, a reserved CSS-wide keyword) drops the rule with the new `WarningKind::InvalidAtRulePrelude { name, prelude }`. (C1-LAYER)
+- **CSS Nesting** (CSS Nesting 1 §2–§3): style rules nest in style rules. A block item that starts `<ident>:` with no `{}` block before its `;` is a declaration, anything else a nested rule (CSS Syntax 3 "consume a block's contents"), so `.a { p:hover { … } }` nests; the declarations before the first nested rule are the rule's own, each later run is a nested declarations rule with the parent's selector, in order of appearance (`.a { color: red; & { color: blue } color: green }` is green); a nested `@layer` holds declarations and rules in the layer. An invalid nested selector drops that rule alone; an item ending at `;` before a block is a malformed declaration; other nested at-rules are reported and skipped (the conditional rules join with C14). A nested rule used to be swallowed as a malformed declaration. (C1-NESTING)
 
 ### Changed — `rdom-css`
 

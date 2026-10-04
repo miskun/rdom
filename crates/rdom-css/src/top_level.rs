@@ -1,8 +1,8 @@
 //! Top-level stylesheet parse loop — CSS Syntax 3 §5.4 "consume a list
 //! of rules" with its error recovery:
 //!
-//! - a qualified rule is `<prelude> { <block> }`; the prelude is read
-//!   up to the first `{` outside strings and comments;
+//! - a qualified rule is a style rule, `<prelude> { <block> }`
+//!   (`block.rs`, which also parses the rules nested in its block);
 //! - `@layer` is evaluated (`layer.rs`); its block form parses a nested
 //!   list of rules into the layer;
 //! - any other at-rule (`@name …`) is consumed whole — statement form
@@ -16,9 +16,9 @@
 //! `@media {…}` were read as the *next* rule's selector text and
 //! swallowed that rule.
 
-use rdom_style::{LayerId, Stylesheet, TuiStyle};
+use rdom_style::{LayerId, Stylesheet};
 
-use crate::declarations;
+use crate::block::{Context, consume_style_rule};
 use crate::{Warning, WarningKind};
 use rdom_style::parse::Cursor;
 
@@ -59,7 +59,11 @@ pub(crate) fn parse_rule_list(
             }
             Some('@') => consume_at_rule(cursor, sheet, warnings, layer),
             Some(_) => {
-                if !parse_one_rule(cursor, sheet, warnings, layer) {
+                let ctx = Context {
+                    layer,
+                    parent: None,
+                };
+                if !consume_style_rule(cursor, sheet, warnings, ctx) {
                     return;
                 }
             }
@@ -86,7 +90,13 @@ fn consume_at_rule(
     let (name, used) = rdom_core::css_syntax::consume_ident(cursor.rest());
     cursor.advance(used);
     if name.eq_ignore_ascii_case("layer") {
-        crate::layer::consume_layer_rule(cursor, sheet, warnings, layer, (line, column));
+        let mut body = |cursor: &mut Cursor,
+                        sheet: &mut Stylesheet,
+                        warnings: &mut Vec<Warning>,
+                        layer: Option<LayerId>| {
+            parse_rule_list(cursor, sheet, warnings, layer, true);
+        };
+        crate::layer::consume_layer_rule(cursor, sheet, warnings, layer, (line, column), &mut body);
         return;
     }
     warnings.push(Warning {
@@ -94,7 +104,16 @@ fn consume_at_rule(
         line,
         column,
     });
-    // Prelude: strings and comments may contain `;` / `{`.
+    skip_at_rule_rest(cursor, warnings, false);
+}
+
+/// Skip the rest of an at-rule the parser does not evaluate: its
+/// prelude through `;` (statement at-rule, e.g. `@charset`) or through
+/// its `{…}` block, nested blocks skipped by depth. Strings and
+/// comments in the prelude may hold `;` / `{`. `nested`: the at-rule
+/// sits in a style rule's block, whose `}` also ends a statement (and
+/// is left for the block).
+pub(crate) fn skip_at_rule_rest(cursor: &mut Cursor, warnings: &mut Vec<Warning>, nested: bool) {
     loop {
         match cursor.peek() {
             None => return,
@@ -102,6 +121,7 @@ fn consume_at_rule(
                 cursor.bump();
                 return;
             }
+            Some('}') if nested => return,
             Some('{') => {
                 skip_balanced_block(cursor);
                 return;
@@ -217,171 +237,7 @@ pub(crate) fn skip_comment(cursor: &mut Cursor, warnings: &mut Vec<Warning>) -> 
     }
 }
 
-/// Parse one rule: `<selector> { <body> }`. Returns `false` if the
-/// parse should abort (EOF in unexpected place, unterminated
-/// comment).
-fn parse_one_rule(
-    cursor: &mut Cursor,
-    sheet: &mut Stylesheet,
-    warnings: &mut Vec<Warning>,
-    layer: Option<LayerId>,
-) -> bool {
-    // Read selector text up to `{`, stripping comments inline. A
-    // prelude that hits EOF without a block is dropped (§5.4.3).
-    let selector_line = cursor.line();
-    let selector_col = cursor.col();
-    let selector = match read_selector_text(cursor, warnings) {
-        Some(s) => s,
-        None => return false,
-    };
-    if cursor.peek() != Some('{') {
-        return false;
-    }
-    cursor.bump();
-    // Capture body line/col for warning attribution before we read it.
-    let body_line = cursor.line();
-    let body_col = cursor.col();
-    let body = match read_block_body(cursor, warnings) {
-        Some(b) => b,
-        None => return false,
-    };
-    // Parse declarations into a TuiStyle. Custom properties stay on
-    // the rule and the cascade scopes them per element; a `:root`
-    // rule's custom properties are additionally published through
-    // `Stylesheet::vars()` so consumers that read the sheet-level
-    // map (and the cascade's root seed) keep seeing them.
-    let mut style = TuiStyle::new();
-    declarations::parse_block(&body, &mut style, body_line, body_col, warnings);
-
-    let trimmed = selector.trim();
-    if trimmed.eq_ignore_ascii_case(":root") {
-        for d in &style.custom_properties {
-            let owned = std::mem::take(sheet);
-            *sheet = owned.define_var(&d.name, &d.value);
-        }
-    }
-
-    if !trimmed.is_empty() && sheet.add_rule_in_layer(trimmed, style, layer).is_err() {
-        warnings.push(Warning {
-            kind: WarningKind::InvalidSelector(trimmed.to_string()),
-            line: selector_line,
-            column: selector_col,
-        });
-    }
-    true
-}
-
-/// Read the selector text up to (but not consuming) `{`. Strings are
-/// copied through so `[title="{"]` does not end the prelude. Returns
-/// `None` if EOF, unterminated comment, or no `{` found.
-fn read_selector_text(cursor: &mut Cursor, warnings: &mut Vec<Warning>) -> Option<String> {
-    let mut out = String::new();
-    loop {
-        match cursor.peek() {
-            None => return None,
-            Some('{') => return Some(out),
-            Some(q @ ('"' | '\'')) => {
-                out.push(q);
-                cursor.bump();
-                if !read_string_into(cursor, q, &mut out) {
-                    return None;
-                }
-            }
-            // An escape (CSS Syntax 3 §4.3.7) is copied through
-            // undecoded — the selector parser decodes it — so `.x\{`
-            // does not end the prelude.
-            Some('\\') => copy_escape_into(cursor, &mut out),
-            Some('/') => {
-                if let (_, Some('*')) = cursor.peek_two() {
-                    if !skip_comment(cursor, warnings) {
-                        return None;
-                    }
-                    // Insert a space so `a/* */b` -> `a b` (matches CSS).
-                    if !out.ends_with(char::is_whitespace) && !out.is_empty() {
-                        out.push(' ');
-                    }
-                } else {
-                    out.push('/');
-                    cursor.bump();
-                }
-            }
-            Some(c) => {
-                out.push(c);
-                cursor.bump();
-            }
-        }
-    }
-}
-
-/// Read the body from the position just inside `{` up to (and
-/// consuming) the matching `}`. Comments and string literals are
-/// recognized so that `}` inside them doesn't terminate the body
-/// early, and nested `{…}` (which rdom does not evaluate) is passed
-/// through by depth so the outer block still ends at the right brace.
-/// EOF closes the block (§5.4.7) — the rule is kept with whatever
-/// declarations parsed. The returned string is the verbatim body
-/// content (comments preserved); `declarations::parse_block`
-/// re-tokenizes it and skips comments there.
-fn read_block_body(cursor: &mut Cursor, warnings: &mut Vec<Warning>) -> Option<String> {
-    let mut out = String::new();
-    let mut depth = 0usize;
-    loop {
-        match cursor.peek() {
-            None => return Some(out),
-            Some('{') => {
-                depth += 1;
-                out.push('{');
-                cursor.bump();
-            }
-            Some('}') => {
-                cursor.bump();
-                if depth == 0 {
-                    return Some(out);
-                }
-                depth -= 1;
-                out.push('}');
-            }
-            Some('/') if matches!(cursor.peek_two(), (_, Some('*'))) => {
-                // Preserve the comment in `out` so line/column
-                // tracking inside the tokenizer stays accurate when
-                // we add it later. Skip it here just to pass over
-                // any embedded `}` inside.
-                let start_line = cursor.line();
-                let start_col = cursor.col();
-                let comment_start = out.len();
-                out.push('/');
-                cursor.bump();
-                out.push('*');
-                cursor.bump();
-                if !skip_comment_into(cursor, &mut out) {
-                    out.truncate(comment_start);
-                    warnings.push(Warning {
-                        kind: WarningKind::UnterminatedComment,
-                        line: start_line,
-                        column: start_col,
-                    });
-                    return None;
-                }
-            }
-            Some('\\') => copy_escape_into(cursor, &mut out),
-            Some(q @ ('"' | '\'')) => {
-                out.push(q);
-                cursor.bump();
-                if !read_string_into(cursor, q, &mut out) {
-                    // Unterminated string — let declarations::parse_block
-                    // surface the warning when it tokenizes the body.
-                    return Some(out);
-                }
-            }
-            Some(c) => {
-                out.push(c);
-                cursor.bump();
-            }
-        }
-    }
-}
-
-fn skip_comment_into(cursor: &mut Cursor, out: &mut String) -> bool {
+pub(crate) fn skip_comment_into(cursor: &mut Cursor, out: &mut String) -> bool {
     loop {
         match cursor.peek() {
             None => return false,
@@ -405,7 +261,7 @@ fn skip_comment_into(cursor: &mut Cursor, out: &mut String) -> bool {
 /// With the cursor on `\`, copy the backslash and the code point it
 /// escapes verbatim, so an escaped `{`, `}`, quote or `,` is never read
 /// as structure. Decoding is the consumer's job.
-fn copy_escape_into(cursor: &mut Cursor, out: &mut String) {
+pub(crate) fn copy_escape_into(cursor: &mut Cursor, out: &mut String) {
     out.push('\\');
     cursor.bump();
     if let Some(c) = cursor.bump() {

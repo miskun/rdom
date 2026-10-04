@@ -15,17 +15,25 @@ use rdom_style::parse::Cursor;
 use rdom_style::parse::token::{Token, tokenize};
 use rdom_style::{LayerId, Stylesheet};
 
-use crate::top_level::{parse_rule_list, read_string_into, skip_balanced_block, skip_comment};
+use crate::top_level::{read_string_into, skip_balanced_block, skip_comment};
 use crate::{Warning, WarningKind};
 
+/// The parser of an `@layer` block's contents, given the layer: a
+/// rule list at the top level, a style rule's block contents when the
+/// `@layer` is nested in a style rule (CSS Nesting 1 §3.2).
+pub(crate) type LayerBody<'b> =
+    dyn FnMut(&mut Cursor, &mut Stylesheet, &mut Vec<Warning>, Option<LayerId>) + 'b;
+
 /// Consume an `@layer` rule; the cursor is just past the at-keyword.
-/// `parent` is the layer the rule sits in; `at` the position of `@`.
+/// `parent` is the layer the rule sits in; `at` the position of `@`;
+/// `body` parses the block form's contents.
 pub(crate) fn consume_layer_rule(
     cursor: &mut Cursor,
     sheet: &mut Stylesheet,
     warnings: &mut Vec<Warning>,
     parent: Option<LayerId>,
     at: (u32, u32),
+    body: &mut LayerBody<'_>,
 ) {
     let Some(prelude) = read_prelude(cursor, warnings) else {
         return;
@@ -52,7 +60,7 @@ pub(crate) fn consume_layer_rule(
             }
         };
         cursor.bump(); // '{'
-        parse_rule_list(cursor, sheet, warnings, layer, true);
+        body(cursor, sheet, warnings, layer);
         return;
     }
     // `;`, or EOF (which ends the statement, CSS Syntax 3 §5.4.2).

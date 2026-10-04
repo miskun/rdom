@@ -39,19 +39,20 @@
 
 use std::fmt;
 
-use rdom_core::selectors::{self, ParseError, SelectorList};
+use rdom_core::selectors::{ParseError, SelectorList};
 
 use crate::{Specificity, TuiStyle};
 
 mod index;
 mod layers;
 mod selector_text;
+mod style_selector;
 #[cfg(test)]
 mod tests;
 
 pub use index::RuleIndex;
 pub use layers::{Layer, LayerId, LayerOrder};
-use selector_text::{extract_pseudo_suffix, split_top_level_commas};
+pub use style_selector::StyleSelector;
 
 /// Which pseudo-element a rule targets. `None` = the host element itself.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -331,75 +332,15 @@ impl Stylesheet {
     }
 
     /// Build one or more `Rule`s from a raw selector string + style +
-    /// origin. Handles top-level comma splitting and pseudo-element
-    /// extraction. Does NOT append — caller extends `self.rules`.
+    /// origin: one per item of the selector list ([`StyleSelector`]).
+    /// Does NOT append — the caller pushes them.
     fn build_rule(
         &mut self,
         selector: &str,
         style: TuiStyle,
         origin: RuleOrigin,
     ) -> Result<Vec<Rule>, StyleError> {
-        let items = split_top_level_commas(selector);
-        if items.is_empty() {
-            return Err(StyleError {
-                msg: "empty selector".to_string(),
-                pos: None,
-                source: selector.to_string(),
-            });
-        }
-
-        let mut out = Vec::with_capacity(items.len());
-        for item_raw in &items {
-            let trimmed = item_raw.trim();
-            if trimmed.is_empty() {
-                return Err(StyleError {
-                    msg: "empty selector in list".to_string(),
-                    pos: None,
-                    source: selector.to_string(),
-                });
-            }
-            let (core, pseudo) = extract_pseudo_suffix(trimmed).map_err(|msg| StyleError {
-                msg,
-                pos: None,
-                source: selector.to_string(),
-            })?;
-
-            let pseudo_count = if pseudo == PseudoElementTarget::None {
-                0
-            } else {
-                1
-            };
-            let parsed: SelectorList =
-                selectors::parse(core).map_err(|e| StyleError::from((selector, e)))?;
-
-            // Each parsed list should have exactly one ComplexSelector
-            // because we already split on top-level commas. But be robust:
-            // if rdom-core returns multiple (shouldn't), produce multiple
-            // rules with the same pseudo.
-            for complex in parsed.0 {
-                let specificity = Specificity::of_complex(&complex, pseudo_count);
-                let single_list = SelectorList(vec![complex]);
-                let idx = self.next_source_idx;
-                self.next_source_idx += 1;
-                // CSS Pseudo-Elements 4 §4.3: only the `::first-line`
-                // properties apply to `::placeholder`.
-                let style = if pseudo == PseudoElementTarget::Placeholder {
-                    style.first_line_subset()
-                } else {
-                    style.clone()
-                };
-                out.push(Rule {
-                    selector: single_list,
-                    pseudo,
-                    style,
-                    specificity,
-                    origin,
-                    source_idx: idx,
-                    source_text: trimmed.to_string(),
-                    layer: None,
-                });
-            }
-        }
-        Ok(out)
+        let parsed = StyleSelector::parse(selector)?;
+        Ok(self.rules_for(&parsed, style, origin))
     }
 }

@@ -69,7 +69,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 
 | Module | Supported | Partial | Missing | N/A | Total |
 |---|---:|---:|---:|---:|---:|
-| 3.1 Syntax, cascade and inheritance (Syntax 3, Cascade 4/5, CSS 2.1 §6) | 16 | 0 | 3 | 2 | 21 |
+| 3.1 Syntax, cascade and inheritance (Syntax 3, Cascade 4/5, CSS 2.1 §6) | 17 | 0 | 2 | 2 | 21 |
 | 3.2 Custom properties (CSS Variables 1) | 2 | 1 | 3 | 1 | 7 |
 | 3.3 Values and units (Values 4) | 5 | 5 | 8 | 4 | 22 |
 | 3.4 Color (Color 4 / 5) | 3 | 3 | 9 | 2 | 17 |
@@ -93,7 +93,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 0 | 0 | 6 | 3 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **59** | **43** | **155** | **50** | **307** |
+| **Total** | **60** | **43** | **154** | **50** | **307** |
 
 Of the 205 Partial / Missing rows, **133 are not documented** in `DIVERGENCES.md` (6 of them because the document states the opposite of the code) — see §5 and §6.
 
@@ -236,7 +236,7 @@ dropped:
 | `@scope` | Missing | Scoped style rules with an optional lower bound. | Blanket | `AT`, `SEL` |
 | `@charset` | N/A | Sources are Rust `&str` (already UTF-8); consumed harmlessly. | — | `AT` |
 | `@namespace` | N/A | No XML namespaces (documented). | — | — |
-| CSS Nesting (`&`, nested rules) | Missing | A nested rule inside a block is a malformed declaration today. | Yes | `AT`, `DECL` |
+| CSS Nesting (`&`, nested rules) | Supported | Nested style rules, `&` anywhere (`&.x`, `.x &`, `:not(&)`), implicit descendant combinator, relative selectors (`> p`, `+ p`, `~ p`), declarations interleaved with nested rules (nested declarations rules, in order), nested `@layer`; `&` is `:is(<parent>)` for matching and specificity (`SimpleSelector::Is`; the `:is()` text is C11-IS). Nested `@media` / `@supports` / `@container` arrive with C14 (C1-NESTING). | — | `rdom-css/src/block.rs`, `SEL/nesting.rs`, `rdom-style/src/stylesheet/style_selector.rs` |
 | Inherited-property set | Supported | `inherits()` lists `color`, `font-weight`, `font-style`, `white-space`, `pointer-events`, `caret-color`, `caret-text-color`; `border-collapse` is non-inherited by design (documented). Correct for the shipped set. | — | `DISP/table.rs::inherits` |
 
 ### 3.2 Custom properties (CSS Variables 1)

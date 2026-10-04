@@ -230,7 +230,6 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 
 - `@import` — C1-IMPORT
 - `@scope` (and `:scope` inside it) — C1-SCOPE
-- CSS Nesting (`&`, nested rules) — C1-NESTING
 
 ### Custom properties
 

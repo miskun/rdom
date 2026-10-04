@@ -68,7 +68,7 @@ row comes from.
 | C1-ALL | `all` shorthand | done |
 | C1-IMPORT | `@import` through a host-provided loader, with layer / supports / media conditions | |
 | C1-SCOPE | `@scope` with an optional lower bound, and `:scope` inside it | |
-| C1-NESTING | CSS Nesting (`&`, nested style rules, nested at-rules) | |
+| C1-NESTING | CSS Nesting (`&`, nested style rules, nested at-rules) | done |
 | C1-VAR-ANY | `var()` in every property via token-level substitution at computed-value time; fallback with arbitrary tokens; `var()` in `content` | |
 | C1-PROPERTY | `@property` (syntax, inherits, initial-value) | |
 | C1-INLINE-IMPORTANT | Inline `style="… !important"` beats author `!important` (Cascade 4 §6.1 element-attached styles; found during C1-REVERT) | done |

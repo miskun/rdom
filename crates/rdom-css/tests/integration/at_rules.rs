@@ -63,10 +63,13 @@ fn stray_close_brace_is_ignored() {
 #[test]
 fn eof_inside_a_block_keeps_the_rule() {
     let r = parse("a { color: red; b { color: blue");
-    // §5.4.7: EOF closes the open block. The rule for `a` is kept (with
-    // whatever declarations parsed); nothing panics or aborts silently.
-    assert_eq!(r.stylesheet.rules().len(), 1);
+    // §5.4.7: EOF closes every open block. The rule for `a` is kept
+    // (with whatever declarations parsed), and so is the rule nested in
+    // it (CSS Nesting 1); nothing panics or aborts silently.
+    assert_eq!(r.stylesheet.rules().len(), 2);
     assert_eq!(r.stylesheet.rules()[0].source_text, "a");
+    assert_eq!(r.stylesheet.rules()[1].source_text, "b");
+    assert!(r.stylesheet.rules()[1].style.fg.is_some());
 }
 
 #[test]

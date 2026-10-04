@@ -16,6 +16,7 @@
 
 use rdom_style::{Stylesheet, TuiStyle};
 
+mod block;
 mod declarations;
 mod layer;
 mod top_level;

@@ -13,6 +13,7 @@ mod inline_style;
 mod layers;
 mod lengths;
 mod malformed_declarations;
+mod nesting;
 mod padding_shorthand;
 mod positioning;
 mod properties;

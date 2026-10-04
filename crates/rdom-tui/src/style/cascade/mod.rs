@@ -72,6 +72,8 @@ mod css_wide_tests;
 #[cfg(test)]
 mod layer_tests;
 #[cfg(test)]
+mod nesting_tests;
+#[cfg(test)]
 mod tests;
 
 use rdom_core::{Dom, NodeId};

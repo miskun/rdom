@@ -69,7 +69,7 @@ pub use modifier::Modifier;
 pub use specificity::Specificity;
 pub use stylesheet::{
     Layer, LayerId, LayerOrder, PseudoElementTarget, Rule, RuleIndex, RuleOrigin, StyleError,
-    Stylesheet,
+    StyleSelector, Stylesheet,
 };
 pub use transition::{AnimatableProperty, TimingFunction, TransitionProperty, TransitionRule};
 pub use tui_color::{TuiColor, parse_color, resolve_tui_color};

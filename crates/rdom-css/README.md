@@ -95,6 +95,13 @@ value       := token+
   additionally populate the `Stylesheet::vars` map. `var()` is consumed in
   `<color>` values only; `padding: var(--gap)` and `content: var(--x)`
   are not shipped.
+- **CSS Nesting** — style rules nest inside style rules
+  (`.card { color: red; &:hover { … } > p { … } }`): `&` anywhere in a
+  selector (`&.x`, `.x &`, `:not(&)`), an implicit descendant combinator
+  when `&` is absent, relative selectors (`> p`, `+ p`, `~ p`),
+  declarations interleaved with nested rules (a later run becomes a
+  nested declarations rule, in order), and nested `@layer`. `&` has the
+  specificity of `:is(<parent list>)`.
 - **`!important`** — recognized on any declaration; routed to the
   property's `ImportantMask` bit. Cascade ladder lives in `rdom-tui`.
 - **Comments** — `/* … */`, nested or unterminated handled with
@@ -122,8 +129,8 @@ behavior, so copy-pasting CSS from MDN doesn't blow up:
   have no cell-grid meaning and are rejected. `ch`, `lh` and the viewport
   units (`vw`, `vh`, …) are rejected today too; they are scheduled for 0.6.0.
 - **CSS variables in non-color values.** `padding: var(--gap)` — not shipped.
-- **CSS Nesting** (`.parent { .child { … } }`). Scheduled for 0.6.0.
-- **`&` parent reference.** Same.
+- **Nested conditional rules** (`@media` / `@supports` / `@container`
+  inside a style rule) — with those at-rules, in 0.6.0.
 
 ## Lenient vs. strict
 
