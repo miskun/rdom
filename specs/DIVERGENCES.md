@@ -270,7 +270,6 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 
 - `box-sizing` (`content-box`; rdom is implicitly `border-box`, §2 Values) — C5-BOX-SIZING
 - `min-content` / `max-content` / `fit-content()` / `stretch` sizes — C5-INTRINSIC
-- `max-*: none` — C5-MINMAX-SIZE
 - `margin-trim` — C5-MARGIN-TRIM
 - `contain-intrinsic-size` (+ longhands) — C5-CONTAIN-SIZE
 

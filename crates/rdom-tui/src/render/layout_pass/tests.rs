@@ -600,7 +600,7 @@ fn min_max_width_height_clamp_via_css_strings() {
     use rdom_style::layout::MinSize;
     assert_eq!(
         style_a.max_width,
-        Some(Value::Specified(crate::layout::MaxSize::Cells(30)))
+        Some(Value::Specified(Some(crate::layout::MaxSize::Cells(30))))
     );
     assert_eq!(
         style_b.min_width,

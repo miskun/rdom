@@ -765,3 +765,23 @@ fn revert_layer_is_a_css_wide_keyword() {
         );
     }
 }
+
+/// C2G-MAX-NONE — CSS Sizing 3 §5.2: `max-width` / `max-height: none`
+/// (ASCII case-insensitive) is a declared value — `Some(None)` — that
+/// serializes back as `none`.
+#[test]
+fn max_size_none_is_a_declared_value() {
+    for name in ["max-width", "max-height"] {
+        let mut s = TuiStyle::new();
+        set(name, "None", &mut s).unwrap();
+        let field = if name == "max-width" {
+            &s.max_width
+        } else {
+            &s.max_height
+        };
+        assert_eq!(field, &Some(Value::Specified(None)), "{name}");
+        assert_eq!(serialize(name, &s).as_deref(), Some("none"), "{name}");
+        set(name, "12", &mut s).unwrap();
+        assert_eq!(serialize(name, &s).as_deref(), Some("12"), "{name}");
+    }
+}

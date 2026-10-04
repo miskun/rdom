@@ -330,7 +330,7 @@ dropped:
 | `margin-trim` | Missing | Trim children's margins at the container edges. | No | `BLOCK`, `FLEX` |
 | `width` / `height` | Partial | `auto`, cells, `%`, `calc()`, rdom `fr`; missing `min-content` / `max-content` / `fit-content` / `fit-content(<l>)` / `stretch`. | No | `V/length.rs::parse_size`, `BOX::Size` |
 | `min-width` / `min-height` | Partial | `auto`, cells, `%`, `calc()` (C2-PERCENT); no intrinsic keywords (C5-INTRINSIC). | No | `V/length.rs::parse_min_size` |
-| `max-width` / `max-height` | Partial | Cells, `%`, `calc()` (C2-PERCENT); `none` (the initial value, C5-MINMAX-SIZE) and intrinsic keywords rejected. | No | `V/length.rs::parse_max_size` |
+| `max-width` / `max-height` | Partial | Cells, `%`, `calc()` (C2-PERCENT), `none` (the initial value; C2G-MAX-NONE completes C5-MINMAX-SIZE); intrinsic keywords rejected (C5-INTRINSIC). | No | `V/length.rs::parse_max_size` |
 | `box-sizing` | Missing | rdom is implicitly `border-box`; `content-box` (CSS initial) is not expressible. | No | `BLOCK/width.rs`, `FLEX` |
 | `aspect-ratio` | Supported | `auto || <ratio>`; `auto && <ratio>` sizes the content box; degenerate ratios behave as `auto` (C2-RATIO). Cell-grid rounding documented. | — | `V/number.rs`, `FLEX/cross.rs` |
 | `contain-intrinsic-size` (+ longhands) | Missing | Placeholder size for `content-visibility: auto`. | No | `DISP`, layout |

@@ -244,3 +244,32 @@ fn every_length_property_resolves_viewport_units_in_the_cascade() {
         assert!(accepted.contains(&name), "{name} takes 10vw: {accepted:?}");
     }
 }
+
+// ── C2G-MAX-NONE ─────────────────────────────────────────────────────
+
+/// CSS Sizing 3 §5.2: `max-width` / `max-height` take `none` — no limit,
+/// the initial value — so a later rule lifts an earlier limit.
+#[test]
+fn max_size_none_lifts_a_limit() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let cb = el(&mut dom, root, "cb");
+    let limited = el(&mut dom, cb, "a");
+    let lifted = el(&mut dom, cb, "a b");
+    lay_out(
+        &mut dom,
+        ".cb { width: 40; height: 20 }
+         .a { width: 30; height: 5; max-width: 10; max-height: 2 }
+         .a.b { max-width: none; max-height: NONE }",
+        80,
+        30,
+    );
+    assert_eq!(
+        (rect(&dom, limited).width, rect(&dom, limited).height),
+        (10, 2)
+    );
+    assert_eq!(
+        (rect(&dom, lifted).width, rect(&dom, lifted).height),
+        (30, 5)
+    );
+}

@@ -392,16 +392,24 @@ pub trait TuiNodeMutExt<'a> {
         self.write_inline_style(|s| s.min_width = v.map(Value::Specified));
         self
     }
-    fn set_max_width(&mut self, v: Option<rdom_style::layout::MaxSize>) -> &mut Self {
-        self.write_inline_style(|s| s.max_width = v.map(Value::Specified));
+    /// Declare `max-width` inline: a [`MaxSize`](rdom_style::layout::MaxSize),
+    /// or `None` for `none` (CSS Sizing 3 §5.2). Remove the declaration
+    /// with `style_mut().remove_property("max-width")`.
+    fn set_max_width(&mut self, v: impl Into<Option<rdom_style::layout::MaxSize>>) -> &mut Self {
+        let v = v.into();
+        self.write_inline_style(|s| s.max_width = Some(Value::Specified(v)));
         self
     }
     fn set_min_height(&mut self, v: Option<rdom_style::layout::MinSize>) -> &mut Self {
         self.write_inline_style(|s| s.min_height = v.map(Value::Specified));
         self
     }
-    fn set_max_height(&mut self, v: Option<rdom_style::layout::MaxSize>) -> &mut Self {
-        self.write_inline_style(|s| s.max_height = v.map(Value::Specified));
+    /// Declare `max-height` inline: a [`MaxSize`](rdom_style::layout::MaxSize),
+    /// or `None` for `none`. Remove the declaration with
+    /// `style_mut().remove_property("max-height")`.
+    fn set_max_height(&mut self, v: impl Into<Option<rdom_style::layout::MaxSize>>) -> &mut Self {
+        let v = v.into();
+        self.write_inline_style(|s| s.max_height = Some(Value::Specified(v)));
         self
     }
     fn set_direction(&mut self, d: Direction) -> &mut Self {
@@ -531,7 +539,7 @@ mod tests {
         );
         assert_eq!(
             e.inline_style_or_empty().max_width,
-            Some(Value::Specified(MaxSize::Cells(100)))
+            Some(Value::Specified(Some(MaxSize::Cells(100))))
         );
         assert_eq!(
             e.inline_style_or_empty().min_height,
@@ -539,7 +547,17 @@ mod tests {
         );
         assert_eq!(
             e.inline_style_or_empty().max_height,
-            Some(Value::Specified(MaxSize::Cells(50)))
+            Some(Value::Specified(Some(MaxSize::Cells(50))))
+        );
+        // `None` declares `none` (C2G-MAX-NONE).
+        dom.node_mut(div).set_max_width(None);
+        assert_eq!(
+            dom.node(div)
+                .tui_ext()
+                .unwrap()
+                .inline_style_or_empty()
+                .max_width,
+            Some(Value::Specified(None))
         );
     }
 

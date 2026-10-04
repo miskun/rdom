@@ -207,12 +207,10 @@ pub(super) fn apply_style(
 
     // Layout properties.
     value!(width: WIDTH, height: HEIGHT);
-    optional!(
-        min_width: MIN_WIDTH,
-        max_width: MAX_WIDTH,
-        min_height: MIN_HEIGHT,
-        max_height: MAX_HEIGHT,
-    );
+    optional!(min_width: MIN_WIDTH, min_height: MIN_HEIGHT);
+    // `max-*`: the declared value is the computed `Option` itself
+    // (`none` is `None`).
+    value!(max_width: MAX_WIDTH, max_height: MAX_HEIGHT);
     // `aspect-ratio`: the declared value is the computed `Option` itself
     // (`auto` alone is `None`).
     value!(aspect_ratio: ASPECT_RATIO);

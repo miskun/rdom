@@ -51,12 +51,14 @@ fn seed_parses_min_max_width_height_from_css() {
     assert_eq!(inline.min_width, Some(Value::Specified(MinSize::Cells(10))));
     assert_eq!(
         inline.max_width,
-        Some(Value::Specified(rdom_tui::layout::MaxSize::Cells(100)))
+        Some(Value::Specified(Some(rdom_tui::layout::MaxSize::Cells(
+            100
+        ))))
     );
     assert_eq!(inline.min_height, Some(Value::Specified(MinSize::Cells(5))));
     assert_eq!(
         inline.max_height,
-        Some(Value::Specified(rdom_tui::layout::MaxSize::Cells(50)))
+        Some(Value::Specified(Some(rdom_tui::layout::MaxSize::Cells(50))))
     );
 }
 

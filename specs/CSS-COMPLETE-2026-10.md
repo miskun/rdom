@@ -125,7 +125,7 @@ row comes from.
 |---|---|---|
 | C5-BOX-SIZING | `box-sizing` (`content-box` is the CSS initial value — breaking default change, migration note) | |
 | C5-INTRINSIC | `min-content` / `max-content` / `fit-content()` on width / height / min / max | |
-| C5-MINMAX-SIZE | `min-*` / `max-*`: `none`, `%`, `calc()` | partial — `max-*: none` remains (`%` and `calc()` landed with C2-PERCENT) |
+| C5-MINMAX-SIZE | `min-*` / `max-*`: `none`, `%`, `calc()` | done (`%` / `calc()` with C2-PERCENT, `none` with C2G-MAX-NONE) |
 | C5-MARGIN-TRIM | `margin-trim` | |
 | C5-CONTAIN-SIZE | `contain-intrinsic-size` (+ longhands) | |
 | C5-LOGICAL | Logical properties: `inline-size` / `block-size` / `min-*` / `max-*`, `margin-*` / `padding-*` / `border-*` / `inset-*` / radius logical forms (horizontal-tb ltr mapping) | |
@@ -540,3 +540,10 @@ row comes from.
   at 80 × 20 and requires no `Viewport(` in the computed style's `Debug` and a clean layout — so a
   length property added later is covered without editing the test. Checked red: dropping `gap` from
   the list fails it.
+- 2026-10-05 — C2G-MAX-NONE (completes C5-MINMAX-SIZE): `TuiStyle::max_width` / `max_height` are
+  `Option<Value<Option<MaxSize>>>` like `aspect_ratio`, applied with `value!` (the declared `Option` is
+  the computed one; `ComputedStyle` keeps `Option<MaxSize>`, `None` = `none`); `parse_max_size`
+  takes `none`, serialization writes it back. `set_max_width` / `set_max_height` take
+  `impl Into<Option<MaxSize>>` and always declare (`None` is `none`; removal through the CSSOM) —
+  decided over a double `Option`. The C2-PERCENT changelog bullets are rewritten to the final shape
+  with migration hints from 0.5.0. COVERAGE keeps the row *Partial* (intrinsic keywords, C5-INTRINSIC).
