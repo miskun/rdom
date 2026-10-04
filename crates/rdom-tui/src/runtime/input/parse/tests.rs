@@ -504,6 +504,52 @@ fn unknown_or_broken_sequences_do_not_stall() {
     );
 }
 
+/// An OSC string past the 4 KiB cap is discarded to its end — BEL or ST
+/// — not read again as keys (`C4G-OSC-DISCARD`); a byte outside
+/// ECMA-48's command-string range (§5.6: 0x08–0x0D, 0x20–0x7E) aborts
+/// it, discarding or not, and is read again.
+#[test]
+fn an_overlong_osc_string_is_discarded_to_its_end() {
+    let long = |end: &[u8]| {
+        let mut b = b"\x1b]11;".to_vec();
+        b.extend(std::iter::repeat_n(b'x', 5000));
+        b.extend_from_slice(end);
+        b.push(b'q');
+        b
+    };
+    let q = vec![key(KeyCode::Char('q'), NONE)];
+    assert_eq!(events(&long(b"\x07")), q);
+    assert_eq!(events(&long(b"\x1b\\")), q);
+    assert_eq!(events(&long(b"\x18")), q);
+    // An ESC that does not start ST ends the string and is read again.
+    assert_eq!(
+        events(&long(b"\x1bz")),
+        vec![key(KeyCode::Char('z'), ALT), key(KeyCode::Char('q'), NONE)]
+    );
+    // DEL aborts the discard and is a key (Backspace).
+    assert_eq!(
+        events(&long(b"\x7f")),
+        vec![key(KeyCode::Backspace, NONE), key(KeyCode::Char('q'), NONE)]
+    );
+}
+
+/// Alt+`]` and a digit typed fast start an OSC string: what is typed
+/// after — CR included, which is in the string range — is part of it,
+/// until a byte outside the range (Backspace, Ctrl+C) or an `ESC` (an
+/// arrow key) ends it; that byte is read again (ECMA-48 §5.6).
+#[test]
+fn typed_text_after_alt_bracket_and_a_digit_ends_at_a_control() {
+    assert_eq!(
+        events(b"\x1b]1hi\r\x7fa"),
+        vec![key(KeyCode::Backspace, NONE), key(KeyCode::Char('a'), NONE)]
+    );
+    assert_eq!(
+        events(b"\x1b]1hi\r\x03"),
+        vec![key(KeyCode::Char('c'), CTRL)]
+    );
+    assert_eq!(events(b"\x1b]1hi\r\x1b[A"), vec![key(KeyCode::Up, NONE)]);
+}
+
 /// The reader's other inputs and the startup query's held keys keep
 /// their order.
 #[test]

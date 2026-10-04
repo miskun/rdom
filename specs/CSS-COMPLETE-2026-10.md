@@ -1112,3 +1112,15 @@ row comes from.
   zero-timeout poll gave Esc) and `a_full_read_reads_on` (1023 + 3 bytes: 1023 inputs after one poll,
   Up missing); green after, with `a_lone_escape_flushes_on_a_late_zero_timeout_poll` pinning the
   lone-ESC case.
+- 2026-10-06 — C4G-OSC-DISCARD: new `parse/string.rs` holds the command-string framing (ECMA-48
+  §5.6): `string::byte` classifies a byte (body 0x08–0x0D / 0x20–0x7E, `ESC`, BEL, CAN / SUB, other);
+  `osc::parse` uses it, so a byte outside the string range aborts the OSC and is read again (it was
+  kept as string body), and a string past `MAX_LEN` (4 KiB) returns the new `Step::Discard`: the
+  parser drops the buffer and discards the rest without buffering (`Parser::discard`, a two-state
+  `string::Discard`) until BEL / ST / CAN / SUB, or until an `ESC` + non-`\` or an aborting byte,
+  which are read again. It used to return `Invalid` and type the remaining bytes as keys.
+  `in_sequence` is true while discarding. Decided per the gate: CR is in the string range, so it does
+  not end an OSC — Alt+`]` + a digit typed within the grace swallows typing up to the next control
+  (Backspace, Ctrl+C, an arrow's `ESC`); pinned by a test. Red: both new corpus tests (5000 `x`s
+  typed back as keys; Backspace and Ctrl+C swallowed); green after.
+

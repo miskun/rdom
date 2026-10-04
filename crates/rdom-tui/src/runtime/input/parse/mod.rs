@@ -12,7 +12,9 @@
 //! - a C0 control byte inside a control sequence ends it, and is read
 //!   again as a key;
 //! - OSC strings (`ESC ] digits … BEL | ST`) are consumed; an OSC 11
-//!   reply is the background color;
+//!   reply is the background color; one past 4 KiB is discarded to its
+//!   end, and a byte that cannot be in a string aborts it and is read
+//!   again (ECMA-48 §5.6);
 //! - DA1 replies and mode 2031 reports are [`Input`]s, not dropped or
 //!   held;
 //! - a lone `ESC`, `ESC [`, `ESC O` or `ESC ]` that no byte follows is
@@ -28,11 +30,14 @@
 //! - `csi` — control-sequence framing and dispatch, paste, the private
 //!   (`CSI ?`) replies.
 //! - `osc` — OSC strings and the OSC 11 color.
+//! - `string` — command-string framing: the string byte range, the
+//!   terminators, the discard past the length cap.
 
 mod csi;
 mod keys;
 mod mouse;
 mod osc;
+mod string;
 
 use std::collections::VecDeque;
 
@@ -53,6 +58,9 @@ pub(super) enum Step {
     /// deliver) — and how many trailing bytes were not part of it and
     /// are read again.
     Done(Option<Input>, usize),
+    /// A command string past its length cap: the bytes are dropped, and
+    /// the rest of the string is discarded as it arrives.
+    Discard,
 }
 
 impl Step {
@@ -82,6 +90,8 @@ pub(crate) struct Parser {
     buf: Vec<u8>,
     /// Parsed inputs not yet taken.
     ready: VecDeque<Input>,
+    /// The rest of an over-long command string is being discarded.
+    discard: Option<string::Discard>,
 }
 
 impl Parser {
@@ -93,10 +103,28 @@ impl Parser {
     }
 
     fn push(&mut self, byte: u8) {
+        if let Some(discard) = self.discard {
+            self.discard = None;
+            match discard.step(byte) {
+                string::DiscardStep::Continue(d) => self.discard = Some(d),
+                string::DiscardStep::End => {}
+                string::DiscardStep::Reread { esc, byte } => {
+                    if esc {
+                        self.push(ESC);
+                    }
+                    self.push(byte);
+                }
+            }
+            return;
+        }
         self.buf.push(byte);
         match parse(&self.buf) {
             Step::Pending => {}
             Step::Invalid => self.buf.clear(),
+            Step::Discard => {
+                self.buf.clear();
+                self.discard = Some(string::Discard::START);
+            }
             Step::Done(input, unread) => {
                 let tail = self.buf.split_off(self.buf.len() - unread);
                 self.buf.clear();
@@ -134,7 +162,7 @@ impl Parser {
     /// True while the buffer holds the start of an escape sequence (a
     /// reply that has begun arriving, say).
     pub(crate) fn in_sequence(&self) -> bool {
-        self.buf.first() == Some(&ESC)
+        self.discard.is_some() || self.buf.first() == Some(&ESC)
     }
 
     /// True while the buffer is a prefix that is also a key by itself —
