@@ -85,6 +85,8 @@ mod apply_tests;
 #[cfg(test)]
 mod cost_tests;
 #[cfg(test)]
+mod counter_tests;
+#[cfg(test)]
 mod css_wide_tests;
 #[cfg(test)]
 mod layer_tests;

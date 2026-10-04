@@ -17,6 +17,7 @@ use crate::style::{ComputedStyle, PseudoElementTarget, VarMap};
 use super::apply::{finalize_bfc_formation, finalize_border_fg};
 use super::content::resolve_content_on;
 pub(super) use super::counters::CounterState;
+use super::counters::StoredOps;
 use super::inherit::{inherit_inheritable_from, layout_differs};
 use super::ladder::{Declarations, apply_cascade_ladder, prepare};
 pub(super) use super::matching::Scratch;
@@ -138,30 +139,28 @@ pub(super) fn cascade_roots_in_order<'a>(
         return;
     }
     let parent_id = dom.node(id).parent_node().map(|p| p.id());
-    // An element between roots keeps its computed style; replay its
-    // counter ops. (A node with no computed style here is one nothing
-    // cascaded yet — it contributes no ops, and its own cascade will.)
-    if let Some(c) = dom.node(id).ext().and_then(|e| e.computed.as_ref()) {
-        counters.enter(parent_id, &c.counter_reset, &c.counter_increment);
-    }
+    // An element between roots keeps its computed styles; replay their
+    // counter ops around the walk into its children.
+    let ops = StoredOps::of(dom, id);
     let children: Vec<NodeId> = dom.node(id).child_nodes().map(|n| n.id()).collect();
-    for child in children {
-        cascade_roots_in_order(
-            dom,
-            sheets,
-            merged_vars,
-            roots,
-            next,
-            child,
-            counters,
-            scratch,
-            mode,
-        );
-        if *next >= roots.len() {
-            break;
+    counters.replay_element(parent_id, id, &ops, |counters| {
+        for child in children {
+            cascade_roots_in_order(
+                dom,
+                sheets,
+                merged_vars,
+                roots,
+                next,
+                child,
+                counters,
+                scratch,
+                mode,
+            );
+            if *next >= roots.len() {
+                break;
+            }
         }
-    }
-    counters.exit(id);
+    });
 }
 
 /// Bottom-up flags aggregated up the tree during cascade. Each
@@ -299,8 +298,10 @@ pub(super) fn cascade_subtree<'a>(
         if let Some(ext) = dom.node_mut(id).ext_mut() {
             ext.matched = Some(recorder.finish(sheets));
         }
-        counters.replay_subtree(dom, id);
-        counters.exit(id);
+        // Its own ops were applied computing it; its boxes and its
+        // subtree are replayed.
+        let ops = StoredOps::pseudos_of(dom, id);
+        counters.replay_element(parent_id, id, &ops, |c| c.replay_children(dom, id));
         let ext = dom.node(id).ext();
         return SubtreeFlags {
             has_positioned_pseudo: ext.is_some_and(|e| e.tree_has_positioned_pseudo),

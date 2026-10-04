@@ -7,9 +7,12 @@
 //! parent is left", so instances record the parent they were created
 //! under and are dropped when the walk leaves that parent.
 
-use rdom_core::NodeId;
+use std::rc::Rc;
 
-use crate::style::CounterOp;
+use rdom_core::{Dom, NodeId};
+
+use crate::ext::TuiExt;
+use crate::style::{ComputedStyle, CounterOp};
 
 #[derive(Debug, Clone)]
 struct Instance {
@@ -20,13 +23,46 @@ struct Instance {
     scope_parent: Option<NodeId>,
 }
 
+/// The computed styles holding a kept element's counter ops, as last
+/// cascaded: its own and its `::before` / `::after` boxes'. `Rc`
+/// clones, so a replay can run while the walk mutates the tree.
+#[derive(Debug, Default)]
+pub(super) struct StoredOps {
+    element: Option<Rc<ComputedStyle>>,
+    before: Option<Rc<ComputedStyle>>,
+    after: Option<Rc<ComputedStyle>>,
+}
+
+impl StoredOps {
+    /// Everything `id` holds. An element nothing cascaded yet holds
+    /// nothing — its own cascade supplies its ops.
+    pub(super) fn of(dom: &Dom<TuiExt>, id: NodeId) -> Self {
+        dom.node(id)
+            .ext()
+            .map_or_else(Self::default, |e| StoredOps {
+                element: e.computed.clone(),
+                before: e.computed_before.clone(),
+                after: e.computed_after.clone(),
+            })
+    }
+
+    /// `id`'s `::before` / `::after` only: the walk just recomputed the
+    /// element itself (and applied its own ops) and keeps the rest.
+    pub(super) fn pseudos_of(dom: &Dom<TuiExt>, id: NodeId) -> Self {
+        StoredOps {
+            element: None,
+            ..Self::of(dom, id)
+        }
+    }
+}
+
 /// Counter instances in creation order (later = innermost).
 #[derive(Debug, Default, Clone)]
 pub(super) struct CounterState {
     instances: Vec<Instance>,
     /// The walk must account for every element in tree order — the
     /// sheets use counters — so a subtree it skips has its stored ops
-    /// replayed ([`replay_subtree`](Self::replay_subtree)).
+    /// replayed ([`replay_children`](Self::replay_children)).
     exact: bool,
 }
 
@@ -41,20 +77,44 @@ impl CounterState {
     }
 
     /// Account for the elements under `id` (its children's subtrees),
-    /// which keep their computed styles: replay their stored
-    /// `counter-reset` / `counter-increment` in tree order. A no-op
+    /// which keep their computed styles: replay each child's stored ops
+    /// ([`replay_element`](Self::replay_element)) in tree order. A no-op
     /// unless the state is [`exact`](Self::exact).
-    pub(super) fn replay_subtree(&mut self, dom: &rdom_core::Dom<crate::ext::TuiExt>, id: NodeId) {
+    pub(super) fn replay_children(&mut self, dom: &Dom<TuiExt>, id: NodeId) {
         if !self.exact {
             return;
         }
         for child in dom.node(id).child_nodes().map(|n| n.id()) {
-            if let Some(c) = dom.node(child).ext().and_then(|e| e.computed.clone()) {
-                self.enter(Some(id), &c.counter_reset, &c.counter_increment);
-            }
-            self.replay_subtree(dom, child);
-            self.exit(child);
+            let ops = StoredOps::of(dom, child);
+            self.replay_element(Some(id), child, &ops, |s| s.replay_children(dom, child));
         }
+    }
+
+    /// Replay a kept element's stored counter ops in tree order — the
+    /// element's own, its `::before`'s, `children` (whatever accounts for
+    /// its subtree), its `::after`'s — then leave it. `::before` is the
+    /// element's first child and `::after` its last (CSS Pseudo-Elements
+    /// 4 §4), so their instances are scoped to the element. The one
+    /// replay every partial walk uses: the cascade's walk between
+    /// subtree roots, a restyle's kept element and its kept children.
+    pub(super) fn replay_element(
+        &mut self,
+        parent: Option<NodeId>,
+        id: NodeId,
+        ops: &StoredOps,
+        children: impl FnOnce(&mut Self),
+    ) {
+        if let Some(c) = &ops.element {
+            self.enter(parent, &c.counter_reset, &c.counter_increment);
+        }
+        if let Some(c) = &ops.before {
+            self.enter(Some(id), &c.counter_reset, &c.counter_increment);
+        }
+        children(self);
+        if let Some(c) = &ops.after {
+            self.enter(Some(id), &c.counter_reset, &c.counter_increment);
+        }
+        self.exit(id);
     }
 
     /// Apply an element's `counter-reset` then `counter-increment`
@@ -107,7 +167,6 @@ impl CounterState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rdom_core::Dom;
 
     fn op(name: &str, value: i32) -> CounterOp {
         CounterOp {

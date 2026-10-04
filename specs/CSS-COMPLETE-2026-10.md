@@ -494,3 +494,11 @@ row comes from.
   (`10 × 0.1` sums to 1.0000001 in `f32`) and leaves the floors seeing `71.9999999`, which also lost
   a cell for a genuine 0.9 sum. Tests: 0.1 / 0.2 / 0.7 fills 80 (grow and shrink), 0.2 + 0.7 takes
   exactly 72, a 0.1 item frozen by `max-width` leaves 0.9 to share 72.
+- 2026-10-05 — C2G-COUNTER-PSEUDO: `CounterState::replay_element` (with `StoredOps`, the `Rc`s of
+  the element's, `::before`'s and `::after`'s computed styles) replays a kept element in tree order —
+  element, `::before`, children, `::after` — and is the one replay used between `cascade_subtrees`
+  roots, for a restyle's kept element (its pseudos; its own ops were applied computing it) and for
+  its kept children (`replay_children`, was `replay_subtree`). Tests: a class change on the third of
+  three `h2::before`-numbered headings reads "3. " (was "1. "); `restyle_vars` keeping a root `h2` and
+  a `div` of two reads "4. " for the next; a kept `div`'s `::after` counts after its children; a kept
+  `div::before { counter-reset }` scopes its children (green before the fix too — an order guard).
