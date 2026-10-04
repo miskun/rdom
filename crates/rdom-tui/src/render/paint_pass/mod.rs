@@ -104,6 +104,9 @@ pub trait PaintExt {
 
 impl PaintExt for Dom<TuiExt> {
     fn paint_dom(&self, buf: &mut Buffer, clip: Rect) {
+        // Translucent paints blend the terminal's default colors as the
+        // canvas of the document's color scheme.
+        buf.set_color_scheme(crate::style::CascadeExt::color_scheme(self));
         // The document is the root stacking context (CSS 2.1 Appendix
         // E): positioned descendants paint from its layers, nested
         // contexts recursively.
@@ -244,21 +247,10 @@ fn collect_modal_dialogs(dom: &Dom<TuiExt>, id: NodeId, out: &mut Vec<NodeId>) {
 /// preserved underneath — apps that want a solid wipe set an
 /// explicit `content: " "` override on `dialog::backdrop`.
 fn fill_backdrop(buf: &mut Buffer, clip: Rect, style: &ComputedStyle) {
-    let bg = style.bg;
-    let fg = style.fg;
-    for y in clip.y..clip.bottom() {
-        for x in clip.x..clip.right() {
-            let Some(cell) = buf.cell_mut(x, y) else {
-                continue;
-            };
-            if fills(bg) {
-                cell.set_bg(bg);
-            }
-            if fg != Color::Reset {
-                cell.set_fg(fg);
-            }
-        }
-    }
+    // A translucent backdrop (`rgb(0 0 0 / 50%)`, the common web dim)
+    // composites over the page (C3-ALPHA).
+    buf.tint(clip, style.bg);
+    buf.tint_glyphs(clip, style.fg);
 }
 
 // ─── Per-node paint ─────────────────────────────────────────────────
@@ -352,7 +344,15 @@ fn paint_box(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect) -> Opt
             } else {
                 outer_grid
             };
-            fill_bg(buf, fill_area, computed.bg);
+            // A translucent background composites over what is beneath
+            // (C3-ALPHA): the opaque fill is made in a layer.
+            if computed.bg.is_translucent() {
+                let alpha = f32::from(computed.bg.alpha()) / 255.0;
+                let bg = computed.bg.opaque();
+                buf.paint_translucent(fill_area, alpha, |layer| fill_bg(layer, fill_area, bg));
+            } else {
+                fill_bg(buf, fill_area, computed.bg);
+            }
         }
 
         // 2. Border. Writes per-cell × per-direction `BorderContribution`s
@@ -364,14 +364,16 @@ fn paint_box(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect) -> Opt
         // A transparent border keeps its space but draws nothing.
         if !computed.border.is_empty() && computed.border_fg.alpha() > 0 {
             let priority = compute_border_priority(dom, id);
-            paint_border(
-                buf,
-                outer,
-                computed.border,
-                computed.border_fg,
-                clip,
-                priority,
-            );
+            let (border, fg) = (computed.border, computed.border_fg);
+            if fg.is_translucent() {
+                // A translucent border blends like a glyph (C3-ALPHA).
+                let alpha = f32::from(fg.alpha()) / 255.0;
+                buf.paint_translucent(outer_grid, alpha, |layer| {
+                    paint_border(layer, outer, border, fg.opaque(), clip, priority);
+                });
+            } else {
+                paint_border(buf, outer, border, fg, clip, priority);
+            }
         }
     }
     // Else: element off-screen — skip its box but still paint its

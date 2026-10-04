@@ -40,10 +40,12 @@
 //! - `diff` — the frame diff iterator.
 
 use super::{Cell, Rect};
+use rdom_style::color::ColorScheme;
 
 mod border;
 mod composite;
 mod diff;
+mod translucent;
 mod write;
 
 #[cfg(test)]
@@ -81,6 +83,9 @@ pub struct Buffer {
     /// borders *weld* (a tab onto a panel → `▟ █ ▌`) instead of falling back
     /// to box-drawing T-junctions — see `border_join::HALF_BLOCK_QUAD_TABLE`.
     pub half_block_quads: Vec<u8>,
+    /// The color scheme whose canvas model a translucent paint blends
+    /// the terminal's default colors with (`Buffer::color_scheme`).
+    scheme: ColorScheme,
 }
 
 impl PartialEq for Buffer {
@@ -106,6 +111,7 @@ impl Buffer {
             content: vec![cell; len],
             border_dirs: vec![BorderCell::default(); len],
             half_block_quads: vec![0u8; len],
+            scheme: ColorScheme::default(),
         }
     }
 
@@ -125,7 +131,21 @@ impl Buffer {
             content: cells,
             border_dirs: vec![BorderCell::default(); len],
             half_block_quads: vec![0u8; len],
+            scheme: ColorScheme::default(),
         }
+    }
+
+    /// The color scheme whose canvas model a translucent paint blends
+    /// the terminal's default colors (`Color::Reset`) with: under dark,
+    /// a black background and white text; under light, the reverse.
+    /// Dark until set; the paint pass sets the document's.
+    pub fn color_scheme(&self) -> ColorScheme {
+        self.scheme
+    }
+
+    /// Set the color scheme of [`Self::color_scheme`].
+    pub fn set_color_scheme(&mut self, scheme: ColorScheme) {
+        self.scheme = scheme;
     }
 
     pub fn index_of(&self, x: u16, y: u16) -> Option<usize> {
@@ -187,6 +207,7 @@ impl Buffer {
             return false;
         }
         let mut next = Self::empty(new_area);
+        next.scheme = self.scheme;
         let overlap = self.area.intersection(new_area);
         if !overlap.is_empty() {
             for y in overlap.y..overlap.bottom() {
@@ -213,6 +234,7 @@ impl Buffer {
             content: Vec::with_capacity(len),
             border_dirs: Vec::with_capacity(len),
             half_block_quads: Vec::with_capacity(len),
+            scheme: self.scheme,
         };
         for y in region.y..region.bottom() {
             let (Some(a), Some(b)) = (

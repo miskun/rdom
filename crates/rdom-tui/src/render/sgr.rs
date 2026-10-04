@@ -142,8 +142,9 @@ fn emit_fg<W: Write>(w: &mut W, color: Color) -> io::Result<()> {
         Color::Reset => write!(w, "\x1b[39m"),
         Color::Indexed(n) => write!(w, "\x1b[38;5;{}m", n),
         Color::Rgb(r, g, b) => write!(w, "\x1b[38;2;{};{};{}m", r, g, b),
-        // A cell is opaque: only the channels can be emitted (alpha
-        // compositing is C3-ALPHA).
+        // A cell is opaque: paint composites alpha away before a color
+        // reaches one (`Buffer::write_styled`), so only a cell built
+        // field by field holds one, and its channels are emitted.
         Color::Rgba(r, g, b, _) => write!(w, "\x1b[38;2;{};{};{}m", r, g, b),
     }
 }

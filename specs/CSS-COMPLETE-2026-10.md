@@ -104,7 +104,7 @@ row comes from.
 | C3-RELATIVE | Relative color syntax (`rgb(from …)`) | done |
 | C3-SYSTEM | System colors (`Canvas`, `CanvasText`, `LinkText`, `ButtonFace`, …) | done |
 | C3-SCHEME | `color-scheme` and `light-dark()` (terminal background via OSC 11 / mode 2031) | partial — mode 2031 theme-change notifications are not listened to: crossterm 0.28's input parser cannot pass the report through (`App::set_color_scheme` is the hook meanwhile) |
-| C3-ALPHA | Color alpha composited over the backdrop (shares the opacity compositor) | |
+| C3-ALPHA | Color alpha composited over the backdrop (shares the opacity compositor) | done |
 
 ### Phase 4 — Backgrounds and borders (audit §3.5)
 

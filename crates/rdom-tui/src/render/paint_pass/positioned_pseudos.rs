@@ -19,7 +19,6 @@ use rdom_core::{Dom, NodeId, NodeType};
 use crate::ext::TuiExt;
 use crate::render::paint_pass::text::{paint_text_from, style_from_computed};
 use crate::render::{Buffer, Rect};
-use crate::style::Color;
 use crate::style::ComputedStyle;
 
 use super::layout_rect_to_grid;
@@ -87,19 +86,11 @@ pub(super) fn paint_positioned_pseudos(dom: &Dom<TuiExt>, buf: &mut Buffer, clip
             continue;
         };
 
-        let bg = style.bg;
-        let fg = style.fg;
-        if super::fills(bg) {
-            for y in grid.y..grid.bottom() {
-                for x in grid.x..grid.right() {
-                    if let Some(cell) = buf.cell_mut(x, y) {
-                        cell.set_bg(bg);
-                        if fg != Color::Reset {
-                            cell.set_fg(fg);
-                        }
-                    }
-                }
-            }
+        if super::fills(style.bg) {
+            // The box's background, translucent ones composited, and its
+            // color on the glyphs beneath.
+            buf.tint(grid, style.bg);
+            buf.tint_glyphs(grid, style.fg);
         }
         // Text lives on the pseudo's first row; if that row is above the
         // clip the text is genuinely off-screen. A start left of the clip

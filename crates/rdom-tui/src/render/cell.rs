@@ -26,6 +26,8 @@ use compact_str::CompactString;
 use unicode_width::UnicodeWidthStr;
 
 use super::{Color, Modifier};
+use crate::render::compose::{alpha_blend, canvas_bg};
+use rdom_style::color::ColorScheme;
 
 /// Diff-control hint on a cell.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
@@ -141,21 +143,37 @@ impl Cell {
         self
     }
 
-    /// Paint the foreground. A fully transparent color paints
-    /// nothing (CSS Color 4 §6.3): the cell keeps its foreground.
+    /// Paint the foreground. A fully transparent color paints nothing
+    /// (CSS Color 4 §6.3): the cell keeps its foreground; a translucent
+    /// one blends with the cell's background (straight alpha, the
+    /// terminal default as the dark canvas). `Buffer`'s writes
+    /// composite with the full per-cell rules instead.
     pub fn set_fg(&mut self, fg: Color) -> &mut Self {
-        if fg.alpha() > 0 {
-            self.fg = fg;
-        }
+        self.fg = match fg.alpha() {
+            0 => return self,
+            u8::MAX => fg,
+            a => alpha_blend(
+                fg,
+                f32::from(a) / 255.0,
+                canvas_bg(self.bg, ColorScheme::Dark),
+            ),
+        };
         self
     }
 
-    /// Paint the background. A fully transparent color paints
-    /// nothing: the cell keeps its background.
+    /// Paint the background. A fully transparent color paints nothing:
+    /// the cell keeps its background; a translucent one blends with it
+    /// (straight alpha, the terminal default as the dark canvas).
     pub fn set_bg(&mut self, bg: Color) -> &mut Self {
-        if bg.alpha() > 0 {
-            self.bg = bg;
-        }
+        self.bg = match bg.alpha() {
+            0 => return self,
+            u8::MAX => bg,
+            a => alpha_blend(
+                bg,
+                f32::from(a) / 255.0,
+                canvas_bg(self.bg, ColorScheme::Dark),
+            ),
+        };
         self
     }
 

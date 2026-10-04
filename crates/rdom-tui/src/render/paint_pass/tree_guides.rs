@@ -326,11 +326,8 @@ fn fill_row_bg(buf: &mut Buffer, clip: Rect, span: (i32, i32), y: i32, bg: Color
     }
     let x0 = span.0.max(clip.x as i32).max(0) as u16;
     let x1 = span.1.min(clip.right() as i32).max(0) as u16;
-    for x in x0..x1 {
-        if let Some(cell) = buf.cell_mut(x, yu) {
-            cell.set_bg(bg);
-        }
-    }
+    // A translucent highlight composites (C3-ALPHA).
+    buf.tint(Rect::new(x0, yu, x1.saturating_sub(x0), 1), bg);
 }
 
 /// Write a single glyph at `(x, y)` if it falls inside `clip`.

@@ -43,6 +43,17 @@ impl ColorScheme {
         }
     }
 
+    /// The canvas model: `(background, text)` — what the terminal's
+    /// default colors count as where a definite color is needed
+    /// (compositing, color functions): black and white when dark, white
+    /// and black when light.
+    pub fn canvas(self) -> (Color, Color) {
+        match self {
+            ColorScheme::Dark => (Color::Rgb(0, 0, 0), Color::Rgb(255, 255, 255)),
+            ColorScheme::Light => (Color::Rgb(255, 255, 255), Color::Rgb(0, 0, 0)),
+        }
+    }
+
     /// The keyword.
     pub fn keyword(self) -> &'static str {
         match self {

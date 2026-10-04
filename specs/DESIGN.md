@@ -133,7 +133,7 @@ Instead of inventing a new property name (`border-join`), reuse the CSS property
 
 When collapse is active and an element has a border, `compute_content_area_collapsed` returns the *outer* rect, so children's outer edges coincide with the parent's border-ring cells. Sibling overlap is handled inside the flex resolver only. This concentrates the box-model special case in one function; hit-test, paint, and selection don't need to know about collapse.
 
-### `opacity` is group opacity
+### `opacity` is group opacity (and color alpha shares it)
 
 An element with `opacity < 1` paints its whole stacking context into a layer at full opacity — a copy of the frame buffer's row band that the subtree can paint (`render/paint_pass/group.rs`, bounded below); `Buffer::composite_group` then folds that layer back onto the backdrop at the element's alpha, so nested opacities multiply and every paint inside the group blends exactly once, with no per-write compose state on the buffer. A cell holds one glyph, one foreground and one background, so the fold cannot mix two glyphs the way a pixel renderer mixes coverage. The rules, per cell:
 
@@ -145,7 +145,9 @@ An element with `opacity < 1` paints its whole stacking context into a layer at 
 - **Wide glyphs** composite as a unit: a layer's wide glyph takes its spacer cell with it, and a primary that loses its spacer, or a spacer that loses its primary, becomes a space.
 - **`opacity: 0`** composites nothing.
 
-`Color::Reset` has to become a colour before it can blend. Terminals do not report their default colours, so the canvas model assumes a dark terminal: `Reset` background is `#000000`, `Reset` foreground `#FFFFFF` (`render::compose::{CANVAS_BG, CANVAS_FG}`). A translucent element's default-coloured text is thus written as an explicit grey, and on a light terminal it composites toward the wrong end.
+`Color::Reset` has to become a colour before it can blend. The canvas model takes the document's color scheme (`ColorScheme::canvas`, set on the frame buffer by the paint pass): under dark — the default, and what a terminal that does not answer the startup OSC 11 query gets — `Reset` background is `#000000` and foreground `#FFFFFF`; under light, the reverse. A translucent element's default-coloured text is thus written as an explicit grey.
+
+**Color alpha shares these rules.** A paint in a translucent color (`rgb(255 0 0 / 50%)`, CSS Color 4 §4.2) is made at full opacity into a layer covering just the cells it paints and composited back at the color's alpha (`render/buffer/translucent.rs`): a background fill blends with the background beneath and tints the glyphs and borders it leaves; a glyph contests the backdrop's and blends with the background; a border's contributions blend like a glyph. A write whose background and foreground are both translucent composites twice, background first. The paint pass routes every author color through this — box fills, borders, text, `::backdrop`, row highlights, `::selection` and caret styles through `Buffer::set_style` — so no cell ever holds an alpha; `Cell::set_fg` / `set_bg` called directly blend straight-alpha against the cell instead.
 
 The layer is bounded: it copies and composites only the rows the element's subtree can paint (every box, anonymous box, pseudo box and inline line in it, plus one row of margin), across the full frame width, so a translucent element costs O(W · its height) per frame rather than O(W · H). Full width and the margin keep the paint pass's buffer-edge rules (the border off-buffer filter, the wide-glyph right-edge ellipsis) exactly as they are on the frame. In the crate's own tests every group is also painted through a full-frame layer and the two results are asserted equal, so the bound is checked by every paint test that uses `opacity`.
 

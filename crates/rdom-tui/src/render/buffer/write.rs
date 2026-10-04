@@ -6,7 +6,7 @@ use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
 use super::Buffer;
-use crate::render::Style;
+use crate::render::{Rect, Style};
 
 /// Horizontal ellipsis used when a wide glyph is clipped.
 const WIDE_CLIP_PLACEHOLDER: &str = "…";
@@ -18,9 +18,11 @@ impl Buffer {
     /// use `set_string` if `symbol` may be multi-byte and you want
     /// automatic wide-glyph spacer handling.
     pub fn set_symbol(&mut self, x: u16, y: u16, symbol: &str, style: Style) {
-        if let Some(c) = self.cell_mut(x, y) {
-            put_glyph(c, symbol, style);
-        }
+        self.write_styled(Rect::new(x, y, 1, 1), style, |buf, style| {
+            if let Some(c) = buf.cell_mut(x, y) {
+                put_glyph(c, symbol, style);
+            }
+        });
     }
 
     /// Write a single `char` at `(x, y)`. For multi-codepoint graphemes
@@ -34,9 +36,11 @@ impl Buffer {
     /// Write just the style at `(x, y)`, preserving whatever symbol
     /// is currently there.
     pub fn set_style(&mut self, x: u16, y: u16, style: Style) {
-        if let Some(c) = self.cell_mut(x, y) {
-            c.apply_style(style);
-        }
+        self.write_styled(Rect::new(x, y, 1, 1), style, |buf, style| {
+            if let Some(c) = buf.cell_mut(x, y) {
+                c.apply_style(style);
+            }
+        });
     }
 
     /// OSC 8 hyperlink range (Polish #9). Sets the `link` field on
@@ -85,6 +89,40 @@ impl Buffer {
         max_width: u16,
         style: Style,
     ) -> (u16, u16) {
+        self.write_text(x, y, s, max_width, style, false)
+    }
+
+    /// [`Self::set_stringn`] for the paint pass, which also clears the
+    /// border state of every cell a glyph takes (`occlude_borders`):
+    /// content paints over the borders painted before it. A translucent
+    /// style composites ([`Self::write_styled`]).
+    pub(crate) fn write_text(
+        &mut self,
+        x: u16,
+        y: u16,
+        s: &str,
+        max_width: u16,
+        style: Style,
+        occlude_borders: bool,
+    ) -> (u16, u16) {
+        let span = Rect::new(x, y, max_width.min(self.area.right().saturating_sub(x)), 1);
+        self.write_styled(span, style, |buf, style| {
+            buf.write_text_opaque(x, y, s, max_width, style, occlude_borders)
+        })
+        .unwrap_or((x, y))
+    }
+
+    /// The write itself, in a style whose colors paint as they are.
+    fn write_text_opaque(
+        &mut self,
+        x: u16,
+        y: u16,
+        s: &str,
+        max_width: u16,
+        style: Style,
+        occlude_borders: bool,
+    ) -> (u16, u16) {
+        let occlude = occlude_borders && !style.hides_glyph();
         // Row out of buffer → no-op, return input pos.
         if y < self.area.y || y >= self.area.bottom() {
             return (x, y);
@@ -128,6 +166,9 @@ impl Buffer {
                     if let Some(c) = self.cell_mut(cursor_x, y) {
                         put_glyph(c, WIDE_CLIP_PLACEHOLDER, style);
                     }
+                    if occlude {
+                        self.clear_border_at(cursor_x, y);
+                    }
                     cursor_x = cursor_x.saturating_add(1);
                 }
                 break;
@@ -143,6 +184,11 @@ impl Buffer {
                 let spacer_x = cursor_x.saturating_add(1);
                 if let Some(c) = self.cell_mut(spacer_x, y) {
                     put_glyph(c, "", style);
+                }
+            }
+            if occlude {
+                for dx in 0..w {
+                    self.clear_border_at(cursor_x.saturating_add(dx), y);
                 }
             }
 

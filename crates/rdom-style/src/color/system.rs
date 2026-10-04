@@ -48,10 +48,7 @@ pub(crate) const HIGHLIGHT: Color = Color::Rgb(0x39, 0x4B, 0x7E);
 /// count as where a definite color is needed — black and white under a
 /// dark scheme, white and black under a light one.
 pub fn canvas(scheme: ColorScheme) -> (Color, Color) {
-    match scheme {
-        ColorScheme::Dark => (named::BLACK, named::WHITE),
-        ColorScheme::Light => (named::WHITE, named::BLACK),
-    }
+    scheme.canvas()
 }
 
 /// A CSS system color (CSS Color 4 §6.2).
@@ -188,7 +185,7 @@ impl SystemColor {
 
     /// The color as a definite sRGB color, for use inside a color
     /// function: the terminal defaults take the canvas model's values
-    /// for `scheme` ([`canvas`]).
+    /// for `scheme` ([`ColorScheme::canvas`]).
     pub fn definite(self, scheme: ColorScheme) -> Color {
         let (background, text) = canvas(scheme);
         match self {

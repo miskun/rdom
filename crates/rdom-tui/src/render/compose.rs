@@ -3,32 +3,33 @@
 //!
 //! `alpha_blend(src, alpha, dst)` performs straight-alpha
 //! composition: `out = α·src + (1-α)·dst`. It is called by
-//! `Buffer::composite_group`, which blends a subtree's opaque layer
-//! back onto the backdrop at the element's `opacity` (CSS group
-//! opacity, OPACITY-1), so nested opacities multiply and every paint
-//! inside the group blends exactly once.
+//! `Buffer::composite_group`, which blends a layer back onto the
+//! backdrop — a subtree's at the element's `opacity` (CSS group
+//! opacity, OPACITY-1), or one translucent paint's at its color's
+//! alpha (C3-ALPHA) — so every paint inside blends exactly once.
 use crate::style::Color;
+use rdom_style::color::ColorScheme;
 
-/// The canvas model's background: what `Color::Reset` (the
-/// terminal's default background) is taken to be when a colour has
-/// to be blended against it. Terminals do not report their default
-/// colours, so compositing assumes a dark terminal: black.
-pub(crate) const CANVAS_BG: Color = Color::Rgb(0, 0, 0);
-
-/// The canvas model's foreground: what `Color::Reset` (the
-/// terminal's default foreground, the initial `color`) is taken to be
-/// when a glyph colour has to be blended. The counterpart of
-/// [`CANVAS_BG`]: white on black.
-pub(crate) const CANVAS_FG: Color = Color::Rgb(255, 255, 255);
-
-/// Resolve a background colour through the canvas model.
-pub(crate) fn canvas_bg(c: Color) -> Color {
-    if c == Color::Reset { CANVAS_BG } else { c }
+/// Resolve a background colour through the canvas model: `Color::Reset`
+/// (the terminal's default background) is the canvas background of
+/// `scheme` ([`ColorScheme::canvas`]) — terminals report their colours
+/// only on request, so compositing takes the scheme's.
+pub(crate) fn canvas_bg(c: Color, scheme: ColorScheme) -> Color {
+    if c == Color::Reset {
+        scheme.canvas().0
+    } else {
+        c
+    }
 }
 
-/// Resolve a foreground colour through the canvas model.
-pub(crate) fn canvas_fg(c: Color) -> Color {
-    if c == Color::Reset { CANVAS_FG } else { c }
+/// Resolve a foreground colour through the canvas model: `Color::Reset`
+/// (the terminal's default foreground) is the canvas text of `scheme`.
+pub(crate) fn canvas_fg(c: Color, scheme: ColorScheme) -> Color {
+    if c == Color::Reset {
+        scheme.canvas().1
+    } else {
+        c
+    }
 }
 
 /// Alpha-blend `src` over `dst` using `alpha` ∈ [0, 1].
@@ -39,24 +40,23 @@ pub(crate) fn canvas_fg(c: Color) -> Color {
 ///   to blend; preserves the "transparent" sentinel). Callers that
 ///   mean a default colour resolve it first with [`canvas_fg`] /
 ///   [`canvas_bg`].
-/// - `src` is non-`Rgb` (Indexed, ANSI palette) → returns `src`
-///   unchanged. T6 collapsed ANSI to RGB at the cascade level, but
-///   the through-path is preserved for defensive parsing.
-/// - `dst == Color::Reset` (or other non-`Rgb`) → blends against
-///   [`CANVAS_BG`]. Terminals don't expose their actual default bg,
-///   so we pick a deterministic fallback.
+/// - `src` is a palette index → returns `src` unchanged.
+/// - `dst == Color::Reset` (or a palette index) → blends against black.
+///   Callers resolve the default first ([`canvas_bg`]).
+///
+/// Both colours' own alpha is ignored: the callers pass opaque ones.
 pub(crate) fn alpha_blend(src: Color, alpha: f32, dst: Color) -> Color {
     if alpha >= 1.0 {
         return src;
     }
     let alpha = alpha.clamp(0.0, 1.0);
     let (sr, sg, sb) = match src {
-        Color::Rgb(r, g, b) => (r, g, b),
+        Color::Rgb(r, g, b) | Color::Rgba(r, g, b, _) => (r, g, b),
         Color::Reset => return Color::Reset,
         _ => return src,
     };
     let (dr, dg, db) = match dst {
-        Color::Rgb(r, g, b) => (r, g, b),
+        Color::Rgb(r, g, b) | Color::Rgba(r, g, b, _) => (r, g, b),
         _ => (0, 0, 0),
     };
     let blend = |s: u8, d: u8| -> u8 {

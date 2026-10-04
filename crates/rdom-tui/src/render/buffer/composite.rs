@@ -26,10 +26,9 @@
 //! - **Wide glyphs** composite as a unit (primary + spacer), and the
 //!   result never holds a primary without its spacer or an orphan
 //!   spacer.
-//! - `Color::Reset` resolves through the canvas model
-//!   ([`CANVAS_FG`](crate::render::compose::CANVAS_FG) /
-//!   [`CANVAS_BG`](crate::render::compose::CANVAS_BG)) before it
-//!   blends. `α = 0` composites nothing.
+//! - `Color::Reset` resolves through the canvas model of the buffer's
+//!   color scheme ([`canvas_fg`] / [`canvas_bg`]) before it blends.
+//!   `α = 0` composites nothing.
 
 use super::{BorderCell, Buffer};
 use crate::render::Cell;
@@ -155,9 +154,10 @@ impl Buffer {
             self.half_block_quads[i],
         ) && (alpha >= 0.5 || blank);
 
-        let backdrop_bg = canvas_bg(before.bg);
+        let scheme = self.scheme;
+        let backdrop_bg = canvas_bg(before.bg, scheme);
         let bg_changed = after.bg != before.bg;
-        let layer_bg = canvas_bg(after.bg);
+        let layer_bg = canvas_bg(after.bg, scheme);
         let mut out = before.clone();
         if bg_changed {
             out.bg = alpha_blend(layer_bg, alpha, backdrop_bg);
@@ -171,7 +171,7 @@ impl Buffer {
                 out.modifier = after.modifier;
                 out.diff = after.diff;
                 out.link = after.link.clone();
-                out.fg = alpha_blend(canvas_fg(after.fg), alpha, backdrop_bg);
+                out.fg = alpha_blend(canvas_fg(after.fg, scheme), alpha, backdrop_bg);
             }
             LayerGlyph::Same => {
                 out.modifier = after.modifier;
@@ -179,12 +179,16 @@ impl Buffer {
                 out.link = after.link.clone();
                 if after.fg != before.fg {
                     // Same glyph shape: its pixels mix the two colours.
-                    out.fg = alpha_blend(canvas_fg(after.fg), alpha, canvas_fg(before.fg));
+                    out.fg = alpha_blend(
+                        canvas_fg(after.fg, scheme),
+                        alpha,
+                        canvas_fg(before.fg, scheme),
+                    );
                 }
             }
             _ => {
                 if bg_changed && shows_glyph(before) {
-                    out.fg = alpha_blend(layer_bg, alpha, canvas_fg(before.fg));
+                    out.fg = alpha_blend(layer_bg, alpha, canvas_fg(before.fg, scheme));
                 }
             }
         }
@@ -200,7 +204,7 @@ impl Buffer {
                 if l.winner != b.winner
                     && let Some(w) = &mut l.winner
                 {
-                    w.fg = alpha_blend(canvas_fg(w.fg), alpha, backdrop_bg);
+                    w.fg = alpha_blend(canvas_fg(w.fg, scheme), alpha, backdrop_bg);
                 }
             }
             self.border_dirs[i] = state;
@@ -209,7 +213,7 @@ impl Buffer {
             // The backdrop's border stays, tinted by the layer's bg.
             for d in &mut self.border_dirs[i] {
                 if let Some(w) = &mut d.winner {
-                    w.fg = alpha_blend(layer_bg, alpha, canvas_fg(w.fg));
+                    w.fg = alpha_blend(layer_bg, alpha, canvas_fg(w.fg, scheme));
                 }
             }
         }
