@@ -6,6 +6,8 @@
 //! DA1, and answers queries in order, so the DA1 reply marks the end of
 //! the exchange whether or not the terminal knew OSC 11.
 
+use std::time::{Duration, Instant};
+
 use crate::style::Color;
 
 /// The query: OSC 11 for the background, then DA1 as the sentinel.
@@ -21,6 +23,17 @@ impl Replies {
     /// Add bytes read from the terminal.
     pub(crate) fn feed(&mut self, bytes: &[u8]) {
         self.buf.extend_from_slice(bytes);
+    }
+
+    /// True once a reply has begun arriving: an OSC introducer
+    /// (`ESC ]`), a DA1 reply's (`ESC [ ?`), or a trailing `ESC` the
+    /// next read may complete into one. Other bytes (a key typed while
+    /// the query waits) start nothing.
+    pub(crate) fn started(&self) -> bool {
+        find(&self.buf, b"\x1b]").is_some()
+            || find(&self.buf, b"\x1b[?").is_some()
+            || self.buf.ends_with(b"\x1b")
+            || self.buf.ends_with(b"\x1b[")
     }
 
     /// True once the DA1 reply (`ESC [ ? … c`) has arrived.
@@ -89,6 +102,30 @@ fn parse_color_spec(spec: &str) -> Option<Color> {
         scale(parts[1])?,
         scale(parts[2])?,
     ))
+}
+
+/// How much longer the query started at `start` waits at `now`:
+/// nothing once the replies are complete; until `start + timeout` while
+/// no reply has started; and, once one has, `grace` longer — a reply
+/// arriving in pieces over a slow link is read whole rather than cut,
+/// which would leave its tail to the input reader as keystrokes. A reply
+/// that has not started by `start + timeout` is not waited for.
+pub(crate) fn wait_left(
+    now: Instant,
+    start: Instant,
+    replies: &Replies,
+    timeout: Duration,
+    grace: Duration,
+) -> Duration {
+    if replies.complete() {
+        return Duration::ZERO;
+    }
+    let deadline = if replies.started() {
+        start + timeout + grace
+    } else {
+        start + timeout
+    };
+    deadline.saturating_duration_since(now)
 }
 
 /// The index of `needle` in `hay`.

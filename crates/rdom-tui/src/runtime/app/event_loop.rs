@@ -25,6 +25,21 @@ impl App<CrosstermBackend<Stdout>> {
     /// On exit, the terminal is restored via [`leave_tui_mode`].
     /// This is also guaranteed on panic — the `Drop` impl on `App`
     /// runs it if `run` unwinds.
+    ///
+    /// **Startup color-scheme query.** Before the first frame, unless
+    /// the app set a scheme ([`App::with_color_scheme`] /
+    /// [`App::set_color_scheme`]), `run` asks the terminal for its
+    /// background (OSC 11, then DA1 to mark the end of the replies) on
+    /// Unix when stdout is a terminal, reading the replies from stdin —
+    /// or `/dev/tty` when stdin is redirected. It waits up to 200 ms for
+    /// a reply to begin — that is the worst case for a terminal that
+    /// answers neither query — and up to 800 ms more once one has (a slow
+    /// link); a terminal that answers DA1 ends the wait at once. Keys
+    /// typed during the wait are read by the query, not the input
+    /// reader, and dropped; a reply arriving after the wait ends reaches
+    /// the input reader as keystrokes. The reported background picks the
+    /// preferred scheme ([`App::detected_background`]); no answer leaves
+    /// it dark.
     pub fn run(mut self) -> io::Result<()> {
         // The terminal's color scheme, asked before the input reader
         // starts (it would see the replies as keys).

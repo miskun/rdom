@@ -753,3 +753,17 @@ row comes from.
   per-style predicate is `style_uses_counters`, shared by rules and inline styles. Red (bare sheet,
   `style="counter-reset: c 5"` on the list, `counter-increment: c; content: counter(c)` on two items):
   `cascade_subtrees` of the second item gave `1`; green: `7`.
+- 2026-10-05 — C3G-OSC-ROBUST (interim until C3G-INPUT-READER): `reply::wait_left` (pure) decides
+  the startup query's wait — 200 ms (`QUERY_TIMEOUT`) for a reply to begin, `REPLY_GRACE` (800 ms)
+  more once `Replies::started` (an `ESC ]`, `ESC [ ?` or trailing `ESC` arrived; a typed key starts
+  nothing), zero once complete; a reply not begun by 200 ms is not waited for. `read_replies` polls
+  through it, so a reply that starts during a poll extends the wait. Input is stdin, or `/dev/tty`
+  when stdin is not a terminal (crossterm's rule); stdout must be a terminal. The query returns the
+  background, and `App::apply_detected_background` keeps it: `App::detected_background() ->
+  Option<Color>` (decided over a `color_scheme_source()` enum: the color says more and `None` is
+  "no answer"). Documented in `App::run` / `with_color_scheme` rustdoc, DIVERGENCES' scheme entry and
+  the rdom-tui README: when it runs, the 200 ms worst case without an answer (+ 800 ms for a slow
+  begun reply), dropped keystrokes, late replies as keys. Red (stubs compiled): `started` false for a
+  partial OSC 11, `wait_left` zero for a begun reply, `detected_background` `None` after an answer;
+  green: all three, plus the late-reply guard. The `/dev/tty` path has no automated test (needs a
+  pty).

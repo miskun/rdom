@@ -385,6 +385,7 @@ the `TuiEvent::keydown` / `keyup` / `keypress` / `click` / mouse /
 
 ## Terminal notes
 
+- **Startup color-scheme query.** Unless the app sets a scheme (`App::with_color_scheme`), `App::run` asks the terminal for its background with OSC 11 before the first frame (Unix, when stdout is a terminal; replies are read from stdin, or `/dev/tty` when stdin is redirected), and prefers the light or dark scheme it calls for — what `light-dark()` and `color-scheme: normal` follow. A terminal that answers ends the wait at once; one that answers nothing costs 200 ms; a reply that has begun is waited for up to 800 ms more. Keys typed during the wait are dropped, and a reply that arrives after it reaches the input reader as keystrokes. `App::detected_background()` is the reported color, `None` when there was no answer.
 - **iTerm2 and hover.** iTerm2 may ignore the any-motion mouse mode until it sees a real click, at launch and after every refocus, so `:hover` styles start following the pointer only after one click. Other terminals (Alacritty, Kitty, Ghostty, WezTerm) honor it immediately. The cause and the failed re-arm attempts are recorded in `specs/DIVERGENCES.md` §4.
 
 ## Examples

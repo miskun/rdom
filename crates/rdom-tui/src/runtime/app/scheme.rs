@@ -13,7 +13,9 @@ impl<B: Backend> App<B> {
     /// Use `scheme` as the document's preferred color scheme — what
     /// `light-dark()` picks by for an element with `color-scheme:
     /// normal` — instead of asking the terminal for its background at
-    /// startup.
+    /// startup: `run` then skips the query and its wait (up to 200 ms,
+    /// see [`App::run`]), and [`Self::detected_background`] stays
+    /// `None`.
     pub fn with_color_scheme(mut self, scheme: ColorScheme) -> Self {
         self.set_color_scheme(scheme);
         self
@@ -34,18 +36,37 @@ impl<B: Backend> App<B> {
         self.dom.color_scheme()
     }
 
+    /// The background the terminal reported to the startup query
+    /// (OSC 11), from which the preferred scheme was taken. `None` when
+    /// the terminal did not answer, the query was not made (the app set
+    /// the scheme, `run` has not started, stdout is not a terminal, a
+    /// non-Unix platform) — so "the terminal said dark" is
+    /// `Some(dark color)` and "it said nothing" is `None`, though both
+    /// prefer dark.
+    pub fn detected_background(&self) -> Option<crate::Color> {
+        self.detected_background
+    }
+
+    /// Record the startup query's answer and prefer the scheme it calls
+    /// for; no answer leaves the scheme as it is.
+    pub(super) fn apply_detected_background(&mut self, background: Option<crate::Color>) {
+        self.detected_background = background;
+        if let Some(bg) = background {
+            self.dom.set_color_scheme(ColorScheme::for_background(bg));
+            self.redraw.note(Redraw::Cascade);
+        }
+    }
+
     /// At startup, unless the app set a scheme: ask the terminal for
     /// its background (OSC 11) and prefer the scheme it calls for.
     pub(super) fn detect_color_scheme(&mut self) {
         if self.color_scheme_explicit {
             return;
         }
-        if let Some(scheme) = crate::runtime::color_scheme::query_terminal_scheme(
+        let background = crate::runtime::color_scheme::query_terminal_background(
             crate::runtime::color_scheme::QUERY_TIMEOUT,
-        ) {
-            self.dom.set_color_scheme(scheme);
-            self.redraw.note(Redraw::Cascade);
-        }
+        );
+        self.apply_detected_background(background);
     }
 }
 
@@ -81,6 +102,24 @@ mod tests {
         app.set_color_scheme(ColorScheme::Dark);
         app.draw_if_dirty().unwrap();
         assert_eq!(fg(&app), Color::Rgb(0, 0, 255));
+    }
+
+    /// The startup query's answer is kept: a background the terminal
+    /// reported is `Some` — and picks the scheme — while no answer leaves
+    /// `None` and the default dark scheme, so an app can tell "the
+    /// terminal said dark" from "the terminal said nothing".
+    #[test]
+    fn the_detected_background_tells_an_answer_from_none() {
+        let (mut app, _) = app("");
+        assert_eq!(app.detected_background(), None, "not asked yet");
+        app.apply_detected_background(None);
+        assert_eq!(app.detected_background(), None);
+        assert_eq!(app.color_scheme(), ColorScheme::Dark);
+        app.apply_detected_background(Some(Color::Rgb(0, 0, 0)));
+        assert_eq!(app.detected_background(), Some(Color::Rgb(0, 0, 0)));
+        assert_eq!(app.color_scheme(), ColorScheme::Dark);
+        app.apply_detected_background(Some(Color::Rgb(250, 250, 240)));
+        assert_eq!(app.color_scheme(), ColorScheme::Light);
     }
 
     /// Dark until set — what a terminal that does not answer gets.

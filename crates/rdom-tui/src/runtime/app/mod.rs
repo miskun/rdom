@@ -153,6 +153,8 @@ pub struct App<B: Backend = CrosstermBackend<Stdout>> {
     /// True once the app set the color scheme (`App::with_color_scheme`
     /// / `set_color_scheme`): the terminal is not asked at startup.
     color_scheme_explicit: bool,
+    /// The background the terminal reported at startup (OSC 11), if any.
+    detected_background: Option<crate::style::Color>,
     on_tick: Option<TickCallback>,
     /// Timer / rAF / microtask scheduler.
     pub(crate) scheduler: crate::runtime::timers::SharedScheduler,
@@ -320,6 +322,7 @@ impl<B: Backend> App<B> {
             animation_frame_ms: 16,
             cascaded_viewport: None,
             color_scheme_explicit: false,
+            detected_background: None,
             on_tick: None,
             scheduler: std::rc::Rc::new(std::cell::RefCell::new(
                 crate::runtime::timers::Scheduler::new(std::time::Instant::now()),
