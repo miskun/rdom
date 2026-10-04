@@ -125,3 +125,12 @@ fn color_mix_resolves_at_computed_value_time() {
     let c = div("section { color: red } div { color: color-mix(in srgb, currentcolor, blue) }");
     assert_eq!(c.fg, Color::Rgb(128, 0, 128));
 }
+
+// ── Relative colors: CSS Color 5 §4 ─────────────────────────────
+
+/// A relative color from `currentcolor` uses the element's color.
+#[test]
+fn relative_color_from_currentcolor() {
+    let c = div("div { background-color: rgb(from currentcolor r g b / 50%) } .x { color: red }");
+    assert_eq!(c.bg, Color::Rgba(255, 0, 0, 128));
+}

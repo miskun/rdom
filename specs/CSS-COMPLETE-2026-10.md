@@ -101,7 +101,7 @@ row comes from.
 | C3-HSL-HWB | `hsl()` / `hsla()` / `hwb()` | done |
 | C3-LAB | `lab()` / `lch()` / `oklab()` / `oklch()` / `color()` with gamut mapping to sRGB | done |
 | C3-MIX | `color-mix()` | done |
-| C3-RELATIVE | Relative color syntax (`rgb(from …)`) | |
+| C3-RELATIVE | Relative color syntax (`rgb(from …)`) | done |
 | C3-SYSTEM | System colors (`Canvas`, `CanvasText`, `LinkText`, `ButtonFace`, …) | |
 | C3-SCHEME | `color-scheme` and `light-dark()` (terminal background via OSC 11 / mode 2031) | |
 | C3-ALPHA | Color alpha composited over the backdrop (shares the opacity compositor) | |

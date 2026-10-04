@@ -468,3 +468,99 @@ fn color_mix_with_currentcolor_waits_for_the_element() {
     crate::property_dispatch::set("background-color", &text, &mut again).unwrap();
     assert_eq!(style, again, "{text}");
 }
+
+// ── Relative colors: CSS Color 5 §4 ─────────────────────────────
+
+/// §4.1: `from <color>` binds the origin's channels, converted to the
+/// function's space, to keywords the channels may use — alone or in
+/// math functions — with `alpha` for its alpha.
+#[test]
+fn relative_rgb() {
+    assert_eq!(parse_color("rgb(from red r g b)"), rgb(255, 0, 0));
+    assert_eq!(parse_color("rgb(from red b g r)"), rgb(0, 0, 255));
+    assert_eq!(parse_color("rgba(from red R G B)"), rgb(255, 0, 0));
+    assert_eq!(
+        parse_color("rgb(from rgb(10 20 30) calc(r * 2) g b / 0.5)"),
+        rgba(20, 20, 30, 128)
+    );
+    assert_eq!(
+        parse_color("rgb(from rgb(0 0 0 / 50%) r g b / calc(alpha * 2))"),
+        rgb(0, 0, 0)
+    );
+    assert_eq!(parse_color("rgb(from red r g b / alpha)"), rgb(255, 0, 0));
+    assert_eq!(
+        parse_color("rgb(from hsl(120 100% 50%) r g b)"),
+        rgb(0, 255, 0)
+    );
+    assert_eq!(parse_color("rgb(from red none g b)"), rgb(0, 0, 0));
+}
+
+/// §4.2 – §4.4: the hue functions and the Lab family.
+#[test]
+fn relative_hsl_hwb_lab() {
+    assert_eq!(
+        parse_color("hsl(from red calc(h + 120) s l)"),
+        rgb(0, 255, 0)
+    );
+    assert_eq!(
+        parse_color("hsl(from blue h s calc(l * 0.5))"),
+        rgb(0, 0, 128)
+    );
+    assert_eq!(parse_color("hwb(from red h w b)"), rgb(255, 0, 0));
+    assert_near("lab(from red l a b)", (255, 0, 0));
+    assert_near("oklab(from red l a b)", (255, 0, 0));
+    let Some(Color::Rgb(r, g, b)) = parse_color("oklch(from red l 0 h)") else {
+        panic!()
+    };
+    assert!(
+        r.abs_diff(g) <= 1 && g.abs_diff(b) <= 1,
+        "a gray: rgb({r}, {g}, {b})"
+    );
+    let Some(Color::Rgb(r, _, b)) = parse_color("oklch(from red l c calc(h + 180))") else {
+        panic!()
+    };
+    assert!(b > r, "the complement of red is bluish: {r} / {b}");
+}
+
+/// §4.5: `color(from <color> <space> …)`, channels `r g b` or `x y z`.
+#[test]
+fn relative_color_function() {
+    assert_eq!(parse_color("color(from red srgb r g b)"), rgb(255, 0, 0));
+    assert_eq!(
+        parse_color("color(from red srgb calc(r * 0.5) g b)"),
+        rgb(128, 0, 0)
+    );
+    assert_near("color(from red xyz x y z)", (255, 0, 0));
+    assert_near("color(from red display-p3 r g b)", (255, 0, 0));
+}
+
+/// Relative colors take only the modern syntax, a known keyword per
+/// channel and a valid origin.
+#[test]
+fn relative_colors_reject_malformed() {
+    for bad in [
+        "rgb(from red r, g, b)",
+        "rgb(from red)",
+        "rgb(from red x g b)",
+        "rgb(from red r g)",
+        "rgb(from notacolor r g b)",
+        "rgb(from r g b)",
+        "color(from red r g b)",
+        "hsl(from red r s l)",
+    ] {
+        assert_eq!(parse_color(bad), None, "{bad}");
+    }
+}
+
+/// A relative color from `currentcolor` is computed for the element.
+#[test]
+fn relative_color_from_currentcolor_waits_for_the_element() {
+    use crate::{ColorContext, TuiColor};
+    let c = TuiColor::parse("rgb(from currentcolor r g b / 50%)").unwrap();
+    assert!(c.depends_on_element());
+    let vars = std::collections::HashMap::new();
+    assert_eq!(
+        c.resolve(&vars, &ColorContext::new(Color::Rgb(255, 0, 0))),
+        rgba(255, 0, 0, 128)
+    );
+}

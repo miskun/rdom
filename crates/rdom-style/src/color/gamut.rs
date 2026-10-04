@@ -5,7 +5,7 @@
 //! hue and lightness.
 
 use super::absolute::{AbsoluteColor, ColorSpace};
-use super::convert::{from_xyz_d65, to_xyz_d65};
+use super::convert::{convert, from_xyz_d65, to_xyz_d65};
 
 /// The just-noticeable difference, in deltaEOK (§13.2.2).
 const JND: f64 = 0.02;
@@ -21,17 +21,14 @@ type Vec3 = [f64; 3];
 /// `color` as sRGB components within `0..=1` (§13.2.2 "CSS gamut
 /// mapping to an RGB destination").
 pub(crate) fn map_to_srgb(color: AbsoluteColor) -> Vec3 {
-    let xyz = to_xyz_d65(color.space, color.values());
-    // An sRGB color skips the round trip through XYZ, whose rounding
-    // would move a channel off an exact half (CSS rounds 127.5 up).
-    let rgb = if color.space == ColorSpace::Srgb {
-        color.values()
-    } else {
-        from_xyz_d65(ColorSpace::Srgb, xyz)
-    };
+    // `convert` takes sRGB, HSL and HWB directly, without the round
+    // trip through XYZ, whose rounding would move a channel off an
+    // exact half (CSS rounds 127.5 up).
+    let rgb = convert(color, ColorSpace::Srgb).values();
     if in_gamut(rgb) {
         return rgb.map(clamp_unit);
     }
+    let xyz = to_xyz_d65(color.space, color.values());
     let [l, c, h] = from_xyz_d65(ColorSpace::Oklch, xyz);
     if l.is_nan() || l <= 0.0 {
         return [0.0; 3];

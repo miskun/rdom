@@ -11,6 +11,7 @@
 //! - `hsl` — `hsl()` / `hsla()` / `hwb()`.
 //! - `lab` — `lab()` / `lch()` / `oklab()` / `oklch()` / `color()`.
 //! - `mix` — `color-mix()`.
+//! - `relative` — relative color syntax (`rgb(from <color> r g b)`).
 //! - `context` — what a color inside a function resolves against
 //!   (`currentcolor`), and the rule that defers a function holding one
 //!   to computed-value time.
@@ -20,6 +21,7 @@ mod context;
 mod hsl;
 mod lab;
 mod mix;
+mod relative;
 mod rgb;
 
 use crate::color::{AbsoluteColor, ColorSpace};
@@ -111,7 +113,11 @@ fn parse_function(value: &[Token], start: usize, cx: &ColorCx) -> Option<(Absolu
     };
     let close = closing_paren(value, start)?;
     let args = &value[start + 1..close];
-    let color = match name.to_ascii_lowercase().as_str() {
+    let name = name.to_ascii_lowercase();
+    if matches!(args.first(), Some(Token::Ident(from)) if from.eq_ignore_ascii_case("from")) {
+        return Some((relative::parse(&name, args, cx)?, close + 1 - start));
+    }
+    let color = match name.as_str() {
         "color-mix" => mix::parse(args, cx)?,
         "rgb" | "rgba" => rgb::parse(args)?,
         "hsl" | "hsla" => hsl::parse_hsl(args)?,

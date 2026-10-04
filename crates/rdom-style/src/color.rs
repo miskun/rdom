@@ -51,6 +51,7 @@ pub use interpolate::interpolate_oklab;
 pub(crate) use interpolate::{HueMethod, mix};
 
 pub(crate) use absolute::{AbsoluteColor, ColorSpace};
+pub(crate) use convert::convert;
 
 /// Terminal color. Four variants: `Reset` (terminal default),
 /// `Indexed` (xterm-256 palette index), `Rgb` (24-bit truecolor) and

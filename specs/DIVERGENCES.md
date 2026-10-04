@@ -248,7 +248,6 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 
 ### Color
 
-- Relative color syntax (`rgb(from …)`) — C3-RELATIVE
 - System colors (`Canvas`, `CanvasText`, `LinkText`, `ButtonFace`, …) — C3-SYSTEM
 - `color-scheme`, `light-dark()` — C3-SCHEME
 - Color alpha composited over the backdrop (today dropped) — C3-ALPHA

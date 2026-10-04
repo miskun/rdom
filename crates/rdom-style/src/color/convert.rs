@@ -25,11 +25,36 @@ pub(crate) fn convert(color: AbsoluteColor, to: ColorSpace) -> AbsoluteColor {
     if color.space == to {
         return color;
     }
-    let coords = from_xyz_d65(to, to_xyz_d65(color.space, color.values()));
+    // Within sRGB and its HSL / HWB forms, convert directly: a round
+    // trip through XYZ would move exact values (`hsl()` lightness 50
+    // to 49.999…).
+    let direct = srgb_form(color.space, color.values()).and_then(|rgb| from_srgb_form(to, rgb));
+    let coords =
+        direct.unwrap_or_else(|| from_xyz_d65(to, to_xyz_d65(color.space, color.values())));
     AbsoluteColor {
         space: to,
         coords: coords.map(Some),
         alpha: color.alpha,
+    }
+}
+
+/// The sRGB coordinates of a color in sRGB, HSL or HWB.
+fn srgb_form(space: ColorSpace, c: Vec3) -> Option<Vec3> {
+    match space {
+        ColorSpace::Srgb => Some(c),
+        ColorSpace::Hsl => Some(hsl_to_srgb(c)),
+        ColorSpace::Hwb => Some(hwb_to_srgb(c)),
+        _ => None,
+    }
+}
+
+/// sRGB coordinates in sRGB, HSL or HWB.
+fn from_srgb_form(space: ColorSpace, rgb: Vec3) -> Option<Vec3> {
+    match space {
+        ColorSpace::Srgb => Some(rgb),
+        ColorSpace::Hsl => Some(srgb_to_hsl(rgb)),
+        ColorSpace::Hwb => Some(srgb_to_hwb(rgb)),
+        _ => None,
     }
 }
 
