@@ -6,11 +6,10 @@ use rdom_core::{Dom, NodeId};
 
 use super::apply::{finalize_bfc_formation, finalize_border_fg};
 use super::content::resolve_content_on;
-use super::counters::CounterState;
 use super::inherit::inherit_inheritable_from;
 use super::ladder::{Declarations, apply_cascade_ladder, prepare};
-use super::matching::Scratch;
-use super::sheets::Sheets;
+use super::matching::{Rules, Scratch};
+use super::walk::ElementCx;
 use crate::ext::TuiExt;
 use crate::style::{ComputedStyle, PseudoElementTarget};
 
@@ -38,48 +37,33 @@ pub(super) fn before_targets(dom: &Dom<TuiExt>, id: NodeId) -> &'static [PseudoE
     }
 }
 
-/// Pseudo-element computation. Returns `None` if the pseudo-element
-/// should not render (no matching rules AND no legacy
+/// A pseudo-element's computed style over `targets`: rules for any of
+/// them apply, and at equal specificity a rule for a later target wins
+/// (the axis-specific `::scrollbar-thumb:vertical` layers over the
+/// axis-neutral `::scrollbar-thumb`). Content fallback and the
+/// `Some`-ness rule are those of the first target. `None` if the
+/// pseudo-element should not render (no matching rules AND no legacy
 /// `before_content` / `after_content` text set AND no `content`
 /// resolved).
-pub(super) fn compute_pseudo_style<'a>(
-    dom: &Dom<TuiExt>,
-    sheets: &Sheets<'a>,
-    id: NodeId,
-    host_computed: &ComputedStyle,
-    target: PseudoElementTarget,
-    counters: &mut CounterState,
-    scratch: &mut Scratch<'a>,
-) -> Option<ComputedStyle> {
-    compute_pseudo_style_layered(dom, sheets, id, host_computed, &[target], counters, scratch)
-}
-
-/// [`compute_pseudo_style`] over several targets: rules for any of
-/// `targets` match, and at equal specificity a rule for a later target
-/// wins (the axis-specific `::scrollbar-thumb:vertical` layers over the
-/// axis-neutral `::scrollbar-thumb`). Content fallback and the
-/// `Some`-ness rule are those of the first target.
-pub(super) fn compute_pseudo_style_layered<'a>(
-    dom: &Dom<TuiExt>,
-    sheets: &Sheets<'a>,
-    id: NodeId,
+pub(super) fn compute_pseudo_style(
+    cx: &mut ElementCx<'_, '_>,
     host_computed: &ComputedStyle,
     targets: &[PseudoElementTarget],
-    counters: &mut CounterState,
-    scratch: &mut Scratch<'a>,
+    rules: Rules<'_>,
 ) -> Option<ComputedStyle> {
     let target = targets[0];
     if target == PseudoElementTarget::None {
         return None;
     }
+    let (dom, id) = (cx.dom, cx.id);
 
     // Collect matching rules for this pseudo across all sheets, with
     // sheet_idx as the secondary tiebreaker.
-    scratch.collect(dom, sheets, id, targets);
+    cx.scratch.gather(dom, cx.sheets, id, targets, rules);
     let fallback = legacy_content(dom, id, target);
     // No rule styles it and it has no legacy content: there is no box,
     // and nothing to cascade.
-    if scratch.sorted.is_empty() && fallback.is_none() {
+    if cx.scratch.sorted.is_empty() && fallback.is_none() {
         return None;
     }
     let Scratch {
@@ -87,7 +71,8 @@ pub(super) fn compute_pseudo_style_layered<'a>(
         ranks,
         plan,
         ..
-    } = &*scratch;
+    } = &*cx.scratch;
+    let counters = &mut *cx.counters;
 
     // Pseudo-elements inherit from the host's computed style (per spec),
     // not from the host's parent.
@@ -99,7 +84,7 @@ pub(super) fn compute_pseudo_style_layered<'a>(
 
     // Pseudo-elements don't have their own inline_style on `TuiExt`.
     let decls = Declarations::new(sorted, ranks, None);
-    let substituted = prepare(&mut working, plan, decls, sheets.registry(), None);
+    let substituted = prepare(&mut working, plan, decls, cx.sheets.registry(), None);
     let decls = decls.with(substituted.as_ref());
     apply_cascade_ladder(&mut working, plan, decls, host_computed);
 

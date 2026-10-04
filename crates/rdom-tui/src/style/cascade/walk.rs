@@ -20,7 +20,8 @@ pub(super) use super::counters::CounterState;
 use super::inherit::{inherit_inheritable_from, layout_differs};
 use super::ladder::{Declarations, apply_cascade_ladder, prepare};
 pub(super) use super::matching::Scratch;
-use super::pseudo::{before_targets, compute_pseudo_style, compute_pseudo_style_layered};
+use super::matching::{MatchedRules, Recorder, Rules, Slot};
+use super::pseudo::{before_targets, compute_pseudo_style};
 pub(super) use super::sheets::Sheets;
 
 /// Merge `root_vars` across all registered sheets into a single
@@ -113,13 +114,14 @@ pub(super) fn cascade_roots_in_order<'a>(
     id: NodeId,
     counters: &mut CounterState,
     scratch: &mut Scratch<'a>,
+    mode: Mode,
 ) {
     if *next >= roots.len() {
         return;
     }
     if id == roots[*next] {
         let parent_computed = parent_computed_for(dom, id, merged_vars);
-        let flags = cascade_subtree(dom, sheets, id, &parent_computed, counters, scratch);
+        let flags = cascade_subtree(dom, sheets, id, &parent_computed, counters, scratch, mode);
         bubble_subtree_flags(dom, id, flags);
         *next += 1;
         // Roots inside this subtree were just cascaded with it.
@@ -150,6 +152,7 @@ pub(super) fn cascade_roots_in_order<'a>(
             child,
             counters,
             scratch,
+            mode,
         );
         if *next >= roots.len() {
             break;
@@ -174,6 +177,46 @@ impl SubtreeFlags {
     }
 }
 
+/// How a subtree walk gets each element's rules.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum Mode {
+    /// Match every element's selectors, and record the matches.
+    Cascade,
+    /// Reuse the matches recorded under the same sheets (matching where
+    /// there are none), and keep the subtree of an element whose style
+    /// comes out unchanged: nothing it passes down changed. For a
+    /// restyle no selector's result can change in — a registered custom
+    /// property's animated value moving (`C1G-PROPERTY-RESTYLE`).
+    Restyle,
+}
+
+/// What computing one element's boxes reads: the tree, the sheets, the
+/// element, and the pass's counters and buffers.
+pub(super) struct ElementCx<'w, 'a> {
+    pub dom: &'w Dom<TuiExt>,
+    pub sheets: &'w Sheets<'a>,
+    pub id: NodeId,
+    pub counters: &'w mut CounterState,
+    pub scratch: &'w mut Scratch<'a>,
+}
+
+/// Compute one box of the element in `cx` from `cached` (else by
+/// matching, recorded into `recorder`).
+fn compute_box<T>(
+    cx: &mut ElementCx<'_, '_>,
+    slot: Slot,
+    cached: Option<&MatchedRules>,
+    recorder: &mut Recorder,
+    compute: impl FnOnce(&mut ElementCx<'_, '_>, Rules<'_>) -> T,
+) -> T {
+    let rules = cached.map_or(Rules::Match, |m| m.rules(slot));
+    let out = compute(cx, rules);
+    if let Rules::Match = rules {
+        recorder.record(slot, cx.scratch);
+    }
+    out
+}
+
 /// Walk `id`'s subtree. Returns the subtree's aggregated
 /// [`SubtreeFlags`] — currently `has_positioned_pseudo`
 /// (positioned `::before` / `::after`) and `has_collapse`
@@ -189,6 +232,7 @@ pub(super) fn cascade_subtree<'a>(
     parent_computed: &ComputedStyle,
     counters: &mut CounterState,
     scratch: &mut Scratch<'a>,
+    mode: Mode,
 ) -> SubtreeFlags {
     // Collect child ids up-front; mutations below don't change structure
     // but borrow rules need shared → exclusive swap.
@@ -210,17 +254,61 @@ pub(super) fn cascade_subtree<'a>(
                 parent_computed,
                 counters,
                 scratch,
+                mode,
             ));
         }
         counters.exit(id);
         return flags;
     }
 
+    // The matches recorded under these sheets: reused by a restyle,
+    // compared against (to keep them without allocating) by a cascade.
+    let recorded = dom
+        .node(id)
+        .ext()
+        .and_then(|e| e.matched.clone())
+        .filter(|m| m.is_for(sheets));
+    let cached = recorded.as_deref().filter(|_| mode == Mode::Restyle);
+
+    let mut recorder = Recorder::new(recorded.clone(), mode == Mode::Restyle);
+    let parent_id = dom.node(id).parent_node().map(|p| p.id());
+
+    let computed = {
+        let mut cx = ElementCx {
+            dom: &*dom,
+            sheets,
+            id,
+            counters: &mut *counters,
+            scratch: &mut *scratch,
+        };
+        compute_box(
+            &mut cx,
+            Slot::Element,
+            cached,
+            &mut recorder,
+            |cx, rules| compute_element_style(cx, parent_computed, parent_id, rules),
+        )
+    };
+    let previous = dom.node(id).ext().and_then(|e| e.computed.clone());
+    if mode == Mode::Restyle && previous.as_deref() == Some(&computed) {
+        // Nothing this element passes down changed: its boxes and its
+        // subtree keep their styles.
+        if let Some(ext) = dom.node_mut(id).ext_mut() {
+            ext.matched = Some(recorder.finish(sheets));
+        }
+        counters.replay_subtree(dom, id);
+        counters.exit(id);
+        let ext = dom.node(id).ext();
+        return SubtreeFlags {
+            has_positioned_pseudo: ext.is_some_and(|e| e.tree_has_positioned_pseudo),
+            has_collapse: ext.is_some_and(|e| e.tree_has_collapse),
+        };
+    }
+
     // Compute under a shared borrow. `::after` is computed after the
     // children (below): it sits after them in tree order, so a
     // `counter()` in it sees their increments.
     let (
-        computed,
         computed_before,
         computed_backdrop,
         computed_selection,
@@ -228,43 +316,21 @@ pub(super) fn cascade_subtree<'a>(
         computed_scrollbar_thumb_vertical,
         computed_scrollbar_thumb_horizontal,
     ) = {
-        let parent_id = dom.node(id).parent_node().map(|p| p.id());
-        let computed = compute_element_style(
-            dom,
+        let mut cx = ElementCx {
+            dom: &*dom,
             sheets,
             id,
-            parent_computed,
-            parent_id,
-            counters,
-            scratch,
-        );
-        let cb = compute_pseudo_style_layered(
-            dom,
-            sheets,
-            id,
-            &computed,
-            before_targets(dom, id),
-            counters,
-            scratch,
-        );
-        let cbd = compute_pseudo_style(
-            dom,
-            sheets,
-            id,
-            &computed,
-            PseudoElementTarget::Backdrop,
-            counters,
-            scratch,
-        );
-        let csel = compute_pseudo_style(
-            dom,
-            sheets,
-            id,
-            &computed,
-            PseudoElementTarget::Selection,
-            counters,
-            scratch,
-        );
+            counters: &mut *counters,
+            scratch: &mut *scratch,
+        };
+        let mut pseudo = |cx: &mut ElementCx<'_, '_>, slot, targets: &[PseudoElementTarget]| {
+            compute_box(cx, slot, cached, &mut recorder, |cx, rules| {
+                compute_pseudo_style(cx, &computed, targets, rules)
+            })
+        };
+        let cb = pseudo(&mut cx, Slot::Before, before_targets(dom, id));
+        let cbd = pseudo(&mut cx, Slot::Backdrop, &[PseudoElementTarget::Backdrop]);
+        let csel = pseudo(&mut cx, Slot::Selection, &[PseudoElementTarget::Selection]);
         // Scrollbar pseudos only computed for elements that actually
         // have non-`Visible` overflow on at least one axis — saves a
         // selector-matching pass per element on the (very common)
@@ -278,43 +344,27 @@ pub(super) fn cascade_subtree<'a>(
         );
         let (csb, csbt_v, csbt_h) = if needs_scrollbar {
             (
-                compute_pseudo_style(
-                    dom,
-                    sheets,
-                    id,
-                    &computed,
-                    PseudoElementTarget::Scrollbar,
-                    counters,
-                    scratch,
-                ),
-                compute_pseudo_style_layered(
-                    dom,
-                    sheets,
-                    id,
-                    &computed,
+                pseudo(&mut cx, Slot::Scrollbar, &[PseudoElementTarget::Scrollbar]),
+                pseudo(
+                    &mut cx,
+                    Slot::ThumbVertical,
                     &PseudoElementTarget::thumb_targets(true),
-                    counters,
-                    scratch,
                 ),
-                compute_pseudo_style_layered(
-                    dom,
-                    sheets,
-                    id,
-                    &computed,
+                pseudo(
+                    &mut cx,
+                    Slot::ThumbHorizontal,
                     &PseudoElementTarget::thumb_targets(false),
-                    counters,
-                    scratch,
                 ),
             )
         } else {
             (None, None, None)
         };
-        (computed, cb, cbd, csel, csb, csbt_v, csbt_h)
+        (cb, cbd, csel, csb, csbt_v, csbt_h)
     };
 
     // Diff for layout invalidation. "No previous computed" counts as a
     // change (first cascade).
-    let layout_changed = match dom.node(id).ext().and_then(|e| e.computed.as_ref()) {
+    let layout_changed = match &previous {
         Some(prev) => layout_differs(prev, &computed),
         None => true,
     };
@@ -341,20 +391,23 @@ pub(super) fn cascade_subtree<'a>(
     };
     for child in child_ids {
         flags.merge(cascade_subtree(
-            dom, sheets, child, &computed, counters, scratch,
+            dom, sheets, child, &computed, counters, scratch, mode,
         ));
     }
 
     // `::after` comes after the children in tree order.
-    let computed_after = compute_pseudo_style(
-        dom,
-        sheets,
-        id,
-        &computed,
-        PseudoElementTarget::After,
-        counters,
-        scratch,
-    );
+    let computed_after = {
+        let mut cx = ElementCx {
+            dom: &*dom,
+            sheets,
+            id,
+            counters: &mut *counters,
+            scratch: &mut *scratch,
+        };
+        compute_box(&mut cx, Slot::After, cached, &mut recorder, |cx, rules| {
+            compute_pseudo_style(cx, &computed, &[PseudoElementTarget::After], rules)
+        })
+    };
     counters.exit(id);
     let own_has_positioned_pseudo = computed_before
         .as_ref()
@@ -370,6 +423,7 @@ pub(super) fn cascade_subtree<'a>(
         ext.computed_after = computed_after.map(std::rc::Rc::new);
         ext.tree_has_positioned_pseudo = flags.has_positioned_pseudo;
         ext.tree_has_collapse = flags.has_collapse;
+        ext.matched = Some(recorder.finish(sheets));
     }
     flags
 }
@@ -377,15 +431,13 @@ pub(super) fn cascade_subtree<'a>(
 /// Per-element cascade: start from initial + inheritance, collect
 /// matching rules, apply the ladder, resolve `content`, finalize
 /// `border_fg`.
-fn compute_element_style<'a>(
-    dom: &Dom<TuiExt>,
-    sheets: &Sheets<'a>,
-    id: NodeId,
+fn compute_element_style(
+    cx: &mut ElementCx<'_, '_>,
     parent: &ComputedStyle,
     parent_id: Option<NodeId>,
-    counters: &mut CounterState,
-    scratch: &mut Scratch<'a>,
+    rules: Rules<'_>,
 ) -> ComputedStyle {
+    let (dom, sheets, id) = (cx.dom, cx.sheets, cx.id);
     // Start from initial + inherit subset from parent. That includes
     // the custom-property map (an `Rc` clone; `apply_cascade_ladder`
     // copies on write only when this element declares `--*`).
@@ -396,13 +448,15 @@ fn compute_element_style<'a>(
     // Cascade order is (specificity, scope proximity, sheet_idx,
     // source_idx) — later sheets win same-specificity contests just
     // like later rules in a single sheet do.
-    scratch.collect(dom, sheets, id, &[PseudoElementTarget::None]);
+    cx.scratch
+        .gather(dom, sheets, id, &[PseudoElementTarget::None], rules);
     let Scratch {
         sorted,
         ranks,
         plan,
         ..
-    } = &*scratch;
+    } = &*cx.scratch;
+    let counters = &mut *cx.counters;
 
     // Inline style on this element (may be empty).
     let inline = dom.node(id).ext().and_then(|e| e.inline_style.as_deref());

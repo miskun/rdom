@@ -269,10 +269,13 @@ impl AnimationRegistry {
                 });
             }
             let (node, name) = (anim.node, anim.name.clone());
-            self.restyle.push(node);
+            // Restyle only when the animated value moved: inside the
+            // delay it holds the start value (`C1G-PROPERTY-RESTYLE`).
             if anim.is_done(now) {
                 let done = self.custom.swap_remove(i);
-                write(dom, node, &name, None);
+                if write(dom, node, &name, None) {
+                    self.restyle.push(node);
+                }
                 self.custom_events.push(PendingCustomEvent {
                     node,
                     kind: TransitionEventKind::End,
@@ -281,7 +284,9 @@ impl AnimationRegistry {
                 });
             } else {
                 let value = anim.kind.format(anim.current(now));
-                write(dom, node, &name, Some(value));
+                if write(dom, node, &name, Some(value)) {
+                    self.restyle.push(node);
+                }
                 i += 1;
             }
         }
@@ -334,16 +339,21 @@ fn rule_for(style: &ComputedStyle, name: &str) -> Option<(u32, TimingFunction, u
 }
 
 /// Set (or, with `None`, clear) `node`'s animated value of `name`.
-fn write(dom: &mut Dom<TuiExt>, node: NodeId, name: &str, value: Option<String>) {
+/// `true` when that changed it.
+fn write(dom: &mut Dom<TuiExt>, node: NodeId, name: &str, value: Option<String>) -> bool {
     if !dom.contains(node) {
-        return;
+        return false;
     }
     let mut node_mut = dom.node_mut(node);
     let Some(ext) = node_mut.ext_mut() else {
-        return;
+        return false;
     };
-    if value.is_none() && ext.presentation_for(StyleSlot::Host).is_none() {
-        return;
+    let current = ext
+        .presentation_for(StyleSlot::Host)
+        .and_then(|p| p.custom_properties.as_ref())
+        .and_then(|m| m.get(name));
+    if current.map(|v| v.as_str()) == value.as_deref() {
+        return false;
     }
     let presentation = ext.presentation_for_mut(StyleSlot::Host);
     let map = presentation
@@ -361,6 +371,7 @@ fn write(dom: &mut Dom<TuiExt>, node: NodeId, name: &str, value: Option<String>)
         presentation.custom_properties = None;
     }
     ext.release_empty_presentation(StyleSlot::Host);
+    true
 }
 
 #[cfg(test)]

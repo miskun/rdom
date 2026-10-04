@@ -24,9 +24,39 @@ struct Instance {
 #[derive(Debug, Default, Clone)]
 pub(super) struct CounterState {
     instances: Vec<Instance>,
+    /// The walk must account for every element in tree order — the
+    /// sheets use counters — so a subtree it skips has its stored ops
+    /// replayed ([`replay_subtree`](Self::replay_subtree)).
+    exact: bool,
 }
 
 impl CounterState {
+    /// A state for a walk that skips subtrees yet must keep counters
+    /// exact (sheets that use counters).
+    pub(super) fn exact() -> Self {
+        CounterState {
+            instances: Vec::new(),
+            exact: true,
+        }
+    }
+
+    /// Account for the elements under `id` (its children's subtrees),
+    /// which keep their computed styles: replay their stored
+    /// `counter-reset` / `counter-increment` in tree order. A no-op
+    /// unless the state is [`exact`](Self::exact).
+    pub(super) fn replay_subtree(&mut self, dom: &rdom_core::Dom<crate::ext::TuiExt>, id: NodeId) {
+        if !self.exact {
+            return;
+        }
+        for child in dom.node(id).child_nodes().map(|n| n.id()) {
+            if let Some(c) = dom.node(child).ext().and_then(|e| e.computed.clone()) {
+                self.enter(Some(id), &c.counter_reset, &c.counter_increment);
+            }
+            self.replay_subtree(dom, child);
+            self.exit(child);
+        }
+    }
+
     /// Apply an element's `counter-reset` then `counter-increment`
     /// (CSS Lists 3 §3.1.1 – §3.1.2). `parent` is the element's parent,
     /// which bounds the scope of anything created here.

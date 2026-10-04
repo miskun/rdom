@@ -133,3 +133,41 @@ fn unregistered_and_discrete_custom_properties_do_not_transition() {
         assert!(reg.is_empty(), "{syntax}");
     }
 }
+
+/// `C1G-PROPERTY-RESTYLE` — CSS Transitions 1 §3: during
+/// `transition-delay` the animated value is the start value. The first
+/// frame applies it (the cascade had already moved to the end value);
+/// later frames inside the delay change nothing, so they restyle
+/// nothing.
+#[test]
+fn no_restyle_while_the_value_holds_during_the_delay() {
+    let css = |value: &str| {
+        let parsed = rdom_css::parse(&format!(
+            "@property --c {{ syntax: '<color>'; inherits: true; initial-value: red }} \
+             div {{ --c: {value}; transition: --c 100ms linear 1s; color: var(--c) }}"
+        ));
+        assert!(parsed.warnings.is_empty(), "{:?}", parsed.warnings);
+        parsed.stylesheet
+    };
+    let (mut dom, _) = div();
+    let (red, blue) = (css("red"), css("blue"));
+    let start = Instant::now();
+    let mut reg = AnimationRegistry::new();
+    reg.set_registered_properties(std::rc::Rc::new(
+        crate::style::cascade::PropertyRegistry::new(&[&red]),
+    ));
+    dom.cascade(&red);
+    diff_and_register(&mut dom, &mut reg, start);
+    dom.cascade(&blue);
+    diff_and_register(&mut dom, &mut reg, start);
+    assert_eq!(reg.len(), 1);
+
+    reg.advance(&mut dom, start);
+    assert_eq!(reg.take_restyle().len(), 1, "the start value is applied");
+    for ms in [100, 400, 900] {
+        reg.advance(&mut dom, start + Duration::from_millis(ms));
+        assert!(reg.take_restyle().is_empty(), "{ms}ms: inside the delay");
+    }
+    reg.advance(&mut dom, start + Duration::from_millis(1050));
+    assert_eq!(reg.take_restyle().len(), 1, "running: the value moves");
+}

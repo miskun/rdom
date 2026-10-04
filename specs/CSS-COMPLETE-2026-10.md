@@ -360,3 +360,16 @@ row comes from.
   (`ladder::Declarations::rule_blocks`) instead of cloning the block per element. `Arc`, not `Rc`, so
   `TuiStyle` stays `Send + Sync`. Counter test (`custom_value::probe`): 50 substitutions of three
   `var()`s tokenized 150 values before, 0 after; theme-token cascade test pins correctness.
+- 2026-10-04 — C1G-PROPERTY-RESTYLE: `advance_custom` pushes a restyle only when `write` changed
+  the animated value (none inside the delay). `cascade::restyle_vars` walks the restyle roots in
+  `walk::Mode::Restyle`: each element's boxes reload their matches from `TuiExt::matched`
+  (`matching::MatchedRules`, stamped with the sheet set's registry `Rc`; recorded by every cascade,
+  reused without allocation when unchanged), and an element whose computed style is unchanged keeps
+  its subtree (`CounterState::exact` replays the kept subtree's counter ops). The counter predicate
+  counts a `var()` declaration only for the counter properties, `content` and `all` (the UA sheet
+  uses counters, so the counter path is the common one). Not done literally: the restyle re-runs
+  each changed element's whole ladder rather than only the `var()`-using properties — inherited
+  properties of descendants depend on it, and the ladder without matching is the cheap part.
+  Counter tests: a `--theme` transition frame over 7 elements matched 35 boxes before, 0 after; no
+  restyle inside the delay. C1G-TRANSITION-PREV's test still holds. `tui_ext_size_tripwire` raised
+  432 → 440 (the `matched` pointer).

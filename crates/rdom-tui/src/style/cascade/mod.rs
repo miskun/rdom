@@ -70,6 +70,9 @@ mod ladder;
 mod matching;
 mod pseudo;
 mod registered;
+pub(crate) use matching::MatchedRules;
+#[cfg(test)]
+pub(crate) use matching::probe as match_probe;
 pub(crate) use registered::PropertyRegistry;
 #[cfg(test)]
 pub(crate) use registered::probe as registry_probe;
@@ -187,7 +190,15 @@ pub(crate) fn cascade_all_with(
     // because the walk visits every ancestor.
     let mut counters = walk::CounterState::default();
     let mut scratch = walk::Scratch::default();
-    let _ = walk::cascade_subtree(dom, &sheets, root, &parent, &mut counters, &mut scratch);
+    let _ = walk::cascade_subtree(
+        dom,
+        &sheets,
+        root,
+        &parent,
+        &mut counters,
+        &mut scratch,
+        walk::Mode::Cascade,
+    );
 }
 
 /// [`CascadeExt::cascade_subtrees_all`] with the sheets' registrations
@@ -198,21 +209,35 @@ pub(crate) fn cascade_subtrees_all_with(
     registry: Option<Rc<PropertyRegistry>>,
     roots: &[NodeId],
 ) {
+    subtrees(dom, stylesheets, registry, roots, walk::Mode::Cascade);
+}
+
+/// Restyle the subtrees at `roots` after a change no selector can see —
+/// a registered custom property's animated value moving
+/// (`runtime::animation`, CSS Properties and Values 1 §6.2): each
+/// element's recorded matches are reused (`walk::Mode::Restyle`), and
+/// an element whose style comes out unchanged keeps its subtree. With
+/// counters in play every root depends on the elements before it, so
+/// that case cascades in full.
+pub(crate) fn restyle_vars(
+    dom: &mut Dom<TuiExt>,
+    stylesheets: &[&Stylesheet],
+    registry: Rc<PropertyRegistry>,
+    roots: &[NodeId],
+) {
+    subtrees(dom, stylesheets, Some(registry), roots, walk::Mode::Restyle);
+}
+
+fn subtrees(
+    dom: &mut Dom<TuiExt>,
+    stylesheets: &[&Stylesheet],
+    registry: Option<Rc<PropertyRegistry>>,
+    roots: &[NodeId],
+    mode: walk::Mode,
+) {
     let sheets = walk::Sheets::new(stylesheets, registry);
     let merged_vars = walk::merge_root_vars(&sheets);
-    let uses_counters = stylesheets.iter().any(|s| {
-        s.rules().iter().any(|r| {
-            r.style.counter_reset.is_some()
-                    || r.style.counter_increment.is_some()
-                    // A `var()` declaration may be any of these.
-                    || r.style.has_pending()
-                    || r.style
-                        .content
-                        .as_ref()
-                        .and_then(|c| c.as_specified())
-                        .is_some_and(Content::uses_counters)
-        })
-    });
+    let uses_counters = uses_counters(stylesheets);
     // A queued root can have been FREED between when it was marked
     // dirty and now: dropping one child fires `ChildListChanged`, whose
     // dirty-tracker handler marks every remaining sibling dirty (sibling
@@ -247,7 +272,7 @@ pub(crate) fn cascade_subtrees_all_with(
         live.sort_by(|a, b| tree_order(dom, *a, *b));
         live.dedup();
         let mut next = 0usize;
-        let mut counters = walk::CounterState::default();
+        let mut counters = walk::CounterState::exact();
         walk::cascade_roots_in_order(
             dom,
             &sheets,
@@ -257,6 +282,7 @@ pub(crate) fn cascade_subtrees_all_with(
             root,
             &mut counters,
             &mut scratch,
+            mode,
         );
         return;
     }
@@ -270,9 +296,35 @@ pub(crate) fn cascade_subtrees_all_with(
             &parent_computed,
             &mut counters,
             &mut scratch,
+            mode,
         );
         walk::bubble_subtree_flags(dom, root, flags);
     }
+}
+
+/// Can any rule of `stylesheets` create, increment or read a counter
+/// (CSS Lists 3 §3)? Then every subtree root depends on the elements
+/// before it in tree order. A `var()` declaration counts when it is one
+/// of those properties (or `all`): only its substitution can tell.
+fn uses_counters(stylesheets: &[&Stylesheet]) -> bool {
+    stylesheets.iter().any(|s| {
+        s.rules().iter().any(|r| {
+            r.style.counter_reset.is_some()
+                || r.style.counter_increment.is_some()
+                || r.style.pending.iter().any(|d| {
+                    d.has_var
+                        && matches!(
+                            d.name.as_str(),
+                            "counter-reset" | "counter-increment" | "content" | "all"
+                        )
+                })
+                || r.style
+                    .content
+                    .as_ref()
+                    .and_then(|c| c.as_specified())
+                    .is_some_and(Content::uses_counters)
+        })
+    })
 }
 
 /// Tree order (DOM §4.2.1) for two live nodes; equal only for the same node.

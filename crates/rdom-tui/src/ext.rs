@@ -503,6 +503,12 @@ pub struct TuiExt {
     /// Same for the **horizontal** bar (`::scrollbar-thumb` +
     /// `::scrollbar-thumb:horizontal`, default content `━`).
     pub computed_scrollbar_thumb_horizontal: Option<std::rc::Rc<ComputedStyle>>,
+    /// The rules each box of this element matched in its last cascade,
+    /// under that cascade's sheets — reused by the restyle a registered
+    /// custom property's transition runs each frame
+    /// (`style::cascade::restyle_vars`), which changes no selector's
+    /// result.
+    pub(crate) matched: Option<std::rc::Rc<crate::style::cascade::MatchedRules>>,
 
     // ── Dirty flags (read by cascade + layout, set by mutation hooks) ─
     /// This element needs re-cascade next frame. Set by the
@@ -722,10 +728,12 @@ mod tests {
     /// (`P7G-FORM-STATE-BOX-1`: 4496 → 4344 bytes on 64-bit targets),
     /// and so do the pseudo-element styles (`Rc`), the transition
     /// overrides and the inline style (`PERF-TUIEXT-SIZE-1`: 4344 →
-    /// 432). Raise the bound deliberately, with the reason in the commit.
+    /// 432). Raise the bound deliberately, with the reason in the commit:
+    /// 440 for the recorded matches a vars-only restyle reuses
+    /// (`C1G-PROPERTY-RESTYLE`, one `Rc`).
     #[test]
     fn tui_ext_size_tripwire() {
-        const MAX: usize = 432;
+        const MAX: usize = 440;
         let size = std::mem::size_of::<TuiExt>();
         let computed = std::mem::size_of::<ComputedStyle>();
         let inline = std::mem::size_of::<TuiStyle>();

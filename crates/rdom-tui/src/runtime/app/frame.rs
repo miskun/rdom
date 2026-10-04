@@ -24,7 +24,9 @@ use crate::render::backend::Backend;
 use crate::render::{LayoutExt, PaintExt, Rect};
 use crate::runtime::animation::AnimationRegistry;
 use crate::style::Stylesheet;
-use crate::style::cascade::{PropertyRegistry, cascade_all_with, cascade_subtrees_all_with};
+use crate::style::cascade::{
+    PropertyRegistry, cascade_all_with, cascade_subtrees_all_with, restyle_vars,
+};
 
 impl<B: Backend> App<B> {
     /// Run the frame prelude (`prelude::FramePrelude::run`: the
@@ -277,7 +279,8 @@ fn style_and_layout(
         // `var()` consumers through the cascade.
         let restyle = animations.take_restyle();
         if !restyle.is_empty() {
-            cascade_subtrees_all_with(dom, sheets, Some(registry.clone()), &restyle);
+            // No selector can see the change: reuse the matches.
+            restyle_vars(dom, sheets, registry.clone(), &restyle);
             // The animated result is the before-change style of the
             // next style change (CSS Transitions 1 §3).
             crate::runtime::animation::settle_restyled(dom, &restyle);

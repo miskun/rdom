@@ -40,6 +40,13 @@ impl<'a> Sheets<'a> {
         &self.registry
     }
 
+    /// The identity of this sheet set: the registry `Rc`, rebuilt by an
+    /// `App` exactly when its sheets change. Recorded matches
+    /// (`matching::MatchedRules`) are valid only under the same one.
+    pub(super) fn stamp(&self) -> &Rc<PropertyRegistry> {
+        &self.registry
+    }
+
     /// Each matched rule's layer rank into `ranks` (parallel to
     /// `matched`, `(sheet index, rule)` pairs) and the ladder for those
     /// rules into `plan` — both buffers reused across elements.
