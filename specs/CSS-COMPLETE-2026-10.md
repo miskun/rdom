@@ -478,3 +478,13 @@ row comes from.
   absolute (`px`, `cm`, …) and font-relative (`em`, `rem`, `ex`, …) units stay N/A as
   `CSS-COVERAGE.md` classes them — no terminal mapping; recorded in DIVERGENCES §1 "Length units".
   Phase 2 gates (architect + API, with the C1G re-review) are next.
+- 2026-10-05 — Phase 2 gates (with the C1G re-review: all 20 fixed at the root). Architect: 3 blocking —
+  flex factors summing to 1 lose a cell (f32 sum below 1.0 trips step 4.b); counter replay drops
+  `::before` / `::after` ops on kept subtrees (cascade and restyle paths); no calc nesting cap (attr
+  data can overflow the stack). API: 1 blocking — cascade forms without a viewport resolve `vw`
+  against 0x0, including the README's DirtyTracker pattern. ~35 non-blocking (IEEE division,
+  `-infinity` negation overflow, zero-basis folding in number/angle math, percentages in `CalcKind`,
+  math in integer / registered properties, viewport field list hand-kept, `max-width: none`
+  unrepresentable, `flex` shorthand ignores shrink, parse-time `attr()` validation, `:root` `attr()`,
+  u16 overflows, unvalidated `AspectRatio` / `Flex`, restyle walk cost, renames, re-exports, README
+  0.2.0 history edit, changelog paths and hints). Decision: fix all as `C2G-*` items, two batches.
