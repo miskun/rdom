@@ -277,3 +277,14 @@ row comes from.
   README roadmap and feature lists corrected. Found while verifying: `marker-side` has no item
   row (listed under C10-LIST-ITEM); the audit classes color alpha and `direction` N/A while
   C3-ALPHA and C5-WRITING schedule them — the program's items win.
+- 2026-10-04 — Phase 1 gates. Architect: 1 blocking (style invalidation ignores `@scope` preludes and
+  `SimpleSelector::Is` — silent `_ => false` wildcards), 17 non-blocking (per-element cascade
+  allocations; `var()` cost; `@property` transitions re-cascade the subtree every frame and a stale
+  `computed_prev`; registered-property validation order; escaped strings / dimensions / length cap
+  through `var()`; importance within one block; `@import` cycle / base URL / depth; `:root` seeding vs
+  layers; scope matching cost; two property registries; `ext.rs` and other files over the bar;
+  `&` in `@scope` specificity to verify; `:is()` unparsed). API: 1 blocking (rdom-css README
+  contradicts shipped `var()` / `@import`), 8 non-blocking (`@import` base URL; `extend_from_style_tags`
+  loses `@scope` owner and loader; missing `rdom_tui` re-exports; `String` errors on
+  `register_property`; stale DESIGN / DIVERGENCES / COVERAGE / CHANGELOG lines; API surface
+  duplication). Decision: fix all as `C1G-*` items in two batches before Phase 2.
