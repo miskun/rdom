@@ -86,6 +86,26 @@ pub struct Buffer {
     /// The color scheme whose canvas model a translucent paint blends
     /// the terminal's default colors with (`Buffer::color_scheme`).
     scheme: ColorScheme,
+    /// The layer a translucent write paints into, kept between writes
+    /// so its storage is reused (`translucent.rs`).
+    scratch: Scratch,
+}
+
+/// A kept scratch layer. Not content: a clone starts without one, and
+/// `Debug` does not show it.
+#[derive(Default)]
+pub(super) struct Scratch(Option<Box<Buffer>>);
+
+impl Clone for Scratch {
+    fn clone(&self) -> Self {
+        Scratch(None)
+    }
+}
+
+impl std::fmt::Debug for Scratch {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Scratch")
+    }
 }
 
 impl PartialEq for Buffer {
@@ -112,6 +132,7 @@ impl Buffer {
             border_dirs: vec![BorderCell::default(); len],
             half_block_quads: vec![0u8; len],
             scheme: ColorScheme::default(),
+            scratch: Scratch::default(),
         }
     }
 
@@ -132,6 +153,7 @@ impl Buffer {
             border_dirs: vec![BorderCell::default(); len],
             half_block_quads: vec![0u8; len],
             scheme: ColorScheme::default(),
+            scratch: Scratch::default(),
         }
     }
 
@@ -227,15 +249,19 @@ impl Buffer {
     /// paint pass hands one to an `opacity` group as its layer, so a
     /// group costs its region, not the frame.
     pub(crate) fn copy_region(&self, area: Rect) -> Buffer {
+        let mut out = Buffer::empty(Rect::default());
+        self.copy_region_into(area, &mut out);
+        out
+    }
+
+    /// [`Self::copy_region`] into `out`, reusing its storage.
+    pub(crate) fn copy_region_into(&self, area: Rect, out: &mut Buffer) {
         let region = self.area.intersection(area);
-        let len = region.area() as usize;
-        let mut out = Buffer {
-            area: region,
-            content: Vec::with_capacity(len),
-            border_dirs: Vec::with_capacity(len),
-            half_block_quads: Vec::with_capacity(len),
-            scheme: self.scheme,
-        };
+        out.area = region;
+        out.scheme = self.scheme;
+        out.content.clear();
+        out.border_dirs.clear();
+        out.half_block_quads.clear();
         for y in region.y..region.bottom() {
             let (Some(a), Some(b)) = (
                 self.index_of(region.x, y),
@@ -248,7 +274,6 @@ impl Buffer {
             out.half_block_quads
                 .extend_from_slice(&self.half_block_quads[a..=b]);
         }
-        out
     }
 
     /// Copy every cell from `other` into `self`, position-aligned.

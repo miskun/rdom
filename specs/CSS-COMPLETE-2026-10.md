@@ -824,3 +824,14 @@ row comes from.
   did not compile (`handle_input`, `enter_theme_reports`). Green: 26 + 3 scheme + 1 mode test; the
   reply tests rewritten over `Input`s (the byte-form cases moved to the corpus). The tty / SIGWINCH
   path has no automated test (needs a pty); the reader is tested over a socket pair.
+- 2026-10-05 — C3G-TRANSLUCENT-FAST: `paint_translucent` paints into a scratch layer kept on the
+  `Buffer` (`Scratch(Option<Box<Buffer>>)`: a clone starts without one, `Debug` hides it) and
+  `copy_region_into` refills it in place, so a translucent write reallocates only when it covers more
+  cells than any before it; the layer is taken out while in use, so a translucent paint inside the
+  closure uses the layer's own scratch. Decided over a direct single-cell composite path: the paint
+  closures write through the general `Buffer` API (glyphs, borders, half-block quads), and
+  `composite_cell` reads a layer's border state, so a one-cell special case would have duplicated
+  both; reuse covers every size. A test-only counting allocator (`test_alloc.rs`, per-thread count,
+  `#[global_allocator]` under `cfg(test)`) measures it. Red: three 1×1 translucent writes after a
+  warm-up made 12 allocations (four layers × three `Vec`s); green: 0, and the cells composite as
+  before (the translucent buffer and paint suites pass unchanged).

@@ -62,6 +62,9 @@ pub mod runtime;
 pub mod style;
 pub mod tui_event;
 
+#[cfg(test)]
+mod test_alloc;
+
 pub use accessors::{
     ScrollBehaviorOption, ScrollIntoViewOptions, ScrollLogicalPosition, ScrollToOptions,
     TuiAccessors, TuiAccessorsMut, TuiDocAccessors,

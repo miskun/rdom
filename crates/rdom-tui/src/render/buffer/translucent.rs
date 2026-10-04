@@ -24,22 +24,29 @@ fn translucent(c: Color) -> bool {
 
 impl Buffer {
     /// Paint `paint` into a copy of `area` at full opacity, then
-    /// composite it back at `alpha`.
+    /// composite it back at `alpha`. The copy is the buffer's scratch
+    /// layer, kept between calls: a translucent write allocates only
+    /// when it covers more cells than any before it.
     pub(crate) fn paint_translucent(
         &mut self,
         area: Rect,
         alpha: f32,
         paint: impl FnOnce(&mut Buffer),
     ) {
-        if alpha <= 0.0 {
+        if alpha <= 0.0 || self.area.intersection(area).is_empty() {
             return;
         }
-        let mut layer = self.copy_region(area);
-        if layer.area.is_empty() {
-            return;
-        }
+        // Taken out while in use: a translucent paint inside `paint`
+        // writes to the layer, which keeps its own scratch.
+        let mut layer = self
+            .scratch
+            .0
+            .take()
+            .unwrap_or_else(|| Box::new(Buffer::empty(Rect::default())));
+        self.copy_region_into(area, &mut layer);
         paint(&mut layer);
         self.composite_group(&layer, alpha);
+        self.scratch.0 = Some(layer);
     }
 
     /// Make a write in `style` over `span`: `write` paints into the

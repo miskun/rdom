@@ -589,3 +589,32 @@ fn composite_tints_a_backdrop_border_under_a_translucent_background() {
     // 0.5 · white + 0.5 · red.
     assert_eq!(winner.fg, Color::Rgb(255, 128, 128));
 }
+
+// ── Translucent writes reuse a scratch layer (C3G-TRANSLUCENT-FAST) ──
+
+/// CSS Color 4 §4.2: a translucent write composites through a layer.
+/// The layer is the buffer's kept scratch, not a fresh allocation per
+/// write: once a write has sized it, a 1×1 translucent `set_style` /
+/// `set_symbol` allocates nothing — and still composites as before.
+#[test]
+fn translucent_single_cell_writes_allocate_nothing() {
+    use crate::test_alloc::allocations_in;
+    let mut buf = Buffer::filled(Rect::new(0, 0, 8, 2), {
+        let mut c = Cell::EMPTY;
+        c.set_bg(Color::Rgb(0, 0, 255));
+        c
+    });
+    let half_red = Style::new().bg(Color::Rgba(255, 0, 0, 128));
+    let half_green_text = Style::new().fg(Color::Rgba(0, 255, 0, 128));
+    // Warm-up: the first translucent write sizes the scratch layer.
+    buf.set_style(0, 0, half_red);
+    let n = allocations_in(|| {
+        buf.set_style(1, 0, half_red);
+        buf.set_symbol(2, 0, "x", half_green_text);
+        buf.set_symbol(3, 1, "y", half_red.fg(Color::Rgba(0, 255, 0, 128)));
+    });
+    assert_eq!(n, 0, "allocations in three 1×1 translucent writes");
+    // The writes composited: red at 50% over blue.
+    assert_eq!(buf.cell(1, 0).unwrap().bg, Color::Rgb(128, 0, 127));
+    assert_eq!(buf.cell(2, 0).unwrap().symbol(), "x");
+}
