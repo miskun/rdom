@@ -5,7 +5,9 @@
 //! ends at its final byte whatever it means; one rdom does not know is
 //! consumed whole. A byte outside those ranges cannot be inside a
 //! sequence: the sequence is dropped and the byte read again (a typed
-//! key is not lost behind a garbled report). Bracketed paste
+//! key is not lost behind a garbled report). A sequence with
+//! intermediate bytes or a private marker other than `<` / `?` is
+//! consumed (a DA2 reply, `CSI > … c`). Bracketed paste
 //! (`CSI 200 ~ text CSI 201 ~`) runs to its end marker. The dispatch on
 //! the final byte is crossterm 0.28's.
 
@@ -48,7 +50,8 @@ pub(super) fn parse(buf: &[u8]) -> Step {
         b'P' => Step::key(KeyCode::F(1)),
         b'Q' => Step::key(KeyCode::F(2)),
         b'S' => Step::key(KeyCode::F(4)),
-        b'0'..=b'9' | b';' | b'<' | b'?' => framed(buf),
+        // Parameter (0x30–0x3F) and intermediate (0x20–0x2F) bytes.
+        0x20..=0x3f => framed(buf),
         _ => Step::Invalid,
     }
 }
@@ -68,13 +71,19 @@ fn framed(buf: &[u8]) -> Step {
 }
 
 /// A complete sequence, by its first parameter byte and final byte.
+/// One with intermediate bytes, or a private marker rdom does not read
+/// (`>`, `=`, `:` — a DA2 reply is `CSI > … c`), is consumed: no key
+/// or report rdom reads has them.
 fn dispatch(buf: &[u8]) -> Step {
     let last = buf[buf.len() - 1];
+    let params = &buf[2..buf.len() - 1];
+    if params.iter().any(|b| matches!(b, 0x20..=0x2f)) {
+        return Step::consumed();
+    }
     match buf[2] {
         b'<' if matches!(last, b'M' | b'm') => mouse::sgr(buf),
-        b'<' => Step::consumed(),
         b'?' => private(&buf[3..buf.len() - 1], last),
-        _ => match last {
+        b'0'..=b'9' | b';' => match last {
             b'M' => mouse::rxvt(buf),
             b'~' => keys::special(buf),
             b'u' => keys::csi_u(buf),
@@ -83,6 +92,7 @@ fn dispatch(buf: &[u8]) -> Step {
             b'R' => Step::consumed(),
             _ => keys::modified(buf),
         },
+        _ => Step::consumed(),
     }
 }
 

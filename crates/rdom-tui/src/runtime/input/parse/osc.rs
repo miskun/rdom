@@ -2,46 +2,16 @@
 //! replies to OSC queries. OSC 11 is the background color (xterm's
 //! "dynamic colors"); any other OSC is consumed.
 //!
-//! crossterm reads `ESC ]` as Alt+`]` and the reply's text as keys.
-//! rdom takes `ESC ]` followed by a digit as the start of a string —
-//! every OSC reply begins with its number — and `ESC ]` followed by
-//! anything else (or nothing, after the escape grace) as Alt+`]`. The
-//! string's framing is `string`'s: it ends at BEL or ST (`ESC \`); CAN
-//! or SUB cancels it; an `ESC` that does not start ST ends it, and is
-//! read again with its byte; a byte outside the string range aborts it
-//! and is read again; past 4 KiB the rest is discarded to its end.
+//! The string's framing — where it starts, ends, aborts, and the
+//! discard past 4 KiB — is `string`'s.
 
 use crate::style::Color;
 
-use super::string::{self, StringByte};
-use super::{ESC, Input, Step, WithAlt, keys};
+use super::{Input, Step, string};
 
 /// Parse a buffer that starts `ESC ]`.
 pub(super) fn parse(buf: &[u8]) -> Step {
-    let Some(&first) = buf.get(2) else {
-        return Step::Pending;
-    };
-    if !first.is_ascii_digit() {
-        let alt = keys::char_key(']').with_alt();
-        return Step::Done(Some(Input::Event(crossterm::event::Event::Key(alt))), 1);
-    }
-    let n = buf.len();
-    let last = buf[n - 1];
-    if n > 3 && buf[n - 2] == ESC {
-        return match last {
-            b'\\' => finish(&buf[2..n - 2]),
-            // The `ESC` ended the string: read it again with its byte.
-            _ => Step::Done(None, 2),
-        };
-    }
-    match string::byte(last) {
-        StringByte::Bell => finish(&buf[2..n - 1]),
-        StringByte::Cancel => Step::consumed(),
-        StringByte::Esc => Step::Pending,
-        StringByte::Body if n > string::MAX_LEN => Step::Discard,
-        StringByte::Body => Step::Pending,
-        StringByte::Other => Step::Done(None, 1),
-    }
+    string::parse(buf, finish)
 }
 
 /// A complete string's body (`Ps ; Pt`).

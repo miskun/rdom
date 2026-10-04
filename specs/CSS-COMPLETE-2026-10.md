@@ -1132,4 +1132,16 @@ row comes from.
   `ESC` before the key's sequence; crossterm typed it as Esc, `[`, `A`. Red: the new corpus test
   (`ESC ESC x` gave Esc, plain `x`); green after. Changed expectation: `alt_keys` asserted
   crossterm's one Esc for `ESC ESC` — removed, the new test covers both readings.
+- 2026-10-06 — C4G-CSI-FRAMING: `csi::parse` frames every sequence whose first byte after `ESC [` is
+  a parameter or intermediate byte (0x20–0x3F; it took only digits, `;`, `<`, `?`, so `CSI > …` was
+  `Invalid` and its parameters were typed); `dispatch` consumes one with intermediates (no key or
+  report rdom reads has them) or a private marker other than `<` / `?`. `string.rs` now frames all five
+  command strings: `string::parse(buf, finish)` with the start rule per introducer — OSC a digit, DCS a
+  parameter / intermediate byte (XTVERSION `>|`, DECRQSS `1$r`, XTGETTCAP `1+r` all do), APC / PM /
+  SOS any string byte — and OSC's body, cap, discard and abort rules; `osc.rs` keeps only OSC 11.
+  `ESC P` / `_` / `^` / `X` join the escape prefixes (Alt + the key after the grace, or before a byte
+  that cannot start the string). Decided: Alt+Shift+P / X, Alt+`_` / `^` followed by another key
+  within the grace read as a string start, the trade-off OSC already makes; no terminal sends PM or
+  SOS, but framing them costs nothing. Red: DA2 typed `41;388;0c`, XTVERSION typed `>|XTerm(388)`;
+  green after.
 

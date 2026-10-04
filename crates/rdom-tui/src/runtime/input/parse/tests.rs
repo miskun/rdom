@@ -558,6 +558,74 @@ fn unknown_or_broken_sequences_do_not_stall() {
     );
 }
 
+/// A control sequence with a private marker other than `<` / `?` (`>`,
+/// `=`, any of 0x30–0x3F first) or with intermediate bytes (0x20–0x2F)
+/// is framed to its final byte and consumed (ECMA-48 §5.4,
+/// `C4G-CSI-FRAMING`): a DA2 reply does not type its parameters.
+#[test]
+fn private_and_intermediate_csi_replies_are_consumed() {
+    let q = vec![key(KeyCode::Char('q'), NONE)];
+    // DA2 (xterm 388): `CSI > Pp ; Pv ; Pc c`.
+    assert_eq!(events(b"\x1b[>41;388;0cq"), q);
+    assert_eq!(events(b"\x1b[=1;2cq"), q);
+    assert_eq!(events(b"\x1b[:1Aq"), q);
+    // Intermediates: DECRPM without `?`, a cursor-style echo.
+    assert_eq!(events(b"\x1b[2;1$yq"), q);
+    assert_eq!(events(b"\x1b[2 qq"), q);
+    assert_eq!(events(b"\x1b[ @q"), q);
+}
+
+/// DCS (`ESC P`), APC (`ESC _`), PM (`ESC ^`) and SOS (`ESC X`) strings
+/// are consumed to ST like OSC strings, with the same cap, discard and
+/// abort rules (ECMA-48 §5.6, `C4G-CSI-FRAMING`). DCS starts with a
+/// parameter or intermediate byte (every DCS reply does); the other three
+/// with any string byte. The introducer alone, or DCS before another
+/// byte, is Alt + the key.
+#[test]
+fn dcs_apc_pm_sos_strings_are_consumed() {
+    let q = vec![key(KeyCode::Char('q'), NONE)];
+    // XTVERSION: `DCS > | text ST`.
+    assert_eq!(events(b"\x1bP>|XTerm(388)\x1b\\q"), q);
+    // DECRQSS reply.
+    assert_eq!(events(b"\x1bP1$r0;1m\x1b\\q"), q);
+    // kitty graphics reply: `APC G … ST`.
+    assert_eq!(events(b"\x1b_Gi=31;OK\x1b\\q"), q);
+    assert_eq!(events(b"\x1b^privacy\x1b\\q"), q);
+    assert_eq!(events(b"\x1bXstart of string\x07q"), q);
+    // Over the cap: discarded to ST.
+    let mut long = b"\x1b_G".to_vec();
+    long.extend(std::iter::repeat_n(b'A', 5000));
+    long.extend_from_slice(b"\x1b\\q");
+    assert_eq!(events(&long), q);
+    // A byte that cannot be in a string aborts it and is read again.
+    assert_eq!(
+        events(b"\x1b_Gabc\x7f"),
+        vec![key(KeyCode::Backspace, NONE)]
+    );
+    // DCS before a byte that cannot start it: Alt+P, then the key.
+    assert_eq!(
+        events(b"\x1bPx"),
+        vec![
+            key(KeyCode::Char('P'), ALT | SHIFT),
+            key(KeyCode::Char('x'), NONE)
+        ]
+    );
+    // The introducer alone is Alt + the key once the reader flushes.
+    let mut p = Parser::default();
+    for (b, k) in [
+        (b'P', key(KeyCode::Char('P'), ALT | SHIFT)),
+        (b'X', key(KeyCode::Char('X'), ALT | SHIFT)),
+        (b'_', key(KeyCode::Char('_'), ALT)),
+        (b'^', key(KeyCode::Char('^'), ALT)),
+    ] {
+        p.feed(&[0x1b, b]);
+        assert!(p.awaits_prefix());
+        assert_eq!(p.next(), None);
+        p.flush_prefix();
+        assert_eq!(p.next(), Some(Input::Event(k)));
+    }
+}
+
 /// An OSC string past the 4 KiB cap is discarded to its end — BEL or ST
 /// — not read again as keys (`C4G-OSC-DISCARD`); a byte outside
 /// ECMA-48's command-string range (§5.6: 0x08–0x0D, 0x20–0x7E) aborts

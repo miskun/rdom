@@ -1,6 +1,16 @@
-//! Command strings (ECMA-48 §5.6, §8.3.89 ST): the framing OSC strings
-//! share — what one byte of a string does, and the discard of a string
-//! past the length cap.
+//! Command strings (ECMA-48 §5.6, §8.3.89 ST): OSC (`ESC ]`), DCS
+//! (`ESC P`), APC (`ESC _`), PM (`ESC ^`) and SOS (`ESC X`) — their
+//! framing, what one byte of a string does, and the discard of a string
+//! past the length cap. OSC 11 is read (`osc`); every other string is
+//! consumed.
+//!
+//! crossterm reads each introducer as Alt + its key and the string as
+//! typed text. rdom takes the introducer as a string's start when the
+//! next byte can start one — OSC: a digit (every OSC reply begins with
+//! its number); DCS: a parameter or intermediate byte (0x20–0x3F, as
+//! every DCS reply — XTVERSION's `>|`, DECRQSS's `1$r`); APC, PM, SOS:
+//! any string byte — and as Alt + the key otherwise, or when nothing
+//! follows within the escape grace.
 //!
 //! A string's body is bytes in 0x08–0x0D and 0x20–0x7E. It ends at ST
 //! (`ESC \`) or BEL (xterm's OSC terminator); CAN or SUB cancels it. An
@@ -9,11 +19,58 @@
 //! be in a string: the string is dropped and the byte read again, so a
 //! typed Backspace or Ctrl+C is never lost inside one.
 
-use super::ESC;
+use crossterm::event::Event;
+
+use super::{ESC, Input, Step, WithAlt, keys};
 
 /// The longest command string read; a longer one is discarded to its
 /// end.
 pub(super) const MAX_LEN: usize = 4096;
+
+/// True when `intro` after `ESC` introduces a command string.
+pub(super) fn is_introducer(intro: u8) -> bool {
+    matches!(intro, b']' | b'P' | b'_' | b'^' | b'X')
+}
+
+/// Parse a buffer that starts `ESC` + a string introducer: Alt + the
+/// introducer's key when the next byte cannot start the string (that
+/// byte is read again); else the string, its body handed to `finish`
+/// once it ends.
+pub(super) fn parse(buf: &[u8], finish: fn(&[u8]) -> Step) -> Step {
+    let Some(&first) = buf.get(2) else {
+        return Step::Pending;
+    };
+    if !starts(buf[1], first) {
+        let alt = keys::char_key(char::from(buf[1])).with_alt();
+        return Step::Done(Some(Input::Event(Event::Key(alt))), 1);
+    }
+    let n = buf.len();
+    let last = buf[n - 1];
+    if n > 3 && buf[n - 2] == ESC {
+        return match last {
+            b'\\' => finish(&buf[2..n - 2]),
+            // The `ESC` ended the string: read it again with its byte.
+            _ => Step::Done(None, 2),
+        };
+    }
+    match byte(last) {
+        StringByte::Bell => finish(&buf[2..n - 1]),
+        StringByte::Cancel => Step::consumed(),
+        StringByte::Esc => Step::Pending,
+        StringByte::Body if n > MAX_LEN => Step::Discard,
+        StringByte::Body => Step::Pending,
+        StringByte::Other => Step::Done(None, 1),
+    }
+}
+
+/// True when `first` can start the string `intro` introduces.
+fn starts(intro: u8, first: u8) -> bool {
+    match intro {
+        b']' => first.is_ascii_digit(),
+        b'P' => matches!(first, 0x20..=0x3f),
+        _ => byte(first) == StringByte::Body,
+    }
+}
 
 /// What one byte does to a command string.
 #[derive(Debug, Clone, Copy, PartialEq)]

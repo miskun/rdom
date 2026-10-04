@@ -9,7 +9,8 @@
 //! keystrokes:
 //!
 //! - an OSC 11 reply (`ESC ] 11 ; rgb:… ST`), the background color —
-//!   the startup query's answer, or one that came after its wait;
+//!   the startup query's answer, or one that came after its wait (other
+//!   command strings — OSC, DCS, APC, PM, SOS — are consumed);
 //! - a DA1 reply (`CSI ? … c`), which ends the startup query;
 //! - a DEC mode 2031 theme report (`CSI ? 997 ; 1|2 n`), the terminal's
 //!   new color scheme.
@@ -52,7 +53,8 @@ pub(crate) enum Input {
     ColorScheme(ColorScheme),
 }
 
-/// How long a lone `ESC` (or `ESC [`, `ESC O`, `ESC ]`) waits for the
+/// How long a lone `ESC` (or `ESC [`, `ESC O`, a string introducer
+/// `ESC ]` / `P` / `_` / `^` / `X`) waits for the
 /// rest of a sequence before it is taken as a key by itself (Esc, or
 /// Alt + the second byte). crossterm decides at the end of each read;
 /// the grace also joins a sequence a slow link splits right after its

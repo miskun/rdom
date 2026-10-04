@@ -11,16 +11,18 @@
 //!   forever along with every byte after it — is consumed whole;
 //! - a C0 control byte inside a control sequence ends it, and is read
 //!   again as a key;
-//! - OSC strings (`ESC ] digits … BEL | ST`) are consumed; an OSC 11
-//!   reply is the background color; one past 4 KiB is discarded to its
-//!   end, and a byte that cannot be in a string aborts it and is read
-//!   again (ECMA-48 §5.6);
+//! - command strings — OSC (`ESC ] digits … BEL | ST`), DCS, APC, PM,
+//!   SOS — are consumed; an OSC 11 reply is the background color; one
+//!   past 4 KiB is discarded to its end, and a byte that cannot be in a
+//!   string aborts it and is read again (ECMA-48 §5.6);
 //! - DA1 replies and mode 2031 reports are [`Input`]s, not dropped or
 //!   held;
-//! - a lone `ESC`, `ESC [`, `ESC O` or `ESC ]` that no byte follows is
-//!   a key by itself once [`Parser::flush_prefix`] says so (the reader
+//! - a lone `ESC`, `ESC [`, `ESC O` or string introducer (`ESC ]`,
+//!   `ESC P`, `ESC _`, `ESC ^`, `ESC X`) that no byte follows is a key
+//!   by itself once [`Parser::flush_prefix`] says so (the reader
 //!   calls it after `ESC_GRACE`); crossterm takes a lone `ESC` at the
-//!   end of a read as Esc at once, and holds the other three.
+//!   end of a read as Esc at once, holds `ESC [` and `ESC O`, and reads
+//!   an introducer as Alt + its key at once.
 //! - `ESC ESC` is two Escs (crossterm reads one), and `ESC` before a CSI
 //!   or SS3 key is Alt + that key — the legacy Alt encoding rxvt and
 //!   Terminal.app send (`ESC ESC [ A`, Alt+Up).
@@ -33,8 +35,8 @@
 //! - `csi` — control-sequence framing and dispatch, paste, the private
 //!   (`CSI ?`) replies.
 //! - `osc` — OSC strings and the OSC 11 color.
-//! - `string` — command-string framing: the string byte range, the
-//!   terminators, the discard past the length cap.
+//! - `string` — command strings (OSC, DCS, APC, PM, SOS): where one
+//!   starts, the byte range, the terminators, the discard past the cap.
 
 mod csi;
 mod keys;
@@ -169,17 +171,19 @@ impl Parser {
     }
 
     /// True while the buffer is a prefix that is also a key by itself —
-    /// `ESC`, or `ESC` and `[`, `O` or `]` — which [`Self::flush_prefix`]
+    /// `ESC`, or `ESC` and `[`, `O` or a string introducer (`]`, `P`,
+    /// `_`, `^`, `X`) — which [`Self::flush_prefix`]
     /// resolves when no more bytes come.
     pub(crate) fn awaits_prefix(&self) -> bool {
-        matches!(
-            self.buf[..],
-            [ESC] | [ESC, b'[' | b'O' | b']'] | [ESC, ESC] | [ESC, ESC, b'[' | b'O']
-        )
+        match self.buf[..] {
+            [ESC] | [ESC, ESC] | [ESC, ESC, b'[' | b'O'] => true,
+            [ESC, b] => matches!(b, b'[' | b'O') || string::is_introducer(b),
+            _ => false,
+        }
     }
 
     /// No more bytes came: a lone `ESC` is Esc, and `ESC` + `[` / `O` /
-    /// `]` is Alt + that key (crossterm's reading of the same bytes when
+    /// a string introducer is Alt + that key (crossterm's reading of the same bytes when
     /// a sequence does not follow); an `ESC` before one of those is an
     /// Esc of its own.
     pub(crate) fn flush_prefix(&mut self) {
@@ -191,7 +195,9 @@ impl Parser {
         }
         let key = match self.buf[..] {
             [ESC] => KeyEvent::from(KeyCode::Esc),
-            [ESC, b] if matches!(b, b'[' | b'O' | b']') => keys::char_key(b as char).with_alt(),
+            [ESC, b] if matches!(b, b'[' | b'O') || string::is_introducer(b) => {
+                keys::char_key(b as char).with_alt()
+            }
             _ => return,
         };
         self.buf.clear();
@@ -223,6 +229,7 @@ fn parse(buf: &[u8]) -> Step {
         b'O' => keys::ss3(buf),
         b'[' => csi::parse(buf),
         b']' => osc::parse(buf),
+        b'P' | b'_' | b'^' | b'X' => string::parse(buf, |_| Step::consumed()),
         ESC => escape_then(buf),
         // `ESC` + a key: Alt + the key.
         _ => match keys::plain(&buf[1..]) {
