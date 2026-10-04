@@ -21,6 +21,9 @@
 //!   a key by itself once [`Parser::flush_prefix`] says so (the reader
 //!   calls it after `ESC_GRACE`); crossterm takes a lone `ESC` at the
 //!   end of a read as Esc at once, and holds the other three.
+//! - `ESC ESC` is two Escs (crossterm reads one), and `ESC` before a CSI
+//!   or SS3 key is Alt + that key — the legacy Alt encoding rxvt and
+//!   Terminal.app send (`ESC ESC [ A`, Alt+Up).
 //!
 //! Like crossterm under raw mode (the only mode rdom reads in), `\n` is
 //! Ctrl+J, not Enter.
@@ -169,13 +172,23 @@ impl Parser {
     /// `ESC`, or `ESC` and `[`, `O` or `]` — which [`Self::flush_prefix`]
     /// resolves when no more bytes come.
     pub(crate) fn awaits_prefix(&self) -> bool {
-        matches!(self.buf[..], [ESC] | [ESC, b'[' | b'O' | b']'])
+        matches!(
+            self.buf[..],
+            [ESC] | [ESC, b'[' | b'O' | b']'] | [ESC, ESC] | [ESC, ESC, b'[' | b'O']
+        )
     }
 
     /// No more bytes came: a lone `ESC` is Esc, and `ESC` + `[` / `O` /
     /// `]` is Alt + that key (crossterm's reading of the same bytes when
-    /// a sequence does not follow).
+    /// a sequence does not follow); an `ESC` before one of those is an
+    /// Esc of its own.
     pub(crate) fn flush_prefix(&mut self) {
+        if self.buf.len() > 1 && self.buf[1] == ESC && self.awaits_prefix() {
+            self.buf.remove(0);
+            self.ready
+                .push_back(Input::Event(Event::Key(KeyCode::Esc.into())));
+            return self.flush_prefix();
+        }
         let key = match self.buf[..] {
             [ESC] => KeyEvent::from(KeyCode::Esc),
             [ESC, b] if matches!(b, b'[' | b'O' | b']') => keys::char_key(b as char).with_alt(),
@@ -210,7 +223,7 @@ fn parse(buf: &[u8]) -> Step {
         b'O' => keys::ss3(buf),
         b'[' => csi::parse(buf),
         b']' => osc::parse(buf),
-        ESC => Step::key(KeyCode::Esc),
+        ESC => escape_then(buf),
         // `ESC` + a key: Alt + the key.
         _ => match keys::plain(&buf[1..]) {
             Step::Done(Some(Input::Event(Event::Key(k))), unread) => {
@@ -218,6 +231,30 @@ fn parse(buf: &[u8]) -> Step {
             }
             other => other,
         },
+    }
+}
+
+/// `ESC ESC …`: the legacy Alt encoding of a CSI or SS3 key (rxvt,
+/// Terminal.app's Option-as-Meta: `ESC ESC [ A` is Alt+Up) — Alt + the
+/// key; else Esc, and the second `ESC` is read again with what follows.
+/// (crossterm reads one Esc for both `ESC`s.)
+fn escape_then(buf: &[u8]) -> Step {
+    let esc = || {
+        Step::Done(
+            Some(Input::Event(Event::Key(KeyCode::Esc.into()))),
+            buf.len() - 1,
+        )
+    };
+    match buf.get(2) {
+        None => Step::Pending,
+        Some(b'[' | b'O') => match parse(&buf[1..]) {
+            Step::Pending => Step::Pending,
+            Step::Done(Some(Input::Event(Event::Key(k))), unread) => {
+                Step::Done(Some(Input::Event(Event::Key(k.with_alt()))), unread)
+            }
+            _ => esc(),
+        },
+        Some(_) => esc(),
     }
 }
 

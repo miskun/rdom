@@ -1123,4 +1123,13 @@ row comes from.
   not end an OSC — Alt+`]` + a digit typed within the grace swallows typing up to the next control
   (Backspace, Ctrl+C, an arrow's `ESC`); pinned by a test. Red: both new corpus tests (5000 `x`s
   typed back as keys; Backspace and Ctrl+C swallowed); green after.
+- 2026-10-06 — C4G-ESC-ESC: `ESC ESC` consumed both bytes for one Esc (crossterm's reading), so
+  two quick Esc presses were one. `parse::escape_then` now decides on the third byte: `ESC` + a CSI or
+  SS3 key is Alt + that key; anything else is Esc with the second `ESC` read again (`ESC ESC x` →
+  Esc, Alt+x; `ESC ESC` + mouse report → Esc, the mouse event). `awaits_prefix` adds `ESC ESC` and
+  `ESC ESC [` / `O`, and `flush_prefix` gives each leading `ESC` its own Esc. Decided: legacy
+  `ESC ESC [ A` is Alt+Up — rxvt sends it for Alt+arrow and Terminal.app with Option as Meta sends
+  `ESC` before the key's sequence; crossterm typed it as Esc, `[`, `A`. Red: the new corpus test
+  (`ESC ESC x` gave Esc, plain `x`); green after. Changed expectation: `alt_keys` asserted
+  crossterm's one Esc for `ESC ESC` — removed, the new test covers both readings.
 

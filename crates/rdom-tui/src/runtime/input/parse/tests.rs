@@ -112,8 +112,8 @@ fn alt_keys() {
     assert_eq!(event(b"\x1bH"), key(KeyCode::Char('H'), ALT | SHIFT));
     assert_eq!(event(b"\x1b\x14"), key(KeyCode::Char('t'), ALT | CTRL));
     assert_eq!(event("\x1bñ".as_bytes()), key(KeyCode::Char('ñ'), ALT));
-    // `ESC ESC` is one Esc (crossterm).
-    assert_eq!(event(b"\x1b\x1b"), key(KeyCode::Esc, NONE));
+    // `ESC ESC` is two Escs, not crossterm's one: see
+    // `escape_escape_is_two_escapes_or_legacy_alt`.
 }
 
 #[test]
@@ -474,6 +474,60 @@ fn escape_prefixes_wait_then_flush() {
     assert!(p.in_sequence());
     p.flush_prefix();
     assert_eq!(p.next(), None);
+}
+
+/// `ESC ESC` is Esc and the second `ESC` is read again (crossterm reads
+/// one Esc for both): two Esc presses are two Escs, and `ESC ESC x` is
+/// Esc, Alt+x. `ESC` before a CSI or SS3 key is the legacy Alt encoding
+/// of that key (rxvt, Terminal.app's Option-as-Meta send `ESC ESC [ A`
+/// for Alt+Up): Alt + the key (`C4G-ESC-ESC`). `ESC` before any other
+/// sequence is Esc, then the sequence.
+#[test]
+fn escape_escape_is_two_escapes_or_legacy_alt() {
+    let esc = || key(KeyCode::Esc, NONE);
+    assert_eq!(
+        events(b"\x1b\x1bx"),
+        vec![esc(), key(KeyCode::Char('x'), ALT)]
+    );
+    assert_eq!(events(b"\x1b\x1b[A"), vec![key(KeyCode::Up, ALT)]);
+    assert_eq!(events(b"\x1b\x1b[1;5A"), vec![key(KeyCode::Up, ALT | CTRL)]);
+    assert_eq!(events(b"\x1b\x1bOP"), vec![key(KeyCode::F(1), ALT)]);
+    assert_eq!(events(b"\x1b\x1b[3~"), vec![key(KeyCode::Delete, ALT)]);
+    assert_eq!(
+        events(b"\x1b\x1b[<0;20;10M"),
+        vec![
+            esc(),
+            mouse(MouseEventKind::Down(MouseButton::Left), 19, 9, NONE)
+        ]
+    );
+    // An unknown sequence after it: Esc, the sequence consumed.
+    assert_eq!(
+        events(b"\x1b\x1b[42Xq"),
+        vec![esc(), key(KeyCode::Char('q'), NONE)]
+    );
+
+    // Nothing after: each ESC is an Esc once the reader flushes.
+    let mut p = Parser::default();
+    p.feed(b"\x1b\x1b");
+    assert!(p.awaits_prefix());
+    assert_eq!(p.next(), None);
+    p.flush_prefix();
+    let all: Vec<Input> = std::iter::from_fn(|| p.next()).collect();
+    assert_eq!(all, vec![Input::Event(esc()), Input::Event(esc())]);
+    p.feed(b"\x1b\x1b\x1b");
+    p.flush_prefix();
+    assert_eq!(std::iter::from_fn(|| p.next()).count(), 3);
+    p.feed(b"\x1b\x1b[");
+    assert!(p.awaits_prefix());
+    p.flush_prefix();
+    let all: Vec<Input> = std::iter::from_fn(|| p.next()).collect();
+    assert_eq!(
+        all,
+        vec![
+            Input::Event(esc()),
+            Input::Event(key(KeyCode::Char('['), ALT))
+        ]
+    );
 }
 
 /// An unknown control sequence is consumed whole and does not stall the
