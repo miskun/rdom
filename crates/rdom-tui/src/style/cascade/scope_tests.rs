@@ -129,12 +129,23 @@ fn scope_pseudo_class_and_relative_selectors() {
 
 /// §2.5.2: `&` in a scoped rule is `:where(:scope)` — the root, with no
 /// specificity — so `& > p` is `(0, 0, 1)` and loses to `.card p`.
+/// `C1G-SCOPE-AMP-SPEC`, checked against the current Editor's Drafts:
+/// Cascade 6 (scoped style rules) — "The `&` selector is defined to
+/// behave as `:where(:scope)`", and ":scope has a specificity of
+/// (0,1,0), whereas & has a specificity of 0"; CSS Nesting 1 §3.3.1 —
+/// "The `&` selector behaves like `:where(:scope)` in @scope rules". It
+/// does *not* take the `<scope-start>`'s specificity (`:is(#c1)` would
+/// be `(1, 0, 1)` and beat `.card p` and `div > p`).
 #[test]
 fn ampersand_is_where_scope() {
     let t = cascade("@scope (#c1) { & > p { color: red } }");
     assert_eq!(fg(&t, t.a), RED);
     assert_eq!(fg(&t, t.c), initial());
     let t = cascade("@scope (#c1) { & > p { color: red } } .card p { color: blue }");
+    assert_eq!(fg(&t, t.a), BLUE);
+    // `div > p` is (0, 0, 2): above `& > p`'s (0, 0, 1) even though the
+    // scope's start is an id.
+    let t = cascade("div > p { color: blue } @scope (#c1) { & > p { color: red } }");
     assert_eq!(fg(&t, t.a), BLUE);
 }
 

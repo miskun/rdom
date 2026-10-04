@@ -335,3 +335,8 @@ row comes from.
   `SimpleSelector::Is`; an invalid argument is skipped to the next top-level `,` / `)`, an empty
   `:is()` matches nothing (`names_only_scope` no longer treats an empty list as `:scope`).
   `:where()` stays unforgiving (DIVERGENCES; Selectors 4 §4.4 makes it forgiving too — C11 work).
+- 2026-10-04 — C1G-SCOPE-AMP-SPEC: verified against the Editor's Drafts — Cascade 6 scoped style
+  rules: "The `&` selector is defined to behave as `:where(:scope)`" (":scope has a specificity of
+  (0,1,0), whereas & has a specificity of 0"); CSS Nesting 1 §3.3.1: "`&` behaves like
+  `:where(:scope)` in @scope rules". The current behaviour is right; no code change, the cascade
+  test now cites the text and pins it against an id `<scope-start>`.
