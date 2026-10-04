@@ -371,7 +371,7 @@ dropped:
 | `gap` | Partial | One value for both axes (cells, `%`, `calc()`); two-value form rejected. | No | `V/spacing.rs::parse_gap` |
 | `row-gap` / `column-gap` | Missing | Per-axis gap. | No | `DISP`, `TS::gap` |
 | Auto margins in flex | Supported | Main and cross axis. | — | `FLEX/main_axis.rs`, `FLEX/cross.rs` |
-| Min-content protection (`min-width: auto`) | Supported | Flexbox §4.5. | — | `rdom-tui/src/render/layout_pass/intrinsic.rs` |
+| Min-content protection (`min-width: auto`) | Supported | Flexbox §4.5: the automatic minimum size on the main axis, `auto` the initial value (undeclared = `auto`); 0 on the cross axis (C3G-MIN-AUTO). | — | `rdom-tui/src/render/layout_pass/intrinsic.rs` |
 
 ### 3.9 Grid (Grid 1/2)
 

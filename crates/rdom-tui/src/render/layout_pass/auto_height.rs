@@ -76,11 +76,7 @@ pub(crate) fn resolve_auto_height(
         .flatten();
     let content_h = crate::layout::clamp_size(
         measurement.content_height,
-        match &computed.min_height {
-            Some(m @ crate::layout::MinSize::Calc(_))
-            | Some(m @ crate::layout::MinSize::Cells(_)) => m.cells(basis),
-            _ => None,
-        },
+        computed.min_height.cells(basis),
         computed.max_height.cells(basis),
     );
     // Padding percent / calc resolves against the containing-block

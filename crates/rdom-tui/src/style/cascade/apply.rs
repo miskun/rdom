@@ -106,19 +106,6 @@ pub(super) fn apply_style(
             );
         )*};
     }
-    // `min-*` / `max-*`: `Option` fields, `None` = unset.
-    macro_rules! optional {
-        ($($field:ident: $mask:ident),* $(,)?) => {$(
-            apply_optional(
-                &mut working.$field,
-                &style.$field,
-                style.important.contains(ImportantMask::$mask),
-                important_pass,
-                kw,
-                |c| &c.$field,
-            );
-        )*};
-    }
 
     // Paint properties (`colors.rs`).
     apply_colors(working, colors, style, important_pass, kw);
@@ -166,7 +153,7 @@ pub(super) fn apply_style(
 
     // Layout properties.
     value!(width: WIDTH, height: HEIGHT);
-    optional!(min_width: MIN_WIDTH, min_height: MIN_HEIGHT);
+    value!(min_width: MIN_WIDTH, min_height: MIN_HEIGHT);
     // `max-*`: the declared value is the computed `Option` itself
     // (`none` is `None`).
     value!(max_width: MAX_WIDTH, max_height: MAX_HEIGHT);
@@ -266,26 +253,6 @@ fn apply_value<T: Clone>(
     {
         *target = match kw.resolve(v) {
             Resolved::Specified(x) => x.clone(),
-            Resolved::From(source) => field(source).clone(),
-        };
-    }
-}
-
-/// [`apply_value`] for the `Option` fields, whose declared value is the
-/// inner `T`.
-fn apply_optional<T: Clone>(
-    target: &mut Option<T>,
-    value: &Option<Value<T>>,
-    important_prop: bool,
-    important_pass: bool,
-    kw: &Keywords<'_>,
-    field: fn(&ComputedStyle) -> &Option<T>,
-) {
-    if let Some(v) = value
-        && matches_pass(important_prop, important_pass)
-    {
-        *target = match kw.resolve(v) {
-            Resolved::Specified(x) => Some(x.clone()),
             Resolved::From(source) => field(source).clone(),
         };
     }

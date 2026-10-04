@@ -762,6 +762,75 @@ fn auto_min_floor_of_a_nested_row_sums_its_items_min_content() {
     assert_eq!(layout_rect_of(&dom, protected).width, 7);
 }
 
+// ── `min-*: auto` is the initial value (C3G-MIN-AUTO) ───────────
+
+/// CSS Sizing 3 §5.2: the initial value of `min-width` / `min-height`
+/// is `auto` — an element that declares neither computes to `auto`,
+/// the same value as one that writes it.
+#[test]
+fn an_undeclared_min_size_computes_to_auto() {
+    use rdom_style::layout::MinSize;
+    let mut dom = tui_dom();
+    let root = dom.root();
+    let a = dom.create_element("a");
+    let b = dom.create_element("b");
+    dom.append_child(root, a).unwrap();
+    dom.append_child(root, b).unwrap();
+    let sheet = Stylesheet::bare().rule_unchecked(
+        "b",
+        TuiStyle::new()
+            .min_width(MinSize::Auto)
+            .min_height(MinSize::Auto),
+    );
+    cascade(&mut dom, &sheet);
+    for id in [a, b] {
+        let c = dom.node(id).computed().unwrap();
+        assert_eq!(c.min_width, MinSize::Auto);
+        assert_eq!(c.min_height, MinSize::Auto);
+    }
+}
+
+/// CSS Flexbox §4.5: the automatic minimum size is a main-axis rule;
+/// on the cross axis `min-*: auto` is 0 (CSS Sizing 3 §5.2), written or
+/// not. A column item `width: 10%` of 20 cells holding the unbreakable
+/// `hello` is 2 wide (its content overflows), as it is in a browser —
+/// an explicit `min-width: auto` used to floor it at its content (5).
+#[test]
+fn min_auto_sets_no_floor_on_the_cross_axis() {
+    use rdom_style::layout::{MinSize, WhiteSpace};
+    for explicit in [false, true] {
+        let mut dom = tui_dom();
+        let root = dom.root();
+        let c = dom.create_element("c");
+        let item = dom.create_element("i");
+        let text = dom.create_text_node("hello");
+        dom.append_child(item, text).unwrap();
+        dom.append_child(c, item).unwrap();
+        dom.append_child(root, c).unwrap();
+        let mut item_style = TuiStyle::new()
+            .width(Size::percent(10.0))
+            .white_space(WhiteSpace::NoWrap);
+        if explicit {
+            item_style = item_style.min_width(MinSize::Auto);
+        }
+        let sheet = Stylesheet::bare()
+            .rule_unchecked(
+                "c",
+                TuiStyle::new()
+                    .flow(Flow::Flex)
+                    .direction(Direction::Column),
+            )
+            .rule_unchecked("i", item_style);
+        cascade(&mut dom, &sheet);
+        dom.layout_dom(Rect::new(0, 0, 20, 10));
+        assert_eq!(
+            layout_rect_of(&dom, item).width,
+            2,
+            "explicit min-width: auto = {explicit}"
+        );
+    }
+}
+
 #[test]
 fn flex_basis_zero_shrinks_freely_per_css_strict() {
     // Counterpart to the above: per CSS Flexbox §4.5, a `flex: 1`

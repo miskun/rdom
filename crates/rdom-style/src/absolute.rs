@@ -22,10 +22,7 @@ impl ComputedStyle {
         absolutize(&mut self.height, vp, Size::Calc, |v| {
             Size::Fixed(cells_u16(v))
         });
-        for min in [&mut self.min_width, &mut self.min_height]
-            .into_iter()
-            .flatten()
-        {
+        for min in [&mut self.min_width, &mut self.min_height] {
             absolutize(min, vp, MinSize::Calc, |v| MinSize::Cells(cells_u16(v)));
         }
         for max in [&mut self.max_width, &mut self.max_height] {

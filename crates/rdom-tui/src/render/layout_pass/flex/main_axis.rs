@@ -9,7 +9,7 @@
 use rdom_core::{Dom, NodeId};
 
 use crate::ext::TuiExt;
-use crate::layout::{Direction, MarginValue, MinSize, Size};
+use crate::layout::{Direction, MarginValue, Size};
 use crate::node::TuiNodeExt;
 use crate::render::layout_pass::block::nearest_block_ancestor_height_is_definite;
 use crate::render::layout_pass::intrinsic::intrinsic_size;
@@ -183,10 +183,7 @@ pub(super) fn collect_main_axis_items(
         // v1 approximates CSS min-content with intrinsic natural
         // size; strict min-content (longest-word width with wrap)
         // is a future polish tracked as `M5-MIN-CONTENT-2`.
-        let min = match min_raw {
-            None | Some(MinSize::Auto) => None,
-            Some(m) => m.cells(main_basis),
-        };
+        let min = min_raw.cells(main_basis);
 
         if let MainNatural::Fixed(n) | MainNatural::Auto(n) = natural {
             consumed_fixed += i32::from(n);

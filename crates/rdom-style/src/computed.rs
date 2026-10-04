@@ -41,9 +41,11 @@ pub struct ComputedStyle {
     // ── Layout ────────────────────────────────────────────────────────
     pub width: Size,
     pub height: Size,
-    pub min_width: Option<crate::layout::MinSize>,
+    /// `min-width`; initial `auto` (CSS Sizing 3 §5.2).
+    pub min_width: crate::layout::MinSize,
     pub max_width: crate::layout::MaxSize,
-    pub min_height: Option<crate::layout::MinSize>,
+    /// `min-height`; initial `auto`.
+    pub min_height: crate::layout::MinSize,
     pub max_height: crate::layout::MaxSize,
     /// `aspect-ratio: <w> / <h>`. When set and one axis is explicit
     /// while the other is auto, the flex resolver computes the
@@ -198,9 +200,9 @@ impl ComputedStyle {
             opacity: 1.0,
             width: Size::Auto,
             height: Size::Auto,
-            min_width: None,
+            min_width: crate::layout::MinSize::Auto,
             max_width: crate::layout::MaxSize::None,
-            min_height: None,
+            min_height: crate::layout::MinSize::Auto,
             max_height: crate::layout::MaxSize::None,
             aspect_ratio: None,
             padding: Padding::default(),

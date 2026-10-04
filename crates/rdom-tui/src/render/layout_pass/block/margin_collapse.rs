@@ -55,7 +55,7 @@ fn is_collapse_through_shape(dom: &Dom<TuiExt>, id: NodeId, computed: &ComputedS
     if computed.border.top.is_visible() || computed.border.bottom.is_visible() {
         return false;
     }
-    if let Some(crate::layout::MinSize::Cells(n)) = computed.min_height
+    if let crate::layout::MinSize::Cells(n) = computed.min_height
         && n > 0
     {
         return false;

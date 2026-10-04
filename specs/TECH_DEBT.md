@@ -6,7 +6,7 @@ For the durable architectural divergences (web-platform departures shipped on pu
 
 ## Open
 
-- **`MIN-AUTO-UNSET-1` — an unset `min-*` and `min-*: auto` lay out differently on the flex cross axis.** `ComputedStyle::min_width` / `min_height` are `Option<MinSize>`: `None` (no declaration) gives a flex item's cross size no floor, `Some(MinSize::Auto)` floors it at the intrinsic size (`render/layout_pass/flex/cross.rs`). CSS has one value, `auto` (the initial value), and its automatic minimum applies on the main axis only (Flexbox §4.5). Found with C3G-API, which made `MaxSize` carry `none` as a variant; `min-*` keeps the `Option` until the cross-axis rule is decided, since folding `None` into `Auto` changes that layout. Pay-down: computed `MinSize` (initial `Auto`) with `auto` resolving to 0 on the cross axis, and the setters / tests that rely on the distinction updated.
+(none)
 
 ## Accepted simplifications
 

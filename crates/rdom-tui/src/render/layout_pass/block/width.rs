@@ -140,7 +140,7 @@ pub(super) fn resolve_block_width(
 /// auto` floors at 0 for a block box.
 fn clamp_width(width: i32, computed: &ComputedStyle, cb: i32) -> i32 {
     let basis = Some(cb.clamp(0, i32::from(u16::MAX)) as u16);
-    let min_cells = computed.min_width.as_ref().and_then(|m| m.cells(basis));
+    let min_cells = computed.min_width.cells(basis);
     let max_cells = computed.max_width.cells(basis);
     let after_max = match max_cells {
         Some(m) => width.min(i32::from(m)),

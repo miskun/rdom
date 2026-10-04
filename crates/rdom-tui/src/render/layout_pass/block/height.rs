@@ -71,7 +71,7 @@ pub(super) fn resolve_block_height(
     // Percentages resolve against the containing block's height when it
     // is definite (CSS 2.1 §10.7: else `0` / `none`).
     let basis = parent_height_definite.then_some(container_height);
-    let min_cells = computed.min_height.as_ref().and_then(|m| m.cells(basis));
+    let min_cells = computed.min_height.cells(basis);
     let max_cells = computed.max_height.cells(basis);
     clamp_size(raw, min_cells, max_cells)
 }
@@ -124,7 +124,7 @@ pub(crate) fn nearest_block_ancestor_height_is_definite(dom: &Dom<TuiExt>, id: N
             // simplification: treat as definite.
             return true;
         }
-        if let Some(MinSize::Cells(n)) = parent_computed.min_height
+        if let MinSize::Cells(n) = parent_computed.min_height
             && n > 0
         {
             return true;

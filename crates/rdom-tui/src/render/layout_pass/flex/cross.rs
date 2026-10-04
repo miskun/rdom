@@ -6,7 +6,7 @@
 use rdom_core::{Dom, NodeId};
 
 use crate::ext::TuiExt;
-use crate::layout::{AspectRatio, Direction, Display, MarginValue, MinSize, Size, clamp_size};
+use crate::layout::{AspectRatio, Direction, Display, MarginValue, Size, clamp_size};
 use crate::render::layout_pass::block::nearest_block_ancestor_height_is_definite;
 use crate::render::layout_pass::intrinsic::intrinsic_size;
 use crate::style::ComputedStyle;
@@ -232,28 +232,11 @@ fn resolve_cross_size(
             }
         }
     };
-    // Cross axis intentionally does NOT carry an auto-min content
-    // floor. CSS Flexbox §4.5's content-based min applies to the
-    // MAIN axis only, where a flex distribution can drive an item
-    // below its content size. The cross axis in rdom has no shrink
-    // distribution — items either stretch to fill the container
-    // (`Size::Auto` / `Flex`), take a declared value (`Fixed` /
-    // `Percent` / `Calc`), or honor an explicit `min-*: auto` opt-
-    // in. There is no path that would silently collapse cross-axis
-    // sizes, so no floor is needed. Adding one would force items
-    // to GROW past their natural cross size — which would break
-    // IFC wrap (a narrow column container's wider-content child
-    // would balloon to its content width, defeating the wrap).
-    let min = match min_raw {
-        None => None,
-        Some(MinSize::Auto) => Some(intrinsic_size(
-            dom,
-            child_id,
-            cross_dir,
-            container_cross,
-            container_width,
-        )),
-        Some(m) => m.cells(basis),
-    };
+    // `min-*: auto` — the initial value — is 0 on the cross axis: the
+    // automatic minimum size of CSS Flexbox §4.5 is a main-axis rule
+    // (a flex distribution can drive an item below its content there),
+    // and elsewhere `auto` resolves to 0 (CSS Sizing 3 §5.2). The cross
+    // size comes from the declared size, a stretch, or the content.
+    let min = min_raw.cells(basis);
     clamp_size(natural, min, max)
 }

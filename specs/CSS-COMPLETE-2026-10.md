@@ -853,3 +853,17 @@ row comes from.
   black)) r g b / 50%)` for ten elements made 10 top-level function parses (test probe in
   `parse_function`); green: 0 after the declaration's 1, with the same colors as the functions
   written out. This supersedes the text-based deferral decision of C3-CURRENTCOLOR / C3-MIX.
+- 2026-10-05 — C3G-MIN-AUTO (TECH_DEBT `MIN-AUTO-UNSET-1` paid): `ComputedStyle::min_width` /
+  `min_height` are `MinSize`, initial `MinSize::Auto` (CSS Sizing 3 §5.2); the cascade applies them
+  with `value!` like `max-*` (the `optional!` macro and `apply_optional` are gone). Decided — the
+  cross-axis rule: `auto` is 0 there (`min_raw.cells(basis)`), per Flexbox §4.5 (the automatic
+  minimum is a main-axis rule) and Sizing 3 §5.2, as the debt's pay-down said; folding the unset case
+  into the old explicit-`auto` behaviour (an intrinsic floor on the cross axis) would have been
+  non-spec. So the layout change is for an explicit `min-*: auto` on the cross axis only; on the main
+  axis unset already took the automatic minimum (`main_axis.rs` matched `None | Some(Auto)`). Red:
+  the computed-value test did not compile (`Option<MinSize>`); a column item `width: 10%` of 20 with
+  `hello` nowrap and an explicit `min-width: auto` was 5 wide (floored at its content), spec and
+  browsers 2. Green: both, unset and explicit alike. No showcase snapshot or other test expectation
+  changed (no snapshot declares `min-*: auto`; the four tests that do are main-axis auto-min tests,
+  unchanged); three cascade tests changed from `Some(MinSize::Cells(_))` to the variant. Breaking
+  for rdom-style (CHANGELOG, migration hint).
