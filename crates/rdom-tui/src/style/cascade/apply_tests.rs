@@ -51,6 +51,9 @@ const PERTURB: &[(&str, &str)] = &[
     ("overflow-y", "hidden"),
     ("scrollbar-gutter", "stable"),
     ("scroll-behavior", "smooth"),
+    // Before `width` / `height` / `flex-shrink`, which override its
+    // grow and shrink: it perturbs `flex_basis`.
+    ("flex", "0 0 7"),
     ("width", "10"),
     ("height", "5"),
     ("min-width", "2"),
@@ -116,6 +119,7 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
         margin,
         gap,
         flex_shrink,
+        flex_basis,
         border,
         border_collapse,
         // Not a property: set by any declared `border-collapse`.
@@ -176,6 +180,7 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
         margin,
         gap,
         flex_shrink,
+        flex_basis,
         border,
         border_collapse,
         direction,

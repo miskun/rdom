@@ -43,6 +43,7 @@ fn important_mask_bits_are_unique() {
         M::CARET_COLOR,
         M::CARET_TEXT_COLOR,
         M::FLEX_SHRINK,
+        M::FLEX_BASIS,
         M::POINTER_EVENTS,
         M::FLOW,
         M::COUNTER_RESET,
@@ -304,6 +305,7 @@ fn every_property_has_important_setter() {
         .margin_important(crate::layout::Margin::all_cells(1))
         .gap_important(1)
         .flex_shrink_important(1.0)
+        .flex_basis_important(crate::layout::FlexBasis::Auto)
         .border_important(Border::single())
         .border_collapse_important(crate::layout::BorderCollapse::Collapse)
         .direction_important(Direction::Row)

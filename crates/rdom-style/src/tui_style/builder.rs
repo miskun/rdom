@@ -191,6 +191,13 @@ impl TuiStyle {
         FLEX_SHRINK,
         f32
     );
+    setter!(
+        flex_basis,
+        flex_basis,
+        flex_basis_important,
+        FLEX_BASIS,
+        crate::layout::FlexBasis
+    );
     setter!(border, border, border_important, BORDER, Border);
     /// `.collapse_borders()` — sets `border-collapse: collapse` on
     /// this element. Convenience shortcut over the verbose

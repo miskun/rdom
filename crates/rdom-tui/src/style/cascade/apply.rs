@@ -219,6 +219,7 @@ pub(super) fn apply_style(
         margin: MARGIN,
         gap: GAP,
         flex_shrink: FLEX_SHRINK,
+        flex_basis: FLEX_BASIS,
         border: BORDER,
     );
     apply_border_collapse(

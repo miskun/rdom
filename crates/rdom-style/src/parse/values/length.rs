@@ -1,12 +1,12 @@
 //! Sizes and lengths: `width` / `height` sizes (cells, `fr`, percent,
-//! `calc()`), the `flex` shorthand, `min-*` sizes, signed `Length`s
+//! `calc()`), the `flex` shorthand and `flex-basis`, `min-*` sizes, signed `Length`s
 //! for offsets and the `inset` shorthand.
 
 use super::numeric::{
     LengthPercentage, Range, cells_i32, cells_u16, components, length_percentage, number,
 };
 use crate::calc::CalcExpr;
-use crate::layout::{Length, MaxSize, MinSize, Size};
+use crate::layout::{FlexBasis, Length, MaxSize, MinSize, Size};
 use crate::parse::token::Token;
 
 /// A percentage literal, fraction intact, rejecting negative and
@@ -39,53 +39,74 @@ fn flex_factor(v: f64) -> Option<f32> {
     (v >= 0.0 && v <= f64::from(f32::MAX)).then_some(v as f32)
 }
 
-/// Parse the CSS `flex` shorthand. Models the main-axis sizing
-/// of a flex child. Returns the `Size` that should be applied to
-/// the child's width AND height (cross-axis `Size::Flex` already
-/// means "stretch to container" in our layout, matching CSS
-/// default `align-items: stretch` behavior).
-///
-/// Supported value shapes (factors are `<number [0,∞]>`, fractions
-/// included — CSS Flexbox §7.1):
-/// - `flex: auto`   → `Size::Flex(1.0)` (grow as `flex: 1 1 auto`)
-/// - `flex: none`   → `Size::Auto`     (don't grow as `flex: 0 0 auto`)
-/// - `flex: <n>`    → `n > 0` → `Size::Flex(n)`; `n == 0` → `Size::Auto`
-/// - `flex: <n> <m> <basis>` → use `<n>` as the grow value; `<m>`
-///   (shrink) and `<basis>` are parsed-and-accepted but ignored
-///   until full flex-grow / flex-shrink / flex-basis tracking lands
-///   in the substrate.
-pub fn parse_flex_shorthand(value: &[Token]) -> Option<Size> {
-    match value {
-        [Token::Ident(s)] if s.eq_ignore_ascii_case("auto") => return Some(Size::Flex(1.0)),
-        [Token::Ident(s)] if s.eq_ignore_ascii_case("none") => return Some(Size::Auto),
-        _ => {}
+/// The `flex` shorthand's three longhands (CSS Flexbox §7.2).
+#[derive(Debug, Clone, PartialEq)]
+pub struct FlexShorthand {
+    /// `flex-grow`: `<number [0,∞]>`.
+    pub grow: f32,
+    /// `flex-shrink`: `<number [0,∞]>`.
+    pub shrink: f32,
+    /// `flex-basis`.
+    pub basis: FlexBasis,
+}
+
+/// Parse the `flex` shorthand (CSS Flexbox §7.2): `none | [
+/// <'flex-grow'> <'flex-shrink'>? || <'flex-basis'> ]`. `none` is
+/// `0 0 auto`; an omitted grow or shrink is 1 and an omitted basis 0
+/// (so `flex: <n>` is `<n> 1 0`, and `auto` — a lone basis — is
+/// `1 1 auto`). The basis may come first; a bare number is a factor
+/// unless two factors precede it (a unitless zero included, §7.2).
+pub fn parse_flex_shorthand(value: &[Token]) -> Option<FlexShorthand> {
+    if matches!(value, [Token::Ident(s)] if s.eq_ignore_ascii_case("none")) {
+        return Some(FlexShorthand {
+            grow: 0.0,
+            shrink: 0.0,
+            basis: FlexBasis::Auto,
+        });
     }
+    let factor = |c: &[Token]| flex_factor(number(c, Range::NonNegative)?);
     let parts = components(value)?;
-    let (grow, tail) = parts.split_first()?;
-    let grow = flex_factor(number(grow, Range::NonNegative)?)?;
-    // `<shrink>` is a non-negative number; `<basis>` is `auto` or a
-    // non-negative `<length-percentage>` — the canonical `flex: 1 1 0%`
-    // included. A malformed tail rejects the whole declaration rather
-    // than applying part of it.
-    let is_factor = |c: &[Token]| number(c, Range::NonNegative).is_some();
-    let is_basis = |c: &[Token]| {
-        matches!(c, [Token::Ident(s)] if s.eq_ignore_ascii_case("auto"))
-            || length_percentage(c, Range::NonNegative).is_some()
-    };
-    let tail_ok = match tail {
-        [] => true,
-        [a] => is_factor(a) || is_basis(a),
-        [a, b] => is_factor(a) && is_basis(b),
-        _ => false,
-    };
-    if !tail_ok {
-        return None;
+    let (mut grow, mut shrink, mut basis) = (None, None, None);
+    let mut rest = parts.as_slice();
+    while let [first, tail @ ..] = rest {
+        rest = tail;
+        if grow.is_none()
+            && let Some(g) = factor(first)
+        {
+            grow = Some(g);
+            // `<'flex-grow'> <'flex-shrink'>?`: a factor right after
+            // the grow is the shrink.
+            if let [next, tail @ ..] = rest
+                && let Some(s) = factor(next)
+            {
+                shrink = Some(s);
+                rest = tail;
+            }
+        } else if basis.is_none() {
+            basis = Some(parse_flex_basis(first)?);
+        } else {
+            return None;
+        }
     }
-    Some(if grow == 0.0 {
-        Size::Auto
-    } else {
-        Size::Flex(grow)
+    Some(FlexShorthand {
+        grow: grow.unwrap_or(1.0),
+        shrink: shrink.unwrap_or(1.0),
+        basis: basis.unwrap_or(FlexBasis::Cells(0)),
     })
+}
+
+/// `flex-basis: content | <'width'>` (CSS Flexbox §7.3.3): `auto`,
+/// `content` or a `<length-percentage [0,∞]>`.
+fn parse_flex_basis(value: &[Token]) -> Option<FlexBasis> {
+    match value {
+        [Token::Ident(s)] if s.eq_ignore_ascii_case("auto") => Some(FlexBasis::Auto),
+        [Token::Ident(s)] if s.eq_ignore_ascii_case("content") => Some(FlexBasis::Content),
+        _ => match length_percentage(value, Range::NonNegative)? {
+            LengthPercentage::Integer(n) => u16::try_from(n).ok().map(FlexBasis::Cells),
+            LengthPercentage::Cells(v) => Some(FlexBasis::Cells(cells_u16(v))),
+            LengthPercentage::Expr(e) => Some(FlexBasis::Calc(Box::new(e))),
+        },
+    }
 }
 
 /// `flex-shrink: <number [0,∞]>` (CSS Flexbox §7.3.2).

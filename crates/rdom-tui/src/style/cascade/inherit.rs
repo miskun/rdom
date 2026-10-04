@@ -64,6 +64,7 @@ pub(super) fn layout_differs(a: &ComputedStyle, b: &ComputedStyle) -> bool {
         || a.margin != b.margin
         || a.gap != b.gap
         || a.flex_shrink != b.flex_shrink
+        || a.flex_basis != b.flex_basis
         || a.border != b.border
         || a.border_collapse != b.border_collapse
         || a.border_collapse_declared != b.border_collapse_declared

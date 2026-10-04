@@ -84,6 +84,7 @@ bitflags_like! {
         COUNTER_RESET = 1 << 42;
         COUNTER_INCREMENT = 1 << 43;
         SCROLL_BEHAVIOR = 1 << 44;
+        FLEX_BASIS = 1 << 45;
     }
 }
 
@@ -136,6 +137,8 @@ pub struct TuiStyle {
     /// opts out of shrinking (the item keeps its declared size
     /// and overflows). Larger values shrink more aggressively.
     pub flex_shrink: Option<Value<f32>>,
+    /// `flex-basis`, set by the `flex` shorthand (CSS Flexbox §7.2).
+    pub flex_basis: Option<Value<crate::layout::FlexBasis>>,
     pub border: Option<Value<Border>>,
     /// `border-collapse: separate | collapse`. CSS-faithful name but
     /// rdom extends the property's scope from `<table>` only to any

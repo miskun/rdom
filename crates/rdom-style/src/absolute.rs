@@ -6,7 +6,9 @@
 
 use crate::ComputedStyle;
 use crate::calc::{CalcExpr, Viewport};
-use crate::layout::{GapValue, Length, MarginValue, MaxSize, MinSize, PaddingValue, Size};
+use crate::layout::{
+    FlexBasis, GapValue, Length, MarginValue, MaxSize, MinSize, PaddingValue, Size,
+};
 
 impl ComputedStyle {
     /// Resolve every viewport-percentage length in the style's
@@ -49,6 +51,9 @@ impl ComputedStyle {
         absolutize(&mut self.gap, vp, GapValue::Calc, |v| {
             GapValue::Cells(cells_u16(v))
         });
+        absolutize(&mut self.flex_basis, vp, FlexBasis::Calc, |v| {
+            FlexBasis::Cells(cells_u16(v))
+        });
         for inset in [
             &mut self.top,
             &mut self.right,
@@ -79,6 +84,7 @@ macro_rules! has_expr {
 }
 has_expr!(
     Size,
+    FlexBasis,
     MinSize,
     MaxSize,
     PaddingValue,

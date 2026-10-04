@@ -785,3 +785,60 @@ fn max_size_none_is_a_declared_value() {
         assert_eq!(serialize(name, &s).as_deref(), Some("12"), "{name}");
     }
 }
+
+/// C2G-FLEX-SHORTHAND — CSS Flexbox §7.2: `flex: none | [ <'flex-grow'>
+/// <'flex-shrink'>? || <'flex-basis'> ]`. `none` is `0 0 auto`, `auto`
+/// `1 1 auto`; an omitted grow is 1, an omitted shrink 1, an omitted
+/// basis 0; the basis may come first; a unitless zero not preceded by
+/// two factors is a factor. The grow goes to `width` / `height` (rdom's
+/// flex model), the shrink to `flex_shrink`, the basis to `flex_basis`.
+#[test]
+fn flex_shorthand_full_grammar() {
+    use crate::calc::CalcExpr;
+    use crate::layout::{FlexBasis, Size};
+    let pct = |p: f64| FlexBasis::Calc(Box::new(CalcExpr::Percent(p)));
+    let cases: [(&str, Size, f32, FlexBasis); 13] = [
+        ("none", Size::Auto, 0.0, FlexBasis::Auto),
+        ("auto", Size::Flex(1.0), 1.0, FlexBasis::Auto),
+        ("2", Size::Flex(2.0), 1.0, FlexBasis::Cells(0)),
+        ("2 3", Size::Flex(2.0), 3.0, FlexBasis::Cells(0)),
+        ("0 1 auto", Size::Auto, 1.0, FlexBasis::Auto),
+        ("1 0", Size::Flex(1.0), 0.0, FlexBasis::Cells(0)),
+        ("1 30%", Size::Flex(1.0), 1.0, pct(30.0)),
+        ("30% 2", Size::Flex(2.0), 1.0, pct(30.0)),
+        ("2 0.5 10", Size::Flex(2.0), 0.5, FlexBasis::Cells(10)),
+        ("0 1 0", Size::Auto, 1.0, FlexBasis::Cells(0)),
+        ("auto 3", Size::Flex(3.0), 1.0, FlexBasis::Auto),
+        ("content", Size::Flex(1.0), 1.0, FlexBasis::Content),
+        ("0 0 0", Size::Auto, 0.0, FlexBasis::Cells(0)),
+    ];
+    for (src, size, shrink, basis) in cases {
+        let mut s = TuiStyle::new();
+        set("flex", src, &mut s).unwrap_or_else(|e| panic!("{src}: {e:?}"));
+        assert_eq!(s.width, Some(Value::Specified(size.clone())), "{src}");
+        assert_eq!(s.height, Some(Value::Specified(size)), "{src}");
+        assert_eq!(s.flex_shrink, Some(Value::Specified(shrink)), "{src}");
+        assert_eq!(s.flex_basis, Some(Value::Specified(basis)), "{src}");
+        // The serialization reads back as the same declaration.
+        let text = serialize("flex", &s).unwrap_or_else(|| panic!("{src} serializes"));
+        let mut again = TuiStyle::new();
+        set("flex", &text, &mut again).unwrap();
+        assert_eq!(again, s, "{src} → {text}");
+    }
+    for bad in [
+        "1 2 3 4",
+        "1 1 foo",
+        "-1",
+        "auto auto",
+        "1 -2",
+        "none 1",
+        "1 2 auto 3",
+        "1 2 0.5",
+    ] {
+        assert_eq!(
+            set("flex", bad, &mut TuiStyle::new()),
+            Err(DispatchError::InvalidValue),
+            "{bad}"
+        );
+    }
+}

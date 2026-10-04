@@ -273,3 +273,33 @@ fn max_size_none_lifts_a_limit() {
         (30, 5)
     );
 }
+
+// ── C2G-FLEX-SHORTHAND ───────────────────────────────────────────────
+
+/// CSS Flexbox §7.2: `flex: 0 1 auto` (the initial value) keeps a shrink
+/// factor of 1, so two 30-cell items in a 40-cell row shrink to fit
+/// (§9.7). The shorthand used to set the shrink to 0 for any zero grow.
+#[test]
+fn flex_zero_one_auto_shrinks() {
+    let w = row_widths(
+        40,
+        ".a { flex: 0 1 auto; width: 30 } .b { flex: 0 2 auto; width: 30 }",
+        &["a", "b"],
+    );
+    assert_eq!(w.iter().sum::<u16>(), 40, "{w:?}");
+    assert_eq!(w, [24, 16], "20 of overflow, shrunk 30 × 1 : 30 × 2");
+}
+/// The basis is stored on the computed style (C6-FLEX-LONGHANDS lays it
+/// out): `flex: 2 30%` computes `flex_basis` 30%.
+#[test]
+fn flex_basis_reaches_the_computed_style() {
+    use rdom_tui::style::cascade::computed_of;
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let a = el(&mut dom, root, "a");
+    lay_out(&mut dom, ".a { flex: 2 30% }", 40, 5);
+    assert_eq!(
+        computed_of(&dom, a).flex_basis,
+        rdom_tui::layout::FlexBasis::Calc(Box::new(rdom_style::calc::CalcExpr::Percent(30.0)))
+    );
+}

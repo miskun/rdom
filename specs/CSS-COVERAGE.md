@@ -358,7 +358,7 @@ dropped:
 | `flex-direction` | Partial | `row` / `column`; `row-reverse` / `column-reverse` rejected. | No | `DISP/set.rs`, `KW::Direction` |
 | `flex-wrap` | Missing | Single-line only. | No | `FLEX` |
 | `flex-flow` | Missing | Shorthand of the two above. | No | `DISP` |
-| `flex` | Partial | Grow from the first number; shrink partly; basis collapsed to `0%` (documented); writes `width` + `height`. | Yes | `V/length.rs::parse_flex_shorthand` |
+| `flex` | Partial | Full Flexbox §7.2 grammar (`none`, `auto`, 1–3 values in either order, the unitless-zero rule); grow → `width` + `height`, shrink → `flex-shrink`, basis stored as `flex_basis` but not laid out (a growing item's basis is 0%, documented; C2G-FLEX-SHORTHAND, layout with C6-FLEX-LONGHANDS). | Yes | `V/length.rs::parse_flex_shorthand` |
 | `flex-grow` | Missing | Not in the property table (DIVERGENCES suggests `flex-grow: 1` as a workaround). | Wrong | `DISP`, `FLEX/main_axis.rs` |
 | `flex-shrink` | Supported | `<number [0,∞]>`, fractions included (C2-NUMBER). | — | `DISP/set.rs`, `FLEX/main_axis.rs` |
 | `flex-basis` | Missing | Basis ignored (documented as part of `flex`); the longhand does not exist. | No | `DISP`, `FLEX/main_axis.rs` |

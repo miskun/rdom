@@ -143,6 +143,25 @@ impl From<u16> for MaxSize {
     }
 }
 
+/// Value of `flex-basis` (CSS Flexbox §7.3.3: `content | <'width'>`),
+/// set by the `flex` shorthand (§7.2). Stored and cascaded; the layout
+/// pass does not read it yet — a growing item's basis is 0 and a
+/// non-growing one's is its `width` / `height` (C6-FLEX-LONGHANDS,
+/// DIVERGENCES).
+#[derive(Debug, Clone, PartialEq, Default)]
+pub enum FlexBasis {
+    /// `auto`: the item's main size property. The initial value.
+    #[default]
+    Auto,
+    /// `content`: the item's content size.
+    Content,
+    /// Explicit cell count.
+    Cells(u16),
+    /// `<percentage>` or a math function holding one, against the flex
+    /// container's inner main size.
+    Calc(Box<crate::calc::CalcExpr>),
+}
+
 /// `expr` against `basis`, clamped to `0..=u16::MAX`.
 fn resolve_u16(expr: &crate::calc::CalcExpr, basis: u16) -> u16 {
     let v = expr.resolve(&crate::calc::ResolveCtx::new(i32::from(basis)));

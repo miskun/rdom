@@ -139,7 +139,7 @@ row comes from.
 | C6-VISIBILITY | `visibility: visible / hidden / collapse` | |
 | C6-ORDER | `order` | |
 | C6-DIRECTION-REVERSE | `flex-direction: row-reverse / column-reverse` | |
-| C6-FLEX-LONGHANDS | `flex-grow` / `flex-basis` longhands; full `flex` shorthand (incl. basis) | |
+| C6-FLEX-LONGHANDS | `flex-grow` / `flex-basis` longhands; full `flex` shorthand (incl. basis) | partial — the shorthand's grammar, shrink and stored basis landed with C2G-FLEX-SHORTHAND; remain the longhands and the basis in layout (`ComputedStyle::flex_basis` is cascaded, unread) |
 | C6-WRAP | `flex-wrap` / `flex-flow`, multi-line flex containers | |
 | C6-JUSTIFY | `justify-content` (all distribution values) | |
 | C6-ALIGN | `align-items` / `align-self` (incl. `baseline` where meaningful) | |
@@ -547,3 +547,12 @@ row comes from.
   `impl Into<Option<MaxSize>>` and always declare (`None` is `none`; removal through the CSSOM) —
   decided over a double `Option`. The C2-PERCENT changelog bullets are rewritten to the final shape
   with migration hints from 0.5.0. COVERAGE keeps the row *Partial* (intrinsic keywords, C5-INTRINSIC).
+- 2026-10-05 — C2G-FLEX-SHORTHAND: `parse_flex_shorthand` → `FlexShorthand { grow, shrink, basis }`
+  with the Flexbox §7.2 grammar (`none`; `<grow> <shrink>? || <basis>` in either order; omitted grow /
+  shrink 1, omitted basis 0; a number is a factor unless two factors precede it). The dispatch writes
+  grow → `width` / `height` as before, shrink → `flex_shrink` (was 0 for any zero grow: `flex: 0 1
+  auto` overflowed), basis → the new `TuiStyle` / `ComputedStyle::flex_basis` (`FlexBasis`, mask bit
+  45, cascaded, viewport units absolutized, in `layout_differs`) — stored, not laid out: C6-FLEX-LONGHANDS
+  is now *partial* with that gap. `flex` serializes as `<grow> <shrink> <basis>`. DIVERGENCES' flex entry
+  rewritten (the stale `Size::Flex(1)` / `parse/values.rs`); the C2-NUMBER changelog example now says
+  what `flex: 1.5 0.5 0%` sets. The `initial`-keyword apply test perturbs `flex_basis` through `flex`.

@@ -8,10 +8,10 @@ use super::css_wide::css_wide_of;
 use super::table::canonical_property_name;
 use super::value_serializers::{
     border_style_keyword, join_csv, serialize_color, serialize_content, serialize_counter_ops,
-    serialize_length, serialize_margin_value, serialize_math, serialize_max_size,
-    serialize_min_size, serialize_overflow, serialize_padding_value, serialize_size,
-    serialize_timing_function, serialize_transition_property, serialize_transition_shorthand,
-    specified,
+    serialize_flex_basis, serialize_length, serialize_margin_value, serialize_math,
+    serialize_max_size, serialize_min_size, serialize_overflow, serialize_padding_value,
+    serialize_size, serialize_timing_function, serialize_transition_property,
+    serialize_transition_shorthand, specified,
 };
 use crate::layout::{
     CaretColor, CaretTextColor, Direction, Display, Position, Size, UserSelect, WhiteSpace, ZIndex,
@@ -190,20 +190,24 @@ pub fn serialize(name: &str, style: &TuiStyle) -> Option<String> {
             .to_string()
         }),
 
-        // Flex shorthand. Serializes only when width and height
-        // agree, matching the shape `parse_flex_shorthand` outputs
-        // (`flex: <grow>` sets both axes to the same value). When
-        // the axes diverge, expose via the `width` / `height`
-        // longhands instead.
+        // Flex shorthand: `<grow> <shrink> <basis>`, when the fields
+        // hold what `flex` writes — `width` and `height` agree on a
+        // `Size::Flex(grow)` (or `Auto`, grow 0) and the shrink and basis
+        // are declared. Otherwise the longhands carry it.
         "flex" => match (
             style.width.as_ref().and_then(specified),
             style.height.as_ref().and_then(specified),
+            style.flex_shrink.as_ref().and_then(specified),
+            style.flex_basis.as_ref().and_then(specified),
         ) {
-            (Some(w), Some(h)) if w == h => match w {
-                Size::Flex(n) => Some(n.to_string()),
-                Size::Auto => Some("none".to_string()),
-                _ => None,
-            },
+            (Some(w), Some(h), Some(shrink), Some(basis)) if w == h => {
+                let grow = match w {
+                    Size::Flex(n) => n.to_string(),
+                    Size::Auto => "0".to_string(),
+                    _ => return None,
+                };
+                Some(format!("{grow} {shrink} {}", serialize_flex_basis(basis)))
+            }
             _ => None,
         },
         "flex-shrink" => style

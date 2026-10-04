@@ -82,6 +82,15 @@ pub(super) fn serialize_min_size(m: &crate::layout::MinSize) -> String {
     }
 }
 
+pub(super) fn serialize_flex_basis(b: &crate::layout::FlexBasis) -> String {
+    match b {
+        crate::layout::FlexBasis::Auto => "auto".to_string(),
+        crate::layout::FlexBasis::Content => "content".to_string(),
+        crate::layout::FlexBasis::Cells(n) => n.to_string(),
+        crate::layout::FlexBasis::Calc(expr) => serialize_math(expr),
+    }
+}
+
 pub(super) fn serialize_max_size(m: &crate::layout::MaxSize) -> String {
     match m {
         crate::layout::MaxSize::Cells(n) => n.to_string(),

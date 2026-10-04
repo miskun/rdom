@@ -294,22 +294,22 @@ pub fn set_parsed(name: &str, value: &[Token], style: &mut TuiStyle) -> Result<(
             style.gap = Some(Value::Specified(g));
         }),
 
-        // Flex shorthand — sets `width` + `height` AND `flex-shrink`.
-        // Per CSS spec: `flex: <n>` ≡ `<n> 1 0` (grow=n, shrink=1,
-        // basis=0); `flex: none` ≡ `0 0 auto` (no grow, NO shrink,
-        // basis=auto). Cross-axis `Size::Flex` reads as "stretch to
-        // container" in the layout pass, matching CSS default
-        // `align-items: stretch`.
-        "flex" => parse_flex_shorthand(value).map(|s| {
-            // `flex: none` ⇒ Size::Auto with flex_shrink=0. All
-            // other shapes use the CSS-default shrink=1.
-            let shrink = match &s {
-                Size::Auto => 0.0,
-                _ => 1.0,
+        // Flex shorthand (CSS Flexbox §7.2) — its grow goes to `width`
+        // + `height` (rdom's flex model: `Size::Flex(grow)`, which on
+        // the cross axis reads as "stretch", the default
+        // `align-items: stretch`; a zero grow is `Size::Auto`), its
+        // shrink to `flex-shrink`, its basis to `flex-basis` (stored;
+        // laid out with C6-FLEX-LONGHANDS).
+        "flex" => parse_flex_shorthand(value).map(|f| {
+            let size = if f.grow > 0.0 {
+                Size::Flex(f.grow)
+            } else {
+                Size::Auto
             };
-            style.width = Some(Value::Specified(s.clone()));
-            style.height = Some(Value::Specified(s));
-            style.flex_shrink = Some(Value::Specified(shrink));
+            style.width = Some(Value::Specified(size.clone()));
+            style.height = Some(Value::Specified(size));
+            style.flex_shrink = Some(Value::Specified(f.shrink));
+            style.flex_basis = Some(Value::Specified(f.basis));
         }),
         "flex-shrink" => parse_flex_factor(value).map(|n| {
             style.flex_shrink = Some(Value::Specified(n));

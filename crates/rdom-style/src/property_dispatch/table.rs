@@ -219,6 +219,7 @@ define_fields! {
     AspectRatio => aspect_ratio : ASPECT_RATIO,
     Gap => gap : GAP,
     FlexShrink => flex_shrink : FLEX_SHRINK,
+    FlexBasis => flex_basis : FLEX_BASIS,
     Padding => padding : PADDING,
     Margin => margin : MARGIN,
     Border => border : BORDER,
@@ -274,7 +275,7 @@ pub(super) fn fields_of(name: &str) -> Option<&'static [Field]> {
         "max-height" => &[MaxHeight],
         "aspect-ratio" => &[AspectRatio],
         "gap" => &[Gap],
-        "flex" => &[Width, Height, FlexShrink],
+        "flex" => &[Width, Height, FlexShrink, FlexBasis],
         "flex-shrink" => &[FlexShrink],
         "padding" | "padding-top" | "padding-right" | "padding-bottom" | "padding-left" => {
             &[Padding]

@@ -60,6 +60,9 @@ pub struct ComputedStyle {
     /// declared sizes exceed the parent's main-axis budget, items
     /// shrink proportional to `flex_shrink * basis`. `0` opts out.
     pub flex_shrink: f32,
+    /// `flex-basis` (CSS Flexbox §7.3.3), from the `flex` shorthand.
+    /// Cascaded but not laid out yet (C6-FLEX-LONGHANDS).
+    pub flex_basis: crate::layout::FlexBasis,
     pub border: Border,
     /// `border-collapse: separate | collapse`. CSS-faithful name,
     /// extended to apply to any flex container (rdom divergence).
@@ -198,6 +201,7 @@ impl ComputedStyle {
             margin: crate::layout::Margin::default(),
             gap: crate::layout::GapValue::Cells(0),
             flex_shrink: 1.0,
+            flex_basis: crate::layout::FlexBasis::Auto,
             border: Border::none(),
             border_collapse: crate::layout::BorderCollapse::Separate,
             border_collapse_declared: false,
