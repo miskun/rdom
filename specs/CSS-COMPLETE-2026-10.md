@@ -474,3 +474,7 @@ row comes from.
   `Content::Attr` stays for Rust-built styles (the UA sheet), as `TuiColor::Var` did in C1-VAR-ANY.
   Attribute changes already re-cascade the element (DirtyTracker), so values stay live (test).
   Decided: attribute values are not searched for substitution functions (documented).
+- 2026-10-04 — Phase 2 items done (C2-LH partial — revisit with C9-LINE-HEIGHT). Unit decision:
+  absolute (`px`, `cm`, …) and font-relative (`em`, `rem`, `ex`, …) units stay N/A as
+  `CSS-COVERAGE.md` classes them — no terminal mapping; recorded in DIVERGENCES §1 "Length units".
+  Phase 2 gates (architect + API, with the C1G re-review) are next.
