@@ -1,0 +1,207 @@
+//! `TuiColor` — a concrete `Color`, a `var(--name)` reference, or a
+//! value that depends on the element (`currentcolor`).
+//!
+//! Sits on the input side of the cascade (inside `TuiStyle`). The
+//! cascade resolves every `TuiColor` into a concrete `Color` via
+//! [`TuiColor::resolve`] against a [`ColorContext`] before writing
+//! into `ComputedStyle.fg` / `.bg` / `.border_fg`, so layout and paint
+//! never see a `Var` or `CurrentColor`.
+//!
+//! ## `var()` resolution
+//!
+//! Given `TuiColor::Var { name, fallback }`:
+//!
+//! 1. Look up `name` in the vars map. If found AND parses as a color,
+//!    that's the result.
+//! 2. Otherwise, recursively resolve the `fallback` (which may itself
+//!    be a `Var { ... }` — chains are supported).
+//! 3. If neither yields a concrete color, use the property's
+//!    "inherit" fallback (passed in by the caller — parent's computed
+//!    value for that property).
+//!
+//! The string-to-Color parser accepts:
+//!
+//! - `#rgb` / `#rgba` / `#rrggbb` / `#rrggbbaa`: hex literals,
+//!   expanded to `Color::Rgb` (`Color::Rgba` when the 4- or 8-digit
+//!   form's alpha is below opaque).
+//! - Named ANSI colors (`red`, `blue`, `gray`, `lightcyan`, ...)
+//! - `reset` → `Color::Reset` (terminal default)
+//! - Decimal `0..=255` → `Color::Indexed`
+//!
+//! Anything else returns `None` and the cascade uses the fallback
+//! chain.
+
+use crate::Color;
+
+mod text;
+
+pub use text::parse_color;
+pub(crate) use text::parse_simple_color;
+
+/// Input-side color on `TuiStyle`: a literal, a `var()` reference,
+/// or `currentcolor`.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum TuiColor {
+    /// A literal terminal color — `#ff0000`, `red`, `Color::Indexed(204)`.
+    Literal(Color),
+    /// `currentcolor` (CSS Color 4 §6.4): the element's `color` — in
+    /// `color` itself, the inherited one. Resolved at computed-value
+    /// time against [`ColorContext::current_color`].
+    CurrentColor,
+    /// A color function whose value depends on the element
+    /// (`color-mix(in srgb, currentcolor, blue)`), computed at
+    /// computed-value time against a [`ColorContext`].
+    Function(ColorFunction),
+    /// Reference to a custom property (`var(--name)` or `var(--name,
+    /// fallback)`). Resolved during cascade against `ComputedStyle.vars`.
+    Var {
+        name: String,
+        /// Nested fallback `TuiColor` if `name` is unresolved. `None`
+        /// means "let the cascade use the property's own inherit /
+        /// initial fallback".
+        fallback: Option<Box<TuiColor>>,
+    },
+}
+
+impl TuiColor {
+    /// `var(--name)` with no fallback.
+    pub fn var(name: impl Into<String>) -> Self {
+        Self::Var {
+            name: name.into(),
+            fallback: None,
+        }
+    }
+
+    /// `var(--name, fallback)`. The `fallback` is itself a `TuiColor`,
+    /// so `.var_with("accent", TuiColor::Literal(Color::Rgb(255, 0, 0)))` works,
+    /// as does chaining `.var_with("accent", TuiColor::var("fallback"))`.
+    pub fn var_with(name: impl Into<String>, fallback: TuiColor) -> Self {
+        Self::Var {
+            name: name.into(),
+            fallback: Some(Box::new(fallback)),
+        }
+    }
+
+    /// Is this a `Var(...)`? Helper for tests + devtools.
+    pub fn is_var(&self) -> bool {
+        matches!(self, TuiColor::Var { .. })
+    }
+
+    /// Parse CSS text with the full `<color>` grammar, keeping a value
+    /// that resolves at computed-value time (`currentcolor`) as such.
+    pub fn parse(input: &str) -> Option<TuiColor> {
+        let tokens = crate::parse::tokenize(input.trim()).ok()?;
+        crate::parse::values::parse_color(&tokens)
+    }
+
+    /// This color with its `var()` references looked up in `vars`
+    /// (a reference that finds no color takes its fallback, in turn);
+    /// `None` when a chain ends without one.
+    pub fn substitute_vars(
+        &self,
+        vars: &std::collections::HashMap<String, crate::CustomValue>,
+    ) -> Option<TuiColor> {
+        match self {
+            TuiColor::Var { name, fallback } => {
+                let found = vars.get(name).and_then(|v| match v.tokens() {
+                    Some(tokens) => crate::parse::values::parse_color(tokens),
+                    None => TuiColor::parse(v.as_str()),
+                });
+                match found {
+                    Some(c) => Some(c),
+                    None => fallback.as_ref()?.substitute_vars(vars),
+                }
+            }
+            other => Some(other.clone()),
+        }
+    }
+
+    /// True when the value depends on the element it applies to
+    /// (`currentcolor`), so it is resolved once the element's `color`
+    /// is known. A `var()` is not looked through: call
+    /// [`Self::substitute_vars`] first.
+    pub fn depends_on_element(&self) -> bool {
+        matches!(self, TuiColor::CurrentColor | TuiColor::Function(_))
+    }
+
+    /// The computed color: `var()` references looked up in `vars`
+    /// ([`Self::substitute_vars`]), `currentcolor` taken from `cx`.
+    /// `None` when a `var()` chain finds no color.
+    pub fn resolve(
+        &self,
+        vars: &std::collections::HashMap<String, crate::CustomValue>,
+        cx: &ColorContext,
+    ) -> Option<Color> {
+        match self.substitute_vars(vars)? {
+            TuiColor::Literal(c) => Some(c),
+            TuiColor::CurrentColor => Some(cx.current_color),
+            TuiColor::Function(f) => f.compute(cx),
+            // `substitute_vars` leaves no reference.
+            TuiColor::Var { .. } => None,
+        }
+    }
+}
+
+/// A color function kept for computed-value time
+/// ([`TuiColor::Function`]): its CSS text, which parsed as one color
+/// function when it was created.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ColorFunction(Box<str>);
+
+impl ColorFunction {
+    /// Wrap the text of a color function the parser accepted.
+    pub(crate) fn new(text: String) -> Self {
+        ColorFunction(text.into_boxed_str())
+    }
+
+    /// The function as CSS text.
+    pub fn css_text(&self) -> &str {
+        &self.0
+    }
+
+    /// The color against `cx`. `None` only if the text no longer parses,
+    /// which a value from the parser cannot.
+    pub fn compute(&self, cx: &ColorContext) -> Option<Color> {
+        crate::parse::values::compute_color_function(&self.0, cx)
+    }
+}
+
+/// What a color value resolves against at computed-value time.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct ColorContext {
+    /// The element's `color` — what `currentcolor` is (CSS Color 4
+    /// §6.4). For the `color` property itself, the parent's.
+    pub current_color: Color,
+}
+
+impl ColorContext {
+    /// A context whose `currentcolor` is `current_color`.
+    pub fn new(current_color: Color) -> Self {
+        Self { current_color }
+    }
+}
+
+impl From<Color> for TuiColor {
+    fn from(c: Color) -> Self {
+        Self::Literal(c)
+    }
+}
+
+/// Resolve `color` against `vars` and `cx` ([`TuiColor::resolve`]).
+/// `inherit_fallback` is the property's fallback value (typically the
+/// parent's computed color) used when every var lookup and explicit
+/// fallback fails.
+///
+/// The resolution is pure — no mutation of the vars map.
+pub fn resolve_tui_color(
+    color: &TuiColor,
+    vars: &std::collections::HashMap<String, crate::CustomValue>,
+    inherit_fallback: Color,
+    cx: &ColorContext,
+) -> Color {
+    color.resolve(vars, cx).unwrap_or(inherit_fallback)
+}
+
+#[cfg(test)]
+mod tests;
