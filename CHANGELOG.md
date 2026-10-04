@@ -11,13 +11,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Selectors decode CSS escapes** (CSS Syntax 3 §4.3.7). Type, class, id and attribute names and attribute values — quoted or not — decode `\` + 1–6 hex digits (one following whitespace belongs to the escape) and `\` + any other code point: `.\31 0` matches class `10`, `#a\:b` matches id `a:b`, `[title="a\"b"]` matches `a"b`. A `\` before a newline does not continue an identifier. The decoder is the new public module `rdom_core::css_syntax` (`consume_escape`, `consume_ident`, `consume_string`, `would_start_ident`, …), which rdom-style's tokenizer shares. (C1-ESCAPES)
 
+### Fixed — `rdom-core`
+
+- **Pseudo-class names are ASCII case-insensitive** (Selectors 4 §3.1): `a:HOVER` is `a:hover`. (C1-CASE)
+
 ### Added — `rdom-style`
 
 - **The value tokenizer decodes identifier escapes** (CSS Syntax 3 §4.3.7 / §4.3.11) through `rdom_core::css_syntax`, so they work in property names (`col\6f r: red`) and keyword values (`display: fl\65x`); an identifier may start with an escape. A selector list no longer splits on an escaped comma. New `Cursor::rest` / `Cursor::advance`. (C1-ESCAPES)
 
+### Fixed — `rdom-style`
+
+- **Property names, keywords and units are ASCII case-insensitive** (CSS Values 4 §2.1; CSSOM `setProperty` folds the name). New `property_dispatch::canonical_property_name`, which `set` / `set_from_tokens` / `serialize` / `property_mask` / `remove` / `inherits` all fold through, so `COLOR: RED` is `color: red` in a sheet, an inline style and CSSOM alike; custom property names (`--Foo` vs `--foo`) stay case-sensitive (CSS Variables 1 §2). `text-decoration: UNDERLINE` and `transition-duration: 2S` parse — they were the last keyword and unit matched exactly. (C1-CASE)
+
 ### Fixed — `rdom-css`
 
 - **Escapes in a selector prelude are copied through intact**, so an escaped `{`, `}`, quote or `,` (`.x\{\,y`) neither ends the prelude nor splits the selector list. (C1-ESCAPES)
+- `:ROOT { --x: … }` publishes its custom properties to `Stylesheet::vars()` like `:root`. (C1-CASE)
 
 ### Fixed — `rdom-tui`
 

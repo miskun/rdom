@@ -307,3 +307,49 @@ fn unknown_property_emits_warning_and_skips() {
         other => panic!("expected UnknownProperty, got {other:?}"),
     }
 }
+
+// ── Case-insensitivity (CSS Syntax 3 §4.3.11 note; CSS Values 4 §2.1) ──
+
+/// Property names and keyword values are ASCII case-insensitive (CSS
+/// Values 4 §2.1 "all CSS keywords are ASCII case-insensitive"; CSS
+/// Syntax 3: property names match case-insensitively). `COLOR: RED`
+/// is `color: red`.
+#[test]
+fn property_names_and_keywords_are_case_insensitive() {
+    use rdom_tui::layout::{Flow, TextDecoration};
+    let s = first_style(
+        "a { COLOR: RED; Display: FLEX; Text-Decoration: UNDERLINE; \
+         Transition-Duration: 2S, 300MS; Position: ABSOLUTE }",
+    );
+    assert_eq!(
+        s.fg,
+        Some(Value::Specified(TuiColor::Literal(Color::Rgb(255, 0, 0))))
+    );
+    assert_eq!(s.flow, Some(Value::Specified(Flow::Flex)));
+    assert_eq!(
+        s.text_decoration,
+        Some(Value::Specified(TextDecoration::Underline))
+    );
+    assert_eq!(
+        s.transition_duration,
+        Some(Value::Specified(vec![2000, 300]))
+    );
+    assert!(s.position.is_some());
+}
+
+/// `!IMPORTANT` routes through the same case-insensitive name lookup:
+/// the mask bit of `COLOR` is `color`'s.
+#[test]
+fn important_on_an_uppercase_property_name_sets_its_mask() {
+    let s = first_style("a { COLOR: red !IMPORTANT }");
+    assert!(s.important.contains(rdom_tui::style::ImportantMask::FG));
+}
+
+/// CSS Variables 1 §2: custom property names are case-sensitive —
+/// `--Foo` and `--foo` are two properties.
+#[test]
+fn custom_property_names_stay_case_sensitive() {
+    let s = first_style("a { --Foo: 1; --foo: 2 }");
+    assert_eq!(s.custom_property_value("Foo"), Some("1"));
+    assert_eq!(s.custom_property_value("foo"), Some("2"));
+}

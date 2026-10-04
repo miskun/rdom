@@ -6,6 +6,7 @@
 
 use super::DispatchError;
 use super::css_wide::{css_wide_keyword, set_css_wide};
+use super::table::canonical_property_name;
 use crate::layout::{CaretColor, CaretTextColor, Direction, Display, Size, UserSelect, WhiteSpace};
 use crate::parse::token::{Token, tokenize};
 use crate::parse::values::{
@@ -45,6 +46,7 @@ pub fn set_from_tokens(
         style.set_custom_property(custom, &crate::parse::values::render_value(value), false);
         return Ok(());
     }
+    let name = &*canonical_property_name(name);
     if let Some(kw) = css_wide_keyword(value) {
         return set_css_wide(name, kw, style);
     }

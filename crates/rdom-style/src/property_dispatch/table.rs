@@ -89,6 +89,21 @@ const PROPERTY_NAMES: &[&str] = &[
     "counter-increment",
 ];
 
+/// `name` as the table spells it. CSS property names are ASCII
+/// case-insensitive (CSS Syntax 3 §5.4.4 matches a declaration's name
+/// case-insensitively; CSSOM `setProperty` lowercases it), except
+/// custom properties (`--*`), whose names are case-sensitive (CSS
+/// Variables 1 §2). Borrows unless there is an uppercase letter to
+/// fold. Every public dispatch entry point folds through this, so the
+/// block parser and CSSOM agree.
+pub fn canonical_property_name(name: &str) -> std::borrow::Cow<'_, str> {
+    if name.starts_with("--") || !name.bytes().any(|b| b.is_ascii_uppercase()) {
+        std::borrow::Cow::Borrowed(name)
+    } else {
+        std::borrow::Cow::Owned(name.to_ascii_lowercase())
+    }
+}
+
 /// The full list of property names supported by the dispatch
 /// table. Sorted by category, not alphabetic — step 27's iteration
 /// preserves this order for stable camelCase output.
@@ -276,7 +291,7 @@ pub(super) fn fields_of(name: &str) -> Option<&'static [Field]> {
 /// routing, and `rdom-tui`'s `StyleDeclaration::set_property_
 /// important` / `get_property_priority`.
 pub fn property_mask(name: &str) -> Option<crate::ImportantMask> {
-    let fields = fields_of(name)?;
+    let fields = fields_of(&canonical_property_name(name))?;
     Some(
         fields
             .iter()
@@ -296,6 +311,7 @@ pub fn remove(name: &str, style: &mut TuiStyle) -> bool {
     if let Some(custom) = name.strip_prefix("--") {
         return style.remove_custom_property(custom);
     }
+    let name = &*canonical_property_name(name);
     let Some(fields) = fields_of(name) else {
         return false;
     };
@@ -314,7 +330,7 @@ pub fn remove(name: &str, style: &mut TuiStyle) -> bool {
 /// inherited properties, `initial` otherwise).
 pub fn inherits(name: &str) -> bool {
     matches!(
-        name,
+        &*canonical_property_name(name),
         "color"
             | "font-weight"
             | "font-style"

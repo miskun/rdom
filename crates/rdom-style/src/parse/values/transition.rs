@@ -186,10 +186,13 @@ pub fn parse_time_ms(tokens: &[Token]) -> Option<u32> {
     if n < 0.0 {
         return None;
     }
-    let ms = match unit.as_str() {
-        "ms" => n,
-        "s" => n * 1000.0,
-        _ => return None,
+    // Unit identifiers are ASCII case-insensitive (CSS Values 4 §2.1).
+    let ms = if unit.eq_ignore_ascii_case("ms") {
+        n
+    } else if unit.eq_ignore_ascii_case("s") {
+        n * 1000.0
+    } else {
+        return None;
     };
     let ms = ms.round();
     (ms <= f64::from(u32::MAX)).then_some(ms as u32)

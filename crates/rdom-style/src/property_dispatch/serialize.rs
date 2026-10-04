@@ -5,6 +5,7 @@
 //! in `value_serializers.rs`.
 
 use super::css_wide::css_wide_of;
+use super::table::canonical_property_name;
 use super::value_serializers::{
     border_style_keyword, join_csv, serialize_calc, serialize_color, serialize_content,
     serialize_counter_ops, serialize_length, serialize_margin_value, serialize_min_size,
@@ -26,6 +27,7 @@ pub fn serialize(name: &str, style: &TuiStyle) -> Option<String> {
     if let Some(custom) = name.strip_prefix("--") {
         return style.custom_property_value(custom).map(str::to_string);
     }
+    let name = &*canonical_property_name(name);
     if let Some(kw) = css_wide_of(name, style) {
         return Some(kw.to_string());
     }

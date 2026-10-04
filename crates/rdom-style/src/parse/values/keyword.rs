@@ -21,21 +21,17 @@ pub fn parse_keyword<T: Clone>(value: &[Token], table: &[(&str, T)]) -> Option<T
     None
 }
 
+/// `text-decoration`: one keyword, `underline | line-through | none`
+/// (ASCII case-insensitive, CSS Values 4 §2.1).
 pub fn parse_text_decoration(value: &[Token]) -> Option<(bool, bool)> {
-    // M1: only single keyword. `underline | line-through | none`.
-    if value.len() != 1 {
-        return None;
-    }
-    let name = match &value[0] {
-        Token::Ident(s) => s.as_str(),
-        _ => return None,
-    };
-    match name {
-        "underline" => Some((true, false)),
-        "line-through" => Some((false, true)),
-        "none" => Some((false, false)),
-        _ => None,
-    }
+    parse_keyword(
+        value,
+        &[
+            ("underline", (true, false)),
+            ("line-through", (false, true)),
+            ("none", (false, false)),
+        ],
+    )
 }
 
 pub fn parse_overflow(value: &[Token]) -> Option<Overflow> {

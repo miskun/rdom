@@ -557,7 +557,9 @@ impl<'a> Parser<'a> {
         if name.is_empty() {
             return Err(self.err("expected pseudo-class name".to_string()));
         }
-        match name.as_str() {
+        // Pseudo-class names are ASCII case-insensitive (Selectors 4
+        // §3.1, CSS Values 4 §2.1).
+        match name.to_ascii_lowercase().as_str() {
             "not" => {
                 self.expect(b'(', ":not")?;
                 self.skip_ws();
@@ -843,6 +845,21 @@ mod tests {
             let sl = parse(src).unwrap();
             assert_eq!(sl.0[0].subject.simples, vec![SimpleSelector::Pseudo(p)]);
         }
+    }
+
+    /// Selectors 4 §3.1 / CSS Values 4 §2.1: pseudo-class names are
+    /// ASCII case-insensitive.
+    #[test]
+    fn pseudo_class_names_are_case_insensitive() {
+        let sl = parse("a:HOVER:First-Child:NOT(.x)").unwrap();
+        assert_eq!(
+            sl.0[0].subject.simples[1..3],
+            [
+                SimpleSelector::Pseudo(PseudoClass::Hover),
+                SimpleSelector::Pseudo(PseudoClass::FirstChild)
+            ]
+        );
+        assert!(matches!(sl.0[0].subject.simples[3], SimpleSelector::Not(_)));
     }
 
     #[test]

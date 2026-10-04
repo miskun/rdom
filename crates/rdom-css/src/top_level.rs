@@ -230,7 +230,7 @@ fn parse_one_rule(
     declarations::parse_block(&body, &mut style, body_line, body_col, warnings);
 
     let trimmed = selector.trim();
-    if trimmed == ":root" {
+    if trimmed.eq_ignore_ascii_case(":root") {
         for d in &style.custom_properties {
             let owned = std::mem::take(sheet);
             *sheet = owned.define_var(&d.name, &d.value);

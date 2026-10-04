@@ -676,3 +676,22 @@ fn user_select_is_not_inherited_and_unset_means_initial() {
     set("user-select", "unset", &mut style).unwrap();
     assert_eq!(style.user_select, Some(Value::Initial));
 }
+
+/// CSS property names are ASCII case-insensitive (custom properties
+/// excepted): every dispatch entry point folds the name, so CSSOM's
+/// `setProperty("COLOR", …)` / `getPropertyValue("Color")` /
+/// `removeProperty("COLOR")` agree with the block parser.
+#[test]
+fn property_names_are_ascii_case_insensitive() {
+    let mut style = TuiStyle::new();
+    set("COLOR", "red", &mut style).unwrap();
+    assert!(serialize("color", &style).is_some());
+    assert_eq!(serialize("Color", &style), serialize("color", &style));
+    assert_eq!(property_mask("COLOR"), property_mask("color"));
+    assert!(inherits("COLOR"));
+    assert!(remove("CoLoR", &mut style));
+    assert!(style.fg.is_none());
+    set("--Foo", "1", &mut style).unwrap();
+    assert_eq!(serialize("--foo", &style), None);
+    assert_eq!(serialize("--Foo", &style).as_deref(), Some("1"));
+}

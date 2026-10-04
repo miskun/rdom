@@ -228,7 +228,6 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 
 ### Syntax and cascade
 
-- ASCII case-insensitive property names and keywords (`COLOR: red`, `text-decoration: UNDERLINE`) — C1-CASE
 - `revert` — C1-REVERT
 - `@layer`, `revert-layer` — C1-LAYER
 - `all` — C1-ALL
