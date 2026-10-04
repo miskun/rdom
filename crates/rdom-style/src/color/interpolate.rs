@@ -179,18 +179,28 @@ fn in_space(color: AbsoluteColor, space: ColorSpace) -> AbsoluteColor {
             out.coords[i] = None;
         }
     }
-    let [c0, c1, c2] = out.values();
-    let powerless = match space {
-        ColorSpace::Hsl => c1.abs() < 1e-6 || c2 <= 1e-6 || c2 >= 100.0 - 1e-6,
-        ColorSpace::Hwb => c1 + c2 >= 100.0 - 1e-6,
-        ColorSpace::Lch => c1 < 0.0015 * 150.0 / 0.4 / 100.0 || c0 <= 0.0,
-        ColorSpace::Oklch => c1 < 0.000_4 || c0 <= 0.0,
-        _ => false,
-    };
-    if let (true, Some(i)) = (powerless, space.hue_index()) {
+    if let (true, Some(i)) = (hue_is_powerless(space, out.values()), space.hue_index()) {
         out.coords[i] = None;
     }
     out
+}
+
+/// True when the hue of `[_, c1, c2]` in the polar `space` is powerless
+/// (CSS Color 4 §4.4.1: the chroma, or saturation, at most the space's ε).
+/// The ε are the spec's sample code's: `Lab_to_LCH` 0.0015 and
+/// `OKLab_to_OKLCH` 0.000004 (`conversions.js`), `better-rgbToHsl.js`
+/// 1/100000 of a saturation of 1 — 0.001 on this crate's 0–100 scale,
+/// where a lightness of 0% or 100% already converts to a saturation of 0.
+/// `hwb()`: whiteness + blackness ≥ 100% (§8; a float margin of 1e-9).
+/// Lightness alone never makes a hue powerless.
+fn hue_is_powerless(space: ColorSpace, [_, c1, c2]: [f64; 3]) -> bool {
+    match space {
+        ColorSpace::Hsl => c1.abs() <= 0.001,
+        ColorSpace::Hwb => c1 + c2 >= 100.0 - 1e-9,
+        ColorSpace::Lch => c1 <= 0.0015,
+        ColorSpace::Oklch => c1 <= 0.000_004,
+        _ => false,
+    }
 }
 
 /// The two hues adjusted so a linear interpolation follows `method`'s
@@ -239,4 +249,31 @@ pub fn interpolate_oklab(from: Color, to: Color, t: f64) -> Option<Color> {
     let a = AbsoluteColor::from_color(from)?;
     let b = AbsoluteColor::from_color(to)?;
     Some(mix(a, b, ColorSpace::Oklab, HueMethod::Shorter, t).to_color())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// CSS Color 4 §4.4.1: a hue is powerless when the chroma (or
+    /// saturation) is at most the space's ε, which the spec's sample code
+    /// sets (`conversions.js` `Lab_to_LCH`: 0.0015; `OKLab_to_OKLCH`:
+    /// 0.000004; `better-rgbToHsl.js`: 1/100000 of a saturation of 1,
+    /// i.e. 0.001%); in `hwb()` when whiteness + blackness ≥ 100% (§8).
+    /// Lightness alone does not make it powerless.
+    #[test]
+    fn powerless_hue_thresholds_follow_the_sample_code() {
+        use ColorSpace::{Hsl, Hwb, Lch, Oklch};
+        assert!(hue_is_powerless(Lch, [50.0, 0.0015, 10.0]));
+        assert!(!hue_is_powerless(Lch, [50.0, 0.0016, 10.0]));
+        assert!(hue_is_powerless(Oklch, [0.5, 0.000_004, 10.0]));
+        assert!(!hue_is_powerless(Oklch, [0.5, 0.000_005, 10.0]));
+        assert!(hue_is_powerless(Hsl, [10.0, 0.001, 50.0]));
+        assert!(!hue_is_powerless(Hsl, [10.0, 0.0011, 50.0]));
+        assert!(hue_is_powerless(Hwb, [10.0, 60.0, 40.0]));
+        assert!(!hue_is_powerless(Hwb, [10.0, 60.0, 39.9]));
+        // Lightness 0 with chroma: the hue is not powerless.
+        assert!(!hue_is_powerless(Lch, [0.0, 20.0, 10.0]));
+        assert!(!hue_is_powerless(Oklch, [0.0, 0.1, 10.0]));
+    }
 }

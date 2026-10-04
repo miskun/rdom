@@ -733,3 +733,13 @@ row comes from.
   document was `(96, 96, 224)` at the midpoint; `Cell::set_*` accepted a translucent color; the
   translucent tree guide tripped the new assertion in the joiner. Green: all six, plus a cell test
   that opaque / transparent writes behave as before.
+- 2026-10-05 — C3G-POWERLESS-HUE: source fetched 2026-10-05 — CSS Color 4 §4.4.1 (a hue is powerless
+  when the chroma or saturation is ≤ the space's ε; lightness is not a criterion) and its sample
+  code: `conversions.js` `Lab_to_LCH` ε = 0.0015, `OKLab_to_OKLCH` ε = 0.000004 (both `chroma <=
+  epsilon`), `better-rgbToHsl.js` ε = 1/100000 of a saturation of 1 (`sat <= epsilon`); `hwb()` §8,
+  whiteness + blackness ≥ 100%. `interpolate::hue_is_powerless` (extracted from `in_space`) uses
+  exactly those, cited in its doc; dropped: `L ≤ 0` for LCH / Oklch and HSL's lightness 0% / 100%
+  test (the conversion already gives such a color a saturation of 0, as the sample code does).
+  Red: LCH chroma 0.0016 counted as powerless (old ε 0.005625); green: boundary tests at each ε and
+  just above, HWB at 100% / 99.9%, `L = 0` with chroma not powerless. No existing expectation
+  changed.
