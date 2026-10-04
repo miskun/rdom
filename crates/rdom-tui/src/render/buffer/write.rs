@@ -19,8 +19,7 @@ impl Buffer {
     /// automatic wide-glyph spacer handling.
     pub fn set_symbol(&mut self, x: u16, y: u16, symbol: &str, style: Style) {
         if let Some(c) = self.cell_mut(x, y) {
-            c.set_symbol(symbol);
-            c.apply_style(style);
+            put_glyph(c, symbol, style);
         }
     }
 
@@ -127,8 +126,7 @@ impl Buffer {
                 // visually clean instead of leaving a naked half-glyph.
                 if w == 2 && budget - cells_written == 1 {
                     if let Some(c) = self.cell_mut(cursor_x, y) {
-                        c.set_symbol(WIDE_CLIP_PLACEHOLDER);
-                        c.apply_style(style);
+                        put_glyph(c, WIDE_CLIP_PLACEHOLDER, style);
                     }
                     cursor_x = cursor_x.saturating_add(1);
                 }
@@ -137,16 +135,14 @@ impl Buffer {
 
             // Write the primary cell.
             if let Some(c) = self.cell_mut(cursor_x, y) {
-                c.set_symbol(grapheme);
-                c.apply_style(style);
+                put_glyph(c, grapheme, style);
             }
 
             // For width-2 glyphs, write the trailing spacer.
             if w == 2 {
                 let spacer_x = cursor_x.saturating_add(1);
                 if let Some(c) = self.cell_mut(spacer_x, y) {
-                    c.set_spacer();
-                    c.apply_style(style);
+                    put_glyph(c, "", style);
                 }
             }
 
@@ -156,4 +152,17 @@ impl Buffer {
 
         (cursor_x, y)
     }
+}
+
+/// Write `symbol` (`""` for a wide glyph's spacer) into `cell` with
+/// `style`. A glyph in a fully transparent color is invisible (CSS
+/// Color 4 §6.3): the cell keeps its glyph, and only the style's
+/// background paints.
+fn put_glyph(cell: &mut crate::render::Cell, symbol: &str, style: Style) {
+    if style.hides_glyph() {
+        cell.apply_style(style.background_only());
+        return;
+    }
+    cell.set_symbol(symbol);
+    cell.apply_style(style);
 }

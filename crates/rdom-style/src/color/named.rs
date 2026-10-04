@@ -375,8 +375,8 @@ pub fn name_of(color: Color) -> Option<&'static str> {
 /// Look up a CSS named color. ASCII-case-insensitive per the CSS
 /// spec — `RebeccaPurple`, `rebeccapurple`, and `REBECCAPURPLE` all
 /// resolve to the same RGB. Returns `None` for unknown names and
-/// for the special keyword `transparent` (which maps to
-/// `Color::Reset` at the parser level, NOT here).
+/// for the special keyword `transparent` (which the parser maps to
+/// [`Color::TRANSPARENT`], NOT here).
 pub fn lookup(name: &str) -> Option<Color> {
     NAMED
         .binary_search_by(|&(canonical, _)| cmp_lowercase(canonical, name))

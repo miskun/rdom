@@ -89,7 +89,7 @@ pub(super) fn paint_positioned_pseudos(dom: &Dom<TuiExt>, buf: &mut Buffer, clip
 
         let bg = style.bg;
         let fg = style.fg;
-        if bg != Color::Reset {
+        if super::fills(bg) {
             for y in grid.y..grid.bottom() {
                 for x in grid.x..grid.right() {
                     if let Some(cell) = buf.cell_mut(x, y) {

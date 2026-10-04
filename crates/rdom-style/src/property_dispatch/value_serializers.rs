@@ -36,6 +36,7 @@ pub(super) fn serialize_literal_color(c: &Color) -> String {
     match c {
         Color::Reset => "reset".to_string(),
         Color::Indexed(n) => format!("indexed-{n}"),
+        &Color::TRANSPARENT => "transparent".to_string(),
         Color::Rgba(r, g, b, a) => {
             format!("rgba({r}, {g}, {b}, {})", crate::color::serialize_alpha(*a))
         }

@@ -589,6 +589,14 @@ fn named_colors_round_trip_through_css_names() {
     assert_eq!(serialize("color", &c).as_deref(), Some("rgb(1, 2, 3)"));
 }
 
+/// `transparent` serializes as itself and reads back.
+#[test]
+fn transparent_round_trips() {
+    let mut a = TuiStyle::new();
+    set("color", "transparent", &mut a).unwrap();
+    assert_eq!(serialize("color", &a).as_deref(), Some("transparent"));
+}
+
 /// CSS Color 4 §15.2 (CSSOM): a translucent sRGB color serializes in
 /// the legacy `rgba()` form, alpha with the fewest decimals that
 /// round-trip, and reads back as the same color.

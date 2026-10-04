@@ -141,13 +141,21 @@ impl Cell {
         self
     }
 
+    /// Paint the foreground. A fully transparent color paints
+    /// nothing (CSS Color 4 §6.3): the cell keeps its foreground.
     pub fn set_fg(&mut self, fg: Color) -> &mut Self {
-        self.fg = fg;
+        if fg.alpha() > 0 {
+            self.fg = fg;
+        }
         self
     }
 
+    /// Paint the background. A fully transparent color paints
+    /// nothing: the cell keeps its background.
     pub fn set_bg(&mut self, bg: Color) -> &mut Self {
-        self.bg = bg;
+        if bg.alpha() > 0 {
+            self.bg = bg;
+        }
         self
     }
 
@@ -169,14 +177,15 @@ impl Cell {
         self.link.as_deref()
     }
 
-    /// Apply a `Style` (paint-layer): overrides fg/bg when set, adds
-    /// `add_modifier`, removes `sub_modifier`.
+    /// Apply a `Style` (paint-layer): paints fg/bg when set (through
+    /// [`Self::set_fg`] / [`Self::set_bg`], so a transparent one
+    /// changes nothing), adds `add_modifier`, removes `sub_modifier`.
     pub fn apply_style(&mut self, style: super::Style) -> &mut Self {
         if let Some(fg) = style.fg {
-            self.fg = fg;
+            self.set_fg(fg);
         }
         if let Some(bg) = style.bg {
-            self.bg = bg;
+            self.set_bg(bg);
         }
         self.modifier |= style.add_modifier;
         self.modifier.remove(style.sub_modifier);

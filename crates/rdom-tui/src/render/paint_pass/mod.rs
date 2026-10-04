@@ -69,6 +69,8 @@ mod text;
 mod tree_guides;
 
 #[cfg(test)]
+mod color_tests;
+#[cfg(test)]
 mod tests;
 
 use rdom_core::{Dom, NodeId, NodeType};
@@ -249,7 +251,7 @@ fn fill_backdrop(buf: &mut Buffer, clip: Rect, style: &ComputedStyle) {
             let Some(cell) = buf.cell_mut(x, y) else {
                 continue;
             };
-            if bg != Color::Reset {
+            if fills(bg) {
                 cell.set_bg(bg);
             }
             if fg != Color::Reset {
@@ -335,7 +337,7 @@ fn paint_box(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect) -> Opt
         // left edge AND tint the whole open subtree (the box
         // contains the nested group).
         let is_tree_row = dom.node(id).get_attribute("role") == Some("treeitem");
-        if computed.bg != Color::Reset && !is_tree_row {
+        if fills(computed.bg) && !is_tree_row {
             // For `border: half-block`, skip painting bg under the
             // border cells — the half-block paint relies on the
             // surrounding (parent) bg showing through the "empty"
@@ -359,7 +361,8 @@ fn paint_box(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect) -> Opt
         // priority encodes "child wins over ancestor" (depth) and
         // "earlier DOM order wins on tie" (`NodeId` proxy for
         // geometric position).
-        if !computed.border.is_empty() {
+        // A transparent border keeps its space but draws nothing.
+        if !computed.border.is_empty() && computed.border_fg.alpha() > 0 {
             let priority = compute_border_priority(dom, id);
             paint_border(
                 buf,
@@ -596,6 +599,13 @@ fn border_has_half_block(border: rdom_style::layout::Border) -> bool {
         || matches!(border.right, BorderStyle::HalfBlock)
         || matches!(border.bottom, BorderStyle::HalfBlock)
         || matches!(border.left, BorderStyle::HalfBlock)
+}
+
+/// True when `bg` fills a box: not the terminal default (`Reset`,
+/// which leaves the cells to what is beneath) and not fully
+/// transparent (CSS Color 4 §6.3).
+pub(crate) fn fills(bg: Color) -> bool {
+    bg != Color::Reset && bg.alpha() > 0
 }
 
 // `alpha_blend` lives in `render::compose`; opacity is applied when a

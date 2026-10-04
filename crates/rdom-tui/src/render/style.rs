@@ -45,6 +45,22 @@ impl Style {
         }
     }
 
+    /// True when the foreground is fully transparent (CSS Color 4
+    /// §6.3): a glyph written in it is invisible, so the cell keeps
+    /// the glyph it shows.
+    pub fn hides_glyph(&self) -> bool {
+        self.fg.is_some_and(|c| c.alpha() == 0)
+    }
+
+    /// This style's background alone — what a write of an invisible
+    /// glyph still paints.
+    pub fn background_only(self) -> Self {
+        Self {
+            bg: self.bg,
+            ..Self::default()
+        }
+    }
+
     pub fn fg(mut self, c: Color) -> Self {
         self.fg = Some(c);
         self

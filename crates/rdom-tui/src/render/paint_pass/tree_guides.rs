@@ -310,7 +310,7 @@ fn put(buf: &mut Buffer, clip: Rect, x: i32, y: i32, dirs: &[usize], color: Colo
 /// focus-gated cursor — see the UA `[role=…]` rules).
 fn row_highlight(dom: &Dom<TuiExt>, item: NodeId) -> Option<Color> {
     let bg = dom.node(item).computed().map(|c| c.bg)?;
-    (bg != Color::Reset).then_some(bg)
+    super::fills(bg).then_some(bg)
 }
 
 /// Set `bg` on every cell of `[left, right)` at row `y` (clipped),

@@ -87,7 +87,12 @@ pub(in crate::render::paint_pass) fn paint_caret_if_editable(
         other => other,
     };
     let cascaded_fg = resolve_reset_fg(computed.fg);
-    let cascaded_bg = resolve_reset_bg(computed.bg);
+    // A transparent background shows the cell's background beneath.
+    let cascaded_bg = if computed.bg.alpha() == 0 {
+        resolve_reset_bg(buf.cell(x, y).map_or(crate::Color::Reset, |c| c.bg))
+    } else {
+        resolve_reset_bg(computed.bg)
+    };
     let under_mod = buf.cell(x, y).map(|c| c.modifier).unwrap_or_default();
 
     let caret_bg = match &computed.caret_color {

@@ -140,16 +140,17 @@ pub(crate) fn parse_simple_color(input: &str) -> Option<Color> {
     // Named.
     //
     // - `reset` → terminal default fg/bg, an rdom-specific keyword.
-    // - `transparent` → `Color::Reset`. Terminals have no alpha; CSS
-    //   `transparent` means "let what's behind show through", which
-    //   is the same semantics as our `Reset` slot.
+    // - `transparent` → transparent black (CSS Color 4 §6.3), which
+    //   paint composites away: what lies beneath shows through.
     // - Everything else falls through to the 148 CSS named-color
     //   table (`color::named`), which now owns every keyword that
     //   the pre-T6 ANSI match used to claim. `lightblue` resolves
     //   to CSS `#ADD8E6` (pale), `red` to `#FF0000` (full), etc.
     let lower = s.to_ascii_lowercase();
-    if matches!(lower.as_str(), "reset" | "transparent") {
-        return Some(Color::Reset);
+    match lower.as_str() {
+        "reset" => return Some(Color::Reset),
+        "transparent" => return Some(Color::TRANSPARENT),
+        _ => {}
     }
     crate::color::named::lookup(&lower)
 }
@@ -421,13 +422,14 @@ mod tests {
 
     // ── CSS named keywords + transparent (T2) ────────────────────────
 
-    /// `transparent` resolves to `Color::Reset` — terminals have no
-    /// alpha; "let what's behind show through" is the same slot.
+    /// CSS Color 4 §6.3: `transparent` is transparent black
+    /// (`rgb(0 0 0 / 0)`), not the terminal default.
     #[test]
-    fn transparent_keyword_resolves_to_reset() {
-        assert_eq!(parse_color("transparent"), Some(Color::Reset));
-        assert_eq!(parse_color("Transparent"), Some(Color::Reset));
-        assert_eq!(parse_color("TRANSPARENT"), Some(Color::Reset));
+    fn transparent_keyword_is_transparent_black() {
+        assert_eq!(parse_color("transparent"), Some(Color::TRANSPARENT));
+        assert_eq!(parse_color("Transparent"), Some(Color::TRANSPARENT));
+        assert_eq!(parse_color("TRANSPARENT"), Some(Color::TRANSPARENT));
+        assert_eq!(parse_color("rgb(0 0 0 / 0)"), Some(Color::TRANSPARENT));
     }
 
     /// CSS named colors outside the ANSI-16 overlap resolve via the

@@ -245,7 +245,6 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 
 ### Color
 
-- `transparent` as a fully transparent color (today `reset`: as `color` it is the default foreground) — C3-TRANSPARENT
 - `currentColor` — C3-CURRENTCOLOR
 - `hsl()` / `hsla()` / `hwb()` — C3-HSL-HWB
 - `lab()` / `lch()` / `oklab()` / `oklch()` / `color()` — C3-LAB

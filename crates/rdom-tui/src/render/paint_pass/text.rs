@@ -29,6 +29,10 @@ pub(super) fn paint_text(
     let max_width = budget_right - x;
     let text_width = UnicodeWidthStr::width(text).min(max_width as usize) as u16;
     let _end = buf.set_stringn(x, base_y, text, max_width, style);
+    if style.hides_glyph() {
+        // Invisible text occupies no cell's glyph: borders beneath stay.
+        return x + text_width;
+    }
     // z-aware borders: painted content occludes any border the joiner would
     // otherwise re-derive at these cells. Paint runs in stacking order and the
     // joiner runs last, so clearing here means a higher element's content wins
@@ -90,7 +94,7 @@ pub(super) fn style_from_computed(c: &ComputedStyle) -> Style {
     if c.fg != Color::Reset {
         style = style.fg(c.fg);
     }
-    if c.bg != Color::Reset {
+    if super::fills(c.bg) {
         style = style.bg(c.bg);
     }
     // CSS-author-visible cell modifiers. Each maps to a SGR
