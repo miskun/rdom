@@ -42,7 +42,8 @@ pub use dirty_tracker::DirtyTracker;
 pub use rdom_style::transition;
 pub use rdom_style::{
     AnimatableProperty, Color, ComputedStyle, Content, CounterOp, CounterStyle, CustomDeclaration,
-    ImportantMask, Modifier, PseudoElementTarget, Rule, RuleOrigin, Specificity, StyleError,
+    CustomValue, ImportantMask, LayerId, Modifier, PropertyRegistration, PropertySyntax,
+    PseudoElementTarget, Rule, RuleContext, RuleOrigin, Specificity, StyleError, StyleSelector,
     Stylesheet, TimingFunction, TransitionProperty, TransitionRule, TuiColor, TuiStyle, Value,
     VarMap, parse_color, resolve_tui_color,
 };

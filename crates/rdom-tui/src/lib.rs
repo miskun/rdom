@@ -75,6 +75,9 @@ pub use layout::{
     WhiteSpace,
 };
 pub use node::{TuiNodeExt, TuiNodeMutExt};
+/// `@import` resolution for the document's `<style>` sheets
+/// ([`App::set_import_loader`], [`extend_from_style_tags_with_loader`]).
+pub use rdom_css::{ImportLoader, LoadedSheet};
 /// Test-only VT emulator; see [`render::virtual_screen`].
 #[cfg(any(test, feature = "test-util"))]
 pub use render::VirtualScreen;
@@ -92,9 +95,10 @@ pub use runtime::{
     App, AppContext, AppHandle, ControlFlow, HitTestExt, RouteOutcome, Router, StylesheetId,
 };
 pub use style::{
-    CascadeExt, Color, ComputedStyle, Content, DirtyTracker, ImportantMask, Modifier,
-    PseudoElementTarget, Rule, RuleOrigin, Specificity, StyleError, Stylesheet, TuiColor, TuiStyle,
-    Value, VarMap, parse_color, resolve_tui_color,
+    CascadeExt, Color, ComputedStyle, Content, CustomValue, DirtyTracker, ImportantMask, LayerId,
+    Modifier, PropertyRegistration, PropertySyntax, PseudoElementTarget, Rule, RuleContext,
+    RuleOrigin, Specificity, StyleError, StyleSelector, Stylesheet, TuiColor, TuiStyle, Value,
+    VarMap, parse_color, resolve_tui_color,
 };
 
 /// `Dom<TuiExt>` — the full TUI document.
@@ -125,6 +129,31 @@ pub use rdom_core::{
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// `C1G-REEXPORTS`: the types of the App-level style APIs —
+    /// `App::register_property` (CSS Properties and Values API 1 §3),
+    /// `App::set_import_loader` (CSS Cascade 5 §3), cascade layers and
+    /// `Stylesheet::add_style_rule` — are nameable from `rdom_tui`
+    /// alone, without a direct `rdom-style` / `rdom-css` dependency.
+    #[test]
+    fn app_style_api_types_are_reexported() {
+        let reg = PropertyRegistration::new("--c", "<color>", true, Some("red")).unwrap();
+        let syntax: &PropertySyntax = &reg.syntax;
+        assert!(syntax.matches("blue"));
+        fn takes_loader(_: &dyn ImportLoader) {}
+        takes_loader(&|_: &str| Ok(String::new()));
+        let loaded = LoadedSheet::new("a.css", "p { width: 1 }");
+        assert_eq!(loaded.url, "a.css");
+        let mut sheet = Stylesheet::bare();
+        let layer: Option<LayerId> = sheet.declare_layer(None, &["base"]);
+        let selector = StyleSelector::parse("p").unwrap();
+        sheet.add_style_rule(
+            &selector,
+            TuiStyle::new(),
+            RuleContext::default().in_layer(layer),
+        );
+        assert_eq!(sheet.rules()[0].layer, layer);
+    }
 
     /// `P7G-API-NAMES-1`: the rdom-core form / editing vocabulary a
     /// consumer names alongside `FormMethod` is re-exported here.

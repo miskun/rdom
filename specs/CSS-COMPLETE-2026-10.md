@@ -380,3 +380,8 @@ row comes from.
   elements, a limit, a nested `@scope`, three rules — 13 152 matches before, 204 after.
   `RuleIndex` files a subject keyed only inside `:is()` under each argument's key (`compound_keys`),
   universal only when an argument has none.
+- 2026-10-04 — C1G-REEXPORTS: `PropertyRegistration`, `PropertySyntax`, `LayerId`, `StyleSelector`,
+  `RuleContext`, `CustomValue` re-exported at the `rdom_tui` root and in `rdom_tui::style`;
+  `ImportLoader`, `LoadedSheet` (rdom-css) at the root. `App::set_import_loader` /
+  `register_property` name them through `crate::`; a doctest on `register_property` drives both
+  with `rdom_tui` paths only.

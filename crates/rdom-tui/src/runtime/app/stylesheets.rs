@@ -168,8 +168,9 @@ impl<B: Backend> App<B> {
     /// filesystem policy of its own, so the host decides what a URL
     /// means. Every `<style>` sheet is re-parsed and the next paint
     /// re-cascades. Sheets built in Rust import through
-    /// [`rdom_css::parse_with_loader`] instead.
-    pub fn set_import_loader(&mut self, loader: impl rdom_css::ImportLoader + 'static) {
+    /// [`rdom_css::parse_with_loader`] instead. Example: see
+    /// [`register_property`](Self::register_property).
+    pub fn set_import_loader(&mut self, loader: impl crate::ImportLoader + 'static) {
         self.prelude
             .style_elements
             .set_loader(Some(std::rc::Rc::new(loader)));
@@ -181,9 +182,48 @@ impl<B: Backend> App<B> {
     /// over an `@property` for the same name. A name registered here
     /// once cannot be registered again (`Err`, as the web API's
     /// `InvalidModificationError`). The next paint re-cascades.
+    ///
+    /// With [`set_import_loader`](Self::set_import_loader), using
+    /// `rdom_tui` paths only:
+    ///
+    /// ```
+    /// use rdom_tui::{
+    ///     App, Color, PropertyRegistration, Stylesheet, Terminal, TestBackend, TuiDom,
+    ///     TuiNodeExt,
+    /// };
+    ///
+    /// let mut dom: TuiDom = TuiDom::new();
+    /// let root = dom.root();
+    /// let style = dom.create_element("style");
+    /// let css = dom.create_text_node("@import 'theme.css'; p { color: var(--accent) }");
+    /// dom.append_child(style, css).unwrap();
+    /// dom.append_child(root, style).unwrap();
+    /// let (a, b) = (dom.create_element("p"), dom.create_element("p"));
+    /// dom.set_attribute(a, "class", "a").unwrap();
+    /// dom.set_attribute(b, "class", "b").unwrap();
+    /// dom.append_child(root, a).unwrap();
+    /// dom.append_child(root, b).unwrap();
+    ///
+    /// let terminal = Terminal::new(TestBackend::new(20, 2)).unwrap();
+    /// let mut app = App::with_backend(dom, Stylesheet::new(), terminal).unwrap();
+    /// // Any `Fn(&str) -> Result<String, String>` is an `ImportLoader`.
+    /// app.set_import_loader(|url: &str| match url {
+    ///     "theme.css" => Ok(".a { --accent: red } .b { --accent: 3 }".to_string()),
+    ///     other => Err(format!("no {other}")),
+    /// });
+    /// let accent = PropertyRegistration::new("--accent", "<color>", true, Some("blue")).unwrap();
+    /// app.register_property(accent).unwrap();
+    /// app.advance(0).unwrap();
+    /// let fg = |id| app.dom().node(id).computed().unwrap().fg;
+    /// // The imported theme applies...
+    /// assert_eq!(fg(a), Color::Rgb(255, 0, 0));
+    /// // ...and `3` is not a `<color>`: invalid at computed-value time,
+    /// // so the registered initial value applies.
+    /// assert_eq!(fg(b), Color::Rgb(0, 0, 255));
+    /// ```
     pub fn register_property(
         &mut self,
-        registration: rdom_style::PropertyRegistration,
+        registration: crate::PropertyRegistration,
     ) -> Result<(), String> {
         let registered = &mut self.prelude.registrations;
         if registered
