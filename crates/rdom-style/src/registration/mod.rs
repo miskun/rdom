@@ -23,6 +23,10 @@
 //! is invalid (Properties and Values 1 §5.4: an unsupported syntax is a
 //! syntax error).
 
+mod computed;
+
+pub use computed::length_percentage_text;
+
 use crate::parse::token::{Token, tokenize};
 use crate::parse::values::{
     Range, integer, looks_like_calc, number, parse_angle, parse_color, parse_color_at,
@@ -237,6 +241,7 @@ impl PropertySyntax {
                         | SyntaxComponent::Number
                         | SyntaxComponent::Integer
                         | SyntaxComponent::Length
+                        | SyntaxComponent::LengthPercentage
                         | SyntaxComponent::Percentage
                 )
                 .then_some(c),

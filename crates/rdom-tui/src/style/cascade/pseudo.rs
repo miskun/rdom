@@ -94,6 +94,7 @@ pub(super) fn compute_pseudo_style(
         cx.sheets.registry(),
         None,
         &attrs,
+        cx.sheets.viewport(),
     );
     let decls = decls.with(substituted.as_ref());
     apply_cascade_ladder(&mut working, plan, decls, host_computed);

@@ -601,3 +601,16 @@ row comes from.
   alias). `Sheets::new` takes the registry (no `Option`). Test: two `cascade`s and a
   `cascade_subtrees` with one sheet build 1 registry (was 3) and keep the element's match record
   (`Rc::ptr_eq`); a mutated sheet and another list each build one.
+- 2026-10-05 — C2G-REGISTERED-ABSOLUTE: `PropertySyntax::computed(value, viewport)`
+  (`rdom-style/src/registration/computed.rs`; `registration.rs` became `registration/mod.rs`, 556 lines
+  plus this) — the first alternative the value matches decides; a `<length>` (or list item) is
+  whole cells (viewport units against the viewport, `ch` / `lh` / math folded), a
+  `<length-percentage>` is cells, a percentage, or `calc(<cells> ± <p>%)` (number before
+  percentage, Values 4 §10.10.1) when linear (`CalcExpr::linear_parts`), else its math with the
+  lengths folded. The registry applies it in `computed_value` (all registry entry points now take the
+  viewport); an initial value is computed once at build unless it holds a viewport unit (decided:
+  viewport units are computationally independent — the viewport is global information CSS cannot
+  change — so `initial-value: 10vw` stays valid and computes per use). The transition engine gains
+  `Kind::LengthPercentage` (cells and percentage interpolate apart; a non-linear value is discrete).
+  Tests: `10vw` → `8`, `calc(2ch + 50%)` → `calc(2 + 50%)` inherited; `10vw` → `50vw` is 24 cells
+  half way (was: no transition); `10` → `calc(20 + 50%)` is `calc(15 + 25%)` half way.

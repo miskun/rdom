@@ -36,6 +36,9 @@ pub(super) enum Kind {
         whole: bool,
         percent: bool,
     },
+    /// A `<length-percentage>`: its cells and its percentage interpolate
+    /// apart (CSS Values 4 §3.4.3).
+    LengthPercentage,
 }
 
 /// A value being interpolated.
@@ -43,6 +46,8 @@ pub(super) enum Kind {
 enum Value {
     Color(Color),
     Number(f64),
+    /// `cells + percent%`.
+    LengthPercentage(f64, f64),
 }
 
 impl Kind {
@@ -58,6 +63,7 @@ impl Kind {
                 whole: false,
                 percent: true,
             },
+            SyntaxComponent::LengthPercentage => Kind::LengthPercentage,
             _ => Kind::Number {
                 whole: false,
                 percent: false,
@@ -72,6 +78,22 @@ impl Kind {
                 .ok()
                 .and_then(|tokens| rdom_style::parse::values::parse_angle(&tokens))
                 .map(Value::Number),
+            // The computed value (`PropertySyntax::computed`): cells, a
+            // percentage, or their sum; one with a percentage inside a
+            // math function does not interpolate.
+            Kind::LengthPercentage => {
+                let tokens = rdom_style::parse::token::tokenize(text).ok()?;
+                match rdom_style::parse::values::parse_length(&tokens)? {
+                    rdom_style::layout::Length::Cells(n) => {
+                        Some(Value::LengthPercentage(f64::from(n), 0.0))
+                    }
+                    rdom_style::layout::Length::Calc(e) => {
+                        let (cells, percent) = e.linear_parts()?;
+                        Some(Value::LengthPercentage(cells, percent))
+                    }
+                    _ => None,
+                }
+            }
             Kind::Number { percent, .. } => {
                 let text = text.replace(' ', "");
                 let text = if percent {
@@ -100,6 +122,10 @@ impl Kind {
                 }
             }
             (Kind::Color, Value::Number(n)) => format!("{n}"),
+            (_, Value::LengthPercentage(cells, percent)) => {
+                rdom_style::registration::length_percentage_text(cells, percent)
+            }
+            (Kind::LengthPercentage, Value::Number(n)) => format!("{}", n.round() as i64),
         }
     }
 }
@@ -108,6 +134,10 @@ fn lerp(from: Value, to: Value, t: f32) -> Value {
     match (from, to) {
         (Value::Color(a), Value::Color(b)) => Value::Color(lerp_color(a, b, t)),
         (Value::Number(a), Value::Number(b)) => Value::Number(a + (b - a) * f64::from(t)),
+        (Value::LengthPercentage(ca, pa), Value::LengthPercentage(cb, pb)) => {
+            let t = f64::from(t);
+            Value::LengthPercentage(ca + (cb - ca) * t, pa + (pb - pa) * t)
+        }
         (a, b) => {
             if t < 0.5 {
                 a

@@ -80,6 +80,7 @@ pub use set::{set, set_from_tokens};
 // `crate::backend`.
 pub(crate) use set::{set_parsed, set_unset};
 pub use table::{canonical_property_name, inherits, property_mask, property_names, remove};
+pub(crate) use value_serializers::serialize_math;
 
 /// Reason `set` / `set_from_tokens` rejected a declaration.
 ///

@@ -238,3 +238,29 @@ fn root_vars_attr_reads_the_root_element() {
     let merged = walk::merge_root_vars(&fragment, &s);
     assert_eq!(merged.get("w").map(|v| v.as_str()), Some("3"));
 }
+
+/// `C2G-REGISTERED-ABSOLUTE` — CSS Properties and Values 1 §2.4: a
+/// registered `<length>` computes to an absolute length, so `--w: 10vw`
+/// is 8 cells in an 80-column viewport — on the element and inherited
+/// — and a `<length-percentage>` keeps its percentage.
+#[test]
+fn registered_lengths_compute_to_absolute_cells() {
+    let css = sheet(
+        "@property --w { syntax: '<length>'; inherits: true; initial-value: 0 } \
+         @property --p { syntax: '<length-percentage>'; inherits: true; initial-value: 0 } \
+         div { --w: 10vw; --p: calc(2ch + 50%) }",
+    );
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let div = dom.create_element("div");
+    dom.append_child(root, div).unwrap();
+    let child = dom.create_element("p");
+    dom.append_child(div, child).unwrap();
+    dom.set_viewport(rdom_style::calc::Viewport::new(80, 20));
+    dom.cascade(&css);
+    for id in [div, child] {
+        let vars = computed_of(&dom, id).vars;
+        assert_eq!(vars.get("w").map(|v| v.as_str()), Some("8"));
+        assert_eq!(vars.get("p").map(|v| v.as_str()), Some("calc(2 + 50%)"));
+    }
+}

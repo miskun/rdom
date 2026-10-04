@@ -10,6 +10,7 @@ use std::collections::{HashMap, HashSet};
 use super::ladder::{Declarations, Plan, Rollback, Step};
 use super::registered::PropertyRegistry;
 use crate::style::ComputedStyle;
+use rdom_style::calc::Viewport;
 
 type Map = HashMap<String, rdom_style::CustomValue>;
 
@@ -25,6 +26,7 @@ pub(super) fn apply_custom_properties(
     registry: &PropertyRegistry,
     transitions: Option<&Map>,
     attrs: rdom_style::backend::AttrLookup<'_>,
+    viewport: Viewport,
 ) {
     let inherited = working.vars.clone();
     let declared: HashSet<&str> = decls
@@ -34,16 +36,24 @@ pub(super) fn apply_custom_properties(
     if !declared.is_empty() {
         let base = || (*inherited).clone();
         let apply = |map: &mut Map, i: usize, rollback: &Rollback<'_, Map>| {
-            put_step(map, &plan.steps()[i], decls, &inherited, rollback, registry);
+            put_step(
+                map,
+                &plan.steps()[i],
+                decls,
+                &inherited,
+                rollback,
+                registry,
+                viewport,
+            );
         };
         let rollback = Rollback::new(plan.steps().len(), &base, &apply);
         let map = std::rc::Rc::make_mut(&mut working.vars);
         for step in plan.steps() {
-            put_step(map, step, decls, &inherited, &rollback, registry);
+            put_step(map, step, decls, &inherited, &rollback, registry, viewport);
         }
     }
     if !registry.is_empty() {
-        registry.settle_undeclared(&mut working.vars, &declared);
+        registry.settle_undeclared(&mut working.vars, &declared, viewport);
     }
     if !declared.is_empty() {
         // CSS Variables 1 §3: a custom property's own `var()`s substitute
@@ -63,7 +73,7 @@ pub(super) fn apply_custom_properties(
             rdom_style::backend::resolve_custom_properties_on(
                 map,
                 declared.iter().copied(),
-                Some(&mut |name, value| registry.computed_value(name, value, &inherited)),
+                Some(&mut |name, value| registry.computed_value(name, value, &inherited, viewport)),
                 Some(attrs),
             );
         }
@@ -116,6 +126,7 @@ fn put_step(
     inherited: &Map,
     rollback: &Rollback<'_, Map>,
     registry: &PropertyRegistry,
+    viewport: Viewport,
 ) {
     for style in decls.of(step) {
         for d in &style.custom_properties {
@@ -127,9 +138,9 @@ fn put_step(
             // inherit, `unset`) is its initial value (Properties and
             // Values 1 §2.1).
             let keyword = if v.eq_ignore_ascii_case("initial") {
-                registry.keyword_value(&d.name, false)
+                registry.keyword_value(&d.name, false, viewport)
             } else if v.eq_ignore_ascii_case("unset") {
-                registry.keyword_value(&d.name, true)
+                registry.keyword_value(&d.name, true, viewport)
             } else {
                 None
             };

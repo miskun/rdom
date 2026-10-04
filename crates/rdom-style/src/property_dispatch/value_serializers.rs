@@ -101,7 +101,7 @@ pub(super) fn serialize_max_size(m: &crate::layout::MaxSize) -> String {
 /// A stored math expression as a value: a lone percentage, dimension or
 /// math function as itself (`10%`, `50vw`, `min(50%, 30)`), anything
 /// else wrapped in `calc()`.
-pub(super) fn serialize_math(expr: &crate::calc::CalcExpr) -> String {
+pub(crate) fn serialize_math(expr: &crate::calc::CalcExpr) -> String {
     match expr {
         crate::calc::CalcExpr::Percent(_)
         | crate::calc::CalcExpr::Dimension { .. }

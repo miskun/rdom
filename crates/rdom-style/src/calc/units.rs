@@ -2,7 +2,7 @@
 //! cell and the percentage (CSS Values 4 §6 – §7) — lengths and angles —
 //! each with its terminal meaning.
 
-use super::{CalcExpr, CalcKind, ResolveCtx};
+use super::{CalcExpr, CalcKind, CalcOp, ResolveCtx};
 
 /// A dimension's unit.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -254,6 +254,54 @@ impl CalcExpr {
                 CalcExpr::function(*func, args.iter().map(|a| a.absolutize(viewport)).collect())
             }
             other => other.clone(),
+        }
+    }
+}
+
+impl CalcExpr {
+    /// The expression as `cells + percent%` — `(cells, percent)` — when
+    /// it is linear in its percentages: sums of numbers, lengths and
+    /// percentages, scaled by numbers (CSS Values 4 §10.10's simplified
+    /// sum of a number and a percentage). `None` when a percentage sits
+    /// inside a math function (`min(50%, 10)`) or is multiplied by
+    /// another, when a viewport unit still needs the viewport, or when
+    /// the length part is not finite. What a registered
+    /// `<length-percentage>` computes and interpolates through.
+    pub fn linear_parts(&self) -> Option<(f64, f64)> {
+        if self.needs_context() || !self.is_linear() {
+            return None;
+        }
+        let cells = self.resolve_f64(&ResolveCtx::new(0));
+        let percent = self.resolve_f64(&ResolveCtx::new(100)) - cells;
+        (cells.is_finite() && percent.is_finite()).then_some((cells, percent))
+    }
+
+    fn is_linear(&self) -> bool {
+        match self {
+            CalcExpr::Binary {
+                op: CalcOp::Add | CalcOp::Sub,
+                lhs,
+                rhs,
+            } => lhs.is_linear() && rhs.is_linear(),
+            CalcExpr::Binary {
+                op: CalcOp::Mul,
+                lhs,
+                rhs,
+            } => {
+                (lhs.is_linear() && !rhs.contains_percent())
+                    || (!lhs.contains_percent() && rhs.is_linear())
+            }
+            CalcExpr::Binary {
+                op: CalcOp::Div,
+                lhs,
+                rhs,
+            } => lhs.is_linear() && !rhs.contains_percent(),
+            CalcExpr::Function { .. } => !self.contains_percent(),
+            CalcExpr::None => false,
+            CalcExpr::Number(_)
+            | CalcExpr::Length(_)
+            | CalcExpr::Percent(_)
+            | CalcExpr::Dimension { .. } => true,
         }
     }
 }

@@ -53,7 +53,7 @@ pub(super) fn merge_root_vars(dom: &Dom<TuiExt>, sheets: &Sheets<'_>) -> VarMap 
     // an invalid one is its initial value.
     let registry = sheets.registry();
     if !registry.is_empty() {
-        registry.seed_root(&mut merged);
+        registry.seed_root(&mut merged, sheets.viewport());
     }
     let names: Vec<String> = merged.keys().cloned().collect();
     if registry.is_empty() {
@@ -68,7 +68,9 @@ pub(super) fn merge_root_vars(dom: &Dom<TuiExt>, sheets: &Sheets<'_>) -> VarMap 
         rdom_style::backend::resolve_custom_properties_on(
             &mut merged,
             names.iter().map(String::as_str),
-            Some(&mut |name, value| registry.computed_value(name, value, &no_parent)),
+            Some(&mut |name, value| {
+                registry.computed_value(name, value, &no_parent, sheets.viewport())
+            }),
             attrs,
         );
     }
@@ -460,6 +462,7 @@ fn compute_element_style(
         sheets.registry(),
         transitions,
         &attrs,
+        sheets.viewport(),
     );
     let decls = decls.with(substituted.as_ref());
     apply_cascade_ladder(&mut working, plan, decls, parent);

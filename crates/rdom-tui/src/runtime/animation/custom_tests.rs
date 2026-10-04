@@ -287,3 +287,52 @@ fn animated_counter_increment_reaches_later_siblings() {
     let before = dom.node(b).ext().unwrap().computed_before.clone().unwrap();
     assert_eq!(before.content.as_deref(), Some("6"));
 }
+
+/// `C2G-REGISTERED-ABSOLUTE` — CSS Properties and Values 1 §2.4, §6.2: a
+/// registered `<length>` computes to absolute cells, so `10vw` → `50vw`
+/// (8 → 40 cells at 80 columns) interpolates: half way it is 24.
+#[test]
+fn registered_viewport_length_transitions() {
+    let (mut dom, div) = div();
+    dom.set_viewport(rdom_style::calc::Viewport::new(80, 20));
+    let narrow = sheet("<length>", "0", "10vw", "width");
+    let wide = sheet("<length>", "0", "50vw", "width");
+    let start = Instant::now();
+    let mut reg = AnimationRegistry::new();
+    reg.set_registered_properties(std::rc::Rc::new(
+        crate::style::cascade::PropertyRegistry::new(&[&narrow]),
+    ));
+    dom.cascade(&narrow);
+    diff_and_register(&mut dom, &mut reg, start);
+    dom.cascade(&wide);
+    diff_and_register(&mut dom, &mut reg, start);
+    assert_eq!(reg.len(), 1, "the length animates");
+    frame(&mut dom, &mut reg, &wide, start + Duration::from_millis(50));
+    assert_eq!(computed(&dom, div).width, crate::layout::Size::Fixed(24));
+}
+
+/// `C2G-REGISTERED-ABSOLUTE` — CSS Properties and Values 1 §6.2, CSS
+/// Values 4 §3.4.3: a `<length-percentage>` interpolates its length and
+/// its percentage apart — `10` → `calc(20 + 50%)` is `calc(15 + 25%)`
+/// half way.
+#[test]
+fn registered_length_percentage_transitions() {
+    let (mut dom, div) = div();
+    let from = sheet("<length-percentage>", "0", "10", "width");
+    let to = sheet("<length-percentage>", "0", "calc(20 + 50%)", "width");
+    let start = Instant::now();
+    let mut reg = AnimationRegistry::new();
+    reg.set_registered_properties(std::rc::Rc::new(
+        crate::style::cascade::PropertyRegistry::new(&[&from]),
+    ));
+    dom.cascade(&from);
+    diff_and_register(&mut dom, &mut reg, start);
+    dom.cascade(&to);
+    diff_and_register(&mut dom, &mut reg, start);
+    assert_eq!(reg.len(), 1, "the length-percentage animates");
+    frame(&mut dom, &mut reg, &to, start + Duration::from_millis(50));
+    assert_eq!(
+        computed(&dom, div).width,
+        div_style("width: calc(15 + 25%)").width
+    );
+}
