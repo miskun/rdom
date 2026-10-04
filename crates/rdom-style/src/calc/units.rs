@@ -204,7 +204,15 @@ impl CalcUnit {
     /// for lengths, radians for angles.
     pub(super) fn canonical(self, value: f64, cx: &ResolveCtx) -> f64 {
         match self {
-            CalcUnit::Viewport(v) => value * v.percent_of(cx.viewport),
+            CalcUnit::Viewport(v) => {
+                debug_assert!(
+                    cx.viewport.is_some(),
+                    "`{value}{}` reached layout: a computed-style field \
+                     `ComputedStyle::resolve_viewport_units` does not resolve",
+                    v.css_name()
+                );
+                value * v.percent_of(cx.viewport.unwrap_or_default())
+            }
             // One column; one row (the fixed line height) — a cell
             // either way.
             CalcUnit::Ch | CalcUnit::Lh | CalcUnit::Rlh => value,

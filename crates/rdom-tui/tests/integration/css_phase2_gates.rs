@@ -196,3 +196,51 @@ fn infinite_insets_lay_out_without_overflow() {
     let _ = (rect(&dom, a), rect(&dom, b));
     assert_eq!((rect(&dom, c).x, rect(&dom, c).y), (3, 0));
 }
+
+// ── C2G-VIEWPORT-FIELDS ──────────────────────────────────────────────
+
+/// CSS Values 4 §6.1.2: viewport-percentage lengths are absolute at
+/// computed-value time. Every property the dispatch table knows is set
+/// to `10vw` (`10vw 10vw` for the two-value ones); each one that takes
+/// it must come out of the cascade with no viewport unit left anywhere
+/// in its computed style, and lay out (layout's resolve asserts it meets
+/// none). The list comes from the property table, so a length property
+/// added later is covered without editing this test.
+#[test]
+fn every_length_property_resolves_viewport_units_in_the_cascade() {
+    let mut accepted = Vec::new();
+    for &name in rdom_style::property_dispatch::property_names() {
+        for value in ["10vw", "10vw 10vw"] {
+            let css = format!(".a {{ {name}: {value} }}");
+            let Ok(sheet) = rdom_css::from_css_strict(&css) else {
+                continue;
+            };
+            let mut dom = TuiDom::new();
+            let root = dom.root();
+            let cb = el(&mut dom, root, "cb");
+            let a = el(&mut dom, cb, "a");
+            let _child = el(&mut dom, a, "");
+            dom.set_viewport(Viewport::new(80, 20));
+            dom.cascade(&sheet);
+            let computed = format!("{:?}", rdom_tui::style::cascade::computed_of(&dom, a));
+            assert!(
+                !computed.contains("Viewport("),
+                "`{name}: {value}` left a viewport unit in the computed style: {computed}"
+            );
+            dom.layout_dom(Rect::new(0, 0, 80, 20));
+            accepted.push(name);
+            break;
+        }
+    }
+    for name in [
+        "width",
+        "max-height",
+        "padding",
+        "margin-left",
+        "gap",
+        "inset",
+        "top",
+    ] {
+        assert!(accepted.contains(&name), "{name} takes 10vw: {accepted:?}");
+    }
+}

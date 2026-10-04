@@ -532,3 +532,11 @@ row comes from.
   `parse_unsigned` (public, unused) deleted. Changed expectations: `calc(10 / 0)` was rejected
   (now `u16::MAX` cells), `10 / 0` resolved to 0 (now `i32::MAX`), `opacity: calc(50%)` was invalid
   (now 0.5).
+- 2026-10-05 — C2G-VIEWPORT-FIELDS: `ResolveCtx::viewport` is `Option<Viewport>` (unreleased field),
+  `None` from `ResolveCtx::new` — every layout resolve — and `CalcUnit::canonical` debug-asserts a
+  viewport unit never meets `None` (0 cells in release). The hand-kept field list in
+  `ComputedStyle::resolve_viewport_units` stays (one place, typed per field), guarded by a test that
+  sets every property of `property_dispatch::property_names()` to `10vw` (or `10vw 10vw`), cascades
+  at 80 × 20 and requires no `Viewport(` in the computed style's `Debug` and a clean layout — so a
+  length property added later is covered without editing the test. Checked red: dropping `gap` from
+  the list fails it.

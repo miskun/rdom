@@ -138,3 +138,27 @@ fn mod_rem_abs_sign() {
     assert!(eval(MathFunction::Sign, &[-0.0]).is_sign_negative());
     assert_eq!(eval(MathFunction::Sign, &[9.0]), 1.0);
 }
+
+/// C2G-VIEWPORT-FIELDS: the cascade makes viewport units absolute (CSS
+/// Values 4 §6.1.2), so layout's context has no viewport; a viewport
+/// unit evaluated there is a computed-style field the cascade missed.
+#[test]
+#[cfg(debug_assertions)]
+#[should_panic(expected = "reached layout")]
+fn a_viewport_unit_in_layout_asserts() {
+    let e = CalcExpr::Dimension {
+        value: 10.0,
+        unit: CalcUnit::parse("vw").unwrap(),
+    };
+    e.resolve(&cx(0));
+}
+
+/// With a viewport the unit resolves: 10vw of 80 columns is 8.
+#[test]
+fn a_viewport_unit_with_a_viewport_resolves() {
+    let e = CalcExpr::Dimension {
+        value: 10.0,
+        unit: CalcUnit::parse("vw").unwrap(),
+    };
+    assert_eq!(e.resolve(&cx(0).with_viewport(Viewport::new(80, 20))), 8);
+}

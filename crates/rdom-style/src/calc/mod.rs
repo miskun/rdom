@@ -106,23 +106,28 @@ pub struct ResolveCtx {
     /// cells. Caller provides — see doc above for which dimension
     /// each property uses.
     pub percent_basis: i32,
-    /// The terminal size viewport-percentage units resolve against.
-    /// The cascade makes them absolute ([`CalcExpr::absolutize`]), so
-    /// layout leaves this at its default.
-    pub viewport: Viewport,
+    /// The viewport the viewport-percentage units resolve against;
+    /// `None` in layout. The cascade makes those units absolute
+    /// ([`ComputedStyle::resolve_viewport_units`](crate::ComputedStyle::resolve_viewport_units)),
+    /// so layout never meets one: one evaluated without a viewport is a
+    /// computed-style field the cascade missed — a debug assertion, 0
+    /// cells in release.
+    pub viewport: Option<Viewport>,
 }
 
 impl ResolveCtx {
+    /// A layout context: percentages resolve against `percent_basis`,
+    /// and there is no viewport (see [`ResolveCtx::viewport`]).
     pub fn new(percent_basis: i32) -> Self {
         Self {
             percent_basis,
-            viewport: Viewport::default(),
+            viewport: None,
         }
     }
 
     /// This context with `viewport` for the viewport-percentage units.
     pub fn with_viewport(mut self, viewport: Viewport) -> Self {
-        self.viewport = viewport;
+        self.viewport = Some(viewport);
         self
     }
 }
