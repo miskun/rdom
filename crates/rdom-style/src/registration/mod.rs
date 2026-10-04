@@ -29,8 +29,7 @@ pub use computed::length_percentage_text;
 
 use crate::parse::token::{Token, tokenize};
 use crate::parse::values::{
-    Range, integer, looks_like_calc, number, parse_angle, parse_color, parse_color_at,
-    parse_length, percentage,
+    Range, integer, looks_like_calc, number, parse_angle, parse_color_at, parse_length, percentage,
 };
 
 /// One component of a registered syntax.
@@ -409,13 +408,9 @@ fn consume(component: &SyntaxComponent, tokens: &[Token], at: usize) -> Option<u
             };
             parse_angle(&rest[..end]).map(|_| at + end)
         }
-        SyntaxComponent::Color => {
-            if parse_color(rest).is_some() {
-                return Some(tokens.len());
-            }
-            let (_, used) = parse_color_at(tokens, at)?;
-            Some(at + used)
-        }
+        // One parse: the color at `at`, through as many tokens as it uses
+        // (all of them when it is the whole rest).
+        SyntaxComponent::Color => parse_color_at(tokens, at).map(|(_, used)| at + used),
         SyntaxComponent::Time => {
             crate::parse::values::parse_time_ms(rest.get(..1)?).map(|_| at + 1)
         }

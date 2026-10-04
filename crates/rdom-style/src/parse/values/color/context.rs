@@ -21,6 +21,9 @@ pub(super) struct ColorCx {
     element: Option<(Color, ColorScheme)>,
     /// Set when the parse met something only an element resolves.
     needs_element: Cell<bool>,
+    /// How many color functions the parse is inside
+    /// ([`MAX_COLOR_NESTING`](super::MAX_COLOR_NESTING) at most).
+    nesting: Cell<usize>,
 }
 
 impl ColorCx {
@@ -29,6 +32,7 @@ impl ColorCx {
         ColorCx {
             element: None,
             needs_element: Cell::new(false),
+            nesting: Cell::new(0),
         }
     }
 
@@ -37,6 +41,7 @@ impl ColorCx {
         ColorCx {
             element: Some((context.current_color, context.scheme)),
             needs_element: Cell::new(false),
+            nesting: Cell::new(0),
         }
     }
 
@@ -60,6 +65,21 @@ impl ColorCx {
         } else {
             AbsoluteColor::from_color(color.color())
         }
+    }
+
+    /// Parse one nested color function with `inner`; `None` past
+    /// [`MAX_COLOR_NESTING`](super::MAX_COLOR_NESTING) — checked before
+    /// `inner` scans anything, so a hostile value costs at most that many
+    /// passes over its tokens, not one per level.
+    pub fn nested<T>(&self, inner: impl FnOnce() -> Option<T>) -> Option<T> {
+        let depth = self.nesting.get();
+        if depth >= super::MAX_COLOR_NESTING {
+            return None;
+        }
+        self.nesting.set(depth + 1);
+        let out = inner();
+        self.nesting.set(depth);
+        out
     }
 
     /// True when the parse met something only an element resolves.

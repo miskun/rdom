@@ -687,3 +687,14 @@ row comes from.
   re-exports; stale color docs and READMEs. Mode 2031: crossterm cannot parse the report in any release;
   decision — rdom owns the terminal input reader (`C3G-INPUT-READER`), which also fixes late replies.
   Fix all as `C3G-*`, two batches.
+- 2026-10-05 — C3G-COLOR-DEPTH: `ColorCx::nested` caps color-function nesting at `MAX_COLOR_NESTING`
+  = 32 (public beside `parse_color`, like `MAX_CALC_NESTING`); every color function — top level,
+  a `color-mix()` / `light-dark()` argument, a relative origin — enters through `color::function`,
+  which checks the cap before its level scans anything. `parse_absolute` takes a nested function's
+  arguments from its component (which already ends at the `)`) instead of `closing_paren` rescanning
+  the rest of the value per level; a value now costs at most 32 bounded passes. The registration
+  matcher's `<color>` parsed every value twice (`parse_color` then `parse_color_at`); once now.
+  Red: `color_function_nesting_is_capped` (33 levels parsed) failed and
+  `hostile_color_nesting_is_invalid_not_a_stack_overflow` aborted the test binary (stack overflow);
+  green: both pass, and a 10 000-level `attr(data-c type(<color>), …)` takes the fallback
+  (`css_phase3_gates.rs`). DIVERGENCES: color functions nest at most 32 levels.

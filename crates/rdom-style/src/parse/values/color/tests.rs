@@ -648,3 +648,56 @@ fn light_dark_picks_by_the_color_scheme() {
         assert_eq!(TuiColor::parse(bad), None, "{bad}");
     }
 }
+
+// ── Nesting cap (C3G-COLOR-DEPTH) ────────────────────────────────
+
+/// `depth` color functions, each wrapping the next: `make(inner)` is one
+/// level around `inner`, and the innermost is `red`.
+fn nested_colors(depth: usize, make: impl Fn(&str) -> String) -> String {
+    (0..depth).fold("red".to_string(), |inner, _| make(&inner))
+}
+
+/// CSS Color 4 / 5 set no nesting limit, but color functions take
+/// attribute data (`attr()` with `type(<color>)`, Values 5 §8.7) and the
+/// parser recurses once per level: [`MAX_COLOR_NESTING`] nested color
+/// functions parse, one more is invalid — like the math functions'
+/// `MAX_CALC_NESTING`.
+#[test]
+fn color_function_nesting_is_capped() {
+    use crate::parse::values::MAX_COLOR_NESTING;
+    let mix = |c: &str| format!("color-mix(in srgb, {c}, red)");
+    assert_eq!(
+        parse_color(&nested_colors(MAX_COLOR_NESTING, mix)),
+        rgb(255, 0, 0)
+    );
+    assert_eq!(
+        parse_color(&nested_colors(MAX_COLOR_NESTING + 1, mix)),
+        None
+    );
+    let rel = |c: &str| format!("rgb(from {c} r g b)");
+    assert_eq!(
+        parse_color(&nested_colors(MAX_COLOR_NESTING, rel)),
+        rgb(255, 0, 0)
+    );
+    assert_eq!(
+        parse_color(&nested_colors(MAX_COLOR_NESTING + 1, rel)),
+        None
+    );
+}
+
+/// A hostile value 10 000 levels deep — through each recursive form,
+/// and kept for computed-value time (`light-dark()`) — is invalid, not a
+/// stack overflow.
+#[test]
+fn hostile_color_nesting_is_invalid_not_a_stack_overflow() {
+    use crate::TuiColor;
+    let n = 10_000;
+    for make in [
+        &(|c: &str| format!("color-mix(in srgb, {c}, red)")) as &dyn Fn(&str) -> String,
+        &|c: &str| format!("light-dark({c}, red)"),
+        &|c: &str| format!("oklch(from {c} l c h)"),
+    ] {
+        let value = nested_colors(n, make);
+        assert_eq!(TuiColor::parse(&value), None);
+    }
+}

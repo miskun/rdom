@@ -30,6 +30,19 @@ use crate::parse::token::Token;
 use crate::{Color, ColorContext, TuiColor};
 use context::ColorCx;
 
+/// How many color functions may nest in one value
+/// (`color-mix(in srgb, color-mix(…), …)`, a relative color's origin,
+/// `light-dark()`'s arms).
+///
+/// CSS Color 4 / 5 set no limit, but color functions take attribute
+/// data (`attr()` with `type(<color>)`, Values 5 §8.7), and the parser
+/// recurses once per level: a hostile attribute could exhaust the stack
+/// and abort the process. 32 levels is far past any hand-written value;
+/// a deeper one is invalid, like any other parse failure (as
+/// [`MAX_CALC_NESTING`](crate::parse::values::MAX_CALC_NESTING) is for
+/// math functions).
+pub const MAX_COLOR_NESTING: usize = 32;
+
 /// Parse a whole value as a `<color>`.
 pub fn parse_color(value: &[Token]) -> Option<TuiColor> {
     parse_color_at(value, 0).and_then(|(c, consumed)| {
@@ -92,8 +105,9 @@ pub(crate) fn compute_function(text: &str, context: &ColorContext) -> Option<Col
     (used == tokens.len()).then(|| color.to_color())
 }
 
-/// Parse one `<color>` that is the whole of `component` (a color inside
-/// a color function) as an absolute color.
+/// Parse one `<color>` that is the whole of `component` — one component
+/// value, as `components` splits them (a color inside a color function)
+/// — as an absolute color.
 fn parse_absolute(component: &[Token], cx: &ColorCx) -> Option<AbsoluteColor> {
     match component {
         [Token::Ident(name)] if name.eq_ignore_ascii_case("currentcolor") => cx.current_color(),
@@ -104,10 +118,9 @@ fn parse_absolute(component: &[Token], cx: &ColorCx) -> Option<AbsoluteColor> {
         [Token::HexColor(hex)] => {
             cx.absolute(crate::tui_color::parse_simple_color(&format!("#{hex}"))?)
         }
-        [Token::Function(_), ..] => {
-            let (color, used) = parse_function(component, 0, cx)?;
-            (used == component.len()).then_some(color)
-        }
+        // One component value (`components`): the function runs to the
+        // `)` that ends it, so its arguments need no second scan.
+        [Token::Function(name), args @ .., Token::RParen] => function(name, args, cx),
         _ => None,
     }
 }
@@ -119,25 +132,33 @@ fn parse_function(value: &[Token], start: usize, cx: &ColorCx) -> Option<(Absolu
         return None;
     };
     let close = closing_paren(value, start)?;
-    let args = &value[start + 1..close];
-    let name = name.to_ascii_lowercase();
-    if matches!(args.first(), Some(Token::Ident(from)) if from.eq_ignore_ascii_case("from")) {
-        return Some((relative::parse(&name, args, cx)?, close + 1 - start));
-    }
-    let color = match name.as_str() {
-        "color-mix" => mix::parse(args, cx)?,
-        "light-dark" => light_dark(args, cx)?,
-        "rgb" | "rgba" => rgb::parse(args)?,
-        "hsl" | "hsla" => hsl::parse_hsl(args)?,
-        "hwb" => hsl::parse_hwb(args)?,
-        "lab" => lab::parse_lab(args, ColorSpace::Lab)?,
-        "lch" => lab::parse_lab(args, ColorSpace::Lch)?,
-        "oklab" => lab::parse_lab(args, ColorSpace::Oklab)?,
-        "oklch" => lab::parse_lab(args, ColorSpace::Oklch)?,
-        "color" => lab::parse_color_function(args)?,
-        _ => return None,
-    };
+    let color = function(name, &value[start + 1..close], cx)?;
     Some((color, close + 1 - start))
+}
+
+/// The color function `name` applied to `args` (the tokens between the
+/// function token and its `)`), one nesting level deeper than the caller
+/// — `None` past [`MAX_COLOR_NESTING`].
+fn function(name: &str, args: &[Token], cx: &ColorCx) -> Option<AbsoluteColor> {
+    cx.nested(|| {
+        let name = name.to_ascii_lowercase();
+        if matches!(args.first(), Some(Token::Ident(from)) if from.eq_ignore_ascii_case("from")) {
+            return relative::parse(&name, args, cx);
+        }
+        match name.as_str() {
+            "color-mix" => mix::parse(args, cx),
+            "light-dark" => light_dark(args, cx),
+            "rgb" | "rgba" => rgb::parse(args),
+            "hsl" | "hsla" => hsl::parse_hsl(args),
+            "hwb" => hsl::parse_hwb(args),
+            "lab" => lab::parse_lab(args, ColorSpace::Lab),
+            "lch" => lab::parse_lab(args, ColorSpace::Lch),
+            "oklab" => lab::parse_lab(args, ColorSpace::Oklab),
+            "oklch" => lab::parse_lab(args, ColorSpace::Oklch),
+            "color" => lab::parse_color_function(args),
+            _ => None,
+        }
+    })
 }
 
 /// `light-dark(<color>, <color>)` (CSS Color 5 §5.1): the first under a

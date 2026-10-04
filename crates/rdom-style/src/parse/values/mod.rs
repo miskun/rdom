@@ -43,7 +43,7 @@ mod transition;
 pub use border::{current_border, parse_border, parse_border_side};
 pub use calc::{MAX_CALC_DEPTH, MAX_CALC_NESTING, looks_like_calc, parse_calc};
 pub(crate) use color::compute_function as compute_color_function;
-pub use color::{parse_color, parse_color_at, parse_rgb_args, parse_rgba_args};
+pub use color::{MAX_COLOR_NESTING, parse_color, parse_color_at, parse_rgb_args, parse_rgba_args};
 pub use content::{parse_content, parse_counter_ops};
 pub use keyword::{
     parse_keyword, parse_overflow, parse_position, parse_scroll_behavior, parse_scrollbar_gutter,
