@@ -45,6 +45,7 @@ pub(super) fn inherit_inheritable_from(working: &mut ComputedStyle, parent: &Com
     // declarations are applied later in `apply_border_collapse`.
     // Inherit custom-property map by Rc::clone (cheap).
     working.vars = parent.vars.clone();
+    working.animated_vars = parent.animated_vars.clone();
 }
 
 /// True iff any layout-affecting computed property differs between

@@ -64,6 +64,7 @@ mod counters;
 mod custom;
 mod inherit;
 mod ladder;
+mod registered;
 mod scope;
 mod sheets;
 mod walk;
@@ -76,6 +77,8 @@ mod css_wide_tests;
 mod layer_tests;
 #[cfg(test)]
 mod nesting_tests;
+#[cfg(test)]
+mod property_tests;
 #[cfg(test)]
 mod scope_tests;
 #[cfg(test)]
@@ -140,7 +143,8 @@ impl CascadeExt for Dom<TuiExt> {
     }
 
     fn cascade_all(&mut self, stylesheets: &[&Stylesheet]) {
-        let merged_vars = walk::merge_root_vars(stylesheets);
+        let sheets = walk::Sheets::new(stylesheets);
+        let merged_vars = walk::merge_root_vars(&sheets);
         let root = self.root();
         // The root's parent carries the sheet-level (`define_var` /
         // `:root`) variables; every element then inherits its parent's
@@ -151,7 +155,6 @@ impl CascadeExt for Dom<TuiExt> {
         // written authoritatively, top-to-bottom. No bubble-up needed
         // because the walk visits every ancestor.
         let mut counters = walk::CounterState::default();
-        let sheets = walk::Sheets::new(stylesheets);
         let _ = walk::cascade_subtree(self, &sheets, root, &parent, &mut counters);
     }
 
@@ -160,7 +163,8 @@ impl CascadeExt for Dom<TuiExt> {
     }
 
     fn cascade_subtrees_all(&mut self, stylesheets: &[&Stylesheet], roots: &[NodeId]) {
-        let merged_vars = walk::merge_root_vars(stylesheets);
+        let sheets = walk::Sheets::new(stylesheets);
+        let merged_vars = walk::merge_root_vars(&sheets);
         let uses_counters = stylesheets.iter().any(|s| {
             s.rules().iter().any(|r| {
                 r.style.counter_reset.is_some()
@@ -214,7 +218,7 @@ impl CascadeExt for Dom<TuiExt> {
             let mut counters = walk::CounterState::default();
             walk::cascade_roots_in_order(
                 self,
-                &walk::Sheets::new(stylesheets),
+                &sheets,
                 &merged_vars,
                 &live,
                 &mut next,
@@ -223,7 +227,6 @@ impl CascadeExt for Dom<TuiExt> {
             );
             return;
         }
-        let sheets = walk::Sheets::new(stylesheets);
         for root in live {
             let parent_computed = walk::parent_computed_for(self, root, &merged_vars);
             let mut counters = walk::CounterState::default();

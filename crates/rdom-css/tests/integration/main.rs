@@ -18,6 +18,7 @@ mod nesting;
 mod padding_shorthand;
 mod positioning;
 mod properties;
+mod property;
 mod round_trip;
 mod scope;
 mod selectors;

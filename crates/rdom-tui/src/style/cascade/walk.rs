@@ -28,9 +28,9 @@ pub(super) use super::sheets::Sheets;
 /// last-wins tiebreaker. Allocates one fresh `Rc<HashMap>` per call;
 /// callers compute this once per cascade pass (in `cascade_all` /
 /// `cascade_subtrees_all`) and `Rc::clone` from there per element.
-pub(super) fn merge_root_vars(sheets: &[&Stylesheet]) -> VarMap {
+pub(super) fn merge_root_vars(sheets: &Sheets<'_>) -> VarMap {
     let mut merged = std::collections::HashMap::new();
-    for sheet in sheets {
+    for sheet in sheets.iter() {
         for (k, v) in sheet.vars() {
             merged.insert(k.clone(), v.clone());
         }
@@ -38,6 +38,9 @@ pub(super) fn merge_root_vars(sheets: &[&Stylesheet]) -> VarMap {
     // Their `var()`s substitute against each other (CSS Variables 1 §3).
     let names: Vec<String> = merged.keys().cloned().collect();
     rdom_style::var::resolve_custom_properties(&mut merged, names.iter().map(String::as_str));
+    // Registered properties start at their initial value (Properties
+    // and Values 1 §2.1).
+    sheets.registry().settle_root(&mut merged);
     std::rc::Rc::new(merged)
 }
 
@@ -390,7 +393,14 @@ fn compute_element_style(
     let inline = dom.node(id).ext().and_then(|e| e.inline_style.as_deref());
 
     let decls = Declarations::new(&sorted, &ranks, inline);
-    let substituted = prepare(&mut working, &plan, decls);
+    // Running transitions of registered custom properties
+    // (`runtime::animation`).
+    let transitions = dom
+        .node(id)
+        .ext()
+        .and_then(|e| e.presentation.as_deref())
+        .and_then(|p| p.custom_properties.as_ref());
+    let substituted = prepare(&mut working, &plan, decls, sheets.registry(), transitions);
     let decls = decls.with(substituted.as_ref());
     apply_cascade_ladder(&mut working, &plan, decls, parent);
 
@@ -521,7 +531,7 @@ fn compute_pseudo_style_layered(
 
     // Pseudo-elements don't have their own inline_style on `TuiExt`.
     let decls = Declarations::new(&sorted, &ranks, None);
-    let substituted = prepare(&mut working, &plan, decls);
+    let substituted = prepare(&mut working, &plan, decls, sheets.registry(), None);
     let decls = decls.with(substituted.as_ref());
     apply_cascade_ladder(&mut working, &plan, decls, host_computed);
 

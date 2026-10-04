@@ -34,6 +34,7 @@
 //! ([`Step::revert_layer_to`]).
 
 use std::cell::OnceCell;
+use std::collections::HashMap;
 
 use super::apply::{Initials, Keywords, apply_style};
 use super::inherit::inherit_inheritable_from;
@@ -224,11 +225,14 @@ pub(super) fn prepare(
     working: &mut ComputedStyle,
     plan: &Plan,
     decls: Declarations<'_>,
+    registry: &super::registered::Registry,
+    transitions: Option<&HashMap<String, String>>,
 ) -> Option<Substituted> {
     // CSS Variables 1 §2 — same ladder, folded into the element's own
     // map before any `var()` consumer runs.
-    super::custom::apply_custom_properties(working, plan, decls);
-    Substituted::new(decls, &working.vars)
+    super::custom::apply_custom_properties(working, plan, decls, registry, transitions);
+    let vars = working.animated_vars.as_ref().unwrap_or(&working.vars);
+    Substituted::new(decls, vars)
 }
 
 /// Memoized rollback states of one element's ladder: `state_before(i)`

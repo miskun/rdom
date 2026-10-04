@@ -2,43 +2,91 @@
 //! every matched `--*` declaration folds into the element's own map in
 //! ladder order, so a later or more important declaration of the same
 //! name wins, before any `var()` consumer runs; then their own `var()`s
-//! are substituted (`rdom_style::var`).
+//! are substituted (`rdom_style::var`) and the registered ones settled
+//! (`registered.rs`).
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use super::ladder::{Declarations, Plan, Rollback, Step};
+use super::registered::Registry;
 use crate::style::ComputedStyle;
 
 type Map = HashMap<String, String>;
 
-/// Fold the element's `--*` declarations into `working.vars`.
-/// Copy-on-write: elements that declare nothing keep sharing their
+/// Fold the element's `--*` declarations into `working.vars`, then
+/// apply the registered properties of `registry` (Properties and
+/// Values 1 §2). Copy-on-write: an element that declares nothing — and
+/// whose registered properties need no reset — keeps sharing its
 /// parent's map.
 pub(super) fn apply_custom_properties(
     working: &mut ComputedStyle,
     plan: &Plan,
     decls: Declarations<'_>,
+    registry: &Registry,
+    transitions: Option<&Map>,
 ) {
-    let declares = decls.all().any(|s| !s.custom_properties.is_empty());
-    if !declares {
+    let inherited = working.vars.clone();
+    let declared: HashSet<&str> = decls
+        .all()
+        .flat_map(|s| s.custom_properties.iter().map(|d| d.name.as_str()))
+        .collect();
+    if !declared.is_empty() {
+        let base = || (*inherited).clone();
+        let apply = |map: &mut Map, i: usize, rollback: &Rollback<'_, Map>| {
+            put_step(map, &plan.steps()[i], decls, &inherited, rollback, registry);
+        };
+        let rollback = Rollback::new(plan.steps().len(), &base, &apply);
+        let map = std::rc::Rc::make_mut(&mut working.vars);
+        for step in plan.steps() {
+            put_step(map, step, decls, &inherited, &rollback, registry);
+        }
+    }
+    if !registry.is_empty() {
+        registry.settle_undeclared(&mut working.vars, &declared);
+    }
+    if !declared.is_empty() {
+        // CSS Variables 1 §3: a custom property's own `var()`s substitute
+        // here, where it is declared; descendants inherit the result.
+        let map = std::rc::Rc::make_mut(&mut working.vars);
+        rdom_style::var::resolve_custom_properties(map, declared.iter().copied());
+        if !registry.is_empty() {
+            registry.validate_declared(&mut working.vars, &declared, &inherited);
+        }
+    }
+    apply_transitions(working, &inherited, &declared, registry, transitions);
+}
+
+/// `working.animated_vars`: the cascaded values with the running
+/// transitions applied — the parent's animated values of the properties
+/// this element inherits rather than sets, then this element's own
+/// (`transitions`). `None` when that changes nothing.
+fn apply_transitions(
+    working: &mut ComputedStyle,
+    inherited: &Map,
+    declared: &HashSet<&str>,
+    registry: &Registry,
+    transitions: Option<&Map>,
+) {
+    let parent = working.animated_vars.take();
+    if parent.is_none() && transitions.is_none() {
         return;
     }
-    let inherited = working.vars.clone();
-    let base = || (*inherited).clone();
-    let apply = |map: &mut Map, i: usize, rollback: &Rollback<'_, Map>| {
-        put_step(map, &plan.steps()[i], decls, &inherited, rollback);
-    };
-    let rollback = Rollback::new(plan.steps().len(), &base, &apply);
-    let map = std::rc::Rc::make_mut(&mut working.vars);
-    for step in plan.steps() {
-        put_step(map, step, decls, &inherited, &rollback);
+    let mut animated = (*working.vars).clone();
+    if let Some(parent) = &parent {
+        for (name, value) in parent.iter() {
+            let animating = inherited.get(name) != Some(value);
+            let inherits = registry.get(name).is_none_or(|r| r.inherits);
+            if animating && inherits && !declared.contains(name.as_str()) {
+                animated.insert(name.clone(), value.clone());
+            }
+        }
     }
-    // CSS Variables 1 §3: a custom property's own `var()`s substitute
-    // here, where it is declared; descendants inherit the result.
-    let declared = decls
-        .all()
-        .flat_map(|s| s.custom_properties.iter().map(|d| d.name.as_str()));
-    rdom_style::var::resolve_custom_properties(map, declared);
+    for (name, value) in transitions.into_iter().flatten() {
+        animated.insert(name.clone(), value.clone());
+    }
+    if animated != *working.vars {
+        working.animated_vars = Some(std::rc::Rc::new(animated));
+    }
 }
 
 /// One ladder step's custom-property declarations. CSS Variables 1 §2:
@@ -52,6 +100,7 @@ fn put_step(
     decls: Declarations<'_>,
     inherited: &Map,
     rollback: &Rollback<'_, Map>,
+    registry: &Registry,
 ) {
     for style in decls.of(step) {
         for d in &style.custom_properties {
@@ -59,6 +108,23 @@ fn put_step(
                 continue;
             }
             let v = d.value.trim();
+            // A registered property's `initial` (and, when it does not
+            // inherit, `unset`) is its initial value (Properties and
+            // Values 1 §2.1).
+            let keyword = if v.eq_ignore_ascii_case("initial") {
+                registry.keyword_value(&d.name, false)
+            } else if v.eq_ignore_ascii_case("unset") {
+                registry.keyword_value(&d.name, true)
+            } else {
+                None
+            };
+            if let Some(value) = keyword {
+                match value {
+                    Some(value) => map.insert(d.name.clone(), value),
+                    None => map.remove(&d.name),
+                };
+                continue;
+            }
             let from = if v.eq_ignore_ascii_case("initial") {
                 None
             } else if v.eq_ignore_ascii_case("inherit") || v.eq_ignore_ascii_case("unset") {

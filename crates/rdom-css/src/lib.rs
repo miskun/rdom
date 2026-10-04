@@ -20,6 +20,7 @@ mod block;
 mod declarations;
 mod import;
 mod layer;
+mod property;
 mod scope;
 mod top_level;
 
@@ -155,7 +156,7 @@ fn warning_to_error(w: &Warning) -> ParseError {
         WarningKind::ImportCycle(_) | WarningKind::ImportFailed { .. } => {
             ParseErrorKind::ExpectedToken("importable sheet")
         }
-        WarningKind::InvalidAtRulePrelude { .. } => {
+        WarningKind::InvalidAtRulePrelude { .. } | WarningKind::InvalidPropertyRule { .. } => {
             ParseErrorKind::ExpectedToken("at-rule prelude")
         }
     };
@@ -237,6 +238,14 @@ pub enum WarningKind {
     /// the loader refused (`reason`). Nothing is imported.
     ImportFailed {
         url: String,
+        reason: String,
+    },
+    /// An `@property` rule (its prelude, `name`) that registers nothing:
+    /// a missing or invalid descriptor, an invalid name, or an initial
+    /// value that does not match the syntax (CSS Properties and Values
+    /// API 1 §3).
+    InvalidPropertyRule {
+        name: String,
         reason: String,
     },
     UnterminatedComment,

@@ -82,6 +82,9 @@ pub(super) struct FramePrelude {
     /// The document's `<style>` sheets, live (`cssom::style_elements`):
     /// they cascade before the App's own sheets, in tree order.
     pub(super) style_elements: StyleElements,
+    /// `CSS.registerProperty` registrations (`App::register_property`),
+    /// cascaded after every other sheet so they win over `@property`.
+    pub(super) registrations: crate::style::Stylesheet,
     /// The element currently carrying `data-rdom-scroll-focus`.
     scroll_focus_marked: Option<NodeId>,
     /// Each element's `:valid` / `:invalid` state as of the last frame.
@@ -115,6 +118,7 @@ impl FramePrelude {
             control_seeding: ControlSeeding::install(dom),
             selectedness: Selectedness::install(dom),
             style_elements: StyleElements::install(dom),
+            registrations: crate::style::Stylesheet::bare(),
             scroll_focus_marked: None,
             validity_marks: ValidityMarks::default(),
             caret_blink: CaretBlink::new(None),
@@ -249,8 +253,9 @@ impl FramePrelude {
 
     /// Every sheet the cascade reads, in cascade order: the document's
     /// `<style>` sheets in tree order, then the App's own in push order
-    /// (`cssom::style_elements`). Later sheets win same-specificity
-    /// contests.
+    /// (`cssom::style_elements`), then the rule-less sheet holding the
+    /// `App::register_property` registrations. Later sheets win
+    /// same-specificity contests.
     pub(super) fn cascade_order<'a>(
         &'a self,
         app_sheets: &'a [(StylesheetId, Stylesheet)],
@@ -258,6 +263,7 @@ impl FramePrelude {
         self.style_elements
             .sheets()
             .chain(app_sheets.iter().map(|(_, s)| s))
+            .chain(std::iter::once(&self.registrations))
             .collect()
     }
 

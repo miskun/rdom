@@ -70,7 +70,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | Module | Supported | Partial | Missing | N/A | Total |
 |---|---:|---:|---:|---:|---:|
 | 3.1 Syntax, cascade and inheritance (Syntax 3, Cascade 4/5, CSS 2.1 §6) | 19 | 0 | 0 | 2 | 21 |
-| 3.2 Custom properties (CSS Variables 1) | 5 | 0 | 1 | 1 | 7 |
+| 3.2 Custom properties (CSS Variables 1) | 6 | 0 | 0 | 1 | 7 |
 | 3.3 Values and units (Values 4) | 5 | 5 | 8 | 4 | 22 |
 | 3.4 Color (Color 4 / 5) | 3 | 3 | 9 | 2 | 17 |
 | 3.5 Backgrounds and borders (Backgrounds 3, Borders 4) | 3 | 5 | 6 | 2 | 16 |
@@ -93,7 +93,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 0 | 0 | 6 | 3 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **65** | **43** | **149** | **50** | **307** |
+| **Total** | **66** | **43** | **148** | **50** | **307** |
 
 Of the 205 Partial / Missing rows, **133 are not documented** in `DIVERGENCES.md` (6 of them because the document states the opposite of the code) — see §5 and §6.
 
@@ -248,7 +248,7 @@ dropped:
 | `var()` in `content` | Supported | Substituted, then parsed by `parse_content` (C1-VAR-ANY). | — | `rdom-style/src/var.rs` |
 | `var()` in all other properties | Supported | A declaration holding `var()` is kept as tokens (`TuiStyle::pending`, `var()` syntax checked at parse time); the cascade substitutes it per element from the element's custom properties and parses it with the property's grammar — shorthands included, later declarations of the block replayed in order; a failure makes the property `unset` (invalid at computed-value time). Custom properties substitute where declared; cycles make them guaranteed-invalid. A style without `var()` costs nothing extra (C1-VAR-ANY). | — | `rdom-style/src/var.rs`, `DISP/set.rs`, `CASC/ladder.rs` |
 | `var()` fallback with arbitrary tokens | Supported | Any token sequence, commas included, `var()` inside substituted (C1-VAR-ANY). | — | `rdom-style/src/var.rs` |
-| `@property` | Missing | Registered custom properties. | Blanket | `AT`, `CASC` |
+| `@property` | Supported | `@property` and `CSS.registerProperty` (`App::register_property`, `Stylesheet::register_property`): syntax validated at computed-value time (invalid → `unset`), initial value, `inherits`; registered `<color>` / `<number>` / `<integer>` / `<length>` / `<percentage>` transition and their `var()` consumers follow. Syntax components without a terminal value parser are rejected (DIVERGENCES) (C1-PROPERTY). | — | `rdom-style/src/registration.rs`, `rdom-css/src/property.rs`, `CASC/registered.rs`, `RT/animation/custom.rs` |
 | `env()` | N/A | Safe-area / UA environment variables describe display hardware a terminal does not report. | — | — |
 
 ### 3.3 Values and units (Values 4)

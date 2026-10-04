@@ -96,6 +96,8 @@ impl Stylesheet {
             map.push(id);
         }
         let scopes = self.append_scopes(other);
+        self.registrations
+            .extend(other.registrations.iter().cloned());
         for import in &other.imports {
             let mut import = import.clone();
             import.layer = import.layer.map(|l| map[l.index()]);

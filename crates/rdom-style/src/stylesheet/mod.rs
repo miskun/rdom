@@ -226,6 +226,8 @@ pub struct Stylesheet {
     /// Declared cascade layers, in order of first declaration
     /// (`layers.rs`).
     layers: Vec<Layer>,
+    /// Registered custom properties (`@property`), in source order.
+    registrations: Vec<crate::PropertyRegistration>,
     /// The `@import`s that loaded (`imports.rs`).
     imports: Vec<Import>,
     /// Declared `@scope` rules, in source order (`scopes.rs`).

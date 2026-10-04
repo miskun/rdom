@@ -167,6 +167,12 @@ pub struct ComputedStyle {
     /// cascade; `Rc`-cloned into every `ComputedStyle` so references
     /// are cheap.
     pub vars: VarMap,
+    /// `vars` with the running transitions of registered custom
+    /// properties applied (CSS Properties and Values API 1 §6.2) — on
+    /// this element or inherited — or `None` when none applies. `var()`
+    /// substitution reads it; transitions compare `vars`, the cascaded
+    /// values.
+    pub animated_vars: Option<VarMap>,
 }
 
 impl ComputedStyle {
@@ -222,6 +228,7 @@ impl ComputedStyle {
             counter_reset: Vec::new(),
             counter_increment: Vec::new(),
             vars: Rc::new(std::collections::HashMap::new()),
+            animated_vars: None,
         }
     }
 }

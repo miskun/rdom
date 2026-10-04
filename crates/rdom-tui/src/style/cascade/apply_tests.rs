@@ -150,6 +150,7 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
         counter_increment,
         // Custom properties, not a property value.
         vars: _,
+        animated_vars: _,
     } = ComputedStyle::initial();
 
     macro_rules! check {

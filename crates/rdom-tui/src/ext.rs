@@ -133,6 +133,11 @@ pub struct PresentationStyle {
     pub bottom: Option<Length>,
     pub left: Option<Length>,
     pub z_index: Option<ZIndex>,
+    /// The running transitions of registered custom properties (name
+    /// without dashes → animated value). Not read by paint: the cascade
+    /// applies them on top of the cascaded values
+    /// (`ComputedStyle::animated_vars`) so `var()` consumers follow.
+    pub custom_properties: Option<std::collections::HashMap<String, String>>,
 }
 
 /// Which style a transition animates: the element itself or one of
@@ -235,7 +240,8 @@ impl PresentationStyle {
     /// True when no animation is currently driving any property.
     /// The hot path uses this to skip the override read.
     pub fn is_empty(&self) -> bool {
-        self.fg.is_none()
+        self.custom_properties.is_none()
+            && self.fg.is_none()
             && self.bg.is_none()
             && self.border_fg.is_none()
             && self.width.is_none()

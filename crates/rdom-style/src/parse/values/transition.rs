@@ -28,6 +28,10 @@ pub fn parse_animatable_property(name: &str) -> Option<AnimatableProperty> {
 
 /// Parse a single property keyword (`all` / `none` / named).
 pub fn parse_transition_property_keyword(name: &str) -> Option<TransitionProperty> {
+    // Custom property names are case-sensitive (CSS Variables 1 §2).
+    if name.starts_with("--") {
+        return Some(TransitionProperty::Discrete(name.to_string()));
+    }
     match name.to_ascii_lowercase().as_str() {
         "all" => Some(TransitionProperty::All),
         "none" => Some(TransitionProperty::None),

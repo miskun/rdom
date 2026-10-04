@@ -11,6 +11,7 @@
 use rdom_style::LayerOrder;
 
 use super::ladder::Plan;
+use super::registered::Registry;
 use crate::style::{Rule, RuleOrigin, Stylesheet};
 
 /// The stylesheets of one cascade run, in cascade order, and the
@@ -18,6 +19,7 @@ use crate::style::{Rule, RuleOrigin, Stylesheet};
 pub(super) struct Sheets<'a> {
     list: &'a [&'a Stylesheet],
     layers: LayerOrder,
+    registry: Registry,
 }
 
 impl<'a> Sheets<'a> {
@@ -25,7 +27,13 @@ impl<'a> Sheets<'a> {
         Sheets {
             list,
             layers: LayerOrder::new(list),
+            registry: Registry::new(list),
         }
+    }
+
+    /// The custom properties the sheets register.
+    pub(super) fn registry(&self) -> &Registry {
+        &self.registry
     }
 
     /// Each matched rule's layer rank (parallel to `matched`, which is

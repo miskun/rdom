@@ -50,6 +50,7 @@ pub mod counters;
 pub mod layout;
 pub mod parse;
 pub mod property_dispatch;
+pub mod registration;
 pub mod transition;
 pub mod var;
 
@@ -67,6 +68,7 @@ pub use color::Color;
 pub use computed::{ComputedStyle, Content, ContentContext, VarMap};
 pub use counters::{CounterOp, CounterStyle};
 pub use modifier::Modifier;
+pub use registration::{Multiplier, PropertyRegistration, PropertySyntax, SyntaxComponent};
 pub use specificity::Specificity;
 pub use stylesheet::{
     Import, Layer, LayerId, LayerOrder, PseudoElementTarget, Rule, RuleContext, RuleIndex,

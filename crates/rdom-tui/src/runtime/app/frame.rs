@@ -143,6 +143,21 @@ impl<B: Backend> App<B> {
             // `node`; a dropped element's transition events go nowhere.
             crate::tui_event::dispatch_event_to_live(&mut self.dom, node, &mut ev);
         }
+        // Registered custom properties (`--name`).
+        let custom = self.animations.take_pending_custom_events();
+        self.prelude.touched |= !custom.is_empty();
+        for e in custom {
+            let event_name = match e.kind {
+                TransitionEventKind::Start => "transitionstart",
+                TransitionEventKind::End => "transitionend",
+                TransitionEventKind::Cancel => "transitioncancel",
+            };
+            let mut ev = rdom_core::Event::new(event_name);
+            ev.detail = rdom_core::EventDetail::Transition(Box::new(
+                rdom_core::TransitionDetail::new(&e.property, e.elapsed_seconds.into(), None),
+            ));
+            crate::tui_event::dispatch_event_to_live(&mut self.dom, e.node, &mut ev);
+        }
     }
 
     /// Cascade the dirty subtrees + advance animations + layout — the
@@ -242,11 +257,18 @@ fn style_and_layout(
         None
     };
     if cascade.is_some() {
+        animations.set_registered_properties(sheets);
         crate::runtime::animation::diff_and_register(dom, animations, now);
     }
     let laid_out = cascade.is_some() || redraw >= Redraw::Layout;
     if laid_out {
         animations.advance(dom, now);
+        // A registered custom property's animated value reaches its
+        // `var()` consumers through the cascade.
+        let restyle = animations.take_restyle();
+        if !restyle.is_empty() {
+            dom.cascade_subtrees_all(sheets, &restyle);
+        }
         dom.layout_dom(area);
         if crate::runtime::scrollbar::service_caret_reveal(dom) {
             dom.layout_dom(area);

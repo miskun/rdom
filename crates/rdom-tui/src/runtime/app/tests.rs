@@ -3957,3 +3957,77 @@ fn selection_drag_autoscroll_survives_its_anchor_block_being_dropped() {
         "the selection went with its text"
     );
 }
+
+// ── App::register_property (CSS.registerProperty) ───────────────────
+
+/// CSS Properties and Values API 1 §3: `CSS.registerProperty` registers
+/// a custom property for the App's sheets — it wins over `@property` —
+/// and a second registration of the name fails.
+#[test]
+fn register_property_applies_and_rejects_a_second_registration() {
+    use rdom_style::PropertyRegistration;
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let p = dom.create_element("p");
+    dom.append_child(root, p).unwrap();
+    let sheet = rdom_css::parse(
+        "@property --c { syntax: '<color>'; inherits: false; initial-value: red } \
+         p { color: var(--c) }",
+    )
+    .stylesheet;
+    let mut app = test_app(dom, sheet, Rect::new(0, 0, 10, 3));
+    app.advance(0).unwrap();
+    let fg = |app: &App<TestBackend>| {
+        app.dom()
+            .node(p)
+            .ext()
+            .unwrap()
+            .computed
+            .as_ref()
+            .unwrap()
+            .fg
+    };
+    assert_eq!(fg(&app), Color::Rgb(255, 0, 0));
+    let blue = PropertyRegistration::new("--c", "<color>", false, Some("blue")).unwrap();
+    app.register_property(blue.clone()).unwrap();
+    app.advance(0).unwrap();
+    assert_eq!(fg(&app), Color::Rgb(0, 0, 255));
+    assert!(app.register_property(blue).is_err());
+}
+
+/// CSS Transitions 1 §6: a registered custom property's transition
+/// events name the property (`--c`).
+#[test]
+fn custom_property_transition_events_name_the_property() {
+    use crate::runtime::animation::{PendingCustomEvent, TransitionEventKind};
+    use std::cell::RefCell;
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let div = dom.create_element("div");
+    dom.append_child(root, div).unwrap();
+    let mut app = test_app(dom, Stylesheet::bare(), Rect::new(0, 0, 10, 3));
+    let captured: Rc<RefCell<Option<String>>> = Rc::new(RefCell::new(None));
+    {
+        let captured = captured.clone();
+        app.dom_mut()
+            .add_event_listener(
+                div,
+                "transitionend",
+                ListenerOptions::default(),
+                move |ctx| {
+                    let t = ctx.event.detail.as_transition().expect("typed detail");
+                    *captured.borrow_mut() = Some(t.property_name.clone());
+                },
+            )
+            .unwrap();
+    }
+    app.animations_mut_for_test()
+        .queue_custom_event_for_test(PendingCustomEvent {
+            node: div,
+            kind: TransitionEventKind::End,
+            property: "--c".to_string(),
+            elapsed_seconds: 0.1,
+        });
+    app.dispatch_animation_events_for_test();
+    assert_eq!(captured.borrow().as_deref(), Some("--c"));
+}
