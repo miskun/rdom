@@ -38,8 +38,11 @@
 //!
 //! ## Module layout
 //!
-//! - `walk` — `cascade_subtree`, `compute_element_style`,
-//!   `compute_pseudo_style`. The tree recursion lives here.
+//! - `walk` — `cascade_subtree`, `compute_element_style`. The tree
+//!   recursion lives here.
+//! - `matching` — the rules matching one element or pseudo-element, in
+//!   cascade order; its buffers are reused for a whole pass.
+//! - `pseudo` — `compute_pseudo_style` (`::before`, `::after`, …).
 //! - `ladder` — the cascade ladder (`Plan` / `Step`) and the memoized
 //!   rollback states `revert` / `revert-layer` read.
 //! - `sheets` — the sheets of one run and their shared cascade-layer
@@ -64,6 +67,8 @@ mod counters;
 mod custom;
 mod inherit;
 mod ladder;
+mod matching;
+mod pseudo;
 mod registered;
 mod scope;
 mod sheets;
@@ -71,6 +76,8 @@ mod walk;
 
 #[cfg(test)]
 mod apply_tests;
+#[cfg(test)]
+mod cost_tests;
 #[cfg(test)]
 mod css_wide_tests;
 #[cfg(test)]
@@ -155,7 +162,8 @@ impl CascadeExt for Dom<TuiExt> {
         // written authoritatively, top-to-bottom. No bubble-up needed
         // because the walk visits every ancestor.
         let mut counters = walk::CounterState::default();
-        let _ = walk::cascade_subtree(self, &sheets, root, &parent, &mut counters);
+        let mut scratch = walk::Scratch::default();
+        let _ = walk::cascade_subtree(self, &sheets, root, &parent, &mut counters, &mut scratch);
     }
 
     fn cascade_subtrees(&mut self, stylesheet: &Stylesheet, roots: &[NodeId]) {
@@ -192,6 +200,7 @@ impl CascadeExt for Dom<TuiExt> {
         if live.is_empty() {
             return;
         }
+        let mut scratch = walk::Scratch::default();
         if uses_counters {
             // Counters make every root depend on everything before it in
             // tree order. One pre-order walk carries the state, replays the
@@ -224,13 +233,21 @@ impl CascadeExt for Dom<TuiExt> {
                 &mut next,
                 root,
                 &mut counters,
+                &mut scratch,
             );
             return;
         }
         for root in live {
             let parent_computed = walk::parent_computed_for(self, root, &merged_vars);
             let mut counters = walk::CounterState::default();
-            let flags = walk::cascade_subtree(self, &sheets, root, &parent_computed, &mut counters);
+            let flags = walk::cascade_subtree(
+                self,
+                &sheets,
+                root,
+                &parent_computed,
+                &mut counters,
+                &mut scratch,
+            );
             walk::bubble_subtree_flags(self, root, flags);
         }
     }

@@ -1,26 +1,26 @@
-//! The cascade walk — `cascade_subtree` + the per-element /
-//! per-pseudo-element style computation.
+//! The cascade walk — `cascade_subtree` + the per-element style
+//! computation (pseudo-elements: `pseudo`; rule matching: `matching`).
 //!
 //! `cascade_subtree` recurses into every element in the subtree,
 //! computing a fresh `ComputedStyle` at each and writing it back.
 //! Text/Comment/Fragment nodes have no `TuiExt` and get skipped
 //! structurally (their element children are still visited).
 
-use std::cmp::Reverse;
 use std::rc::Rc;
 
 use rdom_core::{Dom, NodeId, NodeType};
 
 use crate::ext::TuiExt;
 use crate::layout::Position;
-use crate::style::{ComputedStyle, PseudoElementTarget, Rule, Stylesheet, VarMap};
+use crate::style::{ComputedStyle, PseudoElementTarget, VarMap};
 
 use super::apply::{finalize_bfc_formation, finalize_border_fg};
 use super::content::resolve_content_on;
 pub(super) use super::counters::CounterState;
 use super::inherit::{inherit_inheritable_from, layout_differs};
 use super::ladder::{Declarations, apply_cascade_ladder, prepare};
-use super::scope::match_rule;
+pub(super) use super::matching::Scratch;
+use super::pseudo::{before_targets, compute_pseudo_style, compute_pseudo_style_layered};
 pub(super) use super::sheets::Sheets;
 
 /// Merge `root_vars` across all registered sheets into a single
@@ -104,21 +104,22 @@ pub(super) fn bubble_subtree_flags(dom: &mut Dom<TuiExt>, root: NodeId, flags: S
 /// pass. Roots nested inside an earlier root are covered by it and
 /// skipped. Stops after the last root.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn cascade_roots_in_order(
+pub(super) fn cascade_roots_in_order<'a>(
     dom: &mut Dom<TuiExt>,
-    sheets: &Sheets<'_>,
+    sheets: &Sheets<'a>,
     merged_vars: &VarMap,
     roots: &[NodeId],
     next: &mut usize,
     id: NodeId,
     counters: &mut CounterState,
+    scratch: &mut Scratch<'a>,
 ) {
     if *next >= roots.len() {
         return;
     }
     if id == roots[*next] {
         let parent_computed = parent_computed_for(dom, id, merged_vars);
-        let flags = cascade_subtree(dom, sheets, id, &parent_computed, counters);
+        let flags = cascade_subtree(dom, sheets, id, &parent_computed, counters, scratch);
         bubble_subtree_flags(dom, id, flags);
         *next += 1;
         // Roots inside this subtree were just cascaded with it.
@@ -140,25 +141,21 @@ pub(super) fn cascade_roots_in_order(
     }
     let children: Vec<NodeId> = dom.node(id).child_nodes().map(|n| n.id()).collect();
     for child in children {
-        cascade_roots_in_order(dom, sheets, merged_vars, roots, next, child, counters);
+        cascade_roots_in_order(
+            dom,
+            sheets,
+            merged_vars,
+            roots,
+            next,
+            child,
+            counters,
+            scratch,
+        );
         if *next >= roots.len() {
             break;
         }
     }
     counters.exit(id);
-}
-
-/// The rules of `sheet` that can match `id`, by the sheet's
-/// rightmost-selector index (`CASCADE-INITIAL-ALLOC-1`): a superset of
-/// the matches, in source order.
-fn candidate_rules(dom: &Dom<TuiExt>, id: NodeId, sheet: &Stylesheet, out: &mut Vec<u32>) {
-    let node = dom.node(id);
-    sheet.rule_index().candidates(
-        node.tag_name(),
-        node.id_attr(),
-        node.class_list().iter(),
-        out,
-    );
 }
 
 /// Bottom-up flags aggregated up the tree during cascade. Each
@@ -185,12 +182,13 @@ impl SubtreeFlags {
 /// at the root and skip whole walks when nothing relevant is in
 /// play. See `TuiExt` docs for the incremental-cascade
 /// conservatism rules.
-pub(super) fn cascade_subtree(
+pub(super) fn cascade_subtree<'a>(
     dom: &mut Dom<TuiExt>,
-    sheets: &Sheets<'_>,
+    sheets: &Sheets<'a>,
     id: NodeId,
     parent_computed: &ComputedStyle,
     counters: &mut CounterState,
+    scratch: &mut Scratch<'a>,
 ) -> SubtreeFlags {
     // Collect child ids up-front; mutations below don't change structure
     // but borrow rules need shared → exclusive swap.
@@ -211,6 +209,7 @@ pub(super) fn cascade_subtree(
                 child,
                 parent_computed,
                 counters,
+                scratch,
             ));
         }
         counters.exit(id);
@@ -230,7 +229,15 @@ pub(super) fn cascade_subtree(
         computed_scrollbar_thumb_horizontal,
     ) = {
         let parent_id = dom.node(id).parent_node().map(|p| p.id());
-        let computed = compute_element_style(dom, sheets, id, parent_computed, parent_id, counters);
+        let computed = compute_element_style(
+            dom,
+            sheets,
+            id,
+            parent_computed,
+            parent_id,
+            counters,
+            scratch,
+        );
         let cb = compute_pseudo_style_layered(
             dom,
             sheets,
@@ -238,6 +245,7 @@ pub(super) fn cascade_subtree(
             &computed,
             before_targets(dom, id),
             counters,
+            scratch,
         );
         let cbd = compute_pseudo_style(
             dom,
@@ -246,6 +254,7 @@ pub(super) fn cascade_subtree(
             &computed,
             PseudoElementTarget::Backdrop,
             counters,
+            scratch,
         );
         let csel = compute_pseudo_style(
             dom,
@@ -254,6 +263,7 @@ pub(super) fn cascade_subtree(
             &computed,
             PseudoElementTarget::Selection,
             counters,
+            scratch,
         );
         // Scrollbar pseudos only computed for elements that actually
         // have non-`Visible` overflow on at least one axis — saves a
@@ -275,6 +285,7 @@ pub(super) fn cascade_subtree(
                     &computed,
                     PseudoElementTarget::Scrollbar,
                     counters,
+                    scratch,
                 ),
                 compute_pseudo_style_layered(
                     dom,
@@ -283,6 +294,7 @@ pub(super) fn cascade_subtree(
                     &computed,
                     &PseudoElementTarget::thumb_targets(true),
                     counters,
+                    scratch,
                 ),
                 compute_pseudo_style_layered(
                     dom,
@@ -291,6 +303,7 @@ pub(super) fn cascade_subtree(
                     &computed,
                     &PseudoElementTarget::thumb_targets(false),
                     counters,
+                    scratch,
                 ),
             )
         } else {
@@ -327,7 +340,9 @@ pub(super) fn cascade_subtree(
         has_collapse: computed.border_collapse == crate::layout::BorderCollapse::Collapse,
     };
     for child in child_ids {
-        flags.merge(cascade_subtree(dom, sheets, child, &computed, counters));
+        flags.merge(cascade_subtree(
+            dom, sheets, child, &computed, counters, scratch,
+        ));
     }
 
     // `::after` comes after the children in tree order.
@@ -338,6 +353,7 @@ pub(super) fn cascade_subtree(
         &computed,
         PseudoElementTarget::After,
         counters,
+        scratch,
     );
     counters.exit(id);
     let own_has_positioned_pseudo = computed_before
@@ -361,13 +377,14 @@ pub(super) fn cascade_subtree(
 /// Per-element cascade: start from initial + inheritance, collect
 /// matching rules, apply the ladder, resolve `content`, finalize
 /// `border_fg`.
-fn compute_element_style(
+fn compute_element_style<'a>(
     dom: &Dom<TuiExt>,
-    sheets: &Sheets<'_>,
+    sheets: &Sheets<'a>,
     id: NodeId,
     parent: &ComputedStyle,
     parent_id: Option<NodeId>,
     counters: &mut CounterState,
+    scratch: &mut Scratch<'a>,
 ) -> ComputedStyle {
     // Start from initial + inherit subset from parent. That includes
     // the custom-property map (an `Rc` clone; `apply_cascade_ladder`
@@ -376,36 +393,21 @@ fn compute_element_style(
     inherit_inheritable_from(&mut working, parent);
 
     // Collect matching non-pseudo-element rules across all sheets.
-    // Track each rule's sheet index so cascade order is
-    // (specificity, sheet_idx, source_idx) — later sheets win
-    // same-specificity contests just like later rules in a single
-    // sheet do.
-    // Sorted by specificity, scope proximity (nearer wins, CSS Cascade
-    // 6 §6.1), then order of appearance.
-    let mut matching: Vec<(usize, u32, &Rule)> = Vec::new();
-    let mut candidates = Vec::new();
-    for (sheet_idx, sheet) in sheets.iter().enumerate() {
-        candidate_rules(dom, id, sheet, &mut candidates);
-        for &ri in &candidates {
-            let rule = &sheet.rules()[ri as usize];
-            if rule.pseudo == PseudoElementTarget::None
-                && let Some(proximity) = match_rule(dom, id, sheet, rule)
-            {
-                matching.push((sheet_idx, proximity, rule));
-            }
-        }
-    }
-    matching.sort_by_key(|(sheet_idx, proximity, r)| {
-        (r.specificity, Reverse(*proximity), *sheet_idx, r.source_idx)
-    });
-    let sorted: Vec<&Rule> = matching.iter().map(|(_, _, r)| *r).collect();
-    let by_sheet: Vec<(usize, &Rule)> = matching.iter().map(|(s, _, r)| (*s, *r)).collect();
-    let (ranks, plan) = sheets.plan_for(&by_sheet);
+    // Cascade order is (specificity, scope proximity, sheet_idx,
+    // source_idx) — later sheets win same-specificity contests just
+    // like later rules in a single sheet do.
+    scratch.collect(dom, sheets, id, &[PseudoElementTarget::None]);
+    let Scratch {
+        sorted,
+        ranks,
+        plan,
+        ..
+    } = &*scratch;
 
     // Inline style on this element (may be empty).
     let inline = dom.node(id).ext().and_then(|e| e.inline_style.as_deref());
 
-    let decls = Declarations::new(&sorted, &ranks, inline);
+    let decls = Declarations::new(sorted, ranks, inline);
     // Running transitions of registered custom properties
     // (`runtime::animation`).
     let transitions = dom
@@ -413,9 +415,9 @@ fn compute_element_style(
         .ext()
         .and_then(|e| e.presentation.as_deref())
         .and_then(|p| p.custom_properties.as_ref());
-    let substituted = prepare(&mut working, &plan, decls, sheets.registry(), transitions);
+    let substituted = prepare(&mut working, plan, decls, sheets.registry(), transitions);
     let decls = decls.with(substituted.as_ref());
-    apply_cascade_ladder(&mut working, &plan, decls, parent);
+    apply_cascade_ladder(&mut working, plan, decls, parent);
 
     // This element's `counter-reset` / `counter-increment` take effect
     // before its own generated content and its children are seen.
@@ -431,7 +433,7 @@ fn compute_element_style(
     let attr_lookup = |name: &str| dom.node(id).get_attribute(name).map(|s| s.to_string());
     let counter_lookup = |name: &str| counters.value(name);
     working.content =
-        resolve_content_on(&working, &plan, decls, &attr_lookup, &counter_lookup).unwrap_or(None);
+        resolve_content_on(&working, plan, decls, &attr_lookup, &counter_lookup).unwrap_or(None);
 
     // border_fg falls back to working.fg when no rule declared it
     // (property catalog: initial = "inherits fg"). Implemented as a
@@ -447,154 +449,4 @@ fn compute_element_style(
     finalize_bfc_formation(&mut working);
 
     working
-}
-
-/// The rule targets that style `id`'s `::before` box. An `<input>` /
-/// `<textarea>` showing its placeholder paints the placeholder text as
-/// its `::before` (UA `:placeholder-shown::before { content:
-/// attr(placeholder) }`), so that box *is* the `::placeholder`
-/// pseudo-element (CSS Pseudo-Elements 4 §4.3) and its rules layer on
-/// top — a `::placeholder` rule wins a specificity tie with a
-/// `::before` one. The rules were cut to the `::first-line` property
-/// subset when they were built, so they can restyle the text but not
-/// replace or move it.
-fn before_targets(dom: &Dom<TuiExt>, id: NodeId) -> &'static [PseudoElementTarget] {
-    const BEFORE: &[PseudoElementTarget] = &[PseudoElementTarget::Before];
-    const PLACEHOLDER: &[PseudoElementTarget] = &[
-        PseudoElementTarget::Before,
-        PseudoElementTarget::Placeholder,
-    ];
-    let node = dom.node(id);
-    let control = matches!(node.tag_name(), Some("input" | "textarea"));
-    if control && dom.is_placeholder_shown(id) {
-        PLACEHOLDER
-    } else {
-        BEFORE
-    }
-}
-
-/// Pseudo-element computation. Returns `None` if the pseudo-element
-/// should not render (no matching rules AND no legacy
-/// `before_content` / `after_content` text set AND no `content`
-/// resolved).
-fn compute_pseudo_style(
-    dom: &Dom<TuiExt>,
-    sheets: &Sheets<'_>,
-    id: NodeId,
-    host_computed: &ComputedStyle,
-    target: PseudoElementTarget,
-    counters: &mut CounterState,
-) -> Option<ComputedStyle> {
-    compute_pseudo_style_layered(dom, sheets, id, host_computed, &[target], counters)
-}
-
-/// [`compute_pseudo_style`] over several targets: rules for any of
-/// `targets` match, and at equal specificity a rule for a later target
-/// wins (the axis-specific `::scrollbar-thumb:vertical` layers over the
-/// axis-neutral `::scrollbar-thumb`). Content fallback and the
-/// `Some`-ness rule are those of the first target.
-fn compute_pseudo_style_layered(
-    dom: &Dom<TuiExt>,
-    sheets: &Sheets<'_>,
-    id: NodeId,
-    host_computed: &ComputedStyle,
-    targets: &[PseudoElementTarget],
-    counters: &mut CounterState,
-) -> Option<ComputedStyle> {
-    let target = targets[0];
-    if target == PseudoElementTarget::None {
-        return None;
-    }
-
-    // Pseudo-elements inherit from the host's computed style (per spec),
-    // not from the host's parent.
-    let mut working = ComputedStyle::initial();
-    inherit_inheritable_from(&mut working, host_computed);
-    // Pseudo-elements share the host's vars (which came from the
-    // merged stylesheet roots).
-    working.vars = host_computed.vars.clone();
-
-    // Collect matching rules for this pseudo across all sheets, with
-    // sheet_idx as the secondary tiebreaker.
-    let mut matching: Vec<(usize, u32, usize, &Rule)> = Vec::new();
-    let mut candidates = Vec::new();
-    for (sheet_idx, sheet) in sheets.iter().enumerate() {
-        candidate_rules(dom, id, sheet, &mut candidates);
-        for &ri in &candidates {
-            let rule = &sheet.rules()[ri as usize];
-            if let Some(rank) = targets.iter().position(|t| *t == rule.pseudo)
-                && let Some(proximity) = match_rule(dom, id, sheet, rule)
-            {
-                matching.push((rank, proximity, sheet_idx, rule));
-            }
-        }
-    }
-    matching.sort_by_key(|(rank, proximity, sheet_idx, r)| {
-        (
-            r.specificity,
-            Reverse(*proximity),
-            *rank,
-            *sheet_idx,
-            r.source_idx,
-        )
-    });
-    let sorted: Vec<&Rule> = matching.iter().map(|(_, _, _, r)| *r).collect();
-    let by_sheet: Vec<(usize, &Rule)> = matching.iter().map(|(_, _, s, r)| (*s, *r)).collect();
-    let (ranks, plan) = sheets.plan_for(&by_sheet);
-
-    // Pseudo-elements don't have their own inline_style on `TuiExt`.
-    let decls = Declarations::new(&sorted, &ranks, None);
-    let substituted = prepare(&mut working, &plan, decls, sheets.registry(), None);
-    let decls = decls.with(substituted.as_ref());
-    apply_cascade_ladder(&mut working, &plan, decls, host_computed);
-
-    // Border_fg fallback (same rule as for host elements).
-    finalize_border_fg(&mut working, decls);
-    finalize_bfc_formation(&mut working);
-
-    // Resolve content:
-    //   - None  = no `content:` declaration at all → use legacy fallback
-    //   - Some(None) = `content: none;` declared → suppress (NO fallback)
-    //   - Some(Some(s)) = content resolved to string
-    // Pseudo-elements read attributes from the HOST element — `attr(label)`
-    // on `optgroup::before` looks up the `<optgroup>`'s `label` attribute.
-    // The pseudo-element's own `counter-reset` / `counter-increment`
-    // (the `h2::before { counter-increment: sec }` idiom). It is a child
-    // of the host, so its instances are scoped to the host's subtree.
-    counters.enter(Some(id), &working.counter_reset, &working.counter_increment);
-    let attr_lookup = |name: &str| dom.node(id).get_attribute(name).map(|s| s.to_string());
-    let counter_lookup = |name: &str| counters.value(name);
-    let declared = resolve_content_on(&working, &plan, decls, &attr_lookup, &counter_lookup);
-    let fallback = dom.node(id).ext().and_then(|e| match target {
-        PseudoElementTarget::Before => e.before_content.clone(),
-        PseudoElementTarget::After => e.after_content.clone(),
-        // `::backdrop` and `::selection` have no legacy
-        // `before_content`-style field — they're purely
-        // style-driven. No fallback content.
-        // `::backdrop`, `::selection`, `::scrollbar`, and
-        // `::scrollbar-thumb` have no legacy `before_content`-style
-        // field — they're purely style-driven. No fallback content.
-        PseudoElementTarget::Backdrop
-        | PseudoElementTarget::Selection
-        | PseudoElementTarget::Scrollbar
-        | PseudoElementTarget::ScrollbarThumb
-        | PseudoElementTarget::ScrollbarThumbVertical
-        | PseudoElementTarget::ScrollbarThumbHorizontal
-        | PseudoElementTarget::Placeholder
-        | PseudoElementTarget::None => None,
-        // `PseudoElementTarget` is `#[non_exhaustive]`: a later
-        // pseudo-element has no legacy content field either.
-        _ => None,
-    });
-    let final_content = match declared {
-        Some(explicit) => explicit, // declared (even as None) → use as-is
-        None => fallback,           // undeclared → legacy fallback
-    };
-
-    // Skip entirely if the pseudo-element has nothing to contribute.
-    if sorted.is_empty() && final_content.is_none() {
-        return None;
-    }
-    working.content = final_content;
-    Some(working)
 }

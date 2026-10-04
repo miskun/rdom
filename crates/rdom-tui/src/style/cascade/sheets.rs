@@ -36,20 +36,26 @@ impl<'a> Sheets<'a> {
         &self.registry
     }
 
-    /// Each matched rule's layer rank (parallel to `matched`, which is
-    /// `(sheet index, rule)` pairs) and the ladder for those rules.
-    pub(super) fn plan_for(&self, matched: &[(usize, &Rule)]) -> (Vec<u32>, Plan) {
-        let ranks: Vec<u32> = matched
-            .iter()
-            .map(|(sheet, rule)| self.layers.rank(*sheet, rule.layer))
-            .collect();
+    /// Each matched rule's layer rank into `ranks` (parallel to
+    /// `matched`, `(sheet index, rule)` pairs) and the ladder for those
+    /// rules into `plan` — both buffers reused across elements.
+    pub(super) fn plan_into<'r>(
+        &self,
+        matched: impl Iterator<Item = (usize, &'r Rule)> + Clone,
+        ranks: &mut Vec<u32>,
+        plan: &mut Plan,
+    ) {
+        ranks.clear();
+        ranks.extend(
+            matched
+                .clone()
+                .map(|(sheet, rule)| self.layers.rank(sheet, rule.layer)),
+        );
         let author = matched
-            .iter()
-            .zip(&ranks)
+            .zip(ranks.iter())
             .filter(|((_, rule), _)| rule.origin == RuleOrigin::Author)
             .map(|(_, rank)| *rank);
-        let plan = Plan::new(author);
-        (ranks, plan)
+        plan.rebuild(author);
     }
 }
 

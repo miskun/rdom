@@ -70,8 +70,14 @@ pub(super) struct Step {
     pub revert_layer_to: usize,
 }
 
-/// The ladder for one element, in application order.
-pub(super) struct Plan(Vec<Step>);
+/// The ladder for one element, in application order. Reusable: the
+/// cascade keeps one per pass and [`rebuild`](Self::rebuild)s it per
+/// element, so the steps and the layer-rank buffer are allocated once.
+#[derive(Default)]
+pub(super) struct Plan {
+    steps: Vec<Step>,
+    ranks: Vec<u32>,
+}
 
 impl Plan {
     /// The ladder of CSS Cascade 5 §6.1 for an element whose matched
@@ -80,11 +86,21 @@ impl Plan {
     /// layer from the lowest rank up, unlayered last; inline normal;
     /// author important with the layer order reversed (unlayered
     /// first); inline important; UA important.
+    #[cfg(test)]
     pub(super) fn new(author_ranks: impl IntoIterator<Item = u32>) -> Plan {
-        let mut ranks: Vec<u32> = author_ranks.into_iter().collect();
+        let mut plan = Plan::default();
+        plan.rebuild(author_ranks);
+        plan
+    }
+
+    /// [`new`](Self::new) into this plan's buffers.
+    pub(super) fn rebuild(&mut self, author_ranks: impl IntoIterator<Item = u32>) {
+        let Plan { steps, ranks } = self;
+        ranks.clear();
+        ranks.extend(author_ranks);
         ranks.sort_unstable();
         ranks.dedup();
-        let mut steps = Vec::with_capacity(2 * ranks.len() + 4);
+        steps.clear();
         let mut push = |source, important| {
             let own = steps.len();
             let (revert_to, revert_layer_to) = match source {
@@ -99,7 +115,7 @@ impl Plan {
             });
         };
         push(Source::UserAgent, false);
-        for &rank in &ranks {
+        for &rank in ranks.iter() {
             push(Source::Author(rank), false);
         }
         push(Source::Inline, false);
@@ -108,11 +124,10 @@ impl Plan {
         }
         push(Source::Inline, true);
         push(Source::UserAgent, true);
-        Plan(steps)
     }
 
     pub(super) fn steps(&self) -> &[Step] {
-        &self.0
+        &self.steps
     }
 }
 
@@ -140,6 +155,11 @@ impl<'a> Declarations<'a> {
             inline,
             substituted: None,
         }
+    }
+
+    /// No matched rule and no inline style.
+    pub(super) fn is_empty(self) -> bool {
+        self.sorted.is_empty() && self.inline.is_none()
     }
 
     /// These declarations with `var()` substituted (`None`: none held
@@ -237,8 +257,12 @@ pub(super) fn prepare(
 
 /// Memoized rollback states of one element's ladder: `state_before(i)`
 /// is the computed style after steps `0..i`, replayed from the base.
+/// The memo slots themselves are allocated on the first read — the
+/// first `revert` / `revert-layer` met — so a ladder without one pays
+/// nothing.
 pub(super) struct Rollback<'a, S> {
-    states: Vec<OnceCell<S>>,
+    steps: usize,
+    states: OnceCell<Box<[OnceCell<S>]>>,
     base: &'a dyn Fn() -> S,
     apply: &'a dyn Fn(&mut S, usize, &Rollback<'a, S>),
 }
@@ -250,7 +274,8 @@ impl<'a, S: Clone> Rollback<'a, S> {
         apply: &'a dyn Fn(&mut S, usize, &Rollback<'a, S>),
     ) -> Self {
         Rollback {
-            states: (0..=steps).map(|_| OnceCell::new()).collect(),
+            steps,
+            states: OnceCell::new(),
             base,
             apply,
         }
@@ -260,7 +285,12 @@ impl<'a, S: Clone> Rollback<'a, S> {
     /// of the state before it; a `revert` inside that step only ever
     /// asks for an earlier state, so the recursion terminates.
     pub(super) fn state_before(&self, i: usize) -> &S {
-        self.states[i].get_or_init(|| {
+        let states = self.states.get_or_init(|| {
+            #[cfg(test)]
+            probe::bump(&probe::ROLLBACK_ALLOCS);
+            (0..=self.steps).map(|_| OnceCell::new()).collect()
+        });
+        states[i].get_or_init(|| {
             if i == 0 {
                 (self.base)()
             } else {
@@ -279,6 +309,12 @@ pub(super) fn apply_cascade_ladder(
     decls: Declarations<'_>,
     parent: &ComputedStyle,
 ) {
+    // No declarations: every step is empty.
+    if decls.is_empty() {
+        return;
+    }
+    #[cfg(test)]
+    probe::bump(&probe::LADDER_WALKS);
     // Custom properties are already in `working.vars` (`prepare`).
     let initial = Initials::default();
     // The base every rollback replays from: initial values, the
@@ -325,6 +361,27 @@ fn apply_step(
     };
     for style in decls.of(step) {
         apply_style(working, style, step.important, &keywords);
+    }
+}
+
+/// Test-only work counters (per test thread): how many ladders ran and
+/// how many rollback memos were materialised.
+#[cfg(test)]
+pub(super) mod probe {
+    use std::cell::Cell;
+    use std::thread::LocalKey;
+
+    thread_local! {
+        pub static LADDER_WALKS: Cell<usize> = const { Cell::new(0) };
+        pub static ROLLBACK_ALLOCS: Cell<usize> = const { Cell::new(0) };
+    }
+
+    pub fn bump(counter: &'static LocalKey<Cell<usize>>) {
+        counter.with(|c| c.set(c.get() + 1));
+    }
+
+    pub fn take(counter: &'static LocalKey<Cell<usize>>) -> usize {
+        counter.with(|c| c.replace(0))
     }
 }
 

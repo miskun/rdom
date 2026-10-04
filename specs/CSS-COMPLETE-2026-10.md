@@ -340,3 +340,10 @@ row comes from.
   (0,1,0), whereas & has a specificity of 0"); CSS Nesting 1 §3.3.1: "`&` behaves like
   `:where(:scope)` in @scope rules". The current behaviour is right; no code change, the cascade
   test now cites the text and pins it against an id `<scope-start>`.
+- 2026-10-04 — C1G-CASCADE-ALLOC: `ladder::Rollback` allocates its memo on the first `revert` /
+  `revert-layer` read; `apply_cascade_ladder` returns at once with no declarations; a pseudo-element
+  with no matched rule and no legacy content returns before building a style; `matching::Scratch`
+  (candidates, matches, sorted rules, layer ranks, `Plan`) is reused for a pass. Test-only work
+  counters (`ladder::probe`): one `div` with one rule now walks 2 ladders (element + UA
+  `*::selection`), was 5, and allocates no rollback memo, was 5. `walk.rs` (666 after the change)
+  split into `walk` / `matching` / `pseudo`.
