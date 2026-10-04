@@ -25,7 +25,8 @@
 
 use crate::parse::token::{Token, tokenize};
 use crate::parse::values::{
-    looks_like_calc, parse_angle, parse_color, parse_color_at, parse_length,
+    Range, integer, looks_like_calc, number, parse_angle, parse_color, parse_color_at,
+    parse_length, percentage,
 };
 
 /// One component of a registered syntax.
@@ -350,15 +351,26 @@ fn top_level_segments(tokens: &[Token]) -> Vec<&[Token]> {
 /// Match one `component` at `tokens[at..]`; the index after it.
 fn consume(component: &SyntaxComponent, tokens: &[Token], at: usize) -> Option<usize> {
     let rest = &tokens[at..];
+    // A math function at `rest` that `valid` accepts: the index after it.
+    let math = |rest: &[Token], valid: &dyn Fn(&[Token]) -> bool| {
+        let end = calc_end(rest)?;
+        (looks_like_calc(&rest[..end]) && valid(&rest[..end])).then_some(at + end)
+    };
     let signed = |accept: &dyn Fn(&Token) -> bool| match rest {
         [Token::Delim('-'), t, ..] if accept(t) => Some(at + 2),
         [t, ..] if accept(t) => Some(at + 1),
         _ => None,
     };
     match component {
-        SyntaxComponent::Number => signed(&|t| matches!(t, Token::Number(_) | Token::Float(_))),
-        SyntaxComponent::Integer => signed(&|t| matches!(t, Token::Number(_))),
-        SyntaxComponent::Percentage => signed(&|t| matches!(t, Token::Percentage(_))),
+        // A math function of the component's type is one too (CSS Values
+        // 4 §10): `<number>` / `<integer>` (rounded) take a `<number>`
+        // calculation, `<percentage>` one of percentages alone.
+        SyntaxComponent::Number => signed(&|t| matches!(t, Token::Number(_) | Token::Float(_)))
+            .or_else(|| math(rest, &|c| number(c, Range::Any).is_some())),
+        SyntaxComponent::Integer => signed(&|t| matches!(t, Token::Number(_)))
+            .or_else(|| math(rest, &|c| integer(c).is_some())),
+        SyntaxComponent::Percentage => signed(&|t| matches!(t, Token::Percentage(_)))
+            .or_else(|| math(rest, &|c| percentage(c).is_some())),
         SyntaxComponent::Length | SyntaxComponent::LengthPercentage => {
             let percent = *component == SyntaxComponent::LengthPercentage;
             if let Some(end) = signed(&|t| {

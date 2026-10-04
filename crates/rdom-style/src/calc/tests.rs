@@ -50,10 +50,13 @@ fn div_basis_by_number() {
     assert_eq!(e.resolve(&cx(40)), 20);
 }
 
+/// IEEE-754 division (CSS Values 4 §10.9): `10 / 0` is +∞, which the
+/// top level clamps to the range.
 #[test]
-fn div_by_zero_saturates_to_zero() {
+fn div_by_zero_is_infinite_and_clamps() {
     let e = CalcExpr::binary(CalcOp::Div, CalcExpr::Length(10), CalcExpr::Number(0.0));
-    assert_eq!(e.resolve(&cx(100)), 0);
+    assert_eq!(e.resolve_f64(&cx(100)), f64::INFINITY);
+    assert_eq!(e.resolve(&cx(100)), i32::MAX);
 }
 
 #[test]

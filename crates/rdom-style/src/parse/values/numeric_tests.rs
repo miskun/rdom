@@ -229,8 +229,8 @@ fn number_properties_take_number_math_functions() {
         Some(crate::Value::Specified(std::f32::consts::PI))
     );
     assert!(
-        set("opacity", "calc(50%)", &mut s).is_err(),
-        "a percentage is no <number>"
+        set("flex-shrink", "calc(50%)", &mut s).is_err(),
+        "a percentage is no <number> (opacity takes one: C2G-CALC-SEMANTICS)"
     );
     assert!(
         set("flex-shrink", "asin(1)", &mut s).is_err(),

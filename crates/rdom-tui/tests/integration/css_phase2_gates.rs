@@ -168,3 +168,31 @@ fn layout_records_its_area_as_the_viewport() {
     dom.layout_dom(Rect::new(0, 0, 60, 10));
     assert_eq!(rect(&dom, a).width, 30);
 }
+
+// ── C2G-CALC-SEMANTICS ───────────────────────────────────────────────
+
+/// CSS Values 4 §10.9: an infinite top-level result clamps to the
+/// property's range — symmetric in rdom, so `right` (which points
+/// inward and is negated) cannot overflow. `calc(-infinity)` and
+/// `calc(1 / 0)` insets lay out without a panic; division by zero is
+/// IEEE, so `min(10 / 0, 3)` is 3.
+#[test]
+fn infinite_insets_lay_out_without_overflow() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let cb = el(&mut dom, root, "cb");
+    let a = el(&mut dom, cb, "a");
+    let b = el(&mut dom, cb, "b");
+    let c = el(&mut dom, cb, "c");
+    lay_out(
+        &mut dom,
+        ".cb { position: relative; width: 40; height: 10 }
+         .a { position: absolute; right: calc(-infinity); width: 1; height: 1 }
+         .b { position: absolute; bottom: calc(-infinity + 50%); left: calc(1 / 0); width: 1; height: 1 }
+         .c { position: absolute; left: min(10 / 0, 3); top: calc(0 / 0); width: 1; height: 1 }",
+        80,
+        20,
+    );
+    let _ = (rect(&dom, a), rect(&dom, b));
+    assert_eq!((rect(&dom, c).x, rect(&dom, c).y), (3, 0));
+}

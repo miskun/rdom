@@ -298,7 +298,11 @@ fn resolve_length_offset(len: &Length, basis: i32, negate: bool) -> Option<i32> 
         Length::Cells(n) => *n,
         Length::Calc(expr) => expr.resolve(&rdom_style::calc::ResolveCtx::new(basis)),
     };
-    Some(if negate { -cells } else { cells })
+    Some(if negate {
+        cells.saturating_neg()
+    } else {
+        cells
+    })
 }
 
 // ── Phase 2 placement ───────────────────────────────────────────

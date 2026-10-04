@@ -216,13 +216,9 @@ impl<'a> CalcParser<'a> {
                 _ => break,
             };
             self.advance();
+            // Dividing by zero is not a parse error: it is IEEE-754 at
+            // evaluation (CSS Values 4 §10.9).
             let rhs = self.parse_factor()?;
-            // CSS Values 4 §10.9: dividing by a literal zero makes the
-            // whole `calc()` invalid at parse time — never a silent 0
-            // at layout time.
-            if op == CalcOp::Div && matches!(rhs.expr, CalcExpr::Number(z) if z == 0.0) {
-                return None;
-            }
             lhs = Node::binary(op, lhs, rhs)?;
         }
         Some(lhs)
@@ -381,6 +377,14 @@ impl<'a> CalcParser<'a> {
 /// expression that does not type-check (CSS Values 4 §10.9) — whether its type suits the
 /// property is the caller's check ([`CalcExpr::kind`]).
 pub fn parse_calc(tokens: &[Token]) -> Option<CalcExpr> {
+    let expr = parse_math(tokens)?;
+    expr.kind()?;
+    Some(expr)
+}
+
+/// [`parse_calc`] without the type check, for a caller that types the
+/// expression itself ([`CalcExpr::kind_as_number`]).
+pub(crate) fn parse_math(tokens: &[Token]) -> Option<CalcExpr> {
     if !looks_like_calc(tokens) {
         return None;
     }
@@ -390,7 +394,6 @@ pub fn parse_calc(tokens: &[Token]) -> Option<CalcExpr> {
     if parser.peek().is_some() {
         return None;
     }
-    expr.kind()?;
     Some(expr)
 }
 

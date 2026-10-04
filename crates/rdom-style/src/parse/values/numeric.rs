@@ -9,7 +9,7 @@
 //! result onto its own storage type, so a unit or math function added
 //! here reaches every property at once.
 
-use super::calc::{looks_like_calc, parse_calc};
+use super::calc::{looks_like_calc, parse_calc, parse_math};
 use crate::calc::{CalcExpr, CalcKind, CalcUnit, ResolveCtx};
 use crate::parse::token::Token;
 
@@ -98,11 +98,9 @@ pub(crate) fn number(component: &[Token], range: Range) -> Option<f64> {
         [Token::Number(n)] => f64::from(*n),
         [Token::Float(f)] => *f,
         _ if !negative && looks_like_calc(rest) => {
-            let expr = parse_calc(rest).filter(|e| e.kind() == Some(CalcKind::Number))?;
-            // A NaN number is 0 (Values 4 §10.9); a range-restricted
-            // property clamps a computed value rather than rejecting it.
-            let v = expr.resolve_f64(&ResolveCtx::new(0));
-            let v = if v.is_nan() { 0.0 } else { v };
+            let v = number_math(parse_calc(rest)?)?;
+            // A range-restricted property clamps a computed value
+            // rather than rejecting it.
             return Some(if range == Range::NonNegative {
                 v.max(0.0)
             } else {
@@ -114,11 +112,93 @@ pub(crate) fn number(component: &[Token], range: Range) -> Option<f64> {
     Some(if negative { -n } else { n })
 }
 
+/// The value of a `<number>` math function, evaluated now (a number
+/// property's value is known at parse time): `None` unless it is of type
+/// `<number>` and holds nothing that needs a basis — a percentage (which
+/// a `<number>` property does not take, CSS Values 4 §10.9) or a
+/// viewport unit (`sign(10vw - 40)`; rdom resolves numbers at parse
+/// time, DIVERGENCES). A NaN result is 0 (§10.9); an infinite one is
+/// left for the property to clamp.
+fn number_math(expr: CalcExpr) -> Option<f64> {
+    if expr.kind() != Some(CalcKind::Number) || expr.contains_percent() || expr.needs_context() {
+        return None;
+    }
+    let v = expr.resolve_f64(&ResolveCtx::new(0));
+    Some(if v.is_nan() { 0.0 } else { v })
+}
+
+/// Parse a value as `<number> | <percentage>` where the percentage is a
+/// number (`opacity`, CSS Color 4 §11.1: 50% is 0.5): a literal of
+/// either, or a math function typed with percentages as numbers
+/// ([`CalcExpr::kind_as_number`]) — `calc(50%)`, `min(1, 50%)`. A
+/// leading `-` is the literal's sign.
+pub(crate) fn number_or_percentage(value: &[Token]) -> Option<f64> {
+    match value {
+        [Token::Percentage(p)] => Some(*p / 100.0),
+        [Token::Delim('-'), Token::Percentage(p)] => Some(-*p / 100.0),
+        _ if looks_like_calc(value) => {
+            let expr = parse_math(value)?;
+            if expr.kind_as_number() != Some(CalcKind::Number) || expr.needs_context() {
+                return None;
+            }
+            // A percentage is the number divided by 100: a basis of 1.
+            let v = expr.resolve_f64(&ResolveCtx::new(1));
+            Some(if v.is_nan() { 0.0 } else { v })
+        }
+        _ => number(value, Range::Any),
+    }
+}
+
+/// Parse a value as an `<integer>` (CSS Values 4 §5.2): an integer
+/// literal, or a math function of type `<number>` rounded to the nearest
+/// integer, a half toward +∞ (§10.9). Infinities saturate; the caller
+/// clamps to its property's range.
+pub(crate) fn integer(value: &[Token]) -> Option<i64> {
+    match value {
+        [Token::Number(n)] => Some(i64::from(*n)),
+        [Token::Delim('-'), Token::Number(n)] => Some(-i64::from(*n)),
+        _ if looks_like_calc(value) => {
+            let v = number_math(parse_calc(value)?)?;
+            // `as` saturates at the `i64` range.
+            Some((v + 0.5).floor() as i64)
+        }
+        _ => None,
+    }
+}
+
+/// Parse a value as a `<percentage>`: a literal, or a math function of
+/// percentages alone (`calc(10% + 5%)`, [`CalcKind::Percent`]). Returns
+/// the percentage (50% is 50). Used to validate registered
+/// `<percentage>` values.
+pub(crate) fn percentage(value: &[Token]) -> Option<f64> {
+    match value {
+        [Token::Percentage(p)] => Some(*p),
+        [Token::Delim('-'), Token::Percentage(p)] => Some(-*p),
+        _ if looks_like_calc(value) => {
+            let expr = parse_calc(value)?;
+            if expr.kind() != Some(CalcKind::Percent) || expr.needs_context() {
+                return None;
+            }
+            // Against a basis of 100 a percentage is itself.
+            let v = expr.resolve_f64(&ResolveCtx::new(100));
+            Some(if v.is_nan() { 0.0 } else { v })
+        }
+        _ => None,
+    }
+}
+
+/// The largest angle magnitude, in degrees: an infinite angle clamps to
+/// it (CSS Values 4 §10.9). `f32::MAX`, the widest an angle is stored.
+pub const MAX_ANGLE_DEGREES: f64 = f32::MAX as f64;
+
 /// Parse a value as an `<angle>` (CSS Values 4 §7.1): a dimension in
 /// `deg`, `grad`, `rad` or `turn`, or a math function of type `<angle>`
 /// (`calc(1turn - 90deg)`, `atan2(1, 1)`). Returns degrees, the unit the
-/// color hues take. A bare number is no angle here — a hue grammar that
-/// takes one parses it itself.
+/// color hues take, always finite: NaN is 0 and an infinity clamps to
+/// [`MAX_ANGLE_DEGREES`] (§10.9). A math function holding a percentage
+/// or a viewport unit is no angle here (`atan2(50%, 10)`: nothing to
+/// resolve either against). A bare number is no angle either — a hue
+/// grammar that takes one parses it itself.
 pub fn parse_angle(value: &[Token]) -> Option<f64> {
     let (negative, rest) = match value {
         [Token::Delim('-'), rest @ ..] => (true, rest),
@@ -133,12 +213,24 @@ pub fn parse_angle(value: &[Token]) -> Option<f64> {
             }
             .resolve_f64(&ResolveCtx::new(0))
         }
-        _ if !negative && looks_like_calc(rest) => parse_calc(rest)
-            .filter(|e| e.kind() == Some(CalcKind::Angle))?
-            .resolve_f64(&ResolveCtx::new(0)),
+        _ if !negative && looks_like_calc(rest) => {
+            let expr = parse_calc(rest)?;
+            if expr.kind() != Some(CalcKind::Angle)
+                || expr.contains_percent()
+                || expr.needs_context()
+            {
+                return None;
+            }
+            expr.resolve_f64(&ResolveCtx::new(0))
+        }
         _ => return None,
     };
     let degrees = radians.to_degrees();
+    let degrees = if degrees.is_nan() {
+        0.0
+    } else {
+        degrees.clamp(-MAX_ANGLE_DEGREES, MAX_ANGLE_DEGREES)
+    };
     Some(if negative { -degrees } else { degrees })
 }
 

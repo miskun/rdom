@@ -1,56 +1,33 @@
-//! Scalar numeric values: `opacity`, unsigned cell counts (with a
-//! constant `calc()`), `z-index` and `aspect-ratio`.
+//! Scalar numeric values: `opacity`, `z-index` and `aspect-ratio`.
 
-use super::calc::{looks_like_calc, parse_calc};
-use super::numeric::{Range, components, number};
+use super::calc::looks_like_calc;
+use super::numeric::{Range, components, integer, number, number_or_percentage};
 use crate::layout::ZIndex;
 use crate::parse::token::Token;
 
-/// `opacity: <number> | <percentage>` (a math function of type
-/// `<number>` included) — clamped to `0..=1` per CSS
+/// `opacity: <number> | <percentage>` (a math function included, with
+/// percentages as numbers: `min(1, 50%)`) — clamped to `0..=1` per CSS
 /// Color 4 §11.1; a percentage is the number divided by 100. The
 /// tokenizer delivers the literal whole (`Number` for integers, `Float`
 /// otherwise), so `0.05` is 0.05.
 pub fn parse_opacity(value: &[Token]) -> Option<f32> {
     // Out-of-range values (including negatives, which arrive as
     // `Delim('-')` + literal) are valid and clamp — CSS Color 4 §11.1.
-    let n = match value {
-        [Token::Percentage(p)] => *p / 100.0,
-        [Token::Delim('-'), Token::Percentage(p)] => -*p / 100.0,
-        _ => number(value, Range::Any)?,
-    };
+    let n = number_or_percentage(value)?;
     Some((n as f32).clamp(0.0, 1.0))
 }
 
-pub fn parse_unsigned(value: &[Token]) -> Option<u16> {
-    if value.len() == 1
-        && let Token::Number(n) = &value[0]
-    {
-        // Out of `u16` range (or negative) is invalid, not wrapped.
-        return u16::try_from(*n).ok();
-    }
-    // Constant `calc(...)` — a percent-bearing form has no
-    // sensible static basis here (padding/margin/gap don't carry
-    // a Calc-bearing type), so we reject it. The block parser's
-    // warning channel surfaces the rejection.
-    if looks_like_calc(value) {
-        let expr = parse_calc(value)?;
-        if expr.contains_percent() {
-            return None;
-        }
-        let cells = expr.resolve(&crate::calc::ResolveCtx::new(0));
-        return Some(cells.max(0).min(u16::MAX as i32) as u16);
-    }
-    None
-}
-
-/// `auto` keyword | signed integer.
+/// `auto` keyword | `<integer>` (a math function rounded to one
+/// included, CSS Values 4 §10.9). A literal outside `i16` is invalid; a
+/// math function's result clamps to it.
 pub fn parse_z_index(value: &[Token]) -> Option<ZIndex> {
     match value {
         [Token::Ident(s)] if s.eq_ignore_ascii_case("auto") => Some(ZIndex::Auto),
-        [Token::Number(n)] => i16::try_from(*n).ok().map(ZIndex::Value),
-        [Token::Delim('-'), Token::Number(n)] => i16::try_from(-*n).ok().map(ZIndex::Value),
-        _ => None,
+        _ if looks_like_calc(value) => {
+            let n = integer(value)?.clamp(i64::from(i16::MIN), i64::from(i16::MAX));
+            Some(ZIndex::Value(n as i16))
+        }
+        _ => i16::try_from(integer(value)?).ok().map(ZIndex::Value),
     }
 }
 

@@ -203,3 +203,40 @@ fn registered_angle_property_transitions() {
         "sin(45deg) × 20 = 14.1"
     );
 }
+
+/// `C2G-CALC-SEMANTICS` — CSS Values 4 §10.9: an infinite angle clamps
+/// to the largest finite one, so a registered `<angle>` transitioning
+/// between `calc(-infinity * 1deg)` and `calc(infinity * 1deg)` animates
+/// through finite, valid `<angle>`s (it used to interpolate ∞ − ∞ into
+/// `NaNdeg`, which a consumer could not use).
+#[test]
+fn registered_angle_transition_between_infinities_stays_finite() {
+    let css = |angle: &str| {
+        let parsed = rdom_css::parse(&format!(
+            "@property --a {{ syntax: '<angle>'; inherits: false; initial-value: 0deg }} \
+             div {{ --a: {angle}; transition: --a 100ms linear; width: calc(sign(var(--a)) * 5 + 10) }}"
+        ));
+        assert!(parsed.warnings.is_empty(), "{:?}", parsed.warnings);
+        parsed.stylesheet
+    };
+    let (mut dom, div) = div();
+    let (from, to) = (css("calc(-infinity * 1deg)"), css("calc(infinity * 1deg)"));
+    let start = Instant::now();
+    let mut reg = AnimationRegistry::new();
+    reg.set_registered_properties(std::rc::Rc::new(
+        crate::style::cascade::PropertyRegistry::new(&[&from]),
+    ));
+    dom.cascade(&from);
+    diff_and_register(&mut dom, &mut reg, start);
+    dom.cascade(&to);
+    diff_and_register(&mut dom, &mut reg, start);
+    assert_eq!(reg.len(), 1, "the angle animates");
+    frame(&mut dom, &mut reg, &to, start + Duration::from_millis(25));
+    assert_eq!(
+        computed(&dom, div).width,
+        crate::layout::Size::Fixed(5),
+        "a quarter of the way from the most negative angle: sign is -1"
+    );
+    frame(&mut dom, &mut reg, &to, start + Duration::from_millis(100));
+    assert_eq!(computed(&dom, div).width, crate::layout::Size::Fixed(15));
+}

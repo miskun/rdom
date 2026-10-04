@@ -24,9 +24,9 @@
 //! Resolution evaluates in `f64` and returns a signed integer-cell value
 //! (`i32` — rdom layout uses `i32` for offsets and clamps to
 //! `i16`/`u16` at the property boundary), rounded half-to-even once,
-//! after the whole expression: the value becomes a length there. A NaN
-//! result is 0 and an infinite one clamps to the range (Values 4
-//! §10.9).
+//! after the whole expression: the value becomes a length there.
+//! Division is IEEE-754 (`1/0` is +∞, `0/0` NaN); a NaN result is 0
+//! and an infinite one clamps to the range (Values 4 §10.9).
 
 use std::fmt;
 
@@ -131,14 +131,10 @@ impl CalcExpr {
     /// Resolve to an integer-cell value given the containing-block
     /// dimensions. Float arithmetic during the walk; round half-
     /// to-even on the final result. NaN resolves to 0 and ±∞ clamps
-    /// to the `i32` range (CSS Values 4 §10.9).
+    /// to `±i32::MAX` (CSS Values 4 §10.9; symmetric, so a consumer
+    /// can negate the result).
     pub fn resolve(&self, cx: &ResolveCtx) -> i32 {
-        let v = self.resolve_f64(cx);
-        if v.is_nan() {
-            0
-        } else {
-            round_half_to_even(v.clamp(f64::from(i32::MIN), f64::from(i32::MAX)))
-        }
+        to_cells(self.resolve_f64(cx))
     }
 
     /// Float-domain resolution. Pub for tests + paint paths that
@@ -157,21 +153,10 @@ impl CalcExpr {
                     CalcOp::Add => l + r,
                     CalcOp::Sub => l - r,
                     CalcOp::Mul => l * r,
-                    CalcOp::Div => {
-                        if r == 0.0 {
-                            // CSS Values L3 §10.9: division by zero
-                            // makes the calc() invalid. We can't
-                            // signal "invalid" from here — return 0
-                            // and trust the parser to have warned
-                            // on a literal `/ 0`. Runtime-computed
-                            // zero divisors (e.g., a percent that
-                            // resolves to 0 in the denominator) just
-                            // saturate.
-                            0.0
-                        } else {
-                            l / r
-                        }
-                    }
+                    // IEEE-754, as CSS Values 4 §10.9 requires: `1/0`
+                    // is +∞, `0/0` NaN — at any depth; the top level
+                    // clamps (`resolve`).
+                    CalcOp::Div => l / r,
                 }
             }
             CalcExpr::Function { func, args } => eval_function(*func, args, cx),
@@ -210,6 +195,18 @@ impl CalcExpr {
     }
 }
 
+/// A top-level result in whole cells (CSS Values 4 §10.9): NaN is 0,
+/// anything else clamps to `±i32::MAX` — a symmetric range, so the
+/// result negates without overflow — and rounds half to even.
+pub fn to_cells(v: f64) -> i32 {
+    if v.is_nan() {
+        0
+    } else {
+        let max = f64::from(i32::MAX);
+        round_half_to_even(v.clamp(-max, max))
+    }
+}
+
 /// Round half-to-even (banker's rounding) for the final calc()
 /// result. Matches CSS rounding when integer-quantised.
 pub fn round_half_to_even(v: f64) -> i32 {
@@ -223,5 +220,7 @@ pub fn round_half_to_even(v: f64) -> i32 {
     }
 }
 
+#[cfg(test)]
+mod semantics_tests;
 #[cfg(test)]
 mod tests;

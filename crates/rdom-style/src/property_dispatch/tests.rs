@@ -614,18 +614,18 @@ fn calc_serialization_keeps_parentheses() {
     );
 }
 
-/// Division by a literal zero is invalid at parse time (CSS Values 4
-/// §10.9), not a silent 0 at layout time.
+/// Division by zero is valid (CSS Values 4 §10.9: IEEE-754, `10 / 0`
+/// is +∞), and the width clamps to its range; it used to be rejected at
+/// parse time (C2G-CALC-SEMANTICS).
 #[test]
-fn calc_division_by_literal_zero_is_rejected() {
+fn calc_division_by_zero_is_infinite_not_invalid() {
+    let mut s = TuiStyle::new();
+    set("width", "calc(10 / 0)", &mut s).unwrap();
     assert_eq!(
-        set("width", "calc(10 / 0)", &mut TuiStyle::new()),
-        Err(DispatchError::InvalidValue)
+        s.width,
+        Some(Value::Specified(crate::layout::Size::Fixed(u16::MAX)))
     );
-    assert_eq!(
-        set("width", "calc(10 / 0.0)", &mut TuiStyle::new()),
-        Err(DispatchError::InvalidValue)
-    );
+    set("width", "calc(10 / 0.0)", &mut TuiStyle::new()).unwrap();
     set("width", "calc(10 / 2)", &mut TuiStyle::new()).unwrap();
 }
 

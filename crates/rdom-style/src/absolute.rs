@@ -113,12 +113,8 @@ pub(crate) fn cells_u16(v: f64) -> u16 {
     cells_i32(v).clamp(0, i32::from(u16::MAX)) as u16
 }
 
-/// Cells rounded onto the grid; NaN is 0, infinities clamp (CSS Values
-/// 4 §10.9).
+/// Cells rounded onto the grid; NaN is 0, infinities clamp to
+/// `±i32::MAX` (CSS Values 4 §10.9).
 pub(crate) fn cells_i32(v: f64) -> i32 {
-    if v.is_nan() {
-        0
-    } else {
-        crate::calc::round_half_to_even(v.clamp(f64::from(i32::MIN), f64::from(i32::MAX)))
-    }
+    crate::calc::to_cells(v)
 }

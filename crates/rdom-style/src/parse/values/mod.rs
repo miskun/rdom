@@ -35,7 +35,8 @@ mod length;
 mod number;
 mod numeric;
 
-pub use numeric::parse_angle;
+pub use numeric::{MAX_ANGLE_DEGREES, parse_angle};
+pub(crate) use numeric::{Range, integer, number, percentage};
 mod spacing;
 mod transition;
 
@@ -51,7 +52,7 @@ pub use length::{
     parse_flex_factor, parse_flex_shorthand, parse_inset_shorthand, parse_length, parse_max_size,
     parse_min_size, parse_size,
 };
-pub use number::{parse_aspect_ratio, parse_opacity, parse_unsigned, parse_z_index};
+pub use number::{parse_aspect_ratio, parse_opacity, parse_z_index};
 pub use spacing::{
     current_margin, current_padding, parse_gap, parse_margin_longhand, parse_margin_shorthand,
     parse_padding_shorthand, parse_padding_value,

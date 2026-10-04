@@ -518,3 +518,17 @@ row comes from.
   `App` sets its terminal's size each frame (its `cascaded_viewport` still decides the full
   re-cascade). Decided: `cascade_all_in` / `cascade_subtrees_all_in` removed (unreleased) — one way
   to give the size. `Viewport` joins the prelude. Phase 14's `@media` reads the same value.
+- 2026-10-05 — C2G-CALC-SEMANTICS: IEEE division (parse-time literal rejection and the runtime
+  zero-gives-0 both gone); `calc::to_cells` clamps a top-level result to `±i32::MAX` (symmetric;
+  `cells_i32` and `CalcExpr::resolve` share it) and `right` / `bottom` negate with `saturating_neg`;
+  `CalcKind::Percent` with `kind()` (percent joins a length or number as a length) and
+  `kind_as_number()` (percent is a number: `opacity`); `numeric::number_math` rejects `<number>` math
+  holding a percentage or a viewport unit, `parse_angle` likewise and clamps to
+  `MAX_ANGLE_DEGREES` (NaN 0); `numeric::integer` (round half toward +∞) feeds `z-index` (clamped to
+  `i16`) and registered `<integer>`; registered `<number>` / `<percentage>` take math. Decided:
+  viewport units in `<number>` / `<angle>` math are rejected, not kept symbolic — every number
+  property stores a resolved `f32`, and none of them is a plausible place for `vw`; the `<length> /
+  <length>` ban is kept (one length unit: the ratio is the numbers' division). Both in DIVERGENCES.
+  `parse_unsigned` (public, unused) deleted. Changed expectations: `calc(10 / 0)` was rejected
+  (now `u16::MAX` cells), `10 / 0` resolved to 0 (now `i32::MAX`), `opacity: calc(50%)` was invalid
+  (now 0.5).
