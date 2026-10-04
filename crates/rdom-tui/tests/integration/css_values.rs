@@ -1,0 +1,177 @@
+//! CSS-COMPLETE Phase 2 — values, units and math functions, end to end:
+//! a sheet parsed by `rdom_css`, cascaded and laid out by `rdom-tui`.
+//! One section per item (`C2-*`); each test cites the spec text that
+//! fixes the expected value.
+
+use rdom_tui::render::Rect;
+use rdom_tui::style::cascade::computed_of;
+use rdom_tui::{CascadeExt, LayoutExt, LayoutRect, NodeId, TuiDom, TuiNodeExt};
+
+fn el(dom: &mut TuiDom, parent: NodeId, class: &str) -> NodeId {
+    let id = dom.create_element("div");
+    if !class.is_empty() {
+        dom.set_attribute(id, "class", class).unwrap();
+    }
+    dom.append_child(parent, id).unwrap();
+    id
+}
+
+/// Cascade `css` (strict: no warning allowed) and lay out at `cols` × `rows`.
+fn lay_out(dom: &mut TuiDom, css: &str, cols: u16, rows: u16) {
+    let sheet = rdom_css::from_css_strict(css).expect("sheet parses without warnings");
+    dom.cascade(&sheet);
+    dom.layout_dom(Rect::new(0, 0, cols, rows));
+}
+
+fn rect(dom: &TuiDom, id: NodeId) -> LayoutRect {
+    dom.node(id).layout_rect().expect("laid out")
+}
+
+fn content(dom: &TuiDom, id: NodeId) -> LayoutRect {
+    dom.node(id).content_layout_rect().expect("laid out")
+}
+
+// ── C2-PERCENT ───────────────────────────────────────────────────────
+
+/// CSS Box 3 §4.2 / CSS 2.1 §8.4: a `padding` percentage "refers to the
+/// logical width of the containing block" — on all four sides, so the
+/// vertical padding of a 40 × 30 containing block is 10% of 40.
+#[test]
+fn percent_padding_resolves_against_containing_block_width_on_every_side() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let cb = el(&mut dom, root, "cb");
+    let child = el(&mut dom, cb, "in");
+    lay_out(
+        &mut dom,
+        ".cb { width: 40; height: 30 } .in { padding: 10%; height: 20 }",
+        80,
+        40,
+    );
+    let (outer, inner) = (rect(&dom, child), content(&dom, child));
+    assert_eq!(inner.x - outer.x, 4, "padding-left = 10% of 40");
+    assert_eq!(
+        inner.y - outer.y,
+        4,
+        "padding-top = 10% of the width 40, not of the height"
+    );
+    assert_eq!(outer.width - inner.width, 8, "left + right");
+    assert_eq!(
+        outer.height - inner.height,
+        8,
+        "top + bottom, against the width"
+    );
+}
+
+/// The same rule in a flex item's intrinsic (content-based) size: the
+/// horizontal padding that narrows the text's wrap width is a share of
+/// the containing block's width (40), not of the item's own (30). With
+/// 10 + 10 padding the 14-column text wraps onto two rows inside 10.
+#[test]
+fn percent_padding_in_intrinsic_size_uses_the_containing_block_width() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let col = el(&mut dom, root, "col");
+    let item = el(&mut dom, col, "in");
+    let text = dom.create_text_node("aaaa bbbb cccc");
+    dom.append_child(item, text).unwrap();
+    lay_out(
+        &mut dom,
+        ".col { display: flex; flex-direction: column; width: 40; height: 20 }
+         .in { width: 30; padding: 0 25% }",
+        80,
+        40,
+    );
+    assert_eq!(content(&dom, item).width, 10, "30 - 2 × 25% of 40");
+    assert_eq!(rect(&dom, item).height, 2, "two rows at a wrap width of 10");
+}
+
+/// CSS Box 3 §3.2 / CSS 2.1 §8.3: margin percentages refer to the
+/// containing block's width, vertical margins included.
+#[test]
+fn percent_margin_resolves_against_containing_block_width() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let cb = el(&mut dom, root, "cb");
+    let child = el(&mut dom, cb, "in");
+    lay_out(
+        &mut dom,
+        ".cb { width: 40; height: 30 } .in { margin: 10% 0 0 5%; height: 2 }",
+        80,
+        40,
+    );
+    let (parent, r) = (rect(&dom, cb), rect(&dom, child));
+    assert_eq!(r.y - parent.y, 4, "margin-top = 10% of the width 40");
+    assert_eq!(r.x - parent.x, 2, "margin-left = 5% of 40");
+    assert_eq!(r.width, 38, "auto width fills what the margin leaves");
+}
+
+/// CSS Position 3 §3.1: inset percentages refer to the containing
+/// block's size on the matching axis (`top` / `bottom` its height,
+/// `left` / `right` its width). The `inset` shorthand takes the same
+/// values.
+#[test]
+fn percent_insets_resolve_against_the_containing_block() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let cb = el(&mut dom, root, "cb");
+    let a = el(&mut dom, cb, "a");
+    let b = el(&mut dom, cb, "b");
+    let r = el(&mut dom, cb, "r");
+    lay_out(
+        &mut dom,
+        ".cb { position: relative; width: 40; height: 20 }
+         .a { position: absolute; top: 50%; left: 25%; width: 2; height: 2 }
+         .b { position: absolute; inset: 10% auto auto calc(50% + 1); width: 2; height: 2 }
+         .r { position: relative; top: 10%; left: -10%; height: 1 }",
+        80,
+        40,
+    );
+    let p = rect(&dom, cb);
+    assert_eq!((rect(&dom, a).x - p.x, rect(&dom, a).y - p.y), (10, 10));
+    assert_eq!((rect(&dom, b).x - p.x, rect(&dom, b).y - p.y), (21, 2));
+    assert_eq!((rect(&dom, r).x - p.x, rect(&dom, r).y - p.y), (-4, 2));
+}
+
+/// CSS Sizing 3 §5.2: `min-*` / `max-*` percentages resolve against the
+/// containing block's size on the same axis, and clamp the used size.
+#[test]
+fn percent_min_and_max_sizes_clamp_against_the_containing_block() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let cb = el(&mut dom, root, "cb");
+    let a = el(&mut dom, cb, "a");
+    let b = el(&mut dom, cb, "b");
+    let c = el(&mut dom, cb, "c");
+    let d = el(&mut dom, cb, "d");
+    let row = el(&mut dom, root, "row");
+    let f = el(&mut dom, row, "f");
+    lay_out(
+        &mut dom,
+        ".cb { width: 40; height: 20 }
+         .a { width: 5; min-width: 50%; height: 1 }
+         .b { width: 30; max-width: 25%; height: 1 }
+         .c { height: 1; min-height: calc(25% + 2) }
+         .d { height: 18; max-height: 25% }
+         .row { display: flex; width: 40; height: 3 }
+         .f { width: 30; max-width: 50% }",
+        80,
+        40,
+    );
+    assert_eq!(rect(&dom, a).width, 20, "min-width: 50% of 40");
+    assert_eq!(rect(&dom, b).width, 10, "max-width: 25% of 40");
+    assert_eq!(rect(&dom, c).height, 7, "min-height: 25% of 20, plus 2");
+    assert_eq!(rect(&dom, d).height, 5, "max-height: 25% of 20");
+    assert_eq!(rect(&dom, f).width, 20, "flex item: max-width 50% of 40");
+}
+
+/// CSS Color 4 §11.1: `opacity: <opacity-value>` is `<number> |
+/// <percentage>`; a percentage is the number divided by 100.
+#[test]
+fn percent_opacity_is_the_fraction() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let a = el(&mut dom, root, "a");
+    lay_out(&mut dom, ".a { opacity: 50% }", 10, 5);
+    assert_eq!(computed_of(&dom, a).opacity, 0.5);
+}

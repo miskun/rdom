@@ -392,7 +392,7 @@ pub trait TuiNodeMutExt<'a> {
         self.write_inline_style(|s| s.min_width = v.map(Value::Specified));
         self
     }
-    fn set_max_width(&mut self, v: Option<u16>) -> &mut Self {
+    fn set_max_width(&mut self, v: Option<rdom_style::layout::MaxSize>) -> &mut Self {
         self.write_inline_style(|s| s.max_width = v.map(Value::Specified));
         self
     }
@@ -400,7 +400,7 @@ pub trait TuiNodeMutExt<'a> {
         self.write_inline_style(|s| s.min_height = v.map(Value::Specified));
         self
     }
-    fn set_max_height(&mut self, v: Option<u16>) -> &mut Self {
+    fn set_max_height(&mut self, v: Option<rdom_style::layout::MaxSize>) -> &mut Self {
         self.write_inline_style(|s| s.max_height = v.map(Value::Specified));
         self
     }
@@ -515,14 +515,14 @@ mod tests {
 
     #[test]
     fn min_max_constraints() {
-        use rdom_style::layout::MinSize;
+        use rdom_style::layout::{MaxSize, MinSize};
         let mut dom: TuiDom = TuiDom::new();
         let div = dom.create_element("div");
         dom.node_mut(div)
             .set_min_width(Some(MinSize::Cells(10)))
-            .set_max_width(Some(100))
+            .set_max_width(Some(MaxSize::Cells(100)))
             .set_min_height(Some(MinSize::Cells(5)))
-            .set_max_height(Some(50));
+            .set_max_height(Some(MaxSize::Cells(50)));
         let e = dom.node(div).tui_ext().unwrap();
         use crate::style::Value;
         assert_eq!(
@@ -531,7 +531,7 @@ mod tests {
         );
         assert_eq!(
             e.inline_style_or_empty().max_width,
-            Some(Value::Specified(100))
+            Some(Value::Specified(MaxSize::Cells(100)))
         );
         assert_eq!(
             e.inline_style_or_empty().min_height,
@@ -539,7 +539,7 @@ mod tests {
         );
         assert_eq!(
             e.inline_style_or_empty().max_height,
-            Some(Value::Specified(50))
+            Some(Value::Specified(MaxSize::Cells(50)))
         );
     }
 

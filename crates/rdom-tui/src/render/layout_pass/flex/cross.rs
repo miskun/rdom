@@ -152,9 +152,12 @@ fn resolve_cross_size(
         stretch,
     } = main;
     let (cross_size, min_raw, max) = match direction {
-        Direction::Row => (&computed.height, computed.min_height, computed.max_height),
-        Direction::Column => (&computed.width, computed.min_width, computed.max_width),
+        Direction::Row => (&computed.height, &computed.min_height, &computed.max_height),
+        Direction::Column => (&computed.width, &computed.min_width, &computed.max_width),
     };
+    // `min-*` / `max-*` percentages resolve against the container's
+    // cross size, as the cross size's own do (CSS Sizing 3 §5.2).
+    let max = max.as_ref().and_then(|m| m.cells(Some(container_cross)));
     let cross_dir = match direction {
         Direction::Row => Direction::Column,
         Direction::Column => Direction::Row,
@@ -209,7 +212,6 @@ fn resolve_cross_size(
     // would balloon to its content width, defeating the wrap).
     let min = match min_raw {
         None => None,
-        Some(MinSize::Cells(n)) => Some(n),
         Some(MinSize::Auto) => Some(intrinsic_size(
             dom,
             child_id,
@@ -217,6 +219,7 @@ fn resolve_cross_size(
             container_cross,
             container_width,
         )),
+        Some(m) => m.cells(Some(container_cross)),
     };
     clamp_size(natural, min, max)
 }

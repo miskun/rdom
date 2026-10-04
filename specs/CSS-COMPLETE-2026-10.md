@@ -77,7 +77,7 @@ row comes from.
 
 | Id | Item | Status |
 |---|---|---|
-| C2-PERCENT | `<percentage>` everywhere the spec allows (padding, margin, insets, min/max sizes, opacity) | |
+| C2-PERCENT | `<percentage>` everywhere the spec allows (padding, margin, insets, min/max sizes, opacity) | done |
 | C2-NUMBER | Fractional `<number>` where the spec allows (flex factors, …) | |
 | C2-MINMAX | `min()` / `max()` / `clamp()` | |
 | C2-STEPPED | `round()` / `mod()` / `rem()` / `abs()` / `sign()` | |
@@ -125,7 +125,7 @@ row comes from.
 |---|---|---|
 | C5-BOX-SIZING | `box-sizing` (`content-box` is the CSS initial value — breaking default change, migration note) | |
 | C5-INTRINSIC | `min-content` / `max-content` / `fit-content()` on width / height / min / max | |
-| C5-MINMAX-SIZE | `min-*` / `max-*`: `none`, `%`, `calc()` | |
+| C5-MINMAX-SIZE | `min-*` / `max-*`: `none`, `%`, `calc()` | partial — `max-*: none` remains (`%` and `calc()` landed with C2-PERCENT) |
 | C5-MARGIN-TRIM | `margin-trim` | |
 | C5-CONTAIN-SIZE | `contain-intrinsic-size` (+ longhands) | |
 | C5-LOGICAL | Logical properties: `inline-size` / `block-size` / `min-*` / `max-*`, `margin-*` / `padding-*` / `border-*` / `inset-*` / radius logical forms (horizontal-tb ltr mapping) | |
@@ -163,7 +163,7 @@ row comes from.
 
 | Id | Item | Status |
 |---|---|---|
-| C8-INSETS | `top` / `right` / `bottom` / `left` / `inset`: `%` and `calc()` | |
+| C8-INSETS | `top` / `right` / `bottom` / `left` / `inset`: `%` and `calc()` | done (with C2-PERCENT) |
 | C8-Z-INDEX | `z-index` full integer range | |
 | C8-FLOAT | `float` / `clear` (line-box exclusion, clearance) | |
 | C8-OVERFLOW-CLIP | `overflow: clip`, two-value `overflow`, `overflow-clip-margin`, logical `overflow-block` / `-inline` | |
@@ -417,3 +417,11 @@ row comes from.
   complete.
 - 2026-10-05 — Phase 1 closed: 11 items + 20 gate fixes. The gate fixes' re-review is folded into the
   Phase 2 gate (range from the first C1G commit).
+- 2026-10-04 — C2-PERCENT: every length-bearing property parses through one leaf
+  (`rdom-style/src/parse/values/numeric.rs::length_percentage`) and one component splitter, so
+  later units and math functions reach all of them at once. `MinSize` gains `Calc`, `max-*` become
+  `MaxSize` (breaking). Found: intrinsic sizing resolved percentage padding against the box's own
+  width / its cross budget (fixed, test). Also closes C8-INSETS and the `%` / `calc()` half of
+  C5-MINMAX-SIZE. Split: `layout_pass/mod.rs` (852) → `tree`, `auto_height`, `scroll_extent`,
+  `gutter`; `layout_pass/intrinsic.rs` (621) → `intrinsic/{mod,inline}.rs` (the duplicated
+  wrap-row measurement is one `wrapped_rows`).

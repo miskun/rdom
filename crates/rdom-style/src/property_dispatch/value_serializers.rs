@@ -70,7 +70,7 @@ pub(super) fn serialize_size(s: &Size) -> String {
         Size::Fixed(n) => n.to_string(),
         Size::Flex(n) => format!("{n}fr"),
         Size::Percent(p) => format!("{p}%"),
-        Size::Calc(expr) => format!("calc({})", serialize_calc(expr)),
+        Size::Calc(expr) => serialize_math(expr),
     }
 }
 
@@ -78,6 +78,23 @@ pub(super) fn serialize_min_size(m: &crate::layout::MinSize) -> String {
     match m {
         crate::layout::MinSize::Auto => "auto".to_string(),
         crate::layout::MinSize::Cells(n) => n.to_string(),
+        crate::layout::MinSize::Calc(expr) => serialize_math(expr),
+    }
+}
+
+pub(super) fn serialize_max_size(m: &crate::layout::MaxSize) -> String {
+    match m {
+        crate::layout::MaxSize::Cells(n) => n.to_string(),
+        crate::layout::MaxSize::Calc(expr) => serialize_math(expr),
+    }
+}
+
+/// A stored math expression as a value: a lone percentage as itself
+/// (`10%`, as written), anything else wrapped in `calc()`.
+pub(super) fn serialize_math(expr: &crate::calc::CalcExpr) -> String {
+    match expr {
+        crate::calc::CalcExpr::Percent(_) => serialize_calc(expr),
+        _ => format!("calc({})", serialize_calc(expr)),
     }
 }
 
@@ -85,7 +102,7 @@ pub(super) fn serialize_margin_value(v: &crate::layout::MarginValue) -> String {
     match v {
         crate::layout::MarginValue::Auto => "auto".to_string(),
         crate::layout::MarginValue::Cells(n) => n.to_string(),
-        crate::layout::MarginValue::Calc(expr) => format!("calc({})", serialize_calc(expr)),
+        crate::layout::MarginValue::Calc(expr) => serialize_math(expr),
     }
 }
 
@@ -109,7 +126,7 @@ pub(super) fn border_style_keyword(s: crate::layout::BorderStyle) -> &'static st
 pub(super) fn serialize_padding_value(v: &crate::layout::PaddingValue) -> String {
     match v {
         crate::layout::PaddingValue::Cells(n) => n.to_string(),
-        crate::layout::PaddingValue::Calc(expr) => format!("calc({})", serialize_calc(expr)),
+        crate::layout::PaddingValue::Calc(expr) => serialize_math(expr),
     }
 }
 
@@ -117,7 +134,7 @@ pub(super) fn serialize_length(l: &Length) -> String {
     match l {
         Length::Auto => "auto".to_string(),
         Length::Cells(n) => n.to_string(),
-        Length::Calc(expr) => format!("calc({})", serialize_calc(expr)),
+        Length::Calc(expr) => serialize_math(expr),
     }
 }
 

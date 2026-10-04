@@ -71,14 +71,14 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 |---|---:|---:|---:|---:|---:|
 | 3.1 Syntax, cascade and inheritance (Syntax 3, Cascade 4/5, CSS 2.1 §6) | 18 | 1 | 0 | 2 | 21 |
 | 3.2 Custom properties (CSS Variables 1) | 6 | 0 | 0 | 1 | 7 |
-| 3.3 Values and units (Values 4) | 5 | 5 | 8 | 4 | 22 |
+| 3.3 Values and units (Values 4) | 6 | 4 | 8 | 4 | 22 |
 | 3.4 Color (Color 4 / 5) | 3 | 3 | 9 | 2 | 17 |
 | 3.5 Backgrounds and borders (Backgrounds 3, Borders 4) | 3 | 5 | 6 | 2 | 16 |
-| 3.6 Box model and sizing (Box 3, Sizing 3/4) | 0 | 6 | 3 | 0 | 9 |
+| 3.6 Box model and sizing (Box 3, Sizing 3/4) | 2 | 4 | 3 | 0 | 9 |
 | 3.7 Display and visibility (Display 3) | 1 | 0 | 8 | 2 | 11 |
 | 3.8 Flexbox and box alignment (Flexbox 1, Align 3) | 2 | 4 | 11 | 0 | 17 |
 | 3.9 Grid (Grid 1/2) | 0 | 0 | 10 | 0 | 10 |
-| 3.10 Positioned layout (Position 3, CSS 2.1 §9) | 1 | 3 | 2 | 1 | 7 |
+| 3.10 Positioned layout (Position 3, CSS 2.1 §9) | 3 | 1 | 2 | 1 | 7 |
 | 3.11 Overflow, scrolling and scrollbars (Overflow 3/4, Scroll Snap 1, Overscroll 1, Scrollbars 1) | 1 | 3 | 10 | 0 | 14 |
 | 3.12 Inline text (Text 3/4, Inline 3, CSS 2.1 §10.8) | 0 | 1 | 14 | 6 | 21 |
 | 3.13 Text decoration (Text Decoration 3/4) | 0 | 1 | 3 | 2 | 6 |
@@ -93,7 +93,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 0 | 0 | 6 | 3 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **66** | **44** | **147** | **50** | **307** |
+| **Total** | **71** | **39** | **147** | **50** | **307** |
 
 Of the 191 Partial / Missing rows, **123 were not documented** in `DIVERGENCES.md` when audited (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3.
 
@@ -256,7 +256,7 @@ dropped:
 | Item | Class | Detail | Doc'd | Where |
 |---|---|---|---|---|
 | `<integer>` cells (unitless) | Supported | rdom's length unit; see §4. | Yes | `V/length.rs`, `V/spacing.rs` |
-| `<percentage>` | Partial | `width` / `height` / `gap` / inside `calc()`; rejected bare on `padding` / `margin` (documented), `top` / `right` / `bottom` / `left` / `inset` (doc says accepted), `min-*` / `max-*` / `flex-basis`. | Wrong | `V/length.rs::parse_length`, `V/number.rs::parse_unsigned`, `parse_min_size` |
+| `<percentage>` | Supported | Every length-bearing property (`width` / `height`, `min-*` / `max-*`, `padding`, `margin`, the insets, `gap`), bare and in math functions, each against its spec's basis; `opacity`. (`flex-basis` takes it when the property lands, C6-FLEX-LONGHANDS.) C2-PERCENT. | — | `V/numeric.rs::length_percentage` |
 | `<number>` (fractional) | Partial | `opacity`, `cubic-bezier()`, times; flex factors are integers (documented). | Yes | `V/number.rs`, `V/length.rs` |
 | `calc()` | Supported | `+ - * /`, parentheses, nested `calc()`, percent-bearing forms resolved at layout, divide-by-zero rejected. Whitespace relaxation documented. | Yes | `CALC` |
 | `min()` / `max()` / `clamp()` | Missing | Comparison functions. | Yes | `CALC` |
@@ -325,12 +325,12 @@ dropped:
 
 | Item | Class | Detail | Doc'd | Where |
 |---|---|---|---|---|
-| `margin` / `margin-*` | Partial | Signed cells, `auto`, `calc()`; bare `%` rejected (documented); longhands share storage (documented). | Yes | `V/spacing.rs` |
-| `padding` / `padding-*` | Partial | Cells, `calc()`; bare `%` rejected (documented). | Yes | `V/spacing.rs` |
+| `margin` / `margin-*` | Supported | Signed cells, `auto`, `%`, `calc()` (C2-PERCENT); longhands share storage (documented). | — | `V/spacing.rs` |
+| `padding` / `padding-*` | Supported | Cells, `%`, `calc()` (C2-PERCENT). | — | `V/spacing.rs` |
 | `margin-trim` | Missing | Trim children's margins at the container edges. | No | `BLOCK`, `FLEX` |
 | `width` / `height` | Partial | `auto`, cells, `%`, `calc()`, rdom `fr`; missing `min-content` / `max-content` / `fit-content` / `fit-content(<l>)` / `stretch`. | No | `V/length.rs::parse_size`, `BOX::Size` |
-| `min-width` / `min-height` | Partial | `auto` / cells only; no `%`, `calc()`, intrinsic keywords. | No | `V/length.rs::parse_min_size` |
-| `max-width` / `max-height` | Partial | Cells / constant `calc()` only; `none` (the initial value), `%`, percent `calc()`, intrinsic keywords rejected. | No | `V/number.rs::parse_unsigned` |
+| `min-width` / `min-height` | Partial | `auto`, cells, `%`, `calc()` (C2-PERCENT); no intrinsic keywords (C5-INTRINSIC). | No | `V/length.rs::parse_min_size` |
+| `max-width` / `max-height` | Partial | Cells, `%`, `calc()` (C2-PERCENT); `none` (the initial value, C5-MINMAX-SIZE) and intrinsic keywords rejected. | No | `V/length.rs::parse_max_size` |
 | `box-sizing` | Missing | rdom is implicitly `border-box`; `content-box` (CSS initial) is not expressible. | No | `BLOCK/width.rs`, `FLEX` |
 | `aspect-ratio` | Partial | `<int> / <int>` only (documented). | Yes | `V/number.rs` |
 | `contain-intrinsic-size` (+ longhands) | Missing | Placeholder size for `content-visibility: auto`. | No | `DISP`, layout |
@@ -393,8 +393,8 @@ dropped:
 | Item | Class | Detail | Doc'd | Where |
 |---|---|---|---|---|
 | `position` | Supported | `static` / `relative` / `absolute` / `fixed` / `sticky` (sticky containing block simplified, documented). | Yes | `V/keyword.rs::parse_position`, `POS` |
-| `top` / `right` / `bottom` / `left` | Partial | `auto`, signed cells, `calc()`; bare `%` rejected. | Wrong | `V/length.rs::parse_length` |
-| `inset` | Partial | 1–4 values of `auto` / signed cells; `calc()` and `%` rejected. | No | `V/length.rs::parse_inset_shorthand` |
+| `top` / `right` / `bottom` / `left` | Supported | `auto`, signed cells, `%`, `calc()` (C2-PERCENT / C8-INSETS). | — | `V/length.rs::parse_length` |
+| `inset` | Supported | 1–4 values of `auto` / signed cells / `%` / `calc()` (C2-PERCENT / C8-INSETS). | — | `V/length.rs::parse_inset_shorthand` |
 | `inset-block` / `inset-inline` (+ `-start` / `-end`) | Missing | Logical aliases. | No | `DISP` |
 | `z-index` | Partial | `auto` / `i16` (documented). | Yes | `V/number.rs::parse_z_index` |
 | `float` / `clear` | Missing | Out of scope by decision. | Yes | `BLOCK`, `IFC` |

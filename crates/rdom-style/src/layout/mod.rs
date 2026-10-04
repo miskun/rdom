@@ -14,7 +14,7 @@
 //!
 //! - `rect` — `LayoutRect`
 //! - `keywords` — keyword-valued properties
-//! - `sizing` — `Size`, `MinSize`, `AspectRatio`, `GapValue`, `Length`
+//! - `sizing` — `Size`, `MinSize`, `MaxSize`, `AspectRatio`, `GapValue`, `Length`
 //! - `box_model` — borders, `border-collapse`, padding, margin
 
 mod box_model;
@@ -30,4 +30,4 @@ pub use keywords::{
     ScrollBehavior, ScrollbarGutter, TextDecoration, UserSelect, WhiteSpace, ZIndex,
 };
 pub use rect::LayoutRect;
-pub use sizing::{AspectRatio, GapValue, Length, MinSize, Size};
+pub use sizing::{AspectRatio, GapValue, Length, MaxSize, MinSize, Size};

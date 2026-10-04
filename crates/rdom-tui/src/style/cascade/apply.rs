@@ -124,7 +124,7 @@ pub(super) fn apply_style(
                 style.important.contains(ImportantMask::$mask),
                 important_pass,
                 kw,
-                |c| c.$field,
+                |c| &c.$field,
             );
         )*};
     }
@@ -311,20 +311,20 @@ fn apply_value<T: Clone>(
 
 /// [`apply_value`] for the `Option` fields, whose declared value is the
 /// inner `T`.
-fn apply_optional<T: Copy>(
+fn apply_optional<T: Clone>(
     target: &mut Option<T>,
     value: &Option<Value<T>>,
     important_prop: bool,
     important_pass: bool,
     kw: &Keywords<'_>,
-    field: fn(&ComputedStyle) -> Option<T>,
+    field: fn(&ComputedStyle) -> &Option<T>,
 ) {
     if let Some(v) = value
         && matches_pass(important_prop, important_pass)
     {
         *target = match kw.resolve(v) {
-            Resolved::Specified(x) => Some(*x),
-            Resolved::From(source) => field(source),
+            Resolved::Specified(x) => Some(x.clone()),
+            Resolved::From(source) => field(source).clone(),
         };
     }
 }

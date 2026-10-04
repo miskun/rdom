@@ -659,7 +659,7 @@ fn min_max_option_cascade() {
     dom.cascade(&sheet);
     let c = computed_of(&dom, div);
     assert_eq!(c.min_width, Some(rdom_style::layout::MinSize::Cells(10)));
-    assert_eq!(c.max_width, Some(100));
+    assert_eq!(c.max_width, Some(crate::layout::MaxSize::Cells(100)));
 }
 
 #[test]
@@ -2304,9 +2304,9 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
     parent.width = Size::Fixed(7);
     parent.height = Size::Fixed(8);
     parent.min_width = Some(MinSize::Cells(1));
-    parent.max_width = Some(9);
+    parent.max_width = Some(crate::layout::MaxSize::Cells(9));
     parent.min_height = Some(MinSize::Cells(1));
-    parent.max_height = Some(9);
+    parent.max_height = Some(crate::layout::MaxSize::Cells(9));
     parent.aspect_ratio = AspectRatio::new(4, 3);
     parent.padding = Padding::all(1);
     parent.margin = Margin::all_cells(1);

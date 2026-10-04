@@ -108,7 +108,7 @@ pub(super) fn resolve_block_width(
     // width by max-width first, then min-width (min wins over max).
     // After clamping, if the width changed, re-distribute the
     // leftover to whichever margins were auto.
-    let clamped_width = clamp_width(width_final, &computed.min_width, computed.max_width, cb);
+    let clamped_width = clamp_width(width_final, computed, cb);
     let ml_clamped = if clamped_width != width_final {
         let leftover = cb - clamped_width;
         // Only the left margin positions the box (LTR); the right
@@ -146,25 +146,19 @@ fn resolve_size_to_cells(size: &Size, basis: i32) -> Option<i32> {
     }
 }
 
-fn clamp_width(
-    width: i32,
-    min: &Option<crate::layout::MinSize>,
-    max: Option<u16>,
-    _basis: i32, // reserved for percent-min/max in a later phase
-) -> i32 {
-    let min_cells: Option<i32> = match min {
-        Some(crate::layout::MinSize::Cells(n)) => Some(*n as i32),
-        Some(crate::layout::MinSize::Auto) | None => None, // phase 2: Auto floors are spec-correctly 0 for block; phase 5/6 may revisit
-    };
-    let max_cells = max.map(|n| n as i32);
+/// `width` clamped by `max-width`, then `min-width` (CSS 2.1 §10.4:
+/// min wins over max), their percentages resolved against the
+/// containing block's width `cb` (CSS Sizing 3 §5.2). `min-width:
+/// auto` floors at 0 for a block box.
+fn clamp_width(width: i32, computed: &ComputedStyle, cb: i32) -> i32 {
+    let basis = Some(cb.clamp(0, i32::from(u16::MAX)) as u16);
+    let min_cells = computed.min_width.as_ref().and_then(|m| m.cells(basis));
+    let max_cells = computed.max_width.as_ref().and_then(|m| m.cells(basis));
     let after_max = match max_cells {
-        Some(m) => width.min(m),
+        Some(m) => width.min(i32::from(m)),
         None => width,
     };
-    match min_cells {
-        Some(m) => after_max.max(m),
-        None => after_max.max(0),
-    }
+    after_max.max(min_cells.map_or(0, i32::from))
 }
 
 /// The content width a block's children resolve percentages against,

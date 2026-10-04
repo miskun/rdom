@@ -2,8 +2,11 @@
 //! `calc()`), the `flex` shorthand, `min-*` sizes, signed `Length`s
 //! for offsets and the `inset` shorthand.
 
-use super::calc::{looks_like_calc, parse_calc};
-use crate::layout::{Length, Size};
+use super::numeric::{
+    LengthPercentage, Range, cells_i32, cells_u16, components, length_percentage,
+};
+use crate::calc::CalcExpr;
+use crate::layout::{Length, MaxSize, MinSize, Size};
 use crate::parse::token::Token;
 
 /// A percentage literal, fraction intact, rejecting negative and
@@ -13,10 +16,9 @@ fn percent_fraction(p: f64) -> Option<f32> {
 }
 
 pub fn parse_size(value: &[Token]) -> Option<Size> {
-    // `auto` | `<n>` | `<n>fr` | `<n>%` | `calc(<expr>)`
+    // `auto` | `<n>fr` | `<length-percentage [0,∞]>`
     match value {
         [Token::Ident(s)] if s.eq_ignore_ascii_case("auto") => Some(Size::Auto),
-        [Token::Number(n)] if *n >= 0 => u16::try_from(*n).ok().map(Size::Fixed),
         [
             Token::Dimension {
                 value,
@@ -26,28 +28,14 @@ pub fn parse_size(value: &[Token]) -> Option<Size> {
         ] if *value >= 0.0 && unit.eq_ignore_ascii_case("fr") => {
             (*value <= f64::from(u16::MAX)).then_some(Size::Flex(*value as u16))
         }
-        [Token::Percentage(n)] if *n >= 0.0 => Some(Size::Percent(percent_fraction(*n)?)),
-        // calc(...) — parse to a CalcExpr. If the expression has
-        // no percentages, constant-fold at parse time to Fixed.
-        // Otherwise carry the AST through to layout via Size::Calc.
-        _ if looks_like_calc(value) => parse_calc_to_size(value),
-        _ => None,
-    }
-}
-
-/// Parse a `calc(...)` value in `Size` position. Constant-fold to
-/// `Size::Fixed` when the expression contains no percentages
-/// (saves layout-time work for the common arithmetic-only case).
-/// Otherwise carry the AST through as `Size::Calc` for layout
-/// resolution.
-fn parse_calc_to_size(value: &[Token]) -> Option<Size> {
-    let expr = parse_calc(value)?;
-    if expr.contains_percent() {
-        Some(Size::Calc(Box::new(expr)))
-    } else {
-        let cells = expr.resolve(&crate::calc::ResolveCtx::new(0));
-        let clamped = cells.max(0).min(u16::MAX as i32) as u16;
-        Some(Size::Fixed(clamped))
+        _ => match length_percentage(value, Range::NonNegative)? {
+            LengthPercentage::Integer(n) => u16::try_from(n).ok().map(Size::Fixed),
+            LengthPercentage::Cells(v) => Some(Size::Fixed(cells_u16(v))),
+            LengthPercentage::Expr(CalcExpr::Percent(p)) => {
+                Some(Size::Percent(percent_fraction(p)?))
+            }
+            LengthPercentage::Expr(e) => Some(Size::Calc(Box::new(e))),
+        },
     }
 }
 
@@ -117,47 +105,50 @@ pub fn parse_flex_shorthand(value: &[Token]) -> Option<Size> {
     }
 }
 
-/// `min-width` / `min-height` value: `auto` | `<unsigned-int>`. The
-/// `auto` keyword opts a flex item into intrinsic min-content
-/// protection (decision 4 from the M5 pre-prep, M5.1.b).
-pub fn parse_min_size(value: &[Token]) -> Option<crate::layout::MinSize> {
-    use crate::layout::MinSize;
+/// `min-width` / `min-height` value: `auto` | `<length-percentage
+/// [0,∞]>`. The `auto` keyword opts a flex item into intrinsic
+/// min-content protection (decision 4 from the M5 pre-prep, M5.1.b).
+pub fn parse_min_size(value: &[Token]) -> Option<MinSize> {
     match value {
         [Token::Ident(s)] if s.eq_ignore_ascii_case("auto") => Some(MinSize::Auto),
-        [Token::Number(n)] if *n >= 0 => u16::try_from(*n).ok().map(MinSize::Cells),
-        _ => None,
+        _ => match length_percentage(value, Range::NonNegative)? {
+            LengthPercentage::Integer(n) => u16::try_from(n).ok().map(MinSize::Cells),
+            LengthPercentage::Cells(v) => Some(MinSize::Cells(cells_u16(v))),
+            LengthPercentage::Expr(e) => Some(MinSize::Calc(Box::new(e))),
+        },
     }
 }
 
-/// `auto` keyword | signed integer in cells | `calc(<expr>)`.
+/// `max-width` / `max-height` value: `<length-percentage [0,∞]>`.
+pub fn parse_max_size(value: &[Token]) -> Option<MaxSize> {
+    match length_percentage(value, Range::NonNegative)? {
+        LengthPercentage::Integer(n) => u16::try_from(n).ok().map(MaxSize::Cells),
+        LengthPercentage::Cells(v) => Some(MaxSize::Cells(cells_u16(v))),
+        LengthPercentage::Expr(e) => Some(MaxSize::Calc(Box::new(e))),
+    }
+}
+
+/// An inset (`top` / `right` / `bottom` / `left`): `auto` |
+/// `<length-percentage>`, either sign (CSS Position 3 §3.1).
 pub fn parse_length(value: &[Token]) -> Option<Length> {
     match value {
         [Token::Ident(s)] if s.eq_ignore_ascii_case("auto") => Some(Length::Auto),
-        [Token::Number(n)] => Some(Length::Cells(*n)),
-        [Token::Delim('-'), Token::Number(n)] => Some(Length::Cells(-*n)),
-        _ if looks_like_calc(value) => parse_calc_to_length(value),
-        _ => None,
-    }
-}
-
-/// Parse a `calc(...)` value in `Length` position. Constant-fold
-/// to `Length::Cells` when the expression has no percentages;
-/// carry the AST through as `Length::Calc` otherwise.
-fn parse_calc_to_length(value: &[Token]) -> Option<Length> {
-    let expr = parse_calc(value)?;
-    if expr.contains_percent() {
-        Some(Length::Calc(Box::new(expr)))
-    } else {
-        Some(Length::Cells(
-            expr.resolve(&crate::calc::ResolveCtx::new(0)),
-        ))
+        _ => Some(match length_percentage(value, Range::Any)? {
+            LengthPercentage::Integer(n) => Length::Cells(n),
+            LengthPercentage::Cells(v) => Length::Cells(cells_i32(v)),
+            LengthPercentage::Expr(e) => Length::Calc(Box::new(e)),
+        }),
     }
 }
 
 /// `inset: <a> [<b> [<c> [<d>]]]` — same clockwise expansion as
-/// `padding`, but each value can be `auto` or signed (negative).
+/// `padding`; each value is an inset (`auto` or a signed
+/// `<length-percentage>`).
 pub fn parse_inset_shorthand(value: &[Token]) -> Option<(Length, Length, Length, Length)> {
-    let lengths = split_lengths(value)?;
+    let lengths = components(value)?
+        .into_iter()
+        .map(parse_length)
+        .collect::<Option<Vec<_>>>()?;
     let p = match lengths.as_slice() {
         [a] => (a.clone(), a.clone(), a.clone(), a.clone()),
         [a, b] => (a.clone(), b.clone(), a.clone(), b.clone()),
@@ -168,39 +159,12 @@ pub fn parse_inset_shorthand(value: &[Token]) -> Option<(Length, Length, Length,
     Some(p)
 }
 
-/// Split a value-token slice into 1..=4 `Length` values separated
-/// by whitespace (already eaten by the tokenizer). Used by the
-/// `inset` shorthand.
-fn split_lengths(value: &[Token]) -> Option<Vec<Length>> {
-    let mut out = Vec::with_capacity(4);
-    let mut i = 0usize;
-    while i < value.len() {
-        // Try the two-token negative pattern first.
-        if let (Some(Token::Delim('-')), Some(Token::Number(n))) = (value.get(i), value.get(i + 1))
-        {
-            out.push(Length::Cells(-*n));
-            i += 2;
-            continue;
-        }
-        let l = match value.get(i)? {
-            Token::Ident(s) if s.eq_ignore_ascii_case("auto") => Length::Auto,
-            Token::Number(n) => Length::Cells(*n),
-            _ => return None,
-        };
-        out.push(l);
-        i += 1;
-        if out.len() > 4 {
-            return None;
-        }
-    }
-    if out.is_empty() { None } else { Some(out) }
-}
-
 #[cfg(test)]
 mod number_value_tests {
     use super::*;
     use crate::calc::{CalcExpr, CalcOp};
     use crate::parse::token::tokenize;
+    use crate::parse::values::parse_calc;
 
     fn t(src: &str) -> Vec<Token> {
         tokenize(src).unwrap()

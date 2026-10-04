@@ -7,10 +7,11 @@
 use super::css_wide::css_wide_of;
 use super::table::canonical_property_name;
 use super::value_serializers::{
-    border_style_keyword, join_csv, serialize_calc, serialize_color, serialize_content,
-    serialize_counter_ops, serialize_length, serialize_margin_value, serialize_min_size,
-    serialize_overflow, serialize_padding_value, serialize_size, serialize_timing_function,
-    serialize_transition_property, serialize_transition_shorthand, specified,
+    border_style_keyword, join_csv, serialize_color, serialize_content, serialize_counter_ops,
+    serialize_length, serialize_margin_value, serialize_math, serialize_max_size,
+    serialize_min_size, serialize_overflow, serialize_padding_value, serialize_size,
+    serialize_timing_function, serialize_transition_property, serialize_transition_shorthand,
+    specified,
 };
 use crate::layout::{
     CaretColor, CaretTextColor, Direction, Display, Position, Size, UserSelect, WhiteSpace, ZIndex,
@@ -227,7 +228,7 @@ pub fn serialize(name: &str, style: &TuiStyle) -> Option<String> {
             .max_width
             .as_ref()
             .and_then(specified)
-            .map(|n| n.to_string()),
+            .map(serialize_max_size),
         "min-height" => style
             .min_height
             .as_ref()
@@ -237,7 +238,7 @@ pub fn serialize(name: &str, style: &TuiStyle) -> Option<String> {
             .max_height
             .as_ref()
             .and_then(specified)
-            .map(|n| n.to_string()),
+            .map(serialize_max_size),
         "aspect-ratio" => style
             .aspect_ratio
             .as_ref()
@@ -247,7 +248,7 @@ pub fn serialize(name: &str, style: &TuiStyle) -> Option<String> {
         // Layout — gap
         "gap" => style.gap.as_ref().and_then(specified).map(|g| match g {
             crate::layout::GapValue::Cells(n) => n.to_string(),
-            crate::layout::GapValue::Calc(expr) => format!("calc({})", serialize_calc(expr)),
+            crate::layout::GapValue::Calc(expr) => serialize_math(expr),
         }),
 
         // Padding — emit the 4-value shorthand always (round-trips

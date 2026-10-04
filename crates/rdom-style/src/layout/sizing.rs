@@ -1,4 +1,5 @@
 //! Sizing values: `width` / `height` ([`Size`]), `min-*` ([`MinSize`]),
+//! `max-*` ([`MaxSize`]),
 //! `aspect-ratio`, `gap` and the positioning offsets ([`Length`]),
 //! each with its resolution against a basis.
 
@@ -60,11 +61,13 @@ impl Size {
 
 /// Value of `min-width` / `min-height`. CSS-faithful: `auto` resolves
 /// to intrinsic min-content for flex items (decision 4 from the M5
-/// pre-prep), `Cells(n)` is the explicit cell count.
+/// pre-prep), `Cells(n)` is the explicit cell count, `Calc` a
+/// percentage or a percent-bearing math function resolved against the
+/// containing block on the same axis (CSS Sizing 3 §5.2).
 ///
 /// `From<u16>` returns `Cells(n)` so the fluent setter (`.min_width(10)`)
 /// keeps working unchanged.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum MinSize {
     /// `auto` — flex items resolve to their intrinsic min-content
     /// size; non-flex items resolve to 0. The `overflow: hidden →
@@ -72,12 +75,75 @@ pub enum MinSize {
     Auto,
     /// Explicit cell count.
     Cells(u16),
+    /// `<percentage>` or a math function holding one. Resolves at
+    /// layout time against the containing block's size on the same
+    /// axis.
+    Calc(Box<crate::calc::CalcExpr>),
+}
+
+impl MinSize {
+    /// The floor in cells, `None` for `auto`. `basis` is the
+    /// containing block's size on the property's axis, `None` when it
+    /// is indefinite — a percentage against an indefinite basis is
+    /// treated as `0` (CSS 2.1 §10.7).
+    pub fn cells(&self, basis: Option<u16>) -> Option<u16> {
+        match self {
+            MinSize::Auto => None,
+            MinSize::Cells(n) => Some(*n),
+            MinSize::Calc(expr) => Some(match basis {
+                Some(b) => resolve_u16(expr, b),
+                None if expr.contains_percent() => 0,
+                None => resolve_u16(expr, 0),
+            }),
+        }
+    }
 }
 
 impl From<u16> for MinSize {
     fn from(n: u16) -> Self {
         MinSize::Cells(n)
     }
+}
+
+/// Value of `max-width` / `max-height` (`none` is the absent value,
+/// `Option::None` on the style). `Calc` holds a percentage or a
+/// percent-bearing math function, resolved against the containing
+/// block on the same axis (CSS Sizing 3 §5.2).
+#[derive(Debug, Clone, PartialEq)]
+pub enum MaxSize {
+    /// Explicit cell count.
+    Cells(u16),
+    /// `<percentage>` or a math function holding one.
+    Calc(Box<crate::calc::CalcExpr>),
+}
+
+impl MaxSize {
+    /// The limit in cells. `basis` is the containing block's size on
+    /// the property's axis, `None` when indefinite — a percentage
+    /// against an indefinite basis is treated as `none` (CSS 2.1
+    /// §10.7), so no limit.
+    pub fn cells(&self, basis: Option<u16>) -> Option<u16> {
+        match self {
+            MaxSize::Cells(n) => Some(*n),
+            MaxSize::Calc(expr) => match basis {
+                Some(b) => Some(resolve_u16(expr, b)),
+                None if expr.contains_percent() => None,
+                None => Some(resolve_u16(expr, 0)),
+            },
+        }
+    }
+}
+
+impl From<u16> for MaxSize {
+    fn from(n: u16) -> Self {
+        MaxSize::Cells(n)
+    }
+}
+
+/// `expr` against `basis`, clamped to `0..=u16::MAX`.
+fn resolve_u16(expr: &crate::calc::CalcExpr, basis: u16) -> u16 {
+    let v = expr.resolve(&crate::calc::ResolveCtx::new(i32::from(basis)));
+    v.clamp(0, i32::from(u16::MAX)) as u16
 }
 
 /// `aspect-ratio: <w> / <h>` — preserved as the original integer

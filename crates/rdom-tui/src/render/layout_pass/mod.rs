@@ -45,6 +45,11 @@
 //! - `intrinsic` — `Size::Auto` resolution via content
 //!   measurement. Text / element / IFC paths.
 //! - `ifc` — IFC detection.
+//! - `tree` — element children, the in-flow predicate,
+//!   `display: none` geometry reset.
+//! - `auto_height` — `height: auto` from the measured content.
+//! - `scroll_extent` — scrollable content extent, scroll clamp.
+//! - `gutter` — scroll offsets and scrollbar gutters.
 //!
 //! ## Scroll
 //!
@@ -60,17 +65,21 @@
 //! their own). Text content is consumed via the parent element's
 //! intrinsic measurement.
 
+mod auto_height;
 mod block;
 #[cfg(test)]
 mod block_tests;
 mod border_collapse;
 mod flex;
 pub(crate) mod geometry;
+mod gutter;
 mod ifc;
 pub(crate) mod intrinsic;
 mod positioned_pseudos;
 mod positioning;
+mod scroll_extent;
 mod sticky;
+mod tree;
 
 #[cfg(test)]
 mod tests;
@@ -85,7 +94,15 @@ use crate::style::ComputedStyle;
 
 use flex::{layout_children, layout_flex_children};
 
+use auto_height::resolve_auto_height;
+pub(super) use gutter::{
+    gutter_axes, parent_scroll, reserve_scrollbar_gutter, reserve_scrollbar_gutter_forced,
+};
 pub(crate) use ifc::is_ifc_block;
+use scroll_extent::{clamp_scroll_offset, record_scroll_content_size};
+use tree::collapse_hidden_children;
+pub(super) use tree::element_children_of;
+pub(crate) use tree::is_in_flow;
 
 /// Extension trait on `Dom<TuiExt>` adding `layout_dom(viewport)`.
 pub trait LayoutExt {
@@ -340,294 +357,6 @@ pub(super) fn layout_node(
     }
 }
 
-/// Walk `id`'s direct element children (transparently descending
-/// through nested Fragments, the same way `element_children_of`
-/// does) and write the union of their layout extents back to
-/// `id`'s `TuiExt.scroll_content_{width,height}` — with the
-/// parent's `scroll_{x,y}` *added back in* so the recorded size
-/// is the un-scrolled content extent.
-fn record_scroll_content_size(
-    dom: &mut Dom<TuiExt>,
-    id: NodeId,
-    inner: LayoutRect,
-    computed: &ComputedStyle,
-) {
-    // Static early-exit: only scrollable containers care.
-    let needs = matches!(
-        computed.overflow_x,
-        Overflow::Scroll | Overflow::Auto | Overflow::Hidden
-    ) || matches!(
-        computed.overflow_y,
-        Overflow::Scroll | Overflow::Auto | Overflow::Hidden
-    );
-    if !needs {
-        return;
-    }
-
-    // Parent's own scroll offset — children's layout rects had this
-    // subtracted from their main-axis cursor (see flex.rs::
-    // layout_flex_children). Add it back to compute the un-scrolled
-    // content extent.
-    let (scroll_x, scroll_y) = match dom.node(id).ext() {
-        Some(ext) => (ext.scroll_x as i32, ext.scroll_y as i32),
-        None => return,
-    };
-
-    // Content extent = max(child.bottom) - min(child.top) along each
-    // axis, with the parent's `scroll_{x,y}` added back so the result
-    // is the un-scrolled extent. The min/max framing (rather than
-    // anchoring on `inner.{x,y}`) is what makes `collapse_parent_edge_insets`'s
-    // top/left layout-time shifts cleanly ignored: those insets push
-    // the first child away from `inner` but the children's collective
-    // extent is what overflow actually depends on, and that extent
-    // is `max - min` regardless of where the first child sits inside
-    // the inner rect.
-    let mut min_x: Option<i32> = None;
-    let mut min_y: Option<i32> = None;
-    let mut max_right: i32 = 0;
-    let mut max_bottom: i32 = 0;
-    let mut any = false;
-    let mut extend = |rect: LayoutRect| {
-        let top = rect.y + scroll_y;
-        let left = rect.x + scroll_x;
-        min_x = Some(min_x.map_or(left, |m: i32| m.min(left)));
-        min_y = Some(min_y.map_or(top, |m: i32| m.min(top)));
-        max_right = max_right.max(left + rect.width as i32);
-        max_bottom = max_bottom.max(top + rect.height as i32);
-        any = true;
-    };
-    // CSS Overflow 3 §2.2: the scrollable overflow area covers the
-    // in-flow descendants' boxes, not only the children's — a row that
-    // stretches to the container still contributes the cells that
-    // stick out of it. The walk stops at a descendant that clips its
-    // own content (it owns whatever overflows it) and skips out-of-flow
-    // boxes: `display:none` takes no space and positioned boxes are
-    // placed in phase 2 against their own containing block.
-    for child in element_children_of(dom, id) {
-        extend_scrollable_overflow(dom, child, &mut extend);
-    }
-
-    // Text content: a pure-text leaf or IFC block packs its lines from
-    // the top of `inner` (stored unscrolled), so its extent is the line
-    // count by the widest line. Anonymous block boxes (mixed content)
-    // carry scrolled rects like element children do. Without these a
-    // `<textarea>` with six lines reported zero content and could never
-    // scroll (HARDENING-2026-09 R5).
-    if let Some(ext) = dom.node(id).ext() {
-        if let Some(il) = ext.inline_layout.as_ref() {
-            let widest = il.lines.iter().map(|l| l.width as i32).max().unwrap_or(0);
-            // An editing host whose text ends in a newline has one more
-            // row than the packer emits: the empty line the caret sits
-            // on after that newline (a browser `<textarea>` shows it; a
-            // `<pre>` does not). The caret code models the same row
-            // (`caret::phantom_line_and_column`), so the extent must
-            // include it or the caret can never be scrolled into view.
-            let trailing_caret_line = i32::from(trailing_newline_caret_row(dom, id));
-            let top = inner.y;
-            let left = inner.x;
-            min_x = Some(min_x.map_or(left, |m: i32| m.min(left)));
-            min_y = Some(min_y.map_or(top, |m: i32| m.min(top)));
-            max_right = max_right.max(left + widest);
-            max_bottom = max_bottom.max(top + il.height() as i32 + trailing_caret_line);
-            any = true;
-        }
-        for anon in &ext.anonymous_blocks {
-            let top = anon.rect.y + scroll_y;
-            let left = anon.rect.x + scroll_x;
-            min_x = Some(min_x.map_or(left, |m: i32| m.min(left)));
-            min_y = Some(min_y.map_or(top, |m: i32| m.min(top)));
-            max_right = max_right.max(left + anon.rect.width as i32);
-            max_bottom = max_bottom.max(top + anon.rect.height as i32);
-            any = true;
-        }
-    }
-
-    let (content_w, content_h) = if any {
-        (
-            (max_right - min_x.unwrap_or(inner.x)).max(0),
-            (max_bottom - min_y.unwrap_or(inner.y)).max(0),
-        )
-    } else {
-        (0, 0)
-    };
-
-    if let Some(ext) = dom.node_mut(id).ext_mut() {
-        ext.scroll_content_width = content_w as usize;
-        ext.scroll_content_height = content_h as usize;
-    }
-}
-
-/// True when `id` is an editing host (`<textarea>`, text `<input>`,
-/// `contenteditable`) whose last text child ends with `\n`: the caret
-/// can then stand on an empty row after that newline, which the line
-/// packer does not emit as a line box.
-fn trailing_newline_caret_row(dom: &Dom<TuiExt>, id: NodeId) -> bool {
-    use crate::node::TuiNodeExt;
-    if !dom.node(id).is_editable() {
-        return false;
-    }
-    let last_text = dom
-        .node(id)
-        .child_nodes()
-        .filter(|c| c.node_type() == rdom_core::NodeType::Text)
-        .last();
-    last_text.is_some_and(|t| t.node_value().is_some_and(|v| v.ends_with('\n')))
-}
-
-/// Clamp `id`'s scroll offset to `[0, scroll size − viewport size]`
-/// on each axis (CSS keeps `scrollTop`/`scrollLeft` in range as
-/// content changes). Only scroll containers can hold a non-zero
-/// offset, so non-scrollable elements are a no-op. The viewport is
-/// the element's final `content_layout` — the region children are
-/// laid out and clipped into (after the two-pass scrollbar gutter
-/// reflow), so this max matches what the runtime's wheel / scrollbar
-/// / scroll-into-view path can actually reach. Returns whether an
-/// offset changed (the caller then re-lays-out the children at the
-/// corrected position).
-fn clamp_scroll_offset(dom: &mut Dom<TuiExt>, id: NodeId, computed: &ComputedStyle) -> bool {
-    let scrolls = !matches!(computed.overflow_x, Overflow::Visible)
-        || !matches!(computed.overflow_y, Overflow::Visible);
-    if !scrolls {
-        return false;
-    }
-    let Some(ext) = dom.node(id).ext() else {
-        return false;
-    };
-    let vp = ext.content_layout;
-    let max_x = ext.scroll_content_width.saturating_sub(vp.width as usize);
-    let max_y = ext.scroll_content_height.saturating_sub(vp.height as usize);
-    let new_x = ext.scroll_x.min(max_x);
-    let new_y = ext.scroll_y.min(max_y);
-    if new_x == ext.scroll_x && new_y == ext.scroll_y {
-        return false;
-    }
-    if let Some(ext) = dom.node_mut(id).ext_mut() {
-        ext.scroll_x = new_x;
-        ext.scroll_y = new_y;
-    }
-    true
-}
-
-/// Feed `extend` the boxes `id`'s subtree contributes to an ancestor's
-/// scrollable overflow: its own layout rect and — unless it clips — its
-/// anonymous boxes and in-flow descendants' boxes. A clipping box (an
-/// intermediate scroll container) contributes its border box alone:
-/// everything inside it, anonymous boxes included, is its own
-/// scrollable overflow (CSS Overflow 3 §2.2).
-fn extend_scrollable_overflow(dom: &Dom<TuiExt>, id: NodeId, extend: &mut impl FnMut(LayoutRect)) {
-    if !is_in_flow(dom, id) {
-        return;
-    }
-    let Some(ext) = dom.node(id).ext() else {
-        return;
-    };
-    extend(ext.layout);
-    let clips = ext.computed.as_ref().is_some_and(|c| {
-        !matches!(c.overflow_x, Overflow::Visible) || !matches!(c.overflow_y, Overflow::Visible)
-    });
-    if clips {
-        return;
-    }
-    for anon in &ext.anonymous_blocks {
-        extend(anon.rect);
-    }
-    for child in dom.node(id).child_nodes() {
-        match child.node_type() {
-            NodeType::Element => extend_scrollable_overflow(dom, child.id(), extend),
-            // A fragment has no box; its element children count as ours.
-            NodeType::Fragment => {
-                for grand in child.child_nodes() {
-                    if grand.node_type() == NodeType::Element {
-                        extend_scrollable_overflow(dom, grand.id(), extend);
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
-}
-
-/// CSS 2.1 §10.6.3: resolve `height: Auto` on a block-flow element
-/// from the measured content extent. `gutter_rows` is what the
-/// scrollbar reservation took off the content area's height; it
-/// belongs to the box, so the outer height counts it.
-///
-/// Gating:
-/// - the element's own `flow == Block` (a flex container's height is
-///   already final from its parent's distribution / declared size);
-/// - the parent's `flow` is also `Block` — Auto height on a flex
-///   *item* means "stretch to the cross axis" (CSS Flexbox §7.5), and
-///   the parent's flex pass already wrote that height;
-/// - no explicit `Fixed` / `Percent` / `Calc` height;
-/// - not `absolute` / `fixed`: `compute_placed_rect` owns that height
-///   (auto there means "derive from `top` / `bottom` against the
-///   containing block").
-fn resolve_auto_height(
-    dom: &mut Dom<TuiExt>,
-    id: NodeId,
-    computed: &ComputedStyle,
-    containing_block_width: u16,
-    measurement: Option<block::BlockMeasurement>,
-    gutter_rows: u16,
-) {
-    let parent_is_block_flow = dom
-        .node(id)
-        .parent_node()
-        .and_then(|p| {
-            use crate::node::TuiNodeExt;
-            p.tui_ext()
-                .and_then(|e| e.computed.as_ref().map(|c| c.flow))
-        })
-        .map(|f| matches!(f, crate::layout::Flow::Block))
-        .unwrap_or(true);
-    let is_out_of_flow_positioned = matches!(
-        computed.position,
-        crate::layout::Position::Absolute | crate::layout::Position::Fixed
-    );
-    if !matches!(computed.height, crate::layout::Size::Auto)
-        || !matches!(computed.flow, crate::layout::Flow::Block)
-        || !parent_is_block_flow
-        || is_out_of_flow_positioned
-    {
-        return;
-    }
-    // An IFC block or pure-text leaf has no `BlockMeasurement`; its
-    // content extent is its packed line count (at least the one row
-    // an empty editing host keeps for the caret).
-    let Some(measurement) = measurement.or_else(|| {
-        dom.node(id)
-            .ext()
-            .and_then(|e| e.inline_layout.as_ref())
-            .map(|il| block::BlockMeasurement {
-                content_height: il.height().max(1),
-            })
-    }) else {
-        return;
-    };
-    let content_h = crate::layout::clamp_size(
-        measurement.content_height,
-        match computed.min_height {
-            Some(crate::layout::MinSize::Cells(n)) => Some(n),
-            _ => None,
-        },
-        computed.max_height,
-    );
-    // Padding percent / calc resolves against the containing-block
-    // width on ALL four sides (CSS 2.1 §8.4) — the same basis
-    // `compute_content_area_collapsed` used for this element's inset.
-    let pad = computed.padding.top.resolve(containing_block_width)
-        + computed.padding.bottom.resolve(containing_block_width);
-    let border = computed.border.top.cells() + computed.border.bottom.cells();
-    let outer_h = content_h
-        .saturating_add(pad)
-        .saturating_add(border)
-        .saturating_add(gutter_rows);
-    if let Some(ext) = dom.node_mut(id).ext_mut() {
-        ext.layout.height = outer_h;
-        ext.content_layout.height = content_h;
-    }
-}
-
 /// Fragment case: children inherit our container rect directly
 /// (no padding, no border, no layout-rect write for the fragment).
 fn layout_fragment_children(dom: &mut Dom<TuiExt>, id: NodeId, container: LayoutRect) {
@@ -651,16 +380,6 @@ fn layout_fragment_children(dom: &mut Dom<TuiExt>, id: NodeId, container: Layout
 
 // ─── Tree helpers ───────────────────────────────────────────────────
 
-/// Direct *element* children of `id`, document order. Text/Comment
-/// are skipped (they have no TuiExt and flow inline via intrinsic
-/// measurement). Fragment children are unwrapped — their element
-/// descendants are returned as if they were direct children of `id`.
-pub(super) fn element_children_of(dom: &Dom<TuiExt>, id: NodeId) -> Vec<NodeId> {
-    let mut out = Vec::new();
-    collect_element_children(dom, id, &mut out);
-    out
-}
-
 /// Resolve a `gap` for `computed`'s children along `axis` (CSS Box
 /// Alignment 3 §8): percentages resolve against the container's
 /// content size on that axis, and against 0 when that size is
@@ -677,165 +396,4 @@ pub(super) fn resolve_gap(
         Direction::Column => container.height,
     };
     computed.gap.resolve(basis)
-}
-
-/// True iff `id` participates in normal flow. Non-elements (text, comments,
-/// fragments) always do; an element does when it's neither `display: none` nor
-/// out-of-flow positioned (`absolute` / `fixed`). The single source of truth
-/// for the "skip out-of-flow children" filter shared by block + flex layout and
-/// the scroll-content walk (`DRY-1`), by the margin-collapse predicates, intrinsic sizing, paint and hit-test.
-pub(crate) fn is_in_flow(dom: &Dom<TuiExt>, id: NodeId) -> bool {
-    let node = dom.node(id);
-    if node.node_type() != NodeType::Element {
-        return true; // text, comments, fragments
-    }
-    let Some(c) = node.ext().and_then(|e| e.computed.as_ref()) else {
-        return true;
-    };
-    use crate::layout::{Display, Position};
-    c.display != Display::None && !matches!(c.position, Position::Absolute | Position::Fixed)
-}
-
-/// Zero the layout geometry of every `display:none` child subtree of `id`.
-/// In-flow layout filters `display:none` children out, so they'd otherwise
-/// retain the rect from when they were last visible (LAYOUT-DISPLAY-NONE-STALE-
-/// RECT). A `display:none` box generates no box, so its rect — and every
-/// descendant's, since the subtree isn't laid out — must read zero.
-fn collapse_hidden_children(dom: &mut Dom<TuiExt>, id: NodeId) {
-    for child in element_children_of(dom, id) {
-        let hidden = dom
-            .node(child)
-            .ext()
-            .and_then(|e| e.computed.as_ref())
-            .map(|c| c.display == crate::layout::Display::None)
-            .unwrap_or(false);
-        if hidden {
-            collapse_subtree_geometry(dom, child);
-        }
-    }
-}
-
-/// Recursively reset `layout` / `content_layout` to the zero rect for `id` and
-/// every element descendant. Used to collapse a `display:none` subtree.
-fn collapse_subtree_geometry(dom: &mut Dom<TuiExt>, id: NodeId) {
-    if let Some(ext) = dom.node_mut(id).ext_mut() {
-        if ext.layout == LayoutRect::default() && ext.content_layout == LayoutRect::default() {
-            // Already collapsed — and so is everything below it (we always zero
-            // top-down), so stop early. Keeps steady-state hidden subtrees O(1).
-            return;
-        }
-        ext.layout = LayoutRect::default();
-        ext.content_layout = LayoutRect::default();
-    }
-    for child in element_children_of(dom, id) {
-        collapse_subtree_geometry(dom, child);
-    }
-}
-
-fn collect_element_children(dom: &Dom<TuiExt>, id: NodeId, out: &mut Vec<NodeId>) {
-    for child in dom.node(id).child_nodes() {
-        match child.node_type() {
-            NodeType::Element => out.push(child.id()),
-            NodeType::Fragment => collect_element_children(dom, child.id(), out),
-            // Text, comments, and any later node kind (`NodeType` is
-            // `#[non_exhaustive]`) are not element children.
-            _ => {}
-        }
-    }
-}
-
-/// Scroll offset for the parent container along `direction`. Reads
-/// the *first* child's ext-parent to find the scroll config — since
-/// all children share the same parent.
-pub(super) fn parent_scroll(dom: &Dom<TuiExt>, children: &[NodeId], direction: Direction) -> i32 {
-    let Some(&first) = children.first() else {
-        return 0;
-    };
-    let Some(parent) = dom.node(first).parent_node() else {
-        return 0;
-    };
-    let Some(ext) = parent.ext() else { return 0 };
-    match direction {
-        Direction::Row => ext.scroll_x as i32,
-        Direction::Column => ext.scroll_y as i32,
-    }
-}
-
-/// Shrink `inner` by a 1-cell scrollbar gutter per axis when CSS
-/// `scrollbar-gutter` says to reserve it (or when `overflow:
-/// scroll` requires a permanent gutter).
-///
-/// Reservation rules per axis:
-/// - `Overflow::Scroll` → always reserve (scrollbar always shown).
-/// - `Overflow::Auto` + `scrollbar-gutter: stable` → reserve
-///   (matches CSS `scrollbar-gutter: stable` — prevents content
-///   reflow when the scrollbar appears mid-frame).
-/// - `Overflow::Auto` + `scrollbar-gutter: auto` (the CSS
-///   default) → DO NOT reserve. The scrollbar paints over the
-///   edge column/row only while it's visible; content gets the
-///   cells when scrolling isn't active. Authors who want stable
-///   layout opt in with `scrollbar-gutter: stable`.
-/// - `Overflow::Hidden` / `Visible` → never reserve.
-///
-/// The reserved cells live at:
-/// - **Vertical scrollbar** (if `overflow_y` reserves): the
-///   rightmost column of `inner`, from top to bottom.
-/// - **Horizontal scrollbar** (if `overflow_x` reserves): the
-///   bottom row of `inner`, from left to right.
-///
-/// When both reserve, the bottom-right corner cell is unclaimed
-/// by either strip — paint leaves it blank.
-///
-/// `force_y` / `force_x` override the cascade decision for `Auto`
-/// axes — used by `layout_node`'s two-pass re-layout when overflow
-/// was detected in pass 1. `Scroll` always reserves regardless; CSS
-/// Overflow 3 §3 "classic" semantic for `Auto` ("consumes space when
-/// present") needs the override because at the time of pass 1 the
-/// substrate doesn't yet know if overflow will exist. Two-pass:
-/// measure → if overflow on an Auto axis, force-reserve in pass 2.
-pub(super) fn reserve_scrollbar_gutter_forced(
-    inner: LayoutRect,
-    computed: &ComputedStyle,
-    force_y: bool,
-    force_x: bool,
-) -> LayoutRect {
-    let (reserve_y, reserve_x) = gutter_axes(computed, force_y, force_x);
-    LayoutRect::new(
-        inner.x,
-        inner.y,
-        if reserve_y {
-            inner.width.saturating_sub(1)
-        } else {
-            inner.width
-        },
-        if reserve_x {
-            inner.height.saturating_sub(1)
-        } else {
-            inner.height
-        },
-    )
-}
-
-/// Which axes reserve a scrollbar gutter: `(vertical bar, horizontal
-/// bar)`. `Scroll` always; `Auto` when forced (pass 2 saw overflow) or
-/// under `scrollbar-gutter: stable`; never otherwise.
-pub(super) fn gutter_axes(computed: &ComputedStyle, force_y: bool, force_x: bool) -> (bool, bool) {
-    use crate::layout::ScrollbarGutter;
-    let reserves = |o: Overflow, force: bool| match o {
-        Overflow::Scroll => true,
-        Overflow::Auto => force || matches!(computed.scrollbar_gutter, ScrollbarGutter::Stable),
-        Overflow::Hidden | Overflow::Visible => false,
-    };
-    (
-        reserves(computed.overflow_y, force_y),
-        reserves(computed.overflow_x, force_x),
-    )
-}
-
-/// Pass-1 gutter reservation — Scroll always, Auto only if
-/// `scrollbar-gutter: stable`. `Auto` without `stable` waits for
-/// overflow detection then forces the gutter in pass 2 via
-/// [`reserve_scrollbar_gutter_forced`].
-pub(super) fn reserve_scrollbar_gutter(inner: LayoutRect, computed: &ComputedStyle) -> LayoutRect {
-    reserve_scrollbar_gutter_forced(inner, computed, false, false)
 }

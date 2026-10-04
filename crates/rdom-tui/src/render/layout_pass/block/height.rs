@@ -96,11 +96,12 @@ pub(super) fn resolve_block_height(
     // Clamp by min-height / max-height. Min:auto on block elements
     // resolves to 0 per CSS 2.1 (block boxes have no content-min
     // floor — that's a flex-only concept from Flexbox §4.5).
-    let min_cells: Option<u16> = match computed.min_height {
-        Some(crate::layout::MinSize::Cells(n)) => Some(n),
-        Some(crate::layout::MinSize::Auto) | None => None,
-    };
-    clamp_size(raw, min_cells, computed.max_height)
+    // Percentages resolve against the containing block's height when it
+    // is definite (CSS 2.1 §10.7: else `0` / `none`).
+    let basis = parent_height_definite.then_some(container_height);
+    let min_cells = computed.min_height.as_ref().and_then(|m| m.cells(basis));
+    let max_cells = computed.max_height.as_ref().and_then(|m| m.cells(basis));
+    clamp_size(raw, min_cells, max_cells)
 }
 
 /// CSS 2.1 §10.5 — walk up to find the nearest block-flow ancestor

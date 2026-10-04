@@ -76,9 +76,12 @@ pub(super) fn collect_main_axis_items(
             .computed_rc()
             .unwrap_or_else(|| std::rc::Rc::new(ComputedStyle::initial()));
         let (main_size, min_raw, max) = match direction {
-            Direction::Row => (c.width.clone(), c.min_width, c.max_width),
-            Direction::Column => (c.height.clone(), c.min_height, c.max_height),
+            Direction::Row => (c.width.clone(), &c.min_width, &c.max_width),
+            Direction::Column => (c.height.clone(), &c.min_height, &c.max_height),
         };
+        // `min-*` / `max-*` percentages resolve against the container's
+        // main size, as the main size's own do (CSS Sizing 3 §5.2).
+        let max = max.as_ref().and_then(|m| m.cells(Some(main_budget)));
         // TABLE-COLSYNC-1: a table cell's *used* column width — computed by
         // `size_columns` from the column's author widths + content and stored
         // on the cell's ext (layout output, NOT author `inline_style`) —
@@ -183,9 +186,8 @@ pub(super) fn collect_main_axis_items(
         // size; strict min-content (longest-word width with wrap)
         // is a future polish tracked as `M5-MIN-CONTENT-2`.
         let min = match min_raw {
-            None => None,
-            Some(MinSize::Cells(n)) => Some(n),
-            Some(MinSize::Auto) => None,
+            None | Some(MinSize::Auto) => None,
+            Some(m) => m.cells(Some(main_budget)),
         };
 
         if let MainNatural::Fixed(n) | MainNatural::Auto(n) = natural {

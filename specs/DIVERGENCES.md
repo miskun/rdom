@@ -19,7 +19,7 @@ These are intrinsic to terminals. They will not change.
 - **Integer cells only.** No subpixel positioning, no fractional widths, no anti-aliasing. Coordinates are `u16` cells.
 - **Monospaced advance.** Variable-width fonts are out of scope.
 - **No images, no SVG, no pixel painting.** `<canvas>` is a cell-painting escape hatch via `RenderContext`, not a pixel-painting surface.
-- **Length units.** Sizing accepts cells (unitless integers), rdom's flex `fr` unit, and `%` (resolves against the parent's content-area dimension at layout time, on the properties that take it — §3 lists those that still reject it). The absolute units (`px`, `cm`, `mm`, `Q`, `in`, `pt`, `pc`) and the font-relative units (`em`, `rem`, `ex`, `cap`, `ic`) depend on a pixel or a font size the terminal grid does not have: a declaration using them is dropped as an invalid value, with a warning. `ch`, `lh` / `rlh` and the viewport units (`vw`, `vh`, `vmin`, `vmax`, …) are **not** in that group — `1ch` is exactly one column on a monospaced grid, and `vw` / `vh` are percentages of the terminal size rdom already tracks. They are dropped the same way today, as a gap, not a medium constraint (C2-CH, C2-LH, C2-VIEWPORT in §3).
+- **Length units.** Sizing accepts cells (unitless integers), rdom's flex `fr` unit, and `%` (resolves at layout time against the basis each property's spec names). The absolute units (`px`, `cm`, `mm`, `Q`, `in`, `pt`, `pc`) and the font-relative units (`em`, `rem`, `ex`, `cap`, `ic`) depend on a pixel or a font size the terminal grid does not have: a declaration using them is dropped as an invalid value, with a warning. `ch`, `lh` / `rlh` and the viewport units (`vw`, `vh`, `vmin`, `vmax`, …) are **not** in that group — `1ch` is exactly one column on a monospaced grid, and `vw` / `vh` are percentages of the terminal size rdom already tracks. They are dropped the same way today, as a gap, not a medium constraint (C2-CH, C2-LH, C2-VIEWPORT in §3).
 - **Color.** `Color::Rgb` emits truecolor SGR sequences unconditionally; there is no `COLORTERM` runtime autodetection. A separate 256-color fallback exists as an explicit code path.
 - **UA stylesheet glyphs assume BMP box-drawing support** (U+25xx, U+250x, U+256x). Terminals without these blocks are out of scope.
 - **No bidirectional text.** The Unicode bidi algorithm and `unicode-bidi` are out of scope; `direction` / `writing-mode` are scheduled only for the forms a terminal can render (C5-WRITING, §3). Soft hyphens are a gap, not a constraint (C9-BREAKING, §3).
@@ -73,7 +73,7 @@ These are intrinsic to terminals. They will not change.
 ### Values
 
 - **`calc()` accepts both `5+5` and `5 + 5` inside the call.** CSS Values L3 requires whitespace around `+`/`-`; rdom's tokenizer doesn't preserve whitespace so the parser accepts either form. `*` and `/` don't need whitespace in CSS either, so those match.
-- **A bare percentage is invalid on `padding` / `margin`.** They take cells or `calc()` (bare `%` is C2-PERCENT, §3): `padding: calc(10% + 1)` and `margin-left: calc(25% - 2)` resolve at layout time against the containing block's width (CSS 2.1 §8.3 / §8.4), while `padding: 10%` is dropped as an invalid value. `width` / `height` / `gap` take both forms. `top` / `right` / `bottom` / `left` take only the `calc()` form (`top: 50%` is dropped; `top: calc(50%)` resolves), and the `inset` shorthand takes neither (C8-INSETS, §3). A `calc()` / percent `gap` does not animate at all (cell ↔ cell gaps do); `Size` / `Length` calc values snap at the midpoint. A percent `gap` resolves against the container's content size on the gap's axis, and against 0 when that axis is indefinite — rdom takes `height: auto` on a column container as "indefinite" (CSS also treats `height: 50%` under an indefinite parent that way; rdom resolves it against the available height).
+- **Percentages on box properties.** `padding` and `margin` percentages (bare or in `calc()`) resolve against the containing block's width on all four sides (CSS Box 3 §3.2 / §4.2); `top` / `right` / `bottom` / `left` / `inset` against the containing block's height or width on the matching axis; `min-*` / `max-*` against the containing block on their axis — against an indefinite height a `min-height` percentage is `0` and a `max-height` percentage is `none` (CSS 2.1 §10.7). A `calc()` / percent `gap` does not animate at all (cell ↔ cell gaps do); `Size` / `Length` calc values snap at the midpoint. A percent `gap` resolves against the container's content size on the gap's axis, and against 0 when that axis is indefinite — rdom takes `height: auto` on a column container as "indefinite" (CSS also treats `height: 50%` under an indefinite parent that way; rdom resolves it against the available height).
 - **CSS transitions don't smoothly tween between `calc()` values.** When either endpoint of a `transition` carries a `calc()` expression (Size or Length axis), the engine snaps at midpoint instead of interpolating. Smooth tweening would require resolving both endpoints to concrete cells using the current layout's parent dimensions at every animation tick — straightforward but unwired in M6.
 - **`border-style: half-block` is rdom-specific.** Not a CSS-spec keyword. Each border cell fills the **quadrants that point inward** toward the bordered element's content — an edge fills a half (`▄ ▀ ▌ ▐`, U+2584/U+2580/U+258C/U+2590), a corner fills a single quadrant (`▗ ▖ ▝ ▘`, U+2596/U+2597/U+259D/U+2598). Pairs with a `background-color`-filled interior to produce a "pill"-style primary-CTA button that reads as ~2 cells tall on a 3-row layout (the half-blocks contribute half-cells of color each, joining the filled interior into a continuous accent region).
 - **Half-block borders weld across elements (quadrant union).** When two half-block borders share a cell, the joiner **unions their inward quadrants** and emits the matching block glyph — so a "tab" box whose bottom edge overlaps a panel's top row welds into one tab-panel outline (`▟ █ ▌` at the junction), and any T-junction / cross resolves too. All 16 quadrant combinations have a Unicode block element (`▘▝▖▗ ▀▄▌▐ ▚▞ ▛▜▙▟ █`), so — unlike single-line borders, which have no rounded T-junctions — there are no gaps. This is the half-block analog of `border-collapse` welding and needs no opt-in (two adjacent half-block borders just join).
@@ -236,7 +236,6 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 
 ### Values and units
 
-- Bare `<percentage>` on `padding`, `margin`, `min-*` / `max-*`, `opacity` — C2-PERCENT (insets: C8-INSETS)
 - Fractional `<number>` (flex factors) — C2-NUMBER
 - `min()` / `max()` / `clamp()` — C2-MINMAX
 - `round()` / `mod()` / `rem()` / `abs()` / `sign()` — C2-STEPPED
@@ -277,7 +276,7 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 
 - `box-sizing` (`content-box`; rdom is implicitly `border-box`, §2 Values) — C5-BOX-SIZING
 - `min-content` / `max-content` / `fit-content()` / `stretch` sizes — C5-INTRINSIC
-- `min-*` / `max-*`: `none`, `%`, `calc()` — C5-MINMAX-SIZE
+- `max-*: none` — C5-MINMAX-SIZE
 - `margin-trim` — C5-MARGIN-TRIM
 - `contain-intrinsic-size` (+ longhands) — C5-CONTAIN-SIZE
 
@@ -318,7 +317,6 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 
 ### Positioned layout
 
-- `top` / `right` / `bottom` / `left` with bare `%`; `inset` with `%` and `calc()` — C8-INSETS
 - `z-index` beyond the `i16` range — C8-Z-INDEX
 - `float` / `clear` — C8-FLOAT
 - Anchor positioning (`anchor-name`, `position-anchor`, `position-area`, `@position-try`) — C15-ANCHOR

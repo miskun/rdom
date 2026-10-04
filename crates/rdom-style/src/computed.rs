@@ -42,9 +42,9 @@ pub struct ComputedStyle {
     pub width: Size,
     pub height: Size,
     pub min_width: Option<crate::layout::MinSize>,
-    pub max_width: Option<u16>,
+    pub max_width: Option<crate::layout::MaxSize>,
     pub min_height: Option<crate::layout::MinSize>,
-    pub max_height: Option<u16>,
+    pub max_height: Option<crate::layout::MaxSize>,
     /// `aspect-ratio: <w> / <h>`. When set and one axis is explicit
     /// while the other is auto, the flex resolver computes the
     /// dependent axis (half-to-even rounded to integer cells). Both

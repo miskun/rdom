@@ -13,11 +13,11 @@ use crate::parse::values::{
     current_border, current_margin, current_padding, parse_aspect_ratio, parse_border,
     parse_border_side, parse_color, parse_content, parse_counter_ops, parse_flex_shorthand,
     parse_gap, parse_inset_shorthand, parse_keyword, parse_length, parse_margin_longhand,
-    parse_margin_shorthand, parse_min_size, parse_opacity, parse_overflow, parse_padding_shorthand,
-    parse_padding_value, parse_position, parse_scroll_behavior, parse_scrollbar_gutter, parse_size,
-    parse_text_decoration, parse_time_list, parse_timing_function_list,
-    parse_transition_property_list, parse_transition_shorthand, parse_unsigned, parse_z_index,
-    unzip_transition_rules,
+    parse_margin_shorthand, parse_max_size, parse_min_size, parse_opacity, parse_overflow,
+    parse_padding_shorthand, parse_padding_value, parse_position, parse_scroll_behavior,
+    parse_scrollbar_gutter, parse_size, parse_text_decoration, parse_time_list,
+    parse_timing_function_list, parse_transition_property_list, parse_transition_shorthand,
+    parse_unsigned, parse_z_index, unzip_transition_rules,
 };
 use crate::{TuiStyle, Value};
 
@@ -276,14 +276,14 @@ pub fn set_parsed(name: &str, value: &[Token], style: &mut TuiStyle) -> Result<(
         "min-width" => parse_min_size(value).map(|m| {
             style.min_width = Some(Value::Specified(m));
         }),
-        "max-width" => parse_unsigned(value).map(|n| {
-            style.max_width = Some(Value::Specified(n));
+        "max-width" => parse_max_size(value).map(|m| {
+            style.max_width = Some(Value::Specified(m));
         }),
         "min-height" => parse_min_size(value).map(|m| {
             style.min_height = Some(Value::Specified(m));
         }),
-        "max-height" => parse_unsigned(value).map(|n| {
-            style.max_height = Some(Value::Specified(n));
+        "max-height" => parse_max_size(value).map(|m| {
+            style.max_height = Some(Value::Specified(m));
         }),
         "aspect-ratio" => parse_aspect_ratio(value).map(|r| {
             style.aspect_ratio = Some(Value::Specified(r));

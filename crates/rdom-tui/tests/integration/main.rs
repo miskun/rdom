@@ -32,6 +32,7 @@ mod border_model_contract;
 mod button_flex_repro;
 mod calc_layout;
 mod css_phase1;
+mod css_values;
 mod cssom_cascade;
 mod event_request_redraw;
 mod flex_blockifies_inline_children;

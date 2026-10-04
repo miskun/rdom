@@ -20,6 +20,8 @@
 //! - `content.rs` — `content` and counter operations.
 //! - `transition.rs` — easing, `<time>`, transition lists and shorthand.
 //! - `calc.rs` — the `calc()` expression parser.
+//! - `numeric.rs` — the shared `<length-percentage>` leaf and the
+//!   component-value splitter.
 //!
 //! Every parser is re-exported here, so `parse::values::parse_*`
 //! stays the single public path.
@@ -31,6 +33,7 @@ mod content;
 mod keyword;
 mod length;
 mod number;
+mod numeric;
 mod spacing;
 mod transition;
 
@@ -43,7 +46,8 @@ pub use keyword::{
     parse_text_decoration,
 };
 pub use length::{
-    parse_flex_shorthand, parse_inset_shorthand, parse_length, parse_min_size, parse_size,
+    parse_flex_shorthand, parse_inset_shorthand, parse_length, parse_max_size, parse_min_size,
+    parse_size,
 };
 pub use number::{parse_aspect_ratio, parse_opacity, parse_unsigned, parse_z_index};
 pub use spacing::{

@@ -120,7 +120,7 @@ fn a_hover_restyle_below_a_setter_written_element_still_happens() {
 #[test]
 fn every_setter_reflects_a_round_tripping_style_attribute() {
     use crate::layout::{Border, Direction, Overflow, Padding};
-    use rdom_style::layout::MinSize;
+    use rdom_style::layout::{MaxSize, MinSize};
     type Set = fn(&mut rdom_core::NodeMut<'_, crate::TuiExt>);
     let setters: [(&str, Set); 12] = [
         ("width", |n| {
@@ -133,13 +133,13 @@ fn every_setter_reflects_a_round_tripping_style_attribute() {
             n.set_min_width(Some(MinSize::Cells(4)));
         }),
         ("max-width", |n| {
-            n.set_max_width(Some(40));
+            n.set_max_width(Some(MaxSize::Cells(40)));
         }),
         ("min-height", |n| {
             n.set_min_height(Some(MinSize::Auto));
         }),
         ("max-height", |n| {
-            n.set_max_height(Some(9));
+            n.set_max_height(Some(MaxSize::Cells(9)));
         }),
         ("direction", |n| {
             n.set_direction(Direction::Row);
