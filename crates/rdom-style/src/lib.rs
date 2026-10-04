@@ -70,7 +70,10 @@ pub use computed::{ComputedStyle, Content, ContentContext, VarMap};
 pub use counters::{CounterOp, CounterStyle};
 pub use custom_value::CustomValue;
 pub use modifier::Modifier;
-pub use registration::{Multiplier, PropertyRegistration, PropertySyntax, SyntaxComponent};
+pub use registration::{
+    Multiplier, PropertyRegistration, PropertySyntax, PropertySyntaxError, RegisterPropertyError,
+    SyntaxComponent,
+};
 pub use specificity::Specificity;
 pub use stylesheet::{
     Import, Layer, LayerId, LayerOrder, PseudoElementTarget, Rule, RuleContext, RuleIndex,

@@ -385,3 +385,7 @@ row comes from.
   `ImportLoader`, `LoadedSheet` (rdom-css) at the root. `App::set_import_loader` /
   `register_property` name them through `crate::`; a doctest on `register_property` drives both
   with `rdom_tui` paths only.
+- 2026-10-04 — C1G-TYPED-ERRORS: `rdom_style::{RegisterPropertyError, PropertySyntaxError}`
+  (`#[non_exhaustive]`, `Display` keeps the old messages, so `@property` warnings read the same);
+  `PropertyRegistration::new`, `PropertySyntax::parse`, `App::register_property` return them. A test
+  per variant (rdom-style) and for `AlreadyRegistered` through the `App`.

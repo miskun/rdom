@@ -64,9 +64,105 @@ pub enum PropertySyntax {
     Alternatives(Vec<(SyntaxComponent, Multiplier)>),
 }
 
+/// Why a `syntax` string does not parse (Properties and Values 1 §5).
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum PropertySyntaxError {
+    /// A data type rdom has no value parser for (`<angle>`, `<image>`,
+    /// …; §5.4 treats an unsupported syntax as a syntax error).
+    UnsupportedComponent(String),
+    /// Neither a data type name nor a keyword (`a b`, `initial`, an
+    /// empty alternative).
+    InvalidComponent(String),
+}
+
+impl std::fmt::Display for PropertySyntaxError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PropertySyntaxError::UnsupportedComponent(c) => {
+                write!(f, "unsupported syntax component `{c}`")
+            }
+            PropertySyntaxError::InvalidComponent(c) => {
+                write!(f, "invalid syntax component `{c}`")
+            }
+        }
+    }
+}
+
+impl std::error::Error for PropertySyntaxError {}
+
+/// Why a custom property cannot be registered (Properties and Values 1
+/// §3 `CSS.registerProperty`, §4 `@property`). Every variant is the web
+/// API's `SyntaxError` except [`AlreadyRegistered`](Self::AlreadyRegistered),
+/// its `InvalidModificationError`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum RegisterPropertyError {
+    /// The name (without dashes) is registered already
+    /// (`InvalidModificationError`).
+    AlreadyRegistered(String),
+    /// Not a custom property name (`--x`).
+    InvalidName(String),
+    /// The `syntax` does not parse.
+    InvalidSyntax(PropertySyntaxError),
+    /// A syntax other than `*` needs an initial value.
+    MissingInitialValue,
+    /// The initial value does not match the syntax.
+    InitialValueMismatch(String),
+    /// The initial value is not computationally independent (it holds
+    /// `var()`).
+    NotComputationallyIndependent(String),
+}
+
+impl RegisterPropertyError {
+    /// Is this the web API's `InvalidModificationError` (rather than a
+    /// `SyntaxError`)?
+    pub fn is_invalid_modification(&self) -> bool {
+        matches!(self, RegisterPropertyError::AlreadyRegistered(_))
+    }
+}
+
+impl std::fmt::Display for RegisterPropertyError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RegisterPropertyError::AlreadyRegistered(name) => {
+                write!(f, "--{name} is already registered")
+            }
+            RegisterPropertyError::InvalidName(name) => {
+                write!(f, "`{name}` is not a custom property name")
+            }
+            RegisterPropertyError::InvalidSyntax(e) => e.fmt(f),
+            RegisterPropertyError::MissingInitialValue => {
+                f.write_str("an initial value is required")
+            }
+            RegisterPropertyError::InitialValueMismatch(v) => {
+                write!(f, "the initial value `{v}` does not match the syntax")
+            }
+            RegisterPropertyError::NotComputationallyIndependent(_) => {
+                f.write_str("the initial value is not computationally independent")
+            }
+        }
+    }
+}
+
+impl std::error::Error for RegisterPropertyError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            RegisterPropertyError::InvalidSyntax(e) => Some(e),
+            _ => None,
+        }
+    }
+}
+
+impl From<PropertySyntaxError> for RegisterPropertyError {
+    fn from(e: PropertySyntaxError) -> Self {
+        RegisterPropertyError::InvalidSyntax(e)
+    }
+}
+
 impl PropertySyntax {
     /// Parse a syntax string (Properties and Values 1 §5).
-    pub fn parse(text: &str) -> Result<Self, String> {
+    pub fn parse(text: &str) -> Result<Self, PropertySyntaxError> {
         let text = text.trim();
         if text == "*" {
             return Ok(PropertySyntax::Universal);
@@ -91,10 +187,10 @@ impl PropertySyntax {
                 "<time>" => SyntaxComponent::Time,
                 "<custom-ident>" => SyntaxComponent::CustomIdent,
                 b if b.starts_with('<') => {
-                    return Err(format!("unsupported syntax component `{b}`"));
+                    return Err(PropertySyntaxError::UnsupportedComponent(b.to_string()));
                 }
                 b if is_keyword(b) => SyntaxComponent::Ident(b.to_string()),
-                b => return Err(format!("invalid syntax component `{b}`")),
+                b => return Err(PropertySyntaxError::InvalidComponent(b.to_string())),
             };
             alternatives.push((component, multiplier));
         }
@@ -161,23 +257,25 @@ impl PropertyRegistration {
         syntax: &str,
         inherits: bool,
         initial_value: Option<&str>,
-    ) -> Result<Self, String> {
+    ) -> Result<Self, RegisterPropertyError> {
         let bare = name
             .strip_prefix("--")
             .filter(|n| !n.is_empty())
-            .ok_or_else(|| format!("`{name}` is not a custom property name"))?;
+            .ok_or_else(|| RegisterPropertyError::InvalidName(name.to_string()))?;
         let syntax = PropertySyntax::parse(syntax)?;
         let initial_value = initial_value.map(|v| v.trim().to_string());
         if let Some(v) = &initial_value
             && tokenize(v).is_ok_and(|t| crate::var::contains_var(&t))
         {
-            return Err("the initial value is not computationally independent".to_string());
+            return Err(RegisterPropertyError::NotComputationallyIndependent(
+                v.clone(),
+            ));
         }
         match (&syntax, &initial_value) {
             (PropertySyntax::Universal, _) => {}
-            (_, None) => return Err("an initial value is required".to_string()),
+            (_, None) => return Err(RegisterPropertyError::MissingInitialValue),
             (_, Some(v)) if !syntax.matches(v) => {
-                return Err(format!("the initial value `{v}` does not match the syntax"));
+                return Err(RegisterPropertyError::InitialValueMismatch(v.clone()));
             }
             _ => {}
         }
@@ -369,5 +467,54 @@ mod tests {
         assert!(PropertyRegistration::new("--c", "<color>", false, Some("12")).is_err());
         assert!(PropertyRegistration::new("--c", "<color>", false, Some("var(--d)")).is_err());
         assert!(PropertyRegistration::new("--c", "*", true, None).is_ok());
+    }
+
+    /// `C1G-TYPED-ERRORS` — Properties and Values 1 §3 / §5: each way a
+    /// registration fails is its own variant; all are the web API's
+    /// `SyntaxError` except a second registration
+    /// (`InvalidModificationError`, raised by the `App`).
+    #[test]
+    fn registration_errors_are_typed() {
+        use PropertySyntaxError as S;
+        use RegisterPropertyError as E;
+        assert_eq!(
+            PropertySyntax::parse("<angle>"),
+            Err(S::UnsupportedComponent("<angle>".into()))
+        );
+        assert_eq!(
+            PropertySyntax::parse("a b"),
+            Err(S::InvalidComponent("a b".into()))
+        );
+        assert_eq!(
+            PropertyRegistration::new("c", "<color>", false, Some("red")),
+            Err(E::InvalidName("c".into()))
+        );
+        assert_eq!(
+            PropertyRegistration::new("--c", "<url>", false, Some("red")),
+            Err(E::InvalidSyntax(S::UnsupportedComponent("<url>".into())))
+        );
+        assert_eq!(
+            PropertyRegistration::new("--c", "<color>", false, None),
+            Err(E::MissingInitialValue)
+        );
+        assert_eq!(
+            PropertyRegistration::new("--c", "<color>", false, Some("12")),
+            Err(E::InitialValueMismatch("12".into()))
+        );
+        assert_eq!(
+            PropertyRegistration::new("--c", "<color>", false, Some("var(--d)")),
+            Err(E::NotComputationallyIndependent("var(--d)".into()))
+        );
+        // The messages `@property` warnings carry.
+        assert_eq!(
+            E::InitialValueMismatch("12".into()).to_string(),
+            "the initial value `12` does not match the syntax"
+        );
+        assert_eq!(
+            E::AlreadyRegistered("c".into()).to_string(),
+            "--c is already registered"
+        );
+        assert!(E::AlreadyRegistered("c".into()).is_invalid_modification());
+        assert!(!E::MissingInitialValue.is_invalid_modification());
     }
 }

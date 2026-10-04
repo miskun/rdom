@@ -3995,6 +3995,19 @@ fn register_property_applies_and_rejects_a_second_registration() {
     assert!(app.register_property(blue).is_err());
 }
 
+/// `C1G-TYPED-ERRORS` — CSS Properties and Values API 1 §3: a second
+/// `CSS.registerProperty` of a name is an `InvalidModificationError`.
+#[test]
+fn a_second_registration_is_an_invalid_modification() {
+    use crate::{PropertyRegistration, RegisterPropertyError};
+    let mut app = test_app(TuiDom::new(), Stylesheet::new(), Rect::new(0, 0, 4, 1));
+    let reg = PropertyRegistration::new("--c", "<color>", false, Some("blue")).unwrap();
+    app.register_property(reg.clone()).unwrap();
+    let err = app.register_property(reg).unwrap_err();
+    assert_eq!(err, RegisterPropertyError::AlreadyRegistered("c".into()));
+    assert!(err.is_invalid_modification());
+}
+
 /// CSS Transitions 1 §6: a registered custom property's transition
 /// events name the property (`--c`).
 #[test]

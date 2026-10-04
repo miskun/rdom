@@ -96,9 +96,9 @@ pub use runtime::{
 };
 pub use style::{
     CascadeExt, Color, ComputedStyle, Content, CustomValue, DirtyTracker, ImportantMask, LayerId,
-    Modifier, PropertyRegistration, PropertySyntax, PseudoElementTarget, Rule, RuleContext,
-    RuleOrigin, Specificity, StyleError, StyleSelector, Stylesheet, TuiColor, TuiStyle, Value,
-    VarMap, parse_color, resolve_tui_color,
+    Modifier, PropertyRegistration, PropertySyntax, PropertySyntaxError, PseudoElementTarget,
+    RegisterPropertyError, Rule, RuleContext, RuleOrigin, Specificity, StyleError, StyleSelector,
+    Stylesheet, TuiColor, TuiStyle, Value, VarMap, parse_color, resolve_tui_color,
 };
 
 /// `Dom<TuiExt>` — the full TUI document.

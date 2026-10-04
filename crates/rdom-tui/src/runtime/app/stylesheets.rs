@@ -180,8 +180,12 @@ impl<B: Backend> App<B> {
     /// `CSS.registerProperty` (CSS Properties and Values API 1 §3):
     /// register a custom property for every sheet of this App. It wins
     /// over an `@property` for the same name. A name registered here
-    /// once cannot be registered again (`Err`, as the web API's
-    /// `InvalidModificationError`). The next paint re-cascades.
+    /// once cannot be registered again
+    /// ([`RegisterPropertyError::AlreadyRegistered`](crate::RegisterPropertyError::AlreadyRegistered),
+    /// the web API's `InvalidModificationError`); the other ways a
+    /// registration fails are caught when it is built
+    /// ([`PropertyRegistration::new`](crate::PropertyRegistration::new)).
+    /// The next paint re-cascades.
     ///
     /// With [`set_import_loader`](Self::set_import_loader), using
     /// `rdom_tui` paths only:
@@ -224,14 +228,16 @@ impl<B: Backend> App<B> {
     pub fn register_property(
         &mut self,
         registration: crate::PropertyRegistration,
-    ) -> Result<(), String> {
+    ) -> Result<(), crate::RegisterPropertyError> {
         let registered = &mut self.prelude.registrations;
         if registered
             .registered_properties()
             .iter()
             .any(|r| r.name == registration.name)
         {
-            return Err(format!("--{} is already registered", registration.name));
+            return Err(crate::RegisterPropertyError::AlreadyRegistered(
+                registration.name,
+            ));
         }
         registered.register_property(registration);
         self.invalidate_cascade();

@@ -80,6 +80,7 @@ fn registration(name: &str, body: &str) -> Result<PropertyRegistration, String> 
     let syntax = syntax.ok_or("the `syntax` descriptor is required")?;
     let inherits = inherits.ok_or("the `inherits` descriptor is required")?;
     PropertyRegistration::new(name, &syntax, inherits, initial.as_deref())
+        .map_err(|e| e.to_string())
 }
 
 /// From just inside `{`, the block's text through its matching `}`
