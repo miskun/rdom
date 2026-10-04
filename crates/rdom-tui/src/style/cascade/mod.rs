@@ -14,12 +14,13 @@
 //! 3. Collect matching rules via `rdom_core::Dom::matches_list`.
 //! 4. Sort candidates by (specificity, source_idx). Ascending =
 //!    late-wins.
-//! 5. Apply declarations in origin + importance order (`apply`):
+//! 5. Apply declarations in origin + importance order (`ladder`):
 //!    1. UA normal, Author normal, Inline normal,
 //!    2. Inline important, Author important, UA important.
 //!
 //!    Within each ladder step, sort by (specificity, source_idx).
-//! 6. Resolve `Value::Inherit` / `Value::Initial` per-property.
+//! 6. Resolve the CSS-wide keywords per property (`apply`): `inherit`
+//!    / `initial`, and `revert` from the ladder's rollback state.
 //! 7. Resolve `content` (`content`) — pseudo-element body.
 //! 8. Finalize `border_fg` (fall back to final `fg`).
 //! 9. Write to `TuiExt.computed` and flip `style_dirty=false`; if
@@ -36,7 +37,10 @@
 //!
 //! - `walk` — `cascade_subtree`, `compute_element_style`,
 //!   `compute_pseudo_style`. The tree recursion lives here.
-//! - `apply` — cascade ladder + per-property applicators.
+//! - `ladder` — the cascade ladder (`Plan` / `Step`) and the memoized
+//!   rollback states `revert` reads.
+//! - `custom` — custom properties through the ladder.
+//! - `apply` — per-property applicators.
 //! - `inherit` — `inherit_inheritable_from`, `layout_differs`.
 //! - `content` — pseudo-element `content` resolution.
 //!
@@ -51,11 +55,15 @@
 mod apply;
 mod content;
 mod counters;
+mod custom;
 mod inherit;
+mod ladder;
 mod walk;
 
 #[cfg(test)]
 mod apply_tests;
+#[cfg(test)]
+mod revert_tests;
 #[cfg(test)]
 mod tests;
 

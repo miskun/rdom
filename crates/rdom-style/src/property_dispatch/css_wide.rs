@@ -1,5 +1,5 @@
-//! CSS-wide keywords (CSS Cascade 4 §7): `inherit`, `initial` and
-//! `unset` are valid for every property. This file owns their
+//! CSS-wide keywords (CSS Cascade 4 §7): `inherit`, `initial`, `unset`
+//! and `revert` are valid for every property. This file owns their
 //! detection in a token stream, writing them across every field a
 //! property owns, and the all-fields-agree rule that decides when a
 //! shorthand serializes as the keyword.
@@ -15,6 +15,7 @@ pub(super) fn keyword_of<T>(v: &Option<Value<T>>) -> Option<&'static str> {
     match v {
         Some(Value::Inherit) => Some("inherit"),
         Some(Value::Initial) => Some("initial"),
+        Some(Value::Revert) => Some("revert"),
         _ => None,
     }
 }
@@ -25,6 +26,7 @@ pub(super) enum CssWide {
     Inherit,
     Initial,
     Unset,
+    Revert,
 }
 
 pub(super) fn css_wide_keyword(value: &[Token]) -> Option<CssWide> {
@@ -32,6 +34,7 @@ pub(super) fn css_wide_keyword(value: &[Token]) -> Option<CssWide> {
         [Token::Ident(s)] if s.eq_ignore_ascii_case("inherit") => Some(CssWide::Inherit),
         [Token::Ident(s)] if s.eq_ignore_ascii_case("initial") => Some(CssWide::Initial),
         [Token::Ident(s)] if s.eq_ignore_ascii_case("unset") => Some(CssWide::Unset),
+        [Token::Ident(s)] if s.eq_ignore_ascii_case("revert") => Some(CssWide::Revert),
         _ => None,
     }
 }
@@ -42,6 +45,8 @@ impl CssWide {
         match self {
             CssWide::Inherit => Value::Inherit,
             CssWide::Initial => Value::Initial,
+            // Origin-dependent: the cascade resolves it.
+            CssWide::Revert => Value::Revert,
             CssWide::Unset => {
                 if inherits(name) {
                     Value::Inherit

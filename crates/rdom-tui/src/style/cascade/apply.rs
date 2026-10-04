@@ -1,145 +1,48 @@
-//! Cascade ladder + per-property applicators.
+//! Per-property applicators: one declaration block onto the working
+//! `ComputedStyle`, for one ladder pass (the ladder itself is
+//! `ladder.rs`).
 //!
-//! The ladder has 6 ordered steps (UA normal → Author normal →
-//! Inline normal → Inline important → Author important → UA
-//! important). `!important` inverts origin priority, matching CSS.
-//! Don't shortcut the ladder — the inversion is observable and tests
-//! depend on it.
-//!
-//! Applicators handle the three `Value<T>` variants: `Specified`,
-//! `Inherit`, `Initial`. Most properties share one generic path
-//! (`apply_value`); `initial` always reads `ComputedStyle::initial()`
-//! (via `Initials`), the table every element's cascade starts from.
-//! They also honor the `important_pass` / `important_prop` pairing so
-//! normal and important declarations apply in separate passes.
+//! Applicators handle the `Value<T>` variants: `Specified`, and the
+//! CSS-wide keywords `inherit` / `initial` / `revert`, each of which
+//! takes the field from a whole computed style ([`Keywords::resolve`]):
+//! the parent's, `ComputedStyle::initial()` (via `Initials`, the table
+//! every element's cascade starts from), or the ladder's rollback
+//! state. Most properties share one generic path (`apply_value`). They
+//! also honor the `important_pass` / `important_prop` pairing so normal
+//! and important declarations apply in separate passes.
 
 use crate::layout::Display;
 use crate::style::{
-    Color, ComputedStyle, ImportantMask, Modifier, Rule, RuleOrigin, TuiColor, TuiStyle, Value,
+    Color, ComputedStyle, ImportantMask, Modifier, Rule, TuiColor, TuiStyle, Value,
     resolve_tui_color,
 };
 
-/// Walk the cascade ladder once for this element. Calls `apply_style`
-/// with `important_pass = false` for the normal passes and `true` for
-/// the important passes; invoked in the CSS-spec origin order.
-pub(super) fn apply_cascade_ladder(
-    working: &mut ComputedStyle,
-    sorted_by_spec: &[&Rule],
-    inline: Option<&TuiStyle>,
-    parent: &ComputedStyle,
-) {
-    // 0. Custom properties (CSS Variables 1 §2) — same ladder, folded
-    //    into the element's own map before any `var()` consumer runs.
-    apply_custom_properties(working, sorted_by_spec, inline);
-    let initial = Initials::default();
-    // 1. UA normal.
-    for rule in sorted_by_spec {
-        if rule.origin == RuleOrigin::UserAgent {
-            apply_style(
-                working,
-                &rule.style,
-                parent,
-                /*important_pass=*/ false,
-                &initial,
-            );
-        }
-    }
-    // 2. Author normal.
-    for rule in sorted_by_spec {
-        if rule.origin == RuleOrigin::Author {
-            apply_style(working, &rule.style, parent, false, &initial);
-        }
-    }
-    // 3. Inline normal.
-    if let Some(s) = inline {
-        apply_style(working, s, parent, false, &initial);
-    }
-    // 4. Inline important (beats normal inline, Author important beats this).
-    if let Some(s) = inline {
-        apply_style(working, s, parent, /*important_pass=*/ true, &initial);
-    }
-    // 5. Author important.
-    for rule in sorted_by_spec {
-        if rule.origin == RuleOrigin::Author {
-            apply_style(working, &rule.style, parent, true, &initial);
-        }
-    }
-    // 6. UA important — final word, can't be overridden. Matches the
-    //    CSS rule that `!important` inverts the origin priority.
-    for rule in sorted_by_spec {
-        if rule.origin == RuleOrigin::UserAgent {
-            apply_style(working, &rule.style, parent, true, &initial);
-        }
-    }
-
-    // NOTE — CSS Overflow L3's cross-axis rule ("if one axis is
-    // not visible, the visible side behaves as auto") is skipped
-    // in v1. Browsers apply it because they know content size at
-    // layout time and only show the auto scrollbar when needed.
-    // rdom-tui v1 can't (we use `scrollbar-gutter: stable`-style
-    // always-reserve), so enforcing the rule would surprise
-    // authors writing `overflow-y: scroll` and getting an
-    // unexpected horizontal gutter. Each axis is independent.
+/// Where the CSS-wide keywords of one ladder pass take their values
+/// from.
+pub(super) struct Keywords<'a> {
+    /// `inherit`: the parent's computed style (CSS Cascade 4 §7.2).
+    pub parent: &'a ComputedStyle,
+    /// `initial`: the initial values (§7.1).
+    pub initial: &'a Initials,
+    /// `revert`: the cascade rolled back to the previous origin
+    /// (§7.3), computed on first use.
+    pub revert: &'a dyn Fn() -> &'a ComputedStyle,
 }
 
-/// Fold every matched `--*` declaration into `working.vars`, in ladder
-/// order (UA → author → inline, normal then important), so a later or
-/// more important declaration of the same name wins. Copy-on-write:
-/// elements that declare nothing keep sharing their parent's map.
-fn apply_custom_properties(
-    working: &mut ComputedStyle,
-    sorted_by_spec: &[&Rule],
-    inline: Option<&TuiStyle>,
-) {
-    let declares = sorted_by_spec
-        .iter()
-        .any(|r| !r.style.custom_properties.is_empty())
-        || inline.is_some_and(|s| !s.custom_properties.is_empty());
-    if !declares {
-        return;
-    }
-    // CSS Variables 1 §2: the CSS-wide keywords apply to custom
-    // properties too — `initial` is the guaranteed-invalid value (the
-    // property is undefined), `inherit` / `unset` take the parent's.
-    let inherited = working.vars.clone();
-    let map = std::rc::Rc::make_mut(&mut working.vars);
-    let mut put = |style: &TuiStyle, important_pass: bool| {
-        for d in &style.custom_properties {
-            if d.important != important_pass {
-                continue;
-            }
-            match d.value.trim() {
-                v if v.eq_ignore_ascii_case("initial") => {
-                    map.remove(&d.name);
-                }
-                v if v.eq_ignore_ascii_case("inherit") || v.eq_ignore_ascii_case("unset") => {
-                    match inherited.get(&d.name) {
-                        Some(parent_value) => {
-                            map.insert(d.name.clone(), parent_value.clone());
-                        }
-                        None => {
-                            map.remove(&d.name);
-                        }
-                    }
-                }
-                _ => {
-                    map.insert(d.name.clone(), d.value.clone());
-                }
-            }
-        }
-    };
-    for origin in [RuleOrigin::UserAgent, RuleOrigin::Author] {
-        for rule in sorted_by_spec.iter().filter(|r| r.origin == origin) {
-            put(&rule.style, false);
-        }
-    }
-    if let Some(s) = inline {
-        put(s, false);
-        put(s, true);
-    }
-    for origin in [RuleOrigin::Author, RuleOrigin::UserAgent] {
-        for rule in sorted_by_spec.iter().filter(|r| r.origin == origin) {
-            put(&rule.style, true);
+/// A declared value, resolved for one pass: the specified value, or
+/// the computed style a CSS-wide keyword copies the field from.
+enum Resolved<'v, 'a, T> {
+    Specified(&'v T),
+    From(&'a ComputedStyle),
+}
+
+impl<'a> Keywords<'a> {
+    fn resolve<'v, T>(&self, value: &'v Value<T>) -> Resolved<'v, 'a, T> {
+        match value {
+            Value::Specified(x) => Resolved::Specified(x),
+            Value::Inherit => Resolved::From(self.parent),
+            Value::Initial => Resolved::From(self.initial.get()),
+            Value::Revert => Resolved::From((self.revert)()),
         }
     }
 }
@@ -188,12 +91,11 @@ pub(super) fn finalize_border_fg(
 
 /// Apply one `TuiStyle` to `working`, for one ladder pass. Paints +
 /// layout + display + white_space all in one pass.
-fn apply_style(
+pub(super) fn apply_style(
     working: &mut ComputedStyle,
     style: &TuiStyle,
-    parent: &ComputedStyle,
     important_pass: bool,
-    initial: &Initials,
+    kw: &Keywords<'_>,
 ) {
     // Clone the vars Rc once per apply; all color resolutions below
     // share the same snapshot. Rc::clone is a refcount bump — cheap.
@@ -209,8 +111,7 @@ fn apply_style(
                 &style.$field,
                 style.important.contains(ImportantMask::$mask),
                 important_pass,
-                &parent.$field,
-                initial,
+                kw,
                 |c| &c.$field,
             );
         )*};
@@ -223,8 +124,7 @@ fn apply_style(
                 &style.$field,
                 style.important.contains(ImportantMask::$mask),
                 important_pass,
-                parent.$field,
-                initial,
+                kw,
                 |c| c.$field,
             );
         )*};
@@ -234,19 +134,19 @@ fn apply_style(
     apply_color(
         &mut working.fg,
         &style.fg,
-        style.important.contains(ImportantMask::FG),
-        important_pass,
-        parent.fg,
-        || initial.get().fg,
+        matches_pass(style.important.contains(ImportantMask::FG), important_pass),
+        kw,
+        |c| c.fg,
+        None,
         &vars,
     );
     apply_color(
         &mut working.bg,
         &style.bg,
-        style.important.contains(ImportantMask::BG),
-        important_pass,
-        parent.bg,
-        || initial.get().bg,
+        matches_pass(style.important.contains(ImportantMask::BG), important_pass),
+        kw,
+        |c| c.bg,
+        None,
         &vars,
     );
     // `border-color`'s initial value is `currentColor` (CSS Backgrounds
@@ -255,10 +155,13 @@ fn apply_style(
     apply_color(
         &mut working.border_fg,
         &style.border_fg,
-        style.important.contains(ImportantMask::BORDER_FG),
-        important_pass,
-        parent.border_fg,
-        || current_color,
+        matches_pass(
+            style.important.contains(ImportantMask::BORDER_FG),
+            important_pass,
+        ),
+        kw,
+        |c| c.border_fg,
+        Some(current_color),
         &vars,
     );
 
@@ -268,8 +171,7 @@ fn apply_style(
         &style.bold,
         style.important.contains(ImportantMask::BOLD),
         important_pass,
-        parent.modifiers,
-        initial,
+        kw,
     );
     // Pre-T8 had a `.dim(true)` modifier here; dropped in the
     // pre-publish OOTB color overhaul. SGR-2 is theme-dependent and
@@ -282,8 +184,7 @@ fn apply_style(
         &style.italic,
         style.important.contains(ImportantMask::ITALIC),
         important_pass,
-        parent.modifiers,
-        initial,
+        kw,
     );
     // `text-decoration` writes the UNDERLINED / CROSSED_OUT bits.
     // T10 made this the sole entry point — there's no longer a
@@ -295,16 +196,14 @@ fn apply_style(
         &style.text_decoration,
         style.important.contains(ImportantMask::TEXT_DECORATION),
         important_pass,
-        parent.modifiers,
-        initial,
+        kw,
     );
     apply_opacity(
         working,
         &style.opacity,
         style.important.contains(ImportantMask::OPACITY),
         important_pass,
-        parent.opacity,
-        initial,
+        kw,
     );
 
     // Layout properties.
@@ -329,8 +228,7 @@ fn apply_style(
         &style.border_collapse,
         style.important.contains(ImportantMask::BORDER_COLLAPSE),
         important_pass,
-        parent.border_collapse,
-        initial,
+        kw,
     );
     value!(
         direction: DIRECTION,
@@ -384,31 +282,30 @@ fn matches_pass(important_prop: bool, important_pass: bool) -> bool {
 pub(super) struct Initials(std::cell::OnceCell<ComputedStyle>);
 
 impl Initials {
-    fn get(&self) -> &ComputedStyle {
+    pub(super) fn get(&self) -> &ComputedStyle {
         self.0.get_or_init(ComputedStyle::initial)
     }
 }
 
 /// The CSS-wide keyword resolution every property shares: specified
-/// as written, `inherit` the parent's computed value (inherited
-/// property or not — CSS Cascade 4 §7.2), `initial` the property's
-/// initial value (`field` of [`Initials`]).
+/// as written, a keyword the `field` of its source style
+/// ([`Keywords::resolve`]) — `inherit` the parent's computed value
+/// (inherited property or not — CSS Cascade 4 §7.2), `initial` the
+/// property's initial value, `revert` the rolled-back cascade's.
 fn apply_value<T: Clone>(
     target: &mut T,
     value: &Option<Value<T>>,
     important_prop: bool,
     important_pass: bool,
-    inherit: &T,
-    initial: &Initials,
+    kw: &Keywords<'_>,
     field: fn(&ComputedStyle) -> &T,
 ) {
     if let Some(v) = value
         && matches_pass(important_prop, important_pass)
     {
-        *target = match v {
-            Value::Specified(x) => x.clone(),
-            Value::Inherit => inherit.clone(),
-            Value::Initial => field(initial.get()).clone(),
+        *target = match kw.resolve(v) {
+            Resolved::Specified(x) => x.clone(),
+            Resolved::From(source) => field(source).clone(),
         };
     }
 }
@@ -420,37 +317,41 @@ fn apply_optional<T: Copy>(
     value: &Option<Value<T>>,
     important_prop: bool,
     important_pass: bool,
-    inherit: Option<T>,
-    initial: &Initials,
+    kw: &Keywords<'_>,
     field: fn(&ComputedStyle) -> Option<T>,
 ) {
     if let Some(v) = value
         && matches_pass(important_prop, important_pass)
     {
-        *target = match v {
-            Value::Specified(x) => Some(*x),
-            Value::Inherit => inherit,
-            Value::Initial => field(initial.get()),
+        *target = match kw.resolve(v) {
+            Resolved::Specified(x) => Some(*x),
+            Resolved::From(source) => field(source),
         };
     }
 }
 
+/// A color property (`in_pass`: the declaration's importance matches
+/// the pass). `initial_override` replaces the initial-table
+/// value for `initial` (`border-color`'s initial value is
+/// `currentColor`, the element's `color` as cascaded so far).
 fn apply_color(
     target: &mut Color,
     value: &Option<Value<TuiColor>>,
-    important_prop: bool,
-    important_pass: bool,
-    inherit: Color,
-    initial: impl FnOnce() -> Color,
+    in_pass: bool,
+    kw: &Keywords<'_>,
+    field: fn(&ComputedStyle) -> Color,
+    initial_override: Option<Color>,
     vars: &std::collections::HashMap<String, String>,
 ) {
     if let Some(v) = value
-        && matches_pass(important_prop, important_pass)
+        && in_pass
     {
-        *target = match v {
-            Value::Specified(tc) => resolve_tui_color(tc, vars, inherit),
-            Value::Inherit => inherit,
-            Value::Initial => initial(),
+        *target = match (v, initial_override) {
+            (Value::Initial, Some(initial)) => initial,
+            _ => match kw.resolve(v) {
+                Resolved::Specified(tc) => resolve_tui_color(tc, vars, field(kw.parent)),
+                Resolved::From(source) => field(source),
+            },
         };
     }
 }
@@ -461,8 +362,7 @@ fn apply_border_collapse(
     value: &Option<Value<crate::layout::BorderCollapse>>,
     important_prop: bool,
     important_pass: bool,
-    inherit: crate::layout::BorderCollapse,
-    initial: &Initials,
+    kw: &Keywords<'_>,
 ) {
     if let Some(v) = value
         && matches_pass(important_prop, important_pass)
@@ -481,14 +381,21 @@ fn apply_border_collapse(
                 // parent's value." Not a collapse-root declaration —
                 // leave `declared` as-is (initial: false; never set
                 // by inheritance).
-                *target = inherit;
+                *target = kw.parent.border_collapse;
             }
             Value::Initial => {
-                *target = initial.get().border_collapse;
+                *target = kw.initial.get().border_collapse;
                 // `initial` resets to the property's initial value
                 // (`separate`); the author IS declaring something on
                 // this element, so it's a (trivial) collapse-root.
                 *declared = true;
+            }
+            Value::Revert => {
+                // Whatever the rolled-back cascade had, collapse-root
+                // flag included.
+                let source = (kw.revert)();
+                *target = source.border_collapse;
+                *declared = source.border_collapse_declared;
             }
         }
     }
@@ -503,16 +410,14 @@ fn apply_opacity(
     value: &Option<Value<f32>>,
     important_prop: bool,
     important_pass: bool,
-    inherit: f32,
-    initial: &Initials,
+    kw: &Keywords<'_>,
 ) {
     if let Some(v) = value
         && matches_pass(important_prop, important_pass)
     {
-        working.opacity = match v {
-            Value::Specified(v) => v.clamp(0.0, 1.0),
-            Value::Inherit => inherit,
-            Value::Initial => initial.get().opacity,
+        working.opacity = match kw.resolve(v) {
+            Resolved::Specified(v) => v.clamp(0.0, 1.0),
+            Resolved::From(source) => source.opacity,
         };
     }
 }
@@ -540,18 +445,16 @@ fn apply_text_decoration(
     value: &Option<Value<crate::layout::TextDecoration>>,
     important_prop: bool,
     important_pass: bool,
-    parent_modifiers: Modifier,
-    initial: &Initials,
+    kw: &Keywords<'_>,
 ) {
     use crate::layout::TextDecoration;
     let Some(v) = value else { return };
     if !matches_pass(important_prop, important_pass) {
         return;
     }
-    let resolved = match v {
-        Value::Specified(v) => *v,
-        Value::Inherit => decoration_of(parent_modifiers),
-        Value::Initial => decoration_of(initial.get().modifiers),
+    let resolved = match kw.resolve(v) {
+        Resolved::Specified(v) => *v,
+        Resolved::From(source) => decoration_of(source.modifiers),
     };
     // Wipe both decoration bits, then set the one this property
     // selected (if any).
@@ -572,16 +475,14 @@ fn apply_modifier_bit(
     value: &Option<Value<bool>>,
     important_prop: bool,
     important_pass: bool,
-    parent_modifiers: Modifier,
-    initial: &Initials,
+    kw: &Keywords<'_>,
 ) {
     if let Some(v) = value
         && matches_pass(important_prop, important_pass)
     {
-        let on = match v {
-            Value::Specified(b) => *b,
-            Value::Inherit => parent_modifiers.contains(bit),
-            Value::Initial => initial.get().modifiers.contains(bit),
+        let on = match kw.resolve(v) {
+            Resolved::Specified(b) => *b,
+            Resolved::From(source) => source.modifiers.contains(bit),
         };
         working.modifiers.set(bit, on);
     }

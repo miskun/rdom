@@ -9,7 +9,8 @@
 
 use rdom_style::ContentContext;
 
-use crate::style::{ComputedStyle, Content, ImportantMask, Rule, RuleOrigin, TuiStyle, Value};
+use super::ladder::{Declarations, Plan, Rollback, Step};
+use crate::style::{ComputedStyle, Content, ImportantMask, Value};
 
 /// The cascade's view of an element for `content` resolution: the
 /// working style's variable map, the host's attributes, the counter
@@ -32,9 +33,9 @@ impl ContentContext for ElementContext<'_> {
     }
 }
 
-/// Resolve the `content` property against a sorted rule list + inline
-/// style. Walks the origin + importance ladder (UA → Author → Inline,
-/// then the Important inverse), and returns:
+/// Resolve the `content` property through the cascade ladder (`plan`
+/// over `decls`, the same steps every other property takes), and
+/// return:
 ///
 /// - `None` — no declaration at any layer. Caller uses fallback.
 /// - `Some(None)` — declaration resolved to `Content::None`
@@ -46,52 +47,19 @@ impl ContentContext for ElementContext<'_> {
 /// attributes (`dom.node(id).get_attribute(name)`).
 pub(super) fn resolve_content_on(
     working: &ComputedStyle,
-    sorted_by_spec: &[&Rule],
-    inline: Option<&TuiStyle>,
+    plan: &Plan,
+    decls: Declarations<'_>,
     attr_lookup: &dyn Fn(&str) -> Option<String>,
     counter_lookup: &dyn Fn(&str) -> i32,
 ) -> Option<Option<String>> {
-    let mut declared: Option<Content> = None;
-    let mut apply_from = |style: &TuiStyle, important_prop_match: bool| {
-        if let Some(v) = &style.content {
-            let is_imp = style.important.contains(ImportantMask::CONTENT);
-            if is_imp == important_prop_match {
-                declared = match v {
-                    Value::Specified(c) => Some(c.clone()),
-                    Value::Inherit => declared.clone(),
-                    Value::Initial => Some(Content::None),
-                };
-            }
-        }
+    let base = || None;
+    let apply = |declared: &mut Option<Content>, i: usize, rollback: &Rollback<'_, _>| {
+        declare_step(declared, &plan.steps()[i], decls, rollback);
     };
-
-    // Normal pass (UA → Author → Inline).
-    for r in sorted_by_spec {
-        if r.origin == RuleOrigin::UserAgent {
-            apply_from(&r.style, false);
-        }
-    }
-    for r in sorted_by_spec {
-        if r.origin == RuleOrigin::Author {
-            apply_from(&r.style, false);
-        }
-    }
-    if let Some(s) = inline {
-        apply_from(s, false);
-    }
-    // Important pass (Inline → Author → UA, inverting origin priority).
-    if let Some(s) = inline {
-        apply_from(s, true);
-    }
-    for r in sorted_by_spec {
-        if r.origin == RuleOrigin::Author {
-            apply_from(&r.style, true);
-        }
-    }
-    for r in sorted_by_spec {
-        if r.origin == RuleOrigin::UserAgent {
-            apply_from(&r.style, true);
-        }
+    let rollback = Rollback::new(plan.steps().len(), &base, &apply);
+    let mut declared: Option<Content> = None;
+    for step in plan.steps() {
+        declare_step(&mut declared, step, decls, &rollback);
     }
 
     let ctx = ElementContext {
@@ -100,4 +68,25 @@ pub(super) fn resolve_content_on(
         counter: counter_lookup,
     };
     declared.map(|c| c.resolve(&ctx))
+}
+
+/// One ladder step's `content` declarations onto `declared`.
+fn declare_step(
+    declared: &mut Option<Content>,
+    step: &Step,
+    decls: Declarations<'_>,
+    rollback: &Rollback<'_, Option<Content>>,
+) {
+    for style in decls.of(step) {
+        if let Some(v) = &style.content
+            && style.important.contains(ImportantMask::CONTENT) == step.important
+        {
+            *declared = match v {
+                Value::Specified(c) => Some(c.clone()),
+                Value::Inherit => declared.clone(),
+                Value::Initial => Some(Content::None),
+                Value::Revert => rollback.state_before(step.revert_to).clone(),
+            };
+        }
+    }
 }

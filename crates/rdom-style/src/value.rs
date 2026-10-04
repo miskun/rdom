@@ -8,6 +8,10 @@
 //!   from the parent even on properties that don't inherit by default.
 //! - `Initial` — the author wrote `color: initial;` (or `unset` with no
 //!   parent context), forcing the property back to its spec initial.
+//! - `Revert` — the author wrote `color: revert;`: the cascade rolls the
+//!   property back to the previous origin (CSS Cascade 4 §7.3). Unlike
+//!   `unset`, this depends on the declaration's origin, so it is kept
+//!   as written and resolved by the cascade.
 //!
 //! The outer `Option<Value<T>>` on `TuiStyle` fields adds a fourth state:
 //!
@@ -18,7 +22,9 @@
 //!
 //! Reference: [CSS Values and Units §6.3](https://www.w3.org/TR/css-values-4/#common-keywords).
 
-/// CSS value states: specified, inherit, or initial.
+/// CSS value states: specified, or one of the CSS-wide keywords the
+/// cascade resolves (`unset` is resolved at parse time from the
+/// property's inheritance, so it has no variant).
 ///
 /// `Copy` whenever `T: Copy`, so this adds zero heap overhead for the
 /// common case where `T` is `Color`, `bool`, `u16`, etc.
@@ -31,6 +37,11 @@ pub enum Value<T> {
     /// Force spec initial: `color: initial;` / `color: unset;` when the
     /// property is not inherited.
     Initial,
+    /// Roll back to the previous cascade origin: `color: revert;`
+    /// (CSS Cascade 4 §7.3). In an author or inline declaration, the
+    /// value the user-agent origin gives; in a user-agent declaration,
+    /// the `unset` value.
+    Revert,
 }
 
 impl<T> Value<T> {
@@ -64,6 +75,7 @@ impl<T> Value<T> {
             Value::Specified(v) => Value::Specified(f(v)),
             Value::Inherit => Value::Inherit,
             Value::Initial => Value::Initial,
+            Value::Revert => Value::Revert,
         }
     }
 }

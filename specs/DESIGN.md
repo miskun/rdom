@@ -159,7 +159,7 @@ Removing a node releases its slot for reuse, but the `NodeId` carries a per-slot
 
 ### `unset` is resolved when a declaration is parsed
 
-CSS Cascade 4 defines `unset` as `inherit` for inherited properties and `initial` otherwise. Which properties inherit is a fact about the property, not the tree, so `rdom-style`'s dispatch table (`property_dispatch::inherits`) resolves the keyword into `Value::Inherit` / `Value::Initial` at parse time and the cascade only ever sees those two. The cascade copies that same set in `inherit_inheritable_from`; a cascade test probes every property against the table, so there is one declaration and one proof, no second list.
+CSS Cascade 4 defines `unset` as `inherit` for inherited properties and `initial` otherwise. Which properties inherit is a fact about the property, not the tree, so `rdom-style`'s dispatch table (`property_dispatch::inherits`) resolves the keyword into `Value::Inherit` / `Value::Initial` at parse time and the cascade never sees `unset`. `revert` (Cascade 4 §7.3) is the opposite case: its value depends on the declaration's origin, so it is stored as `Value::Revert` and the cascade resolves it from the ladder's rollback state (`rdom-tui` `cascade/ladder.rs`: the rolled-back states are replayed on demand, memoized per step, so a cascade without `revert` pays nothing). The cascade copies that same set in `inherit_inheritable_from`; a cascade test probes every property against the table, so there is one declaration and one proof, no second list.
 
 ### `:root` custom properties are published twice on purpose
 

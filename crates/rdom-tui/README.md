@@ -267,6 +267,11 @@ ascending; later wins. This means an `!important` declaration in an
 author stylesheet beats `!important` on an inline style (matches
 browser behavior).
 
+`revert` (CSS Cascade 4 §7.3) rolls a property back through this
+ladder: in an author or inline declaration to the value after pass 1
+(the UA origin), in a UA declaration to the value before any pass
+(`unset`).
+
 ## Architecture
 
 - `rdom-core` stays style-agnostic. No `Color`, no `Stylesheet`, no

@@ -695,3 +695,15 @@ fn property_names_are_ascii_case_insensitive() {
     assert_eq!(serialize("--foo", &style), None);
     assert_eq!(serialize("--Foo", &style).as_deref(), Some("1"));
 }
+
+/// CSS Cascade 4 §7.3: `revert` is a CSS-wide keyword, valid for every
+/// property (ASCII case-insensitive), stored for the cascade to roll
+/// back and serialized as written.
+#[test]
+fn revert_is_a_css_wide_keyword() {
+    for &name in property_names() {
+        let mut style = TuiStyle::new();
+        set(name, "REVERT", &mut style).unwrap_or_else(|e| panic!("{name}: {e:?}"));
+        assert_eq!(serialize(name, &style).as_deref(), Some("revert"), "{name}");
+    }
+}

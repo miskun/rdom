@@ -14,10 +14,11 @@ use crate::ext::TuiExt;
 use crate::layout::Position;
 use crate::style::{ComputedStyle, PseudoElementTarget, Rule, Stylesheet, VarMap};
 
-use super::apply::{apply_cascade_ladder, finalize_bfc_formation, finalize_border_fg};
+use super::apply::{finalize_bfc_formation, finalize_border_fg};
 use super::content::resolve_content_on;
 pub(super) use super::counters::CounterState;
 use super::inherit::{inherit_inheritable_from, layout_differs};
+use super::ladder::{Declarations, Plan, apply_cascade_ladder};
 
 /// Merge `root_vars` across all registered sheets into a single
 /// `VarMap`. Later sheets win per var name — push order is the
@@ -374,7 +375,12 @@ fn compute_element_style(
     // Inline style on this element (may be empty).
     let inline = dom.node(id).ext().and_then(|e| e.inline_style.as_deref());
 
-    apply_cascade_ladder(&mut working, &sorted, inline, parent);
+    let plan = Plan::new();
+    let decls = Declarations {
+        sorted: &sorted,
+        inline,
+    };
+    apply_cascade_ladder(&mut working, &plan, decls, parent);
 
     // This element's `counter-reset` / `counter-increment` take effect
     // before its own generated content and its children are seen.
@@ -389,8 +395,8 @@ fn compute_element_style(
     // to pseudo-elements) but we allow it for flexibility.
     let attr_lookup = |name: &str| dom.node(id).get_attribute(name).map(|s| s.to_string());
     let counter_lookup = |name: &str| counters.value(name);
-    working.content = resolve_content_on(&working, &sorted, inline, &attr_lookup, &counter_lookup)
-        .unwrap_or(None);
+    working.content =
+        resolve_content_on(&working, &plan, decls, &attr_lookup, &counter_lookup).unwrap_or(None);
 
     // border_fg falls back to working.fg when no rule declared it
     // (property catalog: initial = "inherits fg"). Implemented as a
@@ -492,7 +498,12 @@ fn compute_pseudo_style_layered(
     let sorted: Vec<&Rule> = matching.iter().map(|(_, _, r)| *r).collect();
 
     // Pseudo-elements don't have their own inline_style on `TuiExt`.
-    apply_cascade_ladder(&mut working, &sorted, None, host_computed);
+    let plan = Plan::new();
+    let decls = Declarations {
+        sorted: &sorted,
+        inline: None,
+    };
+    apply_cascade_ladder(&mut working, &plan, decls, host_computed);
 
     // Border_fg fallback (same rule as for host elements).
     finalize_border_fg(&mut working, &sorted, None);
@@ -510,7 +521,7 @@ fn compute_pseudo_style_layered(
     counters.enter(Some(id), &working.counter_reset, &working.counter_increment);
     let attr_lookup = |name: &str| dom.node(id).get_attribute(name).map(|s| s.to_string());
     let counter_lookup = |name: &str| counters.value(name);
-    let declared = resolve_content_on(&working, &sorted, None, &attr_lookup, &counter_lookup);
+    let declared = resolve_content_on(&working, &plan, decls, &attr_lookup, &counter_lookup);
     let fallback = dom.node(id).ext().and_then(|e| match target {
         PseudoElementTarget::Before => e.before_content.clone(),
         PseudoElementTarget::After => e.after_content.clone(),

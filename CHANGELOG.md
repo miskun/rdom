@@ -15,9 +15,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Pseudo-class names are ASCII case-insensitive** (Selectors 4 §3.1): `a:HOVER` is `a:hover`. (C1-CASE)
 
+### Breaking — `rdom-style`
+
+- `Value<T>` gains `Revert`, the CSS-wide keyword `revert` (CSS Cascade 4 §7.3), which depends on the declaration's origin and so is stored as written for the cascade to resolve (`unset` stays resolved at parse time). `Value` is closed data by design (DESIGN: non-exhaustive rule), so this is breaking. Migration: add a `Value::Revert` arm to matches on `Value` — in a cascade, roll back to the user-agent origin's value; elsewhere treat it like the other keywords. (C1-REVERT)
+
 ### Added — `rdom-style`
 
 - **The value tokenizer decodes identifier escapes** (CSS Syntax 3 §4.3.7 / §4.3.11) through `rdom_core::css_syntax`, so they work in property names (`col\6f r: red`) and keyword values (`display: fl\65x`); an identifier may start with an escape. A selector list no longer splits on an escaped comma. New `Cursor::rest` / `Cursor::advance`. (C1-ESCAPES)
+- **`revert`** is accepted for every property (ASCII case-insensitive) and serializes as written. (C1-REVERT)
 
 ### Fixed — `rdom-style`
 
@@ -27,6 +32,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Escapes in a selector prelude are copied through intact**, so an escaped `{`, `}`, quote or `,` (`.x\{\,y`) neither ends the prelude nor splits the selector list. (C1-ESCAPES)
 - `:ROOT { --x: … }` publishes its custom properties to `Stylesheet::vars()` like `:root`. (C1-CASE)
+
+### Added — `rdom-tui`
+
+- **The cascade resolves `revert`** (CSS Cascade 4 §7.3): in an author rule or inline style it rolls the property back to the value the user-agent origin gives (`button { color: revert }` is the UA button color), and to the `unset` value where the UA declares nothing; in a UA rule it acts as `unset`. Custom properties and `content` revert too. The ladder is now one plan (`cascade/ladder.rs`) that properties, custom properties and `content` all walk — `content` had its own copy — and the rollback states are replayed on demand and memoized per step, so a cascade without `revert` does no extra work. (C1-REVERT)
 
 ### Fixed — `rdom-tui`
 
