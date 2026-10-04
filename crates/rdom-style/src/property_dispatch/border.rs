@@ -1,21 +1,17 @@
-//! The border properties (CSS Backgrounds 3 §4): `set` and `serialize`
-//! arms for `border`, `border-<side>`, `border-style` (+ per-side),
-//! and `border-color`. `border-collapse` is a table property and stays
-//! in `set.rs` / `serialize.rs`.
+//! The border properties (CSS Backgrounds 3 §4–§5): `set` and
+//! `serialize` arms for `border`, `border-<side>`, `border-style` /
+//! `-color` / `-width` and their per-side longhands, and
+//! `border-radius` and its per-corner longhands. `border-collapse` is a
+//! table property and stays in `set.rs` / `serialize.rs`.
 
 use super::value_serializers::{border_style_keyword, serialize_color, serialize_math, specified};
-use crate::layout::{BorderStyle, BorderWidth, CornerStyle, PaintLength, Sides};
+use crate::layout::{BorderRadius, BorderStyle, BorderWidth, Corners, PaintLength, Sides};
 use crate::parse::token::Token;
 use crate::parse::values::{
-    current_border, parse_border, parse_border_side, parse_border_side_shorthand, parse_color,
-    parse_line_width, parse_sides,
+    parse_border, parse_border_radius, parse_border_side, parse_border_side_shorthand, parse_color,
+    parse_corner_radius, parse_line_width, parse_sides,
 };
 use crate::{TuiColor, TuiStyle, Value};
-
-/// True when `value` is rdom's `rounded` keyword.
-fn is_rounded(value: &[Token]) -> bool {
-    matches!(value, [Token::Ident(k)] if k.eq_ignore_ascii_case("rounded"))
-}
 
 /// Which side a per-side property name addresses.
 #[derive(Clone, Copy)]
@@ -44,28 +40,10 @@ impl Side {
             Side::Left => &sides.left,
         }
     }
-
-    fn style_of(self, b: &crate::layout::Border) -> BorderStyle {
-        match self {
-            Side::Top => b.top,
-            Side::Right => b.right,
-            Side::Bottom => b.bottom,
-            Side::Left => b.left,
-        }
-    }
-
-    fn style(self, b: &mut crate::layout::Border) -> &mut BorderStyle {
-        match self {
-            Side::Top => &mut b.top,
-            Side::Right => &mut b.right,
-            Side::Bottom => &mut b.bottom,
-            Side::Left => &mut b.left,
-        }
-    }
 }
 
-/// The side a `border-<side>` / `border-<side>-style` name addresses,
-/// and its suffix after the side.
+/// The side a `border-<side>…` name addresses, and its suffix after the
+/// side.
 fn side_of(name: &str) -> Option<(Side, &str)> {
     let rest = name.strip_prefix("border-")?;
     [
@@ -78,6 +56,17 @@ fn side_of(name: &str) -> Option<(Side, &str)> {
     .find_map(|(n, side)| rest.strip_prefix(n).map(|suffix| (side, suffix)))
 }
 
+/// The corner field a `border-<corner>-radius` name addresses.
+fn corner_of<'c, T>(name: &str, corners: &'c mut Corners<T>) -> Option<&'c mut T> {
+    Some(match name {
+        "border-top-left-radius" => &mut corners.top_left,
+        "border-top-right-radius" => &mut corners.top_right,
+        "border-bottom-right-radius" => &mut corners.bottom_right,
+        "border-bottom-left-radius" => &mut corners.bottom_left,
+        _ => return None,
+    })
+}
+
 fn spec<T>(v: T) -> Option<Value<T>> {
     Some(Value::Specified(v))
 }
@@ -86,26 +75,18 @@ fn spec<T>(v: T) -> Option<Value<T>> {
 /// `Some(None)` when its value is invalid.
 pub(super) fn set(name: &str, value: &[Token], style: &mut TuiStyle) -> Option<Option<()>> {
     Some(match name {
-        // §4.4: every side's style, width and color.
-        "border" => parse_border(value).map(|(border, width, color)| {
-            style.border = spec(border);
-            style.border_width = Sides::all(spec(width));
-            style.border_color = Sides::all(spec(color));
-        }),
-        // §4.2, the whole ring: rdom's one-value `rounded` rounds its
-        // corners, anything else squares them.
-        "border-style" => parse_sides(value, parse_border_side).map(|s| {
-            let mut b = crate::layout::Border {
-                top: s.top,
-                right: s.right,
-                bottom: s.bottom,
-                left: s.left,
-                corner_style: CornerStyle::Square,
-            };
-            if is_rounded(value) {
-                b.corner_style = CornerStyle::Rounded;
+        // §4.4: every side's style, width and color. rdom's `rounded`
+        // also rounds the corners: `border: solid; border-radius: 1`.
+        "border" => parse_border(value).map(|ring| {
+            style.border_style = ring.styles.sides().map(spec);
+            style.border_width = Sides::all(spec(ring.width));
+            style.border_color = Sides::all(spec(ring.color));
+            if ring.rounded {
+                style.border_radius = Corners::all(spec(BorderRadius::cells(1.0)));
             }
-            style.border = spec(b);
+        }),
+        "border-style" => parse_sides(value, parse_border_side).map(|s| {
+            style.border_style = s.map(spec);
         }),
         "border-color" => parse_sides(value, parse_color).map(|c| {
             style.border_color = c.map(spec);
@@ -113,21 +94,25 @@ pub(super) fn set(name: &str, value: &[Token], style: &mut TuiStyle) -> Option<O
         "border-width" => parse_sides(value, parse_line_width).map(|w| {
             style.border_width = w.map(spec);
         }),
+        "border-radius" => parse_border_radius(value).map(|r| {
+            style.border_radius = r.map(spec);
+        }),
+        _ if name.ends_with("-radius") => {
+            let r = parse_corner_radius(value);
+            let corner = corner_of(name, &mut style.border_radius)?;
+            r.map(|r| *corner = spec(r))
+        }
         _ => {
             let (side, suffix) = side_of(name)?;
             match suffix {
                 // §4.4: one side's style, width and color.
                 "" => parse_border_side_shorthand(value).map(|s| {
-                    let mut b = current_border(style);
-                    *side.style(&mut b) = s.style;
-                    style.border = spec(b);
+                    *side.of(&mut style.border_style) = spec(s.style);
                     *side.of(&mut style.border_width) = spec(s.width);
                     *side.of(&mut style.border_color) = spec(s.color);
                 }),
                 "-style" => parse_border_side(value).map(|s| {
-                    let mut b = current_border(style);
-                    *side.style(&mut b) = s;
-                    style.border = spec(b);
+                    *side.of(&mut style.border_style) = spec(s);
                 }),
                 "-color" => parse_color(value).map(|c| {
                     *side.of(&mut style.border_color) = spec(c);
@@ -145,75 +130,102 @@ pub(super) fn set(name: &str, value: &[Token], style: &mut TuiStyle) -> Option<O
 /// `Some(None)` when it is unset or its longhands cannot be written as
 /// it.
 pub(super) fn serialize(name: &str, style: &TuiStyle) -> Option<Option<String>> {
-    let border = style.border.as_ref().and_then(specified);
     Some(match name {
-        "border" => border.and_then(|b| {
-            let width = uniform(&style.border_width)?;
-            let color = uniform(&style.border_color)?;
-            let styles = Sides::new(b.top, b.right, b.bottom, b.left);
-            if b.corner_style == CornerStyle::Rounded {
-                // rdom's `rounded`: a solid ring with rounded corners.
-                return (styles.uniform() && b.top == BorderStyle::Solid)
-                    .then(|| line(width, "rounded", color));
-            }
-            if styles.uniform() {
-                return Some(line(width, border_style_keyword(b.top), color));
-            }
-            // rdom's one-side keywords: that side solid, the rest none,
-            // width and color initial.
-            let initial = *width == BorderWidth::Medium && *color == TuiColor::CurrentColor;
-            let nones = styles
-                .each()
-                .iter()
-                .filter(|s| ***s == BorderStyle::None)
-                .count();
-            if !initial || nones != 3 {
-                return None;
-            }
-            [
-                (b.top, "top"),
-                (b.right, "right"),
-                (b.bottom, "bottom"),
-                (b.left, "left"),
-            ]
-            .into_iter()
-            .find(|(s, _)| *s == BorderStyle::Solid)
-            .map(|(_, keyword)| keyword.to_string())
-        }),
-        "border-style" => border.and_then(|b| {
-            let styles = Sides::new(b.top, b.right, b.bottom, b.left);
-            match b.corner_style {
-                CornerStyle::Rounded => {
-                    (styles.uniform() && b.top == BorderStyle::Solid).then(|| "rounded".to_string())
-                }
-                CornerStyle::Square => Some(shortest_sides(
-                    styles.map(|s| border_style_keyword(s).to_string()),
-                )),
-            }
-        }),
+        "border" => serialize_border(style),
+        "border-style" => all_specified(&style.border_style)
+            .map(|s| shortest_sides(s.map(|s| border_style_keyword(*s).to_string()))),
         "border-color" => {
             all_specified(&style.border_color).map(|c| shortest_sides(c.map(serialize_color)))
         }
         "border-width" => {
             all_specified(&style.border_width).map(|w| shortest_sides(w.map(serialize_line_width)))
         }
+        "border-radius" => serialize_border_radius(&style.border_radius),
+        _ if name.ends_with("-radius") => {
+            let mut radii = style.border_radius.clone();
+            corner_of(name, &mut radii)?
+                .as_ref()
+                .and_then(specified)
+                .map(serialize_corner_radius)
+        }
         _ => {
             let (side, suffix) = side_of(name)?;
-            let side_style = border.map(|b| side.style_of(b));
+            let line_style = side.get(&style.border_style).as_ref().and_then(specified);
             let width = side.get(&style.border_width).as_ref().and_then(specified);
             let color = side.get(&style.border_color).as_ref().and_then(specified);
             match suffix {
-                "" => side_style
+                "" => line_style
                     .zip(width)
                     .zip(color)
-                    .map(|((s, w), c)| line(w, border_style_keyword(s), c)),
-                "-style" => side_style.map(|s| border_style_keyword(s).to_string()),
+                    .map(|((s, w), c)| line(w, border_style_keyword(*s), c)),
+                "-style" => line_style.map(|s| border_style_keyword(*s).to_string()),
                 "-color" => color.map(serialize_color),
                 "-width" => width.map(serialize_line_width),
                 _ => return None,
             }
         }
     })
+}
+
+/// `border`: every side's style, width and color agree; or rdom's
+/// one-side keyword form (one side solid, the rest none, width and
+/// color initial).
+fn serialize_border(style: &TuiStyle) -> Option<String> {
+    let styles = all_specified(&style.border_style)?.map(|s| *s);
+    let width = uniform(&style.border_width)?;
+    let color = uniform(&style.border_color)?;
+    if styles.uniform() {
+        return Some(line(width, border_style_keyword(styles.top), color));
+    }
+    let initial = *width == BorderWidth::Medium && *color == TuiColor::CurrentColor;
+    let nones = styles
+        .each()
+        .iter()
+        .filter(|s| ***s == BorderStyle::None)
+        .count();
+    if !initial || nones != 3 {
+        return None;
+    }
+    [
+        (styles.top, "top"),
+        (styles.right, "right"),
+        (styles.bottom, "bottom"),
+        (styles.left, "left"),
+    ]
+    .into_iter()
+    .find(|(s, _)| *s == BorderStyle::Solid)
+    .map(|(_, keyword)| keyword.to_string())
+}
+
+/// `border-radius`: the horizontal radii in their shortest form, then
+/// `/` and the vertical ones when they differ (CSSOM §6.7.2).
+fn serialize_border_radius(radii: &Corners<Option<Value<BorderRadius>>>) -> Option<String> {
+    let [tl, tr, br, bl] = radii.each().map(|r| r.as_ref().and_then(specified));
+    let radii = Corners::new(tl?, tr?, br?, bl?);
+    let axis = |f: fn(&BorderRadius) -> &PaintLength| {
+        let [tl, tr, br, bl] = radii.each().map(|r| serialize_paint_length(f(r)));
+        shortest_sides(Sides::new(tl, tr, br, bl))
+    };
+    let horizontal = axis(|r| &r.horizontal);
+    let vertical = axis(|r| &r.vertical);
+    Some(if radii.each().iter().all(|r| r.horizontal == r.vertical) {
+        horizontal
+    } else {
+        format!("{horizontal} / {vertical}")
+    })
+}
+
+/// One corner's radius: one value when both axes agree.
+fn serialize_corner_radius(r: &BorderRadius) -> String {
+    if r.horizontal == r.vertical {
+        serialize_paint_length(&r.horizontal)
+    } else {
+        format!(
+            "{} {}",
+            serialize_paint_length(&r.horizontal),
+            serialize_paint_length(&r.vertical)
+        )
+    }
 }
 
 /// Every side's specified value, if each side has one.

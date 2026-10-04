@@ -1,5 +1,6 @@
-//! [`Sides`]: one value per box side, the shape of every per-side
-//! property family (`border-*-color`, `border-*-width`, …).
+//! [`Sides`] and [`Corners`]: one value per box side or corner, the
+//! shape of every per-side and per-corner property family
+//! (`border-*-color`, `border-*-width`, `border-*-radius`, …).
 
 /// One value per side of a box, in CSS order: top, right, bottom, left.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash)]
@@ -85,5 +86,96 @@ impl<T> Sides<T> {
         T: PartialEq,
     {
         self.right == self.top && self.bottom == self.top && self.left == self.top
+    }
+}
+
+/// One value per corner of a box, in CSS order: top-left, top-right,
+/// bottom-right, bottom-left (CSS Backgrounds 3 §5.2).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash)]
+pub struct Corners<T> {
+    pub top_left: T,
+    pub top_right: T,
+    pub bottom_right: T,
+    pub bottom_left: T,
+}
+
+impl<T> Corners<T> {
+    pub const fn new(top_left: T, top_right: T, bottom_right: T, bottom_left: T) -> Self {
+        Self {
+            top_left,
+            top_right,
+            bottom_right,
+            bottom_left,
+        }
+    }
+
+    /// `v` on every corner.
+    pub fn all(v: T) -> Self
+    where
+        T: Clone,
+    {
+        Self::new(v.clone(), v.clone(), v.clone(), v)
+    }
+
+    /// 1 to 4 values expanded clockwise from the top-left (§5.2): one is
+    /// every corner, two are top-left / bottom-right then top-right /
+    /// bottom-left, three are top-left, the top-right / bottom-left
+    /// pair, bottom-right.
+    pub fn from_values(values: &[T]) -> Option<Self>
+    where
+        T: Clone,
+    {
+        let s = Sides::from_values(values)?;
+        Some(Self::new(s.top, s.right, s.bottom, s.left))
+    }
+
+    /// The corners as an array, top-left first.
+    pub fn to_array(self) -> [T; 4] {
+        [
+            self.top_left,
+            self.top_right,
+            self.bottom_right,
+            self.bottom_left,
+        ]
+    }
+
+    /// References to the corners, top-left first.
+    pub fn each(&self) -> [&T; 4] {
+        [
+            &self.top_left,
+            &self.top_right,
+            &self.bottom_right,
+            &self.bottom_left,
+        ]
+    }
+
+    /// Mutable references to the corners, top-left first.
+    pub fn each_mut(&mut self) -> [&mut T; 4] {
+        [
+            &mut self.top_left,
+            &mut self.top_right,
+            &mut self.bottom_right,
+            &mut self.bottom_left,
+        ]
+    }
+
+    /// `f` of every corner.
+    pub fn map<U>(self, mut f: impl FnMut(T) -> U) -> Corners<U> {
+        Corners::new(
+            f(self.top_left),
+            f(self.top_right),
+            f(self.bottom_right),
+            f(self.bottom_left),
+        )
+    }
+
+    /// The corners of `self` and `other` paired.
+    pub fn zip<U>(self, other: Corners<U>) -> Corners<(T, U)> {
+        Corners::new(
+            (self.top_left, other.top_left),
+            (self.top_right, other.top_right),
+            (self.bottom_right, other.bottom_right),
+            (self.bottom_left, other.bottom_left),
+        )
     }
 }

@@ -347,3 +347,63 @@ fn a_zero_width_keeps_the_computed_style() {
     let child = computed_of(&dom, c);
     assert_eq!(child.border.top, rdom_tui::layout::BorderStyle::Solid);
 }
+
+// ── C4-RADIUS ──────────────────────────────────────────────────────
+
+/// CSS Backgrounds 3 §5.1: a non-zero `border-radius` rounds the corner;
+/// a terminal's rounded corner is the arc glyph `╭╮╰╯`.
+#[test]
+fn border_radius_rounds_the_corners() {
+    for radius in ["1", "4px", "50%", "0.5em", "1 / 2"] {
+        let buf = bordered(&format!(
+            ".b {{ width: 5; height: 3; border: solid; border-radius: {radius} }}"
+        ));
+        assert_eq!(ring(&buf), ["╭───╮", "│   │", "╰───╯"], "{radius}");
+    }
+    let buf = bordered(".b { width: 5; height: 3; border: solid; border-radius: 0 }");
+    assert_eq!(ring(&buf), ["┌───┐", "│   │", "└───┘"]);
+}
+
+/// §5.1: each corner has its own radius, and a corner with either
+/// radius zero is square.
+#[test]
+fn each_corner_rounds_on_its_own() {
+    let buf = bordered(
+        ".b { width: 5; height: 3; border: solid; border-top-left-radius: 4px; \
+              border-bottom-right-radius: 3px 0 }",
+    );
+    assert_eq!(ring(&buf), ["╭───┐", "│   │", "└───┘"]);
+    let buf = bordered(".b { width: 5; height: 3; border: solid; border-radius: 0 1 }");
+    assert_eq!(ring(&buf), ["┌───╮", "│   │", "╰───┘"]);
+}
+
+/// Unicode has no heavy arc: a thick rounded corner stays square.
+#[test]
+fn a_heavy_rounded_corner_is_square() {
+    let buf = bordered(".b { width: 5; height: 3; border: thick solid; border-radius: 1 }");
+    assert_eq!(cell(&buf, 0, 0).symbol(), "┏");
+}
+
+/// rdom's `border: rounded` is `border: solid` with `border-radius: 1`.
+#[test]
+fn border_rounded_is_solid_with_a_radius() {
+    let buf = bordered(".b { width: 5; height: 3; border: rounded }");
+    assert_eq!(ring(&buf), ["╭───╮", "│   │", "╰───╯"]);
+}
+
+/// §4.2: each side's style is its own longhand in the cascade — a later
+/// rule's `border-top: none` removes the top and leaves the others.
+#[test]
+fn a_side_style_longhand_cascades_alone() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let b = el(&mut dom, root, "b", "");
+    dom.set_attribute(b, "id", "x").unwrap();
+    let buf = paint(
+        &mut dom,
+        ".b { width: 5; height: 3; border: solid } #x { border-top: none }",
+        5,
+        3,
+    );
+    assert_eq!(ring(&buf), ["│   │", "│   │", "└───┘"]);
+}

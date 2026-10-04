@@ -572,7 +572,8 @@ fn border_rounded_uses_curves() {
         TuiStyle::new()
             .width(Size::Fixed(4))
             .height(Size::Fixed(3))
-            .border(Border::rounded()),
+            .border(Border::single())
+            .border_radius(crate::layout::BorderRadius::cells(1.0)),
     );
     let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 10, 5));
 
@@ -693,7 +694,8 @@ fn border_with_no_bg_preserves_parent_bg() {
             TuiStyle::new()
                 .width(Size::Fixed(6))
                 .height(Size::Fixed(3))
-                .border(Border::rounded())
+                .border(Border::single())
+                .border_radius(crate::layout::BorderRadius::cells(1.0))
                 .border_fg(Color::Rgb(200, 200, 200)),
         );
     let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 12, 6));
@@ -3219,7 +3221,8 @@ fn opacity_one_overlay_occludes_underlying_glyphs() {
             TuiStyle::new()
                 .width(Size::Fixed(6))
                 .height(Size::Fixed(3))
-                .border(Border::rounded())
+                .border(Border::single())
+                .border_radius(crate::layout::BorderRadius::cells(1.0))
                 .border_fg(Color::Rgb(200, 200, 200)),
         )
         .rule_unchecked(
@@ -3273,7 +3276,8 @@ fn opacity_half_overlay_blends_bg_and_preserves_underlying_glyphs() {
             TuiStyle::new()
                 .width(Size::Fixed(6))
                 .height(Size::Fixed(3))
-                .border(Border::rounded())
+                .border(Border::single())
+                .border_radius(crate::layout::BorderRadius::cells(1.0))
                 .border_fg(Color::Rgb(200, 200, 200)),
         )
         .rule_unchecked(
@@ -3336,7 +3340,8 @@ fn opacity_zero_overlay_is_invisible_keeps_symbols() {
             TuiStyle::new()
                 .width(Size::Fixed(6))
                 .height(Size::Fixed(3))
-                .border(Border::rounded())
+                .border(Border::single())
+                .border_radius(crate::layout::BorderRadius::cells(1.0))
                 .border_fg(Color::Rgb(200, 200, 200)),
         )
         .rule_unchecked(
@@ -4569,7 +4574,8 @@ fn bordered_box_at_opacity_zero_is_invisible() {
         TuiStyle::new()
             .width(Size::Fixed(6))
             .height(Size::Fixed(3))
-            .border(Border::rounded())
+            .border(Border::single())
+            .border_radius(crate::layout::BorderRadius::cells(1.0))
             .border_fg(Color::Rgb(200, 200, 200))
             .opacity(0.0),
     );

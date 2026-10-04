@@ -87,8 +87,9 @@ pub trait TuiNodeMutExt<'a> {
         self.write_inline_style(|s| s.padding = Some(Value::Specified(p)));
         self
     }
+    /// Set the inline style's four `border-*-style`s.
     fn set_border(&mut self, b: Border) -> &mut Self {
-        self.write_inline_style(|s| s.border = Some(Value::Specified(b)));
+        self.write_inline_style(|s| s.border_style = b.sides().map(|s| Some(Value::Specified(s))));
         self
     }
     fn set_gap(&mut self, g: u16) -> &mut Self {

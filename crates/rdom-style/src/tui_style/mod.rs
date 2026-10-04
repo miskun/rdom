@@ -17,9 +17,11 @@
 
 #[cfg(test)]
 use crate::Color;
+#[cfg(test)]
+use crate::layout::Border;
 use crate::layout::{
-    Border, CaretColor, CaretTextColor, Direction, Display, Overflow, Padding, Sides, Size,
-    TextDecoration, UserSelect, WhiteSpace,
+    CaretColor, CaretTextColor, Direction, Display, Overflow, Padding, Sides, Size, TextDecoration,
+    UserSelect, WhiteSpace,
 };
 use crate::{Content, TuiColor, Value};
 
@@ -49,7 +51,7 @@ bitflags_like! {
         MAX_HEIGHT = 1 << 13;
         PADDING    = 1 << 14;
         GAP        = 1 << 15;
-        BORDER     = 1 << 16;
+        // Bit 16 was `BORDER`, replaced by the per-side `BORDER_*_STYLE`.
         DIRECTION  = 1 << 17;
         OVERFLOW_X = 1 << 18;
 
@@ -103,6 +105,14 @@ bitflags_like! {
         BORDER_RIGHT_WIDTH = 1 << 59;
         BORDER_BOTTOM_WIDTH = 1 << 60;
         BORDER_LEFT_WIDTH = 1 << 61;
+        BORDER_TOP_STYLE = 1 << 62;
+        BORDER_RIGHT_STYLE = 1 << 63;
+        BORDER_BOTTOM_STYLE = 1 << 64;
+        BORDER_LEFT_STYLE = 1 << 65;
+        BORDER_TOP_LEFT_RADIUS = 1 << 66;
+        BORDER_TOP_RIGHT_RADIUS = 1 << 67;
+        BORDER_BOTTOM_RIGHT_RADIUS = 1 << 68;
+        BORDER_BOTTOM_LEFT_RADIUS = 1 << 69;
     }
 }
 
@@ -173,10 +183,15 @@ pub struct TuiStyle {
     pub flex_shrink: Option<Value<f32>>,
     /// `flex-basis`, set by the `flex` shorthand (CSS Flexbox §7.2).
     pub flex_basis: Option<Value<crate::layout::FlexBasis>>,
-    pub border: Option<Value<Border>>,
+    /// `border-top-style` … `border-left-style` (CSS Backgrounds 3
+    /// §4.2), one longhand per side; initial `none`.
+    pub border_style: Sides<Option<Value<crate::layout::BorderStyle>>>,
     /// `border-top-width` … `border-left-width` (CSS Backgrounds 3
     /// §4.3), one longhand per side; initial `medium`.
     pub border_width: Sides<Option<Value<crate::layout::BorderWidth>>>,
+    /// `border-top-left-radius` … `border-bottom-left-radius` (CSS
+    /// Backgrounds 3 §5.1), one longhand per corner; initial `0`.
+    pub border_radius: crate::layout::Corners<Option<Value<crate::layout::BorderRadius>>>,
     /// `border-collapse: separate | collapse`. CSS-faithful name but
     /// rdom extends the property's scope from `<table>` only to any
     /// flex container. See `crate::layout::BorderCollapse` for the
@@ -430,9 +445,18 @@ impl TuiStyle {
         if self.gap.is_some() {
             n += 1
         }
-        if self.border.is_some() {
-            n += 1
-        }
+        n += self
+            .border_style
+            .each()
+            .iter()
+            .filter(|s| s.is_some())
+            .count();
+        n += self
+            .border_radius
+            .each()
+            .iter()
+            .filter(|r| r.is_some())
+            .count();
         if self.direction.is_some() {
             n += 1
         }

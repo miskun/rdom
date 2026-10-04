@@ -1,30 +1,18 @@
-//! Border values (CSS Backgrounds 3 §4): the `border` and
+//! Border values (CSS Backgrounds 3 §4–§5): the `border` and
 //! `border-<side>` shorthands (`<line-width> || <line-style> ||
-//! <color>`), line styles and widths, the current-border read used by
-//! the per-side style longhands, and the [`PaintLength`] leaf that
-//! border widths (and radii, shadows) share.
+//! <color>`), line styles and widths, corner radii, and the
+//! [`PaintLength`] leaf that border widths, radii and shadows share.
 
 use super::color::parse_color;
 use super::keyword::parse_keyword;
 use super::numeric::{LengthPercentage, Range, components, length_percentage};
-use crate::layout::{Border, BorderStyle, BorderWidth, CornerStyle, PaintLength, Sides};
+use crate::TuiColor;
+use crate::layout::{Border, BorderRadius, BorderStyle, BorderWidth, Corners, PaintLength, Sides};
 use crate::parse::token::Token;
-use crate::{TuiColor, TuiStyle, Value};
-
-/// Read the current border from `style`, defaulting to all-sides-off
-/// when nothing is set. Used by the `border-top-style` /
-/// `border-right-style` / … longhands so consecutive declarations
-/// combine instead of overwriting.
-pub fn current_border(style: &TuiStyle) -> Border {
-    match style.border {
-        Some(Value::Specified(b)) => b,
-        _ => Border::none(),
-    }
-}
 
 /// The CSS `<line-style>` keywords (§4.2) and rdom's `half-block`, plus
-/// the rdom synonyms `single` and `rounded` for `solid` (`rounded`
-/// rounds the corners only in the `border` shorthand).
+/// the rdom synonyms `single` and `rounded` for `solid` (`rounded` also
+/// rounds the corners in the `border` shorthand).
 const LINE_STYLES: &[(&str, BorderStyle)] = &[
     ("none", BorderStyle::None),
     ("hidden", BorderStyle::Hidden),
@@ -149,12 +137,21 @@ pub fn parse_border_side_shorthand(value: &[Token]) -> Option<BorderShorthand> {
     Some(out)
 }
 
+/// A parsed `border` shorthand: the per-side styles and the width and
+/// color every side takes; `rounded` when it was rdom's `rounded`
+/// (a solid ring that also sets `border-radius: 1`).
+#[derive(Debug, Clone, PartialEq)]
+pub struct BorderRing {
+    pub styles: Border,
+    pub width: BorderWidth,
+    pub color: TuiColor,
+    pub rounded: bool,
+}
+
 /// `border` (§4.4): the same grammar on all four sides, which it sets
 /// together; or one of rdom's one-side keywords `top` / `right` /
-/// `bottom` / `left` alone (that side solid, the others none). Returns
-/// the per-side styles (with the corner style) and the shared width and
-/// color.
-pub fn parse_border(value: &[Token]) -> Option<(Border, BorderWidth, TuiColor)> {
+/// `bottom` / `left` alone (that side solid, the others none).
+pub fn parse_border(value: &[Token]) -> Option<BorderRing> {
     let one_side = parse_keyword(
         value,
         &[
@@ -164,13 +161,74 @@ pub fn parse_border(value: &[Token]) -> Option<(Border, BorderWidth, TuiColor)> 
             ("right", Border::right()),
         ],
     );
-    if let Some(b) = one_side {
-        return Some((b, BorderWidth::Medium, TuiColor::CurrentColor));
+    if let Some(styles) = one_side {
+        return Some(BorderRing {
+            styles,
+            width: BorderWidth::Medium,
+            color: TuiColor::CurrentColor,
+            rounded: false,
+        });
     }
     let s = parse_border_side_shorthand(value)?;
-    let mut border = Border::ring(s.style);
-    if s.rounded {
-        border.corner_style = CornerStyle::Rounded;
+    Some(BorderRing {
+        styles: Border::ring(s.style),
+        width: s.width,
+        color: s.color,
+        rounded: s.rounded,
+    })
+}
+
+/// One corner's `border-*-radius` (§5.1): `<length-percentage
+/// [0,∞]>{1,2}` — the horizontal radius, then the vertical one (the
+/// horizontal again when omitted).
+pub fn parse_corner_radius(value: &[Token]) -> Option<BorderRadius> {
+    match components(value)?.as_slice() {
+        [h] => paint_length(h, true).map(BorderRadius::circle),
+        [h, v] => Some(BorderRadius {
+            horizontal: paint_length(h, true)?,
+            vertical: paint_length(v, true)?,
+        }),
+        _ => None,
     }
-    Some((border, s.width, s.color))
+}
+
+/// `border-radius` (§5.2): `<length-percentage [0,∞]>{1,4} [ /
+/// <length-percentage [0,∞]>{1,4} ]?` — the horizontal radii of the
+/// four corners clockwise from the top-left, then the vertical ones
+/// (the horizontal ones when omitted).
+pub fn parse_border_radius(value: &[Token]) -> Option<Corners<BorderRadius>> {
+    // The top-level `/` (one inside `calc()` divides).
+    let mut depth = 0usize;
+    let slash = value.iter().position(|t| {
+        match t {
+            Token::Function(_) | Token::LParen => depth += 1,
+            Token::RParen => depth = depth.saturating_sub(1),
+            _ => {}
+        }
+        depth == 0 && *t == Token::Delim('/')
+    });
+    let (h, v) = match slash {
+        Some(i) => (&value[..i], Some(&value[i + 1..])),
+        None => (value, None),
+    };
+    let radii = |part: &[Token]| -> Option<Corners<PaintLength>> {
+        let values = components(part)?
+            .into_iter()
+            .map(|c| paint_length(c, true))
+            .collect::<Option<Vec<_>>>()?;
+        Corners::from_values(&values)
+    };
+    let horizontal = radii(h)?;
+    let vertical = match v {
+        Some(v) => radii(v)?,
+        None => horizontal.clone(),
+    };
+    Some(
+        horizontal
+            .zip(vertical)
+            .map(|(horizontal, vertical)| BorderRadius {
+                horizontal,
+                vertical,
+            }),
+    )
 }

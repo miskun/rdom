@@ -1,11 +1,44 @@
 //! The applicators of the background and border properties whose
 //! computed value is not their declared value as written (CSS
 //! Backgrounds 3): `background-clip`, whose final layer clips the
-//! color; the border styles and widths, which make the used border.
+//! color; the border styles and widths, which make the used border;
+//! the corner radii.
 
 use super::apply::{Keywords, Resolved, matches_pass};
 use crate::style::{ComputedStyle, ImportantMask, TuiStyle, Value};
-use rdom_style::layout::{BorderWidth, Sides, VisualBox};
+use rdom_style::layout::{BorderRadius, BorderStyle, BorderWidth, Corners, Sides, VisualBox};
+
+/// Each side's computed `border-*-style`.
+const BORDER_STYLE_FIELDS: Sides<fn(&ComputedStyle) -> &BorderStyle> = Sides::new(
+    |c| &c.border_style.top,
+    |c| &c.border_style.right,
+    |c| &c.border_style.bottom,
+    |c| &c.border_style.left,
+);
+
+/// Each side's `border-*-style` `!important` bit.
+const BORDER_STYLE_MASKS: Sides<ImportantMask> = Sides::new(
+    ImportantMask::BORDER_TOP_STYLE,
+    ImportantMask::BORDER_RIGHT_STYLE,
+    ImportantMask::BORDER_BOTTOM_STYLE,
+    ImportantMask::BORDER_LEFT_STYLE,
+);
+
+/// Each corner's computed `border-*-radius`.
+const BORDER_RADIUS_FIELDS: Corners<fn(&ComputedStyle) -> &BorderRadius> = Corners::new(
+    |c| &c.border_radius.top_left,
+    |c| &c.border_radius.top_right,
+    |c| &c.border_radius.bottom_right,
+    |c| &c.border_radius.bottom_left,
+);
+
+/// Each corner's `border-*-radius` `!important` bit.
+const BORDER_RADIUS_MASKS: Corners<ImportantMask> = Corners::new(
+    ImportantMask::BORDER_TOP_LEFT_RADIUS,
+    ImportantMask::BORDER_TOP_RIGHT_RADIUS,
+    ImportantMask::BORDER_BOTTOM_RIGHT_RADIUS,
+    ImportantMask::BORDER_BOTTOM_LEFT_RADIUS,
+);
 
 /// Each side's computed `border-*-width`, for the CSS-wide keywords'
 /// source styles.
@@ -50,15 +83,39 @@ pub(super) fn apply_decoration(
         // (final) layer's clip.
         |layers: &Vec<VisualBox>| layers.last().copied().unwrap_or_default(),
     );
-    apply_mapped(
-        &mut working.border_style,
-        &style.border,
-        style.important.contains(ImportantMask::BORDER),
-        important_pass,
-        kw,
-        |c| &c.border_style,
-        |b| *b,
-    );
+    let styles = [
+        &mut working.border_style.top,
+        &mut working.border_style.right,
+        &mut working.border_style.bottom,
+        &mut working.border_style.left,
+    ]
+    .into_iter()
+    .zip(style.border_style.each())
+    .zip(BORDER_STYLE_FIELDS.to_array())
+    .zip(BORDER_STYLE_MASKS.to_array());
+    for (((target, value), field), mask) in styles {
+        let important = style.important.contains(mask);
+        apply_mapped(target, value, important, important_pass, kw, field, |s| *s);
+    }
+    let radii = working
+        .border_radius
+        .each_mut()
+        .into_iter()
+        .zip(style.border_radius.each())
+        .zip(BORDER_RADIUS_FIELDS.to_array())
+        .zip(BORDER_RADIUS_MASKS.to_array());
+    for (((target, value), field), mask) in radii {
+        let important = style.important.contains(mask);
+        apply_mapped(
+            target,
+            value,
+            important,
+            important_pass,
+            kw,
+            field,
+            BorderRadius::clone,
+        );
+    }
     let widths = working
         .border_width
         .each_mut()

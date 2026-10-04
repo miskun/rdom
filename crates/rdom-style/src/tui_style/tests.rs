@@ -27,7 +27,14 @@ fn important_mask_bits_are_unique() {
         M::MAX_HEIGHT,
         M::PADDING,
         M::GAP,
-        M::BORDER,
+        M::BORDER_TOP_STYLE,
+        M::BORDER_RIGHT_STYLE,
+        M::BORDER_BOTTOM_STYLE,
+        M::BORDER_LEFT_STYLE,
+        M::BORDER_TOP_LEFT_RADIUS,
+        M::BORDER_TOP_RIGHT_RADIUS,
+        M::BORDER_BOTTOM_RIGHT_RADIUS,
+        M::BORDER_BOTTOM_LEFT_RADIUS,
         M::DIRECTION,
         M::OVERFLOW_X,
         M::CONTENT,
@@ -169,12 +176,15 @@ fn unified_layout_fields_settable() {
         Some(Value::Specified(crate::layout::GapValue::Cells(1)))
     );
     assert_eq!(s.direction, Some(Value::Specified(Direction::Row)));
-    assert_eq!(s.border, Some(Value::Specified(Border::single())));
+    assert_eq!(
+        s.border_style,
+        crate::layout::Sides::all(Some(Value::Specified(crate::layout::BorderStyle::Solid)))
+    );
     // `overflow` shorthand writes both longhands.
     assert_eq!(s.overflow_x, Some(Value::Specified(Overflow::Hidden)));
     assert_eq!(s.overflow_y, Some(Value::Specified(Overflow::Hidden)));
-    // 5 properties above + 2 axes of overflow = 7.
-    assert_eq!(s.declared_count(), 7);
+    // 4 properties above + 4 border-style sides + 2 axes of overflow = 10.
+    assert_eq!(s.declared_count(), 10);
 }
 
 #[test]
@@ -272,8 +282,8 @@ fn every_property_has_a_setter() {
         .overflow(Overflow::Hidden)
         .content(Content::Str("x".into()));
     // The `overflow` shorthand counts as 2 (writes both axes), and
-    // `border_fg` as 4 (one `border-*-color` longhand per side).
-    assert_eq!(s.declared_count(), 21);
+    // `border_fg` and `border` as 4 each (one longhand per side).
+    assert_eq!(s.declared_count(), 24);
 }
 
 #[test]
@@ -318,6 +328,7 @@ fn every_property_has_important_setter() {
         .flex_shrink_important(1.0)
         .flex_basis_important(crate::layout::FlexBasis::Auto)
         .border_important(Border::single())
+        .border_radius_important(crate::layout::BorderRadius::cells(1.0))
         .background_image_important(vec![])
         .background_position_important(vec![])
         .background_size_important(vec![])

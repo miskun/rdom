@@ -246,7 +246,33 @@ impl TuiStyle {
         FLEX_BASIS,
         crate::layout::FlexBasis
     );
-    setter!(border, border, border_important, BORDER, Border);
+    /// Set the four `border-*-style`s. Chainable.
+    pub fn border(mut self, border: Border) -> Self {
+        self.border_style = border.sides().map(|s| Some(Value::Specified(s)));
+        self
+    }
+    pub fn border_important(mut self, border: Border) -> Self {
+        self.border_style = border.sides().map(|s| Some(Value::Specified(s)));
+        self.important |= ImportantMask::BORDER_TOP_STYLE
+            | ImportantMask::BORDER_RIGHT_STYLE
+            | ImportantMask::BORDER_BOTTOM_STYLE
+            | ImportantMask::BORDER_LEFT_STYLE;
+        self
+    }
+    /// Set the four `border-*-radius`es (`BorderRadius::cells(1)` rounds
+    /// every corner). Chainable.
+    pub fn border_radius(mut self, radius: crate::layout::BorderRadius) -> Self {
+        self.border_radius = crate::layout::Corners::all(Some(Value::Specified(radius)));
+        self
+    }
+    pub fn border_radius_important(mut self, radius: crate::layout::BorderRadius) -> Self {
+        self.border_radius = crate::layout::Corners::all(Some(Value::Specified(radius)));
+        self.important |= ImportantMask::BORDER_TOP_LEFT_RADIUS
+            | ImportantMask::BORDER_TOP_RIGHT_RADIUS
+            | ImportantMask::BORDER_BOTTOM_RIGHT_RADIUS
+            | ImportantMask::BORDER_BOTTOM_LEFT_RADIUS;
+        self
+    }
     // Backgrounds (CSS Backgrounds 3 §3), one entry per layer. Only the
     // clip of the final layer has an effect; the rest are inert.
     setter!(

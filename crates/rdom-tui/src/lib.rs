@@ -261,7 +261,7 @@ mod tests {
             .set_width(Size::Fixed(80))
             .set_height(Size::Flex(1.0))
             .set_padding(Padding::symmetric(2, 1))
-            .set_border(Border::rounded())
+            .set_border(Border::ring(crate::layout::BorderStyle::Double))
             .set_gap(1)
             .set_direction(Direction::Row);
 
@@ -270,7 +270,10 @@ mod tests {
         let n = dom.node(div);
         assert_eq!(n.width(), Some(Size::Fixed(80)));
         assert_eq!(n.padding(), Some(Padding::symmetric(2, 1)));
-        assert_eq!(n.border(), Some(Border::rounded()));
+        assert_eq!(
+            n.border(),
+            Some(Border::ring(crate::layout::BorderStyle::Double))
+        );
         assert_eq!(
             n.inline_style().unwrap().fg,
             Some(Value::Specified(TuiColor::Literal(Color::Rgb(

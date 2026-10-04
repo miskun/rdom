@@ -30,7 +30,8 @@ mod sizing;
 
 pub use background::{BackgroundAttachment, BackgroundRepeat, RepeatStyle, VisualBox};
 pub use border::{
-    Border, BorderCollapse, BorderStyle, BorderWeight, BorderWidth, CornerStyle, PaintLength,
+    Border, BorderCollapse, BorderRadius, BorderStyle, BorderWeight, BorderWidth, CornerStyle,
+    PaintLength,
 };
 pub use box_model::{Margin, MarginValue, Padding, PaddingValue};
 pub use keywords::{
@@ -38,7 +39,7 @@ pub use keywords::{
     ScrollBehavior, ScrollbarGutter, TextDecoration, UserSelect, WhiteSpace, ZIndex,
 };
 pub use rect::LayoutRect;
-pub use sides::Sides;
+pub use sides::{Corners, Sides};
 pub use sizing::{
     AspectRatio, FlexBasis, GapValue, Length, MaxSize, MinSize, Size, valid_flex_factor,
 };

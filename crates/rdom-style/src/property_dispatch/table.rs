@@ -84,6 +84,11 @@ const PROPERTY_NAMES: &[&str] = &[
     "border-right-width",
     "border-bottom-width",
     "border-left-width",
+    "border-radius",
+    "border-top-left-radius",
+    "border-top-right-radius",
+    "border-bottom-right-radius",
+    "border-bottom-left-radius",
     "border-collapse",
     "content",
     // Positioning (M2)
@@ -254,7 +259,14 @@ define_fields! {
     FlexBasis => flex_basis : FLEX_BASIS,
     Padding => padding : PADDING,
     Margin => margin : MARGIN,
-    Border => border : BORDER,
+    BorderTopStyle => border_style.top : BORDER_TOP_STYLE,
+    BorderRightStyle => border_style.right : BORDER_RIGHT_STYLE,
+    BorderBottomStyle => border_style.bottom : BORDER_BOTTOM_STYLE,
+    BorderLeftStyle => border_style.left : BORDER_LEFT_STYLE,
+    BorderTopLeftRadius => border_radius.top_left : BORDER_TOP_LEFT_RADIUS,
+    BorderTopRightRadius => border_radius.top_right : BORDER_TOP_RIGHT_RADIUS,
+    BorderBottomRightRadius => border_radius.bottom_right : BORDER_BOTTOM_RIGHT_RADIUS,
+    BorderBottomLeftRadius => border_radius.bottom_left : BORDER_BOTTOM_LEFT_RADIUS,
     BorderCollapse => border_collapse : BORDER_COLLAPSE,
     Content => content : CONTENT,
     Position => position : POSITION,
@@ -338,10 +350,12 @@ pub(super) fn fields_of(name: &str) -> Option<&'static [Field]> {
         }
         "margin" | "margin-top" | "margin-right" | "margin-bottom" | "margin-left" => &[Margin],
         // CSS Backgrounds 3 §4.4: `border` sets every side's style,
-        // width and color; `border-<side>` its side's. The styles share
-        // one field (DIVERGENCES §2) until C4-BORDER-SIDES.
+        // width and color; `border-<side>` its side's.
         "border" => &[
-            Border,
+            BorderTopStyle,
+            BorderRightStyle,
+            BorderBottomStyle,
+            BorderLeftStyle,
             BorderTopColor,
             BorderRightColor,
             BorderBottomColor,
@@ -351,12 +365,26 @@ pub(super) fn fields_of(name: &str) -> Option<&'static [Field]> {
             BorderBottomWidth,
             BorderLeftWidth,
         ],
+        "border-top" => &[BorderTopStyle, BorderTopColor, BorderTopWidth],
+        "border-right" => &[BorderRightStyle, BorderRightColor, BorderRightWidth],
+        "border-bottom" => &[BorderBottomStyle, BorderBottomColor, BorderBottomWidth],
+        "border-left" => &[BorderLeftStyle, BorderLeftColor, BorderLeftWidth],
+        "border-style" => &[
+            BorderTopStyle,
+            BorderRightStyle,
+            BorderBottomStyle,
+            BorderLeftStyle,
+        ],
         "border-width" => &[
             BorderTopWidth,
             BorderRightWidth,
             BorderBottomWidth,
             BorderLeftWidth,
         ],
+        "border-top-style" => &[BorderTopStyle],
+        "border-right-style" => &[BorderRightStyle],
+        "border-bottom-style" => &[BorderBottomStyle],
+        "border-left-style" => &[BorderLeftStyle],
         "border-top-color" => &[BorderTopColor],
         "border-right-color" => &[BorderRightColor],
         "border-bottom-color" => &[BorderBottomColor],
@@ -365,15 +393,17 @@ pub(super) fn fields_of(name: &str) -> Option<&'static [Field]> {
         "border-right-width" => &[BorderRightWidth],
         "border-bottom-width" => &[BorderBottomWidth],
         "border-left-width" => &[BorderLeftWidth],
-        "border-top" => &[Border, BorderTopColor, BorderTopWidth],
-        "border-right" => &[Border, BorderRightColor, BorderRightWidth],
-        "border-bottom" => &[Border, BorderBottomColor, BorderBottomWidth],
-        "border-left" => &[Border, BorderLeftColor, BorderLeftWidth],
-        "border-style"
-        | "border-top-style"
-        | "border-right-style"
-        | "border-bottom-style"
-        | "border-left-style" => &[Border],
+        // §5.2.
+        "border-radius" => &[
+            BorderTopLeftRadius,
+            BorderTopRightRadius,
+            BorderBottomRightRadius,
+            BorderBottomLeftRadius,
+        ],
+        "border-top-left-radius" => &[BorderTopLeftRadius],
+        "border-top-right-radius" => &[BorderTopRightRadius],
+        "border-bottom-right-radius" => &[BorderBottomRightRadius],
+        "border-bottom-left-radius" => &[BorderBottomLeftRadius],
         "border-collapse" => &[BorderCollapse],
         "content" => &[Content],
         "position" => &[Position],

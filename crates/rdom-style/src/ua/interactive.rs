@@ -162,7 +162,8 @@ pub(super) fn rules() -> Vec<(&'static str, TuiStyle)> {
             "dialog",
             TuiStyle::new()
                 .display(Display::Block)
-                .border(Border::rounded())
+                .border(Border::single())
+                .border_radius(crate::layout::BorderRadius::cells(1.0))
                 .border_fg(ACCENT)
                 .padding(Padding::new(1, 2, 1, 2)),
         ),

@@ -148,7 +148,7 @@ fn every_setter_reflects_a_round_tripping_style_attribute() {
             n.set_padding(Padding::symmetric(2, 1));
         }),
         ("border", |n| {
-            n.set_border(Border::rounded());
+            n.set_border(Border::ring(crate::layout::BorderStyle::Double));
         }),
         ("gap", |n| {
             n.set_gap(2);

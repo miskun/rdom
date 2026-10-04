@@ -80,7 +80,7 @@ mod tests;
 use rdom_core::{Dom, NodeId, NodeType};
 
 use crate::ext::TuiExt;
-use crate::layout::{Display, LayoutRect};
+use crate::layout::{CornerStyle, Display, LayoutRect};
 use crate::node::TuiNodeExt;
 use crate::render::layout_pass::is_ifc_block;
 use crate::render::stacking::{
@@ -506,6 +506,14 @@ fn paint_border_sides(
         .border_width
         .clone()
         .map(|w| w.weight().unwrap_or_default());
+    // §5.1: a corner with a non-zero radius rounds.
+    let corners = computed.border_radius.clone().map(|r| {
+        if r.is_rounded(outer.width, outer.height) {
+            CornerStyle::Rounded
+        } else {
+            CornerStyle::Square
+        }
+    });
     let mut done: Vec<Color> = Vec::with_capacity(4);
     for color in colors.to_array() {
         if done.contains(&color) {
@@ -521,12 +529,17 @@ fn paint_border_sides(
             let ink = Ink {
                 colors: colors.map(Color::opaque),
                 weights,
+                corners,
             };
             buf.paint_translucent(outer_grid, alpha, |layer| {
                 paint_border(layer, outer, border, ink, only, clip, priority);
             });
         } else {
-            let ink = Ink { colors, weights };
+            let ink = Ink {
+                colors,
+                weights,
+                corners,
+            };
             paint_border(buf, outer, border, ink, only, clip, priority);
         }
     }

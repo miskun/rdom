@@ -112,23 +112,16 @@ impl BorderStyle {
     }
 }
 
-/// Per-side border state. CSS lets authors enable any combination
-/// of `border-top` / `border-right` / `border-bottom` / `border-left`
-/// independently — each side carries its own [`BorderStyle`].
-/// `corner_style` only matters when all 4 sides paint — the
-/// rounded-corner glyphs `╭╮╰╯` need both sides at a corner to share
-/// a cell.
-///
-/// The `border` shorthand and the per-side longhands all write into
-/// this struct via the cascade. `Border::default()` is "no border"
-/// (all sides `BorderStyle::None`).
+/// The four sides' line styles. Each side is its own longhand
+/// (`border-top-style`, …), written by `border`, `border-<side>`,
+/// `border-style` and the side's own property. `Border::default()` is
+/// "no border" (all sides `BorderStyle::None`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Border {
     pub top: BorderStyle,
     pub right: BorderStyle,
     pub bottom: BorderStyle,
     pub left: BorderStyle,
-    pub corner_style: CornerStyle,
 }
 
 impl Border {
@@ -151,85 +144,85 @@ impl Border {
         self
     }
 
-    /// All sides off (`BorderStyle::None`). Same as `Default`.
-    pub const fn none() -> Self {
+    /// The four styles as [`Sides`](super::Sides).
+    pub const fn sides(self) -> super::Sides<BorderStyle> {
+        super::Sides::new(self.top, self.right, self.bottom, self.left)
+    }
+
+    /// The styles of `sides`.
+    pub const fn from_sides(sides: super::Sides<BorderStyle>) -> Self {
+        Self::new(sides.top, sides.right, sides.bottom, sides.left)
+    }
+
+    /// The four styles, clockwise from the top.
+    pub const fn new(
+        top: BorderStyle,
+        right: BorderStyle,
+        bottom: BorderStyle,
+        left: BorderStyle,
+    ) -> Self {
         Self {
-            top: BorderStyle::None,
-            right: BorderStyle::None,
-            bottom: BorderStyle::None,
-            left: BorderStyle::None,
-            corner_style: CornerStyle::Square,
+            top,
+            right,
+            bottom,
+            left,
         }
     }
-    /// All four sides solid, square corners. `border: solid`.
+
+    /// All sides off (`BorderStyle::None`). Same as `Default`.
+    pub const fn none() -> Self {
+        Self::ring(BorderStyle::None)
+    }
+    /// All four sides solid. `border: solid`.
     pub const fn single() -> Self {
         Self::ring(BorderStyle::Solid)
     }
-    /// All four sides solid, rounded corners. `border: rounded`.
-    pub const fn rounded() -> Self {
-        Self {
-            top: BorderStyle::Solid,
-            right: BorderStyle::Solid,
-            bottom: BorderStyle::Solid,
-            left: BorderStyle::Solid,
-            corner_style: CornerStyle::Rounded,
-        }
-    }
-    /// All four sides set to the same style, square corners.
+    /// All four sides set to the same style.
     pub const fn ring(style: BorderStyle) -> Self {
-        Self {
-            top: style,
-            right: style,
-            bottom: style,
-            left: style,
-            corner_style: CornerStyle::Square,
-        }
+        Self::new(style, style, style, style)
     }
-    /// Top side only (solid). `border-top: solid` longhand without others.
+    /// Top side only (solid). rdom's `border: top`.
     pub const fn top() -> Self {
-        Self {
-            top: BorderStyle::Solid,
-            right: BorderStyle::None,
-            bottom: BorderStyle::None,
-            left: BorderStyle::None,
-            corner_style: CornerStyle::Square,
-        }
+        Self::new(
+            BorderStyle::Solid,
+            BorderStyle::None,
+            BorderStyle::None,
+            BorderStyle::None,
+        )
     }
+    /// Bottom side only (solid). rdom's `border: bottom`.
     pub const fn bottom() -> Self {
-        Self {
-            top: BorderStyle::None,
-            right: BorderStyle::None,
-            bottom: BorderStyle::Solid,
-            left: BorderStyle::None,
-            corner_style: CornerStyle::Square,
-        }
+        Self::new(
+            BorderStyle::None,
+            BorderStyle::None,
+            BorderStyle::Solid,
+            BorderStyle::None,
+        )
     }
+    /// Left side only (solid). rdom's `border: left`.
     pub const fn left() -> Self {
-        Self {
-            top: BorderStyle::None,
-            right: BorderStyle::None,
-            bottom: BorderStyle::None,
-            left: BorderStyle::Solid,
-            corner_style: CornerStyle::Square,
-        }
+        Self::new(
+            BorderStyle::None,
+            BorderStyle::None,
+            BorderStyle::None,
+            BorderStyle::Solid,
+        )
     }
+    /// Right side only (solid). rdom's `border: right`.
     pub const fn right() -> Self {
-        Self {
-            top: BorderStyle::None,
-            right: BorderStyle::Solid,
-            bottom: BorderStyle::None,
-            left: BorderStyle::None,
-            corner_style: CornerStyle::Square,
-        }
+        Self::new(
+            BorderStyle::None,
+            BorderStyle::Solid,
+            BorderStyle::None,
+            BorderStyle::None,
+        )
     }
 
     /// True iff every side is `None` (no border at all).
     pub const fn is_empty(&self) -> bool {
         self.top.is_none() && self.right.is_none() && self.bottom.is_none() && self.left.is_none()
     }
-    /// True iff every side paints a visible glyph. (Used to gate
-    /// rounded-corner rendering — corners only round when all four
-    /// sides participate.)
+    /// True iff every side paints a visible glyph.
     pub const fn is_box(&self) -> bool {
         self.top.is_visible()
             && self.right.is_visible()
@@ -238,14 +231,52 @@ impl Border {
     }
 }
 
-/// Corner glyph style — applies when all 4 sides are drawn (per-side
-/// borders don't form corners). `Square` uses `┌┐└┘`; `Rounded` uses
-/// `╭╮╰╯`.
+/// A corner's glyph: square (`┌┐└┘`) or rounded (`╭╮╰╯`), from its
+/// `border-*-radius` ([`BorderRadius::is_rounded`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum CornerStyle {
     #[default]
     Square,
     Rounded,
+}
+
+/// One corner's `border-*-radius` (CSS Backgrounds 3 §5.1): its
+/// horizontal and vertical radii, each a length or a percentage of the
+/// border box's width / height. A terminal corner is one cell, so the
+/// radii only decide round or square ([`is_rounded`](Self::is_rounded)).
+#[derive(Debug, Clone, PartialEq)]
+pub struct BorderRadius {
+    pub horizontal: PaintLength,
+    pub vertical: PaintLength,
+}
+
+impl Default for BorderRadius {
+    /// `0`: a square corner, the initial value.
+    fn default() -> Self {
+        Self::circle(PaintLength::Cells(0.0))
+    }
+}
+
+impl BorderRadius {
+    /// The same radius on both axes.
+    pub fn circle(radius: PaintLength) -> Self {
+        Self {
+            horizontal: radius.clone(),
+            vertical: radius,
+        }
+    }
+
+    /// `cells` on both axes.
+    pub fn cells(cells: f32) -> Self {
+        Self::circle(PaintLength::Cells(cells))
+    }
+
+    /// True when the corner of a `width` × `height` border box is
+    /// rounded: both radii non-zero (§5.1: "If either length is zero,
+    /// the corner is square, not rounded").
+    pub fn is_rounded(&self, width: u16, height: u16) -> bool {
+        !self.horizontal.is_zero(i32::from(width)) && !self.vertical.is_zero(i32::from(height))
+    }
 }
 
 /// CSS `border-collapse` (M5.5). Default is `Separate` — every box

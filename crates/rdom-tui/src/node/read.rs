@@ -38,10 +38,11 @@ pub trait TuiNodeExt<'a> {
             .and_then(|s| s.padding.as_ref())
             .and_then(|v| v.as_specified().cloned())
     }
+    /// The inline style's four `border-*-style`s, when every one is set.
     fn border(&self) -> Option<Border> {
-        self.inline_style()
-            .and_then(|s| s.border.as_ref())
-            .and_then(|v| v.as_specified().copied())
+        let sides = &self.inline_style()?.border_style;
+        let [top, right, bottom, left] = sides.each().map(|s| s.as_ref()?.as_specified().copied());
+        Some(Border::new(top?, right?, bottom?, left?))
     }
     fn gap(&self) -> Option<u16> {
         self.inline_style()

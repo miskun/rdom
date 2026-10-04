@@ -829,7 +829,8 @@ fn resizing_terminal_wider_then_narrower_reflows_ifc_without_stale_cells() {
             "p",
             TuiStyle::new()
                 .width(Size::Flex(1.0))
-                .border(Border::rounded())
+                .border(Border::single())
+                .border_radius(rdom_tui::layout::BorderRadius::cells(1.0))
                 .padding(Padding::all(1)),
         )
         .unwrap();

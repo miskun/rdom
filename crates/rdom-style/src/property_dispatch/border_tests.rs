@@ -3,7 +3,7 @@
 //! serialization and `!important` routing.
 
 use super::*;
-use crate::layout::{Border, BorderStyle, BorderWidth, CornerStyle, PaintLength, Sides};
+use crate::layout::{Border, BorderRadius, BorderStyle, BorderWidth, Corners, PaintLength, Sides};
 use crate::{Color, TuiColor, TuiStyle, Value};
 
 fn specified<T: Clone>(v: &Option<Value<T>>) -> T {
@@ -11,6 +11,11 @@ fn specified<T: Clone>(v: &Option<Value<T>>) -> T {
         Some(Value::Specified(x)) => x.clone(),
         other => panic!("not specified: {}", other.is_some()),
     }
+}
+
+/// The four per-side styles as a `Border`.
+fn styles(style: &TuiStyle) -> Border {
+    Border::from_sides(sides(&style.border_style))
 }
 
 fn red() -> TuiColor {
@@ -35,7 +40,7 @@ fn sides<T: Clone>(s: &Sides<Option<Value<T>>>) -> Sides<T> {
 fn border_shorthand_takes_width_style_and_color() {
     let mut style = TuiStyle::new();
     set("border", "1px solid red", &mut style).unwrap();
-    assert_eq!(specified(&style.border), Border::single());
+    assert_eq!(styles(&style), Border::single());
     assert_eq!(sides(&style.border_color), Sides::all(red()));
     assert_eq!(
         sides(&style.border_width),
@@ -53,7 +58,7 @@ fn border_shorthand_takes_width_style_and_color() {
 fn border_shorthand_components_in_any_order() {
     let mut style = TuiStyle::new();
     set("border", "red double thick", &mut style).unwrap();
-    assert_eq!(specified(&style.border), Border::ring(BorderStyle::Double));
+    assert_eq!(styles(&style), Border::ring(BorderStyle::Double));
     assert_eq!(sides(&style.border_width), Sides::all(BorderWidth::Thick));
     assert_eq!(
         serialize("border", &style).as_deref(),
@@ -92,7 +97,7 @@ fn border_shorthand_resets_omitted_components() {
     assert_eq!(serialize("border", &style).as_deref(), Some("solid"));
     let mut zero = TuiStyle::new();
     set("border", "0", &mut zero).unwrap();
-    assert_eq!(specified(&zero.border), Border::none());
+    assert_eq!(styles(&zero), Border::none());
     assert_eq!(serialize("border", &zero).as_deref(), Some("0"));
 }
 
@@ -112,51 +117,36 @@ fn border_width_component_lengths() {
     }
 }
 
-/// rdom's keywords keep working: `rounded` (a solid ring with rounded
-/// corners, now also beside a width and color), `single` (= `solid`),
-/// `half-block`, and the one-side `top` / `right` / `bottom` / `left`
-/// on their own.
+/// rdom's keywords keep working: `rounded` (a solid ring that also
+/// sets `border-radius: 1`, now beside a width and color too), `single`
+/// (= `solid`), `half-block`, and the one-side `top` / `right` /
+/// `bottom` / `left` on their own.
 #[test]
 fn border_shorthand_keeps_rdom_keywords() {
     let mut style = TuiStyle::new();
-    set("border", "rounded", &mut style).unwrap();
-    assert_eq!(specified(&style.border), Border::rounded());
-    assert_eq!(serialize("border", &style).as_deref(), Some("rounded"));
     set("border", "1px rounded red", &mut style).unwrap();
-    assert_eq!(specified(&style.border).corner_style, CornerStyle::Rounded);
+    assert_eq!(styles(&style), Border::single());
+    assert_eq!(
+        style.border_radius,
+        Corners::all(Some(Value::Specified(BorderRadius::cells(1.0))))
+    );
     assert_eq!(
         serialize("border", &style).as_deref(),
-        Some("1px rounded red")
+        Some("1px solid red")
     );
+    assert_eq!(serialize("border-radius", &style).as_deref(), Some("1"));
     set("border", "single", &mut style).unwrap();
-    assert_eq!(specified(&style.border), Border::single());
+    assert_eq!(styles(&style), Border::single());
     set("border", "half-block red", &mut style).unwrap();
-    assert_eq!(
-        specified(&style.border),
-        Border::ring(BorderStyle::HalfBlock)
-    );
+    assert_eq!(styles(&style), Border::ring(BorderStyle::HalfBlock));
     set("border", "left", &mut style).unwrap();
-    assert_eq!(specified(&style.border), Border::left());
+    assert_eq!(styles(&style), Border::left());
     assert_eq!(serialize("border", &style).as_deref(), Some("left"));
-}
-
-/// rdom's `rounded` on `border-style` is the same solid ring with
-/// rounded corners as on `border`; another style there squares them —
-/// `border-style` sets the whole ring — while the per-side style
-/// longhands keep the corners.
-#[test]
-fn border_style_rounded_rounds_the_ring() {
+    // Elsewhere `rounded` is `solid` alone.
     let mut style = TuiStyle::new();
     set("border-style", "rounded", &mut style).unwrap();
-    assert_eq!(specified(&style.border), Border::rounded());
-    assert_eq!(
-        serialize("border-style", &style).as_deref(),
-        Some("rounded")
-    );
-    set("border-top-style", "double", &mut style).unwrap();
-    assert_eq!(specified(&style.border).corner_style, CornerStyle::Rounded);
-    set("border-style", "solid", &mut style).unwrap();
-    assert_eq!(specified(&style.border), Border::single());
+    assert_eq!(styles(&style), Border::single());
+    assert!(style.border_radius.top_left.is_none());
 }
 
 // ── `border-<side>` (§4.4) ─────────────────────────────────────────
@@ -168,7 +158,7 @@ fn border_side_shorthand_sets_one_side() {
     let mut style = TuiStyle::new();
     set("border", "solid red", &mut style).unwrap();
     set("border-top", "2 double rgb(1, 2, 3)", &mut style).unwrap();
-    let b = specified(&style.border);
+    let b = styles(&style);
     assert_eq!(
         (b.top, b.right, b.left),
         (BorderStyle::Double, BorderStyle::Solid, BorderStyle::Solid)
@@ -207,7 +197,7 @@ fn border_shorthands_own_their_longhands() {
     let mut style = TuiStyle::new();
     set("border", "1px solid red", &mut style).unwrap();
     assert!(remove("border", &mut style));
-    assert!(style.border.is_none() && style.border_color.top.is_none());
+    assert!(style.border_style.top.is_none() && style.border_color.top.is_none());
     assert!(style.border_width.left.is_none());
 }
 
@@ -258,14 +248,12 @@ fn border_color_takes_one_to_four_values() {
     );
 }
 
-/// §4.2: `border-style` takes one to four styles. rdom's `rounded`
-/// rounds the ring in the one-value form only; among several values it
-/// is `solid`.
+/// §4.2: `border-style` takes one to four styles.
 #[test]
 fn border_style_takes_one_to_four_values() {
     let mut style = TuiStyle::new();
     set("border-style", "solid none dashed", &mut style).unwrap();
-    let b = specified(&style.border);
+    let b = styles(&style);
     assert_eq!(
         (b.top, b.right, b.bottom, b.left),
         (
@@ -278,12 +266,6 @@ fn border_style_takes_one_to_four_values() {
     assert_eq!(
         serialize("border-style", &style).as_deref(),
         Some("solid none dashed")
-    );
-    set("border-style", "rounded double", &mut style).unwrap();
-    let b = specified(&style.border);
-    assert_eq!(
-        (b.top, b.right, b.corner_style),
-        (BorderStyle::Solid, BorderStyle::Double, CornerStyle::Square)
     );
 }
 
@@ -351,4 +333,84 @@ fn per_side_color_and_width_longhands() {
     set("border-left-color", "inherit", &mut style).unwrap();
     assert_eq!(style.border_color.left, Some(Value::Inherit));
     assert_eq!(specified(&style.border_color.right), red());
+}
+
+// ── `border-radius` (§5) ───────────────────────────────────────────
+
+/// §5.2: `border-radius` — one to four horizontal radii clockwise from
+/// the top-left, then optionally `/` and the vertical ones; lengths in
+/// cells, pixels or percentages.
+#[test]
+fn border_radius_shorthand() {
+    let px = |p| PaintLength::Px(p);
+    let mut style = TuiStyle::new();
+    set("border-radius", "4px", &mut style).unwrap();
+    assert_eq!(
+        style.border_radius.top_left,
+        Some(Value::Specified(BorderRadius::circle(px(4.0))))
+    );
+    assert_eq!(serialize("border-radius", &style).as_deref(), Some("4px"));
+    set("border-radius", "1 2 3 4 / 50%", &mut style).unwrap();
+    let r = |c: &Option<Value<BorderRadius>>| specified(c);
+    assert_eq!(
+        r(&style.border_radius.bottom_right).horizontal,
+        PaintLength::Cells(3.0)
+    );
+    assert!(matches!(
+        r(&style.border_radius.bottom_left).vertical,
+        PaintLength::Calc(_)
+    ));
+    assert_eq!(
+        serialize("border-radius", &style).as_deref(),
+        Some("1 2 3 4 / 50%")
+    );
+    for bad in ["-1", "1 2 3 4 5", "/ 1", "1 /", "red", "1 / 2 / 3"] {
+        assert_eq!(
+            set("border-radius", bad, &mut TuiStyle::new()),
+            Err(DispatchError::InvalidValue),
+            "{bad}"
+        );
+    }
+}
+
+/// §5.1: a corner's longhand takes one or two radii.
+#[test]
+fn corner_radius_longhands() {
+    let mut style = TuiStyle::new();
+    set("border-top-left-radius", "2 50%", &mut style).unwrap();
+    assert_eq!(
+        serialize("border-top-left-radius", &style).as_deref(),
+        Some("2 50%")
+    );
+    assert!(style.border_radius.top_right.is_none());
+    assert_eq!(
+        property_mask("border-bottom-left-radius"),
+        Some(crate::ImportantMask::BORDER_BOTTOM_LEFT_RADIUS)
+    );
+    assert_eq!(
+        set("border-top-left-radius", "1 2 3", &mut TuiStyle::new()),
+        Err(DispatchError::InvalidValue)
+    );
+}
+
+/// §4.2: each side's style is its own longhand: `border-top-style:
+/// inherit` leaves the other sides.
+#[test]
+fn per_side_style_longhands_are_independent() {
+    let mut style = TuiStyle::new();
+    set("border", "solid", &mut style).unwrap();
+    set("border-top-style", "inherit", &mut style).unwrap();
+    assert_eq!(style.border_style.top, Some(Value::Inherit));
+    assert_eq!(
+        style.border_style.left,
+        Some(Value::Specified(BorderStyle::Solid))
+    );
+    assert_eq!(
+        property_mask("border-top"),
+        Some(
+            crate::ImportantMask::BORDER_TOP_STYLE
+                | crate::ImportantMask::BORDER_TOP_COLOR
+                | crate::ImportantMask::BORDER_TOP_WIDTH
+        )
+    );
 }

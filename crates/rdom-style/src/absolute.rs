@@ -57,6 +57,13 @@ impl ComputedStyle {
                 |v| BorderWidth::Length(PaintLength::Cells(v as f32)),
             );
         }
+        for radius in self.border_radius.each_mut() {
+            for axis in [&mut radius.horizontal, &mut radius.vertical] {
+                absolutize(axis, vp, PaintLength::Calc, |v| {
+                    PaintLength::Cells(v as f32)
+                });
+            }
+        }
         for inset in [
             &mut self.top,
             &mut self.right,
@@ -95,6 +102,15 @@ has_expr!(
     GapValue,
     Length
 );
+
+impl HasExpr for PaintLength {
+    fn expr(&self) -> Option<&CalcExpr> {
+        match self {
+            PaintLength::Calc(e) => Some(e),
+            _ => None,
+        }
+    }
+}
 
 impl HasExpr for BorderWidth {
     fn expr(&self) -> Option<&CalcExpr> {

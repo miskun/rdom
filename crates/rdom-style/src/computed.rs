@@ -75,11 +75,13 @@ pub struct ComputedStyle {
     /// zero-width side `none` (CSS Backgrounds 3 §4.3) — what layout
     /// reserves cells for and paint draws.
     pub border: Border,
-    /// The cascaded `border-*-style`s (and rdom's corner style), which
-    /// `inherit` / `revert` copy.
+    /// The cascaded `border-*-style`s, which `inherit` / `revert` copy.
     pub border_style: Border,
     /// The cascaded `border-*-width`s, viewport units resolved.
     pub border_width: crate::layout::Sides<crate::layout::BorderWidth>,
+    /// The `border-*-radius`es (CSS Backgrounds 3 §5.1), viewport units
+    /// resolved; a percentage stays for paint, which knows the box.
+    pub border_radius: crate::layout::Corners<crate::layout::BorderRadius>,
     /// `border-collapse: separate | collapse`. CSS-faithful name,
     /// extended to apply to any flex container (rdom divergence).
     /// **Inherits** — the cascade propagates parent's value to
@@ -228,6 +230,7 @@ impl ComputedStyle {
             border: Border::none(),
             border_style: Border::none(),
             border_width: crate::layout::Sides::default(),
+            border_radius: crate::layout::Corners::default(),
             border_collapse: crate::layout::BorderCollapse::Separate,
             border_collapse_declared: false,
             direction: Direction::Column,

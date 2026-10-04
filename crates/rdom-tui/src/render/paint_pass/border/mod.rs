@@ -10,7 +10,7 @@
 
 mod half_block;
 
-use crate::layout::{Border, LayoutRect, Sides};
+use crate::layout::{Border, CornerStyle, Corners, LayoutRect, Sides};
 use crate::render::buffer::{BorderContribution, BorderSide, DIR_E, DIR_N, DIR_S, DIR_W};
 use crate::render::{Buffer, Rect};
 use crate::style::Color;
@@ -64,14 +64,15 @@ pub(super) fn paint_border(
         return;
     }
 
+    let right_x = outer.x + outer.width as i32 - 1;
+    let bottom_y = outer.y + outer.height as i32 - 1;
     let pen = Pen {
         ink,
         only,
         priority,
-        corner_style: border.corner_style,
+        corners: ink.corners,
+        edges: (outer.x, outer.y, right_x, bottom_y),
     };
-    let right_x = outer.x + outer.width as i32 - 1;
-    let bottom_y = outer.y + outer.height as i32 - 1;
 
     // Half-block borders also accumulate their inward quadrants per cell, so
     // the joiner can weld them (union) into one outline. Solid/double borders
@@ -231,21 +232,24 @@ pub(super) fn paint_border(
 }
 
 /// Each side's `border-*-color` and line weight (from its
-/// `border-*-width`).
+/// `border-*-width`), and each corner's glyph (from its
+/// `border-*-radius`).
 #[derive(Clone, Copy)]
 pub(super) struct Ink {
     pub colors: Sides<Color>,
     pub weights: Sides<BorderWeight>,
+    pub corners: Corners<CornerStyle>,
 }
 
 /// What one element's border contributes with: each side's ink and
-/// whether this pass paints it, the structural priority and the corner
-/// style.
+/// whether this pass paints it, the structural priority, and each
+/// corner's style with where the corners are (left, top, right, bottom).
 struct Pen {
     ink: Ink,
     only: Sides<bool>,
     priority: u64,
-    corner_style: crate::layout::CornerStyle,
+    corners: Corners<CornerStyle>,
+    edges: (i32, i32, i32, i32),
 }
 
 impl Pen {
@@ -282,10 +286,26 @@ impl Pen {
                 fg,
                 weight,
                 priority: self.priority,
-                corner_style: self.corner_style,
+                corner_style: self.corner_at(x, y),
                 side,
             },
         );
+    }
+}
+
+impl Pen {
+    /// The corner style of the cell `(x, y)`: its corner's when it is
+    /// one of the box's four corners, square elsewhere.
+    fn corner_at(&self, x: u16, y: u16) -> CornerStyle {
+        let (x, y) = (i32::from(x), i32::from(y));
+        let (left, top, right, bottom) = self.edges;
+        match (x == left, x == right, y == top, y == bottom) {
+            (true, _, true, _) => self.corners.top_left,
+            (_, true, true, _) => self.corners.top_right,
+            (_, true, _, true) => self.corners.bottom_right,
+            (true, _, _, true) => self.corners.bottom_left,
+            _ => CornerStyle::Square,
+        }
     }
 }
 

@@ -2893,7 +2893,8 @@ fn intrinsic_height_ignores_whitespace_text_between_block_children() {
         "card",
         TuiStyle::new()
             .display(Display::Block)
-            .border(crate::layout::Border::rounded())
+            .border(crate::layout::Border::single())
+            .border_radius(crate::layout::BorderRadius::cells(1.0))
             .padding(crate::layout::Padding {
                 top: crate::layout::PaddingValue::Cells(1),
                 right: crate::layout::PaddingValue::Cells(2),

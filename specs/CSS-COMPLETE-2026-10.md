@@ -115,7 +115,7 @@ row comes from.
 | C4-BORDER-SHORTHAND | `border` / `border-top` … with width, style and color in any order | done |
 | C4-BORDER-SIDES | `border-style` / `border-color` / `border-width` 1–4 values; per-side longhands for style, color and width | done |
 | C4-BORDER-WIDTH | `border-width` mapping (`0` = none, thin / medium = light, thick = heavy glyphs) | done |
-| C4-RADIUS | `border-radius` and per-corner longhands → rounded corner glyphs | |
+| C4-RADIUS | `border-radius` and per-corner longhands → rounded corner glyphs | done |
 | C4-SHADOW | `box-shadow` (one-cell offset shade; blur / spread documented N/A) | |
 | C4-SPACING | `border-spacing` (lands with the table phase if it needs the TFC) | |
 
@@ -1029,3 +1029,22 @@ row comes from.
   `css_phase4.rs` tests (`thick` drew `┌`, `5px` `┌`, `border: 0 solid` took the corner cell, mixed
   corners `┌`). Green after; the inherit test was written green against the design. No showcase
   snapshot changes (every demo border is `medium`).
+- 2026-10-06 — C4-RADIUS: `border-radius` (1–4 values, `/` vertical radii; the top-level `/` only)
+  and the four corner longhands (one or two radii) parse into `BorderRadius { horizontal, vertical }`
+  (`PaintLength`s, percentages allowed) per corner (`Corners<T>`, beside `Sides`), cascade into
+  `ComputedStyle::border_radius` (viewport units resolved), and paint per corner: `Pen::corner_at`
+  gives a corner cell its corner's `CornerStyle`, rounded when both radii are non-zero against the
+  border box (§5.1). The corner flag left `Border`, so the border styles split into four longhands too
+  (`TuiStyle::border_style: Sides<…>`) — the shared-storage divergence is gone for every border
+  property (it remains for padding / margin). Decided: `border: rounded` stays as sugar for `solid` +
+  `border-radius: 1`, written as a side effect of the value (the shorthand's importance / keywords do
+  not reach the radius — documented, `border-radius` recommended); elsewhere `rounded` is `solid`.
+  C4-BORDER-SHORTHAND's `border-style: rounded` (added there only so a rounded ring could round-trip
+  through the `style` attribute) is reverted: the radius serializes on its own now, and its CHANGELOG
+  bullet is dropped. The background is not clipped to the curve (one cell); heavy / double / junction
+  corners stay square. Red: five `css_phase4.rs` tests (four strict-parse failures on
+  `border-radius`, and `border-top: none` in a later rule erasing all four sides — the shared style
+  storage). Green after. Changed expectations: tests building `Border::rounded()` now build `single()`
+  + `BorderRadius::cells(1.0)` (same paint); the two node-setter tests use a double ring (a node setter
+  sets styles only); `border_shorthand_keeps_rdom_keywords` asserts the radius instead of the corner
+  flag. No showcase snapshot changes (the UA dialog's rounded ring is now a radius; same glyphs).

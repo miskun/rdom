@@ -6,7 +6,7 @@
 
 use rdom_css::{WarningKind, parse};
 use rdom_tui::layout::{
-    Border, Direction, Display, Overflow, Padding, PaddingValue, Size, UserSelect, WhiteSpace,
+    Direction, Display, Overflow, Padding, PaddingValue, Size, UserSelect, WhiteSpace,
 };
 use rdom_tui::style::{Content, Value};
 use rdom_tui::{Color, TuiColor};
@@ -181,8 +181,16 @@ fn padding_single_value() {
 
 #[test]
 fn border_keyword_rounded() {
+    use rdom_style::layout::{BorderRadius, BorderStyle, Corners};
     let s = first_style("a { border: rounded; }");
-    assert_eq!(s.border, Some(Value::Specified(Border::rounded())));
+    assert_eq!(
+        s.border_style.top,
+        Some(Value::Specified(BorderStyle::Solid))
+    );
+    assert_eq!(
+        s.border_radius,
+        Corners::all(Some(Value::Specified(BorderRadius::cells(1.0))))
+    );
 }
 
 #[test]
@@ -190,8 +198,8 @@ fn border_keyword_half_block() {
     use rdom_style::layout::BorderStyle;
     let s = first_style("a { border: half-block; }");
     assert_eq!(
-        s.border,
-        Some(Value::Specified(Border::ring(BorderStyle::HalfBlock)))
+        s.border_style,
+        rdom_style::layout::Sides::all(Some(Value::Specified(BorderStyle::HalfBlock)))
     );
 }
 
@@ -199,11 +207,10 @@ fn border_keyword_half_block() {
 fn border_top_keyword_half_block() {
     use rdom_style::layout::BorderStyle;
     let s = first_style("a { border-top: half-block; }");
-    let b = match s.border {
-        Some(Value::Specified(b)) => b,
-        other => panic!("expected Border::Specified, got {other:?}"),
-    };
-    assert_eq!(b.top, BorderStyle::HalfBlock);
+    assert_eq!(
+        s.border_style.top,
+        Some(Value::Specified(BorderStyle::HalfBlock))
+    );
 }
 
 #[test]
