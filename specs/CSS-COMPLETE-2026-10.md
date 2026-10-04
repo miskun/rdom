@@ -31,7 +31,7 @@ the commit that lands it (`done <sha>`), and the log at the end records phase ga
 |---|---|---|
 | 0 | Docs truthful: DIVERGENCES contradictions fixed, every undocumented gap listed, roadmap moved | done |
 | 1 | Syntax, cascade, custom properties | done 2026-10-05 (both gates; 20 gate fixes `C1G-*`; their re-review rides with the Phase 2 gate) |
-| 2 | Values, units, math functions | |
+| 2 | Values, units, math functions | done 2026-10-05 (both gates; 20 gate fixes `C2G-*`; their re-review rides with the Phase 3 gate; C2-LH partial until C9-LINE-HEIGHT) |
 | 3 | Color | |
 | 4 | Backgrounds and borders | |
 | 5 | Box model and sizing (incl. logical properties) | |
@@ -673,3 +673,4 @@ row comes from.
   %` (`max_height_percent_in_an_auto_height_flex_container_is_none`). `ScopeMemo`'s O(N × depth)
   memory is recorded in TECH_DEBT as the accepted simplification `SCOPE-MEMO-1`, with its bound.
   Phase 2 gate batch B (C2G-RESTYLE-WALK … C2G-TEST-GAPS) complete.
+- 2026-10-05 — Phase 2 closed: 11 items + 20 gate fixes. Gate-fix re-review folded into the Phase 3 gate.
