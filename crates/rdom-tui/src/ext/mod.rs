@@ -6,70 +6,19 @@
 //! post-cascade `ComputedStyle`. `rdom-core` never sees any of this —
 //! it just holds the `TuiExt` payload behind its `Ext` generic.
 
-use crate::layout::{LayoutRect, Length, Padding, Position, Size, ZIndex};
+mod layout_cache;
+mod presentation;
+#[cfg(test)]
+mod tests;
+
+pub(crate) use layout_cache::MarginChainMemo;
+pub use layout_cache::{AnonymousIfc, PseudoLayout, StaticPosition};
+pub use presentation::{PresentationStyle, PseudoSlot, StyleSlot};
+
+use crate::layout::LayoutRect;
 use crate::render::inline::InlineLayout;
 use crate::runtime::editing::EditorState;
-use crate::style::{Color, ComputedStyle, TuiStyle};
-
-/// Layout state for a positioned `::before` / `::after` pseudo-
-/// element. Carries the rect (where the pseudo paints) plus the
-/// cascaded `position` (so paint can route static pseudos through
-/// the inline-append path and non-static pseudos through the
-/// positioned-pseudo paint pass). Populated by the layout pass's
-/// `place_positioned_pseudos` phase.
-///
-/// Static-position pseudos (the default) do NOT populate this —
-/// they paint inline via the inline-content path. Only
-/// `Position::Relative | Absolute | Fixed` produces a slot here.
-///
-/// Consumers reading this for debug snapshots or hit-test work
-/// should note the divergence on `TuiExt::before_layout` /
-/// `after_layout` — positioned pseudo rects do not participate
-/// in hit-testing.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct PseudoLayout {
-    pub rect: LayoutRect,
-    pub position: Position,
-}
-
-/// The **static position** of an out-of-flow positioned element
-/// (CSS 2.1 §10.3.7 / §10.6.4): where its top-left corner would be
-/// if it were `position: static`, in the same coordinate space as
-/// [`TuiExt::layout`]. Phase-1 layout records it at the point in the
-/// parent's flow where the element's hypothetical box would have
-/// gone; phase-2 placement reads it for every axis whose two insets
-/// are both `auto`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct StaticPosition {
-    pub x: i32,
-    pub y: i32,
-}
-
-/// Memoized CSS 2.1 §8.3.1 outer-margin chains of one block, valid for
-/// one containing-block width and one layout pass
-/// (`BFC1-PERF-MARGIN-CHAIN-1`). Placing a block walks its first- /
-/// last-child collapse chain; without the memo every level of a deep
-/// chain re-walked the levels below it when its own turn came. Each
-/// accumulator is `(largest positive margin, most negative margin)`.
-///
-/// Invariant: a chain walk only visits in-flow block-level children of
-/// a block container that does not establish a new formatting context
-/// (it stops at inline content, at a BFC and at padding / borders), and
-/// every such child is laid out by `layout_node` later in the same
-/// pass, which clears its entry — so no entry outlives the pass
-/// (checked in debug builds at the end of `layout_dom`). An entry is
-/// used only for the containing-block width it was computed against;
-/// a width that differs (a scrollbar gutter, a border-collapse inset)
-/// makes the walk recompute, never misread.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct MarginChainMemo {
-    /// The width the chain's percentages were resolved against.
-    pub containing_block_width: u16,
-    /// The chain surfacing at the block's outer top edge.
-    pub outer_top: Option<(i16, i16)>,
-    /// The chain surfacing at the block's outer bottom edge.
-    pub outer_bottom: Option<(i16, i16)>,
-}
+use crate::style::{ComputedStyle, TuiStyle};
 
 /// `<select>` type-ahead state (see `runtime::builtins::select`).
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -80,144 +29,7 @@ pub struct TypeaheadState {
     pub last: Option<std::time::Instant>,
 }
 
-/// One synthesized **anonymous block box** wrapping a run of
-/// inline-level children inside a block container. Per CSS 2.1
-/// §9.2.1.1, when a block-flow container has mixed block + inline
-/// children, the inline runs are wrapped in anonymous boxes that
-/// each establish their own IFC.
-///
-/// Anonymous boxes have no `NodeId` (they're layout-pass ephemera
-/// allocated per cascade). Their `inline_layout` carries text
-/// fragments owned by real source nodes; hit-test and selection
-/// resolve through those owners. `child_range` records the
-/// document-order indices (within the parent's full list of child
-/// nodes) the anon box wraps. The host's static `::before` /
-/// `::after` are packed into the first / last box's `inline_layout`
-/// (as `LineBox::generated`); a pseudo whose host starts / ends with a
-/// block-level child gets a box of its own, with an empty
-/// `child_range`.
-#[derive(Debug, Clone, PartialEq)]
-pub struct AnonymousIfc {
-    /// Where this anonymous box sits in its parent's content area.
-    /// Width = parent content width; height = inline_layout.height().
-    pub rect: LayoutRect,
-    /// IFC packing of the wrapped inline run.
-    pub inline_layout: InlineLayout,
-    /// Indices into the parent's `child_nodes()` iteration covered
-    /// by this anonymous box, as `[start, end)`. Hit-test and
-    /// selection use this to map a fragment to its surrounding DOM
-    /// neighbors.
-    pub child_range: (usize, usize),
-}
-
-/// Sparse override on top of `ComputedStyle`. Only populated for
-/// properties that an active transition is currently driving.
-/// Paint, layout, and hit-test read these slots before falling
-/// back to `ComputedStyle` — see `effective_*` helpers below.
-///
-/// M3 covers the animatable subset. Discrete properties (display,
-/// position, content, etc.) toggle in `ComputedStyle` directly
-/// at midpoint and are not covered here.
-#[derive(Debug, Clone, Default, PartialEq)]
-#[non_exhaustive]
-pub struct PresentationStyle {
-    pub fg: Option<Color>,
-    pub bg: Option<Color>,
-    pub border_fg: Option<Color>,
-    pub width: Option<Size>,
-    pub height: Option<Size>,
-    pub padding: Option<Padding>,
-    pub gap: Option<u16>,
-    pub top: Option<Length>,
-    pub right: Option<Length>,
-    pub bottom: Option<Length>,
-    pub left: Option<Length>,
-    pub z_index: Option<ZIndex>,
-    /// The running transitions of registered custom properties (name
-    /// without dashes → animated value). Not read by paint: the cascade
-    /// applies them on top of the cascaded values
-    /// (`ComputedStyle::animated_vars`) so `var()` consumers follow.
-    pub custom_properties: Option<std::collections::HashMap<String, rdom_style::CustomValue>>,
-}
-
-/// Which style a transition animates: the element itself or one of
-/// its generated pseudo-elements (CSS Transitions 1 §5:
-/// `TransitionEvent.pseudoElement`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-#[non_exhaustive]
-pub enum StyleSlot {
-    #[default]
-    Host,
-    Before,
-    After,
-}
-
-impl StyleSlot {
-    /// The `TransitionEvent.pseudoElement` value.
-    pub fn pseudo_element(self) -> Option<&'static str> {
-        match self {
-            StyleSlot::Host => None,
-            StyleSlot::Before => Some("::before"),
-            StyleSlot::After => Some("::after"),
-        }
-    }
-}
-
-/// Which generated pseudo-element a piece of generated content belongs
-/// to: a [`StyleSlot`] that can never be [`StyleSlot::Host`]. Laid-out
-/// generated content (`GeneratedFragment::slot`) carries one.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[non_exhaustive]
-pub enum PseudoSlot {
-    Before,
-    After,
-}
-
-impl From<PseudoSlot> for StyleSlot {
-    fn from(slot: PseudoSlot) -> Self {
-        match slot {
-            PseudoSlot::Before => StyleSlot::Before,
-            PseudoSlot::After => StyleSlot::After,
-        }
-    }
-}
-
 impl TuiExt {
-    /// The animation overrides for `slot`; `None` while no transition
-    /// drives it.
-    pub fn presentation_for(&self, slot: StyleSlot) -> Option<&PresentationStyle> {
-        match slot {
-            StyleSlot::Host => self.presentation.as_deref(),
-            StyleSlot::Before => self.presentation_before.as_deref(),
-            StyleSlot::After => self.presentation_after.as_deref(),
-        }
-    }
-
-    /// The animation overrides for `slot`, boxed on first use.
-    /// Transition-engine plumbing (`runtime::animation`).
-    pub(crate) fn presentation_for_mut(&mut self, slot: StyleSlot) -> &mut PresentationStyle {
-        self.presentation_slot(slot)
-            .get_or_insert_with(Default::default)
-    }
-
-    /// Drop `slot`'s override box once no property is overridden, so an
-    /// element whose transitions finished is back to one `None`.
-    /// Transition-engine plumbing (`runtime::animation`).
-    pub(crate) fn release_empty_presentation(&mut self, slot: StyleSlot) {
-        let boxed = self.presentation_slot(slot);
-        if boxed.as_deref().is_some_and(PresentationStyle::is_empty) {
-            *boxed = None;
-        }
-    }
-
-    fn presentation_slot(&mut self, slot: StyleSlot) -> &mut Option<Box<PresentationStyle>> {
-        match slot {
-            StyleSlot::Host => &mut self.presentation,
-            StyleSlot::Before => &mut self.presentation_before,
-            StyleSlot::After => &mut self.presentation_after,
-        }
-    }
-
     /// The inline style, or the empty style when none is set.
     pub fn inline_style_or_empty(&self) -> &TuiStyle {
         static EMPTY: std::sync::LazyLock<TuiStyle> = std::sync::LazyLock::new(TuiStyle::default);
@@ -233,33 +45,6 @@ impl TuiExt {
     /// Replace the inline style; an empty style is stored as `None`.
     pub fn set_inline_style(&mut self, style: TuiStyle) {
         self.inline_style = (!style.is_empty()).then(|| Box::new(style));
-    }
-}
-
-impl PresentationStyle {
-    /// True when no animation is currently driving any property.
-    /// The hot path uses this to skip the override read.
-    pub fn is_empty(&self) -> bool {
-        self.custom_properties.is_none()
-            && self.fg.is_none()
-            && self.bg.is_none()
-            && self.border_fg.is_none()
-            && self.width.is_none()
-            && self.height.is_none()
-            && self.padding.is_none()
-            && self.gap.is_none()
-            && self.top.is_none()
-            && self.right.is_none()
-            && self.bottom.is_none()
-            && self.left.is_none()
-            && self.z_index.is_none()
-    }
-
-    /// Drop every override. Called by the engine when an
-    /// animation reaches its end value (so paint sees the
-    /// committed `ComputedStyle` from the next cascade onward).
-    pub fn clear(&mut self) {
-        *self = PresentationStyle::default();
     }
 }
 
@@ -637,129 +422,5 @@ impl Clone for TuiExt {
             default_selected: self.default_selected,
             ..Self::default()
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::style::Color;
-
-    #[test]
-    fn defaults_are_sensible() {
-        let ext = TuiExt::new();
-        // Geometry now lives in `inline_style` (empty by default) — the
-        // raw `ext` geometry fields were removed in EXT-LAYOUT-SETTERS-1.
-        assert!(ext.inline_style.is_none());
-        assert_eq!(ext.scroll_x, 0);
-        assert_eq!(ext.scroll_y, 0);
-        assert!(ext.inline_style.is_none());
-        assert!(ext.before_content.is_none());
-        assert!(ext.after_content.is_none());
-        assert_eq!(ext.layout, LayoutRect::default());
-        // Cascade cache starts empty; cascade populates it on first pass.
-        assert!(ext.computed.is_none());
-        assert!(ext.computed_before.is_none());
-        assert!(ext.computed_after.is_none());
-        // Dirty flags default false — a brand-new `TuiExt` has no cascade
-        // work yet; the subtree root gets marked dirty when first attached.
-        assert!(!ext.style_dirty);
-        assert!(!ext.layout_dirty);
-    }
-
-    /// `P7G-CLONE-RESET-1`: cloning is the element's cloning steps —
-    /// the author inputs and the captured defaults are copied, the
-    /// per-activation runtime state starts fresh.
-    #[test]
-    fn clone_copies_author_inputs_and_resets_runtime_state() {
-        let mut dom: crate::TuiDom = crate::TuiDom::new();
-        let opener = dom.create_element("button");
-        let mut ext = TuiExt {
-            inline_style: Some(Box::new(
-                TuiStyle::new()
-                    .fg(Color::Rgb(255, 0, 0))
-                    .width(Size::Fixed(80))
-                    .padding(Padding::all(2)),
-            )),
-            before_content: Some("▾ ".into()),
-            after_content: Some(" ←".into()),
-            default_value: Some("hi".into()),
-            default_checked: Some(true),
-            default_selected: Some(false),
-            scroll_x: 3,
-            scroll_y: 9,
-            scroll_state: Some(Box::default()),
-            caret_reveal_pending: true,
-            caret_blink_off: true,
-            style_dirty: true,
-            dialog_return_focus: Some(opener),
-            ..Default::default()
-        };
-        {
-            let form = ext.form_state.get_mut();
-            form.custom_validity = "taken".into();
-            form.value_user_edited = true;
-            form.firing_submission_events = true;
-        }
-        let cloned = ext.clone();
-        assert_eq!(cloned.inline_style, ext.inline_style);
-        assert_eq!(cloned.before_content, ext.before_content);
-        assert_eq!(cloned.after_content, ext.after_content);
-        assert_eq!(cloned.default_value, ext.default_value);
-        assert_eq!(cloned.default_checked, ext.default_checked);
-        assert_eq!(cloned.default_selected, ext.default_selected);
-        let fresh = TuiExt {
-            inline_style: ext.inline_style.clone(),
-            before_content: ext.before_content.clone(),
-            after_content: ext.after_content.clone(),
-            default_value: ext.default_value.clone(),
-            default_checked: ext.default_checked,
-            default_selected: ext.default_selected,
-            ..Default::default()
-        };
-        assert_eq!(cloned, fresh, "everything else is at its default");
-        assert!(cloned.form_state.get().is_none(), "no form state carried");
-        assert!(cloned.scroll_state.is_none(), "no scroll in flight");
-    }
-
-    /// Every element pays for `TuiExt`, so growth should be a decision:
-    /// state only some elements use (form controls, scroll containers,
-    /// editing hosts, selects) lives behind a lazily created box
-    /// (`P7G-FORM-STATE-BOX-1`: 4496 → 4344 bytes on 64-bit targets),
-    /// and so do the pseudo-element styles (`Rc`), the transition
-    /// overrides and the inline style (`PERF-TUIEXT-SIZE-1`: 4344 →
-    /// 432). Raise the bound deliberately, with the reason in the commit:
-    /// 440 for the recorded matches a vars-only restyle reuses
-    /// (`C1G-PROPERTY-RESTYLE`, one `Rc`).
-    #[test]
-    fn tui_ext_size_tripwire() {
-        const MAX: usize = 440;
-        let size = std::mem::size_of::<TuiExt>();
-        let computed = std::mem::size_of::<ComputedStyle>();
-        let inline = std::mem::size_of::<TuiStyle>();
-        let presentation = std::mem::size_of::<PresentationStyle>();
-        eprintln!(
-            "TuiExt {size} B; ComputedStyle {computed} B, TuiStyle {inline} B, \
-             PresentationStyle {presentation} B"
-        );
-        assert!(size <= MAX, "size_of::<TuiExt>() = {size}, bound {MAX}");
-    }
-
-    #[test]
-    fn partial_eq_works() {
-        let a = TuiExt {
-            inline_style: Some(Box::new(TuiStyle::new().width(Size::Fixed(10)))),
-            ..Default::default()
-        };
-        let b = TuiExt {
-            inline_style: Some(Box::new(TuiStyle::new().width(Size::Fixed(10)))),
-            ..Default::default()
-        };
-        let c = TuiExt {
-            inline_style: Some(Box::new(TuiStyle::new().width(Size::Fixed(11)))),
-            ..Default::default()
-        };
-        assert_eq!(a, b);
-        assert_ne!(a, c);
     }
 }

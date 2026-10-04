@@ -395,3 +395,15 @@ row comes from.
   sibling backend (CLAUDE.md "Substrate First, Backend Second") needs them, so they are public with
   a stated contract; `var` is private, `set_parsed` / `set_unset` leave `property_dispatch`'s public
   surface. `register_property` / `registered_properties` moved to `stylesheet/registrations.rs`.
+- 2026-10-04 — C1G-SPLITS: `ext.rs` (765 lines, ~642 production) → `ext/mod.rs` (`TuiExt`, its
+  inline-style accessors and cloning steps, `TypeaheadState`), `ext/presentation.rs`
+  (`PresentationStyle`, `StyleSlot`, `PseudoSlot`, the `presentation_for*` accessors),
+  `ext/layout_cache.rs` (`PseudoLayout`, `StaticPosition`, `MarginChainMemo`, `AnonymousIfc`),
+  `ext/tests.rs`. `runtime/app/mod.rs` (603, touched by C1G-REGISTERED-CLONES) → `App::handle_event`
+  and `note_route` in `app/input.rs`. Checked against the bar and left whole: `cascade/walk.rs`
+  (509 — split in C1G-CASCADE-ALLOC; what is left is the tree recursion and the element ladder,
+  one concern), `cascade/apply.rs` (492 — the per-property applicators, one table-shaped concern),
+  rdom-css `block.rs` (498 — the declaration-block parser). Over the bar but outside this batch's
+  edits: `rdom-core/src/query_selector.rs` (519 production of 1 388) and
+  `rdom-tui/src/style/dirty_tracker.rs` (561 of 1 145) are under it once their inline tests are
+  excluded.
