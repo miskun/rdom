@@ -13,6 +13,7 @@ use rdom_core::{Dom, NodeId};
 use crate::ext::TuiExt;
 use crate::layout::{Direction, MarginValue, MinSize, Overflow, Size, clamp_size};
 use crate::node::TuiNodeExt;
+use crate::render::layout_pass::block::nearest_block_ancestor_height_is_definite;
 use crate::render::layout_pass::intrinsic::{content_min_size, intrinsic_size};
 use crate::style::ComputedStyle;
 
@@ -69,6 +70,17 @@ pub(super) fn collect_main_axis_items(
     let mut child_info: Vec<ChildMain> = Vec::with_capacity(children.len());
     let mut consumed_fixed: i32 = 0;
     let mut auto_main_count: u32 = 0;
+    // The basis `min-*` / `max-*` percentages resolve against: the
+    // container's main size — for a column, its height, which is
+    // indefinite when it is `auto` (CSS 2.1 §10.7: then a `max-height`
+    // percentage is `none` and a `min-height` one 0, as in block flow).
+    let main_basis = match direction {
+        Direction::Row => Some(main_budget),
+        Direction::Column => children
+            .first()
+            .is_none_or(|&c| nearest_block_ancestor_height_is_definite(dom, c))
+            .then_some(main_budget),
+    };
 
     for &child in children {
         let c = dom
@@ -81,7 +93,7 @@ pub(super) fn collect_main_axis_items(
         };
         // `min-*` / `max-*` percentages resolve against the container's
         // main size, as the main size's own do (CSS Sizing 3 §5.2).
-        let max = max.as_ref().and_then(|m| m.cells(Some(main_budget)));
+        let max = max.as_ref().and_then(|m| m.cells(main_basis));
         // TABLE-COLSYNC-1: a table cell's *used* column width — computed by
         // `size_columns` from the column's author widths + content and stored
         // on the cell's ext (layout output, NOT author `inline_style`) —
@@ -187,7 +199,7 @@ pub(super) fn collect_main_axis_items(
         // is a future polish tracked as `M5-MIN-CONTENT-2`.
         let min = match min_raw {
             None | Some(MinSize::Auto) => None,
-            Some(m) => m.cells(Some(main_budget)),
+            Some(m) => m.cells(main_basis),
         };
 
         if let MainNatural::Fixed(n) | MainNatural::Auto(n) = natural {

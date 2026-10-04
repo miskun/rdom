@@ -567,3 +567,14 @@ row comes from.
   (a fragment root has none — DIVERGENCES). Found: an element root already got the right value
   through its own cascade; only the mirror (what the root's parent seeds) read no attribute. The
   C2-ATTR test's `furlong` case moved: it is a parse error now, not a fallback.
+- 2026-10-05 — C2G-LAYOUT-SAFETY: `Padding::horizontal` / `vertical` (saturating) replace the
+  hand-summed sides at every layout site — the four named plus two found by the test
+  (`geometry::compute_content_area_collapsed`, the intrinsic child cross budget); `padding: 0 40000`
+  panicked in `intrinsic/inline.rs`, then `geometry.rs`. `AspectRatio`'s fields are private
+  (accessors; `new` the only constructor; DESIGN lists it as sealed, with `TuiExt`). `Size::validated`
+  / `valid_flex_factor` keep Rust-built flex factors in `<number [0,∞]>` at the builder and node
+  setters (a non-positive grow is `Size::Auto`, the parser's `flex: 0`). Flex items' `min-height` /
+  `max-height` percentages use `nearest_block_ancestor_height_is_definite` (block flow's test) for
+  the container's height: an `auto`-height column (main) or row (cross) resolves them as 0 / `none`
+  (was: 25% of the available height). `flex/main_axis.rs` is 545 lines, under the split bar.
+  Phase 2 gate batch A (C2G-FLEX-SUM … C2G-LAYOUT-SAFETY) complete.

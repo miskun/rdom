@@ -57,16 +57,13 @@ pub fn compute_content_area_collapsed(
     // Percent / calc padding resolves against the containing-block
     // width on ALL four sides (CSS 2.1 §8.4 — vertical padding
     // percent also uses width).
+    // Saturating: a `u16` padding plus a border or the opposite side can
+    // pass `u16::MAX`.
     let cb_w = containing_block_width;
-    let pad_l = padding.left.resolve(cb_w);
-    let pad_r = padding.right.resolve(cb_w);
-    let pad_t = padding.top.resolve(cb_w);
-    let pad_b = padding.bottom.resolve(cb_w);
-
-    let inset_x = pad_l + border_left;
-    let inset_y = pad_t + border_top;
-    let total_h = pad_l + pad_r + border_h;
-    let total_v = pad_t + pad_b + border_v;
+    let inset_x = padding.left.resolve(cb_w).saturating_add(border_left);
+    let inset_y = padding.top.resolve(cb_w).saturating_add(border_top);
+    let total_h = padding.horizontal(cb_w).saturating_add(border_h);
+    let total_v = padding.vertical(cb_w).saturating_add(border_v);
 
     LayoutRect::new(
         area.x + inset_x as i32,

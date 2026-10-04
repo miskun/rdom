@@ -249,9 +249,9 @@ pub fn serialize(name: &str, style: &TuiStyle) -> Option<String> {
                 None => "auto".to_string(),
                 Some(r) => format!(
                     "{}{} / {}",
-                    if r.auto { "auto " } else { "" },
-                    r.numerator,
-                    r.denominator
+                    if r.auto() { "auto " } else { "" },
+                    r.numerator(),
+                    r.denominator()
                 ),
             }),
 

@@ -221,14 +221,8 @@ fn intrinsic_element(
     // parse time.
     let cb_w_for_pad = containing_block_width;
     let pad_main = match direction {
-        Direction::Row => {
-            computed.padding.left.resolve(cb_w_for_pad)
-                + computed.padding.right.resolve(cb_w_for_pad)
-        }
-        Direction::Column => {
-            computed.padding.top.resolve(cb_w_for_pad)
-                + computed.padding.bottom.resolve(cb_w_for_pad)
-        }
+        Direction::Row => computed.padding.horizontal(cb_w_for_pad),
+        Direction::Column => computed.padding.vertical(cb_w_for_pad),
     };
     let border_main = border_main_cost(&computed, direction);
     // A permanent scrollbar gutter (`overflow: scroll`, `scrollbar-gutter:
@@ -336,14 +330,16 @@ fn intrinsic_element(
     // on both axes (CSS Box 3 §4.2), not against the budget.
     let child_cross_budget = match direction {
         Direction::Row => cross_budget.saturating_sub(
-            (computed.padding.top.resolve(cb_w_for_pad)
-                + computed.padding.bottom.resolve(cb_w_for_pad))
-            .saturating_add(border_main_cost(&computed, Direction::Column)),
+            computed
+                .padding
+                .vertical(cb_w_for_pad)
+                .saturating_add(border_main_cost(&computed, Direction::Column)),
         ),
         Direction::Column => cross_budget.saturating_sub(
-            (computed.padding.left.resolve(cb_w_for_pad)
-                + computed.padding.right.resolve(cb_w_for_pad))
-            .saturating_add(border_main_cost(&computed, Direction::Row)),
+            computed
+                .padding
+                .horizontal(cb_w_for_pad)
+                .saturating_add(border_main_cost(&computed, Direction::Row)),
         ),
     };
 

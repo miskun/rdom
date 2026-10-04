@@ -343,3 +343,79 @@ fn root_custom_property_attr_reads_the_root_element() {
     lay_out(&mut dom, css, 40, 5);
     assert_eq!(rect(&dom, a).width, 3, "a fragment root has no attributes");
 }
+
+// ── C2G-LAYOUT-SAFETY ────────────────────────────────────────────────
+
+/// Padding sums are saturating: `padding: 0 40000` (left + right past
+/// `u16::MAX`) and `padding: 40000 0` lay out — in a flex row (the
+/// intrinsic main size, `aspect-ratio: auto && <ratio>`'s content box),
+/// a flex column (an inline formatting context's height) and block flow
+/// (auto height) — without an arithmetic overflow.
+#[test]
+fn huge_padding_lays_out_without_overflow() {
+    for (container, item) in [
+        ("display: flex", "padding: 0 40000"),
+        (
+            "display: flex",
+            "padding: 0 40000; width: 10; aspect-ratio: auto 1",
+        ),
+        (
+            "display: flex",
+            "padding: 40000 0; height: 10; aspect-ratio: auto 1",
+        ),
+        ("display: flex; flex-direction: column", "padding: 0 40000"),
+        ("display: flex; flex-direction: column", "padding: 40000 0"),
+        ("", "padding: 40000 0"),
+        ("", "padding: 40000"),
+    ] {
+        let mut dom = TuiDom::new();
+        let root = dom.root();
+        let c = el(&mut dom, root, "c");
+        let a = el(&mut dom, c, "a");
+        let text = dom.create_text_node("some words to wrap");
+        dom.append_child(a, text).unwrap();
+        lay_out(
+            &mut dom,
+            &format!(".c {{ {container}; width: 40 }} .a {{ {item} }}"),
+            80,
+            20,
+        );
+        let _ = rect(&dom, a);
+    }
+}
+
+/// CSS 2.1 §10.7 (as block flow does): a `max-height` percentage
+/// against a containing block whose height is indefinite — a flex
+/// container with `height: auto` — is `none`, on the main axis of a
+/// column and the cross axis of a row; `min-height` likewise is 0.
+/// Against a definite height it resolves.
+#[test]
+fn max_height_percent_in_an_auto_height_flex_container_is_none() {
+    let heights = |container: &str| {
+        let mut dom = TuiDom::new();
+        let root = dom.root();
+        let c = el(&mut dom, root, "c");
+        let a = el(&mut dom, c, "a");
+        lay_out(
+            &mut dom,
+            &format!(
+                ".c {{ {container}; width: 20 }} .a {{ height: 8; width: 4; max-height: 25% }}"
+            ),
+            40,
+            20,
+        );
+        rect(&dom, a).height
+    };
+    assert_eq!(
+        heights("display: flex; flex-direction: column"),
+        8,
+        "column, auto"
+    );
+    assert_eq!(heights("display: flex"), 8, "row, auto");
+    assert_eq!(
+        heights("display: flex; flex-direction: column; height: 20"),
+        5
+    );
+    assert_eq!(heights("display: flex; height: 20"), 5);
+    assert_eq!(heights(""), 8, "block flow, for reference");
+}

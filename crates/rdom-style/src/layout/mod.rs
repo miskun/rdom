@@ -30,4 +30,6 @@ pub use keywords::{
     ScrollBehavior, ScrollbarGutter, TextDecoration, UserSelect, WhiteSpace, ZIndex,
 };
 pub use rect::LayoutRect;
-pub use sizing::{AspectRatio, FlexBasis, GapValue, Length, MaxSize, MinSize, Size};
+pub use sizing::{
+    AspectRatio, FlexBasis, GapValue, Length, MaxSize, MinSize, Size, valid_flex_factor,
+};

@@ -380,11 +380,17 @@ pub trait TuiNodeMutExt<'a> {
     // `EXT-LAYOUT-SETTERS-1` these wrote raw `ext` fields that layout
     // ignored.) On a `NodeMut` each call also rewrites the `style`
     // attribute.
+    /// Declare `width` inline. A flex weight is kept in `<number [0,∞]>`
+    /// ([`Size::validated`]).
     fn set_width(&mut self, w: Size) -> &mut Self {
+        let w = w.validated();
         self.write_inline_style(|s| s.width = Some(Value::Specified(w)));
         self
     }
+    /// Declare `height` inline. A flex weight is kept in `<number
+    /// [0,∞]>` ([`Size::validated`]).
     fn set_height(&mut self, h: Size) -> &mut Self {
+        let h = h.validated();
         self.write_inline_style(|s| s.height = Some(Value::Specified(h)));
         self
     }
@@ -519,6 +525,20 @@ mod tests {
         assert_eq!(n.gap(), Some(1));
         assert_eq!(n.overflow(), Some(Overflow::Hidden));
         assert_eq!(n.direction(), Some(Direction::Row));
+    }
+
+    /// C2G-LAYOUT-SAFETY — CSS Flexbox §7.1: a flex weight is `<number
+    /// [0,∞]>`; the setters keep a Rust-built one in range.
+    #[test]
+    fn size_setters_keep_flex_weights_in_range() {
+        let mut dom: TuiDom = TuiDom::new();
+        let div = dom.create_element("div");
+        dom.node_mut(div)
+            .set_width(Size::Flex(-3.0))
+            .set_height(Size::Flex(f32::NAN));
+        let n = dom.node(div);
+        assert_eq!(n.width(), Some(Size::Auto));
+        assert_eq!(n.height(), Some(Size::Auto));
     }
 
     #[test]

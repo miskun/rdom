@@ -7,6 +7,7 @@ use rdom_core::{Dom, NodeId};
 
 use crate::ext::TuiExt;
 use crate::layout::{AspectRatio, Direction, Display, MarginValue, MinSize, Size, clamp_size};
+use crate::render::layout_pass::block::nearest_block_ancestor_height_is_definite;
 use crate::render::layout_pass::intrinsic::intrinsic_size;
 use crate::style::ComputedStyle;
 
@@ -109,13 +110,15 @@ fn aspect_cross_from_main(
 ) -> Option<u16> {
     let r = ratio.value()?;
     // (main-axis, cross-axis) padding + border, for the content box.
-    let (main_edges, cross_edges) = if ratio.auto {
+    let (main_edges, cross_edges) = if ratio.auto() {
         let p = &computed.padding;
         let b = &computed.border;
-        let horizontal =
-            p.left.resolve(cb_width) + p.right.resolve(cb_width) + b.left.cells() + b.right.cells();
-        let vertical =
-            p.top.resolve(cb_width) + p.bottom.resolve(cb_width) + b.top.cells() + b.bottom.cells();
+        let horizontal = p
+            .horizontal(cb_width)
+            .saturating_add(b.left.cells() + b.right.cells());
+        let vertical = p
+            .vertical(cb_width)
+            .saturating_add(b.top.cells() + b.bottom.cells());
         match direction {
             Direction::Row => (horizontal, vertical),
             Direction::Column => (vertical, horizontal),
@@ -183,8 +186,16 @@ fn resolve_cross_size(
         Direction::Column => (&computed.width, &computed.min_width, &computed.max_width),
     };
     // `min-*` / `max-*` percentages resolve against the container's
-    // cross size, as the cross size's own do (CSS Sizing 3 §5.2).
-    let max = max.as_ref().and_then(|m| m.cells(Some(container_cross)));
+    // cross size, as the cross size's own do (CSS Sizing 3 §5.2) — for a
+    // row, its height, indefinite when `auto` (CSS 2.1 §10.7: then a
+    // `max-height` percentage is `none` and a `min-height` one 0).
+    let basis = match direction {
+        Direction::Row => {
+            nearest_block_ancestor_height_is_definite(dom, child_id).then_some(container_cross)
+        }
+        Direction::Column => Some(container_cross),
+    };
+    let max = max.as_ref().and_then(|m| m.cells(basis));
     let cross_dir = match direction {
         Direction::Row => Direction::Column,
         Direction::Column => Direction::Row,
@@ -249,7 +260,7 @@ fn resolve_cross_size(
             container_cross,
             container_width,
         )),
-        Some(m) => m.cells(Some(container_cross)),
+        Some(m) => m.cells(basis),
     };
     clamp_size(natural, min, max)
 }

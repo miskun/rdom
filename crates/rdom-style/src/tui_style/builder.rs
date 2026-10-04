@@ -11,15 +11,19 @@ use crate::{Content, TuiColor, Value};
 
 macro_rules! setter {
     ($field:ident, $setter:ident, $important_setter:ident, $mask:ident, $ty:ty) => {
+        setter!($field, $setter, $important_setter, $mask, $ty, std::convert::identity);
+    };
+    // `$valid` keeps a Rust-built value in the property's range.
+    ($field:ident, $setter:ident, $important_setter:ident, $mask:ident, $ty:ty, $valid:path) => {
         #[doc = concat!("Set the `", stringify!($field), "` property to `v`. Chainable.")]
         pub fn $setter(mut self, v: $ty) -> Self {
-            self.$field = Some(Value::Specified(v));
+            self.$field = Some(Value::Specified($valid(v)));
             self
         }
 
         #[doc = concat!("Like `", stringify!($setter), "` but also marks the declaration `!important`.")]
         pub fn $important_setter(mut self, v: $ty) -> Self {
-            self.$field = Some(Value::Specified(v));
+            self.$field = Some(Value::Specified($valid(v)));
             self.important |= ImportantMask::$mask;
             self
         }
@@ -106,8 +110,16 @@ impl TuiStyle {
     }
 
     // Layout setters.
-    setter!(width, width, width_important, WIDTH, Size);
-    setter!(height, height, height_important, HEIGHT, Size);
+    // A flex weight is kept in `<number [0,∞]>` (`Size::validated`).
+    setter!(width, width, width_important, WIDTH, Size, Size::validated);
+    setter!(
+        height,
+        height,
+        height_important,
+        HEIGHT,
+        Size,
+        Size::validated
+    );
     /// Set the `min-width` property. Accepts a `u16` (cells) or
     /// `MinSize::Auto`. Chainable.
     pub fn min_width(mut self, v: impl Into<crate::layout::MinSize>) -> Self {
@@ -189,7 +201,8 @@ impl TuiStyle {
         flex_shrink,
         flex_shrink_important,
         FLEX_SHRINK,
-        f32
+        f32,
+        crate::layout::valid_flex_factor
     );
     setter!(
         flex_basis,

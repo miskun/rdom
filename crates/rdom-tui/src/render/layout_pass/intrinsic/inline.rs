@@ -28,8 +28,7 @@ pub(super) fn wrapped_rows(
         Size::Fixed(n) => *n,
         _ => cross_budget,
     };
-    let row_pad =
-        computed.padding.left.resolve(cb_width) + computed.padding.right.resolve(cb_width);
+    let row_pad = computed.padding.horizontal(cb_width);
     let content_width = outer_width
         .saturating_sub(row_pad)
         .saturating_sub(border_main_cost(computed, Direction::Row));

@@ -335,3 +335,53 @@ fn every_property_has_important_setter() {
         .transitions_important();
     assert_eq!(s.important, ImportantMask::all());
 }
+
+/// C2G-LAYOUT-SAFETY — CSS Flexbox §7.1: flex factors are `<number
+/// [0,∞]>`. A factor built in Rust goes through the setter, which keeps
+/// it in range: a negative or NaN grow is no grow (`Size::Auto`, as the
+/// parser maps `flex: 0`), an infinite one the largest finite factor;
+/// a negative or NaN shrink is 0.
+#[test]
+fn rust_built_flex_factors_are_validated_at_the_setter() {
+    use crate::layout::Size;
+    let w = |s: Size| TuiStyle::new().width(s).width;
+    assert_eq!(w(Size::Flex(-1.0)), Some(Value::Specified(Size::Auto)));
+    assert_eq!(w(Size::Flex(f32::NAN)), Some(Value::Specified(Size::Auto)));
+    assert_eq!(w(Size::Flex(0.0)), Some(Value::Specified(Size::Auto)));
+    assert_eq!(
+        w(Size::Flex(f32::INFINITY)),
+        Some(Value::Specified(Size::Flex(f32::MAX)))
+    );
+    assert_eq!(w(Size::Flex(2.5)), Some(Value::Specified(Size::Flex(2.5))));
+    assert_eq!(w(Size::Fixed(3)), Some(Value::Specified(Size::Fixed(3))));
+    assert_eq!(
+        TuiStyle::new().height_important(Size::Flex(-2.0)).height,
+        Some(Value::Specified(Size::Auto))
+    );
+    let shrink = |v: f32| TuiStyle::new().flex_shrink(v).flex_shrink;
+    assert_eq!(shrink(-1.0), Some(Value::Specified(0.0)));
+    assert_eq!(shrink(f32::NAN), Some(Value::Specified(0.0)));
+    assert_eq!(shrink(f32::INFINITY), Some(Value::Specified(f32::MAX)));
+    assert_eq!(shrink(1.5), Some(Value::Specified(1.5)));
+    assert_eq!(
+        TuiStyle::new().flex_shrink_important(-1.0).flex_shrink,
+        Some(Value::Specified(0.0))
+    );
+}
+
+/// C2G-LAYOUT-SAFETY — CSS Values 4 §5.7: a `<ratio>`'s terms are
+/// `<number [0,∞]>`; the terms are private, so `AspectRatio::new` is
+/// the only way to build one and a non-finite or negative term is no
+/// ratio.
+#[test]
+fn aspect_ratio_terms_are_validated() {
+    use crate::layout::AspectRatio;
+    assert_eq!(AspectRatio::new(f32::NAN, 1.0), None);
+    assert_eq!(AspectRatio::new(1.0, f32::INFINITY), None);
+    assert_eq!(AspectRatio::new(-1.0, 1.0), None);
+    let r = AspectRatio::new(16.0, 9.0).unwrap().with_auto(true);
+    assert_eq!(
+        (r.numerator(), r.denominator(), r.auto()),
+        (16.0, 9.0, true)
+    );
+}

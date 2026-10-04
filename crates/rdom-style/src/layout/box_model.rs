@@ -444,6 +444,23 @@ impl Padding {
         Self::new(v, h, v, h)
     }
 
+    /// Left + right in cells, percentages against `cb_width` (CSS Box 3
+    /// §4.2), saturating at `u16::MAX`: two `u16` sides can sum past it.
+    pub fn horizontal(&self, cb_width: u16) -> u16 {
+        self.left
+            .resolve(cb_width)
+            .saturating_add(self.right.resolve(cb_width))
+    }
+
+    /// Top + bottom in cells, percentages against `cb_width` (vertical
+    /// padding percentages use the width too, CSS Box 3 §4.2), saturating
+    /// at `u16::MAX`.
+    pub fn vertical(&self, cb_width: u16) -> u16 {
+        self.top
+            .resolve(cb_width)
+            .saturating_add(self.bottom.resolve(cb_width))
+    }
+
     /// Same on all sides.
     pub fn all(n: u16) -> Self {
         Self::new(n, n, n, n)

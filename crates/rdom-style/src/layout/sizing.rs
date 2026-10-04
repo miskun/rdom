@@ -143,6 +143,28 @@ impl From<u16> for MaxSize {
     }
 }
 
+impl Size {
+    /// This size with a flex weight kept in `<number [0,∞]>` (CSS
+    /// Flexbox §7.1), for a value built in Rust: a negative, zero or
+    /// NaN weight is no grow (`Size::Auto`, as `flex: 0` parses), an
+    /// infinite one the largest finite weight. Other sizes are as given.
+    /// The style setters apply it.
+    pub fn validated(self) -> Size {
+        match self {
+            Size::Flex(w) if w > 0.0 => Size::Flex(w.min(f32::MAX)),
+            Size::Flex(_) => Size::Auto,
+            other => other,
+        }
+    }
+}
+
+/// A `flex-shrink` factor kept in `<number [0,∞]>` (CSS Flexbox §7.1),
+/// for a value built in Rust: negative or NaN is 0, infinite the largest
+/// finite factor. The style setters apply it.
+pub fn valid_flex_factor(v: f32) -> f32 {
+    if v > 0.0 { v.min(f32::MAX) } else { 0.0 }
+}
+
 /// Value of `flex-basis` (CSS Flexbox §7.3.3: `content | <'width'>`),
 /// set by the `flex` shorthand (§7.2). Stored and cascaded; the layout
 /// pass does not read it yet — a growing item's basis is 0 and a
@@ -175,16 +197,18 @@ fn resolve_u16(expr: &crate::calc::CalcExpr, basis: u16) -> u16 {
 ///
 /// A ratio with a zero term is *degenerate* and behaves as `auto`
 /// ([`AspectRatio::value`] is `None`).
+///
+/// The terms are private: [`AspectRatio::new`] is the only way to build
+/// one, so a non-finite or negative term never reaches layout.
+///
+/// ```compile_fail
+/// let r = rdom_style::layout::AspectRatio { numerator: f32::NAN, denominator: 1.0, auto: false };
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct AspectRatio {
-    /// The width term.
-    pub numerator: f32,
-    /// The height term.
-    pub denominator: f32,
-    /// `auto && <ratio>`: a replaced element's natural ratio would win
-    /// (rdom has none), and the ratio sizes the content box rather than
-    /// the border box.
-    pub auto: bool,
+    numerator: f32,
+    denominator: f32,
+    auto: bool,
 }
 
 impl AspectRatio {
@@ -203,6 +227,23 @@ impl AspectRatio {
     pub fn with_auto(mut self, auto: bool) -> Self {
         self.auto = auto;
         self
+    }
+
+    /// The width term.
+    pub fn numerator(self) -> f32 {
+        self.numerator
+    }
+
+    /// The height term.
+    pub fn denominator(self) -> f32 {
+        self.denominator
+    }
+
+    /// `auto && <ratio>`: a replaced element's natural ratio would win
+    /// (rdom has none), and the ratio sizes the content box rather than
+    /// the border box.
+    pub fn auto(self) -> bool {
+        self.auto
     }
 
     /// The ratio `numerator / denominator`, `None` when degenerate (a

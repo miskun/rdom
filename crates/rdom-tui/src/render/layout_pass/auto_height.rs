@@ -86,8 +86,7 @@ pub(crate) fn resolve_auto_height(
     // Padding percent / calc resolves against the containing-block
     // width on ALL four sides (CSS 2.1 §8.4) — the same basis
     // `compute_content_area_collapsed` used for this element's inset.
-    let pad = computed.padding.top.resolve(containing_block_width)
-        + computed.padding.bottom.resolve(containing_block_width);
+    let pad = computed.padding.vertical(containing_block_width);
     let border = computed.border.top.cells() + computed.border.bottom.cells();
     let outer_h = content_h
         .saturating_add(pad)

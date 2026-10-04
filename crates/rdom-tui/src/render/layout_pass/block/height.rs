@@ -119,10 +119,10 @@ pub(super) fn resolve_block_height(
 ///   when the CB is definite — for v1 we assume CB-of-absolute is
 ///   definite since it traces to the viewport).
 ///
-/// Flex items have a definite cross-axis size after distribution,
-/// but in this codepath we're only consulted when walking up a
-/// `Flow::Block` chain from a Block child — flex contexts are
-/// outside that.
+/// Flex layout asks it too, for its items' `min-height` / `max-height`
+/// percentages (a column's main axis, a row's cross axis): it reads the
+/// container's height the same way. A flex item's definite post-flex
+/// size (§9.8) is the `Size::Flex` case below.
 pub(crate) fn nearest_block_ancestor_height_is_definite(dom: &Dom<TuiExt>, id: NodeId) -> bool {
     use crate::layout::{MinSize, Position};
     // Iterative walk so a pathological `<div height="50%">` nest
