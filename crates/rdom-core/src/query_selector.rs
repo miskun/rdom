@@ -383,10 +383,13 @@ impl<Ext> Dom<Ext> {
 fn names_only_scope(simple: &SimpleSelector) -> bool {
     match simple {
         SimpleSelector::Pseudo(PseudoClass::Scope) => true,
-        SimpleSelector::Is(list) | SimpleSelector::Where(list) => list
-            .0
-            .iter()
-            .all(|c| c.ancestors.is_empty() && c.subject.simples.iter().all(names_only_scope)),
+        SimpleSelector::Is(list) | SimpleSelector::Where(list) => {
+            // An empty (forgiving) list matches nothing, not the root.
+            !list.0.is_empty()
+                && list.0.iter().all(|c| {
+                    c.ancestors.is_empty() && c.subject.simples.iter().all(names_only_scope)
+                })
+        }
         _ => false,
     }
 }
@@ -672,6 +675,32 @@ mod tests {
         // Combinators inside :where() are honored (em is a descendant of div).
         assert!(dom.matches(em, ":where(div em)").unwrap());
         assert!(!dom.matches(s1, ":where(div em)").unwrap());
+    }
+
+    /// Selectors 4 §4.2 (`C1G-IS-PARSE`): `:is()` matches an element
+    /// matching any argument — combinators included, an invalid argument
+    /// dropped, an empty list matching nothing — inside `:not()` too.
+    #[test]
+    fn is_pseudo_matches_any_argument() {
+        let (dom, [div, s1, s2, p, em]) = build();
+        let root = dom.root();
+        let r = dom
+            .query_selector_all_in(root, ":is(.first, .last)")
+            .unwrap();
+        assert_eq!(r, vec![s1, p]);
+        assert!(dom.matches(em, ":is(div em)").unwrap());
+        assert!(!dom.matches(s1, ":is(div em)").unwrap());
+        assert!(dom.matches(s1, ":is(!!bad, .first)").unwrap());
+        let r = dom
+            .query_selector_all_in(root, "span:not(:is(.first))")
+            .unwrap();
+        assert_eq!(r, vec![s2]);
+        for id in [div, s1, s2, p, em] {
+            assert!(
+                !dom.matches(id, ":is(!!)").unwrap(),
+                "empty :is() matches nothing"
+            );
+        }
     }
 
     #[test]

@@ -113,6 +113,63 @@ impl<'a> Parser<'a> {
         Ok(SelectorList(items))
     }
 
+    /// Selectors 4 §4.2 "forgiving selector list", inside a
+    /// pseudo-class's parentheses: an argument that does not parse as a
+    /// complex selector is dropped, the others stand, and an empty list
+    /// is valid (it matches nothing). Stops before the closing `)`; only
+    /// a missing `)` is an error.
+    fn parse_forgiving_list(&mut self) -> Result<SelectorList, ParseError> {
+        let mut items = Vec::new();
+        loop {
+            self.skip_ws();
+            let (start, seen) = (self.pos, (self.nest_seen, self.scope_seen));
+            let parsed = self.parse_complex_selector().ok().filter(|_| {
+                self.skip_ws();
+                matches!(self.peek(), Some(b',' | b')'))
+            });
+            match parsed {
+                Some(item) => items.push(item),
+                None => {
+                    // A dropped argument's `&` / `:scope` do not count.
+                    self.pos = start;
+                    (self.nest_seen, self.scope_seen) = seen;
+                    self.skip_argument()?;
+                }
+            }
+            match self.peek() {
+                Some(b',') => self.pos += 1,
+                _ => return Ok(SelectorList(items)),
+            }
+        }
+    }
+
+    /// Skip to the `,` or `)` ending the current argument at nesting
+    /// depth 0 — over nested `()` / `[]`, strings and escapes (CSS
+    /// Syntax 3 §5.4.9 "consume a component value"). An argument that
+    /// runs to the end of the input is an error (the `)` is missing).
+    fn skip_argument(&mut self) -> Result<(), ParseError> {
+        let mut depth = 0usize;
+        while let Some(b) = self.peek() {
+            match b {
+                b',' | b')' if depth == 0 => return Ok(()),
+                b'(' | b'[' => depth += 1,
+                b')' | b']' => depth = depth.saturating_sub(1),
+                b'\\' => self.pos += 1,
+                q @ (b'"' | b'\'') => {
+                    self.pos += 1;
+                    match css_syntax::consume_string(&self.src[self.pos..], q as char) {
+                        Some((_, used)) => self.pos += used,
+                        None => self.pos = self.bytes.len(),
+                    }
+                    continue;
+                }
+                _ => {}
+            }
+            self.pos += 1;
+        }
+        Err(self.err("unclosed pseudo-class argument".to_string()))
+    }
+
     pub(super) fn bump(&mut self) {
         self.pos += 1;
     }
@@ -341,6 +398,12 @@ impl<'a> Parser<'a> {
                 self.skip_ws();
                 self.expect(b')', ":not")?;
                 Ok(SimpleSelector::Not(Box::new(inner)))
+            }
+            "is" => {
+                self.expect(b'(', ":is")?;
+                let inner = self.parse_forgiving_list()?;
+                self.expect(b')', ":is")?;
+                Ok(SimpleSelector::Is(Box::new(inner)))
             }
             "where" => {
                 self.expect(b'(', ":where")?;

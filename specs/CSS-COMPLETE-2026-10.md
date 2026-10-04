@@ -213,7 +213,7 @@ row comes from.
 | Id | Item | Status |
 |---|---|---|
 | C11-ATTR-FLAGS | Attribute selector case flags `i` / `s` | |
-| C11-IS | `:is()` | |
+| C11-IS | `:is()` | done (landed early as C1G-IS-PARSE) |
 | C11-HAS | `:has()` with invalidation | |
 | C11-NTH | `:nth-child()` / `:nth-last-child()` (+ `of S`), `:nth-of-type()` / `:nth-last-of-type()`, `:first-of-type` / `:last-of-type` / `:only-of-type` | |
 | C11-SCOPE | `:scope` (query APIs and `@scope`) | |
@@ -331,3 +331,7 @@ row comes from.
   mirror is the only path by which `:root` custom properties reach elements — the gate's "the
   cascaded root `--c` is blue" did not hold; every element saw the mirror's `red`. Cross-sheet
   layer / importance precedence of the seed stays last-sheet-wins (accepted, DESIGN).
+- 2026-10-04 — C1G-IS-PARSE (lands C11-IS): `:is(<forgiving-selector-list>)` parsed into
+  `SimpleSelector::Is`; an invalid argument is skipped to the next top-level `,` / `)`, an empty
+  `:is()` matches nothing (`names_only_scope` no longer treats an empty list as `:scope`).
+  `:where()` stays unforgiving (DIVERGENCES; Selectors 4 §4.4 makes it forgiving too — C11 work).

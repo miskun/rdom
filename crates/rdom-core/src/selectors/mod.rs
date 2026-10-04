@@ -24,13 +24,14 @@
 //! `method`, `enctype`, `lang`, `checked`, …), so the UA sheet's
 //! `input[type=checkbox]` matches `<input type="CheckBox">`.
 //!
-//! `:where()` matches like `:is()` (any item in its list) but contributes
-//! **zero specificity** (Selectors L4) — the mechanism a component library
-//! uses to ship default styles that any author rule overrides freely.
+//! `:is()` matches an element any item of its (forgiving) list matches,
+//! with the specificity of the most specific item; `:where()` matches
+//! the same way but contributes **zero specificity** (Selectors L4) —
+//! the mechanism a component library uses to ship default styles that
+//! any author rule overrides freely.
 //!
 //! Not supported yet (reserved for later phases):
-//! - `:nth-child(an+b)`, `:has(...)`, `:is(...)` as text (the AST has
-//!   [`SimpleSelector::Is`] for `&`), namespaces, attribute
+//! - `:nth-child(an+b)`, `:has(...)`, namespaces, attribute
 //!   case flags (`[attr="v" i]`), pseudo-elements (`::before`, `::after`).
 
 use std::fmt;
@@ -149,9 +150,10 @@ pub enum SimpleSelector {
     Not(Box<SelectorList>),
     /// `:is()` semantics over a selector list: matches when any complex
     /// selector in the list matches the element, with the specificity of
-    /// the list's most specific item (Selectors 4 §4.2, §17). Produced
-    /// today by the nesting selector `&` (CSS Nesting 1 §2,
-    /// [`parse_nested`]); the `:is()` pseudo-class text is not parsed yet.
+    /// the list's most specific item (Selectors 4 §4.2, §17). Parsed
+    /// from `:is(<forgiving-selector-list>)` — an argument that does not
+    /// parse is dropped, and an empty list matches nothing — and produced
+    /// by the nesting selector `&` (CSS Nesting 1 §2, [`parse_nested`]).
     Is(Box<SelectorList>),
     /// `:where(...)` — matches like `:is()` (any complex selector in the
     /// list matches the element), but contributes **zero specificity**

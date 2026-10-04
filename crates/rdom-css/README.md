@@ -77,7 +77,7 @@ value       := token+
   (`[lang]`, `[lang="en"]`, `~=`, `|=`, `^=`, `$=`, `*=`), pseudo-classes
   (`:hover`, `:active`, `:focus`, `:not(...)`, `:first-child`, `:last-child`,
   `:only-child`, `:empty`, `:root`, `:checked`, `:indeterminate`,
-  `:open`, …), pseudo-elements (`::before`, `::after`, `::selection`,
+  `:open`, `:is(...)`, `:where(...)`, …), pseudo-elements (`::before`, `::after`, `::selection`,
   `::backdrop`), descendant / child / next-sibling / subsequent-sibling
   combinators, comma-separated lists.
 - **Properties** — the `rdom-style::property_dispatch` table (`property_names()` lists them; incl. `counter-reset` / `counter-increment`; `transition-timing-function` takes `cubic-bezier()` and `steps()`):

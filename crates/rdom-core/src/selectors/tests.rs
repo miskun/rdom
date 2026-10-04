@@ -352,3 +352,51 @@ fn scoped_selectors_are_relative_to_where_scope() {
         parse(":where(:scope) > p").unwrap()
     );
 }
+
+// ── `:is()` (Selectors 4 §4.2, C1G-IS-PARSE) ────────────────────────
+
+/// §4.2: `:is(<forgiving-selector-list>)` parses into
+/// `SimpleSelector::Is`, the same node as the nesting `&`.
+#[test]
+fn is_pseudo_parses_into_is() {
+    let sl = parse("p:is(.a, #b > em)").unwrap();
+    assert!(matches!(
+        &sl.0[0].subject.simples[..],
+        [SimpleSelector::Type(_), SimpleSelector::Is(inner)] if inner.0.len() == 2
+    ));
+    assert_eq!(parse(":IS(.a)").unwrap(), parse(":is(.a)").unwrap());
+}
+
+/// §17: `:is()` counts the specificity of its most specific argument.
+#[test]
+fn is_specificity_is_its_most_specific_argument() {
+    assert_eq!(parse(":is(.a, #b)").unwrap().0[0].specificity(), (1, 0, 0));
+    assert_eq!(
+        parse(":is(p, .a) span").unwrap().0[0].specificity(),
+        (0, 1, 1)
+    );
+    assert_eq!(
+        parse(":not(:is(.a, #b))").unwrap().0[0].specificity(),
+        (1, 0, 0)
+    );
+}
+
+/// §4.2 forgiving selector list: an argument that does not parse is
+/// dropped and the rest stand; with none left, `:is()` is valid and
+/// matches nothing. Nothing outside the parentheses is forgiven.
+#[test]
+fn is_arguments_are_forgiving() {
+    let sl = parse(":is(.a, !!bad, :unknown-thing, .b)").unwrap();
+    assert!(matches!(
+        &sl.0[0].subject.simples[..],
+        [SimpleSelector::Is(inner)] if *inner.0 == parse(".a, .b").unwrap().0
+    ));
+    let empty = parse("p:is(!!, [x=], \"a)\")").unwrap();
+    assert!(matches!(
+        &empty.0[0].subject.simples[..],
+        [_, SimpleSelector::Is(inner)] if inner.0.is_empty()
+    ));
+    assert!(parse(":is(.a").is_err(), "unclosed");
+    assert!(parse(":is(.a) !!").is_err());
+    assert!(parse(":not(!!, .a)").is_err(), ":not() is not forgiving");
+}

@@ -85,7 +85,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.14 Fonts (Fonts 4) | 0 | 2 | 1 | 2 | 5 |
 | 3.15 Lists, counters and generated content (Lists 3, Generated Content 3, Counter Styles 3, Pseudo-Elements 4) | 1 | 3 | 6 | 2 | 12 |
 | 3.16 Pseudo-elements (Pseudo-Elements 4, Selectors 4) | 4 | 1 | 5 | 6 | 16 |
-| 3.17 Selectors (Selectors 4) | 15 | 2 | 16 | 5 | 38 |
+| 3.17 Selectors (Selectors 4) | 16 | 2 | 15 | 5 | 38 |
 | 3.18 Transitions and animations (Transitions 1/2, Animations 1/2, Easing 1/2) | 3 | 3 | 4 | 0 | 10 |
 | 3.19 User interface (UI 4) | 2 | 1 | 8 | 1 | 12 |
 | 3.20 Tables (Tables 3, CSS 2.1 §17) | 0 | 0 | 4 | 0 | 4 |
@@ -93,9 +93,9 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 0 | 0 | 6 | 3 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **65** | **44** | **148** | **50** | **307** |
+| **Total** | **66** | **44** | **147** | **50** | **307** |
 
-Of the 192 Partial / Missing rows, **124 were not documented** in `DIVERGENCES.md` when audited (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3.
+Of the 191 Partial / Missing rows, **123 were not documented** in `DIVERGENCES.md` when audited (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3.
 
 Headline: rdom parses **70 property names** (`PROPERTY_NAMES`). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are flex alignment (`justify-content`, `align-items`), `flex-wrap`, the `flex-grow` / `flex-basis` longhands, the `border: 1px solid red` shorthand form, `var()` outside colors, `line-height`, `text-align`, `visibility`, `box-sizing`, and grid.
 
@@ -125,7 +125,7 @@ pasted CSS. The first block is what a typical component stylesheet hits in its f
 | 15 | `min()` / `max()` / `clamp()` | Comparison functions inside every `calc()` position; resolve at layout like percent-bearing `calc()`. | S | Yes |
 | 16 | `hsl()` / `hwb()` / `lab()` / `lch()` / `oklab()` / `oklch()` / `color()` | Convert to sRGB at parse time (gamut-mapped), emit as truecolor `Color::Rgb`. Common in design-token CSS. | S | No |
 | 17 | `:nth-child()` / `:nth-last-child()` / `:nth-of-type()` / `:nth-last-of-type()` / `:first-of-type` / `:last-of-type` / `:only-of-type` | Structural matching (`An+B`, `odd` / `even`, `of S`); zebra-striped lists and tables. | S | Partial — `:nth-child`, `:nth-of-type` Yes; the `*-of-type` trio No |
-| 18 | `:is()` / `:has()` | `:is()` = `:where()` with max-argument specificity (S); `:has()` relational matching with invalidation on descendant change (M). | S / M | Yes |
+| 18 | `:is()` / `:has()` | `:is()` shipped (C1G-IS-PARSE); `:has()` relational matching with invalidation on descendant change (M). | S / M | Yes |
 | 19 | `@media` | Evaluate `width` / `height` (in cells) / `orientation` / `aspect-ratio`, `color` / `monochrome`, `prefers-color-scheme` (from the terminal's reported background), `prefers-reduced-motion`, `hover` / `pointer`; re-cascade on `resize`. Also the `<style media>` attribute. | M | Yes |
 | 20 | `order` | Reorders flex (and grid) items for layout and paint, not for DOM / focus order. | S | No |
 | 21 | `@keyframes` + `animation-*` | Keyframed animation on the existing transition clock and interpolators. | L | Yes |
@@ -236,7 +236,7 @@ dropped:
 | `@scope` | Supported | `@scope [(start)] [to (end)] { … }`: roots and limits (limit subtrees out of scope), scoped rules relative to `:where(:scope)`, `&` = `:where(:scope)`, `:scope`, declarations on the root at zero specificity, prelude-less `@scope` rooted at the owner `<style>`'s parent (`Stylesheet::owner_node`), nesting in style rules and other `@scope`s, scope proximity sorted between specificity and order of appearance (Cascade 6 §6.1) (C1-SCOPE). | — | `rdom-css/src/scope.rs`, `rdom-style/src/stylesheet/scopes.rs`, `CASC/scope.rs` |
 | `@charset` | N/A | Sources are Rust `&str` (already UTF-8); consumed harmlessly. | — | `AT` |
 | `@namespace` | N/A | No XML namespaces (documented). | — | — |
-| CSS Nesting (`&`, nested rules) | Supported | Nested style rules, `&` anywhere (`&.x`, `.x &`, `:not(&)`), implicit descendant combinator, relative selectors (`> p`, `+ p`, `~ p`), declarations interleaved with nested rules (nested declarations rules, in order), nested `@layer`; `&` is `:is(<parent>)` for matching and specificity (`SimpleSelector::Is`; the `:is()` text is C11-IS). Nested `@media` / `@supports` / `@container` arrive with C14 (C1-NESTING). | — | `rdom-css/src/block.rs`, `SEL/nesting.rs`, `rdom-style/src/stylesheet/style_selector.rs` |
+| CSS Nesting (`&`, nested rules) | Supported | Nested style rules, `&` anywhere (`&.x`, `.x &`, `:not(&)`), implicit descendant combinator, relative selectors (`> p`, `+ p`, `~ p`), declarations interleaved with nested rules (nested declarations rules, in order), nested `@layer`; `&` is `:is(<parent>)` for matching and specificity (`SimpleSelector::Is`, also the parsed `:is()`). Nested `@media` / `@supports` / `@container` arrive with C14 (C1-NESTING). | — | `rdom-css/src/block.rs`, `SEL/nesting.rs`, `rdom-style/src/stylesheet/style_selector.rs` |
 | Inherited-property set | Supported | `inherits()` lists `color`, `font-weight`, `font-style`, `white-space`, `pointer-events`, `caret-color`, `caret-text-color`; `border-collapse` is non-inherited by design (documented). Correct for the shipped set. | — | `DISP/table.rs::inherits` |
 
 ### 3.2 Custom properties (CSS Variables 1)
@@ -517,7 +517,7 @@ dropped:
 | Selector list `a, b` | Supported | — | — | `SEL` |
 | `:not(<complex-list>)` | Supported | Full selector list. | — | `SEL` |
 | `:where()` | Supported | Zero specificity. | — | `SEL` |
-| `:is()` | Missing | — | Yes | `SEL` |
+| `:is()` | Supported | `SimpleSelector::Is` (shared with the nesting `&`); forgiving argument list (an invalid argument is dropped, an empty `:is()` matches nothing); specificity of the most specific argument (Selectors 4 §4.2, §17; C1G-IS-PARSE, landing C11-IS). | — | `SEL` |
 | `:has()` | Missing | — | Yes | `SEL`, invalidation in `CASC` |
 | `:first-child` / `:last-child` / `:only-child` | Supported | — | — | `SEL` |
 | `:nth-child()` / `:nth-last-child()` (+ `of S`) | Missing | — | Yes | `SEL` |

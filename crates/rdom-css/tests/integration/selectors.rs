@@ -115,3 +115,15 @@ fn placeholder_pseudo_element_keeps_first_line_properties() {
     ));
     assert_eq!(rule.style.width, None);
 }
+
+/// Selectors 4 §4.2 (`C1G-IS-PARSE`): `:is()` with a comma list is one
+/// rule (the list's commas are inside the parentheses), with the
+/// specificity of its most specific argument.
+#[test]
+fn is_selector_is_one_rule_with_max_specificity() {
+    let r = parse(":is(#x, .y) p {}");
+    assert!(r.warnings.is_empty(), "{:?}", r.warnings);
+    assert_eq!(r.stylesheet.rules().len(), 1);
+    let id_and_type = parse("#x p {}").stylesheet.rules()[0].specificity;
+    assert_eq!(r.stylesheet.rules()[0].specificity, id_and_type);
+}

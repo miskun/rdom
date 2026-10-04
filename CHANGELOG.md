@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`:scope`** (Selectors 4 §14.3): `PseudoClass::Scope` matches the scoping root given to the new `Dom::matches_list_in_scope(id, list, scope)` — an `@scope` root — and `:root` without one (`matches_list` passes none); a `&` outside a nested rule parses as `:scope` (CSS Nesting 1 §2). `selectors::parse_scoped(text)` parses a scoped style rule's selector (CSS Cascade 6 §2.5.2): relative to `:where(:scope)` (no added specificity), `&` is `:where(:scope)`, and a selector holding `:scope` or `&` is absolute. The query APIs do not set `:scope` to their root yet (C11-SCOPE). (C1-SCOPE)
 
 - `css_syntax::serialize_string` / `serialize_identifier` (CSSOM §2.1): the inverses of `consume_string` / `consume_ident` — quotes, backslashes, control characters, a leading digit and other non-name characters escaped, so reading the text back gives the same string or name. (C1G-VAR-TOKENS)
+- **`:is()`** (Selectors 4 §4.2): `:is(<list>)` parses into `SimpleSelector::Is` — the node the nesting `&` already used — and matches an element any argument matches, with the specificity of its most specific argument. The argument list is forgiving: an argument that does not parse is dropped (`:is(.a, !!, .b)` is `:is(.a, .b)`), and an empty `:is()` is valid and matches nothing. (C1G-IS-PARSE)
 
 ### Fixed — `rdom-core`
 
