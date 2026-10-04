@@ -294,9 +294,11 @@ impl Stylesheet {
         Ok(())
     }
 
-    /// Define a root custom-property value. Used by `var(--name)`
-    /// references in rules; resolved during cascade against the string
-    /// color grammar (hex, named, indexed).
+    /// Define a root custom-property value: `value` is the property's
+    /// token text, as `--name: value` would hold it. The cascade seeds
+    /// every element's custom properties with it (the document root's
+    /// value, inherited), so a `var(--name)` in any property substitutes
+    /// it and parses the result with that property's grammar.
     pub fn define_var(mut self, name: &str, value: &str) -> Self {
         self.root_vars.insert(name.to_string(), value.to_string());
         self

@@ -86,8 +86,8 @@ value       := token+
   current list.
 - **Values** — colors (`#rgb`, `#rrggbb`, `#rrggbbaa` (alpha dropped),
   `rgb()`, `rgba()`, named colors, `reset`), lengths (cells, `fr`,
-  `auto`), `var(--name)` and `var(--name, fallback)` in color positions,
-  modifiers (`bold`, `italic`, `underline`), shorthands (4-/3-/2-/1-value
+  `auto`), `var(--name)` and `var(--name, fallback)` in any property
+  (see *Custom properties* below), modifiers (`bold`, `italic`, `underline`), shorthands (4-/3-/2-/1-value
   `padding`), comma-separated `transition` lists.
 - **Custom properties** — `--name: value;` under any selector (and in a
   `style` attribute) rides on the rule as `TuiStyle::custom_properties`;
@@ -116,8 +116,8 @@ value       := token+
 These produce a `Warning` and the parse continues — matching browser
 behavior, so copy-pasting CSS from MDN doesn't blow up:
 
-- **At-rules other than `@import`, `@layer`, `@scope` and `@property`.** Every other at-rule (`@import`,
-  `@charset`, `@media`, `@keyframes`, `@supports`, `@font-face`, …) is
+- **At-rules other than `@import`, `@layer`, `@scope` and `@property`.**
+  Every other at-rule (`@charset`, `@media`, `@keyframes`, `@supports`, `@font-face`, …) is
   consumed whole per CSS Syntax 3 §5.4.2 and reported with
   `WarningKind::UnsupportedAtRule(name)`; the rules around it are
   unaffected (`@import` loads through the host's `ImportLoader` with
@@ -133,7 +133,6 @@ behavior, so copy-pasting CSS from MDN doesn't blow up:
 - **Length units other than cells, `fr`, and `%`.** `px`, `em`, `rem`
   have no cell-grid meaning and are rejected. `ch`, `lh` and the viewport
   units (`vw`, `vh`, …) are rejected today too; they are scheduled for 0.6.0.
-- **CSS variables in non-color values.** `padding: var(--gap)` — not shipped.
 - **Nested conditional rules** (`@media` / `@supports` / `@container`
   inside a style rule) — with those at-rules, in 0.6.0.
 

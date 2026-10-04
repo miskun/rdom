@@ -288,3 +288,7 @@ row comes from.
   loses `@scope` owner and loader; missing `rdom_tui` re-exports; `String` errors on
   `register_property`; stale DESIGN / DIVERGENCES / COVERAGE / CHANGELOG lines; API surface
   duplication). Decision: fix all as `C1G-*` items in two batches before Phase 2.
+- 2026-10-04 — C1G-README: rdom-css README no longer limits `var()` to colors nor lists `@import`
+  as unsupported; DIVERGENCES no longer schedules `@property`; COVERAGE `@import` is *Partial*
+  (conditions ignored) and the §1 counts are recounted (192 Partial / Missing, 124 undocumented at
+  audit time); `define_var` rustdoc and the C1-ALL / `TuiStyle::pending` CHANGELOG bullets corrected.

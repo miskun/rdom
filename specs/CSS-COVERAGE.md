@@ -69,7 +69,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 
 | Module | Supported | Partial | Missing | N/A | Total |
 |---|---:|---:|---:|---:|---:|
-| 3.1 Syntax, cascade and inheritance (Syntax 3, Cascade 4/5, CSS 2.1 §6) | 19 | 0 | 0 | 2 | 21 |
+| 3.1 Syntax, cascade and inheritance (Syntax 3, Cascade 4/5, CSS 2.1 §6) | 18 | 1 | 0 | 2 | 21 |
 | 3.2 Custom properties (CSS Variables 1) | 6 | 0 | 0 | 1 | 7 |
 | 3.3 Values and units (Values 4) | 5 | 5 | 8 | 4 | 22 |
 | 3.4 Color (Color 4 / 5) | 3 | 3 | 9 | 2 | 17 |
@@ -93,9 +93,9 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 0 | 0 | 6 | 3 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **66** | **43** | **148** | **50** | **307** |
+| **Total** | **65** | **44** | **148** | **50** | **307** |
 
-Of the 205 Partial / Missing rows, **133 are not documented** in `DIVERGENCES.md` (6 of them because the document states the opposite of the code) — see §5 and §6.
+Of the 192 Partial / Missing rows, **124 were not documented** in `DIVERGENCES.md` when audited (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3.
 
 Headline: rdom parses **70 property names** (`PROPERTY_NAMES`). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are flex alignment (`justify-content`, `align-items`), `flex-wrap`, the `flex-grow` / `flex-basis` longhands, the `border: 1px solid red` shorthand form, `var()` outside colors, `line-height`, `text-align`, `visibility`, `box-sizing`, and grid.
 
@@ -232,7 +232,7 @@ dropped:
 | `revert-layer` | Supported | Rolls back to the cascade without the declaration's layer (and the ones above it), important layers included; outside author layers, as `revert` (C1-LAYER). | — | `DISP/css_wide.rs`, `CASC/ladder.rs` |
 | `all` | Supported | Takes a CSS-wide keyword and sets every property of the dispatch table (`unset` resolved per property); `direction` / `unicode-bidi` (when they land) and custom properties excluded; driven by `PROPERTY_NAMES`, so a new property is covered without touching `all` (C1-ALL). | — | `DISP/table.rs` |
 | `@layer` | Supported | Statement and block forms, anonymous layers, `a.b` / nested sublayers, order by first declaration; unlayered beats layered for normal declarations, reversed for `!important`; one layer order across all the sheets of a cascade (C1-LAYER). | — | `rdom-css/src/layer.rs`, `rdom-style/src/stylesheet/layers.rs`, `CASC/ladder.rs` |
-| `@import` | Supported | Through a host-provided `rdom_css::ImportLoader` (`parse_with_loader`, `App::set_import_loader`): rules inserted at the import's position, `layer` / `layer(name)`, `supports()` and media conditions recorded (`Stylesheet::imports`; evaluated with C14, true until then), a late `@import` ignored, cycles cut, a missing loader or load error warns (C1-IMPORT). | — | `rdom-css/src/import.rs` |
+| `@import` | Partial | Through a host-provided `rdom_css::ImportLoader` (`parse_with_loader`, `App::set_import_loader`): rules inserted at the import's position, `layer` / `layer(name)`, a late `@import` ignored, cycles cut, a missing loader or load error warns (C1-IMPORT). Its `supports()` and media conditions are recorded (`Stylesheet::imports`) but ignored — an imported sheet always applies — until C14-MEDIA / C14-SUPPORTS. | Yes | `rdom-css/src/import.rs` |
 | `@scope` | Supported | `@scope [(start)] [to (end)] { … }`: roots and limits (limit subtrees out of scope), scoped rules relative to `:where(:scope)`, `&` = `:where(:scope)`, `:scope`, declarations on the root at zero specificity, prelude-less `@scope` rooted at the owner `<style>`'s parent (`Stylesheet::owner_node`), nesting in style rules and other `@scope`s, scope proximity sorted between specificity and order of appearance (Cascade 6 §6.1) (C1-SCOPE). | — | `rdom-css/src/scope.rs`, `rdom-style/src/stylesheet/scopes.rs`, `CASC/scope.rs` |
 | `@charset` | N/A | Sources are Rust `&str` (already UTF-8); consumed harmlessly. | — | `AT` |
 | `@namespace` | N/A | No XML namespaces (documented). | — | — |
