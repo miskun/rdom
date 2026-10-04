@@ -2,15 +2,19 @@
 //! descent parser from tokens to a [`CalcExpr`] AST. The evaluator lives
 //! in [`crate::calc`].
 
-use crate::calc::{CalcExpr, CalcOp, MathFunction};
+use crate::calc::{CalcExpr, CalcOp, MathFunction, RoundingStrategy};
 use crate::parse::token::Token;
 
 // Recursive-descent over the token stream. Grammar:
 //
-//   math       = calc | min | max | clamp
+//   math       = calc | min | max | clamp | round | mod | rem | abs | sign
 //   calc       = 'calc(' sum ')'
 //   min / max  = 'min(' sum [',' sum]* ')'   ('max(' likewise)
 //   clamp      = 'clamp(' (sum | 'none') ',' sum ',' (sum | 'none') ')'
+//   round      = 'round(' [strategy ','] sum [',' sum] ')'
+//   mod / rem  = 'mod(' sum ',' sum ')'     ('rem(' likewise)
+//   abs / sign = 'abs(' sum ')'             ('sign(' likewise)
+//   strategy   = 'nearest' | 'up' | 'down' | 'to-zero'
 //   sum        = product (('+' | '-') product)*
 //   product    = factor (('*' | '/') factor)*
 //   factor     = leaf | '(' sum ')' | math
@@ -32,6 +36,14 @@ fn math_function(name: &str) -> Option<Option<MathFunction>> {
         ("min", Some(MathFunction::Min)),
         ("max", Some(MathFunction::Max)),
         ("clamp", Some(MathFunction::Clamp)),
+        (
+            "round",
+            Some(MathFunction::Round(RoundingStrategy::Nearest)),
+        ),
+        ("mod", Some(MathFunction::Mod)),
+        ("rem", Some(MathFunction::Rem)),
+        ("abs", Some(MathFunction::Abs)),
+        ("sign", Some(MathFunction::Sign)),
     ];
     TABLE
         .iter()
@@ -173,9 +185,50 @@ impl<'a> CalcParser<'a> {
                 let hi = self.parse_bound()?;
                 CalcExpr::function(MathFunction::Clamp, vec![lo, val, hi])
             }
+            Some(MathFunction::Round(_)) => {
+                let strategy = self.parse_rounding_strategy();
+                let mut args = vec![self.parse_sum()?];
+                if self.peek() == Some(&Token::Comma) {
+                    self.advance();
+                    args.push(self.parse_sum()?);
+                }
+                CalcExpr::function(MathFunction::Round(strategy), args)
+            }
+            Some(f @ (MathFunction::Mod | MathFunction::Rem)) => {
+                let a = self.parse_sum()?;
+                self.expect(&Token::Comma)?;
+                CalcExpr::function(f, vec![a, self.parse_sum()?])
+            }
+            Some(f @ (MathFunction::Abs | MathFunction::Sign)) => {
+                CalcExpr::function(f, vec![self.parse_sum()?])
+            }
         };
         self.expect(&Token::RParen)?;
         Some(expr)
+    }
+
+    /// `round()`'s optional leading `<rounding-strategy> ,`; `nearest`
+    /// when absent.
+    fn parse_rounding_strategy(&mut self) -> RoundingStrategy {
+        const STRATEGIES: &[(&str, RoundingStrategy)] = &[
+            ("nearest", RoundingStrategy::Nearest),
+            ("up", RoundingStrategy::Up),
+            ("down", RoundingStrategy::Down),
+            ("to-zero", RoundingStrategy::ToZero),
+        ];
+        let found = match (self.peek(), self.tokens.get(self.pos + 1)) {
+            (Some(Token::Ident(s)), Some(Token::Comma)) => STRATEGIES
+                .iter()
+                .find(|(k, _)| k.eq_ignore_ascii_case(s))
+                .map(|(_, v)| *v),
+            _ => None,
+        };
+        if let Some(strategy) = found {
+            self.pos += 2;
+            strategy
+        } else {
+            RoundingStrategy::Nearest
+        }
     }
 
     /// A `clamp()` bound: a sum, or `none` for no bound.

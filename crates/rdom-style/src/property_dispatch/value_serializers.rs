@@ -157,8 +157,14 @@ pub(super) fn serialize_calc(expr: &crate::calc::CalcExpr) -> String {
         CalcExpr::Length(c) => format!("{c}"),
         CalcExpr::None => "none".to_string(),
         CalcExpr::Function { func, args } => {
-            let args: Vec<String> = args.iter().map(serialize_calc).collect();
-            format!("{}({})", func.name(), args.join(", "))
+            let mut parts: Vec<String> = Vec::with_capacity(args.len() + 1);
+            if let crate::calc::MathFunction::Round(strategy) = func
+                && *strategy != crate::calc::RoundingStrategy::Nearest
+            {
+                parts.push(strategy.keyword().to_string());
+            }
+            parts.extend(args.iter().map(serialize_calc));
+            format!("{}({})", func.name(), parts.join(", "))
         }
         CalcExpr::Percent(p) => {
             if p.fract() == 0.0 {

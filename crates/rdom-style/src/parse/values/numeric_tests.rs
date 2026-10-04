@@ -121,3 +121,41 @@ fn comparison_functions_parse_fold_and_serialize() {
         assert_eq!(length_percentage(&t(bad), Range::Any), None, "{bad}");
     }
 }
+
+// ── C2-STEPPED ───────────────────────────────────────────────────────
+
+/// CSS Values 4 §10.3 / §10.7 grammars: `round(<rounding-strategy>?,
+/// <calc-sum>, <calc-sum>?)`, `mod()` / `rem()` with two arguments,
+/// `abs()` / `sign()` with one. They serialize as written.
+#[test]
+fn stepped_functions_parse_and_serialize() {
+    use crate::TuiStyle;
+    use crate::property_dispatch::{serialize, set};
+    assert_eq!(
+        length_percentage(&t("round(up, 21, 4)"), Range::NonNegative),
+        Some(LengthPercentage::Cells(24.0))
+    );
+    for value in [
+        "round(down, 50%, 4)",
+        "round(to-zero, 50%)",
+        "round(50%, 4)",
+        "mod(50%, 7)",
+        "rem(50%, 7)",
+        "abs(50% - 30)",
+        "calc(sign(50% - 10) * 3)",
+    ] {
+        let mut s = TuiStyle::default();
+        set("width", value, &mut s).unwrap_or_else(|e| panic!("{value}: {e:?}"));
+        assert_eq!(serialize("width", &s).as_deref(), Some(value));
+    }
+    for bad in [
+        "round(sideways, 1, 2)",
+        "round(up)",
+        "mod(1)",
+        "rem(1, 2, 3)",
+        "abs()",
+        "sign(1, 2)",
+    ] {
+        assert_eq!(length_percentage(&t(bad), Range::Any), None, "{bad}");
+    }
+}

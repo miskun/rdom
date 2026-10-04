@@ -77,3 +77,61 @@ fn half_to_even_rounding() {
     assert_eq!(round_half_to_even(2.5), 2);
     assert_eq!(round_half_to_even(3.5), 4);
 }
+
+// ── C2-STEPPED ───────────────────────────────────────────────────────
+
+fn eval(func: MathFunction, args: &[f64]) -> f64 {
+    let args = args.iter().map(|v| CalcExpr::Number(*v)).collect();
+    CalcExpr::function(func, args).resolve_f64(&cx(0))
+}
+
+/// CSS Values 4 §10.3.1: the rounding strategies, ties of `nearest`
+/// toward +∞, B's sign ignored, and the argument-range rules — a zero
+/// step is NaN; an infinite A stays infinite; an infinite B rounds a
+/// finite A to zero (`nearest` / `to-zero`) or to the infinity in the
+/// strategy's direction.
+#[test]
+fn round_strategies_and_edges() {
+    use RoundingStrategy::*;
+    let round = |s, a: f64, b: f64| eval(MathFunction::Round(s), &[a, b]);
+    assert_eq!(round(Nearest, 2.5, 1.0), 3.0);
+    assert_eq!(round(Nearest, -2.5, 1.0), -2.0);
+    assert_eq!(round(Nearest, 7.0, -5.0), 5.0);
+    assert_eq!(round(Up, -7.0, 5.0), -5.0);
+    assert_eq!(round(Down, -7.0, 5.0), -10.0);
+    assert_eq!(round(ToZero, -7.0, 5.0), -5.0);
+    assert_eq!(round(Down, 10.0, 5.0), 10.0, "an exact multiple is itself");
+    assert!(round(Nearest, 1.0, 0.0).is_nan());
+    assert_eq!(round(Up, f64::INFINITY, 2.0), f64::INFINITY);
+    assert!(round(Up, f64::INFINITY, f64::INFINITY).is_nan());
+    assert_eq!(round(Nearest, 5.0, f64::INFINITY), 0.0);
+    assert_eq!(round(Up, 5.0, f64::INFINITY), f64::INFINITY);
+    assert_eq!(round(Down, 5.0, f64::INFINITY), 0.0);
+    assert_eq!(round(Down, -5.0, f64::INFINITY), f64::NEG_INFINITY);
+    assert_eq!(
+        eval(MathFunction::Round(Nearest), &[2.5]),
+        3.0,
+        "B defaults to 1"
+    );
+}
+
+/// CSS Values 4 §10.3.2 / §10.7: `mod()` has B's sign, `rem()` A's; a
+/// zero B or an infinite A is NaN; an infinite B leaves A unless (for
+/// `mod()`) the signs differ. `abs()` / `sign()` keep zero's sign.
+#[test]
+fn mod_rem_abs_sign() {
+    assert_eq!(eval(MathFunction::Mod, &[-7.0, 5.0]), 3.0);
+    assert_eq!(eval(MathFunction::Mod, &[7.0, -5.0]), -3.0);
+    assert_eq!(eval(MathFunction::Rem, &[-7.0, 5.0]), -2.0);
+    assert_eq!(eval(MathFunction::Rem, &[7.0, -5.0]), 2.0);
+    assert!(eval(MathFunction::Mod, &[1.0, 0.0]).is_nan());
+    assert!(eval(MathFunction::Rem, &[f64::INFINITY, 2.0]).is_nan());
+    assert_eq!(eval(MathFunction::Rem, &[-3.0, f64::INFINITY]), -3.0);
+    assert_eq!(eval(MathFunction::Mod, &[3.0, f64::INFINITY]), 3.0);
+    assert!(eval(MathFunction::Mod, &[-3.0, f64::INFINITY]).is_nan());
+    assert_eq!(eval(MathFunction::Abs, &[-4.5]), 4.5);
+    assert_eq!(eval(MathFunction::Sign, &[-4.5]), -1.0);
+    assert_eq!(eval(MathFunction::Sign, &[0.0]), 0.0);
+    assert!(eval(MathFunction::Sign, &[-0.0]).is_sign_negative());
+    assert_eq!(eval(MathFunction::Sign, &[9.0]), 1.0);
+}

@@ -80,7 +80,7 @@ row comes from.
 | C2-PERCENT | `<percentage>` everywhere the spec allows (padding, margin, insets, min/max sizes, opacity) | done |
 | C2-NUMBER | Fractional `<number>` where the spec allows (flex factors, …) | done |
 | C2-MINMAX | `min()` / `max()` / `clamp()` | done |
-| C2-STEPPED | `round()` / `mod()` / `rem()` / `abs()` / `sign()` | |
+| C2-STEPPED | `round()` / `mod()` / `rem()` / `abs()` / `sign()` | done |
 | C2-TRIG | `sin()` … `atan2()`, `pow()` / `sqrt()` / `hypot()` / `log()` / `exp()` | |
 | C2-CH | `ch` (one column) | |
 | C2-LH | `lh` / `rlh` (one row × `line-height`; lands with C9-LINE-HEIGHT) | |

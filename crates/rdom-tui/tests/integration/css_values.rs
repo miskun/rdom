@@ -299,3 +299,30 @@ fn min_max_clamp_resolve_with_percentages_at_layout() {
         "insets: max(-5, 10% of 40), clamp(1, 10, 3)"
     );
 }
+
+// ── C2-STEPPED ───────────────────────────────────────────────────────
+
+/// CSS Values 4 §10.3: `round(<rounding-strategy>?, A, B?)` rounds A to
+/// a multiple of B (1 when omitted) — `nearest` (ties toward +∞), `up`,
+/// `down`, `to-zero`; `mod()` takes B's sign, `rem()` A's. §10.7:
+/// `abs()` and `sign()`. Percentages resolve at layout first.
+#[test]
+fn stepped_and_sign_functions_resolve_at_layout() {
+    let r = block_rects(
+        ".a { width: round(down, 50% + 3, 4); height: 1 }
+         .b { width: round(up, 21, 4); height: 1 }
+         .c { width: round(2.5); height: 1 }
+         .d { width: round(to-zero, -50%, 7); height: round(nearest, 10%, 3) }
+         .e { width: mod(-7, 5); height: 1 }
+         .f { width: abs(-30%); height: 1 }
+         .g { width: calc((1 + sign(50% - 10)) * 3); height: calc(sign(-2) + 2) }
+         .h { position: absolute; left: rem(-7, 5); top: mod(7, -5); width: 1; height: 1 }",
+        &["a", "b", "c", "d", "e", "f", "g", "h"],
+    );
+    let w: Vec<u16> = r.iter().map(|r| r.width).collect();
+    assert_eq!(w[..7], [20, 24, 3, 0, 3, 12, 6]);
+    assert_eq!(r[3].height, 3, "round(nearest, 2, 3): the nearer multiple");
+    assert_eq!(r[6].height, 1, "sign(-2) + 2");
+    let cb = r[0].y; // `a` sits at the containing block's top edge
+    assert_eq!((r[7].x, r[7].y - cb), (-2, -3), "rem: A's sign; mod: B's");
+}
