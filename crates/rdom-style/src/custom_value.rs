@@ -57,9 +57,10 @@ impl CustomValue {
         self.tokens.as_deref()
     }
 
-    /// Does the value hold a `var()` reference?
+    /// Does the value hold a substitution function — `var()` or `attr()`
+    /// — to substitute where it is declared?
     pub fn has_var(&self) -> bool {
-        self.tokens().is_some_and(crate::var::contains_var)
+        self.tokens().is_some_and(crate::var::contains_substitution)
     }
 }
 

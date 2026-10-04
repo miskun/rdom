@@ -1,4 +1,5 @@
-//! `var()` substitution (CSS Variables 1 §3).
+//! `var()` and `attr()` substitution (CSS Variables 1 §3, CSS Values 5
+//! §8.7 — the arbitrary substitution functions).
 //!
 //! A declaration whose value contains `var()` cannot be parsed against
 //! its property's grammar until the element's custom properties are
@@ -51,7 +52,8 @@ pub struct PendingDeclaration {
     pub name: String,
     /// The value's tokens, `!important` stripped.
     pub value: Vec<Token>,
-    /// The value contains `var()`.
+    /// The value contains an arbitrary substitution function: `var()` or
+    /// `attr()`.
     pub has_var: bool,
 }
 
@@ -72,9 +74,18 @@ pub fn contains_var(tokens: &[Token]) -> bool {
         .any(|t| matches!(t, Token::Function(f) if f.eq_ignore_ascii_case("var")))
 }
 
-/// Is every `var()` in `tokens` syntactically valid — `var(` a custom
-/// property name, then nothing or `,` and any fallback, `)`? A
-/// declaration with an invalid `var()` is invalid at parse time (§3).
+/// Does `tokens` contain an arbitrary substitution function — `var()` or
+/// `attr()` (CSS Values 5 §8.7)? Such a declaration is substituted at
+/// computed-value time.
+pub fn contains_substitution(tokens: &[Token]) -> bool {
+    tokens.iter().any(|t| is_var(t) || crate::attr::is_attr(t))
+}
+
+/// Is every `var()` and `attr()` in `tokens` syntactically valid —
+/// `var(` a custom property name, then nothing or `,` and any fallback,
+/// `)`; `attr(` a non-empty first argument, then nothing or `,` and any
+/// fallback, `)` (CSS Values 5 §8.7)? A declaration with an invalid one
+/// is invalid at parse time (§3).
 pub fn valid_var_syntax(tokens: &[Token]) -> bool {
     let mut i = 0;
     while i < tokens.len() {
@@ -93,6 +104,15 @@ pub fn valid_var_syntax(tokens: &[Token]) -> bool {
                 _ => return false,
             }
             i = end + 1;
+        } else if crate::attr::is_attr(&tokens[i]) {
+            let Some(end) = matching_paren(tokens, i) else {
+                return false;
+            };
+            let args = &tokens[i + 1..end];
+            if !crate::attr::valid_args(args) || !valid_var_syntax(args) {
+                return false;
+            }
+            i = end + 1;
         } else {
             i += 1;
         }
@@ -105,14 +125,44 @@ pub fn valid_var_syntax(tokens: &[Token]) -> bool {
 /// defined. `None` when a `var()` has neither value nor fallback, or
 /// the result would exceed [`MAX_SUBSTITUTED_TOKENS`] (§3.3).
 /// Substitution is token-level: a substituted number before an ident
-/// stays a number and an ident, never a dimension.
+/// stays a number and an ident, never a dimension. An `attr()` reads no
+/// element here — see [`substitute_with`].
 pub fn substitute(
     tokens: &[Token],
     lookup: &mut dyn FnMut(&str) -> Option<CustomValue>,
 ) -> Option<Vec<Token>> {
+    substitute_with(tokens, lookup, None)
+}
+
+/// [`substitute`] for an element: `attrs` gives its attributes, which
+/// `attr()` reads (CSS Values 5 §8.7.1); `None` substitutes `attr()` as
+/// for an absent attribute. `None` when a `var()` or a typed `attr()`
+/// has neither value nor fallback, or the result is too long.
+pub fn substitute_with(
+    tokens: &[Token],
+    lookup: &mut dyn FnMut(&str) -> Option<CustomValue>,
+    attrs: Option<crate::attr::AttrLookup<'_>>,
+) -> Option<Vec<Token>> {
     let mut out = Vec::with_capacity(tokens.len());
     let mut i = 0;
     while i < tokens.len() {
+        if crate::attr::is_attr(&tokens[i]) {
+            let end = matching_paren(tokens, i)?;
+            let (head, fallback) = crate::attr::split_args(&tokens[i + 1..end]);
+            let head = substitute_with(head, lookup, attrs)?;
+            match crate::attr::replace(&head, fallback, attrs) {
+                crate::attr::Replacement::Tokens(t) => out.extend(t),
+                crate::attr::Replacement::Fallback(f) => {
+                    out.extend(substitute_with(f, lookup, attrs)?)
+                }
+                crate::attr::Replacement::Invalid => return None,
+            }
+            if out.len() > MAX_SUBSTITUTED_TOKENS {
+                return None;
+            }
+            i = end + 1;
+            continue;
+        }
         if !is_var(&tokens[i]) {
             out.push(tokens[i].clone());
             i += 1;
@@ -127,7 +177,7 @@ pub fn substitute(
         let name = name.strip_prefix("--")?;
         match lookup(name) {
             Some(value) => out.extend_from_slice(value.tokens()?),
-            None => out.extend(substitute(fallback?, lookup)?),
+            None => out.extend(substitute_with(fallback?, lookup, attrs)?),
         }
         if out.len() > MAX_SUBSTITUTED_TOKENS {
             return None;
@@ -158,7 +208,7 @@ impl TuiStyle {
     pub fn substituted(&self, vars: &HashMap<String, CustomValue>) -> TuiStyle {
         let mut out = self.clone();
         out.pending.clear();
-        self.replay_pending(vars, &mut out);
+        self.replay_pending(vars, None, &mut out);
         out
     }
 
@@ -169,18 +219,34 @@ impl TuiStyle {
     /// come after the rest of the block in source order — without
     /// copying the block. What the cascade uses per element.
     pub fn substituted_pending(&self, vars: &HashMap<String, CustomValue>) -> TuiStyle {
+        self.substituted_pending_on(vars, None)
+    }
+
+    /// [`substituted_pending`](Self::substituted_pending) for an element
+    /// whose attributes `attrs` gives, which `attr()` reads (CSS Values
+    /// 5 §8.7).
+    pub fn substituted_pending_on(
+        &self,
+        vars: &HashMap<String, CustomValue>,
+        attrs: Option<crate::attr::AttrLookup<'_>>,
+    ) -> TuiStyle {
         let mut out = TuiStyle {
             important: self.important,
             ..TuiStyle::default()
         };
-        self.replay_pending(vars, &mut out);
+        self.replay_pending(vars, attrs, &mut out);
         out
     }
 
-    fn replay_pending(&self, vars: &HashMap<String, CustomValue>, out: &mut TuiStyle) {
+    fn replay_pending(
+        &self,
+        vars: &HashMap<String, CustomValue>,
+        attrs: Option<crate::attr::AttrLookup<'_>>,
+        out: &mut TuiStyle,
+    ) {
         for decl in &self.pending {
             let parsed = if decl.has_var {
-                substitute(&decl.value, &mut |n| lookup_in(vars, n)).is_some_and(|t| {
+                substitute_with(&decl.value, &mut |n| lookup_in(vars, n), attrs).is_some_and(|t| {
                     crate::property_dispatch::set_parsed(&decl.name, &t, out).is_ok()
                 })
             } else {
@@ -207,7 +273,7 @@ pub fn resolve_custom_properties<'n>(
         .filter(|n| vars.get(*n).is_some_and(CustomValue::has_var))
         .map(str::to_string)
         .collect();
-    resolve(vars, pending, None);
+    resolve(vars, pending, None, None);
 }
 
 /// [`resolve_custom_properties`] with a computed-value step: `computed`
@@ -224,16 +290,38 @@ pub fn resolve_custom_properties_with<'n>(
     computed: &mut dyn FnMut(&str, Option<CustomValue>) -> Option<CustomValue>,
 ) {
     let pending: Vec<String> = names.into_iter().map(str::to_string).collect();
-    resolve(vars, pending, Some(computed));
+    resolve(vars, pending, Some(computed), None);
+}
+
+/// [`resolve_custom_properties`] / [`resolve_custom_properties_with`]
+/// (`computed` optional) for an element whose attributes `attrs` gives:
+/// a custom property's `attr()`s read them where it is declared, like
+/// its `var()`s (CSS Values 5 §8.7).
+pub fn resolve_custom_properties_on<'n>(
+    vars: &mut HashMap<String, CustomValue>,
+    names: impl IntoIterator<Item = &'n str>,
+    computed: Option<ComputedStep<'_>>,
+    attrs: Option<crate::attr::AttrLookup<'_>>,
+) {
+    let pending: Vec<String> = match computed {
+        Some(_) => names.into_iter().map(str::to_string).collect(),
+        None => names
+            .into_iter()
+            .filter(|n| vars.get(*n).is_some_and(CustomValue::has_var))
+            .map(str::to_string)
+            .collect(),
+    };
+    resolve(vars, pending, computed, attrs);
 }
 
 /// A computed-value step ([`resolve_custom_properties_with`]).
-type ComputedStep<'c> = &'c mut dyn FnMut(&str, Option<CustomValue>) -> Option<CustomValue>;
+pub type ComputedStep<'c> = &'c mut dyn FnMut(&str, Option<CustomValue>) -> Option<CustomValue>;
 
 fn resolve(
     vars: &mut HashMap<String, CustomValue>,
     pending: Vec<String>,
     computed: Option<ComputedStep<'_>>,
+    attrs: Option<crate::attr::AttrLookup<'_>>,
 ) {
     if pending.is_empty() {
         return;
@@ -244,6 +332,7 @@ fn resolve(
         stack: Vec::new(),
         cyclic: HashSet::new(),
         computed,
+        attrs,
     };
     for name in &pending {
         resolver.resolve(name, vars);
@@ -260,7 +349,7 @@ fn resolve(
     }
 }
 
-struct Resolver<'c> {
+struct Resolver<'c, 'a> {
     /// The names still to substitute.
     pending: HashSet<String>,
     /// Substituted values (`None`: invalid).
@@ -272,9 +361,11 @@ struct Resolver<'c> {
     /// The computed-value step, if any
     /// ([`resolve_custom_properties_with`]).
     computed: Option<ComputedStep<'c>>,
+    /// The element's attributes, for `attr()`.
+    attrs: Option<crate::attr::AttrLookup<'a>>,
 }
 
-impl Resolver<'_> {
+impl Resolver<'_, '_> {
     fn resolve(&mut self, name: &str, vars: &HashMap<String, CustomValue>) -> Option<CustomValue> {
         if let Some(done) = self.done.get(name) {
             return done.clone();
@@ -289,13 +380,18 @@ impl Resolver<'_> {
             // No `var()`: the value as declared, untouched.
             Some(v) if !v.has_var() => Some(v.clone()),
             v => v.and_then(CustomValue::tokens).and_then(|tokens| {
-                substitute(tokens, &mut |n| {
-                    if self.pending.contains(n) {
-                        self.resolve(n, vars)
-                    } else {
-                        lookup_in(vars, n)
-                    }
-                })
+                let attrs = self.attrs;
+                substitute_with(
+                    tokens,
+                    &mut |n| {
+                        if self.pending.contains(n) {
+                            self.resolve(n, vars)
+                        } else {
+                            lookup_in(vars, n)
+                        }
+                    },
+                    attrs,
+                )
                 // Tokenized here, once: the substitution is the tokens.
                 .map(CustomValue::from_tokens)
             }),

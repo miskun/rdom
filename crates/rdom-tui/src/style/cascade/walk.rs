@@ -472,7 +472,16 @@ fn compute_element_style(
         .ext()
         .and_then(|e| e.presentation.as_deref())
         .and_then(|p| p.custom_properties.as_ref());
-    let substituted = prepare(&mut working, plan, decls, sheets.registry(), transitions);
+    // `attr()` reads this element's attributes (CSS Values 5 §8.7).
+    let attrs = |name: &str| dom.node(id).get_attribute(name).map(str::to_string);
+    let substituted = prepare(
+        &mut working,
+        plan,
+        decls,
+        sheets.registry(),
+        transitions,
+        &attrs,
+    );
     let decls = decls.with(substituted.as_ref());
     apply_cascade_ladder(&mut working, plan, decls, parent);
 

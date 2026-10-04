@@ -60,6 +60,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Viewport-percentage units** (CSS Values 4 §6.1.2): `vw`, `vh`, `vi`, `vb`, `vmin`, `vmax` and their `sv*` / `lv*` / `dv*` forms — 1% of the terminal's columns / rows (all four viewport sizes are the terminal's). `CalcUnit::Viewport(ViewportUnit { size, axis })`, `Viewport { cols, rows }`, `ResolveCtx::with_viewport`, `CalcExpr::absolutize` / `needs_context`, and `ComputedStyle::resolve_viewport_units`, which makes them absolute at computed-value time (a percentage beside them stays for layout). (C2-VIEWPORT)
 - **`<angle>`** (CSS Values 4 §7.1): `deg`, `grad`, `rad`, `turn` (`CalcUnit::{Deg, Grad, Rad, Turn}`) in the trigonometric functions (`sin(30deg)`); `parse::values::parse_angle` reads an angle dimension or angle-typed math function as degrees (for the color hues). `@property` accepts `syntax: '<angle>'` (`SyntaxComponent::Angle`), which was rejected. (C2-ANGLE)
 - **The full `aspect-ratio` grammar** (CSS Sizing 4 §5.1, CSS Values 4 §5.7): `auto`, a lone number (`aspect-ratio: 2`), fractional terms (`1.5 / 0.75`), math functions of type `<number>`, and `auto && <ratio>` in either order; serialized as `16 / 9`. A degenerate ratio (a zero term) behaves as `auto` (`AspectRatio::value`). (C2-RATIO)
+- **`attr()` in any property** (CSS Values 5 §8.7): `attr(<attr-name> <attr-type>?, <fallback>?)` with `type(<syntax>)`, `number`, a unit (`%`, `ch`, `deg`, …) and `raw-string` / no type (a string), substituted like `var()` at computed-value time — also inside custom properties — with Values 5's fallback rules (untyped and missing: the empty string; typed, missing, no fallback: invalid at computed-value time). New `var::contains_substitution`, `substitute_with`, `resolve_custom_properties_on`, `TuiStyle::substituted_pending_on` and `backend::AttrLookup`; `PendingDeclaration::has_var` now also means `attr()`. `content: attr(x)` goes through the same substitution (`parse_content` no longer parses `attr()`; `Content::Attr` remains for Rust-built styles). (C2-ATTR)
 
 ### Changed — `rdom-style`
 
@@ -113,6 +114,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Viewport units resolve against the terminal.** The cascade makes `vw` / `vh` / … absolute per element (`CascadeExt::cascade_all_in` / `cascade_subtrees_all_in` take the `Viewport`; `rdom_tui::Viewport`); the `App` cascades at its terminal's size and cascades the whole tree again whenever that size changes. (C2-VIEWPORT)
 - A registered `<angle>` custom property interpolates (in degrees), and its `var()` consumers follow it. (C2-ANGLE)
 - `aspect-ratio: auto && <ratio>` sizes the content box: the flex cross size comes from the main size less its padding and border, plus the cross axis's (CSS Sizing 4 §5.1); a degenerate ratio is ignored. (C2-RATIO)
+- The cascade substitutes `attr()` with the element's attributes — a pseudo-element's originating element's — and an attribute change re-cascades it, so the value follows the attribute. (C2-ATTR)
 
 ### Changed — `rdom-tui`
 

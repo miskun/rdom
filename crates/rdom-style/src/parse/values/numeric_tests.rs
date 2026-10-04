@@ -433,3 +433,64 @@ fn aspect_ratio_grammar_and_serialization() {
         assert!(set("aspect-ratio", bad, &mut s).is_err(), "{bad}");
     }
 }
+
+// ── C2-ATTR ──────────────────────────────────────────────────────────
+
+/// CSS Values 5 §8.7: a declaration holding a syntactically valid
+/// `attr()` — `attr( <declaration-value>, <declaration-value>? )` — is
+/// valid at parse time in any property and kept for the cascade; an
+/// empty `attr()` is invalid. It serializes back to the same tokens.
+#[test]
+fn attr_declarations_are_kept_for_the_cascade() {
+    use crate::TuiStyle;
+    use crate::parse::token::tokenize;
+    use crate::property_dispatch::{serialize, set};
+    let mut s = TuiStyle::default();
+    set("width", "attr(data-w type(<length>), auto)", &mut s).unwrap();
+    assert!(s.has_pending());
+    let text = serialize("width", &s).unwrap();
+    assert_eq!(
+        tokenize(&text).unwrap(),
+        tokenize("attr(data-w type(<length>), auto)").unwrap()
+    );
+    set("color", "attr(data-c type(<color>))", &mut s).unwrap();
+    set("content", "attr(title)", &mut s).unwrap();
+    for bad in ["attr()", "attr(, 1)"] {
+        assert!(
+            set("width", bad, &mut TuiStyle::default()).is_err(),
+            "{bad}"
+        );
+    }
+}
+
+/// CSS Values 5 §8.7.1 "replace an attr() function", against an
+/// element's attributes.
+#[test]
+fn attr_substitution_rules() {
+    use crate::var::substitute_with;
+    let attrs = |name: &str| match name {
+        "n" => Some("12".to_string()),
+        "s" => Some("a \"b\"".to_string()),
+        "x" => Some("1e1".to_string()),
+        "neg" => Some("-3".to_string()),
+        _ => None,
+    };
+    let sub = |src: &str| substitute_with(&t(src), &mut |_| None, Some(&attrs));
+    assert_eq!(sub("attr(n type(<length>))"), Some(t("12")));
+    assert_eq!(sub("attr(n type(<color>), red)"), Some(t("red")));
+    assert_eq!(sub("attr(n type(<color>))"), None, "typed, no fallback");
+    assert_eq!(sub("attr(s)"), Some(vec![Token::String("a \"b\"".into())]));
+    assert_eq!(sub("attr(gone)"), Some(vec![Token::String(String::new())]));
+    assert_eq!(sub("attr(gone,)"), Some(vec![]), "an empty fallback");
+    assert_eq!(sub("attr(x number)"), Some(t("1e1")));
+    assert_eq!(sub("attr(neg %)"), Some(t("-3%")));
+    assert_eq!(sub("attr(n deg)"), Some(t("12deg")));
+    assert_eq!(sub("attr(s number, 0)"), Some(t("0")));
+    assert_eq!(sub("attr(n nounit, 1)"), Some(t("1")));
+    assert_eq!(sub("attr(n type(<length> | auto))"), Some(t("12")));
+    assert_eq!(
+        substitute_with(&t("attr(n)"), &mut |_| None, None),
+        Some(vec![Token::String(String::new())]),
+        "no element: no attribute"
+    );
+}

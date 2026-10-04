@@ -1,12 +1,14 @@
-//! Generated content: `content` (strings, `attr()`, `counter()`) and
+//! Generated content: `content` (strings, `counter()`) and
 //! the `counter-reset` / `counter-increment` operation lists.
 
 use crate::Content;
 use crate::parse::token::Token;
 
-/// `content`: `none` | `normal` | `[ <string> | attr(<ident>) |
-/// counter(<ident> [, <counter-style>]) ]+` (CSS Generated Content 3
-/// §1.2, the subset rdom renders). Several items concatenate.
+/// `content`: `none` | `normal` | `[ <string> | counter(<ident> [,
+/// <counter-style>]) ]+` (CSS Generated Content 3 §1.2, the subset rdom
+/// renders). Several items concatenate. `attr()` is no item here: it is
+/// an arbitrary substitution function (CSS Values 5 §8.7), substituted
+/// by the cascade before this grammar runs, an untyped one as a string.
 pub fn parse_content(value: &[Token]) -> Option<Content> {
     use crate::counters::CounterStyle;
     if let [Token::Ident(kw)] = value
@@ -21,13 +23,6 @@ pub fn parse_content(value: &[Token]) -> Option<Content> {
             Token::String(s) => {
                 parts.push(Content::Str(s.clone()));
                 i += 1;
-            }
-            Token::Function(name) if name.eq_ignore_ascii_case("attr") => {
-                let [Token::Ident(arg), Token::RParen] = value.get(i + 1..i + 3)? else {
-                    return None;
-                };
-                parts.push(Content::Attr(arg.clone()));
-                i += 3;
             }
             Token::Function(name) if name.eq_ignore_ascii_case("counter") => {
                 let Token::Ident(counter) = value.get(i + 1)? else {

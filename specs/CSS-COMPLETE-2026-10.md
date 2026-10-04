@@ -87,7 +87,7 @@ row comes from.
 | C2-VIEWPORT | `vw` / `vh` / `vmin` / `vmax` and the `sv*` / `lv*` / `dv*` / `vi` / `vb` variants (terminal size) | done |
 | C2-ANGLE | `<angle>` (`deg` / `grad` / `rad` / `turn`) | done |
 | C2-RATIO | Full `<ratio>` (bare numbers, decimals, `auto && <ratio>`) | done |
-| C2-ATTR | `attr()` with fallback and `type()` (Values 5) | |
+| C2-ATTR | `attr()` with fallback and `type()` (Values 5) | done |
 
 (`cq*` units land with C14-CONTAINER.)
 
@@ -464,3 +464,13 @@ row comes from.
   `value()` (None for a degenerate ratio) and, for `auto && <ratio>`, takes the main axis's padding
   and border off before the ratio and adds the cross axis's back (content box, Sizing 4 §5.1). The
   property-dispatch test "70000 / 1 is rejected" became "kept as written" (terms are numbers now).
+- 2026-10-04 — C2-ATTR: `attr()` is an arbitrary substitution function beside `var()`
+  (`rdom-style/src/attr.rs`; Values 5 §8.7 in the current Editor's Draft — the brief's §7.7 is an
+  older numbering): any declaration holding one goes to `TuiStyle::pending`
+  (`var::contains_substitution`), and the cascade substitutes it with the element's attributes —
+  the originating element's for a pseudo-element — through `substituted_pending_on` /
+  `resolve_custom_properties_on` (so `--w: attr(data-w type(<length>))` resolves where declared).
+  `parse_content` no longer parses `attr()`: CSS `content: attr(x)` substitutes as a string first;
+  `Content::Attr` stays for Rust-built styles (the UA sheet), as `TuiColor::Var` did in C1-VAR-ANY.
+  Attribute changes already re-cascade the element (DirtyTracker), so values stay live (test).
+  Decided: attribute values are not searched for substitution functions (documented).

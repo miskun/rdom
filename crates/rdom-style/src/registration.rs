@@ -271,7 +271,7 @@ impl PropertyRegistration {
         let syntax = PropertySyntax::parse(syntax)?;
         let initial_value = initial_value.map(|v| v.trim().to_string());
         if let Some(v) = &initial_value
-            && tokenize(v).is_ok_and(|t| crate::var::contains_var(&t))
+            && tokenize(v).is_ok_and(|t| crate::var::contains_substitution(&t))
         {
             return Err(RegisterPropertyError::NotComputationallyIndependent(
                 v.clone(),

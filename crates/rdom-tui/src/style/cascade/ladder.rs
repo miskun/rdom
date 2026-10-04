@@ -229,13 +229,20 @@ impl Substituted {
     /// Substitute the blocks of `decls` that hold `var()` from `vars`
     /// (the element's custom properties); `None` when none does, which
     /// is the common case and costs one scan.
-    pub(super) fn new(decls: Declarations<'_>, vars: &crate::style::VarMap) -> Option<Self> {
+    pub(super) fn new(
+        decls: Declarations<'_>,
+        vars: &crate::style::VarMap,
+        attrs: rdom_style::backend::AttrLookup<'_>,
+    ) -> Option<Self> {
         let any = decls.sorted.iter().any(|r| r.style.has_pending())
             || decls.inline.is_some_and(TuiStyle::has_pending);
         if !any {
             return None;
         }
-        let sub = |s: &TuiStyle| s.has_pending().then(|| s.substituted_pending(vars));
+        let sub = |s: &TuiStyle| {
+            s.has_pending()
+                .then(|| s.substituted_pending_on(vars, Some(attrs)))
+        };
         Some(Substituted {
             rules: decls.sorted.iter().map(|r| sub(&r.style)).collect(),
             inline: decls.inline.and_then(sub),
@@ -244,7 +251,9 @@ impl Substituted {
 }
 
 /// The custom properties of `decls` folded into `working.vars`, then
-/// the declarations' `var()`s substituted from them — the inputs of
+/// the declarations' `var()`s substituted from them and their `attr()`s
+/// from `attrs` (the element's — for a pseudo-element, its originating
+/// element's — attributes, CSS Values 5 §8.7) — the inputs of
 /// [`apply_cascade_ladder`].
 pub(super) fn prepare(
     working: &mut ComputedStyle,
@@ -252,12 +261,13 @@ pub(super) fn prepare(
     decls: Declarations<'_>,
     registry: &super::registered::PropertyRegistry,
     transitions: Option<&HashMap<String, rdom_style::CustomValue>>,
+    attrs: rdom_style::backend::AttrLookup<'_>,
 ) -> Option<Substituted> {
     // CSS Variables 1 §2 — same ladder, folded into the element's own
     // map before any `var()` consumer runs.
-    super::custom::apply_custom_properties(working, plan, decls, registry, transitions);
+    super::custom::apply_custom_properties(working, plan, decls, registry, transitions, attrs);
     let vars = working.animated_vars.as_ref().unwrap_or(&working.vars);
-    Substituted::new(decls, vars)
+    Substituted::new(decls, vars, attrs)
 }
 
 /// Memoized rollback states of one element's ladder: `state_before(i)`

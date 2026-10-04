@@ -71,7 +71,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 |---|---:|---:|---:|---:|---:|
 | 3.1 Syntax, cascade and inheritance (Syntax 3, Cascade 4/5, CSS 2.1 §6) | 18 | 1 | 0 | 2 | 21 |
 | 3.2 Custom properties (CSS Variables 1) | 6 | 0 | 0 | 1 | 7 |
-| 3.3 Values and units (Values 4) | 14 | 3 | 1 | 4 | 22 |
+| 3.3 Values and units (Values 4) | 15 | 2 | 1 | 4 | 22 |
 | 3.4 Color (Color 4 / 5) | 3 | 3 | 9 | 2 | 17 |
 | 3.5 Backgrounds and borders (Backgrounds 3, Borders 4) | 3 | 5 | 6 | 2 | 16 |
 | 3.6 Box model and sizing (Box 3, Sizing 3/4) | 3 | 3 | 3 | 0 | 9 |
@@ -93,7 +93,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 0 | 0 | 6 | 3 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **81** | **36** | **140** | **50** | **307** |
+| **Total** | **82** | **35** | **140** | **50** | **307** |
 
 Of the 191 Partial / Missing rows, **123 were not documented** in `DIVERGENCES.md` when audited (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3.
 
@@ -275,7 +275,7 @@ dropped:
 | `<string>` | Supported | In `content`. | — | `V/content.rs` |
 | `url()` / `<image>` / gradients / `image-set()` | N/A | No images (documented). | — | — |
 | `<ratio>` | Supported | One or two `<number [0,∞]>` terms, fractions and math functions included (C2-RATIO). | — | `V/number.rs::parse_aspect_ratio` |
-| `attr()` | Partial | In `content` only, no fallback, no type (`attr(x type(<length>))`, Values 5). | No | `V/content.rs` |
+| `attr()` | Supported | In any property and in custom properties, substituted like `var()` at computed-value time; `type(<syntax>)`, `number`, units, `raw-string`, fallbacks; a pseudo-element reads its originating element (C2-ATTR). Attribute values are not themselves searched for substitution functions (documented). | — | `rdom-style/src/attr.rs`, `rdom-style/src/var.rs` |
 | `<custom-ident>` | Supported | Counter names, transition-property idents. | — | `V/content.rs`, `TR` |
 
 ### 3.4 Color (Color 4 / 5)
@@ -470,7 +470,7 @@ dropped:
 
 | Item | Class | Detail | Doc'd | Where |
 |---|---|---|---|---|
-| `content` | Partial | `none` / `normal` / `<string>` / `attr(<ident>)` / `counter(<ident>[, <style>])`, concatenated; missing `counters()`, `open-quote` / `close-quote` / `no-*-quote`, `var()`, alt text (`/ "alt"`). | Wrong | `V/content.rs::parse_content` |
+| `content` | Partial | `none` / `normal` / `<string>` / `attr()` (any form, C2-ATTR) / `counter(<ident>[, <style>])`, concatenated; missing `counters()`, `open-quote` / `close-quote` / `no-*-quote`, `var()`, alt text (`/ "alt"`). | Wrong | `V/content.rs::parse_content` |
 | `quotes` | Missing | Quote pairs. | No | `DISP`, `CASC/content.rs` |
 | `counter-reset` | Partial | `none` / `<ident> <integer>?` list; `reversed(<ident>)` rejected. | No | `V/content.rs::parse_counter_ops` |
 | `counter-increment` | Supported | `none` / `<ident> <integer>?` list. | — | `V/content.rs::parse_counter_ops` |

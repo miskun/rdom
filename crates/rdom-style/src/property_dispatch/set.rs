@@ -46,7 +46,7 @@ pub fn set_from_tokens(
         return set_parsed(name, value, style);
     }
     let name = &*canonical_property_name(name);
-    if crate::var::contains_var(value) {
+    if crate::var::contains_substitution(value) {
         if super::table::fields_of(name).is_none() {
             return Err(DispatchError::UnknownProperty);
         }

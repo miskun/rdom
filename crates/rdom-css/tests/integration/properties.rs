@@ -243,12 +243,18 @@ fn content_string() {
     );
 }
 
+/// `C2-ATTR` — CSS Values 5 §8.7: `attr()` is an arbitrary substitution
+/// function, kept for the cascade like `var()` and substituted with the
+/// element's attributes; untyped, it is a string.
 #[test]
 fn content_attr() {
     let s = first_style("a { content: attr(placeholder); }");
+    assert_eq!(s.content, None, "kept for the cascade");
+    let attrs = |name: &str| (name == "placeholder").then(|| "hint".to_string());
+    let got = s.substituted_pending_on(&Default::default(), Some(&attrs));
     assert_eq!(
-        s.content,
-        Some(Value::Specified(Content::Attr("placeholder".to_string())))
+        got.content,
+        Some(Value::Specified(Content::Str("hint".to_string())))
     );
 }
 

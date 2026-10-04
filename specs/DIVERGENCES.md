@@ -20,6 +20,7 @@ These are intrinsic to terminals. They will not change.
 - **Monospaced advance.** Variable-width fonts are out of scope.
 - **No images, no SVG, no pixel painting.** `<canvas>` is a cell-painting escape hatch via `RenderContext`, not a pixel-painting surface.
 - **Length units.** Sizing accepts cells (unitless integers), rdom's flex `fr` unit, `%` (resolves at layout time against the basis each property's spec names), `ch` (exactly one column on a monospaced grid) and `lh` / `rlh` (one row: rdom's line height is fixed at one row until `line-height` lands, C9-LINE-HEIGHT — then they follow it); a fraction rounds onto the grid where the value becomes a length. The absolute units (`px`, `cm`, `mm`, `Q`, `in`, `pt`, `pc`) and the font-relative units (`em`, `rem`, `ex`, `cap`, `ic`) depend on a pixel or a font size the terminal grid does not have: a declaration using them is dropped as an invalid value, with a warning. The viewport units are percentages of the terminal (next entry).
+- **`attr()` reads attribute values literally under `type()`.** CSS Values 5 §8.7.1 substitutes `var()` / `attr()` found inside an attribute's value before parsing it against the `type(<syntax>)`; rdom parses the value as written, so such a value fails the syntax and takes the fallback. The syntaxes `type()` takes are the ones `@property` checks (§2 "Registered custom properties"). Attributes have no namespace: `attr(|x)` is `attr(x)`, and `attr(ns|x)` never finds one. The `<url>` taint rule (§8.7.2) has nothing to guard — rdom has no `url()`.
 - **The viewport is the terminal.** `vw` / `vh` are 1% of its columns / rows, `vi` / `vb` the same in horizontal-tb (the only writing mode, C5-WRITING), `vmin` / `vmax` of the smaller / larger. A terminal has no retractable UI, so the small (`sv*`), large (`lv*`) and dynamic (`dv*`) viewports all equal it. As on the web they are absolute at computed-value time: the cascade resolves them against the terminal size (`CascadeExt::cascade_all_in`; the `App` passes its terminal's size each frame and cascades the whole tree again when it changes), and a percentage beside them stays for layout. The `CascadeExt` forms without a viewport resolve them against an empty 0 × 0 one.
 - **Color.** `Color::Rgb` emits truecolor SGR sequences unconditionally; there is no `COLORTERM` runtime autodetection. A separate 256-color fallback exists as an explicit code path.
 - **UA stylesheet glyphs assume BMP box-drawing support** (U+25xx, U+250x, U+256x). Terminals without these blocks are out of scope.
@@ -238,7 +239,6 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 
 - `lh` / `rlh` following `line-height` (one row until it lands) — C2-LH with C9-LINE-HEIGHT
 - `cqw` / `cqh` / `cqi` / `cqb` / `cqmin` / `cqmax` — C14-CONTAINER
-- `attr()` outside `content`, with fallback and `type()` — C2-ATTR
 
 ### Color
 

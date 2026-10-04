@@ -58,6 +58,7 @@ pub mod transition;
 mod var;
 
 mod absolute;
+mod attr;
 pub mod color;
 mod computed;
 mod custom_value;

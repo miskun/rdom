@@ -24,6 +24,7 @@ pub(super) fn apply_custom_properties(
     decls: Declarations<'_>,
     registry: &PropertyRegistry,
     transitions: Option<&Map>,
+    attrs: rdom_style::backend::AttrLookup<'_>,
 ) {
     let inherited = working.vars.clone();
     let declared: HashSet<&str> = decls
@@ -50,13 +51,20 @@ pub(super) fn apply_custom_properties(
         // registered one is validated as it resolves (Properties and
         // Values 1 §2.4), so its dependents read the computed value.
         let map = std::rc::Rc::make_mut(&mut working.vars);
+        // Their `attr()`s read the element's attributes (CSS Values 5 §8.7).
         if registry.is_empty() {
-            rdom_style::backend::resolve_custom_properties(map, declared.iter().copied());
-        } else {
-            rdom_style::backend::resolve_custom_properties_with(
+            rdom_style::backend::resolve_custom_properties_on(
                 map,
                 declared.iter().copied(),
-                &mut |name, value| registry.computed_value(name, value, &inherited),
+                None,
+                Some(attrs),
+            );
+        } else {
+            rdom_style::backend::resolve_custom_properties_on(
+                map,
+                declared.iter().copied(),
+                Some(&mut |name, value| registry.computed_value(name, value, &inherited)),
+                Some(attrs),
             );
         }
     }

@@ -84,7 +84,17 @@ pub(super) fn compute_pseudo_style(
 
     // Pseudo-elements don't have their own inline_style on `TuiExt`.
     let decls = Declarations::new(sorted, ranks, None);
-    let substituted = prepare(&mut working, plan, decls, cx.sheets.registry(), None);
+    // `attr()` on a pseudo-element reads its originating element's
+    // attributes (CSS Values 5 §8.7).
+    let attrs = |name: &str| dom.node(id).get_attribute(name).map(str::to_string);
+    let substituted = prepare(
+        &mut working,
+        plan,
+        decls,
+        cx.sheets.registry(),
+        None,
+        &attrs,
+    );
     let decls = decls.with(substituted.as_ref());
     apply_cascade_ladder(&mut working, plan, decls, host_computed);
 

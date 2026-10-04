@@ -1,7 +1,7 @@
 //! Hooks for style-engine backends — the cascade — not for applications.
 //!
-//! `var()` substitution happens at computed-value time (CSS Variables 1
-//! §3), so it runs inside a backend's cascade, not in the parser: the
+//! `var()` and `attr()` substitution happens at computed-value time (CSS
+//! Variables 1 §3, CSS Values 5 §8.7), so it runs inside a backend's cascade, not in the parser: the
 //! declaration parser keeps a `var()` declaration as tokens
 //! ([`PendingDeclaration`](crate::PendingDeclaration) on
 //! [`TuiStyle::pending`](crate::TuiStyle::pending)), and the backend
@@ -18,8 +18,10 @@
 //! `rdom-css`, and reads computed values from the backend; it has no
 //! reason to call anything in this module.
 
+pub use crate::attr::AttrLookup;
 pub use crate::property_dispatch::set::{set_parsed, set_unset};
 pub use crate::var::{
-    MAX_SUBSTITUTED_TOKENS, contains_var, lookup_in, resolve_custom_properties,
-    resolve_custom_properties_with, substitute, valid_var_syntax,
+    ComputedStep, MAX_SUBSTITUTED_TOKENS, contains_substitution, contains_var, lookup_in,
+    resolve_custom_properties, resolve_custom_properties_on, resolve_custom_properties_with,
+    substitute, substitute_with, valid_var_syntax,
 };

@@ -513,3 +513,111 @@ fn aspect_ratio_takes_the_full_ratio_grammar() {
         "c: 12 content columns → 6 rows; d stretches"
     );
 }
+
+// ── C2-ATTR ──────────────────────────────────────────────────────────
+
+/// CSS Values 5 §8.7: `attr(<attr-name> <attr-type>?, <fallback>?)`
+/// substitutes like `var()`, at computed-value time, in any property:
+/// `type(<syntax>)` parses the attribute against a syntax, `number` as a
+/// number, a unit (`%`, `ch`, …) as a number in that unit, and
+/// `raw-string` or no type as a string. A missing attribute, or one that
+/// does not parse, takes the fallback; with none, an untyped `attr()` is
+/// the empty string and a typed one makes the declaration invalid at
+/// computed-value time (`unset`). On a pseudo-element it reads the
+/// originating element (§8.7).
+#[test]
+fn attr_substitutes_typed_attribute_values() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let cb = el(&mut dom, root, "cb");
+    let attrs: &[(&str, &[(&str, &str)])] = &[
+        ("a", &[("data-w", "12")]),
+        ("b", &[]),
+        ("c", &[("data-w", "wide")]),
+        ("d", &[("data-pct", "25"), ("data-h", " 2 ")]),
+        ("e", &[("data-w", "5")]),
+        ("f", &[("title", "hi")]),
+        ("g", &[]),
+        ("h", &[("data-w", "4")]),
+        ("i", &[("data-c", "blue")]),
+        ("k", &[("data-w", "5")]),
+    ];
+    let ids: Vec<NodeId> = attrs
+        .iter()
+        .map(|(class, list)| {
+            let id = el(&mut dom, cb, class);
+            for (k, v) in *list {
+                dom.set_attribute(id, k, v).unwrap();
+            }
+            id
+        })
+        .collect();
+    lay_out(
+        &mut dom,
+        ".cb { width: 40; height: 20 }
+         .a, .b, .c { width: attr(data-w type(<length>), 3); height: 1 }
+         .d { width: attr(data-pct %); height: attr(data-h number) }
+         .e { width: attr(data-w ch, 7); height: 1 }
+         .f { content: attr(title) attr(missing) '!'; height: 1 }
+         .f::before { content: '[' attr(title raw-string) ']' }
+         .g { width: attr(data-w type(<length>)); height: 1 }
+         .h { --w: attr(data-w type(<length>)); width: calc(var(--w) * 2); height: 1 }
+         .i { color: attr(data-c type(<color>), red); height: 1 }
+         .k { width: attr(data-w furlong, 6); height: 1 }",
+        80,
+        30,
+    );
+    let w = |i: usize| rect(&dom, ids[i]).width;
+    assert_eq!((w(0), w(1), w(2)), (12, 3, 3), "value, missing, unparsable");
+    assert_eq!(
+        (w(3), rect(&dom, ids[3]).height),
+        (10, 2),
+        "25% of 40; ' 2 ' as a number"
+    );
+    assert_eq!(w(4), 5, "5ch");
+    let f = computed_of(&dom, ids[5]);
+    assert_eq!(
+        f.content.as_deref(),
+        Some("hi!"),
+        "untyped: a string; missing: empty"
+    );
+    let before = dom
+        .node(ids[5])
+        .ext()
+        .unwrap()
+        .computed_before
+        .clone()
+        .unwrap();
+    assert_eq!(
+        before.content.as_deref(),
+        Some("[hi]"),
+        "the originating element's attribute"
+    );
+    assert_eq!(w(6), 40, "typed, missing, no fallback: unset → auto");
+    assert_eq!(w(7), 8, "attr() in a custom property, read on its element");
+    assert_eq!(
+        computed_of(&dom, ids[8]).fg,
+        rdom_tui::Color::Rgb(0, 0, 255)
+    );
+    assert_eq!(w(9), 6, "an unknown unit takes the fallback");
+}
+
+/// `attr()` is read again when the attribute changes: an attribute
+/// change re-cascades the element (DirtyTracker), and the substitution
+/// happens in the cascade.
+#[test]
+fn attr_follows_attribute_changes() {
+    use rdom_tui::{App, Terminal, TestBackend};
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let a = el(&mut dom, root, "a");
+    dom.set_attribute(a, "data-w", "5").unwrap();
+    let sheet = rdom_css::from_css_strict(".a { width: attr(data-w type(<length>), 1) }").unwrap();
+    let terminal = Terminal::new(TestBackend::new(40, 10)).unwrap();
+    let mut app = App::with_backend(dom, sheet, terminal).unwrap();
+    app.draw_if_dirty().unwrap();
+    assert_eq!(rect(app.dom(), a).width, 5);
+    app.dom_mut().set_attribute(a, "data-w", "9").unwrap();
+    app.draw_if_dirty().unwrap();
+    assert_eq!(rect(app.dom(), a).width, 9);
+}
