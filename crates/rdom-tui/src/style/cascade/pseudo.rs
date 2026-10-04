@@ -4,7 +4,7 @@
 
 use rdom_core::{Dom, NodeId};
 
-use super::apply::{finalize_bfc_formation, finalize_border_fg};
+use super::apply::finalize_bfc_formation;
 use super::content::resolve_content_on;
 use super::inherit::inherit_inheritable_from;
 use super::ladder::{Declarations, apply_cascade_ladder, prepare};
@@ -101,8 +101,6 @@ pub(super) fn compute_pseudo_style(
     let colors = apply_cascade_ladder(&mut working, plan, decls, host_computed, preferred);
     colors.finalize(&mut working, host_computed.fg, preferred);
 
-    // Border_fg fallback (same rule as for host elements).
-    finalize_border_fg(&mut working, decls);
     finalize_bfc_formation(&mut working);
     working.resolve_viewport_units(cx.sheets.viewport());
 

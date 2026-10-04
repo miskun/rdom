@@ -23,12 +23,21 @@ pub(in crate::style::cascade) struct ElementColors {
     fg: Option<TuiColor>,
     bg: Option<TuiColor>,
     border_fg: Option<TuiColor>,
+    /// A declaration of `border-color` took part in the cascade; without
+    /// one the property takes its initial value.
+    border_declared: bool,
 }
+
+/// `border-color`'s initial value (CSS Backgrounds 3 §3.1): the one
+/// place it is defined, for an element without a declaration and for
+/// `border-color: initial`.
+const BORDER_COLOR_INITIAL: TuiColor = TuiColor::CurrentColor;
 
 impl ElementColors {
     /// Resolve the waiting colors once the ladder has run: `color`
     /// against `parent_color` (its `currentcolor`), then the others
-    /// against the element's final color, all under the element's used
+    /// against the element's final color — an undeclared `border-color`
+    /// its initial `currentcolor` — all under the element's used
     /// color scheme given the document's `preferred` one.
     pub(in crate::style::cascade) fn finalize(
         self,
@@ -47,7 +56,12 @@ impl ElementColors {
         resolve(self.fg, parent_color, &mut working.fg);
         let current = working.fg;
         resolve(self.bg, current, &mut working.bg);
-        resolve(self.border_fg, current, &mut working.border_fg);
+        let border = if self.border_declared {
+            self.border_fg
+        } else {
+            Some(BORDER_COLOR_INITIAL)
+        };
+        resolve(border, current, &mut working.border_fg);
     }
 }
 
@@ -88,14 +102,13 @@ pub(in crate::style::cascade) fn apply_colors(
         &vars,
         &cx,
     );
-    // `border-color`'s initial value is `currentcolor` (CSS Backgrounds
-    // 3 §3.1).
+    colors.border_declared |= style.border_fg.is_some();
     apply_color(
         ColorSlot {
             target: &mut working.border_fg,
             waiting: &mut colors.border_fg,
             field: |c| c.border_fg,
-            initial: Some(TuiColor::CurrentColor),
+            initial: Some(BORDER_COLOR_INITIAL),
         },
         &style.border_fg,
         matches_pass(

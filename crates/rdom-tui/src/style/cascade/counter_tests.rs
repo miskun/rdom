@@ -231,3 +231,40 @@ fn changed_counter_ops_renumber_later_elements() {
     assert_eq!(before(&dom, ids[0]).as_deref(), Some("10. "));
     assert_eq!(before(&dom, ids[2]).as_deref(), Some("12. "));
 }
+
+/// CSS Lists 3 §3.1 and CSS Style Attributes §3: counter ops in `style`
+/// attributes take part in counters like the sheet's. With a bare sheet
+/// (no counter rule at all), a partial cascade of the second element
+/// still continues the counter its preceding sibling and parent set —
+/// the partial walk used to look only at the sheets, cascade the root
+/// alone and number it from scratch.
+#[test]
+fn inline_counter_ops_take_part_in_partial_cascades() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let list = dom.create_element("div");
+    dom.append_child(root, list).unwrap();
+    dom.set_attribute(list, "style", "counter-reset: c 5")
+        .unwrap();
+    let items: Vec<NodeId> = (0..2)
+        .map(|_| {
+            let id = dom.create_element("div");
+            dom.append_child(list, id).unwrap();
+            dom.set_attribute(id, "style", "counter-increment: c; content: counter(c)")
+                .unwrap();
+            id
+        })
+        .collect();
+    assert!(crate::seed_inline_styles(&mut dom).is_empty());
+    let content = |dom: &TuiDom, id: NodeId| {
+        dom.node(id)
+            .ext()
+            .and_then(|e| e.computed.as_ref())
+            .and_then(|c| c.content.clone())
+    };
+    let sheet = Stylesheet::bare();
+    dom.cascade(&sheet);
+    assert_eq!(content(&dom, items[1]).as_deref(), Some("7"));
+    dom.cascade_subtrees(&sheet, &[items[1]]);
+    assert_eq!(content(&dom, items[1]).as_deref(), Some("7"));
+}

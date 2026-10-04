@@ -29,7 +29,7 @@ use super::walk::{
 };
 use super::{PropertyRegistry, document_color_scheme, document_viewport};
 use crate::ext::TuiExt;
-use crate::style::{ComputedStyle, Content, Stylesheet, VarMap};
+use crate::style::{ComputedStyle, Content, Stylesheet, TuiStyle, VarMap};
 
 /// Cascade (or, per `mode`, restyle) the subtrees at `roots`. Returns
 /// the roots of every subtree it recomputed, in the order it did: the
@@ -70,7 +70,7 @@ pub(super) fn subtrees(
         bubble_subtree_flags(dom, root, flags);
         flags
     };
-    if !uses_counters(stylesheets) {
+    if !uses_counters(dom, stylesheets, &roots) {
         for &root in &roots {
             cascade_alone(dom, root);
         }
@@ -295,29 +295,58 @@ fn bubble_subtree_flags(dom: &mut Dom<TuiExt>, root: NodeId, flags: SubtreeFlags
     }
 }
 
-/// Can any rule of `stylesheets` create, increment or read a counter
-/// (CSS Lists 3 §3)? Then every subtree root depends on the elements
-/// before it in tree order. A `var()` declaration counts when it is one
-/// of those properties (or `all`): only its substitution can tell.
-fn uses_counters(stylesheets: &[&Stylesheet]) -> bool {
-    stylesheets.iter().any(|s| {
-        s.rules().iter().any(|r| {
-            r.style.counter_reset.is_some()
-                || r.style.counter_increment.is_some()
-                || r.style.pending.iter().any(|d| {
-                    d.has_substitution
-                        && matches!(
-                            d.name.as_str(),
-                            "counter-reset" | "counter-increment" | "content" | "all"
-                        )
-                })
-                || r.style
-                    .content
-                    .as_ref()
-                    .and_then(|c| c.as_specified())
-                    .is_some_and(Content::uses_counters)
+/// Can anything create, increment or read a counter (CSS Lists 3 §3)?
+/// Then every subtree root depends on the elements before it in tree
+/// order. Counter ops come from the sheets' rules and from `style`
+/// attributes (CSS Style Attributes §3): those already cascaded are in
+/// the document's `tree_has_counters`, and a root's subtree may hold new
+/// ones.
+fn uses_counters(dom: &Dom<TuiExt>, stylesheets: &[&Stylesheet], roots: &[NodeId]) -> bool {
+    stylesheets
+        .iter()
+        .any(|s| s.rules().iter().any(|r| style_uses_counters(&r.style)))
+        || dom
+            .node(dom.root())
+            .child_nodes()
+            .any(|c| c.ext().is_some_and(|e| e.tree_has_counters))
+        || roots.iter().any(|&r| inline_uses_counters(dom, r))
+}
+
+/// Does a `style` attribute in the subtree at `id` use counters?
+fn inline_uses_counters(dom: &Dom<TuiExt>, id: NodeId) -> bool {
+    let mut stack = vec![id];
+    while let Some(id) = stack.pop() {
+        let node = dom.node(id);
+        if node
+            .ext()
+            .and_then(|e| e.inline_style.as_deref())
+            .is_some_and(style_uses_counters)
+        {
+            return true;
+        }
+        stack.extend(node.child_nodes().map(|c| c.id()));
+    }
+    false
+}
+
+/// Does `style` create, increment or read a counter? A `var()`
+/// declaration counts when it is one of those properties (or `all`):
+/// only its substitution can tell.
+fn style_uses_counters(style: &TuiStyle) -> bool {
+    style.counter_reset.is_some()
+        || style.counter_increment.is_some()
+        || style.pending.iter().any(|d| {
+            d.has_substitution
+                && matches!(
+                    d.name.as_str(),
+                    "counter-reset" | "counter-increment" | "content" | "all"
+                )
         })
-    })
+        || style
+            .content
+            .as_ref()
+            .and_then(|c| c.as_specified())
+            .is_some_and(Content::uses_counters)
 }
 
 /// Tree order (DOM §4.2.1) for two live nodes; equal only for the same node.

@@ -14,7 +14,6 @@
 
 pub(super) use super::colors::ElementColors;
 use super::colors::apply_colors;
-use super::ladder::Declarations;
 use crate::layout::Display;
 use crate::style::{ComputedStyle, ImportantMask, Modifier, TuiStyle, Value};
 
@@ -81,14 +80,6 @@ pub(super) fn finalize_bfc_formation(working: &mut ComputedStyle) {
         || !matches!(working.overflow_x, Overflow::Visible)
         || !matches!(working.overflow_y, Overflow::Visible)
         || matches!(working.position, Position::Absolute | Position::Fixed);
-}
-
-/// If no declaration set `border_fg`, fall back to the working `fg`.
-/// Runs after the cascade ladder so `fg` is at its final value.
-pub(super) fn finalize_border_fg(working: &mut ComputedStyle, decls: Declarations<'_>) {
-    if !decls.all().any(|s| s.border_fg.is_some()) {
-        working.border_fg = working.fg;
-    }
 }
 
 /// Apply one `TuiStyle` to `working`, for one ladder pass. Paints +

@@ -743,3 +743,13 @@ row comes from.
   Red: LCH chroma 0.0016 counted as powerless (old ε 0.005625); green: boundary tests at each ε and
   just above, HWB at 100% / 99.9%, `L = 0` with chroma not powerless. No existing expectation
   changed.
+- 2026-10-05 — C3G-SMALL-FIXES: (1) `border-color`'s initial `currentcolor` has one owner,
+  `colors::BORDER_COLOR_INITIAL`: `ElementColors` notes whether any `border-color` declaration took
+  part and `finalize` resolves an undeclared one as the initial value, after the final `color`;
+  `apply::finalize_border_fg` and its two calls (`walk.rs`, `pseudo.rs`) are deleted. Refactor, no
+  behaviour change: the suites pass unchanged. (2) `subtrees::uses_counters` takes the dom and the
+  roots: a sheet rule, a top-level subtree already flagged `tree_has_counters`, or a `style`
+  attribute in a root's subtree (iterative scan) puts the partial cascade on the ordered walk; the
+  per-style predicate is `style_uses_counters`, shared by rules and inline styles. Red (bare sheet,
+  `style="counter-reset: c 5"` on the list, `counter-increment: c; content: counter(c)` on two items):
+  `cascade_subtrees` of the second item gave `1`; green: `7`.

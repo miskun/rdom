@@ -14,7 +14,7 @@ use crate::ext::TuiExt;
 use crate::layout::Position;
 use crate::style::{ComputedStyle, PseudoElementTarget, VarMap};
 
-use super::apply::{finalize_bfc_formation, finalize_border_fg};
+use super::apply::finalize_bfc_formation;
 use super::content::resolve_content_on;
 pub(super) use super::counters::CounterState;
 use super::counters::{StoredOps, has_ops, takes_part};
@@ -484,12 +484,6 @@ fn compute_element_style(
     let counter_lookup = |name: &str| counters.value(name);
     working.content = resolve_content_on(&working, plan, decls, &counter_lookup).unwrap_or(None);
 
-    // border_fg falls back to working.fg when no rule declared it
-    // (property catalog: initial = "inherits fg"). Implemented as a
-    // post-pass rather than during apply_color because the author may
-    // set fg AFTER border_fg in the rule (same specificity), and we
-    // need the *final* fg value as the fallback.
-    finalize_border_fg(&mut working, decls);
     // BFC formation predicate (CSS 2.1 §9.4.1). Computed AFTER the
     // cascade ladder so it reads the final values of `flow`,
     // `display`, `overflow_*`, `position`. Used by the block-layout
