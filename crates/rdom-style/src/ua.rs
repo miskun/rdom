@@ -65,6 +65,14 @@ const BORDER_DEFAULT: Color = Color::Rgb(0x3B, 0x40, 0x42);
 /// chevron, range/progress bar accent, selected-option bg.
 const ACCENT: Color = named::DODGERBLUE;
 
+/// `style` with the CSS declaration `name: value` — for a UA value only
+/// CSS spells, an `attr()` substitution (CSS Values 5 §8.7), which the
+/// cascade makes per element as for an author rule.
+fn css(mut style: TuiStyle, name: &str, value: &str) -> TuiStyle {
+    crate::property_dispatch::set(name, value, &mut style).expect("UA declaration parses");
+    style
+}
+
 /// Return the slice of `(selector, style)` pairs that `Stylesheet::new()`
 /// installs as UA defaults. Single source of truth for the user-agent
 /// stylesheet.
@@ -579,10 +587,7 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
         // (DIVERGENCES §Selection & editing).
         (
             "input[type=button]::before, input[type=submit]::before, input[type=reset]::before",
-            TuiStyle::new().content(Content::Concat(vec![
-                Content::Str("[ ".into()),
-                Content::Attr("value".into()),
-            ])),
+            css(TuiStyle::new(), "content", "\"[ \" attr(value)"),
         ),
         (
             "input[type=submit]:not([value])::before",
@@ -598,10 +603,7 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
         // UA-defined label HTML allows (`P7G-INPUT-IMAGE-1`).
         (
             "input[type=image]::before",
-            TuiStyle::new().content(Content::Concat(vec![
-                Content::Str("[ ".into()),
-                Content::Attr("alt".into()),
-            ])),
+            css(TuiStyle::new(), "content", "\"[ \" attr(alt)"),
         ),
         (
             "input[type=image]:not([alt])::before",
@@ -668,11 +670,11 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
         // §4.3; the backend layers them over `::before`).
         (
             "input:placeholder-shown::before",
-            TuiStyle::new().content(Content::Attr("placeholder".into())),
+            css(TuiStyle::new(), "content", "attr(placeholder)"),
         ),
         (
             "textarea:placeholder-shown::before",
-            TuiStyle::new().content(Content::Attr("placeholder".into())),
+            css(TuiStyle::new(), "content", "attr(placeholder)"),
         ),
         (
             "input::placeholder, textarea::placeholder",
@@ -838,10 +840,11 @@ pub(crate) fn user_agent_defaults() -> Vec<(&'static str, TuiStyle)> {
         ),
         (
             "optgroup::before",
-            TuiStyle::new()
-                .content(Content::Attr("label".into()))
-                .bold(true)
-                .fg(TEXT_MUTED),
+            css(
+                TuiStyle::new().bold(true).fg(TEXT_MUTED),
+                "content",
+                "attr(label)",
+            ),
         ),
         // ── Canvas ──
         // `<canvas>` is a raw-buffer escape hatch. When a

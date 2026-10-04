@@ -478,10 +478,8 @@ fn compute_element_style(
     // Host element's own `content` property. Normally `None`; authors
     // don't typically set `content` on a real element (CSS restricts it
     // to pseudo-elements) but we allow it for flexibility.
-    let attr_lookup = |name: &str| dom.node(id).get_attribute(name).map(|s| s.to_string());
     let counter_lookup = |name: &str| counters.value(name);
-    working.content =
-        resolve_content_on(&working, plan, decls, &attr_lookup, &counter_lookup).unwrap_or(None);
+    working.content = resolve_content_on(&working, plan, decls, &counter_lookup).unwrap_or(None);
 
     // border_fg falls back to working.fg when no rule declared it
     // (property catalog: initial = "inherits fg"). Implemented as a

@@ -266,7 +266,6 @@ pub(super) fn serialize_counter_ops(ops: &[crate::counters::CounterOp]) -> Strin
 pub(super) fn serialize_content(c: &Content) -> Option<String> {
     match c {
         Content::Str(s) => Some(format!("\"{s}\"")),
-        Content::Attr(a) => Some(format!("attr({a})")),
         Content::Counter { name, style } => Some(match style {
             crate::counters::CounterStyle::Decimal => format!("counter({name})"),
             other => format!("counter({name}, {})", other.as_str()),

@@ -1594,10 +1594,9 @@ fn attr_content_is_overridable_by_author_rule() {
     let el = dom.create_element("div");
     dom.set_attribute(el, "data-status", "warning").unwrap();
     dom.append_child(root, el).unwrap();
-    let sheet = Stylesheet::new().rule_unchecked(
-        "div::before",
-        TuiStyle::new().content(Content::Attr("data-status".into())),
-    );
+    let mut before = TuiStyle::new();
+    rdom_style::property_dispatch::set("content", "attr(data-status)", &mut before).unwrap();
+    let sheet = Stylesheet::new().rule_unchecked("div::before", before);
     dom.cascade(&sheet);
     use crate::node::TuiNodeExt;
     let before = dom.node(el).computed_before().cloned().unwrap();

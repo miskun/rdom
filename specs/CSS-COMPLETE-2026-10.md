@@ -614,3 +614,11 @@ row comes from.
   `Kind::LengthPercentage` (cells and percentage interpolate apart; a non-linear value is discrete).
   Tests: `10vw` → `8`, `calc(2ch + 50%)` → `calc(2 + 50%)` inherited; `10vw` → `50vw` is 24 cells
   half way (was: no transition); `10` → `calc(20 + 50%)` is `calc(15 + 25%)` half way.
+- 2026-10-05 — C2G-CONTENT-ATTR: `Content::Attr`, `ContentContext::attr` and `resolve_content_on`'s
+  attribute lookup are deleted; the five UA rules that read an attribute (`input` / `textarea`
+  placeholder, `input[type=button|submit|reset]` value, `input[type=image]` alt, `optgroup` label) are
+  CSS declarations built with `ua::css` (`property_dispatch::set`), so they go through the `attr()`
+  substitution path like an author's `content: attr(x)`. Breaking for rdom-style (both were in 0.5.0):
+  CHANGELOG migration hint. No test expectation changed; the one cascade test that built
+  `Content::Attr` declares `content: attr(data-status)` instead. UA-dependent tests (placeholder,
+  button labels, optgroup) green.

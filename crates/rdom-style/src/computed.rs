@@ -244,24 +244,24 @@ impl Default for ComputedStyle {
 }
 
 /// Content for `::before` / `::after` — literal, variable reference,
-/// attribute reference, or concatenation.
+/// counter, or concatenation.
 ///
 /// - `Content::Str("▾")` — straight string.
 /// - `Content::Var("arrow")` — looked up in `ComputedStyle.vars`
 ///   (CSS custom properties: `content: var(--arrow)`).
-/// - `Content::Attr("label")` — looked up in the host element's
-///   attributes (CSS `content: attr(label)`).
 /// - `Content::Concat(vec![Content::Str("▾ "), Content::Var("label")])` —
 ///   concatenation. Nests arbitrarily.
 /// - `Content::None` — explicit "no content"; the pseudo-element does
 ///   not render at all (matches CSS `content: none;`).
 ///
 /// Resolution reads the element's context through [`ContentContext`].
+/// CSS `content: attr(label)` is an `attr()` substitution (CSS Values 5
+/// §8.7), which the cascade makes before parsing the value: the host's
+/// attribute arrives as a string, so there is no attribute variant.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Content {
     Str(String),
     Var(String),
-    Attr(String),
     /// `counter(name[, style])` — the innermost counter of that name
     /// in scope at the pseudo-element (CSS Lists 3 §3.2).
     Counter {
@@ -273,15 +273,13 @@ pub enum Content {
 }
 
 /// What `content` resolution needs from the element it is generated
-/// for: its custom properties, its attributes and its counters. The
+/// for: its custom properties and its counters. The
 /// cascade implements this over its working state; a bare
 /// `HashMap<String, CustomValue>` (a [`VarMap`]'s map) implements it as "variables only" for
 /// callers without an element.
 pub trait ContentContext {
     /// The value of custom property `--name` (without the dashes).
     fn var(&self, name: &str) -> Option<String>;
-    /// The host element's attribute `name`.
-    fn attr(&self, name: &str) -> Option<String>;
     /// The innermost counter `name` in scope (0 when there is none).
     fn counter(&self, name: &str) -> i32;
 }
@@ -290,29 +288,22 @@ impl ContentContext for std::collections::HashMap<String, crate::CustomValue> {
     fn var(&self, name: &str) -> Option<String> {
         self.get(name).map(|v| v.as_str().to_string())
     }
-    fn attr(&self, _name: &str) -> Option<String> {
-        None
-    }
     fn counter(&self, _name: &str) -> i32 {
         0
     }
 }
 
 impl Content {
-    /// Resolve `Var(...)` against `vars` and `Attr(...)` against the
-    /// `attr_lookup` closure; join `Concat` parts. Returns `None` if
-    /// the result should cause the pseudo-element to be skipped
-    /// entirely (`Content::None`).
+    /// Resolve `Var(...)` and `Counter { .. }` against `ctx`; join
+    /// `Concat` parts. Returns `None` if the result should cause the
+    /// pseudo-element to be skipped entirely (`Content::None`).
     ///
-    /// Unresolved vars and missing attrs yield empty strings rather
-    /// than failing — matches CSS's permissive behavior (browsers
-    /// render nothing for `attr(missing)`).
+    /// An unresolved var yields the empty string rather than failing.
     pub fn resolve(&self, ctx: &impl ContentContext) -> Option<String> {
         match self {
             Content::None => None,
             Content::Str(s) => Some(s.clone()),
             Content::Var(name) => Some(ctx.var(name).unwrap_or_default()),
-            Content::Attr(name) => Some(ctx.attr(name).unwrap_or_default()),
             Content::Counter { name, style } => Some(style.format(ctx.counter(name))),
             Content::Concat(parts) => {
                 let mut out = String::new();
@@ -341,20 +332,6 @@ impl Content {
 mod tests {
     use super::*;
     use std::collections::HashMap;
-
-    /// Variables plus an attribute lookup, for the `attr()` tests.
-    struct Ctx<'a, F: Fn(&str) -> Option<String>>(&'a HashMap<String, String>, &'a F);
-    impl<F: Fn(&str) -> Option<String>> ContentContext for Ctx<'_, F> {
-        fn var(&self, name: &str) -> Option<String> {
-            self.0.get(name).cloned()
-        }
-        fn attr(&self, name: &str) -> Option<String> {
-            (self.1)(name)
-        }
-        fn counter(&self, _name: &str) -> i32 {
-            0
-        }
-    }
 
     #[test]
     fn initial_is_safe_defaults() {
@@ -410,29 +387,6 @@ mod tests {
     }
 
     #[test]
-    fn content_attr_looks_up_via_closure() {
-        let vars = HashMap::new();
-        let lookup = |name: &str| match name {
-            "label" => Some("Fruit".to_string()),
-            _ => None,
-        };
-        assert_eq!(
-            Content::Attr("label".into()).resolve(&Ctx(&vars, &lookup)),
-            Some("Fruit".into())
-        );
-    }
-
-    #[test]
-    fn content_attr_missing_yields_empty_string() {
-        let vars = HashMap::new();
-        let lookup = |_: &str| None;
-        assert_eq!(
-            Content::Attr("label".into()).resolve(&Ctx(&vars, &lookup)),
-            Some(String::new())
-        );
-    }
-
-    #[test]
     fn content_concat_joins() {
         let mut vars = HashMap::new();
         vars.insert("x".into(), "BAR".into());
@@ -442,22 +396,6 @@ mod tests {
             Content::Str(" BAZ".into()),
         ]);
         assert_eq!(c.resolve(&vars), Some("FOO BAR BAZ".into()));
-    }
-
-    #[test]
-    fn content_concat_mixes_var_and_attr() {
-        let mut vars = HashMap::new();
-        vars.insert("sep".into(), " · ".into());
-        let lookup = |name: &str| match name {
-            "label" => Some("Group".to_string()),
-            _ => None,
-        };
-        let c = Content::Concat(vec![
-            Content::Attr("label".into()),
-            Content::Var("sep".into()),
-            Content::Str("end".into()),
-        ]);
-        assert_eq!(c.resolve(&Ctx(&vars, &lookup)), Some("Group · end".into()));
     }
 
     #[test]
