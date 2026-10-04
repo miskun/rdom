@@ -65,7 +65,7 @@ row comes from.
 | C1-CASE | Property names and all keywords ASCII case-insensitive | done |
 | C1-REVERT | `revert` (roll back to the UA origin) | done |
 | C1-LAYER | `@layer` (statement + block, anonymous layers, layer order) and `revert-layer` | |
-| C1-ALL | `all` shorthand | |
+| C1-ALL | `all` shorthand | done |
 | C1-IMPORT | `@import` through a host-provided loader, with layer / supports / media conditions | |
 | C1-SCOPE | `@scope` with an optional lower bound, and `:scope` inside it | |
 | C1-NESTING | CSS Nesting (`&`, nested style rules, nested at-rules) | |

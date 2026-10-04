@@ -353,3 +353,15 @@ fn custom_property_names_stay_case_sensitive() {
     assert_eq!(s.custom_property_value("Foo"), Some("1"));
     assert_eq!(s.custom_property_value("foo"), Some("2"));
 }
+
+/// CSS Cascade 4 §3.2: `all` takes only a CSS-wide keyword.
+#[test]
+fn all_accepts_only_css_wide_keywords() {
+    let r = parse("a { all: initial; all: red }");
+    assert_eq!(r.warnings.len(), 1, "{:?}", r.warnings);
+    assert!(matches!(
+        &r.warnings[0].kind,
+        WarningKind::InvalidValue { property, .. } if property == "all"
+    ));
+    assert_eq!(r.stylesheet.rules()[0].style.bg, Some(Value::Initial));
+}

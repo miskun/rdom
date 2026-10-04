@@ -229,7 +229,6 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 ### Syntax and cascade
 
 - `@layer`, `revert-layer` — C1-LAYER
-- `all` — C1-ALL
 - `@import` — C1-IMPORT
 - `@scope` (and `:scope` inside it) — C1-SCOPE
 - CSS Nesting (`&`, nested rules) — C1-NESTING

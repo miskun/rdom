@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **The value tokenizer decodes identifier escapes** (CSS Syntax 3 §4.3.7 / §4.3.11) through `rdom_core::css_syntax`, so they work in property names (`col\6f r: red`) and keyword values (`display: fl\65x`); an identifier may start with an escape. A selector list no longer splits on an escaped comma. New `Cursor::rest` / `Cursor::advance`. (C1-ESCAPES)
 - **`revert`** is accepted for every property (ASCII case-insensitive) and serializes as written. (C1-REVERT)
+- **The `all` shorthand** (CSS Cascade 4 §3.2): `all: initial | inherit | unset | revert` sets every property in the dispatch table — `unset` resolved per property — except `direction`, `unicode-bidi` (when they land) and custom properties; `!important` covers every property, `removeProperty("all")` clears them, any other value is invalid. It is derived from `PROPERTY_NAMES`, so a property added to the table is covered automatically. (C1-ALL)
 
 ### Fixed — `rdom-style`
 

@@ -63,7 +63,7 @@ mod walk;
 #[cfg(test)]
 mod apply_tests;
 #[cfg(test)]
-mod revert_tests;
+mod css_wide_tests;
 #[cfg(test)]
 mod tests;
 

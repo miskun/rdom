@@ -707,3 +707,44 @@ fn revert_is_a_css_wide_keyword() {
         assert_eq!(serialize(name, &style).as_deref(), Some("revert"), "{name}");
     }
 }
+
+/// CSS Cascade 4 §3.2: `all` sets every property except `direction`,
+/// `unicode-bidi` and custom properties to a CSS-wide keyword. Driven
+/// by the property table: every name in it takes the keyword (`unset`
+/// resolved per property), `!important` covers them all, and anything
+/// but a CSS-wide keyword is invalid.
+#[test]
+fn all_shorthand_sets_every_property_in_the_table() {
+    let mut style = TuiStyle::new();
+    style.set_custom_property("x", "1", false);
+    set("ALL", "unset", &mut style).unwrap();
+    for &name in property_names() {
+        let want = if inherits(name) { "inherit" } else { "initial" };
+        assert_eq!(serialize(name, &style).as_deref(), Some(want), "{name}");
+    }
+    assert_eq!(style.custom_property_value("x"), Some("1"));
+
+    let mut style = TuiStyle::new();
+    set("all", "revert", &mut style).unwrap();
+    for &name in property_names() {
+        assert_eq!(serialize(name, &style).as_deref(), Some("revert"), "{name}");
+    }
+    assert_eq!(serialize("all", &style).as_deref(), Some("revert"));
+
+    let every = property_names()
+        .iter()
+        .fold(crate::ImportantMask::empty(), |m, n| {
+            m | property_mask(n).unwrap()
+        });
+    assert_eq!(property_mask("all"), Some(every));
+    assert!(remove("all", &mut style));
+    assert!(
+        property_names()
+            .iter()
+            .all(|n| serialize(n, &style).is_none())
+    );
+    assert_eq!(
+        set("all", "red", &mut style),
+        Err(DispatchError::InvalidValue)
+    );
+}

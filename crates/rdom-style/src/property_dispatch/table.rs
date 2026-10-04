@@ -104,6 +104,37 @@ pub fn canonical_property_name(name: &str) -> std::borrow::Cow<'_, str> {
     }
 }
 
+/// The properties the `all` shorthand leaves alone besides custom
+/// properties (CSS Cascade 4 §3.2). Neither is in the table yet; listed
+/// so they stay excluded when they land.
+const ALL_EXCLUDES: &[&str] = &["direction", "unicode-bidi"];
+
+/// The property names `all` sets: the whole table minus
+/// [`ALL_EXCLUDES`], so a property added to the table is covered
+/// without touching `all`.
+pub(super) fn all_property_names() -> impl Iterator<Item = &'static str> {
+    PROPERTY_NAMES
+        .iter()
+        .copied()
+        .filter(|n| !ALL_EXCLUDES.contains(n))
+}
+
+/// Every field the names of [`all_property_names`] own, once each.
+fn all_fields() -> &'static [Field] {
+    static FIELDS: std::sync::OnceLock<Vec<Field>> = std::sync::OnceLock::new();
+    FIELDS.get_or_init(|| {
+        let mut out: Vec<Field> = Vec::new();
+        for name in all_property_names() {
+            for f in fields_of(name).unwrap_or(&[]) {
+                if !out.contains(f) {
+                    out.push(*f);
+                }
+            }
+        }
+        out
+    })
+}
+
 /// The full list of property names supported by the dispatch
 /// table. Sorted by category, not alphabetic — step 27's iteration
 /// preserves this order for stable camelCase output.
@@ -280,6 +311,8 @@ pub(super) fn fields_of(name: &str) -> Option<&'static [Field]> {
         ],
         "counter-reset" => &[CounterReset],
         "counter-increment" => &[CounterIncrement],
+        // CSS Cascade 4 §3.2: every property in the table.
+        "all" => all_fields(),
         _ => return None,
     })
 }

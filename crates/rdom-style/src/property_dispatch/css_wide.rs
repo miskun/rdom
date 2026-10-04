@@ -5,7 +5,7 @@
 //! shorthand serializes as the keyword.
 
 use super::DispatchError;
-use super::table::{fields_of, inherits};
+use super::table::{all_property_names, fields_of, inherits};
 use crate::TuiStyle;
 use crate::Value;
 use crate::parse::token::Token;
@@ -58,12 +58,19 @@ impl CssWide {
     }
 }
 
-/// Set every field `name` owns to the CSS-wide keyword.
+/// Set every field `name` owns to the CSS-wide keyword. `all` sets
+/// each property it covers by name, so `unset` resolves per property.
 pub(super) fn set_css_wide(
     name: &str,
     kw: CssWide,
     style: &mut TuiStyle,
 ) -> Result<(), DispatchError> {
+    if name == "all" {
+        for name in all_property_names() {
+            set_css_wide(name, kw, style)?;
+        }
+        return Ok(());
+    }
     let fields = fields_of(name).ok_or(DispatchError::UnknownProperty)?;
     for f in fields {
         f.put_css_wide(style, kw, name);

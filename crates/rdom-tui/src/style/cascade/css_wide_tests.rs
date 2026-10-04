@@ -1,7 +1,10 @@
-//! `revert` through the cascade (CSS Cascade 4 §7.3): an author or
-//! inline declaration of `revert` rolls the property back to the value
-//! the user-agent origin gives it; with no UA declaration for the
-//! property, that is the `unset` value (inherited or initial).
+//! The CSS-wide keywords through the cascade.
+//!
+//! - `revert` (CSS Cascade 4 §7.3): an author or inline declaration of
+//!   `revert` rolls the property back to the value the user-agent
+//!   origin gives it; with no UA declaration for the property, that is
+//!   the `unset` value (inherited or initial).
+//! - `all` (§3.2): one keyword for every property.
 
 use super::*;
 use crate::style::{Color, Stylesheet, TuiStyle, Value};
@@ -123,4 +126,32 @@ fn custom_property_revert_takes_the_inherited_value() {
         computed_of(&dom, span).vars.get("x").map(String::as_str),
         Some("outer")
     );
+}
+
+/// CSS Cascade 4 §3.2: `all: unset` drops every author declaration of
+/// the element — each property takes its inherited value (inherited
+/// properties) or its initial value.
+#[test]
+fn all_unset_yields_inherited_or_initial_values_everywhere() {
+    let (mut dom, div, _, span) = tree();
+    dom.cascade(&sheet(
+        "div { color: red; font-weight: bold; background: blue; padding: 1 } \
+         span { color: green; background: green; padding: 2; display: block; \
+                text-decoration: underline; width: 5 } \
+         span { all: unset }",
+    ));
+    let parent = computed_of(&dom, div);
+    let got = computed_of(&dom, span);
+    let mut want = crate::style::ComputedStyle::initial();
+    super::inherit::inherit_inheritable_from(&mut want, &parent);
+    assert_eq!(got.fg, Color::Rgb(255, 0, 0));
+    assert_eq!(got.fg, want.fg);
+    assert_eq!(
+        got.modifiers, want.modifiers,
+        "bold inherited, no underline"
+    );
+    assert_eq!(got.bg, want.bg);
+    assert_eq!(got.padding, want.padding);
+    assert_eq!(got.display, want.display);
+    assert_eq!(got.width, want.width);
 }

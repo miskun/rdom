@@ -448,6 +448,9 @@ pub fn set_from_tokens(
             style.counter_increment = Some(Value::Specified(ops));
         }),
 
+        // `all` takes a CSS-wide keyword only (handled above).
+        "all" => None,
+
         _ => return Err(DispatchError::UnknownProperty),
     };
 
