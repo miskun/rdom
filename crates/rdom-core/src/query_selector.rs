@@ -108,14 +108,32 @@ impl<Ext> Dom<Ext> {
     /// downstream crates (rdom-tui's cascade) can drive rule matching
     /// without re-parsing selector strings on every call.
     pub fn matches_list(&self, id: NodeId, list: &SelectorList) -> bool {
-        list.0
-            .iter()
-            .any(|complex| self.matches_complex(id, complex))
+        self.matches_list_in_scope(id, list, None)
     }
 
-    fn matches_complex(&self, id: NodeId, complex: &selectors::ComplexSelector) -> bool {
+    /// [`Self::matches_list`] with `scope` as the scoping root `:scope`
+    /// matches (Selectors 4 §14.3) — an `@scope` rule's root (CSS
+    /// Cascade 6 §2.5). With `None` there is no scoping root and
+    /// `:scope` is `:root`.
+    pub fn matches_list_in_scope(
+        &self,
+        id: NodeId,
+        list: &SelectorList,
+        scope: Option<NodeId>,
+    ) -> bool {
+        list.0
+            .iter()
+            .any(|complex| self.matches_complex(id, complex, scope))
+    }
+
+    fn matches_complex(
+        &self,
+        id: NodeId,
+        complex: &selectors::ComplexSelector,
+        scope: Option<NodeId>,
+    ) -> bool {
         // Subject must match.
-        if !self.matches_compound(id, &complex.subject) {
+        if !self.matches_compound(id, &complex.subject, scope) {
             return false;
         }
         // Walk ancestors/siblings per combinator. Each step's "candidate
@@ -128,7 +146,7 @@ impl<Ext> Dom<Ext> {
                     let mut anc = self.get_node(cur).and_then(|n| n.parent);
                     let mut matched = None;
                     while let Some(a) = anc {
-                        if self.matches_compound(a, compound) {
+                        if self.matches_compound(a, compound, scope) {
                             matched = Some(a);
                             break;
                         }
@@ -143,7 +161,7 @@ impl<Ext> Dom<Ext> {
                     let Some(parent) = self.get_node(cur).and_then(|n| n.parent) else {
                         return false;
                     };
-                    if !self.matches_compound(parent, compound) {
+                    if !self.matches_compound(parent, compound, scope) {
                         return false;
                     }
                     cur = parent;
@@ -152,7 +170,7 @@ impl<Ext> Dom<Ext> {
                     let Some(prev) = self.get_node(cur).and_then(|n| n.prev_sibling) else {
                         return false;
                     };
-                    if !self.matches_compound(prev, compound) {
+                    if !self.matches_compound(prev, compound, scope) {
                         return false;
                     }
                     cur = prev;
@@ -161,7 +179,7 @@ impl<Ext> Dom<Ext> {
                     let mut sib = self.get_node(cur).and_then(|n| n.prev_sibling);
                     let mut matched = None;
                     while let Some(s) = sib {
-                        if self.matches_compound(s, compound) {
+                        if self.matches_compound(s, compound, scope) {
                             matched = Some(s);
                             break;
                         }
@@ -177,7 +195,12 @@ impl<Ext> Dom<Ext> {
         true
     }
 
-    fn matches_compound(&self, id: NodeId, compound: &CompoundSelector) -> bool {
+    fn matches_compound(
+        &self,
+        id: NodeId,
+        compound: &CompoundSelector,
+        scope: Option<NodeId>,
+    ) -> bool {
         let Some(node) = self.get_node(id) else {
             return false;
         };
@@ -188,7 +211,10 @@ impl<Ext> Dom<Ext> {
             ..
         } = &node.data
         else {
-            return false;
+            // A non-element is matched only as the scoping root — the
+            // document, for a prelude-less `@scope` in a sheet with no
+            // owner node (CSS Cascade 6 §2.5.1).
+            return scope == Some(id) && compound.simples.iter().all(names_only_scope);
         };
         for s in &compound.simples {
             match s {
@@ -214,7 +240,7 @@ impl<Ext> Dom<Ext> {
                     }
                 }
                 SimpleSelector::Not(inner) => {
-                    if self.matches_list(id, inner) {
+                    if self.matches_list_in_scope(id, inner, scope) {
                         return false;
                     }
                 }
@@ -222,12 +248,12 @@ impl<Ext> Dom<Ext> {
                     // `:is()` matching — any complex selector in the list must
                     // match this element as its subject. Specificity (zero for
                     // `:where()`) is `ComplexSelector::specificity`'s.
-                    if !self.matches_list(id, inner) {
+                    if !self.matches_list_in_scope(id, inner, scope) {
                         return false;
                     }
                 }
                 SimpleSelector::Pseudo(p) => {
-                    if !self.match_pseudo(id, *p) {
+                    if !self.match_pseudo(id, *p, scope) {
                         return false;
                     }
                 }
@@ -236,7 +262,7 @@ impl<Ext> Dom<Ext> {
         true
     }
 
-    fn match_pseudo(&self, id: NodeId, p: PseudoClass) -> bool {
+    fn match_pseudo(&self, id: NodeId, p: PseudoClass, scope: Option<NodeId>) -> bool {
         let Some(node) = self.get_node(id) else {
             return false;
         };
@@ -273,6 +299,8 @@ impl<Ext> Dom<Ext> {
                 true
             }
             PseudoClass::Root => id == self.root(),
+            // Selectors 4 §14.3: the scoping root; with none, `:root`.
+            PseudoClass::Scope => id == scope.unwrap_or_else(|| self.root()),
             // Selectors 4 §9.2 / §9.4 / §13.3: `:hover`, `:active` and
             // `:focus-within` match the element holding the state and
             // every ancestor of it (the flat tree is the node tree:
@@ -350,6 +378,19 @@ impl<Ext> Dom<Ext> {
 /// test of the cascade). Every rdom element is an HTML element in an HTML
 /// document. (HTML exempts `type` in its rendering section's `ol[type]`
 /// rules via the `s` flag, which rdom does not parse.)
+/// A simple selector that only ever matches the scoping root: `:scope`,
+/// or `:is()` / `:where()` over `:scope` alone.
+fn names_only_scope(simple: &SimpleSelector) -> bool {
+    match simple {
+        SimpleSelector::Pseudo(PseudoClass::Scope) => true,
+        SimpleSelector::Is(list) | SimpleSelector::Where(list) => list
+            .0
+            .iter()
+            .all(|c| c.ancestors.is_empty() && c.subject.simples.iter().all(names_only_scope)),
+        _ => false,
+    }
+}
+
 fn is_html_case_insensitive_attr(name: &str) -> bool {
     matches!(
         name,
@@ -1293,5 +1334,26 @@ mod tests {
         dom.remove_attribute(bad, "data-bad").unwrap();
         assert!(dom.matches(form, ":valid").unwrap());
         assert!(dom.matches(fieldset, ":valid").unwrap());
+    }
+
+    /// Selectors 4 §14.3: `:scope` is the scoping root passed to
+    /// `matches_list_in_scope`, and `:root` without one.
+    #[test]
+    fn scope_matches_the_scoping_root() {
+        let (dom, ids) = build();
+        let list = crate::selectors::parse(":scope > *").unwrap();
+        let child_of = |root| {
+            ids.iter()
+                .filter(|&&id| dom.matches_list_in_scope(id, &list, Some(root)))
+                .count()
+        };
+        assert!(child_of(ids[0]) > 0);
+        let scope = crate::selectors::parse(":scope").unwrap();
+        assert!(dom.matches_list_in_scope(ids[1], &scope, Some(ids[1])));
+        assert!(!dom.matches_list_in_scope(ids[1], &scope, Some(ids[0])));
+        assert_eq!(
+            dom.matches_list(ids[1], &scope),
+            dom.matches(ids[1], ":root").unwrap()
+        );
     }
 }

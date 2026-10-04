@@ -14,7 +14,8 @@
 //!   the nested rules before it in order of appearance;
 //! - a nested at-rule goes to [`consume_nested_at_rule`]: `@layer`
 //!   holds declarations and rules for the parent's elements, in the
-//!   layer; the conditional group rules (`@media`, `@supports`,
+//!   layer; `@scope` (`scope.rs`) takes its start relative to the
+//!   parent; the conditional group rules (`@media`, `@supports`,
 //!   `@container`) plug in there when they land (C14), and any other
 //!   at-rule is reported and skipped.
 //!
@@ -23,7 +24,7 @@
 //! Syntax 3 parses it in that position as one).
 
 use rdom_style::parse::Cursor;
-use rdom_style::{LayerId, StyleSelector, Stylesheet, TuiStyle};
+use rdom_style::{LayerId, RuleContext, StyleSelector, Stylesheet, TuiStyle};
 
 use crate::declarations;
 use crate::top_level::{
@@ -32,12 +33,30 @@ use crate::top_level::{
 };
 use crate::{Warning, WarningKind};
 
-/// Where a style rule sits: its cascade layer and, when nested, the
-/// selector of the rule it is nested in.
+/// Where a style rule sits: its cascade layer and scope, and what its
+/// selector is relative to.
 #[derive(Clone, Copy)]
 pub(crate) struct Context<'a> {
-    pub layer: Option<LayerId>,
-    pub parent: Option<&'a StyleSelector>,
+    pub rule: RuleContext,
+    pub parent: Parent<'a>,
+}
+
+/// What a style rule's selector is relative to.
+#[derive(Clone, Copy)]
+pub(crate) enum Parent<'a> {
+    /// Nothing: a top-level rule.
+    Top,
+    /// The style rule it is nested in (CSS Nesting 1 §2).
+    Rule(&'a StyleSelector),
+    /// The scoping root: a rule directly in `@scope` (CSS Cascade 6
+    /// §2.5.2).
+    Scope,
+}
+
+impl Context<'_> {
+    fn nested(&self) -> bool {
+        !matches!(self.parent, Parent::Top)
+    }
 }
 
 /// Consume one style rule, from its prelude through its block.
@@ -55,8 +74,9 @@ pub(crate) fn consume_style_rule(
         Head::Rule(selector, root_vars) => {
             let block = Block {
                 selector: &selector,
-                layer: ctx.layer,
+                ctx: ctx.rule,
                 root_vars,
+                children: Children::Nested,
             };
             consume_block_contents(cursor, sheet, warnings, block, true);
             true
@@ -78,7 +98,7 @@ enum Head {
 
 fn consume_rule_head(cursor: &mut Cursor, warnings: &mut Vec<Warning>, ctx: Context<'_>) -> Head {
     let at = (cursor.line(), cursor.col());
-    let nested = ctx.parent.is_some();
+    let nested = ctx.nested();
     let Some(prelude) = read_prelude(cursor, warnings, nested) else {
         return Head::End;
     };
@@ -102,8 +122,9 @@ fn consume_rule_head(cursor: &mut Cursor, warnings: &mut Vec<Warning>, ctx: Cont
     cursor.bump(); // '{'
     let text = prelude.trim();
     let selector = match ctx.parent {
-        None => StyleSelector::parse(text),
-        Some(parent) => StyleSelector::parse_nested(text, parent),
+        Parent::Top => StyleSelector::parse(text),
+        Parent::Rule(parent) => StyleSelector::parse_nested(text, parent),
+        Parent::Scope => StyleSelector::parse_scoped(text),
     };
     match selector {
         Ok(selector) if !text.is_empty() => {
@@ -127,7 +148,9 @@ fn consume_rule_head(cursor: &mut Cursor, warnings: &mut Vec<Warning>, ctx: Cont
 #[derive(Clone, Copy)]
 struct Block<'a> {
     selector: &'a StyleSelector,
-    layer: Option<LayerId>,
+    ctx: RuleContext,
+    /// How the block's nested style rules parse their selectors.
+    children: Children,
     /// A top-level `:root` rule: its custom properties are also the
     /// sheet's root variables (`Stylesheet::vars`).
     root_vars: bool,
@@ -177,8 +200,11 @@ fn consume_block_contents(
             }
             Some(_) => {
                 let ctx = Context {
-                    layer: block.layer,
-                    parent: Some(block.selector),
+                    rule: block.ctx,
+                    parent: match block.children {
+                        Children::Nested => Parent::Rule(block.selector),
+                        Children::Scoped => Parent::Scope,
+                    },
                 };
                 match consume_rule_head(cursor, warnings, ctx) {
                     Head::End => break,
@@ -189,8 +215,9 @@ fn consume_block_contents(
                         flush(sheet, block, &mut run, &mut pending_own);
                         let child = Block {
                             selector: &selector,
-                            layer: block.layer,
+                            ctx: block.ctx,
                             root_vars: false,
+                            children: Children::Nested,
                         };
                         consume_block_contents(cursor, sheet, warnings, child, true);
                     }
@@ -221,7 +248,7 @@ fn flush(
             sheet.define_var_mut(&d.name, &d.value);
         }
     }
-    sheet.add_style_rule(block.selector, style, block.layer);
+    sheet.add_style_rule(block.selector, style, block.ctx);
 }
 
 /// An at-rule inside a style rule's block (CSS Nesting 1 §3.2).
@@ -235,19 +262,31 @@ fn consume_nested_at_rule(
     cursor.bump(); // '@'
     let (name, used) = rdom_core::css_syntax::consume_ident(cursor.rest());
     cursor.advance(used);
-    if is_evaluated_nested_at_rule(&name) {
+    if name.eq_ignore_ascii_case("layer") {
         let mut body = |cursor: &mut Cursor,
                         sheet: &mut Stylesheet,
                         warnings: &mut Vec<Warning>,
                         layer: Option<LayerId>| {
             let inner = Block {
-                layer,
+                ctx: block.ctx.in_layer(layer),
                 root_vars: false,
                 ..block
             };
             consume_block_contents(cursor, sheet, warnings, inner, false);
         };
-        crate::layer::consume_layer_rule(cursor, sheet, warnings, block.layer, at, &mut body);
+        let layer = block.ctx.layer;
+        crate::layer::consume_layer_rule(cursor, sheet, warnings, layer, at, &mut body);
+        return;
+    }
+    if name.eq_ignore_ascii_case("scope") {
+        let ctx = Context {
+            rule: block.ctx,
+            parent: match block.children {
+                Children::Nested => Parent::Rule(block.selector),
+                Children::Scoped => Parent::Scope,
+            },
+        };
+        crate::scope::consume_scope_rule(cursor, sheet, warnings, ctx, at);
         return;
     }
     warnings.push(Warning {
@@ -258,10 +297,41 @@ fn consume_nested_at_rule(
     skip_at_rule_rest(cursor, warnings, true);
 }
 
+/// How a block's nested style rules parse their selectors.
+#[derive(Clone, Copy)]
+enum Children {
+    /// Relative to the block's rule (CSS Nesting 1 §2).
+    Nested,
+    /// Relative to the scoping root: `@scope`'s body (CSS Cascade 6
+    /// §2.5.2).
+    Scoped,
+}
+
+/// The body of an `@scope` rule (CSS Cascade 6 §2.5.2), from just
+/// inside its `{`: scoped style rules, and declarations that apply to
+/// the scoping root as `:where(:scope)` (zero specificity).
+pub(crate) fn consume_scope_body(
+    cursor: &mut Cursor,
+    sheet: &mut Stylesheet,
+    warnings: &mut Vec<Warning>,
+    ctx: RuleContext,
+) {
+    let root = StyleSelector::parse_scoped("&").expect("`&` parses as a scoped selector");
+    let block = Block {
+        selector: &root,
+        ctx,
+        root_vars: false,
+        children: Children::Scoped,
+    };
+    consume_block_contents(cursor, sheet, warnings, block, false);
+}
+
 /// The at-rules a style rule's block evaluates (CSS Nesting 1 §3.2).
 /// The conditional group rules join here when they land (C14).
 fn is_evaluated_nested_at_rule(name: &str) -> bool {
-    name.eq_ignore_ascii_case("layer")
+    ["layer", "scope"]
+        .iter()
+        .any(|n| name.eq_ignore_ascii_case(n))
 }
 
 /// Does the block item at the start of `rest` parse as a declaration?

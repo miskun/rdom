@@ -6,6 +6,7 @@
 //! Text/Comment/Fragment nodes have no `TuiExt` and get skipped
 //! structurally (their element children are still visited).
 
+use std::cmp::Reverse;
 use std::rc::Rc;
 
 use rdom_core::{Dom, NodeId, NodeType};
@@ -19,6 +20,7 @@ use super::content::resolve_content_on;
 pub(super) use super::counters::CounterState;
 use super::inherit::{inherit_inheritable_from, layout_differs};
 use super::ladder::{Declarations, apply_cascade_ladder};
+use super::scope::match_rule;
 pub(super) use super::sheets::Sheets;
 
 /// Merge `root_vars` across all registered sheets into a single
@@ -359,20 +361,27 @@ fn compute_element_style(
     // (specificity, sheet_idx, source_idx) — later sheets win
     // same-specificity contests just like later rules in a single
     // sheet do.
-    let mut matching: Vec<(usize, &Rule)> = Vec::new();
+    // Sorted by specificity, scope proximity (nearer wins, CSS Cascade
+    // 6 §6.1), then order of appearance.
+    let mut matching: Vec<(usize, u32, &Rule)> = Vec::new();
     let mut candidates = Vec::new();
     for (sheet_idx, sheet) in sheets.iter().enumerate() {
         candidate_rules(dom, id, sheet, &mut candidates);
         for &ri in &candidates {
             let rule = &sheet.rules()[ri as usize];
-            if rule.pseudo == PseudoElementTarget::None && dom.matches_list(id, &rule.selector) {
-                matching.push((sheet_idx, rule));
+            if rule.pseudo == PseudoElementTarget::None
+                && let Some(proximity) = match_rule(dom, id, sheet, rule)
+            {
+                matching.push((sheet_idx, proximity, rule));
             }
         }
     }
-    matching.sort_by_key(|(sheet_idx, r)| (r.specificity, *sheet_idx, r.source_idx));
-    let sorted: Vec<&Rule> = matching.iter().map(|(_, r)| *r).collect();
-    let (ranks, plan) = sheets.plan_for(&matching);
+    matching.sort_by_key(|(sheet_idx, proximity, r)| {
+        (r.specificity, Reverse(*proximity), *sheet_idx, r.source_idx)
+    });
+    let sorted: Vec<&Rule> = matching.iter().map(|(_, _, r)| *r).collect();
+    let by_sheet: Vec<(usize, &Rule)> = matching.iter().map(|(s, _, r)| (*s, *r)).collect();
+    let (ranks, plan) = sheets.plan_for(&by_sheet);
 
     // Inline style on this element (may be empty).
     let inline = dom.node(id).ext().and_then(|e| e.inline_style.as_deref());
@@ -483,22 +492,30 @@ fn compute_pseudo_style_layered(
 
     // Collect matching rules for this pseudo across all sheets, with
     // sheet_idx as the secondary tiebreaker.
-    let mut matching: Vec<(usize, usize, &Rule)> = Vec::new();
+    let mut matching: Vec<(usize, u32, usize, &Rule)> = Vec::new();
     let mut candidates = Vec::new();
     for (sheet_idx, sheet) in sheets.iter().enumerate() {
         candidate_rules(dom, id, sheet, &mut candidates);
         for &ri in &candidates {
             let rule = &sheet.rules()[ri as usize];
             if let Some(rank) = targets.iter().position(|t| *t == rule.pseudo)
-                && dom.matches_list(id, &rule.selector)
+                && let Some(proximity) = match_rule(dom, id, sheet, rule)
             {
-                matching.push((rank, sheet_idx, rule));
+                matching.push((rank, proximity, sheet_idx, rule));
             }
         }
     }
-    matching.sort_by_key(|(rank, sheet_idx, r)| (r.specificity, *rank, *sheet_idx, r.source_idx));
-    let sorted: Vec<&Rule> = matching.iter().map(|(_, _, r)| *r).collect();
-    let by_sheet: Vec<(usize, &Rule)> = matching.iter().map(|(_, s, r)| (*s, *r)).collect();
+    matching.sort_by_key(|(rank, proximity, sheet_idx, r)| {
+        (
+            r.specificity,
+            Reverse(*proximity),
+            *rank,
+            *sheet_idx,
+            r.source_idx,
+        )
+    });
+    let sorted: Vec<&Rule> = matching.iter().map(|(_, _, _, r)| *r).collect();
+    let by_sheet: Vec<(usize, &Rule)> = matching.iter().map(|(_, _, s, r)| (*s, *r)).collect();
     let (ranks, plan) = sheets.plan_for(&by_sheet);
 
     // Pseudo-elements don't have their own inline_style on `TuiExt`.

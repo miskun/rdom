@@ -259,6 +259,12 @@ pub enum PseudoClass {
     /// `:optional` — an `<input>`, `<select>` or `<textarea>` that is
     /// not `:required`.
     Optional,
+    /// `:scope` (Selectors 4 §14.3) — the scoping root: an `@scope`
+    /// rule's root (CSS Cascade 6 §2.5) when matched through
+    /// [`Dom::matches_list_in_scope`](crate::Dom::matches_list_in_scope),
+    /// else `:root`. A nesting selector `&` with no parent rule is
+    /// `:scope` too (CSS Nesting 1 §2).
+    Scope,
 }
 
 // ─── Error ───────────────────────────────────────────────────────────
@@ -283,5 +289,5 @@ mod parser;
 #[cfg(test)]
 mod tests;
 
-pub use nesting::parse_nested;
+pub use nesting::{parse_nested, parse_scoped};
 pub use parser::parse;

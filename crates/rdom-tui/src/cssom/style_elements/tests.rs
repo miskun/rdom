@@ -220,3 +220,25 @@ fn holds_style_searches_a_deep_chain_without_recursing() {
     dom.append_child(without, s).unwrap();
     assert!(super::holds_style(&dom, without));
 }
+
+/// CSS Cascade 6 §2.5.1: a prelude-less `@scope` in a `<style>` element
+/// scopes to the element's parent — the sheet's owner node is the
+/// `<style>` element.
+#[test]
+fn a_prelude_less_scope_roots_at_the_style_elements_parent() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let section = dom.create_element("section");
+    let inside = dom.create_element("p");
+    let outside = dom.create_element("p");
+    let s = style(&mut dom, "@scope { p { color: red; } }");
+    dom.append_child(section, s).unwrap();
+    dom.append_child(section, inside).unwrap();
+    dom.append_child(root, section).unwrap();
+    dom.append_child(root, outside).unwrap();
+    let terminal = Terminal::new(TestBackend::new(10, 3)).unwrap();
+    let mut app = App::with_backend(dom, Stylesheet::bare(), terminal).unwrap();
+    app.advance(0).unwrap();
+    assert_eq!(fg(&app, inside), RED);
+    assert_ne!(fg(&app, outside), RED);
+}

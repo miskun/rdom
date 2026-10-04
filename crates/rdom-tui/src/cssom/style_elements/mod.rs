@@ -93,7 +93,10 @@ impl StyleElements {
                 .map(|at| previous.swap_remove(at));
             let entry = reused.unwrap_or_else(|| {
                 reparsed = true;
-                let parsed = rdom_css::parse(&source);
+                let mut parsed = rdom_css::parse(&source);
+                // CSSOM `ownerNode`: a prelude-less `@scope` roots at its
+                // parent (CSS Cascade 6 §2.5.1).
+                parsed.stylesheet.set_owner_node(Some(element));
                 StyleSheetEntry {
                     element,
                     source,

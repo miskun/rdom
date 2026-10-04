@@ -4,7 +4,7 @@
 //! - a qualified rule is a style rule, `<prelude> { <block> }`
 //!   (`block.rs`, which also parses the rules nested in its block);
 //! - `@layer` is evaluated (`layer.rs`); its block form parses a nested
-//!   list of rules into the layer;
+//!   list of rules into the layer; `@scope` is evaluated (`scope.rs`);
 //! - any other at-rule (`@name …`) is consumed whole — statement form
 //!   through `;`, block form through a depth-tracked `{…}` — and
 //!   reported as `UnsupportedAtRule`;
@@ -16,9 +16,9 @@
 //! `@media {…}` were read as the *next* rule's selector text and
 //! swallowed that rule.
 
-use rdom_style::{LayerId, Stylesheet};
+use rdom_style::{LayerId, RuleContext, Stylesheet};
 
-use crate::block::{Context, consume_style_rule};
+use crate::block::{Context, Parent, consume_style_rule};
 use crate::{Warning, WarningKind};
 use rdom_style::parse::Cursor;
 
@@ -60,8 +60,8 @@ pub(crate) fn parse_rule_list(
             Some('@') => consume_at_rule(cursor, sheet, warnings, layer),
             Some(_) => {
                 let ctx = Context {
-                    layer,
-                    parent: None,
+                    rule: RuleContext::default().in_layer(layer),
+                    parent: Parent::Top,
                 };
                 if !consume_style_rule(cursor, sheet, warnings, ctx) {
                     return;
@@ -97,6 +97,14 @@ fn consume_at_rule(
             parse_rule_list(cursor, sheet, warnings, layer, true);
         };
         crate::layer::consume_layer_rule(cursor, sheet, warnings, layer, (line, column), &mut body);
+        return;
+    }
+    if name.eq_ignore_ascii_case("scope") {
+        let ctx = Context {
+            rule: RuleContext::default().in_layer(layer),
+            parent: Parent::Top,
+        };
+        crate::scope::consume_scope_rule(cursor, sheet, warnings, ctx, (line, column));
         return;
     }
     warnings.push(Warning {

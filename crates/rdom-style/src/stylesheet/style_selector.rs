@@ -11,7 +11,7 @@
 use rdom_core::selectors::{self, ComplexSelector, SelectorList};
 
 use super::selector_text::{extract_pseudo_suffix, split_top_level_commas};
-use super::{LayerId, PseudoElementTarget, Rule, RuleOrigin, StyleError, Stylesheet};
+use super::{LayerId, PseudoElementTarget, Rule, RuleOrigin, ScopeId, StyleError, Stylesheet};
 use crate::{Specificity, TuiStyle};
 
 /// A style rule's parsed selector list.
@@ -32,14 +32,21 @@ struct Item {
 impl StyleSelector {
     /// Parse a top-level rule's selector list.
     pub fn parse(text: &str) -> Result<Self, StyleError> {
-        Self::parse_in(text, None)
+        Self::parse_in(text, Mode::Top)
+    }
+
+    /// Parse the selector list of a scoped style rule — one directly in
+    /// `@scope` (CSS Cascade 6 §2.5.2): relative to `:where(:scope)`,
+    /// `&` is `:where(:scope)`.
+    pub fn parse_scoped(text: &str) -> Result<Self, StyleError> {
+        Self::parse_in(text, Mode::Scoped)
     }
 
     /// Parse the selector list of a rule nested in a rule whose
     /// selector is `parent` (CSS Nesting 1 §2): `&` is the parent's
     /// elements, and a selector without `&` is relative to them.
     pub fn parse_nested(text: &str, parent: &StyleSelector) -> Result<Self, StyleError> {
-        Self::parse_in(text, Some(&parent.nesting_list()))
+        Self::parse_in(text, Mode::Nested(&parent.nesting_list()))
     }
 
     /// The list `&` stands for in a rule nested in this one: the items
@@ -55,7 +62,7 @@ impl StyleSelector {
         )
     }
 
-    fn parse_in(text: &str, nest: Option<&SelectorList>) -> Result<Self, StyleError> {
+    fn parse_in(text: &str, mode: Mode<'_>) -> Result<Self, StyleError> {
         let error = |msg: String| StyleError {
             msg,
             pos: None,
@@ -74,16 +81,17 @@ impl StyleSelector {
             // A nested `::before` is relative: `& ::before`, i.e.
             // `& *::before`.
             let owned;
-            let source = if nest.is_some() && trimmed.starts_with("::") {
+            let source = if !matches!(mode, Mode::Top) && trimmed.starts_with("::") {
                 owned = format!("*{trimmed}");
                 owned.as_str()
             } else {
                 trimmed
             };
             let (core, pseudo) = extract_pseudo_suffix(source).map_err(error)?;
-            let parsed = match nest {
-                Some(parent) => selectors::parse_nested(core, parent),
-                None => selectors::parse(core),
+            let parsed = match mode {
+                Mode::Top => selectors::parse(core),
+                Mode::Nested(parent) => selectors::parse_nested(core, parent),
+                Mode::Scoped => selectors::parse_scoped(core),
             }
             .map_err(|e| StyleError::from((text, e)))?;
             for complex in parsed.0 {
@@ -98,18 +106,44 @@ impl StyleSelector {
     }
 }
 
+/// What a selector is relative to.
+#[derive(Clone, Copy)]
+enum Mode<'a> {
+    Top,
+    Nested(&'a SelectorList),
+    Scoped,
+}
+
+/// Where an author style rule sits: its cascade layer and `@scope`.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct RuleContext {
+    /// The cascade layer (`None`: unlayered).
+    pub layer: Option<LayerId>,
+    /// The innermost `@scope` (`None`: unscoped).
+    pub scope: Option<ScopeId>,
+}
+
+impl RuleContext {
+    /// In cascade layer `layer`.
+    pub fn in_layer(self, layer: Option<LayerId>) -> Self {
+        RuleContext { layer, ..self }
+    }
+
+    /// In `@scope` `scope`.
+    pub fn in_scope(self, scope: Option<ScopeId>) -> Self {
+        RuleContext { scope, ..self }
+    }
+}
+
 impl Stylesheet {
     /// Add an author style rule for a parsed selector (one [`Rule`] per
-    /// item) in `layer` (`None`: unlayered).
-    pub fn add_style_rule(
-        &mut self,
-        selector: &StyleSelector,
-        style: TuiStyle,
-        layer: Option<LayerId>,
-    ) {
+    /// item) at `ctx`'s layer and scope.
+    pub fn add_style_rule(&mut self, selector: &StyleSelector, style: TuiStyle, ctx: RuleContext) {
         let mut rules = self.rules_for(selector, style, RuleOrigin::Author);
         for rule in &mut rules {
-            rule.layer = layer;
+            rule.layer = ctx.layer;
+            rule.scope = ctx.scope;
         }
         self.push_rules(rules);
     }
@@ -145,6 +179,7 @@ impl Stylesheet {
                     source_idx,
                     source_text: item.text.clone(),
                     layer: None,
+                    scope: None,
                 }
             })
             .collect()

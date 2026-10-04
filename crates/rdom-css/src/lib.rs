@@ -19,6 +19,7 @@ use rdom_style::{Stylesheet, TuiStyle};
 mod block;
 mod declarations;
 mod layer;
+mod scope;
 mod top_level;
 
 /// The single `name → (setter, serializer)` table both this crate

@@ -27,6 +27,8 @@ pub(super) struct Parser<'a> {
     /// Whether the complex selector being parsed used `&` (anywhere,
     /// pseudo-class arguments included).
     pub(super) nest_seen: bool,
+    /// Whether it used `:scope` (likewise).
+    pub(super) scope_seen: bool,
 }
 
 impl<'a> Parser<'a> {
@@ -37,6 +39,7 @@ impl<'a> Parser<'a> {
             pos: 0,
             nest,
             nest_seen: false,
+            scope_seen: false,
         }
     }
 
@@ -233,14 +236,14 @@ impl<'a> Parser<'a> {
 
     /// `&` (CSS Nesting 1 §2): the parent rule's selector list, as
     /// `:is()` — matching any of its items, with the specificity of
-    /// the most specific.
+    /// the most specific; with no parent rule, `:scope`.
     fn parse_nesting_selector(&mut self) -> Result<SimpleSelector, ParseError> {
-        let Some(parent) = self.nest else {
-            return Err(self.err("`&` outside a nested style rule".to_string()));
-        };
         self.pos += 1;
         self.nest_seen = true;
-        Ok(SimpleSelector::Is(Box::new(parent.clone())))
+        Ok(match self.nest {
+            Some(parent) => SimpleSelector::Is(Box::new(parent.clone())),
+            None => SimpleSelector::Pseudo(PseudoClass::Scope),
+        })
     }
 
     fn parse_attribute(&mut self) -> Result<SimpleSelector, ParseError> {
@@ -352,6 +355,10 @@ impl<'a> Parser<'a> {
             "only-child" => Ok(SimpleSelector::Pseudo(PseudoClass::OnlyChild)),
             "empty" => Ok(SimpleSelector::Pseudo(PseudoClass::Empty)),
             "root" => Ok(SimpleSelector::Pseudo(PseudoClass::Root)),
+            "scope" => {
+                self.scope_seen = true;
+                Ok(SimpleSelector::Pseudo(PseudoClass::Scope))
+            }
             "hover" => Ok(SimpleSelector::Pseudo(PseudoClass::Hover)),
             "active" => Ok(SimpleSelector::Pseudo(PseudoClass::Active)),
             "focus" => Ok(SimpleSelector::Pseudo(PseudoClass::Focus)),

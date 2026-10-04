@@ -21,7 +21,8 @@
 
 use super::parser::Parser;
 use super::{
-    Combinator, ComplexSelector, CompoundSelector, ParseError, SelectorList, SimpleSelector,
+    Combinator, ComplexSelector, CompoundSelector, ParseError, PseudoClass, SelectorList,
+    SimpleSelector,
 };
 
 /// Parse `input` as the selector of a style rule nested in a rule whose
@@ -29,6 +30,37 @@ use super::{
 /// no pseudo-element items — `&` cannot represent pseudo-elements; an
 /// empty `parent` makes `&` match nothing.
 pub fn parse_nested(input: &str, parent: &SelectorList) -> Result<SelectorList, ParseError> {
+    parse_relative(input, parent, false)
+}
+
+/// Parse `input` as the selector of a scoped style rule — a style rule
+/// directly in `@scope` (CSS Cascade 6 §2.5.2): relative to `:scope`
+/// as `:where(:scope)`, so the implied anchor adds no specificity; `&`
+/// is `:where(:scope)` too; a selector holding `:scope` or `&` (and not
+/// starting with a combinator) is absolute.
+pub fn parse_scoped(input: &str) -> Result<SelectorList, ParseError> {
+    let scope = SelectorList(vec![ComplexSelector {
+        subject: CompoundSelector {
+            simples: vec![SimpleSelector::Pseudo(PseudoClass::Scope)],
+        },
+        ancestors: Vec::new(),
+    }]);
+    let where_scope = SelectorList(vec![ComplexSelector {
+        subject: CompoundSelector {
+            simples: vec![SimpleSelector::Where(Box::new(scope))],
+        },
+        ancestors: Vec::new(),
+    }]);
+    parse_relative(input, &where_scope, true)
+}
+
+/// A relative selector list anchored at `parent`; `scope_anchors`:
+/// `:scope` makes a selector absolute, as `&` does.
+fn parse_relative(
+    input: &str,
+    parent: &SelectorList,
+    scope_anchors: bool,
+) -> Result<SelectorList, ParseError> {
     let mut p = Parser::new(input, Some(parent));
     let mut items = Vec::new();
     loop {
@@ -44,8 +76,10 @@ pub fn parse_nested(input: &str, parent: &SelectorList) -> Result<SelectorList, 
             p.skip_ws();
         }
         p.nest_seen = false;
+        p.scope_seen = false;
         let mut complex = p.parse_complex_selector()?;
-        match (leading, p.nest_seen) {
+        let absolute = p.nest_seen || (scope_anchors && p.scope_seen);
+        match (leading, absolute) {
             (Some(combinator), _) => anchor(&mut complex, combinator, parent),
             (None, false) => anchor(&mut complex, Combinator::Descendant, parent),
             (None, true) => {}

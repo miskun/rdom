@@ -95,12 +95,14 @@ impl Stylesheet {
             };
             map.push(id);
         }
+        let scopes = self.append_scopes(other);
         let rules: Vec<Rule> = other
             .rules
             .iter()
             .map(|rule| {
                 let mut rule = rule.clone();
                 rule.layer = rule.layer.map(|l| map[l.index()]);
+                rule.scope = rule.scope.map(|s| scopes[s.index()]);
                 rule.source_idx = self.next_source_idx;
                 self.next_source_idx += 1;
                 rule

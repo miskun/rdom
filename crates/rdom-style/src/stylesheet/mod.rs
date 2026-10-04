@@ -45,6 +45,7 @@ use crate::{Specificity, TuiStyle};
 
 mod index;
 mod layers;
+mod scopes;
 mod selector_text;
 mod style_selector;
 #[cfg(test)]
@@ -52,7 +53,8 @@ mod tests;
 
 pub use index::RuleIndex;
 pub use layers::{Layer, LayerId, LayerOrder};
-pub use style_selector::StyleSelector;
+pub use scopes::{Scope, ScopeId};
+pub use style_selector::{RuleContext, StyleSelector};
 
 /// Which pseudo-element a rule targets. `None` = the host element itself.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -161,6 +163,9 @@ pub struct Rule {
     /// §6.4), as declared in its own sheet; `None` for an unlayered
     /// rule (and every UA rule).
     pub layer: Option<LayerId>,
+    /// The innermost `@scope` the rule sits in (CSS Cascade 6 §2.5), as
+    /// declared in its own sheet; `None` for an unscoped rule.
+    pub scope: Option<ScopeId>,
 }
 
 /// Error produced while parsing a stylesheet rule.
@@ -219,6 +224,10 @@ pub struct Stylesheet {
     /// Declared cascade layers, in order of first declaration
     /// (`layers.rs`).
     layers: Vec<Layer>,
+    /// Declared `@scope` rules, in source order (`scopes.rs`).
+    scopes: Vec<Scope>,
+    /// CSSOM `ownerNode`: the `<style>` element the sheet came from.
+    owner_node: Option<rdom_core::NodeId>,
 }
 
 impl Stylesheet {

@@ -69,7 +69,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 
 | Module | Supported | Partial | Missing | N/A | Total |
 |---|---:|---:|---:|---:|---:|
-| 3.1 Syntax, cascade and inheritance (Syntax 3, Cascade 4/5, CSS 2.1 §6) | 17 | 0 | 2 | 2 | 21 |
+| 3.1 Syntax, cascade and inheritance (Syntax 3, Cascade 4/5, CSS 2.1 §6) | 18 | 0 | 1 | 2 | 21 |
 | 3.2 Custom properties (CSS Variables 1) | 2 | 1 | 3 | 1 | 7 |
 | 3.3 Values and units (Values 4) | 5 | 5 | 8 | 4 | 22 |
 | 3.4 Color (Color 4 / 5) | 3 | 3 | 9 | 2 | 17 |
@@ -85,7 +85,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.14 Fonts (Fonts 4) | 0 | 2 | 1 | 2 | 5 |
 | 3.15 Lists, counters and generated content (Lists 3, Generated Content 3, Counter Styles 3, Pseudo-Elements 4) | 1 | 3 | 6 | 2 | 12 |
 | 3.16 Pseudo-elements (Pseudo-Elements 4, Selectors 4) | 4 | 1 | 5 | 6 | 16 |
-| 3.17 Selectors (Selectors 4) | 15 | 1 | 17 | 5 | 38 |
+| 3.17 Selectors (Selectors 4) | 15 | 2 | 16 | 5 | 38 |
 | 3.18 Transitions and animations (Transitions 1/2, Animations 1/2, Easing 1/2) | 3 | 3 | 4 | 0 | 10 |
 | 3.19 User interface (UI 4) | 2 | 1 | 8 | 1 | 12 |
 | 3.20 Tables (Tables 3, CSS 2.1 §17) | 0 | 0 | 4 | 0 | 4 |
@@ -93,7 +93,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 0 | 0 | 6 | 3 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **60** | **43** | **154** | **50** | **307** |
+| **Total** | **61** | **44** | **152** | **50** | **307** |
 
 Of the 205 Partial / Missing rows, **133 are not documented** in `DIVERGENCES.md` (6 of them because the document states the opposite of the code) — see §5 and §6.
 
@@ -233,7 +233,7 @@ dropped:
 | `all` | Supported | Takes a CSS-wide keyword and sets every property of the dispatch table (`unset` resolved per property); `direction` / `unicode-bidi` (when they land) and custom properties excluded; driven by `PROPERTY_NAMES`, so a new property is covered without touching `all` (C1-ALL). | — | `DISP/table.rs` |
 | `@layer` | Supported | Statement and block forms, anonymous layers, `a.b` / nested sublayers, order by first declaration; unlayered beats layered for normal declarations, reversed for `!important`; one layer order across all the sheets of a cascade (C1-LAYER). | — | `rdom-css/src/layer.rs`, `rdom-style/src/stylesheet/layers.rs`, `CASC/ladder.rs` |
 | `@import` | Missing | Load another sheet through a host-provided loader; media / supports / layer conditions. | Blanket | `AT` |
-| `@scope` | Missing | Scoped style rules with an optional lower bound. | Blanket | `AT`, `SEL` |
+| `@scope` | Supported | `@scope [(start)] [to (end)] { … }`: roots and limits (limit subtrees out of scope), scoped rules relative to `:where(:scope)`, `&` = `:where(:scope)`, `:scope`, declarations on the root at zero specificity, prelude-less `@scope` rooted at the owner `<style>`'s parent (`Stylesheet::owner_node`), nesting in style rules and other `@scope`s, scope proximity sorted between specificity and order of appearance (Cascade 6 §6.1) (C1-SCOPE). | — | `rdom-css/src/scope.rs`, `rdom-style/src/stylesheet/scopes.rs`, `CASC/scope.rs` |
 | `@charset` | N/A | Sources are Rust `&str` (already UTF-8); consumed harmlessly. | — | `AT` |
 | `@namespace` | N/A | No XML namespaces (documented). | — | — |
 | CSS Nesting (`&`, nested rules) | Supported | Nested style rules, `&` anywhere (`&.x`, `.x &`, `:not(&)`), implicit descendant combinator, relative selectors (`> p`, `+ p`, `~ p`), declarations interleaved with nested rules (nested declarations rules, in order), nested `@layer`; `&` is `:is(<parent>)` for matching and specificity (`SimpleSelector::Is`; the `:is()` text is C11-IS). Nested `@media` / `@supports` / `@container` arrive with C14 (C1-NESTING). | — | `rdom-css/src/block.rs`, `SEL/nesting.rs`, `rdom-style/src/stylesheet/style_selector.rs` |
@@ -525,7 +525,7 @@ dropped:
 | `:first-of-type` / `:last-of-type` / `:only-of-type` | Missing | — | No | `SEL` |
 | `:empty` | Supported | — | — | `SEL` |
 | `:root` | Supported | — | — | `SEL` |
-| `:scope` | Missing | Scoping root for `query_selector_in` / `@scope`. | No | `SEL`, `rdom-core/src/query_selector.rs` |
+| `:scope` | Partial | Matches the `@scope` root (`Dom::matches_list_in_scope`), `:root` outside one; the query APIs do not set it to their root yet (C11-SCOPE). | Yes | `SEL`, `rdom-core/src/query_selector.rs` |
 | `:hover` / `:active` / `:focus` / `:focus-within` / `:focus-visible` | Supported | Primary-button `:active` (documented). | Yes | `SEL` |
 | `:checked` | Supported | Attribute-reflected (documented). | Yes | `SEL` |
 | `:indeterminate` | Partial | `<progress>` without `value` only; indeterminate checkboxes / radio groups never match. | No | `SEL` |
@@ -815,7 +815,7 @@ implementation or a `DIVERGENCES.md` entry before the acid page's coverage test 
 
 - Column combinator `\|\|` — Missing: Cells of a `<col>`; low priority.
 - `:first-of-type` / `:last-of-type` / `:only-of-type` — Missing: —
-- `:scope` — Missing: Scoping root for `query_selector_in` / `@scope`.
+- `:scope` — Partial: matches the `@scope` root; the query APIs do not set it yet (C11-SCOPE).
 - `:indeterminate` — Partial: `<progress>` without `value` only; indeterminate checkboxes / radio groups never match.
 - `:in-range` / `:out-of-range` — Missing: Number / range inputs exist.
 - `:default` — Missing: Default submit button, default-checked controls / options.

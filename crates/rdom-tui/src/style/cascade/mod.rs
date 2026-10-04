@@ -12,8 +12,9 @@
 //! 2. Inherit the inherited properties (`rdom_style::property_dispatch::inherits`) from the parent
 //!    (`inherit`).
 //! 3. Collect matching rules via `rdom_core::Dom::matches_list`.
-//! 4. Sort candidates by (specificity, source_idx). Ascending =
-//!    late-wins.
+//! 4. Sort candidates by (specificity, scope proximity, sheet,
+//!    source_idx) — nearer `@scope` roots win after specificity
+//!    (Cascade 6 §6.1). Ascending = late-wins.
 //! 5. Apply declarations in origin + importance order (`ladder`):
 //!    1. UA normal, Author normal (per layer), Inline normal,
 //!    2. Author important (layers reversed), Inline important, UA
@@ -43,6 +44,7 @@
 //!   rollback states `revert` / `revert-layer` read.
 //! - `sheets` — the sheets of one run and their shared cascade-layer
 //!   order.
+//! - `scope` — `@scope` matching and scope proximity (Cascade 6).
 //! - `custom` — custom properties through the ladder.
 //! - `apply` — per-property applicators.
 //! - `inherit` — `inherit_inheritable_from`, `layout_differs`.
@@ -62,6 +64,7 @@ mod counters;
 mod custom;
 mod inherit;
 mod ladder;
+mod scope;
 mod sheets;
 mod walk;
 
@@ -73,6 +76,8 @@ mod css_wide_tests;
 mod layer_tests;
 #[cfg(test)]
 mod nesting_tests;
+#[cfg(test)]
+mod scope_tests;
 #[cfg(test)]
 mod tests;
 

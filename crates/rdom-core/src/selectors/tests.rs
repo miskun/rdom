@@ -312,11 +312,43 @@ fn nesting_selector_in_any_position() {
     assert_eq!(not.0[0].specificity(), (0, 1, 0));
 }
 
-/// `&` is only valid in a nested rule; `&div` is invalid (a type
-/// selector must start a compound).
+/// `&div` is invalid: a type selector must start a compound.
 #[test]
 fn nesting_selector_errors() {
-    assert!(parse("&").is_err());
+    assert!(parse("&div").is_err());
     assert!(parse_nested("&div", &parse(".a").unwrap()).is_err());
 }
 
+// ── `:scope` and scoped selectors (Selectors 4 §14.3, Cascade 6 §2.5.2) ──
+
+/// `:scope` parses as a pseudo-class with pseudo-class specificity;
+/// outside a nested rule `&` is `:scope` (CSS Nesting 1 §2).
+#[test]
+fn scope_pseudo_class_parses() {
+    let list = parse(":scope > p").unwrap();
+    assert_eq!(list.0[0].specificity(), (0, 1, 1));
+    assert_eq!(parse("&").unwrap(), parse(":scope").unwrap());
+}
+
+/// Cascade 6 §2.5.2: a scoped rule's selector is relative to
+/// `:where(:scope)` (zero specificity) unless it holds `:scope` or `&`
+/// (itself `:where(:scope)`) or starts with a combinator.
+#[test]
+fn scoped_selectors_are_relative_to_where_scope() {
+    let where_scope = parse(":where(:scope)").unwrap();
+    let p = parse_scoped("p").unwrap();
+    assert_eq!(p.0[0].specificity(), (0, 0, 1));
+    assert_eq!(p.0[0].ancestors.len(), 1);
+    assert_eq!(p.0[0].ancestors[0].0, Combinator::Descendant);
+    assert_eq!(p.0[0].ancestors[0].1, where_scope.0[0].subject);
+    let child = parse_scoped("> p").unwrap();
+    assert_eq!(child.0[0].ancestors[0].0, Combinator::Child);
+    assert_eq!(
+        parse_scoped(":scope > p").unwrap(),
+        parse(":scope > p").unwrap()
+    );
+    assert_eq!(
+        parse_scoped("& > p").unwrap(),
+        parse(":where(:scope) > p").unwrap()
+    );
+}

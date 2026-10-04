@@ -83,7 +83,7 @@ fn segments(name: &[String]) -> Vec<&str> {
 
 /// The prelude up to (not including) `;` or `{`, comments removed and
 /// strings kept. `None` on an unterminated comment (warned).
-fn read_prelude(cursor: &mut Cursor, warnings: &mut Vec<Warning>) -> Option<String> {
+pub(crate) fn read_prelude(cursor: &mut Cursor, warnings: &mut Vec<Warning>) -> Option<String> {
     let mut out = String::new();
     loop {
         match cursor.peek() {

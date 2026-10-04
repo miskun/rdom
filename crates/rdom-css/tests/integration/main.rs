@@ -18,6 +18,7 @@ mod padding_shorthand;
 mod positioning;
 mod properties;
 mod round_trip;
+mod scope;
 mod selectors;
 mod strict;
 mod tokenizer;
