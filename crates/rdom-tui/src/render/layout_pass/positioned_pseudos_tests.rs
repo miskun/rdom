@@ -1,0 +1,68 @@
+//! Placement of positioned `::before` / `::after`: size and position.
+
+use crate::layout::LayoutRect;
+use crate::prelude::*;
+use crate::render::Rect;
+
+/// The `::after` box of a `.h` host styled by `css`, laid out in a
+/// 20 × 6 viewport.
+fn after_rect(css: &str) -> LayoutRect {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let h = dom.create_element("div");
+    dom.set_attribute(h, "class", "h").unwrap();
+    dom.append_child(root, h).unwrap();
+    let parsed = rdom_css::parse(css);
+    assert!(parsed.warnings.is_empty(), "{:?}", parsed.warnings);
+    dom.cascade(&parsed.stylesheet);
+    dom.layout_dom(Rect::new(0, 0, 20, 6));
+    dom.node(h)
+        .ext()
+        .unwrap()
+        .after_layout
+        .expect("a positioned ::after is placed")
+        .rect
+}
+
+const HOST: &str = ".h { position: relative; width: 10; height: 4 } ";
+
+/// CSS 2.1 §10.3.7 / §10.6.4: a positioned box's `width` / `height`,
+/// when not `auto`, are its size — a percentage of the containing
+/// block's — whatever its content; `left` / `top` then place it.
+#[test]
+fn a_positioned_pseudo_takes_its_declared_size() {
+    let r = after_rect(&format!(
+        "{HOST} .h::after {{ position: absolute; left: 1; top: 1; \
+         width: 4; height: 2; content: \"x\" }}"
+    ));
+    assert_eq!((r.x, r.y, r.width, r.height), (1, 1, 4, 2));
+    let r = after_rect(&format!(
+        "{HOST} .h::after {{ position: absolute; right: 0; bottom: 0; \
+         width: 50%; height: 50%; content: \"x\" }}"
+    ));
+    assert_eq!(
+        (r.x, r.y, r.width, r.height),
+        (5, 2, 5, 2),
+        "percentages of the 10 × 4 containing block, placed from the far edges"
+    );
+}
+
+/// §10.3.7: with `width` set, `left` + `right` over-constrain the box —
+/// the width holds (`right` is ignored, ltr); `auto` still spans
+/// between the insets, and with one inset is the content's width.
+#[test]
+fn a_declared_width_wins_over_both_insets() {
+    let r = after_rect(&format!(
+        "{HOST} .h::after {{ position: absolute; left: 2; right: 2; top: 0; \
+         width: 3; content: \"x\" }}"
+    ));
+    assert_eq!((r.x, r.width), (2, 3));
+    let r = after_rect(&format!(
+        "{HOST} .h::after {{ position: absolute; left: 2; right: 2; top: 0; content: \"x\" }}"
+    ));
+    assert_eq!((r.x, r.width), (2, 6));
+    let r = after_rect(&format!(
+        "{HOST} .h::after {{ position: absolute; left: 2; top: 0; content: \"abc\" }}"
+    ));
+    assert_eq!((r.x, r.width, r.height), (2, 3, 1));
+}

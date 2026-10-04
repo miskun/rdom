@@ -867,3 +867,16 @@ row comes from.
   changed (no snapshot declares `min-*: auto`; the four tests that do are main-axis auto-min tests,
   unchanged); three cascade tests changed from `Some(MinSize::Cells(_))` to the variant. Breaking
   for rdom-style (CHANGELOG, migration hint).
+- 2026-10-05 — C3G-PSEUDO-SIZE (found by C3G-PSEUDO-TINT): `positioned_pseudos::compute_placed_rect`
+  sizes each axis with `positioning::resolve_size_axis` — the element path, now `pub(super)` and
+  documented as shared — so a positioned pseudo's declared `width` / `height` (cells, `%` of the
+  containing block, `calc()`, `Flex` as the extent) is its size; `auto` keeps the old rule (both
+  insets → the span, else the `content`'s size). `axis_size_from_edges` became private to
+  `positioning.rs`. CSS 2.1 §10.3.7 / §10.6.4: with `width` and both insets the box is
+  over-constrained and `right` is ignored (ltr) — `axis_position_anchored` already placed it from
+  `left`. Red: `left: 1; top: 1; width: 4; height: 2; content: "x"` was 1 × 1; `left: 2; right: 2;
+  width: 3` was 6 wide. Green: 4 × 2, `50%` / `50%` of a 10 × 4 block from the far edges is 5 × 2 at
+  (5, 2), and 3 wide; `auto` with both insets (6) and with one (content, 3 × 1) unchanged. Left as
+  found: a `position: relative` pseudo with both horizontal insets still derives its width from them
+  (relative positioning should only shift); `min-*` / `max-*` are not applied to positioned boxes,
+  element or pseudo (both pre-existing, unchanged here).

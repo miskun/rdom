@@ -455,11 +455,12 @@ fn compute_placed_rect(
     LayoutRect::new(x, y, width, height)
 }
 
-/// Resolve a `Size` against a basis (parent's matching-axis
-/// content dimension). Handles all `Size` variants including
-/// `Size::Calc`. For `Size::Auto`, falls back to deriving from
-/// the start/end edges when both are non-auto.
-fn resolve_size_axis(
+/// Resolve a positioned box's `Size` on one axis (CSS 2.1 §10.3.7 /
+/// §10.6.4) against the containing block's extent: a definite size is
+/// the size; `auto` spans between the start / end edges when both are
+/// non-auto, else is `shrink_to_fit` (the content's size). Shared by
+/// positioned elements and positioned pseudo-elements.
+pub(super) fn resolve_size_axis(
     size: &Size,
     cb_extent: u16,
     start: &Length,
@@ -490,12 +491,7 @@ fn resolve_size_axis(
 /// only resolves to `cb_extent - start - end` when both edges are
 /// specified; one-sided cases fall back to an intrinsic measure
 /// (caller passes `0` for elements, content width for pseudos).
-pub(super) fn axis_size_from_edges(
-    start: &Length,
-    end: &Length,
-    cb_extent: u16,
-    fallback: u16,
-) -> u16 {
+fn axis_size_from_edges(start: &Length, end: &Length, cb_extent: u16, fallback: u16) -> u16 {
     // Resolve both edges into Option<i32>. `Auto` → None, others
     // → Some(cells). When both are Some, derive size from the
     // extent minus both insets.

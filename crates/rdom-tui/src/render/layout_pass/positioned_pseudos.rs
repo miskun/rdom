@@ -15,10 +15,12 @@
 //!   — not from the inline-formatting cursor like the browser
 //!   does. Pseudos with `position: relative` are uncommon enough
 //!   that the simplified anchor is acceptable for 0.1.0.
-//! - **`Auto` width / height** fall back to the pseudo's intrinsic
-//!   `content` size (UAX#11 `UnicodeWidthStr`). CSS would solve
-//!   `width = cb_width - left - right` even when only one edge is
-//!   specified; rdom only does that when *both* edges are `Cells`.
+//! - **Size** follows CSS 2.1 §10.3.7 / §10.6.4 as for a positioned
+//!   element (`positioning::resolve_size_axis`): a declared `width` /
+//!   `height` (cells, a percentage of the containing block, `calc()`)
+//!   is the size; `auto` spans between both insets when both are set,
+//!   else is the `content`'s size (UAX#11 `UnicodeWidthStr`, one row
+//!   per line).
 
 use rdom_core::{Dom, NodeId, NodeType};
 use unicode_width::UnicodeWidthStr;
@@ -28,8 +30,8 @@ use crate::layout::{Display, LayoutRect, Position};
 use crate::style::ComputedStyle;
 
 use super::positioning::{
-    axis_position_anchored, axis_position_relative_shift, axis_size_from_edges, computed_position,
-    layout_rect, parent_id,
+    axis_position_anchored, axis_position_relative_shift, computed_position, layout_rect,
+    parent_id, resolve_size_axis,
 };
 
 pub(super) fn place_positioned_pseudos(dom: &mut Dom<TuiExt>, viewport: LayoutRect) {
@@ -240,8 +242,8 @@ fn pseudo_content_height(style: &ComputedStyle) -> u16 {
 }
 
 /// Compute the placed rect for a positioned pseudo. Width / height
-/// resolve via [`axis_size_from_edges`] with the pseudo's intrinsic
-/// content size as fallback. Position then routes through
+/// resolve via [`resolve_size_axis`] with the pseudo's intrinsic
+/// content size as the shrink-to-fit size. Position then routes through
 /// [`axis_position_anchored`] for absolute/fixed, or
 /// [`axis_position_relative_shift`] anchored at the host's edge for
 /// `Position::Relative` (see module docs for the natural-position
@@ -255,8 +257,25 @@ fn compute_placed_rect(
     let intrinsic_w = pseudo_content_width(style);
     let intrinsic_h = pseudo_content_height(style);
 
-    let width = axis_size_from_edges(&style.left, &style.right, cb.width, intrinsic_w);
-    let height = axis_size_from_edges(&style.top, &style.bottom, cb.height, intrinsic_h);
+    // CSS 2.1 §10.3.7 / §10.6.4, as for a positioned element: the
+    // declared size, else the span between both insets, else the
+    // content's size.
+    let width = resolve_size_axis(
+        &style.width,
+        cb.width,
+        &style.left,
+        &style.right,
+        cb.width,
+        || intrinsic_w,
+    );
+    let height = resolve_size_axis(
+        &style.height,
+        cb.height,
+        &style.top,
+        &style.bottom,
+        cb.height,
+        || intrinsic_h,
+    );
 
     if style.position == Position::Relative {
         // Relative pseudo: natural anchor is the host's start edge
@@ -282,3 +301,7 @@ fn compute_placed_rect(
         LayoutRect::new(x, y, width, height)
     }
 }
+
+#[cfg(test)]
+#[path = "positioned_pseudos_tests.rs"]
+mod tests;
