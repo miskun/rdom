@@ -28,6 +28,11 @@ pub fn serialize(name: &str, style: &TuiStyle) -> Option<String> {
         return style.custom_property_value(custom).map(str::to_string);
     }
     let name = &*canonical_property_name(name);
+    // A `var()` value is kept as written until the cascade (CSS
+    // Variables 1 §3).
+    if let Some(d) = style.pending.iter().find(|d| d.name == name && d.has_var) {
+        return Some(crate::parse::values::render_value(&d.value));
+    }
     if let Some(kw) = css_wide_of(name, style) {
         return Some(kw.to_string());
     }

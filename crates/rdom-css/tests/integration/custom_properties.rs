@@ -11,8 +11,6 @@
 //! divergence, see `DIVERGENCES.md`.
 
 use rdom_css::parse;
-use rdom_tui::style::Value;
-use rdom_tui::{Color, TuiColor};
 
 #[test]
 fn root_defines_single_var() {
@@ -38,25 +36,19 @@ fn root_var_with_named_color() {
 
 #[test]
 fn var_reference_after_root_definition() {
-    // Declaration order: vars first, then a rule that references
-    // them. The reference is parsed as TuiColor::Var; the cascade
-    // resolves it at compute time using the var map populated by
-    // the :root rule.
+    // The reference is kept as tokens (CSS Variables 1 §3); the
+    // cascade substitutes it per element.
     let r = parse(":root { --accent: #3d90ce; } button { color: var(--accent); }");
     assert!(r.warnings.is_empty(), "warnings: {:?}", r.warnings);
     assert_eq!(r.stylesheet.var("accent"), Some("#3d90ce"));
-    // The button rule references the var:
     let button_rule = r
         .stylesheet
         .rules()
         .iter()
         .find(|x| x.source_text == "button")
         .expect("button rule present");
-    let v = button_rule.style.fg.clone().expect("fg set");
-    match v {
-        Value::Specified(TuiColor::Var { name, .. }) => assert_eq!(name, "accent"),
-        other => panic!("expected Var, got {other:?}"),
-    }
+    assert!(button_rule.style.fg.is_none());
+    assert_eq!(button_rule.style.pending[0].name, "color");
 }
 
 #[test]
@@ -78,22 +70,12 @@ fn root_ignores_unknown_property() {
 }
 
 #[test]
-fn var_resolves_var_with_fallback_color() {
-    // The fallback chain is built by the parser; resolution
-    // happens at cascade time. Just confirm the parser builds
-    // the right structure.
+fn var_with_fallback_color_is_pending() {
     let r = parse("a { color: var(--missing, #ff0000); }");
-    let v = r.stylesheet.rules()[0].style.fg.clone().expect("fg");
-    match v {
-        Value::Specified(TuiColor::Var { name, fallback }) => {
-            assert_eq!(name, "missing");
-            assert_eq!(
-                fallback.as_deref(),
-                Some(&TuiColor::Literal(Color::Rgb(0xff, 0, 0)))
-            );
-        }
-        other => panic!("expected Var, got {other:?}"),
-    }
+    assert!(r.warnings.is_empty(), "{:?}", r.warnings);
+    let style = &r.stylesheet.rules()[0].style;
+    assert!(style.fg.is_none());
+    assert!(style.pending[0].has_var);
 }
 
 /// `CSS-VARS-SCOPE-1`: a custom property under any selector stays on

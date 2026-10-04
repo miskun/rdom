@@ -51,6 +51,7 @@ pub mod layout;
 pub mod parse;
 pub mod property_dispatch;
 pub mod transition;
+pub mod var;
 
 pub mod color;
 mod computed;
@@ -75,3 +76,4 @@ pub use transition::{AnimatableProperty, TimingFunction, TransitionProperty, Tra
 pub use tui_color::{TuiColor, parse_color, resolve_tui_color};
 pub use tui_style::{CustomDeclaration, ImportantMask, TuiStyle};
 pub use value::Value;
+pub use var::PendingDeclaration;

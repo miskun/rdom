@@ -348,8 +348,15 @@ pub fn remove(name: &str, style: &mut TuiStyle) -> bool {
     let Some(fields) = fields_of(name) else {
         return false;
     };
+    let pending = style.pending.len();
+    style.pending.retain(|d| d.name != name);
+    if !style.pending.iter().any(|d| d.has_var) {
+        style.pending.clear();
+    }
     // `|` not `||`: every field must be cleared, not just the first.
-    let was_set = fields.iter().fold(false, |acc, f| f.take(style) | acc);
+    let was_set = fields
+        .iter()
+        .fold(pending != style.pending.len(), |acc, f| f.take(style) | acc);
     style.important = style
         .important
         .without(property_mask(name).unwrap_or_default());

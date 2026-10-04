@@ -12,10 +12,10 @@
 //! also honor the `important_pass` / `important_prop` pairing so normal
 //! and important declarations apply in separate passes.
 
+use super::ladder::Declarations;
 use crate::layout::Display;
 use crate::style::{
-    Color, ComputedStyle, ImportantMask, Modifier, Rule, TuiColor, TuiStyle, Value,
-    resolve_tui_color,
+    Color, ComputedStyle, ImportantMask, Modifier, TuiColor, TuiStyle, Value, resolve_tui_color,
 };
 
 /// Where the CSS-wide keywords of one ladder pass take their values
@@ -82,14 +82,8 @@ pub(super) fn finalize_bfc_formation(working: &mut ComputedStyle) {
 
 /// If no declaration set `border_fg`, fall back to the working `fg`.
 /// Runs after the cascade ladder so `fg` is at its final value.
-pub(super) fn finalize_border_fg(
-    working: &mut ComputedStyle,
-    sorted_by_spec: &[&Rule],
-    inline: Option<&TuiStyle>,
-) {
-    let declared_in_rules = sorted_by_spec.iter().any(|r| r.style.border_fg.is_some());
-    let declared_inline = inline.is_some_and(|s| s.border_fg.is_some());
-    if !declared_in_rules && !declared_inline {
+pub(super) fn finalize_border_fg(working: &mut ComputedStyle, decls: Declarations<'_>) {
+    if !decls.all().any(|s| s.border_fg.is_some()) {
         working.border_fg = working.fg;
     }
 }

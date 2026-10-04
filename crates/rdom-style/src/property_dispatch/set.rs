@@ -31,11 +31,59 @@ pub fn set(name: &str, value: &str, style: &mut TuiStyle) -> Result<(), Dispatch
 /// Pre-tokenized variant of [`set`]. The block parser in
 /// `rdom-css` calls this to avoid re-tokenizing each declaration's
 /// value when the surrounding block was already tokenized.
+///
+/// A value containing `var()` (CSS Variables 1 §3) is checked for
+/// `var()` syntax only and kept as tokens on `style.pending`, for the
+/// cascade to substitute and parse per element; once a block holds one,
+/// later declarations are recorded there too so the cascade replays
+/// them in order.
 pub fn set_from_tokens(
     name: &str,
     value: &[Token],
     style: &mut TuiStyle,
 ) -> Result<(), DispatchError> {
+    if name.starts_with("--") {
+        return set_parsed(name, value, style);
+    }
+    let name = &*canonical_property_name(name);
+    if crate::var::contains_var(value) {
+        if super::table::fields_of(name).is_none() {
+            return Err(DispatchError::UnknownProperty);
+        }
+        if !crate::var::valid_var_syntax(value) {
+            return Err(DispatchError::InvalidValue);
+        }
+        style.pending.retain(|d| d.name != name);
+        style
+            .pending
+            .push(crate::var::PendingDeclaration::new(name, value, true));
+        return Ok(());
+    }
+    set_parsed(name, value, style)?;
+    if style.has_pending() {
+        style.pending.retain(|d| d.name != name);
+        if style.pending.iter().any(|d| d.has_var) {
+            style
+                .pending
+                .push(crate::var::PendingDeclaration::new(name, value, false));
+        } else {
+            style.pending.clear();
+        }
+    }
+    Ok(())
+}
+
+/// Set `name` to the CSS-wide `unset` — the value of a declaration
+/// invalid at computed-value time (CSS Variables 1 §3.1).
+pub fn set_unset(name: &str, style: &mut TuiStyle) {
+    let name = &*canonical_property_name(name);
+    // Every table name accepts a CSS-wide keyword.
+    let _ = set_css_wide(name, super::css_wide::CssWide::Unset, style);
+}
+
+/// Parse `value` with `name`'s own grammar and write it — no `var()`
+/// handling; the cascade calls this with substituted tokens.
+pub fn set_parsed(name: &str, value: &[Token], style: &mut TuiStyle) -> Result<(), DispatchError> {
     if let Some(custom) = name.strip_prefix("--") {
         // CSS Variables 1 §2: any `--*` name is valid and untyped;
         // the value is kept verbatim (no css-wide keyword handling

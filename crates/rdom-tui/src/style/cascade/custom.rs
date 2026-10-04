@@ -1,7 +1,8 @@
 //! Custom properties (CSS Variables 1 §2) through the cascade ladder:
 //! every matched `--*` declaration folds into the element's own map in
 //! ladder order, so a later or more important declaration of the same
-//! name wins, before any `var()` consumer runs.
+//! name wins, before any `var()` consumer runs; then their own `var()`s
+//! are substituted (`rdom_style::var`).
 
 use std::collections::HashMap;
 
@@ -18,13 +19,7 @@ pub(super) fn apply_custom_properties(
     plan: &Plan,
     decls: Declarations<'_>,
 ) {
-    let declares = decls
-        .sorted
-        .iter()
-        .any(|r| !r.style.custom_properties.is_empty())
-        || decls
-            .inline
-            .is_some_and(|s| !s.custom_properties.is_empty());
+    let declares = decls.all().any(|s| !s.custom_properties.is_empty());
     if !declares {
         return;
     }
@@ -38,6 +33,12 @@ pub(super) fn apply_custom_properties(
     for step in plan.steps() {
         put_step(map, step, decls, &inherited, &rollback);
     }
+    // CSS Variables 1 §3: a custom property's own `var()`s substitute
+    // here, where it is declared; descendants inherit the result.
+    let declared = decls
+        .all()
+        .flat_map(|s| s.custom_properties.iter().map(|d| d.name.as_str()));
+    rdom_style::var::resolve_custom_properties(map, declared);
 }
 
 /// One ladder step's custom-property declarations. CSS Variables 1 §2:

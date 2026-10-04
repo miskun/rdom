@@ -126,7 +126,15 @@ let sheet = Stylesheet::new()
         "unknown", TuiColor::Literal(Color::White))))?;
 ```
 
-`var()` references are tried in this order:
+In CSS text, `var()` works in every property (`padding: var(--gap)`,
+`content: var(--label)`, `color: rgb(var(--r), 0, 0)`): the cascade
+substitutes each `var()` from the element's custom properties — or its
+fallback, any tokens, itself substituted — and parses the result with
+the property's grammar; a failure makes the property `unset` (CSS
+Variables 1 §3). A custom property's own `var()`s substitute where it
+is declared, and a dependency cycle makes its members undefined.
+
+The builder's typed `TuiColor::Var` references are tried in this order:
 
 1. Look up the name in the element's custom-property map (its own
    `--*` declarations layered over the parent's, CSS Variables 1). If

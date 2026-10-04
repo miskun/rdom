@@ -57,7 +57,7 @@ parallel grammar.
 
 | Surface | Entry point | Notes |
 |---|---|---|
-| Standalone stylesheet string | `from_css(s)` / `parse(s)` / `parse_strict(s)` | Full rule list, custom-property declarations under any selector, `<color>` `var()` references. |
+| Standalone stylesheet string | `from_css(s)` / `parse(s)` / `parse_strict(s)` | Full rule list, custom-property declarations under any selector, `var()` in any property. |
 | `<style>…</style>` in a template | automatic under `rdom_tui::App` (live: re-parsed when the text changes, dropped when removed; warnings from `App::style_element_warnings`); `rdom_tui::extend_from_style_tags(&dom, &mut sheet)` for a snapshot without an `App` | Finds every `<style>` element, feeds its text content through `parse`. |
 | Inline `style="…"` attribute | `parse_inline(s)` / `parse_inline_strict(s)` | Declaration list (no selectors, no braces). Returns a `TuiStyle` and any warnings. Drives `style="…"` attribute writes via `rdom-tui`'s `StyleDeclaration` and the `InlineStyleObserver`. |
 
@@ -92,9 +92,10 @@ value       := token+
 - **Custom properties** — `--name: value;` under any selector (and in a
   `style` attribute) rides on the rule as `TuiStyle::custom_properties`;
   the cascade scopes it per element and inherits it. `:root` declarations
-  additionally populate the `Stylesheet::vars` map. `var()` is consumed in
-  `<color>` values only; `padding: var(--gap)` and `content: var(--x)`
-  are not shipped.
+  additionally populate the `Stylesheet::vars` map. `var()` works in every
+  property (CSS Variables 1 §3): a declaration holding it is kept as
+  tokens (`TuiStyle::pending`) and the cascade substitutes and parses it
+  per element, fallbacks with arbitrary tokens included.
 - **CSS Nesting** — style rules nest inside style rules
   (`.card { color: red; &:hover { … } > p { … } }`): `&` anywhere in a
   selector (`&.x`, `.x &`, `:not(&)`), an implicit descendant combinator

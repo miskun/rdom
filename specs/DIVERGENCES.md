@@ -91,7 +91,6 @@ Supported selector grammar: type, class, ID, attribute, descendant, child (`>`),
 - **`:where(<list>)`** matches like `:is()` (any complex selector in its list) but contributes **zero specificity** (Selectors L4) — the mechanism a component library uses to ship default styles that any author rule overrides. `:is()` (specificity = most-specific argument) is scheduled (C11-IS, §3).
 - **`::placeholder` is the host's `::before` box.** rdom paints an `<input>` / `<textarea>` placeholder as generated content (UA `:placeholder-shown::before { content: attr(placeholder) }`), so `::placeholder` rules (CSS Pseudo-Elements 4 §4.3) are layered onto that box while the control is `:placeholder-shown`; at equal specificity a `::placeholder` rule beats a `::before` one. The UA's muted color is a `::placeholder` rule. Only the `::first-line` properties rdom has apply — `color`, `background-color`, `font-weight`, `font-style`, `text-decoration`, `opacity`, custom properties — and any other declaration in a `::placeholder` rule is dropped when the rule is built (no warning). Observable difference from the web: an author `input::before` rule also styles the placeholder text, since it is the same box.
 - **`::scrollbar`, `::scrollbar-thumb`, `::scrollbar-thumb:vertical` / `:horizontal` are rdom pseudo-elements** modeled on WebKit's `::-webkit-scrollbar` / `::-webkit-scrollbar-thumb` / `:vertical` / `:horizontal`; there is no standard equivalent (CSS Scrollbars 1 has only `scrollbar-color` / `scrollbar-width`, scheduled as C8-SCROLLBAR). They style the gutter cells that `scrollbar-gutter` reserves; `content` is the cell glyph.
-- **`var()` is consumed in color positions only.** Custom properties themselves follow CSS Variables 1: any selector, per-element scope, inherited, `!important` honored, inline `style="--x: …"` included. But `padding: var(--gap)`, `content: var(--label)` and every other non-color property do not substitute; the declaration is invalid at parse time and warns. A `var()` fallback must itself be a color. (The Rust builder's `Content::Var` does resolve a custom property in `content`; CSS text cannot produce it.) Reason: rdom's property values are typed at parse time, and a general substitution pass (parse-time tokens → computed-time re-parse) is not built. Scheduled: C1-VAR-ANY (§3).
 - **`:blank` is not implemented, by decision.** Selectors 4 marks it at risk and its meaning has changed between drafts (first `:empty` ignoring whitespace, now an empty form control), so rdom does not add it until it is stable. It is rejected as an unsupported pseudo-class.
 - **`unset` is resolved at parse time** from the inherited-property table — an implementation detail with the same observable result as the web; see `DESIGN.md`.
 - **`z-index` accepts the `i16` range** (±32 767); larger integers are invalid and the declaration is dropped, where browsers accept any `<integer>` (C8-Z-INDEX, §3). Insets (`top` / `left` / …) take `i32`.
@@ -231,7 +230,6 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 
 ### Custom properties
 
-- `var()` outside color positions (incl. `content` from CSS text), fallback with arbitrary tokens — C1-VAR-ANY
 - `@property` — C1-PROPERTY
 
 ### Values and units
@@ -356,7 +354,7 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 
 ### Lists, counters and generated content
 
-- `content`: `open-quote` / `close-quote` / `no-*-quote`, `counters()`, `var()`, alt text — C10-CONTENT
+- `content`: `open-quote` / `close-quote` / `no-*-quote`, `counters()`, alt text — C10-CONTENT
 - `quotes` — C10-QUOTES
 - `counter-reset: reversed()`, `counter-set`, `counters()`, the other predefined counter styles — C10-COUNTERS
 - `@counter-style`, `symbols()` — C10-COUNTER-STYLE

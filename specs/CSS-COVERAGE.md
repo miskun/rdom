@@ -70,7 +70,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | Module | Supported | Partial | Missing | N/A | Total |
 |---|---:|---:|---:|---:|---:|
 | 3.1 Syntax, cascade and inheritance (Syntax 3, Cascade 4/5, CSS 2.1 §6) | 19 | 0 | 0 | 2 | 21 |
-| 3.2 Custom properties (CSS Variables 1) | 2 | 1 | 3 | 1 | 7 |
+| 3.2 Custom properties (CSS Variables 1) | 5 | 0 | 1 | 1 | 7 |
 | 3.3 Values and units (Values 4) | 5 | 5 | 8 | 4 | 22 |
 | 3.4 Color (Color 4 / 5) | 3 | 3 | 9 | 2 | 17 |
 | 3.5 Backgrounds and borders (Backgrounds 3, Borders 4) | 3 | 5 | 6 | 2 | 16 |
@@ -93,7 +93,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 0 | 0 | 6 | 3 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **62** | **44** | **151** | **50** | **307** |
+| **Total** | **65** | **43** | **149** | **50** | **307** |
 
 Of the 205 Partial / Missing rows, **133 are not documented** in `DIVERGENCES.md` (6 of them because the document states the opposite of the code) — see §5 and §6.
 
@@ -244,10 +244,10 @@ dropped:
 | Item | Class | Detail | Doc'd | Where |
 |---|---|---|---|---|
 | `--*` declarations | Supported | Any selector, inline, `!important`, inherited, verbatim token value. | — | `DISP/set.rs` (`--` prefix) |
-| `var()` in color positions | Supported | `color`, `background(-color)`, `border-color`, `caret-color`, `caret-text-color`; fallback must itself be a color (or `var()`). | — | `V/color.rs::parse_var_args` |
-| `var()` in `content` | Missing | `parse_content` has no `var()` arm — `content: var(--x)` is dropped. Only the Rust builder `Content::Var` reaches the resolver (`computed.rs`). | Wrong | `V/content.rs`, `CASC/content.rs` |
-| `var()` in all other properties | Missing | Needs token-level substitution at computed-value time. | Yes | `DISP`, `CASC` |
-| `var()` fallback with arbitrary tokens | Partial | Fallback is parsed as a color only. | No | `V/color.rs` |
+| `var()` in color positions | Supported | Through the general substitution (row below); `rgb(var(--r), 0, 0)` too (C1-VAR-ANY). | — | `rdom-style/src/var.rs` |
+| `var()` in `content` | Supported | Substituted, then parsed by `parse_content` (C1-VAR-ANY). | — | `rdom-style/src/var.rs` |
+| `var()` in all other properties | Supported | A declaration holding `var()` is kept as tokens (`TuiStyle::pending`, `var()` syntax checked at parse time); the cascade substitutes it per element from the element's custom properties and parses it with the property's grammar — shorthands included, later declarations of the block replayed in order; a failure makes the property `unset` (invalid at computed-value time). Custom properties substitute where declared; cycles make them guaranteed-invalid. A style without `var()` costs nothing extra (C1-VAR-ANY). | — | `rdom-style/src/var.rs`, `DISP/set.rs`, `CASC/ladder.rs` |
+| `var()` fallback with arbitrary tokens | Supported | Any token sequence, commas included, `var()` inside substituted (C1-VAR-ANY). | — | `rdom-style/src/var.rs` |
 | `@property` | Missing | Registered custom properties. | Blanket | `AT`, `CASC` |
 | `env()` | N/A | Safe-area / UA environment variables describe display hardware a terminal does not report. | — | — |
 
@@ -679,8 +679,8 @@ implementation or a `DIVERGENCES.md` entry before the acid page's coverage test 
 
 **3.2 Custom properties (CSS Variables 1)**
 
-- `var()` in `content` — Missing *(DIVERGENCES says otherwise)*: `parse_content` has no `var()` arm — `content: var(--x)` is dropped. Only the Rust builder `Content::Var` reaches the resolver (`computed.rs`).
-- `var()` fallback with arbitrary tokens — Partial: Fallback is parsed as a color only.
+- *(shipped: C1-VAR-ANY)* `var()` in `content` — was Missing: `parse_content` has no `var()` arm — `content: var(--x)` is dropped. Only the Rust builder `Content::Var` reaches the resolver (`computed.rs`).
+- *(shipped: C1-VAR-ANY)* `var()` fallback with arbitrary tokens.
 
 **3.3 Values and units (Values 4)**
 

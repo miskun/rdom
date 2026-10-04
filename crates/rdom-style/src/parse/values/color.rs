@@ -1,5 +1,6 @@
 //! Color values: named / hex literals, `rgb()`, `rgba()` (alpha
-//! dropped) and `var(--name [, fallback])` with recursive fallbacks.
+//! dropped). `var()` is not part of this grammar: a declaration holding
+//! one is substituted by the cascade before it is parsed (`crate::var`).
 
 use crate::TuiColor;
 use crate::parse::token::Token;
@@ -15,8 +16,8 @@ pub fn parse_color(value: &[Token]) -> Option<TuiColor> {
 }
 
 /// Recursive entrypoint for parsing a color value starting at
-/// `value[start]`. Returns `(color, tokens_consumed)` so `var()`
-/// fallbacks (which are themselves colors) can recurse.
+/// `value[start]`. Returns `(color, tokens_consumed)` so a caller can
+/// parse a color inside a longer value.
 pub fn parse_color_at(value: &[Token], start: usize) -> Option<(TuiColor, usize)> {
     let tok = value.get(start)?;
     match tok {
@@ -38,7 +39,6 @@ pub fn parse_color_at(value: &[Token], start: usize) -> Option<(TuiColor, usize)
             match lname.as_str() {
                 "rgb" => parse_rgb_args(value, after).map(|(c, n)| (TuiColor::Literal(c), n + 1)),
                 "rgba" => parse_rgba_args(value, after).map(|(c, n)| (TuiColor::Literal(c), n + 1)),
-                "var" => parse_var_args(value, after).map(|(c, n)| (c, n + 1)),
                 _ => None,
             }
         }
@@ -94,44 +94,6 @@ pub fn parse_rgba_args(value: &[Token], start: usize) -> Option<(crate::Color, u
         }
     }
     None
-}
-
-/// Consume `--name [, fallback])`. Returns the constructed
-/// `TuiColor::Var` and tokens consumed including the closing `)`.
-pub fn parse_var_args(value: &[Token], start: usize) -> Option<(TuiColor, usize)> {
-    let raw_name = match value.get(start)? {
-        Token::Ident(s) => s.as_str(),
-        _ => return None,
-    };
-    let stripped = raw_name.strip_prefix("--")?;
-    let name = stripped.to_string();
-    let after_name = start + 1;
-
-    match value.get(after_name)? {
-        Token::RParen => Some((
-            TuiColor::Var {
-                name,
-                fallback: None,
-            },
-            2, // ident + RParen
-        )),
-        Token::Comma => {
-            let (fallback, consumed) = parse_color_at(value, after_name + 1)?;
-            let after_fb = after_name + 1 + consumed;
-            if value.get(after_fb) != Some(&Token::RParen) {
-                return None;
-            }
-            Some((
-                TuiColor::Var {
-                    name,
-                    fallback: Some(Box::new(fallback)),
-                },
-                // ident + comma + fallback tokens + RParen
-                1 + 1 + consumed + 1,
-            ))
-        }
-        _ => None,
-    }
 }
 
 fn expect_byte(value: &[Token], at: usize) -> Option<(u8, usize)> {

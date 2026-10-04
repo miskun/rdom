@@ -117,31 +117,118 @@ impl Plan {
 
 /// The declarations of one element's cascade: its matched rules
 /// (sorted ascending by specificity, then source order), each rule's
-/// layer rank (parallel to `sorted`), and its inline style.
+/// layer rank (parallel to `sorted`), its inline style, and — when any
+/// of them holds `var()` — their substituted forms.
 #[derive(Clone, Copy)]
 pub(super) struct Declarations<'a> {
     pub sorted: &'a [&'a Rule],
     pub ranks: &'a [u32],
     pub inline: Option<&'a TuiStyle>,
+    pub substituted: Option<&'a Substituted>,
 }
 
 impl<'a> Declarations<'a> {
+    pub(super) fn new(
+        sorted: &'a [&'a Rule],
+        ranks: &'a [u32],
+        inline: Option<&'a TuiStyle>,
+    ) -> Self {
+        Declarations {
+            sorted,
+            ranks,
+            inline,
+            substituted: None,
+        }
+    }
+
+    /// These declarations with `var()` substituted (`None`: none held
+    /// `var()`).
+    pub(super) fn with(self, substituted: Option<&'a Substituted>) -> Self {
+        Declarations {
+            substituted,
+            ..self
+        }
+    }
+
+    /// The `i`th matched rule's declarations, substituted.
+    fn rule_style(self, i: usize) -> &'a TuiStyle {
+        self.substituted
+            .and_then(|s| s.rules[i].as_ref())
+            .unwrap_or(&self.sorted[i].style)
+    }
+
+    fn inline_style(self) -> Option<&'a TuiStyle> {
+        match self.substituted.and_then(|s| s.inline.as_ref()) {
+            Some(style) => Some(style),
+            None => self.inline,
+        }
+    }
+
     /// Every declaration block `step` applies, in order.
     pub(super) fn of(self, step: &Step) -> impl Iterator<Item = &'a TuiStyle> + 'a {
         let source = step.source;
-        let rules = self
-            .sorted
-            .iter()
-            .zip(self.ranks)
-            .filter(move |(r, rank)| match source {
-                Source::UserAgent => r.origin == RuleOrigin::UserAgent,
-                Source::Author(layer) => r.origin == RuleOrigin::Author && **rank == layer,
-                Source::Inline => false,
+        let rules = (0..self.sorted.len())
+            .filter(move |&i| {
+                let r = self.sorted[i];
+                match source {
+                    Source::UserAgent => r.origin == RuleOrigin::UserAgent,
+                    Source::Author(layer) => {
+                        r.origin == RuleOrigin::Author && self.ranks[i] == layer
+                    }
+                    Source::Inline => false,
+                }
             })
-            .map(|(r, _)| &r.style);
-        let inline = self.inline.filter(|_| source == Source::Inline);
+            .map(move |i| self.rule_style(i));
+        let inline = self.inline_style().filter(|_| source == Source::Inline);
         rules.chain(inline)
     }
+
+    /// Every declaration block, rules then inline.
+    pub(super) fn all(self) -> impl Iterator<Item = &'a TuiStyle> + 'a {
+        (0..self.sorted.len())
+            .map(move |i| self.rule_style(i))
+            .chain(self.inline_style())
+    }
+}
+
+/// The `var()`-substituted declaration blocks of one element (CSS
+/// Variables 1 §3), parallel to [`Declarations::sorted`]; `None` where
+/// a block holds no `var()`.
+pub(super) struct Substituted {
+    rules: Vec<Option<TuiStyle>>,
+    inline: Option<TuiStyle>,
+}
+
+impl Substituted {
+    /// Substitute the blocks of `decls` that hold `var()` from `vars`
+    /// (the element's custom properties); `None` when none does, which
+    /// is the common case and costs one scan.
+    pub(super) fn new(decls: Declarations<'_>, vars: &crate::style::VarMap) -> Option<Self> {
+        let any = decls.sorted.iter().any(|r| r.style.has_pending())
+            || decls.inline.is_some_and(TuiStyle::has_pending);
+        if !any {
+            return None;
+        }
+        let sub = |s: &TuiStyle| s.has_pending().then(|| s.substituted(vars));
+        Some(Substituted {
+            rules: decls.sorted.iter().map(|r| sub(&r.style)).collect(),
+            inline: decls.inline.and_then(sub),
+        })
+    }
+}
+
+/// The custom properties of `decls` folded into `working.vars`, then
+/// the declarations' `var()`s substituted from them — the inputs of
+/// [`apply_cascade_ladder`].
+pub(super) fn prepare(
+    working: &mut ComputedStyle,
+    plan: &Plan,
+    decls: Declarations<'_>,
+) -> Option<Substituted> {
+    // CSS Variables 1 §2 — same ladder, folded into the element's own
+    // map before any `var()` consumer runs.
+    super::custom::apply_custom_properties(working, plan, decls);
+    Substituted::new(decls, &working.vars)
 }
 
 /// Memoized rollback states of one element's ladder: `state_before(i)`
@@ -188,9 +275,7 @@ pub(super) fn apply_cascade_ladder(
     decls: Declarations<'_>,
     parent: &ComputedStyle,
 ) {
-    // 0. Custom properties (CSS Variables 1 §2) — same ladder, folded
-    //    into the element's own map before any `var()` consumer runs.
-    super::custom::apply_custom_properties(working, plan, decls);
+    // Custom properties are already in `working.vars` (`prepare`).
     let initial = Initials::default();
     // The base every rollback replays from: initial values, the
     // inherited ones from `parent`, and this element's custom

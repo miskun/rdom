@@ -93,71 +93,49 @@ fn rgba_drops_alpha_decimal() {
 }
 
 // ── var() ───────────────────────────────────────────────────────
+//
+// CSS Variables 1 §3: a declaration holding `var()` is kept as tokens
+// (`TuiStyle::pending`) for the cascade to substitute per element —
+// fallbacks included, whatever they hold — and serializes as written.
+
+/// The `var()` text `css`'s first rule keeps for `property`, after
+/// checking nothing was parsed into the typed field.
+fn var_text(css: &str, property: &str) -> String {
+    let r = parse(css);
+    assert!(r.warnings.is_empty(), "warnings: {:?}", r.warnings);
+    let style = &r.stylesheet.rules()[0].style;
+    assert!(style.fg.is_none() && style.border_fg.is_none());
+    assert_eq!(style.pending.len(), 1);
+    rdom_css::property_dispatch::serialize(property, style).expect("serialized")
+}
 
 #[test]
 fn var_simple() {
-    let c = fg_of("a { color: var(--accent); }");
-    match c {
-        TuiColor::Var { name, fallback } => {
-            assert_eq!(name, "accent");
-            assert!(fallback.is_none());
-        }
-        other => panic!("expected Var, got {other:?}"),
-    }
+    assert_eq!(
+        var_text("a { color: var(--accent); }", "color"),
+        "var( --accent )"
+    );
 }
 
 #[test]
-fn var_with_named_fallback() {
-    let c = fg_of("a { color: var(--accent, red); }");
-    match c {
-        TuiColor::Var { name, fallback } => {
-            assert_eq!(name, "accent");
-            assert_eq!(
-                fallback.as_deref(),
-                Some(&TuiColor::Literal(Color::Rgb(255, 0, 0)))
-            );
-        }
-        other => panic!("expected Var, got {other:?}"),
-    }
+fn var_with_fallbacks_is_kept_for_the_cascade() {
+    assert_eq!(
+        var_text("a { color: var(--accent, red); }", "color"),
+        "var( --accent , red )"
+    );
+    assert_eq!(
+        var_text(
+            "a { color: var(--accent, var(--secondary, #00f)); }",
+            "color"
+        ),
+        "var( --accent , var( --secondary , #00f ) )"
+    );
 }
 
 #[test]
-fn var_with_hex_fallback() {
-    let c = fg_of("a { color: var(--accent, #00ff00); }");
-    match c {
-        TuiColor::Var { fallback, .. } => {
-            assert_eq!(
-                fallback.as_deref(),
-                Some(&TuiColor::Literal(Color::Rgb(0, 255, 0)))
-            );
-        }
-        other => panic!("expected Var, got {other:?}"),
-    }
-}
-
-#[test]
-fn var_with_nested_var_fallback() {
-    let c = fg_of("a { color: var(--accent, var(--secondary, blue)); }");
-    match c {
-        TuiColor::Var { name, fallback } => {
-            assert_eq!(name, "accent");
-            let inner = fallback.expect("outer fallback");
-            match *inner {
-                TuiColor::Var {
-                    name: inner_name,
-                    fallback: inner_fb,
-                } => {
-                    assert_eq!(inner_name, "secondary");
-                    assert_eq!(
-                        inner_fb.as_deref(),
-                        Some(&TuiColor::Literal(Color::Rgb(0, 0, 255)))
-                    );
-                }
-                other => panic!("expected nested Var, got {other:?}"),
-            }
-        }
-        other => panic!("expected Var, got {other:?}"),
-    }
+fn invalid_var_syntax_is_invalid_at_parse_time() {
+    let r = parse("a { color: var(accent); }");
+    assert_eq!(r.warnings.len(), 1, "{:?}", r.warnings);
 }
 
 // ── Color works on all three target properties ───────────────────
@@ -175,15 +153,8 @@ fn background_color_hex() {
 
 #[test]
 fn border_color_var() {
-    let r = parse("a { border-color: var(--frame); }");
-    assert!(r.warnings.is_empty());
-    let v = r.stylesheet.rules()[0]
-        .style
-        .border_fg
-        .clone()
-        .expect("border_fg");
-    match v {
-        Value::Specified(TuiColor::Var { name, .. }) => assert_eq!(name, "frame"),
-        other => panic!("expected Var, got {other:?}"),
-    }
+    assert_eq!(
+        var_text("a { border-color: var(--frame); }", "border-color"),
+        "var( --frame )"
+    );
 }

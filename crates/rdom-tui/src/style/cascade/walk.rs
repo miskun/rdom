@@ -19,7 +19,7 @@ use super::apply::{finalize_bfc_formation, finalize_border_fg};
 use super::content::resolve_content_on;
 pub(super) use super::counters::CounterState;
 use super::inherit::{inherit_inheritable_from, layout_differs};
-use super::ladder::{Declarations, apply_cascade_ladder};
+use super::ladder::{Declarations, apply_cascade_ladder, prepare};
 use super::scope::match_rule;
 pub(super) use super::sheets::Sheets;
 
@@ -35,6 +35,9 @@ pub(super) fn merge_root_vars(sheets: &[&Stylesheet]) -> VarMap {
             merged.insert(k.clone(), v.clone());
         }
     }
+    // Their `var()`s substitute against each other (CSS Variables 1 §3).
+    let names: Vec<String> = merged.keys().cloned().collect();
+    rdom_style::var::resolve_custom_properties(&mut merged, names.iter().map(String::as_str));
     std::rc::Rc::new(merged)
 }
 
@@ -386,11 +389,9 @@ fn compute_element_style(
     // Inline style on this element (may be empty).
     let inline = dom.node(id).ext().and_then(|e| e.inline_style.as_deref());
 
-    let decls = Declarations {
-        sorted: &sorted,
-        ranks: &ranks,
-        inline,
-    };
+    let decls = Declarations::new(&sorted, &ranks, inline);
+    let substituted = prepare(&mut working, &plan, decls);
+    let decls = decls.with(substituted.as_ref());
     apply_cascade_ladder(&mut working, &plan, decls, parent);
 
     // This element's `counter-reset` / `counter-increment` take effect
@@ -414,7 +415,7 @@ fn compute_element_style(
     // post-pass rather than during apply_color because the author may
     // set fg AFTER border_fg in the rule (same specificity), and we
     // need the *final* fg value as the fallback.
-    finalize_border_fg(&mut working, &sorted, inline);
+    finalize_border_fg(&mut working, decls);
     // BFC formation predicate (CSS 2.1 §9.4.1). Computed AFTER the
     // cascade ladder so it reads the final values of `flow`,
     // `display`, `overflow_*`, `position`. Used by the block-layout
@@ -519,15 +520,13 @@ fn compute_pseudo_style_layered(
     let (ranks, plan) = sheets.plan_for(&by_sheet);
 
     // Pseudo-elements don't have their own inline_style on `TuiExt`.
-    let decls = Declarations {
-        sorted: &sorted,
-        ranks: &ranks,
-        inline: None,
-    };
+    let decls = Declarations::new(&sorted, &ranks, None);
+    let substituted = prepare(&mut working, &plan, decls);
+    let decls = decls.with(substituted.as_ref());
     apply_cascade_ladder(&mut working, &plan, decls, host_computed);
 
     // Border_fg fallback (same rule as for host elements).
-    finalize_border_fg(&mut working, &sorted, None);
+    finalize_border_fg(&mut working, decls);
     finalize_bfc_formation(&mut working);
 
     // Resolve content:

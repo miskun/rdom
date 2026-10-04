@@ -75,7 +75,7 @@ mod value_serializers;
 mod tests;
 
 pub use serialize::serialize;
-pub use set::{set, set_from_tokens};
+pub use set::{set, set_from_tokens, set_parsed, set_unset};
 pub use table::{canonical_property_name, inherits, property_mask, property_names, remove};
 
 /// Reason `set` / `set_from_tokens` rejected a declaration.

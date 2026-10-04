@@ -123,9 +123,13 @@ let sheet = Stylesheet::new()
 ```
 
 Custom properties (`TuiStyle::custom_properties`) are declared under any
-selector and scoped per element by the cascade; `var()` is consumed in
-`<color>` values and in `content`. Generalization to other property types
-(`padding: var(--gap)`) is not shipped; see `DIVERGENCES.md`. The CSS-wide
+selector and scoped per element by the cascade. `var()` works in every
+property (CSS Variables 1 §3): the dispatch table keeps a declaration
+holding it as tokens (`TuiStyle::pending`), and `rdom_style::var`
+substitutes it from an element's custom properties
+(`TuiStyle::substituted`), parses it with the property's grammar, and
+makes it `unset` when that fails. The builder's typed
+`TuiColor::Var` / `Content::Var` remain for Rust-built styles. The CSS-wide
 keywords `inherit`, `initial`, `unset`, `revert` and `revert-layer` are accepted for every property, and
 `all` sets one of them on every property at once.
 

@@ -90,10 +90,14 @@ fn var_reference_round_trip() {
         .rule("button", TuiStyle::new().fg(TuiColor::var("accent")))
         .unwrap();
     let from_parser = from_css("button { color: var(--accent); }");
-    assert_eq!(
-        author_rules(&from_builder)[0].style.fg,
-        author_rules(&from_parser)[0].style.fg
-    );
+    // The builder's typed `TuiColor::Var` and the parser's pending
+    // tokens (CSS Variables 1 §3) serialize alike.
+    let text = |sheet: &Stylesheet| {
+        rdom_css::property_dispatch::serialize("color", &author_rules(sheet)[0].style)
+            .map(|s| s.replace(' ', ""))
+    };
+    assert_eq!(text(&from_builder), Some("var(--accent)".to_string()));
+    assert_eq!(text(&from_parser), text(&from_builder));
 }
 
 #[test]

@@ -80,6 +80,8 @@ mod nesting_tests;
 mod scope_tests;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod var_tests;
 
 use rdom_core::{Dom, NodeId};
 
@@ -163,6 +165,8 @@ impl CascadeExt for Dom<TuiExt> {
             s.rules().iter().any(|r| {
                 r.style.counter_reset.is_some()
                     || r.style.counter_increment.is_some()
+                    // A `var()` declaration may be any of these.
+                    || r.style.has_pending()
                     || r.style
                         .content
                         .as_ref()
