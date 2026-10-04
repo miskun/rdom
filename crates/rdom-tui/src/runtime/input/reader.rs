@@ -55,8 +55,10 @@ impl InputReader {
     /// Wait up to `timeout` for an input; `true` once one is ready for
     /// [`Self::next`]. A zero timeout reads what has arrived without
     /// waiting. An escape prefix that nothing has followed for
-    /// [`ESC_GRACE`] becomes a key here. Errors: the terminal closed
-    /// (end of file, hang-up) or could not be read.
+    /// [`ESC_GRACE`] becomes a key here — after the bytes already
+    /// queued are read, so a caller that comes back late does not split
+    /// a sequence that arrived in time (`C4G-ESC-GRACE`). Errors: the
+    /// terminal closed (end of file, hang-up) or could not be read.
     pub(crate) fn poll(&mut self, timeout: Duration) -> std::io::Result<bool> {
         use std::time::Instant;
         let deadline = Instant::now() + timeout;
@@ -65,6 +67,7 @@ impl InputReader {
             let now = Instant::now();
             if let Some(since) = self.prefix_since
                 && now >= since + ESC_GRACE
+                && !self.read_queued()?
             {
                 self.parser.flush_prefix();
                 self.prefix_since = None;
@@ -82,9 +85,7 @@ impl InputReader {
             }
             let ready = self.unix.wait(wait)?;
             if ready.input {
-                let bytes = self.unix.read()?;
-                self.parser.feed(bytes);
-                self.prefix_since = self.parser.awaits_prefix().then(Instant::now);
+                self.read_input()?;
             }
             if ready.resize {
                 self.unix.drain_resize();
@@ -93,6 +94,36 @@ impl InputReader {
                     .deliver(Input::Event(crossterm::event::Event::Resize(w, h)));
             }
         }
+    }
+
+    /// Read the bytes already queued, without waiting; `true` if there
+    /// were any.
+    fn read_queued(&mut self) -> std::io::Result<bool> {
+        if !self.unix.wait(Duration::ZERO)?.input {
+            return Ok(false);
+        }
+        self.read_input()
+    }
+
+    /// Read and parse what the terminal has sent (after `wait` said so);
+    /// `true` if any byte came. A read that fills the buffer may have
+    /// left more behind (crossterm's rule), so reading goes on — without
+    /// waiting — until one does not. The escape grace restarts when the
+    /// bytes leave a prefix.
+    fn read_input(&mut self) -> std::io::Result<bool> {
+        let mut any = false;
+        loop {
+            let (bytes, full) = self.unix.read()?;
+            any |= !bytes.is_empty();
+            self.parser.feed(bytes);
+            if !full || !self.unix.wait(Duration::ZERO)?.input {
+                break;
+            }
+        }
+        if any {
+            self.prefix_since = self.parser.awaits_prefix().then(std::time::Instant::now);
+        }
+        Ok(any)
     }
 
     /// The next ready input, if any.
@@ -280,8 +311,9 @@ mod unix {
             })
         }
 
-        /// Read what the terminal has sent (after `wait` said so).
-        pub(super) fn read(&mut self) -> io::Result<&[u8]> {
+        /// Read what the terminal has sent (after `wait` said so), and
+        /// whether the read filled the buffer (more may be queued).
+        pub(super) fn read(&mut self) -> io::Result<(&[u8], bool)> {
             loop {
                 match rustix::io::read(self.tty.fd(), &mut self.buf[..]) {
                     Ok(0) => {
@@ -290,9 +322,9 @@ mod unix {
                             "the terminal's input closed",
                         ));
                     }
-                    Ok(n) => return Ok(&self.buf[..n]),
+                    Ok(n) => return Ok((&self.buf[..n], n == BUF_SIZE)),
                     Err(Errno::INTR) => continue,
-                    Err(Errno::AGAIN) => return Ok(&[]),
+                    Err(Errno::AGAIN) => return Ok((&[], false)),
                     Err(e) => return Err(e.into()),
                 }
             }

@@ -1101,3 +1101,14 @@ row comes from.
   `C4G-LEAVE-TUI`, `C4G-SHADOW-CLAMP`, `C4G-MIXED-CORNERS`, `C4G-SHADOW-ORDER`, `C4G-BORDER-COST`,
   `C4G-PAINT-SPLIT`); B — API and docs (`C4G-IMPORTANT-BITSET`, `C4G-REEXPORTS`, `C4G-SERIALIZE`,
   `C4G-PX-CALC`, `C4G-SEALED`, `C4G-DOCS`, `C4G-EDGE-TESTS`).
+- 2026-10-06 — C4G-ESC-GRACE: `InputReader::poll` no longer flushes an expired escape prefix before
+  reading. Once the grace has passed it first reads what is already queued (`read_queued`: a
+  zero-timeout readiness check and read) and flushes only when nothing came; bytes that did come
+  restart the grace if they leave a prefix. A read that fills the 1 KiB buffer is marked "more may
+  follow" (`Source::read` returns it) and reading goes on without waiting, as crossterm does.
+  Decided: the grace is measured from when rdom read the prefix, not from when it arrived — the
+  reader cannot know the latter; a sequence queued behind it is always joined. Red:
+  `a_late_poll_reads_queued_bytes_before_the_grace_flushes` (ESC, a sleep past the grace, `[A`, a
+  zero-timeout poll gave Esc) and `a_full_read_reads_on` (1023 + 3 bytes: 1023 inputs after one poll,
+  Up missing); green after, with `a_lone_escape_flushes_on_a_late_zero_timeout_poll` pinning the
+  lone-ESC case.
