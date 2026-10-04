@@ -215,3 +215,18 @@ pub(super) fn alpha(component: &[Token], allow_none: bool) -> Option<Option<f64>
     }
     Some(ch.resolve(1.0))
 }
+
+/// Parse a `<hue>` (CSS Color 4 §4.3: a `<number>` of degrees or an
+/// `<angle>`, math functions included) or `none`, into degrees —
+/// missing as `None`. The outer `Option` is `None` when the component
+/// is no hue.
+pub(super) fn hue(component: &[Token], allow_none: bool) -> Option<Option<f64>> {
+    if let Some(degrees) = crate::parse::values::parse_angle(component) {
+        return Some(Some(degrees));
+    }
+    match Channel::parse(component)? {
+        Channel::Number(n) => Some(Some(n)),
+        Channel::None if allow_none => Some(None),
+        _ => None,
+    }
+}

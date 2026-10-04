@@ -131,3 +131,75 @@ fn currentcolor_parses_and_serializes() {
         );
     }
 }
+
+// ── hsl() / hsla(): CSS Color 4 §7 ──────────────────────────────
+
+/// §7.1: the modern syntax — a hue (number of degrees or `<angle>`),
+/// saturation and lightness as percentages or numbers, `/ alpha`.
+#[test]
+fn hsl_modern_syntax() {
+    assert_eq!(parse_color("hsl(120deg 100% 50%)"), rgb(0, 255, 0));
+    assert_eq!(parse_color("hsl(0 100% 50%)"), rgb(255, 0, 0));
+    assert_eq!(parse_color("hsl(0 100 50)"), rgb(255, 0, 0));
+    assert_eq!(parse_color("hsl(240 100% 50% / 0.5)"), rgba(0, 0, 255, 128));
+    assert_eq!(parse_color("hsla(0.5turn 100% 50%)"), rgb(0, 255, 255));
+    assert_eq!(parse_color("hsl(120 100% 25%)"), rgb(0, 128, 0));
+    assert_eq!(parse_color("HSL(3.14159rad 100% 50%)"), rgb(0, 255, 255));
+}
+
+/// §7.1: the hue wraps; negative saturation clamps to 0%.
+#[test]
+fn hsl_hue_wraps_and_saturation_clamps() {
+    assert_eq!(parse_color("hsl(-120 100% 50%)"), rgb(0, 0, 255));
+    assert_eq!(parse_color("hsl(480 100% 50%)"), rgb(0, 255, 0));
+    assert_eq!(parse_color("hsl(0 -50% 50%)"), rgb(128, 128, 128));
+}
+
+/// §4.4: `none` is a missing component, zero when used directly.
+#[test]
+fn hsl_none_components() {
+    assert_eq!(parse_color("hsl(none 0% 50%)"), rgb(128, 128, 128));
+    assert_eq!(parse_color("hsl(none 100% 50%)"), rgb(255, 0, 0));
+    assert_eq!(parse_color("hsl(0 100% 50% / none)"), rgba(255, 0, 0, 0));
+}
+
+/// §7.1: math functions in the hue (an angle or a number) and the
+/// other channels.
+#[test]
+fn hsl_math_functions() {
+    assert_eq!(parse_color("hsl(calc(60deg * 2) 100% 50%)"), rgb(0, 255, 0));
+    assert_eq!(parse_color("hsl(calc(100 + 20) 100% 50%)"), rgb(0, 255, 0));
+    assert_eq!(parse_color("hsl(0 calc(50% * 2) 50%)"), rgb(255, 0, 0));
+}
+
+/// §7.1: the legacy syntax takes commas, percentages for saturation
+/// and lightness, and no `none`.
+#[test]
+fn hsl_legacy_syntax() {
+    assert_eq!(parse_color("hsl(120, 100%, 50%)"), rgb(0, 255, 0));
+    assert_eq!(
+        parse_color("hsla(120deg, 100%, 50%, 0.5)"),
+        rgba(0, 255, 0, 128)
+    );
+    assert_eq!(parse_color("hsl(120, 100, 50)"), None);
+    assert_eq!(parse_color("hsl(none, 100%, 50%)"), None);
+    assert_eq!(parse_color("hsl(120, 100%)"), None);
+}
+
+// ── hwb(): CSS Color 4 §8 ───────────────────────────────────────
+
+/// §8.1: hue, whiteness and blackness; whiteness + blackness ≥ 100%
+/// is a gray.
+#[test]
+fn hwb_syntax() {
+    assert_eq!(parse_color("hwb(0 0% 0%)"), rgb(255, 0, 0));
+    assert_eq!(parse_color("hwb(120 0% 50%)"), rgb(0, 128, 0));
+    assert_eq!(parse_color("hwb(0 60% 60%)"), rgb(128, 128, 128));
+    assert_eq!(
+        parse_color("hwb(240deg 20 20 / 50%)"),
+        rgba(51, 51, 204, 128)
+    );
+    assert_eq!(parse_color("hwb(none none none)"), rgb(255, 0, 0));
+    // No legacy syntax.
+    assert_eq!(parse_color("hwb(0, 0%, 0%)"), None);
+}

@@ -78,6 +78,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `MinSize::percent(p)` / `MaxSize::percent(p)`: a percentage `min-*` / `max-*` as the parser stores it, without building the `CalcExpr`. (C2G-REEXPORT-CALC)
 - **Modern `rgb()` / `rgba()`** (CSS Color 4 §5.1): space-separated channels with `/ alpha`, `none`, numbers with fractions and percentages (mixed in the modern syntax), math functions in channels and alpha, out-of-range values clamped; the legacy comma syntax takes all-number or all-percentage channels and an optional alpha. `color::serialize_alpha` gives the CSSOM alpha text; a translucent color serializes as `rgba(r, g, b, a)`. A translucent color paints opaque until C3-ALPHA. (C3-RGB)
 - **`currentcolor`** (CSS Color 4 §6.4), in any case, in every color property; serializes as `currentcolor`. `TuiColor::parse(css)` parses the full grammar keeping it, `TuiColor::substitute_vars(vars)` looks up `var()` references, `TuiColor::resolve(vars, cx)` computes the color, and `depends_on_element()` says whether a value waits for the element's `color`. (C3-CURRENTCOLOR)
+- **`hsl()` / `hsla()` / `hwb()`** (CSS Color 4 §7, §8): the hue a number of degrees or an `<angle>` (wrapping), saturation / lightness / whiteness / blackness as percentages or numbers, `none`, `/ alpha`, math functions; `hsl()`'s legacy comma syntax (percentages only). Converted to sRGB at parse time, as CSS computes them. (C3-HSL-HWB)
 
 ### Changed — `rdom-style`
 

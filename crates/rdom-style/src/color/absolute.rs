@@ -12,6 +12,10 @@ use super::Color;
 pub(crate) enum ColorSpace {
     /// sRGB (CSS Color 4 §10.2), components `0..=1`.
     Srgb,
+    /// HSL (§7): hue in degrees, saturation and lightness `0..=100`.
+    Hsl,
+    /// HWB (§8): hue in degrees, whiteness and blackness `0..=100`.
+    Hwb,
 }
 
 /// A color in `space`: three components and an alpha (`0..=1`), each
@@ -25,15 +29,6 @@ pub(crate) struct AbsoluteColor {
 }
 
 impl AbsoluteColor {
-    /// An sRGB color, every component present.
-    pub fn srgb(r: f64, g: f64, b: f64, alpha: f64) -> Self {
-        AbsoluteColor {
-            space: ColorSpace::Srgb,
-            coords: [Some(r), Some(g), Some(b)],
-            alpha: Some(alpha),
-        }
-    }
-
     /// The components with missing ones as zero.
     pub fn values(self) -> [f64; 3] {
         self.coords.map(|c| c.unwrap_or(0.0))
@@ -48,8 +43,8 @@ impl AbsoluteColor {
     /// rounded to the nearest byte, ties toward +∞ (CSS Color 4 §5.1);
     /// alpha likewise.
     pub fn to_color(self) -> Color {
-        let ColorSpace::Srgb = self.space;
-        let [r, g, b] = self.values();
+        let srgb = super::convert::to_srgb(self);
+        let [r, g, b] = srgb.values();
         Color::rgba(
             to_byte(r),
             to_byte(g),

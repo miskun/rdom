@@ -10,7 +10,7 @@
 //! percentage `0%..=100%` of 255; out-of-range values clamp.
 
 use super::channel::{Arguments, Channel, ChannelType, alpha, split_arguments};
-use crate::color::AbsoluteColor;
+use crate::color::{AbsoluteColor, ColorSpace};
 use crate::parse::token::Token;
 
 /// Parse the arguments of `rgb()` / `rgba()`.
@@ -36,8 +36,8 @@ pub(super) fn parse(args: &[Token]) -> Option<AbsoluteColor> {
     // Out-of-range values clamp at parsed-value time.
     let coords = channels.map(|c| c.resolve(255.0).map(|v| v.clamp(0.0, 255.0) / 255.0));
     Some(AbsoluteColor {
+        space: ColorSpace::Srgb,
         coords,
-        alpha,
-        ..AbsoluteColor::srgb(0.0, 0.0, 0.0, 1.0)
+        alpha: alpha.map(|a| a.clamp(0.0, 1.0)),
     })
 }

@@ -1,5 +1,5 @@
 //! The `<color>` grammar (CSS Color 4 §4.1): named colors, hex,
-//! `rgb()` / `rgba()`, `currentcolor`, and rdom's `reset` and
+//! `rgb()` / `rgba()`, `hsl()` / `hsla()`, `hwb()`, `currentcolor`, and rdom's `reset` and
 //! palette-index forms.
 //! `var()` is not part of this grammar: a declaration holding one is
 //! substituted by the cascade before it is parsed (`crate::var`).
@@ -7,8 +7,10 @@
 //! - `channel` — channel and alpha arguments, the modern / legacy
 //!   argument split.
 //! - `rgb` — `rgb()` / `rgba()`.
+//! - `hsl` — `hsl()` / `hsla()` / `hwb()`.
 
 mod channel;
+mod hsl;
 mod rgb;
 
 use crate::TuiColor;
@@ -65,6 +67,8 @@ fn parse_function(value: &[Token], start: usize) -> Option<(AbsoluteColor, usize
     let args = &value[start + 1..close];
     let color = match name.to_ascii_lowercase().as_str() {
         "rgb" | "rgba" => rgb::parse(args)?,
+        "hsl" | "hsla" => hsl::parse_hsl(args)?,
+        "hwb" => hsl::parse_hwb(args)?,
         _ => return None,
     };
     Some((color, close + 1 - start))

@@ -98,7 +98,7 @@ row comes from.
 | C3-RGB | Modern `rgb()` / `rgba()`: space syntax, `/ alpha`, percentages, `none` | done |
 | C3-TRANSPARENT | `transparent` as a real fully transparent color (not `Reset`) | done |
 | C3-CURRENTCOLOR | `currentColor` | done |
-| C3-HSL-HWB | `hsl()` / `hsla()` / `hwb()` | |
+| C3-HSL-HWB | `hsl()` / `hsla()` / `hwb()` | done |
 | C3-LAB | `lab()` / `lch()` / `oklab()` / `oklch()` / `color()` with gamut mapping to sRGB | |
 | C3-MIX | `color-mix()` | |
 | C3-RELATIVE | Relative color syntax (`rgb(from …)`) | |

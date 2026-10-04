@@ -246,7 +246,6 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 
 ### Color
 
-- `hsl()` / `hsla()` / `hwb()` — C3-HSL-HWB
 - `lab()` / `lch()` / `oklab()` / `oklch()` / `color()` — C3-LAB
 - `color-mix()` — C3-MIX
 - Relative color syntax (`rgb(from …)`) — C3-RELATIVE

@@ -40,9 +40,10 @@
 //! (used by the CSS parser when it sees `color: rebeccapurple`).
 
 mod absolute;
+mod convert;
 pub mod named;
 
-pub(crate) use absolute::AbsoluteColor;
+pub(crate) use absolute::{AbsoluteColor, ColorSpace};
 
 /// Terminal color. Four variants: `Reset` (terminal default),
 /// `Indexed` (xterm-256 palette index), `Rgb` (24-bit truecolor) and
