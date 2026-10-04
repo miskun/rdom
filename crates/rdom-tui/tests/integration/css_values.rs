@@ -421,7 +421,8 @@ fn viewport_units_are_percentages_of_the_terminal() {
          .f { width: calc(100% - 25vw); height: min(5vh, 50%) }",
     )
     .unwrap();
-    dom.cascade_all_in(&[&sheet], Viewport::new(80, 20));
+    dom.set_viewport(Viewport::new(80, 20));
+    dom.cascade(&sheet);
     dom.layout_dom(Rect::new(0, 0, 80, 20));
     let wh: Vec<(u16, u16)> = ids
         .iter()

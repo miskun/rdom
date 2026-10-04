@@ -79,13 +79,7 @@ fn restyle_keeps_pseudo_element_counter_ops_of_kept_subtrees() {
         .set_inline_style(TuiStyle::new().fg(Color::Rgb(255, 0, 0)));
     let sheets = [&sheet];
     let registry = Rc::new(PropertyRegistry::new(&sheets));
-    restyle_vars(
-        &mut dom,
-        &sheets,
-        registry,
-        &[first, div, last],
-        Viewport::default(),
-    );
+    restyle_vars(&mut dom, &sheets, registry, &[first, div, last]);
     assert_eq!(
         computed_of(&dom, last).fg,
         Color::Rgb(255, 0, 0),
@@ -118,13 +112,7 @@ fn restyle_replays_after_ops_after_the_children() {
         .set_inline_style(TuiStyle::new().fg(Color::Rgb(255, 0, 0)));
     let sheets = [&sheet];
     let registry = Rc::new(PropertyRegistry::new(&sheets));
-    restyle_vars(
-        &mut dom,
-        &sheets,
-        registry,
-        &[div, last],
-        Viewport::default(),
-    );
+    restyle_vars(&mut dom, &sheets, registry, &[div, last]);
     assert_eq!(before(&dom, last).as_deref(), Some("4. "));
 }
 
@@ -154,12 +142,6 @@ fn restyle_replays_before_ops_before_the_children() {
         .set_inline_style(TuiStyle::new().fg(Color::Rgb(255, 0, 0)));
     let sheets = [&sheet];
     let registry = Rc::new(PropertyRegistry::new(&sheets));
-    restyle_vars(
-        &mut dom,
-        &sheets,
-        registry,
-        &[div, last],
-        Viewport::default(),
-    );
+    restyle_vars(&mut dom, &sheets, registry, &[div, last]);
     assert_eq!(before(&dom, last).as_deref(), Some("1. "));
 }

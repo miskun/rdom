@@ -236,6 +236,10 @@ let sheet = Stylesheet::new()
     .rule("div", TuiStyle::new().fg(Color::Red))
     .unwrap();
 
+// The size `vw` / `vh` resolve against, for every cascade below
+// (the `App` sets its terminal's; `layout_dom(area)` records its area).
+dom.set_viewport(Viewport::new(80, 24));
+
 // Initial paint — cascade everything once.
 dom.cascade(&sheet);
 

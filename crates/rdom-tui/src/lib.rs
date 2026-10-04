@@ -78,8 +78,8 @@ pub use node::{TuiNodeExt, TuiNodeMutExt};
 /// `@import` resolution for the document's `<style>` sheets
 /// ([`App::set_import_loader`], [`extend_from_style_tags_with_loader`]).
 pub use rdom_css::{ImportLoader, LoadedSheet};
-/// The terminal size the viewport-percentage units (`vw`, `vh`, …)
-/// resolve against ([`CascadeExt::cascade_all_in`]).
+/// The size the viewport-percentage units (`vw`, `vh`, …) resolve
+/// against: the document's ([`CascadeExt::set_viewport`]).
 pub use rdom_style::calc::Viewport;
 /// Test-only VT emulator; see [`render::virtual_screen`].
 #[cfg(any(test, feature = "test-util"))]

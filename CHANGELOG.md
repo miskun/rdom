@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `css_syntax::serialize_string` / `serialize_identifier` (CSSOM §2.1): the inverses of `consume_string` / `consume_ident` — quotes, backslashes, control characters, a leading digit and other non-name characters escaped, so reading the text back gives the same string or name. (C1G-VAR-TOKENS)
 - **`:is()`** (Selectors 4 §4.2): `:is(<list>)` parses into `SimpleSelector::Is` — the node the nesting `&` already used — and matches an element any argument matches, with the specificity of its most specific argument. The argument list is forgiving: an argument that does not parse is dropped (`:is(.a, !!, .b)` is `:is(.a, .b)`), and an empty `:is()` is valid and matches nothing. (C1G-IS-PARSE)
 
+- **Document data** (`Dom::document_data` / `document_data_mut` / `set_document_data` / `remove_document_data`): a backend attaches per-document state, one value per Rust type, without the substrate knowing what it is — per-node state stays in `Ext`. rdom-tui keeps the document's viewport there. (C2G-VIEWPORT-DOC)
+
 ### Fixed — `rdom-core`
 
 - **Pseudo-class names are ASCII case-insensitive** (Selectors 4 §3.1): `a:HOVER` is `a:hover`. (C1-CASE)
@@ -99,7 +101,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `App::register_property` returns `Result<(), RegisterPropertyError>` (re-exported from `rdom_tui`) instead of `Result<(), String>`; a second registration of a name is `RegisterPropertyError::AlreadyRegistered(name)`. Migration: match the variant, or `.to_string()` for the old message. (C1G-TYPED-ERRORS)
 - `TuiNodeMutExt::set_max_width` / `set_max_height` take `Option<MaxSize>` (was `Option<u16>`). Migration: `set_max_width(Some(40))` → `set_max_width(Some(MaxSize::Cells(40)))`. (C2-PERCENT)
-- `CascadeExt` gains the required methods `cascade_all_in` / `cascade_subtrees_all_in` (implemented for `Dom<TuiExt>`); an out-of-tree implementor must add them. The forms without a viewport resolve viewport units against 0 × 0. (C2-VIEWPORT)
+- `CascadeExt` gains the required methods `set_viewport` / `viewport` (implemented for `Dom<TuiExt>`); an out-of-tree implementor must add them, storing the size as document data (`Dom::set_document_data`). (C2-VIEWPORT, C2G-VIEWPORT-DOC)
 
 ### Added — `rdom-tui`
 
@@ -112,7 +114,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `extend_from_style_tags_with_loader(dom, sheet, loader)`: the snapshot `<style>` merge with `@import` resolved through a loader. (C1G-IMPORT-EDGES)
 - **Re-exports for the App-level style APIs**: `rdom_tui::{PropertyRegistration, PropertySyntax, ImportLoader, LoadedSheet, LayerId, StyleSelector, RuleContext, CustomValue}` (and the rdom-style ones under `rdom_tui::style`), so `App::register_property`, `App::set_import_loader`, cascade layers and `Stylesheet::add_style_rule` need no direct `rdom-style` / `rdom-css` dependency; `App::register_property` has a doc example using `rdom_tui` paths only. (C1G-REEXPORTS)
 - Layout resolves `min-*` / `max-*` percentages against the containing block on their axis — the block width, a definite block height (else `0` / `none`, CSS 2.1 §10.7), a flex container's main or cross size. (C2-PERCENT)
-- **Viewport units resolve against the terminal.** The cascade makes `vw` / `vh` / … absolute per element (`CascadeExt::cascade_all_in` / `cascade_subtrees_all_in` take the `Viewport`; `rdom_tui::Viewport`); the `App` cascades at its terminal's size and cascades the whole tree again whenever that size changes. (C2-VIEWPORT)
+- **Viewport units resolve against the document's viewport.** The cascade makes `vw` / `vh` / … absolute per element against the viewport stored on the document, which every cascade form reads — `cascade`, `cascade_all`, `cascade_subtrees` and `cascade_subtrees_all` alike, so a `DirtyTracker` subtree re-cascade resolves against the same size as the full cascade before it. `CascadeExt::set_viewport` sets it (`rdom_tui::Viewport`), `layout_dom(area)` records its area, and the `App` sets its terminal's size each frame and cascades the whole tree again whenever that size changes. (C2-VIEWPORT, C2G-VIEWPORT-DOC)
 - A registered `<angle>` custom property interpolates (in degrees), and its `var()` consumers follow it. (C2-ANGLE)
 - `aspect-ratio: auto && <ratio>` sizes the content box: the flex cross size comes from the main size less its padding and border, plus the cross axis's (CSS Sizing 4 §5.1); a degenerate ratio is ignored. (C2-RATIO)
 - The cascade substitutes `attr()` with the element's attributes — a pseudo-element's originating element's — and an attribute change re-cascades it, so the value follows the attribute. (C2-ATTR)

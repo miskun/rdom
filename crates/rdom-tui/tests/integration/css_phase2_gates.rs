@@ -4,7 +4,7 @@
 //! expected value.
 
 use rdom_tui::render::Rect;
-use rdom_tui::{CascadeExt, LayoutExt, LayoutRect, NodeId, TuiDom, TuiNodeExt};
+use rdom_tui::{CascadeExt, LayoutExt, LayoutRect, NodeId, TuiDom, TuiNodeExt, Viewport};
 
 fn el(dom: &mut TuiDom, parent: NodeId, class: &str) -> NodeId {
     let id = dom.create_element("div");
@@ -120,4 +120,51 @@ fn hostile_attr_calc_is_invalid_not_a_stack_overflow() {
     );
     assert_eq!(rect(&dom, nested).width, 7, "fallback");
     assert_eq!(rect(&dom, chained).width, 7, "fallback");
+}
+
+// ── C2G-VIEWPORT-DOC ─────────────────────────────────────────────────
+
+/// CSS Values 4 §6.1.2: viewport-percentage lengths are relative to the
+/// initial containing block, the document's viewport. The viewport is
+/// the document's (`set_viewport`), so every cascade form reads it: a
+/// headless `cascade` resolves `50vw` of 80 to 40, and a later subtree
+/// re-cascade (the DirtyTracker pattern) resolves against the same 80.
+#[test]
+fn every_cascade_form_reads_the_document_viewport() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let a = el(&mut dom, root, "a");
+    let b = el(&mut dom, root, "b");
+    let sheet =
+        rdom_css::from_css_strict(".a, .b { width: 50vw; height: 1 } .x { height: 10vh }").unwrap();
+    dom.set_viewport(Viewport::new(80, 20));
+    assert_eq!(dom.viewport(), Viewport::new(80, 20));
+    dom.cascade(&sheet);
+    dom.layout_dom(Rect::new(0, 0, 80, 20));
+    assert_eq!(rect(&dom, a).width, 40);
+
+    dom.set_attribute(b, "class", "b x").unwrap();
+    dom.cascade_subtrees(&sheet, &[b]);
+    dom.layout_dom(Rect::new(0, 0, 80, 20));
+    assert_eq!(
+        (rect(&dom, b).width, rect(&dom, b).height),
+        (40, 2),
+        "the re-cascaded subtree keeps the 80 × 20 viewport"
+    );
+}
+
+/// `layout_dom(area)` presents the document in `area`: it records the
+/// area as the viewport, so the next cascade resolves against it.
+#[test]
+fn layout_records_its_area_as_the_viewport() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let a = el(&mut dom, root, "a");
+    let sheet = rdom_css::from_css_strict(".a { width: 50vw; height: 1 }").unwrap();
+    assert_eq!(dom.viewport(), Viewport::default(), "0 × 0 until set");
+    dom.layout_dom(Rect::new(0, 0, 60, 10));
+    assert_eq!(dom.viewport(), Viewport::new(60, 10));
+    dom.cascade(&sheet);
+    dom.layout_dom(Rect::new(0, 0, 60, 10));
+    assert_eq!(rect(&dom, a).width, 30);
 }

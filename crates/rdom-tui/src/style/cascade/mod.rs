@@ -76,8 +76,10 @@ pub(crate) use matching::probe as match_probe;
 pub(crate) use registered::PropertyRegistry;
 #[cfg(test)]
 pub(crate) use registered::probe as registry_probe;
+pub(crate) use viewport::{document_viewport, set_document_viewport};
 mod scope;
 mod sheets;
+mod viewport;
 mod walk;
 
 #[cfg(test)]
@@ -154,21 +156,19 @@ pub trait CascadeExt {
     /// Multi-sheet variant of [`Self::cascade_subtrees`].
     fn cascade_subtrees_all(&mut self, stylesheets: &[&Stylesheet], roots: &[NodeId]);
 
-    /// [`Self::cascade_all`] for a terminal of `viewport`'s size: the
-    /// viewport-percentage units (`vw`, `vh`, `vmin`, …) resolve against
-    /// it (CSS Values 4 §6.1.2). The `App` cascades this way with the
-    /// terminal's size each frame; the forms without a viewport resolve
-    /// those units against an empty (0 × 0) one.
-    fn cascade_all_in(&mut self, stylesheets: &[&Stylesheet], viewport: Viewport);
+    /// Set the viewport the document is presented in: the size the
+    /// viewport-percentage units (`vw`, `vh`, `vmin`, …) resolve
+    /// against (CSS Values 4 §6.1.2), for every cascade form. The `App`
+    /// sets its terminal's size each frame, and
+    /// [`LayoutExt::layout_dom`](crate::LayoutExt::layout_dom) records
+    /// its area; a headless document is 0 × 0 until one of them runs.
+    /// A new size does not re-cascade: cascade the whole tree again
+    /// (the `App` does).
+    fn set_viewport(&mut self, viewport: Viewport);
 
-    /// [`Self::cascade_subtrees_all`] for a terminal of `viewport`'s
-    /// size (see [`Self::cascade_all_in`]).
-    fn cascade_subtrees_all_in(
-        &mut self,
-        stylesheets: &[&Stylesheet],
-        roots: &[NodeId],
-        viewport: Viewport,
-    );
+    /// The viewport the document's style resolves against
+    /// ([`Self::set_viewport`]).
+    fn viewport(&self) -> Viewport;
 }
 
 impl CascadeExt for Dom<TuiExt> {
@@ -177,7 +177,7 @@ impl CascadeExt for Dom<TuiExt> {
     }
 
     fn cascade_all(&mut self, stylesheets: &[&Stylesheet]) {
-        self.cascade_all_in(stylesheets, Viewport::default());
+        cascade_all_with(self, stylesheets, None);
     }
 
     fn cascade_subtrees(&mut self, stylesheet: &Stylesheet, roots: &[NodeId]) {
@@ -185,20 +185,15 @@ impl CascadeExt for Dom<TuiExt> {
     }
 
     fn cascade_subtrees_all(&mut self, stylesheets: &[&Stylesheet], roots: &[NodeId]) {
-        self.cascade_subtrees_all_in(stylesheets, roots, Viewport::default());
+        cascade_subtrees_all_with(self, stylesheets, None, roots);
     }
 
-    fn cascade_all_in(&mut self, stylesheets: &[&Stylesheet], viewport: Viewport) {
-        cascade_all_with(self, stylesheets, None, viewport);
+    fn set_viewport(&mut self, viewport: Viewport) {
+        set_document_viewport(self, viewport);
     }
 
-    fn cascade_subtrees_all_in(
-        &mut self,
-        stylesheets: &[&Stylesheet],
-        roots: &[NodeId],
-        viewport: Viewport,
-    ) {
-        cascade_subtrees_all_with(self, stylesheets, None, roots, viewport);
+    fn viewport(&self) -> Viewport {
+        document_viewport(self)
     }
 }
 
@@ -208,9 +203,8 @@ pub(crate) fn cascade_all_with(
     dom: &mut Dom<TuiExt>,
     stylesheets: &[&Stylesheet],
     registry: Option<Rc<PropertyRegistry>>,
-    viewport: Viewport,
 ) {
-    let sheets = walk::Sheets::new(stylesheets, registry, viewport);
+    let sheets = walk::Sheets::new(stylesheets, registry, document_viewport(dom));
     let merged_vars = walk::merge_root_vars(&sheets);
     let root = dom.root();
     // The root's parent carries the sheet-level (`define_var` /
@@ -241,16 +235,8 @@ pub(crate) fn cascade_subtrees_all_with(
     stylesheets: &[&Stylesheet],
     registry: Option<Rc<PropertyRegistry>>,
     roots: &[NodeId],
-    viewport: Viewport,
 ) {
-    subtrees(
-        dom,
-        stylesheets,
-        registry,
-        roots,
-        walk::Mode::Cascade,
-        viewport,
-    );
+    subtrees(dom, stylesheets, registry, roots, walk::Mode::Cascade);
 }
 
 /// Restyle the subtrees at `roots` after a change no selector can see —
@@ -265,16 +251,8 @@ pub(crate) fn restyle_vars(
     stylesheets: &[&Stylesheet],
     registry: Rc<PropertyRegistry>,
     roots: &[NodeId],
-    viewport: Viewport,
 ) {
-    subtrees(
-        dom,
-        stylesheets,
-        Some(registry),
-        roots,
-        walk::Mode::Restyle,
-        viewport,
-    );
+    subtrees(dom, stylesheets, Some(registry), roots, walk::Mode::Restyle);
 }
 
 fn subtrees(
@@ -283,9 +261,8 @@ fn subtrees(
     registry: Option<Rc<PropertyRegistry>>,
     roots: &[NodeId],
     mode: walk::Mode,
-    viewport: Viewport,
 ) {
-    let sheets = walk::Sheets::new(stylesheets, registry, viewport);
+    let sheets = walk::Sheets::new(stylesheets, registry, document_viewport(dom));
     let merged_vars = walk::merge_root_vars(&sheets);
     let uses_counters = uses_counters(stylesheets);
     // A queued root can have been FREED between when it was marked

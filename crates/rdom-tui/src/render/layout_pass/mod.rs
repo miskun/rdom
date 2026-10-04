@@ -109,11 +109,20 @@ pub trait LayoutExt {
     /// Run the layout pass against `viewport`. Writes `TuiExt.layout`
     /// and `TuiExt.content_layout` for every element. Safe to call
     /// repeatedly — each call fully re-lays out.
+    ///
+    /// Records `viewport`'s size as the document's viewport
+    /// ([`CascadeExt::set_viewport`](crate::CascadeExt::set_viewport)),
+    /// so the next cascade resolves `vw` / `vh` against it. Lay-out does
+    /// not re-cascade: after a size change, cascade the whole tree again.
     fn layout_dom(&mut self, viewport: Rect);
 }
 
 impl LayoutExt for Dom<TuiExt> {
     fn layout_dom(&mut self, viewport: Rect) {
+        crate::style::cascade::set_document_viewport(
+            self,
+            rdom_style::calc::Viewport::new(viewport.width, viewport.height),
+        );
         let root = self.root();
         let root_rect = LayoutRect::new(
             viewport.x as i32,

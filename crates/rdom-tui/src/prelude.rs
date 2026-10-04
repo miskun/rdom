@@ -140,5 +140,6 @@ pub use crate::{
     UserSelect,
     Value,
     VarMap,
+    Viewport,
     WhiteSpace,
 };

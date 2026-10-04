@@ -71,6 +71,9 @@ pub struct Dom<Ext: 'static = ()> {
     /// The backend's constraint check behind `:valid` / `:invalid`
     /// (`Dom::set_validity_hook`). `None` = every candidate is valid.
     pub(crate) validity_hook: crate::constraint::ValiditySlot<Ext>,
+    /// Backend state attached to the document (`document_data`), one
+    /// value per type.
+    pub(crate) document_data: crate::document_data::DocumentData,
     /// O(1) indexes for id / tag / class lookups. Kept in sync with every
     /// mutation via `hook_register` / `hook_unregister` and the attr/class
     /// accessors in `attrs.rs`.
@@ -151,6 +154,7 @@ impl<Ext: Default> Dom<Ext> {
             is_observing: false,
             activation_hook: crate::dispatch::ActivationSlot(None),
             validity_hook: crate::constraint::ValiditySlot(None),
+            document_data: Default::default(),
         }
     }
 }
@@ -499,6 +503,7 @@ impl<Ext: Default> Dom<Ext> {
             is_observing: false,
             activation_hook: crate::dispatch::ActivationSlot(None),
             validity_hook: crate::constraint::ValiditySlot(None),
+            document_data: Default::default(),
         };
         dom.hook_register(root);
         dom

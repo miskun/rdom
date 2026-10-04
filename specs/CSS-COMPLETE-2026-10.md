@@ -509,3 +509,12 @@ row comes from.
   Chosen over an iterative `Drop` / balanced trees: one bound covers every walker, `-` and `/` do not
   re-associate, and 256 operands is far past hand-written CSS. A run of unary `+` is a loop. Red: a
   20 000-level `attr()` value aborted the test process (stack overflow); green: invalid, fallback.
+- 2026-10-05 — C2G-VIEWPORT-DOC: the viewport is the document's. rdom-core gains document data
+  (`Dom::document_data` / `set_document_data` / …, one value per Rust type, `document_data.rs`) — the
+  substrate's renderer-free hook for per-document backend state, as `Ext` is per node; the root is a
+  fragment with no `Ext`, so no node could hold it. rdom-tui stores the `Viewport` there
+  (`style/cascade/viewport.rs`); every cascade form and `restyle_vars` read it,
+  `CascadeExt::set_viewport` / `viewport` set and read it, `layout_dom(area)` records its area, the
+  `App` sets its terminal's size each frame (its `cascaded_viewport` still decides the full
+  re-cascade). Decided: `cascade_all_in` / `cascade_subtrees_all_in` removed (unreleased) — one way
+  to give the size. `Viewport` joins the prelude. Phase 14's `@media` reads the same value.

@@ -23,6 +23,7 @@ use crate::TuiDom;
 use crate::render::backend::Backend;
 use crate::render::{LayoutExt, PaintExt, Rect};
 use crate::runtime::animation::AnimationRegistry;
+use crate::style::CascadeExt;
 use crate::style::Stylesheet;
 use crate::style::cascade::{
     PropertyRegistry, cascade_all_with, cascade_subtrees_all_with, restyle_vars,
@@ -265,17 +266,18 @@ fn style_and_layout(
     // Values 4 §6.1.2); at a size the tree was not cascaded for, every
     // element's are stale, so the whole tree cascades.
     let viewport = Viewport::new(area.width, area.height);
+    dom.set_viewport(viewport);
     let redraw = if *cascaded_viewport == Some(viewport) {
         redraw
     } else {
         Redraw::Cascade
     };
     let cascade = if redraw == Redraw::Cascade {
-        cascade_all_with(dom, sheets, Some(registry.clone()), viewport);
+        cascade_all_with(dom, sheets, Some(registry.clone()));
         *cascaded_viewport = Some(viewport);
         Some(CascadeScope::Full)
     } else if !dirty_roots.is_empty() {
-        cascade_subtrees_all_with(dom, sheets, Some(registry.clone()), dirty_roots, viewport);
+        cascade_subtrees_all_with(dom, sheets, Some(registry.clone()), dirty_roots);
         Some(CascadeScope::Subtrees)
     } else {
         None
@@ -292,7 +294,7 @@ fn style_and_layout(
         let restyle = animations.take_restyle();
         if !restyle.is_empty() {
             // No selector can see the change: reuse the matches.
-            restyle_vars(dom, sheets, registry.clone(), &restyle, viewport);
+            restyle_vars(dom, sheets, registry.clone(), &restyle);
             // The animated result is the before-change style of the
             // next style change (CSS Transitions 1 §3).
             crate::runtime::animation::settle_restyled(dom, &restyle);

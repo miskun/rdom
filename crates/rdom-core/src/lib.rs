@@ -38,6 +38,7 @@ mod constraint;
 mod content_editable;
 pub mod css_syntax;
 mod dispatch;
+mod document_data;
 mod dom;
 mod dom_string_map;
 mod error;
