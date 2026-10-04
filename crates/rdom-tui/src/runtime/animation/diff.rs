@@ -110,6 +110,29 @@ pub fn diff_and_register(dom: &mut Dom<TuiExt>, registry: &mut AnimationRegistry
     }
 }
 
+/// Run after the per-frame re-cascade that carries registered
+/// custom-property transitions to their `var()` consumers
+/// ([`AnimationRegistry::take_restyle`]): make that animated result the
+/// subtrees' previous style. CSS Transitions 1 §3 compares a style
+/// change with the *before-change style*, which includes running
+/// animations at the current time; without this, the next cascade of
+/// these elements would diff against the values of the last real style
+/// change and start transitions nothing asked for.
+pub fn settle_restyled(dom: &mut Dom<TuiExt>, roots: &[NodeId]) {
+    for &root in roots {
+        if !dom.contains(root) {
+            continue;
+        }
+        for id in collect_element_ids(dom, root) {
+            if let Some(ext) = dom.node_mut(id).ext_mut() {
+                ext.computed_prev = ext.computed.clone();
+                ext.computed_before_prev = ext.computed_before.clone();
+                ext.computed_after_prev = ext.computed_after.clone();
+            }
+        }
+    }
+}
+
 /// `(prev, curr)` for a pseudo-element slot when both exist and differ
 /// by identity.
 fn snapshot_pseudo(

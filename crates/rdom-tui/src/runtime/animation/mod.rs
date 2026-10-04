@@ -343,8 +343,8 @@ mod interpolate;
 mod tests;
 
 pub use custom::PendingCustomEvent;
-pub use diff::diff_and_register;
 use diff::{clear_presentation, write_presentation};
+pub use diff::{diff_and_register, settle_restyled};
 use interpolate::interpolate;
 #[cfg(test)]
 mod custom_tests;

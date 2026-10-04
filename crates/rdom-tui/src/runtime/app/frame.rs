@@ -268,6 +268,9 @@ fn style_and_layout(
         let restyle = animations.take_restyle();
         if !restyle.is_empty() {
             dom.cascade_subtrees_all(sheets, &restyle);
+            // The animated result is the before-change style of the
+            // next style change (CSS Transitions 1 §3).
+            crate::runtime::animation::settle_restyled(dom, &restyle);
         }
         dom.layout_dom(area);
         if crate::runtime::scrollbar::service_caret_reveal(dom) {

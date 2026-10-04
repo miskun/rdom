@@ -314,3 +314,7 @@ row comes from.
   grammars; a 65 536-token substitution limit (`var::MAX_SUBSTITUTED_TOKENS`). No existing
   property test depended on `<number> <unit>` with whitespace; the tokenizer's own tests for
   `1em` / `1e` / `200ms` now expect a dimension.
+- 2026-10-04 — C1G-TRANSITION-PREV: after the per-frame registered-property re-cascade, the frame
+  pipeline copies `computed` (and the pseudo slots) into `computed_prev` for the restyled subtrees
+  (`animation::settle_restyled`), so the next style change diffs against the animated values.
+  The per-frame subtree re-cascade itself (its cost) remains a non-blocking architect finding.
