@@ -215,3 +215,25 @@ fn theme_tokens_substitute_as_literal_values() {
     assert_eq!(got.padding, lit.padding);
     assert_eq!(got.width, lit.width);
 }
+
+// ── `:root` and `attr()` (C2G-ATTR-PARSE) ────────────────────────────
+
+/// The sheet-level `:root` custom properties (the mirror every subtree
+/// root inherits from) read `attr()` on the root element, which `:root`
+/// matches (Selectors 4 §14.1), when the root is an element; a fragment
+/// root has no attributes.
+#[test]
+fn root_vars_attr_reads_the_root_element() {
+    let css = sheet(":root { --w: attr(data-w type(<length>), 3) }");
+    let sheets = [&css];
+    let mut dom = TuiDom::with_root_tag("html");
+    let root = dom.root();
+    dom.set_attribute(root, "data-w", "7").unwrap();
+    let s = walk::Sheets::new(&sheets, None, Default::default());
+    let merged = walk::merge_root_vars(&dom, &s);
+    assert_eq!(merged.get("w").map(|v| v.as_str()), Some("7"));
+
+    let fragment = TuiDom::new();
+    let merged = walk::merge_root_vars(&fragment, &s);
+    assert_eq!(merged.get("w").map(|v| v.as_str()), Some("3"));
+}

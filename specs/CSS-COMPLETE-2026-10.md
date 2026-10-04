@@ -556,3 +556,14 @@ row comes from.
   is now *partial* with that gap. `flex` serializes as `<grow> <shrink> <basis>`. DIVERGENCES' flex entry
   rewritten (the stale `Size::Flex(1)` / `parse/values.rs`); the C2-NUMBER changelog example now says
   what `flex: 1.5 0.5 0%` sets. The `initial`-keyword apply test perturbs `flex_basis` through `flex`.
+- 2026-10-05 — C2G-ATTR-PARSE: `attr::valid_args` parses the head at parse time (an unknown unit, a
+  bad `type()` syntax, a non-identifier name are invalid; a head holding `var()` / `attr()` is checked
+  when substituted), so `width: 10; width: attr(x bogus)` keeps 10. `PendingDeclaration` stores
+  `attr::AttrHeads` (the heads, parsed once, keyed by the `attr(` token's index; `substitute_at`
+  carries the offset into heads and fallbacks), so a substitution parses none — probe: 50
+  substitutions parsed 50 heads before, 0 after. `AttrLookup` returns a borrowed `&str` (no `String`
+  per lookup) and `PropertySyntax::matches_tokens` drops the second tokenization of a `type()` value.
+  `merge_root_vars` takes the dom and reads the root element's attributes for the `:root` mirror
+  (a fragment root has none — DIVERGENCES). Found: an element root already got the right value
+  through its own cascade; only the mirror (what the root's parent seeds) read no attribute. The
+  C2-ATTR test's `furlong` case moved: it is a parse error now, not a fallback.

@@ -469,10 +469,10 @@ fn attr_declarations_are_kept_for_the_cascade() {
 fn attr_substitution_rules() {
     use crate::var::substitute_with;
     let attrs = |name: &str| match name {
-        "n" => Some("12".to_string()),
-        "s" => Some("a \"b\"".to_string()),
-        "x" => Some("1e1".to_string()),
-        "neg" => Some("-3".to_string()),
+        "n" => Some("12"),
+        "s" => Some("a \"b\""),
+        "x" => Some("1e1"),
+        "neg" => Some("-3"),
         _ => None,
     };
     let sub = |src: &str| substitute_with(&t(src), &mut |_| None, Some(&attrs));
@@ -493,4 +493,68 @@ fn attr_substitution_rules() {
         Some(vec![Token::String(String::new())]),
         "no element: no attribute"
     );
+}
+
+/// C2G-ATTR-PARSE — CSS Values 5 §8.7: `<attr-type>` is
+/// `type(<syntax>)`, `raw-string`, `number` or a CSS unit, and the name
+/// an identifier; a declaration whose `attr()` fails that grammar is
+/// invalid at parse time, so an earlier declaration stands. A head
+/// holding a substitution function (`attr(var(--n))`) is checked when it
+/// is substituted.
+#[test]
+fn attr_grammar_is_checked_at_parse_time() {
+    use crate::TuiStyle;
+    use crate::layout::Size;
+    use crate::property_dispatch::{DispatchError, set};
+    let check = |v: &str| set("width", v, &mut TuiStyle::new());
+    for bad in [
+        "attr(x bogus)",
+        "attr(x type(<bogus>))",
+        "attr(1)",
+        "attr(x number number)",
+        "attr(x bogus, 1)",
+        "calc(attr(x nounit) * 2)",
+        "attr(x, attr(y bogus))",
+    ] {
+        assert_eq!(check(bad), Err(DispatchError::InvalidValue), "{bad}");
+    }
+    for good in [
+        "attr(x)",
+        "attr(x px)",
+        "attr(x %)",
+        "attr(x number, 1)",
+        "attr(x type(<length> | auto))",
+        "attr(var(--n))",
+        "attr(x, attr(y px))",
+    ] {
+        assert_eq!(check(good), Ok(()), "{good}");
+    }
+    let mut s = TuiStyle::new();
+    set("width", "10", &mut s).unwrap();
+    assert!(set("width", "attr(x bogus)", &mut s).is_err());
+    assert_eq!(s.width, Some(crate::Value::Specified(Size::Fixed(10))));
+    assert!(s.pending.is_empty());
+}
+
+/// C2G-ATTR-PARSE: an `attr()`'s name and type are parsed once, when the
+/// declaration is stored, not on every substitution.
+#[test]
+fn attr_heads_parse_once_per_declaration() {
+    use crate::TuiStyle;
+    use crate::attr::probe;
+    use crate::property_dispatch::set;
+    let mut s = TuiStyle::new();
+    probe::take_head_parses();
+    set("width", "attr(data-w type(<length>), 1)", &mut s).unwrap();
+    let stored = probe::take_head_parses();
+    assert!(stored >= 1, "parsed when stored");
+    let attrs = |name: &str| (name == "data-w").then_some("5");
+    for _ in 0..50 {
+        let got = s.substituted_pending_on(&Default::default(), Some(&attrs));
+        assert_eq!(
+            got.width,
+            Some(crate::Value::Specified(crate::layout::Size::Fixed(5)))
+        );
+    }
+    assert_eq!(probe::take_head_parses(), 0, "none per substitution");
 }

@@ -525,7 +525,8 @@ fn aspect_ratio_takes_the_full_ratio_grammar() {
 /// does not parse, takes the fallback; with none, an untyped `attr()` is
 /// the empty string and a typed one makes the declaration invalid at
 /// computed-value time (`unset`). On a pseudo-element it reads the
-/// originating element (§8.7).
+/// originating element (§8.7). (An unknown unit fails `attr()`'s grammar
+/// at parse time: `css_phase2_gates`, C2G-ATTR-PARSE.)
 #[test]
 fn attr_substitutes_typed_attribute_values() {
     let mut dom = TuiDom::new();
@@ -541,7 +542,6 @@ fn attr_substitutes_typed_attribute_values() {
         ("g", &[]),
         ("h", &[("data-w", "4")]),
         ("i", &[("data-c", "blue")]),
-        ("k", &[("data-w", "5")]),
     ];
     let ids: Vec<NodeId> = attrs
         .iter()
@@ -563,8 +563,7 @@ fn attr_substitutes_typed_attribute_values() {
          .f::before { content: '[' attr(title raw-string) ']' }
          .g { width: attr(data-w type(<length>)); height: 1 }
          .h { --w: attr(data-w type(<length>)); width: calc(var(--w) * 2); height: 1 }
-         .i { color: attr(data-c type(<color>), red); height: 1 }
-         .k { width: attr(data-w furlong, 6); height: 1 }",
+         .i { color: attr(data-c type(<color>), red); height: 1 }",
         80,
         30,
     );
@@ -600,7 +599,6 @@ fn attr_substitutes_typed_attribute_values() {
         computed_of(&dom, ids[8]).fg,
         rdom_tui::Color::Rgb(0, 0, 255)
     );
-    assert_eq!(w(9), 6, "an unknown unit takes the fallback");
 }
 
 /// `attr()` is read again when the attribute changes: an attribute

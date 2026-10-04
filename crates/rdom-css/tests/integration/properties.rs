@@ -250,7 +250,7 @@ fn content_string() {
 fn content_attr() {
     let s = first_style("a { content: attr(placeholder); }");
     assert_eq!(s.content, None, "kept for the cascade");
-    let attrs = |name: &str| (name == "placeholder").then(|| "hint".to_string());
+    let attrs = |name: &str| (name == "placeholder").then_some("hint");
     let got = s.substituted_pending_on(&Default::default(), Some(&attrs));
     assert_eq!(
         got.content,

@@ -86,7 +86,7 @@ pub(super) fn compute_pseudo_style(
     let decls = Declarations::new(sorted, ranks, None);
     // `attr()` on a pseudo-element reads its originating element's
     // attributes (CSS Values 5 §8.7).
-    let attrs = |name: &str| dom.node(id).get_attribute(name).map(str::to_string);
+    let attrs = |name: &str| dom.node(id).get_attribute(name);
     let substituted = prepare(
         &mut working,
         plan,

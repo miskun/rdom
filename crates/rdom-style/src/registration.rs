@@ -208,11 +208,18 @@ impl PropertySyntax {
     pub fn matches(&self, value: &str) -> bool {
         match self {
             PropertySyntax::Universal => true,
+            PropertySyntax::Alternatives(_) => {
+                tokenize(value).is_ok_and(|tokens| self.matches_tokens(&tokens))
+            }
+        }
+    }
+
+    /// [`matches`](Self::matches) for a value already tokenized.
+    pub(crate) fn matches_tokens(&self, tokens: &[Token]) -> bool {
+        match self {
+            PropertySyntax::Universal => true,
             PropertySyntax::Alternatives(alts) => {
-                let Ok(tokens) = tokenize(value) else {
-                    return false;
-                };
-                alts.iter().any(|(c, m)| matches_term(c, *m, &tokens))
+                alts.iter().any(|(c, m)| matches_term(c, *m, tokens))
             }
         }
     }

@@ -303,3 +303,43 @@ fn flex_basis_reaches_the_computed_style() {
         rdom_tui::layout::FlexBasis::Calc(Box::new(rdom_style::calc::CalcExpr::Percent(30.0)))
     );
 }
+
+// ── C2G-ATTR-PARSE ───────────────────────────────────────────────────
+
+/// CSS Values 5 §8.7: `<attr-type>` is `type(<syntax>)`, `raw-string`,
+/// `number` or a CSS unit; anything else fails `attr()`'s grammar, so
+/// the declaration is invalid at parse time and the earlier one stands:
+/// `width: 10; width: attr(x bogus)` is 10.
+#[test]
+fn an_invalid_attr_type_drops_the_declaration_at_parse_time() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let a = el(&mut dom, root, "a");
+    dom.set_attribute(a, "x", "30").unwrap();
+    let parsed = rdom_css::parse(".a { width: 10; width: attr(x bogus); height: 1 }");
+    assert_eq!(parsed.warnings.len(), 1, "{:?}", parsed.warnings);
+    dom.cascade(&parsed.stylesheet);
+    dom.layout_dom(Rect::new(0, 0, 40, 5));
+    assert_eq!(rect(&dom, a).width, 10);
+}
+
+/// `:root` custom properties are seeded from the sheets for the whole
+/// tree; an `attr()` in one reads the root element's attributes when the
+/// root is an element (Selectors 4 §14.1: `:root` is the document's root
+/// element). A fragment root has none, so the fallback applies.
+#[test]
+fn root_custom_property_attr_reads_the_root_element() {
+    let css = ":root { --w: attr(data-w type(<length>), 3) } .a { width: var(--w); height: 1 }";
+    let mut dom = TuiDom::with_root_tag("html");
+    let root = dom.root();
+    dom.set_attribute(root, "data-w", "7").unwrap();
+    let a = el(&mut dom, root, "a");
+    lay_out(&mut dom, css, 40, 5);
+    assert_eq!(rect(&dom, a).width, 7);
+
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let a = el(&mut dom, root, "a");
+    lay_out(&mut dom, css, 40, 5);
+    assert_eq!(rect(&dom, a).width, 3, "a fragment root has no attributes");
+}

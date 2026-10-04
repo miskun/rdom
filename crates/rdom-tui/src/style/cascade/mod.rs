@@ -205,7 +205,7 @@ pub(crate) fn cascade_all_with(
     registry: Option<Rc<PropertyRegistry>>,
 ) {
     let sheets = walk::Sheets::new(stylesheets, registry, document_viewport(dom));
-    let merged_vars = walk::merge_root_vars(&sheets);
+    let merged_vars = walk::merge_root_vars(dom, &sheets);
     let root = dom.root();
     // The root's parent carries the sheet-level (`define_var` /
     // `:root`) variables; every element then inherits its parent's
@@ -263,7 +263,7 @@ fn subtrees(
     mode: walk::Mode,
 ) {
     let sheets = walk::Sheets::new(stylesheets, registry, document_viewport(dom));
-    let merged_vars = walk::merge_root_vars(&sheets);
+    let merged_vars = walk::merge_root_vars(dom, &sheets);
     let uses_counters = uses_counters(stylesheets);
     // A queued root can have been FREED between when it was marked
     // dirty and now: dropping one child fires `ChildListChanged`, whose

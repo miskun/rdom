@@ -55,6 +55,9 @@ pub struct PendingDeclaration {
     /// The value contains an arbitrary substitution function: `var()` or
     /// `attr()`.
     pub has_var: bool,
+    /// The value's `attr()` names and types, parsed once here rather
+    /// than at every substitution.
+    pub(crate) heads: crate::attr::AttrHeads,
 }
 
 impl PendingDeclaration {
@@ -63,6 +66,11 @@ impl PendingDeclaration {
             name: name.to_string(),
             value: value.to_vec(),
             has_var,
+            heads: if has_var {
+                crate::attr::AttrHeads::of(value)
+            } else {
+                Default::default()
+            },
         }
     }
 }
@@ -143,17 +151,41 @@ pub fn substitute_with(
     lookup: &mut dyn FnMut(&str) -> Option<CustomValue>,
     attrs: Option<crate::attr::AttrLookup<'_>>,
 ) -> Option<Vec<Token>> {
+    substitute_at(tokens, 0, None, lookup, attrs)
+}
+
+/// [`substitute_with`] over `tokens`, which start at index `base` of a
+/// stored declaration whose `attr()` heads `heads` holds parsed (`None`:
+/// parse each head as it is met).
+fn substitute_at(
+    tokens: &[Token],
+    base: usize,
+    heads: Option<&crate::attr::AttrHeads>,
+    lookup: &mut dyn FnMut(&str) -> Option<CustomValue>,
+    attrs: Option<crate::attr::AttrLookup<'_>>,
+) -> Option<Vec<Token>> {
     let mut out = Vec::with_capacity(tokens.len());
     let mut i = 0;
     while i < tokens.len() {
         if crate::attr::is_attr(&tokens[i]) {
             let end = matching_paren(tokens, i)?;
             let (head, fallback) = crate::attr::split_args(&tokens[i + 1..end]);
-            let head = substitute_with(head, lookup, attrs)?;
-            match crate::attr::replace(&head, fallback, attrs) {
+            // `attr(` head `,` fallback: where the fallback starts.
+            let fallback_base = base + i + 1 + head.len() + 1;
+            // A head parsed in advance holds no substitution function.
+            let parsed = heads.and_then(|h| h.get(base + i));
+            let substituted;
+            let head = match parsed {
+                Some(_) => head,
+                None => {
+                    substituted = substitute_at(head, base + i + 1, heads, lookup, attrs)?;
+                    &substituted
+                }
+            };
+            match crate::attr::replace(head, parsed, fallback, attrs) {
                 crate::attr::Replacement::Tokens(t) => out.extend(t),
                 crate::attr::Replacement::Fallback(f) => {
-                    out.extend(substitute_with(f, lookup, attrs)?)
+                    out.extend(substitute_at(f, fallback_base, heads, lookup, attrs)?)
                 }
                 crate::attr::Replacement::Invalid => return None,
             }
@@ -177,7 +209,14 @@ pub fn substitute_with(
         let name = name.strip_prefix("--")?;
         match lookup(name) {
             Some(value) => out.extend_from_slice(value.tokens()?),
-            None => out.extend(substitute_with(fallback?, lookup, attrs)?),
+            // `var(` `--name` `,` fallback: the fallback is at `i + 3`.
+            None => out.extend(substitute_at(
+                fallback?,
+                base + i + 3,
+                heads,
+                lookup,
+                attrs,
+            )?),
         }
         if out.len() > MAX_SUBSTITUTED_TOKENS {
             return None;
@@ -246,9 +285,14 @@ impl TuiStyle {
     ) {
         for decl in &self.pending {
             let parsed = if decl.has_var {
-                substitute_with(&decl.value, &mut |n| lookup_in(vars, n), attrs).is_some_and(|t| {
-                    crate::property_dispatch::set_parsed(&decl.name, &t, out).is_ok()
-                })
+                substitute_at(
+                    &decl.value,
+                    0,
+                    Some(&decl.heads),
+                    &mut |n| lookup_in(vars, n),
+                    attrs,
+                )
+                .is_some_and(|t| crate::property_dispatch::set_parsed(&decl.name, &t, out).is_ok())
             } else {
                 crate::property_dispatch::set_parsed(&decl.name, &decl.value, out).is_ok()
             };
@@ -420,7 +464,7 @@ fn is_custom(name: &str) -> bool {
 }
 
 /// The index of the `)` closing the function or `(` at `open`.
-fn matching_paren(tokens: &[Token], open: usize) -> Option<usize> {
+pub(crate) fn matching_paren(tokens: &[Token], open: usize) -> Option<usize> {
     let mut depth = 0usize;
     for (i, t) in tokens.iter().enumerate().skip(open) {
         match t {
