@@ -51,6 +51,7 @@
 //! - `border` — background fill + border drawing (box-drawing
 //!   chars, edge selection).
 //! - `group` — `opacity` group rendering through a bounded layer.
+//! - `backdrop` — the `::backdrop` of open modal dialogs.
 //! - `inline_paint` — `::before` + own text + `::after` for
 //!   non-IFC elements; fragment-driven IFC paint. Split into the
 //!   fragment painter (`mod.rs`), the chrome-substitution seam
@@ -59,6 +60,7 @@
 //! - `text` — `paint_text` low-level helper + `ComputedStyle` →
 //!   `Style` conversion.
 
+mod backdrop;
 mod border;
 mod border_join;
 mod group;
@@ -120,7 +122,7 @@ impl PaintExt for Dom<TuiExt> {
         // paint pass so the backdrop reliably sits on top of whatever
         // else painted into the viewport — then we re-paint the
         // dialog subtree so it ends up above the backdrop.
-        paint_modal_backdrops(self, buf, clip);
+        backdrop::paint_modal_backdrops(self, buf, clip);
         // Tree guide lines — emit `│ ├ └` border contributions into
         // the gutter of every `[role=tree]`. Runs BEFORE the joiner
         // so the accumulated direction masks become glyphs.
@@ -207,50 +209,6 @@ fn paint_plain(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect, view
         return;
     };
     paint_content(dom, id, buf, clip, viewport, &frame);
-}
-
-/// Find every open modal `<dialog>` (any element with both `open`
-/// and `data-rdom-modal` attributes), overlay its `::backdrop`
-/// style across the viewport, and re-paint the dialog subtree on
-/// top. Works without z-index support by running as a post-pass.
-fn paint_modal_backdrops(dom: &Dom<TuiExt>, buf: &mut Buffer, clip: Rect) {
-    let mut modals: Vec<NodeId> = Vec::new();
-    collect_modal_dialogs(dom, dom.root(), &mut modals);
-    for dialog_id in modals {
-        let Some(backdrop_style) = dom
-            .node(dialog_id)
-            .ext()
-            .and_then(|e| e.computed_backdrop.clone())
-        else {
-            continue;
-        };
-        fill_backdrop(buf, clip, &backdrop_style);
-        paint_stacking_context(dom, dialog_id, buf, clip, clip);
-    }
-}
-
-fn collect_modal_dialogs(dom: &Dom<TuiExt>, id: NodeId, out: &mut Vec<NodeId>) {
-    let node = dom.node(id);
-    if node.tag_name() == Some("dialog")
-        && node.has_attribute("open")
-        && node.has_attribute("data-rdom-modal")
-    {
-        out.push(id);
-    }
-    for child in node.child_nodes() {
-        collect_modal_dialogs(dom, child.id(), out);
-    }
-}
-
-/// Fill every cell of `clip` with the backdrop's bg (and optional
-/// fg). Uses `Buffer::cell_mut` so the pre-existing symbols are
-/// preserved underneath — apps that want a solid wipe set an
-/// explicit `content: " "` override on `dialog::backdrop`.
-fn fill_backdrop(buf: &mut Buffer, clip: Rect, style: &ComputedStyle) {
-    // A translucent backdrop (`rgb(0 0 0 / 50%)`, the common web dim)
-    // composites over the page (C3-ALPHA).
-    buf.tint(clip, style.bg);
-    buf.tint_glyphs(clip, style.fg);
 }
 
 // ─── Per-node paint ─────────────────────────────────────────────────
