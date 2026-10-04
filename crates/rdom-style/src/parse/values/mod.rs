@@ -18,6 +18,7 @@
 //! - `spacing.rs` — `gap`, `padding`, `margin`.
 //! - `background.rs` — the `background` shorthand and its longhands.
 //! - `border.rs` — `border` shorthand and per-side styles.
+//! - `shadow.rs` — `box-shadow`.
 //! - `content.rs` — `content` and counter operations.
 //! - `transition.rs` — easing, `<time>`, transition lists and shorthand.
 //! - `calc.rs` — the `calc()` expression parser.
@@ -39,6 +40,7 @@ mod numeric;
 
 pub(crate) use numeric::{LengthPercentage, Range, integer, length_percentage, number, percentage};
 pub use numeric::{MAX_ANGLE_DEGREES, parse_angle};
+mod shadow;
 mod spacing;
 mod transition;
 
@@ -67,6 +69,7 @@ pub use length::{
     parse_max_size, parse_min_size, parse_size,
 };
 pub use number::{parse_aspect_ratio, parse_opacity, parse_z_index};
+pub use shadow::parse_box_shadow;
 pub use spacing::{
     current_margin, current_padding, parse_gap, parse_margin_longhand, parse_margin_shorthand,
     parse_padding_shorthand, parse_padding_value,

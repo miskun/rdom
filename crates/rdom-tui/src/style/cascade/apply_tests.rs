@@ -83,6 +83,7 @@ const PERTURB: &[(&str, &str)] = &[
     ("background-clip", "content-box"),
     ("border-width", "thick"),
     ("border-radius", "1"),
+    ("box-shadow", "1 1 red"),
 ];
 
 /// `P6G-APPLY-INITIALS-1`: `<property>: initial` computes to exactly
@@ -129,6 +130,7 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
         border_style,
         border_width,
         border_radius,
+        box_shadow,
         border_collapse,
         // Not a property: set by any declared `border-collapse`.
         border_collapse_declared: _,
@@ -195,6 +197,7 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
         border_style,
         border_width,
         border_radius,
+        box_shadow,
         border_collapse,
         direction,
         overflow_x,

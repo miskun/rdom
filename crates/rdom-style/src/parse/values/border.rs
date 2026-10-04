@@ -58,7 +58,7 @@ pub fn parse_line_width(value: &[Token]) -> Option<BorderWidth> {
             ("thick", BorderWidth::Thick),
         ],
     )
-    .or_else(|| paint_length(value, false).map(BorderWidth::Length))
+    .or_else(|| paint_length(value, false, Range::NonNegative).map(BorderWidth::Length))
 }
 
 /// CSS pixels per unit for the units a [`PaintLength`] takes beside
@@ -76,18 +76,25 @@ const PX_PER_UNIT: &[(&str, f64)] = &[
     ("rem", 16.0),
 ];
 
-/// A non-negative [`PaintLength`]: a pixel-unit dimension, or rdom's
-/// `<length>` (cells, `ch`, `lh`, viewport units, math functions) —
-/// with a percentage too when `percent` (radii).
-pub(crate) fn paint_length(value: &[Token], percent: bool) -> Option<PaintLength> {
-    if let [Token::Dimension { value: n, unit, .. }] = value
+/// A [`PaintLength`]: a pixel-unit dimension, or rdom's `<length>`
+/// (cells, `ch`, `lh`, viewport units, math functions) — with a
+/// percentage too when `percent` (radii), and of any sign when `range`
+/// is [`Range::Any`] (shadow offsets).
+pub(crate) fn paint_length(value: &[Token], percent: bool, range: Range) -> Option<PaintLength> {
+    let (negative, rest) = match value {
+        [Token::Delim('-'), rest @ ..] => (true, rest),
+        _ => (false, value),
+    };
+    if let [Token::Dimension { value: n, unit, .. }] = rest
         && let Some((_, px)) = PX_PER_UNIT
             .iter()
             .find(|(u, _)| u.eq_ignore_ascii_case(unit))
     {
-        return (*n >= 0.0).then(|| PaintLength::Px((n * px) as f32));
+        let sign = if negative { -1.0 } else { 1.0 };
+        let ok = range == Range::Any || !negative;
+        return ok.then(|| PaintLength::Px((sign * n * px) as f32));
     }
-    match length_percentage(value, Range::NonNegative)? {
+    match length_percentage(value, range)? {
         LengthPercentage::Integer(n) => Some(PaintLength::Cells(n as f32)),
         LengthPercentage::Cells(c) => Some(PaintLength::Cells(c as f32)),
         LengthPercentage::Expr(e) if percent || !e.contains_percent() => {
@@ -183,10 +190,10 @@ pub fn parse_border(value: &[Token]) -> Option<BorderRing> {
 /// horizontal again when omitted).
 pub fn parse_corner_radius(value: &[Token]) -> Option<BorderRadius> {
     match components(value)?.as_slice() {
-        [h] => paint_length(h, true).map(BorderRadius::circle),
+        [h] => paint_length(h, true, Range::NonNegative).map(BorderRadius::circle),
         [h, v] => Some(BorderRadius {
-            horizontal: paint_length(h, true)?,
-            vertical: paint_length(v, true)?,
+            horizontal: paint_length(h, true, Range::NonNegative)?,
+            vertical: paint_length(v, true, Range::NonNegative)?,
         }),
         _ => None,
     }
@@ -214,7 +221,7 @@ pub fn parse_border_radius(value: &[Token]) -> Option<Corners<BorderRadius>> {
     let radii = |part: &[Token]| -> Option<Corners<PaintLength>> {
         let values = components(part)?
             .into_iter()
-            .map(|c| paint_length(c, true))
+            .map(|c| paint_length(c, true, Range::NonNegative))
             .collect::<Option<Vec<_>>>()?;
         Corners::from_values(&values)
     };

@@ -82,6 +82,10 @@ pub struct ComputedStyle {
     /// The `border-*-radius`es (CSS Backgrounds 3 §5.1), viewport units
     /// resolved; a percentage stays for paint, which knows the box.
     pub border_radius: crate::layout::Corners<crate::layout::BorderRadius>,
+    /// `box-shadow` (CSS Backgrounds 3 §6.1), front to back: colors
+    /// resolved (`currentcolor` against the element's `color`), viewport
+    /// units resolved.
+    pub box_shadow: Vec<crate::layout::BoxShadow<Color>>,
     /// `border-collapse: separate | collapse`. CSS-faithful name,
     /// extended to apply to any flex container (rdom divergence).
     /// **Inherits** — the cascade propagates parent's value to
@@ -231,6 +235,7 @@ impl ComputedStyle {
             border_style: Border::none(),
             border_width: crate::layout::Sides::default(),
             border_radius: crate::layout::Corners::default(),
+            box_shadow: Vec::new(),
             border_collapse: crate::layout::BorderCollapse::Separate,
             border_collapse_declared: false,
             direction: Direction::Column,

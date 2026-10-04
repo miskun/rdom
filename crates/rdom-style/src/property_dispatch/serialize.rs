@@ -41,8 +41,9 @@ pub fn serialize(name: &str, style: &TuiStyle) -> Option<String> {
     if let Some(kw) = css_wide_of(name, style) {
         return Some(kw.to_string());
     }
-    if let Some(out) =
-        super::background::serialize(name, style).or_else(|| super::border::serialize(name, style))
+    if let Some(out) = super::background::serialize(name, style)
+        .or_else(|| super::border::serialize(name, style))
+        .or_else(|| super::shadow::serialize(name, style))
     {
         return out;
     }

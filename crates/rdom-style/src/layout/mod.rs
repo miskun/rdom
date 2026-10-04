@@ -28,7 +28,7 @@ mod rect;
 mod sides;
 mod sizing;
 
-pub use background::{BackgroundAttachment, BackgroundRepeat, RepeatStyle, VisualBox};
+pub use background::{BackgroundAttachment, BackgroundRepeat, BoxShadow, RepeatStyle, VisualBox};
 pub use border::{
     Border, BorderCollapse, BorderRadius, BorderStyle, BorderWeight, BorderWidth, CornerStyle,
     PaintLength,

@@ -116,7 +116,7 @@ row comes from.
 | C4-BORDER-SIDES | `border-style` / `border-color` / `border-width` 1–4 values; per-side longhands for style, color and width | done |
 | C4-BORDER-WIDTH | `border-width` mapping (`0` = none, thin / medium = light, thick = heavy glyphs) | done |
 | C4-RADIUS | `border-radius` and per-corner longhands → rounded corner glyphs | done |
-| C4-SHADOW | `box-shadow` (one-cell offset shade; blur / spread documented N/A) | |
+| C4-SHADOW | `box-shadow` (one-cell offset shade; blur / spread documented N/A) | done |
 | C4-SPACING | `border-spacing` (lands with the table phase if it needs the TFC) | |
 
 ### Phase 5 — Box model and sizing (audit §3.6, §3.22)
@@ -1048,3 +1048,21 @@ row comes from.
   + `BorderRadius::cells(1.0)` (same paint); the two node-setter tests use a double ring (a node setter
   sets styles only); `border_shorthand_keeps_rdom_keywords` asserts the radius instead of the corner
   flag. No showcase snapshot changes (the UA dialog's rounded ring is now a radius; same glyphs).
+- 2026-10-06 — C4-SHADOW: `box-shadow` parses `none | <shadow>#` (`V/shadow.rs`: lengths contiguous,
+  blur non-negative, color and `inset` on either side; `split_commas` moved to `numeric.rs`, shared
+  with the background layers; `paint_length` takes a sign range). Storage `BoxShadow<C>`: declared
+  with a `TuiColor`, computed with a `Color` — the cascade resolves the colors in
+  `ElementColors::finalize` against the element's final `color` (a winning list waits like the
+  border colors; a color a `var()` chain leaves unresolved makes the declaration invalid at
+  computed-value time → no shadow). Paint (`paint_pass/shadow.rs`): outer shadows before the
+  background, as the border box moved by the offsets and grown by the spread, minus the border box
+  (up to four bands); inset ones after the background, the padding box minus itself moved and shrunk;
+  reverse order so the first is on top; opaque colors fill (occluding glyphs beneath), translucent
+  ones through the layer path. Decided: offsets / spread are whole cells, a pixel length one cell by
+  its sign (`PaintLength::offset_cells`), blur inert — documented; a blur-only glow therefore draws
+  nothing. `tui_style/builder.rs` (587 lines, past the bar with the new setter) split:
+  `builder/{mod, decoration}.rs`, the background / border / shadow setters in the second; and
+  `paint_border_sides` moved from `paint_pass/mod.rs` (591 lines) into `border/mod.rs` (534 / 380). Red: six
+  `css_phase4.rs` tests failed to parse `box-shadow`; green after (the spread test's own setup was
+  fixed — it set a `style` attribute the headless cascade does not read). No showcase snapshot
+  changes (no demo declares a shadow).

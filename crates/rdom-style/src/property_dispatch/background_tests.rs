@@ -186,3 +186,57 @@ fn background_shorthand_owns_every_longhand() {
     assert!(remove("background", &mut style));
     assert!(style.background_image.is_none() && style.bg.is_none());
 }
+
+// ── `box-shadow` (§6.1) ────────────────────────────────────────────
+
+/// §6.1: `none`, or shadows front to back — the lengths together (two
+/// to four: offsets, a non-negative blur, a spread of any sign), the
+/// color and `inset` before or after them; an omitted color is
+/// `currentcolor`, an omitted blur or spread 0.
+#[test]
+fn box_shadow_grammar() {
+    use crate::layout::{BoxShadow, PaintLength};
+    let mut style = TuiStyle::new();
+    set("box-shadow", "red 1 -2px 3 inset, 0 1px", &mut style).unwrap();
+    let list = specified(&style.box_shadow);
+    assert_eq!(
+        list[0],
+        BoxShadow {
+            inset: true,
+            offset_x: PaintLength::Cells(1.0),
+            offset_y: PaintLength::Px(-2.0),
+            blur: PaintLength::Cells(3.0),
+            spread: PaintLength::Cells(0.0),
+            color: TuiColor::Literal(Color::Rgb(255, 0, 0)),
+        }
+    );
+    assert_eq!(list[1].color, TuiColor::CurrentColor);
+    assert_eq!(
+        serialize("box-shadow", &style).as_deref(),
+        Some("inset 1 -2px 3 red, 0 1px")
+    );
+    set("box-shadow", "none", &mut style).unwrap();
+    assert_eq!(specified(&style.box_shadow), vec![]);
+    assert_eq!(serialize("box-shadow", &style).as_deref(), Some("none"));
+    set("box-shadow", "1 1 0 -1 blue", &mut style).unwrap();
+    assert_eq!(
+        serialize("box-shadow", &style).as_deref(),
+        Some("1 1 0 -1 blue")
+    );
+    for bad in [
+        "1",
+        "1 2 3 4 5",
+        "1 2 -3",
+        "1 red 2",
+        "inset inset 1 2",
+        "1 2 red blue",
+        "1 2 10%",
+        "none, 1 2",
+    ] {
+        assert_eq!(
+            set("box-shadow", bad, &mut TuiStyle::new()),
+            Err(DispatchError::InvalidValue),
+            "{bad}"
+        );
+    }
+}

@@ -407,3 +407,118 @@ fn a_side_style_longhand_cascades_alone() {
     );
     assert_eq!(ring(&buf), ["│   │", "│   │", "└───┘"]);
 }
+
+// ── C4-SHADOW ──────────────────────────────────────────────────────
+
+/// A `w` × `h` `div.b` at the origin of a 6 × 5 buffer, under `css`.
+fn shadowed(css: &str) -> Buffer {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    el(&mut dom, root, "b", "");
+    paint(&mut dom, css, 6, 5)
+}
+
+/// The cells of `buf` whose background is `c`, row by row.
+fn cells_with_bg(buf: &Buffer, c: Color) -> Vec<(u16, u16)> {
+    let mut out = Vec::new();
+    for y in 0..buf.area.height {
+        for x in 0..buf.area.width {
+            if cell(buf, x, y).bg == c {
+                out.push((x, y));
+            }
+        }
+    }
+    out
+}
+
+/// CSS Backgrounds 3 §6.1: an outer shadow is the border box offset by
+/// the shadow's offsets, in its color, drawn outside the border box
+/// only — not under the (here transparent) box itself.
+#[test]
+fn box_shadow_offsets_a_shade_outside_the_box() {
+    let buf = shadowed(".b { width: 3; height: 2; box-shadow: 1 1 red }");
+    assert_eq!(cells_with_bg(&buf, RED), [(3, 1), (1, 2), (2, 2), (3, 2)]);
+}
+
+/// Pixel offsets keep their direction as one cell (DIVERGENCES §2) and
+/// the blur radius has no effect: the web's `0 1px 3px` shadow is a
+/// one-row shade under the box.
+#[test]
+fn box_shadow_pixel_offsets_are_one_cell() {
+    let buf = shadowed(".b { width: 3; height: 2; box-shadow: 0 1px 3px red }");
+    assert_eq!(cells_with_bg(&buf, RED), [(0, 2), (1, 2), (2, 2)]);
+}
+
+/// §6.1: the spread distance grows the shadow on every side — `0 0 0
+/// 1px` is a one-cell ring around the box.
+#[test]
+fn box_shadow_spread_grows_the_shade() {
+    let buf = shadowed(".b { margin: 1; width: 2; height: 1; box-shadow: 0 0 0 1 red }");
+    assert_eq!(
+        cells_with_bg(&buf, RED),
+        [
+            (0, 0),
+            (1, 0),
+            (2, 0),
+            (3, 0),
+            (0, 1),
+            (3, 1),
+            (0, 2),
+            (1, 2),
+            (2, 2),
+            (3, 2)
+        ]
+    );
+}
+
+/// §6.1: an `inset` shadow is drawn inside the padding box, above the
+/// background: the padding box minus itself offset by the shadow.
+#[test]
+fn box_shadow_inset_shades_inside_the_padding_box() {
+    let buf = shadowed(
+        ".b { width: 4; height: 3; border: solid; background-color: blue; \
+              box-shadow: inset 1 1 red }",
+    );
+    // Border box 4 × 3: padding box (1, 1)–(2, 1). Offset 1, 1 leaves
+    // its first row and column in shade.
+    assert_eq!(cells_with_bg(&buf, RED), [(1, 1), (2, 1)]);
+    let buf =
+        shadowed(".b { width: 3; height: 3; background-color: blue; box-shadow: inset 1 1 red }");
+    assert_eq!(
+        cells_with_bg(&buf, RED),
+        [(0, 0), (1, 0), (2, 0), (0, 1), (0, 2)]
+    );
+}
+
+/// §6.1: several shadows paint front to back — the first on top.
+#[test]
+fn box_shadows_layer_with_the_first_on_top() {
+    let buf = shadowed(".b { width: 2; height: 1; box-shadow: 1 0 red, 2 0 blue }");
+    assert_eq!(cell(&buf, 2, 0).bg, RED);
+    assert_eq!(cell(&buf, 3, 0).bg, BLUE);
+}
+
+/// §6.1: an omitted color is `currentcolor`; a translucent one
+/// composites over what lies beneath (CSS Color 4 §4.2).
+#[test]
+fn box_shadow_colors() {
+    let buf = shadowed(".b { width: 2; height: 1; color: rgb(0, 128, 0); box-shadow: 1 0 }");
+    assert_eq!(cell(&buf, 2, 0).bg, Color::Rgb(0, 128, 0));
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let p = el(&mut dom, root, "p", "");
+    el(&mut dom, p, "c", "");
+    let buf = paint(
+        &mut dom,
+        ".p { width: 6; height: 3; background-color: rgb(200, 0, 0) } \
+         .c { width: 2; height: 1; box-shadow: 1 0 rgb(0 0 0 / 50%) }",
+        6,
+        3,
+    );
+    let shade = cell(&buf, 2, 0).bg;
+    assert!(
+        matches!(shade, Color::Rgb(r, 0, 0) if r.abs_diff(100) <= 1),
+        "{shade:?}"
+    );
+    assert_eq!(cell(&buf, 3, 0).bg, Color::Rgb(200, 0, 0));
+}

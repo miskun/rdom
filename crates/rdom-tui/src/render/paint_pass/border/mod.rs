@@ -1,6 +1,9 @@
 //! Border drawing: each element's border ring as per-cell ×
-//! per-direction contributions (BORDER-MODEL-1), which the joiner
-//! (`border_join`) turns into box-drawing glyphs.
+//! per-direction contributions (BORDER-MODEL-1), each side with its own
+//! color and weight and each corner its own style, which the joiner
+//! (`border_join`) turns into box-drawing glyphs. Sides of one color
+//! paint together (`paint_border_sides`), a translucent color through a
+//! layer.
 //!
 //! Clipping: border edges are painted cell by cell, each checked
 //! against the `clip` rect. Negative signed coords (`LayoutRect` can be
@@ -13,9 +16,66 @@ mod half_block;
 use crate::layout::{Border, CornerStyle, Corners, LayoutRect, Sides};
 use crate::render::buffer::{BorderContribution, BorderSide, DIR_E, DIR_N, DIR_S, DIR_W};
 use crate::render::{Buffer, Rect};
-use crate::style::Color;
+use crate::style::{Color, ComputedStyle};
 use half_block::accumulate_half_block_quads;
 use rdom_style::layout::{BorderStyle, BorderWeight};
+
+/// Paint an element's border, the sides of one color together: an
+/// opaque color directly, a translucent one through a layer at its
+/// alpha (it blends like a glyph, C3-ALPHA), a transparent one not at
+/// all — it keeps its space and draws nothing.
+pub(super) fn paint_border_sides(
+    buf: &mut Buffer,
+    computed: &ComputedStyle,
+    outer: LayoutRect,
+    outer_grid: Rect,
+    clip: Rect,
+    priority: u64,
+) {
+    let (border, colors) = (computed.border, computed.border_color);
+    // A zero-width side is already `none` in the used border.
+    let weights = computed
+        .border_width
+        .clone()
+        .map(|w| w.weight().unwrap_or_default());
+    // §5.1: a corner with a non-zero radius rounds.
+    let corners = computed.border_radius.clone().map(|r| {
+        if r.is_rounded(outer.width, outer.height) {
+            CornerStyle::Rounded
+        } else {
+            CornerStyle::Square
+        }
+    });
+    let mut done: Vec<Color> = Vec::with_capacity(4);
+    for color in colors.to_array() {
+        if done.contains(&color) {
+            continue;
+        }
+        done.push(color);
+        if color.alpha() == 0 {
+            continue;
+        }
+        let only = colors.map(|c| c == color);
+        if color.is_translucent() {
+            let alpha = f32::from(color.alpha()) / 255.0;
+            let ink = Ink {
+                colors: colors.map(Color::opaque),
+                weights,
+                corners,
+            };
+            buf.paint_translucent(outer_grid, alpha, |layer| {
+                paint_border(layer, outer, border, ink, only, clip, priority);
+            });
+        } else {
+            let ink = Ink {
+                colors,
+                weights,
+                corners,
+            };
+            paint_border(buf, outer, border, ink, only, clip, priority);
+        }
+    }
+}
 
 /// Paint the box-drawing characters for `border` along the edges of
 /// `outer`, each side in its `ink`; only the sides `only`
@@ -27,7 +87,7 @@ use rdom_style::layout::{BorderStyle, BorderWeight};
 /// (fg) but inherits the element's `background-color` for the cells
 /// it paints over. An element with no `background-color` paints a
 /// transparent border ring — the underlying cell bg shows through.
-pub(super) fn paint_border(
+fn paint_border(
     buf: &mut Buffer,
     outer: LayoutRect,
     border: Border,
@@ -235,10 +295,10 @@ pub(super) fn paint_border(
 /// `border-*-width`), and each corner's glyph (from its
 /// `border-*-radius`).
 #[derive(Clone, Copy)]
-pub(super) struct Ink {
-    pub colors: Sides<Color>,
-    pub weights: Sides<BorderWeight>,
-    pub corners: Corners<CornerStyle>,
+struct Ink {
+    colors: Sides<Color>,
+    weights: Sides<BorderWeight>,
+    corners: Corners<CornerStyle>,
 }
 
 /// What one element's border contributes with: each side's ink and

@@ -1,5 +1,6 @@
 //! The color properties' applicators: `color`, `background-color`,
-//! the four `border-*-color`s, resolved at computed-value time (CSS Color 4 §14).
+//! the four `border-*-color`s and `box-shadow`'s colors, resolved at
+//! computed-value time (CSS Color 4 §14).
 //!
 //! A color resolves against a [`ColorContext`]: the element's color
 //! for `currentcolor` (§6.4; in `color` itself, the parent's) and its
@@ -13,7 +14,7 @@
 use super::apply::{Keywords, Resolved, matches_pass};
 use crate::style::{Color, ColorContext, ComputedStyle, ImportantMask, TuiColor, TuiStyle, Value};
 use rdom_style::color::ColorScheme;
-use rdom_style::layout::Sides;
+use rdom_style::layout::{BoxShadow, Sides};
 
 /// The winning color declarations whose value depends on the element
 /// (`currentcolor`, `light-dark()`, a color function holding either),
@@ -27,6 +28,9 @@ pub(in crate::style::cascade) struct ElementColors {
     /// A declaration of the side's `border-*-color` took part in the
     /// cascade; without one the side takes the initial value.
     border_declared: Sides<bool>,
+    /// The winning `box-shadow` list as declared, when its colors wait
+    /// for the element's final `color`.
+    box_shadow: Option<Vec<BoxShadow>>,
 }
 
 /// The computed `border-*-color` of each side, for the CSS-wide
@@ -85,7 +89,31 @@ impl ElementColors {
             };
             resolve(color, current, target);
         }
+        if let Some(shadows) = self.box_shadow {
+            let cx = ColorContext::new(current).with_scheme(scheme);
+            working.box_shadow = compute_shadows(shadows, &vars, &cx);
+        }
     }
+}
+
+/// `box-shadow`'s computed value: each color resolved against `cx`
+/// (CSS Backgrounds 3 §6.1: "as specified, with colors computed"). A
+/// color left unresolved — a `var()` chain with no color — makes the
+/// declaration invalid at computed-value time, so the property takes
+/// its initial value, no shadow (CSS Variables 1 §3.1).
+fn compute_shadows(
+    shadows: Vec<BoxShadow>,
+    vars: &std::collections::HashMap<String, rdom_style::CustomValue>,
+    cx: &ColorContext,
+) -> Vec<BoxShadow<Color>> {
+    shadows
+        .into_iter()
+        .map(|s| {
+            let color = s.color.resolve(vars, cx)?;
+            Some(s.with_color(|_| color))
+        })
+        .collect::<Option<Vec<_>>>()
+        .unwrap_or_default()
 }
 
 /// Apply one block's color declarations for one ladder pass.
@@ -125,6 +153,25 @@ pub(in crate::style::cascade) fn apply_colors(
         &vars,
         &cx,
     );
+    if let Some(v) = &style.box_shadow
+        && matches_pass(
+            style.important.contains(ImportantMask::BOX_SHADOW),
+            important_pass,
+        )
+    {
+        match kw.resolve(v) {
+            Resolved::Specified(list) => {
+                // Resolved against what has cascaded so far; finalized
+                // against the element's final color.
+                working.box_shadow = compute_shadows(list.clone(), &vars, &cx);
+                colors.box_shadow = Some(list.clone());
+            }
+            Resolved::From(source) => {
+                working.box_shadow = source.box_shadow.clone();
+                colors.box_shadow = None;
+            }
+        }
+    }
     let sides = working
         .border_color
         .each_mut()

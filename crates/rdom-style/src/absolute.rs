@@ -57,6 +57,18 @@ impl ComputedStyle {
                 |v| BorderWidth::Length(PaintLength::Cells(v as f32)),
             );
         }
+        for shadow in &mut self.box_shadow {
+            for length in [
+                &mut shadow.offset_x,
+                &mut shadow.offset_y,
+                &mut shadow.blur,
+                &mut shadow.spread,
+            ] {
+                absolutize(length, vp, PaintLength::Calc, |v| {
+                    PaintLength::Cells(v as f32)
+                });
+            }
+        }
         for radius in self.border_radius.each_mut() {
             for axis in [&mut radius.horizontal, &mut radius.vertical] {
                 absolutize(axis, vp, PaintLength::Calc, |v| {

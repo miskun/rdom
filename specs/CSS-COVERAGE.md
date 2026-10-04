@@ -73,7 +73,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.2 Custom properties (CSS Variables 1) | 6 | 0 | 0 | 1 | 7 |
 | 3.3 Values and units (Values 4) | 15 | 2 | 1 | 4 | 22 |
 | 3.4 Color (Color 4 / 5) | 15 | 1 | 0 | 1 | 17 |
-| 3.5 Backgrounds and borders (Backgrounds 3, Borders 4) | 12 | 0 | 2 | 2 | 16 |
+| 3.5 Backgrounds and borders (Backgrounds 3, Borders 4) | 13 | 0 | 1 | 2 | 16 |
 | 3.6 Box model and sizing (Box 3, Sizing 3/4) | 3 | 3 | 3 | 0 | 9 |
 | 3.7 Display and visibility (Display 3) | 1 | 0 | 8 | 2 | 11 |
 | 3.8 Flexbox and box alignment (Flexbox 1, Align 3) | 3 | 3 | 11 | 0 | 17 |
@@ -93,9 +93,9 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 0 | 0 | 6 | 3 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **103** | **28** | **127** | **49** | **307** |
+| **Total** | **104** | **28** | **126** | **49** | **307** |
 
-When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 155 rows Partial / Missing.
+When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 154 rows Partial / Missing.
 
 Headline: rdom parses **70 property names** (`PROPERTY_NAMES`). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are flex alignment (`justify-content`, `align-items`), `flex-wrap`, the `flex-grow` / `flex-basis` longhands, `line-height`, `text-align`, `visibility`, `box-sizing`, and grid.
 
@@ -164,7 +164,7 @@ pasted CSS. The first block is what a typical component stylesheet hits in its f
 | 54 | `counters()`, `counter-set`, `reversed()` in `counter-reset`, more counter styles, `@counter-style`, `symbols()` | Nested "1.2.3" numbering; set without reset; `<ol reversed>`; `disc` / `circle` / `square` / `decimal-leading-zero` / `lower-greek` / author-defined styles. | S / M | Partial — `counters()`, `counter-set` Yes; rest No |
 | 55 | `line-clamp` (`max-lines`, `block-ellipsis`, `continue`) | Clamp a block to N rows, last row ends in `…`. | M | No |
 | 56 | `filter` (color functions), `backdrop-filter`, `mix-blend-mode`, `isolation` | `grayscale()` / `invert()` / `brightness()` / `contrast()` / `sepia()` / `saturate()` / `hue-rotate()` / `opacity()` as per-cell color transforms (`blur()` / `drop-shadow()` N/A); blend modes per cell; `isolation: isolate` as a stacking-context trigger. | M (isolation S) | Yes (as non-existent stacking triggers) |
-| 57 | `box-shadow` | Offset shadow one cell right / down in a darker background or `░▒▓` shade glyphs (Turbo Vision style); blur and spread N/A. | M | No |
+| 57 | `box-shadow` | Shipped (C4-SHADOW; §3.5): offset shade in the shadow's color (a translucent one darkens the cells beneath), spread grows it, `inset` inside the padding box; blur N/A. | M | Yes |
 | 58 | `background-clip` | Shipped (C4-BG-CLIP; §3.5): `padding-box` / `content-box` fill only that area; a half-block border keeps its cells clear. | S | Yes |
 | 59 | `contain` / `content-visibility` / `contain-intrinsic-size` / `will-change` | `contain: paint` clips and forms a stacking context; `content-visibility: hidden / auto` skips layout and paint of off-screen subtrees (large lists); `will-change` as a stacking-context trigger only. | S / M | Partial — `will-change`, `contain` Yes (as non-existent triggers); rest No |
 | 60 | `@container` + container query units | Size queries against a container's cell size (`container-type`, `container-name`). | M | Blanket |
@@ -316,7 +316,7 @@ dropped. The audit's six, with where each stands:
 | `border-width` / `border-*-width` | Supported | 1–4 values, per-side longhands; `0` = no border, `thin` / `medium` light glyphs, `thick` (5px / two cells and up) heavy, mixed junctions; always one cell wide (documented) (C4-BORDER-SIDES, C4-BORDER-WIDTH). | — | `DISP/border.rs`, `rdom-style/src/layout/border.rs::BorderWidth::weight`, `PAINT/border_join/` |
 | `border-radius` / `border-*-radius` | Supported | 1–4 values with `/` for the vertical radii, per-corner longhands, cells / pixels / `em` / `%`; a non-zero radius rounds that corner's glyph (`╭╮╰╯`), the curve's size is N/A (documented) (C4-RADIUS). | — | `DISP/border.rs`, `V/border.rs::parse_border_radius`, `PAINT/border/mod.rs::Pen::corner_at` |
 | `border-image*` | N/A | Image-sliced borders. | — | — |
-| `box-shadow` | Missing | One-cell offset shade; blur / spread N/A. | No | `PAINT` |
+| `box-shadow` | Supported | Shadows as whole-cell shades: outer under the background and outside the box, `inset` inside the padding box, first on top, offsets / spread in cells (a pixel length one cell), colors with alpha composited; blur N/A (documented) (C4-SHADOW). | — | `V/shadow.rs`, `DISP/shadow.rs`, `CASC/colors.rs`, `PAINT/shadow.rs` |
 | `border-collapse` | Supported | `separate` / `collapse`, with the documented scope / inheritance divergences. | Yes | `DISP/set.rs`, `rdom-tui/src/render/layout_pass/border_collapse.rs` |
 | `border-spacing` | Missing | Gaps between separated table cells. | No | `DISP`, `rdom-tui/src/runtime/builtins/table` |
 

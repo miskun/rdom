@@ -261,6 +261,27 @@ pub(crate) fn components(value: &[Token]) -> Option<Vec<&[Token]>> {
     Some(out)
 }
 
+/// Split a value at its top-level commas (CSS Values 4 `#`
+/// multiplier). `None` when a segment is empty.
+pub(crate) fn split_commas(value: &[Token]) -> Option<Vec<&[Token]>> {
+    let mut out = Vec::new();
+    let mut depth = 0usize;
+    let mut start = 0;
+    for (i, t) in value.iter().enumerate() {
+        match t {
+            Token::Function(_) | Token::LParen => depth += 1,
+            Token::RParen => depth = depth.checked_sub(1)?,
+            Token::Comma if depth == 0 => {
+                out.push(&value[start..i]);
+                start = i + 1;
+            }
+            _ => {}
+        }
+    }
+    out.push(&value[start..]);
+    out.iter().all(|s| !s.is_empty()).then_some(out)
+}
+
 /// Index of the `)` closing the function or `(` at `open`.
 fn matching_paren(value: &[Token], open: usize) -> Option<usize> {
     let mut depth = 0usize;

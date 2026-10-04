@@ -100,6 +100,7 @@ pub fn set_parsed(name: &str, value: &[Token], style: &mut TuiStyle) -> Result<(
     }
     if let Some(outcome) = super::background::set(name, value, style)
         .or_else(|| super::border::set(name, value, style))
+        .or_else(|| super::shadow::set(name, value, style))
     {
         return outcome.ok_or(DispatchError::InvalidValue);
     }

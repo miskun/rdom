@@ -8,7 +8,7 @@
 //! images: DIVERGENCES §1); the keyword families are typed.
 
 use super::color::parse_color;
-use super::numeric::{Range, components, length_percentage};
+use super::numeric::{Range, components, length_percentage, split_commas};
 use super::render_value;
 use crate::TuiColor;
 use crate::layout::{BackgroundAttachment, BackgroundRepeat, RepeatStyle, VisualBox};
@@ -83,27 +83,6 @@ pub fn parse_background(value: &[Token]) -> Option<BackgroundShorthand> {
         }
     }
     Some(BackgroundShorthand { layers, color })
-}
-
-/// Split a value at its top-level commas (CSS Values 4 `#`
-/// multiplier). `None` when a segment is empty.
-fn split_commas(value: &[Token]) -> Option<Vec<&[Token]>> {
-    let mut out = Vec::new();
-    let mut depth = 0usize;
-    let mut start = 0;
-    for (i, t) in value.iter().enumerate() {
-        match t {
-            Token::Function(_) | Token::LParen => depth += 1,
-            Token::RParen => depth = depth.checked_sub(1)?,
-            Token::Comma if depth == 0 => {
-                out.push(&value[start..i]);
-                start = i + 1;
-            }
-            _ => {}
-        }
-    }
-    out.push(&value[start..]);
-    out.iter().all(|s| !s.is_empty()).then_some(out)
 }
 
 /// One `<bg-layer>` (or, when `final_layer`, `<final-bg-layer>`).

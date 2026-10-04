@@ -8,6 +8,7 @@
 //!
 //! ## Paint order (per element)
 //!
+//! 0. **Outer shadows** — `box-shadow` shades outside the border box.
 //! 1. **Background fill** — `computed.bg` over the box its
 //!    `background-clip` names (the border box by default, so border
 //!    cells take it too). Skipped for `Color::Reset`.
@@ -48,7 +49,10 @@
 //!   (`paint_stacking_context` / `paint_box` / `paint_content` /
 //!   `recurse_children`) and the shared `layout_rect_to_grid` clip
 //!   utility.
-//! - `background` — the opaque `background-color` fill.
+//! - `background` — the `background-color` fill, clipped by
+//!   `background-clip`.
+//! - `shadow` — `box-shadow`: outer shades under the background, inset
+//!   ones above it.
 //! - `border` — border drawing: per-direction contributions for the
 //!   joiner (`border_join`), and half-block quadrants (`half_block`).
 //! - `group` — `opacity` group rendering through a bounded layer.
@@ -69,6 +73,7 @@ mod group;
 mod inline_paint;
 mod positioned_pseudos;
 pub(crate) mod scrollbar;
+mod shadow;
 mod text;
 mod tree_guides;
 
@@ -80,7 +85,7 @@ mod tests;
 use rdom_core::{Dom, NodeId, NodeType};
 
 use crate::ext::TuiExt;
-use crate::layout::{CornerStyle, Display, LayoutRect};
+use crate::layout::{Display, LayoutRect};
 use crate::node::TuiNodeExt;
 use crate::render::layout_pass::is_ifc_block;
 use crate::render::stacking::{
@@ -90,7 +95,7 @@ use crate::render::{Buffer, Rect};
 use crate::style::{Color, ComputedStyle};
 
 use background::paint_background;
-use border::{Ink, paint_border};
+use border::paint_border_sides;
 use inline_paint::{
     paint_anonymous_blocks, paint_caret_if_editable, paint_ifc, paint_inline_content,
 };
@@ -269,6 +274,10 @@ fn paint_box(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect) -> Opt
 
     let outer = dom.node(id).layout_rect().unwrap_or_default();
     let inner = dom.node(id).content_layout_rect().unwrap_or(outer);
+    // 0. Outer shadows, under the background (CSS Backgrounds 3 §6.1);
+    // they may show while the box itself is outside the clip.
+    shadow::paint_outer_shadows(buf, &computed, outer, clip);
+
     // Fast path: element entirely outside the clip.
     if let Some(outer_grid) = layout_rect_to_grid(outer, clip) {
         // 1. Background fill over the `background-clip` box: an opaque
@@ -286,6 +295,8 @@ fn paint_box(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect) -> Opt
         if !is_tree_row {
             paint_background(buf, &computed, outer, inner, clip);
         }
+        // Inset shadows, above the background and below the border.
+        shadow::paint_inset_shadows(buf, &computed, outer, clip);
 
         // 2. Border. Writes per-cell × per-direction `BorderContribution`s
         // into `buf.border_dirs`; the joiner reads them after the
@@ -486,63 +497,6 @@ pub(crate) fn layout_rect_to_grid(layout: LayoutRect, clip: Rect) -> Option<Rect
         (r - x) as u16,
         (b - y) as u16,
     ))
-}
-
-/// Paint an element's border, the sides of one color together: an
-/// opaque color directly, a translucent one through a layer at its
-/// alpha (it blends like a glyph, C3-ALPHA), a transparent one not at
-/// all — it keeps its space and draws nothing.
-fn paint_border_sides(
-    buf: &mut Buffer,
-    computed: &ComputedStyle,
-    outer: LayoutRect,
-    outer_grid: Rect,
-    clip: Rect,
-    priority: u64,
-) {
-    let (border, colors) = (computed.border, computed.border_color);
-    // A zero-width side is already `none` in the used border.
-    let weights = computed
-        .border_width
-        .clone()
-        .map(|w| w.weight().unwrap_or_default());
-    // §5.1: a corner with a non-zero radius rounds.
-    let corners = computed.border_radius.clone().map(|r| {
-        if r.is_rounded(outer.width, outer.height) {
-            CornerStyle::Rounded
-        } else {
-            CornerStyle::Square
-        }
-    });
-    let mut done: Vec<Color> = Vec::with_capacity(4);
-    for color in colors.to_array() {
-        if done.contains(&color) {
-            continue;
-        }
-        done.push(color);
-        if color.alpha() == 0 {
-            continue;
-        }
-        let only = colors.map(|c| c == color);
-        if color.is_translucent() {
-            let alpha = f32::from(color.alpha()) / 255.0;
-            let ink = Ink {
-                colors: colors.map(Color::opaque),
-                weights,
-                corners,
-            };
-            buf.paint_translucent(outer_grid, alpha, |layer| {
-                paint_border(layer, outer, border, ink, only, clip, priority);
-            });
-        } else {
-            let ink = Ink {
-                colors,
-                weights,
-                corners,
-            };
-            paint_border(buf, outer, border, ink, only, clip, priority);
-        }
-    }
 }
 
 /// Compute the structural priority for an element's border

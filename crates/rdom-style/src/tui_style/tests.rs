@@ -35,6 +35,7 @@ fn important_mask_bits_are_unique() {
         M::BORDER_TOP_RIGHT_RADIUS,
         M::BORDER_BOTTOM_RIGHT_RADIUS,
         M::BORDER_BOTTOM_LEFT_RADIUS,
+        M::BOX_SHADOW,
         M::DIRECTION,
         M::OVERFLOW_X,
         M::CONTENT,
@@ -329,6 +330,7 @@ fn every_property_has_important_setter() {
         .flex_basis_important(crate::layout::FlexBasis::Auto)
         .border_important(Border::single())
         .border_radius_important(crate::layout::BorderRadius::cells(1.0))
+        .box_shadow_important(vec![])
         .background_image_important(vec![])
         .background_position_important(vec![])
         .background_size_important(vec![])

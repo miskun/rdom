@@ -86,6 +86,7 @@ fn canonical_values() -> &'static [(&'static str, &'static str)] {
         ("border-top-right-radius", "1 3"),
         ("border-bottom-right-radius", "10%"),
         ("border-bottom-left-radius", "0"),
+        ("box-shadow", "inset 1 2px 3 -1 red, 0 1"),
         ("border-collapse", "collapse"),
         ("content", "\"hello\""),
         ("position", "absolute"),

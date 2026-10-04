@@ -89,6 +89,7 @@ const PROPERTY_NAMES: &[&str] = &[
     "border-top-right-radius",
     "border-bottom-right-radius",
     "border-bottom-left-radius",
+    "box-shadow",
     "border-collapse",
     "content",
     // Positioning (M2)
@@ -267,6 +268,7 @@ define_fields! {
     BorderTopRightRadius => border_radius.top_right : BORDER_TOP_RIGHT_RADIUS,
     BorderBottomRightRadius => border_radius.bottom_right : BORDER_BOTTOM_RIGHT_RADIUS,
     BorderBottomLeftRadius => border_radius.bottom_left : BORDER_BOTTOM_LEFT_RADIUS,
+    BoxShadow => box_shadow : BOX_SHADOW,
     BorderCollapse => border_collapse : BORDER_COLLAPSE,
     Content => content : CONTENT,
     Position => position : POSITION,
@@ -404,6 +406,7 @@ pub(super) fn fields_of(name: &str) -> Option<&'static [Field]> {
         "border-top-right-radius" => &[BorderTopRightRadius],
         "border-bottom-right-radius" => &[BorderBottomRightRadius],
         "border-bottom-left-radius" => &[BorderBottomLeftRadius],
+        "box-shadow" => &[BoxShadow],
         "border-collapse" => &[BorderCollapse],
         "content" => &[Content],
         "position" => &[Position],

@@ -337,6 +337,20 @@ impl PaintLength {
         }
     }
 
+    /// The length as a signed whole-cell offset (a shadow's offsets and
+    /// spread): cells rounded onto the grid (ties to even), and a pixel
+    /// length one cell in its direction — rdom cannot move a cell by
+    /// less, and a guessed pixel size would scale web CSS arbitrarily
+    /// (DIVERGENCES §2).
+    pub fn offset_cells(&self) -> i32 {
+        match self {
+            PaintLength::Px(p) if *p > 0.0 => 1,
+            PaintLength::Px(p) if *p < 0.0 => -1,
+            PaintLength::Px(_) => 0,
+            other => crate::calc::to_cells(other.cells(0).unwrap_or(0.0)),
+        }
+    }
+
     /// True when the length is zero (or negative) against `basis`.
     pub fn is_zero(&self, basis: i32) -> bool {
         match self {
