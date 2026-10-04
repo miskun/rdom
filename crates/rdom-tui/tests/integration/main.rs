@@ -33,6 +33,7 @@ mod button_flex_repro;
 mod calc_layout;
 mod css_phase1;
 mod css_phase2_gates;
+mod css_phase3_colors;
 mod css_phase3_gates;
 mod css_values;
 mod cssom_cascade;

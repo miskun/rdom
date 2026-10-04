@@ -940,3 +940,16 @@ row comes from.
   (C1-VAR-ANY, C2-PERCENT, C2G-MAX-NONE / C3G-API, C5-MINMAX-SIZE) and 1 / 6 open with their items;
   row 16 notes `Color::Rgba` with alpha. The C3-MIX CHANGELOG bullet no longer says text. Per-item
   Phase 3 entries added above the gate entry, with the three decisions the gate found unrecorded.
+- 2026-10-05 — C3G-COLOR-INTEGRATION: `tests/integration/css_phase3_colors.rs`, eight tests, each a
+  sheet through `rdom_css::from_css_strict` → `CascadeExt::cascade` (under a set document scheme) →
+  `layout_dom` → `paint_dom`, asserting painted cells: `oklch(100% 0 0)` white and sRGB red's Oklch
+  back to red (±2); `rgb(0 0 0 / 50%)` over `rgb(200 0 0)` is `(100, 0, 0)` (±1) and the parent
+  untouched beside it; a `currentColor` border in the element's `color` at both corners;
+  `color-mix(in srgb, red, blue)` `(128, 0, 128)` and `color-mix(in srgb, currentColor, white)`
+  as a background; `light-dark()` per document scheme and under `color-scheme: light` in a dark
+  document; `rgb(from var(--brand) calc(r + 10) g b)`; `CanvasText` / `Canvas` painted `reset` in
+  both schemes; `transparent` text leaves the cells blank over the parent's background. A
+  characterisation of shipped behaviour: all eight passed on first run (no red phase — nothing was
+  changed to make them pass). The batch's rustdoc gate found a private intra-doc link C3G-INPUT-READER
+  added (`leave_tui_mode` → `enter_theme_reports`); made plain text here. Phase 3 gate batch B (C3G-INPUT-READER … C3G-COLOR-INTEGRATION)
+  complete.

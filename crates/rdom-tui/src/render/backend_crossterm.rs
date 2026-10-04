@@ -163,7 +163,7 @@ pub fn enter_tui_mode<W: Write>(writer: &mut W) -> io::Result<()> {
 
 /// Restore the terminal to its pre-`enter_tui_mode` state: disable
 /// mouse capture, show cursor, leave alt screen, stop theme-change
-/// reports (Unix, [`enter_theme_reports`]), reset SGR, disable raw
+/// reports (Unix: DEC mode 2031, which `App::run` enables), reset SGR, disable raw
 /// mode. Safe to call from a drop handler — all crossterm
 /// operations map to idempotent-enough ANSI sequences.
 pub fn leave_tui_mode<W: Write>(writer: &mut W) -> io::Result<()> {
