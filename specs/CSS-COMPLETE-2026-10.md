@@ -1183,4 +1183,29 @@ row comes from.
   RIGHT SINGLE) is `solid double`'s corner. Both are tested. Red: `double solid` drew `╔═══╗` over
   `│`, the collapsed pair `╔═══╦═══╗`; green after, plus a unit test over all 18 mixed glyphs and the
   three no-glyph cases. No showcase snapshot changed (no demo mixes double and single sides).
+- 2026-10-06 — C4G-SHADOW-ORDER: fixed, without a second walk. `stacking::collect_layers`, which
+  already walks a context's whole in-flow subtree (stopping at nested contexts, descending into
+  `z-index: auto` boxes), now also gathers the in-flow boxes with an outer shadow (`ShadowEntry`, with
+  the clip they paint into and their paint unit: the context, or the `z-index: auto` box they lie in —
+  Appendix E step 8 paints such a box "as if it created a new stacking context";
+  `Layers::shadows_of(unit)`, `LayerEntry::unit`). Only boxes the content walk paints as boxes count
+  (`paint_pass::paints_child_box`: not under an IFC or a canvas, not an orphan inline). Paint, two
+  strokes (`shadow::Shadows`): (1) the unit's background phase — after the root's box and the
+  negative layers, before its content — paints those boxes' opaque shadows over what is beneath
+  (`paint_backdrop_shadows`); (2) at the box's own turn the shadow paints again *under* the glyphs
+  painted so far (`background::tint_bg`: background set, border contributions cleared, glyphs kept),
+  so it lies over the earlier siblings' backgrounds and borders (tree order, step 4) but under their
+  text (step 7). A unit root's own shadow paints as before; a translucent shadow composites once, at
+  its turn (the layer composite keeps glyphs beneath). Decided over a pure background-phase pass,
+  which would have put every shadow under every earlier background (a focus ring on the second of
+  two buttons with backgrounds would lose its overlap), and over a full step-4 / step-7 split of
+  `paint_box` / `paint_content`, which is the large refactor. The remaining per-box interleave —
+  a later block's background over an earlier block's overflowing text — is now stated in
+  DIVERGENCES §2 (the Appendix E line claimed the full order). Red:
+  `an_outer_shadow_paints_under_earlier_siblings_text` (row 0 blank, the ring erased `aaaa`, with
+  and without a background on the first block); green after, with
+  `an_outer_shadow_covers_a_negative_z_layer`, `a_shadow_inside_a_positioned_box_covers_the_page_beneath`
+  (fails if the unit's background phase is removed — checked by deleting the call) and
+  `a_later_background_covers_an_earlier_shadow`. `paint_pass/mod.rs` is 583 lines; C4G-PAINT-SPLIT
+  next. No showcase snapshot changed.
 

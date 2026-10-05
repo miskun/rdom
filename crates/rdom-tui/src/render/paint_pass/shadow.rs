@@ -6,11 +6,43 @@
 //! and spread are whole cells (`PaintLength::offset_cells`, at most
 //! `u16::MAX` either way, with saturating geometry here); the blur
 //! has no effect (DIVERGENCES §2). The first shadow is on top.
+//!
+//! Paint order (CSS 2.1 Appendix E, Backgrounds 3 §7.2): a box's
+//! shadows paint with its background. For an in-flow box that is step
+//! 4 of its paint unit — the in-flow block backgrounds, in tree order,
+//! before any inline content — so an opaque shadow there covers what
+//! the unit painted beneath (lower layers, the unit root's box) and the
+//! earlier siblings' backgrounds and borders, but not their text. rdom
+//! paints box by box, so it does that in two strokes ([`Shadows`]):
+//! [`paint_backdrop_shadows`] in the unit's background phase, before
+//! its content, and again at the box's turn in tree order, under the
+//! glyphs already painted. A translucent shadow composites once, at
+//! the box's turn: it keeps the glyphs beneath anyway.
 
-use super::background::fill_bg;
+use rdom_core::{Dom, NodeType};
+
+use super::background::{fill_bg, tint_bg};
+use crate::ext::TuiExt;
 use crate::layout::{BoxShadow, LayoutRect, compute_padding_box};
+use crate::node::TuiNodeExt;
+use crate::render::stacking::ShadowEntry;
 use crate::render::{Buffer, Rect};
 use crate::style::{Color, ComputedStyle};
+
+/// How [`paint_outer_shadows`] paints a box's outer shadows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum Shadows {
+    /// A paint unit's root (a stacking context, a `z-index: auto`
+    /// positioned box): over everything beneath.
+    Whole,
+    /// An in-flow box's opaque shadows in its unit's background phase,
+    /// before the unit's content: over everything beneath.
+    Backdrop,
+    /// An in-flow box at its turn in tree order: opaque shadows under
+    /// the glyphs already painted (`tint_bg`), translucent ones
+    /// composited.
+    UnderText,
+}
 
 /// Paint `computed`'s outer shadows around the border box `outer`.
 pub(super) fn paint_outer_shadows(
@@ -18,13 +50,30 @@ pub(super) fn paint_outer_shadows(
     computed: &ComputedStyle,
     outer: LayoutRect,
     clip: Rect,
+    pass: Shadows,
 ) {
     let outer = Edges::of(outer);
     for s in computed.box_shadow.iter().rev().filter(|s| !s.inset) {
         let shade = outer.offset(s).grow(s.spread.offset_cells());
         for part in shade.minus(outer) {
-            fill(buf, part, s.color, clip);
+            fill(buf, part, s.color, clip, pass);
         }
+    }
+}
+
+/// The background phase of a paint unit: the outer shadows of its
+/// in-flow boxes (`stacking::collect_layers`), in tree order.
+pub(super) fn paint_backdrop_shadows(dom: &Dom<TuiExt>, boxes: &[ShadowEntry], buf: &mut Buffer) {
+    for e in boxes {
+        let node = dom.node(e.id);
+        if node.node_type() != NodeType::Element {
+            continue;
+        }
+        let Some(computed) = node.computed() else {
+            continue;
+        };
+        let outer = node.layout_rect().unwrap_or_default();
+        paint_outer_shadows(buf, computed, outer, e.clip, Shadows::Backdrop);
     }
 }
 
@@ -40,7 +89,7 @@ pub(super) fn paint_inset_shadows(
     for s in computed.box_shadow.iter().rev().filter(|s| s.inset) {
         let hole = padding_box.offset(s).grow(-s.spread.offset_cells());
         for part in padding_box.minus(hole) {
-            fill(buf, part, s.color, clip);
+            fill(buf, part, s.color, clip, Shadows::Whole);
         }
     }
 }
@@ -141,20 +190,24 @@ impl Edges {
     }
 }
 
-/// Fill `part` with `color` as an opaque shade over what is beneath, or
-/// a translucent one composited over it (C3-ALPHA).
-fn fill(buf: &mut Buffer, part: Edges, color: Color, clip: Rect) {
+/// Fill `part` with `color` as an opaque shade over what is beneath (or
+/// under its glyphs, `UnderText`), or a translucent one composited over
+/// it (C3-ALPHA) — once, not in the `Backdrop` pass.
+fn fill(buf: &mut Buffer, part: Edges, color: Color, clip: Rect, pass: Shadows) {
     if !super::fills(color) {
         return;
     }
     let Some(area) = part.clipped(clip) else {
         return;
     };
-    if color.is_translucent() {
-        let alpha = f32::from(color.alpha()) / 255.0;
-        buf.paint_translucent(area, alpha, |layer| fill_bg(layer, area, color.opaque()));
-    } else {
-        fill_bg(buf, area, color);
+    match (color.is_translucent(), pass) {
+        (true, Shadows::Backdrop) => {}
+        (true, _) => {
+            let alpha = f32::from(color.alpha()) / 255.0;
+            buf.paint_translucent(area, alpha, |layer| fill_bg(layer, area, color.opaque()));
+        }
+        (false, Shadows::UnderText) => tint_bg(buf, area, color),
+        (false, _) => fill_bg(buf, area, color),
     }
 }
 

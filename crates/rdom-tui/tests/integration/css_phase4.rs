@@ -604,6 +604,112 @@ fn box_shadow_huge_lengths_do_not_overflow() {
     }
 }
 
+/// `C4G-SHADOW-ORDER`: CSS 2.1 Appendix E paints the in-flow block
+/// boxes' backgrounds — and their box shadows (Backgrounds 3 §7.2) — in
+/// tree order before any of their inline content. A ring on the second
+/// of two stacked blocks lies over the first block (and its background)
+/// but under the first block's text.
+#[test]
+fn an_outer_shadow_paints_under_earlier_siblings_text() {
+    for a_bg in ["", "background-color: blue;"] {
+        let mut dom = TuiDom::new();
+        let root = dom.root();
+        el(&mut dom, root, "a", "aaaa");
+        el(&mut dom, root, "b", "bbbb");
+        let buf = paint(
+            &mut dom,
+            &format!(
+                ".a, .b {{ margin-left: 1; width: 4; height: 1 }} .a {{ {a_bg} }} \
+                 .b {{ box-shadow: 0 0 0 1px red }}"
+            ),
+            6,
+            3,
+        );
+        let row = |y: u16| {
+            (0..6)
+                .map(|x| cell(&buf, x, y).symbol().to_string())
+                .collect::<String>()
+        };
+        assert_eq!(row(0), " aaaa ", "{a_bg}");
+        assert_eq!(row(1), " bbbb ", "{a_bg}");
+        for x in 0..6 {
+            assert_eq!(cell(&buf, x, 0).bg, RED, "({x}, 0) {a_bg}");
+        }
+        assert_eq!(cell(&buf, 0, 1).bg, RED);
+        assert_eq!(cell(&buf, 5, 1).bg, RED);
+    }
+}
+
+/// Appendix E: what a stacking context paints before its in-flow
+/// blocks' backgrounds — a negative `z-index` child, step 2 — lies under
+/// their shadows, text included.
+#[test]
+fn an_outer_shadow_covers_a_negative_z_layer() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    el(&mut dom, root, "n", "nnnn");
+    el(&mut dom, root, "b", "bbbb");
+    let buf = paint(
+        &mut dom,
+        ".n { position: absolute; top: 0; left: 1; z-index: -1; width: 4; height: 1 } \
+         .b { margin: 1 0 0 1; width: 4; height: 1; box-shadow: 0 0 0 1px red }",
+        6,
+        3,
+    );
+    for x in 0..6 {
+        assert_eq!(cell(&buf, x, 0).symbol(), " ", "({x}, 0)");
+        assert_eq!(cell(&buf, x, 0).bg, RED, "({x}, 0)");
+    }
+}
+
+/// A `z-index: auto` positioned box paints as if it were a stacking
+/// context (Appendix E step 8): its in-flow boxes' shadows cover what
+/// the page painted before it, text included.
+#[test]
+fn a_shadow_inside_a_positioned_box_covers_the_page_beneath() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    el(&mut dom, root, "p", "pppppp");
+    let q = el(&mut dom, root, "q", "");
+    el(&mut dom, q, "c", "cc");
+    let buf = paint(
+        &mut dom,
+        ".p { width: 6; height: 1 } \
+         .q { position: absolute; top: 1; left: 1; width: 4; height: 1 } \
+         .c { width: 2; height: 1; box-shadow: 0 0 0 1px red }",
+        6,
+        3,
+    );
+    let row0: String = (0..6)
+        .map(|x| cell(&buf, x, 0).symbol().to_string())
+        .collect();
+    assert_eq!(row0, "    pp");
+    for x in 0..4 {
+        assert_eq!(cell(&buf, x, 0).bg, RED, "({x}, 0)");
+    }
+    assert_eq!(cell(&buf, 1, 1).symbol(), "c");
+}
+
+/// A later sibling's background still covers an earlier sibling's
+/// shadow (both are block backgrounds, painted in tree order).
+#[test]
+fn a_later_background_covers_an_earlier_shadow() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    el(&mut dom, root, "a", "aaaa");
+    el(&mut dom, root, "b", "bbbb");
+    let buf = paint(
+        &mut dom,
+        ".a, .b { margin-left: 1; width: 4; height: 1 } \
+         .a { box-shadow: 0 0 0 1px red } .b { background-color: blue }",
+        6,
+        3,
+    );
+    assert_eq!(cell(&buf, 1, 1).bg, BLUE);
+    assert_eq!(cell(&buf, 1, 1).symbol(), "b");
+    assert_eq!(cell(&buf, 0, 1).bg, RED);
+}
+
 // ── C4-SPACING ─────────────────────────────────────────────────────
 
 /// CSS 2.1 §17.6.1: `border-spacing` is inherited, and computes to two

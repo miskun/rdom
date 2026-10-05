@@ -114,6 +114,22 @@ pub(super) fn fill_bg(buf: &mut Buffer, area: Rect, bg: Color) {
     }
 }
 
+/// Set `area`'s background to `bg` under what is painted there: the
+/// glyphs, their colors and modifiers stay, border contributions are
+/// cleared (a background covers the borders painted before it). An
+/// in-flow box's opaque outer shadow at its turn in tree order — under
+/// the text of the boxes before it (`shadow`).
+pub(super) fn tint_bg(buf: &mut Buffer, area: Rect, bg: Color) {
+    for y in area.y..area.bottom() {
+        for x in area.x..area.right() {
+            clear_border_dirs(buf, x, y);
+            if let Some(cell) = buf.cell_mut(x, y) {
+                cell.bg = bg;
+            }
+        }
+    }
+}
+
 /// Clear the per-direction border state at `(x, y)`. Called by
 /// the opaque-`fill_bg` fast path so subsequent joiner runs don't
 /// resurrect border glyphs that the opaque fill should occlude.

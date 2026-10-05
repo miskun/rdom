@@ -14,7 +14,11 @@
 //! 5. child contexts with positive `z-index`, ascending.
 //!
 //! [`collect_layers`] gathers 2, 4 and 5 for one context in a single
-//! walk that stops at nested contexts. Each entry carries the clip that
+//! walk that stops at nested contexts, and with them the in-flow boxes
+//! whose outer `box-shadow`s belong to the background phase of 3 (CSS
+//! 2.1 Appendix E step 4 paints block backgrounds — and box shadows,
+//! Backgrounds 3 §7.2 — before any inline content; see
+//! `paint_pass::shadow`). Each entry carries the clip that
 //! applies to it: CSS 2.1 §11.1.1 — an overflow ancestor clips a
 //! positioned descendant only when the descendant's containing block is
 //! that ancestor or lies inside it, so an `absolute` box takes the clip
@@ -47,6 +51,27 @@ pub(crate) struct LayerEntry {
     pub clip: Rect,
 }
 
+impl LayerEntry {
+    /// The paint unit a `z-index: auto` entry is: its in-flow boxes'
+    /// shadows are [`Layers::shadows_of`] this (the context itself is
+    /// unit 0).
+    pub(crate) fn unit(&self) -> usize {
+        self.order + 1
+    }
+}
+
+/// An in-flow box with an outer shadow, which paints in the background
+/// phase of its paint unit: the stacking context (unit 0), or the
+/// `z-index: auto` positioned box it lies in, which paints as if it
+/// were one ([`LayerEntry::unit`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct ShadowEntry {
+    pub id: NodeId,
+    /// The clip the box paints into.
+    pub clip: Rect,
+    pub unit: usize,
+}
+
 /// The positioned descendants of one stacking context, by layer.
 #[derive(Debug, Default)]
 pub(crate) struct Layers {
@@ -56,6 +81,17 @@ pub(crate) struct Layers {
     pub zero_auto: Vec<LayerEntry>,
     /// Child contexts with positive `z-index`, ascending `(z, order)`.
     pub positive: Vec<LayerEntry>,
+    /// In-flow boxes with an outer shadow, by unit, in tree order.
+    pub shadows: Vec<ShadowEntry>,
+}
+
+impl Layers {
+    /// The shadowed in-flow boxes of paint unit `unit`, in tree order.
+    pub(crate) fn shadows_of(&self, unit: usize) -> &[ShadowEntry] {
+        let start = self.shadows.partition_point(|s| s.unit < unit);
+        let end = self.shadows.partition_point(|s| s.unit <= unit);
+        &self.shadows[start..end]
+    }
 }
 
 /// CSS "positioned": any `position` other than `static`.
@@ -113,100 +149,131 @@ pub(crate) fn collect_layers(
         .ext()
         .and_then(|e| e.computed.as_ref())
         .is_some_and(|c| is_positioned(c));
-    let mut chain = vec![Frame {
+    let chain = vec![Frame {
         positioned: root_positioned,
         content_clip,
     }];
-    let mut order = 0;
-    walk(dom, root, viewport, &mut chain, &mut layers, &mut order);
+    let mut walk = Walk {
+        dom,
+        viewport,
+        chain,
+        layers: &mut layers,
+        order: 0,
+    };
+    walk.children(root, root, 0);
     layers.negative.sort_by_key(|e| (e.z, e.order));
     layers.positive.sort_by_key(|e| (e.z, e.order));
+    // Stable: tree order within each unit.
+    layers.shadows.sort_by_key(|s| s.unit);
     layers
 }
 
-fn walk(
-    dom: &Dom<TuiExt>,
-    id: NodeId,
+/// The state of [`collect_layers`]' walk.
+struct Walk<'a> {
+    dom: &'a Dom<TuiExt>,
     viewport: Rect,
-    chain: &mut Vec<Frame>,
-    layers: &mut Layers,
-    order: &mut usize,
-) {
-    for child in dom.node(id).child_nodes() {
-        let cid = child.id();
-        match child.node_type() {
-            NodeType::Fragment => {
-                walk(dom, cid, viewport, chain, layers, order);
+    chain: Vec<Frame>,
+    layers: &'a mut Layers,
+    order: usize,
+}
+
+impl Walk<'_> {
+    /// Walk the children of `id`; `box_parent` is the element whose
+    /// content paint reaches them (`id`, or the element above a
+    /// fragment), `unit` the paint unit they belong to.
+    fn children(&mut self, id: NodeId, box_parent: NodeId, unit: usize) {
+        let dom = self.dom;
+        let viewport = self.viewport;
+        for child in dom.node(id).child_nodes() {
+            let cid = child.id();
+            match child.node_type() {
+                NodeType::Fragment => {
+                    self.children(cid, box_parent, unit);
+                    continue;
+                }
+                NodeType::Element => {}
+                _ => continue,
+            }
+            let current = *self
+                .chain
+                .last()
+                .expect("the context root frame is always present");
+            let Some(c) = child.ext().and_then(|e| e.computed.as_ref()) else {
+                // Not cascaded: an in-flow box with nothing to clip.
+                self.chain.push(Frame {
+                    positioned: false,
+                    content_clip: current.content_clip,
+                });
+                self.children(cid, cid, unit);
+                self.chain.pop();
+                continue;
+            };
+            if c.display == Display::None {
                 continue;
             }
-            NodeType::Element => {}
-            _ => continue,
-        }
-        let current = *chain
-            .last()
-            .expect("the context root frame is always present");
-        let Some(c) = child.ext().and_then(|e| e.computed.as_ref()) else {
-            // Not cascaded: an in-flow box with nothing to clip.
-            chain.push(Frame {
-                positioned: false,
-                content_clip: current.content_clip,
-            });
-            walk(dom, cid, viewport, chain, layers, order);
-            chain.pop();
-            continue;
-        };
-        if c.display == Display::None {
-            continue;
-        }
-        if is_positioned(c) {
-            let clip = match c.position {
-                Position::Fixed => viewport,
-                Position::Absolute => chain
-                    .iter()
-                    .rev()
-                    .find(|f| f.positioned)
-                    .map_or(chain[0].content_clip, |f| f.content_clip),
-                Position::Relative | Position::Sticky | Position::Static => current.content_clip,
-            };
-            let context = creates_stacking_context(c);
-            let z = match c.z_index {
-                ZIndex::Auto => 0,
-                ZIndex::Value(n) => n,
-            };
-            let entry = LayerEntry {
-                id: cid,
-                z,
-                order: *order,
-                context,
-                clip,
-            };
-            *order += 1;
-            match z {
-                _ if !context => layers.zero_auto.push(entry),
-                z if z < 0 => layers.negative.push(entry),
-                0 => layers.zero_auto.push(entry),
-                _ => layers.positive.push(entry),
-            }
-            if !context {
-                // `z-index: auto`: its positioned descendants belong to
-                // this context, clipped by its own content clip.
-                chain.push(Frame {
-                    positioned: true,
-                    content_clip: children_clip(dom, cid, c, clip),
+            if is_positioned(c) {
+                let clip = match c.position {
+                    Position::Fixed => viewport,
+                    Position::Absolute => self
+                        .chain
+                        .iter()
+                        .rev()
+                        .find(|f| f.positioned)
+                        .map_or(self.chain[0].content_clip, |f| f.content_clip),
+                    Position::Relative | Position::Sticky | Position::Static => {
+                        current.content_clip
+                    }
+                };
+                let context = creates_stacking_context(c);
+                let z = match c.z_index {
+                    ZIndex::Auto => 0,
+                    ZIndex::Value(n) => n,
+                };
+                let entry = LayerEntry {
+                    id: cid,
+                    z,
+                    order: self.order,
+                    context,
+                    clip,
+                };
+                self.order += 1;
+                match z {
+                    _ if !context => self.layers.zero_auto.push(entry),
+                    z if z < 0 => self.layers.negative.push(entry),
+                    0 => self.layers.zero_auto.push(entry),
+                    _ => self.layers.positive.push(entry),
+                }
+                if !context {
+                    // `z-index: auto`: its positioned descendants belong
+                    // to this context, clipped by its own content clip;
+                    // its in-flow boxes to its own paint unit.
+                    self.chain.push(Frame {
+                        positioned: true,
+                        content_clip: children_clip(dom, cid, c, clip),
+                    });
+                    self.children(cid, cid, entry.unit());
+                    self.chain.pop();
+                }
+            } else if creates_stacking_context(c) {
+                // `opacity < 1` on an in-flow box: painted atomically in
+                // place; nothing inside it belongs to this context.
+            } else {
+                if c.box_shadow.iter().any(|s| !s.inset)
+                    && crate::render::paint_pass::paints_child_box(dom, box_parent, cid)
+                {
+                    self.layers.shadows.push(ShadowEntry {
+                        id: cid,
+                        clip: current.content_clip,
+                        unit,
+                    });
+                }
+                self.chain.push(Frame {
+                    positioned: false,
+                    content_clip: children_clip(dom, cid, c, current.content_clip),
                 });
-                walk(dom, cid, viewport, chain, layers, order);
-                chain.pop();
+                self.children(cid, cid, unit);
+                self.chain.pop();
             }
-        } else if creates_stacking_context(c) {
-            // `opacity < 1` on an in-flow box: painted atomically in
-            // place; nothing inside it belongs to this context.
-        } else {
-            chain.push(Frame {
-                positioned: false,
-                content_clip: children_clip(dom, cid, c, current.content_clip),
-            });
-            walk(dom, cid, viewport, chain, layers, order);
-            chain.pop();
         }
     }
 }
