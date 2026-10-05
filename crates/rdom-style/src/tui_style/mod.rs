@@ -122,6 +122,11 @@ pub struct TuiStyle {
     pub grid_template_columns: Option<Value<crate::layout::GridTemplate>>,
     /// `grid-template-rows` (§7.2): the explicit grid's rows.
     pub grid_template_rows: Option<Value<crate::layout::GridTemplate>>,
+    /// `grid-auto-columns` (CSS Grid 2 §7.6): the implicit columns'
+    /// sizes, a pattern of one or more.
+    pub grid_auto_columns: Option<Value<Vec<crate::layout::TrackSize>>>,
+    /// `grid-auto-rows` (§7.6): the implicit rows' sizes.
+    pub grid_auto_rows: Option<Value<Vec<crate::layout::TrackSize>>>,
     /// `border-top-style` … `border-left-style` (CSS Backgrounds 3
     /// §4.2), one longhand per side; initial `none`.
     pub border_style: Sides<Option<Value<crate::layout::BorderStyle>>>,

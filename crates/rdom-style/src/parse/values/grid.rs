@@ -135,6 +135,24 @@ pub(crate) fn is_line_name(name: &str) -> bool {
     !RESERVED.iter().any(|r| name.eq_ignore_ascii_case(r))
 }
 
+/// `grid-auto-columns` / `grid-auto-rows` (§7.6): `<track-size>+`.
+pub fn parse_track_sizes(value: &[Token]) -> Option<Vec<TrackSize>> {
+    let sizes = components(value)?
+        .into_iter()
+        .map(parse_track_size)
+        .collect::<Option<Vec<_>>>()?;
+    (!sizes.is_empty()).then_some(sizes)
+}
+
+/// The text of a `<track-size>+` list.
+pub fn serialize_track_sizes(sizes: &[TrackSize]) -> String {
+    sizes
+        .iter()
+        .map(serialize_track_size)
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 /// `<track-size>` (§7.2.2): `<track-breadth> | minmax(
 /// <inflexible-breadth> , <track-breadth> ) | fit-content(
 /// <length-percentage [0,∞]> )`.

@@ -77,7 +77,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.6 Box model and sizing (Box 3, Sizing 3/4) | 7 | 2 | 0 | 0 | 9 |
 | 3.7 Display and visibility (Display 3) | 7 | 1 | 1 | 2 | 11 |
 | 3.8 Flexbox and box alignment (Flexbox 1, Align 3) | 17 | 0 | 0 | 0 | 17 |
-| 3.9 Grid (Grid 1/2) | 1 | 0 | 9 | 0 | 10 |
+| 3.9 Grid (Grid 1/2) | 2 | 0 | 8 | 0 | 10 |
 | 3.10 Positioned layout (Position 3, CSS 2.1 §9) | 4 | 1 | 1 | 1 | 7 |
 | 3.11 Overflow, scrolling and scrollbars (Overflow 3/4, Scroll Snap 1, Overscroll 1, Scrollbars 1) | 1 | 3 | 10 | 0 | 14 |
 | 3.12 Inline text (Text 3/4, Inline 3, CSS 2.1 §10.8) | 0 | 1 | 14 | 6 | 21 |
@@ -93,11 +93,11 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 5 | 2 | 1 | 1 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **135** | **28** | **98** | **46** | **307** |
+| **Total** | **136** | **28** | **97** | **46** | **307** |
 
-When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 126 rows Partial / Missing.
+When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 125 rows Partial / Missing.
 
-Headline: rdom parses **170 property names** (`property_names()`, after C7-GRID-CORE). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are `line-height`, `text-align`, and grid placement.
+Headline: rdom parses **172 property names** (`property_names()`, after C7-GRID-AUTO). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are `line-height`, `text-align`, and grid placement.
 
 ---
 
@@ -381,7 +381,7 @@ dropped. The audit's six, with where each stands:
 | `grid-template-columns` / `grid-template-rows` | Supported | `none` and track lists — cells, `%`, `calc()`, `fr`, `auto`, `min-content`, `max-content`, `minmax()`, `fit-content()`, `repeat(<n> / auto-fill / auto-fit)` (§7.2.3.2, `auto-fit` collapsing empty repetitions), line names — parsed, computed and serialized as written; sized by the track sizing algorithm (§11.3–§11.8: intrinsic sizes by increasing span, spanning items into flexible tracks by flex factor, the `fr` size, `auto` tracks stretched) in whole cells (DIVERGENCES §1); `row-gap` / `column-gap` as fixed gutters, `normal` 0 (C7-GRID-CORE). | Yes | `V/grid.rs`, `DISP/grid.rs`, `rdom-tui/src/render/layout_pass/grid/` |
 | `grid-template-areas` | Missing | Named areas. | Yes | grid |
 | `grid-template` | Missing | Shorthand. | Yes | grid |
-| `grid-auto-columns` / `grid-auto-rows` | Missing | Implicit tracks. | Yes | grid |
+| `grid-auto-columns` / `grid-auto-rows` | Supported | `<track-size>+` (cells, `%`, `calc()`, `fr`, the keywords, `minmax()`, `fit-content()`), initial `auto`, serialized as written: the implicit tracks' sizes, repeated as a pattern forwards after the explicit grid and backwards before it (CSS Grid 2 §7.6, C7-GRID-AUTO). | Yes | `V/grid.rs`, `DISP/grid.rs`, `rdom-tui/src/render/layout_pass/grid/mod.rs` |
 | `grid-auto-flow` | Missing | `row` / `column` / `dense`. | Yes | grid |
 | `grid` | Missing | Shorthand. | Yes | grid |
 | `grid-row` / `grid-column` (+ `-start` / `-end`) | Missing | Line-based placement. | Yes | grid |

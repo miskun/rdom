@@ -712,3 +712,43 @@ fn grid_template_hints() {
         ])))
     );
 }
+
+/// C7-GRID-AUTO: the `grid_auto_columns` / `grid_auto_rows` fields
+/// (`Vec<TrackSize>`, initial `[auto]`), builders, bits, parser and node
+/// setters.
+#[test]
+fn grid_auto_hints() {
+    let s = TuiStyle::new()
+        .grid_auto_rows([TrackSize::cells(1), TrackSize::fr(1.0)])
+        .grid_auto_columns_important([TrackSize::AUTO]);
+    assert!(s.grid_auto_rows.is_some());
+    let ComputedStyle {
+        grid_auto_columns,
+        grid_auto_rows,
+        ..
+    } = ComputedStyle::initial();
+    assert_eq!(
+        (grid_auto_columns.len(), grid_auto_rows[0].clone()),
+        (1, TrackSize::AUTO)
+    );
+    let tokens = style::parse::tokenize("1 minmax(2, 1fr)").unwrap();
+    let sizes = style::parse::values::parse_track_sizes(&tokens).unwrap();
+    assert_eq!(
+        style::parse::values::serialize_track_sizes(&sizes),
+        "1 minmax(2, 1fr)"
+    );
+    assert!(
+        (ImportantMask::GRID_AUTO_COLUMNS | ImportantMask::GRID_AUTO_ROWS)
+            .intersects(ImportantMask::all())
+    );
+    let mut dom = TuiDom::new();
+    let div = dom.create_element("div");
+    dom.node_mut(div)
+        .set_grid_auto_rows([TrackSize::cells(2)])
+        .set_grid_auto_columns([TrackSize::AUTO]);
+    assert!(
+        dom.node(div)
+            .inline_style()
+            .is_some_and(|s| s.grid_auto_rows.is_some() && s.grid_auto_columns.is_some())
+    );
+}

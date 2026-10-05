@@ -287,6 +287,8 @@ fn every_property_has_important_setter() {
         .order_important(1)
         .grid_template_columns_important(crate::layout::GridTemplate::None)
         .grid_template_rows_important(crate::layout::GridTemplate::None)
+        .grid_auto_columns_important([crate::layout::TrackSize::AUTO])
+        .grid_auto_rows_important([crate::layout::TrackSize::AUTO])
         .flex_wrap_important(crate::layout::FlexWrap::Wrap)
         .justify_content_important(crate::layout::Align::Center)
         .align_items_important(crate::layout::Align::Center)

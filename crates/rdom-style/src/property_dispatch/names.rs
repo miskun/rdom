@@ -75,6 +75,8 @@ const PROPERTY_NAMES: &[&str] = &[
     // Grid (CSS Grid 2)
     "grid-template-columns",
     "grid-template-rows",
+    "grid-auto-columns",
+    "grid-auto-rows",
     // Padding (shorthand + longhands)
     "padding",
     "padding-top",

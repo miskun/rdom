@@ -137,6 +137,8 @@ impl ComputedStyle {
         ] {
             absolutize_template(template, vp);
         }
+        absolutize_sizes(self.grid_auto_columns.iter_mut(), vp);
+        absolutize_sizes(self.grid_auto_rows.iter_mut(), vp);
         for inset in [
             &mut self.top,
             &mut self.right,
@@ -151,7 +153,7 @@ impl ComputedStyle {
 /// Every breadth of a track list, its viewport units absolute: a
 /// percentage-bearing `calc()` stays one, any other is whole cells.
 fn absolutize_template(template: &mut crate::layout::GridTemplate, vp: Viewport) {
-    use crate::layout::{TrackBreadth, TrackListItem, TrackSize};
+    use crate::layout::TrackListItem;
     let Some(list) = (match template {
         crate::layout::GridTemplate::Tracks(list) => Some(list),
         _ => None,
@@ -162,6 +164,15 @@ fn absolutize_template(template: &mut crate::layout::GridTemplate, vp: Viewport)
         TrackListItem::Size(s) => std::slice::from_mut(s).iter_mut(),
         TrackListItem::Repeat(r) => r.sizes.iter_mut(),
     });
+    absolutize_sizes(sizes, vp);
+}
+
+/// [`absolutize_template`] for each of `sizes`.
+fn absolutize_sizes<'a>(
+    sizes: impl Iterator<Item = &'a mut crate::layout::TrackSize>,
+    vp: Viewport,
+) {
+    use crate::layout::{TrackBreadth, TrackSize};
     for size in sizes {
         let breadths: [Option<&mut TrackBreadth>; 2] = match size {
             TrackSize::Breadth(b) | TrackSize::FitContent(b) => [Some(b), None],

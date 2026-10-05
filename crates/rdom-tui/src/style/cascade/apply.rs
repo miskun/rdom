@@ -225,6 +225,8 @@ pub(super) fn apply_style(
         order: ORDER,
         grid_template_columns: GRID_TEMPLATE_COLUMNS,
         grid_template_rows: GRID_TEMPLATE_ROWS,
+        grid_auto_columns: GRID_AUTO_COLUMNS,
+        grid_auto_rows: GRID_AUTO_ROWS,
     );
     apply_border_collapse(
         &mut working.border_collapse,

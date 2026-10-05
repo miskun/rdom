@@ -105,3 +105,62 @@ fn grid_display_builders() {
     let style = TuiStyle::new().inline_grid();
     assert_eq!(serialize("display", &style).as_deref(), Some("inline-grid"));
 }
+
+/// CSS Grid 2 §7.6: `grid-auto-columns` / `grid-auto-rows` take
+/// `<track-size>+` — no line names, no `repeat()` — initial `auto`, not
+/// inherited, each with its own field and bit, serialized as written.
+#[test]
+fn grid_auto_properties_take_track_sizes() {
+    let mut style = TuiStyle::new();
+    set(
+        "grid-auto-rows",
+        "1 MINMAX(2, 1fr) fit-content(3)",
+        &mut style,
+    )
+    .unwrap();
+    set("grid-auto-columns", "auto", &mut style).unwrap();
+    assert_eq!(
+        style.grid_auto_rows,
+        Some(Value::Specified(vec![
+            TrackSize::cells(1),
+            TrackSize::minmax(2, crate::layout::TrackBreadth::Fr(1.0)),
+            TrackSize::fit_content(3),
+        ]))
+    );
+    assert_eq!(
+        serialize("grid-auto-rows", &style).as_deref(),
+        Some("1 minmax(2, 1fr) fit-content(3)")
+    );
+    assert_eq!(
+        serialize("grid-auto-columns", &style).as_deref(),
+        Some("auto")
+    );
+    for bad in ["", "none", "repeat(2, 1)", "[a] 1", "minmax(1fr, 1)", "1,"] {
+        assert_eq!(
+            set("grid-auto-columns", bad, &mut TuiStyle::new()),
+            Err(DispatchError::InvalidValue),
+            "{bad:?}"
+        );
+    }
+    assert!(!inherits("grid-auto-rows"));
+    assert_eq!(
+        property_mask("grid-auto-columns"),
+        Some(ImportantMask::GRID_AUTO_COLUMNS)
+    );
+    assert_eq!(
+        property_mask("grid-auto-rows"),
+        Some(ImportantMask::GRID_AUTO_ROWS)
+    );
+    assert_eq!(
+        crate::ComputedStyle::initial().grid_auto_rows,
+        vec![TrackSize::AUTO]
+    );
+    let built = TuiStyle::new()
+        .grid_auto_columns([TrackSize::fr(1.0), TrackSize::cells(2)])
+        .grid_auto_rows_important([TrackSize::AUTO]);
+    assert_eq!(
+        serialize("grid-auto-columns", &built).as_deref(),
+        Some("1fr 2")
+    );
+    assert!(built.important.contains(ImportantMask::GRID_AUTO_ROWS));
+}

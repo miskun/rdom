@@ -294,7 +294,6 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 
 - `grid-row` / `grid-column` / `grid-area`, `grid-auto-flow` — C7-GRID-PLACE (until then every item is auto-placed with a span of one, row by row)
 - `grid-template-areas`, `grid-template`, `grid` — C7-GRID-AREAS
-- `grid-auto-columns` / `grid-auto-rows` — C7-GRID-AUTO (until then implicit tracks are `auto`)
 - Box alignment in grid — C7-GRID-ALIGN (until then a grid item stretches to its area where its size is `auto` and its self-alignment `normal` or `stretch`, and otherwise sits at the area's start; the tracks sit at the grid container's start)
 - `subgrid` — C7-SUBGRID
 

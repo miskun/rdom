@@ -157,7 +157,7 @@ row comes from.
 | C7-GRID-CORE | `display: grid` / `inline-grid`, `grid-template-columns` / `-rows` with cells / `%` / `fr` / `auto` / `minmax()` / `repeat()` | done |
 | C7-GRID-PLACE | `grid-row` / `grid-column` (+ start / end), `grid-area`, auto-placement, `grid-auto-flow` (`dense`) | |
 | C7-GRID-AREAS | `grid-template-areas`, `grid-template`, `grid` shorthands | |
-| C7-GRID-AUTO | `grid-auto-columns` / `grid-auto-rows` | |
+| C7-GRID-AUTO | `grid-auto-columns` / `grid-auto-rows` | done |
 | C7-GRID-ALIGN | Box Alignment in grid (`justify-*` / `align-*` / `place-*`) | |
 | C7-SUBGRID | `subgrid` | |
 
@@ -3690,3 +3690,18 @@ row comes from.
   snapshot changed. DIVERGENCES: §1 "Grid tracks are whole cells"; §2 the columns not re-sized after
   the rows, and `border-collapse` scoped to flex and block containers; §3's grid list loses the core
   and says what holds until each remaining item.
+- 2026-10-08 — C7-GRID-AUTO: `grid-auto-columns` / `grid-auto-rows` (CSS Grid 2 §7.6:
+  `<track-size>+`, initial `auto`, not inherited) parse, cascade (viewport units absolutized per
+  breadth), compute and serialize as written (`parse_track_sizes` / `serialize_track_sizes`; `TuiStyle`
+  / `ComputedStyle::grid_auto_columns` / `grid_auto_rows: Vec<TrackSize>`, Breaking — rdom-style;
+  builders that refuse an empty list or an `fr` minimum as the template ones do; node setters). Layout:
+  `grid::tracks_of` sizes every implicit track from the pattern — the first after the explicit grid
+  takes its first size and so on forwards, the last before it its last size and so on backwards — over
+  a `Placement` that now says how many implicit tracks precede the explicit grid (`columns_before` /
+  `rows_before`, 0 until C7-GRID-PLACE places an item before it; the backwards half is pinned by its
+  tests there). Red: `css_phase7/auto.rs` (4 tests) failed the strict parse (`grid-auto-rows`
+  unknown) and the dispatch test failed to compile (no fields, bits, builders); green after. Mutation
+  checks (restored and touched): the pattern always its first size → the repeating test; every implicit
+  track `auto` → three of the four (the flexible-rows test survives: three stretched `auto` rows share
+  the height alike). Changed expectations: the canonical-values table, the important-setter coverage and
+  the C1 `initial` perturbation gain the two properties. No snapshot changed.

@@ -175,6 +175,8 @@ define_fields! {
     Order => order : ORDER,
     GridTemplateColumns => grid_template_columns : GRID_TEMPLATE_COLUMNS,
     GridTemplateRows => grid_template_rows : GRID_TEMPLATE_ROWS,
+    GridAutoColumns => grid_auto_columns : GRID_AUTO_COLUMNS,
+    GridAutoRows => grid_auto_rows : GRID_AUTO_ROWS,
     PaddingTop => padding.top : PADDING_TOP,
     PaddingRight => padding.right : PADDING_RIGHT,
     PaddingBottom => padding.bottom : PADDING_BOTTOM,
@@ -302,6 +304,8 @@ pub(super) fn fields_of(name: &str) -> Option<&'static [Field]> {
         "order" => &[Order],
         "grid-template-columns" => &[GridTemplateColumns],
         "grid-template-rows" => &[GridTemplateRows],
+        "grid-auto-columns" => &[GridAutoColumns],
+        "grid-auto-rows" => &[GridAutoRows],
         // CSS Box 3 §3.2 / §4.2: the shorthand sets the four longhands.
         "padding" => &[PaddingTop, PaddingRight, PaddingBottom, PaddingLeft],
         "padding-top" => &[PaddingTop],

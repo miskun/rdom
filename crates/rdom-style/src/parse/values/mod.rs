@@ -80,7 +80,8 @@ pub use flex::{
     serialize_flex_flow, serialize_flex_wrap,
 };
 pub use grid::{
-    parse_grid_template, parse_track_size, serialize_grid_template, serialize_track_size,
+    parse_grid_template, parse_track_size, parse_track_sizes, serialize_grid_template,
+    serialize_track_size, serialize_track_sizes,
 };
 pub use keyword::{
     parse_keyword, parse_overflow, parse_position, parse_scroll_behavior, parse_scrollbar_gutter,

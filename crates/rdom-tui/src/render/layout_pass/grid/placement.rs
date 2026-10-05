@@ -5,7 +5,7 @@
 //! auto-placed with a span of one in `grid-auto-flow: row` order (§8.5
 //! step 4, sparse): each item takes the next cell of the current row,
 //! the next row starting when the row is full; the rows past the
-//! explicit grid are implicit (§7.5).
+//! explicit grid are implicit (§7.5), sized by `grid-auto-rows` (§7.6).
 
 use super::template::MAX_TRACKS;
 use super::track::Span;
@@ -23,12 +23,16 @@ pub(super) struct Placed {
     pub(super) trim: Sides<bool>,
 }
 
-/// The items placed, and the implicit grid's size.
+/// The items placed, and the implicit grid's size: how many tracks it
+/// has on each axis, and how many of them come before the explicit grid
+/// (§7.5 — the explicit grid's first line is track `before`'s start).
 #[derive(Debug, Clone)]
 pub(super) struct Placement {
     pub(super) items: Vec<Placed>,
     pub(super) columns: usize,
     pub(super) rows: usize,
+    pub(super) columns_before: usize,
+    pub(super) rows_before: usize,
 }
 
 /// Place `items` (in order-modified document order) in a grid of
@@ -58,5 +62,7 @@ pub(super) fn place(items: Vec<Item>, explicit_columns: usize, explicit_rows: us
         items: placed,
         columns,
         rows,
+        columns_before: 0,
+        rows_before: 0,
     }
 }

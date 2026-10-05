@@ -1,9 +1,10 @@
 //! The grid setters of the `TuiStyle` builder (CSS Grid Layout 2): the
-//! grid container conveniences and the explicit track lists.
+//! grid container conveniences, the explicit track lists and the
+//! implicit track sizes.
 
 use super::super::{ImportantMask, TuiStyle};
 use crate::Value;
-use crate::layout::{Display, Flow, GridTemplate};
+use crate::layout::{Display, Flow, GridTemplate, TrackSize};
 
 /// A track-list setter and its `!important` twin:
 /// `template_setter!("css-name", field, setter, important_setter, MASK)`.
@@ -41,6 +42,42 @@ fn checked(v: GridTemplate, property: &str) -> Option<GridTemplate> {
     ok.then_some(v)
 }
 
+/// An implicit-track-sizes setter and its `!important` twin:
+/// `auto_setter!("css-name", field, setter, important_setter, MASK)`.
+/// A list outside `<track-size>+` (empty, or a size
+/// [`TrackSize::is_valid`] refuses) is refused.
+macro_rules! auto_setter {
+    ($css:literal, $field:ident, $setter:ident, $important_setter:ident, $mask:ident) => {
+        #[doc = concat!("Set `", $css, "` (CSS Grid 2 §7.6) to `sizes`, the implicit tracks' sizes repeated as a pattern. Chainable. An empty list or a size outside the grammar (an `fr` minimum) is refused: a debug build panics, a release build leaves the declaration unset.")]
+        pub fn $setter(mut self, sizes: impl IntoIterator<Item = TrackSize>) -> Self {
+            if let Some(v) = checked_sizes(sizes.into_iter().collect(), $css) {
+                self.$field = Some(Value::Specified(v));
+            }
+            self
+        }
+
+        #[doc = concat!("Like `", stringify!($setter), "` but also marks the `", $css, "` declaration `!important`.")]
+        pub fn $important_setter(mut self, sizes: impl IntoIterator<Item = TrackSize>) -> Self {
+            if let Some(v) = checked_sizes(sizes.into_iter().collect(), $css) {
+                self.$field = Some(Value::Specified(v));
+                self.important |= ImportantMask::$mask;
+            }
+            self
+        }
+    };
+}
+
+/// `sizes` when it is a `<track-size>+`; refused as [`checked`] refuses.
+fn checked_sizes(sizes: Vec<TrackSize>, property: &str) -> Option<Vec<TrackSize>> {
+    let ok = !sizes.is_empty() && sizes.iter().all(TrackSize::is_valid);
+    debug_assert!(
+        ok,
+        "`{}` is not a value of `{property}` (CSS Grid 2 §7.6)",
+        crate::parse::values::serialize_track_sizes(&sizes),
+    );
+    ok.then_some(sizes)
+}
+
 impl TuiStyle {
     /// `display: grid` — outer [`Display::Block`] + inner [`Flow::Grid`]
     /// (CSS Display 3 §2.7, CSS Grid 2 §5.1): a block-level grid
@@ -74,5 +111,19 @@ impl TuiStyle {
         grid_template_rows,
         grid_template_rows_important,
         GRID_TEMPLATE_ROWS
+    );
+    auto_setter!(
+        "grid-auto-columns",
+        grid_auto_columns,
+        grid_auto_columns,
+        grid_auto_columns_important,
+        GRID_AUTO_COLUMNS
+    );
+    auto_setter!(
+        "grid-auto-rows",
+        grid_auto_rows,
+        grid_auto_rows,
+        grid_auto_rows_important,
+        GRID_AUTO_ROWS
     );
 }

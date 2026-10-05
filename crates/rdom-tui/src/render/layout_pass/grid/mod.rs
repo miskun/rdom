@@ -126,7 +126,11 @@ fn size_grid(
     }
     let mut column_grid = tracks_of(
         &explicit_columns,
-        placement.columns,
+        &computed.grid_auto_columns,
+        Extent {
+            count: placement.columns,
+            before: placement.columns_before,
+        },
         &placement.items,
         Dimension::Columns,
         columns.bounds,
@@ -146,7 +150,11 @@ fn size_grid(
     let row_grid = rows.map(|rows| {
         let mut row_grid = tracks_of(
             &explicit_rows,
-            placement.rows,
+            &computed.grid_auto_rows,
+            Extent {
+                count: placement.rows,
+                before: placement.rows_before,
+            },
             &placement.items,
             Dimension::Rows,
             rows.bounds,
@@ -220,18 +228,32 @@ fn margins(dom: &Dom<TuiExt>, p: &Placed, cb: u16) -> Sides<i32> {
     }
 }
 
-/// One axis's tracks: the explicit ones, then implicit `auto` ones up to
-/// `count` (§7.6), each initialized against the percentage basis
-/// `bounds.size` (§11.4); an `auto-fit` repetition's tracks that no item
-/// spans are collapsed (§7.2.3.2).
+/// The size of one axis's implicit grid.
+#[derive(Debug, Clone, Copy)]
+struct Extent {
+    /// Tracks in all.
+    count: usize,
+    /// Implicit tracks before the explicit grid.
+    before: usize,
+}
+
+/// One axis's tracks (`extent` of them): the explicit ones, and around
+/// them implicit ones sized by the `implicit` pattern (§7.6:
+/// `grid-auto-columns` / `-rows` — the first after the explicit grid
+/// takes its first size and so on forwards, the last before it its last
+/// size and so on backwards), each initialized against the percentage
+/// basis `bounds.size` (§11.4); an `auto-fit` repetition's tracks that
+/// no item spans are collapsed (§7.2.3.2).
 fn tracks_of(
     explicit: &Explicit<'_>,
-    count: usize,
+    implicit: &[TrackSize],
+    extent: Extent,
     placed: &[Placed],
     dimension: Dimension,
     bounds: Bounds,
 ) -> TrackGrid {
-    const IMPLICIT: TrackSize = TrackSize::AUTO;
+    const AUTO: TrackSize = TrackSize::AUTO;
+    let Extent { count, before } = extent;
     let mut occupied = vec![false; count];
     for p in placed {
         for t in dimension.span(p).tracks() {
@@ -239,14 +261,31 @@ fn tracks_of(
         }
     }
     let collapsed: Vec<bool> = (0..count)
-        .map(|t| explicit.auto_fit.contains(&t) && !occupied[t])
+        .map(|t| t >= before && explicit.auto_fit.contains(&(t - before)) && !occupied[t])
         .collect();
+    let pattern = |k: usize, forwards: bool| -> &TrackSize {
+        let n = implicit.len();
+        match n {
+            0 => &AUTO,
+            _ if forwards => &implicit[k % n],
+            _ => &implicit[n - 1 - k % n],
+        }
+    };
     let tracks = (0..count)
         .map(|t| {
             if collapsed[t] {
                 return Track::collapsed();
             }
-            let size = explicit.sizes.get(t).copied().unwrap_or(&IMPLICIT);
+            let size = if t < before {
+                pattern(before - 1 - t, false)
+            } else {
+                let k = t - before;
+                explicit
+                    .sizes
+                    .get(k)
+                    .copied()
+                    .unwrap_or_else(|| pattern(k - explicit.sizes.len(), true))
+            };
             Track::new(size, bounds.size)
         })
         .collect();
