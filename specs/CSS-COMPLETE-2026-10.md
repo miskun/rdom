@@ -5141,3 +5141,43 @@ row comes from.
   float and atom-turn tests were guards (green before and after). Green after. Mutation (restored, touched):
   repainting a box whole in the content phase → the later-block test. No existing test expectation or snapshot
   changed.
+- 2026-10-10 — C8G-FLOAT-MEASURE (architect N3, N7, N10). Found: intrinsic block sizes of block containers
+  were two models beside layout's — `children_size` summed the children's outer contributions (no margin
+  collapsing at all: two `margin: 1 0` paragraphs measured 6 for a laid-out 5, with floats or without) and
+  `float/measure.rs` re-implemented the flow when a float was in it (its own chrome arithmetic: no
+  `min-height` — 2 for 4 —, no `box-sizing`, no clamp); a line-clamp container whose lines were in block
+  descendants measured unclamped (DIVERGENCES); a formatting context root dodged floats at its pre-layout
+  height (`overflow: hidden` text checked as one row, laid out as three, overlapping a lower float: `x` 4 for
+  6); floats placed by the packer were never settled to their laid-out height; and an inline block took its
+  max-content width (no shrink-to-fit, min-content contribution 7 for `aaa bbb`). Decision — one model:
+  block layout's run loop moved to `block/flow.rs` (`prepare`, `inset`, `run`) behind a `FlowSink` — what a
+  float, a block child, a block-level pseudo-element and an inline run are placed *as* — with two sinks:
+  layout's (`block/mod.rs` `LayoutSink`, the document) and measurement's (`block/measure.rs`, a scratch area,
+  the measured box its own formatting context's root as before). The arithmetic is shared, not duplicated:
+  `place::place_block_child` (width, height through `resolve_block_height` — `box-sizing`, `min-*` /
+  `max-*` —, the outer margin chains, collapse-through, clearance and `float::beside_floats_in`) and
+  `place::advance`; `generated::place` for block-level pseudo-elements. Measurement takes a child's own
+  (memoized) height unless floats are in the area or a clamp is counting lines; then it measures the child's
+  content in the same area, by the same `dispatch::children_layout` decision layout reads (now one function:
+  `Inline` / `TextLeaf` / `Block` / `Flex` / `Grid`), counting line boxes for the clamp (§4.4).
+  `intrinsic::measure_content` sends a block container's block size there; `children_size`'s block sum and
+  `float/measure.rs`'s block flow (`block_height`, `Chrome`, `in_same_context`, `outer_height`,
+  `block_top`) are gone, and so is the generated pseudo-elements' separate row count. N7: a formatting
+  context root is placed again at its laid-out height when taller (`place::replace_beside_floats`, in both
+  sinks, once — DIVERGENCES §2); every float is settled by its index in the area (`PlacedFloat`,
+  `ExclusionArea::grow` replacing `grow_last`), the packer's too (`float::lay_out` lays out and settles);
+  `float::rewind` is live on one path — a block that is no scroll container dropping a stale offset relays
+  its children in its parent's context (`laying_a_block_out_again_places_its_floats_once` fails without it)
+  — and was dead after a scroll container's gutter pass (a formatting context root: the call is gone, the
+  reason documented). N10, fixed: an inline block's `auto` width is shrink-to-fit (§10.3.9), the float's
+  rule (`float::size::FloatBox::of`, for element and pseudo-element atoms), and an intrinsic measurement takes
+  an atom's min- or max-content contribution. Splits: `block/mod.rs` 522 → 287 + `flow.rs` 385 +
+  `measure.rs` 253; `intrinsic/mod.rs` 579 → 336 + `intrinsic/content.rs` 259. Red:
+  `css_phase8/float/measure.rs` — 6 of 6 failed (6 for 5 with and without a float; 2 for 4; 2 for 1 under
+  `line-clamp: 1`; `x` 4 for 6; the settle test panicked slicing a multi-byte row and was fixed to chars;
+  `aaa b` for `aaa` / `bbb`). Green after. Mutations (restored, touched): no settle → the settle test (`lo`
+  for `hello`); no same-context measurement → the clamp test; no re-place → the formatting-context test; no
+  stale-offset rewind → the re-layout test; the gutter-pass rewind removed → nothing fails (dead).
+  DIVERGENCES: the clamped-item entry is gone (its `rtl` ellipsis note kept), simplification 2 says the
+  exclusion settles after its run, and the once-only re-place is recorded. No existing test expectation or
+  snapshot changed.

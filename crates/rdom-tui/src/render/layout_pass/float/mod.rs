@@ -41,7 +41,7 @@ use crate::render::box_tree::BoxItem;
 use crate::style::ComputedStyle;
 
 pub(crate) use area::ExclusionArea;
-pub(in crate::render::layout_pass) use flow::{FlowBox, beside_floats};
+pub(in crate::render::layout_pass) use flow::{FlowBox, beside_floats_in};
 
 /// The side `id` floats to (CSS 2.1 §9.5): `None` unless its `float` is
 /// not `none` (an absolutely positioned box's computes to `none`, §9.7),
@@ -189,8 +189,13 @@ pub(in crate::render::layout_pass) fn mark(dom: &Dom<TuiExt>) -> usize {
 }
 
 /// Forget the floats the innermost context took since `mark`: a box that
-/// lays its children out again (its scrollbar gutter settled, its scroll
-/// offset clamped) places their floats again.
+/// lays its children out again places their floats again. The one such
+/// box whose children's floats are in an enclosing context's area is a
+/// block that is no scroll container dropping a stale scroll offset (CSS
+/// Overflow 3 §3.1: it has none) — `float/bfc.rs`'s
+/// `laying_a_block_out_again_places_its_floats_once` fails without it; a
+/// scroll container settling its gutter is a formatting context root,
+/// whose children's floats are in its own area.
 pub(in crate::render::layout_pass) fn rewind(dom: &mut Dom<TuiExt>, mark: usize) {
     if let Some(top) = dom
         .document_data_mut::<FloatStack>()
@@ -240,8 +245,18 @@ pub(in crate::render::layout_pass) fn place_in_block_flow(
     dom: &mut Dom<TuiExt>,
     item: BoxItem,
     at: Placement,
-) -> LayoutRect {
+) -> PlacedFloat {
     with_area(dom, |dom, area| place(dom, area, item, at))
+}
+
+/// A float placed in its formatting context's area: the box, its border
+/// box, and its index in the area — by which [`lay_out`] settles its
+/// exclusion to the height layout gives it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct PlacedFloat {
+    pub(crate) item: BoxItem,
+    pub(crate) rect: LayoutRect,
+    pub(crate) index: usize,
 }
 
 /// Where a float may go: its top not above row `y`, in the containing
@@ -262,7 +277,7 @@ pub(in crate::render::layout_pass) fn place(
     area: &mut ExclusionArea,
     item: BoxItem,
     at: Placement,
-) -> LayoutRect {
+) -> PlacedFloat {
     let fb = size::FloatBox::of(dom, item, at.cb_width);
     place_box(dom, area, item, &fb, at)
 }
@@ -277,7 +292,7 @@ pub(in crate::render::layout_pass) fn place_box(
     item: BoxItem,
     fb: &size::FloatBox,
     at: Placement,
-) -> LayoutRect {
+) -> PlacedFloat {
     let side = float_side_of(dom, item).unwrap_or(FloatSide::Left);
     let y = clearance_floor(dom, area, item, at.y);
     let (x0, x1) = (at.x0, at.x0 + i32::from(at.cb_width));
@@ -306,8 +321,12 @@ pub(in crate::render::layout_pass) fn place_box(
             FloatSide::Right => m.right == x1,
         });
     let (fb, m) = flush.unwrap_or_else(|| (fb, position(&fb)));
-    area.push(m);
-    fb.border_box(m.left, m.top)
+    let index = area.push(m);
+    PlacedFloat {
+        item,
+        rect: fb.border_box(m.left, m.top),
+        index,
+    }
 }
 
 /// The edges of `item`'s containing block whose adjoining float margins
@@ -341,21 +360,22 @@ pub(in crate::render::layout_pass) fn clearance_floor(
     area.clearance(left, right).map_or(y, |b| b.max(y))
 }
 
-/// Lay the float `item`, placed at the border box `rect` in a containing
-/// block `cb_width` cells wide, out: an element by `layout_node`; a
+/// Lay the float `placed` out in a containing block `cb_width` cells wide,
+/// at the border box it was placed at, and settle its exclusion to the
+/// height it got ([`settle_height`]): an element by `layout_node`; a
 /// `::before` / `::after` as its own box (`items::AnonymousItem::pseudo`),
 /// kept among the floated pseudo-elements of `owner` — the box whose
 /// children are being laid out — which paint and hit-testing read.
 pub(in crate::render::layout_pass) fn lay_out(
     dom: &mut Dom<TuiExt>,
     owner: NodeId,
-    item: BoxItem,
-    rect: LayoutRect,
+    placed: PlacedFloat,
     cb_width: u16,
 ) {
-    let (host, slot) = match item {
+    let (host, slot) = match placed.item {
         BoxItem::Node(id) => {
-            crate::render::layout_pass::layout_node(dom, id, rect, cb_width);
+            crate::render::layout_pass::layout_node(dom, id, placed.rect, cb_width);
+            settle_height(dom, id, placed);
             return;
         }
         BoxItem::Generated(host, slot) => (host, slot),
@@ -364,7 +384,7 @@ pub(in crate::render::layout_pass) fn lay_out(
     else {
         return;
     };
-    let laid_out = pseudo.lay_out(dom, rect, cb_width);
+    let laid_out = pseudo.lay_out(dom, placed.rect, cb_width);
     if let Some(ext) = dom.node_mut(owner).ext_mut() {
         ext.floated_pseudos
             .get_or_insert_with(Default::default)
@@ -372,25 +392,20 @@ pub(in crate::render::layout_pass) fn lay_out(
     }
 }
 
-/// After float `item`, placed at the border box `placed`, was laid out:
-/// make its exclusion as tall as the box it got (an automatic height
-/// resolves from the laid-out content) — it is the area's last float,
-/// as a float's own layout places nothing in this area (it is a block
-/// formatting context root). A pseudo-element's box is laid out at the
-/// border box it was placed at.
-pub(in crate::render::layout_pass) fn settle_height(
-    dom: &mut Dom<TuiExt>,
-    item: BoxItem,
-    placed: LayoutRect,
-) {
-    let BoxItem::Node(id) = item else {
-        return;
-    };
+/// After the float element `id`, `placed`, was laid out: make its
+/// exclusion as tall as the box it got (an automatic height resolves from
+/// the laid-out content, which the measured height it was placed at may
+/// miss: DIVERGENCES §2) — by its index, as the area's floats after it
+/// were placed by then too when the packer met it. The area is the
+/// innermost one again: a float is a block formatting context root, so
+/// its own layout places nothing in it. (A pseudo-element's box is laid
+/// out at the border box it was placed at.)
+fn settle_height(dom: &mut Dom<TuiExt>, id: NodeId, placed: PlacedFloat) {
     let Some(got) = dom.node(id).ext().map(|e| e.layout.height) else {
         return;
     };
-    let rows = i32::from(got) - i32::from(placed.height);
+    let rows = i32::from(got) - i32::from(placed.rect.height);
     if rows != 0 {
-        with_area(dom, |_, area| area.grow_last(rows));
+        with_area(dom, |_, area| area.grow(placed.index, rows));
     }
 }

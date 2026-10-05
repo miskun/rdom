@@ -7,5 +7,6 @@ mod clear;
 mod computed;
 mod interactions;
 mod intrinsic;
+mod measure;
 mod paint;
 mod place;

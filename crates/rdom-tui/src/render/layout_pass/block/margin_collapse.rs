@@ -276,7 +276,7 @@ impl MarginAccumulator {
 
 /// One chain result the walkers hand back for memoization:
 /// `(block, containing-block width, top chain?, bottom chain?)`.
-type ChainEntry = (
+pub(super) type ChainEntry = (
     NodeId,
     u16,
     Option<MarginAccumulator>,

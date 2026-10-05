@@ -3,9 +3,10 @@
 //! (min-content, available width 0) or at none (max-content, an
 //! unbounded one), and its widest line read — so measurement cannot
 //! drift from what layout wraps: `white-space`, collapsing, forced
-//! breaks, generated content, and each atomic inline a box its own
-//! max-content width wide (C7G-INLINE-ATOM-MAX). The packer runs in
-//! its measuring mode (`LinePacker::measuring`).
+//! breaks, generated content, and each atomic inline a box its min- or
+//! max-content contribution wide (C7G-INLINE-ATOM-MAX,
+//! C8G-FLOAT-MEASURE). The packer runs in its measuring mode
+//! (`LinePacker::measuring`).
 
 use rdom_core::{Dom, NodeId};
 

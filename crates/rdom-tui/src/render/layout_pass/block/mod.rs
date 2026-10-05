@@ -40,10 +40,12 @@
 //! - [`runs`] — block-level / inline-level run partitioning.
 
 mod align;
+mod flow;
 pub(in crate::render::layout_pass) mod generated;
 mod height;
 mod inline_run;
 mod margin_collapse;
+pub(in crate::render::layout_pass) mod measure;
 mod place;
 mod runs;
 mod width;
@@ -69,12 +71,11 @@ pub(super) use margin_collapse::debug_assert_no_margin_chain_memo;
 pub(super) use margin_collapse::establishes_independent_formatting_context as establishes_bfc;
 use margin_collapse::{
     MarginAccumulator, is_empty_collapse_through, outer_bottom_margin, outer_top_margin,
-    parent_collapses_bottom_with_last_child, parent_collapses_top_with_first_child,
     store_margin_chain_memo,
 };
-use place::{BlockPlace, lay_out_block_child};
+use place::BlockPlace;
+use runs::last_flow_run;
 pub(super) use runs::{Run, RunKind, flow_runs, inline_runs, is_block_level};
-use runs::{drop_lineless_runs, first_flow_run, is_float, last_flow_run, partition};
 use width::resolve_block_width;
 
 /// Returned by [`layout_block_children`] so the caller (`layout_node`)
@@ -95,11 +96,12 @@ pub(super) struct BlockMeasurement {
     pub content_height: u16,
 }
 
-/// Lay out `id`'s in-flow children per CSS 2.1 §10. Partitions
-/// children into runs of consecutive block-level vs inline-level
-/// nodes; block runs get individual block layout; inline runs
-/// fold into **anonymous block boxes** (CSS 2.1 §9.2.1.1) that
-/// each establish their own IFC.
+/// Lay out `id`'s in-flow children per CSS 2.1 §10: its flow
+/// (`flow::run`), each piece laid out in the document ([`LayoutSink`]) —
+/// block runs block by block, inline runs in **anonymous block boxes**
+/// (CSS 2.1 §9.2.1.1) that each establish their own IFC — then the
+/// static positions of the out-of-flow children after the last in-flow
+/// one.
 ///
 /// Stores anonymous boxes on the parent's `TuiExt.anonymous_blocks`
 /// — paint / hit-test / selection iterate this Vec alongside the
@@ -110,48 +112,8 @@ pub(super) fn layout_block_children(
     container: LayoutRect,
     parent_computed: &ComputedStyle,
 ) -> BlockMeasurement {
-    // Collect ALL direct child nodes (text + element), in box-tree
-    // order (`box_sequence`: a `display: contents` child holding a
-    // block box gives its own children and generated items). Block
-    // layout distinguishes inline-level (text + Display::Inline/
-    // InlineBlock elements) from block-level (Display::Block elements)
-    // — text nodes are inline-level participants in an anonymous block
-    // per CSS 2.1 §9.2.1.1 rule 2.
-    let raw_children: Vec<BoxItem> = crate::render::box_tree::box_sequence(dom, id);
-    // CSS 2.1 §12.1: `::before` / `::after` are the host's first / last
-    // children, so a host whose only content is its generated text still
-    // has an inline run — the pseudo-elements alone — and a line box.
-    let pseudos = crate::render::inline::generated::visible_inline_pseudos(dom, id);
-    let has_pseudos = pseudos.before || pseudos.after;
-    if raw_children.is_empty() && !has_pseudos {
-        return BlockMeasurement::default();
-    }
-
-    // Filter out-of-flow elements; text nodes are always in flow. Each
-    // entry keeps its index into `raw_children` (the box sequence), and
-    // the runs' `child_range`s are those RAW indices — not positions in
-    // this filtered list — so an anonymous box's range can be matched
-    // against a child's index in its parent's box sequence
-    // (`inline_flow_for_text`, TREE-BFC-PSEUDO-1).
-    let in_flow: Vec<(usize, BoxItem)> = raw_children
-        .iter()
-        .copied()
-        .enumerate()
-        // Floats stay: out of flow, but placed where they occur
-        // (CSS 2.1 §9.5.1).
-        .filter(|(_, c)| {
-            c.node()
-                .is_none_or(|c| is_in_flow(dom, c) || is_float(dom, c))
-        })
-        .collect();
-    // `D-M2-2`: out-of-flow positioned children take their static
-    // position (CSS 2.1 §10.3.7 / §10.6.4) from the flow cursor at the
-    // point where their hypothetical box would have gone — recorded
-    // just before the in-flow sibling that follows them is placed.
-    let raw_nodes: Vec<NodeId> = raw_children.iter().filter_map(|c| c.node()).collect();
-    let (mut static_before, mut static_trailing) =
-        super::positioning::static_anchors(dom, &raw_nodes);
-    if in_flow.is_empty() && !has_pseudos {
+    let mut statics = flow::Statics::default();
+    let Some(prepared) = flow::prepare(dom, id, Some(&mut statics)) else {
         // Clear any stale anonymous boxes from a previous layout —
         // matches flex's `ext.inline_layout = None` reset.
         if let Some(ext) = dom.node_mut(id).ext_mut() {
@@ -161,7 +123,7 @@ pub(super) fn layout_block_children(
             .node(id)
             .ext()
             .map_or((0, 0), |e| (e.scroll_x, e.scroll_y));
-        for &n in &static_trailing {
+        for &n in &statics.trailing {
             super::positioning::record_static_position(
                 dom,
                 n,
@@ -170,286 +132,29 @@ pub(super) fn layout_block_children(
             );
         }
         return BlockMeasurement::default();
-    }
-
-    // Partition into runs of block-level and inline-level children, with
-    // the floats that join neither in float runs (`runs::partition`).
-    let runs = partition(dom, &in_flow);
-
-    let mut runs = drop_lineless_runs(dom, id, runs, &mut static_before, &mut static_trailing);
-    if runs.is_empty() && has_pseudos {
-        // No in-flow child holds a line: the pseudo-elements are the
-        // whole inline content, in one anonymous block box.
-        runs.push(Run::pseudo_only(raw_children.len()));
-    }
-
-    // CSS 2.1 §9.2.1.1: a `::before` (`::after`) whose host starts
-    // (ends) with a block-level child is an inline box with no inline
-    // run to join — it gets an anonymous block box of its own: an
-    // empty inline run the placement loop packs with the pseudo alone.
-    // (A leading / trailing whitespace run already carries it.)
-    let own_line = crate::render::inline::generated::own_line_pseudos(dom, id);
-    if own_line.before && first_flow_run(&runs).is_some_and(|r| r.kind == RunKind::Block) {
-        let at = runs[0].child_range.0;
-        runs.insert(0, Run::pseudo_only(at));
-    }
-    if own_line.after && last_flow_run(&runs).is_some_and(|r| r.kind == RunKind::Block) {
-        let at = runs[runs.len() - 1].child_range.1;
-        runs.push(Run::pseudo_only(at));
-    }
-
-    // Parent-child border-collapse inset (CSS 2.1 §17.6.3 +
-    // BFC-1 invariant): when this container is `border-collapse:
-    // collapse` with its own border, `layout_node` already expanded
-    // its content area to extend into the border ring. That's
-    // correct ONLY when the first/last child has its own border to
-    // share the cell with. Content-bearing children (no border)
-    // would land on the parent's painted border row. Apply the
-    // same per-edge inset flex uses so the two layout modes agree.
-    let in_flow_ids: Vec<NodeId> = in_flow
-        .iter()
-        .filter_map(|(_, c)| c.node())
-        .filter(|&c| !is_float(dom, c))
-        .collect();
-    let (top_inset, bot_inset, left_inset, right_inset) =
-        super::border_collapse::collapse_parent_edge_insets(
-            dom,
-            (in_flow_ids.first().copied(), in_flow_ids.last().copied()),
-            parent_computed,
-        );
-    let container = LayoutRect::new(
-        container.x + left_inset as i32,
-        container.y + top_inset as i32,
-        container.width.saturating_sub(left_inset + right_inset),
-        container.height.saturating_sub(top_inset + bot_inset),
-    );
-
-    let containing_block_width = container.width;
-    // Apply this container's scroll_y to the starting cursor (mirrors
-    // `flex::layout_flex_children`'s `container.y - scroll_main`). The
-    // scroll itself lives on this container's `ext.scroll_y`; the flex
-    // pass reads it through its children's box parent, the same box.
-    let scroll_y = super::gutter::scroll_offset(dom, id, crate::layout::Direction::Column);
-    // `SCROLL-CROSS-AXIS-1`: horizontal scroll shifts every box left.
-    let scroll_x = super::gutter::scroll_offset(dom, id, crate::layout::Direction::Row);
-    let content_x = container.x - scroll_x;
-    let mut y_cursor: i32 = container.y - scroll_y;
-    let mut anon_blocks: Vec<AnonymousIfc> = Vec::new();
-
-    // CSS 2.1 §8.3.1 — vertical margin collapse accumulator.
-    // Tracks the unresolved set of margins between the last placed
-    // block (or the container's top) and the next block to be
-    // placed. Adjacent in-flow block siblings' vertical margins
-    // collapse into one: `max(positives) + min(negatives)`.
-    //
-    // Anonymous block boxes (inline runs in mixed content) have
-    // zero margins so they participate transparently — they don't
-    // contribute to the accumulator but they also don't reset it
-    // wholesale when surrounded by block siblings. Out-of-flow
-    // siblings are already filtered out of `in_flow`.
-    //
-    // Parent–first-child and parent–last-child collapse (Phase 5.2)
-    // + empty-block collapse-through (Phase 5.3) build on this same
-    // accumulator.
-    let mut margin_acc = MarginAccumulator::new();
-
-    // Phase 5.2 — parent–first-child top margin collapse.
-    // When the parent has no top padding, no top border, and doesn't
-    // establish a new BFC, the first in-flow block child's
-    // `margin-top` collapses through the parent. The merged margin
-    // ideally surfaces at the parent's OUTER top (the
-    // parent's parent should see it). For now we implement the
-    // local half: suppress the first child's `margin-top` so it
-    // doesn't create extra space inside the parent's content area.
-    // The upward-merge half is tracked as known incompleteness in
-    // [[bfc1-margin-collapse-upward-propagation]] (`TECH_DEBT.md`).
-    let suppress_first_top_margin = parent_collapses_top_with_first_child(dom, id, parent_computed);
-    let suppress_last_bottom_margin =
-        parent_collapses_bottom_with_last_child(dom, id, parent_computed);
-    // CSS Box 4 §3 `margin-trim`: a block-level child adjoining a
-    // trimmed block-start / block-end content edge — the first / last
-    // run is its block run — contributes no margin there (and, the
-    // predicates above being false, none escapes either).
-    let trim = super::margin_trim::trimmed_edges(parent_computed);
-    let trim_first_top =
-        trim.top && first_flow_run(&runs).is_some_and(|r| r.kind == RunKind::Block);
-    let trim_last_bottom =
-        trim.bottom && last_flow_run(&runs).is_some_and(|r| r.kind == RunKind::Block);
-    // The runs that hold the host's `::before` / `::after`: its first and
-    // last in-flow ones (a float run holds no line).
-    let first_line_run = runs.iter().position(|r| r.kind != RunKind::Float);
-    let last_line_run = runs.iter().rposition(|r| r.kind != RunKind::Float);
-    let last_block_run_idx = runs
-        .iter()
-        .enumerate()
-        .rev()
-        .find_map(|(i, r)| (r.kind == RunKind::Block).then_some(i));
-
-    // CSS3 Box Alignment Module — `row-gap` applies between
-    // adjacent in-flow **block-level element children**. We
-    // deliberately don't insert gap around anonymous block boxes
-    // wrapping inline-only runs (whitespace text between block
-    // siblings produces 0-height anons; counting them as gap
-    // boundaries would multiply gaps unexpectedly).
-    let row_gap = super::resolve_gap(parent_computed, container, Direction::Column);
-
-    let mut placed_block_count: usize = 0;
-    // BORDER-MODEL-1 (M6): track the previous direct block sibling
-    // so we can apply the sibling-overlap pullback when both this
-    // block and its predecessor have a visible border on the shared
-    // edge under `border-collapse: collapse`. Mirrors flex.rs's
-    // pullback. The variable resets to `None` when an inline-run
-    // anonymous block intervenes — its non-zero height breaks
-    // border-adjacency, so border-overlap can't apply across it.
-    let mut prev_block_id: Option<NodeId> = None;
-    for (run_idx, run) in runs.iter().enumerate() {
-        match run.kind {
-            RunKind::Float => {
-                // A float between block-level boxes: its top where the
-                // next box's would be, past the margins collapsed so far
-                // (CSS 2.1 §9.5.1 rules 4–6), laid out at once so its
-                // exclusion has the height it gets.
-                for &f in &run.children {
-                    let y = y_cursor + i32::from(margin_acc.resolved());
-                    if let Some(oof) = f.node().and_then(|n| static_before.get(&n)) {
-                        for &n in oof {
-                            super::positioning::record_static_position(dom, n, content_x, y);
-                        }
-                    }
-                    let placed = super::float::place_in_block_flow(
-                        dom,
-                        f,
-                        super::float::Placement {
-                            y,
-                            x0: content_x,
-                            cb_width: containing_block_width,
-                            content_top: container.y - scroll_y,
-                        },
-                    );
-                    super::float::lay_out(dom, id, f, placed, containing_block_width);
-                    super::float::settle_height(dom, f, placed);
-                }
-            }
-            RunKind::Block => {
-                let is_last_block_run = Some(run_idx) == last_block_run_idx;
-                let last_child_idx = run.children.len() - 1;
-                // A block run holds element nodes and the host's
-                // block-level pseudo-elements (`child_level`).
-                for (i, item) in run.children.iter().enumerate() {
-                    let child = match *item {
-                        BoxItem::Node(child) => child,
-                        BoxItem::Generated(host, slot) => {
-                            let at = generated::GeneratedPlace {
-                                x: content_x,
-                                cb_width: containing_block_width,
-                                y_cursor,
-                                margin_acc: &mut margin_acc,
-                                index: generated::index(slot, raw_children.len()),
-                            };
-                            if let Some((anon, bottom)) = generated::lay_out(dom, host, slot, at) {
-                                anon_blocks.push(anon);
-                                (y_cursor, prev_block_id) = (bottom, None);
-                                placed_block_count += 1;
-                            }
-                            continue;
-                        }
-                    };
-                    if let Some(oof) = static_before.get(&child) {
-                        // The hypothetical box has zero margins: it
-                        // collapses through whatever is buffered.
-                        let y = y_cursor + i32::from(margin_acc.resolved());
-                        for &n in oof {
-                            super::positioning::record_static_position(dom, n, content_x, y);
-                        }
-                    }
-                    let is_first_block_placed = placed_block_count == 0;
-                    let is_last_block_placed = is_last_block_run && i == last_child_idx;
-                    if !is_first_block_placed && row_gap > 0 {
-                        // Gap between adjacent block-level element
-                        // children. Margins collapse normally above;
-                        // gap is added on top per CSS3 Box Alignment.
-                        y_cursor += row_gap as i32;
-                    }
-                    // BORDER-MODEL-1 (M6) block-flow sibling overlap:
-                    // same rule as flex.rs — parent has `collapse`,
-                    // row-gap is 0, AND both this child and the
-                    // previous block sibling have a visible border on
-                    // the shared (top / bottom) edge. Pull the cursor
-                    // back by 1 so the borders coincide and paint-time
-                    // mask-OR produces the junction glyph.
-                    if row_gap == 0
-                        && let Some(prev) = prev_block_id
-                        && place::borders_overlap(dom, parent_computed, prev, child)
-                    {
-                        y_cursor -= 1;
-                    }
-                    y_cursor = lay_out_block_child(
-                        dom,
-                        child,
-                        BlockPlace {
-                            container: LayoutRect::new(
-                                content_x,
-                                container.y,
-                                container.width,
-                                container.height,
-                            ),
-                            containing_block_width,
-                            y_cursor,
-                            margin_acc: &mut margin_acc,
-                            suppress_top_margin: is_first_block_placed
-                                && (suppress_first_top_margin || trim_first_top),
-                            suppress_bottom_margin: is_last_block_placed
-                                && (suppress_last_bottom_margin || trim_last_bottom),
-                        },
-                    );
-                    placed_block_count += 1;
-                    prev_block_id = Some(child);
-                }
-            }
-            RunKind::Inline => {
-                // Anonymous block box wrapping this inline run. Its
-                // IFC packs the run's children at the container's
-                // content width. Height = packed line count.
-                //
-                // Resolve any accumulated margin from the previous
-                // block sibling before placing the anon box. Anon
-                // boxes themselves contribute zero margins (no CSS
-                // identity), so the accumulator empties after this
-                // placement — the next block starts a fresh
-                // accumulator.
-                // Runs cover the in-flow children in order (a
-                // pseudo-only run stands in front of / behind a block
-                // edge), so the host's `::before` / `::after` belong to
-                // the first / last run.
-                let pseudos = RunPseudos {
-                    before: Some(run_idx) == first_line_run,
-                    after: Some(run_idx) == last_line_run,
-                };
-                let resolved_gap = margin_acc.resolved();
-                margin_acc = MarginAccumulator::new();
-                let anon_y = y_cursor + resolved_gap as i32;
-                let anon = inline_run::lay_out(
-                    dom,
-                    id,
-                    run,
-                    pseudos,
-                    inline_run::RunPlace {
-                        at: LayoutRect::new(content_x, anon_y, containing_block_width, 0),
-                        content_top: container.y - scroll_y,
-                    },
-                    &static_before,
-                );
-                let height = anon.rect.height;
-                anon_blocks.push(anon);
-                y_cursor = anon_y + height as i32;
-                // BORDER-MODEL-1 (M6): an inline-run anon block breaks
-                // block-to-block border adjacency. Reset the
-                // overlap-tracker so the next block sibling is treated
-                // as the start of a fresh adjacency chain.
-                prev_block_id = None;
-            }
-        }
-    }
+    };
+    let container = flow::inset(dom, &prepared, parent_computed, container);
+    // This container's scroll offsets shift its cursor (mirrors
+    // `flex::layout_flex_children`'s `container.y - scroll_main`;
+    // `SCROLL-CROSS-AXIS-1`: horizontal scroll shifts every box left).
+    let at = flow::FlowAt {
+        container,
+        scroll_x: super::gutter::scroll_offset(dom, id, Direction::Row),
+        scroll_y: super::gutter::scroll_offset(dom, id, Direction::Column),
+    };
+    let mut sink = LayoutSink {
+        dom,
+        id,
+        anon_blocks: Vec::new(),
+        statics,
+    };
+    let end = flow::run(&mut sink, id, parent_computed, &prepared, at);
+    let LayoutSink {
+        dom,
+        anon_blocks,
+        statics,
+        ..
+    } = sink;
 
     // Positioned children after the last in-flow child: continue the
     // last inline run, or sit below the last block and the margin that
@@ -457,12 +162,13 @@ pub(super) fn layout_block_children(
     // §8.3.1: as if the box had a bottom border) — including a bottom
     // margin that escaped through the parent and so never reached the
     // accumulator.
-    let last_run_is_inline = matches!(last_flow_run(&runs).map(|r| r.kind), Some(RunKind::Inline));
-    if !static_trailing.is_empty() {
-        let mut trailing_margin = margin_acc;
-        if suppress_last_bottom_margin
+    let runs = &prepared.runs;
+    let last_run_is_inline = matches!(last_flow_run(runs).map(|r| r.kind), Some(RunKind::Inline));
+    if !statics.trailing.is_empty() {
+        let mut trailing_margin = end.margin_acc;
+        if end.suppress_last_bottom
             && !last_run_is_inline
-            && let Some(last) = last_flow_run(&runs).and_then(|r| r.children.last()?.node())
+            && let Some(last) = last_flow_run(runs).and_then(|r| r.children.last()?.node())
         {
             let last_computed = dom
                 .node(last)
@@ -473,12 +179,13 @@ pub(super) fn layout_block_children(
                 dom,
                 last,
                 &last_computed,
-                containing_block_width,
+                container.width,
                 &mut memo,
             ));
         }
-        let below_last_block = y_cursor + i32::from(trailing_margin.resolved());
-        for &n in &static_trailing {
+        let below_last_block = end.y_cursor + i32::from(trailing_margin.resolved());
+        let content_x = container.x - at.scroll_x;
+        for &n in &statics.trailing {
             let (x, y) = match anon_blocks.last() {
                 Some(anon) if last_run_is_inline => super::positioning::static_position_in_ifc(
                     dom,
@@ -499,24 +206,83 @@ pub(super) fn layout_block_children(
     if let Some(ext) = dom.node_mut(id).ext_mut() {
         ext.anonymous_blocks = anon_blocks;
     }
+    end.measurement
+}
 
-    // CSS 2.1 §10.6.3 — content height measurement. `y_cursor` is
-    // the bottom of the last placed in-flow content; subtract the
-    // initial cursor (`container.y - scroll_y`) to get the extent.
-    // Any unresolved bottom margin in the accumulator escapes
-    // upward through parent-last-child collapse (handled by the
-    // grandparent's `accumulate_outer_bottom_margin`) — UNLESS the
-    // parent establishes a new BFC, in which case the margin is
-    // trapped inside this container's height.
-    let initial_cursor = container.y - scroll_y;
-    let mut content_height = (y_cursor - initial_cursor).max(0);
-    if !suppress_last_bottom_margin {
-        // Margin doesn't escape upward — fold the running
-        // accumulator into the measured height. (Trailing positive
-        // margins contribute to height; negative pull content up.)
-        content_height = (content_height + margin_acc.resolved() as i32).max(0);
+/// [`flow::FlowSink`] for layout: each piece laid out in the document,
+/// against the float area of its formatting context (`float::with_area`),
+/// the anonymous boxes kept for `id`, the static positions recorded.
+struct LayoutSink<'a> {
+    dom: &'a mut Dom<TuiExt>,
+    id: NodeId,
+    anon_blocks: Vec<AnonymousIfc>,
+    statics: flow::Statics,
+}
+
+impl flow::FlowSink for LayoutSink<'_> {
+    fn dom(&self) -> &Dom<TuiExt> {
+        self.dom
     }
-    BlockMeasurement {
-        content_height: content_height.min(u16::MAX as i32) as u16,
+
+    fn anchor(&mut self, child: NodeId, x: i32, y: i32) {
+        for &n in self.statics.before.get(&child).into_iter().flatten() {
+            super::positioning::record_static_position(self.dom, n, x, y);
+        }
     }
+
+    fn float(&mut self, item: BoxItem, at: super::float::Placement) {
+        // Laid out at once, so its exclusion has the height it gets.
+        let placed = super::float::place_in_block_flow(self.dom, item, at);
+        super::float::lay_out(self.dom, self.id, placed, at.cb_width);
+    }
+
+    fn block(&mut self, child: NodeId, mut place: BlockPlace<'_>) -> i32 {
+        let (y_cursor, cb) = (place.y_cursor, place.containing_block_width);
+        let mut placed = super::float::with_area(self.dom, |dom, area| {
+            place::place_block_child(dom, area, child, &mut place)
+        });
+        store_margin_chain_memo(self.dom, &placed.memo);
+        layout_node(self.dom, child, placed.rect, cb);
+        // `layout_node` finalizes an `auto` height from the laid-out
+        // content (CSS 2.1 §10.6.3), which the pre-layout one may miss:
+        // the cursor advances by the height the child got — of its
+        // intended place, not of a `position: relative` shift, which must
+        // not move siblings.
+        let mut height = laid_out_height(self.dom, child, placed.rect.height);
+        // §9.5: a formatting context root beside floats, taller than
+        // placed, is placed again at its height.
+        if let Some(rect) = super::float::with_area(self.dom, |dom, area| {
+            place::replace_beside_floats(dom, area, child, &placed, height)
+        }) {
+            layout_node(self.dom, child, rect, cb);
+            height = laid_out_height(self.dom, child, rect.height);
+            placed.rect = rect;
+        }
+        place::advance(&placed, placed.rect.y, height, y_cursor, place.margin_acc)
+    }
+
+    fn generated(
+        &mut self,
+        host: NodeId,
+        slot: crate::ext::PseudoSlot,
+        at: generated::GeneratedPlace<'_>,
+    ) -> Option<i32> {
+        let (anon, bottom) = generated::lay_out(self.dom, host, slot, at)?;
+        self.anon_blocks.push(anon);
+        Some(bottom)
+    }
+
+    fn inline_run(&mut self, run: &Run, pseudos: RunPseudos, place: inline_run::RunPlace) -> u16 {
+        let anon =
+            inline_run::lay_out(self.dom, self.id, run, pseudos, place, &self.statics.before);
+        let height = anon.rect.height;
+        self.anon_blocks.push(anon);
+        height
+    }
+}
+
+/// The border-box height `child` got from `layout_node` (`fallback`
+/// when it has no layout).
+fn laid_out_height(dom: &Dom<TuiExt>, child: NodeId, fallback: u16) -> u16 {
+    dom.node(child).layout_rect().map_or(fallback, |r| r.height)
 }

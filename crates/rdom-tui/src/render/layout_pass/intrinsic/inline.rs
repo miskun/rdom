@@ -88,7 +88,7 @@ pub(super) fn pseudo_content_width(dom: &Dom<TuiExt>, id: NodeId) -> u16 {
         match generated::own_inline_pseudo(dom, id, slot) {
             Some(generated::InlinePseudo::Text(t)) => UnicodeWidthStr::width(t) as u32,
             Some(generated::InlinePseudo::Atom) => {
-                crate::render::layout_pass::generated_atoms::measure(dom, id, pslot, 0, true)
+                crate::render::layout_pass::generated_atoms::measure(dom, id, pslot, 0, Some(true))
                     .map_or(0, |(w, _)| u32::from(w))
             }
             Some(generated::InlinePseudo::Float) => {
@@ -104,28 +104,6 @@ pub(super) fn pseudo_content_width(dom: &Dom<TuiExt>, id: NodeId) -> u16 {
     acc = acc.saturating_add(own(StyleSlot::Before));
     acc = acc.saturating_add(own(StyleSlot::After));
     acc.min(u16::MAX as u32) as u16
-}
-
-/// Rows of `id`'s pseudo-elements that take a line of their own, packed
-/// at `content_width` as the block pass packs them.
-pub(super) fn own_line_pseudo_rows(dom: &Dom<TuiExt>, id: NodeId, content_width: u16) -> u16 {
-    use crate::render::inline::{RunPseudos, generated, pack_run};
-    let own_line = generated::own_line_pseudos(dom, id);
-    let rows = |pseudos: RunPseudos| pack_run(dom, id, &[], pseudos, content_width, None).height();
-    let mut total = 0u16;
-    if own_line.before {
-        total = total.saturating_add(rows(RunPseudos {
-            before: true,
-            after: false,
-        }));
-    }
-    if own_line.after {
-        total = total.saturating_add(rows(RunPseudos {
-            before: false,
-            after: true,
-        }));
-    }
-    total
 }
 
 /// True iff `id` has at least one text child (or, through a box-less
@@ -151,9 +129,8 @@ pub(super) fn border_main_cost(computed: &ComputedStyle, direction: Direction) -
 /// Sizing 3 §5.1): its widest line packed as layout packs it
 /// (`inline::widest_line`) — its static `::before` / `::after` and every
 /// atomic inline (`inline-block`, `inline-flex`, `inline-grid`, CSS
-/// Display 3 §2.4) boxes in those lines, an atom its own max-content
-/// width wide (C7G-INLINE-ATOM-MAX: the max-content width was the sum of
-/// the text inside them).
+/// Display 3 §2.4) boxes in those lines, an atom its contribution under
+/// the same constraint wide (C7G-INLINE-ATOM-MAX, C8G-FLOAT-MEASURE).
 pub(super) fn inline_width(dom: &Dom<TuiExt>, id: NodeId, measure: Measure) -> u16 {
     crate::render::inline::widest_line(dom, id, measure.available())
 }

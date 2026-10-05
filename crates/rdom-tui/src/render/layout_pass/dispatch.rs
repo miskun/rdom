@@ -85,12 +85,13 @@ fn lay_out_children(
         ext.grid_lines = None;
     }
 
+    let kind = children_layout(dom, id, computed);
     // IFC block: inline element children don't participate in flex
     // layout — they're painted by the inline flow pass. Give each a
     // zero-sized layout rect (hit tests and debug tools shouldn't
     // crash on missing data; paint reads the parent's inline_layout
     // instead).
-    if is_ifc_block(dom, id) {
+    if kind == ChildrenLayout::Inline {
         for child in element_children_of(dom, id) {
             if let Some(ext) = dom.node_mut(child).ext_mut() {
                 ext.layout = LayoutRect::new(container.x, container.y, 0, 0);
@@ -121,8 +122,8 @@ fn lay_out_children(
         for (atom_id, atom_rect) in atoms {
             layout_node(dom, atom_id, atom_rect, container.width);
         }
-        for (item, rect) in floats {
-            super::float::lay_out(dom, id, item, rect, container.width);
+        for placed in floats {
+            super::float::lay_out(dom, id, placed, container.width);
         }
         // IFC height is the line count — block-flow auto-height
         // resolution uses this if the IFC block has `height: auto`.
@@ -134,36 +135,9 @@ fn lay_out_children(
     }
 
     // Pure-text leaf block (e.g. `<textarea>`, `<input>`, `<p>only
-    // text</p>`). Any element with a direct text-node child and no
-    // element children. It's not an IFC per `is_ifc_block`'s carve-
-    // out (paint routing for `::before` / `::after` chrome), but its
-    // rendered text still needs to wrap AND its caret needs an
-    // inline-flow container to anchor to.
-    //
-    // Empty text (e.g. an unsubmitted `<input>` / `<textarea>`)
-    // still qualifies: the caret has to land somewhere, so the
-    // inline_layout is computed even when its lines list is empty
-    // or a single empty line. Paint reads it back to position the
-    // REVERSED caret cell.
-    // Text in a box-less child is this box's text (CSS Display 3 §2.5).
-    let has_text_child = crate::render::box_tree::holds_loose_text(dom, id, &|_| true);
-    // Only *in-flow* element children disqualify the pure-text-leaf path:
-    // out-of-flow children (`position: absolute|fixed`) don't participate in the
-    // block/inline mix, so a "text + an absolutely-positioned child" element
-    // (e.g. a chip with an absolute dropdown) is still a text leaf — it must use
-    // its own `inline_layout` (so `::before`/`::after` + own text paint once via
-    // Path 3, not duplicated by an anonymous block; see TREE-BFC-PSEUDO-1).
-    let no_in_flow_element_children = element_children_of(dom, id)
-        .iter()
-        .all(|&c| !super::is_in_flow(dom, c));
-    // A flex or grid container's text is its anonymous items' (CSS
-    // Flexbox §4, CSS Grid 2 §6.1), laid out by its arm below.
-    let items = computed.flow.is_flex_or_grid();
-    // A block-level `::before` / `::after` makes it a block container
-    // with an anonymous box for its text.
-    let block_pseudos = crate::render::inline::generated::block_pseudos(dom, id);
-    let block_pseudo = block_pseudos.before || block_pseudos.after;
-    if has_text_child && no_in_flow_element_children && !items && !block_pseudo {
+    // text</p>`): its rendered text still needs to wrap AND its caret
+    // needs an inline-flow container to anchor to (`children_layout`).
+    if kind == ChildrenLayout::TextLeaf {
         let lines_at = crate::render::inline::scrolled_content_rect(dom, id).unwrap_or(container);
         let (mut inline_layout, floats) = pack_around_floats(dom, id, lines_at, container.width);
         super::generated_atoms::lay_out(dom, &mut inline_layout);
@@ -171,8 +145,8 @@ fn lay_out_children(
         if let Some(ext) = dom.node_mut(id).ext_mut() {
             ext.inline_layout = Some(inline_layout);
         }
-        for (item, rect) in floats {
-            super::float::lay_out(dom, id, item, rect, container.width);
+        for placed in floats {
+            super::float::lay_out(dom, id, placed, container.width);
         }
         return None;
     }
@@ -194,8 +168,8 @@ fn lay_out_children(
     // Note: this branch runs ONLY after the IFC + pure-text-leaf
     // carve-outs above. Both of those paths must stay above the
     // dispatch — they're not parameterized by Flow.
-    let anonymous = match computed.flow {
-        crate::layout::Flow::Block | crate::layout::Flow::FlowRoot => {
+    let anonymous = match kind {
+        ChildrenLayout::Block => {
             // Stale anon boxes from a prior flex layout: clear so
             // the new block layout starts fresh. Anon boxes will
             // be repopulated by `layout_block_children`. Only this
@@ -205,11 +179,10 @@ fn lay_out_children(
                 dom, id, container, computed,
             ));
         }
-        crate::layout::Flow::Flex => {
-            super::flex::layout_flex_container(dom, id, container, computed)
-        }
-        crate::layout::Flow::Grid => {
-            super::grid::layout_grid_children(dom, id, container, computed)
+        ChildrenLayout::Flex => super::flex::layout_flex_container(dom, id, container, computed),
+        ChildrenLayout::Grid => super::grid::layout_grid_children(dom, id, container, computed),
+        ChildrenLayout::Inline | ChildrenLayout::TextLeaf => {
+            unreachable!("laid out above")
         }
     };
     store_anonymous(dom, id, anonymous);
@@ -220,6 +193,68 @@ fn lay_out_children(
     // `intrinsic_size`, not via a children-walk. Return `None` so
     // `layout_node` leaves our height alone.
     None
+}
+
+/// Which formatting context lays out an element's children — the one
+/// decision layout ([`layout_children`]) and intrinsic measurement
+/// (`intrinsic`, `block::measure`) both read.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum ChildrenLayout {
+    /// An inline formatting context (`ifc::is_ifc_block`).
+    Inline,
+    /// A pure-text leaf: direct text (through box-less children) and no
+    /// in-flow element child, packed as its own lines — `<textarea>`,
+    /// `<input>`, `<p>only text</p>`. Not an IFC by `is_ifc_block`'s
+    /// carve-out (paint routing for `::before` / `::after` chrome).
+    TextLeaf,
+    /// Block flow (CSS 2.1 §9.4.1), its inline runs in anonymous block
+    /// boxes.
+    Block,
+    /// A flex container's items.
+    Flex,
+    /// A grid container's items.
+    Grid,
+}
+
+/// Which formatting context lays out `id`'s children ([`ChildrenLayout`]).
+pub(super) fn children_layout(
+    dom: &Dom<TuiExt>,
+    id: NodeId,
+    computed: &ComputedStyle,
+) -> ChildrenLayout {
+    if is_ifc_block(dom, id) {
+        return ChildrenLayout::Inline;
+    }
+    // A flex or grid container's text is its anonymous items' (CSS
+    // Flexbox §4, CSS Grid 2 §6.1).
+    match computed.flow {
+        crate::layout::Flow::Flex => return ChildrenLayout::Flex,
+        crate::layout::Flow::Grid => return ChildrenLayout::Grid,
+        crate::layout::Flow::Block | crate::layout::Flow::FlowRoot => {}
+    }
+    // Text in a box-less child is this box's text (CSS Display 3 §2.5).
+    // Empty text (an unsubmitted `<input>` / `<textarea>`) still
+    // qualifies: the caret has to land somewhere, so the inline layout
+    // is computed even when its lines list is empty.
+    let has_text_child = crate::render::box_tree::holds_loose_text(dom, id, &|_| true);
+    // Only *in-flow* element children disqualify the pure-text-leaf path:
+    // out-of-flow children (`position: absolute|fixed`) don't participate in the
+    // block/inline mix, so a "text + an absolutely-positioned child" element
+    // (e.g. a chip with an absolute dropdown) is still a text leaf — it must use
+    // its own `inline_layout` (so `::before`/`::after` + own text paint once via
+    // Path 3, not duplicated by an anonymous block; see TREE-BFC-PSEUDO-1).
+    let no_in_flow_element_children = element_children_of(dom, id)
+        .iter()
+        .all(|&c| !super::is_in_flow(dom, c));
+    // A block-level `::before` / `::after` makes it a block container
+    // with an anonymous box for its text.
+    let block_pseudos = crate::render::inline::generated::block_pseudos(dom, id);
+    let block_pseudo = block_pseudos.before || block_pseudos.after;
+    if has_text_child && no_in_flow_element_children && !block_pseudo {
+        ChildrenLayout::TextLeaf
+    } else {
+        ChildrenLayout::Block
+    }
 }
 
 /// Pack `id`'s inline content at `width` cells, its lines starting at
@@ -233,7 +268,7 @@ fn pack_around_floats(
     width: u16,
 ) -> (
     crate::render::inline::InlineLayout,
-    Vec<(crate::render::box_tree::BoxItem, LayoutRect)>,
+    Vec<super::float::PlacedFloat>,
 ) {
     let content = LayoutRect::new(lines_at.x, lines_at.y, width, lines_at.height);
     super::float::with_area(dom, |dom, area| {

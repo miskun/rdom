@@ -19,27 +19,35 @@ use crate::render::inline::vertical::AtomRows;
 
 /// The width and rows of `host`'s atomic inline `slot` pseudo-element
 /// in a line whose content box — its containing block — is `cb_width`
-/// wide, as an element atom's are measured (`inline::feed`): its
-/// max-content border box (DIVERGENCES §2) and its height at that width,
-/// its baseline its last content row. A `measuring` packer asks for its
-/// width only. `None` when it has no computed style.
+/// wide, as an element atom's are (`inline::feed::push_atom`): its
+/// shrink-to-fit border box (CSS 2.1 §10.3.9, `float::size::FloatBox`) and
+/// its baseline its last content row. An intrinsic width measurement
+/// (`measuring`: `Some(max_content)`) asks for its contribution under that
+/// constraint only. `None` when it has no computed style.
 pub(crate) fn measure(
     dom: &Dom<TuiExt>,
     host: NodeId,
     slot: PseudoSlot,
     cb_width: u16,
-    measuring: bool,
+    measuring: Option<bool>,
 ) -> Option<(u16, AtomRows)> {
     let item = AnonymousItem::pseudo(dom, host, slot)?;
-    let width = item.box_size(dom, Direction::Row, 0, cb_width, true);
-    if measuring {
+    if let Some(max_content) = measuring {
+        let width = item.box_size(dom, Direction::Row, 0, 0, max_content);
         return Some((width, AtomRows::UNMEASURED));
     }
-    let height = item.box_size(dom, Direction::Column, width, cb_width, true);
+    let fb = crate::render::layout_pass::float::size::FloatBox::of(
+        dom,
+        crate::render::box_tree::BoxItem::Generated(host, slot),
+        cb_width,
+    );
     let last = item
-        .content_rows(dom, width, cb_width)
+        .content_rows(dom, fb.width, cb_width)
         .map(|(_, last)| last);
-    Some((width, AtomRows::of(item.style(), height, cb_width, last)))
+    Some((
+        fb.width,
+        AtomRows::of(item.style(), fb.height, cb_width, last),
+    ))
 }
 
 /// Lay out the content of each atomic pseudo-element on `layout`'s lines

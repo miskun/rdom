@@ -1,6 +1,7 @@
-//! A float's margin box (CSS 2.1 §10.3.5 / §10.6.7): its used width —
-//! a declared one, else shrink-to-fit — and height, and its margins
-//! (`auto` margins are 0).
+//! A float's margin box (CSS 2.1 §10.3.5 / §10.6.7) — and an inline
+//! block's (§10.3.9 / §10.6.6, the same rules): its used width — a
+//! declared one, else shrink-to-fit — and height, and its margins (`auto`
+//! margins are 0).
 
 use rdom_core::Dom;
 

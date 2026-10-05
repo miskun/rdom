@@ -4,7 +4,7 @@
 
 use rdom_core::{Dom, NodeId};
 
-use super::{clear_sides, with_area};
+use super::clear_sides;
 use crate::ext::TuiExt;
 use crate::layout::{Direction, Size, TextDirection};
 use crate::style::ComputedStyle;
@@ -22,7 +22,7 @@ pub(in crate::render::layout_pass) struct FlowBox {
 }
 
 /// Where the block-level box `id` (styled `c`), placed by flow layout at
-/// `b`, goes among the floats of its formatting context:
+/// `b`, goes among the floats of `area`, its formatting context's:
 ///
 /// - CSS 2.1 §9.5.2: with `clear`, its top border edge below the bottom
 ///   outer edge of the lowest float it clears — the greater of that and
@@ -35,13 +35,14 @@ pub(in crate::render::layout_pass) struct FlowBox {
 ///   min-content contribution), else below them.
 ///
 /// `b` unchanged when no float is in the way.
-pub(in crate::render::layout_pass) fn beside_floats(
-    dom: &mut Dom<TuiExt>,
+pub(in crate::render::layout_pass) fn beside_floats_in(
+    dom: &Dom<TuiExt>,
+    area: &super::ExclusionArea,
     id: NodeId,
     c: &ComputedStyle,
     b: FlowBox,
 ) -> FlowBox {
-    with_area(dom, |dom, area| {
+    {
         if area.is_empty() {
             return b;
         }
@@ -94,5 +95,5 @@ pub(in crate::render::layout_pass) fn beside_floats(
             band.start + ml
         };
         out
-    })
+    }
 }

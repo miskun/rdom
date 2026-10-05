@@ -1,12 +1,13 @@
 //! Placing one block-level child in normal flow (CSS 2.1 §10.3.3 width,
-//! §10.6.3 height, §8.3.1 margin collapsing at its edges).
+//! §10.6.3 height, §8.3.1 margin collapsing at its edges, §9.5 / §9.5.2
+//! the floats beside it) — shared by layout and measurement (`flow`).
 
 use rdom_core::{Dom, NodeId};
 
 use super::*;
 
 /// Per-child placement context — bundles the in-flow positioning
-/// state so `lay_out_block_child`'s signature stays narrow.
+/// state so the placement's signature stays narrow.
 pub(super) struct BlockPlace<'a> {
     pub(super) container: LayoutRect,
     pub(super) containing_block_width: u16,
@@ -22,142 +23,133 @@ pub(super) struct BlockPlace<'a> {
     pub(super) suppress_bottom_margin: bool,
 }
 
-/// Lay out a single block-level child. Folds the child's `margin-top`
-/// into the running margin accumulator, resolves the accumulator into
-/// a single gap above the child, places the child, then primes the
-/// accumulator with the child's `margin-bottom` for the next sibling.
-///
-/// Returns the new y cursor — the bottom edge of the child's outer
-/// rect (NOT including its bottom margin, which is now buffered in
-/// `margin_acc`). The container's own height computation and the
-/// parent-last-child collapse consume the leftover accumulator
-/// separately.
-pub(super) fn lay_out_block_child(
-    dom: &mut Dom<TuiExt>,
+/// A block-level child where flow layout puts it, before it is laid out
+/// or measured — the one placement layout and measurement share
+/// (`flow`): its style, its border box (its height the pre-layout one,
+/// `resolve_block_height`), where it was before the floats moved it, and
+/// the margins and collapse-through state the cursor advances by.
+pub(super) struct ChildPlaced {
+    pub(super) computed: std::rc::Rc<ComputedStyle>,
+    pub(super) rect: LayoutRect,
+    /// Its position and width in flow, before the floats (§9.5.2, §9.5).
+    flow: super::super::float::FlowBox,
+    outer_bottom: MarginAccumulator,
+    collapse_through: bool,
+    cleared: bool,
+    /// The margin-chain walks to memoize (`store_margin_chain_memo`).
+    pub(super) memo: Vec<super::margin_collapse::ChainEntry>,
+}
+
+/// Place the block-level `child` at `ctx` among the floats of `area`:
+/// fold its *outer* top margin into the running accumulator — the
+/// collapse-eligible chain through its first block child and on down
+/// (CSS 2.1 §8.3.1, `BFC1-MARGIN-COLLAPSE-UPWARD-1`), nothing when it
+/// already escaped upward (`suppress_top_margin`) — resolve the
+/// accumulator into the gap above it, and move it below the floats its
+/// `clear` names (§9.5.2) or, a box that establishes a formatting context
+/// of its own, beside or below the floats (§9.5). Its outer bottom margin
+/// (through its last block child) waits for [`advance`]. An empty
+/// collapse-through block (Phase 5.3) is placed at the resolved position
+/// but advances nothing.
+pub(super) fn place_block_child(
+    dom: &Dom<TuiExt>,
+    area: &crate::render::layout_pass::float::ExclusionArea,
     child: NodeId,
-    ctx: BlockPlace<'_>,
-) -> i32 {
-    let BlockPlace {
-        container,
-        containing_block_width,
-        y_cursor,
-        margin_acc,
-        suppress_top_margin,
-        suppress_bottom_margin,
-    } = ctx;
+    ctx: &mut BlockPlace<'_>,
+) -> ChildPlaced {
+    let cb = ctx.containing_block_width;
     let computed = dom
         .node(child)
         .computed_rc()
         .unwrap_or_else(|| std::rc::Rc::new(ComputedStyle::initial()));
-
-    let resolved = resolve_block_width(dom, child, &computed, containing_block_width);
+    let resolved = resolve_block_width(dom, child, &computed, cb);
     let height = resolve_block_height(
         dom,
         child,
         &computed,
         resolved.width,
-        container.height,
-        containing_block_width,
+        ctx.container.height,
+        cb,
     );
-
-    // Phase 5.2 + 5.4 — fold this child's *outer top* margin into
-    // the accumulator. `accumulate_outer_top_margin` walks the
-    // collapse-eligible chain (this child, its first block child
-    // if they collapse, that one's first block child, …) so the
-    // grandparent / great-grandparent sees the merged margin
-    // surfacing at this block's outer top edge per CSS 2.1 §8.3.1.
-    // Closes `BFC1-MARGIN-COLLAPSE-UPWARD-1`.
-    //
-    // When `suppress_top_margin` is set, this child's top margin
-    // already escaped upward via the parent's call to this function
-    // — contribute nothing here.
     let mut memo = Vec::new();
-    if !suppress_top_margin {
-        margin_acc.merge(outer_top_margin(
-            dom,
-            child,
-            &computed,
-            containing_block_width,
-            &mut memo,
-        ));
+    if !ctx.suppress_top_margin {
+        ctx.margin_acc
+            .merge(outer_top_margin(dom, child, &computed, cb, &mut memo));
     }
-
-    // Symmetric: compute the outer bottom margin (chain through
-    // last collapse-eligible block descendant) so the NEXT sibling
-    // sees the merged value, not just the raw `margin-bottom`. When
-    // `suppress_bottom_margin` is set, the bottom already escaped
-    // upward (parent-last-child collapse).
     let mut outer_bottom = MarginAccumulator::new();
-    if !suppress_bottom_margin {
-        outer_bottom =
-            outer_bottom_margin(dom, child, &computed, containing_block_width, &mut memo);
+    if !ctx.suppress_bottom_margin {
+        outer_bottom = outer_bottom_margin(dom, child, &computed, cb, &mut memo);
     }
-    store_margin_chain_memo(dom, &memo);
-
-    // Phase 5.3 — empty-block collapse-through. A block with no
-    // content, no padding, no border, and zero height has its top
-    // + bottom margins meet — they fold into the surrounding
-    // accumulator together rather than resetting it.
     let collapse_through = is_empty_collapse_through(dom, child, &computed, height);
+    let flow = super::super::float::FlowBox {
+        x0: ctx.container.x,
+        cb_width: cb,
+        x: ctx.container.x + resolved.margin_left as i32,
+        y: ctx.y_cursor + i32::from(ctx.margin_acc.resolved()),
+        width: resolved.width,
+        rows: height,
+    };
+    let beside = super::super::float::beside_floats_in(dom, area, child, &computed, flow);
+    ChildPlaced {
+        rect: LayoutRect::new(beside.x, beside.y, beside.width, height),
+        cleared: beside.y != flow.y,
+        computed,
+        flow,
+        outer_bottom,
+        collapse_through,
+        memo,
+    }
+}
 
-    let outer_x = container.x + resolved.margin_left as i32;
-    // The "gap" used for placement: for collapse-through children we
-    // still place the empty box visually at the resolved-so-far
-    // position (mostly for downstream layouts that ask for its
-    // rect), but we do NOT advance the y_cursor or reset the
-    // accumulator — the next sibling's gap will collapse with
-    // everything accumulated so far.
-    let gap = margin_acc.resolved();
-    let outer_y = y_cursor + gap as i32;
-    // The floats of the formatting context: clearance (CSS 2.1 §9.5.2)
-    // moves the box below the floats its `clear` names, and a box that
-    // establishes a formatting context of its own goes beside the floats
-    // or below them, never over them (§9.5).
-    let beside = super::super::float::beside_floats(
-        dom,
-        child,
-        &computed,
-        super::super::float::FlowBox {
-            x0: container.x,
-            cb_width: containing_block_width,
-            x: outer_x,
-            y: outer_y,
-            width: resolved.width,
-            rows: height,
-        },
-    );
-    let cleared = beside.y != outer_y;
-    let (outer_x, outer_y) = (beside.x, beside.y);
-    let outer_rect = LayoutRect::new(outer_x, outer_y, beside.width, height);
-    layout_node(dom, child, outer_rect, containing_block_width);
+/// CSS 2.1 §9.5: a box that establishes a formatting context of its own
+/// "must not overlap the margin box of any floats" — at the height it
+/// gets. Placed at its pre-layout height, a root beside floats that is
+/// `height` rows once laid out (its text wrapping in the narrower band)
+/// is placed again at that height: the border box it must move to, or
+/// `None` where it stays. Once: the box laid out again may change height
+/// again, which the caller does not chase (DIVERGENCES §2).
+pub(super) fn replace_beside_floats(
+    dom: &Dom<TuiExt>,
+    area: &crate::render::layout_pass::float::ExclusionArea,
+    child: NodeId,
+    placed: &ChildPlaced,
+    height: u16,
+) -> Option<LayoutRect> {
+    if height <= placed.rect.height
+        || area.is_empty()
+        || !establishes_bfc(dom, child, &placed.computed)
+    {
+        return None;
+    }
+    let flow = super::super::float::FlowBox {
+        rows: height,
+        ..placed.flow
+    };
+    let again = super::super::float::beside_floats_in(dom, area, child, &placed.computed, flow);
+    let rect = LayoutRect::new(again.x, again.y, again.width, height);
+    (rect.x != placed.rect.x || rect.y != placed.rect.y || rect.width != placed.rect.width)
+        .then_some(rect)
+}
 
-    // `layout_node` finalizes an `Auto` height via CSS 2.1 §10.6.3
-    // content measurement, which can exceed the pre-layout
-    // `resolve_block_height` estimate — notably for a mixed-content
-    // block (a text run + a block child), whose `intrinsic_size`
-    // walk counts element children only and so misses the text
-    // run's anonymous-block row. Advance the cursor by the child's
-    // ACTUAL laid-out height so the next sibling can't overlap it.
-    // Use the intended `outer_y` (not the written `rect.y`, which
-    // may carry a `position: relative` shift that must NOT move
-    // siblings).
-    let actual_height = dom
-        .node(child)
-        .layout_rect()
-        .map(|r| r.height)
-        .unwrap_or(height);
-
-    if collapse_through && !cleared {
-        // Fold the outer bottom into the SAME accumulator and
-        // leave y_cursor where it was. Next sibling's `gap`
-        // computation will see all of A.mb, E.mt, E.mb, B.mt.
-        margin_acc.merge(outer_bottom);
+/// Advance the flow past the child `placed`, `height` rows tall at
+/// `top` (its border box's): the cursor after it, its outer bottom
+/// margin buffered in `margin_acc` for the next sibling — or, an empty
+/// collapse-through block not moved by clearance, the cursor where it was
+/// and its outer bottom margin folded into the same accumulator, so the
+/// next sibling's gap collapses with all of them.
+pub(super) fn advance(
+    placed: &ChildPlaced,
+    top: i32,
+    height: u16,
+    y_cursor: i32,
+    margin_acc: &mut MarginAccumulator,
+) -> i32 {
+    if placed.collapse_through && !placed.cleared {
+        margin_acc.merge(placed.outer_bottom);
         y_cursor
     } else {
-        // Normal block: advance y_cursor past the child and reset
-        // the accumulator to just this child's outer bottom margin.
-        *margin_acc = outer_bottom;
-        outer_y + actual_height as i32
+        *margin_acc = placed.outer_bottom;
+        top + i32::from(height)
     }
 }
 

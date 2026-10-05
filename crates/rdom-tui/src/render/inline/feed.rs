@@ -264,8 +264,8 @@ fn push_generated_atom(
     slot: PseudoSlot,
     packer: &mut LinePacker<'_>,
 ) {
-    let measuring = packer.is_measuring();
-    let cb_width = if measuring { 0 } else { packer.content_width() };
+    let measuring = packer.is_measuring().then(|| packer.content_width() > 0);
+    let cb_width = packer.content_width();
     if let Some((width, rows)) =
         crate::render::layout_pass::generated_atoms::measure(dom, host, slot, cb_width, measuring)
     {
@@ -274,43 +274,31 @@ fn push_generated_atom(
 }
 
 /// Push the inline block `id` as an atom: its width and its rows in
-/// the line (`vertical`).
+/// the line (`vertical`). CSS 2.1 §10.3.9: an inline block's `auto` width
+/// is shrink-to-fit, as a float's is (`float::size::FloatBox`) — its
+/// max-content width, down to its min-content one in a narrower
+/// containing block (the line's content box). An intrinsic width
+/// measurement takes its contribution under the measurement's constraint
+/// (CSS Sizing 3 §5.2): its min-content or max-content width, its
+/// percentages against no basis.
 fn push_atom(dom: &Dom<TuiExt>, id: NodeId, packer: &mut LinePacker<'_>) {
     if packer.is_measuring() {
-        // Its own max-content width (CSS 2.1 §10.3.9), its percentages
-        // against no basis; its rows are not asked for.
-        let width = atomic_inline_block_intrinsic_width(dom, id, 0);
+        let max_content = packer.content_width() > 0;
+        let width = crate::render::layout_pass::intrinsic::contribution(
+            dom,
+            id,
+            crate::layout::Direction::Row,
+            0,
+            0,
+            max_content,
+        );
         packer.push_atomic_inline_block(id, width, vertical::AtomRows::UNMEASURED);
         return;
     }
     let cb_width = packer.content_width();
-    let width = atomic_inline_block_intrinsic_width(dom, id, cb_width);
+    let width =
+        crate::render::layout_pass::float::size::FloatBox::of(dom, BoxItem::Node(id), cb_width)
+            .width;
     let rows = vertical::atom_rows(dom, id, width, cb_width);
     packer.push_atomic_inline_block(id, width, rows);
-}
-
-/// Intrinsic main-axis (row) content width of an inline-block
-/// element treated as an atomic IFC box. Includes UA pseudo
-/// content (`::before` + `::after`) plus own text/inline content
-/// plus padding/border via the existing intrinsic measurement.
-fn atomic_inline_block_intrinsic_width(
-    dom: &Dom<TuiExt>,
-    id: NodeId,
-    containing_block_width: u16,
-) -> u16 {
-    // `intrinsic_size` already factors in pseudo widths +
-    // padding + border for Display::InlineBlock — that's the same
-    // measurement the flex layout uses to size inline-block flex
-    // items. Pass `cross_budget = 0` since IFC packers don't
-    // affect inline-block height; only the width matters here.
-    // The atom's containing block is the IFC's block container, whose
-    // content width is definite: percent padding / margins resolve
-    // against it (CSS 2.1 §8.4).
-    crate::render::layout_pass::intrinsic::intrinsic_size(
-        dom,
-        id,
-        crate::layout::Direction::Row,
-        0,
-        containing_block_width,
-    )
 }

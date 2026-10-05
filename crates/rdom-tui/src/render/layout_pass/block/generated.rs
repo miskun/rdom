@@ -109,16 +109,28 @@ pub(super) fn index(slot: PseudoSlot, len: usize) -> usize {
     }
 }
 
-/// Lay `host`'s block-level `slot` pseudo-element out in its block flow:
-/// the generated box to keep among the host's anonymous boxes, and the
-/// new flow cursor (its bottom border edge; its bottom margin is left in
-/// `margin_acc`, as a block child's is).
-pub(super) fn lay_out(
-    dom: &mut Dom<TuiExt>,
+/// Where a block-level pseudo-element goes in its host's block flow.
+pub(super) struct GeneratedPlaced {
+    /// Its border box.
+    pub(super) rect: LayoutRect,
+    /// Its content box.
+    content: LayoutRect,
+    /// The flow cursor after it: its bottom border edge (its bottom
+    /// margin is left in the accumulator, as a block child's is).
+    pub(super) bottom: i32,
+}
+
+/// Place `host`'s block-level `slot` pseudo-element in its block flow,
+/// among the floats of `area` — the one placement layout and measurement
+/// share (`flow`): its top margin folded into the flow's accumulator, its
+/// bottom margin left there for the next box.
+pub(super) fn place(
+    dom: &Dom<TuiExt>,
+    area: &crate::render::layout_pass::float::ExclusionArea,
     host: NodeId,
     slot: PseudoSlot,
     at: GeneratedPlace<'_>,
-) -> Option<(AnonymousIfc, i32)> {
+) -> Option<GeneratedPlaced> {
     let c = style_of(dom, host, slot)?;
     let cb = at.cb_width;
     let mut top = MarginAccumulator::new();
@@ -126,19 +138,15 @@ pub(super) fn lay_out(
     at.margin_acc.merge(top);
     let mut y = at.y_cursor + i32::from(at.margin_acc.resolved());
     // CSS 2.1 §9.5.2: below the floats its `clear` names.
-    let rtl = dom
-        .node(host)
-        .ext()
-        .and_then(|e| e.computed.as_deref())
-        .is_some_and(|hc| hc.text_direction == crate::layout::TextDirection::Rtl);
-    let (left, right) = c.clear.sides(rtl);
-    if left || right {
-        let floats = crate::render::layout_pass::float::with_area(dom, |_, area| {
-            area.clearance(left, right)
-        });
-        if let Some(bottom) = floats {
-            y = y.max(bottom);
-        }
+    let (left, right) = crate::render::layout_pass::float::clear_sides_of(
+        dom,
+        crate::render::box_tree::BoxItem::Generated(host, slot),
+        &c,
+    );
+    if (left || right)
+        && let Some(bottom) = area.clearance(left, right)
+    {
+        y = y.max(bottom);
     }
     let width = border_width(&c, cb);
     let height = border_height(dom, host, slot, &c, width, cb);
@@ -161,6 +169,31 @@ pub(super) fn lay_out(
         width.saturating_sub(h.chrome()),
         height.saturating_sub(v.chrome()),
     );
+    let mut bottom = MarginAccumulator::new();
+    bottom.add(vertical_margin(&c.margin.bottom, cb));
+    *at.margin_acc = bottom;
+    Some(GeneratedPlaced {
+        rect,
+        content,
+        bottom: y + i32::from(height),
+    })
+}
+
+/// Lay `host`'s block-level `slot` pseudo-element out in its block flow
+/// at the place [`place`] gives it: the generated box to keep among the
+/// host's anonymous boxes (its content laid out inside it), and the new
+/// flow cursor.
+pub(super) fn lay_out(
+    dom: &mut Dom<TuiExt>,
+    host: NodeId,
+    slot: PseudoSlot,
+    at: GeneratedPlace<'_>,
+) -> Option<(AnonymousIfc, i32)> {
+    let index = at.index;
+    let placed = crate::render::layout_pass::float::with_area(dom, |dom, area| {
+        place(dom, area, host, slot, at)
+    })?;
+    let content = placed.content;
     let (lines_at, lines) = match item(dom, host, slot) {
         Some(i) => i.lay_out_content(dom, content),
         None => (
@@ -171,17 +204,14 @@ pub(super) fn lay_out(
             },
         ),
     };
-    let mut bottom = MarginAccumulator::new();
-    bottom.add(vertical_margin(&c.margin.bottom, cb));
-    *at.margin_acc = bottom;
     Some((
         AnonymousIfc::new(
             lines_at,
             lines,
-            (at.index, at.index + 1),
-            Some(GeneratedBox::new(host, slot, rect)),
+            (index, index + 1),
+            Some(GeneratedBox::new(host, slot, placed.rect)),
         ),
-        y + i32::from(height),
+        placed.bottom,
     ))
 }
 
@@ -191,17 +221,17 @@ fn vertical_margin(m: &crate::layout::MarginValue, cb_width: u16) -> i16 {
 }
 
 /// `host`'s block-level pseudo-elements' contribution to its intrinsic
-/// size (`intrinsic::measure_content`): `(widest margin box, rows)` — the
-/// rows their margin boxes stack, packed at `content_width` — or `None`
-/// when it has none.
-pub(in crate::render::layout_pass) fn intrinsic(
+/// inline size (`intrinsic::measure_content`): the widest margin box —
+/// its declared width, else its content's under the measurement's
+/// constraint — or `None` when it has none. (Its block size is in its
+/// host's flow, `block::measure`.)
+pub(in crate::render::layout_pass) fn intrinsic_width(
     dom: &Dom<TuiExt>,
     host: NodeId,
-    content_width: u16,
     max_content: bool,
-) -> Option<(u16, u16)> {
+) -> Option<u16> {
     let own = crate::render::inline::generated::block_pseudos(dom, host);
-    let mut out: Option<(u16, u16)> = None;
+    let mut out: Option<u16> = None;
     for (on, slot) in [
         (own.before, PseudoSlot::Before),
         (own.after, PseudoSlot::After),
@@ -212,7 +242,9 @@ pub(in crate::render::layout_pass) fn intrinsic(
         let Some(c) = style_of(dom, host, slot) else {
             continue;
         };
-        let cb = content_width;
+        // An intrinsic size has no containing block: percentages are 0
+        // (CSS Sizing 3 §5.2.1).
+        let cb = 0;
         let margins_x = c
             .margin
             .left
@@ -229,13 +261,7 @@ pub(in crate::render::layout_pass) fn intrinsic(
             _ => border_width(&c, cb),
         }
         .saturating_add(margins_x);
-        let width = border_width(&c, cb);
-        let margins_y = vertical_margin(&c.margin.top, cb)
-            .saturating_add(vertical_margin(&c.margin.bottom, cb))
-            .max(0) as u16;
-        let rows = border_height(dom, host, slot, &c, width, cb).saturating_add(margins_y);
-        let (w, h) = out.unwrap_or((0, 0));
-        out = Some((w.max(wide), h.saturating_add(rows)));
+        out = Some(out.unwrap_or(0).max(wide));
     }
     out
 }

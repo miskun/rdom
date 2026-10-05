@@ -55,8 +55,8 @@ pub(super) fn lay_out(
     for (atom, at) in crate::render::inline::atomic_placements(&inline_layout, rect) {
         layout_node(dom, atom, at, width);
     }
-    for (f, placed) in floats {
-        crate::render::layout_pass::float::lay_out(dom, id, f, placed, width);
+    for placed in floats {
+        crate::render::layout_pass::float::lay_out(dom, id, placed, width);
     }
     for c in run.children.iter().filter_map(|c| c.node()) {
         for &n in static_before.get(&c).into_iter().flatten() {

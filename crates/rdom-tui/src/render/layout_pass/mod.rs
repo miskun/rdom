@@ -313,8 +313,10 @@ pub(super) fn layout_node(
     // captures the margin-collapse-aware content extent for block-
     // flow elements (CSS 2.1 §10.6.3 — used below to resolve
     // `height: Auto` on this element).
-    // The floats of the formatting context so far: laying the children out
-    // again below places theirs again (`float::rewind`).
+    // The floats of the formatting context so far: a block that is no
+    // scroll container dropping a stale offset lays its children out again
+    // below, in this formatting context, and places their floats again
+    // (`float::rewind`).
     let floats_mark = float::mark(dom);
     let measurement = layout_children_aligned(dom, id, inner, &computed, containing_block_width);
     // A line-clamp container's height ends at its clamp point (CSS
@@ -397,7 +399,9 @@ pub(super) fn layout_node(
                     gutters(&computed, overflow_y, overflow_x),
                 );
             }
-            float::rewind(dom, floats_mark);
+            // No `float::rewind`: a scroll container is a formatting
+            // context root (`block::establishes_bfc`), so its children's
+            // floats went into its own area, gone with it.
             // Pass 2 is a full re-layout: the content may wrap
             // differently in the narrower area and the forced gutter
             // row is part of this box, so the `auto` height resolves

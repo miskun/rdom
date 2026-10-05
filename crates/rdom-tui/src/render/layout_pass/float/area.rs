@@ -133,11 +133,11 @@ impl ExclusionArea {
         }
     }
 
-    /// Move the last float's bottom edge down by `rows` (up when
-    /// negative, never above its top): its box turned out taller or
-    /// shorter than measured when it was placed.
-    pub(crate) fn grow_last(&mut self, rows: i32) {
-        if let Some(f) = self.floats.last_mut() {
+    /// Move the bottom edge of the float placed `index`-th down by `rows`
+    /// (up when negative, never above its top): its box turned out taller
+    /// or shorter than measured when it was placed.
+    pub(crate) fn grow(&mut self, index: usize, rows: i32) {
+        if let Some(f) = self.floats.get_mut(index) {
             f.bottom = (f.bottom + rows).max(f.top);
         }
     }
@@ -192,9 +192,11 @@ impl ExclusionArea {
         }
     }
 
-    /// Place a float at `margin_box` ([`position`](Self::position)).
-    pub(crate) fn push(&mut self, margin_box: Exclusion) {
+    /// Place a float at `margin_box` ([`position`](Self::position)): its
+    /// index, by which [`grow`](Self::grow) settles it.
+    pub(crate) fn push(&mut self, margin_box: Exclusion) -> usize {
         self.floats.push(margin_box);
+        self.floats.len() - 1
     }
 }
 
