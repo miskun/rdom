@@ -1,6 +1,7 @@
 //! The grid properties (CSS Grid Layout 2): their `set` and `serialize`
 //! arms — the track lists of `grid-template-columns` / `-rows` (§7.2),
-//! the named areas of `grid-template-areas` (§7.3),
+//! the named areas of `grid-template-areas` (§7.3), the `grid-template`
+//! (§7.4) and `grid` (§7.8) shorthands,
 //! the implicit track sizes of `grid-auto-columns` / `-rows` (§7.6),
 //! `grid-auto-flow` (§7.7), and the placement longhands and shorthands
 //! (§8.3, §8.4).
@@ -9,10 +10,12 @@ use super::value_serializers::specified;
 use crate::layout::GridLine;
 use crate::parse::token::Token;
 use crate::parse::values::{
-    parse_grid_area, parse_grid_auto_flow, parse_grid_line, parse_grid_line_pair,
-    parse_grid_template, parse_grid_template_areas, parse_track_sizes, serialize_grid_area,
+    GridShorthand, GridTemplateShorthand, parse_grid_area, parse_grid_auto_flow, parse_grid_line,
+    parse_grid_line_pair, parse_grid_shorthand, parse_grid_template, parse_grid_template_areas,
+    parse_grid_template_shorthand, parse_track_sizes, serialize_grid_area,
     serialize_grid_auto_flow, serialize_grid_line, serialize_grid_line_pair,
-    serialize_grid_template, serialize_grid_template_areas, serialize_track_sizes,
+    serialize_grid_shorthand, serialize_grid_template, serialize_grid_template_areas,
+    serialize_grid_template_shorthand, serialize_track_sizes,
 };
 use crate::{TuiStyle, Value};
 
@@ -28,6 +31,13 @@ pub(super) fn set(name: &str, value: &[Token], style: &mut TuiStyle) -> Option<O
         }),
         "grid-template-areas" => parse_grid_template_areas(value).map(|a| {
             style.grid_template_areas = Some(Value::Specified(a));
+        }),
+        "grid-template" => parse_grid_template_shorthand(value).map(|t| set_template(style, t)),
+        "grid" => parse_grid_shorthand(value).map(|g| {
+            set_template(style, g.template);
+            style.grid_auto_rows = Some(Value::Specified(g.auto_rows));
+            style.grid_auto_columns = Some(Value::Specified(g.auto_columns));
+            style.grid_auto_flow = Some(Value::Specified(g.auto_flow));
         }),
         "grid-auto-columns" => parse_track_sizes(value).map(|t| {
             style.grid_auto_columns = Some(Value::Specified(t));
@@ -86,6 +96,22 @@ pub(super) fn serialize(name: &str, style: &TuiStyle) -> Option<Option<String>> 
             .as_ref()
             .and_then(specified)
             .map(serialize_grid_template_areas),
+        // A shorthand serializes when all its longhands are set and some
+        // form of it gives them back (CSSOM §6.7.2).
+        "grid-template" => template(style).and_then(|t| serialize_grid_template_shorthand(&t)),
+        "grid" => template(style).and_then(|template| {
+            let g = GridShorthand {
+                template,
+                auto_rows: style.grid_auto_rows.as_ref().and_then(specified)?.clone(),
+                auto_columns: style
+                    .grid_auto_columns
+                    .as_ref()
+                    .and_then(specified)?
+                    .clone(),
+                auto_flow: *style.grid_auto_flow.as_ref().and_then(specified)?,
+            };
+            serialize_grid_shorthand(&g)
+        }),
         "grid-auto-columns" => style
             .grid_auto_columns
             .as_ref()
@@ -128,6 +154,34 @@ pub(super) fn serialize(name: &str, style: &TuiStyle) -> Option<Option<String>> 
             _ => None,
         },
         _ => return None,
+    })
+}
+
+/// Write `grid-template`'s three longhands.
+fn set_template(style: &mut TuiStyle, t: GridTemplateShorthand) {
+    style.grid_template_rows = Some(Value::Specified(t.rows));
+    style.grid_template_columns = Some(Value::Specified(t.columns));
+    style.grid_template_areas = Some(Value::Specified(t.areas));
+}
+
+/// `grid-template`'s three longhands, when all are set.
+fn template(style: &TuiStyle) -> Option<GridTemplateShorthand> {
+    Some(GridTemplateShorthand {
+        rows: style
+            .grid_template_rows
+            .as_ref()
+            .and_then(specified)?
+            .clone(),
+        columns: style
+            .grid_template_columns
+            .as_ref()
+            .and_then(specified)?
+            .clone(),
+        areas: style
+            .grid_template_areas
+            .as_ref()
+            .and_then(specified)?
+            .clone(),
     })
 }
 

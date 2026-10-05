@@ -73,6 +73,8 @@ const PROPERTY_NAMES: &[&str] = &[
     "flex-basis",
     "order",
     // Grid (CSS Grid 2)
+    "grid",
+    "grid-template",
     "grid-template-columns",
     "grid-template-rows",
     "grid-template-areas",

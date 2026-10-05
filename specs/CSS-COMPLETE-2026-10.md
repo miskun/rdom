@@ -156,7 +156,7 @@ row comes from.
 |---|---|---|
 | C7-GRID-CORE | `display: grid` / `inline-grid`, `grid-template-columns` / `-rows` with cells / `%` / `fr` / `auto` / `minmax()` / `repeat()` | done |
 | C7-GRID-PLACE | `grid-row` / `grid-column` (+ start / end), `grid-area`, auto-placement, `grid-auto-flow` (`dense`) | done |
-| C7-GRID-AREAS | `grid-template-areas`, `grid-template`, `grid` shorthands | partial — the `grid-template` / `grid` shorthands (part 2) |
+| C7-GRID-AREAS | `grid-template-areas`, `grid-template`, `grid` shorthands | done |
 | C7-GRID-AUTO | `grid-auto-columns` / `grid-auto-rows` | done |
 | C7-GRID-ALIGN | Box Alignment in grid (`justify-*` / `align-*` / `place-*`) | |
 | C7-SUBGRID | `subgrid` | |
@@ -3813,3 +3813,29 @@ row comes from.
   the four (the explicit-size test survives); the explicit grid not grown → that test. Changed
   expectations: the canonical-values table, the important-setter coverage and the C1 `initial`
   perturbation gain the property. No snapshot changed. DIVERGENCES §3's grid line keeps the shorthands.
+- 2026-10-08 — C7-GRID-AREAS, part 2 of 2: the shorthands. `grid-template` (CSS Grid 2 §7.4: `none |
+  [ <'grid-template-rows'> / <'grid-template-columns'> ] | [ <line-names>? <string> <track-size>?
+  <line-names>? ]+ [ / <explicit-track-list> ]?`) and `grid` (§7.8: `<'grid-template'> |
+  <'grid-template-rows'> / [ auto-flow && dense? ] <'grid-auto-columns'>? | [ auto-flow && dense? ]
+  <'grid-auto-rows'>? / <'grid-template-columns'>`) parse and serialize (`parse/values/grid_shorthand.rs`,
+  `GridTemplateShorthand` / `GridShorthand`, the track-list helpers of `grid.rs` and `split_slashes`
+  shared, not copied). The areas form: a row track per string, `auto` when no size follows it, the
+  names after one row and before the next joined on one line (`[mid] [m2]` → `[mid m2]`), columns a
+  track list without `repeat()` or `none`; `grid` resets the three implicit properties it does not
+  name and leaves the gutters (Grid 2 dropped Grid 1's gap reset). Serialization (CSSOM §6.7.2, the
+  forms browsers give): `grid-template` is `none`, `<rows> / <columns>`, or with areas each row's
+  names, string and non-`auto` size then `/ <columns>` unless `none` — nothing when the longhands have
+  no form of it (rows that repeat, or not one per area row); `grid` is the `grid-template` form when
+  the implicit properties are initial (so `auto-flow / 1` reads back `none / 1`, equivalent), else the
+  `auto-flow` form that holds them, else nothing. Found on the way (fixed here, the shorthands made it
+  worse): `cssText` listed a set `grid-area` beside `grid-row`, `grid-column` and its four longhands —
+  `shorthand_family_of` maps a longhand to one parent and the grid shorthands nest. Fix at the root
+  of the nesting: `listed_under_grid_shorthand` lists, per grid property, every shorthand that covers
+  it, and the property is skipped when one serializes (`grid` over `grid-template`, `grid-area` over
+  `grid-row` / `grid-column`). Red: `grid_shorthand_tests` (6) failed — both names unknown; green after.
+  Added after the implementation (no red of their own): `css_phase7/areas.rs`'s two shorthand layout
+  tests and the `cssText` test — each mutation-checked: `grid-template` not writing the rows / `grid`
+  not writing `grid-auto-rows` → both layout tests (`(0, 1, 7, 1)`, rows 1 tall); the grid suppression
+  off → the `cssText` test (`grid-row-start: a; …; grid-row: a / 3; grid-column: 2 / b; grid-area: a /
+  2 / 3 / b;`). Changed expectations: the canonical-values table gains the two names. No snapshot
+  changed. DIVERGENCES §3's grid list loses the line.

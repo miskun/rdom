@@ -109,3 +109,28 @@ fn an_absolutely_positioned_box_fills_its_named_area() {
     let r = rect(&dom, abs);
     assert_eq!((r.x, r.y, r.width, r.height), (3, 1, 5, 2));
 }
+
+/// §7.4: `grid-template`'s areas form sets the areas, the row sizes
+/// written beside each string and the columns after the `/` — one
+/// declaration lays the grid out.
+#[test]
+fn grid_template_lays_out_areas_rows_and_columns() {
+    let at = place(
+        ".g { display: grid; grid-template: \"a b\" 2 \"c c\" 1 / 3 4 } \
+         .a { grid-area: a } .b { grid-area: b } .c { grid-area: c }",
+        &["c", "b", "a"],
+    );
+    assert_eq!(at, [(0, 2, 7, 1), (3, 0, 4, 2), (0, 0, 3, 2)]);
+}
+
+/// §7.8: `grid`'s `auto-flow` forms set the flow and the implicit
+/// tracks: `auto-flow 2 / 3 3` flows by row into two 3-wide columns,
+/// each implicit row 2 tall.
+#[test]
+fn grid_auto_flow_form_sets_the_implicit_grid() {
+    let at = place(
+        ".g { display: grid; grid: auto-flow 2 / 3 3 }",
+        &["", "", ""],
+    );
+    assert_eq!(at, [(0, 0, 3, 2), (3, 0, 3, 2), (0, 2, 3, 2)]);
+}

@@ -75,7 +75,7 @@ pub fn serialize_grid_line(line: &GridLine) -> String {
 
 /// Split a value at its top-level `/` delimiters. `None` when a part is
 /// empty.
-fn split_slashes(value: &[Token]) -> Option<Vec<&[Token]>> {
+pub(crate) fn split_slashes(value: &[Token]) -> Option<Vec<&[Token]>> {
     let mut out = Vec::new();
     let mut depth = 0usize;
     let mut start = 0;

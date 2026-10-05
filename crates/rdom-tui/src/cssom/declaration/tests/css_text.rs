@@ -286,3 +286,42 @@ fn custom_property_text_reads_back_without_stray_spaces() {
         "linear-gradient(red, blue) -1px url(x.png)"
     );
 }
+
+/// The grid shorthands nest (CSS Grid 2 §7.8 holds §7.4's
+/// `grid-template`; §8.4's `grid-area` holds `grid-row` and
+/// `grid-column`): cssText names the largest one that serializes, once,
+/// and none of the properties it covers (CSSOM §6.7.2 prefers the
+/// shorthand). C7-GRID-AREAS (found on the way: C7-GRID-PLACE listed
+/// `grid-area`, `grid-row`, `grid-column` and all four longhands).
+#[test]
+fn css_text_names_the_largest_grid_shorthand_once() {
+    let css_of = |decls: &[(&str, &str)]| {
+        let (mut dom, div) = dom_with("div");
+        {
+            let mut nm = dom.node_mut(div);
+            let mut sd = nm.style_mut().unwrap();
+            for (name, value) in decls {
+                sd.set_property(name, value).unwrap();
+            }
+        }
+        dom.node(div).style().unwrap().css_text()
+    };
+    assert_eq!(
+        css_of(&[("grid-area", "a / 2 / 3 / b")]),
+        "grid-area: a / 2 / 3 / b;"
+    );
+    assert_eq!(css_of(&[("grid-row", "1 / 3")]), "grid-row: 1 / 3;");
+    assert_eq!(
+        css_of(&[("grid", "auto-flow dense 1 / 2 3")]),
+        "grid: auto-flow dense 1 / 2 3;"
+    );
+    assert_eq!(
+        css_of(&[("grid-template", "\"a b\" 1 / 2 3")]),
+        "grid-template: \"a b\" 1 / 2 3;"
+    );
+    // Longhands no shorthand covers whole are listed as they are.
+    assert_eq!(
+        css_of(&[("grid-template-rows", "1"), ("grid-auto-flow", "column")]),
+        "grid-template-rows: 1; grid-auto-flow: column;"
+    );
+}

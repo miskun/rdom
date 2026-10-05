@@ -74,6 +74,8 @@ fn canonical_values() -> &'static [(&'static str, &'static str)] {
         ("flex-shrink", "1"),
         ("flex-basis", "content"),
         ("order", "-2"),
+        ("grid", "auto-flow dense 1 / 2"),
+        ("grid-template", "[a] \"x y\" 1 / 2 3"),
         (
             "grid-template-columns",
             "[a] 10 repeat(2, minmax(auto, 1fr)) [b]",

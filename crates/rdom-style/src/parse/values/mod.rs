@@ -24,6 +24,7 @@
 //! - `grid_areas.rs` — named grid areas (`grid-template-areas`).
 //! - `grid_placement.rs` — grid placement (`grid-row` / `-column` /
 //!   `-area` and their longhands, `grid-auto-flow`).
+//! - `grid_shorthand.rs` — the `grid-template` and `grid` shorthands.
 //! - `transition.rs` — easing, `<time>`, transition lists and shorthand.
 //! - `calc.rs` — the `calc()` expression parser.
 //! - `numeric.rs` — the shared `<length-percentage>` leaf and the
@@ -43,6 +44,7 @@ mod flex;
 mod grid;
 mod grid_areas;
 mod grid_placement;
+mod grid_shorthand;
 mod keyword;
 mod length;
 mod number;
@@ -93,6 +95,10 @@ pub use grid_areas::{parse_grid_template_areas, serialize_grid_template_areas};
 pub use grid_placement::{
     parse_grid_area, parse_grid_auto_flow, parse_grid_line, parse_grid_line_pair,
     serialize_grid_area, serialize_grid_auto_flow, serialize_grid_line, serialize_grid_line_pair,
+};
+pub use grid_shorthand::{
+    GridShorthand, GridTemplateShorthand, parse_grid_shorthand, parse_grid_template_shorthand,
+    serialize_grid_shorthand, serialize_grid_template_shorthand,
 };
 pub use keyword::{
     parse_keyword, parse_overflow, parse_position, parse_scroll_behavior, parse_scrollbar_gutter,

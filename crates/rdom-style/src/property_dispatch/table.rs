@@ -311,6 +311,17 @@ pub(super) fn fields_of(name: &str) -> Option<&'static [Field]> {
         "grid-template-columns" => &[GridTemplateColumns],
         "grid-template-rows" => &[GridTemplateRows],
         "grid-template-areas" => &[GridTemplateAreas],
+        // CSS Grid 2 §7.4 / §7.8: the explicit grid's three longhands,
+        // and with them the implicit grid's three (not the gutters).
+        "grid-template" => &[GridTemplateRows, GridTemplateColumns, GridTemplateAreas],
+        "grid" => &[
+            GridTemplateRows,
+            GridTemplateColumns,
+            GridTemplateAreas,
+            GridAutoRows,
+            GridAutoColumns,
+            GridAutoFlow,
+        ],
         "grid-auto-columns" => &[GridAutoColumns],
         "grid-auto-rows" => &[GridAutoRows],
         "grid-auto-flow" => &[GridAutoFlow],

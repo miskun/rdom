@@ -38,6 +38,9 @@ pub(crate) fn css_text_of(style: &TuiStyle) -> String {
         if listed_under_logical_shorthand(name, style) {
             continue;
         }
+        if listed_under_grid_shorthand(name, style) {
+            continue;
+        }
         if let Some(value) = property_dispatch::serialize(name, style) {
             if !out.is_empty() {
                 out.push(' ');
@@ -85,6 +88,27 @@ pub(crate) fn listed_under_logical_shorthand(name: &str, style: &TuiStyle) -> bo
         _ => return false,
     };
     shorthands
+        .iter()
+        .any(|s| property_dispatch::serialize(s, style).is_some())
+}
+
+/// True when `name` — a grid longhand, or a grid shorthand inside a
+/// larger one — is covered by a grid shorthand that serializes: the grid
+/// shorthands nest (`grid` holds `grid-template`, CSS Grid 2 §7.8;
+/// `grid-area` holds `grid-row` and `grid-column`, §8.4), and a
+/// declaration list names the largest that serializes, once.
+fn listed_under_grid_shorthand(name: &str, style: &TuiStyle) -> bool {
+    let covering: &[&str] = match name {
+        "grid-template-rows" | "grid-template-columns" | "grid-template-areas" => {
+            &["grid", "grid-template"]
+        }
+        "grid-template" | "grid-auto-rows" | "grid-auto-columns" | "grid-auto-flow" => &["grid"],
+        "grid-row-start" | "grid-row-end" => &["grid-area", "grid-row"],
+        "grid-column-start" | "grid-column-end" => &["grid-area", "grid-column"],
+        "grid-row" | "grid-column" => &["grid-area"],
+        _ => return false,
+    };
+    covering
         .iter()
         .any(|s| property_dispatch::serialize(s, style).is_some())
 }

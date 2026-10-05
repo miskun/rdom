@@ -26,7 +26,7 @@ pub fn parse_grid_template(value: &[Token]) -> Option<GridTemplate> {
 /// `[ <line-names>? [ <track-size> | <track-repeat> ] ]+ <line-names>?`:
 /// the components with the names between them. Two `<line-names>` in a
 /// row, or a list with no track, is invalid.
-fn parse_track_list(value: &[Token]) -> Option<TrackList> {
+pub(crate) fn parse_track_list(value: &[Token]) -> Option<TrackList> {
     let parts = components(value)?;
     let mut list = TrackList {
         line_names: Vec::new(),
@@ -103,7 +103,7 @@ fn parse_repeat(inner: &[Token]) -> Option<TrackRepeat> {
 /// `'[' <custom-ident>* ']'` at the start of `parts`: how many
 /// components it takes and the names. `None` when `parts` does not start
 /// with `[`, or the brackets hold anything but valid identifiers.
-fn line_names(parts: &[&[Token]]) -> Option<(usize, Vec<String>)> {
+pub(crate) fn line_names(parts: &[&[Token]]) -> Option<(usize, Vec<String>)> {
     if parts.first()? != &[Token::Delim('[')] {
         return None;
     }
