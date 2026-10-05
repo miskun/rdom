@@ -6,7 +6,7 @@ For the durable architectural divergences (web-platform departures shipped on pu
 
 ## Open
 
-(none)
+- **`ATOM-BOX-1` — an inline block inside a line paints only its content.** Found by C5G-INLINE-BLOCK-SHADOW. In an inline formatting context (`<p><i>a</i><span style="display:inline-block">b</span></p>`) the atom is one row tall and `paint_inline_layout` paints its `::before` / text / `::after` and (since that item) its outer shadows — not its background, border, padding or inset shadows. Beside bare text, where the block lays the run out through an anonymous box, the atom is painted twice: as a box at its layout rect (`recurse_children` → `paint_plain`, which paints its shadows) and its content again at the line position; with a border the two disagree (the box is three rows, the line one). The fix is one owner: the line box lays the atom out at its full block size (with C9-VERTICAL-ALIGN) and paints it as a box at its turn, and the anonymous-box path stops reaching it as a block child. Until then the shadow paints once, with whichever path paints the box (`paints_child_box`).
 
 ## Accepted simplifications
 

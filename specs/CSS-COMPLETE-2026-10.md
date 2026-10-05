@@ -1618,3 +1618,20 @@ row comes from.
   of a block inside a flex item both left `aaaab` (glyphs kept under a tinted shade) where the
   browser's `aa  b` is expected; green after. A third test (a later block's shadow inside one flex
   item stays under that item's earlier text) passed before and after. No expectation changed.
+- 2026-10-07 — C5G-INLINE-BLOCK-SHADOW (gate fix): an inline block in a line paints its outer
+  `box-shadow` at its turn, as an atomic box (CSS 2.1 Appendix E, 7.2.1.4.1.1; consistent with
+  C5G-FLEX-SHADOW: `Shadows::Whole`, over the line content painted before it; a translucent shade
+  composites once and keeps the glyphs). `paint_inline_layout`'s atom branch paints it before the
+  atom's content — unless the atom's parent's content paint also reaches it as a box
+  (`paints_child_box`: an inline block beside bare text, laid out through an anonymous box, which
+  `recurse_children` → `paint_plain` already paints with its shadows), so it paints once. Found while
+  writing the tests: an inline block in a line paints no background, border or padding at all, and
+  beside bare text it is painted twice (box and line content disagree with a border) — recorded as
+  TECH_DEBT `ATOM-BOX-1` (one owner: lay the atom out at its block size in the line, C9-VERTICAL-ALIGN),
+  not fixed here. Red: `an_inline_blocks_shadow_paints_at_its_turn` (`aaaab`, no shade) and
+  `a_translucent_inline_block_shadow_keeps_the_glyphs_beneath` (`Reset` under the shade) failed; the
+  first draft without the `paints_child_box` check made
+  `an_inline_blocks_translucent_shadow_composites_once_beside_bare_text` fail (`(192, 0, 63)`, two
+  composites, against `(128, 0, 127)`); green after. The tests put an inline element before the atom:
+  with bare text the block lays the run out through an anonymous box, whose text paints after the
+  block children (`paint_content`), so the shade lands under it there — part of `ATOM-BOX-1`.

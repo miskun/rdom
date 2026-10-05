@@ -353,6 +353,25 @@ fn paint_inline_layout(
                 if atom_computed.position != crate::layout::Position::Static {
                     continue;
                 }
+                // The atom paints atomically, as if it created a
+                // stacking context (CSS 2.1 Appendix E, 7.2.1.4.1.1):
+                // its outer shadows go down whole at its turn, over the
+                // line content painted before it (C5G-INLINE-BLOCK-SHADOW)
+                // — here, unless its parent's content paint also reaches
+                // it as a box (an anonymous box's atom), which paints them.
+                let painted_as_box = dom
+                    .node(fragment.node)
+                    .parent_node()
+                    .is_some_and(|p| super::paints_child_box(dom, p.id(), fragment.node));
+                if !painted_as_box {
+                    super::shadow::paint_outer_shadows(
+                        buf,
+                        &atom_computed,
+                        atom_rect,
+                        clip,
+                        super::shadow::Shadows::Whole,
+                    );
+                }
                 // Reuse paint_inline_content: it handles
                 // ::before / own text / ::after at the given inner
                 // rect.
