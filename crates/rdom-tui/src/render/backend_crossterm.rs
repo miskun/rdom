@@ -13,11 +13,12 @@
 use std::io::{self, Write};
 
 use crossterm::event::{
-    DisableFocusChange, DisableMouseCapture, EnableFocusChange, EnableMouseCapture,
-    KeyboardEnhancementFlags, PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags,
+    DisableBracketedPaste, DisableFocusChange, DisableMouseCapture, EnableFocusChange,
+    EnableMouseCapture, KeyboardEnhancementFlags, PopKeyboardEnhancementFlags,
+    PushKeyboardEnhancementFlags,
 };
 use crossterm::terminal;
-use crossterm::{cursor, execute};
+use crossterm::{cursor, execute, queue};
 
 use super::backend::{Backend, BackendState, draw_iter};
 use super::sgr::emit_cup;
@@ -161,25 +162,44 @@ pub fn enter_tui_mode<W: Write>(writer: &mut W) -> io::Result<()> {
     Ok(())
 }
 
-/// Restore the terminal to its pre-`enter_tui_mode` state: disable
-/// mouse capture, show cursor, leave alt screen, stop theme-change
-/// reports (Unix: DEC mode 2031, which `App::run` enables), reset SGR, disable raw
-/// mode. Safe to call from a drop handler — all crossterm
-/// operations map to idempotent-enough ANSI sequences.
+/// Restore the terminal to its pre-`enter_tui_mode` state: pop the
+/// keyboard enhancement flags, disable focus reports, mouse capture and
+/// bracketed paste, show the cursor, leave the alternate screen, stop
+/// theme-change reports (Unix: DEC mode 2031, which `App::run` enables),
+/// reset SGR, disable raw mode. Every step is attempted even when an
+/// earlier one fails — a half-restored terminal is worse than an error
+/// — and the first error is returned. Safe to call from a drop handler
+/// — all crossterm operations map to idempotent-enough ANSI sequences.
 pub fn leave_tui_mode<W: Write>(writer: &mut W) -> io::Result<()> {
-    execute!(
-        writer,
-        PopKeyboardEnhancementFlags,
-        DisableFocusChange,
-        DisableMouseCapture,
-        cursor::Show,
-        terminal::LeaveAlternateScreen,
-    )?;
+    restore_terminal(writer, terminal::disable_raw_mode)
+}
+
+/// [`leave_tui_mode`]'s steps, with the raw-mode switch passed in (a
+/// test cannot leave raw mode it never entered).
+fn restore_terminal<W: Write>(
+    writer: &mut W,
+    raw_off: impl FnOnce() -> io::Result<()>,
+) -> io::Result<()> {
+    let mut first = Ok(());
+    let mut step = |result: io::Result<()>| {
+        if first.is_ok() {
+            first = result;
+        }
+    };
+    // The keyboard flags first: kitty keeps one stack per screen, and
+    // the flags were pushed on the alternate one.
+    step(queue!(writer, PopKeyboardEnhancementFlags));
+    step(queue!(writer, DisableFocusChange));
+    step(queue!(writer, DisableMouseCapture));
+    step(queue!(writer, DisableBracketedPaste));
+    step(queue!(writer, cursor::Show));
+    step(queue!(writer, terminal::LeaveAlternateScreen));
     #[cfg(unix)]
-    writer.write_all(THEME_REPORTS_OFF)?;
-    writer.write_all(b"\x1b[0m")?;
-    writer.flush()?;
-    terminal::disable_raw_mode()
+    step(writer.write_all(THEME_REPORTS_OFF));
+    step(writer.write_all(b"\x1b[0m"));
+    step(writer.flush());
+    step(raw_off());
+    first
 }
 
 /// DECSET 2031: report color-scheme changes (`CSI ? 997 ; 1|2 n`).
@@ -286,6 +306,68 @@ mod tests {
         leave_tui_mode(&mut off).unwrap();
         let bytes = String::from_utf8_lossy(&off.0);
         assert!(bytes.contains("\x1b[?2031l"), "{bytes:?}");
+    }
+
+    /// A writer whose first `fail` writes fail (a tty that hiccups, or is
+    /// gone); later writes are kept.
+    struct FailFirst {
+        fail: usize,
+        kept: Vec<u8>,
+    }
+    impl Write for FailFirst {
+        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+            if self.fail > 0 {
+                self.fail -= 1;
+                return Err(io::Error::other("first failure"));
+            }
+            self.kept.extend_from_slice(buf);
+            Ok(buf.len())
+        }
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    /// `C4G-LEAVE-TUI`: one failed write does not skip the rest of the
+    /// restore — the alternate screen is left, the cursor shown, the
+    /// modes reset — and the first error is the one returned.
+    #[test]
+    fn leave_tui_mode_attempts_every_step_after_a_failed_write() {
+        let mut w = FailFirst {
+            fail: 1,
+            kept: Vec::new(),
+        };
+        let err = leave_tui_mode(&mut w).expect_err("the failure surfaces");
+        assert_eq!(err.to_string(), "first failure");
+        let bytes = String::from_utf8_lossy(&w.kept);
+        for step in [
+            "\x1b[?1000l",
+            "\x1b[?2004l",
+            "\x1b[?25h",
+            "\x1b[?1049l",
+            "\x1b[0m",
+        ] {
+            assert!(bytes.contains(step), "{step:?} missing from {bytes:?}");
+        }
+        #[cfg(unix)]
+        assert!(bytes.contains("\x1b[?2031l"), "{bytes:?}");
+    }
+
+    /// Raw mode is turned off even when every write fails.
+    #[test]
+    fn restore_turns_raw_mode_off_when_every_write_fails() {
+        let mut w = FailFirst {
+            fail: usize::MAX,
+            kept: Vec::new(),
+        };
+        let mut raw_off = 0;
+        let err = restore_terminal(&mut w, || {
+            raw_off += 1;
+            Ok(())
+        })
+        .expect_err("the failure surfaces");
+        assert_eq!(err.to_string(), "first failure");
+        assert_eq!(raw_off, 1);
     }
 
     #[test]

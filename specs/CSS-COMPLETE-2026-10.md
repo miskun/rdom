@@ -1150,4 +1150,13 @@ row comes from.
   modifiers) and a bare `CSI R` is F3 beside `P` / `Q` / `S`. Red: `csi_r_is_f3` (`CSI R` gave
   nothing); green after. Changed expectation: `other_replies_are_consumed` dropped its
   `CSI 20 ; 10 R` (now F3 with a modifier mask, as a terminal would mean it).
+- 2026-10-06 — C4G-LEAVE-TUI: `leave_tui_mode` delegates to the private `restore_terminal(writer,
+  raw_off)`, which `queue!`s each step on its own — pop the keyboard flags (first: kitty keeps a stack
+  per screen), focus off, mouse off, bracketed paste off (added: never enabled by rdom, but an app may
+  have), cursor shown, alternate screen left, mode 2031 off (Unix), SGR reset — then flushes and calls
+  `raw_off`, recording only the first error. The raw-mode switch is a parameter so a test can observe
+  it. Red: a writer failing its first write left nothing written (the `?1000l` assertion), and an
+  always-failing writer never reached `raw_off` (0 calls); green after. (The first attempt at the test
+  failed with `ErrorKind::Interrupted`, which `write_all` retries forever — the test writer uses
+  `io::Error::other`.)
 

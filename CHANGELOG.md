@@ -224,6 +224,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Ctrl+F3 and the other modified F3 keys arrive** (xterm's `CSI 1 ; m R`, and the legacy `CSI R` for F3). They were taken for a cursor position report — the reply to DSR 6, which rdom never sends — and dropped. (C4G-CTRL-F3)
 
+- **`leave_tui_mode` attempts every restore step** — keyboard flags, focus reports, mouse capture, bracketed paste (now also turned off, in case an app enabled it), cursor, alternate screen, theme reports, SGR, raw mode — even when a write fails, and returns the first error. It stopped at the first failed write, so the guard or panic hook could leave the shell in raw mode on the alternate screen. (C4G-LEAVE-TUI)
+
 ### Changed — `rdom-showcase`
 
 - The Tab form demo's Name input carries `autofocus` (in its `MARKUP` and its built DOM alike), so switching to the demo — including Enter on its sidebar entry — moves focus into the form and typing goes straight into Name, as a browser focuses `[autofocus]` on navigation. Focus no longer stays in the sidebar after that switch. (`SHOWCASE-TAB-FORM-AUTOFOCUS-1`)
