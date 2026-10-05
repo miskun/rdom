@@ -1,6 +1,7 @@
 use super::*;
 use crate::TuiDom;
 use crate::runtime::builtins::form::SubmitOutcome;
+use rdom_core::NodeId;
 
 fn dom_with(tag: &str) -> (TuiDom, NodeId) {
     let mut dom: TuiDom = TuiDom::new();

@@ -1,6 +1,6 @@
 //! `impl TuiAccessorsMut for NodeMut` — write-side accessor methods
-//! on `NodeMut<'a, TuiExt>`. Trait declaration lives in `super`
-//! (mod.rs); private helpers live in `super::helpers`.
+//! on `NodeMut<'a, TuiExt>`. Trait declaration lives in
+//! `super::write_api`; private helpers live in `super::helpers`.
 
 use rdom_core::NodeId;
 

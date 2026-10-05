@@ -1371,3 +1371,10 @@ row comes from.
   §2 border-style entry and the coverage row updated; CHANGELOG Changed. No showcase snapshot
   changed: no demo or UA rule uses `dashed` / `dotted`.
 - 2026-10-06 — Phase 4 closed: 8 items (C4-SPACING partial — layout with C13-TFC) + 19 gate fixes (batch A 11, batch B 8). Gate-fix re-review folded into the Phase 5 gate. Carried to Phase 5: a box smaller than its border and padding is not floored at them (found by C4G-EDGE-TESTS, DIVERGENCES §2) — C5-BOX-SIZING.
+- 2026-10-07 — C5-SPLIT: no behaviour change. `accessors/mod.rs` (676) → `mod.rs` (51: module docs,
+  the module map, re-exports), `read_api.rs` (378: `TuiAccessors`, `DomRect`) and `write_api.rs` (261:
+  `TuiAccessorsMut`) beside the existing impl files. `runtime/timers.rs` (1153: 603 code, 550 tests) →
+  `runtime/timers/{mod (182: shared handle, current-scheduler guard, `TimerId`, `TimerCtx`),
+  scheduler (262: the queues), pump (107: the drains and the microtask checkpoint), ext (86:
+  `TuiTimers`), tests (550)}`. Public paths unchanged (`runtime::timers::{TimerCtx, TimerId,
+  TuiTimers}`, `accessors::*`). Every test passes unchanged.

@@ -1,5 +1,5 @@
 //! `impl TuiAccessors for NodeRef` — read-side accessor methods on
-//! `NodeRef<'a, TuiExt>`. Trait declaration lives in `super` (mod.rs);
+//! `NodeRef<'a, TuiExt>`. Trait declaration lives in `super::read_api`;
 //! private helpers live in `super::helpers`.
 
 use rdom_core::NodeId;
