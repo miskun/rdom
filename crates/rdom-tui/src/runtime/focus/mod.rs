@@ -28,12 +28,103 @@ pub mod tabindex;
 pub(crate) mod visible;
 
 #[cfg(test)]
+mod scroll_tests;
+#[cfg(test)]
 mod tests;
 
 use rdom_core::{NodeId, NodeType, Position, Selection};
 
 use crate::node::{TuiNodeExt, is_descendant_or_self};
 use crate::{TuiDom, TuiEvent};
+
+/// The options of a focus change (HTML `FocusOptions`).
+///
+/// `#[non_exhaustive]`: built with [`FocusOptions::new`] (or
+/// `Default`) and its builder methods.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct FocusOptions {
+    /// HTML `preventScroll`: do not scroll the newly focused element into
+    /// view.
+    pub prevent_scroll: bool,
+}
+
+impl FocusOptions {
+    /// The default options: the element is scrolled into view.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set `preventScroll`.
+    pub fn prevent_scroll(mut self, prevent: bool) -> Self {
+        self.prevent_scroll = prevent;
+        self
+    }
+}
+
+/// [`focus_node`] with `options` (HTML `focus(options)`): the focus
+/// change, then — unless `prevent_scroll` — HTML's focusing steps' "scroll
+/// the element into view": `nearest` on both axes, as browsers reveal a
+/// focused element, into each scroll container's optimal viewing region
+/// (its `scroll-padding`, the element's `scroll-margin`: CSS Scroll Snap 1
+/// §4). Under a running `App` the scroll waits for its next layout — the
+/// one the new focus is shown in — so a handler that moved the element
+/// before focusing it reveals it where it is laid out, not at a rect its
+/// own changes made stale; on a bare document it is done at once, against
+/// the last layout.
+pub fn focus_node_with_options(dom: &mut TuiDom, new_focus: Option<NodeId>, options: FocusOptions) {
+    let before = dom.focused();
+    change_focus(dom, new_focus, None);
+    if options.prevent_scroll {
+        return;
+    }
+    if let Some(id) = new_focus
+        && dom.focused() == Some(id)
+        && before != Some(id)
+    {
+        if crate::runtime::timers::in_app() {
+            dom.set_document_data(PendingFocusScroll(id));
+        } else {
+            scroll_into_view(dom, id);
+        }
+    }
+}
+
+/// The focused element whose scroll into view waits for the next layout
+/// (document data; [`focus_node_with_options`], [`service_focus_scroll`]).
+struct PendingFocusScroll(NodeId);
+
+/// After a layout: scroll the element focused since the last one into
+/// view, when it still has the focus. Whether a scroll offset moved — the
+/// caller lays out again.
+pub(crate) fn service_focus_scroll(dom: &mut TuiDom) -> bool {
+    let Some(PendingFocusScroll(id)) = dom.remove_document_data::<PendingFocusScroll>() else {
+        return false;
+    };
+    if dom.focused() != Some(id) || !dom.contains(id) {
+        return false;
+    }
+    let offsets = |dom: &TuiDom| -> Vec<(i32, i32)> {
+        std::iter::successors(dom.node(id).parent_node(), |n| n.parent_node())
+            .filter_map(|n| n.tui_ext().map(|e| (e.scroll_x, e.scroll_y)))
+            .collect()
+    };
+    let before = offsets(dom);
+    scroll_into_view(dom, id);
+    offsets(dom) != before
+}
+
+/// Scroll the focused `id` into view, `nearest` on both axes.
+fn scroll_into_view(dom: &mut TuiDom, id: NodeId) {
+    use crate::runtime::smooth_scroll::{ScrollIntoViewOptions, ScrollLogicalPosition};
+    crate::runtime::scrollbar::scroll_element_into_view(
+        dom,
+        id,
+        ScrollIntoViewOptions::new()
+            .block(ScrollLogicalPosition::Nearest)
+            .inline(ScrollLogicalPosition::Nearest),
+    );
+}
 
 /// Change focus. Fires `blur` + `focusout` on the old focus,
 /// commits the new focus (which updates the `:focus` pseudo via
@@ -44,27 +135,13 @@ use crate::{TuiDom, TuiEvent};
 /// no mutation happens.
 ///
 /// Pass `None` to clear focus (fires only blur + focusout).
+///
+/// Keyboard and script focus: the element is scrolled into view
+/// ([`focus_node_with_options`]). Focus a pointer moved does not scroll
+/// (`focus_node_by_pointer`), nor does
+/// `FocusOptions::new().prevent_scroll(true)`.
 pub fn focus_node(dom: &mut TuiDom, new_focus: Option<NodeId>) {
-    let before = dom.focused();
-    focus_node_with(dom, new_focus, None);
-    // HTML's focusing steps: "scroll the element into view" — here
-    // `nearest` on both axes, as browsers reveal a focused element —
-    // into each scroll container's optimal viewing region (its
-    // `scroll-padding`, the element's `scroll-margin`: CSS Scroll Snap 1
-    // §4). Pointer focus does not scroll (`focus_node_by_pointer`).
-    if let Some(id) = new_focus
-        && dom.focused() == Some(id)
-        && before != Some(id)
-    {
-        use crate::runtime::smooth_scroll::{ScrollIntoViewOptions, ScrollLogicalPosition};
-        crate::runtime::scrollbar::scroll_element_into_view(
-            dom,
-            id,
-            ScrollIntoViewOptions::new()
-                .block(ScrollLogicalPosition::Nearest)
-                .inline(ScrollLogicalPosition::Nearest),
-        );
-    }
+    focus_node_with_options(dom, new_focus, FocusOptions::new());
 }
 
 /// The focus fixup (HTML "update the rendering", after style and
@@ -90,12 +167,12 @@ pub(crate) fn fix_up(dom: &mut TuiDom) -> bool {
 /// sees the pointer's answer, not the previous modality's.
 pub(crate) fn focus_node_by_pointer(dom: &mut TuiDom, new_focus: Option<NodeId>) {
     let evident = new_focus.map(|id| visible::pointer_focus_is_evident(dom, id));
-    focus_node_with(dom, new_focus, evident);
+    change_focus(dom, new_focus, evident);
 }
 
 /// The focus-change steps; `visible`, when given, is committed as
 /// `Dom::focus_visible` right after the focus itself.
-fn focus_node_with(dom: &mut TuiDom, new_focus: Option<NodeId>, visible: Option<bool>) {
+fn change_focus(dom: &mut TuiDom, new_focus: Option<NodeId>, visible: Option<bool>) {
     let old = dom.focused();
     if old == new_focus {
         return;

@@ -5203,3 +5203,22 @@ row comes from.
   paint with one). Red: 16 for 0; `(390, 0)` for `(0, 0)`; 24 for 0. Green after. Added while fixing:
   `css_phase8/line_clamp.rs::a_shifted_clamped_box_keeps_its_clamp_point` (mutation: rows kept absolute → it
   fails, the second line clipped). No existing test expectation or snapshot changed.
+- 2026-10-10 — C8G-FOCUS-SCROLL (architect N2, API N7). Found: `focus_node` scrolled the newly focused
+  element into view on every caller — the tree builtin's row click (a pointer press focuses a focusable row,
+  the click then focuses the tree: `nearest` moved a tall tree from 4 to 3), a closing dialog returning focus
+  (HTML §4.11.4 "close the dialog": "the viewport should not be scrolled by doing this step"; it scrolled to 6
+  from 0) — `focus()` took no options (HTML `FocusOptions.preventScroll`), and in a handler it aligned the rect
+  of the last layout, so an element the handler had just moved was revealed at its old place (`scrollTop` 0 for
+  4). Decision: `FocusOptions { prevent_scroll }` (`#[non_exhaustive]`, `new()` / `prevent_scroll(bool)`),
+  `TuiAccessorsMut::focus_with(options)` beside `focus()`, `runtime::focus::focus_node_with_options` beside
+  `focus_node` (now its default form); the dialog's return and the tree's pointer click pass
+  `prevent_scroll` (a keyboard-synthesized click still scrolls: keyboard focus); pointer focus already did not
+  scroll. Fresh rects: rdom cannot flush layout from a handler (TECH_DEBT `FOCUS-FLUSH-1`), so under a
+  running `App` (`timers::in_app`: its scheduler installed around every user-code entry point) the scroll is
+  recorded (document data `PendingFocusScroll`) and done after the `App`'s next layout, the one the focus is
+  shown in (`frame::style_and_layout`, after the re-snap, laying out again when it moved an offset); on a bare
+  document it is done at once — DIVERGENCES §2 records the timing. Red: `runtime/focus/scroll_tests.rs` — 4
+  of 4 failed (the API stubbed: `prevent_scroll` 6 for 0, the dialog 6 for 0, the handler 0 for 4; the tree
+  click passed at first — the press focused the tree, so the click's focus was a no-op — and was rewritten
+  with focusable rows, 3 for 4). Green after. Mutation (restored, touched): never deferring → the handler
+  test. No existing test expectation or snapshot changed.

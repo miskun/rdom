@@ -134,6 +134,15 @@ impl<'a> TuiAccessorsMut<'a> for rdom_core::NodeMut<'a, TuiExt> {
         crate::runtime::focus::focus_node(dom, Some(id));
     }
 
+    fn focus_with(&mut self, options: crate::runtime::focus::FocusOptions) {
+        let id = self.id();
+        let dom = self.dom_mut();
+        if !crate::runtime::focus::tabindex::is_focusable(dom, id) {
+            return;
+        }
+        crate::runtime::focus::focus_node_with_options(dom, Some(id), options);
+    }
+
     fn blur(&mut self) {
         let id = self.id();
         let dom = self.dom_mut();

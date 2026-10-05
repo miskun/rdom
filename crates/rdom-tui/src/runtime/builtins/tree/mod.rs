@@ -25,7 +25,6 @@ mod tests;
 
 use rdom_core::{EventDetail, ListenerOptions, NodeId, ToggleDetail, ToggleState};
 
-use crate::runtime::focus::focus_node;
 use crate::{TuiDom, TuiEvent};
 
 /// Attribute the tree builtin keeps on the active row (the ARIA
@@ -78,8 +77,16 @@ pub fn install(dom: &mut TuiDom) {
             return;
         };
         // Active-descendant model: clicking a row focuses the
-        // container and moves the cursor to the row.
-        focus_node(ctx.dom, Some(tree));
+        // container and moves the cursor to the row. Focus a pointer
+        // moved does not scroll (HTML: the focusing steps a click runs
+        // reveal nothing the user clicked); a keyboard-synthesized click
+        // (Enter / Space) is keyboard focus.
+        let pointer = ctx.event.detail.as_mouse().is_some();
+        crate::runtime::focus::focus_node_with_options(
+            ctx.dom,
+            Some(tree),
+            crate::runtime::focus::FocusOptions::new().prevent_scroll(pointer),
+        );
         set_active(ctx.dom, tree, item);
         // Clicking anywhere on a branch row toggles it — the arrow
         // isn't the only hit target. Gated on a real pointer click:

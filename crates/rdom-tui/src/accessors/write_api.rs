@@ -97,7 +97,11 @@ pub trait TuiAccessorsMut<'a>: crate::sealed::Sealed {
     /// [`runtime::focus::focus_node`](crate::runtime::focus::focus_node):
     /// `blur` + `focusout` on the old target, commit the new focus
     /// (which drives the `:focus` cascade), then `focus` + `focusin`
-    /// on this element.
+    /// on this element — and scrolls it into view (HTML's focusing steps,
+    /// `nearest` on both axes within each scroll container's
+    /// `scroll-padding`; under a running `App` at its next layout, where
+    /// the element is shown, DIVERGENCES). [`focus_with`](Self::focus_with)
+    /// with `prevent_scroll` focuses without scrolling.
     ///
     /// Lives on the mut trait taking `&mut self` because the literal
     /// shape `focus(&self, ctx: &mut TuiEventCtx<'_>)` hits a borrow-
@@ -106,6 +110,11 @@ pub trait TuiAccessorsMut<'a>: crate::sealed::Sealed {
     /// needs `ctx` mut). The `&mut Dom` borrow is taken once via
     /// `node_mut` and released when the method returns.
     fn focus(&mut self);
+
+    /// [`focus`](Self::focus) with `options` (HTML `focus(options)`):
+    /// `FocusOptions::new().prevent_scroll(true)` focuses without
+    /// scrolling the element into view.
+    fn focus_with(&mut self, options: crate::runtime::focus::FocusOptions);
 
     /// Blur this element. Per `HTMLElement.blur()`: only fires
     /// `blur` / `focusout` if this element is currently focused;

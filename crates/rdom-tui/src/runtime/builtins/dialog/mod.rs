@@ -172,7 +172,13 @@ pub fn close(dom: &mut TuiDom, dialog: NodeId, return_value: &str) {
     let still_focusable =
         |p: &NodeId| dom.contains(*p) && crate::runtime::focus::tabindex::is_focusable(dom, *p);
     if let Some(prev) = previous.filter(still_focusable) {
-        crate::runtime::focus::focus_node(dom, Some(prev));
+        // "Run the focusing steps for previouslyFocusedElement; the
+        // viewport should not be scrolled by doing this step."
+        crate::runtime::focus::focus_node_with_options(
+            dom,
+            Some(prev),
+            crate::runtime::focus::FocusOptions::new().prevent_scroll(true),
+        );
     } else if dom.focused().is_some_and(|f| is_inside(dom, f, dialog)) {
         crate::runtime::focus::focus_node(dom, None);
     }

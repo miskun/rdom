@@ -319,6 +319,11 @@ fn style_and_layout(
         if crate::runtime::scroll_snap::resnap(dom) {
             dom.layout_dom(area);
         }
+        // HTML's focusing steps scroll a newly focused element into view
+        // against the layout it is shown in.
+        if crate::runtime::focus::service_focus_scroll(dom) {
+            dom.layout_dom(area);
+        }
         if crate::runtime::scrollbar::service_caret_reveal(dom) {
             dom.layout_dom(area);
         }
