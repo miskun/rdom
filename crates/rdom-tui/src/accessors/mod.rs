@@ -33,6 +33,7 @@
 //! `select_value`, etc.) ship in step 30.
 
 pub mod doc;
+mod grid_tracks;
 mod helpers;
 mod read_api;
 mod read_mut;
@@ -47,5 +48,6 @@ pub use crate::runtime::smooth_scroll::{
     ScrollBehaviorOption, ScrollIntoViewOptions, ScrollLogicalPosition, ScrollToOptions,
 };
 pub use doc::TuiDocAccessors;
+pub use grid_tracks::GridTracks;
 pub use read_api::{DomRect, ScrollRange, TuiAccessors};
 pub use write_api::TuiAccessorsMut;

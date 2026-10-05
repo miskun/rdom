@@ -4335,3 +4335,27 @@ row comes from.
   compile (no `flex_direction`); green after, all four values and the axis for each. (f) The eight
   Phase 7 bullets past ~340 characters are trimmed (the gate's six and two more at 347 / 414). No
   test expectation or snapshot changed.
+- 2026-10-09 — C7G-DOCS-TESTS (API N4, N5, N6, the ACID tile 18 additions). Stale docs (N4):
+  DIVERGENCES §3's empty "Flexbox and box alignment" and "Grid" headings are gone (nothing of either
+  is left unshipped; `masonry` is a §2 decision); the static-position entry names grid beside flex
+  (CSS Grid 2 §10.2 places the child as the sole item of an area that is the content box; rdom takes
+  its start corner in both, which `grid/mod.rs` already cites); CSS-COVERAGE's headline gaps are
+  `line-height`, `text-align` and `@media` (grid placement is shipped), and its `row-gap` /
+  `column-gap` row names the grid gutters instead of "ready for grid"; `Display::Block`'s doc says a
+  flex or grid item. Tests (N5), `css_phase7/everyday.rs` (new): `1fr 1fr` holds a 10-cell word's
+  column at 10 and leaves the other its 1 cell, where `minmax(0, 1fr)` and an `overflow: auto` item
+  share 5 / 5 (§6.6, §7.2.4, §11.7); `place-items: center` centers `ab` at (4, 2) in a 10 × 5 area;
+  the `auto 1fr auto` page with `gap: 1` is 5 rows under an `auto` height and fills `min-height: 9`
+  with a 5-row `fr` row. These pin shipped behaviour, so they were green on first run; each pair of
+  cases differs in its result, so a regression in either path fails one. Public track read (N6):
+  `TuiAccessors::grid_tracks() -> Option<GridTracks>` — the analogue of §7.2.6's resolved value —
+  each column and row a half-open cell range from the content box's left / top edge, before the
+  container's scroll offset, in grid order (an `rtl` grid's first column the rightmost range),
+  implicit tracks included; built by `GridLines::used_tracks` from the content-box-relative edges of
+  C7G-LINES-SHIFT, so it needs no second copy and stays true after `shift_subtree`; `None` for a box
+  that is not a laid-out grid (each dispatch clears the lines). `GridTracks` is sealed by private
+  fields with `new` / `columns()` / `rows()` (DESIGN). Red: `css_phase7/used_tracks.rs` (new) did not
+  compile (no `grid_tracks`); green after — a padded grid with gutters and an implicit row, an `rtl`
+  grid, and a block (`None`). ACID.md tile 18 gains the gate's five cases (`1fr` against
+  `minmax(0, 1fr)`, two items in one cell by `z-index`, `inline-grid` in text, `rtl`, `1 / -1`) with
+  their expected results. No test expectation or snapshot changed.

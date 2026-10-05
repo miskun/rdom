@@ -191,9 +191,9 @@ pub enum WritingMode {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Display {
     /// `block`: a block-level box (CSS Display 3 §2.1) — in block flow it
-    /// stacks on its parent's block axis, in a flex container it is a
-    /// flex item, as every child box there is (blockified, §2.7). Gets
-    /// its own `LayoutRect`. Default.
+    /// stacks on its parent's block axis, in a flex or grid container it
+    /// is a flex or grid item, as every child box there is (blockified,
+    /// §2.7). Gets its own `LayoutRect`. Default.
     #[default]
     Block,
     /// Participates in its parent's inline formatting context. No

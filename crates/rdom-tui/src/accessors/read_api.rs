@@ -145,6 +145,14 @@ pub trait TuiAccessors<'a>: crate::sealed::Sealed {
     /// overflow. `None` for non-element nodes.
     fn scroll_range(&self) -> Option<ScrollRange>;
 
+    /// The used tracks of a laid-out grid container — the analogue of
+    /// the resolved `grid-template-columns` / `-rows` (CSS Grid 2
+    /// §7.2.6), each track a cell range from the content box
+    /// ([`GridTracks`](super::GridTracks)). `None` for an element that is
+    /// not a grid container or has not been laid out as one, and for
+    /// non-element nodes.
+    fn grid_tracks(&self) -> Option<super::GridTracks>;
+
     /// `Element.scrollWidth` — total content width tracked by the
     /// layout pass for scrollbar sizing. Reports the scrollable
     /// extent, not the viewport.

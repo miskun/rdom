@@ -110,6 +110,16 @@ impl<'a> TuiAccessors<'a> for rdom_core::NodeRef<'a, TuiExt> {
         ))
     }
 
+    fn grid_tracks(&self) -> Option<super::GridTracks> {
+        use crate::node::TuiNodeExt;
+        let ext = self.tui_ext()?;
+        let (columns, rows) = ext
+            .grid_lines
+            .as_deref()?
+            .used_tracks(ext.content_layout.width);
+        Some(super::GridTracks::new(columns, rows))
+    }
+
     fn scroll_width(&self) -> Option<i32> {
         use crate::node::TuiNodeExt;
         Some(self.tui_ext()?.scroll_content_width as i32)

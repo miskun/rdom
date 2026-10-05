@@ -84,7 +84,7 @@ These are intrinsic to terminals. They will not change.
 - **Inside an `opacity < 1` context, an absolutely positioned descendant whose containing block lies above the context clips to the context's content clip.** CSS 2.1 §11.1.1 would use the clip in effect at the containing block; the difference shows only when an `overflow` box sits between that containing block and the `opacity` element.
 - **Sticky containing block is the element's parent's content box**, not the CSS "nearest scroll container" for nested-scroller edge cases.
 - **A box's baselines are its first and last content rows.** Baseline alignment in flex (`align-items: baseline` / `last baseline`, CSS Box Alignment 3 §9) and an inline block's baseline in its line (CSS 2.1 §10.8.1) read a box's first and last baseline as the first and last rows of its content box's content — a cell row holds one baseline — rather than the baselines of its first and last line boxes wherever they sit (an empty first child or a child's top margin does not move rdom's first baseline down). A box with no content rows synthesizes its baseline at its border box's bottom row in flex (Box Alignment §9.1), at its margin box's bottom row as an inline block (CSS 2.1).
-- **The static position inside a flex container ignores `justify-content` / `align-items`.** Flexbox §4.1 places an absolutely positioned child's hypothetical box as if it were the sole flex item, so `justify-content: center` would center it; rdom uses the content box's start corner (`flex-start`). In block and inline flow the static position follows CSS 2.1 §10.3.7 / §10.6.4.
+- **The static position inside a flex or grid container ignores the alignment properties.** Flexbox §4.1 places an absolutely positioned child's hypothetical box as if it were the sole flex item, so `justify-content: center` would center it; CSS Grid 2 (§10.2 "With a Grid Container as Parent") as if it were the sole grid item in an area that is the container's content box, so its `justify-self` / `align-self` would place it there. rdom uses the content box's start corner (`flex-start`, `start`) in both. In block and inline flow the static position follows CSS 2.1 §10.3.7 / §10.6.4.
 - **Positioned `::before` / `::after` pseudo-elements are not in the hit-test set.** Clicks on pseudo rects resolve to the underlying element.
 - **A positioned `::before` / `::after` takes its content's width for every intrinsic size keyword.** Its content is one generated string laid out on one line, so `min-content`, `max-content` and `fit-content` all size it — or bound it, in `min-*` / `max-*` — to that string's width (CSS Sizing 3 §3.1 would break `min-content` at the string's soft-wrap opportunities). In-flow pseudo-elements are measured with their element.
 
@@ -287,12 +287,6 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 - The marker box of `display: list-item` (the keyword parses and lays out as its outer and inner types, C6-DISPLAY-KEYWORDS) — C10-LIST-ITEM
 - `display: table` family — C13-TFC
 - `visibility: collapse` on a table column (`<col>` / `<colgroup>`; rows collapse, C6-VISIBILITY) — C13-TFC
-
-### Flexbox and box alignment
-
-
-### Grid
-
 
 ### Positioned layout
 

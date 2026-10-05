@@ -42,6 +42,29 @@ pub(super) struct AxisLines {
     pub(super) edges: Vec<(i32, i32)>,
 }
 
+impl GridLines {
+    /// Each column's and row's cells as a range from the content box's
+    /// left / top edge, in grid order (`TuiAccessors::grid_tracks`, CSS
+    /// Grid 2 §7.2.6): the edges are offsets from the content-box start
+    /// on each axis, which for an `rtl` grid's columns is the right edge
+    /// of a box `content_width` wide.
+    pub(crate) fn used_tracks(
+        &self,
+        content_width: u16,
+    ) -> (Vec<std::ops::Range<i32>>, Vec<std::ops::Range<i32>>) {
+        let w = i32::from(content_width);
+        let rtl = self.rtl;
+        let columns = self
+            .columns
+            .edges
+            .iter()
+            .map(|&(s, e)| if rtl { w - e..w - s } else { s..e })
+            .collect();
+        let rows = self.rows.edges.iter().map(|&(s, e)| s..e).collect();
+        (columns, rows)
+    }
+}
+
 impl AxisLines {
     /// The two edges of the area `start` / `end` name on this axis, `cb`
     /// (start side, end side) standing for an `auto` or missing line;

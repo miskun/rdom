@@ -402,6 +402,8 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 - Docs: the README has a grid section with a doctested page layout — named areas, `auto 1fr auto` rows, `gap`, a `repeat(auto-fill, minmax(…))` card grid and `grid-column: 1 / -1` — whose paint the doctest checks. (C7G-README-GRID)
 - Grid node setters: `set_grid()` / `set_inline_grid()`, `set_grid_area(…)` and `set_grid_area_named(name)`; every grid and alignment node setter documents what it clamps and what it refuses (a debug panic, the earlier declaration kept in release). (C7G-GRID-SETTERS)
 - `TuiNodeExt::flex_direction()` reads the inline `flex-direction` whole, `row-reverse` and `column-reverse` included; `direction()` is documented as its axis, the half `set_direction` writes. (C7G-UPGRADE-GUIDE)
+- `TuiAccessors::grid_tracks()` reads a laid-out grid's used tracks (CSS Grid 2 §7.2.6's resolved value) as `GridTracks`: each column and row a cell range from the content box, in grid order, for headers or rules drawn on the grid. (C7G-DOCS-TESTS)
+
 
 
 

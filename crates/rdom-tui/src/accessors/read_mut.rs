@@ -70,6 +70,10 @@ impl<'a> TuiAccessors<'a> for rdom_core::NodeMut<'a, TuiExt> {
         self.as_ref().scroll_range()
     }
 
+    fn grid_tracks(&self) -> Option<super::GridTracks> {
+        self.as_ref().grid_tracks()
+    }
+
     fn scroll_width(&self) -> Option<i32> {
         self.as_ref().scroll_width()
     }
