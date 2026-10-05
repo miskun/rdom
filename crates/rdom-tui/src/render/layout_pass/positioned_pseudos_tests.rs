@@ -125,3 +125,16 @@ fn a_relative_element_with_both_insets_keeps_its_width() {
     let rect = dom.node(r).ext().unwrap().layout;
     assert_eq!((rect.x, rect.width), (1, 10));
 }
+
+/// CSS 2.1 §10.1: "the containing block is formed by the padding edge of
+/// the ancestor" — a positioned host's border is outside its absolutely
+/// positioned `::after`'s containing block, its padding inside
+/// (C7-ABSPOS-PADDING-EDGE).
+#[test]
+fn a_positioned_pseudos_containing_block_is_the_padding_box() {
+    let r = after_rect(
+        ".h { position: relative; width: 10; height: 2; border: solid; padding: 1 } \
+         .h::after { position: absolute; inset: 0; content: \"x\" }",
+    );
+    assert_eq!((r.x, r.y, r.width, r.height), (1, 1, 12, 4));
+}

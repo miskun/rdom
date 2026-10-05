@@ -393,7 +393,7 @@ dropped. The audit's six, with where each stands:
 
 | Item | Class | Detail | Doc'd | Where |
 |---|---|---|---|---|
-| `position` | Supported | `static` / `relative` / `absolute` / `fixed` / `sticky` (sticky containing block simplified, documented). | Yes | `V/keyword.rs::parse_position`, `POS` |
+| `position` | Supported | `static` / `relative` / `absolute` / `fixed` / `sticky` (sticky containing block simplified, documented); an absolutely positioned box's — or `::before` / `::after`'s — containing block is its positioned ancestor's padding box (CSS 2.1 §10.1, C7-ABSPOS-PADDING-EDGE), a grid container's grid area within it (CSS Grid 2 §9.1). | Yes | `V/keyword.rs::parse_position`, `POS` |
 | `top` / `right` / `bottom` / `left` | Supported | `auto`, signed cells, `%`, `calc()` (C2-PERCENT / C8-INSETS). A positioned box's size honours `min-*` / `max-*`; a relative one — element or pseudo-element — only shifts, the inline-start inset winning when both are set (CSS 2.1 §9.4.3; C8-POS-MINMAX: C5-POS-MINMAX + C5G-REL-PSEUDO-INSETS). | — | `V/length.rs::parse_length` |
 | `inset` | Supported | 1–4 values of `auto` / signed cells / `%` / `calc()` (C2-PERCENT / C8-INSETS). | — | `V/length.rs::parse_inset_shorthand` |
 | `inset-block` / `inset-inline` (+ `-start` / `-end`) | Supported | Block axis → `top` / `bottom`, inline axis → `left` / `right` by `direction` (C5-LOGICAL). | — | `DISP` (`logical.rs`) |

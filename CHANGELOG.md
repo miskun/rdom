@@ -28,6 +28,7 @@ Each Breaking bullet below ends with its migration, and the [API table](#api-cha
 13. **`min-*: auto` does not floor a flex item's cross size** at its content (the automatic minimum is a main-axis rule). (C3G-MIN-AUTO)
 14. **Ill-typed math is invalid** (`calc(50% * 10%)` drops the declaration) and division by zero is IEEE-754 (CSS Values 4 §10.9). (C2-TRIG, C2G-CALC-SEMANTICS)
 15. **`z-index` on a static flex item stacks it** (CSS Flexbox §5.4): a numeric `z-index` makes a flex or grid item a stacking context ordered by it, as a positioned box's is; it was ignored without `position`. (C7-GRID-PLACE)
+16. **An absolutely positioned box is placed in its positioned ancestor's padding box** (CSS 2.1 §10.1): its insets count from inside the ancestor's border — `top: 0; left: 0` in a bordered `position: relative` box sits inside the border, not on it, for elements and positioned `::before` / `::after` alike, and a grid's `auto` line is that padding edge (CSS Grid 2 §9.1). Insets tuned against the border box move by the border's width. (C7-ABSPOS-PADDING-EDGE)
 
 **Compile breaks** — what a 0.5 consumer must change, by kind (the API table has each item):
 
@@ -406,6 +407,7 @@ One row per renamed or reshaped public item: the 0.5 form, its replacement, the 
 
 ### Fixed — `rdom-tui`
 
+- **An absolutely positioned box's containing block is the padding box** of its positioned ancestor (CSS 2.1 §10.1), not its border box — elements and positioned pseudo-elements, grid areas' `auto` edges included. (C7-ABSPOS-PADDING-EDGE)
 - **`cssText` names a set grid shorthand once**: `grid-area` listed `grid-row`, `grid-column` and the four line longhands beside itself; the largest serializing shorthand of a nest (`grid` over `grid-template`, `grid-area` over `grid-row` / `grid-column`) now stands for every property it covers (CSSOM §6.7.2). (C7-GRID-AREAS)
 - **A deep tree no longer overflows the stack in the cascade.** The walk recursed with every style an element computes in its frame (some 50 KB a level, so a 40-deep chain filled a test thread); it now keeps them behind `Rc`s, about 1 KB a level. (C7-GRID-CORE)
 - **A positioned `::before` / `::after` takes its `width` / `height`** (CSS 2.1 §10.3.7 / §10.6.4): a declared size (cells, `%`, `calc()`) wins as for a positioned element; with both insets set, `right` / `bottom` give way. (C3G-PSEUDO-SIZE)
@@ -458,6 +460,7 @@ One row per renamed or reshaped public item: the 0.5 form, its replacement, the 
 
 ### Changed — `rdom-showcase`
 
+- The translucency demo's inner card is offset from the outer card's padding box (`top: 5; left: 5`, was `6`), its absolutely positioned containing block since C7-ABSPOS-PADDING-EDGE; it paints as before. (C7-ABSPOS-PADDING-EDGE)
 - The Tab form demo's Name input carries `autofocus` (in its `MARKUP` and its built DOM alike), so switching to the demo — including Enter on its sidebar entry — moves focus into the form and typing goes straight into Name, as a browser focuses `[autofocus]` on navigation. (`SHOWCASE-TAB-FORM-AUTOFOCUS-1`)
 - The shell declares `box-sizing: border-box` for its own chrome only; demos that assumed border-box sizing scope the reset to their root class, `ua_chrome` shows the UA defaults, and the rAF demo uses `content-box` (a full bar is its track's 48-cell inside). (C5-BOX-SIZING, C5G-DOCS-AND-SHOWCASE)
 - The paint snapshots pin what the app shows: the harness seeds `style` attributes and cascades the shell's base sheet first, and a snapshot records cell backgrounds as a second layer when any cell has one. (C5G-DOCS-AND-SHOWCASE)

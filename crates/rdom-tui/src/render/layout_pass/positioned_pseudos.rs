@@ -31,7 +31,7 @@ use crate::render::layout_pass::box_sizing::Sizer;
 use crate::style::ComputedStyle;
 
 use super::positioning::{
-    axis_position_anchored, computed_position, layout_rect, parent_id, relative_offset,
+    axis_position_anchored, computed_position, padding_box, parent_id, relative_offset,
     resolve_size_axis,
 };
 use crate::layout::Length;
@@ -201,11 +201,12 @@ fn resolve_containing_block(
                 .and_then(|e| e.computed.as_ref())
                 .map(|c| c.position)
                 .unwrap_or_default();
+            // CSS 2.1 §10.1: the padding edge of the positioned box.
             if matches!(
                 host_position,
                 Position::Relative | Position::Absolute | Position::Fixed
             ) {
-                return host_rect;
+                return padding_box(dom, host).unwrap_or(host_rect);
             }
             let mut cur = parent_id(dom, host);
             while let Some(p) = cur {
@@ -214,7 +215,7 @@ fn resolve_containing_block(
                     pp,
                     Position::Relative | Position::Absolute | Position::Fixed
                 ) {
-                    return layout_rect(dom, p).unwrap_or(viewport);
+                    return padding_box(dom, p).unwrap_or(viewport);
                 }
                 cur = parent_id(dom, p);
             }

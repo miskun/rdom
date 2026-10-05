@@ -62,8 +62,8 @@ pub const CSS: &str = r#"
   color: rgb(230, 240, 255);
 }
 .translucency .inner {
-  top: 6;
-  left: 6;
+  top: 5;
+  left: 5;
   width: 26;
   height: 5;
   opacity: 0.5;

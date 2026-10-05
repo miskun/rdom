@@ -53,8 +53,9 @@ pub(super) use static_pos::{
 /// viewport. The element's own `position` decides:
 ///
 /// - `Fixed` → viewport.
-/// - `Absolute` → ancestor walk; first positioned (relative,
-///   absolute, fixed) ancestor's layout rect; viewport on miss.
+/// - `Absolute` → ancestor walk; the first positioned (relative,
+///   absolute, fixed) ancestor's padding box (CSS 2.1 §10.1: "formed by
+///   the padding edge of the ancestor"); viewport on miss.
 /// - `Relative` / `Static` → returns the parent's content area
 ///   (or viewport if no parent), matching the in-flow position.
 ///   (Used by phase-2 callers that ask "where would this be in
@@ -74,7 +75,7 @@ pub(crate) fn containing_block(dom: &Dom<TuiExt>, id: NodeId, viewport: LayoutRe
                 pp,
                 Position::Relative | Position::Absolute | Position::Fixed
             ) {
-                let cb = layout_rect(dom, p).unwrap_or(viewport);
+                let cb = padding_box(dom, p).unwrap_or(viewport);
                 // CSS Grid 2 §9.1: a grid container's grid area.
                 return crate::render::layout_pass::grid::abspos_area(dom, id, p, cb).unwrap_or(cb);
             }
@@ -98,6 +99,20 @@ pub(in crate::render::layout_pass) fn computed_position(dom: &Dom<TuiExt>, id: N
         .filter(|c| c.display != crate::layout::Display::Contents)
         .map(|c| c.position)
         .unwrap_or_default()
+}
+
+/// `id`'s padding box — its border box less its border (CSS 2.1 §10.1:
+/// the containing block an absolutely positioned descendant gets from a
+/// positioned box is "formed by the padding edge of the ancestor").
+pub(in crate::render::layout_pass) fn padding_box(
+    dom: &Dom<TuiExt>,
+    id: NodeId,
+) -> Option<LayoutRect> {
+    let ext = dom.node(id).ext()?;
+    Some(match ext.computed.as_deref() {
+        Some(c) => crate::render::layout_pass::geometry::compute_padding_box(ext.layout, c.border),
+        None => ext.layout,
+    })
 }
 
 pub(in crate::render::layout_pass) fn layout_rect(

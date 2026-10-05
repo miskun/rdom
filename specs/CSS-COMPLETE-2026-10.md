@@ -161,7 +161,7 @@ row comes from.
 | C7-GRID-ALIGN | Box Alignment in grid (`justify-*` / `align-*` / `place-*`) | done |
 | C7-SUBGRID | `subgrid` | done |
 | C7-GRID-RERESOLVE | CSS Grid 2 §11.1 steps 3–4: the columns, then the rows, sized again once when the rows changed an item's column contribution (part 1 follow-up) | done |
-| C7-ABSPOS-PADDING-EDGE | An absolutely positioned box's containing block is its positioned ancestor's padding box (CSS 2.1 §10.1, Grid §9.1) (part 1 follow-up) | |
+| C7-ABSPOS-PADDING-EDGE | An absolutely positioned box's containing block is its positioned ancestor's padding box (CSS 2.1 §10.1, Grid §9.1) (part 1 follow-up) | done |
 | C7-SPLIT | File-size pass on `layout_pass/grid/*` and the files Phase 7 touched (TECH_DEBT `SIZE-1`) | |
 
 ### Phase 8 — Positioning, floats, overflow, scrolling (audit §3.10, §3.11)
@@ -3997,3 +3997,21 @@ row comes from.
   ignored → the gap test; the pre-placement clamp off → the clamping test (`(3, 0)`: the auto item
   took the far item's cell); the auto span off → its test; the direction reversal off → the direction
   test. No other test expectation and no snapshot changed.
+- 2026-10-08 — C7-ABSPOS-PADDING-EDGE (part 1 follow-up): checked first whether the grid fallback alone
+  was wrong — it was not: `positioning::containing_block` gave every absolutely positioned box its
+  positioned ancestor's layout rect, the border box, and `positioned_pseudos::resolve_containing_block`
+  the same for `::before` / `::after` (the host's or an ancestor's). CSS 2.1 §10.1: "the containing
+  block is formed by the padding edge of the ancestor" (CSS Position 3 §2.1 alike). Fixed at the root
+  for all of them: `positioning::padding_box` (the layout rect less the used border,
+  `geometry::compute_padding_box`, the scrollport helper paint already uses) is what both resolve to;
+  the grid area of §9.1 is cut from it, so a grid's `auto` lines are its padding edges with no change
+  of their own. Overlap with Phase 8 (positioned layout, §3.10): this is the CSS 2.1 containing block
+  those items build on; `CSS-COVERAGE` §3.10's `position` row now says so. Red:
+  `css_phase7/abspos.rs` — `top: 0; left: 0` in a bordered, padded `position: relative` box at `(0, 0)`
+  where §10.1 puts it at `(1, 1)`, `inset: 0` 14 × 7 for 12 × 5, the grid's `auto` column end at the
+  border box (17 wide for 16) — and `positioned_pseudos_tests` (`::after` with `inset: 0` at `(0, 0, 14,
+  6)` for `(1, 1, 12, 4)`); green after. Changed (demo, not a test): `rdom-showcase`'s translucency demo
+  placed its inner card with offsets tuned against the outer card's border box (`top: 6; left: 6`); its
+  design is kept with `top: 5; left: 5`, the snapshot unchanged (with the old offsets the card moved one
+  cell down and right, against the outer card's right border — the spec's result for that CSS). No
+  test expectation changed. Consumer-visible: listed among the CHANGELOG's silent behaviour changes.

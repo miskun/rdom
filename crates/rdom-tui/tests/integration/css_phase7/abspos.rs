@@ -77,3 +77,39 @@ fn an_rtl_grids_areas_run_from_the_right() {
     let r = rect(&dom, abs);
     assert_eq!((r.x, r.width), (18, 2));
 }
+
+/// The rect of `.abs` (and of `.cb`'s `::before`, if `css` gives it one)
+/// in `.cb`, laid out with `css` at 20 × 8.
+fn in_cb(css: &str) -> (i32, i32, u16, u16) {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let cb = el(&mut dom, root, "div", "cb");
+    let abs = el(&mut dom, cb, "div", "abs");
+    lay_out(&mut dom, css, 20, 8);
+    let r = rect(&dom, abs);
+    (r.x, r.y, r.width, r.height)
+}
+
+/// CSS 2.1 §10.1 (and CSS Position 3 §2.1): "the containing block is
+/// formed by the padding edge of the ancestor" — an absolutely
+/// positioned box's insets count from inside its positioned ancestor's
+/// border, not from its border box (C7-ABSPOS-PADDING-EDGE).
+#[test]
+fn an_absolutely_positioned_box_is_placed_in_the_padding_box() {
+    let css = ".cb { position: relative; border: solid; padding: 1; width: 10; height: 3 } \
+               .abs { position: absolute; top: 0; left: 0; width: 2; height: 1 }";
+    assert_eq!(in_cb(css), (1, 1, 2, 1));
+    let css = ".cb { position: relative; border: solid; padding: 1; width: 10; height: 3 } \
+               .abs { position: absolute; inset: 0 }";
+    assert_eq!(in_cb(css), (1, 1, 12, 5));
+}
+
+/// CSS Grid 2 §9.1 with CSS 2.1 §10.1: an `auto` grid line of an
+/// absolutely positioned box is the containing block's padding edge.
+#[test]
+fn an_auto_grid_line_is_the_padding_edge() {
+    let css = ".cb { display: grid; position: relative; border: solid; \
+               grid-template-columns: 2 3; grid-template-rows: 2 } \
+               .abs { position: absolute; inset: 0; grid-column: 2 }";
+    assert_eq!(in_cb(css), (3, 1, 16, 2));
+}
