@@ -67,10 +67,16 @@ pub trait TuiNodeExt<'a>: crate::sealed::Sealed {
             .and_then(|s| s.direction.as_ref())
             .and_then(|v| v.as_specified().copied())
     }
+    /// The inline style's four `padding-*`s, when every one is set.
     fn padding(&self) -> Option<Padding> {
-        self.inline_style()
-            .and_then(|s| s.padding.as_ref())
-            .and_then(|v| v.as_specified().cloned())
+        let sides = &self.inline_style()?.padding;
+        let [top, right, bottom, left] = sides.each().map(|s| s.as_ref()?.as_specified().cloned());
+        Some(Padding {
+            top: top?,
+            right: right?,
+            bottom: bottom?,
+            left: left?,
+        })
     }
     /// The inline style's four `border-*-style`s, when every one is set.
     fn border(&self) -> Option<Border> {

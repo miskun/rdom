@@ -19,7 +19,7 @@ mod sizing_sites;
 mod writing;
 
 /// A `tag` element with `class`, appended to `parent`.
-fn el(dom: &mut TuiDom, parent: NodeId, tag: &str, class: &str) -> NodeId {
+pub(crate) fn el(dom: &mut TuiDom, parent: NodeId, tag: &str, class: &str) -> NodeId {
     let id = dom.create_element(tag);
     if !class.is_empty() {
         dom.set_attribute(id, "class", class).unwrap();
@@ -30,7 +30,7 @@ fn el(dom: &mut TuiDom, parent: NodeId, tag: &str, class: &str) -> NodeId {
 
 /// Cascade `css` (strict: no warnings) at a `w` × `h` viewport and lay
 /// the tree out in it.
-fn lay_out(dom: &mut TuiDom, css: &str, w: u16, h: u16) {
+pub(crate) fn lay_out(dom: &mut TuiDom, css: &str, w: u16, h: u16) {
     let sheet = rdom_css::from_css_strict(css).expect("sheet parses without warnings");
     // The viewport first, so `vw` / `vh` resolve against it (C2-VIEWPORT).
     dom.set_viewport(rdom_tui::calc::Viewport::new(w, h));
@@ -39,7 +39,7 @@ fn lay_out(dom: &mut TuiDom, css: &str, w: u16, h: u16) {
 }
 
 /// Cascade, lay out and paint `css` in `w` × `h`.
-fn paint(dom: &mut TuiDom, css: &str, w: u16, h: u16) -> Buffer {
+pub(crate) fn paint(dom: &mut TuiDom, css: &str, w: u16, h: u16) -> Buffer {
     lay_out(dom, css, w, h);
     let area = Rect::new(0, 0, w, h);
     let mut buf = Buffer::empty(area);
@@ -48,18 +48,18 @@ fn paint(dom: &mut TuiDom, css: &str, w: u16, h: u16) -> Buffer {
 }
 
 /// `id`'s border-box rect.
-fn rect(dom: &TuiDom, id: NodeId) -> LayoutRect {
+pub(crate) fn rect(dom: &TuiDom, id: NodeId) -> LayoutRect {
     dom.node(id).layout_rect().expect("laid out")
 }
 
 /// `(width, height)` of `id`'s border box.
-fn size(dom: &TuiDom, id: NodeId) -> (u16, u16) {
+pub(crate) fn size(dom: &TuiDom, id: NodeId) -> (u16, u16) {
     let r = rect(dom, id);
     (r.width, r.height)
 }
 
 /// The glyphs of a `w` × `h` region, row by row.
-fn rows(buf: &Buffer, w: u16, h: u16) -> Vec<String> {
+pub(crate) fn rows(buf: &Buffer, w: u16, h: u16) -> Vec<String> {
     (0..h)
         .map(|y| {
             (0..w)

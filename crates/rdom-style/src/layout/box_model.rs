@@ -165,6 +165,39 @@ impl Margin {
     }
 }
 
+/// The four sides as [`Sides`](super::Sides) — the shape of the
+/// `margin-*` longhands, one per side.
+impl From<Margin> for super::Sides<MarginValue> {
+    fn from(m: Margin) -> Self {
+        super::Sides::new(m.top, m.right, m.bottom, m.left)
+    }
+}
+
+impl From<super::Sides<MarginValue>> for Margin {
+    fn from(s: super::Sides<MarginValue>) -> Self {
+        Self::new(s.top, s.right, s.bottom, s.left)
+    }
+}
+
+/// The four sides as [`Sides`](super::Sides) — the shape of the
+/// `padding-*` longhands, one per side.
+impl From<Padding> for super::Sides<PaddingValue> {
+    fn from(p: Padding) -> Self {
+        super::Sides::new(p.top, p.right, p.bottom, p.left)
+    }
+}
+
+impl From<super::Sides<PaddingValue>> for Padding {
+    fn from(s: super::Sides<PaddingValue>) -> Self {
+        Self {
+            top: s.top,
+            right: s.right,
+            bottom: s.bottom,
+            left: s.left,
+        }
+    }
+}
+
 /// `.margin(2)` shortcut — applies `n` cells to all four sides.
 /// Mirrors the ergonomic that `MinSize::From<u16>` provides for
 /// `.min_width(10)`.

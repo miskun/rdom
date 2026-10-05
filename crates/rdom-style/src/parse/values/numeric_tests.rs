@@ -56,9 +56,9 @@ fn percent_round_trips_through_every_length_property() {
     use crate::TuiStyle;
     use crate::property_dispatch::{serialize, set};
     for (name, value, expected) in [
-        ("padding", "10% 2", "10% 2 10% 2"),
+        ("padding", "10% 2", "10% 2"),
         ("padding-top", "10%", "10%"),
-        ("margin", "-10% auto", "-10% auto -10% auto"),
+        ("margin", "-10% auto", "-10% auto"),
         ("margin-left", "5%", "5%"),
         ("top", "50%", "50%"),
         ("left", "-25%", "-25%"),

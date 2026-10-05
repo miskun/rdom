@@ -79,8 +79,9 @@ pub use layout::{
     Align, AspectRatio, BackgroundAttachment, BackgroundRepeat, Border, BorderRadius,
     BorderSpacing, BorderStyle, BorderWeight, BorderWidth, BoxShadow, BoxSizing,
     ContainIntrinsicSize, CornerStyle, Corners, Direction, Display, FlexBasis, Flow, IntrinsicSize,
-    LayoutRect, MarginTrim, MaxSize, MinSize, Overflow, Padding, PaintLength, RepeatStyle, Sides,
-    Size, TextDirection, UserSelect, VisualBox, WhiteSpace, WritingMode,
+    LayoutRect, Margin, MarginTrim, MarginValue, MaxSize, MinSize, Overflow, Padding, PaddingValue,
+    PaintLength, RepeatStyle, Sides, Size, TextDirection, UserSelect, VisualBox, WhiteSpace,
+    WritingMode,
 };
 pub use node::{TuiNodeExt, TuiNodeMutExt};
 /// `@import` resolution for the document's `<style>` sheets

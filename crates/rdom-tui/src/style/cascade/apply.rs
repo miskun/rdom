@@ -96,14 +96,14 @@ pub(super) fn apply_style(
     // specified as written, `inherit` the parent's field, `initial` the
     // field of `ComputedStyle::initial()`.
     macro_rules! value {
-        ($($field:ident: $mask:ident),* $(,)?) => {$(
+        ($($($field:ident).+: $mask:ident),* $(,)?) => {$(
             apply_value(
-                &mut working.$field,
-                &style.$field,
+                &mut working.$($field).+,
+                &style.$($field).+,
                 style.important.contains(ImportantMask::$mask),
                 important_pass,
                 kw,
-                |c| &c.$field,
+                |c| &c.$($field).+,
             );
         )*};
     }
@@ -167,9 +167,19 @@ pub(super) fn apply_style(
     // `aspect-ratio`: the declared value is the computed `Option` itself
     // (`auto` alone is `None`).
     value!(aspect_ratio: ASPECT_RATIO);
+    // The `padding-*` / `margin-*` longhands, one declaration per side
+    // (CSS Box 3 §3.2 / §4.2).
     value!(
-        padding: PADDING,
-        margin: MARGIN,
+        padding.top: PADDING_TOP,
+        padding.right: PADDING_RIGHT,
+        padding.bottom: PADDING_BOTTOM,
+        padding.left: PADDING_LEFT,
+        margin.top: MARGIN_TOP,
+        margin.right: MARGIN_RIGHT,
+        margin.bottom: MARGIN_BOTTOM,
+        margin.left: MARGIN_LEFT,
+    );
+    value!(
         margin_trim: MARGIN_TRIM,
         gap: GAP,
         flex_shrink: FLEX_SHRINK,

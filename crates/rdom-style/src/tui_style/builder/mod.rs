@@ -104,26 +104,34 @@ impl TuiStyle {
         self
     }
 
-    setter!(
-        "padding",
-        padding,
-        padding,
-        padding_important,
-        PADDING,
-        Padding
-    );
-    /// Set the `margin` property. Accepts a `Margin` struct or a
-    /// plain `i16` (via `From<i16> for Margin` — applies `n` cells
-    /// on all four sides). Chainable.
-    pub fn margin(mut self, v: impl Into<crate::layout::Margin>) -> Self {
-        self.margin = Some(Value::Specified(v.into()));
+    /// Set the `padding` shorthand: the four `padding-*` longhands.
+    /// Chainable.
+    pub fn padding(mut self, v: Padding) -> Self {
+        self.padding = Sides::from(v).map(|v| Some(Value::Specified(v)));
         self
     }
-    /// Like `margin` but marks the declaration `!important`.
-    pub fn margin_important(mut self, v: impl Into<crate::layout::Margin>) -> Self {
-        self.margin = Some(Value::Specified(v.into()));
-        self.important |= ImportantMask::MARGIN;
+    /// Like `padding` but marks the four longhands `!important`.
+    pub fn padding_important(mut self, v: Padding) -> Self {
+        self.important |= ImportantMask::PADDING_TOP
+            | ImportantMask::PADDING_RIGHT
+            | ImportantMask::PADDING_BOTTOM
+            | ImportantMask::PADDING_LEFT;
+        self.padding(v)
+    }
+    /// Set the `margin` shorthand: the four `margin-*` longhands. Accepts
+    /// a `Margin` struct or a plain `i16` (via `From<i16> for Margin` —
+    /// applies `n` cells on all four sides). Chainable.
+    pub fn margin(mut self, v: impl Into<crate::layout::Margin>) -> Self {
+        self.margin = Sides::from(v.into()).map(|v| Some(Value::Specified(v)));
         self
+    }
+    /// Like `margin` but marks the four longhands `!important`.
+    pub fn margin_important(mut self, v: impl Into<crate::layout::Margin>) -> Self {
+        self.important |= ImportantMask::MARGIN_TOP
+            | ImportantMask::MARGIN_RIGHT
+            | ImportantMask::MARGIN_BOTTOM
+            | ImportantMask::MARGIN_LEFT;
+        self.margin(v)
     }
     /// Set `gap`: whole cells (`gap(2)`) or a `calc()` / percentage
     /// (`gap(GapValue::from(CalcExpr::Percent(10.0)))`), resolved at

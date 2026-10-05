@@ -278,3 +278,28 @@ fn scroll_token_and_line_hints() {
         atomic: false,
     };
 }
+
+/// C6-MARGIN-SIDES: `margin` / `padding` are per-side longhands on
+/// `TuiStyle`, with a bit per side; `Margin` / `Padding` convert to and
+/// from `Sides`.
+#[test]
+fn spacing_side_hints() {
+    let mut style = TuiStyle::new().margin(1).padding(Padding::all(2));
+    assert_eq!(
+        style.margin.top,
+        Some(Value::Specified(MarginValue::Cells(1)))
+    );
+    style.padding = Sides::from(Padding::all(3)).map(|v| Some(Value::Specified(v)));
+    let back = Padding::from(style.padding.clone().map(|v| match v {
+        Some(Value::Specified(p)) => p,
+        _ => PaddingValue::default(),
+    }));
+    assert_eq!(back, Padding::all(3));
+    let mask = ImportantMask::MARGIN_TOP
+        | ImportantMask::MARGIN_RIGHT
+        | ImportantMask::MARGIN_BOTTOM
+        | ImportantMask::MARGIN_LEFT
+        | ImportantMask::PADDING_TOP;
+    assert!(!style.important.intersects(mask));
+    let _ = Margin::from(Sides::all(MarginValue::Auto));
+}

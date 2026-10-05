@@ -115,7 +115,9 @@ pub trait TuiNodeMutExt<'a>: crate::sealed::Sealed {
         self
     }
     fn set_padding(&mut self, p: Padding) -> &mut Self {
-        self.write_inline_style(|s| s.padding = Some(Value::Specified(p)));
+        self.write_inline_style(|s| {
+            s.padding = crate::layout::Sides::from(p).map(|v| Some(Value::Specified(v)))
+        });
         self
     }
     /// Set the inline style's four `border-*-style`s.

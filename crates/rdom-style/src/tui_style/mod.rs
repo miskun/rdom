@@ -20,7 +20,7 @@ use crate::Color;
 #[cfg(test)]
 use crate::layout::Border;
 use crate::layout::{
-    CaretColor, CaretTextColor, Direction, Display, Overflow, Padding, Sides, Size, TextDecoration,
+    CaretColor, CaretTextColor, Direction, Display, Overflow, Sides, Size, TextDecoration,
     UserSelect, WhiteSpace,
 };
 use crate::{Content, TuiColor, Value};
@@ -90,8 +90,12 @@ pub struct TuiStyle {
     pub contain_intrinsic_width: Option<Value<crate::layout::ContainIntrinsicSize>>,
     /// `contain-intrinsic-height` (also `contain-intrinsic-block-size`).
     pub contain_intrinsic_height: Option<Value<crate::layout::ContainIntrinsicSize>>,
-    pub padding: Option<Value<Padding>>,
-    pub margin: Option<Value<crate::layout::Margin>>,
+    /// `padding-top` … `padding-left` (CSS Box 3 §4.2), one longhand
+    /// per side; initial `0`.
+    pub padding: Sides<Option<Value<crate::layout::PaddingValue>>>,
+    /// `margin-top` … `margin-left` (CSS Box 3 §3.2), one longhand per
+    /// side; initial `0`.
+    pub margin: Sides<Option<Value<crate::layout::MarginValue>>>,
     /// `margin-trim` (CSS Box 4 §3).
     pub margin_trim: Option<Value<crate::layout::MarginTrim>>,
     pub gap: Option<Value<crate::layout::GapValue>>,
@@ -382,9 +386,8 @@ impl TuiStyle {
         .iter()
         .filter(|set| **set)
         .count();
-        if self.padding.is_some() {
-            n += 1
-        }
+        n += self.padding.each().iter().filter(|p| p.is_some()).count();
+        n += self.margin.each().iter().filter(|m| m.is_some()).count();
         if self.gap.is_some() {
             n += 1
         }

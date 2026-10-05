@@ -298,8 +298,14 @@ define_fields! {
     Gap => gap : GAP,
     FlexShrink => flex_shrink : FLEX_SHRINK,
     FlexBasis => flex_basis : FLEX_BASIS,
-    Padding => padding : PADDING,
-    Margin => margin : MARGIN,
+    PaddingTop => padding.top : PADDING_TOP,
+    PaddingRight => padding.right : PADDING_RIGHT,
+    PaddingBottom => padding.bottom : PADDING_BOTTOM,
+    PaddingLeft => padding.left : PADDING_LEFT,
+    MarginTop => margin.top : MARGIN_TOP,
+    MarginRight => margin.right : MARGIN_RIGHT,
+    MarginBottom => margin.bottom : MARGIN_BOTTOM,
+    MarginLeft => margin.left : MARGIN_LEFT,
     MarginTrim => margin_trim : MARGIN_TRIM,
     BorderTopStyle => border_style.top : BORDER_TOP_STYLE,
     BorderRightStyle => border_style.right : BORDER_RIGHT_STYLE,
@@ -330,8 +336,8 @@ define_fields! {
 
 /// The fields a property name owns — the one property → field table.
 /// Shorthands own several (`overflow` → X + Y, `inset` → the four
-/// sides); per-side `padding-*` / `margin-*` / `border-*` longhands
-/// share the shorthand's single field. `display` owns the derived
+/// sides, `margin` → its four longhands); a per-side longhand owns its
+/// side's field. `display` owns the derived
 /// `flow` too, so removing or `inherit`ing `display` cannot leave a
 /// stale flow behind. `None` for unknown names.
 pub(super) fn fields_of(name: &str) -> Option<&'static [Field]> {
@@ -395,10 +401,17 @@ pub(super) fn fields_of(name: &str) -> Option<&'static [Field]> {
         "gap" => &[Gap],
         "flex" => &[Width, Height, FlexShrink, FlexBasis],
         "flex-shrink" => &[FlexShrink],
-        "padding" | "padding-top" | "padding-right" | "padding-bottom" | "padding-left" => {
-            &[Padding]
-        }
-        "margin" | "margin-top" | "margin-right" | "margin-bottom" | "margin-left" => &[Margin],
+        // CSS Box 3 §3.2 / §4.2: the shorthand sets the four longhands.
+        "padding" => &[PaddingTop, PaddingRight, PaddingBottom, PaddingLeft],
+        "padding-top" => &[PaddingTop],
+        "padding-right" => &[PaddingRight],
+        "padding-bottom" => &[PaddingBottom],
+        "padding-left" => &[PaddingLeft],
+        "margin" => &[MarginTop, MarginRight, MarginBottom, MarginLeft],
+        "margin-top" => &[MarginTop],
+        "margin-right" => &[MarginRight],
+        "margin-bottom" => &[MarginBottom],
+        "margin-left" => &[MarginLeft],
         "margin-trim" => &[MarginTrim],
         // CSS Backgrounds 3 §4.4: `border` sets every side's style,
         // width and color; `border-<side>` its side's.
@@ -508,9 +521,8 @@ pub fn property_mask(name: &str) -> Option<crate::ImportantMask> {
 /// property was previously set (any of its fields was `Some`).
 /// Returns `false` for unknown names.
 ///
-/// Per-side longhands (`padding-top`, …) share the shorthand's storage,
-/// so removing any of them clears the whole thing — the same way CSSOM
-/// `removeProperty("padding-top")` clears the entry.
+/// A shorthand removes its longhands; a longhand (`padding-top`) its
+/// own side only (CSSOM §6.6 `removeProperty`).
 pub fn remove(name: &str, style: &mut TuiStyle) -> bool {
     if let Some(custom) = name.strip_prefix("--") {
         return style.remove_custom_property(custom);

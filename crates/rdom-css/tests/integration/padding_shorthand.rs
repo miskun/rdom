@@ -16,16 +16,13 @@ use rdom_tui::style::Value;
 fn padding_of(source: &str) -> Padding {
     let r = parse(source);
     assert!(r.warnings.is_empty(), "warnings: {:?}", r.warnings);
-    let v = r.stylesheet.rules()[0]
-        .style
-        .padding
-        .as_ref()
-        .expect("padding declared")
-        .clone();
-    match v {
-        Value::Specified(p) => p,
-        _ => panic!("expected Specified, got {v:?}"),
-    }
+    let sides = r.stylesheet.rules()[0].style.padding.clone();
+    // An undeclared side is the initial `0`.
+    Padding::from(sides.map(|v| match v {
+        Some(Value::Specified(p)) => p,
+        None => PaddingValue::default(),
+        other => panic!("expected Specified, got {other:?}"),
+    }))
 }
 
 #[test]

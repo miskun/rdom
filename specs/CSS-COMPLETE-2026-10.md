@@ -135,7 +135,7 @@ row comes from.
 
 | Id | Item | Status |
 |---|---|---|
-| C6-MARGIN-SIDES | `margin` / `padding` stored per side (each side its own longhand with its own `!important` bit), so a logical or physical side cascades alone — finishes C5G-LOGICAL-IMPORTANT | |
+| C6-MARGIN-SIDES | `margin` / `padding` stored per side (each side its own longhand with its own `!important` bit), so a logical or physical side cascades alone — finishes C5G-LOGICAL-IMPORTANT || done |
 | C6-DISPLAY-KEYWORDS | `display: contents` / `flow-root` / multi-keyword syntax | |
 | C6-VISIBILITY | `visibility: visible / hidden / collapse` | |
 | C6-ORDER | `order` | |
@@ -1861,7 +1861,7 @@ row comes from.
   `set_important` / `is_important`); green after. Changed along the way: the first draft returned
   nothing for an undeclared inline-axis name, which broke `all_shorthand_sets_every_property_in_the_table`
   (`None` against `initial`) — the fallback to the fields above fixes it; no expectation changed.
-- 2026-10-07 — C5G-LOGICAL-IMPORTANT (gate fix; partial for margin / padding, below): an `!important`
+- 2026-10-07 — C5G-LOGICAL-IMPORTANT (gate fix; margin / padding finished by C6-MARGIN-SIDES): an `!important`
   inline-axis declaration is important on the side it maps to only (CSS Cascade 4 §6.4: importance
   is per declaration; CSS Logical 1 §4). `set_important` no longer sets the physical bits for an
   inline-axis name — its flag on the kept declaration (C5G-CSSOM-LOGICAL) is its importance. The
@@ -1878,7 +1878,7 @@ row comes from.
   physical — it took both sides' fields and bits — splitting a wider shorthand into its remaining
   longhands (values and priority kept); `remove` keeps the kept declarations while an inline-axis
   one remains (it cleared them when no `var()` was left). DIVERGENCES §2: the "both sides important /
-  `removeProperty` clears both" edges removed from the flow-relative entry. Decided — partial:
+  `removeProperty` clears both" edges removed from the flow-relative entry. Decided — left to C6-MARGIN-SIDES:
   `margin` and `padding` keep one value for their four sides (the existing per-side-longhands entry,
   DIVERGENCES §2), so an important side makes the rule's whole margin important; the brief's
   `.a { margin-inline-start: 1 !important; margin-right: 2 } .a.b { margin-right: 5 }` still gives 2
@@ -1969,3 +1969,33 @@ row comes from.
   margin / padding importance stays whole-field (C5G-LOGICAL-IMPORTANT; DIVERGENCES §2, the
   per-side-longhands entry — per-side margin / padding storage would fix it); `vertical-align` beyond
   `baseline` for inline blocks (C9-VERTICAL-ALIGN; C5G-ATOM-BOX laid the line-box heights it builds on).
+- 2026-10-08 — C6-MARGIN-SIDES (finishes C5G-LOGICAL-IMPORTANT): `margin-*` and `padding-*` are
+  independent longhands (CSS Box 3 §3.2 / §4.2), the model C4-BORDER-SIDES gave the borders.
+  `TuiStyle::margin` / `padding` are `Sides<Option<Value<MarginValue | PaddingValue>>>` (Breaking —
+  rdom-style); the field table (C4G-IMPORTANT-BITSET) has a row per side, so each side has its own
+  `ImportantMask` bit (`MARGIN_TOP` … `PADDING_LEFT`; `MARGIN` / `PADDING` gone) and `fields_of`
+  gives a longhand its side and a shorthand the four, which routes importance, `removeProperty`
+  and the CSS-wide keywords per side (`padding-top: inherit` inherits the top only). The cascade
+  applies each side as its own declaration (`apply.rs`'s `value!` takes a field path). Removed with
+  the single value: `parse::values::current_margin` / `current_padding` (the longhands' merge
+  helpers) and the `pending` replay's seeding of the block's margin / padding (C5-LOGICAL's
+  `a_substituted_longhand_keeps_its_shorthands_other_sides` still holds — the replayed side is its
+  own field now). Decided: `ComputedStyle::margin` / `padding` stay `Margin` / `Padding` (computed
+  values are per box, not per declaration); `Margin` / `Padding` ↔ `Sides` conversions; the
+  shorthands serialize only when every side is set, in the shortest form (CSSOM §6.7.2, the
+  `shortest_sides` helper border.rs had, now shared in `value_serializers.rs`), and `cssText` lists
+  `margin` once when it serializes (as `padding` already did); rdom-tui re-exports `Margin`,
+  `MarginValue`, `PaddingValue` at its root. `declared_count` now counts margins (it skipped them)
+  and each padding side. DIVERGENCES §2 "Per-side longhands share the shorthand's storage" removed.
+  Red: `css_phase6/margin_sides.rs` — the gate example `.a { margin-inline-start: 1 !important;
+  margin-right: 2 } .a.b { margin-right: 5 }` gave right `Cells(2)` against `Cells(5)` (and the
+  padding twin), a later rule's `margin-left` zeroed an earlier `margin-top` (`Cells(0)` against 1),
+  `padding-top: inherit` took the whole padding (`Cells(4)` left against 7), an important
+  `margin-top` beat a later `margin: 1` on every side; green after. `property_dispatch/spacing_tests.rs`
+  (per-side bits, a longhand alone, shortest serialization, a keyword on one side) was written with
+  the new names and so cannot compile against the old storage. Changed expectations: the shortest
+  shorthand form (`10% 2` for `10% 2 10% 2`, `-10% auto`, `1` for `1 1 1 1` in rdom-css
+  `important.rs`); `declared_count` 10 → 13 and 24 → 27 (padding counts four sides); the dispatch
+  and rdom-css tests read sides instead of one `Margin` / `Padding`, and
+  `padding_side_important_sets_its_sides_bit` (was `…_sets_padding_bit`) asserts the top bit only.
+  No layout or paint expectation changed; no snapshot changed.

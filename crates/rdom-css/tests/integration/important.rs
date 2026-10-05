@@ -52,13 +52,19 @@ fn display_important_sets_display_bit() {
 #[test]
 fn padding_important_sets_padding_bit() {
     let s = first_style("a { padding: 1 2 3 4 !important; }");
-    assert!(s.important.contains(ImportantMask::PADDING));
+    assert!(s.important.contains(
+        ImportantMask::PADDING_TOP
+            | ImportantMask::PADDING_RIGHT
+            | ImportantMask::PADDING_BOTTOM
+            | ImportantMask::PADDING_LEFT
+    ));
 }
 
 #[test]
-fn padding_side_important_sets_padding_bit() {
+fn padding_side_important_sets_its_sides_bit() {
     let s = first_style("a { padding-top: 5 !important; }");
-    assert!(s.important.contains(ImportantMask::PADDING));
+    assert!(s.important.contains(ImportantMask::PADDING_TOP));
+    assert!(!s.important.intersects(ImportantMask::PADDING_LEFT));
 }
 
 #[test]
@@ -85,7 +91,7 @@ fn multiple_declarations_each_track_separately() {
     let s = first_style("a { color: red !important; gap: 2; padding: 1 !important; }");
     assert!(s.important.contains(ImportantMask::FG));
     assert!(!s.important.contains(ImportantMask::GAP));
-    assert!(s.important.contains(ImportantMask::PADDING));
+    assert!(s.important.contains(ImportantMask::PADDING_LEFT));
 }
 
 // ── Importance within one declaration block (C1G-BLOCK-IMPORTANCE) ──
@@ -119,7 +125,7 @@ fn a_later_important_declaration_overrides_an_earlier_important_one() {
 #[test]
 fn a_later_normal_longhand_does_not_override_an_important_shorthand() {
     let s = first_style("a { padding: 1 !important; padding-left: 5; }");
-    assert_eq!(serialize("padding", &s).as_deref(), Some("1 1 1 1"));
+    assert_eq!(serialize("padding", &s).as_deref(), Some("1"));
 }
 
 #[test]

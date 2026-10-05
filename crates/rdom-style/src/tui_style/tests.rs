@@ -13,7 +13,7 @@ fn pointer_events_importance_does_not_mark_flow() {
 }
 
 use super::*;
-use crate::layout::MaxSize;
+use crate::layout::{MaxSize, Padding};
 
 #[test]
 fn default_is_empty() {
@@ -99,7 +99,12 @@ fn unified_layout_fields_settable() {
         .overflow(Overflow::Hidden);
 
     assert_eq!(s.width, Some(Value::Specified(Size::Fixed(40))));
-    assert_eq!(s.padding, Some(Value::Specified(Padding::all(2))));
+    assert_eq!(
+        s.padding,
+        Sides::all(Some(Value::Specified(crate::layout::PaddingValue::Cells(
+            2
+        ))))
+    );
     assert_eq!(
         s.gap,
         Some(Value::Specified(crate::layout::GapValue::Cells(1)))
@@ -112,8 +117,9 @@ fn unified_layout_fields_settable() {
     // `overflow` shorthand writes both longhands.
     assert_eq!(s.overflow_x, Some(Value::Specified(Overflow::Hidden)));
     assert_eq!(s.overflow_y, Some(Value::Specified(Overflow::Hidden)));
-    // 4 properties above + 4 border-style sides + 2 axes of overflow = 10.
-    assert_eq!(s.declared_count(), 10);
+    // 3 properties above + 4 padding sides + 4 border-style sides + 2
+    // axes of overflow = 13.
+    assert_eq!(s.declared_count(), 13);
 }
 
 #[test]
@@ -211,8 +217,9 @@ fn every_property_has_a_setter() {
         .overflow(Overflow::Hidden)
         .content(Content::Str("x".into()));
     // The `overflow` shorthand counts as 2 (writes both axes), and
-    // `border_fg` and `border` as 4 each (one longhand per side).
-    assert_eq!(s.declared_count(), 24);
+    // `border_fg`, `border` and `padding` as 4 each (one longhand per
+    // side).
+    assert_eq!(s.declared_count(), 27);
 }
 
 #[test]

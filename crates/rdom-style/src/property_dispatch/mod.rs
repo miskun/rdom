@@ -99,6 +99,8 @@ mod logical_tests;
 #[cfg(test)]
 mod sizing_tests;
 #[cfg(test)]
+mod spacing_tests;
+#[cfg(test)]
 mod tests;
 #[cfg(test)]
 mod writing_tests;

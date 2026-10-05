@@ -92,7 +92,7 @@ fn ua_tree_aria_rules() {
     // chevron cell — both via left padding.
     for sel in ["[role=group]", "[role=treeitem]"] {
         assert!(
-            ua[sel].style.padding.is_some(),
+            ua[sel].style.padding.left.is_some(),
             "`{sel}` must declare indent/chevron padding",
         );
     }

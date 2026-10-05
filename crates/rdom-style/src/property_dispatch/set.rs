@@ -1,26 +1,25 @@
 //! `set_parsed`: parse a declaration value with its property's grammar
 //! and write the owned `TuiStyle` field(s). Owns CSS-wide keyword
-//! routing and the per-side longhand merge rules (`padding-top`,
-//! `border-left-style`, …) that read the current shorthand value before
-//! writing one side. Declaring on a block — `set` / `set_from_tokens`,
+//! routing; a per-side longhand (`padding-top`, `border-left-style`,
+//! …) writes its own side's field. Declaring on a block — `set` / `set_from_tokens`,
 //! what is kept for the cascade, custom properties — is `declare`.
 
 use super::DispatchError;
 use super::css_wide::{css_wide_keyword, set_css_wide};
 use super::table::canonical_property_name;
 use crate::layout::{
-    CaretColor, CaretTextColor, Direction, Display, Size, TextDirection, UserSelect, WhiteSpace,
+    CaretColor, CaretTextColor, Direction, Display, Sides, Size, TextDirection, UserSelect,
+    WhiteSpace,
 };
 use crate::parse::token::Token;
 use crate::parse::values::{
-    current_margin, current_padding, parse_aspect_ratio, parse_color, parse_content,
-    parse_counter_ops, parse_flex_factor, parse_flex_shorthand, parse_gap, parse_inset_shorthand,
-    parse_keyword, parse_length, parse_margin_longhand, parse_margin_shorthand, parse_max_size,
-    parse_min_size, parse_opacity, parse_overflow, parse_padding_shorthand, parse_padding_value,
-    parse_position, parse_scroll_behavior, parse_scrollbar_gutter, parse_size,
-    parse_text_decoration, parse_time_list, parse_timing_function_list,
-    parse_transition_property_list, parse_transition_shorthand, parse_z_index,
-    unzip_transition_rules,
+    parse_aspect_ratio, parse_color, parse_content, parse_counter_ops, parse_flex_factor,
+    parse_flex_shorthand, parse_gap, parse_inset_shorthand, parse_keyword, parse_length,
+    parse_margin_longhand, parse_margin_shorthand, parse_max_size, parse_min_size, parse_opacity,
+    parse_overflow, parse_padding_shorthand, parse_padding_value, parse_position,
+    parse_scroll_behavior, parse_scrollbar_gutter, parse_size, parse_text_decoration,
+    parse_time_list, parse_timing_function_list, parse_transition_property_list,
+    parse_transition_shorthand, parse_z_index, unzip_transition_rules,
 };
 use crate::{TuiStyle, Value};
 
@@ -337,52 +336,36 @@ fn set_physical(name: &str, value: &[Token], style: &mut TuiStyle) -> Result<(),
 
         // Padding shorthand + longhands
         "padding" => parse_padding_shorthand(value).map(|p| {
-            style.padding = Some(Value::Specified(p));
+            style.padding = Sides::from(p).map(|v| Some(Value::Specified(v)));
         }),
         "padding-top" => parse_padding_value(value).map(|v| {
-            let mut p = current_padding(style);
-            p.top = v;
-            style.padding = Some(Value::Specified(p));
+            style.padding.top = Some(Value::Specified(v));
         }),
         "padding-right" => parse_padding_value(value).map(|v| {
-            let mut p = current_padding(style);
-            p.right = v;
-            style.padding = Some(Value::Specified(p));
+            style.padding.right = Some(Value::Specified(v));
         }),
         "padding-bottom" => parse_padding_value(value).map(|v| {
-            let mut p = current_padding(style);
-            p.bottom = v;
-            style.padding = Some(Value::Specified(p));
+            style.padding.bottom = Some(Value::Specified(v));
         }),
         "padding-left" => parse_padding_value(value).map(|v| {
-            let mut p = current_padding(style);
-            p.left = v;
-            style.padding = Some(Value::Specified(p));
+            style.padding.left = Some(Value::Specified(v));
         }),
 
         // Margin shorthand + longhands
         "margin" => parse_margin_shorthand(value).map(|m| {
-            style.margin = Some(Value::Specified(m));
+            style.margin = Sides::from(m).map(|v| Some(Value::Specified(v)));
         }),
         "margin-top" => parse_margin_longhand(value).map(|v| {
-            let mut m = current_margin(style);
-            m.top = v;
-            style.margin = Some(Value::Specified(m));
+            style.margin.top = Some(Value::Specified(v));
         }),
         "margin-right" => parse_margin_longhand(value).map(|v| {
-            let mut m = current_margin(style);
-            m.right = v;
-            style.margin = Some(Value::Specified(m));
+            style.margin.right = Some(Value::Specified(v));
         }),
         "margin-bottom" => parse_margin_longhand(value).map(|v| {
-            let mut m = current_margin(style);
-            m.bottom = v;
-            style.margin = Some(Value::Specified(m));
+            style.margin.bottom = Some(Value::Specified(v));
         }),
         "margin-left" => parse_margin_longhand(value).map(|v| {
-            let mut m = current_margin(style);
-            m.left = v;
-            style.margin = Some(Value::Specified(m));
+            style.margin.left = Some(Value::Specified(v));
         }),
 
         "margin-trim" => crate::parse::values::parse_margin_trim(value).map(|t| {

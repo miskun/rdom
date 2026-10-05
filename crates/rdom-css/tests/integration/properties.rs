@@ -5,9 +5,7 @@
 //! (§11.5).
 
 use rdom_css::{WarningKind, parse};
-use rdom_tui::layout::{
-    Direction, Display, Overflow, Padding, PaddingValue, Size, UserSelect, WhiteSpace,
-};
+use rdom_tui::layout::{Direction, Display, Overflow, PaddingValue, Size, UserSelect, WhiteSpace};
 use rdom_tui::style::{Content, Value};
 use rdom_tui::{Color, TuiColor};
 
@@ -170,12 +168,7 @@ fn padding_single_value() {
     let s = first_style("a { padding: 1; }");
     assert_eq!(
         s.padding,
-        Some(Value::Specified(Padding {
-            top: PaddingValue::Cells(1),
-            right: PaddingValue::Cells(1),
-            bottom: PaddingValue::Cells(1),
-            left: PaddingValue::Cells(1)
-        }))
+        rdom_tui::layout::Sides::all(Some(Value::Specified(PaddingValue::Cells(1))))
     );
 }
 
@@ -199,7 +192,7 @@ fn border_keyword_half_block() {
     let s = first_style("a { border: half-block; }");
     assert_eq!(
         s.border_style,
-        rdom_style::layout::Sides::all(Some(Value::Specified(BorderStyle::HalfBlock)))
+        rdom_tui::layout::Sides::all(Some(Value::Specified(BorderStyle::HalfBlock)))
     );
 }
 

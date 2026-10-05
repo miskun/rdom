@@ -165,42 +165,26 @@ impl TuiStyle {
         cx: &SubstitutionContext<'_, '_>,
         keep: impl Fn(&PendingDeclaration) -> bool,
     ) -> TuiStyle {
-        // `margin` / `padding` keep their four sides in one field, which a
-        // replayed side longhand updates: it starts from the block's own
-        // sides (`margin: 1; margin-left: var(--x)` keeps 1 elsewhere).
         let mut out = TuiStyle {
             important: self.important,
-            margin: self.margin.clone(),
-            padding: self.padding.clone(),
             ..TuiStyle::default()
         };
-        let written = self.replay_pending(vars, cx, &mut out, keep);
-        // A side store no replayed declaration wrote is the block's own,
-        // which the block applies: the overlay leaves it alone.
-        if !written.intersects(crate::ImportantMask::MARGIN) {
-            out.margin = None;
-        }
-        if !written.intersects(crate::ImportantMask::PADDING) {
-            out.padding = None;
-        }
+        self.replay_pending(vars, cx, &mut out, keep);
         out
     }
 
     /// Replay the kept declarations `keep` picks onto `out`, in source
-    /// order, each marking the fields it writes with its own priority;
-    /// returns the bits of every field written.
+    /// order, each marking the fields it writes with its own priority.
     fn replay_pending(
         &self,
         vars: &HashMap<String, CustomValue>,
         cx: &SubstitutionContext<'_, '_>,
         out: &mut TuiStyle,
         keep: impl Fn(&PendingDeclaration) -> bool,
-    ) -> crate::ImportantMask {
-        let mut written = crate::ImportantMask::empty();
+    ) {
         for decl in self.pending.iter().filter(|d| keep(d)) {
             let mask =
                 crate::property_dispatch::mapped_mask(&decl.name, cx.direction).unwrap_or_default();
-            written |= mask;
             out.important = if decl.important {
                 out.important | mask
             } else {
@@ -226,6 +210,5 @@ impl TuiStyle {
                 crate::property_dispatch::set_unset_in(&decl.name, out, cx.direction);
             }
         }
-        written
     }
 }

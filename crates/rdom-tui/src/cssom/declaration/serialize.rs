@@ -19,13 +19,9 @@ use rdom_style::property_dispatch;
 /// remain available via `get_property_value("padding-top")`; the
 /// suppression is purely about cssText shape.
 ///
-/// Per-family deviation note: `padding` storage is consolidated
-/// (one `Padding` struct, not four `Option<u16>`), so
-/// `set_property("padding-top", "5")` ends up representable as
-/// `padding: 5 0 0 0` and emits the shorthand form. Browsers
-/// preserve "only padding-top was set" via per-side independent
-/// storage; rdom v1 normalizes to the shorthand. Round-trip stays
-/// lossless.
+/// A shorthand is representable only when every longhand of it is
+/// set (`set_property("padding-top", "5")` alone lists
+/// `padding-top: 5`), as in browsers (CSSOM §6.7.2).
 pub(crate) fn css_text_of(style: &TuiStyle) -> String {
     let mut out = String::new();
     for &name in property_dispatch::property_names() {
@@ -103,6 +99,7 @@ pub(crate) fn listed_under_logical_shorthand(name: &str, style: &TuiStyle) -> bo
 fn shorthand_family_of(name: &str) -> Option<&'static str> {
     match name {
         "padding-top" | "padding-right" | "padding-bottom" | "padding-left" => Some("padding"),
+        "margin-top" | "margin-right" | "margin-bottom" | "margin-left" => Some("margin"),
         "top" | "right" | "bottom" | "left" => Some("inset"),
         "overflow-x" | "overflow-y" => Some("overflow"),
         "transition-property"

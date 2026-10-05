@@ -4,7 +4,7 @@
 //! the matching parser in `crate::parse::values` reads back to the
 //! same value — the round-trip tests in `tests.rs` pin that.
 
-use crate::layout::{Length, Overflow, Size};
+use crate::layout::{Length, Overflow, Sides, Size};
 use crate::transition::{TimingFunction, TransitionProperty};
 use crate::{Color, Content, TuiColor, TuiStyle, Value};
 
@@ -407,4 +407,35 @@ pub(super) fn serialize_margin_trim(t: &crate::layout::MarginTrim) -> String {
     .map(|(_, name)| *name)
     .collect::<Vec<_>>()
     .join(" ")
+}
+
+/// Every side's specified value, if each side has one.
+pub(super) fn all_specified<T>(sides: &Sides<Option<Value<T>>>) -> Option<Sides<&T>> {
+    let [t, r, b, l] = sides.each().map(|s| s.as_ref().and_then(specified));
+    Some(Sides::new(t?, r?, b?, l?))
+}
+
+/// One to four side values in the shortest form that expands back to
+/// the same sides (CSSOM §6.7.2; CSS Backgrounds 3 §4.1).
+pub(super) fn shortest_sides(s: Sides<String>) -> String {
+    let Sides {
+        top,
+        right,
+        bottom,
+        left,
+    } = s;
+    if left != right {
+        format!("{top} {right} {bottom} {left}")
+    } else if top != bottom {
+        format!("{top} {right} {bottom}")
+    } else if top != right {
+        format!("{top} {right}")
+    } else {
+        top
+    }
+}
+
+/// One side's specified value as CSS text.
+pub(super) fn side_value<T>(side: &Option<Value<T>>, f: impl Fn(&T) -> String) -> Option<String> {
+    side.as_ref().and_then(specified).map(f)
 }

@@ -7,7 +7,6 @@ use super::numeric::{
 };
 use crate::layout::{GapValue, MarginTrim, MarginValue, Padding, PaddingValue};
 use crate::parse::token::Token;
-use crate::{TuiStyle, Value};
 
 /// `gap`: `<length-percentage [0,∞]>` — whole cells, a percentage or a
 /// math function; percent-bearing forms stay symbolic until layout
@@ -61,16 +60,6 @@ pub fn parse_padding_value(value: &[Token]) -> Option<PaddingValue> {
     }
 }
 
-/// Read the current padding from `style`, defaulting to all-zero
-/// when nothing is set. Used by the per-side longhands so consecutive
-/// declarations combine instead of overwriting.
-pub fn current_padding(style: &TuiStyle) -> Padding {
-    match &style.padding {
-        Some(Value::Specified(p)) => p.clone(),
-        _ => Padding::default(),
-    }
-}
-
 /// One margin value: `auto` | `<length-percentage>` (either sign). A
 /// percentage stays symbolic for layout, which resolves it against the
 /// containing block's width on every side (CSS Box 3 §3.2).
@@ -101,16 +90,6 @@ pub fn parse_margin_shorthand(value: &[Token]) -> Option<crate::layout::Margin> 
 /// Parse a single margin longhand (`margin-top`, etc.).
 pub fn parse_margin_longhand(value: &[Token]) -> Option<MarginValue> {
     parse_margin_value(value)
-}
-
-/// Read the current margin from `style`, defaulting to all-zero when
-/// nothing is set. Used by per-side longhands so consecutive
-/// declarations combine instead of overwriting.
-pub fn current_margin(style: &TuiStyle) -> crate::layout::Margin {
-    match &style.margin {
-        Some(Value::Specified(m)) => m.clone(),
-        _ => crate::layout::Margin::default(),
-    }
 }
 
 /// `margin-trim` (CSS Box 4 §3): `none | [block || inline] |

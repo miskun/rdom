@@ -24,12 +24,11 @@ fn resolved(s: &TuiStyle, direction: TextDirection) -> TuiStyle {
     s.substituted(&HashMap::new(), &cx)
 }
 
+/// The four margins in cells, an undeclared side 0.
 fn margin(s: &TuiStyle) -> [i16; 4] {
-    let Some(Value::Specified(m)) = &s.margin else {
-        panic!("no margin")
-    };
-    [&m.top, &m.right, &m.bottom, &m.left].map(|v| match v {
-        MarginValue::Cells(n) => *n,
+    s.margin.each().map(|v| match v {
+        None => 0,
+        Some(Value::Specified(MarginValue::Cells(n))) => *n,
         other => panic!("{other:?}"),
     })
 }
@@ -55,10 +54,10 @@ fn block_axis_and_size_properties_are_their_physical_twins() {
     assert_eq!(s.width, Some(Value::Specified(Size::Fixed(6))));
     assert_eq!(serialize("max-height", &s).as_deref(), Some("4"));
     assert_eq!(margin(&s), [1, 0, 2, 0]);
-    let Some(Value::Specified(p)) = &s.padding else {
-        panic!()
-    };
-    assert_eq!(p.top, PaddingValue::Cells(3));
+    assert_eq!(
+        s.padding.top,
+        Some(Value::Specified(PaddingValue::Cells(3)))
+    );
     assert_eq!(serialize("bottom", &s).as_deref(), Some("5"));
     assert_eq!(
         s.border_style.top,
@@ -111,19 +110,12 @@ fn inline_axis_properties_map_by_direction() {
     assert_eq!(margin(&resolved(&s, TextDirection::Ltr)), [0, 0, 0, 4]);
     assert_eq!(margin(&resolved(&s, TextDirection::Rtl)), [0, 4, 0, 0]);
     let p = |d| {
-        let Some(Value::Specified(p)) = resolved(&s, d).padding else {
-            panic!()
-        };
+        let p = resolved(&s, d).padding;
         (p.left, p.right)
     };
-    assert_eq!(
-        p(TextDirection::Ltr),
-        (PaddingValue::Cells(1), PaddingValue::Cells(2))
-    );
-    assert_eq!(
-        p(TextDirection::Rtl),
-        (PaddingValue::Cells(2), PaddingValue::Cells(1))
-    );
+    let cells = |n| Some(Value::Specified(PaddingValue::Cells(n)));
+    assert_eq!(p(TextDirection::Ltr), (cells(1), cells(2)));
+    assert_eq!(p(TextDirection::Rtl), (cells(2), cells(1)));
 
     let r = style(&[("border-start-end-radius", "1"), ("inset-inline-end", "3")]);
     let ltr = resolved(&r, TextDirection::Ltr);

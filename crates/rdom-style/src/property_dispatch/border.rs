@@ -4,7 +4,9 @@
 //! `border-radius` and its per-corner longhands, and `border-spacing`.
 //! `border-collapse` stays in `set.rs` / `serialize.rs`.
 
-use super::value_serializers::{border_style_keyword, serialize_color, serialize_math, specified};
+use super::value_serializers::{
+    all_specified, border_style_keyword, serialize_color, serialize_math, shortest_sides, specified,
+};
 use crate::layout::{
     BorderRadius, BorderStyle, BorderWidth, Corners, GapValue, PaintLength, Sides,
 };
@@ -241,32 +243,6 @@ fn serialize_corner_radius(r: &BorderRadius) -> String {
             serialize_paint_length(&r.horizontal),
             serialize_paint_length(&r.vertical)
         )
-    }
-}
-
-/// Every side's specified value, if each side has one.
-fn all_specified<T>(sides: &Sides<Option<Value<T>>>) -> Option<Sides<&T>> {
-    let [t, r, b, l] = sides.each().map(|s| s.as_ref().and_then(specified));
-    Some(Sides::new(t?, r?, b?, l?))
-}
-
-/// One to four side values in the shortest form that expands back to
-/// the same sides (CSSOM §6.7.2; CSS Backgrounds 3 §4.1).
-fn shortest_sides(s: Sides<String>) -> String {
-    let Sides {
-        top,
-        right,
-        bottom,
-        left,
-    } = s;
-    if left != right {
-        format!("{top} {right} {bottom} {left}")
-    } else if top != bottom {
-        format!("{top} {right} {bottom}")
-    } else if top != right {
-        format!("{top} {right}")
-    } else {
-        top
     }
 }
 

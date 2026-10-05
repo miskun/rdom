@@ -326,8 +326,8 @@ dropped. The audit's six, with where each stands:
 
 | Item | Class | Detail | Doc'd | Where |
 |---|---|---|---|---|
-| `margin` / `margin-*` | Supported | Signed cells, `auto`, `%`, `calc()` (C2-PERCENT); longhands share storage (documented). | — | `V/spacing.rs` |
-| `padding` / `padding-*` | Supported | Cells, `%`, `calc()` (C2-PERCENT). | — | `V/spacing.rs` |
+| `margin` / `margin-*` | Supported | Signed cells, `auto`, `%`, `calc()` (C2-PERCENT); four independent longhands, each with its own `!important`, set by the shorthand (C6-MARGIN-SIDES). | — | `V/spacing.rs` |
+| `padding` / `padding-*` | Supported | Cells, `%`, `calc()` (C2-PERCENT); four independent longhands, each with its own `!important` (C6-MARGIN-SIDES). | — | `V/spacing.rs` |
 | `margin-trim` | Supported | `none | [block || inline] | [block-start || inline-start || block-end || inline-end]`; block containers trim their edge children's block-axis margins (no collapse out), flex containers the first / last item's main-axis and every item's cross-axis margins, intrinsic sizes included (C5-MARGIN-TRIM). Grid with C7. | Yes | `V/spacing.rs`, layout `margin_trim.rs` |
 | `width` / `height` | Partial | `auto`, cells, `%`, `calc()`, rdom `fr`, `min-content` / `max-content` / `fit-content` / `fit-content(<l>)` (C5-INTRINSIC; on the block axis the content height, CSS Sizing 3 §3.1); missing `stretch` (CSS Sizing 4). | Yes | `V/length.rs::parse_size`, `BOX::Size`, `layout_pass/intrinsic/keywords.rs` |
 | `min-width` / `min-height` | Supported | `auto`, cells, `%`, `calc()` (C2-PERCENT), the intrinsic keywords (C5-INTRINSIC); they clamp intrinsic contributions too — an inline block's width, a shrink-to-fit container's (CSS Sizing 3 §5.2, C5G-SIZING-SITES). | — | `V/length.rs::parse_min_size` |

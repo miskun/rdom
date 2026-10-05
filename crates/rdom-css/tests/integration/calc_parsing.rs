@@ -113,9 +113,9 @@ fn calc_with_percent_in_padding_carries_through_as_padding_calc() {
         .iter()
         .find(|r| r.source_text == "div")
         .expect("div rule parses");
-    let padding = rule.style.padding.as_ref().expect("padding is set");
+    let padding = rule.style.padding.top.as_ref().expect("padding-top is set");
     match padding {
-        rdom_style::Value::Specified(p) => match &p.top {
+        rdom_style::Value::Specified(top) => match top {
             PaddingValue::Calc(expr) => {
                 assert!(expr.contains_percent(), "AST retains the percent operand");
             }
@@ -137,9 +137,9 @@ fn calc_with_percent_in_margin_carries_through_as_margin_calc() {
         .iter()
         .find(|r| r.source_text == "div")
         .expect("div rule parses");
-    let margin = rule.style.margin.as_ref().expect("margin is set");
+    let margin = rule.style.margin.left.as_ref().expect("margin-left is set");
     match margin {
-        rdom_style::Value::Specified(m) => match &m.left {
+        rdom_style::Value::Specified(left) => match left {
             MarginValue::Calc(expr) => {
                 assert!(expr.contains_percent(), "AST retains the percent operand");
             }
@@ -160,12 +160,11 @@ fn calc_constant_in_padding_evaluates_to_cells() {
         .iter()
         .find(|r| r.source_text == "div")
         .expect("div rule parses");
-    let padding = rule.style.padding.as_ref().expect("padding is set");
-    match padding {
-        rdom_style::Value::Specified(p) => {
-            assert_eq!(p.top, PaddingValue::Cells(5));
-            assert_eq!(p.left, PaddingValue::Cells(5));
-        }
-        other => panic!("expected Specified, got {other:?}"),
+    let padding = &rule.style.padding;
+    for side in [&padding.top, &padding.left] {
+        assert_eq!(
+            side,
+            &Some(rdom_style::Value::Specified(PaddingValue::Cells(5)))
+        );
     }
 }

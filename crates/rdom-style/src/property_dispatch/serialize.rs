@@ -7,11 +7,11 @@
 use super::css_wide::css_wide_of;
 use super::table::canonical_property_name;
 use super::value_serializers::{
-    join_csv, serialize_color, serialize_content, serialize_counter_ops, serialize_flex_basis,
-    serialize_length, serialize_margin_value, serialize_math, serialize_max_size,
-    serialize_min_size, serialize_overflow, serialize_padding_value, serialize_size,
-    serialize_timing_function, serialize_transition_property, serialize_transition_shorthand,
-    specified,
+    all_specified, join_csv, serialize_color, serialize_content, serialize_counter_ops,
+    serialize_flex_basis, serialize_length, serialize_margin_value, serialize_math,
+    serialize_max_size, serialize_min_size, serialize_overflow, serialize_padding_value,
+    serialize_size, serialize_timing_function, serialize_transition_property,
+    serialize_transition_shorthand, shortest_sides, side_value, specified,
 };
 use crate::layout::{
     CaretColor, CaretTextColor, Direction, Display, Position, Size, UserSelect, WhiteSpace, ZIndex,
@@ -312,69 +312,22 @@ pub fn serialize(name: &str, style: &TuiStyle) -> Option<String> {
             crate::layout::GapValue::Calc(expr) => serialize_math(expr),
         }),
 
-        // Padding — emit the 4-value shorthand always (round-trips
-        // via parse_padding_shorthand). The longhands read a
-        // single side from the same shorthand value.
-        "padding" => style.padding.as_ref().and_then(specified).map(|p| {
-            format!(
-                "{} {} {} {}",
-                serialize_padding_value(&p.top),
-                serialize_padding_value(&p.right),
-                serialize_padding_value(&p.bottom),
-                serialize_padding_value(&p.left),
-            )
-        }),
-        "padding-top" => style
-            .padding
-            .as_ref()
-            .and_then(specified)
-            .map(|p| serialize_padding_value(&p.top)),
-        "padding-right" => style
-            .padding
-            .as_ref()
-            .and_then(specified)
-            .map(|p| serialize_padding_value(&p.right)),
-        "padding-bottom" => style
-            .padding
-            .as_ref()
-            .and_then(specified)
-            .map(|p| serialize_padding_value(&p.bottom)),
-        "padding-left" => style
-            .padding
-            .as_ref()
-            .and_then(specified)
-            .map(|p| serialize_padding_value(&p.left)),
-
-        // Margin — same shape as padding (shorthand + 4 longhands).
-        "margin" => style.margin.as_ref().and_then(specified).map(|m| {
-            format!(
-                "{} {} {} {}",
-                serialize_margin_value(&m.top),
-                serialize_margin_value(&m.right),
-                serialize_margin_value(&m.bottom),
-                serialize_margin_value(&m.left),
-            )
-        }),
-        "margin-top" => style
-            .margin
-            .as_ref()
-            .and_then(specified)
-            .map(|m| serialize_margin_value(&m.top)),
-        "margin-right" => style
-            .margin
-            .as_ref()
-            .and_then(specified)
-            .map(|m| serialize_margin_value(&m.right)),
-        "margin-bottom" => style
-            .margin
-            .as_ref()
-            .and_then(specified)
-            .map(|m| serialize_margin_value(&m.bottom)),
-        "margin-left" => style
-            .margin
-            .as_ref()
-            .and_then(specified)
-            .map(|m| serialize_margin_value(&m.left)),
+        // CSS Box 3 §3.2 / §4.2: a shorthand when every side is set, in
+        // the shortest form (CSSOM §6.7.2); a longhand its side.
+        "padding" => {
+            all_specified(&style.padding).map(|p| shortest_sides(p.map(serialize_padding_value)))
+        }
+        "padding-top" => side_value(&style.padding.top, serialize_padding_value),
+        "padding-right" => side_value(&style.padding.right, serialize_padding_value),
+        "padding-bottom" => side_value(&style.padding.bottom, serialize_padding_value),
+        "padding-left" => side_value(&style.padding.left, serialize_padding_value),
+        "margin" => {
+            all_specified(&style.margin).map(|m| shortest_sides(m.map(serialize_margin_value)))
+        }
+        "margin-top" => side_value(&style.margin.top, serialize_margin_value),
+        "margin-right" => side_value(&style.margin.right, serialize_margin_value),
+        "margin-bottom" => side_value(&style.margin.bottom, serialize_margin_value),
+        "margin-left" => side_value(&style.margin.left, serialize_margin_value),
 
         "border-collapse" => style
             .border_collapse

@@ -219,12 +219,12 @@ fn margin_shorthand_one_value_applies_to_all_sides() {
     set("margin", "5", &mut style).expect("1-value shorthand parses");
     assert_eq!(
         style.margin,
-        Some(Value::Specified(Margin {
+        specified_sides(Margin {
             top: MarginValue::Cells(5),
             right: MarginValue::Cells(5),
             bottom: MarginValue::Cells(5),
             left: MarginValue::Cells(5),
-        }))
+        })
     );
 }
 
@@ -235,12 +235,12 @@ fn margin_shorthand_two_values_split_vertical_horizontal() {
     set("margin", "1 2", &mut style).expect("2-value shorthand parses");
     assert_eq!(
         style.margin,
-        Some(Value::Specified(Margin {
+        specified_sides(Margin {
             top: MarginValue::Cells(1),
             right: MarginValue::Cells(2),
             bottom: MarginValue::Cells(1),
             left: MarginValue::Cells(2),
-        }))
+        })
     );
 }
 
@@ -251,12 +251,12 @@ fn margin_shorthand_three_values_top_horiz_bottom() {
     set("margin", "1 2 3", &mut style).expect("3-value shorthand parses");
     assert_eq!(
         style.margin,
-        Some(Value::Specified(Margin {
+        specified_sides(Margin {
             top: MarginValue::Cells(1),
             right: MarginValue::Cells(2),
             bottom: MarginValue::Cells(3),
             left: MarginValue::Cells(2),
-        }))
+        })
     );
 }
 
@@ -267,12 +267,12 @@ fn margin_shorthand_four_values_each_side() {
     set("margin", "1 2 3 4", &mut style).expect("4-value shorthand parses");
     assert_eq!(
         style.margin,
-        Some(Value::Specified(Margin {
+        specified_sides(Margin {
             top: MarginValue::Cells(1),
             right: MarginValue::Cells(2),
             bottom: MarginValue::Cells(3),
             left: MarginValue::Cells(4),
-        }))
+        })
     );
 }
 
@@ -281,7 +281,7 @@ fn margin_accepts_negative_values() {
     use crate::layout::Margin;
     let mut style = TuiStyle::new();
     set("margin", "-5", &mut style).expect("negative values parse");
-    assert_eq!(style.margin, Some(Value::Specified(Margin::all_cells(-5))));
+    assert_eq!(style.margin, specified_sides(Margin::all_cells(-5)));
 }
 
 #[test]
@@ -294,12 +294,12 @@ fn margin_auto_keyword_parses() {
     set("margin", "0 auto", &mut style).expect("0 auto parses");
     assert_eq!(
         style.margin,
-        Some(Value::Specified(Margin {
+        specified_sides(Margin {
             top: MarginValue::Cells(0),
             right: MarginValue::Auto,
             bottom: MarginValue::Cells(0),
             left: MarginValue::Auto,
-        }))
+        })
     );
 }
 
@@ -312,12 +312,12 @@ fn margin_longhand_combines_with_previous_shorthand() {
     set("margin-top", "10", &mut style).unwrap();
     assert_eq!(
         style.margin,
-        Some(Value::Specified(Margin {
+        specified_sides(Margin {
             top: MarginValue::Cells(10),
             right: MarginValue::Cells(5),
             bottom: MarginValue::Cells(5),
             left: MarginValue::Cells(5),
-        }))
+        })
     );
 }
 
@@ -1028,4 +1028,11 @@ fn custom_property_rejects_a_bad_url() {
         serialize("--x", &style).as_deref(),
         Some("url(0001.png) -1px calc(1px - 2px)")
     );
+}
+
+/// Every side of `sides` declared as specified.
+fn specified_sides<T>(
+    sides: impl Into<crate::layout::Sides<T>>,
+) -> crate::layout::Sides<Option<Value<T>>> {
+    sides.into().map(|v| Some(Value::Specified(v)))
 }
