@@ -121,6 +121,9 @@ pub(super) struct LinePlan {
 pub(super) struct PlanItem {
     pub(super) item: FlexItem,
     pub(super) main: ResolvedMain,
+    /// The item is a strut (`ChildMain::strut`): no alignment, no
+    /// baseline — placed at the line's cross-start.
+    pub(super) strut: Option<u16>,
 }
 
 impl LinePlan {
@@ -136,6 +139,13 @@ impl LinePlan {
     ) -> Self {
         let mut plans = Vec::with_capacity(items.len());
         for item in items {
+            if item.strut.is_some() {
+                plans.push(Plan::Placed(ItemAlign {
+                    align: CrossAlign::Start,
+                    safe: false,
+                }));
+                continue;
+            }
             let computed = item.item.computed(dom);
             let value = self_alignment(parent, &computed);
             let auto_margins = match frame.direction {

@@ -63,19 +63,27 @@ pub(super) fn break_lines(
     let mut lines = Vec::new();
     let mut start = 0;
     let mut used = 0;
+    // The line holds an item that is not a strut.
+    let mut holds = false;
     for (i, ci) in items.iter().enumerate() {
+        // A strut has no main size and no gap beside it (§9.4 step 10): it
+        // joins the line it falls in.
+        if ci.strut.is_some() {
+            continue;
+        }
         let outer = i32::from(ci.hypothetical(dom, direction, budgets))
             + cells(&ci.main_start_margin)
             + cells(&ci.main_end_margin);
-        if i > start && used + gap + outer > main {
+        if holds && used + gap + outer > main {
             lines.push(start..i);
             start = i;
             used = outer;
-        } else if i > start {
+        } else if holds {
             used += gap + outer;
         } else {
             used = outer;
         }
+        holds = true;
     }
     if start < items.len() {
         lines.push(start..items.len());
@@ -112,20 +120,21 @@ pub(super) struct LineMain {
 }
 
 /// §9.7 and §9.5 step 12 for one line: resolve the flexible lengths of
-/// `items` (the line's items, `ids` the items themselves) against the line's
+/// `items` (the line's items) against the line's
 /// extent — the main size less the gaps and the non-`auto` margins, plus
 /// the cells sibling overlap reclaims — then split what is left over
 /// the `auto` main-axis margins (a remainder cell to each of the first).
 pub(super) fn resolve_line_main(
     dom: &Dom<TuiExt>,
     items: &[ChildMain],
-    ids: &[FlexItem],
     direction: Direction,
     budgets: MainBudgets,
     gap: u16,
     overlap: &SiblingOverlap,
 ) -> LineMain {
-    let gap_total = gap.saturating_mul((items.len() as u16).saturating_sub(1));
+    // Struts take no gap (§9.4 step 10).
+    let spaced = items.iter().filter(|ci| ci.strut.is_none()).count();
+    let gap_total = gap.saturating_mul((spaced as u16).saturating_sub(1));
     let margins: i32 = items
         .iter()
         .map(|ci| cells(&ci.main_start_margin) + cells(&ci.main_end_margin))
@@ -136,7 +145,16 @@ pub(super) fn resolve_line_main(
             u32::from(ci.main_start_margin.is_auto()) + u32::from(ci.main_end_margin.is_auto())
         })
         .sum();
-    let net = i32::from(budgets.main) - i32::from(gap_total) + i32::from(overlap.savings(dom, ids))
+    let net = i32::from(budgets.main) - i32::from(gap_total)
+        + i32::from(
+            overlap.savings(
+                dom,
+                items
+                    .iter()
+                    .filter(|ci| ci.strut.is_none())
+                    .map(|ci| &ci.item),
+            ),
+        )
         - margins;
     let final_main = resolve_flexible_lengths(
         dom,
@@ -227,6 +245,7 @@ pub(super) fn line_cross_size(
         .map(|(ci, &size)| PlanItem {
             item: ci.item.clone(),
             main: resolved_main(ci, size, &frame),
+            strut: ci.strut,
         })
         .collect();
     let plan = LinePlan::new(
@@ -247,14 +266,17 @@ pub(super) fn line_cross_size(
     let tallest = plan_items
         .iter()
         .map(|p| {
-            hypothetical_outer_cross(
-                dom,
-                &p.item,
-                frame.cb_width,
-                frame.space,
-                frame.direction,
-                p.main,
-            )
+            // A strut holds its line at its strut size (§9.4 step 10).
+            p.strut.unwrap_or_else(|| {
+                hypothetical_outer_cross(
+                    dom,
+                    &p.item,
+                    frame.cb_width,
+                    frame.space,
+                    frame.direction,
+                    p.main,
+                )
+            })
         })
         .max()
         .unwrap_or(0);
@@ -295,6 +317,26 @@ pub(in crate::render::layout_pass) fn lines_cross_size(
     let flip = super::AxisFlip::of(&container, direction);
     let budgets = MainBudgets { main, cross };
     let mut items = collect_main_axis_items(dom, children, direction, budgets, trim, flip.main);
+    // §9.4 step 10: collapsed items become struts of their line's size,
+    // measured — the container's cross size is what is being found.
+    super::strut::make_struts(
+        dom,
+        &container,
+        &mut items,
+        budgets,
+        gap,
+        LineFrame {
+            direction,
+            flip,
+            trim,
+            space: CrossSpace {
+                line: cross,
+                container: None,
+            },
+            cb_width,
+        },
+        is_multi_line(&container),
+    );
     // §9.3: a single-line container's one line holds every item.
     let lines = if is_multi_line(&container) {
         break_lines(dom, &items, direction, budgets, gap)
@@ -309,7 +351,6 @@ pub(in crate::render::layout_pass) fn lines_cross_size(
         let line = resolve_line_main(
             dom,
             &items[range.clone()],
-            &children[range.clone()],
             direction,
             budgets,
             gap,

@@ -331,6 +331,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The cascade's direction re-run is bounded by its loop, not a debug assertion**: an element's ladder runs at most twice in every build (`settle_direction`), where a release build relied on an invariant to stop. (C6G-RERUN-BOUND)
 - **A flex container lays out its text and its `::before` / `::after` as flex items** (CSS Flexbox §4): a run of text beside element items is an anonymous item (whitespace-only runs are none) and each pseudo-element an item of its own — both were dropped; a text-only container's text is one item, which `justify-content` / `align-items` place. (C6G-ANON-FLEX-ITEMS)
 - **Flex sizing follows CSS Flexbox §4.5 / §9.2 / §9.7 in its corner cases**: the automatic minimum is clamped by `max-*` and counts in the hypothetical sizes that decide growing or shrinking, `flex-shrink` scales by the content-box base, a line with no room shrinks, `inline-block` items stretch, and an `aspect-ratio` item takes its base from a definite cross size. (C6G-FLEX-SPEC)
+- **A `visibility: collapse` flex item is a strut as CSS Flexbox §9.4 step 10 makes it**: its cross size is its line's laid out uncollapsed (it was measured at its zero main size — `a b c` held a 3-row line for 1), and no gap or `justify-content` share is placed beside it. (C6G-COLLAPSE)
 
 ### Changed — `rdom-showcase`
 

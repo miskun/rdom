@@ -55,6 +55,12 @@ pub(super) struct ChildMain {
     /// distributing leftover free space.
     pub(super) main_start_margin: MarginValue,
     pub(super) main_end_margin: MarginValue,
+    /// A collapsed item's strut size (CSS Flexbox §9.4 step 10): the
+    /// cross size of its line laid out uncollapsed — `None` for every
+    /// other item. A strut has no main size and the rest of the
+    /// algorithm ignores it (no gap, no `justify-content` share, no
+    /// baseline) but for its line's cross size, at least this.
+    pub(super) strut: Option<u16>,
 }
 
 impl ChildMain {
@@ -81,6 +87,24 @@ impl ChildMain {
         let v = self.max.map_or(v, |max| v.min(max));
         self.auto_min.set(Some(v));
         v
+    }
+
+    /// Make the item a strut of cross size `size` (§4.4, §9.4 step 10):
+    /// no main size, flex factors, min / max or main-axis margins.
+    pub(super) fn make_strut(&mut self, size: u16) {
+        self.base = 0;
+        self.inner_base = 0;
+        self.grow = 0.0;
+        self.shrink = 0.0;
+        self.content_base = false;
+        self.specified_base = false;
+        self.auto_min = std::cell::Cell::new(None);
+        self.main_auto = false;
+        self.min = Some(0);
+        self.max = Some(0);
+        self.main_start_margin = MarginValue::Cells(0);
+        self.main_end_margin = MarginValue::Cells(0);
+        self.strut = Some(size);
     }
 
     /// The item's min main size: its `min-*`, else its automatic
@@ -173,27 +197,6 @@ pub(super) fn collect_main_axis_items(
     };
 
     for (i, item) in children.iter().enumerate() {
-        // Flexbox §4.4: a collapsed item is a strut — zero main size and
-        // no main-axis margins; the cross pass keeps its cross size, which
-        // holds the line's.
-        if item.is_collapsed(dom) {
-            child_info.push(ChildMain {
-                item: item.clone(),
-                base: 0,
-                inner_base: 0,
-                grow: 0.0,
-                shrink: 0.0,
-                content_base: false,
-                specified_base: false,
-                auto_min: std::cell::Cell::new(None),
-                main_auto: false,
-                min: Some(0),
-                max: Some(0),
-                main_start_margin: MarginValue::Cells(0),
-                main_end_margin: MarginValue::Cells(0),
-            });
-            continue;
-        }
         // An anonymous item (§4): `flex: 0 1 auto` with an `auto` main
         // size, so its base is its max-content size along the main axis
         // (§9.2 step 3.E), with no margins, `min-*: auto` and no `max-*`.
@@ -216,6 +219,7 @@ pub(super) fn collect_main_axis_items(
                     max: None,
                     main_start_margin: MarginValue::Cells(0),
                     main_end_margin: MarginValue::Cells(0),
+                    strut: None,
                 });
                 continue;
             }
@@ -389,6 +393,7 @@ pub(super) fn collect_main_axis_items(
             max,
             main_start_margin: resolve_margin(main_start_m),
             main_end_margin: resolve_margin(main_end_m),
+            strut: None,
         });
     }
 

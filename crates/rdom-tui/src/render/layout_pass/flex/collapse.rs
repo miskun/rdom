@@ -123,16 +123,22 @@ impl SiblingOverlap {
     }
 
     /// Total cells reclaimed by sibling overlap across the line — one
-    /// per adjacent pair that [`Self::between`] accepts.
-    pub(super) fn savings(&self, dom: &Dom<TuiExt>, children: &[FlexItem]) -> u16 {
+    /// per adjacent pair of `children` that [`Self::between`] accepts.
+    pub(super) fn savings<'a>(
+        &self,
+        dom: &Dom<TuiExt>,
+        children: impl Iterator<Item = &'a FlexItem>,
+    ) -> u16 {
         if !self.active {
             return 0;
         }
         let mut savings: u16 = 0;
-        for i in 0..children.len().saturating_sub(1) {
-            if self.between(dom, &children[i], &children[i + 1]) {
+        let mut prev: Option<&FlexItem> = None;
+        for item in children {
+            if prev.is_some_and(|p| self.between(dom, p, item)) {
                 savings = savings.saturating_add(1);
             }
+            prev = Some(item);
         }
         savings
     }

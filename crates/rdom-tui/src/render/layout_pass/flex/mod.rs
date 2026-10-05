@@ -51,6 +51,7 @@ pub(in crate::render::layout_pass) mod item;
 mod lines;
 mod main_axis;
 mod placement;
+mod strut;
 
 use rdom_core::{Dom, NodeId};
 
@@ -338,6 +339,25 @@ pub(super) fn layout_flex_children(
 
     // §9.3: a single-line container's one line holds every item.
     let multi_line = lines::is_multi_line(parent);
+    // §9.4 step 10: collapsed items become struts of their line's size.
+    strut::make_struts(
+        dom,
+        parent,
+        &mut items,
+        budgets,
+        gap,
+        lines::LineFrame {
+            direction,
+            flip,
+            trim,
+            space: CrossSpace {
+                line: cross_budget,
+                container: Some(cross_budget),
+            },
+            cb_width: container.width,
+        },
+        multi_line,
+    );
     let line_ranges = if multi_line {
         lines::break_lines(dom, &items, direction, budgets, gap)
     } else {
@@ -365,7 +385,6 @@ pub(super) fn layout_flex_children(
         let line = lines::resolve_line_main(
             dom,
             &items[range.clone()],
-            &children[range.clone()],
             direction,
             budgets,
             gap,
@@ -417,14 +436,26 @@ pub(super) fn layout_flex_children(
         // line's cross size is known.
         let align = plan.resolve(line_cross[k], flip.cross);
         // §8.2: `justify-content` places the line's leftover free space.
-        let justify = content::justify_offsets(
+        // §9.4 step 10: struts take no share — the line's other items are
+        // the ones it places.
+        let line_items = &items[range.clone()];
+        let spaced = line_items.iter().filter(|ci| ci.strut.is_none()).count();
+        let mut shares = content::justify_offsets(
             parent,
             direction,
             flip.main,
             line.free,
-            range.len(),
+            spaced,
             line.has_auto_margins,
-        );
+        )
+        .into_iter();
+        let justify: Vec<i32> = line_items
+            .iter()
+            .map(|ci| match ci.strut {
+                Some(_) => 0,
+                None => shares.next().unwrap_or(0),
+            })
+            .collect();
         place_items(
             dom,
             FlexLine {

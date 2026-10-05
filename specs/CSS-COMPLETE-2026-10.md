@@ -2066,7 +2066,8 @@ row comes from.
   browser's `<body>` children would) the main-axis pass makes it a strut (Flexbox §4.4: main size,
   min, max and main margins 0) and the cross pass keeps its cross size, which holds the line's;
   intrinsic sizes drop its main contribution. The gaps beside a strut stay (it is still an item of
-  the line, CSS Box Alignment §8.1). On a table row (`tree::is_collapsed_table_row`: a `<tr>` of a
+  the line, CSS Box Alignment §8.1) — *wrong, corrected by C6G-COLLAPSE: CSS Flexbox §9.4 step 10
+  ignores a collapsed item after noting its strut size, gaps and `justify-content` included*. On a table row (`tree::is_collapsed_table_row`: a `<tr>` of a
   `<table>` or row group) it leaves the flow (`is_in_flow` false, its geometry zeroed with the
   `display: none` subtrees) while `size_columns`, which reads every row, still sizes the columns
   with its cells (CSS 2.1 §17.5.5); column collapse needs columns, so `<col>` waits for C13-TFC
@@ -2783,3 +2784,31 @@ row comes from.
   `flex_shorthand_full_grammar`'s `2`, `2 3` and `1 0` rows (basis `Cells(0)` → `0%`), which
   encoded the old default. No snapshot changed (the showcase's `flex: 1` panes sit in definite
   containers).
+- 2026-10-08 — C6G-COLLAPSE (AN7): `visibility: collapse` on a flex item, against CSS Flexbox §4.4
+  and §9.4 step 10 ("note the cross size of the line they're in as the item's strut size, and
+  restart layout […] treat the collapsed items as having zero main size [when collecting lines] …
+  ignore the collapsed items entirely (as if they were `display: none`) except that […] if any
+  line's cross size is less than the largest strut size among all the collapsed items in the line,
+  set its cross size to that strut size"). C6-VISIBILITY made a collapsed item a zero-main-size
+  item and measured its cross size at that zero size — `<span>a b c</span>` wrapped to three rows
+  and held a 3-row line, the spec's 1 — and kept it an item of the line, so a gap sat on each side
+  of it and `justify-content` gave it a share (its Log entry cited CSS Box Alignment §8.1 for the
+  gaps; corrected there). Decision: the first round is only what the strut needs —
+  `flex::strut::make_struts` breaks the *uncollapsed* items into lines (`collect_main_axis_items`
+  now gathers a collapsed item like any other) and sizes each line that holds a collapsed item:
+  a single-line container's line is its definite cross size; otherwise the line's outer
+  hypothetical cross sizes with each item at its hypothetical main size (`line_cross_size`, the
+  baseline extent included) — then `ChildMain::make_strut` zeroes the item's main size, factors,
+  min / max and main margins and records `strut`. The second round is the ordinary algorithm,
+  which reads `strut` where the spec ignores the item: line breaking (no size, no gap, joins the
+  line it falls in), the line's gap total and border-collapse savings, `justify-content` (the
+  shares go to the other items; a strut's offset is 0), the gap and pullback in placement, the
+  baseline plan (a strut is placed at cross-start), and the line's cross size (at least the strut
+  size); a strut's box is its strut size at the line's cross-start. Intrinsic sizing: a row's
+  `auto` height runs the same two rounds (`lines_cross_size`, the cross size unknown, so measured),
+  and the main-axis sum counts no gap beside a collapsed item. Red (`css_phase6/collapse.rs`):
+  container height 3 for 1 (and the strut 3 rows); `b` at x 5 for 3 under `gap: 2`; `b` at x 5
+  for 9 under `space-between`. Green after; C6-VISIBILITY's `a_collapsed_flex_item_leaves_a_strut`
+  still holds. Mutation checks (each alone, restored and touched): the strut measured at main
+  size 0 → height 3; the gap placed beside a strut → x 5; `justify-content` counting the strut →
+  x 5. No snapshot changed.

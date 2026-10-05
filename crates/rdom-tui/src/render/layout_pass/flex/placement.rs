@@ -113,8 +113,26 @@ pub(super) fn place_items(
         auto_margins.share.saturating_add(extra)
     };
 
+    // The last item placed that is not a strut: a gap (and a collapsed
+    // border's pullback) separates it from the next such item — a strut
+    // takes neither (§9.4 step 10).
+    let mut prev_spaced: Option<&FlexItem> = None;
     for (i, (ci, size)) in child_info.iter().zip(final_main).enumerate() {
         let child_computed = ci.item.computed(dom);
+        if ci.strut.is_none() {
+            if let Some(prev) = prev_spaced {
+                main_cursor = main_cursor.saturating_add(gap as i32);
+                // Sibling-overlap pullback. Mirrors the gating in the
+                // `overlap_savings` computation: only fires when
+                // gap == 0 AND parent has collapse AND both children
+                // have a border on the shared edge. With gap > 0, the
+                // gap is visible and the siblings don't overlap.
+                if overlap.between(dom, prev, &ci.item) {
+                    main_cursor = main_cursor.saturating_sub(1);
+                }
+            }
+            prev_spaced = Some(&ci.item);
+        }
 
         // Resolve this child's main-axis start and end margins.
         // `Calc` was pre-resolved to `Cells` during `ChildMain`
@@ -139,25 +157,32 @@ pub(super) fn place_items(
         // aspect-ratio (which requires the main axis to be explicit).
         let main_was_auto = child_info[i].main_auto;
 
+        // A strut keeps its strut size at the line's cross-start.
         let CrossPlacement {
             size: cross_size,
             offset: cross_offset,
-        } = place_cross(
-            dom,
-            &ci.item,
-            &child_computed,
-            container.width,
-            space,
-            direction,
-            ResolvedMain {
-                size: *size,
-                was_auto: main_was_auto,
-                trim_cross_start: trim.cross_start,
-                trim_cross_end: trim.cross_end,
-                mirror: flip.cross,
+        } = match ci.strut {
+            Some(strut) => CrossPlacement {
+                size: strut,
+                offset: 0,
             },
-            align[i],
-        );
+            None => place_cross(
+                dom,
+                &ci.item,
+                &child_computed,
+                container.width,
+                space,
+                direction,
+                ResolvedMain {
+                    size: *size,
+                    was_auto: main_was_auto,
+                    trim_cross_start: trim.cross_start,
+                    trim_cross_end: trim.cross_end,
+                    mirror: flip.cross,
+                },
+                align[i],
+            ),
+        };
 
         let child_rect = match direction {
             Direction::Row => LayoutRect::new(
@@ -196,20 +221,9 @@ pub(super) fn place_items(
             FlexItem::Anonymous(anon) => anonymous.push(anon.lay_out(dom, child_rect)),
         }
 
-        // Advance cursor past this child + main-end margin + gap.
+        // Advance cursor past this child + main-end margin.
         main_cursor = main_cursor.saturating_add(*size as i32);
         main_cursor = main_cursor.saturating_add(main_end_cells);
-        if i + 1 < child_info.len() {
-            main_cursor = main_cursor.saturating_add(gap as i32);
-            // Sibling-overlap pullback. Mirrors the gating in the
-            // `overlap_savings` computation: only fires when
-            // gap == 0 AND parent has collapse AND both children
-            // have a border on the shared edge. With gap > 0, the
-            // gap is visible and the siblings don't overlap.
-            if overlap.between(dom, &child_info[i].item, &child_info[i + 1].item) {
-                main_cursor = main_cursor.saturating_sub(1);
-            }
-        }
     }
 }
 

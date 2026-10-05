@@ -175,10 +175,15 @@ pub(super) fn children_size(
     } else if along {
         // Children flow along the queried axis — sum their outer main
         // sizes plus gaps. Intrinsic sizing has no container size:
-        // percent gaps are 0.
+        // percent gaps are 0. A collapsed flex item takes no gap (CSS
+        // Flexbox §9.4 step 10).
+        let spaced = children
+            .iter()
+            .filter(|c| !(flex && c.is_collapsed(dom)))
+            .count();
         let gap_total = crate::render::layout_pass::gap_along(computed, direction)
             .resolve(0)
-            .saturating_mul((children.len() as u16).saturating_sub(1));
+            .saturating_mul((spaced as u16).saturating_sub(1));
         let children_main: u16 = children
             .iter()
             .enumerate()
