@@ -45,7 +45,7 @@ use crate::ext::TuiExt;
 use crate::layout::{LayoutRect, Position};
 
 pub(super) use axis::axis_position_anchored;
-pub(super) use containing::absolute_containing_block;
+pub(super) use containing::{absolute_containing_block, containing_ancestor};
 pub(super) use place::{place_positioned, resolve_size_axis};
 pub(super) use relative::{apply_relative_shift, relative_offset};
 pub(super) use static_pos::{

@@ -31,14 +31,28 @@ pub(in crate::render::layout_pass) fn absolute_containing_block(
     if style.position == Position::Fixed {
         return viewport;
     }
+    match containing_ancestor(dom, from) {
+        Some(p) => of_ancestor(dom, p, style).unwrap_or(viewport),
+        None => viewport,
+    }
+}
+
+/// The ancestor that contains an absolutely positioned box whose
+/// ancestors are `from` and up: the nearest one whose `position` is not
+/// `static` (CSS Position 3 §2); `None` for the viewport. The one walk
+/// placement and the scrollable overflow (`positioned_overflow`) share.
+pub(in crate::render::layout_pass) fn containing_ancestor(
+    dom: &Dom<TuiExt>,
+    from: Option<NodeId>,
+) -> Option<NodeId> {
     let mut cur = from;
     while let Some(p) = cur {
         if establishes_containing_block(computed_position(dom, p)) {
-            return of_ancestor(dom, p, style).unwrap_or(viewport);
+            return Some(p);
         }
         cur = parent_id(dom, p);
     }
-    viewport
+    None
 }
 
 /// Whether a box with `position` contains its absolutely positioned

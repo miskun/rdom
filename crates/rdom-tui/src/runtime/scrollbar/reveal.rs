@@ -79,15 +79,16 @@ fn reveal_caret_with(dom: &mut TuiDom, clamp: ClampTo, mark_pending: bool) {
     if !is_vertical_scroll_container(dom, block) {
         return;
     }
-    let Some((x, y)) = crate::render::inline::cell_of_position(dom, focus) else {
+    // The caret's real cell: above the screen when scrolled up past it.
+    let Some((x, y)) = crate::render::inline::caret_cell(dom, focus) else {
         return;
     };
     ensure_visible_vertical_with(
         dom,
         block,
         LayoutRect {
-            x: x as i32,
-            y: y as i32,
+            x,
+            y,
             width: 1,
             height: 1,
         },

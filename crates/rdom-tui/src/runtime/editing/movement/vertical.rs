@@ -5,7 +5,7 @@
 use rdom_core::{Position, Selection};
 
 use crate::TuiDom;
-use crate::render::inline::cell_of_position;
+use crate::render::inline::caret_cell;
 use crate::runtime::hit_test::HitTestExt;
 
 /// Clear sticky-x on the focused editable's `EditorState`. No-op
@@ -68,7 +68,10 @@ pub(crate) fn vertical_motion(dom: &mut TuiDom, from: Position, delta_y: i32) ->
     use crate::render::inline::inline_flow_for_text;
 
     let from_flow = inline_flow_for_text(dom, from.node)?;
-    let (current_x, current_y) = cell_of_position(dom, from)?;
+    // Signed: the caret may be above the screen (scrolled) or left of it
+    // (an overflowing `rtl` line); the goal column is a screen column.
+    let (current_x, current_y) = caret_cell(dom, from)?;
+    let current_x = u16::try_from(current_x.max(0)).unwrap_or(u16::MAX);
 
     let editable = crate::node::nearest_editable_ancestor(dom, from.node);
     let stored_sticky = editable.and_then(|id| {
@@ -100,9 +103,9 @@ pub(crate) fn vertical_motion(dom: &mut TuiDom, from: Position, delta_y: i32) ->
 /// extending selection focus to the same target.
 pub(crate) fn line_edge_position(dom: &TuiDom, from: Position, forward: bool) -> Option<Position> {
     let flow = crate::render::inline::inline_flow_for_text(dom, from.node)?;
-    let (_, y) = cell_of_position(dom, from)?;
+    let (_, y) = caret_cell(dom, from)?;
     let (layout, content) = crate::render::inline::inline_flow_layout(dom, flow)?;
-    let row = u16::try_from(y as i32 - content.y).ok()?;
+    let row = u16::try_from(y - content.y).ok()?;
     let target_line = &layout.lines[layout.line_at_row(row)?];
     if forward {
         target_line
@@ -128,7 +131,7 @@ fn compute_vertical_target(
     dom: &TuiDom,
     from_flow: crate::render::inline::InlineFlow,
     target_x: u16,
-    from_y: u16,
+    from_y: i32,
     delta_y: i32,
 ) -> Option<Position> {
     use crate::render::inline::{inline_flow_for_text, inline_flow_layout};
@@ -136,7 +139,7 @@ fn compute_vertical_target(
     let (layout, content) = inline_flow_layout(dom, from_flow)?;
     // The caret's line; a caret past the last line box (a phantom line
     // after a trailing newline) counts one row per line there.
-    let row = i32::from(from_y) - content.y;
+    let row = from_y - content.y;
     let height = i32::from(layout.height());
     let from_line = match u16::try_from(row).ok().and_then(|r| layout.line_at_row(r)) {
         Some(i) => i as i64,

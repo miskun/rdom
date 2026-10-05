@@ -5060,3 +5060,18 @@ row comes from.
   `webkit_box` (PERTURB's vertical orient and `max-lines` would make it the legacy clamp and undo its
   `flow`; covered by the tests above), and `property_dispatch::tests`' `display` mask gains
   `WEBKIT_BOX`. No snapshot changed.
+- 2026-10-10 — C8G-CARET-RTL (architect N8). Found: `cell_of_position` clamped the caret's column and
+  row with `.max(0) as u16`, so a caret on the part of an `rtl` line overflowing left of the screen
+  painted in column 0, and a caret scrolled above the screen read as row 0 — the caret reveal then
+  scrolled a textarea at row 2 scrolled to 5 only by 2 (to 3), and Home / End / Up / Down computed their
+  line from the clamped row. Decision: one signed answer, `inline::caret::caret_cell` (`(i32, i32)`), read
+  by the reveal and the line movements; the public `cell_of_position` keeps its `(u16, u16)` and returns
+  `None` for a caret on no cell (documented; the caret painter then draws nothing). Not breaking: the
+  signature is unchanged, the off-screen answer was wrong. Duplicates removed: `stacking::is_float`
+  (which read the passed-in parent, the DOM parent at the hit-test call, not the box parent) is now
+  `float::float_side`'s answer for the element, so `is_layered` takes the element; the containing-block
+  ancestor walk is one function, `positioning::containing_ancestor`, used by placement and by
+  `positioned_overflow` (whose copy C8-CB-COMPLETE's walk had drifted from). Red:
+  `css_phase8/rtl_line_overflow.rs::a_caret_left_of_the_screen_is_on_no_cell` — `Some((0, 0))` for
+  `None`; `runtime/scrollbar/reveal_tests.rs` — `scrollTop` 3 for 0. Green after; no other test or
+  snapshot changed.

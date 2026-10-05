@@ -468,6 +468,8 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Fixed — `rdom-tui`
 
+- **A caret off the screen's left or top is on no cell**: `cell_of_position` returns `None` for it (it clamped to column / row 0, so an `rtl` caret left of the screen painted in column 0), and caret reveal and line movement read the signed cell, so a caret scrolled above the screen is revealed by its whole distance. (C8G-CARET-RTL)
+
 - **The prefixed-plus-standard line clamp clamps**: `display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3` is clamped to three lines (the later `line-clamp` no longer switches the legacy form off); a vertical `-webkit-box` stacks its children; a flex container draws no `text-overflow` ellipsis; a clamped box's hidden lines and a block's bottom padding no longer count as content. (C8G-WEBKIT-CLAMP)
 
 - **`::before` / `::after` honour their `display`** (CSS 2.1 §12.1, CSS Pseudo 4 §2): `block` / `flow-root` / `flex` / `grid` make a block box of the host's flow (`content: ""` an empty one, `clear` applies, so the clearfix contains its float); `none` generates nothing; the initial value is `inline`. (C8G-PSEUDO-BOXES)

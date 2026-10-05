@@ -133,15 +133,8 @@ fn containing_scroller(dom: &Dom<TuiExt>, id: NodeId) -> Option<(NodeId, ClipEdg
     if computed_position(dom, id) != Position::Absolute {
         return None;
     }
-    // The containing block: the nearest ancestor that is not `static`
-    // (`positioning::absolute_containing_block`).
-    let mut cur = parent_id(dom, id);
-    while let Some(p) = cur {
-        if computed_position(dom, p) != Position::Static {
-            break;
-        }
-        cur = parent_id(dom, p);
-    }
+    // The containing block's ancestor (`positioning::containing_ancestor`).
+    let mut cur = super::positioning::containing_ancestor(dom, parent_id(dom, id));
     let mut clip = ClipEdges::NONE;
     while let Some(p) = cur {
         let ext = dom.node(p).ext()?;

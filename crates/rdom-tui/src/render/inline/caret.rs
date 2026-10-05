@@ -51,7 +51,18 @@ use crate::ext::TuiExt;
 ///   laid out, or sits in a non-IFC container).
 /// - No fragment in the IFC covers the position (shouldn't happen
 ///   for a caret set by `position_at`, but handled defensively).
+/// - The caret is left of or above the screen — on an `rtl` line that
+///   overflows its box's left edge, or in content scrolled up — where
+///   no cell holds it.
 pub fn cell_of_position(dom: &Dom<TuiExt>, pos: Position) -> Option<(u16, u16)> {
+    let (x, y) = caret_cell(dom, pos)?;
+    Some((u16::try_from(x).ok()?, u16::try_from(y).ok()?))
+}
+
+/// [`cell_of_position`]'s cell in signed screen coordinates, off-screen
+/// ones included: what scrolling a caret into view and moving it by
+/// line measure from.
+pub(crate) fn caret_cell(dom: &Dom<TuiExt>, pos: Position) -> Option<(i32, i32)> {
     let flow = inline_flow_for_text(dom, pos.node)?;
     let (layout, content) = inline_flow_layout(dom, flow)?;
 
@@ -63,8 +74,8 @@ pub fn cell_of_position(dom: &Dom<TuiExt>, pos: Position) -> Option<(u16, u16)> 
     if fragment_for_position(layout, pos).is_none() {
         let text = dom.node(pos.node).node_value()?;
         let (line_idx, col) = phantom_line_and_column(text, pos.offset)?;
-        let x = (content.x + col as i32).max(0) as u16;
-        let y = (content.y + text_row_of_line(layout, line_idx)).max(0) as u16;
+        let x = content.x + i32::from(col);
+        let y = content.y + text_row_of_line(layout, line_idx);
         return Some((x, y));
     }
 
@@ -73,8 +84,8 @@ pub fn cell_of_position(dom: &Dom<TuiExt>, pos: Position) -> Option<(u16, u16)> 
     let offset_in_frag = pos.offset.saturating_sub(fragment.source_byte_offset);
     let cell_in_frag = cells_before_byte(&fragment.text, offset_in_frag);
 
-    let x = (content.x + fragment.x + cell_in_frag as i32).max(0) as u16;
-    let y = (content.y + text_row_of_line(layout, line_idx)).max(0) as u16;
+    let x = content.x + fragment.x + cell_in_frag as i32;
+    let y = content.y + text_row_of_line(layout, line_idx);
     Some((x, y))
 }
 

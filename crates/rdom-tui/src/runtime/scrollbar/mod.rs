@@ -53,6 +53,8 @@ mod keys;
 mod painted;
 mod reveal;
 #[cfg(test)]
+mod reveal_tests;
+#[cfg(test)]
 mod reverse_tests;
 #[cfg(test)]
 mod rtl_tests;

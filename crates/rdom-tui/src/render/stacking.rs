@@ -143,24 +143,15 @@ fn is_item_of(dom: &Dom<TuiExt>, parent: NodeId) -> bool {
 /// content? A positioned box does, and so does a z-indexed flex or grid
 /// item ([`is_z_indexed_item`]). Every such box that is not positioned
 /// establishes a stacking context ([`creates_stacking_context`]).
-pub(crate) fn is_layered(dom: &Dom<TuiExt>, parent: NodeId, c: &ComputedStyle) -> bool {
-    is_positioned(c) || is_z_indexed_item(dom, parent, c) || is_float(dom, parent, c)
+pub(crate) fn is_layered(dom: &Dom<TuiExt>, id: NodeId, parent: NodeId, c: &ComputedStyle) -> bool {
+    is_positioned(c) || is_z_indexed_item(dom, parent, c) || is_float(dom, id)
 }
 
-/// Does the element `c`, a child of `parent`, float (CSS 2.1 §9.5) —
-/// paint from its stacking context's float layer (Appendix E step 5)?
-/// The answer `layout_pass::float::float_side` gives from the element:
-/// its `float` is not `none`, it has a box, and `parent` — its box parent
-/// — is a block container.
-pub(crate) fn is_float(dom: &Dom<TuiExt>, parent: NodeId, c: &ComputedStyle) -> bool {
-    c.float != crate::layout::Float::None
-        && !matches!(c.display, Display::None | Display::Contents)
-        && dom.node(parent).node_type() == NodeType::Element
-        && dom
-            .node(parent)
-            .ext()
-            .and_then(|e| e.computed.as_deref())
-            .is_some_and(|p| p.flow.is_block_flow())
+/// Does the element `id` float (CSS 2.1 §9.5) — paint from its stacking
+/// context's float layer (Appendix E step 5)? Layout's one answer,
+/// `layout_pass::float::float_side`, which reads its box parent.
+pub(crate) fn is_float(dom: &Dom<TuiExt>, id: NodeId) -> bool {
+    crate::render::layout_pass::float::float_side(dom, id).is_some()
 }
 
 /// Does the element `c`, a child of `parent`, establish a stacking
@@ -323,10 +314,7 @@ impl Walk<'_> {
             if c.display == Display::None {
                 continue;
             }
-            if !is_positioned(c)
-                && !is_z_indexed_item(dom, box_parent, c)
-                && is_float(dom, box_parent, c)
-            {
+            if !is_positioned(c) && !is_z_indexed_item(dom, box_parent, c) && is_float(dom, cid) {
                 // A float paints atomically after the in-flow content
                 // (Appendix E step 5); its positioned descendants belong
                 // to this context, its in-flow boxes to its own unit.
@@ -348,7 +336,7 @@ impl Walk<'_> {
                     self.children(cid, cid, Some(entry.unit()));
                     self.chain.pop();
                 }
-            } else if is_layered(dom, box_parent, c) {
+            } else if is_layered(dom, cid, box_parent, c) {
                 let clip = match c.position {
                     Position::Fixed => viewport,
                     Position::Absolute => self
@@ -484,7 +472,7 @@ fn atom_shadows_in(
             continue;
         };
         if c.display == Display::None
-            || is_layered(dom, box_parent, c)
+            || is_layered(dom, cid, box_parent, c)
             || creates_stacking_context(dom, box_parent, c)
             || paints_atomically(dom, box_parent, c)
         {

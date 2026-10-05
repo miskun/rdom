@@ -26,7 +26,7 @@ fn answers(css: &str) -> (bool, bool) {
     let (dom, c, i) = tree(css);
     let style = dom.node(i).ext().unwrap().computed.clone().unwrap();
     (
-        is_layered(&dom, c, &style),
+        is_layered(&dom, i, c, &style),
         creates_stacking_context(&dom, c, &style),
     )
 }

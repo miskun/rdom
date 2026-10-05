@@ -62,6 +62,7 @@ use crate::render::box_tree::BoxItem;
 
 use crate::render::layout_pass::float::lines::LineExclusions;
 pub use boxes::{GeneratedFragment, InlineFragment, InlineLayout, LineBox};
+pub(crate) use caret::caret_cell;
 pub use caret::cell_of_position;
 pub(crate) use caret::cells_before_byte;
 use feed::{fill_block, fill_run, white_space};

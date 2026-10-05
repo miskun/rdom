@@ -27,7 +27,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use rdom_core::{NodeId, Position, Selection};
 
 use crate::TuiDom;
-use crate::render::inline::cell_of_position;
+use crate::render::inline::caret_cell;
 use crate::runtime::editing::perform::{Edit, EditOutcome, perform_edit_as};
 mod vertical;
 
@@ -281,9 +281,9 @@ fn caret_doc_end(dom: &TuiDom, from: Position) -> Option<Position> {
 
 fn caret_line_start(dom: &TuiDom, from: Position) -> Option<Position> {
     let flow = crate::render::inline::inline_flow_for_text(dom, from.node)?;
-    let (_, y) = cell_of_position(dom, from)?;
+    let (_, y) = caret_cell(dom, from)?;
     let (layout, content) = crate::render::inline::inline_flow_layout(dom, flow)?;
-    let row = u16::try_from(y as i32 - content.y).ok()?;
+    let row = u16::try_from(y - content.y).ok()?;
     let target_line = &layout.lines[layout.line_at_row(row)?];
     // Start of line = position of the first fragment's first byte.
     // Going through `position_at(0, y)` doesn't work because column
@@ -303,9 +303,9 @@ fn caret_line_start(dom: &TuiDom, from: Position) -> Option<Position> {
 
 fn caret_line_end(dom: &TuiDom, from: Position) -> Option<Position> {
     let flow = crate::render::inline::inline_flow_for_text(dom, from.node)?;
-    let (_, y) = cell_of_position(dom, from)?;
+    let (_, y) = caret_cell(dom, from)?;
     let (layout, content) = crate::render::inline::inline_flow_layout(dom, flow)?;
-    let row = u16::try_from(y as i32 - content.y).ok()?;
+    let row = u16::try_from(y - content.y).ok()?;
     let target_line = &layout.lines[layout.line_at_row(row)?];
     // End of line = position just past the last fragment on the
     // line. `position_at(u16::MAX, y)` doesn't work because no

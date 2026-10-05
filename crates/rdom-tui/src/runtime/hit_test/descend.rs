@@ -339,7 +339,7 @@ fn hit_in_flow_element(
 ) -> bool {
     let parent = dom.node(id).parent_node().map_or(id, |p| p.id());
     match dom.node(id).ext().and_then(|e| e.computed.as_ref()) {
-        Some(c) if is_layered(dom, parent, c) => false,
+        Some(c) if is_layered(dom, id, parent, c) => false,
         Some(c) if creates_stacking_context(dom, parent, c) => {
             hit_stacking_context(dom, id, x, y, clip, viewport, path)
         }

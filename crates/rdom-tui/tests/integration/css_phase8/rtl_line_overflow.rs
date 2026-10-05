@@ -119,3 +119,14 @@ fn a_hit_left_of_the_box_finds_the_overflowing_text() {
     let hit = dom.caret_position_from_point(0, 0).expect("a text hit");
     assert_eq!((hit.node, hit.offset), (t, 2));
 }
+
+/// C8G-CARET-RTL (architect N8): a caret on the part of an `rtl` line
+/// that overflows left of the screen is on no cell — `cell_of_position`
+/// says so, and paint draws no caret in column 0 for it (it clamped the
+/// column to 0). Before `b` (byte 1) the caret is at column −3.
+#[test]
+fn a_caret_left_of_the_screen_is_on_no_cell() {
+    let (dom, _, t, _) = block("");
+    assert_eq!(cell_of_position(&dom, Position::new(t, 1)), None);
+    assert_eq!(cell_of_position(&dom, Position::new(t, 5)), Some((1, 0)));
+}
