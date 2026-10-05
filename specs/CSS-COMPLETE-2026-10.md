@@ -158,7 +158,7 @@ row comes from.
 | C7-GRID-PLACE | `grid-row` / `grid-column` (+ start / end), `grid-area`, auto-placement, `grid-auto-flow` (`dense`) | done |
 | C7-GRID-AREAS | `grid-template-areas`, `grid-template`, `grid` shorthands | done |
 | C7-GRID-AUTO | `grid-auto-columns` / `grid-auto-rows` | done |
-| C7-GRID-ALIGN | Box Alignment in grid (`justify-*` / `align-*` / `place-*`) | partial — `justify-content` / `align-content` (part 3) |
+| C7-GRID-ALIGN | Box Alignment in grid (`justify-*` / `align-*` / `place-*`) | done |
 | C7-SUBGRID | `subgrid` | |
 
 ### Phase 8 — Positioning, floats, overflow, scrolling (audit §3.10, §3.11)
@@ -3887,3 +3887,23 @@ row comes from.
   Mutation checks (restored and touched): no shims in the row contributions → the shim test; the
   first-baseline group keyed by the item's last row → the spanning test. No other test expectation and
   no snapshot changed (flex's baseline tests pass through the moved measurement).
+- 2026-10-08 — C7-GRID-ALIGN, part 3 of 3: aligning the grid (CSS Grid 2 §10.5, Box Alignment 3
+  §5). `justify-content` / `align-content` distribute the content box's free space around the tracks
+  once they are sized (`grid/content.rs::distribute`, applied in `arrange` before the areas and the
+  abspos lines are read off the extents, so both see the aligned tracks): each track not collapsed by
+  `auto-fit` is an alignment subject, a collapsed one keeping its predecessor's shift; the space
+  before a subject widens the gutter, and the area of every item spanning it. Shared, not forked:
+  flex's keyword mapping and whole-cell shares move from `flex/content.rs` to
+  `layout_pass/distribution.rs` (`Distribution`, `Ends` — each caller names its axis's `start` /
+  `end`, `flex-start` / `flex-end`, `left` / `right` in its frame — `content_distribution`,
+  `offsets`); flex's `justify_offsets` / `align_content_offsets` are now ends plus the shared call,
+  behaviour unchanged (every flex test passes as it stood). `normal` / `stretch` keep §11.8's
+  stretching of `auto` tracks and otherwise pack to the start; `safe` keeps overflowing tracks at the
+  start; `left` / `right` are physical under `rtl`. Red: four tests in `css_phase7/align.rs` failed —
+  every track at the start (`[0, 2]` for `end`'s `[16, 18]`, the spanning area 5 wide for 11, the
+  `rtl` `end` at `[18, 16]`); green after (one expectation of the test's own arithmetic corrected
+  while red: `space-around` over 6 rows of free space puts the second row at 7 — shares 2 and 3 —
+  not 6). Added green, then mutation-checked: the collapsed-track test (collapsed tracks counted as
+  subjects → `[0, 4]`). Mutation checks (restored and touched): the rows not distributed → the
+  `align-content` test. No other test expectation and no snapshot changed. DIVERGENCES: §3's interim
+  grid alignment line goes; §1's whole-cell alignment entry names grid.

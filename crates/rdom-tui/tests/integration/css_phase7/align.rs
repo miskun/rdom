@@ -201,3 +201,128 @@ fn an_absolutely_positioned_box_aligns_in_its_grid_area() {
     let r = rect(&dom, abs);
     assert_eq!((r.x, r.y, r.width, r.height), (4, 4, 2, 1));
 }
+
+/// The `x` of each of `.g`'s items — one per column of `columns` —
+/// with `justify-content: value`, in a 20-wide container.
+fn columns_at(columns: &str, value: &str) -> Vec<i32> {
+    let n = columns.split_whitespace().count();
+    let classes = vec![""; n];
+    place(
+        &format!(
+            ".g {{ display: grid; grid-template-columns: {columns}; justify-content: {value} }}"
+        ),
+        &classes,
+    )
+    .iter()
+    .map(|r| r.0)
+    .collect()
+}
+
+/// Grid §10.5 / Box Alignment §5.1: `justify-content` places the grid's
+/// columns in the container's free space as one alignment subject per
+/// track — packed to an edge or the center, or with the space between
+/// them (`space-between`), around them (`space-around`: half at each
+/// end) or evenly; a remainder cell goes to the earliest spaces
+/// (DIVERGENCES §1). `normal` / `stretch` stretch `auto` tracks only
+/// (§11.8), so fixed tracks stay at the start.
+#[test]
+fn justify_content_distributes_the_columns() {
+    assert_eq!(columns_at("2 2", "normal"), [0, 2]);
+    assert_eq!(columns_at("2 2", "stretch"), [0, 2]);
+    assert_eq!(columns_at("2 2", "start"), [0, 2]);
+    assert_eq!(columns_at("2 2", "end"), [16, 18]);
+    assert_eq!(columns_at("2 2", "flex-end"), [16, 18]);
+    assert_eq!(columns_at("2 2", "center"), [8, 10]);
+    assert_eq!(columns_at("2 2", "space-between"), [0, 18]);
+    assert_eq!(columns_at("2 2", "space-around"), [4, 14]);
+    assert_eq!(columns_at("2 2", "space-evenly"), [6, 13]);
+    // §5.3: one track falls back — `space-between` to `flex-start`,
+    // `space-around` / `space-evenly` to `center`.
+    assert_eq!(columns_at("2", "space-between"), [0]);
+    assert_eq!(columns_at("2", "space-evenly"), [9]);
+}
+
+/// Grid §10.5: the distributed space widens the gutters — on top of the
+/// gap, and inside the grid area of an item spanning the tracks it lies
+/// between.
+#[test]
+fn distributed_space_widens_the_gutters_and_spanning_areas() {
+    let at = place(
+        ".g { display: grid; grid-template-columns: 2 2 2; column-gap: 1; \
+         justify-content: space-between } .s { grid-column: 1 / 3 }",
+        &["", "", "", "s"],
+    );
+    // 20 − 6 − 2 gaps = 12 free: columns at 0, 2 + 1 + 6 = 9, 18.
+    assert_eq!(
+        at.iter().map(|r| (r.0, r.2)).collect::<Vec<_>>(),
+        [(0, 2), (9, 2), (18, 2), (0, 11)]
+    );
+}
+
+/// Box Alignment §4.2 / §4.4: under `direction: rtl` the columns pack to
+/// the right for `start` and to the left for `end`, `left` / `right` are
+/// physical; tracks wider than the container overflow as their
+/// alignment says unless `safe`.
+#[test]
+fn justify_content_follows_the_writing_mode_and_safety() {
+    let rtl = |value: &str| {
+        place(
+            &format!(
+                ".g {{ display: grid; direction: rtl; grid-template-columns: 2 2; \
+                 justify-content: {value} }}"
+            ),
+            &["", ""],
+        )
+        .iter()
+        .map(|r| r.0)
+        .collect::<Vec<_>>()
+    };
+    assert_eq!(rtl("start"), [18, 16]);
+    assert_eq!(rtl("end"), [2, 0]);
+    assert_eq!(rtl("left"), [2, 0]);
+    assert_eq!(rtl("right"), [18, 16]);
+    assert_eq!(columns_at("12 12", "center"), [-2, 10]);
+    assert_eq!(columns_at("12 12", "safe center"), [0, 12]);
+    assert_eq!(columns_at("12 12", "end"), [-4, 8]);
+}
+
+/// Grid §10.5: `align-content` distributes the rows in a container whose
+/// height leaves free space (here a definite 10).
+#[test]
+fn align_content_distributes_the_rows() {
+    let rows_at = |value: &str| {
+        place(
+            &format!(
+                ".g {{ display: grid; height: 10; grid-template-rows: 2 2; \
+                 align-content: {value} }}"
+            ),
+            &["", ""],
+        )
+        .iter()
+        .map(|r| r.1)
+        .collect::<Vec<_>>()
+    };
+    assert_eq!(rows_at("normal"), [0, 2]);
+    assert_eq!(rows_at("end"), [6, 8]);
+    assert_eq!(rows_at("center"), [3, 5]);
+    assert_eq!(rows_at("space-between"), [0, 8]);
+    assert_eq!(rows_at("space-around"), [2, 7]);
+}
+
+/// Grid §10.5 with §7.2.3.2: a collapsed `auto-fit` track is no alignment
+/// subject — `space-between` spreads the two occupied columns to the
+/// container's edges, not over the ten repetitions.
+#[test]
+fn collapsed_tracks_are_not_distributed() {
+    assert_eq!(
+        place(
+            ".g { display: grid; grid-template-columns: repeat(auto-fit, 2); \
+             justify-content: space-between }",
+            &["", ""],
+        )
+        .iter()
+        .map(|r| r.0)
+        .collect::<Vec<_>>(),
+        [0, 18]
+    );
+}

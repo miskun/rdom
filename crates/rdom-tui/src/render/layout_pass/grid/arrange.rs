@@ -20,9 +20,9 @@ use std::rc::Rc;
 
 use rdom_core::{Dom, NodeId};
 
-use super::Grid;
 use super::baseline::Shim;
 use super::placement::Placed;
+use super::{Grid, content};
 use crate::ext::{AnonymousIfc, TuiExt};
 use crate::layout::{
     Align, Alignment, AspectRatio, Direction, LayoutRect, MarginValue, Sides, TextDirection,
@@ -44,9 +44,23 @@ pub(super) fn arrange(
     grid: Grid,
     container: LayoutRect,
 ) -> Vec<AnonymousIfc> {
-    let columns = grid.columns.extents();
-    let rows = grid.rows.as_ref().map(|r| r.extents()).unwrap_or_default();
     let rtl = crate::render::layout_pass::margin_trim::inline_reversed(computed);
+    // §10.5: the tracks distributed in the content box by
+    // `justify-content` / `align-content`.
+    let columns = content::distribute(
+        &grid.columns,
+        container.width,
+        computed.justify_content,
+        content::inline_ends(rtl),
+    );
+    let rows = grid.rows.as_ref().map_or_else(Vec::new, |r| {
+        content::distribute(
+            r,
+            container.height,
+            computed.align_content,
+            content::BLOCK_ENDS,
+        )
+    });
     // The tracks' edges, absolute (unscrolled), for §9.1: an `rtl` grid's
     // columns start at their right edge.
     let mut lines = grid.lines;
@@ -54,13 +68,13 @@ pub(super) fn arrange(
     lines.columns.edges = columns
         .iter()
         .map(|&(a, b)| match rtl {
-            true => (right - a as i32, right - b as i32),
-            false => (container.x + a as i32, container.x + b as i32),
+            true => (right - a, right - b),
+            false => (container.x + a, container.x + b),
         })
         .collect();
     lines.rows.edges = rows
         .iter()
-        .map(|&(a, b)| (container.y + a as i32, container.y + b as i32))
+        .map(|&(a, b)| (container.y + a, container.y + b))
         .collect();
     if let Some(ext) = dom.node_mut(id).ext_mut() {
         ext.grid_lines = Some(Box::new(lines));
@@ -77,10 +91,10 @@ pub(super) fn arrange(
         // The area in physical cells: an `rtl` grid's columns run from
         // its right edge (CSS Writing Modes 4 §2.1).
         let x = match rtl {
-            true => right - x1 as i32,
-            false => container.x + x0 as i32,
+            true => right - x1,
+            false => container.x + x0,
         };
-        let area = LayoutRect::new(x, container.y + y0 as i32, cells(x1 - x0), cells(y1 - y0));
+        let area = LayoutRect::new(x, container.y + y0, cells(x1 - x0), cells(y1 - y0));
         let mut rect = fit(
             dom,
             p,
@@ -99,8 +113,8 @@ pub(super) fn arrange(
 }
 
 /// Cells as an extent.
-fn cells(n: u32) -> u16 {
-    n.min(u32::from(u16::MAX)) as u16
+fn cells(n: i32) -> u16 {
+    n.clamp(0, i32::from(u16::MAX)) as u16
 }
 
 /// `p`'s border box in its grid `area` (physical cells): sized on each

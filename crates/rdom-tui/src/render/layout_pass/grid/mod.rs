@@ -27,12 +27,16 @@
 //! - [`contribution`] — the items' min-content, max-content and minimum
 //!   contributions on an axis.
 //! - [`arrange`] — the items laid out in their grid areas.
+//! - [`content`] — the tracks distributed by `justify-content` /
+//!   `align-content` (§10.5).
+//! - [`baseline`] — the baseline-sharing groups of the rows (§10.4).
 //! - [`intrinsic`] — the grid container's content size.
 //! - [`lines`] — a laid-out grid's lines, for the absolutely positioned
 //!   boxes it is the containing block of (§9.1).
 
 mod arrange;
 mod baseline;
+mod content;
 mod contribution;
 #[cfg(test)]
 mod cost_tests;

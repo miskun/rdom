@@ -171,6 +171,9 @@ pub(super) struct TrackGrid {
     /// a collapsed track (§7.2.3.2 — the gutters on either side of it
     /// collapse into one).
     pub(super) gutters: Vec<u32>,
+    /// Which tracks are collapsed (`auto-fit`, §7.2.3.2): no alignment
+    /// subjects for `justify-content` / `align-content` (§10.5).
+    pub(super) collapsed: Vec<bool>,
 }
 
 impl TrackGrid {
@@ -187,7 +190,13 @@ impl TrackGrid {
                 gutters.push(if seen_open && next_open { gap } else { 0 });
             }
         }
-        Self { tracks, gutters }
+        Self {
+            collapsed: (0..n)
+                .map(|i| collapsed.get(i).copied().unwrap_or(false))
+                .collect(),
+            tracks,
+            gutters,
+        }
     }
 
     /// The gutters inside `span`.

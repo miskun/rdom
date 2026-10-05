@@ -78,6 +78,7 @@ mod block_tests;
 mod border_collapse;
 pub(crate) mod box_sizing;
 mod dispatch;
+mod distribution;
 mod flex;
 pub(crate) mod geometry;
 mod grid;
