@@ -34,7 +34,7 @@ the commit that lands it (`done <sha>`), and the log at the end records phase ga
 | 2 | Values, units, math functions | done 2026-10-05 (both gates; 20 gate fixes `C2G-*`; their re-review rides with the Phase 3 gate; C2-LH partial until C9-LINE-HEIGHT) |
 | 3 | Color | done 2026-10-06 (both gates; 16 gate fixes `C3G-*` incl. rdom's own terminal input reader; re-review rides with the Phase 4 gate) |
 | 4 | Backgrounds and borders | done 2026-10-06 (both gates; 19 gate fixes `C4G-*`; their re-review rides with the Phase 5 gate; C4-SPACING layout with C13-TFC) |
-| 5 | Box model and sizing (incl. logical properties) | |
+| 5 | Box model and sizing (incl. logical properties) | gates run 2026-10-07; `C5G-*` fixes in progress (C5-CONTAIN-SIZE use with C14) |
 | 6 | Display, visibility, flexbox, box alignment | |
 | 7 | Grid | |
 | 8 | Positioning, floats, overflow, scrolling | |
@@ -1563,3 +1563,26 @@ row comes from.
   The batch's rustdoc gate (run before this last commit) found a link C5-SPLIT broke —
   `read_api.rs`'s `[`TuiAccessorsMut::style_mut`]` no longer in scope after the move — fixed here with
   a `super::` path, along with a link from `set_parsed`'s docs to the crate-private `set_parsed_in`.
+- 2026-10-07 — Phase 5 gates (with the C4G re-review: all 19 at the root except C4G-SHADOW-ORDER).
+  Architect: 2 blocking — flex items paint atomically but their shadows were queued as step-4 block
+  shadows, so a shadow lands under an earlier item's text (a regression from C4G-SHADOW-ORDER); `rtl`
+  scrolling moves mirrored content the wrong way, so left overflow is unreachable. API: 1 blocking — a
+  bare / descendant pseudo-element (`*, ::before, ::after`, `div ::before`) is dropped or mis-matched,
+  and the content-box default makes that reset the migration path. Non-blocking: `ESC X` / `_` / `^`
+  framing swallows typing after a late frame; logical properties re-parse per element and the
+  direction re-run repeats the ladder; intrinsic contributions ignore `min-*` / `max-*` / percentages
+  (inline-block atoms, table cell widths skip the `Sizer`); the tokenizer integer clamp corrupts
+  custom properties; C8-POS-MINMAX half done (relative pseudo with both insets); `fit-content`
+  measures twice; red-less writing / logical tests; `pixel_math` rides on `ch`; inline-block atoms
+  paint no shadow; content-box migration note incomplete (floor, `min-height` as border size, no
+  upgrade callout, no README line); `TextDirection` / `WritingMode` / `MarginTrim` /
+  `ContainIntrinsicSize` not re-exported, no Phase 5 prelude test; root `backend` / `parse` /
+  `property_dispatch` modules misleading; prelude grown into a migration surface; custom properties
+  re-rendered, kept text not lowercased; CSSOM reads of inline-axis longhands / priority wrong; logical
+  `!important` marking both sides gives a wrong cascade result; setter docs use Rust field names;
+  missing `From<IntrinsicSize>`, `fit_content` constructor, `intersects`, node setters, radius shape
+  mismatch; showcase snapshots render without the shell reset and ignore background; stale counts
+  and DESIGN lists; DIVERGENCES spread contradiction. Accepted: tint_bg cost, unitless fractions,
+  rtl margin / positioned / no-bidi decisions, sealed-doctest fragility, rustdoc link broken on
+  b2e2bcd..34a9cfb (history not rewritten). Fix all as `C5G-*`, two batches (A correctness, B API
+  and docs).
