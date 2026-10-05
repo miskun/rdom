@@ -57,9 +57,11 @@ pub struct FlexShorthand {
 
 /// Parse the `flex` shorthand (CSS Flexbox §7.2): `none | [
 /// <'flex-grow'> <'flex-shrink'>? || <'flex-basis'> ]`. `none` is
-/// `0 0 auto`; an omitted grow or shrink is 1 and an omitted basis 0
-/// (so `flex: <n>` is `<n> 1 0`, and `auto` — a lone basis — is
-/// `1 1 auto`). The basis may come first; a bare number is a factor
+/// `0 0 auto`; an omitted grow or shrink is 1 and an omitted basis `0%`
+/// (so `flex: <n>` is `<n> 1 0%`, and `auto` — a lone basis — is
+/// `1 1 auto`). The spec text makes the omitted basis `0`; every engine
+/// takes `0%`, which behaves as `content` against an indefinite
+/// container main size (§7.3.3), and serializes it so. The basis may come first; a bare number is a factor
 /// unless two factors precede it (a unitless zero included, §7.2).
 pub fn parse_flex_shorthand(value: &[Token]) -> Option<FlexShorthand> {
     if matches!(value, [Token::Ident(s)] if s.eq_ignore_ascii_case("none")) {
@@ -96,7 +98,7 @@ pub fn parse_flex_shorthand(value: &[Token]) -> Option<FlexShorthand> {
     Some(FlexShorthand {
         grow: grow.unwrap_or(1.0),
         shrink: shrink.unwrap_or(1.0),
-        basis: basis.unwrap_or(FlexBasis::Cells(0)),
+        basis: basis.unwrap_or_else(|| FlexBasis::Calc(Box::new(CalcExpr::Percent(0.0)))),
     })
 }
 

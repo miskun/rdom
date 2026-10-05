@@ -949,7 +949,7 @@ fn max_size_none_is_a_declared_value() {
 /// C2G-FLEX-SHORTHAND, C6-FLEX-LONGHANDS — CSS Flexbox §7.2: `flex:
 /// none | [ <'flex-grow'> <'flex-shrink'>? || <'flex-basis'> ]`. `none`
 /// is `0 0 auto`, `auto` `1 1 auto`; an omitted grow is 1, an omitted
-/// shrink 1, an omitted basis 0; the basis may come first; a unitless
+/// shrink 1, an omitted basis `0%` (as engines, C6G-FLEX-BASIS-ZERO); the basis may come first; a unitless
 /// zero not preceded by two factors is a factor. The shorthand sets its
 /// three longhands and nothing else (`width` / `height` stay).
 #[test]
@@ -960,10 +960,10 @@ fn flex_shorthand_full_grammar() {
     let cases: [(&str, f32, f32, FlexBasis); 14] = [
         ("none", 0.0, 0.0, FlexBasis::Auto),
         ("auto", 1.0, 1.0, FlexBasis::Auto),
-        ("2", 2.0, 1.0, FlexBasis::Cells(0)),
-        ("2 3", 2.0, 3.0, FlexBasis::Cells(0)),
+        ("2", 2.0, 1.0, pct(0.0)),
+        ("2 3", 2.0, 3.0, pct(0.0)),
         ("0 1 auto", 0.0, 1.0, FlexBasis::Auto),
-        ("1 0", 1.0, 0.0, FlexBasis::Cells(0)),
+        ("1 0", 1.0, 0.0, pct(0.0)),
         ("1 30%", 1.0, 1.0, pct(30.0)),
         ("30% 2", 2.0, 1.0, pct(30.0)),
         ("2 0.5 10", 2.0, 0.5, FlexBasis::Cells(10)),

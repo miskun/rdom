@@ -272,3 +272,31 @@ fn flex_flow_sets_direction_and_wrap() {
     set("flex-wrap", "wrap", &mut style).unwrap();
     assert_eq!(serialize("flex-flow", &style), None);
 }
+
+/// CSS Flexbox §7.2 with the engines: an omitted `<'flex-basis'>` in
+/// `flex` is `0%` — the spec text says `0`, but Chromium, Gecko and
+/// WebKit all take `0%` (web-compat: a percentage basis behaves as
+/// `content` in an indefinite container), and serialize `flex: 1` as
+/// `1 1 0%`, `flex-basis` as `0%`.
+#[test]
+fn an_omitted_flex_basis_is_zero_percent() {
+    use crate::calc::CalcExpr;
+    use crate::layout::FlexBasis;
+    for (css, out) in [("1", "1 1 0%"), ("2 3", "2 3 0%"), ("0.5", "0.5 1 0%")] {
+        let mut style = TuiStyle::new();
+        set("flex", css, &mut style).unwrap_or_else(|e| panic!("{css}: {e:?}"));
+        assert_eq!(
+            style.flex_basis,
+            Some(Value::Specified(FlexBasis::Calc(Box::new(
+                CalcExpr::Percent(0.0)
+            )))),
+            "{css}"
+        );
+        assert_eq!(serialize("flex", &style).as_deref(), Some(out), "{css}");
+        assert_eq!(
+            serialize("flex-basis", &style).as_deref(),
+            Some("0%"),
+            "{css}"
+        );
+    }
+}

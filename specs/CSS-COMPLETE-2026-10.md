@@ -2767,3 +2767,19 @@ row comes from.
   pre-C6G "OOTB" hug): the column-parent case now asserts the stretch (width 80) and the row-parent
   case the stretched height (24), renamed; the pseudo-chrome and relative-shift cases, which test
   the intrinsic width, now set `align-items: flex-start`. No snapshot changed.
+- 2026-10-08 — C6G-FLEX-BASIS-ZERO (PN15): `parse_flex_shorthand` gave an omitted
+  `<'flex-basis'>` `FlexBasis::Cells(0)`. CSS Flexbox §7.2's text says `0`, but Chromium, Gecko and
+  WebKit take `0%` (the web-compat reading; Chromium serializes `flex: 1` as `1 1 0%` and
+  `flex-basis` as `0%` — from its serialization, not re-checked in a live browser here), and §7.3.3
+  makes a percentage basis against an indefinite container main size `content`. Decision: follow
+  the engines — the omitted basis is `Calc(Percent(0))`, which layout already resolved as `content`
+  where the main size is indefinite (`main_axis` passes no percentage basis for an `auto`-height
+  column) and as 0 where it is definite; rdom's serializer prints it `0%`. Red:
+  `flex_tests::an_omitted_flex_basis_is_zero_percent` — `Cells(0)` for `Percent(0)`;
+  `css_phase6/flex_basis_zero.rs` `flex_n_items_of_an_auto_height_column_size_by_content` — an
+  equal split (2, 2) for (1, 3). Green after; `flex_n_items_of_a_definite_row_share_it_equally`
+  (5 / 5 in a `width: 10` row) guards the definite case and passed before and after. Mutation check
+  (restored and touched): the default back to `Cells(0)` → (2, 2). Existing expectation changed:
+  `flex_shorthand_full_grammar`'s `2`, `2 3` and `1 0` rows (basis `Cells(0)` → `0%`), which
+  encoded the old default. No snapshot changed (the showcase's `flex: 1` panes sit in definite
+  containers).
