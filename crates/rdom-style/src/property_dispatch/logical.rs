@@ -285,3 +285,129 @@ pub(super) fn serialize_block_axis(name: &str, style: &TuiStyle) -> Option<Optio
         },
     })
 }
+
+/// The inline-axis longhands `name` sets — itself for a longhand, its
+/// components for a shorthand (`margin-inline` is
+/// `margin-inline-start` + `margin-inline-end`, `border-inline-start`
+/// its width, style and color, CSS Logical 1 §4–§5). Empty for a name
+/// that is not inline-axis.
+fn inline_longhands(name: &str) -> &'static [&'static str] {
+    macro_rules! pair {
+        ($p:literal) => {
+            &[concat!($p, "-inline-start"), concat!($p, "-inline-end")]
+        };
+    }
+    macro_rules! ring {
+        ($side:literal) => {
+            &[
+                concat!("border-inline-", $side, "-width"),
+                concat!("border-inline-", $side, "-style"),
+                concat!("border-inline-", $side, "-color"),
+            ]
+        };
+    }
+    macro_rules! sides {
+        ($part:literal) => {
+            &[
+                concat!("border-inline-start-", $part),
+                concat!("border-inline-end-", $part),
+            ]
+        };
+    }
+    match name {
+        "margin-inline" => pair!("margin"),
+        "padding-inline" => pair!("padding"),
+        "inset-inline" => pair!("inset"),
+        "border-inline-start" => ring!("start"),
+        "border-inline-end" => ring!("end"),
+        "border-inline-color" => sides!("color"),
+        "border-inline-style" => sides!("style"),
+        "border-inline-width" => sides!("width"),
+        _ => match NAMES.iter().find(|&&n| n == name) {
+            Some(n) if is_directional(n) => std::slice::from_ref(n),
+            _ => &[],
+        },
+    }
+}
+
+/// For each inline-axis longhand of `name`, the index in `style.pending`
+/// of the last declaration that sets it (CSSOM §6.6: a longhand's value
+/// is its last declaration's). `None` when one of them has none.
+fn last_declarations(name: &str, style: &TuiStyle) -> Option<Vec<usize>> {
+    let longhands = inline_longhands(name);
+    if longhands.is_empty() {
+        return None;
+    }
+    longhands
+        .iter()
+        .map(|l| {
+            style
+                .pending
+                .iter()
+                .rposition(|d| d.directional && inline_longhands(&d.name).contains(l))
+        })
+        .collect()
+}
+
+/// `name`'s value when it is an inline-axis property (CSSOM §6.6
+/// `getPropertyValue`): each longhand from the last declaration that
+/// sets it — its own or a shorthand's component — and a shorthand only
+/// when every longhand is set. Read through the physical properties of
+/// an `ltr` element, so the text is what those serialize; the
+/// direction does not change the logical value. `None` when `name` is
+/// not inline-axis or no declaration sets any of its longhands (a
+/// CSS-wide keyword from `all` may still hold its fields); `Some(None)`
+/// when it is not fully set.
+pub(super) fn serialize_inline_axis(name: &str, style: &TuiStyle) -> Option<Option<String>> {
+    if !is_directional(name) {
+        return None;
+    }
+    let declared = |l: &&str| {
+        style
+            .pending
+            .iter()
+            .any(|d| d.directional && inline_longhands(&d.name).contains(l))
+    };
+    if !inline_longhands(name).iter().any(declared) {
+        return None;
+    }
+    let Some(mut last) = last_declarations(name, style) else {
+        return Some(None);
+    };
+    // Replaying those declarations in source order leaves each longhand
+    // with its last declaration's value.
+    last.sort_unstable();
+    last.dedup();
+    let mut scratch = TuiStyle::new();
+    for i in last {
+        let d = &style.pending[i];
+        if set_mapped(&d.name, &d.value, &mut scratch, TextDirection::Ltr)
+            .is_none_or(|r| r.is_err())
+        {
+            return Some(None);
+        }
+    }
+    let read = |n: &str| super::serialize(n, &scratch);
+    Some(match mapping(name, TextDirection::Ltr)? {
+        Mapping::One(a) => read(a),
+        Mapping::Both(a, b) => read(a).filter(|v| Some(v) == read(b).as_ref()),
+        Mapping::Pair(a, b) => match (read(a), read(b)) {
+            (Some(s), Some(e)) if s == e => Some(s),
+            (Some(s), Some(e)) => Some(format!("{s} {e}")),
+            _ => None,
+        },
+    })
+}
+
+/// Whether the inline-axis property `name` is `!important` (CSSOM §6.6
+/// `getPropertyPriority`): the last declaration of each of its longhands
+/// is, by its own `!important`. `None` when `name` is not inline-axis.
+pub(super) fn inline_axis_important(name: &str, style: &TuiStyle) -> Option<bool> {
+    if !is_directional(name) {
+        return None;
+    }
+    Some(
+        last_declarations(name, style)
+            .is_some_and(|last| last.iter().all(|&i| style.pending[i].important)),
+    )
+}

@@ -31,6 +31,11 @@ pub struct PendingDeclaration {
     /// it maps by the element's `direction`, so it waits for the cascade
     /// even without a substitution function.
     pub directional: bool,
+    /// The declaration is `!important` — recorded per declaration
+    /// ([`property_dispatch::set_important`](crate::property_dispatch::set_important)),
+    /// since an inline-axis one's physical side is not known until the
+    /// cascade.
+    pub important: bool,
 }
 
 impl PendingDeclaration {
@@ -45,6 +50,7 @@ impl PendingDeclaration {
                 Default::default()
             },
             directional: crate::property_dispatch::is_directional(name),
+            important: false,
         }
     }
 }

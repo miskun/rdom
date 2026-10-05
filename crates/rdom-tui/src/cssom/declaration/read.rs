@@ -69,12 +69,15 @@ impl StyleDeclaration {
     }
 
     /// `el.style.getPropertyPriority("color")` — returns
-    /// `"important"` if the property carries an `!important`
-    /// bit, else `""`. Returns `""` for unknown names.
+    /// `"important"` if the property's declaration is `!important`
+    /// (an inline-axis flow-relative one by its own declaration, a
+    /// shorthand when every longhand is; CSSOM §6.6), else `""`.
+    /// Returns `""` for unknown names.
     pub fn get_property_priority(&self, name: &str) -> &'static str {
-        match property_dispatch::property_mask(name) {
-            Some(mask) if self.inline.important.contains(mask) => "important",
-            _ => "",
+        if property_dispatch::is_important(name, &self.inline) {
+            "important"
+        } else {
+            ""
         }
     }
 
@@ -110,5 +113,6 @@ fn declared_names(style: &TuiStyle) -> impl Iterator<Item = &'static str> + '_ {
         .iter()
         .copied()
         .filter(|&name| !property_dispatch::is_storage_alias(name))
+        .filter(move |&name| !super::serialize::listed_under_logical_shorthand(name, style))
         .filter(move |&name| property_dispatch::serialize(name, style).is_some())
 }

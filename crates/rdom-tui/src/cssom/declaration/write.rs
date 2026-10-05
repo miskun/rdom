@@ -209,16 +209,9 @@ impl<'a> StyleDeclarationMut<'a> {
         {
             d.important = important;
         }
-        // Flip the !important bit for this property's mask.
-        if let Some(mask) = property_dispatch::property_mask(name) {
-            if important {
-                style.important |= mask;
-            } else {
-                // setProperty without "important" CLEARS any
-                // prior important bit (browser semantics).
-                style.important = style.important.without(mask);
-            }
-        }
+        // Record the priority; setProperty without "important" CLEARS
+        // any prior one (browser semantics).
+        property_dispatch::set_important(name, important, style);
         let css_text = css_text_of(ext.inline_style_or_empty());
         // Drop the NodeMut binding before re-borrowing dom for
         // `set_attribute`.

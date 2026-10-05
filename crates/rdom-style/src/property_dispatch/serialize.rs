@@ -31,14 +31,18 @@ pub fn serialize(name: &str, style: &TuiStyle) -> Option<String> {
     let name = &*canonical_property_name(name);
     // A `var()` value is kept as written until the cascade (CSS
     // Variables 1 §3).
-    // An inline-axis flow-relative property too, mapped only by the
-    // cascade (CSS Logical 1 §4).
     if let Some(d) = style
         .pending
         .iter()
-        .find(|d| d.name == name && (d.has_substitution || d.directional))
+        .find(|d| d.name == name && d.has_substitution)
     {
         return Some(crate::parse::values::render_value(&d.value));
+    }
+    // An inline-axis flow-relative property is mapped only by the
+    // cascade (CSS Logical 1 §4): read from its last declarations, a
+    // shorthand's component included (CSSOM §6.6).
+    if let Some(out) = super::logical::serialize_inline_axis(name, style) {
+        return out;
     }
     if let Some(kw) = css_wide_of(name, style) {
         return Some(kw.to_string());

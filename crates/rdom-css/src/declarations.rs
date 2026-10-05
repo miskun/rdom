@@ -235,10 +235,8 @@ fn apply_declaration(decl: RawDeclaration, style: &mut TuiStyle, warnings: &mut 
     // tokenizer + per-declaration loop on top of that.
     match property_dispatch::set_from_tokens(name, value, style) {
         Ok(()) => {
-            if decl.important
-                && let Some(mask) = property_dispatch::property_mask(name)
-            {
-                style.important |= mask;
+            if decl.important {
+                property_dispatch::set_important(name, true, style);
             }
         }
         Err(DispatchError::UnknownProperty) => {

@@ -41,6 +41,9 @@ pub(crate) fn css_text_of(style: &TuiStyle) -> String {
         {
             continue;
         }
+        if listed_under_logical_shorthand(name, style) {
+            continue;
+        }
         if let Some(value) = property_dispatch::serialize(name, style) {
             if !out.is_empty() {
                 out.push(' ');
@@ -48,9 +51,7 @@ pub(crate) fn css_text_of(style: &TuiStyle) -> String {
             out.push_str(name);
             out.push_str(": ");
             out.push_str(&value);
-            if let Some(mask) = property_dispatch::property_mask(name)
-                && style.important.contains(mask)
-            {
+            if property_dispatch::is_important(name, style) {
                 out.push_str(" !important");
             }
             out.push(';');
@@ -70,6 +71,28 @@ pub(crate) fn css_text_of(style: &TuiStyle) -> String {
         out.push(';');
     }
     out
+}
+
+/// True when the inline-axis longhand `name` is covered by an
+/// inline-axis shorthand that serializes (`margin-inline-start` under a
+/// set `margin-inline`): a declaration list names the shorthand once,
+/// as it does a set `padding` (CSSOM §6.7.2 prefers the shorthand).
+pub(crate) fn listed_under_logical_shorthand(name: &str, style: &TuiStyle) -> bool {
+    let shorthands: &[&str] = match name {
+        "margin-inline-start" | "margin-inline-end" => &["margin-inline"],
+        "padding-inline-start" | "padding-inline-end" => &["padding-inline"],
+        "inset-inline-start" | "inset-inline-end" => &["inset-inline"],
+        "border-inline-start-color" => &["border-inline-start", "border-inline-color"],
+        "border-inline-start-style" => &["border-inline-start", "border-inline-style"],
+        "border-inline-start-width" => &["border-inline-start", "border-inline-width"],
+        "border-inline-end-color" => &["border-inline-end", "border-inline-color"],
+        "border-inline-end-style" => &["border-inline-end", "border-inline-style"],
+        "border-inline-end-width" => &["border-inline-end", "border-inline-width"],
+        _ => return false,
+    };
+    shorthands
+        .iter()
+        .any(|s| property_dispatch::serialize(s, style).is_some())
 }
 
 /// Map a longhand name to its shorthand parent name. Used by

@@ -180,3 +180,67 @@ fn inline_axis_values_are_validated_when_declared() {
         assert!(!s.has_pending(), "{name}");
     }
 }
+
+// ── CSSOM reads of the inline axis (C5G-CSSOM-LOGICAL) ─────────────
+
+/// CSSOM §6.6 `getPropertyValue`: a longhand reads the value of the last
+/// declaration that sets it — its own, or a shorthand's component
+/// (`margin-inline: 1 2` sets `margin-inline-start` to `1`, CSS Logical 1
+/// §4); a shorthand serializes from its longhands, and only when every
+/// one of them is set.
+#[test]
+fn inline_axis_reads_expand_shorthands() {
+    let s = style(&[("margin-inline", "1 2")]);
+    assert_eq!(serialize("margin-inline-start", &s).as_deref(), Some("1"));
+    assert_eq!(serialize("margin-inline-end", &s).as_deref(), Some("2"));
+    assert_eq!(serialize("margin-inline", &s).as_deref(), Some("1 2"));
+
+    let s = style(&[("margin-inline-start", "1"), ("margin-inline", "3")]);
+    assert_eq!(serialize("margin-inline-start", &s).as_deref(), Some("3"));
+    assert_eq!(serialize("margin-inline", &s).as_deref(), Some("3"));
+
+    let s = style(&[("margin-inline", "3"), ("margin-inline-start", "1")]);
+    assert_eq!(serialize("margin-inline-start", &s).as_deref(), Some("1"));
+    assert_eq!(serialize("margin-inline", &s).as_deref(), Some("1 3"));
+
+    let s = style(&[("padding-inline-end", "2")]);
+    assert_eq!(serialize("padding-inline", &s), None);
+    assert_eq!(serialize("padding-inline-start", &s), None);
+
+    let s = style(&[("border-inline-color", "red blue")]);
+    assert_eq!(
+        serialize("border-inline-start-color", &s).as_deref(),
+        Some("red")
+    );
+    assert_eq!(
+        serialize("border-inline-end-color", &s).as_deref(),
+        Some("blue")
+    );
+}
+
+/// CSSOM §6.6 `getPropertyPriority`: a longhand's priority is its last
+/// declaration's — a logical one's own `!important`, not the bits of
+/// the physical sides it may land on; a shorthand is important when
+/// every longhand is.
+#[test]
+fn inline_axis_priority_is_the_declarations_own() {
+    let mut s = style(&[("margin-inline-start", "1")]);
+    set_important("margin-inline-start", true, &mut s);
+    set("margin-left", "2", &mut s).unwrap();
+    assert!(is_important("margin-inline-start", &s));
+    assert!(!is_important("margin-inline-end", &s));
+    assert!(!is_important("margin-inline", &s));
+
+    let mut s = style(&[("margin-inline-start", "1"), ("margin-left", "2")]);
+    set_important("margin-left", true, &mut s);
+    assert!(!is_important("margin-inline-start", &s));
+    assert!(is_important("margin-left", &s));
+
+    let mut s = style(&[("margin-inline", "1 2")]);
+    set_important("margin-inline", true, &mut s);
+    assert!(is_important("margin-inline", &s));
+    assert!(is_important("margin-inline-end", &s));
+    set("margin-inline-end", "4", &mut s).unwrap();
+    assert!(!is_important("margin-inline", &s));
+    assert!(is_important("margin-inline-start", &s));
+}

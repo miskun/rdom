@@ -1838,3 +1838,25 @@ row comes from.
   changes have no test. Splits (files past the bar): the builder's sizing setters moved to
   `tui_style/builder/sizing.rs` (`builder/mod.rs` 615 → 514), and `layout/sizing.rs`'s tests to
   `layout/sizing_tests.rs` (609 → 537).
+- 2026-10-07 — C5G-CSSOM-LOGICAL (gate fix): CSSOM reads of the inline-axis flow-relative properties
+  follow CSSOM §6.6. `getPropertyValue`: a longhand reads the last kept declaration that sets it —
+  its own or a shorthand's component — and a shorthand only when every longhand is set; the value is
+  computed by replaying those declarations onto a scratch style under `ltr` and serializing the
+  physical properties (`logical::serialize_inline_axis`, with `inline_longhands`: `margin-inline` →
+  start + end, `border-inline-start` → its width / style / color, `border-inline-color` → the two
+  sides' colors, …), so the text is what the physical twin serializes. With no declaration of any
+  longhand it falls back to the fields (`all: unset` still reads `initial`). `getPropertyPriority`:
+  the declaration's own `!important`, now recorded on the kept declaration —
+  `PendingDeclaration::important`, set by the new `property_dispatch::set_important` (the one
+  recording path: `rdom-css`'s block parser and the CSSOM `setProperty` call it) and read by
+  `is_important` (a shorthand is important when every longhand's last declaration is). `cssText` /
+  `length` list a set logical shorthand once (`listed_under_logical_shorthand`, as `padding`
+  suppresses its sides). Decided: the physical sides' bits are still set for an important
+  inline-axis declaration here — the cascade reads them until C5G-LOGICAL-IMPORTANT moves it to the
+  per-declaration flag; that item adds the "a normal `margin-left` beside it is not important"
+  assertions. Red: `inline_axis_reads_expand_shorthands` (`None` for `margin-inline-start` under
+  `margin-inline: 1 2`, against `Some("1")`) and `cssom_reads_logical_longhands_and_priorities`
+  (`""` against `"1"`) failed; `inline_axis_priority_is_the_declarations_own` failed to compile (no
+  `set_important` / `is_important`); green after. Changed along the way: the first draft returned
+  nothing for an undeclared inline-axis name, which broke `all_shorthand_sets_every_property_in_the_table`
+  (`None` against `initial`) — the fallback to the fields above fixes it; no expectation changed.

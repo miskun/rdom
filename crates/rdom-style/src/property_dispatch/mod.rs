@@ -76,6 +76,7 @@ mod background;
 mod border;
 mod contain;
 mod css_wide;
+mod importance;
 mod logical;
 mod serialize;
 pub(crate) mod set;
@@ -96,6 +97,7 @@ mod tests;
 #[cfg(test)]
 mod writing_tests;
 
+pub use importance::{is_important, set_important};
 pub use serialize::serialize;
 pub use set::{set, set_custom, set_from_tokens};
 // `set_parsed` / `set_unset` are backend hooks, public through

@@ -147,3 +147,47 @@ fn cssom_lists_shared_storage_once() {
     assert_eq!(style.length(), 2);
     assert_eq!(style.get_property_value("inline-size"), "4");
 }
+
+/// C5G-CSSOM-LOGICAL — CSSOM §6.6: `getPropertyValue` reads a logical
+/// longhand through the shorthand that set it last, and
+/// `getPropertyPriority` the logical declaration's own priority; `cssText`
+/// writes a set logical shorthand once.
+#[test]
+fn cssom_reads_logical_longhands_and_priorities() {
+    use rdom_tui::TuiAccessors;
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let b = el(&mut dom, root, "div", "b");
+    dom.set_attribute(b, "style", "margin-inline: 1 2").unwrap();
+    assert!(rdom_tui::seed_inline_styles(&mut dom).is_empty());
+    let style = dom.node(b).style().expect("an element");
+    assert_eq!(style.get_property_value("margin-inline-start"), "1");
+    assert_eq!(style.get_property_value("margin-inline-end"), "2");
+    assert_eq!(style.css_text(), "margin-inline: 1 2;");
+    assert_eq!(style.length(), 1);
+
+    dom.set_attribute(
+        b,
+        "style",
+        "margin-inline-start: 1 !important; margin-left: 2",
+    )
+    .unwrap();
+    assert!(rdom_tui::seed_inline_styles(&mut dom).is_empty());
+    let style = dom.node(b).style().expect("an element");
+    assert_eq!(
+        style.get_property_priority("margin-inline-start"),
+        "important"
+    );
+    assert_eq!(style.get_property_priority("margin-inline-end"), "");
+
+    dom.set_attribute(
+        b,
+        "style",
+        "margin-inline-start: 1; margin-left: 2 !important",
+    )
+    .unwrap();
+    assert!(rdom_tui::seed_inline_styles(&mut dom).is_empty());
+    let style = dom.node(b).style().expect("an element");
+    assert_eq!(style.get_property_priority("margin-inline-start"), "");
+    assert_eq!(style.get_property_priority("margin-left"), "important");
+}
