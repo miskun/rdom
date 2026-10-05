@@ -1586,3 +1586,16 @@ row comes from.
   rtl margin / positioned / no-bidi decisions, sealed-doctest fragility, rustdoc link broken on
   b2e2bcd..34a9cfb (history not rewritten). Fix all as `C5G-*`, two batches (A correctness, B API
   and docs).
+- 2026-10-07 — C5G-BARE-PSEUDO (gate fix, blocking): a pseudo-element with no compound before it
+  attaches to the implicit `*` (Selectors 4 §5.2: a compound without a type selector has an implied
+  universal selector). `extract_pseudo_suffix` returns a `Cow` core and, when the text before the
+  pseudo-element is empty or ends in whitespace or a combinator (`>` `+` `~`, not an escaped one),
+  appends `*`: `::before` → `*::before`, `div ::before` → `div *::before`, `div > ::after` →
+  `div > *::after`. The nine suffixes became one table. Decided: done in the suffix stripper (the one
+  place a pseudo-element is split off), for every supported pseudo-element, not only `::before` /
+  `::after`. Red: `extract_bare_pseudo_attaches_to_an_implicit_universal` and
+  `the_bare_pseudo_reset_list_parses` (rdom-style) failed with "`::before` requires a host selector";
+  `css_phase5/bare_pseudo.rs` failed — the reset list and `.a > ::after` failed the strict parse,
+  `.a ::before` painted `>AB` (the `div`'s own `::before`) instead of `A>B`; green after. Changed
+  expectations: the four `extract_rejects_bare_*` assertions (the old rejection) became the new
+  test. DIVERGENCES §3's line removed; the C5-BOX-SIZING migration hint names the bare reset again.

@@ -3,18 +3,47 @@
 //! pseudo-element suffix (`::before`, `::scrollbar-thumb:vertical`, …)
 //! that rdom-core's structural grammar does not accept.
 
+use std::borrow::Cow;
+
 use super::PseudoElementTarget;
 
 // ── Pseudo-element suffix extraction ────────────────────────────────
 
-/// Strip a trailing `::before` / `::after` if present. Returns the
-/// core selector + pseudo target. Errors if multiple pseudo-element
-/// suffixes are present (not allowed in a single selector).
-pub(super) fn extract_pseudo_suffix(selector: &str) -> Result<(&str, PseudoElementTarget), String> {
-    // The rule: `::before` / `::after` must appear at the END of the
-    // selector, directly attached to the last compound (no whitespace
-    // between). CSS `element::before` and `element::after` are the only
-    // forms we accept.
+/// The supported pseudo-element suffixes. Longer suffixes go first:
+/// `::scrollbar` is a prefix of `::scrollbar-thumb`, which is a prefix
+/// of the axis forms.
+const SUFFIXES: [(&str, PseudoElementTarget); 9] = [
+    ("::before", PseudoElementTarget::Before),
+    ("::after", PseudoElementTarget::After),
+    ("::backdrop", PseudoElementTarget::Backdrop),
+    ("::placeholder", PseudoElementTarget::Placeholder),
+    ("::selection", PseudoElementTarget::Selection),
+    (
+        "::scrollbar-thumb:vertical",
+        PseudoElementTarget::ScrollbarThumbVertical,
+    ),
+    (
+        "::scrollbar-thumb:horizontal",
+        PseudoElementTarget::ScrollbarThumbHorizontal,
+    ),
+    ("::scrollbar-thumb", PseudoElementTarget::ScrollbarThumb),
+    ("::scrollbar", PseudoElementTarget::Scrollbar),
+];
+
+/// Strip a trailing pseudo-element (`::before`, `::scrollbar-thumb:vertical`,
+/// …) if present. Returns the core selector + pseudo target. Errors if
+/// more than one pseudo-element is present (not allowed in a single
+/// selector) or the pseudo-element is unsupported.
+///
+/// The pseudo-element attaches to the last compound of the core. When
+/// there is none — the core is empty, or ends in whitespace or a
+/// combinator (`::before`, `div ::before`, `div > ::after`) — that
+/// compound is the implicit universal selector (Selectors 4 §5.2: a
+/// compound without a type selector has an implied `*`), so the core
+/// returned is the source with `*` appended: `*`, `div *`, `div > *`.
+pub(super) fn extract_pseudo_suffix(
+    selector: &str,
+) -> Result<(Cow<'_, str>, PseudoElementTarget), String> {
     let s = selector.trim_end();
 
     // Disallow multiple `::` pseudo-elements (`::before::after` is invalid).
@@ -25,74 +54,10 @@ pub(super) fn extract_pseudo_suffix(selector: &str) -> Result<(&str, PseudoEleme
         ));
     }
 
-    if let Some(core) = s.strip_suffix("::before") {
-        let core = core.trim_end();
-        if core.is_empty() {
-            return Err("`::before` requires a host selector".to_string());
-        }
-        return Ok((core, PseudoElementTarget::Before));
-    }
-    if let Some(core) = s.strip_suffix("::after") {
-        let core = core.trim_end();
-        if core.is_empty() {
-            return Err("`::after` requires a host selector".to_string());
-        }
-        return Ok((core, PseudoElementTarget::After));
-    }
-    if let Some(core) = s.strip_suffix("::backdrop") {
-        let core = core.trim_end();
-        if core.is_empty() {
-            return Err("`::backdrop` requires a host selector".to_string());
-        }
-        return Ok((core, PseudoElementTarget::Backdrop));
-    }
-    if let Some(core) = s.strip_suffix("::placeholder") {
-        let core = core.trim_end();
-        if core.is_empty() {
-            return Err("`::placeholder` requires a host selector".to_string());
-        }
-        return Ok((core, PseudoElementTarget::Placeholder));
-    }
-    if let Some(core) = s.strip_suffix("::selection") {
-        let core = core.trim_end();
-        if core.is_empty() {
-            return Err("`::selection` requires a host selector".to_string());
-        }
-        return Ok((core, PseudoElementTarget::Selection));
-    }
-    // Note: the longer suffixes go first — `::scrollbar` is a prefix of
-    // `::scrollbar-thumb`, which is a prefix of the axis forms.
-    for (suffix, target) in [
-        (
-            "::scrollbar-thumb:vertical",
-            PseudoElementTarget::ScrollbarThumbVertical,
-        ),
-        (
-            "::scrollbar-thumb:horizontal",
-            PseudoElementTarget::ScrollbarThumbHorizontal,
-        ),
-    ] {
+    for (suffix, target) in SUFFIXES {
         if let Some(core) = s.strip_suffix(suffix) {
-            let core = core.trim_end();
-            if core.is_empty() {
-                return Err(format!("`{suffix}` requires a host selector"));
-            }
-            return Ok((core, target));
+            return Ok((with_compound(core), target));
         }
-    }
-    if let Some(core) = s.strip_suffix("::scrollbar-thumb") {
-        let core = core.trim_end();
-        if core.is_empty() {
-            return Err("`::scrollbar-thumb` requires a host selector".to_string());
-        }
-        return Ok((core, PseudoElementTarget::ScrollbarThumb));
-    }
-    if let Some(core) = s.strip_suffix("::scrollbar") {
-        let core = core.trim_end();
-        if core.is_empty() {
-            return Err("`::scrollbar` requires a host selector".to_string());
-        }
-        return Ok((core, PseudoElementTarget::Scrollbar));
     }
 
     // A bare `::other` anywhere is rejected (unsupported pseudo-element).
@@ -103,7 +68,30 @@ pub(super) fn extract_pseudo_suffix(selector: &str) -> Result<(&str, PseudoEleme
         );
     }
 
-    Ok((s, PseudoElementTarget::None))
+    Ok((Cow::Borrowed(s), PseudoElementTarget::None))
+}
+
+/// `core` (the text before a pseudo-element) with a compound for the
+/// pseudo-element to attach to: unchanged when it ends in one, else
+/// with the implicit `*` (Selectors 4 §5.2) appended.
+fn with_compound(core: &str) -> Cow<'_, str> {
+    let ends_in_compound = core.chars().next_back().is_some_and(|last| {
+        (!last.is_whitespace() && !matches!(last, '>' | '+' | '~')) || escaped_at_end(core)
+    });
+    if ends_in_compound {
+        Cow::Borrowed(core)
+    } else {
+        Cow::Owned(format!("{core}*"))
+    }
+}
+
+/// True when `core`'s last character is escaped (`a\ ` — an escaped
+/// space or combinator is part of an identifier, CSS Syntax 3 §4.3.7):
+/// an odd run of backslashes precedes it.
+fn escaped_at_end(core: &str) -> bool {
+    let mut chars = core.chars();
+    chars.next_back();
+    chars.rev().take_while(|&c| c == '\\').count() % 2 == 1
 }
 
 // ── Top-level comma splitting ───────────────────────────────────────

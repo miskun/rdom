@@ -43,69 +43,152 @@ fn split_preserves_attribute_brackets() {
 
 // ── extract_pseudo_suffix ────────────────────────────────────────
 
+/// `extract_pseudo_suffix` with an owned core, so assertions compare
+/// against string literals.
+fn extract(selector: &str) -> Result<(String, PseudoElementTarget), String> {
+    extract_pseudo_suffix(selector).map(|(core, pseudo)| (core.into_owned(), pseudo))
+}
+
 #[test]
 fn extract_no_pseudo() {
     assert_eq!(
-        extract_pseudo_suffix("div.foo").unwrap(),
-        ("div.foo", PseudoElementTarget::None)
+        extract("div.foo").unwrap(),
+        ("div.foo".into(), PseudoElementTarget::None)
     );
 }
 
 #[test]
 fn extract_before() {
     assert_eq!(
-        extract_pseudo_suffix("tree-item::before").unwrap(),
-        ("tree-item", PseudoElementTarget::Before)
+        extract("tree-item::before").unwrap(),
+        ("tree-item".into(), PseudoElementTarget::Before)
     );
 }
 
 #[test]
 fn extract_after() {
     assert_eq!(
-        extract_pseudo_suffix("dialog .close::after").unwrap(),
-        ("dialog .close", PseudoElementTarget::After)
+        extract("dialog .close::after").unwrap(),
+        ("dialog .close".into(), PseudoElementTarget::After)
     );
 }
 
 #[test]
 fn extract_tolerates_trailing_whitespace() {
     assert_eq!(
-        extract_pseudo_suffix("h1::before   ").unwrap(),
-        ("h1", PseudoElementTarget::Before)
+        extract("h1::before   ").unwrap(),
+        ("h1".into(), PseudoElementTarget::Before)
+    );
+}
+
+/// Selectors 4 §5.2: a compound without a type selector has an
+/// implicit `*`, so a pseudo-element with nothing (or only a combinator
+/// or whitespace) before it attaches to `*` — `::before` is `*::before`,
+/// `div ::before` is `div *::before`, `div > ::after` is `div > *::after`
+/// (C5G-BARE-PSEUDO).
+#[test]
+fn extract_bare_pseudo_attaches_to_an_implicit_universal() {
+    let core = |s: &str| extract(s).unwrap();
+    assert_eq!(core("::before"), ("*".into(), PseudoElementTarget::Before));
+    assert_eq!(core("::after"), ("*".into(), PseudoElementTarget::After));
+    assert_eq!(
+        core("div ::before"),
+        ("div *".into(), PseudoElementTarget::Before)
+    );
+    assert_eq!(
+        core("div > ::after"),
+        ("div > *".into(), PseudoElementTarget::After)
+    );
+    assert_eq!(
+        core("div>::after"),
+        ("div>*".into(), PseudoElementTarget::After)
+    );
+    assert_eq!(
+        core("h1 + ::before"),
+        ("h1 + *".into(), PseudoElementTarget::Before)
+    );
+    assert_eq!(
+        core("h1 ~::before"),
+        ("h1 ~*".into(), PseudoElementTarget::Before)
+    );
+    assert_eq!(
+        core("::placeholder"),
+        ("*".into(), PseudoElementTarget::Placeholder)
+    );
+    assert_eq!(
+        core("::selection"),
+        ("*".into(), PseudoElementTarget::Selection)
+    );
+    assert_eq!(
+        core("::scrollbar"),
+        ("*".into(), PseudoElementTarget::Scrollbar)
+    );
+    assert_eq!(
+        core("::scrollbar-thumb:vertical"),
+        ("*".into(), PseudoElementTarget::ScrollbarThumbVertical)
+    );
+    // An escaped space is part of the identifier: `.a\ ` is a compound.
+    assert_eq!(
+        core(".a\\ ::before"),
+        (".a\\ ".into(), PseudoElementTarget::Before)
+    );
+}
+
+/// Nested, a bare pseudo-element is relative to the parent: `.a {
+/// ::before {} }` is `.a *::before` (CSS Nesting 1 §2) — the same
+/// selector as the explicit `& ::before`.
+#[test]
+fn a_nested_bare_pseudo_element_is_relative() {
+    let parent = StyleSelector::parse(".a").unwrap();
+    let bare = StyleSelector::parse_nested("::before", &parent).unwrap();
+    let explicit = StyleSelector::parse_nested("& *::before", &parent).unwrap();
+    let mut a = Stylesheet::bare();
+    a.add_style_rule(&bare, TuiStyle::new(), RuleContext::default());
+    let mut b = Stylesheet::bare();
+    b.add_style_rule(&explicit, TuiStyle::new(), RuleContext::default());
+    assert_eq!(a.rules()[0].pseudo, PseudoElementTarget::Before);
+    assert_eq!(a.rules()[0].selector, b.rules()[0].selector);
+}
+
+/// The Tailwind preflight / modern-normalize reset, `*, ::before,
+/// ::after`, parses into three items — none of them dropped
+/// (C5G-BARE-PSEUDO).
+#[test]
+fn the_bare_pseudo_reset_list_parses() {
+    let sel = StyleSelector::parse("*, ::before, ::after").expect("the reset parses");
+    let mut sheet = Stylesheet::bare();
+    sheet.add_style_rule(&sel, TuiStyle::new(), RuleContext::default());
+    let pseudos: Vec<_> = sheet.rules().iter().map(|r| r.pseudo).collect();
+    assert_eq!(
+        pseudos,
+        vec![
+            PseudoElementTarget::None,
+            PseudoElementTarget::Before,
+            PseudoElementTarget::After
+        ]
     );
 }
 
 #[test]
-fn extract_rejects_bare_pseudo() {
-    assert!(extract_pseudo_suffix("::before").is_err());
-    assert!(extract_pseudo_suffix("::after").is_err());
-}
-
-#[test]
 fn extract_rejects_unsupported_pseudo_element() {
-    assert!(extract_pseudo_suffix("p::first-line").is_err());
+    assert!(extract("p::first-line").is_err());
 }
 
 #[test]
 fn extract_selection() {
     assert_eq!(
-        extract_pseudo_suffix("p::selection").unwrap(),
-        ("p", PseudoElementTarget::Selection)
+        extract("p::selection").unwrap(),
+        ("p".into(), PseudoElementTarget::Selection)
     );
     assert_eq!(
-        extract_pseudo_suffix("article .body::selection").unwrap(),
-        ("article .body", PseudoElementTarget::Selection)
+        extract("article .body::selection").unwrap(),
+        ("article .body".into(), PseudoElementTarget::Selection)
     );
-}
-
-#[test]
-fn extract_rejects_bare_selection() {
-    assert!(extract_pseudo_suffix("::selection").is_err());
 }
 
 #[test]
 fn extract_rejects_multiple_pseudo_suffixes() {
-    assert!(extract_pseudo_suffix("p::before::after").is_err());
+    assert!(extract("p::before::after").is_err());
 }
 
 #[test]
@@ -114,23 +197,17 @@ fn extract_scrollbar() {
     // the parser stripped `::scrollbar` first the leftover
     // would be `-thumb` (invalid). Order matters.
     assert_eq!(
-        extract_pseudo_suffix("*::scrollbar-thumb").unwrap(),
-        ("*", PseudoElementTarget::ScrollbarThumb)
+        extract("*::scrollbar-thumb").unwrap(),
+        ("*".into(), PseudoElementTarget::ScrollbarThumb)
     );
     assert_eq!(
-        extract_pseudo_suffix("*::scrollbar").unwrap(),
-        ("*", PseudoElementTarget::Scrollbar)
+        extract("*::scrollbar").unwrap(),
+        ("*".into(), PseudoElementTarget::Scrollbar)
     );
     assert_eq!(
-        extract_pseudo_suffix(".sidebar::scrollbar-thumb").unwrap(),
-        (".sidebar", PseudoElementTarget::ScrollbarThumb)
+        extract(".sidebar::scrollbar-thumb").unwrap(),
+        (".sidebar".into(), PseudoElementTarget::ScrollbarThumb)
     );
-}
-
-#[test]
-fn extract_rejects_bare_scrollbar() {
-    assert!(extract_pseudo_suffix("::scrollbar").is_err());
-    assert!(extract_pseudo_suffix("::scrollbar-thumb").is_err());
 }
 
 // ── Stylesheet builder ───────────────────────────────────────────
@@ -472,10 +549,9 @@ fn error_display_shows_position() {
 #[test]
 fn extract_placeholder() {
     assert_eq!(
-        extract_pseudo_suffix("input::placeholder").unwrap(),
-        ("input", PseudoElementTarget::Placeholder)
+        extract("input::placeholder").unwrap(),
+        ("input".into(), PseudoElementTarget::Placeholder)
     );
-    assert!(extract_pseudo_suffix("::placeholder").is_err());
 }
 
 /// Only the properties that apply to `::first-line` apply to

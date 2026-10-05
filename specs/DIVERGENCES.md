@@ -358,7 +358,6 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 - `::highlight()` — C10-HIGHLIGHT
 - `::details-content` — C10-DETAILS-CONTENT
 - A pseudo-element followed by a pseudo-class (`::before:hover`), nested pseudo-elements — C10-PSEUDO-CHAINS
-- A pseudo-element with no compound before it: `::before` for `*::before` (Selectors 4 §5.2 lets the universal selector be omitted) is rejected, so the common `*, ::before, ::after { box-sizing: border-box }` reset drops its whole rule — write `*, *::before, *::after`; likewise `div ::before` reads as `div::before`, not `div *::before` (found by C5-BOX-SIZING) — C10-PSEUDO-CHAINS
 
 ### Selectors
 

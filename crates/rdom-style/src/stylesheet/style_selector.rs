@@ -78,20 +78,13 @@ impl StyleSelector {
             if trimmed.is_empty() {
                 return Err(error("empty selector in list".to_string()));
             }
-            // A nested `::before` is relative: `& ::before`, i.e.
-            // `& *::before`.
-            let owned;
-            let source = if !matches!(mode, Mode::Top) && trimmed.starts_with("::") {
-                owned = format!("*{trimmed}");
-                owned.as_str()
-            } else {
-                trimmed
-            };
-            let (core, pseudo) = extract_pseudo_suffix(source).map_err(error)?;
+            // A bare `::before` is `*::before` (Selectors 4 §5.2); nested,
+            // it is relative: `& *::before`.
+            let (core, pseudo) = extract_pseudo_suffix(trimmed).map_err(error)?;
             let parsed = match mode {
-                Mode::Top => selectors::parse(core),
-                Mode::Nested(parent) => selectors::parse_nested(core, parent),
-                Mode::Scoped => selectors::parse_scoped(core),
+                Mode::Top => selectors::parse(&core),
+                Mode::Nested(parent) => selectors::parse_nested(&core, parent),
+                Mode::Scoped => selectors::parse_scoped(&core),
             }
             .map_err(|e| StyleError::from((text, e)))?;
             for complex in parsed.0 {
