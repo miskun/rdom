@@ -1,8 +1,10 @@
-//! Keyword-valued layout properties: `flex-direction`, `overflow`,
-//! `scrollbar-gutter`, `align-items`, `display` (outer [`Display`] and
-//! inner [`Flow`]), `white-space`, `caret-color`, `caret-text-color`,
-//! `pointer-events`, `user-select`, `text-decoration`, `position` and
-//! `z-index`.
+//! Keyword-valued layout properties: `flex-direction` (the axis and the
+//! one-value [`FlexDirection`]), `flex-wrap`, `overflow`,
+//! `scrollbar-gutter`, `scroll-behavior`, `box-sizing`, `direction`,
+//! `writing-mode`, `display` (outer [`Display`] and inner [`Flow`]),
+//! `white-space`, `caret-color`, `caret-text-color`, `pointer-events`,
+//! `visibility`, `user-select`, `text-decoration`, `position` and
+//! `z-index`. The Box Alignment keywords are in `alignment`.
 
 /// Flexbox main-axis direction. Maps to CSS `flex-direction`; the
 /// default is its initial value, `row` (CSS Flexbox §5.1).
@@ -188,7 +190,10 @@ pub enum WritingMode {
 /// Does not inherit (matches CSS). Default is `Block`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Display {
-    /// Standalone flex item. Gets its own `LayoutRect`. Default.
+    /// `block`: a block-level box (CSS Display 3 §2.1) — in block flow it
+    /// stacks on its parent's block axis, in a flex container it is a
+    /// flex item, as every child box there is (blockified, §2.7). Gets
+    /// its own `LayoutRect`. Default.
     #[default]
     Block,
     /// Participates in its parent's inline formatting context. No

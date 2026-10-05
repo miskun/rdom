@@ -70,10 +70,10 @@ pub(crate) fn is_ifc_block(dom: &Dom<TuiExt>, id: NodeId) -> bool {
             // `Inline` (an `inline flow` box) triggers IFC: its text
             // packs into the parent's inline flow.
             Display::Inline => has_inline = true,
-            // An atomic inline (handled above) neither triggers nor
-            // disqualifies. Alongside an `Inline` sibling (mixed text +
-            // inline + atom) the IFC packer treats it atomically (BFC-1
-            // phase 3.5b); alone or only with text, the block pass
+            // An inline block is an atomic inline, skipped above: it
+            // neither triggers nor disqualifies an IFC. Beside an
+            // `Inline` sibling the packer makes it an atom of this
+            // context's lines; alone or only with text the block pass
             // packs it in an anonymous block box's line.
             Display::InlineBlock => continue,
             // Display::None children are invisible and don't

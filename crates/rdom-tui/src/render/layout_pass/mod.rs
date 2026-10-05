@@ -395,17 +395,30 @@ fn layout_children_aligned(
     containing_block_width: u16,
 ) -> Option<block::BlockMeasurement> {
     let measurement = layout_children(dom, id, inner, computed);
-    let lead = measurement.as_ref().map_or(0, |m| {
-        block::align_content_lead(
-            dom,
-            id,
-            computed,
-            inner,
-            m.content_height,
-            containing_block_width,
-        )
+    // The content's height: the measured block-level content, else the
+    // lines of an inline formatting context or a text leaf.
+    let content_height = match &measurement {
+        Some(m) => Some(m.content_height),
+        None => dom
+            .node(id)
+            .ext()
+            .and_then(|e| e.inline_layout.as_ref())
+            .map(|il| il.height()),
+    };
+    let lead = content_height.map_or(0, |h| {
+        block::align_content_lead(dom, id, computed, inner, h, containing_block_width)
     });
+    // Lines cannot start above the content box (`tree::shift_lines`):
+    // overflowing inline content stays at the top (DIVERGENCES §4).
+    let lead = if measurement.is_none() {
+        lead.max(0)
+    } else {
+        lead
+    };
     if lead != 0 {
+        if measurement.is_none() {
+            tree::shift_lines(dom, id, lead);
+        }
         tree::shift_content(dom, id, lead);
     }
     measurement

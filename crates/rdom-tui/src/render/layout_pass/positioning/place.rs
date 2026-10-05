@@ -89,12 +89,37 @@ fn compute_placed_rect(
     cb: LayoutRect,
 ) -> LayoutRect {
     use crate::layout::Direction;
+    // CSS Box Alignment 3 §6.1 / §6.2: an absolutely positioned box is
+    // aligned in its inset-modified containing block (`self_align`); an
+    // aligned `auto` size is `fit-content` there, not stretched.
+    let justify = self_align(
+        c.justify_self,
+        &c.left,
+        &c.right,
+        &c.margin.left,
+        &c.margin.right,
+    );
+    let align = self_align(
+        c.align_self,
+        &c.top,
+        &c.bottom,
+        &c.margin.top,
+        &c.margin.bottom,
+    );
+    let fit = |size: &Size, aligned: bool| match size {
+        Size::Auto if aligned => Size::Intrinsic(IntrinsicSize::FitContent),
+        other => other.clone(),
+    };
+    let (width_size, height_size) = (
+        fit(&c.width, justify.is_some()),
+        fit(&c.height, align.is_some()),
+    );
     // Resolve width/height — percentage AND Calc both resolve
     // against the containing-block's matching axis. The intrinsic
     // measurement only runs when an `auto` axis is not pinned by both
     // edges (it walks the subtree).
     let width = resolve_size_axis(
-        &c.width,
+        &width_size,
         Sizer::horizontal(c, cb.width),
         cb.width,
         &c.left,
@@ -121,7 +146,7 @@ fn compute_placed_rect(
     // A keyword height is the content height at the resolved width
     // (CSS Sizing 3 §3.1), the shrink-to-fit height.
     let height = resolve_size_axis(
-        &c.height,
+        &height_size,
         Sizer::vertical(c, cb.width),
         cb.height,
         &c.top,
@@ -158,7 +183,22 @@ fn compute_placed_rect(
     // containing block's start stands in then.
     let static_pos = dom.node(id).ext().and_then(|e| e.static_position);
 
-    let x = if c.left.cells(basis_w).is_some()
+    let cb_rtl = crate::render::box_tree::box_parent(dom, id)
+        .and_then(|p| dom.node(p).computed().map(|pc| pc.text_direction))
+        .unwrap_or(c.text_direction)
+        == crate::layout::TextDirection::Rtl;
+    let self_rtl = c.text_direction == crate::layout::TextDirection::Rtl;
+    let x = if let Some(value) = justify {
+        let (start, extent) = inset_modified(&c.left, &c.right, cb.x, cb.width);
+        let (ml, mr) = (
+            c.margin.left.resolve(margin_cb_w),
+            c.margin.right.resolve(margin_cb_w),
+        );
+        let free = extent - i32::from(width) - i32::from(ml) - i32::from(mr);
+        start
+            + i32::from(ml)
+            + crate::render::layout_pass::block::justify_offset(value, free, cb_rtl, self_rtl)
+    } else if c.left.cells(basis_w).is_some()
         && c.right.cells(basis_w).is_some()
         && matches!(cx_left, MarginValue::Auto)
         && matches!(cx_right, MarginValue::Auto)
@@ -190,7 +230,19 @@ fn compute_placed_rect(
         };
         base + start_margin
     };
-    let y = if c.top.cells(basis_h).is_some()
+    let y = if let Some(value) = align {
+        let (start, extent) = inset_modified(&c.top, &c.bottom, cb.y, cb.height);
+        let (mt, mb) = (
+            c.margin.top.resolve(margin_cb_w),
+            c.margin.bottom.resolve(margin_cb_w),
+        );
+        let free = extent - i32::from(height) - i32::from(mt) - i32::from(mb);
+        // The block axis runs top to bottom (`horizontal-tb`), for the
+        // containing block and the box alike.
+        start
+            + i32::from(mt)
+            + crate::render::layout_pass::block::justify_offset(value, free, false, false)
+    } else if c.top.cells(basis_h).is_some()
         && c.bottom.cells(basis_h).is_some()
         && matches!(cy_top, MarginValue::Auto)
         && matches!(cy_bottom, MarginValue::Auto)
@@ -213,6 +265,38 @@ fn compute_placed_rect(
         base + start_margin
     };
     LayoutRect::new(x, y, width, height)
+}
+
+/// The self-alignment that places an absolutely positioned box on one
+/// axis (CSS Box Alignment 3 §6.1 / §6.2), or `None` where the CSS 2.1
+/// placement stands: `auto` is `normal` for such a box (§6.1), and
+/// `normal` / `stretch` keep §10.3.7's / §10.6.4's sizes and offsets;
+/// both insets `auto` place it at its static position (the
+/// static-position rectangle alignment of CSS Position 3 §4.1 is not
+/// modeled, DIVERGENCES §4); and `auto` margins on both sides between
+/// two insets center it, winning over the alignment (§6.1).
+fn self_align(
+    value: crate::layout::Alignment,
+    start: &Length,
+    end: &Length,
+    margin_start: &crate::layout::MarginValue,
+    margin_end: &crate::layout::MarginValue,
+) -> Option<crate::layout::Alignment> {
+    let both_auto = matches!((start, end), (Length::Auto, Length::Auto));
+    let auto_margins = margin_start.is_auto() && margin_end.is_auto();
+    (crate::render::layout_pass::block::aligns(value) && !both_auto && !auto_margins)
+        .then_some(value)
+}
+
+/// The inset-modified containing block on one axis (CSS Position 3
+/// §4.1): the containing block (`cb_start`, `cb_extent`) less the
+/// insets, an `auto` one counting as 0 when the other is not. Returns
+/// its start and extent (negative when the insets overlap).
+fn inset_modified(start: &Length, end: &Length, cb_start: i32, cb_extent: u16) -> (i32, i32) {
+    let basis = i32::from(cb_extent);
+    let s = start.cells(basis).unwrap_or(0);
+    let e = end.cells(basis).unwrap_or(0);
+    (cb_start + s, basis - s - e)
 }
 
 /// Resolve a positioned box's `Size` on one axis (CSS 2.1 §10.3.7 /

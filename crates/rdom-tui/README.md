@@ -94,6 +94,8 @@ a UA `!important` rule beats an author `!important` rule.
 `Stylesheet::new()` bakes in UA defaults (`:disabled { color: <muted>; user-select: none }`, …).
 `Stylesheet::bare()` skips them for tests.
 
+`display: flex` lays its items out in a row: `flex-direction`'s initial value is `row` (CSS Flexbox §5.1; rdom 0.5 and earlier defaulted to `column`), so a container meant to stack its items needs `flex-direction: column` (`.flex_column()`). `flex-direction` applies to flex containers only: a block container stacks its children on its block axis whatever it says.
+
 Boxes size as `box-sizing: content-box`, the CSS initial value: `width`, `height` and `min-*` / `max-*` measure the content box, padding and border lie outside it (form controls are `border-box` in the UA sheet); start a sheet with `*, ::before, ::after { box-sizing: border-box }` to size every box by its border.
 
 ## Pseudo-elements and `content`
@@ -213,7 +215,9 @@ What's out of scope:
 
 - Inline borders / margins (`display: inline-block` is supported as an
   atomic inline).
-- `text-align`, justification, baseline alignment.
+- `text-align`, justification, `vertical-align` (C9; an atomic inline
+  sits with its last line on the line's text row, and flex items take
+  `align-items: baseline`).
 - UAX #14 line breaking (we use whitespace + CJK + hyphen).
 
 Mixed block + inline children work as in CSS 2.1 §9.2.1.1: each run

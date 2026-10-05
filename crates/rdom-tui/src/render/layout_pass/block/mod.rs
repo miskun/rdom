@@ -58,7 +58,7 @@ use crate::style::ComputedStyle;
 
 use super::is_in_flow;
 use super::layout_node;
-pub(super) use align::align_content_lead;
+pub(super) use align::{align_content_lead, aligns, justify_offset};
 use height::resolve_block_height;
 pub(super) use height::{height_is_definite_below, nearest_block_ancestor_height_is_definite};
 #[cfg(debug_assertions)]

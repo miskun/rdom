@@ -116,8 +116,8 @@ impl Default for MarginValue {
 
 /// Margin (CSS order: top, right, bottom, left). Each side is a
 /// [`MarginValue`] so per-side `auto` round-trips through the parser.
-/// **Note:** rdom diverges from CSS by NOT collapsing adjacent
-/// vertical margins between block-level boxes (CSS 2.1 §8.3.1).
+/// Adjacent vertical margins of block-level boxes collapse (CSS 2.1
+/// §8.3.1) in rdom-tui's block layout.
 /// Tracked as `M5-MARGIN-1` in `TECH_DEBT.md`.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Margin {

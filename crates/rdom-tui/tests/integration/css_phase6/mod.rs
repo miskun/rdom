@@ -20,6 +20,7 @@ mod flex_direction_initial;
 mod flex_longhands;
 mod flex_spec;
 mod gap;
+mod gaps_closed;
 mod justify;
 mod margin_sides;
 mod minor;

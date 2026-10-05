@@ -182,6 +182,27 @@ pub(super) fn shift_content(dom: &mut Dom<TuiExt>, id: NodeId, dy: i32) {
     shift_children(dom, id, 0, dy);
 }
 
+/// Move the lines of `id`'s inline formatting context down by `dy`
+/// rows (`align-content`, CSS Box Alignment 3 §5.1), with
+/// [`shift_content`] moving its atoms' boxes alongside. A line's rows
+/// count from the content box's top (`LineBox::top` is unsigned), so
+/// the caller never shifts them up (DIVERGENCES §4).
+pub(super) fn shift_lines(dom: &mut Dom<TuiExt>, id: NodeId, dy: i32) {
+    let Ok(dy) = u16::try_from(dy) else {
+        debug_assert!(false, "lines shift down only, by {dy}");
+        return;
+    };
+    if let Some(layout) = dom
+        .node_mut(id)
+        .ext_mut()
+        .and_then(|e| e.inline_layout.as_mut())
+    {
+        for line in &mut layout.lines {
+            line.top = line.top.saturating_add(dy);
+        }
+    }
+}
+
 fn shift_children(dom: &mut Dom<TuiExt>, id: NodeId, dx: i32, dy: i32) {
     let mut child = dom.node(id).first_child().map(|c| c.id());
     while let Some(c) = child {

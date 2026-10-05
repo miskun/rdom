@@ -36,7 +36,7 @@ pub(super) fn justify_self_of(
 
 /// Whether `value` aligns the box — anything but `normal` / `stretch`,
 /// which leave CSS 2.1 §10.3.3's width and margins as they are.
-pub(super) fn aligns(value: Alignment) -> bool {
+pub(in crate::render::layout_pass) fn aligns(value: Alignment) -> bool {
     !matches!(value.keyword, Align::Normal | Align::Stretch | Align::Auto)
 }
 
@@ -49,7 +49,12 @@ pub(super) fn aligns(value: Alignment) -> bool {
 /// baseline values fall back to `safe self-start` / `safe self-end` —
 /// the box's own edges (§4.2). A `safe` value that would overflow
 /// aligns as `start` (§4.4).
-pub(super) fn justify_offset(value: Alignment, free: i32, rtl: bool, self_rtl: bool) -> i32 {
+pub(in crate::render::layout_pass) fn justify_offset(
+    value: Alignment,
+    free: i32,
+    rtl: bool,
+    self_rtl: bool,
+) -> i32 {
     let start = if rtl { free } else { 0 };
     let end = if rtl { 0 } else { free };
     let safe = value.overflow == OverflowAlign::Safe

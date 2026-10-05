@@ -3078,3 +3078,41 @@ row comes from.
   one, and a normal one left normal) and `tokenize_spans_names_its_parallel_lists`. Mutation check
   (restored and touched): the importance dropped for non-custom properties → `color` not important.
   No snapshot changed.
+- 2026-10-08 — C6G-DOCS (PN5, PN6, PN7, PN12). Stale docs fixed (PN5): `Margin`'s "rdom does not
+  collapse vertical margins" (it does, since BFC-1; M5-MARGIN-1 retired); `layout/keywords.rs`'s
+  module doc (listed `align-items`, which lives in `alignment`; now the enums it holds);
+  `Display::Block` ("Standalone flex item" — a block-level box, a flex item only in a flex
+  container); `ifc.rs`'s `InlineBlock` arm (an atom, skipped above); the rdom-tui README's inline
+  "out of scope" (baseline alignment is supported: atoms on the text row, flex `align-items:
+  baseline`; `vertical-align` is C9); the rdom-style README's "every field is an
+  `Option<Value<T>>`" (the per-side longhands are a `Sides` / `Corners` of them); CSS-COVERAGE's
+  `row-gap` row ("`flex-wrap`'s lines will take the other" — they do). PN6: the two gaps the
+  `align-content` and `justify-items` / `justify-self` rows over-claimed are fixed rather than
+  marked Partial. (1) CSS Box Alignment 3 §5.1 aligns a block container's content as a whole, its
+  lines too: `layout_children_aligned` computed a lead only from a block measurement, so an IFC or
+  a text leaf (`inline_layout`, no `BlockMeasurement`) never moved; it now takes the lines' height
+  and, for inline content, moves the lines (`tree::shift_lines`, `LineBox::top`) and the atoms'
+  boxes (`tree::shift_content`). `LineBox::top` is unsigned, so an upward lead (inline content
+  overflowing under an unsafe `end` / `center`) is not applied — recorded in DIVERGENCES §4. The
+  auto height is unchanged (the lines end at most at the `min-height` that made the free space).
+  (2) §6.1 / §6.2 with CSS Position 3 §4.1: an absolutely positioned box's `justify-self` /
+  `align-self` (`auto` is `normal` for it) other than `normal` / `stretch` aligns its margin box in
+  the inset-modified containing block — the containing block less the insets, an `auto` one 0 beside
+  a non-`auto` one — with `justify_offset` (shared with block layout; `start` / `end` by the
+  containing block's direction, `self-*` by the box's, baselines as `safe self-*`, `safe`), and an
+  aligned `auto` size is `fit-content` there; `auto` margins on both sides win (§6.1);
+  `place::self_align` / `inset_modified`. Not modeled, DIVERGENCES §4: both insets `auto` (CSS
+  Position 3's static-position rectangle) and positioned pseudo-elements. DIVERGENCES §3's two
+  entries removed. PN7: §1's "Flex free space is shared in whole cells" is "Alignment free space",
+  naming block `justify-self` / `align-content` and absolutely positioned `align-self` / `auto`
+  margins (all round the leading space down). PN12: ACID tiles 7 and 16 name the Phase 6 features
+  (directions and reverses, wrap, `order`, the alignment properties, anonymous / pseudo items;
+  `inline-flex`, `contents`, `flow-root`, the multi-keyword syntax, `visibility`, blockification).
+  The rdom-tui README says `display: flex` is a row and block containers ignore `flex-direction`.
+  Red (`css_phase6/gaps_closed.rs`): `["ab  ", …]` for the text on row 4 under `align-content: end`;
+  an atom in an IFC at row 0 for 2 (the first version of this test, text plus an atom only, went
+  through the anonymous-block path and passed before the fix — an inline `<i>` made it an IFC);
+  `justify-self: end` at x 2 for 14; `center` at `(0, 20)` for `(9, 2)`; `align-self: end` at y 0 for
+  8; one `auto` inset at x 4 for 17. `auto_margins_win_over_justify_self` passed before and after.
+  Green after; the red runs are the mutation checks (each fix reverted fails its own tests). No
+  other test expectation and no snapshot changed.
