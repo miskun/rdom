@@ -12,7 +12,7 @@ mod presentation;
 mod tests;
 
 pub(crate) use layout_cache::MarginChainMemo;
-pub use layout_cache::{AnonymousIfc, PseudoLayout, StaticPosition};
+pub use layout_cache::{AnonymousIfc, GeneratedBox, PseudoLayout, StaticPosition};
 pub use presentation::{PresentationStyle, PseudoSlot, StyleSlot};
 
 use crate::layout::LayoutRect;

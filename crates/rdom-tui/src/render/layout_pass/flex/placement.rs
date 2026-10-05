@@ -218,7 +218,9 @@ pub(super) fn place_items(
         }
         match &ci.item {
             FlexItem::Element(id) => layout_node(dom, *id, child_rect, container.width),
-            FlexItem::Anonymous(anon) => anonymous.push(anon.lay_out(dom, child_rect)),
+            FlexItem::Anonymous(anon) => {
+                anonymous.push(anon.lay_out(dom, child_rect, container.width));
+            }
         }
 
         // Advance cursor past this child + main-end margin.

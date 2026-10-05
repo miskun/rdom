@@ -23,6 +23,9 @@
 //!   threads the flex lines through the pieces below in spec order.
 //! - [`item`] — the flex items (§4): elements, pseudo-elements and
 //!   anonymous items wrapping the runs of text, and their measurement.
+//! - `anonymous` — the box of an item with no node: a text run's
+//!   anonymous box, or a pseudo-element's own (its sizes, padding and
+//!   border), packed inside its edges.
 //! - [`main_axis`] — per-item main-size gathering (`ChildMain`, §9.2).
 //! - [`distribute`] — the §9.7 grow / shrink freeze loop and the lazy
 //!   §4.5 auto-min floor.
@@ -41,6 +44,7 @@
 //!
 
 mod align;
+mod anonymous;
 mod collapse;
 mod content;
 #[cfg(test)]

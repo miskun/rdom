@@ -102,12 +102,13 @@ pub(crate) fn record_scroll_content_size(
             any = true;
         }
         for anon in &ext.anonymous_blocks {
-            let top = anon.rect.y + scroll_y;
-            let left = anon.rect.x + scroll_x;
+            let r = anon.border_box();
+            let top = r.y + scroll_y;
+            let left = r.x + scroll_x;
             min_x = Some(min_x.map_or(left, |m: i32| m.min(left)));
             min_y = Some(min_y.map_or(top, |m: i32| m.min(top)));
-            max_right = max_right.max(left + anon.rect.width as i32);
-            max_bottom = max_bottom.max(top + anon.rect.height as i32);
+            max_right = max_right.max(left + r.width as i32);
+            max_bottom = max_bottom.max(top + r.height as i32);
             any = true;
         }
     }
@@ -285,7 +286,7 @@ fn extend_scrollable_overflow(dom: &Dom<TuiExt>, id: NodeId, extend: &mut impl F
         return;
     }
     for anon in &ext.anonymous_blocks {
-        extend(anon.rect);
+        extend(anon.border_box());
     }
     for child in dom.node(id).child_nodes() {
         match child.node_type() {

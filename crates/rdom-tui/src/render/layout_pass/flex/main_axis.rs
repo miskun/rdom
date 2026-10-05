@@ -11,7 +11,7 @@ use rdom_core::Dom;
 use super::item::FlexItem;
 use crate::ext::TuiExt;
 use crate::layout::{Direction, FlexBasis, MarginValue, Size, clamp_size};
-use crate::render::layout_pass::intrinsic::{Keywords, content_max_size, intrinsic_size};
+use crate::render::layout_pass::intrinsic::Keywords;
 use crate::render::layout_pass::margin_trim::FlexTrim;
 
 /// Per-item main-axis inputs gathered before distribution.
@@ -197,33 +197,6 @@ pub(super) fn collect_main_axis_items(
     };
 
     for (i, item) in children.iter().enumerate() {
-        // An anonymous item (§4): `flex: 0 1 auto` with an `auto` main
-        // size, so its base is its max-content size along the main axis
-        // (§9.2 step 3.E), with no margins, `min-*: auto` and no `max-*`.
-        let child = match item {
-            FlexItem::Element(id) => *id,
-            FlexItem::Anonymous(anon) => {
-                let c = item.computed(dom);
-                let base = anon.content_size(dom, direction, cross_budget, true);
-                child_info.push(ChildMain {
-                    item: item.clone(),
-                    base,
-                    inner_base: base,
-                    grow: c.flex_grow,
-                    shrink: c.flex_shrink,
-                    content_base: true,
-                    specified_base: false,
-                    auto_min: std::cell::Cell::new(None),
-                    main_auto: true,
-                    min: None,
-                    max: None,
-                    main_start_margin: MarginValue::Cells(0),
-                    main_end_margin: MarginValue::Cells(0),
-                    strut: None,
-                });
-                continue;
-            }
-        };
         let c = item.computed(dom);
         let (main_size, min_raw, max) = match direction {
             Direction::Row => (&c.width, &c.min_width, &c.max_width),
@@ -241,7 +214,7 @@ pub(super) fn collect_main_axis_items(
         // 3 §3.1), or are intrinsic keywords measured from the content
         // (CSS Sizing 3 §3.1, `fit-content` against the container's main
         // size); `kw` turns each into the border box the line distributes.
-        let kw = Keywords::new(dom, child, &c, direction, cross_budget, main_cb_w);
+        let kw = item.keywords(dom, &c, direction, cross_budget, main_cb_w);
         // `min-*` / `max-*` percentages resolve against the container's
         // main size, as the main size's own do (CSS Sizing 3 §5.2).
         let max = kw.max(max, main_basis, main_budget);
@@ -251,7 +224,9 @@ pub(super) fn collect_main_axis_items(
         // overrides the normal main-size resolution so every cell in the
         // column lines up. A width drives the Row main axis only.
         let used_column_width = match direction {
-            Direction::Row => dom.node(child).ext().and_then(|e| e.table_used_width),
+            Direction::Row => item
+                .node()
+                .and_then(|id| dom.node(id).ext().and_then(|e| e.table_used_width)),
             Direction::Column => None,
         };
 
@@ -291,7 +266,7 @@ pub(super) fn collect_main_axis_items(
             (Direction::Column, Size::Intrinsic(_)) => None,
             _ => kw.size(size, basis, main_budget),
         };
-        let content = || intrinsic_size(dom, child, direction, cross_budget, main_cb_w);
+        let content = || item.intrinsic_size(dom, direction, cross_budget, main_cb_w);
         let main_auto = matches!(main_size, Size::Auto | Size::Intrinsic(_));
         let mut grow = c.flex_grow;
         let mut specified_base = false;
@@ -316,7 +291,7 @@ pub(super) fn collect_main_axis_items(
                 (Some(Size::Auto), _) => from_ratio().map_or_else(
                     || {
                         (
-                            content_max_size(dom, child, direction, cross_budget, main_cb_w),
+                            item.content_extreme(dom, direction, cross_budget, main_cb_w, true),
                             true,
                         )
                     },

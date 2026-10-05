@@ -17,12 +17,21 @@ use super::{Measure, content_max_size, content_min_size, intrinsic_size_inner};
 use crate::ext::TuiExt;
 use crate::layout::{Direction, IntrinsicSize, MaxSize, MinSize, Size};
 use crate::render::layout_pass::box_sizing::Sizer;
+use crate::render::layout_pass::flex::item::AnonymousItem;
 use crate::style::ComputedStyle;
+
+/// What a keyword measures: an element's subtree, or the content of an
+/// anonymous or generated flex item (`flex::item`), which has no node.
+#[derive(Clone, Copy)]
+enum Subject<'a> {
+    Node(NodeId),
+    Run(&'a AnonymousItem),
+}
 
 /// One box's sizing on one axis.
 pub(crate) struct Keywords<'a> {
     dom: &'a Dom<TuiExt>,
-    id: NodeId,
+    subject: Subject<'a>,
     direction: Direction,
     /// The perpendicular extent the content is measured against: for
     /// the block axis the box's own (border-box) width, which its text
@@ -44,11 +53,30 @@ impl<'a> Keywords<'a> {
     ) -> Self {
         Self {
             dom,
-            id,
+            subject: Subject::Node(id),
             direction,
             cross_budget,
             cb_width,
             sizer: Sizer::along(computed, direction, cb_width),
+        }
+    }
+
+    /// The keywords of an anonymous or generated flex item's box, styled
+    /// by its own computed style.
+    pub(in crate::render::layout_pass) fn for_run(
+        dom: &'a Dom<TuiExt>,
+        run: &'a AnonymousItem,
+        direction: Direction,
+        cross_budget: u16,
+        cb_width: u16,
+    ) -> Self {
+        Self {
+            dom,
+            subject: Subject::Run(run),
+            direction,
+            cross_budget,
+            cb_width,
+            sizer: Sizer::along(run.style(), direction, cb_width),
         }
     }
 
@@ -87,8 +115,28 @@ impl<'a> Keywords<'a> {
 
     /// The border box keyword `k` sizes (CSS Sizing 3 §3.1).
     pub(crate) fn keyword(&self, k: &IntrinsicSize, basis: Option<u16>, available: u16) -> u16 {
-        let (dom, id) = (self.dom, self.id);
         let (cross, cb) = (self.cross_budget, self.cb_width);
+        let dom = self.dom;
+        let id = match self.subject {
+            Subject::Node(id) => id,
+            Subject::Run(run) => {
+                let measure = |max| run.content_size(dom, self.direction, cross, max, cb);
+                if self.direction == Direction::Column {
+                    return measure(true);
+                }
+                return match k {
+                    IntrinsicSize::MinContent => measure(false),
+                    IntrinsicSize::MaxContent => measure(true),
+                    IntrinsicSize::FitContent => measure(true).min(measure(false).max(available)),
+                    IntrinsicSize::FitContentLimit(_) => match k.limit_cells(basis) {
+                        Some(limit) => {
+                            measure(true).min(measure(false).max(self.sizer.outer(limit)))
+                        }
+                        None => measure(true),
+                    },
+                };
+            }
+        };
         if self.direction == Direction::Column {
             return intrinsic_size_inner(
                 dom,

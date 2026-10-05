@@ -150,6 +150,9 @@ pub(super) fn shift_subtree(dom: &mut Dom<TuiExt>, id: NodeId, dx: i32, dy: i32)
         ext.content_layout = shift(ext.content_layout);
         for anon in &mut ext.anonymous_blocks {
             anon.rect = shift(anon.rect);
+            if let Some(g) = anon.generated.as_mut() {
+                g.border_box = shift(g.border_box);
+            }
         }
         for pseudo in [&mut ext.before_layout, &mut ext.after_layout]
             .into_iter()
@@ -171,6 +174,9 @@ pub(super) fn shift_content(dom: &mut Dom<TuiExt>, id: NodeId, dy: i32) {
     if let Some(ext) = dom.node_mut(id).ext_mut() {
         for anon in &mut ext.anonymous_blocks {
             anon.rect.y += dy;
+            if let Some(g) = anon.generated.as_mut() {
+                g.border_box.y += dy;
+            }
         }
     }
     shift_children(dom, id, 0, dy);

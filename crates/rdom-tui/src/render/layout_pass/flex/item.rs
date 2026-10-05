@@ -9,26 +9,31 @@
 //! pseudo-elements are the container's, and the container's own
 //! `::before` / `::after` are child boxes — blockified, so items too.
 //!
-//! An element item is its element. An anonymous item
-//! ([`AnonymousItem`]) is a run of the sequence — text nodes, or one
-//! pseudo-element — with the style of an anonymous box (inherited
-//! properties from the container, every other one initial: `order: 0`,
-//! `flex: 0 1 auto`, `auto` sizes, no margins, padding or border). Its
-//! content is packed as an inline formatting context of its own and
-//! stored on the container as an `AnonymousIfc`, which paint, hit-
-//! testing, the caret and selection read as they read a block
+//! An element item is its element. An [`AnonymousItem`] is a run of the
+//! sequence with no node of its own: a run of text nodes, with the style
+//! of an anonymous box (inherited properties from the container, every
+//! other one initial: `order: 0`, `flex: 0 1 auto`, `auto` sizes, no
+//! margins, padding or border), or one pseudo-element, a box with its
+//! own computed style — its sizes, `flex`, `order`, margins, padding,
+//! border and alignment apply as an element item's do. Its content is
+//! packed as an inline formatting context of its own, inside its padding
+//! and border, and stored on the container as an `AnonymousIfc` (a
+//! pseudo-element's with its border box, `GeneratedBox`), which paint,
+//! hit-testing, the caret and selection read as they read a block
 //! container's anonymous block boxes.
 
 use std::rc::Rc;
 
 use rdom_core::{Dom, NodeId, NodeType};
 
-use crate::ext::{AnonymousIfc, TuiExt};
-use crate::layout::{Direction, LayoutRect};
+use crate::ext::{PseudoSlot, TuiExt};
+use crate::layout::Direction;
 use crate::node::TuiNodeExt;
 use crate::render::box_tree::BoxItem;
-use crate::render::inline::{InlineLayout, RunPseudos, pack_run};
+use crate::render::layout_pass::intrinsic::Keywords;
 use crate::style::ComputedStyle;
+
+pub(in crate::render::layout_pass) use super::anonymous::AnonymousItem;
 
 /// One flex item of a container.
 #[derive(Debug, Clone)]
@@ -37,19 +42,6 @@ pub(in crate::render::layout_pass) enum FlexItem {
     Element(NodeId),
     /// An anonymous block container item.
     Anonymous(Rc<AnonymousItem>),
-}
-
-/// An anonymous flex item: a run of its container's box sequence.
-#[derive(Debug)]
-pub(in crate::render::layout_pass) struct AnonymousItem {
-    /// The flex container.
-    container: NodeId,
-    /// The run: text nodes, or one generated item.
-    content: Vec<BoxItem>,
-    /// `[start, end)` in the container's `flex_sequence`.
-    child_range: (usize, usize),
-    /// The anonymous box's computed style.
-    style: Rc<ComputedStyle>,
 }
 
 impl FlexItem {
@@ -68,7 +60,7 @@ impl FlexItem {
                 .node(*id)
                 .computed_rc()
                 .unwrap_or_else(|| Rc::new(ComputedStyle::initial())),
-            FlexItem::Anonymous(a) => a.style.clone(),
+            FlexItem::Anonymous(a) => a.style_rc(),
         }
     }
 
@@ -76,7 +68,7 @@ impl FlexItem {
     pub(in crate::render::layout_pass) fn box_parent(&self, dom: &Dom<TuiExt>) -> Option<NodeId> {
         match self {
             FlexItem::Element(id) => crate::render::box_tree::box_parent(dom, *id),
-            FlexItem::Anonymous(a) => Some(a.container),
+            FlexItem::Anonymous(a) => Some(a.container()),
         }
     }
 
@@ -91,15 +83,78 @@ impl FlexItem {
         };
         match self {
             FlexItem::Element(id) => nearest_block_ancestor_height_is_definite(dom, *id),
-            FlexItem::Anonymous(a) => height_is_definite_below(dom, Some(a.container)),
+            FlexItem::Anonymous(a) => height_is_definite_below(dom, Some(a.container())),
         }
     }
 
-    /// The item's `order` (CSS Flexbox §5.4): an anonymous item's is 0.
+    /// The item's `order` (CSS Flexbox §5.4): an anonymous item's is 0,
+    /// a pseudo-element's its own.
     pub(in crate::render::layout_pass) fn order(&self, dom: &Dom<TuiExt>) -> i32 {
         match self {
             FlexItem::Element(id) => crate::render::box_tree::order_of(dom, *id),
-            FlexItem::Anonymous(_) => 0,
+            FlexItem::Anonymous(a) => a.style().order,
+        }
+    }
+
+    /// The item's [`Keywords`] on `direction`: its declared sizes through
+    /// its `box-sizing`, its intrinsic keywords measured from its content.
+    pub(in crate::render::layout_pass) fn keywords<'a>(
+        &'a self,
+        dom: &'a Dom<TuiExt>,
+        computed: &ComputedStyle,
+        direction: Direction,
+        cross_budget: u16,
+        cb_width: u16,
+    ) -> Keywords<'a> {
+        match self {
+            FlexItem::Element(id) => {
+                Keywords::new(dom, *id, computed, direction, cross_budget, cb_width)
+            }
+            FlexItem::Anonymous(a) => Keywords::for_run(dom, a, direction, cross_budget, cb_width),
+        }
+    }
+
+    /// The item's border-box content size along `direction`
+    /// (`intrinsic::intrinsic_size` for an element), its block size
+    /// measured at `cross_budget` wide.
+    pub(in crate::render::layout_pass) fn intrinsic_size(
+        &self,
+        dom: &Dom<TuiExt>,
+        direction: Direction,
+        cross_budget: u16,
+        cb_width: u16,
+    ) -> u16 {
+        match self {
+            FlexItem::Element(id) => crate::render::layout_pass::intrinsic::intrinsic_size(
+                dom,
+                *id,
+                direction,
+                cross_budget,
+                cb_width,
+            ),
+            FlexItem::Anonymous(a) => a.content_size(dom, direction, cross_budget, true, cb_width),
+        }
+    }
+
+    /// The item's max-content (`max_content`) or min-content border-box
+    /// size along `direction` (CSS Sizing 3 §5.1).
+    pub(in crate::render::layout_pass) fn content_extreme(
+        &self,
+        dom: &Dom<TuiExt>,
+        direction: Direction,
+        cross_budget: u16,
+        cb_width: u16,
+        max_content: bool,
+    ) -> u16 {
+        use crate::render::layout_pass::intrinsic::{content_max_size, content_min_size};
+        match self {
+            FlexItem::Element(id) if max_content => {
+                content_max_size(dom, *id, direction, cross_budget, cb_width)
+            }
+            FlexItem::Element(id) => content_min_size(dom, *id, direction, cross_budget, cb_width),
+            FlexItem::Anonymous(a) => {
+                a.content_size(dom, direction, cross_budget, max_content, cb_width)
+            }
         }
     }
 
@@ -108,78 +163,7 @@ impl FlexItem {
     pub(in crate::render::layout_pass) fn is_collapsed(&self, dom: &Dom<TuiExt>) -> bool {
         match self {
             FlexItem::Element(id) => super::is_collapsed(dom, *id),
-            FlexItem::Anonymous(a) => a.style.visibility == crate::layout::Visibility::Collapse,
-        }
-    }
-}
-
-impl AnonymousItem {
-    /// The item's content packed `width` cells wide.
-    pub(in crate::render::layout_pass) fn pack(
-        &self,
-        dom: &Dom<TuiExt>,
-        width: u16,
-    ) -> InlineLayout {
-        pack_run(
-            dom,
-            self.container,
-            &self.content,
-            RunPseudos::default(),
-            width,
-        )
-    }
-
-    /// The widest line of the content packed `width` cells wide.
-    fn widest_line(&self, dom: &Dom<TuiExt>, width: u16) -> u16 {
-        self.pack(dom, width)
-            .lines
-            .iter()
-            .map(|l| l.width)
-            .max()
-            .unwrap_or(0)
-    }
-
-    /// The item's content size along `direction` (it has no padding,
-    /// border or declared size): on the inline axis its max-content
-    /// width (unwrapped) or min-content width (broken at every soft wrap
-    /// opportunity, CSS Sizing 3 §4.1 / §4.2); on the block axis the rows
-    /// it packs to at `width`.
-    pub(in crate::render::layout_pass) fn content_size(
-        &self,
-        dom: &Dom<TuiExt>,
-        direction: Direction,
-        width: u16,
-        max_content: bool,
-    ) -> u16 {
-        match direction {
-            Direction::Row if max_content => self.widest_line(dom, u16::MAX),
-            Direction::Row => self.widest_line(dom, 0),
-            Direction::Column => self.pack(dom, width).height(),
-        }
-    }
-
-    /// Its first and last content rows (baselines, CSS Box Alignment 3
-    /// §9.1) packed `width` cells wide: its first and last lines.
-    pub(in crate::render::layout_pass) fn content_rows(
-        &self,
-        dom: &Dom<TuiExt>,
-        width: u16,
-    ) -> Option<(u16, u16)> {
-        let rows = self.pack(dom, width).height();
-        (rows > 0).then(|| (0, rows - 1))
-    }
-
-    /// Lay the item out at `rect`, its border box (which is its content
-    /// box): its content packed at its width.
-    pub(in crate::render::layout_pass) fn lay_out(
-        &self,
-        dom: &Dom<TuiExt>,
-        rect: LayoutRect,
-    ) -> AnonymousIfc {
-        AnonymousIfc {
-            rect,
-            inline_layout: self.pack(dom, rect.width),
-            child_range: self.child_range,
+            FlexItem::Anonymous(a) => a.style().visibility == crate::layout::Visibility::Collapse,
         }
     }
 }
@@ -210,9 +194,9 @@ pub(in crate::render::layout_pass) fn flex_items(dom: &Dom<TuiExt>, id: NodeId) 
     };
     for (i, &entry) in sequence.iter().enumerate() {
         match entry {
-            BoxItem::Generated(..) => {
+            BoxItem::Generated(host, slot) => {
                 b.close_run();
-                b.push_anonymous(vec![entry], (i, i + 1));
+                b.push_generated(entry, (host, slot), (i, i + 1));
             }
             BoxItem::Node(n) => match dom.node(n).node_type() {
                 NodeType::Text => b.extend_run(entry, i, n),
@@ -257,12 +241,44 @@ impl ItemsBuilder<'_> {
                 Rc::new(crate::style::cascade::anonymous_box_style(&parent))
             })
             .clone();
-        self.items.push(FlexItem::Anonymous(Rc::new(AnonymousItem {
-            container,
-            content,
-            child_range,
-            style,
-        })));
+        self.items
+            .push(FlexItem::Anonymous(Rc::new(AnonymousItem::new(
+                container,
+                content,
+                child_range,
+                style,
+                None,
+            ))));
+    }
+
+    /// A `::before` / `::after` item (CSS Flexbox §4: a child box,
+    /// blockified): a box with the pseudo-element's computed style.
+    fn push_generated(
+        &mut self,
+        entry: BoxItem,
+        (host, slot): (NodeId, PseudoSlot),
+        child_range: (usize, usize),
+    ) {
+        let ext = self.dom.node(host).ext();
+        let style = ext.and_then(|e| match slot {
+            PseudoSlot::Before => e.computed_before.clone(),
+            PseudoSlot::After => e.computed_after.clone(),
+        });
+        let Some(style) = style else {
+            // `box_tree::flex_sequence` lists a pseudo-element only when it
+            // has a computed style.
+            debug_assert!(false, "a generated flex item has a computed style");
+            self.push_anonymous(vec![entry], child_range);
+            return;
+        };
+        self.items
+            .push(FlexItem::Anonymous(Rc::new(AnonymousItem::new(
+                self.container,
+                vec![entry],
+                child_range,
+                style,
+                Some((host, slot)),
+            ))));
     }
 
     fn extend_run(&mut self, entry: BoxItem, i: usize, text: NodeId) {

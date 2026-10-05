@@ -8,9 +8,7 @@ use rdom_core::Dom;
 use super::item::FlexItem;
 use crate::ext::TuiExt;
 use crate::layout::{AspectRatio, Direction, MarginValue, Size, clamp_size};
-use crate::render::layout_pass::block::nearest_block_ancestor_height_is_definite;
 use crate::render::layout_pass::box_sizing::Sizer;
-use crate::render::layout_pass::intrinsic::{Keywords, intrinsic_size};
 use crate::style::ComputedStyle;
 
 /// The already-resolved main axis, as the cross resolver sees it, and
@@ -268,7 +266,7 @@ pub(super) fn baseline_box(
             main.size,
             container_width,
         ),
-        FlexItem::Anonymous(anon) => anon.content_rows(dom, main.size),
+        FlexItem::Anonymous(anon) => anon.content_rows(dom, main.size, container_width),
     };
     let (first, last) = rows.unwrap_or((synthesized, synthesized));
     // CSS Box Alignment 3 §9.1: "for legacy reasons" a scroll container's
@@ -382,19 +380,6 @@ fn resolve_cross_size(
     direction: Direction,
     main: MainAxisFacts,
 ) -> u16 {
-    let child_id = match item {
-        FlexItem::Element(id) => *id,
-        // An anonymous item (§4): an `auto` cross size, no padding,
-        // border, `min-*` or `max-*` — the line when stretched, else its
-        // content measured at its used main size.
-        FlexItem::Anonymous(anon) => {
-            return match direction {
-                _ if main.stretch => space.line,
-                Direction::Row => anon.content_size(dom, Direction::Column, main.size, true),
-                Direction::Column => anon.content_size(dom, Direction::Row, main.size, true),
-            };
-        }
-    };
     // Percentages resolve against the container's inner cross size; a
     // stretched item fills its line (the space left by its margins).
     let container_cross = space.container;
@@ -416,9 +401,7 @@ fn resolve_cross_size(
     // row, its height, indefinite when `auto` (CSS 2.1 §10.7: then a
     // `max-height` percentage is `none` and a `min-height` one 0).
     let basis = match direction {
-        Direction::Row => {
-            container_cross.filter(|_| nearest_block_ancestor_height_is_definite(dom, child_id))
-        }
+        Direction::Row => container_cross.filter(|_| item.height_basis_is_definite(dom)),
         Direction::Column => container_cross,
     };
     let cross_dir = match direction {
@@ -433,14 +416,7 @@ fn resolve_cross_size(
         Direction::Column => main_size,
         Direction::Row => available,
     };
-    let kw = Keywords::new(
-        dom,
-        child_id,
-        computed,
-        cross_dir,
-        measure_budget,
-        container_width,
-    );
+    let kw = item.keywords(dom, computed, cross_dir, measure_budget, container_width);
     let sizer = kw.sizer();
     let max = kw.max(max, basis, available);
     // A cross-axis percentage or `calc()` resolves against the
@@ -466,7 +442,7 @@ fn resolve_cross_size(
                 // Not stretched (an `auto` cross margin, or the
                 // hypothetical cross size): its content size, measured
                 // at its used main size.
-                intrinsic_size(dom, child_id, cross_dir, measure_budget, container_width)
+                item.intrinsic_size(dom, cross_dir, measure_budget, container_width)
             }
         }
     };

@@ -425,11 +425,12 @@ pub(super) fn layout_block_children(
                         }
                     }
                 }
-                anon_blocks.push(AnonymousIfc {
+                anon_blocks.push(AnonymousIfc::new(
                     rect,
                     inline_layout,
-                    child_range: run.child_range,
-                });
+                    run.child_range,
+                    None,
+                ));
                 y_cursor = anon_y + height as i32;
                 // BORDER-MODEL-1 (M6): an inline-run anon block breaks
                 // block-to-block border adjacency. Reset the

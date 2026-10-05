@@ -103,7 +103,7 @@ fn collect_rows(dom: &Dom<TuiExt>, id: NodeId, rows: &mut Option<(i64, i64)>) {
         }
         extend_rect(rows, ext.layout);
         for anon in &ext.anonymous_blocks {
-            extend_rect(rows, anon.rect);
+            extend_rect(rows, anon.border_box());
         }
         for pseudo in [ext.before_layout, ext.after_layout].into_iter().flatten() {
             extend_rect(rows, pseudo.rect);

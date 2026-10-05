@@ -81,6 +81,7 @@ mod background;
 mod border;
 mod border_join;
 mod box_paint;
+mod generated_box;
 mod group;
 mod inline_paint;
 mod positioned_pseudos;

@@ -2956,3 +2956,35 @@ row comes from.
   entry removed. The two functions are `cascade/blockify.rs` (55 lines; `apply.rs` stays 464);
   `walk.rs` 564 → 575, recorded in TECH_DEBT `SIZE-1`. No other test expectation and no snapshot
   changed.
+- 2026-10-08 — C6G-PSEUDO-FLEX-ITEMS (C6G-ANON-FLEX-ITEMS' DIVERGENCES §3 finding): a `::before` /
+  `::after` flex item (CSS Flexbox §4: a child box of the flex container, or of its box-less child,
+  blockified since C6G-BLOCKIFY) applies its own box properties. C6G-ANON-FLEX-ITEMS laid it out as
+  an anonymous item with the anonymous box style, so its sizes, `flex`, `order`, margins, padding,
+  border and alignment were ignored. Decision: one box model for an item without a node.
+  `flex::anonymous::AnonymousItem` (split out of `item.rs`, which would have passed 500 lines) carries
+  its computed style — the anonymous box style for a text run, the pseudo-element's own
+  (`computed_before` / `computed_after`) for a generated item — and its edges (padding plus border,
+  percentages against the container's width); its measures are border boxes, its content packed
+  inside the edges. The flex algorithm's anonymous-only branches are gone: `main_axis`,
+  `distribute::resolve_auto_min`, `cross::resolve_cross_size` and the intrinsic contribution
+  (`intrinsic/children.rs`) run the element path for every item through `FlexItem::keywords` /
+  `intrinsic_size` / `content_extreme` (a `Keywords` now measures an element or a run,
+  `Keywords::for_run`), and `FlexItem::order` reads the box's `order`. A text run's anonymous box
+  has initial sizes, no edges and `order: 0`, so it lays out as before. Laid out, a generated item's
+  `AnonymousIfc` holds its content box in `rect` (where its lines sit, as paint, hit-testing and the
+  caret read it) and its border box in the new `generated: Option<GeneratedBox>` (host, slot, border
+  box), which content shifting, the scroll extent and the paint group bounds read
+  (`AnonymousIfc::border_box`); paint draws its background and border there before its lines
+  (`paint_pass/generated_box.rs`, with a running transition's `background-color` / `border-color`
+  and its own `visibility`). Public API: `AnonymousIfc` is `#[non_exhaustive]` with
+  `AnonymousIfc::new` (it gains a field; Breaking bullet), `GeneratedBox` is new
+  (`#[non_exhaustive]`, `GeneratedBox::new`). Not done: a generated item's `aspect-ratio` (§9.2 step
+  3.B reads an element's), and hit-testing still resolves its cells to the container (DIVERGENCES §2,
+  pseudo-elements are not hit-test targets). Red (`css_phase6/pseudo_items.rs`): the next item at x 2
+  for 8 (no margin, width, padding or border); at x 0 for 7 (`flex: 1; order: -1` ignored);
+  `["p   ", …]` for `p` on the bottom row (`align-self: flex-end`); container width 2 for 6
+  (`width: max-content` without the item's padding and margin). Green after (the first test's row
+  expectation corrected while green: it had miscounted the border box's columns). Mutation checks
+  (each alone, restored and touched): `order` back to 0 → the order test; the box paint call off →
+  the box test (no border drawn). No other test expectation and no snapshot changed. DIVERGENCES
+  §3's entry removed.

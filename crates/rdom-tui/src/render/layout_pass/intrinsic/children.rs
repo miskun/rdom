@@ -100,49 +100,41 @@ pub(super) fn children_size(
         }
         let keep_start = !(trim_start && (!along || i == 0));
         let keep_end = !(trim_end && (!along || i == last));
-        let c = match item {
-            FlexItem::Element(c) => *c,
-            // An anonymous item: its content, with no margins, padding or
-            // border (§4).
-            FlexItem::Anonymous(anon) => {
-                return anon.content_size(
-                    dom,
-                    direction,
-                    child_cross_budget,
-                    measure == Measure::MaxContent,
-                );
+        let inner = match item {
+            FlexItem::Element(c) => intrinsic_size_inner(
+                dom,
+                *c,
+                direction,
+                child_cross_budget,
+                child_cb_width,
+                IntrinsicMode::BoxSize,
+                measure,
+            ),
+            // An anonymous item's box (a text run's has no declared size,
+            // margins, padding or border; a pseudo-element's is its own).
+            FlexItem::Anonymous(anon) => anon.box_size(
+                dom,
+                direction,
+                child_cross_budget,
+                child_cb_width,
+                measure == Measure::MaxContent,
+            ),
+        };
+        let cs = item.computed(dom);
+        let (a, b) = match direction {
+            Direction::Row if reversed => (&cs.margin.right, &cs.margin.left),
+            Direction::Row => (&cs.margin.left, &cs.margin.right),
+            Direction::Column if reversed => (&cs.margin.bottom, &cs.margin.top),
+            Direction::Column => (&cs.margin.top, &cs.margin.bottom),
+        };
+        let side = |m: &crate::layout::MarginValue, keep: bool| {
+            if keep {
+                i32::from(m.resolve(child_cb_width))
+            } else {
+                0
             }
         };
-        let inner = intrinsic_size_inner(
-            dom,
-            c,
-            direction,
-            child_cross_budget,
-            child_cb_width,
-            IntrinsicMode::BoxSize,
-            measure,
-        );
-        let margins = dom
-            .node(c)
-            .ext()
-            .and_then(|e| e.computed.as_ref())
-            .map(|cs| {
-                let (a, b) = match direction {
-                    Direction::Row if reversed => (&cs.margin.right, &cs.margin.left),
-                    Direction::Row => (&cs.margin.left, &cs.margin.right),
-                    Direction::Column if reversed => (&cs.margin.bottom, &cs.margin.top),
-                    Direction::Column => (&cs.margin.top, &cs.margin.bottom),
-                };
-                let side = |m: &crate::layout::MarginValue, keep: bool| {
-                    if keep {
-                        i32::from(m.resolve(child_cb_width))
-                    } else {
-                        0
-                    }
-                };
-                side(a, keep_start) + side(b, keep_end)
-            })
-            .unwrap_or(0);
+        let margins = side(a, keep_start) + side(b, keep_end);
         (i32::from(inner) + margins).clamp(0, i32::from(u16::MAX)) as u16
     };
     // A multi-line flex container (CSS Flexbox §9.9): on its main axis

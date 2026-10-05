@@ -83,10 +83,16 @@ pub(crate) struct MarginChainMemo {
 /// (as `LineBox::generated`); a pseudo whose host starts / ends with a
 /// block-level child gets a box of its own, with an empty
 /// `child_range`.
+///
+/// A flex container's anonymous flex items (CSS Flexbox §4) are stored
+/// here too: a run of its text, or one `::before` / `::after`, whose
+/// box is its own ([`generated`](Self::generated)).
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub struct AnonymousIfc {
-    /// Where this anonymous box sits in its parent's content area.
-    /// Width = parent content width; height = inline_layout.height().
+    /// Where this box's lines sit: its content box (for an anonymous
+    /// block box, its whole box — it has no padding or border). Width =
+    /// parent content width; height = inline_layout.height().
     pub rect: LayoutRect,
     /// IFC packing of the wrapped inline run.
     pub inline_layout: InlineLayout,
@@ -96,4 +102,54 @@ pub struct AnonymousIfc {
     /// selection use this to map a fragment to its surrounding DOM
     /// neighbors.
     pub child_range: (usize, usize),
+    /// The `::before` / `::after` flex item this box is, with its border
+    /// box (`rect` is its content box); `None` for an anonymous box.
+    pub generated: Option<GeneratedBox>,
+}
+
+impl AnonymousIfc {
+    /// A box whose lines sit at `rect`.
+    pub fn new(
+        rect: LayoutRect,
+        inline_layout: InlineLayout,
+        child_range: (usize, usize),
+        generated: Option<GeneratedBox>,
+    ) -> Self {
+        Self {
+            rect,
+            inline_layout,
+            child_range,
+            generated,
+        }
+    }
+
+    /// The box's border box: a generated item's own, else `rect`.
+    pub fn border_box(&self) -> LayoutRect {
+        self.generated.map_or(self.rect, |g| g.border_box)
+    }
+}
+
+/// A `::before` / `::after` laid out as a flex item (CSS Flexbox §4): a
+/// box of its own, styled by its computed style (`TuiExt::computed_before`
+/// / `computed_after` of `host`), whose content is its [`AnonymousIfc`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct GeneratedBox {
+    /// The pseudo-element's originating element.
+    pub host: rdom_core::NodeId,
+    /// Which pseudo-element.
+    pub slot: super::PseudoSlot,
+    /// Its border box, in the coordinates of `TuiExt::layout`.
+    pub border_box: LayoutRect,
+}
+
+impl GeneratedBox {
+    /// The `slot` pseudo-element of `host`, at `border_box`.
+    pub fn new(host: rdom_core::NodeId, slot: super::PseudoSlot, border_box: LayoutRect) -> Self {
+        Self {
+            host,
+            slot,
+            border_box,
+        }
+    }
 }

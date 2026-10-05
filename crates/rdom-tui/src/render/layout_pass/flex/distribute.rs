@@ -12,8 +12,6 @@ use super::main_axis::ChildMain;
 use crate::ext::TuiExt;
 use crate::layout::{Direction, Overflow, Size, clamp_size};
 use crate::node::TuiNodeExt;
-use crate::render::layout_pass::intrinsic::Keywords;
-use crate::render::layout_pass::intrinsic::content_min_size;
 
 /// Budget figures the §9.7 loop distributes against.
 pub(super) struct MainAxisBudget {
@@ -239,19 +237,13 @@ pub(super) fn resolve_auto_min(
 ) -> u16 {
     #[cfg(test)]
     super::cost_tests::AUTO_MINS.with(|c| c.set(c.get() + 1));
-    let id = match item {
-        FlexItem::Element(id) => *id,
-        // An anonymous item has no specified size, padding or border and
-        // `overflow: visible`: its content size suggestion, its
-        // min-content size (§4.5).
-        FlexItem::Anonymous(anon) => {
-            return anon.content_size(dom, direction, cross_budget, false);
-        }
-    };
-    let computed = match dom.node(id).computed() {
-        Some(c) => c.clone(),
-        None => return 0,
-    };
+    // An element without a computed style has no box to size.
+    if let FlexItem::Element(id) = item
+        && dom.node(*id).computed().is_none()
+    {
+        return 0;
+    }
+    let computed = item.computed(dom);
     let main_size = match direction {
         Direction::Row => &computed.width,
         Direction::Column => &computed.height,
@@ -267,7 +259,7 @@ pub(super) fn resolve_auto_min(
     // Whatever the suggestion, the content box is never negative: the
     // floor is at least the item's padding and border on the axis (CSS
     // Flexbox §9.7 clamps the target main size to the content box's 0).
-    let kw = Keywords::new(dom, id, &computed, direction, cross_budget, cb_width);
+    let kw = item.keywords(dom, &computed, direction, cross_budget, cb_width);
     let sizer = kw.sizer();
     // CSS §4.5 exception: non-visible overflow drops the floor to 0
     // — items inside a scroll container are allowed to be sized
@@ -289,7 +281,7 @@ pub(super) fn resolve_auto_min(
     if matches!(specified_cap, Some(0)) {
         return sizer.chrome();
     }
-    let content = content_min_size(dom, id, direction, cross_budget, cb_width);
+    let content = item.content_extreme(dom, direction, cross_budget, cb_width, false);
     sizer.floor(match specified_cap {
         Some(cap) => content.min(cap),
         None => content,

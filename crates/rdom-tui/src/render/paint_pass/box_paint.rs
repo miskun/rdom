@@ -239,6 +239,8 @@ pub(super) fn paint_content(
     // has block children; each carries its own `InlineLayout` +
     // rect on `TuiExt.anonymous_blocks`. No-op when the Vec is
     // empty (pure-flex, pure-IFC, or pure-block containers).
+    // A generated flex item's own box, under its lines.
+    super::generated_box::paint_generated_boxes(dom, id, buf, children_clip);
     paint_anonymous_blocks(dom, id, buf, children_clip, viewport);
 
     // Scrollbar overlay (after children so it sits on top if
