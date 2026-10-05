@@ -333,6 +333,7 @@ fn every_property_has_important_setter() {
         .line_break_important(crate::layout::LineBreak::Strict)
         .hyphens_important(crate::layout::Hyphens::None)
         .tab_size_important(crate::layout::TabSize::Number(4.0))
+        .text_transform_important(crate::layout::TextTransform::NONE)
         .user_select_important(UserSelect::None)
         .caret_color_important(CaretColor::Transparent)
         .caret_text_color_important(CaretTextColor::Auto)

@@ -273,6 +273,52 @@ impl TabSize {
     }
 }
 
+/// The case component of `text-transform` (CSS Text 3 §2.1).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TextCase {
+    /// No case mapping.
+    #[default]
+    None,
+    /// The first typographic letter unit of each word in titlecase.
+    Capitalize,
+    /// All letters in uppercase (full Unicode mapping).
+    Uppercase,
+    /// All letters in lowercase (full Unicode mapping).
+    Lowercase,
+}
+
+/// `text-transform` (CSS Text 3 §2.1, Text 4 §2.1): `none | [capitalize
+/// | uppercase | lowercase] || full-width || full-size-kana | math-auto`.
+/// Inherited; initial `none`. A rendering transform: copy and editing
+/// work in the source text.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct TextTransform {
+    /// The case mapping.
+    pub case: TextCase,
+    /// Typographic character units in their full-width forms.
+    pub full_width: bool,
+    /// Small kana as full-size kana.
+    pub full_size_kana: bool,
+    /// A text node of one character as mathematical italic (MathML Core
+    /// §4.2); the grammar takes it alone.
+    pub math_auto: bool,
+}
+
+impl TextTransform {
+    /// `none`.
+    pub const NONE: TextTransform = TextTransform {
+        case: TextCase::None,
+        full_width: false,
+        full_size_kana: false,
+        math_auto: false,
+    };
+
+    /// Whether the transform changes nothing.
+    pub fn is_none(self) -> bool {
+        self == Self::NONE
+    }
+}
+
 /// The computed CSS Text properties of an element
 /// ([`ComputedStyle::text`](crate::ComputedStyle::text)). All of them
 /// inherit, so the cascade copies the group from the parent whole.
@@ -292,6 +338,8 @@ pub struct TextStyle {
     pub hyphens: Hyphens,
     /// `tab-size` (CSS Text 3 §4.2).
     pub tab_size: TabSize,
+    /// `text-transform` (CSS Text 3 §2.1).
+    pub text_transform: TextTransform,
 }
 
 impl TextStyle {

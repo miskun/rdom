@@ -32,5 +32,6 @@ pub(super) fn apply_text(
         line_break: LINE_BREAK,
         hyphens: HYPHENS,
         tab_size: TAB_SIZE,
+        text_transform: TEXT_TRANSFORM,
     );
 }

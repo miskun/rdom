@@ -80,7 +80,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.9 Grid (Grid 1/2) | 9 | 0 | 1 | 0 | 10 |
 | 3.10 Positioned layout (Position 3, CSS 2.1 §9) | 6 | 0 | 0 | 1 | 7 |
 | 3.11 Overflow, scrolling and scrollbars (Overflow 3/4, Scroll Snap 1, Overscroll 1, Scrollbars 1) | 13 | 0 | 1 | 0 | 14 |
-| 3.12 Inline text (Text 3/4, Inline 3, CSS 2.1 §10.8) | 7 | 0 | 8 | 6 | 21 |
+| 3.12 Inline text (Text 3/4, Inline 3, CSS 2.1 §10.8) | 8 | 0 | 7 | 6 | 21 |
 | 3.13 Text decoration (Text Decoration 3/4) | 0 | 1 | 3 | 2 | 6 |
 | 3.14 Fonts (Fonts 4) | 0 | 2 | 1 | 2 | 5 |
 | 3.15 Lists, counters and generated content (Lists 3, Generated Content 3, Counter Styles 3, Pseudo-Elements 4) | 1 | 3 | 6 | 2 | 12 |
@@ -93,9 +93,9 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 5 | 2 | 1 | 1 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **165** | **22** | **74** | **46** | **307** |
+| **Total** | **166** | **22** | **73** | **46** | **307** |
 
-When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 96 rows Partial / Missing (C9-WHITE-SPACE shipped two, C9-BREAKING four, C9-TAB-SIZE one; C8G-PSEUDO-BOXES moved `::before` / `::after` from Supported to Partial — their `display` was ignored — and C8G-PSEUDO-ATOMS back: the atom, float and flex / grid forms work).
+When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 95 rows Partial / Missing (C9-WHITE-SPACE shipped two, C9-BREAKING four, C9-TAB-SIZE and C9-TEXT-TRANSFORM one each; C8G-PSEUDO-BOXES moved `::before` / `::after` from Supported to Partial — their `display` was ignored — and C8G-PSEUDO-ATOMS back: the atom, float and flex / grid forms work).
 
 Headline: rdom parses **227 property names** (`property_names()`: 159 in the table and 68 flow-relative ones, after Phase 8). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are `line-height`, `text-align`, and `@media`.
 
@@ -431,7 +431,7 @@ dropped. The audit's six, with where each stands:
 | `text-align-last` | Missing | Last-line alignment. | No | `IFC` |
 | `text-justify` | Missing | Justification method (`inter-word` is the only sensible one). | No | `IFC` |
 | `text-indent` | Missing | First-line indent in cells. | No | `IFC` |
-| `text-transform` | Missing | Case mapping, `full-width`. | No | `IFC` |
+| `text-transform` | Supported | Every value and combination: full Unicode case mapping (Final_Sigma, titlecase for `capitalize`), `full-width` (2 cells), `full-size-kana`, `math-auto`; rendering only — caret, selection, copy read the source (C9-TEXT-TRANSFORM). | — | `DISP/text.rs`, `IFC` (`inline/transform.rs`) |
 | `tab-size` | Supported | `<number>` / `<length>`, whole cells; a preserved tab advances to the next stop from the block's content edge, `0` hides tabs (C9-TAB-SIZE). | — | `DISP/text.rs`, `IFC` (`packer/emit.rs::layout_tabs`) |
 | `word-break` | Supported | `normal` / `break-all` / `keep-all` / `break-word` (C9-BREAKING; the UAX #14 subset in DIVERGENCES §2). | — | `DISP/text.rs`, `IFC` (`inline/breaking.rs`) |
 | `overflow-wrap` / `word-wrap` | Supported | `normal` / `break-word` / `anywhere`, `word-wrap` a legacy alias; `anywhere`'s breaks count for min-content, `break-word`'s do not (C9-BREAKING). | — | `DISP/text.rs`, `IFC` (`packer/emit.rs::split_word`) |
@@ -781,7 +781,7 @@ implementation or a `DIVERGENCES.md` entry before the acid page's coverage test 
 - `text-align-last` — Missing: Last-line alignment.
 - `text-justify` — Missing: Justification method (`inter-word` is the only sensible one).
 - `text-indent` — Missing: First-line indent in cells.
-- `text-transform` — Missing: Case mapping, `full-width`.
+- `text-transform` — Missing: Case mapping, `full-width`. *Shipped: C9-TEXT-TRANSFORM.*
 - `word-break` — Missing: `break-all` / `keep-all`. *Shipped: C9-BREAKING.*
 - `overflow-wrap` / `word-wrap` — Missing: `anywhere` / `break-word`. *Shipped: C9-BREAKING.*
 - `line-break` — Missing: CJK break strictness; low priority. *Shipped: C9-BREAKING.*

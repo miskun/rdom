@@ -11,6 +11,7 @@ use unicode_width::UnicodeWidthStr;
 
 use super::super::breaking::{self, BreakClass};
 use super::super::run_style::RunStyle;
+use super::super::transform;
 use super::super::white_space::{self, WhiteSpaceClass};
 use super::{GraphemeKind, LineEnd, LinePacker, Origin, PendingGrapheme};
 use crate::ext::PseudoSlot;
@@ -52,9 +53,22 @@ impl<'a> LinePacker<'a> {
     }
 
     fn push_str(&mut self, origin: Origin, text: &'a str) {
+        // MathML Core §4.2: `math-auto` italicizes a text of one
+        // character.
+        let mut chars = text.chars();
+        if self.run.transform.math_auto
+            && let (Some(c), None) = (chars.next(), chars.next())
+            && let Some(italic) = transform::math_italic(c)
+        {
+            let rendered = Cow::Owned(italic.to_string());
+            self.push_text_grapheme(origin, 0, text, Some(rendered));
+            return;
+        }
         let mut source_offset = 0usize;
-        for g in text.graphemes(true) {
-            self.push_grapheme(origin, source_offset, g);
+        let mut graphemes = text.graphemes(true).peekable();
+        while let Some(g) = graphemes.next() {
+            let next = graphemes.peek().and_then(|n| n.chars().next());
+            self.push_grapheme(origin, source_offset, g, next);
             source_offset += g.len();
         }
     }
@@ -86,26 +100,43 @@ impl<'a> LinePacker<'a> {
 
     /// Take one grapheme in, per the white space processing rules of its
     /// run (CSS Text 3 §4.1.1, `white_space::classify`).
-    fn push_grapheme(&mut self, origin: Origin, source_offset: usize, g: &'a str) {
-        match white_space::classify(g, self.run.collapse) {
+    fn push_grapheme(
+        &mut self,
+        origin: Origin,
+        source_offset: usize,
+        g: &'a str,
+        next: Option<char>,
+    ) {
+        let class = white_space::classify(g, self.run.collapse);
+        if class != WhiteSpaceClass::Text {
+            self.case_ctx.break_word();
+        }
+        match class {
             WhiteSpaceClass::Control => {}
             WhiteSpaceClass::ForcedBreak => self.push_hard_break(origin.owner),
             WhiteSpaceClass::Collapsible { segment_break } => {
                 self.push_collapsible(origin, source_offset, segment_break);
                 self.last_class = None;
             }
-            class @ (WhiteSpaceClass::PreservedSpace | WhiteSpaceClass::PreservedTab) => {
+            WhiteSpaceClass::PreservedSpace | WhiteSpaceClass::PreservedTab => {
                 // A carriage return or a segment break converted to a
                 // space is a space (CSS Text 3 §4, Text 4 §4.1); a tab is
                 // one cell until its line places it at its tab stop
                 // (§4.2, `emit::layout_tabs`).
-                let text: &'a str = if g == " " { g } else { " " };
-                let tab = (class == WhiteSpaceClass::PreservedTab).then_some(self.run.tab_size);
+                let tab = class == WhiteSpaceClass::PreservedTab;
+                // §2.1: `full-width` makes a preserved space U+3000.
+                let (text, width): (&'a str, u16) = if !tab && self.run.transform.full_width {
+                    ("\u{3000}", 2)
+                } else if g == " " {
+                    (g, 1)
+                } else {
+                    (" ", 1)
+                };
                 let kind = GraphemeKind::Preserved {
                     hangs: self.run.hangs_spaces(),
-                    tab,
+                    tab: tab.then_some(self.run.tab_size),
                 };
-                let piece = self.piece(origin, source_offset, g, Cow::Borrowed(text), 1, kind);
+                let piece = self.piece(origin, source_offset, g, Cow::Borrowed(text), width, kind);
                 self.push_to_word(piece);
                 self.last_class = None;
                 // `break-spaces`: a soft wrap opportunity after every
@@ -114,7 +145,11 @@ impl<'a> LinePacker<'a> {
                     self.commit_word();
                 }
             }
-            WhiteSpaceClass::Text => self.push_text_grapheme(origin, source_offset, g),
+            WhiteSpaceClass::Text => {
+                let rendered = transform::apply(g, self.run.transform, self.case_ctx, next);
+                self.case_ctx = self.case_ctx.after(g);
+                self.push_text_grapheme(origin, source_offset, g, rendered);
+            }
         }
     }
 
@@ -157,9 +192,18 @@ impl<'a> LinePacker<'a> {
     /// word joiner is only an opportunity or its absence; a soft hyphen
     /// is kept, zero cells wide, to show a hyphen if the line breaks
     /// after it (§6.1).
-    fn push_text_grapheme(&mut self, origin: Origin, source_offset: usize, g: &'a str) {
-        let w = UnicodeWidthStr::width(g) as u16;
-        let first = g.chars().next().unwrap_or(' ');
+    fn push_text_grapheme(
+        &mut self,
+        origin: Origin,
+        source_offset: usize,
+        g: &'a str,
+        rendered: Option<Cow<'a, str>>,
+    ) {
+        // `text-transform` (§2.1) is applied before line breaking: the
+        // rendered text is what is measured and broken.
+        let text = rendered.unwrap_or(Cow::Borrowed(g));
+        let w = UnicodeWidthStr::width(text.as_ref()) as u16;
+        let first = text.chars().next().unwrap_or(' ');
         let class = breaking::class_of(first, w == 2);
         if w == 0 {
             match class {
@@ -197,16 +241,9 @@ impl<'a> LinePacker<'a> {
             self.commit_word();
         }
         self.take_opportunity(class);
-        let piece = self.piece(
-            origin,
-            source_offset,
-            g,
-            Cow::Borrowed(g),
-            w,
-            GraphemeKind::Text,
-        );
+        self.last_char = text.chars().last();
+        let piece = self.piece(origin, source_offset, g, text, w, GraphemeKind::Text);
         self.push_to_word(piece);
-        self.last_char = g.chars().last();
         self.last_class = Some(class);
         self.last_wraps = self.run.wraps;
     }

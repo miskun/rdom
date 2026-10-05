@@ -203,3 +203,77 @@ fn tab_size_takes_a_number_or_a_length() {
     assert_eq!(TabSize::Number(3.5).cells(), 4);
     assert_eq!(TabSize::Length(3.0).cells(), 3);
 }
+
+/// CSS Text 4 §2.1: `text-transform: none | [capitalize | uppercase |
+/// lowercase] || full-width || full-size-kana | math-auto` — the case
+/// keyword once, the others in any order, serialized in the grammar's
+/// order; inherited.
+#[test]
+fn text_transform_takes_its_combinations() {
+    use crate::layout::{TextCase, TextTransform};
+    for (text, value, out) in [
+        ("none", TextTransform::NONE, "none"),
+        (
+            "uppercase",
+            TextTransform {
+                case: TextCase::Uppercase,
+                ..TextTransform::NONE
+            },
+            "uppercase",
+        ),
+        (
+            "full-width capitalize",
+            TextTransform {
+                case: TextCase::Capitalize,
+                full_width: true,
+                ..TextTransform::NONE
+            },
+            "capitalize full-width",
+        ),
+        (
+            "full-size-kana full-width lowercase",
+            TextTransform {
+                case: TextCase::Lowercase,
+                full_width: true,
+                full_size_kana: true,
+                math_auto: false,
+            },
+            "lowercase full-width full-size-kana",
+        ),
+        (
+            "math-auto",
+            TextTransform {
+                math_auto: true,
+                ..TextTransform::NONE
+            },
+            "math-auto",
+        ),
+    ] {
+        let mut style = TuiStyle::new();
+        set("text-transform", text, &mut style).unwrap_or_else(|e| panic!("{text}: {e:?}"));
+        assert_eq!(
+            style.text.text_transform,
+            Some(Value::Specified(value)),
+            "{text}"
+        );
+        assert_eq!(
+            serialize("text-transform", &style).as_deref(),
+            Some(out),
+            "{text}"
+        );
+    }
+    for bad in [
+        "uppercase lowercase",
+        "full-width full-width",
+        "none uppercase",
+        "math-auto uppercase",
+        "capitalise",
+    ] {
+        assert_eq!(
+            set("text-transform", bad, &mut TuiStyle::new()),
+            Err(DispatchError::InvalidValue),
+            "{bad}"
+        );
+    }
+    assert!(inherits("text-transform"));
+}

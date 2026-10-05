@@ -1,14 +1,16 @@
 //! The CSS Text properties (CSS Text 3 / 4): `white-space` and its
 //! longhands `white-space-collapse` / `text-wrap-mode`, `word-break`,
 //! `overflow-wrap` (and its legacy name `word-wrap`), `line-break`,
-//! `hyphens`, `tab-size` — their `set` and `serialize` arms.
+//! `hyphens`, `tab-size`, `text-transform` — their `set` and `serialize`
+//! arms.
 
 use super::value_serializers::specified;
 use crate::layout::{TextWrapMode, WhiteSpace, WhiteSpaceCollapse};
 use crate::parse::token::Token;
 use crate::parse::values::{
-    parse_hyphens, parse_line_break, parse_overflow_wrap, parse_tab_size, parse_text_wrap_mode,
-    parse_white_space, parse_white_space_collapse, parse_word_break,
+    parse_hyphens, parse_line_break, parse_overflow_wrap, parse_tab_size, parse_text_transform,
+    parse_text_wrap_mode, parse_white_space, parse_white_space_collapse, parse_word_break,
+    serialize_text_transform,
 };
 use crate::{TuiStyle, Value};
 
@@ -42,6 +44,9 @@ pub(super) fn set(name: &str, value: &[Token], style: &mut TuiStyle) -> Option<O
         "tab-size" => parse_tab_size(value).map(|t| {
             text.tab_size = Some(Value::Specified(t));
         }),
+        "text-transform" => parse_text_transform(value).map(|t| {
+            text.text_transform = Some(Value::Specified(t));
+        }),
         _ => return None,
     })
 }
@@ -58,6 +63,11 @@ pub(super) fn serialize(name: &str, style: &TuiStyle) -> Option<Option<String>> 
         "overflow-wrap" | "word-wrap" => keyword(&text.overflow_wrap, |w| w.keyword()),
         "line-break" => keyword(&text.line_break, |l| l.keyword()),
         "hyphens" => keyword(&text.hyphens, |h| h.keyword()),
+        "text-transform" => text
+            .text_transform
+            .as_ref()
+            .and_then(specified)
+            .map(|t| serialize_text_transform(*t)),
         "tab-size" => text.tab_size.as_ref().and_then(specified).map(|t| match t {
             crate::layout::TabSize::Number(n) => format!("{n}"),
             crate::layout::TabSize::Length(c) => format!("{c}ch"),

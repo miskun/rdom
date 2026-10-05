@@ -3,7 +3,8 @@
 
 use crate::Value;
 use crate::layout::{
-    Hyphens, LineBreak, OverflowWrap, TabSize, TextWrapMode, WhiteSpaceCollapse, WordBreak,
+    Hyphens, LineBreak, OverflowWrap, TabSize, TextTransform, TextWrapMode, WhiteSpaceCollapse,
+    WordBreak,
 };
 
 /// The CSS Text properties a [`TuiStyle`](crate::TuiStyle) declares
@@ -26,4 +27,6 @@ pub struct TextDeclarations {
     pub hyphens: Option<Value<Hyphens>>,
     /// `tab-size` (CSS Text 3 §4.2).
     pub tab_size: Option<Value<TabSize>>,
+    /// `text-transform` (CSS Text 3 §2.1).
+    pub text_transform: Option<Value<TextTransform>>,
 }

@@ -187,6 +187,7 @@ const PROPERTY_NAMES: &[&str] = &[
     "line-break",
     "hyphens",
     "tab-size",
+    "text-transform",
     // Writing modes (CSS Writing Modes 4)
     "direction",
     "writing-mode",

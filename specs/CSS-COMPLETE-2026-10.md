@@ -195,7 +195,7 @@ row comes from.
 | C9-TEXT-WRAP | `text-wrap` / `text-wrap-style` (`balance` / `pretty` / `stable`) | |
 | C9-TEXT-ALIGN | `text-align` (incl. `start` / `end` / `justify`), `text-align-last`, `text-justify` | |
 | C9-TEXT-INDENT | `text-indent` | |
-| C9-TEXT-TRANSFORM | `text-transform` (case mapping, `full-width`) | |
+| C9-TEXT-TRANSFORM | `text-transform` (case mapping, `full-width`) | done |
 | C9-TAB-SIZE | `tab-size` and real tab stops in `pre` | done |
 | C9-BREAKING | `word-break`, `overflow-wrap` / `word-wrap`, `line-break`, `hyphens` (soft hyphens) | done |
 | C9-LINE-HEIGHT | `line-height` (whole-row line boxes) | |
@@ -5383,3 +5383,29 @@ row comes from.
   first draft as above, green after the fix). Mutation (restored, touched): no tab layout → five; no re-layout
   in `fit_empty_line` or after a wrap → the float test; the line origin at 0 → the float test. Changed
   expectation: none. Collapsible tabs (`normal`) are still spaces (§4.1.1).
+- 2026-10-11 — C9-TEXT-TRANSFORM (CSS Text 3 §2.1 and its ordering note, CSS Text 4 §2.1, MathML Core §4.2 /
+  Appendix C.1). rdom-style: `text-transform: none | [capitalize | uppercase | lowercase] || full-width ||
+  full-size-kana | math-auto` as `TextTransform { case: TextCase, full_width, full_size_kana, math_auto }`
+  (closed record, `NONE`), inherited, serialized in the grammar's order. rdom-tui: `render/inline/transform.rs`
+  — what a text grapheme renders as, applied in the packer's intake after white space collapsing and before
+  line breaking (§2.1: "after Phase I ... before Phase II"; Appendix A: it affects line breaking), so the
+  breaking class is read off the rendered text (a full-width letter breaks like an ideograph) and the
+  rendered width is what is measured. Case: `char::to_uppercase` / `to_lowercase` (full mappings incl.
+  SpecialCasing's unconditional ones), Final_Sigma for `Σ` from a `CaseContext` (the packer's: the character
+  before is cased) and a one-character lookahead within the text node, titlecase through a table of the
+  characters whose titlecase is not their uppercase (`ǅ` `ǈ` `ǋ` `ǲ`, `ß` → `Ss`, the Latin and Armenian
+  ligatures). `capitalize`'s word rule (DIVERGENCES §2): a letter or digit not preceded by a letter, digit or
+  word-internal apostrophe. `full-width`: ASCII `!`–`~` → U+FF01–FF5E, the seven Latin-1 signs, the halfwidth
+  katakana block, and a *preserved* space → U+3000 (collapsible spaces untouched, §2.1's note). `full-size-
+  kana`: Text 4's table. `math-auto`: a text node of exactly one character in C.1's table (any element — rdom
+  has no MathML). The rendering goes through C9-BREAKING's `SourceMap`, so `ß` → `SS` is one source unit two
+  cells wide. Copy: verified against the spec (§2.1 "must not affect the content of a plain text copy & paste
+  operation") and the engines — Gecko copies the source; Blink and WebKit copy the transformed text, an open
+  bug since 2013 (crbug.com/325231). Decided: the spec and Gecko — the clipboard serializer reads the DOM, so
+  nothing changed there; recorded in DIVERGENCES §2. Found while implementing: a cargo-fmt-reflowed call was
+  not rewritten by the edit script, so the first build pushed the source grapheme — caught by the red tests
+  staying red. Red: `css_phase9/text_transform.rs` — 6 of 6 failed (`Straße` for `STRASSE`, `ab 12` for
+  `ａｂ １２`, `ぁっャ`, `x+cosh`, the caret at 5 for 6, `hello …` uncapitalized); green after; the
+  leading-apostrophe case added after a surviving mutation. Mutation (restored, touched): Final_Sigma off,
+  the titlecase table entry gone, U+3000 off, an apostrophe always word-internal — each fails its test. No
+  existing test expectation or snapshot changed.

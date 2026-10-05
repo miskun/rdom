@@ -51,6 +51,7 @@ use rdom_core::NodeId;
 
 use super::breaking::BreakClass;
 use super::run_style::RunStyle;
+use super::transform::CaseContext;
 use super::vertical::{AtomAt, AtomRows};
 use super::{GeneratedFragment, InlineFragment, LineBox};
 use crate::ext::PseudoSlot;
@@ -203,6 +204,8 @@ pub(super) struct LinePacker<'a> {
     /// The current line's content ends with a soft hyphen that shows a
     /// hyphen if the line breaks there (CSS Text 3 §6.1).
     cur_ends_in_shy: bool,
+    /// The context `text-transform`'s case mapping reads (`transform`).
+    case_ctx: CaseContext,
     /// An atom was the last thing placed.
     after_atom: bool,
 
@@ -250,6 +253,7 @@ impl<'a> LinePacker<'a> {
             last_wraps: true,
             last_class: None,
             cur_ends_in_shy: false,
+            case_ctx: CaseContext::default(),
             after_atom: false,
             emitted_any: false,
             measuring: false,

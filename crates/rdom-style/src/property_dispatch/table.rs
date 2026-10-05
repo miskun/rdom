@@ -140,6 +140,7 @@ define_fields! {
     LineBreak => text.line_break : LINE_BREAK,
     Hyphens => text.hyphens : HYPHENS,
     TabSize => text.tab_size : TAB_SIZE,
+    TextTransform => text.text_transform : TEXT_TRANSFORM,
     UserSelect => user_select : USER_SELECT,
     PointerEvents => pointer_events : POINTER_EVENTS,
     Visibility => visibility : VISIBILITY,
@@ -363,6 +364,7 @@ pub fn inherits(name: &str) -> bool {
             | "line-break"
             | "hyphens"
             | "tab-size"
+            | "text-transform"
             | "pointer-events"
             | "visibility"
             | "caret-color"

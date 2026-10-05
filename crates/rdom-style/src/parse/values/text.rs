@@ -3,7 +3,8 @@
 use super::numeric::{LengthPercentage, Range, length_percentage, number};
 use super::parse_keyword;
 use crate::layout::{
-    Hyphens, LineBreak, OverflowWrap, TabSize, TextWrapMode, WhiteSpaceCollapse, WordBreak,
+    Hyphens, LineBreak, OverflowWrap, TabSize, TextCase, TextTransform, TextWrapMode,
+    WhiteSpaceCollapse, WordBreak,
 };
 use crate::parse::token::Token;
 
@@ -135,5 +136,80 @@ pub fn parse_tab_size(value: &[Token]) -> Option<TabSize> {
     match length_percentage(value, Range::NonNegative)? {
         LengthPercentage::Cells(c) => Some(TabSize::Length(c as f32)),
         LengthPercentage::Integer(_) | LengthPercentage::Expr(_) => None,
+    }
+}
+
+/// `text-transform: none | [capitalize | uppercase | lowercase] ||
+/// full-width || full-size-kana | math-auto` (CSS Text 4 §2.1).
+pub fn parse_text_transform(value: &[Token]) -> Option<TextTransform> {
+    match value {
+        [] => return None,
+        [_] if parse_keyword(value, &[("none", ())]).is_some() => {
+            return Some(TextTransform::NONE);
+        }
+        [_] if parse_keyword(value, &[("math-auto", ())]).is_some() => {
+            return Some(TextTransform {
+                math_auto: true,
+                ..TextTransform::NONE
+            });
+        }
+        _ => {}
+    }
+    let mut t = TextTransform::NONE;
+    let (mut case, mut width, mut kana) = (false, false, false);
+    for word in value {
+        let word = std::slice::from_ref(word);
+        let case_kw = parse_keyword(
+            word,
+            &[
+                ("capitalize", TextCase::Capitalize),
+                ("uppercase", TextCase::Uppercase),
+                ("lowercase", TextCase::Lowercase),
+            ],
+        );
+        if let Some(c) = case_kw {
+            if std::mem::replace(&mut case, true) {
+                return None;
+            }
+            t.case = c;
+        } else if parse_keyword(word, &[("full-width", ())]).is_some() {
+            if std::mem::replace(&mut width, true) {
+                return None;
+            }
+            t.full_width = true;
+        } else if parse_keyword(word, &[("full-size-kana", ())]).is_some() {
+            if std::mem::replace(&mut kana, true) {
+                return None;
+            }
+            t.full_size_kana = true;
+        } else {
+            return None;
+        }
+    }
+    Some(t)
+}
+
+/// `text-transform`'s serialization, in the grammar's order.
+pub fn serialize_text_transform(t: TextTransform) -> String {
+    if t.math_auto {
+        return "math-auto".to_string();
+    }
+    let mut words = Vec::new();
+    match t.case {
+        TextCase::None => {}
+        TextCase::Capitalize => words.push("capitalize"),
+        TextCase::Uppercase => words.push("uppercase"),
+        TextCase::Lowercase => words.push("lowercase"),
+    }
+    if t.full_width {
+        words.push("full-width");
+    }
+    if t.full_size_kana {
+        words.push("full-size-kana");
+    }
+    if words.is_empty() {
+        "none".to_string()
+    } else {
+        words.join(" ")
     }
 }

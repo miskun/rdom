@@ -56,6 +56,7 @@ mod measure;
 mod packer;
 mod run_style;
 mod source_map;
+mod transform;
 pub(crate) mod vertical;
 mod white_space;
 

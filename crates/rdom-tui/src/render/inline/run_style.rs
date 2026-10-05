@@ -5,7 +5,7 @@
 //! values (CSS Text 3 §3: `white-space` applies to text).
 
 use super::breaking::BreakRules;
-use crate::layout::{OverflowWrap, WhiteSpaceCollapse, WordBreak};
+use crate::layout::{OverflowWrap, TextTransform, WhiteSpaceCollapse, WordBreak};
 use crate::style::ComputedStyle;
 
 /// The CSS Text values the packer applies to a run of text.
@@ -22,6 +22,8 @@ pub(crate) struct RunStyle {
     pub(crate) overflow_wrap: OverflowWrap,
     /// `tab-size` in cells (§4.2).
     pub(crate) tab_size: u16,
+    /// `text-transform` (§2.1).
+    pub(crate) transform: TextTransform,
 }
 
 impl Default for RunStyle {
@@ -32,6 +34,7 @@ impl Default for RunStyle {
             breaks: BreakRules::default(),
             overflow_wrap: OverflowWrap::Normal,
             tab_size: 8,
+            transform: TextTransform::NONE,
         }
     }
 }
@@ -60,6 +63,7 @@ impl RunStyle {
                 text.overflow_wrap
             },
             tab_size: text.tab_size.cells(),
+            transform: text.text_transform,
         }
     }
 
