@@ -28,12 +28,15 @@
 //!   contributions on an axis.
 //! - [`arrange`] — the items laid out in their grid areas.
 //! - [`intrinsic`] — the grid container's content size.
+//! - [`lines`] — a laid-out grid's lines, for the absolutely positioned
+//!   boxes it is the containing block of (§9.1).
 
 mod arrange;
 mod contribution;
 #[cfg(test)]
 mod cost_tests;
 mod intrinsic;
+mod lines;
 mod placement;
 mod sizing;
 mod template;
@@ -48,6 +51,8 @@ use crate::render::layout_pass::items;
 use crate::style::ComputedStyle;
 
 pub(super) use intrinsic::content_size;
+use lines::AxisLines;
+pub(crate) use lines::{GridLines, abspos_area};
 use placement::{Lines, Placed};
 use sizing::{Frame, Space};
 use template::{Bounds, Explicit};
@@ -98,6 +103,10 @@ struct Grid {
     /// `None` when only the columns were asked for.
     rows: Option<TrackGrid>,
     placed: Vec<Placed>,
+    /// The explicit grid's size, its line names, and the implicit tracks
+    /// before it, on each axis — the lines an absolutely positioned box
+    /// is placed by (§9.1), their edges filled in by `arrange`.
+    lines: GridLines,
 }
 
 /// Size the grid of `id` (styled `computed`): its items placed (§8.5),
@@ -207,9 +216,23 @@ fn size_grid(
         );
         row_grid
     });
+    let axis = |explicit: &Explicit<'_>, before: usize| AxisLines {
+        explicit: explicit.sizes.len(),
+        names: explicit
+            .names
+            .iter()
+            .map(|n| n.iter().map(|s| (*s).to_string()).collect())
+            .collect(),
+        before,
+        edges: Vec::new(),
+    };
     Grid {
         columns: column_grid,
         rows: row_grid,
+        lines: GridLines {
+            columns: axis(&explicit_columns, placement.columns_before),
+            rows: axis(&explicit_rows, placement.rows_before),
+        },
         placed: placement.items,
     }
 }

@@ -292,7 +292,6 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 
 ### Grid
 
-- An absolutely positioned box whose containing block is a grid container is placed in the container's box, not in the grid area its `grid-row` / `grid-column` name (CSS Grid 2 §9.1) — C7-GRID-PLACE
 - `grid-template-areas`, `grid-template`, `grid` — C7-GRID-AREAS
 - Box alignment in grid — C7-GRID-ALIGN (until then a grid item stretches to its area where its size is `auto` and its self-alignment `normal` or `stretch`, and otherwise sits at the area's start; the tracks sit at the grid container's start)
 - `subgrid` — C7-SUBGRID

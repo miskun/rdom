@@ -74,7 +74,9 @@ pub(crate) fn containing_block(dom: &Dom<TuiExt>, id: NodeId, viewport: LayoutRe
                 pp,
                 Position::Relative | Position::Absolute | Position::Fixed
             ) {
-                return layout_rect(dom, p).unwrap_or(viewport);
+                let cb = layout_rect(dom, p).unwrap_or(viewport);
+                // CSS Grid 2 §9.1: a grid container's grid area.
+                return crate::render::layout_pass::grid::abspos_area(dom, id, p, cb).unwrap_or(cb);
             }
             cur = parent_id(dom, p);
         }

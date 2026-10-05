@@ -8,6 +8,7 @@
 #[allow(unused_imports)]
 pub(crate) use super::css_phase5::{el, lay_out, paint, rect, rows, size};
 
+mod abspos;
 mod auto;
 mod container;
 mod place;

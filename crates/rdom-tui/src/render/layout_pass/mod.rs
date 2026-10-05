@@ -108,6 +108,7 @@ use dispatch::layout_children;
 use flex::layout_flex_children;
 
 use auto_height::resolve_auto_height;
+pub(crate) use grid::GridLines;
 pub(super) use gutter::{gutter_axes, reserve_scrollbar_gutter, reserve_scrollbar_gutter_forced};
 pub(crate) use ifc::is_ifc_block;
 use scroll_extent::{clamp_scroll_offset, record_scroll_content_size};

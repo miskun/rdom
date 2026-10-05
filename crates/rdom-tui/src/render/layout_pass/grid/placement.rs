@@ -61,13 +61,13 @@ pub(super) enum Axis {
 
 /// Which edge a `<grid-line>` places.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Edge {
+pub(super) enum Edge {
     Start,
     End,
 }
 
 /// A span count, clamped to the grid.
-fn count(n: u32) -> i32 {
+pub(super) fn count(n: u32) -> i32 {
     n.min(MAX_TRACKS as u32) as i32
 }
 
@@ -98,7 +98,7 @@ impl Lines<'_> {
 
     /// The `count`th line named `name` after (`forwards`) or before line
     /// `from`, every line past the explicit grid on that side counting.
-    fn search(&self, from: i32, name: &str, count: i32, forwards: bool) -> i32 {
+    pub(super) fn search(&self, from: i32, name: &str, count: i32, forwards: bool) -> i32 {
         let mut left = count;
         if forwards {
             for x in (from + 1).max(0)..=self.last() {
@@ -124,7 +124,7 @@ impl Lines<'_> {
     }
 
     /// The line a definite `<grid-line>` names on `edge`, if it is one.
-    fn definite(&self, line: &GridLine, edge: Edge) -> Option<i32> {
+    pub(super) fn definite(&self, line: &GridLine, edge: Edge) -> Option<i32> {
         let x = match line {
             GridLine::Line { index, name: None } if *index > 0 => index - 1,
             GridLine::Line { index, name: None } => self.last().saturating_add(1 + index),

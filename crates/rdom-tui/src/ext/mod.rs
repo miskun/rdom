@@ -240,6 +240,10 @@ pub struct TuiExt {
     /// Populated by `layout_pass::block::layout_block_children` per
     /// CSS 2.1 §9.2.1.1.
     pub anonymous_blocks: Vec<AnonymousIfc>,
+    /// A grid container's lines after its last layout (CSS Grid 2 §9.1):
+    /// the grid areas of the absolutely positioned boxes it is the
+    /// containing block of. `None` for any other box.
+    pub(crate) grid_lines: Option<Box<crate::render::layout_pass::GridLines>>,
 
     // ── Cascade cache (populated by Dom::cascade) ─────────────────────
     /// Post-cascade style for this element. `None` means "no cascade run

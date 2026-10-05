@@ -34,6 +34,24 @@ pub(super) fn arrange(
     let columns = grid.columns.extents();
     let rows = grid.rows.as_ref().map(|r| r.extents()).unwrap_or_default();
     let rtl = crate::render::layout_pass::margin_trim::inline_reversed(computed);
+    // The tracks' edges, absolute (unscrolled), for §9.1: an `rtl` grid's
+    // columns start at their right edge.
+    let mut lines = grid.lines;
+    let right = container.x + i32::from(container.width);
+    lines.columns.edges = columns
+        .iter()
+        .map(|&(a, b)| match rtl {
+            true => (right - a as i32, right - b as i32),
+            false => (container.x + a as i32, container.x + b as i32),
+        })
+        .collect();
+    lines.rows.edges = rows
+        .iter()
+        .map(|&(a, b)| (container.y + a as i32, container.y + b as i32))
+        .collect();
+    if let Some(ext) = dom.node_mut(id).ext_mut() {
+        ext.grid_lines = Some(Box::new(lines));
+    }
     let scroll_x = scroll_offset(dom, id, Direction::Row);
     let scroll_y = scroll_offset(dom, id, Direction::Column);
     let mut anonymous = Vec::new();

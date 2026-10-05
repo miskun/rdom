@@ -3751,3 +3751,22 @@ row comes from.
   new-row bump off → its test; named spans as plain spans → the named-lines test. No other test
   expectation and no snapshot changed. DIVERGENCES §3: the placement line goes; absolutely
   positioned grid children (part 3) are listed until then.
+- 2026-10-08 — C7-GRID-PLACE, part 3 of 4: absolutely positioned boxes in a grid (CSS Grid 2 §9.1).
+  A grid container keeps its lines after layout — `TuiExt::grid_lines` (crate-private; cleared by
+  every other formatting context in `dispatch::layout_children`): per axis the explicit grid's size
+  and line names, the implicit tracks before it, and each track's start- and end-side edge, absolute
+  and unscrolled, an `rtl` grid's columns starting at their right edge (`grid/lines.rs`, filled by
+  `arrange`). `positioning::containing_block` asks `grid::abspos_area` when the positioned ancestor
+  is a grid container: each axis resolves its two lines as in-flow placement does (`Lines::definite`,
+  named and numbered lines, the `-start` / `-end` hook), but an `auto` line — and a span beside one,
+  and a line the implicit grid does not have ("a non-existent line … is instead treated as `auto`") —
+  is the containing block's own edge, with no span-of-one default (abspos boxes are not
+  auto-placed); lines in the wrong order swap and an end equal to the start is `auto`. The
+  containing block an `auto` edge falls back to is the one rdom gives any absolutely positioned box
+  (its positioned ancestor's layout rect). The static position is unchanged: the content box's
+  start, as for the sole item of a grid area the content edges bound (§9.2). Red:
+  `css_phase7/abspos.rs` (3 tests) — every box at the container's rect `(0, 0, 20, 3)`; green
+  after, two expectations corrected while green (`grid-column: 2` ends at the container's edge, its end
+  `auto`, as the test's own doc now says), and the `rtl` test added. Mutation checks (restored and
+  touched): the hook off → all four; the `rtl` edges unmirrored → the `rtl` test; a missing line
+  clamped instead of `auto` → its test. DIVERGENCES §3's abspos line goes.

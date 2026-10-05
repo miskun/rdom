@@ -41,6 +41,8 @@ pub(super) fn layout_children(
     // child was dropped). Clearing here, once, covers every dispatch arm.
     if let Some(ext) = dom.node_mut(id).ext_mut() {
         ext.anonymous_blocks.clear();
+        // Only the grid arm records its lines.
+        ext.grid_lines = None;
     }
 
     // IFC block: inline element children don't participate in flex
