@@ -33,6 +33,7 @@ mod caret;
 mod chrome;
 mod selection_overlay;
 mod single_row;
+mod text_overflow;
 
 use rdom_core::{Dom, NodeId, NodeType};
 
@@ -49,6 +50,7 @@ use super::text::{
 use chrome::inline_chrome;
 use selection_overlay::apply_selection_overlay;
 use single_row::paint_single_row_chrome;
+use text_overflow::{Marking, cut_line};
 
 pub(super) use caret::paint_caret_if_editable;
 pub(crate) use chrome::{ChromeText, InlineChromeFn};
@@ -174,7 +176,8 @@ fn paint_lines(
         inner,
         bg_dedup_owner: id,
     };
-    paint_inline_layout(dom, layout, at, buf, clip, viewport);
+    let marking = Marking::of(dom, id);
+    paint_inline_layout(dom, layout, at, marking.as_ref(), buf, clip, viewport);
 
     // Anchor href tagging for whole-element anchors (e.g.
     // block-level `<a>` with text content and no inline descendants).
@@ -233,7 +236,16 @@ pub(super) fn paint_ifc(
         inner,
         bg_dedup_owner: id,
     };
-    paint_inline_layout(dom, inline_layout, at, buf, clip, viewport);
+    let marking = Marking::of(dom, id);
+    paint_inline_layout(
+        dom,
+        inline_layout,
+        at,
+        marking.as_ref(),
+        buf,
+        clip,
+        viewport,
+    );
     // Caret is painted by `paint_node` once per element that owns
     // an inline-flow container (IFC blocks AND pure-text leaf
     // blocks); the call used to live here, but textareas/inputs go
@@ -265,12 +277,23 @@ pub(super) fn paint_anonymous_blocks(
     // The host's `::before` / `::after` are packed into the first / last
     // anonymous box by the layout pass (CSS 2.1 §9.2.1.1); they arrive
     // here as the layouts' generated fragments.
+    // An anonymous block box's lines are its container's (CSS Overflow 4
+    // §3 applies to the block container's line boxes).
+    let marking = Marking::of(dom, container_id);
     for anon in &ext.anonymous_blocks {
         let at = FlowPlacement {
             inner: anon.rect,
             bg_dedup_owner: container_id,
         };
-        paint_inline_layout(dom, &anon.inline_layout, at, buf, clip, viewport);
+        paint_inline_layout(
+            dom,
+            &anon.inline_layout,
+            at,
+            marking.as_ref(),
+            buf,
+            clip,
+            viewport,
+        );
     }
 }
 
@@ -297,6 +320,7 @@ fn paint_inline_layout(
     dom: &Dom<TuiExt>,
     inline_layout: &crate::render::inline::InlineLayout,
     at: FlowPlacement,
+    marking: Option<&Marking>,
     buf: &mut Buffer,
     clip: Rect,
     viewport: Rect,
@@ -311,6 +335,7 @@ fn paint_inline_layout(
     // `clip` (`stacking::children_clip`), a scroll container its padding
     // box, so a scrolled flow shows the rows and columns it scrolled to.
     let atom_clip = clip;
+    let outer_clip = clip;
     // The current selection range (document-ordered) — computed once
     // per IFC paint, reused across fragments. `None` when there's no
     // selection or it's collapsed (caret only, nothing to highlight).
@@ -318,6 +343,12 @@ fn paint_inline_layout(
     for line in &inline_layout.lines {
         let line_y = inner.y + i32::from(line.text_row());
         let text_visible = line_y >= clip.y as i32 && line_y < clip.bottom() as i32;
+        // `text-overflow`'s cut of this line, narrowing the clip it paints
+        // its text in (CSS Overflow 4 §3).
+        let cut = marking.map(|m| cut_line(line, inner.x, m));
+        let clip = cut
+            .as_ref()
+            .map_or(clip, |cut| narrow(clip, cut.left, cut.right));
         let line_right = clip.right();
         if text_visible {
             for generated in &line.generated {
@@ -343,7 +374,10 @@ fn paint_inline_layout(
             // painter; a positioned atom is skipped there (its stacking
             // context's layers paint it).
             if fragment.atomic {
-                super::paint_line_atom(dom, fragment.node, buf, atom_clip, viewport);
+                let end = frag_x + i32::from(fragment.width);
+                if cut.as_ref().is_none_or(|cut| cut.keeps(frag_x, end)) {
+                    super::paint_line_atom(dom, fragment.node, buf, atom_clip, viewport);
+                }
                 continue;
             }
             if !text_visible || frag_x >= clip.right() as i32 {
@@ -425,7 +459,33 @@ fn paint_inline_layout(
                 apply_selection_overlay(dom, buf, line_y as u16, frag_x, clip, fragment, sr);
             }
         }
+        if let (Some(cut), Some(marking)) = (&cut, marking)
+            && text_visible
+        {
+            for &(x, marker) in &cut.markers {
+                super::text::paint_text_from(
+                    buf,
+                    x,
+                    line_y as u16,
+                    outer_clip.x,
+                    outer_clip.right(),
+                    marker,
+                    marking.style,
+                );
+            }
+        }
     }
+}
+
+/// `clip` narrowed to the columns `[left, right)`.
+fn narrow(clip: Rect, left: i32, right: i32) -> Rect {
+    let x = i32::from(clip.x).max(left);
+    let end = i32::from(clip.right()).min(right);
+    let (x, end) = (
+        x.clamp(0, i32::from(u16::MAX)) as u16,
+        end.clamp(0, i32::from(u16::MAX)) as u16,
+    );
+    Rect::new(x, clip.y, end.saturating_sub(x), clip.height)
 }
 
 /// Paint one generated-content run at its packed cell, in the style of

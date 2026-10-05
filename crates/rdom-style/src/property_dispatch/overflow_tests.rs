@@ -101,3 +101,59 @@ fn overflow_clip_margin_takes_a_box_and_a_length() {
         Some(ImportantMask::OVERFLOW_CLIP_MARGIN)
     );
 }
+
+/// CSS Overflow 4 §3: `text-overflow: [ clip | ellipsis | <string> ]{1,2}`
+/// — one value for the end edge, or the line-left then the line-right
+/// edge; serialized as written (a string quoted), `clip` initial, not
+/// inherited. (`fade` / `fade()` are sub-cell: not parsed, DIVERGENCES.)
+#[test]
+fn text_overflow_takes_one_or_two_values() {
+    use crate::layout::{TextOverflow, TextOverflowSide};
+    let get = |css: &str| {
+        let mut style = TuiStyle::new();
+        set("text-overflow", css, &mut style).ok()?;
+        match style.text_overflow.clone() {
+            Some(Value::Specified(t)) => Some((t, serialize("text-overflow", &style)?)),
+            _ => None,
+        }
+    };
+    use TextOverflowSide::*;
+    assert_eq!(
+        get("ellipsis"),
+        Some((TextOverflow::one(Ellipsis), "ellipsis".into()))
+    );
+    assert_eq!(
+        get("'>>' CLIP"),
+        Some((
+            TextOverflow::two(Str(">>".into()), Clip),
+            "\">>\" clip".into()
+        ))
+    );
+    assert_eq!(
+        get("\"a\\\"b\""),
+        Some((TextOverflow::one(Str("a\"b".into())), "\"a\\\"b\"".into()))
+    );
+    for bad in ["", "fade", "ellipsis clip clip", "1", "auto"] {
+        assert_eq!(get(bad), None, "{bad:?}");
+    }
+    assert_eq!(TextOverflow::default(), TextOverflow::one(Clip));
+    assert!(!inherits("text-overflow"));
+    assert_eq!(
+        property_mask("text-overflow"),
+        Some(ImportantMask::TEXT_OVERFLOW)
+    );
+}
+
+/// §3: one value applies "only to the end line box edge" — the right
+/// one under `ltr`, the left one under `rtl` — the start edge clipping;
+/// two values are the line-left and line-right edges whatever the
+/// direction.
+#[test]
+fn text_overflow_sides_resolve_by_direction() {
+    use crate::layout::{TextOverflow, TextOverflowSide::*};
+    let one = TextOverflow::one(Ellipsis);
+    assert_eq!(one.line_sides(false), (&Clip, &Ellipsis));
+    assert_eq!(one.line_sides(true), (&Ellipsis, &Clip));
+    let two = TextOverflow::two(Ellipsis, Clip);
+    assert_eq!(two.line_sides(true), (&Ellipsis, &Clip));
+}

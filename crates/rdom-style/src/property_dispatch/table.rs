@@ -141,6 +141,7 @@ define_fields! {
     OverflowX => overflow_x : OVERFLOW_X,
     OverflowY => overflow_y : OVERFLOW_Y,
     OverflowClipMargin => overflow_clip_margin : OVERFLOW_CLIP_MARGIN,
+    TextOverflow => text_overflow : TEXT_OVERFLOW,
     ScrollbarGutter => scrollbar_gutter : SCROLLBAR_GUTTER,
     ScrollBehavior => scroll_behavior : SCROLL_BEHAVIOR,
     Width => width : WIDTH,

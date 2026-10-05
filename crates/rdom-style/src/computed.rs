@@ -203,6 +203,8 @@ pub struct ComputedStyle {
     /// `overflow-clip-margin` (CSS Overflow 3 §3.2): a `clip` axis's
     /// overflow clip edge.
     pub overflow_clip_margin: crate::layout::OverflowClipMargin,
+    /// `text-overflow` (CSS Overflow 4 §3); not inherited.
+    pub text_overflow: crate::layout::TextOverflow,
     /// CSS `scrollbar-gutter` — controls whether `Overflow::Auto`
     /// reserves gutter cells when no scrollbar is actually showing.
     /// `Auto` (default) reserves only when overflow occurs (TUI
@@ -407,6 +409,7 @@ impl ComputedStyle {
             overflow_x: Overflow::Visible,
             overflow_y: Overflow::Visible,
             overflow_clip_margin: crate::layout::OverflowClipMargin::default(),
+            text_overflow: crate::layout::TextOverflow::default(),
             scrollbar_gutter: crate::layout::ScrollbarGutter::Auto,
             scroll_behavior: crate::layout::ScrollBehavior::Auto,
             display: Display::Block,

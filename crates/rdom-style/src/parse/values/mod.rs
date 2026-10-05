@@ -103,6 +103,7 @@ pub use grid_shorthand::{
 pub use keyword::{
     parse_keyword, parse_overflow, parse_overflow_clip_margin, parse_overflow_shorthand,
     parse_position, parse_scroll_behavior, parse_scrollbar_gutter, parse_text_decoration,
+    parse_text_overflow,
 };
 pub use length::{
     FlexShorthand, parse_contain_intrinsic, parse_flex_basis, parse_flex_factor,

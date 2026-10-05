@@ -15,7 +15,7 @@ use crate::parse::values::{
     parse_margin_longhand, parse_margin_shorthand, parse_max_size, parse_min_size, parse_opacity,
     parse_overflow, parse_overflow_clip_margin, parse_overflow_shorthand, parse_padding_shorthand,
     parse_padding_value, parse_position, parse_scroll_behavior, parse_scrollbar_gutter, parse_size,
-    parse_text_decoration, parse_time_list, parse_timing_function_list,
+    parse_text_decoration, parse_text_overflow, parse_time_list, parse_timing_function_list,
     parse_transition_property_list, parse_transition_shorthand, parse_z_index,
     unzip_transition_rules,
 };
@@ -264,6 +264,9 @@ fn set_physical(name: &str, value: &[Token], style: &mut TuiStyle) -> Result<(),
         }),
         "overflow-clip-margin" => parse_overflow_clip_margin(value).map(|m| {
             style.overflow_clip_margin = Some(Value::Specified(m));
+        }),
+        "text-overflow" => parse_text_overflow(value).map(|t| {
+            style.text_overflow = Some(Value::Specified(t));
         }),
         "overflow-x" => parse_overflow(value).map(|o| {
             style.overflow_x = Some(Value::Specified(o));

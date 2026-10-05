@@ -305,6 +305,7 @@ fn every_property_has_important_setter() {
         .flex_grow_important(1.0)
         .scrollbar_gutter_important(crate::layout::ScrollbarGutter::Stable)
         .overflow_clip_margin_important(Default::default())
+        .text_overflow_important(Default::default())
         .scroll_behavior_important(crate::layout::ScrollBehavior::Smooth)
         .color_scheme_important(crate::color::ColorSchemeList::normal())
         .white_space_important(WhiteSpace::Pre)

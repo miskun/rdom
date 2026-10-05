@@ -233,6 +233,14 @@ impl TuiStyle {
         crate::layout::OverflowClipMargin
     );
     setter!(
+        "text-overflow",
+        text_overflow,
+        text_overflow,
+        text_overflow_important,
+        TEXT_OVERFLOW,
+        crate::layout::TextOverflow
+    );
+    setter!(
         "scrollbar-gutter",
         scrollbar_gutter,
         scrollbar_gutter,

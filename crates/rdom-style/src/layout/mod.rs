@@ -57,7 +57,7 @@ pub use keywords::{
     PointerEvents, Position, ScrollBehavior, ScrollbarGutter, TextDecoration, TextDirection,
     UserSelect, Visibility, WhiteSpace, WritingMode, ZIndex,
 };
-pub use overflow::{Overflow, OverflowClipMargin};
+pub use overflow::{Overflow, OverflowClipMargin, TextOverflow, TextOverflowSide};
 pub use rect::LayoutRect;
 pub use sides::{Corners, Sides};
 pub use sizing::{

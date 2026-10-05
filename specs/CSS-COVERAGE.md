@@ -79,7 +79,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.8 Flexbox and box alignment (Flexbox 1, Align 3) | 17 | 0 | 0 | 0 | 17 |
 | 3.9 Grid (Grid 1/2) | 9 | 0 | 1 | 0 | 10 |
 | 3.10 Positioned layout (Position 3, CSS 2.1 §9) | 5 | 0 | 1 | 1 | 7 |
-| 3.11 Overflow, scrolling and scrollbars (Overflow 3/4, Scroll Snap 1, Overscroll 1, Scrollbars 1) | 5 | 1 | 8 | 0 | 14 |
+| 3.11 Overflow, scrolling and scrollbars (Overflow 3/4, Scroll Snap 1, Overscroll 1, Scrollbars 1) | 6 | 1 | 7 | 0 | 14 |
 | 3.12 Inline text (Text 3/4, Inline 3, CSS 2.1 §10.8) | 0 | 1 | 14 | 6 | 21 |
 | 3.13 Text decoration (Text Decoration 3/4) | 0 | 1 | 3 | 2 | 6 |
 | 3.14 Fonts (Fonts 4) | 0 | 2 | 1 | 2 | 5 |
@@ -93,9 +93,9 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 5 | 2 | 1 | 1 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **149** | **24** | **88** | **46** | **307** |
+| **Total** | **150** | **24** | **87** | **46** | **307** |
 
-When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 112 rows Partial / Missing.
+When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 111 rows Partial / Missing.
 
 Headline: rdom parses **183 property names** (`property_names()`, after C7-GRID-AREAS). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are `line-height`, `text-align`, and `@media`.
 
@@ -119,7 +119,7 @@ pasted CSS. The first block is what a typical component stylesheet hits in its f
 | 9 | `box-sizing` | Shipped (C5-BOX-SIZING; §3.6): `content-box` is the initial value, `border-box` sizes the border box and floors it at padding + border; the CHANGELOG gives the `*, *::before, *::after { box-sizing: border-box }` migration. | M | No |
 | 10 | `outline` (+ `-color`, `-style`, `-width`, `-offset`) | A border ring drawn one cell outside the border box, taking no layout space, painted over neighbors on the top layer; `outline-offset` in whole cells. The natural keyboard-focus ring a TUI otherwise lacks. | M | No |
 | 11 | `overflow-wrap` / `word-break` | `overflow-wrap: anywhere / break-word` and `word-break: break-all` break an over-long word at a cell boundary instead of overflowing and clipping (today's `overflow-wrap: normal`); `word-break: keep-all` for CJK. | M | No |
-| 12 | `text-overflow` | `ellipsis`: the last visible cell of a clipped line becomes `…`; `<string>` form uses that string; applies with `overflow: hidden` + `white-space: nowrap`. | S | No |
+| 12 | `text-overflow` | `ellipsis`: the last visible cell of a clipped line becomes `…`; `<string>` form uses that string; applies with `overflow: hidden` + `white-space: nowrap`. | S | No | *Shipped: C8-TEXT-OVERFLOW.*
 | 13 | Per-side border colors (`border-*-color`, multi-value `border-color`) | Shipped (C4-BORDER-SIDES; §3.5): each side's glyphs in its own color; a corner takes its dominant side's. | M | Yes |
 | 14 | `currentColor` | Shipped (C3-CURRENTCOLOR; §3.4): the element's computed `color`, and `border-color`'s initial value; `outline-color` / `text-decoration-color` take it as their initial value when they land (C12-OUTLINE, C9-DECORATION). | S | Yes |
 | 15 | `min()` / `max()` / `clamp()` | Comparison functions inside every `calc()` position; resolve at layout like percent-bearing `calc()`. | S | Yes |
@@ -409,7 +409,7 @@ dropped. The audit's six, with where each stands:
 | `overflow-x` / `overflow-y` | Supported | The five keywords (C8-OVERFLOW-CLIP). | — | `V/keyword.rs::parse_overflow` |
 | `overflow-block` / `overflow-inline` | Supported | `overflow-y` / `overflow-x` in `horizontal-tb`, one storage (C8-OVERFLOW-CLIP). | — | `DISP` (`logical.rs`) |
 | `overflow-clip-margin` | Supported | `<visual-box> \|\| <length [0,∞]>` in whole cells, on `clip` axes (CSS Overflow 3 §3.2; C8-OVERFLOW-CLIP); a viewport-relative length is rejected (DIVERGENCES). | Yes | `V/keyword.rs::parse_overflow_clip_margin`, `layout_pass/clip_edge.rs` |
-| `text-overflow` | Missing | `clip` (today) / `ellipsis` / `<string>`. | No | `IFC`, `PAINT/text.rs` |
+| `text-overflow` | Supported | `clip` / `ellipsis` / `<string>`, one value (the end edge) or two (line-left, line-right), per line box of a block whose inline axis clips: whole characters hidden, markers counted in cells, the first character clipped, copy unaffected (CSS Overflow 4 §3; C8-TEXT-OVERFLOW). `fade` / `fade()` not parsed (sub-cell, DIVERGENCES). | Yes | `V/keyword.rs::parse_text_overflow`, `PAINT/inline_paint/text_overflow.rs` |
 | `line-clamp` / `max-lines` / `block-ellipsis` / `continue` | Missing | Row clamping with `…`. | No | `BLOCK`, `IFC` |
 | `scroll-behavior` | Supported | `auto` / `smooth` (fixed curve, documented). | Yes | `V/keyword.rs` |
 | `scrollbar-gutter` | Partial | `auto` / `stable`; `both-edges` rejected. | No | `V/keyword.rs::parse_scrollbar_gutter` |
@@ -767,7 +767,7 @@ implementation or a `DIVERGENCES.md` entry before the acid page's coverage test 
 - `overflow-x` / `overflow-y` — Partial: Same keyword set; no `clip`. *Shipped: C8-OVERFLOW-CLIP.*
 - `overflow-block` / `overflow-inline` — Missing: Logical aliases. *Shipped: C8-OVERFLOW-CLIP.*
 - `overflow-clip-margin` — Missing: Cells outside the box that `clip` still paints. *Shipped: C8-OVERFLOW-CLIP.*
-- `text-overflow` — Missing: `clip` (today) / `ellipsis` / `<string>`.
+- `text-overflow` — Missing: `clip` (today) / `ellipsis` / `<string>`. *Shipped: C8-TEXT-OVERFLOW.*
 - `line-clamp` / `max-lines` / `block-ellipsis` / `continue` — Missing: Row clamping with `…`.
 - `scrollbar-gutter` — Partial: `auto` / `stable`; `both-edges` rejected.
 - `overscroll-behavior` (+ `-x` / `-y` / `-block` / `-inline`) — Missing: Stop scroll chaining.

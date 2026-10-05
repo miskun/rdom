@@ -87,6 +87,27 @@ pub fn parse_overflow_clip_margin(value: &[Token]) -> Option<crate::layout::Over
     ))
 }
 
+/// `text-overflow: [ clip | ellipsis | <string> ]{1,2}` (CSS Overflow 4
+/// §3). `fade` / `fade()` — a sub-cell gradient — are rejected.
+pub fn parse_text_overflow(value: &[Token]) -> Option<crate::layout::TextOverflow> {
+    use crate::layout::{TextOverflow, TextOverflowSide};
+    let side = |part: &[Token]| match part {
+        [Token::String(s)] => Some(TextOverflowSide::Str(s.clone())),
+        _ => parse_keyword(
+            part,
+            &[
+                ("clip", TextOverflowSide::Clip),
+                ("ellipsis", TextOverflowSide::Ellipsis),
+            ],
+        ),
+    };
+    match super::numeric::components(value)?.as_slice() {
+        [end] => Some(TextOverflow::one(side(end)?)),
+        [left, right] => Some(TextOverflow::two(side(left)?, side(right)?)),
+        _ => None,
+    }
+}
+
 pub fn parse_scrollbar_gutter(value: &[Token]) -> Option<crate::layout::ScrollbarGutter> {
     use crate::layout::ScrollbarGutter;
     parse_keyword(

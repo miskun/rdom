@@ -1,5 +1,5 @@
-//! Overflow values (CSS Overflow 3 §3): `overflow` on each axis and the
-//! `overflow-clip-margin` of a `clip` axis.
+//! Overflow values (CSS Overflow 3 §3, Overflow 4 §3): `overflow` on each
+//! axis, the `overflow-clip-margin` of a `clip` axis and `text-overflow`.
 
 use super::VisualBox;
 
@@ -69,5 +69,82 @@ impl Default for OverflowClipMargin {
     /// The initial value, `0px`: the padding box (§3.2).
     fn default() -> Self {
         Self::new(VisualBox::PaddingBox, 0)
+    }
+}
+
+/// One edge's value of `text-overflow` (CSS Overflow 4 §3). `fade` and
+/// `fade()` (a sub-cell gradient) are not values here (DIVERGENCES).
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub enum TextOverflowSide {
+    /// Cut the content at the edge.
+    #[default]
+    Clip,
+    /// Hide whole characters to fit `…` (U+2026) at the edge.
+    Ellipsis,
+    /// Hide whole characters to fit the string at the edge.
+    Str(String),
+}
+
+impl TextOverflowSide {
+    /// The marker painted at the edge, `None` for `clip`.
+    pub fn marker(&self) -> Option<&str> {
+        match self {
+            Self::Clip => None,
+            Self::Ellipsis => Some("\u{2026}"),
+            Self::Str(s) => Some(s),
+        }
+    }
+}
+
+/// `text-overflow: [ clip | ellipsis | <string> ]{1,2}` (CSS Overflow 4
+/// §3): one value for the end line box edge (the start edge clips), or
+/// two for the line-left and the line-right edge.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct TextOverflow {
+    first: TextOverflowSide,
+    second: Option<TextOverflowSide>,
+}
+
+impl TextOverflow {
+    /// One value: the end edge's.
+    pub fn one(end: TextOverflowSide) -> Self {
+        Self {
+            first: end,
+            second: None,
+        }
+    }
+
+    /// Two values: the line-left edge's, then the line-right edge's.
+    pub fn two(left: TextOverflowSide, right: TextOverflowSide) -> Self {
+        Self {
+            first: left,
+            second: Some(right),
+        }
+    }
+
+    /// The values as written: the first, and the second when given.
+    pub fn values(&self) -> (&TextOverflowSide, Option<&TextOverflowSide>) {
+        (&self.first, self.second.as_ref())
+    }
+
+    /// `(line-left, line-right)` for a block whose `direction` is `rtl`
+    /// or not: two values as written; one value at the end edge — the
+    /// right under `ltr`, the left under `rtl` — beside a `clip` start.
+    pub fn line_sides(&self, rtl: bool) -> (&TextOverflowSide, &TextOverflowSide) {
+        const CLIP: &TextOverflowSide = &TextOverflowSide::Clip;
+        match (&self.second, rtl) {
+            (Some(right), _) => (&self.first, right),
+            (None, false) => (CLIP, &self.first),
+            (None, true) => (&self.first, CLIP),
+        }
+    }
+
+    /// Whether both edges clip — the initial value's behaviour.
+    pub fn is_clip(&self) -> bool {
+        self.first == TextOverflowSide::Clip
+            && self
+                .second
+                .as_ref()
+                .is_none_or(|s| *s == TextOverflowSide::Clip)
     }
 }

@@ -52,6 +52,7 @@ fn canonical_values() -> &'static [(&'static str, &'static str)] {
         ("overflow-x", "auto"),
         ("overflow-y", "hidden"),
         ("overflow-clip-margin", "content-box 2"),
+        ("text-overflow", "ellipsis \">\""),
         ("scrollbar-gutter", "stable"),
         ("scroll-behavior", "smooth"),
         ("width", "40"),

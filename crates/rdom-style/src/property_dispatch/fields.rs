@@ -87,6 +87,7 @@ pub(super) fn fields_of(name: &str) -> Option<&'static [Field]> {
         "overflow-x" => &[OverflowX],
         "overflow-y" => &[OverflowY],
         "overflow-clip-margin" => &[OverflowClipMargin],
+        "text-overflow" => &[TextOverflow],
         "scrollbar-gutter" => &[ScrollbarGutter],
         "scroll-behavior" => &[ScrollBehavior],
         "width" => &[Width],

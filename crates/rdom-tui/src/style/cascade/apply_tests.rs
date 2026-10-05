@@ -60,6 +60,7 @@ const PERTURB: &[(&str, &str)] = &[
     ("overflow-x", "scroll"),
     ("overflow-y", "hidden"),
     ("overflow-clip-margin", "content-box 2"),
+    ("text-overflow", "ellipsis"),
     ("scrollbar-gutter", "stable"),
     ("scroll-behavior", "smooth"),
     // Before `flex-shrink`, which overrides its shrink: it perturbs
@@ -192,6 +193,7 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
         overflow_x,
         overflow_y,
         overflow_clip_margin,
+        text_overflow,
         scrollbar_gutter,
         scroll_behavior,
         display,
@@ -287,6 +289,7 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
         overflow_x,
         overflow_y,
         overflow_clip_margin,
+        text_overflow,
         scrollbar_gutter,
         scroll_behavior,
         display,

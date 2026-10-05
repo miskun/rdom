@@ -173,7 +173,7 @@ row comes from.
 | C8-Z-INDEX | `z-index` full integer range | done |
 | C8-FLOAT | `float` / `clear` (line-box exclusion, clearance) | |
 | C8-OVERFLOW-CLIP | `overflow: clip`, two-value `overflow`, `overflow-clip-margin`, logical `overflow-block` / `-inline` | done |
-| C8-TEXT-OVERFLOW | `text-overflow: clip / ellipsis / <string>` | |
+| C8-TEXT-OVERFLOW | `text-overflow: clip / ellipsis / <string>` | done |
 | C8-LINE-CLAMP | `line-clamp` / `max-lines` / `block-ellipsis` / `continue` | |
 | C8-SCROLLBAR | `scrollbar-gutter: both-edges`, `scrollbar-width`, `scrollbar-color` | |
 | C8-OVERSCROLL | `overscroll-behavior` (+ axis / logical longhands) | |
@@ -4540,4 +4540,32 @@ row comes from.
   positioned box in its scroll container's scrollable overflow — the extent and the clamp are
   phase-1 work and positioned boxes are placed in phase 2 (C8-CB-COMPLETE's entry had scheduled it
   here). ACID's overflow gap is struck through.
+- 2026-10-05 — C8-TEXT-OVERFLOW (CSS Overflow 4 §3, checked against the editor's draft). rdom-style:
+  `TextOverflow` (sealed: `one(end)` / `two(left, right)`, `values()`, `line_sides(rtl)`,
+  `is_clip()`) and `TextOverflowSide { Clip, Ellipsis, Str }` in `layout/overflow.rs`;
+  `parse_text_overflow` takes one or two of `clip` / `ellipsis` / `<string>` (`fade` / `fade()`
+  rejected, DIVERGENCES §2); serialized as written, a string through the new
+  `serialize_css_string` (CSSOM §2.1); not inherited. The spec's mapping, followed over the brief's
+  "start and end": one value is the end line box edge (the start edge clips), two values the
+  line-left then the line-right edge. rdom-tui: paint only — `inline_paint/text_overflow.rs`.
+  `Marking::of(block)` applies when the block's inline axis clips (§3: "overflow other than
+  visible") and a side has a marker; its window is the block's content box columns, unscrolled, so
+  a scrolled line is marked at the scrollport's edges. `cut_line` splits the line into pieces —
+  each grapheme of its text and generated runs at its UAX #11 width, each atom whole — and on an
+  overflowing marked edge keeps the pieces that end by the edge less the marker's cell width (so a
+  wide character is hidden whole, never split), the marker painting right after them in the
+  block's glyph style; when even the line's first piece does not fit, that edge clips (§3's first
+  character rule). `paint_inline_layout` narrows each line's clip to the cut (text, generated
+  runs, the selection overlay), skips an atom outside it, and paints the markers; the IFC, the
+  text-leaf and the anonymous-block paths share it (an anonymous box's lines take its container's
+  marking). Layout, hit-testing and the clipboard serializer are untouched, so a copy is the whole
+  text. rtl: rdom starts an overflowing `rtl` line at the left edge (fragment columns are
+  unsigned), so it overflows the right — its start — edge; a one-value `ellipsis` marks the end
+  (left) edge, which has nothing to hide, and the right is clipped — recorded in DIVERGENCES §4;
+  `text-overflow: clip ellipsis` marks the right. Red: `css_phase8/text_overflow.rs` — 5 of 7
+  failed (`abcdef` for `abcde…`, `ab中文` for `ab中…`, `cdefgh` for `…defg…`; the `visible` and
+  copy pins passed before and after); `overflow_tests.rs` did not compile (no `TextOverflow`;
+  written with the types, not run red on its own). Green after. Mutation: the first-character
+  rule off → that test (`…` for `a`; restored, touched). `apply_tests`, `canonical_values` and the
+  important-setter test list the property. No snapshot changed.
 

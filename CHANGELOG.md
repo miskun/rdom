@@ -213,6 +213,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Added — `rdom-style`
 
+- **`text-overflow`** (CSS Overflow 4 §3): `clip` / `ellipsis` / `<string>`, one or two values — `TextOverflow` (`one`, `two`, `values`, `line_sides`, `is_clip`), `TextOverflowSide`, `parse_text_overflow`, `TuiStyle::text_overflow`. (C8-TEXT-OVERFLOW)
 - **`overflow: clip`, the two-value `overflow`, `overflow-clip-margin`, `overflow-block` / `overflow-inline`** (CSS Overflow 3 §3.1–§3.2): `Overflow::Clip`, `OverflowClipMargin` (`TuiStyle::overflow_clip_margin`), `parse_overflow_shorthand` / `parse_overflow_clip_margin`, `Overflow::is_scrollable` / `clips` / `keyword`, `ComputedStyle::is_scroll_container` / `clips_overflow` / `normalize_overflow`; `overflow` serializes `<x> <y>` when the axes differ. (C8-OVERFLOW-CLIP)
 - `CalcUnit::Px`: the CSS pixel that pixel math functions (`border-width: calc(2px + 1in)`, radii, shadows) evaluate in; `CalcUnit::parse` never gives it, so a cell length cannot hold a pixel. (C5G-PERF-AND-TESTS)
 - `TuiStyle::substituted_pending(vars, cx)`: only a block's `var()`-pending declarations, substituted onto an empty style with the block's importance bits — the cascade's per-element path, without copying the block. (C1G-VAR-COST)
@@ -352,6 +353,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Added — `rdom-tui`
 
+- **`text-overflow: ellipsis` / `<string>`** paints per line box of a block whose inline axis clips: whole characters hidden to fit the marker (a wide one never split), the first character clipped rather than ellipsed, both edges marked when scrolled under two values; layout, hit-testing and copying keep the whole text (CSS Overflow 4 §3). (C8-TEXT-OVERFLOW)
 - **The cascade resolves `revert`** (CSS Cascade 4 §7.3): in an author rule or inline style it rolls a property back to the user-agent origin's value (`unset` where the UA declares nothing); in a UA rule it is `unset`. Custom properties and `content` revert too; a cascade without `revert` costs nothing more. (C1-REVERT)
 - **Cascade layers** (CSS Cascade 5 §6.4): later layers beat earlier ones whatever the specificity, unlayered rules beat every layer, `!important` reverses the order; one cascade run's sheets share one layer order (an `App`: its `<style>` sheets in tree order, then its own). (C1-LAYER)
 - **`@scope` in the cascade** (CSS Cascade 6 §2.5, §6.1): a scoped rule matches an element in scope of one of its roots, that root as `:scope`; scope proximity sorts after specificity; a `<style>`'s prelude-less `@scope` scopes to its parent. (C1-SCOPE)

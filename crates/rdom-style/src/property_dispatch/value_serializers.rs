@@ -293,6 +293,25 @@ pub(super) fn serialize_counter_ops(ops: &[crate::counters::CounterOp]) -> Strin
 
 /// `content` value serialization; `None` for the cascade-internal
 /// `Var` form, which no CSS source produces.
+/// CSSOM §2.1 "serialize a string": double-quoted, `"` and `\\`
+/// escaped, a control character as its code point.
+pub(super) fn serialize_css_string(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() + 2);
+    out.push('"');
+    for c in s.chars() {
+        match c {
+            '"' | '\\' => {
+                out.push('\\');
+                out.push(c);
+            }
+            c if c.is_control() => out.push_str(&format!("\\{:x} ", u32::from(c))),
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
+}
+
 pub(super) fn serialize_content(c: &Content) -> Option<String> {
     match c {
         Content::Str(s) => Some(format!("\"{s}\"")),

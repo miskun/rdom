@@ -27,6 +27,19 @@ pub(super) fn serialize(name: &str, style: &TuiStyle) -> Option<Option<String>> 
             )),
             _ => None,
         },
+        "text-overflow" => style.text_overflow.as_ref().and_then(specified).map(|t| {
+            let side = |s: &crate::layout::TextOverflowSide| match s {
+                crate::layout::TextOverflowSide::Clip => "clip".to_string(),
+                crate::layout::TextOverflowSide::Ellipsis => "ellipsis".to_string(),
+                crate::layout::TextOverflowSide::Str(s) => {
+                    super::super::value_serializers::serialize_css_string(s)
+                }
+            };
+            match t.values() {
+                (first, None) => side(first),
+                (first, Some(second)) => format!("{} {}", side(first), side(second)),
+            }
+        }),
         // The shortest form: the box when not `padding-box`, then the
         // length when not 0 (`0` when both are omitted).
         "overflow-clip-margin" => {

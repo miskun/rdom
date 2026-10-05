@@ -191,6 +191,9 @@ pub struct TuiStyle {
     /// `overflow-clip-margin` (CSS Overflow 3 §3.2): where a `clip` axis
     /// stops painting.
     pub overflow_clip_margin: Option<Value<crate::layout::OverflowClipMargin>>,
+    /// `text-overflow` (CSS Overflow 4 §3): how a line overflowing a
+    /// clipping block's edge is marked.
+    pub text_overflow: Option<Value<crate::layout::TextOverflow>>,
     /// `scrollbar-gutter: auto | stable`. Gates the layout pass's
     /// gutter reservation for scrollable elements. Default `Auto`.
     pub scrollbar_gutter: Option<Value<crate::layout::ScrollbarGutter>>,
