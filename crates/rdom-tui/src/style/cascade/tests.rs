@@ -2351,6 +2351,8 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
         track: Color::Rgb(2, 2, 2).into(),
     };
     parent.float = rdom_style::layout::Float::Left;
+    parent.overscroll_behavior_x = rdom_style::layout::OverscrollBehavior::Contain;
+    parent.overscroll_behavior_y = rdom_style::layout::OverscrollBehavior::None;
     parent.clear = rdom_style::layout::Clear::Both;
     parent.scroll_behavior = ScrollBehavior::Smooth;
     parent.display = Display::Inline;
@@ -2441,6 +2443,14 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
             child.scrollbar_color == parent.scrollbar_color,
         ),
         ("float", child.float == parent.float),
+        (
+            "overscroll-behavior-x",
+            child.overscroll_behavior_x == parent.overscroll_behavior_x,
+        ),
+        (
+            "overscroll-behavior-y",
+            child.overscroll_behavior_y == parent.overscroll_behavior_y,
+        ),
         ("clear", child.clear == parent.clear),
         ("display", child.display == parent.display),
         ("white-space", child.white_space == parent.white_space),

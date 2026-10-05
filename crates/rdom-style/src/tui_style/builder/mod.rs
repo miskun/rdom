@@ -297,6 +297,22 @@ impl TuiStyle {
         crate::layout::ScrollbarColor
     );
     setter!(
+        "overscroll-behavior-x",
+        overscroll_behavior_x,
+        overscroll_behavior_x,
+        overscroll_behavior_x_important,
+        OVERSCROLL_BEHAVIOR_X,
+        crate::layout::OverscrollBehavior
+    );
+    setter!(
+        "overscroll-behavior-y",
+        overscroll_behavior_y,
+        overscroll_behavior_y,
+        overscroll_behavior_y_important,
+        OVERSCROLL_BEHAVIOR_Y,
+        crate::layout::OverscrollBehavior
+    );
+    setter!(
         "direction",
         text_direction,
         text_direction,

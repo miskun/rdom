@@ -176,7 +176,7 @@ row comes from.
 | C8-TEXT-OVERFLOW | `text-overflow: clip / ellipsis / <string>` | done |
 | C8-LINE-CLAMP | `line-clamp` / `max-lines` / `block-ellipsis` / `continue` | done |
 | C8-SCROLLBAR | `scrollbar-gutter: both-edges`, `scrollbar-width`, `scrollbar-color` | done |
-| C8-OVERSCROLL | `overscroll-behavior` (+ axis / logical longhands) | |
+| C8-OVERSCROLL | `overscroll-behavior` (+ axis / logical longhands) | done |
 | C8-SCROLL-PADDING | `scroll-padding*` / `scroll-margin*` | |
 | C8-SNAP | `scroll-snap-type` / `-align` / `-stop` | |
 | C8-OVERFLOW-TEXT | A non-clipping descendant's overflowing line boxes count toward the ancestor's scrollable overflow | done |
@@ -4779,3 +4779,20 @@ row comes from.
   the three paint tests. Changed expectations: `apply_tests`, `canonical_values`, the
   important-setter test and `cascade_inherits_exactly_the_style_crates_inherited_set` (which also
   probes `float` / `clear` now) list the new properties. No snapshot changed.
+- 2026-10-05 — C8-OVERSCROLL (CSS Overscroll Behavior 1 §3). Found: rdom chained every wheel
+  scroll a scroll container could not take to the next scrollable ancestor (CSS's `auto`), with no
+  way to stop it; keyboard scrolling never chains (DIVERGENCES §2, now recorded). rdom-style:
+  `OverscrollBehavior` (`auto | contain | none`, `chains()`) in the new `layout/scroll.rs`, the
+  shorthand (one or two values, `x` then `y`, serialized as one when they match), `-x` / `-y`,
+  and `-block` / `-inline` as block-axis aliases in `logical.rs` (`y` / `x` in `horizontal-tb`, one
+  storage); not inherited. rdom-tui: `handle_wheel` stops the walk at a scroll container on the
+  wheel's axis that could not move and whose value on that axis does not chain. Red:
+  `scroll_tests.rs` did not compile (no type or fields); `overscroll_tests.rs` — 3 of 4 failed
+  (the strict parse rejecting the properties; the `auto` pin passed before and after); green
+  after. Mutation (restored, touched): chaining never stopped → the `contain` / `none` and the
+  per-axis tests. Found while testing, recorded not fixed (TECH_DEBT `SCROLLPORT-1`): the
+  runtime's clamp uses the padding box, layout's the content box, so with a scrollbar gutter a box
+  layout leaves at its far end can be past the wheel's maximum (a forward tick moved it back);
+  the tests scroll with `set_scroll_*`, the runtime's clamp. `apply_tests`, `canonical_values`,
+  the important-setter test and the inheritance probes list the new properties. No snapshot
+  changed.

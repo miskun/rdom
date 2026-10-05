@@ -203,6 +203,7 @@ The DOM API is Rust-shaped rather than JS-shaped. The semantics match WHATWG DOM
 
 ### Runtime & focus
 
+- **Keyboard scrolling does not chain.** Arrow, page and Home / End keys scroll the nearest scroll container of the focus and stop at its ends; a browser chains a keyboard scroll the box cannot take to its scrollable ancestor, as it does the wheel. rdom chains the wheel (and `overscroll-behavior: contain | none` stops it, C8-OVERSCROLL), so a key acts as if every scroll container were `overscroll-behavior: contain`. `overscroll-behavior` has no bounce or glow to suppress in a terminal: `contain` and `none` behave alike.
 - **Focusability reads the last cascade's styles.** Whether an element is a focusable area — rendered (no `display: none` on it or an ancestor) and visible (a used `visibility` of `visible`) — is read from the computed styles of the last cascade (`runtime::focus::tabindex::is_rendered_and_visible`, C6G-VISIBILITY-ONE-ANSWER): code that shows a hidden box and focuses an element in it in one handler, before the next frame cascades, is refused, where a browser flushes style first — and so is a `request_animation_frame` callback that handler requests, which runs before its frame cascades; one requested from inside that callback runs after it and takes the focus (the CHANGELOG's upgrade guide gives the code). `showModal()` reads its dialog as rendered (it just opened it). A style flush inside `focus()` needs the sheet set, the transition registry and the dirty tracker, which an `App` owns and a handler's `Dom` cannot reach (TECH_DEBT `FOCUS-FLUSH-1`). The focus fixup that blurs a focused element once it is hidden runs in each frame that cascades or steps a transition — HTML's rendering update (C7G-FOCUS-FIXUP) — not synchronously.
 - **The runtime writes two attributes of its own:** `data-rdom-scroll-focus` on the scroll container the keyboard scrolls (`rdom_tui::runtime::scrollbar::SCROLL_FOCUS_ATTR`, moved before each frame's cascade) and `data-rdom-active` on a tree's active row (`rdom_tui::runtime::builtins::tree::ACTIVE_ATTR`). They are ordinary attributes: author selectors may match them, mutation observers see the writes, and serialization includes them. Browsers keep such state internal.
 - **The focus indicator is a typed vocabulary, not a universal outline** (`FOCUS-VOCAB-1`). The web shows focus with an *outline* (a non-destructive ring around the box) on **every** focusable element. A TUI can't draw a no-reflow ring — a border would consume a cell and reflow — so there's no single generic cue. Instead the UA stylesheet matches the affordance to the element kind:
@@ -299,7 +300,6 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 
 ### Overflow and scrolling
 
-- `overscroll-behavior` (+ longhands) — C8-OVERSCROLL
 - `scroll-padding*` / `scroll-margin*` (today `scrollIntoView` aligns as if both were `0`) — C8-SCROLL-PADDING
 - `scroll-snap-type` / `-align` / `-stop` — C8-SNAP
 

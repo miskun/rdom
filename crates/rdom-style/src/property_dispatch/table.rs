@@ -149,6 +149,8 @@ define_fields! {
     ScrollbarGutter => scrollbar_gutter : SCROLLBAR_GUTTER,
     ScrollbarWidth => scrollbar_width : SCROLLBAR_WIDTH,
     ScrollbarColor => scrollbar_color : SCROLLBAR_COLOR,
+    OverscrollBehaviorX => overscroll_behavior_x : OVERSCROLL_BEHAVIOR_X,
+    OverscrollBehaviorY => overscroll_behavior_y : OVERSCROLL_BEHAVIOR_Y,
     ScrollBehavior => scroll_behavior : SCROLL_BEHAVIOR,
     Width => width : WIDTH,
     Height => height : HEIGHT,

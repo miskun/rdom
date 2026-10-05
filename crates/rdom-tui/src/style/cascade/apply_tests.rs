@@ -68,6 +68,7 @@ const PERTURB: &[(&str, &str)] = &[
     ("scrollbar-gutter", "stable"),
     ("scrollbar-width", "thin"),
     ("scrollbar-color", "red blue"),
+    ("overscroll-behavior", "contain none"),
     ("scroll-behavior", "smooth"),
     // Before `flex-shrink`, which overrides its shrink: it perturbs
     // `flex_grow` and `flex_basis`.
@@ -208,6 +209,8 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
         scrollbar_gutter,
         scrollbar_width,
         scrollbar_color,
+        overscroll_behavior_x,
+        overscroll_behavior_y,
         scroll_behavior,
         display,
         flow,
@@ -315,6 +318,8 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
         scrollbar_gutter,
         scrollbar_width,
         scrollbar_color,
+        overscroll_behavior_x,
+        overscroll_behavior_y,
         scroll_behavior,
         display,
         flow,

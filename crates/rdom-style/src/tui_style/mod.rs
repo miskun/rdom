@@ -209,6 +209,10 @@ pub struct TuiStyle {
     pub scrollbar_width: Option<Value<crate::layout::ScrollbarWidth>>,
     /// `scrollbar-color` (CSS Scrollbars 1 §2).
     pub scrollbar_color: Option<Value<crate::layout::ScrollbarColor>>,
+    /// `overscroll-behavior-x` (CSS Overscroll Behavior 1 §3).
+    pub overscroll_behavior_x: Option<Value<crate::layout::OverscrollBehavior>>,
+    /// `overscroll-behavior-y`.
+    pub overscroll_behavior_y: Option<Value<crate::layout::OverscrollBehavior>>,
     /// `scroll-behavior: auto | smooth` (CSSOM View §12.1). Whether a
     /// programmatic scroll of this container animates. Default `Auto`.
     pub scroll_behavior: Option<Value<crate::layout::ScrollBehavior>>,

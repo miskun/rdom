@@ -43,6 +43,9 @@ fn block_axis(name: &str) -> Option<Mapping> {
         // CSS Overflow 3 §3.1: the block / inline axis's `overflow`.
         "overflow-block" => One("overflow-y"),
         "overflow-inline" => One("overflow-x"),
+        // CSS Overscroll Behavior 1 §3: the block / inline axis's.
+        "overscroll-behavior-block" => One("overscroll-behavior-y"),
+        "overscroll-behavior-inline" => One("overscroll-behavior-x"),
         "block-size" => One("height"),
         "min-inline-size" => One("min-width"),
         "min-block-size" => One("min-height"),
@@ -142,6 +145,8 @@ pub(super) const NAMES: &[&str] = &[
     "max-block-size",
     "overflow-block",
     "overflow-inline",
+    "overscroll-behavior-block",
+    "overscroll-behavior-inline",
     "margin-block-start",
     "margin-block-end",
     "margin-block",

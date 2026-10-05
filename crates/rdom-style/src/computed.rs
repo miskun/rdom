@@ -231,6 +231,10 @@ pub struct ComputedStyle {
     /// `scrollbar-color` (CSS Scrollbars 1 §2), its colors as specified.
     /// Inherited.
     pub scrollbar_color: crate::layout::ScrollbarColor,
+    /// `overscroll-behavior-x` / `-y` (CSS Overscroll Behavior 1 §3).
+    /// Not inherited.
+    pub overscroll_behavior_x: crate::layout::OverscrollBehavior,
+    pub overscroll_behavior_y: crate::layout::OverscrollBehavior,
     /// CSS `scroll-behavior` — whether a programmatic scroll of this
     /// scroll container animates (`Smooth`) or jumps (`Auto`, default).
     /// Read by the runtime's scroll paths, not by layout.
@@ -442,6 +446,8 @@ impl ComputedStyle {
             scrollbar_gutter: crate::layout::ScrollbarGutter::Auto,
             scrollbar_width: crate::layout::ScrollbarWidth::Auto,
             scrollbar_color: crate::layout::ScrollbarColor::Auto,
+            overscroll_behavior_x: crate::layout::OverscrollBehavior::Auto,
+            overscroll_behavior_y: crate::layout::OverscrollBehavior::Auto,
             scroll_behavior: crate::layout::ScrollBehavior::Auto,
             display: Display::Block,
             flow: crate::layout::Flow::Block,

@@ -260,6 +260,8 @@ pub(super) fn apply_style(
         scrollbar_gutter: SCROLLBAR_GUTTER,
         scrollbar_width: SCROLLBAR_WIDTH,
         scrollbar_color: SCROLLBAR_COLOR,
+        overscroll_behavior_x: OVERSCROLL_BEHAVIOR_X,
+        overscroll_behavior_y: OVERSCROLL_BEHAVIOR_Y,
         scroll_behavior: SCROLL_BEHAVIOR,
         // `display` owns both halves: `display: inherit` takes the
         // parent's outer and inner display.

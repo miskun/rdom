@@ -497,7 +497,8 @@ fn handle_wheel(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> Rou
     // Walk ancestors for the nearest scrollable container that can
     // still move in the wheel's direction. One already at its rail
     // end is skipped and the tick chains to the next scrollable
-    // ancestor (CSS Overscroll Behavior §3 default, `auto`).
+    // ancestor (CSS Overscroll Behavior 1 §3, `auto`) — or stops there
+    // (`contain` / `none`).
     // Which axis is this wheel event moving? crossterm emits
     // wheel events with a single axis set (either (0, ±1) or
     // (±1, 0)), so a scrollable ancestor must match the
@@ -551,7 +552,18 @@ fn handle_wheel(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> Rou
                 return RouteOutcome::redraw(true);
             }
             // At the rail end in this direction: chain to the next
-            // scrollable ancestor.
+            // scrollable ancestor — unless this box's
+            // `overscroll-behavior` on the wheel's axis is `contain` or
+            // `none` (CSS Overscroll Behavior 1 §3: "no scroll chaining
+            // occurs to neighboring scrolling areas").
+            let behavior = if wants_y {
+                computed.overscroll_behavior_y
+            } else {
+                computed.overscroll_behavior_x
+            };
+            if !behavior.chains() {
+                return RouteOutcome::default();
+            }
         }
         cur = dom.node(id).parent_node().map(|p| p.id());
     }
@@ -560,5 +572,7 @@ fn handle_wheel(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> Rou
     RouteOutcome::default()
 }
 
+#[cfg(test)]
+mod overscroll_tests;
 #[cfg(test)]
 mod tests;

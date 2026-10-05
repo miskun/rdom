@@ -58,6 +58,9 @@ const PROPERTY_NAMES: &[&str] = &[
     "scrollbar-gutter",
     "scrollbar-width",
     "scrollbar-color",
+    "overscroll-behavior",
+    "overscroll-behavior-x",
+    "overscroll-behavior-y",
     "scroll-behavior",
     // Layout — sizing
     "width",
