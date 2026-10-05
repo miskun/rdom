@@ -55,25 +55,28 @@ pub(super) fn resolve_flexible_lengths(
     budget: MainAxisBudget,
 ) -> Vec<u16> {
     let n = items.len();
-    let hypothetical: Vec<u16> = items
+    // The hypothetical main sizes: the bases clamped by `min-*` / `max-*`.
+    let mut target: Vec<u16> = items
         .iter()
         .map(|ci| clamp_size(ci.base, ci.min, ci.max))
         .collect();
     let net = budget.net;
-    let growing = hypothetical.iter().map(|&h| i32::from(h)).sum::<i32>() < net;
+    let growing = target.iter().map(|&h| i32::from(h)).sum::<i32>() < net;
     // A container with no room shrinks nothing (its items keep their
     // hypothetical sizes and overflow).
     if !growing && net <= 0 {
-        return hypothetical;
+        return target;
     }
     let factor = |ci: &ChildMain| f64::from(if growing { ci.grow } else { ci.shrink });
-    let mut target: Vec<u16> = items.iter().map(|ci| ci.base).collect();
+    // Inflexible items freeze at their hypothetical sizes; the others
+    // start from their bases.
     let mut frozen = vec![false; n];
     for (i, ci) in items.iter().enumerate() {
-        let h = hypothetical[i];
+        let h = target[i];
         if factor(ci) <= 0.0 || (growing && ci.base > h) || (!growing && ci.base < h) {
             frozen[i] = true;
-            target[i] = h;
+        } else {
+            target[i] = ci.base;
         }
     }
     let free_now = |target: &[u16], frozen: &[bool]| -> i32 {
@@ -83,8 +86,25 @@ pub(super) fn resolve_flexible_lengths(
         net - used
     };
     let initial_free = f64::from(free_now(&target, &frozen));
-    // The automatic minimum (§4.5), resolved at most once per item.
-    let mut auto_min: Vec<Option<u16>> = vec![None; n];
+    let budgets = super::main_axis::MainBudgets {
+        main: budget.main,
+        cross: budget.cross,
+    };
+    // An unfrozen item's target clamped by its min / max: the §4.5
+    // automatic minimum only where it can bind, resolved once per item
+    // (`ChildMain::auto_min`) — so clamping again costs no walk, and the
+    // loop needs no buffer of clamped targets.
+    let clamped = |ci: &ChildMain, t: u16| -> u16 {
+        let floor = match ci.min {
+            Some(m) => Some(m),
+            // Growing from a content-sized or specified base cannot fall
+            // below the automatic minimum, which is no larger.
+            None if growing && ci.content_base => None,
+            None if growing && ci.auto_min_cannot_bind_above_base() => None,
+            None => Some(ci.auto_min(dom, direction, budgets)),
+        };
+        clamp_size(t, floor, ci.max)
+    };
     while frozen.iter().any(|f| !f) {
         let factor_sum: f64 = (0..n)
             .filter(|&i| !frozen[i])
@@ -98,26 +118,19 @@ pub(super) fn resolve_flexible_lengths(
             }
         }
         distribute(items, &frozen, &mut target, free, growing);
-        // Clamp each unfrozen target and sum the violations.
-        let mut clamped: Vec<u16> = target.clone();
-        let mut total: i64 = 0;
-        for i in (0..n).filter(|&i| !frozen[i]) {
-            let ci = &items[i];
-            let floor = match ci.min {
-                Some(m) => Some(m),
-                // Growing from a content-sized base cannot fall below
-                // the automatic minimum, which is no larger.
-                None if growing && ci.content_base => None,
-                None => Some(*auto_min[i].get_or_insert_with(|| {
-                    resolve_auto_min(dom, ci.id, direction, budget.main, budget.cross)
-                })),
-            };
-            clamped[i] = clamp_size(target[i], floor, ci.max);
-            total += i64::from(clamped[i]) - i64::from(target[i]);
-        }
-        let unfrozen: Vec<usize> = (0..n).filter(|&i| !frozen[i]).collect();
-        for i in unfrozen {
-            let v = i64::from(clamped[i]) - i64::from(target[i]);
+        // Sum the violations of the unfrozen targets' clamps.
+        let total: i64 = (0..n)
+            .filter(|&i| !frozen[i])
+            .map(|i| i64::from(clamped(&items[i], target[i])) - i64::from(target[i]))
+            .sum();
+        // Freezing an item changes only its own state, so one pass over
+        // the items still unfrozen at its start decides them all.
+        for i in 0..n {
+            if frozen[i] {
+                continue;
+            }
+            let c = clamped(&items[i], target[i]);
+            let v = i64::from(c) - i64::from(target[i]);
             let freeze = match total.signum() {
                 0 => true,
                 1 => v > 0,
@@ -125,7 +138,7 @@ pub(super) fn resolve_flexible_lengths(
             };
             if freeze {
                 frozen[i] = true;
-                target[i] = clamped[i];
+                target[i] = c;
             }
         }
     }
@@ -224,6 +237,8 @@ pub(super) fn resolve_auto_min(
     main_budget: u16,
     cross_budget: u16,
 ) -> u16 {
+    #[cfg(test)]
+    super::cost_tests::AUTO_MINS.with(|c| c.set(c.get() + 1));
     let computed = match dom.node(id).computed() {
         Some(c) => c.clone(),
         None => return 0,

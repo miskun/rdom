@@ -40,6 +40,8 @@
 mod align;
 mod collapse;
 mod content;
+#[cfg(test)]
+mod cost_tests;
 mod cross;
 mod distribute;
 mod lines;

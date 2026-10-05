@@ -16,7 +16,7 @@ use rdom_core::{Dom, NodeId};
 use super::align::{CrossFrame, LinePlan, PlanItem};
 use super::collapse::SiblingOverlap;
 use super::cross::{CrossSpace, ResolvedMain, hypothetical_outer_cross};
-use super::distribute::{MainAxisBudget, resolve_auto_min, resolve_flexible_lengths};
+use super::distribute::{MainAxisBudget, resolve_flexible_lengths};
 use super::main_axis::{ChildMain, MainBudgets, collect_main_axis_items};
 use super::placement::AutoMainMargins;
 use crate::ext::TuiExt;
@@ -47,8 +47,8 @@ fn cells(m: &MarginValue) -> i32 {
 ///
 /// The hypothetical main size is the flex base size clamped by `min-*`
 /// / `max-*`, the §4.5 automatic minimum included (resolved only for an
-/// item whose base is not its content size — a content-sized base is
-/// never below it).
+/// item whose base it can raise — a content-sized base is never below
+/// it, nor a specified one — and then once, `ChildMain::auto_min`).
 pub(super) fn break_lines(
     dom: &Dom<TuiExt>,
     items: &[ChildMain],
@@ -64,14 +64,8 @@ pub(super) fn break_lines(
     for (i, ci) in items.iter().enumerate() {
         let floor = match ci.min {
             Some(m) => Some(m),
-            None if ci.content_base => None,
-            None => Some(resolve_auto_min(
-                dom,
-                ci.id,
-                direction,
-                budgets.main,
-                budgets.cross,
-            )),
+            None if ci.content_base || ci.auto_min_cannot_bind_above_base() => None,
+            None => Some(ci.auto_min(dom, direction, budgets)),
         };
         let outer = i32::from(clamp_size(ci.base, floor, ci.max))
             + cells(&ci.main_start_margin)

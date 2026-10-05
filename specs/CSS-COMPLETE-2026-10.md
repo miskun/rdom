@@ -2619,3 +2619,28 @@ row comes from.
   (`test_alloc`) — 4 allocations for two walks of an all-`order: 0` flex container, for 0 (first
   observed as 5 with a test buffer that reallocated, fixed in the test); green after, both
   directions, the reordered case still in order-modified document order. No snapshot changed.
+- 2026-10-08 — C6G-FLEX-COST (AN10), no layout change. The §4.5 automatic minimum was resolved in
+  `lines::break_lines` (hypothetical sizes for line breaking) and again in the §9.7 freeze loop,
+  each with its own lookup, and for items it cannot affect: an item whose base is its specified main
+  size (`flex-basis: auto` with a definite `width`) has an automatic minimum no larger than that size
+  (the specified size suggestion), so clamping a size at or above the base by it is a no-op — when
+  no `max-*` below the base could let it win (the minimum is not clamped by `max-*` yet, AN9, batch
+  B, so the skip requires that). `ChildMain` now carries `specified_base` and a lazily filled
+  `auto_min` cell (`ChildMain::auto_min`) that line breaking and every freeze-loop iteration share,
+  and both skip the resolution where `auto_min_cannot_bind_above_base` (line breaking always,
+  the loop when growing, as it already did for content-sized bases). The freeze loop allocated a
+  clamped copy of the targets and a list of the unfrozen indices per iteration, plus a hypothetical
+  and an auto-min `Vec`; it now keeps two (the targets, which start as the hypothetical sizes, and
+  the frozen flags), recomputing a clamp where it needs one (cheap with the minimum cached), and
+  freezes in one pass (freezing an item changes only its own state). The second Column measurement
+  of a non-stretched multi-line item (`hypothetical_outer_cross`, then `place_cross`) is served from
+  the pass memo since C6G-ATOM-COST; the test pins it. Not reduced: the per-container `Vec`s of
+  lines, line plans, justify / align offsets (about ten per container) — linear in the items, one
+  per line or container, left for the grid work that will share them. Red (`flex/cost_tests.rs`):
+  `a_multi_line_row_measures_each_item_once` — 12 automatic-minimum resolutions for 4 (two items
+  that can bind, in each of the two flex runs: the parent measuring the container's height, then
+  its layout); `the_freeze_loop_allocates_nothing_per_iteration` (`test_alloc`) — 10 allocations in
+  three iterations for 6 in one. Green after: 4 resolutions, at most 5 Column measurements (one per
+  item and the container's), 2 allocations in one iteration and in three. Mutation checks (each
+  alone, reverted and touched): the specified-base skip off → 8 resolutions; the Column memo off →
+  13 Column measurements. No test expectation and no snapshot changed.

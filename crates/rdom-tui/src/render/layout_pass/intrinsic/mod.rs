@@ -30,7 +30,7 @@ mod inline;
 mod keywords;
 mod memo;
 #[cfg(test)]
-mod memo_tests;
+pub(in crate::render::layout_pass) mod memo_tests;
 mod wrap;
 
 use super::ifc::is_ifc_block;

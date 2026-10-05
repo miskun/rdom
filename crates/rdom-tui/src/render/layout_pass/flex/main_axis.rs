@@ -29,6 +29,13 @@ pub(super) struct ChildMain {
     /// `auto` main size): its automatic minimum (§4.5) is no larger, so
     /// growing cannot violate it.
     pub(super) content_base: bool,
+    /// The base is the item's definite main size property (`flex-basis:
+    /// auto` with a definite `width` / `height`) — the specified size
+    /// suggestion its automatic minimum (§4.5) never exceeds.
+    pub(super) specified_base: bool,
+    /// The §4.5 automatic minimum, resolved on first use and kept for
+    /// line breaking and every freeze-loop iteration ([`Self::auto_min`]).
+    auto_min: std::cell::Cell<Option<u16>>,
     /// The main size property is `auto` (the cross pass then derives no
     /// size from `aspect-ratio`).
     pub(super) main_auto: bool,
@@ -46,6 +53,39 @@ pub(super) struct ChildMain {
     /// distributing leftover free space.
     pub(super) main_start_margin: MarginValue,
     pub(super) main_end_margin: MarginValue,
+}
+
+impl ChildMain {
+    /// The item's §4.5 automatic minimum along `direction` in a
+    /// container of content size `budgets`, resolved once
+    /// (`distribute::resolve_auto_min`).
+    pub(super) fn auto_min(
+        &self,
+        dom: &Dom<TuiExt>,
+        direction: Direction,
+        budgets: MainBudgets,
+    ) -> u16 {
+        if let Some(v) = self.auto_min.get() {
+            return v;
+        }
+        let v = super::distribute::resolve_auto_min(
+            dom,
+            self.id,
+            direction,
+            budgets.main,
+            budgets.cross,
+        );
+        self.auto_min.set(Some(v));
+        v
+    }
+
+    /// Whether the automatic minimum cannot change a size at or above
+    /// the base: the base is the specified size suggestion, which the
+    /// minimum never exceeds, and no `max-*` below the base could let
+    /// it win (clamping a size of at least the base by it is a no-op).
+    pub(super) fn auto_min_cannot_bind_above_base(&self) -> bool {
+        self.specified_base && self.max.is_none_or(|m| m >= self.base)
+    }
 }
 
 /// The container's content size on the main and cross axes.
@@ -102,6 +142,8 @@ pub(super) fn collect_main_axis_items(
                 grow: 0.0,
                 shrink: 0.0,
                 content_base: false,
+                specified_base: false,
+                auto_min: std::cell::Cell::new(None),
                 main_auto: false,
                 min: Some(0),
                 max: Some(0),
@@ -183,6 +225,7 @@ pub(super) fn collect_main_axis_items(
         let content = || intrinsic_size(dom, child, direction, cross_budget, main_cb_w);
         let main_auto = matches!(main_size, Size::Auto | Size::Intrinsic(_));
         let mut grow = c.flex_grow;
+        let mut specified_base = false;
         let (base, content_base) = if let Some(w) = used_column_width {
             grow = 0.0;
             (w, false)
@@ -212,7 +255,10 @@ pub(super) fn collect_main_axis_items(
                     (0, false)
                 }
                 (None, size) => match used_size(size, Some(main_budget)) {
-                    Some(cells) => (cells, false),
+                    Some(cells) => {
+                        specified_base = true;
+                        (cells, false)
+                    }
                     None => (content(), true),
                 },
             }
@@ -270,6 +316,8 @@ pub(super) fn collect_main_axis_items(
             grow,
             shrink: c.flex_shrink,
             content_base,
+            specified_base,
+            auto_min: std::cell::Cell::new(None),
             main_auto,
             min,
             max,
