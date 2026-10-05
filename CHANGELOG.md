@@ -60,6 +60,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `TuiStyle` and `ComputedStyle` gain `box_sizing` (`box-sizing`, CSS UI 3 §3.1; `BoxSizing::{ContentBox, BorderBox}`, initial `ContentBox`) and `ImportantMask::BOX_SIZING`, with the `box_sizing` / `box_sizing_important` builder setters. Migration: build styles with `TuiStyle::new()` / `ComputedStyle::initial()`; a destructuring pattern adds `box_sizing`. (C5-BOX-SIZING)
 - `Size`, `MinSize` and `MaxSize` gain `Intrinsic(IntrinsicSize)` — `min-content`, `max-content`, `fit-content` and `fit-content(<length-percentage>)` (CSS Sizing 3 §3.1–§3.3; `IntrinsicSize::{MinContent, MaxContent, FitContent, FitContentLimit(Box<CalcExpr>)}`). `cells()` is `None` for a keyword, which layout measures. Migration: add an `Intrinsic(_)` arm where these are matched (treat it as `auto` where only lengths matter). (C5-INTRINSIC)
 - `TuiStyle` and `ComputedStyle` gain `margin_trim` (`margin-trim`, CSS Box 4 §3; `MarginTrim { block_start, inline_start, block_end, inline_end }`, initial `MarginTrim::NONE`) and `ImportantMask::MARGIN_TRIM`, with the `margin_trim` builder setters and `parse::values::parse_margin_trim`. Migration: build styles with `TuiStyle::new()` / `ComputedStyle::initial()`; a destructuring pattern adds `margin_trim`. (C5-MARGIN-TRIM)
+- `TuiStyle` and `ComputedStyle` gain `contain_intrinsic_width` / `contain_intrinsic_height` (`contain-intrinsic-*`, CSS Sizing 4 §6.1; `ContainIntrinsicSize { auto, length }`, initial `none`) and the `CONTAIN_INTRINSIC_WIDTH` / `_HEIGHT` important bits and builder setters. Migration: build styles with `TuiStyle::new()` / `ComputedStyle::initial()`; a destructuring pattern adds the two fields. (C5-CONTAIN-SIZE)
 
 ### Added — `rdom-style`
 
@@ -109,6 +110,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`border-spacing`** (CSS 2.1 §17.6.1) parses (`<length> <length>?`, rdom's cell lengths, no percentages), cascades and inherits (`layout::BorderSpacing`, `parse::values::parse_border_spacing`, the `border_spacing` builder). Spacing a table's cells needs the separated-borders table model, which lands with the table formatting context (C13-TFC); until then the value has no effect. (C4-SPACING)
 
 - **Pixel lengths inside math functions** (CSS Values 4 §10): a border width, a radius and a shadow offset / blur / spread take a math function whose lengths are all pixel-family units — `border-width: calc(2px)`, `border-radius: max(1px, 0.1em)`, `box-shadow: calc(-1px) 2px red` — resolved to the pixels its bare value would be (typed by CSS's own rule: `calc(2px + 1)` and pixels mixed with cells, `ch`, viewport units or a percentage stay invalid). `CalcExpr::kind_strict` types an expression with a number as a factor only. (C4G-PX-CALC)
+- `contain-intrinsic-size`, `contain-intrinsic-width` / `-height` and the logical `contain-intrinsic-inline-size` / `-block-size` (CSS Sizing 4 §6.1): `auto? [ none | <length> ]`, cascaded (viewport units resolved); they take effect with size containment (C14-CONTAIN). (C5-CONTAIN-SIZE)
 
 ### Changed — `rdom-style`
 

@@ -384,6 +384,20 @@ impl TuiStyle {
         crate::layout::MarginTrim
     );
     setter!(
+        contain_intrinsic_width,
+        contain_intrinsic_width,
+        contain_intrinsic_width_important,
+        CONTAIN_INTRINSIC_WIDTH,
+        crate::layout::ContainIntrinsicSize
+    );
+    setter!(
+        contain_intrinsic_height,
+        contain_intrinsic_height,
+        contain_intrinsic_height_important,
+        CONTAIN_INTRINSIC_HEIGHT,
+        crate::layout::ContainIntrinsicSize
+    );
+    setter!(
         box_sizing,
         box_sizing,
         box_sizing_important,

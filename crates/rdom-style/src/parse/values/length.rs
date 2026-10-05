@@ -6,7 +6,9 @@ use super::numeric::{
     LengthPercentage, Range, cells_i32, cells_u16, components, length_percentage, number,
 };
 use crate::calc::CalcExpr;
-use crate::layout::{FlexBasis, IntrinsicSize, Length, MaxSize, MinSize, Size};
+use crate::layout::{
+    ContainIntrinsicSize, FlexBasis, IntrinsicSize, Length, MaxSize, MinSize, Size,
+};
 use crate::parse::token::Token;
 
 /// A percentage literal, fraction intact, rejecting negative and
@@ -156,6 +158,34 @@ pub fn parse_max_size(value: &[Token]) -> Option<MaxSize> {
         }
         LengthPercentage::Expr(e) => Some(MaxSize::Calc(Box::new(e))),
     }
+}
+
+/// `contain-intrinsic-*` (CSS Sizing 4 §6.1): one to `max` of `auto? [
+/// none | <length [0,∞]> ]`, in order. No percentages (the grammar is
+/// `<length>`); a viewport unit or a math function stays an expression.
+pub fn parse_contain_intrinsic(value: &[Token], max: usize) -> Option<Vec<ContainIntrinsicSize>> {
+    let parts = components(value)?;
+    let mut out = Vec::with_capacity(max);
+    let mut i = 0;
+    while i < parts.len() {
+        let auto = matches!(parts[i], [Token::Ident(s)] if s.eq_ignore_ascii_case("auto"));
+        if auto {
+            i += 1;
+        }
+        let part = parts.get(i)?;
+        let length = match part {
+            [Token::Ident(s)] if s.eq_ignore_ascii_case("none") => None,
+            _ => Some(match length_percentage(part, Range::NonNegative)? {
+                LengthPercentage::Integer(n) => CalcExpr::Length(n),
+                LengthPercentage::Cells(v) => CalcExpr::Length(cells_i32(v)),
+                LengthPercentage::Expr(e) if !e.contains_percent() => e,
+                LengthPercentage::Expr(_) => return None,
+            }),
+        };
+        out.push(ContainIntrinsicSize { auto, length });
+        i += 1;
+    }
+    (!out.is_empty() && out.len() <= max).then_some(out)
 }
 
 /// An intrinsic size keyword (CSS Sizing 3 §3.1): `min-content |

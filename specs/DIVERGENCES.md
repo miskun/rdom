@@ -266,7 +266,7 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 ### Box model and sizing
 
 - `stretch` sizes (CSS Sizing 4; the intrinsic keywords shipped with C5-INTRINSIC) — not yet scheduled
-- `contain-intrinsic-size` (+ longhands) — C5-CONTAIN-SIZE
+- `contain-intrinsic-size` in layout: the shorthand and its longhands parse and cascade (C5-CONTAIN-SIZE), but they size a box only under size containment — C14-CONTAIN
 
 ### Logical properties and writing modes
 

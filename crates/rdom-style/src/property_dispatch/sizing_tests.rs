@@ -224,3 +224,131 @@ fn margin_trim_takes_its_grammar() {
         s
     });
 }
+
+// ── C5-CONTAIN-SIZE ─────────────────────────────────────────────────
+
+/// CSS Sizing 4 §6.1: `contain-intrinsic-width` / `-height` take `auto?
+/// [ none | <length [0,∞]> ]`; the shorthand `contain-intrinsic-size`
+/// one or two of them (width, then height — one value sets both). No
+/// percentages; serialized in the shortest form.
+#[test]
+fn contain_intrinsic_size_takes_its_grammar() {
+    use crate::calc::CalcExpr;
+    use crate::layout::ContainIntrinsicSize as C;
+    let len = |n| Some(CalcExpr::Length(n));
+    let cases = [
+        (
+            "none",
+            C {
+                auto: false,
+                length: None,
+            },
+            "none",
+        ),
+        (
+            "10",
+            C {
+                auto: false,
+                length: len(10),
+            },
+            "10",
+        ),
+        (
+            "AUTO 4",
+            C {
+                auto: true,
+                length: len(4),
+            },
+            "auto 4",
+        ),
+        (
+            "auto none",
+            C {
+                auto: true,
+                length: None,
+            },
+            "auto none",
+        ),
+    ];
+    for (css, want, text) in cases {
+        for name in ["contain-intrinsic-width", "contain-intrinsic-height"] {
+            let mut style = TuiStyle::new();
+            set(name, css, &mut style).unwrap_or_else(|e| panic!("{name}: {css}: {e:?}"));
+            assert_eq!(
+                serialize(name, &style).as_deref(),
+                Some(text),
+                "{name}: {css}"
+            );
+        }
+        let mut style = TuiStyle::new();
+        set("contain-intrinsic-size", css, &mut style).unwrap();
+        assert_eq!(
+            style.contain_intrinsic_width,
+            Some(Value::Specified(want.clone()))
+        );
+        assert_eq!(style.contain_intrinsic_height, Some(Value::Specified(want)));
+        assert_eq!(
+            serialize("contain-intrinsic-size", &style).as_deref(),
+            Some(text)
+        );
+    }
+    let mut style = TuiStyle::new();
+    set("contain-intrinsic-size", "auto 10 none", &mut style).unwrap();
+    assert_eq!(
+        serialize("contain-intrinsic-size", &style).as_deref(),
+        Some("auto 10 none")
+    );
+    assert_eq!(
+        serialize("contain-intrinsic-height", &style).as_deref(),
+        Some("none")
+    );
+    for bad in [
+        "",
+        "50%",
+        "-1",
+        "auto",
+        "auto auto 1",
+        "1 2 3",
+        "none auto",
+        "10 auto",
+    ] {
+        let mut style = TuiStyle::new();
+        assert_eq!(
+            set("contain-intrinsic-size", bad, &mut style),
+            Err(DispatchError::InvalidValue),
+            "{bad:?}"
+        );
+    }
+    assert!(!inherits("contain-intrinsic-size"));
+}
+
+/// CSS Sizing 4 §6.1 with CSS Logical 1 §4: `contain-intrinsic-inline-size`
+/// / `-block-size` are the width / height in rdom's horizontal-tb
+/// writing mode — one storage, so the later declaration of the pair wins.
+#[test]
+fn contain_intrinsic_logical_longhands_share_the_physical_storage() {
+    let mut style = TuiStyle::new();
+    set("contain-intrinsic-inline-size", "7", &mut style).unwrap();
+    set("contain-intrinsic-block-size", "auto 3", &mut style).unwrap();
+    assert_eq!(
+        serialize("contain-intrinsic-width", &style).as_deref(),
+        Some("7")
+    );
+    assert_eq!(
+        serialize("contain-intrinsic-height", &style).as_deref(),
+        Some("auto 3")
+    );
+    assert_eq!(
+        serialize("contain-intrinsic-block-size", &style).as_deref(),
+        Some("auto 3")
+    );
+    set("contain-intrinsic-width", "2", &mut style).unwrap();
+    assert_eq!(
+        serialize("contain-intrinsic-inline-size", &style).as_deref(),
+        Some("2")
+    );
+    assert_eq!(
+        property_mask("contain-intrinsic-inline-size"),
+        property_mask("contain-intrinsic-width")
+    );
+}

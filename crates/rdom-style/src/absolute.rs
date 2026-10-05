@@ -57,6 +57,17 @@ impl ComputedStyle {
                 _ => None,
             },
         ];
+        for size in [
+            &mut self.contain_intrinsic_width,
+            &mut self.contain_intrinsic_height,
+        ] {
+            if let Some(expr) = size.length.as_mut().filter(|e| e.needs_context()) {
+                let absolute = expr.absolutize(vp);
+                *expr = CalcExpr::Length(cells_i32(
+                    absolute.resolve_f64(&crate::calc::ResolveCtx::new(0)),
+                ));
+            }
+        }
         for limit in limits.into_iter().flatten() {
             if let IntrinsicSize::FitContentLimit(expr) = limit
                 && expr.needs_context()

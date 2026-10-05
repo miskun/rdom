@@ -127,7 +127,7 @@ row comes from.
 | C5-INTRINSIC | `min-content` / `max-content` / `fit-content()` on width / height / min / max | done |
 | C5-MINMAX-SIZE | `min-*` / `max-*`: `none`, `%`, `calc()` | done (`%` / `calc()` with C2-PERCENT, `none` with C2G-MAX-NONE) |
 | C5-MARGIN-TRIM | `margin-trim` | done |
-| C5-CONTAIN-SIZE | `contain-intrinsic-size` (+ longhands) | |
+| C5-CONTAIN-SIZE | `contain-intrinsic-size` (+ longhands) | partial — used with C14 contain |
 | C5-LOGICAL | Logical properties: `inline-size` / `block-size` / `min-*` / `max-*`, `margin-*` / `padding-*` / `border-*` / `inset-*` / radius logical forms (horizontal-tb ltr mapping) | |
 | C5-WRITING | `direction` and `writing-mode` for the values a terminal can render (rtl lines; vertical documented N/A if not) | |
 
@@ -1479,3 +1479,18 @@ row comes from.
   (e.g. `(3, 6, 10)` for `(1, 4, 8)`; the sixth, block-container `inline` being a no-op, passed as
   it should); green after. Test fixed while writing: `block-start inline` mixes the axis and side
   forms, which the grammar rejects — the column test says `block-start inline-start inline-end`.
+- 2026-10-07 — C5-CONTAIN-SIZE (partial — used with C14 contain): `contain-intrinsic-size`,
+  `contain-intrinsic-width` / `-height` and the logical `-inline-size` / `-block-size` (CSS Sizing 4
+  §6.1): `auto? [ none | <length [0,∞]> ]` (no percentages — the grammar is `<length>`), the shorthand
+  one or two (width, height). `ContainIntrinsicSize { auto, length: Option<CalcExpr> }` (cells as
+  `CalcExpr::Length`; viewport units folded to cells at computed time); two physical fields. Decided:
+  the logical longhands map onto the physical fields at parse time (`fields_of` names them the same
+  fields) — exact in rdom, whose layout is horizontal-tb only (C5-WRITING computes the vertical modes
+  but lays them out horizontally), so CSS Logical 1 §4's "later declaration wins" holds by storage.
+  The dispatch arms live in `property_dispatch/contain.rs` (set.rs / serialize.rs stay under the bar).
+  Not used in layout: rdom has no size containment yet (`contain` is C14-CONTAIN), so the computed
+  values wait there; not in `layout_differs` until then. Red: the dispatch tests failed to compile
+  (`ContainIntrinsicSize`, the fields); the cascade tests were written with them and first ran after
+  the cascade wiring — `contain_intrinsic_size_cascades` then failed on `25vw` (0, not 10: the shared
+  `css_phase5::lay_out` cascaded before any viewport was set), fixed in the helper (viewport first, as
+  C2-VIEWPORT documents), not in production code.

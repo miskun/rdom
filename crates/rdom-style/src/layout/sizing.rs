@@ -321,6 +321,28 @@ pub enum FlexBasis {
     Calc(Box<crate::calc::CalcExpr>),
 }
 
+/// One axis of `contain-intrinsic-size` (CSS Sizing 4 §6.1): `auto?
+/// [ none | <length [0,∞]> ]` — the size a box under size containment
+/// takes as its content's, and with `auto` the last size it was laid out
+/// at, once it has one. Initial `none`.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct ContainIntrinsicSize {
+    /// `auto`: remember the box's last laid-out size.
+    pub auto: bool,
+    /// The `<length>`, `None` for `none`. Cells are
+    /// [`CalcExpr::Length`](crate::calc::CalcExpr::Length); a math
+    /// function or a viewport-percentage length stays an expression
+    /// (no percentages: the grammar has none).
+    pub length: Option<crate::calc::CalcExpr>,
+}
+
+impl ContainIntrinsicSize {
+    /// The length in cells, `None` for `none`.
+    pub fn cells(&self) -> Option<u16> {
+        self.length.as_ref().map(|e| resolve_u16(e, 0))
+    }
+}
+
 /// `expr` against `basis`, clamped to `0..=u16::MAX`.
 fn resolve_u16(expr: &crate::calc::CalcExpr, basis: u16) -> u16 {
     let v = expr.resolve(&crate::calc::ResolveCtx::new(i32::from(basis)));

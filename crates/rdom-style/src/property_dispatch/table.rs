@@ -48,6 +48,11 @@ const PROPERTY_NAMES: &[&str] = &[
     "max-height",
     "aspect-ratio",
     "box-sizing",
+    "contain-intrinsic-size",
+    "contain-intrinsic-width",
+    "contain-intrinsic-height",
+    "contain-intrinsic-inline-size",
+    "contain-intrinsic-block-size",
     "gap",
     // Flex shorthand (sets width and height in one declaration).
     "flex",
@@ -275,6 +280,8 @@ define_fields! {
     MaxHeight => max_height : MAX_HEIGHT,
     AspectRatio => aspect_ratio : ASPECT_RATIO,
     BoxSizing => box_sizing : BOX_SIZING,
+    ContainIntrinsicWidth => contain_intrinsic_width : CONTAIN_INTRINSIC_WIDTH,
+    ContainIntrinsicHeight => contain_intrinsic_height : CONTAIN_INTRINSIC_HEIGHT,
     Gap => gap : GAP,
     FlexShrink => flex_shrink : FLEX_SHRINK,
     FlexBasis => flex_basis : FLEX_BASIS,
@@ -367,6 +374,11 @@ pub(super) fn fields_of(name: &str) -> Option<&'static [Field]> {
         "max-height" => &[MaxHeight],
         "aspect-ratio" => &[AspectRatio],
         "box-sizing" => &[BoxSizing],
+        // CSS Sizing 4 §6.1; the logical longhands are the physical ones
+        // in horizontal-tb (CSS Logical 1 §4), sharing their storage.
+        "contain-intrinsic-size" => &[ContainIntrinsicWidth, ContainIntrinsicHeight],
+        "contain-intrinsic-width" | "contain-intrinsic-inline-size" => &[ContainIntrinsicWidth],
+        "contain-intrinsic-height" | "contain-intrinsic-block-size" => &[ContainIntrinsicHeight],
         "gap" => &[Gap],
         "flex" => &[Width, Height, FlexShrink, FlexBasis],
         "flex-shrink" => &[FlexShrink],

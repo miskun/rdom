@@ -74,7 +74,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.3 Values and units (Values 4) | 15 | 2 | 1 | 4 | 22 |
 | 3.4 Color (Color 4 / 5) | 15 | 1 | 0 | 1 | 17 |
 | 3.5 Backgrounds and borders (Backgrounds 3, Borders 4) | 13 | 1 | 0 | 2 | 16 |
-| 3.6 Box model and sizing (Box 3, Sizing 3/4) | 7 | 1 | 1 | 0 | 9 |
+| 3.6 Box model and sizing (Box 3, Sizing 3/4) | 7 | 2 | 0 | 0 | 9 |
 | 3.7 Display and visibility (Display 3) | 1 | 0 | 8 | 2 | 11 |
 | 3.8 Flexbox and box alignment (Flexbox 1, Align 3) | 3 | 3 | 11 | 0 | 17 |
 | 3.9 Grid (Grid 1/2) | 0 | 0 | 10 | 0 | 10 |
@@ -93,11 +93,11 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 0 | 0 | 6 | 3 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **108** | **27** | **123** | **49** | **307** |
+| **Total** | **108** | **28** | **122** | **49** | **307** |
 
 When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 150 rows Partial / Missing.
 
-Headline: rdom parses **92 property names** (`PROPERTY_NAMES`, after C5-MARGIN-TRIM). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are flex alignment (`justify-content`, `align-items`), `flex-wrap`, the `flex-grow` / `flex-basis` longhands, `line-height`, `text-align`, `visibility`, and grid.
+Headline: rdom parses **97 property names** (`PROPERTY_NAMES`, after C5-CONTAIN-SIZE). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are flex alignment (`justify-content`, `align-items`), `flex-wrap`, the `flex-grow` / `flex-basis` longhands, `line-height`, `text-align`, `visibility`, and grid.
 
 ---
 
@@ -334,7 +334,7 @@ dropped. The audit's six, with where each stands:
 | `max-width` / `max-height` | Supported | Cells, `%`, `calc()` (C2-PERCENT), `none` (the initial value; C2G-MAX-NONE completes C5-MINMAX-SIZE), the intrinsic keywords (C5-INTRINSIC). | — | `V/length.rs::parse_max_size` |
 | `box-sizing` | Supported | `content-box` (the initial value) / `border-box`; every layout site converts through one `Sizer` (`render/layout_pass/box_sizing.rs`), and the border box is floored at padding + border (C5-BOX-SIZING). UA form controls follow the HTML rendering rules. | — | `KW`, layout `box_sizing.rs` |
 | `aspect-ratio` | Supported | `auto || <ratio>`; `auto && <ratio>` sizes the content box; degenerate ratios behave as `auto` (C2-RATIO). Cell-grid rounding documented. | — | `V/number.rs`, `FLEX/cross.rs` |
-| `contain-intrinsic-size` (+ longhands) | Missing | Placeholder size for `content-visibility: auto`. | No | `DISP`, layout |
+| `contain-intrinsic-size` (+ longhands) | Partial | The shorthand, `contain-intrinsic-width` / `-height` and the logical `-inline-size` / `-block-size` (sharing the physical storage), `auto? [none | <length>]`, parse and cascade (C5-CONTAIN-SIZE); they size a box only under size containment, which lands with C14-CONTAIN. | Yes | `DISP` (`contain.rs`), `V/length.rs` |
 
 ### 3.7 Display and visibility (Display 3)
 
@@ -727,7 +727,7 @@ implementation or a `DIVERGENCES.md` entry before the acid page's coverage test 
 - `min-width` / `min-height` — Partial: `auto` / cells only; no `%`, `calc()`, intrinsic keywords. *Shipped: C2-PERCENT, C2G-MAX-NONE, C5-INTRINSIC.*
 - `max-width` / `max-height` — Partial: Cells / constant `calc()` only; `none` (the initial value), `%`, percent `calc()`, intrinsic keywords rejected. *Shipped: C2-PERCENT, C2G-MAX-NONE, C5-INTRINSIC.*
 - `box-sizing` — Missing: rdom is implicitly `border-box`; `content-box` (CSS initial) is not expressible. *Shipped: C5-BOX-SIZING.*
-- `contain-intrinsic-size` (+ longhands) — Missing: Placeholder size for `content-visibility: auto`.
+- `contain-intrinsic-size` (+ longhands) — Missing: Placeholder size for `content-visibility: auto`. *Partly shipped: C5-CONTAIN-SIZE parses and cascades them; layout with C14-CONTAIN.*
 
 **3.7 Display and visibility (Display 3)**
 

@@ -66,8 +66,8 @@ pub use keyword::{
     parse_text_decoration,
 };
 pub use length::{
-    FlexShorthand, parse_flex_factor, parse_flex_shorthand, parse_inset_shorthand, parse_length,
-    parse_max_size, parse_min_size, parse_size,
+    FlexShorthand, parse_contain_intrinsic, parse_flex_factor, parse_flex_shorthand,
+    parse_inset_shorthand, parse_length, parse_max_size, parse_min_size, parse_size,
 };
 pub use number::{parse_aspect_ratio, parse_opacity, parse_z_index};
 pub use shadow::parse_box_shadow;

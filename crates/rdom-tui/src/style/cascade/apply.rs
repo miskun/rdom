@@ -160,6 +160,10 @@ pub(super) fn apply_style(
     // (`none` is `None`).
     value!(max_width: MAX_WIDTH, max_height: MAX_HEIGHT);
     value!(box_sizing: BOX_SIZING);
+    value!(
+        contain_intrinsic_width: CONTAIN_INTRINSIC_WIDTH,
+        contain_intrinsic_height: CONTAIN_INTRINSIC_HEIGHT,
+    );
     // `aspect-ratio`: the declared value is the computed `Option` itself
     // (`auto` alone is `None`).
     value!(aspect_ratio: ASPECT_RATIO);

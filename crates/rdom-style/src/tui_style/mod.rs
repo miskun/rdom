@@ -85,6 +85,11 @@ pub struct TuiStyle {
     pub max_height: Option<Value<crate::layout::MaxSize>>,
     /// `box-sizing` (CSS UI 3 §3.1): the box the sizes above measure.
     pub box_sizing: Option<Value<crate::layout::BoxSizing>>,
+    /// `contain-intrinsic-width` (CSS Sizing 4 §6.1; also
+    /// `contain-intrinsic-inline-size` in horizontal-tb).
+    pub contain_intrinsic_width: Option<Value<crate::layout::ContainIntrinsicSize>>,
+    /// `contain-intrinsic-height` (also `contain-intrinsic-block-size`).
+    pub contain_intrinsic_height: Option<Value<crate::layout::ContainIntrinsicSize>>,
     pub padding: Option<Value<Padding>>,
     pub margin: Option<Value<crate::layout::Margin>>,
     /// `margin-trim` (CSS Box 4 §3).
@@ -365,6 +370,13 @@ impl TuiStyle {
         if self.margin_trim.is_some() {
             n += 1
         }
+        n += [
+            self.contain_intrinsic_width.is_some(),
+            self.contain_intrinsic_height.is_some(),
+        ]
+        .iter()
+        .filter(|set| **set)
+        .count();
         if self.padding.is_some() {
             n += 1
         }

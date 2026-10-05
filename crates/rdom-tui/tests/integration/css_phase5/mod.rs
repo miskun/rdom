@@ -7,6 +7,7 @@ use rdom_tui::render::{Buffer, Rect};
 use rdom_tui::{CascadeExt, LayoutExt, LayoutRect, NodeId, PaintExt, TuiDom, TuiNodeExt};
 
 mod box_sizing;
+mod contain;
 mod intrinsic;
 mod margin_trim;
 
@@ -20,9 +21,12 @@ fn el(dom: &mut TuiDom, parent: NodeId, tag: &str, class: &str) -> NodeId {
     id
 }
 
-/// Cascade `css` (strict: no warnings) and lay the tree out in `w` × `h`.
+/// Cascade `css` (strict: no warnings) at a `w` × `h` viewport and lay
+/// the tree out in it.
 fn lay_out(dom: &mut TuiDom, css: &str, w: u16, h: u16) {
     let sheet = rdom_css::from_css_strict(css).expect("sheet parses without warnings");
+    // The viewport first, so `vw` / `vh` resolve against it (C2-VIEWPORT).
+    dom.set_viewport(rdom_tui::calc::Viewport::new(w, h));
     dom.cascade(&sheet);
     dom.layout_dom(Rect::new(0, 0, w, h));
 }
