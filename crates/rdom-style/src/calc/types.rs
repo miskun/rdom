@@ -26,17 +26,15 @@ pub enum CalcKind {
 
 impl CalcKind {
     /// The kind of a sum, or of arguments that must agree (`min()`,
-    /// `hypot()`, …): a number or a percentage goes with a length (a
-    /// `<length-percentage>`; rdom's number is a cell); an angle only
-    /// with an angle.
-    fn unify(self, other: CalcKind) -> Option<CalcKind> {
+    /// `hypot()`, …): a percentage goes with a length (a
+    /// `<length-percentage>`), and so does a number under `typing.cells`
+    /// (rdom's number is a cell); an angle only with an angle.
+    fn unify(self, other: CalcKind, typing: Typing) -> Option<CalcKind> {
         use CalcKind::*;
         match (self, other) {
             (a, b) if a == b => Some(a),
-            (Number | Percent, Length)
-            | (Length, Number | Percent)
-            | (Number, Percent)
-            | (Percent, Number) => Some(Length),
+            (Percent, Length) | (Length, Percent) => Some(Length),
+            (Number, Length | Percent) | (Length | Percent, Number) if typing.cells => Some(Length),
             _ => None,
         }
     }
@@ -51,6 +49,14 @@ impl CalcKind {
     }
 }
 
+/// How an expression is typed: what a percentage is, and whether a
+/// number is a length (rdom's cell) or only a factor (CSS's own rule).
+#[derive(Debug, Clone, Copy)]
+struct Typing {
+    percent: CalcKind,
+    cells: bool,
+}
+
 impl CalcExpr {
     /// The expression's type, `None` when it does not type-check (CSS
     /// Values 4 §10.9): a sum of an angle and a length, a product of two
@@ -60,28 +66,46 @@ impl CalcExpr {
     /// or a number as a [`CalcKind::Length`] (the percentage resolves
     /// against a length; rdom's number is a cell).
     pub fn kind(&self) -> Option<CalcKind> {
-        self.kind_with(CalcKind::Percent)
+        self.kind_with(Typing {
+            percent: CalcKind::Percent,
+            cells: true,
+        })
+    }
+
+    /// The expression's type under CSS's own rule (§10.9), where a
+    /// `<number>` is a factor and never joins a `<length>` — for a math
+    /// function whose lengths are not rdom's cells: the pixel lengths of
+    /// a border width, radius or shadow offset (C4G-PX-CALC), where
+    /// `calc(2px + 1)` has no meaning.
+    pub fn kind_strict(&self) -> Option<CalcKind> {
+        self.kind_with(Typing {
+            percent: CalcKind::Percent,
+            cells: false,
+        })
     }
 
     /// The expression's type where percentages are numbers — `opacity`
     /// (CSS Color 4 §11.1: `<number> | <percentage>`, 50% is 0.5), whose
     /// `min(1, 50%)` is a `<number>`.
     pub fn kind_as_number(&self) -> Option<CalcKind> {
-        self.kind_with(CalcKind::Number)
+        self.kind_with(Typing {
+            percent: CalcKind::Number,
+            cells: true,
+        })
     }
 
-    /// The type, with a percentage typed `percent`.
-    fn kind_with(&self, percent: CalcKind) -> Option<CalcKind> {
+    /// The type under `typing`.
+    fn kind_with(&self, typing: Typing) -> Option<CalcKind> {
         use CalcKind::*;
         match self {
             CalcExpr::Number(_) | CalcExpr::NoBound => Some(Number),
             CalcExpr::Length(_) => Some(Length),
-            CalcExpr::Percent(_) => Some(percent),
+            CalcExpr::Percent(_) => Some(typing.percent),
             CalcExpr::Dimension { unit, .. } => Some(unit.kind()),
             CalcExpr::Binary { op, lhs, rhs } => {
-                let (l, r) = (lhs.kind_with(percent)?, rhs.kind_with(percent)?);
+                let (l, r) = (lhs.kind_with(typing)?, rhs.kind_with(typing)?);
                 match op {
-                    CalcOp::Add | CalcOp::Sub => l.unify(r),
+                    CalcOp::Add | CalcOp::Sub => l.unify(r, typing),
                     CalcOp::Mul => match (l, r) {
                         (Number, k) | (k, Number) => Some(k),
                         _ => None,
@@ -89,26 +113,26 @@ impl CalcExpr {
                     CalcOp::Div => (r == Number).then_some(l),
                 }
             }
-            CalcExpr::Function { func, args } => function_kind(*func, args, percent),
+            CalcExpr::Function { func, args } => function_kind(*func, args, typing),
         }
     }
 }
 
 /// A function's result type from its arguments' (CSS Values 4 §10.2 –
 /// §10.7).
-fn function_kind(func: MathFunction, args: &[CalcExpr], percent: CalcKind) -> Option<CalcKind> {
+fn function_kind(func: MathFunction, args: &[CalcExpr], typing: Typing) -> Option<CalcKind> {
     use CalcKind::*;
     let kinds = args
         .iter()
         .filter(|a| !matches!(a, CalcExpr::NoBound))
-        .map(|a| a.kind_with(percent))
+        .map(|a| a.kind_with(typing))
         .collect::<Option<Vec<_>>>()?;
     let agreed = || {
         kinds
             .iter()
             .try_fold(None, |acc: Option<CalcKind>, k| match acc {
                 None => Some(Some(*k)),
-                Some(a) => a.unify(*k).map(Some),
+                Some(a) => a.unify(*k, typing).map(Some),
             })
             .flatten()
     };

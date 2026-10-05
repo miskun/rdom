@@ -1282,3 +1282,18 @@ row comes from.
   Changed expectations: the tokenizer test `oversized_integer_is_a_float_not_zero` is replaced by the
   clamping one; `flex_shorthand_full_grammar` listed `1 2 0.5` as invalid — it is `1 2 0` now (moved
   to the valid cases as `1 2 2.5`).
+- 2026-10-06 — C4G-PX-CALC: `paint_length` (`V/border.rs`), the one leaf of border widths, radii and
+  shadow lengths, routes a math function holding a pixel-family dimension to `pixel_math`: each pixel
+  leaf becomes a context-free `ch` length of its pixel value, the calc parser builds and types the
+  expression, and `CalcExpr::kind_strict` (new; CSS's own §10.9 typing, `Typing { percent, cells }`
+  threaded through `kind_with` / `unify` / `function_kind`) requires a `<length>` with numbers as
+  factors only. The result is pixels (`PaintLength::Px`), clamped into the property's range (§10.12)
+  and NaN-safe; a non-pixel unit or a percentage beside a pixel is invalid. Decided: the durable rule
+  is written into DESIGN ("Pixel lengths select, cells measure") — a length that only selects a
+  discrete option (glyph weight, corner shape, a one-cell offset's sign) may take pixels, geometry never
+  does; `outline-width`, `outline-offset` and `text-shadow` will follow it. A pixel math function is
+  folded when parsed (CSSOM reads `2px`), as `<number>` math is (DIVERGENCES §1, the border-width
+  entry). Red:
+  `pixel_lengths_inside_math_functions` (`border-width: calc(2px)` → `InvalidValue`); green after,
+  with eight invalid mixes (`calc(2px + 1)`, `calc(2px * 2px)`, `max(1px, 2)`, pixels with `ch` /
+  `%` / `vw` / `deg`). No showcase snapshot changes.

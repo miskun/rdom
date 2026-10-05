@@ -448,3 +448,53 @@ fn border_spacing_grammar() {
         );
     }
 }
+
+/// C4G-PX-CALC — CSS Values 4 §10: a math function is valid wherever its
+/// type is, so `calc(2px)` is a `<length>` where `2px` is. In the
+/// properties that take pixel lengths (a border width, a radius, a shadow
+/// offset — DESIGN "Pixel lengths select, cells measure"), a math
+/// function whose leaves are pixel-family lengths (and numbers as
+/// factors) resolves to the pixels its bare value would; mixing in cells,
+/// `ch` or a percentage is a geometry question pixels cannot answer, and
+/// is invalid. A result below a property's range clamps (§10.12).
+#[test]
+fn pixel_lengths_inside_math_functions() {
+    for (name, value, bare) in [
+        ("border-width", "calc(2px)", "2px"),
+        ("border-width", "max(1px, 0px)", "1px"),
+        ("border-width", "calc(0.5em + 2px)", "10px"),
+        ("border-width", "calc(2 * 3px)", "6px"),
+        ("border-width", "clamp(1px, 10px, 5px)", "5px"),
+        ("border-width", "calc(-2px)", "0px"),
+        ("border", "calc(6px) solid red", "6px solid red"),
+        ("border-radius", "calc(8px / 2)", "4px"),
+        (
+            "border-top-left-radius",
+            "min(1px, 2px) calc(3px)",
+            "1px 3px",
+        ),
+        ("box-shadow", "calc(-1px) max(1px, 2px) red", "-1px 2px red"),
+    ] {
+        let mut via_math = TuiStyle::new();
+        set(name, value, &mut via_math).unwrap_or_else(|e| panic!("{name}: {value} → {e:?}"));
+        let mut via_bare = TuiStyle::new();
+        set(name, bare, &mut via_bare).unwrap();
+        assert_eq!(via_math, via_bare, "{name}: {value} vs {bare}");
+    }
+    for bad in [
+        "calc(2px + 1)",
+        "calc(2px * 2px)",
+        "calc(2px / 1px)",
+        "calc(1px + 1ch)",
+        "calc(1px + 10%)",
+        "calc(1px + 1vw)",
+        "max(1px, 2)",
+        "calc(1px + 1deg)",
+    ] {
+        assert_eq!(
+            set("border-width", bad, &mut TuiStyle::new()),
+            Err(DispatchError::InvalidValue),
+            "{bad}"
+        );
+    }
+}

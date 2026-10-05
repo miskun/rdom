@@ -3,10 +3,12 @@
 //! <color>`), line styles and widths, corner radii, and the
 //! [`PaintLength`] leaf that border widths, radii and shadows share.
 
+use super::calc::{looks_like_calc, parse_calc};
 use super::color::parse_color;
 use super::keyword::parse_keyword;
 use super::numeric::{LengthPercentage, Range, components, length_percentage};
 use crate::TuiColor;
+use crate::calc::{CalcKind, ResolveCtx};
 use crate::layout::{Border, BorderRadius, BorderStyle, BorderWidth, Corners, PaintLength, Sides};
 use crate::parse::token::Token;
 
@@ -76,23 +78,35 @@ const PX_PER_UNIT: &[(&str, f64)] = &[
     ("rem", 16.0),
 ];
 
-/// A [`PaintLength`]: a pixel-unit dimension, or rdom's `<length>`
-/// (cells, `ch`, `lh`, viewport units, math functions) — with a
-/// percentage too when `percent` (radii), and of any sign when `range`
-/// is [`Range::Any`] (shadow offsets).
+/// CSS pixels per `unit`, when it is one of [`PX_PER_UNIT`]'s.
+fn px_per(unit: &str) -> Option<f64> {
+    PX_PER_UNIT
+        .iter()
+        .find(|(u, _)| u.eq_ignore_ascii_case(unit))
+        .map(|(_, px)| *px)
+}
+
+/// A [`PaintLength`]: a pixel-unit dimension or a math function over
+/// them ([`pixel_math`]), or rdom's `<length>` (cells, `ch`, `lh`,
+/// viewport units, math functions) — with a percentage too when
+/// `percent` (radii), and of any sign when `range` is [`Range::Any`]
+/// (shadow offsets).
 pub(crate) fn paint_length(value: &[Token], percent: bool, range: Range) -> Option<PaintLength> {
     let (negative, rest) = match value {
         [Token::Delim('-'), rest @ ..] => (true, rest),
         _ => (false, value),
     };
     if let [Token::Dimension { value: n, unit, .. }] = rest
-        && let Some((_, px)) = PX_PER_UNIT
-            .iter()
-            .find(|(u, _)| u.eq_ignore_ascii_case(unit))
+        && let Some(px) = px_per(unit)
     {
         let sign = if negative { -1.0 } else { 1.0 };
         let ok = range == Range::Any || !negative;
         return ok.then(|| PaintLength::Px((sign * n * px) as f32));
+    }
+    let pixel_leaf =
+        |t: &Token| matches!(t, Token::Dimension { unit, .. } if px_per(unit).is_some());
+    if !negative && looks_like_calc(rest) && rest.iter().any(pixel_leaf) {
+        return pixel_math(rest, range).map(PaintLength::Px);
     }
     match length_percentage(value, range)? {
         LengthPercentage::Integer(n) => Some(PaintLength::Cells(n as f32)),
@@ -102,6 +116,46 @@ pub(crate) fn paint_length(value: &[Token], percent: bool, range: Range) -> Opti
         }
         LengthPercentage::Expr(_) => None,
     }
+}
+
+/// A math function over pixel-family lengths, in CSS pixels (C4G-PX-CALC;
+/// DESIGN "Pixel lengths select, cells measure"): `calc(2px)`,
+/// `max(1px, 0.1em)`, `calc(2 * 3px)` resolve to the pixels their bare
+/// value would. Every length leaf must be a pixel-family unit and the
+/// expression must type as a `<length>` under CSS's own rule
+/// ([`CalcExpr::kind_strict`](crate::calc::CalcExpr::kind_strict)): a
+/// number is only a factor, and cells, `ch`, viewport units or a
+/// percentage beside a pixel make a geometry question with no pixel
+/// answer — `None`. The result clamps into `range` (CSS Values 4
+/// §10.12) and is NaN-safe.
+fn pixel_math(tokens: &[Token], range: Range) -> Option<f32> {
+    // Each pixel leaf becomes `ch`, the context-free length unit whose
+    // value is its number, so the calc parser types it as a `<length>`
+    // and the evaluator gives back the pixels.
+    let mut leaves = Vec::with_capacity(tokens.len());
+    for token in tokens {
+        leaves.push(match token {
+            Token::Dimension { value, unit, .. } => Token::Dimension {
+                value: value * px_per(unit)?,
+                integer: false,
+                unit: "ch".to_string(),
+            },
+            Token::Percentage(_) => return None,
+            other => other.clone(),
+        });
+    }
+    let expr = parse_calc(&leaves)?;
+    if expr.kind_strict()? != CalcKind::Length {
+        return None;
+    }
+    let px = expr.resolve_f64(&ResolveCtx::new(0));
+    let px = if px.is_nan() { 0.0 } else { px };
+    let px = if range == Range::NonNegative {
+        px.max(0.0)
+    } else {
+        px
+    };
+    Some(px.clamp(f64::from(f32::MIN), f64::from(f32::MAX)) as f32)
 }
 
 /// A parsed `border` / `border-<side>` shorthand: `<line-width> ||

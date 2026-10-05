@@ -125,6 +125,10 @@ Originally `rdom-tui` owned the CSS data model. When `rdom-css` (the CSS parser)
 
 `rdom-style` owns the property dispatch table and the data model. `rdom-tui` owns the cascade pipeline (specificity, `!important`, custom-property resolution, computed-style propagation, DirtyTracker). The split is: `rdom-style` is what gets applied; `rdom-tui` is how applying happens. Other backends would implement their own cascade against the same `rdom-style` types.
 
+### Pixel lengths select, cells measure
+
+(C4G-PX-CALC.) The grid has no pixel and no font size, so a pixel or font-relative length (`px`, `cm`, `mm`, `Q`, `in`, `pt`, `pc`, `em`, `rem` at CSS's fixed ratios and the 16px initial font size) **never becomes geometry**: `width: 10px` is invalid, as is any length that places, sizes or spaces a box (`border-spacing`, `gap`, `padding`, insets). A guessed scale would lay browser CSS out at an arbitrary size instead of failing visibly. Such a length **may** be taken where it only *selects a discrete option* — a border's glyph weight (light below 5px, heavy from it), a corner's shape (any non-zero radius rounds), the sign of a one-cell shadow offset — because there it cannot move anything by a guessed amount. Those properties keep the length in CSS pixels (`PaintLength::Px`) and take it bare or inside a math function whose length leaves are all pixel-family (`calc(2px)`, `max(1px, 0.1em)`), typed by CSS's own rule (`CalcExpr::kind_strict`: a number is only a factor); mixing pixels with cells, `ch`, viewport units or a percentage is invalid, since a pixel and a cell have no common measure. Properties still to land follow the same rule: `outline-width` (a weight), `outline-offset` (a one-cell offset's sign) and `text-shadow` (offsets as `box-shadow`'s) take pixels; anything that is geometry does not.
+
 ### `border-collapse: collapse` extends to any flex container
 
 Instead of inventing a new property name (`border-join`), reuse the CSS property because the semantic is the same algorithm. The divergence is *extended scope* (applies to any flex container, not just `<table>`), documented in [`DIVERGENCES.md`](DIVERGENCES.md).
