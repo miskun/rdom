@@ -11,7 +11,7 @@ use std::rc::Rc;
 use rdom_core::{Dom, NodeId, NodeType};
 
 use crate::ext::TuiExt;
-use crate::layout::Position;
+use crate::layout::{Position, TextDirection};
 use crate::style::{ComputedStyle, PseudoElementTarget, VarMap};
 
 use super::apply::finalize_bfc_formation;
@@ -455,40 +455,43 @@ fn compute_element_style(
     // first run assumes the inherited one, and a block holding such a
     // property re-runs with the element's own when they differ.
     let directional = decls.has_directional();
-    let mut direction = parent.text_direction;
-    let mut runs = 0;
-    let (mut working, substituted, colors) = loop {
-        // Start from initial + inherit subset from parent. That includes
-        // the custom-property map (an `Rc` clone; `apply_cascade_ladder`
-        // copies on write only when this element declares `--*`).
-        let mut working = ComputedStyle::initial();
-        inherit_inheritable_from(&mut working, parent);
-        working.text_direction = direction;
-        let substituted = prepare(
-            &mut working,
-            plan,
-            decls,
-            sheets.registry(),
-            transitions,
-            &attrs,
-            sheets.viewport(),
-        );
-        let colors = apply_cascade_ladder(
-            &mut working,
-            plan,
-            decls.with(substituted.as_ref(), direction),
-            parent,
-            preferred,
-        );
-        if !directional || working.text_direction == direction {
-            break (working, substituted, colors);
-        }
-        // A flow-relative property cannot change `direction`, so the run
-        // with the element's own direction settles it: two runs at most.
-        runs += 1;
-        debug_assert!(runs < 2, "the direction re-run settles `direction`");
-        direction = working.text_direction;
-    };
+    let ((mut working, substituted, colors), settled) =
+        settle_direction(parent.text_direction, |direction| {
+            // Start from initial + inherit subset from parent. That
+            // includes the custom-property map (an `Rc` clone;
+            // `apply_cascade_ladder` copies on write only when this
+            // element declares `--*`).
+            let mut working = ComputedStyle::initial();
+            inherit_inheritable_from(&mut working, parent);
+            working.text_direction = direction;
+            let substituted = prepare(
+                &mut working,
+                plan,
+                decls,
+                sheets.registry(),
+                transitions,
+                &attrs,
+                sheets.viewport(),
+            );
+            let colors = apply_cascade_ladder(
+                &mut working,
+                plan,
+                decls.with(substituted.as_ref(), direction),
+                parent,
+                preferred,
+            );
+            // Only a flow-relative property reads the direction it ran
+            // with; without one the first run stands.
+            let own = if directional {
+                working.text_direction
+            } else {
+                direction
+            };
+            ((working, substituted, colors), own)
+        });
+    // A flow-relative property cannot change `direction`, so the run with
+    // the element's own direction settles it.
+    debug_assert!(settled, "the direction re-run settles `direction`");
     let decls = decls.with(substituted.as_ref(), working.text_direction);
     // `currentcolor` takes the element's final `color`, `light-dark()`
     // its final `color-scheme`.
@@ -522,6 +525,25 @@ fn compute_element_style(
     finalize_used_border(&mut working);
 
     working
+}
+
+/// Run an element's cascade ladder (`run`: the direction it assumes →
+/// its result and the element's own `direction`) first with the
+/// `inherited` direction and, when the element's own differs, once more
+/// with that (CSS Logical 1 §4: flow-relative inline properties map by
+/// the element's own `direction`, which the same ladder decides). At
+/// most two runs, bounded here rather than by the ladder's behaviour;
+/// returns the last run's result and whether its direction held.
+pub(super) fn settle_direction<T>(
+    inherited: TextDirection,
+    mut run: impl FnMut(TextDirection) -> (T, TextDirection),
+) -> (T, bool) {
+    let (first, own) = run(inherited);
+    if own == inherited {
+        return (first, true);
+    }
+    let (second, settled) = run(own);
+    (second, settled == own)
 }
 
 /// Test-only: how many nodes the cascade's walks visited on this thread

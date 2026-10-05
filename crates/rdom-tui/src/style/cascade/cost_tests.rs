@@ -138,3 +138,33 @@ fn a_direction_change_reruns_the_ladder_once() {
         "rtl: inline-start is the right margin"
     );
 }
+
+/// C6G-RERUN-BOUND: the cascade runs an element's ladder again with its
+/// own `direction` when a flow-relative inline property met an inherited
+/// one that differs (CSS Logical 1 §4). That re-run settles it — a
+/// flow-relative property cannot set `direction` — and the bound is the
+/// loop's, not an assertion's: a ladder that kept changing direction
+/// still runs twice, then stops with the second run.
+#[test]
+fn the_direction_rerun_runs_at_most_twice() {
+    use crate::layout::TextDirection;
+    let mut runs = 0;
+    let flip = |d: TextDirection| match d {
+        TextDirection::Ltr => TextDirection::Rtl,
+        _ => TextDirection::Ltr,
+    };
+    let (last, settled) = super::walk::settle_direction(TextDirection::Ltr, |d| {
+        runs += 1;
+        (d, flip(d))
+    });
+    assert_eq!((runs, last), (2, TextDirection::Rtl));
+    assert!(!settled);
+
+    let mut runs = 0;
+    let (_, settled) = super::walk::settle_direction(TextDirection::Ltr, |d| {
+        runs += 1;
+        (d, d)
+    });
+    assert_eq!(runs, 1);
+    assert!(settled);
+}

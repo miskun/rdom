@@ -2687,3 +2687,14 @@ row comes from.
   outside the crate) now use the constructors; a `compile_fail` doctest on `LineBox` pins that a
   struct literal no longer builds outside rdom-tui (its twin, `LineBox::default()` with a field set,
   compiles and runs). No snapshot changed.
+- 2026-10-08 — C6G-RERUN-BOUND (AN15): `cascade_element` re-ran an element's ladder with its own
+  `direction` when a flow-relative inline property met an inherited direction that differs (CSS
+  Logical 1 §4, C5-LOGICAL), in a `loop` whose only bound was `debug_assert!(runs < 2)` — a release
+  build would spin if the invariant (a flow-relative property cannot set `direction`) ever broke.
+  The policy is now `walk::settle_direction`: run with the inherited direction, and once more with
+  the element's own when it differs — never a third time — returning the last result and whether its
+  direction held (the call site keeps a `debug_assert!` on that, as a check, not a bound). Red:
+  `cost_tests::the_direction_rerun_runs_at_most_twice` failed to compile (no `settle_direction`);
+  green after (a ladder that flips direction on every run is run twice and its second result kept;
+  one that keeps it, once). Mutation check (reverted and touched): a third run → `(3, Ltr)` for
+  `(2, Rtl)`. No test expectation and no snapshot changed.
