@@ -82,6 +82,8 @@ mod background_tests;
 #[cfg(test)]
 mod border_tests;
 #[cfg(test)]
+mod sizing_tests;
+#[cfg(test)]
 mod tests;
 
 pub use serialize::serialize;

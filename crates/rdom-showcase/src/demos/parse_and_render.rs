@@ -35,6 +35,9 @@ pub const MARKUP: &str = r#"
 "#;
 
 pub const CSS: &str = r#"
+.par-demo, .par-demo *, .par-demo *::before, .par-demo *::after {
+  box-sizing: border-box;
+}
 .par-demo {
   --accent: #3d90ce;
   --ink: #d0d0d0;

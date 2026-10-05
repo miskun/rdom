@@ -23,6 +23,7 @@ use crate::style::ComputedStyle;
 
 mod inline;
 
+use super::box_sizing::Sizer;
 use super::ifc::is_ifc_block;
 use inline::{
     border_main_cost, has_non_whitespace_text, inline_width, own_line_pseudo_rows,
@@ -209,8 +210,10 @@ fn intrinsic_element(
             Direction::Row => &computed.width,
             Direction::Column => &computed.height,
         };
+        // A declared size measures the box `box-sizing` names (CSS UI
+        // 3 §3.1): the contribution is the border box it makes.
         if let Size::Fixed(n) = declared {
-            return *n;
+            return Sizer::along(&computed, direction, containing_block_width).outer(*n);
         }
     }
 

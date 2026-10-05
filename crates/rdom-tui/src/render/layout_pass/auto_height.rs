@@ -4,6 +4,7 @@
 use rdom_core::{Dom, NodeId};
 
 use super::block;
+use super::box_sizing::Sizer;
 use crate::ext::TuiExt;
 use crate::style::ComputedStyle;
 
@@ -74,19 +75,20 @@ pub(crate) fn resolve_auto_height(
                 .and_then(|p| p.tui_ext().map(|e| e.content_layout.height))
         })
         .flatten();
+    // The clamp is on the content box: `min-height` / `max-height`
+    // measure the box `box-sizing` names (CSS UI 3 §3.1), so the sizer
+    // takes a border-box bound's padding and border off first. Padding
+    // percent / calc resolves against the containing-block width on ALL
+    // four sides (CSS 2.1 §8.4) — the same basis
+    // `compute_content_area_collapsed` used for this element's inset.
+    let sizer = Sizer::vertical(computed, containing_block_width);
     let content_h = crate::layout::clamp_size(
         measurement.content_height,
-        computed.min_height.cells(basis),
-        computed.max_height.cells(basis),
+        sizer.inner_opt(computed.min_height.cells(basis)),
+        sizer.inner_opt(computed.max_height.cells(basis)),
     );
-    // Padding percent / calc resolves against the containing-block
-    // width on ALL four sides (CSS 2.1 §8.4) — the same basis
-    // `compute_content_area_collapsed` used for this element's inset.
-    let pad = computed.padding.vertical(containing_block_width);
-    let border = computed.border.top.cells() + computed.border.bottom.cells();
     let outer_h = content_h
-        .saturating_add(pad)
-        .saturating_add(border)
+        .saturating_add(sizer.chrome())
         .saturating_add(gutter_rows);
     if let Some(ext) = dom.node_mut(id).ext_mut() {
         ext.layout.height = outer_h;

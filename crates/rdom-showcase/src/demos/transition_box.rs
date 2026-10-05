@@ -27,6 +27,9 @@ pub const MARKUP: &str = r#"<div class="transition-demo">
 </div>"#;
 
 pub const CSS: &str = r#"
+.transition-demo, .transition-demo *, .transition-demo *::before, .transition-demo *::after {
+  box-sizing: border-box;
+}
 .transition-demo {
   flex: 1;
   display: flex;

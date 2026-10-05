@@ -48,6 +48,7 @@ fn canonical_values() -> &'static [(&'static str, &'static str)] {
         ("min-height", "5"),
         ("max-height", "50"),
         ("aspect-ratio", "16/9"),
+        ("box-sizing", "border-box"),
         ("gap", "2"),
         ("flex", "1"),
         ("flex-shrink", "1"),

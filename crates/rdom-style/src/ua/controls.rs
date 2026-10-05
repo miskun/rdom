@@ -2,7 +2,7 @@
 
 use super::css;
 use crate::color::system::{ACCENT, FIELD_BG, TEXT_MUTED};
-use crate::layout::{Display, Overflow, Padding, Size, UserSelect, WhiteSpace};
+use crate::layout::{BoxSizing, Display, Overflow, Padding, Size, UserSelect, WhiteSpace};
 use crate::{Color, Content, TuiStyle};
 
 /// The UA rules of this group, in cascade order.
@@ -117,6 +117,18 @@ pub(super) fn rules() -> Vec<(&'static str, TuiStyle)> {
                 .fg(ACCENT)
                 .bold(true)
                 .user_select(UserSelect::None),
+        ),
+        // `box-sizing: border-box` for the controls the HTML rendering
+        // section's UA sheet lists (§15.5, "Form controls":
+        // `input:is([type=radio], [type=checkbox], [type=reset],
+        // [type=button], [type=submit], [type=color], [type=search]),
+        // select, button`), plus `meter` and `progress`, which Chromium's
+        // `html.css` sizes the same way. A text `<input>` and
+        // `<textarea>` keep `content-box`: their width is the content
+        // box, the padding sits outside it.
+        (
+            "input[type=radio], input[type=checkbox], input[type=reset], input[type=button], input[type=submit], input[type=color], input[type=search], select, button, meter, progress",
+            TuiStyle::new().box_sizing(BoxSizing::BorderBox),
         ),
         (
             "button::before",

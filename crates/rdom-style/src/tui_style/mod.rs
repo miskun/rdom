@@ -83,6 +83,8 @@ pub struct TuiStyle {
     pub max_width: Option<Value<crate::layout::MaxSize>>,
     pub min_height: Option<Value<crate::layout::MinSize>>,
     pub max_height: Option<Value<crate::layout::MaxSize>>,
+    /// `box-sizing` (CSS UI 3 §3.1): the box the sizes above measure.
+    pub box_sizing: Option<Value<crate::layout::BoxSizing>>,
     pub padding: Option<Value<Padding>>,
     pub margin: Option<Value<crate::layout::Margin>>,
     pub gap: Option<Value<crate::layout::GapValue>>,
@@ -353,6 +355,9 @@ impl TuiStyle {
             n += 1
         }
         if self.max_height.is_some() {
+            n += 1
+        }
+        if self.box_sizing.is_some() {
             n += 1
         }
         if self.padding.is_some() {

@@ -546,6 +546,7 @@ fn border_single_all_four_sides() {
     let sheet = Stylesheet::bare().rule_unchecked(
         "d",
         TuiStyle::new()
+            .box_sizing(crate::layout::BoxSizing::BorderBox)
             .width(Size::Fixed(4))
             .height(Size::Fixed(3))
             .border(Border::single()),
@@ -570,6 +571,7 @@ fn border_rounded_uses_curves() {
     let sheet = Stylesheet::bare().rule_unchecked(
         "d",
         TuiStyle::new()
+            .box_sizing(crate::layout::BoxSizing::BorderBox)
             .width(Size::Fixed(4))
             .height(Size::Fixed(3))
             .border(Border::single())
@@ -600,6 +602,7 @@ fn border_half_block_uses_block_glyphs() {
     let sheet = Stylesheet::bare().rule_unchecked(
         "d",
         TuiStyle::new()
+            .box_sizing(crate::layout::BoxSizing::BorderBox)
             .width(Size::Fixed(4))
             .height(Size::Fixed(3))
             .border(Border::ring(BorderStyle::HalfBlock)),
@@ -864,6 +867,7 @@ fn nested_elements_paint_recursively() {
     let sheet = Stylesheet::bare().rule_unchecked(
         "outer",
         TuiStyle::new()
+            .box_sizing(crate::layout::BoxSizing::BorderBox)
             .padding(Padding::all(1))
             .border(Border::single())
             .width(Size::Fixed(12))
@@ -3274,6 +3278,7 @@ fn opacity_half_overlay_blends_bg_and_preserves_underlying_glyphs() {
         .rule_unchecked(
             "b",
             TuiStyle::new()
+                .box_sizing(crate::layout::BoxSizing::BorderBox)
                 .width(Size::Fixed(6))
                 .height(Size::Fixed(3))
                 .border(Border::single())
@@ -3283,6 +3288,7 @@ fn opacity_half_overlay_blends_bg_and_preserves_underlying_glyphs() {
         .rule_unchecked(
             "o",
             TuiStyle::new()
+                .box_sizing(crate::layout::BoxSizing::BorderBox)
                 .position(crate::layout::Position::Absolute)
                 .top(crate::layout::Length::Cells(0))
                 .left(crate::layout::Length::Cells(0))
@@ -3338,6 +3344,7 @@ fn opacity_zero_overlay_is_invisible_keeps_symbols() {
         .rule_unchecked(
             "b",
             TuiStyle::new()
+                .box_sizing(crate::layout::BoxSizing::BorderBox)
                 .width(Size::Fixed(6))
                 .height(Size::Fixed(3))
                 .border(Border::single())
@@ -3347,6 +3354,7 @@ fn opacity_zero_overlay_is_invisible_keeps_symbols() {
         .rule_unchecked(
             "o",
             TuiStyle::new()
+                .box_sizing(crate::layout::BoxSizing::BorderBox)
                 .position(crate::layout::Position::Absolute)
                 .top(crate::layout::Length::Cells(0))
                 .left(crate::layout::Length::Cells(0))
@@ -3545,6 +3553,7 @@ fn collapse_two_bordered_siblings_render_t_junctions() {
         .rule_unchecked(
             "outer",
             TuiStyle::new()
+                .box_sizing(crate::layout::BoxSizing::BorderBox)
                 .width(Size::Fixed(11))
                 .height(Size::Fixed(3))
                 .flow(Flow::Flex)
@@ -3555,6 +3564,7 @@ fn collapse_two_bordered_siblings_render_t_junctions() {
         .rule_unchecked(
             "a",
             TuiStyle::new()
+                .box_sizing(crate::layout::BoxSizing::BorderBox)
                 .width(Size::Fixed(6))
                 .height(Size::Fixed(3))
                 .border(Border::single()),
@@ -3562,6 +3572,7 @@ fn collapse_two_bordered_siblings_render_t_junctions() {
         .rule_unchecked(
             "b",
             TuiStyle::new()
+                .box_sizing(crate::layout::BoxSizing::BorderBox)
                 .width(Size::Fixed(6))
                 .height(Size::Fixed(3))
                 .border(Border::single()),
@@ -3675,6 +3686,7 @@ fn collapse_three_sibling_nested_grid_renders_correct_junctions() {
         .rule_unchecked(
             "outer",
             TuiStyle::new()
+                .box_sizing(crate::layout::BoxSizing::BorderBox)
                 .width(Size::Fixed(15))
                 .height(Size::Fixed(3))
                 .border(Border::single())
@@ -3692,6 +3704,7 @@ fn collapse_three_sibling_nested_grid_renders_correct_junctions() {
             // with row (via row's own collapse). No more recursion
             // through transparent intermediates.
             TuiStyle::new()
+                .box_sizing(crate::layout::BoxSizing::BorderBox)
                 .flow(Flow::Flex)
                 .direction(Direction::Row)
                 .border(Border::single())
@@ -3700,6 +3713,7 @@ fn collapse_three_sibling_nested_grid_renders_correct_junctions() {
         .rule_unchecked(
             "left",
             TuiStyle::new()
+                .box_sizing(crate::layout::BoxSizing::BorderBox)
                 .width(Size::Fixed(5))
                 .height(Size::Fixed(3))
                 .border(Border::single()),
@@ -3707,6 +3721,7 @@ fn collapse_three_sibling_nested_grid_renders_correct_junctions() {
         .rule_unchecked(
             "mid",
             TuiStyle::new()
+                .box_sizing(crate::layout::BoxSizing::BorderBox)
                 .width(Size::Fixed(5))
                 .height(Size::Fixed(3))
                 .border(Border::single()),
@@ -3714,6 +3729,7 @@ fn collapse_three_sibling_nested_grid_renders_correct_junctions() {
         .rule_unchecked(
             "right",
             TuiStyle::new()
+                .box_sizing(crate::layout::BoxSizing::BorderBox)
                 .width(Size::Fixed(5))
                 .height(Size::Fixed(3))
                 .border(Border::single()),
@@ -3830,6 +3846,7 @@ fn half_block_left_right_on_a_one_row_box() {
     let sheet = Stylesheet::bare().rule_unchecked(
         "d",
         TuiStyle::new()
+            .box_sizing(crate::layout::BoxSizing::BorderBox)
             .width(Size::Fixed(3))
             .height(Size::Fixed(1))
             .border(Border {
@@ -3856,6 +3873,7 @@ fn half_block_lone_ring_renders_soft_pill() {
     let sheet = Stylesheet::bare().rule_unchecked(
         "d",
         TuiStyle::new()
+            .box_sizing(crate::layout::BoxSizing::BorderBox)
             .width(Size::Fixed(4))
             .height(Size::Fixed(3))
             .border(Border::ring(BorderStyle::HalfBlock)),
@@ -3886,7 +3904,7 @@ fn half_block_tab_welds_into_panel() {
     let mut dom = TuiDom::new();
     let root = dom.root();
     let host = dom.create_element("host");
-    let mut hs = TuiStyle::new();
+    let mut hs = TuiStyle::new().box_sizing(crate::layout::BoxSizing::BorderBox);
     hs.position = Some(Value::Specified(Position::Relative));
     dom.node_mut(host).set_inline_style(hs);
     dom.append_child(root, host).unwrap();
@@ -3894,6 +3912,7 @@ fn half_block_tab_welds_into_panel() {
     // Panel: full half-block ring, x0-7, y1-4.
     let panel = dom.create_element("panel");
     let mut ps = TuiStyle::new()
+        .box_sizing(crate::layout::BoxSizing::BorderBox)
         .width(Size::Fixed(8))
         .height(Size::Fixed(4))
         .border(Border::ring(BorderStyle::HalfBlock));
@@ -3906,6 +3925,7 @@ fn half_block_tab_welds_into_panel() {
     // Tab: left+right+bottom half-block, x5-7, y0-1 (bottom row overlaps panel top).
     let tab = dom.create_element("tab");
     let mut ts = TuiStyle::new()
+        .box_sizing(crate::layout::BoxSizing::BorderBox)
         .width(Size::Fixed(3))
         .height(Size::Fixed(2))
         .border(Border {
@@ -3940,7 +3960,7 @@ fn higher_z_content_occludes_a_lower_border() {
         let root = dom.root();
         // Borderless relative host so absolute children anchor at (0,0).
         let host = dom.create_element("host");
-        let mut hs = TuiStyle::new();
+        let mut hs = TuiStyle::new().box_sizing(crate::layout::BoxSizing::BorderBox);
         hs.position = Some(Value::Specified(Position::Relative));
         dom.node_mut(host).set_inline_style(hs);
         dom.append_child(root, host).unwrap();
@@ -3948,6 +3968,7 @@ fn higher_z_content_occludes_a_lower_border() {
         // Lower box: a bordered ring at (0,0).
         let boxa = dom.create_element("boxa");
         let mut as_ = TuiStyle::new()
+            .box_sizing(crate::layout::BoxSizing::BorderBox)
             .width(Size::Fixed(5))
             .height(Size::Fixed(3))
             .border(Border::ring(style));
@@ -3961,7 +3982,10 @@ fn higher_z_content_occludes_a_lower_border() {
         let over = dom.create_element("over");
         let ot = dom.create_text_node("OOOOO");
         dom.append_child(over, ot).unwrap();
-        let mut os = TuiStyle::new().width(Size::Fixed(5)).height(Size::Fixed(1));
+        let mut os = TuiStyle::new()
+            .box_sizing(crate::layout::BoxSizing::BorderBox)
+            .width(Size::Fixed(5))
+            .height(Size::Fixed(1));
         os.position = Some(Value::Specified(Position::Absolute));
         os.top = Some(Value::Specified(Length::Cells(0)));
         os.left = Some(Value::Specified(Length::Cells(0)));

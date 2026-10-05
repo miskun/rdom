@@ -187,15 +187,17 @@ pub(super) fn rules() -> Vec<(&'static str, TuiStyle)> {
                 .fg(TEXT_MUTED),
         ),
         // Thematic break — `─` rule across the available width
-        // via a `Border::top()` on a 1-row block. `Border::top()`
+        // via a `Border::top()` on an empty block. `Border::top()`
         // paints the box-drawing `─` on every cell of the top
-        // edge, which on a 1-tall block is the only row → the
-        // hr's single row IS the rule. Dim fg so it recedes.
+        // edge; the content box is empty (`height: 0`, as the HTML
+        // rendering section's `hr` has no height), so the border is
+        // the box's one row under either `box-sizing`. Dim fg so it
+        // recedes.
         (
             "hr",
             TuiStyle::new()
                 .display(Display::Block)
-                .height(Size::Fixed(1))
+                .height(Size::Fixed(0))
                 .border(Border::top())
                 .border_fg(BORDER_DEFAULT),
         ),

@@ -96,7 +96,6 @@ These are intrinsic to terminals. They will not change.
 - **Inside a color function, rdom's own colors take fixed values.** A palette index (`208`) is its xterm color — the low sixteen take xterm's defaults, though a terminal's theme may differ; `reset` is invalid there, because it names the default foreground in one property and the default background in another; and a `currentcolor` whose color is `reset` counts as the canvas model's text color (above). Colors in transitions take the same values, and a transition endpoint that is `reset` interpolates as the canvas model's color for the property's role in the element's scheme — the background for `background-color`, the text for `color` and `border-color` — while a registered custom property's `reset` endpoint, which has no role, changes discretely.
 - **`currentcolor` computes to a color in non-inherited properties.** CSS Color 4 §6.4 keeps the keyword as the computed value, so a child that writes `background-color: inherit` resolves it against its own `color`; rdom resolves `background-color` / `border-color` to the element's color at computed-value time, so the child inherits its parent's resolved color. Inherited properties (`caret-color`, `caret-text-color`) keep the keyword and resolve against each element. `revert` / `revert-layer` back to a state whose `currentcolor` is resolved take the `color` cascaded at that state.
 - **`reset` is an rdom color keyword** for the terminal's default foreground or background (SGR 39 / 49). CSS has no equivalent keyword: a web author leaves `background-color` at `transparent` to show the terminal background, or writes the system colors `Canvas` / `CanvasText`, which rdom maps to it (below).
-- **Boxes size as `box-sizing: border-box`.** `width` / `height` are the border-box size in both block flow and flex layout — padding and border sit inside them — and the layout passes store outer rects. CSS's initial value is `content-box`, and the `box-sizing` property is not parsed, so content-box sizing cannot be expressed. Pages that already apply the common `*, *::before, *::after { box-sizing: border-box }` reset see the same sizes as in a browser — except where a `width` / `height` is smaller than the box's border and padding: a browser floors the content box at zero (CSS Box Sizing 3 §3.1), so the box is at least its border and padding, while rdom keeps the declared size and draws only what fits (`width: 0; border: solid` draws nothing). Found by C4G-EDGE-TESTS; C5-BOX-SIZING fixes it with the property. C5-BOX-SIZING (§3) adds the property with the CSS initial value (a breaking default change).
 
 ### Cascade & selectors
 
@@ -263,7 +262,6 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 
 ### Box model and sizing
 
-- `box-sizing` (`content-box`; rdom is implicitly `border-box`, §2 Values) — C5-BOX-SIZING
 - `min-content` / `max-content` / `fit-content()` / `stretch` sizes — C5-INTRINSIC
 - `margin-trim` — C5-MARGIN-TRIM
 - `contain-intrinsic-size` (+ longhands) — C5-CONTAIN-SIZE
@@ -355,6 +353,7 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 - `::highlight()` — C10-HIGHLIGHT
 - `::details-content` — C10-DETAILS-CONTENT
 - A pseudo-element followed by a pseudo-class (`::before:hover`), nested pseudo-elements — C10-PSEUDO-CHAINS
+- A pseudo-element with no compound before it: `::before` for `*::before` (Selectors 4 §5.2 lets the universal selector be omitted) is rejected, so the common `*, ::before, ::after { box-sizing: border-box }` reset drops its whole rule — write `*, *::before, *::after`; likewise `div ::before` reads as `div::before`, not `div *::before` (found by C5-BOX-SIZING) — C10-PSEUDO-CHAINS
 
 ### Selectors
 

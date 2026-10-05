@@ -54,7 +54,7 @@ fn declared_collapse_child_keeps_outer_content_inset() {
  flex: 1; flex-direction: column;
                    border: solid; border-collapse: collapse; }
     "#;
-    let sheet = rdom_css::from_css(css);
+    let sheet = rdom_css::from_css(&crate::common::border_box(css));
     dom.cascade(&sheet);
     dom.layout_dom(Rect::new(0, 0, 20, 10));
 
@@ -106,7 +106,7 @@ fn declared_collapse_child_paints_outer_corners_as_clean_corners() {
     dom.append_child(outer, mid).unwrap();
     dom.append_child(mid, inner).unwrap();
 
-    let sheet = rdom_css::from_css(
+    let sheet = rdom_css::from_css(&crate::common::border_box(
         r#"
         outer_el { display: flex;
  width: 100%; height: 100%; flex-direction: column;
@@ -117,7 +117,7 @@ fn declared_collapse_child_paints_outer_corners_as_clean_corners() {
  flex: 1; flex-direction: column;
                    border: solid; border-collapse: collapse; }
         "#,
-    );
+    ));
 
     let backend = TestBackend::new(20, 10);
     let terminal = Terminal::new(backend).unwrap();
@@ -182,7 +182,7 @@ fn nested_collapse_groups_each_decide_their_own_children() {
         sidebar_el { width: 28; border: solid; }
         main_el    { flex: 1; border: solid; }
     "#;
-    let sheet = rdom_css::from_css(css);
+    let sheet = rdom_css::from_css(&crate::common::border_box(css));
     dom.cascade(&sheet);
     dom.layout_dom(Rect::new(0, 0, 80, 24));
 

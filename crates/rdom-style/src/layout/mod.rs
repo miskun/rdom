@@ -35,8 +35,9 @@ pub use border::{
 };
 pub use box_model::{Margin, MarginValue, Padding, PaddingValue};
 pub use keywords::{
-    Align, CaretColor, CaretTextColor, Direction, Display, Flow, Overflow, PointerEvents, Position,
-    ScrollBehavior, ScrollbarGutter, TextDecoration, UserSelect, WhiteSpace, ZIndex,
+    Align, BoxSizing, CaretColor, CaretTextColor, Direction, Display, Flow, Overflow,
+    PointerEvents, Position, ScrollBehavior, ScrollbarGutter, TextDecoration, UserSelect,
+    WhiteSpace, ZIndex,
 };
 pub use rect::LayoutRect;
 pub use sides::{Corners, Sides};

@@ -4,7 +4,7 @@
 use rdom_core::NodeMut;
 
 use crate::ext::TuiExt;
-use crate::layout::{Border, BorderRadius, Corners, Direction, Overflow, Padding, Size};
+use crate::layout::{Border, BorderRadius, BoxSizing, Corners, Direction, Overflow, Padding, Size};
 use crate::style::{TuiStyle, Value};
 
 /// Mutation helpers for `TuiExt`-bearing elements. All methods return
@@ -77,6 +77,12 @@ pub trait TuiNodeMutExt<'a>: crate::sealed::Sealed {
     fn set_max_height(&mut self, v: impl Into<rdom_style::layout::MaxSize>) -> &mut Self {
         let v = v.into();
         self.write_inline_style(|s| s.max_height = Some(Value::Specified(v)));
+        self
+    }
+    /// Declare `box-sizing` inline (CSS UI 3 §3.1): which box `width` /
+    /// `height` and `min-*` / `max-*` measure.
+    fn set_box_sizing(&mut self, b: BoxSizing) -> &mut Self {
+        self.write_inline_style(|s| s.box_sizing = Some(Value::Specified(b)));
         self
     }
     fn set_direction(&mut self, d: Direction) -> &mut Self {

@@ -10,13 +10,15 @@ use crate::ext::TuiExt;
 use crate::layout::{Direction, Size};
 use crate::node::TuiNodeExt;
 use crate::render::inline::compute_inline_layout;
+use crate::render::layout_pass::box_sizing::Sizer;
 use crate::style::ComputedStyle;
 
 /// Rows `id`'s inline content wraps to when it is laid out at
 /// `cross_budget` columns (its own `Fixed` width when it has one —
-/// the width it will actually get), less its horizontal padding and
-/// border. Padding percentages resolve against the containing block's
-/// width `cb_width` (CSS Box 3 §4.2), not the box's own. At least 1.
+/// the border box `box-sizing` makes of it, the width it will actually
+/// get), less its horizontal padding and border. Padding percentages
+/// resolve against the containing block's width `cb_width` (CSS Box 3
+/// §4.2), not the box's own. At least 1.
 pub(super) fn wrapped_rows(
     dom: &Dom<TuiExt>,
     id: NodeId,
@@ -24,14 +26,12 @@ pub(super) fn wrapped_rows(
     cross_budget: u16,
     cb_width: u16,
 ) -> u16 {
+    let sizer = Sizer::horizontal(computed, cb_width);
     let outer_width = match &computed.width {
-        Size::Fixed(n) => *n,
+        Size::Fixed(n) => sizer.outer(*n),
         _ => cross_budget,
     };
-    let row_pad = computed.padding.horizontal(cb_width);
-    let content_width = outer_width
-        .saturating_sub(row_pad)
-        .saturating_sub(border_main_cost(computed, Direction::Row));
+    let content_width = outer_width.saturating_sub(sizer.chrome());
     compute_inline_layout(dom, id, content_width)
         .height()
         .max(1)

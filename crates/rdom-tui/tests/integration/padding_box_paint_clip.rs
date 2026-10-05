@@ -52,7 +52,7 @@ fn scroll_bleed_fixture(collapse: bool) -> (TuiDom, NodeId, NodeId) {
         }}
         "#
     );
-    let sheet = rdom_css::from_css(&css);
+    let sheet = rdom_css::from_css(&crate::common::border_box(&css));
     dom.cascade(&sheet);
     dom.layout_dom(Rect::new(0, 0, 30, 12));
     (dom, parent, child)
@@ -93,7 +93,7 @@ fn relayout(dom: &mut TuiDom, css_collapse: bool) {
         }}
         "#
     );
-    let sheet = rdom_css::from_css(&css);
+    let sheet = rdom_css::from_css(&crate::common::border_box(&css));
     dom.cascade(&sheet);
     dom.layout_dom(Rect::new(0, 0, 30, 12));
 }
@@ -258,7 +258,7 @@ fn first_child_with_matching_border_still_shares_under_collapse() {
             border-color: rgb(200, 50, 50);
         }
     "#;
-    let sheet = rdom_css::from_css(css);
+    let sheet = rdom_css::from_css(&crate::common::border_box(css));
     dom.cascade(&sheet);
     dom.layout_dom(Rect::new(0, 0, 30, 12));
 
@@ -301,7 +301,7 @@ fn overflow_visible_unchanged_by_padding_box_fix() {
             overflow: visible;
         }
     "#;
-    let sheet = rdom_css::from_css(css);
+    let sheet = rdom_css::from_css(&crate::common::border_box(css));
     dom.cascade(&sheet);
     dom.layout_dom(Rect::new(0, 0, 30, 12));
 
@@ -344,7 +344,7 @@ fn horizontal_axis_does_not_paint_over_border_left() {
             background-color: rgb(60, 60, 60);
         }
     "#;
-    let sheet = rdom_css::from_css(css);
+    let sheet = rdom_css::from_css(&crate::common::border_box(css));
     dom.cascade(&sheet);
     dom.layout_dom(Rect::new(0, 0, 30, 12));
 
@@ -402,7 +402,7 @@ fn scroll_top_clamp_uses_padding_box_viewport() {
             height: 20;
         }
     "#;
-    let sheet = rdom_css::from_css(css);
+    let sheet = rdom_css::from_css(&crate::common::border_box(css));
     dom.cascade(&sheet);
     dom.layout_dom(Rect::new(0, 0, 30, 12));
 
@@ -452,7 +452,7 @@ fn overflow_auto_no_overflow_does_not_reserve_gutter() {
             height: 5;
         }
     "#;
-    let sheet = rdom_css::from_css(css);
+    let sheet = rdom_css::from_css(&crate::common::border_box(css));
     dom.cascade(&sheet);
     dom.layout_dom(Rect::new(0, 0, 30, 12));
 
@@ -497,7 +497,7 @@ fn overflow_auto_with_overflow_reserves_gutter_after_two_pass() {
             height: 20;
         }
     "#;
-    let sheet = rdom_css::from_css(css);
+    let sheet = rdom_css::from_css(&crate::common::border_box(css));
     dom.cascade(&sheet);
     dom.layout_dom(Rect::new(0, 0, 30, 12));
 
@@ -542,7 +542,7 @@ fn overflow_auto_horizontal_axis_reserves_gutter_when_overflow() {
             height: 5;
         }
     "#;
-    let sheet = rdom_css::from_css(css);
+    let sheet = rdom_css::from_css(&crate::common::border_box(css));
     dom.cascade(&sheet);
     dom.layout_dom(Rect::new(0, 0, 60, 12));
 

@@ -6,6 +6,7 @@ use rdom_core::{Dom, NodeId};
 
 use crate::ext::TuiExt;
 use crate::layout::{Direction, Size, clamp_size};
+use crate::render::layout_pass::box_sizing::Sizer;
 use crate::render::layout_pass::intrinsic::intrinsic_size;
 use crate::style::ComputedStyle;
 
@@ -43,13 +44,17 @@ pub(super) fn resolve_block_height(
     // percentage would resolve without the basis, but treating every
     // `calc()` alike never hurts. `Flex` here means the shorthand was
     // used in a non-flex context: `auto`.
+    // The declared size measures the box `box-sizing` names (CSS UI 3
+    // §3.1); the sizer turns it into the border-box height stored.
+    let sizer = Sizer::vertical(computed, containing_block_width);
     let definite = match &computed.height {
         Size::Fixed(n) => Some(*n),
         Size::Percent(_) | Size::Calc(_) if parent_height_definite => {
             computed.height.cells(Some(container_height))
         }
         _ => None,
-    };
+    }
+    .map(|h| sizer.outer(h));
     // Otherwise the intrinsic content height — a walk of the child's
     // subtree. The cross budget passed to `intrinsic_size` is the WIDTH
     // descendants are laid out into (`Direction::Column` queries height;
@@ -71,9 +76,9 @@ pub(super) fn resolve_block_height(
     // Percentages resolve against the containing block's height when it
     // is definite (CSS 2.1 §10.7: else `0` / `none`).
     let basis = parent_height_definite.then_some(container_height);
-    let min_cells = computed.min_height.cells(basis);
-    let max_cells = computed.max_height.cells(basis);
-    clamp_size(raw, min_cells, max_cells)
+    let min_cells = sizer.outer_opt(computed.min_height.cells(basis));
+    let max_cells = sizer.outer_opt(computed.max_height.cells(basis));
+    sizer.floor(clamp_size(raw, min_cells, max_cells))
 }
 
 /// CSS 2.1 §10.5 — walk up to find the nearest block-flow ancestor

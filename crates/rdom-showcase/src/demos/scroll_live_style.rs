@@ -45,6 +45,9 @@ pub const MARKUP: &str = r#"<div class="scroll-style">
 </div>"#;
 
 pub const CSS: &str = r#"
+.scroll-style, .scroll-style *, .scroll-style *::before, .scroll-style *::after {
+  box-sizing: border-box;
+}
 .scroll-style {
   display: flex;
   flex-direction: column;

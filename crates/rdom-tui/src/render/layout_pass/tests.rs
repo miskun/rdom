@@ -359,15 +359,17 @@ fn content_layout_insets_by_padding() {
     cascade(&mut dom, &sheet);
     dom.layout_dom(Rect::new(0, 0, 50, 20));
 
+    // `box-sizing: content-box` (the initial value, CSS UI 3 §3.1): the
+    // declared 20 × 10 is the content box; the padding lies outside it.
     let outer = layout_rect_of(&dom, box_);
     let inner = content_rect_of(&dom, box_);
-    assert_eq!(outer.width, 20);
-    assert_eq!(outer.height, 10);
+    assert_eq!(outer.width, 20 + 4);
+    assert_eq!(outer.height, 10 + 2);
     // symmetric(2, 1) = h=2 (left/right), v=1 (top/bottom)
     assert_eq!(inner.x, outer.x + 2);
     assert_eq!(inner.y, outer.y + 1);
-    assert_eq!(inner.width, 20 - 4);
-    assert_eq!(inner.height, 10 - 2);
+    assert_eq!(inner.width, 20);
+    assert_eq!(inner.height, 10);
 }
 
 #[test]
@@ -387,12 +389,15 @@ fn content_layout_insets_by_border() {
     cascade(&mut dom, &sheet);
     dom.layout_dom(Rect::new(0, 0, 20, 10));
 
+    // Content-box sizing (CSS UI 3 §3.1): the border lies outside the
+    // declared 10 × 5.
     let outer = layout_rect_of(&dom, box_);
     let inner = content_rect_of(&dom, box_);
+    assert_eq!((outer.width, outer.height), (10 + 2, 5 + 2));
     assert_eq!(inner.x, outer.x + 1);
     assert_eq!(inner.y, outer.y + 1);
-    assert_eq!(inner.width, 10 - 2);
-    assert_eq!(inner.height, 5 - 2);
+    assert_eq!(inner.width, 10);
+    assert_eq!(inner.height, 5);
 }
 
 // ── Auto sizing ──────────────────────────────────────────────────
@@ -1545,6 +1550,7 @@ fn flex_row_with_collapse_shared_edge_is_one_cell() {
         .rule_unchecked(
             "outer",
             TuiStyle::new()
+                .box_sizing(crate::layout::BoxSizing::BorderBox)
                 .width(Size::Fixed(20))
                 .height(Size::Fixed(5))
                 .flow(Flow::Flex)
@@ -1555,12 +1561,14 @@ fn flex_row_with_collapse_shared_edge_is_one_cell() {
         .rule_unchecked(
             "a",
             TuiStyle::new()
+                .box_sizing(crate::layout::BoxSizing::BorderBox)
                 .width(Size::Fixed(8))
                 .border(Border::single()),
         )
         .rule_unchecked(
             "b",
             TuiStyle::new()
+                .box_sizing(crate::layout::BoxSizing::BorderBox)
                 .width(Size::Fixed(8))
                 .border(Border::single()),
         );
@@ -1601,6 +1609,7 @@ fn flex_row_collapse_inactive_keeps_separate_borders() {
         .rule_unchecked(
             "outer",
             TuiStyle::new()
+                .box_sizing(crate::layout::BoxSizing::BorderBox)
                 .width(Size::Fixed(20))
                 .height(Size::Fixed(5))
                 .flow(Flow::Flex)
@@ -1610,12 +1619,14 @@ fn flex_row_collapse_inactive_keeps_separate_borders() {
         .rule_unchecked(
             "a",
             TuiStyle::new()
+                .box_sizing(crate::layout::BoxSizing::BorderBox)
                 .width(Size::Fixed(8))
                 .border(Border::single()),
         )
         .rule_unchecked(
             "b",
             TuiStyle::new()
+                .box_sizing(crate::layout::BoxSizing::BorderBox)
                 .width(Size::Fixed(8))
                 .border(Border::single()),
         );
@@ -1723,6 +1734,7 @@ fn hit_test_at_shared_edge_returns_deeper_element() {
         .rule_unchecked(
             "outer",
             TuiStyle::new()
+                .box_sizing(crate::layout::BoxSizing::BorderBox)
                 .width(Size::Fixed(20))
                 .height(Size::Fixed(5))
                 .flow(Flow::Flex)
@@ -1733,12 +1745,14 @@ fn hit_test_at_shared_edge_returns_deeper_element() {
         .rule_unchecked(
             "a",
             TuiStyle::new()
+                .box_sizing(crate::layout::BoxSizing::BorderBox)
                 .width(Size::Fixed(8))
                 .border(Border::single()),
         )
         .rule_unchecked(
             "b",
             TuiStyle::new()
+                .box_sizing(crate::layout::BoxSizing::BorderBox)
                 .width(Size::Fixed(8))
                 .border(Border::single()),
         );
@@ -1778,6 +1792,7 @@ fn collapse_three_bordered_siblings_share_two_junctions() {
         .rule_unchecked(
             "outer",
             TuiStyle::new()
+                .box_sizing(crate::layout::BoxSizing::BorderBox)
                 .width(Size::Fixed(20))
                 .flow(Flow::Flex)
                 .direction(Direction::Row)
@@ -1787,18 +1802,21 @@ fn collapse_three_bordered_siblings_share_two_junctions() {
         .rule_unchecked(
             "a",
             TuiStyle::new()
+                .box_sizing(crate::layout::BoxSizing::BorderBox)
                 .width(Size::Fixed(6))
                 .border(Border::single()),
         )
         .rule_unchecked(
             "b",
             TuiStyle::new()
+                .box_sizing(crate::layout::BoxSizing::BorderBox)
                 .width(Size::Fixed(6))
                 .border(Border::single()),
         )
         .rule_unchecked(
             "c",
             TuiStyle::new()
+                .box_sizing(crate::layout::BoxSizing::BorderBox)
                 .width(Size::Fixed(6))
                 .border(Border::single()),
         );
@@ -1922,20 +1940,21 @@ fn nested_containers_lay_out_independently() {
     cascade(&mut dom, &sheet);
     dom.layout_dom(Rect::new(0, 0, 50, 20));
 
-    // outer.content = (1+1, 1+1, 20-4, 10-4) = (2, 2, 16, 6)
+    // Content-box sizing (CSS UI 3 §3.1): the declared 20 × 10 is the
+    // content box, so outer.content = (1+1, 1+1, 20, 10).
     let oc = content_rect_of(&dom, outer);
     assert_eq!(oc.x, 2);
     assert_eq!(oc.y, 2);
-    assert_eq!(oc.width, 16);
-    assert_eq!(oc.height, 6);
+    assert_eq!(oc.width, 20);
+    assert_eq!(oc.height, 10);
 
     // inner at (2, 2) with height 4.
     let il = layout_rect_of(&dom, inner);
     assert_eq!(il.x, 2);
     assert_eq!(il.y, 2);
     assert_eq!(il.height, 4);
-    // inner stretches cross-axis (Column direction means cross=width=16)
-    assert_eq!(il.width, 16);
+    // inner stretches cross-axis (Column direction means cross=width=20)
+    assert_eq!(il.width, 20);
 
     // leaf at inner's content (no padding/border on inner), y=2, height=2
     let leaf_rect = layout_rect_of(&dom, leaf);
@@ -4086,9 +4105,10 @@ fn percent_padding_resolves_against_the_containing_block_width() {
         );
     cascade(&mut dom, &sheet);
     dom.layout_dom(Rect::new(0, 0, 80, 10));
-    // 10% of the 40-cell containing block = 4, not 10% of the own 20.
+    // 10% of the 40-cell containing block = 4, not 10% of the own 20;
+    // the declared 20 is the content box (content-box sizing).
     assert_eq!(content_rect_of(&dom, c).x, 4);
-    assert_eq!(content_rect_of(&dom, c).width, 16);
+    assert_eq!(content_rect_of(&dom, c).width, 20);
 }
 
 /// `BFC1-MARGIN-PERCENT-CHAIN-1`: calc / percent vertical margins

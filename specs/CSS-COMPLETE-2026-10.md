@@ -123,7 +123,7 @@ row comes from.
 
 | Id | Item | Status |
 |---|---|---|
-| C5-BOX-SIZING | `box-sizing` (`content-box` is the CSS initial value — breaking default change, migration note) | |
+| C5-BOX-SIZING | `box-sizing` (`content-box` is the CSS initial value — breaking default change, migration note) | done |
 | C5-INTRINSIC | `min-content` / `max-content` / `fit-content()` on width / height / min / max | |
 | C5-MINMAX-SIZE | `min-*` / `max-*`: `none`, `%`, `calc()` | done (`%` / `calc()` with C2-PERCENT, `none` with C2G-MAX-NONE) |
 | C5-MARGIN-TRIM | `margin-trim` | |
@@ -1378,3 +1378,46 @@ row comes from.
   scheduler (262: the queues), pump (107: the drains and the microtask checkpoint), ext (86:
   `TuiTimers`), tests (550)}`. Public paths unchanged (`runtime::timers::{TimerCtx, TimerId,
   TuiTimers}`, `accessors::*`). Every test passes unchanged.
+- 2026-10-07 — C5-BOX-SIZING: `box-sizing: content-box | border-box` (CSS UI 3 §3.1, now CSS Sizing 3
+  "Box Edges for Sizing"), initial `content-box`, not inherited (`BoxSizing`, a closed keyword enum;
+  `TuiStyle` / `ComputedStyle::box_sizing`, `ImportantMask::BOX_SIZING`, builder, node setter and
+  accessor, root and prelude re-exports). Decided — one conversion point: `render/layout_pass/
+  box_sizing.rs::Sizer` (per axis: the box-sizing and the padding + border, padding percentages
+  against the containing block's width) turns a declared size into the border box layout stores
+  (`outer`: + chrome under `content-box`, `max(size, chrome)` under `border-box`), a bound into the
+  content box `auto` heights clamp (`inner`), and floors any used border box at the chrome (`floor`).
+  Every size-reading site goes through it: block width / height / auto height, flex main sizes, the
+  auto minimum (its floor is at least the chrome, so a scroll container shrunk by flex keeps its
+  border), the cross size, `aspect-ratio` (Sizing 4 §5.1: the ratio applies to the box `box-sizing`
+  names — content box for `content-box` or `auto && <ratio>`), positioned boxes and pseudo-elements,
+  and intrinsic contributions (`Fixed` short-circuit, `wrapped_rows`). A table's used column width is
+  already a border box and is not converted. Found: `auto_height` already clamped `min-height` /
+  `max-height` as content sizes while block width clamped them as border sizes — both now follow the
+  property. UA, matching the browser: the HTML rendering section's rule (`input:is([type=radio],
+  [type=checkbox], [type=reset], [type=button], [type=submit], [type=color], [type=search]), select,
+  button { box-sizing: border-box }`) plus `meter` / `progress` (Chromium `html.css`) is one new
+  11-selector UA rule (UA count 150 → 161); text inputs and textareas stay `content-box` (22 columns
+  with the UA padding — browser-faithful); `hr` is `height: 0` (one row, its border, under either
+  sizing). Found: rdom rejects a bare pseudo-element (`::before` for `*::before`, Selectors 4 §5.2),
+  so the common `*, ::before, ::after` reset drops its whole rule — the migration and fixtures use
+  `*, *::before, *::after`; recorded in DIVERGENCES §3 under C10-PSEUDO-CHAINS. Red: the rdom-style
+  dispatch tests failed to compile (`BoxSizing`, `box_sizing` missing) and every
+  `css_phase5::box_sizing` sheet failed `from_css_strict` (`box-sizing` unknown); green after, with
+  `layout_dirty_flag_reacts_to_box_sizing` and the `Sizer` unit tests. Changed expectations: the C4G
+  pin `a_percentage_radius_against_a_zero_size_box` asserted the old bug (a zero-size bordered box
+  drew nothing) — it now asserts the floored 2-cell boxes, rounded; chrome-geometry unit tests
+  (`content_layout_insets_by_padding` / `_by_border`, `nested_containers_lay_out_independently`,
+  `percent_padding_resolves_against_the_containing_block_width`) now assert content-box geometry;
+  `textarea_wraps_long_input_and_enter_inserts_newline` sizes its textarea's content box (14, was 16
+  as a border box); `css_values` gives `.c` (the `auto && <ratio>` case) and the percent-padding item
+  `box-sizing: border-box` so their arithmetic stands; the UA user-select tests no longer assume one
+  rule per selector. Fixtures written against border-box sizing (the border / collapse / paint unit
+  tests, `css_phase4*`, `border_model_contract`, the collapse and padding-box files) declare it — the
+  integration files through `common::border_box`. Showcase: the shell declares the reset and eight
+  demos the same reset scoped to their root class (demo sheets stay class-scoped, `registry` test);
+  rdom-tui's `parse_and_render` example declares it too; `rdom-showcase/src/shell.rs` (858 lines, touched)
+  split: `shell/mod.rs` (536, the chrome builder) and `shell/base_css.rs` (333, `BASE_CSS`); one snapshot changed — `raf_progress`: its
+  `.track { height: 1; border: solid }` drew only a top border under the unfloored sizing (the bar had
+  no row); floored it is 2 rows, so the demo now says `height: 3` and the snapshot shows the full
+  track with its content row. DIVERGENCES §2 "Boxes size as border-box" and §3's `box-sizing` line
+  removed.

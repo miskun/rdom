@@ -27,6 +27,7 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::ext::{PseudoLayout, TuiExt};
 use crate::layout::{Display, LayoutRect, Position};
+use crate::render::layout_pass::box_sizing::Sizer;
 use crate::style::ComputedStyle;
 
 use super::positioning::{
@@ -262,6 +263,7 @@ fn compute_placed_rect(
     // content's size.
     let width = resolve_size_axis(
         &style.width,
+        Sizer::horizontal(style, cb.width),
         cb.width,
         &style.left,
         &style.right,
@@ -270,6 +272,7 @@ fn compute_placed_rect(
     );
     let height = resolve_size_axis(
         &style.height,
+        Sizer::vertical(style, cb.width),
         cb.height,
         &style.top,
         &style.bottom,

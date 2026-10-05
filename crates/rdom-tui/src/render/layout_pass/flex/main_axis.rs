@@ -12,6 +12,7 @@ use crate::ext::TuiExt;
 use crate::layout::{Direction, MarginValue, Size};
 use crate::node::TuiNodeExt;
 use crate::render::layout_pass::block::nearest_block_ancestor_height_is_definite;
+use crate::render::layout_pass::box_sizing::Sizer;
 use crate::render::layout_pass::intrinsic::intrinsic_size;
 use crate::style::ComputedStyle;
 
@@ -86,23 +87,32 @@ pub(super) fn collect_main_axis_items(
             .computed_rc()
             .unwrap_or_else(|| std::rc::Rc::new(ComputedStyle::initial()));
         let (main_size, min_raw, max) = match direction {
-            Direction::Row => (c.width.clone(), &c.min_width, &c.max_width),
-            Direction::Column => (c.height.clone(), &c.min_height, &c.max_height),
+            Direction::Row => (&c.width, &c.min_width, &c.max_width),
+            Direction::Column => (&c.height, &c.min_height, &c.max_height),
         };
+        // Margin and padding percentages resolve against the parent's
+        // width — CSS 2.1 §8.3 always uses width, so `main_budget` for
+        // a Row main axis and `cross_budget` (the parent's width) for a
+        // Column one.
+        let main_cb_w = match direction {
+            Direction::Row => main_budget,
+            Direction::Column => cross_budget,
+        };
+        // Declared main sizes measure the box `box-sizing` names (CSS UI
+        // 3 §3.1); the sizer turns each into the border box the line
+        // distributes.
+        let sizer = Sizer::along(&c, direction, main_cb_w);
         // `min-*` / `max-*` percentages resolve against the container's
         // main size, as the main size's own do (CSS Sizing 3 §5.2).
-        let max = max.cells(main_basis);
+        let max = sizer.outer_opt(max.cells(main_basis));
         // TABLE-COLSYNC-1: a table cell's *used* column width — computed by
         // `size_columns` from the column's author widths + content and stored
         // on the cell's ext (layout output, NOT author `inline_style`) —
         // overrides the normal main-size resolution so every cell in the
         // column lines up. A width drives the Row main axis only.
-        let main_size = match (
-            direction,
-            dom.node(child).ext().and_then(|e| e.table_used_width),
-        ) {
-            (Direction::Row, Some(w)) => Size::Fixed(w),
-            _ => main_size,
+        let used_column_width = match direction {
+            Direction::Row => dom.node(child).ext().and_then(|e| e.table_used_width),
+            Direction::Column => None,
         };
 
         // Main-axis margins (M5.3b). Cells contribute to consumed
@@ -111,14 +121,6 @@ pub(super) fn collect_main_axis_items(
         let (main_start_m, main_end_m) = match direction {
             Direction::Row => (c.margin.left.clone(), c.margin.right.clone()),
             Direction::Column => (c.margin.top.clone(), c.margin.bottom.clone()),
-        };
-        // Resolve margin values (including Calc-with-percent) against
-        // the parent's main-axis budget — CSS 2.1 §8.3 always uses
-        // width, so `main_budget` is correct for Row main, and we
-        // use `cross_budget` for Column main (= parent's width).
-        let main_cb_w = match direction {
-            Direction::Row => main_budget,
-            Direction::Column => cross_budget,
         };
         let margin_consumed = |m: &MarginValue| -> i32 {
             if m.is_auto() {
@@ -138,15 +140,20 @@ pub(super) fn collect_main_axis_items(
         // A percentage or `calc()` resolves against the parent's
         // main-axis content area at layout time, and is a fixed cell
         // value once resolved — it does NOT take part in flex weight
-        // distribution.
-        let natural = match (&main_size, main_size.cells(Some(main_budget))) {
-            (Size::Flex(w), _) => MainNatural::Flex(*w),
-            (_, Some(cells)) => MainNatural::Fixed(cells),
-            _ => {
-                // The container's inner width is definite here, so the
-                // item's percent padding / margins resolve against it.
-                let intrinsic = intrinsic_size(dom, child, direction, cross_budget, main_cb_w);
-                MainNatural::Auto(intrinsic)
+        // distribution. A used column width is already a border box.
+        let natural = if let Some(w) = used_column_width {
+            MainNatural::Fixed(w)
+        } else {
+            match (main_size, main_size.cells(Some(main_budget))) {
+                (Size::Flex(w), _) => MainNatural::Flex(*w),
+                (_, Some(cells)) => MainNatural::Fixed(sizer.outer(cells)),
+                _ => {
+                    // The container's inner width is definite here, so
+                    // the item's percent padding / margins resolve
+                    // against it.
+                    let intrinsic = intrinsic_size(dom, child, direction, cross_budget, main_cb_w);
+                    MainNatural::Auto(intrinsic)
+                }
             }
         };
 
@@ -183,7 +190,7 @@ pub(super) fn collect_main_axis_items(
         // v1 approximates CSS min-content with intrinsic natural
         // size; strict min-content (longest-word width with wrap)
         // is a future polish tracked as `M5-MIN-CONTENT-2`.
-        let min = min_raw.cells(main_basis);
+        let min = sizer.outer_opt(min_raw.cells(main_basis));
 
         if let MainNatural::Fixed(n) | MainNatural::Auto(n) = natural {
             consumed_fixed += i32::from(n);

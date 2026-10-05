@@ -190,6 +190,13 @@ pub fn serialize(name: &str, style: &TuiStyle) -> Option<String> {
             .as_ref()
             .and_then(specified)
             .map(|s| s.to_css()),
+        "box-sizing" => style.box_sizing.as_ref().and_then(specified).map(|b| {
+            match b {
+                crate::layout::BoxSizing::ContentBox => "content-box",
+                crate::layout::BoxSizing::BorderBox => "border-box",
+            }
+            .to_string()
+        }),
         "scroll-behavior" => style.scroll_behavior.as_ref().and_then(specified).map(|b| {
             match b {
                 crate::layout::ScrollBehavior::Auto => "auto",

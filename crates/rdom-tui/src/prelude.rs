@@ -77,6 +77,7 @@ pub use crate::{
     BorderWeight,
     BorderWidth,
     BoxShadow,
+    BoxSizing,
     Buffer,
     // Style types (cascade layer)
     CascadeExt,

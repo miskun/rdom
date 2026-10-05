@@ -9,6 +9,7 @@ use super::main_axis::{ChildMain, MainNatural};
 use crate::ext::TuiExt;
 use crate::layout::{Direction, Overflow, Size, clamp_size};
 use crate::node::TuiNodeExt;
+use crate::render::layout_pass::box_sizing::Sizer;
 use crate::render::layout_pass::intrinsic::content_min_size;
 
 /// Budget figures the §9.7 freeze loops distribute against.
@@ -286,29 +287,34 @@ fn resolve_auto_min(
         Direction::Row => computed.overflow_x,
         Direction::Column => computed.overflow_y,
     };
-    // CSS §4.5 exception: non-visible overflow drops the floor to 0
-    // — items inside a scroll container are allowed to be sized
-    // below their content.
-    if overflow_on_axis != Overflow::Visible {
-        return 0;
-    }
-    // Specified size suggestion per spec.
-    let specified_cap: Option<u16> = match main_size {
-        Size::Flex(_) => Some(0),
-        definite => definite.cells(Some(main_budget)),
-    };
-    // `flex: N` (basis 0%) trivially has specified=0, so auto-min
-    // = min(content, 0) = 0. Skip the content walk.
-    if matches!(specified_cap, Some(0)) {
-        return 0;
-    }
     let cb_width = match direction {
         Direction::Row => main_budget,
         Direction::Column => cross_budget,
     };
+    // Whatever the suggestion, the content box is never negative: the
+    // floor is at least the item's padding and border on the axis (CSS
+    // Flexbox §9.7 clamps the target main size to the content box's 0).
+    let sizer = Sizer::along(&computed, direction, cb_width);
+    // CSS §4.5 exception: non-visible overflow drops the floor to 0
+    // — items inside a scroll container are allowed to be sized
+    // below their content.
+    if overflow_on_axis != Overflow::Visible {
+        return sizer.chrome();
+    }
+    // Specified size suggestion per spec: the declared main size, as
+    // the border box `box-sizing` makes of it (CSS UI 3 §3.1).
+    let specified_cap: Option<u16> = match main_size {
+        Size::Flex(_) => Some(0),
+        definite => sizer.outer_opt(definite.cells(Some(main_budget))),
+    };
+    // `flex: N` (basis 0%) trivially has specified=0, so auto-min
+    // = min(content, 0) = 0. Skip the content walk.
+    if matches!(specified_cap, Some(0)) {
+        return sizer.chrome();
+    }
     let content = content_min_size(dom, id, direction, cross_budget, cb_width);
-    match specified_cap {
+    sizer.floor(match specified_cap {
         Some(cap) => content.min(cap),
         None => content,
-    }
+    })
 }

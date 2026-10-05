@@ -70,6 +70,7 @@ mod block;
 #[cfg(test)]
 mod block_tests;
 mod border_collapse;
+mod box_sizing;
 mod flex;
 pub(crate) mod geometry;
 mod gutter;

@@ -22,7 +22,8 @@ fn el(dom: &mut TuiDom, parent: NodeId, class: &str, text: &str) -> NodeId {
 /// Cascade `css` (no warning allowed), lay out and paint into a
 /// `w` × `h` buffer.
 fn paint(dom: &mut TuiDom, css: &str, w: u16, h: u16) -> Buffer {
-    let sheet = rdom_css::from_css_strict(css).expect("sheet parses without warnings");
+    let sheet = rdom_css::from_css_strict(&crate::common::border_box(css))
+        .expect("sheet parses without warnings");
     dom.cascade(&sheet);
     let area = Rect::new(0, 0, w, h);
     dom.layout_dom(area);

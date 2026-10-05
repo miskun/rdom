@@ -13,7 +13,7 @@ use rdom_tui::render::{Buffer, Rect};
 use rdom_tui::{CascadeExt, LayoutExt, PaintExt, TuiDom, TuiNodeExt};
 
 fn pipeline(dom: &mut TuiDom, css: &str, viewport: Rect) -> Buffer {
-    let sheet = rdom_css::from_css(css);
+    let sheet = rdom_css::from_css(&crate::common::border_box(css));
     dom.cascade(&sheet);
     dom.layout_dom(viewport);
     let mut buf = Buffer::empty(viewport);

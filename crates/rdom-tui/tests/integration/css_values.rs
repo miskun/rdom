@@ -78,7 +78,7 @@ fn percent_padding_in_intrinsic_size_uses_the_containing_block_width() {
     lay_out(
         &mut dom,
         ".col { display: flex; flex-direction: column; width: 40; height: 20 }
-         .in { width: 30; padding: 0 25% }",
+         .in { width: 30; padding: 0 25%; box-sizing: border-box }",
         80,
         40,
     );
@@ -487,8 +487,9 @@ fn angles_feed_the_trigonometric_functions() {
 /// CSS Values 4 §5.7: `<ratio> = <number [0,∞]> [ / <number [0,∞]> ]?`
 /// (a lone number is over 1, fractions allowed); CSS Sizing 4 §5.1:
 /// `aspect-ratio: auto || <ratio>` — with `auto` (and no natural ratio,
-/// as nothing in rdom has one) the ratio sizes the content box, and a
-/// degenerate ratio (a zero term) behaves as `auto`.
+/// as nothing in rdom has one) the ratio sizes the content box even
+/// under `box-sizing: border-box`, and a degenerate ratio (a zero term)
+/// behaves as `auto`.
 #[test]
 fn aspect_ratio_takes_the_full_ratio_grammar() {
     let mut dom = TuiDom::new();
@@ -501,7 +502,7 @@ fn aspect_ratio_takes_the_full_ratio_grammar() {
         ".row { display: flex; flex-direction: row; width: 100; height: 30 }
          .a { width: 20; aspect-ratio: 2 }
          .b { width: 20; aspect-ratio: 1.5 / 0.75 }
-         .c { width: 20; aspect-ratio: auto 2/1; padding: 0 4 }
+         .c { width: 20; aspect-ratio: auto 2/1; padding: 0 4; box-sizing: border-box }
          .d { width: 20; aspect-ratio: 0 / 1 }
          .e { width: 20; aspect-ratio: 2 / 1 auto }",
         120,

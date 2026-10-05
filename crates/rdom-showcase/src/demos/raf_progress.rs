@@ -36,6 +36,9 @@ pub const MARKUP: &str = r#"<div class="raf-demo">
 </div>"#;
 
 pub const CSS: &str = r#"
+.raf-demo, .raf-demo *, .raf-demo *::before, .raf-demo *::after {
+  box-sizing: border-box;
+}
 .raf-demo {
   flex: 1;
   display: flex;
@@ -54,7 +57,7 @@ pub const CSS: &str = r#"
   height: 1;
 }
 .raf-demo .track {
-  height: 1;
+  height: 3;
   width: 50;
   border: solid;
   border-color: rgb(120, 130, 150);

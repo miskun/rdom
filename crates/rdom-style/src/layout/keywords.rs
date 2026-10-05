@@ -74,6 +74,20 @@ pub enum ScrollBehavior {
     Smooth,
 }
 
+/// CSS `box-sizing` (CSS UI 3 §3.1, now CSS Sizing 3 "Box Edges for
+/// Sizing"): which box `width` / `height` and their `min-*` / `max-*`
+/// measure. Not inherited; initial `content-box`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum BoxSizing {
+    /// The sizes measure the content box; padding and border lie
+    /// outside them. The CSS initial value.
+    #[default]
+    ContentBox,
+    /// The sizes measure the border box; the content box is what is
+    /// left after padding and border, floored at zero.
+    BorderBox,
+}
+
 /// Cross-axis alignment. Maps to CSS `align-items`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Align {

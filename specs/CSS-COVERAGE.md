@@ -74,7 +74,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.3 Values and units (Values 4) | 15 | 2 | 1 | 4 | 22 |
 | 3.4 Color (Color 4 / 5) | 15 | 1 | 0 | 1 | 17 |
 | 3.5 Backgrounds and borders (Backgrounds 3, Borders 4) | 13 | 1 | 0 | 2 | 16 |
-| 3.6 Box model and sizing (Box 3, Sizing 3/4) | 3 | 3 | 3 | 0 | 9 |
+| 3.6 Box model and sizing (Box 3, Sizing 3/4) | 4 | 3 | 2 | 0 | 9 |
 | 3.7 Display and visibility (Display 3) | 1 | 0 | 8 | 2 | 11 |
 | 3.8 Flexbox and box alignment (Flexbox 1, Align 3) | 3 | 3 | 11 | 0 | 17 |
 | 3.9 Grid (Grid 1/2) | 0 | 0 | 10 | 0 | 10 |
@@ -93,11 +93,11 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 0 | 0 | 6 | 3 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **104** | **29** | **125** | **49** | **307** |
+| **Total** | **105** | **29** | **124** | **49** | **307** |
 
-When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 154 rows Partial / Missing.
+When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 153 rows Partial / Missing.
 
-Headline: rdom parses **90 property names** (`PROPERTY_NAMES`, after Phase 4). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are flex alignment (`justify-content`, `align-items`), `flex-wrap`, the `flex-grow` / `flex-basis` longhands, `line-height`, `text-align`, `visibility`, `box-sizing`, and grid.
+Headline: rdom parses **91 property names** (`PROPERTY_NAMES`, after C5-BOX-SIZING). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are flex alignment (`justify-content`, `align-items`), `flex-wrap`, the `flex-grow` / `flex-basis` longhands, `line-height`, `text-align`, `visibility`, and grid.
 
 ---
 
@@ -116,7 +116,7 @@ pasted CSS. The first block is what a typical component stylesheet hits in its f
 | 6 | `line-height` | Rows per line box in whole rows: `normal` / `1` = one row; `2` = text on the first row of each two-row line box (blank row below, or half-leading split rounded); `<cells>`. | M | No |
 | 7 | `text-align` (+ `text-align-last`, `text-justify`) | Per-line horizontal placement of inline content in the line box: `start` / `end` / `left` / `right` / `center` / `justify` (spread whole spaces between words). | M | Yes |
 | 8 | `visibility` | `hidden`: box keeps its space, paints nothing, is not hit-testable, children may override with `visible`; `collapse` = `hidden` (table rows: removed). | S | No |
-| 9 | `box-sizing` | rdom is implicitly `border-box` everywhere (code comment in `BLOCK/width.rs`); `content-box` (the CSS initial value) would add padding + border cells to `width` / `height`. Pasted CSS that relies on the default is off by `2 × (padding + border)`. | M | No |
+| 9 | `box-sizing` | Shipped (C5-BOX-SIZING; §3.6): `content-box` is the initial value, `border-box` sizes the border box and floors it at padding + border; the CHANGELOG gives the `*, *::before, *::after { box-sizing: border-box }` migration. | M | No |
 | 10 | `outline` (+ `-color`, `-style`, `-width`, `-offset`) | A border ring drawn one cell outside the border box, taking no layout space, painted over neighbors on the top layer; `outline-offset` in whole cells. The natural keyboard-focus ring a TUI otherwise lacks. | M | No |
 | 11 | `overflow-wrap` / `word-break` | `overflow-wrap: anywhere / break-word` and `word-break: break-all` break an over-long word at a cell boundary instead of overflowing and clipping (today's `overflow-wrap: normal`); `word-break: keep-all` for CJK. | M | No |
 | 12 | `text-overflow` | `ellipsis`: the last visible cell of a clipped line becomes `…`; `<string>` form uses that string; applies with `overflow: hidden` + `white-space: nowrap`. | S | No |
@@ -332,7 +332,7 @@ dropped. The audit's six, with where each stands:
 | `width` / `height` | Partial | `auto`, cells, `%`, `calc()`, rdom `fr`; missing `min-content` / `max-content` / `fit-content` / `fit-content(<l>)` / `stretch`. | No | `V/length.rs::parse_size`, `BOX::Size` |
 | `min-width` / `min-height` | Partial | `auto`, cells, `%`, `calc()` (C2-PERCENT); no intrinsic keywords (C5-INTRINSIC). | No | `V/length.rs::parse_min_size` |
 | `max-width` / `max-height` | Partial | Cells, `%`, `calc()` (C2-PERCENT), `none` (the initial value; C2G-MAX-NONE completes C5-MINMAX-SIZE); intrinsic keywords rejected (C5-INTRINSIC). | No | `V/length.rs::parse_max_size` |
-| `box-sizing` | Missing | rdom is implicitly `border-box`; `content-box` (CSS initial) is not expressible. | No | `BLOCK/width.rs`, `FLEX` |
+| `box-sizing` | Supported | `content-box` (the initial value) / `border-box`; every layout site converts through one `Sizer` (`render/layout_pass/box_sizing.rs`), and the border box is floored at padding + border (C5-BOX-SIZING). UA form controls follow the HTML rendering rules. | — | `KW`, layout `box_sizing.rs` |
 | `aspect-ratio` | Supported | `auto || <ratio>`; `auto && <ratio>` sizes the content box; degenerate ratios behave as `auto` (C2-RATIO). Cell-grid rounding documented. | — | `V/number.rs`, `FLEX/cross.rs` |
 | `contain-intrinsic-size` (+ longhands) | Missing | Placeholder size for `content-visibility: auto`. | No | `DISP`, layout |
 
@@ -726,7 +726,7 @@ implementation or a `DIVERGENCES.md` entry before the acid page's coverage test 
 - `width` / `height` — Partial: `auto`, cells, `%`, `calc()`, rdom `fr`; missing `min-content` / `max-content` / `fit-content` / `fit-content(<l>)` / `stretch`.
 - `min-width` / `min-height` — Partial: `auto` / cells only; no `%`, `calc()`, intrinsic keywords.
 - `max-width` / `max-height` — Partial: Cells / constant `calc()` only; `none` (the initial value), `%`, percent `calc()`, intrinsic keywords rejected.
-- `box-sizing` — Missing: rdom is implicitly `border-box`; `content-box` (CSS initial) is not expressible.
+- `box-sizing` — Missing: rdom is implicitly `border-box`; `content-box` (CSS initial) is not expressible. *Shipped: C5-BOX-SIZING.*
 - `contain-intrinsic-size` (+ longhands) — Missing: Placeholder size for `content-visibility: auto`.
 
 **3.7 Display and visibility (Display 3)**
@@ -896,7 +896,8 @@ undocumented gaps of §5 and extensions of §4 are now listed there too (§3 and
 4. **`var()` is said to be consumed in `content`** (§Cascade & selectors). `parse_content` has
    no `var()` arm; only the Rust builder `Content::Var` reaches the resolver.
 5. **`box-sizing`**: `BLOCK/width.rs` says the implicit `border-box` is "documented in
-   `DIVERGENCES.md` under Values"; it is not.
+   `DIVERGENCES.md` under Values"; it is not. *Resolved: C5-BOX-SIZING — `box-sizing` is a
+   property with the CSS initial value, and the comment is gone.*
 6. **Units** (§1, "Length units"): `ch` and the viewport units are grouped with `px` / `em` as
    depending "on a pixel or font-size concept the terminal grid doesn't have". `1ch` is exactly
    one column on a monospaced grid and `vw` / `vh` are percentages of the terminal size rdom

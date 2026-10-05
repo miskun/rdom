@@ -22,6 +22,9 @@ pub const MARKUP: &str = r#"<div class="scroll-list-demo">
 </div>"#;
 
 pub const CSS: &str = r#"
+.scroll-list-demo, .scroll-list-demo *, .scroll-list-demo *::before, .scroll-list-demo *::after {
+  box-sizing: border-box;
+}
 .scroll-list-demo {
   /* FILL demo: claim the full view pane so the inner `.list` has a
    * bounded height to scroll against (rather than letting the whole

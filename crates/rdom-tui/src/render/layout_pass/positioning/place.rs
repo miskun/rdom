@@ -11,6 +11,7 @@ use crate::style::ComputedStyle;
 
 use super::axis::axis_size_from_edges;
 use super::*;
+use crate::render::layout_pass::box_sizing::Sizer;
 
 /// After phase-1 flex layout completes, walk the tree in document
 /// order and place every `position: absolute | fixed` element
@@ -91,24 +92,40 @@ fn compute_placed_rect(
     // against the containing-block's matching axis. The intrinsic
     // measurement only runs when an `auto` axis is not pinned by both
     // edges (it walks the subtree).
-    let width = resolve_size_axis(&c.width, cb.width, &c.left, &c.right, cb.width, || {
-        crate::render::layout_pass::intrinsic::intrinsic_size(
-            dom,
-            id,
-            Direction::Row,
-            cb.width,
-            cb.width,
-        )
-    });
-    let height = resolve_size_axis(&c.height, cb.height, &c.top, &c.bottom, cb.height, || {
-        crate::render::layout_pass::intrinsic::intrinsic_size(
-            dom,
-            id,
-            Direction::Column,
-            width,
-            cb.width,
-        )
-    });
+    let width = resolve_size_axis(
+        &c.width,
+        Sizer::horizontal(c, cb.width),
+        cb.width,
+        &c.left,
+        &c.right,
+        cb.width,
+        || {
+            crate::render::layout_pass::intrinsic::intrinsic_size(
+                dom,
+                id,
+                Direction::Row,
+                cb.width,
+                cb.width,
+            )
+        },
+    );
+    let height = resolve_size_axis(
+        &c.height,
+        Sizer::vertical(c, cb.width),
+        cb.height,
+        &c.top,
+        &c.bottom,
+        cb.height,
+        || {
+            crate::render::layout_pass::intrinsic::intrinsic_size(
+                dom,
+                id,
+                Direction::Column,
+                width,
+                cb.width,
+            )
+        },
+    );
 
     // M5.3b — absolute element centering via `margin: auto` between
     // resolved insets. CSS rule: when both axis insets are `Cells`
@@ -181,19 +198,22 @@ fn compute_placed_rect(
 
 /// Resolve a positioned box's `Size` on one axis (CSS 2.1 §10.3.7 /
 /// §10.6.4) against the containing block's extent: a definite size is
-/// the size; `auto` spans between the start / end edges when both are
-/// non-auto, else is `shrink_to_fit` (the content's size). Shared by
-/// positioned elements and positioned pseudo-elements.
+/// the size, measured as `box-sizing` says (`sizer`, CSS UI 3 §3.1);
+/// `auto` spans between the start / end edges when both are non-auto,
+/// else is `shrink_to_fit` (the content's size). The border box is
+/// never smaller than the padding and border. Shared by positioned
+/// elements and positioned pseudo-elements.
 pub(in crate::render::layout_pass) fn resolve_size_axis(
     size: &Size,
+    sizer: Sizer,
     cb_extent: u16,
     start: &Length,
     end: &Length,
     edges_basis: u16,
     shrink_to_fit: impl FnOnce() -> u16,
 ) -> u16 {
-    match (size, size.cells(Some(cb_extent))) {
-        (_, Some(cells)) => cells,
+    sizer.floor(match (size, size.cells(Some(cb_extent))) {
+        (_, Some(cells)) => sizer.outer(cells),
         (Size::Flex(_), _) => cb_extent,
         _ => {
             let both_edges = start.cells(edges_basis as i32).is_some()
@@ -204,5 +224,5 @@ pub(in crate::render::layout_pass) fn resolve_size_axis(
                 shrink_to_fit()
             }
         }
-    }
+    })
 }

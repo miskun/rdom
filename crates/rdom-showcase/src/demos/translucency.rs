@@ -27,6 +27,9 @@ pub const MARKUP: &str = r#"<div class="translucency">
 </div>"#;
 
 pub const CSS: &str = r#"
+.translucency, .translucency *, .translucency *::before, .translucency *::after {
+  box-sizing: border-box;
+}
 .translucency {
   position: relative;
   padding: 1 2;

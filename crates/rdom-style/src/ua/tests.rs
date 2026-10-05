@@ -35,7 +35,10 @@ fn ua_total_rule_count() {
     // 150: `<input type=image>` (P7G-INPUT-IMAGE-1) joins the button
     // family's box and `::after` lists (+2) and gets its `alt` /
     // default `::before` labels (+2).
-    assert_eq!(ua.len(), 150);
+    // 161: `box-sizing: border-box` for the HTML rendering section's
+    // form controls plus `meter` / `progress` (C5-BOX-SIZING), an
+    // 11-selector rule (+11).
+    assert_eq!(ua.len(), 161);
     let disabled = ua
         .iter()
         .find(|r| r.source_text == ":disabled")
@@ -232,13 +235,8 @@ fn ua_buttons_are_unselectable() {
     use crate::layout::UserSelect;
 
     let s = Stylesheet::new();
-    let ua: std::collections::HashMap<String, &Rule> = s
-        .rules()
-        .iter()
-        .filter(|r| r.origin == RuleOrigin::UserAgent)
-        .map(|r| (r.source_text.clone(), r))
-        .collect();
-
+    // A selector can head several UA rules (the `box-sizing` rule lists
+    // the buttons too), so look for the one that declares it.
     for sel in [
         "button",
         "input[type=button]",
@@ -246,12 +244,13 @@ fn ua_buttons_are_unselectable() {
         "input[type=image]",
         "input[type=reset]",
     ] {
-        let r = ua
-            .get(sel)
-            .unwrap_or_else(|| panic!("missing UA rule for `{sel}`"));
-        assert_eq!(
-            r.style.user_select,
-            Some(Value::Specified(UserSelect::None)),
+        let declared = s
+            .rules()
+            .iter()
+            .filter(|r| r.origin == RuleOrigin::UserAgent && r.source_text == sel)
+            .any(|r| r.style.user_select == Some(Value::Specified(UserSelect::None)));
+        assert!(
+            declared,
             "`{sel}` must declare user-select: none: a button label is not prose"
         );
     }
@@ -263,7 +262,7 @@ fn ua_buttons_are_unselectable() {
 #[test]
 fn ua_toggles_and_range_leave_user_select_alone() {
     let s = Stylesheet::new();
-    let mut seen = 0;
+    let mut seen = std::collections::HashSet::new();
     for r in s
         .rules()
         .iter()
@@ -277,14 +276,14 @@ fn ua_toggles_and_range_leave_user_select_alone() {
             .contains(&r.source_text.as_str())
         })
     {
-        seen += 1;
+        seen.insert(r.source_text.as_str());
         assert_eq!(
             r.style.user_select, None,
             "`{}` must not declare user-select",
             r.source_text
         );
     }
-    assert_eq!(seen, 3, "all three UA rules present");
+    assert_eq!(seen.len(), 3, "all three UA rules present");
 }
 
 /// CSS Color 4 §6.2: the system colors are the UA sheet's own colors —

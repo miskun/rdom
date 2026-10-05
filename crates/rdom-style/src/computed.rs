@@ -53,6 +53,9 @@ pub struct ComputedStyle {
     /// `min-height`; initial `auto`.
     pub min_height: crate::layout::MinSize,
     pub max_height: crate::layout::MaxSize,
+    /// `box-sizing` (CSS UI 3 §3.1): which box `width` / `height` and
+    /// `min-*` / `max-*` measure. Initial `content-box`.
+    pub box_sizing: crate::layout::BoxSizing,
     /// `aspect-ratio: <w> / <h>`. When set and one axis is explicit
     /// while the other is auto, the flex resolver computes the
     /// dependent axis (half-to-even rounded to integer cells). Both
@@ -228,6 +231,7 @@ impl ComputedStyle {
             max_width: crate::layout::MaxSize::None,
             min_height: crate::layout::MinSize::Auto,
             max_height: crate::layout::MaxSize::None,
+            box_sizing: crate::layout::BoxSizing::ContentBox,
             aspect_ratio: None,
             padding: Padding::default(),
             margin: crate::layout::Margin::default(),

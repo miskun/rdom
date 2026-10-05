@@ -100,13 +100,14 @@ fn textarea_wraps_long_input_and_enter_inserts_newline() {
 
     // Author CSS narrows the textarea so typing a few dozen chars
     // pushes content past the content-box and forces a wrap.
-    // Width 16 with `padding: 0 1` (UA default) and a 1-cell
-    // scrollbar gutter leaves ~13 cells of content width.
+    // `width` is the content box (a textarea is `content-box`, as in
+    // browsers; the UA `padding: 0 1` lies outside it): 14 columns less
+    // the 1-cell scrollbar gutter leaves ~13 cells of content width.
     let sheet = Stylesheet::new()
         .rule_unchecked(
             "textarea",
             TuiStyle::new()
-                .width(Size::Fixed(16))
+                .width(Size::Fixed(14))
                 .height(Size::Fixed(5))
                 .white_space(WhiteSpace::PreWrap),
         )
@@ -167,7 +168,7 @@ fn textarea_wraps_long_input_and_enter_inserts_newline() {
         .rule_unchecked(
             "textarea",
             TuiStyle::new()
-                .width(Size::Fixed(16))
+                .width(Size::Fixed(14))
                 .height(Size::Fixed(5))
                 .white_space(WhiteSpace::PreWrap),
         )

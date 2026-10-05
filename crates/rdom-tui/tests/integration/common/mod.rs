@@ -42,3 +42,15 @@ pub fn buffer_to_snapshot(buf: &Buffer) -> String {
     }
     out
 }
+
+/// The border-box reset real pages carry, `*, *::before, *::after {
+/// box-sizing: border-box }`. Fixtures written against border-box
+/// sizing — rdom's only sizing before C5-BOX-SIZING made `content-box`
+/// the initial value, as in CSS — put it in front of their sheet, so
+/// their geometry still says what it was written to say.
+pub const BORDER_BOX: &str = "*, *::before, *::after { box-sizing: border-box }\n";
+
+/// `css` with [`BORDER_BOX`] in front.
+pub fn border_box(css: &str) -> String {
+    format!("{BORDER_BOX}{css}")
+}

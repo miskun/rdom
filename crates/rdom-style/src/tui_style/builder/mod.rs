@@ -377,6 +377,13 @@ impl TuiStyle {
         crate::layout::ScrollbarGutter
     );
     setter!(
+        box_sizing,
+        box_sizing,
+        box_sizing_important,
+        BOX_SIZING,
+        crate::layout::BoxSizing
+    );
+    setter!(
         scroll_behavior,
         scroll_behavior,
         scroll_behavior_important,

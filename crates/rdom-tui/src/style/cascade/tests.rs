@@ -2925,6 +2925,30 @@ fn layout_dirty_flag_reacts_to_positioning_changes() {
     );
 }
 
+/// CSS UI 3 §3.1: `box-sizing` changes the used border box, so a
+/// change to it dirties layout like a change to `width` does.
+#[test]
+fn layout_dirty_flag_reacts_to_box_sizing() {
+    use crate::layout::BoxSizing;
+    use crate::node::TuiNodeExt;
+    use crate::render::LayoutExt;
+    let (mut dom, div) = dom_with_div();
+    dom.cascade(&Stylesheet::bare());
+    dom.layout_dom(crate::render::Rect::new(0, 0, 20, 5));
+    dom.cascade(&Stylesheet::bare());
+    assert!(
+        !dom.node(div).is_layout_dirty(),
+        "unchanged cascade is clean"
+    );
+    let border_box =
+        Stylesheet::bare().rule_unchecked("div", TuiStyle::new().box_sizing(BoxSizing::BorderBox));
+    dom.cascade(&border_box);
+    assert!(
+        dom.node(div).is_layout_dirty(),
+        "box-sizing change dirties layout"
+    );
+}
+
 /// UA sheet agrees with the runtime on HTML §4.10.7: `size="1"` is the
 /// drop-down box (same chrome as no `size`); only `size > 1` is the list box.
 #[test]

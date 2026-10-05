@@ -42,7 +42,7 @@ fn direct_bordered_siblings_share_under_collapse() {
         a_el     { height: 2; border: solid; }
         b_el     { flex: 1; border: solid; }
     "#;
-    let sheet = rdom_css::from_css(css);
+    let sheet = rdom_css::from_css(&crate::common::border_box(css));
     dom.cascade(&sheet);
     dom.layout_dom(Rect::new(0, 0, 20, 5));
 
@@ -99,7 +99,7 @@ fn borderless_intermediate_does_not_propagate_borders_upward() {
         sidebar_el { width: 28; border: solid; }
         main_el    { flex: 1; border: solid; }
     "#;
-    let sheet = rdom_css::from_css(css);
+    let sheet = rdom_css::from_css(&crate::common::border_box(css));
     dom.cascade(&sheet);
     dom.layout_dom(Rect::new(0, 0, 80, 24));
 
@@ -138,7 +138,7 @@ fn borderless_intermediate_with_no_bordered_descendants_dont_overlap() {
  flex: 1; flex-direction: column; }
         text_child { height: 1; }
     "#;
-    let sheet = rdom_css::from_css(css);
+    let sheet = rdom_css::from_css(&crate::common::border_box(css));
     dom.cascade(&sheet);
     dom.layout_dom(Rect::new(0, 0, 30, 10));
 

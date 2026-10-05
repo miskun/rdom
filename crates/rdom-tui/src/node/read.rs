@@ -4,7 +4,7 @@ use rdom_core::NodeRef;
 
 use crate::ext::TuiExt;
 use crate::layout::{
-    Border, BorderRadius, Corners, Direction, LayoutRect, Overflow, Padding, Size,
+    Border, BorderRadius, BoxSizing, Corners, Direction, LayoutRect, Overflow, Padding, Size,
 };
 use crate::style::{ComputedStyle, TuiStyle};
 
@@ -29,6 +29,12 @@ pub trait TuiNodeExt<'a>: crate::sealed::Sealed {
         self.inline_style()
             .and_then(|s| s.height.as_ref())
             .and_then(|v| v.as_specified().cloned())
+    }
+    /// The inline style's `box-sizing` (CSS UI 3 §3.1), when set.
+    fn box_sizing(&self) -> Option<BoxSizing> {
+        self.inline_style()
+            .and_then(|s| s.box_sizing.as_ref())
+            .and_then(|v| v.as_specified().copied())
     }
     fn direction(&self) -> Option<Direction> {
         self.inline_style()

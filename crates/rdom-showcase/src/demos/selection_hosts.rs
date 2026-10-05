@@ -21,6 +21,9 @@ pub const MARKUP: &str = r#"<div class="sel-hosts">
 </div>"#;
 
 pub const CSS: &str = r#"
+.sel-hosts, .sel-hosts *, .sel-hosts *::before, .sel-hosts *::after {
+  box-sizing: border-box;
+}
 .sel-hosts {
   display: flex;
   flex-direction: column;

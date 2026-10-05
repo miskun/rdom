@@ -31,6 +31,9 @@ pub const MARKUP: &str = r#"<div class="border-collapse-demo">
 </div>"#;
 
 pub const CSS: &str = r#"
+.border-collapse-demo, .border-collapse-demo *, .border-collapse-demo *::before, .border-collapse-demo *::after {
+  box-sizing: border-box;
+}
 .border-collapse-demo {
   flex: 1;
   display: flex;

@@ -16,7 +16,8 @@ fn el(dom: &mut TuiDom, parent: NodeId, class: &str) -> NodeId {
 }
 
 fn paint(dom: &mut TuiDom, css: &str, w: u16, h: u16) -> Buffer {
-    let sheet = rdom_css::from_css_strict(css).expect("sheet parses without warnings");
+    let sheet = rdom_css::from_css_strict(&crate::common::border_box(css))
+        .expect("sheet parses without warnings");
     dom.cascade(&sheet);
     let area = Rect::new(0, 0, w, h);
     dom.layout_dom(area);
@@ -85,7 +86,10 @@ fn a_negative_border_width_is_rejected() {
         ".b { border: -1px solid }",
         ".b { border-left: solid -2 }",
     ] {
-        assert!(rdom_css::from_css_strict(css).is_err(), "{css} parsed");
+        assert!(
+            rdom_css::from_css_strict(&crate::common::border_box(css)).is_err(),
+            "{css} parsed"
+        );
     }
     let buf = bordered(".b { width: 5; height: 3; border: solid; border-width: calc(-1px) }");
     assert_eq!(
@@ -99,11 +103,11 @@ fn a_negative_border_width_is_rejected() {
 
 /// CSS Backgrounds 3 §5.1: a percentage radius is a percentage of the
 /// border box on its axis. A 2 × 2 border box: `50%` and `25%` are one
-/// and a half cell — non-zero, so the corners round. A zero-size border
-/// box: every percentage is zero, the corner square — and with no cell to
-/// draw, nothing is painted, without a panic or a NaN on the way (rdom
-/// sizes as `border-box` and does not floor a box at its border yet:
-/// DIVERGENCES §2, C5-BOX-SIZING).
+/// and a half cell — non-zero, so the corners round. A zero-size box:
+/// the content box is zero but the border box is floored at the border
+/// (CSS UI 3 §3.1, C5-BOX-SIZING — it used to paint nothing), so the
+/// percentages are of that 2-cell border box and the corners round,
+/// without a panic or a NaN on the way.
 #[test]
 fn a_percentage_radius_against_a_zero_size_box() {
     for radius in ["50%", "25%", "50% / 25%"] {
@@ -112,13 +116,22 @@ fn a_percentage_radius_against_a_zero_size_box() {
         ));
         assert_eq!(rows(&buf, 2, 2), ["╭╮", "╰╯"], "{radius}");
     }
-    for css in [
-        ".b { width: 0; height: 0; border: solid; border-radius: 50% }",
-        ".b { width: 0; height: 3; border: solid; border-radius: 50% }",
-        ".b { width: 5; height: 0; border: solid; border-radius: 100% / 50% }",
+    for (css, want) in [
+        (
+            ".b { width: 0; height: 0; border: solid; border-radius: 50% }",
+            ["╭╮   ", "╰╯   ", "     "],
+        ),
+        (
+            ".b { width: 0; height: 3; border: solid; border-radius: 50% }",
+            ["╭╮   ", "││   ", "╰╯   "],
+        ),
+        (
+            ".b { width: 5; height: 0; border: solid; border-radius: 100% / 50% }",
+            ["╭───╮", "╰───╯", "     "],
+        ),
     ] {
         let buf = bordered(css);
-        assert_eq!(rows(&buf, 5, 3), ["     ", "     ", "     "], "{css}");
+        assert_eq!(rows(&buf, 5, 3), want, "{css}");
     }
 }
 

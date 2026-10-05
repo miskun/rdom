@@ -63,6 +63,7 @@ pub(super) fn layout_differs(a: &ComputedStyle, b: &ComputedStyle) -> bool {
         || a.max_width != b.max_width
         || a.min_height != b.min_height
         || a.max_height != b.max_height
+        || a.box_sizing != b.box_sizing
         || a.aspect_ratio != b.aspect_ratio
         || a.padding != b.padding
         || a.margin != b.margin

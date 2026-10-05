@@ -76,7 +76,7 @@ The leaf crate carries the **values**, not the cascade. Cascade lives in
   `white-space`, `overflow`, `overflow-x`, `overflow-y`,
   `scrollbar-gutter`, `scroll-behavior`.
 - **Sizing and box** — `width`, `height`, `min-width`, `max-width`,
-  `min-height`, `max-height`, `aspect-ratio`, `gap`, `padding` and
+  `min-height`, `max-height`, `box-sizing`, `aspect-ratio`, `gap`, `padding` and
   `margin` (+ four longhands each, `margin: auto`), `border` and
   `border-top` / `-right` / `-bottom` / `-left` (width, style and color
   in any order: `border: 1px solid red`), `border-style`,

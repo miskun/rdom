@@ -8,6 +8,7 @@ use rdom_core::{Dom, NodeId};
 use crate::ext::TuiExt;
 use crate::layout::{AspectRatio, Direction, Display, MarginValue, Size, clamp_size};
 use crate::render::layout_pass::block::nearest_block_ancestor_height_is_definite;
+use crate::render::layout_pass::box_sizing::Sizer;
 use crate::render::layout_pass::intrinsic::intrinsic_size;
 use crate::style::ComputedStyle;
 
@@ -110,15 +111,10 @@ fn aspect_cross_from_main(
 ) -> Option<u16> {
     let r = ratio.value()?;
     // (main-axis, cross-axis) padding + border, for the content box.
-    let (main_edges, cross_edges) = if ratio.auto() {
-        let p = &computed.padding;
-        let b = &computed.border;
-        let horizontal = p
-            .horizontal(cb_width)
-            .saturating_add(b.left.cells() + b.right.cells());
-        let vertical = p
-            .vertical(cb_width)
-            .saturating_add(b.top.cells() + b.bottom.cells());
+    let main_sizer = Sizer::along(computed, direction, cb_width);
+    let (main_edges, cross_edges) = if ratio.auto() || main_sizer.is_content_box() {
+        let horizontal = Sizer::horizontal(computed, cb_width).chrome();
+        let vertical = Sizer::vertical(computed, cb_width).chrome();
         match direction {
             Direction::Row => (horizontal, vertical),
             Direction::Column => (vertical, horizontal),
@@ -195,15 +191,18 @@ fn resolve_cross_size(
         }
         Direction::Column => Some(container_cross),
     };
-    let max = max.cells(basis);
     let cross_dir = match direction {
         Direction::Row => Direction::Column,
         Direction::Column => Direction::Row,
     };
+    // Declared cross sizes measure the box `box-sizing` names (CSS UI 3
+    // §3.1); padding percentages resolve against the container's width.
+    let sizer = Sizer::along(computed, cross_dir, container_width);
+    let max = sizer.outer_opt(max.cells(basis));
     // A cross-axis percentage or `calc()` resolves against the
     // container's cross-axis dimension.
     let natural = match (cross_size, cross_size.cells(Some(container_cross))) {
-        (_, Some(cells)) => cells,
+        (_, Some(cells)) => sizer.outer(cells),
         (Size::Flex(_), _) => container_cross,
         _ => {
             if let Some(cross) = computed
@@ -237,6 +236,6 @@ fn resolve_cross_size(
     // (a flex distribution can drive an item below its content there),
     // and elsewhere `auto` resolves to 0 (CSS Sizing 3 §5.2). The cross
     // size comes from the declared size, a stretch, or the content.
-    let min = min_raw.cells(basis);
-    clamp_size(natural, min, max)
+    let min = sizer.outer_opt(min_raw.cells(basis));
+    sizer.floor(clamp_size(natural, min, max))
 }

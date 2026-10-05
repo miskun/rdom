@@ -308,6 +308,16 @@ pub fn set_parsed(name: &str, value: &[Token], style: &mut TuiStyle) -> Result<(
         "aspect-ratio" => parse_aspect_ratio(value).map(|r| {
             style.aspect_ratio = Some(Value::Specified(r));
         }),
+        "box-sizing" => parse_keyword(
+            value,
+            &[
+                ("content-box", crate::layout::BoxSizing::ContentBox),
+                ("border-box", crate::layout::BoxSizing::BorderBox),
+            ],
+        )
+        .map(|b| {
+            style.box_sizing = Some(Value::Specified(b));
+        }),
 
         // Layout — gap
         "gap" => parse_gap(value).map(|g| {

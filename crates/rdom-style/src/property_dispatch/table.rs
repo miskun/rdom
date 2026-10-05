@@ -47,6 +47,7 @@ const PROPERTY_NAMES: &[&str] = &[
     "min-height",
     "max-height",
     "aspect-ratio",
+    "box-sizing",
     "gap",
     // Flex shorthand (sets width and height in one declaration).
     "flex",
@@ -272,6 +273,7 @@ define_fields! {
     MinHeight => min_height : MIN_HEIGHT,
     MaxHeight => max_height : MAX_HEIGHT,
     AspectRatio => aspect_ratio : ASPECT_RATIO,
+    BoxSizing => box_sizing : BOX_SIZING,
     Gap => gap : GAP,
     FlexShrink => flex_shrink : FLEX_SHRINK,
     FlexBasis => flex_basis : FLEX_BASIS,
@@ -362,6 +364,7 @@ pub(super) fn fields_of(name: &str) -> Option<&'static [Field]> {
         "min-height" => &[MinHeight],
         "max-height" => &[MaxHeight],
         "aspect-ratio" => &[AspectRatio],
+        "box-sizing" => &[BoxSizing],
         "gap" => &[Gap],
         "flex" => &[Width, Height, FlexShrink, FlexBasis],
         "flex-shrink" => &[FlexShrink],
