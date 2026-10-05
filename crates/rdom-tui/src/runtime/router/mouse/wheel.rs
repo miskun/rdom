@@ -73,49 +73,53 @@ pub(super) fn handle_wheel(
             .node(id)
             .computed_rc()
             .unwrap_or_else(|| std::rc::Rc::new(ComputedStyle::initial()));
+        if !computed.is_scroll_container() {
+            cur = dom.node(id).parent_node().map(|p| p.id());
+            continue;
+        }
         let y_scrollable = matches!(computed.overflow_y, Overflow::Scroll | Overflow::Auto);
         let x_scrollable = matches!(computed.overflow_x, Overflow::Scroll | Overflow::Auto);
+        // A box the user can scroll on the wheel's axis (`hidden` scrolls
+        // only from code) takes the tick unless it is at its boundary in
+        // the tick's direction.
         if (wants_y && y_scrollable) || (wants_x && x_scrollable) {
-            // Capture pre-mutation offsets so we can detect change
-            // and dispatch a `scroll` event only when offsets
-            // actually moved (matches HTML — at-the-bottom wheel
-            // ticks are no-ops and don't fire scroll).
-            //
             // The legal range is `layout_pass::scroll_bounds` (the
             // scrollport against the scrollable overflow) — an `rtl` box's
             // `scrollLeft` and a `column-reverse` box's `scrollTop` run
             // negative, so the wheel reaches that overflow (CSSOM View §4).
-            let bounds = crate::runtime::scrollbar::scroll_bounds(dom, id);
+            let Some(bounds) = crate::runtime::scrollbar::scroll_bounds(dom, id) else {
+                cur = dom.node(id).parent_node().map(|p| p.id());
+                continue;
+            };
             let (old_x, old_y) = dom
                 .node(id)
                 .ext()
                 .map_or((0, 0), |e| (e.scroll_x, e.scroll_y));
-            let (new_x, new_y) = match bounds {
-                Some(bounds) => {
-                    let mut to = (old_x, old_y);
-                    if wants_y && y_scrollable {
-                        to.1 = (old_y + dy).clamp(bounds.min_y, bounds.max_y);
-                    }
-                    if wants_x && x_scrollable {
-                        to.0 = (old_x + dx).clamp(bounds.min_x, bounds.max_x);
-                    }
-                    // A snap container rests at the snap position in the
-                    // wheel's direction (CSS Scroll Snap 1 §6.2).
-                    let from = (old_x, old_y);
-                    crate::runtime::scroll_snap::snap(
-                        dom,
-                        id,
-                        to,
-                        crate::runtime::scroll_snap::Motion::By { from },
-                    )
-                }
-                None => (old_x, old_y),
-            };
+            let mut to = (old_x, old_y);
+            if wants_y && y_scrollable {
+                to.1 = (old_y + dy).clamp(bounds.min_y, bounds.max_y);
+            }
+            if wants_x && x_scrollable {
+                to.0 = (old_x + dx).clamp(bounds.min_x, bounds.max_x);
+            }
+            // At the boundary in the tick's direction: nothing to take.
+            let at_boundary = to == (old_x, old_y);
+            // A snap container rests at the snap position in the wheel's
+            // direction (CSS Scroll Snap 1 §6.2).
+            let (new_x, new_y) = crate::runtime::scroll_snap::snap(
+                dom,
+                id,
+                to,
+                crate::runtime::scroll_snap::Motion::By {
+                    from: (old_x, old_y),
+                },
+            );
             if (new_x, new_y) != (old_x, old_y) {
                 // A user scroll is instant whatever `scroll-behavior`
                 // says, and aborts this box's smooth scroll in flight
                 // (CSSOM View "perform a scroll", step 1). The offsets
-                // are the snap's: the funnel fires `scroll`.
+                // are the snap's: the funnel fires `scroll` — only when
+                // they moved (HTML: a tick at the end fires none).
                 crate::runtime::smooth_scroll::abort(dom, id);
                 crate::runtime::scrollbar::write_offsets(
                     dom,
@@ -126,19 +130,28 @@ pub(super) fn handle_wheel(
                 );
                 return RouteOutcome::redraw(true);
             }
-            // At the rail end in this direction: chain to the next
-            // scrollable ancestor — unless this box's
-            // `overscroll-behavior` on the wheel's axis is `contain` or
-            // `none` (CSS Overscroll Behavior 1 §3: "no scroll chaining
-            // occurs to neighboring scrolling areas").
-            let behavior = if wants_y {
-                computed.overscroll_behavior_y
-            } else {
-                computed.overscroll_behavior_x
-            };
-            if !behavior.chains() {
+            // Not at its boundary, a mandatory snap held it where it is:
+            // the box took the tick, and nothing chains (CSS Overscroll
+            // Behavior 1 §3 chains from a box at its boundary).
+            if !at_boundary {
                 return RouteOutcome::default();
             }
+        }
+        // At its boundary, or not user-scrollable on the axis: chain to
+        // the next scroll container — unless this one's
+        // `overscroll-behavior` on the wheel's axis is `contain` or
+        // `none` (§3: "no scroll chaining occurs to neighboring scrolling
+        // areas"), which applies to every scroll container "regardless of
+        // whether those elements currently have overflowing content or
+        // are user scrollable" — an `overflow: hidden` backdrop too, as
+        // Chromium does since 144.
+        let behavior = if wants_y {
+            computed.overscroll_behavior_y
+        } else {
+            computed.overscroll_behavior_x
+        };
+        if !behavior.chains() {
+            return RouteOutcome::default();
         }
         cur = dom.node(id).parent_node().map(|p| p.id());
     }

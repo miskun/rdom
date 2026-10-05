@@ -465,6 +465,8 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Fixed — `rdom-tui`
 
+- **Snap areas taller than the snapport scroll freely inside** (CSS Scroll Snap 1 §6.2.3): PageDown, the wheel and `scrollTo` reach a tall card's middle rows; a tick a mandatory snap holds no longer chains; `overscroll-behavior: contain` on an `overflow: hidden` box stops the chain, as on any scroll container. (C8G-SNAP-TALL)
+
 - **Re-snapping after layout no longer undoes scrolls** (CSS Scroll Snap 1 §5.4): a snap container follows its snap target only when layout moved it; thumb drags, autoscroll and caret reveal leave it unsnapped; a smooth scroll animates; the re-snap's `scroll` fires after the frame and only snapped containers are visited. (C8G-RESNAP)
 
 - **A frame is laid out to convergence when a positioned box's scrollbar changes its own reach**: a `left: 0; right: 0` box whose height adds a vertical bar is narrowed by it, and layout now runs phases 1–2 a third time, so the frame no longer shows a one-column horizontal scroll until the next layout. (C8G-ABSPOS-EXTENT)

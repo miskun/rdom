@@ -31,7 +31,9 @@ pub(crate) struct ScrollState {
 }
 
 /// A snap a container rests at on one axis: the box it snapped to and
-/// the offset that box's snap position was when it did.
+/// the offset of that box's aligned snap position when it did (the
+/// container rests there, or — inside a box longer than the snapport,
+/// CSS Scroll Snap 1 §6.2.3 — anywhere it covers the snapport).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct SnapRecord {
     pub(crate) target: rdom_core::NodeId,

@@ -4962,3 +4962,25 @@ row comes from.
   `a_layout_that_does_not_move_the_target_leaves_the_offset` (mutation: re-snap regardless of the
   position → 6 for 8); each restored and touched. The frame layout-run pin (C8G-ABSPOS-EXTENT) is
   unchanged: 5. No existing test expectation or snapshot changed.
+- 2026-10-10 — C8G-SNAP-TALL (API B4, API N10). Found: `points` emitted each box's aligned position only
+  and `select` jumped between them, so 30-row cards in a 10-row `y mandatory` list went 0 → 30 on a wheel
+  tick or PageDown and rows 10–29 were never shown (a `scrollTo(15)` went back to 0). Decision: CSS Scroll
+  Snap 1 §6.2.3 — each `SnapPoint` of an area longer than the snapport carries its covering range (from
+  its start aligned with the snapport's to its end aligned, clamped to the scroll range); `pick` rests at
+  the destination itself when it is in a covering range and a directional scroll would pass no other snap
+  position on the way, else chooses as before. The snap record keeps the box's aligned position, and
+  `resnap` now moves the container by how far that position moved — at the aligned position as before,
+  inside a tall box as far into it as before. §6.2.3's spacing condition on the neighbouring positions is
+  not checked for a scroll to a destination (DIVERGENCES §2). Chaining, decided: (a) a tick a mandatory
+  snap holds in place (no snap position ahead, room to scroll) was read as "at the end" and chained to the
+  parent; the wheel now chains only from a box at its boundary in the tick's direction (Overscroll
+  Behavior 1 §3). (b) `contain` on a box that cannot scroll: the spec applies `overscroll-behavior` to
+  every scroll container "regardless of whether those elements currently have overflowing content or are
+  user scrollable", and Chromium does since 144 (blink-dev "Respect overscroll-behavior on non-scrollable
+  scroll containers"; the gate's "Chromium chains there" was Chromium before 144) — so rdom keeps stopping
+  at a non-overflowing `overflow: auto` box and now also at an `overflow: hidden` one, which the wheel
+  used to skip (the modal-backdrop case). Red: `scroll_snap/tall_tests.rs` — 3 of 3 failed (PageDown
+  `[30, 60, 90]` for `[10, 20, 30]`; the wheel 30 for 1; `scrollTo(15)` 0); `overscroll_tests.rs` — the
+  held mandatory tick chained (outer 1 for 0), `hidden` + `contain` chained (1 for 0). Green after; added
+  while fixing: `a_resnap_keeps_the_place_inside_a_tall_card` (15 → 17 after a 2-row insertion). No
+  existing test expectation or snapshot changed.

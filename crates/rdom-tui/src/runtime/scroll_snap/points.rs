@@ -4,7 +4,8 @@
 //! axis, the scroll offset that aligns the box's scroll snap area (its
 //! border box outset by `scroll-margin`, §4.2) with the snapport (the
 //! scrollport inset by `scroll-padding`, §4.1), clamped to the scroll
-//! range. Read from the last layout.
+//! range — and for an area longer than the snapport the range of offsets
+//! at which it covers it (§6.2.3). Read from the last layout.
 
 use rdom_core::{Dom, NodeId, NodeType};
 
@@ -19,6 +20,10 @@ use crate::runtime::scrollbar::ScrollAxis;
 pub(crate) struct SnapPoint {
     pub(crate) position: Position,
     pub(crate) target: NodeId,
+    /// For a snap area longer than the snapport, the offsets at which it
+    /// covers the snapport, `start ..= end` within the scroll range —
+    /// each a valid snap position (§6.2.3).
+    pub(crate) cover: Option<(i32, i32)>,
 }
 
 /// `container`'s snap positions on `axis`, in tree order.
@@ -54,17 +59,21 @@ pub(crate) fn snap_points(
             SnapAlign::End => start + len - port_len,
             SnapAlign::Center => start + (len - port_len).div_euclid(2),
         };
-        let offset = match (bounds, axis) {
-            (Some(b), ScrollAxis::Vertical) => offset.clamp(b.min_y, b.max_y),
-            (Some(b), ScrollAxis::Horizontal) => offset.clamp(b.min_x, b.max_x),
-            (None, _) => offset,
+        let clamp = |v: i32| match (bounds, axis) {
+            (Some(b), ScrollAxis::Vertical) => v.clamp(b.min_y, b.max_y),
+            (Some(b), ScrollAxis::Horizontal) => v.clamp(b.min_x, b.max_x),
+            (None, _) => v,
         };
+        // §6.2.3: the area covers the snapport from aligning its start
+        // with the snapport's to aligning its end.
+        let cover = (len > port_len).then(|| (clamp(start), clamp(start + len - port_len)));
         out.push(SnapPoint {
             position: Position {
-                offset,
+                offset: clamp(offset),
                 stop: stop == ScrollSnapStop::Always,
             },
             target: id,
+            cover,
         });
     });
     out

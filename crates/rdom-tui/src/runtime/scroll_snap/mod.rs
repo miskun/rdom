@@ -66,11 +66,11 @@ pub(crate) fn snap(
             Motion::To => Intent::Nearest,
             Motion::By { from } => Intent::Directional { from: from.0 },
         };
-        if let Some((offset, target)) =
+        if let Some((offset, record)) =
             pick(dom, element, ScrollAxis::Horizontal, to.0, i, mandatory)
         {
             out.0 = offset;
-            targets.0 = Some(SnapRecord { target, offset });
+            targets.0 = Some(record);
         }
     }
     if on_y {
@@ -78,10 +78,10 @@ pub(crate) fn snap(
             Motion::To => Intent::Nearest,
             Motion::By { from } => Intent::Directional { from: from.1 },
         };
-        if let Some((offset, target)) = pick(dom, element, ScrollAxis::Vertical, to.1, i, mandatory)
+        if let Some((offset, record)) = pick(dom, element, ScrollAxis::Vertical, to.1, i, mandatory)
         {
             out.1 = offset;
-            targets.1 = Some(SnapRecord { target, offset });
+            targets.1 = Some(record);
         }
     }
     if let Some(ext) = dom.node_mut(element).ext_mut() {
@@ -120,7 +120,14 @@ pub(crate) enum Motion {
     By { from: (i32, i32) },
 }
 
-/// The snap position and box a scroll to `dest` on `axis` rests at.
+/// Where a scroll to `dest` on `axis` rests, and the snap it records: the
+/// box and the offset of its aligned snap position.
+///
+/// §6.2.3: inside a snap area longer than the snapport, where it covers
+/// the snapport, every offset is a valid snap position — `dest` itself,
+/// unless a directional scroll would pass another snap position on the
+/// way (the next box's start, a `scroll-snap-stop: always` one), which
+/// [`select::choose`] then picks as usual.
 fn pick(
     dom: &TuiDom,
     element: NodeId,
@@ -128,11 +135,28 @@ fn pick(
     dest: i32,
     intent: Intent,
     mandatory: bool,
-) -> Option<(i32, NodeId)> {
+) -> Option<(i32, SnapRecord)> {
     let points = points::snap_points(dom, element, axis);
+    let record = |p: &points::SnapPoint| SnapRecord {
+        target: p.target,
+        offset: p.position.offset,
+    };
+    let passes = |offset: i32| match intent {
+        Intent::Nearest => false,
+        Intent::Directional { from } => {
+            (from < offset && offset < dest) || (dest < offset && offset < from)
+        }
+    };
+    if let Some(p) = points
+        .iter()
+        .find(|p| p.cover.is_some_and(|(s, e)| s <= dest && dest <= e))
+        && !points.iter().any(|q| passes(q.position.offset))
+    {
+        return Some((dest, record(p)));
+    }
     let positions: Vec<select::Position> = points.iter().map(|p| p.position).collect();
     let i = select::choose(&positions, dest, intent, mandatory)?;
-    Some((points[i].position.offset, points[i].target))
+    Some((points[i].position.offset, record(&points[i])))
 }
 
 #[cfg(test)]
@@ -237,12 +261,15 @@ fn follow(
     };
     let points = points::snap_points(dom, id, axis);
     if let Some(p) = points.iter().find(|p| p.target == record.target) {
+        // The container keeps its place relative to the box: at its
+        // aligned position, or — inside a tall box (§6.2.3) — as far into
+        // it as before.
         let offset = p.position.offset;
         if offset == record.offset {
             return (cur, Some(record));
         }
         return (
-            offset,
+            cur + (offset - record.offset),
             Some(SnapRecord {
                 target: record.target,
                 offset,
@@ -267,5 +294,7 @@ fn follow(
 
 #[cfg(test)]
 mod resnap_tests;
+#[cfg(test)]
+mod tall_tests;
 #[cfg(test)]
 mod tests;
