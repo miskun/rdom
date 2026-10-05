@@ -1208,4 +1208,18 @@ row comes from.
   (fails if the unit's background phase is removed — checked by deleting the call) and
   `a_later_background_covers_an_earlier_shadow`. `paint_pass/mod.rs` is 583 lines; C4G-PAINT-SPLIT
   next. No showcase snapshot changed.
+- 2026-10-06 — C4G-BORDER-COST: `paint_border_sides` reads `border_width` / `border_radius` in place
+  (`Sides::each` / `Corners::each`, no clone — a `calc()` radius cloned two boxes per corner), and walks
+  the ring once for every opaque side (the `Ink` already carries per-side colors; the `only` mask
+  selects them) instead of once per distinct color. Translucent sides go by alpha (sides of one alpha
+  share a layer; a fixed-array scan, no `Vec`), and each layer covers only the ring: `ring_strips`
+  cuts up to four disjoint strips of the visible border box (top / bottom rows, the columns between;
+  a corner joins its column when its row is not a strip), each composited on its own — the whole
+  `outer_grid` was copied and composited per translucent color. `paint_border` takes the real
+  buffer's area (`bounds`) for its off-buffer rule, since a layer now covers part of the box (before,
+  a translucent pass used the layer's area, so a box cut by an overflow clip lost the directions at
+  the cut — the opaque path did not). Red: `border/tests.rs::a_border_paints_without_allocating`
+  (four side colors, one translucent, a `calc()` radius) counted 9 allocations with the
+  C3G-TRANSLUCENT-FAST `test_alloc` allocator; green: 0. The translucent border tests
+  (`color_tests.rs`) pass unchanged.
 
