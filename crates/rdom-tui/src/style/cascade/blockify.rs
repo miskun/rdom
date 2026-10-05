@@ -31,6 +31,20 @@ pub(super) fn blockify(working: &mut ComputedStyle) {
     }
 }
 
+/// CSS 2.1 §9.7: an absolutely positioned box does not float — its
+/// computed `float` is `none` — and a floated box is blockified (§9.7's
+/// table: an inline-level box becomes the block-level one, as
+/// [`blockify`]). A box-less (`display: contents`) element has no box to
+/// float; its `float` computes as written and applies to nothing.
+pub(super) fn finalize_float(working: &mut ComputedStyle) {
+    use crate::layout::{Float, Position};
+    if matches!(working.position, Position::Absolute | Position::Fixed) {
+        working.float = Float::None;
+    } else if working.float != Float::None {
+        blockify(working);
+    }
+}
+
 /// Whether the children of `parent` (styled `parent_computed`) are flex
 /// or grid items: their parent box — `parent`, or for a box-less
 /// (`display: contents`, CSS Display 3 §2.5) parent its nearest ancestor

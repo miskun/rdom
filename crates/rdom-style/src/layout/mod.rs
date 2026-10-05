@@ -28,6 +28,7 @@ pub(crate) mod alignment;
 mod background;
 mod border;
 mod box_model;
+mod float;
 mod grid;
 mod grid_areas;
 mod grid_placement;
@@ -47,6 +48,7 @@ pub use border::{
     CornerStyle, PaintLength,
 };
 pub use box_model::{Margin, MarginTrim, MarginValue, Padding, PaddingValue};
+pub use float::{Clear, Float, FloatSide};
 pub use grid::{
     GridTemplate, LineNameItem, LineNameList, RepeatCount, TrackBreadth, TrackList, TrackListItem,
     TrackRepeat, TrackSize,

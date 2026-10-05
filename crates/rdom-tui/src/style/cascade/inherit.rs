@@ -133,6 +133,8 @@ pub(super) fn layout_differs(a: &ComputedStyle, b: &ComputedStyle) -> bool {
         || a.bottom != b.bottom
         || a.left != b.left
         || a.z_index != b.z_index
+        || a.float != b.float
+        || a.clear != b.clear
         || a.flow != b.flow
         || a.scrollbar_gutter != b.scrollbar_gutter
 }

@@ -171,7 +171,7 @@ row comes from.
 | C8-INSETS | `top` / `right` / `bottom` / `left` / `inset`: `%` and `calc()` | done (with C2-PERCENT) |
 | C8-PARSE-ERROR | Every public error type implements `Display` and `std::error::Error` (found by C7G-README-GRID) | done |
 | C8-Z-INDEX | `z-index` full integer range | done |
-| C8-FLOAT | `float` / `clear` (line-box exclusion, clearance) | |
+| C8-FLOAT | `float` / `clear` (line-box exclusion, clearance) | partial — parse and cascade done; layout, paint and hit-testing next |
 | C8-OVERFLOW-CLIP | `overflow: clip`, two-value `overflow`, `overflow-clip-margin`, logical `overflow-block` / `-inline` | done |
 | C8-TEXT-OVERFLOW | `text-overflow: clip / ellipsis / <string>` | done |
 | C8-LINE-CLAMP | `line-clamp` / `max-lines` / `block-ellipsis` / `continue` | done |
@@ -4661,3 +4661,18 @@ row comes from.
   `clip ellipsis`'s line-right edge hides nothing. `migration_hints::line_box_construction_hints`
   builds an atom at `x = -2`. DIVERGENCES §4's entry is gone (and the line-clamp entry's reference
   to it). No snapshot changed.
+- 2026-10-05 — C8-FLOAT part 1 (CSS 2.1 §9.5.1 / §9.5.2 / §9.7, CSS Logical 1 §2.3): the values.
+  rdom-style: `Float` (`none | left | right | inline-start | inline-end`, `side(rtl)` → `FloatSide`)
+  and `Clear` (`none | left | right | both | inline-start | inline-end`, `sides(rtl)`) in
+  `layout/float.rs`, parsers in `parse/values/float.rs`, set / serialize in
+  `property_dispatch/float.rs`; neither inherited, serialized as written; the flow-relative
+  keywords stay as specified and resolve against the containing block's `direction` in layout.
+  rdom-tui cascade: `blockify::finalize_float` — an absolutely positioned box's `float` computes
+  to `none`, a floated box is blockified (§9.7's table, `blockify`'s mapping); a float establishes
+  a BFC (`finalize_bfc_formation`, §9.4.1); `float` / `clear` changes relayout. Red:
+  `float_tests.rs` (3) and `css_phase8/float/computed.rs` (2) did not compile (no `Float`, `Clear`,
+  fields or builders); green after. Changed expectation, justified: `apply_tests::
+  initial_keyword_yields_the_initial_computed_value_for_every_property` cannot perturb `float`
+  beside its `display: inline-flex` (a float blockifies it), so `float` is bound `_` there and
+  `float_initial_is_none_and_unblockifies` covers it. Until the layout lands (part 2) a floated box
+  lays out in flow as the block it computes to (DIVERGENCES §3). No snapshot changed.

@@ -103,7 +103,7 @@ The leaf crate carries the **values**, not the cascade. Cascade lives in
 - **Generated content** — `content`, `counter-reset`,
   `counter-increment`.
 - **Positioning** — `position` (incl. `sticky`), `top`, `right`,
-  `bottom`, `left`, `inset`, `z-index`.
+  `bottom`, `left`, `inset`, `z-index`, `float`, `clear`.
 - **Transitions** — `transition` (+ `-property`, `-duration`,
   `-timing-function`, `-delay` longhands).
 - **Custom properties** — `--*`, and `all`.

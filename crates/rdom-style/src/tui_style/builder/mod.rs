@@ -445,6 +445,22 @@ impl TuiStyle {
         Z_INDEX,
         crate::layout::ZIndex
     );
+    setter!(
+        "float",
+        float,
+        float,
+        float_important,
+        FLOAT,
+        crate::layout::Float
+    );
+    setter!(
+        "clear",
+        clear,
+        clear,
+        clear_important,
+        CLEAR,
+        crate::layout::Clear
+    );
 
     // ── Transitions setters (M3) ─────────────────────────────────────
     // Vec-typed fields can't go through the `setter!` macro (no

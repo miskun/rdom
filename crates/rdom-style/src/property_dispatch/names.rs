@@ -146,6 +146,8 @@ const PROPERTY_NAMES: &[&str] = &[
     "bottom",
     "left",
     "z-index",
+    "float",
+    "clear",
     "inset",
     // Transitions (M3)
     "transition-property",

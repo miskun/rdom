@@ -146,6 +146,8 @@ fn canonical_values() -> &'static [(&'static str, &'static str)] {
         ("bottom", "auto"),
         ("left", "5"),
         ("z-index", "3"),
+        ("float", "inline-end"),
+        ("clear", "both"),
         ("inset", "1 2 3 4"),
         ("transition-property", "color"),
         ("transition-duration", "200ms"),

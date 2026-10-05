@@ -293,7 +293,7 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 
 ### Positioned layout
 
-- `float` / `clear` — C8-FLOAT
+- `float` / `clear` in layout: they parse and compute (a float is blockified, CSS 2.1 §9.7), but a floated box is laid out in flow until the rest of C8-FLOAT lands
 - Anchor positioning (`anchor-name`, `position-anchor`, `position-area`, `@position-try`) — C15-ANCHOR
 
 ### Overflow and scrolling

@@ -201,6 +201,8 @@ define_fields! {
     Bottom => bottom : BOTTOM,
     Left => left : LEFT,
     ZIndex => z_index : Z_INDEX,
+    Float => float : FLOAT,
+    Clear => clear : CLEAR,
     TransitionProperty => transition_property : TRANSITION_PROPERTY,
     TransitionDuration => transition_duration : TRANSITION_DURATION,
     TransitionTimingFunction => transition_timing_function : TRANSITION_TIMING_FUNCTION,

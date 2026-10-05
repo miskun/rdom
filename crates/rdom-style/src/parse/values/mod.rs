@@ -41,6 +41,7 @@ mod color;
 mod content;
 mod display;
 mod flex;
+mod float;
 mod grid;
 mod grid_areas;
 mod grid_placement;
@@ -87,6 +88,7 @@ pub use flex::{
     parse_flex_direction, parse_flex_flow, parse_flex_wrap, serialize_flex_direction,
     serialize_flex_flow, serialize_flex_wrap,
 };
+pub use float::{parse_clear, parse_float};
 pub(crate) use grid::is_line_name;
 pub use grid::{
     parse_grid_template, parse_track_size, parse_track_sizes, serialize_grid_template,

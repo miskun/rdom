@@ -82,6 +82,8 @@ pub(super) fn finalize_bfc_formation(working: &mut ComputedStyle) {
         || matches!(working.display, Display::InlineBlock)
         || working.is_scroll_container()
         || matches!(working.position, Position::Absolute | Position::Fixed)
+        // CSS 2.1 §9.4.1: floats establish a new block formatting context.
+        || working.float != crate::layout::Float::None
         // CSS Box Alignment 3 §5.1: a block container whose
         // `align-content` is not `normal` is an independent formatting
         // context.
@@ -278,6 +280,8 @@ pub(super) fn apply_style(
         bottom: BOTTOM,
         left: LEFT,
         z_index: Z_INDEX,
+        float: FLOAT,
+        clear: CLEAR,
         transition_property: TRANSITION_PROPERTY,
         transition_duration: TRANSITION_DURATION,
         transition_timing_function: TRANSITION_TIMING_FUNCTION,

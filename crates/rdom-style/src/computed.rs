@@ -287,6 +287,11 @@ pub struct ComputedStyle {
     pub left: crate::layout::Length,
     /// `z-index`. Default `Auto`. Non-inheriting.
     pub z_index: crate::layout::ZIndex,
+    /// `float` (CSS 2.1 §9.5.1): `none` on an absolutely positioned box
+    /// (§9.7). Not inherited.
+    pub float: crate::layout::Float,
+    /// `clear` (CSS 2.1 §9.5.2). Not inherited.
+    pub clear: crate::layout::Clear,
 
     // ── Transitions (M3) ─────────────────────────────────────────────
     /// Resolved `transition-*` longhand lists. Empty when no
@@ -448,6 +453,8 @@ impl ComputedStyle {
             bottom: crate::layout::Length::Auto,
             left: crate::layout::Length::Auto,
             z_index: crate::layout::ZIndex::Auto,
+            float: crate::layout::Float::None,
+            clear: crate::layout::Clear::None,
             transition_property: Vec::new(),
             transition_duration: Vec::new(),
             transition_timing_function: Vec::new(),

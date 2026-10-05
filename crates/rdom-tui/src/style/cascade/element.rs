@@ -124,6 +124,7 @@ pub(super) fn compute_element_style(
     if super::blockify::children_are_items(dom, parent_id, parent) {
         super::blockify::blockify(&mut working);
     }
+    super::blockify::finalize_float(&mut working);
     super::apply::finalize_justify_items(&mut working, parent);
     // CSS Overflow 3 §3.1's computed value, which the BFC rule reads.
     working.normalize_overflow();

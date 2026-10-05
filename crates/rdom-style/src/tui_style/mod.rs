@@ -254,6 +254,10 @@ pub struct TuiStyle {
     pub bottom: Option<Value<crate::layout::Length>>,
     pub left: Option<Value<crate::layout::Length>>,
     pub z_index: Option<Value<crate::layout::ZIndex>>,
+    /// `float` (CSS 2.1 §9.5.1).
+    pub float: Option<Value<crate::layout::Float>>,
+    /// `clear` (CSS 2.1 §9.5.2).
+    pub clear: Option<Value<crate::layout::Clear>>,
 
     // ── Transitions (M3) ─────────────────────────────────────────────
     /// `transition-property` longhand. Each entry covers one

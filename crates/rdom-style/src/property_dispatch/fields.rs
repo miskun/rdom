@@ -220,6 +220,8 @@ pub(super) fn fields_of(name: &str) -> Option<&'static [Field]> {
         "bottom" => &[Bottom],
         "left" => &[Left],
         "z-index" => &[ZIndex],
+        "float" => &[Float],
+        "clear" => &[Clear],
         "inset" => &[Top, Right, Bottom, Left],
         "transition-property" => &[TransitionProperty],
         "transition-duration" => &[TransitionDuration],

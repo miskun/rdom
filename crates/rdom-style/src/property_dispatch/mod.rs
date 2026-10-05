@@ -83,6 +83,7 @@ mod contain;
 mod css_wide;
 mod declare;
 mod fields;
+mod float;
 mod grid;
 mod importance;
 mod line_clamp;
@@ -104,6 +105,8 @@ mod border_tests;
 mod display_tests;
 #[cfg(test)]
 mod flex_tests;
+#[cfg(test)]
+mod float_tests;
 #[cfg(test)]
 mod grid_areas_tests;
 #[cfg(test)]

@@ -93,6 +93,7 @@ const PERTURB: &[(&str, &str)] = &[
     ("bottom", "1"),
     ("left", "1"),
     ("z-index", "3"),
+    ("clear", "both"),
     ("transition-property", "color"),
     ("transition-duration", "100ms"),
     ("transition-timing-function", "ease-in"),
@@ -224,6 +225,10 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
         bottom,
         left,
         z_index,
+        // A floated box is blockified (CSS 2.1 §9.7), which would undo
+        // PERTURB's `display`: `float` has its own test below.
+        float: _,
+        clear,
         transition_property,
         transition_duration,
         transition_timing_function,
@@ -320,6 +325,7 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
         bottom,
         left,
         z_index,
+        clear,
         transition_property,
         transition_duration,
         transition_timing_function,
@@ -396,4 +402,27 @@ fn a_restyle_unblockifies_the_children_of_a_contents_item() {
     restyle_vars(&mut dom, &sheets, registry, &[f]);
     assert_eq!(computed_of(&dom, f).flow, Flow::Block);
     assert_eq!(computed_of(&dom, s).display, Display::Inline);
+}
+
+/// `float: initial` computes to `none` (CSS 2.1 §9.5.1), and the box it
+/// had blockified is inline again (§9.7) — kept apart from
+/// [`initial_keyword_yields_the_initial_computed_value_for_every_property`],
+/// whose `display` a float would blockify.
+#[test]
+fn float_initial_is_none_and_unblockifies() {
+    let floated = style_of(&[("float", "left"), ("display", "inline")]);
+    let moved = cascade_div(&Stylesheet::bare().rule_unchecked("div", floated.clone()));
+    assert_eq!(
+        (moved.float, moved.display),
+        (crate::layout::Float::Left, crate::layout::Display::Block)
+    );
+    let got = cascade_div(
+        &Stylesheet::bare()
+            .rule_unchecked("div", floated)
+            .rule_unchecked("div", style_of(&[("float", "initial")])),
+    );
+    assert_eq!(
+        (got.float, got.display),
+        (crate::layout::Float::None, crate::layout::Display::Inline)
+    );
 }
