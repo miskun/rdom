@@ -11,9 +11,9 @@
 //! rule like `tree-item { padding: 1 2; gap: 1; fg: text; }` is
 //! one `TuiStyle` with five fields set.
 //!
-//! `!important` is tracked via a parallel `ImportantMask` bitset. The
-//! cascade applies important declarations in a second pass per the CSS
-//! spec.
+//! `!important` is tracked via a parallel `ImportantMask` bitset
+//! (`important.rs`), one bit per field. The cascade applies important
+//! declarations in a second pass per the CSS spec.
 
 #[cfg(test)]
 use crate::Color;
@@ -25,98 +25,7 @@ use crate::layout::{
 };
 use crate::{Content, TuiColor, Value};
 
-use rdom_core::bitflags_like;
-
-bitflags_like! {
-    /// One bit per `TuiStyle` property — flipped when the author wrote
-    /// `!important` on that declaration. Kept parallel to the fields
-    /// rather than wrapping each in `(Value<T>, bool)` to keep the hot
-    /// property accessors cheap.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-    pub struct ImportantMask(u128) {
-        FG         = 1 << 0;
-        BG         = 1 << 1;
-        // Bit 2 was `BORDER_FG`, replaced by the per-side `BORDER_*_COLOR`.
-        BOLD       = 1 << 3;
-        // Bits 4, 6, 7 are unused — `text-decoration` (bit 31) is
-        // the sole entry point for the underlined / line-through
-        // SGR primitives.
-        ITALIC     = 1 << 5;
-
-        WIDTH      = 1 << 8;
-        HEIGHT     = 1 << 9;
-        MIN_WIDTH  = 1 << 10;
-        MAX_WIDTH  = 1 << 11;
-        MIN_HEIGHT = 1 << 12;
-        MAX_HEIGHT = 1 << 13;
-        PADDING    = 1 << 14;
-        GAP        = 1 << 15;
-        // Bit 16 was `BORDER`, replaced by the per-side `BORDER_*_STYLE`.
-        DIRECTION  = 1 << 17;
-        OVERFLOW_X = 1 << 18;
-
-        CONTENT    = 1 << 19;
-
-        DISPLAY     = 1 << 20;
-        WHITE_SPACE = 1 << 21;
-        USER_SELECT = 1 << 22;
-        OVERFLOW_Y  = 1 << 23;
-
-        // ── Positioning ──
-        POSITION    = 1 << 24;
-        TOP         = 1 << 25;
-        RIGHT       = 1 << 26;
-        BOTTOM      = 1 << 27;
-        LEFT        = 1 << 28;
-        Z_INDEX     = 1 << 29;
-
-        TRANSITIONS = 1 << 30;
-
-        TEXT_DECORATION = 1 << 31;
-        OPACITY = 1 << 32;
-        ASPECT_RATIO = 1 << 33;
-        MARGIN = 1 << 34;
-        BORDER_COLLAPSE = 1 << 35;
-        CARET_COLOR = 1 << 36;
-        CARET_TEXT_COLOR = 1 << 37;
-        FLEX_SHRINK = 1 << 38;
-        POINTER_EVENTS = 1 << 39;
-        SCROLLBAR_GUTTER = 1 << 40;
-        FLOW = 1 << 41;
-        COUNTER_RESET = 1 << 42;
-        COUNTER_INCREMENT = 1 << 43;
-        SCROLL_BEHAVIOR = 1 << 44;
-        FLEX_BASIS = 1 << 45;
-        COLOR_SCHEME = 1 << 46;
-        // ── Backgrounds (CSS Backgrounds 3 §3) ──
-        BACKGROUND_IMAGE = 1 << 47;
-        BACKGROUND_POSITION = 1 << 48;
-        BACKGROUND_SIZE = 1 << 49;
-        BACKGROUND_REPEAT = 1 << 50;
-        BACKGROUND_ATTACHMENT = 1 << 51;
-        BACKGROUND_ORIGIN = 1 << 52;
-        BACKGROUND_CLIP = 1 << 53;
-        // ── Borders (CSS Backgrounds 3 §4), one bit per longhand ──
-        BORDER_TOP_COLOR = 1 << 54;
-        BORDER_RIGHT_COLOR = 1 << 55;
-        BORDER_BOTTOM_COLOR = 1 << 56;
-        BORDER_LEFT_COLOR = 1 << 57;
-        BORDER_TOP_WIDTH = 1 << 58;
-        BORDER_RIGHT_WIDTH = 1 << 59;
-        BORDER_BOTTOM_WIDTH = 1 << 60;
-        BORDER_LEFT_WIDTH = 1 << 61;
-        BORDER_TOP_STYLE = 1 << 62;
-        BORDER_RIGHT_STYLE = 1 << 63;
-        BORDER_BOTTOM_STYLE = 1 << 64;
-        BORDER_LEFT_STYLE = 1 << 65;
-        BORDER_TOP_LEFT_RADIUS = 1 << 66;
-        BORDER_TOP_RIGHT_RADIUS = 1 << 67;
-        BORDER_BOTTOM_RIGHT_RADIUS = 1 << 68;
-        BORDER_BOTTOM_LEFT_RADIUS = 1 << 69;
-        BOX_SHADOW = 1 << 70;
-        BORDER_SPACING = 1 << 71;
-    }
-}
+pub use important::ImportantMask;
 
 /// Author-written style block. Build with the fluent setters; feed
 /// into a `Stylesheet` via `rule(...)` or assign to
@@ -516,5 +425,6 @@ impl TuiStyle {
 }
 
 mod builder;
+mod important;
 #[cfg(test)]
 mod tests;

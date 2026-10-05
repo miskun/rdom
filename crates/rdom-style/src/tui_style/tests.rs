@@ -1,87 +1,14 @@
 //! `TuiStyle` tests.
-/// Every `ImportantMask` flag owns one bit. `FLOW` and
-/// `POINTER_EVENTS` shared bit 39 (`STYLE-MASK-COLLISION-1`), so
-/// `pointer-events: none !important` also made `display`'s derived
-/// flow important.
+/// `FLOW` and `POINTER_EVENTS` shared bit 39
+/// (`STYLE-MASK-COLLISION-1`), so `pointer-events: none !important`
+/// also made `display`'s derived flow important. Bits are numbered by
+/// the property table now; `property_dispatch`'s
+/// `every_dispatched_field_has_a_distinct_important_bit` pins them all.
 #[test]
-fn important_mask_bits_are_unique() {
+fn pointer_events_importance_does_not_mark_flow() {
     use super::ImportantMask as M;
-    let all = [
-        M::FG,
-        M::BG,
-        M::BORDER_TOP_COLOR,
-        M::BORDER_RIGHT_COLOR,
-        M::BORDER_BOTTOM_COLOR,
-        M::BORDER_LEFT_COLOR,
-        M::BORDER_TOP_WIDTH,
-        M::BORDER_RIGHT_WIDTH,
-        M::BORDER_BOTTOM_WIDTH,
-        M::BORDER_LEFT_WIDTH,
-        M::BOLD,
-        M::ITALIC,
-        M::WIDTH,
-        M::HEIGHT,
-        M::MIN_WIDTH,
-        M::MAX_WIDTH,
-        M::MIN_HEIGHT,
-        M::MAX_HEIGHT,
-        M::PADDING,
-        M::GAP,
-        M::BORDER_TOP_STYLE,
-        M::BORDER_RIGHT_STYLE,
-        M::BORDER_BOTTOM_STYLE,
-        M::BORDER_LEFT_STYLE,
-        M::BORDER_TOP_LEFT_RADIUS,
-        M::BORDER_TOP_RIGHT_RADIUS,
-        M::BORDER_BOTTOM_RIGHT_RADIUS,
-        M::BORDER_BOTTOM_LEFT_RADIUS,
-        M::BOX_SHADOW,
-        M::BORDER_SPACING,
-        M::DIRECTION,
-        M::OVERFLOW_X,
-        M::CONTENT,
-        M::DISPLAY,
-        M::WHITE_SPACE,
-        M::USER_SELECT,
-        M::OVERFLOW_Y,
-        M::POSITION,
-        M::TOP,
-        M::RIGHT,
-        M::BOTTOM,
-        M::LEFT,
-        M::Z_INDEX,
-        M::TRANSITIONS,
-        M::TEXT_DECORATION,
-        M::OPACITY,
-        M::ASPECT_RATIO,
-        M::MARGIN,
-        M::BORDER_COLLAPSE,
-        M::CARET_COLOR,
-        M::CARET_TEXT_COLOR,
-        M::FLEX_SHRINK,
-        M::FLEX_BASIS,
-        M::POINTER_EVENTS,
-        M::FLOW,
-        M::COUNTER_RESET,
-        M::COUNTER_INCREMENT,
-        M::SCROLLBAR_GUTTER,
-        M::SCROLL_BEHAVIOR,
-        M::COLOR_SCHEME,
-        M::BACKGROUND_IMAGE,
-        M::BACKGROUND_POSITION,
-        M::BACKGROUND_SIZE,
-        M::BACKGROUND_REPEAT,
-        M::BACKGROUND_ATTACHMENT,
-        M::BACKGROUND_ORIGIN,
-        M::BACKGROUND_CLIP,
-    ];
-    for (i, a) in all.iter().enumerate() {
-        for b in &all[i + 1..] {
-            assert_eq!(a.bits() & b.bits(), 0, "{a:?} and {b:?} share a bit");
-        }
-    }
-    assert_eq!(M::all().bits().count_ones() as usize, all.len());
     let style = super::TuiStyle::new().pointer_events_important(crate::layout::PointerEvents::None);
+    assert!(style.important.contains(M::POINTER_EVENTS));
     assert!(!style.important.contains(M::FLOW));
 }
 

@@ -376,6 +376,32 @@ fn field_table_covers_every_property_field_and_mask_bit() {
     assert_eq!(owned, crate::ImportantMask::all());
 }
 
+/// C4G-IMPORTANT-BITSET — CSS Cascade 4 §6.4: importance belongs to
+/// each declaration, so every longhand field the table dispatches to
+/// owns its own `!important` bit, distinct from every other field's —
+/// `transition-duration: 1s !important` must not make
+/// `transition-delay` important. The bit is the field's row in the
+/// table, so a new property gets one without a hand-picked number.
+#[test]
+fn every_dispatched_field_has_a_distinct_important_bit() {
+    for (i, a) in Field::ALL.iter().enumerate() {
+        assert!(!a.mask().is_empty(), "{a:?} has no bit");
+        for b in &Field::ALL[i + 1..] {
+            assert!(
+                (a.mask() & b.mask()).is_empty(),
+                "{a:?} and {b:?} share a bit"
+            );
+        }
+    }
+    for name in property_names() {
+        let fields = fields_of(name).unwrap();
+        let mask = property_mask(name).unwrap();
+        for f in fields {
+            assert!(mask.contains(f.mask()), "{name} lacks {f:?}'s bit");
+        }
+    }
+}
+
 /// `display` writes the derived `flow` too; removing it must not
 /// leave the flow behind.
 #[test]

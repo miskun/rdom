@@ -1230,3 +1230,16 @@ row comes from.
   `paint_stacking_context` re-exported at their old paths. Every test passes unchanged. Phase 4 gate
   batch A (C4G-ESC-GRACE … C4G-PAINT-SPLIT) done; batch B open.
 
+- 2026-10-06 — C4G-IMPORTANT-BITSET: `ImportantMask` is an opaque `[u64; N]` (`tui_style/important.rs`),
+  `N` from the property table's row count (`IMPORTANT_BITS`, emitted by `define_fields!`). Each row of
+  the table names its constant and gets the row's index as its bit (`ImportantMask::bit(Field as
+  usize)`), so the 72 hand-numbered bits are gone and a new field cannot collide or run out of width.
+  `bits()` / `from_bits_truncate` dropped (no width-independent use; `count()` replaces the one test
+  use), `union` is `const` for group constants, `Debug` prints the names. Decided: one bit per field,
+  so the four `transition-*` longhands, which shared `TRANSITIONS`, each get theirs (Cascade 4 §6.4,
+  importance is per declaration; `transition-duration: 1s !important` made `transition-delay`
+  important) — `TRANSITIONS` stays as their union for the builder and the shorthand; the cascade
+  reads the per-longhand bits. Red: `every_dispatched_field_has_a_distinct_important_bit`
+  ("TransitionProperty and TransitionDuration share a bit"); green after, with
+  `operations_span_every_word` over the last bit. The hand-listed `important_mask_bits_are_unique`
+  is replaced by that test (its FLOW / POINTER_EVENTS regression kept as its own test).

@@ -179,16 +179,32 @@ macro_rules! define_fields {
             $($variant,)+
         }
 
+        /// How many fields — and so `!important` bits — the table has.
+        pub(crate) const IMPORTANT_BITS: usize = [$(Field::$variant,)+].len();
+
+        /// The named constant of `!important` bit `index`, for `Debug`.
+        pub(crate) fn important_bit_name(index: usize) -> &'static str {
+            const NAMES: &[&str] = &[$(stringify!($mask),)+];
+            NAMES[index]
+        }
+
+        // Each row's `!important` bit is the row's index: the constant
+        // is named on the row, numbered by the table.
+        impl crate::ImportantMask {
+            $(
+                #[doc = concat!("`!important` bit of `TuiStyle::", stringify!($($field).+), "`.")]
+                pub const $mask: Self = Self::bit(Field::$variant as usize);
+            )+
+        }
+
         impl Field {
             /// Every field, for coverage tests.
             #[cfg(test)]
             pub(super) const ALL: &'static [Field] = &[$(Field::$variant,)+];
 
-            /// The `!important` bit this field is guarded by.
+            /// The `!important` bit this field is guarded by — its row.
             pub(super) fn mask(self) -> crate::ImportantMask {
-                match self {
-                    $(Field::$variant => crate::ImportantMask::$mask,)+
-                }
+                crate::ImportantMask::bit(self as usize)
             }
 
             /// Clear the field; `true` if it was set.
@@ -279,10 +295,10 @@ define_fields! {
     Bottom => bottom : BOTTOM,
     Left => left : LEFT,
     ZIndex => z_index : Z_INDEX,
-    TransitionProperty => transition_property : TRANSITIONS,
-    TransitionDuration => transition_duration : TRANSITIONS,
-    TransitionTimingFunction => transition_timing_function : TRANSITIONS,
-    TransitionDelay => transition_delay : TRANSITIONS,
+    TransitionProperty => transition_property : TRANSITION_PROPERTY,
+    TransitionDuration => transition_duration : TRANSITION_DURATION,
+    TransitionTimingFunction => transition_timing_function : TRANSITION_TIMING_FUNCTION,
+    TransitionDelay => transition_delay : TRANSITION_DELAY,
     CounterReset => counter_reset : COUNTER_RESET,
     CounterIncrement => counter_increment : COUNTER_INCREMENT,
     ColorScheme => color_scheme : COLOR_SCHEME,

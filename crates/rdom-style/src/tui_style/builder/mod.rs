@@ -457,8 +457,7 @@ impl TuiStyle {
 
     // ── Transitions setters (M3) ─────────────────────────────────────
     // Vec-typed fields can't go through the `setter!` macro (no
-    // `Value<T>` wrapping), so we hand-write a thin layer. All four
-    // longhand fields share the `TRANSITIONS` important bit.
+    // `Value<T>` wrapping), so we hand-write a thin layer.
     pub fn transition_property(mut self, v: Vec<crate::transition::TransitionProperty>) -> Self {
         self.transition_property = Some(Value::Specified(v));
         self
@@ -475,10 +474,9 @@ impl TuiStyle {
         self.transition_delay = Some(Value::Specified(v));
         self
     }
-    /// Mark the transition longhands as `!important`. All four
-    /// longhands share the `TRANSITIONS` mask bit (matches the
-    /// CSS spec — `!important` applies to the whole shorthand
-    /// declaration).
+    /// Mark the four transition longhands `!important`, as a
+    /// `transition: … !important` declaration does (each longhand has
+    /// its own bit; `ImportantMask::TRANSITIONS` is their union).
     pub fn transitions_important(mut self) -> Self {
         self.important |= ImportantMask::TRANSITIONS;
         self
