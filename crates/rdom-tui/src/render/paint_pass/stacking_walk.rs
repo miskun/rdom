@@ -10,7 +10,7 @@ use super::box_paint::{paint_box, paint_content};
 use super::group;
 use super::shadow::{self, Shadows};
 use crate::ext::TuiExt;
-use crate::layout::{Display, Flow};
+use crate::layout::Display;
 use crate::node::TuiNodeExt;
 use crate::render::layout_pass::is_ifc_block;
 use crate::render::stacking::{
@@ -141,9 +141,27 @@ pub(super) fn recurse_children(
     clip: Rect,
     viewport: Rect,
 ) {
-    for child in dom.node(id).child_nodes() {
+    children_of(dom, id, id, buf, clip, viewport);
+}
+
+/// [`recurse_children`] over the child nodes of `node`, whose box
+/// parent is `id` (`node` itself, or a `display: contents` element in
+/// `id`, whose children are `id`'s in the box tree — CSS Display 3
+/// §2.5; it paints nothing of its own).
+fn children_of(
+    dom: &Dom<TuiExt>,
+    node: NodeId,
+    id: NodeId,
+    buf: &mut Buffer,
+    clip: Rect,
+    viewport: Rect,
+) {
+    for child in dom.node(node).child_nodes() {
         let cid = child.id();
         match child.node_type() {
+            NodeType::Element if crate::render::box_tree::is_contents(dom, cid) => {
+                children_of(dom, cid, id, buf, clip, viewport);
+            }
             NodeType::Element => {
                 // Display:inline children outside an IFC context are
                 // a cascade error in CSS — but in rdom, a flex
@@ -208,7 +226,7 @@ pub(super) fn paint_line_atom(
     clip: Rect,
     viewport: Rect,
 ) {
-    let Some(parent) = dom.node(atom).parent_node().map(|p| p.id()) else {
+    let Some(parent) = crate::render::box_tree::box_parent(dom, atom) else {
         return;
     };
     paint_in_flow(dom, parent, atom, buf, clip, viewport);
@@ -223,7 +241,7 @@ pub(super) fn paint_line_atom(
 fn in_a_line(dom: &Dom<TuiExt>, parent: NodeId, child: NodeId) -> bool {
     let p = dom.node(parent);
     p.node_type() == NodeType::Element
-        && p.computed().is_some_and(|c| c.flow == Flow::Block)
+        && p.computed().is_some_and(|c| c.flow.is_block_flow())
         && dom
             .node(child)
             .computed()

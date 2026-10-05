@@ -513,6 +513,7 @@ fn compute_element_style(
     // `display`, `overflow_*`, `position`. Used by the block-layout
     // margin-collapse pass — landing here in phase 1 so phase 5 has
     // it ready to consume.
+    super::apply::finalize_unusual_contents(&mut working, dom.node(id).tag_name());
     finalize_bfc_formation(&mut working);
     // Viewport-percentage lengths are absolute at computed-value time
     // (CSS Values 4 §6.1.2).

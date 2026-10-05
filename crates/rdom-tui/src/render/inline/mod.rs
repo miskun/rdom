@@ -57,6 +57,7 @@ use rdom_core::{Dom, NodeId, NodeType};
 
 use crate::ext::{PseudoSlot, StyleSlot, TuiExt};
 use crate::layout::WhiteSpace;
+use crate::render::box_tree::BoxItem;
 
 pub use boxes::{GeneratedFragment, InlineFragment, InlineLayout, LineBox};
 pub use caret::cell_of_position;
@@ -158,7 +159,7 @@ pub fn inline_flow_for_text(dom: &Dom<TuiExt>, text_node: NodeId) -> Option<Inli
         }
         if let Some(ext) = dom.node(id).ext()
             && !ext.anonymous_blocks.is_empty()
-            && let Some(index) = dom.node(id).child_nodes().position(|c| c.id() == child)
+            && let Some(index) = box_index(dom, id, text_node, child)
             && let Some(i) = ext
                 .anonymous_blocks
                 .iter()
@@ -171,6 +172,35 @@ pub fn inline_flow_for_text(dom: &Dom<TuiExt>, text_node: NodeId) -> Option<Inli
         }
         child = id;
         cur = dom.node(id).parent_node().map(|p| p.id());
+    }
+    None
+}
+
+/// The index in `container`'s box sequence (`box_tree::box_sequence`)
+/// of the item holding `node`, `child` being `node`'s ancestor-or-self
+/// among `container`'s child nodes. Without a box-less child that holds
+/// a block box the sequence is the child nodes, so the index is
+/// `child`'s.
+fn box_index(dom: &Dom<TuiExt>, container: NodeId, node: NodeId, child: NodeId) -> Option<usize> {
+    use crate::render::box_tree::{box_sequence, holds_block_box, is_contents};
+    let expands = |c: NodeId| is_contents(dom, c) && holds_block_box(dom, c);
+    if !dom.node(container).child_nodes().any(|c| expands(c.id())) {
+        return dom
+            .node(container)
+            .child_nodes()
+            .position(|c| c.id() == child);
+    }
+    // The item is `node` or its nearest ancestor in the sequence.
+    let items = box_sequence(dom, container);
+    let mut cur = Some(node);
+    while let Some(n) = cur {
+        if let Some(i) = items.iter().position(|&it| it == BoxItem::Node(n)) {
+            return Some(i);
+        }
+        if n == child {
+            return None;
+        }
+        cur = dom.node(n).parent_node().map(|p| p.id());
     }
     None
 }
@@ -311,8 +341,9 @@ pub fn compute_inline_layout_for_run(
     direct_children: &[NodeId],
     content_width: u16,
 ) -> InlineLayout {
-    let pseudos = generated::run_pseudos(dom, parent, direct_children);
-    pack_run(dom, parent, direct_children, pseudos, content_width)
+    let items: Vec<BoxItem> = direct_children.iter().map(|&c| BoxItem::Node(c)).collect();
+    let pseudos = generated::run_pseudos(dom, parent, &items);
+    pack_run(dom, parent, &items, pseudos, content_width)
 }
 
 /// Which of the run's host pseudo-elements a [`pack_run`] includes.
@@ -322,13 +353,14 @@ pub(crate) struct RunPseudos {
     pub(crate) after: bool,
 }
 
-/// Pack `direct_children` of `parent` as one inline formatting context,
+/// Pack `direct_children` of `parent` — items of its box sequence
+/// (`box_tree::box_sequence`) — as one inline formatting context,
 /// with `parent`'s `::before` / `::after` first / last as `pseudos`
 /// asks. An empty `direct_children` packs the pseudo-elements alone.
 pub(crate) fn pack_run(
     dom: &Dom<TuiExt>,
     parent: NodeId,
-    direct_children: &[NodeId],
+    direct_children: &[BoxItem],
     pseudos: RunPseudos,
     content_width: u16,
 ) -> InlineLayout {
@@ -344,12 +376,26 @@ pub(crate) fn pack_run(
     if pseudos.before {
         push_pseudo(dom, parent, PseudoSlot::Before, &mut packer);
     }
-    for &child_id in direct_children {
+    for &item in direct_children {
+        let child_id = match item {
+            BoxItem::Node(n) => n,
+            // The `::before` / `::after` of a box-less child that holds
+            // a block box: an inline box of this flow, hosted by it.
+            BoxItem::Generated(host, slot) => {
+                if let Some(text) = crate::render::box_tree::generated_text(dom, host, slot) {
+                    packer.push_generated(host, slot, text);
+                }
+                continue;
+            }
+        };
         let child = dom.node(child_id);
+        // A text node directly in a box-less child that holds a block
+        // box is owned by that child (its parent), not by `parent`.
+        let owner = child.parent_node().map_or(parent, |p| p.id());
         match child.node_type() {
             NodeType::Text => {
                 if let Some(data) = child.node_value() {
-                    packer.push_text(parent, child_id, data);
+                    packer.push_text(owner, child_id, data);
                 }
             }
             NodeType::Element => {

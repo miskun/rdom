@@ -14,7 +14,7 @@ use super::value_serializers::{
     serialize_transition_shorthand, shortest_sides, side_value, specified,
 };
 use crate::layout::{
-    CaretColor, CaretTextColor, Direction, Display, Position, Size, UserSelect, WhiteSpace, ZIndex,
+    CaretColor, CaretTextColor, Direction, Position, Size, UserSelect, WhiteSpace, ZIndex,
 };
 use crate::{Content, TuiStyle};
 
@@ -103,13 +103,13 @@ pub fn serialize(name: &str, style: &TuiStyle) -> Option<String> {
 
         // Layout — keywords
         "display" => style.display.as_ref().and_then(specified).map(|d| {
-            match d {
-                Display::Block => "block",
-                Display::Inline => "inline",
-                Display::InlineBlock => "inline-block",
-                Display::None => "none",
-            }
-            .to_string()
+            let flow = style.flow.as_ref().and_then(specified).copied();
+            let list_item = style.list_item.as_ref().and_then(specified).copied();
+            crate::parse::values::serialize_display(
+                *d,
+                flow.unwrap_or_default(),
+                list_item.unwrap_or(false),
+            )
         }),
         "flex-direction" => style.direction.as_ref().and_then(specified).map(|d| {
             match d {

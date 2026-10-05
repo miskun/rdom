@@ -151,6 +151,10 @@ pub struct ComputedStyle {
     /// §10 block flow). `display: flex` flips this to `Flex`. See
     /// [`Flow`](crate::layout::Flow) for the full table.
     pub flow: crate::layout::Flow,
+    /// Whether `display` names `list-item` (CSS Display 3 §2.3). Not
+    /// inherited; default `false`. rdom has no `::marker` yet: a list
+    /// item lays out as its outer and inner types say (DIVERGENCES).
+    pub list_item: bool,
     /// True when this element establishes a new **block formatting
     /// context** per CSS 2.1 §9.4.1. Triggers: root element, flex
     /// containers, inline-blocks, absolute/fixed positioning,
@@ -272,6 +276,7 @@ impl ComputedStyle {
             scroll_behavior: crate::layout::ScrollBehavior::Auto,
             display: Display::Block,
             flow: crate::layout::Flow::Block,
+            list_item: false,
             establishes_new_bfc: false,
             white_space: WhiteSpace::Normal,
             user_select: UserSelect::Auto,

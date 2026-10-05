@@ -18,6 +18,7 @@
 
 pub mod backend;
 pub mod backend_crossterm;
+pub(crate) mod box_tree;
 pub mod buffer;
 pub mod cell;
 pub(crate) mod compose;

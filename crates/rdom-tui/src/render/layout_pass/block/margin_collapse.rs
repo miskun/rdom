@@ -68,7 +68,12 @@ fn is_collapse_through_shape(dom: &Dom<TuiExt>, id: NodeId, computed: &ComputedS
     if pseudos.before || pseudos.after {
         return false;
     }
-    for child in dom.node(id).child_nodes() {
+    for item in crate::render::box_tree::box_sequence(dom, id) {
+        // A generated item of a box-less child is a line's content.
+        let Some(child) = item.node() else {
+            return false;
+        };
+        let child = dom.node(child);
         match child.node_type() {
             NodeType::Element if is_in_flow(dom, child.id()) => return false,
             NodeType::Text => {
@@ -159,6 +164,10 @@ fn establishes_independent_formatting_context(
         }
         match p.node_type() {
             NodeType::Fragment => parent = p.parent_node(),
+            // A box-less element is transparent too (CSS Display 3 §2.5).
+            NodeType::Element if crate::render::box_tree::is_contents(dom, p.id()) => {
+                parent = p.parent_node()
+            }
             _ => {
                 return p
                     .ext()
@@ -365,12 +374,19 @@ fn outer_edge_margin(
         // that contributes a margin at that edge determines where the
         // chain stops; empty collapse-through children fold BOTH their
         // margins and the walk continues to the next sibling.
-        let children: Vec<_> = dom.node(id).child_nodes().collect();
+        // In box-tree order: a box-less child holding a block box gives
+        // its own children (CSS Display 3 §2.5).
+        let children = crate::render::box_tree::box_sequence(dom, id);
         let ordered: Box<dyn Iterator<Item = _>> = match edge {
             Edge::Top => Box::new(children.into_iter()),
             Edge::Bottom => Box::new(children.into_iter().rev()),
         };
-        for child in ordered {
+        for item in ordered {
+            // A generated item holds a line, which blocks the chain.
+            let Some(child) = item.node() else {
+                break;
+            };
+            let child = dom.node(child);
             if !is_in_flow(dom, child.id()) {
                 continue;
             }
@@ -383,7 +399,7 @@ fn outer_edge_margin(
                     use crate::layout::Display;
                     if matches!(
                         child_computed.display,
-                        Display::Inline | Display::InlineBlock
+                        Display::Inline | Display::InlineBlock | Display::Contents
                     ) {
                         // An anonymous block box wraps this inline run;
                         // its content (visible glyphs or zero-sized atom

@@ -76,11 +76,25 @@ impl<'a> Keywords<'a> {
 /// BFC.
 pub(super) fn finalize_bfc_formation(working: &mut ComputedStyle) {
     use crate::layout::{Flow, Overflow, Position};
-    working.establishes_new_bfc = matches!(working.flow, Flow::Flex)
+    working.establishes_new_bfc = matches!(working.flow, Flow::Flex | Flow::FlowRoot)
         || matches!(working.display, Display::InlineBlock)
         || !matches!(working.overflow_x, Overflow::Visible)
         || !matches!(working.overflow_y, Overflow::Visible)
         || matches!(working.position, Position::Absolute | Position::Fixed);
+}
+
+/// CSS Display 3 Appendix B: `display: contents` on a replaced element
+/// or a form control — whose children are not its rendering — behaves
+/// as `display: none`. rdom computes it so, so layout, paint, hit
+/// testing and focus all see no box.
+pub(super) fn finalize_unusual_contents(working: &mut ComputedStyle, tag: Option<&str>) {
+    const NO_CONTENTS: &[&str] = &[
+        "br", "wbr", "meter", "progress", "canvas", "embed", "object", "audio", "iframe", "img",
+        "video", "frame", "frameset", "input", "textarea", "select",
+    ];
+    if working.display == Display::Contents && tag.is_some_and(|t| NO_CONTENTS.contains(&t)) {
+        working.display = Display::None;
+    }
 }
 
 /// Apply one `TuiStyle` to `working`, for one ladder pass. Paints +
@@ -205,6 +219,7 @@ pub(super) fn apply_style(
         // parent's outer and inner display.
         display: DISPLAY,
         flow: FLOW,
+        list_item: LIST_ITEM,
         white_space: WHITE_SPACE,
         user_select: USER_SELECT,
         pointer_events: POINTER_EVENTS,

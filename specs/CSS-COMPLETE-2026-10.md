@@ -136,7 +136,7 @@ row comes from.
 | Id | Item | Status |
 |---|---|---|
 | C6-MARGIN-SIDES | `margin` / `padding` stored per side (each side its own longhand with its own `!important` bit), so a logical or physical side cascades alone — finishes C5G-LOGICAL-IMPORTANT || done |
-| C6-DISPLAY-KEYWORDS | `display: contents` / `flow-root` / multi-keyword syntax | |
+| C6-DISPLAY-KEYWORDS | `display: contents` / `flow-root` / multi-keyword syntax | done |
 | C6-VISIBILITY | `visibility: visible / hidden / collapse` | |
 | C6-ORDER | `order` | |
 | C6-DIRECTION-REVERSE | `flex-direction: row-reverse / column-reverse` | |
@@ -1999,3 +1999,52 @@ row comes from.
   and rdom-css tests read sides instead of one `Margin` / `Padding`, and
   `padding_side_important_sets_its_sides_bit` (was `…_sets_padding_bit`) asserts the top bit only.
   No layout or paint expectation changed; no snapshot changed.
+- 2026-10-08 — C6-DISPLAY-KEYWORDS: `display` takes CSS Display 3 §2's grammar —
+  `[<display-outside> || <display-inside>]` (outer `block | inline`, inner `flow | flow-root |
+  flex`; an omitted outer is `block`, an omitted inner `flow`), `<display-listitem>`
+  (`list-item` with an optional outer and `flow` / `flow-root`), `contents | none`, and the legacy
+  keywords as their pairs (`parse/values/display.rs`, which serializes the shortest form back);
+  `run-in` / `grid` / `table` / `ruby` stay invalid until their phases. Model: `Display::Contents`,
+  `Flow::FlowRoot` (+ `Flow::is_block_flow`), and `list_item` on `TuiStyle` / `ComputedStyle`
+  (owned by `display` with the two types, a field-table row, cascaded; no layout effect until
+  C10-LIST-ITEM's marker). `inline flow-root` stays `(InlineBlock, Block)` — an inline block always
+  establishes a BFC. Found: `display: inline` left the inner type unwritten, so `display: flex`
+  then `display: inline` in one cascade made an inline flex container — `inline` writes `flow`
+  now. `flow-root`: `finalize_bfc_formation` marks it a BFC root, so no margin collapses through
+  it (floats, Phase 8, will be contained by the same flag); every `Flow::Block` match takes
+  `FlowRoot` too. `contents` (§2.5) — decided, one module: `render/box_tree.rs` owns "which nodes
+  generate boxes": `is_contents`, `box_parent` (the nearest ancestor that is not box-less — used
+  for the scroll offset, the relative-shift and percentage bases, the parent's direction, the
+  definite-height chain, the containing block, atom paint), and `box_sequence` (a block
+  container's child nodes with each box-less child that holds a block-level box replaced by its
+  own sequence, between `BoxItem::Generated` items for its visible static `::before` / `::after`;
+  one holding only inline content stays one inline-level item, which the packer walks as a
+  box-less inline box — its pseudos at its start / end). Block runs, the line-bearing and
+  first-line placement of generated content (`generated.rs`), margin collapse (the chain walks,
+  collapse-through shape, the formatting-context parent walk), `is_ifc_block` and the
+  text-to-anonymous-box lookup (`inline_flow_for_text`, via `box_index`) read that sequence;
+  `element_children_of` unwraps box-less children like fragments, so flex items, layout recursion,
+  scroll extents and intrinsic sizes see its children; positioned descendants are found through
+  it. Paint: the stacking walks and `recurse_children` pass through it as through a fragment (no
+  box, no shadow, no background — a fragment of its own text paints without its background);
+  `is_positioned` / `creates_stacking_context` / `computed_position` / sticky are false for it
+  (its `position`, `z-index`, `opacity` apply to no box). Hit-testing descends into its children
+  and puts it on the path. Its rect is zero at the parent's content origin
+  (`collapse_hidden_children`). Focus: unchanged — it stays focusable (HTML "being rendered"
+  includes an element whose rendering is delegated to its children; Chromium since 2023).
+  Appendix B: on a replaced element or form control it behaves as `none`
+  (`apply::finalize_unusual_contents`: `br`, `wbr`, `meter`, `progress`, `canvas`, `embed`,
+  `object`, `audio`, `iframe`, `img`, `video`, `frame`, `frameset`, `input`, `textarea`, `select`).
+  Red: the rdom-style `display_tests.rs` failed to compile (`Display::Contents`, `Flow::FlowRoot`,
+  `list_item`); all seven `css_phase6/display.rs` tests failed the strict parse ("valid
+  declaration"); after the parser landed, the layout halves first ran with the box-tree code in
+  place (green). Mutation checks (each alone, `css_phase6::display`, reverted): M1 no box-less
+  unwrap in `element_children_of` → `contents_children_are_flex_items`; M2 `box_sequence` never
+  expands → the block-flow, pseudo and hit-test tests; M3 hit-test without the box-less arm →
+  `contents_children_hit_test_through_it`; M4 no Appendix B rule → the focus test; M5 `flow-root`
+  not a BFC → `flow_root_keeps_its_childs_margin_inside`. Found while writing the flex test:
+  rdom's initial `flex-direction` is `column` (CSS: `row`) and DIVERGENCES does not say so —
+  carried to C6-DIRECTION-REVERSE. Changed expectations: the C1 `initial` coverage test perturbs
+  `list_item` by hand (no single `display` value moves the outer type, the inner type and
+  `list-item` at once). DIVERGENCES: the §3 display line removed, the list-item lines say the
+  keyword parses and the marker is C10's. No snapshot changed.

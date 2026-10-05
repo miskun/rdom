@@ -99,9 +99,11 @@ impl Layers {
     }
 }
 
-/// CSS "positioned": any `position` other than `static`.
+/// CSS "positioned": any `position` other than `static`. A box-less
+/// (`display: contents`) element is never positioned: it has no box
+/// for `position` to apply to (CSS Display 3 §2.5).
 pub(crate) fn is_positioned(c: &ComputedStyle) -> bool {
-    c.position != Position::Static
+    c.position != Position::Static && c.display != Display::Contents
 }
 
 /// Does the in-flow element `c` (a child of `parent`) paint
@@ -115,9 +117,9 @@ pub(crate) fn paints_atomically(dom: &Dom<TuiExt>, parent: NodeId, c: &ComputedS
     if c.display == Display::InlineBlock || (c.display == Display::Inline && c.flow == Flow::Flex) {
         return true;
     }
-    // A fragment child is laid out in the element above the fragment.
+    // A fragment or box-less child is laid out in the element above it.
     let mut p = dom.node(parent);
-    while p.node_type() == NodeType::Fragment {
+    while p.node_type() == NodeType::Fragment || crate::render::box_tree::is_contents(dom, p.id()) {
         match p.parent_node() {
             Some(up) => p = up,
             None => return false,
@@ -132,7 +134,9 @@ pub(crate) fn paints_atomically(dom: &Dom<TuiExt>, parent: NodeId, c: &ComputedS
 /// Does an element with this style establish a stacking context?
 /// (The document root always does.)
 pub(crate) fn creates_stacking_context(c: &ComputedStyle) -> bool {
-    (is_positioned(c) && !matches!(c.z_index, ZIndex::Auto)) || c.opacity < 1.0
+    // No box, no stacking context (CSS Display 3 §2.5).
+    c.display != Display::Contents
+        && ((is_positioned(c) && !matches!(c.z_index, ZIndex::Auto)) || c.opacity < 1.0)
 }
 
 /// The clip `id`'s content paints into, given the clip `id` itself
@@ -219,7 +223,13 @@ impl Walk<'_> {
         for child in dom.node(id).child_nodes() {
             let cid = child.id();
             match child.node_type() {
+                // A box-less element's children are its parent box's
+                // (CSS Display 3 §2.5), as a fragment's are.
                 NodeType::Fragment => {
+                    self.children(cid, box_parent, unit);
+                    continue;
+                }
+                NodeType::Element if crate::render::box_tree::is_contents(dom, cid) => {
                     self.children(cid, box_parent, unit);
                     continue;
                 }
@@ -356,6 +366,10 @@ fn atom_shadows_in(
         let cid = child.id();
         match child.node_type() {
             NodeType::Fragment => {
+                atom_shadows_in(dom, cid, box_parent, clip, f);
+                continue;
+            }
+            NodeType::Element if crate::render::box_tree::is_contents(dom, cid) => {
                 atom_shadows_in(dom, cid, box_parent, clip, f);
                 continue;
             }

@@ -229,22 +229,25 @@ impl TuiStyle {
     // `display(Display::InlineBlock)` sets `flow = Flow::Block`,
     // etc. Without this, builder-built styles (used in tests, the
     // UA stylesheet, and inline API) would diverge from CSS-parsed
-    // styles at round-trip boundaries. `display(Display::Inline)`
-    // and `display(Display::None)` leave `flow` untouched (no inner
-    // formatting context to declare).
+    // styles at round-trip boundaries. `display(Display::Inline)`,
+    // `display(Display::None)` and `display(Display::Contents)` leave
+    // `flow` untouched (`.flow(Flow::Flex).display(Display::Inline)` is
+    // `inline flex`).
     pub fn display(mut self, v: Display) -> Self {
         self.display = Some(Value::Specified(v));
+        // No `Display` is a list item; `list_item` is the flag beside it.
+        self.list_item = Some(Value::Specified(false));
         match v {
             Display::Block | Display::InlineBlock => {
                 self.flow = Some(Value::Specified(crate::layout::Flow::Block));
             }
-            Display::Inline | Display::None => {}
+            Display::Inline | Display::None | Display::Contents => {}
         }
         self
     }
     pub fn display_important(mut self, v: Display) -> Self {
         self = self.display(v);
-        self.important |= ImportantMask::DISPLAY;
+        self.important |= ImportantMask::DISPLAY | ImportantMask::LIST_ITEM;
         self
     }
     /// Set the inner display type — the second half of `display`
@@ -295,6 +298,7 @@ impl TuiStyle {
     pub fn flex(mut self) -> Self {
         self.display = Some(Value::Specified(Display::Block));
         self.flow = Some(Value::Specified(crate::layout::Flow::Flex));
+        self.list_item = Some(Value::Specified(false));
         self
     }
 
@@ -313,6 +317,7 @@ impl TuiStyle {
     pub fn inline_flex(mut self) -> Self {
         self.display = Some(Value::Specified(Display::Inline));
         self.flow = Some(Value::Specified(crate::layout::Flow::Flex));
+        self.list_item = Some(Value::Specified(false));
         self
     }
 

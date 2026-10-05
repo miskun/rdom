@@ -51,6 +51,7 @@ use rdom_core::{Dom, NodeId};
 use crate::ext::{AnonymousIfc, TuiExt};
 use crate::layout::{Direction, LayoutRect};
 use crate::node::TuiNodeExt;
+use crate::render::box_tree::BoxItem;
 use crate::render::inline::{RunPseudos, pack_run};
 use crate::style::ComputedStyle;
 
@@ -102,12 +103,14 @@ pub(super) fn layout_block_children(
     container: LayoutRect,
     parent_computed: &ComputedStyle,
 ) -> BlockMeasurement {
-    // Collect ALL direct child nodes (text + element). Block layout
-    // distinguishes inline-level (text + Display::Inline/InlineBlock
-    // elements) from block-level (Display::Block elements) — text
-    // nodes are inline-level participants in an anonymous block per
-    // CSS 2.1 §9.2.1.1 rule 2.
-    let raw_children: Vec<NodeId> = dom.node(id).child_nodes().map(|c| c.id()).collect();
+    // Collect ALL direct child nodes (text + element), in box-tree
+    // order (`box_sequence`: a `display: contents` child holding a
+    // block box gives its own children and generated items). Block
+    // layout distinguishes inline-level (text + Display::Inline/
+    // InlineBlock elements) from block-level (Display::Block elements)
+    // — text nodes are inline-level participants in an anonymous block
+    // per CSS 2.1 §9.2.1.1 rule 2.
+    let raw_children: Vec<BoxItem> = crate::render::box_tree::box_sequence(dom, id);
     // CSS 2.1 §12.1: `::before` / `::after` are the host's first / last
     // children, so a host whose only content is its generated text still
     // has an inline run — the pseudo-elements alone — and a line box.
@@ -118,23 +121,24 @@ pub(super) fn layout_block_children(
     }
 
     // Filter out-of-flow elements; text nodes are always in flow. Each
-    // entry keeps its index into `raw_children` (every child node), and
+    // entry keeps its index into `raw_children` (the box sequence), and
     // the runs' `child_range`s are those RAW indices — not positions in
     // this filtered list — so an anonymous box's range can be matched
-    // against a child's index among all its parent's child nodes
+    // against a child's index in its parent's box sequence
     // (`inline_flow_for_text`, TREE-BFC-PSEUDO-1).
-    let in_flow: Vec<(usize, NodeId)> = raw_children
+    let in_flow: Vec<(usize, BoxItem)> = raw_children
         .iter()
         .copied()
         .enumerate()
-        .filter(|(_, c)| is_in_flow(dom, *c))
+        .filter(|(_, c)| c.node().is_none_or(|c| is_in_flow(dom, c)))
         .collect();
     // `D-M2-2`: out-of-flow positioned children take their static
     // position (CSS 2.1 §10.3.7 / §10.6.4) from the flow cursor at the
     // point where their hypothetical box would have gone — recorded
     // just before the in-flow sibling that follows them is placed.
+    let raw_nodes: Vec<NodeId> = raw_children.iter().filter_map(|c| c.node()).collect();
     let (mut static_before, mut static_trailing) =
-        super::positioning::static_anchors(dom, &raw_children);
+        super::positioning::static_anchors(dom, &raw_nodes);
     if in_flow.is_empty() && !has_pseudos {
         // Clear any stale anonymous boxes from a previous layout —
         // matches flex's `ext.inline_layout = None` reset.
@@ -207,7 +211,7 @@ pub(super) fn layout_block_children(
     // share the cell with. Content-bearing children (no border)
     // would land on the parent's painted border row. Apply the
     // same per-edge inset flex uses so the two layout modes agree.
-    let in_flow_ids: Vec<NodeId> = in_flow.iter().map(|(_, id)| *id).collect();
+    let in_flow_ids: Vec<NodeId> = in_flow.iter().filter_map(|(_, c)| c.node()).collect();
     let (top_inset, bot_inset, left_inset, right_inset) =
         super::border_collapse::collapse_parent_edge_insets(dom, &in_flow_ids, parent_computed);
     let container = LayoutRect::new(
@@ -220,12 +224,11 @@ pub(super) fn layout_block_children(
     let containing_block_width = container.width;
     // Apply this container's scroll_y to the starting cursor (mirrors
     // `flex::layout_flex_children`'s `container.y - scroll_main`). The
-    // scroll itself lives on the parent's `ext.scroll_y`; the flex pass
-    // reads it via the *children's* `parent_scroll` helper, which we
-    // reuse here so block and flex agree on the offset.
-    let scroll_y = super::parent_scroll(dom, &in_flow_ids, crate::layout::Direction::Column);
+    // scroll itself lives on this container's `ext.scroll_y`; the flex
+    // pass reads it through its children's box parent, the same box.
+    let scroll_y = super::gutter::scroll_offset(dom, id, crate::layout::Direction::Column);
     // `SCROLL-CROSS-AXIS-1`: horizontal scroll shifts every box left.
-    let scroll_x = super::parent_scroll(dom, &in_flow_ids, crate::layout::Direction::Row);
+    let scroll_x = super::gutter::scroll_offset(dom, id, crate::layout::Direction::Row);
     let content_x = container.x - scroll_x;
     let mut y_cursor: i32 = container.y - scroll_y;
     let mut anon_blocks: Vec<AnonymousIfc> = Vec::new();
@@ -295,7 +298,8 @@ pub(super) fn layout_block_children(
             RunKind::Block => {
                 let is_last_block_run = Some(run_idx) == last_block_run_idx;
                 let last_child_idx = run.children.len() - 1;
-                for (i, &child) in run.children.iter().enumerate() {
+                // A block run holds element nodes only (`child_level`).
+                for (i, child) in run.children.iter().filter_map(|c| c.node()).enumerate() {
                     if let Some(oof) = static_before.get(&child) {
                         // The hypothetical box has zero margins: it
                         // collapses through whatever is buffered.
@@ -401,8 +405,8 @@ pub(super) fn layout_block_children(
                 // into their subtrees (so `<button>`'s own inner
                 // text-only layout, pseudos, etc. get computed).
                 layout_atomic_inline_blocks(dom, &inline_layout, rect);
-                for c in &run.children {
-                    if let Some(oof) = static_before.get(c) {
+                for c in run.children.iter().filter_map(|c| c.node()) {
+                    if let Some(oof) = static_before.get(&c) {
                         for &n in oof {
                             let (x, y) = super::positioning::static_position_in_ifc(
                                 dom,
@@ -441,7 +445,7 @@ pub(super) fn layout_block_children(
         let mut trailing_margin = margin_acc;
         if suppress_last_bottom_margin
             && !last_run_is_inline
-            && let Some(&last) = runs.last().and_then(|r| r.children.last())
+            && let Some(last) = runs.last().and_then(|r| r.children.last()?.node())
         {
             let last_computed = dom
                 .node(last)

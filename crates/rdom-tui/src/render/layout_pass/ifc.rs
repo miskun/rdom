@@ -80,6 +80,13 @@ pub(crate) fn is_ifc_block(dom: &Dom<TuiExt>, id: NodeId) -> bool {
             // but also don't disqualify an IFC (treat like a
             // whitespace/comment child).
             Display::None => continue,
+            // A box-less child (CSS Display 3 §2.5) is its content: a
+            // block box in it makes this a block container with
+            // anonymous boxes; otherwise it is inline content.
+            Display::Contents if crate::render::box_tree::holds_block_box(dom, child.id()) => {
+                return false;
+            }
+            Display::Contents => has_inline = true,
             // Block-level child → not IFC. The block-layout pass
             // will partition into anonymous boxes per §9.2.1.1.
             Display::Block => return false,

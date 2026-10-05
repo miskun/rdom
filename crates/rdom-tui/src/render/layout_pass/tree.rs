@@ -1,6 +1,7 @@
 //! Tree helpers of the layout pass: the element children a container
-//! lays out (fragments unwrapped), the in-flow predicate, and the
-//! geometry reset of `display: none` subtrees.
+//! lays out (fragments and `display: contents` elements unwrapped), the
+//! in-flow predicate, and the geometry reset of `display: none`
+//! subtrees and box-less elements.
 
 use rdom_core::{Dom, NodeId, NodeType};
 
@@ -9,8 +10,10 @@ use crate::layout::LayoutRect;
 
 /// Direct *element* children of `id`, document order. Text/Comment
 /// are skipped (they have no TuiExt and flow inline via intrinsic
-/// measurement). Fragment children are unwrapped — their element
-/// descendants are returned as if they were direct children of `id`.
+/// measurement). Fragment children and `display: contents` children
+/// (CSS Display 3 §2.5: no box of their own) are unwrapped — their
+/// element children are returned as if they were direct children of
+/// `id`.
 pub(crate) fn element_children_of(dom: &Dom<TuiExt>, id: NodeId) -> Vec<NodeId> {
     let mut out = Vec::new();
     collect_element_children(dom, id, &mut out);
@@ -31,7 +34,11 @@ pub(crate) fn is_in_flow(dom: &Dom<TuiExt>, id: NodeId) -> bool {
         return true;
     };
     use crate::layout::{Display, Position};
-    c.display != Display::None && !matches!(c.position, Position::Absolute | Position::Fixed)
+    // A box-less element has no box to take out of flow (CSS Display 3
+    // §2.5): its `position` applies to nothing.
+    c.display == Display::Contents
+        || (c.display != Display::None
+            && !matches!(c.position, Position::Absolute | Position::Fixed))
 }
 
 /// Zero the layout geometry of every `display:none` child subtree of `id`.
@@ -39,7 +46,13 @@ pub(crate) fn is_in_flow(dom: &Dom<TuiExt>, id: NodeId) -> bool {
 /// retain the rect from when they were last visible (LAYOUT-DISPLAY-NONE-STALE-
 /// RECT). A `display:none` box generates no box, so its rect — and every
 /// descendant's, since the subtree isn't laid out — must read zero.
+///
+/// A `display: contents` child has no box either (CSS Display 3 §2.5):
+/// its own rects read zero, at the container's content origin, while
+/// its children are laid out as the container's.
 pub(crate) fn collapse_hidden_children(dom: &mut Dom<TuiExt>, id: NodeId) {
+    let origin = dom.node(id).ext().map(|e| e.content_layout);
+    zero_contents_children(dom, id, origin.unwrap_or_default());
     for child in element_children_of(dom, id) {
         let hidden = dom
             .node(child)
@@ -70,9 +83,29 @@ fn collapse_subtree_geometry(dom: &mut Dom<TuiExt>, id: NodeId) {
     }
 }
 
+/// Give every `display: contents` child of `id` (through nested ones) a
+/// zero rect at `origin`.
+fn zero_contents_children(dom: &mut Dom<TuiExt>, id: NodeId, origin: LayoutRect) {
+    let children: Vec<NodeId> = dom.node(id).child_nodes().map(|c| c.id()).collect();
+    for child in children {
+        if crate::render::box_tree::is_contents(dom, child) {
+            if let Some(ext) = dom.node_mut(child).ext_mut() {
+                ext.layout = LayoutRect::new(origin.x, origin.y, 0, 0);
+                ext.content_layout = ext.layout;
+                ext.layout_dirty = false;
+                ext.margin_chain = None;
+            }
+            zero_contents_children(dom, child, origin);
+        }
+    }
+}
+
 fn collect_element_children(dom: &Dom<TuiExt>, id: NodeId, out: &mut Vec<NodeId>) {
     for child in dom.node(id).child_nodes() {
         match child.node_type() {
+            NodeType::Element if crate::render::box_tree::is_contents(dom, child.id()) => {
+                collect_element_children(dom, child.id(), out)
+            }
             NodeType::Element => out.push(child.id()),
             NodeType::Fragment => collect_element_children(dom, child.id(), out),
             // Text, comments, and any later node kind (`NodeType` is

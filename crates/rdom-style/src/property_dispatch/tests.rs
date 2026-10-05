@@ -474,7 +474,11 @@ fn removing_display_clears_the_derived_flow() {
     assert!(style.display.is_none() && style.flow.is_none());
     assert_eq!(
         property_mask("display"),
-        Some(crate::ImportantMask::DISPLAY | crate::ImportantMask::FLOW)
+        Some(
+            crate::ImportantMask::DISPLAY
+                | crate::ImportantMask::FLOW
+                | crate::ImportantMask::LIST_ITEM
+        )
     );
 }
 

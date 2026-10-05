@@ -75,8 +75,10 @@ pub(crate) struct MarginChainMemo {
 /// allocated per cascade). Their `inline_layout` carries text
 /// fragments owned by real source nodes; hit-test and selection
 /// resolve through those owners. `child_range` records the
-/// document-order indices (within the parent's full list of child
-/// nodes) the anon box wraps. The host's static `::before` /
+/// document-order indices (within the parent's box-tree children: its
+/// child nodes, with each `display: contents` child that holds a block
+/// box replaced by its own children and generated text, CSS Display 3
+/// §2.5) the anon box wraps. The host's static `::before` /
 /// `::after` are packed into the first / last box's `inline_layout`
 /// (as `LineBox::generated`); a pseudo whose host starts / ends with a
 /// block-level child gets a box of its own, with an empty
@@ -88,8 +90,9 @@ pub struct AnonymousIfc {
     pub rect: LayoutRect,
     /// IFC packing of the wrapped inline run.
     pub inline_layout: InlineLayout,
-    /// Indices into the parent's `child_nodes()` iteration covered
-    /// by this anonymous box, as `[start, end)`. Hit-test and
+    /// Indices into the parent's box-tree children covered by this
+    /// anonymous box, as `[start, end)` — its `child_nodes()` unless a
+    /// `display: contents` child holds a block box. Hit-test and
     /// selection use this to map a fragment to its surrounding DOM
     /// neighbors.
     pub child_range: (usize, usize),

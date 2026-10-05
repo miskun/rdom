@@ -39,7 +39,8 @@ pub(in crate::render::layout_pass) fn is_out_of_flow_positioned(
     node.ext()
         .and_then(|e| e.computed.as_ref())
         .is_some_and(|c| {
-            c.display != Display::None && matches!(c.position, Position::Absolute | Position::Fixed)
+            !matches!(c.display, Display::None | Display::Contents)
+                && matches!(c.position, Position::Absolute | Position::Fixed)
         })
 }
 
@@ -49,11 +50,20 @@ pub(in crate::render::layout_pass) fn out_of_flow_positioned_children(
     dom: &Dom<TuiExt>,
     parent: NodeId,
 ) -> Vec<NodeId> {
-    dom.node(parent)
-        .child_nodes()
-        .map(|c| c.id())
-        .filter(|&c| is_out_of_flow_positioned(dom, c))
-        .collect()
+    // Through `display: contents` children, whose children are
+    // `parent`'s in the box tree (CSS Display 3 §2.5).
+    fn walk(dom: &Dom<TuiExt>, parent: NodeId, out: &mut Vec<NodeId>) {
+        for c in dom.node(parent).child_nodes().map(|c| c.id()) {
+            if crate::render::box_tree::is_contents(dom, c) {
+                walk(dom, c, out);
+            } else if is_out_of_flow_positioned(dom, c) {
+                out.push(c);
+            }
+        }
+    }
+    let mut out = Vec::new();
+    walk(dom, parent, &mut out);
+    out
 }
 
 /// Group a flow's out-of-flow positioned children by the in-flow

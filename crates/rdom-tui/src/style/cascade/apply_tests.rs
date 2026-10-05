@@ -100,7 +100,10 @@ const PERTURB: &[(&str, &str)] = &[
 /// until it is covered.
 #[test]
 fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
-    let perturbed = style_of(PERTURB);
+    let mut perturbed = style_of(PERTURB);
+    // `display: inline-flex` above moves the outer and inner types; no
+    // one `display` value moves those and `list-item` together.
+    perturbed.list_item = Some(rdom_style::Value::Specified(true));
     let mut reset = TuiStyle::new();
     for name in property_dispatch::property_names() {
         property_dispatch::set(name, "initial", &mut reset)
@@ -154,6 +157,7 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
         scroll_behavior,
         display,
         flow,
+        list_item,
         // Derived at finalization from display / position / overflow.
         establishes_new_bfc: _,
         white_space,
@@ -226,6 +230,7 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
         scroll_behavior,
         display,
         flow,
+        list_item,
         white_space,
         user_select,
         pointer_events,

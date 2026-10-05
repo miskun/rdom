@@ -188,7 +188,7 @@ pub(super) fn layout_children(
     // carve-outs above. Both of those paths must stay above the
     // dispatch — they're not parameterized by Flow.
     match computed.flow {
-        crate::layout::Flow::Block => {
+        crate::layout::Flow::Block | crate::layout::Flow::FlowRoot => {
             // Stale anon boxes from a prior flex layout: clear so
             // the new block layout starts fresh. Anon boxes will
             // be repopulated by `layout_block_children`. Only this

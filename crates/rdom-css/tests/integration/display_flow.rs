@@ -24,12 +24,12 @@ fn display_flex_sets_block_outer_and_flex_inner() {
 }
 
 #[test]
-fn display_inline_sets_inline_outer_and_no_flow() {
+fn display_inline_sets_inline_outer_and_flow_inner() {
     let s = parse("display: inline");
     assert_eq!(s.display, Some(Value::Specified(Display::Inline)));
-    // No flow write — inline elements don't have an inner formatting
-    // context of their own (they participate in their parent's IFC).
-    assert!(s.flow.is_none(), "inline doesn't set flow");
+    // CSS Display 3 §2: `inline` is `inline flow` — written, so an
+    // earlier `display: flex` leaves no flex inner type behind.
+    assert_eq!(s.flow, Some(Value::Specified(Flow::Block)));
 }
 
 #[test]
@@ -51,8 +51,9 @@ fn display_inline_flex_sets_inline_outer_and_flex_inner() {
 }
 
 #[test]
-fn display_none_sets_none_and_no_flow() {
+fn display_none_sets_none_and_resets_flow() {
     let s = parse("display: none");
     assert_eq!(s.display, Some(Value::Specified(Display::None)));
-    assert!(s.flow.is_none(), "display: none doesn't set flow");
+    // `display` owns its inner type: a declaration writes all of it.
+    assert_eq!(s.flow, Some(Value::Specified(Flow::Block)));
 }

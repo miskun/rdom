@@ -264,6 +264,17 @@ fn descend_children_reverse(
         let node = dom.node(child);
         let hit = match node.node_type() {
             NodeType::Fragment => descend_children_reverse(dom, child, x, y, clip, viewport, path),
+            // A box-less element (CSS Display 3 §2.5) is never hit
+            // itself; its children are where they are, with it on their
+            // ancestor path.
+            NodeType::Element if crate::render::box_tree::is_contents(dom, child) => {
+                let mark = path.len();
+                let hit = descend_children_reverse(dom, child, x, y, clip, viewport, path);
+                if hit {
+                    path.insert(mark, child);
+                }
+                hit
+            }
             NodeType::Element => match node.ext().and_then(|e| e.computed.as_ref()) {
                 Some(c) if is_positioned(c) => false,
                 Some(c) if creates_stacking_context(c) => {

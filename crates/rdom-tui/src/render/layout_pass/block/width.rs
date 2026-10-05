@@ -62,8 +62,9 @@ pub(super) fn resolve_block_width(
 
     // CSS 2.1 §10.3.3: the over-constrained equation drops the margin on
     // the containing block's inline-end side.
-    let rtl = dom.node(id).parent_node().and_then(|p| {
-        p.ext()
+    let rtl = crate::render::box_tree::box_parent(dom, id).and_then(|p| {
+        dom.node(p)
+            .ext()
             .and_then(|e| e.computed.as_ref())
             .map(|c| c.text_direction)
     }) == Some(crate::layout::TextDirection::Rtl);

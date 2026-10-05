@@ -75,7 +75,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.4 Color (Color 4 / 5) | 15 | 1 | 0 | 1 | 17 |
 | 3.5 Backgrounds and borders (Backgrounds 3, Borders 4) | 13 | 1 | 0 | 2 | 16 |
 | 3.6 Box model and sizing (Box 3, Sizing 3/4) | 7 | 2 | 0 | 0 | 9 |
-| 3.7 Display and visibility (Display 3) | 1 | 0 | 8 | 2 | 11 |
+| 3.7 Display and visibility (Display 3) | 4 | 1 | 4 | 2 | 11 |
 | 3.8 Flexbox and box alignment (Flexbox 1, Align 3) | 3 | 3 | 11 | 0 | 17 |
 | 3.9 Grid (Grid 1/2) | 0 | 0 | 10 | 0 | 10 |
 | 3.10 Positioned layout (Position 3, CSS 2.1 §9) | 4 | 1 | 1 | 1 | 7 |
@@ -93,9 +93,9 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 5 | 2 | 1 | 1 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **114** | **30** | **117** | **46** | **307** |
+| **Total** | **117** | **31** | **113** | **46** | **307** |
 
-When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 147 rows Partial / Missing.
+When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 144 rows Partial / Missing.
 
 Headline: rdom parses **151 property names** (`property_names()`, after C5-LOGICAL). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are flex alignment (`justify-content`, `align-items`), `flex-wrap`, the `flex-grow` / `flex-basis` longhands, `line-height`, `text-align`, `visibility`, and grid.
 
@@ -129,7 +129,7 @@ pasted CSS. The first block is what a typical component stylesheet hits in its f
 | 19 | `@media` | Evaluate `width` / `height` (in cells) / `orientation` / `aspect-ratio`, `color` / `monochrome`, `prefers-color-scheme` (from the terminal's reported background), `prefers-reduced-motion`, `hover` / `pointer`; re-cascade on `resize`. Also the `<style media>` attribute. | M | Yes |
 | 20 | `order` | Reorders flex (and grid) items for layout and paint, not for DOM / focus order. | S | No |
 | 21 | `@keyframes` + `animation-*` | Keyframed animation on the existing transition clock and interpolators. | L | Yes |
-| 22 | `display: contents` / `display: flow-root` / multi-keyword `display` | `contents`: the element generates no box, children are laid out in the parent; `flow-root`: a block that establishes an independent formatting context (stops margin collapse); `block flex` / `inline flow-root` two-value syntax. | M / S / S | No |
+| 22 | `display: contents` / `display: flow-root` / multi-keyword `display` | Shipped (C6-DISPLAY-KEYWORDS; §3.7): `contents` generates no box and its children and pseudo-elements join the parent's formatting context; `flow-root` establishes a BFC; the two-keyword syntax with `list-item`. | M / S / S | No |
 | 23 | `text-transform` | `uppercase` / `lowercase` / `capitalize` at shaping time (copy keeps the DOM text, as browsers do); `full-width` maps ASCII to U+FF01–FF5E (2 cells each). | S | No |
 | 24 | `text-indent` | First line of each block starts `n` cells in (negative = hanging); `hanging` / `each-line` keywords. | S | No |
 | 25 | `ch` / `lh` / `rlh` and viewport units `vw` / `vh` / `vmin` / `vmax` (+ `s`/`l`/`d` variants) | `1ch` = one column exactly on a monospaced grid; `1lh` = one row; `1vw` = 1% of the terminal's columns, `1vh` = 1% of its rows (rdom knows the viewport). | S | Yes (classified as pixel-dependent; see §6) |
@@ -341,12 +341,12 @@ dropped. The audit's six, with where each stands:
 | Item | Class | Detail | Doc'd | Where |
 |---|---|---|---|---|
 | `display: block` / `inline` / `inline-block` / `flex` / `inline-flex` / `none` | Supported | Outer + inner (`Flow`) pair. An inline block sits in its line on the baseline, the line box growing to its margin box, and paints there as a box (C5G-ATOM-BOX). | — | `DISP/set.rs`, `KW::Display`, `KW::Flow` |
-| `display: contents` | Missing | No box; children join the parent. | No | `KW::Display`, layout tree builder |
-| `display: flow-root` | Missing | Block that establishes an independent BFC. | No | `KW::Flow`, `BLOCK/margin_collapse.rs` |
-| `display: list-item` | Missing | Marker box. | Yes | `KW`, `CASC/counters.rs` |
+| `display: contents` | Supported | No box: its children and `::before` / `::after` take part in the parent's formatting context (block flow — a box-less child holding a block box gives its children in its place, `render/box_tree.rs` — flex items, inline content); inherited properties flow through; hit-testing reaches its children with it on the path; it stays focusable (HTML "being rendered"; Chromium); on replaced elements and form controls it behaves as `none` (CSS Display 3 Appendix B) (C6-DISPLAY-KEYWORDS). | — | `KW::Display`, `render/box_tree.rs` |
+| `display: flow-root` | Supported | `Flow::FlowRoot`: block flow in a new BFC — no margin collapses through its edges (C6-DISPLAY-KEYWORDS). Floats (C8-FLOAT) will be contained by the same BFC. | — | `KW::Flow`, `BLOCK/margin_collapse.rs` |
+| `display: list-item` | Partial | `list-item`, `inline list-item`, with `flow` / `flow-root` (CSS Display 3 §2.3) parse into `list_item` and lay out as their outer / inner types (C6-DISPLAY-KEYWORDS); the marker box is C10-LIST-ITEM. | Yes | `KW`, `CASC/counters.rs` |
 | `display: grid` / `inline-grid` | Missing | Grid formatting context. | Yes | new `layout_pass/grid` |
 | `display: table` family | Missing | Real TFC (tables are tag-driven flex rows today). | Yes | `rdom-tui/src/runtime/builtins/table` |
-| Multi-keyword `display` (`block flex`, `inline flow-root`) | Missing | Two-value syntax. | No | `DISP/set.rs` |
+| Multi-keyword `display` (`block flex`, `inline flow-root`) | Supported | `<display-outside> || <display-inside>` in either order, defaults `block` / `flow`, the legacy keywords as their pairs, serialized shortest (CSS Display 3 §2; `V/display.rs`) (C6-DISPLAY-KEYWORDS). `grid` / `table` / `ruby` / `run-in` with their phases. | — | `V/display.rs` |
 | `display: run-in` | N/A | Unimplemented by browsers; no TUI use. | — | — |
 | `display: ruby*` | N/A | Ruby annotations need half-height text above a base. | — | — |
 | `visibility` | Missing | `visible` / `hidden` / `collapse`. | No | `DISP`, `PAINT`, hit test |
@@ -667,8 +667,9 @@ dropped. The audit's six, with where each stands:
 Every *Partial* or *Missing* row above whose Doc'd column is `No` or `Wrong`. These need either an
 implementation or a `DIVERGENCES.md` entry before the acid page's coverage test can be honest.
 
-133 rows as audited. Through Phase 4, 27 have shipped and one has partly shipped (each annotated
-*Shipped* where it stands); 105 remain open (Phase 0 listed each of them in `DIVERGENCES.md` §3).
+133 rows as audited. Through C6-DISPLAY-KEYWORDS, 39 have shipped and two have partly shipped
+(each annotated *Shipped* where it stands); 92 remain open (Phase 0 listed each of them in
+`DIVERGENCES.md` §3).
 
 **3.1 Syntax, cascade and inheritance (Syntax 3, Cascade 4/5, CSS 2.1 §6)**
 
@@ -731,9 +732,9 @@ implementation or a `DIVERGENCES.md` entry before the acid page's coverage test 
 
 **3.7 Display and visibility (Display 3)**
 
-- `display: contents` — Missing: No box; children join the parent.
-- `display: flow-root` — Missing: Block that establishes an independent BFC.
-- Multi-keyword `display` (`block flex`, `inline flow-root`) — Missing: Two-value syntax.
+- `display: contents` — Missing: No box; children join the parent. *Shipped: C6-DISPLAY-KEYWORDS.*
+- `display: flow-root` — Missing: Block that establishes an independent BFC. *Shipped: C6-DISPLAY-KEYWORDS.*
+- Multi-keyword `display` (`block flex`, `inline flow-root`) — Missing: Two-value syntax. *Shipped: C6-DISPLAY-KEYWORDS.*
 - `visibility` — Missing: `visible` / `hidden` / `collapse`.
 - `order` — Missing: Visual reorder of flex / grid items.
 

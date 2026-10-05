@@ -28,8 +28,9 @@
 use rdom_core::{Dom, NodeId, NodeType};
 
 use crate::ext::{StyleSlot, TuiExt};
-use crate::layout::{Display, Flow, Position, WhiteSpace};
+use crate::layout::{Display, Position, WhiteSpace};
 use crate::node::TuiNodeExt;
+use crate::render::box_tree::BoxItem;
 
 /// The text of `host`'s `slot` pseudo-element when it is a static
 /// (`position: static`) box with `content`. Positioned pseudo-elements
@@ -105,7 +106,7 @@ pub(crate) fn marker_line_holder(dom: &Dom<TuiExt>, host: NodeId) -> Option<Node
     if !is_block_level(dom, first) {
         return None;
     }
-    first_line_holder(dom, first)
+    first_line_holder(dom, first.node()?)
 }
 
 /// The list items whose markers ride `holder`'s first line, outermost
@@ -117,9 +118,9 @@ pub(crate) fn deferred_markers(dom: &Dom<TuiExt>, holder: NodeId) -> Vec<NodeId>
     // Climb while `cur` is the first line-bearing child of a block-flow
     // parent: only along that path can an ancestor's first line be
     // `holder`'s.
-    while let Some(parent) = dom.node(cur).parent_node().map(|p| p.id()) {
+    while let Some(parent) = crate::render::box_tree::box_parent(dom, cur) {
         if !is_block_flow_container(dom, parent)
-            || line_bearing_child(dom, parent, false) != Some(cur)
+            || line_bearing_child(dom, parent, false) != Some(BoxItem::Node(cur))
         {
             break;
         }
@@ -151,7 +152,7 @@ pub(crate) fn inline_content_at_edge(dom: &Dom<TuiExt>, host: NodeId, from_end: 
 pub(crate) fn run_pseudos(
     dom: &Dom<TuiExt>,
     host: NodeId,
-    direct_children: &[NodeId],
+    direct_children: &[BoxItem],
 ) -> super::RunPseudos {
     let holds_edge = |from_end| {
         line_bearing_child(dom, host, from_end).is_none_or(|c| direct_children.contains(&c))
@@ -171,21 +172,28 @@ fn first_line_holder(dom: &Dom<TuiExt>, el: NodeId) -> Option<NodeId> {
         return None;
     }
     let first = line_bearing_child(dom, el, false)?;
-    if is_block_level(dom, first) {
-        first_line_holder(dom, first)
-    } else {
-        Some(el)
+    match first {
+        BoxItem::Node(first) if is_block_level(dom, BoxItem::Node(first)) => {
+            first_line_holder(dom, first)
+        }
+        _ => Some(el),
     }
 }
 
-/// `host`'s first (`from_end = false`) or last in-flow child that can
-/// hold content of a line (see [`bears_line`]).
-fn line_bearing_child(dom: &Dom<TuiExt>, host: NodeId, from_end: bool) -> Option<NodeId> {
-    let mut children = dom.node(host).child_nodes().map(|c| c.id());
+/// `host`'s first (`from_end = false`) or last in-flow box item that
+/// can hold content of a line (see [`bears_line`]), in box-tree order
+/// (`box_tree::box_sequence`: a generated item of a box-less child
+/// holds its text).
+fn line_bearing_child(dom: &Dom<TuiExt>, host: NodeId, from_end: bool) -> Option<BoxItem> {
+    let bears = |c: &BoxItem| match *c {
+        BoxItem::Node(c) => bears_line(dom, host, c),
+        BoxItem::Generated(..) => true,
+    };
+    let children = crate::render::box_tree::box_sequence(dom, host);
     if from_end {
-        children.filter(|&c| bears_line(dom, host, c)).last()
+        children.into_iter().rev().find(bears)
     } else {
-        children.find(|&c| bears_line(dom, host, c))
+        children.into_iter().find(bears)
     }
 }
 
@@ -217,10 +225,13 @@ pub(crate) fn bears_line(dom: &Dom<TuiExt>, host: NodeId, child: NodeId) -> bool
 fn is_block_flow_container(dom: &Dom<TuiExt>, id: NodeId) -> bool {
     dom.node(id)
         .computed()
-        .is_some_and(|c| c.display == Display::Block && c.flow == Flow::Block)
+        .is_some_and(|c| c.display == Display::Block && c.flow.is_block_flow())
 }
 
-fn is_block_level(dom: &Dom<TuiExt>, id: NodeId) -> bool {
+fn is_block_level(dom: &Dom<TuiExt>, item: BoxItem) -> bool {
+    let BoxItem::Node(id) = item else {
+        return false;
+    };
     let node = dom.node(id);
     node.node_type() == NodeType::Element
         && node.computed().is_none_or(|c| c.display == Display::Block)

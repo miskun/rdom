@@ -47,6 +47,7 @@ fn walk(dom: &Dom<TuiExt>, id: NodeId, out: &mut Vec<NodeId>) {
         let pos = dom
             .node(id)
             .computed()
+            .filter(|c| c.display != crate::layout::Display::Contents)
             .map(|c| c.position)
             .unwrap_or(Position::Static);
         if pos == Position::Sticky {

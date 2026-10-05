@@ -193,12 +193,11 @@ pub(super) fn layout_node(
     // shifted rect), so they don't see the shift — matching CSS.
     // Pass the parent's content_layout for percentage basis on
     // `top`/`bottom` (parent height) and `left`/`right` (parent width).
-    let parent_rect = dom
-        .node(id)
-        .parent_node()
+    // The box parent's: a `display: contents` parent has no box.
+    let parent_rect = crate::render::box_tree::box_parent(dom, id)
         .and_then(|p| {
             use crate::node::TuiNodeExt;
-            p.tui_ext().map(|e| e.content_layout)
+            dom.node(p).tui_ext().map(|e| e.content_layout)
         })
         .unwrap_or(outer_rect);
     // CSS 2.1 §9.3.2: a percentage `top` / `bottom` is `auto` when the

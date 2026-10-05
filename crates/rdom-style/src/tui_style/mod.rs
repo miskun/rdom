@@ -156,6 +156,10 @@ pub struct TuiStyle {
     /// Written alongside `display` by the same parser. See [`Flow`](crate::layout::Flow)
     /// for the mapping table.
     pub flow: Option<Value<crate::layout::Flow>>,
+    /// The `list-item` keyword of `display` (CSS Display 3 §2.3):
+    /// whether the element is a list item. Written by the `display`
+    /// parser with the two fields above.
+    pub list_item: Option<Value<bool>>,
     pub white_space: Option<Value<WhiteSpace>>,
     pub user_select: Option<Value<UserSelect>>,
     /// CSS `pointer-events` (`auto` | `none`). Inherited.
@@ -428,6 +432,9 @@ impl TuiStyle {
             n += 1
         }
         if self.flow.is_some() {
+            n += 1
+        }
+        if self.list_item.is_some() {
             n += 1
         }
         if self.white_space.is_some() {

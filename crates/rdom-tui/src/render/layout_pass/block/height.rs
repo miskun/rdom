@@ -119,13 +119,13 @@ pub(crate) fn nearest_block_ancestor_height_is_definite(dom: &Dom<TuiExt>, id: N
     // *that* parent's parent, etc.
     let mut cur = id;
     loop {
-        let node = dom.node(cur);
-        let Some(parent) = node.parent_node() else {
+        // The box parent: a `display: contents` ancestor has no box.
+        let Some(parent_id) = crate::render::box_tree::box_parent(dom, cur) else {
             // No parent — `cur` is root. The viewport is definite
             // by construction (layout_dom passes viewport rect).
             return true;
         };
-        let parent_id = parent.id();
+        let parent = dom.node(parent_id);
         let Some(parent_computed) = parent.ext().and_then(|e| e.computed.as_ref()) else {
             return true; // fragment root etc.
         };
@@ -163,7 +163,7 @@ pub(crate) fn nearest_block_ancestor_height_is_definite(dom: &Dom<TuiExt>, id: N
                 // `height` isn't `Fixed`. It's definite iff the flex
                 // container is, so chain up and re-test the container.
                 use crate::layout::Flow;
-                match parent.parent_node() {
+                match crate::render::box_tree::box_parent(dom, parent_id).map(|gp| dom.node(gp)) {
                     // No grandparent: `parent` is the top-level box,
                     // flexed against the viewport `layout_dom` passes
                     // in — definite.
@@ -179,7 +179,7 @@ pub(crate) fn nearest_block_ancestor_height_is_definite(dom: &Dom<TuiExt>, id: N
                         // parent is a non-flex context (the shorthand
                         // was used outside a flex container) → treated
                         // as `auto` → indefinite.
-                        Some(Flow::Block) => return false,
+                        Some(Flow::Block | Flow::FlowRoot) => return false,
                     },
                 }
             }

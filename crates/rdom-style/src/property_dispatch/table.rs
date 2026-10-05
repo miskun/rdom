@@ -273,6 +273,7 @@ define_fields! {
     Opacity => opacity : OPACITY,
     Display => display : DISPLAY,
     Flow => flow : FLOW,
+    ListItem => list_item : LIST_ITEM,
     Direction => direction : FLEX_DIRECTION,
     TextDirection => text_direction : TEXT_DIRECTION,
     WritingMode => writing_mode : WRITING_MODE,
@@ -338,8 +339,8 @@ define_fields! {
 /// Shorthands own several (`overflow` → X + Y, `inset` → the four
 /// sides, `margin` → its four longhands); a per-side longhand owns its
 /// side's field. `display` owns the derived
-/// `flow` too, so removing or `inherit`ing `display` cannot leave a
-/// stale flow behind. `None` for unknown names.
+/// `flow` and `list_item` too, so removing or `inherit`ing `display`
+/// cannot leave a stale inner type behind. `None` for unknown names.
 pub(super) fn fields_of(name: &str) -> Option<&'static [Field]> {
     use Field::*;
     Some(match name {
@@ -373,7 +374,7 @@ pub(super) fn fields_of(name: &str) -> Option<&'static [Field]> {
         "font-style" => &[Italic],
         "text-decoration" => &[TextDecoration],
         "opacity" => &[Opacity],
-        "display" => &[Display, Flow],
+        "display" => &[Display, Flow, ListItem],
         "flex-direction" => &[Direction],
         "white-space" => &[WhiteSpace],
         "user-select" => &[UserSelect],

@@ -92,6 +92,8 @@ pub(in crate::render::layout_pass) fn computed_position(dom: &Dom<TuiExt>, id: N
     dom.node(id)
         .ext()
         .and_then(|e| e.computed.as_ref())
+        // A box-less element has no box to position (CSS Display 3 §2.5).
+        .filter(|c| c.display != crate::layout::Display::Contents)
         .map(|c| c.position)
         .unwrap_or_default()
 }
@@ -103,8 +105,10 @@ pub(in crate::render::layout_pass) fn layout_rect(
     dom.node(id).ext().map(|e| e.layout)
 }
 
+/// `id`'s box parent (`box_tree::box_parent`: through `display:
+/// contents` ancestors, which have no box to be a containing block).
 pub(in crate::render::layout_pass) fn parent_id(dom: &Dom<TuiExt>, id: NodeId) -> Option<NodeId> {
-    dom.node(id).parent_node().map(|p| p.id())
+    crate::render::box_tree::box_parent(dom, id)
 }
 
 #[cfg(test)]

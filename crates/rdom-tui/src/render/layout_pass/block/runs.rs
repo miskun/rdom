@@ -4,17 +4,20 @@
 use rdom_core::{Dom, NodeId, NodeType};
 
 use super::*;
+use crate::render::box_tree::BoxItem;
 
 /// One run of consecutive children sharing a level (block-level or
 /// inline-level). Block runs get per-child block layout; inline
 /// runs fold into one anonymous block per CSS 2.1 §9.2.1.1.
 pub(super) struct Run {
     pub(super) kind: RunKind,
-    /// Direct-child NodeIds in document order.
-    pub(super) children: Vec<NodeId>,
-    /// Indices into the parent's raw `child_nodes()` order, as
-    /// `[start, end)`. Stored on the resulting `AnonymousIfc` so
-    /// paint / hit-test can map back to surrounding context.
+    /// The parent's box items in document order (its child nodes, and
+    /// the generated items of a box-less child that holds a block,
+    /// `box_tree::box_sequence`).
+    pub(super) children: Vec<BoxItem>,
+    /// Indices into the parent's box sequence, as `[start, end)`.
+    /// Stored on the resulting `AnonymousIfc` so paint / hit-test can
+    /// map back to surrounding context.
     pub(super) child_range: (usize, usize),
 }
 
@@ -56,17 +59,20 @@ pub(super) fn drop_lineless_runs(
     let mut kept = Vec::with_capacity(runs.len());
     for (i, run) in runs.into_iter().enumerate() {
         let holds_line = run.kind == RunKind::Block
-            || run.children.iter().any(|&c| bears_line(dom, id, c))
+            || run.children.iter().any(|&c| match c {
+                BoxItem::Node(c) => bears_line(dom, id, c),
+                BoxItem::Generated(..) => true,
+            })
             || (i == 0 && pseudos.before)
             || (i == last && pseudos.after);
         if !holds_line {
-            for c in &run.children {
-                carried.extend(static_before.remove(c).unwrap_or_default());
+            for c in run.children.iter().filter_map(|c| c.node()) {
+                carried.extend(static_before.remove(&c).unwrap_or_default());
             }
             continue;
         }
         if !carried.is_empty()
-            && let Some(&first) = run.children.first()
+            && let Some(first) = run.children.first().and_then(|c| c.node())
         {
             let mut anchored = std::mem::take(&mut carried);
             anchored.extend(static_before.remove(&first).unwrap_or_default());
@@ -87,13 +93,18 @@ pub(super) enum RunKind {
     Inline,
 }
 
-/// Classify a direct child as block-level vs inline-level. Text
+/// Classify a box item as block-level vs inline-level. Text
 /// nodes are always inline-level; element children depend on their
 /// `Display`. Per CSS 2.1 §9.2: only `Block` elements are
 /// block-level; `Inline` and `InlineBlock` are inline-level (the
 /// inline-block participates in IFC as an atomic box per phase
-/// 3.5's planned inline-block-in-IFC packing).
-pub(super) fn child_level(dom: &Dom<TuiExt>, id: NodeId) -> RunKind {
+/// 3.5's planned inline-block-in-IFC packing). A box-less element in
+/// the sequence holds no block box (`box_sequence`), so it is an
+/// inline-level participant, and so are generated items.
+pub(super) fn child_level(dom: &Dom<TuiExt>, item: BoxItem) -> RunKind {
+    let BoxItem::Node(id) = item else {
+        return RunKind::Inline;
+    };
     let node = dom.node(id);
     match node.node_type() {
         NodeType::Text => RunKind::Inline,
@@ -104,9 +115,9 @@ pub(super) fn child_level(dom: &Dom<TuiExt>, id: NodeId) -> RunKind {
                 .map(|c| c.display)
                 .unwrap_or(crate::layout::Display::Block);
             match display {
-                crate::layout::Display::Inline | crate::layout::Display::InlineBlock => {
-                    RunKind::Inline
-                }
+                crate::layout::Display::Inline
+                | crate::layout::Display::InlineBlock
+                | crate::layout::Display::Contents => RunKind::Inline,
                 crate::layout::Display::Block | crate::layout::Display::None => RunKind::Block,
             }
         }

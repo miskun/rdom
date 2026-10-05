@@ -303,3 +303,24 @@ fn spacing_side_hints() {
     assert!(!style.important.intersects(mask));
     let _ = Margin::from(Sides::all(MarginValue::Auto));
 }
+
+/// C6-DISPLAY-KEYWORDS: the new `Display` / `Flow` variants, the
+/// `list_item` field and the `display` grammar.
+#[test]
+fn display_keyword_hints() {
+    for d in [Display::Contents, Display::Block] {
+        let _box_less = matches!(d, Display::Contents);
+    }
+    assert!(Flow::FlowRoot.is_block_flow() && Flow::Block.is_block_flow());
+    let s = TuiStyle::new();
+    assert!(s.list_item.is_none());
+    let ComputedStyle { list_item, .. } = ComputedStyle::initial();
+    assert!(!list_item);
+    let tokens = style::parse::tokenize("inline list-item").unwrap();
+    let (display, flow, item) = style::parse::values::parse_display(&tokens).unwrap();
+    assert_eq!(
+        style::parse::values::serialize_display(display, flow, item),
+        "inline list-item"
+    );
+    assert!(ImportantMask::LIST_ITEM.intersects(ImportantMask::all()));
+}

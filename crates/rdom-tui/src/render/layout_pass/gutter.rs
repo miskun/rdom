@@ -9,16 +9,21 @@ use crate::layout::{Direction, LayoutRect, Overflow};
 use crate::style::ComputedStyle;
 
 /// Scroll offset for the parent container along `direction`. Reads
-/// the *first* child's ext-parent to find the scroll config — since
-/// all children share the same parent.
+/// the *first* child's box parent (`box_tree::box_parent`: through
+/// `display: contents` ancestors) to find the scroll config — since
+/// all children share the same parent box.
 pub(crate) fn parent_scroll(dom: &Dom<TuiExt>, children: &[NodeId], direction: Direction) -> i32 {
-    let Some(&first) = children.first() else {
+    children
+        .first()
+        .and_then(|&first| crate::render::box_tree::box_parent(dom, first))
+        .map_or(0, |parent| scroll_offset(dom, parent, direction))
+}
+
+/// `container`'s own scroll offset along `direction`.
+pub(crate) fn scroll_offset(dom: &Dom<TuiExt>, container: NodeId, direction: Direction) -> i32 {
+    let Some(ext) = dom.node(container).ext() else {
         return 0;
     };
-    let Some(parent) = dom.node(first).parent_node() else {
-        return 0;
-    };
-    let Some(ext) = parent.ext() else { return 0 };
     match direction {
         Direction::Row => ext.scroll_x,
         Direction::Column => ext.scroll_y as i32,

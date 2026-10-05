@@ -130,7 +130,7 @@ pub(super) fn paint_inline_content(
     // by that pass (a line of their own, or a list marker on a
     // descendant's first line — `inline::generated`). Painting them
     // again at its first row would draw them under its first child.
-    if computed.flow == crate::layout::Flow::Block
+    if computed.flow.is_block_flow()
         && dom
             .node(id)
             .child_nodes()
@@ -377,8 +377,11 @@ fn paint_inline_layout(
             // cell bg (`glyph_style_from_computed`). Inline-
             // child fragments (`<span>` etc.) DO need their own bg
             // in the glyph style since they have no `fill_bg` of
-            // their own.
-            let style = if fragment.node == bg_dedup_owner {
+            // their own. A box-less (`display: contents`) owner has no
+            // background to paint (CSS Display 3 §2.5).
+            let style = if fragment.node == bg_dedup_owner
+                || computed.display == crate::layout::Display::Contents
+            {
                 glyph_style_from_computed(&computed)
             } else {
                 style_from_computed(&computed)

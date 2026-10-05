@@ -31,16 +31,14 @@ pub(crate) fn resolve_auto_height(
     measurement: Option<block::BlockMeasurement>,
     gutter_rows: u16,
 ) {
-    let parent_is_block_flow = dom
-        .node(id)
-        .parent_node()
+    let parent_is_block_flow = crate::render::box_tree::box_parent(dom, id)
         .and_then(|p| {
             use crate::node::TuiNodeExt;
-            p.tui_ext()
+            dom.node(p)
+                .tui_ext()
                 .and_then(|e| e.computed.as_ref().map(|c| c.flow))
         })
-        .map(|f| matches!(f, crate::layout::Flow::Block))
-        .unwrap_or(true);
+        .is_none_or(|f| f.is_block_flow());
     let is_out_of_flow_positioned = matches!(
         computed.position,
         crate::layout::Position::Absolute | crate::layout::Position::Fixed
@@ -50,7 +48,7 @@ pub(crate) fn resolve_auto_height(
     if !matches!(
         computed.height,
         crate::layout::Size::Auto | crate::layout::Size::Intrinsic(_)
-    ) || !matches!(computed.flow, crate::layout::Flow::Block)
+    ) || !computed.flow.is_block_flow()
         || !parent_is_block_flow
         || is_out_of_flow_positioned
     {
@@ -74,9 +72,8 @@ pub(crate) fn resolve_auto_height(
     let basis = block::nearest_block_ancestor_height_is_definite(dom, id)
         .then(|| {
             use crate::node::TuiNodeExt;
-            dom.node(id)
-                .parent_node()
-                .and_then(|p| p.tui_ext().map(|e| e.content_layout.height))
+            crate::render::box_tree::box_parent(dom, id)
+                .and_then(|p| dom.node(p).tui_ext().map(|e| e.content_layout.height))
         })
         .flatten();
     // The clamp is on the content box: `min-height` / `max-height`

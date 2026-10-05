@@ -128,9 +128,11 @@ pub enum Align {
     Stretch,
 }
 
-/// Display mode. Controls whether the element participates as a flex
-/// item in its parent's block/flex context (`Block`) or flows inline
-/// within its parent's inline formatting context (`Inline`).
+/// Outer display type (CSS Display 3 §2.1), and the box keywords
+/// `contents` / `none` (§2.5): whether the element is block-level
+/// (`Block`), inline-level (`Inline`, or the atomic `InlineBlock`), or
+/// generates no box of its own (`Contents`) or none at all (`None`).
+/// [`Flow`] is the inner display type; the mapping table is there.
 ///
 /// Does not inherit (matches CSS). Default is `Block`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -156,6 +158,15 @@ pub enum Display {
     /// cases: hidden dialog, collapsed tree subtrees, closed-
     /// dropdown options, the `<colgroup>` / `<col>` metadata tags).
     None,
+    /// `display: contents` (CSS Display 3 §2.5): the element generates
+    /// no box — no padding, border, background or rect of its own — and
+    /// its children and `::before` / `::after` take part in its parent's
+    /// formatting context as if they were the parent's. It stays in the
+    /// DOM: it inherits and passes inherited properties on, matches
+    /// selectors, is on hit-test paths and can be focused. On a
+    /// replaced element or form control it computes to `None`
+    /// (Appendix B).
+    Contents,
 }
 
 /// **Inner display** — how an element lays out its own children.
@@ -165,14 +176,22 @@ pub enum Display {
 /// CSS3 Display Module models display as a two-value property
 /// `<outer> <inner>`:
 ///
-/// | `display: <…>`     | outer `Display`   | inner `Flow` |
-/// |--------------------|-------------------|--------------|
-/// | `block` (default)  | `Block`           | `Block`      |
-/// | `flex`             | `Block`           | `Flex`       |
-/// | `inline`           | `Inline`          | n/a          |
-/// | `inline-block`     | `InlineBlock`     | `Block`      |
-/// | `inline-flex`      | `Inline`          | `Flex`       |
-/// | `none`             | `None`            | n/a          |
+/// | `display: <…>` (CSS Display 3 §2)        | outer `Display` | inner `Flow` |
+/// |------------------------------------------|-----------------|--------------|
+/// | `block` = `block flow` = `flow` (default) | `Block`         | `Block`      |
+/// | `flow-root` = `block flow-root`           | `Block`         | `FlowRoot`   |
+/// | `inline` = `inline flow`                  | `Inline`        | `Block`      |
+/// | `inline-block` = `inline flow-root`       | `InlineBlock`   | `Block`      |
+/// | `flex` = `block flex`                     | `Block`         | `Flex`       |
+/// | `inline-flex` = `inline flex`             | `Inline`        | `Flex`       |
+/// | `contents`                                | `Contents`      | `Block`      |
+/// | `none`                                    | `None`          | `Block`      |
+///
+/// An inline block always establishes a block formatting context, so
+/// its flow-root inner type is `Block` with the outer `InlineBlock`.
+/// `list-item` (§2.3) is a flag beside the pair
+/// (`TuiStyle::list_item`): `list-item` is `block flow` with it,
+/// `inline list-item` `inline flow` with it.
 ///
 /// Default is `Block` — rdom's block layout pass walks children
 /// in document order, stacking at natural heights per CSS 2.1 §10.
@@ -194,6 +213,18 @@ pub enum Flow {
     /// gap, justify-content semantics per CSS Flexible Box L1.
     /// Container forms a new BFC.
     Flex,
+    /// `flow-root` (CSS Display 3 §2.2): block flow, like `Block`, in a
+    /// new block formatting context (CSS 2.1 §9.4.1) — no margin
+    /// collapses through its edges.
+    FlowRoot,
+}
+
+impl Flow {
+    /// Block flow — `flow` or `flow-root` (CSS Display 3 §2.2): the
+    /// children stack in normal flow (CSS 2.1 §9.4.1).
+    pub const fn is_block_flow(self) -> bool {
+        matches!(self, Flow::Block | Flow::FlowRoot)
+    }
 }
 
 /// White-space handling for text inside an inline formatting context.

@@ -8,8 +8,7 @@ use super::DispatchError;
 use super::css_wide::{css_wide_keyword, set_css_wide};
 use super::table::canonical_property_name;
 use crate::layout::{
-    CaretColor, CaretTextColor, Direction, Display, Sides, Size, TextDirection, UserSelect,
-    WhiteSpace,
+    CaretColor, CaretTextColor, Direction, Sides, Size, TextDirection, UserSelect, WhiteSpace,
 };
 use crate::parse::token::Token;
 use crate::parse::values::{
@@ -123,48 +122,17 @@ fn set_physical(name: &str, value: &[Token], style: &mut TuiStyle) -> Result<(),
 
         // Layout — keywords
         //
-        // `display` writes BOTH outer (`Display`) and inner (`Flow`)
-        // values per CSS3 Display Module. The single-value forms map:
-        //  `block`        → Block + flow:Block
-        //  `flex`         → Block + flow:Flex   (most common)
-        //  `inline`       → Inline + (flow N/A)
-        //  `inline-block` → InlineBlock + flow:Block
-        //  `inline-flex`  → Inline + flow:Flex
-        //  `none`         → None
-        // The Flow side overwrites any prior author `flow` write —
-        // matches CSS expectation that `display: flex` makes the
-        // element a flex container regardless of any other prop.
-        "display" => match value {
-            [Token::Ident(s)] if s.eq_ignore_ascii_case("block") => {
-                style.display = Some(Value::Specified(Display::Block));
-                style.flow = Some(Value::Specified(crate::layout::Flow::Block));
-                Some(())
-            }
-            [Token::Ident(s)] if s.eq_ignore_ascii_case("flex") => {
-                style.display = Some(Value::Specified(Display::Block));
-                style.flow = Some(Value::Specified(crate::layout::Flow::Flex));
-                Some(())
-            }
-            [Token::Ident(s)] if s.eq_ignore_ascii_case("inline") => {
-                style.display = Some(Value::Specified(Display::Inline));
-                Some(())
-            }
-            [Token::Ident(s)] if s.eq_ignore_ascii_case("inline-block") => {
-                style.display = Some(Value::Specified(Display::InlineBlock));
-                style.flow = Some(Value::Specified(crate::layout::Flow::Block));
-                Some(())
-            }
-            [Token::Ident(s)] if s.eq_ignore_ascii_case("inline-flex") => {
-                style.display = Some(Value::Specified(Display::Inline));
-                style.flow = Some(Value::Specified(crate::layout::Flow::Flex));
-                Some(())
-            }
-            [Token::Ident(s)] if s.eq_ignore_ascii_case("none") => {
-                style.display = Some(Value::Specified(Display::None));
-                Some(())
-            }
-            _ => None,
-        },
+        // `display` writes all three of its fields — the outer
+        // (`Display`) and inner (`Flow`) types and the `list-item` flag
+        // (CSS Display 3 §2; the mapping table is on `Flow`) — so a
+        // later `display` leaves no earlier inner type behind.
+        "display" => {
+            crate::parse::values::parse_display(value).map(|(display, flow, list_item)| {
+                style.display = Some(Value::Specified(display));
+                style.flow = Some(Value::Specified(flow));
+                style.list_item = Some(Value::Specified(list_item));
+            })
+        }
         "flex-direction" => parse_keyword(
             value,
             &[("row", Direction::Row), ("column", Direction::Column)],
