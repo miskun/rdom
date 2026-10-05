@@ -1,17 +1,20 @@
-//! `justify-content` in flex layout — CSS Flexbox §8.2 with CSS Box
-//! Alignment 3 §4 / §5.2: a line's leftover free space, once the
-//! flexible lengths and `auto` margins are resolved, placed before the
-//! items or spread between them.
+//! Content distribution in flex layout — CSS Box Alignment 3 §4 / §5:
+//! `justify-content` (CSS Flexbox §8.2) places a line's leftover free
+//! space, once the flexible lengths and `auto` margins are resolved,
+//! before its items or between them; `align-content` (§8.4, §9.4 step
+//! 15) does the same with a multi-line container's free cross space and
+//! its lines.
 //!
 //! Whole cells, deterministically: `center` gives the leading space the
-//! free space halved and rounded down (toward main-start, also when it is
-//! negative); the distributions place each item at a rolling position
+//! free space halved and rounded down (toward the start, also when it is
+//! negative); the distributions place each subject at a rolling position
 //! rounded up, so a remainder cell goes to each of the first spaces.
 
 use crate::layout::{Align, Alignment, Direction, OverflowAlign};
 use crate::style::ComputedStyle;
 
-/// Where the line's items go, in the frame whose origin is main-start.
+/// Where the subjects (a line's items, a container's lines) go, in the
+/// frame whose origin is the axis's flex-start edge.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Placement {
     Start,
@@ -36,9 +39,8 @@ pub(super) fn justify_offsets(
     n: usize,
     auto_margins: bool,
 ) -> Vec<i32> {
-    let mut extra = vec![0; n];
     if n == 0 || (auto_margins && free > 0) {
-        return extra;
+        return vec![0; n];
     }
     let placement = placement(
         container.justify_content,
@@ -48,6 +50,80 @@ pub(super) fn justify_offsets(
         free,
         n,
     );
+    offsets(placement, free, n)
+}
+
+/// `align-content`'s extra cross space before each of a multi-line
+/// container's `n` lines (the first from cross-start, each later one
+/// added to the gap before its line), or `None` for `normal` /
+/// `stretch`, which grow the lines instead (`lines::stretch_lines`).
+/// `free` is the container's cross size less the lines and the gaps;
+/// `flipped` whether the cross axis runs from its physical end.
+pub(super) fn align_content_offsets(
+    container: &ComputedStyle,
+    direction: Direction,
+    flipped: bool,
+    free: i32,
+    n: usize,
+) -> Option<Vec<i32>> {
+    let value = container.align_content;
+    if n == 0 || matches!(value.keyword, Align::Normal | Align::Stretch) {
+        return None;
+    }
+    // `start` / `end` by the writing mode (§4.2): a row's cross axis is
+    // its block axis (top first), a column's its inline axis (right
+    // first under `rtl`); in the frame, cross-start is the physical end
+    // when the axis is flipped (`wrap-reverse`, a column under `rtl`).
+    let rtl = crate::render::layout_pass::margin_trim::inline_reversed(container);
+    let physical_start = match direction {
+        Direction::Row => true,
+        Direction::Column => !rtl,
+    };
+    let (start, end) = if physical_start != flipped {
+        (Placement::Start, Placement::End)
+    } else {
+        (Placement::End, Placement::Start)
+    };
+    let overflows = free < 0;
+    let placement = if overflows && value.overflow == OverflowAlign::Safe {
+        start
+    } else {
+        match value.keyword {
+            Align::FlexStart => Placement::Start,
+            Align::FlexEnd => Placement::End,
+            // Box Alignment §9.3: baseline content alignment falls back
+            // to `start` / `end` outside a table cell.
+            Align::Start | Align::Baseline => start,
+            Align::End | Align::LastBaseline => end,
+            Align::Center => Placement::Center,
+            // §8.4: `space-between` falls back to `safe flex-start` (one
+            // line, or negative free space), `space-around` /
+            // `space-evenly` to `safe center`.
+            Align::SpaceBetween if overflows => start,
+            Align::SpaceBetween if n == 1 => Placement::Start,
+            Align::SpaceBetween => Placement::Between,
+            Align::SpaceAround | Align::SpaceEvenly if overflows => start,
+            Align::SpaceAround | Align::SpaceEvenly if n == 1 => Placement::Center,
+            Align::SpaceAround => Placement::Around,
+            Align::SpaceEvenly => Placement::Evenly,
+            // `normal` / `stretch` returned above; the rest are not in
+            // `align-content`'s grammar.
+            Align::Normal
+            | Align::Stretch
+            | Align::Auto
+            | Align::SelfStart
+            | Align::SelfEnd
+            | Align::Left
+            | Align::Right => Placement::Start,
+        }
+    };
+    Some(offsets(placement, free, n))
+}
+
+/// The extra space before each of `n` subjects that `placement` makes of
+/// `free`.
+fn offsets(placement: Placement, free: i32, n: usize) -> Vec<i32> {
+    let mut extra = vec![0; n];
     let at = |numerator: i64, denominator: i64| -> i32 {
         // Rounded up: a remainder cell lands in the earliest spaces.
         -(-(i64::from(free) * numerator)).div_euclid(denominator) as i32

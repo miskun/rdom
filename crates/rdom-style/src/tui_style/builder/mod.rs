@@ -221,6 +221,14 @@ impl TuiStyle {
         crate::layout::Alignment
     );
     setter!(
+        "align-content",
+        align_content,
+        align_content,
+        align_content_important,
+        ALIGN_CONTENT,
+        crate::layout::Alignment
+    );
+    setter!(
         "align-items",
         align_items,
         align_items,

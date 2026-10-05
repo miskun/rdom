@@ -1,26 +1,14 @@
-//! Flex-child distribution — the core layout math.
+//! Flex layout — CSS Flexible Box Layout 1, with CSS Box Alignment 3.
 //!
-//! Given a container's `content_layout` and its direct element
-//! children (plus the parent's `direction` + `gap`), computes each
-//! child's main-axis + cross-axis size and recursively lays them out.
-//!
-//! Main-axis sizing in order of precedence:
-//! 1. `Size::Fixed(n)` → exactly `n`.
-//! 2. `Size::Percent(p)` → `main_budget * p / 100` (treated as
-//!    fixed once resolved; does not participate in flex distribution).
-//! 3. `Size::Auto` → intrinsic (content fit), via [`intrinsic::intrinsic_size`].
-//! 4. `Size::Flex(w)` (rdom's `fr`) → a flex base size of 0 growing
-//!    by `w` (when `flex-grow` is 0).
-//!
-//! `flex-basis` (`auto` → the main size above) gives the flex base
-//! size; `flex-grow` / `flex-shrink` resolve the flexible lengths (§9.7,
-//! `distribute`).
-//!
-//! Final size clamped to `min_*` / `max_*`.
-//!
-//! Cross-axis sizing: `Fixed(n)` → `n`; `Percent(p)` → `container_cross * p / 100`;
-//!  `Flex | Auto` → stretch to
-//! container; clamped by min/max.
+//! Given a container's `content_layout` and its in-flow element
+//! children, computes each item's main and cross size and position and
+//! recursively lays it out: the flex base sizes (§9.2, `flex-basis`, the
+//! main size property, rdom's `width: <n>fr`), the lines (§9.3,
+//! `flex-wrap`), the flexible lengths per line (§9.7, `flex-grow` /
+//! `flex-shrink`, clamped by `min-*` / `max-*` and the §4.5 automatic
+//! minimum), `auto` margins and `justify-content` (§8.1 / §8.2), the
+//! lines' cross sizes and `align-content` (§9.4, §8.4), and each item's
+//! cross size and `align-self` (§9.4 step 11, §8.3).
 //!
 //! IFC detection: if `id` has `display: inline` element children,
 //! skip flex distribution entirely. Inline children get zero-sized
@@ -32,25 +20,28 @@
 //! - `mod.rs` — [`layout_children`] (the IFC / text-leaf / block / flex
 //!   dispatch) and [`layout_flex_children`], the orchestrator that
 //!   threads the flex lines through the pieces below in spec order.
-//! - [`lines`] — §9.3 line breaking, per-line §9.7, line cross sizes
-//!   and `align-content: normal`, and a multi-line container's
-//!   intrinsic cross size (§9.9).
-//! - [`main_axis`] — per-item main-size gathering (`ChildMain`), the
-//!   §9.7 grow / shrink freeze loops, and the lazy §4.5 auto-min floor.
-//! - [`cross`] — §9.4 cross-size determination, `aspect-ratio`, and
-//!   §9.5 auto cross margins / offset.
+//! - [`main_axis`] — per-item main-size gathering (`ChildMain`, §9.2).
+//! - [`distribute`] — the §9.7 grow / shrink freeze loop and the lazy
+//!   §4.5 auto-min floor.
+//! - [`lines`] — §9.3 line breaking, per-line §9.7, line cross sizes,
+//!   `align-content: normal`, and a multi-line container's intrinsic
+//!   cross size (§9.9).
+//! - [`content`] — `justify-content` and `align-content`'s positions
+//!   and distributions, in whole cells.
+//! - [`align`] — `align-items` / `align-self`, baseline groups.
+//! - [`cross`] — §9.4 cross-size determination, `aspect-ratio`, `auto`
+//!   cross margins, the item's cross offset.
 //! - [`placement`] — §9.5 main-axis placement: auto main margins,
 //!   gaps, cursor advance, and the `layout_node` recursion per item.
 //! - [`collapse`] — the flex-specific `border-collapse: collapse`
 //!   rules: parent-edge inset and one-cell sibling overlap.
 //!
-//! [`intrinsic::intrinsic_size`]: super::intrinsic::intrinsic_size
 
 mod align;
 mod collapse;
+mod content;
 mod cross;
 mod distribute;
-mod justify;
 mod lines;
 mod main_axis;
 mod placement;
@@ -383,17 +374,33 @@ pub(super) fn layout_flex_children(
         line_cross.push(if multi_line { tallest } else { cross_budget });
         resolved.push((line, plan));
     }
+    // §9.4 step 15: `align-content` (a multi-line container only, §8.4)
+    // stretches the lines, or places its free cross space around them.
+    let mut line_lead = vec![0; line_cross.len()];
     if multi_line {
-        lines::stretch_lines(&mut line_cross, cross_budget, line_gap);
+        let n = line_cross.len();
+        let used: i32 = line_cross.iter().map(|&l| i32::from(l)).sum::<i32>()
+            + i32::from(line_gap) * (n as i32 - 1);
+        match content::align_content_offsets(
+            parent,
+            direction,
+            flip.cross,
+            i32::from(cross_budget) - used,
+            n,
+        ) {
+            Some(lead) => line_lead = lead,
+            None => lines::stretch_lines(&mut line_cross, cross_budget, line_gap),
+        }
     }
 
     let mut line_offset: i32 = 0;
     for (k, (range, (line, plan))) in line_ranges.iter().zip(resolved).enumerate() {
+        line_offset += line_lead[k];
         // §8.3: each item's cross alignment, its baselines placed now the
         // line's cross size is known.
         let align = plan.resolve(line_cross[k], flip.cross);
         // §8.2: `justify-content` places the line's leftover free space.
-        let justify = justify::justify_offsets(
+        let justify = content::justify_offsets(
             parent,
             direction,
             flip.main,

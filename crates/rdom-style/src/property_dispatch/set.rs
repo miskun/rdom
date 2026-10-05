@@ -146,6 +146,10 @@ fn set_physical(name: &str, value: &[Token], style: &mut TuiStyle) -> Result<(),
         "justify-content" => crate::parse::values::parse_justify_content(value).map(|a| {
             style.justify_content = Some(Value::Specified(a));
         }),
+        // CSS Box Alignment 3 §5.1.
+        "align-content" => crate::parse::values::parse_align_content(value).map(|a| {
+            style.align_content = Some(Value::Specified(a));
+        }),
         // CSS Box Alignment 3 §6.3 / §6.1.
         "align-items" => crate::parse::values::parse_align_items(value).map(|a| {
             style.align_items = Some(Value::Specified(a));

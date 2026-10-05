@@ -34,6 +34,7 @@ fn canonical_values() -> &'static [(&'static str, &'static str)] {
         ("flex-wrap", "wrap"),
         ("flex-flow", "column wrap"),
         ("justify-content", "safe center"),
+        ("align-content", "space-around"),
         ("align-items", "last baseline"),
         ("align-self", "auto"),
         ("white-space", "pre"),

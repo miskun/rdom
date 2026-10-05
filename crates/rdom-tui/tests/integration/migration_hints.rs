@@ -477,3 +477,18 @@ fn align_items_hints() {
         (ImportantMask::ALIGN_ITEMS | ImportantMask::ALIGN_SELF).intersects(ImportantMask::all())
     );
 }
+
+/// C6-ALIGN-CONTENT: the `align_content` fields, bit, builders, parser.
+#[test]
+fn align_content_hints() {
+    let s = TuiStyle::new().align_content(Align::SpaceEvenly.into());
+    assert_eq!(
+        s.align_content,
+        Some(Value::Specified(Alignment::new(Align::SpaceEvenly)))
+    );
+    let ComputedStyle { align_content, .. } = ComputedStyle::initial();
+    assert_eq!(align_content, Alignment::NORMAL);
+    let tokens = style::parse::tokenize("safe center").unwrap();
+    assert!(style::parse::values::parse_align_content(&tokens).is_some());
+    assert!(ImportantMask::ALIGN_CONTENT.intersects(ImportantMask::all()));
+}

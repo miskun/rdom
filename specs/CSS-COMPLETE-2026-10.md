@@ -145,7 +145,7 @@ row comes from.
 | C6-WRAP | `flex-wrap` / `flex-flow`, multi-line flex containers | done |
 | C6-JUSTIFY | `justify-content` (all distribution values) | done |
 | C6-ALIGN | `align-items` / `align-self` (incl. `baseline` where meaningful) | done |
-| C6-ALIGN-CONTENT | `align-content` | |
+| C6-ALIGN-CONTENT | `align-content` | done |
 | C6-PLACE | `place-content` / `place-items` / `place-self`, `justify-items` / `justify-self` (block-level) | |
 | C6-GAP | `row-gap` / `column-gap` and two-value `gap` | done |
 | C6-SPLIT | File-size pass on `layout_pass/flex/*` after the above | |
@@ -2367,3 +2367,29 @@ row comes from.
   the container's → the column test; `safe` ignored → the overflow test. Changed expectations: the
   canonical-values table, important-setter coverage, the C1 `initial` perturbation and the
   inherited-set probe gain the two properties. No snapshot changed.
+- 2026-10-08 — C6-ALIGN-CONTENT: `align-content` (`normal | <baseline-position> |
+  <content-distribution> | <overflow-position>? <content-position>`, Box Alignment 3 §5.1; not
+  inherited). Layout (Flexbox §8.4, §9.4 step 15): `flex/justify.rs` became `flex/content.rs` — one
+  whole-cell distribution (`offsets`: the C6-JUSTIFY placements and rounding) behind
+  `justify_offsets` and the new `align_content_offsets`; `layout_flex_children` measures the free
+  cross space of a multi-line container (its cross size less the lines and the gaps between them)
+  and either stretches the lines (`normal`, `stretch` → `stretch_lines`, C6-WRAP) or adds each
+  line's lead to its offset. Mapping in the cross-start frame: `flex-start` / `flex-end` the cross
+  edges (`wrap-reverse` swaps them), `start` / `end` the writing mode's (a row's top / bottom, a
+  column's inline-start / -end), `baseline` / `last baseline` their fallbacks `start` / `end` (Box
+  Alignment §9.3 outside a table cell); fallbacks `space-between` → `safe flex-start`, `space-around`
+  / `space-evenly` → `safe center`, `safe` overflow → `start`. Single-line containers — checked:
+  Flexbox §8.4 says `align-content` has no effect there, and every current browser agrees; the
+  CSSWG investigated applying it (csswg-drafts#3052) and kept the rule for web compatibility, so
+  rdom matches (a `nowrap` line is the container's cross size anyway; a `wrap` container with one
+  line is multi-line and aligned). Red: `align_content_takes_its_grammar` failed to compile
+  (`align_content`); with the data model in, all six `css_phase6/align_content.rs` tests failed
+  (the lines stretched: `[0, 0, 5]` for `flex-start`'s `[0, 0, 1]` and `space-between`'s `[0, 0,
+  9]`; `[0, 1, 2]` for overflowing `center`'s `[-1, 0, 1]`; the columns at `[0, 4, 7]` for
+  `[2, 4, 6]`). Green after. Mutation checks (each alone, reverted and touched): the offsets never
+  computed → all six; `start` ignoring the flipped axis → the `wrap-reverse` test; `safe` ignored →
+  the overflow test; the lead not added → all six. Applying it to single-line containers too is an
+  equivalent mutation (their one line is the container's size, so there is no free space) and
+  survives, as it must. Changed expectations: the canonical-values table, important-setter coverage,
+  the C1 `initial` perturbation and the inherited-set probe gain `align-content`. No snapshot
+  changed.

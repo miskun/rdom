@@ -129,3 +129,44 @@ fn align_items_and_align_self_take_their_grammars() {
     assert_eq!(initial.align_items, Alignment::NORMAL);
     assert_eq!(initial.align_self, Alignment::AUTO);
 }
+
+/// §5.1: `align-content: normal | <baseline-position> |
+/// <content-distribution> | <overflow-position>? <content-position>` —
+/// no `left` / `right`, no self positions.
+#[test]
+fn align_content_takes_its_grammar() {
+    for (css, out) in [
+        ("normal", "normal"),
+        ("baseline", "baseline"),
+        ("last baseline", "last baseline"),
+        ("space-between", "space-between"),
+        ("space-around", "space-around"),
+        ("space-evenly", "space-evenly"),
+        ("stretch", "stretch"),
+        ("center", "center"),
+        ("safe flex-end", "safe flex-end"),
+        ("unsafe start", "unsafe start"),
+    ] {
+        assert_eq!(
+            round_trip("align-content", css).as_deref(),
+            Ok(out),
+            "{css}"
+        );
+    }
+    for bad in ["auto", "left", "self-start", "safe stretch", ""] {
+        assert_eq!(
+            set("align-content", bad, &mut TuiStyle::new()),
+            Err(DispatchError::InvalidValue),
+            "{bad:?}"
+        );
+    }
+    assert!(!inherits("align-content"));
+    assert_eq!(
+        property_mask("align-content"),
+        Some(ImportantMask::ALIGN_CONTENT)
+    );
+    assert_eq!(
+        crate::ComputedStyle::initial().align_content,
+        Alignment::NORMAL
+    );
+}

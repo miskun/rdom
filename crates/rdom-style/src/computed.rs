@@ -143,6 +143,9 @@ pub struct ComputedStyle {
     /// `align-items` (CSS Box Alignment 3 §6.3): the default cross-axis
     /// alignment of a flex container's items. Initial `normal`.
     pub align_items: crate::layout::Alignment,
+    /// `align-content` (CSS Box Alignment 3 §5.1): how a multi-line flex
+    /// container's lines share its cross axis. Initial `normal`.
+    pub align_content: crate::layout::Alignment,
     /// `align-self` (§6.1): the item's own cross-axis alignment; `auto`
     /// (the initial value) takes its container's `align-items`.
     pub align_self: crate::layout::Alignment,
@@ -308,6 +311,7 @@ impl ComputedStyle {
             flex_wrap: crate::layout::FlexWrap::NoWrap,
             justify_content: crate::layout::Alignment::NORMAL,
             align_items: crate::layout::Alignment::NORMAL,
+            align_content: crate::layout::Alignment::NORMAL,
             align_self: crate::layout::Alignment::AUTO,
             text_direction: crate::layout::TextDirection::Ltr,
             writing_mode: crate::layout::WritingMode::HorizontalTb,

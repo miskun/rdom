@@ -29,6 +29,7 @@ const PROPERTY_NAMES: &[&str] = &[
     "flex-wrap",
     "flex-flow",
     "justify-content",
+    "align-content",
     "align-items",
     "align-self",
     "white-space",

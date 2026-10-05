@@ -31,6 +31,16 @@ const JUSTIFY_CONTENT: Grammar = Grammar {
     left_right: true,
 };
 
+/// `align-content: normal | <baseline-position> | <content-distribution>
+/// | <overflow-position>? <content-position>` (§5.1).
+const ALIGN_CONTENT: Grammar = Grammar {
+    auto: false,
+    baseline: true,
+    distribution: true,
+    self_positions: false,
+    left_right: false,
+};
+
 /// `align-items: normal | stretch | <baseline-position> |
 /// <overflow-position>? <self-position>` (§6.3).
 const ALIGN_ITEMS: Grammar = Grammar {
@@ -126,6 +136,11 @@ fn parse(value: &[Token], g: &Grammar) -> Option<Alignment> {
 /// `justify-content` (CSS Box Alignment 3 §5.2).
 pub fn parse_justify_content(value: &[Token]) -> Option<Alignment> {
     parse(value, &JUSTIFY_CONTENT)
+}
+
+/// `align-content` (CSS Box Alignment 3 §5.1).
+pub fn parse_align_content(value: &[Token]) -> Option<Alignment> {
+    parse(value, &ALIGN_CONTENT)
 }
 
 /// `align-items` (CSS Box Alignment 3 §6.3).

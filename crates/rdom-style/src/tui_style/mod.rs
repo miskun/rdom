@@ -148,6 +148,8 @@ pub struct TuiStyle {
     pub justify_content: Option<Value<crate::layout::Alignment>>,
     /// `align-items` (CSS Box Alignment 3 §6.3).
     pub align_items: Option<Value<crate::layout::Alignment>>,
+    /// `align-content` (§5.1).
+    pub align_content: Option<Value<crate::layout::Alignment>>,
     /// `align-self` (§6.1).
     pub align_self: Option<Value<crate::layout::Alignment>>,
     /// CSS `direction` (CSS Writing Modes 4 §2.1). Inherited. (`direction`
@@ -457,6 +459,9 @@ impl TuiStyle {
             n += 1
         }
         if self.align_items.is_some() {
+            n += 1
+        }
+        if self.align_content.is_some() {
             n += 1
         }
         if self.align_self.is_some() {

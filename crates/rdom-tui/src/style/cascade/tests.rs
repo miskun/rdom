@@ -2332,6 +2332,7 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
     parent.flex_wrap = rdom_style::layout::FlexWrap::Wrap;
     parent.justify_content = rdom_style::layout::Align::Center.into();
     parent.align_items = rdom_style::layout::Align::Center.into();
+    parent.align_content = rdom_style::layout::Align::Center.into();
     parent.align_self = rdom_style::layout::Align::Center.into();
     parent.overflow_x = Overflow::Hidden;
     parent.overflow_y = Overflow::Scroll;
@@ -2402,6 +2403,7 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
             child.justify_content == parent.justify_content,
         ),
         ("align-items", child.align_items == parent.align_items),
+        ("align-content", child.align_content == parent.align_content),
         ("align-self", child.align_self == parent.align_self),
         ("overflow-x", child.overflow_x == parent.overflow_x),
         ("overflow-y", child.overflow_y == parent.overflow_y),
