@@ -214,7 +214,7 @@ fn paint_in_flow(
 ) {
     match dom.node(id).computed() {
         Some(c) if is_layered(dom, parent, c) => {}
-        Some(c) if creates_stacking_context(c) => {
+        Some(c) if creates_stacking_context(dom, parent, c) => {
             paint_stacking_context(dom, id, buf, clip, viewport);
         }
         _ => paint_plain(dom, parent, id, buf, clip, viewport),

@@ -137,23 +137,35 @@ fn is_item_of(dom: &Dom<TuiExt>, parent: NodeId) -> bool {
 
 /// Does the element `c`, a child of `parent`, paint and hit from its
 /// stacking context's layers rather than at its turn in its parent's
-/// content? A positioned box does, and so does a flex or grid item with
-/// a `z-index` other than `auto` (CSS Flexbox §5.4, CSS Grid 2 §6.5:
-/// such a value "create[s] a stacking context even if `position` is
-/// `static`", ordered as a positioned box's is).
+/// content? A positioned box does, and so does a z-indexed flex or grid
+/// item ([`is_z_indexed_item`]). Every such box that is not positioned
+/// establishes a stacking context ([`creates_stacking_context`]).
 pub(crate) fn is_layered(dom: &Dom<TuiExt>, parent: NodeId, c: &ComputedStyle) -> bool {
-    is_positioned(c)
-        || (!matches!(c.z_index, ZIndex::Auto)
-            && c.display != Display::Contents
-            && is_item_of(dom, parent))
+    is_positioned(c) || is_z_indexed_item(dom, parent, c)
 }
 
-/// Does an element with this style establish a stacking context?
-/// (The document root always does.)
-pub(crate) fn creates_stacking_context(c: &ComputedStyle) -> bool {
+/// Does the element `c`, a child of `parent`, establish a stacking
+/// context? A positioned box with a `z-index` other than `auto`, a box
+/// with `opacity` below 1, and a z-indexed flex or grid item. (The
+/// document root always does.) The one answer the paint and hit walks
+/// share with [`is_layered`] (C7G-STACKING-ONE).
+pub(crate) fn creates_stacking_context(
+    dom: &Dom<TuiExt>,
+    parent: NodeId,
+    c: &ComputedStyle,
+) -> bool {
     // No box, no stacking context (CSS Display 3 §2.5).
     c.display != Display::Contents
-        && ((is_positioned(c) && !matches!(c.z_index, ZIndex::Auto)) || c.opacity < 1.0)
+        && ((is_positioned(c) && !matches!(c.z_index, ZIndex::Auto))
+            || c.opacity < 1.0
+            || is_z_indexed_item(dom, parent, c))
+}
+
+/// A flex or grid item with a `z-index` other than `auto` (CSS Flexbox
+/// §5.4, CSS Grid 2 §6.5: such a value "create[s] a stacking context even
+/// if `position` is `static`", ordered as a positioned box's is).
+fn is_z_indexed_item(dom: &Dom<TuiExt>, parent: NodeId, c: &ComputedStyle) -> bool {
+    !matches!(c.z_index, ZIndex::Auto) && c.display != Display::Contents && is_item_of(dom, parent)
 }
 
 /// The clip `id`'s content paints into, given the clip `id` itself
@@ -290,9 +302,7 @@ impl Walk<'_> {
                         current.content_clip
                     }
                 };
-                // A layered box that is not positioned is a flex or grid
-                // item with a `z-index`: a stacking context.
-                let context = creates_stacking_context(c) || !is_positioned(c);
+                let context = creates_stacking_context(dom, box_parent, c);
                 let z = match c.z_index {
                     ZIndex::Auto => 0,
                     ZIndex::Value(n) => n,
@@ -322,7 +332,7 @@ impl Walk<'_> {
                     self.children(cid, cid, Some(entry.unit()));
                     self.chain.pop();
                 }
-            } else if creates_stacking_context(c) {
+            } else if creates_stacking_context(dom, box_parent, c) {
                 // `opacity < 1` on an in-flow box: painted atomically in
                 // place; nothing inside it belongs to this context.
             } else {
@@ -416,7 +426,7 @@ fn atom_shadows_in(
         };
         if c.display == Display::None
             || is_layered(dom, box_parent, c)
-            || creates_stacking_context(c)
+            || creates_stacking_context(dom, box_parent, c)
             || paints_atomically(dom, box_parent, c)
         {
             continue;
@@ -431,3 +441,7 @@ fn atom_shadows_in(
         atom_shadows_in(dom, cid, cid, children_clip(dom, cid, c, clip), f);
     }
 }
+
+#[cfg(test)]
+#[path = "stacking_tests.rs"]
+mod tests;

@@ -4204,3 +4204,15 @@ row comes from.
   the three inline-block buttons; it is now its `<h3>` and one line, so the three blank rows after the
   buttons are one, as between every other section (glyphs moved up two rows, no cell changed
   otherwise). No other test changed.
+- 2026-10-09 — C7G-STACKING-ONE (architect N8): `is_layered` folded z-indexed flex and grid items in
+  (CSS Flexbox §5.4, CSS Grid 2 §6.5) but `creates_stacking_context` did not, so each caller patched the
+  gap — `collect_layers` with `|| !is_positioned(c)`, and the paint and hit walks by asking
+  `is_layered` first. Decision: one rule, `is_z_indexed_item`, that both read; `creates_stacking_context`
+  now takes `(dom, parent, c)` like `is_layered` and answers for the items, so every layered box is
+  positioned or a context, and the patch in `collect_layers` is gone. All users grepped and updated:
+  `render/stacking.rs` (`collect_layers` twice, `atom_shadows_in`), `paint_pass/stacking_walk.rs::
+  paint_in_flow`, `hit_test/descend.rs::hit_in_flow_element`. Red: `render/stacking_tests.rs` (new) —
+  `a_z_indexed_item_is_layered_and_a_stacking_context` did not compile against the one-argument
+  predicate (it could not know the item rule); green after, with `the_rule_is_the_items` pinning the
+  block-flow, positioned and opacity answers. No behaviour change: no other test and no snapshot
+  changed.

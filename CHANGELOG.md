@@ -386,6 +386,7 @@ One row per renamed or reshaped public item: the 0.5 form, its replacement, the 
 
 ### Changed — `rdom-tui`
 
+- **One stacking-context predicate**: `creates_stacking_context` takes the box's parent and answers for z-indexed flex and grid items too (CSS Flexbox §5.4, CSS Grid 2 §6.5), so it and `is_layered` agree and paint, hit-testing and the layer walk patch nothing. No behaviour change. (C7G-STACKING-ONE)
 - **Internal splits ahead of grid**, no behaviour or API change: the CSSOM serializer by property family, the line packer's intake and output, caret line navigation, `ComputedStyle`'s tests. (C6G-SPLITS)
 - **Intrinsic keyword sizes are measured once per layout pass**: each element's Row-axis content sizes are memoized for the pass, so nested `fit-content` / `min-content` / `max-content` boxes cost linear, not quadratic, work. Nothing is memoized outside a pass. (C5G-PERF-AND-TESTS)
 - **`dashed` and `dotted` borders draw dashes** (CSS Backgrounds 3 §4.2): straight runs use Unicode's dash glyphs (`╌╎` / `┄┆`, heavy for `thick`); corners and junctions stay solid. (C4G-EDGE-TESTS)
