@@ -97,7 +97,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 
 When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 103 rows Partial / Missing (C8G-PSEUDO-BOXES moved `::before` / `::after` from Supported to Partial — their `display` was ignored — and C8G-PSEUDO-ATOMS back: the atom, float and flex / grid forms work).
 
-Headline: rdom parses **183 property names** (`property_names()`, after C7-GRID-AREAS). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are `line-height`, `text-align`, and `@media`.
+Headline: rdom parses **227 property names** (`property_names()`: 159 in the table and 68 flow-relative ones, after Phase 8). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are `line-height`, `text-align`, and `@media`.
 
 ---
 
@@ -154,7 +154,7 @@ pasted CSS. The first block is what a typical component stylesheet hits in its f
 | 44 | `appearance` | `none` drops the UA control chrome (brackets, glyphs) so authors can restyle controls; `auto` restores it. | M | No |
 | 45 | `caret-shape` / `caret-animation` / `caret` | `bar` / `block` / `underscore` for the painted caret (or DECSCUSR on the hardware cursor); `manual` disables blink. | S | No |
 | 46 | `scrollbar-width` / `scrollbar-color` | `scrollbar-width: none` hides the bar while keeping the box scrollable (`thin` = `auto`, already one cell); `scrollbar-color: <thumb> <track>` = the standard spelling of `::scrollbar-thumb` / `::scrollbar` colors. | S | Yes |
-| 47 | `overscroll-behavior` (+ `-x`, `-y`, logical) | `contain` / `none` stop wheel / keyboard scroll chaining into the ancestor at the scroll limit. | S | No | *Shipped: C8-OVERSCROLL.*
+| 47 | `overscroll-behavior` (+ `-x`, `-y`, logical) | `contain` / `none` stop wheel scroll chaining into the ancestor at the scroll limit (keyboard scrolling never chains: DIVERGENCES). | S | No | *Shipped: C8-OVERSCROLL.*
 | 48 | `scroll-padding*` / `scroll-margin*` / `scroll-snap-type` / `scroll-snap-align` / `scroll-snap-stop` | Insets for `scrollIntoView` / keyboard scrolling; snap scroll offsets to item edges (row-snapped lists). | S / M | Partial — padding / margin Yes; snap No | *Shipped: C8-SCROLL-PADDING, C8-SNAP.*
 | 49 | Table properties: `border-spacing`, `vertical-align` (cells), `table-layout`, `caption-side`, `empty-cells` | Cell gaps in cells; `middle` / `bottom` cell alignment; `fixed` = first-row widths only; caption above / below; hide empty cells' borders. | S each (`vertical-align` M) | Partial — `vertical-align` Yes; rest No |
 | 50 | `vertical-align` (inline) | `top` / `middle` / `bottom` of an inline-block in a taller line box; `sub` / `super` are N/A (sub-cell). | M | Yes |

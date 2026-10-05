@@ -228,6 +228,73 @@ fn main() -> std::result::Result<(), StyleError> {
 
 A node can carry the same declarations inline: `set_grid()`, `set_grid_template_columns(…)`, `set_grid_area_named("head")`, `set_grid_row(…)` and the other `TuiNodeMutExt` grid setters.
 
+## Floats and text overflow
+
+`float` / `clear` follow CSS 2.1 §9.5: a float leaves the line, lines beside it are shortened, and `clear` moves a box below it; a box that establishes a block formatting context (`overflow: hidden`, `display: flow-root`) contains its floats, and so does the clearfix — an empty block `::after` that clears. `text-overflow` marks a clipped line's cut edge, and `line-clamp` ends a block after its Nth line with an ellipsis. A float floats where its parent lays out in block flow: the document root's children are items of rdom's viewport column, so put the content in a `<body>`, as a browser's is.
+
+```rust
+use rdom_tui::prelude::*;
+
+fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    let sheet = rdom_css::from_css_strict(
+        r#"
+        .media { float: left; width: 4; height: 2; margin-right: 1 }
+        .card::after { content: ""; display: block; clear: both }
+        .truncate { overflow: hidden; white-space: nowrap; text-overflow: ellipsis }
+        .clamp { line-clamp: 2 }
+        "#,
+    )?;
+
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let body = dom.create_element("body");
+    dom.append_child(root, body).unwrap();
+    let mut add = |parent: NodeId, tag: &str, class: &str, text: &str| -> NodeId {
+        let id = dom.create_element(tag);
+        if !class.is_empty() {
+            dom.set_attribute(id, "class", class).unwrap();
+        }
+        if !text.is_empty() {
+            let t = dom.create_text_node(text);
+            dom.append_child(id, t).unwrap();
+        }
+        dom.append_child(parent, id).unwrap();
+        id
+    };
+    let card = add(body, "div", "card", "");
+    add(card, "div", "media", "IMG");
+    add(card, "p", "", "Some text");
+    add(body, "p", "truncate", "This line is far too long");
+    add(body, "p", "clamp", "one two three four five six seven eight");
+
+    let area = Rect::new(0, 0, 16, 6);
+    dom.cascade(&sheet);
+    dom.layout_dom(area);
+    let mut buf = Buffer::empty(area);
+    dom.paint_dom(&mut buf, area);
+
+    let rows: Vec<String> = (0..6)
+        .map(|y| (0..16).map(|x| buf.cell(x, y).unwrap().symbol()).collect())
+        .collect();
+    // The text runs beside the 2-row float (past its margin); the
+    // clearfix makes `.card` as tall as the float, so the next paragraph
+    // starts below it; the long line ends in `…`; the clamped block keeps
+    // two lines, the second marked.
+    assert_eq!(
+        rows,
+        [
+            "IMG  Some text  ",
+            "                ",
+            "This line is fa…",
+            "one two three   ",
+            "four five six…  ",
+            "                ",
+        ]
+    );
+    Ok(())
+}
+```
+
 ## Pseudo-elements and `content`
 
 ```rust

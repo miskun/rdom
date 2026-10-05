@@ -116,10 +116,10 @@ pub(crate) fn bar_on_left(computed: &ComputedStyle) -> bool {
     computed.text_direction == crate::layout::TextDirection::Rtl
 }
 
-/// Pass-1 gutter reservation — Scroll always, Auto only if
-/// `scrollbar-gutter: stable`. `Auto` without `stable` waits for
-/// overflow detection then forces the gutter in pass 2 via
-/// [`reserve_scrollbar_gutter_forced`].
+/// Pass-1 gutter reservation ([`gutter_axes`]): `scroll` always; `auto`
+/// and `hidden` under `scrollbar-gutter: stable` (CSS Overflow 3 §3.3).
+/// `auto` without `stable` waits for overflow detection then forces the
+/// gutter in pass 2 via [`reserve_scrollbar_gutter_forced`].
 pub(crate) fn reserve_scrollbar_gutter(inner: LayoutRect, computed: &ComputedStyle) -> LayoutRect {
     reserve_scrollbar_gutter_forced(inner, computed, false, false)
 }

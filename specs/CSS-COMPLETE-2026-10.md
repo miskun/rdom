@@ -37,7 +37,7 @@ the commit that lands it (`done <sha>`), and the log at the end records phase ga
 | 5 | Box model and sizing (incl. logical properties) | done 2026-10-07 (both gates; 19 gate fixes `C5G-*`; their re-review rides with the Phase 6 gate; C5-CONTAIN-SIZE use with C14-CONTAIN) |
 | 6 | Display, visibility, flexbox, box alignment | done 2026-10-08 (both gates; 28 gate fixes `C6G-*`; their re-review rides with the Phase 7 gate) |
 | 7 | Grid | done 2026-10-09 (both gates; 15 gate fixes `C7G-*`; their re-review rides with the Phase 8 gate) |
-| 8 | Positioning, floats, overflow, scrolling | gates run 2026-10-10; `C8G-*` fixes in progress |
+| 8 | Positioning, floats, overflow, scrolling | done 2026-10-10 (both gates; 15 gate fixes `C8G-*`; their re-review rides with the Phase 9 gate) |
 | 9 | Inline text and decoration | |
 | 10 | Lists, counters, generated content, pseudo-elements | |
 | 11 | Selectors | |
@@ -5244,3 +5244,37 @@ row comes from.
   `migration_hints.rs::scroll_sides_and_root_hints` — 23 compile errors (the root types, `FocusOptions`,
   `TuiTimers`, the `Sides` fields); `cargo clippy` with the `deny` on the two functions — the wildcard arm.
   Green after. No test expectation or snapshot changed.
+- 2026-10-10 — C8G-DOCS (API N5, N11, N14, N15, N16; architect N9, N10, the accepted `<body>` note). Upgrade
+  guide: the silent changes it missed, ranked by impact into the list — focus scrolling into view (#6),
+  an absolutely positioned box widening its scroller (#7), a `stable` gutter on `overflow: hidden` (#22),
+  relative positioning laid out in flow and then shifted (#27), the `rtl` line overflowing left (#29) — and
+  this batch's own: block content measured with collapsed margins and shrink-to-fit inline blocks (#4,
+  C8G-FLOAT-MEASURE), overflowing text painting over what follows it (#28, C8G-PAINT-PHASES); #21 now says
+  a stylesheet's `overflow: clip`, dropped in 0.5, clips. DIVERGENCES: `scrollbar-color` is inherited, so
+  an ancestor's switches `::scrollbar` styling off below it, the UA accent included. Stale docs: CSS-COVERAGE
+  counts 227 property names (159 + 68 flow-relative); its roadmap row 47 no longer promises keyboard
+  chaining; the root README's Unreleased list has a positioning / floats / overflow / scrolling bullet;
+  `reserve_scrollbar_gutter`'s doc names `hidden` under `stable` (the `_forced` doc was already true);
+  DIVERGENCES' "no `float` / `clear` yet" had gone with C8G-CLEARANCE-COLLAPSE. The `<body>` note, decided:
+  its home is the rdom-tui README's new "Floats and text overflow" section, where a consumer meets floats,
+  beside DIVERGENCES' simplifications entry (which already says it) — a doctested example of a `.media`
+  float with `margin-right` beside its text, the clearfix, a `.truncate` line and a `line-clamp: 2` block,
+  its painted rows asserted. ACID: tile 13 gains the autoprefixed `-webkit` + `line-clamp` pair; tile 19
+  the clearfix (and with a cleared first child's margin), the `.media` float, the paint phases and the
+  pseudo-element atoms and floats; I11 PageDown under `mandatory`, a card taller than the snapport, a key at
+  the end not chaining and a smooth PageDown. File sizes, settled in CLAUDE.md §Architecture Hygiene: 500
+  is the bar (past it a file is listed in `SIZE-1`), 575 splits on touch (a change leaving a touched file
+  past it splits it), 600 is the gate's hard limit (`file_sizes.rs`); no file this batch touched ends past
+  575 (`apply.rs` 566). Test gaps (API N16), `css_phase8/gate_gaps.rs`, all green as written but one: a
+  `scrollbar-width: none` scroller's last column is content — painted, hit, dragged as such — and it
+  scrolls by the wheel; Shift+Tab within `scroll-padding-top`; focus scrolling nested scrollers; pointer
+  focus not scrolling; `overflow: clip` not containing its float — written expecting the float painted,
+  red, and rewritten: `.c` clips it away at its 0-row clip edge while it still excludes (CSS Overflow 3
+  §3.1, the code right); a stuck sticky box carrying its absolutely positioned child; a `.truncate` flex
+  item. No test expectation or snapshot changed.
+- 2026-10-10 — Phase 8 closed: both gates run, 15 gate fixes `C8G-*` (batch A: SCROLLPORT, ABSPOS-EXTENT,
+  RESNAP, SNAP-TALL, CLEARANCE-COLLAPSE, PSEUDO-BOXES, WEBKIT-CLAMP, CARET-RTL; batch B: PSEUDO-ATOMS,
+  PAINT-PHASES, FLOAT-MEASURE, IDLE-COST, FOCUS-SCROLL, API-TYPES, DOCS); their re-review rides with the
+  Phase 9 gate. Open for that review: the re-place of a formatting context root beside floats is done once;
+  a float's settled height reaches content after its run only; focus scrolling under an `App` is at the
+  next layout (`FOCUS-FLUSH-1`).

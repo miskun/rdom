@@ -10,6 +10,7 @@ pub(crate) use super::css_phase5::{el, lay_out, paint, rect, rows, size};
 mod abspos_overflow;
 mod containing_block;
 mod float;
+mod gate_gaps;
 mod line_clamp;
 mod overflow_clip;
 mod overflow_text;
