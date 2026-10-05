@@ -5075,3 +5075,45 @@ row comes from.
   `css_phase8/rtl_line_overflow.rs::a_caret_left_of_the_screen_is_on_no_cell` — `Some((0, 0))` for
   `None`; `runtime/scrollbar/reveal_tests.rs` — `scrollTop` 3 for 0. Green after; no other test or
   snapshot changed.
+- 2026-10-10 — C8G-PSEUDO-ATOMS (API B1, the rest of C8G-PSEUDO-BOXES). Found: an `inline-block` /
+  `inline flow-root` / `inline-flex` / `inline-grid` `::before` / `::after` was packed as inline text (no box:
+  its `width`, padding, border and background never drawn), a floated one stayed inline text, and a `flex` /
+  `grid` one — block-level or not — packed its text as an inline formatting context, ignoring its
+  container properties. Decision, on the box tree throughout (no fourth pseudo path): a pseudo-element with a
+  box of its own is the box tree's generated item, `items::AnonymousItem` — the record C6G-PSEUDO-FLEX-ITEMS
+  made for pseudo flex items, now built for any pseudo (`AnonymousItem::pseudo`, `Item::of_box`) and measured
+  through the same `Keywords` / `contribution` doors elements use. (1) Atoms: `inline::generated::InlinePseudo`
+  classifies a static pseudo once (`Text`, `Atom` by `box_tree::is_atomic_inline`, `Float`), and every place
+  that feeds a pseudo to the packer goes through it (`feed::push_pseudo_box`); the packer places an atom as an
+  element's (`open_atom` / `close_atom`, shared), as one `GeneratedFragment` holding its box (`is_atom`,
+  `atom_rows`; `vertical::AtomRows::of` is now the one row geometry for element and pseudo atoms, `AtomAt`
+  settles both), and the layout pass lays its content out inside it after packing
+  (`layout_pass::generated_atoms`, at the three packing sites). (2) Floats: the float module's API takes a box
+  item (`float_side_of`, `is_float_item`, `clear_sides_of`, `place*`, `clearance_floor`, `FloatBox::of`,
+  `outer_contribution`, `LineExclusions::place_float`, the packer's pending floats); a host's floated pseudo is
+  an item of its box sequence (`generated::sequence_pseudos`, beside the block-level ones), placed by the block
+  pass or the packer, laid out by `float::lay_out` and kept on the box whose run placed it
+  (`TuiExt::floated_pseudos`, one thin `Box`: the size tripwire 440 → 448) — shifted with it, counted in its
+  scroller's overflow and its `opacity` layer, painted in its stacking context's float layer
+  (`LayerEntry::generated`) and hit-tested there to its host. (3) A `flex` / `grid` pseudo (block-level or
+  atomic) lays out its one anonymous item (`AnonymousItem::content_item`, the anonymous box style of the
+  pseudo) by `flex::layout_flex_children` — which already took items — and by grid layout, whose container is
+  now `grid::GridBox` (an element, or a generated container's one item: `layout_generated_grid`,
+  `generated_content_size`). A generated flex container's content size is its text's: its one `flex: 0 1
+  auto` item with no box of its own is as wide as its text up to the content width and wraps to the same
+  rows (documented at `AnonymousItem::content_size`). The block-level pseudo (C8G-PSEUDO-BOXES) now sizes and
+  lays its content out through the same item. A pseudo's text packs in its own `white-space` and `direction`
+  (`inline::pack_generated`). `GeneratedFragment` is `#[non_exhaustive]` (Breaking, `GeneratedFragment::text`;
+  also re-exported at `render::`). Split (SIZE-1): `block/mod.rs` 579 → 522 + `block/inline_run.rs`;
+  `inline_paint/mod.rs` would have reached 641 → 519 + `inline_paint/generated.rs`. Red:
+  `css_phase8/pseudo_atoms.rs` — 11 of 12 failed (`Xbody` for ` X body`; `aa bbbody` for a two-row atom;
+  `abbody` for `    abbody` / `  ab  body` / `ab  body`; `T` at column 0 for 4; `ab cd` on one row for two;
+  `Fbody text` for `F body` / `  text`; `F` / `para` on two rows for one; cleared `y` 1 for 3; intrinsic 2 for
+  4), the floated `::after` test passed by coincidence and was rewritten (`bodyR` → `body     R`, red after);
+  `a_click_on_a_floated_pseudo_targets_its_host` added while fixing. Green after. Mutations (restored,
+  touched): no content item → the four flex / grid tests; the packer dropping atoms and floats → eight;
+  hit-testing skipping generated floats → the click test. CSS-COVERAGE: `::before` / `::after` Partial →
+  Supported, §3.16 4 / 1 / 5 / 6, total 158 / 23 / 80 / 46. DIVERGENCES: the "never an atom or a container"
+  entry is now the two departures left (a block-level pseudo's margins do not collapse through its host;
+  `display: table` waits for Phase 13); the floats entry no longer says pseudo-elements do not float. No
+  existing test expectation or snapshot changed.

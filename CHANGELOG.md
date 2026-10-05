@@ -33,7 +33,7 @@ Each Breaking bullet below ends with its migration, and the [API table](#api-cha
 18. **`overflow` axes are paired** (CSS Overflow 3 §3.1): `overflow-y: scroll` computes `overflow-x` to `auto` (it stayed `visible`), so wide content now scrolls instead of painting past the box; `scrollbar-gutter: stable` no longer reserves a bottom row; and a scroll offset written on a box that is not a scroll container is dropped at the next layout — scroll the box that has `overflow` set. (C8-OVERFLOW-CLIP)
 19. **Overflowing text paints past its box**: a fixed-height or narrow box's extra lines and columns show unless the box has `overflow: hidden` / `clip` (CSS Overflow 3 §3.1); add one to keep them cut. (C8-OVERFLOW-TEXT)
 20. **A padded scroller's bar sits at its padding edge, and its end is reachable** (CSS Overflow 3 §2.2, §5.2): the bar moved from beside the content box to the column inside the border; `scrollHeight` / `scrollWidth` count the padding and are never less than the scrollport; content is clipped out of the gutters. (C8G-SCROLLPORT)
-21. **`display: block` on `::before` / `::after` makes a line of its own**: such a pseudo-element was inline text in its host's line; it is now a block box above (below) the host's content, and `display: none` hides one that used to show. (C8G-PSEUDO-BOXES)
+21. **`display` and `float` on `::before` / `::after` take effect**: such a pseudo-element was inline text in its host's line; `display: block` now makes it a block box above (below) the host's content, `inline-block` a box in the line (its `width`, padding and border drawn), `float` a float, `flex` / `grid` a container of its text, and `display: none` hides one that used to show. (C8G-PSEUDO-BOXES, C8G-PSEUDO-ATOMS)
 22. **A vertical `display: -webkit-box` is a column, and a flex container draws no `text-overflow` marker** (Compat Standard §5, CSS Overflow 4 §3): its children stacked where they sat in a row; a `display: flex; text-overflow: ellipsis` box's text is clipped without `…`. (C8G-WEBKIT-CLAMP)
 
 **Compile breaks** — what a 0.5 consumer must change, by kind (the API table has each item):
@@ -44,7 +44,7 @@ Each Breaking bullet below ends with its migration, and the [API table](#api-cha
 - **Typed values**: `MinSize` / `MaxSize` for `min-*` / `max-*`, `f32` flex factors, `i64` integer tokens, `AspectRatio` behind accessors, `row_gap` / `column_gap`, `FlexBasis`.
 - **New variants to match**: `Value` (`Revert`, `RevertLayer`), `Overflow::Clip`, `Color::Rgba`, `TuiColor` (`CurrentColor`, `Function`, `System`), `Display::Contents`, `Flow::FlowRoot`, `Flow::Grid`, the `Align` keywords — and `Align` is `#[non_exhaustive]` (a `_` arm).
 - **New fields on style records**: build `TuiStyle` / `ComputedStyle` with `TuiStyle::new()` / `ComputedStyle::initial()`; a destructuring pattern adds `..`.
-- **Layout records are `#[non_exhaustive]`**: `LineBox`, `InlineFragment` and `AnonymousIfc` are built by constructor.
+- **Layout records are `#[non_exhaustive]`**: `LineBox`, `InlineFragment`, `GeneratedFragment` and `AnonymousIfc` are built by constructor.
 - **Removed helpers**: `parse_unsigned`, `round_half_to_even`, `Content::Attr`.
 
 Code written against git `main` between 0.5 and this release also meets the [changes to unreleased APIs](#changes-to-apis-added-after-05) — items that never shipped in 0.5.
@@ -120,6 +120,7 @@ One row per renamed or reshaped public item: the 0.5 form, its replacement, the 
 | `LineBox { …, ..Default::default() }` | `LineBox::new(fragments, width, top)`, or `LineBox::default()` and set its fields | C6G-LINEBOX-API | `line_box_construction_hints` |
 | `InlineFragment::x` / `GeneratedFragment::x: u16`; `InlineFragment::text(…, x: u16, …)` / `atom(_, x: u16, …)` | `i32` (negative left of the content box: an overflowing `rtl` line) | C8-RTL-LINE-OVERFLOW | `line_box_construction_hints` |
 | `InlineFragment { … }` struct literal | `InlineFragment::text(node, text_node, offset, x, text)` / `InlineFragment::atom(node, x, width, height)` | C6G-LINEBOX-API | `line_box_construction_hints` |
+| `GeneratedFragment { host, slot, x, width, text }` struct literal | `GeneratedFragment::text(host, slot, x, text)`; an atom read through `is_atom()` / `atom_rows()` | C8G-PSEUDO-ATOMS | `generated_fragment_construction_hints` |
 | `PresentationStyle::gap` | `row_gap` / `column_gap` | C6-GAP | `gap_hints` |
 | `AnonymousIfc { rect, inline_layout, child_range }` | `AnonymousIfc::new(rect, inline_layout, child_range, None)` | C6G-PSEUDO-FLEX-ITEMS | `anonymous_box_hints` |
 | rdom-style value types reached through `rdom_style::…` | re-exported at the `rdom_tui` root (`use rdom_tui::*;`), with `set_border_radius` / `border_radius` on nodes | C4G-REEXPORTS, C5G-REEXPORTS-AND-ROOT | `node_border_radius_accessor` |
@@ -345,6 +346,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Breaking — `rdom-tui`
 
+- **`render::GeneratedFragment` is `#[non_exhaustive]`** (now also at `render::GeneratedFragment`): an atomic `::before` / `::after` (`inline-block`, `inline-flex`, `inline-grid`) is one generated fragment holding its box, read through `is_atom()` / `atom_rows()`. Migration: `GeneratedFragment::text(host, slot, x, text)` for a struct literal. (C8G-PSEUDO-ATOMS)
 - **`InlineFragment::x` and `GeneratedFragment::x` are `i32`** (were `u16`), and `InlineFragment::text` / `InlineFragment::atom` take `x: i32`: a line wider than its `rtl` box starts at its right edge and overflows the left one, so a fragment can sit left of the content box (negative). Migration: drop `i32::from(f.x)` / `f.x as i32` conversions; where a `u16` column is needed, `u16::try_from(f.x)` and treat an error as left of the box. (C8-RTL-LINE-OVERFLOW)
 - `runtime::animation::ActiveAnimation` gains `scheme` (the used color scheme a `reset` endpoint interpolates as); it is only read, as `AnimationRegistry::register` is not public. Migration: a struct literal sets `scheme`. (C3G-SCHEME-CONSISTENCY)
 - `App::register_property` returns `Result<(), RegisterPropertyError>` (re-exported from `rdom_tui`; was `Result<(), String>`); a repeated name is `RegisterPropertyError::AlreadyRegistered(name)`. Migration: match the variant, or `.to_string()`. (C1G-TYPED-ERRORS)
@@ -472,6 +474,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 - **The prefixed-plus-standard line clamp clamps**: `display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3` is clamped to three lines (the later `line-clamp` no longer switches the legacy form off); a vertical `-webkit-box` stacks its children; a flex container draws no `text-overflow` ellipsis; a clamped box's hidden lines and a block's bottom padding no longer count as content. (C8G-WEBKIT-CLAMP)
 
+- **`::before` / `::after` are atoms, floats and flex / grid containers** (CSS Pseudo 4 §2, CSS Display 3 §2.4, CSS 2.1 §9.5): an `inline-block` / `inline flow-root` / `inline-flex` / `inline-grid` pseudo-element is one box in its host's line (its width, padding, border and background drawn, its baseline its last line), a floated one floats beside the host's lines and blocks (clearable, hit-testing to its host), and a `flex` / `grid` one — block-level or atomic — lays its text out as its one anonymous item by flex or grid layout. (C8G-PSEUDO-ATOMS)
 - **`::before` / `::after` honour their `display`** (CSS 2.1 §12.1, CSS Pseudo 4 §2): `block` / `flow-root` / `flex` / `grid` make a block box of the host's flow (`content: ""` an empty one, `clear` applies, so the clearfix contains its float); `none` generates nothing; the initial value is `inline`. (C8G-PSEUDO-BOXES)
 
 - **Clearance stops a parent's top margin collapsing with its first child's** (CSS 2.1 §8.3.1, §9.5.2): a cleared first child after a float keeps its `margin-top` inside the parent, so the parent and its float no longer move down by it — the clearfix-with-margins pattern. (C8G-CLEARANCE-COLLAPSE)

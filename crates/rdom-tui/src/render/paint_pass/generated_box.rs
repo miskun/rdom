@@ -1,8 +1,9 @@
-//! The box of a `::before` / `::after` laid out as a flex item (CSS
-//! Flexbox §4, `GeneratedBox`): its background and border at its border
-//! box, in its computed style with a running transition's paint values
-//! overlaid, under its content (which `inline_paint` paints as the
-//! item's anonymous box lines).
+//! The box of a `::before` / `::after` laid out as a box of its own — a
+//! flex or grid item (CSS Flexbox §4, `GeneratedBox`), a block-level box,
+//! an atomic inline or a float (CSS Pseudo 4 §2): its background and
+//! border at its border box, in its computed style with a running
+//! transition's paint values overlaid, under its content (which
+//! `inline_paint` paints as the box's lines).
 
 use rdom_core::{Dom, NodeId};
 
@@ -32,7 +33,7 @@ pub(super) fn paint_generated_boxes(
     }
 }
 
-fn paint_box(
+pub(super) fn paint_box(
     dom: &Dom<TuiExt>,
     g: GeneratedBox,
     content: LayoutRect,

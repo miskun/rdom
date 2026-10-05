@@ -18,11 +18,7 @@ use crate::render::layout_pass::intrinsic::contribution;
 /// Whether one of `runs` holds a float of `id`'s own flow.
 fn holds_floats(dom: &Dom<TuiExt>, runs: &[Run]) -> bool {
     runs.iter().any(|r| {
-        r.kind == RunKind::Float
-            || r.children.iter().any(|c| {
-                c.node()
-                    .is_some_and(|n| super::float_side(dom, n).is_some())
-            })
+        r.kind == RunKind::Float || r.children.iter().any(|&c| super::is_float_item(dom, c))
     })
 }
 
@@ -84,7 +80,7 @@ fn flow(
     for run in runs {
         match run.kind {
             RunKind::Float => {
-                for f in run.children.iter().filter_map(|c| c.node()) {
+                for &f in &run.children {
                     let at = super::Placement {
                         y,
                         x0,
@@ -212,7 +208,7 @@ fn block_top(
     if area.is_empty() {
         return y;
     }
-    let y = super::clearance_floor(dom, area, child, y);
+    let y = super::clearance_floor(dom, area, crate::render::box_tree::BoxItem::Node(child), y);
     let Some(c) = dom.node(child).ext().and_then(|e| e.computed.as_deref()) else {
         return y;
     };
@@ -251,7 +247,7 @@ pub(in crate::render::layout_pass) fn block_width(
     for run in &runs {
         match run.kind {
             RunKind::Float => {
-                for f in run.children.iter().filter_map(|c| c.node()) {
+                for &f in &run.children {
                     let w = super::size::outer_contribution(dom, f, max);
                     floats = if max { floats.saturating_add(w) } else { w };
                     widest = widest.max(floats);

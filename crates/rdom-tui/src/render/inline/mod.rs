@@ -61,6 +61,7 @@ use crate::node::TuiNodeExt;
 use crate::render::box_tree::BoxItem;
 
 use crate::render::layout_pass::float::lines::LineExclusions;
+pub(crate) use boxes::GeneratedAtom;
 pub use boxes::{GeneratedFragment, InlineFragment, InlineLayout, LineBox};
 pub(crate) use caret::caret_cell;
 pub use caret::cell_of_position;
@@ -195,14 +196,10 @@ fn box_index(dom: &Dom<TuiExt>, container: NodeId, node: NodeId, child: NodeId) 
     // sequence, which holds its pseudo-elements and its box-less
     // children's contents.
     let items_of = is_flex_or_grid_container(dom, container);
-    // With no box-less child and no block-level `::before` the sequence
-    // is the child nodes.
+    // With no box-less child and no `::before` in the sequence (a
+    // block-level or floated one) the sequence is the child nodes.
     if !items_of
-        && !crate::render::inline::generated::is_block_pseudo(
-            dom,
-            container,
-            crate::ext::StyleSlot::Before,
-        )
+        && !crate::render::inline::generated::sequence_pseudos(dom, container).before
         && !dom
             .node(container)
             .child_nodes()
@@ -372,6 +369,28 @@ pub fn compute_inline_layout_for_run(
     let items: Vec<BoxItem> = direct_children.iter().map(|&c| BoxItem::Node(c)).collect();
     let pseudos = generated::run_pseudos(dom, parent, &items);
     pack_run(dom, parent, &items, pseudos, content_width, None)
+}
+
+/// The content of `host`'s `slot` pseudo-element's own box — its
+/// generated text — packed `width` cells wide in the box's `style`: its
+/// `white-space`, its lines starting at its inline-start edge.
+pub(crate) fn pack_generated(
+    dom: &Dom<TuiExt>,
+    host: NodeId,
+    slot: crate::ext::PseudoSlot,
+    style: &crate::style::ComputedStyle,
+    width: u16,
+) -> InlineLayout {
+    let rtl = style.text_direction == crate::layout::TextDirection::Rtl;
+    let mut packer = LinePacker::new(width, style.white_space).starting_right(rtl);
+    if let Some(text) = generated::static_pseudo_text(dom, host, slot.into()) {
+        packer.push_generated(host, slot, text);
+    }
+    packer.finish();
+    InlineLayout {
+        lines: packer.take_lines(),
+        content_width: width,
+    }
 }
 
 /// Which of the run's host pseudo-elements a [`pack_run`] includes.

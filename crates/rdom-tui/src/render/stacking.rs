@@ -58,6 +58,10 @@ pub(crate) struct LayerEntry {
     pub context: bool,
     /// The clip this entry paints into.
     pub clip: Rect,
+    /// A floated `::before` / `::after` rather than the element `id`: its
+    /// index among `id`'s floated pseudo-elements (`TuiExt::floated_pseudos`,
+    /// the boxes `id`'s formatting context run placed).
+    pub generated: Option<usize>,
 }
 
 impl LayerEntry {
@@ -274,6 +278,16 @@ impl Walk<'_> {
     fn children(&mut self, id: NodeId, box_parent: NodeId, unit: Option<usize>) {
         let dom = self.dom;
         let viewport = self.viewport;
+        // The box's floated `::before` / `::after` (CSS Pseudo 4 §2) paint
+        // in the float layer too: its own `::before` ahead of its
+        // children's floats, the rest after them.
+        let leading = |g: &crate::ext::AnonymousIfc| {
+            g.generated
+                .is_some_and(|g| g.host == id && g.slot == crate::ext::PseudoSlot::Before)
+        };
+        if id == box_parent {
+            self.generated_floats(id, &leading, true);
+        }
         // A flex container's items in order-modified document order (CSS
         // Flexbox §5.4: `order` affects painting).
         let kids = if id == box_parent {
@@ -325,6 +339,7 @@ impl Walk<'_> {
                     order: self.order,
                     context,
                     clip: current.content_clip,
+                    generated: None,
                 };
                 self.order += 1;
                 self.layers.floats.push(entry);
@@ -360,6 +375,7 @@ impl Walk<'_> {
                     order: self.order,
                     context,
                     clip,
+                    generated: None,
                 };
                 self.order += 1;
                 match z {
@@ -404,6 +420,48 @@ impl Walk<'_> {
                 self.children(cid, cid, if atomic { None } else { unit });
                 self.chain.pop();
             }
+        }
+        if id == box_parent {
+            self.generated_floats(id, &leading, false);
+        }
+    }
+
+    /// Push the floated pseudo-elements `id`'s formatting context run
+    /// placed — those `leading` says (or does not, with `leading_ones`
+    /// false) — onto the float layer, in the order they were placed,
+    /// clipped as `id`'s content is.
+    fn generated_floats(
+        &mut self,
+        id: NodeId,
+        leading: &dyn Fn(&crate::ext::AnonymousIfc) -> bool,
+        leading_ones: bool,
+    ) {
+        let Some(floats) = self
+            .dom
+            .node(id)
+            .ext()
+            .and_then(|e| e.floated_pseudos.as_deref())
+        else {
+            return;
+        };
+        let clip = self
+            .chain
+            .last()
+            .expect("the context root frame is always present")
+            .content_clip;
+        for (k, g) in floats.iter().enumerate() {
+            if leading(g) != leading_ones {
+                continue;
+            }
+            self.layers.floats.push(LayerEntry {
+                id,
+                z: 0,
+                order: self.order,
+                context: false,
+                clip,
+                generated: Some(k),
+            });
+            self.order += 1;
         }
     }
 }

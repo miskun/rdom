@@ -7,18 +7,20 @@
 //! — and kept as a generated box among the host's anonymous boxes
 //! (`AnonymousIfc::generated`), which paint and hit-testing already read.
 //!
-//! Its content is its generated text, packed as one inline formatting
-//! context in its content box; an inner `flex` / `grid` / `flow-root`
-//! display lays that text out the same way (DIVERGENCES §2).
+//! Its content is laid out by the box tree's generated item
+//! (`items::AnonymousItem::pseudo`): its generated text packed as one
+//! inline formatting context in its content box, or — a `flex` / `grid`
+//! one — its one anonymous item by flex or grid layout
+//! (C8G-PSEUDO-ATOMS).
 
 use rdom_core::{Dom, NodeId};
 
 use super::margin_collapse::MarginAccumulator;
-use crate::ext::{AnonymousIfc, GeneratedBox, PseudoSlot, StyleSlot, TuiExt};
-use crate::layout::{LayoutRect, Size};
-use crate::render::box_tree::BoxItem;
-use crate::render::inline::{InlineLayout, RunPseudos, pack_run};
+use crate::ext::{AnonymousIfc, GeneratedBox, PseudoSlot, TuiExt};
+use crate::layout::{Direction, LayoutRect, Size};
+use crate::render::inline::InlineLayout;
 use crate::render::layout_pass::box_sizing::Sizer;
+use crate::render::layout_pass::items::AnonymousItem;
 use crate::style::ComputedStyle;
 
 /// The computed style of `host`'s `slot` pseudo-element.
@@ -34,16 +36,11 @@ fn style_of(
     }
 }
 
-/// The pseudo-element's generated text packed `width` cells wide.
-fn pack(dom: &Dom<TuiExt>, host: NodeId, slot: PseudoSlot, width: u16) -> InlineLayout {
-    pack_run(
-        dom,
-        host,
-        &[BoxItem::Generated(host, slot)],
-        RunPseudos::default(),
-        width,
-        None,
-    )
+/// The pseudo-element as a box of its own, which measures and lays out
+/// its content (`items::AnonymousItem`): its text, or — a `flex` / `grid`
+/// one — its one anonymous item by flex or grid layout.
+fn item(dom: &Dom<TuiExt>, host: NodeId, slot: PseudoSlot) -> Option<AnonymousItem> {
+    AnonymousItem::pseudo(dom, host, slot)
 }
 
 /// The box's border-box width in a containing block `cb_width` cells
@@ -78,15 +75,14 @@ fn border_height(
     cb_width: u16,
 ) -> u16 {
     let sizer = Sizer::vertical(c, cb_width);
-    let content_width = width.saturating_sub(Sizer::horizontal(c, cb_width).chrome());
     let own = match &c.height {
         Size::Auto | Size::Intrinsic(_) | Size::Flex(_) => None,
         size => sizer.outer_opt(size.cells(None)),
     };
     let natural = own.unwrap_or_else(|| {
-        pack(dom, host, slot, content_width)
-            .height()
-            .saturating_add(sizer.chrome())
+        item(dom, host, slot).map_or(sizer.chrome(), |i| {
+            i.content_size(dom, Direction::Column, width, true, cb_width)
+        })
     });
     let min = sizer.outer_opt(c.min_height.cells(None));
     let max = sizer.outer_opt(c.max_height.cells(None));
@@ -165,13 +161,22 @@ pub(super) fn lay_out(
         width.saturating_sub(h.chrome()),
         height.saturating_sub(v.chrome()),
     );
-    let lines = pack(dom, host, slot, content.width);
+    let (lines_at, lines) = match item(dom, host, slot) {
+        Some(i) => i.lay_out_content(dom, content),
+        None => (
+            content,
+            InlineLayout {
+                lines: Vec::new(),
+                content_width: content.width,
+            },
+        ),
+    };
     let mut bottom = MarginAccumulator::new();
     bottom.add(vertical_margin(&c.margin.bottom, cb));
     *at.margin_acc = bottom;
     Some((
         AnonymousIfc::new(
-            content,
+            lines_at,
             lines,
             (at.index, at.index + 1),
             Some(GeneratedBox::new(host, slot, rect)),
@@ -214,20 +219,13 @@ pub(in crate::render::layout_pass) fn intrinsic(
             .resolve(cb)
             .saturating_add(c.margin.right.resolve(cb))
             .max(0) as u16;
-        let chrome_x = Sizer::horizontal(&c, cb).chrome();
-        let text =
-            crate::render::inline::generated::static_pseudo_text(dom, host, StyleSlot::from(slot))
-                .unwrap_or("");
-        let natural = if max_content {
-            unicode_width::UnicodeWidthStr::width(text) as u16
-        } else {
-            text.split_whitespace()
-                .map(|w| unicode_width::UnicodeWidthStr::width(w) as u16)
-                .max()
-                .unwrap_or(0)
+        let natural = || {
+            item(dom, host, slot).map_or(0, |i| {
+                i.content_size(dom, Direction::Row, 0, max_content, cb)
+            })
         };
         let wide = match &c.width {
-            Size::Auto | Size::Intrinsic(_) | Size::Flex(_) => natural.saturating_add(chrome_x),
+            Size::Auto | Size::Intrinsic(_) | Size::Flex(_) => natural(),
             _ => border_width(&c, cb),
         }
         .saturating_add(margins_x);

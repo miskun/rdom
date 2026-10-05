@@ -20,7 +20,7 @@
 
 use rdom_core::{Dom, NodeId};
 
-use super::InlineFragment;
+use super::{GeneratedFragment, InlineFragment};
 use crate::ext::TuiExt;
 use crate::layout::Direction;
 use crate::render::layout_pass::intrinsic;
@@ -28,7 +28,7 @@ use crate::render::layout_pass::intrinsic;
 /// An atom's block-axis geometry in its line, measured before the
 /// line is settled.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) struct AtomRows {
+pub(crate) struct AtomRows {
     /// Rows of top margin above its border box.
     margin_top: u16,
     /// Its border-box height.
@@ -42,7 +42,7 @@ pub(super) struct AtomRows {
 impl AtomRows {
     /// An atom whose rows a width measurement does not ask for
     /// (`LinePacker::measuring`): one row, its baseline.
-    pub(super) const UNMEASURED: Self = AtomRows {
+    pub(crate) const UNMEASURED: Self = AtomRows {
         margin_top: 0,
         height: 1,
         margin_bottom: 0,
@@ -71,25 +71,46 @@ pub(super) fn atom_rows(dom: &Dom<TuiExt>, id: NodeId, width: u16, cb_width: u16
         return AtomRows::UNMEASURED;
     };
     let height = intrinsic::intrinsic_size(dom, id, Direction::Column, width, cb_width);
-    let margin = |m: &crate::layout::MarginValue| m.resolve(cb_width).max(0) as u16;
-    let margin_top = margin(&computed.margin.top);
-    let margin_bottom = margin(&computed.margin.bottom);
-    let outer = margin_top
-        .saturating_add(height)
-        .saturating_add(margin_bottom);
-    let bottom_edge = outer.saturating_sub(1);
-    // CSS Box Alignment 3 §9.1: a scroll container's (not a `clip`
-    // box's) baseline is its margin edge.
-    let visible = !computed.is_scroll_container();
-    let baseline = match content_rows(dom, id, &computed, width, cb_width) {
-        Some((_, last)) if visible => (margin_top + last).min(bottom_edge),
-        _ => bottom_edge,
-    };
-    AtomRows {
-        margin_top,
-        height,
-        margin_bottom,
-        baseline,
+    let last = content_rows(dom, id, &computed, width, cb_width).map(|(_, last)| last);
+    AtomRows::of(&computed, height, cb_width, last)
+}
+
+impl AtomRows {
+    /// The rows of an atom styled `computed`, its border box `height`
+    /// rows tall in a line whose content box is `cb_width` wide, whose
+    /// last content row — counted from its border-box top — is `last`:
+    /// its vertical margins (a negative one as 0), and its baseline that
+    /// row, or its bottom margin edge with no content row or as a scroll
+    /// container (CSS Box Alignment 3 §9.1: a scroll container's — not a
+    /// `clip` box's — baseline is its margin edge).
+    pub(crate) fn of(
+        computed: &crate::style::ComputedStyle,
+        height: u16,
+        cb_width: u16,
+        last: Option<u16>,
+    ) -> Self {
+        let margin = |m: &crate::layout::MarginValue| m.resolve(cb_width).max(0) as u16;
+        let margin_top = margin(&computed.margin.top);
+        let margin_bottom = margin(&computed.margin.bottom);
+        let outer = margin_top
+            .saturating_add(height)
+            .saturating_add(margin_bottom);
+        let bottom_edge = outer.saturating_sub(1);
+        let baseline = match last {
+            Some(last) if !computed.is_scroll_container() => (margin_top + last).min(bottom_edge),
+            _ => bottom_edge,
+        };
+        AtomRows {
+            margin_top,
+            height,
+            margin_bottom,
+            baseline,
+        }
+    }
+
+    /// Its border-box height.
+    pub(crate) fn height(self) -> u16 {
+        self.height
     }
 }
 
@@ -117,12 +138,21 @@ pub(crate) fn content_rows(
     (rows > 0).then(|| (chrome_top, chrome_top + rows - 1))
 }
 
+/// Where an atom of a line is: an element's fragment, or an atomic
+/// pseudo-element's generated fragment, by index in its list.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum AtomAt {
+    Fragment(usize),
+    Generated(usize),
+}
+
 /// Settle one line: place each fragment on it — text on the baseline
-/// row, each atom (`atoms`: its fragment's index and rows) with its
-/// baseline there — and return the line's `(baseline, height)`.
+/// row, each atom (`atoms`: where it is and its rows) with its baseline
+/// there — and return the line's `(baseline, height)`.
 pub(super) fn settle_line(
     fragments: &mut [InlineFragment],
-    atoms: &[(usize, AtomRows)],
+    generated: &mut [GeneratedFragment],
+    atoms: &[(AtomAt, AtomRows)],
 ) -> (u16, u16) {
     let above = atoms.iter().map(|(_, a)| a.above()).max().unwrap_or(0);
     let below = atoms.iter().map(|(_, a)| a.below()).max().unwrap_or(0);
@@ -130,10 +160,21 @@ pub(super) fn settle_line(
         f.y = above;
         f.height = 1;
     }
-    for &(i, a) in atoms {
-        let f = &mut fragments[i];
-        f.y = above - a.above() + a.margin_top;
-        f.height = a.height;
+    for &(at, a) in atoms {
+        let y = above - a.above() + a.margin_top;
+        match at {
+            AtomAt::Fragment(i) => {
+                let f = &mut fragments[i];
+                f.y = y;
+                f.height = a.height;
+            }
+            AtomAt::Generated(i) => {
+                if let Some(atom) = generated[i].atom.as_mut() {
+                    atom.y = y;
+                    atom.height = a.height;
+                }
+            }
+        }
     }
     (above, above.saturating_add(1).saturating_add(below))
 }
@@ -166,7 +207,7 @@ mod tests {
         let dom: Dom<TuiExt> = Dom::new();
         let n = dom.root();
         let mut text_only = [fragment(n, false)];
-        assert_eq!(settle_line(&mut text_only, &[]), (0, 1));
+        assert_eq!(settle_line(&mut text_only, &mut [], &[]), (0, 1));
 
         let bordered = AtomRows {
             margin_top: 0,
@@ -175,7 +216,10 @@ mod tests {
             baseline: 1,
         };
         let mut line = [fragment(n, false), fragment(n, true)];
-        assert_eq!(settle_line(&mut line, &[(1, bordered)]), (1, 3));
+        assert_eq!(
+            settle_line(&mut line, &mut [], &[(AtomAt::Fragment(1), bordered)]),
+            (1, 3)
+        );
         assert_eq!((line[0].y, line[0].height), (1, 1));
         assert_eq!((line[1].y, line[1].height), (0, 3));
 
@@ -186,7 +230,10 @@ mod tests {
             baseline: 2,
         };
         let mut line = [fragment(n, true), fragment(n, false)];
-        assert_eq!(settle_line(&mut line, &[(0, empty)]), (2, 3));
+        assert_eq!(
+            settle_line(&mut line, &mut [], &[(AtomAt::Fragment(0), empty)]),
+            (2, 3)
+        );
         assert_eq!((line[0].y, line[0].height), (1, 2), "below its top margin");
         assert_eq!(line[1].y, 2);
     }

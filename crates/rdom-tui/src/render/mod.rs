@@ -42,7 +42,7 @@ pub use cell::{Cell, CellDiff};
 // restructure; re-exported here so existing `rdom_tui::render::Color`
 // callers keep working.
 pub use inline::{
-    InlineFlow, InlineFragment, InlineLayout, LineBox, compute_inline_layout,
+    GeneratedFragment, InlineFlow, InlineFragment, InlineLayout, LineBox, compute_inline_layout,
     compute_inline_layout_for_run, inline_flow_for_text, inline_flow_layout,
 };
 pub use layout_pass::LayoutExt;

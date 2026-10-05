@@ -89,10 +89,12 @@ fn clone_copies_author_inputs_and_resets_runtime_state() {
 /// overrides and the inline style (`PERF-TUIEXT-SIZE-1`: 4344 →
 /// 432). Raise the bound deliberately, with the reason in the commit:
 /// 440 for the recorded matches a vars-only restyle reuses
-/// (`C1G-PROPERTY-RESTYLE`, one `Rc`).
+/// (`C1G-PROPERTY-RESTYLE`, one `Rc`); 448 for the floated `::before` /
+/// `::after` boxes a box's formatting context run places
+/// (`C8G-PSEUDO-ATOMS`, one thin `Box`).
 #[test]
 fn tui_ext_size_tripwire() {
-    const MAX: usize = 440;
+    const MAX: usize = 448;
     let size = std::mem::size_of::<TuiExt>();
     let computed = std::mem::size_of::<ComputedStyle>();
     let inline = std::mem::size_of::<TuiStyle>();

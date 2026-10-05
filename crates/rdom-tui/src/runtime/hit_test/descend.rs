@@ -113,7 +113,9 @@ fn hit_layers(
 ) -> bool {
     for e in entries.iter().rev() {
         let mark = path.len();
-        let hit = if e.context {
+        let hit = if let Some(k) = e.generated {
+            hit_floated_pseudo(dom, e.id, k, x, y, e.clip, path)
+        } else if e.context {
             hit_stacking_context(dom, e.id, x, y, e.clip, viewport, path)
         } else {
             descend_plain(dom, e.id, x, y, e.clip, viewport, path)
@@ -136,6 +138,46 @@ fn hit_layers(
         }
     }
     false
+}
+
+/// Hit-test the `k`-th floated `::before` / `::after` of `owner`'s
+/// formatting context run: a pseudo-element is part of its host's box,
+/// so a hit inside its border box (and `clip`) targets the host — `owner`
+/// on the path above it — unless the pseudo-element is `pointer-events:
+/// none` or not drawn.
+fn hit_floated_pseudo(
+    dom: &Dom<TuiExt>,
+    owner: NodeId,
+    k: usize,
+    x: u16,
+    y: u16,
+    clip: Rect,
+    path: &mut Vec<NodeId>,
+) -> bool {
+    let Some(g) = dom
+        .node(owner)
+        .ext()
+        .and_then(|e| e.floated_pseudos.as_deref())
+        .and_then(|f| f.get(k))
+        .and_then(|a| a.generated)
+    else {
+        return false;
+    };
+    let node = dom.node(g.host);
+    let pseudo = match g.slot {
+        crate::ext::PseudoSlot::Before => node.computed_before(),
+        crate::ext::PseudoSlot::After => node.computed_after(),
+    };
+    let targets = pseudo.is_some_and(|c| c.pointer_events != crate::layout::PointerEvents::None)
+        && crate::render::visibility::shows(dom, g.host, g.slot.into());
+    if !targets || !clip.contains(x, y) || !rect_contains(g.border_box, x, y) {
+        return false;
+    }
+    path.push(owner);
+    if g.host != owner {
+        path.push(g.host);
+    }
+    true
 }
 
 /// An element's style and outer rect; `None` for non-elements and

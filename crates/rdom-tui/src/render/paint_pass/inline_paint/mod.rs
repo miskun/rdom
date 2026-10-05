@@ -31,6 +31,7 @@
 
 mod caret;
 mod chrome;
+mod generated;
 mod selection_overlay;
 mod single_row;
 mod text_overflow;
@@ -44,8 +45,7 @@ use crate::render::{Buffer, Rect};
 use crate::style::ComputedStyle;
 
 use super::text::{
-    advance_text_by_cells, glyph_style_from_computed, paint_text, paint_text_from, pseudo_style,
-    style_from_computed,
+    advance_text_by_cells, glyph_style_from_computed, paint_text, style_from_computed,
 };
 use chrome::inline_chrome;
 use selection_overlay::apply_selection_overlay;
@@ -54,6 +54,8 @@ use text_overflow::{Marking, cut_line};
 
 pub(super) use caret::paint_caret_if_editable;
 pub(crate) use chrome::{ChromeText, InlineChromeFn};
+pub(in crate::render::paint_pass) use generated::paint_floated_pseudo;
+use generated::{paint_generated, paint_generated_atom, presentation_of};
 
 /// `::before` + own text + `::after` paint for a non-IFC element.
 ///
@@ -350,8 +352,22 @@ fn paint_inline_layout(
             .as_ref()
             .map_or(clip, |cut| narrow(clip, cut.left, cut.right));
         let line_right = clip.right();
-        if text_visible {
-            for generated in &line.generated {
+        for generated in &line.generated {
+            if let Some(atom) = &generated.atom {
+                // An atomic pseudo-element paints as a box at its turn
+                // in the line, as an element atom does.
+                let x = inner.x + generated.x;
+                let end = x + i32::from(generated.width);
+                if cut.as_ref().is_none_or(|cut| cut.keeps(x, end)) {
+                    let top = inner.y + i32::from(line.top) + i32::from(atom.y);
+                    let border_box = LayoutRect::new(x, top, generated.width, atom.height);
+                    paint_generated_atom(
+                        dom, generated, atom, border_box, buf, atom_clip, viewport,
+                    );
+                }
+                continue;
+            }
+            if text_visible {
                 paint_generated(
                     dom,
                     generated,
@@ -486,63 +502,6 @@ fn narrow(clip: Rect, left: i32, right: i32) -> Rect {
         end.clamp(0, i32::from(u16::MAX)) as u16,
     );
     Rect::new(x, clip.y, end.saturating_sub(x), clip.height)
-}
-
-/// Paint one generated-content run at its packed cell, in the style of
-/// its host's pseudo-element (transition overrides included), tagged
-/// with the host's enclosing `<a href>` link, if any. The run
-/// starts at its logical x even when that is left of the clip —
-/// `paint_text_from` skips the clipped prefix.
-fn paint_generated(
-    dom: &Dom<TuiExt>,
-    generated: &crate::render::inline::GeneratedFragment,
-    origin_x: i32,
-    y: u16,
-    clip_left: u16,
-    right: u16,
-    buf: &mut Buffer,
-) {
-    let node = dom.node(generated.host);
-    let computed = match generated.slot {
-        crate::ext::PseudoSlot::Before => node.computed_before(),
-        crate::ext::PseudoSlot::After => node.computed_after(),
-    };
-    let Some(computed) = computed else {
-        return;
-    };
-    if !crate::render::visibility::shows(dom, generated.host, generated.slot.into()) {
-        return;
-    }
-    let style = pseudo_style(
-        computed,
-        presentation_of(dom, generated.host, generated.slot.into()),
-    );
-    let x = origin_x + generated.x;
-    let end = paint_text_from(buf, x, y, clip_left, right, &generated.text, style);
-    // A pseudo-element is part of its host: an `<a href>`'s (or its
-    // descendant's) generated cells belong to the link.
-    if let Some(href) = anchor_href_for(dom, generated.host) {
-        let start = x.max(i32::from(clip_left));
-        let end = end.min(i32::from(right));
-        if end > start {
-            buf.set_link_range(start as u16, y, (end - start) as u16, Some(&href));
-        }
-    }
-}
-
-/// The in-flight transition overrides for one of `id`'s pseudo-element
-/// slots, borrowed; an empty set when the element has no ext.
-fn presentation_of(
-    dom: &Dom<TuiExt>,
-    id: NodeId,
-    slot: crate::ext::StyleSlot,
-) -> &crate::ext::PresentationStyle {
-    static EMPTY: std::sync::LazyLock<crate::ext::PresentationStyle> =
-        std::sync::LazyLock::new(crate::ext::PresentationStyle::default);
-    dom.node(id)
-        .ext()
-        .and_then(|e| e.presentation_for(slot))
-        .unwrap_or(&EMPTY)
 }
 
 /// Concatenate the text content of `id`'s direct Text-node children.

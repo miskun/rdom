@@ -9,7 +9,7 @@ use rdom_core::{Dom, NodeId};
 
 use super::subgrid::Inherit;
 use super::template::Bounds;
-use super::{AxisContext, Dimension, content_bounds, laid_out_axis, size_grid, stretches};
+use super::{AxisContext, Dimension, GridBox, content_bounds, laid_out_axis, size_grid, stretches};
 use crate::ext::TuiExt;
 use crate::layout::Direction;
 use crate::render::layout_pass::box_sizing::Sizer;
@@ -38,7 +38,7 @@ pub(in crate::render::layout_pass) fn content_size(
     let inherit = super::subgrid::from_parent(dom, id, computed);
     content_size_with(
         dom,
-        id,
+        GridBox::Element(id),
         computed,
         direction,
         cross_budget,
@@ -53,7 +53,7 @@ pub(in crate::render::layout_pass) fn content_size(
 #[allow(clippy::too_many_arguments)]
 pub(super) fn content_size_with(
     dom: &Dom<TuiExt>,
-    id: NodeId,
+    owner: GridBox<'_>,
     computed: &ComputedStyle,
     direction: Direction,
     cross_budget: u16,
@@ -79,7 +79,7 @@ pub(super) fn content_size_with(
                 },
                 stretch: stretches(computed, Dimension::Columns),
             };
-            size_grid(dom, id, computed, columns, None, inherit, false)
+            size_grid(dom, owner, computed, columns, None, inherit, false)
                 .columns
                 .total()
         }
@@ -92,7 +92,7 @@ pub(super) fn content_size_with(
                 .saturating_sub(gutter_columns);
             let columns = laid_out_axis(computed, Dimension::Columns, Some(width));
             let rows = laid_out_axis(computed, Dimension::Rows, None);
-            size_grid(dom, id, computed, columns, Some(rows), inherit, false)
+            size_grid(dom, owner, computed, columns, Some(rows), inherit, false)
                 .rows
                 .map_or(0, |r| r.total())
         }

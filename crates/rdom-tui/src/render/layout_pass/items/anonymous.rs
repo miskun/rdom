@@ -1,9 +1,11 @@
-//! An anonymous or generated flex or grid item's box (CSS Flexbox §4,
-//! CSS Grid 2 §6.1): a run of
-//! its container's box sequence with no node of its own — a text run in
-//! an anonymous box, or one `::before` / `::after` in a box styled by its
-//! computed style — measured and laid out by packing its content inside
-//! its padding and border.
+//! A box with no node of its own (CSS Flexbox §4, CSS Grid 2 §6.1, CSS
+//! Pseudo 4 §2): a text run in an anonymous box, or one `::before` /
+//! `::after` in a box styled by its computed style — a flex or grid item,
+//! an atomic inline or a float. It is measured and laid out by packing
+//! its content inside its padding and border; a `::before` / `::after`
+//! whose `display` makes it a flex or grid container lays its content —
+//! one anonymous item wrapping its text ([`AnonymousItem::content_item`])
+//! — out as one, through the flex and grid layout elements use.
 
 use std::rc::Rc;
 
@@ -31,6 +33,12 @@ pub(in crate::render::layout_pass) struct AnonymousItem {
     style: Rc<ComputedStyle>,
     /// The pseudo-element a generated item is (its host and slot).
     generated: Option<(NodeId, PseudoSlot)>,
+    /// The one item of a generated flex or grid container, wrapping its
+    /// text: laid out in that box, which scrolls nothing, not in
+    /// `container`.
+    in_generated: bool,
+    /// [`Self::content_item`], built on first use.
+    inner: std::cell::OnceCell<Option<super::Item>>,
 }
 
 /// A box's padding plus border on each side, in cells.
@@ -59,12 +67,67 @@ impl AnonymousItem {
             child_range,
             style,
             generated,
+            in_generated: false,
+            inner: std::cell::OnceCell::new(),
         }
     }
 
-    /// The flex container.
+    /// `host`'s `slot` pseudo-element as a box of its own (CSS Pseudo 4
+    /// §2), styled by its computed style: an atomic inline or a float of
+    /// its host's flow. `None` when it has no computed style.
+    pub(in crate::render::layout_pass) fn pseudo(
+        dom: &Dom<TuiExt>,
+        host: NodeId,
+        slot: PseudoSlot,
+    ) -> Option<Self> {
+        let ext = dom.node(host).ext()?;
+        let style = match slot {
+            PseudoSlot::Before => ext.computed_before.clone(),
+            PseudoSlot::After => ext.computed_after.clone(),
+        }?;
+        Some(Self::new(
+            host,
+            vec![BoxItem::Generated(host, slot)],
+            (0, 0),
+            style,
+            Some((host, slot)),
+        ))
+    }
+
+    /// The box it is laid out in: its flex or grid container, or — the
+    /// item of a generated container — none with a node.
+    pub(super) fn box_parent(&self) -> Option<NodeId> {
+        (!self.in_generated).then_some(self.container)
+    }
+
+    /// The element whose box sequence holds its content.
     pub(super) fn container(&self) -> NodeId {
         self.container
+    }
+
+    /// The one item of a `::before` / `::after` whose `display` makes it
+    /// a flex or grid container (`flex`, `grid`, `inline-flex`,
+    /// `inline-grid`; CSS Pseudo 4 §2): the anonymous box wrapping its
+    /// generated text (CSS Flexbox §4, CSS Grid 2 §6.1), styled as an
+    /// anonymous box inheriting from it. `None` for any other box.
+    pub(in crate::render::layout_pass) fn content_item(&self) -> Option<&super::Item> {
+        self.inner
+            .get_or_init(|| {
+                if self.generated.is_none() || !self.style.flow.is_flex_or_grid() {
+                    return None;
+                }
+                let style = Rc::new(crate::style::cascade::anonymous_box_style(&self.style));
+                Some(super::Item::Anonymous(Rc::new(Self {
+                    container: self.container,
+                    content: self.content.clone(),
+                    child_range: self.child_range,
+                    style,
+                    generated: None,
+                    in_generated: true,
+                    inner: std::cell::OnceCell::new(),
+                })))
+            })
+            .as_ref()
     }
 
     /// The box's computed style.
@@ -91,7 +154,11 @@ impl AnonymousItem {
     }
 
     /// The content box of the border box `rect`.
-    fn content_rect(&self, rect: LayoutRect, cb_width: u16) -> LayoutRect {
+    pub(in crate::render::layout_pass) fn content_rect(
+        &self,
+        rect: LayoutRect,
+        cb_width: u16,
+    ) -> LayoutRect {
         let e = self.edges(cb_width);
         LayoutRect::new(
             rect.x + i32::from(e.left),
@@ -106,12 +173,16 @@ impl AnonymousItem {
         width.saturating_sub(Sizer::horizontal(&self.style, cb_width).chrome())
     }
 
-    /// The item's content packed `width` cells wide (its content box).
+    /// The item's content packed `width` cells wide (its content box): a
+    /// pseudo-element's text in its own `white-space` and `direction`.
     pub(in crate::render::layout_pass) fn pack(
         &self,
         dom: &Dom<TuiExt>,
         width: u16,
     ) -> InlineLayout {
+        if let [BoxItem::Generated(host, slot)] = self.content[..] {
+            return crate::render::inline::pack_generated(dom, host, slot, &self.style, width);
+        }
         pack_run(
             dom,
             self.container,
@@ -149,20 +220,48 @@ impl AnonymousItem {
         cb_width: u16,
     ) -> u16 {
         let chrome = Sizer::along(&self.style, direction, cb_width).chrome();
+        // A generated grid container's content is its grid's (CSS Grid 2
+        // §5.2). A generated flex container's is its one item's — `flex: 0
+        // 1 auto`, no margins, padding or border: its max- and min-content
+        // widths the text's, and on its block axis the rows the text packs
+        // to at the container's content width, which a row's item (as wide
+        // as its text up to that width, never below its min-content) and a
+        // column's (stretched to it, or fit-content in it) wrap to alike.
+        if self.style.flow == crate::layout::Flow::Grid
+            && let Some(item) = self.content_item()
+        {
+            let cross = match direction {
+                Direction::Row => width,
+                Direction::Column => self.own_width(cb_width).unwrap_or(width),
+            };
+            let grid = crate::render::layout_pass::grid::generated_content_size(
+                dom,
+                item,
+                &self.style,
+                direction,
+                cross,
+                cb_width,
+                max_content,
+            );
+            return grid.saturating_add(chrome);
+        }
         let content = match direction {
             Direction::Row if max_content => self.widest_line(dom, u16::MAX),
             Direction::Row => self.widest_line(dom, 0),
             Direction::Column => {
-                let own = match &self.style.width {
-                    Size::Auto | Size::Intrinsic(_) | Size::Flex(_) => None,
-                    size => Sizer::horizontal(&self.style, cb_width)
-                        .outer_opt(size.cells(Some(cb_width))),
-                };
-                let width = self.inner_width(own.unwrap_or(width), cb_width);
+                let width = self.inner_width(self.own_width(cb_width).unwrap_or(width), cb_width);
                 self.pack(dom, width).height()
             }
         };
         content.saturating_add(chrome)
+    }
+
+    /// Its own definite border-box width, if it declares one.
+    fn own_width(&self, cb_width: u16) -> Option<u16> {
+        match &self.style.width {
+            Size::Auto | Size::Intrinsic(_) | Size::Flex(_) => None,
+            size => Sizer::horizontal(&self.style, cb_width).outer_opt(size.cells(Some(cb_width))),
+        }
     }
 
     /// The item's border-box size along `direction` as an intrinsic size
@@ -205,25 +304,63 @@ impl AnonymousItem {
         cb_width: u16,
     ) -> Option<(u16, u16)> {
         let top = self.edges(cb_width).top;
-        let rows = self.pack(dom, self.inner_width(width, cb_width)).height();
+        let chrome = Sizer::vertical(&self.style, cb_width).chrome();
+        let rows = self
+            .content_size(dom, Direction::Column, width, true, cb_width)
+            .saturating_sub(chrome);
         (rows > 0).then(|| (top, top + rows - 1))
     }
 
-    /// Lay the item out at `rect`, its border box: its content packed at
-    /// its content width, inside its padding and border.
+    /// Lay the item out at `rect`, its border box: its content inside its
+    /// padding and border ([`Self::lay_out_content`]).
     pub(in crate::render::layout_pass) fn lay_out(
         &self,
-        dom: &Dom<TuiExt>,
+        dom: &mut Dom<TuiExt>,
         rect: LayoutRect,
         cb_width: u16,
     ) -> AnonymousIfc {
         let content = self.content_rect(rect, cb_width);
+        let (at, lines) = self.lay_out_content(dom, content);
         AnonymousIfc::new(
-            content,
-            self.pack(dom, content.width),
+            at,
+            lines,
             self.child_range,
             self.generated
                 .map(|(host, slot)| GeneratedBox::new(host, slot, rect)),
         )
+    }
+
+    /// Lay its content out in `content`, its content box: the rect its
+    /// lines sit at and the lines — packed at its width, or, for a
+    /// generated flex or grid container, its one item laid out by flex or
+    /// grid layout (CSS Flexbox §9, CSS Grid 2 §11) and its lines at that
+    /// item's content box.
+    pub(in crate::render::layout_pass) fn lay_out_content(
+        &self,
+        dom: &mut Dom<TuiExt>,
+        content: LayoutRect,
+    ) -> (LayoutRect, InlineLayout) {
+        let Some(item) = self.content_item() else {
+            return (content, self.pack(dom, content.width));
+        };
+        let boxes = match self.style.flow {
+            crate::layout::Flow::Grid => crate::render::layout_pass::grid::layout_generated_grid(
+                dom,
+                item,
+                content,
+                &self.style,
+                true,
+            ),
+            _ => crate::render::layout_pass::flex::layout_flex_children(
+                dom,
+                std::slice::from_ref(item),
+                content,
+                &self.style,
+            ),
+        };
+        match boxes.into_iter().next() {
+            Some(b) => (b.rect, b.inline_layout),
+            None => (content, self.pack(dom, content.width)),
+        }
     }
 }

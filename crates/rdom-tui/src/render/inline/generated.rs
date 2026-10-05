@@ -86,22 +86,84 @@ pub(crate) fn block_pseudos(dom: &Dom<TuiExt>, host: NodeId) -> super::RunPseudo
     }
 }
 
-/// The static pseudo text that joins `host`'s *own* inline content —
-/// [`static_pseudo_text`], minus a list marker that rides a
-/// descendant's first line instead ([`marker_line_holder`]).
-pub(crate) fn own_inline_pseudo_text(
+/// How a static `::before` / `::after` that is not a block box of its
+/// host's flow takes part in the inline content it joins (CSS Pseudo 4
+/// §2: its `display` and `float` make its box, as an element's do).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum InlinePseudo<'a> {
+    /// Its generated text, inline content of the lines (an inline box).
+    Text(&'a str),
+    /// An atomic inline — `inline-block`, `inline flow-root`,
+    /// `inline-flex`, `inline-grid` (CSS Display 3 §2.4): one box in its
+    /// line, its text laid out inside it.
+    Atom,
+    /// A float (CSS 2.1 §9.5): out of the line, beside it.
+    Float,
+}
+
+/// The inline-level box `host`'s `slot` pseudo-element is, wherever it
+/// joins inline content ([`InlinePseudo`]); `None` when it generates no
+/// static box or is a block-level box of the host's flow
+/// ([`is_block_pseudo`]).
+pub(crate) fn inline_pseudo(
     dom: &Dom<TuiExt>,
     host: NodeId,
     slot: StyleSlot,
-) -> Option<&str> {
-    if slot == StyleSlot::Before && marker_line_holder(dom, host).is_some() {
-        return None;
-    }
-    // A block-level pseudo-element is a box of the host's block flow.
+) -> Option<InlinePseudo<'_>> {
+    let text = static_pseudo_text(dom, host, slot)?;
+    let node = dom.node(host);
+    let computed = match slot {
+        StyleSlot::Before => node.computed_before(),
+        StyleSlot::After => node.computed_after(),
+        StyleSlot::Host => None,
+    }?;
     if is_block_pseudo(dom, host, slot) {
         return None;
     }
-    static_pseudo_text(dom, host, slot)
+    let pslot = match slot {
+        StyleSlot::Before => crate::ext::PseudoSlot::Before,
+        _ => crate::ext::PseudoSlot::After,
+    };
+    let item = BoxItem::Generated(host, pslot);
+    if crate::render::layout_pass::float::float_side_of(dom, item).is_some() {
+        return Some(InlinePseudo::Float);
+    }
+    if crate::render::box_tree::is_atomic_inline(computed) {
+        return Some(InlinePseudo::Atom);
+    }
+    Some(InlinePseudo::Text(text))
+}
+
+/// [`inline_pseudo`] for `host`'s *own* inline content — minus a list
+/// marker that rides a descendant's first line instead
+/// ([`marker_line_holder`]).
+pub(crate) fn own_inline_pseudo(
+    dom: &Dom<TuiExt>,
+    host: NodeId,
+    slot: StyleSlot,
+) -> Option<InlinePseudo<'_>> {
+    if slot == StyleSlot::Before && marker_line_holder(dom, host).is_some() {
+        return None;
+    }
+    inline_pseudo(dom, host, slot)
+}
+
+/// Whether `host`'s `slot` pseudo-element is a float of its flow (CSS 2.1
+/// §9.5) — an item of the host's box sequence
+/// (`box_tree::box_sequence`), placed by the block pass or the packer.
+pub(crate) fn is_float_pseudo(dom: &Dom<TuiExt>, host: NodeId, slot: StyleSlot) -> bool {
+    matches!(inline_pseudo(dom, host, slot), Some(InlinePseudo::Float))
+}
+
+/// Which of `host`'s pseudo-elements are items of its box sequence
+/// (`box_tree::box_sequence`): its block-level boxes ([`is_block_pseudo`])
+/// and its floats ([`is_float_pseudo`]).
+pub(crate) fn sequence_pseudos(dom: &Dom<TuiExt>, host: NodeId) -> super::RunPseudos {
+    let item = |slot| is_block_pseudo(dom, host, slot) || is_float_pseudo(dom, host, slot);
+    super::RunPseudos {
+        before: item(StyleSlot::Before),
+        after: item(StyleSlot::After),
+    }
 }
 
 /// Which of `host`'s pseudo-elements take a line of their own (CSS 2.1
@@ -122,14 +184,29 @@ pub(crate) fn own_line_pseudos(dom: &Dom<TuiExt>, host: NodeId) -> super::RunPse
     }
 }
 
-/// Which of `host`'s `::before` / `::after` generate visible inline
-/// text — text a line box would hold wherever the pseudo is placed.
+/// Which of `host`'s `::before` / `::after` are visible inline content —
+/// text a line box would hold wherever the pseudo is placed, or an
+/// atomic inline (CSS 2.1 §9.4.2: in-flow content makes a line box).
 pub(crate) fn visible_inline_pseudos(dom: &Dom<TuiExt>, host: NodeId) -> super::RunPseudos {
-    let visible =
-        |slot| own_inline_pseudo_text(dom, host, slot).is_some_and(|t| !t.trim().is_empty());
+    let visible = |slot| match own_inline_pseudo(dom, host, slot) {
+        Some(InlinePseudo::Text(t)) => !t.trim().is_empty(),
+        Some(InlinePseudo::Atom) => true,
+        Some(InlinePseudo::Float) | None => false,
+    };
     super::RunPseudos {
         before: visible(StyleSlot::Before),
         after: visible(StyleSlot::After),
+    }
+}
+
+/// Which of `host`'s `::before` / `::after` are inline-level participants
+/// of the flow they join: [`visible_inline_pseudos`], and floats.
+pub(crate) fn inline_level_pseudos(dom: &Dom<TuiExt>, host: NodeId) -> super::RunPseudos {
+    let visible = visible_inline_pseudos(dom, host);
+    let float = |slot| is_float_pseudo(dom, host, slot);
+    super::RunPseudos {
+        before: visible.before || float(StyleSlot::Before),
+        after: visible.after || float(StyleSlot::After),
     }
 }
 
@@ -229,7 +306,8 @@ fn first_line_holder(dom: &Dom<TuiExt>, el: NodeId) -> Option<NodeId> {
 fn line_bearing_child(dom: &Dom<TuiExt>, host: NodeId, from_end: bool) -> Option<BoxItem> {
     let bears = |c: &BoxItem| match *c {
         BoxItem::Node(c) => bears_line(dom, host, c),
-        BoxItem::Generated(..) => true,
+        // A float holds no line (CSS 2.1 §9.5).
+        BoxItem::Generated(h, slot) => !is_float_pseudo(dom, h, slot.into()),
     };
     let children = crate::render::box_tree::box_sequence(dom, host);
     if from_end {

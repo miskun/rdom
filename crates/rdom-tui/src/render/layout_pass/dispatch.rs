@@ -79,6 +79,8 @@ fn lay_out_children(
     // child was dropped). Clearing here, once, covers every dispatch arm.
     if let Some(ext) = dom.node_mut(id).ext_mut() {
         ext.anonymous_blocks.clear();
+        // Every arm that places a floated pseudo-element keeps it again.
+        ext.floated_pseudos = None;
         // Only the grid arm records its lines.
         ext.grid_lines = None;
     }
@@ -103,7 +105,8 @@ fn lay_out_children(
         // Compute + store the inline layout at the block's final
         // content width, beside the floats of its formatting context.
         // Paint reads this back directly.
-        let (inline_layout, floats) = pack_around_floats(dom, id, lines_at, container.width);
+        let (mut inline_layout, floats) = pack_around_floats(dom, id, lines_at, container.width);
+        super::generated_atoms::lay_out(dom, &mut inline_layout);
         super::positioning::record_static_positions_in_ifc(dom, id, &inline_layout, lines_at);
         // Atomic inline-block fragments (`<button>` in
         // `<p>hi <button>X</button> ok</p>`) need their layout rect
@@ -118,8 +121,8 @@ fn lay_out_children(
         for (atom_id, atom_rect) in atoms {
             layout_node(dom, atom_id, atom_rect, container.width);
         }
-        for (float_id, rect) in floats {
-            layout_node(dom, float_id, rect, container.width);
+        for (item, rect) in floats {
+            super::float::lay_out(dom, id, item, rect, container.width);
         }
         // IFC height is the line count — block-flow auto-height
         // resolution uses this if the IFC block has `height: auto`.
@@ -162,13 +165,14 @@ fn lay_out_children(
     let block_pseudo = block_pseudos.before || block_pseudos.after;
     if has_text_child && no_in_flow_element_children && !items && !block_pseudo {
         let lines_at = crate::render::inline::scrolled_content_rect(dom, id).unwrap_or(container);
-        let (inline_layout, floats) = pack_around_floats(dom, id, lines_at, container.width);
+        let (mut inline_layout, floats) = pack_around_floats(dom, id, lines_at, container.width);
+        super::generated_atoms::lay_out(dom, &mut inline_layout);
         super::positioning::record_static_positions_in_ifc(dom, id, &inline_layout, lines_at);
         if let Some(ext) = dom.node_mut(id).ext_mut() {
             ext.inline_layout = Some(inline_layout);
         }
-        for (float_id, rect) in floats {
-            layout_node(dom, float_id, rect, container.width);
+        for (item, rect) in floats {
+            super::float::lay_out(dom, id, item, rect, container.width);
         }
         return None;
     }
@@ -229,7 +233,7 @@ fn pack_around_floats(
     width: u16,
 ) -> (
     crate::render::inline::InlineLayout,
-    Vec<(NodeId, LayoutRect)>,
+    Vec<(crate::render::box_tree::BoxItem, LayoutRect)>,
 ) {
     let content = LayoutRect::new(lines_at.x, lines_at.y, width, lines_at.height);
     super::float::with_area(dom, |dom, area| {

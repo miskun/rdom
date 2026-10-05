@@ -5,6 +5,7 @@ use rdom_core::{Dom, NodeId, NodeType};
 
 use super::*;
 use crate::render::box_tree::BoxItem;
+use crate::render::layout_pass::float;
 
 /// One run of consecutive children sharing a level (block-level or
 /// inline-level). Block runs get per-child block layout; inline
@@ -47,7 +48,7 @@ pub(in crate::render::layout_pass) fn partition(
 ) -> Vec<Run> {
     let mut runs: Vec<Run> = Vec::new();
     for (orig_idx, child_id) in in_flow {
-        let floated = child_id.node().is_some_and(|n| is_float(dom, n));
+        let floated = crate::render::layout_pass::float::is_float_item(dom, *child_id);
         let kind = match runs.last() {
             _ if !floated => child_level(dom, *child_id),
             Some(last) if last.kind == RunKind::Inline => RunKind::Inline,
@@ -128,7 +129,8 @@ pub(super) fn drop_lineless_runs(
         let holds_line = run.kind != RunKind::Inline
             || run.children.iter().any(|&c| match c {
                 BoxItem::Node(c) => bears_line(dom, id, c),
-                BoxItem::Generated(..) => true,
+                // A floated pseudo-element holds no line (CSS 2.1 §9.5).
+                BoxItem::Generated(..) => !float::is_float_item(dom, c),
             })
             || (i == 0 && pseudos.before)
             || (i == last && pseudos.after);
@@ -141,7 +143,7 @@ pub(super) fn drop_lineless_runs(
                 .children
                 .iter()
                 .copied()
-                .filter(|c| c.node().is_some_and(|n| is_float(dom, n)))
+                .filter(|&c| float::is_float_item(dom, c))
                 .collect();
             if !floats.is_empty() {
                 kept.push(Run {
@@ -230,7 +232,12 @@ pub(in crate::render::layout_pass) fn inline_runs(
     let mut runs: Vec<Vec<BoxItem>> = Vec::new();
     let mut open = false;
     for item in crate::render::box_tree::box_sequence(dom, id) {
-        if item.node().is_some_and(|c| !is_in_flow(dom, c)) {
+        // Out of flow: positioned and floated boxes, a floated
+        // pseudo-element too.
+        if item
+            .node()
+            .map_or_else(|| float::is_float_item(dom, item), |c| !is_in_flow(dom, c))
+        {
             continue;
         }
         match child_level(dom, item) {

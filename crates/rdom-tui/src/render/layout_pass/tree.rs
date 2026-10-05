@@ -140,6 +140,7 @@ fn clear_box_state(ext: &mut TuiExt, rect: LayoutRect) {
     ext.scroll_state = None;
     ext.static_position = None;
     ext.grid_lines = None;
+    ext.floated_pseudos = None;
 }
 
 /// Move `id`'s laid-out subtree by `(dx, dy)`: every element's rects,
@@ -188,7 +189,8 @@ fn shift(dom: &mut Dom<TuiExt>, id: NodeId, dx: i32, dy: i32, keep: Keep) {
     if let Some(ext) = dom.node_mut(id).ext_mut() {
         ext.layout = shift(ext.layout);
         ext.content_layout = shift(ext.content_layout);
-        for anon in &mut ext.anonymous_blocks {
+        let floated = ext.floated_pseudos.as_deref_mut().into_iter().flatten();
+        for anon in ext.anonymous_blocks.iter_mut().chain(floated) {
             anon.rect = shift(anon.rect);
             if let Some(g) = anon.generated.as_mut() {
                 g.border_box = shift(g.border_box);
@@ -212,7 +214,8 @@ fn shift(dom: &mut Dom<TuiExt>, id: NodeId, dx: i32, dy: i32, keep: Keep) {
 /// its children's subtrees, not its own box — by `dy` rows.
 pub(super) fn shift_content(dom: &mut Dom<TuiExt>, id: NodeId, dy: i32) {
     if let Some(ext) = dom.node_mut(id).ext_mut() {
-        for anon in &mut ext.anonymous_blocks {
+        let floated = ext.floated_pseudos.as_deref_mut().into_iter().flatten();
+        for anon in ext.anonymous_blocks.iter_mut().chain(floated) {
             anon.rect.y += dy;
             if let Some(g) = anon.generated.as_mut() {
                 g.border_box.y += dy;

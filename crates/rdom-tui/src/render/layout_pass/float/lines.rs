@@ -7,11 +7,12 @@
 //! formatting context's: rows from its top, columns from its content
 //! box's left edge.
 
-use rdom_core::{Dom, NodeId};
+use rdom_core::Dom;
 
 use super::area::ExclusionArea;
 use crate::ext::TuiExt;
 use crate::layout::LayoutRect;
+use crate::render::box_tree::BoxItem;
 
 /// What the line packer asks of the floats beside its lines.
 pub(crate) trait LineExclusions {
@@ -21,11 +22,11 @@ pub(crate) trait LineExclusions {
     /// The first row below `top` where a float beside it ends — where a
     /// line too narrow for its content can move down to.
     fn next_change(&self, top: u16) -> Option<u16>;
-    /// Place the float `id`, met in the inline content on the line whose
+    /// Place the float `item`, met in the inline content on the line whose
     /// top is row `top` and which already holds `used` cells (`None`: an
     /// empty line). `false` when it does not fit beside them: the packer
     /// then places it at the next line's top.
-    fn place_float(&mut self, id: NodeId, top: u16, used: Option<u16>) -> bool;
+    fn place_float(&mut self, item: BoxItem, top: u16, used: Option<u16>) -> bool;
 }
 
 /// [`LineExclusions`] over a block formatting context's area, for an
@@ -40,7 +41,7 @@ pub(crate) struct InlineFloats<'a> {
     y: i32,
     width: u16,
     content_top: i32,
-    placed: Vec<(NodeId, LayoutRect)>,
+    placed: Vec<(BoxItem, LayoutRect)>,
 }
 
 impl<'a> InlineFloats<'a> {
@@ -62,7 +63,7 @@ impl<'a> InlineFloats<'a> {
     }
 
     /// The floats placed, in document order, with their border boxes.
-    pub(crate) fn into_placed(self) -> Vec<(NodeId, LayoutRect)> {
+    pub(crate) fn into_placed(self) -> Vec<(BoxItem, LayoutRect)> {
         self.placed
     }
 
@@ -87,14 +88,14 @@ impl LineExclusions for InlineFloats<'_> {
         u16::try_from(next - self.y).ok()
     }
 
-    fn place_float(&mut self, id: NodeId, top: u16, used: Option<u16>) -> bool {
+    fn place_float(&mut self, item: BoxItem, top: u16, used: Option<u16>) -> bool {
         let y = self.row(top);
-        let fb = super::size::FloatBox::of(self.dom, id, self.width);
+        let fb = super::size::FloatBox::of(self.dom, item, self.width);
         if let Some(used) = used {
             // Beside the line's content only if the line's band has room
             // for it after that content, and no `clear` takes it lower.
             let room = self.band(top).1.saturating_sub(used);
-            if room < fb.outer_width() || super::clearance_floor(self.dom, self.area, id, y) > y {
+            if room < fb.outer_width() || super::clearance_floor(self.dom, self.area, item, y) > y {
                 return false;
             }
         }
@@ -104,8 +105,8 @@ impl LineExclusions for InlineFloats<'_> {
             cb_width: self.width,
             content_top: self.content_top,
         };
-        let rect = super::place_box(self.dom, self.area, id, &fb, at);
-        self.placed.push((id, rect));
+        let rect = super::place_box(self.dom, self.area, item, &fb, at);
+        self.placed.push((item, rect));
         true
     }
 }

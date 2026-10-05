@@ -18,12 +18,12 @@
 
 use std::rc::Rc;
 
-use rdom_core::{Dom, NodeId};
+use rdom_core::Dom;
 
 use super::baseline::Shim;
 use super::placement::Placed;
 use super::subgrid::SubAxes;
-use super::{Grid, content};
+use super::{Grid, GridBox, content};
 use crate::ext::{AnonymousIfc, TuiExt};
 use crate::layout::{
     Align, Alignment, AspectRatio, Direction, LayoutRect, MarginValue, Sides, Size, TextDirection,
@@ -36,11 +36,13 @@ use crate::render::layout_pass::items::Item;
 use crate::render::layout_pass::layout_node;
 use crate::style::ComputedStyle;
 
-/// Lay out `grid`'s items in the grid container `id`'s content box
+/// Lay out `grid`'s items in the grid container `owner`'s content box
 /// `container`. Returns the anonymous items' boxes, in placement order.
+/// An element container keeps its lines (§9.1) and scrolls its items; a
+/// generated one has no absolutely positioned boxes and does not scroll.
 pub(super) fn arrange(
     dom: &mut Dom<TuiExt>,
-    id: NodeId,
+    owner: GridBox<'_>,
     computed: &ComputedStyle,
     grid: Grid,
     container: LayoutRect,
@@ -81,13 +83,15 @@ pub(super) fn arrange(
         for (p, &sub) in grid.placed.iter().zip(&grid.subgrids) {
             super::subgrid::record(&mut lines, p, sub);
         }
-        if let Some(ext) = dom.node_mut(id).ext_mut() {
+        if let Some(id) = owner.element()
+            && let Some(ext) = dom.node_mut(id).ext_mut()
+        {
             ext.grid_lines = Some(Box::new(lines));
         }
     }
     let right = container.x + i32::from(container.width);
-    let scroll_x = scroll_offset(dom, id, Direction::Row);
-    let scroll_y = scroll_offset(dom, id, Direction::Column);
+    let scroll = |axis| owner.element().map_or(0, |id| scroll_offset(dom, id, axis));
+    let (scroll_x, scroll_y) = (scroll(Direction::Row), scroll(Direction::Column));
     let mut anonymous = Vec::new();
     for (k, p) in grid.placed.iter().enumerate() {
         let (x0, x1) = (columns[p.columns.start].0, columns[p.columns.end - 1].1);

@@ -9,7 +9,7 @@
 //! (`layout_grid_children`) and the container's intrinsic measurement
 //! (`intrinsic::content_size`) size through [`size_grid`].
 
-use rdom_core::{Dom, NodeId};
+use rdom_core::Dom;
 
 use super::lines::{AxisLines, GridLines};
 use super::placement::Placed;
@@ -19,7 +19,9 @@ use super::subgrid::{self, Inherit};
 use super::subgrid_memo::KeyRef;
 use super::template::{Bounds, Explicit};
 use super::track::{Extent, TrackGrid, tracks_of};
-use super::{AxisContext, Dimension, Grid, baseline, content_bounds, contribution, margins};
+use super::{
+    AxisContext, Dimension, Grid, GridBox, baseline, content_bounds, contribution, margins,
+};
 use crate::ext::TuiExt;
 use crate::layout::Sides;
 use crate::render::layout_pass::box_sizing::Sizer;
@@ -27,7 +29,7 @@ use crate::render::layout_pass::intrinsic::Measure;
 use crate::render::layout_pass::intrinsic::with_subgrids;
 use crate::style::ComputedStyle;
 
-/// Size the grid of `id` (styled `computed`), which takes the axes
+/// Size the grid of `owner` (styled `computed`), which takes the axes
 /// `inherit` names from its parent: its items placed (§8.5), its columns
 /// sized under `columns` (§11.3), then — with `rows` — its rows at the
 /// columns' widths (§11.1 steps 1–2), and the columns and rows once more
@@ -36,7 +38,7 @@ use crate::style::ComputedStyle;
 /// (`arrange`) — its line names copied, which a measurement leaves.
 pub(super) fn size_grid(
     dom: &Dom<TuiExt>,
-    id: NodeId,
+    owner: GridBox<'_>,
     computed: &ComputedStyle,
     columns: AxisContext,
     rows: Option<AxisContext>,
@@ -46,7 +48,7 @@ pub(super) fn size_grid(
     #[cfg(test)]
     RUNS.with(|r| r.borrow_mut().push(None));
     let row_bounds = rows.map_or_else(Bounds::default, |r| r.bounds);
-    let grid = place_grid(dom, id, computed, columns.bounds, row_bounds, inherit);
+    let grid = place_grid(dom, owner, computed, columns.bounds, row_bounds, inherit);
     let placed = &grid.placement.items;
     let fixed = |dimension: Dimension| {
         inherit
@@ -291,7 +293,7 @@ pub(super) fn measure_subgrid(
     let content = |measure| {
         super::intrinsic::content_size_with(
             dom,
-            id,
+            GridBox::Element(id),
             &c,
             dimension.direction(),
             area,

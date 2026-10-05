@@ -24,21 +24,24 @@ pub(super) fn white_space(dom: &Dom<TuiExt>, id: NodeId) -> WhiteSpace {
 }
 
 /// Feed `block`'s whole inline content to `packer`: its `::before`, its
-/// subtree, its `::after`.
+/// subtree, its `::after` — floated ones placed beside the lines.
 pub(super) fn fill_block<'a>(dom: &'a Dom<TuiExt>, block: NodeId, packer: &mut LinePacker<'a>) {
-    push_pseudo(dom, block, PseudoSlot::Before, packer);
+    push_pseudo(dom, block, PseudoSlot::Before, packer, true);
     walk_subtree(dom, block, packer);
-    push_pseudo(dom, block, PseudoSlot::After, packer);
+    push_pseudo(dom, block, PseudoSlot::After, packer, true);
 }
 
 /// Push `host`'s `slot` pseudo-element if it joins `host`'s own inline
-/// content (see [`generated`]). `::before` first pushes the markers of
-/// the list items whose first line this is.
+/// content (see [`generated`]) — a float only with `floats` (a block
+/// container's floats are items of its box sequence, fed in its runs).
+/// `::before` first pushes the markers of the list items whose first
+/// line this is.
 fn push_pseudo<'a>(
     dom: &'a Dom<TuiExt>,
     host: NodeId,
     slot: PseudoSlot,
     packer: &mut LinePacker<'a>,
+    floats: bool,
 ) {
     if slot == PseudoSlot::Before {
         for item in generated::deferred_markers(dom, host) {
@@ -47,8 +50,42 @@ fn push_pseudo<'a>(
             }
         }
     }
-    if let Some(text) = generated::own_inline_pseudo_text(dom, host, slot.into()) {
-        packer.push_generated(host, slot, text);
+    if let Some(kind) = generated::own_inline_pseudo(dom, host, slot.into()) {
+        push_pseudo_box(dom, host, slot, kind, packer, floats);
+    }
+}
+
+/// Push `host`'s `slot` pseudo-element as the box it is in this inline
+/// content (CSS Pseudo 4 §2, `generated::InlinePseudo`): its text, an
+/// atomic inline, or — with `floats` — a float.
+fn push_pseudo_box<'a>(
+    dom: &'a Dom<TuiExt>,
+    host: NodeId,
+    slot: PseudoSlot,
+    kind: generated::InlinePseudo<'a>,
+    packer: &mut LinePacker<'a>,
+    floats: bool,
+) {
+    match kind {
+        generated::InlinePseudo::Text(text) => packer.push_generated(host, slot, text),
+        generated::InlinePseudo::Atom => push_generated_atom(dom, host, slot, packer),
+        generated::InlinePseudo::Float if floats => {
+            push_float(dom, BoxItem::Generated(host, slot), packer);
+        }
+        generated::InlinePseudo::Float => {}
+    }
+}
+
+/// Push `host`'s `slot` pseudo-element, which joins the inline content
+/// it is met in, as the box it is ([`push_pseudo_box`]).
+fn push_met_pseudo<'a>(
+    dom: &'a Dom<TuiExt>,
+    host: NodeId,
+    slot: PseudoSlot,
+    packer: &mut LinePacker<'a>,
+) {
+    if let Some(kind) = generated::inline_pseudo(dom, host, slot.into()) {
+        push_pseudo_box(dom, host, slot, kind, packer, true);
     }
 }
 
@@ -62,17 +99,16 @@ pub(super) fn fill_run<'a>(
     packer: &mut LinePacker<'a>,
 ) {
     if pseudos.before {
-        push_pseudo(dom, parent, PseudoSlot::Before, packer);
+        push_pseudo(dom, parent, PseudoSlot::Before, packer, false);
     }
     for &item in direct_children {
         let child_id = match item {
             BoxItem::Node(n) => n,
             // The `::before` / `::after` of a box-less child that holds
-            // a block box: an inline box of this flow, hosted by it.
+            // a block box — inline-level boxes of this flow, hosted by it
+            // — or `parent`'s own floated one.
             BoxItem::Generated(host, slot) => {
-                if let Some(text) = crate::render::box_tree::generated_text(dom, host, slot) {
-                    packer.push_generated(host, slot, text);
-                }
+                push_met_pseudo(dom, host, slot, packer);
                 continue;
             }
         };
@@ -88,7 +124,7 @@ pub(super) fn fill_run<'a>(
             }
             NodeType::Element => {
                 if crate::render::layout_pass::float::float_side(dom, child_id).is_some() {
-                    push_float(dom, child_id, packer);
+                    push_float(dom, item, packer);
                     continue;
                 }
                 if child.tag_name() == Some("br") {
@@ -110,7 +146,7 @@ pub(super) fn fill_run<'a>(
         }
     }
     if pseudos.after {
-        push_pseudo(dom, parent, PseudoSlot::After, packer);
+        push_pseudo(dom, parent, PseudoSlot::After, packer, false);
     }
 }
 
@@ -155,7 +191,7 @@ fn walk_subtree<'a>(dom: &'a Dom<TuiExt>, id: NodeId, packer: &mut LinePacker<'a
                 }
                 // A float leaves the line (CSS 2.1 §9.5): placed beside it.
                 if crate::render::layout_pass::float::float_side(dom, child.id()).is_some() {
-                    push_float(dom, child.id(), packer);
+                    push_float(dom, BoxItem::Node(child.id()), packer);
                     continue;
                 }
                 // <br> is a hard break. Matches HTML's baked-in
@@ -193,30 +229,48 @@ fn walk_subtree<'a>(dom: &'a Dom<TuiExt>, id: NodeId, packer: &mut LinePacker<'a
 /// start / end, in its line flow (they wrap, and the text beside them
 /// shifts). They land in [`LineBox::generated`], hosted by the element.
 fn walk_inline_box<'a>(dom: &'a Dom<TuiExt>, id: NodeId, packer: &mut LinePacker<'a>) {
-    if let Some(text) = generated::static_pseudo_text(dom, id, StyleSlot::Before) {
-        packer.push_generated(id, PseudoSlot::Before, text);
-    }
+    push_met_pseudo(dom, id, PseudoSlot::Before, packer);
     walk_subtree(dom, id, packer);
-    if let Some(text) = generated::static_pseudo_text(dom, id, StyleSlot::After) {
-        packer.push_generated(id, PseudoSlot::After, text);
-    }
+    push_met_pseudo(dom, id, PseudoSlot::After, packer);
 }
 
-/// Push the float `id` met in the inline content (CSS 2.1 §9.5). An
+/// Push the float `item` met in the inline content (CSS 2.1 §9.5). An
 /// intrinsic width measurement packs it as an unbreakable box its margin
 /// box wide — beside the text on one line for max-content, alone for
 /// min-content (CSS Sizing 3 §5.1) — and lays nothing out.
-fn push_float(dom: &Dom<TuiExt>, id: NodeId, packer: &mut LinePacker<'_>) {
+fn push_float(dom: &Dom<TuiExt>, item: BoxItem, packer: &mut LinePacker<'_>) {
     if packer.is_measuring() {
         let width = crate::render::layout_pass::float::size::outer_contribution(
             dom,
-            id,
+            item,
             packer.content_width() > 0,
         );
-        packer.push_atomic_inline_block(id, width, vertical::AtomRows::UNMEASURED);
+        let rows = vertical::AtomRows::UNMEASURED;
+        match item {
+            BoxItem::Node(id) => packer.push_atomic_inline_block(id, width, rows),
+            BoxItem::Generated(host, slot) => packer.push_generated_atom(host, slot, width, rows),
+        }
         return;
     }
-    packer.push_float(id);
+    packer.push_float(item);
+}
+
+/// Push `host`'s atomic inline `slot` pseudo-element: its width and its
+/// rows in the line (`layout_pass::generated_atoms`), as [`push_atom`]
+/// pushes an element's.
+fn push_generated_atom(
+    dom: &Dom<TuiExt>,
+    host: NodeId,
+    slot: PseudoSlot,
+    packer: &mut LinePacker<'_>,
+) {
+    let measuring = packer.is_measuring();
+    let cb_width = if measuring { 0 } else { packer.content_width() };
+    if let Some((width, rows)) =
+        crate::render::layout_pass::generated_atoms::measure(dom, host, slot, cb_width, measuring)
+    {
+        packer.push_generated_atom(host, slot, width, rows);
+    }
 }
 
 /// Push the inline block `id` as an atom: its width and its rows in

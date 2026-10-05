@@ -133,7 +133,17 @@ impl InlineFragment {
 /// apart from [`LineBox::fragments`]: hit-testing, the caret,
 /// selection highlight and copy only ever see text and atoms, and a
 /// click on a generated cell clamps to the nearest text position.
+///
+/// A pseudo-element whose `display` makes it an atomic inline
+/// (`inline-block`, `inline-flex`, `inline-grid`; CSS Display 3 §2.4) is
+/// one generated fragment holding its whole box ([`is_atom`](Self::is_atom)):
+/// `width` its border box's, no `text`, its rows and its content laid out
+/// inside it (C8G-PSEUDO-ATOMS).
+///
+/// `#[non_exhaustive]`: outside rdom-tui a run is built with
+/// [`GeneratedFragment::text`] and its public fields read or set.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct GeneratedFragment {
     /// The element whose pseudo-element this is (paint reads its
     /// `computed_before` / `computed_after`).
@@ -143,10 +153,58 @@ pub struct GeneratedFragment {
     /// X offset from the inline flow's content-area left edge, negative
     /// left of it (as [`InlineFragment::x`]).
     pub x: i32,
-    /// Visible cell width of `text`.
+    /// Visible cell width of `text` (an atom's border-box width).
     pub width: u16,
-    /// The normalized generated text on this line.
+    /// The normalized generated text on this line (empty for an atom).
     pub text: String,
+    /// The atom's box, for an atomic inline pseudo-element.
+    pub(crate) atom: Option<Box<GeneratedAtom>>,
+}
+
+impl GeneratedFragment {
+    /// A run of `host`'s `slot` pseudo-element's text at `x` on its
+    /// line's baseline row, as wide as `text`'s visible cells.
+    pub fn text(host: NodeId, slot: PseudoSlot, x: i32, text: impl Into<String>) -> Self {
+        let text = text.into();
+        let width = unicode_width::UnicodeWidthStr::width(text.as_str()).min(usize::from(u16::MAX));
+        GeneratedFragment {
+            host,
+            slot,
+            x,
+            width: width as u16,
+            text,
+            atom: None,
+        }
+    }
+
+    /// Whether this is an atomic inline pseudo-element's box rather than
+    /// a run of text.
+    pub fn is_atom(&self) -> bool {
+        self.atom.is_some()
+    }
+
+    /// The rows an atom's border box spans, counted from its line's top:
+    /// `(first, count)`; `None` for a run of text, which sits on the
+    /// line's baseline row.
+    pub fn atom_rows(&self) -> Option<(u16, u16)> {
+        self.atom.as_ref().map(|a| (a.y, a.height))
+    }
+}
+
+/// An atomic inline `::before` / `::after` in its line: where its border
+/// box sits and its content laid out inside it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct GeneratedAtom {
+    /// Rows from its line's top to its border box's top.
+    pub(crate) y: u16,
+    /// Its border-box height.
+    pub(crate) height: u16,
+    /// Its content once the layout pass laid it out
+    /// (`layout_pass::generated_atoms`): the rect its lines sit at, from
+    /// its border box's top-left corner, and the lines. `None` until then
+    /// — an inline layout packed outside the layout pass draws the box
+    /// alone.
+    pub(crate) content: Option<(crate::layout::LayoutRect, InlineLayout)>,
 }
 
 /// One line of inline content.

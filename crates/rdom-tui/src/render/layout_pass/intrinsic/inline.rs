@@ -76,11 +76,30 @@ pub(super) fn pseudo_content_width(dom: &Dom<TuiExt>, id: NodeId) -> u16 {
     for item in generated::deferred_markers(dom, id) {
         acc = acc.saturating_add(width(item, StyleSlot::Before));
     }
-    // The host's own inline pseudo text: none for a block-level or
-    // `display: none` pseudo-element, or a marker riding a descendant.
-    let own = |slot| {
-        generated::own_inline_pseudo_text(dom, id, slot)
-            .map_or(0, |t| UnicodeWidthStr::width(t) as u32)
+    // The host's own inline pseudo-elements: their text, an atom's box
+    // (its max-content width), a float's margin box — none for a
+    // block-level or `display: none` one, or a marker riding a
+    // descendant.
+    let own = |slot: StyleSlot| {
+        let pslot = match slot {
+            StyleSlot::Before => crate::ext::PseudoSlot::Before,
+            _ => crate::ext::PseudoSlot::After,
+        };
+        match generated::own_inline_pseudo(dom, id, slot) {
+            Some(generated::InlinePseudo::Text(t)) => UnicodeWidthStr::width(t) as u32,
+            Some(generated::InlinePseudo::Atom) => {
+                crate::render::layout_pass::generated_atoms::measure(dom, id, pslot, 0, true)
+                    .map_or(0, |(w, _)| u32::from(w))
+            }
+            Some(generated::InlinePseudo::Float) => {
+                u32::from(crate::render::layout_pass::float::size::outer_contribution(
+                    dom,
+                    crate::render::box_tree::BoxItem::Generated(id, pslot),
+                    true,
+                ))
+            }
+            None => 0,
+        }
     };
     acc = acc.saturating_add(own(StyleSlot::Before));
     acc = acc.saturating_add(own(StyleSlot::After));

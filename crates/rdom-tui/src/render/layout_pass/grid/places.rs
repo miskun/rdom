@@ -5,13 +5,13 @@
 //! axis every grid area clamped into the explicit grid, which has no
 //! implicit tracks there (§9).
 
-use rdom_core::{Dom, NodeId};
+use rdom_core::Dom;
 
-use super::Dimension;
 use super::placement::{self, Axis, Placed, Placement};
 use super::subgrid::{self, Inherit, ParentAxis, SubAxes};
 use super::template::{Bounds, Explicit};
 use super::track::Span;
+use super::{Dimension, GridBox};
 use crate::ext::TuiExt;
 use crate::layout::{GridLine, GridTemplate, LineNameList, Sides};
 use crate::render::layout_pass::items;
@@ -62,12 +62,12 @@ impl PlacedGrid<'_> {
     }
 }
 
-/// Place the items of the grid container `id` (styled `computed`), its
+/// Place the items of the grid container `owner` (styled `computed`), its
 /// automatic repetitions counted against `column_bounds` /
 /// `row_bounds`, the axes `inherit` names taken from its parent.
 pub(super) fn place_grid<'a>(
     dom: &Dom<TuiExt>,
-    id: NodeId,
+    owner: GridBox<'_>,
     computed: &'a ComputedStyle,
     column_bounds: Bounds,
     row_bounds: Bounds,
@@ -75,7 +75,7 @@ pub(super) fn place_grid<'a>(
 ) -> PlacedGrid<'a> {
     #[cfg(test)]
     PLACES.with(|n| n.set(n.get() + 1));
-    let mut children = items::items_of(dom, id);
+    let mut children = owner.items(dom);
     // §8.5: placement takes the items in order-modified document order
     // (CSS Display 3 §3).
     items::sort_by_order(dom, &mut children);

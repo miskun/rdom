@@ -30,6 +30,12 @@ pub struct TypeaheadState {
 }
 
 impl TuiExt {
+    /// The floated `::before` / `::after` boxes this box's formatting
+    /// context run placed (`floated_pseudos`); empty with none.
+    pub(crate) fn floated_pseudos(&self) -> &[AnonymousIfc] {
+        self.floated_pseudos.as_deref().map_or(&[], Vec::as_slice)
+    }
+
     /// The inline style, or the empty style when none is set.
     pub fn inline_style_or_empty(&self) -> &TuiStyle {
         static EMPTY: std::sync::LazyLock<TuiStyle> = std::sync::LazyLock::new(TuiStyle::default);
@@ -248,6 +254,16 @@ pub struct TuiExt {
     /// the grid areas of the absolutely positioned boxes it is the
     /// containing block of. `None` for any other box.
     pub(crate) grid_lines: Option<Box<crate::render::layout_pass::GridLines>>,
+    /// The floated `::before` / `::after` boxes laid out in this box's
+    /// formatting context run (CSS Pseudo 4 §2, CSS 2.1 §9.5; its own,
+    /// and its box-less children's), each with its border box
+    /// (`AnonymousIfc::generated`), in the order they were placed. Paint
+    /// draws them in the float layer of their stacking context; `None`
+    /// with none (most boxes).
+    /// Boxed for a thin pointer: `TuiExt`'s size is bounded
+    /// (`tui_ext_size_tripwire`), and a `Vec` is three words.
+    #[allow(clippy::box_collection)]
+    pub(crate) floated_pseudos: Option<Box<Vec<AnonymousIfc>>>,
 
     // ── Cascade cache (populated by Dom::cascade) ─────────────────────
     /// Post-cascade style for this element. `None` means "no cascade run

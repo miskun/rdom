@@ -36,11 +36,13 @@
 //! - [`width`] — §10.3.3 width / horizontal margin resolution.
 //! - [`height`] — §10.5 / §10.6.3 height resolution.
 //! - [`place`] — placing one block-level child.
+//! - [`inline_run`] — an inline run's anonymous block box.
 //! - [`runs`] — block-level / inline-level run partitioning.
 
 mod align;
 pub(in crate::render::layout_pass) mod generated;
 mod height;
+mod inline_run;
 mod margin_collapse;
 mod place;
 mod runs;
@@ -54,7 +56,7 @@ use crate::ext::{AnonymousIfc, TuiExt};
 use crate::layout::{Direction, LayoutRect};
 use crate::node::TuiNodeExt;
 use crate::render::box_tree::BoxItem;
-use crate::render::inline::{RunPseudos, pack_run};
+use crate::render::inline::RunPseudos;
 use crate::style::ComputedStyle;
 
 use super::is_in_flow;
@@ -307,9 +309,9 @@ pub(super) fn layout_block_children(
                 // next box's would be, past the margins collapsed so far
                 // (CSS 2.1 §9.5.1 rules 4–6), laid out at once so its
                 // exclusion has the height it gets.
-                for f in run.children.iter().filter_map(|c| c.node()) {
+                for &f in &run.children {
                     let y = y_cursor + i32::from(margin_acc.resolved());
-                    if let Some(oof) = static_before.get(&f) {
+                    if let Some(oof) = f.node().and_then(|n| static_before.get(&n)) {
                         for &n in oof {
                             super::positioning::record_static_position(dom, n, content_x, y);
                         }
@@ -324,7 +326,7 @@ pub(super) fn layout_block_children(
                             content_top: container.y - scroll_y,
                         },
                     );
-                    layout_node(dom, f, placed, containing_block_width);
+                    super::float::lay_out(dom, id, f, placed, containing_block_width);
                     super::float::settle_height(dom, f, placed);
                 }
             }
@@ -426,59 +428,19 @@ pub(super) fn layout_block_children(
                 let resolved_gap = margin_acc.resolved();
                 margin_acc = MarginAccumulator::new();
                 let anon_y = y_cursor + resolved_gap as i32;
-                // Its lines beside the floats of the formatting context,
-                // its own floats placed there (CSS 2.1 §9.5).
-                let lines_at = LayoutRect::new(content_x, anon_y, containing_block_width, 0);
-                let (inline_layout, floats) = super::float::with_area(dom, |dom, area| {
-                    let mut ex = super::float::lines::InlineFloats::new(
-                        dom,
-                        area,
-                        lines_at,
-                        container.y - scroll_y,
-                    );
-                    let layout = pack_run(
-                        dom,
-                        id,
-                        &run.children,
-                        pseudos,
-                        containing_block_width,
-                        Some(&mut ex),
-                    );
-                    (layout, ex.into_placed())
-                });
-                let height = inline_layout.height();
-                let rect = LayoutRect::new(content_x, anon_y, containing_block_width, height);
-                // Layout atomic inline-block children at their
-                // fragment rects. This both writes their layout
-                // rects (so hit-test descends into them — e.g.
-                // `<form><button>Go</button></form>` button clicks
-                // route to the button, not the form) and recurses
-                // into their subtrees (so `<button>`'s own inner
-                // text-only layout, pseudos, etc. get computed).
-                layout_atomic_inline_blocks(dom, &inline_layout, rect);
-                for (f, placed) in floats {
-                    layout_node(dom, f, placed, containing_block_width);
-                }
-                for c in run.children.iter().filter_map(|c| c.node()) {
-                    if let Some(oof) = static_before.get(&c) {
-                        for &n in oof {
-                            let (x, y) = super::positioning::static_position_in_ifc(
-                                dom,
-                                id,
-                                n,
-                                &inline_layout,
-                                rect,
-                            );
-                            super::positioning::record_static_position(dom, n, x, y);
-                        }
-                    }
-                }
-                anon_blocks.push(AnonymousIfc::new(
-                    rect,
-                    inline_layout,
-                    run.child_range,
-                    None,
-                ));
+                let anon = inline_run::lay_out(
+                    dom,
+                    id,
+                    run,
+                    pseudos,
+                    inline_run::RunPlace {
+                        at: LayoutRect::new(content_x, anon_y, containing_block_width, 0),
+                        content_top: container.y - scroll_y,
+                    },
+                    &static_before,
+                );
+                let height = anon.rect.height;
+                anon_blocks.push(anon);
                 y_cursor = anon_y + height as i32;
                 // BORDER-MODEL-1 (M6): an inline-run anon block breaks
                 // block-to-block border adjacency. Reset the
@@ -556,23 +518,5 @@ pub(super) fn layout_block_children(
     }
     BlockMeasurement {
         content_height: content_height.min(u16::MAX as i32) as u16,
-    }
-}
-
-/// Recurse layout into atomic inline-block fragments — write each
-/// atom's layout rect (so hit-test descends) and call `layout_node`
-/// to lay out the atom's own subtree (its own inner inline_layout,
-/// pseudo positioning, descendants).
-///
-/// `anon_rect` is the anonymous block box's rect (or the singular
-/// IFC's content rect). Fragment x is offset from `anon_rect.x`;
-/// fragment line index gives the y row.
-fn layout_atomic_inline_blocks(
-    dom: &mut Dom<TuiExt>,
-    inline_layout: &crate::render::inline::InlineLayout,
-    anon_rect: LayoutRect,
-) {
-    for (id, rect) in crate::render::inline::atomic_placements(inline_layout, anon_rect) {
-        layout_node(dom, id, rect, anon_rect.width);
     }
 }

@@ -53,6 +53,19 @@ pub(in crate::render::layout_pass) enum Item {
 }
 
 impl Item {
+    /// The box `item` of the box tree as an item to measure and lay out:
+    /// an element, or a `::before` / `::after` as its own box
+    /// ([`AnonymousItem::pseudo`]). `None` for a pseudo-element with no
+    /// computed style.
+    pub(in crate::render::layout_pass) fn of_box(dom: &Dom<TuiExt>, item: BoxItem) -> Option<Self> {
+        match item {
+            BoxItem::Node(id) => Some(Item::Element(id)),
+            BoxItem::Generated(host, slot) => {
+                AnonymousItem::pseudo(dom, host, slot).map(|a| Item::Anonymous(Rc::new(a)))
+            }
+        }
+    }
+
     /// The element, for an element item.
     pub(in crate::render::layout_pass) fn node(&self) -> Option<NodeId> {
         match self {
@@ -76,7 +89,7 @@ impl Item {
     pub(in crate::render::layout_pass) fn box_parent(&self, dom: &Dom<TuiExt>) -> Option<NodeId> {
         match self {
             Item::Element(id) => crate::render::box_tree::box_parent(dom, *id),
-            Item::Anonymous(a) => Some(a.container()),
+            Item::Anonymous(a) => a.box_parent(),
         }
     }
 

@@ -37,6 +37,7 @@ use rdom_core::{Dom, NodeId, NodeType};
 
 use crate::ext::TuiExt;
 use crate::layout::{Display, FloatSide, LayoutRect, TextDirection};
+use crate::render::box_tree::BoxItem;
 use crate::style::ComputedStyle;
 
 pub(crate) use area::ExclusionArea;
@@ -66,11 +67,85 @@ pub(crate) fn float_side(dom: &Dom<TuiExt>, id: NodeId) -> Option<FloatSide> {
     c.float.side(pc.text_direction == TextDirection::Rtl)
 }
 
+/// The side the box `item` floats to: an element's [`float_side`]; a
+/// static `::before` / `::after`'s by the same rule (CSS Pseudo 4 §2: it
+/// floats as an element would), its box parent its host's box — the host,
+/// or past a box-less host the box above it.
+pub(crate) fn float_side_of(dom: &Dom<TuiExt>, item: BoxItem) -> Option<FloatSide> {
+    let (host, slot) = match item {
+        BoxItem::Node(id) => return float_side(dom, id),
+        BoxItem::Generated(host, slot) => (host, slot),
+    };
+    let c = pseudo_style(dom, host, slot)?;
+    if c.float == crate::layout::Float::None {
+        return None;
+    }
+    // Only a static pseudo-element with `content` has a box of its flow.
+    crate::render::inline::generated::static_pseudo_text(dom, host, slot.into())?;
+    let parent = generated_box_parent(dom, host)?;
+    let pc = dom.node(parent).ext()?.computed.as_deref()?;
+    if !pc.flow.is_block_flow() {
+        return None;
+    }
+    c.float.side(pc.text_direction == TextDirection::Rtl)
+}
+
+/// The computed style of `host`'s `slot` pseudo-element.
+fn pseudo_style(
+    dom: &Dom<TuiExt>,
+    host: NodeId,
+    slot: crate::ext::PseudoSlot,
+) -> Option<&ComputedStyle> {
+    let ext = dom.node(host).ext()?;
+    match slot {
+        crate::ext::PseudoSlot::Before => ext.computed_before.as_deref(),
+        crate::ext::PseudoSlot::After => ext.computed_after.as_deref(),
+    }
+}
+
+/// The element box a pseudo-element of `host` is laid out in: `host`,
+/// or — `host` being box-less (CSS Display 3 §2.5) — its box parent.
+fn generated_box_parent(dom: &Dom<TuiExt>, host: NodeId) -> Option<NodeId> {
+    let parent = if crate::render::box_tree::is_contents(dom, host) {
+        crate::render::box_tree::box_parent(dom, host)?
+    } else {
+        host
+    };
+    (dom.node(parent).node_type() == NodeType::Element).then_some(parent)
+}
+
+/// Whether the box `item` floats ([`float_side_of`]).
+pub(crate) fn is_float_item(dom: &Dom<TuiExt>, item: BoxItem) -> bool {
+    float_side_of(dom, item).is_some()
+}
+
+/// The style of the box `item`: an element's, or a pseudo-element's.
+fn style_of(dom: &Dom<TuiExt>, item: BoxItem) -> Option<&ComputedStyle> {
+    match item {
+        BoxItem::Node(id) => dom.node(id).ext()?.computed.as_deref(),
+        BoxItem::Generated(host, slot) => pseudo_style(dom, host, slot),
+    }
+}
+
+/// The box `item` is laid out in (its containing block for in-flow and
+/// floated content, CSS 2.1 §10.1).
+fn box_parent_of(dom: &Dom<TuiExt>, item: BoxItem) -> Option<NodeId> {
+    match item {
+        BoxItem::Node(id) => crate::render::box_tree::box_parent(dom, id),
+        BoxItem::Generated(host, _) => generated_box_parent(dom, host),
+    }
+}
+
 /// The sides whose floats `id`, styled `c`, clears (CSS 2.1 §9.5.2),
 /// `(left, right)`, the flow-relative keywords resolved against its
 /// containing block's `direction`.
 pub(crate) fn clear_sides(dom: &Dom<TuiExt>, id: NodeId, c: &ComputedStyle) -> (bool, bool) {
-    let rtl = crate::render::box_tree::box_parent(dom, id).and_then(|p| {
+    clear_sides_of(dom, BoxItem::Node(id), c)
+}
+
+/// [`clear_sides`] for the box `item` — an element or a pseudo-element.
+pub(crate) fn clear_sides_of(dom: &Dom<TuiExt>, item: BoxItem, c: &ComputedStyle) -> (bool, bool) {
+    let rtl = box_parent_of(dom, item).and_then(|p| {
         dom.node(p)
             .ext()?
             .computed
@@ -156,17 +231,17 @@ pub(in crate::render::layout_pass) fn with_area<R>(
     out
 }
 
-/// Place the float `id` met in block flow — between block-level boxes,
+/// Place the float `item` met in block flow — between block-level boxes,
 /// where its hypothetical box would have its top at `y` — in the
 /// containing block `[x0, x0 + cb_width)` whose content box starts at
 /// row `content_top` (CSS 2.1 §9.5.1, its own `clear` too, §9.5.2): its
 /// border box.
 pub(in crate::render::layout_pass) fn place_in_block_flow(
     dom: &mut Dom<TuiExt>,
-    id: NodeId,
+    item: BoxItem,
     at: Placement,
 ) -> LayoutRect {
-    with_area(dom, |dom, area| place(dom, area, id, at))
+    with_area(dom, |dom, area| place(dom, area, item, at))
 }
 
 /// Where a float may go: its top not above row `y`, in the containing
@@ -180,16 +255,16 @@ pub(in crate::render::layout_pass) struct Placement {
     pub(in crate::render::layout_pass) content_top: i32,
 }
 
-/// Place float `id` in `area` (and below the floats its `clear` names):
-/// its border box.
+/// Place float `item` in `area` (and below the floats its `clear`
+/// names): its border box.
 pub(in crate::render::layout_pass) fn place(
     dom: &Dom<TuiExt>,
     area: &mut ExclusionArea,
-    id: NodeId,
+    item: BoxItem,
     at: Placement,
 ) -> LayoutRect {
-    let fb = size::FloatBox::of(dom, id, at.cb_width);
-    place_box(dom, area, id, &fb, at)
+    let fb = size::FloatBox::of(dom, item, at.cb_width);
+    place_box(dom, area, item, &fb, at)
 }
 
 /// [`place`] with the float's box already measured. CSS Box 4 §3: the
@@ -199,14 +274,14 @@ pub(in crate::render::layout_pass) fn place(
 pub(in crate::render::layout_pass) fn place_box(
     dom: &Dom<TuiExt>,
     area: &mut ExclusionArea,
-    id: NodeId,
+    item: BoxItem,
     fb: &size::FloatBox,
     at: Placement,
 ) -> LayoutRect {
-    let side = float_side(dom, id).unwrap_or(FloatSide::Left);
-    let y = clearance_floor(dom, area, id, at.y);
+    let side = float_side_of(dom, item).unwrap_or(FloatSide::Left);
+    let y = clearance_floor(dom, area, item, at.y);
     let (x0, x1) = (at.x0, at.x0 + i32::from(at.cb_width));
-    let trim = trim_of(dom, id);
+    let trim = trim_of(dom, item);
     let mut fb = *fb;
     if trim.top && y == at.content_top {
         fb.margin_top = 0;
@@ -235,13 +310,11 @@ pub(in crate::render::layout_pass) fn place_box(
     fb.border_box(m.left, m.top)
 }
 
-/// The edges of `id`'s containing block whose adjoining float margins
+/// The edges of `item`'s containing block whose adjoining float margins
 /// `margin-trim` drops (CSS Box 4 §3): block-start, and inline-start /
 /// -end mapped to left and right by its `direction`.
-fn trim_of(dom: &Dom<TuiExt>, id: NodeId) -> crate::layout::Sides<bool> {
-    let Some(c) = crate::render::box_tree::box_parent(dom, id)
-        .and_then(|p| dom.node(p).ext()?.computed.clone())
-    else {
+fn trim_of(dom: &Dom<TuiExt>, item: BoxItem) -> crate::layout::Sides<bool> {
+    let Some(c) = box_parent_of(dom, item).and_then(|p| dom.node(p).ext()?.computed.clone()) else {
         return crate::layout::Sides::new(false, false, false, false);
     };
     let t = c.margin_trim;
@@ -253,31 +326,66 @@ fn trim_of(dom: &Dom<TuiExt>, id: NodeId) -> crate::layout::Sides<bool> {
     crate::layout::Sides::new(t.block_start, right, false, left)
 }
 
-/// `y`, or the bottom of the floats `id`'s `clear` names when lower
+/// `y`, or the bottom of the floats `item`'s `clear` names when lower
 /// (CSS 2.1 §9.5.2; for a float, its top outer edge goes below them).
 pub(in crate::render::layout_pass) fn clearance_floor(
     dom: &Dom<TuiExt>,
     area: &ExclusionArea,
-    id: NodeId,
+    item: BoxItem,
     y: i32,
 ) -> i32 {
-    let Some(c) = dom.node(id).ext().and_then(|e| e.computed.as_deref()) else {
+    let Some(c) = style_of(dom, item) else {
         return y;
     };
-    let (left, right) = clear_sides(dom, id, c);
+    let (left, right) = clear_sides_of(dom, item, c);
     area.clearance(left, right).map_or(y, |b| b.max(y))
 }
 
-/// After float `id`, placed at the border box `placed`, was laid out:
+/// Lay the float `item`, placed at the border box `rect` in a containing
+/// block `cb_width` cells wide, out: an element by `layout_node`; a
+/// `::before` / `::after` as its own box (`items::AnonymousItem::pseudo`),
+/// kept among the floated pseudo-elements of `owner` — the box whose
+/// children are being laid out — which paint and hit-testing read.
+pub(in crate::render::layout_pass) fn lay_out(
+    dom: &mut Dom<TuiExt>,
+    owner: NodeId,
+    item: BoxItem,
+    rect: LayoutRect,
+    cb_width: u16,
+) {
+    let (host, slot) = match item {
+        BoxItem::Node(id) => {
+            crate::render::layout_pass::layout_node(dom, id, rect, cb_width);
+            return;
+        }
+        BoxItem::Generated(host, slot) => (host, slot),
+    };
+    let Some(pseudo) = crate::render::layout_pass::items::AnonymousItem::pseudo(dom, host, slot)
+    else {
+        return;
+    };
+    let laid_out = pseudo.lay_out(dom, rect, cb_width);
+    if let Some(ext) = dom.node_mut(owner).ext_mut() {
+        ext.floated_pseudos
+            .get_or_insert_with(Default::default)
+            .push(laid_out);
+    }
+}
+
+/// After float `item`, placed at the border box `placed`, was laid out:
 /// make its exclusion as tall as the box it got (an automatic height
 /// resolves from the laid-out content) — it is the area's last float,
 /// as a float's own layout places nothing in this area (it is a block
-/// formatting context root).
+/// formatting context root). A pseudo-element's box is laid out at the
+/// border box it was placed at.
 pub(in crate::render::layout_pass) fn settle_height(
     dom: &mut Dom<TuiExt>,
-    id: NodeId,
+    item: BoxItem,
     placed: LayoutRect,
 ) {
+    let BoxItem::Node(id) = item else {
+        return;
+    };
     let Some(got) = dom.node(id).ext().map(|e| e.layout.height) else {
         return;
     };

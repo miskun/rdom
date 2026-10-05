@@ -91,6 +91,7 @@ mod distribution;
 mod flex;
 pub(crate) mod float;
 mod flow;
+pub(crate) mod generated_atoms;
 pub(crate) mod geometry;
 mod grid;
 pub(crate) mod gutter;

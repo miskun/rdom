@@ -80,7 +80,8 @@ pub(crate) fn record_scroll_content_size(
     // Its anonymous block boxes and their line boxes (§2.2), with
     // scrolled rects like element children's.
     if let Some(ext) = dom.node(id).ext() {
-        for anon in &ext.anonymous_blocks {
+        // Its floated pseudo-elements' boxes too, as its floated children's.
+        for anon in ext.anonymous_blocks.iter().chain(ext.floated_pseudos()) {
             for r in
                 std::iter::once(anon.border_box()).chain(line_rects(&anon.inline_layout, anon.rect))
             {
@@ -320,7 +321,7 @@ pub(super) fn extend_box_overflow(
             }
         }
     }
-    for anon in &ext.anonymous_blocks {
+    for anon in ext.anonymous_blocks.iter().chain(ext.floated_pseudos()) {
         for r in
             std::iter::once(anon.border_box()).chain(line_rects(&anon.inline_layout, anon.rect))
         {

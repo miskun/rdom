@@ -58,6 +58,7 @@ use rdom_core::{Dom, NodeId};
 use crate::ext::{AnonymousIfc, TuiExt};
 use crate::layout::{Align, Direction, LayoutRect, MarginValue, Sides, Size};
 use crate::render::layout_pass::box_sizing::Sizer;
+use crate::render::layout_pass::items::Item;
 use crate::style::ComputedStyle;
 
 pub(super) use intrinsic::content_size;
@@ -68,6 +69,34 @@ use sizing::Space;
 pub(in crate::render::layout_pass) use subgrid_memo::SubgridMemo;
 use template::Bounds;
 use track::{Span, TrackGrid};
+
+/// A grid container (CSS Grid 2 §5): an element, whose items are its
+/// children's boxes (§6.1, `items::items_of`), or a `::before` / `::after`
+/// whose `display` is `grid` / `inline-grid` (CSS Pseudo 4 §2), whose one
+/// item is the anonymous box wrapping its generated text.
+#[derive(Clone, Copy)]
+pub(in crate::render::layout_pass) enum GridBox<'a> {
+    Element(NodeId),
+    Generated(&'a Item),
+}
+
+impl GridBox<'_> {
+    /// Its grid items, in document order.
+    fn items(self, dom: &Dom<TuiExt>) -> Vec<Item> {
+        match self {
+            GridBox::Element(id) => crate::render::layout_pass::items::items_of(dom, id),
+            GridBox::Generated(item) => vec![item.clone()],
+        }
+    }
+
+    /// The element, for an element container.
+    fn element(self) -> Option<NodeId> {
+        match self {
+            GridBox::Element(id) => Some(id),
+            GridBox::Generated(_) => None,
+        }
+    }
+}
 
 /// One of a grid's two sets of tracks.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -219,8 +248,62 @@ pub(super) fn layout_grid_children(
         rows_definite.then_some(container.height),
     );
     let inherit = subgrid::from_parent(dom, id, computed);
-    let grid = size_grid(dom, id, computed, columns, Some(rows), &inherit, true);
-    arrange::arrange(dom, id, computed, grid, container)
+    let owner = GridBox::Element(id);
+    let grid = size_grid(dom, owner, computed, columns, Some(rows), &inherit, true);
+    arrange::arrange(dom, owner, computed, grid, container)
+}
+
+/// Lay out the generated grid container whose one item is `item` (a
+/// `::before` / `::after` styled `computed`, CSS Pseudo 4 §2) inside
+/// `container`, its content box: as [`layout_grid_children`] lays out an
+/// element's — its rows sized into its height when `rows_definite`, else
+/// to their content. Returns the item's box.
+pub(in crate::render::layout_pass) fn layout_generated_grid(
+    dom: &mut Dom<TuiExt>,
+    item: &Item,
+    container: LayoutRect,
+    computed: &ComputedStyle,
+    rows_definite: bool,
+) -> Vec<AnonymousIfc> {
+    let columns = laid_out_axis(computed, Dimension::Columns, Some(container.width));
+    let rows = laid_out_axis(
+        computed,
+        Dimension::Rows,
+        rows_definite.then_some(container.height),
+    );
+    let owner = GridBox::Generated(item);
+    let inherit = subgrid::Inherit::default();
+    let grid = size_grid(dom, owner, computed, columns, Some(rows), &inherit, true);
+    arrange::arrange(dom, owner, computed, grid, container)
+}
+
+/// The content size of the generated grid container whose one item is
+/// `item` (styled `computed`) along `direction` — `intrinsic::content_size`
+/// for a `::before` / `::after` (CSS Grid 2 §5.2).
+pub(in crate::render::layout_pass) fn generated_content_size(
+    dom: &Dom<TuiExt>,
+    item: &Item,
+    computed: &ComputedStyle,
+    direction: Direction,
+    cross_budget: u16,
+    cb_width: u16,
+    max_content: bool,
+) -> u16 {
+    let measure = if max_content {
+        crate::render::layout_pass::intrinsic::Measure::MaxContent
+    } else {
+        crate::render::layout_pass::intrinsic::Measure::MinContent
+    };
+    intrinsic::content_size_with(
+        dom,
+        GridBox::Generated(item),
+        computed,
+        direction,
+        cross_budget,
+        cb_width,
+        measure,
+        &subgrid::Inherit::default(),
+    )
 }
 
 /// Whether a box styled `c` may size with its parent grid's laid-out

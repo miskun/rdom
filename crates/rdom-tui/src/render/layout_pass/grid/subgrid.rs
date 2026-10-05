@@ -452,8 +452,14 @@ fn own_items(
     parent_gap: u16,
     content_width: Option<u16>,
 ) -> Vec<Placed> {
-    let grid: PlacedGrid<'_> =
-        place_grid(dom, id, c, Bounds::default(), Bounds::default(), inherit);
+    let grid: PlacedGrid<'_> = place_grid(
+        dom,
+        super::GridBox::Element(id),
+        c,
+        Bounds::default(),
+        Bounds::default(),
+        inherit,
+    );
     // On the rows, its items wrap to its columns: its parent's, or — a
     // rows-only subgrid — its own, sized at its content width.
     let own_columns: Option<Vec<(u32, u32)>> = match (dimension, &inherit.columns) {
@@ -465,9 +471,17 @@ fn own_items(
         }),
         (Dimension::Rows, None) => content_width.map(|width| {
             let columns = laid_out_axis(c, Dimension::Columns, Some(width));
-            size_grid(dom, id, c, columns, None, inherit, false)
-                .columns
-                .extents()
+            size_grid(
+                dom,
+                super::GridBox::Element(id),
+                c,
+                columns,
+                None,
+                inherit,
+                false,
+            )
+            .columns
+            .extents()
         }),
     };
     let rtl = c.text_direction == TextDirection::Rtl;

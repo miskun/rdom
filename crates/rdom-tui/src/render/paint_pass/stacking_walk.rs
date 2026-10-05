@@ -86,6 +86,10 @@ fn paint_layers(
     viewport: Rect,
 ) {
     for e in entries {
+        if let Some(k) = e.generated {
+            super::inline_paint::paint_floated_pseudo(dom, e.id, k, buf, e.clip, viewport);
+            continue;
+        }
         if e.context {
             paint_stacking_context(dom, e.id, buf, e.clip, viewport);
             continue;

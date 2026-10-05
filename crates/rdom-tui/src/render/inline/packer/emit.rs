@@ -5,7 +5,8 @@
 use crate::layout::WhiteSpace;
 use rdom_core::NodeId;
 
-use super::super::vertical::{self, AtomRows};
+use super::super::boxes::GeneratedAtom;
+use super::super::vertical::{self, AtomAt, AtomRows};
 use super::super::{GeneratedFragment, InlineFragment, LineBox};
 use super::{LinePacker, Origin};
 
@@ -99,19 +100,16 @@ impl LinePacker<'_> {
             if let Some(last) = self.cur_generated.last_mut()
                 && last.host == origin.owner
                 && last.slot == slot
+                && last.atom.is_none()
                 && last.x + i32::from(last.width) == x
             {
                 last.text.push_str(text);
                 last.width = last.width.saturating_add(width);
                 return;
             }
-            self.cur_generated.push(GeneratedFragment {
-                host: origin.owner,
-                slot,
-                x,
-                width,
-                text: text.to_string(),
-            });
+            let mut run = GeneratedFragment::text(origin.owner, slot, x, text);
+            run.width = width;
+            self.cur_generated.push(run);
             return;
         }
         let Origin {
@@ -152,13 +150,6 @@ impl LinePacker<'_> {
     /// `Display::InlineBlock` element participating in IFC as a
     /// single inline-level atom (CSS 2.1 §10.8).
     ///
-    /// Commits any pending word + flushes the pending whitespace
-    /// separator so the atom sits at the natural inline-flow
-    /// cursor. Wrap behavior: atoms wrap-aware via the same `\u{a0}`-
-    /// proxy mechanism as text — emit a width-`width` placeholder
-    /// grapheme to lean on the existing wrap logic, then upgrade
-    /// the just-pushed fragment to `atomic = true`.
-    ///
     /// `rows` is the atom's block-axis geometry; the line it lands on
     /// grows to hold it when the line is settled (`vertical`).
     pub(in crate::render::inline) fn push_atomic_inline_block(
@@ -167,41 +158,9 @@ impl LinePacker<'_> {
         width: u16,
         rows: AtomRows,
     ) {
-        if !self.word_buffer.is_empty() {
-            self.commit_word();
-        }
-        // Honor `pending_space` — a collapsed whitespace between
-        // preceding text and this atom MUST emit a separator
-        // fragment, otherwise `<p>hi <button>X</button> ok</p>`
-        // renders as "hi[ X ] ok" instead of "hi [ X ] ok".
-        // Skip the separator at IFC start (cur_line_width == 0)
-        // to keep the leading-whitespace trim invariant.
-        let separator: u16 = if self.pending_space && self.cur_line_width > 0 {
-            1
-        } else {
-            0
-        };
-        // Wrap if the atom (plus separator) doesn't fit on the
-        // current line and there's already content on the line.
-        let projected = self
-            .cur_line_width
-            .saturating_add(separator)
-            .saturating_add(width);
-        if projected > self.line_width() && self.cur_line_width > 0 {
-            self.break_line();
-            self.pending_space = false;
-            self.pending_space_source = None;
-        } else if separator > 0 {
-            let (sep_origin, sep_offset) = self
-                .pending_space_source
-                .unwrap_or((Origin::text(node, node), 0));
-            self.append_fragment(sep_origin, sep_offset, " ", 1);
-            self.pending_space = false;
-            self.pending_space_source = None;
-        }
-        self.fit_empty_line(width);
-        let x = i32::from(self.cur_line_width);
-        self.cur_atoms.push((self.cur_fragments.len(), rows));
+        let x = self.open_atom(node, width);
+        self.cur_atoms
+            .push((AtomAt::Fragment(self.cur_fragments.len()), rows));
         self.cur_fragments.push(InlineFragment {
             node,
             text_node: node, // sentinel — atom has no source text node
@@ -213,10 +172,77 @@ impl LinePacker<'_> {
             text: String::new(),
             atomic: true,
         });
+        self.close_atom(width);
+    }
+
+    /// Push an atomic inline `::before` / `::after` (CSS Display 3 §2.4,
+    /// CSS Pseudo 4 §2) — `host`'s `slot` pseudo-element, `width` cells
+    /// wide with `rows` — as one generated fragment holding its box,
+    /// placed in the line as an element's atom is
+    /// ([`Self::push_atomic_inline_block`]). Its content is laid out
+    /// inside it by the layout pass.
+    pub(in crate::render::inline) fn push_generated_atom(
+        &mut self,
+        host: NodeId,
+        slot: crate::ext::PseudoSlot,
+        width: u16,
+        rows: AtomRows,
+    ) {
+        let x = self.open_atom(host, width);
+        self.cur_atoms
+            .push((AtomAt::Generated(self.cur_generated.len()), rows));
+        let mut atom = GeneratedFragment::text(host, slot, x, "");
+        atom.width = width;
+        atom.atom = Some(Box::new(GeneratedAtom {
+            y: 0,
+            height: rows.height(),
+            content: None,
+        }));
+        self.cur_generated.push(atom);
+        self.close_atom(width);
+    }
+
+    /// Make room for an atom `width` cells wide at the inline-flow
+    /// cursor: commit any pending word and flush the pending whitespace
+    /// separator (a collapsed space between preceding text and the atom
+    /// must emit one, otherwise `<p>hi <button>X</button> ok</p>` renders
+    /// as "hi[ X ] ok"; none at the IFC start, the leading-whitespace trim
+    /// invariant), wrapping first when the atom (plus separator) does not
+    /// fit beside what the line holds. Its x on the line. `owner` sources
+    /// a separator with no recorded provenance.
+    fn open_atom(&mut self, owner: NodeId, width: u16) -> i32 {
+        if !self.word_buffer.is_empty() {
+            self.commit_word();
+        }
+        let separator: u16 = if self.pending_space && self.cur_line_width > 0 {
+            1
+        } else {
+            0
+        };
+        let projected = self
+            .cur_line_width
+            .saturating_add(separator)
+            .saturating_add(width);
+        if projected > self.line_width() && self.cur_line_width > 0 {
+            self.break_line();
+            self.pending_space = false;
+            self.pending_space_source = None;
+        } else if separator > 0 {
+            let (sep_origin, sep_offset) = self
+                .pending_space_source
+                .unwrap_or((Origin::text(owner, owner), 0));
+            self.append_fragment(sep_origin, sep_offset, " ", 1);
+            self.pending_space = false;
+            self.pending_space_source = None;
+        }
+        self.fit_empty_line(width);
+        i32::from(self.cur_line_width)
+    }
+
+    /// The atom just pushed takes its `width`: whitespace that follows it
+    /// again emits a separator (visible content was emitted).
+    fn close_atom(&mut self, width: u16) {
         self.cur_line_width = self.cur_line_width.saturating_add(width);
-        // Atoms behave like a committed word — any whitespace that
-        // FOLLOWS them must again emit a separator (we just emitted
-        // visible content, so `emitted_any` must be true).
         self.emitted_any = true;
     }
 
@@ -225,7 +251,8 @@ impl LinePacker<'_> {
     pub(super) fn break_line(&mut self) {
         let mut fragments = std::mem::take(&mut self.cur_fragments);
         let mut generated = std::mem::take(&mut self.cur_generated);
-        let (baseline, height) = vertical::settle_line(&mut fragments, &self.cur_atoms);
+        let (baseline, height) =
+            vertical::settle_line(&mut fragments, &mut generated, &self.cur_atoms);
         self.cur_atoms.clear();
         let width = self.cur_line_width;
         self.cur_line_width = 0;

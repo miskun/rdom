@@ -41,9 +41,10 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::layout::WhiteSpace;
 
-use super::vertical::AtomRows;
+use super::vertical::{AtomAt, AtomRows};
 use super::{GeneratedFragment, InlineFragment, LineBox};
 use crate::ext::PseudoSlot;
+use crate::render::box_tree::BoxItem;
 use crate::render::layout_pass::float::lines::LineExclusions;
 
 mod emit;
@@ -100,9 +101,10 @@ pub(super) struct LinePacker<'a> {
     cur_fragments: Vec<InlineFragment>,
     /// Committed generated content on the current line.
     cur_generated: Vec<GeneratedFragment>,
-    /// The atoms on the current line: their fragment's index in
-    /// `cur_fragments` and their rows (`vertical`).
-    cur_atoms: Vec<(usize, AtomRows)>,
+    /// The atoms on the current line: where they are (an element's in
+    /// `cur_fragments`, a pseudo-element's in `cur_generated`) and their
+    /// rows (`vertical`).
+    cur_atoms: Vec<(AtomAt, AtomRows)>,
     cur_line_width: u16,
     /// The top row of the current line: the rows of the lines above.
     cur_top: u16,
@@ -141,7 +143,7 @@ pub(super) struct LinePacker<'a> {
     band: (i32, u16),
     /// Floats met on a line with no room left for them, placed at the
     /// next line's top.
-    pending_floats: Vec<NodeId>,
+    pending_floats: Vec<BoxItem>,
     /// Lines start at the right (inline-start) edge (`direction: rtl`).
     rtl: bool,
 }
@@ -197,8 +199,8 @@ impl<'a> LinePacker<'a> {
         let Some(ex) = self.exclusions.as_deref_mut() else {
             return;
         };
-        for id in std::mem::take(&mut self.pending_floats) {
-            ex.place_float(id, self.cur_top, None);
+        for item in std::mem::take(&mut self.pending_floats) {
+            ex.place_float(item, self.cur_top, None);
         }
         self.band = ex.band(self.cur_top);
     }
@@ -208,15 +210,15 @@ impl<'a> LinePacker<'a> {
     /// narrows, and the line's content shifts past a left float when the
     /// line is settled — else at the next line's top. Without exclusions
     /// (an intrinsic measurement) it is not packed.
-    pub(in crate::render::inline) fn push_float(&mut self, id: NodeId) {
+    pub(in crate::render::inline) fn push_float(&mut self, item: BoxItem) {
         let used = self.line_has_content().then_some(self.cur_line_width);
         let Some(ex) = self.exclusions.as_deref_mut() else {
             return;
         };
-        if ex.place_float(id, self.cur_top, used) {
+        if ex.place_float(item, self.cur_top, used) {
             self.band = ex.band(self.cur_top);
         } else {
-            self.pending_floats.push(id);
+            self.pending_floats.push(item);
         }
     }
 

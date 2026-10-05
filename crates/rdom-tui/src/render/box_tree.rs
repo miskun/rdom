@@ -82,13 +82,14 @@ impl BoxItem {
 
 /// `id`'s child nodes in box-tree order: each `display: contents` child
 /// that holds a block-level box replaced by its own sequence, between
-/// its visible static `::before` / `::after`. A box-less child holding
-/// only inline-level content stays one item (an inline-level one). `id`'s
-/// own block-level `::before` / `::after` (`generated::is_block_pseudo`)
-/// are its first / last items, block-level boxes of its flow.
+/// its inline-level static `::before` / `::after`. A box-less child
+/// holding only inline-level content stays one item (an inline-level
+/// one). `id`'s own block-level and floated `::before` / `::after`
+/// (`generated::sequence_pseudos`) are its first / last items: block-level
+/// boxes and floats of its flow.
 pub(crate) fn box_sequence(dom: &Dom<TuiExt>, id: NodeId) -> Vec<BoxItem> {
     let mut out = Vec::new();
-    let own = crate::render::inline::generated::block_pseudos(dom, id);
+    let own = crate::render::inline::generated::sequence_pseudos(dom, id);
     if own.before {
         out.push(BoxItem::Generated(id, PseudoSlot::Before));
     }
@@ -111,7 +112,7 @@ fn push_sequence(dom: &Dom<TuiExt>, id: NodeId, out: &mut Vec<BoxItem>) -> bool 
         visit();
         if is_contents(dom, child) {
             let mark = out.len();
-            let pseudos = crate::render::inline::generated::visible_inline_pseudos(dom, child);
+            let pseudos = crate::render::inline::generated::inline_level_pseudos(dom, child);
             if pseudos.before {
                 out.push(BoxItem::Generated(child, PseudoSlot::Before));
             }

@@ -266,6 +266,22 @@ fn scroll_token_and_line_hints() {
     let _ = div;
 }
 
+/// C8G-PSEUDO-ATOMS: `GeneratedFragment` is `#[non_exhaustive]` — no
+/// struct literal outside rdom-tui — and a run of generated text is built
+/// with `GeneratedFragment::text`; an atomic pseudo-element's box is one
+/// fragment read through `is_atom` / `atom_rows`.
+#[test]
+fn generated_fragment_construction_hints() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let p = dom.create_element("p");
+    dom.append_child(root, p).unwrap();
+    let run = render::GeneratedFragment::text(p, ext::PseudoSlot::Before, -1, "• ");
+    assert_eq!((run.x, run.width, run.text.as_str()), (-1, 2, "• "));
+    assert!(!run.is_atom());
+    assert_eq!(run.atom_rows(), None);
+}
+
 /// C6G-LINEBOX-API (superseding 0.5.0's `..Default::default()` hint),
 /// C8-RTL-LINE-OVERFLOW:
 /// `LineBox` and `InlineFragment` are `#[non_exhaustive]` — no struct

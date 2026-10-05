@@ -2,15 +2,15 @@
 //! a declared one, else shrink-to-fit — and height, and its margins
 //! (`auto` margins are 0).
 
-use rdom_core::{Dom, NodeId};
+use rdom_core::Dom;
 
 use crate::ext::TuiExt;
 use crate::layout::{Direction, IntrinsicSize, LayoutRect, Size, clamp_size};
-use crate::render::layout_pass::intrinsic::{Keywords, intrinsic_size};
-use crate::style::ComputedStyle;
+use crate::render::box_tree::BoxItem;
+use crate::render::layout_pass::items::Item;
 
 /// A float's border box size and margins.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub(crate) struct FloatBox {
     pub(crate) width: u16,
     pub(crate) height: u16,
@@ -29,12 +29,14 @@ impl FloatBox {
     /// `min-width` / `max-width`; §10.6.7 — an `auto` height is the
     /// content's at that width. Margins resolve against the containing
     /// block's width (§8.3), `auto` as 0.
-    pub(crate) fn of(dom: &Dom<TuiExt>, id: NodeId, cb_width: u16) -> Self {
-        let c = dom
-            .node(id)
-            .ext()
-            .and_then(|e| e.computed.clone())
-            .unwrap_or_else(|| std::rc::Rc::new(ComputedStyle::initial()));
+    ///
+    /// A `::before` / `::after` is sized as its own box
+    /// (`items::AnonymousItem::pseudo`), by the same rules.
+    pub(crate) fn of(dom: &Dom<TuiExt>, item: BoxItem, cb_width: u16) -> Self {
+        let Some(item) = Item::of_box(dom, item) else {
+            return Self::default();
+        };
+        let c = item.computed(dom);
         let m = |v: &crate::layout::MarginValue| i32::from(v.resolve(cb_width));
         let (ml, mt, mr, mb) = (
             m(&c.margin.left),
@@ -43,7 +45,7 @@ impl FloatBox {
             m(&c.margin.bottom),
         );
         let available = (i32::from(cb_width) - ml - mr).clamp(0, i32::from(u16::MAX)) as u16;
-        let kw = Keywords::new(dom, id, &c, Direction::Row, 0, cb_width);
+        let kw = item.keywords(dom, &c, Direction::Row, 0, cb_width);
         let fit = || kw.keyword(&IntrinsicSize::FitContent, Some(cb_width), available);
         let width = match &c.width {
             Size::Auto | Size::Flex(_) => fit(),
@@ -58,7 +60,7 @@ impl FloatBox {
         ));
         // The box's height contribution at that width: a declared height,
         // else the content's, clamped by `min-height` / `max-height`.
-        let height = intrinsic_size(dom, id, Direction::Column, width, cb_width);
+        let height = item.contribution(dom, Direction::Column, width, cb_width, true);
         Self {
             width,
             height,
@@ -97,21 +99,12 @@ impl FloatBox {
 /// Sizing 3 §5.2): its max-content contribution when `max_content`, else
 /// its min-content one, plus its margins — percentages against no basis
 /// (§5.2.1).
-pub(crate) fn outer_contribution(dom: &Dom<TuiExt>, id: NodeId, max_content: bool) -> u16 {
-    let inner = crate::render::layout_pass::intrinsic::contribution(
-        dom,
-        id,
-        Direction::Row,
-        0,
-        0,
-        max_content,
-    );
-    let margins = dom
-        .node(id)
-        .ext()
-        .and_then(|e| e.computed.as_deref())
-        .map_or(0, |c| {
-            i32::from(c.margin.left.resolve(0)) + i32::from(c.margin.right.resolve(0))
-        });
+pub(crate) fn outer_contribution(dom: &Dom<TuiExt>, item: BoxItem, max_content: bool) -> u16 {
+    let Some(item) = Item::of_box(dom, item) else {
+        return 0;
+    };
+    let inner = item.contribution(dom, Direction::Row, 0, 0, max_content);
+    let c = item.computed(dom);
+    let margins = i32::from(c.margin.left.resolve(0)) + i32::from(c.margin.right.resolve(0));
     (i32::from(inner) + margins).clamp(0, i32::from(u16::MAX)) as u16
 }
