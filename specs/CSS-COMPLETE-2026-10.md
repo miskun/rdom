@@ -141,6 +141,7 @@ row comes from.
 | C6-ORDER | `order` | done |
 | C6-DIRECTION-REVERSE | `flex-direction: row-reverse / column-reverse` | done |
 | C6-FLEX-LONGHANDS | `flex-grow` / `flex-basis` longhands; full `flex` shorthand (incl. basis) | done |
+| C6-FLEX-DIRECTION-INITIAL | `flex-direction` initial value `row` (Flexbox §5.1): decouple the block-container axis from `flex-direction`, remove the DIVERGENCES §2 entry | |
 | C6-WRAP | `flex-wrap` / `flex-flow`, multi-line flex containers | |
 | C6-JUSTIFY | `justify-content` (all distribution values) | |
 | C6-ALIGN | `align-items` / `align-self` (incl. `baseline` where meaningful) | |
