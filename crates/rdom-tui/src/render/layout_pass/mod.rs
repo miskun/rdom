@@ -247,7 +247,7 @@ pub(super) fn layout_node(
     // captures the margin-collapse-aware content extent for block-
     // flow elements (CSS 2.1 §10.6.3 — used below to resolve
     // `height: Auto` on this element).
-    let measurement = layout_children(dom, id, inner, &computed);
+    let measurement = layout_children_aligned(dom, id, inner, &computed);
 
     // Collapse the geometry of any `display:none` child subtree. The in-flow
     // layout above filters those children out (they take no space), so without
@@ -328,7 +328,7 @@ pub(super) fn layout_node(
             // differently in the narrower area and the forced gutter
             // row is part of this box, so the `auto` height resolves
             // again from the new measurement.
-            let measurement = layout_children(dom, id, inner_v2, &computed);
+            let measurement = layout_children_aligned(dom, id, inner_v2, &computed);
             resolve_auto_height(
                 dom,
                 id,
@@ -364,13 +364,33 @@ pub(super) fn layout_node(
             .ext()
             .map(|e| e.content_layout)
             .unwrap_or(inner);
-        let _ = layout_children(dom, id, final_inner, &computed);
+        let _ = layout_children_aligned(dom, id, final_inner, &computed);
         record_scroll_content_size(dom, id, final_inner, &computed);
     }
     // The offsets the children were just placed with.
     if let Some(ext) = dom.node_mut(id).ext_mut() {
         crate::runtime::scrollbar::state::note_laid_out(ext);
     }
+}
+
+/// [`layout_children`], with a block container's content shifted on its
+/// block axis by `align-content` (CSS Box Alignment 3 §5.1): laid out
+/// once to measure it, again at its offset when it moves.
+fn layout_children_aligned(
+    dom: &mut Dom<TuiExt>,
+    id: NodeId,
+    inner: LayoutRect,
+    computed: &ComputedStyle,
+) -> Option<block::BlockMeasurement> {
+    let measurement = layout_children(dom, id, inner, computed);
+    let lead = measurement.as_ref().map_or(0, |m| {
+        block::align_content_lead(dom, id, computed, inner, m.content_height)
+    });
+    if lead == 0 {
+        return measurement;
+    }
+    let shifted = LayoutRect::new(inner.x, inner.y + lead, inner.width, inner.height);
+    layout_children(dom, id, shifted, computed)
 }
 
 /// Fragment case: children inherit our container rect directly

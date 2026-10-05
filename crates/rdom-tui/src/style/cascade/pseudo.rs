@@ -124,6 +124,7 @@ pub(super) fn compute_pseudo_style(
     let decls = decls.with(substituted.as_ref(), working.text_direction);
     colors.finalize(&mut working, host_computed.fg, preferred);
 
+    super::apply::finalize_justify_items(&mut working, host_computed);
     finalize_bfc_formation(&mut working);
     working.resolve_viewport_units(cx.sheets.viewport());
     finalize_used_border(&mut working);

@@ -289,6 +289,8 @@ fn every_property_has_important_setter() {
         .justify_content_important(crate::layout::Align::Center.into())
         .align_items_important(crate::layout::Align::Center.into())
         .align_content_important(crate::layout::Align::Center.into())
+        .justify_items_important(crate::layout::Align::Center.into())
+        .justify_self_important(crate::layout::Align::Center.into())
         .align_self_important(crate::layout::Align::Center.into())
         .flex_grow_important(1.0)
         .scrollbar_gutter_important(crate::layout::ScrollbarGutter::Stable)

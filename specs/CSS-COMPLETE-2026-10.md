@@ -146,7 +146,7 @@ row comes from.
 | C6-JUSTIFY | `justify-content` (all distribution values) | done |
 | C6-ALIGN | `align-items` / `align-self` (incl. `baseline` where meaningful) | done |
 | C6-ALIGN-CONTENT | `align-content` | done |
-| C6-PLACE | `place-content` / `place-items` / `place-self`, `justify-items` / `justify-self` (block-level) | |
+| C6-PLACE | `place-content` / `place-items` / `place-self`, `justify-items` / `justify-self` (block-level) | done |
 | C6-GAP | `row-gap` / `column-gap` and two-value `gap` | done |
 | C6-SPLIT | File-size pass on `layout_pass/flex/*` after the above | |
 
@@ -2392,4 +2392,46 @@ row comes from.
   equivalent mutation (their one line is the container's size, so there is no free space) and
   survives, as it must. Changed expectations: the canonical-values table, important-setter coverage,
   the C1 `initial` perturbation and the inherited-set probe gain `align-content`. No snapshot
+  changed.
+- 2026-10-08 — C6-PLACE: `justify-items` (Box Alignment 3 §6.2, with `legacy` / `legacy left |
+  right | center`) and `justify-self` (§6.1), and the `place-content` / `place-items` / `place-self`
+  shorthands (§5.5 / §6.4 / §6.5: `<align> <justify>?`, one value for both — a baseline
+  `place-content` gives `justify-content: start` — each owning its two longhands, shortest
+  serialization, `cssText` naming the shorthand over its longhands like `gap`). The grammar gained
+  `legacy`; a shorthand splits its tokens at the first point where both halves parse. `legacy` —
+  decided, at cascade time: `justify-items`' initial value is `legacy` (`Alignment::LEGACY`), and
+  `finalize_justify_items` (element and pseudo-element cascades) computes it to the parent's value
+  when that is `legacy` with a side, else `normal` (§6.2), so `legacy center` reaches descendants
+  that do not set the property. Checked first: Chromium 130 (Oct 2024) ships `justify-self` for
+  block-level boxes (Firefox: bug 1930584), Chromium 123 `align-content` for block containers;
+  `align-self` does not apply to block-level boxes (§6.2). Layout — `block/align.rs`: a block-level
+  box's effective `justify-self` (`auto` → the parent's `justify-items`, a `legacy` value as its
+  side) other than `normal` / `stretch` sizes an `auto` width `fit-content` (`resolve_block_width`,
+  clamped by `min-*` / `max-*`) and offsets its left margin: `start` / `end` by the containing
+  block's direction, `self-start` / `self-end` by the box's, `left` / `right`, `center` (the lead
+  rounded down), `flex-*` as `start` / `end`, the baseline values `safe start` / `safe end` (§9.3);
+  an `auto` margin takes the space instead (CSS 2.1 §10.3.3 as before). `align-content` on a block
+  container: `layout_children_aligned` (`layout_pass/mod.rs`) measures the content and, when
+  `align_content_lead` moves it, lays the children out again at the offset — `end` / `flex-end` /
+  `last baseline` at the bottom, `center` / `space-around` / `space-evenly` centered, the rest at
+  the top (the distributions' block fallbacks); never for a box whose height is its content's (an
+  `auto` height in block flow); content taller than the box keeps its start under `safe` or in a
+  scroll container. A non-`normal` `align-content` makes a block container an independent
+  formatting context (§5.1; `finalize_bfc_formation`, DESIGN updated). In flex, `justify-items` /
+  `justify-self` parse, cascade and do nothing (§6.1); grid uses them with C7-GRID-ALIGN. Recorded in
+  DIVERGENCES §3: `align-content` does not move an inline-only container's lines (its IFC is laid out
+  at the content box; only block-level content moves), and `justify-self` / `align-self` on
+  absolutely positioned boxes. Red: with the data model in (the rdom-style grammar tests were
+  written with it), four `css_phase6/place.rs` tests failed — the block child stretched `(0, 20)`
+  for `justify-self: start`'s `(0, 3)` and `justify-items: center`'s `(8, 3)`, the overflowing
+  `center` at 0 for -5, `align-content: center` at 0 for 4; the `place-*` flex tests passed (the
+  shorthands set the flex properties); green after. The independent-formatting-context test was
+  written with that rule and mutation-checked. Mutation checks (each alone, reverted and touched):
+  `auto` ignoring the parent's `justify-items` → the `justify-items` test; `legacy` never inherited
+  → the same; no block alignment → three tests; `auto` margins not taking precedence → the margin
+  test; the scroll-container overflow rule off → the `align-content` test; no re-layout at the lead
+  → the same; `center` at 0 → three tests; no independent formatting context → the margin-collapse
+  test. Changed expectations: the C1 `initial` test checks `justify-items` apart — `initial` is
+  `legacy`, which computes to `normal` there; the canonical-values table, important-setter
+  coverage, the perturbation and the inherited-set probe gain the five properties. No snapshot
   changed.

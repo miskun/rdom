@@ -80,7 +80,28 @@ pub(super) fn finalize_bfc_formation(working: &mut ComputedStyle) {
         || matches!(working.display, Display::InlineBlock)
         || !matches!(working.overflow_x, Overflow::Visible)
         || !matches!(working.overflow_y, Overflow::Visible)
-        || matches!(working.position, Position::Absolute | Position::Fixed);
+        || matches!(working.position, Position::Absolute | Position::Fixed)
+        // CSS Box Alignment 3 §5.1: a block container whose
+        // `align-content` is not `normal` is an independent formatting
+        // context.
+        || (working.flow.is_block_flow()
+            && working.align_content.keyword != crate::layout::Align::Normal);
+}
+
+/// CSS Box Alignment 3 §6.2: `justify-items: legacy` (its initial value)
+/// computes to the parent's value when that is `legacy` with a side
+/// (`legacy center`, …), and to `normal` otherwise — so a `legacy` value
+/// reaches the descendants that do not set `justify-items`.
+pub(super) fn finalize_justify_items(working: &mut ComputedStyle, parent: &ComputedStyle) {
+    use crate::layout::{Align, Alignment};
+    if working.justify_items == Alignment::LEGACY {
+        working.justify_items =
+            if parent.justify_items.legacy && parent.justify_items.keyword != Align::Normal {
+                parent.justify_items
+            } else {
+                Alignment::NORMAL
+            };
+    }
 }
 
 /// CSS Display 3 Appendix B: `display: contents` on a replaced element
@@ -217,6 +238,8 @@ pub(super) fn apply_style(
         justify_content: JUSTIFY_CONTENT,
         align_items: ALIGN_ITEMS,
         align_content: ALIGN_CONTENT,
+        justify_items: JUSTIFY_ITEMS,
+        justify_self: JUSTIFY_SELF,
         align_self: ALIGN_SELF,
         text_direction: TEXT_DIRECTION,
         writing_mode: WRITING_MODE,

@@ -152,6 +152,10 @@ pub struct TuiStyle {
     pub align_content: Option<Value<crate::layout::Alignment>>,
     /// `align-self` (§6.1).
     pub align_self: Option<Value<crate::layout::Alignment>>,
+    /// `justify-items` (§6.2).
+    pub justify_items: Option<Value<crate::layout::Alignment>>,
+    /// `justify-self` (§6.1).
+    pub justify_self: Option<Value<crate::layout::Alignment>>,
     /// CSS `direction` (CSS Writing Modes 4 §2.1). Inherited. (`direction`
     /// above is `flex-direction`.)
     pub text_direction: Option<Value<crate::layout::TextDirection>>,
@@ -465,6 +469,12 @@ impl TuiStyle {
             n += 1
         }
         if self.align_self.is_some() {
+            n += 1
+        }
+        if self.justify_items.is_some() {
+            n += 1
+        }
+        if self.justify_self.is_some() {
             n += 1
         }
         if self.text_direction.is_some() {

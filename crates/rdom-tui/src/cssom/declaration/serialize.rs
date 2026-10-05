@@ -107,6 +107,9 @@ fn shorthand_family_of(name: &str) -> Option<&'static str> {
         "padding-top" | "padding-right" | "padding-bottom" | "padding-left" => Some("padding"),
         "margin-top" | "margin-right" | "margin-bottom" | "margin-left" => Some("margin"),
         "row-gap" | "column-gap" => Some("gap"),
+        "align-content" | "justify-content" => Some("place-content"),
+        "align-items" | "justify-items" => Some("place-items"),
+        "align-self" | "justify-self" => Some("place-self"),
         "top" | "right" | "bottom" | "left" => Some("inset"),
         "overflow-x" | "overflow-y" => Some("overflow"),
         "transition-property"

@@ -287,7 +287,8 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 
 ### Flexbox and box alignment
 
-- `place-content` / `place-items` / `place-self`, `justify-items` / `justify-self` — C6-PLACE
+- `align-content` on a block container whose content is inline (an inline formatting context: text, inline boxes) — its block-level content moves (C6-PLACE); not yet scheduled
+- `justify-self` / `align-self` on absolutely positioned boxes (CSS Box Alignment 3 §6.1 / §6.2, in the inset-modified containing block) — not yet scheduled
 
 ### Grid
 

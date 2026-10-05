@@ -92,6 +92,31 @@ pub(super) fn resolve_block_width(
         .size(width_decl, Some(containing_block_width), available)
         .map(i32::from);
 
+    // CSS Box Alignment 3 §6.1: a `justify-self` other than `normal` /
+    // `stretch` sizes an `auto` width as `fit-content` and places the box
+    // in the containing block — unless an `auto` margin takes the space
+    // (CSS 2.1 §10.3.3 then distributes it as before).
+    let justify = super::align::justify_self_of(dom, id, computed);
+    if super::align::aligns(justify) && !ml_auto && !mr_auto {
+        let width = declared_width.unwrap_or_else(|| {
+            i32::from(kw.keyword(
+                &crate::layout::IntrinsicSize::FitContent,
+                Some(containing_block_width),
+                available,
+            ))
+        });
+        let width = i32::from(sizer.floor(
+            clamp_width(width, computed, cb, &kw, available).clamp(0, i32::from(u16::MAX)) as u16,
+        ));
+        let free = cb - ml_cells - mr_cells - width;
+        let offset =
+            super::align::justify_offset(justify, free, rtl, super::align::is_rtl(computed));
+        return ResolvedWidth {
+            margin_left: (ml_cells + offset).clamp(i16::MIN as i32, i16::MAX as i32) as i16,
+            width: width.clamp(0, i32::from(u16::MAX)) as u16,
+        };
+    }
+
     let (ml_final, width_final, _): (i32, i32, i32) = match (declared_width, ml_auto, mr_auto) {
         // Width auto — any auto margins resolve to 0; width absorbs
         // leftover. (Note: width here is outer/border-box, NOT

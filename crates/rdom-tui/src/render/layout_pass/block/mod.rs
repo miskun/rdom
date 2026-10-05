@@ -38,6 +38,7 @@
 //! - [`place`] — placing one block-level child.
 //! - [`runs`] — block-level / inline-level run partitioning.
 
+mod align;
 mod height;
 mod margin_collapse;
 mod place;
@@ -57,6 +58,7 @@ use crate::style::ComputedStyle;
 
 use super::is_in_flow;
 use super::layout_node;
+pub(super) use align::align_content_lead;
 pub(super) use height::nearest_block_ancestor_height_is_definite;
 use height::resolve_block_height;
 #[cfg(debug_assertions)]

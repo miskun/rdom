@@ -123,6 +123,32 @@ pub fn serialize(name: &str, style: &TuiStyle) -> Option<String> {
             .as_ref()
             .and_then(specified)
             .map(|a| crate::parse::values::serialize_alignment(*a)),
+        "justify-items" => style
+            .justify_items
+            .as_ref()
+            .and_then(specified)
+            .map(|a| crate::parse::values::serialize_alignment(*a)),
+        "justify-self" => style
+            .justify_self
+            .as_ref()
+            .and_then(specified)
+            .map(|a| crate::parse::values::serialize_alignment(*a)),
+        // A shorthand serializes when both its longhands are set.
+        "place-content" => {
+            let a = style.align_content.as_ref().and_then(specified)?;
+            let j = style.justify_content.as_ref().and_then(specified)?;
+            Some(crate::parse::values::serialize_place(*a, *j, true))
+        }
+        "place-items" => {
+            let a = style.align_items.as_ref().and_then(specified)?;
+            let j = style.justify_items.as_ref().and_then(specified)?;
+            Some(crate::parse::values::serialize_place(*a, *j, false))
+        }
+        "place-self" => {
+            let a = style.align_self.as_ref().and_then(specified)?;
+            let j = style.justify_self.as_ref().and_then(specified)?;
+            Some(crate::parse::values::serialize_place(*a, *j, false))
+        }
         "align-content" => style
             .align_content
             .as_ref()

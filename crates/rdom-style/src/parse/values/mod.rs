@@ -51,7 +51,8 @@ mod transition;
 
 pub use align::{
     align_keyword, parse_align_content, parse_align_items, parse_align_self, parse_justify_content,
-    serialize_alignment,
+    parse_justify_items, parse_justify_self, parse_place_content, parse_place_items,
+    parse_place_self, serialize_alignment, serialize_place,
 };
 pub use background::{
     BackgroundLayer, BackgroundShorthand, parse_background, parse_background_attachment,

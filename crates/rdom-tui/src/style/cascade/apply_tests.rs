@@ -46,6 +46,8 @@ const PERTURB: &[(&str, &str)] = &[
     ("justify-content", "center"),
     ("align-items", "center"),
     ("align-content", "center"),
+    ("justify-items", "center"),
+    ("justify-self", "center"),
     ("align-self", "center"),
     ("direction", "rtl"),
     ("writing-mode", "vertical-lr"),
@@ -164,6 +166,8 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
         justify_content,
         align_items,
         align_content,
+        justify_items,
+        justify_self,
         align_self,
         text_direction,
         writing_mode,
@@ -247,6 +251,7 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
         justify_content,
         align_items,
         align_content,
+        justify_self,
         align_self,
         text_direction,
         writing_mode,
@@ -277,6 +282,11 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
         counter_increment,
         color_scheme,
     );
+    // CSS Box Alignment 3 §6.2: `justify-items: initial` is `legacy`,
+    // which computes to `normal` under a parent without a `legacy` value.
+    assert_ne!(moved.justify_items, crate::layout::Alignment::NORMAL);
+    assert_eq!(justify_items, crate::layout::Alignment::LEGACY);
+    assert_eq!(got.justify_items, crate::layout::Alignment::NORMAL);
 }
 
 /// CSS Cascade 4 §7.2: `inherit` takes the parent's computed value,

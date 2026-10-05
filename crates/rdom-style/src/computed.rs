@@ -149,6 +149,16 @@ pub struct ComputedStyle {
     /// `align-self` (§6.1): the item's own cross-axis alignment; `auto`
     /// (the initial value) takes its container's `align-items`.
     pub align_self: crate::layout::Alignment,
+    /// `justify-items` (CSS Box Alignment 3 §6.2): the default
+    /// `justify-self` of the box's children. Initial `legacy`, which
+    /// computes to the parent's value when that is `legacy …`, else to
+    /// `normal` (the cascade does this, so a computed style holds
+    /// `legacy` only with a side).
+    pub justify_items: crate::layout::Alignment,
+    /// `justify-self` (§6.1): a block-level box's inline-axis alignment
+    /// in its containing block; `auto` (initial) takes the parent's
+    /// `justify-items`. Ignored in flex layout.
+    pub justify_self: crate::layout::Alignment,
     /// CSS `direction` (CSS Writing Modes 4 §2.1): which edge is
     /// inline-start. Inherited; initial `ltr`. (`direction` above is
     /// `flex-direction`.)
@@ -313,6 +323,8 @@ impl ComputedStyle {
             align_items: crate::layout::Alignment::NORMAL,
             align_content: crate::layout::Alignment::NORMAL,
             align_self: crate::layout::Alignment::AUTO,
+            justify_items: crate::layout::Alignment::LEGACY,
+            justify_self: crate::layout::Alignment::AUTO,
             text_direction: crate::layout::TextDirection::Ltr,
             writing_mode: crate::layout::WritingMode::HorizontalTb,
             overflow_x: Overflow::Visible,

@@ -170,3 +170,147 @@ fn align_content_takes_its_grammar() {
         Alignment::NORMAL
     );
 }
+
+/// §6.1: `justify-self: auto | normal | stretch | <baseline-position> |
+/// <overflow-position>? [ <self-position> | left | right ]`; §6.2:
+/// `justify-items` swaps `auto` for `legacy | legacy && [ left | right |
+/// center ]`, its initial value.
+#[test]
+fn justify_items_and_justify_self_take_their_grammars() {
+    for (css, out) in [
+        ("normal", "normal"),
+        ("stretch", "stretch"),
+        ("first baseline", "baseline"),
+        ("self-end", "self-end"),
+        ("left", "left"),
+        ("safe right", "safe right"),
+        ("center", "center"),
+    ] {
+        assert_eq!(round_trip("justify-self", css).as_deref(), Ok(out), "{css}");
+        assert_eq!(
+            round_trip("justify-items", css).as_deref(),
+            Ok(out),
+            "{css}"
+        );
+    }
+    assert_eq!(round_trip("justify-self", "auto").as_deref(), Ok("auto"));
+    for (css, out) in [
+        ("legacy", "legacy"),
+        ("legacy left", "legacy left"),
+        ("center legacy", "legacy center"),
+        ("LEGACY RIGHT", "legacy right"),
+    ] {
+        assert_eq!(
+            round_trip("justify-items", css).as_deref(),
+            Ok(out),
+            "{css}"
+        );
+    }
+    for bad in [
+        "auto",
+        "legacy start",
+        "legacy legacy",
+        "space-between",
+        "safe legacy",
+    ] {
+        assert_eq!(
+            set("justify-items", bad, &mut TuiStyle::new()),
+            Err(DispatchError::InvalidValue),
+            "{bad:?}"
+        );
+    }
+    for bad in ["legacy", "legacy center", "space-around"] {
+        assert_eq!(
+            set("justify-self", bad, &mut TuiStyle::new()),
+            Err(DispatchError::InvalidValue),
+            "{bad:?}"
+        );
+    }
+    assert!(!inherits("justify-items") && !inherits("justify-self"));
+    let initial = crate::ComputedStyle::initial();
+    assert_eq!(
+        initial.justify_items,
+        Alignment {
+            keyword: Align::Normal,
+            overflow: OverflowAlign::Default,
+            legacy: true,
+        }
+    );
+    assert_eq!(initial.justify_self, Alignment::AUTO);
+}
+
+/// §5.5 / §6.4 / §6.5: `place-content: <'align-content'>
+/// <'justify-content'>?`, `place-items: <'align-items'>
+/// <'justify-items'>?`, `place-self: <'align-self'> <'justify-self'>?` —
+/// one value sets both (a `<baseline-position>` sets `justify-content`
+/// to `start`); each owns its two longhands and serializes as one value
+/// when they agree.
+#[test]
+fn place_shorthands_set_both_axes() {
+    let mut style = TuiStyle::new();
+    set("place-content", "center space-between", &mut style).unwrap();
+    assert_eq!(
+        style.align_content,
+        Some(Value::Specified(Alignment::new(Align::Center)))
+    );
+    assert_eq!(
+        style.justify_content,
+        Some(Value::Specified(Alignment::new(Align::SpaceBetween)))
+    );
+    for (name, css, out) in [
+        (
+            "place-content",
+            "center space-between",
+            "center space-between",
+        ),
+        ("place-content", "safe end", "safe end"),
+        ("place-content", "end end", "end"),
+        ("place-content", "baseline", "baseline"),
+        ("place-content", "last baseline left", "last baseline left"),
+        ("place-items", "end", "end"),
+        ("place-items", "baseline", "baseline"),
+        ("place-items", "center legacy left", "center legacy left"),
+        ("place-items", "safe end start", "safe end start"),
+        ("place-self", "auto", "auto"),
+        ("place-self", "center auto", "center auto"),
+        ("place-self", "stretch self-end", "stretch self-end"),
+    ] {
+        assert_eq!(round_trip(name, css).as_deref(), Ok(out), "{name}: {css}");
+    }
+    let mut style = TuiStyle::new();
+    set("place-content", "baseline", &mut style).unwrap();
+    assert_eq!(
+        style.justify_content,
+        Some(Value::Specified(Alignment::new(Align::Start)))
+    );
+    for (name, bad) in [
+        ("place-content", "left"),
+        ("place-content", "center center center"),
+        ("place-items", "auto"),
+        ("place-items", "legacy"),
+        ("place-self", "legacy center"),
+        ("place-self", ""),
+    ] {
+        assert_eq!(
+            set(name, bad, &mut TuiStyle::new()),
+            Err(DispatchError::InvalidValue),
+            "{name}: {bad:?}"
+        );
+    }
+    assert_eq!(
+        property_mask("place-content"),
+        Some(ImportantMask::ALIGN_CONTENT | ImportantMask::JUSTIFY_CONTENT)
+    );
+    assert_eq!(
+        property_mask("place-items"),
+        Some(ImportantMask::ALIGN_ITEMS | ImportantMask::JUSTIFY_ITEMS)
+    );
+    assert_eq!(
+        property_mask("place-self"),
+        Some(ImportantMask::ALIGN_SELF | ImportantMask::JUSTIFY_SELF)
+    );
+    // Only one longhand set: no shorthand.
+    let mut style = TuiStyle::new();
+    set("align-self", "center", &mut style).unwrap();
+    assert_eq!(serialize("place-self", &style), None);
+}

@@ -146,6 +146,26 @@ fn set_physical(name: &str, value: &[Token], style: &mut TuiStyle) -> Result<(),
         "justify-content" => crate::parse::values::parse_justify_content(value).map(|a| {
             style.justify_content = Some(Value::Specified(a));
         }),
+        // CSS Box Alignment 3 §6.2 / §6.1.
+        "justify-items" => crate::parse::values::parse_justify_items(value).map(|a| {
+            style.justify_items = Some(Value::Specified(a));
+        }),
+        "justify-self" => crate::parse::values::parse_justify_self(value).map(|a| {
+            style.justify_self = Some(Value::Specified(a));
+        }),
+        // CSS Box Alignment 3 §5.5 / §6.4 / §6.5.
+        "place-content" => crate::parse::values::parse_place_content(value).map(|(a, j)| {
+            style.align_content = Some(Value::Specified(a));
+            style.justify_content = Some(Value::Specified(j));
+        }),
+        "place-items" => crate::parse::values::parse_place_items(value).map(|(a, j)| {
+            style.align_items = Some(Value::Specified(a));
+            style.justify_items = Some(Value::Specified(j));
+        }),
+        "place-self" => crate::parse::values::parse_place_self(value).map(|(a, j)| {
+            style.align_self = Some(Value::Specified(a));
+            style.justify_self = Some(Value::Specified(j));
+        }),
         // CSS Box Alignment 3 §5.1.
         "align-content" => crate::parse::values::parse_align_content(value).map(|a| {
             style.align_content = Some(Value::Specified(a));

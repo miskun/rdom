@@ -88,7 +88,7 @@ CSS3 Display Module two-value mapping is the source of truth: `display: block` �
 
 **Classic scrollbars take two passes.** CSS Overflow 3 §3 lets `scrollbar-gutter: auto` follow the platform's scrollbar kind; terminal cells cannot be overlay-composited, so rdom takes the classic path: a scrollbar consumes a row or column. `overflow: scroll` and `scrollbar-gutter: stable` reserve the gutter up front; `overflow: auto` lays out once without it, and when the content overflows an axis, `layout_node` reserves the gutter, lays the children out again in the smaller area and re-resolves the element's `auto` height (the gutter row is part of the box). A smaller area can only increase overflow, so the second pass converges.
 
-**`establishes_new_bfc`** (Phase 1 cascade field): true for `display: flex`, `display: inline-block`, `overflow != visible`, `position: absolute|fixed`. Used by margin-collapse to gate parent-child collapse + by parent-bottom/last-child trapping (a BFC traps its children's margins inside its content height instead of letting them escape upward).
+**`establishes_new_bfc`** (Phase 1 cascade field): true for `display: flex` / `flow-root`, `display: inline-block`, `overflow != visible`, `position: absolute|fixed`, and a block container whose `align-content` is not `normal` (CSS Box Alignment 3 §5.1). Used by margin-collapse to gate parent-child collapse + by parent-bottom/last-child trapping (a BFC traps its children's margins inside its content height instead of letting them escape upward).
 
 ## Roadmap
 

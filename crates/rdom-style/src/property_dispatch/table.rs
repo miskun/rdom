@@ -122,6 +122,8 @@ define_fields! {
     AlignItems => align_items : ALIGN_ITEMS,
     AlignContent => align_content : ALIGN_CONTENT,
     AlignSelf => align_self : ALIGN_SELF,
+    JustifyItems => justify_items : JUSTIFY_ITEMS,
+    JustifySelf => justify_self : JUSTIFY_SELF,
     TextDirection => text_direction : TEXT_DIRECTION,
     WritingMode => writing_mode : WRITING_MODE,
     WhiteSpace => white_space : WHITE_SPACE,
@@ -234,6 +236,13 @@ pub(super) fn fields_of(name: &str) -> Option<&'static [Field]> {
         "align-items" => &[AlignItems],
         "align-content" => &[AlignContent],
         "align-self" => &[AlignSelf],
+        "justify-items" => &[JustifyItems],
+        "justify-self" => &[JustifySelf],
+        // CSS Box Alignment 3 §5.5 / §6.4 / §6.5: each shorthand sets its
+        // two longhands.
+        "place-content" => &[AlignContent, JustifyContent],
+        "place-items" => &[AlignItems, JustifyItems],
+        "place-self" => &[AlignSelf, JustifySelf],
         "white-space" => &[WhiteSpace],
         "user-select" => &[UserSelect],
         "pointer-events" => &[PointerEvents],

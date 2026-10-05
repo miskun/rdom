@@ -492,3 +492,30 @@ fn align_content_hints() {
     assert!(style::parse::values::parse_align_content(&tokens).is_some());
     assert!(ImportantMask::ALIGN_CONTENT.intersects(ImportantMask::all()));
 }
+
+/// C6-PLACE: the `justify_items` / `justify_self` fields, bits and
+/// builders, `Alignment::LEGACY`, and the `place-*` parsers.
+#[test]
+fn place_hints() {
+    let s = TuiStyle::new()
+        .justify_items(Alignment::LEGACY)
+        .justify_self(Align::Center.into());
+    assert_eq!(s.justify_items, Some(Value::Specified(Alignment::LEGACY)));
+    let ComputedStyle {
+        justify_items,
+        justify_self,
+        ..
+    } = ComputedStyle::initial();
+    assert_eq!(
+        (justify_items, justify_self),
+        (Alignment::LEGACY, Alignment::AUTO)
+    );
+    let tokens = style::parse::tokenize("center end").unwrap();
+    assert!(style::parse::values::parse_place_content(&tokens).is_some());
+    assert!(style::parse::values::parse_place_items(&tokens).is_some());
+    assert!(style::parse::values::parse_place_self(&tokens).is_some());
+    assert!(
+        (ImportantMask::JUSTIFY_ITEMS | ImportantMask::JUSTIFY_SELF)
+            .intersects(ImportantMask::all())
+    );
+}

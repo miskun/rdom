@@ -81,6 +81,12 @@ impl Alignment {
     pub const NORMAL: Self = Self::new(Align::Normal);
     /// `auto`, the initial value of the `*-self` properties.
     pub const AUTO: Self = Self::new(Align::Auto);
+    /// `legacy`, the initial value of `justify-items`.
+    pub const LEGACY: Self = Self {
+        keyword: Align::Normal,
+        overflow: OverflowAlign::Default,
+        legacy: true,
+    };
 
     /// `keyword` with no overflow position.
     pub const fn new(keyword: Align) -> Self {
