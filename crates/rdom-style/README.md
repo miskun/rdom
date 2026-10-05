@@ -76,14 +76,26 @@ The leaf crate carries the **values**, not the cascade. Cascade lives in
   `white-space`, `overflow`, `overflow-x`, `overflow-y`,
   `scrollbar-gutter`, `scroll-behavior`.
 - **Sizing and box** — `width`, `height`, `min-width`, `max-width`,
-  `min-height`, `max-height`, `box-sizing`, `aspect-ratio`, `gap`, `padding` and
-  `margin` (+ four longhands each, `margin: auto`), `border` and
+  `min-height`, `max-height` (cells, `%`, `calc()`, `none` for `max-*`,
+  and the intrinsic keywords `min-content` / `max-content` /
+  `fit-content` / `fit-content()`), `box-sizing` (initial `content-box`),
+  `aspect-ratio`, `contain-intrinsic-size` (+ `-width` / `-height` /
+  `-inline-size` / `-block-size`), `gap`, `padding` and
+  `margin` (+ four longhands each, `margin: auto`), `margin-trim`, `border` and
   `border-top` / `-right` / `-bottom` / `-left` (width, style and color
   in any order: `border: 1px solid red`), `border-style`,
   `border-color` and `border-width` (1–4 values, + four per-side
   longhands each), `border-radius` (+ four per-corner longhands),
   `box-shadow`, `border-collapse`, `border-spacing` (parsed and inherited;
   table layout uses it from C13-TFC).
+- **Writing modes and logical properties** — `direction`, `writing-mode`
+  (horizontal; the vertical values parse and lay out horizontally), and
+  the flow-relative forms, mapped for the element's `direction`:
+  `inline-size` / `block-size` (+ `min-` / `max-`), `margin-inline` /
+  `-block`, `padding-inline` / `-block`, `inset-inline` / `-block` (+
+  `-start` / `-end` longhands each), `border-inline` / `-block` (+
+  `-start` / `-end`, and `-color` / `-style` / `-width` of each), and
+  `border-start-start-radius` and the other three corners.
 - **Generated content** — `content`, `counter-reset`,
   `counter-increment`.
 - **Positioning** — `position` (incl. `sticky`), `top`, `right`,

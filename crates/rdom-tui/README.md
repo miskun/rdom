@@ -94,6 +94,8 @@ a UA `!important` rule beats an author `!important` rule.
 `Stylesheet::new()` bakes in UA defaults (`:disabled { color: <muted>; user-select: none }`, …).
 `Stylesheet::bare()` skips them for tests.
 
+Boxes size as `box-sizing: content-box`, the CSS initial value: `width`, `height` and `min-*` / `max-*` measure the content box, padding and border lie outside it (form controls are `border-box` in the UA sheet); start a sheet with `*, ::before, ::after { box-sizing: border-box }` to size every box by its border.
+
 ## Pseudo-elements and `content`
 
 ```rust

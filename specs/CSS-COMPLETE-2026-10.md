@@ -1785,3 +1785,14 @@ row comes from.
   with `::before`, `::after` and both painted `next` on row 0 (nothing of `<`/`>`), the flex item the
   same, `margin: 1 0` left the sibling at row 1 (`["      ", "next  ", …]`); green after. No
   expectation or snapshot changed.
+- 2026-10-07 — C5G-MIGRATION-DOCS (gate fix, docs): the content-box Breaking note (rdom-tui) now names
+  the two changes that reach a box even under the `border-box` reset — the padding-plus-border floor
+  (`height: 1; border: solid` is 2 rows; points to the Fixed entry) and `min-height` / `max-height` on
+  an `auto` height bounding the box `box-sizing` names (0.5 clamped the content height: checked
+  against `v0.5.0`'s `resolve_auto_height`; `min-height: 5; border: solid` 7 rows → 5). New "Upgrading
+  from 0.5" callout at the top of `[Unreleased]`: content-box and the floor, `border` resets, signed
+  `scroll_x`, sealed traits, opaque `ImportantMask`, the typed values / new variants, line-box
+  heights, `var()` / `attr()` on `pending`. rdom-tui README: the content-box default and the reset,
+  under Stylesheets (it has no layout section). Root README: 163 UA rules (the count
+  `ua::tests` pins; was 150). rdom-style README: the sizing keywords and `none`, `contain-intrinsic-*`,
+  `margin-trim`, and a writing-modes / logical-properties group. Docs only — no test.
