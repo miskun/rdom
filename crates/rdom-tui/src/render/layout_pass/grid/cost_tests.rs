@@ -5,7 +5,9 @@
 
 use std::cell::Cell;
 
+use super::Dimension;
 use super::contribution::MEASURES;
+use super::size::RUNS;
 use crate::render::Rect;
 use crate::render::layout_pass::intrinsic::memo_tests::{COLUMN_WALKS, ROW_WALKS};
 use crate::{CascadeExt, LayoutExt, TuiDom};
@@ -77,4 +79,59 @@ fn a_sizing_run_measures_a_contribution_once_however_often_it_is_read() {
         12,
     );
     assert_eq!(measures, 10 * 12);
+}
+
+/// The axes each `size_grid` call of one layout of `css` (a grid `.g`
+/// holding an empty `.r` and a `.t` of text) sized, in order.
+fn runs_per_call(css: &str) -> Vec<Vec<Dimension>> {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let g = dom.create_element("div");
+    dom.set_attribute(g, "class", "g").unwrap();
+    dom.append_child(root, g).unwrap();
+    let mut item = |class: &str| {
+        let e = dom.create_element("div");
+        dom.set_attribute(e, "class", class).unwrap();
+        dom.append_child(g, e).unwrap();
+        e
+    };
+    item("r");
+    let t = item("t");
+    let text = dom.create_text_node("aaaa bbbb cccc dddd eeee");
+    dom.append_child(t, text).unwrap();
+    let sheet = rdom_css::from_css_strict(css).expect("sheet parses");
+    dom.cascade(&sheet);
+    RUNS.with(|r| r.borrow_mut().clear());
+    dom.layout_dom(Rect::new(0, 0, 20, 12));
+    let mut calls: Vec<Vec<Dimension>> = Vec::new();
+    for run in RUNS.with(|r| r.borrow().clone()) {
+        match run {
+            None => calls.push(Vec::new()),
+            Some(d) => calls.last_mut().expect("a run inside a call").push(d),
+        }
+    }
+    calls
+}
+
+/// CSS Grid 2 §11.1 steps 3–4 re-resolve the columns, then the rows,
+/// "once only": a grid whose ratio item's width changes with its row
+/// sizes each axis twice in the calls that size its rows — columns,
+/// rows, columns, rows — and never more; one with nothing to re-resolve
+/// sizes each axis once a call.
+#[test]
+fn re_resolution_is_bounded_to_once_an_axis() {
+    use Dimension::{Columns as C, Rows as R};
+    let calls = runs_per_call(
+        ".g { display: grid; grid-template-columns: auto 1fr } \
+         .r { height: 100%; aspect-ratio: 5 }",
+    );
+    assert!(calls.iter().any(|c| c == &[C, R, C, R]), "{calls:?}");
+    assert!(
+        calls
+            .iter()
+            .all(|c| c == &[C] || c == &[C, R] || c == &[C, R, C, R]),
+        "{calls:?}"
+    );
+    let calls = runs_per_call(".g { display: grid; grid-template-columns: auto 1fr }");
+    assert!(calls.iter().all(|c| c == &[C] || c == &[C, R]), "{calls:?}");
 }

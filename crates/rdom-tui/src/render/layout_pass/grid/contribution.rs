@@ -42,6 +42,10 @@ pub(super) struct Measured<'a> {
     /// Rows added to each item's contributions: its baseline shim
     /// (§11.5 step 1); none past the end.
     shims: Vec<u32>,
+    /// Per item on the columns: the border-box width its aspect ratio
+    /// transfers from a definite height — its min- and max-content
+    /// contributions then (CSS Sizing 4 §5.1); none past the end.
+    transfers: Vec<Option<u16>>,
     cache: Vec<[Option<u32>; 3]>,
 }
 
@@ -83,6 +87,7 @@ impl<'a> Measured<'a> {
             budgets,
             auto_min,
             shims: Vec::new(),
+            transfers: Vec::new(),
             cache: vec![[None; 3]; placed.len()],
         }
     }
@@ -90,6 +95,13 @@ impl<'a> Measured<'a> {
     /// Add `shims[i]` to item `i`'s contributions (§11.5 step 1).
     pub(super) fn with_shims(mut self, shims: Vec<u32>) -> Self {
         self.shims = shims;
+        self
+    }
+
+    /// Contribute `transfers[i]` as item `i`'s min- and max-content
+    /// border box when it is set.
+    pub(super) fn with_transfers(mut self, transfers: Vec<Option<u16>>) -> Self {
+        self.transfers = transfers;
         self
     }
 
@@ -116,9 +128,16 @@ impl<'a> Measured<'a> {
     /// box and its margins.
     fn outer(&self, i: usize, max_content: bool) -> u32 {
         let (cross, cb) = self.budgets[i];
-        let border_box =
-            self.item(i)
-                .contribution(self.dom, self.dimension.direction(), cross, cb, max_content);
+        let border_box = match self.transfers.get(i).copied().flatten() {
+            Some(width) => width,
+            None => self.item(i).contribution(
+                self.dom,
+                self.dimension.direction(),
+                cross,
+                cb,
+                max_content,
+            ),
+        };
         with_margins(border_box, self.margins(i))
     }
 

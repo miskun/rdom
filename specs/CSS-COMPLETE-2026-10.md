@@ -160,6 +160,9 @@ row comes from.
 | C7-GRID-AUTO | `grid-auto-columns` / `grid-auto-rows` | done |
 | C7-GRID-ALIGN | Box Alignment in grid (`justify-*` / `align-*` / `place-*`) | done |
 | C7-SUBGRID | `subgrid` | |
+| C7-GRID-RERESOLVE | CSS Grid 2 §11.1 steps 3–4: the columns, then the rows, sized again once when the rows changed an item's column contribution (part 1 follow-up) | done |
+| C7-ABSPOS-PADDING-EDGE | An absolutely positioned box's containing block is its positioned ancestor's padding box (CSS 2.1 §10.1, Grid §9.1) (part 1 follow-up) | |
+| C7-SPLIT | File-size pass on `layout_pass/grid/*` and the files Phase 7 touched (TECH_DEBT `SIZE-1`) | |
 
 ### Phase 8 — Positioning, floats, overflow, scrolling (audit §3.10, §3.11)
 
@@ -3911,3 +3914,26 @@ row comes from.
   `grid/mod.rs` (491 lines with C7-GRID-ALIGN, and §11.1 steps 3–4 grow it) for `grid/size.rs` —
   `size_grid`, `tracks_of`, `run`, `trim` and their records; `mod.rs` keeps the axes, `Grid`, the
   shared item helpers and `layout_grid_children` (225 / 288 lines). Moves only.
+- 2026-10-08 — C7-GRID-RERESOLVE (part 1 follow-up; row added to the Phase 7 table with the other two):
+  CSS Grid 2 §11.1 steps 3–4. In a terminal an item's min-content width depends on its height only
+  through a preferred aspect ratio (no orthogonal flows, no replaced content; text wrapping changes a
+  height, never a min-content width), so that is the change step 3 detects. CSS Sizing 4 §5.1 first:
+  an `auto`-width item with a ratio and a definite height — declared, a percentage of its grid area
+  once the rows are sized, or stretched under `align-self: stretch` (Grid §6.2: a stretched grid item's
+  size is definite) — takes its width from the ratio, in layout (`arrange::ItemFit::transferred_width`,
+  replacing part 1's `normal`-only transfer from a declared height) and as its min- and max-content
+  contribution to its columns (`arrange::ratio_width` → `Budgets::transfers` →
+  `contribution::Measured::with_transfers`). `size::size_grid` then runs the steps: (1) the columns
+  with the transfers known without rows, (2) the rows, (3) the transfers again against the rows' areas
+  and, when any differs, the columns sized again, once — (4) then the rows again, once, when the
+  columns' extents moved. Bounded as the spec bounds it: at most two runs an axis per `size_grid` call
+  (`cost_tests::re_resolution_is_bounded_to_once_an_axis`, counting the runs per call with a test-only
+  `RUNS` log: `[C, R, C, R]` for the re-resolving grid, `[C]` / `[C, R]` for a plain one). Red:
+  `css_phase7/reresolve.rs` (3) failed with the transfers ignored (the ratio item's column 0 wide, `t`
+  at x 0; `(0, 20, 2)` for the step-4 grid); with step 3 off two failed (and the counting test), with
+  step 4 off the step-4 test (`(10, 10, 2)`: the row left at 2); green after. Changed expectation:
+  `css_phase7/align.rs`'s aspect-ratio test — `align-self: stretch` now stretches the height to 8 and
+  the ratio gives the `auto` width 16 from it (was 10, the area's width): the stretched size is
+  definite, so §5.1 transfers it; the item overflows its fixed 10-cell column. No snapshot changed.
+  DIVERGENCES: §2's "columns are not sized again after the rows" entry goes; §1's `aspect-ratio`
+  entry names grid.

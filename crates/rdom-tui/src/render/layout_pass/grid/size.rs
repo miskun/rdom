@@ -21,7 +21,9 @@ use crate::style::ComputedStyle;
 
 /// Size the grid of `id` (styled `computed`): its items placed (§8.5),
 /// its columns sized under `columns` (§11.3), then — with `rows` — its
-/// rows at the columns' widths (§11.1 steps 1–2).
+/// rows at the columns' widths (§11.1 steps 1–2), and the columns and
+/// rows once more each when the rows changed what an item contributes to
+/// the columns (steps 3–4).
 pub(super) fn size_grid(
     dom: &Dom<TuiExt>,
     id: NodeId,
@@ -29,6 +31,8 @@ pub(super) fn size_grid(
     columns: AxisContext,
     rows: Option<AxisContext>,
 ) -> Grid {
+    #[cfg(test)]
+    RUNS.with(|r| r.borrow_mut().push(None));
     let mut children = items::items_of(dom, id);
     // §8.5: placement takes the items in order-modified document order
     // (CSS Display 3 §3).
@@ -62,58 +66,62 @@ pub(super) fn size_grid(
     for p in &mut placement.items {
         p.trim = trim(computed, p, placement.columns, placement.rows);
     }
-    let mut column_grid = tracks_of(
-        &explicit_columns,
-        &computed.grid_auto_columns,
-        Extent {
-            count: placement.columns,
-            before: placement.columns_before,
-        },
-        &placement.items,
-        Dimension::Columns,
-        columns.bounds,
-    );
-    // Columns measure their items with no width yet: a percentage of it
-    // is cyclic (CSS Sizing 3 §5.2.1), so 0.
-    let budgets = vec![(0, 0); placement.items.len()];
-    run(
-        dom,
-        &mut column_grid,
-        &placement.items,
-        Dimension::Columns,
-        Budgets {
-            budgets,
+    let n = placement.items.len();
+    let placed = &placement.items;
+    let column_extent = Extent {
+        count: placement.columns,
+        before: placement.columns_before,
+    };
+    let row_extent = Extent {
+        count: placement.rows,
+        before: placement.rows_before,
+    };
+    // The columns sized for items that transfer `transfers` (their
+    // ratio widths) to them. Columns measure their items with no width
+    // yet: a percentage of it is cyclic (CSS Sizing 3 §5.2.1), so 0.
+    let size_columns = |transfers: &[Option<u16>]| {
+        let mut grid = tracks_of(
+            &explicit_columns,
+            &computed.grid_auto_columns,
+            column_extent,
+            placed,
+            Dimension::Columns,
+            columns.bounds,
+        );
+        let budgets = Budgets {
+            budgets: vec![(0, 0); n],
             shims: Vec::new(),
-        },
-        columns,
-        computed,
-    );
-    let mut baselines = Vec::new();
-    let row_grid = rows.map(|rows| {
-        let mut row_grid = tracks_of(
+            transfers: transfers.to_vec(),
+        };
+        run(
+            dom,
+            &mut grid,
+            placed,
+            Dimension::Columns,
+            budgets,
+            columns,
+            computed,
+        );
+        grid
+    };
+    // The rows sized at `column_grid`'s widths, and the baseline shims.
+    let size_rows = |column_grid: &TrackGrid, rows: AxisContext| {
+        let mut grid = tracks_of(
             &explicit_rows,
             &computed.grid_auto_rows,
-            Extent {
-                count: placement.rows,
-                before: placement.rows_before,
-            },
-            &placement.items,
+            row_extent,
+            placed,
             Dimension::Rows,
             rows.bounds,
         );
         // Each item's content wraps to its grid area's width, less its
         // margins (§11.1 step 2).
         let extents = column_grid.extents();
-        let areas: Vec<u16> = placement
-            .items
+        let areas: Vec<u16> = placed
             .iter()
-            .map(|p| {
-                let area = extents[p.columns.end - 1].1 - extents[p.columns.start].0;
-                area.min(u32::from(u16::MAX)) as u16
-            })
+            .map(|p| span_size(&extents, p.columns.start, p.columns.end))
             .collect();
-        let budgets = placement
-            .items
+        let budgets = placed
             .iter()
             .zip(&areas)
             .map(|(p, &area)| {
@@ -125,20 +133,48 @@ pub(super) fn size_grid(
             .collect();
         // §11.5 step 1: the baseline-aligned items' shims count toward
         // their rows.
-        baselines = baseline::shims(dom, computed, &placement.items, &areas);
+        let baselines = baseline::shims(dom, computed, placed, &areas);
         let shims = baselines
             .iter()
             .map(|s| s.map_or(0, |s| s.offset.max(0) as u32))
             .collect();
+        let budgets = Budgets {
+            budgets,
+            shims,
+            transfers: Vec::new(),
+        };
         run(
             dom,
-            &mut row_grid,
-            &placement.items,
+            &mut grid,
+            placed,
             Dimension::Rows,
-            Budgets { budgets, shims },
+            budgets,
             rows,
             computed,
         );
+        (grid, baselines)
+    };
+    // §11.1 step 1: the columns, the ratio items' widths transferred from
+    // the heights known without the rows.
+    let transfers = ratio_widths(dom, computed, placed, None);
+    let mut column_grid = size_columns(&transfers);
+    let mut baselines = Vec::new();
+    let row_grid = rows.map(|rows| {
+        // Step 2: the rows at the columns' widths.
+        let (mut row_grid, mut shims) = size_rows(&column_grid, rows);
+        // Step 3: an item whose min-content contribution to the columns
+        // changed with the rows — a ratio item whose height is now
+        // definite — has the columns sized again, once.
+        let again = ratio_widths(dom, computed, placed, Some(&row_grid.extents()));
+        if again != transfers {
+            let before = column_grid.extents();
+            column_grid = size_columns(&again);
+            // Step 4: the rows again, once, if the columns moved.
+            if column_grid.extents() != before {
+                (row_grid, shims) = size_rows(&column_grid, rows);
+            }
+        }
+        baselines = shims;
         row_grid
     });
     let axis = |explicit: &Explicit<'_>, before: usize| AxisLines {
@@ -257,6 +293,9 @@ fn tracks_of(
 struct Budgets {
     budgets: Vec<(u16, u16)>,
     shims: Vec<u32>,
+    /// Per item on the columns: the width its aspect ratio transfers
+    /// from a definite height, its contribution then (CSS Sizing 4 §5.1).
+    transfers: Vec<Option<u16>>,
 }
 
 /// Size `grid` (§11.3) for `placed`'s items along `dimension`, each
@@ -272,7 +311,10 @@ fn run(
 ) {
     let spans = contribution::spans(placed, dimension);
     let mut measured = contribution::Measured::new(dom, placed, dimension, grid, budgets.budgets)
-        .with_shims(budgets.shims);
+        .with_shims(budgets.shims)
+        .with_transfers(budgets.transfers);
+    #[cfg(test)]
+    RUNS.with(|r| r.borrow_mut().push(Some(dimension)));
     let (min, max) = content_bounds(computed, dimension);
     sizing::size_tracks(
         grid,
@@ -285,4 +327,37 @@ fn run(
             max: max.map(u32::from),
         },
     );
+}
+
+/// The extent of tracks `start..end` of `extents` (each track's start
+/// and end offset), gutters included.
+fn span_size(extents: &[(u32, u32)], start: usize, end: usize) -> u16 {
+    let size = extents[end - 1].1 - extents[start].0;
+    size.min(u32::from(u16::MAX)) as u16
+}
+
+/// Each item's width transferred through its aspect ratio from a definite
+/// height (`arrange::ratio_width`), the rows' extents `rows` giving its
+/// grid area's height once they are sized.
+fn ratio_widths(
+    dom: &Dom<TuiExt>,
+    container: &ComputedStyle,
+    placed: &[Placed],
+    rows: Option<&[(u32, u32)]>,
+) -> Vec<Option<u16>> {
+    placed
+        .iter()
+        .map(|p| {
+            let area = rows.map(|r| span_size(r, p.rows.start, p.rows.end));
+            super::arrange::ratio_width(dom, p, container, area)
+        })
+        .collect()
+}
+
+#[cfg(test)]
+thread_local! {
+    /// The sizing runs made, by axis, in order, each `size_grid` call
+    /// opening with a `None` (tests only).
+    pub(super) static RUNS: std::cell::RefCell<Vec<Option<Dimension>>> =
+        const { std::cell::RefCell::new(Vec::new()) };
 }

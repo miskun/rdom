@@ -159,7 +159,10 @@ fn safe_alignment_keeps_an_overflowing_item_at_the_start() {
 /// ratio is not stretched — it is "sized consistent with the size
 /// calculation rules for block-level elements": its `auto` width fills
 /// the area, its `auto` height follows the ratio, at the area's start.
-/// `stretch` stretches it on both axes.
+/// `align-self: stretch` stretches its height instead, and a stretched
+/// size being definite (Grid §6.2 / CSS Sizing 4 §5.1), the ratio gives
+/// its `auto` width from it — wider than the area here
+/// (C7-GRID-RERESOLVE).
 #[test]
 fn an_item_with_an_aspect_ratio_is_sized_as_a_block() {
     let ratio = |item: &str| {
@@ -172,7 +175,7 @@ fn an_item_with_an_aspect_ratio_is_sized_as_a_block() {
         )[0]
     };
     assert_eq!(ratio(""), (0, 0, 10, 5));
-    assert_eq!(ratio("align-self: stretch"), (0, 0, 10, 8));
+    assert_eq!(ratio("align-self: stretch"), (0, 0, 16, 8));
     assert_eq!(ratio("align-self: end"), (0, 3, 10, 5));
 }
 

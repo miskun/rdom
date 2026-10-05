@@ -25,7 +25,7 @@ use super::placement::Placed;
 use super::{Grid, content};
 use crate::ext::{AnonymousIfc, TuiExt};
 use crate::layout::{
-    Align, Alignment, AspectRatio, Direction, LayoutRect, MarginValue, Sides, TextDirection,
+    Align, Alignment, AspectRatio, Direction, LayoutRect, MarginValue, Sides, Size, TextDirection,
     clamp_size,
 };
 use crate::render::layout_pass::block::justify_offset;
@@ -160,6 +160,31 @@ fn fit(
     LayoutRect::new(area.x + f.m.left + x, area.y + f.m.top + y, width, height)
 }
 
+/// The border-box width `p`'s preferred aspect ratio gives it from a
+/// definite height (CSS Sizing 4 §5.1) in an area `area_h` tall (`None`
+/// before the rows are sized) — what it contributes to its columns
+/// (CSS Grid 2 §11.5), clamped by `min-width` / `max-width`. `None` when
+/// its width does not come from the ratio.
+pub(super) fn ratio_width(
+    dom: &Dom<TuiExt>,
+    p: &Placed,
+    container: &ComputedStyle,
+    area_h: Option<u16>,
+) -> Option<u16> {
+    // Its columns are not sized yet: percentages against them are cyclic
+    // (CSS Sizing 3 §5.2.1), so 0.
+    let f = ItemFit::new(dom, p, container, 0);
+    let width = f.transferred_width(dom, area_h)?;
+    let kw = p
+        .item
+        .keywords(dom, &f.c, Direction::Row, area_h.unwrap_or(0), 0);
+    Some(kw.sizer().floor(clamp_size(
+        width,
+        kw.min(&f.c.min_width, Some(0), 0),
+        kw.max(&f.c.max_width, Some(0), 0),
+    )))
+}
+
 /// The size of a baseline-aligned item `p` in a grid area `area_width`
 /// wide whose height is not known yet (its row is being sized): its
 /// border box — the width it will have, the height it has unstretched —
@@ -229,36 +254,55 @@ impl<'a> ItemFit<'a> {
         let (c, item, cb) = (&self.c, self.item, self.cb);
         let available_w = fill(cb, self.m.left, self.m.right);
         let budget = area_h.unwrap_or(0);
-        let definite_h = item
-            .keywords(dom, c, Direction::Column, available_w, cb)
-            .size(&c.height, area_h, fill(budget, self.m.top, self.m.bottom));
         let kw = item.keywords(dom, c, Direction::Row, budget, cb);
         let stretch = !self.auto.left
             && !self.auto.right
             && matches!(self.justify.keyword, Align::Normal | Align::Stretch);
         let width = match kw.size(&c.width, Some(cb), available_w) {
             Some(w) => w,
-            // A block-level box with a ratio and a definite height takes
-            // its width from them (CSS Sizing 4 §5.1).
-            None if self.justify.keyword == Align::Normal && definite_h.is_some() => self
-                .ratio
-                .zip(definite_h)
-                .and_then(|(r, h)| aspect_cross_from_main(h, r, Direction::Column, c, cb))
-                .unwrap_or(available_w),
-            None if stretch => available_w,
-            // Fit-content: the available space clamped between the min-
-            // and max-content sizes (CSS Sizing 3 §3.1).
-            None => {
-                let min = item.content_extreme(dom, Direction::Row, budget, cb, false);
-                let max = item.content_extreme(dom, Direction::Row, budget, cb, true);
-                max.min(min.max(available_w))
-            }
+            None => match self.transferred_width(dom, area_h) {
+                Some(w) => w,
+                None if stretch => available_w,
+                // Fit-content: the available space clamped between the
+                // min- and max-content sizes (CSS Sizing 3 §3.1).
+                None => {
+                    let min = item.content_extreme(dom, Direction::Row, budget, cb, false);
+                    let max = item.content_extreme(dom, Direction::Row, budget, cb, true);
+                    max.min(min.max(available_w))
+                }
+            },
         };
         kw.sizer().floor(clamp_size(
             width,
             kw.min(&c.min_width, Some(cb), available_w),
             kw.max(&c.max_width, Some(cb), available_w),
         ))
+    }
+
+    /// The width an `auto`-width item's preferred aspect ratio gives it
+    /// from a definite height (CSS Sizing 4 §5.1) in an area `area_h`
+    /// tall (`None` while the rows are being sized): its declared height,
+    /// or its stretched one under `align-self: stretch` once the area is
+    /// known. `None` without a ratio or such a height, or when
+    /// `justify-self: stretch` makes the width definite itself (the
+    /// ratio then has nothing to size).
+    fn transferred_width(&self, dom: &Dom<TuiExt>, area_h: Option<u16>) -> Option<u16> {
+        let (c, item, cb) = (&self.c, self.item, self.cb);
+        let ratio = self.ratio?;
+        if !matches!(c.width, Size::Auto) || self.justify.keyword == Align::Stretch {
+            return None;
+        }
+        let available_h = fill(area_h.unwrap_or(0), self.m.top, self.m.bottom);
+        let available_w = fill(cb, self.m.left, self.m.right);
+        let stretched = area_h.is_some()
+            && self.align.keyword == Align::Stretch
+            && !self.auto.top
+            && !self.auto.bottom;
+        let height = item
+            .keywords(dom, c, Direction::Column, available_w, cb)
+            .size(&c.height, area_h, available_h)
+            .or(stretched.then_some(available_h))?;
+        aspect_cross_from_main(height, ratio, Direction::Column, c, cb)
     }
 
     /// The border-box height at `width` in an area `area_h` tall (`None`
