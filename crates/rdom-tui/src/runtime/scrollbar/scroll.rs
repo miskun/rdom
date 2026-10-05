@@ -89,7 +89,8 @@ pub(super) fn set_scroll_with(
 /// Overflow 3 §3): `scrollLeft` in `min_x ..= max_x`, `scrollTop` in
 /// `min_y ..= max_y` — `0 ..= overflow`, or `-overflow ..= 0` when the
 /// scrolling area origin is the right (bottom) edge: an `rtl` box, a
-/// `row-reverse` / `column-reverse` flex container (CSSOM View §4,
+/// flex container's reversed main axis (`row-reverse`,
+/// `column-reverse`) or reversed cross axis (`wrap-reverse`) (CSSOM View §4,
 /// `layout_pass::scroll_x_bounds` / `scroll_y_bounds`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct ScrollBounds {

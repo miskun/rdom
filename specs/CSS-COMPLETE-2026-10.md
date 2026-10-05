@@ -2988,3 +2988,20 @@ row comes from.
   (each alone, restored and touched): `order` back to 0 → the order test; the box paint call off →
   the box test (no border drawn). No other test expectation and no snapshot changed. DIVERGENCES
   §3's entry removed.
+- 2026-10-08 — C6G-SCROLL-API (PN1): the scroll docs named only `rtl` (for `scrollLeft`) and
+  `column-reverse` (for `scrollTop`) as origins at the right / bottom edge, but
+  `scroll_extent::origin_at_end` reads `AxisFlip`: a flex row's main-start is its right edge under
+  `row-reverse` XOR `rtl` (CSS Flexbox §5.1), a flex column's cross-start under `rtl` XOR
+  `wrap-reverse` and a flex row's cross-start (its bottom) under `wrap-reverse` (§5.2), each a
+  negative range. Corrected: `TuiExt::scroll_x` / `scroll_y`, `TuiAccessors::scroll_left` /
+  `scroll_top`, `TuiAccessorsMut::set_scroll_left`, `layout_pass::scroll_x_bounds` /
+  `scroll_y_bounds`, `ScrollBounds`, and the two CHANGELOG Breaking bullets; `set_scroll_top`'s
+  false "clamped to `[0, scroll_height - viewport_height]`" is now the legal range. Decision: a
+  public read rather than a public `origin_at_end` — `TuiAccessors::scroll_range() ->
+  Option<ScrollRange>` (`ScrollRange::x()` / `y()`: `RangeInclusive<i32>`, private fields with
+  `new`, so it can grow without a break), from the same `scroll_bounds` the writes clamp with
+  (the padding-box scrollport, CSS Overflow 3 §3), so a virtual table need not reimplement
+  `AxisFlip`; `TuiAccessors` is sealed, so the method is not a break. Red
+  (`css_phase6/scroll_range.rs`): failed to compile (no `ScrollRange`, no `scroll_range`). Green
+  after: `0..=6` / `0..=0` for an `ltr` box, `-6..=0` for a `row-reverse` row, `-2..=0` for a
+  `wrap-reverse` row's `scrollTop`, `None` for a text node. No snapshot changed.

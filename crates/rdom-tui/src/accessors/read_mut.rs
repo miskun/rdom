@@ -66,6 +66,10 @@ impl<'a> TuiAccessors<'a> for rdom_core::NodeMut<'a, TuiExt> {
         self.as_ref().scroll_left()
     }
 
+    fn scroll_range(&self) -> Option<super::read_api::ScrollRange> {
+        self.as_ref().scroll_range()
+    }
+
     fn scroll_width(&self) -> Option<i32> {
         self.as_ref().scroll_width()
     }

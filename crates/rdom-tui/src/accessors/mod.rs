@@ -47,5 +47,5 @@ pub use crate::runtime::smooth_scroll::{
     ScrollBehaviorOption, ScrollIntoViewOptions, ScrollLogicalPosition, ScrollToOptions,
 };
 pub use doc::TuiDocAccessors;
-pub use read_api::{DomRect, TuiAccessors};
+pub use read_api::{DomRect, ScrollRange, TuiAccessors};
 pub use write_api::TuiAccessorsMut;

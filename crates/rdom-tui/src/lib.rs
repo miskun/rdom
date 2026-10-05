@@ -68,8 +68,8 @@ mod sealed;
 mod test_alloc;
 
 pub use accessors::{
-    ScrollBehaviorOption, ScrollIntoViewOptions, ScrollLogicalPosition, ScrollToOptions,
-    TuiAccessors, TuiAccessorsMut, TuiDocAccessors,
+    ScrollBehaviorOption, ScrollIntoViewOptions, ScrollLogicalPosition, ScrollRange,
+    ScrollToOptions, TuiAccessors, TuiAccessorsMut, TuiDocAccessors,
 };
 pub use cssom::{extend_from_style_tags, extend_from_style_tags_with_loader, seed_inline_styles};
 pub use tui_event::{TuiDispatchExt, TuiEvent};

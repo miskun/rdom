@@ -180,7 +180,8 @@ fn bounds(overflow: usize, origin_at_end: bool) -> (i32, i32) {
 /// The legal `scrollLeft` values of `id` for a scrollport `viewport`
 /// cells wide (CSSOM View §4): `0 ..= overflow`, or `-overflow ..= 0`
 /// when the scrolling area origin is the right edge (an `rtl` box, a
-/// `row-reverse` flex container under `ltr`; [`origin_at_end`]),
+/// flex row whose main-start is its right edge, a flex column whose
+/// cross-start is; [`origin_at_end`]),
 /// `overflow` being the scroll width past the scrollport.
 pub(crate) fn scroll_x_bounds(dom: &Dom<TuiExt>, id: NodeId, viewport: usize) -> (i32, i32) {
     let Some(ext) = dom.node(id).ext() else {
@@ -191,8 +192,9 @@ pub(crate) fn scroll_x_bounds(dom: &Dom<TuiExt>, id: NodeId, viewport: usize) ->
 }
 
 /// The legal `scrollTop` values of `id` for a scrollport `viewport`
-/// rows tall, as [`scroll_x_bounds`]: `-overflow ..= 0` for a
-/// `column-reverse` flex container, whose origin is its bottom edge.
+/// rows tall, as [`scroll_x_bounds`]: `-overflow ..= 0` where the
+/// origin is the bottom edge — a `column-reverse` flex container's
+/// main-start, a `wrap-reverse` flex row's cross-start.
 pub(crate) fn scroll_y_bounds(dom: &Dom<TuiExt>, id: NodeId, viewport: usize) -> (i32, i32) {
     let Some(ext) = dom.node(id).ext() else {
         return (0, 0);

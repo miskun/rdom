@@ -102,6 +102,14 @@ impl<'a> TuiAccessors<'a> for rdom_core::NodeRef<'a, TuiExt> {
         Some(self.tui_ext()?.scroll_x)
     }
 
+    fn scroll_range(&self) -> Option<super::read_api::ScrollRange> {
+        let b = crate::runtime::scrollbar::scroll_bounds(self.dom(), self.id())?;
+        Some(super::read_api::ScrollRange::new(
+            b.min_x..=b.max_x,
+            b.min_y..=b.max_y,
+        ))
+    }
+
     fn scroll_width(&self) -> Option<i32> {
         use crate::node::TuiNodeExt;
         Some(self.tui_ext()?.scroll_content_width as i32)

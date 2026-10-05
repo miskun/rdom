@@ -26,6 +26,7 @@ mod minor;
 mod order;
 mod place;
 mod pseudo_items;
+mod scroll_range;
 mod visibility;
 mod visibility_answers;
 mod wrap;

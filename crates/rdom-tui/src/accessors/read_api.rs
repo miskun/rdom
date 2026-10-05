@@ -113,18 +113,37 @@ pub trait TuiAccessors<'a>: crate::sealed::Sealed {
     /// a type alias for spec-name parity.
     fn bounding_rect(&self) -> Option<DomRect>;
 
-    /// `Element.scrollTop` — vertical scroll offset in cells.
+    /// `Element.scrollTop` — vertical scroll offset in cells, measured
+    /// from the scrolling area origin (CSSOM View §4): 0 at the top edge,
+    /// or at the bottom edge where that is the origin — a
+    /// `column-reverse` flex container's main-start, or a row flex
+    /// container's cross-start under `flex-wrap: wrap-reverse` (CSS
+    /// Flexbox §5.1 / §5.2) — whose values run negative towards the
+    /// overflow above. [`Self::scroll_range`] gives the legal values.
     /// `None` for non-element nodes; `0` for non-scrollable elements
     /// (browser-faithful: `el.scrollTop` always returns a number;
     /// for non-scrollable elements that number is `0`).
     fn scroll_top(&self) -> Option<i32>;
 
     /// `Element.scrollLeft` — horizontal scroll offset in cells,
-    /// measured from the scrolling area origin (CSSOM View §4): 0 at
-    /// the left edge of an `ltr` box and at the right edge of an `rtl`
-    /// one, whose values run negative towards its left overflow, as in
-    /// browsers.
+    /// measured from the scrolling area origin (CSSOM View §4): 0 at the
+    /// left edge, or at the right edge where that is the origin — an
+    /// `rtl` box, a flex row whose main-start is its right edge
+    /// (`row-reverse` under `ltr`, `row` under `rtl`), a column flex
+    /// container whose cross-start is (`rtl` XOR `wrap-reverse`) —
+    /// whose values run negative towards the overflow on the left, as in
+    /// browsers. [`Self::scroll_range`] gives the legal values.
     fn scroll_left(&self) -> Option<i32>;
+
+    /// The legal `scrollLeft` / `scrollTop` values against the extent
+    /// the last layout recorded and the padding-box scrollport (CSSOM
+    /// View §4, CSS Overflow 3 §3): on each axis `0 ..= overflow`, or
+    /// `-overflow ..= 0` where the scrolling area origin is the right
+    /// (bottom) edge ([`Self::scroll_left`], [`Self::scroll_top`]), so
+    /// a consumer that maps offsets to content (a virtual list) need
+    /// not re-derive which. `0 ..= 0` on an axis that does not
+    /// overflow. `None` for non-element nodes.
+    fn scroll_range(&self) -> Option<ScrollRange>;
 
     /// `Element.scrollWidth` — total content width tracked by the
     /// layout pass for scrollbar sizing. Reports the scrollable
@@ -379,3 +398,29 @@ pub trait TuiAccessors<'a>: crate::sealed::Sealed {
 /// the equivalent IDL; this alias lets call sites read `DomRect`
 /// without reaching for the layout module.
 pub type DomRect = crate::layout::LayoutRect;
+
+/// A box's legal scroll offsets per axis ([`TuiAccessors::scroll_range`]):
+/// `scrollLeft` in [`x`](Self::x), `scrollTop` in [`y`](Self::y), each
+/// `0 ..= overflow` or `-overflow ..= 0` (CSSOM View §4).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScrollRange {
+    x: std::ops::RangeInclusive<i32>,
+    y: std::ops::RangeInclusive<i32>,
+}
+
+impl ScrollRange {
+    /// The range `x` horizontally and `y` vertically.
+    pub fn new(x: std::ops::RangeInclusive<i32>, y: std::ops::RangeInclusive<i32>) -> Self {
+        Self { x, y }
+    }
+
+    /// The legal `scrollLeft` values.
+    pub fn x(&self) -> std::ops::RangeInclusive<i32> {
+        self.x.clone()
+    }
+
+    /// The legal `scrollTop` values.
+    pub fn y(&self) -> std::ops::RangeInclusive<i32> {
+        self.y.clone()
+    }
+}

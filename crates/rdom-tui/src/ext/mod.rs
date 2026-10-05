@@ -110,11 +110,15 @@ pub struct TuiExt {
 
     // ── Scroll ────────────────────────────────────────────────────────
     /// Horizontal scroll offset in cells: `scrollLeft`, measured from
-    /// the scrolling area origin (CSSOM View §4) — the left edge for an
-    /// `ltr` box, where it runs `0 ..= overflow`; the right edge for an
-    /// `rtl` one, where it runs `-overflow ..= 0` (0 shows the right
-    /// edge, negative values the overflow on the left). A larger value
-    /// always shows content further right. **Runtime-managed**: write it
+    /// the scrolling area origin (CSSOM View §4) — the left edge, where
+    /// it runs `0 ..= overflow`, or the right edge, where it runs
+    /// `-overflow ..= 0` (0 shows the right edge, negative values the
+    /// overflow on the left): an `rtl` box, a flex row whose main-start
+    /// is its right edge (`row-reverse` under `ltr`, `row` under `rtl`,
+    /// CSS Flexbox §5.1), a flex column whose cross-start is (`rtl` XOR
+    /// `wrap-reverse`, §5.2). A larger value always shows content
+    /// further right. The legal values:
+    /// [`TuiAccessors::scroll_range`](crate::TuiAccessors::scroll_range). **Runtime-managed**: write it
     /// through [`TuiAccessorsMut`](crate::TuiAccessorsMut)
     /// (`set_scroll_left`, `scroll_to`, …), which clamps it, fires
     /// `scroll` and honors `scroll-behavior`. A direct write — through
@@ -129,9 +133,10 @@ pub struct TuiExt {
     pub scroll_x: i32,
     /// Vertical scroll offset in cells: `scrollTop`, measured from the
     /// scrolling area origin as [`scroll_x`](Self::scroll_x) is —
-    /// `0 ..= overflow`, or `-overflow ..= 0` in a `column-reverse` flex
-    /// container, whose origin is its bottom (main-start) edge (CSSOM
-    /// View §4, CSS Flexbox §5.1). Runtime-managed, as `scroll_x`.
+    /// `0 ..= overflow`, or `-overflow ..= 0` where the origin is the
+    /// bottom edge: a `column-reverse` flex container's main-start, a
+    /// flex row's cross-start under `wrap-reverse` (CSSOM View §4, CSS
+    /// Flexbox §5.1 / §5.2). Runtime-managed, as `scroll_x`.
     pub scroll_y: i32,
     /// Scroll bookkeeping only scroll containers use — the offsets last
     /// painted and last laid out, and the smooth scroll in flight —

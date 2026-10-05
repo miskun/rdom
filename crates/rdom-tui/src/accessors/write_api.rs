@@ -129,7 +129,11 @@ pub trait TuiAccessorsMut<'a>: crate::sealed::Sealed {
     fn click(&mut self);
 
     /// `Element.scrollTop = n` — set the vertical scroll offset.
-    /// Value is clamped to `[0, scroll_height - viewport_height]`.
+    /// Clamped to the legal values,
+    /// [`TuiAccessors::scroll_range`](super::TuiAccessors::scroll_range)'s
+    /// `y`: `0 ..= overflow`, or `-overflow ..= 0` where the scrolling
+    /// area origin is the bottom edge
+    /// ([`TuiAccessors::scroll_top`](super::TuiAccessors::scroll_top)).
     /// On non-scrollable elements (no scrollable content) the
     /// clamp range collapses to `[0, 0]`, so the call is a no-op
     /// — browser-faithful.
@@ -144,7 +148,10 @@ pub trait TuiAccessorsMut<'a>: crate::sealed::Sealed {
 
     /// `Element.scrollLeft = n` — horizontal companion to
     /// [`Self::set_scroll_top`]. Clamped to `0 ..= overflow`, or to
-    /// `-overflow ..= 0` for an `rtl` box ([`TuiAccessors::scroll_left`](super::TuiAccessors::scroll_left)).
+    /// `-overflow ..= 0` where the scrolling area origin is the right
+    /// edge — an `rtl` box, a reversed flex axis
+    /// ([`TuiAccessors::scroll_left`](super::TuiAccessors::scroll_left),
+    /// [`TuiAccessors::scroll_range`](super::TuiAccessors::scroll_range)).
     fn set_scroll_left(&mut self, value: i32) -> Result<()>;
 
     /// `Element.scrollTo(x, y)` — set both axes in one call. Each
