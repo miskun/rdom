@@ -3037,3 +3037,28 @@ row comes from.
   `right` accepted by every grammar → `AlignContent: left` fails the agreement test. Existing test
   code changed: thirteen `Align::X.into()` builder arguments (no longer inferable) lost the `.into()`.
   No snapshot changed.
+- 2026-10-08 — C6G-SIDE-SETTERS (PN4, PN9, PN10). Since C6-MARGIN-SIDES a side is a longhand of its
+  own (CSS Box 3 §3.2 / §4.2), but the builders only wrote all four. Builder: `margin_top` / `_right`
+  / `_bottom` / `_left` (`impl Into<MarginValue>`) and `padding_*` (`impl Into<PaddingValue>`), each
+  with an `_important` twin that marks its side's bit alone (`side_setter!`, in the new
+  `tui_style/builder/spacing.rs` beside the moved shorthands — `builder/mod.rs` 465 → 438), and
+  `padding` takes `impl Into<Padding>` as `margin` takes `impl Into<Margin>` (`From<u16> for Padding`,
+  `From<u16> for PaddingValue`, `From<i16> for MarginValue`). Not added: logical-side builders
+  (`margin_inline_start` …) — a flow-relative declaration is a kept declaration mapped at cascade
+  time (C5-LOGICAL), not a field, so a typed setter would need a `PendingDeclaration` constructor;
+  `property_dispatch::set("margin-inline-start", …)` covers it. Node setters, following Phase 5's
+  pattern (`write_inline_style`): `set_visibility`, `set_order`, `set_flex_wrap`,
+  `set_flex_direction`, the six alignment setters (`impl Into<Alignment>`, through the builders, so
+  checked against each grammar as C6G-ALIGN-API decided), `set_margin`, and `set_padding(impl
+  Into<Padding>)`. Prelude: `Margin`, `Visibility`, `GapValue`, `FlexDirection`. CHANGELOG: the
+  C6-MARGIN-SIDES hint now shows the per-side forms for exactly rdom-virtualtable's two breaks (a
+  whole-`Margin` assignment to `TuiStyle.margin`; `padding.is_none()`), pinned by
+  `migration_hints::spacing_assignment_hints`; its "builders unchanged" sentence was no longer true.
+  Red: the rdom-style lib tests and the integration tests failed to compile (no `margin_left`,
+  `padding(2u16)` not accepted, no `set_flex_direction` / `set_order` / …, `Margin` / `Visibility`
+  / `GapValue` / `FlexDirection` not in the prelude). Green after:
+  `per_side_setters_write_one_longhand`, `padding_takes_a_count_as_margin_does`,
+  `node_setters_drive_layout::phase6_node_setters_drive_layout` (a row-reverse, centered, stretched
+  container built only through node setters: `b` at (6, 4), `a` ordered after it at x 4). Mutation
+  check (restored and touched): `set_order` writing nothing → `(0, Hidden)` for `(1, Hidden)`. No
+  snapshot changed.

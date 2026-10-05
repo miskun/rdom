@@ -2,7 +2,8 @@
 //! (`.fg(…)`, `.padding(…)`, `….._important(…)`); the background,
 //! border and shadow setters are in `decoration`, the sizing ones
 //! (`width` / `height`, `min-*` / `max-*`, `aspect-ratio`) in `sizing`,
-//! the flex and box-alignment ones in `flex`.
+//! the margin and padding ones in `spacing`, the flex and box-alignment
+//! ones in `flex`.
 
 use super::{ImportantMask, TuiStyle};
 #[allow(unused_imports)]
@@ -40,6 +41,7 @@ macro_rules! setter {
 mod decoration;
 mod flex;
 mod sizing;
+mod spacing;
 
 impl TuiStyle {
     pub fn fg(mut self, color: impl Into<TuiColor>) -> Self {
@@ -106,35 +108,6 @@ impl TuiStyle {
         self
     }
 
-    /// Set the `padding` shorthand: the four `padding-*` longhands.
-    /// Chainable.
-    pub fn padding(mut self, v: Padding) -> Self {
-        self.padding = Sides::from(v).map(|v| Some(Value::Specified(v)));
-        self
-    }
-    /// Like `padding` but marks the four longhands `!important`.
-    pub fn padding_important(mut self, v: Padding) -> Self {
-        self.important |= ImportantMask::PADDING_TOP
-            | ImportantMask::PADDING_RIGHT
-            | ImportantMask::PADDING_BOTTOM
-            | ImportantMask::PADDING_LEFT;
-        self.padding(v)
-    }
-    /// Set the `margin` shorthand: the four `margin-*` longhands. Accepts
-    /// a `Margin` struct or a plain `i16` (via `From<i16> for Margin` —
-    /// applies `n` cells on all four sides). Chainable.
-    pub fn margin(mut self, v: impl Into<crate::layout::Margin>) -> Self {
-        self.margin = Sides::from(v.into()).map(|v| Some(Value::Specified(v)));
-        self
-    }
-    /// Like `margin` but marks the four longhands `!important`.
-    pub fn margin_important(mut self, v: impl Into<crate::layout::Margin>) -> Self {
-        self.important |= ImportantMask::MARGIN_TOP
-            | ImportantMask::MARGIN_RIGHT
-            | ImportantMask::MARGIN_BOTTOM
-            | ImportantMask::MARGIN_LEFT;
-        self.margin(v)
-    }
     /// `.collapse_borders()` — sets `border-collapse: collapse` on
     /// this element. Convenience shortcut over the verbose
     /// `.border_collapse(BorderCollapse::Collapse)`. Chainable.

@@ -207,6 +207,28 @@ impl From<i16> for Margin {
     }
 }
 
+/// `.margin_top(2)` shortcut — `n` cells on one side.
+impl From<i16> for MarginValue {
+    fn from(n: i16) -> Self {
+        MarginValue::Cells(n)
+    }
+}
+
+/// `.padding(2)` shortcut — `n` cells on all four sides, as
+/// `From<i16> for Margin` is for `.margin(2)`.
+impl From<u16> for Padding {
+    fn from(n: u16) -> Self {
+        Self::all(n)
+    }
+}
+
+/// `.padding_top(2)` shortcut — `n` cells on one side.
+impl From<u16> for PaddingValue {
+    fn from(n: u16) -> Self {
+        PaddingValue::Cells(n)
+    }
+}
+
 impl Padding {
     pub fn new(top: u16, right: u16, bottom: u16, left: u16) -> Self {
         Self {

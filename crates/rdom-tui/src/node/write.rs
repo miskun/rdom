@@ -5,8 +5,8 @@ use rdom_core::NodeMut;
 
 use crate::ext::TuiExt;
 use crate::layout::{
-    Border, BorderRadius, BoxSizing, Corners, Direction, MarginTrim, Overflow, Padding, Size,
-    TextDirection, WritingMode,
+    Alignment, Border, BorderRadius, BoxSizing, Corners, Direction, FlexDirection, FlexWrap,
+    Margin, MarginTrim, Overflow, Padding, Size, TextDirection, Visibility, WritingMode,
 };
 use crate::style::{TuiStyle, Value};
 
@@ -117,10 +117,83 @@ pub trait TuiNodeMutExt<'a>: crate::sealed::Sealed {
         });
         self
     }
-    fn set_padding(&mut self, p: Padding) -> &mut Self {
-        self.write_inline_style(|s| {
-            s.padding = crate::layout::Sides::from(p).map(|v| Some(Value::Specified(v)))
-        });
+    /// Declare `flex-direction` inline as one value (CSS Flexbox §5.1):
+    /// its axis and whether it is reversed.
+    fn set_flex_direction(&mut self, d: FlexDirection) -> &mut Self {
+        self.write_inline_style(|s| *s = std::mem::take(s).flex_direction(d));
+        self
+    }
+    /// Declare `flex-wrap` inline (CSS Flexbox §5.2).
+    fn set_flex_wrap(&mut self, w: FlexWrap) -> &mut Self {
+        self.write_inline_style(|s| s.flex_wrap = Some(Value::Specified(w)));
+        self
+    }
+    /// Declare `order` inline (CSS Flexbox §5.4).
+    fn set_order(&mut self, order: i32) -> &mut Self {
+        self.write_inline_style(|s| s.order = Some(Value::Specified(order)));
+        self
+    }
+    /// Declare `visibility` inline (CSS Display 3 §4).
+    fn set_visibility(&mut self, v: Visibility) -> &mut Self {
+        self.write_inline_style(|s| s.visibility = Some(Value::Specified(v)));
+        self
+    }
+    /// Declare `justify-content` inline (CSS Box Alignment 3 §5.2): a
+    /// keyword or an [`Alignment`](crate::layout::Alignment), checked
+    /// against the property's grammar as the
+    /// [`TuiStyle::justify_content`] builder checks it.
+    fn set_justify_content(&mut self, v: impl Into<Alignment>) -> &mut Self {
+        let v = v.into();
+        self.write_inline_style(|s| *s = std::mem::take(s).justify_content(v));
+        self
+    }
+    /// Declare `align-content` inline (§5.1), checked as
+    /// [`Self::set_justify_content`] is.
+    fn set_align_content(&mut self, v: impl Into<Alignment>) -> &mut Self {
+        let v = v.into();
+        self.write_inline_style(|s| *s = std::mem::take(s).align_content(v));
+        self
+    }
+    /// Declare `justify-items` inline (§6.2), checked as
+    /// [`Self::set_justify_content`] is.
+    fn set_justify_items(&mut self, v: impl Into<Alignment>) -> &mut Self {
+        let v = v.into();
+        self.write_inline_style(|s| *s = std::mem::take(s).justify_items(v));
+        self
+    }
+    /// Declare `align-items` inline (§6.3), checked as
+    /// [`Self::set_justify_content`] is.
+    fn set_align_items(&mut self, v: impl Into<Alignment>) -> &mut Self {
+        let v = v.into();
+        self.write_inline_style(|s| *s = std::mem::take(s).align_items(v));
+        self
+    }
+    /// Declare `justify-self` inline (§6.1), checked as
+    /// [`Self::set_justify_content`] is.
+    fn set_justify_self(&mut self, v: impl Into<Alignment>) -> &mut Self {
+        let v = v.into();
+        self.write_inline_style(|s| *s = std::mem::take(s).justify_self(v));
+        self
+    }
+    /// Declare `align-self` inline (§6.1), checked as
+    /// [`Self::set_justify_content`] is.
+    fn set_align_self(&mut self, v: impl Into<Alignment>) -> &mut Self {
+        let v = v.into();
+        self.write_inline_style(|s| *s = std::mem::take(s).align_self(v));
+        self
+    }
+    /// Declare the four `padding-*` longhands inline: a [`Padding`] or a
+    /// plain `u16` (every side), as the `TuiStyle::padding` builder.
+    fn set_padding(&mut self, p: impl Into<Padding>) -> &mut Self {
+        let p = p.into();
+        self.write_inline_style(|s| *s = std::mem::take(s).padding(p));
+        self
+    }
+    /// Declare the four `margin-*` longhands inline: a [`Margin`] or a
+    /// plain `i16` (every side), as the `TuiStyle::margin` builder.
+    fn set_margin(&mut self, m: impl Into<Margin>) -> &mut Self {
+        let m = m.into();
+        self.write_inline_style(|s| *s = std::mem::take(s).margin(m));
         self
     }
     /// Set the inline style's four `border-*-style`s.

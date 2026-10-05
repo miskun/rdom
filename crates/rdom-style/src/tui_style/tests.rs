@@ -441,3 +441,44 @@ fn flex_direction_sets_axis_and_reverse() {
     let s = TuiStyle::new().direction_reverse_important(Direction::Row);
     assert!(s.important.contains(ImportantMask::FLEX_DIRECTION));
 }
+
+// ─── Per-side spacing setters (C6G-SIDE-SETTERS) ────────────────────
+
+/// CSS Box 3 §3.2 / §4.2: `margin-left` and `padding-top` are longhands
+/// of their own — a per-side setter declares that side alone, and its
+/// `!important` twin marks that side's bit alone.
+#[test]
+fn per_side_setters_write_one_longhand() {
+    use crate::layout::{MarginValue, PaddingValue};
+    let s = TuiStyle::new()
+        .margin_left(MarginValue::Auto)
+        .padding_top(2u16)
+        .margin_bottom_important(-1i16);
+    assert_eq!(s.margin.left, Some(Value::Specified(MarginValue::Auto)));
+    assert_eq!(
+        s.margin.bottom,
+        Some(Value::Specified(MarginValue::Cells(-1)))
+    );
+    assert_eq!((s.margin.top.clone(), s.margin.right.clone()), (None, None));
+    assert_eq!(
+        s.padding.top,
+        Some(Value::Specified(PaddingValue::Cells(2)))
+    );
+    assert!(s.padding.right.is_none() && s.padding.left.is_none());
+    assert!(s.important.contains(ImportantMask::MARGIN_BOTTOM));
+    assert!(!s.important.contains(ImportantMask::MARGIN_LEFT));
+}
+
+/// `padding` takes `impl Into<Padding>` as `margin` takes `impl
+/// Into<Margin>`: a plain count is every side.
+#[test]
+fn padding_takes_a_count_as_margin_does() {
+    assert_eq!(
+        TuiStyle::new().padding(2u16),
+        TuiStyle::new().padding(Padding::all(2))
+    );
+    assert_eq!(
+        TuiStyle::new().margin(1i16),
+        TuiStyle::new().margin(crate::layout::Margin::all_cells(1))
+    );
+}

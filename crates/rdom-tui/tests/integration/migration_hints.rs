@@ -321,6 +321,36 @@ fn spacing_side_hints() {
     let _ = Margin::from(Sides::all(MarginValue::Auto));
 }
 
+/// C6-MARGIN-SIDES, C6G-SIDE-SETTERS: the two shapes a 0.5 consumer
+/// (rdom-virtualtable) breaks on — a whole `Margin` assigned to
+/// `TuiStyle::margin`, and `padding.is_none()` — and their per-side
+/// forms, through the per-side setters.
+#[test]
+fn spacing_assignment_hints() {
+    // `style.margin = Some(Value::Specified(margin))` → the shorthand
+    // builder, or the four longhands from `Sides`.
+    let margin = Margin::new(
+        MarginValue::Cells(0),
+        MarginValue::Auto,
+        MarginValue::Cells(0),
+        MarginValue::Cells(1),
+    );
+    let built = TuiStyle::new().margin(margin.clone());
+    let mut assigned = TuiStyle::new();
+    assigned.margin = Sides::from(margin).map(|v| Some(Value::Specified(v)));
+    assert_eq!(built, assigned);
+    // One side: the field, or its setter.
+    let mut style = TuiStyle::new();
+    style.margin.left = Some(Value::Specified(MarginValue::Auto));
+    assert_eq!(style, TuiStyle::new().margin_left(MarginValue::Auto));
+    // `style.padding.is_none()` → no side declared, or one side.
+    let style = TuiStyle::new();
+    assert!(style.padding.each().iter().all(|side| side.is_none()));
+    assert!(style.padding.top.is_none());
+    let style = TuiStyle::new().padding_top(1);
+    assert!(!style.padding.each().iter().all(|side| side.is_none()));
+}
+
 /// C6-DISPLAY-KEYWORDS: the new `Display` / `Flow` variants, the
 /// `list_item` field and the `display` grammar.
 #[test]
