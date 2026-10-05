@@ -586,14 +586,14 @@ fn private_and_intermediate_csi_replies_are_consumed() {
     assert_eq!(events(b"\x1b[ @q"), q);
 }
 
-/// DCS (`ESC P`), APC (`ESC _`), PM (`ESC ^`) and SOS (`ESC X`) strings
-/// are consumed to ST like OSC strings, with the same cap, discard and
-/// abort rules (ECMA-48 §5.6, `C4G-CSI-FRAMING`). DCS starts with a
-/// parameter or intermediate byte (every DCS reply does); the other three
-/// with any string byte. The introducer alone, or DCS before another
-/// byte, is Alt + the key.
+/// DCS (`ESC P`) and APC (`ESC _`) strings are consumed to ST like OSC
+/// strings, with the same cap, discard and abort rules (ECMA-48 §5.6,
+/// `C4G-CSI-FRAMING`). DCS starts with a parameter or intermediate byte
+/// (every DCS reply does), APC with `G` (the kitty graphics reply, the
+/// one APC a terminal sends; `C5G-STRING-INTRO`). The introducer alone,
+/// or before another byte, is Alt + the key.
 #[test]
-fn dcs_apc_pm_sos_strings_are_consumed() {
+fn dcs_and_apc_strings_are_consumed() {
     let q = vec![key(KeyCode::Char('q'), NONE)];
     // XTVERSION: `DCS > | text ST`.
     assert_eq!(events(b"\x1bP>|XTerm(388)\x1b\\q"), q);
@@ -601,8 +601,6 @@ fn dcs_apc_pm_sos_strings_are_consumed() {
     assert_eq!(events(b"\x1bP1$r0;1m\x1b\\q"), q);
     // kitty graphics reply: `APC G … ST`.
     assert_eq!(events(b"\x1b_Gi=31;OK\x1b\\q"), q);
-    assert_eq!(events(b"\x1b^privacy\x1b\\q"), q);
-    assert_eq!(events(b"\x1bXstart of string\x07q"), q);
     // Over the cap: discarded to ST.
     let mut long = b"\x1b_G".to_vec();
     long.extend(std::iter::repeat_n(b'A', 5000));
@@ -621,19 +619,49 @@ fn dcs_apc_pm_sos_strings_are_consumed() {
             key(KeyCode::Char('x'), NONE)
         ]
     );
+    // APC before anything but `G`: Alt+_, then the key.
+    assert_eq!(
+        events(b"\x1b_x"),
+        vec![key(KeyCode::Char('_'), ALT), key(KeyCode::Char('x'), NONE)]
+    );
     // The introducer alone is Alt + the key once the reader flushes.
     let mut p = Parser::default();
     for (b, k) in [
         (b'P', key(KeyCode::Char('P'), ALT | SHIFT)),
-        (b'X', key(KeyCode::Char('X'), ALT | SHIFT)),
         (b'_', key(KeyCode::Char('_'), ALT)),
-        (b'^', key(KeyCode::Char('^'), ALT)),
     ] {
         p.feed(&[0x1b, b]);
         assert!(p.awaits_prefix());
         assert_eq!(p.next(), None);
         p.flush_prefix();
         assert_eq!(p.next(), Some(Input::Event(k)));
+    }
+}
+
+/// `C5G-STRING-INTRO`: `ESC X` (SOS) and `ESC ^` (PM) are not read as
+/// string introducers — no terminal replies with either — so Alt+Shift+X
+/// and Alt+^ followed by typing are the Alt key and the typed keys, with
+/// nothing swallowed (a frame arriving late, C4G-ESC-GRACE, used to make
+/// `hello⏎` the body of an SOS string).
+#[test]
+fn alt_x_and_alt_caret_then_typing_are_keys() {
+    let typed = |intro: Event| {
+        let mut all = vec![intro];
+        all.extend("hello".chars().map(|c| key(KeyCode::Char(c), NONE)));
+        all.push(key(KeyCode::Enter, NONE));
+        all
+    };
+    assert_eq!(
+        events(b"\x1bXhello\r"),
+        typed(key(KeyCode::Char('X'), ALT | SHIFT))
+    );
+    assert_eq!(events(b"\x1b^hello\r"), typed(key(KeyCode::Char('^'), ALT)));
+    // Neither waits for a string byte: each is complete at once.
+    for b in [b'X', b'^'] {
+        let mut p = Parser::default();
+        p.feed(&[0x1b, b]);
+        assert!(!p.awaits_prefix(), "{}", char::from(b));
+        assert!(p.next().is_some());
     }
 }
 

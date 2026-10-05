@@ -1660,3 +1660,14 @@ row comes from.
   `scrollIntoView`; the drag reached `+6`; the thumb sat at the left; the over-wide block's `-6`
   unreachable); green after. `scroll_into_view_inline_start_is_the_right_edge` was confirmed red with
   the start / end swap disabled (`(-6, 0)` against `(-8, 2)`). No existing expectation changed.
+- 2026-10-07 — C5G-STRING-INTRO (gate fix): rdom's input parser no longer frames PM (`ESC ^`) or SOS
+  (`ESC X`) strings, and takes APC (`ESC _`) as a string only when `G` follows — the kitty graphics
+  reply, the one APC a terminal sends. C4G-CSI-FRAMING had started all three on any string byte
+  (ECMA-48 §5.6 lets a string hold any of them), so Alt+Shift+X then `hello⏎` — or the same bytes
+  after a frame that came late (C4G-ESC-GRACE) — became an SOS string and the typing was swallowed.
+  Decided: frame only what a terminal replies with (OSC: a digit; DCS: a parameter / intermediate
+  byte; APC: `G`); `ESC ^` / `ESC X` are complete Alt keys at once (no prefix wait). Red:
+  `alt_x_and_alt_caret_then_typing_are_keys` (no events: the typing was a string) and the new
+  `ESC _ x` row of `dcs_and_apc_strings_are_consumed` failed; green after. Changed expectation: that
+  test (was `dcs_apc_pm_sos_strings_are_consumed`) drops its PM / SOS rows and their prefix-wait rows,
+  which asserted the behaviour removed here.

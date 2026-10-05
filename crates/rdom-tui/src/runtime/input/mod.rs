@@ -10,7 +10,7 @@
 //!
 //! - an OSC 11 reply (`ESC ] 11 ; rgb:… ST`), the background color —
 //!   the startup query's answer, or one that came after its wait (other
-//!   command strings — OSC, DCS, APC, PM, SOS — are consumed);
+//!   command strings — OSC, DCS, the kitty graphics APC — are consumed);
 //! - a DA1 reply (`CSI ? … c`), which ends the startup query;
 //! - a DEC mode 2031 theme report (`CSI ? 997 ; 1|2 n`), the terminal's
 //!   new color scheme.

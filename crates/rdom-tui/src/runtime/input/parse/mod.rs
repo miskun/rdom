@@ -11,14 +11,14 @@
 //!   forever along with every byte after it — is consumed whole;
 //! - a C0 control byte inside a control sequence ends it, and is read
 //!   again as a key;
-//! - command strings — OSC (`ESC ] digits … BEL | ST`), DCS, APC, PM,
-//!   SOS — are consumed; an OSC 11 reply is the background color; one
+//! - command strings — OSC (`ESC ] digits … BEL | ST`), DCS and the
+//!   kitty graphics APC (`ESC _ G …`) — are consumed; an OSC 11 reply is the background color; one
 //!   past 4 KiB is discarded to its end, and a byte that cannot be in a
 //!   string aborts it and is read again (ECMA-48 §5.6);
 //! - DA1 replies and mode 2031 reports are [`Input`]s, not dropped or
 //!   held;
 //! - a lone `ESC`, `ESC [`, `ESC O` or string introducer (`ESC ]`,
-//!   `ESC P`, `ESC _`, `ESC ^`, `ESC X`) that no byte follows is a key
+//!   `ESC P`, `ESC _`) that no byte follows is a key
 //!   by itself once [`Parser::flush_prefix`] says so (the reader
 //!   calls it after `ESC_GRACE`); crossterm takes a lone `ESC` at the
 //!   end of a read as Esc at once, holds `ESC [` and `ESC O`, and reads
@@ -37,7 +37,7 @@
 //! - `csi` — control-sequence framing and dispatch, paste, the private
 //!   (`CSI ?`) replies.
 //! - `osc` — OSC strings and the OSC 11 color.
-//! - `string` — command strings (OSC, DCS, APC, PM, SOS): where one
+//! - `string` — command strings (OSC, DCS, APC): where one
 //!   starts, the byte range, the terminators, the discard past the cap.
 
 mod csi;
@@ -231,7 +231,7 @@ fn parse(buf: &[u8]) -> Step {
         b'O' => keys::ss3(buf),
         b'[' => csi::parse(buf),
         b']' => osc::parse(buf),
-        b'P' | b'_' | b'^' | b'X' => string::parse(buf, |_| Step::consumed()),
+        b'P' | b'_' => string::parse(buf, |_| Step::consumed()),
         ESC => escape_then(buf),
         // `ESC` + a key: Alt + the key.
         _ => match keys::plain(&buf[1..]) {
