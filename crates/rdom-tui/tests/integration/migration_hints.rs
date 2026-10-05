@@ -257,26 +257,43 @@ fn scroll_token_and_line_hints() {
     assert_eq!(*n, 99_999_999_999_i64);
     assert!(i32::try_from(*n).is_err());
 
-    let line = render::LineBox {
-        fragments: Vec::new(),
-        generated: Vec::new(),
-        width: 0,
-        top: 2,
-        height: 1,
-        baseline: 0,
-    };
+    // The line rows themselves are read through the constructors now
+    // (C6G-LINEBOX-API, below).
+    let line = render::LineBox::new(Vec::new(), 0, 2);
     assert_eq!(line.text_row(), 2);
-    let _ = render::InlineFragment {
-        node: div,
-        text_node: div,
-        source_byte_offset: 0,
-        x: 0,
-        y: 0,
-        width: 1,
-        height: 1,
-        text: String::new(),
-        atomic: false,
-    };
+    let _ = div;
+}
+
+/// C6G-LINEBOX-API (superseding 0.5.0's `..Default::default()` hint):
+/// `LineBox` and `InlineFragment` are `#[non_exhaustive]` — no struct
+/// literal outside rdom-tui — and built by constructor, or for a line
+/// from `LineBox::default()` with its public fields set.
+#[test]
+fn line_box_construction_hints() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let p = dom.create_element("p");
+    dom.append_child(root, p).unwrap();
+    let t = dom.create_text_node("héllo");
+    dom.append_child(p, t).unwrap();
+
+    let text = render::InlineFragment::text(p, t, 0, 0, "héllo");
+    assert_eq!((text.width, text.height, text.atomic), (5, 1, false));
+    let atom = render::InlineFragment::atom(p, 6, 3, 2);
+    assert_eq!(
+        (atom.x, atom.width, atom.height, atom.atomic),
+        (6, 3, 2, true)
+    );
+
+    let line = render::LineBox::new(vec![text, atom], 9, 0);
+    assert_eq!((line.top, line.height, line.baseline), (0, 1, 0));
+    let mut tall = render::LineBox::default();
+    assert_eq!((tall.height, tall.width), (1, 0));
+    tall.top = 1;
+    tall.height = 3;
+    tall.baseline = 1;
+    tall.fragments = line.fragments.clone();
+    assert_eq!((tall.text_row(), tall.bottom()), (2, 4));
 }
 
 /// C6-MARGIN-SIDES: `margin` / `padding` are per-side longhands on

@@ -31,7 +31,13 @@ use crate::ext::PseudoSlot;
 /// out at that rect and paint paints it there as a box — background,
 /// border, content — at its turn in the line; selection skips them;
 /// hit-test routes to `node`.
+///
+/// `#[non_exhaustive]`: fields will be added (`vertical-align`,
+/// C9-VERTICAL-ALIGN), so outside rdom-tui a fragment is built with
+/// [`InlineFragment::text`] or [`InlineFragment::atom`], and its public
+/// fields are read or set.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct InlineFragment {
     /// The direct element parent of the source text, or — for
     /// `atomic = true` fragments — the inline-block element itself.
@@ -69,6 +75,50 @@ pub struct InlineFragment {
     pub atomic: bool,
 }
 
+impl InlineFragment {
+    /// A text fragment: `text` from byte `source_byte_offset` of
+    /// `text_node`, owned by `node`, at `x` on its line's baseline row —
+    /// one row tall and as wide as `text`'s visible cells.
+    pub fn text(
+        node: NodeId,
+        text_node: NodeId,
+        source_byte_offset: usize,
+        x: u16,
+        text: impl Into<String>,
+    ) -> Self {
+        let text = text.into();
+        let width = unicode_width::UnicodeWidthStr::width(text.as_str()).min(usize::from(u16::MAX));
+        InlineFragment {
+            node,
+            text_node,
+            source_byte_offset,
+            x,
+            y: 0,
+            width: width as u16,
+            height: 1,
+            text,
+            atomic: false,
+        }
+    }
+
+    /// An atomic inline's fragment: the box `node`, `width` × `height`
+    /// cells, at `x` from the top of its line (set `y` to place it
+    /// lower). No text; `text_node` is `node`.
+    pub fn atom(node: NodeId, x: u16, width: u16, height: u16) -> Self {
+        InlineFragment {
+            node,
+            text_node: node,
+            source_byte_offset: 0,
+            x,
+            y: 0,
+            width,
+            height,
+            text: String::new(),
+            atomic: true,
+        }
+    }
+}
+
 /// A run of a host's static `::before` / `::after` content on one
 /// line. CSS 2.1 §12.1: generated content is an inline box, the first
 /// / last child of its host, so the packer lays it out with the text —
@@ -95,7 +145,30 @@ pub struct GeneratedFragment {
 }
 
 /// One line of inline content.
+///
+/// `#[non_exhaustive]`: fields will be added (C9-VERTICAL-ALIGN), so
+/// outside rdom-tui a line is built with [`LineBox::new`] or from
+/// [`LineBox::default`] (an empty one-row line at the top) with its
+/// public fields set:
+///
+/// ```compile_fail
+/// let line = rdom_tui::render::LineBox {
+///     fragments: Vec::new(),
+///     generated: Vec::new(),
+///     width: 0,
+///     top: 0,
+///     height: 1,
+///     baseline: 0,
+/// };
+/// ```
+///
+/// ```
+/// let mut line = rdom_tui::render::LineBox::default();
+/// line.top = 2;
+/// assert_eq!(line.text_row(), 2);
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct LineBox {
     /// Fragments in left-to-right order, each non-overlapping.
     pub fragments: Vec<InlineFragment>,
@@ -115,7 +188,32 @@ pub struct LineBox {
     pub baseline: u16,
 }
 
+impl Default for LineBox {
+    /// An empty one-row line at the top of its layout.
+    fn default() -> Self {
+        LineBox {
+            fragments: Vec::new(),
+            generated: Vec::new(),
+            width: 0,
+            top: 0,
+            height: 1,
+            baseline: 0,
+        }
+    }
+}
+
 impl LineBox {
+    /// A one-row line of `fragments`, `width` cells wide, at row `top`
+    /// of its layout, with no generated content.
+    pub fn new(fragments: Vec<InlineFragment>, width: u16, top: u16) -> Self {
+        LineBox {
+            fragments,
+            width,
+            top,
+            ..LineBox::default()
+        }
+    }
+
     /// The row its text sits on, counted from the top of the inline
     /// layout.
     pub fn text_row(&self) -> u16 {

@@ -2668,3 +2668,22 @@ row comes from.
   positioned box after the moved content, at row 6) was added with the shift. Mutation checks (each
   alone, reverted and touched): no shift → the two `align-content` tests; static positions not
   moved → row 2 for 6. No snapshot changed.
+- 2026-10-08 — C6G-LINEBOX-API (PB2, PN13): C5G-ATOM-BOX moved `LineBox` to `render/inline/boxes.rs`
+  and dropped its `Default` derive, which 0.5.0's own Breaking hint tells consumers to use
+  (`..Default::default()` in a struct literal) — a silent second break. And both `LineBox` and
+  `InlineFragment` grow again with C9-VERTICAL-ALIGN. Decision: both are `#[non_exhaustive]` (DESIGN's
+  rule for public types that will grow), which forbids struct literals outside rdom-tui — functional
+  update included — so 0.5.0's hint is superseded, not kept: `LineBox` gets `Default` back (written
+  by hand: an empty one-row line at the top, `height: 1` — a derived `height: 0` would be no line)
+  and `LineBox::new(fragments, width, top)`; `InlineFragment` gets `InlineFragment::text(node,
+  text_node, source_byte_offset, x, text)` (width from the text's cells, one row) and
+  `InlineFragment::atom(node, x, width, height)`. `InlineFragment` has no `Default`: there is no
+  meaningful `NodeId` to default its two node fields to (`NodeId` has none), so the constructors are
+  its migration. The public fields stay public (readable and assignable). The C5G-ATOM-BOX Breaking
+  bullet and the upgrade callout point at the constructors; a Breaking bullet records the change.
+  Red: the new `migration_hints::line_box_construction_hints` group failed to compile (no
+  `LineBox::new` / `default`, no `InlineFragment::text` / `atom`); green after. The
+  `scroll_token_and_line_hints` group's struct literals (which `#[non_exhaustive]` makes illegal
+  outside the crate) now use the constructors; a `compile_fail` doctest on `LineBox` pins that a
+  struct literal no longer builds outside rdom-tui (its twin, `LineBox::default()` with a field set,
+  compiles and runs). No snapshot changed.
