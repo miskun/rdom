@@ -24,6 +24,7 @@ mod ua_chrome_snapshot;
 mod chrome_dump;
 mod chrome_layout_contract;
 mod details_toggle_regression;
+mod file_sizes;
 mod keyboard_nav;
 mod mutation_observer_demo;
 mod resize_integration;

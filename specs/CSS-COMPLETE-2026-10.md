@@ -36,7 +36,7 @@ the commit that lands it (`done <sha>`), and the log at the end records phase ga
 | 4 | Backgrounds and borders | done 2026-10-06 (both gates; 19 gate fixes `C4G-*`; their re-review rides with the Phase 5 gate; C4-SPACING layout with C13-TFC) |
 | 5 | Box model and sizing (incl. logical properties) | done 2026-10-07 (both gates; 19 gate fixes `C5G-*`; their re-review rides with the Phase 6 gate; C5-CONTAIN-SIZE use with C14-CONTAIN) |
 | 6 | Display, visibility, flexbox, box alignment | done 2026-10-08 (both gates; 28 gate fixes `C6G-*`; their re-review rides with the Phase 7 gate) |
-| 7 | Grid | gates run 2026-10-09; `C7G-*` batch A (correctness and cost) done, batch B (API and docs) next |
+| 7 | Grid | done 2026-10-09 (both gates; 15 gate fixes `C7G-*`; their re-review rides with the Phase 8 gate) |
 | 8 | Positioning, floats, overflow, scrolling | |
 | 9 | Inline text and decoration | |
 | 10 | Lists, counters, generated content, pseudo-elements | |
@@ -4359,3 +4359,34 @@ row comes from.
   grid, and a block (`None`). ACID.md tile 18 gains the gate's five cases (`1fr` against
   `minmax(0, 1fr)`, two items in one cell by `z-index`, `inline-grid` in text, `rtl`, `1 / -1`) with
   their expected results. No test expectation or snapshot changed.
+- 2026-10-09 — C7G-SIZES (architect N10). TECH_DEBT `SIZE-1` was wrong against the tree: it said
+  `render/inline/mod.rs` was untouched by Phase 7 (dcbe040 touched it; C7G-INLINE-ATOM-MAX has since
+  split it), left out files Phase 7 grew past 500 (`intrinsic/mod.rs`, `layout/sizing.rs`,
+  `layout/keywords.rs`, `cascade/walk.rs`), and gave `grid/subgrid.rs` as 484 (491 at the gate, 520
+  after batch A). Measured, not estimated: every production `.rs` file over 500 lines, with one rule
+  for "production" — a `crates/*/src` file's lines outside its inline `#[cfg(test)]` modules, test
+  files (`tests.rs`, `*_tests.rs`, `test_*.rs`) not counted (CLAUDE.md: test files may run long), the
+  generated `entities.rs` table exempt. By that rule three files were past 575, all split by pure
+  moves (no code changed, callers unchanged through re-exports or the same paths):
+  `style/cascade/walk.rs` 590 → 526 + `root_vars.rs` 61 (`merge_root_vars`, the `:root`
+  custom-property seed; `walk` re-exports it); `rdom-core/src/dom.rs` 665 → 443 +
+  `interaction_state.rs` 234 (the hover / focus / active / `:focus-visible` / pointer capture /
+  selection getters and setters, an `impl Dom` over the same `pub(crate)` fields); and
+  `rdom-parser/src/parser.rs` 800 → `parser/mod.rs` 522 + `parser/attr.rs` 137 (attribute names and
+  values, a child module so it keeps the parser's private state) + `char_refs.rs` 158 (character
+  references; the scanner tests stay in `parser`). `wc -l` alone would have flagged ten more rdom-core
+  / rdom-tui files whose size is an inline test module; they are listed with both numbers. `SIZE-1`
+  now lists every file between 500 and 600. Mechanical check: `rdom-showcase/tests/integration/
+  file_sizes.rs` (in the one unpublished crate, as it reads every sibling's `src/`) fails
+  `cargo test --workspace` past 600 lines, its counting rule tested on its own cases; the rule is
+  recorded in CLAUDE.md §Architecture Hygiene. Red: the same rule run before the splits counted
+  `parser.rs` 800 and `dom.rs` 665 past 600 (and `walk.rs` 590 past the 575 split bar); after them the
+  check is green, and with its limit lowered to 560 it fails on exactly the three files at 561–564
+  (`mouse/mod.rs`, `dirty_tracker.rs`, `event_detail.rs`; restored). No test expectation or snapshot
+  changed.
+- 2026-10-09 — Phase 7 closed: both gates run, 15 gate fixes (`C7G-*`: batch A — LINES-SHIFT,
+  INITIAL-ALLOC, TRACK-VALIDITY, MEMO-PURITY, SUBGRID-COST, FOCUS-FIXUP, INLINE-ATOM-MAX,
+  STACKING-ONE, MINOR; batch B — README-GRID, DESIGN-TYPES, GRID-SETTERS, UPGRADE-GUIDE, DOCS-TESTS,
+  SIZES). Carried: C8-CB-COMPLETE (the padding-edge containing block's remaining cases) and
+  C12-FOCUS-FLUSH (`focus()` flushing style, TECH_DEBT `FOCUS-FLUSH-1`), both scheduled. The `C7G-*`
+  re-review rides with the Phase 8 gate.

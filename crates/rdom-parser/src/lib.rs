@@ -60,6 +60,7 @@
 //! assert!(err.hint.is_some());
 //! ```
 
+mod char_refs;
 mod dom_ext;
 mod entities;
 mod error;

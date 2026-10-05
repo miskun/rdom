@@ -497,6 +497,8 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 - The Tab form demo's Name input carries `autofocus` (in its `MARKUP` and its built DOM alike), so switching to the demo — including Enter on its sidebar entry — moves focus into the form and typing goes straight into Name, as a browser focuses `[autofocus]` on navigation. (`SHOWCASE-TAB-FORM-AUTOFOCUS-1`)
 - The shell declares `box-sizing: border-box` for its own chrome only; demos that assumed border-box sizing scope the reset to their root class, `ua_chrome` shows the UA defaults, and the rAF demo uses `content-box` (a full bar is its track's 48-cell inside). (C5-BOX-SIZING, C5G-DOCS-AND-SHOWCASE)
 - The paint snapshots pin what the app shows: the harness seeds `style` attributes and cascades the shell's base sheet first, and a snapshot records cell backgrounds as a second layer when any cell has one. (C5G-DOCS-AND-SHOWCASE)
+- A workspace check (`tests/integration/file_sizes.rs`) fails `cargo test --workspace` when a production source file passes 600 lines; `cascade/walk.rs`, rdom-core's `dom.rs` and rdom-parser's `parser.rs` are split by concern to meet it (moves only). (C7G-SIZES)
+
 
 ## [0.5.0] - 2026-09-29
 

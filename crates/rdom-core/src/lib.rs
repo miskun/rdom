@@ -50,6 +50,7 @@ mod html_collection;
 mod indexes;
 mod input_type;
 mod insert_adjacent;
+mod interaction_state;
 mod markup;
 mod node;
 mod node_id;

@@ -120,6 +120,8 @@ Watch for:
 
 The few-hundred-line bar applies to production modules. Test files may run long when they are organized by section headers, one section per behavior; a test file is split when a section outgrows its module — typically one test file per submodule after a production split.
 
+The bar is checked mechanically: `rdom-showcase/tests/integration/file_sizes.rs` (in the one unpublished crate, since it reads every sibling's sources) fails `cargo test --workspace` when a production file passes 600 lines. Production means every `.rs` file under `crates/*/src/`, except test files (`tests.rs`, `*_tests.rs`, `test_*.rs`) and the lines of an inline `#[cfg(test)] mod … { … }` block; the generated `rdom-parser/src/entities.rs` table is exempt. Files between 500 and 600 are listed in `specs/TECH_DEBT.md` `SIZE-1` and split when a change touches them.
+
 If a god object or oversized module is emerging, split it earlier rather than later. Prefer small domain types, explicit interfaces, and narrow modules over clever central objects.
 
 At regular intervals, stop and inspect the codebase organization before adding more surface area.
