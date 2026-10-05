@@ -208,3 +208,28 @@ fn a_partial_selection_inside_one_text_node_collapses_too() {
     // collapsed space at either end stays.
     assert_eq!(copy(&mut dom, &Stylesheet::new(), (t, 1), (t, 8)), " b ");
 }
+
+/// HTML §3.2.7 rendered text reads the *used* `visibility` — paint's
+/// answer (`render::visibility::visibility_of`): mid-way through a
+/// transition from `hidden` the box presents `visible` (CSS Display 3
+/// §4), its text is drawn, so it is copied.
+#[test]
+fn copy_reads_the_presented_visibility_mid_transition() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let (p, a) = el(&mut dom, root, "p", "a");
+    let (span, _) = el(&mut dom, p, "span", "B");
+    let c = text(&mut dom, p, "c");
+    let sheet = Stylesheet::new().rule_unchecked(
+        "span",
+        TuiStyle::new().visibility(crate::layout::Visibility::Hidden),
+    );
+    assert_eq!(copy(&mut dom, &sheet, (a, 0), (c, 1)), "ac");
+    dom.node_mut(span)
+        .ext_mut()
+        .expect("cascaded")
+        .presentation_for_mut(crate::ext::StyleSlot::Host)
+        .visibility = Some(crate::layout::Visibility::Visible);
+    let range = Range::ordered_unchecked(Position::new(a, 0), Position::new(c, 1));
+    assert_eq!(serialize_selection(&dom, &range), "aBc");
+}

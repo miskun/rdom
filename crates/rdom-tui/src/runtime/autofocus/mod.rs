@@ -62,15 +62,34 @@ pub fn focus_within(dom: &mut TuiDom, root: NodeId) {
     }
 }
 
+/// [`focus_within`] for a dialog `showModal()` has just opened, whose
+/// computed `display: none` predates the call
+/// (`tabindex::is_focusable_in_opened`).
+pub(crate) fn focus_within_opened(dom: &mut TuiDom, dialog: NodeId) {
+    let focusable =
+        |dom: &TuiDom, id| crate::runtime::focus::tabindex::is_focusable_in_opened(dom, id, dialog);
+    if let Some(target) = find_autofocus_by(dom, dialog, &focusable) {
+        focus::focus_node(dom, Some(target));
+    }
+}
+
 /// Depth-first, document-order walk starting at `id`. Returns the
 /// first element with `[autofocus]` that's also focusable per the
 /// C.1 rules.
 fn find_autofocus_in(dom: &TuiDom, id: NodeId) -> Option<NodeId> {
-    if dom.node(id).has_attribute("autofocus") && is_focusable(dom, id) {
+    find_autofocus_by(dom, id, &is_focusable)
+}
+
+fn find_autofocus_by(
+    dom: &TuiDom,
+    id: NodeId,
+    focusable: &dyn Fn(&TuiDom, NodeId) -> bool,
+) -> Option<NodeId> {
+    if dom.node(id).has_attribute("autofocus") && focusable(dom, id) {
         return Some(id);
     }
     for child in dom.node(id).child_nodes() {
-        if let Some(target) = find_autofocus_in(dom, child.id()) {
+        if let Some(target) = find_autofocus_by(dom, child.id(), focusable) {
             return Some(target);
         }
     }

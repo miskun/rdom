@@ -43,15 +43,58 @@ use crate::node::TuiNodeExt;
 /// Callers that want the raw attribute value should read the
 /// attribute directly; `tab_index` is semantic.
 pub fn tab_index(dom: &TuiDom, id: NodeId) -> Option<i32> {
+    // HTML §6.6.2: an element that is not being rendered is not a
+    // focusable area (a button inside a closed `<dialog>`, a `[hidden]`
+    // box), nor — as the engines read it — a hidden one.
+    if !is_rendered_and_visible(dom, id) {
+        return None;
+    }
+    rendered_tab_index(dom, id)
+}
+
+/// Whether `id` is rendered and visible — the rendering condition of a
+/// focusable area (HTML §6.6.2 "being rendered", with the engines'
+/// `visibility` rule: Chromium and Gecko refuse focus to an element
+/// whose used `visibility` is not `visible`). Neither it nor an ancestor
+/// is `display: none`, and its used `visibility`
+/// (`render::visibility::visibility_of`: a running transition's value,
+/// else the computed one) is `visible`. The one answer Tab, the
+/// predicates here, `focus()` and the frame's focus fixup share.
+pub fn is_rendered_and_visible(dom: &TuiDom, id: NodeId) -> bool {
+    crate::node::is_rendered(dom, id) && renders_visibly(dom, id)
+}
+
+/// [`is_focusable`] for `id` — `opened` or a descendant of it — when the
+/// caller has just made `opened` rendered: `showModal()` opens a dialog
+/// and runs the dialog focusing steps at once (HTML §4.11.4), before the
+/// next cascade, so the dialog's computed `display: none` is the style
+/// of before it opened (a browser flushes style for the check). Every
+/// other box on the way up, and `id`'s visibility, are read as
+/// [`is_rendered_and_visible`] reads them.
+pub(crate) fn is_focusable_in_opened(dom: &TuiDom, id: NodeId, opened: NodeId) -> bool {
+    let mut cur = Some(id);
+    while let Some(n) = cur {
+        if n != opened && !is_rendered(dom, n) {
+            return false;
+        }
+        cur = dom.node(n).parent_node().map(|p| p.id());
+    }
+    crate::render::visibility::shows(dom, id, crate::ext::StyleSlot::Host)
+        && rendered_tab_index(dom, id).is_some()
+}
+
+/// [`is_rendered_and_visible`] for an element whose ancestors are known
+/// to be rendered (a tree walk that prunes `display: none` subtrees).
+fn renders_visibly(dom: &TuiDom, id: NodeId) -> bool {
+    is_rendered(dom, id) && crate::render::visibility::shows(dom, id, crate::ext::StyleSlot::Host)
+}
+
+/// [`tab_index`] of an element known to be rendered and visible.
+fn rendered_tab_index(dom: &TuiDom, id: NodeId) -> Option<i32> {
     let node = dom.node(id);
     // Actually disabled controls never focus (HTML §4.10.18.5: own
     // `disabled`, or inside a `<fieldset disabled>`).
     if dom.is_actually_disabled(id) {
-        return None;
-    }
-    // HTML: an element that is not being rendered is not a focusable
-    // area (a button inside a closed `<dialog>`, a `[hidden]` box).
-    if !is_rendered(dom, id) {
         return None;
     }
     // Explicit tabindex wins.
@@ -264,10 +307,12 @@ fn collect(
     *order += 1;
     let current_order = *order;
     // A `visibility: hidden` element is not rendered visibly, so not
-    // focusable (HTML §6.6.3); its subtree is still walked — a
-    // `visible` descendant is (CSS Display 3 §4).
-    let shown = crate::render::visibility::shows(dom, id, crate::ext::StyleSlot::Host);
-    if let Some(t) = tab_index(dom, id).filter(|_| shown) {
+    // focusable (`is_rendered_and_visible`); its subtree is still walked
+    // — a `visible` descendant is (CSS Display 3 §4).
+    let tab = renders_visibly(dom, id)
+        .then(|| rendered_tab_index(dom, id))
+        .flatten();
+    if let Some(t) = tab {
         if t > 0 {
             positive.push((t, current_order, id));
         } else if t == 0 {

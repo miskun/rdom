@@ -48,6 +48,22 @@ pub fn focus_node(dom: &mut TuiDom, new_focus: Option<NodeId>) {
     focus_node_with(dom, new_focus, None);
 }
 
+/// The focus fixup (HTML "update the rendering", after style and
+/// layout): when the focused element is no longer rendered and visible
+/// ([`tabindex::is_rendered_and_visible`] — it or an ancestor became
+/// `display: none`, or its used `visibility` is not `visible`), it is no
+/// focusable area, so the focusing steps run for the viewport: `blur` /
+/// `focusout` fire and nothing is focused. Returns whether it blurred.
+pub(crate) fn fix_up(dom: &mut TuiDom) -> bool {
+    match dom.focused() {
+        Some(f) if !tabindex::is_rendered_and_visible(dom, f) => {
+            focus_node(dom, None);
+            true
+        }
+        _ => false,
+    }
+}
+
 /// [`focus_node`] for focus moved by a pointer press: the new element's
 /// `:focus-visible` answer ([`visible::pointer_focus_is_evident`]) is
 /// committed with the focus, before `focus` / `focusin` fire —

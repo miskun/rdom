@@ -2812,3 +2812,33 @@ row comes from.
   still holds. Mutation checks (each alone, restored and touched): the strut measured at main
   size 0 → height 3; the gap placed beside a strut → x 5; `justify-content` counting the strut →
   x 5. No snapshot changed.
+- 2026-10-08 — C6G-VISIBILITY-ONE-ANSWER (AN8): four answers to "is this element rendered and
+  visible" disagreed. Tab (`collect`) pruned `display: none` subtrees and skipped hidden elements,
+  but the public `tab_index` / `is_focusable` / `is_tab_focusable` checked only the element's own
+  `display` — true for a `visibility: hidden` button and for a button inside a closed box — so
+  programmatic `focus()` (`TuiAccessorsMut::focus`, which asks `is_focusable`) focused both; a
+  focused element that became hidden kept focus; and copy read the computed `visibility` while paint
+  draws by the used one (`visibility_of`, a running transition's value). Decision: one predicate,
+  `runtime::focus::tabindex::is_rendered_and_visible` (public) — no `display: none` on the element
+  or an ancestor (`node::is_rendered`), and a used `visibility` of `visible` — HTML §6.6.2's "being
+  rendered" requirement of a focusable area, with the engines' visibility rule (Chromium's and
+  Gecko's focusability checks refuse a non-visible element). `tab_index` (so `is_focusable`,
+  `is_tab_focusable`, `focus()`, autofocus and the dialog's restore) asks it; Tab's tree walk,
+  which prunes `display: none` subtrees itself, asks its own-element half. The focus fixup (HTML
+  "update the rendering": a focused area that is no longer a focusable area runs the focusing
+  steps for the viewport, which fire `blur` / `focusout`): `focus::fix_up`, run by
+  `App::draw_if_dirty` after a frame that cascaded, against that frame's styles. Copy asks
+  `render::visibility::shows` of the text's owner, as paint does. Found on the way:
+  `dialog::show_modal` runs the dialog focusing steps synchronously (HTML §4.11.4), before the
+  cascade that renders the opened dialog, so with the ancestor walk its descendants read as
+  `display: none` and three dialog tests failed (no focus moved in); a browser flushes style for
+  the check. `tabindex::is_focusable_in_opened` reads the just-opened dialog as rendered and
+  everything else as the predicate does (`autofocus::focus_within_opened`, `first_focusable_in`).
+  The general case — code that shows a box and focuses into it in one handler, before the next
+  cascade — is refused; recorded in DIVERGENCES (Runtime & focus). Red
+  (`css_phase6/visibility_answers.rs`): `is_tab_focusable` true for the hidden button; `focus()`
+  focused it; the button turned `h` / `n` kept focus, no `blur`; `rendered_text_tests::
+  copy_reads_the_presented_visibility_mid_transition` — `"ac"` for `"aBc"`. Green after. Mutation
+  checks (each alone, restored and touched): no ancestor walk → the `display: none` cases; no
+  visibility check → all three focus tests; no fixup → the blur test; copy on the computed value →
+  `"ac"`. No snapshot changed.

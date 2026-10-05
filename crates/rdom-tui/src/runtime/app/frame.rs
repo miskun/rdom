@@ -96,6 +96,12 @@ impl<B: Backend> App<B> {
         self.redraw = Redraw::Clean;
         let walks = self.prelude.after_paint(&mut self.dom, pass.laid_out);
         self.note_walks(walks);
+        // HTML "update the rendering": the focus fixup, against this
+        // frame's styles. Its `blur` listeners are code the next frame's
+        // checks must see.
+        if pass.cascade.is_some() && crate::runtime::focus::fix_up(&mut self.dom) {
+            self.prelude.touched = true;
+        }
 
         // Drain transition events queued during this frame.
         self.dispatch_animation_events();

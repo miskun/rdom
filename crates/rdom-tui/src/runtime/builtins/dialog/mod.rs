@@ -84,10 +84,13 @@ pub fn show_modal(dom: &mut TuiDom, dialog: NodeId) {
     // Dialog focusing steps (HTML §4.11.4): the first `[autofocus]`
     // descendant, else the first focusable descendant, else the
     // dialog itself when it is focusable.
-    crate::runtime::autofocus::focus_within(dom, dialog);
+    // The dialog was closed (`display: none`) when last cascaded; it is
+    // rendered now (`tabindex::is_focusable_in_opened`).
+    crate::runtime::autofocus::focus_within_opened(dom, dialog);
     if !dom.focused().is_some_and(|f| is_inside(dom, f, dialog)) {
         let target = first_focusable_in(dom, dialog).or_else(|| {
-            crate::runtime::focus::tabindex::is_focusable(dom, dialog).then_some(dialog)
+            crate::runtime::focus::tabindex::is_focusable_in_opened(dom, dialog, dialog)
+                .then_some(dialog)
         });
         if let Some(t) = target {
             crate::runtime::focus::focus_node(dom, Some(t));
@@ -107,21 +110,22 @@ fn is_inside(dom: &TuiDom, id: NodeId, ancestor: NodeId) -> bool {
     false
 }
 
-/// First focusable element in document order strictly inside `root`.
+/// First focusable element in document order strictly inside `root`,
+/// a dialog just opened (`tabindex::is_focusable_in_opened`).
 fn first_focusable_in(dom: &TuiDom, root: NodeId) -> Option<NodeId> {
-    fn walk(dom: &TuiDom, id: NodeId) -> Option<NodeId> {
+    fn walk(dom: &TuiDom, id: NodeId, root: NodeId) -> Option<NodeId> {
         for child in dom.node(id).child_nodes() {
             let c = child.id();
-            if crate::runtime::focus::tabindex::is_focusable(dom, c) {
+            if crate::runtime::focus::tabindex::is_focusable_in_opened(dom, c, root) {
                 return Some(c);
             }
-            if let Some(found) = walk(dom, c) {
+            if let Some(found) = walk(dom, c, root) {
                 return Some(found);
             }
         }
         None
     }
-    walk(dom, root)
+    walk(dom, root, root)
 }
 
 /// The open modal dialog that currently owns interaction, if any:

@@ -157,12 +157,12 @@ impl Walk<'_> {
         };
         let (from, to, ends_here) = self.selected_bytes(id, data.len());
         // HTML §3.2.7 rendered text: a node whose `visibility` is not
-        // `visible` contributes no text (CSS Display 3 §4).
-        let shown = dom
-            .node(id)
-            .parent_element()
-            .and_then(|p| p.ext().and_then(|e| e.computed.as_ref()))
-            .is_none_or(|c| c.visibility.is_visible());
+        // `visible` contributes no text (CSS Display 3 §4) — the used
+        // value paint draws its owner's text by, a running transition's
+        // included (`render::visibility`).
+        let shown = dom.node(id).parent_element().is_none_or(|p| {
+            crate::render::visibility::shows(dom, p.id(), crate::ext::StyleSlot::Host)
+        });
         let copyable = used != UserSelect::None && shown;
         let collapsible = dom
             .node(id)
