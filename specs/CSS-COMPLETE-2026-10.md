@@ -1297,3 +1297,27 @@ row comes from.
   `pixel_lengths_inside_math_functions` (`border-width: calc(2px)` → `InvalidValue`); green after,
   with eight invalid mixes (`calc(2px + 1)`, `calc(2px * 2px)`, `max(1px, 2)`, pixels with `ch` /
   `%` / `vw` / `deg`). No showcase snapshot changes.
+- 2026-10-06 — C4G-SERIALIZE: two roots. (1) `render_value` put a space before every token. Decided
+  against keeping source spans or whitespace tokens: a browser does not echo the author's whitespace
+  for these specified values either — CSSOM §6.7.2 serializes them from their parsed form, not from the source text — so the renderer now writes
+  that form: one space between component values, none inside parentheses or before a comma, one after
+  it, and still never two tokens that would re-tokenize as one (an ident stays apart from a following
+  `(`, a number from an ident). The one token whose meaning depends on the whitespace the tokenizer
+  drops is `-` / `+` (the sign is a delimiter, not part of the number): it is glued to a following
+  number unless it follows an operand inside a math function, the only place CSS has a binary one
+  (`calc(50% - 1px)`); the renderer tracks the math-function nesting for that. (2) `url(0001.png)`
+  lost its zeros because the tokenizer had no `<url-token>`: `read_ident_or_function` now follows CSS
+  Syntax 3 §4.3.4 — `url(` before a quote is a function, otherwise §4.3.6 consumes a `Token::Url` with
+  the raw text (escapes decoded), or a `Token::BadUrl` (§4.3.14) for whitespace inside, a quote, a `(`
+  or a non-printable; `Token` is `#[non_exhaustive]`, so both are additions. `image_text` takes the url
+  token and the quoted function; `join_components` lost its sign special case. Found: custom
+  properties had two setting paths (rdom-css's block parser and `set_parsed`); both now go through
+  `property_dispatch::set_custom`, which rejects a bad-url value (CSS Variables 1 §2.1). `token.rs`
+  past 600 lines with the url tests: its tests moved to `token_tests.rs` (production 450). Red:
+  `kept_background_text_reads_back_like_a_browser` (`linear-gradient( red , blue )`) and
+  `custom_property_text_reads_back_without_stray_spaces` (`… ) - 1px url( x . png )`), both through
+  CSSOM `getPropertyValue` / `cssText`; green after, with the tokenizer's url tests (render → re-tokenize
+  round trip) and `custom_property_rejects_a_bad_url`. Changed expectations: rdom-css
+  `colors::{var_simple, var_with_fallbacks_is_kept_for_the_cascade, border_color_var}` pinned the
+  stray spaces (`var( --accent , red )`); they read `var(--accent, red)` now. No showcase snapshot
+  changes.

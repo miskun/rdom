@@ -40,7 +40,7 @@ use crate::parse::token::Token;
 
 /// The math function a function-token name opens, ASCII
 /// case-insensitive; `Ok(None)` for `calc`.
-fn math_function(name: &str) -> Option<Option<MathFunction>> {
+pub(super) fn math_function(name: &str) -> Option<Option<MathFunction>> {
     const TABLE: &[(&str, Option<MathFunction>)] = &[
         ("calc", None),
         ("min", Some(MathFunction::Min)),

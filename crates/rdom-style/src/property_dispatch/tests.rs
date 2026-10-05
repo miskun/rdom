@@ -950,3 +950,20 @@ fn min_max_percentages_share_the_size_shape() {
         Some(Value::Specified(MinSize::Calc(_)))
     ));
 }
+
+/// C4G-SERIALIZE — CSS Variables 1 §2.1: a custom property's value may
+/// be any tokens except a `<bad-url-token>`; a `<url-token>` is kept and
+/// reads back as itself.
+#[test]
+fn custom_property_rejects_a_bad_url() {
+    let mut style = TuiStyle::new();
+    assert_eq!(
+        set("--x", "url(a b)", &mut style),
+        Err(DispatchError::InvalidValue)
+    );
+    set("--x", "url(0001.png) -1px calc(1px - 2px)", &mut style).unwrap();
+    assert_eq!(
+        serialize("--x", &style).as_deref(),
+        Some("url(0001.png) -1px calc(1px - 2px)")
+    );
+}

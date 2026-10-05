@@ -84,20 +84,32 @@ pub use transition::{
 
 use crate::parse::token::Token;
 
-/// Render a `&[Token]` slice back to CSS text, one space between
-/// tokens. Reading it back gives the same tokens (CSSOM §2.1
-/// serialization): strings and identifiers — function names and
-/// dimension units included — keep their escapes
-/// (`rdom_core::css_syntax`), and a dimension stays one token while a
-/// number and an ident stay two. Custom properties are stored this way;
-/// the block parser's `InvalidValue` warnings show it too.
+/// Render a `&[Token]` slice back to CSS text the way CSSOM serializes a
+/// component value list (CSSOM §6.7.2; CSS Syntax 3 §9): one space
+/// between component values, none just inside parentheses or before a
+/// comma, one after a comma, a sign on the number it signs (`-45deg`),
+/// and a math function's `+` / `-` operators spaced (`calc(50% - 1px)`,
+/// where the space is required). Reading it back gives the same tokens:
+/// strings and identifiers — function names and dimension units
+/// included — keep their escapes (`rdom_core::css_syntax`), a dimension
+/// stays one token while a number and an ident stay two, an ident before
+/// `(` stays apart from it. The tokenizer keeps no whitespace, so a `-`
+/// (or `+`) before a number is read as its sign everywhere except after
+/// an operand inside a math function, the only place CSS has a binary
+/// one. Custom properties are stored this way; the kept background
+/// text and the block parser's `InvalidValue` warnings use it too.
 pub fn render_value(value: &[Token]) -> String {
     use rdom_core::css_syntax::{serialize_identifier, serialize_string};
     let mut out = String::new();
+    // Per open parenthesis: is it a math function's (or nested in one)?
+    let mut math: Vec<bool> = Vec::new();
+    let mut tight = true;
     for (i, t) in value.iter().enumerate() {
-        if i > 0 {
+        let in_math = math.last().copied().unwrap_or(false);
+        if !tight && !matches!(t, Token::RParen | Token::Comma) {
             out.push(' ');
         }
+        tight = false;
         match t {
             Token::Ident(s) => out.push_str(&serialize_identifier(s)),
             Token::Number(n) => out.push_str(&n.to_string()),
@@ -111,6 +123,14 @@ pub fn render_value(value: &[Token]) -> String {
                 out.push_str(&serialize_unit(unit));
             }
             Token::String(s) => out.push_str(&serialize_string(s)),
+            Token::Url(url) => {
+                out.push_str("url(");
+                out.push_str(&serialize_url(url));
+                out.push(')');
+            }
+            // Never round-trips: a declaration holding one is invalid,
+            // so only a warning shows it.
+            Token::BadUrl => out.push_str("url(\u{FFFD})"),
             Token::HexColor(h) => {
                 out.push('#');
                 out.push_str(h);
@@ -118,14 +138,69 @@ pub fn render_value(value: &[Token]) -> String {
             Token::Function(name) => {
                 out.push_str(&serialize_identifier(name));
                 out.push('(');
+                math.push(in_math || calc::math_function(name).is_some());
+                tight = true;
+            }
+            Token::LParen => {
+                out.push('(');
+                math.push(in_math);
+                tight = true;
+            }
+            Token::RParen => {
+                out.push(')');
+                math.pop();
             }
             Token::Colon => out.push(':'),
             Token::Semicolon => out.push(';'),
             Token::Comma => out.push(','),
             Token::Bang => out.push('!'),
-            Token::LParen => out.push('('),
-            Token::RParen => out.push(')'),
+            Token::Delim(c @ ('-' | '+')) => {
+                out.push(*c);
+                let signs_next = matches!(
+                    value.get(i + 1),
+                    Some(
+                        Token::Number(_)
+                            | Token::Float(_)
+                            | Token::Percentage(_)
+                            | Token::Dimension { .. }
+                    )
+                );
+                let after_operand = i > 0 && ends_operand(&value[i - 1]);
+                tight = signs_next && !(in_math && after_operand);
+            }
             Token::Delim(c) => out.push(*c),
+        }
+    }
+    out
+}
+
+/// A token an operand ends with — after it, a math function's `-` is
+/// the binary operator.
+fn ends_operand(t: &Token) -> bool {
+    matches!(
+        t,
+        Token::Number(_)
+            | Token::Float(_)
+            | Token::Percentage(_)
+            | Token::Dimension { .. }
+            | Token::Ident(_)
+            | Token::RParen
+    )
+}
+
+/// A `<url-token>`'s text, escaped so it reads back as one (CSS Syntax 3
+/// §4.3.6): whitespace, quotes, parentheses, a backslash and the
+/// non-printable code points as hex escapes.
+fn serialize_url(url: &str) -> String {
+    let mut out = String::with_capacity(url.len());
+    for c in url.chars() {
+        if c.is_whitespace()
+            || matches!(c, '"' | '\'' | '(' | ')' | '\\')
+            || matches!(c, '\u{0}'..='\u{1F}' | '\u{7F}')
+        {
+            out.push_str(&format!("\\{:x} ", u32::from(c)));
+        } else {
+            out.push(c);
         }
     }
     out

@@ -209,3 +209,80 @@ fn css_text_round_trip_padding_is_lossless() {
         "cssText round-trip must be lossless (was broken pre-D-M4-2)"
     );
 }
+
+// ── C4G-SERIALIZE: kept image / position text ────────────────
+
+/// CSSOM §6.7.2 (serialize a CSS value): the background images,
+/// positions and sizes rdom keeps as text read back as a browser
+/// serializes them — no space inside parentheses or before a comma, one
+/// after it, a sign on its number, `calc()`'s operators spaced — and an
+/// unquoted `url()` keeps its text exactly (CSS Syntax 3 §4.3.6: a
+/// `<url-token>` is the raw text, so `0001.png` keeps its zeros).
+#[test]
+fn kept_background_text_reads_back_like_a_browser() {
+    let (mut dom, div) = dom_with("div");
+    for (name, value, expected) in [
+        (
+            "background-image",
+            "linear-gradient(red, blue)",
+            "linear-gradient(red, blue)",
+        ),
+        (
+            "background-image",
+            "linear-gradient( -45deg , red 10% , blue )",
+            "linear-gradient(-45deg, red 10%, blue)",
+        ),
+        (
+            "background-image",
+            "linear-gradient(calc(10deg - 5deg), red calc(50% - 1px), blue)",
+            "linear-gradient(calc(10deg - 5deg), red calc(50% - 1px), blue)",
+        ),
+        ("background-image", "url(0001.png)", "url(\"0001.png\")"),
+        (
+            "background-image",
+            "url( a1.5e3.png )",
+            "url(\"a1.5e3.png\")",
+        ),
+        (
+            "background-position",
+            "left -5% top 10%",
+            "left -5% top 10%",
+        ),
+        (
+            "background-position",
+            "calc(100% - 3) 0",
+            "calc(100% - 3) 0",
+        ),
+        ("background-size", "auto 50%", "auto 50%"),
+    ] {
+        dom.node_mut(div)
+            .style_mut()
+            .unwrap()
+            .set_property(name, value)
+            .unwrap_or_else(|e| panic!("{name}: {value} → {e:?}"));
+        let style = dom.node(div).style().unwrap();
+        assert_eq!(style.get_property_value(name), expected, "{name}: {value}");
+        assert!(
+            style.css_text().contains(&format!("{name}: {expected}")),
+            "{}",
+            style.css_text()
+        );
+    }
+}
+
+/// The custom-property text the block parser keeps is the same
+/// serialization (CSS Variables 1 §2: the value is its tokens): a
+/// function's arguments without stray spaces, a sign on its number.
+#[test]
+fn custom_property_text_reads_back_without_stray_spaces() {
+    let (mut dom, div) = dom_with("div");
+    dom.node_mut(div)
+        .style_mut()
+        .unwrap()
+        .set_css_text("--g: linear-gradient(red, blue) -1px url(x.png)")
+        .unwrap();
+    assert_eq!(
+        dom.node(div).style().unwrap().get_property_value("--g"),
+        "linear-gradient(red, blue) -1px url(x.png)"
+    );
+}

@@ -123,7 +123,7 @@ fn var_text(css: &str, property: &str) -> String {
 fn var_simple() {
     assert_eq!(
         var_text("a { color: var(--accent); }", "color"),
-        "var( --accent )"
+        "var(--accent)"
     );
 }
 
@@ -131,14 +131,14 @@ fn var_simple() {
 fn var_with_fallbacks_is_kept_for_the_cascade() {
     assert_eq!(
         var_text("a { color: var(--accent, red); }", "color"),
-        "var( --accent , red )"
+        "var(--accent, red)"
     );
     assert_eq!(
         var_text(
             "a { color: var(--accent, var(--secondary, #00f)); }",
             "color"
         ),
-        "var( --accent , var( --secondary , #00f ) )"
+        "var(--accent, var(--secondary, #00f))"
     );
 }
 
@@ -165,6 +165,6 @@ fn background_color_hex() {
 fn border_color_var() {
     assert_eq!(
         var_text("a { border-color: var(--frame); }", "border-color"),
-        "var( --frame )"
+        "var(--frame)"
     );
 }

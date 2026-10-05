@@ -81,6 +81,24 @@ pub fn set_unset(name: &str, style: &mut TuiStyle) {
     let _ = set_css_wide(name, super::css_wide::CssWide::Unset, style);
 }
 
+/// Declare the custom property `--name` (`name` without the dashes) as
+/// `value`, `!important` when `important` — the one path for a parsed
+/// custom property, the block parser's and `set`'s. The value is any
+/// token sequence (CSS Variables 1 §2) except one holding a
+/// `<bad-url-token>` (§2.1), which is `InvalidValue`.
+pub fn set_custom(
+    name: &str,
+    value: &[Token],
+    important: bool,
+    style: &mut TuiStyle,
+) -> Result<(), DispatchError> {
+    if value.contains(&Token::BadUrl) {
+        return Err(DispatchError::InvalidValue);
+    }
+    style.set_custom_property(name, &crate::parse::values::render_value(value), important);
+    Ok(())
+}
+
 /// Parse `value` with `name`'s own grammar and write it — no `var()`
 /// handling; the cascade calls this with substituted tokens.
 pub fn set_parsed(name: &str, value: &[Token], style: &mut TuiStyle) -> Result<(), DispatchError> {
@@ -91,8 +109,7 @@ pub fn set_parsed(name: &str, value: &[Token], style: &mut TuiStyle) -> Result<(
         if custom.is_empty() {
             return Err(DispatchError::UnknownProperty);
         }
-        style.set_custom_property(custom, &crate::parse::values::render_value(value), false);
-        return Ok(());
+        return set_custom(custom, value, false, style);
     }
     let name = &*canonical_property_name(name);
     if let Some(kw) = css_wide_keyword(value) {

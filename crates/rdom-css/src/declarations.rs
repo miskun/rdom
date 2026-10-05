@@ -101,9 +101,11 @@ impl DeclarationRun {
                 at: decl.at,
             };
             if let Some(name) = decl.name.strip_prefix("--") {
-                // Custom property: untyped, kept verbatim, importance per
-                // declaration.
-                style.set_custom_property(name, &render_value(decl.value), decl.important);
+                // Custom property: untyped, kept as its tokens, importance
+                // per declaration.
+                if property_dispatch::set_custom(name, decl.value, decl.important, style).is_err() {
+                    warnings.push(invalid_value(&decl));
+                }
                 continue;
             }
             apply_declaration(decl, style, warnings);
@@ -211,6 +213,18 @@ fn strip_trailing_important(value: &mut &[Token]) -> bool {
     false
 }
 
+/// The warning for a declaration whose value its property rejects.
+fn invalid_value(decl: &RawDeclaration) -> Warning {
+    Warning {
+        kind: WarningKind::InvalidValue {
+            property: decl.name.to_string(),
+            value: render_value(decl.value),
+        },
+        line: decl.at.0,
+        column: decl.at.1,
+    }
+}
+
 fn apply_declaration(decl: RawDeclaration, style: &mut TuiStyle, warnings: &mut Vec<Warning>) {
     let name = decl.name;
     let value = decl.value;
@@ -242,15 +256,7 @@ fn apply_declaration(decl: RawDeclaration, style: &mut TuiStyle, warnings: &mut 
                 matches!(e, DispatchError::InvalidValue),
                 "unmapped dispatch error {e:?}"
             );
-            let value_text = render_value(value);
-            warnings.push(Warning {
-                kind: WarningKind::InvalidValue {
-                    property: name.to_string(),
-                    value: value_text,
-                },
-                line,
-                column,
-            });
+            warnings.push(invalid_value(&decl));
         }
     }
 }

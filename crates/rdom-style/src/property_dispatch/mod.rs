@@ -85,7 +85,7 @@ mod border_tests;
 mod tests;
 
 pub use serialize::serialize;
-pub use set::{set, set_from_tokens};
+pub use set::{set, set_custom, set_from_tokens};
 // `set_parsed` / `set_unset` are backend hooks, public through
 // `crate::backend`.
 pub(crate) use set::{set_parsed, set_unset};

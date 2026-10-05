@@ -209,24 +209,22 @@ fn each_layer<T>(value: &[Token], one: impl Fn(&[Token]) -> Option<T>) -> Option
 fn image_text(part: &[Token]) -> Option<String> {
     match part {
         [Token::Ident(s)] if s.eq_ignore_ascii_case("none") => Some(INITIAL_IMAGE.to_string()),
-        [Token::Function(f), inner @ .., Token::RParen] if f.eq_ignore_ascii_case("url") => {
-            let url = match inner {
-                [Token::String(s)] => s.clone(),
-                // An unquoted URL holds no whitespace (CSS Syntax 3
-                // §4.3.6), so its tokens concatenate back to it.
-                _ => inner
-                    .iter()
-                    .map(|t| render_value(std::slice::from_ref(t)))
-                    .collect(),
-            };
-            Some(format!(
-                "url({})",
-                rdom_core::css_syntax::serialize_string(&url)
-            ))
+        // An unquoted URL is one `<url-token>`, its text raw (CSS Syntax
+        // 3 §4.3.6); a quoted one a `url(` function holding a string.
+        [Token::Url(url)] => Some(url_text(url)),
+        [Token::Function(f), Token::String(url), Token::RParen]
+            if f.eq_ignore_ascii_case("url") =>
+        {
+            Some(url_text(url))
         }
         [Token::Function(f), .., Token::RParen] if is_gradient(f) => Some(render_value(part)),
         _ => None,
     }
+}
+
+/// A URL as CSSOM serializes it, a string (`url("a.png")`, CSSOM §6.7.2).
+fn url_text(url: &str) -> String {
+    format!("url({})", rdom_core::css_syntax::serialize_string(url))
 }
 
 /// The CSS Images 3 gradient functions.
@@ -421,16 +419,12 @@ fn visual_box(part: &[Token]) -> Option<VisualBox> {
     )
 }
 
-/// Component values as CSS text, one space apart; a component's own
-/// tokens are rendered by [`render_value`], except that a sign stays
-/// on its number (`-5%`).
+/// Component values as CSS text, one space apart, each rendered by
+/// [`render_value`] (which keeps a sign on its number, `-5%`).
 fn join_components(parts: &[&[Token]]) -> String {
     parts
         .iter()
-        .map(|c| match c {
-            [Token::Delim('-'), n] => format!("-{}", render_value(std::slice::from_ref(n))),
-            _ => render_value(c),
-        })
+        .map(|c| render_value(c))
         .collect::<Vec<_>>()
         .join(" ")
 }
