@@ -1796,3 +1796,26 @@ row comes from.
   under Stylesheets (it has no layout section). Root README: 163 UA rules (the count
   `ua::tests` pins; was 150). rdom-style README: the sizing keywords and `none`, `contain-intrinsic-*`,
   `margin-trim`, and a writing-modes / logical-properties group. Docs only — no test.
+- 2026-10-07 — C5G-REEXPORTS-AND-ROOT (gate fix, API): the root re-exports `TextDirection`,
+  `WritingMode`, `MarginTrim` and `ContainIntrinsicSize`; rdom-style's `backend`, `parse` and
+  `property_dispatch` modules moved from the root to `rdom_tui::style::` (`style::backend` no longer
+  sits beside the terminal `Backend` trait). The prelude went back to a typical app's set: removed
+  `PaintLength`, `BorderWeight`, `BorderWidth`, `CornerStyle`, `BorderSpacing`, `Sides`, `Corners`,
+  `VisualBox`, `RepeatStyle`, `BackgroundRepeat`, `BackgroundAttachment`, `FlexBasis`, `AspectRatio`,
+  `ColorContext`, `ColorFunction`, `ColorSchemeList`, `SystemColor`, `ContentContext`,
+  `CustomValue`, `CalcExpr`, `parse_color` and `resolve_tui_color` (all still at the root); kept the
+  builders' values it had gained (`BorderRadius`, `BorderStyle`, `BoxShadow`, `BoxSizing`, `MinSize`,
+  `MaxSize`, `IntrinsicSize`, `ColorScheme`) and `Viewport` (the argument of the prelude's
+  `CascadeExt::set_viewport`; the rdom-tui README doctest that names it failed without it), and
+  added `TextDirection`. No other in-tree code, example or README used a removed name. `tests/integration/prelude_migration.rs` is
+  `migration_hints.rs` and compiles every hint with `use rdom_tui::*;` — module paths as `calc::…`
+  and `style::parse::…` — plus two new groups: Phase 5 (`box_sizing` and the reset, the intrinsic
+  keywords, `margin_trim` + `parse_margin_trim`, `contain_intrinsic_*`, `text_direction` /
+  `writing_mode`, `set_box_sizing`) and batch A (`scroll_x` / `set_scroll` signed, `Token::Number`
+  as `i64`, `LineBox` / `InlineFragment` rows). DESIGN §6 now says what the root and the prelude are
+  for. Decided: no Breaking bullet for the move — the root `backend` / `parse` / `property_dispatch`
+  re-exports and the prelude additions came with C4G-REEXPORTS, after 0.5.0, so no published version
+  has them; the C4G-REEXPORTS Added bullet is rewritten to the new paths instead. Red: the rewritten
+  test failed to compile — `cannot find parse / backend / property_dispatch in style` (10),
+  `ContainIntrinsicSize` / `MarginTrim` / `TextDirection` / `WritingMode` not in scope (5); green
+  after.

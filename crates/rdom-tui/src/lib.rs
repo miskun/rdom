@@ -77,9 +77,10 @@ pub use tui_event::{TuiDispatchExt, TuiEvent};
 pub use ext::{PseudoLayout, StaticPosition, TuiExt};
 pub use layout::{
     Align, AspectRatio, BackgroundAttachment, BackgroundRepeat, Border, BorderRadius,
-    BorderSpacing, BorderStyle, BorderWeight, BorderWidth, BoxShadow, BoxSizing, CornerStyle,
-    Corners, Direction, Display, FlexBasis, Flow, IntrinsicSize, LayoutRect, MaxSize, MinSize,
-    Overflow, Padding, PaintLength, RepeatStyle, Sides, Size, UserSelect, VisualBox, WhiteSpace,
+    BorderSpacing, BorderStyle, BorderWeight, BorderWidth, BoxShadow, BoxSizing,
+    ContainIntrinsicSize, CornerStyle, Corners, Direction, Display, FlexBasis, Flow, IntrinsicSize,
+    LayoutRect, MarginTrim, MaxSize, MinSize, Overflow, Padding, PaintLength, RepeatStyle, Sides,
+    Size, TextDirection, UserSelect, VisualBox, WhiteSpace, WritingMode,
 };
 pub use node::{TuiNodeExt, TuiNodeMutExt};
 /// `@import` resolution for the document's `<style>` sheets
@@ -92,14 +93,6 @@ pub use rdom_style::calc;
 /// The size the viewport-percentage units (`vw`, `vh`, …) resolve
 /// against: the document's ([`CascadeExt::set_viewport`]).
 pub use rdom_style::calc::Viewport;
-/// The declaration-level CSS parsing primitives (`parse::tokenize`,
-/// `parse::Token`, `parse::values::*`), the property dispatch table
-/// (`property_dispatch::set` / `serialize`, the one `rdom-css` and the
-/// CSSOM use) and the cascade's substitution hooks
-/// (`backend::SubstitutionContext`, which `TuiStyle::substituted` takes),
-/// so a consumer of `rdom-tui` alone can reach every path the style
-/// types' signatures and the CHANGELOG name.
-pub use rdom_style::{backend, parse, property_dispatch};
 /// Test-only VT emulator; see [`render::virtual_screen`].
 #[cfg(any(test, feature = "test-util"))]
 pub use render::VirtualScreen;

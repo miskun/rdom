@@ -1,11 +1,14 @@
-//! C4G-REEXPORTS — every type a CHANGELOG `[Unreleased]` migration hint
-//! names is reachable by a consumer that depends on `rdom-tui` alone and
-//! writes `use rdom_tui::prelude::*;`. Module paths a hint names
-//! (`calc::to_cells`, `property_dispatch::set`, `parse::Token`, …) are
-//! reached from the `rdom_tui` root, as the hint spells them. One test per
-//! hint group, each citing the hint's item id; nothing else is imported.
+//! C4G-REEXPORTS, C5G-REEXPORTS-AND-ROOT — every type a CHANGELOG
+//! `[Unreleased]` migration hint names is reachable by a consumer that
+//! depends on `rdom-tui` alone and writes `use rdom_tui::*;` — the
+//! root, the full public surface (the prelude is a typical app's set,
+//! not a migration surface). Module paths a hint names are reached from
+//! the root as `calc::…`, and rdom-style's declaration-level modules as
+//! `style::parse::…`, `style::property_dispatch::…`, `style::backend::…`.
+//! One test per hint group, each citing the hint's item id; nothing else
+//! is imported.
 
-use rdom_tui::prelude::*;
+use rdom_tui::*;
 
 /// C3G-MIN-AUTO, C2-PERCENT, C2G-MAX-NONE, C3G-API: `MinSize::Auto` (and
 /// its `Default`), `MaxSize::Cells`, the percentage constructors — the
@@ -68,15 +71,15 @@ fn cascade_hints() {
 /// tokens and math, reached through the root's `parse` and `calc`.
 #[test]
 fn token_and_math_hints() {
-    let tokens = rdom_tui::parse::tokenize("2px").unwrap();
+    let tokens = style::parse::tokenize("2px").unwrap();
     assert!(matches!(
         tokens.as_slice(),
-        [rdom_tui::parse::Token::Dimension { .. }]
+        [style::parse::Token::Dimension { .. }]
     ));
-    let three = rdom_tui::parse::tokenize("calc(1 + 2)").unwrap();
-    let expr: CalcExpr = rdom_tui::parse::values::parse_calc(&three).unwrap();
-    assert_eq!(expr.resolve(&rdom_tui::calc::ResolveCtx::new(0)), 3);
-    assert_eq!(rdom_tui::calc::to_cells(2.5), 2);
+    let three = style::parse::tokenize("calc(1 + 2)").unwrap();
+    let expr: calc::CalcExpr = style::parse::values::parse_calc(&three).unwrap();
+    assert_eq!(expr.resolve(&calc::ResolveCtx::new(0)), 3);
+    assert_eq!(calc::to_cells(2.5), 2);
 }
 
 /// C2G-CONTENT-ATTR, C2-ATTR: `content` set through the dispatch table,
@@ -84,13 +87,13 @@ fn token_and_math_hints() {
 #[test]
 fn content_hints() {
     let mut style = TuiStyle::new();
-    rdom_tui::property_dispatch::set("content", "attr(x)", &mut style).unwrap();
+    style::property_dispatch::set("content", "attr(x)", &mut style).unwrap();
     assert_eq!(style.pending.len(), 1);
     fn lookup(name: &str) -> Option<&'static str> {
         (name == "x").then_some("hi")
     }
     let vars = std::collections::HashMap::new();
-    let cx = rdom_tui::backend::SubstitutionContext::new().with_attrs(&lookup);
+    let cx = style::backend::SubstitutionContext::new().with_attrs(&lookup);
     let resolved = style.substituted_pending(&vars, &cx);
     assert_eq!(
         resolved.content,
@@ -183,12 +186,92 @@ fn render_hints() {
     let _ = Buffer::empty(area);
     let _ = Buffer::filled(area, Cell::default());
     let _ = Buffer::with_cells(area, vec![Cell::default(); 2]);
-    let _ = rdom_tui::render::buffer::BorderContribution {
+    let _ = render::buffer::BorderContribution {
         style: BorderStyle::Solid,
         fg: Color::Reset,
         weight: BorderWeight::Light,
         priority: 0,
         corner_style: CornerStyle::Square,
-        side: rdom_tui::render::buffer::BorderSide::Top,
+        side: render::buffer::BorderSide::Top,
+    };
+}
+
+/// C5-BOX-SIZING, C5-INTRINSIC, C5-MARGIN-TRIM, C5-CONTAIN-SIZE,
+/// C5-WRITING: the Phase 5 style fields, their builders and values, the
+/// node setter and the border-box reset.
+#[test]
+fn box_model_hints() {
+    let s = TuiStyle::new()
+        .box_sizing(BoxSizing::BorderBox)
+        .width(Size::Intrinsic(IntrinsicSize::MinContent))
+        .min_width(MinSize::Intrinsic(IntrinsicSize::MaxContent))
+        .margin_trim(MarginTrim::NONE)
+        .contain_intrinsic_width(ContainIntrinsicSize::default())
+        .contain_intrinsic_height(ContainIntrinsicSize::default())
+        .text_direction(TextDirection::Rtl)
+        .writing_mode(WritingMode::HorizontalTb);
+    assert!(s.important.is_empty());
+    let ComputedStyle {
+        box_sizing: _,
+        margin_trim: _,
+        contain_intrinsic_width: _,
+        contain_intrinsic_height: _,
+        text_direction: _,
+        writing_mode: _,
+        ..
+    } = ComputedStyle::initial();
+    let tokens = style::parse::tokenize("block").unwrap();
+    assert!(style::parse::values::parse_margin_trim(&tokens).is_some());
+
+    let sheet = Stylesheet::new()
+        .rule(
+            "*, ::before, ::after",
+            TuiStyle::new().box_sizing(BoxSizing::BorderBox),
+        )
+        .unwrap();
+    let mut dom: TuiDom = TuiDom::new();
+    let div = dom.create_element("div");
+    dom.node_mut(div).set_box_sizing(BoxSizing::BorderBox);
+    dom.cascade(&sheet);
+}
+
+/// C5G-RTL-SCROLL, C5G-INT-CLAMP-SITE, C5G-ATOM-BOX: the signed
+/// `scrollLeft`, the wide integer token, and the line boxes' rows.
+#[test]
+fn scroll_token_and_line_hints() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let div = dom.create_element("div");
+    dom.append_child(root, div).unwrap();
+    dom.node_mut(div).set_scroll(-2, 0);
+    let x: i32 = dom.node(div).ext().unwrap().scroll_x;
+    let _as_usize = x.max(0) as usize;
+
+    let tokens = style::parse::tokenize("99999999999").unwrap();
+    let [style::parse::Token::Number(n)] = tokens.as_slice() else {
+        panic!("one integer token");
+    };
+    assert_eq!(*n, 99_999_999_999_i64);
+    assert!(i32::try_from(*n).is_err());
+
+    let line = render::LineBox {
+        fragments: Vec::new(),
+        generated: Vec::new(),
+        width: 0,
+        top: 2,
+        height: 1,
+        baseline: 0,
+    };
+    assert_eq!(line.text_row(), 2);
+    let _ = render::InlineFragment {
+        node: div,
+        text_node: div,
+        source_byte_offset: 0,
+        x: 0,
+        y: 0,
+        width: 1,
+        height: 1,
+        text: String::new(),
+        atomic: false,
     };
 }

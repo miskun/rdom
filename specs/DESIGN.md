@@ -60,6 +60,8 @@ The crate set ships native HTML element behaviors (`<button>`, `<input>` family 
 
 Domain types and tests describe behavior before implementation lands. The public API surface lives in each crate's `lib.rs` re-exports; nothing user-facing leaks through `pub(crate)` accidents.
 
+In rdom-tui the crate root is the full surface: every public type, and every path a CHANGELOG migration hint names, is reachable from `rdom_tui` (`tests/integration/migration_hints.rs` compiles each hint with `use rdom_tui::*;` alone), with rdom-style's declaration-level modules under `rdom_tui::style` (`style::parse`, `style::property_dispatch`, `style::backend`). `rdom_tui::prelude` is a typical app's set — the document and runtime types, the extension traits whose methods are otherwise invisible, the values a stylesheet builder takes — not a migration surface: a type joins it when ordinary app code names it, not because a hint does (C5G-REEXPORTS-AND-ROOT).
+
 ### 7. Real fixes only
 
 Special-case patches that only satisfy the current fixture, silent fallbacks that hide invalid state, broad `unwrap_or_default` / `let _ =` that swallow real failures, and duplicated logic across crates are not acceptable. Fix the root cause, not the symptom.

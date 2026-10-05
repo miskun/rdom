@@ -1,8 +1,15 @@
 //! One-stop import for the common API. `use rdom_tui::prelude::*;`
 //! brings in the types a typical app needs: `TuiDom`, the node
-//! accessor traits, the core style types, and extension traits whose
-//! methods (`cascade`, `set_width`, `computed`, ...) would otherwise
-//! be invisible until imported.
+//! accessor traits, the style types a stylesheet is built from (the
+//! builders' arguments: sizes, colors, borders, `box-sizing`, …), and
+//! extension traits whose methods (`cascade`, `set_width`, `computed`,
+//! ...) would otherwise be invisible until imported.
+//!
+//! It is not the full surface: a value type a typical app never names
+//! (`PaintLength`, `CornerStyle`, `ColorFunction`, …), a migration
+//! hint's type, and rdom-style's modules (`style::parse`,
+//! `style::property_dispatch`, `style::backend`) are at the crate root
+//! — `use rdom_tui::*;` reaches every one of them.
 //!
 //! ## M4 accessor surface
 //!
@@ -47,15 +54,13 @@
 //! `use rdom_parser::NodeMutHtml;` alongside the prelude
 //! import.
 //!
-//! For the full surface use `rdom_tui::*` directly; for access to
-//! `rdom-core` internals use `rdom_tui::core_api::…`.
+//! For the full surface use `rdom_tui::*` directly (every CHANGELOG
+//! migration hint compiles against it, `tests/integration/migration_hints.rs`);
+//! for access to `rdom-core` internals use `rdom_tui::core_api::…`.
 
 /// Test-only VT emulator (`test-util` feature).
 #[cfg(any(test, feature = "test-util"))]
 pub use crate::VirtualScreen;
-/// The math expression a `Size::Calc`, `MinSize::Calc`, `MaxSize::Calc`
-/// or `Length::Calc` holds (`rdom_tui::calc` has the rest).
-pub use crate::calc::CalcExpr;
 pub use crate::{
     // Selected rdom-core re-exports most apps will need
     AdjacentPosition,
@@ -65,45 +70,32 @@ pub use crate::{
     App,
     AppContext,
     AppHandle,
-    AspectRatio,
     Backend,
-    // Render primitives (paint layer)
-    BackgroundAttachment,
-    BackgroundRepeat,
+    // Style values (the builders' arguments)
     Border,
     BorderRadius,
-    BorderSpacing,
     BorderStyle,
-    BorderWeight,
-    BorderWidth,
     BoxShadow,
     BoxSizing,
+    // Render primitives (paint layer)
     Buffer,
     // Style types (cascade layer)
     CascadeExt,
     Cell,
     CellDiff,
     Color,
-    ColorContext,
-    ColorFunction,
     ColorScheme,
-    ColorSchemeList,
     CompletedFrame,
     ComputedStyle,
     Content,
-    ContentContext,
     ControlFlow,
-    CornerStyle,
-    Corners,
     CrosstermBackend,
-    CustomValue,
     Direction,
     DirtyTracker,
     Display,
     DomError,
     Event,
     EventPhase,
-    FlexBasis,
     Flow,
     HitTestExt,
     ImportantMask,
@@ -124,30 +116,27 @@ pub use crate::{
     Overflow,
     Padding,
     PaintExt,
-    PaintLength,
     // Selection types (re-exported from rdom-core)
     Position,
     PseudoElementTarget,
     Range,
     Rect,
     RenderContext,
-    RepeatStyle,
     Result,
     RouteOutcome,
     Router,
     Rule,
     RuleOrigin,
     Selection,
-    Sides,
     Size,
     Specificity,
     Style,
     StyleError,
     Stylesheet,
-    SystemColor,
     Terminal,
     TerminalGuard,
     TestBackend,
+    TextDirection,
     // Author-facing accessor traits (M4b)
     TuiAccessors,
     TuiAccessorsMut,
@@ -170,8 +159,5 @@ pub use crate::{
     Value,
     VarMap,
     Viewport,
-    VisualBox,
     WhiteSpace,
-    parse_color,
-    resolve_tui_color,
 };

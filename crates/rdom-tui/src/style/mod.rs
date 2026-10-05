@@ -49,3 +49,13 @@ pub use rdom_style::{
     Stylesheet, TimingFunction, TransitionProperty, TransitionRule, TuiColor, TuiStyle, Value,
     VarMap, parse_color, resolve_tui_color,
 };
+/// The declaration-level CSS parsing primitives (`parse::tokenize`,
+/// `parse::Token`, `parse::values::*`), the property dispatch table
+/// (`property_dispatch::set` / `serialize`, the one `rdom-css` and the
+/// CSSOM use) and the cascade's substitution hooks
+/// (`backend::SubstitutionContext`, which `TuiStyle::substituted` takes):
+/// rdom-style's modules, here so a consumer of `rdom-tui` alone reaches
+/// every path the style types' signatures and the CHANGELOG name —
+/// `rdom_tui::style::backend` is the style backend, not the terminal
+/// [`Backend`](crate::Backend).
+pub use rdom_style::{backend, parse, property_dispatch};
