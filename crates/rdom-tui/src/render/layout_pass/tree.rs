@@ -143,6 +143,9 @@ fn clear_box_state(ext: &mut TuiExt, rect: LayoutRect) {
 /// have written, since layout is translation-invariant. Used where a
 /// box moves after its subtree was laid out (`position: sticky`) and
 /// where content is aligned after it was measured (`align-content`).
+/// Every other position layout keeps is relative to one of these — line
+/// boxes and fragments to their content box, a grid's lines to its
+/// `content_layout` (C7G-LINES-SHIFT) — so moving these moves it all.
 pub(super) fn shift_subtree(dom: &mut Dom<TuiExt>, id: NodeId, dx: i32, dy: i32) {
     let shift = |r: LayoutRect| LayoutRect::new(r.x + dx, r.y + dy, r.width, r.height);
     if let Some(ext) = dom.node_mut(id).ext_mut() {

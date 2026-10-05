@@ -67,29 +67,20 @@ pub(super) fn arrange(
             )
         })
     });
-    // The tracks' edges, absolute (unscrolled), for §9.1: an `rtl` grid's
-    // columns start at their right edge.
+    // The tracks' edges, for §9.1 and the subgrids (§9): offsets from
+    // the content box's inline-start (an `rtl` grid's right) and top
+    // edges, which `distribute` already gives.
     let mut lines = grid.lines;
-    let right = container.x + i32::from(container.width);
-    lines.columns.edges = columns
-        .iter()
-        .map(|&(a, b)| match rtl {
-            true => (right - a, right - b),
-            false => (container.x + a, container.x + b),
-        })
-        .collect();
-    lines.rows.edges = rows
-        .iter()
-        .map(|&(a, b)| (container.y + a, container.y + b))
-        .collect();
+    lines.columns.edges.clone_from(&columns);
+    lines.rows.edges.clone_from(&rows);
     lines.rtl = rtl;
-    lines.origin = (if rtl { right } else { container.x }, container.y);
     for (p, &sub) in grid.placed.iter().zip(&grid.subgrids) {
         super::subgrid::record(&mut lines, p, sub);
     }
     if let Some(ext) = dom.node_mut(id).ext_mut() {
         ext.grid_lines = Some(Box::new(lines));
     }
+    let right = container.x + i32::from(container.width);
     let scroll_x = scroll_offset(dom, id, Direction::Row);
     let scroll_y = scroll_offset(dom, id, Direction::Column);
     let mut anonymous = Vec::new();

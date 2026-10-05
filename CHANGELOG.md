@@ -408,6 +408,7 @@ One row per renamed or reshaped public item: the 0.5 form, its replacement, the 
 ### Fixed — `rdom-tui`
 
 - **An absolutely positioned box's containing block is the padding box** of its positioned ancestor (CSS 2.1 §10.1), not its border box — elements and positioned pseudo-elements, grid areas' `auto` edges included. (C7-ABSPOS-PADDING-EDGE)
+- **A grid moved after its layout takes its lines with it** (CSS Grid 2 §9.1): an absolutely positioned child of a grid shifted by its block parent's `align-content` is placed in the moved grid area, not the area before the shift. (C7G-LINES-SHIFT)
 - **`cssText` names a set grid shorthand once**: `grid-area` listed `grid-row`, `grid-column` and the four line longhands beside itself; the largest serializing shorthand of a nest (`grid` over `grid-template`, `grid-area` over `grid-row` / `grid-column`) now stands for every property it covers (CSSOM §6.7.2). (C7-GRID-AREAS)
 - **A deep tree no longer overflows the stack in the cascade.** The walk recursed with every style an element computes in its frame (some 50 KB a level, so a 40-deep chain filled a test thread); it now keeps them behind `Rc`s, about 1 KB a level. (C7-GRID-CORE)
 - **A positioned `::before` / `::after` takes its `width` / `height`** (CSS 2.1 §10.3.7 / §10.6.4): a declared size (cells, `%`, `calc()`) wins as for a positioned element; with both insets set, `right` / `bottom` give way. (C3G-PSEUDO-SIZE)

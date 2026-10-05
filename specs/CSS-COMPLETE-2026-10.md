@@ -4057,3 +4057,20 @@ row comes from.
   restriction model, `is_focusable_in_opened`, subgrid gap halving, z-index on items. Full reports:
   `target/claude-logs/c7_gate_{architect,api}.md`. Fix as `C7G-*`, two batches (A correctness and cost,
   B API and docs).
+- 2026-10-09 — C7G-LINES-SHIFT (architect B1): a grid's lines (`TuiExt::grid_lines`, CSS Grid 2
+  §9.1) were stored in absolute cells, and `tree::shift_subtree` — C6G-BLOCK-ALIGN's `align-content`
+  shift, run before `place_positioned` — moved the grid's rects but not its lines, so a positioned
+  child's definite lines named the unshifted area. Decision: one source of truth — the edges are now
+  offsets from the container's content-box start (the right edge for `rtl` columns), the tuples
+  `content::distribute` already produces, and `abspos_area` resolves them against the grid's current
+  `content_layout`, which `shift_subtree` moves; `GridLines::origin` is gone, and
+  `subgrid::from_parent`, which converted the absolute edges back to offsets, reads them directly.
+  Audit of every other `TuiExt` position cache: `layout`, `content_layout`, `static_position`,
+  `before_layout` / `after_layout` and the anonymous boxes' `rect` / `border_box` are absolute and
+  shifted; `inline_layout` (line `top`, fragment `x` / `y`) and the anonymous boxes' line boxes are
+  relative to their content box; `scroll_state` holds offsets, `scroll_content_*` and
+  `table_used_width` sizes, `margin_chain` margins — nothing else absolute. Red:
+  `css_phase7/abspos.rs::a_shifted_grids_lines_move_with_it` — a grid at rows 8–9 under `height: 10;
+  align-content: end`, `grid-row: 2 / 3` at `(2, 1, 3, 1)` for `(2, 9, 3, 1)` (checked by stashing the
+  fix after green, then restoring and touching it). Green after; no other test and no snapshot
+  changed.

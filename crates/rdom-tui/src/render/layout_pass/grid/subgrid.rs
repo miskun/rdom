@@ -291,19 +291,12 @@ pub(super) fn from_parent(dom: &Dom<TuiExt>, id: NodeId, c: &ComputedStyle) -> I
         let reverse = reversed(c, parent_rtl, dimension);
         // The area's offsets from the parent's content-box start: an
         // `rtl` parent's columns count from its right edge.
-        let own: Vec<(i32, i32)> = a.edges[span.tracks()]
-            .iter()
-            .map(|&(s, e)| match (dimension, parent_rtl) {
-                (Dimension::Columns, true) => (lines.origin.0 - s, lines.origin.0 - e),
-                (Dimension::Columns, false) => (s - lines.origin.0, e - lines.origin.0),
-                (Dimension::Rows, _) => (s - lines.origin.1, e - lines.origin.1),
-            })
-            .collect();
+        let own = &a.edges[span.tracks()];
         Inherited {
             tracks: span.len(),
             names: span_names(&a.names, a.before, span, reverse),
             extents: Some(sub_extents(
-                &own,
+                own,
                 reverse,
                 ends(edges(c, cb), c, dimension),
                 own_gap(c, dimension),

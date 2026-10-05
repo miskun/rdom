@@ -113,3 +113,31 @@ fn an_auto_grid_line_is_the_padding_edge() {
                .abs { position: absolute; inset: 0; grid-column: 2 }";
     assert_eq!(in_cb(css), (3, 1, 16, 2));
 }
+
+/// CSS Grid 2 §9.1 with CSS Box Alignment 3 §5.1 (C7G-LINES-SHIFT): a
+/// grid moved after its layout — here by its block container's
+/// `align-content: end` — takes its lines with it, so a positioned
+/// child's grid area is the moved one: the grid sits at rows 8–9, and
+/// `grid-row: 2 / 3` is row 9, not the unshifted row 1.
+#[test]
+fn a_shifted_grids_lines_move_with_it() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let outer = el(&mut dom, root, "div", "outer");
+    let g = el(&mut dom, outer, "div", "g");
+    el(&mut dom, g, "i", "");
+    el(&mut dom, g, "i", "");
+    let abs = el(&mut dom, g, "b", "abs");
+    lay_out(
+        &mut dom,
+        ".outer { height: 10; align-content: end } \
+         .g { display: grid; position: relative; grid-template-columns: 2 3; \
+         grid-template-rows: 1 1 } \
+         .abs { position: absolute; inset: 0; grid-row: 2 / 3; grid-column: 2 / 3 }",
+        20,
+        12,
+    );
+    assert_eq!(rect(&dom, g).y, 8);
+    let r = rect(&dom, abs);
+    assert_eq!((r.x, r.y, r.width, r.height), (2, 9, 3, 1));
+}

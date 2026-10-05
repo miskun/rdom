@@ -187,7 +187,6 @@ pub(super) fn size_grid(
         columns: axis(&grid.columns, grid.placement.columns_before),
         rows: axis(&grid.rows, grid.placement.rows_before),
         rtl: false,
-        origin: (0, 0),
         subgrids: Vec::new(),
     };
     let inherited = |dimension: Dimension| inherit.on(dimension).and_then(|i| i.extents.clone());

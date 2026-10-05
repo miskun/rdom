@@ -20,10 +20,6 @@ pub(crate) struct GridLines {
     pub(super) rows: AxisLines,
     /// The grid's columns run from the right (`direction: rtl`).
     pub(super) rtl: bool,
-    /// Its content box's inline-start edge (the right one under `rtl`)
-    /// and top, absolute and unscrolled — what its tracks' offsets count
-    /// from.
-    pub(super) origin: (i32, i32),
     /// Its items that subgrid an axis, and their grid areas' spans — for
     /// their own layout, which takes its tracks from these lines (§9).
     pub(super) subgrids: Vec<(NodeId, super::track::Span, super::track::Span)>,
@@ -37,15 +33,26 @@ pub(super) struct AxisLines {
     pub(super) names: Vec<Vec<String>>,
     /// The implicit tracks before the explicit grid.
     pub(super) before: usize,
-    /// Each track's start-side and end-side edge, absolute cells — the
-    /// start side the right one of an `rtl` grid's columns.
+    /// Each track's start-side and end-side edge, in cells from the
+    /// container's content-box start edge on this axis (the right one of
+    /// an `rtl` grid's columns), unscrolled. Relative, not absolute, so a
+    /// grid moved after its layout (`tree::shift_subtree`) keeps them
+    /// true with no copy of its own: the container's `content_layout`
+    /// is the one origin they resolve against (C7G-LINES-SHIFT).
     pub(super) edges: Vec<(i32, i32)>,
 }
 
 impl AxisLines {
     /// The two edges of the area `start` / `end` name on this axis, `cb`
-    /// (start side, end side) standing for an `auto` or missing line.
-    fn area(&self, start: &GridLine, end: &GridLine, cb: (i32, i32)) -> (i32, i32) {
+    /// (start side, end side) standing for an `auto` or missing line;
+    /// `at` places a track edge (an offset from the content-box start).
+    fn area(
+        &self,
+        start: &GridLine,
+        end: &GridLine,
+        cb: (i32, i32),
+        at: impl Fn(i32) -> i32,
+    ) -> (i32, i32) {
         let names: Vec<Vec<Cow<'_, str>>> = self
             .names
             .iter()
@@ -82,13 +89,17 @@ impl AxisLines {
                 .ok()
                 .filter(|&i| i <= self.edges.len() && !self.edges.is_empty())
         };
-        let start_edge = s.and_then(line).map_or(cb.0, |i| match self.edges.get(i) {
-            Some(&(start, _)) => start,
-            None => self.edges[i - 1].1,
+        let start_edge = s.and_then(line).map_or(cb.0, |i| {
+            at(match self.edges.get(i) {
+                Some(&(start, _)) => start,
+                None => self.edges[i - 1].1,
+            })
         });
-        let end_edge = e.and_then(line).map_or(cb.1, |i| match i {
-            0 => self.edges[0].0,
-            i => self.edges[i - 1].1,
+        let end_edge = e.and_then(line).map_or(cb.1, |i| {
+            at(match i {
+                0 => self.edges[0].0,
+                i => self.edges[i - 1].1,
+            })
         });
         (start_edge, end_edge)
     }
@@ -104,25 +115,34 @@ pub(crate) fn abspos_area(
     grid: NodeId,
     cb: LayoutRect,
 ) -> Option<LayoutRect> {
-    let lines = dom.node(grid).ext()?.grid_lines.as_deref()?;
+    let ext = dom.node(grid).ext()?;
+    let lines = ext.grid_lines.as_deref()?;
+    // The lines count from the content box the grid has now — moved
+    // with it, if it moved after its layout.
+    let content = ext.content_layout;
     let c = dom
         .node(id)
         .ext()
         .and_then(|e| e.computed.clone())
         .unwrap_or_else(|| std::rc::Rc::new(ComputedStyle::initial()));
-    let rtl = dom
-        .node(grid)
-        .ext()
-        .and_then(|e| e.computed.as_deref())
-        .is_some_and(crate::render::layout_pass::margin_trim::inline_reversed);
+    let rtl = lines.rtl;
     let (right, bottom) = (cb.x + i32::from(cb.width), cb.y + i32::from(cb.height));
     let x_cb = if rtl { (right, cb.x) } else { (cb.x, right) };
+    let content_right = content.x + i32::from(content.width);
     let (x0, x1) = lines
         .columns
-        .area(&c.grid_column_start, &c.grid_column_end, x_cb);
+        .area(&c.grid_column_start, &c.grid_column_end, x_cb, |x| {
+            if rtl {
+                content_right - x
+            } else {
+                content.x + x
+            }
+        });
     let (y0, y1) = lines
         .rows
-        .area(&c.grid_row_start, &c.grid_row_end, (cb.y, bottom));
+        .area(&c.grid_row_start, &c.grid_row_end, (cb.y, bottom), |y| {
+            content.y + y
+        });
     let extent = |a: i32, b: i32| (a - b).unsigned_abs().min(u32::from(u16::MAX)) as u16;
     Some(LayoutRect::new(
         x0.min(x1),
