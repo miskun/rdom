@@ -194,12 +194,15 @@ pub struct ComputedStyle {
     /// CSS `writing-mode` (CSS Writing Modes 4 §3.1). Inherited; layout
     /// is `horizontal-tb` whatever it computes to (DIVERGENCES).
     pub writing_mode: crate::layout::WritingMode,
-    /// Per-axis overflow. Resolved after the cross-axis rule from
-    /// CSS Overflow Level 3: if one axis is not `Visible` and the
-    /// other is `Visible`, the `Visible` side behaves as `Auto`.
-    /// The cascade normalizes both axes to a consistent pair.
+    /// Per-axis overflow, after CSS Overflow 3 §3.1's computed-value
+    /// rule: when one axis is a scroll container's (`hidden`, `scroll`,
+    /// `auto`), a `visible` other axis computes to `auto` and a `clip`
+    /// one to `hidden`.
     pub overflow_x: Overflow,
     pub overflow_y: Overflow,
+    /// `overflow-clip-margin` (CSS Overflow 3 §3.2): a `clip` axis's
+    /// overflow clip edge.
+    pub overflow_clip_margin: crate::layout::OverflowClipMargin,
     /// CSS `scrollbar-gutter` — controls whether `Overflow::Auto`
     /// reserves gutter cells when no scrollbar is actually showing.
     /// `Auto` (default) reserves only when overflow occurs (TUI
@@ -311,6 +314,36 @@ impl ComputedStyle {
         crate::layout::FlexDirection::new(self.direction, self.flex_reverse)
     }
 
+    /// Whether the box is a scroll container (CSS Overflow 3 §3.1):
+    /// `overflow` `hidden`, `scroll` or `auto` on an axis. A `clip` box
+    /// clips without being one.
+    pub fn is_scroll_container(&self) -> bool {
+        self.overflow_x.is_scrollable() || self.overflow_y.is_scrollable()
+    }
+
+    /// Whether the box clips its content on either axis — a scroll
+    /// container or an `overflow: clip` axis.
+    pub fn clips_overflow(&self) -> bool {
+        self.overflow_x.clips() || self.overflow_y.clips()
+    }
+
+    /// CSS Overflow 3 §3.1's computed value: beside an axis that makes a
+    /// scroll container, `visible` computes to `auto` and `clip` to
+    /// `hidden`; otherwise both stay as specified.
+    pub fn normalize_overflow(&mut self) {
+        use crate::layout::Overflow;
+        if !self.is_scroll_container() {
+            return;
+        }
+        for axis in [&mut self.overflow_x, &mut self.overflow_y] {
+            *axis = match *axis {
+                Overflow::Visible => Overflow::Auto,
+                Overflow::Clip => Overflow::Hidden,
+                other => other,
+            };
+        }
+    }
+
     /// Spec initial values: what every property starts as before any
     /// cascade input is applied. `Color::Reset` means "use the terminal
     /// default"; size/layout defaults match the legacy Element defaults
@@ -373,6 +406,7 @@ impl ComputedStyle {
             writing_mode: crate::layout::WritingMode::HorizontalTb,
             overflow_x: Overflow::Visible,
             overflow_y: Overflow::Visible,
+            overflow_clip_margin: crate::layout::OverflowClipMargin::default(),
             scrollbar_gutter: crate::layout::ScrollbarGutter::Auto,
             scroll_behavior: crate::layout::ScrollBehavior::Auto,
             display: Display::Block,

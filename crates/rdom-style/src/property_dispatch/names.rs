@@ -47,6 +47,7 @@ const PROPERTY_NAMES: &[&str] = &[
     "overflow",
     "overflow-x",
     "overflow-y",
+    "overflow-clip-margin",
     "scrollbar-gutter",
     "scroll-behavior",
     // Layout — sizing

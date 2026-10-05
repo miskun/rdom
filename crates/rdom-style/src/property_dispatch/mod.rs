@@ -112,6 +112,8 @@ mod grid_tests;
 #[cfg(test)]
 mod logical_tests;
 #[cfg(test)]
+mod overflow_tests;
+#[cfg(test)]
 mod sizing_tests;
 #[cfg(test)]
 mod spacing_tests;

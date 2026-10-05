@@ -13,10 +13,11 @@ use crate::parse::values::{
     parse_aspect_ratio, parse_color, parse_content, parse_counter_ops, parse_flex_factor,
     parse_flex_shorthand, parse_gap, parse_inset_shorthand, parse_keyword, parse_length,
     parse_margin_longhand, parse_margin_shorthand, parse_max_size, parse_min_size, parse_opacity,
-    parse_overflow, parse_padding_shorthand, parse_padding_value, parse_position,
-    parse_scroll_behavior, parse_scrollbar_gutter, parse_size, parse_text_decoration,
-    parse_time_list, parse_timing_function_list, parse_transition_property_list,
-    parse_transition_shorthand, parse_z_index, unzip_transition_rules,
+    parse_overflow, parse_overflow_clip_margin, parse_overflow_shorthand, parse_padding_shorthand,
+    parse_padding_value, parse_position, parse_scroll_behavior, parse_scrollbar_gutter, parse_size,
+    parse_text_decoration, parse_time_list, parse_timing_function_list,
+    parse_transition_property_list, parse_transition_shorthand, parse_z_index,
+    unzip_transition_rules,
 };
 use crate::{TuiStyle, Value};
 
@@ -257,9 +258,12 @@ fn set_physical(name: &str, value: &[Token], style: &mut TuiStyle) -> Result<(),
             }),
 
         // Layout — overflow
-        "overflow" => parse_overflow(value).map(|o| {
-            style.overflow_x = Some(Value::Specified(o));
-            style.overflow_y = Some(Value::Specified(o));
+        "overflow" => parse_overflow_shorthand(value).map(|(x, y)| {
+            style.overflow_x = Some(Value::Specified(x));
+            style.overflow_y = Some(Value::Specified(y));
+        }),
+        "overflow-clip-margin" => parse_overflow_clip_margin(value).map(|m| {
+            style.overflow_clip_margin = Some(Value::Specified(m));
         }),
         "overflow-x" => parse_overflow(value).map(|o| {
             style.overflow_x = Some(Value::Specified(o));

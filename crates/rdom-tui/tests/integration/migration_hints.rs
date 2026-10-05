@@ -853,3 +853,26 @@ fn z_index_hints() {
     let s = TuiStyle::new().z_index(layout::ZIndex::Value(40_000));
     assert!(s.z_index.is_some());
 }
+
+/// C8-OVERFLOW-CLIP: `Overflow::Clip` is a new arm; `OverflowClipMargin`
+/// and the scroll-container predicates are new.
+#[test]
+fn overflow_hints() {
+    let clips = |o: layout::Overflow| match o {
+        layout::Overflow::Visible => false,
+        layout::Overflow::Hidden
+        | layout::Overflow::Clip
+        | layout::Overflow::Scroll
+        | layout::Overflow::Auto => true,
+    };
+    assert!(clips(layout::Overflow::Clip));
+    let s = TuiStyle::new()
+        .overflow(layout::Overflow::Clip)
+        .overflow_clip_margin(layout::OverflowClipMargin::new(
+            layout::VisualBox::ContentBox,
+            1,
+        ));
+    assert!(s.overflow_clip_margin.is_some());
+    let c = ComputedStyle::initial();
+    assert!(!c.is_scroll_container() && !c.clips_overflow());
+}

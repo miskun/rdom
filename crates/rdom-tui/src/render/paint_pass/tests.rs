@@ -835,7 +835,15 @@ fn negative_layout_rect_partially_visible() {
     dom.append_child(c, b).unwrap();
     dom.append_child(root, c).unwrap();
 
+    // `c` a scroll container one row tall (a box that is not one has
+    // no scroll offset, CSS Overflow 3 §3.1).
     let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "c",
+            TuiStyle::new()
+                .height(Size::Fixed(1))
+                .overflow(crate::layout::Overflow::Hidden),
+        )
         .rule_unchecked("a", TuiStyle::new().height(Size::Fixed(1)))
         .rule_unchecked("b", TuiStyle::new().height(Size::Fixed(1)));
 
@@ -1888,12 +1896,12 @@ fn left_clipped_pseudo_paints_its_suffix() {
     assert_eq!(row(&buf, 0).trim_end(), "CDEF");
 }
 
+/// CSS Overflow 3 §3.1 computed value: beside a scrolling axis a
+/// `visible` one computes to `auto` (C8-OVERFLOW-CLIP; it stayed
+/// `visible` while an `auto` axis always reserved a gutter). An `auto`
+/// axis that does not overflow reserves nothing, so no gutter appears.
 #[test]
-fn cross_axis_independence_v1() {
-    // v1 deviates from CSS Overflow L3's cross-axis rule: each
-    // axis is resolved independently. `overflow-y: scroll` with
-    // default `overflow-x: visible` does NOT bump x to auto.
-    // Rationale documented in style/cascade/apply.rs.
+fn a_visible_axis_beside_a_scrolling_one_computes_to_auto() {
     use crate::style::{CascadeExt, TuiStyle};
     let mut dom: TuiDom = TuiDom::new();
     let root = dom.root();
@@ -1904,7 +1912,7 @@ fn cross_axis_independence_v1() {
     dom.cascade(&sheet);
     let c_computed = dom.node(c).computed().cloned().unwrap();
     assert_eq!(c_computed.overflow_y, Overflow::Scroll);
-    assert_eq!(c_computed.overflow_x, Overflow::Visible);
+    assert_eq!(c_computed.overflow_x, Overflow::Auto);
 }
 
 // ── C.4a: <input type="password"> masks at paint ───────────────────

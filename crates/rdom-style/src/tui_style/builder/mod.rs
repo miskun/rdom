@@ -225,6 +225,14 @@ impl TuiStyle {
     );
 
     setter!(
+        "overflow-clip-margin",
+        overflow_clip_margin,
+        overflow_clip_margin,
+        overflow_clip_margin_important,
+        OVERFLOW_CLIP_MARGIN,
+        crate::layout::OverflowClipMargin
+    );
+    setter!(
         "scrollbar-gutter",
         scrollbar_gutter,
         scrollbar_gutter,

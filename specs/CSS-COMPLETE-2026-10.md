@@ -172,7 +172,7 @@ row comes from.
 | C8-PARSE-ERROR | Every public error type implements `Display` and `std::error::Error` (found by C7G-README-GRID) | done |
 | C8-Z-INDEX | `z-index` full integer range | done |
 | C8-FLOAT | `float` / `clear` (line-box exclusion, clearance) | |
-| C8-OVERFLOW-CLIP | `overflow: clip`, two-value `overflow`, `overflow-clip-margin`, logical `overflow-block` / `-inline` | |
+| C8-OVERFLOW-CLIP | `overflow: clip`, two-value `overflow`, `overflow-clip-margin`, logical `overflow-block` / `-inline` | done |
 | C8-TEXT-OVERFLOW | `text-overflow: clip / ellipsis / <string>` | |
 | C8-LINE-CLAMP | `line-clamp` / `max-lines` / `block-ellipsis` / `continue` | |
 | C8-SCROLLBAR | `scrollbar-gutter: both-edges`, `scrollbar-width`, `scrollbar-color` | |
@@ -4454,4 +4454,52 @@ row comes from.
   `i32::MAX` (was `i16::MAX`), the range this item widens. DIVERGENCES' `i16` entry and its §3 line
   are gone; CSS-COVERAGE's `z-index` row is *Supported* (§3.10 5 / 0, total 145 / 26, 116 rows
   Partial / Missing). No snapshot changed.
+- 2026-10-05 — C8-OVERFLOW-CLIP (CSS Overflow 3 §3.1–§3.3). rdom-style: `Overflow::Clip`, moved with
+  `Overflow` into `layout/overflow.rs` beside the new `OverflowClipMargin { visual_box, margin }`
+  (`<visual-box> || <length [0,∞]>`, whole cells, the box `padding-box` when omitted;
+  `keywords.rs` was 511 lines and Phase 8 adds more overflow types). `overflow` takes one or two
+  keywords (`parse_overflow_shorthand`) and serializes `<x> <y>` when they differ;
+  `overflow-block` / `overflow-inline` are block-axis aliases in `logical.rs` (`overflow-y` /
+  `overflow-x`, one storage, as `inline-size` is). Two predicates replace the `!= Visible` tests:
+  `ComputedStyle::is_scroll_container` (`hidden` / `scroll` / `auto` on an axis) and
+  `clips_overflow`; `normalize_overflow` is §3.1's computed value (beside a scrolling axis
+  `visible` → `auto`, `clip` → `hidden`), run in the element and pseudo-element cascades before
+  the BFC rule. rdom-tui, every reader audited (19 sites): a scroll container is what the BFC
+  rule (`clip` forms none), the flex / grid automatic minimum, baselines (§9.1 of Box Alignment),
+  `align-content`'s overflow, sticky's scrollport, scroll-into-view, the scrollbar geometry and
+  the containing block's scroll offset read; `record_scroll_content_size` records an extent and
+  `clamp_scroll_offset` keeps an offset only for one — any other box's are 0, so `clip` "forbids
+  all scrolling". One clip rule, `layout_pass/clip_edge.rs::ClipEdges` (a scroll container's
+  padding box; a `clip` axis's `overflow-clip-margin` box outset by its margin; nothing on a
+  `visible` axis), read by `stacking::children_clip` (paint and hit-testing), the tree guides
+  (their copy of the rule is gone) and the scrollable-overflow walk, which cuts a `clip`
+  descendant's content to its edges per axis instead of dropping all of it. The ladder's note that
+  skipped §3.1's rule ("an `auto` axis always reserves a gutter") had gone stale — `auto` reserves
+  only on overflow — except for `scrollbar-gutter: stable`, which reserved the horizontal row too:
+  it now reserves the vertical bar's gutter only (§3.3: the inline-start / inline-end edges), and
+  `layout_node`'s second pass always settles an `auto` horizontal bar. Found by the rule: scrollbar
+  hit-testing and thumb drags took the corner cell from the vertical track whenever
+  `overflow-x` was `auto`, paint only while that bar showed — `bars_shown` is now the one answer
+  for paint, hit, drag and the tree guides. Red: `property_dispatch/overflow_tests.rs` (4) and
+  `css_phase8/overflow_clip.rs` did not compile (no `Overflow::Clip`, `OverflowClipMargin`,
+  `overflow_clip_margin`); green after — the computed pairs, the logical longhands, per-axis
+  clipping (`overflow-x: clip` paints the row below the box, cut at 3), the margin (one and two
+  cells; none for `hidden`; `content-box` inside the right padding), a refused and a dropped
+  scroll offset, the collapsing margin (2 under `clip`, 0 under `hidden`). Added after (green,
+  mutation-checked): a `clip` descendant's 20-wide, 5-tall content counts `(4, 5)` in its
+  scroller's extent (`(4, 1)` with the old "a clipping box contributes its border box").
+  Mutation (each restored and touched): no normalization and `clip` forming a BFC → the computed
+  and formatting-context tests; no clip margin and both axes clipping → the margin and per-axis
+  tests. Changed expectations, justified: `cross_axis_independence_v1` pinned the skipped rule — now
+  `a_visible_axis_beside_a_scrolling_one_computes_to_auto`; `overflow_auto_with_scrollbar_gutter_
+  stable_reserves_gutter` expected the bottom row (5 rows for 4); `scroll_y_offsets_children_
+  negative`, `negative_layout_rect_partially_visible` and the showcase's
+  `sidebar_scroll_end_regression` scrolled boxes that are not scroll containers (the first two
+  now give `c` `overflow: hidden` and a height, the third scrolls `.sidebar-tree`, the sidebar's
+  real scroller); `apply_tests`, `canonical_values` and `every_property_has_important_setter` list
+  the new property. The scrollbar runtime tests that failed under the computed rule (track, drag,
+  `rtl` and `column-reverse` thumbs, the no-cascade press) pass
+  unchanged with `bars_shown`. No snapshot changed. DIVERGENCES: `overflow-clip-margin` in whole
+  cells, a viewport-relative length rejected. CSS-COVERAGE §3.11: 5 / 1 / 8 (total 149 / 24 / 88,
+  112 Partial / Missing).
 

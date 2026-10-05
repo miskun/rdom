@@ -74,15 +74,16 @@ pub(super) fn nearest_scroll_container(dom: &TuiDom, id: NodeId) -> Option<NodeI
 
 /// `true` when `id` clips on the Y axis and has more content than its
 /// scrollport can show (i.e. there's somewhere to scroll to).
-/// `overflow-y` other than `visible`: the box clips and may scroll,
-/// whether or not the last layout found anything to scroll.
+/// `overflow-y` `hidden`, `scroll` or `auto`: the box may scroll,
+/// whether or not the last layout found anything to scroll (`clip`
+/// never does).
 pub(super) fn scrolls_vertically_by_style(dom: &TuiDom, id: NodeId) -> bool {
     let overflow_y = dom
         .node(id)
         .computed()
         .map(|c| c.overflow_y)
         .unwrap_or(Overflow::Visible);
-    !matches!(overflow_y, Overflow::Visible)
+    overflow_y.is_scrollable()
 }
 
 pub(super) fn is_vertical_scroll_container(dom: &TuiDom, id: NodeId) -> bool {
@@ -112,7 +113,7 @@ pub(super) fn is_horizontal_scroll_container(dom: &TuiDom, id: NodeId) -> bool {
         .computed()
         .map(|c| c.overflow_x)
         .unwrap_or(Overflow::Visible);
-    if matches!(overflow_x, Overflow::Visible) {
+    if !overflow_x.is_scrollable() {
         return false;
     }
     let border = dom

@@ -5,9 +5,10 @@
 
 use rdom_core::{Dom, NodeId, NodeType};
 
+use super::ClipEdges;
 use super::{element_children_of, is_in_flow};
 use crate::ext::TuiExt;
-use crate::layout::{LayoutRect, Overflow};
+use crate::layout::LayoutRect;
 use crate::style::ComputedStyle;
 
 /// Walk `id`'s direct element children (transparently descending
@@ -22,15 +23,14 @@ pub(crate) fn record_scroll_content_size(
     inner: LayoutRect,
     computed: &ComputedStyle,
 ) {
-    // Static early-exit: only scrollable containers care.
-    let needs = matches!(
-        computed.overflow_x,
-        Overflow::Scroll | Overflow::Auto | Overflow::Hidden
-    ) || matches!(
-        computed.overflow_y,
-        Overflow::Scroll | Overflow::Auto | Overflow::Hidden
-    );
-    if !needs {
+    // Only a scroll container has a scrollable extent (CSS Overflow 3
+    // §3.1; an `overflow: clip` box is none). Any other box records none,
+    // so a box that stopped scrolling keeps no stale extent to scroll by.
+    if !computed.is_scroll_container() {
+        if let Some(ext) = dom.node_mut(id).ext_mut() {
+            ext.scroll_content_width = 0;
+            ext.scroll_content_height = 0;
+        }
         return;
     }
 
@@ -74,7 +74,7 @@ pub(crate) fn record_scroll_content_size(
     // boxes: `display:none` takes no space and positioned boxes are
     // placed in phase 2 against their own containing block.
     for child in element_children_of(dom, id) {
-        extend_scrollable_overflow(dom, child, &mut extend);
+        extend_scrollable_overflow(dom, child, ClipEdges::NONE, &mut extend);
     }
 
     // Text content: a pure-text leaf or IFC block packs its lines from
@@ -237,14 +237,22 @@ pub(crate) fn clamp_scroll_offset(
     id: NodeId,
     computed: &ComputedStyle,
 ) -> bool {
-    let scrolls = !matches!(computed.overflow_x, Overflow::Visible)
-        || !matches!(computed.overflow_y, Overflow::Visible);
-    if !scrolls {
-        return false;
-    }
     let Some(ext) = dom.node(id).ext() else {
         return false;
     };
+    // A box that is not a scroll container has no scroll offset (CSS
+    // Overflow 3 §3.1: `clip` "forbids all scrolling"): one left from
+    // when it was, or written by hand, is dropped.
+    if !computed.is_scroll_container() {
+        if ext.scroll_x == 0 && ext.scroll_y == 0 {
+            return false;
+        }
+        if let Some(ext) = dom.node_mut(id).ext_mut() {
+            ext.scroll_x = 0;
+            ext.scroll_y = 0;
+        }
+        return true;
+    }
     let vp = ext.content_layout;
     let (min_x, max_x) = scroll_x_bounds(dom, id, vp.width as usize);
     let (min_y, max_y) = scroll_y_bounds(dom, id, vp.height as usize);
@@ -261,12 +269,19 @@ pub(crate) fn clamp_scroll_offset(
 }
 
 /// Feed `extend` the boxes `id`'s subtree contributes to an ancestor's
-/// scrollable overflow: its own layout rect and — unless it clips — its
-/// anonymous boxes and in-flow descendants' boxes. A clipping box (an
-/// intermediate scroll container) contributes its border box alone:
-/// everything inside it, anonymous boxes included, is its own
-/// scrollable overflow (CSS Overflow 3 §2.2).
-fn extend_scrollable_overflow(dom: &Dom<TuiExt>, id: NodeId, extend: &mut impl FnMut(LayoutRect)) {
+/// scrollable overflow, each cut to `clip` — the overflow clip edges of
+/// the `overflow: clip` boxes between: its own layout rect and — unless
+/// it is a scroll container — its anonymous boxes and in-flow
+/// descendants' boxes. An intermediate scroll container contributes its
+/// border box alone: everything inside it is its own scrollable overflow
+/// (CSS Overflow 3 §2.2). A `clip` box's content counts up to its
+/// overflow clip edge on its `clip` axes, wholly on a `visible` one.
+fn extend_scrollable_overflow(
+    dom: &Dom<TuiExt>,
+    id: NodeId,
+    clip: ClipEdges,
+    extend: &mut impl FnMut(LayoutRect),
+) {
     if !is_in_flow(dom, id) {
         return;
     }
@@ -277,27 +292,31 @@ fn extend_scrollable_overflow(dom: &Dom<TuiExt>, id: NodeId, extend: &mut impl F
     // none to clip with (`overflow` applies to containers, CSS Overflow
     // 3 §3.1): its children count as its parent's.
     let box_less = crate::render::box_tree::is_contents(dom, id);
+    let mut inner = clip;
     if !box_less {
-        extend(ext.layout);
-    }
-    let clips = !box_less
-        && ext.computed.as_ref().is_some_and(|c| {
-            !matches!(c.overflow_x, Overflow::Visible) || !matches!(c.overflow_y, Overflow::Visible)
-        });
-    if clips {
-        return;
+        if let Some(r) = clip.cut(ext.layout) {
+            extend(r);
+        }
+        if let Some(c) = ext.computed.as_ref() {
+            if c.is_scroll_container() {
+                return;
+            }
+            inner = clip.narrow(ClipEdges::of(ext, c));
+        }
     }
     for anon in &ext.anonymous_blocks {
-        extend(anon.border_box());
+        if let Some(r) = inner.cut(anon.border_box()) {
+            extend(r);
+        }
     }
     for child in dom.node(id).child_nodes() {
         match child.node_type() {
-            NodeType::Element => extend_scrollable_overflow(dom, child.id(), extend),
+            NodeType::Element => extend_scrollable_overflow(dom, child.id(), inner, extend),
             // A fragment has no box; its element children count as ours.
             NodeType::Fragment => {
                 for grand in child.child_nodes() {
                     if grand.node_type() == NodeType::Element {
-                        extend_scrollable_overflow(dom, grand.id(), extend);
+                        extend_scrollable_overflow(dom, grand.id(), inner, extend);
                     }
                 }
             }

@@ -6,7 +6,7 @@ use rdom_core::Dom;
 
 use super::Item;
 use crate::ext::TuiExt;
-use crate::layout::{Direction, Overflow, Size};
+use crate::layout::{Direction, Size};
 use crate::node::TuiNodeExt;
 
 /// What [`content_based_minimum`] measures against.
@@ -49,19 +49,15 @@ pub(in crate::render::layout_pass) fn content_based_minimum(
         Direction::Row => &computed.width,
         Direction::Column => &computed.height,
     };
-    let overflow_on_axis = match direction {
-        Direction::Row => computed.overflow_x,
-        Direction::Column => computed.overflow_y,
-    };
     // Whatever the suggestion, the content box is never negative: the
     // floor is at least the item's padding and border on the axis (CSS
     // Flexbox §9.7 clamps the target main size to the content box's 0).
     let kw = item.keywords(dom, &computed, direction, at.cross_budget, at.cb_width);
     let sizer = kw.sizer();
-    // CSS §4.5 exception: non-visible overflow drops the floor to 0
-    // — items inside a scroll container are allowed to be sized
-    // below their content.
-    if overflow_on_axis != Overflow::Visible {
+    // CSS §4.5 exception: a scroll container's floor is 0 — it may be
+    // sized below its content (CSS Grid 2 §6.6 alike). An `overflow:
+    // clip` item is not one (CSS Overflow 3 §3.1) and keeps the floor.
+    if computed.is_scroll_container() {
         return sizer.chrome();
     }
     // Specified size suggestion per spec: the declared main size, as

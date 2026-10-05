@@ -81,6 +81,7 @@ mod block;
 mod block_tests;
 mod border_collapse;
 pub(crate) mod box_sizing;
+mod clip_edge;
 mod dispatch;
 mod distribution;
 mod flex;
@@ -115,6 +116,7 @@ use flex::layout_flex_children;
 pub(super) use flow::{flow_axis, gap_along, resolve_gap};
 
 use auto_height::resolve_auto_height;
+pub(crate) use clip_edge::ClipEdges;
 pub(crate) use grid::GridLines;
 pub(super) use gutter::{gutter_axes, reserve_scrollbar_gutter, reserve_scrollbar_gutter_forced};
 pub(crate) use ifc::is_ifc_block;
@@ -320,8 +322,9 @@ pub(super) fn layout_node(
     use crate::layout::ScrollbarGutter;
     let auto_no_stable_y = matches!(computed.overflow_y, Overflow::Auto)
         && !matches!(computed.scrollbar_gutter, ScrollbarGutter::Stable);
-    let auto_no_stable_x = matches!(computed.overflow_x, Overflow::Auto)
-        && !matches!(computed.scrollbar_gutter, ScrollbarGutter::Stable);
+    // `scrollbar-gutter` reserves the vertical bar's gutter only (CSS
+    // Overflow 3 §3.3): an `auto` horizontal bar always waits for overflow.
+    let auto_no_stable_x = matches!(computed.overflow_x, Overflow::Auto);
     if auto_no_stable_y || auto_no_stable_x {
         // Compare against the FINAL content height: an `auto` height
         // was just resolved from the content (CSS 2.1 §10.6.3 — such a

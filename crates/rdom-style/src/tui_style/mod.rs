@@ -188,6 +188,9 @@ pub struct TuiStyle {
     /// longhands.
     pub overflow_x: Option<Value<Overflow>>,
     pub overflow_y: Option<Value<Overflow>>,
+    /// `overflow-clip-margin` (CSS Overflow 3 §3.2): where a `clip` axis
+    /// stops painting.
+    pub overflow_clip_margin: Option<Value<crate::layout::OverflowClipMargin>>,
     /// `scrollbar-gutter: auto | stable`. Gates the layout pass's
     /// gutter reservation for scrollable elements. Default `Auto`.
     pub scrollbar_gutter: Option<Value<crate::layout::ScrollbarGutter>>,

@@ -22,7 +22,7 @@ use rdom_core::{Dom, NodeId};
 
 use super::InlineFragment;
 use crate::ext::TuiExt;
-use crate::layout::{Direction, Overflow};
+use crate::layout::Direction;
 use crate::render::layout_pass::intrinsic;
 
 /// An atom's block-axis geometry in its line, measured before the
@@ -78,8 +78,9 @@ pub(super) fn atom_rows(dom: &Dom<TuiExt>, id: NodeId, width: u16, cb_width: u16
         .saturating_add(height)
         .saturating_add(margin_bottom);
     let bottom_edge = outer.saturating_sub(1);
-    let visible =
-        computed.overflow_x == Overflow::Visible && computed.overflow_y == Overflow::Visible;
+    // CSS Box Alignment 3 §9.1: a scroll container's (not a `clip`
+    // box's) baseline is its margin edge.
+    let visible = !computed.is_scroll_container();
     let baseline = match content_rows(dom, id, &computed, width, cb_width) {
         Some((_, last)) if visible => (margin_top + last).min(bottom_edge),
         _ => bottom_edge,

@@ -82,6 +82,7 @@ These are intrinsic to terminals. They will not change.
 - **An `<li>`'s `::before` is its list marker, and rides the item's first line box.** rdom has no `::marker` yet — `display: list-item` parses (CSS Display 3 §2.3) but generates no marker box (C10-LIST-ITEM, §3); the UA numbers `ol > li` and bullets `ul > li` through `li::before`. A browser puts the marker on the list item's first line even when that line belongs to a block child, so `<ol><li><p>Step</p></li></ol>` reads "1. Step": when an `<li>`'s first in-flow content (whitespace aside) is a block-level child, its `::before` is packed at the start of the first line of that block descendant, instead of forming the anonymous block box of its own that CSS 2.1 §9.2.1.1 gives any other block-first `::before` (which rdom does, for every non-`li` host and for `::after`). This applies to an author's `li::before` too. The marker sits inside the line, where `list-style-position: inside` would put it, not hung in the list's padding; a nested item's first line carries the enclosing items' markers as well (`1. 1. x`); and when no line box is reachable through block-flow children (an empty block, a flex container) the marker takes a line of its own.
 - **Positioned `::before` / `::after` pseudo-elements paint in one flat pass above every stacking context**, ordered by the host's `z-index` and tree order; they are not part of their host's context.
 - **Inside an `opacity < 1` context, an absolutely positioned descendant whose containing block lies above the context clips to the context's content clip.** CSS 2.1 §11.1.1 would use the clip in effect at the containing block; the difference shows only when an `overflow` box sits between that containing block and the `opacity` element.
+- **`overflow-clip-margin` is whole cells, and takes no viewport-relative length.** Its `<length [0,∞]>` (CSS Overflow 3 §3.2) is rounded onto the cell grid like every length; a length that needs the viewport (`1vw`, a math function holding one) is rejected and the declaration dropped, where CSS would resolve it at computed-value time (C8-OVERFLOW-CLIP).
 - **The scrollbar gutter sits between the content box and the padding.** CSS Overflow 3 §3 puts a scroll container's gutter between its inner border edge and its padding; rdom reserves the cell column (row) at the content box's inline-end (bottom) edge, inside the padding, and paints the bar there. The containing block an absolutely positioned descendant gets is still CSS's — the padding box less the gutter's column (row) at the border (C8-CB-COMPLETE).
 - **Sticky containing block is the element's parent's content box**, not the CSS "nearest scroll container" for nested-scroller edge cases.
 - **A box's baselines are its first and last content rows.** Baseline alignment in flex (`align-items: baseline` / `last baseline`, CSS Box Alignment 3 §9) and an inline block's baseline in its line (CSS 2.1 §10.8.1) read a box's first and last baseline as the first and last rows of its content box's content — a cell row holds one baseline — rather than the baselines of its first and last line boxes wherever they sit (an empty first child or a child's top margin does not move rdom's first baseline down). A box with no content rows synthesizes its baseline at its border box's bottom row in flex (Box Alignment §9.1), at its margin box's bottom row as an inline block (CSS 2.1).
@@ -279,7 +280,6 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 
 ### Logical properties and writing modes
 
-- `overflow-block` / `overflow-inline` (the logical properties shipped with C5-LOGICAL) — C8-OVERFLOW-CLIP
 - Logical keywords (`text-align: start / end`, `float: inline-start`, `resize: block / inline`) — with C9-TEXT-ALIGN, C8-FLOAT, C12-CONTROLS
 
 ### Display and visibility
@@ -295,7 +295,6 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 
 ### Overflow and scrolling
 
-- `overflow: clip`, two-value `overflow`, `overflow-clip-margin` — C8-OVERFLOW-CLIP
 - `text-overflow` — C8-TEXT-OVERFLOW
 - `line-clamp` / `max-lines` / `block-ellipsis` / `continue` — C8-LINE-CLAMP
 - `scrollbar-gutter: both-edges`, `scrollbar-width`, `scrollbar-color` — C8-SCROLLBAR

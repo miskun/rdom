@@ -332,13 +332,13 @@ fn style_element<'a>(
         // have non-`Visible` overflow on at least one axis — saves a
         // selector-matching pass per element on the (very common)
         // non-scrollable case.
-        let needs_scrollbar = !matches!(
-            computed.overflow_x,
-            crate::layout::Overflow::Visible | crate::layout::Overflow::Hidden
-        ) || !matches!(
-            computed.overflow_y,
-            crate::layout::Overflow::Visible | crate::layout::Overflow::Hidden
-        );
+        let shows_bar = |o: crate::layout::Overflow| {
+            matches!(
+                o,
+                crate::layout::Overflow::Scroll | crate::layout::Overflow::Auto
+            )
+        };
+        let needs_scrollbar = shows_bar(computed.overflow_x) || shows_bar(computed.overflow_y);
         let (csb, csbt_v, csbt_h) = if needs_scrollbar {
             (
                 pseudo(&mut cx, Slot::Scrollbar, &[PseudoElementTarget::Scrollbar]),

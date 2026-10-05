@@ -40,6 +40,9 @@ fn block_axis(name: &str) -> Option<Mapping> {
     use Mapping::*;
     Some(match name {
         "inline-size" => One("width"),
+        // CSS Overflow 3 §3.1: the block / inline axis's `overflow`.
+        "overflow-block" => One("overflow-y"),
+        "overflow-inline" => One("overflow-x"),
         "block-size" => One("height"),
         "min-inline-size" => One("min-width"),
         "min-block-size" => One("min-height"),
@@ -137,6 +140,8 @@ pub(super) const NAMES: &[&str] = &[
     "min-block-size",
     "max-inline-size",
     "max-block-size",
+    "overflow-block",
+    "overflow-inline",
     "margin-block-start",
     "margin-block-end",
     "margin-block",

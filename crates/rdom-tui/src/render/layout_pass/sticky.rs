@@ -23,7 +23,7 @@
 use rdom_core::{Dom, NodeId, NodeType};
 
 use crate::ext::TuiExt;
-use crate::layout::{LayoutRect, Length, Overflow, Position};
+use crate::layout::{LayoutRect, Length, Position};
 use crate::node::TuiNodeExt;
 
 /// Walk the tree, find every sticky element, and rewrite its
@@ -72,8 +72,7 @@ fn place_one(dom: &mut Dom<TuiExt>, id: NodeId) {
         None => return,
     };
 
-    // Find nearest scrollable ancestor. Scrollable = overflow_x or
-    // overflow_y not Visible.
+    // Find the nearest scroll container ancestor.
     let scrollport = nearest_scrollport(dom, id);
     let Some((scrollport_id, scrollport_rect)) = scrollport else {
         // CSS rule: no scrollable ancestor → sticky behaves as
@@ -177,9 +176,9 @@ fn nearest_scrollport(dom: &Dom<TuiExt>, id: NodeId) -> Option<(NodeId, LayoutRe
     while let Some(p) = cursor {
         if p.node_type() == NodeType::Element {
             let computed = p.computed();
-            let scrollable = computed
-                .map(|c| c.overflow_x != Overflow::Visible || c.overflow_y != Overflow::Visible)
-                .unwrap_or(false);
+            // A scroll container (CSS Position 3 §3.4: the nearest
+            // scrollport); an `overflow: clip` box is not one.
+            let scrollable = computed.is_some_and(|c| c.is_scroll_container());
             if scrollable && let Some(ext) = p.ext() {
                 // CSS Overflow 3 §3 + Position 3 sticky: pin against
                 // the scrollport (= padding-box), not `content_layout`.

@@ -39,11 +39,52 @@ pub fn parse_overflow(value: &[Token]) -> Option<Overflow> {
         value,
         &[
             ("hidden", Overflow::Hidden),
+            ("clip", Overflow::Clip),
             ("scroll", Overflow::Scroll),
             ("auto", Overflow::Auto),
             ("visible", Overflow::Visible),
         ],
     )
+}
+
+/// `overflow: <overflow>{1,2}` (CSS Overflow 3 §3.1): `(overflow-x,
+/// overflow-y)`, one value for both.
+pub fn parse_overflow_shorthand(value: &[Token]) -> Option<(Overflow, Overflow)> {
+    match super::numeric::components(value)?.as_slice() {
+        [x] => parse_overflow(x).map(|o| (o, o)),
+        [x, y] => Some((parse_overflow(x)?, parse_overflow(y)?)),
+        _ => None,
+    }
+}
+
+/// `overflow-clip-margin: <visual-box> || <length [0,∞]>` (CSS Overflow
+/// 3 §3.2), the length in whole cells: no percentages, and no viewport
+/// units (a length needing the viewport is rejected).
+pub fn parse_overflow_clip_margin(value: &[Token]) -> Option<crate::layout::OverflowClipMargin> {
+    use super::numeric::{LengthPercentage, Range, components, length_percentage};
+    let mut visual_box = None;
+    let mut margin = None;
+    for part in components(value)? {
+        if let Some(b) = super::background::visual_box(part) {
+            if visual_box.replace(b).is_some() {
+                return None;
+            }
+            continue;
+        }
+        let cells = match length_percentage(part, Range::NonNegative)? {
+            LengthPercentage::Integer(n) => u16::try_from(n).ok()?,
+            LengthPercentage::Cells(v) => super::numeric::cells_u16(v),
+            LengthPercentage::Expr(_) => return None,
+        };
+        if margin.replace(cells).is_some() {
+            return None;
+        }
+    }
+    let initial = crate::layout::OverflowClipMargin::default();
+    Some(crate::layout::OverflowClipMargin::new(
+        visual_box.unwrap_or(initial.visual_box),
+        margin.unwrap_or(initial.margin),
+    ))
 }
 
 pub fn parse_scrollbar_gutter(value: &[Token]) -> Option<crate::layout::ScrollbarGutter> {

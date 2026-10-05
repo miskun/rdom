@@ -7,7 +7,7 @@
 use rdom_core::{Dom, NodeId};
 
 use crate::ext::TuiExt;
-use crate::layout::{Align, Alignment, LayoutRect, Overflow, OverflowAlign, TextDirection};
+use crate::layout::{Align, Alignment, LayoutRect, OverflowAlign, TextDirection};
 use crate::node::TuiNodeExt;
 use crate::style::ComputedStyle;
 
@@ -126,9 +126,7 @@ pub(in crate::render::layout_pass) fn align_content_lead(
         inner.height
     };
     let free = i32::from(height) - i32::from(content_height);
-    if free < 0
-        && (value.overflow == OverflowAlign::Safe || computed.overflow_y != Overflow::Visible)
-    {
+    if free < 0 && (value.overflow == OverflowAlign::Safe || computed.overflow_y.is_scrollable()) {
         return 0;
     }
     match value.keyword {

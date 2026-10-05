@@ -30,6 +30,7 @@ Each Breaking bullet below ends with its migration, and the [API table](#api-cha
 15. **`min-*: auto` does not floor a flex item's cross size** at its content (the automatic minimum is a main-axis rule). (C3G-MIN-AUTO)
 16. **Ill-typed math is invalid** (`calc(50% * 10%)` drops the declaration) and division by zero is IEEE-754 (CSS Values 4 §10.9). (C2-TRIG, C2G-CALC-SEMANTICS)
 17. **`z-index` on a static flex item stacks it** (CSS Flexbox §5.4): a numeric `z-index` makes a flex or grid item a stacking context ordered by it, as a positioned box's is; it was ignored without `position`. (C7-GRID-PLACE)
+18. **`overflow` axes are paired** (CSS Overflow 3 §3.1): `overflow-y: scroll` computes `overflow-x` to `auto` (it stayed `visible`), so wide content now scrolls instead of painting past the box; `scrollbar-gutter: stable` no longer reserves a bottom row; and a scroll offset written on a box that is not a scroll container is dropped at the next layout — scroll the box that has `overflow` set. (C8-OVERFLOW-CLIP)
 
 **Compile breaks** — what a 0.5 consumer must change, by kind (the API table has each item):
 
@@ -37,7 +38,7 @@ Each Breaking bullet below ends with its migration, and the [API table](#api-cha
 - **Opaque `ImportantMask`**: `contains` / `|` / `&` instead of `bits()` and matching.
 - **Per-side longhand fields**: `TuiStyle::margin` / `padding` / `border_style` / `border_color` / `border_width` / `border_radius` are `Sides` / `Corners` of `Option<Value<…>>`; build with `.margin(m)` / `.margin_left(v)`, test with `.each()`.
 - **Typed values**: `MinSize` / `MaxSize` for `min-*` / `max-*`, `f32` flex factors, `i64` integer tokens, `AspectRatio` behind accessors, `row_gap` / `column_gap`, `FlexBasis`.
-- **New variants to match**: `Value` (`Revert`, `RevertLayer`), `Color::Rgba`, `TuiColor` (`CurrentColor`, `Function`, `System`), `Display::Contents`, `Flow::FlowRoot`, `Flow::Grid`, the `Align` keywords — and `Align` is `#[non_exhaustive]` (a `_` arm).
+- **New variants to match**: `Value` (`Revert`, `RevertLayer`), `Overflow::Clip`, `Color::Rgba`, `TuiColor` (`CurrentColor`, `Function`, `System`), `Display::Contents`, `Flow::FlowRoot`, `Flow::Grid`, the `Align` keywords — and `Align` is `#[non_exhaustive]` (a `_` arm).
 - **New fields on style records**: build `TuiStyle` / `ComputedStyle` with `TuiStyle::new()` / `ComputedStyle::initial()`; a destructuring pattern adds `..`.
 - **Layout records are `#[non_exhaustive]`**: `LineBox`, `InlineFragment` and `AnonymousIfc` are built by constructor.
 - **Removed helpers**: `parse_unsigned`, `round_half_to_even`, `Content::Attr`.
@@ -89,6 +90,7 @@ One row per renamed or reshaped public item: the 0.5 form, its replacement, the 
 | `flex-direction`'s initial value `Direction::Column` | `Direction::Row` (`ComputedStyle::initial().direction`, `Direction::default()`); a stack says `.flex_column()` | C6-FLEX-DIRECTION-INITIAL | `flex_direction_initial_hints` |
 | `Size::Flex(grow)` written by the `flex` shorthand | `TuiStyle::flex_grow` / `flex_shrink` / `flex_basis` (`flex` no longer touches `width` / `height`) | C6-FLEX-LONGHANDS | `flex_longhand_hints` |
 | `ZIndex::Value(i16)` | `ZIndex::Value(i32)` (`n.into()` from an `i16`) | C8-Z-INDEX | `z_index_hints` |
+| exhaustive `match` on `Overflow` | add the arm `Overflow::Clip` | C8-OVERFLOW-CLIP | `overflow_hints` |
 
 #### `rdom-tui`
 
@@ -146,6 +148,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Breaking — `rdom-style`
 
+- **`Overflow` has a `Clip` variant** (CSS Overflow 3 §3.1): an exhaustive `match` adds the arm. (C8-OVERFLOW-CLIP)
 - **`ZIndex::Value` holds an `i32`** (was `i16`): `z-index` takes any `<integer>`, a value past `i32` clamped (CSS 2.1 §9.9.1, CSS Values 4 §5.1). Migration: a match arm binding the value gets an `i32`; `ZIndex::Value(n)` with an `i16` takes `n.into()`. (C8-Z-INDEX)
 - **`ComputedStyle::min_width` / `min_height` are `MinSize`** (were `Option<MinSize>`), initial `MinSize::Auto` (CSS Sizing 3 §5.2); an explicit `min-*: auto` no longer floors a flex item's cross size. Migration: `None` → `MinSize::Auto`, `Some(m)` → `m`; `.cells(basis)` for cells. (C3G-MIN-AUTO)
 - **`Value<T>` gains `Revert`** (`revert`, CSS Cascade 4 §7.3), kept as written for the cascade to resolve (`unset` is still resolved at parse time); `Value` is closed data. Migration: add a `Value::Revert` arm — in a cascade roll back to the UA origin's value, elsewhere treat it like the other keywords. (C1-REVERT)
@@ -209,6 +212,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Added — `rdom-style`
 
+- **`overflow: clip`, the two-value `overflow`, `overflow-clip-margin`, `overflow-block` / `overflow-inline`** (CSS Overflow 3 §3.1–§3.2): `Overflow::Clip`, `OverflowClipMargin` (`TuiStyle::overflow_clip_margin`), `parse_overflow_shorthand` / `parse_overflow_clip_margin`, `Overflow::is_scrollable` / `clips` / `keyword`, `ComputedStyle::is_scroll_container` / `clips_overflow` / `normalize_overflow`; `overflow` serializes `<x> <y>` when the axes differ. (C8-OVERFLOW-CLIP)
 - `CalcUnit::Px`: the CSS pixel that pixel math functions (`border-width: calc(2px + 1in)`, radii, shadows) evaluate in; `CalcUnit::parse` never gives it, so a cell length cannot hold a pixel. (C5G-PERF-AND-TESTS)
 - `TuiStyle::substituted_pending(vars, cx)`: only a block's `var()`-pending declarations, substituted onto an empty style with the block's importance bits — the cascade's per-element path, without copying the block. (C1G-VAR-COST)
 - **The value tokenizer decodes identifier escapes** (CSS Syntax 3 §4.3.7) through `rdom_core::css_syntax`, in property names and keyword values (`display: fl\65x`); a selector list no longer splits on an escaped comma. New `Cursor::rest` / `Cursor::advance`. (C1-ESCAPES)
@@ -413,6 +417,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Changed — `rdom-tui`
 
+- **`overflow` computes as CSS Overflow 3 §3.1 says**: beside a scrolling axis a `visible` one is `auto` and a `clip` one `hidden`; `scrollbar-gutter: stable` reserves the vertical bar's gutter only (§3.3), so `overflow: auto; scrollbar-gutter: stable` no longer takes a bottom row; a box that is not a scroll container keeps no scroll offset or scroll extent. `overflow: clip` clips per axis at its overflow clip edge, without a scroll container or a formatting context. (C8-OVERFLOW-CLIP)
 - **One stacking-context predicate**: `creates_stacking_context` takes the box's parent and answers for z-indexed flex and grid items too (CSS Flexbox §5.4, CSS Grid 2 §6.5), so it and `is_layered` agree and paint, hit-testing and the layer walk patch nothing. No behaviour change. (C7G-STACKING-ONE)
 - **Internal splits ahead of grid**, no behaviour or API change: the CSSOM serializer by property family, the line packer's intake and output, caret line navigation, `ComputedStyle`'s tests. (C6G-SPLITS)
 - **Intrinsic keyword sizes are measured once per layout pass**: each element's Row-axis content sizes are memoized for the pass, so nested `fit-content` / `min-content` / `max-content` boxes cost linear, not quadratic, work. Nothing is memoized outside a pass. (C5G-PERF-AND-TESTS)
@@ -437,6 +442,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Fixed — `rdom-tui`
 
+- **Scrollbar hit-testing and thumb drags agree with paint about the corner cell**: an `overflow: auto` axis takes the corner only while its bar shows (`paint_pass::scrollbar::bars_shown`), not always. (C8-OVERFLOW-CLIP)
 - **The containing block of an absolutely positioned box is complete** (CSS 2.1 §10.1, CSS Position 3 §2.1): a `sticky` ancestor establishes it; it excludes the scrollbar gutter; inside a positioned scroll container the box scrolls with the content; a `fixed` box inside a stuck `sticky` one stays on the viewport; a positioned grid gives a `::before` / `::after` its grid area (CSS Grid 2 §9.1). Elements and pseudo-elements share one walk. (C8-CB-COMPLETE)
 - **An absolutely positioned box's containing block is the padding box** of its positioned ancestor (CSS 2.1 §10.1), not its border box — elements and positioned pseudo-elements, grid areas' `auto` edges included. (C7-ABSPOS-PADDING-EDGE)
 - **A grid moved after its layout takes its lines with it** (CSS Grid 2 §9.1): an absolutely positioned child of a grid shifted by its block parent's `align-content` is placed in the moved grid area, not the area before the shift. (C7G-LINES-SHIFT)

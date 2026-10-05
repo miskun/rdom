@@ -33,7 +33,7 @@ pub(crate) fn scroll_offset(dom: &Dom<TuiExt>, container: NodeId, direction: Dir
 ///   edge column/row only while it's visible; content gets the
 ///   cells when scrolling isn't active. Authors who want stable
 ///   layout opt in with `scrollbar-gutter: stable`.
-/// - `Overflow::Hidden` / `Visible` → never reserve.
+/// - `Overflow::Hidden` / `Clip` / `Visible` → never reserve.
 ///
 /// The reserved cells live at:
 /// - **Vertical scrollbar** (if `overflow_y` reserves): the
@@ -80,18 +80,24 @@ pub(crate) fn reserve_scrollbar_gutter_forced(
 }
 
 /// Which axes reserve a scrollbar gutter: `(vertical bar, horizontal
-/// bar)`. `Scroll` always; `Auto` when forced (pass 2 saw overflow) or
-/// under `scrollbar-gutter: stable`; never otherwise.
+/// bar)`. `Scroll` always; `Auto` when forced (pass 2 saw overflow) or,
+/// for the vertical bar, under `scrollbar-gutter: stable`; never
+/// otherwise.
 pub(crate) fn gutter_axes(computed: &ComputedStyle, force_y: bool, force_x: bool) -> (bool, bool) {
     use crate::layout::ScrollbarGutter;
-    let reserves = |o: Overflow, force: bool| match o {
+    // `scrollbar-gutter` governs the gutters at the inline-start and
+    // inline-end edges only (CSS Overflow 3 §3.3) — the vertical bar's in
+    // `horizontal-tb`; the horizontal bar's row is reserved only when it
+    // shows.
+    let stable = matches!(computed.scrollbar_gutter, ScrollbarGutter::Stable);
+    let reserves = |o: Overflow, force: bool, stable: bool| match o {
         Overflow::Scroll => true,
-        Overflow::Auto => force || matches!(computed.scrollbar_gutter, ScrollbarGutter::Stable),
-        Overflow::Hidden | Overflow::Visible => false,
+        Overflow::Auto => force || stable,
+        Overflow::Hidden | Overflow::Clip | Overflow::Visible => false,
     };
     (
-        reserves(computed.overflow_y, force_y),
-        reserves(computed.overflow_x, force_x),
+        reserves(computed.overflow_y, force_y, stable),
+        reserves(computed.overflow_x, force_x, false),
     )
 }
 

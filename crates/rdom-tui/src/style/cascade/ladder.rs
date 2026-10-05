@@ -407,14 +407,6 @@ pub(super) fn apply_cascade_ladder(
         apply_step(working, &mut colors, step, decls, &env, &rollback);
     }
 
-    // NOTE — CSS Overflow L3's cross-axis rule ("if one axis is
-    // not visible, the visible side behaves as auto") is skipped
-    // in v1. Browsers apply it because they know content size at
-    // layout time and only show the auto scrollbar when needed.
-    // rdom-tui v1 can't (we use `scrollbar-gutter: stable`-style
-    // always-reserve), so enforcing the rule would surprise
-    // authors writing `overflow-y: scroll` and getting an
-    // unexpected horizontal gutter. Each axis is independent.
     colors
 }
 

@@ -24,7 +24,7 @@ use rdom_core::NodeId;
 
 use super::scroll::scroll_bounds;
 use crate::TuiDom;
-use crate::layout::{LayoutRect, Overflow};
+use crate::layout::LayoutRect;
 use crate::node::TuiNodeExt;
 use crate::runtime::smooth_scroll::{ScrollIntoViewOptions, ScrollLogicalPosition, perform_scroll};
 
@@ -54,12 +54,12 @@ pub(crate) fn scroll_element_into_view(
     }
 }
 
-/// Overflow other than `visible` on either axis: a scroll container,
-/// scrollable from code even with `overflow: hidden`.
+/// A scroll container (CSS Overflow 3 §3.1), scrollable from code even
+/// with `overflow: hidden`; an `overflow: clip` box is not one.
 fn establishes_scrolling_box(dom: &TuiDom, id: NodeId) -> bool {
-    dom.node(id).computed().is_some_and(|c| {
-        !matches!(c.overflow_x, Overflow::Visible) || !matches!(c.overflow_y, Overflow::Visible)
-    })
+    dom.node(id)
+        .computed()
+        .is_some_and(|c| c.is_scroll_container())
 }
 
 /// Align `rect` (the element's box in last-layout coordinates) inside

@@ -38,7 +38,7 @@
 use rdom_core::{Dom, NodeId};
 
 use crate::ext::TuiExt;
-use crate::layout::{CornerStyle, Display, Overflow};
+use crate::layout::{CornerStyle, Display};
 use crate::node::TuiNodeExt;
 use crate::render::buffer::{BorderContribution, BorderSide, DIR_E, DIR_N, DIR_S};
 use crate::render::{Buffer, Rect, Style};
@@ -97,20 +97,11 @@ pub(super) fn paint_tree_guides(dom: &Dom<TuiExt>, buf: &mut Buffer, clip: Rect)
 /// painted by this standalone pass respect the same overflow clipping
 /// the main walk applies to a scroll container's descendants.
 fn clip_for_tree(dom: &Dom<TuiExt>, tree: NodeId, base_clip: Rect) -> Rect {
-    use crate::layout::Overflow;
     let mut clip = base_clip;
     let mut cur = Some(tree);
     while let Some(id) = cur {
         if let Some(computed) = dom.node(id).ext().and_then(|e| e.computed.as_ref()) {
-            let clips = !matches!(computed.overflow_x, Overflow::Visible)
-                || !matches!(computed.overflow_y, Overflow::Visible);
-            if clips && let Some(outer) = dom.node(id).layout_rect() {
-                let padding_box = crate::layout::compute_padding_box(outer, computed.border);
-                clip = match super::layout_rect_to_grid(padding_box, clip) {
-                    Some(grid) => clip.intersection(grid),
-                    None => return Rect::new(clip.x, clip.y, 0, 0),
-                };
-            }
+            clip = crate::render::stacking::children_clip(dom, id, computed, clip);
         }
         cur = dom.node(id).parent_node().map(|p| p.id());
     }
@@ -142,12 +133,7 @@ fn reserves_vscrollbar(dom: &Dom<TuiExt>, tree: NodeId) -> bool {
     let Some(c) = ext.computed.as_ref() else {
         return false;
     };
-    matches!(c.overflow_y, Overflow::Scroll | Overflow::Auto)
-        && super::scrollbar::should_paint(
-            c.overflow_y,
-            ext.content_layout.height as usize,
-            ext.scroll_content_height,
-        )
+    super::scrollbar::bars_shown(ext, c).0
 }
 
 fn collect_trees(dom: &Dom<TuiExt>, id: NodeId, out: &mut Vec<NodeId>) {

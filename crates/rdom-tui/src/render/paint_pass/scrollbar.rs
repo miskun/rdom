@@ -196,18 +196,7 @@ pub(super) fn paint_scrollbars(
     // and its two-pass companion for `Auto`. We only need to know
     // whether the OTHER axis also paints so the bottom-right corner
     // stays unclaimed.
-    let y_paints = matches!(computed.overflow_y, Overflow::Scroll | Overflow::Auto)
-        && should_paint(
-            computed.overflow_y,
-            content_layout.height as usize,
-            content_h,
-        );
-    let x_paints = matches!(computed.overflow_x, Overflow::Scroll | Overflow::Auto)
-        && should_paint(
-            computed.overflow_x,
-            content_layout.width as usize,
-            content_w,
-        );
+    let (y_paints, x_paints) = bars_shown(ext, computed);
 
     if y_paints {
         let (track_glyph, track_style) =
@@ -403,6 +392,27 @@ pub(crate) fn should_paint(overflow: Overflow, viewport: usize, content: usize) 
         Overflow::Auto => content > viewport,
         _ => false,
     }
+}
+
+/// Which of `ext`'s scrollbars show: `(vertical, horizontal)` — an
+/// `overflow: scroll` axis always, an `auto` one when its content
+/// overflows the scrollport. Paint, hit-testing and thumb dragging read
+/// this one answer, so the corner cell a horizontal bar takes from the
+/// vertical track (and back) is the same in all three.
+pub(crate) fn bars_shown(ext: &crate::ext::TuiExt, computed: &ComputedStyle) -> (bool, bool) {
+    let content = ext.content_layout;
+    (
+        should_paint(
+            computed.overflow_y,
+            usize::from(content.height),
+            ext.scroll_content_height,
+        ),
+        should_paint(
+            computed.overflow_x,
+            usize::from(content.width),
+            ext.scroll_content_width,
+        ),
+    )
 }
 
 /// Compute `(thumb_size, thumb_offset)` in cells for a track of

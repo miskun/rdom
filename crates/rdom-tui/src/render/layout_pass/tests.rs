@@ -1892,7 +1892,15 @@ fn scroll_y_offsets_children_negative() {
     dom.append_child(c, b).unwrap();
     dom.append_child(root, c).unwrap();
 
+    // `c` a scroll container (CSS Overflow 3 §3.1) 4 rows tall over 6
+    // rows of content: a box that is not one has no scroll offset.
     let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "c",
+            TuiStyle::new()
+                .height(Size::Fixed(4))
+                .overflow(crate::layout::Overflow::Hidden),
+        )
         .rule_unchecked("a", TuiStyle::new().height(Size::Fixed(3)))
         .rule_unchecked("b", TuiStyle::new().height(Size::Fixed(3)));
     cascade(&mut dom, &sheet);
@@ -3298,6 +3306,9 @@ fn overflow_auto_does_not_reserve_gutter_under_default_scrollbar_gutter_auto() {
     assert_eq!(inner.height, 5);
 }
 
+/// CSS Overflow 3 §3.3: `scrollbar-gutter` governs the gutters at the
+/// inline-start / inline-end edges — the vertical bar's; the horizontal
+/// bar's row is reserved only when that bar shows (C8-OVERFLOW-CLIP).
 #[test]
 fn overflow_auto_with_scrollbar_gutter_stable_reserves_gutter() {
     use crate::layout::{Overflow, ScrollbarGutter};
@@ -3317,14 +3328,13 @@ fn overflow_auto_with_scrollbar_gutter_stable_reserves_gutter() {
     cascade(&mut dom, &sheet);
     dom.layout_dom(Rect::new(0, 0, 12, 8));
     let inner = dom.node(host).ext().unwrap().content_layout;
-    // Both axes reserve 1 cell each.
     assert_eq!(
         inner.width, 9,
         "scrollbar-gutter: stable reserves Y-axis gutter"
     );
     assert_eq!(
-        inner.height, 4,
-        "scrollbar-gutter: stable reserves X-axis gutter"
+        inner.height, 5,
+        "scrollbar-gutter: stable leaves the X-axis gutter to overflow"
     );
 }
 

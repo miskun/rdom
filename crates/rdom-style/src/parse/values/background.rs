@@ -410,7 +410,7 @@ fn attachment_keyword(part: &[Token]) -> Option<BackgroundAttachment> {
     )
 }
 
-fn visual_box(part: &[Token]) -> Option<VisualBox> {
+pub(super) fn visual_box(part: &[Token]) -> Option<VisualBox> {
     super::keyword::parse_keyword(
         part,
         &[

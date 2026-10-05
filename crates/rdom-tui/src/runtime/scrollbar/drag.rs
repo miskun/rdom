@@ -22,7 +22,6 @@ use super::geometry::scroll_metrics;
 use super::scroll::set_scroll;
 use super::{ScrollAxis, ScrollbarHit, ScrollbarPart};
 use crate::TuiDom;
-use crate::layout::Overflow;
 use crate::node::TuiNodeExt;
 use crate::render::paint_pass::scrollbar::thumb_geometry;
 use crate::runtime::router::Router;
@@ -110,7 +109,7 @@ pub(crate) fn extend_drag(router: &Router, dom: &mut TuiDom, mouse_x: u16, mouse
             let x_reserves = dom
                 .node(drag.element)
                 .computed()
-                .is_some_and(|c| matches!(c.overflow_x, Overflow::Scroll | Overflow::Auto));
+                .is_some_and(|c| crate::render::paint_pass::scrollbar::bars_shown(ext, c).1);
             let adj = if x_reserves { 1 } else { 0 };
             (
                 content.height as usize,
@@ -122,7 +121,7 @@ pub(crate) fn extend_drag(router: &Router, dom: &mut TuiDom, mouse_x: u16, mouse
             let y_reserves = dom
                 .node(drag.element)
                 .computed()
-                .is_some_and(|c| matches!(c.overflow_y, Overflow::Scroll | Overflow::Auto));
+                .is_some_and(|c| crate::render::paint_pass::scrollbar::bars_shown(ext, c).0);
             let adj = if y_reserves { 1 } else { 0 };
             (
                 content.width as usize,

@@ -7,7 +7,6 @@ use rdom_core::Dom;
 
 use super::Item;
 use crate::ext::TuiExt;
-use crate::layout::Overflow;
 use crate::style::ComputedStyle;
 
 /// An item's physical top and bottom margins, its (not stretched)
@@ -46,8 +45,7 @@ impl BaselineBox {
         // are its block-end margin edge — its scrollbar gutter and
         // clipped content aside (as an inline block's in its line,
         // `inline::vertical::atom_rows`).
-        let scrolls =
-            computed.overflow_x != Overflow::Visible || computed.overflow_y != Overflow::Visible;
+        let scrolls = computed.is_scroll_container();
         let last = if scrolls {
             (i32::from(height) + margin_bottom - 1).clamp(0, i32::from(u16::MAX)) as u16
         } else {

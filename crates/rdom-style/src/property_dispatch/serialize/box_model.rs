@@ -13,15 +13,36 @@ use crate::TuiStyle;
 /// `Some(None)` when it is not set — else `None`.
 pub(super) fn serialize(name: &str, style: &TuiStyle) -> Option<Option<String>> {
     let out = match name {
-        // both axes agree (matching CSS's `overflow: <single>`
-        // form). Mismatched axes only expose via the longhands.
+        // One value when both axes agree, else `<x> <y>` (CSS Overflow 3
+        // §3.1).
         "overflow" => match (
             style.overflow_x.as_ref().and_then(specified),
             style.overflow_y.as_ref().and_then(specified),
         ) {
             (Some(x), Some(y)) if x == y => Some(serialize_overflow(x).to_string()),
+            (Some(x), Some(y)) => Some(format!(
+                "{} {}",
+                serialize_overflow(x),
+                serialize_overflow(y)
+            )),
             _ => None,
         },
+        // The shortest form: the box when not `padding-box`, then the
+        // length when not 0 (`0` when both are omitted).
+        "overflow-clip-margin" => {
+            style
+                .overflow_clip_margin
+                .as_ref()
+                .and_then(specified)
+                .map(|m| {
+                    let initial = crate::layout::OverflowClipMargin::default();
+                    match (m.visual_box != initial.visual_box, m.margin) {
+                        (true, 0) => m.visual_box.keyword().to_string(),
+                        (true, n) => format!("{} {n}", m.visual_box.keyword()),
+                        (false, n) => n.to_string(),
+                    }
+                })
+        }
         "overflow-x" => style
             .overflow_x
             .as_ref()

@@ -125,6 +125,8 @@ pub(super) fn compute_element_style(
         super::blockify::blockify(&mut working);
     }
     super::apply::finalize_justify_items(&mut working, parent);
+    // CSS Overflow 3 §3.1's computed value, which the BFC rule reads.
+    working.normalize_overflow();
     finalize_bfc_formation(&mut working);
     // Viewport-percentage lengths are absolute at computed-value time
     // (CSS Values 4 §6.1.2).

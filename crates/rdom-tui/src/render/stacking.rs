@@ -35,8 +35,7 @@
 use rdom_core::{Dom, NodeId, NodeType};
 
 use crate::ext::TuiExt;
-use crate::layout::{Display, Overflow, Position, ZIndex};
-use crate::node::TuiNodeExt;
+use crate::layout::{Display, Position, ZIndex};
 use crate::render::Rect;
 use crate::render::paint_pass::layout_rect_to_grid;
 use crate::style::ComputedStyle;
@@ -166,17 +165,28 @@ fn is_z_indexed_item(dom: &Dom<TuiExt>, parent: NodeId, c: &ComputedStyle) -> bo
 }
 
 /// The clip `id`'s content paints into, given the clip `id` itself
-/// paints into: the padding box (CSS Overflow 3 §3) when either
-/// overflow axis clips, `clip` unchanged otherwise.
+/// paints into (CSS Overflow 3 §3): a scroll container's padding box; on
+/// each `overflow: clip` axis the overflow clip edge — the
+/// `overflow-clip-margin` box outset by its margin (§3.2) — and on a
+/// `visible` axis beside it no edge at all; `clip` unchanged when
+/// nothing clips. Paint and hit-testing share it.
 pub(crate) fn children_clip(dom: &Dom<TuiExt>, id: NodeId, c: &ComputedStyle, clip: Rect) -> Rect {
-    let clips =
-        !matches!(c.overflow_x, Overflow::Visible) || !matches!(c.overflow_y, Overflow::Visible);
-    if !clips {
+    let Some(ext) = dom.node(id).ext() else {
+        return clip;
+    };
+    let edges = crate::render::layout_pass::ClipEdges::of(ext, c);
+    if edges == crate::render::layout_pass::ClipEdges::NONE {
         return clip;
     }
-    let outer = dom.node(id).layout_rect().unwrap_or_default();
-    let padding_box = crate::layout::compute_padding_box(outer, c.border);
-    layout_rect_to_grid(padding_box, clip).unwrap_or_else(|| Rect::new(clip.x, clip.y, 0, 0))
+    // An axis that does not clip keeps the clip's own span.
+    let span = |edge: Option<(i32, i32)>, start: u16, len: u16| {
+        let (s, e) = edge.unwrap_or((i32::from(start), i32::from(start) + i32::from(len)));
+        (s, (e - s).clamp(0, i32::from(u16::MAX)) as u16)
+    };
+    let (x, width) = span(edges.x, clip.x, clip.width);
+    let (y, height) = span(edges.y, clip.y, clip.height);
+    let edge = crate::layout::LayoutRect::new(x, y, width, height);
+    layout_rect_to_grid(edge, clip).unwrap_or_else(|| Rect::new(clip.x, clip.y, 0, 0))
 }
 
 /// An ancestor on the walk from the context root down: whether it is

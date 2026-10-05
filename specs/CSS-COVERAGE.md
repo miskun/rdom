@@ -79,7 +79,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.8 Flexbox and box alignment (Flexbox 1, Align 3) | 17 | 0 | 0 | 0 | 17 |
 | 3.9 Grid (Grid 1/2) | 9 | 0 | 1 | 0 | 10 |
 | 3.10 Positioned layout (Position 3, CSS 2.1 §9) | 5 | 0 | 1 | 1 | 7 |
-| 3.11 Overflow, scrolling and scrollbars (Overflow 3/4, Scroll Snap 1, Overscroll 1, Scrollbars 1) | 1 | 3 | 10 | 0 | 14 |
+| 3.11 Overflow, scrolling and scrollbars (Overflow 3/4, Scroll Snap 1, Overscroll 1, Scrollbars 1) | 5 | 1 | 8 | 0 | 14 |
 | 3.12 Inline text (Text 3/4, Inline 3, CSS 2.1 §10.8) | 0 | 1 | 14 | 6 | 21 |
 | 3.13 Text decoration (Text Decoration 3/4) | 0 | 1 | 3 | 2 | 6 |
 | 3.14 Fonts (Fonts 4) | 0 | 2 | 1 | 2 | 5 |
@@ -93,9 +93,9 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 5 | 2 | 1 | 1 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **145** | **26** | **90** | **46** | **307** |
+| **Total** | **149** | **24** | **88** | **46** | **307** |
 
-When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 116 rows Partial / Missing.
+When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 112 rows Partial / Missing.
 
 Headline: rdom parses **183 property names** (`property_names()`, after C7-GRID-AREAS). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are `line-height`, `text-align`, and `@media`.
 
@@ -405,10 +405,10 @@ dropped. The audit's six, with where each stands:
 
 | Item | Class | Detail | Doc'd | Where |
 |---|---|---|---|---|
-| `overflow` | Partial | `visible` / `hidden` / `scroll` / `auto`; `clip` and the two-value form rejected. | No | `V/keyword.rs::parse_overflow` |
-| `overflow-x` / `overflow-y` | Partial | Same keyword set; no `clip`. | No | `V/keyword.rs::parse_overflow` |
-| `overflow-block` / `overflow-inline` | Missing | Logical aliases. | No | `DISP` |
-| `overflow-clip-margin` | Missing | Cells outside the box that `clip` still paints. | No | `PAINT` |
+| `overflow` | Supported | `visible` / `hidden` / `clip` / `scroll` / `auto`, one or two values (x then y); a `visible` / `clip` axis beside a scrolling one computes to `auto` / `hidden` (CSS Overflow 3 §3.1; C8-OVERFLOW-CLIP). `clip` clips per axis at the overflow clip edge, is no scroll container (no scrolling, no scrollbar) and no formatting context. | — | `V/keyword.rs::parse_overflow_shorthand` |
+| `overflow-x` / `overflow-y` | Supported | The five keywords (C8-OVERFLOW-CLIP). | — | `V/keyword.rs::parse_overflow` |
+| `overflow-block` / `overflow-inline` | Supported | `overflow-y` / `overflow-x` in `horizontal-tb`, one storage (C8-OVERFLOW-CLIP). | — | `DISP` (`logical.rs`) |
+| `overflow-clip-margin` | Supported | `<visual-box> \|\| <length [0,∞]>` in whole cells, on `clip` axes (CSS Overflow 3 §3.2; C8-OVERFLOW-CLIP); a viewport-relative length is rejected (DIVERGENCES). | Yes | `V/keyword.rs::parse_overflow_clip_margin`, `layout_pass/clip_edge.rs` |
 | `text-overflow` | Missing | `clip` (today) / `ellipsis` / `<string>`. | No | `IFC`, `PAINT/text.rs` |
 | `line-clamp` / `max-lines` / `block-ellipsis` / `continue` | Missing | Row clamping with `…`. | No | `BLOCK`, `IFC` |
 | `scroll-behavior` | Supported | `auto` / `smooth` (fixed curve, documented). | Yes | `V/keyword.rs` |
@@ -763,10 +763,10 @@ implementation or a `DIVERGENCES.md` entry before the acid page's coverage test 
 
 **3.11 Overflow, scrolling and scrollbars (Overflow 3/4, Scroll Snap 1, Overscroll 1, Scrollbars 1)**
 
-- `overflow` — Partial: `visible` / `hidden` / `scroll` / `auto`; `clip` and the two-value form rejected.
-- `overflow-x` / `overflow-y` — Partial: Same keyword set; no `clip`.
-- `overflow-block` / `overflow-inline` — Missing: Logical aliases.
-- `overflow-clip-margin` — Missing: Cells outside the box that `clip` still paints.
+- `overflow` — Partial: `visible` / `hidden` / `scroll` / `auto`; `clip` and the two-value form rejected. *Shipped: C8-OVERFLOW-CLIP.*
+- `overflow-x` / `overflow-y` — Partial: Same keyword set; no `clip`. *Shipped: C8-OVERFLOW-CLIP.*
+- `overflow-block` / `overflow-inline` — Missing: Logical aliases. *Shipped: C8-OVERFLOW-CLIP.*
+- `overflow-clip-margin` — Missing: Cells outside the box that `clip` still paints. *Shipped: C8-OVERFLOW-CLIP.*
 - `text-overflow` — Missing: `clip` (today) / `ellipsis` / `<string>`.
 - `line-clamp` / `max-lines` / `block-ellipsis` / `continue` — Missing: Row clamping with `…`.
 - `scrollbar-gutter` — Partial: `auto` / `stable`; `both-edges` rejected.

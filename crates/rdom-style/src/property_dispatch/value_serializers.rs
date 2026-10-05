@@ -66,6 +66,7 @@ pub(super) fn serialize_overflow(o: &Overflow) -> &'static str {
     match o {
         Overflow::Visible => "visible",
         Overflow::Hidden => "hidden",
+        Overflow::Clip => "clip",
         Overflow::Scroll => "scroll",
         Overflow::Auto => "auto",
     }

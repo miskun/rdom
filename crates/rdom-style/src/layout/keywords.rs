@@ -1,5 +1,5 @@
 //! Keyword-valued layout properties: `flex-direction` (the axis and the
-//! one-value [`FlexDirection`]), `flex-wrap`, `overflow`,
+//! one-value [`FlexDirection`]), `flex-wrap`,
 //! `scrollbar-gutter`, `scroll-behavior`, `box-sizing`, `direction`,
 //! `writing-mode`, `display` (outer [`Display`] and inner [`Flow`]),
 //! `white-space`, `caret-color`, `caret-text-color`, `pointer-events`,
@@ -75,21 +75,6 @@ pub enum FlexWrap {
     /// `wrap-reverse`: as `wrap`, with cross-start and cross-end swapped
     /// — the first line at the cross-end edge.
     WrapReverse,
-}
-
-/// Overflow behavior. Matches CSS `overflow` semantics as closely as a
-/// cell grid allows.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum Overflow {
-    /// No clipping; content may draw outside the box.
-    #[default]
-    Visible,
-    /// Clipped; scrollable; no scrollbar.
-    Hidden,
-    /// Clipped; scrollable; scrollbar always visible.
-    Scroll,
-    /// Clipped; scrollable; scrollbar visible only when needed.
-    Auto,
 }
 
 /// CSS `scrollbar-gutter` — controls whether a scrollable element

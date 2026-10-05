@@ -32,6 +32,7 @@ mod grid;
 mod grid_areas;
 mod grid_placement;
 mod keywords;
+mod overflow;
 mod rect;
 mod sides;
 mod sizing;
@@ -53,9 +54,10 @@ pub use grid_areas::{GridTemplateAreas, NamedArea};
 pub use grid_placement::{GridAutoFlow, GridLine};
 pub use keywords::{
     BoxSizing, CaretColor, CaretTextColor, Direction, Display, FlexDirection, FlexWrap, Flow,
-    Overflow, PointerEvents, Position, ScrollBehavior, ScrollbarGutter, TextDecoration,
-    TextDirection, UserSelect, Visibility, WhiteSpace, WritingMode, ZIndex,
+    PointerEvents, Position, ScrollBehavior, ScrollbarGutter, TextDecoration, TextDirection,
+    UserSelect, Visibility, WhiteSpace, WritingMode, ZIndex,
 };
+pub use overflow::{Overflow, OverflowClipMargin};
 pub use rect::LayoutRect;
 pub use sides::{Corners, Sides};
 pub use sizing::{

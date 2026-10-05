@@ -135,6 +135,8 @@ pub(super) fn compute_pseudo_style(
         super::blockify::blockify(&mut working);
     }
     super::apply::finalize_justify_items(&mut working, host_computed);
+    // CSS Overflow 3 §3.1's computed value, which the BFC rule reads.
+    working.normalize_overflow();
     finalize_bfc_formation(&mut working);
     working.resolve_viewport_units(cx.sheets.viewport());
     finalize_used_border(&mut working);

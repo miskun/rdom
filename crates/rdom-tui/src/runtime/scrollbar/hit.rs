@@ -9,7 +9,6 @@ use rdom_core::NodeId;
 use super::ScrollAxis;
 use super::geometry::offset_from_area_start;
 use crate::TuiDom;
-use crate::layout::Overflow;
 use crate::node::TuiNodeExt;
 use crate::render::paint_pass::scrollbar::{should_paint, thumb_geometry};
 
@@ -66,8 +65,7 @@ fn check_element(dom: &TuiDom, id: NodeId, x: u16, y: u16) -> Option<ScrollbarHi
     // as a scrollbar hit under M5.5b border-collapse.
     let padding_box = crate::layout::compute_padding_box(ext.layout, computed.border);
 
-    let y_reserves = matches!(computed.overflow_y, Overflow::Scroll | Overflow::Auto);
-    let x_reserves = matches!(computed.overflow_x, Overflow::Scroll | Overflow::Auto);
+    let (y_reserves, x_reserves) = crate::render::paint_pass::scrollbar::bars_shown(ext, computed);
 
     // Vertical scrollbar sits in the column just right of
     // content.x + content.width. Horizontal sits in the row just

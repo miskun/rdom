@@ -140,6 +140,7 @@ define_fields! {
     CaretTextColor => caret_text_color : CARET_TEXT_COLOR,
     OverflowX => overflow_x : OVERFLOW_X,
     OverflowY => overflow_y : OVERFLOW_Y,
+    OverflowClipMargin => overflow_clip_margin : OVERFLOW_CLIP_MARGIN,
     ScrollbarGutter => scrollbar_gutter : SCROLLBAR_GUTTER,
     ScrollBehavior => scroll_behavior : SCROLL_BEHAVIOR,
     Width => width : WIDTH,

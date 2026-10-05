@@ -116,6 +116,7 @@ pub(super) fn layout_differs(a: &ComputedStyle, b: &ComputedStyle) -> bool {
         || a.text_direction != b.text_direction
         || a.overflow_x != b.overflow_x
         || a.overflow_y != b.overflow_y
+        || a.overflow_clip_margin != b.overflow_clip_margin
         || a.display != b.display
         // `collapse` removes a flex item or table row from layout.
         || a.visibility != b.visibility

@@ -15,7 +15,7 @@ use rdom_core::{Dom, NodeId};
 
 use super::{computed_position, parent_id};
 use crate::ext::TuiExt;
-use crate::layout::{LayoutRect, Overflow, Position};
+use crate::layout::{LayoutRect, Position};
 use crate::style::ComputedStyle;
 
 /// The containing block of an absolutely or fixed positioned box styled
@@ -72,7 +72,7 @@ fn scroll_offset(dom: &Dom<TuiExt>, p: NodeId) -> (i32, i32) {
     let scrolls = ext
         .computed
         .as_ref()
-        .is_some_and(|c| c.overflow_x != Overflow::Visible || c.overflow_y != Overflow::Visible);
+        .is_some_and(|c| c.is_scroll_container());
     if scrolls {
         (ext.scroll_x, ext.scroll_y)
     } else {

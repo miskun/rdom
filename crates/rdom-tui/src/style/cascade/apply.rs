@@ -65,8 +65,9 @@ impl<'a> Keywords<'a> {
 ///   CSS Grid 2 §5.1).
 /// - It's an inline-block — establishes a new BFC for its content
 ///   (which then lays out as block).
-/// - Its overflow on either axis is non-visible (Hidden/Scroll/
-///   Auto) — clipping containers form independent BFCs.
+/// - It is a scroll container (`overflow` `hidden` / `scroll` / `auto`
+///   on an axis). `overflow: clip` is not one and forms no BFC (CSS
+///   Overflow 3 §3.1).
 /// - It's absolutely or fixed positioned — out-of-flow boxes form
 ///   their own BFCs.
 /// - (Root element is also a BFC — handled implicitly because
@@ -76,11 +77,10 @@ impl<'a> Keywords<'a> {
 /// collapse happens only when the parent does NOT establish a new
 /// BFC.
 pub(super) fn finalize_bfc_formation(working: &mut ComputedStyle) {
-    use crate::layout::{Flow, Overflow, Position};
+    use crate::layout::{Flow, Position};
     working.establishes_new_bfc = matches!(working.flow, Flow::Flex | Flow::Grid | Flow::FlowRoot)
         || matches!(working.display, Display::InlineBlock)
-        || !matches!(working.overflow_x, Overflow::Visible)
-        || !matches!(working.overflow_y, Overflow::Visible)
+        || working.is_scroll_container()
         || matches!(working.position, Position::Absolute | Position::Fixed)
         // CSS Box Alignment 3 §5.1: a block container whose
         // `align-content` is not `normal` is an independent formatting
@@ -249,6 +249,7 @@ pub(super) fn apply_style(
         writing_mode: WRITING_MODE,
         overflow_x: OVERFLOW_X,
         overflow_y: OVERFLOW_Y,
+        overflow_clip_margin: OVERFLOW_CLIP_MARGIN,
         scrollbar_gutter: SCROLLBAR_GUTTER,
         scroll_behavior: SCROLL_BEHAVIOR,
         // `display` owns both halves: `display: inherit` takes the

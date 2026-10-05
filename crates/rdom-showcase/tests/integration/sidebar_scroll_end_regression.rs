@@ -33,7 +33,14 @@ fn scrolled_off_category_label_does_not_bleed_onto_first_visible_row() {
     let viewport = Rect::new(0, 0, 80, 20);
     dom.cascade_all(&refs);
     dom.layout_dom(viewport);
-    if let Some(ext) = dom.node_mut(handles.sidebar).ext_mut() {
+    // The tree is the sidebar's scroll container (`.sidebar-tree`,
+    // `overflow-y: auto`); the `<aside>` itself is not one, so an offset
+    // written on it is dropped (CSS Overflow 3 §3.1, C8-OVERFLOW-CLIP).
+    let tree = dom
+        .query_selector(".sidebar-tree")
+        .expect("the sidebar tree")
+        .id();
+    if let Some(ext) = dom.node_mut(tree).ext_mut() {
         ext.scroll_y = 1; // scroll the first category ("Layout") off the top
     }
     dom.cascade_all(&refs);
