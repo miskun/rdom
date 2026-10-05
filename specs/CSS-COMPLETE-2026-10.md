@@ -154,7 +154,7 @@ row comes from.
 
 | Id | Item | Status |
 |---|---|---|
-| C7-GRID-CORE | `display: grid` / `inline-grid`, `grid-template-columns` / `-rows` with cells / `%` / `fr` / `auto` / `minmax()` / `repeat()` | |
+| C7-GRID-CORE | `display: grid` / `inline-grid`, `grid-template-columns` / `-rows` with cells / `%` / `fr` / `auto` / `minmax()` / `repeat()` | partial — `display: grid` and the grid layout |
 | C7-GRID-PLACE | `grid-row` / `grid-column` (+ start / end), `grid-area`, auto-placement, `grid-auto-flow` (`dense`) | |
 | C7-GRID-AREAS | `grid-template-areas`, `grid-template`, `grid` shorthands | |
 | C7-GRID-AUTO | `grid-auto-columns` / `grid-auto-rows` | |
@@ -3595,3 +3595,28 @@ row comes from.
   Split with it (walk.rs would have reached 685 lines): `compute_element_style` and
   `settle_direction` move to `cascade/element.rs` (155; `walk.rs` 548), the cut TECH_DEBT `SIZE-1`
   named, so `walk.rs` leaves that list. No other test expectation changed.
+- 2026-10-08 — C7-GRID-CORE, part 1 of 2 (the track lists; the grid container and its layout are
+  part 2): `grid-template-columns` / `grid-template-rows` (CSS Grid 2 §7.2) parse, cascade, compute
+  and serialize. Model — the specified grammar, kept as written so CSSOM serializes what the author
+  wrote (`repeat(2, 1fr)` stays a repetition; layout expands it): `layout/grid.rs` —
+  `GridTemplate { None, Tracks(TrackList) }` (`#[non_exhaustive]`: `subgrid` is C7-SUBGRID's),
+  `TrackList { line_names, items }` (one name list per line, so one more than the components),
+  `TrackListItem { Size, Repeat }`, `TrackRepeat { count: RepeatCount { Count, AutoFill, AutoFit },
+  line_names, sizes }`, `TrackSize { Breadth, MinMax, FitContent }` with `min_sizing` /
+  `max_sizing` / `fit_content_limit` (§11.1's min and max track sizing functions: a lone `fr` and
+  `fit-content()` have the minimum `auto`, `fit-content()` the maximum `max-content`), and
+  `TrackBreadth { Cells, Percent, Calc, Fr, MinContent, MaxContent, Auto }` (`cells(basis)`; a
+  percentage against an indefinite basis is `None`). Parser (`parse/values/grid.rs`): `none |
+  <track-list> | <auto-track-list>` — `minmax(<inflexible-breadth>, <track-breadth>)` (an `fr`
+  minimum invalid), `fit-content(<length-percentage>)`, `repeat(<integer [1,∞]> | auto-fill |
+  auto-fit, …)` (no nesting), `[<custom-ident>*]` line names (not `span` / `auto` / the CSS-wide
+  keywords / `default`; two groups in a row invalid), and §7.2.3.1's rule that a list with an
+  automatic repetition has exactly one and only fixed sizes (`TrackList::is_valid`, which the
+  builders check as C6G-ALIGN-API's do — debug panic, release refusal). Dispatch in
+  `property_dispatch/grid.rs` (set / serialize, the family the later grid properties join); viewport
+  units absolutized per breadth (`absolute.rs`); `layout_differs` compares both. Red:
+  `parse::values::grid::tests` (6 tests) against a stub returning `None` — all failed; the dispatch
+  tests failed to compile (no fields, bits or builders); green after, with
+  `viewport_units_in_a_track_list_compute_to_cells` and the debug-panic test added with the model.
+  Changed expectations: the canonical-values table, the important-setter coverage and the C1
+  `initial` perturbation gain the two properties. No layout yet: a track list is inert until part 2.

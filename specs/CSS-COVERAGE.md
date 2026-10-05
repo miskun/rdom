@@ -77,7 +77,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.6 Box model and sizing (Box 3, Sizing 3/4) | 7 | 2 | 0 | 0 | 9 |
 | 3.7 Display and visibility (Display 3) | 6 | 1 | 2 | 2 | 11 |
 | 3.8 Flexbox and box alignment (Flexbox 1, Align 3) | 17 | 0 | 0 | 0 | 17 |
-| 3.9 Grid (Grid 1/2) | 0 | 0 | 10 | 0 | 10 |
+| 3.9 Grid (Grid 1/2) | 0 | 1 | 9 | 0 | 10 |
 | 3.10 Positioned layout (Position 3, CSS 2.1 §9) | 4 | 1 | 1 | 1 | 7 |
 | 3.11 Overflow, scrolling and scrollbars (Overflow 3/4, Scroll Snap 1, Overscroll 1, Scrollbars 1) | 1 | 3 | 10 | 0 | 14 |
 | 3.12 Inline text (Text 3/4, Inline 3, CSS 2.1 §10.8) | 0 | 1 | 14 | 6 | 21 |
@@ -93,11 +93,11 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 5 | 2 | 1 | 1 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **133** | **28** | **100** | **46** | **307** |
+| **Total** | **133** | **29** | **99** | **46** | **307** |
 
 When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 128 rows Partial / Missing.
 
-Headline: rdom parses **168 property names** (`property_names()`, after C6-PLACE). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are `line-height`, `text-align`, and grid.
+Headline: rdom parses **170 property names** (`property_names()`, after C7-GRID-CORE). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are `line-height`, `text-align`, and grid.
 
 ---
 
@@ -378,7 +378,7 @@ dropped. The audit's six, with where each stands:
 
 | Item | Class | Detail | Doc'd | Where |
 |---|---|---|---|---|
-| `grid-template-columns` / `grid-template-rows` | Missing | Track lists in cells / `fr` / `%` / `auto` / `minmax()` / `repeat()` / `min-content` / `max-content`. | Yes | new `layout_pass/grid` |
+| `grid-template-columns` / `grid-template-rows` | Partial | `none` and track lists — cells, `%`, `calc()`, `fr`, `auto`, `min-content`, `max-content`, `minmax()`, `fit-content()`, `repeat(<n> / auto-fill / auto-fit)`, line names — parsed, computed and serialized as written (C7-GRID-CORE); laid out once `display: grid` lands. | Yes | `V/grid.rs`, `DISP/grid.rs` |
 | `grid-template-areas` | Missing | Named areas. | Yes | grid |
 | `grid-template` | Missing | Shorthand. | Yes | grid |
 | `grid-auto-columns` / `grid-auto-rows` | Missing | Implicit tracks. | Yes | grid |

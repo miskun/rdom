@@ -18,6 +18,7 @@
 //! - `sizing` — `Size`, `MinSize`, `MaxSize`, `AspectRatio`, `GapValue`, `Length`
 //! - `border` — border styles, widths, `border-collapse`
 //! - `box_model` — padding, margin
+//! - `grid` — the grid track lists (`GridTemplate`, `TrackSize`)
 //! - `sides` — `Sides`, the per-side shape
 //! - `background` — the background longhands' keyword families
 
@@ -25,6 +26,7 @@ pub(crate) mod alignment;
 mod background;
 mod border;
 mod box_model;
+mod grid;
 mod keywords;
 mod rect;
 mod sides;
@@ -39,6 +41,9 @@ pub use border::{
     CornerStyle, PaintLength,
 };
 pub use box_model::{Margin, MarginTrim, MarginValue, Padding, PaddingValue};
+pub use grid::{
+    GridTemplate, RepeatCount, TrackBreadth, TrackList, TrackListItem, TrackRepeat, TrackSize,
+};
 pub use keywords::{
     BoxSizing, CaretColor, CaretTextColor, Direction, Display, FlexDirection, FlexWrap, Flow,
     Overflow, PointerEvents, Position, ScrollBehavior, ScrollbarGutter, TextDecoration,

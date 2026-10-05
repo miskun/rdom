@@ -285,6 +285,8 @@ fn every_property_has_important_setter() {
         .pointer_events_important(crate::layout::PointerEvents::None)
         .visibility_important(crate::layout::Visibility::Hidden)
         .order_important(1)
+        .grid_template_columns_important(crate::layout::GridTemplate::None)
+        .grid_template_rows_important(crate::layout::GridTemplate::None)
         .flex_wrap_important(crate::layout::FlexWrap::Wrap)
         .justify_content_important(crate::layout::Align::Center)
         .align_items_important(crate::layout::Align::Center)

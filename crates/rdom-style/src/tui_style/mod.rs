@@ -117,6 +117,11 @@ pub struct TuiStyle {
     pub flex_grow: Option<Value<f32>>,
     /// `flex-basis` (§7.3.3), also set by the `flex` shorthand.
     pub flex_basis: Option<Value<crate::layout::FlexBasis>>,
+    /// `grid-template-columns` (CSS Grid 2 §7.2): the explicit grid's
+    /// columns.
+    pub grid_template_columns: Option<Value<crate::layout::GridTemplate>>,
+    /// `grid-template-rows` (§7.2): the explicit grid's rows.
+    pub grid_template_rows: Option<Value<crate::layout::GridTemplate>>,
     /// `border-top-style` … `border-left-style` (CSS Backgrounds 3
     /// §4.2), one longhand per side; initial `none`.
     pub border_style: Sides<Option<Value<crate::layout::BorderStyle>>>,

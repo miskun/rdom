@@ -40,6 +40,7 @@ macro_rules! setter {
 
 mod decoration;
 mod flex;
+mod grid;
 mod sizing;
 mod spacing;
 

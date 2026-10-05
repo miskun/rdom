@@ -1,7 +1,7 @@
 //! `serialize`: property name → CSS text for whatever `TuiStyle`
 //! currently holds under that name, one arm per property, by family
 //! (`box_model`, `flex`, `paint`, `position`; the backgrounds, borders,
-//! shadows, containment and flow-relative properties in their own
+//! shadows, containment, grid and flow-relative properties in their own
 //! modules). Shorthands
 //! only serialize when their longhands agree (`overflow`, `flex`,
 //! `border`, `inset`, `transition`); the per-value-type helpers live
@@ -50,6 +50,7 @@ pub fn serialize(name: &str, style: &TuiStyle) -> Option<String> {
         .or_else(|| super::border::serialize(name, style))
         .or_else(|| super::shadow::serialize(name, style))
         .or_else(|| super::contain::serialize(name, style))
+        .or_else(|| super::grid::serialize(name, style))
         .or_else(|| super::logical::serialize_block_axis(name, style))
     {
         return out;

@@ -656,3 +656,45 @@ fn anonymous_box_hints() {
     let anon = ext::AnonymousIfc::new(rect, layout, (0, 1), None);
     assert_eq!(anon.border_box(), rect);
 }
+
+/// C7-GRID-CORE: the `grid_template_columns` / `grid_template_rows`
+/// fields, their value types, builders, bits, parser and node setter.
+#[test]
+fn grid_template_hints() {
+    let s = TuiStyle::new()
+        .grid_template_columns(TrackList::new([TrackSize::cells(2)]).repeat(
+            RepeatCount::AutoFill,
+            [TrackSize::minmax(4, TrackBreadth::Fr(1.0))],
+        ))
+        .grid_template_rows(vec![TrackSize::cells(1), TrackSize::AUTO]);
+    assert!(s.grid_template_columns.is_some());
+    let ComputedStyle {
+        grid_template_columns,
+        grid_template_rows,
+        ..
+    } = ComputedStyle::initial();
+    assert_eq!(grid_template_columns, GridTemplate::None);
+    assert!(grid_template_rows.tracks().is_none());
+    let tokens = style::parse::tokenize("[a] 1fr repeat(2, 3)").unwrap();
+    let t = style::parse::values::parse_grid_template(&tokens).unwrap();
+    assert_eq!(
+        style::parse::values::serialize_grid_template(&t),
+        "[a] 1fr repeat(2, 3)"
+    );
+    assert!(
+        (ImportantMask::GRID_TEMPLATE_COLUMNS | ImportantMask::GRID_TEMPLATE_ROWS)
+            .intersects(ImportantMask::all())
+    );
+    let mut dom = TuiDom::new();
+    let div = dom.create_element("div");
+    dom.node_mut(div)
+        .set_grid_template_columns(vec![TrackSize::cells(2)]);
+    assert_eq!(
+        dom.node(div)
+            .inline_style()
+            .and_then(|s| s.grid_template_columns.clone()),
+        Some(Value::Specified(GridTemplate::from(vec![
+            TrackSize::cells(2)
+        ])))
+    );
+}

@@ -95,7 +95,7 @@ impl IntrinsicSize {
 
 /// `p` percent of `basis` as an extent: [`Size::percent_of`] clamped to
 /// `0..=u16::MAX`.
-fn percent_cells(basis: u16, p: f32) -> u16 {
+pub(super) fn percent_cells(basis: u16, p: f32) -> u16 {
     Size::percent_of(i32::from(basis), p).clamp(0, i32::from(u16::MAX)) as u16
 }
 
@@ -375,7 +375,7 @@ impl ContainIntrinsicSize {
 }
 
 /// `expr` against `basis`, clamped to `0..=u16::MAX`.
-fn resolve_u16(expr: &crate::calc::CalcExpr, basis: u16) -> u16 {
+pub(super) fn resolve_u16(expr: &crate::calc::CalcExpr, basis: u16) -> u16 {
     let v = expr.resolve(&crate::calc::ResolveCtx::new(i32::from(basis)));
     v.clamp(0, i32::from(u16::MAX)) as u16
 }

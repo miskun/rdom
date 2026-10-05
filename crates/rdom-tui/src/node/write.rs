@@ -6,7 +6,8 @@ use rdom_core::NodeMut;
 use crate::ext::TuiExt;
 use crate::layout::{
     Alignment, Border, BorderRadius, BoxSizing, Corners, Direction, FlexDirection, FlexWrap,
-    Margin, MarginTrim, Overflow, Padding, Size, TextDirection, Visibility, WritingMode,
+    GridTemplate, Margin, MarginTrim, Overflow, Padding, Size, TextDirection, Visibility,
+    WritingMode,
 };
 use crate::style::{TuiStyle, Value};
 
@@ -131,6 +132,17 @@ pub trait TuiNodeMutExt<'a>: crate::sealed::Sealed {
     /// Declare `order` inline (CSS Flexbox §5.4).
     fn set_order(&mut self, order: i32) -> &mut Self {
         self.write_inline_style(|s| s.order = Some(Value::Specified(order)));
+        self
+    }
+    /// Declare `grid-template-columns` inline (CSS Grid 2 §7.2), through
+    /// [`TuiStyle::grid_template_columns`] (an invalid list is refused).
+    fn set_grid_template_columns(&mut self, t: impl Into<GridTemplate>) -> &mut Self {
+        self.write_inline_style(|s| *s = std::mem::take(s).grid_template_columns(t));
+        self
+    }
+    /// Declare `grid-template-rows` inline (CSS Grid 2 §7.2).
+    fn set_grid_template_rows(&mut self, t: impl Into<GridTemplate>) -> &mut Self {
+        self.write_inline_style(|s| *s = std::mem::take(s).grid_template_rows(t));
         self
     }
     /// Declare `visibility` inline (CSS Display 3 §4).

@@ -79,9 +79,10 @@ pub use layout::{
     Align, AlignProperty, Alignment, AspectRatio, BackgroundAttachment, BackgroundRepeat, Border,
     BorderRadius, BorderSpacing, BorderStyle, BorderWeight, BorderWidth, BoxShadow, BoxSizing,
     ContainIntrinsicSize, CornerStyle, Corners, Direction, Display, FlexBasis, FlexDirection,
-    FlexWrap, Flow, GapValue, IntrinsicSize, LayoutRect, Margin, MarginTrim, MarginValue, MaxSize,
-    MinSize, Overflow, OverflowAlign, Padding, PaddingValue, PaintLength, RepeatStyle, Sides, Size,
-    TextDirection, UserSelect, Visibility, VisualBox, WhiteSpace, WritingMode,
+    FlexWrap, Flow, GapValue, GridTemplate, IntrinsicSize, LayoutRect, Margin, MarginTrim,
+    MarginValue, MaxSize, MinSize, Overflow, OverflowAlign, Padding, PaddingValue, PaintLength,
+    RepeatCount, RepeatStyle, Sides, Size, TextDirection, TrackBreadth, TrackList, TrackListItem,
+    TrackRepeat, TrackSize, UserSelect, Visibility, VisualBox, WhiteSpace, WritingMode,
 };
 pub use node::{TuiNodeExt, TuiNodeMutExt};
 /// `@import` resolution for the document's `<style>` sheets

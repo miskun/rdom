@@ -92,6 +92,11 @@ pub struct ComputedStyle {
     /// `flex-basis` (CSS Flexbox §7.3.3): the flex base size (§9.2
     /// step 3). Initial `auto`.
     pub flex_basis: crate::layout::FlexBasis,
+    /// `grid-template-columns` (CSS Grid 2 §7.2): the explicit columns of
+    /// a grid container, viewport units resolved. Initial `none`.
+    pub grid_template_columns: crate::layout::GridTemplate,
+    /// `grid-template-rows` (§7.2): the explicit rows. Initial `none`.
+    pub grid_template_rows: crate::layout::GridTemplate,
     /// The used border: [`border_style`](Self::border_style) with every
     /// zero-width side `none` (CSS Backgrounds 3 §4.3) — what layout
     /// reserves cells for and paint draws.
@@ -314,6 +319,8 @@ impl ComputedStyle {
             order: 0,
             flex_grow: 0.0,
             flex_basis: crate::layout::FlexBasis::Auto,
+            grid_template_columns: crate::layout::GridTemplate::None,
+            grid_template_rows: crate::layout::GridTemplate::None,
             border: Border::none(),
             border_style: Border::none(),
             border_width: crate::layout::Sides::default(),

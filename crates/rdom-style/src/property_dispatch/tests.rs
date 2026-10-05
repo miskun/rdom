@@ -74,6 +74,11 @@ fn canonical_values() -> &'static [(&'static str, &'static str)] {
         ("flex-shrink", "1"),
         ("flex-basis", "content"),
         ("order", "-2"),
+        (
+            "grid-template-columns",
+            "[a] 10 repeat(2, minmax(auto, 1fr)) [b]",
+        ),
+        ("grid-template-rows", "none"),
         ("padding", "1 2 3 4"),
         ("padding-top", "5"),
         ("padding-right", "6"),

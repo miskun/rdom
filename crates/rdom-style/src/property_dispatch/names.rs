@@ -72,6 +72,9 @@ const PROPERTY_NAMES: &[&str] = &[
     "flex-shrink",
     "flex-basis",
     "order",
+    // Grid (CSS Grid 2)
+    "grid-template-columns",
+    "grid-template-rows",
     // Padding (shorthand + longhands)
     "padding",
     "padding-top",

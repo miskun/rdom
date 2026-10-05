@@ -131,6 +131,12 @@ impl ComputedStyle {
                 });
             }
         }
+        for template in [
+            &mut self.grid_template_columns,
+            &mut self.grid_template_rows,
+        ] {
+            absolutize_template(template, vp);
+        }
         for inset in [
             &mut self.top,
             &mut self.right,
@@ -138,6 +144,33 @@ impl ComputedStyle {
             &mut self.left,
         ] {
             absolutize(inset, vp, Length::Calc, |v| Length::Cells(cells_i32(v)));
+        }
+    }
+}
+
+/// Every breadth of a track list, its viewport units absolute: a
+/// percentage-bearing `calc()` stays one, any other is whole cells.
+fn absolutize_template(template: &mut crate::layout::GridTemplate, vp: Viewport) {
+    use crate::layout::{TrackBreadth, TrackListItem, TrackSize};
+    let Some(list) = (match template {
+        crate::layout::GridTemplate::Tracks(list) => Some(list),
+        _ => None,
+    }) else {
+        return;
+    };
+    let sizes = list.items.iter_mut().flat_map(|item| match item {
+        TrackListItem::Size(s) => std::slice::from_mut(s).iter_mut(),
+        TrackListItem::Repeat(r) => r.sizes.iter_mut(),
+    });
+    for size in sizes {
+        let breadths: [Option<&mut TrackBreadth>; 2] = match size {
+            TrackSize::Breadth(b) | TrackSize::FitContent(b) => [Some(b), None],
+            TrackSize::MinMax(min, max) => [Some(min), Some(max)],
+        };
+        for b in breadths.into_iter().flatten() {
+            absolutize(b, vp, TrackBreadth::Calc, |v| {
+                TrackBreadth::Cells(cells_u16(v))
+            });
         }
     }
 }
@@ -169,6 +202,15 @@ has_expr!(
     GapValue,
     Length
 );
+
+impl HasExpr for crate::layout::TrackBreadth {
+    fn expr(&self) -> Option<&CalcExpr> {
+        match self {
+            crate::layout::TrackBreadth::Calc(e) => Some(e),
+            _ => None,
+        }
+    }
+}
 
 impl HasExpr for PaintLength {
     fn expr(&self) -> Option<&CalcExpr> {

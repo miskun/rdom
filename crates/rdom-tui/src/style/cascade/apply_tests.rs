@@ -98,6 +98,8 @@ const PERTURB: &[(&str, &str)] = &[
     ("border-width", "thick"),
     ("border-radius", "1"),
     ("box-shadow", "1 1 red"),
+    ("grid-template-columns", "1 2"),
+    ("grid-template-rows", "repeat(2, 1fr)"),
     ("border-spacing", "1"),
 ];
 
@@ -151,6 +153,8 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
         flex_shrink,
         flex_basis,
         order,
+        grid_template_columns,
+        grid_template_rows,
         border,
         border_style,
         border_width,
@@ -238,6 +242,8 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
         flex_shrink,
         flex_basis,
         order,
+        grid_template_columns,
+        grid_template_rows,
         border,
         border_style,
         border_width,

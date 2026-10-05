@@ -222,6 +222,8 @@ pub(super) fn apply_style(
         flex_shrink: FLEX_SHRINK,
         flex_basis: FLEX_BASIS,
         order: ORDER,
+        grid_template_columns: GRID_TEMPLATE_COLUMNS,
+        grid_template_rows: GRID_TEMPLATE_ROWS,
     );
     apply_border_collapse(
         &mut working.border_collapse,

@@ -82,6 +82,7 @@ mod border;
 mod contain;
 mod css_wide;
 mod declare;
+mod grid;
 mod importance;
 mod logical;
 mod names;
@@ -101,6 +102,8 @@ mod border_tests;
 mod display_tests;
 #[cfg(test)]
 mod flex_tests;
+#[cfg(test)]
+mod grid_tests;
 #[cfg(test)]
 mod logical_tests;
 #[cfg(test)]

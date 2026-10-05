@@ -89,6 +89,8 @@ pub(super) fn layout_differs(a: &ComputedStyle, b: &ComputedStyle) -> bool {
         || a.flex_shrink != b.flex_shrink
         || a.flex_basis != b.flex_basis
         || a.order != b.order
+        || a.grid_template_columns != b.grid_template_columns
+        || a.grid_template_rows != b.grid_template_rows
         || a.border != b.border
         || a.border_style != b.border_style
         || a.border_width != b.border_width

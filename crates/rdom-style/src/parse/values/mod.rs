@@ -20,6 +20,7 @@
 //! - `border.rs` — `border` shorthand and per-side styles.
 //! - `shadow.rs` — `box-shadow`.
 //! - `content.rs` — `content` and counter operations.
+//! - `grid.rs` — grid track lists (`grid-template-*`).
 //! - `transition.rs` — easing, `<time>`, transition lists and shorthand.
 //! - `calc.rs` — the `calc()` expression parser.
 //! - `numeric.rs` — the shared `<length-percentage>` leaf and the
@@ -36,6 +37,7 @@ mod color;
 mod content;
 mod display;
 mod flex;
+mod grid;
 mod keyword;
 mod length;
 mod number;
@@ -76,6 +78,9 @@ pub use display::{parse_display, serialize_display};
 pub use flex::{
     parse_flex_direction, parse_flex_flow, parse_flex_wrap, serialize_flex_direction,
     serialize_flex_flow, serialize_flex_wrap,
+};
+pub use grid::{
+    parse_grid_template, parse_track_size, serialize_grid_template, serialize_track_size,
 };
 pub use keyword::{
     parse_keyword, parse_overflow, parse_position, parse_scroll_behavior, parse_scrollbar_gutter,
