@@ -255,7 +255,8 @@ pub(super) fn layout_node(
     // a stale rect drives paint / hit-test for a box that should generate none
     // (LAYOUT-DISPLAY-NONE-STALE-RECT). Freshly-hidden nodes already read zero;
     // this only matters on the visible→none transition for persistent nodes.
-    collapse_hidden_children(dom, id);
+    let content_box = dom.node(id).ext().map_or(inner, |e| e.content_layout);
+    collapse_hidden_children(dom, id, content_box);
 
     // CSS 2.1 §10.6.3 — resolve `height: Auto` on a block-flow element
     // against the measured content extent, plus the gutter rows the
@@ -416,6 +417,7 @@ fn layout_fragment_children(dom: &mut Dom<TuiExt>, id: NodeId, container: Layout
     viewport_column.flow = crate::layout::Flow::Flex;
     viewport_column.direction = Direction::Column;
     layout_flex_children(dom, &children, container, &viewport_column);
+    collapse_hidden_children(dom, id, container);
 }
 
 // ─── Tree helpers ───────────────────────────────────────────────────

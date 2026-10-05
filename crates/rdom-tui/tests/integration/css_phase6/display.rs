@@ -206,3 +206,67 @@ fn multi_keyword_forms_lay_out_as_their_legacy_keywords() {
         assert_eq!(lay(css), lay(legacy), "{css}");
     }
 }
+
+/// CSS Display 3 §2.5: a `display: contents` element generates no box,
+/// so nothing it derived as a box survives the switch — not the line
+/// boxes its text was packed in (the text now flows in its parent's
+/// line: caret and hit-test arithmetic must find the parent's), and not
+/// the scroll extent of a former scroll container (no box, no
+/// scrollport, no Tab stop — HTML §6.6.3 keyboard-focusable scrollers).
+#[test]
+fn a_box_turned_contents_keeps_no_box_state() {
+    use rdom_tui::render::{InlineFlow, inline_flow_for_text};
+    use rdom_tui::runtime::focus::tabindex::focusable_elements;
+    let sheet = ".b { display: block } .c { display: contents } \
+                 .s { overflow: auto; height: 1; width: 4 }";
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let p = el(&mut dom, root, "p", "");
+    let s = el(&mut dom, p, "span", "b");
+    let t = dom.create_text_node("hello");
+    dom.append_child(s, t).unwrap();
+    let w = el(&mut dom, root, "div", "s");
+    for _ in 0..3 {
+        let k = el(&mut dom, w, "div", "");
+        let t = dom.create_text_node("row");
+        dom.append_child(k, t).unwrap();
+    }
+    lay_out(&mut dom, sheet, 10, 6);
+    assert_eq!(
+        inline_flow_for_text(&dom, t_of(&dom, s)),
+        Some(InlineFlow::Ifc { block: s })
+    );
+    assert_eq!(focusable_elements(&dom), [w]);
+
+    dom.set_attribute(s, "class", "c").unwrap();
+    dom.set_attribute(w, "class", "s c").unwrap();
+    lay_out(&mut dom, sheet, 10, 6);
+    assert_eq!(
+        inline_flow_for_text(&dom, t_of(&dom, s)),
+        Some(InlineFlow::Ifc { block: p })
+    );
+    assert!(focusable_elements(&dom).is_empty());
+    assert_eq!(dom.node(s).tui_ext().unwrap().inline_layout, None);
+}
+
+/// LAYOUT-DISPLAY-NONE-STALE-RECT at the document root: a child of the
+/// root fragment that turns `display: none` generates no box (CSS
+/// Display 3 §2.5), so its rect reads zero like any other container's.
+#[test]
+fn a_root_child_turned_none_reads_zero() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let n = el(&mut dom, root, "div", "b");
+    let t = dom.create_text_node("hi");
+    dom.append_child(n, t).unwrap();
+    let sheet = ".n { display: none }";
+    lay_out(&mut dom, sheet, 10, 3);
+    assert_eq!(rect(&dom, n).height, 1);
+    dom.set_attribute(n, "class", "n").unwrap();
+    lay_out(&mut dom, sheet, 10, 3);
+    assert_eq!(rect(&dom, n), rdom_tui::LayoutRect::default());
+}
+
+fn t_of(dom: &TuiDom, id: rdom_tui::NodeId) -> rdom_tui::NodeId {
+    dom.node(id).first_child().unwrap().id()
+}

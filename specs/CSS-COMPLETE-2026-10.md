@@ -2478,3 +2478,20 @@ row comes from.
   Phase 5 public helpers, module moves, scroll re-clamp, abspos `order: 0`, rounding toward main-start.
   Fix all as `C6G-*`, three batches: A correctness and cost, B flex spec / visibility / CSSOM,
   C API, docs and the CHANGELOG restructure.
+- 2026-10-08 — C6G-CONTENTS-STATE (AB1): a box-less element (`display: contents` / `none`, CSS
+  Display 3 §2.5) now drops every value it derived from having a box. Layout writes `inline_layout`,
+  `anonymous_blocks`, `scroll_content_*` only on a node it lays out, and the contents reset
+  (`zero_contents_children`) cleared only the rects and the margin-chain memo, so `<p><span
+  style="display:block">hello</span></p>` toggled to `contents` left `inline_flow_for_text` stopping
+  at the span's dead line boxes (caret, selection, hit-test on a zero rect), and a former `overflow:
+  auto` scroller kept its extent and its Tab stop (`is_scroll_container`). Decision: one reset,
+  `tree::clear_box_state` — rects, margin-chain memo, line boxes, anonymous blocks, scroll extent and
+  offsets (a re-boxed scroller starts at 0, as a browser's does), scroll bookkeeping, static position
+  — shared by the `contents` reset and the `display: none` collapse. Found on the way: the root
+  fragment never ran the collapse at all (`layout_fragment_children`), so a root child turned `none`
+  kept its rect, and a `contents` root child its box state; it now does, at the viewport origin.
+  Red: `a_box_turned_contents_keeps_no_box_state` — `Ifc { block: span }` for `Ifc { block: p }`;
+  with the line-box reset in, the former scroller still in `focusable_elements` (the root-fragment
+  gap); `a_root_child_turned_none_reads_zero` — `(0, 0, 10, 1)` for the zero rect. Green after.
+  Mutation checks (each alone, reverted and touched): line boxes kept → the `Ifc` assertion; scroll
+  height kept → the Tab-stop assertion; no root-fragment collapse → both tests. No snapshot changed.

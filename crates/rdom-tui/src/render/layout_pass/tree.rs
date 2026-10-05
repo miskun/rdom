@@ -66,11 +66,10 @@ pub(crate) fn is_collapsed_table_row(dom: &Dom<TuiExt>, id: NodeId) -> bool {
 /// descendant's, since the subtree isn't laid out — must read zero.
 ///
 /// A `display: contents` child has no box either (CSS Display 3 §2.5):
-/// its own rects read zero, at the container's content origin, while
-/// its children are laid out as the container's.
-pub(crate) fn collapse_hidden_children(dom: &mut Dom<TuiExt>, id: NodeId) {
-    let origin = dom.node(id).ext().map(|e| e.content_layout);
-    zero_contents_children(dom, id, origin.unwrap_or_default());
+/// its own rects read zero, at `origin` (the container's content box),
+/// while its children are laid out as the container's.
+pub(crate) fn collapse_hidden_children(dom: &mut Dom<TuiExt>, id: NodeId, origin: LayoutRect) {
+    zero_contents_children(dom, id, origin);
     for child in element_children_of(dom, id) {
         let hidden = dom
             .node(child)
@@ -94,8 +93,7 @@ fn collapse_subtree_geometry(dom: &mut Dom<TuiExt>, id: NodeId) {
             // top-down), so stop early. Keeps steady-state hidden subtrees O(1).
             return;
         }
-        ext.layout = LayoutRect::default();
-        ext.content_layout = LayoutRect::default();
+        clear_box_state(ext, LayoutRect::default());
     }
     for child in element_children_of(dom, id) {
         collapse_subtree_geometry(dom, child);
@@ -109,14 +107,33 @@ fn zero_contents_children(dom: &mut Dom<TuiExt>, id: NodeId, origin: LayoutRect)
     for child in children {
         if crate::render::box_tree::is_contents(dom, child) {
             if let Some(ext) = dom.node_mut(child).ext_mut() {
-                ext.layout = LayoutRect::new(origin.x, origin.y, 0, 0);
-                ext.content_layout = ext.layout;
-                ext.layout_dirty = false;
-                ext.margin_chain = None;
+                clear_box_state(ext, LayoutRect::new(origin.x, origin.y, 0, 0));
             }
             zero_contents_children(dom, child, origin);
         }
     }
+}
+
+/// Reset everything `ext`'s element derived from having a box — its
+/// rects (to `rect`, a zero-size one), margin-collapse memo, line boxes,
+/// anonymous block boxes, scroll extent and offsets — when it has none
+/// (`display: none` / `contents`, CSS Display 3 §2.5). Layout writes
+/// these only on a node it lays out, so a box-less node would otherwise
+/// keep its box days' values, and caret, hit-test and focus code reading
+/// them would act on a box that no longer exists.
+fn clear_box_state(ext: &mut TuiExt, rect: LayoutRect) {
+    ext.layout = rect;
+    ext.content_layout = rect;
+    ext.layout_dirty = false;
+    ext.margin_chain = None;
+    ext.inline_layout = None;
+    ext.anonymous_blocks.clear();
+    ext.scroll_content_width = 0;
+    ext.scroll_content_height = 0;
+    ext.scroll_x = 0;
+    ext.scroll_y = 0;
+    ext.scroll_state = None;
+    ext.static_position = None;
 }
 
 fn collect_element_children(dom: &Dom<TuiExt>, id: NodeId, out: &mut Vec<NodeId>) {
