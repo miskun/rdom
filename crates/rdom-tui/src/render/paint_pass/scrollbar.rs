@@ -332,11 +332,12 @@ fn paint_track(
 /// - `Scroll` → always, even when content fits.
 /// - `Auto`   → only when content > viewport.
 /// - Anything else → never (caller shouldn't even reach here).
+#[deny(clippy::wildcard_enum_match_arm)]
 pub(crate) fn should_paint(overflow: Overflow, viewport: usize, content: usize) -> bool {
     match overflow {
         Overflow::Scroll => true,
         Overflow::Auto => content > viewport,
-        _ => false,
+        Overflow::Visible | Overflow::Hidden | Overflow::Clip => false,
     }
 }
 

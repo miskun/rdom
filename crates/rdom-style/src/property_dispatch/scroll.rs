@@ -18,20 +18,20 @@ use crate::{TuiStyle, Value};
 /// left.
 fn padding_sides(style: &mut TuiStyle) -> [&mut Option<Value<ScrollPadding>>; 4] {
     [
-        &mut style.scroll_padding_top,
-        &mut style.scroll_padding_right,
-        &mut style.scroll_padding_bottom,
-        &mut style.scroll_padding_left,
+        &mut style.scroll_padding.top,
+        &mut style.scroll_padding.right,
+        &mut style.scroll_padding.bottom,
+        &mut style.scroll_padding.left,
     ]
 }
 
 /// The `scroll-margin` side fields of `style`, top, right, bottom, left.
 fn margin_sides(style: &mut TuiStyle) -> [&mut Option<Value<i16>>; 4] {
     [
-        &mut style.scroll_margin_top,
-        &mut style.scroll_margin_right,
-        &mut style.scroll_margin_bottom,
-        &mut style.scroll_margin_left,
+        &mut style.scroll_margin.top,
+        &mut style.scroll_margin.right,
+        &mut style.scroll_margin.bottom,
+        &mut style.scroll_margin.left,
     ]
 }
 
@@ -168,10 +168,10 @@ pub(super) fn serialize(name: &str, style: &TuiStyle) -> Option<Option<String>> 
         }
         "scroll-padding" => {
             let sides = [
-                &style.scroll_padding_top,
-                &style.scroll_padding_right,
-                &style.scroll_padding_bottom,
-                &style.scroll_padding_left,
+                &style.scroll_padding.top,
+                &style.scroll_padding.right,
+                &style.scroll_padding.bottom,
+                &style.scroll_padding.left,
             ]
             .map(|f| f.as_ref().and_then(specified).map(padding_text));
             match sides {
@@ -181,10 +181,10 @@ pub(super) fn serialize(name: &str, style: &TuiStyle) -> Option<Option<String>> 
         }
         "scroll-margin" => {
             let sides = [
-                &style.scroll_margin_top,
-                &style.scroll_margin_right,
-                &style.scroll_margin_bottom,
-                &style.scroll_margin_left,
+                &style.scroll_margin.top,
+                &style.scroll_margin.right,
+                &style.scroll_margin.bottom,
+                &style.scroll_margin.left,
             ]
             .map(|f| f.as_ref().and_then(specified).map(i16::to_string));
             match sides {
@@ -194,16 +194,16 @@ pub(super) fn serialize(name: &str, style: &TuiStyle) -> Option<Option<String>> 
         }
         _ => {
             let padding = [
-                &style.scroll_padding_top,
-                &style.scroll_padding_right,
-                &style.scroll_padding_bottom,
-                &style.scroll_padding_left,
+                &style.scroll_padding.top,
+                &style.scroll_padding.right,
+                &style.scroll_padding.bottom,
+                &style.scroll_padding.left,
             ];
             let margin = [
-                &style.scroll_margin_top,
-                &style.scroll_margin_right,
-                &style.scroll_margin_bottom,
-                &style.scroll_margin_left,
+                &style.scroll_margin.top,
+                &style.scroll_margin.right,
+                &style.scroll_margin.bottom,
+                &style.scroll_margin.left,
             ];
             if let Some(i) = side_of(name, "scroll-padding-") {
                 padding[i].as_ref().and_then(specified).map(padding_text)

@@ -2353,8 +2353,8 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
     parent.float = rdom_style::layout::Float::Left;
     parent.overscroll_behavior_x = rdom_style::layout::OverscrollBehavior::Contain;
     parent.overscroll_behavior_y = rdom_style::layout::OverscrollBehavior::None;
-    parent.scroll_padding_top = rdom_style::layout::ScrollPadding::Length(Default::default());
-    parent.scroll_margin_top = 2;
+    parent.scroll_padding.top = rdom_style::layout::ScrollPadding::Length(Default::default());
+    parent.scroll_margin.top = 2;
     parent.scroll_snap_type = rdom_style::layout::ScrollSnapType::Snap(
         rdom_style::layout::ScrollSnapAxis::Y,
         rdom_style::layout::ScrollSnapStrictness::Mandatory,
@@ -2461,11 +2461,11 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
         ),
         (
             "scroll-padding-top",
-            child.scroll_padding_top == parent.scroll_padding_top,
+            child.scroll_padding.top == parent.scroll_padding.top,
         ),
         (
             "scroll-margin-top",
-            child.scroll_margin_top == parent.scroll_margin_top,
+            child.scroll_margin.top == parent.scroll_margin.top,
         ),
         (
             "scroll-snap-type",

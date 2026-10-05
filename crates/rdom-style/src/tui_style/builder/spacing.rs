@@ -6,25 +6,6 @@ use super::super::{ImportantMask, TuiStyle};
 use crate::Value;
 use crate::layout::{Margin, MarginValue, Padding, PaddingValue, Sides};
 
-/// A setter for one spacing longhand and its `!important` twin:
-/// `side_setter!("css-name", field, side, setter, important_setter,
-/// MASK, ValueType)`.
-macro_rules! side_setter {
-    ($css:literal, $field:ident, $side:ident, $setter:ident, $important_setter:ident, $mask:ident, $ty:ty) => {
-        #[doc = concat!("Set the `", $css, "` longhand to `v` (cells, or a `", stringify!($ty), "`), leaving the other sides as they are. Chainable.")]
-        pub fn $setter(mut self, v: impl Into<$ty>) -> Self {
-            self.$field.$side = Some(Value::Specified(v.into()));
-            self
-        }
-
-        #[doc = concat!("Like `", stringify!($setter), "` but also marks the `", $css, "` declaration `!important`.")]
-        pub fn $important_setter(mut self, v: impl Into<$ty>) -> Self {
-            self.important |= ImportantMask::$mask;
-            self.$setter(v)
-        }
-    };
-}
-
 impl TuiStyle {
     /// Set the `padding` shorthand: the four `padding-*` longhands.
     /// Accepts a `Padding` or a plain `u16` (`n` cells on every side).

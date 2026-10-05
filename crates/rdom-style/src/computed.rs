@@ -237,16 +237,10 @@ pub struct ComputedStyle {
     pub overscroll_behavior_y: crate::layout::OverscrollBehavior,
     /// `scroll-padding-*` (CSS Scroll Snap 1 §4.1), the scroll container's
     /// optimal viewing region's insets. Not inherited.
-    pub scroll_padding_top: crate::layout::ScrollPadding,
-    pub scroll_padding_right: crate::layout::ScrollPadding,
-    pub scroll_padding_bottom: crate::layout::ScrollPadding,
-    pub scroll_padding_left: crate::layout::ScrollPadding,
+    pub scroll_padding: crate::layout::Sides<crate::layout::ScrollPadding>,
     /// `scroll-margin-*` (CSS Scroll Snap 1 §4.2), the box's scroll snap
     /// area's outsets, in cells. Not inherited.
-    pub scroll_margin_top: i16,
-    pub scroll_margin_right: i16,
-    pub scroll_margin_bottom: i16,
-    pub scroll_margin_left: i16,
+    pub scroll_margin: crate::layout::Sides<i16>,
     /// `scroll-snap-type` / `-align` / `-stop` (CSS Scroll Snap 1 §5–§6).
     /// Not inherited.
     pub scroll_snap_type: crate::layout::ScrollSnapType,
@@ -381,6 +375,7 @@ impl ComputedStyle {
     /// CSS Overflow 3 §3.1's computed value: beside an axis that makes a
     /// scroll container, `visible` computes to `auto` and `clip` to
     /// `hidden`; otherwise both stay as specified.
+    #[deny(clippy::wildcard_enum_match_arm)]
     pub fn normalize_overflow(&mut self) {
         use crate::layout::Overflow;
         if !self.is_scroll_container() {
@@ -390,7 +385,7 @@ impl ComputedStyle {
             *axis = match *axis {
                 Overflow::Visible => Overflow::Auto,
                 Overflow::Clip => Overflow::Hidden,
-                other => other,
+                other @ (Overflow::Hidden | Overflow::Scroll | Overflow::Auto) => other,
             };
         }
     }
@@ -469,14 +464,13 @@ impl ComputedStyle {
             scrollbar_color: crate::layout::ScrollbarColor::Auto,
             overscroll_behavior_x: crate::layout::OverscrollBehavior::Auto,
             overscroll_behavior_y: crate::layout::OverscrollBehavior::Auto,
-            scroll_padding_top: crate::layout::ScrollPadding::Auto,
-            scroll_padding_right: crate::layout::ScrollPadding::Auto,
-            scroll_padding_bottom: crate::layout::ScrollPadding::Auto,
-            scroll_padding_left: crate::layout::ScrollPadding::Auto,
-            scroll_margin_top: 0,
-            scroll_margin_right: 0,
-            scroll_margin_bottom: 0,
-            scroll_margin_left: 0,
+            scroll_padding: crate::layout::Sides::new(
+                crate::layout::ScrollPadding::Auto,
+                crate::layout::ScrollPadding::Auto,
+                crate::layout::ScrollPadding::Auto,
+                crate::layout::ScrollPadding::Auto,
+            ),
+            scroll_margin: crate::layout::Sides::new(0, 0, 0, 0),
             scroll_snap_type: crate::layout::ScrollSnapType::None,
             scroll_snap_align: crate::layout::ScrollSnapAlign {
                 block: crate::layout::SnapAlign::None,

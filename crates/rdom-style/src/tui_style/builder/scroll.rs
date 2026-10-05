@@ -46,65 +46,73 @@ impl TuiStyle {
         OVERSCROLL_BEHAVIOR_Y,
         crate::layout::OverscrollBehavior
     );
-    setter!(
+    side_setter!(
         "scroll-padding-top",
-        scroll_padding_top,
+        scroll_padding,
+        top,
         scroll_padding_top,
         scroll_padding_top_important,
         SCROLL_PADDING_TOP,
         crate::layout::ScrollPadding
     );
-    setter!(
+    side_setter!(
         "scroll-padding-right",
-        scroll_padding_right,
+        scroll_padding,
+        right,
         scroll_padding_right,
         scroll_padding_right_important,
         SCROLL_PADDING_RIGHT,
         crate::layout::ScrollPadding
     );
-    setter!(
+    side_setter!(
         "scroll-padding-bottom",
-        scroll_padding_bottom,
+        scroll_padding,
+        bottom,
         scroll_padding_bottom,
         scroll_padding_bottom_important,
         SCROLL_PADDING_BOTTOM,
         crate::layout::ScrollPadding
     );
-    setter!(
+    side_setter!(
         "scroll-padding-left",
-        scroll_padding_left,
+        scroll_padding,
+        left,
         scroll_padding_left,
         scroll_padding_left_important,
         SCROLL_PADDING_LEFT,
         crate::layout::ScrollPadding
     );
-    setter!(
-        "scroll-margin-top",
-        scroll_margin_top,
+    side_setter!(
+        exact "scroll-margin-top",
+        scroll_margin,
+        top,
         scroll_margin_top,
         scroll_margin_top_important,
         SCROLL_MARGIN_TOP,
         i16
     );
-    setter!(
-        "scroll-margin-right",
-        scroll_margin_right,
+    side_setter!(
+        exact "scroll-margin-right",
+        scroll_margin,
+        right,
         scroll_margin_right,
         scroll_margin_right_important,
         SCROLL_MARGIN_RIGHT,
         i16
     );
-    setter!(
-        "scroll-margin-bottom",
-        scroll_margin_bottom,
+    side_setter!(
+        exact "scroll-margin-bottom",
+        scroll_margin,
+        bottom,
         scroll_margin_bottom,
         scroll_margin_bottom_important,
         SCROLL_MARGIN_BOTTOM,
         i16
     );
-    setter!(
-        "scroll-margin-left",
-        scroll_margin_left,
+    side_setter!(
+        exact "scroll-margin-left",
+        scroll_margin,
+        left,
         scroll_margin_left,
         scroll_margin_left_important,
         SCROLL_MARGIN_LEFT,

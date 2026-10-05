@@ -85,12 +85,8 @@ impl ComputedStyle {
                 PaddingValue::Cells(cells_u16(v))
             });
         }
-        for side in [
-            &mut self.scroll_padding_top,
-            &mut self.scroll_padding_right,
-            &mut self.scroll_padding_bottom,
-            &mut self.scroll_padding_left,
-        ] {
+        let sp = &mut self.scroll_padding;
+        for side in [&mut sp.top, &mut sp.right, &mut sp.bottom, &mut sp.left] {
             if let crate::layout::ScrollPadding::Length(v) = side {
                 absolutize(v, vp, PaddingValue::Calc, |v| {
                     PaddingValue::Cells(cells_u16(v))

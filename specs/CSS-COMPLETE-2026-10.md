@@ -5222,3 +5222,25 @@ row comes from.
   click passed at first — the press focused the tree, so the click's focus was a no-op — and was rewritten
   with focusable rows, 3 for 4). Green after. Mutation (restored, touched): never deferring → the handler
   test. No existing test expectation or snapshot changed.
+- 2026-10-10 — C8G-API-TYPES (API N12, N13, N6). Found: DESIGN's closed / open list did not name the eight
+  Phase 8 scroll types; two `Overflow` matches ended in a wildcard arm (`paint_pass/scrollbar.rs`
+  `should_paint`, rdom-style `ComputedStyle::normalize_overflow`) on a closed type, where a new variant must
+  fail to compile; the Phase 8 value types were reached only through `rdom_tui::layout`; `scroll-padding-*` /
+  `scroll-margin-*` were four loose fields each on `TuiStyle` and `ComputedStyle` where `margin` / `padding`
+  are `Sides` (C6-MARGIN-SIDES); and the upgrade guide's focus snippet called `request_animation_frame`
+  without the `TuiTimers` trait, in neither the root nor the prelude. Decisions: DESIGN classifies
+  `OverscrollBehavior`, `ScrollPadding`, `ScrollSnapType`, `ScrollSnapAxis`, `ScrollSnapStrictness`,
+  `SnapAlign`, `ScrollSnapAlign`, `ScrollSnapStop` as closed CSS values (each a decision the wheel, the
+  scroll-into-view region or the snap selection must make), and `FocusOptions` (C8G-FOCUS-SCROLL) as an
+  options bag, `GeneratedFragment` (C8G-PSEUDO-ATOMS) as a growing layout output; the two matches name every
+  variant, under `#[deny(clippy::wildcard_enum_match_arm)]`; the root re-exports the Phase 8 values
+  (`Float` … `ZIndex`), `FocusOptions` and `TuiTimers`, the prelude `FocusOptions` and `TuiTimers` (the
+  re-export rather than a snippet change: a consumer needs the trait to call the method); `TuiStyle::
+  scroll_padding` / `scroll_margin` are `Sides<Option<Value<…>>>` and `ComputedStyle::scroll_padding` /
+  `scroll_margin` `Sides<…>` — the dispatch table, the cascade's field list and `absolute.rs` address
+  `.top` … `.left`; the per-side builders keep their names (`side_setter!`, moved to the builder module and
+  given an `exact` arm so `scroll_margin_left(2)` still infers its `i16`). Breaking for git-main consumers only
+  (the fields were added after 0.5): CHANGELOG Breaking bullet and the "added after 0.5" table row. Red:
+  `migration_hints.rs::scroll_sides_and_root_hints` — 23 compile errors (the root types, `FocusOptions`,
+  `TuiTimers`, the `Sides` fields); `cargo clippy` with the `deny` on the two functions — the wildcard arm.
+  Green after. No test expectation or snapshot changed.

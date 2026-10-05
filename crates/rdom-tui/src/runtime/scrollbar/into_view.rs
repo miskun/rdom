@@ -134,10 +134,10 @@ fn scroll_container(
 /// scroll snap area. A negative margin insets it.
 pub(crate) fn outset(rect: LayoutRect, c: &crate::style::ComputedStyle) -> LayoutRect {
     let (t, r, b, l) = (
-        i32::from(c.scroll_margin_top),
-        i32::from(c.scroll_margin_right),
-        i32::from(c.scroll_margin_bottom),
-        i32::from(c.scroll_margin_left),
+        i32::from(c.scroll_margin.top),
+        i32::from(c.scroll_margin.right),
+        i32::from(c.scroll_margin.bottom),
+        i32::from(c.scroll_margin.left),
     );
     let len = |n: i32| n.clamp(0, i32::from(u16::MAX)) as u16;
     LayoutRect::new(
@@ -153,10 +153,10 @@ pub(crate) fn outset(rect: LayoutRect, c: &crate::style::ComputedStyle) -> Layou
 /// scrollport's size on the side's axis; `auto` is 0.
 pub(crate) fn inset(port: LayoutRect, c: &crate::style::ComputedStyle) -> LayoutRect {
     let (t, r, b, l) = (
-        c.scroll_padding_top.resolve(port.height),
-        c.scroll_padding_right.resolve(port.width),
-        c.scroll_padding_bottom.resolve(port.height),
-        c.scroll_padding_left.resolve(port.width),
+        c.scroll_padding.top.resolve(port.height),
+        c.scroll_padding.right.resolve(port.width),
+        c.scroll_padding.bottom.resolve(port.height),
+        c.scroll_padding.left.resolve(port.width),
     );
     LayoutRect::new(
         port.x + i32::from(l),

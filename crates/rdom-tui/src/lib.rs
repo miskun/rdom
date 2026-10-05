@@ -76,14 +76,18 @@ pub use tui_event::{TuiDispatchExt, TuiEvent};
 
 pub use ext::{PseudoLayout, StaticPosition, TuiExt};
 pub use layout::{
-    Align, AlignProperty, Alignment, AspectRatio, BackgroundAttachment, BackgroundRepeat, Border,
-    BorderRadius, BorderSpacing, BorderStyle, BorderWeight, BorderWidth, BoxShadow, BoxSizing,
-    ContainIntrinsicSize, CornerStyle, Corners, Direction, Display, FlexBasis, FlexDirection,
-    FlexWrap, Flow, GapValue, GridAutoFlow, GridLine, GridTemplate, GridTemplateAreas,
-    IntrinsicSize, LayoutRect, LineNameItem, LineNameList, Margin, MarginTrim, MarginValue,
-    MaxSize, MinSize, NamedArea, Overflow, OverflowAlign, Padding, PaddingValue, PaintLength,
-    RepeatCount, RepeatStyle, Sides, Size, TextDirection, TrackBreadth, TrackList, TrackListItem,
-    TrackRepeat, TrackSize, UserSelect, Visibility, VisualBox, WhiteSpace, WritingMode,
+    Align, AlignProperty, Alignment, AspectRatio, BackgroundAttachment, BackgroundRepeat,
+    BlockEllipsis, Border, BorderRadius, BorderSpacing, BorderStyle, BorderWeight, BorderWidth,
+    BoxOrient, BoxShadow, BoxSizing, Clear, ContainIntrinsicSize, Continue, CornerStyle, Corners,
+    Direction, Display, FlexBasis, FlexDirection, FlexWrap, Float, FloatSide, Flow, GapValue,
+    GridAutoFlow, GridLine, GridTemplate, GridTemplateAreas, IntrinsicSize, LayoutRect,
+    LineNameItem, LineNameList, Margin, MarginTrim, MarginValue, MaxSize, MinSize, NamedArea,
+    Overflow, OverflowAlign, OverflowClipMargin, OverscrollBehavior, Padding, PaddingValue,
+    PaintLength, RepeatCount, RepeatStyle, ScrollPadding, ScrollSnapAlign, ScrollSnapAxis,
+    ScrollSnapStop, ScrollSnapStrictness, ScrollSnapType, ScrollbarColor, ScrollbarGutter,
+    ScrollbarWidth, Sides, Size, SnapAlign, TextDirection, TextOverflow, TextOverflowSide,
+    TrackBreadth, TrackList, TrackListItem, TrackRepeat, TrackSize, UserSelect, Visibility,
+    VisualBox, WhiteSpace, WritingMode, ZIndex,
 };
 pub use node::{TuiNodeExt, TuiNodeMutExt};
 /// `@import` resolution for the document's `<style>` sheets
@@ -109,6 +113,10 @@ pub use render::{
 pub use runtime::builtins::canvas::RenderContext;
 pub use runtime::builtins::form::SubmitOutcome;
 pub use runtime::builtins::validation::ValidityState;
+/// `focus(options)` (HTML `FocusOptions`), `TuiAccessorsMut::focus_with`.
+pub use runtime::focus::FocusOptions;
+/// The timer API on event contexts (`set_timeout`, `request_animation_frame`, …).
+pub use runtime::timers::TuiTimers;
 pub use runtime::{
     App, AppContext, AppHandle, ControlFlow, HitTestExt, RouteOutcome, Router, StylesheetId,
 };

@@ -38,6 +38,41 @@ macro_rules! setter {
     };
 }
 
+/// A setter for one per-side longhand (a `Sides` field) and its
+/// `!important` twin:
+/// `side_setter!("css-name", field, side, setter, important_setter,
+/// MASK, ValueType)`.
+macro_rules! side_setter {
+    ($css:literal, $field:ident, $side:ident, $setter:ident, $important_setter:ident, $mask:ident, $ty:ty) => {
+        #[doc = concat!("Set the `", $css, "` longhand to `v` (cells, or a `", stringify!($ty), "`), leaving the other sides as they are. Chainable.")]
+        pub fn $setter(mut self, v: impl Into<$ty>) -> Self {
+            self.$field.$side = Some(Value::Specified(v.into()));
+            self
+        }
+
+        #[doc = concat!("Like `", stringify!($setter), "` but also marks the `", $css, "` declaration `!important`.")]
+        pub fn $important_setter(mut self, v: impl Into<$ty>) -> Self {
+            self.important |= ImportantMask::$mask;
+            self.$setter(v)
+        }
+    };
+    // A side whose value type is a plain number: `v` taken as it is, so a
+    // literal infers it.
+    (exact $css:literal, $field:ident, $side:ident, $setter:ident, $important_setter:ident, $mask:ident, $ty:ty) => {
+        #[doc = concat!("Set the `", $css, "` longhand to `v`, leaving the other sides as they are. Chainable.")]
+        pub fn $setter(mut self, v: $ty) -> Self {
+            self.$field.$side = Some(Value::Specified(v));
+            self
+        }
+
+        #[doc = concat!("Like `", stringify!($setter), "` but also marks the `", $css, "` declaration `!important`.")]
+        pub fn $important_setter(mut self, v: $ty) -> Self {
+            self.important |= ImportantMask::$mask;
+            self.$setter(v)
+        }
+    };
+}
+
 mod decoration;
 mod flex;
 mod grid;

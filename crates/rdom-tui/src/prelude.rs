@@ -100,6 +100,7 @@ pub use crate::{
     FlexDirection,
     FlexWrap,
     Flow,
+    FocusOptions,
     GapValue,
     GridAutoFlow,
     GridLine,
@@ -168,6 +169,8 @@ pub use crate::{
     TuiNodeMutExt,
     TuiNodeRef,
     TuiStyle,
+    // `request_animation_frame` and the other timers on an event context
+    TuiTimers,
     UserSelect,
     Value,
     VarMap,

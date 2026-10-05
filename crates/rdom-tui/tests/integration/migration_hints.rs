@@ -914,3 +914,48 @@ fn scrollbar_hints() {
         .scrollbar_color(layout::ScrollbarColor::Auto);
     assert!(s.scrollbar_width.is_some() && s.scrollbar_color.is_some());
 }
+
+/// C8G-API-TYPES: `scroll-padding-*` / `scroll-margin-*` are `Sides`, as
+/// `margin` / `padding` are (`style.scroll_padding.top`, the per-side
+/// builders unchanged); the Phase 8 value types are at the root, beside
+/// the other style values; `FocusOptions` (C8G-FOCUS-SCROLL) and the
+/// `TuiTimers` trait — `request_animation_frame` on an event context — are
+/// at the root and in the prelude.
+#[test]
+fn scroll_sides_and_root_hints() {
+    let s = TuiStyle::new()
+        .scroll_padding_top(ScrollPadding::Auto)
+        .scroll_margin_left(2);
+    assert!(s.scroll_padding.top.is_some() && s.scroll_padding.bottom.is_none());
+    assert_eq!(s.scroll_margin.left, Some(Value::Specified(2)));
+    let c = ComputedStyle::initial();
+    assert_eq!(c.scroll_padding.top, ScrollPadding::Auto);
+    assert_eq!(c.scroll_margin, Sides::new(0, 0, 0, 0));
+    // Each Phase 8 value type, named from the root.
+    fn named<T>() {}
+    named::<OverscrollBehavior>();
+    named::<ScrollSnapType>();
+    named::<ScrollSnapAxis>();
+    named::<ScrollSnapStrictness>();
+    named::<SnapAlign>();
+    named::<ScrollSnapAlign>();
+    named::<ScrollSnapStop>();
+    named::<Float>();
+    named::<FloatSide>();
+    named::<Clear>();
+    named::<TextOverflowSide>();
+    named::<BlockEllipsis>();
+    named::<Continue>();
+    named::<BoxOrient>();
+    named::<ScrollbarGutter>();
+    named::<ScrollbarWidth>();
+    named::<ScrollbarColor>();
+    named::<ZIndex>();
+    let _ = FocusOptions::new().prevent_scroll(true);
+    fn _timers<T: TuiTimers>() {}
+    fn _prelude() {
+        use rdom_tui::prelude::{FocusOptions, TuiTimers};
+        let _ = FocusOptions::new();
+        fn _t<T: TuiTimers>() {}
+    }
+}
