@@ -43,7 +43,7 @@ impl Channel {
         let sign = if negative { -1.0 } else { 1.0 };
         Some(match rest {
             [Token::Ident(s)] if !negative && s.eq_ignore_ascii_case("none") => Channel::None,
-            [Token::Number(n)] => Channel::Number(sign * f64::from(*n)),
+            [Token::Number(n)] => Channel::Number(sign * *n as f64),
             [Token::Float(f)] => Channel::Number(sign * *f),
             [Token::Percentage(p)] => Channel::Percent(sign * *p),
             _ if !negative && looks_like_calc(rest) => {

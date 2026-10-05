@@ -17,10 +17,13 @@ pub enum Token {
     /// `--accent` (CSS treats them as idents).
     Ident(String),
     /// `<number-token>` with the *integer* type flag (CSS Syntax 3
-    /// §4.3.12): digits only; a literal past `i32` is clamped to
-    /// `i32::MAX` (CSS Values 4 §5.1). Negative numbers are tokenized as
-    /// `Delim('-')` followed by `Number` — value parsers compose.
-    Number(i32),
+    /// §4.3.12): digits only, the value as written (saturating past
+    /// `i64`). The token keeps it whole — a custom property passes it on
+    /// unchanged — and a property that consumes an `<integer>` clamps it
+    /// to its own range (CSS Values 4 §5.1). Negative numbers are
+    /// tokenized as `Delim('-')` followed by `Number` — value parsers
+    /// compose.
+    Number(i64),
     /// `<number-token>` with the *number* type flag: the literal had a
     /// fraction (`0.05`, `.5`) or an exponent (`1e3`). Consumed whole by the tokenizer — a decimal is never
     /// `Number Delim('.') Number`, which loses the fraction's leading
@@ -302,7 +305,7 @@ fn is_non_printable(c: char) -> bool {
 fn read_numeric(cursor: &mut Cursor) -> Token {
     let number = read_number(cursor);
     let (value, integer) = match number {
-        Token::Number(n) => (f64::from(n), true),
+        Token::Number(n) => (n as f64, true),
         Token::Float(f) => (f, false),
         other => return other,
     };
@@ -388,10 +391,10 @@ fn read_number(cursor: &mut Cursor) -> Token {
     }
     if is_integer {
         // CSS Syntax 3 §4.3.12: digits alone are integer-typed whatever
-        // their size; a value past the implementation's range (`i32`) is
-        // clamped (CSS Values 4 §5.1), not made a non-integer — an
-        // integer-only grammar must still see an integer.
-        return Token::Number(text.parse::<i32>().unwrap_or(i32::MAX));
+        // their size, and keep their value — the clamp to a property's
+        // range (CSS Values 4 §5.1) is the consumer's. Past `i64` the
+        // literal saturates.
+        return Token::Number(text.parse::<i64>().unwrap_or(i64::MAX));
     }
     // A fraction or an exponent: a CSS number, not an integer-typed one.
     Token::Float(value)

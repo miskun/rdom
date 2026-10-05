@@ -233,7 +233,7 @@ impl<'a> CalcParser<'a> {
         let leaf = match self.peek()? {
             // A bare number is a `<number>` leaf; in a length property
             // it reads as cells (rdom's unitless length).
-            Token::Number(n) => CalcExpr::Number(f64::from(*n)),
+            Token::Number(n) => CalcExpr::Number(*n as f64),
             Token::Float(f) => CalcExpr::Number(*f),
             Token::Percentage(n) => CalcExpr::Percent(*n),
             Token::Dimension { value, unit, .. } => dimension(*value, unit)?,
@@ -241,7 +241,7 @@ impl<'a> CalcParser<'a> {
                 // Unary minus — accept `-5` as a literal.
                 self.advance();
                 return match self.advance()? {
-                    Token::Number(n) => Some(CalcExpr::Number(-f64::from(*n))),
+                    Token::Number(n) => Some(CalcExpr::Number(-(*n as f64))),
                     Token::Float(f) => Some(CalcExpr::Number(-*f)),
                     Token::Percentage(n) => Some(CalcExpr::Percent(-*n)),
                     Token::Dimension { value, unit, .. } => dimension(-*value, unit),

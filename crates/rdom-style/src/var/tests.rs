@@ -100,6 +100,24 @@ fn substitution_never_forms_a_dimension() {
     assert_eq!(got.width, with(&[("width", "1fr")]).width);
 }
 
+/// `C5G-INT-CLAMP-SITE` — CSS Syntax 3 §4.3.12: an integer literal keeps
+/// its value in the token; only a property that consumes an `<integer>`
+/// clamps it to its range (CSS Values 4 §5.1). A custom property holds
+/// `99999999999` as written, and `calc(var(--n) / 1e9)` is 100 (not
+/// 2.147…, the `i32::MAX` the tokenizer used to clamp it to).
+#[test]
+fn a_large_integer_survives_a_custom_property() {
+    let s = with(&[("--n", "99999999999")]);
+    assert_eq!(
+        crate::property_dispatch::serialize("--n", &s).as_deref(),
+        Some("99999999999")
+    );
+    let v = vars(&[("n", "99999999999")]);
+    let got =
+        with(&[("width", "calc(var(--n) / 1e9)")]).substituted(&v, &SubstitutionContext::new());
+    assert_eq!(got.width, with(&[("width", "100")]).width);
+}
+
 /// `C1G-VAR-TOKENS` — a custom property's value is kept as text: a
 /// string or ident with escaped characters serializes with its
 /// escapes (CSSOM §2.1), so substituting it gives the same tokens.

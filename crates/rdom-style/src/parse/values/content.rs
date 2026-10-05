@@ -3,6 +3,7 @@
 
 use crate::Content;
 use crate::parse::token::Token;
+use crate::parse::values::numeric::clamp_i32;
 
 /// `content`: `none` | `normal` | `[ <string> | counter(<ident> [,
 /// <counter-style>]) ]+` (CSS Generated Content 3 §1.2, the subset rdom
@@ -78,12 +79,14 @@ pub fn parse_counter_ops(value: &[Token], default: i32) -> Option<Vec<crate::cou
         i += 1;
         let mut v = default;
         match (value.get(i), value.get(i + 1)) {
+            // A counter value is an `<integer>` (CSS Lists 3 §3.1),
+            // clamped to rdom's range (CSS Values 4 §5.1).
             (Some(Token::Number(n)), _) => {
-                v = *n;
+                v = clamp_i32(*n);
                 i += 1;
             }
             (Some(Token::Delim('-')), Some(Token::Number(n))) => {
-                v = -*n;
+                v = clamp_i32(-*n);
                 i += 2;
             }
             _ => {}

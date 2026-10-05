@@ -77,19 +77,24 @@ fn percentages_carry_fractions() {
     assert_eq!(toks("50 %"), vec![Token::Number(50), Token::Delim('%')]);
 }
 
-/// C4G-NUMBER-RANGE — CSS Syntax 3 §4.3.12 / §4.3.13: a literal of
-/// digits alone has the *integer* type flag whatever its size, and
-/// CSS Values 4 §5.1 clamps a value outside the implementation's
-/// range — so a literal past `i32` is the integer `i32::MAX`, not a
-/// `Float` (nor 0). A dimension's number part likewise; a percentage
-/// has no type flag and keeps its value.
+/// C4G-NUMBER-RANGE / C5G-INT-CLAMP-SITE — CSS Syntax 3 §4.3.12 /
+/// §4.3.13: a literal of digits alone has the *integer* type flag
+/// whatever its size, and keeps its value: CSS Values 4 §5.1's clamp to
+/// the implementation's range belongs to the property that consumes the
+/// `<integer>`, not to the token — a custom property passes the literal
+/// on unchanged. Past `i64` the token saturates. A dimension's number
+/// part keeps its value too; a percentage has no type flag.
 #[test]
-fn oversized_integer_clamps_and_stays_integer() {
-    assert_eq!(toks("99999999999"), vec![Token::Number(i32::MAX)]);
+fn oversized_integer_keeps_its_value_and_stays_integer() {
+    assert_eq!(toks("99999999999"), vec![Token::Number(99_999_999_999)]);
+    assert_eq!(
+        toks("99999999999999999999999"),
+        vec![Token::Number(i64::MAX)]
+    );
     assert_eq!(
         toks("99999999999px"),
         vec![Token::Dimension {
-            value: f64::from(i32::MAX),
+            value: 99_999_999_999.0,
             integer: true,
             unit: "px".to_string(),
         }]

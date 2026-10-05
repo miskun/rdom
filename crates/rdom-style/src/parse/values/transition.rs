@@ -88,7 +88,8 @@ pub fn parse_timing_function_at(value: &[Token], start: usize) -> Option<(Timing
         Token::Function(name) if name.eq_ignore_ascii_case("steps") => {
             let mut i = start + 1;
             let count = match value.get(i)? {
-                Token::Number(n) if *n >= 1 => *n as u32,
+                // An `<integer [1,∞]>`, clamped to `u32` (CSS Values 4 §5.1).
+                Token::Number(n) if *n >= 1 => u32::try_from(*n).unwrap_or(u32::MAX),
                 _ => return None,
             };
             i += 1;
@@ -133,7 +134,7 @@ fn signed_number_at(value: &[Token], start: usize) -> Option<(f64, usize)> {
         _ => (1.0, start),
     };
     let n = match value.get(i)? {
-        Token::Number(n) => f64::from(*n),
+        Token::Number(n) => *n as f64,
         Token::Float(f) => *f,
         _ => return None,
     };

@@ -226,7 +226,7 @@ fn resolve(value: &str, ty: &AttrType) -> Option<Vec<Token>> {
                 _ => return None,
             };
             let (v, integer) = match n {
-                Token::Number(i) => (f64::from(*i), true),
+                Token::Number(i) => (*i as f64, true),
                 Token::Float(f) => (*f, false),
                 _ => return None,
             };

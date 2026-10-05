@@ -44,6 +44,14 @@ pub(crate) enum LengthPercentage {
 
 pub(crate) use crate::absolute::{cells_i32, cells_u16};
 
+/// An `<integer>` literal's value (an `i64` token, CSS Syntax 3
+/// §4.3.12) clamped into `i32` where a property stores one — CSS Values
+/// 4 §5.1 clamps a value outside the implementation's range at the
+/// consumer, so the token itself (a custom property's) keeps it whole.
+pub(crate) fn clamp_i32(n: i64) -> i32 {
+    n.clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32
+}
+
 /// Parse one component value as a `<length-percentage>`: a bare
 /// number (cells — an integer or a fraction, the same length
 /// `calc(<number>)` is), a dimension in a length unit ([`CalcUnit`]), a
@@ -59,7 +67,13 @@ pub(crate) fn length_percentage(component: &[Token], range: Range) -> Option<Len
     }
     let sign = if negative { -1.0 } else { 1.0 };
     match rest {
-        [Token::Number(n)] => Some(LengthPercentage::Integer(if negative { -*n } else { *n })),
+        // The integer-typed cell: clamped to `i32` here, where it is
+        // consumed (CSS Values 4 §5.1), not in the token.
+        [Token::Number(n)] => Some(LengthPercentage::Integer(clamp_i32(if negative {
+            -*n
+        } else {
+            *n
+        }))),
         // rdom's unitless cell takes any `<number>`: `1.5` is the length
         // `calc(1.5)` is (C4G-NUMBER-RANGE).
         [Token::Float(f)] => Some(LengthPercentage::Cells(sign * *f)),
@@ -100,7 +114,7 @@ pub(crate) fn number(component: &[Token], range: Range) -> Option<f64> {
         return None;
     }
     let n = match rest {
-        [Token::Number(n)] => f64::from(*n),
+        [Token::Number(n)] => *n as f64,
         [Token::Float(f)] => *f,
         _ if !negative && looks_like_calc(rest) => {
             let v = number_math(parse_calc(rest)?)?;
@@ -160,8 +174,8 @@ pub(crate) fn number_or_percentage(value: &[Token]) -> Option<f64> {
 /// clamps to its property's range.
 pub(crate) fn integer(value: &[Token]) -> Option<i64> {
     match value {
-        [Token::Number(n)] => Some(i64::from(*n)),
-        [Token::Delim('-'), Token::Number(n)] => Some(-i64::from(*n)),
+        [Token::Number(n)] => Some(*n),
+        [Token::Delim('-'), Token::Number(n)] => Some(-*n),
         _ if looks_like_calc(value) => {
             let v = number_math(parse_calc(value)?)?;
             // `as` saturates at the `i64` range.

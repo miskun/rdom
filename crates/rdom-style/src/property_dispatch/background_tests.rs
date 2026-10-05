@@ -243,7 +243,9 @@ fn box_shadow_grammar() {
 
 /// C4G-NUMBER-RANGE — CSS Syntax 3 §4.3.13 with CSS Values 4 §5.1: an
 /// integer literal past the implementation's range is clamped, not
-/// rejected, so a huge spread parses (and paints clamped, C4G-SHADOW-CLAMP).
+/// rejected, so a huge spread parses (and paints clamped, C4G-SHADOW-CLAMP)
+/// — clamped where the length consumes it, the token keeping the literal
+/// whole (C5G-INT-CLAMP-SITE); a dimension keeps its value.
 #[test]
 fn box_shadow_takes_an_integer_past_the_range() {
     use crate::layout::PaintLength;
@@ -253,6 +255,21 @@ fn box_shadow_takes_an_integer_past_the_range() {
         specified(&style.box_shadow)[0].spread,
         PaintLength::Cells(i32::MAX as f32)
     );
+    set(
+        "box-shadow",
+        "0 0 0 99999999999999999999999 red",
+        &mut style,
+    )
+    .unwrap();
+    assert_eq!(
+        specified(&style.box_shadow)[0].spread,
+        PaintLength::Cells(i32::MAX as f32)
+    );
+    set("box-shadow", "99999999999ch 0 red", &mut style).unwrap();
+    let PaintLength::Cells(x) = specified(&style.box_shadow)[0].offset_x else {
+        panic!("a cell length");
+    };
+    assert!(x >= i32::MAX as f32, "{x}");
 }
 
 /// C4G-NUMBER-RANGE — one rule for rdom's unitless cell length (DIVERGENCES

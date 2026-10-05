@@ -1712,3 +1712,20 @@ row comes from.
   `explicit_author_width_is_respected_not_overwritten` 20 → 22, and
   `colspan_excess_spreads_over_author_sized_columns_too` now pins column 0 with `width: 4` (6 with the
   padding) to keep its arithmetic. No snapshot changed.
+- 2026-10-07 — C5G-INT-CLAMP-SITE (gate fix): C4G-NUMBER-RANGE clamped an integer literal to
+  `i32::MAX` in the tokenizer, which custom properties — kept as tokens and re-rendered — passed on:
+  `--n: 99999999999` read back as `2147483647`, and `calc(var(--n) / 1e9)` came out 2.147 instead of
+  100. CSS Syntax 3 §4.3.12 gives the token its value and type flag; CSS Values 4 §5.1's clamp to the
+  implementation's range belongs to the value's consumer. `Token::Number` holds an `i64` (Breaking —
+  rdom-style; saturating past `i64`, the one remaining cap — a literal of 20+ digits), a dimension's
+  number part its full value; the integer-typed consumers clamp: the unitless cell
+  (`LengthPercentage::Integer`, new `numeric::clamp_i32`), counter values, `steps()`'s count (to `u32`);
+  `numeric::integer` already returned `i64` for its callers to clamp. Decided: `i64` over `f64` — the
+  type keeps integer patterns (`Token::Number(0)`) and exact values, and the brief allowed either.
+  Red: `a_large_integer_survives_a_custom_property` (`Some("2147483647")` against
+  `Some("99999999999")`); green after, with its `calc(var(--n) / 1e9)` = 100 half. Changed expectation:
+  `oversized_integer_clamps_and_stays_integer` → `oversized_integer_keeps_its_value_and_stays_integer`
+  (the token no longer clamps; a 23-digit literal saturates at `i64::MAX`; the dimension keeps
+  `99999999999.0`). `box_shadow_takes_an_integer_past_the_range` gains the 23-digit and the
+  `99999999999ch` cases — the box-shadow cases still parse and clamp (`PaintLength::Cells(i32::MAX)`),
+  and `box_shadow_huge_lengths_do_not_overflow` (rdom-tui) passes unchanged.
