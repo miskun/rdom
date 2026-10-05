@@ -69,18 +69,18 @@ fn each_line_box_is_marked_on_its_own() {
 }
 
 /// §3: one value applies "only to the end line box edge" — under `rtl`
-/// the left one. rdom starts an overflowing `rtl` line at the left edge
-/// (DIVERGENCES §4), so it overflows the right — the start — edge,
-/// which clips; the two-value form names the line-right edge.
+/// the left one, which an overflowing `rtl` line overflows (it starts at
+/// the right edge, C8-RTL-LINE-OVERFLOW); the two-value form names the
+/// line-left then the line-right edge, and the right one hides nothing.
 #[test]
 fn rtl_marks_the_named_line_edge() {
     assert_eq!(
         line("direction: rtl; text-overflow: ellipsis", "abcdefghij"),
-        "abcdef    "
+        "…fghij    "
     );
     assert_eq!(
         line("direction: rtl; text-overflow: clip ellipsis", "abcdefghij"),
-        "abcde…    "
+        "efghij    "
     );
 }
 

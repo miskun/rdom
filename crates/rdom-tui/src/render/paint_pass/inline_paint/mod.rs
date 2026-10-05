@@ -365,7 +365,7 @@ fn paint_inline_layout(
         }
 
         for fragment in &line.fragments {
-            let frag_x = inner.x + fragment.x as i32;
+            let frag_x = inner.x + fragment.x;
 
             // An atomic inline block paints as a box at its laid-out
             // rect, atomically (CSS 2.1 Appendix E, 7.2.1.4.1.1): its
@@ -517,7 +517,7 @@ fn paint_generated(
         computed,
         presentation_of(dom, generated.host, generated.slot.into()),
     );
-    let x = origin_x + i32::from(generated.x);
+    let x = origin_x + generated.x;
     let end = paint_text_from(buf, x, y, clip_left, right, &generated.text, style);
     // A pseudo-element is part of its host: an `<a href>`'s (or its
     // descendant's) generated cells belong to the link.

@@ -280,7 +280,7 @@ pub fn atomic_placements(
             atoms.push((
                 fragment.node,
                 crate::layout::LayoutRect::new(
-                    origin.x + fragment.x as i32,
+                    origin.x + fragment.x,
                     origin.y + i32::from(line.top) + i32::from(fragment.y),
                     fragment.width,
                     fragment.height,

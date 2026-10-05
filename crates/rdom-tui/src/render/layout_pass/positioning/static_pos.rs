@@ -139,13 +139,13 @@ pub(in crate::render::layout_pass) fn static_position_in_ifc(
                 None => g.slot == PseudoSlot::Before,
             };
             if ahead {
-                last = last.max(Some((line_idx, i32::from(g.x) + i32::from(g.width))));
+                last = last.max(Some((line_idx, g.x + i32::from(g.width))));
             }
         }
         for f in &line.fragments {
             let owner = item_of(f.text_node).or_else(|| item_of(f.node));
             if owner.is_some_and(|(start, _)| start < child_index) {
-                last = last.max(Some((line_idx, i32::from(f.x) + i32::from(f.width))));
+                last = last.max(Some((line_idx, f.x + i32::from(f.width))));
             }
         }
     }

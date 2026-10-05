@@ -14,7 +14,8 @@ use crate::ext::TuiExt;
 use crate::layout::TextDirection;
 
 /// Move each of `lines` to start at `container`'s inline-start edge of
-/// a `content_width`-wide line: under `rtl`, flush right.
+/// a `content_width`-wide line: under `rtl`, flush right — and, when the
+/// line is wider, overflowing the left edge.
 pub(super) fn start_lines_at_inline_start(
     dom: &Dom<TuiExt>,
     container: NodeId,
@@ -30,15 +31,18 @@ pub(super) fn start_lines_at_inline_start(
         return;
     }
     for line in lines {
-        let shift = content_width.saturating_sub(line.width);
+        // The line's end is flush with the start (right) edge: a line
+        // wider than the box starts left of it (negative columns) and
+        // overflows the end edge, as `text-align: start` places it.
+        let shift = i32::from(content_width) - i32::from(line.width);
         if shift == 0 {
             continue;
         }
         for f in &mut line.fragments {
-            f.x = f.x.saturating_add(shift);
+            f.x += shift;
         }
         for g in &mut line.generated {
-            g.x = g.x.saturating_add(shift);
+            g.x += shift;
         }
     }
 }

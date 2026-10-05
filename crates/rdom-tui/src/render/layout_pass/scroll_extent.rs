@@ -378,19 +378,19 @@ fn line_rects(il: &InlineLayout, origin: LayoutRect) -> impl Iterator<Item = Lay
         let spans = line
             .fragments
             .iter()
-            .map(|f| (f.x, f.x.saturating_add(f.width)))
+            .map(|f| (f.x, f.x + i32::from(f.width)))
             .chain(
                 line.generated
                     .iter()
-                    .map(|g| (g.x, g.x.saturating_add(g.width))),
+                    .map(|g| (g.x, g.x + i32::from(g.width))),
             );
         let (start, end) = spans
             .reduce(|a, b| (a.0.min(b.0), a.1.max(b.1)))
-            .unwrap_or((0, line.width));
+            .unwrap_or((0, i32::from(line.width)));
         LayoutRect::new(
-            origin.x + i32::from(start),
+            origin.x + start,
             origin.y + i32::from(line.top),
-            end.saturating_sub(start),
+            u16::try_from(end - start).unwrap_or(0),
             line.height,
         )
     })

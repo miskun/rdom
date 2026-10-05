@@ -185,7 +185,7 @@ fn pieces(line: &LineBox, origin_x: i32) -> Vec<(i32, i32)> {
     }
     let mut out = Vec::new();
     for f in &line.fragments {
-        let x = origin_x + i32::from(f.x);
+        let x = origin_x + f.x;
         if f.atomic {
             out.push((x, x + i32::from(f.width)));
         } else {
@@ -193,7 +193,7 @@ fn pieces(line: &LineBox, origin_x: i32) -> Vec<(i32, i32)> {
         }
     }
     for g in &line.generated {
-        runs(&mut out, origin_x + i32::from(g.x), &g.text);
+        runs(&mut out, origin_x + g.x, &g.text);
     }
     out.sort_unstable();
     out

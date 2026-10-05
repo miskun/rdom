@@ -91,13 +91,13 @@ impl LinePacker<'_> {
         text: &str,
         width: u16,
     ) {
-        let x = self.cur_line_width;
+        let x = i32::from(self.cur_line_width);
         self.cur_line_width = self.cur_line_width.saturating_add(width);
         if let Some(slot) = origin.generated {
             if let Some(last) = self.cur_generated.last_mut()
                 && last.host == origin.owner
                 && last.slot == slot
-                && last.x + last.width == x
+                && last.x + i32::from(last.width) == x
             {
                 last.text.push_str(text);
                 last.width = last.width.saturating_add(width);
@@ -120,7 +120,7 @@ impl LinePacker<'_> {
             if last.node == owner
                 && last.text_node == text_node
                 && contiguous
-                && last.x + last.width == x
+                && last.x + i32::from(last.width) == x
             {
                 last.text.push_str(text);
                 last.width = last.width.saturating_add(width);
@@ -197,7 +197,7 @@ impl LinePacker<'_> {
             self.pending_space = false;
             self.pending_space_source = None;
         }
-        let x = self.cur_line_width;
+        let x = i32::from(self.cur_line_width);
         self.cur_atoms.push((self.cur_fragments.len(), rows));
         self.cur_fragments.push(InlineFragment {
             node,

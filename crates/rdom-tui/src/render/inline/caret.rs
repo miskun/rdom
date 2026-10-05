@@ -73,7 +73,7 @@ pub fn cell_of_position(dom: &Dom<TuiExt>, pos: Position) -> Option<(u16, u16)> 
     let offset_in_frag = pos.offset.saturating_sub(fragment.source_byte_offset);
     let cell_in_frag = cells_before_byte(&fragment.text, offset_in_frag);
 
-    let x = (content.x + fragment.x as i32 + cell_in_frag as i32).max(0) as u16;
+    let x = (content.x + fragment.x + cell_in_frag as i32).max(0) as u16;
     let y = (content.y + text_row_of_line(layout, line_idx)).max(0) as u16;
     Some((x, y))
 }

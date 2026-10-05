@@ -54,8 +54,10 @@ pub struct InlineFragment {
     /// fragment graphemes from `x` to compute the hit position.
     /// `0` for atomic fragments.
     pub source_byte_offset: usize,
-    /// X offset from the IFC block's content area left edge.
-    pub x: u16,
+    /// X offset from the IFC block's content area left edge — negative
+    /// for a fragment left of it (a line wider than its `rtl` box starts
+    /// at the right edge and overflows the left one).
+    pub x: i32,
     /// Rows from the top of its line box to the fragment's top: the
     /// line's baseline row for text, the border-box top for an atom.
     pub y: u16,
@@ -83,7 +85,7 @@ impl InlineFragment {
         node: NodeId,
         text_node: NodeId,
         source_byte_offset: usize,
-        x: u16,
+        x: i32,
         text: impl Into<String>,
     ) -> Self {
         let text = text.into();
@@ -104,7 +106,7 @@ impl InlineFragment {
     /// An atomic inline's fragment: the box `node`, `width` × `height`
     /// cells, at `x` from the top of its line (set `y` to place it
     /// lower). No text; `text_node` is `node`.
-    pub fn atom(node: NodeId, x: u16, width: u16, height: u16) -> Self {
+    pub fn atom(node: NodeId, x: i32, width: u16, height: u16) -> Self {
         InlineFragment {
             node,
             text_node: node,
@@ -136,8 +138,9 @@ pub struct GeneratedFragment {
     pub host: NodeId,
     /// Which of the host's pseudo-elements this run belongs to.
     pub slot: PseudoSlot,
-    /// X offset from the inline flow's content-area left edge.
-    pub x: u16,
+    /// X offset from the inline flow's content-area left edge, negative
+    /// left of it (as [`InlineFragment::x`]).
+    pub x: i32,
     /// Visible cell width of `text`.
     pub width: u16,
     /// The normalized generated text on this line.

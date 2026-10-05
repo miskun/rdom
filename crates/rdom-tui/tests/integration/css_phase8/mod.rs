@@ -12,5 +12,6 @@ mod containing_block;
 mod line_clamp;
 mod overflow_clip;
 mod overflow_text;
+mod rtl_line_overflow;
 mod text_overflow;
 mod z_index;

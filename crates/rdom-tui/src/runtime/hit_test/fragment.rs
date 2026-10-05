@@ -35,7 +35,7 @@ pub(crate) fn resolve_in_target(
     let (inline_layout, content) = target.layout_and_rect(dom)?;
     match fragment_at_layout(inline_layout, content, x, y) {
         Some(fragment) => {
-            let cell_offset_in_frag = (x as i32 - content.x - fragment.x as i32).max(0) as u16;
+            let cell_offset_in_frag = (x as i32 - content.x - fragment.x).max(0) as u16;
             let bytes_into_text = cells_to_bytes(&fragment.text, cell_offset_in_frag);
             Some(Position::new(
                 fragment.text_node,
@@ -112,8 +112,8 @@ fn clamp_to_line_layout(
 
     // In-bounds y: clamp on x. Past the line's last fragment → end of last
     // fragment. Before the line's first fragment → start of first fragment.
-    let line_left = content.x + first.x as i32;
-    let line_right = content.x + last.x as i32 + last.width as i32;
+    let line_left = content.x + first.x;
+    let line_right = content.x + last.x + i32::from(last.width);
 
     if (x as i32) < line_left {
         Some(Position::new(first.text_node, first.source_byte_offset))
@@ -146,17 +146,14 @@ fn fragment_at_layout(
     let row = u16::try_from(y as i32 - content.y).ok()?;
     let line = &layout.lines[layout.line_at_row(row)?];
 
-    let x_local_i = x as i32 - content.x;
-    if x_local_i < 0 {
-        return None;
-    }
-    let x_local = x_local_i as u16;
+    // Negative left of the content box (an overflowing `rtl` line).
+    let x_local = x as i32 - content.x;
 
     line.fragments
         .iter()
         .find(|&fragment| {
             x_local >= fragment.x
-                && x_local < fragment.x + fragment.width
+                && x_local < fragment.x + i32::from(fragment.width)
                 && line.covers(fragment, row)
         })
         .map(|v| v as _)

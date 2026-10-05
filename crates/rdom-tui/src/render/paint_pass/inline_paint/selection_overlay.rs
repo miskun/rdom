@@ -82,7 +82,11 @@ pub(super) fn apply_selection_overlay(
         None => Style::new(),
     };
     for c in cell_start..cell_end {
-        let x = (frag_x + c as i32) as u16;
+        // A cell left of the screen (an overflowing `rtl` line) is not
+        // painted.
+        let Ok(x) = u16::try_from(frag_x + c as i32) else {
+            continue;
+        };
         if x < clip.x || x >= clip.right() {
             continue;
         }

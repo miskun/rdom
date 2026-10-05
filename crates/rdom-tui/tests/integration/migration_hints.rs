@@ -266,7 +266,8 @@ fn scroll_token_and_line_hints() {
     let _ = div;
 }
 
-/// C6G-LINEBOX-API (superseding 0.5.0's `..Default::default()` hint):
+/// C6G-LINEBOX-API (superseding 0.5.0's `..Default::default()` hint),
+/// C8-RTL-LINE-OVERFLOW:
 /// `LineBox` and `InlineFragment` are `#[non_exhaustive]` — no struct
 /// literal outside rdom-tui — and built by constructor, or for a line
 /// from `LineBox::default()` with its public fields set.
@@ -286,6 +287,11 @@ fn line_box_construction_hints() {
         (atom.x, atom.width, atom.height, atom.atomic),
         (6, 3, 2, true)
     );
+
+    // C8-RTL-LINE-OVERFLOW: a column is an `i32`, negative left of the
+    // content box.
+    let left = render::InlineFragment::atom(p, -2, 1, 1);
+    assert_eq!(left.x, -2i32);
 
     let line = render::LineBox::new(vec![text, atom], 9, 0);
     assert_eq!((line.top, line.height, line.baseline), (0, 1, 0));

@@ -387,16 +387,13 @@ fn hit_fragment(
     let row = u16::try_from(y as i32 - content.y).ok()?;
     let line = &layout.lines[layout.line_at_row(row)?];
 
-    // Local x within content.
-    let x_local_i = x as i32 - content.x;
-    if x_local_i < 0 {
-        return None;
-    }
-    let x_local = x_local_i as u16;
+    // Local x within content — negative left of it, where an overflowing
+    // `rtl` line's start sits.
+    let x_local = x as i32 - content.x;
 
     for fragment in &line.fragments {
         if x_local >= fragment.x
-            && x_local < fragment.x + fragment.width
+            && x_local < fragment.x + i32::from(fragment.width)
             && line.covers(fragment, row)
         {
             return Some((fragment.node, fragment.atomic));
@@ -409,7 +406,7 @@ fn hit_fragment(
     // (and list markers) resolve to the block, which the caller holds.
     line.generated
         .iter()
-        .find(|g| x_local >= g.x && x_local < g.x + g.width)
+        .find(|g| x_local >= g.x && x_local < g.x + i32::from(g.width))
         .filter(|g| is_descendant(dom, g.host, ifc_block))
         .filter(|g| {
             let node = dom.node(g.host);

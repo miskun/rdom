@@ -183,7 +183,7 @@ row comes from.
 | C8-CB-COMPLETE | Containing block for positioned boxes, completing C7-ABSPOS-PADDING-EDGE: `sticky` ancestors in the ancestor walks, the scrollbar gutter excluded, scroll offsets applied inside a positioned scroller, one shared ancestor walk (elements and pseudo-elements, incl. the §9.1 grid area for pseudos) | done |
 | C8-POS-MINMAX | Positioned boxes (elements and pseudo-elements) honour `min-*` / `max-*` (CSS 2.1 §10.4 / §10.7 with §10.3.7 / §10.6.4); a `position: relative` pseudo with both insets takes its declared width | done (C5-POS-MINMAX + C5G-REL-PSEUDO-INSETS) |
 | C8-ABSPOS-OVERFLOW | An absolutely positioned box in its scroll container's scrollable overflow (CSS Overflow 3 §2.2; TECH_DEBT `ABSPOS-OVERFLOW-1`) | done |
-| C8-RTL-LINE-OVERFLOW | An overflowing `rtl` line starts at the right edge and overflows the left (DIVERGENCES §4, from C8-TEXT-OVERFLOW) | |
+| C8-RTL-LINE-OVERFLOW | An overflowing `rtl` line starts at the right edge and overflows the left (DIVERGENCES §4, from C8-TEXT-OVERFLOW) | done |
 
 (Scroll-driven animations land in phase 12.)
 
@@ -4636,3 +4636,28 @@ row comes from.
   reachable-side cut → those two; no second run → four extent tests and the cost test. Not done
   (DIVERGENCES §2): positioned `::before` / `::after`, placed in a pass of their own after the
   extents settle. No test expectation or snapshot changed.
+- 2026-10-05 — C8-RTL-LINE-OVERFLOW (DIVERGENCES §4, from C8-TEXT-OVERFLOW; CSS Text 3 §7.1, CSS
+  Writing Modes 4 §2.1, CSS Overflow 4 §3, CSSOM View §4). A line wider than its `rtl` block now
+  starts at the right (inline-start) edge and overflows the left (end) edge, as browsers lay it out:
+  `inline::align::start_lines_at_inline_start` shifts every `rtl` line by `content width − line
+  width`, negative for an overflowing one. At the root, a fragment's column is signed:
+  `InlineFragment::x` and `GeneratedFragment::x` are `i32` (were `u16`; Breaking — rdom-tui, with
+  the constructors' `x`), so a fragment can sit left of its content box. Readers re-checked: paint
+  (`inline_paint`, text and generated runs; the selection highlight skips a cell left of the screen
+  instead of wrapping its `u16` column), hit-testing (`hit_test::fragment` / `descend` lost their
+  "left of the content box → no hit" guard: a point on the overflowing part of the line hits the
+  character there), the caret (`cell_of_position` already took the signed sum), the scrollable
+  overflow's `line_rects` (signed spans; the `rtl` scroll origin already reaches negative offsets,
+  C5G-RTL-SCROLL) and the static position after an inline run. One-value `text-overflow` now marks
+  the left (end) edge where the line overflows (`…fgh`), with no change in `text_overflow.rs`: its
+  marking already named the end edge. Red: `css_phase8/rtl_line_overflow.rs` — all 5 failed (`abcd`
+  for `efgh`, `    abcdef` for `abcdefgh  `, `abcd` for `…fgh`, the scrolled port blank for `abcd`,
+  the hit at byte 0 for 4); green after the shift and the type change. Added after (green,
+  mutation-checked): the selection highlight (`e`, `f` lit in a box 2 cells in, `d` clipped) and a
+  hit left of the box (byte 2 at column 0). Mutation (each restored and touched): the shift floored
+  at 0 → all six layout tests; the hit-test guard back → the left-of-box hit (byte 8 for 2). Changed
+  expectation, justified: `text_overflow.rs::rtl_marks_the_named_line_edge` pinned the divergence
+  (`abcdef` / `abcde…`); now `…fghij` / `efghij` — the one value marks the overflowing left edge,
+  `clip ellipsis`'s line-right edge hides nothing. `migration_hints::line_box_construction_hints`
+  builds an atom at `x = -2`. DIVERGENCES §4's entry is gone (and the line-clamp entry's reference
+  to it). No snapshot changed.
