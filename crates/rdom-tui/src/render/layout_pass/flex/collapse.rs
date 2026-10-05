@@ -81,6 +81,7 @@ pub(super) fn inset_container_for_children(
 /// coexist orthogonally — `collapse` becomes a no-op for that
 /// sibling pair. Documented as the 2×2 outcome grid in
 /// `DIVERGENCES.md`.
+#[derive(Clone, Copy)]
 pub(super) struct SiblingOverlap {
     /// `gap == 0 && parent.border_collapse == Collapse`.
     active: bool,

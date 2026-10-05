@@ -7,6 +7,7 @@ use rdom_core::{Dom, NodeId};
 
 use crate::ext::TuiExt;
 use crate::layout::{AspectRatio, Direction, Display, MarginValue, Size, clamp_size};
+use crate::node::TuiNodeExt;
 use crate::render::layout_pass::block::nearest_block_ancestor_height_is_definite;
 use crate::render::layout_pass::box_sizing::Sizer;
 use crate::render::layout_pass::intrinsic::{Keywords, intrinsic_size};
@@ -21,24 +22,85 @@ pub(super) struct ResolvedMain {
     /// explicit main size).
     pub(super) was_auto: bool,
     /// The container trims the item's cross-start margin (CSS Box 4
-    /// §3.2: every item of a single-line container adjoins it).
+    /// §3.2: every item of a single-line container adjoins it, the
+    /// items of a multi-line container's first line).
     pub(super) trim_cross_start: bool,
     /// The container trims the item's cross-end margin.
     pub(super) trim_cross_end: bool,
-    /// The container is `rtl`: a column's cross-start margin is the
-    /// item's right one.
+    /// The cross axis runs from its physical end (`AxisFlip::cross`: a
+    /// column under `rtl`, `wrap-reverse`): the item's cross-start
+    /// margin is its right (bottom) one.
     pub(super) mirror: bool,
 }
 
-/// An item's resolved cross-axis extent and its offset from the
-/// container's cross-axis start.
+/// The cross-axis space an item is placed in: its flex line's cross
+/// size, and the container's inner cross size, which percentages
+/// resolve against (CSS Flexbox §9.4). A single-line container's line is
+/// the container's cross size.
+#[derive(Debug, Clone, Copy)]
+pub(super) struct CrossSpace {
+    pub(super) line: u16,
+    /// `None` while the container's cross size is the very thing being
+    /// measured (its intrinsic size, §9.9): a percentage is then cyclic
+    /// and behaves as `auto` (CSS Sizing 3 §5.2.1).
+    pub(super) container: Option<u16>,
+}
+
+/// An item's resolved cross-axis extent and its offset from its line's
+/// cross-axis start.
 pub(super) struct CrossPlacement {
     pub(super) size: u16,
     pub(super) offset: i32,
 }
 
-/// Resolve an item's cross size and cross offset from its cross
-/// margins (Flexbox §9.4 / §9.5).
+/// The item's cross-start and cross-end margins in the flex-relative
+/// frame, as signed cells (`auto` → 0) with which of them is `auto`.
+struct CrossMargins {
+    start: i32,
+    end: i32,
+    start_auto: bool,
+    end_auto: bool,
+}
+
+fn cross_margins(
+    computed: &ComputedStyle,
+    cb_width: u16,
+    direction: Direction,
+    main: &ResolvedMain,
+) -> CrossMargins {
+    let m = &computed.margin;
+    let (start, end) = match (direction, main.mirror) {
+        (Direction::Row, false) => (&m.top, &m.bottom),
+        (Direction::Row, true) => (&m.bottom, &m.top),
+        (Direction::Column, false) => (&m.left, &m.right),
+        (Direction::Column, true) => (&m.right, &m.left),
+    };
+    const TRIMMED: MarginValue = MarginValue::Cells(0);
+    let start = if main.trim_cross_start {
+        &TRIMMED
+    } else {
+        start
+    };
+    let end = if main.trim_cross_end { &TRIMMED } else { end };
+    // Signed: a negative cross margin starts the box before the line's
+    // edge and widens a stretched box (Flexbox §9.4).
+    let cells = |m: &MarginValue| -> i32 {
+        if m.is_auto() {
+            0
+        } else {
+            i32::from(m.resolve(cb_width))
+        }
+    };
+    CrossMargins {
+        start: cells(start),
+        end: cells(end),
+        start_auto: start.is_auto(),
+        end_auto: end.is_auto(),
+    }
+}
+
+/// Resolve an item's cross size and cross offset in its line from its
+/// cross margins (Flexbox §9.4 / §9.5).
 ///
 /// The item's outer cross size includes its cross margins, so a
 /// stretched item shrinks by their sum and the start margin offsets
@@ -52,51 +114,25 @@ pub(super) fn place_cross(
     child_id: NodeId,
     child_computed: &ComputedStyle,
     container_width: u16,
-    cross_budget: u16,
+    space: CrossSpace,
     direction: Direction,
     main: ResolvedMain,
 ) -> CrossPlacement {
-    let cb_width = container_width;
-    let (cross_start_m, cross_end_m) = match direction {
-        Direction::Row => (&child_computed.margin.top, &child_computed.margin.bottom),
-        Direction::Column if main.mirror => {
-            (&child_computed.margin.right, &child_computed.margin.left)
-        }
-        Direction::Column => (&child_computed.margin.left, &child_computed.margin.right),
-    };
-    const TRIMMED: MarginValue = MarginValue::Cells(0);
-    let cross_start_m = if main.trim_cross_start {
-        &TRIMMED
-    } else {
-        cross_start_m
-    };
-    let cross_end_m = if main.trim_cross_end {
-        &TRIMMED
-    } else {
-        cross_end_m
-    };
-    // Signed: a negative cross margin starts the box before the
-    // container's edge and widens a stretched box (Flexbox §9.4).
-    let cross_cells = |m: &MarginValue| -> i32 {
-        if m.is_auto() {
-            0
-        } else {
-            i32::from(m.resolve(cb_width))
-        }
-    };
-    let cross_start_cells = cross_cells(cross_start_m);
-    let cross_end_cells = cross_cells(cross_end_m);
-    let cross_avail = (i32::from(cross_budget) - cross_start_cells - cross_end_cells)
-        .clamp(0, i32::from(u16::MAX)) as u16;
+    let margins = cross_margins(child_computed, container_width, direction, &main);
+    let line_avail =
+        (i32::from(space.line) - margins.start - margins.end).clamp(0, i32::from(u16::MAX)) as u16;
     // Flexbox §9.5: an item with an `auto` cross margin is not
     // stretched — it takes its content size and the margins absorb
     // the free space.
-    let stretch = !(cross_start_m.is_auto() || cross_end_m.is_auto());
+    let stretch = !(margins.start_auto || margins.end_auto);
     let cross_size = resolve_cross_size(
         dom,
         child_id,
         child_computed,
-        cross_avail,
+        CrossSpace {
+            line: line_avail,
+            container: space.container,
+        },
         container_width,
         direction,
         MainAxisFacts {
@@ -105,16 +141,49 @@ pub(super) fn place_cross(
             stretch,
         },
     );
-    let cross_free = i32::from(cross_avail.saturating_sub(cross_size));
-    let cross_offset: i32 = match (cross_start_m.is_auto(), cross_end_m.is_auto()) {
-        (true, true) => cross_start_cells + cross_free / 2,
-        (true, false) => cross_start_cells + cross_free,
-        _ => cross_start_cells,
+    let cross_free = i32::from(line_avail.saturating_sub(cross_size));
+    let cross_offset: i32 = match (margins.start_auto, margins.end_auto) {
+        (true, true) => margins.start + cross_free / 2,
+        (true, false) => margins.start + cross_free,
+        _ => margins.start,
     };
     CrossPlacement {
         size: cross_size,
         offset: cross_offset,
     }
+}
+
+/// An item's outer hypothetical cross size (CSS Flexbox §9.4 step 7):
+/// its cross size laid out at its used main size with an `auto` cross
+/// size as its content size (nothing stretches yet), plus its cross
+/// margins — what a multi-line container's line is as large as.
+pub(super) fn hypothetical_outer_cross(
+    dom: &Dom<TuiExt>,
+    child_id: NodeId,
+    container_width: u16,
+    space: CrossSpace,
+    direction: Direction,
+    main: ResolvedMain,
+) -> u16 {
+    let computed = dom
+        .node(child_id)
+        .computed_rc()
+        .unwrap_or_else(|| std::rc::Rc::new(ComputedStyle::initial()));
+    let margins = cross_margins(&computed, container_width, direction, &main);
+    let size = resolve_cross_size(
+        dom,
+        child_id,
+        &computed,
+        space,
+        container_width,
+        direction,
+        MainAxisFacts {
+            size: main.size,
+            was_auto: main.was_auto,
+            stretch: false,
+        },
+    );
+    (i32::from(size) + margins.start + margins.end).clamp(0, i32::from(u16::MAX)) as u16
 }
 
 /// Compute the cross-axis cell count from the main-axis cell count and
@@ -190,11 +259,18 @@ fn resolve_cross_size(
     dom: &Dom<TuiExt>,
     child_id: NodeId,
     computed: &ComputedStyle,
-    container_cross: u16,
+    space: CrossSpace,
     container_width: u16,
     direction: Direction,
     main: MainAxisFacts,
 ) -> u16 {
+    // Percentages resolve against the container's inner cross size; a
+    // stretched item fills its line (the space left by its margins).
+    let container_cross = space.container;
+    let line = space.line;
+    // What an `auto`-like size measures against: the container's cross
+    // size, or the line's while that is unknown.
+    let available = container_cross.unwrap_or(line);
     let MainAxisFacts {
         size: main_size,
         was_auto: main_was_auto,
@@ -210,9 +286,9 @@ fn resolve_cross_size(
     // `max-height` percentage is `none` and a `min-height` one 0).
     let basis = match direction {
         Direction::Row => {
-            nearest_block_ancestor_height_is_definite(dom, child_id).then_some(container_cross)
+            container_cross.filter(|_| nearest_block_ancestor_height_is_definite(dom, child_id))
         }
-        Direction::Column => Some(container_cross),
+        Direction::Column => container_cross,
     };
     let cross_dir = match direction {
         Direction::Row => Direction::Column,
@@ -224,7 +300,7 @@ fn resolve_cross_size(
     // percentages resolve against the container's width.
     let measure_budget = match cross_dir {
         Direction::Column => main_size,
-        Direction::Row => container_cross,
+        Direction::Row => available,
     };
     let kw = Keywords::new(
         dom,
@@ -235,16 +311,13 @@ fn resolve_cross_size(
         container_width,
     );
     let sizer = kw.sizer();
-    let max = kw.max(max, basis, container_cross);
+    let max = kw.max(max, basis, available);
     // A cross-axis percentage or `calc()` resolves against the
     // container's cross-axis dimension. Only `auto` stretches (Flexbox
     // §9.4): a keyword is its content size.
-    let natural = match (
-        cross_size,
-        kw.size(cross_size, Some(container_cross), container_cross),
-    ) {
+    let natural = match (cross_size, kw.size(cross_size, container_cross, available)) {
         (_, Some(cells)) => cells,
-        (Size::Flex(_), _) => container_cross,
+        (Size::Flex(_), _) if stretch => line,
         _ => {
             if let Some(cross) = computed
                 .aspect_ratio
@@ -255,20 +328,17 @@ fn resolve_cross_size(
             {
                 cross
             } else if computed.display == Display::InlineBlock {
-                // Cross-axis intrinsic measurement. `intrinsic_size`'s
-                // `direction` argument means "measure along this axis";
-                // we want the axis perpendicular to the parent's flex
-                // direction. The `cross_budget` argument passed to
-                // `intrinsic_size` is for IFC wrap; for the inline-
-                // block's own cross-axis sizing we pass the container
-                // cross size — a conservative budget that's correct
-                // for non-IFC inline-blocks (the common case).
-                intrinsic_size(dom, child_id, cross_dir, container_cross, container_width)
+                // Cross-axis intrinsic measurement along the axis
+                // perpendicular to the parent's flex direction; its text
+                // wraps to `measure_budget` (a row item's used width).
+                intrinsic_size(dom, child_id, cross_dir, measure_budget, container_width)
             } else if stretch {
-                container_cross
+                line
             } else {
-                // `auto` cross margin: content size, not stretch.
-                intrinsic_size(dom, child_id, cross_dir, container_cross, container_width)
+                // Not stretched (an `auto` cross margin, or the
+                // hypothetical cross size): its content size, measured
+                // at its used main size.
+                intrinsic_size(dom, child_id, cross_dir, measure_budget, container_width)
             }
         }
     };
@@ -277,6 +347,6 @@ fn resolve_cross_size(
     // (a flex distribution can drive an item below its content there),
     // and elsewhere `auto` resolves to 0 (CSS Sizing 3 §5.2). The cross
     // size comes from the declared size, a stretch, or the content.
-    let min = kw.min(min_raw, basis, container_cross);
+    let min = kw.min(min_raw, basis, available);
     sizer.floor(clamp_size(natural, min, max))
 }

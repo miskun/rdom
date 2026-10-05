@@ -31,10 +31,12 @@ pub(crate) fn trimmed_edges(container: &ComputedStyle) -> Sides<bool> {
     Sides::new(t.block_start, right, t.block_end, left)
 }
 
-/// A flex container's trimmed edges in its flex axes (§3.2), logical:
-/// the main-axis start / end margins of the first / last item, and the
-/// cross-axis margins of every item (rdom's flex lines are single). A
-/// `row`'s main axis is the inline axis, a `column`'s cross axis.
+/// A flex container's trimmed edges in its flex axes (§3.2), flex-
+/// relative: the main-axis start / end margins of each line's first /
+/// last item, and the cross-axis margins of the items adjoining the
+/// cross edges (every item of a single-line container; the first line's
+/// at cross-start, the last line's at cross-end). A `row`'s main axis is
+/// the inline axis, a `column`'s cross axis.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub(crate) struct FlexTrim {
     pub(crate) main_start: bool,
@@ -47,7 +49,8 @@ impl FlexTrim {
     /// `container`'s trim, laid out along `direction`. Under
     /// `row-reverse` / `column-reverse` main-start is the inline-end /
     /// block-end side (CSS Flexbox §5.1), so the first item's main-start
-    /// margin adjoins that edge.
+    /// margin adjoins that edge; under `wrap-reverse` cross-start and
+    /// cross-end swap (§5.2).
     pub(crate) fn of(container: &ComputedStyle, direction: Direction) -> Self {
         let t = container.margin_trim;
         let trim = match direction {
@@ -64,10 +67,19 @@ impl FlexTrim {
                 cross_end: t.inline_end,
             },
         };
-        if container.flex_reverse {
+        let trim = if container.flex_reverse {
             Self {
                 main_start: trim.main_end,
                 main_end: trim.main_start,
+                ..trim
+            }
+        } else {
+            trim
+        };
+        if container.flex_wrap == crate::layout::FlexWrap::WrapReverse {
+            Self {
+                cross_start: trim.cross_end,
+                cross_end: trim.cross_start,
                 ..trim
             }
         } else {

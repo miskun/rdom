@@ -16,7 +16,7 @@ use crate::render::layout_pass::{layout_node, parent_scroll};
 use crate::style::ComputedStyle;
 
 use super::collapse::SiblingOverlap;
-use super::cross::{CrossPlacement, ResolvedMain, place_cross};
+use super::cross::{CrossPlacement, CrossSpace, ResolvedMain, place_cross};
 use super::main_axis::ChildMain;
 use crate::render::layout_pass::margin_trim::FlexTrim;
 
@@ -37,11 +37,17 @@ pub(super) struct FlexLine<'a> {
     pub(super) container: LayoutRect,
     pub(super) direction: Direction,
     pub(super) gap: u16,
-    pub(super) cross_budget: u16,
+    /// The line's cross size and the container's inner cross size.
+    pub(super) space: CrossSpace,
+    /// The line's cross-start offset from the container's cross-start
+    /// edge (in the frame mirrored on a flipped cross axis).
+    pub(super) line_offset: i32,
     pub(super) auto_margins: AutoMainMargins,
     pub(super) overlap: SiblingOverlap,
-    /// The container's `margin-trim` (CSS Box 4 §3.2); its main-axis
-    /// half was applied to the items' margins already.
+    /// The line's items' cross-axis `margin-trim` (CSS Box 4 §3.2): a
+    /// single-line container trims every item's, a multi-line one its
+    /// first line's cross-start and its last line's cross-end margins;
+    /// the main-axis half was applied to the items' margins already.
     pub(super) trim: FlexTrim,
     /// The axes that run from their physical end: the items were placed
     /// in a frame mirrored on them and are flipped back across it.
@@ -57,7 +63,8 @@ pub(super) fn place_items(dom: &mut Dom<TuiExt>, children: &[NodeId], line: Flex
         container,
         direction,
         gap,
-        cross_budget,
+        space,
+        line_offset,
         auto_margins,
         overlap,
         trim,
@@ -136,7 +143,7 @@ pub(super) fn place_items(dom: &mut Dom<TuiExt>, children: &[NodeId], line: Flex
             *child_id,
             &child_computed,
             container.width,
-            cross_budget,
+            space,
             direction,
             ResolvedMain {
                 size: *size,
@@ -150,12 +157,12 @@ pub(super) fn place_items(dom: &mut Dom<TuiExt>, children: &[NodeId], line: Flex
         let child_rect = match direction {
             Direction::Row => LayoutRect::new(
                 main_cursor,
-                container.y + cross_offset - scroll_cross,
+                container.y + line_offset + cross_offset - scroll_cross,
                 *size,
                 cross_size,
             ),
             Direction::Column => LayoutRect::new(
-                container.x + cross_offset - scroll_cross,
+                container.x + line_offset + cross_offset - scroll_cross,
                 main_cursor,
                 cross_size,
                 *size,

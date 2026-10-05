@@ -285,6 +285,7 @@ fn every_property_has_important_setter() {
         .pointer_events_important(crate::layout::PointerEvents::None)
         .visibility_important(crate::layout::Visibility::Hidden)
         .order_important(1)
+        .flex_wrap_important(crate::layout::FlexWrap::Wrap)
         .flex_grow_important(1.0)
         .scrollbar_gutter_important(crate::layout::ScrollbarGutter::Stable)
         .scroll_behavior_important(crate::layout::ScrollBehavior::Smooth)

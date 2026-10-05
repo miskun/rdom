@@ -37,7 +37,7 @@ pub use border::{
 };
 pub use box_model::{Margin, MarginTrim, MarginValue, Padding, PaddingValue};
 pub use keywords::{
-    Align, BoxSizing, CaretColor, CaretTextColor, Direction, Display, Flow, Overflow,
+    Align, BoxSizing, CaretColor, CaretTextColor, Direction, Display, FlexWrap, Flow, Overflow,
     PointerEvents, Position, ScrollBehavior, ScrollbarGutter, TextDecoration, TextDirection,
     UserSelect, Visibility, WhiteSpace, WritingMode, ZIndex,
 };

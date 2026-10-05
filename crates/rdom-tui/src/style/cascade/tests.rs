@@ -2329,6 +2329,7 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
     };
     parent.border_collapse = BorderCollapse::Collapse;
     parent.direction = Direction::Column;
+    parent.flex_wrap = rdom_style::layout::FlexWrap::Wrap;
     parent.overflow_x = Overflow::Hidden;
     parent.overflow_y = Overflow::Scroll;
     parent.scrollbar_gutter = ScrollbarGutter::Stable;
@@ -2392,6 +2393,7 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
             child.border_collapse == parent.border_collapse,
         ),
         ("flex-direction", child.direction == parent.direction),
+        ("flex-wrap", child.flex_wrap == parent.flex_wrap),
         ("overflow-x", child.overflow_x == parent.overflow_x),
         ("overflow-y", child.overflow_y == parent.overflow_y),
         (

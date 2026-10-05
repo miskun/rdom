@@ -417,3 +417,17 @@ fn flex_direction_initial_hints() {
     assert_eq!(s.direction, Some(Value::Specified(Direction::Column)));
     let _ = TuiStyle::new().flex().direction(Direction::Column);
 }
+
+/// C6-WRAP: `FlexWrap`, the `flex_wrap` fields and bit, the builders,
+/// and the `flex-flow` parser.
+#[test]
+fn flex_wrap_hints() {
+    let s = TuiStyle::new().flex_wrap(FlexWrap::Wrap);
+    assert_eq!(s.flex_wrap, Some(Value::Specified(FlexWrap::Wrap)));
+    let _ = TuiStyle::new().flex_wrap_important(FlexWrap::WrapReverse);
+    let ComputedStyle { flex_wrap, .. } = ComputedStyle::initial();
+    assert_eq!(flex_wrap, FlexWrap::NoWrap);
+    let tokens = style::parse::tokenize("column wrap").unwrap();
+    assert!(style::parse::values::parse_flex_flow(&tokens).is_some());
+    assert!(ImportantMask::FLEX_WRAP.intersects(ImportantMask::all()));
+}

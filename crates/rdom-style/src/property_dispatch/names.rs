@@ -26,6 +26,8 @@ const PROPERTY_NAMES: &[&str] = &[
     // Layout — keywords
     "display",
     "flex-direction",
+    "flex-wrap",
+    "flex-flow",
     "white-space",
     "user-select",
     "pointer-events",

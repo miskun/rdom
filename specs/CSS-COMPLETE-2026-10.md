@@ -142,7 +142,7 @@ row comes from.
 | C6-DIRECTION-REVERSE | `flex-direction: row-reverse / column-reverse` | done |
 | C6-FLEX-LONGHANDS | `flex-grow` / `flex-basis` longhands; full `flex` shorthand (incl. basis) | done |
 | C6-FLEX-DIRECTION-INITIAL | `flex-direction` initial value `row` (Flexbox §5.1): decouple the block-container axis from `flex-direction`, remove the DIVERGENCES §2 entry | done |
-| C6-WRAP | `flex-wrap` / `flex-flow`, multi-line flex containers | |
+| C6-WRAP | `flex-wrap` / `flex-flow`, multi-line flex containers | done |
 | C6-JUSTIFY | `justify-content` (all distribution values) | |
 | C6-ALIGN | `align-items` / `align-self` (incl. `baseline` where meaningful) | |
 | C6-ALIGN-CONTENT | `align-content` | |
@@ -2235,3 +2235,61 @@ row comes from.
   column-reverse` (`row-reverse` now leaves the axis at its initial value) and the inherited-set
   probe's parent takes `Direction::Column`. No layout expectation changed; no snapshot changed.
   DIVERGENCES §2's entry removed; COVERAGE §3.8's row says `row`.
+- 2026-10-08 — C6-WRAP: `flex-wrap: nowrap | wrap | wrap-reverse` (CSS Flexbox §5.2; `FlexWrap`,
+  `TuiStyle` / `ComputedStyle::flex_wrap`, `ImportantMask::FLEX_WRAP`, builder, not inherited) and
+  `flex-flow` (§5.3, `<'flex-direction'> || <'flex-wrap'>`, owning `flex-direction`'s two fields and
+  `flex_wrap`, shortest serialization; cssText leaves the longhands to it only if it serializes —
+  `flex-flow` is not added to `shorthand_family_of`, as `flex` is not). The keyword grammars moved to
+  `parse/values/flex.rs` (`parse_flex_direction` / `_wrap` / `_flow` and serializers). Layout —
+  decided, spec order in one orchestrator: `layout_flex_children` gathers the items once
+  (`collect_main_axis_items`, now a plain `Vec<ChildMain>`; each line sums its own margins), breaks
+  them into lines (`flex/lines.rs::break_lines`, §9.3 step 5: outer hypothetical main size — the
+  base clamped by min / max, the §4.5 automatic minimum resolved for a non-content base — with the
+  main-axis gap counted between items, Box Alignment §8.1; an item too big for an empty line takes
+  one alone), resolves each line's flexible lengths and `auto` margins (`resolve_line_main`, §9.7 /
+  §9.5 step 12), sizes the lines (single-line: the container's inner cross size, §9.4 step 8;
+  multi-line: the largest outer hypothetical cross size, `cross::hypothetical_outer_cross` — the
+  cross size at the used main size with nothing stretched — plus `stretch_lines`,
+  `align-content: normal` = `stretch` in flex, Box Alignment §5.3) and places each line `line_offset`
+  along the cross axis, the cross-axis gap (`row-gap` in a row) apart; a stretched item fills its
+  line, percentages still resolve against the container (`CrossSpace { line, container }`).
+  `wrap-reverse` joins `AxisFlip::cross` (a row's cross axis under `wrap-reverse`, a column's under
+  `rtl` XOR `wrap-reverse`): the mirrored frame flips the lines, the cross margins swap on both
+  axes now, `FlexTrim::of` swaps cross-start / -end, and `scroll_extent::origin_at_end` reads the
+  flip, so the overflow past cross-end (the top) is reached with a negative `scrollTop`.
+  `margin-trim` in a multi-line container (CSS Box 4 §3.2): each line's first / last item loses its
+  main-start / -end margin (`trim_line_edges`), the first line's items their cross-start and the last
+  line's their cross-end margins. Decided: lines break on the margins as gathered (only the
+  container's first and last items trimmed), then each line's edge margins are trimmed — a trimmed
+  margin cannot move an item onto the line before it. Intrinsic sizes (§9.9) — one algorithm:
+  `intrinsic/children.rs` (the children half of `measure_content`, moved, see below): along the main
+  axis a multi-line container's min-content size is its largest outer contribution (each item can
+  take a line alone), its max-content size one line (the sum); across it, `intrinsic/wrap.rs` finds
+  the inner main size to break at — a row's content width (its declared width, else the budget, as
+  `wrapped_rows`), a column's content height (declared, else its single-line content height clamped
+  by `max-height`, §9.3's indefinite main size) — and `lines::lines_cross_size` runs the layout's
+  steps (gather, break, per-line §9.7, hypothetical cross sizes with a cyclic cross percentage as
+  `auto`). Found and fixed: a non-stretched flex item's cross size (an `auto` cross margin, an inline
+  block) measured its content against the container's cross size — a row item's text wrapped to
+  the container's height; it measures at the item's used main size now (no existing expectation
+  changed). DIVERGENCES §1 gains "Flex free space is shared in whole cells" (rolling grow / shrink,
+  equal shares with a remainder cell to each of the first `auto` margins / lines); §3's `flex-wrap`
+  line removed. Red: the rdom-style `flex_wrap_takes_its_three_keywords` / `flex_flow_sets_direction_and_wrap`
+  failed to compile (`FlexWrap`, `flex_wrap`); with the data model in, all nine
+  `css_phase6/wrap.rs` tests failed — five items in one shrunk line `[(0, 0), (3, 0), (5, 0), (7, 0),
+  (9, 0)]` against three lines, `ys` `[0, 0, 0]` for `[0, 0, 4]` / `[0, 0, 3]` / `[0, 0, 5]`, the
+  min-content row `(14, 1)` for `(6, 3)`, `wrap-reverse` `[0, 0, 0, 0, 0]` for `[4, 4, 2, 2, 0]`,
+  `scrollTop` `Some(0)` for `Some(-1)`; `margin_trim_applies_per_line` first failed its own sheet
+  (`margin-trim: inline block-start` is invalid; rewritten as `inline-start inline-end
+  block-start`). Green after. Mutation checks (each alone, `css_phase6::wrap`, reverted and touched):
+  no line break → all nine; no per-line main trim → the trim test; no line stretch → the
+  `align-content` test; `AxisFlip::cross` ignoring `wrap-reverse` → the reverse, trim and scroll
+  tests; the main-axis min-content max → the intrinsic test; the cross-axis lines intrinsic → the
+  row, intrinsic and trim tests; the cross-start trim on every line → survived at first (the line
+  stretch absorbed the trimmed cell), so the trim test gained a stretched-items case and catches it;
+  `FlexTrim` not swapping under `wrap-reverse` → the trim test's `wrap-reverse` case (added for it).
+  Changed expectations: the canonical-values table, important-setter coverage, the C1 `initial`
+  perturbation and the inherited-set probe gain `flex-wrap` (and the table `flex-flow`). No
+  snapshot changed. Split: `intrinsic/mod.rs` reached 608 lines — the children half of
+  `measure_content` (outer contributions, trims, the sum / max / lines, text runs) moved to
+  `intrinsic/children.rs` (201; `mod.rs` 453).

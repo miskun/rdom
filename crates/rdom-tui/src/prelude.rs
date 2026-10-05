@@ -96,6 +96,7 @@ pub use crate::{
     DomError,
     Event,
     EventPhase,
+    FlexWrap,
     Flow,
     HitTestExt,
     ImportantMask,

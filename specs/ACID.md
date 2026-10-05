@@ -83,8 +83,9 @@ mostly does not mention. The acid page can only use what is supported, so these 
 
 - **Flex alignment:** `justify-content`, `align-items`, `align-self` (the layout engine has the
   alignment types; CSS cannot set them).
-- **Flex:** `flex-wrap`; the `flex-grow` / `flex-basis` longhands (only the `flex` shorthand and
-  `flex-shrink` parse).
+- ~~**Flex:** `flex-wrap`; the `flex-grow` / `flex-basis` longhands (only the `flex` shorthand and
+  `flex-shrink` parse).~~ Shipped: C6-FLEX-LONGHANDS (the longhands), C6-WRAP (`flex-wrap`,
+  `flex-flow`).
 - **Text:** `line-height`, `text-overflow`, `white-space: pre-line`.
 - **Overflow:** a non-clipping descendant's text lines that overflow its box do not count toward
   the ancestor's scrollable overflow (found while fixing `SCROLL-OVERFLOW-NESTED-ANON-1`).

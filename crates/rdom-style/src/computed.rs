@@ -133,6 +133,9 @@ pub struct ComputedStyle {
     /// `row-reverse` / `column-reverse` (CSS Flexbox §5.1): main-start
     /// and main-end of `direction`'s axis swap. Initial `false`.
     pub flex_reverse: bool,
+    /// `flex-wrap` (CSS Flexbox §5.2): single- or multi-line. Initial
+    /// `nowrap`; not inherited.
+    pub flex_wrap: crate::layout::FlexWrap,
     /// CSS `direction` (CSS Writing Modes 4 §2.1): which edge is
     /// inline-start. Inherited; initial `ltr`. (`direction` above is
     /// `flex-direction`.)
@@ -292,6 +295,7 @@ impl ComputedStyle {
             border_collapse_declared: false,
             direction: Direction::Row,
             flex_reverse: false,
+            flex_wrap: crate::layout::FlexWrap::NoWrap,
             text_direction: crate::layout::TextDirection::Ltr,
             writing_mode: crate::layout::WritingMode::HorizontalTb,
             overflow_x: Overflow::Visible,

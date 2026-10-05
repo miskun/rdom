@@ -31,6 +31,8 @@ fn canonical_values() -> &'static [(&'static str, &'static str)] {
         ("opacity", "0.5"),
         ("display", "inline"),
         ("flex-direction", "column"),
+        ("flex-wrap", "wrap"),
+        ("flex-flow", "column wrap"),
         ("white-space", "pre"),
         ("user-select", "text"),
         ("pointer-events", "none"),

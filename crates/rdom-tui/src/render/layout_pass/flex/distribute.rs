@@ -217,7 +217,7 @@ fn floor_cells(x: f64) -> u32 {
 /// subtree every layout (the +47% regression observed in the
 /// full-frame benchmark), so we defer until we know the item is
 /// actually shrinking.
-fn resolve_auto_min(
+pub(super) fn resolve_auto_min(
     dom: &Dom<TuiExt>,
     id: NodeId,
     direction: Direction,

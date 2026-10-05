@@ -212,6 +212,14 @@ impl TuiStyle {
         self.important |= ImportantMask::FLEX_DIRECTION | ImportantMask::FLEX_REVERSE;
         self.direction(v)
     }
+    setter!(
+        "flex-wrap",
+        flex_wrap,
+        flex_wrap,
+        flex_wrap_important,
+        FLEX_WRAP,
+        crate::layout::FlexWrap
+    );
     /// Set `flex-direction` to the reversed form of `v` (`row-reverse` /
     /// `column-reverse`, CSS Flexbox §5.1). Chainable.
     pub fn direction_reverse(mut self, v: Direction) -> Self {

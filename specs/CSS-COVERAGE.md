@@ -43,7 +43,7 @@ something the code contradicts (see §6). `—` for Supported / N/A rows.
 | `CALC` | `rdom-style/src/calc.rs` + `parse/values/calc.rs` |
 | `TOK` | `rdom-style/src/parse/token.rs` |
 | `CASC` | `rdom-tui/src/style/cascade/` (`apply.rs`, `inherit.rs`, `content.rs`, `counters.rs`) |
-| `FLEX` | `rdom-tui/src/render/layout_pass/flex/` (`main_axis.rs`, `cross.rs`, `placement.rs`) |
+| `FLEX` | `rdom-tui/src/render/layout_pass/flex/` (`main_axis.rs`, `lines.rs`, `cross.rs`, `placement.rs`) |
 | `BLOCK` | `rdom-tui/src/render/layout_pass/block/` |
 | `IFC` | `rdom-tui/src/render/layout_pass/ifc.rs` + `rdom-tui/src/render/inline/` |
 | `POS` | `rdom-tui/src/render/layout_pass/positioning/` + `layout_pass/sticky.rs` + `render/stacking.rs` |
@@ -76,7 +76,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.5 Backgrounds and borders (Backgrounds 3, Borders 4) | 13 | 1 | 0 | 2 | 16 |
 | 3.6 Box model and sizing (Box 3, Sizing 3/4) | 7 | 2 | 0 | 0 | 9 |
 | 3.7 Display and visibility (Display 3) | 6 | 1 | 2 | 2 | 11 |
-| 3.8 Flexbox and box alignment (Flexbox 1, Align 3) | 9 | 0 | 8 | 0 | 17 |
+| 3.8 Flexbox and box alignment (Flexbox 1, Align 3) | 11 | 0 | 6 | 0 | 17 |
 | 3.9 Grid (Grid 1/2) | 0 | 0 | 10 | 0 | 10 |
 | 3.10 Positioned layout (Position 3, CSS 2.1 §9) | 4 | 1 | 1 | 1 | 7 |
 | 3.11 Overflow, scrolling and scrollbars (Overflow 3/4, Scroll Snap 1, Overscroll 1, Scrollbars 1) | 1 | 3 | 10 | 0 | 14 |
@@ -93,11 +93,11 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 5 | 2 | 1 | 1 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **125** | **28** | **108** | **46** | **307** |
+| **Total** | **127** | **28** | **106** | **46** | **307** |
 
-When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 136 rows Partial / Missing.
+When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 134 rows Partial / Missing.
 
-Headline: rdom parses **157 property names** (`property_names()`, after C6-GAP). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are flex alignment (`justify-content`, `align-items`), `flex-wrap`, `line-height`, `text-align`, and grid.
+Headline: rdom parses **159 property names** (`property_names()`, after C6-WRAP). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are flex alignment (`justify-content`, `align-items`), `line-height`, `text-align`, and grid.
 
 ---
 
@@ -110,7 +110,7 @@ pasted CSS. The first block is what a typical component stylesheet hits in its f
 |---|---|---|---|---|
 | 1 | `justify-content` | Distribute free main-axis cells: `flex-start` / `flex-end` / `center` / `space-between` / `space-around` / `space-evenly` (`start` / `end` aliases); integer remainder goes to the first gaps. | M | No |
 | 2 | `align-items` / `align-self` | Cross-axis placement: `stretch` (today's only behavior) / `flex-start` / `flex-end` / `center` / `baseline` (= first text row). `Align` enum already exists in `KW` but nothing sets or reads it. | M | No |
-| 3 | `flex-wrap` / `flex-flow` / `align-content` | Break items onto multiple flex lines when the main size overflows; `align-content` distributes the lines. Needed for tag clouds, toolbars that wrap, card grids without grid. | L | No |
+| 3 | `flex-wrap` / `flex-flow` / `align-content` | `flex-wrap` / `flex-flow` shipped (C6-WRAP; §3.8): multi-line flex containers, lines stretched by `align-content: normal`. `align-content`'s other values: C6-ALIGN-CONTENT. | L | No |
 | 4 | `flex-grow` / `flex-basis` longhands | Shipped (C6-FLEX-LONGHANDS; §3.8): both longhands, and the `flex-basis` the flex base size of Flexbox §9.2; §9.7 resolves the flexible lengths from it. | M | Wrong |
 | 5 | `display: grid` + `grid-template-*`, `grid-auto-*`, `grid-row/column*`, `grid-area`, `grid` | A cell-quantized grid formatting context: track sizing in cells / `fr` / `%` / `auto` / `minmax()` / `repeat()`, line- and area-based placement. The most-used modern layout after flex. | L | Yes |
 | 6 | `line-height` | Rows per line box in whole rows: `normal` / `1` = one row; `2` = text on the first row of each two-row line box (blank row below, or half-leading split rounded); `<cells>`. | M | No |
@@ -357,8 +357,8 @@ dropped. The audit's six, with where each stands:
 | Item | Class | Detail | Doc'd | Where |
 |---|---|---|---|---|
 | `flex-direction` | Supported | `row` / `row-reverse` / `column` / `column-reverse` (CSS Flexbox §5.1; the axis plus `flex_reverse`): a reversed main axis lays out from its main-start edge — a `row-reverse` from the right under `ltr`, from the left under `rtl`; a `column-reverse` from the bottom — with each item's main-start margin on that side and `margin-trim` mapped to it (C6-DIRECTION-REVERSE). A reversed scroll container's scrolling area origin is its main-start edge (CSSOM View §4): `scrollLeft` / `scrollTop` run `-overflow ..= 0`, starting at 0 (`TuiExt::scroll_y` is signed like `scroll_x`). The initial value is `row`; a block container ignores the property — its children stack on its block axis (C6-FLEX-DIRECTION-INITIAL). | — | `DISP/set.rs`, `KW::Direction`, `FLEX/placement.rs` |
-| `flex-wrap` | Missing | Single-line only. | No | `FLEX` |
-| `flex-flow` | Missing | Shorthand of the two above. | No | `DISP` |
+| `flex-wrap` | Supported | `nowrap` / `wrap` / `wrap-reverse` (CSS Flexbox §5.2): §9.3 line breaking by outer hypothetical main size (the main-axis gap counted), §9.7 per line, each line as large as its largest outer hypothetical cross size with its `stretch` items filling it, `align-content: normal` stretching the lines (whole cells, remainder to the first lines), the cross-axis gap between lines; `wrap-reverse` stacks lines from cross-end and scrolls from there (negative offsets); `margin-trim` per line; §9.9 intrinsic sizes (min-content main size the largest item's, the cross size the lines') (C6-WRAP). | — | `FLEX/lines.rs`, `layout_pass/intrinsic/wrap.rs` |
+| `flex-flow` | Supported | `<'flex-direction'> \|\| <'flex-wrap'>` (§5.3), either order, an omitted half its initial value; shortest serialization (C6-WRAP). | — | `V/flex.rs` |
 | `flex` | Supported | Full Flexbox §7.2 grammar (`none`, `auto`, 1–3 values in either order, the unitless-zero rule), setting its three longhands — `flex-grow`, `flex-shrink`, `flex-basis` — and nothing else (C2G-FLEX-SHORTHAND, C6-FLEX-LONGHANDS). | — | `V/length.rs::parse_flex_shorthand` |
 | `flex-grow` | Supported | `<number [0,∞]>`, initial 0 (Flexbox §7.3.1): the share of positive free space (§9.7); rdom's `width: <n>fr` is a basis of 0 growing by `n` when `flex-grow` is 0 (C6-FLEX-LONGHANDS). | — | `DISP`, `FLEX/distribute.rs` |
 | `flex-shrink` | Supported | `<number [0,∞]>`, fractions included (C2-NUMBER). | — | `DISP/set.rs`, `FLEX/main_axis.rs` |

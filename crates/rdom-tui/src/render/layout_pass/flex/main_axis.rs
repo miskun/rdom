@@ -49,25 +49,15 @@ pub(super) struct ChildMain {
 }
 
 /// The container's content size on the main and cross axes.
+#[derive(Debug, Clone, Copy)]
 pub(super) struct MainBudgets {
     pub(super) main: u16,
     pub(super) cross: u16,
 }
 
-/// The gathered flex line: one [`ChildMain`] per item plus the totals
-/// the free-space computation needs.
-pub(super) struct MainAxisItems {
-    pub(super) items: Vec<ChildMain>,
-    /// The items' non-`auto` main-axis margins. Signed: a negative
-    /// margin frees main-axis space (Flexbox §9.7 counts outer sizes;
-    /// CSS margins may be negative).
-    pub(super) margins: i32,
-    /// Number of `auto` main-axis margins across the line.
-    pub(super) auto_main_count: u32,
-}
-
-/// Gather each item's flex base size, factors, min and max for the main
-/// axis, together with the line's margins and auto-margin count.
+/// Gather each item's flex base size, factors, min and max and its
+/// main-axis margins, one [`ChildMain`] per item (each line sums its
+/// own margins, `lines::resolve_line_main`).
 ///
 /// `trim` is the container's `margin-trim` (CSS Box 4 §3.2): a trimmed
 /// main-start (main-end) edge zeroes the first (last) item's margin
@@ -83,14 +73,12 @@ pub(super) fn collect_main_axis_items(
     budgets: MainBudgets,
     trim: FlexTrim,
     mirror: bool,
-) -> MainAxisItems {
+) -> Vec<ChildMain> {
     let MainBudgets {
         main: main_budget,
         cross: cross_budget,
     } = budgets;
     let mut child_info: Vec<ChildMain> = Vec::with_capacity(children.len());
-    let mut margins: i32 = 0;
-    let mut auto_main_count: u32 = 0;
     // The basis `min-*` / `max-*` percentages resolve against: the
     // container's main size — for a column, its height, which is
     // indefinite when it is `auto` (CSS 2.1 §10.7: then a `max-height`
@@ -175,20 +163,6 @@ pub(super) fn collect_main_axis_items(
         } else {
             main_end_m
         };
-        let margin_consumed = |m: &MarginValue| -> i32 {
-            if m.is_auto() {
-                0
-            } else {
-                i32::from(m.resolve(main_cb_w))
-            }
-        };
-        margins += margin_consumed(&main_start_m) + margin_consumed(&main_end_m);
-        if matches!(main_start_m, MarginValue::Auto) {
-            auto_main_count += 1;
-        }
-        if matches!(main_end_m, MarginValue::Auto) {
-            auto_main_count += 1;
-        }
 
         // CSS Flexbox §9.2 step 3, the flex base size. A definite
         // `flex-basis` is it (measuring the box `box-sizing` names, as
@@ -304,9 +278,5 @@ pub(super) fn collect_main_axis_items(
         });
     }
 
-    MainAxisItems {
-        items: child_info,
-        margins,
-        auto_main_count,
-    }
+    child_info
 }

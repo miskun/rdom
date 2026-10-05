@@ -184,3 +184,91 @@ fn row_gap_column_gap_and_the_gap_shorthand() {
     );
     assert_eq!(GapValue::Normal.resolve(7), 0);
 }
+
+/// CSS Flexbox §5.2: `flex-wrap: nowrap | wrap | wrap-reverse`, initial
+/// `nowrap`, not inherited.
+#[test]
+fn flex_wrap_takes_its_three_keywords() {
+    use crate::layout::FlexWrap;
+    for (css, kw) in [
+        ("nowrap", FlexWrap::NoWrap),
+        ("wrap", FlexWrap::Wrap),
+        ("WRAP-REVERSE", FlexWrap::WrapReverse),
+    ] {
+        let mut style = TuiStyle::new();
+        set("flex-wrap", css, &mut style).unwrap();
+        assert_eq!(style.flex_wrap, Some(Value::Specified(kw)), "{css}");
+        assert_eq!(
+            serialize("flex-wrap", &style).as_deref(),
+            Some(css.to_ascii_lowercase().as_str())
+        );
+    }
+    for bad in ["", "auto", "wrap wrap", "reverse"] {
+        assert_eq!(
+            set("flex-wrap", bad, &mut TuiStyle::new()),
+            Err(DispatchError::InvalidValue),
+            "{bad:?}"
+        );
+    }
+    assert!(!inherits("flex-wrap"));
+    assert_eq!(property_mask("flex-wrap"), Some(ImportantMask::FLEX_WRAP));
+    assert_eq!(crate::ComputedStyle::initial().flex_wrap, FlexWrap::NoWrap);
+}
+
+/// CSS Flexbox §5.3: `flex-flow: <'flex-direction'> || <'flex-wrap'>` —
+/// either order, an omitted component its initial value; it owns the
+/// three fields of its two longhands and serializes in the shortest form
+/// (CSSOM §6.7.2).
+#[test]
+fn flex_flow_sets_direction_and_wrap() {
+    use crate::layout::{Direction, FlexWrap};
+    for (css, axis, reverse, wrap, out) in [
+        ("row wrap", Direction::Row, false, FlexWrap::Wrap, "wrap"),
+        (
+            "wrap-reverse column",
+            Direction::Column,
+            false,
+            FlexWrap::WrapReverse,
+            "column wrap-reverse",
+        ),
+        (
+            "column-reverse",
+            Direction::Column,
+            true,
+            FlexWrap::NoWrap,
+            "column-reverse",
+        ),
+        ("wrap", Direction::Row, false, FlexWrap::Wrap, "wrap"),
+        ("row nowrap", Direction::Row, false, FlexWrap::NoWrap, "row"),
+    ] {
+        let mut style = TuiStyle::new();
+        set("flex-direction", "column-reverse", &mut style).unwrap();
+        set("flex-wrap", "wrap", &mut style).unwrap();
+        set("flex-flow", css, &mut style).unwrap_or_else(|e| panic!("{css}: {e:?}"));
+        assert_eq!(style.direction, Some(Value::Specified(axis)), "{css}");
+        assert_eq!(style.flex_reverse, Some(Value::Specified(reverse)), "{css}");
+        assert_eq!(style.flex_wrap, Some(Value::Specified(wrap)), "{css}");
+        assert_eq!(
+            serialize("flex-flow", &style).as_deref(),
+            Some(out),
+            "{css}"
+        );
+    }
+    for bad in ["", "row column", "wrap nowrap", "row wrap row", "auto"] {
+        assert_eq!(
+            set("flex-flow", bad, &mut TuiStyle::new()),
+            Err(DispatchError::InvalidValue),
+            "{bad:?}"
+        );
+    }
+    assert_eq!(
+        property_mask("flex-flow"),
+        Some(
+            ImportantMask::FLEX_DIRECTION | ImportantMask::FLEX_REVERSE | ImportantMask::FLEX_WRAP
+        )
+    );
+    // Only the longhands set: no shorthand to serialize.
+    let mut style = TuiStyle::new();
+    set("flex-wrap", "wrap", &mut style).unwrap();
+    assert_eq!(serialize("flex-flow", &style), None);
+}

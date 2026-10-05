@@ -15,6 +15,21 @@ pub enum Direction {
     Column,
 }
 
+/// `flex-wrap` (CSS Flexbox §5.2): whether a flex container is
+/// single-line or multi-line, and which way its lines stack. Not
+/// inherited; initial `NoWrap`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum FlexWrap {
+    /// `nowrap`: one line; the items overflow (or shrink) on it.
+    #[default]
+    NoWrap,
+    /// `wrap`: items break onto lines, stacked from cross-start.
+    Wrap,
+    /// `wrap-reverse`: as `wrap`, with cross-start and cross-end swapped
+    /// — the first line at the cross-end edge.
+    WrapReverse,
+}
+
 /// Overflow behavior. Matches CSS `overflow` semantics as closely as a
 /// cell grid allows.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]

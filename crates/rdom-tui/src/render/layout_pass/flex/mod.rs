@@ -31,7 +31,10 @@
 //!
 //! - `mod.rs` — [`layout_children`] (the IFC / text-leaf / block / flex
 //!   dispatch) and [`layout_flex_children`], the orchestrator that
-//!   threads one flex line through the pieces below in spec order.
+//!   threads the flex lines through the pieces below in spec order.
+//! - [`lines`] — §9.3 line breaking, per-line §9.7, line cross sizes
+//!   and `align-content: normal`, and a multi-line container's
+//!   intrinsic cross size (§9.9).
 //! - [`main_axis`] — per-item main-size gathering (`ChildMain`), the
 //!   §9.7 grow / shrink freeze loops, and the lazy §4.5 auto-min floor.
 //! - [`cross`] — §9.4 cross-size determination, `aspect-ratio`, and
@@ -46,6 +49,7 @@
 mod collapse;
 mod cross;
 mod distribute;
+mod lines;
 mod main_axis;
 mod placement;
 
@@ -60,9 +64,10 @@ use super::ifc::is_ifc_block;
 use super::margin_trim::FlexTrim;
 use super::{element_children_of, layout_node};
 use collapse::SiblingOverlap;
-use distribute::{MainAxisBudget, resolve_flexible_lengths};
+use cross::CrossSpace;
+pub(in crate::render::layout_pass) use lines::{is_multi_line, lines_cross_size};
 use main_axis::{MainBudgets, collect_main_axis_items};
-use placement::{AutoMainMargins, FlexLine, place_items};
+use placement::{FlexLine, place_items};
 
 /// `visibility: collapse` on a flex item (Flexbox §4.4): it is laid out
 /// as a strut — no main size, its cross size kept — and drawn as
@@ -266,15 +271,18 @@ pub(super) fn layout_children(
     None
 }
 
-/// Lay out one flex line: `children` (already filtered to in-flow
-/// items) inside `container`, driven by `parent`'s `direction`, `gap`
-/// and `border-collapse`.
+/// Lay out a flex container's items: `children` (already filtered to
+/// in-flow items, in order-modified document order) inside `container`,
+/// driven by `parent`'s `flex-direction`, `flex-wrap`, gaps and
+/// `border-collapse`.
 ///
-/// Runs the CSS Flexible Box algorithm in spec order — gather main
-/// sizes (§9.2), determine free space and auto-margin claims (§9.7 /
-/// §9.5), resolve flexible lengths (§9.7), then place each item along
-/// the main axis and size it on the cross axis (§9.4–§9.6) — with the
-/// per-concern math in the sibling modules.
+/// Runs the CSS Flexible Box algorithm in spec order — gather the flex
+/// base sizes (§9.2), collect the items into lines (§9.3, `lines`),
+/// resolve each line's flexible lengths and `auto` margins (§9.7 /
+/// §9.5), size the lines on the cross axis (§9.4 steps 7–8 and 15),
+/// then place each line's items along the main axis and size them on
+/// the cross axis (§9.4–§9.6) — with the per-concern math in the sibling
+/// modules.
 pub(super) fn layout_flex_children(
     dom: &mut Dom<TuiExt>,
     children: &[NodeId],
@@ -286,91 +294,132 @@ pub(super) fn layout_flex_children(
     }
 
     let direction = parent.direction;
+    let cross_direction = match direction {
+        Direction::Row => Direction::Column,
+        Direction::Column => Direction::Row,
+    };
+    // CSS Box Alignment 3 §8.1: the gutters between items on a line, and
+    // between the lines.
     let gap = super::resolve_gap(parent, container, direction);
+    let line_gap = super::resolve_gap(parent, container, cross_direction);
 
     let container = collapse::inset_container_for_children(dom, children, parent, container);
 
-    // Main-axis budget for distribution (cells available to all
-    // children + gaps).
-    let main_budget: u16 = match direction {
-        Direction::Row => container.width,
-        Direction::Column => container.height,
+    // The container's inner size on the main and cross axes.
+    let (main_budget, cross_budget) = match direction {
+        Direction::Row => (container.width, container.height),
+        Direction::Column => (container.height, container.width),
     };
-    let cross_budget: u16 = match direction {
-        Direction::Row => container.height,
-        Direction::Column => container.width,
+    let budgets = MainBudgets {
+        main: main_budget,
+        cross: cross_budget,
     };
 
     let trim = FlexTrim::of(parent, direction);
     // CSS Writing Modes 4 §2.1: under `rtl` the inline axis — a row's
     // main axis, a column's cross axis — runs right to left; CSS Flexbox
     // §5.1: `row-reverse` / `column-reverse` swap the main axis's start
-    // and end (so a `row-reverse` under `rtl` runs left to right). A
-    // mirrored axis is laid out in a mirrored frame (the item's
-    // physical end margin its start one) and flipped back across the
-    // container.
+    // and end (so a `row-reverse` under `rtl` runs left to right), and
+    // §5.2: `wrap-reverse` swaps the cross axis's. A mirrored axis is
+    // laid out in a mirrored frame (the item's physical end margin its
+    // start one) and flipped back across the container.
     let flip = AxisFlip::of(parent, direction);
-    let line = collect_main_axis_items(
-        dom,
-        children,
-        direction,
-        MainBudgets {
-            main: main_budget,
-            cross: cross_budget,
-        },
-        trim,
-        flip.main,
-    );
+    let mut items = collect_main_axis_items(dom, children, direction, budgets, trim, flip.main);
 
-    // Gap total = (n - 1) * gap.
-    let gap_total = gap.saturating_mul((children.len() as u16).saturating_sub(1));
-
-    let overlap = SiblingOverlap::new(parent, gap, direction);
-    let overlap_savings = overlap.savings(dom, children);
-
-    // §9.7: the extent the items' main sizes share — the main size less
-    // the gaps and the non-auto margins, plus the cells reclaimed by
-    // sibling-overlap.
-    let net =
-        i32::from(main_budget) - i32::from(gap_total) + i32::from(overlap_savings) - line.margins;
-    let final_main = resolve_flexible_lengths(
-        dom,
-        &line.items,
-        direction,
-        MainAxisBudget {
-            main: main_budget,
-            cross: cross_budget,
-            net,
-        },
-    );
-
-    // §9.5 step 12 / §8.1: the free space left after the flexible
-    // lengths are resolved goes to the `auto` main-axis margins — none
-    // when an item grew to take it.
-    let used: i32 = final_main.iter().map(|&n| i32::from(n)).sum();
-    let remaining = (net - used).clamp(0, i32::from(u16::MAX)) as u16;
-    let auto_main_count = line.auto_main_count;
-    let auto_margins = AutoMainMargins {
-        share: (remaining as u32).checked_div(auto_main_count).unwrap_or(0) as u16,
-        remainder: (remaining as u32).checked_rem(auto_main_count).unwrap_or(0),
+    // §9.3: a single-line container's one line holds every item.
+    let multi_line = lines::is_multi_line(parent);
+    let line_ranges = if multi_line {
+        lines::break_lines(dom, &items, direction, budgets, gap)
+    } else {
+        std::iter::once(0..items.len()).collect()
     };
+    let overlap = SiblingOverlap::new(parent, gap, direction);
 
-    place_items(
-        dom,
-        children,
-        FlexLine {
-            items: &line.items,
-            final_main: &final_main,
-            container,
+    // §9.7 per line, then each line's cross size: a single line is the
+    // container's inner cross size (§9.4 step 8); a multi-line
+    // container's lines are as large as their largest outer
+    // hypothetical cross size, stretched by `align-content: normal`
+    // (§9.4 step 15).
+    let last_line = line_ranges.len() - 1;
+    let line_trim = |k: usize| FlexTrim {
+        cross_start: trim.cross_start && (!multi_line || k == 0),
+        cross_end: trim.cross_end && (!multi_line || k == last_line),
+        ..trim
+    };
+    let mut resolved = Vec::with_capacity(line_ranges.len());
+    let mut line_cross = Vec::with_capacity(line_ranges.len());
+    for (k, range) in line_ranges.iter().enumerate() {
+        if multi_line {
+            lines::trim_line_edges(&mut items[range.clone()], trim);
+        }
+        let line = lines::resolve_line_main(
+            dom,
+            &items[range.clone()],
+            &children[range.clone()],
             direction,
+            budgets,
             gap,
-            cross_budget,
-            auto_margins,
-            overlap,
-            trim,
-            flip,
-        },
-    );
+            &overlap,
+        );
+        line_cross.push(if multi_line {
+            let t = line_trim(k);
+            items[range.clone()]
+                .iter()
+                .zip(&line.final_main)
+                .map(|(ci, &size)| {
+                    cross::hypothetical_outer_cross(
+                        dom,
+                        ci.id,
+                        container.width,
+                        CrossSpace {
+                            line: cross_budget,
+                            container: Some(cross_budget),
+                        },
+                        direction,
+                        cross::ResolvedMain {
+                            size,
+                            was_auto: ci.main_auto,
+                            trim_cross_start: t.cross_start,
+                            trim_cross_end: t.cross_end,
+                            mirror: flip.cross,
+                        },
+                    )
+                })
+                .max()
+                .unwrap_or(0)
+        } else {
+            cross_budget
+        });
+        resolved.push(line);
+    }
+    if multi_line {
+        lines::stretch_lines(&mut line_cross, cross_budget, line_gap);
+    }
+
+    let mut line_offset: i32 = 0;
+    for (k, (range, line)) in line_ranges.iter().zip(resolved).enumerate() {
+        place_items(
+            dom,
+            &children[range.clone()],
+            FlexLine {
+                items: &items[range.clone()],
+                final_main: &line.final_main,
+                container,
+                direction,
+                gap,
+                space: CrossSpace {
+                    line: line_cross[k],
+                    container: Some(cross_budget),
+                },
+                line_offset,
+                auto_margins: line.auto_margins,
+                overlap,
+                trim: line_trim(k),
+                flip,
+            },
+        );
+        line_offset += i32::from(line_cross[k]) + i32::from(line_gap);
+    }
 }
 
 /// Which of a flex container's axes run from their physical end edge
@@ -380,8 +429,10 @@ pub(super) struct AxisFlip {
     /// The main axis: a row's under `rtl` XOR `row-reverse`, a column's
     /// under `column-reverse`.
     pub(super) main: bool,
-    /// The cross axis: a column's under `rtl` (a row's cross axis, the
-    /// block axis, runs top to bottom).
+    /// The cross axis: a column's under `rtl` XOR `wrap-reverse`, a
+    /// row's under `wrap-reverse` (CSS Flexbox §5.2: cross-start and
+    /// cross-end swap; a row's cross axis, the block axis, otherwise runs
+    /// top to bottom).
     pub(super) cross: bool,
 }
 
@@ -389,14 +440,15 @@ impl AxisFlip {
     pub(super) fn of(container: &ComputedStyle, direction: Direction) -> Self {
         let rtl = super::margin_trim::inline_reversed(container);
         let reverse = container.flex_reverse;
+        let wrap_reverse = container.flex_wrap == crate::layout::FlexWrap::WrapReverse;
         match direction {
             Direction::Row => Self {
                 main: rtl != reverse,
-                cross: false,
+                cross: wrap_reverse,
             },
             Direction::Column => Self {
                 main: reverse,
-                cross: rtl,
+                cross: rtl != wrap_reverse,
             },
         }
     }

@@ -13,9 +13,7 @@ use super::value_serializers::{
     serialize_size, serialize_timing_function, serialize_transition_property,
     serialize_transition_shorthand, shortest_sides, side_value, specified,
 };
-use crate::layout::{
-    CaretColor, CaretTextColor, Direction, Position, UserSelect, WhiteSpace, ZIndex,
-};
+use crate::layout::{CaretColor, CaretTextColor, Position, UserSelect, WhiteSpace, ZIndex};
 use crate::{Content, TuiStyle};
 
 /// Serialize the named property's current value as a CSS string.
@@ -113,14 +111,21 @@ pub fn serialize(name: &str, style: &TuiStyle) -> Option<String> {
         }),
         "flex-direction" => style.direction.as_ref().and_then(specified).map(|d| {
             let reverse = style.flex_reverse.as_ref().and_then(specified) == Some(&true);
-            match (d, reverse) {
-                (Direction::Row, false) => "row",
-                (Direction::Row, true) => "row-reverse",
-                (Direction::Column, false) => "column",
-                (Direction::Column, true) => "column-reverse",
-            }
-            .to_string()
+            crate::parse::values::serialize_flex_direction(*d, reverse).to_string()
         }),
+        "flex-wrap" => style
+            .flex_wrap
+            .as_ref()
+            .and_then(specified)
+            .map(|w| crate::parse::values::serialize_flex_wrap(*w).to_string()),
+        // The shorthand serializes only when both longhands are set
+        // (CSSOM §6.7.2).
+        "flex-flow" => {
+            let d = style.direction.as_ref().and_then(specified)?;
+            let w = style.flex_wrap.as_ref().and_then(specified)?;
+            let reverse = style.flex_reverse.as_ref().and_then(specified) == Some(&true);
+            Some(crate::parse::values::serialize_flex_flow(*d, reverse, *w))
+        }
         "white-space" => style.white_space.as_ref().and_then(specified).map(|w| {
             match w {
                 WhiteSpace::Normal => "normal",

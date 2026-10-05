@@ -7,9 +7,7 @@
 use super::DispatchError;
 use super::css_wide::{css_wide_keyword, set_css_wide};
 use super::table::canonical_property_name;
-use crate::layout::{
-    CaretColor, CaretTextColor, Direction, Sides, TextDirection, UserSelect, WhiteSpace,
-};
+use crate::layout::{CaretColor, CaretTextColor, Sides, TextDirection, UserSelect, WhiteSpace};
 use crate::parse::token::Token;
 use crate::parse::values::{
     parse_aspect_ratio, parse_color, parse_content, parse_counter_ops, parse_flex_factor,
@@ -134,18 +132,22 @@ fn set_physical(name: &str, value: &[Token], style: &mut TuiStyle) -> Result<(),
             })
         }
         // CSS Flexbox §5.1: the axis, and whether its start and end swap.
-        "flex-direction" => parse_keyword(
-            value,
-            &[
-                ("row", (Direction::Row, false)),
-                ("row-reverse", (Direction::Row, true)),
-                ("column", (Direction::Column, false)),
-                ("column-reverse", (Direction::Column, true)),
-            ],
-        )
-        .map(|(d, reverse)| {
+        "flex-direction" => {
+            crate::parse::values::parse_flex_direction(value).map(|(d, reverse)| {
+                style.direction = Some(Value::Specified(d));
+                style.flex_reverse = Some(Value::Specified(reverse));
+            })
+        }
+        // CSS Flexbox §5.2.
+        "flex-wrap" => crate::parse::values::parse_flex_wrap(value).map(|w| {
+            style.flex_wrap = Some(Value::Specified(w));
+        }),
+        // CSS Flexbox §5.3: the shorthand writes all three fields, an
+        // omitted component as its initial value.
+        "flex-flow" => crate::parse::values::parse_flex_flow(value).map(|((d, reverse), w)| {
             style.direction = Some(Value::Specified(d));
             style.flex_reverse = Some(Value::Specified(reverse));
+            style.flex_wrap = Some(Value::Specified(w));
         }),
         "white-space" => parse_keyword(
             value,
