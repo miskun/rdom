@@ -191,7 +191,7 @@ row comes from.
 
 | Id | Item | Status |
 |---|---|---|
-| C9-WHITE-SPACE | `white-space: pre-line / break-spaces`; `white-space-collapse` / `text-wrap-mode` longhands | |
+| C9-WHITE-SPACE | `white-space: pre-line / break-spaces`; `white-space-collapse` / `text-wrap-mode` longhands | done |
 | C9-TEXT-WRAP | `text-wrap` / `text-wrap-style` (`balance` / `pretty` / `stable`) | |
 | C9-TEXT-ALIGN | `text-align` (incl. `start` / `end` / `justify`), `text-align-last`, `text-justify` | |
 | C9-TEXT-INDENT | `text-indent` | |
@@ -5278,3 +5278,47 @@ row comes from.
   Phase 9 gate. Open for that review: the re-place of a formatting context root beside floats is done once;
   a float's settled height reaches content after its run only; focus scrolling under an `App` is at the
   next layout (`FOCUS-FLUSH-1`).
+- 2026-10-11 — C9-WHITE-SPACE (CSS Text 4 §3, §4.1, §6.1; CSS Text 3 §3, §4.1.1–§4.1.3, §5.1; CSSOM
+  §6.7.2's shortest form). rdom-style: `white-space` is the shorthand of `white-space-collapse` (`collapse |
+  preserve | preserve-breaks | preserve-spaces | break-spaces`) and `text-wrap-mode` (`wrap | nowrap`):
+  `layout/text.rs` (`WhiteSpaceCollapse`, `TextWrapMode`, `WhiteSpace` moved there with `PreLine` /
+  `BreakSpaces`, `longhands` / `from_longhands`), the CSS Text properties grouped — `TuiStyle::text`
+  (`TextDeclarations`) and `ComputedStyle::text` (`TextStyle`, inherited whole: every CSS Text property
+  inherits, so later items add fields there and the cascade copies one group); `parse/values/text.rs`,
+  `property_dispatch/text.rs`, `tui_style/builder/text.rs`; the shorthand takes the four keywords and the
+  longhand pair in either order (an omitted one initial) and serializes as the keyword a pair spells, else
+  the non-initial longhands (`preserve-breaks nowrap`). `white-space-trim` is not parsed (DIVERGENCES §2).
+  Breaking — rdom-style (the fields, `ImportantMask::WHITE_SPACE` → two bits, the new variants). rdom-tui:
+  decided at the root — the CSS Text properties apply to text, so the packer reads each text's own values
+  (`inline/run_style.rs::RunStyle`, the text node's parent element's or the pseudo-element's computed style)
+  instead of the block's `white-space` for the whole flow; a `<span style="white-space: pre">` in a normal
+  paragraph keeps its spaces. White space processing is `inline/white_space.rs` (`classify`: collapsible,
+  forced break, preserved space / tab, control, text; `segment_break_removed`, the UA-defined
+  transformation: removed next to U+200B or between two East Asian F / W / H non-Hangul characters, Gecko's
+  rule — DIVERGENCES §2; `is_collapsible_white_space`, shared with `bears_line` and the copy serializer).
+  The packer's intake moved to `packer/intake.rs` (packer `mod.rs` 470 → 327 + `intake.rs` 229) and is
+  rebuilt on three rules: (1) a soft wrap opportunity commits the word buffer only when its text wraps — a
+  `nowrap` collapsible space sits inside the buffer as one space, so `nowrap` content is measured and placed
+  as one piece (it was placed word by word, each beside the last); the opportunity takes the
+  `text-wrap-mode` of the text before it (DIVERGENCES §2); after an atom, the next text's; (2) `pre-wrap`'s
+  opportunity is at the end of a sequence of preserved spaces (was before and after each), `break-spaces`'
+  after each; (3) Phase II — a word's trailing `pre-wrap` spaces are not measured for fit and hang
+  (`LineBox::hang`, crate-private: unconditionally at a soft wrap, at a forced break or the end only the
+  cells that overflow, `LineEnd`), placement (`rtl` start, later `text-align`) and intrinsic sizes read
+  `width - hang`, so they count for max-content and not min-content. A buffer's trailing collapsed space
+  becomes the separator after the word is placed (`commit_word` / `place_word`; the first draft made it
+  pending before placing and lost it — found by the float test below). The copy serializer collapses per
+  `white-space-collapse` (`pre-line` keeps its line feeds, `preserve-spaces` copies them as spaces).
+  Red: `css_phase9/white_space.rs` — 7 of 10 failed against the new syntax cascaded into the old packer (a
+  temporary mapping: `pre-line` as `normal`, `break-spaces` as `pre-wrap`): `a b c d` for `a b` / `c d`, `ab`
+  / ` cd` for `ab` / `cd` (the space wrapped), `ab` left in an `rtl` box for `  ab`, `a b c` for `a  b c`,
+  `aaa b b c` for `aaa b  b c`, `中文 字` for `中文字`, min-content 2 for `break-spaces` 3; the
+  `break-spaces` test passed on the old `pre-wrap` path (its rule), the longhand-combination one by the
+  mapping, the copy test by the serializer change made with the types. Green after; `white_space.rs` unit
+  tests and `property_dispatch/text_tests.rs` (written with the types, compile-red). Mutation (restored,
+  touched): no hang → two tests; the segment break kept → its test; every run styled initial → six.
+  Changed expectation, justified: `css_phase8/float/interactions.rs::text_overflow_marks_the_line_box_edge_
+  beside_a_float` laid out `ab cdefghij` (`nowrap`) beside a float because its first word fit; `nowrap` text
+  is one piece now, so CSS 2.1 §9.5 moves it below the float (`a_nowrap_line_too_wide_for_the_band_moves_
+  below_the_float` pins that) — the marking test now reaches the band window through an atom and text after
+  it that cannot wrap (`ab …   RRR`; mutation: the band window off → `ab XYZWcde`). No snapshot changed.

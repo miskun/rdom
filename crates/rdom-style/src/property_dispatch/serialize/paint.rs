@@ -1,10 +1,10 @@
 //! `serialize` for the paint and text properties: `color`, `background-color`,
-//! the font keywords, `text-decoration`, `opacity`, `white-space`,
+//! the font keywords, `text-decoration`, `opacity`,
 //! `user-select`, `pointer-events`, `visibility`, the caret colors,
 //! `color-scheme` and `content`.
 
 use super::super::value_serializers::{serialize_color, serialize_content, specified};
-use crate::layout::{CaretColor, CaretTextColor, UserSelect, WhiteSpace};
+use crate::layout::{CaretColor, CaretTextColor, UserSelect};
 use crate::{Content, TuiStyle};
 
 /// `name`'s serialization when it is one of this family's properties —
@@ -54,15 +54,6 @@ pub(super) fn serialize(name: &str, style: &TuiStyle) -> Option<Option<String>> 
         }),
 
         // Layout — keywords
-        "white-space" => style.white_space.as_ref().and_then(specified).map(|w| {
-            match w {
-                WhiteSpace::Normal => "normal",
-                WhiteSpace::Pre => "pre",
-                WhiteSpace::PreWrap => "pre-wrap",
-                WhiteSpace::NoWrap => "nowrap",
-            }
-            .to_string()
-        }),
         "user-select" => style.user_select.as_ref().and_then(specified).map(|u| {
             match u {
                 UserSelect::Auto => "auto",

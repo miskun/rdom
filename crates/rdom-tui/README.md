@@ -399,12 +399,16 @@ What's supported:
 - **Auto-height IFC blocks** grow to fit wrapped content; a fixed
   height lets overflowing lines paint on below the box (CSS `overflow:
   visible`) — `overflow: hidden` or `clip` clips them.
-- **`white-space: normal` / `pre` / `pre-wrap` / `nowrap`** —
-  `normal` collapses whitespace runs and trims IFC edges; `pre`
-  preserves whitespace and treats `\n` as a hard break (no soft
-  wrap); `pre-wrap` preserves whitespace, treats `\n` as a hard
-  break, AND soft-wraps at spaces (HTML `<textarea>` default);
-  `nowrap` collapses but never soft-wraps. Inherits.
+- **`white-space`** (`normal` / `pre` / `pre-wrap` / `pre-line` /
+  `nowrap` / `break-spaces`, CSS Text 4 §3) and its longhands
+  `white-space-collapse` and `text-wrap-mode` — per element, as they
+  apply to text: `normal` collapses whitespace runs and trims line
+  edges; `pre` preserves whitespace and treats `\n` as a hard break
+  (no soft wrap); `pre-wrap` preserves whitespace, its trailing spaces
+  hanging at a soft wrap (HTML `<textarea>` default); `pre-line`
+  collapses spaces but keeps line feeds; `break-spaces` keeps spaces
+  that take up room and wrap; `nowrap` collapses but never soft-wraps.
+  Inherits.
 - **`<br>`** — hard break.
 - **Nested inline styles compose** — `<b>bold <i>+italic</i></b>`
   contributes both modifiers to the inner span.

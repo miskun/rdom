@@ -23,7 +23,11 @@ fn initial_is_safe_defaults() {
     assert_eq!(s.display, Display::Block);
     assert_eq!(s.flow, crate::layout::Flow::Block);
     assert!(!s.establishes_new_bfc);
-    assert_eq!(s.white_space, WhiteSpace::Normal);
+    assert_eq!(s.text, crate::layout::TextStyle::default());
+    assert_eq!(
+        s.text.white_space(),
+        Some(crate::layout::WhiteSpace::Normal)
+    );
     assert_eq!(s.user_select, UserSelect::Auto);
     assert!(s.content.is_none());
     assert!(s.vars.is_empty());

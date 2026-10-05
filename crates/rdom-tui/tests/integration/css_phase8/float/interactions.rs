@@ -56,11 +56,33 @@ fn line_clamp_hides_a_float_below_the_clamp_point() {
 
 /// CSS Overflow 4 §3: `text-overflow` marks the content overflowing the
 /// end line box edge — beside a right float, the float's left edge, so
-/// the marker is not hidden under the float. (The first word fits beside
-/// the float, so the `nowrap` line stays there — CSS 2.1 §9.5 moves a
-/// line down only when nothing fits.)
+/// the marker is not hidden under the float. The line's first unbreakable
+/// piece (`ab`) fits beside the float, so the line stays there (CSS 2.1
+/// §9.5 moves a line down only when nothing fits); `nowrap` text has no
+/// soft wrap opportunity, so the atom and `cde` after it overflow the
+/// shortened line box.
 #[test]
 fn text_overflow_marks_the_line_box_edge_beside_a_float() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let c = el(&mut dom, root, "div", "c");
+    boxed(&mut dom, c, "f", "RRR");
+    text(&mut dom, c, "ab ");
+    boxed(&mut dom, c, "i", "XYZW");
+    text(&mut dom, c, "cde");
+    let css = ".c { width: 10; overflow: hidden; white-space: nowrap; \
+               text-overflow: ellipsis } .f { float: right; width: 3; height: 1 } \
+               .i { display: inline-block }";
+    let buf = paint(&mut dom, css, 10, 1);
+    assert_eq!(rows(&buf, 10, 1), ["ab …   RRR"]);
+}
+
+/// CSS 2.1 §9.5: "if a shortened line box is too small to contain any
+/// content, then the line box is shifted downward" — `nowrap` text is one
+/// unbreakable piece (CSS Text 4 §6.1: no soft wrap opportunity), so a
+/// line wider than the band beside a float moves below it.
+#[test]
+fn a_nowrap_line_too_wide_for_the_band_moves_below_the_float() {
     let mut dom = TuiDom::new();
     let root = dom.root();
     let c = el(&mut dom, root, "div", "c");
@@ -68,6 +90,6 @@ fn text_overflow_marks_the_line_box_edge_beside_a_float() {
     text(&mut dom, c, "ab cdefghij");
     let css = ".c { width: 10; overflow: hidden; white-space: nowrap; \
                text-overflow: ellipsis } .f { float: right; width: 3; height: 1 }";
-    let buf = paint(&mut dom, css, 10, 1);
-    assert_eq!(rows(&buf, 10, 1), ["ab cde…RRR"]);
+    let buf = paint(&mut dom, css, 10, 2);
+    assert_eq!(rows(&buf, 10, 2), ["       RRR", "ab cdefgh…"]);
 }

@@ -21,11 +21,12 @@ use crate::Color;
 use crate::layout::Border;
 use crate::layout::{
     CaretColor, CaretTextColor, Direction, Display, Overflow, Sides, Size, TextDecoration,
-    UserSelect, WhiteSpace,
+    UserSelect,
 };
 use crate::{Content, TuiColor, Value};
 
 pub use important::ImportantMask;
+pub use text::TextDeclarations;
 
 /// Author-written style block. Build with the fluent setters; feed
 /// into a `Stylesheet` via `rule(...)` or assign to
@@ -251,7 +252,10 @@ pub struct TuiStyle {
     /// the legacy line clamp, and serialized as written. Written by the
     /// `display` parser with the three fields above.
     pub webkit_box: Option<Value<bool>>,
-    pub white_space: Option<Value<WhiteSpace>>,
+    /// The CSS Text properties (`white-space-collapse`,
+    /// `text-wrap-mode`, …); the `white-space` shorthand writes two of
+    /// them.
+    pub text: TextDeclarations,
     pub user_select: Option<Value<UserSelect>>,
     /// CSS `pointer-events` (`auto` | `none`). Inherited.
     pub pointer_events: Option<Value<crate::layout::PointerEvents>>,
@@ -460,3 +464,4 @@ mod builder;
 mod important;
 #[cfg(test)]
 mod tests;
+mod text;

@@ -223,7 +223,13 @@ fn overflow_x_only() {
 #[test]
 fn white_space_pre() {
     let s = first_style("a { white-space: pre; }");
-    assert_eq!(s.white_space, Some(Value::Specified(WhiteSpace::Pre)));
+    // CSS Text 4 §3: the shorthand sets its two longhands.
+    let (collapse, mode) = WhiteSpace::Pre.longhands();
+    assert_eq!(
+        s.text.white_space_collapse,
+        Some(Value::Specified(collapse))
+    );
+    assert_eq!(s.text.text_wrap_mode, Some(Value::Specified(mode)));
 }
 
 #[test]

@@ -178,6 +178,9 @@ const PROPERTY_NAMES: &[&str] = &[
     "counter-increment",
     // Color adjustment (CSS Color Adjust 1)
     "color-scheme",
+    // Text (CSS Text 3 / 4)
+    "white-space-collapse",
+    "text-wrap-mode",
     // Writing modes (CSS Writing Modes 4)
     "direction",
     "writing-mode",

@@ -2,7 +2,7 @@
 //! one-value [`FlexDirection`]), `flex-wrap`,
 //! `scroll-behavior`, `box-sizing`, `direction`,
 //! `writing-mode`, `display` (outer [`Display`] and inner [`Flow`]),
-//! `white-space`, `caret-color`, `caret-text-color`, `pointer-events`,
+//! `caret-color`, `caret-text-color`, `pointer-events`,
 //! `visibility`, `user-select`, `text-decoration`, `position` and
 //! `z-index`. The Box Alignment keywords are in `alignment`.
 
@@ -253,29 +253,6 @@ impl Flow {
     pub const fn is_flex_or_grid(self) -> bool {
         matches!(self, Flow::Flex | Flow::Grid)
     }
-}
-
-/// White-space handling for text inside an inline formatting context.
-/// Matches the CSS property of the same name.
-///
-/// Inherits (IFC-wide behavior — a `<pre>` wrapper needs to affect
-/// every inline descendant). Default is `Normal`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum WhiteSpace {
-    /// Collapse whitespace runs to a single space; trim IFC edges;
-    /// allow soft wrapping at break opportunities. Default.
-    #[default]
-    Normal,
-    /// Preserve all whitespace verbatim; `\n` forces a hard break;
-    /// no soft wrapping.
-    Pre,
-    /// Preserve all whitespace verbatim AND allow soft wrapping at
-    /// break opportunities (matches HTML `<textarea>`'s default
-    /// behavior — the typed `\n` becomes a hard break, and lines
-    /// that exceed the box wrap at whitespace).
-    PreWrap,
-    /// Collapse like `Normal`; never soft-wrap. `<br>` still hard-breaks.
-    NoWrap,
 }
 
 /// CSS `caret-color` — controls the **background color** of the

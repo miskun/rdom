@@ -77,7 +77,10 @@ pub(super) fn fields_of(name: &str) -> Option<&'static [Field]> {
         "place-content" => &[AlignContent, JustifyContent],
         "place-items" => &[AlignItems, JustifyItems],
         "place-self" => &[AlignSelf, JustifySelf],
-        "white-space" => &[WhiteSpace],
+        // CSS Text 4 §3: the shorthand sets both longhands.
+        "white-space" => &[WhiteSpaceCollapse, TextWrapMode],
+        "white-space-collapse" => &[WhiteSpaceCollapse],
+        "text-wrap-mode" => &[TextWrapMode],
         "user-select" => &[UserSelect],
         "pointer-events" => &[PointerEvents],
         "visibility" => &[Visibility],

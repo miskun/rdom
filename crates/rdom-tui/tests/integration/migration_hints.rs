@@ -959,3 +959,30 @@ fn scroll_sides_and_root_hints() {
         fn _t<T: TuiTimers>() {}
     }
 }
+
+/// C9-WHITE-SPACE: `white-space` is the shorthand of
+/// `white-space-collapse` and `text-wrap-mode` (CSS Text 4 §3) — the
+/// `TuiStyle::text` / `ComputedStyle::text` groups, the builder that sets
+/// both, the two bits, and the keyword the longhands spell.
+#[test]
+fn white_space_hints() {
+    let s = TuiStyle::new().white_space(WhiteSpace::PreLine);
+    assert_eq!(
+        s.text.white_space_collapse,
+        Some(Value::Specified(WhiteSpaceCollapse::PreserveBreaks))
+    );
+    assert_eq!(
+        s.text.text_wrap_mode,
+        Some(Value::Specified(TextWrapMode::Wrap))
+    );
+    let _: &TextDeclarations = &s.text;
+    let ComputedStyle { text, .. } = ComputedStyle::initial();
+    let _: &TextStyle = &text;
+    assert_eq!(text.white_space(), Some(WhiteSpace::Normal));
+    assert_eq!(
+        WhiteSpace::BreakSpaces.longhands(),
+        (WhiteSpaceCollapse::BreakSpaces, TextWrapMode::Wrap)
+    );
+    let both = ImportantMask::WHITE_SPACE_COLLAPSE | ImportantMask::TEXT_WRAP_MODE;
+    assert!(both.intersects(ImportantMask::all()));
+}

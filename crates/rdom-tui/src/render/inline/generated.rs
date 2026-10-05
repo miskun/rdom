@@ -28,7 +28,7 @@
 use rdom_core::{Dom, NodeId, NodeType};
 
 use crate::ext::{StyleSlot, TuiExt};
-use crate::layout::{Display, Position, WhiteSpace};
+use crate::layout::{Display, Position};
 use crate::node::TuiNodeExt;
 use crate::render::box_tree::BoxItem;
 
@@ -326,14 +326,15 @@ pub(crate) fn bears_line(dom: &Dom<TuiExt>, host: NodeId, child: NodeId) -> bool
     let node = dom.node(child);
     match node.node_type() {
         NodeType::Text => {
-            let collapses = dom
+            let collapse = dom
                 .node(host)
                 .computed()
-                .is_none_or(|c| matches!(c.white_space, WhiteSpace::Normal | WhiteSpace::NoWrap));
-            !(collapses
-                && node
-                    .node_value()
-                    .is_none_or(|t| t.chars().all(char::is_whitespace)))
+                .map(|c| c.text.white_space_collapse)
+                .unwrap_or_default();
+            !node.node_value().is_none_or(|t| {
+                t.chars()
+                    .all(|c| crate::render::inline::is_collapsible_white_space(c, collapse))
+            })
         }
         NodeType::Element => crate::render::layout_pass::is_in_flow(dom, child),
         _ => false,

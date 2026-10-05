@@ -232,7 +232,7 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
         // Derived at finalization from display / position / overflow.
         establishes_new_bfc: _,
         line_clamp_container: _,
-        white_space,
+        text,
         user_select,
         pointer_events,
         visibility,
@@ -343,7 +343,7 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
         display,
         flow,
         list_item,
-        white_space,
+        text,
         user_select,
         pointer_events,
         visibility,

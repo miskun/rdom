@@ -133,7 +133,8 @@ define_fields! {
     JustifySelf => justify_self : JUSTIFY_SELF,
     TextDirection => text_direction : TEXT_DIRECTION,
     WritingMode => writing_mode : WRITING_MODE,
-    WhiteSpace => white_space : WHITE_SPACE,
+    WhiteSpaceCollapse => text.white_space_collapse : WHITE_SPACE_COLLAPSE,
+    TextWrapMode => text.text_wrap_mode : TEXT_WRAP_MODE,
     UserSelect => user_select : USER_SELECT,
     PointerEvents => pointer_events : POINTER_EVENTS,
     Visibility => visibility : VISIBILITY,
@@ -349,6 +350,8 @@ pub fn inherits(name: &str) -> bool {
             | "font-weight"
             | "font-style"
             | "white-space"
+            | "white-space-collapse"
+            | "text-wrap-mode"
             | "pointer-events"
             | "visibility"
             | "caret-color"

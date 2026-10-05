@@ -327,7 +327,7 @@ fn every_property_has_important_setter() {
         .webkit_box_orient_important(Default::default())
         .scroll_behavior_important(crate::layout::ScrollBehavior::Smooth)
         .color_scheme_important(crate::color::ColorSchemeList::normal())
-        .white_space_important(WhiteSpace::Pre)
+        .white_space_important(crate::layout::WhiteSpace::Pre)
         .user_select_important(UserSelect::None)
         .caret_color_important(CaretColor::Transparent)
         .caret_text_color_important(CaretTextColor::Auto)

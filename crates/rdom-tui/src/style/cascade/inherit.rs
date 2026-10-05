@@ -27,10 +27,11 @@ pub(super) fn inherit_inheritable_from(working: &mut ComputedStyle, parent: &Com
     // matching the web platform.
     let inherit_mods = Modifier::BOLD | Modifier::ITALIC;
     working.modifiers = parent.modifiers & inherit_mods;
-    // white_space inherits; display does not. Neither does
-    // `user-select` (CSS UI 4 §6.1): its *used* value of `auto` depends
-    // on the parent's used value, resolved in `style::user_select`.
-    working.white_space = parent.white_space;
+    // The CSS Text properties all inherit (CSS Text 3 / 4); display
+    // does not. Neither does `user-select` (CSS UI 4 §6.1): its *used*
+    // value of `auto` depends on the parent's used value, resolved in
+    // `style::user_select`.
+    working.text = parent.text.clone();
     working.pointer_events = parent.pointer_events;
     working.visibility = parent.visibility;
     // CSS UI 4 §7.1: `caret-color` inherits; rdom's `caret-text-color`
@@ -126,7 +127,7 @@ pub(super) fn layout_differs(a: &ComputedStyle, b: &ComputedStyle) -> bool {
         || a.display != b.display
         // `collapse` removes a flex item or table row from layout.
         || a.visibility != b.visibility
-        || a.white_space != b.white_space
+        || a.text != b.text
         // Positioning: the box's placement, its containing-block role,
         // and stacking all feed layout / paint order.
         || a.position != b.position

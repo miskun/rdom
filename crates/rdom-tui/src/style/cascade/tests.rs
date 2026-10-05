@@ -1006,7 +1006,10 @@ fn display_inline_via_rule() {
 fn white_space_defaults_to_normal() {
     let (mut dom, div) = dom_with_div();
     dom.cascade(&Stylesheet::bare());
-    assert_eq!(computed_of(&dom, div).white_space, WhiteSpace::Normal);
+    assert_eq!(
+        computed_of(&dom, div).text.white_space(),
+        Some(WhiteSpace::Normal)
+    );
 }
 
 #[test]
@@ -1022,9 +1025,15 @@ fn white_space_inherits() {
         Stylesheet::bare().rule_unchecked("pre", TuiStyle::new().white_space(WhiteSpace::Pre));
     dom.cascade(&sheet);
 
-    assert_eq!(computed_of(&dom, parent).white_space, WhiteSpace::Pre);
+    assert_eq!(
+        computed_of(&dom, parent).text.white_space(),
+        Some(WhiteSpace::Pre)
+    );
     // Child inherits — critical for <pre>-wrapped content.
-    assert_eq!(computed_of(&dom, child).white_space, WhiteSpace::Pre);
+    assert_eq!(
+        computed_of(&dom, child).text.white_space(),
+        Some(WhiteSpace::Pre)
+    );
 }
 
 #[test]
@@ -1041,7 +1050,10 @@ fn white_space_child_overrides_inherited() {
         .rule_unchecked("span", TuiStyle::new().white_space(WhiteSpace::Normal));
     dom.cascade(&sheet);
 
-    assert_eq!(computed_of(&dom, child).white_space, WhiteSpace::Normal);
+    assert_eq!(
+        computed_of(&dom, child).text.white_space(),
+        Some(WhiteSpace::Normal)
+    );
 }
 
 #[test]
@@ -2296,7 +2308,7 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
     use rdom_style::layout::{
         AspectRatio, Border, BorderCollapse, BorderStyle, CaretColor, CaretTextColor, Direction,
         Display, Length, Margin, MinSize, Overflow, Padding, PointerEvents, Position,
-        ScrollBehavior, ScrollbarGutter, Size, UserSelect, WhiteSpace, ZIndex,
+        ScrollBehavior, ScrollbarGutter, Size, UserSelect, ZIndex,
     };
     use rdom_style::property_dispatch::{inherits, property_names};
     use rdom_style::transition::{TimingFunction, TransitionProperty};
@@ -2364,7 +2376,8 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
     parent.clear = rdom_style::layout::Clear::Both;
     parent.scroll_behavior = ScrollBehavior::Smooth;
     parent.display = Display::Inline;
-    parent.white_space = WhiteSpace::Pre;
+    parent.text.white_space_collapse = rdom_style::layout::WhiteSpaceCollapse::Preserve;
+    parent.text.text_wrap_mode = rdom_style::layout::TextWrapMode::Nowrap;
     parent.user_select = UserSelect::None;
     parent.pointer_events = PointerEvents::None;
     parent.visibility = rdom_style::layout::Visibility::Hidden;
@@ -2481,7 +2494,18 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
         ),
         ("clear", child.clear == parent.clear),
         ("display", child.display == parent.display),
-        ("white-space", child.white_space == parent.white_space),
+        (
+            "white-space",
+            child.text.white_space() == parent.text.white_space(),
+        ),
+        (
+            "white-space-collapse",
+            child.text.white_space_collapse == parent.text.white_space_collapse,
+        ),
+        (
+            "text-wrap-mode",
+            child.text.text_wrap_mode == parent.text.text_wrap_mode,
+        ),
         ("user-select", child.user_select == parent.user_select),
         (
             "pointer-events",

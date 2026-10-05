@@ -10,9 +10,9 @@
 //! - `pre-wrap` — preserve runs + newlines, DO wrap.
 //! - `nowrap`   — collapse like normal, but do NOT wrap.
 //!
-//! The packer (`crates/rdom-tui/src/render/inline/packer/mod.rs`)
-//! reads `white_space` from the IFC block's `ComputedStyle` and
-//! switches between the four modes.
+//! The packer (`crates/rdom-tui/src/render/inline/packer/`) processes
+//! each text by its own `white-space-collapse` and `text-wrap-mode`, the
+//! longhands `white-space` sets (CSS Text 4 §3).
 
 use std::io;
 
@@ -119,10 +119,8 @@ pub fn build(dom: &mut TuiDom) -> NodeId {
         dom.set_attribute(p, "class", ws_class).unwrap();
         let t = dom.create_text_node(SAMPLE);
         dom.append_child(p, t).unwrap();
-        // SUB-2 workaround so `<p>` establishes an IFC; the
-        // packer reads `white_space` from the IFC block's
-        // computed style, so the per-class override only takes
-        // effect when the `<p>` is IFC-laid.
+        // SUB-2 workaround so `<p>` establishes an IFC (the text
+        // inherits the per-class `white-space` either way).
         let tail = dom.create_element("span");
         dom.append_child(p, tail).unwrap();
         dom.append_child(col, p).unwrap();

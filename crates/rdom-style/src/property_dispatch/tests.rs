@@ -175,6 +175,8 @@ fn canonical_values() -> &'static [(&'static str, &'static str)] {
         ("counter-reset", "chapter 0"),
         ("counter-increment", "chapter 1"),
         ("color-scheme", "light dark"),
+        ("white-space-collapse", "preserve-breaks"),
+        ("text-wrap-mode", "nowrap"),
         ("direction", "rtl"),
         ("writing-mode", "vertical-rl"),
         ("inline-size", "6"),

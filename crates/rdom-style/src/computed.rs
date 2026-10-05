@@ -8,7 +8,6 @@ use std::rc::Rc;
 
 use crate::layout::{
     Border, CaretColor, CaretTextColor, Direction, Display, Overflow, Padding, Size, UserSelect,
-    WhiteSpace,
 };
 use crate::{Color, Modifier};
 
@@ -277,9 +276,9 @@ pub struct ComputedStyle {
     /// NOT establish a new BFC. Computed at cascade finalization
     /// (last pass over the property bag).
     pub establishes_new_bfc: bool,
-    /// Whitespace handling inside an inline formatting context.
-    /// Inherits. Default `Normal`.
-    pub white_space: WhiteSpace,
+    /// The CSS Text properties — white-space processing, wrapping —
+    /// which all inherit (CSS Text 3 / 4).
+    pub text: crate::layout::TextStyle,
     /// Whether text inside this element is selectable by the user.
     /// Inherits. Default `Auto`.
     pub user_select: UserSelect,
@@ -483,7 +482,7 @@ impl ComputedStyle {
             list_item: false,
             webkit_box: false,
             establishes_new_bfc: false,
-            white_space: WhiteSpace::Normal,
+            text: crate::layout::TextStyle::default(),
             user_select: UserSelect::Auto,
             pointer_events: crate::layout::PointerEvents::Auto,
             visibility: crate::layout::Visibility::Visible,

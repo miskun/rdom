@@ -11,9 +11,10 @@
 //!    byte-offset, grapheme) tuples. Owner is the direct element
 //!    parent of the text node — for hit-test routing we need to know
 //!    which `<code>` / `<b>` / `<p>` a click lands in.
-//! 2. Normalize whitespace per the block's cascaded `white_space`
-//!    (see `packer`). `Normal` / `NoWrap` collapse runs to a single
-//!    space and trim IFC edges; `Pre` passes through verbatim.
+//! 2. Process white space per each text's own `white-space-collapse`
+//!    (`white_space`, `run_style`): collapsible runs become one space
+//!    (none at a line edge), preserved ones pass through, preserved
+//!    segment breaks force a line break.
 //! 3. Accumulate visible graphemes into a *pending word* — a run
 //!    bracketed by break opportunities (whitespace, CJK boundaries,
 //!    hyphen-after).
@@ -49,7 +50,9 @@ mod feed;
 pub(crate) mod generated;
 mod measure;
 mod packer;
+mod run_style;
 pub(crate) mod vertical;
+mod white_space;
 
 #[cfg(test)]
 mod tests;
@@ -66,9 +69,10 @@ pub use boxes::{GeneratedFragment, InlineFragment, InlineLayout, LineBox};
 pub(crate) use caret::caret_cell;
 pub use caret::cell_of_position;
 pub(crate) use caret::cells_before_byte;
-use feed::{fill_block, fill_run, white_space};
+use feed::{fill_block, fill_run};
 pub(crate) use measure::{widest_line, widest_run_line};
 use packer::LinePacker;
+pub(crate) use white_space::is_collapsible_white_space;
 
 /// True iff `id` has a populated `inline_layout` on its `TuiExt`.
 /// Singular variant of [`inline_flow_container`].
@@ -321,7 +325,7 @@ pub(crate) fn compute_inline_layout_around<'a>(
 }
 
 /// A packer for the inline formatting context of the block container
-/// `block`: its `white-space`, its lines starting at its inline-start edge
+/// `block`: its lines starting at its inline-start edge
 /// — the right one under `direction: rtl` (CSS Writing Modes 4 §2.1) —
 /// beside the floats `exclusions` describes.
 fn packer_for<'a>(
@@ -335,7 +339,7 @@ fn packer_for<'a>(
         .ext()
         .and_then(|e| e.computed.as_ref())
         .is_some_and(|c| c.text_direction == crate::layout::TextDirection::Rtl);
-    let packer = LinePacker::new(content_width, white_space(dom, block)).starting_right(rtl);
+    let packer = LinePacker::new(content_width).starting_right(rtl);
     match exclusions {
         Some(ex) => packer.around(ex),
         None => packer,
@@ -373,7 +377,7 @@ pub fn compute_inline_layout_for_run(
 
 /// The content of `host`'s `slot` pseudo-element's own box — its
 /// generated text — packed `width` cells wide in the box's `style`: its
-/// `white-space`, its lines starting at its inline-start edge.
+/// CSS Text values, its lines starting at its inline-start edge.
 pub(crate) fn pack_generated(
     dom: &Dom<TuiExt>,
     host: NodeId,
@@ -382,9 +386,9 @@ pub(crate) fn pack_generated(
     width: u16,
 ) -> InlineLayout {
     let rtl = style.text_direction == crate::layout::TextDirection::Rtl;
-    let mut packer = LinePacker::new(width, style.white_space).starting_right(rtl);
+    let mut packer = LinePacker::new(width).starting_right(rtl);
     if let Some(text) = generated::static_pseudo_text(dom, host, slot.into()) {
-        packer.push_generated(host, slot, text);
+        packer.push_generated(host, slot, text, run_style::RunStyle::of(style));
     }
     packer.finish();
     InlineLayout {

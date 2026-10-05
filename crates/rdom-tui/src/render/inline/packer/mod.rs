@@ -7,11 +7,18 @@
 //!
 //! ## State invariants
 //!
-//! - `word_buffer` holds graphemes since the last break opportunity;
-//!   it's committed on whitespace, hyphen, CJK boundary, or end.
+//! - `word_buffer` holds graphemes since the last soft wrap opportunity
+//!   that lets the line wrap (one under `text-wrap-mode: nowrap` does
+//!   not end it: its content is measured whole); it's committed at such
+//!   an opportunity (white space, hyphen, CJK boundary), an atom, a
+//!   forced break, or the end.
 //! - `pending_space` is true while a collapsed-whitespace separator
 //!   is buffered; it emits a " " fragment at the next word commit
-//!   unless we hit a wrap (leading whitespace is trimmed).
+//!   unless we hit a wrap (leading whitespace is trimmed). Collapsible
+//!   white space under `nowrap` is no opportunity, so it sits inside the
+//!   word buffer instead, collapsed to one space.
+//! - The current run's CSS Text values (`run`, a `RunStyle`) are the
+//!   text's own: each text node is pushed with its parent element's.
 //! - `emitted_any` is the global "has any visible grapheme shipped?"
 //!   flag — leading whitespace at IFC start is dropped by checking
 //!   this.
@@ -29,18 +36,16 @@
 //!
 //! ## Module layout
 //!
-//! - `mod.rs` — the packer's state and its intake: text, generated
-//!   content and hard breaks, grapheme by grapheme, with the
-//!   `white-space` and break-opportunity rules.
+//! - `mod.rs` — the packer's state, its modes, and the band floats
+//!   leave each line.
+//! - `intake` — taking text in: the white space processing rules and
+//!   the soft wrap opportunities, filling the word buffer.
 //! - `emit` — committing a word to the current line or the next,
 //!   fragments, atomic inlines, and settling and breaking lines.
 
 use rdom_core::NodeId;
-use unicode_segmentation::UnicodeSegmentation;
-use unicode_width::UnicodeWidthStr;
 
-use crate::layout::WhiteSpace;
-
+use super::run_style::RunStyle;
 use super::vertical::{AtomAt, AtomRows};
 use super::{GeneratedFragment, InlineFragment, LineBox};
 use crate::ext::PseudoSlot;
@@ -48,6 +53,7 @@ use crate::render::box_tree::BoxItem;
 use crate::render::layout_pass::float::lines::LineExclusions;
 
 mod emit;
+mod intake;
 
 /// One grapheme awaiting commit, with every piece of provenance we
 /// need to rebuild a source position later.
@@ -62,6 +68,23 @@ pub(super) struct PendingGrapheme<'a> {
     text: &'a str,
     /// Visible width of the grapheme.
     width: u16,
+    /// What white-space processing made of it.
+    kind: GraphemeKind,
+}
+
+/// What a buffered grapheme is to line breaking.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum GraphemeKind {
+    /// Text.
+    Text,
+    /// A collapsed space with no soft wrap opportunity after it (its text
+    /// is `nowrap`): removed at a line's start or end, one space between
+    /// words (CSS Text 3 §4.1.1, §4.1.2). `segment_break` as
+    /// `WhiteSpaceClass::Collapsible`'s.
+    Collapsible { segment_break: bool },
+    /// A preserved space or tab; `hangs` when it hangs at the end of a
+    /// line (CSS Text 3 §4.1.2, `RunStyle::hangs_spaces`).
+    Preserved { hangs: bool },
 }
 
 /// Provenance of a run of graphemes. Consecutive graphemes with the
@@ -91,9 +114,21 @@ impl Origin {
     }
 }
 
+/// Why a line ends — what decides how its trailing preserved spaces
+/// hang (CSS Text 3 §4.1.2).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum LineEnd {
+    /// At a soft wrap opportunity: hanging spaces hang unconditionally.
+    Soft,
+    /// At a forced break or the end of the content: they hang only
+    /// where they overflow (conditionally).
+    Forced,
+}
+
 pub(super) struct LinePacker<'a> {
     content_width: u16,
-    ws: WhiteSpace,
+    /// The CSS Text values of the text being pushed.
+    run: RunStyle,
 
     lines: Vec<LineBox>,
 
@@ -106,18 +141,27 @@ pub(super) struct LinePacker<'a> {
     /// rows (`vertical`).
     cur_atoms: Vec<(AtomAt, AtomRows)>,
     cur_line_width: u16,
+    /// The cells of preserved spaces ending the current line that hang
+    /// (CSS Text 3 §4.1.2), part of `cur_line_width`.
+    cur_hang: u16,
     /// The top row of the current line: the rows of the lines above.
     cur_top: u16,
 
-    /// Accumulated since the last break opportunity — not yet
-    /// committed to the current line.
+    /// Accumulated since the last wrapping soft wrap opportunity — not
+    /// yet committed to the current line.
     word_buffer: Vec<PendingGrapheme<'a>>,
     word_width: u16,
+    /// The line may wrap before the word buffer's content: false when it
+    /// follows an atom in `nowrap` text.
+    buffer_wraps: bool,
 
     /// A collapsed whitespace is buffered between the last committed
     /// content and the pending word. Emit a single space before the
     /// word when we commit (if the word stays on the same line).
     pending_space: bool,
+    /// The pending separator holds a segment break, which the segment
+    /// break transformation rules may remove (CSS Text 3 §4.1.3).
+    pending_segment_break: bool,
 
     /// Source provenance of the whitespace that produced
     /// `pending_space`. Used as the separator fragment's
@@ -125,6 +169,15 @@ pub(super) struct LinePacker<'a> {
     /// and "<b>bold</b>" routes to the enclosing `<p>` (the
     /// whitespace's text-node parent) rather than to `<b>`.
     pending_space_source: Option<(Origin, usize)>,
+
+    /// The last character of text taken in: the context the segment
+    /// break transformation rules read.
+    last_char: Option<char>,
+    /// Whether the text last taken in wraps (`text-wrap-mode`), which
+    /// governs the soft wrap opportunity after it.
+    last_wraps: bool,
+    /// An atom was the last thing placed.
+    after_atom: bool,
 
     /// Whether any visible grapheme has been emitted yet in this IFC.
     /// False = at IFC start; suppresses leading whitespace.
@@ -149,20 +202,26 @@ pub(super) struct LinePacker<'a> {
 }
 
 impl<'a> LinePacker<'a> {
-    pub(super) fn new(content_width: u16, ws: WhiteSpace) -> Self {
+    pub(super) fn new(content_width: u16) -> Self {
         Self {
             content_width,
-            ws,
+            run: RunStyle::default(),
             lines: Vec::new(),
             cur_fragments: Vec::new(),
             cur_generated: Vec::new(),
             cur_atoms: Vec::new(),
             cur_line_width: 0,
+            cur_hang: 0,
             cur_top: 0,
             word_buffer: Vec::new(),
             word_width: 0,
+            buffer_wraps: true,
             pending_space: false,
+            pending_segment_break: false,
             pending_space_source: None,
+            last_char: None,
+            last_wraps: true,
+            after_atom: false,
             emitted_any: false,
             measuring: false,
             exclusions: None,
@@ -171,7 +230,6 @@ impl<'a> LinePacker<'a> {
             rtl: false,
         }
     }
-
     /// Start each line at the right edge of its band — the inline-start
     /// edge under `direction: rtl` (CSS Writing Modes 4 §2.1, CSS Text 3
     /// §7.1's `start`) — a line wider than it overflowing the left edge.
@@ -245,10 +303,10 @@ impl<'a> LinePacker<'a> {
     /// lines' widths are all that is read, so an atom's rows are not
     /// measured, and its containing block's width — the size being
     /// computed — is a cyclic percentage basis, 0 (§5.2.1).
-    pub(super) fn measuring(content_width: u16, ws: WhiteSpace) -> Self {
+    pub(super) fn measuring(content_width: u16) -> Self {
         Self {
             measuring: true,
-            ..Self::new(content_width, ws)
+            ..Self::new(content_width)
         }
     }
 
@@ -266,205 +324,4 @@ impl<'a> LinePacker<'a> {
     pub(super) fn take_lines(&mut self) -> Vec<LineBox> {
         std::mem::take(&mut self.lines)
     }
-
-    /// Feed a whole text-node's string in one shot. Walks graphemes
-    /// with byte-precise source tracking.
-    pub(super) fn push_text(&mut self, owner: NodeId, text_node: NodeId, text: &'a str) {
-        self.push_str(Origin::text(owner, text_node), text);
-    }
-
-    /// Feed a host's static `::before` / `::after` content (CSS 2.1
-    /// §12.1: an inline box, the host's first / last child). It packs,
-    /// collapses and wraps like text, but lands in
-    /// [`LineBox::generated`](super::LineBox::generated).
-    pub(super) fn push_generated(&mut self, host: NodeId, slot: PseudoSlot, text: &'a str) {
-        let origin = Origin {
-            owner: host,
-            text_node: host,
-            generated: Some(slot),
-        };
-        self.push_str(origin, text);
-    }
-
-    fn push_str(&mut self, origin: Origin, text: &'a str) {
-        let mut source_offset = 0usize;
-        for g in text.graphemes(true) {
-            self.push_grapheme(origin, source_offset, g);
-            source_offset += g.len();
-        }
-    }
-
-    /// Force a line break. Pushes any pending word and breaks the
-    /// current line. Used by `<br>` and by `\n` under
-    /// `WhiteSpace::Pre`.
-    pub(super) fn push_hard_break(&mut self, _owner: NodeId) {
-        if !self.word_buffer.is_empty() {
-            self.commit_word();
-        }
-        self.pending_space = false;
-        self.pending_space_source = None;
-        // Always emit a line — even an empty current line becomes a
-        // blank row. Matches `<p>a<br><br>b</p>` producing three
-        // rows ("a", blank, "b").
-        self.break_line();
-    }
-
-    fn push_grapheme(&mut self, origin: Origin, source_offset: usize, g: &'a str) {
-        let first = g.chars().next().unwrap_or(' ');
-
-        // Control characters require per-mode handling.
-        if first.is_control() {
-            match self.ws {
-                // Pre and PreWrap both preserve newlines as hard
-                // breaks and convert tabs to a single space; only
-                // their wrap behavior on regular whitespace differs.
-                WhiteSpace::Pre | WhiteSpace::PreWrap => match g {
-                    "\n" | "\r\n" => {
-                        self.push_hard_break(origin.owner);
-                        return;
-                    }
-                    "\r" => return,
-                    "\t" => {
-                        // Tab → single space (tab-stop columns are a
-                        // separate feature).
-                        self.word_buffer.push(PendingGrapheme {
-                            origin,
-                            source_offset,
-                            text: " ",
-                            width: 1,
-                        });
-                        self.word_width = self.word_width.saturating_add(1);
-                        return;
-                    }
-                    _ => return,
-                },
-                _ => {
-                    // Normal / NoWrap: collapse to a single space
-                    // separator (same as any ASCII whitespace).
-                    if !self.word_buffer.is_empty() {
-                        self.commit_word();
-                    }
-                    if self.emitted_any {
-                        self.pending_space = true;
-                        self.pending_space_source = Some((origin, source_offset));
-                    }
-                    return;
-                }
-            }
-        }
-
-        let w = UnicodeWidthStr::width(g) as u16;
-        if w == 0 {
-            // Combining marks / ZWJ fragments we don't handle standalone.
-            return;
-        }
-
-        match self.ws {
-            WhiteSpace::Pre => {
-                // Verbatim: preserve spaces/tabs. No soft-break
-                // opportunities.
-                self.word_buffer.push(PendingGrapheme {
-                    origin,
-                    source_offset,
-                    text: g,
-                    width: w,
-                });
-                self.word_width = self.word_width.saturating_add(w);
-            }
-            WhiteSpace::PreWrap => {
-                // Preserve whitespace verbatim (like Pre) AND create a
-                // soft-break opportunity at each ASCII space (like
-                // Normal). CJK width-2 graphemes also break either
-                // side (same as Normal). Hyphens break-after.
-                if g == " " {
-                    if !self.word_buffer.is_empty() {
-                        self.commit_word();
-                    }
-                    self.word_buffer.push(PendingGrapheme {
-                        origin,
-                        source_offset,
-                        text: " ",
-                        width: 1,
-                    });
-                    self.word_width = self.word_width.saturating_add(1);
-                    self.commit_word();
-                } else if w == 2 {
-                    if !self.word_buffer.is_empty() {
-                        self.commit_word();
-                    }
-                    self.word_buffer.push(PendingGrapheme {
-                        origin,
-                        source_offset,
-                        text: g,
-                        width: w,
-                    });
-                    self.word_width = self.word_width.saturating_add(w);
-                    self.commit_word();
-                } else {
-                    self.word_buffer.push(PendingGrapheme {
-                        origin,
-                        source_offset,
-                        text: g,
-                        width: w,
-                    });
-                    self.word_width = self.word_width.saturating_add(w);
-                    if g == "-" {
-                        self.commit_word();
-                    }
-                }
-            }
-            WhiteSpace::Normal | WhiteSpace::NoWrap => {
-                if is_collapsible_whitespace(g) {
-                    // Break boundary: commit the pending word; mark a
-                    // pending space so the NEXT word emits a leading
-                    // space (unless we're at IFC start).
-                    if !self.word_buffer.is_empty() {
-                        self.commit_word();
-                    }
-                    if self.emitted_any {
-                        self.pending_space = true;
-                        self.pending_space_source = Some((origin, source_offset));
-                    }
-                    return;
-                }
-
-                // CJK (width-2) graphemes: each is its own "word"
-                // with break opportunities on both sides.
-                if w == 2 {
-                    if !self.word_buffer.is_empty() {
-                        self.commit_word();
-                    }
-                    self.word_buffer.push(PendingGrapheme {
-                        origin,
-                        source_offset,
-                        text: g,
-                        width: w,
-                    });
-                    self.word_width = self.word_width.saturating_add(w);
-                    self.commit_word();
-                    return;
-                }
-
-                // Hyphen: break-after.
-                self.word_buffer.push(PendingGrapheme {
-                    origin,
-                    source_offset,
-                    text: g,
-                    width: w,
-                });
-                self.word_width = self.word_width.saturating_add(w);
-                if g == "-" {
-                    self.commit_word();
-                }
-            }
-        }
-    }
-}
-
-/// Whitespace characters collapsed under `WhiteSpace::Normal` /
-/// `NoWrap`. Matches CSS: ASCII space, tab, LF, CR (plus CRLF as a
-/// grapheme cluster). NBSP (U+00A0) is NOT collapsed.
-#[inline]
-fn is_collapsible_whitespace(grapheme: &str) -> bool {
-    matches!(grapheme, " " | "\t" | "\n" | "\r" | "\r\n")
 }

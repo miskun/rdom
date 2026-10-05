@@ -7,7 +7,7 @@
 use super::DispatchError;
 use super::css_wide::{css_wide_keyword, set_css_wide};
 use super::table::canonical_property_name;
-use crate::layout::{CaretColor, CaretTextColor, Sides, TextDirection, UserSelect, WhiteSpace};
+use crate::layout::{CaretColor, CaretTextColor, Sides, TextDirection, UserSelect};
 use crate::parse::token::Token;
 use crate::parse::values::{
     parse_aspect_ratio, parse_color, parse_content, parse_counter_ops, parse_flex_factor,
@@ -87,6 +87,7 @@ fn set_physical(name: &str, value: &[Token], style: &mut TuiStyle) -> Result<(),
         .or_else(|| super::scrollbar::set(name, value, style))
         .or_else(|| super::scroll::set(name, value, style))
         .or_else(|| super::grid::set(name, value, style))
+        .or_else(|| super::text::set(name, value, style))
     {
         return outcome.ok_or(DispatchError::InvalidValue);
     }
@@ -191,18 +192,6 @@ fn set_physical(name: &str, value: &[Token], style: &mut TuiStyle) -> Result<(),
             style.direction = Some(Value::Specified(d));
             style.flex_reverse = Some(Value::Specified(reverse));
             style.flex_wrap = Some(Value::Specified(w));
-        }),
-        "white-space" => parse_keyword(
-            value,
-            &[
-                ("normal", WhiteSpace::Normal),
-                ("pre", WhiteSpace::Pre),
-                ("pre-wrap", WhiteSpace::PreWrap),
-                ("nowrap", WhiteSpace::NoWrap),
-            ],
-        )
-        .map(|w| {
-            style.white_space = Some(Value::Specified(w));
         }),
         "user-select" => parse_keyword(
             value,

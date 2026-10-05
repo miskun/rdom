@@ -7,20 +7,31 @@
 use rdom_core::{Dom, NodeId, NodeType};
 
 use super::packer::LinePacker;
+use super::run_style::RunStyle;
 use super::{RunPseudos, generated, vertical};
 use crate::ext::{PseudoSlot, StyleSlot, TuiExt};
-use crate::layout::WhiteSpace;
 use crate::node::TuiNodeExt;
 use crate::render::box_tree::BoxItem;
 
-/// The `white-space` of the block container `id`, whose inline
-/// formatting context it governs.
-pub(super) fn white_space(dom: &Dom<TuiExt>, id: NodeId) -> WhiteSpace {
-    dom.node(id)
+/// The CSS Text values of the text directly in the element `owner`:
+/// its computed ones (they apply to text, CSS Text 3 §3).
+pub(super) fn run_of(dom: &Dom<TuiExt>, owner: NodeId) -> RunStyle {
+    dom.node(owner)
         .ext()
         .and_then(|e| e.computed.as_ref())
-        .map(|c| c.white_space)
-        .unwrap_or(WhiteSpace::Normal)
+        .map(|c| RunStyle::of(c))
+        .unwrap_or_default()
+}
+
+/// The CSS Text values of `host`'s `slot` pseudo-element's text.
+pub(super) fn pseudo_run(dom: &Dom<TuiExt>, host: NodeId, slot: PseudoSlot) -> RunStyle {
+    let node = dom.node(host);
+    match slot {
+        PseudoSlot::Before => node.computed_before(),
+        PseudoSlot::After => node.computed_after(),
+    }
+    .map(RunStyle::of)
+    .unwrap_or_default()
 }
 
 /// Feed `block`'s whole inline content to `packer`: its `::before`, its
@@ -46,7 +57,8 @@ fn push_pseudo<'a>(
     if slot == PseudoSlot::Before {
         for item in generated::deferred_markers(dom, host) {
             if let Some(text) = generated::static_pseudo_text(dom, item, StyleSlot::Before) {
-                packer.push_generated(item, PseudoSlot::Before, text);
+                let run = pseudo_run(dom, item, PseudoSlot::Before);
+                packer.push_generated(item, PseudoSlot::Before, text, run);
             }
         }
     }
@@ -67,7 +79,9 @@ fn push_pseudo_box<'a>(
     floats: bool,
 ) {
     match kind {
-        generated::InlinePseudo::Text(text) => packer.push_generated(host, slot, text),
+        generated::InlinePseudo::Text(text) => {
+            packer.push_generated(host, slot, text, pseudo_run(dom, host, slot));
+        }
         generated::InlinePseudo::Atom => push_generated_atom(dom, host, slot, packer),
         generated::InlinePseudo::Float if floats => {
             push_float(dom, BoxItem::Generated(host, slot), packer);
@@ -119,7 +133,7 @@ pub(super) fn fill_run<'a>(
         match child.node_type() {
             NodeType::Text => {
                 if let Some(data) = child.node_value() {
-                    packer.push_text(owner, child_id, data);
+                    packer.push_text(owner, child_id, data, run_of(dom, owner));
                 }
             }
             NodeType::Element => {
@@ -165,7 +179,7 @@ fn walk_subtree<'a>(dom: &'a Dom<TuiExt>, id: NodeId, packer: &mut LinePacker<'a
                 // Owner is `id` — the direct element parent. Text
                 // node's id goes in too for source-offset tracking.
                 if let Some(data) = child.node_value() {
-                    packer.push_text(id, child.id(), data);
+                    packer.push_text(id, child.id(), data, run_of(dom, id));
                 }
             }
             NodeType::Element => {

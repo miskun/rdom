@@ -60,6 +60,7 @@ pub(crate) use numeric::{
 pub use numeric::{MAX_ANGLE_DEGREES, parse_angle};
 mod shadow;
 mod spacing;
+mod text;
 mod transition;
 
 pub use align::{
@@ -130,6 +131,7 @@ pub use spacing::{
     parse_gap, parse_gap_shorthand, parse_margin_longhand, parse_margin_shorthand,
     parse_margin_trim, parse_padding_shorthand, parse_padding_value,
 };
+pub use text::{parse_text_wrap_mode, parse_white_space, parse_white_space_collapse};
 pub use transition::{
     TransitionShorthandRule, parse_animatable_property, parse_time_list, parse_time_ms,
     parse_timing_function_at, parse_timing_function_keyword, parse_timing_function_list,

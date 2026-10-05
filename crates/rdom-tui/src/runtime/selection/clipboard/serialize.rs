@@ -38,7 +38,7 @@
 use rdom_core::{Dom, NodeId, NodeType, Range};
 
 use crate::ext::TuiExt;
-use crate::layout::{Display, MarginValue, UserSelect, WhiteSpace};
+use crate::layout::{Display, MarginValue, UserSelect, WhiteSpaceCollapse};
 use crate::runtime::selection::user_select;
 
 /// The rendered text of `range`. Empty when the range is collapsed or
@@ -164,19 +164,25 @@ impl Walk<'_> {
             crate::render::visibility::shows(dom, p.id(), crate::ext::StyleSlot::Host)
         });
         let copyable = used != UserSelect::None && shown;
-        let collapsible = dom
+        let collapse = dom
             .node(id)
             .parent_element()
             .and_then(|p| p.ext().and_then(|e| e.computed.as_ref()))
-            .is_none_or(|c| matches!(c.white_space, WhiteSpace::Normal | WhiteSpace::NoWrap));
+            .map(|c| c.text.white_space_collapse)
+            .unwrap_or_default();
         for (i, ch) in data.char_indices() {
             if ends_here && i >= to {
                 // Past the end: the rest is lookahead.
                 self.out.selection_ended();
             }
             let selected = copyable && i >= from && i < to;
-            if collapsible {
+            // CSS Text 4 §4.1.1: collapsible white space per
+            // `white-space-collapse`; a preserved segment break is a
+            // forced line break, or a space under `preserve-spaces`.
+            if crate::render::inline::is_collapsible_white_space(ch, collapse) {
                 self.out.collapsible(ch, selected);
+            } else if ch == '\n' && collapse == WhiteSpaceCollapse::PreserveSpaces {
+                self.out.preserved(' ', selected);
             } else {
                 self.out.preserved(ch, selected);
             }

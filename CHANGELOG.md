@@ -42,6 +42,7 @@ Each Breaking bullet below ends with its migration, and the [API table](#api-cha
 27. **A relatively positioned box is laid out in flow, then shifted** (CSS 2.1 §9.4.3): its subtree is laid out where the box is in flow and moved with it, so a float inside it excludes the next paragraph's lines at the unshifted place. (C8-FLOAT)
 28. **Overflowing text paints over what follows it** (CSS 2.1 Appendix E): a block's text running past it into a float or a later block now shows over the float's and the block's backgrounds (it was covered by them). (C8G-PAINT-PHASES)
 29. **An overflowing `rtl` line hangs off the left edge** (CSS Text 3 §7.1): a line wider than its `rtl` block starts at the right edge and overflows the left one, reached with a negative `scrollLeft` (it started at the left edge and overflowed the right). (C8-RTL-LINE-OVERFLOW)
+30. **`white-space` applies to each element's text, and `pre-wrap` spaces hang** (CSS Text 3 §3, §4.1): a `<span>`'s own `white-space` now governs its text inside a block of another (the block's governed every line); spaces ending a soft-wrapped `pre-wrap` line (a `<textarea>`'s) stay on it, hanging past the edge, where they used to wrap to the start of the next line; a `nowrap` line too wide for the room beside a float moves below it (it is one unbreakable piece); and a line feed between two Chinese or Japanese characters joins them without a space. (C9-WHITE-SPACE)
 
 **Compile breaks** — what a 0.5 consumer must change, by kind (the API table has each item):
 
@@ -49,7 +50,7 @@ Each Breaking bullet below ends with its migration, and the [API table](#api-cha
 - **Opaque `ImportantMask`**: `contains` / `|` / `&` instead of `bits()` and matching.
 - **Per-side longhand fields**: `TuiStyle::margin` / `padding` / `border_style` / `border_color` / `border_width` / `border_radius` are `Sides` / `Corners` of `Option<Value<…>>`; build with `.margin(m)` / `.margin_left(v)`, test with `.each()`.
 - **Typed values**: `MinSize` / `MaxSize` for `min-*` / `max-*`, `f32` flex factors, `i64` integer tokens, `AspectRatio` behind accessors, `row_gap` / `column_gap`, `FlexBasis`.
-- **New variants to match**: `Value` (`Revert`, `RevertLayer`), `Overflow::Clip`, `Color::Rgba`, `TuiColor` (`CurrentColor`, `Function`, `System`), `Display::Contents`, `Flow::FlowRoot`, `Flow::Grid`, the `Align` keywords — and `Align` is `#[non_exhaustive]` (a `_` arm).
+- **New variants to match**: `Value` (`Revert`, `RevertLayer`), `Overflow::Clip`, `Color::Rgba`, `TuiColor` (`CurrentColor`, `Function`, `System`), `Display::Contents`, `Flow::FlowRoot`, `Flow::Grid`, `WhiteSpace::{PreLine, BreakSpaces}`, the `Align` keywords — and `Align` is `#[non_exhaustive]` (a `_` arm).
 - **New fields on style records**: build `TuiStyle` / `ComputedStyle` with `TuiStyle::new()` / `ComputedStyle::initial()`; a destructuring pattern adds `..`.
 - **Layout records are `#[non_exhaustive]`**: `LineBox`, `InlineFragment`, `GeneratedFragment` and `AnonymousIfc` are built by constructor.
 - **Removed helpers**: `parse_unsigned`, `round_half_to_even`, `Content::Attr`.
@@ -103,6 +104,8 @@ One row per renamed or reshaped public item: the 0.5 form, its replacement, the 
 | `ZIndex::Value(i16)` | `ZIndex::Value(i32)` (`n.into()` from an `i16`) | C8-Z-INDEX | `z_index_hints` |
 | exhaustive `match` on `Overflow` | add the arm `Overflow::Clip` | C8-OVERFLOW-CLIP | `overflow_hints` |
 | `ScrollbarGutter::{Auto, Stable}` | `+ StableBothEdges`; `is_stable()`, `both_edges()`, `keyword()` | C8-SCROLLBAR | `scrollbar_hints` |
+| `TuiStyle::white_space: Option<Value<WhiteSpace>>`; `ComputedStyle::white_space: WhiteSpace`; `ImportantMask::WHITE_SPACE` | `TuiStyle::text` (`TextDeclarations`: `white_space_collapse`, `text_wrap_mode`); `ComputedStyle::text` (`TextStyle`; `text.white_space()` for the keyword); `WHITE_SPACE_COLLAPSE \| TEXT_WRAP_MODE`; the `white_space(…)` builder unchanged | C9-WHITE-SPACE | `white_space_hints` |
+| exhaustive `match` on `WhiteSpace` | add `WhiteSpace::{PreLine, BreakSpaces}` | C9-WHITE-SPACE | `white_space_hints` |
 
 #### `rdom-tui`
 
@@ -163,6 +166,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Breaking — `rdom-style`
 
+- **`white-space` is the shorthand of `white-space-collapse` and `text-wrap-mode`** (CSS Text 4 §3): `TuiStyle::white_space` is replaced by `TuiStyle::text` (`TextDeclarations`, one field per CSS Text longhand), `ComputedStyle::white_space` by `ComputedStyle::text` (`TextStyle`, inherited whole), and `ImportantMask::WHITE_SPACE` by `WHITE_SPACE_COLLAPSE` / `TEXT_WRAP_MODE`; `WhiteSpace` (moved to `layout/text.rs`, still `rdom_style::layout::WhiteSpace`) gains `PreLine` and `BreakSpaces`. Migration: `style.white_space` → `style.text.white_space_collapse` / `text_wrap_mode`; `computed.white_space` → `computed.text.white_space()` (the keyword the longhands spell, `None` for a pair no keyword names); `.white_space(WhiteSpace::Pre)` still sets both; an exhaustive `match` on `WhiteSpace` adds the two arms. (C9-WHITE-SPACE)
 - **`scroll-padding-*` / `scroll-margin-*` are `Sides`**, as `margin` / `padding` are: `TuiStyle::scroll_padding` / `scroll_margin` (`Sides<Option<Value<…>>>`) and `ComputedStyle::scroll_padding` (`Sides<ScrollPadding>`) / `scroll_margin` (`Sides<i16>`) replace the four loose fields each (added after 0.5). Migration: `style.scroll_padding_top` → `style.scroll_padding.top`; the `scroll_padding_top(…)` builders are unchanged. (C8G-API-TYPES)
 - **`ScrollbarGutter` gains `StableBothEdges`** (`scrollbar-gutter: stable both-edges`, CSS Overflow 3 §3.3), and `is_stable()` / `both_edges()` / `keyword()`; it moved to `layout/scrollbar.rs` (still `rdom_style::layout::ScrollbarGutter`). Migration: an exhaustive `match` adds the variant — or asks `is_stable()` where it matched `Stable`. (C8-SCROLLBAR)
 - **`Overflow` has a `Clip` variant** (CSS Overflow 3 §3.1): an exhaustive `match` adds the arm. (C8-OVERFLOW-CLIP)
@@ -229,6 +233,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Added — `rdom-style`
 
+- **`white-space-collapse` and `text-wrap-mode`** (CSS Text 4 §4.1, §6.1), and `white-space: pre-line | break-spaces` with the longhand pair form (`preserve nowrap`): `WhiteSpaceCollapse`, `TextWrapMode`, `WhiteSpace::longhands` / `from_longhands` / `keyword`, `TextStyle` / `TextDeclarations`, the builders, `parse_white_space` / `parse_white_space_collapse` / `parse_text_wrap_mode`; `white-space` serializes as its shortest form. (C9-WHITE-SPACE)
 - `TuiStyle::webkit_box` / `ComputedStyle::webkit_box`: whether `display` was the Compat Standard's `-webkit-box` / `-webkit-inline-box` (written by the `display` parser with its other fields; serialized as written), and `parse::values::is_legacy_box`. (C8G-WEBKIT-CLAMP)
 - **`scroll-snap-type`, `scroll-snap-align`, `scroll-snap-stop`** (CSS Scroll Snap 1 §5–§6): `ScrollSnapType` (`None`, `Snap(ScrollSnapAxis, ScrollSnapStrictness)`), `ScrollSnapAxis` (`physical()`), `ScrollSnapStrictness`, `ScrollSnapAlign { block, inline }` of `SnapAlign`, `ScrollSnapStop`, the `TuiStyle` / `ComputedStyle` fields and builders, `parse_scroll_snap_type` / `_align` / `_stop`. (C8-SNAP)
 - **`scroll-padding` and `scroll-margin`** (CSS Scroll Snap 1 §4): the shorthands, the `-top` / `-right` / `-bottom` / `-left` longhands and the flow-relative longhands and shorthands — `ScrollPadding` (`Auto`, `Length(PaddingValue)`, `resolve`), `TuiStyle::scroll_padding_*` / `scroll_margin_*` with their builders, `ComputedStyle::scroll_padding_*` / `scroll_margin_*` (`i16` cells), `parse_scroll_padding(_shorthand)` / `parse_scroll_margin(_shorthand)`. (C8-SCROLL-PADDING)
@@ -379,6 +384,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Added — `rdom-tui`
 
+- **The white space processing rules, per element** (CSS Text 3 §4.1): `pre-line` keeps line feeds and collapses spaces, `preserve-spaces` turns line feeds into spaces, `break-spaces` keeps spaces that take up room with a soft wrap opportunity after each, `pre-wrap` spaces hang at a soft wrap and hang only where they overflow before a forced break (so they count for max-content, not min-content), `nowrap` text is measured and placed as one piece, and a collapsible line feed between two East Asian wide characters is removed; copy (HTML §3.2.7) follows the same collapsing. (C9-WHITE-SPACE)
 - **README: "Floats and text overflow"**, a doctested example — a `.media` float beside its text, the clearfix, a `.truncate` line ending in `…`, a `line-clamp: 2` block — and where floats float (in a `<body>`, not among the document root's children). (C8G-DOCS)
 - **The Phase 8 value types at the root**: `Float`, `FloatSide`, `Clear`, `OverflowClipMargin`, `TextOverflow`, `TextOverflowSide`, `BlockEllipsis`, `Continue`, `BoxOrient`, `ScrollbarGutter`, `ScrollbarWidth`, `ScrollbarColor`, `OverscrollBehavior`, `ScrollPadding`, the snap values (`ScrollSnapType`, `ScrollSnapAxis`, `ScrollSnapStrictness`, `SnapAlign`, `ScrollSnapAlign`, `ScrollSnapStop`) and `ZIndex` (they were reached through `rdom_tui::layout`); `FocusOptions` and `TuiTimers` at the root and in the prelude (`request_animation_frame` on an event context needs the trait in scope). (C8G-API-TYPES)
 - **`FocusOptions` and `focus_with`** (HTML `focus(options)`): `node.focus_with(FocusOptions::new().prevent_scroll(true))` focuses without scrolling the element into view; `runtime::focus::focus_node_with_options` is the runtime's form. (C8G-FOCUS-SCROLL)

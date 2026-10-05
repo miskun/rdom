@@ -122,7 +122,7 @@ pub(super) fn finalize_unusual_contents(working: &mut ComputedStyle, tag: Option
 }
 
 /// Apply one `TuiStyle` to `working`, for one ladder pass. Paints +
-/// layout + display + white_space all in one pass.
+/// layout + display + text all in one pass.
 pub(super) fn apply_style(
     working: &mut ComputedStyle,
     colors: &mut ElementColors,
@@ -280,7 +280,8 @@ pub(super) fn apply_style(
         flow: FLOW,
         list_item: LIST_ITEM,
         webkit_box: WEBKIT_BOX,
-        white_space: WHITE_SPACE,
+        text.white_space_collapse: WHITE_SPACE_COLLAPSE,
+        text.text_wrap_mode: TEXT_WRAP_MODE,
         user_select: USER_SELECT,
         pointer_events: POINTER_EVENTS,
         visibility: VISIBILITY,

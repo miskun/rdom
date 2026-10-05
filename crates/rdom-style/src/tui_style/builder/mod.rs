@@ -3,13 +3,14 @@
 //! border and shadow setters are in `decoration`, the sizing ones
 //! (`width` / `height`, `min-*` / `max-*`, `aspect-ratio`) in `sizing`,
 //! the margin and padding ones in `spacing`, the flex and box-alignment
-//! ones in `flex`, the scrolling and scrollbar ones in `scroll`.
+//! ones in `flex`, the scrolling and scrollbar ones in `scroll`, the CSS Text ones in
+//! `text`.
 
 use super::{ImportantMask, TuiStyle};
 #[allow(unused_imports)]
 use crate::layout::{
     Border, CaretColor, CaretTextColor, Direction, Display, Overflow, Padding, Sides, Size,
-    TextDecoration, UserSelect, WhiteSpace,
+    TextDecoration, UserSelect,
 };
 use crate::{Content, TuiColor, Value};
 
@@ -79,6 +80,7 @@ mod grid;
 mod scroll;
 mod sizing;
 mod spacing;
+mod text;
 
 impl TuiStyle {
     pub fn fg(mut self, color: impl Into<TuiColor>) -> Self {
@@ -357,14 +359,6 @@ impl TuiStyle {
         box_sizing_important,
         BOX_SIZING,
         crate::layout::BoxSizing
-    );
-    setter!(
-        "white-space",
-        white_space,
-        white_space,
-        white_space_important,
-        WHITE_SPACE,
-        WhiteSpace
     );
     setter!(
         "user-select",

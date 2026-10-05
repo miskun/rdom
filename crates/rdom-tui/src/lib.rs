@@ -86,8 +86,8 @@ pub use layout::{
     PaintLength, RepeatCount, RepeatStyle, ScrollPadding, ScrollSnapAlign, ScrollSnapAxis,
     ScrollSnapStop, ScrollSnapStrictness, ScrollSnapType, ScrollbarColor, ScrollbarGutter,
     ScrollbarWidth, Sides, Size, SnapAlign, TextDirection, TextOverflow, TextOverflowSide,
-    TrackBreadth, TrackList, TrackListItem, TrackRepeat, TrackSize, UserSelect, Visibility,
-    VisualBox, WhiteSpace, WritingMode, ZIndex,
+    TextStyle, TextWrapMode, TrackBreadth, TrackList, TrackListItem, TrackRepeat, TrackSize,
+    UserSelect, Visibility, VisualBox, WhiteSpace, WhiteSpaceCollapse, WritingMode, ZIndex,
 };
 pub use node::{TuiNodeExt, TuiNodeMutExt};
 /// `@import` resolution for the document's `<style>` sheets
@@ -125,7 +125,8 @@ pub use style::{
     Content, ContentContext, CustomValue, DirtyTracker, ImportantMask, LayerId, Modifier,
     PropertyRegistration, PropertySyntax, PropertySyntaxError, PseudoElementTarget,
     RegisterPropertyError, Rule, RuleContext, RuleOrigin, Specificity, StyleError, StyleSelector,
-    Stylesheet, SystemColor, TuiColor, TuiStyle, Value, VarMap, parse_color, resolve_tui_color,
+    Stylesheet, SystemColor, TextDeclarations, TuiColor, TuiStyle, Value, VarMap, parse_color,
+    resolve_tui_color,
 };
 
 /// `Dom<TuiExt>` — the full TUI document.

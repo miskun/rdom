@@ -254,6 +254,10 @@ pub struct LineBox {
     /// box — `None` when no float shortens it, its line box the content
     /// box's width.
     pub(crate) band: Option<(i32, u16)>,
+    /// The cells of preserved spaces at the end of the line that hang
+    /// (CSS Text 3 §4.1.2), part of `width`: not measured when the line
+    /// is placed or measured for an intrinsic size.
+    pub(crate) hang: u16,
 }
 
 impl Default for LineBox {
@@ -267,6 +271,7 @@ impl Default for LineBox {
             height: 1,
             baseline: 0,
             band: None,
+            hang: 0,
         }
     }
 }
@@ -342,6 +347,7 @@ mod tests {
             height,
             baseline: 0,
             band: None,
+            hang: 0,
         }
     }
 

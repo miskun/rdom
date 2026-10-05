@@ -23,6 +23,7 @@
 //! - `grid_placement` — grid item placement (`GridLine`, `GridAutoFlow`)
 //! - `sides` — `Sides`, the per-side shape
 //! - `background` — the background longhands' keyword families
+//! - `text` — the CSS Text values (`white-space-collapse`, …) and `TextStyle`
 
 pub(crate) mod alignment;
 mod background;
@@ -42,6 +43,7 @@ mod sides;
 mod sizing;
 #[cfg(test)]
 mod sizing_tests;
+mod text;
 
 pub use alignment::{Align, AlignProperty, Alignment, OverflowAlign};
 pub use background::{BackgroundAttachment, BackgroundRepeat, BoxShadow, RepeatStyle, VisualBox};
@@ -60,7 +62,7 @@ pub use grid_placement::{GridAutoFlow, GridLine};
 pub use keywords::{
     BoxSizing, CaretColor, CaretTextColor, Direction, Display, FlexDirection, FlexWrap, Flow,
     PointerEvents, Position, ScrollBehavior, TextDecoration, TextDirection, UserSelect, Visibility,
-    WhiteSpace, WritingMode, ZIndex,
+    WritingMode, ZIndex,
 };
 pub use line_clamp::{BlockEllipsis, BoxOrient, Continue};
 pub use overflow::{Overflow, OverflowClipMargin, TextOverflow, TextOverflowSide};
@@ -77,3 +79,4 @@ pub use sizing::{
     AspectRatio, ContainIntrinsicSize, FlexBasis, GapValue, IntrinsicSize, Length, MaxSize,
     MinSize, Size, valid_flex_factor,
 };
+pub use text::{TextStyle, TextWrapMode, WhiteSpace, WhiteSpaceCollapse};
