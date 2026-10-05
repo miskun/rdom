@@ -97,12 +97,10 @@ pub(super) fn size_grid(
             .map(|p| span_size(&extents, p.columns.start, p.columns.end))
             .collect();
         // §11.5 step 1: the baseline-aligned items' shims count toward
-        // their rows — a subgrid is stretched, so not one of them.
-        let baselines: Vec<_> = baseline::shims(dom, computed, placed, &areas)
-            .into_iter()
-            .zip(&grid.subgrids)
-            .map(|(s, sub)| s.filter(|_| !sub.any()))
-            .collect();
+        // their rows — a subgrid is stretched, so not one of them, and is
+        // not measured for one: its size takes the tracks its parent has
+        // not laid out yet (C7G-MEMO-PURITY).
+        let baselines = baseline::shims(dom, computed, placed, &areas, |k| !grid.subgrids[k].any());
         if let Some(fixed) = fixed(Dimension::Rows) {
             return (fixed, baselines);
         }

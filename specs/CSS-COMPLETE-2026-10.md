@@ -4109,3 +4109,25 @@ row comes from.
   layout (`template.rs:93`, index out of bounds). Green after. Mutation: no validity check for the
   template in `apply_grid` → the index panic again (reverted, touched). DESIGN's clamp-or-panic
   paragraph names the grid builders and the cascade check.
+- 2026-10-09 — C7G-MEMO-PURITY (architect N3): the per-pass intrinsic memo (`intrinsic::memo`)
+  promised that what it holds is pure within a pass, but `grid::content_size` takes a subgrid's
+  inherited tracks from its parent's `grid_lines` (`subgrid::from_parent`), which the parent's
+  `arrange` writes during the pass; and `size_grid` measured every baseline-aligned item for a shim
+  (`baseline::shims` → `arrange::baseline_size` → `intrinsic_size`), subgrids included, before
+  dropping theirs. So a subgrid was measured before its parent's lines existed and the memo served
+  that size to the parent's arrangement. Two changes, each at its root: (1) `shims` takes an
+  `aligns(k)` predicate and does not measure a subgrid at all (CSS Grid 2 §9: it is stretched, in no
+  baseline-sharing group — the existing rule, now applied before the measurement); (2) the memo
+  never stores a size that reads pass-written state: `grid::reads_parent_lines` (a grid container
+  with a `subgrid` template, `subgrid::styled_axes`, now shared with `axes` and `from_parent`) skips
+  the table, and `memo.rs` states the exception — the second table, keyed by the inherited tracks,
+  stays pure. Red: `css_phase7/subgrid.rs::a_baseline_grids_subgrid_is_right_on_the_first_frame` —
+  the scenario of the report, the subgrid `(0, 0, 6, 2)` for `(0, 0, 6, 1)`;
+  `memo_tests::a_subgrids_size_is_not_memoized_across_its_parents_lines` — measured with no parent
+  lines (2) and again after they are written in the same pass, 2 for 1;
+  `grid::cost_tests::a_baseline_grid_measures_no_shim_for_its_subgrid` — 9 `size_grid` calls for
+  `align-items: baseline` against 5 for `start`. Green after. Mutation (each fix stashed alone,
+  restored and touched): without (1) the cost test fails (9 for 5) while the first-frame test passes
+  (the memo no longer keeps the shim's size); without (2) the memo test fails and the first-frame test
+  passes (no early measurement). `nested_subgrids_are_sized_a_bounded_number_of_times` still pins 2 +
+  2 × depth. No snapshot changed.

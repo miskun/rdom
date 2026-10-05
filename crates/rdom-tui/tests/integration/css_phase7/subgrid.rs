@@ -255,3 +255,19 @@ fn a_subgrid_orders_its_tracks_by_its_own_direction() {
     assert_eq!(at("rtl"), [(17, 3), (12, 5), (8, 4)]);
     assert_eq!(at("ltr"), [(8, 4), (12, 5), (17, 3)]);
 }
+
+/// C7G-MEMO-PURITY — §9 with §10.4: a baseline-aligned grid's subgrid
+/// (stretched, so in no baseline group) takes its parent's two columns
+/// from the first frame: `ab` and `cd` sit side by side and the subgrid
+/// is one row tall. Measuring it for a baseline shim before its parent
+/// had laid out its lines memoized it as one column, two rows.
+#[test]
+fn a_baseline_grids_subgrid_is_right_on_the_first_frame() {
+    let at = lay(
+        ".g { display: grid; grid-template-columns: 3 3; align-items: baseline } \
+         .s { display: grid; grid-column: 1 / 3; grid-template-columns: subgrid }",
+        &[("g", ROOT, ""), ("s", 0, ""), ("", 1, "ab"), ("", 1, "cd")],
+    );
+    assert_eq!(at[1], (0, 0, 6, 1), "the subgrid");
+    assert_eq!((at[2], at[3]), ((0, 0, 3, 1), (3, 0, 3, 1)), "its items");
+}

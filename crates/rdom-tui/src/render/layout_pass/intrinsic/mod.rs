@@ -294,14 +294,16 @@ fn content_size(
     // each measured on the Column axis again (its height and its
     // baseline), so unmemoized nested atoms cost a walk per level per
     // enclosing level.
-    let key = (
+    // A subgrid's size takes its parent's laid-out tracks, which are
+    // written during the pass: measured each time, never memoized.
+    let key = (!super::grid::reads_parent_lines(computed)).then_some((
         id,
         direction == Direction::Row,
         measure == Measure::MaxContent,
         cross_budget,
         containing_block_width,
-    );
-    if let Some(v) = memo::get(dom, key) {
+    ));
+    if let Some(v) = key.and_then(|key| memo::get(dom, key)) {
         return v;
     }
     #[cfg(test)]
@@ -318,7 +320,9 @@ fn content_size(
         containing_block_width,
         measure,
     );
-    memo::put(dom, key, value);
+    if let Some(key) = key {
+        memo::put(dom, key, value);
+    }
     value
 }
 

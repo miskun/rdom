@@ -9,6 +9,13 @@
 //! drops it at the end: nothing is memoized across passes, or outside
 //! one (the tree may have changed since). Document data, so `TuiExt`
 //! carries nothing for it.
+//!
+//! One size is not pure within a pass: a subgrid's (CSS Grid 2 §9) takes
+//! its parent's laid-out tracks (`grid::subgrid::from_parent`), which the
+//! parent's arrangement writes during the pass. It is never put in the
+//! first table (`grid::reads_parent_lines`, C7G-MEMO-PURITY); the second
+//! keys a subgrid's size by the tracks it inherits, so what it holds is
+//! pure again.
 
 use std::cell::RefCell;
 use std::collections::HashMap;

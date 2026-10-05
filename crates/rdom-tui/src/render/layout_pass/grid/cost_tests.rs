@@ -138,8 +138,8 @@ fn re_resolution_is_bounded_to_once_an_axis() {
 
 /// How many `size_grid` calls one layout pass makes for a grid holding a
 /// chain of `depth` column subgrids, each the next's parent, the
-/// innermost holding two text items.
-fn nested_subgrid_calls(depth: usize) -> usize {
+/// innermost holding two text items; `.g` styled `g` as well.
+fn nested_subgrid_calls(depth: usize, g_css: &str) -> usize {
     let mut dom = TuiDom::new();
     let root = dom.root();
     let g = dom.create_element("div");
@@ -158,10 +158,10 @@ fn nested_subgrid_calls(depth: usize) -> usize {
         let t = dom.create_text_node(text);
         dom.append_child(e, t).unwrap();
     }
-    let sheet = rdom_css::from_css_strict(
-        ".g { display: grid; grid-template-columns: auto auto } \
-         .s { grid-column: 1 / 3; display: grid; grid-template-columns: subgrid }",
-    )
+    let sheet = rdom_css::from_css_strict(&format!(
+        ".g {{ display: grid; grid-template-columns: auto auto; {g_css} }} \
+         .s {{ grid-column: 1 / 3; display: grid; grid-template-columns: subgrid }}"
+    ))
     .expect("sheet parses");
     dom.cascade(&sheet);
     RUNS.with(|r| r.borrow_mut().clear());
@@ -180,6 +180,24 @@ fn nested_subgrid_calls(depth: usize) -> usize {
 #[test]
 fn nested_subgrids_are_sized_a_bounded_number_of_times() {
     for depth in 0..7 {
-        assert_eq!(nested_subgrid_calls(depth), 2 + 2 * depth, "depth {depth}");
+        assert_eq!(
+            nested_subgrid_calls(depth, ""),
+            2 + 2 * depth,
+            "depth {depth}"
+        );
     }
+}
+
+/// C7G-MEMO-PURITY — CSS Grid 2 §10.4 / §11.5 step 1: a subgrid is
+/// stretched, so in no baseline-sharing group, and a baseline-aligned
+/// parent does not measure it for a shim (a measurement with tracks the
+/// parent has not laid out yet, thrown away): `align-items: baseline`
+/// sizes no more grids than `start`, which measures the subgrid's height
+/// once as it arranges it, as `baseline` does.
+#[test]
+fn a_baseline_grid_measures_no_shim_for_its_subgrid() {
+    assert_eq!(
+        nested_subgrid_calls(1, "align-items: baseline"),
+        nested_subgrid_calls(1, "align-items: start")
+    );
 }

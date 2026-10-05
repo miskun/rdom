@@ -35,19 +35,25 @@ pub(super) struct Shim {
     pub(super) height: u16,
 }
 
-/// Each of `placed`'s items' shim (`None` when it is not baseline-aligned),
-/// the items in grid areas of `widths` (each area's width, by item) of
-/// the grid container styled `container`.
+/// Each of `placed`'s items' shim (`None` when it is not baseline-aligned,
+/// or `aligns(k)` is false for the `k`th — not measured at all), the
+/// items in grid areas of `widths` (each area's width, by item) of the
+/// grid container styled `container`.
 pub(super) fn shims(
     dom: &Dom<TuiExt>,
     container: &ComputedStyle,
     placed: &[Placed],
     widths: &[u16],
+    aligns: impl Fn(usize) -> bool,
 ) -> Vec<Option<Shim>> {
     let measured: Vec<Option<(bool, usize, BaselineBox)>> = placed
         .iter()
         .zip(widths)
-        .map(|(p, &width)| {
+        .enumerate()
+        .map(|(k, (p, &width))| {
+            if !aligns(k) {
+                return None;
+            }
             let c = p.item.computed(dom);
             let value = if c.align_self.keyword == Align::Auto {
                 container.align_items.keyword

@@ -120,3 +120,46 @@ fn nested_baseline_rows_measure_each_subtree_once() {
         assert!(n <= depth + 1, "{depth} levels: {n} walks");
     }
 }
+
+/// C7G-MEMO-PURITY — the memo holds only what is pure within the pass.
+/// A subgrid's size takes its parent's laid-out tracks (CSS Grid 2 §9),
+/// which the parent writes during the pass, so it is measured each time,
+/// never served: measured before the parent's lines exist (one `auto`
+/// column, `ab` over `cd`: 2 rows) and again after (the parent's two
+/// columns: 1 row) in the same pass, the second answer is the lines'.
+#[test]
+fn a_subgrids_size_is_not_memoized_across_its_parents_lines() {
+    use crate::layout::Direction;
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let el = |dom: &mut TuiDom, parent, class: &str, text: &str| {
+        let id = dom.create_element("div");
+        dom.set_attribute(id, "class", class).unwrap();
+        dom.append_child(parent, id).unwrap();
+        if !text.is_empty() {
+            let t = dom.create_text_node(text);
+            dom.append_child(id, t).unwrap();
+        }
+        id
+    };
+    let g = el(&mut dom, root, "g", "");
+    let s = el(&mut dom, g, "s", "");
+    el(&mut dom, s, "", "ab");
+    el(&mut dom, s, "", "cd");
+    let parsed = rdom_css::parse(
+        ".g { display: grid; grid-template-columns: 3 3 } \
+         .s { display: grid; grid-column: 1 / 3; grid-template-columns: subgrid; \
+         align-self: start }",
+    );
+    dom.cascade(&parsed.stylesheet);
+    dom.layout_dom(Rect::new(0, 0, 20, 10));
+    let lines = dom.node_mut(g).ext_mut().unwrap().grid_lines.take();
+    assert!(lines.is_some(), "the parent's lines");
+
+    super::begin_pass(&mut dom);
+    let height = |dom: &TuiDom| super::intrinsic_size(dom, s, Direction::Column, 6, 6);
+    assert_eq!(height(&dom), 2, "no parent lines yet: one column");
+    dom.node_mut(g).ext_mut().unwrap().grid_lines = lines;
+    assert_eq!(height(&dom), 1, "the parent's two columns");
+    super::end_pass(&mut dom);
+}

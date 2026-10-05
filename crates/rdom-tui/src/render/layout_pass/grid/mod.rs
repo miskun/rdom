@@ -220,6 +220,14 @@ pub(super) fn layout_grid_children(
     arrange::arrange(dom, id, computed, grid, container)
 }
 
+/// Whether a box styled `c` may size with its parent grid's laid-out
+/// tracks (§9: a grid container with a `subgrid` template) — layout state
+/// its parent writes during the pass, so its content size is not pure
+/// within one and is never memoized (`intrinsic::memo`, C7G-MEMO-PURITY).
+pub(in crate::render::layout_pass) fn reads_parent_lines(c: &ComputedStyle) -> bool {
+    subgrid::styled_axes(c).any()
+}
+
 /// Whether the grid container `id`'s height is definite (CSS Grid 2
 /// §11.1, CSS Sizing 3 §4.1): a length, a percentage of a definite
 /// height, or — its height `auto` — the size its flex or grid container

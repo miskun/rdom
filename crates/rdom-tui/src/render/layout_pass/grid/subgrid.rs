@@ -68,7 +68,16 @@ pub(super) fn axes(dom: &Dom<TuiExt>, item: &Item) -> SubAxes {
         return SubAxes::default();
     };
     let c = item.computed(dom);
-    if c.flow != Flow::Grid || matches!(c.position, Position::Absolute | Position::Fixed) {
+    if matches!(c.position, Position::Absolute | Position::Fixed) {
+        return SubAxes::default();
+    }
+    styled_axes(&c)
+}
+
+/// The axes a box styled `c` subgrids when it is an in-flow item of a
+/// grid: a grid container's whose template is `subgrid` (§9).
+pub(super) fn styled_axes(c: &ComputedStyle) -> SubAxes {
+    if c.flow != Flow::Grid {
         return SubAxes::default();
     }
     SubAxes {
@@ -303,10 +312,7 @@ pub(super) fn from_parent(dom: &Dom<TuiExt>, id: NodeId, c: &ComputedStyle) -> I
             )),
         }
     };
-    let sub = SubAxes {
-        columns: c.grid_template_columns.subgrid().is_some(),
-        rows: c.grid_template_rows.subgrid().is_some(),
-    };
+    let sub = styled_axes(c);
     Inherit {
         columns: sub.columns.then(|| axis(Dimension::Columns, columns)),
         rows: sub.rows.then(|| axis(Dimension::Rows, rows)),
