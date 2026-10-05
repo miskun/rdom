@@ -5,7 +5,7 @@
 use rdom_core::{Dom, NodeId, NodeType};
 
 use crate::ext::TuiExt;
-use crate::layout::{IntrinsicSize, LayoutRect, Length, Position, Size};
+use crate::layout::{IntrinsicSize, LayoutRect, Length, Position, Size, clamp_size};
 use crate::node::TuiNodeExt;
 use crate::style::ComputedStyle;
 
@@ -109,6 +109,15 @@ fn compute_placed_rect(
             None => intrinsic_size(dom, id, Direction::Row, cb.width, cb.width),
         },
     );
+    // CSS 2.1 §10.4: the tentative width clamped by `max-width`, then
+    // `min-width`, measured as `box-sizing` says (an absolutely
+    // positioned box's containing block is definite).
+    let kw = Keywords::new(dom, id, c, Direction::Row, cb.height, cb.width);
+    let width = kw.sizer().floor(clamp_size(
+        width,
+        kw.min(&c.min_width, Some(cb.width), cb.width),
+        kw.max(&c.max_width, Some(cb.width), cb.width),
+    ));
     // A keyword height is the content height at the resolved width
     // (CSS Sizing 3 §3.1), the shrink-to-fit height.
     let height = resolve_size_axis(
@@ -120,6 +129,13 @@ fn compute_placed_rect(
         cb.height,
         |_, _| intrinsic_size(dom, id, Direction::Column, width, cb.width),
     );
+    // CSS 2.1 §10.7, the same for the height.
+    let kw = Keywords::new(dom, id, c, Direction::Column, width, cb.width);
+    let height = kw.sizer().floor(clamp_size(
+        height,
+        kw.min(&c.min_height, Some(cb.height), cb.height),
+        kw.max(&c.max_height, Some(cb.height), cb.height),
+    ));
 
     // M5.3b — absolute element centering via `margin: auto` between
     // resolved insets. CSS rule: when both axis insets are `Cells`

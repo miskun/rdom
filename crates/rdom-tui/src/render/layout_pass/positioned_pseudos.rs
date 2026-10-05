@@ -26,7 +26,7 @@ use rdom_core::{Dom, NodeId, NodeType};
 use unicode_width::UnicodeWidthStr;
 
 use crate::ext::{PseudoLayout, TuiExt};
-use crate::layout::{Display, LayoutRect, Position};
+use crate::layout::{Display, LayoutRect, Position, clamp_size};
 use crate::render::layout_pass::box_sizing::Sizer;
 use crate::style::ComputedStyle;
 
@@ -281,6 +281,51 @@ fn compute_placed_rect(
         cb.height,
         |_, _| intrinsic_h,
     );
+    // CSS 2.1 §10.4 / §10.7: clamped by `max-*`, then `min-*`; a keyword
+    // bound is the content's size, as a keyword size is.
+    let bound = |sizer: Sizer, cells: Option<u16>, keyword: bool, content: u16| {
+        if keyword {
+            Some(content)
+        } else {
+            sizer.outer_opt(cells)
+        }
+    };
+    let (hs, vs) = (
+        Sizer::horizontal(style, cb.width),
+        Sizer::vertical(style, cb.width),
+    );
+    let basis_w = Some(cb.width);
+    let basis_h = Some(cb.height);
+    let width = hs.floor(clamp_size(
+        width,
+        bound(
+            hs,
+            style.min_width.cells(basis_w),
+            style.min_width.intrinsic().is_some(),
+            intrinsic_w,
+        ),
+        bound(
+            hs,
+            style.max_width.cells(basis_w),
+            style.max_width.intrinsic().is_some(),
+            intrinsic_w,
+        ),
+    ));
+    let height = vs.floor(clamp_size(
+        height,
+        bound(
+            vs,
+            style.min_height.cells(basis_h),
+            style.min_height.intrinsic().is_some(),
+            intrinsic_h,
+        ),
+        bound(
+            vs,
+            style.max_height.cells(basis_h),
+            style.max_height.intrinsic().is_some(),
+            intrinsic_h,
+        ),
+    ));
 
     if style.position == Position::Relative {
         // Relative pseudo: natural anchor is the host's start edge

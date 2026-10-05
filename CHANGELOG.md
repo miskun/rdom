@@ -247,6 +247,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Double and single border lines meet in Unicode's mixed glyphs.** A corner or junction where a `double` side meets a single one drew the dominant side's set for the whole cell (`border-style: double solid` had `╔` corners over single verticals); it now draws `╒╓╕╖╘╙╛╜╞╟╡╢╤╥╧╨╪╫` as the lines require. A heavy line meeting a double one has no glyph and keeps the dominant rule (DIVERGENCES §2). (C4G-MIXED-CORNERS)
 - A box is never smaller than its padding and border: the content box is floored at zero (CSS UI 3 §3.1), so `box-sizing: border-box; width: 0; border: solid` draws a 2 × 2 box (it drew nothing) and a `max-*`, a flex shrink or a narrow containing block no longer squeezes a box under its border. (C5-BOX-SIZING)
+- **`min-*` / `max-*` clamp absolutely positioned boxes and pseudo-elements** (CSS 2.1 §10.4 / §10.7): the placed width and height ignored both. (C5-POS-MINMAX)
 
 ### Changed — `rdom-showcase`
 

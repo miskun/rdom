@@ -244,3 +244,19 @@ fn node_setter_and_accessor_drive_box_sizing() {
     lay_out(&mut dom, "", 30, 12);
     assert_eq!(size(&dom, b).0, 8);
 }
+
+/// CSS 2.1 §10.4 / §10.7 apply to absolutely positioned boxes too: the
+/// tentative width / height is clamped by `max-*`, then `min-*` — each
+/// measured as `box-sizing` says (found by C5-INTRINSIC: positioned boxes
+/// ignored both).
+#[test]
+fn positioned_boxes_honour_min_and_max() {
+    let (dom, b) = one(
+        ".b { position: absolute; top: 0; left: 0; width: 10; max-width: 4; height: 1; min-height: 3 }",
+    );
+    assert_eq!(size(&dom, b), (4, 3));
+    let (dom, b) = one(
+        ".b { position: absolute; top: 0; left: 0; right: 0; bottom: 0; max-width: 6; max-height: 2; border: solid }",
+    );
+    assert_eq!(size(&dom, b), (6 + 2, 2 + 2));
+}

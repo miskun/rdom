@@ -66,3 +66,20 @@ fn a_declared_width_wins_over_both_insets() {
     ));
     assert_eq!((r.x, r.width, r.height), (2, 3, 1));
 }
+
+/// CSS 2.1 §10.4 / §10.7: a positioned pseudo-element's size is clamped
+/// by `max-*`, then `min-*`, as a positioned element's is; a keyword
+/// bound is the content's size (DIVERGENCES §2).
+#[test]
+fn a_positioned_pseudo_honours_min_and_max() {
+    let r = after_rect(&format!(
+        "{HOST} .h::after {{ position: absolute; left: 0; top: 0; \
+         width: 8; max-width: 3; height: 1; min-height: 2; content: \"x\" }}"
+    ));
+    assert_eq!((r.width, r.height), (3, 2));
+    let r = after_rect(&format!(
+        "{HOST} .h::after {{ position: absolute; left: 0; right: 0; top: 0; \
+         max-width: max-content; content: \"abcd\" }}"
+    ));
+    assert_eq!(r.width, 4);
+}

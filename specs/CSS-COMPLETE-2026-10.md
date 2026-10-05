@@ -1452,3 +1452,11 @@ row comes from.
   No existing expectation changed; no snapshot changed. Split (`block/mod.rs` was 739 lines and is
   touched): `block/place.rs` (139, `BlockPlace` / `lay_out_block_child`) and `block/runs.rs` (117, run
   partitioning); `mod.rs` 501.
+- 2026-10-07 — C5-POS-MINMAX (found by C5-INTRINSIC, a fix between items): an absolutely positioned
+  box's placed width / height ignored `min-*` / `max-*` (CSS 2.1 §10.4 / §10.7 apply to it), as did a
+  positioned pseudo-element's. `compute_placed_rect` now clamps the tentative width by `max-width`, then
+  `min-width` (through `Keywords`, so `box-sizing` and the keywords apply), before the height is
+  measured at it, then the height the same way; pseudo-elements clamp through their `Sizer`, a keyword
+  bound being the content string's size (DIVERGENCES §2). Red: `positioned_boxes_honour_min_and_max`
+  gave (10, 1) for `width: 10; max-width: 4; height: 1; min-height: 3`; green after, with
+  `a_positioned_pseudo_honours_min_and_max`. No existing expectation changed.
