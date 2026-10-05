@@ -37,7 +37,7 @@ the commit that lands it (`done <sha>`), and the log at the end records phase ga
 | 5 | Box model and sizing (incl. logical properties) | done 2026-10-07 (both gates; 19 gate fixes `C5G-*`; their re-review rides with the Phase 6 gate; C5-CONTAIN-SIZE use with C14-CONTAIN) |
 | 6 | Display, visibility, flexbox, box alignment | done 2026-10-08 (both gates; 28 gate fixes `C6G-*`; their re-review rides with the Phase 7 gate) |
 | 7 | Grid | done 2026-10-09 (both gates; 15 gate fixes `C7G-*`; their re-review rides with the Phase 8 gate) |
-| 8 | Positioning, floats, overflow, scrolling | items done 2026-10-05; the architect and API gates (with the `C7G-*` re-review) pending |
+| 8 | Positioning, floats, overflow, scrolling | gates run 2026-10-10; `C8G-*` fixes in progress |
 | 9 | Inline text and decoration | |
 | 10 | Lists, counters, generated content, pseudo-elements | |
 | 11 | Selectors | |
@@ -4858,3 +4858,31 @@ row comes from.
   / 46, 103 rows Partial / Missing. ACID: tile 13 lists the new overflow and scrollbar features, a
   tile 19 for floats is proposed, and an interactive step I11 for snapping, overscroll and focus
   scrolling. Open: TECH_DEBT `SCROLLPORT-1` (found by C8-OVERSCROLL). The phase's gates are next.
+- 2026-10-10 — Phase 8 gates (with the C7G re-review: all 15 at the root). Architect: 3 blocking —
+  clearance does not stop parent / first-child top-margin collapsing (§8.3.1, §9.5.2); re-snap after
+  layout undoes every scroll that bypasses `snap()` (smooth steps, thumb drag, autoscroll, caret
+  reveal); SCROLLPORT-1 makes a scroller's end unreachable with block padding or a horizontal bar (four
+  port notions; recommended one `scrollport` + one `scrollable_overflow` in `layout_pass`). API: 4
+  blocking — clearfix (`::after{content:"";display:block;clear:both}`) makes no box (pseudos are inline
+  text only, empty content dropped, clearance elements only); `-webkit-box` + `-webkit-line-clamp`
+  followed by `line-clamp` resets `continue` and lays out as a flex row; a scroller holding only
+  abspos content measures its extent from the box's own top (`scrollHeight` 1 vs 21); snap areas
+  taller than the snapport skip their middle (§6.2.3). Non-blocking: abspos-overflow rerun can paint an
+  unconverged frame (and up to six layouts per frame with resnap / reveal); focus scrolling fires on
+  pointer paths (tree row, dialog return), no `preventScroll`, stale rects in handlers; `float/measure.rs`
+  a third block-flow model (adds margins, ignores box-sizing / clamp); per-element cost of floats /
+  resnap / text-overflow marking / clamp_point for content that uses none; line-clamp missing from
+  `ClipEdges` and the extent, `clamp_point` counts nested padding; float paint order needs a two-pass
+  in-flow paint (backgrounds → floats → inline content); FC boxes dodge floats with a pre-layout
+  height, packer-placed floats never settle, `float::rewind` dead?; duplicate `is_float` /
+  `containing_scroller`; rtl caret off-screen clamps to column 0; files (`router/mouse/mod.rs` 592,
+  `block/mod.rs` 577, `apply.rs` 565); atom max-content without shrink-to-fit undocumented; upgrade
+  guide misses five silent changes (focus scroll, abspos widening scrollers, stable gutter on hidden,
+  relative in-flow-then-shift, rtl overflow); flex container `text-overflow` ellipsis browsers do not
+  draw; `-webkit-box` without clamp reads back `flex`; `contain` on non-overflowing box blocks chaining;
+  a non-moving mandatory snap chains; inherited `scrollbar-color` disabling `::scrollbar` undocumented;
+  DESIGN misses 8 types, two wildcard arms on closed `Overflow`, no root re-exports, scroll padding /
+  margin loose fields not `Sides`; the focus README snippet needs `TuiTimers`; stale counts / docs /
+  README; ACID gaps; README floats + ellipsis example wanted. Accepted: four float simplifications
+  (tell consumers to wrap content in `<body>`), keyboard not chaining, abspos stale-state handling.
+  Full reports: `target/claude-logs/c8_gate_{architect,api}.md`. Fix as `C8G-*`, two batches.
