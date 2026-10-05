@@ -4917,3 +4917,22 @@ row comes from.
   floor), `nested_scroll_overflow` (4 → 10). No snapshot changed. DIVERGENCES: the "gutter between the
   content box and the padding" entry is gone (now CSS's); new: a flex / grid item's margin is not in the
   area (§2.2 counts it).
+- 2026-10-10 — C8G-ABSPOS-EXTENT (API B3, architect N1). The extent half — a scroller holding only
+  `top: 20` content measures from its scroll origin (`scrollHeight` 21, scrollable to 16) — landed with
+  C8G-SCROLLPORT, whose scrollable overflow area grows only away from the origin (its two tests are
+  `abspos_overflow.rs`'s). This entry is the convergence half. Found: `layout_dom` ran phases 1–2 at most
+  twice, so a reach whose own scrollbar changed it was painted unconverged — a positioned 20 × 10
+  `overflow: auto` box holding `left: 0; right: 0; height: 30`: run 2 adds the vertical bar, the box is
+  then 19 wide, the settle's "changed" was dropped, and the frame showed a 20-wide area in a 19-wide
+  scrollport (`scroll_range().x()` `0..=1`) until something else laid out. Decision: the minimal fix the
+  gate named — request a relayout — paints the bad frame first; the root fix — placing the boxes a
+  scroller contains before it records its extent — makes phase 1 depend on phase 2's containing blocks,
+  a restructuring out of proportion with a one-column error. Chosen: a third run
+  (`positioned_overflow::MAX_ROUNDS` = 3) — run 2 sees the new reach, run 3 the reach run 2's scrollbar
+  moved; a reach still changing after that flips a bar on and off (a cycle a browser also cuts) and is
+  kept for the next layout. `reachable` (the side of a scroller's content that counts) now starts at its
+  scrollport, as the area does. Cost pin: `runtime/app/layout_runs_tests.rs` — a frame with a new
+  positioned box that narrows itself, a snap target moved by an insertion and a typed line to reveal
+  runs phases 1–2 five times (3 rounds, the re-snap's, the reveal's), and at most 3 × `MAX_ROUNDS`. Red:
+  `cost_tests::a_reach_its_own_scrollbar_changes_converges_in_one_layout` — `0..=1` for `0..=0` (2 runs);
+  green after (3, then 1 on the next layout). No test expectation or snapshot changed.

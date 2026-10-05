@@ -465,6 +465,8 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Fixed — `rdom-tui`
 
+- **A frame is laid out to convergence when a positioned box's scrollbar changes its own reach**: a `left: 0; right: 0` box whose height adds a vertical bar is narrowed by it, and layout now runs phases 1–2 a third time, so the frame no longer shows a one-column horizontal scroll until the next layout. (C8G-ABSPOS-EXTENT)
+
 - **The end of every scroller is reachable**: one scrollport (the padding box less the gutters) and one scrollable overflow area (the scrollport ∪ the content plus its end padding, from the scroll origin) serve layout, wheel, keys, scrollbar, `scrollTo`, `scrollIntoView`, focus and snapping; `top: 20` alone in a scroller is reachable. (C8G-SCROLLPORT, C8G-ABSPOS-EXTENT)
 
 - **A relatively positioned box is laid out where it is in flow, then moved** (CSS 2.1 §9.4.3: "without affecting the layout of surrounding boxes"): its subtree was laid out in the shifted box, so a float in it excluded the next paragraph's lines at the shifted position. (C8-FLOAT)

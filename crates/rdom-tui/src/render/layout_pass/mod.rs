@@ -100,6 +100,8 @@ mod items;
 pub(crate) mod line_clamp;
 mod margin_trim;
 mod positioned_overflow;
+#[cfg(test)]
+pub(crate) use positioned_overflow::MAX_ROUNDS;
 mod positioned_pseudos;
 mod positioning;
 mod scroll_extent;
@@ -165,15 +167,20 @@ impl LayoutExt for Dom<TuiExt> {
             viewport.width,
             viewport.height,
         );
-        // Passes 1–2 run once more when the absolutely positioned
-        // boxes' reach into their scroll containers changed
+        // Passes 1–2 run again while the absolutely positioned boxes'
+        // reach into their scroll containers changes
         // (`positioned_overflow`): pass 1 records scroll extents with
-        // the reach the last settle measured.
-        for round in 0..2 {
+        // the reach the last settle measured. Run 2 sees a new reach;
+        // run 3 the reach of boxes whose containing block run 2's
+        // scrollbar narrowed. A reach still moving after that toggles a
+        // scrollbar back and forth and is kept for the next layout.
+        for round in 0..positioned_overflow::MAX_ROUNDS {
             if round > 0 {
                 intrinsic::end_pass(self);
                 intrinsic::begin_pass(self);
             }
+            #[cfg(test)]
+            ROUNDS.with(|c| c.set(c.get() + 1));
             // Pass 1 — flex / inline flow. Skips position: absolute /
             // fixed children at every container (see flex.rs filter).
             layout_node(self, root, root_rect, root_rect.width);
@@ -199,6 +206,12 @@ impl LayoutExt for Dom<TuiExt> {
 }
 
 // ─── Per-node layout ────────────────────────────────────────────────
+
+#[cfg(test)]
+thread_local! {
+    /// Runs of phases 1–2 `layout_dom` made (cost tests).
+    pub(crate) static ROUNDS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
 
 #[cfg(test)]
 thread_local! {

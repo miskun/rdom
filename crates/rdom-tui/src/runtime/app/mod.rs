@@ -67,6 +67,8 @@ mod idle_tests;
 #[cfg(test)]
 mod interaction_chain_tests;
 #[cfg(test)]
+mod layout_runs_tests;
+#[cfg(test)]
 mod off_event_paint_tests;
 #[cfg(test)]
 mod registered_transition_tests;

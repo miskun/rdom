@@ -11,18 +11,21 @@
 //! boxes it contains cover, relative to its border box and unscrolled,
 //! so it does not move with the container or its offset — and [`settle`]
 //! measures it again once they are placed. When it changed (a box was
-//! added, moved or removed), `layout_dom` runs phases 1–2 once more with
-//! the new reach, so the extent, the clamp and the gutters see it. A
-//! document whose positioned boxes stay put lays out once; one whose
-//! boxes moved, twice, and never more (a second change is kept for the
-//! next layout).
+//! added, moved or removed), `layout_dom` runs phases 1–2 again with the
+//! new reach, so the extent, the clamp and the gutters see it — and once
+//! more when that run's scrollbar changed the boxes' containing block
+//! (a `left: 0; right: 0` box narrowed by the bar its height added), so
+//! the frame painted after a layout is converged. A document whose
+//! positioned boxes stay put lays out once; never more than
+//! [`MAX_ROUNDS`] times (a reach still changing then flips a scrollbar
+//! on and off, and is kept for the next layout).
 //!
 //! A box counts in the nearest scroll container at or above its
 //! containing block — a scroll container between the box and its
 //! containing block does not contain it — cut to the overflow clip
 //! edges of the `overflow: clip` boxes from its containing block up
 //! (CSS 2.1 §11.1.1: a box clips the descendants it contains), and to
-//! the reachable side of the scroll container's content box (its
+//! the reachable side of the scroll container's scrollport (its
 //! scrolling area starts at the scroll origin, CSSOM View §4). `fixed`
 //! boxes are contained by the viewport and count nowhere. Positioned
 //! `::before` / `::after` are not counted (DIVERGENCES §2).
@@ -68,6 +71,10 @@ struct Reaches(HashMap<NodeId, Reach>);
 pub(super) fn reach_of(dom: &Dom<TuiExt>, scroller: NodeId) -> Option<Reach> {
     dom.document_data::<Reaches>()?.0.get(&scroller).copied()
 }
+
+/// The most runs of phases 1–2 one `layout_dom` makes: the first, one
+/// with a changed reach, one with the reach that run's scrollbars moved.
+pub(crate) const MAX_ROUNDS: usize = 3;
 
 #[cfg(test)]
 thread_local! {
@@ -156,15 +163,16 @@ fn unscrolled_origin(dom: &Dom<TuiExt>, scroller: NodeId) -> Option<(i32, i32)> 
 }
 
 /// The side of `scroller`'s scrolled content that scrolling can reach:
-/// from its content box's start edge on, or up to its end edge where the
+/// from its scrollport's start edge on, or up to its end edge where the
 /// scroll origin is there (`origin_at_end`, CSSOM View §4) — what lies
-/// before the origin is unreachable (CSS Overflow 3 §2.2).
+/// before the origin is unreachable (CSS Overflow 3 §2.2;
+/// `scrollport`).
 fn reachable(dom: &Dom<TuiExt>, scroller: NodeId) -> ClipEdges {
-    let Some(ext) = dom.node(scroller).ext() else {
+    let (Some(ext), Some(port)) = (dom.node(scroller).ext(), super::scrollport(dom, scroller))
+    else {
         return ClipEdges::NONE;
     };
     let (at_end_x, at_end_y) = super::origin_at_end(dom, scroller);
-    let c = ext.content_layout;
     let side = |at_end: bool, start: i32, len: u16, offset: i32| {
         let start = start - offset;
         Some(if at_end {
@@ -174,8 +182,8 @@ fn reachable(dom: &Dom<TuiExt>, scroller: NodeId) -> ClipEdges {
         })
     };
     ClipEdges {
-        x: side(at_end_x, c.x, c.width, ext.scroll_x),
-        y: side(at_end_y, c.y, c.height, ext.scroll_y),
+        x: side(at_end_x, port.x, port.width, ext.scroll_x),
+        y: side(at_end_y, port.y, port.height, ext.scroll_y),
     }
 }
 
