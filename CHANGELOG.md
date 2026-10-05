@@ -319,6 +319,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A box-less element keeps nothing from its box days** (CSS Display 3 §2.5). An element turned `display: contents` or `none` kept its line boxes, anonymous blocks and scroll extent, so its text's caret and hit-test read a dead layout and a former scroller stayed a Tab stop; a root child turned `none` kept its rect. (C6G-CONTENTS-STATE)
 - **A `display: contents` element is its children everywhere** (CSS Display 3 §2.5): it stays on the hit path of a flex item reordered by `order`, its text in a flex container is laid out and painted, its own `overflow` no longer clips an ancestor's scroll extent, and an absolutely positioned child inside it takes its static position after the line content before it. (C6G-CONTENTS-BOXTREE)
 - **An inline flex container is an atom in its line** (CSS Display 3 §2.4). `inline-flex` / `inline flex` in block flow had its contents packed as inline text — no flex layout, gap, border or box — while paint treated it as a box; it is now laid out as a flex container and placed, measured and painted once as one box, as an inline block is. (C6G-INLINE-FLEX-ATOM)
+- **Hit-testing descends into an inline block in an inline formatting context** (CSS 2.1 §9.2.2): a point on the atom's content hits that content (it hit the atom), and a hidden atom's visible child is a target while the atom's own cells fall through to what is beneath. (C6G-ATOM-HIT)
 
 ### Changed — `rdom-showcase`
 

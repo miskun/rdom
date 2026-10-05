@@ -231,9 +231,21 @@ fn hit_content(
         // (paint and the caret use the same rect).
         let outer = dom.node(id).layout_rect().unwrap_or_default();
         let inner = crate::render::inline::scrolled_content_rect(dom, id).unwrap_or(outer);
-        let Some(owner) = hit_fragment(dom, id, inner, x, y) else {
+        let Some((owner, atomic)) = hit_fragment(dom, id, inner, x, y) else {
             return false;
         };
+        // An atomic inline is a box (CSS 2.1 §9.2.2): it is hit as one —
+        // its content searched, its own `visibility` / `pointer-events`
+        // applied — under the inline ancestors it sits in.
+        if atomic {
+            let mark = path.len();
+            let hit = hit_in_flow_element(dom, owner, x, y, content_clip, viewport, path);
+            if hit && let Some(parent) = dom.node(owner).parent_node() {
+                let chain = inline_ancestors(dom, id, parent.id());
+                path.splice(mark..mark, chain);
+            }
+            return hit;
+        }
         // `pointer-events: none` on an inline is transparent: the hit
         // resolves to the nearest ancestor (up to and including the
         // block) that accepts pointer events. If none does — the block
@@ -296,13 +308,7 @@ fn descend_children_reverse(
                 }
                 hit
             }
-            NodeType::Element => match node.ext().and_then(|e| e.computed.as_ref()) {
-                Some(c) if is_positioned(c) => false,
-                Some(c) if creates_stacking_context(c) => {
-                    hit_stacking_context(dom, child, x, y, clip, viewport, path)
-                }
-                _ => descend_plain(dom, child, x, y, clip, viewport, path),
-            },
+            NodeType::Element => hit_in_flow_element(dom, child, x, y, clip, viewport, path),
             _ => false,
         };
         if hit {
@@ -314,6 +320,29 @@ fn descend_children_reverse(
         }
     }
     false
+}
+
+/// Hit-test the in-flow element `id` at its turn in its parent's
+/// content: a positioned box is skipped — it is tried from its stacking
+/// context's layers — and one that establishes a stacking context
+/// without being positioned (`opacity < 1`) is searched as one atomic
+/// unit.
+fn hit_in_flow_element(
+    dom: &Dom<TuiExt>,
+    id: NodeId,
+    x: u16,
+    y: u16,
+    clip: Rect,
+    viewport: Rect,
+    path: &mut Vec<NodeId>,
+) -> bool {
+    match dom.node(id).ext().and_then(|e| e.computed.as_ref()) {
+        Some(c) if is_positioned(c) => false,
+        Some(c) if creates_stacking_context(c) => {
+            hit_stacking_context(dom, id, x, y, clip, viewport, path)
+        }
+        _ => descend_plain(dom, id, x, y, clip, viewport, path),
+    }
 }
 
 /// Insert at `mark` the element ancestors of `child` below `id` — the
@@ -340,14 +369,15 @@ fn insert_box_less_ancestors(
 /// Look up the inline fragment under `(x, y)` inside an IFC block's
 /// content area. Returns the fragment's owner element (the direct
 /// element parent of the underlying text — typically `<code>`, `<b>`,
-/// or the IFC block itself when the text is a direct child).
+/// or the IFC block itself when the text is a direct child; an atomic
+/// inline for its fragment) and whether it is an atom.
 fn hit_fragment(
     dom: &Dom<TuiExt>,
     ifc_block: NodeId,
     content: LayoutRect,
     x: u16,
     y: u16,
-) -> Option<NodeId> {
+) -> Option<(NodeId, bool)> {
     let ext = dom.node(ifc_block).ext()?;
     let layout = ext.inline_layout.as_ref()?;
 
@@ -368,7 +398,7 @@ fn hit_fragment(
             && x_local < fragment.x + fragment.width
             && line.covers(fragment, row)
         {
-            return Some(fragment.node);
+            return Some((fragment.node, fragment.atomic));
         }
     }
     // A pseudo-element is part of its host's box: a generated cell of
@@ -389,7 +419,7 @@ fn hit_fragment(
             pseudo.is_none_or(|c| c.pointer_events != crate::layout::PointerEvents::None)
                 && crate::render::visibility::shows(dom, g.host, g.slot.into())
         })
-        .map(|g| g.host)
+        .map(|g| (g.host, false))
 }
 
 /// `id` is a strict descendant of `ancestor`.
@@ -404,21 +434,28 @@ fn is_descendant(dom: &Dom<TuiExt>, id: NodeId, ancestor: NodeId) -> bool {
     false
 }
 
-/// Walk the ancestor chain from `owner` up to (but not including)
-/// `ifc_block`. Append each to `path` in outer → inner order so the
-/// final path stays document-ordered.
+/// `id` is `pointer-events: none`.
 fn is_pointer_transparent(dom: &Dom<TuiExt>, id: NodeId) -> bool {
     dom.node(id)
         .computed()
         .is_some_and(|c| c.pointer_events == crate::layout::PointerEvents::None)
 }
 
+/// Walk the ancestor chain from `owner` up to (but not including)
+/// `ifc_block`. Append each to `path` in outer → inner order so the
+/// final path stays document-ordered.
 fn append_inline_ancestors(
     dom: &Dom<TuiExt>,
     ifc_block: NodeId,
     owner: NodeId,
     path: &mut Vec<NodeId>,
 ) {
+    path.extend(inline_ancestors(dom, ifc_block, owner));
+}
+
+/// `owner` and its ancestors below `ifc_block`, outer → inner, without
+/// the `pointer-events: none` ones (see [`append_inline_ancestors`]).
+fn inline_ancestors(dom: &Dom<TuiExt>, ifc_block: NodeId, owner: NodeId) -> Vec<NodeId> {
     // Collect inner → outer first, then reverse. A transparent inline
     // ancestor is never on the path.
     let mut chain = Vec::new();
@@ -433,7 +470,7 @@ fn append_inline_ancestors(
         }
     }
     chain.reverse();
-    path.extend(chain);
+    chain
 }
 
 #[inline]

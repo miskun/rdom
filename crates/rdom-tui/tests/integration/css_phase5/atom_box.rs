@@ -203,3 +203,41 @@ fn an_atoms_baseline_is_its_last_line_or_its_bottom_edge() {
         );
     }
 }
+
+/// C6G-ATOM-HIT — an atom is a box for hit-testing too (CSSOM View
+/// `elementFromPoint`, CSS 2.1 Appendix E): a point on its content hits
+/// that content, inside an inline formatting context as beside bare
+/// text; and a `visibility: hidden` atom (CSS Display 3 §4) is no
+/// target, while its `visible` child is — with the atom on its path.
+#[test]
+fn hit_testing_descends_into_an_atom() {
+    use rdom_tui::HitTestExt;
+    for bare in [false, true] {
+        let (mut dom, ib, p) = line_with_atom(bare);
+        let k = el(&mut dom, ib, "b", "k");
+        text(&mut dom, k, "k");
+        paint(
+            &mut dom,
+            ".ib { display: inline-block; border: solid }",
+            8,
+            4,
+        );
+        // `│bk│` at x 2..6 on the content row: `b` at 3 is the atom's
+        // own text, `k` at 4 its child.
+        assert_eq!(dom.hit_test(4, 1), Some(k), "bare: {bare}");
+        assert!(dom.hit_test_path(4, 1).contains(&ib), "bare: {bare}");
+        assert_eq!(dom.hit_test(3, 1), Some(ib), "bare: {bare}");
+
+        paint(
+            &mut dom,
+            ".ib { display: inline-block; border: solid; visibility: hidden } \
+             .k { visibility: visible }",
+            8,
+            4,
+        );
+        assert_eq!(dom.hit_test(4, 1), Some(k), "bare: {bare}");
+        assert!(dom.hit_test_path(4, 1).contains(&ib), "bare: {bare}");
+        // The hidden atom's own cells are what is beneath: the paragraph.
+        assert_eq!(dom.hit_test(2, 1), Some(p), "bare: {bare}");
+    }
+}

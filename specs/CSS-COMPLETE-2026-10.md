@@ -2552,3 +2552,16 @@ row comes from.
   path pack the atom alike) and survives; the predicate is shared for consistency. Noted, not
   changed: the max-content width of an IFC (`intrinsic::inline::inline_content_width`) sums an
   atom's text rather than its border box, for inline blocks as before. No snapshot changed.
+- 2026-10-08 — C6G-ATOM-HIT (AN6): `hit_content` resolved a point in an inline formatting context
+  to its fragment's owner and stopped, so an atomic inline's fragment returned the atom itself —
+  `<p><i>Go</i> <span inline-block><b>k</b></span></p>` hit the span, not `b` (beside bare text the
+  anonymous-box path descends through the child list and worked) — and a hidden atom sent the point
+  "beneath" by walking up, never trying its `visible` child. `hit_fragment` now says whether the
+  fragment is an atom; an atom is hit as the box it is (`hit_in_flow_element`, factored out of
+  `descend_children_reverse`: positioned → its layer, a stacking context → atomically, else
+  `descend_plain` with its `visibility` / `pointer-events` rules), under the inline ancestors it sits
+  in (`inline_ancestors`). Red: `css_phase5/atom_box.rs` `hit_testing_descends_into_an_atom` — the
+  atom (node 5) for its child `b` (node 9) inside the inline formatting context; green after, both
+  layouts. Mutation check (reverted and touched): the atom pushed and its content searched without
+  its own visibility rules → the hidden atom's border cell hit the atom (5) for the paragraph (2).
+  No snapshot changed.
