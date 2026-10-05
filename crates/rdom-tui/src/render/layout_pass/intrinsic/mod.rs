@@ -417,7 +417,19 @@ fn intrinsic_element(
 
     // Flexbox §9.9 / §4.5: an item's contribution is its outer size —
     // margins on the queried axis included.
-    let outer = |c: NodeId| {
+    // CSS Box 4 §3 `margin-trim`: a trimmed edge drops the adjoining
+    // margins — of the first / last child where the children flow
+    // along the queried axis, of every child where they stack across it.
+    let along = computed.direction == direction;
+    let trim = super::margin_trim::trimmed_edges(&computed);
+    let (trim_start, trim_end) = match direction {
+        Direction::Row => (trim.left, trim.right),
+        Direction::Column => (trim.top, trim.bottom),
+    };
+    let last = children.len() - 1;
+    let outer = |i: usize, c: NodeId| {
+        let keep_start = !(trim_start && (!along || i == 0));
+        let keep_end = !(trim_end && (!along || i == last));
         let inner = intrinsic_size_inner(
             dom,
             c,
@@ -436,7 +448,14 @@ fn intrinsic_element(
                     Direction::Row => (&cs.margin.left, &cs.margin.right),
                     Direction::Column => (&cs.margin.top, &cs.margin.bottom),
                 };
-                i32::from(a.resolve(child_cb_width)) + i32::from(b.resolve(child_cb_width))
+                let side = |m: &crate::layout::MarginValue, keep: bool| {
+                    if keep {
+                        i32::from(m.resolve(child_cb_width))
+                    } else {
+                        0
+                    }
+                };
+                side(a, keep_start) + side(b, keep_end)
             })
             .unwrap_or(0);
         (i32::from(inner) + margins).clamp(0, i32::from(u16::MAX)) as u16
@@ -451,12 +470,18 @@ fn intrinsic_element(
             .saturating_mul((children.len() as u16).saturating_sub(1));
         let children_main: u16 = children
             .iter()
-            .map(|&c| outer(c))
+            .enumerate()
+            .map(|(i, &c)| outer(i, c))
             .fold(0u16, |acc, n| acc.saturating_add(n));
         children_main.saturating_add(gap_total)
     } else {
         // Children stack across the queried axis — the largest outer size.
-        children.iter().map(|&c| outer(c)).max().unwrap_or(0)
+        children
+            .iter()
+            .enumerate()
+            .map(|(i, &c)| outer(i, c))
+            .max()
+            .unwrap_or(0)
     };
 
     // Direct text runs next to element children become anonymous

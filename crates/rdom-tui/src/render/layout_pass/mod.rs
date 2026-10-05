@@ -76,6 +76,7 @@ pub(crate) mod geometry;
 mod gutter;
 mod ifc;
 pub(crate) mod intrinsic;
+mod margin_trim;
 mod positioned_pseudos;
 mod positioning;
 mod scroll_extent;

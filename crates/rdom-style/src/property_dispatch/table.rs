@@ -64,6 +64,7 @@ const PROPERTY_NAMES: &[&str] = &[
     "margin-right",
     "margin-bottom",
     "margin-left",
+    "margin-trim",
     // Box decoration
     "border",
     "border-top",
@@ -279,6 +280,7 @@ define_fields! {
     FlexBasis => flex_basis : FLEX_BASIS,
     Padding => padding : PADDING,
     Margin => margin : MARGIN,
+    MarginTrim => margin_trim : MARGIN_TRIM,
     BorderTopStyle => border_style.top : BORDER_TOP_STYLE,
     BorderRightStyle => border_style.right : BORDER_RIGHT_STYLE,
     BorderBottomStyle => border_style.bottom : BORDER_BOTTOM_STYLE,
@@ -372,6 +374,7 @@ pub(super) fn fields_of(name: &str) -> Option<&'static [Field]> {
             &[Padding]
         }
         "margin" | "margin-top" | "margin-right" | "margin-bottom" | "margin-left" => &[Margin],
+        "margin-trim" => &[MarginTrim],
         // CSS Backgrounds 3 §4.4: `border` sets every side's style,
         // width and color; `border-<side>` its side's.
         "border" => &[

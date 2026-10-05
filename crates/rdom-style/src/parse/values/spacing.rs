@@ -1,11 +1,11 @@
 //! Box spacing: `gap`, the `padding` shorthand / longhands and the
-//! `margin` shorthand / longhands, each accepting `calc()` with
-//! percent-bearing forms kept symbolic for layout.
+//! `margin` shorthand / longhands (each accepting `calc()` with
+//! percent-bearing forms kept symbolic for layout), and `margin-trim`.
 
 use super::numeric::{
     LengthPercentage, Range, cells_i32, cells_u16, components, length_percentage,
 };
-use crate::layout::{GapValue, MarginValue, Padding, PaddingValue};
+use crate::layout::{GapValue, MarginTrim, MarginValue, Padding, PaddingValue};
 use crate::parse::token::Token;
 use crate::{TuiStyle, Value};
 
@@ -111,4 +111,53 @@ pub fn current_margin(style: &TuiStyle) -> crate::layout::Margin {
         Some(Value::Specified(m)) => m.clone(),
         _ => crate::layout::Margin::default(),
     }
+}
+
+/// `margin-trim` (CSS Box 4 §3): `none | [block || inline] |
+/// [block-start || inline-start || block-end || inline-end]` — each
+/// keyword at most once, the axis and side forms not mixed. ASCII
+/// case-insensitive.
+pub fn parse_margin_trim(value: &[Token]) -> Option<MarginTrim> {
+    if let [Token::Ident(w)] = value
+        && w.eq_ignore_ascii_case("none")
+    {
+        return Some(MarginTrim::NONE);
+    }
+    // Each keyword's sides as (block-start, inline-start, block-end,
+    // inline-end), and whether it is an axis keyword.
+    let keyword = |w: &str| -> Option<([bool; 4], bool)> {
+        Some(match w.to_ascii_lowercase().as_str() {
+            "block" => ([true, false, true, false], true),
+            "inline" => ([false, true, false, true], true),
+            "block-start" => ([true, false, false, false], false),
+            "inline-start" => ([false, true, false, false], false),
+            "block-end" => ([false, false, true, false], false),
+            "inline-end" => ([false, false, false, true], false),
+            _ => return None,
+        })
+    };
+    let mut sides = [false; 4];
+    let mut form: Option<bool> = None;
+    for token in value {
+        let Token::Ident(w) = token else { return None };
+        let (add, axis) = keyword(w)?;
+        // The forms do not mix, and no keyword repeats (no side is set
+        // twice — the axis keywords' sides are disjoint, as are the
+        // side keywords').
+        if form.is_some_and(|f| f != axis) || (0..4).any(|i| add[i] && sides[i]) {
+            return None;
+        }
+        form = Some(axis);
+        for i in 0..4 {
+            sides[i] |= add[i];
+        }
+    }
+    form?;
+    let [block_start, inline_start, block_end, inline_end] = sides;
+    Some(MarginTrim {
+        block_start,
+        inline_start,
+        block_end,
+        inline_end,
+    })
 }

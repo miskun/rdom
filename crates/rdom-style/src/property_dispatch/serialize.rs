@@ -190,6 +190,11 @@ pub fn serialize(name: &str, style: &TuiStyle) -> Option<String> {
             .as_ref()
             .and_then(specified)
             .map(|s| s.to_css()),
+        "margin-trim" => style
+            .margin_trim
+            .as_ref()
+            .and_then(specified)
+            .map(super::value_serializers::serialize_margin_trim),
         "box-sizing" => style.box_sizing.as_ref().and_then(specified).map(|b| {
             match b {
                 crate::layout::BoxSizing::ContentBox => "content-box",

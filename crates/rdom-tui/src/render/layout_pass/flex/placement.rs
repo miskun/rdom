@@ -18,6 +18,7 @@ use crate::style::ComputedStyle;
 use super::collapse::SiblingOverlap;
 use super::cross::{CrossPlacement, ResolvedMain, place_cross};
 use super::main_axis::{ChildMain, MainNatural};
+use crate::render::layout_pass::margin_trim::FlexTrim;
 
 /// The main-axis free space split across the line's `auto` main
 /// margins (§9.5): `share` cells each, with the first `remainder`
@@ -39,6 +40,9 @@ pub(super) struct FlexLine<'a> {
     pub(super) cross_budget: u16,
     pub(super) auto_margins: AutoMainMargins,
     pub(super) overlap: SiblingOverlap,
+    /// The container's `margin-trim` (CSS Box 4 §3.2); its main-axis
+    /// half was applied to the items' margins already.
+    pub(super) trim: FlexTrim,
 }
 
 /// Position each child along the main axis, scrolling by the parent's
@@ -53,6 +57,7 @@ pub(super) fn place_items(dom: &mut Dom<TuiExt>, children: &[NodeId], line: Flex
         cross_budget,
         auto_margins,
         overlap,
+        trim,
     } = line;
 
     let scroll_main = parent_scroll(dom, children, direction);
@@ -132,6 +137,8 @@ pub(super) fn place_items(dom: &mut Dom<TuiExt>, children: &[NodeId], line: Flex
             ResolvedMain {
                 size: *size,
                 was_auto: main_was_auto,
+                trim_cross_start: trim.cross_start,
+                trim_cross_end: trim.cross_end,
             },
         );
 

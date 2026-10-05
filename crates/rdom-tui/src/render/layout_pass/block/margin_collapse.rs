@@ -10,6 +10,7 @@ use rdom_core::{Dom, NodeId, NodeType};
 use crate::ext::{MarginChainMemo, TuiExt};
 use crate::layout::{Flow, MarginValue, Size};
 use crate::render::inline::generated::{inline_content_at_edge, own_line_pseudos};
+use crate::render::layout_pass::margin_trim::trimmed_edges;
 use crate::style::ComputedStyle;
 
 use super::super::is_in_flow;
@@ -94,6 +95,8 @@ pub(super) fn parent_collapses_top_with_first_child(
 ) -> bool {
     parent.padding.top.is_zero()
         && parent.border.top.is_none()
+        // A trimmed margin is gone (CSS Box 4 §3): nothing collapses out.
+        && !trimmed_edges(parent).top
         && !establishes_independent_formatting_context(dom, id, parent)
         && !inline_content_at_edge(dom, id, false)
         && !own_line_pseudos(dom, id).before
@@ -109,6 +112,7 @@ pub(super) fn parent_collapses_bottom_with_last_child(
 ) -> bool {
     parent.padding.bottom.is_zero()
         && parent.border.bottom.is_none()
+        && !trimmed_edges(parent).bottom
         && !establishes_independent_formatting_context(dom, id, parent)
         && !inline_content_at_edge(dom, id, true)
         && !own_line_pseudos(dom, id).after

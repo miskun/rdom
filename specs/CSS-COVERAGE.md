@@ -74,7 +74,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.3 Values and units (Values 4) | 15 | 2 | 1 | 4 | 22 |
 | 3.4 Color (Color 4 / 5) | 15 | 1 | 0 | 1 | 17 |
 | 3.5 Backgrounds and borders (Backgrounds 3, Borders 4) | 13 | 1 | 0 | 2 | 16 |
-| 3.6 Box model and sizing (Box 3, Sizing 3/4) | 6 | 1 | 2 | 0 | 9 |
+| 3.6 Box model and sizing (Box 3, Sizing 3/4) | 7 | 1 | 1 | 0 | 9 |
 | 3.7 Display and visibility (Display 3) | 1 | 0 | 8 | 2 | 11 |
 | 3.8 Flexbox and box alignment (Flexbox 1, Align 3) | 3 | 3 | 11 | 0 | 17 |
 | 3.9 Grid (Grid 1/2) | 0 | 0 | 10 | 0 | 10 |
@@ -93,11 +93,11 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 0 | 0 | 6 | 3 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **107** | **27** | **124** | **49** | **307** |
+| **Total** | **108** | **27** | **123** | **49** | **307** |
 
-When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 151 rows Partial / Missing.
+When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 150 rows Partial / Missing.
 
-Headline: rdom parses **91 property names** (`PROPERTY_NAMES`, after C5-BOX-SIZING). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are flex alignment (`justify-content`, `align-items`), `flex-wrap`, the `flex-grow` / `flex-basis` longhands, `line-height`, `text-align`, `visibility`, and grid.
+Headline: rdom parses **92 property names** (`PROPERTY_NAMES`, after C5-MARGIN-TRIM). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are flex alignment (`justify-content`, `align-items`), `flex-wrap`, the `flex-grow` / `flex-basis` longhands, `line-height`, `text-align`, `visibility`, and grid.
 
 ---
 
@@ -328,7 +328,7 @@ dropped. The audit's six, with where each stands:
 |---|---|---|---|---|
 | `margin` / `margin-*` | Supported | Signed cells, `auto`, `%`, `calc()` (C2-PERCENT); longhands share storage (documented). | — | `V/spacing.rs` |
 | `padding` / `padding-*` | Supported | Cells, `%`, `calc()` (C2-PERCENT). | — | `V/spacing.rs` |
-| `margin-trim` | Missing | Trim children's margins at the container edges. | No | `BLOCK`, `FLEX` |
+| `margin-trim` | Supported | `none | [block || inline] | [block-start || inline-start || block-end || inline-end]`; block containers trim their edge children's block-axis margins (no collapse out), flex containers the first / last item's main-axis and every item's cross-axis margins, intrinsic sizes included (C5-MARGIN-TRIM). Grid with C7. | Yes | `V/spacing.rs`, layout `margin_trim.rs` |
 | `width` / `height` | Partial | `auto`, cells, `%`, `calc()`, rdom `fr`, `min-content` / `max-content` / `fit-content` / `fit-content(<l>)` (C5-INTRINSIC; on the block axis the content height, CSS Sizing 3 §3.1); missing `stretch` (CSS Sizing 4). | Yes | `V/length.rs::parse_size`, `BOX::Size`, `layout_pass/intrinsic/keywords.rs` |
 | `min-width` / `min-height` | Supported | `auto`, cells, `%`, `calc()` (C2-PERCENT), the intrinsic keywords (C5-INTRINSIC). | — | `V/length.rs::parse_min_size` |
 | `max-width` / `max-height` | Supported | Cells, `%`, `calc()` (C2-PERCENT), `none` (the initial value; C2G-MAX-NONE completes C5-MINMAX-SIZE), the intrinsic keywords (C5-INTRINSIC). | — | `V/length.rs::parse_max_size` |
@@ -722,7 +722,7 @@ implementation or a `DIVERGENCES.md` entry before the acid page's coverage test 
 
 **3.6 Box model and sizing (Box 3, Sizing 3/4)**
 
-- `margin-trim` — Missing: Trim children's margins at the container edges.
+- `margin-trim` — Missing: Trim children's margins at the container edges. *Shipped: C5-MARGIN-TRIM.*
 - `width` / `height` — Partial: `auto`, cells, `%`, `calc()`, rdom `fr`; missing `min-content` / `max-content` / `fit-content` / `fit-content(<l>)` / `stretch`. *Shipped: C5-INTRINSIC (all but `stretch`).*
 - `min-width` / `min-height` — Partial: `auto` / cells only; no `%`, `calc()`, intrinsic keywords. *Shipped: C2-PERCENT, C2G-MAX-NONE, C5-INTRINSIC.*
 - `max-width` / `max-height` — Partial: Cells / constant `calc()` only; `none` (the initial value), `%`, percent `calc()`, intrinsic keywords rejected. *Shipped: C2-PERCENT, C2G-MAX-NONE, C5-INTRINSIC.*

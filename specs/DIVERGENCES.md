@@ -67,6 +67,8 @@ These are intrinsic to terminals. They will not change.
 - **Inline backgrounds only.** Inline borders are not painted.
 - **No `masonry` / `grid-lanes`, by decision.** CSS Grid 3's masonry layout is a Working Draft whose syntax is still moving (`display: masonry` against `display: grid-lanes`), so rdom does not implement it until the spec settles. Grid Level 1 / 2 is scheduled (C7-*, §3).
 
+- **`margin-trim` drops one margin of a collapsed-through edge child.** When the first (last) in-flow block child of a block container is empty and its margins collapse through it (CSS 2.1 §8.3.1), CSS Box 4 §3 trims every margin adjoining the trimmed edge; rdom trims that child's start (end) margin and keeps its other one, which still separates the next sibling.
+
 ### Positioning
 
 - **Stacking contexts form from the root, positioned elements with a numeric `z-index`, and `opacity < 1` only.** Paint and hit-test follow CSS 2.1 Appendix E inside each context (negative `z-index` below in-flow content, positioned boxes above it, positive `z-index` on top). In-flow boxes paint one at a time — background, border, text, children — rather than all backgrounds before all inline content (steps 4 and 7), so a later block's background covers an earlier block's overflowing text; outer `box-shadow`s do follow the two steps: an in-flow box's shadow covers the layers beneath and the earlier blocks' backgrounds and borders, but not their text. The other triggers — `transform`, `filter`, `isolation: isolate`, `will-change`, `mix-blend-mode`, `contain: paint` — do not exist yet (C15-TRANSLATE, C15-FILTER, C15-BLEND, C14-CONTAIN, §3).
@@ -264,7 +266,6 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 ### Box model and sizing
 
 - `stretch` sizes (CSS Sizing 4; the intrinsic keywords shipped with C5-INTRINSIC) — not yet scheduled
-- `margin-trim` — C5-MARGIN-TRIM
 - `contain-intrinsic-size` (+ longhands) — C5-CONTAIN-SIZE
 
 ### Logical properties and writing modes

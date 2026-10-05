@@ -13,6 +13,7 @@ use crate::layout::{Direction, MarginValue, Size};
 use crate::node::TuiNodeExt;
 use crate::render::layout_pass::block::nearest_block_ancestor_height_is_definite;
 use crate::render::layout_pass::intrinsic::{Keywords, intrinsic_size};
+use crate::render::layout_pass::margin_trim::FlexTrim;
 use crate::style::ComputedStyle;
 
 /// An item's main size before flexible-length resolution.
@@ -58,12 +59,17 @@ pub(super) struct MainAxisItems {
 /// Gather per-child (Size, min, max, is_flex) tuples for the main
 /// axis, together with the line's consumed space and auto-margin
 /// count.
+///
+/// `trim` is the container's `margin-trim` (CSS Box 4 §3.2): a trimmed
+/// main-start (main-end) edge zeroes the first (last) item's margin
+/// there.
 pub(super) fn collect_main_axis_items(
     dom: &Dom<TuiExt>,
     children: &[NodeId],
     direction: Direction,
     main_budget: u16,
     cross_budget: u16,
+    trim: FlexTrim,
 ) -> MainAxisItems {
     let mut child_info: Vec<ChildMain> = Vec::with_capacity(children.len());
     let mut consumed_fixed: i32 = 0;
@@ -80,7 +86,7 @@ pub(super) fn collect_main_axis_items(
             .then_some(main_budget),
     };
 
-    for &child in children {
+    for (i, &child) in children.iter().enumerate() {
         let c = dom
             .node(child)
             .computed_rc()
@@ -121,6 +127,16 @@ pub(super) fn collect_main_axis_items(
         let (main_start_m, main_end_m) = match direction {
             Direction::Row => (c.margin.left.clone(), c.margin.right.clone()),
             Direction::Column => (c.margin.top.clone(), c.margin.bottom.clone()),
+        };
+        let main_start_m = if trim.main_start && i == 0 {
+            MarginValue::Cells(0)
+        } else {
+            main_start_m
+        };
+        let main_end_m = if trim.main_end && i + 1 == children.len() {
+            MarginValue::Cells(0)
+        } else {
+            main_end_m
         };
         let margin_consumed = |m: &MarginValue| -> i32 {
             if m.is_auto() {

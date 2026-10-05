@@ -53,6 +53,7 @@ use crate::render::inline::compute_inline_layout;
 use crate::style::ComputedStyle;
 
 use super::ifc::is_ifc_block;
+use super::margin_trim::FlexTrim;
 use super::{element_children_of, layout_node};
 use collapse::SiblingOverlap;
 use distribute::{MainAxisBudget, resolve_flexible_lengths};
@@ -278,7 +279,8 @@ pub(super) fn layout_flex_children(
         Direction::Column => container.width,
     };
 
-    let line = collect_main_axis_items(dom, children, direction, main_budget, cross_budget);
+    let trim = FlexTrim::of(parent, direction);
+    let line = collect_main_axis_items(dom, children, direction, main_budget, cross_budget, trim);
 
     // Gap total = (n - 1) * gap.
     let gap_total = gap.saturating_mul((children.len() as u16).saturating_sub(1));
@@ -328,6 +330,7 @@ pub(super) fn layout_flex_children(
             cross_budget,
             auto_margins,
             overlap,
+            trim,
         },
     );
 }

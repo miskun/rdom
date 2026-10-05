@@ -87,6 +87,8 @@ pub struct TuiStyle {
     pub box_sizing: Option<Value<crate::layout::BoxSizing>>,
     pub padding: Option<Value<Padding>>,
     pub margin: Option<Value<crate::layout::Margin>>,
+    /// `margin-trim` (CSS Box 4 §3).
+    pub margin_trim: Option<Value<crate::layout::MarginTrim>>,
     pub gap: Option<Value<crate::layout::GapValue>>,
     /// CSS `flex-shrink`. Default `1` per CSS spec — when total
     /// declared flex-item sizes exceed the parent's main axis,
@@ -358,6 +360,9 @@ impl TuiStyle {
             n += 1
         }
         if self.box_sizing.is_some() {
+            n += 1
+        }
+        if self.margin_trim.is_some() {
             n += 1
         }
         if self.padding.is_some() {

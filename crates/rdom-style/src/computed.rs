@@ -66,6 +66,9 @@ pub struct ComputedStyle {
     /// Resolved margin. Vertical margins collapse in block flow
     /// (CSS 2.1 §8.3.1) at layout time; this is the element's own value.
     pub margin: crate::layout::Margin,
+    /// `margin-trim` (CSS Box 4 §3): which content edges trim the
+    /// adjoining children's margins. Initial `none`.
+    pub margin_trim: crate::layout::MarginTrim,
     pub gap: crate::layout::GapValue,
     /// CSS `flex-shrink`. Default `1` (CSS spec). When total
     /// declared sizes exceed the parent's main-axis budget, items
@@ -235,6 +238,7 @@ impl ComputedStyle {
             aspect_ratio: None,
             padding: Padding::default(),
             margin: crate::layout::Margin::default(),
+            margin_trim: crate::layout::MarginTrim::NONE,
             gap: crate::layout::GapValue::Cells(0),
             flex_shrink: 1.0,
             flex_basis: crate::layout::FlexBasis::Auto,

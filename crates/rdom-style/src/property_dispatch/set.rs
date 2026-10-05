@@ -395,6 +395,10 @@ pub fn set_parsed(name: &str, value: &[Token], style: &mut TuiStyle) -> Result<(
             style.margin = Some(Value::Specified(m));
         }),
 
+        "margin-trim" => crate::parse::values::parse_margin_trim(value).map(|t| {
+            style.margin_trim = Some(Value::Specified(t));
+        }),
+
         "border-collapse" => parse_keyword(
             value,
             &[

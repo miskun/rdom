@@ -250,6 +250,13 @@ pub(super) fn layout_block_children(
     let suppress_first_top_margin = parent_collapses_top_with_first_child(dom, id, parent_computed);
     let suppress_last_bottom_margin =
         parent_collapses_bottom_with_last_child(dom, id, parent_computed);
+    // CSS Box 4 §3 `margin-trim`: a block-level child adjoining a
+    // trimmed block-start / block-end content edge — the first / last
+    // run is its block run — contributes no margin there (and, the
+    // predicates above being false, none escapes either).
+    let trim = super::margin_trim::trimmed_edges(parent_computed);
+    let trim_first_top = trim.top && runs.first().is_some_and(|r| r.kind == RunKind::Block);
+    let trim_last_bottom = trim.bottom && runs.last().is_some_and(|r| r.kind == RunKind::Block);
     let last_block_run_idx = runs
         .iter()
         .enumerate()
@@ -340,9 +347,10 @@ pub(super) fn layout_block_children(
                             containing_block_width,
                             y_cursor,
                             margin_acc: &mut margin_acc,
-                            suppress_top_margin: is_first_block_placed && suppress_first_top_margin,
+                            suppress_top_margin: is_first_block_placed
+                                && (suppress_first_top_margin || trim_first_top),
                             suppress_bottom_margin: is_last_block_placed
-                                && suppress_last_bottom_margin,
+                                && (suppress_last_bottom_margin || trim_last_bottom),
                         },
                     );
                     placed_block_count += 1;

@@ -233,3 +233,53 @@ mod tests {
         assert_eq!(p.bottom, PaddingValue::Cells(2));
     }
 }
+
+/// `margin-trim` (CSS Box 4 §3): which of a container's content edges
+/// truncate to zero the margins of the children adjoining them, by
+/// logical side. Not inherited; the initial value `none` trims nothing.
+///
+/// A block container trims on the block axis only; a flex container
+/// trims its first / last item's main-axis margins and every item's
+/// cross-axis margins (§3.2).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct MarginTrim {
+    /// `block-start` (in `block`).
+    pub block_start: bool,
+    /// `inline-start` (in `inline`).
+    pub inline_start: bool,
+    /// `block-end` (in `block`).
+    pub block_end: bool,
+    /// `inline-end` (in `inline`).
+    pub inline_end: bool,
+}
+
+impl MarginTrim {
+    /// `margin-trim: none`.
+    pub const NONE: MarginTrim = MarginTrim {
+        block_start: false,
+        inline_start: false,
+        block_end: false,
+        inline_end: false,
+    };
+
+    /// `block`: both block-axis edges.
+    pub const BLOCK: MarginTrim = MarginTrim {
+        block_start: true,
+        inline_start: false,
+        block_end: true,
+        inline_end: false,
+    };
+
+    /// `inline`: both inline-axis edges.
+    pub const INLINE: MarginTrim = MarginTrim {
+        block_start: false,
+        inline_start: true,
+        block_end: false,
+        inline_end: true,
+    };
+
+    /// Whether any edge trims.
+    pub fn any(self) -> bool {
+        self != Self::NONE
+    }
+}

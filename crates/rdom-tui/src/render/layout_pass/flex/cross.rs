@@ -12,13 +12,19 @@ use crate::render::layout_pass::box_sizing::Sizer;
 use crate::render::layout_pass::intrinsic::{Keywords, intrinsic_size};
 use crate::style::ComputedStyle;
 
-/// The already-resolved main axis, as the cross resolver sees it.
+/// The already-resolved main axis, as the cross resolver sees it, and
+/// the container's cross-axis `margin-trim`.
 pub(super) struct ResolvedMain {
     /// Resolved main-axis size (for `aspect-ratio`).
     pub(super) size: u16,
     /// Whether the main size was declared `auto` (aspect-ratio needs an
     /// explicit main size).
     pub(super) was_auto: bool,
+    /// The container trims the item's cross-start margin (CSS Box 4
+    /// §3.2: every item of a single-line container adjoins it).
+    pub(super) trim_cross_start: bool,
+    /// The container trims the item's cross-end margin.
+    pub(super) trim_cross_end: bool,
 }
 
 /// An item's resolved cross-axis extent and its offset from the
@@ -51,6 +57,17 @@ pub(super) fn place_cross(
     let (cross_start_m, cross_end_m) = match direction {
         Direction::Row => (&child_computed.margin.top, &child_computed.margin.bottom),
         Direction::Column => (&child_computed.margin.left, &child_computed.margin.right),
+    };
+    const TRIMMED: MarginValue = MarginValue::Cells(0);
+    let cross_start_m = if main.trim_cross_start {
+        &TRIMMED
+    } else {
+        cross_start_m
+    };
+    let cross_end_m = if main.trim_cross_end {
+        &TRIMMED
+    } else {
+        cross_end_m
     };
     // Signed: a negative cross margin starts the box before the
     // container's edge and widens a stretched box (Flexbox §9.4).

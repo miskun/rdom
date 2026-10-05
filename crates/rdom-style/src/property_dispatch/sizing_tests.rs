@@ -146,3 +146,81 @@ fn fit_content_rejects_bad_arguments() {
         );
     }
 }
+
+// ── C5-MARGIN-TRIM ──────────────────────────────────────────────────
+
+/// CSS Box 4 §3: `margin-trim: none | [block || inline] | [block-start
+/// || inline-start || block-end || inline-end]`, ASCII case-insensitive,
+/// serialized in the shortest canonical form; not inherited, initial
+/// `none`.
+#[test]
+fn margin_trim_takes_its_grammar() {
+    use crate::layout::MarginTrim;
+    let t = |bs, is, be, ie| MarginTrim {
+        block_start: bs,
+        inline_start: is,
+        block_end: be,
+        inline_end: ie,
+    };
+    let cases = [
+        ("none", t(false, false, false, false), "none"),
+        ("block", t(true, false, true, false), "block"),
+        ("INLINE", t(false, true, false, true), "inline"),
+        ("inline block", t(true, true, true, true), "block inline"),
+        ("block-start", t(true, false, false, false), "block-start"),
+        (
+            "inline-end block-start",
+            t(true, false, false, true),
+            "block-start inline-end",
+        ),
+        (
+            "block-end block-start",
+            t(true, false, true, false),
+            "block",
+        ),
+        (
+            "block-start inline-start block-end inline-end",
+            t(true, true, true, true),
+            "block inline",
+        ),
+        (
+            "inline-start block-end",
+            t(false, true, true, false),
+            "inline-start block-end",
+        ),
+    ];
+    for (css, want, text) in cases {
+        let mut style = TuiStyle::new();
+        set("margin-trim", css, &mut style).unwrap_or_else(|e| panic!("{css}: {e:?}"));
+        assert_eq!(style.margin_trim, Some(Value::Specified(want)), "{css}");
+        assert_eq!(
+            serialize("margin-trim", &style).as_deref(),
+            Some(text),
+            "{css}"
+        );
+    }
+    for bad in [
+        "",
+        "none block",
+        "block block",
+        "block block-start",
+        "inline inline-end",
+        "block-start block-start",
+        "auto",
+        "1",
+    ] {
+        let mut style = TuiStyle::new();
+        assert_eq!(
+            set("margin-trim", bad, &mut style),
+            Err(DispatchError::InvalidValue),
+            "{bad:?}"
+        );
+    }
+    assert!(!inherits("margin-trim"));
+    assert_eq!(ComputedStyle::initial().margin_trim, MarginTrim::default());
+    assert_eq!(TuiStyle::new().margin_trim(t(true, false, false, false)), {
+        let mut s = TuiStyle::new();
+        set("margin-trim", "block-start", &mut s).unwrap();
+        s
+    });
+}

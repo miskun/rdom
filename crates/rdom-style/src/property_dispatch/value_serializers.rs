@@ -378,3 +378,33 @@ where
     }
     out
 }
+
+/// `margin-trim` in its shortest canonical form (CSS Box 4 §3, CSSOM
+/// §6.7.2): `none`, `block` / `inline` / `block inline` for whole axes,
+/// else the sides in the grammar's order.
+pub(super) fn serialize_margin_trim(t: &crate::layout::MarginTrim) -> String {
+    use crate::layout::MarginTrim;
+    match *t {
+        MarginTrim::NONE => return "none".to_string(),
+        MarginTrim::BLOCK => return "block".to_string(),
+        MarginTrim::INLINE => return "inline".to_string(),
+        MarginTrim {
+            block_start: true,
+            inline_start: true,
+            block_end: true,
+            inline_end: true,
+        } => return "block inline".to_string(),
+        _ => {}
+    }
+    [
+        (t.block_start, "block-start"),
+        (t.inline_start, "inline-start"),
+        (t.block_end, "block-end"),
+        (t.inline_end, "inline-end"),
+    ]
+    .iter()
+    .filter(|(on, _)| *on)
+    .map(|(_, name)| *name)
+    .collect::<Vec<_>>()
+    .join(" ")
+}

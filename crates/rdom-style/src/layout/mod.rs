@@ -33,7 +33,7 @@ pub use border::{
     Border, BorderCollapse, BorderRadius, BorderSpacing, BorderStyle, BorderWeight, BorderWidth,
     CornerStyle, PaintLength,
 };
-pub use box_model::{Margin, MarginValue, Padding, PaddingValue};
+pub use box_model::{Margin, MarginTrim, MarginValue, Padding, PaddingValue};
 pub use keywords::{
     Align, BoxSizing, CaretColor, CaretTextColor, Direction, Display, Flow, Overflow,
     PointerEvents, Position, ScrollBehavior, ScrollbarGutter, TextDecoration, UserSelect,

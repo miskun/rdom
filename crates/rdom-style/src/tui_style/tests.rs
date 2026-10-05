@@ -286,6 +286,7 @@ fn every_property_has_important_setter() {
         .opacity_important(0.5)
         .aspect_ratio_important(16, 9)
         .box_sizing_important(crate::layout::BoxSizing::BorderBox)
+        .margin_trim_important(crate::layout::MarginTrim::BLOCK)
         .content_important(Content::Str("x".into()))
         .position_important(crate::layout::Position::Absolute)
         .top_important(crate::layout::Length::Cells(1))

@@ -126,7 +126,7 @@ row comes from.
 | C5-BOX-SIZING | `box-sizing` (`content-box` is the CSS initial value — breaking default change, migration note) | done |
 | C5-INTRINSIC | `min-content` / `max-content` / `fit-content()` on width / height / min / max | done |
 | C5-MINMAX-SIZE | `min-*` / `max-*`: `none`, `%`, `calc()` | done (`%` / `calc()` with C2-PERCENT, `none` with C2G-MAX-NONE) |
-| C5-MARGIN-TRIM | `margin-trim` | |
+| C5-MARGIN-TRIM | `margin-trim` | done |
 | C5-CONTAIN-SIZE | `contain-intrinsic-size` (+ longhands) | |
 | C5-LOGICAL | Logical properties: `inline-size` / `block-size` / `min-*` / `max-*`, `margin-*` / `padding-*` / `border-*` / `inset-*` / radius logical forms (horizontal-tb ltr mapping) | |
 | C5-WRITING | `direction` and `writing-mode` for the values a terminal can render (rtl lines; vertical documented N/A if not) | |
@@ -1460,3 +1460,22 @@ row comes from.
   bound being the content string's size (DIVERGENCES §2). Red: `positioned_boxes_honour_min_and_max`
   gave (10, 1) for `width: 10; max-width: 4; height: 1; min-height: 3`; green after, with
   `a_positioned_pseudo_honours_min_and_max`. No existing expectation changed.
+- 2026-10-07 — C5-MARGIN-TRIM: `margin-trim: none | [block || inline] | [block-start ||
+  inline-start || block-end || inline-end]` (CSS Box 4 §3; the brief's seven single keywords plus the
+  grammar's combinations), not inherited: `MarginTrim` (four logical bools, closed data, `NONE` /
+  `BLOCK` / `INLINE`), `parse_margin_trim` (each keyword once, the axis and side forms not mixed),
+  serialized in the shortest canonical form (`block`, `inline`, `block inline`, else the sides in the
+  grammar's order). Layout: `layout_pass/margin_trim.rs` maps the logical sides onto the container's
+  physical edges in one place (`trimmed_edges`, horizontal-tb ltr — C5-WRITING's `direction` lands
+  there) and to flex axes (`FlexTrim`). Decided — clean on both: block containers trim the block axis
+  only (§3: the inline values do not apply to them); the first (last) block child adjoining a trimmed
+  block-start (block-end) edge contributes no margin (`suppress_*_margin`), and
+  `parent_collapses_*_with_*_child` is false on a trimmed edge, so nothing collapses out through the
+  container. Flex containers (single-line): the first (last) item's main-start (main-end) margin and
+  every item's cross-start / cross-end margins (§3.2; `collect_main_axis_items` and `place_cross`).
+  Intrinsic contributions drop the same margins. Not done: a collapsed-through empty edge child keeps
+  its other margin (DIVERGENCES §2); grid with C7. Red: the dispatch test failed to compile
+  (`MarginTrim`, `margin_trim`) and five of the six `css_phase5::margin_trim` layout tests failed
+  (e.g. `(3, 6, 10)` for `(1, 4, 8)`; the sixth, block-container `inline` being a no-op, passed as
+  it should); green after. Test fixed while writing: `block-start inline` mixes the axis and side
+  forms, which the grammar rejects — the column test says `block-start inline-start inline-end`.

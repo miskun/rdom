@@ -62,6 +62,7 @@ fn canonical_values() -> &'static [(&'static str, &'static str)] {
         ("margin-right", "2"),
         ("margin-bottom", "3"),
         ("margin-left", "auto"),
+        ("margin-trim", "block-start inline-end"),
         ("border", "solid"),
         ("border-top", "solid"),
         ("border-right", "solid"),
