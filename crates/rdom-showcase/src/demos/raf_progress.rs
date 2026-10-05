@@ -23,6 +23,9 @@ use crate::{Category, Demo, Source};
 
 const DURATION_MS: f64 = 2000.0;
 
+/// The track's content width in cells (its CSS `width`): a full bar.
+const TRACK_CELLS: f64 = 48.0;
+
 pub const MARKUP: &str = r#"<div class="raf-demo">
   <h1>requestAnimationFrame</h1>
   <p>2-second smooth fill driven by per-frame rAF callbacks.</p>
@@ -36,9 +39,6 @@ pub const MARKUP: &str = r#"<div class="raf-demo">
 </div>"#;
 
 pub const CSS: &str = r#"
-.raf-demo, .raf-demo *, .raf-demo *::before, .raf-demo *::after {
-  box-sizing: border-box;
-}
 .raf-demo {
   flex: 1;
   display: flex;
@@ -56,9 +56,11 @@ pub const CSS: &str = r#"
   gap: 2;
   height: 1;
 }
+/* `content-box`, the CSS default: `width` / `height` are the track's
+ * inside, one 48-cell row; the border lies outside it (50 × 3). */
 .raf-demo .track {
-  height: 3;
-  width: 50;
+  height: 1;
+  width: 48;
   border: solid;
   border-color: rgb(120, 130, 150);
 }
@@ -166,7 +168,7 @@ fn schedule_next(
         };
         let elapsed = now_ms - start;
         let fraction = (elapsed / DURATION_MS).clamp(0.0, 1.0);
-        let width_cells = (fraction * 50.0).round() as i32;
+        let width_cells = (fraction * TRACK_CELLS).round() as i32;
         let style = format!("width: {width_cells}");
         let _ = tick_ctx.dom.node_mut(bar).set_attribute("style", &style);
 
@@ -205,7 +207,7 @@ fn schedule_next_via_timer_ctx(
         };
         let elapsed = now_ms - start;
         let fraction = (elapsed / DURATION_MS).clamp(0.0, 1.0);
-        let width_cells = (fraction * 50.0).round() as i32;
+        let width_cells = (fraction * TRACK_CELLS).round() as i32;
         let style = format!("width: {width_cells}");
         let _ = inner_ctx.dom.node_mut(bar).set_attribute("style", &style);
 

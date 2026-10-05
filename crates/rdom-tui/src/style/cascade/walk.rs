@@ -422,9 +422,6 @@ fn compute_element_style(
     rules: Rules<'_>,
 ) -> ComputedStyle {
     let (dom, sheets, id) = (cx.dom, cx.sheets, cx.id);
-    // Start from initial + inherit subset from parent. That includes
-    // the custom-property map (an `Rc` clone; `apply_cascade_ladder`
-    // copies on write only when this element declares `--*`).
     // Collect matching non-pseudo-element rules across all sheets.
     // Cascade order is (specificity, scope proximity, sheet_idx,
     // source_idx) — later sheets win same-specificity contests just
@@ -461,6 +458,9 @@ fn compute_element_style(
     let mut direction = parent.text_direction;
     let mut runs = 0;
     let (mut working, substituted, colors) = loop {
+        // Start from initial + inherit subset from parent. That includes
+        // the custom-property map (an `Rc` clone; `apply_cascade_ladder`
+        // copies on write only when this element declares `--*`).
         let mut working = ComputedStyle::initial();
         inherit_inheritable_from(&mut working, parent);
         working.text_direction = direction;

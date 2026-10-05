@@ -44,8 +44,17 @@
 /// reappear.
 pub(super) const BASE_CSS: &str = r#"
 /* Border-box sizing for the shell's chrome, as most pages declare:
- * a panel's `width` / `height` include its border and padding. */
-*, *::before, *::after {
+ * a panel's `width` / `height` include its border and padding. Scoped
+ * to the chrome — the panels, the sidebar, the source disclosure, the
+ * status bar — and not to the mounted demo inside `.view-content`, so
+ * each demo lays out under its own CSS (most declare the same reset;
+ * `ua_chrome` shows the UA defaults, `raf_progress` content-box). */
+.app-shell, .app, .app-header, .app-header *, .app-body,
+.sidebar, .sidebar *, .sidebar *::before, .sidebar *::after,
+.main, .view-content,
+.source-disclosure, .source-disclosure *,
+.source-disclosure *::before, .source-disclosure *::after,
+.status-bar, .status-bar *, .status-bar *::before, .status-bar *::after {
   box-sizing: border-box;
 }
 /* `.app-shell` is the outer flex column that holds the bordered

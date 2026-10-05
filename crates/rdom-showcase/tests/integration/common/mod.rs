@@ -11,10 +11,11 @@
 //! trimmed at write time — the harness handles the trim so authors
 //! don't have to manage trailing-space noise.
 //!
-//! Cell foreground / background / modifiers are NOT part of the
-//! snapshot. We snapshot what's *visible*, not what's *styled* —
-//! style drift is a separate concern caught by paint-pass unit
-//! tests.
+//! Cell backgrounds are part of the snapshot, as a second layer after
+//! the glyph rows (a key letter per distinct color, `.` for the
+//! terminal default; omitted when no cell has one) — a fill is what a
+//! user sees. Foreground colors and modifiers are not: style drift
+//! there is caught by paint-pass unit tests.
 //!
 //! ### Updating snapshots
 //!
@@ -40,9 +41,16 @@ use rdom_tui::render::Buffer;
 
 /// Run the full pipeline against `viewport` and return the painted
 /// `Buffer`. Equivalent to what `App::draw_if_dirty` does for one
-/// frame, minus the backend write.
+/// frame, minus the backend write — with what the app does before it:
+/// `style` attributes parsed into inline styles (`App::build` seeds
+/// them, `seed_inline_styles`), and the showcase's sheet stack, the
+/// shell's base sheet, then the demo's `sheet`, as the app mounts them
+/// (`demo_sheet`) — so a snapshot pins what the app shows.
 pub fn render(dom: &mut TuiDom, sheet: &Stylesheet, viewport: Rect) -> Buffer {
-    dom.cascade(sheet);
+    let warnings = rdom_tui::seed_inline_styles(dom);
+    assert!(warnings.is_empty(), "style attributes parse: {warnings:?}");
+    let base = rdom_showcase::shell::base_stylesheet();
+    dom.cascade_all(&[&base, sheet]);
     dom.layout_dom(viewport);
     let mut buf = Buffer::empty(viewport);
     dom.paint_dom(&mut buf, viewport);
@@ -51,7 +59,10 @@ pub fn render(dom: &mut TuiDom, sheet: &Stylesheet, viewport: Rect) -> Buffer {
 
 /// Convert a painted `Buffer` to its snapshot string — one line per
 /// row, cell symbols concatenated, spacer cells skipped, trailing
-/// whitespace per row trimmed.
+/// whitespace per row trimmed — then, when any cell has a background
+/// color, the background layer: the same grid with a key letter per
+/// distinct color (`.` for the terminal default, `Color::Reset`) and the
+/// key below it, so a snapshot pins the fills users see too.
 pub fn buffer_to_snapshot(buf: &Buffer) -> String {
     let mut out = String::new();
     for y in buf.area.y..buf.area.bottom() {
@@ -66,6 +77,47 @@ pub fn buffer_to_snapshot(buf: &Buffer) -> String {
         }
         out.push_str(row.trim_end());
         out.push('\n');
+    }
+    out.push_str(&background_layer(buf));
+    out
+}
+
+/// The background layer of [`buffer_to_snapshot`]; empty when every cell
+/// keeps the terminal's default background.
+fn background_layer(buf: &Buffer) -> String {
+    const KEYS: &[u8] = b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    let mut colors: Vec<Color> = Vec::new();
+    let mut grid = String::new();
+    for y in buf.area.y..buf.area.bottom() {
+        let mut row = String::new();
+        for x in buf.area.x..buf.area.right() {
+            let Some(c) = buf.cell(x, y) else { continue };
+            if c.is_spacer() {
+                continue;
+            }
+            if c.bg == Color::Reset {
+                row.push('.');
+                continue;
+            }
+            let i = colors.iter().position(|&k| k == c.bg).unwrap_or_else(|| {
+                colors.push(c.bg);
+                colors.len() - 1
+            });
+            row.push(char::from(KEYS[i.min(KEYS.len() - 1)]));
+        }
+        grid.push_str(row.trim_end_matches('.'));
+        grid.push('\n');
+    }
+    if colors.is_empty() {
+        return String::new();
+    }
+    let mut out = String::from("── background ──\n");
+    out.push_str(&grid);
+    for (i, c) in colors.iter().enumerate() {
+        out.push_str(&format!(
+            "{} {c:?}\n",
+            char::from(KEYS[i.min(KEYS.len() - 1)])
+        ));
     }
     out
 }

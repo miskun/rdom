@@ -34,7 +34,7 @@ the commit that lands it (`done <sha>`), and the log at the end records phase ga
 | 2 | Values, units, math functions | done 2026-10-05 (both gates; 20 gate fixes `C2G-*`; their re-review rides with the Phase 3 gate; C2-LH partial until C9-LINE-HEIGHT) |
 | 3 | Color | done 2026-10-06 (both gates; 16 gate fixes `C3G-*` incl. rdom's own terminal input reader; re-review rides with the Phase 4 gate) |
 | 4 | Backgrounds and borders | done 2026-10-06 (both gates; 19 gate fixes `C4G-*`; their re-review rides with the Phase 5 gate; C4-SPACING layout with C13-TFC) |
-| 5 | Box model and sizing (incl. logical properties) | gates run 2026-10-07; `C5G-*` fixes in progress (C5-CONTAIN-SIZE use with C14) |
+| 5 | Box model and sizing (incl. logical properties) | done 2026-10-07 (both gates; 19 gate fixes `C5G-*`; their re-review rides with the Phase 6 gate; C5-CONTAIN-SIZE use with C14-CONTAIN) |
 | 6 | Display, visibility, flexbox, box alignment | |
 | 7 | Grid | |
 | 8 | Positioning, floats, overflow, scrolling | |
@@ -1937,3 +1937,34 @@ row comes from.
   to the wrong inline side → `logical_corner_radii_follow_the_direction`; L5 the cascade picking the
   `ltr` overlay for every element → five logical tests. Every mutation is caught, so no test was
   added for them.
+- 2026-10-07 — C5G-DOCS-AND-SHOWCASE (gate fix, docs + showcase). DIVERGENCES §1's sub-cell list said
+  `box-shadow` spread was unsupported, against the shadow entry above it (spread is whole cells):
+  now "blur (its spread is whole cells, above)". DESIGN `#[non_exhaustive]`: `BoxSizing`,
+  `TextDirection`, `WritingMode` join the closed keyword enums, `MarginTrim` and
+  `ContainIntrinsicSize` the closed value records (`IntrinsicSize` was there), `ScrollBounds` is
+  `pub(crate)`, outside the rule. `walk.rs`: the "start from initial + inherit" comment, orphaned
+  above the rule gathering since C5-LOGICAL moved that code into the direction loop, moved back to
+  it. Showcase — decided: the shell's `box-sizing` reset is scoped to its chrome (`.app-shell`,
+  `.app`, `.app-header *`, `.app-body`, `.sidebar *`, `.main`, `.view-content`, `.source-disclosure *`,
+  `.status-bar *` and their pseudos), not `*`: a demo lays out under its own CSS in the app as in
+  its standalone example and its snapshot, so `ua_chrome` ("pure defaults, no author CSS") shows the
+  UA defaults with no opt-out rule, and `raf_progress` drops its own reset to show the `content-box`
+  default — `.track { height: 1; width: 48; border: solid }` (a 50 × 3 border box as before), the
+  fill computed against the 48-cell inside (`TRACK_CELLS`; a full bar was 50, past the border). The
+  chrome's layout is unchanged (`chrome_layout_contract`, `chrome_dump` and every shell test pass).
+  The snapshot harness (`tests/integration/common`) now does what the app does before a frame:
+  `seed_inline_styles` (as `App::build`), then `cascade_all(&[base_stylesheet, demo sheet])`; and a
+  snapshot carries a background layer — the glyph grid again with a key letter per distinct
+  background color (`.` the terminal default), then the key — whenever a cell has a fill. Red /
+  re-baseline: with the shell's base sheet applied (and, checked separately, with its old global
+  `*` reset) no glyph row changed in any snapshot; the background layer was added to seven snapshots
+  (`dom_api`, `inline_formatting`, `mutation_observer`, `parse_and_render`, `selectable_text`,
+  `sticky`, `tab_form` — their glyph rows unchanged, each layer the demo's panel fill, plus
+  `inline_formatting`'s yellow highlight); `raf_progress`'s first layer showed a full 48-cell bar —
+  the harness had never parsed its `style="width: 0"` — and with the seeding the initial paint is
+  the empty track the app shows, so its snapshot is unchanged from before this item.
+- 2026-10-07 — Phase 5 closed: 7 items (C5-CONTAIN-SIZE partial — used with C14-CONTAIN) + 19 gate
+  fixes (batch A 9, batch B 10). Gate-fix re-review folded into the Phase 6 gate. Carried, recorded:
+  margin / padding importance stays whole-field (C5G-LOGICAL-IMPORTANT; DIVERGENCES §2, the
+  per-side-longhands entry — per-side margin / padding storage would fix it); `vertical-align` beyond
+  `baseline` for inline blocks (C9-VERTICAL-ALIGN; C5G-ATOM-BOX laid the line-box heights it builds on).
