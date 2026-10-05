@@ -38,8 +38,9 @@
 //!
 //! ## Module layout
 //!
-//! - `walk` — `cascade_subtree`, `compute_element_style`. The tree
-//!   recursion lives here.
+//! - `walk` — `cascade_subtree`. The tree recursion lives here.
+//! - `element` — `compute_element_style`, one element's ladder and its
+//!   computed-value fix-ups.
 //! - `subtrees` — partial cascades over a set of roots, and the ordered
 //!   walk that keeps counters exact (`counters`) across them.
 //! - `matching` — the rules matching one element or pseudo-element, in
@@ -85,6 +86,7 @@ pub(crate) use scheme::{document_color_scheme, set_document_color_scheme};
 pub(crate) use viewport::{document_viewport, set_document_viewport};
 mod colors;
 mod decoration;
+mod element;
 mod scheme;
 mod scope;
 mod sheets;

@@ -84,7 +84,7 @@ pub(super) fn compute_pseudo_style(
     let attrs = |name: &str| dom.node(id).get_attribute(name);
     let preferred = cx.sheets.color_scheme();
     // The inline-axis flow-relative properties map by the pseudo-element's
-    // own `direction`, as for an element (`walk::compute_element_style`).
+    // own `direction`, as for an element (`element::compute_element_style`).
     let directional = decls.has_directional();
     let mut direction = host_computed.text_direction;
     let mut runs = 0;

@@ -3580,3 +3580,18 @@ row comes from.
   are `layout_pass/items/{mod,anonymous}.rs`, `FlexItem` is `items::Item` and `flex_items`
   `items::items_of` (CSS Grid 2 §6.1 builds grid items exactly as CSS Flexbox §4 builds flex
   items). Moves and renames only.
+- 2026-10-08 — C7-GRID-CORE, found on the way (its first commit's two `ComputedStyle` fields tipped
+  `scope_matching_is_bounded_per_pass`, a 41-deep chain, into a stack overflow): the cascade walk
+  recursed once per tree level with every style an element computes in its frame — the element's,
+  its six pseudo-elements' before the children and `::after`'s after them, moved through temporaries
+  — about 50 KB a level in a debug build. Fix at the root: `walk::cascade_subtree` keeps only `Rc`s
+  across the recursion; `style_element` (the element and the pseudo-elements before its children)
+  and `finish_element` (`::after` and the aggregates) compute in frames of their own
+  (`#[inline(never)]`) that are gone before the children start, and the element's style is
+  `Rc`-wrapped once instead of cloned into one. Measured with a temporary stack-address probe: 5 808
+  bytes a level with the `::before` style still inline in the carried struct, 1 200 with it behind an
+  `Rc`. Red: `cost_tests::a_deep_tree_cascades_on_a_small_stack` (a 400-deep chain, every level a
+  `::before` and a scroll container, on a 1 MiB thread) overflowed against the old walk; green after.
+  Split with it (walk.rs would have reached 685 lines): `compute_element_style` and
+  `settle_direction` move to `cascade/element.rs` (155; `walk.rs` 548), the cut TECH_DEBT `SIZE-1`
+  named, so `walk.rs` leaves that list. No other test expectation changed.

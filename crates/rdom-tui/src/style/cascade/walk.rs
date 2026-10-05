@@ -1,5 +1,6 @@
-//! The cascade walk — `cascade_subtree` + the per-element style
-//! computation (pseudo-elements: `pseudo`; rule matching: `matching`).
+//! The cascade walk — `cascade_subtree`, which styles each element
+//! (`element`; pseudo-elements: `pseudo`; rule matching: `matching`)
+//! before its children and finishes it after them.
 //!
 //! `cascade_subtree` recurses into every element in the subtree,
 //! computing a fresh `ComputedStyle` at each and writing it back.
@@ -11,16 +12,13 @@ use std::rc::Rc;
 use rdom_core::{Dom, NodeId, NodeType};
 
 use crate::ext::TuiExt;
-use crate::layout::{Position, TextDirection};
+use crate::layout::Position;
 use crate::style::{ComputedStyle, PseudoElementTarget, VarMap};
 
-use super::apply::finalize_bfc_formation;
-use super::content::resolve_content_on;
 pub(super) use super::counters::CounterState;
 use super::counters::{StoredOps, has_ops, takes_part};
-use super::decoration::finalize_used_border;
-use super::inherit::{inherit_inheritable_from, layout_differs};
-use super::ladder::{Declarations, apply_cascade_ladder, prepare};
+use super::element::compute_element_style;
+use super::inherit::layout_differs;
 pub(super) use super::matching::Scratch;
 use super::matching::{MatchedRules, Recorder, Rules, Slot};
 use super::pseudo::{before_targets, compute_pseudo_style};
@@ -165,6 +163,12 @@ fn compute_box<T>(
 /// at the root and skip whole walks when nothing relevant is in
 /// play. See `TuiExt` docs for the incremental-cascade
 /// conservatism rules.
+///
+/// The walk recurses once per tree level, so this frame holds only what
+/// must outlive the children's cascade — the element's styles behind
+/// `Rc`s; computing them happens in [`style_element`] and
+/// [`finish_element`], whose large frames are gone before the next
+/// level starts (a style is kilobytes, and an element computes eight).
 pub(super) fn cascade_subtree<'a>(
     dom: &mut Dom<TuiExt>,
     sheets: &Sheets<'a>,
@@ -201,6 +205,82 @@ pub(super) fn cascade_subtree<'a>(
         return flags;
     }
 
+    let styled = match style_element(dom, sheets, id, parent_computed, counters, scratch, mode) {
+        Styled::Kept {
+            computed,
+            parent_id,
+        } => {
+            return replay_kept(
+                dom, sheets, id, &computed, parent_id, counters, scratch, mode,
+            );
+        }
+        Styled::Fresh(styled) => styled,
+    };
+
+    // Recurse. Children inherit from our computed style. Aggregate
+    // children's flags into our subtree flags.
+    let mut flags = SubtreeFlags {
+        has_positioned_pseudo: false,
+        has_collapse: styled.computed.border_collapse == crate::layout::BorderCollapse::Collapse,
+        has_counters: false,
+    };
+    let mut child = first_child(dom, id);
+    while let Some(c) = child {
+        flags.merge(cascade_subtree(
+            dom,
+            sheets,
+            c,
+            &styled.computed,
+            counters,
+            scratch,
+            mode,
+        ));
+        child = next_sibling(dom, c);
+    }
+    // A kept child leaves its own reads behind: only `::after`'s count.
+    counters.take_read();
+    finish_element(dom, sheets, id, styled, flags, counters, scratch)
+}
+
+/// [`style_element`]'s outcome.
+enum Styled {
+    /// A restyle left the element's style unchanged: nothing it passes
+    /// down changed, so its boxes and its subtree keep theirs.
+    Kept {
+        computed: Rc<ComputedStyle>,
+        parent_id: Option<NodeId>,
+    },
+    /// The element's new style, its `::before`, and what its `::after`
+    /// needs once the children are cascaded.
+    Fresh(FreshElement),
+}
+
+/// An element styled before its children: what [`finish_element`]
+/// needs after them.
+struct FreshElement {
+    computed: Rc<ComputedStyle>,
+    computed_before: Option<Rc<ComputedStyle>>,
+    recorded: Option<Rc<MatchedRules>>,
+    recorder: Recorder,
+    reads_counters: bool,
+    /// A restyle: `::after` reuses the recorded matches too.
+    restyle: bool,
+}
+
+/// Compute the element `id`'s style, and — unless a restyle keeps it —
+/// its `::before` and the pseudo-elements that do not depend on its
+/// children, writing what it can back. Not inlined into the recursion:
+/// its frame holds every style it computes.
+#[inline(never)]
+fn style_element<'a>(
+    dom: &mut Dom<TuiExt>,
+    sheets: &Sheets<'a>,
+    id: NodeId,
+    parent_computed: &ComputedStyle,
+    counters: &mut CounterState,
+    scratch: &mut Scratch<'a>,
+    mode: Mode,
+) -> Styled {
     // The matches recorded under these sheets: reused by a restyle,
     // compared against (to keep them without allocating) by a cascade.
     let recorded = dom
@@ -241,42 +321,23 @@ pub(super) fn cascade_subtree<'a>(
     // staying the same does not keep theirs.
     let keeps_subtree = computed.display != crate::layout::Display::Contents;
     if mode == Mode::Restyle
-        && previous.as_deref() == Some(&computed)
+        && let Some(previous) = previous.as_ref().filter(|p| ***p == computed)
         && !reads_moved_counters
         && keeps_subtree
     {
-        // Nothing this element passes down changed: its boxes and its
-        // subtree keep their styles.
         if let Some(ext) = dom.node_mut(id).ext_mut() {
             ext.matched = Some(recorder.finish(sheets));
         }
-        // Its own ops were applied computing it; its boxes and its
-        // subtree are replayed — except, once counter values moved, the
-        // children that take part in counters: they may read one.
-        let ops = StoredOps::pseudos_of(dom, id);
-        let mut flags = SubtreeFlags::stored(dom, id);
-        if counters.is_changed() && flags.has_counters {
-            counters.replay_element(parent_id, id, &ops, |counters| {
-                let mut child = first_child(dom, id);
-                while let Some(c) = child {
-                    if takes_part(dom, c) {
-                        flags.merge(cascade_subtree(
-                            dom, sheets, c, &computed, counters, scratch, mode,
-                        ));
-                    }
-                    child = next_sibling(dom, c);
-                }
-            });
-        } else {
-            counters.replay_element(parent_id, id, &ops, |c| c.replay_children(dom, id));
-        }
-        return flags;
+        return Styled::Kept {
+            computed: previous.clone(),
+            parent_id,
+        };
     }
     counters.note_ops(previous.as_deref(), Some(&computed));
 
     // Compute under a shared borrow. `::after` is computed after the
-    // children (below): it sits after them in tree order, so a
-    // `counter()` in it sees their increments.
+    // children (`finish_element`): it sits after them in tree order, so
+    // a `counter()` in it sees their increments.
     let (
         computed_before,
         computed_backdrop,
@@ -330,7 +391,7 @@ pub(super) fn cascade_subtree<'a>(
         };
         (cb, cbd, csel, csb, csbt_v, csbt_h)
     };
-    let mut reads_counters = counters.take_read();
+    let reads_counters = counters.take_read();
     // `::before` comes before the children: a changed op there moves
     // their counters.
     counters.note_ops(
@@ -348,8 +409,9 @@ pub(super) fn cascade_subtree<'a>(
     };
 
     // Write back.
+    let computed = Rc::new(computed);
     if let Some(ext) = dom.node_mut(id).ext_mut() {
-        ext.computed = Some(std::rc::Rc::new(computed.clone()));
+        ext.computed = Some(computed.clone());
         ext.computed_backdrop = computed_backdrop.map(Rc::new);
         ext.computed_selection = computed_selection.map(Rc::new);
         ext.computed_scrollbar = computed_scrollbar.map(Rc::new);
@@ -360,24 +422,73 @@ pub(super) fn cascade_subtree<'a>(
             ext.layout_dirty = true;
         }
     }
+    Styled::Fresh(FreshElement {
+        computed,
+        computed_before: computed_before.map(Rc::new),
+        recorded,
+        recorder,
+        reads_counters,
+        restyle: mode == Mode::Restyle,
+    })
+}
 
-    // Recurse. Children inherit from our computed style. Aggregate
-    // children's flags into our subtree flags.
-    let mut flags = SubtreeFlags {
-        has_positioned_pseudo: false,
-        has_collapse: computed.border_collapse == crate::layout::BorderCollapse::Collapse,
-        has_counters: false,
-    };
-    let mut child = first_child(dom, id);
-    while let Some(c) = child {
-        flags.merge(cascade_subtree(
-            dom, sheets, c, &computed, counters, scratch, mode,
-        ));
-        child = next_sibling(dom, c);
+/// A restyle kept the element `id`'s style (`computed`): its boxes and
+/// its subtree are replayed — except, once counter values moved, the
+/// children that take part in counters: they may read one.
+#[allow(clippy::too_many_arguments)]
+fn replay_kept<'a>(
+    dom: &mut Dom<TuiExt>,
+    sheets: &Sheets<'a>,
+    id: NodeId,
+    computed: &ComputedStyle,
+    parent_id: Option<NodeId>,
+    counters: &mut CounterState,
+    scratch: &mut Scratch<'a>,
+    mode: Mode,
+) -> SubtreeFlags {
+    // Its own ops were applied computing it.
+    let ops = StoredOps::pseudos_of(dom, id);
+    let mut flags = SubtreeFlags::stored(dom, id);
+    if counters.is_changed() && flags.has_counters {
+        counters.replay_element(parent_id, id, &ops, |counters| {
+            let mut child = first_child(dom, id);
+            while let Some(c) = child {
+                if takes_part(dom, c) {
+                    flags.merge(cascade_subtree(
+                        dom, sheets, c, computed, counters, scratch, mode,
+                    ));
+                }
+                child = next_sibling(dom, c);
+            }
+        });
+    } else {
+        counters.replay_element(parent_id, id, &ops, |c| c.replay_children(dom, id));
     }
-    // A kept child leaves its own reads behind: only `::after`'s count.
-    counters.take_read();
+    flags
+}
 
+/// After the element `id`'s children: its `::after` (which sees their
+/// counter increments) and the bottom-up aggregates, written back. Not
+/// inlined into the recursion, as [`style_element`] is not.
+#[inline(never)]
+fn finish_element<'a>(
+    dom: &mut Dom<TuiExt>,
+    sheets: &Sheets<'a>,
+    id: NodeId,
+    styled: FreshElement,
+    mut flags: SubtreeFlags,
+    counters: &mut CounterState,
+    scratch: &mut Scratch<'a>,
+) -> SubtreeFlags {
+    let FreshElement {
+        computed,
+        computed_before,
+        recorded,
+        mut recorder,
+        mut reads_counters,
+        restyle,
+    } = styled;
+    let cached = recorded.as_deref().filter(|_| restyle);
     // `::after` comes after the children in tree order.
     let computed_after = {
         let mut cx = ElementCx {
@@ -394,7 +505,7 @@ pub(super) fn cascade_subtree<'a>(
     reads_counters |= counters.take_read();
     counters.exit(id);
     let own_has_positioned_pseudo = computed_before
-        .as_ref()
+        .as_deref()
         .is_some_and(|c| c.position != Position::Static)
         || computed_after
             .as_ref()
@@ -403,13 +514,13 @@ pub(super) fn cascade_subtree<'a>(
 
     flags.has_counters |= reads_counters
         || has_ops(&computed)
-        || computed_before.as_ref().is_some_and(has_ops)
+        || computed_before.as_deref().is_some_and(has_ops)
         || computed_after.as_ref().is_some_and(has_ops);
 
     // Write the bottom-up aggregates.
     if let Some(ext) = dom.node_mut(id).ext_mut() {
         counters.note_ops(ext.computed_after.as_deref(), computed_after.as_ref());
-        ext.computed_before = computed_before.map(std::rc::Rc::new);
+        ext.computed_before = computed_before;
         ext.computed_after = computed_after.map(std::rc::Rc::new);
         ext.tree_has_positioned_pseudo = flags.has_positioned_pseudo;
         ext.tree_has_collapse = flags.has_collapse;
@@ -418,143 +529,6 @@ pub(super) fn cascade_subtree<'a>(
         ext.matched = Some(recorder.finish(sheets));
     }
     flags
-}
-
-/// Per-element cascade: start from initial + inheritance, collect
-/// matching rules, apply the ladder, resolve `content`, finalize
-/// the `border-*-color`s.
-fn compute_element_style(
-    cx: &mut ElementCx<'_, '_>,
-    parent: &ComputedStyle,
-    parent_id: Option<NodeId>,
-    rules: Rules<'_>,
-) -> ComputedStyle {
-    let (dom, sheets, id) = (cx.dom, cx.sheets, cx.id);
-    // Collect matching non-pseudo-element rules across all sheets.
-    // Cascade order is (specificity, scope proximity, sheet_idx,
-    // source_idx) — later sheets win same-specificity contests just
-    // like later rules in a single sheet do.
-    cx.scratch
-        .gather(dom, sheets, id, &[PseudoElementTarget::None], rules);
-    let Scratch {
-        sorted,
-        ranks,
-        plan,
-        ..
-    } = &*cx.scratch;
-    let counters = &mut *cx.counters;
-
-    // Inline style on this element (may be empty).
-    let inline = dom.node(id).ext().and_then(|e| e.inline_style.as_deref());
-
-    let decls = Declarations::new(sorted, ranks, inline);
-    // Running transitions of registered custom properties
-    // (`runtime::animation`).
-    let transitions = dom
-        .node(id)
-        .ext()
-        .and_then(|e| e.presentation.as_deref())
-        .and_then(|p| p.custom_properties.as_ref());
-    // `attr()` reads this element's attributes (CSS Values 5 §8.7).
-    let attrs = |name: &str| dom.node(id).get_attribute(name);
-    let preferred = sheets.color_scheme();
-    // An inline-axis flow-relative property maps by the element's own
-    // `direction` (CSS Logical 1 §4), which this very ladder decides: the
-    // first run assumes the inherited one, and a block holding such a
-    // property re-runs with the element's own when they differ.
-    let directional = decls.has_directional();
-    let ((mut working, substituted, colors), settled) =
-        settle_direction(parent.text_direction, |direction| {
-            // Start from initial + inherit subset from parent. That
-            // includes the custom-property map (an `Rc` clone;
-            // `apply_cascade_ladder` copies on write only when this
-            // element declares `--*`).
-            let mut working = ComputedStyle::initial();
-            inherit_inheritable_from(&mut working, parent);
-            working.text_direction = direction;
-            let substituted = prepare(
-                &mut working,
-                plan,
-                decls,
-                sheets.registry(),
-                transitions,
-                &attrs,
-                sheets.viewport(),
-            );
-            let colors = apply_cascade_ladder(
-                &mut working,
-                plan,
-                decls.with(substituted.as_ref(), direction),
-                parent,
-                preferred,
-            );
-            // Only a flow-relative property reads the direction it ran
-            // with; without one the first run stands.
-            let own = if directional {
-                working.text_direction
-            } else {
-                direction
-            };
-            ((working, substituted, colors), own)
-        });
-    // A flow-relative property cannot change `direction`, so the run with
-    // the element's own direction settles it.
-    debug_assert!(settled, "the direction re-run settles `direction`");
-    let decls = decls.with(substituted.as_ref(), working.text_direction);
-    // `currentcolor` takes the element's final `color`, `light-dark()`
-    // its final `color-scheme`.
-    colors.finalize(&mut working, parent.fg, preferred);
-
-    // This element's `counter-reset` / `counter-increment` take effect
-    // before its own generated content and its children are seen.
-    counters.enter(
-        parent_id,
-        &working.counter_reset,
-        &working.counter_increment,
-    );
-
-    // Host element's own `content` property. Normally `None`; authors
-    // don't typically set `content` on a real element (CSS restricts it
-    // to pseudo-elements) but we allow it for flexibility.
-    let counter_lookup = |name: &str| counters.value(name);
-    working.content = resolve_content_on(&working, plan, decls, &counter_lookup).unwrap_or(None);
-
-    // BFC formation predicate (CSS 2.1 §9.4.1). Computed AFTER the
-    // cascade ladder so it reads the final values of `flow`,
-    // `display`, `overflow_*`, `position`. Used by the block-layout
-    // margin-collapse pass — landing here in phase 1 so phase 5 has
-    // it ready to consume.
-    super::apply::finalize_unusual_contents(&mut working, dom.node(id).tag_name());
-    if super::blockify::children_are_flex_items(dom, parent_id, parent) {
-        super::blockify::blockify(&mut working);
-    }
-    super::apply::finalize_justify_items(&mut working, parent);
-    finalize_bfc_formation(&mut working);
-    // Viewport-percentage lengths are absolute at computed-value time
-    // (CSS Values 4 §6.1.2).
-    working.resolve_viewport_units(sheets.viewport());
-    finalize_used_border(&mut working);
-
-    working
-}
-
-/// Run an element's cascade ladder (`run`: the direction it assumes →
-/// its result and the element's own `direction`) first with the
-/// `inherited` direction and, when the element's own differs, once more
-/// with that (CSS Logical 1 §4: flow-relative inline properties map by
-/// the element's own `direction`, which the same ladder decides). At
-/// most two runs, bounded here rather than by the ladder's behaviour;
-/// returns the last run's result and whether its direction held.
-pub(super) fn settle_direction<T>(
-    inherited: TextDirection,
-    mut run: impl FnMut(TextDirection) -> (T, TextDirection),
-) -> (T, bool) {
-    let (first, own) = run(inherited);
-    if own == inherited {
-        return (first, true);
-    }
-    let (second, settled) = run(own);
-    (second, settled == own)
 }
 
 /// Test-only: how many nodes the cascade's walks visited on this thread

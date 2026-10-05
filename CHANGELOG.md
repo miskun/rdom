@@ -386,6 +386,7 @@ One row per renamed or reshaped public item: the 0.5 form, its replacement, the 
 
 ### Fixed — `rdom-tui`
 
+- **A deep tree no longer overflows the stack in the cascade.** The walk recursed with every style an element computes in its frame (some 50 KB a level, so a 40-deep chain filled a test thread); it now keeps them behind `Rc`s, about 1 KB a level. (C7-GRID-CORE)
 - **A positioned `::before` / `::after` takes its `width` / `height`** (CSS 2.1 §10.3.7 / §10.6.4): a declared size (cells, `%`, `calc()`) wins as for a positioned element; with both insets set, `right` / `bottom` give way. (C3G-PSEUDO-SIZE)
 - **An inline `!important` beats an author `!important`** (CSS Cascade 4 §6.1): the `style` attribute wins over author rules at both importances, and sorts above every cascade layer (Cascade 5 §6.1). (C1-INLINE-IMPORTANT)
 - **A registered custom property is validated before its dependents read it** (Properties and Values 1 §2.4): an invalid value is the property's computed default, not substituted into its `var()` consumers. (C1G-REGISTERED-ORDER)

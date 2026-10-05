@@ -153,7 +153,7 @@ fn the_direction_rerun_runs_at_most_twice() {
         TextDirection::Ltr => TextDirection::Rtl,
         _ => TextDirection::Ltr,
     };
-    let (last, settled) = super::walk::settle_direction(TextDirection::Ltr, |d| {
+    let (last, settled) = super::element::settle_direction(TextDirection::Ltr, |d| {
         runs += 1;
         (d, flip(d))
     });
@@ -161,10 +161,38 @@ fn the_direction_rerun_runs_at_most_twice() {
     assert!(!settled);
 
     let mut runs = 0;
-    let (_, settled) = super::walk::settle_direction(TextDirection::Ltr, |d| {
+    let (_, settled) = super::element::settle_direction(TextDirection::Ltr, |d| {
         runs += 1;
         (d, d)
     });
     assert_eq!(runs, 1);
     assert!(settled);
+}
+
+/// The cascade recurses once per tree level, so each level's frame is
+/// paid as many times as the tree is deep: it keeps only the element's
+/// styles behind `Rc`s, the ones it computes living in frames that are
+/// gone before the children start (`walk::style_element` /
+/// `finish_element`). A 400-deep chain — every level a `::before` and a
+/// scroll container's pseudo-elements, the most an element computes —
+/// cascades on a 1 MiB stack.
+#[test]
+fn a_deep_tree_cascades_on_a_small_stack() {
+    std::thread::Builder::new()
+        .stack_size(1 << 20)
+        .spawn(|| {
+            let mut dom: TuiDom = TuiDom::new();
+            let mut parent = dom.root();
+            for _ in 0..400 {
+                let div = dom.create_element("div");
+                dom.append_child(parent, div).unwrap();
+                parent = div;
+            }
+            let css = sheet("div { color: red; overflow: auto } div::before { content: 'x' }");
+            dom.cascade(&css);
+            assert!(dom.node(parent).computed().is_some());
+        })
+        .unwrap()
+        .join()
+        .expect("the cascade fits the stack");
 }
