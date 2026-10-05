@@ -25,6 +25,9 @@ pub(super) struct ResolvedMain {
     pub(super) trim_cross_start: bool,
     /// The container trims the item's cross-end margin.
     pub(super) trim_cross_end: bool,
+    /// The container is `rtl`: a column's cross-start margin is the
+    /// item's right one.
+    pub(super) mirror: bool,
 }
 
 /// An item's resolved cross-axis extent and its offset from the
@@ -56,6 +59,9 @@ pub(super) fn place_cross(
     let cb_width = container_width;
     let (cross_start_m, cross_end_m) = match direction {
         Direction::Row => (&child_computed.margin.top, &child_computed.margin.bottom),
+        Direction::Column if main.mirror => {
+            (&child_computed.margin.right, &child_computed.margin.left)
+        }
         Direction::Column => (&child_computed.margin.left, &child_computed.margin.right),
     };
     const TRIMMED: MarginValue = MarginValue::Cells(0);

@@ -420,9 +420,13 @@ fn intrinsic_element(
     // CSS Box 4 §3 `margin-trim`: a trimmed edge drops the adjoining
     // margins — of the first / last child where the children flow
     // along the queried axis, of every child where they stack across it.
+    // Under `rtl` the first child's inline-start margin is its right one
+    // (CSS Writing Modes 4 §2.1).
     let along = computed.direction == direction;
     let trim = super::margin_trim::trimmed_edges(&computed);
+    let reversed = direction == Direction::Row && super::margin_trim::inline_reversed(&computed);
     let (trim_start, trim_end) = match direction {
+        Direction::Row if reversed => (trim.right, trim.left),
         Direction::Row => (trim.left, trim.right),
         Direction::Column => (trim.top, trim.bottom),
     };
@@ -445,6 +449,7 @@ fn intrinsic_element(
             .and_then(|e| e.computed.as_ref())
             .map(|cs| {
                 let (a, b) = match direction {
+                    Direction::Row if reversed => (&cs.margin.right, &cs.margin.left),
                     Direction::Row => (&cs.margin.left, &cs.margin.right),
                     Direction::Column => (&cs.margin.top, &cs.margin.bottom),
                 };

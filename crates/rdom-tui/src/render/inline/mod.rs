@@ -39,6 +39,7 @@
 //! break opportunities. UAX #14 line breaking (soft hyphen, complex-
 //! script clustering) is out of scope.
 
+mod align;
 mod caret;
 pub(crate) mod generated;
 mod packer;
@@ -349,8 +350,10 @@ pub fn compute_inline_layout(dom: &Dom<TuiExt>, block: NodeId, content_width: u1
     walk_subtree(dom, block, &mut packer);
     push_pseudo(dom, block, PseudoSlot::After, &mut packer);
     packer.finish();
+    let mut lines = packer.take_lines();
+    align::start_lines_at_inline_start(dom, block, &mut lines, content_width);
     InlineLayout {
-        lines: packer.take_lines(),
+        lines,
         content_width,
     }
 }
@@ -468,8 +471,10 @@ pub(crate) fn pack_run(
         push_pseudo(dom, parent, PseudoSlot::After, &mut packer);
     }
     packer.finish();
+    let mut lines = packer.take_lines();
+    align::start_lines_at_inline_start(dom, parent, &mut lines, content_width);
     InlineLayout {
-        lines: packer.take_lines(),
+        lines,
         content_width,
     }
 }

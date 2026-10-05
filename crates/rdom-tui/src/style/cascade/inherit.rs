@@ -40,6 +40,10 @@ pub(super) fn inherit_inheritable_from(working: &mut ComputedStyle, parent: &Com
     working.color_scheme = parent.color_scheme.clone();
     // CSS 2.1 §17.6.1: `border-spacing` inherits.
     working.border_spacing = parent.border_spacing.clone();
+    // CSS Writing Modes 4 §2.1 / §3.1: `direction` and `writing-mode`
+    // inherit.
+    working.text_direction = parent.text_direction;
+    working.writing_mode = parent.writing_mode;
     // `border-collapse` does NOT inherit in rdom — documented
     // divergence (BORDER-MODEL-1). Containers that want their direct
     // children to participate in collapse declare it themselves;
@@ -77,6 +81,7 @@ pub(super) fn layout_differs(a: &ComputedStyle, b: &ComputedStyle) -> bool {
         || a.border_collapse != b.border_collapse
         || a.border_collapse_declared != b.border_collapse_declared
         || a.direction != b.direction
+        || a.text_direction != b.text_direction
         || a.overflow_x != b.overflow_x
         || a.overflow_y != b.overflow_y
         || a.display != b.display

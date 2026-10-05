@@ -87,6 +87,8 @@ mod border_tests;
 mod sizing_tests;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod writing_tests;
 
 pub use serialize::serialize;
 pub use set::{set, set_custom, set_from_tokens};

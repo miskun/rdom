@@ -73,7 +73,7 @@ mod border_collapse;
 mod box_sizing;
 mod flex;
 pub(crate) mod geometry;
-mod gutter;
+pub(crate) mod gutter;
 mod ifc;
 pub(crate) mod intrinsic;
 mod margin_trim;

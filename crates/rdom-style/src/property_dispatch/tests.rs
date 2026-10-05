@@ -112,6 +112,8 @@ fn canonical_values() -> &'static [(&'static str, &'static str)] {
         ("counter-reset", "chapter 0"),
         ("counter-increment", "chapter 1"),
         ("color-scheme", "light dark"),
+        ("direction", "rtl"),
+        ("writing-mode", "vertical-rl"),
     ]
 }
 
@@ -801,24 +803,25 @@ fn all_shorthand_sets_every_property_in_the_table() {
     let mut style = TuiStyle::new();
     style.set_custom_property("x", "1", false);
     set("ALL", "unset", &mut style).unwrap();
-    for &name in property_names() {
+    // `direction` is in the table but not in `all` (C5-WRITING).
+    let in_all = || property_names().iter().filter(|n| **n != "direction");
+    for &name in in_all() {
         let want = if inherits(name) { "inherit" } else { "initial" };
         assert_eq!(serialize(name, &style).as_deref(), Some(want), "{name}");
     }
+    assert_eq!(serialize("direction", &style), None);
     assert_eq!(style.custom_property_value("x"), Some("1"));
 
     let mut style = TuiStyle::new();
     set("all", "revert", &mut style).unwrap();
-    for &name in property_names() {
+    for &name in in_all() {
         assert_eq!(serialize(name, &style).as_deref(), Some("revert"), "{name}");
     }
     assert_eq!(serialize("all", &style).as_deref(), Some("revert"));
 
-    let every = property_names()
-        .iter()
-        .fold(crate::ImportantMask::empty(), |m, n| {
-            m | property_mask(n).unwrap()
-        });
+    let every = in_all().fold(crate::ImportantMask::empty(), |m, n| {
+        m | property_mask(n).unwrap()
+    });
     assert_eq!(property_mask("all"), Some(every));
     assert!(remove("all", &mut style));
     assert!(

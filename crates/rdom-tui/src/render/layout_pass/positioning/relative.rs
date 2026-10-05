@@ -32,10 +32,17 @@ pub(in crate::render::layout_pass) fn apply_relative_shift(
     // Relative offsets resolve percentages against the parent's
     // content box on the matching axis (`top`/`bottom` → height,
     // `left`/`right` → width). Per CSS 2.1 §9.4.3.
-    let dx =
-        resolve_length_offset(&computed.left, parent.width as i32, false).unwrap_or_else(|| {
-            resolve_length_offset(&computed.right, parent.width as i32, true).unwrap_or(0)
-        });
+    // With both `left` and `right` set, the inline-start one wins: `left`
+    // under `ltr`, `right` under `rtl` (CSS 2.1 §9.4.3; rdom reads the
+    // box's own `direction`, which it inherits from its containing block
+    // unless it sets one — DIVERGENCES).
+    let left = || resolve_length_offset(&computed.left, parent.width as i32, false);
+    let right = || resolve_length_offset(&computed.right, parent.width as i32, true);
+    let dx = if computed.text_direction == crate::layout::TextDirection::Rtl {
+        right().or_else(left).unwrap_or(0)
+    } else {
+        left().or_else(right).unwrap_or(0)
+    };
     let vertical = |len: &Length| -> Length {
         match len {
             Length::Calc(expr) if !parent_height_definite && expr.contains_percent() => {

@@ -129,7 +129,7 @@ row comes from.
 | C5-MARGIN-TRIM | `margin-trim` | done |
 | C5-CONTAIN-SIZE | `contain-intrinsic-size` (+ longhands) | partial — used with C14 contain |
 | C5-LOGICAL | Logical properties: `inline-size` / `block-size` / `min-*` / `max-*`, `margin-*` / `padding-*` / `border-*` / `inset-*` / radius logical forms (horizontal-tb ltr mapping) | |
-| C5-WRITING | `direction` and `writing-mode` for the values a terminal can render (rtl lines; vertical documented N/A if not) | |
+| C5-WRITING | `direction` and `writing-mode` for the values a terminal can render (rtl lines; vertical documented N/A if not) | done |
 
 ### Phase 6 — Display, visibility, flexbox, box alignment (audit §3.7, §3.8)
 
@@ -1494,3 +1494,34 @@ row comes from.
   the cascade wiring — `contain_intrinsic_size_cascades` then failed on `25vw` (0, not 10: the shared
   `css_phase5::lay_out` cascaded before any viewport was set), fixed in the helper (viewport first, as
   C2-VIEWPORT documents), not in production code.
+- 2026-10-07 — C5-WRITING (done before C5-LOGICAL, which maps the inline sides by `direction`):
+  `direction: ltr | rtl` and `writing-mode: horizontal-tb | vertical-rl | vertical-lr | sideways-rl |
+  sideways-lr` (CSS Writing Modes 4 §2.1 / §3.1), both inherited; `direction` stays out of `all` (CSS
+  Cascade 4 §3.2 — it was already in `ALL_EXCLUDES`). Rust names `text_direction` / `TextDirection`
+  because `ComputedStyle::direction` / `Direction` are `flex-direction` (renaming those is a separate,
+  wider break; not done). UA: `[dir=ltr]` / `[dir=rtl]` set `direction` (HTML rendering, "Bidirectional
+  text"; `dir` is already an ASCII case-insensitive attribute in rdom-core's matcher; `dir=auto` needs
+  the first strong character — no). Layout under `rtl`: (1) lines start at the right edge
+  (`render/inline/align.rs`, a post-pass over the packed lines, so paint / hit-test / caret follow) —
+  decided against the brief's "inline boxes flow right to left": without the bidi algorithm,
+  reversing boxes would print `world hello` for `hello world`, which no browser does; the browser
+  result for left-to-right text in an `rtl` paragraph is the right-aligned line in logical order,
+  which is what rdom draws (DIVERGENCES §1); (2) an over-constrained block drops its left margin (CSS
+  2.1 §10.3.3, the parent's `direction`); (3) flex containers lay their items out in a mirrored frame
+  (a row's main-start / a column's cross-start margin is the right one) and flip the x positions back
+  (`placement::mirror_x`); (4) `margin-trim`'s inline sides follow the direction
+  (`margin_trim::trimmed_edges` / the logical `FlexTrim`, intrinsic sums included); (5) relative and
+  over-constrained absolute boxes keep `right` (§9.4.3 / §10.3.7 — reading the box's own direction,
+  DIVERGENCES §2; the static position stays left); (6) the vertical scrollbar sits on the left
+  (`gutter::bar_on_left` / `vertical_bar_column`, used by the gutter reservation, the paint and the
+  hit-test; the corner cell moves to the bottom-left) — Chromium and Gecko both put an `rtl` box's
+  scrollbar on its inline-start side. Not done: `text-align: start / end` (no `text-align` until
+  C9-TEXT-ALIGN — lines are `start`-aligned, which `rtl` now honours), `:dir()` (Phase 11: coverage row
+  N/A → Missing), vertical writing modes (compute, lay out horizontally — DIVERGENCES §1; coverage
+  `writing-mode` and `direction` rows *Partial*). Red: the dispatch tests failed to compile
+  (`TextDirection`, `WritingMode`, the fields); the layout tests in `css_phase5/writing.rs` were written
+  first but first ran after the implementation (green). Changed expectation:
+  `all_shorthand_sets_every_property_in_the_table` iterated every table name — `direction` is in the
+  table now and, per Cascade 4 §3.2, not in `all`, so the test skips it and asserts it stays unset.
+  `cascade_inherits_exactly_the_style_crates_inherited_set` gains probes for `direction` and
+  `writing-mode` (and the non-inherited `box-sizing` / `margin-trim` of the earlier items).

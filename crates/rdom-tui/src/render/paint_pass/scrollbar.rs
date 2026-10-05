@@ -44,6 +44,7 @@ use rdom_core::{Dom, NodeId};
 use crate::ext::TuiExt;
 use crate::layout::{LayoutRect, Overflow};
 use crate::node::TuiNodeExt;
+use crate::render::layout_pass::gutter::{bar_on_left, vertical_bar_column};
 use crate::render::{Buffer, Rect, Style};
 use crate::style::{Color, ComputedStyle};
 
@@ -203,6 +204,7 @@ pub(super) fn paint_scrollbars(
         );
         paint_vertical_scrollbar(
             buf,
+            vertical_bar_column(content_layout, computed),
             content_layout,
             padding_box,
             x_paints,
@@ -225,6 +227,7 @@ pub(super) fn paint_scrollbars(
         );
         paint_horizontal_scrollbar(
             buf,
+            bar_on_left(computed),
             content_layout,
             padding_box,
             y_paints,
@@ -243,6 +246,7 @@ pub(super) fn paint_scrollbars(
 #[allow(clippy::too_many_arguments)]
 fn paint_vertical_scrollbar(
     buf: &mut Buffer,
+    track_x: i32,
     content: LayoutRect,
     padding_box: LayoutRect,
     has_h_scrollbar: bool,
@@ -255,15 +259,15 @@ fn paint_vertical_scrollbar(
     thumb_glyph: &str,
     thumb_style: Style,
 ) {
-    // Track column = the dedicated gutter cell at `content.right()`.
+    // Track column = the dedicated gutter cell `track_x`, at
+    // `content.right()` (or left of `content` under `rtl`).
     // The layout pass guarantees the gutter is reserved (via either
     // `Scroll` always-reserves, `Auto + scrollbar-gutter: stable`, or
     // `Auto`'s two-pass force-reserve when overflow is detected).
     // CSS Overflow 3 §3 + the TUI medium constraint (no cell overlay)
     // mean overlay positioning is unreachable for paint — by the
     // time the scrollbar actually paints, its column belongs to it.
-    let track_x_signed = content.x + content.width as i32;
-    let track_x = track_x_signed as i64;
+    let track_x = i64::from(track_x);
     if track_x < clip.x as i64 || track_x >= clip.right() as i64 {
         return;
     }
@@ -310,6 +314,7 @@ fn paint_vertical_scrollbar(
 #[allow(clippy::too_many_arguments)]
 fn paint_horizontal_scrollbar(
     buf: &mut Buffer,
+    corner_left: bool,
     content: LayoutRect,
     padding_box: LayoutRect,
     has_v_scrollbar: bool,
@@ -336,11 +341,15 @@ fn paint_horizontal_scrollbar(
     // the vertical case): under M5.5b `content_layout` can widen into
     // the border ring on the left/right; the track must not paint
     // there per CSS Overflow 3 §3.
-    let track_left = content.x.max(padding_box.x).max(clip.x as i32);
+    let mut track_left = content.x.max(padding_box.x).max(clip.x as i32);
     let mut track_right = (content.x + content.width as i32)
         .min(padding_box.x + padding_box.width as i32)
         .min(clip.right() as i32);
-    if has_v_scrollbar {
+    // The corner beside the vertical bar stays unclaimed: bottom-right,
+    // or bottom-left under `rtl`.
+    if has_v_scrollbar && corner_left {
+        track_left += 1;
+    } else if has_v_scrollbar {
         track_right -= 1;
     }
     if track_right <= track_left {

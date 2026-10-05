@@ -185,6 +185,8 @@ pub(super) fn apply_style(
     );
     value!(
         direction: DIRECTION,
+        text_direction: TEXT_DIRECTION,
+        writing_mode: WRITING_MODE,
         overflow_x: OVERFLOW_X,
         overflow_y: OVERFLOW_Y,
         scrollbar_gutter: SCROLLBAR_GUTTER,

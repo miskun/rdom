@@ -3,7 +3,9 @@
 use crate::TuiStyle;
 use crate::color::named;
 use crate::color::system::{ACCENT, BORDER_DEFAULT, FIELD_BG, TEXT_MUTED};
-use crate::layout::{Border, Display, Padding, Size, TextDecoration, UserSelect, WhiteSpace};
+use crate::layout::{
+    Border, Display, Padding, Size, TextDecoration, TextDirection, UserSelect, WhiteSpace,
+};
 
 /// The UA rules of this group, in cascade order.
 pub(super) fn rules() -> Vec<(&'static str, TuiStyle)> {
@@ -200,6 +202,18 @@ pub(super) fn rules() -> Vec<(&'static str, TuiStyle)> {
                 .height(Size::Fixed(0))
                 .border(Border::top())
                 .border_fg(BORDER_DEFAULT),
+        ),
+        // The HTML rendering section's "Bidirectional text" rules map the
+        // `dir` attribute (ASCII case-insensitive, HTML §4.16.2) onto
+        // `direction`. `dir=auto` needs the bidi algorithm's first strong
+        // character, which rdom does not run (DIVERGENCES).
+        (
+            "[dir=ltr]",
+            TuiStyle::new().text_direction(TextDirection::Ltr),
+        ),
+        (
+            "[dir=rtl]",
+            TuiStyle::new().text_direction(TextDirection::Rtl),
         ),
         // Figures.
         ("figure", TuiStyle::new().display(Display::Block)),

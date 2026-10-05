@@ -85,19 +85,19 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.14 Fonts (Fonts 4) | 0 | 2 | 1 | 2 | 5 |
 | 3.15 Lists, counters and generated content (Lists 3, Generated Content 3, Counter Styles 3, Pseudo-Elements 4) | 1 | 3 | 6 | 2 | 12 |
 | 3.16 Pseudo-elements (Pseudo-Elements 4, Selectors 4) | 4 | 1 | 5 | 6 | 16 |
-| 3.17 Selectors (Selectors 4) | 16 | 2 | 15 | 5 | 38 |
+| 3.17 Selectors (Selectors 4) | 16 | 2 | 16 | 4 | 38 |
 | 3.18 Transitions and animations (Transitions 1/2, Animations 1/2, Easing 1/2) | 3 | 3 | 4 | 0 | 10 |
 | 3.19 User interface (UI 4) | 2 | 1 | 8 | 1 | 12 |
 | 3.20 Tables (Tables 3, CSS 2.1 §17) | 0 | 0 | 4 | 0 | 4 |
 | 3.21 Conditional rules and containment (Conditional 3/5, Contain 2/3, Will Change 1) | 0 | 0 | 6 | 1 | 7 |
-| 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 0 | 0 | 6 | 3 | 9 |
+| 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 0 | 2 | 6 | 1 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **108** | **28** | **122** | **49** | **307** |
+| **Total** | **108** | **30** | **123** | **46** | **307** |
 
-When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 150 rows Partial / Missing.
+When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 153 rows Partial / Missing.
 
-Headline: rdom parses **97 property names** (`PROPERTY_NAMES`, after C5-CONTAIN-SIZE). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are flex alignment (`justify-content`, `align-items`), `flex-wrap`, the `flex-grow` / `flex-basis` longhands, `line-height`, `text-align`, `visibility`, and grid.
+Headline: rdom parses **99 property names** (`PROPERTY_NAMES`, after C5-WRITING). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are flex alignment (`justify-content`, `align-items`), `flex-wrap`, the `flex-grow` / `flex-basis` longhands, `line-height`, `text-align`, `visibility`, and grid.
 
 ---
 
@@ -543,7 +543,7 @@ dropped. The audit's six, with where each stands:
 | `:link` / `:any-link` | Missing | `<a href>` exists. | No | `SEL` |
 | `:visited` / `:local-link` / `:target` / `:target-within` | N/A | No navigation history or URL fragments. | — | — |
 | `:lang()` | Missing | `lang` attribute inheritance. | No | `SEL` |
-| `:dir()` | N/A | No bidi (documented). | — | — |
+| `:dir()` | Missing | The `dir` attribute's directionality; meaningful since C5-WRITING ships `direction` — Phase 11. | Yes | `SEL` |
 | `:defined` / `:state()` / `:host*` | N/A | No custom elements / Shadow DOM (documented). | — | — |
 | `:autofill`, `:fullscreen`, `:picture-in-picture`, `:playing` / `:paused` / `:seeking` / `:buffering` / `:stalled` / `:muted` / `:volume-locked`, `:current` / `:past` / `:future` | N/A | No autofill, fullscreen, media or timed text. | — | — |
 | `:blank` | Missing | Low priority (spec unstable). | No | `SEL` |
@@ -614,8 +614,8 @@ dropped. The audit's six, with where each stands:
 | `border-start-start-radius` / … (4 corners) | Missing | Aliases of `border-*-radius`. | No | `DISP` |
 | `inset-inline` / `inset-block` | Missing | See §3.10. | No | `DISP` |
 | `text-align: start / end`, `float: inline-start`, `resize: block / inline` | Missing | Logical keywords (follow their properties). | No | — |
-| `writing-mode` | N/A | Vertical flow could be emulated, but glyphs cannot be rotated in a cell. | — | — |
-| `direction` / `unicode-bidi` | N/A | No bidi (documented). | — | — |
+| `writing-mode` | Partial | All five values parse, inherit and compute (C5-WRITING); every box lays out as `horizontal-tb` — vertical flow could be emulated, but glyphs cannot be rotated in a cell (DIVERGENCES §1). | Yes | `KW`, `CASC` |
+| `direction` / `unicode-bidi` | Partial | `direction: ltr \| rtl` (C5-WRITING; the `dir` attribute through the UA sheet): inline-start is the right edge — line starts, block over-constraint, flex rows / column cross axis, positioned insets, `margin-trim`, the vertical scrollbar side. `unicode-bidi` and bidi reordering N/A: terminals differ (DIVERGENCES §1). | Yes | `KW`, `IFC`, `BLOCK`, `FLEX`, `POS` |
 | `text-orientation` / `text-combine-upright` | N/A | Glyph rotation / compression in a cell. | — | — |
 
 ### 3.23 Transforms, filters, masking, compositing

@@ -377,6 +377,20 @@ impl TuiStyle {
         crate::layout::ScrollbarGutter
     );
     setter!(
+        text_direction,
+        text_direction,
+        text_direction_important,
+        TEXT_DIRECTION,
+        crate::layout::TextDirection
+    );
+    setter!(
+        writing_mode,
+        writing_mode,
+        writing_mode_important,
+        WRITING_MODE,
+        crate::layout::WritingMode
+    );
+    setter!(
         margin_trim,
         margin_trim,
         margin_trim_important,

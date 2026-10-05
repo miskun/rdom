@@ -283,6 +283,29 @@ pub fn set_parsed(name: &str, value: &[Token], style: &mut TuiStyle) -> Result<(
         "scroll-behavior" => parse_scroll_behavior(value).map(|b| {
             style.scroll_behavior = Some(Value::Specified(b));
         }),
+        "direction" => parse_keyword(
+            value,
+            &[
+                ("ltr", crate::layout::TextDirection::Ltr),
+                ("rtl", crate::layout::TextDirection::Rtl),
+            ],
+        )
+        .map(|d| {
+            style.text_direction = Some(Value::Specified(d));
+        }),
+        "writing-mode" => parse_keyword(
+            value,
+            &[
+                ("horizontal-tb", crate::layout::WritingMode::HorizontalTb),
+                ("vertical-rl", crate::layout::WritingMode::VerticalRl),
+                ("vertical-lr", crate::layout::WritingMode::VerticalLr),
+                ("sideways-rl", crate::layout::WritingMode::SidewaysRl),
+                ("sideways-lr", crate::layout::WritingMode::SidewaysLr),
+            ],
+        )
+        .map(|m| {
+            style.writing_mode = Some(Value::Specified(m));
+        }),
         "color-scheme" => crate::color::ColorSchemeList::parse(value).map(|s| {
             style.color_scheme = Some(Value::Specified(s));
         }),

@@ -196,6 +196,24 @@ pub fn serialize(name: &str, style: &TuiStyle) -> Option<String> {
             .as_ref()
             .and_then(specified)
             .map(super::value_serializers::serialize_margin_trim),
+        "direction" => style.text_direction.as_ref().and_then(specified).map(|d| {
+            match d {
+                crate::layout::TextDirection::Ltr => "ltr",
+                crate::layout::TextDirection::Rtl => "rtl",
+            }
+            .to_string()
+        }),
+        "writing-mode" => style.writing_mode.as_ref().and_then(specified).map(|m| {
+            use crate::layout::WritingMode;
+            match m {
+                WritingMode::HorizontalTb => "horizontal-tb",
+                WritingMode::VerticalRl => "vertical-rl",
+                WritingMode::VerticalLr => "vertical-lr",
+                WritingMode::SidewaysRl => "sideways-rl",
+                WritingMode::SidewaysLr => "sideways-lr",
+            }
+            .to_string()
+        }),
         "box-sizing" => style.box_sizing.as_ref().and_then(specified).map(|b| {
             match b {
                 crate::layout::BoxSizing::ContentBox => "content-box",

@@ -116,6 +116,13 @@ pub struct ComputedStyle {
     /// equals-boundary rule extended to rdom's non-table elements.
     pub border_collapse_declared: bool,
     pub direction: Direction,
+    /// CSS `direction` (CSS Writing Modes 4 §2.1): which edge is
+    /// inline-start. Inherited; initial `ltr`. (`direction` above is
+    /// `flex-direction`.)
+    pub text_direction: crate::layout::TextDirection,
+    /// CSS `writing-mode` (CSS Writing Modes 4 §3.1). Inherited; layout
+    /// is `horizontal-tb` whatever it computes to (DIVERGENCES).
+    pub writing_mode: crate::layout::WritingMode,
     /// Per-axis overflow. Resolved after the cross-axis rule from
     /// CSS Overflow Level 3: if one axis is not `Visible` and the
     /// other is `Visible`, the `Visible` side behaves as `Auto`.
@@ -257,6 +264,8 @@ impl ComputedStyle {
             border_collapse: crate::layout::BorderCollapse::Separate,
             border_collapse_declared: false,
             direction: Direction::Column,
+            text_direction: crate::layout::TextDirection::Ltr,
+            writing_mode: crate::layout::WritingMode::HorizontalTb,
             overflow_x: Overflow::Visible,
             overflow_y: Overflow::Visible,
             scrollbar_gutter: crate::layout::ScrollbarGutter::Auto,

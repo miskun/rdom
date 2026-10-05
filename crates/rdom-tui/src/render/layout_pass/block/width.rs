@@ -34,8 +34,9 @@ pub(super) struct ResolvedWidth {
 /// the content (CSS Sizing 3 §3.1, `fit-content` against the space the
 /// margins leave); [`Keywords`] turns it into that border-box width.
 ///
-/// Auto values absorb leftover space; over-constrained widths
-/// (LTR) override `margin-right` to make the equation balance. The
+/// Auto values absorb leftover space; over-constrained widths override
+/// the inline-end margin (`margin-right` under `ltr`, `margin-left`
+/// under `rtl`) to make the equation balance. The
 /// content width is never negative (§10.3.3), so the border-box width
 /// is at least the padding plus border, whatever the containing block.
 pub(super) fn resolve_block_width(
@@ -59,6 +60,13 @@ pub(super) fn resolve_block_width(
     // child of one resolves its size from `flex-basis` (0% for the
     // `flex: <N>` shorthand).
 
+    // CSS 2.1 §10.3.3: the over-constrained equation drops the margin on
+    // the containing block's inline-end side.
+    let rtl = dom.node(id).parent_node().and_then(|p| {
+        p.ext()
+            .and_then(|e| e.computed.as_ref())
+            .map(|c| c.text_direction)
+    }) == Some(crate::layout::TextDirection::Rtl);
     let ml_auto = matches!(ml_decl, MarginValue::Auto);
     let mr_auto = matches!(mr_decl, MarginValue::Auto);
     // Resolve cells (including Calc-with-percent) against the
@@ -109,8 +117,13 @@ pub(super) fn resolve_block_width(
             let mr = cb - w - ml_cells;
             (ml_cells, w, mr)
         }
-        // Over-constrained (LTR): the declared MR is silently
-        // overridden so the equation balances.
+        // Over-constrained: the margin on the containing block's
+        // inline-end side is overridden so the equation balances — the
+        // right one under `ltr`, the left one under `rtl`.
+        (Some(w), false, false) if rtl => {
+            let ml = cb - w - mr_cells;
+            (ml, w, mr_cells)
+        }
         (Some(w), false, false) => {
             let mr = cb - w - ml_cells;
             (ml_cells, w, mr)
@@ -126,11 +139,12 @@ pub(super) fn resolve_block_width(
     ));
     let ml_clamped = if clamped_width != width_final {
         let leftover = cb - clamped_width;
-        // Only the left margin positions the box (LTR); the right
-        // margin is whatever balances the equation.
+        // Only the left margin positions the box; under `ltr` the right
+        // margin is whatever balances the equation, under `rtl` the left.
         match (ml_auto, mr_auto) {
             (true, true) => leftover.div_euclid(2),
             (true, false) => leftover - mr_cells,
+            (false, false) if rtl => leftover - mr_cells,
             (false, true) | (false, false) => ml_cells,
         }
     } else {

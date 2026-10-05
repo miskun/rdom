@@ -43,6 +43,9 @@ pub(super) struct FlexLine<'a> {
     /// The container's `margin-trim` (CSS Box 4 §3.2); its main-axis
     /// half was applied to the items' margins already.
     pub(super) trim: FlexTrim,
+    /// The container is `rtl`: the items were placed in a mirrored
+    /// frame and are flipped back across it (horizontal axis only).
+    pub(super) mirror: bool,
 }
 
 /// Position each child along the main axis, scrolling by the parent's
@@ -58,6 +61,7 @@ pub(super) fn place_items(dom: &mut Dom<TuiExt>, children: &[NodeId], line: Flex
         auto_margins,
         overlap,
         trim,
+        mirror,
     } = line;
 
     let scroll_main = parent_scroll(dom, children, direction);
@@ -139,6 +143,7 @@ pub(super) fn place_items(dom: &mut Dom<TuiExt>, children: &[NodeId], line: Flex
                 was_auto: main_was_auto,
                 trim_cross_start: trim.cross_start,
                 trim_cross_end: trim.cross_end,
+                mirror,
             },
         );
 
@@ -157,6 +162,18 @@ pub(super) fn place_items(dom: &mut Dom<TuiExt>, children: &[NodeId], line: Flex
             ),
         };
 
+        let child_rect = if mirror {
+            let scroll_x = match direction {
+                Direction::Row => scroll_main,
+                Direction::Column => scroll_cross,
+            };
+            LayoutRect {
+                x: mirror_x(child_rect.x, child_rect.width, container, scroll_x),
+                ..child_rect
+            }
+        } else {
+            child_rect
+        };
         layout_node(dom, *child_id, child_rect, container.width);
 
         // Advance cursor past this child + main-end margin + gap.
@@ -174,4 +191,12 @@ pub(super) fn place_items(dom: &mut Dom<TuiExt>, children: &[NodeId], line: Flex
             }
         }
     }
+}
+
+/// `x` (a box `width` wide, scrolled left by `scroll_x`) mirrored across
+/// `container`: the inline axis of an `rtl` container runs right to
+/// left (CSS Writing Modes 4 §2.1).
+fn mirror_x(x: i32, width: u16, container: LayoutRect, scroll_x: i32) -> i32 {
+    let from_start = x + scroll_x - container.x;
+    container.x + i32::from(container.width) - from_start - i32::from(width) - scroll_x
 }

@@ -57,7 +57,7 @@ use super::margin_trim::FlexTrim;
 use super::{element_children_of, layout_node};
 use collapse::SiblingOverlap;
 use distribute::{MainAxisBudget, resolve_flexible_lengths};
-use main_axis::collect_main_axis_items;
+use main_axis::{MainBudgets, collect_main_axis_items};
 use placement::{AutoMainMargins, FlexLine, place_items};
 
 /// Lay out the **element** children of `id` inside `container`, using
@@ -280,7 +280,22 @@ pub(super) fn layout_flex_children(
     };
 
     let trim = FlexTrim::of(parent, direction);
-    let line = collect_main_axis_items(dom, children, direction, main_budget, cross_budget, trim);
+    // CSS Writing Modes 4 §2.1: under `rtl` the inline axis — a row's
+    // main axis, a column's cross axis — runs right to left. The items
+    // are sized and placed in a mirrored frame (their right margin the
+    // inline-start one) and flipped back across the container.
+    let mirror = super::margin_trim::inline_reversed(parent);
+    let line = collect_main_axis_items(
+        dom,
+        children,
+        direction,
+        MainBudgets {
+            main: main_budget,
+            cross: cross_budget,
+        },
+        trim,
+        mirror,
+    );
 
     // Gap total = (n - 1) * gap.
     let gap_total = gap.saturating_mul((children.len() as u16).saturating_sub(1));
@@ -331,6 +346,7 @@ pub(super) fn layout_flex_children(
             auto_margins,
             overlap,
             trim,
+            mirror,
         },
     );
 }

@@ -71,7 +71,8 @@ fn check_element(dom: &TuiDom, id: NodeId, x: u16, y: u16) -> Option<ScrollbarHi
     // Vertical scrollbar sits in the column just right of
     // content.x + content.width. Horizontal sits in the row just
     // below content.y + content.height.
-    let v_col = content.x + content.width as i32;
+    let v_col = crate::render::layout_pass::gutter::vertical_bar_column(content, computed);
+    let bar_left = crate::render::layout_pass::gutter::bar_on_left(computed);
     let h_row = content.y + content.height as i32;
     let in_v_col = x as i32 == v_col;
     let in_h_row = y as i32 == h_row;
@@ -87,10 +88,12 @@ fn check_element(dom: &TuiDom, id: NodeId, x: u16, y: u16) -> Option<ScrollbarHi
     }
     let in_v_rows = (y as i32) >= v_top && (y as i32) < v_bottom;
 
-    let h_left = content.x.max(padding_box.x);
+    let mut h_left = content.x.max(padding_box.x);
     let mut h_right =
         (content.x + content.width as i32).min(padding_box.x + padding_box.width as i32);
-    if y_reserves {
+    if y_reserves && bar_left {
+        h_left += 1;
+    } else if y_reserves {
         h_right -= 1;
     }
     let in_h_cols = (x as i32) >= h_left && (x as i32) < h_right;

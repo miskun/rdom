@@ -172,6 +172,15 @@ fn compute_placed_rect(
     } else {
         let base = match static_pos {
             Some(sp) if matches!((&c.left, &c.right), (Length::Auto, Length::Auto)) => sp.x,
+            // CSS 2.1 §10.3.7: over-constrained, the inline-end inset is
+            // ignored — `right` under `ltr`, `left` under `rtl` (the
+            // box's own `direction`, DIVERGENCES).
+            _ if c.text_direction == crate::layout::TextDirection::Rtl
+                && c.left.cells(basis_w).is_some()
+                && c.right.cells(basis_w).is_some() =>
+            {
+                axis_position_anchored(&Length::Auto, &c.right, cb.x, cb.width, width)
+            }
             _ => axis_position_anchored(&c.left, &c.right, cb.x, cb.width, width),
         };
         let start_margin = match &cx_left {

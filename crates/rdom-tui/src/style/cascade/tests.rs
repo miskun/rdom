@@ -2351,6 +2351,10 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
     parent.color_scheme =
         rdom_style::color::ColorSchemeList::of(&[rdom_style::color::ColorScheme::Light]);
     parent.vars = Rc::new(HashMap::from([("a".to_string(), "b".into())]));
+    parent.text_direction = crate::layout::TextDirection::Rtl;
+    parent.writing_mode = crate::layout::WritingMode::VerticalRl;
+    parent.box_sizing = crate::layout::BoxSizing::BorderBox;
+    parent.margin_trim = crate::layout::MarginTrim::BLOCK;
 
     let mut child = ComputedStyle::initial();
     inherit_inheritable_from(&mut child, &parent);
@@ -2438,6 +2442,10 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
             "border-spacing",
             child.border_spacing == parent.border_spacing,
         ),
+        ("direction", child.text_direction == parent.text_direction),
+        ("writing-mode", child.writing_mode == parent.writing_mode),
+        ("box-sizing", child.box_sizing == parent.box_sizing),
+        ("margin-trim", child.margin_trim == parent.margin_trim),
     ];
     for (name, took) in probes {
         assert_eq!(

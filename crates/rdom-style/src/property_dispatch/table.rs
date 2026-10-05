@@ -119,6 +119,9 @@ const PROPERTY_NAMES: &[&str] = &[
     "counter-increment",
     // Color adjustment (CSS Color Adjust 1)
     "color-scheme",
+    // Writing modes (CSS Writing Modes 4)
+    "direction",
+    "writing-mode",
 ];
 
 /// `name` as the table spells it. CSS property names are ASCII
@@ -263,6 +266,8 @@ define_fields! {
     Display => display : DISPLAY,
     Flow => flow : FLOW,
     Direction => direction : DIRECTION,
+    TextDirection => text_direction : TEXT_DIRECTION,
+    WritingMode => writing_mode : WRITING_MODE,
     WhiteSpace => white_space : WHITE_SPACE,
     UserSelect => user_select : USER_SELECT,
     PointerEvents => pointer_events : POINTER_EVENTS,
@@ -466,6 +471,8 @@ pub(super) fn fields_of(name: &str) -> Option<&'static [Field]> {
         "counter-reset" => &[CounterReset],
         "counter-increment" => &[CounterIncrement],
         "color-scheme" => &[ColorScheme],
+        "direction" => &[TextDirection],
+        "writing-mode" => &[WritingMode],
         // CSS Cascade 4 §3.2: every property in the table.
         "all" => all_fields(),
         _ => return None,
@@ -535,5 +542,7 @@ pub fn inherits(name: &str) -> bool {
             | "caret-text-color"
             | "color-scheme"
             | "border-spacing"
+            | "direction"
+            | "writing-mode"
     )
 }

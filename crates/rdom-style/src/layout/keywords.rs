@@ -88,6 +88,36 @@ pub enum BoxSizing {
     BorderBox,
 }
 
+/// CSS `direction` (CSS Writing Modes 4 §2.1): the inline base
+/// direction — which edge is inline-start. Inherited; initial `ltr`.
+/// (The Rust name avoids [`Direction`], rdom's `flex-direction`.)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TextDirection {
+    /// Left to right: inline-start is the left edge.
+    #[default]
+    Ltr,
+    /// Right to left: inline-start is the right edge.
+    Rtl,
+}
+
+/// CSS `writing-mode` (CSS Writing Modes 4 §3.1). Inherited; initial
+/// `horizontal-tb`. rdom computes every value but lays boxes out as
+/// `horizontal-tb` (DIVERGENCES).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum WritingMode {
+    /// Horizontal lines, stacked top to bottom.
+    #[default]
+    HorizontalTb,
+    /// Vertical lines, stacked right to left.
+    VerticalRl,
+    /// Vertical lines, stacked left to right.
+    VerticalLr,
+    /// Vertical lines, right to left, glyphs set sideways.
+    SidewaysRl,
+    /// Vertical lines, left to right, glyphs set sideways.
+    SidewaysLr,
+}
+
 /// Cross-axis alignment. Maps to CSS `align-items`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Align {

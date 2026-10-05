@@ -43,7 +43,8 @@ pub(crate) fn parent_scroll(dom: &Dom<TuiExt>, children: &[NodeId], direction: D
 ///
 /// The reserved cells live at:
 /// - **Vertical scrollbar** (if `overflow_y` reserves): the
-///   rightmost column of `inner`, from top to bottom.
+///   rightmost column of `inner`, from top to bottom — the leftmost
+///   under `direction: rtl` ([`bar_on_left`]).
 /// - **Horizontal scrollbar** (if `overflow_x` reserves): the
 ///   bottom row of `inner`, from left to right.
 ///
@@ -65,7 +66,11 @@ pub(crate) fn reserve_scrollbar_gutter_forced(
 ) -> LayoutRect {
     let (reserve_y, reserve_x) = gutter_axes(computed, force_y, force_x);
     LayoutRect::new(
-        inner.x,
+        if reserve_y && bar_on_left(computed) {
+            inner.x + 1
+        } else {
+            inner.x
+        },
         inner.y,
         if reserve_y {
             inner.width.saturating_sub(1)
@@ -94,6 +99,24 @@ pub(crate) fn gutter_axes(computed: &ComputedStyle, force_y: bool, force_x: bool
         reserves(computed.overflow_y, force_y),
         reserves(computed.overflow_x, force_x),
     )
+}
+
+/// Whether `computed`'s vertical scrollbar sits on its left: under
+/// `direction: rtl`, on the inline-start side, as Chromium and Gecko
+/// place it (CSS Overflow 3 leaves the side to the UA).
+pub(crate) fn bar_on_left(computed: &ComputedStyle) -> bool {
+    computed.text_direction == crate::layout::TextDirection::Rtl
+}
+
+/// The column of `computed`'s vertical scrollbar beside its `content`
+/// area (the gutter [`reserve_scrollbar_gutter_forced`] reserved): just
+/// right of it, or just left of it under [`bar_on_left`].
+pub(crate) fn vertical_bar_column(content: LayoutRect, computed: &ComputedStyle) -> i32 {
+    if bar_on_left(computed) {
+        content.x - 1
+    } else {
+        content.x + i32::from(content.width)
+    }
 }
 
 /// Pass-1 gutter reservation — Scroll always, Auto only if

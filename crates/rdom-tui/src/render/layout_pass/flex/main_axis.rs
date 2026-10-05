@@ -43,6 +43,12 @@ pub(super) struct ChildMain {
     pub(super) main_end_margin: MarginValue,
 }
 
+/// The container's content size on the main and cross axes.
+pub(super) struct MainBudgets {
+    pub(super) main: u16,
+    pub(super) cross: u16,
+}
+
 /// The gathered flex line: one [`ChildMain`] per item plus the totals
 /// the free-space computation needs.
 pub(super) struct MainAxisItems {
@@ -63,14 +69,21 @@ pub(super) struct MainAxisItems {
 /// `trim` is the container's `margin-trim` (CSS Box 4 §3.2): a trimmed
 /// main-start (main-end) edge zeroes the first (last) item's margin
 /// there.
+///
+/// `mirror`: the container is `rtl` — a row's main-start margin is the
+/// item's right one.
 pub(super) fn collect_main_axis_items(
     dom: &Dom<TuiExt>,
     children: &[NodeId],
     direction: Direction,
-    main_budget: u16,
-    cross_budget: u16,
+    budgets: MainBudgets,
     trim: FlexTrim,
+    mirror: bool,
 ) -> MainAxisItems {
+    let MainBudgets {
+        main: main_budget,
+        cross: cross_budget,
+    } = budgets;
     let mut child_info: Vec<ChildMain> = Vec::with_capacity(children.len());
     let mut consumed_fixed: i32 = 0;
     let mut auto_main_count: u32 = 0;
@@ -125,6 +138,7 @@ pub(super) fn collect_main_axis_items(
         // space; Auto absorbs remaining free space after flex
         // distribution (CSS rule).
         let (main_start_m, main_end_m) = match direction {
+            Direction::Row if mirror => (c.margin.right.clone(), c.margin.left.clone()),
             Direction::Row => (c.margin.left.clone(), c.margin.right.clone()),
             Direction::Column => (c.margin.top.clone(), c.margin.bottom.clone()),
         };

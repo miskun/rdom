@@ -123,6 +123,11 @@ pub struct TuiStyle {
     /// divergence rationale.
     pub border_collapse: Option<Value<crate::layout::BorderCollapse>>,
     pub direction: Option<Value<Direction>>,
+    /// CSS `direction` (CSS Writing Modes 4 §2.1). Inherited. (`direction`
+    /// above is `flex-direction`.)
+    pub text_direction: Option<Value<crate::layout::TextDirection>>,
+    /// CSS `writing-mode` (CSS Writing Modes 4 §3.1). Inherited.
+    pub writing_mode: Option<Value<crate::layout::WritingMode>>,
     /// Per-axis overflow. Set via the `.overflow(v)` shorthand
     /// (writes both axes) or `.overflow_x(v)` / `.overflow_y(v)`
     /// longhands.
@@ -396,6 +401,12 @@ impl TuiStyle {
             .filter(|r| r.is_some())
             .count();
         if self.direction.is_some() {
+            n += 1
+        }
+        if self.text_direction.is_some() {
+            n += 1
+        }
+        if self.writing_mode.is_some() {
             n += 1
         }
         if self.overflow_x.is_some() {

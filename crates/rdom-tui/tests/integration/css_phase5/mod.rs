@@ -10,6 +10,7 @@ mod box_sizing;
 mod contain;
 mod intrinsic;
 mod margin_trim;
+mod writing;
 
 /// A `tag` element with `class`, appended to `parent`.
 fn el(dom: &mut TuiDom, parent: NodeId, tag: &str, class: &str) -> NodeId {
