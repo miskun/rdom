@@ -261,3 +261,25 @@ fn longhand_after_inset_overrides() {
         )
     );
 }
+
+/// C8-Z-INDEX — CSS 2.1 §9.9.1 / CSS Position 3: `z-index: auto |
+/// <integer>`, any integer; a literal past the 32-bit range is clamped
+/// to it (CSS Values 4 §5.1, CSS Syntax 3 §4.3.12), as every engine does.
+#[test]
+fn z_index_takes_the_full_integer_range() {
+    let z = |v: &str| first_style(&format!("a {{ z-index: {v}; }}")).z_index;
+    assert_eq!(z("40000"), Some(Value::Specified(ZIndex::Value(40_000))));
+    assert_eq!(z("-40000"), Some(Value::Specified(ZIndex::Value(-40_000))));
+    assert_eq!(
+        z("2147483647"),
+        Some(Value::Specified(ZIndex::Value(i32::MAX)))
+    );
+    assert_eq!(
+        z("-99999999999"),
+        Some(Value::Specified(ZIndex::Value(i32::MIN)))
+    );
+    assert_eq!(
+        z("calc(infinity)"),
+        Some(Value::Specified(ZIndex::Value(i32::MAX)))
+    );
+}

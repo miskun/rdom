@@ -88,6 +88,7 @@ One row per renamed or reshaped public item: the 0.5 form, its replacement, the 
 | exhaustive `match` on `Value`, `Color`, `TuiColor`, `Display`, `Flow`, `Align` | add the arms `Value::{Revert, RevertLayer}`, `Color::Rgba`, `TuiColor::{CurrentColor, Function, System}`, `Display::Contents`, `Flow::{FlowRoot, Grid}`, the `Align` keywords — and a `_` arm for `Align` (`#[non_exhaustive]`) | C1-REVERT, C1-LAYER, C3-RGB, C3-MIX, C3-SYSTEM, C6-DISPLAY-KEYWORDS, C6-JUSTIFY, C6G-ALIGN-API, C7-GRID-CORE | `cascade_hints`, `color_hints`, `display_keyword_hints`, `alignment_hints`, `alignment_api_hints`, `grid_template_hints` |
 | `flex-direction`'s initial value `Direction::Column` | `Direction::Row` (`ComputedStyle::initial().direction`, `Direction::default()`); a stack says `.flex_column()` | C6-FLEX-DIRECTION-INITIAL | `flex_direction_initial_hints` |
 | `Size::Flex(grow)` written by the `flex` shorthand | `TuiStyle::flex_grow` / `flex_shrink` / `flex_basis` (`flex` no longer touches `width` / `height`) | C6-FLEX-LONGHANDS | `flex_longhand_hints` |
+| `ZIndex::Value(i16)` | `ZIndex::Value(i32)` (`n.into()` from an `i16`) | C8-Z-INDEX | `z_index_hints` |
 
 #### `rdom-tui`
 
@@ -145,6 +146,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Breaking — `rdom-style`
 
+- **`ZIndex::Value` holds an `i32`** (was `i16`): `z-index` takes any `<integer>`, a value past `i32` clamped (CSS 2.1 §9.9.1, CSS Values 4 §5.1). Migration: a match arm binding the value gets an `i32`; `ZIndex::Value(n)` with an `i16` takes `n.into()`. (C8-Z-INDEX)
 - **`ComputedStyle::min_width` / `min_height` are `MinSize`** (were `Option<MinSize>`), initial `MinSize::Auto` (CSS Sizing 3 §5.2); an explicit `min-*: auto` no longer floors a flex item's cross size. Migration: `None` → `MinSize::Auto`, `Some(m)` → `m`; `.cells(basis)` for cells. (C3G-MIN-AUTO)
 - **`Value<T>` gains `Revert`** (`revert`, CSS Cascade 4 §7.3), kept as written for the cascade to resolve (`unset` is still resolved at parse time); `Value` is closed data. Migration: add a `Value::Revert` arm — in a cascade roll back to the UA origin's value, elsewhere treat it like the other keywords. (C1-REVERT)
 - **`Value<T>` gains `RevertLayer`** (`revert-layer`, CSS Cascade 5 §7.4), resolved by the cascade like `Revert`. Migration: add a `Value::RevertLayer` arm next to `Value::Revert`. (C1-LAYER)

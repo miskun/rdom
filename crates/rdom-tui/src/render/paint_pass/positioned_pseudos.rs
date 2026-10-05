@@ -37,7 +37,7 @@ pub(super) fn paint_positioned_pseudos(dom: &Dom<TuiExt>, buf: &mut Buffer, clip
         return;
     }
 
-    let mut list: Vec<(i16, usize, NodeId, PseudoEnd)> = Vec::new();
+    let mut list: Vec<(i32, usize, NodeId, PseudoEnd)> = Vec::new();
     let mut order: usize = 0;
     collect(dom, dom.root(), &mut list, &mut order);
     list.sort_by_key(|(z, ord, _, end)| (*z, *ord, *end as u8));
@@ -138,7 +138,7 @@ fn tree_has_any_positioned_pseudo(dom: &Dom<TuiExt>) -> bool {
 fn collect(
     dom: &Dom<TuiExt>,
     id: NodeId,
-    out: &mut Vec<(i16, usize, NodeId, PseudoEnd)>,
+    out: &mut Vec<(i32, usize, NodeId, PseudoEnd)>,
     order: &mut usize,
 ) {
     if dom.node(id).node_type() == NodeType::Element

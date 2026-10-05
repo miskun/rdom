@@ -838,3 +838,18 @@ fn grid_template_areas_hints() {
             .is_some_and(|s| s.grid_template_areas.is_some())
     );
 }
+
+/// C8-Z-INDEX: `ZIndex::Value` holds an `i32`; an `i16` level converts
+/// with `.into()`.
+#[test]
+fn z_index_hints() {
+    let level: i16 = 3;
+    let z = layout::ZIndex::Value(level.into());
+    let n: i32 = match z {
+        layout::ZIndex::Value(n) => n,
+        layout::ZIndex::Auto => 0,
+    };
+    assert_eq!(n, 3);
+    let s = TuiStyle::new().z_index(layout::ZIndex::Value(40_000));
+    assert!(s.z_index.is_some());
+}

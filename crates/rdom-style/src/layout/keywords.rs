@@ -497,13 +497,15 @@ pub enum Position {
     Sticky,
 }
 
-/// `z-index` value (M2). `Auto` does not establish a stacking
-/// context; the positioned layer orders it by tree position (as 0).
+/// `z-index: auto | <integer>` (CSS 2.1 §9.9.1). `Auto` does not
+/// establish a stacking context; the positioned layer orders it by tree
+/// position (as 0). The integer is any `i32`: a larger literal clamps to
+/// the range (CSS Values 4 §5.1), as in every engine.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ZIndex {
     /// `auto`. Default. No stacking context of its own; sorts as 0.
     #[default]
     Auto,
     /// Explicit integer; negative values are valid.
-    Value(i16),
+    Value(i32),
 }

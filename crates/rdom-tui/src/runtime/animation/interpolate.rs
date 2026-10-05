@@ -132,12 +132,9 @@ fn lerp_padding_value(
     }
 }
 
-#[inline]
-fn lerp_i16(a: i16, b: i16, t: f32) -> i16 {
-    let v = a as f32 + (b as f32 - a as f32) * t;
-    v.round().clamp(i16::MIN as f32, i16::MAX as f32) as i16
-}
-
+/// An `<integer>` interpolated as a real number and rounded (CSS Values
+/// 4 §3.2), in `f64`, which holds every `i32` exactly (the cast
+/// saturates).
 #[inline]
 fn lerp_i32(a: i32, b: i32, t: f32) -> i32 {
     let v = f64::from(a) + (f64::from(b) - f64::from(a)) * f64::from(t);
@@ -177,7 +174,7 @@ fn lerp_length(a: &Length, b: &Length, t: f32) -> Length {
 
 fn lerp_zindex(a: ZIndex, b: ZIndex, t: f32) -> ZIndex {
     match (a, b) {
-        (ZIndex::Value(x), ZIndex::Value(y)) => ZIndex::Value(lerp_i16(x, y, t)),
+        (ZIndex::Value(x), ZIndex::Value(y)) => ZIndex::Value(lerp_i32(x, y, t)),
         _ => {
             if t < 0.5 {
                 a

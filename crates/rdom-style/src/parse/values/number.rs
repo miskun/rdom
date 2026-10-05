@@ -1,6 +1,5 @@
 //! Scalar numeric values: `opacity`, `z-index` and `aspect-ratio`.
 
-use super::calc::looks_like_calc;
 use super::numeric::{Range, components, integer, number, number_or_percentage};
 use crate::layout::ZIndex;
 use crate::parse::token::Token;
@@ -18,16 +17,12 @@ pub fn parse_opacity(value: &[Token]) -> Option<f32> {
 }
 
 /// `auto` keyword | `<integer>` (a math function rounded to one
-/// included, CSS Values 4 §10.9). A literal outside `i16` is invalid; a
-/// math function's result clamps to it.
+/// included, CSS Values 4 §10.9). A value past `i32` — a literal or a
+/// math function's result — clamps to it (§5.1).
 pub fn parse_z_index(value: &[Token]) -> Option<ZIndex> {
     match value {
         [Token::Ident(s)] if s.eq_ignore_ascii_case("auto") => Some(ZIndex::Auto),
-        _ if looks_like_calc(value) => {
-            let n = integer(value)?.clamp(i64::from(i16::MIN), i64::from(i16::MAX));
-            Some(ZIndex::Value(n as i16))
-        }
-        _ => i16::try_from(integer(value)?).ok().map(ZIndex::Value),
+        _ => integer(value).map(|n| ZIndex::Value(super::numeric::clamp_i32(n))),
     }
 }
 

@@ -46,7 +46,7 @@ use crate::style::ComputedStyle;
 pub(crate) struct LayerEntry {
     pub id: NodeId,
     /// `z-index`, with `auto` as 0.
-    pub z: i16,
+    pub z: i32,
     /// Tree order among the context's entries; the tie-break.
     pub order: usize,
     /// Paints as a child stacking context (numeric `z-index` or

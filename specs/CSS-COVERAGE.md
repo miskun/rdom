@@ -78,7 +78,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.7 Display and visibility (Display 3) | 7 | 1 | 1 | 2 | 11 |
 | 3.8 Flexbox and box alignment (Flexbox 1, Align 3) | 17 | 0 | 0 | 0 | 17 |
 | 3.9 Grid (Grid 1/2) | 9 | 0 | 1 | 0 | 10 |
-| 3.10 Positioned layout (Position 3, CSS 2.1 §9) | 4 | 1 | 1 | 1 | 7 |
+| 3.10 Positioned layout (Position 3, CSS 2.1 §9) | 5 | 0 | 1 | 1 | 7 |
 | 3.11 Overflow, scrolling and scrollbars (Overflow 3/4, Scroll Snap 1, Overscroll 1, Scrollbars 1) | 1 | 3 | 10 | 0 | 14 |
 | 3.12 Inline text (Text 3/4, Inline 3, CSS 2.1 §10.8) | 0 | 1 | 14 | 6 | 21 |
 | 3.13 Text decoration (Text Decoration 3/4) | 0 | 1 | 3 | 2 | 6 |
@@ -93,9 +93,9 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 5 | 2 | 1 | 1 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **144** | **27** | **90** | **46** | **307** |
+| **Total** | **145** | **26** | **90** | **46** | **307** |
 
-When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 117 rows Partial / Missing.
+When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 116 rows Partial / Missing.
 
 Headline: rdom parses **183 property names** (`property_names()`, after C7-GRID-AREAS). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are `line-height`, `text-align`, and `@media`.
 
@@ -397,7 +397,7 @@ dropped. The audit's six, with where each stands:
 | `top` / `right` / `bottom` / `left` | Supported | `auto`, signed cells, `%`, `calc()` (C2-PERCENT / C8-INSETS). A positioned box's size honours `min-*` / `max-*`; a relative one — element or pseudo-element — only shifts, the inline-start inset winning when both are set (CSS 2.1 §9.4.3; C8-POS-MINMAX: C5-POS-MINMAX + C5G-REL-PSEUDO-INSETS). | — | `V/length.rs::parse_length` |
 | `inset` | Supported | 1–4 values of `auto` / signed cells / `%` / `calc()` (C2-PERCENT / C8-INSETS). | — | `V/length.rs::parse_inset_shorthand` |
 | `inset-block` / `inset-inline` (+ `-start` / `-end`) | Supported | Block axis → `top` / `bottom`, inline axis → `left` / `right` by `direction` (C5-LOGICAL). | — | `DISP` (`logical.rs`) |
-| `z-index` | Partial | `auto` / `i16` (documented); a numeric value stacks a positioned box, and a static flex or grid item too (CSS Flexbox §5.4, CSS Grid 2 §6.5, C7-GRID-PLACE). | Yes | `V/number.rs::parse_z_index` |
+| `z-index` | Supported | `auto` / any `<integer>`, a value past `i32` clamped (CSS Values 4 §5.1; C8-Z-INDEX); a numeric value stacks a positioned box, and a static flex or grid item too (CSS Flexbox §5.4, CSS Grid 2 §6.5, C7-GRID-PLACE). | Yes | `V/number.rs::parse_z_index` |
 | `float` / `clear` | Missing | Out of scope by decision. | Yes | `BLOCK`, `IFC` |
 | `clip` (CSS 2.1, deprecated) | N/A | Superseded by `clip-path`; no new content uses it. | — | — |
 

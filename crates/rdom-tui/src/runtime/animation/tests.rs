@@ -312,3 +312,23 @@ fn reset_endpoint_interpolates_from_the_scheme_canvas_for_its_role() {
         );
     }
 }
+
+/// C8-Z-INDEX — CSS Transitions 1 / CSS Values 4 §3.2: an `<integer>`
+/// interpolates as a real number rounded to the nearest integer, over
+/// the whole range — exactly, where an `f32` would lose the units.
+#[test]
+fn z_index_interpolates_over_the_full_integer_range() {
+    use super::interpolate::interpolate;
+    let z = |a: i32, b: i32, t: f32| match interpolate(
+        &AnimatedValue::ZIndex(ZIndex::Value(a)),
+        &AnimatedValue::ZIndex(ZIndex::Value(b)),
+        t,
+        crate::style::Color::Reset,
+    ) {
+        AnimatedValue::ZIndex(ZIndex::Value(n)) => n,
+        other => panic!("{other:?}"),
+    };
+    assert_eq!(z(0, 100_000, 0.5), 50_000);
+    assert_eq!(z(2_000_000_001, 2_000_000_003, 0.5), 2_000_000_002);
+    assert_eq!(z(i32::MIN, i32::MAX, 1.0), i32::MAX);
+}

@@ -170,7 +170,7 @@ row comes from.
 |---|---|---|
 | C8-INSETS | `top` / `right` / `bottom` / `left` / `inset`: `%` and `calc()` | done (with C2-PERCENT) |
 | C8-PARSE-ERROR | Every public error type implements `Display` and `std::error::Error` (found by C7G-README-GRID) | done |
-| C8-Z-INDEX | `z-index` full integer range | |
+| C8-Z-INDEX | `z-index` full integer range | done |
 | C8-FLOAT | `float` / `clear` (line-box exclusion, clearance) | |
 | C8-OVERFLOW-CLIP | `overflow: clip`, two-value `overflow`, `overflow-clip-margin`, logical `overflow-block` / `-inline` | |
 | C8-TEXT-OVERFLOW | `text-overflow: clip / ellipsis / <string>` | |
@@ -4436,3 +4436,22 @@ row comes from.
   Found, scheduled with C8-OVERFLOW-TEXT: an absolutely positioned box does not count in its
   containing scroll container's scrollable overflow (§2.2), so it cannot be scrolled to past the
   in-flow content. No other test expectation and no snapshot changed.
+- 2026-10-05 — C8-Z-INDEX (CSS 2.1 §9.9.1, CSS Values 4 §5.1 / §3.2). `ZIndex::Value` holds an `i32`
+  (was `i16`, a literal past ±32 767 dropped as invalid): `parse_z_index` reads any `<integer>` —
+  literal or math function — and clamps a value past `i32` to it, as engines do (the tokenizer
+  already clamps a literal past `i32`, C4G-NUMBER-RANGE); the two branches (a literal checked, a
+  math result clamped) are one. The stacking layers' key (`LayerEntry::z`) and the positioned
+  pseudo-elements' sort key are `i32`; both sort by `(z, tree order)`, an integer comparison, so
+  paint and hit-test order stay total and deterministic. A `z-index` transition interpolates through
+  the existing `lerp_i32` (`f64`, which holds every `i32` exactly, a saturating cast) instead of an
+  `f32` that would have rounded large levels. Red: `positioning.rs::
+  z_index_takes_the_full_integer_range` and `animation::tests::
+  z_index_interpolates_over_the_full_integer_range` did not compile (`40_000` and `100_000` out of
+  range for `i16`); `css_phase8/z_index.rs` — `z-index: 40000` rejected by the strict parse
+  (`ExpectedToken("valid declaration")`); green after, `40000` over `39999`, `i32::MAX` over
+  `i32::MIN`, a tie in tree order. Changed expectation, justified:
+  `calc::semantics_tests::integer_properties_take_math_functions` — `calc(infinity)` clamps to
+  `i32::MAX` (was `i16::MAX`), the range this item widens. DIVERGENCES' `i16` entry and its §3 line
+  are gone; CSS-COVERAGE's `z-index` row is *Supported* (§3.10 5 / 0, total 145 / 26, 116 rows
+  Partial / Missing). No snapshot changed.
+

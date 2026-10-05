@@ -124,7 +124,7 @@ fn integer_properties_take_math_functions() {
     );
     assert_eq!(
         z("calc(infinity)"),
-        Some(Value::Specified(ZIndex::Value(i16::MAX)))
+        Some(Value::Specified(ZIndex::Value(i32::MAX)))
     );
     assert_eq!(z("calc(0 / 0)"), Some(Value::Specified(ZIndex::Value(0))));
     assert_eq!(z("calc(50%)"), None);
