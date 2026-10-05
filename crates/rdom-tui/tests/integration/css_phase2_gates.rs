@@ -431,13 +431,16 @@ fn max_width_percent_from_rdom_tui_paths() {
     use rdom_tui::calc::CalcExpr;
     use rdom_tui::layout::{MaxSize, MinSize};
 
+    // C4G-REEXPORTS: `percent` builds `Percent`, the shape `Size` has;
+    // the `calc()` form of the same percentage resolves the same.
+    assert_eq!(MaxSize::percent(50.0), MaxSize::Percent(50.0));
     assert_eq!(
-        MaxSize::percent(50.0),
-        MaxSize::Calc(Box::new(CalcExpr::Percent(50.0)))
+        MaxSize::Calc(Box::new(CalcExpr::Percent(50.0))).cells(Some(80)),
+        MaxSize::percent(50.0).cells(Some(80))
     );
     assert_eq!(
-        MinSize::percent(25.0),
-        MinSize::Calc(Box::new(CalcExpr::Percent(25.0)))
+        MinSize::Calc(Box::new(CalcExpr::Percent(25.0))).cells(Some(80)),
+        MinSize::percent(25.0).cells(Some(80))
     );
     let mut dom = TuiDom::new();
     let root = dom.root();

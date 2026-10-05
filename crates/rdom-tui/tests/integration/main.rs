@@ -52,6 +52,7 @@ mod nested_scroll_overflow;
 mod node_setters_drive_layout;
 mod padding_box_paint_clip;
 mod percent_units;
+mod prelude_migration;
 mod seed_inline_styles;
 mod select_render_integration;
 mod style_tags;

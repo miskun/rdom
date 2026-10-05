@@ -4,7 +4,7 @@
 use rdom_core::NodeMut;
 
 use crate::ext::TuiExt;
-use crate::layout::{Border, Direction, Overflow, Padding, Size};
+use crate::layout::{Border, BorderRadius, Corners, Direction, Overflow, Padding, Size};
 use crate::style::{TuiStyle, Value};
 
 /// Mutation helpers for `TuiExt`-bearing elements. All methods return
@@ -90,6 +90,13 @@ pub trait TuiNodeMutExt<'a> {
     /// Set the inline style's four `border-*-style`s.
     fn set_border(&mut self, b: Border) -> &mut Self {
         self.write_inline_style(|s| s.border_style = b.sides().map(|s| Some(Value::Specified(s))));
+        self
+    }
+    /// Set the inline style's four `border-*-radius`es (CSS Backgrounds 3
+    /// §5.1; `BorderRadius::cells(1.0)` rounds every corner), as the
+    /// `TuiStyle::border_radius` builder does.
+    fn set_border_radius(&mut self, r: BorderRadius) -> &mut Self {
+        self.write_inline_style(|s| s.border_radius = Corners::all(Some(Value::Specified(r))));
         self
     }
     fn set_gap(&mut self, g: u16) -> &mut Self {

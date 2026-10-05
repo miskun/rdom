@@ -1243,3 +1243,25 @@ row comes from.
   ("TransitionProperty and TransitionDuration share a bit"); green after, with
   `operations_span_every_word` over the last bit. The hand-listed `important_mask_bits_are_unique`
   is replaced by that test (its FLOW / POINTER_EVENTS regression kept as its own test).
+- 2026-10-06 — C4G-REEXPORTS: the `rdom_tui` root and prelude re-export the Phase 4 value types
+  (`BorderRadius`, `BorderWidth`, `BorderWeight`, `BorderStyle`, `CornerStyle`, `BoxShadow`,
+  `PaintLength`, `BorderSpacing`, `Sides`, `Corners`, `VisualBox`, `RepeatStyle`,
+  `BackgroundRepeat`, `BackgroundAttachment`) and the sizing types (`MinSize`, `MaxSize`,
+  `FlexBasis`, `AspectRatio`); the prelude adds what the CHANGELOG hints name (`CalcExpr`,
+  `CustomValue`, `ContentContext`, the color types, `parse_color`, `resolve_tui_color`), and the root
+  re-exports rdom-style's `parse`, `property_dispatch` and `backend` modules, so the hints' module
+  paths (`property_dispatch::set`, `parse::Token`, `backend::SubstitutionContext`, `calc::to_cells`)
+  resolve from `rdom_tui`. Three hints were rewritten to those paths (`rdom_style::property_dispatch`,
+  bare `Token`, bare `SubstitutionContext`). `MinSize` derives `Default` (`Auto`). Decided — uniform
+  percentages: `MinSize` / `MaxSize` gain `Percent(f32)`, the shape `Size::Percent` has; `percent()`
+  builds it in all three and the parser stores a bare percentage there (a math function stays
+  `Calc`; a percentage past `percent_fraction`'s range stays `Calc` as before, so nothing that
+  parsed stops parsing). Resolution is unchanged (`Size::percent_of`, ties to even — what `calc()`
+  gave). New node accessors `TuiNodeMutExt::set_border_radius` / `TuiNodeExt::border_radius` beside
+  `set_border` / `border`. Red: `tests/integration/prelude_migration.rs` (one test per hint group,
+  `use rdom_tui::prelude::*` only) failed to compile — 30+ unresolved names, `MinSize::default`,
+  `MinSize::Percent`, `set_border_radius`; green after, with
+  `min_max_percentages_share_the_size_shape` (dispatch) written against the decision. Changed
+  expectation: `css_phase2_gates::max_width_percent_from_rdom_tui_paths` asserted
+  `MaxSize::percent(50.0) == Calc(Percent(50))`; it now asserts `Percent(50.0)` and that the `calc()`
+  form resolves the same.

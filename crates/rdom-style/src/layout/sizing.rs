@@ -38,6 +38,12 @@ pub enum Size {
     Auto,
 }
 
+/// `p` percent of `basis` as an extent: [`Size::percent_of`] clamped to
+/// `0..=u16::MAX`.
+fn percent_cells(basis: u16, p: f32) -> u16 {
+    Size::percent_of(i32::from(basis), p).clamp(0, i32::from(u16::MAX)) as u16
+}
+
 impl Size {
     /// `p` percent of `basis`, rounded onto the cell grid (ties to
     /// even, the same rule `calc()` uses). The single place a
@@ -61,8 +67,7 @@ impl Size {
     pub fn cells(&self, basis: Option<u16>) -> Option<u16> {
         match self {
             Size::Fixed(n) => Some(*n),
-            Size::Percent(p) => basis
-                .map(|b| Size::percent_of(i32::from(b), *p).clamp(0, i32::from(u16::MAX)) as u16),
+            Size::Percent(p) => basis.map(|b| percent_cells(b, *p)),
             Size::Calc(expr) => match basis {
                 Some(b) => Some(resolve_u16(expr, b)),
                 None if expr.contains_percent() => None,
@@ -90,23 +95,28 @@ impl Size {
 
 /// Value of `min-width` / `min-height`. CSS-faithful: `auto` resolves
 /// to intrinsic min-content for flex items (decision 4 from the M5
-/// pre-prep), `Cells(n)` is the explicit cell count, `Calc` a
-/// percentage or a percent-bearing math function resolved against the
-/// containing block on the same axis (CSS Sizing 3 §5.2).
+/// pre-prep), `Cells(n)` is the explicit cell count, `Percent` a
+/// percentage and `Calc` a math function, both resolved against the
+/// containing block on the same axis (CSS Sizing 3 §5.2). The default is
+/// `auto`, the initial value.
 ///
 /// `From<u16>` returns `Cells(n)` so the fluent setter (`.min_width(10)`)
 /// keeps working unchanged.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub enum MinSize {
     /// `auto` — flex items resolve to their intrinsic min-content
     /// size; non-flex items resolve to 0. The `overflow: hidden →
-    /// auto = 0` CSS exception is deferred (`M5-MIN-AUTO-1`).
+    /// auto = 0` CSS exception is deferred (`M5-MIN-AUTO-1`). The
+    /// initial value (CSS Sizing 3 §5.2).
+    #[default]
     Auto,
     /// Explicit cell count.
     Cells(u16),
-    /// `<percentage>` or a math function holding one. Resolves at
-    /// layout time against the containing block's size on the same
-    /// axis.
+    /// `<percentage>` of the containing block's size on the same axis,
+    /// as [`Size::Percent`] holds it (`12.5%` is `12.5`).
+    Percent(f32),
+    /// A math function. Resolves at layout time against the containing
+    /// block's size on the same axis.
     Calc(Box<crate::calc::CalcExpr>),
 }
 
@@ -118,9 +128,10 @@ impl From<u16> for Size {
 
 impl MinSize {
     /// `min-* : <p>%` — `p` percent of the containing block's extent on
-    /// this axis (CSS Sizing 3 §5.2), as the parser stores it.
+    /// this axis (CSS Sizing 3 §5.2), as the parser stores it: the same
+    /// shape as [`Size::percent`] and [`MaxSize::percent`].
     pub fn percent(p: f32) -> Self {
-        MinSize::Calc(Box::new(crate::calc::CalcExpr::Percent(f64::from(p))))
+        MinSize::Percent(p)
     }
 
     /// The floor in cells, `None` for `auto`. `basis` is the
@@ -131,6 +142,7 @@ impl MinSize {
         match self {
             MinSize::Auto => None,
             MinSize::Cells(n) => Some(*n),
+            MinSize::Percent(p) => Some(basis.map_or(0, |b| percent_cells(b, *p))),
             MinSize::Calc(expr) => Some(match basis {
                 Some(b) => resolve_u16(expr, b),
                 None if expr.contains_percent() => 0,
@@ -147,9 +159,8 @@ impl From<u16> for MinSize {
 }
 
 /// Value of `max-width` / `max-height`: `none | <length-percentage>`
-/// (CSS Sizing 3 §5.2). `Calc` holds a percentage or a percent-bearing
-/// math function, resolved against the containing block on the same
-/// axis.
+/// (CSS Sizing 3 §5.2). `Percent` and `Calc` (a math function) resolve
+/// against the containing block on the same axis.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub enum MaxSize {
     /// `none` — no limit. The initial value.
@@ -157,15 +168,19 @@ pub enum MaxSize {
     None,
     /// Explicit cell count.
     Cells(u16),
-    /// `<percentage>` or a math function holding one.
+    /// `<percentage>` of the containing block's size on the same axis,
+    /// as [`Size::Percent`] holds it.
+    Percent(f32),
+    /// A math function.
     Calc(Box<crate::calc::CalcExpr>),
 }
 
 impl MaxSize {
     /// `max-* : <p>%` — `p` percent of the containing block's extent on
-    /// this axis (CSS Sizing 3 §5.2), as the parser stores it.
+    /// this axis (CSS Sizing 3 §5.2), as the parser stores it: the same
+    /// shape as [`Size::percent`] and [`MinSize::percent`].
     pub fn percent(p: f32) -> Self {
-        MaxSize::Calc(Box::new(crate::calc::CalcExpr::Percent(f64::from(p))))
+        MaxSize::Percent(p)
     }
 
     /// The limit in cells, `None` for `none`. `basis` is the containing
@@ -176,6 +191,7 @@ impl MaxSize {
         match self {
             MaxSize::None => None,
             MaxSize::Cells(n) => Some(*n),
+            MaxSize::Percent(p) => basis.map(|b| percent_cells(b, *p)),
             MaxSize::Calc(expr) => match basis {
                 Some(b) => Some(resolve_u16(expr, b)),
                 None if expr.contains_percent() => None,

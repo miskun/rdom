@@ -3,7 +3,9 @@
 use rdom_core::NodeRef;
 
 use crate::ext::TuiExt;
-use crate::layout::{Border, Direction, LayoutRect, Overflow, Padding, Size};
+use crate::layout::{
+    Border, BorderRadius, Corners, Direction, LayoutRect, Overflow, Padding, Size,
+};
 use crate::style::{ComputedStyle, TuiStyle};
 
 use super::tree::is_text_input;
@@ -43,6 +45,12 @@ pub trait TuiNodeExt<'a> {
         let sides = &self.inline_style()?.border_style;
         let [top, right, bottom, left] = sides.each().map(|s| s.as_ref()?.as_specified().copied());
         Some(Border::new(top?, right?, bottom?, left?))
+    }
+    /// The inline style's four `border-*-radius`es, when every one is set.
+    fn border_radius(&self) -> Option<Corners<BorderRadius>> {
+        let corners = &self.inline_style()?.border_radius;
+        let [tl, tr, br, bl] = corners.each().map(|r| r.as_ref()?.as_specified().cloned());
+        Some(Corners::new(tl?, tr?, br?, bl?))
     }
     fn gap(&self) -> Option<u16> {
         self.inline_style()

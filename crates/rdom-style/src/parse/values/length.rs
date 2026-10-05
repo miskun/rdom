@@ -123,6 +123,11 @@ pub fn parse_min_size(value: &[Token]) -> Option<MinSize> {
         _ => match length_percentage(value, Range::NonNegative)? {
             LengthPercentage::Integer(n) => u16::try_from(n).ok().map(MinSize::Cells),
             LengthPercentage::Cells(v) => Some(MinSize::Cells(cells_u16(v))),
+            // A percentage past `percent_fraction`'s range stays a `calc()`
+            // (resolved the same way), as it parsed before `Percent`.
+            LengthPercentage::Expr(CalcExpr::Percent(p)) if percent_fraction(p).is_some() => {
+                Some(MinSize::Percent(p as f32))
+            }
             LengthPercentage::Expr(e) => Some(MinSize::Calc(Box::new(e))),
         },
     }
@@ -137,6 +142,9 @@ pub fn parse_max_size(value: &[Token]) -> Option<MaxSize> {
     match length_percentage(value, Range::NonNegative)? {
         LengthPercentage::Integer(n) => u16::try_from(n).ok().map(MaxSize::Cells),
         LengthPercentage::Cells(v) => Some(MaxSize::Cells(cells_u16(v))),
+        LengthPercentage::Expr(CalcExpr::Percent(p)) if percent_fraction(p).is_some() => {
+            Some(MaxSize::Percent(p as f32))
+        }
         LengthPercentage::Expr(e) => Some(MaxSize::Calc(Box::new(e))),
     }
 }

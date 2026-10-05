@@ -85,6 +85,7 @@ pub(super) fn serialize_min_size(m: &crate::layout::MinSize) -> String {
     match m {
         crate::layout::MinSize::Auto => "auto".to_string(),
         crate::layout::MinSize::Cells(n) => n.to_string(),
+        crate::layout::MinSize::Percent(p) => format!("{p}%"),
         crate::layout::MinSize::Calc(expr) => serialize_math(expr),
     }
 }
@@ -102,6 +103,7 @@ pub(super) fn serialize_max_size(m: &crate::layout::MaxSize) -> String {
     match m {
         crate::layout::MaxSize::None => "none".to_string(),
         crate::layout::MaxSize::Cells(n) => n.to_string(),
+        crate::layout::MaxSize::Percent(p) => format!("{p}%"),
         crate::layout::MaxSize::Calc(expr) => serialize_math(expr),
     }
 }

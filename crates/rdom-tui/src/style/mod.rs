@@ -42,8 +42,8 @@ pub use dirty_tracker::DirtyTracker;
 pub use rdom_style::color::{ColorScheme, ColorSchemeList, SystemColor};
 pub use rdom_style::transition;
 pub use rdom_style::{
-    AnimatableProperty, Color, ColorContext, ColorFunction, ComputedStyle, Content, CounterOp,
-    CounterStyle, CustomDeclaration, CustomValue, ImportantMask, LayerId, Modifier,
+    AnimatableProperty, Color, ColorContext, ColorFunction, ComputedStyle, Content, ContentContext,
+    CounterOp, CounterStyle, CustomDeclaration, CustomValue, ImportantMask, LayerId, Modifier,
     PropertyRegistration, PropertySyntax, PropertySyntaxError, PseudoElementTarget,
     RegisterPropertyError, Rule, RuleContext, RuleOrigin, Specificity, StyleError, StyleSelector,
     Stylesheet, TimingFunction, TransitionProperty, TransitionRule, TuiColor, TuiStyle, Value,

@@ -919,3 +919,32 @@ fn flex_shorthand_full_grammar() {
         );
     }
 }
+
+/// C4G-REEXPORTS — CSS Sizing 3 §5.2: `min-*` / `max-*` take a
+/// `<length-percentage>`. A bare percentage is stored in the shape
+/// `width` gives it (`Size::Percent`), which the `percent` constructors
+/// build; a math function stays `Calc`. Serialization is unchanged.
+#[test]
+fn min_max_percentages_share_the_size_shape() {
+    use crate::layout::{MaxSize, MinSize, Size};
+    let mut style = TuiStyle::new();
+    set("width", "50%", &mut style).unwrap();
+    set("min-width", "50%", &mut style).unwrap();
+    set("max-width", "50%", &mut style).unwrap();
+    assert_eq!(style.width, Some(Value::Specified(Size::percent(50.0))));
+    assert_eq!(
+        style.min_width,
+        Some(Value::Specified(MinSize::percent(50.0)))
+    );
+    assert_eq!(
+        style.max_width,
+        Some(Value::Specified(MaxSize::percent(50.0)))
+    );
+    assert_eq!(serialize("min-width", &style).as_deref(), Some("50%"));
+    assert_eq!(serialize("max-width", &style).as_deref(), Some("50%"));
+    set("min-height", "calc(50% + 1)", &mut style).unwrap();
+    assert!(matches!(
+        style.min_height,
+        Some(Value::Specified(MinSize::Calc(_)))
+    ));
+}

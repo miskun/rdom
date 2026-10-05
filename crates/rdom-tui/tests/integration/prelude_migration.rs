@@ -1,0 +1,194 @@
+//! C4G-REEXPORTS — every type a CHANGELOG `[Unreleased]` migration hint
+//! names is reachable by a consumer that depends on `rdom-tui` alone and
+//! writes `use rdom_tui::prelude::*;`. Module paths a hint names
+//! (`calc::to_cells`, `property_dispatch::set`, `parse::Token`, …) are
+//! reached from the `rdom_tui` root, as the hint spells them. One test per
+//! hint group, each citing the hint's item id; nothing else is imported.
+
+use rdom_tui::prelude::*;
+
+/// C3G-MIN-AUTO, C2-PERCENT, C2G-MAX-NONE, C3G-API: `MinSize::Auto` (and
+/// its `Default`), `MaxSize::Cells`, the percentage constructors — the
+/// same variant shape for `Size`, `MinSize` and `MaxSize` — and the node
+/// setters' `impl Into<…>` forms.
+#[test]
+fn sizing_hints() {
+    let computed = ComputedStyle::initial();
+    assert_eq!(computed.min_width, MinSize::Auto);
+    assert_eq!(MinSize::default(), MinSize::Auto);
+    assert_eq!(computed.min_width.cells(Some(10)), None);
+    assert_eq!(computed.max_width.cells(Some(10)), None);
+    let _: Option<Value<MaxSize>> = Some(Value::Specified(MaxSize::Cells(4)));
+    assert_eq!(Size::percent(50.0), Size::Percent(50.0));
+    assert_eq!(MinSize::percent(50.0), MinSize::Percent(50.0));
+    assert_eq!(MaxSize::percent(50.0), MaxSize::Percent(50.0));
+    assert_eq!(MinSize::percent(50.0).cells(Some(10)), Some(5));
+    assert_eq!(MaxSize::percent(50.0).cells(Some(10)), Some(5));
+    let _ = TuiStyle::new()
+        .max_width(20)
+        .flex_shrink(0.0)
+        .width(Size::Flex(1.0));
+    let _ = FlexBasis::Auto;
+    let r = AspectRatio::new(16.0, 9.0).unwrap();
+    assert_eq!(r.numerator(), 16.0);
+    assert!(r.value().is_some());
+
+    let mut dom: TuiDom = TuiDom::new();
+    let div = dom.create_element("div");
+    dom.node_mut(div)
+        .set_max_width(40u16)
+        .set_max_width(MaxSize::None)
+        .set_min_width(MinSize::percent(10.0));
+    dom.node_mut(div)
+        .style_mut()
+        .unwrap()
+        .remove_property("min-width")
+        .unwrap();
+}
+
+/// C1-REVERT, C1-LAYER, C1-VAR-ANY, C1-PROPERTY, C1G-VAR-COST: the
+/// cascade keywords and custom values.
+#[test]
+fn cascade_hints() {
+    let v: Value<u16> = Value::Revert;
+    assert!(matches!(v, Value::Revert | Value::RevertLayer));
+    let style = TuiStyle {
+        ..Default::default()
+    };
+    assert!(style.pending.is_empty());
+    let value = CustomValue::new("1px");
+    assert_eq!(value.as_str(), "1px");
+    let _: CustomValue = "text".into();
+    let ComputedStyle {
+        animated_vars: _, ..
+    } = ComputedStyle::initial();
+}
+
+/// C1G-VAR-TOKENS, C2-MINMAX, C2G-CALC-SEMANTICS, C2G-CELLS-CONVERSIONS:
+/// tokens and math, reached through the root's `parse` and `calc`.
+#[test]
+fn token_and_math_hints() {
+    let tokens = rdom_tui::parse::tokenize("2px").unwrap();
+    assert!(matches!(
+        tokens.as_slice(),
+        [rdom_tui::parse::Token::Dimension { .. }]
+    ));
+    let three = rdom_tui::parse::tokenize("calc(1 + 2)").unwrap();
+    let expr: CalcExpr = rdom_tui::parse::values::parse_calc(&three).unwrap();
+    assert_eq!(expr.resolve(&rdom_tui::calc::ResolveCtx::new(0)), 3);
+    assert_eq!(rdom_tui::calc::to_cells(2.5), 2);
+}
+
+/// C2G-CONTENT-ATTR, C2-ATTR: `content` set through the dispatch table,
+/// and resolved outside a cascade.
+#[test]
+fn content_hints() {
+    let mut style = TuiStyle::new();
+    rdom_tui::property_dispatch::set("content", "attr(x)", &mut style).unwrap();
+    assert_eq!(style.pending.len(), 1);
+    fn lookup(name: &str) -> Option<&'static str> {
+        (name == "x").then_some("hi")
+    }
+    let vars = std::collections::HashMap::new();
+    let cx = rdom_tui::backend::SubstitutionContext::new().with_attrs(&lookup);
+    let resolved = style.substituted_pending(&vars, &cx);
+    assert_eq!(
+        resolved.content,
+        Some(Value::Specified(Content::Str("hi".into())))
+    );
+    fn _implements(_: &dyn ContentContext) {}
+}
+
+/// C3-RGB, C3-CURRENTCOLOR, C3-MIX, C3-SYSTEM: color variants and the
+/// color context.
+#[test]
+fn color_hints() {
+    let c = Color::rgba(1, 2, 3, 128);
+    assert!(matches!(c, Color::Rgba(1, 2, 3, 128)));
+    assert_eq!(c.opaque(), Color::Rgb(1, 2, 3));
+    let scheme = ColorScheme::Dark;
+    let cx = ColorContext::new(Color::Rgb(9, 9, 9)).with_scheme(scheme);
+    let vars = std::collections::HashMap::new();
+    assert_eq!(
+        resolve_tui_color(&TuiColor::CurrentColor, &vars, Color::Reset, &cx),
+        Color::Rgb(9, 9, 9)
+    );
+    let s = SystemColor::Canvas;
+    let _ = (s.color(), s.definite(scheme));
+    let f: Option<&ColorFunction> = None;
+    let _ = f.map(|f| (f.compute(&cx), f.css_text()));
+}
+
+/// C4-BORDER-SHORTHAND, C4-BORDER-WIDTH, C4-RADIUS, C4-SHADOW,
+/// C4-SPACING, C4G-IMPORTANT-BITSET: the Phase 4 value types.
+#[test]
+fn border_hints() {
+    let mut style = TuiStyle::new()
+        .border(Border::single())
+        .border_radius(BorderRadius::cells(1.0));
+    style.border_color = Sides::all(Some(Value::Specified(TuiColor::from(Color::Rgb(1, 1, 1)))));
+    let top = style.border_color.top.clone();
+    assert!(top.is_some());
+    let styles = style
+        .border_style
+        .map(|s| s.and_then(|v| v.as_specified().copied()).unwrap());
+    assert_eq!(Border::from_sides(styles), Border::single());
+    let mask = ImportantMask::BORDER_TOP_COLOR | ImportantMask::BORDER_TOP_STYLE;
+    assert!(mask.contains(ImportantMask::BORDER_TOP_COLOR) && !mask.is_empty());
+    let _ = mask.without(ImportantMask::TRANSITIONS) & ImportantMask::all();
+    let _: Corners<Option<BorderRadius>> = Corners::all(None);
+    let _: (BorderWidth, BorderWeight, BorderStyle, CornerStyle) = (
+        BorderWidth::default(),
+        BorderWeight::Light,
+        BorderStyle::Solid,
+        CornerStyle::Square,
+    );
+    let _: Option<(BoxShadow, PaintLength, BorderSpacing)> = None;
+    let _: Option<(
+        VisualBox,
+        RepeatStyle,
+        BackgroundRepeat,
+        BackgroundAttachment,
+    )> = None;
+    let computed = ComputedStyle::initial();
+    let _ = (
+        &computed.border_color.left,
+        &computed.border_style,
+        &computed.box_shadow,
+        &computed.border_spacing,
+        &computed.background_clip,
+    );
+}
+
+/// C4G-REEXPORTS: `set_border_radius` beside `set_border`, read back by
+/// `border_radius`.
+#[test]
+fn node_border_radius_accessor() {
+    let mut dom: TuiDom = TuiDom::new();
+    let div = dom.create_element("div");
+    dom.node_mut(div)
+        .set_border(Border::single())
+        .set_border_radius(BorderRadius::cells(1.0));
+    assert_eq!(
+        dom.node(div).border_radius(),
+        Some(Corners::all(BorderRadius::cells(1.0)))
+    );
+}
+
+/// C3-ALPHA, C4-BORDER-WIDTH: the paint buffer and a hand-built border
+/// contribution.
+#[test]
+fn render_hints() {
+    let area = Rect::new(0, 0, 2, 1);
+    let _ = Buffer::empty(area);
+    let _ = Buffer::filled(area, Cell::default());
+    let _ = Buffer::with_cells(area, vec![Cell::default(); 2]);
+    let _ = rdom_tui::render::buffer::BorderContribution {
+        style: BorderStyle::Solid,
+        fg: Color::Reset,
+        weight: BorderWeight::Light,
+        priority: 0,
+        corner_style: CornerStyle::Square,
+        side: rdom_tui::render::buffer::BorderSide::Top,
+    };
+}
