@@ -102,7 +102,7 @@ fn a_box_contained_above_the_scroll_container_does_not_count() {
         12,
         8,
     );
-    assert_eq!(extent(&dom, port), (Some(6), Some(1)));
+    assert_eq!(extent(&dom, port), (Some(6), Some(2)));
 }
 
 /// A `fixed` box's containing block is the viewport (CSS Position 3
@@ -110,7 +110,7 @@ fn a_box_contained_above_the_scroll_container_does_not_count() {
 #[test]
 fn a_fixed_box_does_not_count() {
     let (dom, port, _, _) = port(".abs { position: fixed }");
-    assert_eq!(extent(&dom, port), (Some(6), Some(1)));
+    assert_eq!(extent(&dom, port), (Some(6), Some(2)));
 }
 
 /// CSS Overflow 3 §3.1: an `auto` axis shows its scrollbar when the box
@@ -142,7 +142,7 @@ fn removing_the_box_clamps_the_offset_back() {
 #[test]
 fn a_box_before_the_scroll_origin_adds_nothing() {
     let (dom, port, _, _) = port(".abs { top: 0; left: -4 }");
-    assert_eq!(extent(&dom, port), (Some(6), Some(1)));
+    assert_eq!(extent(&dom, port), (Some(6), Some(2)));
 }
 
 /// A box is clipped by the `overflow: clip` boxes it is contained in
@@ -163,5 +163,48 @@ fn a_clipping_containing_block_cuts_the_box() {
         12,
         8,
     );
-    assert_eq!(extent(&dom, port), (Some(6), Some(1)));
+    assert_eq!(extent(&dom, port), (Some(6), Some(2)));
+}
+
+/// C8G-ABSPOS-EXTENT — §2.2 with CSSOM View §4: the scrollable overflow
+/// is measured from the scroll origin, not from the content's own top.
+/// A scroller holding only a box at `top: 20` has a 21-row area
+/// (`scrollHeight`), and the box can be scrolled to.
+#[test]
+fn a_scroller_of_only_positioned_content_measures_from_its_origin() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let p = el(&mut dom, root, "div", "p");
+    let t = el(&mut dom, p, "div", "t");
+    lay_out(
+        &mut dom,
+        ".p { position: relative; overflow: auto; width: 10; height: 5 } \
+         .t { position: absolute; top: 20; width: 2; height: 1 }",
+        12,
+        8,
+    );
+    assert_eq!(dom.node(p).scroll_height(), Some(21));
+    dom.node_mut(p).set_scroll_top(i32::MAX).unwrap();
+    assert_eq!(dom.node(p).scroll_top(), Some(16));
+    dom.layout_dom(Rect::new(0, 0, 12, 8));
+    assert_eq!(rect(&dom, t).y, 4, "the box on the scrollport's last row");
+}
+
+/// The same for in-flow content: a first child's `margin-top` puts its
+/// border box 3 rows below the origin, and those rows are part of the
+/// area (they used to be dropped as "before the content").
+#[test]
+fn a_first_childs_top_margin_is_in_the_area() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let p = el(&mut dom, root, "div", "p");
+    el(&mut dom, p, "div", "c");
+    lay_out(
+        &mut dom,
+        ".p { overflow: auto; width: 10; height: 5 } \
+         .c { margin-top: 3; height: 4 }",
+        12,
+        8,
+    );
+    assert_eq!(dom.node(p).scroll_height(), Some(7));
 }

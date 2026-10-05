@@ -1655,9 +1655,8 @@ fn dom_with_scrollable_div() -> (TuiDom, NodeId) {
     {
         let mut nm = dom.node_mut(div);
         let ext = nm.ext_mut().unwrap();
-        // `write_scroll_clamped` reads `layout` (to derive the
-        // padding-box viewport per CSS Overflow 3 §3); with no border
-        // applied here, layout and content_layout coincide.
+        // The clamp reads `layout` (the scrollport — no border or gutter
+        // here, so the whole box) and `scroll_content_*`.
         ext.layout.width = 50;
         ext.layout.height = 20;
         ext.content_layout.width = 50;

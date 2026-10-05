@@ -32,6 +32,7 @@ Each Breaking bullet below ends with its migration, and the [API table](#api-cha
 17. **`z-index` on a static flex item stacks it** (CSS Flexbox §5.4): a numeric `z-index` makes a flex or grid item a stacking context ordered by it, as a positioned box's is; it was ignored without `position`. (C7-GRID-PLACE)
 18. **`overflow` axes are paired** (CSS Overflow 3 §3.1): `overflow-y: scroll` computes `overflow-x` to `auto` (it stayed `visible`), so wide content now scrolls instead of painting past the box; `scrollbar-gutter: stable` no longer reserves a bottom row; and a scroll offset written on a box that is not a scroll container is dropped at the next layout — scroll the box that has `overflow` set. (C8-OVERFLOW-CLIP)
 19. **Overflowing text paints past its box**: a fixed-height or narrow box's extra lines and columns show unless the box has `overflow: hidden` / `clip` (CSS Overflow 3 §3.1); add one to keep them cut. (C8-OVERFLOW-TEXT)
+20. **A padded scroller's bar sits at its padding edge, and its end is reachable** (CSS Overflow 3 §2.2, §5.2): the bar moved from beside the content box to the column inside the border; `scrollHeight` / `scrollWidth` count the padding and are never less than the scrollport; content is clipped out of the gutters. (C8G-SCROLLPORT)
 
 **Compile breaks** — what a 0.5 consumer must change, by kind (the API table has each item):
 
@@ -463,6 +464,8 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 - `SetPropertyError::source()` returns the `DispatchError` / `DomError` it wraps, and its `Display` uses theirs. (C8-PARSE-ERROR)
 
 ### Fixed — `rdom-tui`
+
+- **The end of every scroller is reachable**: one scrollport (the padding box less the gutters) and one scrollable overflow area (the scrollport ∪ the content plus its end padding, from the scroll origin) serve layout, wheel, keys, scrollbar, `scrollTo`, `scrollIntoView`, focus and snapping; `top: 20` alone in a scroller is reachable. (C8G-SCROLLPORT, C8G-ABSPOS-EXTENT)
 
 - **A relatively positioned box is laid out where it is in flow, then moved** (CSS 2.1 §9.4.3: "without affecting the layout of surrounding boxes"): its subtree was laid out in the shifted box, so a float in it excluded the next paragraph's lines at the shifted position. (C8-FLOAT)
 - **Text that overflows its box paints and can be scrolled to**: a line past its box — a `nowrap` line wider than it, lines below a fixed height — paints on, clipped only by a box that clips (CSS Overflow 3 §3.1; inline content was cut at its own content box), and a descendant's line boxes, anonymous block boxes' included, count in the scroll container's scrollable overflow (§2.2). (C8-OVERFLOW-TEXT)

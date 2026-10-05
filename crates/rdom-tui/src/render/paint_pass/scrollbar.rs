@@ -1,21 +1,20 @@
 //! Scrollbar paint — track + thumb for each scrollable axis of
 //! an element with `overflow: scroll` or `overflow: auto`.
 //!
-//! The scrollbar strip sits in the 1-cell gutter that
-//! [`reserve_scrollbar_gutter`] carved out during layout:
+//! The bars sit in the gutters layout reserved between the scrollport
+//! and the border (CSS Overflow 3 §5.2; [`tracks`]):
 //!
-//! - **Vertical scrollbar**: column at `content_layout.right()`,
-//!   rows `content_layout.y` .. `content_layout.bottom()`.
-//! - **Horizontal scrollbar**: row at `content_layout.bottom()`,
-//!   columns `content_layout.x` .. `content_layout.right()`.
-//! - **Corner** at `(right, bottom)`: left unpainted.
+//! - **Vertical scrollbar**: the column right of the scrollport (left of
+//!   it under `direction: rtl`), over the scrollport's rows.
+//! - **Horizontal scrollbar**: the row below the scrollport, under its
+//!   columns.
+//! - **Corner** where the two gutters meet: left unpainted.
 //!
 //! ## Visibility
 //!
 //! - `Scroll` → always paints a track; thumb fills the track
 //!   when content fits, shrinks proportionally when it overflows.
-//! - `Auto` → paints nothing when content fits (`scroll_content_*`
-//!   ≤ viewport). The gutter was reserved either way so the
+//! - `Auto` → paints nothing when the area fits the scrollport. The gutter was reserved either way so the
 //!   layout doesn't reflow.
 //!
 //! ## Thumb geometry
@@ -42,9 +41,10 @@
 use rdom_core::{Dom, NodeId};
 
 use crate::ext::TuiExt;
-use crate::layout::{LayoutRect, Overflow};
+use crate::layout::Overflow;
 use crate::node::TuiNodeExt;
-use crate::render::layout_pass::gutter::{bar_on_left, vertical_bar_column};
+use crate::render::layout_pass::gutter::bar_on_left;
+use crate::render::layout_pass::scrollport_of;
 use crate::render::{Buffer, Rect, Style};
 use crate::style::{Color, ComputedStyle};
 
@@ -239,7 +239,7 @@ impl Look {
 }
 
 /// Paint vertical and/or horizontal scrollbars for `id` if its
-/// overflow properties demand them. No-op when both axes are
+/// overflow properties demand them ([`tracks`]). No-op when both axes are
 /// `Visible` / `Hidden`.
 pub(super) fn paint_scrollbars(
     dom: &Dom<TuiExt>,
@@ -251,222 +251,78 @@ pub(super) fn paint_scrollbars(
     let Some(ext) = dom.node(id).tui_ext() else {
         return;
     };
-    let content_layout = ext.content_layout;
-    // CSS Overflow 3 §3: the scrollbar gutter lives inside the padding-
-    // box. Under M5.5b border-collapse `content_layout` can extend into
-    // the border ring (a child-positioning concern); the scrollbar
-    // track must NOT paint there. `padding_box` defines the spec-correct
-    // outer bound for the track extent on both axes.
-    let padding_box = crate::layout::compute_padding_box(ext.layout, computed.border);
-
-    // The horizontal thumb is drawn at the scrollport's distance from
-    // the left of the scrollable area — at the right at rest for an
-    // `rtl` box, whose scroll origin is its right edge (CSSOM View §4).
-    let scroll_x = crate::render::layout_pass::scroll_x_from_area_start(
-        dom,
-        id,
-        content_layout.width as usize,
-    );
-    // The vertical thumb likewise: at the bottom at rest for a
-    // `column-reverse` box (its scroll origin is the bottom edge).
-    let scroll_y = crate::render::layout_pass::scroll_y_from_area_start(
-        dom,
-        id,
-        content_layout.height as usize,
-    );
-    let (content_w, content_h) = (ext.scroll_content_width, ext.scroll_content_height);
-
-    // Both track and thumb glyphs are axis-sensitive (`│` vs `─`
-    // for the track; `┃` vs `━` for the thumb). Resolve per-axis at
-    // the call sites below.
-
-    // Both axes always reserve their gutter when the scrollbar
-    // actually paints — see `layout_pass::reserve_scrollbar_gutter`
-    // and its two-pass companion for `Auto`. We only need to know
-    // whether the OTHER axis also paints so the bottom-right corner
-    // stays unclaimed.
-    let (y_paints, x_paints) = bars_shown(ext, computed);
+    let (vertical, horizontal) = tracks(dom, id);
+    if vertical.is_none() && horizontal.is_none() {
+        return;
+    }
     let look = Look::of(dom, computed);
-
-    if y_paints {
+    // Both track and thumb glyphs are axis-sensitive (`│` vs `─` for the
+    // track; `┃` vs `━` for the thumb).
+    if let Some(track) = vertical {
         let (track_glyph, track_style) =
             look.track(ext.computed_scrollbar.as_deref(), ScrollbarAxis::Vertical);
         let (thumb_glyph, thumb_style) = look.thumb(
             ext.computed_scrollbar_thumb_vertical.as_deref(),
             ScrollbarAxis::Vertical,
         );
-        paint_vertical_scrollbar(
+        paint_track(
             buf,
-            vertical_bar_column(content_layout, computed),
-            content_layout,
-            padding_box,
-            x_paints,
-            computed.overflow_y,
-            scroll_y,
-            content_h,
+            track,
+            true,
             clip,
-            track_glyph,
-            track_style,
-            thumb_glyph,
-            thumb_style,
+            (track_glyph, track_style),
+            (thumb_glyph, thumb_style),
         );
     }
-    if x_paints {
+    if let Some(track) = horizontal {
         let (track_glyph, track_style) =
             look.track(ext.computed_scrollbar.as_deref(), ScrollbarAxis::Horizontal);
         let (thumb_glyph, thumb_style) = look.thumb(
             ext.computed_scrollbar_thumb_horizontal.as_deref(),
             ScrollbarAxis::Horizontal,
         );
-        paint_horizontal_scrollbar(
+        paint_track(
             buf,
-            bar_on_left(computed),
-            content_layout,
-            padding_box,
-            y_paints,
-            computed.overflow_x,
-            scroll_x,
-            content_w,
+            track,
+            false,
             clip,
-            track_glyph,
-            track_style,
-            thumb_glyph,
-            thumb_style,
+            (track_glyph, track_style),
+            (thumb_glyph, thumb_style),
         );
     }
 }
 
-#[allow(clippy::too_many_arguments)]
-fn paint_vertical_scrollbar(
+/// Paint one bar's cells inside `clip`: the thumb's in `thumb`, the rest
+/// in `rest`.
+fn paint_track(
     buf: &mut Buffer,
-    track_x: i32,
-    content: LayoutRect,
-    padding_box: LayoutRect,
-    has_h_scrollbar: bool,
-    overflow: Overflow,
-    scroll_offset: usize,
-    content_size: usize,
+    track: Track,
+    vertical: bool,
     clip: Rect,
-    track_glyph: &str,
-    track_style: Style,
-    thumb_glyph: &str,
-    thumb_style: Style,
+    rest: (&str, Style),
+    thumb: (&str, Style),
 ) {
-    // Track column = the dedicated gutter cell `track_x`, at
-    // `content.right()` (or left of `content` under `rtl`).
-    // The layout pass guarantees the gutter is reserved (via either
-    // `Scroll` always-reserves, `Auto + scrollbar-gutter: stable`, or
-    // `Auto`'s two-pass force-reserve when overflow is detected).
-    // CSS Overflow 3 §3 + the TUI medium constraint (no cell overlay)
-    // mean overlay positioning is unreachable for paint — by the
-    // time the scrollbar actually paints, its column belongs to it.
-    let track_x = i64::from(track_x);
-    if track_x < clip.x as i64 || track_x >= clip.right() as i64 {
-        return;
-    }
-    let track_x = track_x as u16;
-
-    // Track vertical extent is bounded by the **padding-box**, not
-    // `content_layout`. Under M5.5b border-collapse, `content_layout`
-    // can widen vertically into the border ring (a child-positioning
-    // concern). CSS Overflow 3 §3 places the scrollport at the
-    // padding-box; the track lives inside that scrollport and must
-    // not paint into the border row.
-    let track_top = content.y.max(padding_box.y).max(clip.y as i32);
-    let mut track_bottom = (content.y + content.height as i32)
-        .min(padding_box.y + padding_box.height as i32)
-        .min(clip.bottom() as i32);
-    if has_h_scrollbar {
-        track_bottom -= 1;
-    }
-    if track_bottom <= track_top {
-        return;
-    }
-    let track_len = (track_bottom - track_top) as u16;
-    let viewport = content.height;
-
-    if !should_paint(overflow, viewport as usize, content_size) {
-        return;
-    }
-
-    let (thumb_size, thumb_off) =
-        thumb_geometry(track_len, viewport as usize, content_size, scroll_offset);
-
-    for i in 0..track_len {
-        let y = track_top as u16 + i;
-        let in_thumb = i >= thumb_off && i < thumb_off + thumb_size;
-        let (ch, style) = if in_thumb {
-            (thumb_glyph, thumb_style)
+    let (thumb_size, thumb_off) = track.thumb();
+    for i in 0..track.len {
+        let along = track.start + i32::from(i);
+        let (x, y) = if vertical {
+            (track.line, along)
         } else {
-            (track_glyph, track_style)
+            (along, track.line)
         };
-        buf.set_symbol(track_x, y, ch, style);
-    }
-}
-
-#[allow(clippy::too_many_arguments)]
-fn paint_horizontal_scrollbar(
-    buf: &mut Buffer,
-    corner_left: bool,
-    content: LayoutRect,
-    padding_box: LayoutRect,
-    has_v_scrollbar: bool,
-    overflow: Overflow,
-    scroll_offset: usize,
-    content_size: usize,
-    clip: Rect,
-    track_glyph: &str,
-    track_style: Style,
-    thumb_glyph: &str,
-    thumb_style: Style,
-) {
-    // Track row = the dedicated gutter row at `content.bottom()`.
-    // Mirror of the vertical case — layout guarantees reservation by
-    // the time paint runs.
-    let track_y_signed = content.y + content.height as i32;
-    let track_y = track_y_signed as i64;
-    if track_y < clip.y as i64 || track_y >= clip.bottom() as i64 {
-        return;
-    }
-    let track_y = track_y as u16;
-
-    // Track horizontal extent bounded by the padding-box (mirror of
-    // the vertical case): under M5.5b `content_layout` can widen into
-    // the border ring on the left/right; the track must not paint
-    // there per CSS Overflow 3 §3.
-    let mut track_left = content.x.max(padding_box.x).max(clip.x as i32);
-    let mut track_right = (content.x + content.width as i32)
-        .min(padding_box.x + padding_box.width as i32)
-        .min(clip.right() as i32);
-    // The corner beside the vertical bar stays unclaimed: bottom-right,
-    // or bottom-left under `rtl`.
-    if has_v_scrollbar && corner_left {
-        track_left += 1;
-    } else if has_v_scrollbar {
-        track_right -= 1;
-    }
-    if track_right <= track_left {
-        return;
-    }
-    let track_len = (track_right - track_left) as u16;
-    let viewport = content.width;
-
-    if !should_paint(overflow, viewport as usize, content_size) {
-        return;
-    }
-
-    let (thumb_size, thumb_off) =
-        thumb_geometry(track_len, viewport as usize, content_size, scroll_offset);
-
-    for i in 0..track_len {
-        let x = track_left as u16 + i;
-        let in_thumb = i >= thumb_off && i < thumb_off + thumb_size;
-        let (ch, style) = if in_thumb {
-            (thumb_glyph, thumb_style)
+        let inside = x >= i32::from(clip.x)
+            && x < i32::from(clip.right())
+            && y >= i32::from(clip.y)
+            && y < i32::from(clip.bottom());
+        if !inside {
+            continue;
+        }
+        let (ch, style) = if i >= thumb_off && i < thumb_off + thumb_size {
+            thumb
         } else {
-            (track_glyph, track_style)
+            rest
         };
-        buf.set_symbol(x, track_y, ch, style);
+        buf.set_symbol(x as u16, y as u16, ch, style);
     }
 }
 
@@ -484,29 +340,92 @@ pub(crate) fn should_paint(overflow: Overflow, viewport: usize, content: usize) 
     }
 }
 
-/// Which of `ext`'s scrollbars show: `(vertical, horizontal)` — an
-/// `overflow: scroll` axis always, an `auto` one when its content
-/// overflows the scrollport; none under `scrollbar-width: none` (CSS
-/// Scrollbars 1 §3: the box scrolls with no bar). Paint, hit-testing and
-/// thumb dragging read this one answer, so the corner cell a horizontal
-/// bar takes from the vertical track (and back) is the same in all three.
+/// Which of `ext`'s scrollbars show: `(vertical, horizontal)` — on an
+/// axis whose gutter layout reserved (`ScrollState::gutters`; none
+/// under `scrollbar-width: none`, CSS Scrollbars 1 §3), an `overflow:
+/// scroll` bar always and an `auto` one when the area overflows the
+/// scrollport. Paint, hit-testing, thumb dragging and the tree guides
+/// read this one answer.
 pub(crate) fn bars_shown(ext: &crate::ext::TuiExt, computed: &ComputedStyle) -> (bool, bool) {
-    if computed.scrollbar_width == crate::layout::ScrollbarWidth::None {
-        return (false, false);
-    }
-    let content = ext.content_layout;
+    let g = crate::runtime::scrollbar::state::gutters(ext);
+    let port = scrollport_of(ext, computed);
     (
-        should_paint(
-            computed.overflow_y,
-            usize::from(content.height),
-            ext.scroll_content_height,
-        ),
-        should_paint(
-            computed.overflow_x,
-            usize::from(content.width),
-            ext.scroll_content_width,
-        ),
+        g.columns() > 0
+            && should_paint(
+                computed.overflow_y,
+                usize::from(port.height),
+                ext.scroll_content_height,
+            ),
+        g.bottom > 0
+            && should_paint(
+                computed.overflow_x,
+                usize::from(port.width),
+                ext.scroll_content_width,
+            ),
     )
+}
+
+/// One scrollbar's track, in the gutter beside the scrollport (CSS
+/// Overflow 3 §5.2) and as long as the scrollport's side.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Track {
+    /// The bar's column (a vertical bar) or row (a horizontal one).
+    pub(crate) line: i32,
+    /// The track's first cell along the bar.
+    pub(crate) start: i32,
+    /// The track's length in cells.
+    pub(crate) len: u16,
+    /// The scrollport's size on the bar's axis.
+    pub(crate) viewport: usize,
+    /// The scrollable overflow area's size on the bar's axis.
+    pub(crate) content: usize,
+    /// The scrollport's distance from the area's start on the axis.
+    pub(crate) offset: usize,
+}
+
+impl Track {
+    /// `(thumb_size, thumb_offset)` in cells ([`thumb_geometry`]).
+    pub(crate) fn thumb(&self) -> (u16, u16) {
+        thumb_geometry(self.len, self.viewport, self.content, self.offset)
+    }
+}
+
+/// `id`'s shown scrollbars, `(vertical, horizontal)` ([`bars_shown`]):
+/// the vertical bar in the gutter column right of the scrollport (left of
+/// it under [`bar_on_left`]), over its rows; the horizontal bar in the
+/// gutter row below it, under its columns. The corner where they meet is
+/// in neither.
+pub(crate) fn tracks(dom: &Dom<TuiExt>, id: NodeId) -> (Option<Track>, Option<Track>) {
+    let Some(ext) = dom.node(id).ext() else {
+        return (None, None);
+    };
+    let Some(c) = ext.computed.as_deref() else {
+        return (None, None);
+    };
+    let (y_shown, x_shown) = bars_shown(ext, c);
+    let port = scrollport_of(ext, c);
+    let (off_x, off_y) = crate::render::layout_pass::offset_from_area_start(dom, id);
+    let vertical = y_shown.then(|| Track {
+        line: if bar_on_left(c) {
+            port.x - 1
+        } else {
+            port.x + i32::from(port.width)
+        },
+        start: port.y,
+        len: port.height,
+        viewport: usize::from(port.height),
+        content: ext.scroll_content_height,
+        offset: off_y,
+    });
+    let horizontal = x_shown.then(|| Track {
+        line: port.y + i32::from(port.height),
+        start: port.x,
+        len: port.width,
+        viewport: usize::from(port.width),
+        content: ext.scroll_content_width,
+        offset: off_x,
+    });
+    (vertical, horizontal)
 }
 
 /// Compute `(thumb_size, thumb_offset)` in cells for a track of

@@ -57,8 +57,9 @@ fn nested_scroll_container_whitespace_runs_do_not_grow_the_outer_scroll_size() {
     );
     assert_eq!(
         scroll_height(&dom, outer),
-        4,
-        "the outer pane's content is the inner box's 4 rows, not its hidden content"
+        10,
+        "the outer pane's area is its 10-row scrollport: the inner box's 4 rows fit, \
+         its hidden content does not count"
     );
 }
 
@@ -66,7 +67,7 @@ fn nested_scroll_container_whitespace_runs_do_not_grow_the_outer_scroll_size() {
 fn nested_scroll_container_text_runs_do_not_grow_the_outer_scroll_size() {
     let (dom, _, outer, inner, _) = fixture("between");
     assert!(scroll_height(&dom, inner) > 12, "entries plus text runs");
-    assert_eq!(scroll_height(&dom, outer), 4);
+    assert_eq!(scroll_height(&dom, outer), 10, "the scrollport");
 }
 
 #[test]
@@ -75,7 +76,7 @@ fn scrolled_nested_scroll_container_does_not_grow_the_outer_scroll_size() {
     dom.node_mut(inner).set_scroll_top(6).unwrap();
     layout(&mut dom, &sheet);
     assert_eq!(dom.node(inner).scroll_top(), Some(6));
-    assert_eq!(scroll_height(&dom, outer), 4);
+    assert_eq!(scroll_height(&dom, outer), 10, "the scrollport");
 }
 
 #[test]

@@ -19,39 +19,20 @@ pub(crate) fn scroll_offset(dom: &Dom<TuiExt>, container: NodeId, direction: Dir
     }
 }
 
-/// Shrink `inner` by a 1-cell scrollbar gutter per axis when CSS
-/// `scrollbar-gutter` says to reserve it (or when `overflow:
-/// scroll` requires a permanent gutter).
+/// Shrink the content area `inner` by the scrollbar gutters (CSS
+/// Overflow 3 §5.2) [`gutters`] reserves, the `auto` axes forced as
+/// `force_y` / `force_x` say — `layout_node`'s second pass forces an
+/// `auto` axis whose content overflowed in the first (classic scrollbars
+/// take space when present; a terminal cannot overlay one).
 ///
-/// Reservation rules per axis:
-/// - `Overflow::Scroll` → always reserve (scrollbar always shown).
-/// - `Overflow::Auto` + `scrollbar-gutter: stable` → reserve
-///   (matches CSS `scrollbar-gutter: stable` — prevents content
-///   reflow when the scrollbar appears mid-frame).
-/// - `Overflow::Auto` + `scrollbar-gutter: auto` (the CSS
-///   default) → DO NOT reserve. The scrollbar paints over the
-///   edge column/row only while it's visible; content gets the
-///   cells when scrolling isn't active. Authors who want stable
-///   layout opt in with `scrollbar-gutter: stable`.
-/// - `Overflow::Hidden` / `Clip` / `Visible` → never reserve.
-///
-/// The reserved cells live at:
-/// - **Vertical scrollbar** (if `overflow_y` reserves): the
-///   rightmost column of `inner`, from top to bottom — the leftmost
-///   under `direction: rtl` ([`bar_on_left`]).
-/// - **Horizontal scrollbar** (if `overflow_x` reserves): the
-///   bottom row of `inner`, from left to right.
-///
-/// When both reserve, the bottom-right corner cell is unclaimed
-/// by either strip — paint leaves it blank.
-///
-/// `force_y` / `force_x` override the cascade decision for `Auto`
-/// axes — used by `layout_node`'s two-pass re-layout when overflow
-/// was detected in pass 1. `Scroll` always reserves regardless; CSS
-/// Overflow 3 §3 "classic" semantic for `Auto` ("consumes space when
-/// present") needs the override because at the time of pass 1 the
-/// substrate doesn't yet know if overflow will exist. Two-pass:
-/// measure → if overflow on an Auto axis, force-reserve in pass 2.
+/// The gutters lie between the padding edge and the border: the vertical
+/// bar's column at the padding box's inline-end edge (its left edge under
+/// `direction: rtl`, [`bar_on_left`]), the horizontal bar's row at its
+/// bottom. The content box keeps its padding on the scrollport's side of
+/// them, so it is the content area less a column (row) — the same rect
+/// whichever side of the padding the gutter is on; the scrollport
+/// (`scrollport`) is the padding box less the gutters. When both bars
+/// show, the corner cell where the gutters meet belongs to neither.
 pub(crate) fn reserve_scrollbar_gutter_forced(
     inner: LayoutRect,
     computed: &ComputedStyle,
@@ -133,17 +114,6 @@ pub(crate) fn gutter_axes(computed: &ComputedStyle, force_y: bool, force_x: bool
 /// place it (CSS Overflow 3 leaves the side to the UA).
 pub(crate) fn bar_on_left(computed: &ComputedStyle) -> bool {
     computed.text_direction == crate::layout::TextDirection::Rtl
-}
-
-/// The column of `computed`'s vertical scrollbar beside its `content`
-/// area (the gutter [`reserve_scrollbar_gutter_forced`] reserved): just
-/// right of it, or just left of it under [`bar_on_left`].
-pub(crate) fn vertical_bar_column(content: LayoutRect, computed: &ComputedStyle) -> i32 {
-    if bar_on_left(computed) {
-        content.x - 1
-    } else {
-        content.x + i32::from(content.width)
-    }
 }
 
 /// Pass-1 gutter reservation — Scroll always, Auto only if

@@ -179,15 +179,15 @@ fn nearest_scrollport(dom: &Dom<TuiExt>, id: NodeId) -> Option<(NodeId, LayoutRe
             // A scroll container (CSS Position 3 §3.4: the nearest
             // scrollport); an `overflow: clip` box is not one.
             let scrollable = computed.is_some_and(|c| c.is_scroll_container());
-            if scrollable && let Some(ext) = p.ext() {
-                // CSS Overflow 3 §3 + Position 3 sticky: pin against
-                // the scrollport (= padding-box), not `content_layout`.
-                // Under M5.5b border-collapse `content_layout` can
-                // widen into the border ring; using it here would
-                // shift the sticky pin threshold 1 row earlier on each
-                // expanded edge.
-                let border = computed.map(|c| c.border).unwrap_or_default();
-                let scrollport = crate::layout::compute_padding_box(ext.layout, border);
+            if scrollable
+                && let Some(ext) = p.ext()
+                && let Some(c) = computed
+            {
+                // CSS Position 3 §3.4: pin against the scrollport — the
+                // padding box less the scrollbar gutters (`scrollport`),
+                // not `content_layout`, which under M5.5b border-collapse
+                // can widen into the border ring.
+                let scrollport = crate::render::layout_pass::scrollport_of(ext, c);
                 return Some((p.id(), scrollport));
             }
         }

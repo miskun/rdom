@@ -72,12 +72,8 @@ pub(crate) fn autoscroll_step_for(
     pointer: (u16, u16),
 ) -> Option<(ScrollAxis, i32)> {
     let ext = dom.node(container).tui_ext()?;
-    let border = dom
-        .node(container)
-        .computed()
-        .map(|c| c.border)
-        .unwrap_or_default();
-    let pb = crate::layout::compute_padding_box(ext.layout, border);
+    // The bands lie inside the scrollport (`layout_pass::scrollport`).
+    let pb = crate::render::layout_pass::scrollport(dom, container)?;
     let zone = AUTOSCROLL_EDGE_ZONE.max(1);
     // Along one axis: the step into / past the far edge, or out of the
     // near edge, when there is room to scroll that way.
@@ -97,7 +93,7 @@ pub(crate) fn autoscroll_step_for(
         pointer.1 as i32,
         pb.y,
         pb.height,
-        offset_from_area_start(dom, container, ScrollAxis::Vertical, pb.height as usize),
+        offset_from_area_start(dom, container, ScrollAxis::Vertical),
         ext.scroll_content_height,
     ) {
         return Some((ScrollAxis::Vertical, step));
@@ -106,7 +102,7 @@ pub(crate) fn autoscroll_step_for(
         pointer.0 as i32,
         pb.x,
         pb.width,
-        offset_from_area_start(dom, container, ScrollAxis::Horizontal, pb.width as usize),
+        offset_from_area_start(dom, container, ScrollAxis::Horizontal),
         ext.scroll_content_width,
     )
     .map(|step| (ScrollAxis::Horizontal, step))

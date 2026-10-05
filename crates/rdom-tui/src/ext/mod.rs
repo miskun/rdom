@@ -143,11 +143,15 @@ pub struct TuiExt {
     /// boxed on first use (`runtime::scrollbar::state`,
     /// `P7G-FORM-STATE-BOX-1`). **Runtime-managed.**
     pub(crate) scroll_state: Option<Box<crate::runtime::scrollbar::state::ScrollState>>,
-    /// Total content size (max of children's extents). Used to compute
-    /// scrollbar size and thumb position.
+    /// The scrollable overflow area's width (`scrollWidth`, CSSOM View
+    /// §4): the scrollport ∪ the content, the content extended by the end
+    /// padding (CSS Overflow 3 §2.2), measured from the scrolling area
+    /// origin. Never less than the scrollport's width on a scroll
+    /// container; 0 on any other box. Written by layout.
     pub scroll_content_width: usize,
+    /// The scrollable overflow area's height (`scrollHeight`), as
+    /// [`scroll_content_width`](Self::scroll_content_width).
     pub scroll_content_height: usize,
-
     // ── Geometry (written by layout pass) ─────────────────────────────
     /// The outer rectangle this element occupies in its parent's
     /// coordinate space (after scroll). Signed so off-screen elements

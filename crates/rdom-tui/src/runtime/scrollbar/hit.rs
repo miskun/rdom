@@ -7,10 +7,8 @@
 use rdom_core::NodeId;
 
 use super::ScrollAxis;
-use super::geometry::offset_from_area_start;
 use crate::TuiDom;
-use crate::node::TuiNodeExt;
-use crate::render::paint_pass::scrollbar::{should_paint, thumb_geometry};
+use crate::render::paint_pass::scrollbar::{Track, tracks};
 
 /// What part of a scrollbar got clicked.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -55,89 +53,32 @@ pub(crate) fn hit(dom: &TuiDom, path: &[NodeId], x: u16, y: u16) -> Option<Scrol
 }
 
 fn check_element(dom: &TuiDom, id: NodeId, x: u16, y: u16) -> Option<ScrollbarHit> {
-    let ext = dom.node(id).tui_ext()?;
-    let content = ext.content_layout;
-    let computed = dom.node(id).computed()?;
-    // CSS Overflow 3 §3: scrollbar gutter is inside the padding-box.
-    // Column position uses `content_layout` (gutter already accounted
-    // for by `reserve_scrollbar_gutter`); track extent is clamped to
-    // padding-box so a click on a border-row column doesn't register
-    // as a scrollbar hit under M5.5b border-collapse.
-    let padding_box = crate::layout::compute_padding_box(ext.layout, computed.border);
-
-    let (y_reserves, x_reserves) = crate::render::paint_pass::scrollbar::bars_shown(ext, computed);
-
-    // Vertical scrollbar sits in the column just right of
-    // content.x + content.width. Horizontal sits in the row just
-    // below content.y + content.height.
-    let v_col = crate::render::layout_pass::gutter::vertical_bar_column(content, computed);
-    let bar_left = crate::render::layout_pass::gutter::bar_on_left(computed);
-    let h_row = content.y + content.height as i32;
-    let in_v_col = x as i32 == v_col;
-    let in_h_row = y as i32 == h_row;
-
-    // Vertical track spans y in [content.y, content.y + height) clamped
-    // to padding-box rows; minus one row for the corner if horizontal
-    // also reserves.
-    let v_top = content.y.max(padding_box.y);
-    let mut v_bottom =
-        (content.y + content.height as i32).min(padding_box.y + padding_box.height as i32);
-    if x_reserves {
-        v_bottom -= 1;
-    }
-    let in_v_rows = (y as i32) >= v_top && (y as i32) < v_bottom;
-
-    let mut h_left = content.x.max(padding_box.x);
-    let mut h_right =
-        (content.x + content.width as i32).min(padding_box.x + padding_box.width as i32);
-    if y_reserves && bar_left {
-        h_left += 1;
-    } else if y_reserves {
-        h_right -= 1;
-    }
-    let in_h_cols = (x as i32) >= h_left && (x as i32) < h_right;
-
-    if y_reserves && in_v_col && in_v_rows {
-        let track_len = (v_bottom - v_top) as u16;
-        let viewport = content.height;
-        let content_size = ext.scroll_content_height;
-        if !should_paint(computed.overflow_y, viewport as usize, content_size) {
-            return None;
-        }
-        // A `column-reverse` box's thumb starts at the bottom.
-        let offset = offset_from_area_start(dom, id, ScrollAxis::Vertical, viewport as usize);
-        let (thumb_size, thumb_off) =
-            thumb_geometry(track_len, viewport as usize, content_size, offset);
-        let cursor_along = (y as i32 - v_top) as u16;
-        return Some(ScrollbarHit {
-            element: id,
-            axis: ScrollAxis::Vertical,
-            part: classify(cursor_along, thumb_off, thumb_size),
-            cursor_along_track: cursor_along,
-        });
-    }
-
-    if x_reserves && in_h_row && in_h_cols {
-        let track_len = (h_right - h_left) as u16;
-        let viewport = content.width;
-        let content_size = ext.scroll_content_width;
-        if !should_paint(computed.overflow_x, viewport as usize, content_size) {
-            return None;
-        }
-        // An `rtl` box's thumb starts at the right (its scroll origin).
-        let offset = offset_from_area_start(dom, id, ScrollAxis::Horizontal, viewport as usize);
-        let (thumb_size, thumb_off) =
-            thumb_geometry(track_len, viewport as usize, content_size, offset);
-        let cursor_along = (x as i32 - h_left) as u16;
-        return Some(ScrollbarHit {
-            element: id,
-            axis: ScrollAxis::Horizontal,
-            part: classify(cursor_along, thumb_off, thumb_size),
-            cursor_along_track: cursor_along,
-        });
-    }
-
-    None
+    // The bars paint draws (`paint_pass::scrollbar::tracks`): one track
+    // per shown bar, in its gutter beside the scrollport.
+    let (vertical, horizontal) = tracks(dom, id);
+    let (x, y) = (i32::from(x), i32::from(y));
+    let on = |track: Track, line: i32, along: i32| {
+        (line == track.line && along >= track.start && along < track.start + i32::from(track.len))
+            .then(|| (along - track.start) as u16)
+    };
+    let (axis, track, cursor_along) = if let Some(t) = vertical
+        && let Some(c) = on(t, x, y)
+    {
+        (ScrollAxis::Vertical, t, c)
+    } else if let Some(t) = horizontal
+        && let Some(c) = on(t, y, x)
+    {
+        (ScrollAxis::Horizontal, t, c)
+    } else {
+        return None;
+    };
+    let (thumb_size, thumb_off) = track.thumb();
+    Some(ScrollbarHit {
+        element: id,
+        axis,
+        part: classify(cursor_along, thumb_off, thumb_size),
+        cursor_along_track: cursor_along,
+    })
 }
 
 fn classify(cursor: u16, thumb_off: u16, thumb_size: u16) -> ScrollbarPart {

@@ -23,6 +23,10 @@ pub(crate) struct ScrollState {
     /// The boxes the container last snapped to, horizontally and
     /// vertically (`runtime::scroll_snap`, CSS Scroll Snap 1 §5.4).
     pub(crate) snapped: (Option<rdom_core::NodeId>, Option<rdom_core::NodeId>),
+    /// The scrollbar gutters layout reserved inside the padding box (CSS
+    /// Overflow 3 §5.2) — the scrollport is the padding box less them
+    /// (`layout_pass::scrollport`). Only a scroll container reserves any.
+    pub(crate) gutters: crate::render::layout_pass::gutter::Gutters,
 }
 
 /// The offsets `ext` was last painted with; `(0, 0)` before any.
@@ -46,6 +50,22 @@ pub(crate) fn snapped(ext: &TuiExt) -> (Option<rdom_core::NodeId>, Option<rdom_c
     ext.scroll_state
         .as_ref()
         .map_or((None, None), |s| s.snapped)
+}
+
+/// The scrollbar gutters layout last reserved in `ext`; none before.
+pub(crate) fn gutters(ext: &TuiExt) -> crate::render::layout_pass::gutter::Gutters {
+    ext.scroll_state
+        .as_ref()
+        .map_or_else(Default::default, |s| s.gutters)
+}
+
+/// Record the gutters layout reserved. Allocates only for one.
+pub(crate) fn set_gutters(ext: &mut TuiExt, gutters: crate::render::layout_pass::gutter::Gutters) {
+    if let Some(s) = ext.scroll_state.as_mut() {
+        s.gutters = gutters;
+    } else if gutters != Default::default() {
+        state_mut(ext).gutters = gutters;
+    }
 }
 
 /// Record the boxes a snap came to rest on. Allocates only for one.

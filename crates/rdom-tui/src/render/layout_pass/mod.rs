@@ -103,6 +103,7 @@ mod positioned_overflow;
 mod positioned_pseudos;
 mod positioning;
 mod scroll_extent;
+pub(crate) mod scrollport;
 mod shares;
 mod sticky;
 mod tree;
@@ -127,10 +128,10 @@ pub(crate) use clip_edge::ClipEdges;
 pub(crate) use grid::GridLines;
 pub(super) use gutter::{gutters, reserve_scrollbar_gutter, reserve_scrollbar_gutter_forced};
 pub(crate) use ifc::is_ifc_block;
+pub(crate) use scroll_extent::origin_at_end;
 use scroll_extent::{clamp_scroll_offset, record_scroll_content_size};
-pub(crate) use scroll_extent::{
-    origin_at_end, scroll_x_bounds, scroll_x_from_area_start, scroll_y_bounds,
-    scroll_y_from_area_start,
+pub(crate) use scrollport::{
+    offset_from_area_start, overflows, range_of, scroll_bounds, scrollport, scrollport_of,
 };
 use tree::collapse_hidden_children;
 pub(super) use tree::element_children_of;
@@ -289,6 +290,7 @@ pub(super) fn layout_node(
     if let Some(ext) = dom.node_mut(id).ext_mut() {
         ext.layout = outer_rect;
         ext.content_layout = inner;
+        crate::runtime::scrollbar::state::set_gutters(ext, gutters(&computed, false, false));
         ext.layout_dirty = false;
         ext.margin_chain = None;
     }
@@ -354,18 +356,13 @@ pub(super) fn layout_node(
     // Overflow 3 §3.3): an `auto` horizontal bar always waits for overflow.
     let auto_no_stable_x = matches!(computed.overflow_x, Overflow::Auto);
     if auto_no_stable_y || auto_no_stable_x {
-        // Compare against the FINAL content height: an `auto` height
-        // was just resolved from the content (CSS 2.1 §10.6.3 — such a
-        // box cannot overflow its block axis unless `max-height`
-        // clamps it), while the pass-1 `inner` still carries the
-        // pre-layout estimate.
-        let (overflow_y, overflow_x) = match dom.node(id).ext() {
-            Some(ext) => (
-                auto_no_stable_y && ext.scroll_content_height > ext.content_layout.height as usize,
-                auto_no_stable_x && ext.scroll_content_width > inner.width as usize,
-            ),
-            None => (false, false),
-        };
+        // The area against the scrollport (`scrollport`), both from the
+        // FINAL box: an `auto` height was just resolved from the content
+        // (CSS 2.1 §10.6.3 — such a box cannot overflow its block axis
+        // unless `max-height` clamps it), while the pass-1 `inner` still
+        // carries the pre-layout estimate.
+        let (over_x, over_y) = overflows(dom, id);
+        let (overflow_y, overflow_x) = (auto_no_stable_y && over_y, auto_no_stable_x && over_x);
         if overflow_y || overflow_x {
             // Recompute inner from scratch (pass-1 inner already had
             // Scroll / Stable gutters applied; we add the Auto
@@ -381,6 +378,10 @@ pub(super) fn layout_node(
                 reserve_scrollbar_gutter_forced(inner_full, &computed, overflow_y, overflow_x);
             if let Some(ext) = dom.node_mut(id).ext_mut() {
                 ext.content_layout = inner_v2;
+                crate::runtime::scrollbar::state::set_gutters(
+                    ext,
+                    gutters(&computed, overflow_y, overflow_x),
+                );
             }
             float::rewind(dom, floats_mark);
             // Pass 2 is a full re-layout: the content may wrap

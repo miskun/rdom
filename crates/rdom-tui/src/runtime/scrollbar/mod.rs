@@ -24,7 +24,7 @@
 //!   container on the ancestor chain (`scroll_element_into_view`).
 //! - `reveal.rs` — scroll the caret or a node's region into view
 //!   (`reveal_caret`, `service_caret_reveal`, `scroll_into_view`).
-//! - `geometry.rs` — padding-box scroll metrics and scroll-container
+//! - `geometry.rs` — scroll metrics over the scrollport and scroll-container
 //!   predicates (`nearest_scroll_container`).
 //! - `scroll.rs` — the scroll writers: clamp + `scroll` event.
 //! - `painted.rs` — the offsets the last frame painted, so any offset
@@ -57,6 +57,8 @@ mod reverse_tests;
 #[cfg(test)]
 mod rtl_tests;
 mod scroll;
+#[cfg(test)]
+mod scrollport_tests;
 pub(crate) mod state;
 
 pub(crate) use autoscroll::{autoscroll_step, autoscroll_step_for, resolve_autoscroll_container};

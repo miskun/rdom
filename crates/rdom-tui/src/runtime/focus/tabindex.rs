@@ -163,11 +163,9 @@ fn is_scroll_container(dom: &TuiDom, id: NodeId) -> bool {
     let (Some(ext), Some(c)) = (node.tui_ext(), node.computed()) else {
         return false;
     };
-    let pb = crate::layout::compute_padding_box(ext.layout, c.border);
-    let scrolls_y = matches!(c.overflow_y, Overflow::Scroll | Overflow::Auto)
-        && ext.scroll_content_height > pb.height as usize;
-    let scrolls_x = matches!(c.overflow_x, Overflow::Scroll | Overflow::Auto)
-        && ext.scroll_content_width > pb.width as usize;
+    let (over_x, over_y) = crate::render::layout_pass::range_of(ext, c);
+    let scrolls_y = matches!(c.overflow_y, Overflow::Scroll | Overflow::Auto) && over_y > 0;
+    let scrolls_x = matches!(c.overflow_x, Overflow::Scroll | Overflow::Auto) && over_x > 0;
     scrolls_x || scrolls_y
 }
 

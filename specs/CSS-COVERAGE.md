@@ -405,7 +405,7 @@ dropped. The audit's six, with where each stands:
 
 | Item | Class | Detail | Doc'd | Where |
 |---|---|---|---|---|
-| `overflow` | Supported | `visible` / `hidden` / `clip` / `scroll` / `auto`, one or two values (x then y); a `visible` / `clip` axis beside a scrolling one computes to `auto` / `hidden` (CSS Overflow 3 §3.1; C8-OVERFLOW-CLIP). `clip` clips per axis at the overflow clip edge, is no scroll container (no scrolling, no scrollbar) and no formatting context. | — | `V/keyword.rs::parse_overflow_shorthand` |
+| `overflow` | Supported | `visible` / `hidden` / `clip` / `scroll` / `auto`, one or two values (x then y); a `visible` / `clip` axis beside a scrolling one computes to `auto` / `hidden` (CSS Overflow 3 §3.1; C8-OVERFLOW-CLIP). `clip` clips per axis at the overflow clip edge, is no scroll container (no scrolling, no scrollbar) and no formatting context. A scroll container's scrollport is its padding box less the scrollbar gutters (§5.2), its scrollable overflow area the scrollport ∪ its content plus the end padding, from the scroll origin (§2.2) — one answer for layout, the runtime, snapping and paint (C8G-SCROLLPORT). | — | `V/keyword.rs::parse_overflow_shorthand` |
 | `overflow-x` / `overflow-y` | Supported | The five keywords (C8-OVERFLOW-CLIP). | — | `V/keyword.rs::parse_overflow` |
 | `overflow-block` / `overflow-inline` | Supported | `overflow-y` / `overflow-x` in `horizontal-tb`, one storage (C8-OVERFLOW-CLIP). | — | `DISP` (`logical.rs`) |
 | `overflow-clip-margin` | Supported | `<visual-box> \|\| <length [0,∞]>` in whole cells, on `clip` axes (CSS Overflow 3 §3.2; C8-OVERFLOW-CLIP); a viewport-relative length is rejected (DIVERGENCES). | Yes | `V/keyword.rs::parse_overflow_clip_margin`, `layout_pass/clip_edge.rs` |

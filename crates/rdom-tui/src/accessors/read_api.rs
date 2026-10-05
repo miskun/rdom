@@ -135,9 +135,10 @@ pub trait TuiAccessors<'a>: crate::sealed::Sealed {
     /// browsers. [`Self::scroll_range`] gives the legal values.
     fn scroll_left(&self) -> Option<i32>;
 
-    /// The legal `scrollLeft` / `scrollTop` values against the extent
-    /// the last layout recorded and the padding-box scrollport (CSSOM
-    /// View §4, CSS Overflow 3 §3): on each axis `0 ..= overflow`, or
+    /// The legal `scrollLeft` / `scrollTop` values against the
+    /// scrollable overflow area the last layout recorded and the
+    /// scrollport — the padding box less the scrollbar gutters (CSSOM
+    /// View §4, CSS Overflow 3 §2.2, §5.2): on each axis `0 ..= overflow`, or
     /// `-overflow ..= 0` where the scrolling area origin is the right
     /// (bottom) edge ([`Self::scroll_left`], [`Self::scroll_top`]), so
     /// a consumer that maps offsets to content (a virtual list) need
@@ -153,13 +154,15 @@ pub trait TuiAccessors<'a>: crate::sealed::Sealed {
     /// non-element nodes.
     fn grid_tracks(&self) -> Option<super::GridTracks>;
 
-    /// `Element.scrollWidth` — total content width tracked by the
-    /// layout pass for scrollbar sizing. Reports the scrollable
-    /// extent, not the viewport.
+    /// `Element.scrollWidth` — the width of the scrolling area (CSSOM
+    /// View §4): the scrollport ∪ the content, the content extended by
+    /// the end padding (CSS Overflow 3 §2.2), measured from the scrolling
+    /// area origin — never less than the scrollport's width. `0` for a
+    /// box that is not a scroll container.
     fn scroll_width(&self) -> Option<i32>;
 
-    /// `Element.scrollHeight` — total content height; companion to
-    /// [`Self::scroll_width`].
+    /// `Element.scrollHeight` — the height of the scrolling area;
+    /// companion to [`Self::scroll_width`].
     fn scroll_height(&self) -> Option<i32>;
 
     /// CSSOM-style read view of the element's inline `TuiStyle`

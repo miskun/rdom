@@ -22,7 +22,6 @@ use super::geometry::scroll_metrics;
 use super::scroll::set_scroll;
 use super::{ScrollAxis, ScrollbarHit, ScrollbarPart};
 use crate::TuiDom;
-use crate::node::TuiNodeExt;
 use crate::render::paint_pass::scrollbar::thumb_geometry;
 use crate::runtime::router::Router;
 
@@ -114,50 +113,18 @@ pub(crate) fn extend_drag(router: &Router, dom: &mut TuiDom, mouse_x: u16, mouse
     let Some(drag) = router.scrollbar_drag else {
         return false;
     };
-    let ext = match dom.node(drag.element).tui_ext() {
-        Some(e) => e,
-        None => return false,
+    // The track the drag started on (`paint_pass::scrollbar::tracks`):
+    // cursor travel along it maps to scroll travel over the area.
+    let (vertical, horizontal) = crate::render::paint_pass::scrollbar::tracks(dom, drag.element);
+    let (track, cursor_now) = match drag.axis {
+        ScrollAxis::Vertical => (vertical, mouse_y as i32),
+        ScrollAxis::Horizontal => (horizontal, mouse_x as i32),
     };
-    // Drag math (cursor-delta → scroll-delta) reads from the padding-
-    // box per CSS Overflow 3 §3; the track lives in the padding-box,
-    // not `content_layout`.
-    let border = dom
-        .node(drag.element)
-        .computed()
-        .map(|c| c.border)
-        .unwrap_or_default();
-    let content = crate::layout::compute_padding_box(ext.layout, border);
-    let (viewport, content_size, track_len) = match drag.axis {
-        ScrollAxis::Vertical => {
-            let x_reserves = dom
-                .node(drag.element)
-                .computed()
-                .is_some_and(|c| crate::render::paint_pass::scrollbar::bars_shown(ext, c).1);
-            let adj = if x_reserves { 1 } else { 0 };
-            (
-                content.height as usize,
-                ext.scroll_content_height,
-                content.height.saturating_sub(adj),
-            )
-        }
-        ScrollAxis::Horizontal => {
-            let y_reserves = dom
-                .node(drag.element)
-                .computed()
-                .is_some_and(|c| crate::render::paint_pass::scrollbar::bars_shown(ext, c).0);
-            let adj = if y_reserves { 1 } else { 0 };
-            (
-                content.width as usize,
-                ext.scroll_content_width,
-                content.width.saturating_sub(adj),
-            )
-        }
+    let Some(track) = track else {
+        return false;
     };
-
-    let cursor_now = match drag.axis {
-        ScrollAxis::Vertical => mouse_y as i32 - content.y,
-        ScrollAxis::Horizontal => mouse_x as i32 - content.x,
-    };
+    let cursor_now = cursor_now - track.start;
+    let (viewport, content_size, track_len) = (track.viewport, track.content, track.len);
     let cursor_delta = cursor_now - drag.initial_cursor as i32;
     let travel = content_size.saturating_sub(viewport);
     if travel == 0 || track_len == 0 {
@@ -173,10 +140,7 @@ pub(crate) fn extend_drag(router: &Router, dom: &mut TuiDom, mouse_x: u16, mouse
     // `set_scroll` clamps to the legal range (negative `scrollLeft`
     // included, for an `rtl` box).
     let new_scroll = drag.initial_scroll + scroll_delta;
-    let before = match drag.axis {
-        ScrollAxis::Vertical => ext.scroll_y,
-        ScrollAxis::Horizontal => ext.scroll_x,
-    };
+    let before = scroll_metrics(dom, drag.element, drag.axis).1;
     let actually_set = set_scroll(dom, drag.element, drag.axis, new_scroll);
     actually_set != before
 }

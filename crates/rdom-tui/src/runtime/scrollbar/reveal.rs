@@ -134,12 +134,9 @@ fn ensure_visible_vertical_with(
         let Some(ext) = dom.node(container).tui_ext() else {
             return;
         };
-        let border = dom
-            .node(container)
-            .computed()
-            .map(|c| c.border)
-            .unwrap_or_default();
-        let pb = crate::layout::compute_padding_box(ext.layout, border);
+        let Some(pb) = crate::render::layout_pass::scrollport(dom, container) else {
+            return;
+        };
         (pb.y, pb.y + pb.height as i32, ext.scroll_y)
     };
     let r_top = reveal.y;

@@ -165,10 +165,11 @@ fn a_clip_descendant_bounds_the_scrollable_overflow_on_its_clip_axis() {
         12,
         6,
     );
-    // The 20-wide row is cut at `.k`'s right edge (4); its 5 rows count.
+    // The 20-wide row is cut at `.k`'s right edge (4), inside the 10-cell
+    // scrollport the area always covers; its 5 rows count.
     let node = dom.node(port);
     assert_eq!(
         (node.scroll_width(), node.scroll_height()),
-        (Some(4), Some(5))
+        (Some(10), Some(5))
     );
 }

@@ -9,7 +9,8 @@ use super::lay_out;
 use rdom_tui::prelude::*;
 
 /// `.port` (6 × 2, `overflow: hidden`) around a `.p` styled `p`, holding
-/// `text`: the port's `(scrollWidth, scrollHeight)`.
+/// `text`: the port's `(scrollWidth, scrollHeight)` — never less than its
+/// 6 × 2 scrollport, which the area always covers (§2.2).
 fn extent(p: &str, text: &str) -> (Option<i32>, Option<i32>) {
     let mut dom = TuiDom::new();
     let root = dom.root();
@@ -33,7 +34,7 @@ fn extent(p: &str, text: &str) -> (Option<i32>, Option<i32>) {
 fn an_overflowing_line_widens_the_scrollable_overflow() {
     assert_eq!(
         extent("width: 4; white-space: nowrap", "abcdefghij"),
-        (Some(10), Some(1))
+        (Some(10), Some(2))
     );
 }
 
@@ -43,7 +44,7 @@ fn an_overflowing_line_widens_the_scrollable_overflow() {
 fn overflowing_lines_deepen_the_scrollable_overflow() {
     assert_eq!(
         extent("width: 4; height: 1; white-space: pre", "ab\ncd\nef"),
-        (Some(4), Some(3))
+        (Some(6), Some(3))
     );
 }
 
@@ -75,7 +76,7 @@ fn a_scroll_containers_lines_stay_its_own() {
             "width: 4; white-space: nowrap; overflow: hidden",
             "abcdefghij"
         ),
-        (Some(4), Some(1))
+        (Some(6), Some(2))
     );
 }
 

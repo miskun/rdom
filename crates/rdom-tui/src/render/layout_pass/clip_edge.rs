@@ -20,7 +20,10 @@ impl ClipEdges {
     pub(crate) const NONE: Self = Self { x: None, y: None };
 
     /// The edges of the box `ext` styled `c`: a scroll container's
-    /// padding box on both axes (§3.1 makes both of its axes clip); on
+    /// scrollport — the padding box less its scrollbar gutters
+    /// (`scrollport`) — on both axes (§3.1 makes both of its axes clip;
+    /// §5.2 puts the gutters outside the padding edge, so no content
+    /// paints in a gutter whether or not a bar is shown there); on
     /// each `overflow: clip` axis the overflow clip edge — the
     /// `overflow-clip-margin` box outset by its margin (§3.2); none on a
     /// `visible` axis.
@@ -28,10 +31,10 @@ impl ClipEdges {
         if !c.clips_overflow() {
             return Self::NONE;
         }
-        let padding_box = super::geometry::compute_padding_box(ext.layout, c.border);
         let (edge, grow) = if c.is_scroll_container() {
-            (padding_box, 0)
+            (super::scrollport::scrollport_of(ext, c), 0)
         } else {
+            let padding_box = super::geometry::compute_padding_box(ext.layout, c.border);
             let m = c.overflow_clip_margin;
             let base = match m.visual_box {
                 VisualBox::BorderBox => ext.layout,

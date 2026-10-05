@@ -33,8 +33,8 @@ pub(crate) fn snap_points(
     let Some(c) = ext.computed.as_deref() else {
         return Vec::new();
     };
-    let padding_box = crate::layout::compute_padding_box(ext.layout, c.border);
-    let port = crate::runtime::scrollbar::inset(padding_box, c);
+    let scrollport = crate::render::layout_pass::scrollport_of(ext, c);
+    let port = crate::runtime::scrollbar::inset(scrollport, c);
     // The children were laid out at these offsets: a box's place in the
     // scrolled content is its rect plus them.
     let laid = crate::runtime::scrollbar::state::laid_out(ext);

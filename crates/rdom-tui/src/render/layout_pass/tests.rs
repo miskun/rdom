@@ -4731,7 +4731,8 @@ fn static_position_follows_horizontal_scroll() {
 
 /// The scrollable overflow walk stops at a descendant that clips its
 /// own content: the outer scroller sees the inner scroller's box, not
-/// what overflows inside it.
+/// what overflows inside it — its 3 rows are inside the outer's 5-row
+/// scrollport, which the area always covers (CSS Overflow 3 §2.2).
 #[test]
 fn scrollable_overflow_stops_at_a_clipping_descendant() {
     let mut dom = tui_dom();
@@ -4759,7 +4760,7 @@ fn scrollable_overflow_stops_at_a_clipping_descendant() {
         .rule_unchecked("tall", TuiStyle::new().height(Size::Fixed(30)));
     cascade(&mut dom, &sheet);
     dom.layout_dom(Rect::new(0, 0, 40, 10));
-    assert_eq!(dom.node(outer).ext().unwrap().scroll_content_height, 3);
+    assert_eq!(dom.node(outer).ext().unwrap().scroll_content_height, 5);
     assert_eq!(dom.node(inner).ext().unwrap().scroll_content_height, 30);
 }
 

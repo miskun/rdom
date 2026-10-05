@@ -83,27 +83,13 @@ fn scroll_offset(dom: &Dom<TuiExt>, p: NodeId) -> (i32, i32) {
 /// `id`'s padding box — its border box less its border (CSS 2.1 §10.1:
 /// the containing block a positioned box gives is "formed by the padding
 /// edge of the ancestor") and less the scrollbar gutters it reserves (CSS
-/// Overflow 3 §3: a gutter lies between the inner border edge and the
-/// outer padding edge): the vertical bar's column on its side, the
-/// horizontal bar's bottom row. A gutter is reserved when `overflow:
-/// scroll` or `scrollbar-gutter: stable` asks, or when an `auto` axis
-/// overflows its scrollport — the same answer scrollbar paint gives.
+/// Overflow 3 §5.2: a gutter lies between the inner border edge and the
+/// outer padding edge): its scrollport (`scrollport`), the gutters the
+/// ones layout reserved.
 fn padding_box(dom: &Dom<TuiExt>, id: NodeId) -> Option<LayoutRect> {
     let ext = dom.node(id).ext()?;
     let Some(c) = ext.computed.as_deref() else {
         return Some(ext.layout);
     };
-    let pb = crate::render::layout_pass::geometry::compute_padding_box(ext.layout, c.border);
-    let content = ext.content_layout;
-    let g = crate::render::layout_pass::gutters(
-        c,
-        ext.scroll_content_height > usize::from(content.height),
-        ext.scroll_content_width > usize::from(content.width),
-    );
-    Some(LayoutRect::new(
-        pb.x + i32::from(g.left),
-        pb.y,
-        pb.width.saturating_sub(g.columns()),
-        pb.height.saturating_sub(g.bottom),
-    ))
+    Some(crate::render::layout_pass::scrollport_of(ext, c))
 }

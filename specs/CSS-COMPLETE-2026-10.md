@@ -4886,3 +4886,34 @@ row comes from.
   README; ACID gaps; README floats + ellipsis example wanted. Accepted: four float simplifications
   (tell consumers to wrap content in `<body>`), keyboard not chaining, abspos stale-state handling.
   Full reports: `target/claude-logs/c8_gate_{architect,api}.md`. Fix as `C8G-*`, two batches.
+- 2026-10-10 — C8G-SCROLLPORT (architect B3; closes TECH_DEBT `SCROLLPORT-1`) with C8G-ABSPOS-EXTENT's
+  extent half (API B3). Found: four notions of the scrollport (layout's clamp the content box, the
+  runtime's the padding box with the gutters in it, `ClipEdges` the padding box, the containing block the
+  padding box less the gutters) and an extent of the content union only, measured `max − min` — so the
+  end padding and the row under a horizontal bar were never reachable (wheel stopped at 15 of 17 with
+  `padding: 1 0`), `End` / an `end` snap / `scrollIntoView({block: end})` left the target under the bar,
+  and a scroller holding only `top: 20` content measured 1 row. Decision, one module
+  (`layout_pass/scrollport.rs`): the scrollport is the padding box less the gutters layout reserved (now
+  recorded, `ScrollState::gutters`, boxed with the other scroll bookkeeping so `TuiExt` does not grow),
+  the gutters at the padding edge as CSS Overflow 3 §5.2 says (the bar moved out of the padding; the
+  content box is the same rect); the scrollable overflow area (`scroll_content_*`, `scrollWidth` /
+  `scrollHeight`) is the scrollport ∪ the in-flow content extended by the end padding ∪ the contained
+  absolutely positioned boxes, grown only away from the scroll origin (§2.2, CSSOM View §4: content on
+  the origin's far side is unreachable); the range is area − scrollport. Every reader takes it: layout's
+  clamp and pass-2 bar decision, the runtime's bounds and metrics (wheel, keys, `scrollTo`, drag, track
+  click, autoscroll, caret reveal, `scrollIntoView`, focus scrolling), the snapport, the sticky view
+  rectangle, the containing block, `ClipEdges` (content is clipped at the scrollport — out of a gutter
+  with no bar in it), and one `paint_pass::scrollbar::tracks` that paint, hit-testing and the thumb drag
+  share (the track spans the scrollport's side; the duplicated bar geometry in `hit.rs` / `drag.rs` and
+  `gutter::vertical_bar_column` are gone). Its own `rtl` line boxes now count by their fragments, not
+  from the content box's left. Red: `runtime/scrollbar/scrollport_tests.rs` — 9 of 9 failed (padding:
+  `scrollHeight` 20 for 22; both bars: range `0..=15` for 16; rtl `-20..=0` for `-23..=0`;
+  `column-reverse` `-15..=0` for `-17..=0`; the `end` snap 10 for 11; `scrollIntoView` 6 for 7; the bar at
+  column 8 inside the padding; the gutter showing `abcdef`), and `abspos_overflow.rs`'s two new tests
+  (`scrollHeight` 1 for 21, 4 for 7). Green after. Mutation (restored, touched): no end padding → the
+  padding, rtl, `column-reverse` and both-bars tests. Changed expectations, each now CSSOM's (the area is
+  never smaller than the scrollport): `scrollable_overflow_stops_at_a_clipping_descendant` (3 → 5), five
+  `css_phase8` extents (`overflow_text`, `overflow_clip`, `abspos_overflow` — the scrollport's 6 × 2
+  floor), `nested_scroll_overflow` (4 → 10). No snapshot changed. DIVERGENCES: the "gutter between the
+  content box and the padding" entry is gone (now CSS's); new: a flex / grid item's margin is not in the
+  area (§2.2 counts it).

@@ -79,18 +79,13 @@ fn scroll_container(
     let Some(ext) = dom.node(container).tui_ext() else {
         return rect;
     };
-    let border = dom
-        .node(container)
-        .computed()
-        .map(|c| c.border)
-        .unwrap_or_default();
-    let padding_box = crate::layout::compute_padding_box(ext.layout, border);
     // CSS Scroll Snap 1 §4.1: the element is aligned in the optimal
-    // viewing region — the scrollport inset by `scroll-padding`.
-    let port = ext
-        .computed
-        .as_deref()
-        .map_or(padding_box, |c| inset(padding_box, c));
+    // viewing region — the scrollport (`layout_pass::scrollport`) inset by
+    // `scroll-padding`.
+    let Some(c) = ext.computed.as_deref() else {
+        return rect;
+    };
+    let port = inset(crate::render::layout_pass::scrollport_of(ext, c), c);
     let (cur_x, cur_y) = (ext.scroll_x, ext.scroll_y);
     let laid = super::state::laid_out(ext);
     let (laid_x, laid_y) = (laid.0, laid.1);
