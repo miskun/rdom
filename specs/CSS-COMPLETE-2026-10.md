@@ -2585,3 +2585,23 @@ row comes from.
   its used width (31) it takes 4, so the card's fourth bullet (`• Unicode: …`) and its bottom
   padding row were clipped by its `overflow-y: hidden` — now shown, two rows taller, as a browser
   sizes the row. No other test expectation changed.
+- 2026-10-08 — C6G-ATOM-COST (AB3): the layout pass memoized intrinsic content sizes on the Row axis
+  only (C5G-PERF-AND-TESTS). An atom's rows in its line (`inline::vertical::atom_rows`: its height,
+  `intrinsic_size`, and its baseline, `content_rows` → `content_max_size`) and a flex item's
+  baseline box (`flex::cross::baseline_box`: `resolve_cross_size` and `content_rows`) are Column
+  measurements of the subtree, and a Column measurement of an inline formatting context packs its
+  atoms, which measure their own subtrees again — so every level re-measured every level below it.
+  Decision: memoize the Column axis too — the key gains the axis (`memo::Key`); intrinsic sizes are
+  as pure within a pass on this axis as on the other (checked: nothing under `intrinsic/` or the
+  packer reads a rect the pass writes; `table_used_width` is sized before the pass). Taking the
+  baseline from the height measurement instead was considered: an atom's height is its box
+  contribution (a declared `height` wins) and its baseline its content's last row, so they are two
+  questions; with the memo they share the walk where they share a key. (The `ComputedStyle` "clone"
+  in `atom_rows` is an `Rc` clone.) Red (counting tests in `intrinsic/memo_tests.rs`, `COLUMN_WALKS`
+  beside `ROW_WALKS`): `nested_inline_blocks_measure_each_subtree_once` — 25 walks at 4 levels for at
+  most 10 (9 / 25 / 49 / 81 at 2 / 4 / 6 / 8 levels: quadratic); `nested_baseline_rows_measure_each_subtree_once`
+  — 135 for at most 5 (12 / 135 / 1266 / 11469: exponential). Green after: the rows `depth + 1`
+  (one Column measurement per subtree), the inline blocks `2 × depth + 1` — two widths per subtree,
+  its own in its line and the containing block's, where the enclosing box's intrinsic block-flow
+  estimate stacks an inline run's atom as a block child (an existing approximation of mixed-content
+  intrinsic sizing, not changed here). No test expectation and no snapshot changed.

@@ -260,20 +260,14 @@ fn content_size(
     containing_block_width: u16,
     measure: Measure,
 ) -> u16 {
-    if direction != Direction::Row {
-        return measure_content(
-            dom,
-            id,
-            computed,
-            direction,
-            cross_budget,
-            containing_block_width,
-            measure,
-        );
-    }
-    // The Row-axis sizes are memoized for the layout pass (`memo`).
+    // Both axes' sizes are memoized for the layout pass (`memo`): a
+    // Column measurement of an inline formatting context packs its atoms,
+    // each measured on the Column axis again (its height and its
+    // baseline), so unmemoized nested atoms cost a walk per level per
+    // enclosing level.
     let key = (
         id,
+        direction == Direction::Row,
         measure == Measure::MaxContent,
         cross_budget,
         containing_block_width,
@@ -282,7 +276,10 @@ fn content_size(
         return v;
     }
     #[cfg(test)]
-    memo_tests::ROW_WALKS.with(|c| c.set(c.get() + 1));
+    match direction {
+        Direction::Row => memo_tests::ROW_WALKS.with(|c| c.set(c.get() + 1)),
+        Direction::Column => memo_tests::COLUMN_WALKS.with(|c| c.set(c.get() + 1)),
+    }
     let value = measure_content(
         dom,
         id,

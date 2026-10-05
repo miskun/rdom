@@ -1,5 +1,6 @@
-//! The Row-axis content sizes measured during one layout pass
-//! (C5G-PERF-AND-TESTS). `fit-content` and the other intrinsic keywords
+//! The content sizes measured during one layout pass, on both axes
+//! (C5G-PERF-AND-TESTS for the Row axis, C6G-ATOM-COST for the Column
+//! axis). `fit-content` and the other intrinsic keywords
 //! measure a subtree's min- and max-content sizes, and an enclosing
 //! keyword box measures it again, so nested keyword boxes re-walked
 //! each subtree once per ancestor. Intrinsic sizes are pure within a
@@ -16,9 +17,10 @@ use rdom_core::{Dom, NodeId};
 
 use crate::ext::TuiExt;
 
-/// What a measurement is for: the element, max-content (`true`) or
-/// min-content, the cross budget and the containing block's width.
-pub(super) type Key = (NodeId, bool, u16, u16);
+/// What a measurement is for: the element, the axis (`true` for the
+/// Row axis), max-content (`true`) or min-content, the cross budget and
+/// the containing block's width.
+pub(super) type Key = (NodeId, bool, bool, u16, u16);
 
 /// Document data while a layout pass runs: its measurements.
 #[derive(Debug, Default)]
