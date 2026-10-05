@@ -31,9 +31,10 @@ pub(crate) enum LengthPercentage {
     /// property can reject a literal outside its storage range rather
     /// than clamp it.
     Integer(i32),
-    /// A length known at parse time, in (possibly fractional) cells —
-    /// a math function without a percentage. Rounded onto the grid
-    /// where it becomes a property value.
+    /// A length known at parse time, in (possibly fractional) cells — a
+    /// unitless fraction (`1.5`), an absolute dimension, or a math
+    /// function without a percentage. Rounded onto the grid where it
+    /// becomes a property value.
     Cells(f64),
     /// A value that needs the layout's basis or the viewport: a
     /// percentage or a viewport-percentage length, alone or inside a
@@ -44,7 +45,8 @@ pub(crate) enum LengthPercentage {
 pub(crate) use crate::absolute::{cells_i32, cells_u16};
 
 /// Parse one component value as a `<length-percentage>`: a bare
-/// integer (cells), a dimension in a length unit ([`CalcUnit`]), a
+/// number (cells — an integer or a fraction, the same length
+/// `calc(<number>)` is), a dimension in a length unit ([`CalcUnit`]), a
 /// percentage, or a math function. A leading `-`
 /// is the literal's sign (the tokenizer emits it as a delimiter).
 pub(crate) fn length_percentage(component: &[Token], range: Range) -> Option<LengthPercentage> {
@@ -58,6 +60,9 @@ pub(crate) fn length_percentage(component: &[Token], range: Range) -> Option<Len
     let sign = if negative { -1.0 } else { 1.0 };
     match rest {
         [Token::Number(n)] => Some(LengthPercentage::Integer(if negative { -*n } else { *n })),
+        // rdom's unitless cell takes any `<number>`: `1.5` is the length
+        // `calc(1.5)` is (C4G-NUMBER-RANGE).
+        [Token::Float(f)] => Some(LengthPercentage::Cells(sign * *f)),
         [Token::Percentage(p)] => Some(LengthPercentage::Expr(CalcExpr::Percent(sign * *p))),
         [Token::Dimension { value, unit, .. }] => {
             let unit = CalcUnit::parse(unit).filter(|u| u.kind().is_length())?;

@@ -17,13 +17,12 @@ pub enum Token {
     /// `--accent` (CSS treats them as idents).
     Ident(String),
     /// `<number-token>` with the *integer* type flag (CSS Syntax 3
-    /// §4.3.12): digits only, in `i32` range. Negative numbers are
-    /// tokenized as `Delim('-')` followed by `Number` — value parsers
-    /// compose.
+    /// §4.3.12): digits only; a literal past `i32` is clamped to
+    /// `i32::MAX` (CSS Values 4 §5.1). Negative numbers are tokenized as
+    /// `Delim('-')` followed by `Number` — value parsers compose.
     Number(i32),
     /// `<number-token>` with the *number* type flag: the literal had a
-    /// fraction (`0.05`, `.5`), an exponent (`1e3`), or did not fit in
-    /// `i32`. Consumed whole by the tokenizer — a decimal is never
+    /// fraction (`0.05`, `.5`) or an exponent (`1e3`). Consumed whole by the tokenizer — a decimal is never
     /// `Number Delim('.') Number`, which loses the fraction's leading
     /// zeros.
     Float(f64),
@@ -56,8 +55,8 @@ pub enum Token {
     /// part of it, as for numbers.
     Dimension {
         value: f64,
-        /// The number part alone would be a `Number` (integer-typed, in
-        /// `i32` range) rather than a `Float`.
+        /// The number part alone would be a `Number` (integer-typed; its
+        /// value then clamped to `i32`) rather than a `Float`.
         integer: bool,
         unit: String,
     },
@@ -295,11 +294,14 @@ fn read_number(cursor: &mut Cursor) -> Token {
         cursor.bump();
         return Token::Percentage(value);
     }
-    if is_integer && let Ok(n) = text.parse::<i32>() {
-        return Token::Number(n);
+    if is_integer {
+        // CSS Syntax 3 §4.3.12: digits alone are integer-typed whatever
+        // their size; a value past the implementation's range (`i32`) is
+        // clamped (CSS Values 4 §5.1), not made a non-integer — an
+        // integer-only grammar must still see an integer.
+        return Token::Number(text.parse::<i32>().unwrap_or(i32::MAX));
     }
-    // Fraction, exponent, or an integer literal outside `i32`: still
-    // a CSS number, just not an integer-typed one.
+    // A fraction or an exponent: a CSS number, not an integer-typed one.
     Token::Float(value)
 }
 
@@ -387,11 +389,28 @@ mod tests {
         assert_eq!(toks("50 %"), vec![Token::Number(50), Token::Delim('%')]);
     }
 
-    /// A literal too large for `i32` is still a CSS number; it must not
-    /// silently become 0.
+    /// C4G-NUMBER-RANGE — CSS Syntax 3 §4.3.12 / §4.3.13: a literal of
+    /// digits alone has the *integer* type flag whatever its size, and
+    /// CSS Values 4 §5.1 clamps a value outside the implementation's
+    /// range — so a literal past `i32` is the integer `i32::MAX`, not a
+    /// `Float` (nor 0). A dimension's number part likewise; a percentage
+    /// has no type flag and keeps its value.
     #[test]
-    fn oversized_integer_is_a_float_not_zero() {
-        assert_eq!(toks("99999999999"), vec![Token::Float(99_999_999_999.0)]);
+    fn oversized_integer_clamps_and_stays_integer() {
+        assert_eq!(toks("99999999999"), vec![Token::Number(i32::MAX)]);
+        assert_eq!(
+            toks("99999999999px"),
+            vec![Token::Dimension {
+                value: f64::from(i32::MAX),
+                integer: true,
+                unit: "px".to_string(),
+            }]
+        );
+        assert_eq!(
+            toks("99999999999%"),
+            vec![Token::Percentage(99_999_999_999.0)]
+        );
+        assert_eq!(toks("99999999999.5"), vec![Token::Float(99_999_999_999.5)]);
     }
 
     /// CSS Values 4 §7: numbers that overflow the representable range

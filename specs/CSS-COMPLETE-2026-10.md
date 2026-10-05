@@ -1265,3 +1265,20 @@ row comes from.
   expectation: `css_phase2_gates::max_width_percent_from_rdom_tui_paths` asserted
   `MaxSize::percent(50.0) == Calc(Percent(50))`; it now asserts `Percent(50.0)` and that the `calc()`
   form resolves the same.
+- 2026-10-06 — C4G-NUMBER-RANGE: the tokenizer keeps digits-only literals integer-typed and clamps
+  them to `i32::MAX` (CSS Syntax 3 §4.3.12 type flag, §4.3.13 conversion; Values 4 §5.1 clamps a value
+  outside the implementation's range) — `read_number` returned `Float` past `i32`; a dimension's number
+  part follows (`integer: true`, value `i32::MAX`). Decided — unitless fractions: rdom's cell takes any
+  `<number>`; `length_percentage` maps a `Float` to `Cells` (the leaf a `calc(1.5)` already produced),
+  so every cell-length property (`width`, `gap`, `padding`, `margin`, insets, `border-spacing`,
+  `border-width`, `border-radius`, `box-shadow`, `min-*` / `max-*`, `flex`'s basis) takes `1.5` alike;
+  the alternative (reject it everywhere) would have left `1.5` invalid where `calc(1.5)` is valid.
+  Integer literals past a property's storage range are still rejected where they were (`width:
+  9999999999`), clamped only where the property clamps (paint lengths). DIVERGENCES §1 "Length units"
+  states the rule; the coverage row is `<number>` cells. Red: `oversized_integer_clamps_and_stays_integer`
+  (`Float(99999999999.0)`), `box_shadow_takes_an_integer_past_the_range` and
+  `unitless_fractions_are_cell_lengths_everywhere` (`box-shadow: 1.5 -0.5 red` → `InvalidValue`); green
+  after, and `css_phase4::box_shadow_huge_lengths_do_not_overflow` runs the bare `9999999999` too.
+  Changed expectations: the tokenizer test `oversized_integer_is_a_float_not_zero` is replaced by the
+  clamping one; `flex_shorthand_full_grammar` listed `1 2 0.5` as invalid — it is `1 2 0` now (moved
+  to the valid cases as `1 2 2.5`).

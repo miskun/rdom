@@ -240,3 +240,56 @@ fn box_shadow_grammar() {
         );
     }
 }
+
+/// C4G-NUMBER-RANGE — CSS Syntax 3 §4.3.13 with CSS Values 4 §5.1: an
+/// integer literal past the implementation's range is clamped, not
+/// rejected, so a huge spread parses (and paints clamped, C4G-SHADOW-CLAMP).
+#[test]
+fn box_shadow_takes_an_integer_past_the_range() {
+    use crate::layout::PaintLength;
+    let mut style = TuiStyle::new();
+    set("box-shadow", "0 0 0 9999999999 red", &mut style).unwrap();
+    assert_eq!(
+        specified(&style.box_shadow)[0].spread,
+        PaintLength::Cells(i32::MAX as f32)
+    );
+}
+
+/// C4G-NUMBER-RANGE — one rule for rdom's unitless cell length (DIVERGENCES
+/// §1): any `<number>` is a length in cells, a fraction included, exactly
+/// as `calc(<number>)` already was — so `1.5` and `calc(1.5)` parse alike
+/// in every cell-length property, rounded onto the grid where the property
+/// stores whole cells.
+#[test]
+fn unitless_fractions_are_cell_lengths_everywhere() {
+    for (name, value) in [
+        ("box-shadow", "1.5 -0.5 red"),
+        ("border-radius", "1.5"),
+        ("border-width", "1.5"),
+        ("width", "1.5"),
+        ("min-width", "1.5"),
+        ("max-height", "1.5"),
+        ("gap", "1.5"),
+        ("padding", "1.5 0.5"),
+        ("margin", "-1.5"),
+        ("top", "-0.5"),
+        ("border-spacing", "1.5"),
+        ("flex", "1 1 2.5"),
+    ] {
+        let mut bare = TuiStyle::new();
+        set(name, value, &mut bare).unwrap_or_else(|e| panic!("{name}: {value} → {e:?}"));
+        let calc = value
+            .split(' ')
+            .map(|v| match v.strip_prefix('-') {
+                Some(n) if !v.contains('.') || name == "flex" => format!("-{n}"),
+                Some(n) => format!("calc(-1 * {n})"),
+                None if v.contains('.') => format!("calc({v})"),
+                None => v.to_string(),
+            })
+            .collect::<Vec<_>>()
+            .join(" ");
+        let mut via_calc = TuiStyle::new();
+        set(name, &calc, &mut via_calc).unwrap_or_else(|e| panic!("{name}: {calc} → {e:?}"));
+        assert_eq!(bare, via_calc, "{name}: {value} vs {calc}");
+    }
+}

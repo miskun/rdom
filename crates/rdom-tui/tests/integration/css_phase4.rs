@@ -585,7 +585,9 @@ fn box_shadow_colors() {
 /// the shade off the grid.
 #[test]
 fn box_shadow_huge_lengths_do_not_overflow() {
-    for big in ["2147483647", "9999999999ch"] {
+    // C4G-NUMBER-RANGE: `9999999999` is the integer `i32::MAX` (CSS Syntax
+    // 3 §4.3.13, clamped), no longer an invalid `Float`.
+    for big in ["2147483647", "9999999999", "9999999999ch"] {
         let buf = shadowed(&format!(
             ".b {{ margin: 1; width: 2; height: 1; box-shadow: 0 0 0 {big} red }}"
         ));

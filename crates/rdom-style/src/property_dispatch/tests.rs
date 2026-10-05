@@ -874,7 +874,7 @@ fn flex_shorthand_full_grammar() {
     use crate::calc::CalcExpr;
     use crate::layout::{FlexBasis, Size};
     let pct = |p: f64| FlexBasis::Calc(Box::new(CalcExpr::Percent(p)));
-    let cases: [(&str, Size, f32, FlexBasis); 13] = [
+    let cases: [(&str, Size, f32, FlexBasis); 14] = [
         ("none", Size::Auto, 0.0, FlexBasis::Auto),
         ("auto", Size::Flex(1.0), 1.0, FlexBasis::Auto),
         ("2", Size::Flex(2.0), 1.0, FlexBasis::Cells(0)),
@@ -888,6 +888,9 @@ fn flex_shorthand_full_grammar() {
         ("auto 3", Size::Flex(3.0), 1.0, FlexBasis::Auto),
         ("content", Size::Flex(1.0), 1.0, FlexBasis::Content),
         ("0 0 0", Size::Auto, 0.0, FlexBasis::Cells(0)),
+        // C4G-NUMBER-RANGE: a unitless fraction is a cell length, so a
+        // third number is the basis (rounded onto the grid).
+        ("1 2 2.5", Size::Flex(1.0), 2.0, FlexBasis::Cells(2)),
     ];
     for (src, size, shrink, basis) in cases {
         let mut s = TuiStyle::new();
@@ -910,7 +913,6 @@ fn flex_shorthand_full_grammar() {
         "1 -2",
         "none 1",
         "1 2 auto 3",
-        "1 2 0.5",
     ] {
         assert_eq!(
             set("flex", bad, &mut TuiStyle::new()),
