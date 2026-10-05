@@ -97,7 +97,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 
 When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 154 rows Partial / Missing.
 
-Headline: rdom parses **70 property names** (`PROPERTY_NAMES`). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are flex alignment (`justify-content`, `align-items`), `flex-wrap`, the `flex-grow` / `flex-basis` longhands, `line-height`, `text-align`, `visibility`, `box-sizing`, and grid.
+Headline: rdom parses **90 property names** (`PROPERTY_NAMES`, after Phase 4). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are flex alignment (`justify-content`, `align-items`), `flex-wrap`, the `flex-grow` / `flex-basis` longhands, `line-height`, `text-align`, `visibility`, `box-sizing`, and grid.
 
 ---
 
@@ -205,8 +205,10 @@ dropped. The audit's six, with where each stands:
    combinations, no color / style components. **Doc'd: Wrong** (says `line-through` is missing;
    it ships).
 9. **`overflow` lacks `clip` and the two-value form** (`overflow: hidden auto`). **Doc'd: No.**
-10. **`rgb()` takes the legacy comma form with integer channels only** — `rgb(0 0 0 / 50%)`,
-    `rgb(10%, 20%, 30%)` and `rgb(12.5, 0, 0)` are dropped. **Doc'd: No.**
+10. ~~**`rgb()` takes the legacy comma form with integer channels only** — `rgb(0 0 0 / 50%)`,
+    `rgb(10%, 20%, 30%)` and `rgb(12.5, 0, 0)` are dropped.~~ *Shipped: C3-RGB* — the modern
+    space syntax with `/ alpha`, percentage and fractional channels and `none`; the alpha
+    composites (C3-ALPHA).
 
 ---
 
@@ -309,7 +311,7 @@ dropped. The audit's six, with where each stands:
 | `background-clip` | Supported | `border-box` (initial: under the border) / `padding-box` / `content-box`, the final layer's clipping the color; a half-block border keeps its cells clear (documented); `text` is N/A (documented) (C4-BG-CLIP). | — | `PAINT/background.rs::clip_box`, `CASC/decoration.rs` |
 | `border` | Supported | `<line-width> || <line-style> || <color>` in any order on all four sides, omitted components reset (`border: 1px solid red`); widths in pixels pick a glyph weight (documented); rdom keywords kept (documented) (C4-BORDER-SHORTHAND). | — | `V/border.rs::parse_border`, `DISP/border.rs` |
 | `border-top` / `-right` / `-bottom` / `-left` | Supported | The same grammar for one side's style, width and color (C4-BORDER-SHORTHAND). | — | `V/border.rs::parse_border_side_shorthand`, `DISP/border.rs` |
-| `border-style` | Supported | 1–4 values, clockwise from the top (C4-BORDER-SIDES); rdom's one-value `rounded` rounds the ring (documented). | — | `DISP/border.rs`, `V/border.rs::parse_sides` |
+| `border-style` | Supported | 1–4 values, clockwise from the top (C4-BORDER-SIDES); rdom's `rounded` is a synonym of `solid` here and does not round — only the `border` shorthand's `rounded` sets a radius; `border-radius` rounds (documented). | — | `DISP/border.rs`, `V/border.rs::parse_sides` |
 | `border-*-style` | Supported | Every CSS keyword parses, one longhand per side (C4-RADIUS split the shared storage); `dashed` / `dotted` / `ridge` / `groove` / `inset` / `outset` render as `solid` (documented). | Yes | `DISP/border.rs` |
 | `border-color` | Supported | 1–4 colors, clockwise from the top (C4-BORDER-SIDES). | — | `DISP/border.rs`, `TS::border_color` |
 | `border-top-color` / `-right-color` / `-bottom-color` / `-left-color` | Supported | One longhand per side, cascaded independently; a corner cell takes its dominant side's color — the heavier style, then the horizontal side (documented) (C4-BORDER-SIDES). | — | `DISP/border.rs`, `CASC/colors.rs`, `PAINT/border_join/mod.rs::dominant_contribution` |
@@ -665,7 +667,8 @@ dropped. The audit's six, with where each stands:
 Every *Partial* or *Missing* row above whose Doc'd column is `No` or `Wrong`. These need either an
 implementation or a `DIVERGENCES.md` entry before the acid page's coverage test can be honest.
 
-133 rows.
+133 rows as audited. Through Phase 4, 27 have shipped and one has partly shipped (each annotated
+*Shipped* where it stands); 105 remain open (Phase 0 listed each of them in `DIVERGENCES.md` §3).
 
 **3.1 Syntax, cascade and inheritance (Syntax 3, Cascade 4/5, CSS 2.1 §6)**
 
@@ -707,15 +710,15 @@ implementation or a `DIVERGENCES.md` entry before the acid page's coverage test 
 
 **3.5 Backgrounds and borders (Backgrounds 3, Borders 4)**
 
-- `border` — Partial: One keyword only: a style (`none` / `hidden` / `solid` / `double` / `dashed` / `dotted` / `ridge` / `groove` / `inset` / `outset`) plus rdom keywords; no width or color component — `border: 1px solid red` is dropped.
-- `border-top` / `-right` / `-bottom` / `-left` — Partial: One style keyword only; no width / color.
-- `border-style` — Partial: One value applied to all four sides; the 2–4-value form is rejected.
-- `border-color` — Partial: One color for all sides; 2–4 values rejected.
-- `border-top-color` / `-right-color` / `-bottom-color` / `-left-color` — Missing: Per-side glyph color.
-- `border-width` / `border-*-width` — Missing: `0` = none; `thin` / `medium` = light; `thick` = heavy glyphs.
-- `border-radius` / `border-*-radius` — Missing: Non-zero → rounded corner glyphs.
-- `box-shadow` — Missing: One-cell offset shade; blur / spread N/A.
-- `border-spacing` — Missing: Gaps between separated table cells.
+- `border` — Partial: One keyword only: a style (`none` / `hidden` / `solid` / `double` / `dashed` / `dotted` / `ridge` / `groove` / `inset` / `outset`) plus rdom keywords; no width or color component — `border: 1px solid red` is dropped. *Shipped: C4-BORDER-SHORTHAND.*
+- `border-top` / `-right` / `-bottom` / `-left` — Partial: One style keyword only; no width / color. *Shipped: C4-BORDER-SHORTHAND.*
+- `border-style` — Partial: One value applied to all four sides; the 2–4-value form is rejected. *Shipped: C4-BORDER-SIDES.*
+- `border-color` — Partial: One color for all sides; 2–4 values rejected. *Shipped: C4-BORDER-SIDES.*
+- `border-top-color` / `-right-color` / `-bottom-color` / `-left-color` — Missing: Per-side glyph color. *Shipped: C4-BORDER-SIDES.*
+- `border-width` / `border-*-width` — Missing: `0` = none; `thin` / `medium` = light; `thick` = heavy glyphs. *Shipped: C4-BORDER-WIDTH.*
+- `border-radius` / `border-*-radius` — Missing: Non-zero → rounded corner glyphs. *Shipped: C4-RADIUS.*
+- `box-shadow` — Missing: One-cell offset shade; blur / spread N/A. *Shipped: C4-SHADOW (spread whole cells, blur inert).*
+- `border-spacing` — Missing: Gaps between separated table cells. *Partly shipped: C4-SPACING parses and inherits it; the layout lands with C13-TFC.*
 
 **3.6 Box model and sizing (Box 3, Sizing 3/4)**
 

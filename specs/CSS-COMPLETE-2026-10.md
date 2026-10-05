@@ -1333,3 +1333,20 @@ row comes from.
   trait (generated from the compiler's missing-item list, so a missing method cannot be what fails —
   stable rustdoc does not check a `compile_fail` error code), all ten compiled ("FAILED"); green
   after the supertraits. No behaviour change.
+- 2026-10-06 — C4G-DOCS: docs only. CSS-COVERAGE — the `border-style` row no longer claims `rounded`
+  rounds (it is `solid` there; only `border: rounded` sets a radius); §5's nine Phase 4 rows annotated
+  (*Shipped* C4-BORDER-SHORTHAND / -SIDES / -WIDTH / C4-RADIUS / C4-SHADOW, `border-spacing` *partly*)
+  and its count restated (133 as audited: 27 shipped, 1 partly, 105 open); §2 item 10 struck
+  (`rgb(0 0 0 / 50%)` shipped with C3-RGB); §1 recounted from the §3 tables — the module counts
+  stand (104 / 29 / 125 / 49), the headline's property count is 90, not 70. DIVERGENCES — the
+  `border: rounded` entry says a later `border` keeps the radius (`.card.flat { border: solid }`
+  stays rounded, an author's `dialog { border: 1px solid #ccc }` keeps the UA radius;
+  `border-radius: 0` squares). CHANGELOG — Breaking (rdom-style) gains the two behaviour changes
+  (the `border` shorthands reset color and width; the `border: rounded` radius survives a later
+  `border`), the C4-BORDER-SIDES corner bullet ranks width first, and the input-reader bullet no
+  longer cites the `pub(crate)` `runtime::input` (nor does the rdom-tui README). DESIGN — the
+  `#[non_exhaustive]` section classifies every new Phase 4 public type: the border / background
+  values and the parser's shorthand records are closed data beside `FlexShorthand`, `Sides` /
+  `Corners` geometry; decided `PaintLength` stays closed (each form resolves differently into a
+  weight, a corner or an offset — a painter meeting an unknown one would guess). rdom-style README —
+  `border-spacing` listed, and the `Value` row describes `Value<T>`, the CSS-wide-keyword wrapper.
