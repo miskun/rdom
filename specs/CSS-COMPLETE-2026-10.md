@@ -35,7 +35,7 @@ the commit that lands it (`done <sha>`), and the log at the end records phase ga
 | 3 | Color | done 2026-10-06 (both gates; 16 gate fixes `C3G-*` incl. rdom's own terminal input reader; re-review rides with the Phase 4 gate) |
 | 4 | Backgrounds and borders | done 2026-10-06 (both gates; 19 gate fixes `C4G-*`; their re-review rides with the Phase 5 gate; C4-SPACING layout with C13-TFC) |
 | 5 | Box model and sizing (incl. logical properties) | done 2026-10-07 (both gates; 19 gate fixes `C5G-*`; their re-review rides with the Phase 6 gate; C5-CONTAIN-SIZE use with C14-CONTAIN) |
-| 6 | Display, visibility, flexbox, box alignment | gates run 2026-10-08; `C6G-*` fixes in progress |
+| 6 | Display, visibility, flexbox, box alignment | done 2026-10-08 (both gates; 28 gate fixes `C6G-*`; their re-review rides with the Phase 7 gate) |
 | 7 | Grid | |
 | 8 | Positioning, floats, overflow, scrolling | |
 | 9 | Inline text and decoration | |
@@ -328,6 +328,8 @@ row comes from.
   sets each `<style>` sheet's owner) keeps prelude-less `@scope` roots;
   `extend_from_style_tags_with_loader`. The `App`'s `<style>` sheets have no URL, so their imports
   get no base (decided: an inline sheet's base would be the document URL, which rdom has none of).
+  From its CHANGELOG bullet (moved by C6G-CHANGELOG): A prelude-less `@scope`'s root is the
+  `<style>` element's parent (CSS Cascade 6 §2.5.1).
 - 2026-10-04 — C1G-ROOT-SEED: the `:root` mirror is computed after the parse in cascade order
   (`rdom-css/src/root_vars.rs`) instead of eagerly per block; DESIGN's "published twice" section
   rewritten. Found: `:root` matches the tree's root node, which has no computed style, so the
@@ -363,6 +365,13 @@ row comes from.
   (`ladder::Declarations::rule_blocks`) instead of cloning the block per element. `Arc`, not `Rc`, so
   `TuiStyle` stays `Send + Sync`. Counter test (`custom_value::probe`): 50 substitutions of three
   `var()`s tokenized 150 values before, 0 after; theme-token cascade test pins correctness.
+  From its CHANGELOG bullet (moved by C6G-CHANGELOG): Public shape: `VarMap` is `Rc<HashMap<String,
+  CustomValue>>`; `CustomDeclaration::value`, `Stylesheet::vars()`, `resolve_tui_color`'s map,
+  `lookup_in` / `substitute` (the lookup returns `Result<CustomValue, SubstitutionError>`),
+  `resolve_custom_properties` (the computed-value step maps `Option<CustomValue>`) take or give
+  `CustomValue`, and `ContentContext` is implemented for `HashMap<String, CustomValue>`.
+  `CustomValue` derefs to `str` (`as_str()`), builds with `CustomValue::new(text)` or `From<&str>`;
+  `define_var` / `define_var_mut` take `impl Into<CustomValue>`, so `&str` callers are unchanged.
 - 2026-10-04 — C1G-PROPERTY-RESTYLE: `advance_custom` pushes a restyle only when `write` changed
   the animated value (none inside the delay). `cascade::restyle_vars` walks the restyle roots in
   `walk::Mode::Restyle`: each element's boxes reload their matches from `TuiExt::matched`
@@ -388,10 +397,17 @@ row comes from.
   `ImportLoader`, `LoadedSheet` (rdom-css) at the root. `App::set_import_loader` /
   `register_property` name them through `crate::`; a doctest on `register_property` drives both
   with `rdom_tui` paths only.
+  From its CHANGELOG bullet (moved by C6G-CHANGELOG): `App::register_property`'s doc example uses
+  `rdom_tui` paths only, so the re-exports are exercised by a doctest.
 - 2026-10-04 — C1G-TYPED-ERRORS: `rdom_style::{RegisterPropertyError, PropertySyntaxError}`
   (`#[non_exhaustive]`, `Display` keeps the old messages, so `@property` warnings read the same);
   `PropertyRegistration::new`, `PropertySyntax::parse`, `App::register_property` return them. A test
   per variant (rdom-style) and for `AlreadyRegistered` through the `App`.
+  From its CHANGELOG bullet (moved by C6G-CHANGELOG): The variants, as the 0.5 → Unreleased
+  CHANGELOG listed them: `RegisterPropertyError::{InvalidName,
+  InvalidSyntax(PropertySyntaxError::{UnsupportedComponent, InvalidComponent}), MissingInitialValue,
+  InitialValueMismatch, NotComputationallyIndependent}` — the web API's `SyntaxError` — and
+  `AlreadyRegistered`, its `InvalidModificationError` (`is_invalid_modification()`).
 - 2026-10-04 — C1G-API-SURFACE: `Stylesheet::add_rule_in_layer` removed (`add_style_rule` with a
   `RuleContext` is the one way; unreleased, so only the C1-LAYER bullet changes). Decided: the
   `var()` hooks go to a documented `rdom_style::backend` module rather than `#[doc(hidden)]` — a
@@ -437,6 +453,8 @@ row comes from.
   classes it closed data); the parser recognizes a math function at
   top level and nested, so every property on the shared leaf takes them. NaN propagates through
   `min` / `max` and resolves to 0 at the top (Values 4 §10.9). `calc.rs` became `calc/{mod,tests}.rs`.
+  From its CHANGELOG bullet (moved by C6G-CHANGELOG): `clamp()`'s minimum wins when it exceeds the
+  maximum, and a lone math function serializes as written (`min(50%, 30)`).
 - 2026-10-04 — C2-TRIG: math expressions are type-checked (`CalcExpr::kind` → `CalcKind::{Number,
   Length, Angle}`, Values 4 §10.9) with rdom's number-is-a-cell relaxation (a number unifies with a
   length); `parse_calc` rejects an ill-typed tree and each property checks the kind it takes. Newly
@@ -444,9 +462,14 @@ row comes from.
   Angles are radians inside the evaluator. `<number>` properties (`opacity`, flex factors) take math
   functions of type `<number>`. Constants are numbers once parsed (`pi` serializes as its value).
   `calc/mod.rs` split into `functions.rs` (the functions and their evaluation) and `types.rs`.
+  From its CHANGELOG bullet (moved by C6G-CHANGELOG): The result becomes whole cells where it
+  becomes a length, a NaN is 0 and an infinity clamps (CSS Values 4 §10.9); an inverse trigonometric
+  result is an angle, which a length rejects.
 - 2026-10-04 — C2-CH: `CalcExpr::Dimension { value, unit: CalcUnit }` (`calc/units.rs`) is the leaf for
   every unit Phase 2 adds; `ch` folds to cells outside a percent-bearing expression. A registered
   `<length>` (`@property`) takes unit dimensions too.
+  From its CHANGELOG bullet (moved by C6G-CHANGELOG): `ch` is ASCII case-insensitive, and a
+  fractional `ch` rounds where the value becomes a length.
 - 2026-10-04 — C2-LH: `lh` / `rlh` are one row each (`CalcUnit::{Lh, Rlh}`), the fixed line height.
   Partial: they must follow the element's / root's computed `line-height` once C9-LINE-HEIGHT lands —
   then `lh` needs the cascade's value, so it becomes a context unit like the viewport units.
@@ -459,6 +482,9 @@ row comes from.
   `cascade_all_in` / `cascade_subtrees_all_in`; the old forms use a 0 × 0 viewport (documented).
   Also: `CalcExpr`'s `#[non_exhaustive]` from C2-MINMAX reverted (DESIGN classes it closed data);
   DESIGN's lists name the new value types.
+  From its CHANGELOG bullet (moved by C6G-CHANGELOG): `ResolveCtx::viewport` is `Option<Viewport>`,
+  `None` in layout: a viewport unit evaluated there is a debug assertion (a computed-style field the
+  cascade missed); a percentage beside a viewport unit stays for layout.
 - 2026-10-04 — C2-ANGLE: `CalcUnit::{Deg, Grad, Rad, Turn}` (type `<angle>`, radians inside the
   evaluator); `parse::values::parse_angle` returns degrees for Phase 3's hues; `@property` takes
   `<angle>` (was rejected) and a registered angle interpolates in degrees.
@@ -477,6 +503,13 @@ row comes from.
   `Content::Attr` stays for Rust-built styles (the UA sheet), as `TuiColor::Var` did in C1-VAR-ANY.
   Attribute changes already re-cascade the element (DirtyTracker), so values stay live (test).
   Decided: attribute values are not searched for substitution functions (documented).
+  From its CHANGELOG bullet (moved by C6G-CHANGELOG): `attr()` types: `type(<syntax>)`, `number`, a
+  CSS unit (`%`, `ch`, `deg`, …), `raw-string` / no type (a string). Fallback rules (CSS Values 5):
+  untyped and missing gives the empty string; typed, missing and without a fallback is invalid at
+  computed-value time. The grammar is checked at parse time — an unknown `<attr-type>` makes the
+  declaration invalid, so `width: 10; width: attr(x bogus)` keeps 10 — and `content: attr(x)` goes
+  through the same substitution. `CustomValue::has_substitution` was `has_var` before
+  C2G-SUBSTITUTION-ERRORS.
 - 2026-10-04 — Phase 2 items done (C2-LH partial — revisit with C9-LINE-HEIGHT). Unit decision:
   absolute (`px`, `cm`, …) and font-relative (`em`, `rem`, `ex`, …) units stay N/A as
   `CSS-COVERAGE.md` classes them — no terminal mapping; recorded in DIVERGENCES §1 "Length units".
@@ -535,6 +568,8 @@ row comes from.
   `parse_unsigned` (public, unused) deleted. Changed expectations: `calc(10 / 0)` was rejected
   (now `u16::MAX` cells), `10 / 0` resolved to 0 (now `i32::MAX`), `opacity: calc(50%)` was invalid
   (now 0.5).
+  From its CHANGELOG bullet (moved by C6G-CHANGELOG): An infinite `<integer>` math result clamps to
+  the property's range.
 - 2026-10-05 — C2G-VIEWPORT-FIELDS: `ResolveCtx::viewport` is `Option<Viewport>` (unreleased field),
   `None` from `ResolveCtx::new` — every layout resolve — and `CalcUnit::canonical` debug-asserts a
   viewport unit never meets `None` (0 cells in release). The hand-kept field list in
@@ -644,6 +679,9 @@ row comes from.
   `calc::round_half_to_even` (public since 0.5.0) is gone for `f64::round_ties_even` — Breaking,
   CHANGELOG hint. No behaviour change: the layout and calc suites pass unchanged; new unit test of the
   conversions.
+  From its CHANGELOG bullet (moved by C6G-CHANGELOG): They replaced four hand copies of the size
+  conversion and three of the inset one; a size is an extent clamped to `0..=u16::MAX`, like
+  `MinSize::cells` / `MaxSize::cells`, while an inset is signed.
 - 2026-10-05 — C2G-FLEX-SPLIT: `flex/main_axis.rs` (525 lines after C2G-CELLS-CONVERSIONS) keeps the
   §9.2 gathering (`ChildMain`, `MainNatural`, `collect_main_axis_items`, 221 lines); the §9.7
   distribution — `MainAxisBudget`, `resolve_flexible_lengths`, `FACTOR_TOLERANCE`, the grow / shrink
@@ -826,6 +864,14 @@ row comes from.
   cross axis treats an unset `min-*` (no floor) unlike an explicit `auto` (intrinsic floor), which
   CSS does not distinguish; making it `MinSize` would change that layout, so it is recorded in
   TECH_DEBT (`MIN-AUTO-UNSET-1`).
+  From its CHANGELOG bullet (moved by C6G-CHANGELOG): Final `min-*` / `max-*` shape (superseding
+  C2G-MAX-NONE's `Option<MaxSize>`): `MaxSize::{None, Cells(u16), Percent(f32),
+  Calc(Box<CalcExpr>)}` with `none` a variant, as `MinSize::Auto` is; `TuiStyle::max_width:
+  Option<Value<MaxSize>>`, `ComputedStyle::max_width: MaxSize` (initial `MaxSize::None`);
+  `parse_max_size` returns `Option<MaxSize>`. `MinSize` / `MaxSize` resolve with `cells(basis:
+  Option<u16>) -> Option<u16>`, `None` for an indefinite basis, which makes a percentage 0 (min) or
+  `none` (max), CSS 2.1 §10.7; `MinSize::percent` / `MaxSize::percent` build a percentage, and
+  `MinSize` is no longer `Copy`.
 - 2026-10-05 — C3G-INPUT-READER: rdom reads terminal input itself on Unix. `runtime/input/`:
   `mod.rs` (`Input { Event, Background, DeviceAttributes, ColorScheme }`, `ESC_GRACE` 25 ms),
   `parse/{mod,keys,mouse,csi,osc}.rs` (the parser, modeled on crossterm 0.28's
@@ -971,6 +1017,9 @@ row comes from.
   wiring; `css_phase4.rs` paints an image layer's color end to end. Changed expectation: the old
   `background_shorthand_sets_background_color` asserted `url(x.png) red` is invalid. No showcase
   snapshot changes (every demo `background:` is a lone color).
+  From its CHANGELOG bullet (moved by C6G-CHANGELOG): `background` resets every sub-value it omits:
+  `background: none` is no image and a `transparent` color. `background-clip` took effect with
+  C4-BG-CLIP.
 - 2026-10-06 — C4-BG-CLIP: found as specified for the default — the box fill already covered the
   border box, so border cells took the background (`border-box`, §3.8's initial value). The final
   layer's clip computes into `ComputedStyle::background_clip` (new `cascade/decoration.rs`, which the
@@ -1002,6 +1051,10 @@ row comes from.
   `border-style: rounded` test red before their code. Green after. Changed expectations: tests reading
   `computed.border_fg` read `border_color.top`; `declared_count` counts `border_fg(..)` as four. No
   showcase snapshot changes.
+  From its CHANGELOG bullet (moved by C6G-CHANGELOG): `parse::values::parse_border` returns a
+  `BorderRing`: the four side styles, the width and the color every side takes, and whether it was
+  rdom's `rounded`. An omitted component resets to its initial value: width `medium`, style `none`,
+  color `currentcolor`.
 - 2026-10-06 — C4-BORDER-SIDES: `border-style` / `-color` / `-width` take 1–4 values
   (`V/border.rs::parse_sides` over `Sides::from_values`), serialized in the shortest form; the eight
   `border-<side>-color` / `-width` names join the table, one field each. Decided — the corner rule: a
@@ -1068,6 +1121,8 @@ row comes from.
   `css_phase4.rs` tests failed to parse `box-shadow`; green after (the spread test's own setup was
   fixed — it set a `style` attribute the headless cascade does not read). No showcase snapshot
   changes (no demo declares a shadow).
+  From its CHANGELOG bullet (moved by C6G-CHANGELOG): A shadow's color is initially `currentcolor`;
+  the lengths are written together, with `inset` and the color in any order around them.
 - 2026-10-06 — C4-SPACING (partial): `border-spacing` parses one or two non-negative cell lengths
   (`V/border.rs::parse_border_spacing`; `GapValue` per axis, viewport units resolved at computed-value
   time like `gap`), cascades (`value!`) and inherits (CSS 2.1 §17.6.1: added to `inherits` and
@@ -1078,6 +1133,8 @@ row comes from.
   lengths are not taken: unlike a border width this length is geometry. Red: the dispatch test
   (`UnknownProperty`); green after, with the cascade test in `css_phase4.rs`. No showcase snapshot
   changes.
+  From its CHANGELOG bullet (moved by C6G-CHANGELOG): `border-spacing` takes rdom's cell lengths
+  only — no percentages (CSS 2.1 §17.6.1).
 - 2026-10-06 — Phase 4 gates (with the C3G re-review: all 16 at the root; the input reader matches
   crossterm 0.28 case by case and is stricter on unknown CSI, C0 inside CSI, zero mouse coordinates,
   EOF and EINTR). Architect: 1 blocking — the ESC grace check flushes a lone ESC *before* reading
@@ -1423,6 +1480,13 @@ row comes from.
   no row); floored it is 2 rows, so the demo now says `height: 3` and the snapshot shows the full
   track with its content row. DIVERGENCES §2 "Boxes size as border-box" and §3's `box-sizing` line
   removed.
+  From its CHANGELOG bullet (moved by C6G-CHANGELOG): CHANGELOG pointer (condensed out of the
+  Breaking bullet): two changes reach a box even under the `*, ::before, ::after { box-sizing:
+  border-box }` reset — a used border box is floored at its padding plus border (`box-sizing:
+  border-box; height: 1; border: solid` takes 2 rows, not 1), and `min-height` / `max-height` on an
+  `auto` height clamp the size `box-sizing` names, under `border-box` the border box (0.5 clamped
+  the content height: `min-height: 5; border: solid` was 7 rows, now 5). Migration for those: size
+  the box by its content (`content-box`), or add the padding and border to the bound.
 - 2026-10-07 — C5-INTRINSIC: `min-content | max-content | fit-content | fit-content(<length-percentage
   [0,∞]>)` (CSS Sizing 3 §3.1–§3.3) on `width` / `height` / `min-*` / `max-*`: `IntrinsicSize`, a
   closed enum (the limit a `CalcExpr` — `Length` for cells; viewport units absolutized at computed
@@ -2049,6 +2113,10 @@ row comes from.
   `list_item` by hand (no single `display` value moves the outer type, the inner type and
   `list-item` at once). DIVERGENCES: the §3 display line removed, the list-item lines say the
   keyword parses and the marker is C10's. No snapshot changed.
+  From its CHANGELOG bullet (moved by C6G-CHANGELOG): `AnonymousIfc::child_range` indexes the
+  box-tree sequence (`render::box_tree`): the parent's child nodes unless a `display: contents`
+  child holds a block box, which gives its children in its place between its static `::before` /
+  `::after`.
 - 2026-10-08 — C6-VISIBILITY: `visibility: visible | hidden | collapse` (CSS Display 3 §4),
   inherited (`Visibility`, `TuiStyle` / `ComputedStyle::visibility`, `ImportantMask::VISIBILITY`,
   builder, root re-export). Decided — one answer: `render/visibility.rs::visibility_of` (the
@@ -2088,6 +2156,9 @@ row comes from.
   expectations: the canonical-values table, the important-setter coverage and the inherited-set
   probe gain `visibility`; the C1 `initial` test perturbs it. The rdom-style README lists
   `visibility` and the display keywords (C6-DISPLAY-KEYWORDS left them out).
+  From its CHANGELOG bullet (moved by C6G-CHANGELOG): A `visibility` transition with a `visible` end
+  presents `visible` for its whole run (`hidden → visible` shows at once, `visible → hidden` at the
+  end); a hidden box's text is left out of a copy (HTML §3.2.7).
 - 2026-10-08 — C6-ORDER: `order: <integer>` (CSS Flexbox §5.4; a math function rounds, a value
   past `i32` clamps, CSS Values 4 §10.9 / §5.1), not inherited (`TuiStyle` / `ComputedStyle::order`,
   `ImportantMask::ORDER`, builder, `parse::values::parse_order`). Decided — one ordering:
@@ -2180,6 +2251,8 @@ row comes from.
   `initial` test (`flex: 2 0 7`) gain the longhands. No snapshot changed. Split:
   `property_dispatch/table.rs` reached 602 lines — the name list, case folding and `all`'s names
   moved to `property_dispatch/names.rs` (172; `table.rs` 439), paths re-exported unchanged.
+  From its CHANGELOG bullet (moved by C6G-CHANGELOG): `flex: inherit` inherits the three factors
+  (not the main size), and `parse::values::parse_flex_basis` is public.
 - 2026-10-08 — C6-GAP: `row-gap` / `column-gap` (`normal | <length-percentage [0,∞]>`, initial
   `normal`) and the two-value `gap` shorthand (`<'row-gap'> <'column-gap'>?`), CSS Box Alignment 3
   §8.1 / §8.3. Checked first: `gap` parsed one `<length-percentage>` into one field for both
@@ -2207,6 +2280,9 @@ row comes from.
   perturbs `gap: 1 2`. Snapshot: `dom_api` — the demo's `cssText` line is unchanged; its
   `length` reads 9 (was 7) and its `item()` list gains `row-gap` and `column-gap` after `gap`,
   the longhands the demo's `gap: 2` now has, as `padding` lists its four.
+  From its CHANGELOG bullet (moved by C6G-CHANGELOG): `TuiNodeExt::gap()` reads the inline gap only
+  when `row-gap` and `column-gap` are the same cells; `set_gap` writes both. `length` / `item()`
+  list the `gap` shorthand and its longhands, as for `padding`.
 - 2026-10-08 — C6 file-size pass (part 1, no behaviour change): `rdom-showcase/src/nav.rs` (634
   lines, touched by C6-DIRECTION-REVERSE) — its inline test module moved to `nav_tests.rs` (195;
   `nav.rs` 441). Production files touched by part 1 now under the bar: `property_dispatch/table.rs`
@@ -2236,6 +2312,9 @@ row comes from.
   column-reverse` (`row-reverse` now leaves the axis at its initial value) and the inherited-set
   probe's parent takes `Direction::Column`. No layout expectation changed; no snapshot changed.
   DIVERGENCES §2's entry removed; COVERAGE §3.8's row says `row`.
+  From its CHANGELOG bullet (moved by C6G-CHANGELOG): Before, rdom-tui read `flex-direction` on a
+  block container and measured its children along that axis, so `flex-direction: row` on a block
+  made its shrink-to-fit width the sum of its children's.
 - 2026-10-08 — C6-WRAP: `flex-wrap: nowrap | wrap | wrap-reverse` (CSS Flexbox §5.2; `FlexWrap`,
   `TuiStyle` / `ComputedStyle::flex_wrap`, `ImportantMask::FLEX_WRAP`, builder, not inherited) and
   `flex-flow` (§5.3, `<'flex-direction'> || <'flex-wrap'>`, owning `flex-direction`'s two fields and
@@ -2294,6 +2373,10 @@ row comes from.
   snapshot changed. Split: `intrinsic/mod.rs` reached 608 lines — the children half of
   `measure_content` (outer contributions, trims, the sum / max / lines, text runs) moved to
   `intrinsic/children.rs` (201; `mod.rs` 453).
+  From its CHANGELOG bullet (moved by C6G-CHANGELOG): Consumer-visible change recorded from the
+  CHANGELOG: a non-stretched flex item's cross size (an `auto` cross margin, an inline block) is
+  measured at its used main size — a row item's text wraps to the item's width, not the container's
+  height.
 - 2026-10-08 — C6-JUSTIFY: `justify-content` (CSS Box Alignment 3 §5.2 grammar: `normal |
   <content-distribution> | <overflow-position>? [ <content-position> | left | right ]`; not
   inherited). Model — decided, one vocabulary for all six alignment properties, extending the type
@@ -2368,6 +2451,9 @@ row comes from.
   the container's → the column test; `safe` ignored → the overflow test. Changed expectations: the
   canonical-values table, important-setter coverage, the C1 `initial` perturbation and the
   inherited-set probe gain the two properties. No snapshot changed.
+  From its CHANGELOG bullet (moved by C6G-CHANGELOG): A stretched item's `auto` cross size is
+  clamped by its `min-*` / `max-*` cross sizes; a box without content synthesizes its baseline at
+  its bottom row, and a multi-line container's line grows to hold its baseline-aligned group.
 - 2026-10-08 — C6-ALIGN-CONTENT: `align-content` (`normal | <baseline-position> |
   <content-distribution> | <overflow-position>? <content-position>`, Box Alignment 3 §5.1; not
   inherited). Layout (Flexbox §8.4, §9.4 step 15): `flex/justify.rs` became `flex/content.rs` — one
@@ -3116,3 +3202,376 @@ row comes from.
   8; one `auto` inset at x 4 for 17. `auto_margins_win_over_justify_self` passed before and after.
   Green after; the red runs are the mutation checks (each fix reverted fails its own tests). No
   other test expectation and no snapshot changed.
+- 2026-10-08 — C6G-CHANGELOG (PN8, AN17, the restructure): `[Unreleased]` was about 155 KB in 279
+  bullets — most past three lines, the longest near 1,900 characters — which no consumer could use.
+  Restructured: "Upgrading from 0.5" in two parts — **silent behaviour changes** ordered by impact
+  (`display: flex` a row; content-box with what the border-box reset does not restore; the flex
+  base size and automatic minimum, with the `min-width: 0` advice for `flex: 1` panes holding wide
+  content (AN17); block containers ignoring `flex-direction`; the `border` reset; `display: inline`
+  resetting the inner type; per-side longhands cascading alone; CSSOM's shortest-form and as-written
+  serialization; signed scroll offsets; blockified flex items; `transparent`; anonymous and pseudo
+  flex items; `min-*: auto` on the cross axis; ill-typed math) and **compile breaks** by kind — then
+  "API changes from 0.5", a per-crate old → new table (63 rows: the forks' 58 rename / reshape rows
+  plus five that gather the struct-literal / pattern breaks, the new enum arms, the `flex-direction`
+  default, the `flex` shorthand's fields and the root re-exports), whose last column names the
+  `migration_hints.rs` group compiling the new form; then the Breaking / Added / Changed / Fixed
+  sections with every bullet kept (279), each ending in its item ids, at most about three lines
+  (≤ 341 characters) — except four rdom-tui bullets whose ids (`EDIT-CLICK-IN-CONTROL-1`,
+  `ANON-WHITESPACE-RUN-1`, `INPUT-SEED-ON-INSERT-1`, the six-id terminal-reader bullet) have no Log
+  entry to hold their detail. The section is about 88 KB. Nothing lost: facts a bullet dropped that
+  its item's Log entry lacked were appended to that entry ("From its CHANGELOG bullet"), 24 entries;
+  the 22 items with no Log entry of their own (Phase 1–3 items recorded only in the item tables)
+  have their 55 original bullets kept verbatim in the next entry. Fixed in passing: the C6-GAP hint's
+  "match `ROW_GAP | COLUMN_GAP`" is `contains(ImportantMask::ROW_GAP | ImportantMask::COLUMN_GAP)`
+  (`ImportantMask` is opaque); the C5-BOX-SIZING caveat moved into the upgrade list. The 0.5.0 and
+  older sections are byte-identical. `migration_hints.rs` gains the groups the table needed —
+  `typed_error_hints` (C1G-TYPED-ERRORS, C2G-SUBSTITUTION-ERRORS), `sealed_trait_hints`
+  (C4G-SEALED, C2-VIEWPORT, C3-SCHEME), `front_end_hints` (C6G-FRONTEND-API),
+  `anonymous_box_hints` (C6G-PSEUDO-FLEX-ITEMS) — and `sizing_hints` / `flex_longhand_hints` cite
+  and check C2-NUMBER, C2-RATIO, C2G-LAYOUT-SAFETY (`aspect_ratio: Option<Value<Option<…>>>`) and
+  C2G-FLEX-SHORTHAND (`FlexShorthand`); every group is named by a row, and every row but one (the
+  `ActiveAnimation` field, which no consumer builds) by a group. Red: the new groups ran green on
+  first build bar a type-alias slip (`rdom_tui::Result` shadows `std::result::Result` under the
+  glob import); they pin existing API, so there is no behaviour to fail first. Docs-only otherwise.
+- 2026-10-08 — C6G-CHANGELOG (narrative moved): the restructured CHANGELOG keeps a bullet of at most
+  about three lines per change; the items below had no Log entry of their own (their record was the
+  item table and their CHANGELOG bullet), so their CHANGELOG bullets are kept here verbatim, as they
+  stood before the restructure: C1-ALL, C1-CASE, C1-ESCAPES, C1-IMPORT, C1-INLINE-IMPORTANT,
+  C1-LAYER, C1-NESTING, C1-PROPERTY, C1-REVERT, C1-SCOPE, C1-VAR-ANY, C2-STEPPED, C3-ALPHA,
+  C3-CURRENTCOLOR, C3-HSL-HWB, C3-LAB, C3-MIX, C3-RELATIVE, C3-RGB, C3-SCHEME, C3-SYSTEM,
+  C3-TRANSPARENT.
+  - **Selectors decode CSS escapes** (CSS Syntax 3 §4.3.7). Type, class, id and attribute names and
+    attribute values — quoted or not — decode `\` + 1–6 hex digits (one following whitespace belongs
+    to the escape) and `\` + any other code point: `.\31 0` matches class `10`, `#a\:b` matches id
+    `a:b`, `[title="a\"b"]` matches `a"b`. A `\` before a newline does not continue an identifier.
+    The decoder is the new public module `rdom_core::css_syntax` (`consume_escape`, `consume_ident`,
+    `consume_string`, `would_start_ident`, …), which rdom-style's tokenizer shares. (C1-ESCAPES)
+  - **Nested rule selectors** (CSS Nesting 1 §2): `selectors::parse_nested(text, &parent)` parses a
+    nested style rule's selector against its parent rule's list — `&` anywhere (`&.x`, `.x &`,
+    `:not(&)`), a leading combinator (`> p`, `+ p`, `~ p`) anchored at `&`, and an implicit `& `
+    descendant prefix when the selector has neither; a one-item parent is spliced in place of `&`
+    where that is equivalent. `&` resolves to the new `SimpleSelector::Is(list)`, which matches like
+    `:is()` and counts the specificity of its most specific item; the `:is()` text itself stays
+    C11-IS. `selectors` is now a directory module (`parser.rs`, `nesting.rs`). (C1-NESTING)
+  - **`:scope`** (Selectors 4 §14.3): `PseudoClass::Scope` matches the scoping root given to the new
+    `Dom::matches_list_in_scope(id, list, scope)` — an `@scope` root — and `:root` without one
+    (`matches_list` passes none); a `&` outside a nested rule parses as `:scope` (CSS Nesting 1 §2).
+    `selectors::parse_scoped(text)` parses a scoped style rule's selector (CSS Cascade 6 §2.5.2):
+    relative to `:where(:scope)` (no added specificity), `&` is `:where(:scope)`, and a selector
+    holding `:scope` or `&` is absolute. The query APIs do not set `:scope` to their root yet
+    (C11-SCOPE). (C1-SCOPE)
+  - **Pseudo-class names are ASCII case-insensitive** (Selectors 4 §3.1): `a:HOVER` is `a:hover`.
+    (C1-CASE)
+  - `Value<T>` gains `Revert`, the CSS-wide keyword `revert` (CSS Cascade 4 §7.3), which depends on
+    the declaration's origin and so is stored as written for the cascade to resolve (`unset` stays
+    resolved at parse time). `Value` is closed data by design (DESIGN: non-exhaustive rule), so this
+    is breaking. Migration: add a `Value::Revert` arm to matches on `Value` — in a cascade, roll
+    back to the user-agent origin's value; elsewhere treat it like the other keywords. (C1-REVERT)
+  - `Value<T>` gains `RevertLayer`, the CSS-wide keyword `revert-layer` (CSS Cascade 5 §7.4),
+    resolved by the cascade like `Revert`. Migration: add a `Value::RevertLayer` arm next to
+    `Value::Revert`. (C1-LAYER)
+  - `TuiStyle` gains the field `pending: Vec<PendingDeclaration>` (declarations holding `var()`, CSS
+    Variables 1 §3), and the color grammar no longer parses `var()`: CSS text `color: var(--x)` is
+    kept on `pending` for the cascade instead of becoming `TuiColor::Var` (which stays, for
+    Rust-built styles). Once a declaration block has one `var()` declaration, every later
+    declaration in that block is recorded on `pending` as well as in its typed field (in order, so
+    the cascade replays it after the `var()` one) — a reader of `pending` sees those later
+    declarations too; `parse::values::parse_var_args` is removed. Migration: build a `TuiStyle` with
+    `TuiStyle::new()` / `..Default::default()` rather than a full struct literal; read a parsed
+    `var()` declaration from `pending` (or serialize it); call `TuiStyle::substituted(&vars)` to
+    resolve it. (C1-VAR-ANY)
+  - `ComputedStyle` gains `animated_vars: Option<VarMap>` — the custom properties with running
+    transitions applied, which `var()` substitution reads (CSS Properties and Values API 1 §6.2).
+    Migration: build a `ComputedStyle` from `ComputedStyle::initial()` rather than a full struct
+    literal; destructuring patterns add `animated_vars: _`. (C1-PROPERTY)
+  - `Color` gains `Rgba(r, g, b, a)`, a truecolor with alpha below 255 (CSS Color 4 §4.2), with
+    `Color::rgba` (normalizes an opaque alpha to `Rgb`), `alpha()`, `is_translucent()`, `opaque()`
+    and `Color::TRANSPARENT`; hex `#rgba` / `#rrggbbaa` and `rgb()` keep their alpha instead of
+    dropping it. `Color` is closed data (DESIGN), so this is breaking. Migration: add a
+    `Color::Rgba(r, g, b, a)` arm to matches on `Color` — or match `c.opaque()` where alpha does not
+    matter; build a color with alpha through `Color::rgba`. (C3-RGB)
+  - `TuiColor` gains `CurrentColor` (`currentcolor`, CSS Color 4 §6.4), resolved at computed-value
+    time, and `resolve_tui_color` takes a `&ColorContext` (the new `#[non_exhaustive]` struct
+    holding `current_color`, the color `currentcolor` is). `TuiColor` is closed data, so this is
+    breaking. Migration: add a `TuiColor::CurrentColor` arm (resolve it to the element's color —
+    `TuiColor::resolve` does); pass `&ColorContext::new(element_color).with_scheme(scheme)` to
+    `resolve_tui_color` (the element's used `ColorScheme`; `ColorContext::new` alone is dark).
+    (C3-CURRENTCOLOR)
+  - `TuiColor` gains `Function(ColorFunction)`: a color function whose value depends on the element
+    (`color-mix(in srgb, currentcolor, blue)`), kept in a parsed form (C3G-COLOR-FUNCTION-PARSED)
+    with its CSS text (`ColorFunction::css_text`) and computed at computed-value time
+    (`ColorFunction::compute(cx)`, also through `TuiColor::resolve`). Migration: add a
+    `TuiColor::Function(f)` arm — resolve it with `f.compute(&ColorContext::new(element_color))`, or
+    serialize it with `f.css_text()`. (C3-MIX)
+  - `TuiColor` gains `System(SystemColor)` (CSS Color 4 §6.2), which serializes as its keyword and
+    resolves through `SystemColor::color`. Migration: add a `TuiColor::System(s)` arm — `s.color()`
+    is its value (`s.definite(scheme)` where a definite sRGB color is needed, `scheme` a
+    `ColorScheme`). (C3-SYSTEM)
+  - `TuiStyle` and `ComputedStyle` gain `color_scheme` (`color-scheme`, CSS Color Adjust 1 §2;
+    `ColorSchemeList`, initial `normal`), and `ImportantMask` `COLOR_SCHEME`. Migration: build a
+    `TuiStyle` / `ComputedStyle` with `TuiStyle::new()` / `ComputedStyle::initial()` rather than a
+    full struct literal; a destructuring pattern adds `color_scheme`. (C3-SCHEME)
+  - **The value tokenizer decodes identifier escapes** (CSS Syntax 3 §4.3.7 / §4.3.11) through
+    `rdom_core::css_syntax`, so they work in property names (`col\6f r: red`) and keyword values
+    (`display: fl\65x`); an identifier may start with an escape. A selector list no longer splits on
+    an escaped comma. New `Cursor::rest` / `Cursor::advance`. (C1-ESCAPES)
+  - **`revert`** is accepted for every property (ASCII case-insensitive) and serializes as written.
+    (C1-REVERT)
+  - **The `all` shorthand** (CSS Cascade 4 §3.2): `all: initial | inherit | unset | revert |
+    revert-layer` sets every property in the dispatch table — `unset` resolved per property — except
+    `direction`, `unicode-bidi` (when they land) and custom properties; `!important` covers every
+    property, `removeProperty("all")` clears them, any other value is invalid. It is derived from
+    `PROPERTY_NAMES`, so a property added to the table is covered automatically. (C1-ALL)
+  - **Cascade layers in the data model** (CSS Cascade 5 §6.4): `Rule::layer: Option<LayerId>`; a
+    sheet records the layers it declares in order of first declaration (`Stylesheet::layers`, `Layer
+    { name, parent }`) through `declare_layer(parent, &["a", "b"])` /
+    `declare_anonymous_layer(parent)`, and `add_style_rule(&selector, style,
+    RuleContext::default().in_layer(layer))` adds a rule to one. `LayerOrder::new(&sheets)` merges
+    the layers of the sheets of one cascade by name in sheet order and ranks them (siblings by first
+    declaration, sublayers below their parent's own rules, unlayered last).
+    `Stylesheet::append(&other)` appends another sheet's rules, layers (named ones merged) and root
+    variables. `revert-layer` is accepted for every property. (C1-LAYER)
+  - **`StyleSelector`**: a style rule's selector list parsed once — `StyleSelector::parse(text)` or,
+    for a nested rule, `StyleSelector::parse_nested(text, &parent)` (`&` stands for the parent's
+    items without a pseudo-element, `nesting_list()`) — and `Stylesheet::add_style_rule(&selector,
+    style, ctx)`, which adds one rule per item at a `RuleContext` (layer and scope, built with
+    `RuleContext::default().in_layer(…).in_scope(…)`). `Stylesheet::rule` / `add_rule` go through
+    it. (C1-NESTING)
+  - **`@scope` in the data model** (CSS Cascade 6 §2.5): `Rule::scope: Option<ScopeId>`; a sheet
+    records its scopes (`Stylesheet::scopes`, `declare_scope(Scope::new(start, end, parent))`, each
+    with its resolved `<scope-start>` / `<scope-end>` selector lists and enclosing scope) and its
+    CSSOM owner node (`owner_node` / `set_owner_node`), where a prelude-less `@scope` roots.
+    `StyleSelector::parse_scoped` parses a scoped rule's selector. `Stylesheet::append` carries
+    scopes over. (C1-SCOPE)
+  - **`Import` records** (CSS Cascade 5 §3): `Stylesheet::imports()` lists the `@import`s that
+    loaded — URL, the layer the imported rules sit in, and the `supports()` / media condition text —
+    and `record_import` adds one; `append` carries them over. (C1-IMPORT)
+  - **`var()` in every property** (CSS Variables 1 §3): `PendingDeclaration` and the backend hooks
+    (now `rdom_style::backend`, C1G-API-SURFACE) `contains_var`, `valid_var_syntax`,
+    `substitute(tokens, lookup, cx)` (fallbacks of any tokens, nested `var()`),
+    `resolve_custom_properties(vars, names, cx)` (custom properties substituted where declared; a
+    dependency cycle removes every property on it, §2.3) and `TuiStyle::substituted(&vars, &cx)`,
+    which replays a block's pending declarations through the property grammar and sets a property
+    invalid at computed-value time to `unset`. `property_dispatch::set_from_tokens` keeps a `var()`
+    value as tokens after checking its `var()` syntax (`backend::set_parsed` / `backend::set_unset`
+    are the typed halves), `serialize` returns it as written, `remove` drops it. `tui_style.rs` is
+    split into `tui_style/{mod,builder,tests}.rs`. (C1-VAR-ANY)
+  - **Registered custom properties** (CSS Properties and Values API 1): the `registration` module —
+    `PropertySyntax` (parse / `matches` / `interpolation`), `SyntaxComponent`, `Multiplier` and
+    `PropertyRegistration::new(name, syntax, inherits, initial_value)`, which validates as
+    `CSS.registerProperty` does — and `Stylesheet::register_property` / `registered_properties`
+    (carried by `append`). Supported syntax components: `*`, `<length>`, `<number>`, `<integer>`,
+    `<percentage>`, `<length-percentage>`, `<color>`, `<time>`, `<custom-ident>`, keywords, `+` /
+    `#`, `|`. A custom property named in `transition-property` keeps its case. (C1-PROPERTY)
+  - **`round()` / `mod()` / `rem()` / `abs()` / `sign()`** (CSS Values 4 §10.3, §10.7):
+    `round(<rounding-strategy>?, A, B?)` with `nearest` (ties toward +∞), `up`, `down`, `to-zero`
+    and B defaulting to 1; `mod()` takes the divisor's sign, `rem()` the dividend's; the spec's
+    argument-range rules (a zero step is NaN, infinities) hold.
+    `MathFunction::{Round(RoundingStrategy), Mod, Rem, Abs, Sign}`, `RoundingStrategy`. (C2-STEPPED)
+  - **Modern `rgb()` / `rgba()`** (CSS Color 4 §5.1): space-separated channels with `/ alpha`,
+    `none`, numbers with fractions and percentages (mixed in the modern syntax), math functions in
+    channels and alpha, out-of-range values clamped; the legacy comma syntax takes all-number or
+    all-percentage channels and an optional alpha. `color::serialize_alpha` gives the CSSOM alpha
+    text; a translucent color serializes as `rgba(r, g, b, a)`. A translucent color paints opaque
+    until C3-ALPHA. (C3-RGB)
+  - **`currentcolor`** (CSS Color 4 §6.4), in any case, in every color property; serializes as
+    `currentcolor`. `TuiColor::parse(css)` parses the full grammar keeping it,
+    `TuiColor::substitute_vars(vars)` looks up `var()` references, `TuiColor::resolve(vars, cx)`
+    computes the color, and `depends_on_element()` says whether a value waits for the element's
+    `color`. (C3-CURRENTCOLOR)
+  - **`hsl()` / `hsla()` / `hwb()`** (CSS Color 4 §7, §8): the hue a number of degrees or an
+    `<angle>` (wrapping), saturation / lightness / whiteness / blackness as percentages or numbers,
+    `none`, `/ alpha`, math functions; `hsl()`'s legacy comma syntax (percentages only). Converted
+    to sRGB at parse time, as CSS computes them. (C3-HSL-HWB)
+  - **`lab()` / `lch()` / `oklab()` / `oklch()` and `color()`** (CSS Color 4 §9, §10) with the
+    predefined spaces `srgb`, `srgb-linear`, `display-p3`, `a98-rgb`, `prophoto-rgb`, `rec2020`,
+    `xyz` / `xyz-d65`, `xyz-d50`: numbers, percentages, hues, `none`, `/ alpha`, math functions.
+    They convert through XYZ (the spec's matrices, Bradford D50 / D65 adaptation) and are
+    gamut-mapped into sRGB by CSS gamut mapping (§13.2: OKLCh chroma reduction to within a deltaEOK
+    of 0.02) — dependency-free, in `color::{convert, gamut}`. `color::interpolate_oklab(from, to,
+    t)` interpolates two sRGB colors in Oklab with premultiplied alpha (§12). (C3-LAB)
+  - **`color-mix()`** (CSS Color 5 §2): `in` any rectangular space (`srgb`, `srgb-linear`,
+    `display-p3`, `a98-rgb`, `prophoto-rgb`, `rec2020`, `lab`, `oklab`, `xyz`, `xyz-d50`, `xyz-d65`)
+    or polar one (`hsl`, `hwb`, `lch`, `oklch`) with `shorter` / `longer` / `increasing` /
+    `decreasing hue`, Oklab when the method is omitted; percentages in either order, math functions,
+    and the §2.2 normalization (a sum below 100% scales the alpha, a zero sum is invalid).
+    Interpolation follows Color 4 §12: missing components take the other color's and are carried
+    forward to analogous components, an achromatic color's hue is powerless, alpha is premultiplied.
+    Mixed at parse time; a mix holding `currentcolor` computes at computed-value time.
+    `color::palette::xterm_rgb(n)` gives a palette index's color, which mixes and transitions now
+    use. (C3-MIX)
+  - **Relative color syntax** (CSS Color 5 §4): `from <color>` in `rgb()` / `rgba()`, `hsl()` /
+    `hsla()`, `hwb()`, `lab()`, `lch()`, `oklab()`, `oklch()` and `color()` — the origin converted
+    to the function's space and its channels bound to `r g b` / `h s l` / `h w b` / `l a b` / `l c
+    h` / `x y z` and `alpha`, as numbers, alone or in math functions (`hsl(from var(--brand) calc(h
+    + 180) s l)`); an origin of `currentcolor` computes at computed-value time. Conversions among
+    sRGB, HSL and HWB no longer pass through XYZ, so exact values stay exact. (C3-RELATIVE)
+  - **System colors** (CSS Color 4 §6.2): `AccentColor`, `AccentColorText`, `ActiveText`,
+    `ButtonBorder`, `ButtonFace`, `ButtonText`, `Canvas`, `CanvasText`, `Field`, `FieldText`,
+    `GrayText`, `Highlight`, `HighlightText`, `LinkText`, `Mark`, `MarkText`, `SelectedItem`,
+    `SelectedItemText`, `VisitedText`, case-insensitive, and the deprecated ones mapped to them
+    (§6.2.1). `Canvas` / `ButtonFace` / `CanvasText` / `FieldText` are the terminal's default colors
+    (`reset`); the rest are the UA sheet's own palette — the accent, the selection, the muted text —
+    which now lives in `color::system` and is what the UA rules paint with (`color::SystemColor`;
+    the mapping is in DIVERGENCES). (C3-SYSTEM)
+  - **`color-scheme` and `light-dark()`** (CSS Color Adjust 1 §2, CSS Color 5 §5): `color-scheme:
+    normal | [light | dark | <custom-ident>]+ && only?`, inherited, and
+    `ColorSchemeList::used(preferred)` — the element's used scheme given the document's preferred
+    one (§2.1); `light-dark(<light>, <dark>)` picks by it at computed-value time, alone or inside
+    other color functions. `ColorScheme` (light / dark, dark by default) with
+    `ColorScheme::for_background(color)` — light when black text on that background has more
+    contrast than white text; `ColorContext::scheme` / `with_scheme`, under which the terminal's
+    default colors inside a color function take the canvas model's values (white / black when
+    light). (C3-SCHEME)
+  - **`transparent` is transparent black** (CSS Color 4 §6.3): `parse_color("transparent")` is
+    `Color::TRANSPARENT` (`Rgba(0, 0, 0, 0)`), where it was `Color::Reset`, and serializes as
+    `transparent`. As a background it paints as before (what is beneath shows); as `color` the text
+    is now invisible and as `border-color` the border draws nothing, where both used to take the
+    terminal's default foreground. Migration: write `reset` for the terminal's default color.
+    (C3-TRANSPARENT)
+  - **Property names, keywords and units are ASCII case-insensitive** (CSS Values 4 §2.1; CSSOM
+    `setProperty` folds the name). New `property_dispatch::canonical_property_name`, which `set` /
+    `set_from_tokens` / `serialize` / `property_mask` / `remove` / `inherits` all fold through, so
+    `COLOR: RED` is `color: red` in a sheet, an inline style and CSSOM alike; custom property names
+    (`--Foo` vs `--foo`) stay case-sensitive (CSS Variables 1 §2). `text-decoration: UNDERLINE` and
+    `transition-duration: 2S` parse — they were the last keyword and unit matched exactly. (C1-CASE)
+  - **`@layer`** (CSS Cascade 5 §6.4.1): the statement form `@layer a, b.c;` declares layers, the
+    block form `@layer a { … }` / `@layer { … }` parses its rules into a named or anonymous layer,
+    and an `@layer` inside a block nests under it; at-rule names match ASCII case-insensitively. An
+    invalid prelude (two names on a block, whitespace around a `.`, a reserved CSS-wide keyword)
+    drops the rule with the new `WarningKind::InvalidAtRulePrelude { name, prelude }`. (C1-LAYER)
+  - **CSS Nesting** (CSS Nesting 1 §2–§3): style rules nest in style rules. A block item that starts
+    `<ident>:` with no `{}` block before its `;` is a declaration, anything else a nested rule (CSS
+    Syntax 3 "consume a block's contents"), so `.a { p:hover { … } }` nests; the declarations before
+    the first nested rule are the rule's own, each later run is a nested declarations rule with the
+    parent's selector, in order of appearance (`.a { color: red; & { color: blue } color: green }`
+    is green); a nested `@layer` holds declarations and rules in the layer. An invalid nested
+    selector drops that rule alone; an item ending at `;` before a block is a malformed declaration;
+    other nested at-rules are reported and skipped (the conditional rules join with C14). A nested
+    rule used to be swallowed as a malformed declaration. (C1-NESTING)
+  - **`@scope`** (CSS Cascade 6 §2.5): `@scope [(<scope-start>)] [to (<scope-end>)] { … }` at the
+    top level, in a style rule (start relative to the rule) and in another `@scope` (start relative
+    to its root); the body holds scoped style rules (relative to the root), nested rules, `@layer`,
+    and declarations that apply to the root as `:where(:scope)`. An invalid prelude drops the rule
+    with `InvalidAtRulePrelude`. (C1-SCOPE)
+  - **`@import`** (CSS Cascade 5 §3) through a host-provided loader: `ImportLoader` (implemented by
+    any `Fn(&str) -> Result<String, String>`) and `parse_with_loader(source, &loader)`. The imported
+    sheet's rules are parsed in at the import's position; `layer` / `layer(name)` put them in an
+    anonymous / named layer (their own layers nest inside); `supports()` and media conditions are
+    recorded on `Stylesheet::imports` and count as true until conditional rules land (C14). New
+    warnings: `ImportIgnored(url)` for an `@import` after other rules (`@charset` and `@layer`
+    statements excepted) or in a block, `ImportCycle(url)`, and `ImportFailed { url, reason }` for a
+    missing loader (`parse`) or a loader error; an import without a URL is an
+    `InvalidAtRulePrelude`. (C1-IMPORT)
+  - **`@property`** (CSS Properties and Values API 1 §3): `syntax`, `inherits` and `initial-value`
+    register the custom property in the sheet; a missing or invalid descriptor, an invalid name, an
+    unsupported syntax or a non-matching initial value registers nothing and reports the new
+    `WarningKind::InvalidPropertyRule { name, reason }`. (C1-PROPERTY)
+  - `from_css` / `from_css_strict` merge the parsed sheet with `Stylesheet::append` instead of
+    re-adding each rule by its selector text, so rules keep their cascade layer. (C1-LAYER)
+  - **Escapes in a selector prelude are copied through intact**, so an escaped `{`, `}`, quote or
+    `,` (`.x\{\,y`) neither ends the prelude nor splits the selector list. (C1-ESCAPES)
+  - `:ROOT { --x: … }` publishes its custom properties to `Stylesheet::vars()` like `:root`.
+    (C1-CASE)
+  - `CascadeExt` gains the required methods `set_color_scheme` / `color_scheme` (implemented for
+    `Dom<TuiExt>`): the document's preferred color scheme, stored as document data like the
+    viewport. An out-of-tree implementor must add them. (C3-SCHEME)
+  - `Buffer` gains a private field — the color scheme its canvas model takes (`color_scheme()` /
+    `set_color_scheme`, dark by default; the paint pass sets the document's) — so a struct literal
+    no longer builds one. Migration: build a `Buffer` with `Buffer::empty` / `filled` /
+    `with_cells`. (C3-ALPHA)
+  - **The cascade resolves `revert`** (CSS Cascade 4 §7.3): in an author rule or inline style it
+    rolls the property back to the value the user-agent origin gives (`button { color: revert }` is
+    the UA button color), and to the `unset` value where the UA declares nothing; in a UA rule it
+    acts as `unset`. Custom properties and `content` revert too. The ladder is now one plan
+    (`cascade/ladder.rs`) that properties, custom properties and `content` all walk — `content` had
+    its own copy — and the rollback states are replayed on demand and memoized per step, so a
+    cascade without `revert` does no extra work. (C1-REVERT)
+  - **Cascade layers** (CSS Cascade 5 §6.4): author rules cascade layer by layer — later layers beat
+    earlier ones whatever the specificity, unlayered rules beat every layer, and `!important`
+    reverses the order; a layer's own rules beat its sublayers. `revert-layer` rolls a property back
+    to the cascade without its layer (and the ones above it), from the first layer to the UA origin.
+    All the sheets of one cascade run share one layer order, merged by name in run order — for an
+    `App`, its `<style>` sheets in tree order, then its own sheets in push order (DIVERGENCES).
+    `extend_from_style_tags` keeps layers (`Stylesheet::append`). (C1-LAYER)
+  - **`@scope` in the cascade** (CSS Cascade 6 §2.5, §6.1): a scoped rule matches an element in
+    scope of one of its roots — an inclusive descendant of the root not inside a scoping limit —
+    with that root as `:scope`; a nested `@scope`'s roots must be in the enclosing scope. Scope
+    proximity (generations from the nearest matching root; unscoped rules infinitely far) sorts
+    after specificity and before order of appearance. A `<style>` element's sheet records the
+    element as its owner node, so a prelude-less `@scope` in it scopes to the element's parent.
+    (C1-SCOPE)
+  - **`App::set_import_loader(loader)`**: the document's `<style>` sheets resolve `@import` through
+    it (CSS Cascade 5 §3) and are re-parsed; without a loader an `@import` warns
+    (`style_element_warnings`) and imports nothing. (C1-IMPORT)
+  - **The cascade substitutes `var()`** (CSS Variables 1 §3) in every property, `content` and
+    shorthands included: after an element's custom properties are folded (and their own `var()`s
+    substituted), each matched block holding `var()` is substituted and parsed once for the element,
+    and every ladder step, rollback, `content` and the `border-color` fallback read the substituted
+    blocks. An element whose blocks hold no `var()` pays one scan. The color-only `var()` path is
+    gone — colors go through the same substitution. (C1-VAR-ANY)
+  - **Registered custom properties in the cascade** (CSS Properties and Values API 1 §2): a
+    registered property starts at its initial value, does not inherit when `inherits: false`, takes
+    its initial value for `initial` (and for `unset` when it does not inherit), and a value that
+    does not match its syntax after `var()` substitution is invalid at computed-value time
+    (`unset`). `App::register_property(registration)` is `CSS.registerProperty` — it wins over
+    `@property`, and a second registration of a name is an `Err`. A registered `<color>` /
+    `<number>` / `<integer>` / `<length>` / `<percentage>` transitions (`transition: --c 1s`): the
+    engine writes its animated value into the element's `PresentationStyle::custom_properties`, the
+    cascade applies it (`ComputedStyle::animated_vars`, for the element and its descendants),
+    re-cascades the subtree each frame so `var()` consumers follow, and dispatches `transitionstart`
+    / `transitionend` / `transitioncancel` naming `--c` (`AnimationRegistry::take_restyle`,
+    `take_pending_custom_events`, `PendingCustomEvent`). `runtime/animation.rs` is split into
+    `animation/{mod,diff,interpolate,custom,tests,custom_tests}.rs`. (C1-PROPERTY)
+  - **`currentcolor` resolves against the element's final `color`** (CSS Color 4 §6.4):
+    `background-color` / `border-color` (including `border-color: initial`) take the `color` the
+    whole cascade settles on, not the one cascaded so far; in `color` it is the inherited color;
+    `caret-color` / `caret-text-color` inherit it as specified and resolve it at paint against each
+    element, as they now do `var()` (which they used to replace with the text color).
+    (C3-CURRENTCOLOR)
+  - **The terminal's color scheme.** At startup `App::run` asks the terminal for its background with
+    OSC 11 (Unix, when stdout is a terminal; DA1 marks the end of the replies — 200 ms for a reply
+    to begin, up to 800 ms more once one has, C3G-OSC-ROBUST; keys typed meanwhile are kept and a
+    later reply is still taken, C3G-INPUT-READER) and prefers the scheme it calls for, which
+    `light-dark()` and `color-scheme: normal` follow; dark when the terminal does not say.
+    `App::with_color_scheme(scheme)` sets it instead (no query), `App::set_color_scheme` changes it
+    and restyles the tree, `App::color_scheme()` reads it, `App::detected_background()` is the
+    background the terminal reported (`None` without an answer, C3G-OSC-ROBUST);
+    `rdom_tui::ColorScheme`. The scheme follows the terminal's theme changes (DEC mode 2031,
+    C3G-INPUT-READER); a scheme the app set is not overridden. (C3-SCHEME)
+  - **Color alpha composites over the backdrop** (CSS Color 4 §4.2), with the group-opacity per-cell
+    rules: a translucent background blends with the background beneath and tints the glyphs and
+    borders it leaves; translucent text contests the glyph beneath (it takes the cell at alpha ≥ 0.5
+    or over an empty one) and blends with the background; a translucent border blends like a glyph;
+    a translucent `::backdrop`, row highlight, `::selection` or caret style likewise. `Color::Reset`
+    blends as the canvas of the document's color scheme (white on black when dark, black on white
+    when light). Each translucent paint is made in a layer over just its cells
+    (`Buffer::write_styled`, `paint_translucent`), so `Buffer::set_symbol` / `set_style` /
+    `set_string*` composite a translucent style too; a `Cell` is opaque storage — `Cell::set_fg` /
+    `set_bg` store the color (a transparent one paints nothing) and debug-assert that it is not
+    translucent, since only the buffer knows the color scheme to blend with
+    (C3G-SCHEME-CONSISTENCY). (C3-ALPHA)
+  - **A fully transparent color paints nothing.** `Cell::set_fg` / `set_bg` / `apply_style` leave
+    the cell's color when given one with alpha 0, and a `Buffer` glyph write in a transparent
+    foreground (`set_symbol`, `set_string*`) keeps the glyph the cell shows and paints only the
+    style's background; the paint pass fills no background and draws no border in a transparent
+    color (the border keeps its space). An `<input>` with a transparent background inverts its caret
+    against the cell beneath. (C3-TRANSPARENT)
+  - **Color transitions interpolate in Oklab** (CSS Color 4 §12.1) with premultiplied alpha, for
+    `color`, `background-color`, `border-color` and registered `<color>` properties: red → blue
+    passes through `rgb(140, 83, 162)` where it used to pass through sRGB's `rgb(128, 0, 128)`. A
+    palette index interpolates as its xterm color; an endpoint that is `reset` as the canvas model's
+    color for the property's role (background for `background-color`, text for `color` and
+    `border-color`) in the element's color scheme, and a registered property's `reset` endpoint (no
+    role) changes discretely (C3G-SCHEME-CONSISTENCY). (C3-LAB)
+  - **An inline `!important` beats an author `!important`** (CSS Cascade 4 §6.1 "element-attached
+    styles"): the `style` attribute wins over the author's rules at both importances, so `<p
+    style="color: blue !important">` is blue against `p { color: red !important }` — the ladder
+    applied author important after inline important. The style attribute also sorts above every
+    cascade layer (Cascade 5 §6.1). (C1-INLINE-IMPORTANT)
+- 2026-10-08 — Phase 6 closed: 14 items + 28 gate fixes (batch A 11, batch B 9, batch C 8).
+  Gate-fix re-review folded into the Phase 7 gate. Carried, recorded: inline content is not aligned
+  upward by `align-content` and an absolutely positioned box with both insets `auto` is not
+  self-aligned (DIVERGENCES §4); a generated flex item's `aspect-ratio` (§9.2 step 3.B reads an
+  element's); logical-side builders (a kept declaration, not a field); `SIZE-1` (TECH_DEBT) files,
+  `walk.rs` and `layout_pass/mod.rs` added.

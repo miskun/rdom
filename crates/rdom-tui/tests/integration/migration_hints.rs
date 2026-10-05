@@ -10,10 +10,11 @@
 
 use rdom_tui::*;
 
-/// C3G-MIN-AUTO, C2-PERCENT, C2G-MAX-NONE, C3G-API: `MinSize::Auto` (and
-/// its `Default`), `MaxSize::Cells`, the percentage constructors — the
-/// same variant shape for `Size`, `MinSize` and `MaxSize` — and the node
-/// setters' `impl Into<…>` forms.
+/// C3G-MIN-AUTO, C2-PERCENT, C2G-MAX-NONE, C3G-API, C2-NUMBER, C2-RATIO,
+/// C2G-LAYOUT-SAFETY: `MinSize::Auto` (and its `Default`),
+/// `MaxSize::Cells`, the percentage constructors — the same variant shape
+/// for `Size`, `MinSize` and `MaxSize` — the node setters' `impl Into<…>`
+/// forms, `f32` flex factors, and `AspectRatio` behind accessors.
 #[test]
 fn sizing_hints() {
     let computed = ComputedStyle::initial();
@@ -35,6 +36,7 @@ fn sizing_hints() {
     let r = AspectRatio::new(16.0, 9.0).unwrap();
     assert_eq!(r.numerator(), 16.0);
     assert!(r.value().is_some());
+    let _: Option<Value<Option<AspectRatio>>> = TuiStyle::new().aspect_ratio;
 
     let mut dom: TuiDom = TuiDom::new();
     let div = dom.create_element("div");
@@ -417,8 +419,9 @@ fn reverse_and_signed_scroll_top_hints() {
     assert_eq!(usize::try_from(y).unwrap_or(0), 0);
 }
 
-/// C6-FLEX-LONGHANDS: `flex` sets the three longhands (not `width`),
-/// `flex_grow`, `FlexBasis::Intrinsic`, the parser.
+/// C6-FLEX-LONGHANDS, C2G-FLEX-SHORTHAND: `flex` sets the three
+/// longhands (not `width`), `flex_grow`, `FlexBasis::Intrinsic`, the
+/// parsers (`parse_flex_shorthand` gives a `FlexShorthand`).
 #[test]
 fn flex_longhand_hints() {
     let mut s = TuiStyle::new().flex_grow(1.0);
@@ -434,6 +437,10 @@ fn flex_longhand_hints() {
         Some(FlexBasis::Content)
     );
     assert!(ImportantMask::FLEX_GROW.intersects(ImportantMask::all()));
+    let tokens = style::parse::tokenize("2").unwrap();
+    let flex: style::parse::values::FlexShorthand =
+        style::parse::values::parse_flex_shorthand(&tokens).unwrap();
+    assert_eq!(flex.grow, 2.0);
 }
 
 /// C6-GAP: the two gap fields and bits, `GapValue::Normal`, the
@@ -594,4 +601,58 @@ fn alignment_api_hints() {
         ComputedStyle::initial().flex_direction(),
         FlexDirection::Row
     );
+}
+
+/// C1G-TYPED-ERRORS, C2G-SUBSTITUTION-ERRORS: registration and
+/// substitution report typed errors.
+#[test]
+fn typed_error_hints() {
+    let syntax: std::result::Result<PropertySyntax, PropertySyntaxError> =
+        PropertySyntax::parse("<nope>");
+    assert!(syntax.is_err());
+    let registration: std::result::Result<PropertyRegistration, RegisterPropertyError> =
+        PropertyRegistration::new("no-dashes", "<color>", true, Some("red"));
+    assert!(registration.is_err());
+    fn _substitution(_: style::backend::SubstitutionError) {}
+}
+
+/// C4G-SEALED, C2-VIEWPORT, C3-SCHEME: the sealed extension traits are
+/// called, not implemented — the document-level settings included.
+#[test]
+fn sealed_trait_hints() {
+    let mut dom: TuiDom = TuiDom::new();
+    dom.set_viewport(calc::Viewport::new(10, 5));
+    dom.set_color_scheme(ColorScheme::Light);
+    assert_eq!(dom.color_scheme(), ColorScheme::Light);
+    let root = dom.root();
+    let _ = dom.node(root).computed();
+}
+
+/// C6G-FRONTEND-API: `set_from_source` takes the text as an `Option` and
+/// the declaration's `!important`; `SpannedTokens` is a struct.
+#[test]
+fn front_end_hints() {
+    let mut s = TuiStyle::new();
+    let value = style::parse::tokenize("red").unwrap();
+    style::property_dispatch::set_from_source("color", &value, Some("red"), true, &mut s).unwrap();
+    assert!(style::property_dispatch::is_important("color", &s));
+    let style::parse::token::SpannedTokens {
+        tokens,
+        positions,
+        spans,
+    } = style::parse::token::tokenize_spans("a b", 1, 1).unwrap();
+    assert_eq!((tokens.len(), positions.len(), spans.len()), (2, 2, 2));
+}
+
+/// C6G-PSEUDO-FLEX-ITEMS: `AnonymousIfc` is `#[non_exhaustive]`, built by
+/// `AnonymousIfc::new`; a generated flex item's border box rides beside.
+#[test]
+fn anonymous_box_hints() {
+    let layout = render::InlineLayout {
+        lines: Vec::new(),
+        content_width: 0,
+    };
+    let rect = LayoutRect::new(0, 0, 4, 1);
+    let anon = ext::AnonymousIfc::new(rect, layout, (0, 1), None);
+    assert_eq!(anon.border_box(), rect);
 }
