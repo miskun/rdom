@@ -1159,4 +1159,15 @@ row comes from.
   always-failing writer never reached `raw_off` (0 calls); green after. (The first attempt at the test
   failed with `ErrorKind::Interrupted`, which `write_all` retries forever — the test writer uses
   `io::Error::other`.)
+- 2026-10-06 — C4G-SHADOW-CLAMP: `PaintLength::offset_cells` clamps to ±`u16::MAX` cells (it saturated
+  at ±`i32::MAX`, and `grow` doubled the spread). `paint_pass/shadow.rs` now does its geometry over a
+  private `Edges` (signed left / top / right / bottom, every operation saturating) and converts to a
+  grid `Rect` only after clipping; the old `LayoutRect` form clamped a grown shade's extent to
+  `u16::MAX`, so a spread of 65 535 around a box at x = 1 ended at x = 1 instead of past the grid —
+  found by the new test once the panic was gone. `minus` returns an iterator (no `Vec`). Red:
+  `box_shadow_huge_lengths_do_not_overflow` panicked "attempt to multiply with overflow" in `grow`;
+  `offset_cells_clamps_to_the_grid_range` gave 2147483647. Green after, with
+  `grow_keeps_edges_past_a_u16_extent`. Note: the gate's bare `9999999999` does not parse — an integer
+  literal outside `i32` tokenizes as a `Float`, which cell lengths do not take — so the tests use
+  `2147483647` (the largest integer token) and `9999999999ch`; both panicked.
 

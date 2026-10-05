@@ -523,6 +523,32 @@ fn box_shadow_colors() {
     assert_eq!(cell(&buf, 3, 0).bg, Color::Rgb(200, 0, 0));
 }
 
+/// `C4G-SHADOW-CLAMP`: offsets and a spread far past the grid clamp to a
+/// range the shadow geometry cannot overflow — `i32::MAX` cells (the
+/// largest integer token) and `9999999999ch` panicked in debug builds.
+/// A huge spread covers everything outside the box; a huge offset moves
+/// the shade off the grid.
+#[test]
+fn box_shadow_huge_lengths_do_not_overflow() {
+    for big in ["2147483647", "9999999999ch"] {
+        let buf = shadowed(&format!(
+            ".b {{ margin: 1; width: 2; height: 1; box-shadow: 0 0 0 {big} red }}"
+        ));
+        assert_eq!(cells_with_bg(&buf, RED).len(), 6 * 5 - 2, "{big}");
+        let buf = shadowed(&format!(
+            ".b {{ width: 2; height: 1; box-shadow: {big} 0 red }}"
+        ));
+        assert_eq!(cells_with_bg(&buf, RED), [], "{big}");
+        // Inset: a huge spread shrinks the hole to nothing, so the whole
+        // padding box is in shade; a huge offset moves the hole away.
+        let buf = shadowed(&format!(
+            ".b {{ width: 2; height: 1; \
+                  box-shadow: inset 0 0 0 {big} red, inset {big} 0 blue }}"
+        ));
+        assert_eq!(cells_with_bg(&buf, RED), [(0, 0), (1, 0)], "{big}");
+    }
+}
+
 // ── C4-SPACING ─────────────────────────────────────────────────────
 
 /// CSS 2.1 §17.6.1: `border-spacing` is inherited, and computes to two

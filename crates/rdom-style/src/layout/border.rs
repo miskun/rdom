@@ -351,13 +351,16 @@ impl PaintLength {
     /// spread): cells rounded onto the grid (ties to even), and a pixel
     /// length one cell in its direction — rdom cannot move a cell by
     /// less, and a guessed pixel size would scale web CSS arbitrarily
-    /// (DIVERGENCES §2).
+    /// (DIVERGENCES §2). Clamped to ±`u16::MAX` cells: no grid is
+    /// larger, and geometry that adds a few of them to a box's `i32`
+    /// position or `u16` extent cannot overflow.
     pub fn offset_cells(&self) -> i32 {
+        let max = i32::from(u16::MAX);
         match self {
             PaintLength::Px(p) if *p > 0.0 => 1,
             PaintLength::Px(p) if *p < 0.0 => -1,
             PaintLength::Px(_) => 0,
-            other => crate::calc::to_cells(other.cells(0).unwrap_or(0.0)),
+            other => crate::calc::to_cells(other.cells(0).unwrap_or(0.0)).clamp(-max, max),
         }
     }
 
@@ -456,6 +459,23 @@ mod tests {
         ] {
             assert_eq!(width.weight(), weight, "{width:?}");
         }
+    }
+
+    /// `C4G-SHADOW-CLAMP`: a whole-cell offset clamps to ±`u16::MAX`
+    /// cells — no grid is wider, and shadow geometry adds two of them to
+    /// a box's extent without overflowing `i32`. NaN is 0; pixel lengths
+    /// stay one cell by their sign.
+    #[test]
+    fn offset_cells_clamps_to_the_grid_range() {
+        let max = i32::from(u16::MAX);
+        assert_eq!(PaintLength::Cells(1e10).offset_cells(), max);
+        assert_eq!(PaintLength::Cells(-1e10).offset_cells(), -max);
+        assert_eq!(PaintLength::Cells(f32::INFINITY).offset_cells(), max);
+        assert_eq!(PaintLength::Cells(f32::NAN).offset_cells(), 0);
+        assert_eq!(PaintLength::Cells(2.5).offset_cells(), 2);
+        assert_eq!(PaintLength::Px(-1e10).offset_cells(), -1);
+        let calc = crate::calc::CalcExpr::Length(i32::MAX);
+        assert_eq!(PaintLength::Calc(Box::new(calc)).offset_cells(), max);
     }
 
     /// The used border drops zero-width sides but keeps `hidden`.
