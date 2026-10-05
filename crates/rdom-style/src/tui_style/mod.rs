@@ -144,6 +144,8 @@ pub struct TuiStyle {
     /// `flex-wrap` (CSS Flexbox §5.2). `flex-flow` writes it with the two
     /// above.
     pub flex_wrap: Option<Value<crate::layout::FlexWrap>>,
+    /// `justify-content` (CSS Box Alignment 3 §5.2).
+    pub justify_content: Option<Value<crate::layout::Alignment>>,
     /// CSS `direction` (CSS Writing Modes 4 §2.1). Inherited. (`direction`
     /// above is `flex-direction`.)
     pub text_direction: Option<Value<crate::layout::TextDirection>>,
@@ -445,6 +447,9 @@ impl TuiStyle {
             n += 1
         }
         if self.flex_wrap.is_some() {
+            n += 1
+        }
+        if self.justify_content.is_some() {
             n += 1
         }
         if self.text_direction.is_some() {

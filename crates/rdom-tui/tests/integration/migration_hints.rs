@@ -431,3 +431,24 @@ fn flex_wrap_hints() {
     assert!(style::parse::values::parse_flex_flow(&tokens).is_some());
     assert!(ImportantMask::FLEX_WRAP.intersects(ImportantMask::all()));
 }
+
+/// C6-JUSTIFY: `Align`'s Box Alignment keywords, `Alignment` (with
+/// `OverflowAlign`), the `justify_content` fields and bit, the parser.
+#[test]
+fn alignment_hints() {
+    assert_eq!(Align::default(), Align::Normal);
+    let safe = Alignment::safe(Align::Center);
+    assert_eq!(safe.overflow, OverflowAlign::Safe);
+    let s = TuiStyle::new().justify_content(Align::SpaceBetween.into());
+    assert_eq!(
+        s.justify_content,
+        Some(Value::Specified(Alignment::new(Align::SpaceBetween)))
+    );
+    let ComputedStyle {
+        justify_content, ..
+    } = ComputedStyle::initial();
+    assert_eq!(justify_content, Alignment::NORMAL);
+    let tokens = style::parse::tokenize("safe end").unwrap();
+    assert!(style::parse::values::parse_justify_content(&tokens).is_some());
+    assert!(ImportantMask::JUSTIFY_CONTENT.intersects(ImportantMask::all()));
+}

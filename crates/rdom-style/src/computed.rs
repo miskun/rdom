@@ -136,6 +136,10 @@ pub struct ComputedStyle {
     /// `flex-wrap` (CSS Flexbox §5.2): single- or multi-line. Initial
     /// `nowrap`; not inherited.
     pub flex_wrap: crate::layout::FlexWrap,
+    /// `justify-content` (CSS Box Alignment 3 §5.2): the main-axis
+    /// alignment of a flex container's lines' items. Initial `normal`;
+    /// not inherited.
+    pub justify_content: crate::layout::Alignment,
     /// CSS `direction` (CSS Writing Modes 4 §2.1): which edge is
     /// inline-start. Inherited; initial `ltr`. (`direction` above is
     /// `flex-direction`.)
@@ -296,6 +300,7 @@ impl ComputedStyle {
             direction: Direction::Row,
             flex_reverse: false,
             flex_wrap: crate::layout::FlexWrap::NoWrap,
+            justify_content: crate::layout::Alignment::NORMAL,
             text_direction: crate::layout::TextDirection::Ltr,
             writing_mode: crate::layout::WritingMode::HorizontalTb,
             overflow_x: Overflow::Visible,

@@ -112,6 +112,11 @@ pub(super) fn trim_line_edges(items: &mut [ChildMain], trim: FlexTrim) {
 pub(super) struct LineMain {
     pub(super) final_main: Vec<u16>,
     pub(super) auto_margins: AutoMainMargins,
+    /// The line's leftover free space after its flexible lengths —
+    /// negative when its items overflow it; `auto` margins took it when
+    /// positive and [`Self::has_auto_margins`].
+    pub(super) free: i32,
+    pub(super) has_auto_margins: bool,
 }
 
 /// §9.7 and §9.5 step 12 for one line: resolve the flexible lengths of
@@ -152,8 +157,11 @@ pub(super) fn resolve_line_main(
         },
     );
     let used: i32 = final_main.iter().map(|&n| i32::from(n)).sum();
-    let remaining = (net - used).clamp(0, i32::from(u16::MAX)) as u32;
+    let free = net - used;
+    let remaining = free.clamp(0, i32::from(u16::MAX)) as u32;
     LineMain {
+        free,
+        has_auto_margins: auto_count > 0,
         final_main,
         auto_margins: AutoMainMargins {
             share: remaining.checked_div(auto_count).unwrap_or(0) as u16,

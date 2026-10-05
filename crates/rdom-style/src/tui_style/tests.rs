@@ -286,6 +286,7 @@ fn every_property_has_important_setter() {
         .visibility_important(crate::layout::Visibility::Hidden)
         .order_important(1)
         .flex_wrap_important(crate::layout::FlexWrap::Wrap)
+        .justify_content_important(crate::layout::Align::Center.into())
         .flex_grow_important(1.0)
         .scrollbar_gutter_important(crate::layout::ScrollbarGutter::Stable)
         .scroll_behavior_important(crate::layout::ScrollBehavior::Smooth)

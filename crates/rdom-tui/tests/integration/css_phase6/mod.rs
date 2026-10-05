@@ -12,6 +12,7 @@ mod display;
 mod flex_direction_initial;
 mod flex_longhands;
 mod gap;
+mod justify;
 mod margin_sides;
 mod order;
 mod visibility;

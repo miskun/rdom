@@ -28,6 +28,7 @@
 //! Every parser is re-exported here, so `parse::values::parse_*`
 //! stays the single public path.
 
+mod align;
 mod background;
 mod border;
 mod calc;
@@ -48,6 +49,7 @@ mod shadow;
 mod spacing;
 mod transition;
 
+pub use align::{align_keyword, parse_justify_content, serialize_alignment};
 pub use background::{
     BackgroundLayer, BackgroundShorthand, parse_background, parse_background_attachment,
     parse_background_image, parse_background_position, parse_background_repeat,

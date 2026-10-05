@@ -28,6 +28,7 @@ const PROPERTY_NAMES: &[&str] = &[
     "flex-direction",
     "flex-wrap",
     "flex-flow",
+    "justify-content",
     "white-space",
     "user-select",
     "pointer-events",

@@ -118,6 +118,11 @@ pub fn serialize(name: &str, style: &TuiStyle) -> Option<String> {
             .as_ref()
             .and_then(specified)
             .map(|w| crate::parse::values::serialize_flex_wrap(*w).to_string()),
+        "justify-content" => style
+            .justify_content
+            .as_ref()
+            .and_then(specified)
+            .map(|a| crate::parse::values::serialize_alignment(*a)),
         // The shorthand serializes only when both longhands are set
         // (CSSOM §6.7.2).
         "flex-flow" => {

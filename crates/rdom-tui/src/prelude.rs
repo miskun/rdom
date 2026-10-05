@@ -66,6 +66,7 @@ pub use crate::{
     AdjacentPosition,
     // Ext + layout
     Align,
+    Alignment,
     // Runtime primitives
     App,
     AppContext,

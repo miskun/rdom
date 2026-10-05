@@ -213,6 +213,14 @@ impl TuiStyle {
         self.direction(v)
     }
     setter!(
+        "justify-content",
+        justify_content,
+        justify_content,
+        justify_content_important,
+        JUSTIFY_CONTENT,
+        crate::layout::Alignment
+    );
+    setter!(
         "flex-wrap",
         flex_wrap,
         flex_wrap,

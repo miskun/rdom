@@ -73,7 +73,7 @@ The leaf crate carries the **values**, not the cascade. Cascade lives in
   `color-scheme`, `caret-color`, `caret-text-color`, `font-weight`,
   `font-style`, `text-decoration`, `pointer-events`, `user-select`.
 - **Block model** — `display` (the CSS Display 3 keywords: `contents`,
-  `flow-root`, the two-keyword forms, `list-item`), `visibility`, `flex-direction` (+ `-reverse`), `flex-wrap`, `flex-flow`, `flex`, `flex-grow`,
+  `flow-root`, the two-keyword forms, `list-item`), `visibility`, `flex-direction` (+ `-reverse`), `flex-wrap`, `flex-flow`, `justify-content`, `flex`, `flex-grow`,
   `flex-shrink`, `flex-basis`, `order`,
   `white-space`, `overflow`, `overflow-x`, `overflow-y`,
   `scrollbar-gutter`, `scroll-behavior`.

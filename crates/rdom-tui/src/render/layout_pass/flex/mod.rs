@@ -49,6 +49,7 @@
 mod collapse;
 mod cross;
 mod distribute;
+mod justify;
 mod lines;
 mod main_axis;
 mod placement;
@@ -398,12 +399,22 @@ pub(super) fn layout_flex_children(
 
     let mut line_offset: i32 = 0;
     for (k, (range, line)) in line_ranges.iter().zip(resolved).enumerate() {
+        // §8.2: `justify-content` places the line's leftover free space.
+        let justify = justify::justify_offsets(
+            parent,
+            direction,
+            flip.main,
+            line.free,
+            range.len(),
+            line.has_auto_margins,
+        );
         place_items(
             dom,
             &children[range.clone()],
             FlexLine {
                 items: &items[range.clone()],
                 final_main: &line.final_main,
+                justify: &justify,
                 container,
                 direction,
                 gap,

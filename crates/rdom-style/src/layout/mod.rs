@@ -13,6 +13,7 @@
 //! and friends).
 //!
 //! - `rect` — `LayoutRect`
+//! - `alignment` — the Box Alignment keywords (`Align`, `Alignment`)
 //! - `keywords` — keyword-valued properties
 //! - `sizing` — `Size`, `MinSize`, `MaxSize`, `AspectRatio`, `GapValue`, `Length`
 //! - `border` — border styles, widths, `border-collapse`
@@ -20,6 +21,7 @@
 //! - `sides` — `Sides`, the per-side shape
 //! - `background` — the background longhands' keyword families
 
+mod alignment;
 mod background;
 mod border;
 mod box_model;
@@ -30,6 +32,7 @@ mod sizing;
 #[cfg(test)]
 mod sizing_tests;
 
+pub use alignment::{Align, Alignment, OverflowAlign};
 pub use background::{BackgroundAttachment, BackgroundRepeat, BoxShadow, RepeatStyle, VisualBox};
 pub use border::{
     Border, BorderCollapse, BorderRadius, BorderSpacing, BorderStyle, BorderWeight, BorderWidth,
@@ -37,7 +40,7 @@ pub use border::{
 };
 pub use box_model::{Margin, MarginTrim, MarginValue, Padding, PaddingValue};
 pub use keywords::{
-    Align, BoxSizing, CaretColor, CaretTextColor, Direction, Display, FlexWrap, Flow, Overflow,
+    BoxSizing, CaretColor, CaretTextColor, Direction, Display, FlexWrap, Flow, Overflow,
     PointerEvents, Position, ScrollBehavior, ScrollbarGutter, TextDecoration, TextDirection,
     UserSelect, Visibility, WhiteSpace, WritingMode, ZIndex,
 };

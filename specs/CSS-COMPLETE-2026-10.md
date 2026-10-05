@@ -143,7 +143,7 @@ row comes from.
 | C6-FLEX-LONGHANDS | `flex-grow` / `flex-basis` longhands; full `flex` shorthand (incl. basis) | done |
 | C6-FLEX-DIRECTION-INITIAL | `flex-direction` initial value `row` (Flexbox §5.1): decouple the block-container axis from `flex-direction`, remove the DIVERGENCES §2 entry | done |
 | C6-WRAP | `flex-wrap` / `flex-flow`, multi-line flex containers | done |
-| C6-JUSTIFY | `justify-content` (all distribution values) | |
+| C6-JUSTIFY | `justify-content` (all distribution values) | done |
 | C6-ALIGN | `align-items` / `align-self` (incl. `baseline` where meaningful) | |
 | C6-ALIGN-CONTENT | `align-content` | |
 | C6-PLACE | `place-content` / `place-items` / `place-self`, `justify-items` / `justify-self` (block-level) | |
@@ -2293,3 +2293,39 @@ row comes from.
   snapshot changed. Split: `intrinsic/mod.rs` reached 608 lines — the children half of
   `measure_content` (outer contributions, trims, the sum / max / lines, text runs) moved to
   `intrinsic/children.rs` (201; `mod.rs` 453).
+- 2026-10-08 — C6-JUSTIFY: `justify-content` (CSS Box Alignment 3 §5.2 grammar: `normal |
+  <content-distribution> | <overflow-position>? [ <content-position> | left | right ]`; not
+  inherited). Model — decided, one vocabulary for all six alignment properties, extending the type
+  ACID.md found CSS could not set: `Align` (was `{Start, Center, End, Stretch}`, unused) is every Box
+  Alignment keyword plus `normal` / `auto`, and `Alignment { keyword, overflow: OverflowAlign,
+  legacy }` the computed value (`layout/alignment.rs`; closed value types, DESIGN). One parser
+  (`parse/values/align.rs`) reads any alignment property from a `Grammar` (which of `auto`,
+  baseline, distribution, self positions, `left` / `right` it takes); `serialize_alignment` writes the
+  shortest form. Layout — `flex/justify.rs::justify_offsets`, per line after §9.7 and the `auto`
+  margins (which take positive free space first, §8.1; `LineMain` now carries the signed free space):
+  the extra space before each item, added to the gap. Mapping in the main-start frame: `normal` /
+  `stretch` / `flex-start` start, `flex-end` end; `start` / `end` are the writing mode's ends —
+  main-start unless `row-reverse` / `column-reverse` (under `rtl` both mirrors agree); `left` /
+  `right` physical on a row (`end` / `start` when the main axis is flipped), `start` on a column
+  (§4.2); distribution fallbacks per Flexbox §8.2 as now written — `space-between` to `safe
+  flex-start`, `space-around` / `space-evenly` to `safe center` (one item, or negative free space);
+  `safe` that overflows aligns as `start` (§4.4); no overflow keyword aligns as `unsafe`, as browsers
+  do (§4.4 lets the UA choose; a smarter default would hide which cells were dropped). Rounding —
+  decided, whole cells: `center`'s lead is the free space halved rounded down (toward main-start,
+  negative free space included — the odd cell after the items); a distribution places item `i` at
+  `ceil(free × k_i / d)` (`space-between` `i / (n − 1)`, `space-around` `(2i + 1) / 2n`,
+  `space-evenly` `(i + 1) / (n + 1)`), so each space is a whole-cell step and the remainder cells go
+  to the first spaces; DIVERGENCES §1's whole-cell flex entry says so. Not changed: the static
+  position of an absolutely positioned child of a flex container stays the content box's start
+  (DIVERGENCES §2, D-M2-2). Red: `justify_content_takes_its_grammar` failed to compile
+  (`justify_content`, `ImportantMask::JUSTIFY_CONTENT`); with the data model in, all seven layout
+  tests in `css_phase6/justify.rs` failed — `[0, 2, 4]` for `space-between`'s `[0, 4, 8]` and for
+  overflowing `center`'s `[-1, 1, 3]`, a single `space-around` item at `[0]` for `[4]`, the second
+  line at `0` for `2`, the column's `end` at `[0, 1]` for `[4, 5]`, `row-reverse` `start` at
+  `[8, 6, 4]` for `[4, 2, 0]` (the `auto`-margin test passed: the margins already took the space).
+  Green after. Mutation checks (each alone, `css_phase6::justify`, reverted and touched): `center` lead
+  0 → four tests; rolling positions rounded down → the distribution test; `safe` ignored → the
+  overflow test; `auto` margins not taking precedence → the margin test; `left` ignoring the flip and
+  `start` ignoring `row-reverse` → the axes test. Changed expectations: the canonical-values table,
+  important-setter coverage, the C1 `initial` perturbation and the inherited-set probe gain
+  `justify-content`. No snapshot changed.

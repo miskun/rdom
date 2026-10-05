@@ -33,6 +33,8 @@ pub(super) struct FlexLine<'a> {
     pub(super) items: &'a [ChildMain],
     /// Resolved main size per item, index-aligned with `items`.
     pub(super) final_main: &'a [u16],
+    /// `justify-content`'s extra space before each item (index-aligned).
+    pub(super) justify: &'a [i32],
     /// The (collapse-inset) container the items are placed in.
     pub(super) container: LayoutRect,
     pub(super) direction: Direction,
@@ -60,6 +62,7 @@ pub(super) fn place_items(dom: &mut Dom<TuiExt>, children: &[NodeId], line: Flex
     let FlexLine {
         items: child_info,
         final_main,
+        justify,
         container,
         direction,
         gap,
@@ -128,7 +131,9 @@ pub(super) fn place_items(dom: &mut Dom<TuiExt>, children: &[NodeId], line: Flex
             MarginValue::Auto => i32::from(resolve_auto(&mut autos_consumed)),
             MarginValue::Calc(_) => unreachable!("Calc pre-resolved to Cells"),
         };
-        main_cursor = main_cursor.saturating_add(main_start_cells);
+        main_cursor = main_cursor
+            .saturating_add(justify[i])
+            .saturating_add(main_start_cells);
 
         // Whether the child's main-axis size was declared `Auto` —
         // needed so the cross resolver knows whether to apply

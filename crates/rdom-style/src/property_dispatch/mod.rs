@@ -92,6 +92,8 @@ mod table;
 mod value_serializers;
 
 #[cfg(test)]
+mod align_tests;
+#[cfg(test)]
 mod background_tests;
 #[cfg(test)]
 mod border_tests;

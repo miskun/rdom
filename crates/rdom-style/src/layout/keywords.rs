@@ -134,16 +134,6 @@ pub enum WritingMode {
     SidewaysLr,
 }
 
-/// Cross-axis alignment. Maps to CSS `align-items`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum Align {
-    #[default]
-    Start,
-    Center,
-    End,
-    Stretch,
-}
-
 /// Outer display type (CSS Display 3 §2.1), and the box keywords
 /// `contents` / `none` (§2.5): whether the element is block-level
 /// (`Block`), inline-level (`Inline`, or the atomic `InlineBlock`), or
