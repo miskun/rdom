@@ -465,6 +465,8 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Fixed — `rdom-tui`
 
+- **Clearance stops a parent's top margin collapsing with its first child's** (CSS 2.1 §8.3.1, §9.5.2): a cleared first child after a float keeps its `margin-top` inside the parent, so the parent and its float no longer move down by it — the clearfix-with-margins pattern. (C8G-CLEARANCE-COLLAPSE)
+
 - **Snap areas taller than the snapport scroll freely inside** (CSS Scroll Snap 1 §6.2.3): PageDown, the wheel and `scrollTo` reach a tall card's middle rows; a tick a mandatory snap holds no longer chains; `overscroll-behavior: contain` on an `overflow: hidden` box stops the chain, as on any scroll container. (C8G-SNAP-TALL)
 
 - **Re-snapping after layout no longer undoes scrolls** (CSS Scroll Snap 1 §5.4): a snap container follows its snap target only when layout moved it; thumb drags, autoscroll and caret reveal leave it unsnapped; a smooth scroll animates; the re-snap's `scroll` fires after the frame and only snapped containers are visited. (C8G-RESNAP)

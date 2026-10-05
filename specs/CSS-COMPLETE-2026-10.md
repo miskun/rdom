@@ -4984,3 +4984,20 @@ row comes from.
   held mandatory tick chained (outer 1 for 0), `hidden` + `contain` chained (1 for 0). Green after; added
   while fixing: `a_resnap_keeps_the_place_inside_a_tall_card` (15 → 17 after a 2-row insertion). No
   existing test expectation or snapshot changed.
+- 2026-10-10 — C8G-CLEARANCE-COLLAPSE (architect B1). Found: `parent_collapses_top_with_first_child`
+  had no clearance condition (its doc still said "`clear` isn't a property we model", and DIVERGENCES
+  "there is no `float` / `clear` yet"), so in `<body><div><div style="float:left;height:3">F</div><div
+  style="clear:left;margin-top:2">x</div></div></body>` the cleared div — the first in-flow child, the
+  float being out of flow — let its margin escape: the parent moved down 2, F painted at row 2 and x at
+  row 5 (browsers: 0 and 3). Decision: CSS 2.1 §8.3.1 ("…and the child has no clearance") with §9.5.2's
+  hypothetical position — the child's margin collapsed through the parent puts it at the parent's top,
+  where a float ahead of it in the parent sits too, so a first in-flow child whose `clear` names the side
+  of such a float has clearance (`margin_collapse::first_child_has_clearance`); the parent then keeps the
+  child's margin inside, and the existing clearance (`float::beside_floats`, max of the hypothetical
+  position and the float's bottom) puts it at 3. The sibling and collapse-through halves were already
+  right (`place.rs`'s `cleared`). Not weighed: a float from outside the parent reaching below its top
+  (recorded in DIVERGENCES' margin-collapse entry, which no longer says floats are missing). Bottom
+  edge unchanged: §8.3.1's bottom rule concerns collapse-through children with clearance, which
+  `place.rs` already stops. Red: `css_phase8/float/clear.rs::clearance_stops_the_parent_and_first_child_margins_collapsing`
+  — `(2, 2, 5)` for `(0, 0, 3)`; the no-`clear` pin passed before and after. Green after; no other test
+  or snapshot changed.

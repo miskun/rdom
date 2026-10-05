@@ -92,8 +92,8 @@ fn is_collapse_through_shape(dom: &Dom<TuiExt>, id: NodeId, computed: &ComputedS
 /// CSS 2.1 §8.3.1 — predicate for "this container's `margin-top`
 /// collapses through to its first in-flow block child's
 /// `margin-top`." All conditions must hold: no top padding, no top
-/// border, no clearance (always true in v1 — `clear` isn't a
-/// property we model), the container doesn't establish a new
+/// border, the child has no clearance ([`first_child_has_clearance`]),
+/// the container doesn't establish a new
 /// block formatting context, and no line box comes first — neither
 /// inline content ahead of the first block child (text, an inline
 /// box: an anonymous block with a line, CSS 2.1 §9.2.1.1) nor a
@@ -110,6 +110,40 @@ pub(super) fn parent_collapses_top_with_first_child(
         && !establishes_independent_formatting_context(dom, id, parent)
         && !inline_content_at_edge(dom, id, false)
         && !own_line_pseudos(dom, id).before
+        && !first_child_has_clearance(dom, id)
+}
+
+/// §8.3.1's "the child has no clearance", decided as §9.5.2 asks from the
+/// child's hypothetical position — with its top margin collapsed through
+/// `id`, at `id`'s own top. A float ahead of it among `id`'s children is
+/// placed at that top too, so a first in-flow block child whose `clear`
+/// names the side of such a float has clearance. (A float from outside
+/// `id` that reaches below `id`'s top is not weighed: DIVERGENCES, margin collapsing.)
+fn first_child_has_clearance(dom: &Dom<TuiExt>, id: NodeId) -> bool {
+    use crate::layout::FloatSide;
+    use crate::render::layout_pass::float::{clear_sides, float_side};
+    let (mut left, mut right) = (false, false);
+    for item in crate::render::box_tree::box_sequence(dom, id) {
+        let Some(child) = item.node() else {
+            return false;
+        };
+        if dom.node(child).node_type() != NodeType::Element {
+            continue;
+        }
+        match float_side(dom, child) {
+            Some(FloatSide::Left) => left = true,
+            Some(FloatSide::Right) => right = true,
+            None if is_in_flow(dom, child) => {
+                let Some(c) = dom.node(child).ext().and_then(|e| e.computed.as_deref()) else {
+                    return false;
+                };
+                let (clears_left, clears_right) = clear_sides(dom, child, c);
+                return (clears_left && left) || (clears_right && right);
+            }
+            None => {}
+        }
+    }
+    false
 }
 
 /// Symmetric to `parent_collapses_top_with_first_child` — for the

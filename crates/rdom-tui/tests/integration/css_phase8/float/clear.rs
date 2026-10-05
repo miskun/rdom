@@ -88,3 +88,55 @@ fn clear_on_an_inline_box_does_nothing() {
     );
     assert_eq!(crate::css_phase8::rows(&buf, 10, 1)[0], "L  ab     ");
 }
+
+/// C8G-CLEARANCE-COLLAPSE — CSS 2.1 §8.3.1: "The top margin of a box
+/// collapses with its first in-flow child's top margin if the element has
+/// no top border, no top padding, and the child has no clearance"; §9.5.2
+/// decides clearance from the child's hypothetical position. The float is
+/// out of flow, so the cleared div is the parent's first in-flow child:
+/// its hypothetical top (its margin collapsed through to the parent's
+/// top) is above the float's bottom, so it has clearance — its `margin-top:
+/// 2` does not escape, the parent and the float stay at row 0, and `x` is
+/// below the float at row 3 (the greater of its margin's 2 and the
+/// float's bottom).
+#[test]
+fn clearance_stops_the_parent_and_first_child_margins_collapsing() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let body = el(&mut dom, root, "body", "");
+    let parent = el(&mut dom, body, "div", "p");
+    let f = boxed(&mut dom, parent, "f", "F");
+    let x = boxed(&mut dom, parent, "x", "x");
+    lay_out(
+        &mut dom,
+        ".f { float: left; width: 3; height: 3 } .x { clear: left; margin-top: 2 }",
+        10,
+        8,
+    );
+    assert_eq!(
+        (rect(&dom, parent).y, rect(&dom, f).y, rect(&dom, x).y),
+        (0, 0, 3)
+    );
+}
+
+/// Without `clear`, the child has no clearance and its margin escapes as
+/// before: the parent (and the float in it) move down 2.
+#[test]
+fn without_clear_the_first_childs_margin_still_collapses_through() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let body = el(&mut dom, root, "body", "");
+    let parent = el(&mut dom, body, "div", "p");
+    let f = boxed(&mut dom, parent, "f", "F");
+    let x = boxed(&mut dom, parent, "x", "x");
+    lay_out(
+        &mut dom,
+        ".f { float: left; width: 3; height: 3 } .x { margin-top: 2 }",
+        10,
+        8,
+    );
+    assert_eq!(
+        (rect(&dom, parent).y, rect(&dom, f).y, rect(&dom, x).y),
+        (2, 2, 2)
+    );
+}
