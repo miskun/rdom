@@ -343,9 +343,98 @@ impl TrackList {
     }
 }
 
-/// `grid-template-columns` / `grid-template-rows` (CSS Grid 2 §7.2).
-/// `#[non_exhaustive]`: `subgrid` (§9) and later grammars add variants;
-/// a reader that meets one it does not know has no explicit tracks.
+/// One component of a subgrid's `<line-name-list>` (CSS Grid 2 §9):
+/// the names of one line, or a `<name-repeat>` of several lines' names.
+#[derive(Debug, Clone, PartialEq)]
+pub enum LineNameItem {
+    /// `[ <custom-ident>* ]`: one line's names (possibly none, `[]`).
+    Names(Vec<String>),
+    /// `repeat( <integer [1,∞]> | auto-fill , <line-names>+ )`: the
+    /// lines' names `count` times — for `auto-fill`, as many times as the
+    /// subgrid's span has lines left for (§9). `count` is never
+    /// `auto-fit`.
+    Repeat {
+        count: RepeatCount,
+        names: Vec<Vec<String>>,
+    },
+}
+
+/// `<line-name-list>` (CSS Grid 2 §9): the names a subgrid gives its
+/// lines, in order from its first line.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct LineNameList {
+    pub items: Vec<LineNameItem>,
+}
+
+impl LineNameList {
+    /// Whether the list is in the grammar: every repetition non-empty
+    /// and counted (`auto-fill`, or at least once — never `auto-fit`),
+    /// and at most one `auto-fill`.
+    pub fn is_valid(&self) -> bool {
+        let mut auto_fill = 0;
+        self.items.iter().all(|item| match item {
+            LineNameItem::Names(_) => true,
+            LineNameItem::Repeat { count, names } => {
+                if *count == RepeatCount::AutoFill {
+                    auto_fill += 1;
+                }
+                !names.is_empty() && !matches!(count, RepeatCount::Count(0) | RepeatCount::AutoFit)
+            }
+        }) && auto_fill <= 1
+    }
+
+    /// How many lines the list names without its `auto-fill`
+    /// repetition: what an auto-placed subgrid spans one fewer tracks
+    /// than (§9).
+    pub fn explicit_lines(&self) -> usize {
+        self.items
+            .iter()
+            .map(|item| match item {
+                LineNameItem::Names(_) => 1,
+                LineNameItem::Repeat {
+                    count: RepeatCount::Count(n),
+                    names,
+                } => (*n as usize).saturating_mul(names.len()),
+                LineNameItem::Repeat { .. } => 0,
+            })
+            .fold(0usize, usize::saturating_add)
+    }
+
+    /// The names of each of `lines` lines, the list written out from the
+    /// first line: a `repeat()` expanded, `auto-fill` repeated as many
+    /// whole times as the lines the rest of the list leaves allow, names
+    /// past the last line dropped.
+    pub fn expand(&self, lines: usize) -> Vec<Vec<String>> {
+        let fill = lines.saturating_sub(self.explicit_lines());
+        let mut out: Vec<Vec<String>> = Vec::with_capacity(lines);
+        for item in &self.items {
+            match item {
+                LineNameItem::Names(n) => out.push(n.clone()),
+                LineNameItem::Repeat { count, names } => {
+                    let times = match count {
+                        RepeatCount::Count(n) => *n as usize,
+                        _ => fill / names.len().max(1),
+                    };
+                    for _ in 0..times {
+                        if out.len() >= lines {
+                            break;
+                        }
+                        out.extend(names.iter().cloned());
+                    }
+                }
+            }
+            if out.len() >= lines {
+                break;
+            }
+        }
+        out.resize(lines, Vec::new());
+        out
+    }
+}
+
+/// `grid-template-columns` / `grid-template-rows` (CSS Grid 2 §7.2, §9).
+/// `#[non_exhaustive]`: later grammars add variants; a reader that meets
+/// one it does not know has no explicit tracks.
 #[derive(Debug, Clone, PartialEq, Default)]
 #[non_exhaustive]
 pub enum GridTemplate {
@@ -354,6 +443,10 @@ pub enum GridTemplate {
     None,
     /// A track list.
     Tracks(TrackList),
+    /// `subgrid <line-name-list>?` (§9): a grid item's grid that takes
+    /// its parent grid's tracks on this axis. Where the element is no
+    /// subgrid (its parent is not a grid), it is `none`.
+    Subgrid(LineNameList),
 }
 
 impl GridTemplate {
@@ -361,13 +454,26 @@ impl GridTemplate {
     pub fn tracks(&self) -> Option<&TrackList> {
         match self {
             GridTemplate::Tracks(list) => Some(list),
-            GridTemplate::None => None,
+            GridTemplate::None | GridTemplate::Subgrid(_) => None,
         }
     }
 
-    /// Whether the value is in the grammar ([`TrackList::is_valid`]).
+    /// The line names of a `subgrid`, if it is one.
+    pub fn subgrid(&self) -> Option<&LineNameList> {
+        match self {
+            GridTemplate::Subgrid(names) => Some(names),
+            _ => None,
+        }
+    }
+
+    /// Whether the value is in the grammar ([`TrackList::is_valid`],
+    /// [`LineNameList::is_valid`]).
     pub fn is_valid(&self) -> bool {
-        self.tracks().is_none_or(TrackList::is_valid)
+        match self {
+            GridTemplate::Tracks(list) => list.is_valid(),
+            GridTemplate::Subgrid(names) => names.is_valid(),
+            GridTemplate::None => true,
+        }
     }
 }
 

@@ -159,7 +159,7 @@ row comes from.
 | C7-GRID-AREAS | `grid-template-areas`, `grid-template`, `grid` shorthands | done |
 | C7-GRID-AUTO | `grid-auto-columns` / `grid-auto-rows` | done |
 | C7-GRID-ALIGN | Box Alignment in grid (`justify-*` / `align-*` / `place-*`) | done |
-| C7-SUBGRID | `subgrid` | |
+| C7-SUBGRID | `subgrid` | partial — the layout (part 2) |
 | C7-GRID-RERESOLVE | CSS Grid 2 §11.1 steps 3–4: the columns, then the rows, sized again once when the rows changed an item's column contribution (part 1 follow-up) | done |
 | C7-ABSPOS-PADDING-EDGE | An absolutely positioned box's containing block is its positioned ancestor's padding box (CSS 2.1 §10.1, Grid §9.1) (part 1 follow-up) | |
 | C7-SPLIT | File-size pass on `layout_pass/grid/*` and the files Phase 7 touched (TECH_DEBT `SIZE-1`) | |
@@ -3937,3 +3937,18 @@ row comes from.
   definite, so §5.1 transfers it; the item overflows its fixed 10-cell column. No snapshot changed.
   DIVERGENCES: §2's "columns are not sized again after the rows" entry goes; §1's `aspect-ratio`
   entry names grid.
+- 2026-10-08 — C7-SUBGRID, part 1 of 2 (the value; the layout is part 2): `grid-template-columns` /
+  `-rows: subgrid <line-name-list>?` (CSS Grid 2 §9: `<line-name-list> = [ <line-names> |
+  <name-repeat> ]+`, `<name-repeat> = repeat( [ <integer [1,∞]> | auto-fill ], <line-names>+ )`)
+  parse and serialize as written. Model: part 1's `#[non_exhaustive]` `GridTemplate` gains
+  `Subgrid(LineNameList)` (not breaking: the enum was non-exhaustive for this); `LineNameList { items:
+  Vec<LineNameItem> }`, `LineNameItem { Names, Repeat { count, names } }`, `is_valid` (non-empty
+  counted repetitions, never `auto-fit`, one `auto-fill` at most), `explicit_lines` (the lines named
+  without the `auto-fill` repetition — an auto-placed subgrid's span plus one) and `expand(lines)` (the
+  list written out over a subgrid's lines, `auto-fill` repeating whole times into what the rest
+  leaves). `GridTemplate::tracks()` is `None` for a subgrid, so every reader keeps treating it as
+  `none` until part 2 — which is also its used value where the element has no parent grid. Red:
+  `grid_template_takes_subgrid_with_line_names` failed to compile without the model, then against a
+  `None` parser stub; green after. Added green, then mutation-checked:
+  `a_line_name_list_expands_over_the_subgrids_lines` (`auto-fill` repeated `fill` times rather than
+  `fill / names` → `[…, "c", "d", "c"]`). No other test expectation and no snapshot changed.

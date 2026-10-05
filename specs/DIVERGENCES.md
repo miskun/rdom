@@ -291,7 +291,7 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 
 ### Grid
 
-- `subgrid` — C7-SUBGRID
+- `subgrid` — C7-SUBGRID (parsed and serialized; until its layout lands a subgrid lays out as `none`)
 
 ### Positioned layout
 

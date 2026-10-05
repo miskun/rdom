@@ -46,7 +46,8 @@ pub use border::{
 };
 pub use box_model::{Margin, MarginTrim, MarginValue, Padding, PaddingValue};
 pub use grid::{
-    GridTemplate, RepeatCount, TrackBreadth, TrackList, TrackListItem, TrackRepeat, TrackSize,
+    GridTemplate, LineNameItem, LineNameList, RepeatCount, TrackBreadth, TrackList, TrackListItem,
+    TrackRepeat, TrackSize,
 };
 pub use grid_areas::{GridTemplateAreas, NamedArea};
 pub use grid_placement::{GridAutoFlow, GridLine};

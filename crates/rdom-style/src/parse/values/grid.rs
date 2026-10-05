@@ -6,7 +6,8 @@
 use super::numeric::{LengthPercentage, Range, cells_u16, components, length_percentage};
 use crate::calc::CalcExpr;
 use crate::layout::{
-    GridTemplate, RepeatCount, TrackBreadth, TrackList, TrackListItem, TrackRepeat, TrackSize,
+    GridTemplate, LineNameItem, LineNameList, RepeatCount, TrackBreadth, TrackList, TrackListItem,
+    TrackRepeat, TrackSize,
 };
 use crate::parse::token::Token;
 
@@ -19,8 +20,67 @@ pub fn parse_grid_template(value: &[Token]) -> Option<GridTemplate> {
     {
         return Some(GridTemplate::None);
     }
+    if let [Token::Ident(s), rest @ ..] = value
+        && s.eq_ignore_ascii_case("subgrid")
+    {
+        return parse_line_name_list(rest).map(GridTemplate::Subgrid);
+    }
     let list = parse_track_list(value)?;
     list.is_valid().then_some(GridTemplate::Tracks(list))
+}
+
+/// `<line-name-list>?` (§9): `[ <line-names> | <name-repeat> ]*` after
+/// `subgrid`.
+fn parse_line_name_list(value: &[Token]) -> Option<LineNameList> {
+    if value.is_empty() {
+        return Some(LineNameList::default());
+    }
+    let parts = components(value)?;
+    let mut list = LineNameList::default();
+    let mut i = 0;
+    while i < parts.len() {
+        if let Some((read, names)) = line_names(&parts[i..]) {
+            list.items.push(LineNameItem::Names(names));
+            i += read;
+            continue;
+        }
+        let [Token::Function(f), inner @ .., Token::RParen] = parts[i] else {
+            return None;
+        };
+        if !f.eq_ignore_ascii_case("repeat") {
+            return None;
+        }
+        list.items.push(parse_name_repeat(inner)?);
+        i += 1;
+    }
+    list.is_valid().then_some(list)
+}
+
+/// `<name-repeat>`'s arguments (§9): `[ <integer [1,∞]> | auto-fill ] ,
+/// <line-names>+`.
+fn parse_name_repeat(inner: &[Token]) -> Option<LineNameItem> {
+    let [count, lines] = super::numeric::split_commas(inner)?[..] else {
+        return None;
+    };
+    let count = match count {
+        [Token::Ident(s)] if s.eq_ignore_ascii_case("auto-fill") => RepeatCount::AutoFill,
+        _ => {
+            let n = super::numeric::integer(count)?;
+            if n < 1 {
+                return None;
+            }
+            RepeatCount::Count(u32::try_from(n).unwrap_or(u32::MAX))
+        }
+    };
+    let parts = components(lines)?;
+    let mut names = Vec::new();
+    let mut i = 0;
+    while i < parts.len() {
+        let (read, n) = line_names(&parts[i..])?;
+        names.push(n);
+        i += read;
+    }
+    (!names.is_empty()).then_some(LineNameItem::Repeat { count, names })
 }
 
 /// `[ <line-names>? [ <track-size> | <track-repeat> ] ]+ <line-names>?`:
@@ -206,8 +266,32 @@ fn parse_breadth(value: &[Token]) -> Option<TrackBreadth> {
 pub fn serialize_grid_template(value: &GridTemplate) -> String {
     match value {
         GridTemplate::Tracks(list) => serialize_track_list(list),
+        GridTemplate::Subgrid(names) => serialize_line_name_list(names),
         GridTemplate::None => "none".to_string(),
     }
+}
+
+/// `subgrid` and its line names as written.
+fn serialize_line_name_list(list: &LineNameList) -> String {
+    let names = |n: &[String]| format!("[{}]", n.join(" "));
+    let mut out = vec!["subgrid".to_string()];
+    for item in &list.items {
+        out.push(match item {
+            LineNameItem::Names(n) => names(n),
+            LineNameItem::Repeat {
+                count,
+                names: lines,
+            } => {
+                let count = match count {
+                    RepeatCount::Count(n) => n.to_string(),
+                    _ => "auto-fill".to_string(),
+                };
+                let lines: Vec<String> = lines.iter().map(|n| names(n)).collect();
+                format!("repeat({count}, {})", lines.join(" "))
+            }
+        });
+    }
+    out.join(" ")
 }
 
 fn serialize_track_list(list: &TrackList) -> String {

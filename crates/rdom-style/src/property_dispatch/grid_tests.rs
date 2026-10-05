@@ -351,3 +351,102 @@ fn grid_placement_builders_write_the_declarations() {
 fn a_zero_grid_line_panics_in_a_debug_build() {
     let _ = TuiStyle::new().grid_row_start(crate::layout::GridLine::line(0));
 }
+
+/// CSS Grid 2 §9: `grid-template-columns` / `-rows: subgrid
+/// <line-name-list>?`, `<line-name-list> = [ <line-names> | <name-repeat>
+/// ]+` and `<name-repeat> = repeat( [ <integer [1,∞]> | auto-fill ],
+/// <line-names>+ )` — at most one `auto-fill` repetition; serialized as
+/// written.
+#[test]
+fn grid_template_takes_subgrid_with_line_names() {
+    use crate::layout::{LineNameItem, LineNameList};
+    let mut style = TuiStyle::new();
+    set(
+        "grid-template-columns",
+        "SUBGRID [a] repeat(2, [b] [c d]) [] repeat(auto-fill, [e])",
+        &mut style,
+    )
+    .unwrap();
+    assert_eq!(
+        style.grid_template_columns,
+        Some(Value::Specified(GridTemplate::Subgrid(LineNameList {
+            items: vec![
+                LineNameItem::Names(vec!["a".into()]),
+                LineNameItem::Repeat {
+                    count: RepeatCount::Count(2),
+                    names: vec![vec!["b".into()], vec!["c".into(), "d".into()]],
+                },
+                LineNameItem::Names(vec![]),
+                LineNameItem::Repeat {
+                    count: RepeatCount::AutoFill,
+                    names: vec![vec!["e".into()]],
+                },
+            ],
+        })))
+    );
+    assert_eq!(
+        serialize("grid-template-columns", &style).as_deref(),
+        Some("subgrid [a] repeat(2, [b] [c d]) [] repeat(auto-fill, [e])")
+    );
+    set("grid-template-rows", "subgrid", &mut style).unwrap();
+    assert_eq!(
+        serialize("grid-template-rows", &style).as_deref(),
+        Some("subgrid")
+    );
+    assert_eq!(
+        GridTemplate::Subgrid(LineNameList::default()).tracks(),
+        None
+    );
+    for bad in [
+        "subgrid 1",
+        "subgrid [a] 1fr",
+        "subgrid repeat(auto-fit, [a])",
+        "subgrid repeat(auto-fill, [a]) repeat(auto-fill, [b])",
+        "subgrid repeat(0, [a])",
+        "subgrid repeat(2, 1)",
+        "subgrid subgrid",
+        "1fr subgrid",
+    ] {
+        assert_eq!(
+            set("grid-template-columns", bad, &mut TuiStyle::new()),
+            Err(DispatchError::InvalidValue),
+            "{bad:?}"
+        );
+    }
+}
+
+/// CSS Grid 2 §9: a `<line-name-list>` names a subgrid's lines from its
+/// first — `repeat(<n>, …)` written out, `repeat(auto-fill, …)` as many
+/// whole times as the lines the rest leaves, names past the last line
+/// dropped; an auto-placed subgrid spans the list's explicit lines less
+/// one.
+#[test]
+fn a_line_name_list_expands_over_the_subgrids_lines() {
+    use crate::layout::{LineNameItem, LineNameList};
+    let n = |s: &str| vec![s.to_string()];
+    let list = LineNameList {
+        items: vec![
+            LineNameItem::Names(n("a")),
+            LineNameItem::Repeat {
+                count: RepeatCount::Count(2),
+                names: vec![n("b")],
+            },
+            LineNameItem::Repeat {
+                count: RepeatCount::AutoFill,
+                names: vec![n("c"), n("d")],
+            },
+            LineNameItem::Names(n("e")),
+        ],
+    };
+    assert_eq!(list.explicit_lines(), 4);
+    let flat = |lines: usize| -> Vec<String> {
+        list.expand(lines)
+            .into_iter()
+            .map(|l| l.join(","))
+            .collect()
+    };
+    assert_eq!(flat(8), ["a", "b", "b", "c", "d", "c", "d", "e"]);
+    assert_eq!(flat(6), ["a", "b", "b", "c", "d", "e"]);
+    assert_eq!(flat(3), ["a", "b", "b"]);
+    assert_eq!(flat(5), ["a", "b", "b", "e", ""]);
+}
