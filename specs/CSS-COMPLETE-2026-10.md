@@ -156,7 +156,7 @@ row comes from.
 |---|---|---|
 | C7-GRID-CORE | `display: grid` / `inline-grid`, `grid-template-columns` / `-rows` with cells / `%` / `fr` / `auto` / `minmax()` / `repeat()` | done |
 | C7-GRID-PLACE | `grid-row` / `grid-column` (+ start / end), `grid-area`, auto-placement, `grid-auto-flow` (`dense`) | done |
-| C7-GRID-AREAS | `grid-template-areas`, `grid-template`, `grid` shorthands | |
+| C7-GRID-AREAS | `grid-template-areas`, `grid-template`, `grid` shorthands | partial — the `grid-template` / `grid` shorthands (part 2) |
 | C7-GRID-AUTO | `grid-auto-columns` / `grid-auto-rows` | done |
 | C7-GRID-ALIGN | Box Alignment in grid (`justify-*` / `align-*` / `place-*`) | |
 | C7-SUBGRID | `subgrid` | |
@@ -3788,3 +3788,28 @@ row comes from.
   negative test's hit (asserted after it survived the first run). Consumer-visible for flex: listed
   among the CHANGELOG's silent behaviour changes. No other test expectation and no snapshot changed.
   DIVERGENCES §2's stacking-context entry names the items.
+- 2026-10-08 — C7-GRID-AREAS, part 1 of 2 (`grid-template-areas`; the `grid-template` / `grid`
+  shorthands are part 2): `grid-template-areas` (CSS Grid 2 §7.3: `none | <string>+`, initial `none`,
+  not inherited) parses, cascades, computes and serializes (each string's tokens one space apart, a
+  null cell token one `.`, as browsers give it). Model — decided, valid by construction:
+  `layout/grid_areas.rs` — `GridTemplateAreas` (private rows; `GridTemplateAreas::new(rows)` reads each
+  string as §7.3 tokenizes it — name code points, `.` runs, whitespace, anything else a trash token —
+  and refuses unequal rows, a trash token or a name whose cells are not one filled rectangle, so the
+  builder needs no grammar check), `NamedArea { name, rows, columns }` (`areas()`, first-appearance
+  order); parser `parse/values/grid_areas.rs`; dispatch, field, bit, builder, node setter
+  `set_grid_template_areas`, root and prelude re-exports. Layout (`grid/template.rs`): the explicit
+  grid grows to the areas' rows / columns (§7.1: "the larger of the number of rows/columns defined by
+  `grid-template-areas` and the number … sized by `grid-template-rows`/`grid-template-columns`"; the
+  unsized ones take `grid-auto-*` — the pattern continuing from the last sized track, as the tracks
+  after the explicit grid do) — `Explicit::count` beside `sizes` — and each area names its edges
+  `<area>-start` / `<area>-end` on both axes (§7.3.2; `Explicit::with_areas`, the names `Cow`s so the
+  template's own stay borrowed), which part 1's seam reads: a lone `<custom-ident>` already tried
+  `<ident>-start` / `-end` (§8.3), so `grid-area: head` fills the area and an absolutely positioned box
+  finds it through the kept `GridLines` (§9.1). Red: `grid_areas_tests` (3) failed against a parser
+  stub returning `None` and an unchecked rectangle (the L-shape accepted); `css_phase7/areas.rs` (4)
+  failed with the areas ignored (every item auto-placed in one column — `[(0, 0, 2, 1), (0, 1, 2, 1),
+  …]` — the named items at implicit lines `(16, 4, 4, 1)`, the abspos box the whole container); green
+  after. Mutation checks (restored and touched): the implicit `-start` / `-end` names off → three of
+  the four (the explicit-size test survives); the explicit grid not grown → that test. Changed
+  expectations: the canonical-values table, the important-setter coverage and the C1 `initial`
+  perturbation gain the property. No snapshot changed. DIVERGENCES §3's grid line keeps the shorthands.

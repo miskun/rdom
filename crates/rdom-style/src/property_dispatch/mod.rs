@@ -103,6 +103,8 @@ mod display_tests;
 #[cfg(test)]
 mod flex_tests;
 #[cfg(test)]
+mod grid_areas_tests;
+#[cfg(test)]
 mod grid_tests;
 #[cfg(test)]
 mod logical_tests;

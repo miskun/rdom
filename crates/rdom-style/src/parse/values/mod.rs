@@ -21,6 +21,7 @@
 //! - `shadow.rs` — `box-shadow`.
 //! - `content.rs` — `content` and counter operations.
 //! - `grid.rs` — grid track lists (`grid-template-*`, `grid-auto-*`).
+//! - `grid_areas.rs` — named grid areas (`grid-template-areas`).
 //! - `grid_placement.rs` — grid placement (`grid-row` / `-column` /
 //!   `-area` and their longhands, `grid-auto-flow`).
 //! - `transition.rs` — easing, `<time>`, transition lists and shorthand.
@@ -40,6 +41,7 @@ mod content;
 mod display;
 mod flex;
 mod grid;
+mod grid_areas;
 mod grid_placement;
 mod keyword;
 mod length;
@@ -87,6 +89,7 @@ pub use grid::{
     parse_grid_template, parse_track_size, parse_track_sizes, serialize_grid_template,
     serialize_track_size, serialize_track_sizes,
 };
+pub use grid_areas::{parse_grid_template_areas, serialize_grid_template_areas};
 pub use grid_placement::{
     parse_grid_area, parse_grid_auto_flow, parse_grid_line, parse_grid_line_pair,
     serialize_grid_area, serialize_grid_auto_flow, serialize_grid_line, serialize_grid_line_pair,

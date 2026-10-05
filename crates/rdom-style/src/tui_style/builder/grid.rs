@@ -1,5 +1,6 @@
 //! The grid setters of the `TuiStyle` builder (CSS Grid Layout 2): the
-//! grid container conveniences, the explicit track lists, the implicit
+//! grid container conveniences, the explicit track lists and named
+//! areas, the implicit
 //! track sizes, `grid-auto-flow`, and the items' placement.
 
 use super::super::{ImportantMask, TuiStyle};
@@ -146,6 +147,14 @@ impl TuiStyle {
         grid_template_rows,
         grid_template_rows_important,
         GRID_TEMPLATE_ROWS
+    );
+    setter!(
+        "grid-template-areas",
+        grid_template_areas,
+        grid_template_areas,
+        grid_template_areas_important,
+        GRID_TEMPLATE_AREAS,
+        crate::layout::GridTemplateAreas
     );
     auto_setter!(
         "grid-auto-columns",

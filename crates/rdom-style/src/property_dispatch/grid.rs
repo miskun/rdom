@@ -1,5 +1,6 @@
 //! The grid properties (CSS Grid Layout 2): their `set` and `serialize`
 //! arms — the track lists of `grid-template-columns` / `-rows` (§7.2),
+//! the named areas of `grid-template-areas` (§7.3),
 //! the implicit track sizes of `grid-auto-columns` / `-rows` (§7.6),
 //! `grid-auto-flow` (§7.7), and the placement longhands and shorthands
 //! (§8.3, §8.4).
@@ -9,8 +10,9 @@ use crate::layout::GridLine;
 use crate::parse::token::Token;
 use crate::parse::values::{
     parse_grid_area, parse_grid_auto_flow, parse_grid_line, parse_grid_line_pair,
-    parse_grid_template, parse_track_sizes, serialize_grid_area, serialize_grid_auto_flow,
-    serialize_grid_line, serialize_grid_line_pair, serialize_grid_template, serialize_track_sizes,
+    parse_grid_template, parse_grid_template_areas, parse_track_sizes, serialize_grid_area,
+    serialize_grid_auto_flow, serialize_grid_line, serialize_grid_line_pair,
+    serialize_grid_template, serialize_grid_template_areas, serialize_track_sizes,
 };
 use crate::{TuiStyle, Value};
 
@@ -23,6 +25,9 @@ pub(super) fn set(name: &str, value: &[Token], style: &mut TuiStyle) -> Option<O
         }),
         "grid-template-rows" => parse_grid_template(value).map(|t| {
             style.grid_template_rows = Some(Value::Specified(t));
+        }),
+        "grid-template-areas" => parse_grid_template_areas(value).map(|a| {
+            style.grid_template_areas = Some(Value::Specified(a));
         }),
         "grid-auto-columns" => parse_track_sizes(value).map(|t| {
             style.grid_auto_columns = Some(Value::Specified(t));
@@ -76,6 +81,11 @@ pub(super) fn serialize(name: &str, style: &TuiStyle) -> Option<Option<String>> 
             .as_ref()
             .and_then(specified)
             .map(serialize_grid_template),
+        "grid-template-areas" => style
+            .grid_template_areas
+            .as_ref()
+            .and_then(specified)
+            .map(serialize_grid_template_areas),
         "grid-auto-columns" => style
             .grid_auto_columns
             .as_ref()

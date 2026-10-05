@@ -77,7 +77,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.6 Box model and sizing (Box 3, Sizing 3/4) | 7 | 2 | 0 | 0 | 9 |
 | 3.7 Display and visibility (Display 3) | 7 | 1 | 1 | 2 | 11 |
 | 3.8 Flexbox and box alignment (Flexbox 1, Align 3) | 17 | 0 | 0 | 0 | 17 |
-| 3.9 Grid (Grid 1/2) | 5 | 0 | 5 | 0 | 10 |
+| 3.9 Grid (Grid 1/2) | 6 | 0 | 4 | 0 | 10 |
 | 3.10 Positioned layout (Position 3, CSS 2.1 §9) | 4 | 1 | 1 | 1 | 7 |
 | 3.11 Overflow, scrolling and scrollbars (Overflow 3/4, Scroll Snap 1, Overscroll 1, Scrollbars 1) | 1 | 3 | 10 | 0 | 14 |
 | 3.12 Inline text (Text 3/4, Inline 3, CSS 2.1 §10.8) | 0 | 1 | 14 | 6 | 21 |
@@ -93,11 +93,11 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 5 | 2 | 1 | 1 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **139** | **28** | **94** | **46** | **307** |
+| **Total** | **140** | **28** | **93** | **46** | **307** |
 
-When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 122 rows Partial / Missing.
+When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 121 rows Partial / Missing.
 
-Headline: rdom parses **180 property names** (`property_names()`, after C7-GRID-PLACE). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are `line-height`, `text-align`, and grid placement.
+Headline: rdom parses **181 property names** (`property_names()`, after C7-GRID-AREAS's `grid-template-areas`). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are `line-height`, `text-align`, and grid placement.
 
 ---
 
@@ -379,13 +379,13 @@ dropped. The audit's six, with where each stands:
 | Item | Class | Detail | Doc'd | Where |
 |---|---|---|---|---|
 | `grid-template-columns` / `grid-template-rows` | Supported | `none` and track lists — cells, `%`, `calc()`, `fr`, `auto`, `min-content`, `max-content`, `minmax()`, `fit-content()`, `repeat(<n> / auto-fill / auto-fit)` (§7.2.3.2, `auto-fit` collapsing empty repetitions), line names — parsed, computed and serialized as written; sized by the track sizing algorithm (§11.3–§11.8: intrinsic sizes by increasing span, spanning items into flexible tracks by flex factor, the `fr` size, `auto` tracks stretched) in whole cells (DIVERGENCES §1); `row-gap` / `column-gap` as fixed gutters, `normal` 0 (C7-GRID-CORE). | Yes | `V/grid.rs`, `DISP/grid.rs`, `rdom-tui/src/render/layout_pass/grid/` |
-| `grid-template-areas` | Missing | Named areas. | Yes | grid |
+| `grid-template-areas` | Supported | `none | <string>+`, each string a row of named cell tokens and `.` null cells (§7.3), the declaration invalid unless the rows have equal cell counts, hold no trash token and every name fills one rectangle; serialized with single spaces and one `.` per null cell. The areas size the explicit grid (§7.1, the tracks no template sizes taking `grid-auto-*`) and name their lines `<area>-start` / `-end` (§7.3.2), which `grid-area: <name>` and the other placement properties find (§8.3), absolutely positioned boxes too (C7-GRID-AREAS). | — | `layout/grid_areas.rs`, `V/grid_areas.rs`, `rdom-tui/src/render/layout_pass/grid/template.rs` |
 | `grid-template` | Missing | Shorthand. | Yes | grid |
 | `grid-auto-columns` / `grid-auto-rows` | Supported | `<track-size>+` (cells, `%`, `calc()`, `fr`, the keywords, `minmax()`, `fit-content()`), initial `auto`, serialized as written: the implicit tracks' sizes, repeated as a pattern forwards after the explicit grid and backwards before it (CSS Grid 2 §7.6, C7-GRID-AUTO). | Yes | `V/grid.rs`, `DISP/grid.rs`, `rdom-tui/src/render/layout_pass/grid/mod.rs` |
 | `grid-auto-flow` | Supported | `[ row | column ] || dense`, initial `row`, serialized in the shortest form (`row dense` as `dense`): the auto-placement algorithm fills rows or columns, sparse or dense (CSS Grid 2 §7.7 / §8.5, C7-GRID-PLACE). | — | `V/grid_placement.rs`, `rdom-tui/src/render/layout_pass/grid/placement.rs` |
 | `grid` | Missing | Shorthand. | Yes | grid |
 | `grid-row` / `grid-column` (+ `-start` / `-end`) | Supported | `<grid-line>` (`auto`, `<integer>` but 0 — negative from the explicit grid's end — `<custom-ident>`, `<integer> <custom-ident>`, `span <integer> || <custom-ident>`) and the shorthands, serialized in the shortest form; placed per §8.3 — a lone ident first matching `<ident>-start` / `-end`, missing named lines taken from the implicit grid — with §8.3.1's conflict handling, lines past or before the explicit grid adding implicit tracks (§7.5; lines clamped to ±10 000), and the §8.5 auto-placement algorithm; an absolutely positioned box whose containing block is a grid container takes the grid area its lines name, an `auto` or missing line the containing block's edge (§9.1) (C7-GRID-PLACE). | — | `V/grid_placement.rs`, `rdom-tui/src/render/layout_pass/grid/placement.rs` |
-| `grid-area` | Supported | `<grid-line> [ / <grid-line> ]{0,3}` (row-start / column-start / row-end / column-end, omitted ones copying a lone ident, §8.4), placed by its four lines (C7-GRID-PLACE); a named area's lines come from `grid-template-areas` (§3.9 row above, C7-GRID-AREAS). | — | `V/grid_placement.rs`, `rdom-tui/src/render/layout_pass/grid/placement.rs` |
+| `grid-area` | Supported | `<grid-line> [ / <grid-line> ]{0,3}` (row-start / column-start / row-end / column-end, omitted ones copying a lone ident, §8.4), placed by its four lines (C7-GRID-PLACE); a named area's lines come from `grid-template-areas` (§3.9 row above, C7-GRID-AREAS), so `grid-area: <name>` fills the area. | — | `V/grid_placement.rs`, `rdom-tui/src/render/layout_pass/grid/placement.rs` |
 | `subgrid` (Grid 2) | Missing | Nested tracks. | Yes | grid |
 | `masonry` / `grid-lanes` (Grid 3, WD) | Missing | Low priority. | Yes | grid |
 

@@ -4,6 +4,8 @@
 //! determined by its grid-placement properties", an `auto` line — or one
 //! the grid does not have — being the containing block's own edge.
 
+use std::borrow::Cow;
+
 use rdom_core::{Dom, NodeId};
 
 use super::placement::{Edge, Lines, count};
@@ -35,10 +37,10 @@ impl AxisLines {
     /// The two edges of the area `start` / `end` name on this axis, `cb`
     /// (start side, end side) standing for an `auto` or missing line.
     fn area(&self, start: &GridLine, end: &GridLine, cb: (i32, i32)) -> (i32, i32) {
-        let names: Vec<Vec<&str>> = self
+        let names: Vec<Vec<Cow<'_, str>>> = self
             .names
             .iter()
-            .map(|n| n.iter().map(String::as_str).collect())
+            .map(|n| n.iter().map(|s| Cow::Borrowed(s.as_str())).collect())
             .collect();
         let lines = Lines {
             tracks: self.explicit,

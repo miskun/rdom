@@ -19,6 +19,7 @@
 //! - `border` — border styles, widths, `border-collapse`
 //! - `box_model` — padding, margin
 //! - `grid` — the grid track lists (`GridTemplate`, `TrackSize`)
+//! - `grid_areas` — named grid areas (`GridTemplateAreas`)
 //! - `grid_placement` — grid item placement (`GridLine`, `GridAutoFlow`)
 //! - `sides` — `Sides`, the per-side shape
 //! - `background` — the background longhands' keyword families
@@ -28,6 +29,7 @@ mod background;
 mod border;
 mod box_model;
 mod grid;
+mod grid_areas;
 mod grid_placement;
 mod keywords;
 mod rect;
@@ -46,6 +48,7 @@ pub use box_model::{Margin, MarginTrim, MarginValue, Padding, PaddingValue};
 pub use grid::{
     GridTemplate, RepeatCount, TrackBreadth, TrackList, TrackListItem, TrackRepeat, TrackSize,
 };
+pub use grid_areas::{GridTemplateAreas, NamedArea};
 pub use grid_placement::{GridAutoFlow, GridLine};
 pub use keywords::{
     BoxSizing, CaretColor, CaretTextColor, Direction, Display, FlexDirection, FlexWrap, Flow,

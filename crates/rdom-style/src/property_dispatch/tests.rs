@@ -79,6 +79,7 @@ fn canonical_values() -> &'static [(&'static str, &'static str)] {
             "[a] 10 repeat(2, minmax(auto, 1fr)) [b]",
         ),
         ("grid-template-rows", "none"),
+        ("grid-template-areas", "\"a b\" \". c\""),
         ("grid-auto-columns", "minmax(2, 1fr) auto"),
         ("grid-auto-rows", "fit-content(4)"),
         ("grid-auto-flow", "column dense"),

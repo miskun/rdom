@@ -97,6 +97,9 @@ pub struct ComputedStyle {
     pub grid_template_columns: crate::layout::GridTemplate,
     /// `grid-template-rows` (§7.2): the explicit rows. Initial `none`.
     pub grid_template_rows: crate::layout::GridTemplate,
+    /// `grid-template-areas` (CSS Grid 2 §7.3): the explicit grid's
+    /// named areas. Initial `none`.
+    pub grid_template_areas: crate::layout::GridTemplateAreas,
     /// `grid-auto-columns` (CSS Grid 2 §7.6): the implicit columns'
     /// sizes, repeated as a pattern; never empty. Initial `auto`.
     pub grid_auto_columns: Vec<crate::layout::TrackSize>,
@@ -337,6 +340,7 @@ impl ComputedStyle {
             flex_basis: crate::layout::FlexBasis::Auto,
             grid_template_columns: crate::layout::GridTemplate::None,
             grid_template_rows: crate::layout::GridTemplate::None,
+            grid_template_areas: crate::layout::GridTemplateAreas::NONE,
             grid_auto_columns: vec![crate::layout::TrackSize::AUTO],
             grid_auto_rows: vec![crate::layout::TrackSize::AUTO],
             grid_auto_flow: crate::layout::GridAutoFlow::ROW,

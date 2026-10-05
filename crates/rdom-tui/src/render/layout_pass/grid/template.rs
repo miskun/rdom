@@ -1,9 +1,16 @@
-//! The explicit grid of one axis (CSS Grid 2 §7.1–§7.2): a
+//! The explicit grid of one axis (CSS Grid 2 §7.1–§7.3): a
 //! `grid-template-*` track list expanded — each `repeat()` written out,
 //! an automatic one as many times as fits (§7.2.3.2) — into its tracks
-//! and the names of each line.
+//! and the names of each line, grown to the tracks
+//! `grid-template-areas` defines and given the line names its areas
+//! imply (§7.3.2).
 
-use crate::layout::{GridTemplate, RepeatCount, TrackBreadth, TrackListItem, TrackSize};
+use std::borrow::Cow;
+
+use super::placement::Lines;
+use crate::layout::{
+    GridTemplate, GridTemplateAreas, RepeatCount, TrackBreadth, TrackListItem, TrackSize,
+};
 
 /// The most tracks rdom creates on one axis. CSS Grid 2 §8 lets a UA
 /// clamp the grid to a limit of its own (suggesting it hold the lines
@@ -26,10 +33,14 @@ pub(super) struct Bounds {
 /// One axis's explicit grid.
 #[derive(Debug)]
 pub(super) struct Explicit<'a> {
-    /// The tracks, in order.
+    /// The tracks the track list sizes, in order.
     pub(super) sizes: Vec<&'a TrackSize>,
-    /// The names of each line, one more than the tracks.
-    pub(super) names: Vec<Vec<&'a str>>,
+    /// How many tracks the explicit grid has: the sized ones, or more
+    /// when `grid-template-areas` defines more — those take their sizes
+    /// from `grid-auto-*` (§7.1).
+    pub(super) count: usize,
+    /// The names of each line, one more than the tracks (`count`).
+    pub(super) names: Vec<Vec<Cow<'a, str>>>,
     /// The tracks an `auto-fit` repetition produced, which collapse when
     /// they hold no item (§7.2.3.2).
     pub(super) auto_fit: std::ops::Range<usize>,
@@ -40,6 +51,7 @@ impl<'a> Explicit<'a> {
     pub(super) fn of(template: &'a GridTemplate, bounds: Bounds) -> Self {
         let mut out = Explicit {
             sizes: Vec::new(),
+            count: 0,
             names: vec![Vec::new()],
             auto_fit: 0..0,
         };
@@ -77,9 +89,42 @@ impl<'a> Explicit<'a> {
         out
     }
 
+    /// The explicit grid grown to the `tracks` `areas` defines on this
+    /// axis (§7.1), and each named area's edges named on it (§7.3.2):
+    /// "two named `foo-start`, naming the row-start and column-start
+    /// lines of the named grid area, and two named `foo-end`" — `rows`
+    /// picks the rows' (else the columns') edges.
+    pub(super) fn with_areas(mut self, areas: &GridTemplateAreas, rows: bool) -> Self {
+        let tracks = if rows {
+            areas.row_count()
+        } else {
+            areas.column_count()
+        };
+        self.count = self.count.max(tracks.min(MAX_TRACKS));
+        self.names.resize_with(self.count + 1, Vec::new);
+        for area in areas.areas() {
+            let span = if rows { area.rows } else { area.columns };
+            if span.end > self.count {
+                continue;
+            }
+            self.names[span.start].push(Cow::Owned(format!("{}-start", area.name)));
+            self.names[span.end].push(Cow::Owned(format!("{}-end", area.name)));
+        }
+        self
+    }
+
+    /// The explicit grid's lines, for placement.
+    pub(super) fn lines(&self) -> Lines<'_> {
+        Lines {
+            tracks: self.count,
+            names: &self.names,
+        }
+    }
+
     fn push(&mut self, size: &'a TrackSize) {
         if self.sizes.len() < MAX_TRACKS {
             self.sizes.push(size);
+            self.count = self.sizes.len();
             self.names.push(Vec::new());
         }
     }
@@ -87,7 +132,7 @@ impl<'a> Explicit<'a> {
     /// Add `names` to the current last line.
     fn name_line(&mut self, names: &'a [String]) {
         if let Some(line) = self.names.last_mut() {
-            line.extend(names.iter().map(String::as_str));
+            line.extend(names.iter().map(|n| Cow::Borrowed(n.as_str())));
         }
     }
 }

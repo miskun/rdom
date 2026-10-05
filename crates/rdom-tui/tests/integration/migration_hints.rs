@@ -803,3 +803,38 @@ fn grid_placement_hints() {
             .is_some_and(|s| s.grid_row_start.is_some() && s.grid_auto_flow.is_some())
     );
 }
+
+/// C7-GRID-AREAS: `grid_template_areas` (`GridTemplateAreas`, valid by
+/// construction), its builder, bit, parser and node setter.
+#[test]
+fn grid_template_areas_hints() {
+    let areas = GridTemplateAreas::new(["a a", "b ."]).expect("rectangles");
+    assert_eq!(
+        areas.areas()[0],
+        NamedArea {
+            name: "a".into(),
+            rows: 0..1,
+            columns: 0..2
+        }
+    );
+    let s = TuiStyle::new().grid_template_areas(areas.clone());
+    assert!(s.grid_template_areas.is_some());
+    assert_eq!(
+        ComputedStyle::initial().grid_template_areas,
+        GridTemplateAreas::NONE
+    );
+    let tokens = style::parse::tokenize("\"a a\" \"b .\"").unwrap();
+    assert_eq!(
+        style::parse::values::parse_grid_template_areas(&tokens),
+        Some(areas.clone())
+    );
+    assert!(ImportantMask::GRID_TEMPLATE_AREAS.intersects(ImportantMask::all()));
+    let mut dom = TuiDom::new();
+    let div = dom.create_element("div");
+    dom.node_mut(div).set_grid_template_areas(areas);
+    assert!(
+        dom.node(div)
+            .inline_style()
+            .is_some_and(|s| s.grid_template_areas.is_some())
+    );
+}

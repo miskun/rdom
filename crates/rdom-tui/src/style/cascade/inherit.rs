@@ -91,6 +91,7 @@ pub(super) fn layout_differs(a: &ComputedStyle, b: &ComputedStyle) -> bool {
         || a.order != b.order
         || a.grid_template_columns != b.grid_template_columns
         || a.grid_template_rows != b.grid_template_rows
+        || a.grid_template_areas != b.grid_template_areas
         || a.grid_auto_columns != b.grid_auto_columns
         || a.grid_auto_rows != b.grid_auto_rows
         || a.grid_auto_flow != b.grid_auto_flow

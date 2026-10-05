@@ -104,6 +104,7 @@ pub use crate::{
     GridAutoFlow,
     GridLine,
     GridTemplate,
+    GridTemplateAreas,
     HitTestExt,
     ImportantMask,
     InteractionKind,

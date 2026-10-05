@@ -8,6 +8,7 @@
 //! line before the explicit grid is negative. [`place`] turns them into
 //! track indices of the implicit grid.
 
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 
 use super::template::MAX_TRACKS;
@@ -44,7 +45,7 @@ pub(super) struct Placement {
 #[derive(Debug, Clone, Copy)]
 pub(super) struct Lines<'a> {
     pub(super) tracks: usize,
-    pub(super) names: &'a [Vec<&'a str>],
+    pub(super) names: &'a [Vec<Cow<'a, str>>],
 }
 
 /// The farthest a line may lie from the explicit grid's first line (§8:
@@ -82,7 +83,7 @@ impl Lines<'_> {
         usize::try_from(x)
             .ok()
             .and_then(|x| self.names.get(x))
-            .is_some_and(|n| n.contains(&name))
+            .is_some_and(|n| n.iter().any(|n| n == name))
     }
 
     /// The `n`th line named `name` (§8.3 `<integer> && <custom-ident>`):

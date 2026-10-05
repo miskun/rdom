@@ -225,6 +225,7 @@ pub(super) fn apply_style(
         order: ORDER,
         grid_template_columns: GRID_TEMPLATE_COLUMNS,
         grid_template_rows: GRID_TEMPLATE_ROWS,
+        grid_template_areas: GRID_TEMPLATE_AREAS,
         grid_auto_columns: GRID_AUTO_COLUMNS,
         grid_auto_rows: GRID_AUTO_ROWS,
         grid_auto_flow: GRID_AUTO_FLOW,

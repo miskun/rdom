@@ -6,8 +6,8 @@ use rdom_core::NodeMut;
 use crate::ext::TuiExt;
 use crate::layout::{
     Alignment, Border, BorderRadius, BoxSizing, Corners, Direction, FlexDirection, FlexWrap,
-    GridAutoFlow, GridLine, GridTemplate, Margin, MarginTrim, Overflow, Padding, Size,
-    TextDirection, TrackSize, Visibility, WritingMode,
+    GridAutoFlow, GridLine, GridTemplate, GridTemplateAreas, Margin, MarginTrim, Overflow, Padding,
+    Size, TextDirection, TrackSize, Visibility, WritingMode,
 };
 use crate::style::{TuiStyle, Value};
 
@@ -145,6 +145,12 @@ pub trait TuiNodeMutExt<'a>: crate::sealed::Sealed {
         self.write_inline_style(|s| *s = std::mem::take(s).grid_template_rows(t));
         self
     }
+    /// Declare `grid-template-areas` inline (CSS Grid 2 §7.3).
+    fn set_grid_template_areas(&mut self, areas: GridTemplateAreas) -> &mut Self {
+        self.write_inline_style(|s| s.grid_template_areas = Some(Value::Specified(areas)));
+        self
+    }
+
     /// Declare `grid-auto-columns` inline (CSS Grid 2 §7.6), through
     /// [`TuiStyle::grid_auto_columns`] (an empty or invalid list is refused).
     fn set_grid_auto_columns(&mut self, sizes: impl IntoIterator<Item = TrackSize>) -> &mut Self {

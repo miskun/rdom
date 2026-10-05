@@ -53,7 +53,7 @@ use crate::style::ComputedStyle;
 pub(super) use intrinsic::content_size;
 use lines::AxisLines;
 pub(crate) use lines::{GridLines, abspos_area};
-use placement::{Lines, Placed};
+use placement::Placed;
 use sizing::{Frame, Space};
 use template::{Bounds, Explicit};
 use track::{Span, Track, TrackGrid};
@@ -124,17 +124,14 @@ fn size_grid(
     // (CSS Display 3 §3).
     items::sort_by_order(dom, &mut children);
     let row_bounds = rows.map_or_else(Bounds::default, |r| r.bounds);
-    let explicit_columns = Explicit::of(&computed.grid_template_columns, columns.bounds);
-    let explicit_rows = Explicit::of(&computed.grid_template_rows, row_bounds);
+    let areas = &computed.grid_template_areas;
+    let explicit_columns =
+        Explicit::of(&computed.grid_template_columns, columns.bounds).with_areas(areas, false);
+    let explicit_rows =
+        Explicit::of(&computed.grid_template_rows, row_bounds).with_areas(areas, true);
     // §8.3: each item's lines on both axes, against the explicit grid's.
-    let column_lines = Lines {
-        tracks: explicit_columns.sizes.len(),
-        names: &explicit_columns.names,
-    };
-    let row_lines = Lines {
-        tracks: explicit_rows.sizes.len(),
-        names: &explicit_rows.names,
-    };
+    let column_lines = explicit_columns.lines();
+    let row_lines = explicit_rows.lines();
     let areas = children
         .iter()
         .map(|c| {
@@ -148,8 +145,8 @@ fn size_grid(
     let mut placement = placement::place(
         children,
         areas,
-        explicit_rows.sizes.len(),
-        explicit_columns.sizes.len(),
+        explicit_rows.count,
+        explicit_columns.count,
         computed.grid_auto_flow,
     );
     for p in &mut placement.items {
@@ -217,11 +214,11 @@ fn size_grid(
         row_grid
     });
     let axis = |explicit: &Explicit<'_>, before: usize| AxisLines {
-        explicit: explicit.sizes.len(),
+        explicit: explicit.count,
         names: explicit
             .names
             .iter()
-            .map(|n| n.iter().map(|s| (*s).to_string()).collect())
+            .map(|n| n.iter().map(|s| s.to_string()).collect())
             .collect(),
         before,
         edges: Vec::new(),
