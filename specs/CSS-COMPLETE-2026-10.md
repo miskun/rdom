@@ -242,6 +242,7 @@ row comes from.
 | C12-OUTLINE | `outline` / `-color` / `-style` / `-width` / `-offset` (non-layout ring) | |
 | C12-CURSOR | `cursor` (OSC 22 pointer shapes) | |
 | C12-CARET | `caret-shape` / `caret-animation` / `caret` | |
+| C12-FOCUS-FLUSH | `focus()` (and other style-reading DOM calls) flushes pending style for the element first, as browsers do — TECH_DEBT `FOCUS-FLUSH-1`; needs the sheet set / transition registry / dirty tracker reachable from a handler's `Dom` | |
 | C12-CONTROLS | `accent-color`, `appearance`, `field-sizing`, `resize` | |
 
 ### Phase 13 — Tables (audit §3.20)
