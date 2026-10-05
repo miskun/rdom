@@ -742,16 +742,16 @@ implementation or a `DIVERGENCES.md` entry before the acid page's coverage test 
 **3.8 Flexbox and box alignment (Flexbox 1, Align 3)**
 
 - `flex-direction` — Partial: `row` / `column`; `row-reverse` / `column-reverse` rejected. *Shipped: C6-DIRECTION-REVERSE.*
-- `flex-wrap` — Missing: Single-line only.
-- `flex-flow` — Missing: Shorthand of the two above.
+- `flex-wrap` — Missing: Single-line only. *Shipped: C6-WRAP.*
+- `flex-flow` — Missing: Shorthand of the two above. *Shipped: C6-WRAP.*
 - `flex-grow` — *Shipped: C6-FLEX-LONGHANDS.* Missing *(DIVERGENCES says otherwise)*: Not in the property table (DIVERGENCES suggests `flex-grow: 1` as a workaround).
 - `flex-basis` — Missing: Basis ignored (documented as part of `flex`); the longhand does not exist. *Shipped: C6-FLEX-LONGHANDS.*
-- `justify-content` — Missing: Main-axis distribution.
-- `align-items` — Missing: Cross-axis placement (always `stretch` unless a cross margin is `auto`). `KW::Align` exists, unused.
-- `align-self` — Missing: Per-item override.
-- `align-content` — Missing: Needs `flex-wrap`.
-- `justify-items` / `justify-self` — Missing: Grid / block-level alignment.
-- `place-content` / `place-items` / `place-self` — Missing: Shorthands.
+- `justify-content` — Missing: Main-axis distribution. *Shipped: C6-JUSTIFY.*
+- `align-items` — Missing: Cross-axis placement (always `stretch` unless a cross margin is `auto`). `KW::Align` exists, unused. *Shipped: C6-ALIGN.*
+- `align-self` — Missing: Per-item override. *Shipped: C6-ALIGN.*
+- `align-content` — Missing: Needs `flex-wrap`. *Shipped: C6-ALIGN-CONTENT.*
+- `justify-items` / `justify-self` — Missing: Grid / block-level alignment. *Shipped (block-level): C6-PLACE.*
+- `place-content` / `place-items` / `place-self` — Missing: Shorthands. *Shipped: C6-PLACE.*
 - `gap` — Partial: One value for both axes (cells, `%`, `calc()`); two-value form rejected. *Shipped: C6-GAP.*
 - `row-gap` / `column-gap` — Missing: Per-axis gap. *Shipped: C6-GAP.*
 

@@ -148,7 +148,7 @@ row comes from.
 | C6-ALIGN-CONTENT | `align-content` | done |
 | C6-PLACE | `place-content` / `place-items` / `place-self`, `justify-items` / `justify-self` (block-level) | done |
 | C6-GAP | `row-gap` / `column-gap` and two-value `gap` | done |
-| C6-SPLIT | File-size pass on `layout_pass/flex/*` after the above | |
+| C6-SPLIT | File-size pass on `layout_pass/flex/*` after the above | done |
 
 ### Phase 7 — Grid (audit §3.9)
 
@@ -2435,3 +2435,14 @@ row comes from.
   `legacy`, which computes to `normal` there; the canonical-values table, important-setter
   coverage, the perturbation and the inherited-set probe gain the five properties. No snapshot
   changed.
+- 2026-10-08 — C6-SPLIT (no behaviour change): `tui_style/builder/mod.rs` had reached 625 lines —
+  it crossed the bar with C6-ALIGN's two setters (601) and was not split there, a slip this item
+  repays: the gap, flex-factor, `flex-direction` / `flex-wrap`, alignment and `order` setters and
+  the `display: flex` conveniences moved to `builder/flex.rs` (174; `mod.rs` 465), paths and
+  signatures unchanged. Checked, under the bar: `layout_pass/flex/*` (`mod.rs` 467, `cross.rs` 449,
+  `lines.rs` 349, `distribute.rs` 273, `main_axis.rs` 282, `align.rs` 271, `placement.rs` 231,
+  `content.rs` 210, `collapse.rs` 130), `intrinsic/mod.rs` 452 (split by C6-WRAP, `children.rs`
+  201, `wrap.rs` 78), `layout_pass/mod.rs` 473, `block/mod.rs` 525, `parse/values/align.rs` 319.
+  Near it and left, recorded for the Phase 6 architect gate: `computed.rs` and `tui_style/mod.rs`
+  (543 each — the two field lists, which grow by a line or two per property) and
+  `property_dispatch/serialize.rs` (522, one arm per property).
