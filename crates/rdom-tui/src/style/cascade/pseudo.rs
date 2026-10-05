@@ -93,6 +93,11 @@ pub(super) fn compute_pseudo_style(
         // spec), not from the host's parent, and share the host's vars
         // (which came from the merged stylesheet roots).
         let mut working = ComputedStyle::initial();
+        // `display` is `inline` until declared (CSS Display 3 §2: its
+        // initial value); rdom's elements start from `block` and take
+        // their `display` from the UA sheet, which styles no
+        // pseudo-element's (C8G-PSEUDO-BOXES).
+        working.display = crate::layout::Display::Inline;
         inherit_inheritable_from(&mut working, host_computed);
         working.vars = host_computed.vars.clone();
         working.text_direction = direction;

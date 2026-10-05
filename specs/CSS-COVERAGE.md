@@ -84,7 +84,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.13 Text decoration (Text Decoration 3/4) | 0 | 1 | 3 | 2 | 6 |
 | 3.14 Fonts (Fonts 4) | 0 | 2 | 1 | 2 | 5 |
 | 3.15 Lists, counters and generated content (Lists 3, Generated Content 3, Counter Styles 3, Pseudo-Elements 4) | 1 | 3 | 6 | 2 | 12 |
-| 3.16 Pseudo-elements (Pseudo-Elements 4, Selectors 4) | 4 | 1 | 5 | 6 | 16 |
+| 3.16 Pseudo-elements (Pseudo-Elements 4, Selectors 4) | 3 | 2 | 5 | 6 | 16 |
 | 3.17 Selectors (Selectors 4) | 16 | 2 | 16 | 4 | 38 |
 | 3.18 Transitions and animations (Transitions 1/2, Animations 1/2, Easing 1/2) | 3 | 3 | 4 | 0 | 10 |
 | 3.19 User interface (UI 4) | 2 | 1 | 8 | 1 | 12 |
@@ -93,9 +93,9 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 5 | 2 | 1 | 1 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **158** | **23** | **80** | **46** | **307** |
+| **Total** | **157** | **24** | **80** | **46** | **307** |
 
-When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 103 rows Partial / Missing.
+When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 104 rows Partial / Missing (C8G-PSEUDO-BOXES moved `::before` / `::after` from Supported to Partial: their `display` was ignored, and the inline-level atom and float forms still are).
 
 Headline: rdom parses **183 property names** (`property_names()`, after C7-GRID-AREAS). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are `line-height`, `text-align`, and `@media`.
 
@@ -488,7 +488,7 @@ dropped. The audit's six, with where each stands:
 
 | Item | Class | Detail | Doc'd | Where |
 |---|---|---|---|---|
-| `::before` / `::after` | Supported | Inline, block-first, positioned (paint / hit-test notes documented). A pseudo-element with no compound before it attaches to the implicit `*` (`::before`, `div ::before`, `div > ::after`; Selectors 4 §5.2, C5G-BARE-PSEUDO). An element whose only content is its `::before` / `::after` shows it, a line tall (C5G-PSEUDO-ONLY). | Yes | `PE` |
+| `::before` / `::after` | Partial | Inline, block-first, positioned (paint / hit-test notes documented); `display` honoured — initial `inline`, `none` generates nothing, a block-level one a block box of its host's flow (`content: ""` an empty one, `clear` applying: the clearfix; C8G-PSEUDO-BOXES); left: `inline-block` / `inline-flex` pseudo-elements are inline text, not atoms, and floated ones do not float (DIVERGENCES). A pseudo-element with no compound before it attaches to the implicit `*` (`::before`, `div ::before`, `div > ::after`; Selectors 4 §5.2, C5G-BARE-PSEUDO). An element whose only content is its `::before` / `::after` shows it, a line tall (C5G-PSEUDO-ONLY). | Yes | `PE` |
 | `::selection` | Supported | Highlight style. | — | `PE` |
 | `::placeholder` | Supported | Layered on the host's `::before` box (documented); the `::first-line` properties, a `var()` value included (C6G-CSSOM-EDGES). | Yes | `PE` |
 | `::backdrop` | Supported | Modal dialogs (no top layer, documented). | Yes | `PE` |

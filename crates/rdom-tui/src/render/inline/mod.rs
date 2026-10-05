@@ -194,8 +194,14 @@ fn box_index(dom: &Dom<TuiExt>, container: NodeId, node: NodeId, child: NodeId) 
     // sequence, which holds its pseudo-elements and its box-less
     // children's contents.
     let items_of = is_flex_or_grid_container(dom, container);
-    // With no box-less child the sequence is the child nodes.
+    // With no box-less child and no block-level `::before` the sequence
+    // is the child nodes.
     if !items_of
+        && !crate::render::inline::generated::is_block_pseudo(
+            dom,
+            container,
+            crate::ext::StyleSlot::Before,
+        )
         && !dom
             .node(container)
             .child_nodes()

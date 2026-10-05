@@ -54,6 +54,12 @@ pub(crate) fn is_ifc_block(dom: &Dom<TuiExt>, id: NodeId) -> bool {
     if parent_flow.is_flex_or_grid() {
         return false;
     }
+    // A block-level `::before` / `::after` is a block box of its flow:
+    // block flow, with the inline content in anonymous boxes.
+    let own = crate::render::inline::generated::block_pseudos(dom, id);
+    if own.before || own.after {
+        return false;
+    }
 
     let mut has_inline = false;
     for child in dom.node(id).child_nodes() {

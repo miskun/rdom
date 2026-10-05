@@ -156,7 +156,11 @@ fn lay_out_children(
     // A flex or grid container's text is its anonymous items' (CSS
     // Flexbox §4, CSS Grid 2 §6.1), laid out by its arm below.
     let items = computed.flow.is_flex_or_grid();
-    if has_text_child && no_in_flow_element_children && !items {
+    // A block-level `::before` / `::after` makes it a block container
+    // with an anonymous box for its text.
+    let block_pseudos = crate::render::inline::generated::block_pseudos(dom, id);
+    let block_pseudo = block_pseudos.before || block_pseudos.after;
+    if has_text_child && no_in_flow_element_children && !items && !block_pseudo {
         let lines_at = crate::render::inline::scrolled_content_rect(dom, id).unwrap_or(container);
         let (inline_layout, floats) = pack_around_floats(dom, id, lines_at, container.width);
         super::positioning::record_static_positions_in_ifc(dom, id, &inline_layout, lines_at);

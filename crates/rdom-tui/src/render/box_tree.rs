@@ -83,10 +83,19 @@ impl BoxItem {
 /// `id`'s child nodes in box-tree order: each `display: contents` child
 /// that holds a block-level box replaced by its own sequence, between
 /// its visible static `::before` / `::after`. A box-less child holding
-/// only inline-level content stays one item (an inline-level one).
+/// only inline-level content stays one item (an inline-level one). `id`'s
+/// own block-level `::before` / `::after` (`generated::is_block_pseudo`)
+/// are its first / last items, block-level boxes of its flow.
 pub(crate) fn box_sequence(dom: &Dom<TuiExt>, id: NodeId) -> Vec<BoxItem> {
     let mut out = Vec::new();
+    let own = crate::render::inline::generated::block_pseudos(dom, id);
+    if own.before {
+        out.push(BoxItem::Generated(id, PseudoSlot::Before));
+    }
     push_sequence(dom, id, &mut out);
+    if own.after {
+        out.push(BoxItem::Generated(id, PseudoSlot::After));
+    }
     out
 }
 

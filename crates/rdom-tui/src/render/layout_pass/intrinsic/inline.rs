@@ -76,10 +76,14 @@ pub(super) fn pseudo_content_width(dom: &Dom<TuiExt>, id: NodeId) -> u16 {
     for item in generated::deferred_markers(dom, id) {
         acc = acc.saturating_add(width(item, StyleSlot::Before));
     }
-    if generated::marker_line_holder(dom, id).is_none() {
-        acc = acc.saturating_add(width(id, StyleSlot::Before));
-    }
-    acc = acc.saturating_add(width(id, StyleSlot::After));
+    // The host's own inline pseudo text: none for a block-level or
+    // `display: none` pseudo-element, or a marker riding a descendant.
+    let own = |slot| {
+        generated::own_inline_pseudo_text(dom, id, slot)
+            .map_or(0, |t| UnicodeWidthStr::width(t) as u32)
+    };
+    acc = acc.saturating_add(own(StyleSlot::Before));
+    acc = acc.saturating_add(own(StyleSlot::After));
     acc.min(u16::MAX as u32) as u16
 }
 

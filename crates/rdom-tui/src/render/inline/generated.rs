@@ -33,7 +33,8 @@ use crate::node::TuiNodeExt;
 use crate::render::box_tree::BoxItem;
 
 /// The text of `host`'s `slot` pseudo-element when it is a static
-/// (`position: static`) box with `content`. Positioned pseudo-elements
+/// (`position: static`) box with `content` — none under `display: none`,
+/// which generates no box (CSS 2.1 §12.1). Positioned pseudo-elements
 /// are laid out and painted on their own (`positioned_pseudos`).
 pub(crate) fn static_pseudo_text(dom: &Dom<TuiExt>, host: NodeId, slot: StyleSlot) -> Option<&str> {
     let node = dom.node(host);
@@ -42,10 +43,47 @@ pub(crate) fn static_pseudo_text(dom: &Dom<TuiExt>, host: NodeId, slot: StyleSlo
         StyleSlot::After => node.computed_after(),
         StyleSlot::Host => None,
     }?;
-    if computed.position != Position::Static {
+    if computed.position != Position::Static || computed.display == Display::None {
         return None;
     }
     computed.content.as_deref()
+}
+
+/// Whether `host`'s `slot` pseudo-element is a block-level box of its
+/// host's block flow (CSS 2.1 §12.1, CSS Pseudo 4 §2: it is rendered "as
+/// if it were a real element", its `display` included): a static one
+/// with `content` — `""` makes an empty box — whose computed `display`
+/// is block-level (`block`, `flow-root`, `flex`, `grid`) and that does
+/// not float, in a host whose children lay out in block flow. It is the
+/// host's first (last) block-level box, laid out by the block pass
+/// (`layout_pass::block::generated`), never packed into a line.
+pub(crate) fn is_block_pseudo(dom: &Dom<TuiExt>, host: NodeId, slot: StyleSlot) -> bool {
+    let node = dom.node(host);
+    let Some(hc) = node.computed() else {
+        return false;
+    };
+    if !hc.flow.is_block_flow() || !matches!(hc.display, Display::Block | Display::InlineBlock) {
+        return false;
+    }
+    let computed = match slot {
+        StyleSlot::Before => node.computed_before(),
+        StyleSlot::After => node.computed_after(),
+        StyleSlot::Host => None,
+    };
+    computed.is_some_and(|c| {
+        c.display == Display::Block
+            && c.float == crate::layout::Float::None
+            && static_pseudo_text(dom, host, slot).is_some()
+    })
+}
+
+/// Which of `host`'s pseudo-elements are block-level boxes
+/// ([`is_block_pseudo`]).
+pub(crate) fn block_pseudos(dom: &Dom<TuiExt>, host: NodeId) -> super::RunPseudos {
+    super::RunPseudos {
+        before: is_block_pseudo(dom, host, StyleSlot::Before),
+        after: is_block_pseudo(dom, host, StyleSlot::After),
+    }
 }
 
 /// The static pseudo text that joins `host`'s *own* inline content —
@@ -57,6 +95,10 @@ pub(crate) fn own_inline_pseudo_text(
     slot: StyleSlot,
 ) -> Option<&str> {
     if slot == StyleSlot::Before && marker_line_holder(dom, host).is_some() {
+        return None;
+    }
+    // A block-level pseudo-element is a box of the host's block flow.
+    if is_block_pseudo(dom, host, slot) {
         return None;
     }
     static_pseudo_text(dom, host, slot)

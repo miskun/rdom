@@ -39,6 +39,7 @@
 //! - [`runs`] — block-level / inline-level run partitioning.
 
 mod align;
+pub(in crate::render::layout_pass) mod generated;
 mod height;
 mod margin_collapse;
 mod place;
@@ -330,8 +331,27 @@ pub(super) fn layout_block_children(
             RunKind::Block => {
                 let is_last_block_run = Some(run_idx) == last_block_run_idx;
                 let last_child_idx = run.children.len() - 1;
-                // A block run holds element nodes only (`child_level`).
-                for (i, child) in run.children.iter().filter_map(|c| c.node()).enumerate() {
+                // A block run holds element nodes and the host's
+                // block-level pseudo-elements (`child_level`).
+                for (i, item) in run.children.iter().enumerate() {
+                    let child = match *item {
+                        BoxItem::Node(child) => child,
+                        BoxItem::Generated(host, slot) => {
+                            let at = generated::GeneratedPlace {
+                                x: content_x,
+                                cb_width: containing_block_width,
+                                y_cursor,
+                                margin_acc: &mut margin_acc,
+                                index: generated::index(slot, raw_children.len()),
+                            };
+                            if let Some((anon, bottom)) = generated::lay_out(dom, host, slot, at) {
+                                anon_blocks.push(anon);
+                                (y_cursor, prev_block_id) = (bottom, None);
+                                placed_block_count += 1;
+                            }
+                            continue;
+                        }
+                    };
                     if let Some(oof) = static_before.get(&child) {
                         // The hypothetical box has zero margins: it
                         // collapses through whatever is buffered.
@@ -356,29 +376,10 @@ pub(super) fn layout_block_children(
                     // back by 1 so the borders coincide and paint-time
                     // mask-OR produces the junction glyph.
                     if row_gap == 0
-                        && parent_computed.border_collapse
-                            == crate::layout::BorderCollapse::Collapse
                         && let Some(prev) = prev_block_id
+                        && place::borders_overlap(dom, parent_computed, prev, child)
                     {
-                        // Any non-None border (including Hidden) counts
-                        // for sibling-overlap participation, mirroring
-                        // flex.rs's `has_effective_border_on_edge`. Hidden
-                        // suppresses paint at the shared cell but still
-                        // participates in layout so the shared cell
-                        // exists for the kill-switch to suppress.
-                        let prev_bot = dom
-                            .node(prev)
-                            .computed()
-                            .map(|c| !c.border.bottom.is_none())
-                            .unwrap_or(false);
-                        let curr_top = dom
-                            .node(child)
-                            .computed()
-                            .map(|c| !c.border.top.is_none())
-                            .unwrap_or(false);
-                        if prev_bot && curr_top {
-                            y_cursor -= 1;
-                        }
+                        y_cursor -= 1;
                     }
                     y_cursor = lay_out_block_child(
                         dom,

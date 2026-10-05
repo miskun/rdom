@@ -5001,3 +5001,35 @@ row comes from.
   `place.rs` already stops. Red: `css_phase8/float/clear.rs::clearance_stops_the_parent_and_first_child_margins_collapsing`
   — `(2, 2, 5)` for `(0, 0, 3)`; the no-`clear` pin passed before and after. Green after; no other test
   or snapshot changed.
+- 2026-10-10 — C8G-PSEUDO-BOXES (API B1) — partial: block-level done; `inline-block` / `inline-flex`
+  atoms and floated pseudo-elements remain (DIVERGENCES §2). Found: a static `::before` / `::after` was
+  always inline text — `static_pseudo_text` ignored `display` (even `none` showed), empty content made no
+  box (`visible_inline_pseudos` drops it), clearance applied to elements only — so the clearfix
+  (`.c::after { content: ""; display: block; clear: both }`) left `.c` 0 rows tall and the next paragraph
+  wrapped beside the float; and a pseudo-element's computed `display` started from rdom's element
+  initial `block`, not CSS's `inline`. Decision, on the box tree rather than a fourth pseudo path: a
+  block-level static pseudo-element (`inline::generated::is_block_pseudo`: `display` block-level, not
+  floated, with `content` — `""` included — in a block-flow host) is its host's first / last item in
+  `box_tree::box_sequence` (`BoxItem::Generated(host, slot)`, the item C6G's flex path and box-less
+  children already use), a block-level run member (`runs::child_level`), so the host is a block
+  container (not an IFC or pure-text leaf; `box_index` accounts for the leading item); the block pass
+  lays it out (`block/generated.rs`: margins in the collapsing accumulator, width its own or the
+  containing block's less its margins, `min-*` / `max-*`, `clear` against the formatting context's
+  floats, height its own or its packed text's, padding and border) into an `AnonymousIfc` with a
+  `GeneratedBox` — the record C6G-PSEUDO-FLEX-ITEMS paints and hit-tests — and intrinsic sizing adds it
+  (`intrinsic::measure_content`). It never packs into a line (`own_inline_pseudo_text` excludes it), its
+  margins do not collapse through the host (both parent / child predicates stop at it), and a `flex` /
+  `grid` / `flow-root` one packs its text as one inline formatting context. `display: none` now generates
+  nothing (`static_pseudo_text`), the pseudo cascade starts from `display: inline` (CSS Display 3 §2),
+  and the intrinsic width counts only inline pseudo text (`pseudo_content_width` — positioned, `none` and
+  block-level ones excluded). Positioned pseudo-elements, counters and the flex / grid item path are
+  untouched; Phase 10 has no row for pseudo-element `display` (C10-CONTENT, -LIST-ITEM and -FIRST are
+  about content, markers and `::first-*`). `display: table` (Bootstrap's clearfix) is a Phase 13 value,
+  still rejected. Split (SIZE-1): `block/mod.rs` would have reached 606 — the collapsed-border sibling
+  overlap moved to `place::borders_overlap`, the generated arm to `block/generated.rs` (578). Red:
+  `css_phase8/pseudo_boxes.rs` — 5 of 6 failed (the clearfix `.c` 0 rows for 3; `"Titlebody"` for a line
+  each; the empty `height: 2` box absent; `flex` / `grid` / `flow-root` inline; `display: none` showing
+  `"Tbody"`); green after, with two tests added (the background at the box; a flex item host 5 × 2 —
+  mutation: no intrinsic hook → 2 × 1). CSS-COVERAGE: the `::before` / `::after` row Supported → Partial
+  (it had claimed what `display` never did), §3.16 3 / 2 / 5 / 6, total 157 / 24 / 80 / 46. No existing
+  test expectation or snapshot changed.

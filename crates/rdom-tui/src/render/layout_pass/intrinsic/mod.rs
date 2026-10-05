@@ -337,8 +337,50 @@ fn content_size(
     value
 }
 
-/// [`content_size`] measured, not looked up.
+/// [`content_size`] measured, not looked up: its flow content's, with
+/// its block-level `::before` / `::after` boxes (`block::generated`)
+/// stacked on its block axis.
 fn measure_content(
+    dom: &Dom<TuiExt>,
+    id: NodeId,
+    computed: &ComputedStyle,
+    direction: Direction,
+    cross_budget: u16,
+    containing_block_width: u16,
+    measure: Measure,
+) -> u16 {
+    let flow = measure_flow_content(
+        dom,
+        id,
+        computed,
+        direction,
+        cross_budget,
+        containing_block_width,
+        measure,
+    );
+    let chrome =
+        crate::render::layout_pass::box_sizing::Sizer::horizontal(computed, containing_block_width)
+            .chrome();
+    let content_width = match direction {
+        Direction::Column => cross_budget.saturating_sub(chrome),
+        Direction::Row => measure.available(),
+    };
+    let Some((wide, rows)) = crate::render::layout_pass::block::generated::intrinsic(
+        dom,
+        id,
+        content_width,
+        measure == Measure::MaxContent,
+    ) else {
+        return flow;
+    };
+    match direction {
+        Direction::Row => flow.max(wide.saturating_add(chrome)),
+        Direction::Column => flow.saturating_add(rows),
+    }
+}
+
+/// [`measure_content`] for the host's flow content alone.
+fn measure_flow_content(
     dom: &Dom<TuiExt>,
     id: NodeId,
     computed: &ComputedStyle,

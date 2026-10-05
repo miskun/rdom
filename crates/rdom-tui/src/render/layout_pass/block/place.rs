@@ -160,3 +160,30 @@ pub(super) fn lay_out_block_child(
         outer_y + actual_height as i32
     }
 }
+
+/// BORDER-MODEL-1 (M6) block-flow sibling overlap: under a `border-collapse:
+/// collapse` parent, a block whose top border meets its previous block
+/// sibling's bottom border shares that row (the cursor pulls back one, and
+/// paint's mask-OR draws the junction), as `flex.rs` does. Any non-`none`
+/// border counts, `hidden` included — it suppresses paint at the shared
+/// cell but still takes part so the shared cell exists for the
+/// kill-switch to suppress (`has_effective_border_on_edge`).
+pub(super) fn borders_overlap(
+    dom: &Dom<TuiExt>,
+    parent: &ComputedStyle,
+    prev: NodeId,
+    child: NodeId,
+) -> bool {
+    if parent.border_collapse != crate::layout::BorderCollapse::Collapse {
+        return false;
+    }
+    let prev_bottom = dom
+        .node(prev)
+        .computed()
+        .is_some_and(|c| !c.border.bottom.is_none());
+    let top = dom
+        .node(child)
+        .computed()
+        .is_some_and(|c| !c.border.top.is_none());
+    prev_bottom && top
+}

@@ -110,6 +110,9 @@ pub(super) fn parent_collapses_top_with_first_child(
         && !establishes_independent_formatting_context(dom, id, parent)
         && !inline_content_at_edge(dom, id, false)
         && !own_line_pseudos(dom, id).before
+        // A block-level `::before` keeps its margins inside the host
+        // (DIVERGENCES §2).
+        && !crate::render::inline::generated::block_pseudos(dom, id).before
         && !first_child_has_clearance(dom, id)
 }
 
@@ -160,6 +163,7 @@ pub(super) fn parent_collapses_bottom_with_last_child(
         && !establishes_independent_formatting_context(dom, id, parent)
         && !inline_content_at_edge(dom, id, true)
         && !own_line_pseudos(dom, id).after
+        && !crate::render::inline::generated::block_pseudos(dom, id).after
 }
 
 /// Does `id` establish an independent formatting context for its

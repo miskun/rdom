@@ -186,8 +186,15 @@ pub(in crate::render::layout_pass) enum RunKind {
 /// the sequence holds no block box (`box_sequence`), so it is an
 /// inline-level participant, and so are generated items.
 pub(super) fn child_level(dom: &Dom<TuiExt>, item: BoxItem) -> RunKind {
-    let BoxItem::Node(id) = item else {
-        return RunKind::Inline;
+    let id = match item {
+        BoxItem::Node(id) => id,
+        // A block-level pseudo-element of the container itself.
+        BoxItem::Generated(host, slot)
+            if crate::render::inline::generated::is_block_pseudo(dom, host, slot.into()) =>
+        {
+            return RunKind::Block;
+        }
+        BoxItem::Generated(..) => return RunKind::Inline,
     };
     let node = dom.node(id);
     match node.node_type() {

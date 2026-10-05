@@ -13,6 +13,7 @@ mod float;
 mod line_clamp;
 mod overflow_clip;
 mod overflow_text;
+mod pseudo_boxes;
 mod rtl_line_overflow;
 mod scroll_padding;
 mod scrollbar;
