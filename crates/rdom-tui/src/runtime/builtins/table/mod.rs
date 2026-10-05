@@ -33,10 +33,11 @@
 //! (no text descendants). Authors who need richer measurement
 //! override with explicit `Fixed` widths via author CSS.
 //!
-//! Padding budget: the UA `<td>` / `<th>` rule uses `padding:
-//! 0 1 0 1` (2 horizontal cells). The pre-pass adds that 2 to the
-//! content width. Authors who override padding have to override
-//! the width too.
+//! Padding budget: a cell's padding and border are added to its content
+//! width, and to an author width under `box-sizing: content-box` (the
+//! initial value; CSS UI 3 §3.1). A cascaded cell uses its own; before
+//! the first cascade the UA `<td>` / `<th>` rule's `padding: 0 1 0 1`
+//! (2 horizontal cells) is assumed.
 //!
 //! ## When it runs
 //!
@@ -62,12 +63,13 @@ use rdom_core::{NodeId, NodeType};
 use unicode_width::UnicodeWidthStr;
 
 use crate::TuiDom;
-use crate::layout::Size;
-use crate::style::Value;
+use crate::layout::{Padding, Size};
+use crate::render::layout_pass::box_sizing::Sizer;
+use crate::style::{ComputedStyle, Value};
 
 /// Horizontal padding implied by the UA `<td>` / `<th>` rule
-/// (`padding: 0 1 0 1`). The pre-pass adds this to measured
-/// content widths.
+/// (`padding: 0 1 0 1`): a cell's chrome before its first cascade
+/// ([`cell_sizer`]).
 const CELL_H_PADDING: u16 = 2;
 
 /// Walk the whole DOM; size columns on every `<table>` found.
@@ -91,8 +93,12 @@ pub fn size_all_tables(dom: &mut TuiDom) {
 ///   a width from a CSS **rule** — `td { width }` — is not honored here; this
 ///   pass runs before cascade and reads only inline/author widths. Full CSS
 ///   table layout is `TABLE-TFC-1`.)*
-/// - **Content (fallback):** the widest cell's text width + the UA cell
-///   padding (`CELL_H_PADDING`).
+/// - **Content (fallback):** the widest cell's text width + its padding
+///   and border.
+///
+/// Both are border boxes: an author width measures the box the cell's
+/// `box-sizing` names, so under the initial `content-box` its padding
+/// is added (CSS UI 3 §3.1).
 ///
 /// Crucially this **does not touch `inline_style`** (so author intent and the
 /// computed result never conflate, the dead-`Column.width` / `::after`-clip
@@ -122,8 +128,11 @@ pub fn size_columns(dom: &mut TuiDom, table: NodeId) {
                 explicit.push(None);
                 content.push(0);
             }
-            let author = cell_author_width(dom, cell);
-            let total = text_content_width(dom, cell).saturating_add(CELL_H_PADDING);
+            // Both are border boxes: an author width is the box
+            // `box-sizing` names (CSS UI 3 §3.1), content gets the chrome.
+            let sizer = cell_sizer(dom, cell);
+            let author = cell_author_width(dom, cell).map(|w| sizer.outer(w));
+            let total = text_content_width(dom, cell).saturating_add(sizer.chrome());
             if len == 1 {
                 if let Some(w) = author {
                     explicit[slot] = Some(explicit[slot].map_or(w, |e| e.max(w)));
@@ -199,8 +208,32 @@ fn colspan_of(dom: &TuiDom, cell: NodeId) -> usize {
         .map_or(1, |n| n.min(1000))
 }
 
+/// The cell's horizontal `box-sizing` conversion (CSS UI 3 §3.1): from
+/// its computed style once it is cascaded; before that — `App::build`
+/// runs this pass before the first cascade — from the UA cell rule
+/// (`padding: 0 1`, the initial `content-box`) with the cell's inline
+/// `box-sizing`, the same inputs the pass reads its widths from.
+fn cell_sizer(dom: &TuiDom, cell: NodeId) -> Sizer {
+    use crate::node::TuiNodeExt;
+    if let Some(computed) = dom.node(cell).computed() {
+        return Sizer::horizontal(computed, 0);
+    }
+    let mut ua = ComputedStyle::initial();
+    ua.padding = Padding::new(0, CELL_H_PADDING / 2, 0, CELL_H_PADDING / 2);
+    if let Some(Value::Specified(sizing)) = dom
+        .node(cell)
+        .ext()
+        .and_then(|e| e.inline_style.as_deref())
+        .and_then(|s| s.box_sizing)
+    {
+        ua.box_sizing = sizing;
+    }
+    Sizer::horizontal(&ua, 0)
+}
+
 /// The cell's *author-specified* fixed width (`inline_style.width: Fixed(n)`),
-/// or `None`. The column-sizing input — read, never written.
+/// or `None`: the box `box-sizing` names ([`cell_sizer`]). The
+/// column-sizing input — read, never written.
 fn cell_author_width(dom: &TuiDom, cell: NodeId) -> Option<u16> {
     match dom.node(cell).ext()?.inline_style.as_deref()?.width {
         Some(Value::Specified(Size::Fixed(w))) => Some(w),

@@ -5,7 +5,10 @@
 //!
 //! - Text nodes → widest line (Row) / line count (Column), via
 //!   `unicode-width`.
-//! - Elements with explicit `Size::Fixed(n)` → `n` (short-circuit).
+//! - A box's contribution (`contribution`, CSS Sizing 3 §5.2): its
+//!   declared size when definite (a length, or a percentage of a known
+//!   containing block width) through its `box-sizing`, else its content;
+//!   either way clamped by its `min-*` / `max-*`.
 //! - IFC blocks → inline content width on the Row axis (max-content:
 //!   the unwrapped sum; min-content: the longest unbreakable word —
 //!   CSS Sizing 3 §4.1 / §4.2); line count at `cross_budget` on the
@@ -17,14 +20,14 @@ use rdom_core::{Dom, NodeId, NodeType};
 use unicode_width::UnicodeWidthStr;
 
 use crate::ext::TuiExt;
-use crate::layout::{Direction, IntrinsicSize, Size};
+use crate::layout::Direction;
 use crate::node::TuiNodeExt;
 use crate::style::ComputedStyle;
 
+mod contribution;
 mod inline;
 mod keywords;
 
-use super::box_sizing::Sizer;
 use super::ifc::is_ifc_block;
 use inline::{
     border_main_cost, has_non_whitespace_text, inline_width, own_line_pseudo_rows,
@@ -210,72 +213,48 @@ fn intrinsic_element(
         .computed_rc()
         .unwrap_or_else(|| std::rc::Rc::new(ComputedStyle::initial()));
 
-    // BoxSize mode: if the element has an explicit Fixed size along
-    // `direction`, that wins over child measurement — matches CSS
-    // min-content + explicit width.
-    //
-    // ContentOnly mode: skip the short-circuit. The CSS Flexbox §4.5
-    // "content size suggestion" needs the size of the actual content,
-    // not the declared box size, so the auto-min floor doesn't
-    // mistake a `width: 100` declaration for "this box must be 100
-    // cells of content" — empty boxes need to be allowed to shrink
+    // BoxSize mode: the box's contribution — its declared size, else its
+    // content, with its `min-*` / `max-*` applied (CSS Sizing 3 §5.2,
+    // `contribution`). ContentOnly mode: the content alone — the CSS
+    // Flexbox §4.5 "content size suggestion" needs the size of the
+    // actual content, not the declared box size, so the auto-min floor
+    // doesn't mistake a `width: 100` declaration for "this box must be
+    // 100 cells of content" — empty boxes need to be allowed to shrink
     // toward 0 to honor a smaller `max-width`.
     if mode == IntrinsicMode::BoxSize {
-        // TABLE-COLSYNC-1: a table cell's resolved column width is its used
-        // main size (a width → Row axis), so a table measures to its laid-out
-        // column widths (e.g. when it's a flex item being sized by a scroll
-        // wrapper) — same short-circuit as an explicit `Fixed`.
-        if direction == Direction::Row
-            && let Some(w) = dom.node(id).ext().and_then(|e| e.table_used_width)
-        {
-            return w;
-        }
-        let declared = match direction {
-            Direction::Row => &computed.width,
-            Direction::Column => &computed.height,
-        };
-        // A declared size measures the box `box-sizing` names (CSS UI
-        // 3 §3.1): the contribution is the border box it makes.
-        if let Size::Fixed(n) = declared {
-            return Sizer::along(&computed, direction, containing_block_width).outer(*n);
-        }
-        // An inline-axis keyword contributes its own content size (CSS
-        // Sizing 3 §5.1): `min-content` / `max-content` whatever is
-        // being measured, `fit-content` as the measurement goes (its
-        // stretch-fit size is unknown here), a `fit-content()` limit
-        // capping a max-content contribution.
-        if let (Direction::Row, Size::Intrinsic(k)) = (direction, declared) {
-            let content = |m| {
-                intrinsic_size_inner(
-                    dom,
-                    id,
-                    direction,
-                    cross_budget,
-                    containing_block_width,
-                    IntrinsicMode::ContentOnly,
-                    m,
-                )
-            };
-            return match (k, measure) {
-                (IntrinsicSize::MinContent, _) | (_, Measure::MinContent) => {
-                    content(Measure::MinContent)
-                }
-                (IntrinsicSize::MaxContent | IntrinsicSize::FitContent, _) => {
-                    content(Measure::MaxContent)
-                }
-                (IntrinsicSize::FitContentLimit(_), Measure::MaxContent) => Keywords::new(
-                    dom,
-                    id,
-                    &computed,
-                    direction,
-                    cross_budget,
-                    containing_block_width,
-                )
-                .keyword(k, None, 0),
-            };
-        }
+        return contribution::box_contribution(
+            dom,
+            id,
+            &computed,
+            direction,
+            cross_budget,
+            containing_block_width,
+            measure,
+        );
     }
+    content_size(
+        dom,
+        id,
+        &computed,
+        direction,
+        cross_budget,
+        containing_block_width,
+        measure,
+    )
+}
 
+/// The size of `id`'s content along `direction` plus its padding,
+/// border and permanent scrollbar gutter, ignoring its declared size:
+/// text and inline content, or its in-flow children's contributions.
+fn content_size(
+    dom: &Dom<TuiExt>,
+    id: NodeId,
+    computed: &ComputedStyle,
+    direction: Direction,
+    cross_budget: u16,
+    containing_block_width: u16,
+    measure: Measure,
+) -> u16 {
     // Padding + border cost on the main axis. Padding-with-percent
     // resolves against the containing-block width on BOTH axes per
     // CSS 2.1 §8.4. Calc that mixes percent with cells resolves at
@@ -286,12 +265,12 @@ fn intrinsic_element(
         Direction::Row => computed.padding.horizontal(cb_w_for_pad),
         Direction::Column => computed.padding.vertical(cb_w_for_pad),
     };
-    let border_main = border_main_cost(&computed, direction);
+    let border_main = border_main_cost(computed, direction);
     // A permanent scrollbar gutter (`overflow: scroll`, `scrollbar-gutter:
     // stable`) is part of the box: the vertical bar costs a column, the
     // horizontal bar a row. An `auto` gutter that only appears on overflow
     // is settled by `layout_node`'s second pass instead.
-    let (gutter_col, gutter_row) = super::gutter_axes(&computed, false, false);
+    let (gutter_col, gutter_row) = super::gutter_axes(computed, false, false);
     let gutter_main = match direction {
         Direction::Row => u16::from(gutter_col),
         Direction::Column => u16::from(gutter_row),
@@ -322,7 +301,7 @@ fn intrinsic_element(
         let content = match direction {
             Direction::Row => inline_width(dom, id, measure),
             Direction::Column => {
-                wrapped_rows(dom, id, &computed, cross_budget, containing_block_width)
+                wrapped_rows(dom, id, computed, cross_budget, containing_block_width)
             }
         };
         return content
@@ -372,7 +351,7 @@ fn intrinsic_element(
             let content = match direction {
                 Direction::Row => inline_width(dom, id, measure),
                 Direction::Column => {
-                    wrapped_rows(dom, id, &computed, cross_budget, containing_block_width)
+                    wrapped_rows(dom, id, computed, cross_budget, containing_block_width)
                 }
             };
             return content
@@ -395,13 +374,13 @@ fn intrinsic_element(
             computed
                 .padding
                 .vertical(cb_w_for_pad)
-                .saturating_add(border_main_cost(&computed, Direction::Column)),
+                .saturating_add(border_main_cost(computed, Direction::Column)),
         ),
         Direction::Column => cross_budget.saturating_sub(
             computed
                 .padding
                 .horizontal(cb_w_for_pad)
-                .saturating_add(border_main_cost(&computed, Direction::Row)),
+                .saturating_add(border_main_cost(computed, Direction::Row)),
         ),
     };
 
@@ -423,8 +402,8 @@ fn intrinsic_element(
     // Under `rtl` the first child's inline-start margin is its right one
     // (CSS Writing Modes 4 §2.1).
     let along = computed.direction == direction;
-    let trim = super::margin_trim::trimmed_edges(&computed);
-    let reversed = direction == Direction::Row && super::margin_trim::inline_reversed(&computed);
+    let trim = super::margin_trim::trimmed_edges(computed);
+    let reversed = direction == Direction::Row && super::margin_trim::inline_reversed(computed);
     let (trim_start, trim_end) = match direction {
         Direction::Row if reversed => (trim.right, trim.left),
         Direction::Row => (trim.left, trim.right),

@@ -1690,3 +1690,25 @@ row comes from.
   `a_direction_change_reruns_the_ladder_once` (three ladder walks: the element twice, `::selection`)
   and `declaration_order_holds_under_rtl` pin the cap and the order (both passed before; regression
   guards). No expectation changed.
+- 2026-10-07 — C5G-SIZING-SITES (gate fix): the remaining sizing sites go through the `Sizer` and the
+  `min-*` / `max-*` clamp. (1) Intrinsic contributions (CSS Sizing 3 §5.2: the box's outer size with
+  its preferred size, if definite, in place of the content, "and with its min and max sizes
+  applied"): `intrinsic_size_inner`'s `BoxSize` mode is now `intrinsic/contribution.rs`
+  (`box_contribution`) over the split-out `content_size` (the old body) — the table column width
+  first (final), then an inline-axis keyword as before, a length / percentage / `calc()` through
+  `Keywords::size` (so the `Sizer`) when definite (a percentage of a known containing block width; a
+  height's or a cyclic one behaves as `auto`, §5.2.1), else the content; then `max-*` caps and
+  `min-*` floors (CSS 2.1 §10.4), `fit-content` in a min / max being the min-content size in a
+  min-content measurement and the max-content size otherwise. Decided: one door for every caller —
+  the inline-block atom (`atomic_inline_block_intrinsic_width` already asks `intrinsic_size`, so
+  `inline/mod.rs` is unchanged at 591 lines), the flex basis, the children's contributions. (2) A table
+  cell's author width (`runtime/builtins/table`) is the box its `box-sizing` names: `cell_sizer` takes
+  the cascaded style's `Sizer`, and before the first cascade (`App::build` runs the pass first) the UA
+  cell's (`padding: 0 1`, `content-box`) with the inline `box-sizing`; content widths add that sizer's
+  chrome. `box_sizing` is `pub(crate)` in `layout_pass` for it. Red: `css_phase5/sizing_sites.rs` —
+  the button with `min-width: 10` was 6, the `max-width: 3` atom 6, the `50%` atom 3 (content), the
+  column container of a `min-width: 7` item 2 — and the new table test (`width: 10` → 10, not 12)
+  failed; green after. Changed expectations (the old border-box reading of a cell's width):
+  `explicit_author_width_is_respected_not_overwritten` 20 → 22, and
+  `colspan_excess_spreads_over_author_sized_columns_too` now pins column 0 with `width: 4` (6 with the
+  padding) to keep its arithmetic. No snapshot changed.

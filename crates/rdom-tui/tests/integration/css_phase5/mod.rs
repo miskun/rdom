@@ -13,6 +13,7 @@ mod contain;
 mod intrinsic;
 mod logical;
 mod margin_trim;
+mod sizing_sites;
 mod writing;
 
 /// A `tag` element with `class`, appended to `parent`.

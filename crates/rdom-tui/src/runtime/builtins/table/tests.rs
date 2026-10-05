@@ -245,7 +245,10 @@ fn first_table(dom: &TuiDom) -> NodeId {
 fn explicit_author_width_is_respected_not_overwritten() {
     use crate::node::TuiNodeMutExt;
     // Column 0 content "Alice"(5)/"Bob"(3) → 7 with padding. The author pins
-    // the column to 20 — size_columns must keep 20, not measure it back to 7.
+    // the column to 20 — size_columns must keep it, not measure it back to 7.
+    // `width` measures the content box (`box-sizing: content-box`, CSS UI 3
+    // §3.1): the cell's border box adds the UA padding, 20 + 2 = 22
+    // (C5G-SIZING-SITES).
     let (mut dom, r1, r2) = two_row_table(["Alice", "30"], ["Bob", "25"]);
     dom.node_mut(r1[0]).set_width(Size::Fixed(20));
     dom.node_mut(r2[0]).set_width(Size::Fixed(20));
@@ -254,12 +257,12 @@ fn explicit_author_width_is_respected_not_overwritten() {
 
     assert_eq!(
         cell_width(&dom, r1[0]),
-        Some(20),
+        Some(22),
         "author width is the used width"
     );
     assert_eq!(
         cell_width(&dom, r2[0]),
-        Some(20),
+        Some(22),
         "every cell in the column uses it"
     );
     assert_eq!(
@@ -367,12 +370,36 @@ fn colspan_shifts_the_following_cells_and_invalid_values_span_one() {
 fn colspan_excess_spreads_over_author_sized_columns_too() {
     use crate::node::TuiNodeMutExt;
     let (mut dom, table, ids) = spanning_table(&[&[("ab", 1), ("cd", 1)], &[("0123456789", 2)]]);
-    // Column 0 is author-sized to 6 (> its 4-cell content).
+    // Column 0 is author-sized to 4 — a content box, 6 with the UA
+    // padding (> its 4-cell content).
     dom.node_mut(ids[0][0])
-        .set_inline_style(crate::style::TuiStyle::new().width(crate::layout::Size::Fixed(6)));
+        .set_inline_style(crate::style::TuiStyle::new().width(crate::layout::Size::Fixed(4)));
     table::size_columns(&mut dom, table);
     // 6 + 4 = 10 < 12: deficit 2 → 7 | 5; the span takes 12.
     assert_eq!(cell_width(&dom, ids[0][0]), Some(7));
     assert_eq!(cell_width(&dom, ids[0][1]), Some(5));
     assert_eq!(cell_width(&dom, ids[1][0]), Some(12));
+}
+
+/// C5G-SIZING-SITES — CSS UI 3 §3.1: a cell's `width` measures the box
+/// its `box-sizing` names. `<td style="width: 10">` under the initial
+/// `content-box` is 12 wide with the UA padding (`0 1`); under
+/// `border-box` it is 10.
+#[test]
+fn a_cells_author_width_goes_through_box_sizing() {
+    use crate::layout::BoxSizing;
+    use crate::node::TuiNodeMutExt;
+    let (mut dom, r1, _) = two_row_table(["a", "b"], ["c", "d"]);
+    dom.node_mut(r1[0])
+        .set_inline_style(crate::style::TuiStyle::new().width(Size::Fixed(10)));
+    let table = first_table(&dom);
+    table::size_columns(&mut dom, table);
+    assert_eq!(cell_width(&dom, r1[0]), Some(12));
+    dom.node_mut(r1[0]).set_inline_style(
+        crate::style::TuiStyle::new()
+            .width(Size::Fixed(10))
+            .box_sizing(BoxSizing::BorderBox),
+    );
+    table::size_columns(&mut dom, table);
+    assert_eq!(cell_width(&dom, r1[0]), Some(10));
 }
