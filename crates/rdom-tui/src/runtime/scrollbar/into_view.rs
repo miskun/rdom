@@ -22,7 +22,7 @@
 
 use rdom_core::NodeId;
 
-use super::scroll::max_offsets;
+use super::scroll::scroll_bounds;
 use crate::TuiDom;
 use crate::layout::{LayoutRect, Overflow};
 use crate::node::TuiNodeExt;
@@ -80,16 +80,31 @@ fn scroll_container(
         .map(|c| c.border)
         .unwrap_or_default();
     let port = crate::layout::compute_padding_box(ext.layout, border);
-    let (cur_x, cur_y) = (ext.scroll_x as i32, ext.scroll_y as i32);
+    let (cur_x, cur_y) = (ext.scroll_x, ext.scroll_y as i32);
     let laid = super::state::laid_out(ext);
-    let (laid_x, laid_y) = (laid.0 as i32, laid.1 as i32);
+    let (laid_x, laid_y) = (laid.0, laid.1 as i32);
+    // The inline axis's start is the right edge of an `rtl` box (CSS
+    // Writing Modes 4 §2.1): `start` / `end` align that edge.
+    let rtl = ext
+        .computed
+        .as_ref()
+        .is_some_and(|c| c.text_direction == crate::layout::TextDirection::Rtl);
     // The element's edges relative to the scrollport at the current
     // offsets.
     let rel_x = rect.x - port.x - (cur_x - laid_x);
     let rel_y = rect.y - port.y - (cur_y - laid_y);
-    let (max_x, max_y) = max_offsets(dom, container).unwrap_or((0, 0));
-    let to_x = (cur_x + align(rel_x, rect.width, port.width, options.inline)).clamp(0, max_x);
-    let to_y = (cur_y + align(rel_y, rect.height, port.height, options.block)).clamp(0, max_y);
+    let inline = match options.inline {
+        ScrollLogicalPosition::Start if rtl => ScrollLogicalPosition::End,
+        ScrollLogicalPosition::End if rtl => ScrollLogicalPosition::Start,
+        other => other,
+    };
+    let Some(bounds) = scroll_bounds(dom, container) else {
+        return rect;
+    };
+    let (to_x, to_y) = bounds.clamp(
+        cur_x + align(rel_x, rect.width, port.width, inline),
+        cur_y + align(rel_y, rect.height, port.height, options.block),
+    );
     // §5.2: perform the scroll unless the position is unchanged and no
     // smooth scroll is in flight — `perform_scroll` is a no-op then.
     perform_scroll(dom, container, to_x, to_y, options.behavior);

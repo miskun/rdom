@@ -102,6 +102,7 @@ pub(super) use gutter::{
 };
 pub(crate) use ifc::is_ifc_block;
 use scroll_extent::{clamp_scroll_offset, record_scroll_content_size};
+pub(crate) use scroll_extent::{scroll_x_bounds, scroll_x_from_area_start};
 use tree::collapse_hidden_children;
 pub(super) use tree::element_children_of;
 pub(crate) use tree::is_in_flow;

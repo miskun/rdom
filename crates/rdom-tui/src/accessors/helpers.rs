@@ -71,10 +71,7 @@ fn walk_options(dom: &TuiDom, id: NodeId, out: &mut Vec<NodeId>) {
 
 pub(super) fn read_scroll_x(dom: &TuiDom, id: NodeId) -> i32 {
     use crate::node::TuiNodeExt;
-    dom.node(id)
-        .tui_ext()
-        .map(|e| e.scroll_x as i32)
-        .unwrap_or(0)
+    dom.node(id).tui_ext().map(|e| e.scroll_x).unwrap_or(0)
 }
 
 pub(super) fn read_scroll_y(dom: &TuiDom, id: NodeId) -> i32 {

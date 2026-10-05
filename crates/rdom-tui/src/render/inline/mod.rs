@@ -301,7 +301,7 @@ pub fn scrolled_content_rect(
     use crate::node::TuiNodeExt;
     let mut content = dom.node(block).content_layout_rect()?;
     let ext = dom.node(block).ext()?;
-    content.x -= ext.scroll_x as i32;
+    content.x -= ext.scroll_x;
     content.y -= ext.scroll_y as i32;
     Some(content)
 }

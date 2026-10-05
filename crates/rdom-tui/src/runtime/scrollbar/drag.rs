@@ -34,8 +34,8 @@ pub(crate) struct ScrollbarDrag {
     axis: ScrollAxis,
     /// Cursor position along the track at `mousedown`.
     initial_cursor: u16,
-    /// Scroll offset at `mousedown`.
-    initial_scroll: usize,
+    /// Scroll offset at `mousedown` (`scrollTop` / `scrollLeft`).
+    initial_scroll: i32,
 }
 
 /// Handle a `mousedown` on a scrollbar. Routes to page (for track
@@ -66,7 +66,7 @@ fn page(dom: &mut TuiDom, hit: ScrollbarHit) {
         ScrollbarPart::Thumb => return,
     };
     let delta = viewport as i32 * sign;
-    set_scroll(dom, hit.element, hit.axis, current_scroll as i32 + delta);
+    set_scroll(dom, hit.element, hit.axis, current_scroll + delta);
 }
 
 /// Begin a thumb-drag session. Engages pointer capture on the
@@ -141,15 +141,18 @@ pub(crate) fn extend_drag(router: &Router, dom: &mut TuiDom, mouse_x: u16, mouse
     if travel == 0 || track_len == 0 {
         return false;
     }
-    let (thumb_size, _) = thumb_geometry(track_len, viewport, content_size, drag.initial_scroll);
+    // The thumb's size; its position does not matter to the delta.
+    let (thumb_size, _) = thumb_geometry(track_len, viewport, content_size, 0);
     let track_travel = track_len.saturating_sub(thumb_size) as i32;
     if track_travel == 0 {
         return false;
     }
     let scroll_delta = (cursor_delta as i64 * travel as i64 / track_travel as i64) as i32;
-    let new_scroll = (drag.initial_scroll as i32 + scroll_delta).max(0);
+    // `set_scroll` clamps to the legal range (negative `scrollLeft`
+    // included, for an `rtl` box).
+    let new_scroll = drag.initial_scroll + scroll_delta;
     let before = match drag.axis {
-        ScrollAxis::Vertical => ext.scroll_y,
+        ScrollAxis::Vertical => ext.scroll_y as i32,
         ScrollAxis::Horizontal => ext.scroll_x,
     };
     let actually_set = set_scroll(dom, drag.element, drag.axis, new_scroll);

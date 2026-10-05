@@ -153,7 +153,7 @@ pub trait TuiNodeMutExt<'a>: crate::sealed::Sealed {
     /// [`TuiAccessorsMut::scroll_to`](crate::TuiAccessorsMut::scroll_to),
     /// which clamps and fires `scroll`. Either way the `App` repaints
     /// on its next frame.
-    fn set_scroll(&mut self, x: usize, y: usize) -> &mut Self {
+    fn set_scroll(&mut self, x: i32, y: usize) -> &mut Self {
         if let Some(e) = self.tui_ext_mut() {
             e.scroll_x = x;
             e.scroll_y = y;

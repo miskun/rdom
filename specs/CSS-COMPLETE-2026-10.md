@@ -1635,3 +1635,28 @@ row comes from.
   composites, against `(128, 0, 127)`); green after. The tests put an inline element before the atom:
   with bare text the block lays the run out through an anonymous box, whose text paints after the
   block children (`paint_content`), so the shade lands under it there — part of `ATOM-BOX-1`.
+- 2026-10-07 — C5G-RTL-SCROLL (gate fix, blocking): an `rtl` scroll container scrolls from its right
+  edge. CSSOM View §4 puts the scrolling area origin at a box's inline-start edge, and `scrollLeft`
+  is measured from it: 0 at the right edge of an `rtl` box, negative towards its left overflow
+  (`-(scrollWidth − clientWidth)` at the far left) — the current spec and every current browser.
+  Decided: `TuiExt::scroll_x` *is* `scrollLeft` — an `i32` (was `usize`, Breaking — rdom-tui; the
+  `TuiNodeMutExt::set_scroll` raw setter takes `x: i32`) — rather than a distance from the origin that
+  every physical consumer would flip: a larger value shows content further right in both directions,
+  so layout (`x − scroll_x`, `placement::mirror_x` unchanged — it was right once the offset may be
+  negative), the extent (`rect.x + scroll_x`), wheel and arrow keys (`± 1`), track paging and thumb
+  drag (a delta) need no direction test. Only the range is direction-aware:
+  `layout_pass::scroll_x_bounds` (`0 ..= overflow` or `-overflow ..= 0`), used by the layout clamp
+  (`clamp_scroll_offset`), the new `scroll::ScrollBounds` / `scroll_bounds` (replacing `max_offsets`;
+  the one clamp of `set_scroll`, `write_offsets`, `perform_scroll`, the wheel — whose private
+  `apply_scroll` duplicate is gone — and `scrollIntoView`), and `scroll_x_from_area_start` /
+  `geometry::offset_from_area_start` (`scroll_x − min`), the physical position the thumb is painted
+  and hit-tested at and the autoscroll bands measure — so the thumb starts at the right. Caret reveal's
+  `ClampTo::NextLayout` bounds only the origin side, which is `≤ 0` for an `rtl` box.
+  `scrollIntoView`'s `inline: start` / `end` align the right / left edge in an `rtl` container (CSS
+  Writing Modes 4 §2.1). The smooth-scroll and painted / laid-out bookkeeping carry the signed value.
+  Not covered: a line wider than its `rtl` inline formatting context (`render/inline/align.rs`, not
+  examined here), `writing-mode` vertical scrolling (laid out horizontally). Red: `runtime/scrollbar/rtl_tests.rs` — every test but
+  the initial-layout one failed (`scrollLeft` stuck at 0 for the API, wheel, keys and
+  `scrollIntoView`; the drag reached `+6`; the thumb sat at the left; the over-wide block's `-6`
+  unreachable); green after. `scroll_into_view_inline_start_is_the_right_edge` was confirmed red with
+  the start / end swap disabled (`(-6, 0)` against `(-8, 2)`). No existing expectation changed.

@@ -7,6 +7,7 @@
 use rdom_core::NodeId;
 
 use super::ScrollAxis;
+use super::geometry::offset_from_area_start;
 use crate::TuiDom;
 use crate::layout::Overflow;
 use crate::node::TuiNodeExt;
@@ -123,8 +124,10 @@ fn check_element(dom: &TuiDom, id: NodeId, x: u16, y: u16) -> Option<ScrollbarHi
         if !should_paint(computed.overflow_x, viewport as usize, content_size) {
             return None;
         }
+        // An `rtl` box's thumb starts at the right (its scroll origin).
+        let offset = offset_from_area_start(dom, id, ScrollAxis::Horizontal, viewport as usize);
         let (thumb_size, thumb_off) =
-            thumb_geometry(track_len, viewport as usize, content_size, ext.scroll_x);
+            thumb_geometry(track_len, viewport as usize, content_size, offset);
         let cursor_along = (x as i32 - h_left) as u16;
         return Some(ScrollbarHit {
             element: id,

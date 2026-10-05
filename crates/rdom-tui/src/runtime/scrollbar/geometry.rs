@@ -14,8 +14,10 @@ use crate::layout::Overflow;
 use crate::node::TuiNodeExt;
 
 /// `(viewport_size_in_cells, current_scroll_offset)` for a given
-/// element + axis. Viewport = padding-box per CSS Overflow 3 §3.
-pub(super) fn scroll_metrics(dom: &TuiDom, element: NodeId, axis: ScrollAxis) -> (u16, usize) {
+/// element + axis — the offset as `scrollTop` / `scrollLeft` (negative
+/// for an `rtl` box scrolled left). Viewport = padding-box per CSS
+/// Overflow 3 §3.
+pub(super) fn scroll_metrics(dom: &TuiDom, element: NodeId, axis: ScrollAxis) -> (u16, i32) {
     let ext = match dom.node(element).tui_ext() {
         Some(e) => e,
         None => return (0, 0),
@@ -27,8 +29,28 @@ pub(super) fn scroll_metrics(dom: &TuiDom, element: NodeId, axis: ScrollAxis) ->
         .unwrap_or_default();
     let pb = crate::layout::compute_padding_box(ext.layout, border);
     match axis {
-        ScrollAxis::Vertical => (pb.height, ext.scroll_y),
+        ScrollAxis::Vertical => (pb.height, ext.scroll_y as i32),
         ScrollAxis::Horizontal => (pb.width, ext.scroll_x),
+    }
+}
+
+/// How far the scrollport of `element` sits from the start of its
+/// scrollable overflow area along `axis` — the scroll offset a
+/// scrollbar thumb, a thumb drag and the autoscroll bands measure,
+/// physical and never negative: `scrollTop`, or `scrollLeft` less its
+/// minimum (an `rtl` box's left extent, `layout_pass::scroll_x_bounds`).
+/// `viewport` is the scrollport extent the caller measures against.
+pub(crate) fn offset_from_area_start(
+    dom: &TuiDom,
+    element: NodeId,
+    axis: ScrollAxis,
+    viewport: usize,
+) -> usize {
+    match axis {
+        ScrollAxis::Vertical => dom.node(element).tui_ext().map_or(0, |e| e.scroll_y),
+        ScrollAxis::Horizontal => {
+            crate::render::layout_pass::scroll_x_from_area_start(dom, element, viewport)
+        }
     }
 }
 

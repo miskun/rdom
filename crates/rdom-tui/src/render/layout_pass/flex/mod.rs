@@ -226,10 +226,7 @@ pub(super) fn layout_children(
     // (DIVERGENCES). Both scroll offsets apply, as they do to the
     // in-flow items.
     let (static_x, static_y) = dom.node(id).ext().map_or((container.x, container.y), |e| {
-        (
-            container.x - e.scroll_x as i32,
-            container.y - e.scroll_y as i32,
-        )
+        (container.x - e.scroll_x, container.y - e.scroll_y as i32)
     });
     for n in super::positioning::out_of_flow_positioned_children(dom, id) {
         super::positioning::record_static_position(dom, n, static_x, static_y);

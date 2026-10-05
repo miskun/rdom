@@ -170,7 +170,15 @@ pub(super) fn paint_scrollbars(
     // outer bound for the track extent on both axes.
     let padding_box = crate::layout::compute_padding_box(ext.layout, computed.border);
 
-    let (scroll_x, scroll_y) = (ext.scroll_x, ext.scroll_y);
+    // The horizontal thumb is drawn at the scrollport's distance from
+    // the left of the scrollable area — at the right at rest for an
+    // `rtl` box, whose scroll origin is its right edge (CSSOM View §4).
+    let scroll_x = crate::render::layout_pass::scroll_x_from_area_start(
+        dom,
+        id,
+        content_layout.width as usize,
+    );
+    let scroll_y = ext.scroll_y;
     let (content_w, content_h) = (ext.scroll_content_width, ext.scroll_content_height);
 
     // Both track and thumb glyphs are axis-sensitive (`│` vs `─`

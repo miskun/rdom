@@ -52,6 +52,8 @@ mod into_view_tests;
 mod keys;
 mod painted;
 mod reveal;
+#[cfg(test)]
+mod rtl_tests;
 mod scroll;
 pub(crate) mod state;
 
@@ -64,7 +66,7 @@ pub use keys::SCROLL_FOCUS_ATTR;
 pub(crate) use keys::{handle_scroll_key, scroll_focus_target};
 pub(crate) use painted::{moved_since_paint, note_painted};
 pub(crate) use reveal::{reveal_caret, scroll_into_view, service_caret_reveal};
-pub(crate) use scroll::{max_offsets, write_offsets};
+pub(crate) use scroll::{scroll_bounds, write_offsets};
 
 /// Which scrollbar axis a user is interacting with.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -1,6 +1,7 @@
 //! The scrollable content extent of a box: the union of its children's
 //! rects recorded for scrolling (`scroll_content_{width,height}`), the
-//! scroll offset clamp, and the trailing caret row of an editing host.
+//! legal scroll offsets and their clamp, and the trailing caret row of
+//! an editing host.
 
 use rdom_core::{Dom, NodeId, NodeType};
 
@@ -38,7 +39,7 @@ pub(crate) fn record_scroll_content_size(
     // layout_flex_children). Add it back to compute the un-scrolled
     // content extent.
     let (scroll_x, scroll_y) = match dom.node(id).ext() {
-        Some(ext) => (ext.scroll_x as i32, ext.scroll_y as i32),
+        Some(ext) => (ext.scroll_x, ext.scroll_y as i32),
         None => return,
     };
 
@@ -143,9 +144,40 @@ fn trailing_newline_caret_row(dom: &Dom<TuiExt>, id: NodeId) -> bool {
     last_text.is_some_and(|t| t.node_value().is_some_and(|v| v.ends_with('\n')))
 }
 
-/// Clamp `id`'s scroll offset to `[0, scroll size − viewport size]`
-/// on each axis (CSS keeps `scrollTop`/`scrollLeft` in range as
-/// content changes). Only scroll containers can hold a non-zero
+/// The legal `scrollLeft` values of `id` for a scrollport `viewport`
+/// cells wide: CSSOM View §4 puts the scrolling area origin at the
+/// inline-start edge of a horizontal box — its right edge under
+/// `direction: rtl` (CSS Writing Modes 4 §2.1) — so the offsets run
+/// `0 ..= overflow` (`ltr`) or `-overflow ..= 0` (`rtl`), `overflow`
+/// being the scroll width past the scrollport.
+pub(crate) fn scroll_x_bounds(dom: &Dom<TuiExt>, id: NodeId, viewport: usize) -> (i32, i32) {
+    let node = dom.node(id);
+    let Some(ext) = node.ext() else {
+        return (0, 0);
+    };
+    let overflow =
+        i32::try_from(ext.scroll_content_width.saturating_sub(viewport)).unwrap_or(i32::MAX);
+    let rtl = ext
+        .computed
+        .as_ref()
+        .is_some_and(|c| c.text_direction == crate::layout::TextDirection::Rtl);
+    if rtl { (-overflow, 0) } else { (0, overflow) }
+}
+
+/// How far `id`'s scrollport sits from the left edge of its scrollable
+/// overflow area: `scrollLeft` less its minimum ([`scroll_x_bounds`]
+/// for a `viewport`-cell scrollport). Physical and never negative — the
+/// offset a horizontal scrollbar thumb is drawn at.
+pub(crate) fn scroll_x_from_area_start(dom: &Dom<TuiExt>, id: NodeId, viewport: usize) -> usize {
+    let (min_x, _) = scroll_x_bounds(dom, id, viewport);
+    let scroll_x = dom.node(id).ext().map_or(0, |e| e.scroll_x);
+    usize::try_from(scroll_x.saturating_sub(min_x)).unwrap_or(0)
+}
+
+/// Clamp `id`'s scroll offset to its legal range on each axis
+/// (`[0, scroll size − viewport size]`, or the mirrored range of an
+/// `rtl` box's `scrollLeft`, [`scroll_x_bounds`]; CSS keeps
+/// `scrollTop`/`scrollLeft` in range as content changes). Only scroll containers can hold a non-zero
 /// offset, so non-scrollable elements are a no-op. The viewport is
 /// the element's final `content_layout` — the region children are
 /// laid out and clipped into (after the two-pass scrollbar gutter
@@ -167,9 +199,9 @@ pub(crate) fn clamp_scroll_offset(
         return false;
     };
     let vp = ext.content_layout;
-    let max_x = ext.scroll_content_width.saturating_sub(vp.width as usize);
+    let (min_x, max_x) = scroll_x_bounds(dom, id, vp.width as usize);
     let max_y = ext.scroll_content_height.saturating_sub(vp.height as usize);
-    let new_x = ext.scroll_x.min(max_x);
+    let new_x = ext.scroll_x.clamp(min_x, max_x);
     let new_y = ext.scroll_y.min(max_y);
     if new_x == ext.scroll_x && new_y == ext.scroll_y {
         return false;

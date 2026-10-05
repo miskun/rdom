@@ -615,7 +615,7 @@ dropped. The audit's six, with where each stands:
 | `inset-inline` / `inset-block` | Supported | See §3.10 (C5-LOGICAL). | — | `DISP` |
 | `text-align: start / end`, `float: inline-start`, `resize: block / inline` | Missing | Logical keywords (follow their properties). | No | — |
 | `writing-mode` | Partial | All five values parse, inherit and compute (C5-WRITING); every box lays out as `horizontal-tb` — vertical flow could be emulated, but glyphs cannot be rotated in a cell (DIVERGENCES §1). | Yes | `KW`, `CASC` |
-| `direction` / `unicode-bidi` | Partial | `direction: ltr \| rtl` (C5-WRITING; the `dir` attribute through the UA sheet): inline-start is the right edge — line starts, block over-constraint, flex rows / column cross axis, positioned insets, `margin-trim`, the vertical scrollbar side. `unicode-bidi` and bidi reordering N/A: terminals differ (DIVERGENCES §1). | Yes | `KW`, `IFC`, `BLOCK`, `FLEX`, `POS` |
+| `direction` / `unicode-bidi` | Partial | `direction: ltr \| rtl` (C5-WRITING; the `dir` attribute through the UA sheet): inline-start is the right edge — line starts, block over-constraint, flex rows / column cross axis, positioned insets, `margin-trim`, the vertical scrollbar side, the scroll origin (`scrollLeft` ≤ 0, C5G-RTL-SCROLL). `unicode-bidi` and bidi reordering N/A: terminals differ (DIVERGENCES §1). | Yes | `KW`, `IFC`, `BLOCK`, `FLEX`, `POS` |
 | `text-orientation` / `text-combine-upright` | N/A | Glyph rotation / compression in a cell. | — | — |
 
 ### 3.23 Transforms, filters, masking, compositing

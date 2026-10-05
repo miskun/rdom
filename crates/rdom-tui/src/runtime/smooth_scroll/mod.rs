@@ -46,7 +46,7 @@ use rdom_core::NodeId;
 use crate::TuiDom;
 use crate::layout::ScrollBehavior;
 use crate::node::TuiNodeExt;
-use crate::runtime::scrollbar::{max_offsets, write_offsets};
+use crate::runtime::scrollbar::{scroll_bounds, write_offsets};
 
 /// How long a smooth scroll takes, whatever its distance. Browsers use
 /// a UA-defined duration (Firefox about 150–400 ms, Chromium a
@@ -199,9 +199,9 @@ impl From<bool> for ScrollIntoViewOptions {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct SmoothScroll {
     /// `(scroll_left, scroll_top)` when the animation (re)started.
-    from: (usize, usize),
+    from: (i32, i32),
     /// The destination, clamped when requested.
-    to: (usize, usize),
+    to: (i32, i32),
     /// The frame the animation started on; `None` until the first
     /// frame after the request.
     start: Option<Instant>,
@@ -223,15 +223,15 @@ pub(crate) fn perform_scroll(
         write_offsets(dom, element, x, y);
         return;
     }
-    let Some((max_x, max_y)) = max_offsets(dom, element) else {
+    let Some(bounds) = scroll_bounds(dom, element) else {
         return;
     };
-    let to = (x.clamp(0, max_x) as usize, y.clamp(0, max_y) as usize);
+    let to = bounds.clamp(x, y);
     let mut node = dom.node_mut(element);
     let Some(ext) = node.ext_mut() else {
         return;
     };
-    let from = (ext.scroll_x, ext.scroll_y);
+    let from = (ext.scroll_x, ext.scroll_y as i32);
     if from != to {
         state::set_smooth(
             ext,
@@ -253,9 +253,9 @@ pub(crate) fn abort(dom: &mut TuiDom, element: NodeId) {
 
 /// Where `element` is scrolling to: the smooth scroll's destination
 /// while one is in flight, else its current offsets.
-pub(crate) fn destination(dom: &TuiDom, element: NodeId) -> (usize, usize) {
+pub(crate) fn destination(dom: &TuiDom, element: NodeId) -> (i32, i32) {
     match dom.node(element).tui_ext() {
-        Some(ext) => state::smooth(ext).map_or((ext.scroll_x, ext.scroll_y), |s| s.to),
+        Some(ext) => state::smooth(ext).map_or((ext.scroll_x, ext.scroll_y as i32), |s| s.to),
         None => (0, 0),
     }
 }
@@ -335,7 +335,7 @@ fn step(dom: &mut TuiDom, element: NodeId, now: Instant, outcome: &mut StepOutco
     };
     // The state is settled before the write: a `scroll` listener that
     // starts another scroll of this box retargets or aborts it.
-    outcome.moved |= write_offsets(dom, element, x as i32, y as i32);
+    outcome.moved |= write_offsets(dom, element, x, y);
 }
 
 /// Cubic ease-out: fast start, gentle landing.
@@ -344,8 +344,8 @@ fn ease_out(t: f64) -> f64 {
 }
 
 /// `from → to` at progress `p`, rounded to a whole cell.
-fn lerp(from: usize, to: usize, p: f64) -> usize {
-    (from as f64 + (to as f64 - from as f64) * p).round() as usize
+fn lerp(from: i32, to: i32, p: f64) -> i32 {
+    (f64::from(from) + (f64::from(to) - f64::from(from)) * p).round() as i32
 }
 
 #[cfg(test)]

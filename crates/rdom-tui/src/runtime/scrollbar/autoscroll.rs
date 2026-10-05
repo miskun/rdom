@@ -10,7 +10,7 @@
 use rdom_core::NodeId;
 
 use super::ScrollAxis;
-use super::geometry::nearest_scroll_container;
+use super::geometry::{nearest_scroll_container, offset_from_area_start};
 use super::scroll::set_scroll;
 use crate::TuiDom;
 use crate::node::TuiNodeExt;
@@ -106,7 +106,7 @@ pub(crate) fn autoscroll_step_for(
         pointer.0 as i32,
         pb.x,
         pb.width,
-        ext.scroll_x,
+        offset_from_area_start(dom, container, ScrollAxis::Horizontal, pb.width as usize),
         ext.scroll_content_width,
     )
     .map(|step| (ScrollAxis::Horizontal, step))
@@ -123,11 +123,11 @@ pub(crate) fn autoscroll_step(
 ) -> bool {
     let before = match dom.node(container).tui_ext() {
         Some(e) => match axis {
-            ScrollAxis::Vertical => e.scroll_y,
+            ScrollAxis::Vertical => e.scroll_y as i32,
             ScrollAxis::Horizontal => e.scroll_x,
         },
         None => return false,
-    } as i32;
-    let after = set_scroll(dom, container, axis, before + step) as i32;
+    };
+    let after = set_scroll(dom, container, axis, before + step);
     after != before
 }

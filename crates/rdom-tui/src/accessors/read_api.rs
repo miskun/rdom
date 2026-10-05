@@ -119,7 +119,11 @@ pub trait TuiAccessors<'a>: crate::sealed::Sealed {
     /// for non-scrollable elements that number is `0`).
     fn scroll_top(&self) -> Option<i32>;
 
-    /// `Element.scrollLeft` — horizontal scroll offset in cells.
+    /// `Element.scrollLeft` — horizontal scroll offset in cells,
+    /// measured from the scrolling area origin (CSSOM View §4): 0 at
+    /// the left edge of an `ltr` box and at the right edge of an `rtl`
+    /// one, whose values run negative towards its left overflow, as in
+    /// browsers.
     fn scroll_left(&self) -> Option<i32>;
 
     /// `Element.scrollWidth` — total content width tracked by the

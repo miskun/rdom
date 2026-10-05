@@ -522,26 +522,22 @@ fn handle_wheel(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> Rou
             // Viewport size is the padding-box (CSS Overflow 3 §3
             // scrollport), not `content_layout` — the two diverge
             // under M5.5b border-collapse.
-            let border = dom
-                .node(id)
-                .computed()
-                .map(|c| c.border)
-                .unwrap_or_default();
-            let (old_x, old_y, new_x, new_y) = if let Some(ext) = dom.node_mut(id).ext_mut() {
-                let pb = crate::layout::compute_padding_box(ext.layout, border);
-                let old_x = ext.scroll_x;
-                let old_y = ext.scroll_y;
-                if wants_y && y_scrollable {
-                    let max_y = ext.scroll_content_height.saturating_sub(pb.height as usize);
-                    apply_scroll(&mut ext.scroll_y, dy, max_y);
+            // The legal range is `scroll::ScrollBounds` — an `rtl` box's
+            // `scrollLeft` runs negative, so wheel-left reaches its left
+            // overflow (CSSOM View §4).
+            let bounds = crate::runtime::scrollbar::scroll_bounds(dom, id);
+            let (old_x, old_y, new_x, new_y) = match (bounds, dom.node_mut(id).ext_mut()) {
+                (Some(bounds), Some(ext)) => {
+                    let (old_x, old_y) = (ext.scroll_x, ext.scroll_y);
+                    if wants_y && y_scrollable {
+                        ext.scroll_y = (old_y as i32 + dy).clamp(0, bounds.max_y) as usize;
+                    }
+                    if wants_x && x_scrollable {
+                        ext.scroll_x = (old_x + dx).clamp(bounds.min_x, bounds.max_x);
+                    }
+                    (old_x, old_y, ext.scroll_x, ext.scroll_y)
                 }
-                if wants_x && x_scrollable {
-                    let max_x = ext.scroll_content_width.saturating_sub(pb.width as usize);
-                    apply_scroll(&mut ext.scroll_x, dx, max_x);
-                }
-                (old_x, old_y, ext.scroll_x, ext.scroll_y)
-            } else {
-                (0, 0, 0, 0)
+                _ => (0, 0, 0, 0),
             };
             if old_x != new_x || old_y != new_y {
                 // A user scroll is instant whatever `scroll-behavior`
@@ -562,19 +558,6 @@ fn handle_wheel(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> Rou
 
     // No scrollable ancestor — event bubbled but nothing scrolled.
     RouteOutcome::default()
-}
-
-/// Adjust a `usize` scroll offset by a signed `i32` delta, clamped
-/// to `[0, max]`. `max` is the maximum legal scroll position —
-/// `scroll_content_size - viewport_size`, saturating at 0 when
-/// content fits. Matches the browser's wheel-scroll behavior: at
-/// the bottom of the content, further wheel-down does nothing.
-fn apply_scroll(offset: &mut usize, delta: i32, max: usize) {
-    if delta > 0 {
-        *offset = offset.saturating_add(delta as usize).min(max);
-    } else if delta < 0 {
-        *offset = offset.saturating_sub((-delta) as usize);
-    }
 }
 
 #[cfg(test)]

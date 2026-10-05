@@ -143,7 +143,8 @@ pub trait TuiAccessorsMut<'a>: crate::sealed::Sealed {
     fn set_scroll_top(&mut self, value: i32) -> Result<()>;
 
     /// `Element.scrollLeft = n` — horizontal companion to
-    /// [`Self::set_scroll_top`].
+    /// [`Self::set_scroll_top`]. Clamped to `0 ..= overflow`, or to
+    /// `-overflow ..= 0` for an `rtl` box ([`TuiAccessors::scroll_left`](super::TuiAccessors::scroll_left)).
     fn set_scroll_left(&mut self, value: i32) -> Result<()>;
 
     /// `Element.scrollTo(x, y)` — set both axes in one call. Each

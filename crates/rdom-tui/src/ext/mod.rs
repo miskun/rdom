@@ -109,7 +109,12 @@ pub struct TuiExt {
     pub table_used_width: Option<u16>,
 
     // ── Scroll ────────────────────────────────────────────────────────
-    /// Horizontal scroll offset in cells. **Runtime-managed**: write it
+    /// Horizontal scroll offset in cells: `scrollLeft`, measured from
+    /// the scrolling area origin (CSSOM View §4) — the left edge for an
+    /// `ltr` box, where it runs `0 ..= overflow`; the right edge for an
+    /// `rtl` one, where it runs `-overflow ..= 0` (0 shows the right
+    /// edge, negative values the overflow on the left). A larger value
+    /// always shows content further right. **Runtime-managed**: write it
     /// through [`TuiAccessorsMut`](crate::TuiAccessorsMut)
     /// (`set_scroll_left`, `scroll_to`, …), which clamps it, fires
     /// `scroll` and honors `scroll-behavior`. A direct write — through
@@ -121,9 +126,9 @@ pub struct TuiExt {
     /// `P7G-TICK-TOUCHED-1`). It is clamped by the next layout, but
     /// fires no `scroll` event and leaves a smooth scroll in flight
     /// running.
-    pub scroll_x: usize,
-    /// Vertical scroll offset in cells. Runtime-managed, as
-    /// [`scroll_x`](Self::scroll_x).
+    pub scroll_x: i32,
+    /// Vertical scroll offset in cells (`scrollTop`, `0 ..= overflow`).
+    /// Runtime-managed, as [`scroll_x`](Self::scroll_x).
     pub scroll_y: usize,
     /// Scroll bookkeeping only scroll containers use — the offsets last
     /// painted and last laid out, and the smooth scroll in flight —

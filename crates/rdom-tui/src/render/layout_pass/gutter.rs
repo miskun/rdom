@@ -20,7 +20,7 @@ pub(crate) fn parent_scroll(dom: &Dom<TuiExt>, children: &[NodeId], direction: D
     };
     let Some(ext) = parent.ext() else { return 0 };
     match direction {
-        Direction::Row => ext.scroll_x as i32,
+        Direction::Row => ext.scroll_x,
         Direction::Column => ext.scroll_y as i32,
     }
 }

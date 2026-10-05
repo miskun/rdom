@@ -59,7 +59,6 @@ pub(crate) fn handle_scroll_key(dom: &mut TuiDom, key: crossterm::event::KeyEven
     let (vh, _) = scroll_metrics(dom, el, ScrollAxis::Vertical);
     let page = (vh as i32).max(1);
     let (hscroll, vscroll) = destination(dom, el);
-    let (hscroll, vscroll) = (hscroll as i32, vscroll as i32);
 
     let target = match key.code {
         KeyCode::Down if vert => (hscroll, vscroll + 1),
