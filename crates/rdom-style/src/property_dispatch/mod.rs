@@ -102,8 +102,8 @@ pub use serialize::serialize;
 pub use set::{set, set_custom, set_from_tokens};
 // `set_parsed` / `set_unset` are backend hooks, public through
 // `crate::backend`.
-pub(crate) use logical::is_directional;
 pub use logical::is_storage_alias;
+pub(crate) use logical::{is_directional, mapped_mask};
 pub(crate) use set::{set_parsed_in, set_unset_in};
 pub(crate) use table::{IMPORTANT_BITS, important_bit_name};
 pub use table::{canonical_property_name, inherits, property_mask, property_names, remove};

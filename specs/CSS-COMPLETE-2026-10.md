@@ -1860,3 +1860,32 @@ row comes from.
   `set_important` / `is_important`); green after. Changed along the way: the first draft returned
   nothing for an undeclared inline-axis name, which broke `all_shorthand_sets_every_property_in_the_table`
   (`None` against `initial`) — the fallback to the fields above fixes it; no expectation changed.
+- 2026-10-07 — C5G-LOGICAL-IMPORTANT (gate fix; partial for margin / padding, below): an `!important`
+  inline-axis declaration is important on the side it maps to only (CSS Cascade 4 §6.4: importance
+  is per declaration; CSS Logical 1 §4). `set_important` no longer sets the physical bits for an
+  inline-axis name — its flag on the kept declaration (C5G-CSSOM-LOGICAL) is its importance. The
+  replay (`pending_overlay`) marks each replayed declaration's written fields
+  (`property_dispatch::mapped_mask`: the physical targets for the direction) with its own priority,
+  and splits a block's kept declarations into a normal and an important overlay
+  (`substituted_pending_split`), so a field both write keeps both values for the two passes —
+  `inset-inline-start: 3 !important; left: 1` gives `left: 3`. Built on C5G-LOGICAL-COST: a rule's
+  prebuilt overlays are now `[[normal, important]; 2]` (`Rule::directional_overlay` returns the pair),
+  the per-element substitution (`Substituted`) keeps pairs too, and `rule_blocks` / `inline_blocks`
+  chain both after the block. An overlay leaves `margin` / `padding` unset unless a replayed
+  declaration wrote them (it copied the block's every time). `removeProperty` of an inline-axis
+  name (`logical::remove_inline_axis`) removes the kept declarations of its longhands and nothing
+  physical — it took both sides' fields and bits — splitting a wider shorthand into its remaining
+  longhands (values and priority kept); `remove` keeps the kept declarations while an inline-axis
+  one remains (it cleared them when no `var()` was left). DIVERGENCES §2: the "both sides important /
+  `removeProperty` clears both" edges removed from the flow-relative entry. Decided — partial:
+  `margin` and `padding` keep one value for their four sides (the existing per-side-longhands entry,
+  DIVERGENCES §2), so an important side makes the rule's whole margin important; the brief's
+  `.a { margin-inline-start: 1 !important; margin-right: 2 } .a.b { margin-right: 5 }` still gives 2
+  (probed: `Margin { right: 2, left: 1, … }`), now documented in that entry. Fixing it needs
+  per-side margin / padding storage (`TuiStyle::margin` as four longhands, with their own bits) —
+  a data-model change of its own, not taken here. Red: `logical_importance_marks_only_the_mapped_side`
+  (`("red", "blue")` against `("red", "lime")` under `ltr`), `logical_importance_orders_against_the_physical_side`
+  (`right` `Cells(2)` against `Cells(5)`) and `cssom_priority_and_removal_keep_the_physical_declaration`
+  (`margin-left` priority `"important"` against `""`) failed; green after, with the rdom-style unit
+  `replayed_declarations_mark_their_own_side` and the `margin-left` assertion C5G-CSSOM-LOGICAL left
+  for this item.

@@ -198,13 +198,13 @@ impl<'a> Declarations<'a> {
             .substituted
             .and_then(|s| s.rules[i].as_ref())
             .or_else(|| rule.directional_overlay(self.direction));
-        std::iter::once(&rule.style).chain(overlay)
+        std::iter::once(&rule.style).chain(overlay.into_iter().flatten())
     }
 
     /// The inline style's declaration blocks, the same way.
     fn inline_blocks(self) -> impl Iterator<Item = &'a TuiStyle> + 'a {
         let overlay = self.substituted.and_then(|s| s.inline.as_ref());
-        self.inline.into_iter().chain(overlay)
+        self.inline.into_iter().chain(overlay.into_iter().flatten())
     }
 
     /// Every declaration block `step` applies, in order.
@@ -243,8 +243,10 @@ impl<'a> Declarations<'a> {
 /// applied after the block itself — no copy of the block. `None` where a
 /// block holds no `var()`.
 pub(super) struct Substituted {
-    rules: Vec<Option<TuiStyle>>,
-    inline: Option<TuiStyle>,
+    /// Per block, its normal then its `!important` kept declarations
+    /// ([`TuiStyle::substituted_pending_split`]).
+    rules: Vec<Option<[TuiStyle; 2]>>,
+    inline: Option<[TuiStyle; 2]>,
 }
 
 impl Substituted {
@@ -271,13 +273,14 @@ impl Substituted {
             .with_direction(direction);
         let rule = |s: &TuiStyle| {
             s.needs_substitution()
-                .then(|| s.substituted_pending(vars, &cx))
+                .then(|| s.substituted_pending_split(vars, &cx))
         };
         Some(Substituted {
             rules: decls.sorted.iter().map(|r| rule(&r.style)).collect(),
-            inline: decls
-                .inline
-                .and_then(|s| s.has_pending().then(|| s.substituted_pending(vars, &cx))),
+            inline: decls.inline.and_then(|s| {
+                s.has_pending()
+                    .then(|| s.substituted_pending_split(vars, &cx))
+            }),
         })
     }
 }

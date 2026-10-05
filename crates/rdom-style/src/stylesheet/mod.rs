@@ -172,22 +172,24 @@ pub struct Rule {
     pub scope: Option<ScopeId>,
     /// `style`'s direction-mapped declarations replayed for each
     /// `direction`, built with the rule ([`Rule::directional_overlay`]).
-    directional: Option<std::sync::Arc<[TuiStyle; 2]>>,
+    directional: Option<std::sync::Arc<[[TuiStyle; 2]; 2]>>,
 }
 
 impl Rule {
     /// The block's inline-axis flow-relative declarations (CSS Logical 1
     /// §4) — with the declarations after them, in source order — mapped
     /// for an element of `direction`, which the cascade applies after
-    /// [`style`](Self::style). Built once, when the rule is added, for a
-    /// block whose kept declarations need no substitution (no `var()` or
-    /// `attr()`: [`TuiStyle::needs_substitution`]), so the cascade parses
-    /// nothing per element; `None` for any other block (a block with a
+    /// [`style`](Self::style): the normal ones, then the `!important`
+    /// ones, each marking only the side it maps to (CSS Cascade 4 §6.4).
+    /// Built once, when the rule is added, for a block whose kept
+    /// declarations need no substitution (no `var()` or `attr()`:
+    /// [`TuiStyle::needs_substitution`]), so the cascade parses nothing
+    /// per element; `None` for any other block (a block with a
     /// substitution function replays per element).
     pub fn directional_overlay(
         &self,
         direction: crate::layout::TextDirection,
-    ) -> Option<&TuiStyle> {
+    ) -> Option<&[TuiStyle; 2]> {
         let [ltr, rtl] = self.directional.as_deref()?;
         Some(match direction {
             crate::layout::TextDirection::Rtl => rtl,

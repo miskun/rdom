@@ -519,11 +519,16 @@ pub fn remove(name: &str, style: &mut TuiStyle) -> bool {
     let Some(fields) = fields_of(name) else {
         return false;
     };
+    // An inline-axis declaration writes no field of its block: removing
+    // it leaves the physical declarations (and their bits) alone.
+    if super::logical::is_directional(name) {
+        let removed = super::logical::remove_inline_axis(name, style);
+        drop_unneeded_pending(style);
+        return removed;
+    }
     let pending = style.pending.len();
     style.pending.retain(|d| d.name != name);
-    if !style.pending.iter().any(|d| d.has_substitution) {
-        style.pending.clear();
-    }
+    drop_unneeded_pending(style);
     // `|` not `||`: every field must be cleared, not just the first.
     let was_set = fields
         .iter()
@@ -532,6 +537,19 @@ pub fn remove(name: &str, style: &mut TuiStyle) -> bool {
         .important
         .without(property_mask(name).unwrap_or_default());
     was_set
+}
+
+/// Kept declarations are needed while one holds a substitution function
+/// or an inline-axis property (the declarations after it keep their
+/// order against it); without one, the block's fields say it all.
+fn drop_unneeded_pending(style: &mut TuiStyle) {
+    if !style
+        .pending
+        .iter()
+        .any(|d| d.has_substitution || d.directional)
+    {
+        style.pending.clear();
+    }
 }
 
 /// Does rdom inherit this property by default? The one declaration of

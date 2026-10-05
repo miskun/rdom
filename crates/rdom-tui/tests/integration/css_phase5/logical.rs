@@ -3,7 +3,7 @@
 //! maps the inline axis (C5-WRITING).
 
 use super::{el, lay_out, paint, rect, rows, size};
-use rdom_tui::TuiDom;
+use rdom_tui::{TuiDom, TuiNodeExt};
 
 /// `div.b` in a block `div.wrap`, laid out under `css` in 30 × 10.
 fn one(css: &str) -> (TuiDom, rdom_tui::NodeId) {
@@ -190,4 +190,99 @@ fn cssom_reads_logical_longhands_and_priorities() {
     let style = dom.node(b).style().expect("an element");
     assert_eq!(style.get_property_priority("margin-inline-start"), "");
     assert_eq!(style.get_property_priority("margin-left"), "important");
+}
+
+/// C5G-LOGICAL-IMPORTANT — CSS Cascade 4 §6.4 / CSS Logical 1 §4: an
+/// `!important` inline-axis declaration makes important only the side it
+/// maps to for the element's direction. A normal `border-right-color`
+/// beside an important `border-inline-start-color` stays normal, so a
+/// more specific normal rule beats it.
+#[test]
+fn logical_importance_marks_only_the_mapped_side() {
+    for (dir, (left, right)) in [("ltr", ("red", "lime")), ("rtl", ("reset", "red"))] {
+        let mut dom = TuiDom::new();
+        let root = dom.root();
+        let b = el(&mut dom, root, "div", "a b");
+        dom.set_attribute(b, "dir", dir).unwrap();
+        lay_out(
+            &mut dom,
+            ".a { border: solid; border-inline-start-color: red !important; \
+                  border-right-color: blue } \
+             .a.b { border-right-color: lime }",
+            10,
+            3,
+        );
+        let c = dom.node(b).computed().unwrap();
+        let name = |col: rdom_tui::Color| match col {
+            rdom_tui::Color::Rgb(255, 0, 0) => "red",
+            rdom_tui::Color::Rgb(0, 255, 0) => "lime",
+            rdom_tui::Color::Rgb(0, 0, 255) => "blue",
+            _ => "reset",
+        };
+        assert_eq!(
+            (name(c.border_color.left), name(c.border_color.right)),
+            (left, right),
+            "{dir}"
+        );
+    }
+}
+
+/// The same for the insets, and between the declarations of one block:
+/// an important `inset-inline-start` beats a later normal `left` in its
+/// block (importance before order, CSS Cascade 4 §6.4), and leaves
+/// `right` normal.
+#[test]
+fn logical_importance_orders_against_the_physical_side() {
+    let (dom, b) = one(".wrap { position: relative; width: 20 } \
+         .b { position: relative; width: 2; height: 1; \
+              inset-inline-start: 3 !important; left: 1; right: 2 } \
+         .wrap .b { right: 5 }");
+    let c = dom.node(b).computed().unwrap();
+    assert_eq!(c.left, rdom_tui::layout::Length::Cells(3));
+    assert_eq!(c.right, rdom_tui::layout::Length::Cells(5));
+}
+
+/// CSSOM: a normal physical declaration beside an important logical one
+/// is not important (`getPropertyPriority`), and `removeProperty` of a
+/// logical longhand removes that declaration only — the physical one
+/// stays, and a shorthand's other component too.
+#[test]
+fn cssom_priority_and_removal_keep_the_physical_declaration() {
+    use rdom_tui::{TuiAccessors, TuiAccessorsMut};
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let b = el(&mut dom, root, "div", "b");
+    dom.set_attribute(
+        b,
+        "style",
+        "margin-inline-start: 1 !important; margin-left: 2",
+    )
+    .unwrap();
+    assert!(rdom_tui::seed_inline_styles(&mut dom).is_empty());
+    let style = dom.node(b).style().expect("an element");
+    assert_eq!(style.get_property_priority("margin-left"), "");
+
+    dom.set_attribute(b, "style", "left: 3; inset-inline-start: 1")
+        .unwrap();
+    assert!(rdom_tui::seed_inline_styles(&mut dom).is_empty());
+    dom.node_mut(b)
+        .style_mut()
+        .unwrap()
+        .remove_property("inset-inline-start")
+        .unwrap();
+    let style = dom.node(b).style().expect("an element");
+    assert_eq!(style.get_property_value("left"), "3");
+    assert_eq!(style.get_property_value("inset-inline-start"), "");
+
+    dom.set_attribute(b, "style", "padding-inline: 1 2")
+        .unwrap();
+    assert!(rdom_tui::seed_inline_styles(&mut dom).is_empty());
+    dom.node_mut(b)
+        .style_mut()
+        .unwrap()
+        .remove_property("padding-inline-start")
+        .unwrap();
+    let style = dom.node(b).style().expect("an element");
+    assert_eq!(style.get_property_value("padding-inline-start"), "");
+    assert_eq!(style.get_property_value("padding-inline-end"), "2");
 }

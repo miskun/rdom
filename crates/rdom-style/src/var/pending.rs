@@ -73,17 +73,17 @@ impl TuiStyle {
     /// The kept declarations of a style that holds an inline-axis
     /// flow-relative property and no substitution function, replayed in
     /// source order for an `ltr` and an `rtl` element — what
-    /// [`substituted_pending`](Self::substituted_pending) gives for each
-    /// direction, built once (`Rule::directional_overlay`). `None` when
-    /// nothing is kept or a substitution function is.
-    pub(crate) fn directional_overlays(&self) -> Option<[TuiStyle; 2]> {
+    /// [`substituted_pending_split`](Self::substituted_pending_split)
+    /// gives for each direction, built once (`Rule::directional_overlay`).
+    /// `None` when nothing is kept or a substitution function is.
+    pub(crate) fn directional_overlays(&self) -> Option<[[TuiStyle; 2]; 2]> {
         if !self.has_pending() || self.needs_substitution() {
             return None;
         }
         let vars = HashMap::new();
         let overlay = |direction| {
             let cx = SubstitutionContext::new().with_direction(direction);
-            self.substituted_pending(&vars, &cx)
+            self.substituted_pending_split(&vars, &cx)
         };
         Some([
             overlay(crate::layout::TextDirection::Ltr),
@@ -102,7 +102,7 @@ impl TuiStyle {
     ) -> TuiStyle {
         let mut out = self.clone();
         out.pending.clear();
-        self.replay_pending(vars, cx, &mut out);
+        self.replay_pending(vars, cx, &mut out, |_| true);
         out
     }
 
@@ -113,10 +113,42 @@ impl TuiStyle {
     /// come after the rest of the block in source order — without
     /// copying the block. What the cascade uses per element, with the
     /// element's attributes in `cx` (CSS Values 5 §8.7).
+    ///
+    /// Each replayed declaration marks the fields it writes — for an
+    /// inline-axis one, the side it maps to under `cx`'s direction —
+    /// with its own priority (CSS Cascade 4 §6.4).
     pub fn substituted_pending(
         &self,
         vars: &HashMap<String, CustomValue>,
         cx: &SubstitutionContext<'_, '_>,
+    ) -> TuiStyle {
+        self.pending_overlay(vars, cx, |_| true)
+    }
+
+    /// [`substituted_pending`](Self::substituted_pending) as two blocks:
+    /// the normal kept declarations, then the `!important` ones. A
+    /// field written by both keeps both values — the normal one for the
+    /// normal pass of the cascade, the important one for its important
+    /// pass — as two declarations of one block do (importance before
+    /// order, CSS Cascade 4 §6.4).
+    pub fn substituted_pending_split(
+        &self,
+        vars: &HashMap<String, CustomValue>,
+        cx: &SubstitutionContext<'_, '_>,
+    ) -> [TuiStyle; 2] {
+        [
+            self.pending_overlay(vars, cx, |d| !d.important),
+            self.pending_overlay(vars, cx, |d| d.important),
+        ]
+    }
+
+    /// The kept declarations `keep` picks, replayed onto an otherwise
+    /// empty style that keeps this one's `!important` bits.
+    fn pending_overlay(
+        &self,
+        vars: &HashMap<String, CustomValue>,
+        cx: &SubstitutionContext<'_, '_>,
+        keep: impl Fn(&PendingDeclaration) -> bool,
     ) -> TuiStyle {
         // `margin` / `padding` keep their four sides in one field, which a
         // replayed side longhand updates: it starts from the block's own
@@ -127,17 +159,38 @@ impl TuiStyle {
             padding: self.padding.clone(),
             ..TuiStyle::default()
         };
-        self.replay_pending(vars, cx, &mut out);
+        let written = self.replay_pending(vars, cx, &mut out, keep);
+        // A side store no replayed declaration wrote is the block's own,
+        // which the block applies: the overlay leaves it alone.
+        if !written.intersects(crate::ImportantMask::MARGIN) {
+            out.margin = None;
+        }
+        if !written.intersects(crate::ImportantMask::PADDING) {
+            out.padding = None;
+        }
         out
     }
 
+    /// Replay the kept declarations `keep` picks onto `out`, in source
+    /// order, each marking the fields it writes with its own priority;
+    /// returns the bits of every field written.
     fn replay_pending(
         &self,
         vars: &HashMap<String, CustomValue>,
         cx: &SubstitutionContext<'_, '_>,
         out: &mut TuiStyle,
-    ) {
-        for decl in &self.pending {
+        keep: impl Fn(&PendingDeclaration) -> bool,
+    ) -> crate::ImportantMask {
+        let mut written = crate::ImportantMask::empty();
+        for decl in self.pending.iter().filter(|d| keep(d)) {
+            let mask =
+                crate::property_dispatch::mapped_mask(&decl.name, cx.direction).unwrap_or_default();
+            written |= mask;
+            out.important = if decl.important {
+                out.important | mask
+            } else {
+                out.important.without(mask)
+            };
             let set = |tokens: &[Token], out: &mut TuiStyle| {
                 crate::property_dispatch::set_parsed_in(&decl.name, tokens, out, cx.direction)
                     .is_ok()
@@ -158,5 +211,6 @@ impl TuiStyle {
                 crate::property_dispatch::set_unset_in(&decl.name, out, cx.direction);
             }
         }
+        written
     }
 }

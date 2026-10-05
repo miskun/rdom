@@ -6,7 +6,8 @@
 //! ([`property_mask`]) — except an inline-axis flow-relative property,
 //! whose physical side the cascade picks by the element's `direction`:
 //! its importance is recorded on its kept declaration
-//! ([`PendingDeclaration::important`](crate::var::PendingDeclaration)).
+//! ([`PendingDeclaration::important`](crate::var::PendingDeclaration)),
+//! and the cascade marks the side it lands on when it replays it.
 
 use super::logical::inline_axis_important;
 use super::table::{canonical_property_name, property_mask};
@@ -21,6 +22,13 @@ pub fn set_important(name: &str, important: bool, style: &mut TuiStyle) {
     let name = &*canonical_property_name(name);
     if let Some(d) = style.pending.iter_mut().rev().find(|d| d.name == name) {
         d.important = important;
+    }
+    // An inline-axis declaration's side is the cascade's to pick: its
+    // flag is its importance, and the bits of the fields it may land on
+    // stay the physical declarations' (CSS Cascade 4 §6.4: importance is
+    // per declaration).
+    if super::logical::is_directional(name) {
+        return;
     }
     if let Some(mask) = property_mask(name) {
         style.important = if important {

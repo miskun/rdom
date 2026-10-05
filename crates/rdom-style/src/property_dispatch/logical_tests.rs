@@ -230,6 +230,9 @@ fn inline_axis_priority_is_the_declarations_own() {
     assert!(is_important("margin-inline-start", &s));
     assert!(!is_important("margin-inline-end", &s));
     assert!(!is_important("margin-inline", &s));
+    // C5G-LOGICAL-IMPORTANT: the physical declaration beside it keeps
+    // its own (normal) priority.
+    assert!(!is_important("margin-left", &s));
 
     let mut s = style(&[("margin-inline-start", "1"), ("margin-left", "2")]);
     set_important("margin-left", true, &mut s);
@@ -243,4 +246,44 @@ fn inline_axis_priority_is_the_declarations_own() {
     set("margin-inline-end", "4", &mut s).unwrap();
     assert!(!is_important("margin-inline", &s));
     assert!(is_important("margin-inline-start", &s));
+}
+
+/// C5G-LOGICAL-IMPORTANT — CSS Cascade 4 §6.4: an important inline-axis
+/// declaration marks only the side it maps to for the direction, and a
+/// block's normal and important kept declarations replay apart, so an
+/// important logical side beats a later normal physical one of its own
+/// block.
+#[test]
+fn replayed_declarations_mark_their_own_side() {
+    let mut s = style(&[("border-inline-start-color", "red")]);
+    set_important("border-inline-start-color", true, &mut s);
+    set("border-right-color", "blue", &mut s).unwrap();
+    assert!(s.important.is_empty(), "no physical bit in the block");
+    let split = |d| {
+        let cx = SubstitutionContext::new().with_direction(d);
+        s.substituted_pending_split(&HashMap::new(), &cx)
+    };
+    let [normal, important] = split(TextDirection::Ltr);
+    assert!(
+        important
+            .important
+            .contains(crate::ImportantMask::BORDER_LEFT_COLOR)
+    );
+    assert!(
+        !important
+            .important
+            .contains(crate::ImportantMask::BORDER_RIGHT_COLOR)
+    );
+    assert!(normal.border_color.right.is_some() && important.border_color.right.is_none());
+    let [_, important] = split(TextDirection::Rtl);
+    assert!(
+        important
+            .important
+            .contains(crate::ImportantMask::BORDER_RIGHT_COLOR)
+    );
+    assert!(
+        !important
+            .important
+            .contains(crate::ImportantMask::BORDER_LEFT_COLOR)
+    );
 }

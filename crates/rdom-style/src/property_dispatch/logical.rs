@@ -411,3 +411,54 @@ pub(super) fn inline_axis_important(name: &str, style: &TuiStyle) -> Option<bool
             .is_some_and(|last| last.iter().all(|&i| style.pending[i].important)),
     )
 }
+
+/// The `!important` bits of the fields a declaration of `name` writes
+/// for an element of `direction`: a flow-relative property's physical
+/// targets, any other property's own fields. `None` for an unknown name.
+pub(crate) fn mapped_mask(name: &str, direction: TextDirection) -> Option<crate::ImportantMask> {
+    let name = &*super::table::canonical_property_name(name);
+    let Some(m) = mapping(name, direction) else {
+        return super::table::property_mask(name);
+    };
+    Some(
+        targets(m)
+            .into_iter()
+            .flat_map(|t| fields_of(t).unwrap_or(&[]))
+            .fold(crate::ImportantMask::empty(), |acc, f| acc | f.mask()),
+    )
+}
+
+/// CSSOM `removeProperty` of the inline-axis property `name` (CSSOM
+/// §6.6): remove the kept declarations of its longhands. A declaration
+/// that sets other longhands too (`margin-inline` when removing
+/// `margin-inline-start`) is replaced by declarations of those, with its
+/// values and priority. The physical properties are separate
+/// declarations and stay. Returns whether anything was removed.
+pub(super) fn remove_inline_axis(name: &str, style: &mut TuiStyle) -> bool {
+    let gone = inline_longhands(name);
+    let mut removed = false;
+    let mut kept = Vec::with_capacity(style.pending.len());
+    for d in std::mem::take(&mut style.pending) {
+        let longhands = inline_longhands(&d.name);
+        if !d.directional || !longhands.iter().any(|l| gone.contains(l)) {
+            kept.push(d);
+            continue;
+        }
+        removed = true;
+        let mut alone = TuiStyle::new();
+        alone.pending.push(d.clone());
+        for l in longhands.iter().filter(|l| !gone.contains(l)) {
+            let Some(Some(text)) = serialize_inline_axis(l, &alone) else {
+                continue;
+            };
+            let Ok(tokens) = crate::parse::tokenize(&text) else {
+                continue;
+            };
+            let mut rest = crate::var::PendingDeclaration::new(l, &tokens, false);
+            rest.important = d.important;
+            kept.push(rest);
+        }
+    }
+    style.pending = kept;
+    removed
+}
