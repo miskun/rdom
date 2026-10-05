@@ -2,7 +2,8 @@
 //! shadows, border (`paint_box`) — and its content — a canvas callback,
 //! an inline formatting context, or `::before` / own text / `::after`,
 //! its in-flow children and anonymous blocks, then its scrollbars
-//! (`paint_content`). The order between boxes is `stacking_walk`'s.
+//! (`paint_content`). The order between boxes, and which phase paints a
+//! box's own box and which its content, is `stacking_walk`'s.
 
 use rdom_core::{Dom, NodeId, NodeType};
 
@@ -13,7 +14,7 @@ use super::inline_paint::{
 };
 use super::layout_rect_to_grid;
 use super::scrollbar;
-use super::shadow::{self, Shadows};
+use super::shadow;
 use super::stacking_walk::recurse_children;
 use crate::ext::TuiExt;
 use crate::layout::{Display, LayoutRect};
@@ -23,11 +24,12 @@ use crate::render::stacking::children_clip;
 use crate::render::{Buffer, Rect};
 use crate::style::{Color, ComputedStyle};
 
-/// What [`paint_box`] hands to [`paint_content`]: the style with the
-/// transition presentation overlaid, the content rect and the clip the
-/// content paints into.
+/// What [`box_frame`] hands to [`paint_content`]: the style with the
+/// transition presentation overlaid, the border and content rects and the
+/// clip the content paints into.
 pub(super) struct BoxFrame {
     computed: ComputedStyle,
+    outer: LayoutRect,
     inner: LayoutRect,
     pub(super) children_clip: Rect,
     /// The box is drawn (`visibility: visible`, CSS Display 3 §4). A
@@ -37,17 +39,12 @@ pub(super) struct BoxFrame {
     visible: bool,
 }
 
-/// Paint an element's own box — outer shadows (`shadows` says how),
-/// background fill, inset shadows and border. `None` for non-elements
-/// and `display: none`, which paint nothing and have no content to
-/// paint.
-pub(super) fn paint_box(
-    dom: &Dom<TuiExt>,
-    id: NodeId,
-    buf: &mut Buffer,
-    clip: Rect,
-    shadows: Shadows,
-) -> Option<BoxFrame> {
+/// An element's box as paint reads it — its style with an in-flight
+/// transition's presentation overlaid, its rects, whether it is drawn and
+/// the clip its content paints into (CSS Overflow 3 §3,
+/// `stacking::children_clip`). `None` for non-elements and `display:
+/// none`, which paint nothing and have no content to paint.
+pub(super) fn box_frame(dom: &Dom<TuiExt>, id: NodeId, clip: Rect) -> Option<BoxFrame> {
     if dom.node(id).node_type() != NodeType::Element {
         return None;
     }
@@ -92,58 +89,74 @@ pub(super) fn paint_box(
     let outer = dom.node(id).layout_rect().unwrap_or_default();
     let inner = dom.node(id).content_layout_rect().unwrap_or(outer);
     let visible = crate::render::visibility::shows(dom, id, crate::ext::StyleSlot::Host);
-    // 0. Outer shadows, under the background (CSS Backgrounds 3 §6.1);
-    // they may show while the box itself is outside the clip.
-    if visible {
-        shadow::paint_outer_shadows(buf, &computed, outer, clip, shadows);
-    }
-
-    // Fast path: element entirely outside the clip (or not drawn).
-    if let Some(outer_grid) = layout_rect_to_grid(outer, clip).filter(|_| visible) {
-        // 1. Background fill over the `background-clip` box: an opaque
-        // fill that clears glyphs from earlier paints (full CSS
-        // occlusion). `opacity` is applied when the stacking context's
-        // layer composites back, not here. See `background.rs`.
-        // Tree rows defer their background to the guide pass
-        // (`tree_guides`), which fills the FULL row — including the
-        // guide gutter to the left of the indented box — so the
-        // `aria-selected` / cursor highlight spans edge to edge. A
-        // normal box fill here would both stop at the indented box's
-        // left edge AND tint the whole open subtree (the box
-        // contains the nested group).
-        let is_tree_row = dom.node(id).get_attribute("role") == Some("treeitem");
-        if !is_tree_row {
-            paint_background(buf, &computed, outer, inner, clip);
-        }
-        // Inset shadows, above the background and below the border.
-        shadow::paint_inset_shadows(buf, &computed, outer, clip);
-
-        // 2. Border. Writes per-cell × per-direction `BorderContribution`s
-        // into `buf.border_dirs`; the joiner reads them after the
-        // walk and emits the right glyph + color. BORDER-MODEL-1
-        // priority encodes "child wins over ancestor" (depth) and
-        // "earlier DOM order wins on tie" (`NodeId` proxy for
-        // geometric position).
-        if !computed.border.is_empty() {
-            let priority = compute_border_priority(dom, id);
-            paint_border_sides(buf, &computed, outer, outer_grid, clip, priority);
-        }
-    }
-    // Else: element off-screen — skip its box but still paint its
-    // content; a scrolled-off parent may have visible children when
-    // overflow is `Visible`.
-
     // Inner paint (text + pseudo-elements + children) happens in
     // `content_layout`, clipped by the element's overflow mode at the
     // padding-box edge per CSS Overflow 3 §3 (`stacking::children_clip`).
     let children_clip = children_clip(dom, id, &computed, clip);
-
     Some(BoxFrame {
         computed,
+        outer,
         inner,
         children_clip,
         visible,
     })
+}
+
+/// Paint an element's own box — outer shadows, background fill, inset
+/// shadows and border (CSS Backgrounds 3 §7.2: the shadows with the
+/// background) — and hand back its [`BoxFrame`]. In-flow block-level
+/// boxes do this in their paint unit's background phase
+/// (`stacking_walk`), before any of its inline content.
+pub(super) fn paint_box(
+    dom: &Dom<TuiExt>,
+    id: NodeId,
+    buf: &mut Buffer,
+    clip: Rect,
+) -> Option<BoxFrame> {
+    let frame = box_frame(dom, id, clip)?;
+    if !frame.visible {
+        return Some(frame);
+    }
+    let (computed, outer, inner) = (&frame.computed, frame.outer, frame.inner);
+    // 0. Outer shadows, under the background (CSS Backgrounds 3 §6.1);
+    // they may show while the box itself is outside the clip.
+    shadow::paint_outer_shadows(buf, computed, outer, clip);
+
+    // Fast path: element entirely outside the clip.
+    let Some(outer_grid) = layout_rect_to_grid(outer, clip) else {
+        // Its box is off-screen; its content may still show (a scrolled-
+        // off parent's visible children, `overflow: visible`).
+        return Some(frame);
+    };
+    // 1. Background fill over the `background-clip` box: an opaque
+    // fill that clears glyphs from earlier paints (full CSS
+    // occlusion). `opacity` is applied when the stacking context's
+    // layer composites back, not here. See `background.rs`.
+    // Tree rows defer their background to the guide pass
+    // (`tree_guides`), which fills the FULL row — including the
+    // guide gutter to the left of the indented box — so the
+    // `aria-selected` / cursor highlight spans edge to edge. A
+    // normal box fill here would both stop at the indented box's
+    // left edge AND tint the whole open subtree (the box
+    // contains the nested group).
+    let is_tree_row = dom.node(id).get_attribute("role") == Some("treeitem");
+    if !is_tree_row {
+        paint_background(buf, computed, outer, inner, clip);
+    }
+    // Inset shadows, above the background and below the border.
+    shadow::paint_inset_shadows(buf, computed, outer, clip);
+
+    // 2. Border. Writes per-cell × per-direction `BorderContribution`s
+    // into `buf.border_dirs`; the joiner reads them after the
+    // walk and emits the right glyph + color. BORDER-MODEL-1
+    // priority encodes "child wins over ancestor" (depth) and
+    // "earlier DOM order wins on tie" (`NodeId` proxy for
+    // geometric position).
+    if !computed.border.is_empty() {
+        let priority = compute_border_priority(dom, id);
+        paint_border_sides(buf, computed, outer, outer_grid, clip, priority);
+    }
+    Some(frame)
 }
 
 /// Paint an element's content: its canvas callback, or its inline

@@ -16,13 +16,19 @@ use crate::render::buffer::BorderContribution;
 use crate::render::{Buffer, Rect};
 use crate::style::ComputedStyle;
 
-/// Paint the box of every generated flex item of `container`.
+/// Paint the box of every generated flex or grid item of `container`,
+/// atomically with its content (CSS Flexbox §5.4). A block container's
+/// block-level `::before` / `::after` paint their boxes in their unit's
+/// background phase instead ([`paint_generated_block`]).
 pub(super) fn paint_generated_boxes(
     dom: &Dom<TuiExt>,
     container: NodeId,
     buf: &mut Buffer,
     clip: Rect,
 ) {
+    if !crate::render::box_tree::is_flex_or_grid_container(dom, container) {
+        return;
+    }
     let Some(ext) = dom.node(container).ext() else {
         return;
     };
@@ -30,6 +36,24 @@ pub(super) fn paint_generated_boxes(
         if let Some(g) = anon.generated {
             paint_box(dom, g, anon.rect, buf, clip);
         }
+    }
+}
+
+/// Paint the box of the block-level `::before` / `::after` that is
+/// `host`'s `k`-th anonymous box, in its unit's background phase (CSS 2.1
+/// Appendix E step 4).
+pub(super) fn paint_generated_block(
+    dom: &Dom<TuiExt>,
+    host: NodeId,
+    k: usize,
+    buf: &mut Buffer,
+    clip: Rect,
+) {
+    let Some(anon) = dom.node(host).ext().and_then(|e| e.anonymous_blocks.get(k)) else {
+        return;
+    };
+    if let Some(g) = anon.generated {
+        paint_box(dom, g, anon.rect, buf, clip);
     }
 }
 

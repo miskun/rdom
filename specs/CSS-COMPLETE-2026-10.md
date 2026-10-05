@@ -5117,3 +5117,27 @@ row comes from.
   entry is now the two departures left (a block-level pseudo's margins do not collapse through its host;
   `display: table` waits for Phase 13); the floats entry no longer says pseudo-elements do not float. No
   existing test expectation or snapshot changed.
+- 2026-10-10 — C8G-PAINT-PHASES (architect N6; DIVERGENCES §2's older "a later block's background covers
+  earlier overflowing text", C4G-SHADOW-ORDER's gap). Found: each in-flow box painted whole — background,
+  border, text, children — and the floats after the whole in-flow content, so a float covered inline content
+  overflowing into it and a later block's background covered an earlier block's overflowing line; and a float
+  inside a `z-index: auto` positioned box was painted (in the context's float layer) before that box, whose
+  background then hid it. Decision: Appendix E's phases per *paint unit* — a context root, a `z-index: auto`
+  positioned box (step 8), a float (step 5) and an atomic box (7.2.1.4.1.1; flex / grid items, Flexbox §5.4) all
+  paint "as if [they] created a stacking context": the unit's box, its in-flow block-level boxes' shadows,
+  backgrounds and borders in tree order (step 4), its floats (step 5), then its inline content (step 7), an
+  atomic box whole at its turn. The walk that collects a context's layers (`stacking::collect`, the old walk
+  moved, `stacking.rs` 552 → `stacking/` — `mod.rs` 254, `collect.rs` 295, `unit.rs` 167) also gathers the background-phase
+  boxes (`BoxEntry`, every in-flow block-level box where it gathered the shadowed ones; a block-level pseudo's
+  box too) and the floats with the unit they belong to (`LayerEntry::owner`), for the root's unit and each
+  `z-index: auto` unit; a float or an atomic box gathers its own when it paints (`for_each_unit_box`, the old
+  atom-shadow walk generalized, allocating only for a float). The inline-content phase is the existing content
+  recursion, which no longer paints an in-flow box's own box (`box_paint::box_frame` split from `paint_box`).
+  The two-stroke shadow (backdrop phase + under-text at the box's turn, `Shadows`, `tint_bg`) is gone: a shadow
+  paints once, with its background. Cost pin (`paint_pass/phase_cost_tests.rs`): a paint looks at each node
+  twice (layers + content, as before) and paints each block box once, for 10 / 40 siblings and a 20-deep chain.
+  Hit-testing still tries floats before in-flow content (DIVERGENCES §2). Red: `css_phase8/paint_phases.rs` —
+  3 of 5 failed (`abcdefgF  ` for `abcdefghij`; row 1 blank for `line2`; `  text` for `F text`); the inline-block
+  float and atom-turn tests were guards (green before and after). Green after. Mutation (restored, touched):
+  repainting a box whole in the content phase → the later-block test. No existing test expectation or snapshot
+  changed.

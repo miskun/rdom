@@ -6,28 +6,22 @@
 //! `LayoutRect`. Paint consumes both and emits the final grid of
 //! cells.
 //!
-//! ## Paint order (per element)
+//! ## Paint order
 //!
-//! 0. **Outer shadows** — `box-shadow` shades outside the border box.
-//!    A paint unit's root (a stacking context, or a `z-index: auto`
-//!    positioned box) paints its own here, over what lies beneath. An
-//!    in-flow box's opaque ones belong to its unit's background phase
-//!    (CSS 2.1 Appendix E step 4, Backgrounds 3 §7.2): they paint there
-//!    first, over the layers beneath, and again here *under* the text
-//!    the unit has painted so far — over the earlier siblings'
-//!    backgrounds and borders, which come before in tree order, but not
-//!    over their inline content, which comes after every background.
-//! 1. **Background fill** — `computed.bg` over the box its
-//!    `background-clip` names (the border box by default, so border
-//!    cells take it too). Skipped for `Color::Reset`.
-//! 2. **Border** — border chars at the outer rect edges, each side
-//!    in its `computed.border_color`. Styles (Single, Rounded, Top, Bottom,
-//!    Left, Right) pick different character sets.
-//! 3. **Inline content** — either the classic `::before` then own
-//!    text then `::after` path (non-IFC elements) or the IFC fragment
-//!    path (blocks establishing an inline formatting context).
-//! 4. **Recurse** — in-flow element children paint at their own
-//!    `layout` rects.
+//! An element's own box (`box_paint::paint_box`): its outer shadows
+//! (`box-shadow` shades outside the border box), its background fill
+//! (`computed.bg` over the box its `background-clip` names; skipped for
+//! `Color::Reset`), its inset shadows, its border (per-direction
+//! contributions the joiner turns into glyphs). Its content
+//! (`box_paint::paint_content`): its inline content — the classic
+//! `::before` / own text / `::after` path, or the IFC fragment path —
+//! its in-flow children and its scrollbars.
+//!
+//! Between boxes the order is CSS 2.1 Appendix E's (`stacking_walk`):
+//! within each paint unit — a stacking context, a `z-index: auto`
+//! positioned box, a float, an atomic box — the in-flow block-level
+//! boxes' own boxes in tree order (step 4), the floats (step 5), then the
+//! inline content in tree order (step 7), an atomic box whole at its turn.
 //!
 //! ## Stacking
 //!
@@ -56,10 +50,10 @@
 //! - `mod.rs` — public `PaintExt` trait and the shared
 //!   `layout_rect_to_grid` clip utility.
 //! - `stacking_walk` — the stacking-context walk
-//!   (`paint_stacking_context`, `paint_layers`, `paint_plain`,
-//!   `recurse_children`) and each paint unit's background phase.
-//! - `box_paint` — one element's box (`paint_box`) and content
-//!   (`paint_content`), the border priority, and `fills`.
+//!   (`paint_stacking_context`, `paint_layers`, `recurse_children`) and
+//!   each paint unit's phases (`paint_unit`, `paint_atomic`).
+//! - `box_paint` — one element's box (`box_frame`, `paint_box`) and
+//!   content (`paint_content`), the border priority, and `fills`.
 //! - `background` — the `background-color` fill, clipped by
 //!   `background-clip`.
 //! - `shadow` — `box-shadow`: outer shades under the background, inset
@@ -93,6 +87,8 @@ mod tree_guides;
 
 #[cfg(test)]
 mod color_tests;
+#[cfg(test)]
+mod phase_cost_tests;
 #[cfg(test)]
 mod tests;
 

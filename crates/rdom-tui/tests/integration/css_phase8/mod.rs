@@ -13,6 +13,7 @@ mod float;
 mod line_clamp;
 mod overflow_clip;
 mod overflow_text;
+mod paint_phases;
 mod pseudo_atoms;
 mod pseudo_boxes;
 mod rtl_line_overflow;

@@ -1,28 +1,28 @@
 //! The stacking-context walk (CSS 2.1 Appendix E): a context's root
-//! box, its layers around its in-flow content, the in-flow children in
-//! tree order, and the background phase of each paint unit (the outer
-//! shadows of its in-flow boxes, `shadow`). The per-box paint is
-//! `box_paint`'s.
+//! box, its layers around its in-flow content, and each paint unit's
+//! phases — its in-flow block-level boxes' backgrounds and borders (step
+//! 4), its floats (step 5), its inline content (step 7) — see
+//! `crate::render::stacking`. The per-box paint is `box_paint`'s.
 
 use rdom_core::{Dom, NodeId, NodeType};
 
-use super::box_paint::{paint_box, paint_content};
+use super::box_paint::{BoxFrame, box_frame, paint_box, paint_content};
 use super::group;
-use super::shadow::{self, Shadows};
 use crate::ext::TuiExt;
 use crate::layout::Display;
 use crate::node::TuiNodeExt;
 use crate::render::layout_pass::is_ifc_block;
 use crate::render::stacking::{
-    LayerEntry, Layers, collect_layers, creates_stacking_context, for_each_atom_shadow, is_layered,
-    paints_atomically,
+    BoxEntry, LayerEntry, Layers, UnitFloat, collect_layers, creates_stacking_context,
+    for_each_unit_box, is_layered, paints_atomically,
 };
 use crate::render::{Buffer, Rect};
 
 /// Paint `root` and everything stacked inside it in CSS 2.1 Appendix E
 /// order: the root's own box, child contexts with negative `z-index`,
-/// the root's in-flow content, positioned descendants with `z-index:
-/// auto | 0` in tree order, child contexts with positive `z-index`.
+/// the root's in-flow content in its phases, positioned descendants with
+/// `z-index: auto | 0` in tree order, child contexts with positive
+/// `z-index`.
 ///
 /// `clip` is the region this context paints into; `viewport` the
 /// document's clip, which `position: fixed` descendants clip to.
@@ -59,23 +59,85 @@ fn paint_stacking_context_body(
         // The document root: no box of its own.
         let layers = collect_layers(dom, root, clip, viewport);
         paint_layers(dom, &layers, &layers.negative, buf, viewport);
-        shadow::paint_backdrop_shadows(dom, layers.shadows_of(0), buf);
-        recurse_children(dom, root, buf, clip, viewport);
-        paint_layers(dom, &layers, &layers.floats, buf, viewport);
+        paint_unit(dom, &layers, 0, (root, None), buf, (clip, viewport));
         paint_layers(dom, &layers, &layers.zero_auto, buf, viewport);
         paint_layers(dom, &layers, &layers.positive, buf, viewport);
         return;
     }
-    let Some(frame) = paint_box(dom, root, buf, clip, Shadows::Whole) else {
+    let Some(frame) = paint_box(dom, root, buf, clip) else {
         return;
     };
     let layers = collect_layers(dom, root, frame.children_clip, viewport);
     paint_layers(dom, &layers, &layers.negative, buf, viewport);
-    shadow::paint_backdrop_shadows(dom, layers.shadows_of(0), buf);
-    paint_content(dom, root, buf, clip, viewport, &frame);
-    paint_layers(dom, &layers, &layers.floats, buf, viewport);
+    paint_unit(dom, &layers, 0, (root, Some(&frame)), buf, (clip, viewport));
     paint_layers(dom, &layers, &layers.zero_auto, buf, viewport);
     paint_layers(dom, &layers, &layers.positive, buf, viewport);
+}
+
+/// The in-flow content of the paint unit `unit` of a context whose
+/// layers are `layers` — rooted at `root`, its box already painted
+/// (`frame`; `None` for the document root) — in Appendix E's phases: its
+/// in-flow block-level boxes' shadows, backgrounds and borders (step 4),
+/// its floats, each atomically (step 5), then its inline content (step
+/// 7).
+fn paint_unit(
+    dom: &Dom<TuiExt>,
+    layers: &Layers,
+    unit: usize,
+    (root, frame): (NodeId, Option<&BoxFrame>),
+    buf: &mut Buffer,
+    (clip, viewport): (Rect, Rect),
+) {
+    for e in layers.boxes_of(unit) {
+        paint_background_phase(dom, e, buf);
+    }
+    for f in layers.floats_of(unit) {
+        paint_float(dom, f.id, f.generated, f.context, buf, f.clip, viewport);
+    }
+    match frame {
+        Some(frame) => paint_content(dom, root, buf, clip, viewport, frame),
+        None => recurse_children(dom, root, buf, clip, viewport),
+    }
+}
+
+/// One in-flow block-level box in its unit's background phase: its own
+/// box (shadows, background, border), or a block-level `::before` /
+/// `::after`'s.
+fn paint_background_phase(dom: &Dom<TuiExt>, e: &BoxEntry, buf: &mut Buffer) {
+    #[cfg(test)]
+    BOX_PAINTS.with(|c| c.set(c.get() + 1));
+    match e.generated {
+        Some(k) => super::generated_box::paint_generated_block(dom, e.id, k, buf, e.clip),
+        None => {
+            paint_box(dom, e.id, buf, e.clip);
+        }
+    }
+}
+
+#[cfg(test)]
+thread_local! {
+    /// Boxes painted in a background phase (tests only: the cost pin).
+    pub(crate) static BOX_PAINTS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// Paint a float (Appendix E step 5), atomically: a stacking context of
+/// its own (`opacity`), a box with its own phases ([`paint_atomic`]), or
+/// a floated `::before` / `::after` — the `k`-th its formatting context
+/// run placed on `id` (`generated`).
+fn paint_float(
+    dom: &Dom<TuiExt>,
+    id: NodeId,
+    generated: Option<usize>,
+    context: bool,
+    buf: &mut Buffer,
+    clip: Rect,
+    viewport: Rect,
+) {
+    match generated {
+        Some(k) => super::inline_paint::paint_floated_pseudo(dom, id, k, buf, clip, viewport),
+        None if context => paint_stacking_context(dom, id, buf, clip, viewport),
+        None => paint_atomic(dom, id, buf, clip, viewport),
+    }
 }
 
 fn paint_layers(
@@ -86,53 +148,60 @@ fn paint_layers(
     viewport: Rect,
 ) {
     for e in entries {
-        if let Some(k) = e.generated {
-            super::inline_paint::paint_floated_pseudo(dom, e.id, k, buf, e.clip, viewport);
-            continue;
-        }
         if e.context {
             paint_stacking_context(dom, e.id, buf, e.clip, viewport);
             continue;
         }
         // A `z-index: auto` positioned box paints as if it were a
-        // context: its box, its in-flow boxes' shadows, its content.
-        let Some(frame) = paint_box(dom, e.id, buf, e.clip, Shadows::Whole) else {
+        // context: its box, then its unit's phases.
+        let Some(frame) = paint_box(dom, e.id, buf, e.clip) else {
             continue;
         };
-        shadow::paint_backdrop_shadows(dom, layers.shadows_of(e.unit()), buf);
-        paint_content(dom, e.id, buf, e.clip, viewport, &frame);
+        paint_unit(
+            dom,
+            layers,
+            e.unit(),
+            (e.id, Some(&frame)),
+            buf,
+            (e.clip, viewport),
+        );
     }
 }
 
-/// Paint an in-flow element as a plain box: its own box, then its
-/// in-flow content. An atomic box (`parent`'s flex item, an inline
-/// block) is a paint unit of its own: its shadows paint whole, then its
-/// in-flow boxes' shadows (its background phase), then its content.
-fn paint_plain(
-    dom: &Dom<TuiExt>,
-    parent: NodeId,
-    id: NodeId,
-    buf: &mut Buffer,
-    clip: Rect,
-    viewport: Rect,
-) {
-    let atomic = dom
-        .node(id)
-        .computed()
-        .is_some_and(|c| paints_atomically(dom, parent, c));
-    let shadows = if atomic {
-        Shadows::Whole
-    } else {
-        Shadows::UnderText
-    };
-    let Some(frame) = paint_box(dom, id, buf, clip, shadows) else {
+/// Paint a box that paints as if it created a stacking context — an
+/// atomic box (an inline block, a flex or grid item) or a float (CSS 2.1
+/// Appendix E 7.2.1.4.1.1, step 5): its own box, then its phases,
+/// gathered now (`stacking::for_each_unit_box`) — its in-flow block-level
+/// boxes' backgrounds, its floats, its inline content.
+fn paint_atomic(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect, viewport: Rect) {
+    let Some(frame) = paint_box(dom, id, buf, clip) else {
         return;
     };
-    if atomic {
-        for_each_atom_shadow(dom, id, frame.children_clip, &mut |e| {
-            shadow::paint_backdrop_shadow(dom, &e, buf);
-        });
+    let mut floats: Vec<UnitFloat> = Vec::new();
+    for_each_unit_box(
+        dom,
+        id,
+        frame.children_clip,
+        &mut |e| paint_background_phase(dom, &e, buf),
+        &mut floats,
+    );
+    for f in floats {
+        let context = f.generated.is_none()
+            && dom.node(f.id).computed().is_some_and(|c| {
+                crate::render::box_tree::box_parent(dom, f.id)
+                    .is_some_and(|p| creates_stacking_context(dom, p, c))
+            });
+        paint_float(dom, f.id, f.generated, context, buf, f.clip, viewport);
     }
+    paint_content(dom, id, buf, clip, viewport, &frame);
+}
+
+/// Paint an in-flow element's inline content (Appendix E step 7): its
+/// own box was painted in its unit's background phase.
+fn paint_plain(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect, viewport: Rect) {
+    let Some(frame) = box_frame(dom, id, clip) else {
+        return;
+    };
     paint_content(dom, id, buf, clip, viewport, &frame);
 }
 
@@ -170,6 +239,7 @@ fn children_of(
         crate::render::box_tree::PaintOrder::tree(dom, node)
     };
     for cid in kids {
+        crate::render::stacking::visit();
         let child = dom.node(cid);
         match child.node_type() {
             NodeType::Element if crate::render::box_tree::is_contents(dom, cid) => {
@@ -205,11 +275,13 @@ fn children_of(
     }
 }
 
-/// Paint the in-flow element `id`, a child of `parent`, in place: a
-/// layered one — positioned, or a flex / grid item with a `z-index` — is
-/// skipped (its stacking context's layers paint it),
-/// one that establishes a stacking context paints as one, any other as
-/// a plain box ([`paint_plain`]).
+/// Paint the in-flow element `id`, a child of `parent`, at its turn in
+/// its unit's inline content (Appendix E step 7): a layered one —
+/// positioned, floated, or a flex / grid item with a `z-index` — is
+/// skipped (its stacking context's layers or its unit's float phase paint
+/// it), one that establishes a stacking context paints as one, an atomic
+/// box whole with its phases ([`paint_atomic`]), any other its content
+/// ([`paint_plain`]).
 fn paint_in_flow(
     dom: &Dom<TuiExt>,
     parent: NodeId,
@@ -223,7 +295,10 @@ fn paint_in_flow(
         Some(c) if creates_stacking_context(dom, parent, c) => {
             paint_stacking_context(dom, id, buf, clip, viewport);
         }
-        _ => paint_plain(dom, parent, id, buf, clip, viewport),
+        Some(c) if paints_atomically(dom, parent, c) => {
+            paint_atomic(dom, id, buf, clip, viewport);
+        }
+        _ => paint_plain(dom, id, buf, clip, viewport),
     }
 }
 
