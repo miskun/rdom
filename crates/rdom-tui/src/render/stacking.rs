@@ -115,10 +115,13 @@ pub(crate) fn is_positioned(c: &ComputedStyle) -> bool {
 /// block boxes for paint (rdom lays them out as flex items, a
 /// documented divergence; a browser's `<body>` children are blocks).
 pub(crate) fn paints_atomically(dom: &Dom<TuiExt>, parent: NodeId, c: &ComputedStyle) -> bool {
-    if crate::render::box_tree::is_atomic_inline(c) {
-        return true;
-    }
-    // A fragment or box-less child is laid out in the element above it.
+    crate::render::box_tree::is_atomic_inline(c) || is_item_of(dom, parent)
+}
+
+/// Whether the in-flow children of `parent` are flex or grid items: the
+/// element their boxes are laid out in — `parent`, or past fragments and
+/// box-less elements the one above — is a flex or grid container.
+fn is_item_of(dom: &Dom<TuiExt>, parent: NodeId) -> bool {
     let mut p = dom.node(parent);
     while p.node_type() == NodeType::Fragment || crate::render::box_tree::is_contents(dom, p.id()) {
         match p.parent_node() {
@@ -130,6 +133,19 @@ pub(crate) fn paints_atomically(dom: &Dom<TuiExt>, parent: NodeId, c: &ComputedS
         && p.ext()
             .and_then(|e| e.computed.as_ref())
             .is_some_and(|pc| pc.flow.is_flex_or_grid())
+}
+
+/// Does the element `c`, a child of `parent`, paint and hit from its
+/// stacking context's layers rather than at its turn in its parent's
+/// content? A positioned box does, and so does a flex or grid item with
+/// a `z-index` other than `auto` (CSS Flexbox §5.4, CSS Grid 2 §6.5:
+/// such a value "create[s] a stacking context even if `position` is
+/// `static`", ordered as a positioned box's is).
+pub(crate) fn is_layered(dom: &Dom<TuiExt>, parent: NodeId, c: &ComputedStyle) -> bool {
+    is_positioned(c)
+        || (!matches!(c.z_index, ZIndex::Auto)
+            && c.display != Display::Contents
+            && is_item_of(dom, parent))
 }
 
 /// Does an element with this style establish a stacking context?
@@ -261,7 +277,7 @@ impl Walk<'_> {
             if c.display == Display::None {
                 continue;
             }
-            if is_positioned(c) {
+            if is_layered(dom, box_parent, c) {
                 let clip = match c.position {
                     Position::Fixed => viewport,
                     Position::Absolute => self
@@ -274,7 +290,9 @@ impl Walk<'_> {
                         current.content_clip
                     }
                 };
-                let context = creates_stacking_context(c);
+                // A layered box that is not positioned is a flex or grid
+                // item with a `z-index`: a stacking context.
+                let context = creates_stacking_context(c) || !is_positioned(c);
                 let z = match c.z_index {
                     ZIndex::Auto => 0,
                     ZIndex::Value(n) => n,
@@ -397,7 +415,7 @@ fn atom_shadows_in(
             continue;
         };
         if c.display == Display::None
-            || is_positioned(c)
+            || is_layered(dom, box_parent, c)
             || creates_stacking_context(c)
             || paints_atomically(dom, box_parent, c)
         {

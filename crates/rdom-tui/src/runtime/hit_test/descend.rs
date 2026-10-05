@@ -17,7 +17,7 @@ use crate::node::TuiNodeExt;
 use crate::render::Rect;
 use crate::render::inline::has_inline_layout;
 use crate::render::stacking::{
-    LayerEntry, children_clip, collect_layers, creates_stacking_context, is_positioned,
+    LayerEntry, children_clip, collect_layers, creates_stacking_context, is_layered,
 };
 use crate::style::ComputedStyle;
 
@@ -322,8 +322,9 @@ fn descend_children_reverse(
 }
 
 /// Hit-test the in-flow element `id` at its turn in its parent's
-/// content: a positioned box is skipped — it is tried from its stacking
-/// context's layers — and one that establishes a stacking context
+/// content: a layered box (positioned, or a flex / grid item with a
+/// `z-index`) is skipped — it is tried from its stacking context's
+/// layers — and one that establishes a stacking context
 /// without being positioned (`opacity < 1`) is searched as one atomic
 /// unit.
 fn hit_in_flow_element(
@@ -335,8 +336,9 @@ fn hit_in_flow_element(
     viewport: Rect,
     path: &mut Vec<NodeId>,
 ) -> bool {
+    let parent = dom.node(id).parent_node().map_or(id, |p| p.id());
     match dom.node(id).ext().and_then(|e| e.computed.as_ref()) {
-        Some(c) if is_positioned(c) => false,
+        Some(c) if is_layered(dom, parent, c) => false,
         Some(c) if creates_stacking_context(c) => {
             hit_stacking_context(dom, id, x, y, clip, viewport, path)
         }

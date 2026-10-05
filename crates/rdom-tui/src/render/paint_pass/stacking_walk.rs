@@ -14,8 +14,8 @@ use crate::layout::Display;
 use crate::node::TuiNodeExt;
 use crate::render::layout_pass::is_ifc_block;
 use crate::render::stacking::{
-    LayerEntry, Layers, collect_layers, creates_stacking_context, for_each_atom_shadow,
-    is_positioned, paints_atomically,
+    LayerEntry, Layers, collect_layers, creates_stacking_context, for_each_atom_shadow, is_layered,
+    paints_atomically,
 };
 use crate::render::{Buffer, Rect};
 
@@ -200,7 +200,8 @@ fn children_of(
 }
 
 /// Paint the in-flow element `id`, a child of `parent`, in place: a
-/// positioned one is skipped (its stacking context's layers paint it),
+/// layered one — positioned, or a flex / grid item with a `z-index` — is
+/// skipped (its stacking context's layers paint it),
 /// one that establishes a stacking context paints as one, any other as
 /// a plain box ([`paint_plain`]).
 fn paint_in_flow(
@@ -212,7 +213,7 @@ fn paint_in_flow(
     viewport: Rect,
 ) {
     match dom.node(id).computed() {
-        Some(c) if is_positioned(c) => {}
+        Some(c) if is_layered(dom, parent, c) => {}
         Some(c) if creates_stacking_context(c) => {
             paint_stacking_context(dom, id, buf, clip, viewport);
         }

@@ -27,6 +27,7 @@ Each Breaking bullet below ends with its migration, and the [API table](#api-cha
 12. **Flex containers lay out their text and `::before` / `::after` as items** (CSS Flexbox §4): text beside element items, and pseudo-elements, were dropped; a text-only container's text is one item, which `justify-content` / `align-items` place and `text-align` does not. (C6G-ANON-FLEX-ITEMS, C6G-PSEUDO-FLEX-ITEMS)
 13. **`min-*: auto` does not floor a flex item's cross size** at its content (the automatic minimum is a main-axis rule). (C3G-MIN-AUTO)
 14. **Ill-typed math is invalid** (`calc(50% * 10%)` drops the declaration) and division by zero is IEEE-754 (CSS Values 4 §10.9). (C2-TRIG, C2G-CALC-SEMANTICS)
+15. **`z-index` on a static flex item stacks it** (CSS Flexbox §5.4): a numeric `z-index` makes a flex or grid item a stacking context ordered by it, as a positioned box's is; it was ignored without `position`. (C7-GRID-PLACE)
 
 **Compile breaks** — what a 0.5 consumer must change, by kind (the API table has each item):
 
@@ -369,6 +370,7 @@ One row per renamed or reshaped public item: the 0.5 form, its replacement, the 
 - **Implicit grid tracks take `grid-auto-columns` / `grid-auto-rows`** (CSS Grid 2 §7.6), the sizes repeated as a pattern from the explicit grid outward; `TuiNodeMutExt::set_grid_auto_columns` / `set_grid_auto_rows`. (C7-GRID-AUTO)
 - **Grid items are placed by their lines** (CSS Grid 2 §8): `grid-row` / `grid-column` / `grid-area` with integers, names and spans, conflicts per §8.3.1, implicit tracks before and after the explicit grid, and §8.5 auto-placement under `grid-auto-flow` (`row` / `column`, `dense`). (C7-GRID-PLACE)
 - **An absolutely positioned box in a grid takes its grid area as its containing block** (CSS Grid 2 §9.1): `grid-row` / `grid-column` against the laid-out grid, an `auto` or missing line the containing block's edge, `rtl` columns from the right. (C7-GRID-PLACE)
+- **Grid items paint in order-modified document order and stack by `z-index`** (CSS Grid 2 §6.5), as flex items now do too (§5.4): a static item with a numeric `z-index` is a stacking context, painted and hit in its layer. (C7-GRID-PLACE)
 - `TuiNodeMutExt::set_grid_template_columns` / `set_grid_template_rows`, grammar-checked as the builders; the grid value types at the crate root and in the prelude. (C7-GRID-CORE)
 
 ### Changed — `rdom-tui`

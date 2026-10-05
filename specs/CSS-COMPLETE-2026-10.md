@@ -155,7 +155,7 @@ row comes from.
 | Id | Item | Status |
 |---|---|---|
 | C7-GRID-CORE | `display: grid` / `inline-grid`, `grid-template-columns` / `-rows` with cells / `%` / `fr` / `auto` / `minmax()` / `repeat()` | done |
-| C7-GRID-PLACE | `grid-row` / `grid-column` (+ start / end), `grid-area`, auto-placement, `grid-auto-flow` (`dense`) | partial — the placement algorithm |
+| C7-GRID-PLACE | `grid-row` / `grid-column` (+ start / end), `grid-area`, auto-placement, `grid-auto-flow` (`dense`) | done |
 | C7-GRID-AREAS | `grid-template-areas`, `grid-template`, `grid` shorthands | |
 | C7-GRID-AUTO | `grid-auto-columns` / `grid-auto-rows` | done |
 | C7-GRID-ALIGN | Box Alignment in grid (`justify-*` / `align-*` / `place-*`) | |
@@ -3770,3 +3770,21 @@ row comes from.
   `auto`, as the test's own doc now says), and the `rtl` test added. Mutation checks (restored and
   touched): the hook off → all four; the `rtl` edges unmirrored → the `rtl` test; a missing line
   clamped instead of `auto` → its test. DIVERGENCES §3's abspos line goes.
+- 2026-10-08 — C7-GRID-PLACE, part 4 of 4: grid items in the stacking order (CSS Grid 2 §6.5: grid
+  items "paint exactly the same as inline blocks, except that order-modified document order is used
+  in place of raw document order, and `z-index` values other than `auto` create a stacking context even
+  if `position` is `static`"). Order and atomic painting landed with C7-GRID-CORE; `z-index` was
+  missing for flex items too, whose §5.4 says the same — decided, one predicate for both:
+  `stacking::is_layered(dom, parent, c)` — positioned, or a flex / grid item (`is_item_of`, the
+  parent walk `paints_atomically` already did, now shared) with a numeric `z-index` — is what the
+  layer collection (`Walk::children`, a layered non-positioned box being a stacking context), the
+  atomic-shadow walk, paint's in-flow walk and hit-testing's in-flow descent skip or layer; such an
+  item clips like a relatively positioned one (its parent's content clip). The document root's
+  children stay block boxes for paint (no item). Red: `css_phase7/stacking.rs` — the grid and flex
+  items with `z-index: 1` painted and hit under the later item (`abb `, not `aab `), the `z-index: -1`
+  item's `x` painted over its container's background; green after. Mutation checks (restored and
+  touched): items never layered → all three; a layered item not a context → the negative test; paint's
+  in-flow walk skipping positioned boxes only → the negative test; hit-testing's likewise → the
+  negative test's hit (asserted after it survived the first run). Consumer-visible for flex: listed
+  among the CHANGELOG's silent behaviour changes. No other test expectation and no snapshot changed.
+  DIVERGENCES §2's stacking-context entry names the items.

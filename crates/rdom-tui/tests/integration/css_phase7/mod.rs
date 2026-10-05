@@ -12,4 +12,5 @@ mod abspos;
 mod auto;
 mod container;
 mod place;
+mod stacking;
 mod tracks;
