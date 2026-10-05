@@ -79,3 +79,36 @@ fn a_focused_element_that_becomes_hidden_is_blurred() {
         assert_eq!(blurs.get(), 1, "{class}");
     }
 }
+
+/// C7G-FOCUS-FIXUP — HTML "update the rendering" runs the focus fixup
+/// every rendering update, not only after a style change: a `visibility`
+/// transition to `hidden` presents `visible` while it runs (CSS Display 3
+/// §4), so the button keeps the focus, and the frame in which it ends —
+/// with no cascade of its own — blurs it.
+#[test]
+fn a_visibility_transition_that_ends_hidden_blurs() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let b = el(&mut dom, root, "button", "");
+    let blurs = Rc::new(Cell::new(0));
+    let seen = blurs.clone();
+    dom.add_event_listener(b, "blur", ListenerOptions::default(), move |_| {
+        seen.set(seen.get() + 1)
+    })
+    .unwrap();
+    let sheet = rdom_css::from_css_strict(
+        "button { transition: visibility 40ms linear } .h { visibility: hidden }",
+    )
+    .expect("sheet parses");
+    let terminal = Terminal::new(TestBackend::new(20, 5)).unwrap();
+    let mut app = App::with_backend(dom, sheet, terminal).unwrap();
+    app.draw_if_dirty().unwrap();
+    app.dom_mut().node_mut(b).focus();
+    app.dom_mut().set_attribute(b, "class", "h").unwrap();
+    app.draw_if_dirty().unwrap();
+    assert_eq!(app.dom().focused(), Some(b), "visible while it runs");
+    std::thread::sleep(std::time::Duration::from_millis(60));
+    app.draw_if_dirty().unwrap();
+    assert_eq!(app.dom().focused(), None, "hidden once it ends");
+    assert_eq!(blurs.get(), 1);
+}

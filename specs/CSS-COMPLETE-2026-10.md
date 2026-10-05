@@ -4158,3 +4158,22 @@ row comes from.
   `css_phase7/subgrid.rs::a_nested_subgrid_on_the_other_axis_sizes_its_ancestors_rows` — a columns
   subgrid inside a rows subgrid, the outer row 2 tall for 1 on the first frame (mutation: the plain-item
   path back → 2; restored and touched). No snapshot changed.
+- 2026-10-09 — C7G-FOCUS-FIXUP (architect N6, API upgrade-guide finding): `draw_if_dirty` ran the
+  focus fixup (HTML "update the rendering": a focused area that is no longer a focusable area is
+  blurred) only on frames that cascaded, but the used `visibility` also changes when a running
+  transition steps — a transition to `hidden` presents `visible` until it ends (CSS Display 3 §4), and
+  the frame it ends in has no cascade. Decision: the hook is the frame pipeline after the transitions
+  advance — the fixup runs on every frame that `laid_out` (a cascade, or a step of the running
+  transitions; `style_and_layout` advances them only then), one ancestor walk. Red:
+  `css_phase6/visibility_answers.rs::a_visibility_transition_that_ends_hidden_blurs` — `transition:
+  visibility 40ms`, the button still focused after the frame the transition ended in (`Some(b)` for
+  `None`); green after (the test sleeps past the transition: the frame clock is `Instant::now()`).
+  The second half — `focus()` on an element shown in the same handler, "open panel, focus input" —
+  was weighed and not landed: a browser flushes style inside `focus()`, and doing so here needs the
+  cascade's inputs, which are `App` state (the author, `<style>` and `@property` sheets, the
+  transition registry a flushed change must start its transitions in, the dirty tracker the frame must
+  then not cascade again) that a handler's `Dom` cannot reach; `is_focusable_in_opened` generalizes
+  only to boxes the caller itself opened. Moving that state behind the document is a runtime change
+  of its own, recorded as TECH_DEBT `FOCUS-FLUSH-1`; DIVERGENCES keeps "Focusability reads the last
+  cascade's styles", its fixup sentence now true, and names the debt. The upgrade-guide line for the
+  refusal is batch B's.
