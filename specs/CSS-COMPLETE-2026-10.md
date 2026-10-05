@@ -144,7 +144,7 @@ row comes from.
 | C6-FLEX-DIRECTION-INITIAL | `flex-direction` initial value `row` (Flexbox §5.1): decouple the block-container axis from `flex-direction`, remove the DIVERGENCES §2 entry | done |
 | C6-WRAP | `flex-wrap` / `flex-flow`, multi-line flex containers | done |
 | C6-JUSTIFY | `justify-content` (all distribution values) | done |
-| C6-ALIGN | `align-items` / `align-self` (incl. `baseline` where meaningful) | |
+| C6-ALIGN | `align-items` / `align-self` (incl. `baseline` where meaningful) | done |
 | C6-ALIGN-CONTENT | `align-content` | |
 | C6-PLACE | `place-content` / `place-items` / `place-self`, `justify-items` / `justify-self` (block-level) | |
 | C6-GAP | `row-gap` / `column-gap` and two-value `gap` | done |
@@ -2329,3 +2329,41 @@ row comes from.
   `start` ignoring `row-reverse` → the axes test. Changed expectations: the canonical-values table,
   important-setter coverage, the C1 `initial` perturbation and the inherited-set probe gain
   `justify-content`. No snapshot changed.
+- 2026-10-08 — C6-ALIGN: `align-items` (`normal | stretch | <baseline-position> |
+  <overflow-position>? <self-position>`, Box Alignment 3 §6.3) and `align-self` (`auto |
+  <'align-items'>`, §6.1), not inherited, on the C6-JUSTIFY model (`Alignment`, the grammar-driven
+  parser). Layout — decided, one module: `flex/align.rs` plans a line's cross alignment
+  (`LinePlan`): the item's `align-self`, its container's `align-items` for `auto`; `normal` behaves
+  as `stretch` (§6.1), which stretches only an `auto` cross size with no `auto` cross margin (§9.4
+  step 11, the `max-*` / `min-*` clamp as before) — `place_cross` now takes the item's alignment, and
+  `auto` cross margins still win (§8.1). Keyword mapping in the cross-start frame (`CrossFrame`):
+  `flex-start` / `flex-end` the line's cross edges (so `wrap-reverse` swaps them); `start` / `end`
+  the container's writing-mode edges — a row's block axis (top first, whatever `wrap-reverse`), a
+  column's inline axis (right first under `rtl`); `self-start` / `self-end` the item's own (a
+  column item's `direction`); `center` rounds the leading space down (DIVERGENCES §1); `safe`
+  aligns an overflowing item as cross-start (§4.4), the default overflows (as browsers). Baselines —
+  decided: a box's first / last baseline is its first / last content row
+  (`inline/vertical.rs::content_rows`, the C5G-ATOM-BOX measurement, factored out so the inline
+  block's baseline and flex share it); none → synthesized at the border box's bottom row (§9.1).
+  `baseline` / `first baseline` group a row's participating items (§9.4 step 8: no `auto` cross
+  margin) so their first baseline rows share the row of the one with the most rows above it, the
+  group flush with the line's top; `last baseline` likewise from the bottom (the group's fallback
+  side, `self-start` / `self-end` — a row's block axis, so `wrap-reverse` does not move it); the
+  group's extent is a multi-line line's floor (`lines::line_cross_size`, now shared by layout and
+  intrinsic sizing — the single-line path skips the hypothetical measurement). In a column there is
+  no baseline on the cross axis: `safe self-start` / `safe self-end` (§9.3). DIVERGENCES §2 gains
+  "A box's baselines are its first and last content rows". Not changed: the static position of an
+  absolutely positioned flex child still ignores `align-items` / `justify-content` (DIVERGENCES §2,
+  D-M2-2). Red: `align_items_and_align_self_take_their_grammars` failed to compile (`align_items`,
+  `ImportantMask::ALIGN_ITEMS`); with the data model in, all seven layout tests in
+  `css_phase6/align.rs` failed — every item stretched (`(0, 6)` for `(2, 1)` / `(5, 1)`), baselines
+  `[0, 0, 0]` for `[0, 2, 1]`, the baseline line's second item at 0 for 2, the overflowing centered
+  item at 0 for -1, the column item 10 wide at 0 for `(4, 1)`, `wrap-reverse` `flex-start` `(0, 6)`
+  for `(5, 1)`; the `stretch_respects_limits_and_auto_margins` test passed (that behaviour existed).
+  Green after. Mutation checks (each alone, `css_phase6::align`, reverted and touched): `align-self`
+  always deferring to `align-items` → the override test; stretch ignoring the alignment → five
+  tests; the first-baseline row the minimum → both baseline tests; the baseline extent left out of
+  the line size → the line-size test; `self-start` ignoring the item's direction, `start` ignoring
+  the container's → the column test; `safe` ignored → the overflow test. Changed expectations: the
+  canonical-values table, important-setter coverage, the C1 `initial` perturbation and the
+  inherited-set probe gain the two properties. No snapshot changed.

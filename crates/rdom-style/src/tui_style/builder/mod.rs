@@ -221,6 +221,22 @@ impl TuiStyle {
         crate::layout::Alignment
     );
     setter!(
+        "align-items",
+        align_items,
+        align_items,
+        align_items_important,
+        ALIGN_ITEMS,
+        crate::layout::Alignment
+    );
+    setter!(
+        "align-self",
+        align_self,
+        align_self,
+        align_self_important,
+        ALIGN_SELF,
+        crate::layout::Alignment
+    );
+    setter!(
         "flex-wrap",
         flex_wrap,
         flex_wrap,

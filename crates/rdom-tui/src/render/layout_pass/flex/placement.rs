@@ -35,6 +35,8 @@ pub(super) struct FlexLine<'a> {
     pub(super) final_main: &'a [u16],
     /// `justify-content`'s extra space before each item (index-aligned).
     pub(super) justify: &'a [i32],
+    /// Each item's cross-axis alignment (index-aligned).
+    pub(super) align: &'a [super::align::ItemAlign],
     /// The (collapse-inset) container the items are placed in.
     pub(super) container: LayoutRect,
     pub(super) direction: Direction,
@@ -63,6 +65,7 @@ pub(super) fn place_items(dom: &mut Dom<TuiExt>, children: &[NodeId], line: Flex
         items: child_info,
         final_main,
         justify,
+        align,
         container,
         direction,
         gap,
@@ -157,6 +160,7 @@ pub(super) fn place_items(dom: &mut Dom<TuiExt>, children: &[NodeId], line: Flex
                 trim_cross_end: trim.cross_end,
                 mirror: flip.cross,
             },
+            align[i],
         );
 
         let child_rect = match direction {

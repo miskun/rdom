@@ -215,6 +215,8 @@ pub(super) fn apply_style(
         flex_reverse: FLEX_REVERSE,
         flex_wrap: FLEX_WRAP,
         justify_content: JUSTIFY_CONTENT,
+        align_items: ALIGN_ITEMS,
+        align_self: ALIGN_SELF,
         text_direction: TEXT_DIRECTION,
         writing_mode: WRITING_MODE,
         overflow_x: OVERFLOW_X,

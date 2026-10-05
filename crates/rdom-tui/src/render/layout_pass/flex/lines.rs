@@ -13,8 +13,9 @@ use std::ops::Range;
 
 use rdom_core::{Dom, NodeId};
 
+use super::align::{CrossFrame, LinePlan, PlanItem};
 use super::collapse::SiblingOverlap;
-use super::cross::{CrossSpace, hypothetical_outer_cross};
+use super::cross::{CrossSpace, ResolvedMain, hypothetical_outer_cross};
 use super::distribute::{MainAxisBudget, resolve_auto_min, resolve_flexible_lengths};
 use super::main_axis::{ChildMain, MainBudgets, collect_main_axis_items};
 use super::placement::AutoMainMargins;
@@ -190,6 +191,85 @@ pub(super) fn stretch_lines(lines: &mut [u16], cross: u16, gap: u16) {
     }
 }
 
+/// How one line's items are measured and placed on the cross axis.
+#[derive(Debug, Clone, Copy)]
+pub(super) struct LineFrame {
+    pub(super) direction: Direction,
+    pub(super) flip: super::AxisFlip,
+    /// The line's cross-axis `margin-trim`.
+    pub(super) trim: FlexTrim,
+    /// The cross space the items measure against.
+    pub(super) space: CrossSpace,
+    /// The basis of the items' margin and padding percentages.
+    pub(super) cb_width: u16,
+}
+
+/// What the cross resolver knows of an item at its used main size.
+pub(super) fn resolved_main(ci: &ChildMain, size: u16, frame: &LineFrame) -> ResolvedMain {
+    ResolvedMain {
+        size,
+        was_auto: ci.main_auto,
+        trim_cross_start: frame.trim.cross_start,
+        trim_cross_end: frame.trim.cross_end,
+        mirror: frame.flip.cross,
+    }
+}
+
+/// A multi-line container's line cross size (§9.4 step 8): the largest
+/// outer hypothetical cross size of its items — or the extent of its
+/// baseline-aligned items, when larger — with the line's alignment plan
+/// (`align::LinePlan`), which places its items once the line's final
+/// size is known. A single-line container's line is its cross size, so
+/// it needs only the plan (`measure: false`, the size is then 0): the
+/// hypothetical sizes are measured for multi-line containers alone.
+pub(super) fn line_cross_size(
+    dom: &Dom<TuiExt>,
+    container: &ComputedStyle,
+    items: &[ChildMain],
+    final_main: &[u16],
+    frame: LineFrame,
+    measure: bool,
+) -> (u16, LinePlan) {
+    let plan_items: Vec<PlanItem> = items
+        .iter()
+        .zip(final_main)
+        .map(|(ci, &size)| PlanItem {
+            id: ci.id,
+            main: resolved_main(ci, size, &frame),
+        })
+        .collect();
+    let plan = LinePlan::new(
+        dom,
+        container,
+        CrossFrame {
+            direction: frame.direction,
+            flipped: frame.flip.cross,
+            rtl: crate::render::layout_pass::margin_trim::inline_reversed(container),
+        },
+        &plan_items,
+        frame.space,
+        frame.cb_width,
+    );
+    if !measure {
+        return (0, plan);
+    }
+    let tallest = plan_items
+        .iter()
+        .map(|p| {
+            hypothetical_outer_cross(
+                dom,
+                p.id,
+                frame.cb_width,
+                frame.space,
+                frame.direction,
+                p.main,
+            )
+        })
+        .max()
+        .unwrap_or(0);
+    (tallest.max(plan.baseline_extent()), plan)
+}
+
 /// The intrinsic cross size of the multi-line flex container `id`
 /// (CSS Flexbox §9.9.2): its items broken into lines at `main` (the
 /// inner main size they wrap at), each line's items flexed, each line as
@@ -238,30 +318,28 @@ pub(in crate::render::layout_pass) fn lines_cross_size(
             gap,
             &overlap,
         );
-        let tallest = items[range.clone()]
-            .iter()
-            .zip(&line.final_main)
-            .map(|(ci, &size)| {
-                hypothetical_outer_cross(
-                    dom,
-                    ci.id,
-                    cb_width,
-                    CrossSpace {
-                        line: cross,
-                        container: None,
-                    },
-                    direction,
-                    super::cross::ResolvedMain {
-                        size,
-                        was_auto: ci.main_auto,
-                        trim_cross_start: trim.cross_start && k == 0,
-                        trim_cross_end: trim.cross_end && k == last,
-                        mirror: flip.cross,
-                    },
-                )
-            })
-            .max()
-            .unwrap_or(0);
+        let line_trim = FlexTrim {
+            cross_start: trim.cross_start && k == 0,
+            cross_end: trim.cross_end && k == last,
+            ..trim
+        };
+        let (tallest, _) = line_cross_size(
+            dom,
+            &container,
+            &items[range.clone()],
+            &line.final_main,
+            LineFrame {
+                direction,
+                flip,
+                trim: line_trim,
+                space: CrossSpace {
+                    line: cross,
+                    container: None,
+                },
+                cb_width,
+            },
+            true,
+        );
         total += u32::from(tallest);
         if k > 0 {
             total += u32::from(cross_gap);

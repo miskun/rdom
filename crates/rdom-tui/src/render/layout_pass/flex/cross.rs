@@ -15,6 +15,7 @@ use crate::style::ComputedStyle;
 
 /// The already-resolved main axis, as the cross resolver sees it, and
 /// the container's cross-axis `margin-trim`.
+#[derive(Debug, Clone, Copy)]
 pub(super) struct ResolvedMain {
     /// Resolved main-axis size (for `aspect-ratio`).
     pub(super) size: u16,
@@ -100,15 +101,18 @@ fn cross_margins(
 }
 
 /// Resolve an item's cross size and cross offset in its line from its
-/// cross margins (Flexbox §9.4 / §9.5).
+/// cross margins and its self-alignment (Flexbox §8.3, §9.4 / §9.5).
 ///
 /// The item's outer cross size includes its cross margins, so a
 /// stretched item shrinks by their sum and the start margin offsets
 /// the box. `auto` cross margins take the free cross space (both
-/// auto → centered), per §9.5.
+/// auto → centered), per §8.1, whatever `align` says; otherwise `align`
+/// places the item (§8.3) — `safe` aligning an overflowing one as
+/// cross-start.
 ///
 /// `main` describes the already-resolved main axis; `aspect-ratio`
 /// needs an explicit main size to derive from.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn place_cross(
     dom: &Dom<TuiExt>,
     child_id: NodeId,
@@ -117,14 +121,16 @@ pub(super) fn place_cross(
     space: CrossSpace,
     direction: Direction,
     main: ResolvedMain,
+    align: super::align::ItemAlign,
 ) -> CrossPlacement {
+    use super::align::CrossAlign;
     let margins = cross_margins(child_computed, container_width, direction, &main);
     let line_avail =
         (i32::from(space.line) - margins.start - margins.end).clamp(0, i32::from(u16::MAX)) as u16;
-    // Flexbox §9.5: an item with an `auto` cross margin is not
-    // stretched — it takes its content size and the margins absorb
-    // the free space.
-    let stretch = !(margins.start_auto || margins.end_auto);
+    // Flexbox §9.5 / §9.4 step 11: only a `stretch` item with no `auto`
+    // cross margin is stretched; any other takes its content size.
+    let auto_margin = margins.start_auto || margins.end_auto;
+    let stretch = !auto_margin && align.align == CrossAlign::Stretch;
     let cross_size = resolve_cross_size(
         dom,
         child_id,
@@ -142,10 +148,21 @@ pub(super) fn place_cross(
         },
     );
     let cross_free = i32::from(line_avail.saturating_sub(cross_size));
+    // Signed: an item larger than its line overflows it.
+    let free = i32::from(space.line) - margins.start - margins.end - i32::from(cross_size);
     let cross_offset: i32 = match (margins.start_auto, margins.end_auto) {
         (true, true) => margins.start + cross_free / 2,
         (true, false) => margins.start + cross_free,
-        _ => margins.start,
+        (false, true) => margins.start,
+        // Box Alignment §4.4: `safe` aligns an overflowing item as start.
+        _ if align.safe && free < 0 => margins.start,
+        _ => match align.align {
+            CrossAlign::Stretch | CrossAlign::Start => margins.start,
+            CrossAlign::End => margins.start + free,
+            // Whole cells: the leading space rounded down.
+            CrossAlign::Center => margins.start + free.div_euclid(2),
+            CrossAlign::At(offset) => offset,
+        },
     };
     CrossPlacement {
         size: cross_size,
@@ -184,6 +201,86 @@ pub(super) fn hypothetical_outer_cross(
         },
     );
     (i32::from(size) + margins.start + margins.end).clamp(0, i32::from(u16::MAX)) as u16
+}
+
+/// A row item's block-axis geometry for baseline alignment (CSS Flexbox
+/// §8.3): its physical top and bottom margins, its hypothetical (not
+/// stretched) border-box height, and its first and last baseline rows
+/// from its border-box top — its first and last content rows, or, with
+/// no content rows, a baseline synthesized at its border box's bottom
+/// row (CSS Box Alignment 3 §9.1).
+#[derive(Debug, Clone, Copy)]
+pub(super) struct BaselineBox {
+    pub(super) margin_top: i32,
+    pub(super) height: u16,
+    pub(super) margin_bottom: i32,
+    pub(super) first: u16,
+    pub(super) last: u16,
+}
+
+impl BaselineBox {
+    /// Rows from its margin-box top to its first baseline row.
+    pub(super) fn above_first(&self) -> i32 {
+        self.margin_top + i32::from(self.first)
+    }
+    /// Rows from its margin-box top to its last baseline row.
+    pub(super) fn above_last(&self) -> i32 {
+        self.margin_top + i32::from(self.last)
+    }
+    /// Its margin box's height.
+    pub(super) fn outer(&self) -> i32 {
+        self.margin_top + i32::from(self.height) + self.margin_bottom
+    }
+}
+
+/// Measure `child_id` (a row item of used width `main.size`) for
+/// baseline alignment.
+pub(super) fn baseline_box(
+    dom: &Dom<TuiExt>,
+    child_id: NodeId,
+    container_width: u16,
+    space: CrossSpace,
+    main: ResolvedMain,
+) -> BaselineBox {
+    let computed = dom
+        .node(child_id)
+        .computed_rc()
+        .unwrap_or_else(|| std::rc::Rc::new(ComputedStyle::initial()));
+    let margins = cross_margins(&computed, container_width, Direction::Row, &main);
+    let (margin_top, margin_bottom) = if main.mirror {
+        (margins.end, margins.start)
+    } else {
+        (margins.start, margins.end)
+    };
+    let height = resolve_cross_size(
+        dom,
+        child_id,
+        &computed,
+        space,
+        container_width,
+        Direction::Row,
+        MainAxisFacts {
+            size: main.size,
+            was_auto: main.was_auto,
+            stretch: false,
+        },
+    );
+    let synthesized = height.saturating_sub(1);
+    let (first, last) = crate::render::inline::vertical::content_rows(
+        dom,
+        child_id,
+        &computed,
+        main.size,
+        container_width,
+    )
+    .unwrap_or((synthesized, synthesized));
+    BaselineBox {
+        margin_top,
+        height,
+        margin_bottom,
+        first,
+        last,
+    }
 }
 
 /// Compute the cross-axis cell count from the main-axis cell count and

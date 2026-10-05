@@ -74,6 +74,31 @@ pub(super) fn atom_rows(dom: &Dom<TuiExt>, id: NodeId, width: u16, cb_width: u16
         .saturating_add(height)
         .saturating_add(margin_bottom);
     let bottom_edge = outer.saturating_sub(1);
+    let visible =
+        computed.overflow_x == Overflow::Visible && computed.overflow_y == Overflow::Visible;
+    let baseline = match content_rows(dom, id, &computed, width, cb_width) {
+        Some((_, last)) if visible => (margin_top + last).min(bottom_edge),
+        _ => bottom_edge,
+    };
+    AtomRows {
+        margin_top,
+        height,
+        margin_bottom,
+        baseline,
+    }
+}
+
+/// The rows of `id`'s content, laid out `width` cells wide, counted
+/// from its border-box top: its first and last content rows — the rows
+/// of its first and last line boxes, as a cell grid has them (one
+/// baseline per row) — or `None` when it has no content rows.
+pub(crate) fn content_rows(
+    dom: &Dom<TuiExt>,
+    id: NodeId,
+    computed: &crate::style::ComputedStyle,
+    width: u16,
+    cb_width: u16,
+) -> Option<(u16, u16)> {
     let chrome_top = computed
         .border
         .top
@@ -82,21 +107,9 @@ pub(super) fn atom_rows(dom: &Dom<TuiExt>, id: NodeId, width: u16, cb_width: u16
     let chrome = chrome_top
         .saturating_add(computed.border.bottom.cells())
         .saturating_add(computed.padding.bottom.resolve(cb_width));
-    let content_rows = intrinsic::content_max_size(dom, id, Direction::Column, width, cb_width)
+    let rows = intrinsic::content_max_size(dom, id, Direction::Column, width, cb_width)
         .saturating_sub(chrome);
-    let visible =
-        computed.overflow_x == Overflow::Visible && computed.overflow_y == Overflow::Visible;
-    let baseline = if visible && content_rows > 0 {
-        (margin_top + chrome_top + content_rows - 1).min(bottom_edge)
-    } else {
-        bottom_edge
-    };
-    AtomRows {
-        margin_top,
-        height,
-        margin_bottom,
-        baseline,
-    }
+    (rows > 0).then(|| (chrome_top, chrome_top + rows - 1))
 }
 
 /// Settle one line: place each fragment on it — text on the baseline

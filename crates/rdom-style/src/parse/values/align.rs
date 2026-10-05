@@ -31,6 +31,22 @@ const JUSTIFY_CONTENT: Grammar = Grammar {
     left_right: true,
 };
 
+/// `align-items: normal | stretch | <baseline-position> |
+/// <overflow-position>? <self-position>` (§6.3).
+const ALIGN_ITEMS: Grammar = Grammar {
+    auto: false,
+    baseline: true,
+    distribution: false,
+    self_positions: true,
+    left_right: false,
+};
+
+/// `align-self: auto | <'align-items'>` (§6.1).
+const ALIGN_SELF: Grammar = Grammar {
+    auto: true,
+    ..ALIGN_ITEMS
+};
+
 fn keyword(token: &Token) -> Option<&str> {
     match token {
         Token::Ident(s) => Some(s.as_str()),
@@ -110,6 +126,16 @@ fn parse(value: &[Token], g: &Grammar) -> Option<Alignment> {
 /// `justify-content` (CSS Box Alignment 3 §5.2).
 pub fn parse_justify_content(value: &[Token]) -> Option<Alignment> {
     parse(value, &JUSTIFY_CONTENT)
+}
+
+/// `align-items` (CSS Box Alignment 3 §6.3).
+pub fn parse_align_items(value: &[Token]) -> Option<Alignment> {
+    parse(value, &ALIGN_ITEMS)
+}
+
+/// `align-self` (CSS Box Alignment 3 §6.1).
+pub fn parse_align_self(value: &[Token]) -> Option<Alignment> {
+    parse(value, &ALIGN_SELF)
 }
 
 /// An [`Align`] keyword's CSS text.

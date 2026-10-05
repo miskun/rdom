@@ -146,6 +146,13 @@ fn set_physical(name: &str, value: &[Token], style: &mut TuiStyle) -> Result<(),
         "justify-content" => crate::parse::values::parse_justify_content(value).map(|a| {
             style.justify_content = Some(Value::Specified(a));
         }),
+        // CSS Box Alignment 3 §6.3 / §6.1.
+        "align-items" => crate::parse::values::parse_align_items(value).map(|a| {
+            style.align_items = Some(Value::Specified(a));
+        }),
+        "align-self" => crate::parse::values::parse_align_self(value).map(|a| {
+            style.align_self = Some(Value::Specified(a));
+        }),
         // CSS Flexbox §5.3: the shorthand writes all three fields, an
         // omitted component as its initial value.
         "flex-flow" => crate::parse::values::parse_flex_flow(value).map(|((d, reverse), w)| {

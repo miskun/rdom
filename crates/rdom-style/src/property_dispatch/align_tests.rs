@@ -78,3 +78,54 @@ fn justify_content_takes_its_grammar() {
         Alignment::NORMAL
     );
 }
+
+/// §6.3 / §6.1: `align-items: normal | stretch | <baseline-position> |
+/// <overflow-position>? <self-position>` (no `left` / `right`, no
+/// distribution); `align-self` adds `auto`, its initial value.
+#[test]
+fn align_items_and_align_self_take_their_grammars() {
+    for (css, out) in [
+        ("normal", "normal"),
+        ("stretch", "stretch"),
+        ("baseline", "baseline"),
+        ("first baseline", "baseline"),
+        ("LAST BASELINE", "last baseline"),
+        ("center", "center"),
+        ("self-start", "self-start"),
+        ("self-end", "self-end"),
+        ("flex-end", "flex-end"),
+        ("safe end", "safe end"),
+        ("unsafe self-start", "unsafe self-start"),
+    ] {
+        assert_eq!(round_trip("align-items", css).as_deref(), Ok(out), "{css}");
+        assert_eq!(round_trip("align-self", css).as_deref(), Ok(out), "{css}");
+    }
+    assert_eq!(round_trip("align-self", "auto").as_deref(), Ok("auto"));
+    for bad in [
+        "auto",
+        "left",
+        "space-between",
+        "safe baseline",
+        "first",
+        "last",
+    ] {
+        assert_eq!(
+            set("align-items", bad, &mut TuiStyle::new()),
+            Err(DispatchError::InvalidValue),
+            "{bad:?}"
+        );
+    }
+    assert_eq!(
+        set("align-self", "right", &mut TuiStyle::new()),
+        Err(DispatchError::InvalidValue)
+    );
+    assert!(!inherits("align-items") && !inherits("align-self"));
+    assert_eq!(
+        property_mask("align-items"),
+        Some(ImportantMask::ALIGN_ITEMS)
+    );
+    assert_eq!(property_mask("align-self"), Some(ImportantMask::ALIGN_SELF));
+    let initial = crate::ComputedStyle::initial();
+    assert_eq!(initial.align_items, Alignment::NORMAL);
+    assert_eq!(initial.align_self, Alignment::AUTO);
+}

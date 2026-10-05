@@ -452,3 +452,28 @@ fn alignment_hints() {
     assert!(style::parse::values::parse_justify_content(&tokens).is_some());
     assert!(ImportantMask::JUSTIFY_CONTENT.intersects(ImportantMask::all()));
 }
+
+/// C6-ALIGN: the `align_items` / `align_self` fields, bits, builders and
+/// parsers.
+#[test]
+fn align_items_hints() {
+    let s = TuiStyle::new()
+        .align_items(Align::Center.into())
+        .align_self(Alignment::AUTO);
+    assert_eq!(s.align_self, Some(Value::Specified(Alignment::AUTO)));
+    let ComputedStyle {
+        align_items,
+        align_self,
+        ..
+    } = ComputedStyle::initial();
+    assert_eq!(
+        (align_items, align_self),
+        (Alignment::NORMAL, Alignment::AUTO)
+    );
+    let tokens = style::parse::tokenize("last baseline").unwrap();
+    assert!(style::parse::values::parse_align_items(&tokens).is_some());
+    assert!(style::parse::values::parse_align_self(&tokens).is_some());
+    assert!(
+        (ImportantMask::ALIGN_ITEMS | ImportantMask::ALIGN_SELF).intersects(ImportantMask::all())
+    );
+}

@@ -48,7 +48,7 @@ mod boxes;
 mod caret;
 pub(crate) mod generated;
 mod packer;
-mod vertical;
+pub(crate) mod vertical;
 
 #[cfg(test)]
 mod tests;

@@ -81,8 +81,9 @@ Building the inventory turned up CSS that rdom does not parse at all and that `D
 mostly does not mention. The acid page can only use what is supported, so these need a decision
 — ship them, or document them as not yet shipped — before the coverage test can be honest:
 
-- **Flex alignment:** ~~`justify-content`~~ (shipped: C6-JUSTIFY, through the alignment types —
-  `Align`, now `Alignment`), `align-items`, `align-self`.
+- ~~**Flex alignment:** `justify-content`, `align-items`, `align-self` (the layout engine has the
+  alignment types; CSS cannot set them).~~ Shipped: C6-JUSTIFY, C6-ALIGN (the alignment types —
+  `Align`, with `Alignment` — set by CSS).
 - ~~**Flex:** `flex-wrap`; the `flex-grow` / `flex-basis` longhands (only the `flex` shorthand and
   `flex-shrink` parse).~~ Shipped: C6-FLEX-LONGHANDS (the longhands), C6-WRAP (`flex-wrap`,
   `flex-flow`).

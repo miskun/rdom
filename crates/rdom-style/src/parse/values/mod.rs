@@ -49,7 +49,9 @@ mod shadow;
 mod spacing;
 mod transition;
 
-pub use align::{align_keyword, parse_justify_content, serialize_alignment};
+pub use align::{
+    align_keyword, parse_align_items, parse_align_self, parse_justify_content, serialize_alignment,
+};
 pub use background::{
     BackgroundLayer, BackgroundShorthand, parse_background, parse_background_attachment,
     parse_background_image, parse_background_position, parse_background_repeat,

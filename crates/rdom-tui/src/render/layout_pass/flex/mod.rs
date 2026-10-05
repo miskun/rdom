@@ -46,6 +46,7 @@
 //!
 //! [`intrinsic::intrinsic_size`]: super::intrinsic::intrinsic_size
 
+mod align;
 mod collapse;
 mod cross;
 mod distribute;
@@ -362,43 +363,35 @@ pub(super) fn layout_flex_children(
             gap,
             &overlap,
         );
-        line_cross.push(if multi_line {
-            let t = line_trim(k);
-            items[range.clone()]
-                .iter()
-                .zip(&line.final_main)
-                .map(|(ci, &size)| {
-                    cross::hypothetical_outer_cross(
-                        dom,
-                        ci.id,
-                        container.width,
-                        CrossSpace {
-                            line: cross_budget,
-                            container: Some(cross_budget),
-                        },
-                        direction,
-                        cross::ResolvedMain {
-                            size,
-                            was_auto: ci.main_auto,
-                            trim_cross_start: t.cross_start,
-                            trim_cross_end: t.cross_end,
-                            mirror: flip.cross,
-                        },
-                    )
-                })
-                .max()
-                .unwrap_or(0)
-        } else {
-            cross_budget
-        });
-        resolved.push(line);
+        let (tallest, plan) = lines::line_cross_size(
+            dom,
+            parent,
+            &items[range.clone()],
+            &line.final_main,
+            lines::LineFrame {
+                direction,
+                flip,
+                trim: line_trim(k),
+                space: CrossSpace {
+                    line: cross_budget,
+                    container: Some(cross_budget),
+                },
+                cb_width: container.width,
+            },
+            multi_line,
+        );
+        line_cross.push(if multi_line { tallest } else { cross_budget });
+        resolved.push((line, plan));
     }
     if multi_line {
         lines::stretch_lines(&mut line_cross, cross_budget, line_gap);
     }
 
     let mut line_offset: i32 = 0;
-    for (k, (range, line)) in line_ranges.iter().zip(resolved).enumerate() {
+    for (k, (range, (line, plan))) in line_ranges.iter().zip(resolved).enumerate() {
+        // §8.3: each item's cross alignment, its baselines placed now the
+        // line's cross size is known.
+        let align = plan.resolve(line_cross[k], flip.cross);
         // §8.2: `justify-content` places the line's leftover free space.
         let justify = justify::justify_offsets(
             parent,
@@ -415,6 +408,7 @@ pub(super) fn layout_flex_children(
                 items: &items[range.clone()],
                 final_main: &line.final_main,
                 justify: &justify,
+                align: &align,
                 container,
                 direction,
                 gap,

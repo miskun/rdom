@@ -123,6 +123,16 @@ pub fn serialize(name: &str, style: &TuiStyle) -> Option<String> {
             .as_ref()
             .and_then(specified)
             .map(|a| crate::parse::values::serialize_alignment(*a)),
+        "align-items" => style
+            .align_items
+            .as_ref()
+            .and_then(specified)
+            .map(|a| crate::parse::values::serialize_alignment(*a)),
+        "align-self" => style
+            .align_self
+            .as_ref()
+            .and_then(specified)
+            .map(|a| crate::parse::values::serialize_alignment(*a)),
         // The shorthand serializes only when both longhands are set
         // (CSSOM §6.7.2).
         "flex-flow" => {

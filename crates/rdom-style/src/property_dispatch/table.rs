@@ -119,6 +119,8 @@ define_fields! {
     FlexReverse => flex_reverse : FLEX_REVERSE,
     FlexWrap => flex_wrap : FLEX_WRAP,
     JustifyContent => justify_content : JUSTIFY_CONTENT,
+    AlignItems => align_items : ALIGN_ITEMS,
+    AlignSelf => align_self : ALIGN_SELF,
     TextDirection => text_direction : TEXT_DIRECTION,
     WritingMode => writing_mode : WRITING_MODE,
     WhiteSpace => white_space : WHITE_SPACE,
@@ -228,6 +230,8 @@ pub(super) fn fields_of(name: &str) -> Option<&'static [Field]> {
         // CSS Flexbox §5.3: the shorthand sets both longhands.
         "flex-flow" => &[Direction, FlexReverse, FlexWrap],
         "justify-content" => &[JustifyContent],
+        "align-items" => &[AlignItems],
+        "align-self" => &[AlignSelf],
         "white-space" => &[WhiteSpace],
         "user-select" => &[UserSelect],
         "pointer-events" => &[PointerEvents],

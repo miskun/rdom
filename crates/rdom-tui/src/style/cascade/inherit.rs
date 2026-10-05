@@ -88,6 +88,8 @@ pub(super) fn layout_differs(a: &ComputedStyle, b: &ComputedStyle) -> bool {
         || a.flex_reverse != b.flex_reverse
         || a.flex_wrap != b.flex_wrap
         || a.justify_content != b.justify_content
+        || a.align_items != b.align_items
+        || a.align_self != b.align_self
         || a.text_direction != b.text_direction
         || a.overflow_x != b.overflow_x
         || a.overflow_y != b.overflow_y

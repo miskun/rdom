@@ -76,7 +76,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.5 Backgrounds and borders (Backgrounds 3, Borders 4) | 13 | 1 | 0 | 2 | 16 |
 | 3.6 Box model and sizing (Box 3, Sizing 3/4) | 7 | 2 | 0 | 0 | 9 |
 | 3.7 Display and visibility (Display 3) | 6 | 1 | 2 | 2 | 11 |
-| 3.8 Flexbox and box alignment (Flexbox 1, Align 3) | 12 | 0 | 5 | 0 | 17 |
+| 3.8 Flexbox and box alignment (Flexbox 1, Align 3) | 14 | 0 | 3 | 0 | 17 |
 | 3.9 Grid (Grid 1/2) | 0 | 0 | 10 | 0 | 10 |
 | 3.10 Positioned layout (Position 3, CSS 2.1 §9) | 4 | 1 | 1 | 1 | 7 |
 | 3.11 Overflow, scrolling and scrollbars (Overflow 3/4, Scroll Snap 1, Overscroll 1, Scrollbars 1) | 1 | 3 | 10 | 0 | 14 |
@@ -93,11 +93,11 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 5 | 2 | 1 | 1 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **128** | **28** | **105** | **46** | **307** |
+| **Total** | **130** | **28** | **103** | **46** | **307** |
 
-When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 133 rows Partial / Missing.
+When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 131 rows Partial / Missing.
 
-Headline: rdom parses **160 property names** (`property_names()`, after C6-JUSTIFY). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are `align-items`, `line-height`, `text-align`, and grid.
+Headline: rdom parses **162 property names** (`property_names()`, after C6-ALIGN). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are `line-height`, `text-align`, and grid.
 
 ---
 
@@ -109,7 +109,7 @@ pasted CSS. The first block is what a typical component stylesheet hits in its f
 | # | Item | Terminal semantics | Size | Doc'd |
 |---|---|---|---|---|
 | 1 | `justify-content` | Shipped (C6-JUSTIFY; §3.8): every value, per line, whole cells (the remainder to the first spaces). | M | No |
-| 2 | `align-items` / `align-self` | Cross-axis placement: `stretch` (today's only behavior) / `flex-start` / `flex-end` / `center` / `baseline` (= first text row). `Align` enum already exists in `KW` but nothing sets or reads it. | M | No |
+| 2 | `align-items` / `align-self` | Shipped (C6-ALIGN; §3.8): every value, baselines as the first / last content rows. | M | No |
 | 3 | `flex-wrap` / `flex-flow` / `align-content` | `flex-wrap` / `flex-flow` shipped (C6-WRAP; §3.8): multi-line flex containers, lines stretched by `align-content: normal`. `align-content`'s other values: C6-ALIGN-CONTENT. | L | No |
 | 4 | `flex-grow` / `flex-basis` longhands | Shipped (C6-FLEX-LONGHANDS; §3.8): both longhands, and the `flex-basis` the flex base size of Flexbox §9.2; §9.7 resolves the flexible lengths from it. | M | Wrong |
 | 5 | `display: grid` + `grid-template-*`, `grid-auto-*`, `grid-row/column*`, `grid-area`, `grid` | A cell-quantized grid formatting context: track sizing in cells / `fr` / `%` / `auto` / `minmax()` / `repeat()`, line- and area-based placement. The most-used modern layout after flex. | L | Yes |
@@ -364,8 +364,8 @@ dropped. The audit's six, with where each stands:
 | `flex-shrink` | Supported | `<number [0,∞]>`, fractions included (C2-NUMBER). | — | `DISP/set.rs`, `FLEX/main_axis.rs` |
 | `flex-basis` | Supported | `auto` (the main size property; its content size when that is `auto`), `content` (max-content), cells, `%` (of the container's inner main size; `content` when indefinite), `calc()`, the intrinsic keywords (C5-INTRINSIC), measuring the box `box-sizing` names: the flex base size (Flexbox §9.2 step 3) that §9.7 grows by `flex-grow` and shrinks by `flex-shrink × base`, min / max violations frozen by their total, the §4.5 automatic minimum included; positive free space left after that goes to `auto` margins (C6-FLEX-LONGHANDS). | — | `DISP`, `FLEX/main_axis.rs`, `FLEX/distribute.rs` |
 | `justify-content` | Supported | Full Box Alignment 3 §5.2 grammar (`normal`, `flex-start` / `flex-end`, `start` / `end`, `left` / `right`, `center`, `space-between` / `-around` / `-evenly`, `stretch`, `safe` / `unsafe`): per line, after the flexible lengths and `auto` margins (Flexbox §8.2); `normal` / `stretch` are `flex-start`; `start` / `end` the writing mode's ends, `left` / `right` physical (a column's are `start`); distribution fallbacks `safe flex-start` / `safe center`; `safe` overflow aligns as `start`, the default as `unsafe` (as browsers). Whole cells: `center` rounds the lead down, distributions round rolling positions up (DIVERGENCES §1) (C6-JUSTIFY). | — | `FLEX/justify.rs`, `V/align.rs` |
-| `align-items` | Missing | Cross-axis placement (always `stretch` unless a cross margin is `auto`). `KW::Align` exists, unused. | No | `FLEX/cross.rs` |
-| `align-self` | Missing | Per-item override. | No | `FLEX/cross.rs` |
+| `align-items` | Supported | Box Alignment 3 §6.3 grammar (`normal`, `stretch`, `baseline` / `first baseline` / `last baseline`, `safe` / `unsafe` with `center`, `start` / `end`, `self-start` / `self-end`, `flex-start` / `flex-end`): `normal` / `stretch` fill the line (an `auto` cross size, clamped; §9.4 step 11), `flex-*` the line's cross edges (`wrap-reverse` swaps them), `start` / `end` the container's writing-mode edges, `self-*` the item's; baseline groups line up first / last content rows (DIVERGENCES §2), the group flush top / bottom, and size a multi-line line; a column's baselines fall back to `safe self-start` / `-end`; `safe` overflow aligns as cross-start (C6-ALIGN). | — | `FLEX/align.rs`, `FLEX/cross.rs` |
+| `align-self` | Supported | `auto` (the container's `align-items`) or any `align-items` value, per item; `auto` cross margins win (§8.1) (C6-ALIGN). | — | `FLEX/align.rs` |
 | `align-content` | Missing | Needs `flex-wrap`. | No | `FLEX` |
 | `justify-items` / `justify-self` | Missing | Grid / block-level alignment. | No | grid, `BLOCK` |
 | `place-content` / `place-items` / `place-self` | Missing | Shorthands. | No | `DISP` |

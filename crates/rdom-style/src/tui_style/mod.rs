@@ -146,6 +146,10 @@ pub struct TuiStyle {
     pub flex_wrap: Option<Value<crate::layout::FlexWrap>>,
     /// `justify-content` (CSS Box Alignment 3 §5.2).
     pub justify_content: Option<Value<crate::layout::Alignment>>,
+    /// `align-items` (CSS Box Alignment 3 §6.3).
+    pub align_items: Option<Value<crate::layout::Alignment>>,
+    /// `align-self` (§6.1).
+    pub align_self: Option<Value<crate::layout::Alignment>>,
     /// CSS `direction` (CSS Writing Modes 4 §2.1). Inherited. (`direction`
     /// above is `flex-direction`.)
     pub text_direction: Option<Value<crate::layout::TextDirection>>,
@@ -450,6 +454,12 @@ impl TuiStyle {
             n += 1
         }
         if self.justify_content.is_some() {
+            n += 1
+        }
+        if self.align_items.is_some() {
+            n += 1
+        }
+        if self.align_self.is_some() {
             n += 1
         }
         if self.text_direction.is_some() {
