@@ -3,7 +3,7 @@
 //! <color>`), line styles and widths, corner radii, and the
 //! [`PaintLength`] leaf that border widths, radii and shadows share.
 
-use super::calc::{looks_like_calc, parse_calc};
+use super::calc::looks_like_calc;
 use super::color::parse_color;
 use super::keyword::parse_keyword;
 use super::numeric::{LengthPercentage, Range, components, length_percentage};
@@ -79,7 +79,7 @@ const PX_PER_UNIT: &[(&str, f64)] = &[
 ];
 
 /// CSS pixels per `unit`, when it is one of [`PX_PER_UNIT`]'s.
-fn px_per(unit: &str) -> Option<f64> {
+pub(super) fn px_per(unit: &str) -> Option<f64> {
     PX_PER_UNIT
         .iter()
         .find(|(u, _)| u.eq_ignore_ascii_case(unit))
@@ -129,22 +129,9 @@ pub(crate) fn paint_length(value: &[Token], percent: bool, range: Range) -> Opti
 /// answer — `None`. The result clamps into `range` (CSS Values 4
 /// §10.12) and is NaN-safe.
 fn pixel_math(tokens: &[Token], range: Range) -> Option<f32> {
-    // Each pixel leaf becomes `ch`, the context-free length unit whose
-    // value is its number, so the calc parser types it as a `<length>`
-    // and the evaluator gives back the pixels.
-    let mut leaves = Vec::with_capacity(tokens.len());
-    for token in tokens {
-        leaves.push(match token {
-            Token::Dimension { value, unit, .. } => Token::Dimension {
-                value: value * px_per(unit)?,
-                integer: false,
-                unit: "ch".to_string(),
-            },
-            Token::Percentage(_) => return None,
-            other => other.clone(),
-        });
-    }
-    let expr = parse_calc(&leaves)?;
+    // Every pixel leaf is `px` (`CalcUnit::Px`), so the expression types
+    // as a `<length>` and evaluates to pixels.
+    let expr = super::parse_pixel_calc(tokens)?;
     if expr.kind_strict()? != CalcKind::Length {
         return None;
     }

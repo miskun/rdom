@@ -1907,3 +1907,33 @@ row comes from.
   upper-case) failed; green after. No expectation changed. Split: `property_dispatch/set.rs` reached
   613 lines — the declaring entry points (`set`, `set_from_source`, `set_from_tokens`, the custom
   paths) moved to `property_dispatch/declare.rs` (159), `set.rs` keeps `set_parsed` (468).
+- 2026-10-07 — C5G-PERF-AND-TESTS (gate fix). (1) `fit-content` measuring: an intrinsic keyword box
+  measures its subtree's min- and max-content Row sizes (`Keywords::keyword`), and each enclosing
+  keyword box re-walked it — quadratic in the nesting depth. Row-axis `content_size` is now memoized
+  for the layout pass (`intrinsic/memo.rs`): a `(node, max?, cross budget, containing-block width) →
+  cells` table held as document data that `layout_dom` opens at its start and drops at its end, so
+  nothing is reused across passes or outside one. Decided: document data rather than a `TuiExt`
+  field — a per-element slot cost one pointer and tripped `tui_ext_size_tripwire` (448 > 440 B), and
+  a per-pass table cannot go stale; intrinsic sizes are pure within a pass (styles, text and the
+  table column widths sized before it). Red: `nested_fit_content_boxes_measure_each_subtree_once`
+  (a counting test, `ROW_WALKS`) — 48 walks at 4 levels, 780 at 16 (bound `6 × (depth + 1)`); green
+  after: 20 and 92. (2) `pixel_math`: the pixel math function had its leaves rewritten into `ch`,
+  evaluated on the assumption that `ch` takes no context. New `CalcUnit::Px` (a `<length>`, resolves
+  to its number; `CalcUnit::parse` never returns it) and `parse_pixel_calc` (the calc parser in
+  pixel mode: pixel-family units normalize to `px`, any other unit or a percentage fails); DESIGN
+  "Pixel lengths select" names it. Red: `pixel_math_has_a_pixel_unit` failed to compile (no
+  `CalcUnit::Px` / `parse_pixel_calc`); green after, and `pixel_lengths_inside_math_functions`
+  unchanged. (3) Mutation checks of the C5-WRITING / C5-LOGICAL layout tests (each mutation applied
+  alone, `css_phase5::` run, reverted): W1 `rtl` lines not flushed right → `rtl_lines_start_at_the_right_edge`
+  (+ the scrollbar test); W2 the over-constrained `rtl` margin → `rtl_block_sits_at_the_inline_start_edge`
+  and three logical tests; W3 `mirror_x` the identity → `rtl_flex_row_runs_right_to_left` (+
+  margin-trim); W4 `inline_reversed` false → `rtl_margin_trim_inline_start_is_the_right_edge` (+ flex);
+  W5 the positioned `rtl` inset rule off → `rtl_positioned_boxes_keep_the_right_inset`; W6
+  `bar_on_left` false → `rtl_vertical_scrollbar_is_on_the_left`; W7 the relative offset's `rtl` arm
+  off → `rtl_positioned_boxes_keep_the_right_inset`; W8 UA `[dir=rtl]` → `ltr` →
+  `dir_attribute_sets_direction_and_both_inherit` (+ one); L1 `inline_axis` ignoring `rtl` → five
+  logical tests; L2 `margin-block-start` → `margin-bottom` → `flow_relative_sizes_and_spacing_lay_out`;
+  L3 `inline-size` → `height` → that and `cssom_lists_shared_storage_once`; L4 a corner radius mapped
+  to the wrong inline side → `logical_corner_radii_follow_the_direction`; L5 the cascade picking the
+  `ltr` overlay for every element → five logical tests. Every mutation is caught, so no test was
+  added for them.

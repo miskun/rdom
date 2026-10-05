@@ -27,6 +27,9 @@ use crate::style::ComputedStyle;
 mod contribution;
 mod inline;
 mod keywords;
+mod memo;
+#[cfg(test)]
+mod memo_tests;
 
 use super::ifc::is_ifc_block;
 use inline::{
@@ -34,6 +37,7 @@ use inline::{
     pseudo_content_width, wrapped_rows,
 };
 pub(crate) use keywords::Keywords;
+pub(super) use memo::{begin_pass, end_pass};
 
 /// Measure an element's intrinsic size along `direction`. Used to
 /// resolve `Size::Auto`. `cross_budget` is the container's
@@ -247,6 +251,52 @@ fn intrinsic_element(
 /// border and permanent scrollbar gutter, ignoring its declared size:
 /// text and inline content, or its in-flow children's contributions.
 fn content_size(
+    dom: &Dom<TuiExt>,
+    id: NodeId,
+    computed: &ComputedStyle,
+    direction: Direction,
+    cross_budget: u16,
+    containing_block_width: u16,
+    measure: Measure,
+) -> u16 {
+    if direction != Direction::Row {
+        return measure_content(
+            dom,
+            id,
+            computed,
+            direction,
+            cross_budget,
+            containing_block_width,
+            measure,
+        );
+    }
+    // The Row-axis sizes are memoized for the layout pass (`memo`).
+    let key = (
+        id,
+        measure == Measure::MaxContent,
+        cross_budget,
+        containing_block_width,
+    );
+    if let Some(v) = memo::get(dom, key) {
+        return v;
+    }
+    #[cfg(test)]
+    memo_tests::ROW_WALKS.with(|c| c.set(c.get() + 1));
+    let value = measure_content(
+        dom,
+        id,
+        computed,
+        direction,
+        cross_budget,
+        containing_block_width,
+        measure,
+    );
+    memo::put(dom, key, value);
+    value
+}
+
+/// [`content_size`] measured, not looked up.
+fn measure_content(
     dom: &Dom<TuiExt>,
     id: NodeId,
     computed: &ComputedStyle,

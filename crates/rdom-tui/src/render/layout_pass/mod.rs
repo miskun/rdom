@@ -122,6 +122,8 @@ pub trait LayoutExt: crate::sealed::Sealed {
 
 impl LayoutExt for Dom<TuiExt> {
     fn layout_dom(&mut self, viewport: Rect) {
+        // Intrinsic sizes are memoized for this pass only.
+        intrinsic::begin_pass(self);
         crate::style::cascade::set_document_viewport(
             self,
             rdom_style::calc::Viewport::new(viewport.width, viewport.height),
@@ -149,6 +151,7 @@ impl LayoutExt for Dom<TuiExt> {
         // elements. Runs AFTER pass 2 so absolute pseudos whose hosts
         // are themselves absolute can read the host's placed rect.
         positioned_pseudos::place_positioned_pseudos(self, root_rect);
+        intrinsic::end_pass(self);
     }
 }
 

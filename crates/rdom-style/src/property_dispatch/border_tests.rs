@@ -498,3 +498,33 @@ fn pixel_lengths_inside_math_functions() {
         );
     }
 }
+
+/// C5G-PERF-AND-TESTS — a pixel math function is evaluated in pixels of
+/// its own unit (`CalcUnit::Px`), not rewritten into `ch` and resolved
+/// on the assumption that `ch` takes no context: every pixel-family leaf
+/// normalizes to `px` (CSS Values 4 §6.2: 1in = 96px), and the
+/// expression keeps that unit.
+#[test]
+fn pixel_math_has_a_pixel_unit() {
+    use crate::calc::{CalcExpr, CalcUnit, ResolveCtx};
+    let tokens = crate::parse::token::tokenize("calc(2px + 1in)").unwrap();
+    let expr = crate::parse::values::parse_pixel_calc(&tokens).expect("a pixel expression");
+    let mut leaves = Vec::new();
+    fn walk(e: &CalcExpr, out: &mut Vec<CalcUnit>) {
+        match e {
+            CalcExpr::Dimension { unit, .. } => out.push(*unit),
+            CalcExpr::Binary { lhs, rhs, .. } => {
+                walk(lhs, out);
+                walk(rhs, out);
+            }
+            CalcExpr::Function { args, .. } => args.iter().for_each(|a| walk(a, out)),
+            _ => {}
+        }
+    }
+    walk(&expr, &mut leaves);
+    assert_eq!(leaves, [CalcUnit::Px, CalcUnit::Px]);
+    assert_eq!(expr.resolve_f64(&ResolveCtx::new(0)), 98.0);
+    assert_eq!(CalcUnit::parse("px"), None, "px is no cell length");
+    let ch = crate::parse::token::tokenize("calc(2px + 1ch)").unwrap();
+    assert_eq!(crate::parse::values::parse_pixel_calc(&ch), None);
+}

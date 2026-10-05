@@ -27,6 +27,13 @@ pub enum CalcUnit {
     Rad,
     /// `turn` (Values 4 §7.1).
     Turn,
+    /// `px` — the CSS pixel (Values 4 §6.2). Only in the math functions
+    /// of the properties whose lengths are pixels — a border width, a
+    /// radius, a shadow length (DESIGN "Pixel lengths select, cells
+    /// measure") — which `parse_pixel_calc` reads with every
+    /// pixel-family unit normalized to it; [`CalcUnit::parse`] never
+    /// gives it, as a cell length has no pixels.
+    Px,
 }
 
 /// The terminal's size in cells: the viewport the viewport-percentage
@@ -173,13 +180,16 @@ impl CalcUnit {
             CalcUnit::Grad => "grad",
             CalcUnit::Rad => "rad",
             CalcUnit::Turn => "turn",
+            CalcUnit::Px => "px",
         }
     }
 
     /// The type of a value in this unit.
     pub fn kind(self) -> CalcKind {
         match self {
-            CalcUnit::Ch | CalcUnit::Lh | CalcUnit::Rlh | CalcUnit::Viewport(_) => CalcKind::Length,
+            CalcUnit::Ch | CalcUnit::Lh | CalcUnit::Rlh | CalcUnit::Viewport(_) | CalcUnit::Px => {
+                CalcKind::Length
+            }
             CalcUnit::Deg | CalcUnit::Grad | CalcUnit::Rad | CalcUnit::Turn => CalcKind::Angle,
         }
     }
@@ -195,13 +205,15 @@ impl CalcUnit {
             | CalcUnit::Deg
             | CalcUnit::Grad
             | CalcUnit::Rad
-            | CalcUnit::Turn => false,
+            | CalcUnit::Turn
+            | CalcUnit::Px => false,
             CalcUnit::Viewport(_) => true,
         }
     }
 
     /// `value` in this unit, in the evaluator's canonical unit — cells
-    /// for lengths, radians for angles.
+    /// for lengths, radians for angles; a pixel expression is all `px`,
+    /// so its canonical unit is the pixel.
     pub(super) fn canonical(self, value: f64, cx: &ResolveCtx) -> f64 {
         match self {
             CalcUnit::Viewport(v) => {
@@ -221,6 +233,7 @@ impl CalcUnit {
             CalcUnit::Grad => value * std::f64::consts::PI / 200.0,
             CalcUnit::Rad => value,
             CalcUnit::Turn => value * std::f64::consts::TAU,
+            CalcUnit::Px => value,
         }
     }
 }

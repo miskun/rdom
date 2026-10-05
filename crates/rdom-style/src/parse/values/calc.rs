@@ -89,8 +89,16 @@ fn constant(name: &str) -> Option<f64> {
         .map(|(_, v)| *v)
 }
 
-/// A dimension leaf, `None` for a unit rdom does not take.
-fn dimension(value: f64, unit: &str) -> Option<CalcExpr> {
+/// A dimension leaf, `None` for a unit rdom does not take — in a pixel
+/// expression (`pixels`), any unit but the pixel-family ones, which
+/// normalize to `px` (CSS Values 4 §6.2).
+fn dimension(value: f64, unit: &str, pixels: bool) -> Option<CalcExpr> {
+    if pixels {
+        return super::border::px_per(unit).map(|px| CalcExpr::Dimension {
+            value: value * px,
+            unit: CalcUnit::Px,
+        });
+    }
     Some(CalcExpr::Dimension {
         value,
         unit: CalcUnit::parse(unit)?,
@@ -152,6 +160,9 @@ struct CalcParser<'a> {
     tokens: &'a [Token],
     pos: usize,
     nesting: usize,
+    /// A pixel expression ([`parse_pixel_calc`]): pixel-family lengths
+    /// only, no percentage.
+    pixels: bool,
 }
 
 impl<'a> CalcParser<'a> {
@@ -160,6 +171,7 @@ impl<'a> CalcParser<'a> {
             tokens,
             pos: 0,
             nesting: 0,
+            pixels: false,
         }
     }
 
@@ -235,8 +247,9 @@ impl<'a> CalcParser<'a> {
             // it reads as cells (rdom's unitless length).
             Token::Number(n) => CalcExpr::Number(*n as f64),
             Token::Float(f) => CalcExpr::Number(*f),
+            Token::Percentage(_) if self.pixels => return None,
             Token::Percentage(n) => CalcExpr::Percent(*n),
-            Token::Dimension { value, unit, .. } => dimension(*value, unit)?,
+            Token::Dimension { value, unit, .. } => dimension(*value, unit, self.pixels)?,
             Token::Delim('-') => {
                 // Unary minus — accept `-5` as a literal.
                 self.advance();
@@ -244,7 +257,7 @@ impl<'a> CalcParser<'a> {
                     Token::Number(n) => Some(CalcExpr::Number(-(*n as f64))),
                     Token::Float(f) => Some(CalcExpr::Number(-*f)),
                     Token::Percentage(n) => Some(CalcExpr::Percent(-*n)),
-                    Token::Dimension { value, unit, .. } => dimension(-*value, unit),
+                    Token::Dimension { value, unit, .. } => dimension(-*value, unit, self.pixels),
                     _ => None,
                 }
                 .map(Node::leaf);
@@ -382,13 +395,28 @@ pub fn parse_calc(tokens: &[Token]) -> Option<CalcExpr> {
     Some(expr)
 }
 
+/// A math function over pixel-family lengths (C4G-PX-CALC): every
+/// length leaf is a pixel-family unit, normalized to
+/// [`CalcUnit::Px`] (CSS Values 4 §6.2), numbers are factors, and any
+/// other unit or a percentage makes it `None` — cells beside pixels are
+/// a geometry question with no pixel answer. Not type-checked: the
+/// caller asks for a `<length>` ([`CalcExpr::kind_strict`]).
+pub(crate) fn parse_pixel_calc(tokens: &[Token]) -> Option<CalcExpr> {
+    parse_math_as(tokens, true)
+}
+
 /// [`parse_calc`] without the type check, for a caller that types the
 /// expression itself ([`CalcExpr::kind_as_number`]).
 pub(crate) fn parse_math(tokens: &[Token]) -> Option<CalcExpr> {
+    parse_math_as(tokens, false)
+}
+
+fn parse_math_as(tokens: &[Token], pixels: bool) -> Option<CalcExpr> {
     if !looks_like_calc(tokens) {
         return None;
     }
     let mut parser = CalcParser::new(tokens);
+    parser.pixels = pixels;
     let expr = parser.parse_factor()?.expr;
     // A math function must be the entire value.
     if parser.peek().is_some() {

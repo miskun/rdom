@@ -59,6 +59,7 @@ pub use border::{
     parse_border_side_shorthand, parse_border_spacing, parse_corner_radius, parse_line_width,
     parse_sides,
 };
+pub(crate) use calc::parse_pixel_calc;
 pub use calc::{MAX_CALC_DEPTH, MAX_CALC_NESTING, looks_like_calc, parse_calc};
 pub(crate) use color::{ColorExpr, compute_function as compute_color_function};
 pub use color::{MAX_COLOR_NESTING, parse_color, parse_color_at, parse_rgb_args, parse_rgba_args};
