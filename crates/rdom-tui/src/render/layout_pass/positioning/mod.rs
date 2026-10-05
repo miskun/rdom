@@ -41,9 +41,9 @@ use rdom_core::{Dom, NodeId};
 use crate::ext::TuiExt;
 use crate::layout::{LayoutRect, Position};
 
-pub(super) use axis::{axis_position_anchored, axis_position_relative_shift};
+pub(super) use axis::axis_position_anchored;
 pub(super) use place::{place_positioned, resolve_size_axis};
-pub(super) use relative::apply_relative_shift;
+pub(super) use relative::{apply_relative_shift, relative_offset};
 pub(super) use static_pos::{
     out_of_flow_positioned_children, record_static_position, record_static_positions_in_ifc,
     static_anchors, static_position_in_ifc,

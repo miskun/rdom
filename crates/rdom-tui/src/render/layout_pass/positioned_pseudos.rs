@@ -20,7 +20,7 @@
 //!   `height` (cells, a percentage of the containing block, `calc()`)
 //!   is the size; `auto` spans between both insets when both are set,
 //!   else is the `content`'s size (UAX#11 `UnicodeWidthStr`, one row
-//!   per line).
+//!   per line). A relative pseudo's insets only shift it (§9.4.3).
 
 use rdom_core::{Dom, NodeId, NodeType};
 use unicode_width::UnicodeWidthStr;
@@ -31,9 +31,10 @@ use crate::render::layout_pass::box_sizing::Sizer;
 use crate::style::ComputedStyle;
 
 use super::positioning::{
-    axis_position_anchored, axis_position_relative_shift, computed_position, layout_rect,
-    parent_id, resolve_size_axis,
+    axis_position_anchored, computed_position, layout_rect, parent_id, relative_offset,
+    resolve_size_axis,
 };
+use crate::layout::Length;
 
 pub(super) fn place_positioned_pseudos(dom: &mut Dom<TuiExt>, viewport: LayoutRect) {
     // Cascade-level early-exit (D-M5N-2). If no element in the tree
@@ -245,9 +246,8 @@ fn pseudo_content_height(style: &ComputedStyle) -> u16 {
 /// Compute the placed rect for a positioned pseudo. Width / height
 /// resolve via [`resolve_size_axis`] with the pseudo's intrinsic
 /// content size as the shrink-to-fit size. Position then routes through
-/// [`axis_position_anchored`] for absolute/fixed, or
-/// [`axis_position_relative_shift`] anchored at the host's edge for
-/// `Position::Relative` (see module docs for the natural-position
+/// [`axis_position_anchored`] for absolute/fixed, or [`relative_offset`]
+/// from the host's edge for `Position::Relative` (see module docs for the natural-position
 /// divergence from CSS).
 fn compute_placed_rect(
     style: &ComputedStyle,
@@ -260,13 +260,24 @@ fn compute_placed_rect(
 
     // CSS 2.1 §10.3.7 / §10.6.4, as for a positioned element: the
     // declared size, else the span between both insets, else the
-    // content's size.
+    // content's size. A relative box only shifts (§9.4.3): its insets
+    // never size it.
+    let relative = style.position == Position::Relative;
+    let insets = |start: &Length, end: &Length| -> (Length, Length) {
+        if relative {
+            (Length::Auto, Length::Auto)
+        } else {
+            (start.clone(), end.clone())
+        }
+    };
+    let (left, right) = insets(&style.left, &style.right);
+    let (top, bottom) = insets(&style.top, &style.bottom);
     let width = resolve_size_axis(
         &style.width,
         Sizer::horizontal(style, cb.width),
         cb.width,
-        &style.left,
-        &style.right,
+        &left,
+        &right,
         cb.width,
         // A pseudo-element's content is one string: every keyword is its
         // width, as the shrink-to-fit size is.
@@ -276,8 +287,8 @@ fn compute_placed_rect(
         &style.height,
         Sizer::vertical(style, cb.width),
         cb.height,
-        &style.top,
-        &style.bottom,
+        &top,
+        &bottom,
         cb.height,
         |_, _| intrinsic_h,
     );
@@ -327,10 +338,11 @@ fn compute_placed_rect(
         ),
     ));
 
-    if style.position == Position::Relative {
+    if relative {
         // Relative pseudo: natural anchor is the host's start edge
         // for `::before`, host's far edge - intrinsic_w for `::after`.
-        // The cascaded `top/left/right/bottom` then shift from there.
+        // The insets then shift it from there, as they shift a relative
+        // element (`relative_offset`: the inline-start inset wins).
         let (natural_x, natural_y) = match end {
             PseudoEnd::Before => (host_rect.x, host_rect.y),
             PseudoEnd::After => (
@@ -341,10 +353,13 @@ fn compute_placed_rect(
                 host_rect.y,
             ),
         };
-        let x = axis_position_relative_shift(&style.left, &style.right, natural_x, cb.width as i32);
-        let y =
-            axis_position_relative_shift(&style.top, &style.bottom, natural_y, cb.height as i32);
-        LayoutRect::new(x, y, width, height)
+        let (dx, dy) = relative_offset(style, cb, true);
+        LayoutRect::new(
+            natural_x.saturating_add(dx),
+            natural_y.saturating_add(dy),
+            width,
+            height,
+        )
     } else {
         let x = axis_position_anchored(&style.left, &style.right, cb.x, cb.width, width);
         let y = axis_position_anchored(&style.top, &style.bottom, cb.y, cb.height, height);

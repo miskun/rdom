@@ -29,15 +29,33 @@ pub(in crate::render::layout_pass) fn apply_relative_shift(
     if computed.position != Position::Relative {
         return rect;
     }
-    // Relative offsets resolve percentages against the parent's
-    // content box on the matching axis (`top`/`bottom` → height,
-    // `left`/`right` → width). Per CSS 2.1 §9.4.3.
-    // With both `left` and `right` set, the inline-start one wins: `left`
-    // under `ltr`, `right` under `rtl` (CSS 2.1 §9.4.3; rdom reads the
-    // box's own `direction`, which it inherits from its containing block
-    // unless it sets one — DIVERGENCES).
-    let left = || resolve_length_offset(&computed.left, parent.width as i32, false);
-    let right = || resolve_length_offset(&computed.right, parent.width as i32, true);
+    let (dx, dy) = relative_offset(computed, parent, parent_height_definite);
+    LayoutRect::new(
+        rect.x.saturating_add(dx),
+        rect.y.saturating_add(dy),
+        rect.width,
+        rect.height,
+    )
+}
+
+/// The `(dx, dy)` a relatively positioned box with `computed`'s insets
+/// moves by, inside a containing block of `cb`'s size (CSS 2.1 §9.4.3).
+/// The box only moves — its size is its own. Percentages resolve
+/// against the containing block on the matching axis (`top` / `bottom`
+/// → height, `left` / `right` → width); a percentage `top` / `bottom`
+/// computes to `auto` unless `height_definite` (§9.3.2). With both
+/// `left` and `right` set the inline-start one wins — `left` under
+/// `ltr`, `right` under `rtl` (rdom reads the box's own `direction`,
+/// which it inherits from its containing block unless it sets one —
+/// DIVERGENCES) — and with both `top` and `bottom`, `top`. Shared by
+/// relative elements and relative pseudo-elements.
+pub(in crate::render::layout_pass) fn relative_offset(
+    computed: &ComputedStyle,
+    cb: LayoutRect,
+    height_definite: bool,
+) -> (i32, i32) {
+    let left = || resolve_length_offset(&computed.left, cb.width as i32, false);
+    let right = || resolve_length_offset(&computed.right, cb.width as i32, true);
     let dx = if computed.text_direction == crate::layout::TextDirection::Rtl {
         right().or_else(left).unwrap_or(0)
     } else {
@@ -45,23 +63,15 @@ pub(in crate::render::layout_pass) fn apply_relative_shift(
     };
     let vertical = |len: &Length| -> Length {
         match len {
-            Length::Calc(expr) if !parent_height_definite && expr.contains_percent() => {
-                Length::Auto
-            }
+            Length::Calc(expr) if !height_definite && expr.contains_percent() => Length::Auto,
             other => other.clone(),
         }
     };
-    let dy = resolve_length_offset(&vertical(&computed.top), parent.height as i32, false)
+    let dy = resolve_length_offset(&vertical(&computed.top), cb.height as i32, false)
         .unwrap_or_else(|| {
-            resolve_length_offset(&vertical(&computed.bottom), parent.height as i32, true)
-                .unwrap_or(0)
+            resolve_length_offset(&vertical(&computed.bottom), cb.height as i32, true).unwrap_or(0)
         });
-    LayoutRect::new(
-        rect.x.saturating_add(dx),
-        rect.y.saturating_add(dy),
-        rect.width,
-        rect.height,
-    )
+    (dx, dy)
 }
 
 /// Resolve a `Length` value to a signed integer offset given the

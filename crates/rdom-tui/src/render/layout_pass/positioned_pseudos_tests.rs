@@ -83,3 +83,45 @@ fn a_positioned_pseudo_honours_min_and_max() {
     ));
     assert_eq!(r.width, 4);
 }
+
+/// C5G-REL-PSEUDO-INSETS — CSS 2.1 §9.4.3: a `position: relative` box
+/// only shifts. With both `left` and `right` set, `right` is ignored
+/// under `ltr` (`left` under `rtl`: the inline-start inset wins), and
+/// its width stays its own — the content's for a pseudo-element; with
+/// both `top` and `bottom`, `bottom` is ignored and the height holds.
+#[test]
+fn a_relative_pseudo_with_both_insets_only_shifts() {
+    // `::after` sits at the host's far edge: 10 − 1 = 9.
+    let css = |dir: &str| {
+        format!(
+            "{HOST} .h {{ direction: {dir} }} .h::after {{ position: relative; \
+             left: 1; right: 1; top: 1; bottom: 1; content: \"x\" }}"
+        )
+    };
+    let r = after_rect(&css("ltr"));
+    assert_eq!((r.x, r.y, r.width, r.height), (10, 1, 1, 1), "left wins");
+    let r = after_rect(&css("rtl"));
+    assert_eq!((r.x, r.y, r.width, r.height), (8, 1, 1, 1), "right wins");
+}
+
+/// The same holds for an element: both insets shift it without
+/// stretching it (its block width is its containing block's).
+#[test]
+fn a_relative_element_with_both_insets_keeps_its_width() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let h = dom.create_element("div");
+    dom.set_attribute(h, "class", "h").unwrap();
+    dom.append_child(root, h).unwrap();
+    let r = dom.create_element("div");
+    dom.set_attribute(r, "class", "r").unwrap();
+    dom.append_child(h, r).unwrap();
+    let parsed = rdom_css::parse(&format!(
+        "{HOST} .r {{ position: relative; left: 1; right: 3; height: 1 }}"
+    ));
+    assert!(parsed.warnings.is_empty(), "{:?}", parsed.warnings);
+    dom.cascade(&parsed.stylesheet);
+    dom.layout_dom(Rect::new(0, 0, 20, 6));
+    let rect = dom.node(r).ext().unwrap().layout;
+    assert_eq!((rect.x, rect.width), (1, 10));
+}

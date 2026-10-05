@@ -1,6 +1,6 @@
 //! Shared one-axis resolvers for absolute / fixed elements and
-//! positioned pseudo-elements: the size between two insets, the
-//! anchored offset, the relative shift.
+//! positioned pseudo-elements: the size between two insets and the
+//! anchored offset. The relative shift is `relative::relative_offset`.
 
 use crate::layout::Length;
 
@@ -57,34 +57,5 @@ pub(in crate::render::layout_pass) fn axis_position_anchored(
             .saturating_sub(e)
             .saturating_sub(size as i32),
         _ => cb_start,
-    }
-}
-
-/// Resolve start position on one axis using `position: relative`
-/// shift semantics (the box stays at its natural anchor and only
-/// shifts by `start` or `-end`):
-///
-/// - `(Cells(s), _)` → `anchor + s`.
-/// - `(Auto, Cells(e))` → `anchor - e`.
-/// - `(Auto, Auto)` → `anchor`.
-///
-/// Used by positioned-pseudo placement (`positioned_pseudos.rs`)
-/// when the pseudo's cascaded `position` is `Relative`. Element
-/// `position: relative` uses a separate path
-/// ([`apply_relative_shift`]) because element placement reads `top`
-/// / `left` / `right` / `bottom` as a *delta* against the in-flow
-/// rect, not against a containing block.
-pub(in crate::render::layout_pass) fn axis_position_relative_shift(
-    start: &Length,
-    end: &Length,
-    anchor: i32,
-    basis: i32,
-) -> i32 {
-    let s = start.cells(basis);
-    let e = end.cells(basis);
-    match (s, e) {
-        (Some(s), _) => anchor.saturating_add(s),
-        (None, Some(e)) => anchor.saturating_sub(e),
-        _ => anchor,
     }
 }

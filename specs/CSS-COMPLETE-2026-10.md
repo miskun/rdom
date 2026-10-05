@@ -174,7 +174,7 @@ row comes from.
 | C8-SCROLL-PADDING | `scroll-padding*` / `scroll-margin*` | |
 | C8-SNAP | `scroll-snap-type` / `-align` / `-stop` | |
 | C8-OVERFLOW-TEXT | A non-clipping descendant's overflowing line boxes count toward the ancestor's scrollable overflow | |
-| C8-POS-MINMAX | Positioned boxes (elements and pseudo-elements) honour `min-*` / `max-*` (CSS 2.1 §10.4 / §10.7 with §10.3.7 / §10.6.4); a `position: relative` pseudo with both insets takes its declared width | |
+| C8-POS-MINMAX | Positioned boxes (elements and pseudo-elements) honour `min-*` / `max-*` (CSS 2.1 §10.4 / §10.7 with §10.3.7 / §10.6.4); a `position: relative` pseudo with both insets takes its declared width | done (C5-POS-MINMAX + C5G-REL-PSEUDO-INSETS) |
 
 (Scroll-driven animations land in phase 12.)
 
@@ -1729,3 +1729,17 @@ row comes from.
   `99999999999.0`). `box_shadow_takes_an_integer_past_the_range` gains the 23-digit and the
   `99999999999ch` cases — the box-shadow cases still parse and clamp (`PaintLength::Cells(i32::MAX)`),
   and `box_shadow_huge_lengths_do_not_overflow` (rdom-tui) passes unchanged.
+- 2026-10-07 — C5G-REL-PSEUDO-INSETS (gate fix; completes C8-POS-MINMAX, row set to `done
+  (C5-POS-MINMAX + C5G-REL-PSEUDO-INSETS)`): a `position: relative` pseudo-element with both insets
+  stretched to their span — `compute_placed_rect` sized it like an absolute box
+  (`resolve_size_axis` with the insets). CSS 2.1 §9.4.3: a relative box only moves; with both `left`
+  and `right` the inline-start one wins (`left` under `ltr`, `right` under `rtl`), with both `top` and
+  `bottom` `top`, and its size is its own. Now a relative pseudo is sized with `auto` insets, and
+  shifted by `positioning::relative_offset`, extracted from the element path's
+  `apply_relative_shift` — one rule for elements and pseudo-elements, the box's `direction` included;
+  `axis::axis_position_relative_shift` (left always won) is gone. The element path was checked: it
+  never sized by the insets and already kept `right` under `rtl`
+  (`rtl_positioned_boxes_keep_the_right_inset`); `a_relative_element_with_both_insets_keeps_its_width`
+  pins its width. Red:
+  `a_relative_pseudo_with_both_insets_only_shifts` failed — `(10, 1, 8, 2)` (stretched both ways)
+  against `(10, 1, 1, 1)`; green after, `(8, 1, 1, 1)` under `rtl`. No expectation changed.
