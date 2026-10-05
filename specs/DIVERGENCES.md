@@ -89,6 +89,7 @@ These are intrinsic to terminals. They will not change.
 - **Sticky containing block is the element's parent's content box**, not the CSS "nearest scroll container" for nested-scroller edge cases.
 - **A box's baselines are its first and last content rows.** Baseline alignment in flex (`align-items: baseline` / `last baseline`, CSS Box Alignment 3 §9) and an inline block's baseline in its line (CSS 2.1 §10.8.1) read a box's first and last baseline as the first and last rows of its content box's content — a cell row holds one baseline — rather than the baselines of its first and last line boxes wherever they sit (an empty first child or a child's top margin does not move rdom's first baseline down). A box with no content rows synthesizes its baseline at its border box's bottom row in flex (Box Alignment §9.1), at its margin box's bottom row as an inline block (CSS 2.1).
 - **The static position inside a flex or grid container ignores the alignment properties.** Flexbox §4.1 places an absolutely positioned child's hypothetical box as if it were the sole flex item, so `justify-content: center` would center it; CSS Grid 2 (§10.2 "With a Grid Container as Parent") as if it were the sole grid item in an area that is the container's content box, so its `justify-self` / `align-self` would place it there. rdom uses the content box's start corner (`flex-start`, `start`) in both. In block and inline flow the static position follows CSS 2.1 §10.3.7 / §10.6.4.
+- **Positioned `::before` / `::after` pseudo-elements are not in a scroll container's scrollable overflow.** CSS Overflow 3 §2.2 counts every box a scroll container is the containing block of; rdom counts absolutely positioned elements (C8-ABSPOS-OVERFLOW) but not positioned pseudo-elements, which are placed in a pass of their own after the extents settle — a positioned `::after` past a scroller's content cannot be scrolled to.
 - **Positioned `::before` / `::after` pseudo-elements are not in the hit-test set.** Clicks on pseudo rects resolve to the underlying element.
 - **A positioned `::before` / `::after` takes its content's width for every intrinsic size keyword.** Its content is one generated string laid out on one line, so `min-content`, `max-content` and `fit-content` all size it — or bound it, in `min-*` / `max-*` — to that string's width (CSS Sizing 3 §3.1 would break `min-content` at the string's soft-wrap opportunities). In-flow pseudo-elements are measured with their element.
 
@@ -301,7 +302,6 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 - `overscroll-behavior` (+ longhands) — C8-OVERSCROLL
 - `scroll-padding*` / `scroll-margin*` (today `scrollIntoView` aligns as if both were `0`) — C8-SCROLL-PADDING
 - `scroll-snap-type` / `-align` / `-stop` — C8-SNAP
-- An absolutely positioned box in the scrollable overflow of the scroll container that contains it (CSS Overflow 3 §2.2) — not scheduled (TECH_DEBT `ABSPOS-OVERFLOW-1`)
 
 ### Inline text
 

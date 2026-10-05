@@ -72,8 +72,9 @@ pub(crate) fn record_scroll_content_size(
     // stretches to the container still contributes the cells that
     // stick out of it. The walk stops at a descendant that clips its
     // own content (it owns whatever overflows it) and skips out-of-flow
-    // boxes: `display:none` takes no space and positioned boxes are
-    // placed in phase 2 against their own containing block.
+    // boxes: `display:none` takes no space, and positioned boxes are
+    // placed in phase 2 against their own containing block — the ones
+    // this box contains are merged below.
     for child in element_children_of(dom, id) {
         extend_scrollable_overflow(dom, child, ClipEdges::NONE, &mut extend);
     }
@@ -116,6 +117,18 @@ pub(crate) fn record_scroll_content_size(
                 any = true;
             }
         }
+    }
+
+    // The absolutely positioned boxes it contains (§2.2), as the last
+    // settle of this document found them (`positioned_overflow`, which
+    // runs the layout again when they moved).
+    if let Some(r) = super::positioned_overflow::reach_of(dom, id) {
+        let origin = dom.node(id).ext().map_or(inner, |e| e.layout);
+        min_x = Some(min_x.map_or(origin.x + r.left, |m: i32| m.min(origin.x + r.left)));
+        min_y = Some(min_y.map_or(origin.y + r.top, |m: i32| m.min(origin.y + r.top)));
+        max_right = max_right.max(origin.x + r.right);
+        max_bottom = max_bottom.max(origin.y + r.bottom);
+        any = true;
     }
 
     let (content_w, content_h) = if any {
@@ -290,6 +303,19 @@ fn extend_scrollable_overflow(
     if !is_in_flow(dom, id) {
         return;
     }
+    extend_box_overflow(dom, id, clip, extend);
+}
+
+/// [`extend_scrollable_overflow`] for `id` whether or not it is in flow:
+/// an absolutely positioned box counts in the scroll container it is
+/// contained in (`positioned_overflow`), with its own scrollable
+/// overflow.
+pub(super) fn extend_box_overflow(
+    dom: &Dom<TuiExt>,
+    id: NodeId,
+    clip: ClipEdges,
+    extend: &mut impl FnMut(LayoutRect),
+) {
     let Some(ext) = dom.node(id).ext() else {
         return;
     };

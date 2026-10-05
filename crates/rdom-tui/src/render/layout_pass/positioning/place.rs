@@ -20,6 +20,8 @@ use crate::render::layout_pass::intrinsic::{Keywords, intrinsic_size};
 /// `layout_node` on the subtree so the element's own children flow
 /// inside the placed rect.
 ///
+/// Returns the elements it placed, in document order.
+///
 /// Document-order walk guarantees that an outer positioned element
 /// is placed before any positioned descendants — so when a nested
 /// absolute resolves its containing block, the outer's
@@ -27,9 +29,9 @@ use crate::render::layout_pass::intrinsic::{Keywords, intrinsic_size};
 pub(in crate::render::layout_pass) fn place_positioned(
     dom: &mut Dom<TuiExt>,
     viewport: LayoutRect,
-) {
+) -> Vec<NodeId> {
     let positioned = collect_positioned(dom, dom.root());
-    for id in positioned {
+    for &id in &positioned {
         let cb = containing_block(dom, id, viewport);
         let computed = dom
             .node(id)
@@ -38,6 +40,7 @@ pub(in crate::render::layout_pass) fn place_positioned(
         let placed = compute_placed_rect(dom, id, &computed, cb);
         crate::render::layout_pass::layout_node(dom, id, placed, cb.width);
     }
+    positioned
 }
 
 fn collect_positioned(dom: &Dom<TuiExt>, id: NodeId) -> Vec<NodeId> {

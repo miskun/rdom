@@ -59,6 +59,8 @@
 //!   `display: none` geometry reset.
 //! - `auto_height` — `height: auto` from the measured content.
 //! - `scroll_extent` — scrollable content extent, scroll clamp.
+//! - `positioned_overflow` — absolutely positioned boxes in their
+//!   scroll container's extent, measured after placement.
 //! - `gutter` — scroll offsets and scrollbar gutters.
 //!
 //! ## Scroll
@@ -94,6 +96,7 @@ pub(crate) mod intrinsic;
 mod items;
 pub(crate) mod line_clamp;
 mod margin_trim;
+mod positioned_overflow;
 mod positioned_pseudos;
 mod positioning;
 mod scroll_extent;
@@ -158,12 +161,25 @@ impl LayoutExt for Dom<TuiExt> {
             viewport.width,
             viewport.height,
         );
-        // Pass 1 — flex / inline flow. Skips position: absolute /
-        // fixed children at every container (see flex.rs filter).
-        layout_node(self, root, root_rect, root_rect.width);
-        // Pass 2 — place absolute / fixed elements against their
-        // containing blocks.
-        positioning::place_positioned(self, root_rect);
+        // Passes 1–2 run once more when the absolutely positioned
+        // boxes' reach into their scroll containers changed
+        // (`positioned_overflow`): pass 1 records scroll extents with
+        // the reach the last settle measured.
+        for round in 0..2 {
+            if round > 0 {
+                intrinsic::end_pass(self);
+                intrinsic::begin_pass(self);
+            }
+            // Pass 1 — flex / inline flow. Skips position: absolute /
+            // fixed children at every container (see flex.rs filter).
+            layout_node(self, root, root_rect, root_rect.width);
+            // Pass 2 — place absolute / fixed elements against their
+            // containing blocks.
+            let placed = positioning::place_positioned(self, root_rect);
+            if !positioned_overflow::settle(self, &placed) {
+                break;
+            }
+        }
         // Pass 2.5 — place position: sticky elements. They stayed
         // in flow during pass 1; this pass adjusts their rect based
         // on the nearest scrollable ancestor's scroll position.

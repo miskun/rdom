@@ -182,6 +182,8 @@ row comes from.
 | C8-OVERFLOW-TEXT | A non-clipping descendant's overflowing line boxes count toward the ancestor's scrollable overflow | done |
 | C8-CB-COMPLETE | Containing block for positioned boxes, completing C7-ABSPOS-PADDING-EDGE: `sticky` ancestors in the ancestor walks, the scrollbar gutter excluded, scroll offsets applied inside a positioned scroller, one shared ancestor walk (elements and pseudo-elements, incl. the §9.1 grid area for pseudos) | done |
 | C8-POS-MINMAX | Positioned boxes (elements and pseudo-elements) honour `min-*` / `max-*` (CSS 2.1 §10.4 / §10.7 with §10.3.7 / §10.6.4); a `position: relative` pseudo with both insets takes its declared width | done (C5-POS-MINMAX + C5G-REL-PSEUDO-INSETS) |
+| C8-ABSPOS-OVERFLOW | An absolutely positioned box in its scroll container's scrollable overflow (CSS Overflow 3 §2.2; TECH_DEBT `ABSPOS-OVERFLOW-1`) | done |
+| C8-RTL-LINE-OVERFLOW | An overflowing `rtl` line starts at the right edge and overflows the left (DIVERGENCES §4, from C8-TEXT-OVERFLOW) | |
 
 (Scroll-driven animations land in phase 12.)
 
@@ -4608,3 +4610,29 @@ row comes from.
   at 540; TECH_DEBT `SIZE-1` updated (`computed.rs` 557, `inline_paint/mod.rs` 561; `keywords.rs`
   below 500 after `overflow.rs` took `Overflow`).
 
+- 2026-10-05 — C8-ABSPOS-OVERFLOW (TECH_DEBT `ABSPOS-OVERFLOW-1`; CSS Overflow 3 §2.2, CSS 2.1
+  §10.1 / §11.1.1, CSSOM View §4). An absolutely positioned element's border box and its own
+  scrollable overflow count in the scrollable overflow of the nearest scroll container at or above
+  its containing block (a scroll container between the box and its containing block does not
+  contain it; a `fixed` box counts nowhere), cut to the overflow clip edges of the `clip` boxes from
+  its containing block up and to the reachable side of the scroll container's content box (what
+  lies before the scroll origin — left of an `ltr` box, right of an `rtl` one — is unreachable).
+  Ordering, fixed at the root: phase 1 records extents, clamps offsets and settles `auto` bars, and
+  phase 2 places positioned boxes against what phase 1 laid out, so phase 1 now merges each scroll
+  container's `Reach` — the rect its positioned boxes cover, from its border-box origin, unscrolled
+  (translation-invariant) — from the last settle (document data, `layout_pass/positioned_overflow/`),
+  and `positioned_overflow::settle` measures it again after placement; when it changed, `layout_dom`
+  runs phases 1–2 once more (never a third time: a second change is kept for the next layout). So
+  the extent, the clamp and the two-pass gutter all see the boxes with no new path through
+  `layout_node`. `scroll_extent::extend_box_overflow` is the walk's entry for a box whatever its flow.
+  Cost, pinned by `positioned_overflow/cost_tests.rs` (`LAYOUTS` and a `MEASURED` counter): no
+  positioned box — one run, nothing measured; three appearing — two runs, each box measured once a
+  run; laid out again unchanged — one run (the in-flow layout plus one placement per box), one
+  measurement per box. Red: `css_phase8/abspos_overflow.rs` — 4 of 7 failed (`(6, 1)` for `(10,
+  6)` and `(9, 4)`, `scrollTop` 0 for 4, content `(6, 2)` for `(5, 1)` under `overflow: auto`); the
+  pins — a box contained above the scroller, a `fixed` box, the clamp after the box is removed —
+  passed before and after. Added after (green, mutation-checked): a box at `left: -4` adds nothing,
+  a `clip` containing block cuts the box. Mutation (each restored and touched): no clip or
+  reachable-side cut → those two; no second run → four extent tests and the cost test. Not done
+  (DIVERGENCES §2): positioned `::before` / `::after`, placed in a pass of their own after the
+  extents settle. No test expectation or snapshot changed.

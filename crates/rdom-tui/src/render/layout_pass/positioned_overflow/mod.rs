@@ -1,0 +1,183 @@
+//! Absolutely positioned boxes in their scroll container's scrollable
+//! overflow (CSS Overflow 3 §2.2: the area covers "the border boxes of
+//! all boxes for which it is the containing block", and their own
+//! scrollable overflow).
+//!
+//! Ordering. A scroll container's extent is recorded, its offset clamped
+//! and its `auto` scrollbars settled in phase 1 (`layout_node`), and
+//! positioned boxes are placed in phase 2 against containing blocks
+//! phase 1 laid out. So phase 1 reads the positioned boxes' reach from
+//! the document's last [`settle`] — per scroll container, the rect the
+//! boxes it contains cover, relative to its border box and unscrolled,
+//! so it does not move with the container or its offset — and [`settle`]
+//! measures it again once they are placed. When it changed (a box was
+//! added, moved or removed), `layout_dom` runs phases 1–2 once more with
+//! the new reach, so the extent, the clamp and the gutters see it. A
+//! document whose positioned boxes stay put lays out once; one whose
+//! boxes moved, twice, and never more (a second change is kept for the
+//! next layout).
+//!
+//! A box counts in the nearest scroll container at or above its
+//! containing block — a scroll container between the box and its
+//! containing block does not contain it — cut to the overflow clip
+//! edges of the `overflow: clip` boxes from its containing block up
+//! (CSS 2.1 §11.1.1: a box clips the descendants it contains), and to
+//! the reachable side of the scroll container's content box (its
+//! scrolling area starts at the scroll origin, CSSOM View §4). `fixed`
+//! boxes are contained by the viewport and count nowhere. Positioned
+//! `::before` / `::after` are not counted (DIVERGENCES §2).
+
+use std::collections::HashMap;
+
+use rdom_core::{Dom, NodeId};
+
+use super::ClipEdges;
+use super::positioning::{computed_position, parent_id};
+use crate::ext::TuiExt;
+use crate::layout::{LayoutRect, Position};
+
+/// The rect the positioned boxes a scroll container contains cover:
+/// cells from the container's border-box origin, with its scroll offset
+/// added back (unscrolled).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct Reach {
+    pub(super) left: i32,
+    pub(super) top: i32,
+    pub(super) right: i32,
+    pub(super) bottom: i32,
+}
+
+impl Reach {
+    fn union(self, other: Self) -> Self {
+        Self {
+            left: self.left.min(other.left),
+            top: self.top.min(other.top),
+            right: self.right.max(other.right),
+            bottom: self.bottom.max(other.bottom),
+        }
+    }
+}
+
+/// Document data: each scroll container's [`Reach`], from the last
+/// settle. Kept across layouts — phase 1 of the next one reads it.
+#[derive(Debug, Default, PartialEq)]
+struct Reaches(HashMap<NodeId, Reach>);
+
+/// What phase 1 merges into `scroller`'s scrollable overflow: the reach
+/// of the positioned boxes it contained at the last settle.
+pub(super) fn reach_of(dom: &Dom<TuiExt>, scroller: NodeId) -> Option<Reach> {
+    dom.document_data::<Reaches>()?.0.get(&scroller).copied()
+}
+
+#[cfg(test)]
+thread_local! {
+    /// Positioned boxes [`settle`] measured (cost tests).
+    pub(super) static MEASURED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// Measure the reach of the boxes phase 2 `placed` (in document order)
+/// in their scroll containers, store it, and return whether it differs
+/// from what phase 1 read — the layout must then run again.
+pub(super) fn settle(dom: &mut Dom<TuiExt>, placed: &[NodeId]) -> bool {
+    let mut reaches = Reaches::default();
+    for &id in placed {
+        let Some((scroller, clip)) = containing_scroller(dom, id) else {
+            continue;
+        };
+        #[cfg(test)]
+        MEASURED.with(|c| c.set(c.get() + 1));
+        let Some(origin) = unscrolled_origin(dom, scroller) else {
+            continue;
+        };
+        let clip = clip.narrow(reachable(dom, scroller));
+        let mut reach: Option<Reach> = None;
+        super::scroll_extent::extend_box_overflow(dom, id, clip, &mut |r: LayoutRect| {
+            let r = Reach {
+                left: r.x - origin.0,
+                top: r.y - origin.1,
+                right: r.x + i32::from(r.width) - origin.0,
+                bottom: r.y + i32::from(r.height) - origin.1,
+            };
+            reach = Some(reach.map_or(r, |a| a.union(r)));
+        });
+        if let Some(r) = reach {
+            reaches
+                .0
+                .entry(scroller)
+                .and_modify(|a| *a = a.union(r))
+                .or_insert(r);
+        }
+    }
+    let changed = match dom.document_data::<Reaches>() {
+        Some(old) => *old != reaches,
+        None => !reaches.0.is_empty(),
+    };
+    if changed {
+        dom.set_document_data(reaches);
+    }
+    changed
+}
+
+/// The scroll container whose scrollable overflow absolutely positioned
+/// `id` is part of, with the clip edges between: the nearest scroll
+/// container at or above its containing block. `None` for a `fixed` box,
+/// a box contained by the viewport, or one no scroll container holds.
+fn containing_scroller(dom: &Dom<TuiExt>, id: NodeId) -> Option<(NodeId, ClipEdges)> {
+    if computed_position(dom, id) != Position::Absolute {
+        return None;
+    }
+    // The containing block: the nearest ancestor that is not `static`
+    // (`positioning::absolute_containing_block`).
+    let mut cur = parent_id(dom, id);
+    while let Some(p) = cur {
+        if computed_position(dom, p) != Position::Static {
+            break;
+        }
+        cur = parent_id(dom, p);
+    }
+    let mut clip = ClipEdges::NONE;
+    while let Some(p) = cur {
+        let ext = dom.node(p).ext()?;
+        let c = ext.computed.as_deref()?;
+        if c.is_scroll_container() {
+            return Some((p, clip));
+        }
+        clip = clip.narrow(ClipEdges::of(ext, c));
+        cur = parent_id(dom, p);
+    }
+    None
+}
+
+/// `scroller`'s border-box origin less its scroll offset: where a
+/// [`Reach`] is measured from.
+fn unscrolled_origin(dom: &Dom<TuiExt>, scroller: NodeId) -> Option<(i32, i32)> {
+    let ext = dom.node(scroller).ext()?;
+    Some((ext.layout.x - ext.scroll_x, ext.layout.y - ext.scroll_y))
+}
+
+/// The side of `scroller`'s scrolled content that scrolling can reach:
+/// from its content box's start edge on, or up to its end edge where the
+/// scroll origin is there (`origin_at_end`, CSSOM View §4) — what lies
+/// before the origin is unreachable (CSS Overflow 3 §2.2).
+fn reachable(dom: &Dom<TuiExt>, scroller: NodeId) -> ClipEdges {
+    let Some(ext) = dom.node(scroller).ext() else {
+        return ClipEdges::NONE;
+    };
+    let (at_end_x, at_end_y) = super::origin_at_end(dom, scroller);
+    let c = ext.content_layout;
+    let side = |at_end: bool, start: i32, len: u16, offset: i32| {
+        let start = start - offset;
+        Some(if at_end {
+            (i32::MIN / 2, start + i32::from(len))
+        } else {
+            (start, i32::MAX / 2)
+        })
+    };
+    ClipEdges {
+        x: side(at_end_x, c.x, c.width, ext.scroll_x),
+        y: side(at_end_y, c.y, c.height, ext.scroll_y),
+    }
+}
+
+#[cfg(test)]
+mod cost_tests;

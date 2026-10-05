@@ -7,6 +7,7 @@
 #[allow(unused_imports)]
 pub(crate) use super::css_phase5::{el, lay_out, paint, rect, rows, size};
 
+mod abspos_overflow;
 mod containing_block;
 mod line_clamp;
 mod overflow_clip;
