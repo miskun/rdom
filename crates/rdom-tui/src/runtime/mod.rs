@@ -38,6 +38,7 @@ pub mod hit_test;
 pub(crate) mod implicit_events;
 pub(crate) mod input;
 pub mod router;
+pub(crate) mod scroll_snap;
 pub mod scrollbar;
 pub mod selection;
 pub mod smooth_scroll;

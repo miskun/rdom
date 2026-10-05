@@ -71,6 +71,9 @@ const PROPERTY_NAMES: &[&str] = &[
     "scroll-margin-right",
     "scroll-margin-bottom",
     "scroll-margin-left",
+    "scroll-snap-type",
+    "scroll-snap-align",
+    "scroll-snap-stop",
     "scroll-behavior",
     // Layout — sizing
     "width",

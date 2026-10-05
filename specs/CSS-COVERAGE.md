@@ -79,7 +79,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.8 Flexbox and box alignment (Flexbox 1, Align 3) | 17 | 0 | 0 | 0 | 17 |
 | 3.9 Grid (Grid 1/2) | 9 | 0 | 1 | 0 | 10 |
 | 3.10 Positioned layout (Position 3, CSS 2.1 §9) | 6 | 0 | 0 | 1 | 7 |
-| 3.11 Overflow, scrolling and scrollbars (Overflow 3/4, Scroll Snap 1, Overscroll 1, Scrollbars 1) | 12 | 0 | 2 | 0 | 14 |
+| 3.11 Overflow, scrolling and scrollbars (Overflow 3/4, Scroll Snap 1, Overscroll 1, Scrollbars 1) | 13 | 0 | 1 | 0 | 14 |
 | 3.12 Inline text (Text 3/4, Inline 3, CSS 2.1 §10.8) | 0 | 1 | 14 | 6 | 21 |
 | 3.13 Text decoration (Text Decoration 3/4) | 0 | 1 | 3 | 2 | 6 |
 | 3.14 Fonts (Fonts 4) | 0 | 2 | 1 | 2 | 5 |
@@ -93,9 +93,9 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 5 | 2 | 1 | 1 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **157** | **23** | **81** | **46** | **307** |
+| **Total** | **158** | **23** | **80** | **46** | **307** |
 
-When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 104 rows Partial / Missing.
+When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 103 rows Partial / Missing.
 
 Headline: rdom parses **183 property names** (`property_names()`, after C7-GRID-AREAS). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are `line-height`, `text-align`, and `@media`.
 
@@ -155,7 +155,7 @@ pasted CSS. The first block is what a typical component stylesheet hits in its f
 | 45 | `caret-shape` / `caret-animation` / `caret` | `bar` / `block` / `underscore` for the painted caret (or DECSCUSR on the hardware cursor); `manual` disables blink. | S | No |
 | 46 | `scrollbar-width` / `scrollbar-color` | `scrollbar-width: none` hides the bar while keeping the box scrollable (`thin` = `auto`, already one cell); `scrollbar-color: <thumb> <track>` = the standard spelling of `::scrollbar-thumb` / `::scrollbar` colors. | S | Yes |
 | 47 | `overscroll-behavior` (+ `-x`, `-y`, logical) | `contain` / `none` stop wheel / keyboard scroll chaining into the ancestor at the scroll limit. | S | No | *Shipped: C8-OVERSCROLL.*
-| 48 | `scroll-padding*` / `scroll-margin*` / `scroll-snap-type` / `scroll-snap-align` / `scroll-snap-stop` | Insets for `scrollIntoView` / keyboard scrolling; snap scroll offsets to item edges (row-snapped lists). | S / M | Partial — padding / margin Yes; snap No |
+| 48 | `scroll-padding*` / `scroll-margin*` / `scroll-snap-type` / `scroll-snap-align` / `scroll-snap-stop` | Insets for `scrollIntoView` / keyboard scrolling; snap scroll offsets to item edges (row-snapped lists). | S / M | Partial — padding / margin Yes; snap No | *Shipped: C8-SCROLL-PADDING, C8-SNAP.*
 | 49 | Table properties: `border-spacing`, `vertical-align` (cells), `table-layout`, `caption-side`, `empty-cells` | Cell gaps in cells; `middle` / `bottom` cell alignment; `fixed` = first-row widths only; caption above / below; hide empty cells' borders. | S each (`vertical-align` M) | Partial — `vertical-align` Yes; rest No |
 | 50 | `vertical-align` (inline) | `top` / `middle` / `bottom` of an inline-block in a taller line box; `sub` / `super` are N/A (sub-cell). | M | Yes |
 | 51 | `text-decoration-line` / `-color` / `-style`, multi-line `text-decoration`, `overline` | Underline color via SGR 58; style via SGR 4:1–4:5 (`solid` / `double` / `wavy` / `dotted` / `dashed` on kitty, WezTerm, foot, ghostty); `overline` via SGR 53; `underline line-through` together. | S | No |
@@ -417,7 +417,7 @@ dropped. The audit's six, with where each stands:
 | `scrollbar-color` | Supported | `auto` / `<color> <color>` (thumb, track; CSS Scrollbars 1 §2; C8-SCROLLBAR), inherited, the colors resolved against the element where the bar paints (`currentcolor`, `var()`, `light-dark()`): the track cells filled with the track color, the thumb glyph in the thumb color. Setting it turns the `::scrollbar*` pseudo-elements off (Chromium's precedence). | — | `V/scrollbar.rs`, `PAINT/scrollbar.rs` |
 | `overscroll-behavior` (+ `-x` / `-y` / `-block` / `-inline`) | Supported | `auto` / `contain` / `none`, the shorthand's one or two values (`x`, `y`), the logical longhands as `x` / `y` in `horizontal-tb` (CSS Overscroll Behavior 1 §3; C8-OVERSCROLL): a wheel scroll a scroll container cannot take on an axis chains to its scrollable ancestor under `auto`, stops there under `contain` / `none` (alike: no overscroll affordance in a terminal). Keyboard scrolling never chains (DIVERGENCES). | Yes | `V/scroll.rs`, `RT/router/mouse` |
 | `scroll-padding*` / `scroll-margin*` | Supported | Every longhand, the flow-relative longhands and the shorthands (CSS Scroll Snap 1 §4; C8-SCROLL-PADDING): `scroll-padding` `auto` (0) or a non-negative length-percentage of the scrollport, insetting the optimal viewing region; `scroll-margin` a signed length in cells, outsetting the box's scroll snap area. `scrollIntoView` and keyboard / programmatic focus (HTML's focusing steps, `nearest`) align the area in the region; snapping reads both (C8-SNAP). | Yes | `V/scroll.rs`, `RT/scrollbar/into_view.rs` |
-| `scroll-snap-type` / `scroll-snap-align` / `scroll-snap-stop` | Missing | Snap positions. | No | `RT` |
+| `scroll-snap-type` / `scroll-snap-align` / `scroll-snap-stop` | Supported | `none \| [x \| y \| block \| inline \| both] [mandatory \| proximity]?`, `[none \| start \| end \| center]{1,2}`, `normal \| always` (CSS Scroll Snap 1 §5–§6; C8-SNAP): snap positions from each box the container is the snap container of, its snap area (`scroll-margin`) aligned in the snapport (`scroll-padding`), clamped to the range; snapping after the wheel, the keyboard, a track click, a released thumb drag, `scrollTo` / `scrollBy` / `scrollIntoView` (a smooth scroll lands snapped), and again after a layout change (§5.4); `scroll-snap-stop: always` not passed; `proximity` within 2 cells (DIVERGENCES). | Yes | `V/scroll.rs`, `RT/scroll_snap/` |
 | `scroll-timeline*` / `view-timeline*` / `animation-timeline` / `animation-range*` | Missing | Scroll-driven animations; low priority, needs `@keyframes`. | Yes | `TR` |
 
 ### 3.12 Inline text (Text 3/4, Inline 3, CSS 2.1 §10.8)
@@ -771,7 +771,7 @@ implementation or a `DIVERGENCES.md` entry before the acid page's coverage test 
 - `line-clamp` / `max-lines` / `block-ellipsis` / `continue` — Missing: Row clamping with `…`. *Shipped: C8-LINE-CLAMP.*
 - `scrollbar-gutter` — Partial: `auto` / `stable`; `both-edges` rejected.
 - `overscroll-behavior` (+ `-x` / `-y` / `-block` / `-inline`) — Missing: Stop scroll chaining. *Shipped: C8-OVERSCROLL.*
-- `scroll-snap-type` / `scroll-snap-align` / `scroll-snap-stop` — Missing: Snap positions.
+- `scroll-snap-type` / `scroll-snap-align` / `scroll-snap-stop` — Missing: Snap positions. *Shipped: C8-SNAP.*
 
 **3.12 Inline text (Text 3/4, Inline 3, CSS 2.1 §10.8)**
 

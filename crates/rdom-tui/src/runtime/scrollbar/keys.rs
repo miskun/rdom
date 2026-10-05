@@ -10,6 +10,7 @@ use super::geometry::{
     scroll_metrics,
 };
 use crate::TuiDom;
+use crate::runtime::scroll_snap::Motion;
 use crate::runtime::smooth_scroll::{ScrollBehaviorOption, destination, perform_scroll};
 
 /// Attribute the runtime keeps on the scroll container the keyboard
@@ -79,6 +80,21 @@ pub(crate) fn handle_scroll_key(dom: &mut TuiDom, key: crossterm::event::KeyEven
         KeyCode::Left if horiz => (hscroll - 1, vscroll),
         _ => return false,
     };
-    perform_scroll(dom, el, target.0, target.1, ScrollBehaviorOption::Auto);
+    // Home / End go to an end — a destination; the rest scroll by a
+    // delta (CSS Scroll Snap 1 §6.2: the snap position in their direction).
+    let motion = match key.code {
+        KeyCode::Home | KeyCode::End => Motion::To,
+        _ => Motion::By {
+            from: (hscroll, vscroll),
+        },
+    };
+    perform_scroll(
+        dom,
+        el,
+        target.0,
+        target.1,
+        ScrollBehaviorOption::Auto,
+        motion,
+    );
     true
 }

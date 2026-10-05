@@ -65,7 +65,30 @@ fn page(dom: &mut TuiDom, hit: ScrollbarHit) {
         ScrollbarPart::Thumb => return,
     };
     let delta = viewport as i32 * sign;
-    set_scroll(dom, hit.element, hit.axis, current_scroll + delta);
+    // A page by the track is a scroll by a delta: a snap container rests
+    // at the snap position in its direction (CSS Scroll Snap 1 §6.2).
+    let Some(from) = dom
+        .node(hit.element)
+        .ext()
+        .map(|e| (e.scroll_x, e.scroll_y))
+    else {
+        return;
+    };
+    let to = match hit.axis {
+        ScrollAxis::Vertical => (from.0, current_scroll + delta),
+        ScrollAxis::Horizontal => (current_scroll + delta, from.1),
+    };
+    let to = crate::runtime::scroll_snap::snap(
+        dom,
+        hit.element,
+        to,
+        crate::runtime::scroll_snap::Motion::By { from },
+    );
+    let value = match hit.axis {
+        ScrollAxis::Vertical => to.1,
+        ScrollAxis::Horizontal => to.0,
+    };
+    set_scroll(dom, hit.element, hit.axis, value);
 }
 
 /// Begin a thumb-drag session. Engages pointer capture on the
@@ -160,8 +183,25 @@ pub(crate) fn extend_drag(router: &Router, dom: &mut TuiDom, mouse_x: u16, mouse
 
 /// Clear the drag record. Pointer capture is released by the
 /// router's existing mouseup path (browser-faithful auto-release).
-pub(crate) fn end_drag(router: &mut Router) {
-    router.scrollbar_drag = None;
+pub(crate) fn end_drag(router: &mut Router, dom: &mut TuiDom) {
+    // The drag's scroll ends: a snap container comes to rest at the snap
+    // position nearest where it was let go (CSS Scroll Snap 1 §6.2).
+    if let Some(drag) = router.scrollbar_drag.take()
+        && let Some(at) = dom
+            .node(drag.element)
+            .ext()
+            .map(|e| (e.scroll_x, e.scroll_y))
+    {
+        let to = crate::runtime::scroll_snap::snap(
+            dom,
+            drag.element,
+            at,
+            crate::runtime::scroll_snap::Motion::To,
+        );
+        if to != at {
+            super::scroll::write_offsets(dom, drag.element, to.0, to.1);
+        }
+    }
 }
 
 /// End a thumb drag whose `mouseup` never arrived (the button was

@@ -37,7 +37,7 @@ the commit that lands it (`done <sha>`), and the log at the end records phase ga
 | 5 | Box model and sizing (incl. logical properties) | done 2026-10-07 (both gates; 19 gate fixes `C5G-*`; their re-review rides with the Phase 6 gate; C5-CONTAIN-SIZE use with C14-CONTAIN) |
 | 6 | Display, visibility, flexbox, box alignment | done 2026-10-08 (both gates; 28 gate fixes `C6G-*`; their re-review rides with the Phase 7 gate) |
 | 7 | Grid | done 2026-10-09 (both gates; 15 gate fixes `C7G-*`; their re-review rides with the Phase 8 gate) |
-| 8 | Positioning, floats, overflow, scrolling | |
+| 8 | Positioning, floats, overflow, scrolling | items done 2026-10-05; the architect and API gates (with the `C7G-*` re-review) pending |
 | 9 | Inline text and decoration | |
 | 10 | Lists, counters, generated content, pseudo-elements | |
 | 11 | Selectors | |
@@ -178,7 +178,7 @@ row comes from.
 | C8-SCROLLBAR | `scrollbar-gutter: both-edges`, `scrollbar-width`, `scrollbar-color` | done |
 | C8-OVERSCROLL | `overscroll-behavior` (+ axis / logical longhands) | done |
 | C8-SCROLL-PADDING | `scroll-padding*` / `scroll-margin*` | done |
-| C8-SNAP | `scroll-snap-type` / `-align` / `-stop` | |
+| C8-SNAP | `scroll-snap-type` / `-align` / `-stop` | done |
 | C8-OVERFLOW-TEXT | A non-clipping descendant's overflowing line boxes count toward the ancestor's scrollable overflow | done |
 | C8-CB-COMPLETE | Containing block for positioned boxes, completing C7-ABSPOS-PADDING-EDGE: `sticky` ancestors in the ancestor walks, the scrollbar gutter excluded, scroll offsets applied inside a positioned scroller, one shared ancestor walk (elements and pseudo-elements, incl. the §9.1 grid area for pseudos) | done |
 | C8-POS-MINMAX | Positioned boxes (elements and pseudo-elements) honour `min-*` / `max-*` (CSS 2.1 §10.4 / §10.7 with §10.3.7 / §10.6.4); a `position: relative` pseudo with both insets takes its declared width | done (C5-POS-MINMAX + C5G-REL-PSEUDO-INSETS) |
@@ -4819,3 +4819,42 @@ row comes from.
   moved to `tui_style/builder/scroll.rs` (`builder/mod.rs` 599 → 488), and `Content` /
   `ContentContext` to the new `content.rs` (`computed.rs` 597 → 512; both still re-exported from
   the crate root).
+- 2026-10-05 — C8-SNAP (CSS Scroll Snap 1 §4–§6). rdom-style: `ScrollSnapType` (`none | [x | y | block
+  | inline | both] [mandatory | proximity]?`, strictness `proximity` when omitted and in the
+  shortest serialization), `ScrollSnapAxis::physical` (`block` / `inline` as `y` / `x` in
+  `horizontal-tb`), `ScrollSnapAlign { block, inline }` of `SnapAlign` (one value is both; one value
+  serialized when they match), `ScrollSnapStop`; not inherited. rdom-tui, decided, one module:
+  `runtime/scroll_snap/` — `points` (a container's snap positions on an axis: each box it is the
+  snap container of, not inside a nested scroll container, its snap area — the border box outset
+  by `scroll-margin`, `scrollbar::outset` — aligned `start` / `end` / `center` with the snapport —
+  the padding box inset by `scroll-padding`, `scrollbar::inset` — offset by the scroll the last
+  layout placed it at, clamped to the range), `select` (pure, unit-tested: `choose(positions,
+  dest, intent, mandatory)` — `Nearest`: the position nearest the destination; `Directional {
+  from }`: past the start in the scroll's direction, the one nearest the destination, else under
+  `mandatory` the one nearest the start; a `scroll-snap-stop: always` position passed on the way
+  — or beyond the destination on the way to the chosen one — is chosen instead; `proximity` within
+  `PROXIMITY_CELLS` = 2, decided), and `mod` (`snap(element, to, Motion)` for a scroll, recording
+  the boxes snapped to in `ScrollState::snapped`; `resnap`, §5.4: back to the box last snapped to,
+  at its new position, or under `mandatory` the position nearest the offset). Wired:
+  `smooth_scroll::perform_scroll` takes a `Motion` (`To` for `scrollTo` / `scrollTop =` /
+  `scrollIntoView` / Home / End, `By { from }` for `scrollBy` and the arrow / page keys) and snaps
+  the clamped destination before it jumps or animates — so a smooth scroll settles snapped; the
+  wheel snaps each tick `By` its start (a terminal has no gesture end); a track click pages `By`;
+  `end_drag` snaps a released thumb drag `To` (it now takes the dom); the frame re-snaps after its
+  layout and lays out again when an offset moved. `into_view` carries the element's box by the
+  scroll's real destination (`smooth_scroll::destination`), snapped or not. Red: the
+  `scroll_tests.rs` additions were written before the types (not run red on their own);
+  `scroll_snap/tests.rs` against a stub `resnap` — 9 of 11 failed (`1` for 3 after a tick, `5` for
+  6 after `scrollTo(5)`, the drag left at 7, …; the no-snap pin and the padding test — whose
+  unsnapped destination happened to be the expected position — passed); green after; the frame
+  test (added after) failed with the frame's `resnap` call disabled (6 for 9). Mutation (each
+  restored and touched): the wheel's snap off → the wheel and proximity tests; the drag's → the
+  drag test; the snapport's `scroll-padding` off → the padding test. Changed expectations:
+  `apply_tests`, `canonical_values`, the important-setter test and the inheritance probes list the
+  properties. No snapshot changed.
+- 2026-10-05 — Phase 8 items complete (part 2: C8-ABSPOS-OVERFLOW, C8-RTL-LINE-OVERFLOW, C8-FLOAT,
+  C8-SCROLLBAR, C8-OVERSCROLL, C8-SCROLL-PADDING, C8-SNAP). CSS-COVERAGE §3.10 is 6 / 0 / 0 / 1 and
+  §3.11 13 / 0 / 1 / 0 (the one left, scroll-driven animations, is Phase 12's); total 158 / 23 / 80
+  / 46, 103 rows Partial / Missing. ACID: tile 13 lists the new overflow and scrollbar features, a
+  tile 19 for floats is proposed, and an interactive step I11 for snapping, overscroll and focus
+  scrolling. Open: TECH_DEBT `SCROLLPORT-1` (found by C8-OVERSCROLL). The phase's gates are next.

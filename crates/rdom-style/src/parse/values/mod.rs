@@ -122,6 +122,7 @@ pub use number::{parse_aspect_ratio, parse_opacity, parse_order, parse_z_index};
 pub use scroll::{
     parse_overscroll_behavior, parse_overscroll_behavior_shorthand, parse_scroll_margin,
     parse_scroll_margin_shorthand, parse_scroll_padding, parse_scroll_padding_shorthand,
+    parse_scroll_snap_align, parse_scroll_snap_stop, parse_scroll_snap_type,
 };
 pub use scrollbar::{parse_scrollbar_color, parse_scrollbar_gutter, parse_scrollbar_width};
 pub use shadow::parse_box_shadow;

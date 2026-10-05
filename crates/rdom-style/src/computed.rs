@@ -247,6 +247,11 @@ pub struct ComputedStyle {
     pub scroll_margin_right: i16,
     pub scroll_margin_bottom: i16,
     pub scroll_margin_left: i16,
+    /// `scroll-snap-type` / `-align` / `-stop` (CSS Scroll Snap 1 §5–§6).
+    /// Not inherited.
+    pub scroll_snap_type: crate::layout::ScrollSnapType,
+    pub scroll_snap_align: crate::layout::ScrollSnapAlign,
+    pub scroll_snap_stop: crate::layout::ScrollSnapStop,
     /// CSS `scroll-behavior` — whether a programmatic scroll of this
     /// scroll container animates (`Smooth`) or jumps (`Auto`, default).
     /// Read by the runtime's scroll paths, not by layout.
@@ -468,6 +473,12 @@ impl ComputedStyle {
             scroll_margin_right: 0,
             scroll_margin_bottom: 0,
             scroll_margin_left: 0,
+            scroll_snap_type: crate::layout::ScrollSnapType::None,
+            scroll_snap_align: crate::layout::ScrollSnapAlign {
+                block: crate::layout::SnapAlign::None,
+                inline: crate::layout::SnapAlign::None,
+            },
+            scroll_snap_stop: crate::layout::ScrollSnapStop::Normal,
             scroll_behavior: crate::layout::ScrollBehavior::Auto,
             display: Display::Block,
             flow: crate::layout::Flow::Block,

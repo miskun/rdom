@@ -309,6 +309,11 @@ fn style_and_layout(
             crate::runtime::animation::settle_restyled(dom, &restyled);
         }
         dom.layout_dom(area);
+        // CSS Scroll Snap 1 §5.4: a snap container whose snap target moved
+        // re-snaps to it.
+        if crate::runtime::scroll_snap::resnap(dom) {
+            dom.layout_dom(area);
+        }
         if crate::runtime::scrollbar::service_caret_reveal(dom) {
             dom.layout_dom(area);
         }

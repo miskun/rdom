@@ -153,3 +153,73 @@ fn the_block_axis_logicals_are_top_and_bottom() {
     );
     assert!(!inherits("scroll-padding-top") && !inherits("scroll-margin-top"));
 }
+
+/// Scroll Snap 1 §5.1: `scroll-snap-type: none | [x | y | block | inline
+/// | both] [mandatory | proximity]?` — the strictness defaults to
+/// `proximity`, which the shortest serialization omits.
+#[test]
+fn scroll_snap_type_takes_an_axis_and_a_strictness() {
+    for (text, out) in [
+        ("none", "none"),
+        ("y mandatory", "y mandatory"),
+        ("BOTH", "both"),
+        ("inline proximity", "inline"),
+        ("block", "block"),
+        ("x", "x"),
+    ] {
+        assert_eq!(
+            round_trip("scroll-snap-type", text).as_deref(),
+            Some(out),
+            "{text}"
+        );
+    }
+    for bad in [
+        "mandatory",
+        "y x",
+        "none mandatory",
+        "y mandatory proximity",
+    ] {
+        assert_eq!(round_trip("scroll-snap-type", bad), None, "{bad}");
+    }
+}
+
+/// Scroll Snap 1 §6.1: `scroll-snap-align: [none | start | end |
+/// center]{1,2}` — block axis, then inline axis; one value is both.
+#[test]
+fn scroll_snap_align_takes_one_or_two_values() {
+    assert_eq!(
+        round_trip("scroll-snap-align", "start end").as_deref(),
+        Some("start end")
+    );
+    assert_eq!(
+        round_trip("scroll-snap-align", "center center").as_deref(),
+        Some("center")
+    );
+    assert_eq!(
+        round_trip("scroll-snap-align", "none").as_deref(),
+        Some("none")
+    );
+    for bad in ["left", "start end center"] {
+        assert_eq!(round_trip("scroll-snap-align", bad), None, "{bad}");
+    }
+}
+
+/// Scroll Snap 1 §6.2: `scroll-snap-stop: normal | always`; none of the
+/// three inherits.
+#[test]
+fn scroll_snap_stop_takes_normal_or_always() {
+    assert_eq!(
+        round_trip("scroll-snap-stop", "always").as_deref(),
+        Some("always")
+    );
+    assert_eq!(round_trip("scroll-snap-stop", "sometimes"), None);
+    for name in ["scroll-snap-type", "scroll-snap-align", "scroll-snap-stop"] {
+        assert!(!inherits(name), "{name}");
+    }
+}
+
+fn round_trip(name: &str, value: &str) -> Option<String> {
+    let mut style = TuiStyle::new();
+    set(name, value, &mut style).ok()?;
+    serialize(name, &style)
+}

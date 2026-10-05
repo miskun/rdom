@@ -270,6 +270,9 @@ pub(super) fn apply_style(
         scroll_margin_right: SCROLL_MARGIN_RIGHT,
         scroll_margin_bottom: SCROLL_MARGIN_BOTTOM,
         scroll_margin_left: SCROLL_MARGIN_LEFT,
+        scroll_snap_type: SCROLL_SNAP_TYPE,
+        scroll_snap_align: SCROLL_SNAP_ALIGN,
+        scroll_snap_stop: SCROLL_SNAP_STOP,
         scroll_behavior: SCROLL_BEHAVIOR,
         // `display` owns both halves: `display: inherit` takes the
         // parent's outer and inner display.

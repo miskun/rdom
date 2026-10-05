@@ -2355,6 +2355,12 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
     parent.overscroll_behavior_y = rdom_style::layout::OverscrollBehavior::None;
     parent.scroll_padding_top = rdom_style::layout::ScrollPadding::Length(Default::default());
     parent.scroll_margin_top = 2;
+    parent.scroll_snap_type = rdom_style::layout::ScrollSnapType::Snap(
+        rdom_style::layout::ScrollSnapAxis::Y,
+        rdom_style::layout::ScrollSnapStrictness::Mandatory,
+    );
+    parent.scroll_snap_align.block = rdom_style::layout::SnapAlign::Start;
+    parent.scroll_snap_stop = rdom_style::layout::ScrollSnapStop::Always;
     parent.clear = rdom_style::layout::Clear::Both;
     parent.scroll_behavior = ScrollBehavior::Smooth;
     parent.display = Display::Inline;
@@ -2460,6 +2466,18 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
         (
             "scroll-margin-top",
             child.scroll_margin_top == parent.scroll_margin_top,
+        ),
+        (
+            "scroll-snap-type",
+            child.scroll_snap_type == parent.scroll_snap_type,
+        ),
+        (
+            "scroll-snap-align",
+            child.scroll_snap_align == parent.scroll_snap_align,
+        ),
+        (
+            "scroll-snap-stop",
+            child.scroll_snap_stop == parent.scroll_snap_stop,
         ),
         ("clear", child.clear == parent.clear),
         ("display", child.display == parent.display),

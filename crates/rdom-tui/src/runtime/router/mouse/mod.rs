@@ -298,7 +298,7 @@ fn handle_up(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> RouteO
     // clicks / taps without drag leave a collapsed selection (caret)
     // at the click position, matching browser behavior.
     crate::runtime::selection::drag::end(router);
-    crate::runtime::scrollbar::end_drag(router);
+    crate::runtime::scrollbar::end_drag(router, dom);
     crate::rdom_trace!(
         "handle_up: end of fn — capture={:?} hovered={:?}",
         dom.pointer_capture(),
@@ -358,7 +358,7 @@ fn handle_move(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> Rout
         );
         dom.release_pointer_capture();
         crate::runtime::selection::drag::end(router);
-        crate::runtime::scrollbar::end_drag(router);
+        crate::runtime::scrollbar::end_drag(router, dom);
     }
 
     // Pointer capture path: route to captured, no hover updates.
@@ -527,19 +527,35 @@ fn handle_wheel(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> Rou
             // `scrollLeft` and a `column-reverse` box's `scrollTop` run
             // negative, so the wheel reaches that overflow (CSSOM View §4).
             let bounds = crate::runtime::scrollbar::scroll_bounds(dom, id);
-            let (old_x, old_y, new_x, new_y) = match (bounds, dom.node_mut(id).ext_mut()) {
-                (Some(bounds), Some(ext)) => {
-                    let (old_x, old_y) = (ext.scroll_x, ext.scroll_y);
+            let (old_x, old_y) = dom
+                .node(id)
+                .ext()
+                .map_or((0, 0), |e| (e.scroll_x, e.scroll_y));
+            let (new_x, new_y) = match bounds {
+                Some(bounds) => {
+                    let mut to = (old_x, old_y);
                     if wants_y && y_scrollable {
-                        ext.scroll_y = (old_y + dy).clamp(bounds.min_y, bounds.max_y);
+                        to.1 = (old_y + dy).clamp(bounds.min_y, bounds.max_y);
                     }
                     if wants_x && x_scrollable {
-                        ext.scroll_x = (old_x + dx).clamp(bounds.min_x, bounds.max_x);
+                        to.0 = (old_x + dx).clamp(bounds.min_x, bounds.max_x);
                     }
-                    (old_x, old_y, ext.scroll_x, ext.scroll_y)
+                    // A snap container rests at the snap position in the
+                    // wheel's direction (CSS Scroll Snap 1 §6.2).
+                    let from = (old_x, old_y);
+                    crate::runtime::scroll_snap::snap(
+                        dom,
+                        id,
+                        to,
+                        crate::runtime::scroll_snap::Motion::By { from },
+                    )
                 }
-                _ => (0, 0, 0, 0),
+                None => (old_x, old_y),
             };
+            if let Some(ext) = dom.node_mut(id).ext_mut() {
+                ext.scroll_x = new_x;
+                ext.scroll_y = new_y;
+            }
             if old_x != new_x || old_y != new_y {
                 // A user scroll is instant whatever `scroll-behavior`
                 // says, and aborts this box's smooth scroll in flight

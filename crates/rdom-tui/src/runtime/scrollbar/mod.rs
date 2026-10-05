@@ -63,7 +63,7 @@ pub(crate) use autoscroll::{autoscroll_step, autoscroll_step_for, resolve_autosc
 pub(crate) use drag::{ScrollbarDrag, cancel_drag, end_drag, extend_drag, handle_mousedown};
 pub(crate) use hit::hit;
 pub use hit::{ScrollbarHit, ScrollbarPart};
-pub(crate) use into_view::scroll_element_into_view;
+pub(crate) use into_view::{inset, outset, scroll_element_into_view};
 pub use keys::SCROLL_FOCUS_ATTR;
 pub(crate) use keys::{handle_scroll_key, scroll_focus_target};
 pub(crate) use painted::{moved_since_paint, note_painted};

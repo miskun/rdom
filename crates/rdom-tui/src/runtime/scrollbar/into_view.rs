@@ -118,7 +118,16 @@ fn scroll_container(
     );
     // §5.2: perform the scroll unless the position is unchanged and no
     // smooth scroll is in flight — `perform_scroll` is a no-op then.
-    perform_scroll(dom, container, to_x, to_y, options.behavior);
+    perform_scroll(
+        dom,
+        container,
+        to_x,
+        to_y,
+        options.behavior,
+        crate::runtime::scroll_snap::Motion::To,
+    );
+    // Where the scroll goes — a snap container's snap position.
+    let (to_x, to_y) = crate::runtime::smooth_scroll::destination(dom, container);
     LayoutRect {
         x: port.x + rel_x - (to_x - cur_x),
         y: port.y + rel_y - (to_y - cur_y),

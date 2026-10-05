@@ -5,10 +5,12 @@
 
 use super::value_serializers::{serialize_padding_value, specified};
 use crate::layout::ScrollPadding;
+use crate::layout::{ScrollSnapStop, ScrollSnapStrictness, ScrollSnapType};
 use crate::parse::token::Token;
 use crate::parse::values::{
     parse_overscroll_behavior, parse_overscroll_behavior_shorthand, parse_scroll_margin,
     parse_scroll_margin_shorthand, parse_scroll_padding, parse_scroll_padding_shorthand,
+    parse_scroll_snap_align, parse_scroll_snap_stop, parse_scroll_snap_type,
 };
 use crate::{TuiStyle, Value};
 
@@ -76,6 +78,15 @@ pub(super) fn set(name: &str, value: &[Token], style: &mut TuiStyle) -> Option<O
         "overscroll-behavior-y" => parse_overscroll_behavior(value).map(|b| {
             style.overscroll_behavior_y = Some(Value::Specified(b));
         }),
+        "scroll-snap-type" => parse_scroll_snap_type(value).map(|t| {
+            style.scroll_snap_type = Some(Value::Specified(t));
+        }),
+        "scroll-snap-align" => parse_scroll_snap_align(value).map(|a| {
+            style.scroll_snap_align = Some(Value::Specified(a));
+        }),
+        "scroll-snap-stop" => parse_scroll_snap_stop(value).map(|t| {
+            style.scroll_snap_stop = Some(Value::Specified(t));
+        }),
         "scroll-padding" => parse_scroll_padding_shorthand(value).map(|sides| {
             for (field, v) in padding_sides(style).into_iter().zip(sides) {
                 *field = Some(Value::Specified(v));
@@ -119,6 +130,42 @@ pub(super) fn serialize(name: &str, style: &TuiStyle) -> Option<Option<String>> 
             (Some(x), Some(y)) => Some(format!("{} {}", x.keyword(), y.keyword())),
             _ => None,
         },
+        "scroll-snap-type" => {
+            style
+                .scroll_snap_type
+                .as_ref()
+                .and_then(specified)
+                .map(|t| match t {
+                    ScrollSnapType::None => "none".to_string(),
+                    ScrollSnapType::Snap(axis, ScrollSnapStrictness::Proximity) => {
+                        axis.keyword().to_string()
+                    }
+                    ScrollSnapType::Snap(axis, ScrollSnapStrictness::Mandatory) => {
+                        format!("{} mandatory", axis.keyword())
+                    }
+                })
+        }
+        "scroll-snap-align" => style
+            .scroll_snap_align
+            .as_ref()
+            .and_then(specified)
+            .map(|a| {
+                if a.block == a.inline {
+                    a.block.keyword().to_string()
+                } else {
+                    format!("{} {}", a.block.keyword(), a.inline.keyword())
+                }
+            }),
+        "scroll-snap-stop" => {
+            style
+                .scroll_snap_stop
+                .as_ref()
+                .and_then(specified)
+                .map(|t| match t {
+                    ScrollSnapStop::Normal => "normal".to_string(),
+                    ScrollSnapStop::Always => "always".to_string(),
+                })
+        }
         "scroll-padding" => {
             let sides = [
                 &style.scroll_padding_top,

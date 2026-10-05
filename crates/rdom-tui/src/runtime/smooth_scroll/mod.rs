@@ -210,23 +210,28 @@ pub(crate) struct SmoothScroll {
 /// CSSOM View §4.1 "perform a scroll" of `element` to `(x, y)`: abort
 /// the smooth scroll in flight, then jump or start a smooth scroll per
 /// `behavior`. The target is clamped to the scroll range the last
-/// layout recorded.
+/// layout recorded and, in a snap container, snapped for `motion`
+/// (`runtime::scroll_snap`).
 pub(crate) fn perform_scroll(
     dom: &mut TuiDom,
     element: NodeId,
     x: i32,
     y: i32,
     behavior: ScrollBehaviorOption,
+    motion: crate::runtime::scroll_snap::Motion,
 ) {
     abort(dom, element);
-    if !is_smooth(dom, element, behavior) {
-        write_offsets(dom, element, x, y);
-        return;
-    }
     let Some(bounds) = scroll_bounds(dom, element) else {
         return;
     };
+    // A snap container comes to rest at a snap position (CSS Scroll Snap
+    // 1 §6.2): an instant scroll goes there, a smooth one animates there.
     let to = bounds.clamp(x, y);
+    let to = crate::runtime::scroll_snap::snap(dom, element, to, motion);
+    if !is_smooth(dom, element, behavior) {
+        write_offsets(dom, element, to.0, to.1);
+        return;
+    }
     let mut node = dom.node_mut(element);
     let Some(ext) = node.ext_mut() else {
         return;

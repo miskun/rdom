@@ -229,6 +229,12 @@ pub struct TuiStyle {
     pub scroll_margin_bottom: Option<Value<i16>>,
     /// `scroll-margin-left` (CSS Scroll Snap 1 §4.2), in cells.
     pub scroll_margin_left: Option<Value<i16>>,
+    /// `scroll-snap-type` (CSS Scroll Snap 1 §5.1).
+    pub scroll_snap_type: Option<Value<crate::layout::ScrollSnapType>>,
+    /// `scroll-snap-align` (CSS Scroll Snap 1 §6.1).
+    pub scroll_snap_align: Option<Value<crate::layout::ScrollSnapAlign>>,
+    /// `scroll-snap-stop` (CSS Scroll Snap 1 §6.2).
+    pub scroll_snap_stop: Option<Value<crate::layout::ScrollSnapStop>>,
     /// `scroll-behavior: auto | smooth` (CSSOM View §12.1). Whether a
     /// programmatic scroll of this container animates. Default `Auto`.
     pub scroll_behavior: Option<Value<crate::layout::ScrollBehavior>>,

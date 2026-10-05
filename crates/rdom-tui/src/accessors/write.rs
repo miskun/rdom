@@ -7,6 +7,7 @@ use rdom_core::NodeId;
 use super::TuiAccessorsMut;
 use super::helpers::{read_scroll_x, read_scroll_y, set_select_value, write_boolean_attribute};
 use crate::node::install_text_content;
+use crate::runtime::scroll_snap::Motion;
 use crate::runtime::smooth_scroll::{ScrollIntoViewOptions, ScrollToOptions, perform_scroll};
 use crate::{Result, TuiExt};
 
@@ -187,16 +188,17 @@ impl<'a> TuiAccessorsMut<'a> for rdom_core::NodeMut<'a, TuiExt> {
         let dom = self.dom_mut();
         let x = options.left.unwrap_or_else(|| read_scroll_x(dom, id));
         let y = options.top.unwrap_or_else(|| read_scroll_y(dom, id));
-        perform_scroll(dom, id, x, y, options.behavior);
+        perform_scroll(dom, id, x, y, options.behavior, Motion::To);
         Ok(())
     }
 
     fn scroll_by_with(&mut self, options: ScrollToOptions) -> Result<()> {
         let id = self.id();
         let dom = self.dom_mut();
-        let x = read_scroll_x(dom, id).saturating_add(options.left.unwrap_or(0));
-        let y = read_scroll_y(dom, id).saturating_add(options.top.unwrap_or(0));
-        perform_scroll(dom, id, x, y, options.behavior);
+        let from = (read_scroll_x(dom, id), read_scroll_y(dom, id));
+        let x = from.0.saturating_add(options.left.unwrap_or(0));
+        let y = from.1.saturating_add(options.top.unwrap_or(0));
+        perform_scroll(dom, id, x, y, options.behavior, Motion::By { from });
         Ok(())
     }
 

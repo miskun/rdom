@@ -20,6 +20,9 @@ pub(crate) struct ScrollState {
     /// rest. Started by the programmatic scroll API and keyboard
     /// scrolling, stepped by the `App` each frame.
     pub(crate) smooth: Option<SmoothScroll>,
+    /// The boxes the container last snapped to, horizontally and
+    /// vertically (`runtime::scroll_snap`, CSS Scroll Snap 1 §5.4).
+    pub(crate) snapped: (Option<rdom_core::NodeId>, Option<rdom_core::NodeId>),
 }
 
 /// The offsets `ext` was last painted with; `(0, 0)` before any.
@@ -36,6 +39,25 @@ pub(crate) fn laid_out(ext: &TuiExt) -> (i32, i32) {
 /// The smooth scroll in flight on `ext`, if any.
 pub(crate) fn smooth(ext: &TuiExt) -> Option<SmoothScroll> {
     ext.scroll_state.as_ref().and_then(|s| s.smooth)
+}
+
+/// The boxes `ext` last snapped to on each axis.
+pub(crate) fn snapped(ext: &TuiExt) -> (Option<rdom_core::NodeId>, Option<rdom_core::NodeId>) {
+    ext.scroll_state
+        .as_ref()
+        .map_or((None, None), |s| s.snapped)
+}
+
+/// Record the boxes a snap came to rest on. Allocates only for one.
+pub(crate) fn set_snapped(
+    ext: &mut TuiExt,
+    snapped: (Option<rdom_core::NodeId>, Option<rdom_core::NodeId>),
+) {
+    if let Some(s) = ext.scroll_state.as_mut() {
+        s.snapped = snapped;
+    } else if snapped != (None, None) {
+        state_mut(ext).snapped = snapped;
+    }
 }
 
 /// Record the current offsets as painted. Allocates only when they

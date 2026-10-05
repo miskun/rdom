@@ -118,4 +118,28 @@ impl TuiStyle {
         SCROLL_BEHAVIOR,
         crate::layout::ScrollBehavior
     );
+    setter!(
+        "scroll-snap-type",
+        scroll_snap_type,
+        scroll_snap_type,
+        scroll_snap_type_important,
+        SCROLL_SNAP_TYPE,
+        crate::layout::ScrollSnapType
+    );
+    setter!(
+        "scroll-snap-align",
+        scroll_snap_align,
+        scroll_snap_align,
+        scroll_snap_align_important,
+        SCROLL_SNAP_ALIGN,
+        crate::layout::ScrollSnapAlign
+    );
+    setter!(
+        "scroll-snap-stop",
+        scroll_snap_stop,
+        scroll_snap_stop,
+        scroll_snap_stop_important,
+        SCROLL_SNAP_STOP,
+        crate::layout::ScrollSnapStop
+    );
 }
