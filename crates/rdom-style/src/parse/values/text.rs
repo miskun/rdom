@@ -1,7 +1,9 @@
 //! The CSS Text properties' value grammars (CSS Text 3 / 4).
 
 use super::parse_keyword;
-use crate::layout::{TextWrapMode, WhiteSpaceCollapse};
+use crate::layout::{
+    Hyphens, LineBreak, OverflowWrap, TextWrapMode, WhiteSpaceCollapse, WordBreak,
+};
 use crate::parse::token::Token;
 
 /// `white-space-collapse: collapse | preserve | preserve-breaks |
@@ -67,4 +69,57 @@ pub fn parse_white_space(value: &[Token]) -> Option<(WhiteSpaceCollapse, TextWra
         }
     }
     Some((collapse.unwrap_or_default(), mode.unwrap_or_default()))
+}
+
+/// `word-break: normal | break-all | keep-all | break-word` (CSS Text 3
+/// §5.2).
+pub fn parse_word_break(value: &[Token]) -> Option<WordBreak> {
+    parse_keyword(
+        value,
+        &[
+            ("normal", WordBreak::Normal),
+            ("break-all", WordBreak::BreakAll),
+            ("keep-all", WordBreak::KeepAll),
+            ("break-word", WordBreak::BreakWord),
+        ],
+    )
+}
+
+/// `overflow-wrap: normal | break-word | anywhere` (CSS Text 3 §5.5).
+pub fn parse_overflow_wrap(value: &[Token]) -> Option<OverflowWrap> {
+    parse_keyword(
+        value,
+        &[
+            ("normal", OverflowWrap::Normal),
+            ("break-word", OverflowWrap::BreakWord),
+            ("anywhere", OverflowWrap::Anywhere),
+        ],
+    )
+}
+
+/// `line-break: auto | loose | normal | strict | anywhere` (CSS Text 3
+/// §5.3).
+pub fn parse_line_break(value: &[Token]) -> Option<LineBreak> {
+    parse_keyword(
+        value,
+        &[
+            ("auto", LineBreak::Auto),
+            ("loose", LineBreak::Loose),
+            ("normal", LineBreak::Normal),
+            ("strict", LineBreak::Strict),
+            ("anywhere", LineBreak::Anywhere),
+        ],
+    )
+}
+
+/// `hyphens: none | manual | auto` (CSS Text 3 §6.1).
+pub fn parse_hyphens(value: &[Token]) -> Option<Hyphens> {
+    parse_keyword(
+        value,
+        &[
+            ("none", Hyphens::None),
+            ("manual", Hyphens::Manual),
+            ("auto", Hyphens::Auto),
+        ],
+    )
 }

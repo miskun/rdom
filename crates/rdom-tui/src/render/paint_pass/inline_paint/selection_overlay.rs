@@ -4,7 +4,7 @@
 //! re-paint without selection restores the original appearance.
 //!
 //! Owns the byte-range → cell-range mapping for a fragment
-//! (`selection_byte_range_in`, then `render::inline::cells_before_byte`)
+//! (`selection_byte_range_in`, then `InlineFragment::cells_before_source`)
 //! and the walk to the nearest ancestor with a cascaded `::selection`
 //! style. The used `user-select` (`style::user_select`) decides what is
 //! excluded from the highlight; paint only asks.
@@ -12,7 +12,7 @@
 use rdom_core::{Dom, NodeId, Position, Range};
 
 use crate::ext::TuiExt;
-use crate::render::inline::{InlineFragment, cells_before_byte};
+use crate::render::inline::InlineFragment;
 use crate::render::paint_pass::text::style_from_computed;
 use crate::render::{Buffer, Rect, Style};
 use crate::style::ComputedStyle;
@@ -43,7 +43,7 @@ pub(super) fn apply_selection_overlay(
 
     // Intersect with the fragment's source byte window.
     let frag_start = fragment.source_byte_offset;
-    let frag_end = fragment.source_byte_offset + fragment.text.len();
+    let frag_end = fragment.source_byte_offset + fragment.source_len();
     let local_start = byte_start.max(frag_start);
     let local_end = byte_end.min(frag_end);
     if local_start >= local_end {
@@ -55,8 +55,8 @@ pub(super) fn apply_selection_overlay(
     let off_end = local_end - frag_start;
 
     // Map byte offsets → visible cell offsets inside the fragment.
-    let cell_start = cells_before_byte(&fragment.text, off_start);
-    let cell_end = cells_before_byte(&fragment.text, off_end);
+    let cell_start = fragment.cells_before_source(off_start);
+    let cell_end = fragment.cells_before_source(off_end);
     if cell_start >= cell_end {
         return;
     }

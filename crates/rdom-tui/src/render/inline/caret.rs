@@ -32,11 +32,10 @@
 //! browsers draw it.
 //!
 //! End-of-text / end-of-line cases: the caret sits *after* the
-//! last fragment's last grapheme. `cells_before_byte` with a
+//! last fragment's last grapheme. `cells_before_source` with a
 //! target past the fragment's own text length returns the full
 //! fragment width, putting the caret just past the rendered run.
 
-use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
 use rdom_core::{Dom, Position};
@@ -82,7 +81,7 @@ pub(crate) fn caret_cell(dom: &Dom<TuiExt>, pos: Position) -> Option<(i32, i32)>
     let (line_idx, fragment) = fragment_for_position(layout, pos)?;
 
     let offset_in_frag = pos.offset.saturating_sub(fragment.source_byte_offset);
-    let cell_in_frag = cells_before_byte(&fragment.text, offset_in_frag);
+    let cell_in_frag = fragment.cells_before_source(offset_in_frag);
 
     let x = content.x + fragment.x + cell_in_frag as i32;
     let y = content.y + text_row_of_line(layout, line_idx);
@@ -127,28 +126,11 @@ fn fragment_for_position(layout: &InlineLayout, pos: Position) -> Option<(usize,
             if fragment.text_node != pos.node {
                 continue;
             }
-            let frag_end = fragment.source_byte_offset + fragment.text.len();
+            let frag_end = fragment.source_byte_offset + fragment.source_len();
             if fragment.source_byte_offset <= pos.offset && pos.offset <= frag_end {
                 return Some((line_idx, fragment));
             }
         }
     }
     None
-}
-
-/// Visible cells before byte offset `target` in a fragment's `text`.
-/// If `target` falls between graphemes, returns the cells up to that
-/// boundary; a mid-grapheme target rounds up to the next boundary
-/// (carets and selection offsets land on grapheme edges). A target past
-/// the text returns its full width. Shared by the caret and the
-/// selection highlight.
-pub(crate) fn cells_before_byte(text: &str, target: usize) -> u16 {
-    let mut cells: u16 = 0;
-    for (idx, g) in text.grapheme_indices(true) {
-        if idx >= target {
-            return cells;
-        }
-        cells = cells.saturating_add(UnicodeWidthStr::width(g) as u16);
-    }
-    cells
 }

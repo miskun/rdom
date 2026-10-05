@@ -81,6 +81,11 @@ pub(super) fn fields_of(name: &str) -> Option<&'static [Field]> {
         "white-space" => &[WhiteSpaceCollapse, TextWrapMode],
         "white-space-collapse" => &[WhiteSpaceCollapse],
         "text-wrap-mode" => &[TextWrapMode],
+        "word-break" => &[WordBreak],
+        // CSS Text 3 §5.5: `word-wrap` is a legacy name alias.
+        "overflow-wrap" | "word-wrap" => &[OverflowWrap],
+        "line-break" => &[LineBreak],
+        "hyphens" => &[Hyphens],
         "user-select" => &[UserSelect],
         "pointer-events" => &[PointerEvents],
         "visibility" => &[Visibility],

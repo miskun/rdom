@@ -94,6 +94,7 @@ mod scheme;
 mod scope;
 mod sheets;
 mod subtrees;
+mod text;
 mod viewport;
 mod walk;
 

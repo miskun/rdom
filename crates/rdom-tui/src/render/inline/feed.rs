@@ -145,6 +145,10 @@ pub(super) fn fill_run<'a>(
                     packer.push_hard_break(child_id);
                     continue;
                 }
+                if child.tag_name() == Some("wbr") {
+                    packer.push_break_opportunity();
+                    continue;
+                }
                 // An atomic inline participates as one box — see
                 // `walk_subtree` for the rationale.
                 if child
@@ -214,6 +218,11 @@ fn walk_subtree<'a>(dom: &'a Dom<TuiExt>, id: NodeId, packer: &mut LinePacker<'a
                 // for a one-element special case.
                 if child.tag_name() == Some("br") {
                     packer.push_hard_break(child.id());
+                    continue;
+                }
+                // HTML `<wbr>`: "a line break opportunity".
+                if child.tag_name() == Some("wbr") {
+                    packer.push_break_opportunity();
                     continue;
                 }
                 // CSS 2.1 §10.8: an atomic inline (`inline-block`,

@@ -181,6 +181,11 @@ const PROPERTY_NAMES: &[&str] = &[
     // Text (CSS Text 3 / 4)
     "white-space-collapse",
     "text-wrap-mode",
+    "word-break",
+    "overflow-wrap",
+    "word-wrap",
+    "line-break",
+    "hyphens",
     // Writing modes (CSS Writing Modes 4)
     "direction",
     "writing-mode",

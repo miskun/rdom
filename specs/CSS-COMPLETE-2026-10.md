@@ -197,7 +197,7 @@ row comes from.
 | C9-TEXT-INDENT | `text-indent` | |
 | C9-TEXT-TRANSFORM | `text-transform` (case mapping, `full-width`) | |
 | C9-TAB-SIZE | `tab-size` and real tab stops in `pre` | |
-| C9-BREAKING | `word-break`, `overflow-wrap` / `word-wrap`, `line-break`, `hyphens` (soft hyphens) | |
+| C9-BREAKING | `word-break`, `overflow-wrap` / `word-wrap`, `line-break`, `hyphens` (soft hyphens) | done |
 | C9-LINE-HEIGHT | `line-height` (whole-row line boxes) | |
 | C9-VERTICAL-ALIGN | `vertical-align` for inline-blocks and inline content | |
 | C9-DECORATION | `text-decoration` full shorthand; `-line` (incl. `overline`), `-color` (SGR 58), `-style` (SGR 4:x) | |
@@ -5322,3 +5322,42 @@ row comes from.
   is one piece now, so CSS 2.1 §9.5 moves it below the float (`a_nowrap_line_too_wide_for_the_band_moves_
   below_the_float` pins that) — the marking test now reaches the band window through an atom and text after
   it that cannot wrap (`ab …   RRR`; mutation: the band window off → `ab XYZWcde`). No snapshot changed.
+- 2026-10-11 — C9-BREAKING (CSS Text 3 §5.2, §5.3, §5.5, §6.1; UAX #14 LB8, LB11–LB14, LB21, LB25, LB29–LB31;
+  HTML `<wbr>`). rdom-style: `word-break`, `overflow-wrap` (+ `word-wrap`, a legacy name alias: the same field,
+  `fields_of` and set / serialize arms), `line-break`, `hyphens` in the `text` groups (`WordBreak`,
+  `OverflowWrap`, `LineBreak`, `Hyphens`), all inherited; the cascade's CSS Text applicator moved to
+  `style/cascade/text.rs` (`apply.rs` 567 → 566). rdom-tui — what rdom used: white space, any two-cell
+  grapheme on both sides, after `-`. Decided extent (DIVERGENCES §2): a UAX #14 subset without dictionaries
+  in `render/inline/breaking.rs` — `BreakClass` by character (ID: CJK ideographs, kana, Hangul, fullwidth
+  letters and any other two-cell grapheme; CJ small kana; iteration marks; IN; the CJK hyphens; HY / BA; SHY;
+  ZW; GL / WJ; CL / CP / EX / IS / NS; CJK centered punctuation; OP) and `break_between(before, after,
+  BreakRules)`, the one rule the packer asks before each text grapheme (`intake::take_opportunity`, replacing
+  the width-2 / hyphen special cases): no break before closing punctuation or after opening punctuation,
+  `break-all` reads letters as ID, `keep-all` refuses letter–letter pairs whatever `line-break` says, `line-break`'s
+  §5.3 rules apply where both sides are CJK (no `lang`); `anywhere` breaks everywhere. `strict` vs `normal`: the
+  spec now forbids breaks before small kana for both, so they differ only before `〜` `゠` — followed as
+  written. BK / NL characters force a break (`white_space::classify`). Soft hyphens are kept in the word buffer,
+  zero cells wide (`GraphemeKind::SoftHyphen`); a word ending in one reserves the hyphen's cell when placed
+  (a conservative rule, DIVERGENCES), and a line broken there (soft, not at a following space) shows `-`
+  (`packer/fragments.rs::show_hyphen`). That rendering is the first where a fragment's painted text is not its
+  source, so at the root: `InlineFragment` carries a crate-private `SourceMap` (`inline/source_map.rs`: per
+  source grapheme, its source and text bytes; `None` when the text is the source), with `source_len()`
+  (public), `units()`, `cells_before_source`, `source_at_cell`; every cell↔source reader moved onto it — the
+  caret (`caret.rs`, whose `cells_before_byte` is gone), hit-testing (`hit_test/fragment.rs`, whose
+  `cells_to_bytes` is gone), the selection highlight, word / line movement and multi-click (`text.len()` →
+  `source_len()`); the packer builds maps per placed word and merges them with a contiguous fragment's
+  (`PendingGrapheme` holds `source_len`, a `Cow` text and `mapped`). C9-TAB-SIZE, C9-TEXT-TRANSFORM and
+  justification reuse it. `overflow-wrap` (`packer/emit.rs::split_word`): a word that starts an empty line and
+  is wider than it places as many graphemes as fit, breaking only after a grapheme whose text allows it; a
+  min-content measurement (`measuring` at width 0) takes `anywhere`'s breaks only (§5.5); `word-break:
+  break-word` is `normal` + `anywhere` (`RunStyle::of`). The packer split again: `packer/fragments.rs` (fragment
+  building, maps, the hyphen; `emit.rs` 373 → 346). Red: `css_phase9/breaking.rs` — 10 of 10 failed (`abcdef`
+  unbroken under `break-all`; `日本語の` / `文章` under `keep-all`; `。` starting a line; `bbbbbbbb` overflowing
+  under each `overflow-wrap` form; min-content 6 for 1; `hyphen` for `hy-` / `phen`; the caret at 4 on row 0;
+  `abc` / `def` unbroken at `line-break: anywhere`, a zero-width space and U+2028; `〜` breaking under
+  `strict`); unit tests `breaking.rs` and `source_map.rs` written with the code. Green after two corrections
+  to the tests themselves, against the spec: `break-all` puts `g` beside `ef` (`ef g` / `hi`, greedy), and a
+  caret at the byte between two lines broken with no space takes the first line's end (existing behaviour
+  between ideographs, now documented) — the test asserts the next byte on line 2. Mutation (restored,
+  touched): no emergency split → two tests; no shown hyphen → two; closing punctuation breakable → one;
+  `anywhere` off → one. No existing test expectation or snapshot changed.

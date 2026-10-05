@@ -1,17 +1,20 @@
 //! The packer's intake: text, generated content and hard breaks,
 //! grapheme by grapheme, through the white space processing rules (CSS
-//! Text 3 §4.1, `white_space`) and the soft wrap opportunities, into
-//! the word buffer that `emit` commits.
+//! Text 3 §4.1, `white_space`) and the soft wrap opportunities
+//! (`breaking`), into the word buffer that `emit` commits.
+
+use std::borrow::Cow;
 
 use rdom_core::NodeId;
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
+use super::super::breaking::{self, BreakClass};
 use super::super::run_style::RunStyle;
 use super::super::white_space::{self, WhiteSpaceClass};
 use super::{GraphemeKind, LineEnd, LinePacker, Origin, PendingGrapheme};
 use crate::ext::PseudoSlot;
-use crate::layout::WhiteSpaceCollapse;
+use crate::layout::{OverflowWrap, WhiteSpaceCollapse};
 
 impl<'a> LinePacker<'a> {
     /// Feed a whole text-node's string in one shot, styled `run` (its
@@ -64,10 +67,21 @@ impl<'a> LinePacker<'a> {
         // A collapsible space before a forced break is removed (CSS Text
         // 3 §4.1.1 step 1, §4.1.2).
         self.clear_pending_space();
+        self.last_class = None;
         // Always emit a line — even an empty current line becomes a
         // blank row. Matches `<p>a<br><br>b</p>` producing three
         // rows ("a", blank, "b").
         self.break_line(LineEnd::Forced);
+    }
+
+    /// A soft wrap opportunity with no character of its own — HTML's
+    /// `<wbr>` ("a line break opportunity"): the line may wrap here when
+    /// the text before it wraps.
+    pub(in crate::render::inline) fn push_break_opportunity(&mut self) {
+        if self.last_wraps {
+            self.commit_word();
+        }
+        self.last_class = None;
     }
 
     /// Take one grapheme in, per the white space processing rules of its
@@ -78,16 +92,19 @@ impl<'a> LinePacker<'a> {
             WhiteSpaceClass::ForcedBreak => self.push_hard_break(origin.owner),
             WhiteSpaceClass::Collapsible { segment_break } => {
                 self.push_collapsible(origin, source_offset, segment_break);
+                self.last_class = None;
             }
             WhiteSpaceClass::PreservedSpace | WhiteSpaceClass::PreservedTab => {
                 // A tab advances one cell (tab stops are C9-TAB-SIZE); a
                 // carriage return or a segment break converted to a space
                 // is a space (CSS Text 3 §4, Text 4 §4.1).
-                let text = if g == " " { g } else { " " };
+                let text: &'a str = if g == " " { g } else { " " };
                 let kind = GraphemeKind::Preserved {
                     hangs: self.run.hangs_spaces(),
                 };
-                self.push_to_word(origin, source_offset, text, 1, kind);
+                let piece = self.piece(origin, source_offset, g, Cow::Borrowed(text), 1, kind);
+                self.push_to_word(piece);
+                self.last_class = None;
                 // `break-spaces`: a soft wrap opportunity after every
                 // preserved white space character (CSS Text 3 §3).
                 if self.run.collapse == WhiteSpaceCollapse::BreakSpaces && self.run.wraps {
@@ -124,7 +141,8 @@ impl<'a> LinePacker<'a> {
             None if !self.emitted_any => {}
             _ => {
                 let kind = GraphemeKind::Collapsible { segment_break };
-                self.push_to_word(origin, source_offset, " ", 1, kind);
+                let piece = self.piece(origin, source_offset, " ", Cow::Borrowed(" "), 1, kind);
+                self.push_to_word(piece);
             }
         }
         self.last_wraps = false;
@@ -132,14 +150,35 @@ impl<'a> LinePacker<'a> {
 
     /// A grapheme of text: the separator before it settled by the segment
     /// break transformation rules (CSS Text 3 §4.1.3), the soft wrap
-    /// opportunities around it taken.
+    /// opportunity before it taken (`breaking`). A zero-width space or a
+    /// word joiner is only an opportunity or its absence; a soft hyphen
+    /// is kept, zero cells wide, to show a hyphen if the line breaks
+    /// after it (§6.1).
     fn push_text_grapheme(&mut self, origin: Origin, source_offset: usize, g: &'a str) {
         let w = UnicodeWidthStr::width(g) as u16;
+        let first = g.chars().next().unwrap_or(' ');
+        let class = breaking::class_of(first, w == 2);
         if w == 0 {
-            // Combining marks / ZWJ fragments we don't handle standalone.
+            match class {
+                BreakClass::ZeroWidthSpace | BreakClass::Glue => {
+                    self.take_opportunity(class);
+                    self.last_class = Some(class);
+                }
+                BreakClass::SoftHyphen => {
+                    self.take_opportunity(class);
+                    let kind = GraphemeKind::SoftHyphen {
+                        shows: self.run.breaks.hyphens != crate::layout::Hyphens::None,
+                    };
+                    let piece = self.piece(origin, source_offset, g, Cow::Borrowed(""), 0, kind);
+                    self.push_to_word(piece);
+                    self.last_class = Some(class);
+                }
+                // Combining marks / ZWJ fragments we don't handle
+                // standalone.
+                _ => {}
+            }
             return;
         }
-        let first = g.chars().next().unwrap_or(' ');
         self.transform_segment_break(first);
         // `pre-wrap` / `preserve-spaces`: a soft wrap opportunity at the
         // end of a sequence of preserved spaces (CSS Text 3 §4.1.1).
@@ -154,18 +193,64 @@ impl<'a> LinePacker<'a> {
         {
             self.commit_word();
         }
-        let wraps = self.run.wraps;
-        // CJK (width-2) graphemes: each is its own "word" with break
-        // opportunities on both sides; a hyphen breaks after.
-        if w == 2 && wraps {
-            self.commit_word();
-        }
-        self.push_to_word(origin, source_offset, g, w, GraphemeKind::Text);
-        if wraps && (w == 2 || g == "-") {
-            self.commit_word();
-        }
+        self.take_opportunity(class);
+        let piece = self.piece(
+            origin,
+            source_offset,
+            g,
+            Cow::Borrowed(g),
+            w,
+            GraphemeKind::Text,
+        );
+        self.push_to_word(piece);
         self.last_char = g.chars().last();
-        self.last_wraps = wraps;
+        self.last_class = Some(class);
+        self.last_wraps = self.run.wraps;
+    }
+
+    /// Commit the word before a grapheme of class `next` when the line
+    /// may break between the last text taken in and it (CSS Text 3 §5,
+    /// `breaking::break_between`) and the text wraps.
+    fn take_opportunity(&mut self, next: BreakClass) {
+        if let Some(before) = self.last_class
+            && self.run.wraps
+            && !self.word_buffer.is_empty()
+            && breaking::break_between(before, next, self.run.breaks)
+        {
+            self.commit_word();
+        }
+    }
+
+    /// A grapheme `g` at `source_offset` of `origin`, rendered as `text`
+    /// `width` cells wide: its piece for the word buffer, with the
+    /// `overflow-wrap` of its run (none in text that does not wrap, CSS
+    /// Text 3 §5.5: "only has an effect when white-space allows
+    /// wrapping").
+    fn piece(
+        &self,
+        origin: Origin,
+        source_offset: usize,
+        g: &str,
+        text: Cow<'a, str>,
+        width: u16,
+        kind: GraphemeKind,
+    ) -> PendingGrapheme<'a> {
+        let mapped =
+            text.len() != g.len() || (text.as_ref() != g && text.graphemes(true).count() != 1);
+        PendingGrapheme {
+            origin,
+            source_offset,
+            source_len: g.len(),
+            text,
+            width,
+            kind,
+            mapped,
+            split: if self.run.wraps {
+                self.run.overflow_wrap
+            } else {
+                OverflowWrap::Normal
+            },
+        }
     }
 
     /// The segment break transformation rules (CSS Text 3 §4.1.3): a
@@ -192,32 +277,19 @@ impl<'a> LinePacker<'a> {
         }
     }
 
-    /// Append a grapheme to the word buffer. The first one records
-    /// whether the line may wrap before the word: always after a soft
-    /// wrap opportunity, after an atom only when the text wraps.
-    fn push_to_word(
-        &mut self,
-        origin: Origin,
-        source_offset: usize,
-        text: &'a str,
-        width: u16,
-        kind: GraphemeKind,
-    ) {
+    /// Append a piece to the word buffer. The first one records whether
+    /// the line may wrap before the word: always after a soft wrap
+    /// opportunity, after an atom only when the text wraps.
+    fn push_to_word(&mut self, piece: PendingGrapheme<'a>) {
         if self.word_buffer.is_empty() {
             self.buffer_wraps = !self.after_atom || self.pending_space || self.run.wraps;
             self.after_atom = false;
         }
-        self.word_buffer.push(PendingGrapheme {
-            origin,
-            source_offset,
-            text,
-            width,
-            kind,
-        });
-        self.word_width = self.word_width.saturating_add(width);
-        if kind != GraphemeKind::Text {
+        if piece.kind != GraphemeKind::Text {
             self.last_wraps = self.run.wraps;
         }
+        self.word_width = self.word_width.saturating_add(piece.width);
+        self.word_buffer.push(piece);
     }
 
     /// Drop the pending collapsed separator.

@@ -79,4 +79,7 @@ pub use sizing::{
     AspectRatio, ContainIntrinsicSize, FlexBasis, GapValue, IntrinsicSize, Length, MaxSize,
     MinSize, Size, valid_flex_factor,
 };
-pub use text::{TextStyle, TextWrapMode, WhiteSpace, WhiteSpaceCollapse};
+pub use text::{
+    Hyphens, LineBreak, OverflowWrap, TextStyle, TextWrapMode, WhiteSpace, WhiteSpaceCollapse,
+    WordBreak,
+};

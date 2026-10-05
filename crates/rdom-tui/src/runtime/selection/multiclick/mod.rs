@@ -96,7 +96,7 @@ pub(crate) fn expand_to_line(dom: &mut TuiDom) -> bool {
     let last = in_host.next_back().unwrap_or(first);
     let next = Selection::new(
         Position::new(first.text_node, first.source_byte_offset),
-        Position::new(last.text_node, last.source_byte_offset + last.text.len()),
+        Position::new(last.text_node, last.source_byte_offset + last.source_len()),
     );
     if dom.selection() == Some(&next) {
         return false;
@@ -136,7 +136,7 @@ fn line_containing(layout: &InlineLayout, text_node: NodeId, offset: usize) -> O
             if frag.text_node != text_node {
                 continue;
             }
-            let frag_end = frag.source_byte_offset + frag.text.len();
+            let frag_end = frag.source_byte_offset + frag.source_len();
             if frag.source_byte_offset <= offset && offset <= frag_end {
                 return Some(idx);
             }

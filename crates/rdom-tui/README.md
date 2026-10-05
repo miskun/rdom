@@ -393,9 +393,14 @@ What's supported:
 - **`display: inline`** — participates in the parent block's inline
   formatting context. UA defaults mark `b`, `strong`, `em`, `i`, `u`,
   `code`, `span`, `a`, `br` as inline.
-- **Word wrap** at whitespace, between CJK graphemes, and after
-  hyphens. Long words overflow their line (CSS default — no
-  char-break).
+- **Word wrap** at the soft wrap opportunities of a UAX #14 subset
+  (CSS Text 3 §5): whitespace, around CJK ideographs (not before
+  closing punctuation or small kana), after hyphens, zero-width spaces,
+  `<wbr>`, and soft hyphens, which show `-` where the line breaks
+  (`hyphens: manual`). `word-break` (`break-all` / `keep-all`),
+  `line-break` (`loose` / `normal` / `strict` / `anywhere`) and
+  `overflow-wrap` (`anywhere` / `break-word`, alias `word-wrap`) apply;
+  without them a long word overflows its line.
 - **Auto-height IFC blocks** grow to fit wrapped content; a fixed
   height lets overflowing lines paint on below the box (CSS `overflow:
   visible`) — `overflow: hidden` or `clip` clips them.
@@ -420,7 +425,9 @@ What's out of scope:
 - `text-align`, justification, `vertical-align` (C9; an atomic inline
   sits with its last line on the line's text row, and flex items take
   `align-items: baseline`).
-- UAX #14 line breaking (we use whitespace + CJK + hyphen).
+- Full UAX #14 line breaking and dictionary hyphenation (the subset
+  rdom implements is listed in DIVERGENCES; `hyphens: auto` is
+  `manual`).
 
 Mixed block + inline children work as in CSS 2.1 §9.2.1.1: each run
 of inline content between block children is wrapped in an anonymous

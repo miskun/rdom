@@ -8,6 +8,7 @@ use super::super::boxes::GeneratedAtom;
 use super::super::vertical::{self, AtomAt, AtomRows};
 use super::super::{GeneratedFragment, InlineFragment, LineBox};
 use super::{GraphemeKind, LineEnd, LinePacker, Origin, PendingGrapheme};
+use crate::layout::OverflowWrap;
 
 impl LinePacker<'_> {
     /// Commit the word buffer to the current line (or wrap to a new
@@ -45,7 +46,9 @@ impl LinePacker<'_> {
     }
 
     /// Place the word buffer on the current line, or wrap to a new line
-    /// first when it does not fit and may wrap.
+    /// first when it does not fit and may wrap; a word too long for the
+    /// line it then starts breaks where its `overflow-wrap` lets it
+    /// (CSS Text 3 §5.5, [`Self::split_word`]).
     fn place_word(&mut self) {
         if self.word_buffer.is_empty() {
             return;
@@ -56,7 +59,7 @@ impl LinePacker<'_> {
         } else {
             0
         };
-        let fit = self.word_width.saturating_sub(self.word_hang());
+        let fit = self.word_fit();
         let projected = self
             .cur_line_width
             .saturating_add(separator)
@@ -67,21 +70,79 @@ impl LinePacker<'_> {
             self.break_line(LineEnd::Soft);
             self.clear_pending_space();
             self.drop_leading_collapsible();
-            self.fit_empty_line(self.word_width.saturating_sub(self.word_hang()));
+            self.fit_empty_line(self.word_fit());
+            self.split_word();
             self.emit_word_to_current_line(0);
         } else {
             self.fit_empty_line(fit);
             if self.cur_line_width == 0 {
                 self.drop_leading_collapsible();
+                self.split_word();
             }
             self.emit_word_to_current_line(separator);
             self.clear_pending_space();
         }
     }
 
+    /// The cells the word buffer needs on its line: its width less the
+    /// spaces that would hang at the line's end, plus the hyphen a soft
+    /// hyphen ending it shows if the line breaks there (CSS Text 3
+    /// §4.1.2, §6.1).
+    fn word_fit(&self) -> u16 {
+        let shy = matches!(
+            self.word_buffer.last(),
+            Some(PendingGrapheme {
+                kind: GraphemeKind::SoftHyphen { shows: true },
+                ..
+            })
+        );
+        self.word_width
+            .saturating_sub(self.word_hang())
+            .saturating_add(u16::from(shy))
+    }
+
+    /// `overflow-wrap: anywhere` / `break-word` (CSS Text 3 §5.5): while
+    /// the word buffer, starting an empty line, is wider than the line,
+    /// place as many of its graphemes as fit (one at least) — breaking
+    /// only after a grapheme whose text allows it — and wrap. A
+    /// min-content measurement takes `anywhere`'s breaks only ("soft wrap
+    /// opportunities introduced by break-word are not considered").
+    fn split_word(&mut self) {
+        let min_content = self.is_measuring() && self.content_width() == 0;
+        let breaks_after = |g: &PendingGrapheme<'_>| match g.split {
+            OverflowWrap::Normal => false,
+            OverflowWrap::BreakWord => !min_content,
+            OverflowWrap::Anywhere => true,
+        };
+        while self.word_fit() > self.line_width() && self.buffer_wraps {
+            let room = self.line_width();
+            let (mut used, mut cut) = (0u16, 0usize);
+            for (i, g) in self.word_buffer.iter().enumerate() {
+                if used.saturating_add(g.width) > room && cut > 0 {
+                    break;
+                }
+                used = used.saturating_add(g.width);
+                if i + 1 < self.word_buffer.len() && breaks_after(g) {
+                    cut = i + 1;
+                }
+            }
+            if cut == 0 {
+                return;
+            }
+            let rest = self.word_buffer.split_off(cut);
+            let rest_width: u16 = rest.iter().map(|g| g.width).sum();
+            self.word_width = self.word_width.saturating_sub(rest_width);
+            self.emit_word_to_current_line(0);
+            self.break_line(LineEnd::Soft);
+            self.word_buffer = rest;
+            self.word_width = rest_width;
+            self.fit_empty_line(self.word_fit());
+        }
+    }
+
     /// The cells of preserved spaces ending the word buffer that hang at
     /// the end of a line (CSS Text 3 §4.1.2).
-    fn word_hang(&self) -> u16 {
+    pub(super) fn word_hang(&self) -> u16 {
         self.word_buffer
             .iter()
             .rev()
@@ -102,103 +163,6 @@ impl LinePacker<'_> {
             self.word_buffer.remove(0);
             self.word_width = self.word_width.saturating_sub(width);
         }
-    }
-
-    pub(super) fn emit_word_to_current_line(&mut self, separator_width: u16) {
-        // Emit the separator space (if any) with the provenance of
-        // the whitespace that produced it.
-        if separator_width > 0 && !self.word_buffer.is_empty() {
-            let (sep_origin, sep_source_offset) = self.pending_space_source.unwrap_or_else(|| {
-                let g = &self.word_buffer[0];
-                (g.origin, g.source_offset)
-            });
-            self.append_fragment(sep_origin, sep_source_offset, " ", 1);
-        }
-        let hang = self.word_hang();
-
-        // Group consecutive same-origin graphemes into fragments. A
-        // change of origin starts a new fragment.
-        let mut idx = 0;
-        while idx < self.word_buffer.len() {
-            let g0 = &self.word_buffer[idx];
-            let origin = g0.origin;
-            let source_offset = g0.source_offset;
-            let mut text = String::new();
-            let mut width: u16 = 0;
-            while idx < self.word_buffer.len() {
-                let g = &self.word_buffer[idx];
-                if g.origin != origin {
-                    break;
-                }
-                text.push_str(g.text);
-                width = width.saturating_add(g.width);
-                idx += 1;
-            }
-            self.append_fragment(origin, source_offset, &text, width);
-        }
-
-        self.word_buffer.clear();
-        self.word_width = 0;
-        self.cur_hang = hang;
-        self.emitted_any = true;
-    }
-
-    /// Append a fragment to the current line. Merges with the
-    /// previous fragment when its (owner, text_node) match AND the
-    /// byte ranges are contiguous — keeps fragment counts low and
-    /// preserves correct source mapping. Generated content goes to the
-    /// line's generated list instead.
-    pub(super) fn append_fragment(
-        &mut self,
-        origin: Origin,
-        source_offset: usize,
-        text: &str,
-        width: u16,
-    ) {
-        let x = i32::from(self.cur_line_width);
-        self.cur_line_width = self.cur_line_width.saturating_add(width);
-        if let Some(slot) = origin.generated {
-            if let Some(last) = self.cur_generated.last_mut()
-                && last.host == origin.owner
-                && last.slot == slot
-                && last.atom.is_none()
-                && last.x + i32::from(last.width) == x
-            {
-                last.text.push_str(text);
-                last.width = last.width.saturating_add(width);
-                return;
-            }
-            let mut run = GeneratedFragment::text(origin.owner, slot, x, text);
-            run.width = width;
-            self.cur_generated.push(run);
-            return;
-        }
-        let Origin {
-            owner, text_node, ..
-        } = origin;
-        if let Some(last) = self.cur_fragments.last_mut() {
-            let contiguous = last.source_byte_offset + last.text.len() == source_offset;
-            if last.node == owner
-                && last.text_node == text_node
-                && contiguous
-                && last.x + i32::from(last.width) == x
-            {
-                last.text.push_str(text);
-                last.width = last.width.saturating_add(width);
-                return;
-            }
-        }
-        self.cur_fragments.push(InlineFragment {
-            node: owner,
-            text_node,
-            source_byte_offset: source_offset,
-            x,
-            y: 0,
-            width,
-            height: 1,
-            text: text.to_string(),
-            atomic: false,
-        });
     }
 
     /// True once anything — text, an atom, generated content — sits on
@@ -232,6 +196,7 @@ impl LinePacker<'_> {
             height: rows.height,
             text: String::new(),
             atomic: true,
+            map: None,
         });
         self.close_atom(width);
     }
@@ -292,7 +257,7 @@ impl LinePacker<'_> {
             let (sep_origin, sep_offset) = self
                 .pending_space_source
                 .unwrap_or((Origin::text(owner, owner), 0));
-            self.append_fragment(sep_origin, sep_offset, " ", 1);
+            self.append_fragment(sep_origin, sep_offset, " ", 1, None);
             self.clear_pending_space();
         }
         self.fit_empty_line(width);
@@ -304,6 +269,8 @@ impl LinePacker<'_> {
     fn close_atom(&mut self, width: u16) {
         self.cur_line_width = self.cur_line_width.saturating_add(width);
         self.cur_hang = 0;
+        self.cur_ends_in_shy = false;
+        self.last_class = None;
         self.emitted_any = true;
         self.after_atom = true;
     }
@@ -313,6 +280,12 @@ impl LinePacker<'_> {
     /// §4.1.2: at a soft wrap they hang, at a forced break or the end only
     /// where they overflow) — and open the next one.
     pub(super) fn break_line(&mut self, end: LineEnd) {
+        // §6.1: a line broken at a soft hyphen shows a hyphen — not when
+        // it breaks at a collapsed space after it, or is forced.
+        if end == LineEnd::Soft && self.cur_ends_in_shy && !self.pending_space {
+            self.show_hyphen();
+        }
+        self.cur_ends_in_shy = false;
         let mut fragments = std::mem::take(&mut self.cur_fragments);
         let mut generated = std::mem::take(&mut self.cur_generated);
         let (baseline, height) =

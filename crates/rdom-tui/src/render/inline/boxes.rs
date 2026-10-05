@@ -71,12 +71,19 @@ pub struct InlineFragment {
     pub height: u16,
     /// Normalized text to paint. No control characters; no leading /
     /// trailing whitespace when this fragment brackets a line.
-    /// Empty for `atomic = true` fragments.
+    /// Empty for `atomic = true` fragments. Where layout renders source
+    /// text as something else (a soft hyphen, a tab, `text-transform`,
+    /// justification) this is the rendering, and
+    /// [`source_len`](Self::source_len) the source bytes it covers.
     pub text: String,
     /// True iff this fragment is an atomic inline-block box
     /// (`Display::InlineBlock` participating in IFC). See the type
     /// doc for the full contract.
     pub atomic: bool,
+    /// How `text` maps onto the source where layout rendered some of it
+    /// as something else (`source_map`); `None` when `text` is the
+    /// source.
+    pub(crate) map: Option<Box<super::source_map::SourceMap>>,
 }
 
 impl InlineFragment {
@@ -102,6 +109,7 @@ impl InlineFragment {
             height: 1,
             text,
             atomic: false,
+            map: None,
         }
     }
 
@@ -119,6 +127,7 @@ impl InlineFragment {
             height,
             text: String::new(),
             atomic: true,
+            map: None,
         }
     }
 }

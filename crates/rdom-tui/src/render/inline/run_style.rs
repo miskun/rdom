@@ -4,7 +4,8 @@
 //! each inline element's text is processed and wrapped by its own
 //! values (CSS Text 3 §3: `white-space` applies to text).
 
-use crate::layout::WhiteSpaceCollapse;
+use super::breaking::BreakRules;
+use crate::layout::{OverflowWrap, WhiteSpaceCollapse, WordBreak};
 use crate::style::ComputedStyle;
 
 /// The CSS Text values the packer applies to a run of text.
@@ -14,6 +15,11 @@ pub(crate) struct RunStyle {
     pub(crate) collapse: WhiteSpaceCollapse,
     /// `text-wrap-mode: wrap` (CSS Text 4 §6.1).
     pub(crate) wraps: bool,
+    /// `word-break`, `line-break`, `hyphens` (CSS Text 3 §5.2, §5.3,
+    /// §6.1).
+    pub(crate) breaks: BreakRules,
+    /// `overflow-wrap` — `anywhere` under `word-break: break-word` (§5.2).
+    pub(crate) overflow_wrap: OverflowWrap,
 }
 
 impl Default for RunStyle {
@@ -21,6 +27,8 @@ impl Default for RunStyle {
         RunStyle {
             collapse: WhiteSpaceCollapse::Collapse,
             wraps: true,
+            breaks: BreakRules::default(),
+            overflow_wrap: OverflowWrap::Normal,
         }
     }
 }
@@ -28,9 +36,26 @@ impl Default for RunStyle {
 impl RunStyle {
     /// The run style of text styled `style`.
     pub(crate) fn of(style: &ComputedStyle) -> Self {
+        let text = &style.text;
+        // §5.2: `break-word` is `normal` with `overflow-wrap: anywhere`.
+        let legacy = text.word_break == WordBreak::BreakWord;
         RunStyle {
-            collapse: style.text.white_space_collapse,
-            wraps: style.text.wraps(),
+            collapse: text.white_space_collapse,
+            wraps: text.wraps(),
+            breaks: BreakRules {
+                word_break: if legacy {
+                    WordBreak::Normal
+                } else {
+                    text.word_break
+                },
+                line_break: text.line_break,
+                hyphens: text.hyphens,
+            },
+            overflow_wrap: if legacy {
+                OverflowWrap::Anywhere
+            } else {
+                text.overflow_wrap
+            },
         }
     }
 

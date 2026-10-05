@@ -135,6 +135,10 @@ define_fields! {
     WritingMode => writing_mode : WRITING_MODE,
     WhiteSpaceCollapse => text.white_space_collapse : WHITE_SPACE_COLLAPSE,
     TextWrapMode => text.text_wrap_mode : TEXT_WRAP_MODE,
+    WordBreak => text.word_break : WORD_BREAK,
+    OverflowWrap => text.overflow_wrap : OVERFLOW_WRAP,
+    LineBreak => text.line_break : LINE_BREAK,
+    Hyphens => text.hyphens : HYPHENS,
     UserSelect => user_select : USER_SELECT,
     PointerEvents => pointer_events : POINTER_EVENTS,
     Visibility => visibility : VISIBILITY,
@@ -352,6 +356,11 @@ pub fn inherits(name: &str) -> bool {
             | "white-space"
             | "white-space-collapse"
             | "text-wrap-mode"
+            | "word-break"
+            | "overflow-wrap"
+            | "word-wrap"
+            | "line-break"
+            | "hyphens"
             | "pointer-events"
             | "visibility"
             | "caret-color"

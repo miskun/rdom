@@ -49,6 +49,10 @@ pub(super) fn classify(g: &str, collapse: WhiteSpaceCollapse) -> WhiteSpaceClass
             WhiteSpaceCollapse::PreserveSpaces => C::PreservedSpace,
             _ => C::ForcedBreak,
         },
+        // CSS Text 3 §5.5: characters of the BK and NL line breaking
+        // classes are forced line breaks "regardless of the white-space
+        // value".
+        "\u{0B}" | "\u{0C}" | "\u{85}" | "\u{2028}" | "\u{2029}" => C::ForcedBreak,
         _ if g.chars().next().is_some_and(char::is_control) => C::Control,
         _ => C::Text,
     }

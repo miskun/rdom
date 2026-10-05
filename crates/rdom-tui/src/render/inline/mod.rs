@@ -16,8 +16,9 @@
 //!    (none at a line edge), preserved ones pass through, preserved
 //!    segment breaks force a line break.
 //! 3. Accumulate visible graphemes into a *pending word* — a run
-//!    bracketed by break opportunities (whitespace, CJK boundaries,
-//!    hyphen-after).
+//!    bracketed by soft wrap opportunities (white space, and the UAX #14
+//!    subset of `breaking`: ideographs, hyphens, soft hyphens,
+//!    zero-width spaces, under `word-break` / `line-break` / `hyphens`).
 //! 4. On each break opportunity, attempt to commit the pending word.
 //!    If it doesn't fit at the current cursor + pending space, wrap
 //!    to a new line.
@@ -27,7 +28,9 @@
 //!    the baseline row (CSS 2.1 §10.8). The data model is `boxes`.
 //!
 //! Words longer than the content width overflow their line — CSS's
-//! default `overflow-wrap: normal` behavior. Paint clips.
+//! default `overflow-wrap: normal` behavior; `anywhere` / `break-word`
+//! break them between graphemes. Where a fragment's painted text is not
+//! its source (a soft hyphen shown as `-`), `source_map` maps the two.
 //!
 //! ## Source tracking for selection
 //!
@@ -40,17 +43,19 @@
 //!
 //! ## Scope
 //!
-//! Phase D (the original inline work): whitespace + CJK + hyphen-after
-//! break opportunities. UAX #14 line breaking (soft hyphen, complex-
-//! script clustering) is out of scope.
+//! Line breaking is a UAX #14 subset without dictionaries (`breaking`,
+//! DIVERGENCES §2): no complex-script word breaking, no automatic
+//! hyphenation.
 
 mod boxes;
+mod breaking;
 mod caret;
 mod feed;
 pub(crate) mod generated;
 mod measure;
 mod packer;
 mod run_style;
+mod source_map;
 pub(crate) mod vertical;
 mod white_space;
 
@@ -68,7 +73,6 @@ pub(crate) use boxes::GeneratedAtom;
 pub use boxes::{GeneratedFragment, InlineFragment, InlineLayout, LineBox};
 pub(crate) use caret::caret_cell;
 pub use caret::cell_of_position;
-pub(crate) use caret::cells_before_byte;
 use feed::{fill_block, fill_run};
 pub(crate) use measure::{widest_line, widest_run_line};
 use packer::LinePacker;

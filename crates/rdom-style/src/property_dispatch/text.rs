@@ -1,11 +1,15 @@
 //! The CSS Text properties (CSS Text 3 / 4): `white-space` and its
-//! longhands `white-space-collapse` / `text-wrap-mode` — their `set` and
-//! `serialize` arms.
+//! longhands `white-space-collapse` / `text-wrap-mode`, `word-break`,
+//! `overflow-wrap` (and its legacy name `word-wrap`), `line-break`,
+//! `hyphens` — their `set` and `serialize` arms.
 
 use super::value_serializers::specified;
 use crate::layout::{TextWrapMode, WhiteSpace, WhiteSpaceCollapse};
 use crate::parse::token::Token;
-use crate::parse::values::{parse_text_wrap_mode, parse_white_space, parse_white_space_collapse};
+use crate::parse::values::{
+    parse_hyphens, parse_line_break, parse_overflow_wrap, parse_text_wrap_mode, parse_white_space,
+    parse_white_space_collapse, parse_word_break,
+};
 use crate::{TuiStyle, Value};
 
 /// Parse and write one of the names. `None` when `name` is not one;
@@ -23,6 +27,18 @@ pub(super) fn set(name: &str, value: &[Token], style: &mut TuiStyle) -> Option<O
         "text-wrap-mode" => parse_text_wrap_mode(value).map(|m| {
             text.text_wrap_mode = Some(Value::Specified(m));
         }),
+        "word-break" => parse_word_break(value).map(|w| {
+            text.word_break = Some(Value::Specified(w));
+        }),
+        "overflow-wrap" | "word-wrap" => parse_overflow_wrap(value).map(|w| {
+            text.overflow_wrap = Some(Value::Specified(w));
+        }),
+        "line-break" => parse_line_break(value).map(|l| {
+            text.line_break = Some(Value::Specified(l));
+        }),
+        "hyphens" => parse_hyphens(value).map(|h| {
+            text.hyphens = Some(Value::Specified(h));
+        }),
         _ => return None,
     })
 }
@@ -35,6 +51,10 @@ pub(super) fn serialize(name: &str, style: &TuiStyle) -> Option<Option<String>> 
     Some(match name {
         "white-space-collapse" => collapse.map(|c| c.keyword().to_string()),
         "text-wrap-mode" => mode.map(|m| m.keyword().to_string()),
+        "word-break" => keyword(&text.word_break, |w| w.keyword()),
+        "overflow-wrap" | "word-wrap" => keyword(&text.overflow_wrap, |w| w.keyword()),
+        "line-break" => keyword(&text.line_break, |l| l.keyword()),
+        "hyphens" => keyword(&text.hyphens, |h| h.keyword()),
         "white-space" => match (collapse, mode) {
             (Some(&c), Some(&m)) => Some(white_space_text(c, m)),
             _ => None,
@@ -54,4 +74,12 @@ fn white_space_text(collapse: WhiteSpaceCollapse, mode: TextWrapMode) -> String 
         TextWrapMode::Wrap => collapse.keyword().to_string(),
         TextWrapMode::Nowrap => format!("{} {}", collapse.keyword(), mode.keyword()),
     }
+}
+
+/// A keyword field's serialization: its value's spelling, when specified.
+fn keyword<T>(field: &Option<Value<T>>, spell: impl Fn(&T) -> &'static str) -> Option<String> {
+    field
+        .as_ref()
+        .and_then(specified)
+        .map(|v| spell(v).to_string())
 }

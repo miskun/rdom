@@ -2,7 +2,9 @@
 //! properties, the specified side of [`TextStyle`](crate::layout::TextStyle).
 
 use crate::Value;
-use crate::layout::{TextWrapMode, WhiteSpaceCollapse};
+use crate::layout::{
+    Hyphens, LineBreak, OverflowWrap, TextWrapMode, WhiteSpaceCollapse, WordBreak,
+};
 
 /// The CSS Text properties a [`TuiStyle`](crate::TuiStyle) declares
 /// ([`TuiStyle::text`](crate::TuiStyle::text)), one field per longhand,
@@ -14,4 +16,12 @@ pub struct TextDeclarations {
     pub white_space_collapse: Option<Value<WhiteSpaceCollapse>>,
     /// `text-wrap-mode` (CSS Text 4 §6.1).
     pub text_wrap_mode: Option<Value<TextWrapMode>>,
+    /// `word-break` (CSS Text 3 §5.2).
+    pub word_break: Option<Value<WordBreak>>,
+    /// `overflow-wrap` and its legacy name `word-wrap` (CSS Text 3 §5.5).
+    pub overflow_wrap: Option<Value<OverflowWrap>>,
+    /// `line-break` (CSS Text 3 §5.3).
+    pub line_break: Option<Value<LineBreak>>,
+    /// `hyphens` (CSS Text 3 §6.1).
+    pub hyphens: Option<Value<Hyphens>>,
 }

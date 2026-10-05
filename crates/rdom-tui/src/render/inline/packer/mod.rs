@@ -40,19 +40,26 @@
 //!   leave each line.
 //! - `intake` — taking text in: the white space processing rules and
 //!   the soft wrap opportunities, filling the word buffer.
+//! - `fragments` — a placed word's graphemes as fragments, with the
+//!   source maps their rendering needs; the hyphen a soft hyphen shows.
 //! - `emit` — committing a word to the current line or the next,
 //!   fragments, atomic inlines, and settling and breaking lines.
 
+use std::borrow::Cow;
+
 use rdom_core::NodeId;
 
+use super::breaking::BreakClass;
 use super::run_style::RunStyle;
 use super::vertical::{AtomAt, AtomRows};
 use super::{GeneratedFragment, InlineFragment, LineBox};
 use crate::ext::PseudoSlot;
+use crate::layout::OverflowWrap;
 use crate::render::box_tree::BoxItem;
 use crate::render::layout_pass::float::lines::LineExclusions;
 
 mod emit;
+mod fragments;
 mod intake;
 
 /// One grapheme awaiting commit, with every piece of provenance we
@@ -64,12 +71,21 @@ pub(super) struct PendingGrapheme<'a> {
     /// Byte offset of this grapheme's start in the source string (the
     /// text node's data, or the pseudo-element's `content`).
     source_offset: usize,
-    /// The grapheme, borrowed from the source text node's data.
-    text: &'a str,
-    /// Visible width of the grapheme.
+    /// The grapheme's source bytes.
+    source_len: usize,
+    /// What it renders as: the source grapheme (borrowed from the text
+    /// node's data), or what layout made of it.
+    text: Cow<'a, str>,
+    /// Visible width of `text`.
     width: u16,
     /// What white-space processing made of it.
     kind: GraphemeKind,
+    /// `text` is not the source grapheme byte for byte: its fragment
+    /// needs a `SourceMap`.
+    mapped: bool,
+    /// The `overflow-wrap` of its text: whether an otherwise unbreakable
+    /// word too long for its line may break after it (CSS Text 3 §5.5).
+    split: OverflowWrap,
 }
 
 /// What a buffered grapheme is to line breaking.
@@ -85,6 +101,9 @@ enum GraphemeKind {
     /// A preserved space or tab; `hangs` when it hangs at the end of a
     /// line (CSS Text 3 §4.1.2, `RunStyle::hangs_spaces`).
     Preserved { hangs: bool },
+    /// A soft hyphen (CSS Text 3 §6.1): nothing, or — `shows`, its text's
+    /// `hyphens` not `none` — a hyphen when the line breaks after it.
+    SoftHyphen { shows: bool },
 }
 
 /// Provenance of a run of graphemes. Consecutive graphemes with the
@@ -176,6 +195,13 @@ pub(super) struct LinePacker<'a> {
     /// Whether the text last taken in wraps (`text-wrap-mode`), which
     /// governs the soft wrap opportunity after it.
     last_wraps: bool,
+    /// The line breaking class of the text last taken in, when no white
+    /// space, forced break or atom came since: the context of the next
+    /// grapheme's soft wrap opportunity (`breaking`).
+    last_class: Option<BreakClass>,
+    /// The current line's content ends with a soft hyphen that shows a
+    /// hyphen if the line breaks there (CSS Text 3 §6.1).
+    cur_ends_in_shy: bool,
     /// An atom was the last thing placed.
     after_atom: bool,
 
@@ -221,6 +247,8 @@ impl<'a> LinePacker<'a> {
             pending_space_source: None,
             last_char: None,
             last_wraps: true,
+            last_class: None,
+            cur_ends_in_shy: false,
             after_atom: false,
             emitted_any: false,
             measuring: false,

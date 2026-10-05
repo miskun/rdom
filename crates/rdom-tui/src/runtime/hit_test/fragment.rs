@@ -4,7 +4,7 @@
 //! Owns [`resolve_in_target`] and its helpers: the fragment lookup
 //! `fragment_at_layout`, the out-of-fragment clamp
 //! `clamp_to_line_layout` (past end-of-line, above / below the block),
-//! and the grapheme-aware cell → byte walker `cells_to_bytes`. Which
+//! and the cell → source byte walk (`InlineFragment::source_at_cell`). Which
 //! target to resolve in is decided upstream, in `nearest.rs`.
 //!
 //! Generated content (`LineBox::generated`) is not a fragment: it has
@@ -12,8 +12,6 @@
 //! line's text → the text's start, past it → the text's end.
 
 use rdom_core::{Dom, Position};
-use unicode_segmentation::UnicodeSegmentation;
-use unicode_width::UnicodeWidthStr;
 
 use crate::ext::TuiExt;
 use crate::layout::LayoutRect;
@@ -36,7 +34,7 @@ pub(crate) fn resolve_in_target(
     match fragment_at_layout(inline_layout, content, x, y) {
         Some(fragment) => {
             let cell_offset_in_frag = (x as i32 - content.x - fragment.x).max(0) as u16;
-            let bytes_into_text = cells_to_bytes(&fragment.text, cell_offset_in_frag);
+            let bytes_into_text = fragment.source_at_cell(cell_offset_in_frag);
             Some(Position::new(
                 fragment.text_node,
                 fragment.source_byte_offset + bytes_into_text,
@@ -89,7 +87,7 @@ fn clamp_to_line_layout(
             if let Some(frag) = line.fragments.last() {
                 return Some(Position::new(
                     frag.text_node,
-                    frag.source_byte_offset + frag.text.len(),
+                    frag.source_byte_offset + frag.source_len(),
                 ));
             }
         }
@@ -106,7 +104,7 @@ fn clamp_to_line_layout(
     if overshoot_down {
         return Some(Position::new(
             last.text_node,
-            last.source_byte_offset + last.text.len(),
+            last.source_byte_offset + last.source_len(),
         ));
     }
 
@@ -120,7 +118,7 @@ fn clamp_to_line_layout(
     } else if (x as i32) >= line_right {
         Some(Position::new(
             last.text_node,
-            last.source_byte_offset + last.text.len(),
+            last.source_byte_offset + last.source_len(),
         ))
     } else {
         // Somewhere in the middle of the line but no fragment
@@ -128,7 +126,7 @@ fn clamp_to_line_layout(
         // common). Clamp to the last fragment's end as a fallback.
         Some(Position::new(
             last.text_node,
-            last.source_byte_offset + last.text.len(),
+            last.source_byte_offset + last.source_len(),
         ))
     }
 }
@@ -157,24 +155,4 @@ fn fragment_at_layout(
                 && line.covers(fragment, row)
         })
         .map(|v| v as _)
-}
-
-/// Walk graphemes of `text` counting cell widths; return the byte
-/// offset of the grapheme whose cell range contains `target_cells`.
-///
-/// Cell grain is per-grapheme (1 for ASCII, 2 for CJK, etc.), not
-/// byte length. If `target_cells` falls inside a wide grapheme, the
-/// returned offset is the grapheme's *start* byte — the click snaps
-/// to the left edge of the character. If `target_cells` overshoots
-/// the text's total cell width, returns `text.len()`.
-fn cells_to_bytes(text: &str, target_cells: u16) -> usize {
-    let mut consumed_cells: u16 = 0;
-    for (idx, g) in text.grapheme_indices(true) {
-        let w = UnicodeWidthStr::width(g) as u16;
-        if target_cells < consumed_cells.saturating_add(w) {
-            return idx;
-        }
-        consumed_cells = consumed_cells.saturating_add(w);
-    }
-    text.len()
 }

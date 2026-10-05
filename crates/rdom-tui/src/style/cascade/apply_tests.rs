@@ -52,6 +52,10 @@ const PERTURB: &[(&str, &str)] = &[
     ("direction", "rtl"),
     ("writing-mode", "vertical-lr"),
     ("white-space", "pre"),
+    ("word-break", "keep-all"),
+    ("overflow-wrap", "anywhere"),
+    ("line-break", "strict"),
+    ("hyphens", "none"),
     ("user-select", "none"),
     ("pointer-events", "none"),
     ("visibility", "hidden"),
@@ -363,6 +367,30 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
         counter_reset,
         counter_increment,
         color_scheme,
+    );
+    // The CSS Text group, field by field: the destructuring of
+    // `TextStyle` fails to compile when a field is added uncovered.
+    let rdom_style::layout::TextStyle {
+        white_space_collapse,
+        text_wrap_mode,
+        word_break,
+        overflow_wrap,
+        line_break,
+        hyphens,
+    } = text;
+    macro_rules! check_text {
+        ($($field:ident),* $(,)?) => {$(
+            assert_ne!(moved.text.$field, $field, "PERTURB leaves `{}` at its initial value", stringify!($field));
+            assert_eq!(got.text.$field, $field, "`initial` for `{}`", stringify!($field));
+        )*};
+    }
+    check_text!(
+        white_space_collapse,
+        text_wrap_mode,
+        word_break,
+        overflow_wrap,
+        line_break,
+        hyphens,
     );
     // CSS Box Alignment 3 §6.2: `justify-items: initial` is `legacy`,
     // which computes to `normal` under a parent without a `legacy` value.

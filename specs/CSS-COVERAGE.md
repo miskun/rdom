@@ -80,7 +80,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.9 Grid (Grid 1/2) | 9 | 0 | 1 | 0 | 10 |
 | 3.10 Positioned layout (Position 3, CSS 2.1 §9) | 6 | 0 | 0 | 1 | 7 |
 | 3.11 Overflow, scrolling and scrollbars (Overflow 3/4, Scroll Snap 1, Overscroll 1, Scrollbars 1) | 13 | 0 | 1 | 0 | 14 |
-| 3.12 Inline text (Text 3/4, Inline 3, CSS 2.1 §10.8) | 2 | 0 | 13 | 6 | 21 |
+| 3.12 Inline text (Text 3/4, Inline 3, CSS 2.1 §10.8) | 6 | 0 | 9 | 6 | 21 |
 | 3.13 Text decoration (Text Decoration 3/4) | 0 | 1 | 3 | 2 | 6 |
 | 3.14 Fonts (Fonts 4) | 0 | 2 | 1 | 2 | 5 |
 | 3.15 Lists, counters and generated content (Lists 3, Generated Content 3, Counter Styles 3, Pseudo-Elements 4) | 1 | 3 | 6 | 2 | 12 |
@@ -93,9 +93,9 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 5 | 2 | 1 | 1 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **160** | **22** | **79** | **46** | **307** |
+| **Total** | **164** | **22** | **75** | **46** | **307** |
 
-When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 101 rows Partial / Missing (C9-WHITE-SPACE shipped two; C8G-PSEUDO-BOXES moved `::before` / `::after` from Supported to Partial — their `display` was ignored — and C8G-PSEUDO-ATOMS back: the atom, float and flex / grid forms work).
+When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 97 rows Partial / Missing (C9-WHITE-SPACE shipped two, C9-BREAKING four; C8G-PSEUDO-BOXES moved `::before` / `::after` from Supported to Partial — their `display` was ignored — and C8G-PSEUDO-ATOMS back: the atom, float and flex / grid forms work).
 
 Headline: rdom parses **227 property names** (`property_names()`: 159 in the table and 68 flow-relative ones, after Phase 8). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are `line-height`, `text-align`, and `@media`.
 
@@ -118,7 +118,7 @@ pasted CSS. The first block is what a typical component stylesheet hits in its f
 | 8 | `visibility` | Shipped (C6-VISIBILITY; §3.7): `hidden` keeps the space and draws nothing, is not hit or focused, a `visible` descendant shows; `collapse` leaves a strut on flex items and removes table rows. | S | No |
 | 9 | `box-sizing` | Shipped (C5-BOX-SIZING; §3.6): `content-box` is the initial value, `border-box` sizes the border box and floors it at padding + border; the CHANGELOG gives the `*, *::before, *::after { box-sizing: border-box }` migration. | M | No |
 | 10 | `outline` (+ `-color`, `-style`, `-width`, `-offset`) | A border ring drawn one cell outside the border box, taking no layout space, painted over neighbors on the top layer; `outline-offset` in whole cells. The natural keyboard-focus ring a TUI otherwise lacks. | M | No |
-| 11 | `overflow-wrap` / `word-break` | `overflow-wrap: anywhere / break-word` and `word-break: break-all` break an over-long word at a cell boundary instead of overflowing and clipping (today's `overflow-wrap: normal`); `word-break: keep-all` for CJK. | M | No |
+| 11 | `overflow-wrap` / `word-break` | Shipped (C9-BREAKING; §3.12): `overflow-wrap: anywhere / break-word` and `word-break: break-all` break an over-long word at a grapheme boundary; `keep-all` for CJK; `line-break`. | M | No |
 | 12 | `text-overflow` | `ellipsis`: the last visible cell of a clipped line becomes `…`; `<string>` form uses that string; applies with `overflow: hidden` + `white-space: nowrap`. | S | No | *Shipped: C8-TEXT-OVERFLOW.*
 | 13 | Per-side border colors (`border-*-color`, multi-value `border-color`) | Shipped (C4-BORDER-SIDES; §3.5): each side's glyphs in its own color; a corner takes its dominant side's. | M | Yes |
 | 14 | `currentColor` | Shipped (C3-CURRENTCOLOR; §3.4): the element's computed `color`, and `border-color`'s initial value; `outline-color` / `text-decoration-color` take it as their initial value when they land (C12-OUTLINE, C9-DECORATION). | S | Yes |
@@ -179,7 +179,7 @@ pasted CSS. The first block is what a typical component stylesheet hits in its f
 | 69 | `translate` (+ `transform: translate()` with cell lengths) | Paint-time offset in whole cells without affecting layout (like `position: relative`); establishes a stacking context. Rotation / scale stay N/A. | S | Yes |
 | 70 | `clip-path: inset()` | Rectangular clip in cells; other shapes N/A. | S | No |
 | 71 | `nav-up` / `nav-down` / `nav-left` / `nav-right` (UI 4, at risk) | Directional focus navigation targets — arrow-key navigation is native to TUIs. | M | No |
-| 72 | `margin-trim`, `inset` with `calc()` / `%`, `hyphens: manual` | Trim child margins at container edges; percent / `calc()` in the `inset` shorthand; break at U+00AD soft hyphens showing `-`. | S | No / No / Yes |
+| 72 | `margin-trim`, `inset` with `calc()` / `%`, `hyphens: manual` | Trim child margins at container edges; percent / `calc()` in the `inset` shorthand; break at U+00AD soft hyphens showing `-` (shipped, C9-BREAKING). | S | No / No / Yes |
 
 ### High-impact *Partial* items (fix alongside the list above)
 
@@ -433,10 +433,10 @@ dropped. The audit's six, with where each stands:
 | `text-indent` | Missing | First-line indent in cells. | No | `IFC` |
 | `text-transform` | Missing | Case mapping, `full-width`. | No | `IFC` |
 | `tab-size` | Missing | Tab stops (tabs in `pre` render as one space, documented). | Yes | `IFC` |
-| `word-break` | Missing | `break-all` / `keep-all`. | No | `IFC`, `rdom-tui/src/render/inline/mod.rs` |
-| `overflow-wrap` / `word-wrap` | Missing | `anywhere` / `break-word`. | No | `IFC`, `layout_pass/intrinsic.rs` |
-| `line-break` | Missing | CJK break strictness; low priority. | No | `IFC` |
-| `hyphens` | Missing | `manual`: break at soft hyphens and show `-` (soft hyphens documented as unsupported). | Yes | `IFC` |
+| `word-break` | Supported | `normal` / `break-all` / `keep-all` / `break-word` (C9-BREAKING; the UAX #14 subset in DIVERGENCES §2). | — | `DISP/text.rs`, `IFC` (`inline/breaking.rs`) |
+| `overflow-wrap` / `word-wrap` | Supported | `normal` / `break-word` / `anywhere`, `word-wrap` a legacy alias; `anywhere`'s breaks count for min-content, `break-word`'s do not (C9-BREAKING). | — | `DISP/text.rs`, `IFC` (`packer/emit.rs::split_word`) |
+| `line-break` | Supported | `auto` / `loose` / `normal` / `strict` / `anywhere`; the CJK rules read off the characters (no `lang`, DIVERGENCES §2) (C9-BREAKING). | — | `DISP/text.rs`, `IFC` (`inline/breaking.rs`) |
+| `hyphens` | Supported | `none` / `manual` / `auto` (= `manual`, no dictionary): a line broken at a soft hyphen shows `-` (C9-BREAKING). | — | `DISP/text.rs`, `IFC` (`packer/fragments.rs::show_hyphen`) |
 | `letter-spacing` / `word-spacing` | N/A | Sub-cell by nature; whole-cell spacing is conceivable but documented as out of scope. | — | — |
 | `hanging-punctuation` | N/A | Hanging a glyph into the margin is a typographic nicety without a TUI use. | — | — |
 | `line-height` | Missing | Whole-row line boxes. | No | `IFC`, `BLOCK` |
@@ -782,9 +782,9 @@ implementation or a `DIVERGENCES.md` entry before the acid page's coverage test 
 - `text-justify` — Missing: Justification method (`inter-word` is the only sensible one).
 - `text-indent` — Missing: First-line indent in cells.
 - `text-transform` — Missing: Case mapping, `full-width`.
-- `word-break` — Missing: `break-all` / `keep-all`.
-- `overflow-wrap` / `word-wrap` — Missing: `anywhere` / `break-word`.
-- `line-break` — Missing: CJK break strictness; low priority.
+- `word-break` — Missing: `break-all` / `keep-all`. *Shipped: C9-BREAKING.*
+- `overflow-wrap` / `word-wrap` — Missing: `anywhere` / `break-word`. *Shipped: C9-BREAKING.*
+- `line-break` — Missing: CJK break strictness; low priority. *Shipped: C9-BREAKING.*
 - `line-height` — Missing: Whole-row line boxes.
 
 **3.13 Text decoration (Text Decoration 3/4)**

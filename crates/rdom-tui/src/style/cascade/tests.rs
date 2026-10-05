@@ -2378,6 +2378,10 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
     parent.display = Display::Inline;
     parent.text.white_space_collapse = rdom_style::layout::WhiteSpaceCollapse::Preserve;
     parent.text.text_wrap_mode = rdom_style::layout::TextWrapMode::Nowrap;
+    parent.text.word_break = rdom_style::layout::WordBreak::KeepAll;
+    parent.text.overflow_wrap = rdom_style::layout::OverflowWrap::Anywhere;
+    parent.text.line_break = rdom_style::layout::LineBreak::Strict;
+    parent.text.hyphens = rdom_style::layout::Hyphens::None;
     parent.user_select = UserSelect::None;
     parent.pointer_events = PointerEvents::None;
     parent.visibility = rdom_style::layout::Visibility::Hidden;
@@ -2506,6 +2510,23 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
             "text-wrap-mode",
             child.text.text_wrap_mode == parent.text.text_wrap_mode,
         ),
+        (
+            "word-break",
+            child.text.word_break == parent.text.word_break,
+        ),
+        (
+            "overflow-wrap",
+            child.text.overflow_wrap == parent.text.overflow_wrap,
+        ),
+        (
+            "word-wrap",
+            child.text.overflow_wrap == parent.text.overflow_wrap,
+        ),
+        (
+            "line-break",
+            child.text.line_break == parent.text.line_break,
+        ),
+        ("hyphens", child.text.hyphens == parent.text.hyphens),
         ("user-select", child.user_select == parent.user_select),
         (
             "pointer-events",

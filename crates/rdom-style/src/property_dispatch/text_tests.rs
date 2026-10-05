@@ -1,6 +1,7 @@
 //! Dispatch tests for the CSS Text properties (Phase 9): `white-space`
 //! and its longhands `white-space-collapse` / `text-wrap-mode` (CSS Text
-//! 4 §3, §4.1, §6.1).
+//! 4 §3, §4.1, §6.1); `word-break`, `overflow-wrap` / `word-wrap`,
+//! `line-break`, `hyphens` (CSS Text 3 §5.2, §5.5, §5.3, §6.1).
 
 use super::*;
 use crate::layout::{TextWrapMode, WhiteSpaceCollapse};
@@ -119,4 +120,48 @@ fn the_longhands_parse_and_compose_the_shorthand() {
     assert!(inherits("white-space-collapse"));
     assert!(inherits("text-wrap-mode"));
     assert!(inherits("white-space"));
+}
+
+/// CSS Text 3 §5.2 / §5.5 / §5.3 / §6.1: the line-breaking keywords,
+/// ASCII case-insensitive, serialized as written; `word-wrap` is a legacy
+/// name alias of `overflow-wrap` (§5.5: "UAs must treat word-wrap as a
+/// legacy name alias"), writing and reading the same field; all inherit.
+#[test]
+fn the_line_breaking_properties_take_their_keywords() {
+    for (name, values) in [
+        (
+            "word-break",
+            &["normal", "break-all", "keep-all", "break-word"][..],
+        ),
+        ("overflow-wrap", &["normal", "break-word", "anywhere"][..]),
+        ("word-wrap", &["normal", "break-word", "anywhere"][..]),
+        (
+            "line-break",
+            &["auto", "loose", "normal", "strict", "anywhere"][..],
+        ),
+        ("hyphens", &["none", "manual", "auto"][..]),
+    ] {
+        for v in values {
+            let mut style = TuiStyle::new();
+            set(name, &v.to_ascii_uppercase(), &mut style)
+                .unwrap_or_else(|e| panic!("{name}: {v}: {e:?}"));
+            assert_eq!(serialize(name, &style).as_deref(), Some(*v), "{name}: {v}");
+        }
+        assert_eq!(
+            set(name, "wrap", &mut TuiStyle::new()),
+            Err(DispatchError::InvalidValue),
+            "{name}"
+        );
+        assert!(inherits(name), "{name}");
+    }
+    let mut style = TuiStyle::new();
+    set("word-wrap", "break-word", &mut style).unwrap();
+    assert_eq!(
+        serialize("overflow-wrap", &style).as_deref(),
+        Some("break-word")
+    );
+    assert_eq!(
+        style.text.overflow_wrap,
+        Some(Value::Specified(crate::layout::OverflowWrap::BreakWord))
+    );
 }

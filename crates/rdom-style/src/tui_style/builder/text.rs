@@ -1,5 +1,6 @@
 //! The CSS Text setters of the `TuiStyle` builder (CSS Text 3 / 4):
-//! `white-space` and its longhands.
+//! `white-space` and its longhands, `word-break`, `overflow-wrap`,
+//! `line-break`, `hyphens`.
 
 use super::super::{ImportantMask, TuiStyle};
 use crate::Value;
@@ -52,5 +53,33 @@ impl TuiStyle {
         text_wrap_mode_important,
         TEXT_WRAP_MODE,
         crate::layout::TextWrapMode
+    );
+    text_setter!(
+        "word-break",
+        word_break,
+        word_break_important,
+        WORD_BREAK,
+        crate::layout::WordBreak
+    );
+    text_setter!(
+        "overflow-wrap",
+        overflow_wrap,
+        overflow_wrap_important,
+        OVERFLOW_WRAP,
+        crate::layout::OverflowWrap
+    );
+    text_setter!(
+        "line-break",
+        line_break,
+        line_break_important,
+        LINE_BREAK,
+        crate::layout::LineBreak
+    );
+    text_setter!(
+        "hyphens",
+        hyphens,
+        hyphens_important,
+        HYPHENS,
+        crate::layout::Hyphens
     );
 }

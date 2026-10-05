@@ -229,6 +229,7 @@ pub(super) fn apply_style(
         grid_auto_flow: GRID_AUTO_FLOW,
     );
     apply_grid(working, style, important_pass, kw);
+    super::text::apply_text(working, style, important_pass, kw);
     apply_border_collapse(
         &mut working.border_collapse,
         &mut working.border_collapse_declared,
@@ -280,8 +281,6 @@ pub(super) fn apply_style(
         flow: FLOW,
         list_item: LIST_ITEM,
         webkit_box: WEBKIT_BOX,
-        text.white_space_collapse: WHITE_SPACE_COLLAPSE,
-        text.text_wrap_mode: TEXT_WRAP_MODE,
         user_select: USER_SELECT,
         pointer_events: POINTER_EVENTS,
         visibility: VISIBILITY,
@@ -385,7 +384,7 @@ fn apply_grid(
     );
 }
 
-fn apply_value<T: Clone>(
+pub(super) fn apply_value<T: Clone>(
     target: &mut T,
     value: &Option<Value<T>>,
     important_prop: bool,

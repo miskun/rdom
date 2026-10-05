@@ -111,7 +111,7 @@ pub(crate) fn line_edge_position(dom: &TuiDom, from: Position, forward: bool) ->
         target_line
             .fragments
             .last()
-            .map(|f| Position::new(f.text_node, f.source_byte_offset + f.text.len()))
+            .map(|f| Position::new(f.text_node, f.source_byte_offset + f.source_len()))
     } else {
         target_line
             .fragments
@@ -179,7 +179,7 @@ fn compute_vertical_target(
         {
             return Some(Position {
                 node: last_frag.text_node,
-                offset: last_frag.source_byte_offset + last_frag.text.len(),
+                offset: last_frag.source_byte_offset + last_frag.source_len(),
             });
         }
         return None;
@@ -202,7 +202,7 @@ fn compute_vertical_target(
     if let Some(last_frag) = target_line.fragments.last() {
         return Some(Position {
             node: last_frag.text_node,
-            offset: last_frag.source_byte_offset + last_frag.text.len(),
+            offset: last_frag.source_byte_offset + last_frag.source_len(),
         });
     }
 

@@ -195,6 +195,7 @@ mod tests {
             height: 1,
             text: String::new(),
             atomic,
+            map: None,
         }
     }
 

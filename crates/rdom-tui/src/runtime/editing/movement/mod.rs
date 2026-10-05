@@ -315,7 +315,7 @@ fn caret_line_end(dom: &TuiDom, from: Position) -> Option<Position> {
     if let Some(last_frag) = target_line.fragments.last() {
         Some(Position::new(
             last_frag.text_node,
-            last_frag.source_byte_offset + last_frag.text.len(),
+            last_frag.source_byte_offset + last_frag.source_len(),
         ))
     } else {
         // Empty line — keep caret where it is (no good "end" to
