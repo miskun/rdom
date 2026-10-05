@@ -11,17 +11,22 @@
 //! The joiner walks the buffer once and, for every cell that has
 //! at least one visible direction, emits the junction glyph + the
 //! winning direction's foreground color. The glyph is chosen
-//! (`glyphs`) by the cell's dominant style:
+//! (`glyphs::junction_glyph`) by the line each direction carries:
 //!
-//! - `BorderStyle::Double` → double-line glyphs (`║═╔╗╚╝╠╣╦╩╬`).
+//! - `BorderStyle::Double` → a double line (`║═╔╗╚╝╠╣╦╩╬`).
 //! - Anything else (`Solid`, `Dashed`, `Dotted`, `Ridge`, `Outset`,
-//!   `Groove`, `Inset`) → single-line glyphs, each direction light
-//!   (`│─┌┐└┘├┤┬┴┼`) or heavy (`┃━┏┓┗┛┣┫┳┻╋`) by its winner's
-//!   `border-width`, the mixed junctions (`┍┿╽`) where they meet.
-//!   The non-solid keywords parse and rank correctly in conflict
-//!   resolution but degrade to the single-line glyph set on the
-//!   terminal — CSS-faithful "render as best you can" per the
-//!   medium constraint documented in `DIVERGENCES.md`.
+//!   `Groove`, `Inset`) → a single line, light (`│─┌┐└┘├┤┬┴┼`) or
+//!   heavy (`┃━┏┓┗┛┣┫┳┻╋`) by its winner's `border-width`, the mixed
+//!   junctions (`┍┿╽`) where weights meet. The non-solid keywords
+//!   parse and rank correctly in conflict resolution but degrade to
+//!   the single-line glyph set on the terminal — CSS-faithful "render
+//!   as best you can" per the medium constraint documented in
+//!   `DIVERGENCES.md`.
+//! - A double axis crossing a light one → Unicode's mixed glyphs
+//!   (`╒╓╕╖╘╙╛╜╞╟╡╢╤╥╧╨╪╫`). Unicode has no glyph where a heavy line
+//!   meets a double one, nor where one axis is double on one side and
+//!   single on the other: there the cell's dominant style picks the
+//!   table (double, or single by weight).
 //!
 //! BORDER-MODEL-1 retires the previous `tree_has_collapse` gate.
 //! Conflict resolution is now per-direction and runs whenever any
@@ -35,7 +40,9 @@
 
 mod glyphs;
 
-use glyphs::{DOUBLE_TABLE, ROUNDED_TABLE, half_block_quad_glyph, line_glyph};
+use glyphs::{
+    DOUBLE_TABLE, Line, ROUNDED_TABLE, half_block_quad_glyph, junction_glyph, line_glyph,
+};
 use rdom_core::Dom;
 use rdom_style::layout::{BorderStyle, BorderWeight, CornerStyle};
 
@@ -100,12 +107,11 @@ pub(super) fn join_borders(_dom: &Dom<TuiExt>, buf: &mut Buffer) {
             // glyph leaves the cell's bg ALONE, so each glyph's "empty"
             // quadrants merge into whatever the parent painted — rdom's analog
             // of CSS `background-clip: padding-box` (see DIVERGENCES.md).
-            let weights = line_weights(&cell_state);
-            // Unicode's rounded corners are light only.
+            let lines = line_kinds(&cell_state);
+            // Unicode's rounded corners are light single lines only.
             if lone
                 && dominant.corner_style == CornerStyle::Rounded
-                && dominant.style != BorderStyle::Double
-                && weights.iter().all(|w| *w <= 1)
+                && lines.iter().all(|l| matches!(l, Line::None | Line::Light))
             {
                 let rounded = ROUNDED_TABLE[mask as usize];
                 if !rounded.is_empty()
@@ -118,11 +124,13 @@ pub(super) fn join_borders(_dom: &Dom<TuiExt>, buf: &mut Buffer) {
                     continue;
                 }
             }
-            let replacement = if dominant.style == BorderStyle::Double {
-                DOUBLE_TABLE[mask as usize]
-            } else {
-                line_glyph(weights)
-            };
+            let replacement = junction_glyph(lines).unwrap_or_else(|| {
+                if dominant.style == BorderStyle::Double {
+                    DOUBLE_TABLE[mask as usize]
+                } else {
+                    line_glyph(line_weights(&cell_state))
+                }
+            });
             if replacement.is_empty() {
                 continue;
             }
@@ -161,6 +169,19 @@ fn line_weights(cell_state: &[BorderDirState; 4]) -> [u8; 4] {
             BorderWeight::Heavy => 2,
         },
         _ => 0,
+    })
+}
+
+/// The line each direction carries, N, E, S, W: none, a double line
+/// (its winner's style is `double`), or a light / heavy single line.
+fn line_kinds(cell_state: &[BorderDirState; 4]) -> [Line; 4] {
+    cell_state.map(|d| match d.winner {
+        Some(c) if d.is_visible() => match (c.style, c.weight) {
+            (BorderStyle::Double, _) => Line::Double,
+            (_, BorderWeight::Light) => Line::Light,
+            (_, BorderWeight::Heavy) => Line::Heavy,
+        },
+        _ => Line::None,
     })
 }
 

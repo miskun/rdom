@@ -1170,4 +1170,17 @@ row comes from.
   `grow_keeps_edges_past_a_u16_extent`. Note: the gate's bare `9999999999` does not parse — an integer
   literal outside `i32` tokenizes as a `Float`, which cell lengths do not take — so the tests use
   `2147483647` (the largest integer token) and `9999999999ch`; both panicked.
+- 2026-10-06 — C4G-MIXED-CORNERS: `border_join` reads each direction's line (`glyphs::Line`: none,
+  light, heavy, double) and `glyphs::junction_glyph` picks the glyph — single lines by weight as before,
+  all-double from `DOUBLE_TABLE`, a double axis crossing a light one from two new 16-entry tables
+  (`VERTICAL_DOUBLE_TABLE`, `HORIZONTAL_DOUBLE_TABLE`; each glyph's Unicode name checked with Python's
+  `unicodedata` and written beside it). `None` — heavy meeting double, or an axis double on one side
+  and single on the other — falls back to the old dominant-style rule (documented in DIVERGENCES §2).
+  The rounded-corner path now requires every line light (it ignored a non-dominant double side).
+  Decided against the item text: it asked for `╓` at `border-style: double solid`'s top-left, but
+  that value is double top / bottom and single left / right, so the corner joins a double line going
+  right and a single one going down — U+2552 `╒` DOWN SINGLE AND RIGHT DOUBLE; `╓` (DOWN DOUBLE AND
+  RIGHT SINGLE) is `solid double`'s corner. Both are tested. Red: `double solid` drew `╔═══╗` over
+  `│`, the collapsed pair `╔═══╦═══╗`; green after, plus a unit test over all 18 mixed glyphs and the
+  three no-glyph cases. No showcase snapshot changed (no demo mixes double and single sides).
 

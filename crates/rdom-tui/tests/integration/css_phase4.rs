@@ -323,6 +323,61 @@ fn mixed_weights_meet_in_mixed_corners() {
     assert_eq!(ring(&buf), ["┍━━━┑", "│   │", "└───┘"]);
 }
 
+/// `C4G-MIXED-CORNERS`: where double and single lines meet, the corner
+/// is Unicode's mixed glyph, by its character name. `double solid` is
+/// double top and bottom (horizontal) and single left and right
+/// (vertical): the top-left is ╒ "DOWN SINGLE AND RIGHT DOUBLE";
+/// `solid double` is the converse, ╓ "DOWN DOUBLE AND RIGHT SINGLE".
+#[test]
+fn double_and_single_sides_meet_in_mixed_corners() {
+    let buf = bordered(".b { width: 5; height: 3; border-style: double solid }");
+    assert_eq!(ring(&buf), ["╒═══╕", "│   │", "╘═══╛"]);
+    let buf = bordered(".b { width: 5; height: 3; border-style: solid double }");
+    assert_eq!(ring(&buf), ["╓───╖", "║   ║", "╙───╜"]);
+    // One double side: its two corners mix, the others stay single.
+    let buf = bordered(".b { width: 5; height: 3; border: solid; border-left-style: double }");
+    assert_eq!(ring(&buf), ["╓───┐", "║   │", "╙───┘"]);
+}
+
+/// The mixed junctions where collapsed borders meet: double horizontal
+/// lines over a single shared vertical make ╤ / ╧ ("DOWN / UP SINGLE AND
+/// HORIZONTAL DOUBLE"); single horizontals over a double vertical make
+/// ╥ / ╨.
+#[test]
+fn double_and_single_lines_meet_in_mixed_junctions() {
+    let junctions = |style: &str| {
+        let mut dom = TuiDom::new();
+        let root = dom.root();
+        let row = el(&mut dom, root, "row", "");
+        el(&mut dom, row, "c", "");
+        el(&mut dom, row, "c", "");
+        let buf = paint(
+            &mut dom,
+            &format!(
+                ".row {{ display: flex; flex-direction: row; width: 9; height: 3; gap: 0; border-collapse: collapse }} \
+                 .c {{ width: 5; height: 3; border-style: {style} }}"
+            ),
+            9,
+            3,
+        );
+        (0..3)
+            .map(|y| {
+                (0..9)
+                    .map(|x| cell(&buf, x, y).symbol().to_string())
+                    .collect::<String>()
+            })
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        junctions("double solid"),
+        ["╒═══╤═══╕", "│   │   │", "╘═══╧═══╛"]
+    );
+    assert_eq!(
+        junctions("solid double"),
+        ["╓───╥───╖", "║   ║   ║", "╙───╨───╜"]
+    );
+}
+
 /// §4.3: the computed `border-style` is not changed by a zero width —
 /// only the used border is — so a child inheriting the style takes
 /// `solid` and, with its own width, draws it.

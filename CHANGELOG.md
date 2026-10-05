@@ -226,6 +226,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`leave_tui_mode` attempts every restore step** — keyboard flags, focus reports, mouse capture, bracketed paste (now also turned off, in case an app enabled it), cursor, alternate screen, theme reports, SGR, raw mode — even when a write fails, and returns the first error. It stopped at the first failed write, so the guard or panic hook could leave the shell in raw mode on the alternate screen. (C4G-LEAVE-TUI)
 
+- **Double and single border lines meet in Unicode's mixed glyphs.** A corner or junction where a `double` side meets a single one drew the dominant side's set for the whole cell (`border-style: double solid` had `╔` corners over single verticals); it now draws `╒╓╕╖╘╙╛╜╞╟╡╢╤╥╧╨╪╫` as the lines require. A heavy line meeting a double one has no glyph and keeps the dominant rule (DIVERGENCES §2). (C4G-MIXED-CORNERS)
+
 ### Changed — `rdom-showcase`
 
 - The Tab form demo's Name input carries `autofocus` (in its `MARKUP` and its built DOM alike), so switching to the demo — including Enter on its sidebar entry — moves focus into the form and typing goes straight into Name, as a browser focuses `[autofocus]` on navigation. Focus no longer stays in the sidebar after that switch. (`SHOWCASE-TAB-FORM-AUTOFOCUS-1`)

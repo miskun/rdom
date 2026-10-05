@@ -1,6 +1,7 @@
 //! The border glyph tables the joiner picks from: single-line
 //! junctions by per-direction weight (light / heavy), double-line
-//! junctions, the rounded corners, and the half-block quadrant set.
+//! junctions, the double / single mixes, the rounded corners, and the
+//! half-block quadrant set.
 
 /// Half-block glyph for an inward-quadrant set (see
 /// `Buffer::half_block_quads`). Index bits: `QUAD_TL=1, QUAD_TR=2,
@@ -140,8 +141,98 @@ pub(super) fn line_glyph(weights: [u8; 4]) -> &'static str {
     LINE_TABLE[line_index(weights)]
 }
 
+/// The line one direction of a junction carries.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum Line {
+    None,
+    Light,
+    Heavy,
+    Double,
+}
+
+/// The glyph where `lines` (N, E, S, W) meet, or `None` where Unicode
+/// has none: a heavy line meeting a double one, or a double and a
+/// single line on one axis (`╒` exists, a double-above-single vertical
+/// does not). Single lines pick by weight ([`line_glyph`]); all-double
+/// junctions from [`DOUBLE_TABLE`]; a double axis crossing a light one
+/// from the mixed tables (`╒╓╕╖╘╙╛╜╞╟╡╢╤╥╧╨╪╫`, U+2552–U+256B).
+pub(super) fn junction_glyph(lines: [Line; 4]) -> Option<&'static str> {
+    let weight = |l: Line| match l {
+        Line::None => 0,
+        Line::Light => 1,
+        Line::Heavy | Line::Double => 2,
+    };
+    if !lines.contains(&Line::Double) {
+        return Some(line_glyph(lines.map(weight)));
+    }
+    if lines.contains(&Line::Heavy) {
+        return None;
+    }
+    let mask = lines
+        .iter()
+        .enumerate()
+        .filter(|(_, l)| **l != Line::None)
+        .fold(0usize, |m, (i, _)| m | 1 << i);
+    let [n, e, s, w] = lines;
+    // The kind one axis carries: `None` when it is empty or mixed.
+    let axis = |a: Line, b: Line| match (a, b) {
+        (Line::None, x) | (x, Line::None) => Some(x),
+        (x, y) if x == y => Some(x),
+        _ => None,
+    };
+    match (axis(n, s)?, axis(e, w)?) {
+        (Line::Double | Line::None, Line::Double | Line::None) => Some(DOUBLE_TABLE[mask]),
+        (Line::Double, _) => Some(VERTICAL_DOUBLE_TABLE[mask]),
+        _ => Some(HORIZONTAL_DOUBLE_TABLE[mask]),
+    }
+}
+
+/// A double vertical line (N, S) meeting light horizontal ones (E, W),
+/// indexed like [`DOUBLE_TABLE`]; each glyph checked against its
+/// Unicode name ("… DOUBLE AND … SINGLE").
+const VERTICAL_DOUBLE_TABLE: [&str; 16] = [
+    "",  // 0000
+    "║", // 0001 N
+    "─", // 0010 E
+    "╙", // 0011 N+E — UP DOUBLE AND RIGHT SINGLE
+    "║", // 0100 S
+    "║", // 0101 N+S
+    "╓", // 0110 E+S — DOWN DOUBLE AND RIGHT SINGLE
+    "╟", // 0111 N+E+S — VERTICAL DOUBLE AND RIGHT SINGLE
+    "─", // 1000 W
+    "╜", // 1001 N+W — UP DOUBLE AND LEFT SINGLE
+    "─", // 1010 E+W
+    "╨", // 1011 N+E+W — UP DOUBLE AND HORIZONTAL SINGLE
+    "╖", // 1100 S+W — DOWN DOUBLE AND LEFT SINGLE
+    "╢", // 1101 N+S+W — VERTICAL DOUBLE AND LEFT SINGLE
+    "╥", // 1110 E+S+W — DOWN DOUBLE AND HORIZONTAL SINGLE
+    "╫", // 1111 — VERTICAL DOUBLE AND HORIZONTAL SINGLE
+];
+
+/// A double horizontal line (E, W) meeting light vertical ones (N, S),
+/// indexed like [`DOUBLE_TABLE`] ("… SINGLE AND … DOUBLE").
+const HORIZONTAL_DOUBLE_TABLE: [&str; 16] = [
+    "",  // 0000
+    "│", // 0001 N
+    "═", // 0010 E
+    "╘", // 0011 N+E — UP SINGLE AND RIGHT DOUBLE
+    "│", // 0100 S
+    "│", // 0101 N+S
+    "╒", // 0110 E+S — DOWN SINGLE AND RIGHT DOUBLE
+    "╞", // 0111 N+E+S — VERTICAL SINGLE AND RIGHT DOUBLE
+    "═", // 1000 W
+    "╛", // 1001 N+W — UP SINGLE AND LEFT DOUBLE
+    "═", // 1010 E+W
+    "╧", // 1011 N+E+W — UP SINGLE AND HORIZONTAL DOUBLE
+    "╕", // 1100 S+W — DOWN SINGLE AND LEFT DOUBLE
+    "╡", // 1101 N+S+W — VERTICAL SINGLE AND LEFT DOUBLE
+    "╤", // 1110 E+S+W — DOWN SINGLE AND HORIZONTAL DOUBLE
+    "╪", // 1111 — VERTICAL SINGLE AND HORIZONTAL DOUBLE
+];
+
 /// Double-line junctions. Index encoding: bit0 = N, bit1 = E, bit2 =
-/// S, bit3 = W. Used when the cell's dominant style is
+/// S, bit3 = W. Used when every line at the cell is double, or — where
+/// no mixed glyph exists — when the cell's dominant style is
 /// `BorderStyle::Double`.
 pub(super) const DOUBLE_TABLE: [&str; 16] = [
     "",  // 0000 - none
@@ -185,3 +276,44 @@ pub(super) const ROUNDED_TABLE: [&str; 16] = [
     "",  // 1110 E+S+W
     "",  // 1111 all four
 ];
+
+#[cfg(test)]
+mod tests {
+    use super::Line::{Double as D, Heavy as H, Light as L, None as O};
+    use super::*;
+
+    /// `C4G-MIXED-CORNERS`: every mixed corner, T and cross, by the
+    /// lines it joins (N, E, S, W); the gaps fall back to the caller.
+    #[test]
+    fn double_and_single_lines_pick_the_mixed_glyphs() {
+        for (lines, glyph) in [
+            ([O, D, L, O], "╒"),
+            ([O, L, D, O], "╓"),
+            ([O, O, L, D], "╕"),
+            ([O, O, D, L], "╖"),
+            ([L, D, O, O], "╘"),
+            ([D, L, O, O], "╙"),
+            ([L, O, O, D], "╛"),
+            ([D, O, O, L], "╜"),
+            ([L, D, L, O], "╞"),
+            ([D, L, D, O], "╟"),
+            ([L, O, L, D], "╡"),
+            ([D, O, D, L], "╢"),
+            ([O, D, L, D], "╤"),
+            ([O, L, D, L], "╥"),
+            ([L, D, O, D], "╧"),
+            ([D, L, O, L], "╨"),
+            ([L, D, L, D], "╪"),
+            ([D, L, D, L], "╫"),
+            ([O, D, D, O], "╔"),
+            ([D, D, D, D], "╬"),
+            ([O, L, H, O], "┎"),
+        ] {
+            assert_eq!(junction_glyph(lines), Some(glyph), "{lines:?}");
+        }
+        // No glyph: heavy meets double; double and single on one axis.
+        assert_eq!(junction_glyph([O, H, D, O]), None);
+        assert_eq!(junction_glyph([D, L, L, O]), None);
+        assert_eq!(junction_glyph([L, D, O, L]), None);
+    }
+}
