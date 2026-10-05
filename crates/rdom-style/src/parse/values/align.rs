@@ -1,86 +1,18 @@
 //! The Box Alignment properties' grammars (CSS Box Alignment 3 §5–§6):
 //! each property takes a subset of the shared keywords ([`Align`]), and
-//! one parser reads any of them from its [`Grammar`].
+//! one parser reads any of them from its grammar
+//! (`AlignProperty::grammar`, the table `Alignment::is_valid_for` reads).
 
-use crate::layout::{Align, Alignment, OverflowAlign};
+use crate::layout::alignment::Grammar;
+use crate::layout::{Align, AlignProperty, Alignment, OverflowAlign};
 use crate::parse::token::Token;
 
-/// Which keywords a Box Alignment property takes.
-struct Grammar {
-    /// `auto` (the `*-self` properties).
-    auto: bool,
-    /// `<baseline-position>`: `baseline`, `first baseline`, `last baseline`.
-    baseline: bool,
-    /// `<content-distribution>`: `space-between | space-around |
-    /// space-evenly | stretch`.
-    distribution: bool,
-    /// `<self-position>`'s `self-start | self-end` beside the
-    /// `<content-position>`s `center | start | end | flex-start | flex-end`.
-    self_positions: bool,
-    /// `left | right` (the inline-axis properties).
-    left_right: bool,
-    /// `legacy | legacy && [ left | right | center ]` (`justify-items`).
-    legacy: bool,
-}
-
-/// `justify-content: normal | <content-distribution> |
-/// <overflow-position>? [ <content-position> | left | right ]` (§5.2).
-const JUSTIFY_CONTENT: Grammar = Grammar {
-    auto: false,
-    baseline: false,
-    distribution: true,
-    self_positions: false,
-    left_right: true,
-    legacy: false,
-};
-
-/// `align-content: normal | <baseline-position> | <content-distribution>
-/// | <overflow-position>? <content-position>` (§5.1).
-const ALIGN_CONTENT: Grammar = Grammar {
-    auto: false,
-    baseline: true,
-    distribution: true,
-    self_positions: false,
-    left_right: false,
-    legacy: false,
-};
-
-/// `align-items: normal | stretch | <baseline-position> |
-/// <overflow-position>? <self-position>` (§6.3).
-const ALIGN_ITEMS: Grammar = Grammar {
-    auto: false,
-    baseline: true,
-    distribution: false,
-    self_positions: true,
-    left_right: false,
-    legacy: false,
-};
-
-/// `justify-self: auto | normal | stretch | <baseline-position> |
-/// <overflow-position>? [ <self-position> | left | right ]` (§6.1).
-const JUSTIFY_SELF: Grammar = Grammar {
-    auto: true,
-    baseline: true,
-    distribution: false,
-    self_positions: true,
-    left_right: true,
-    legacy: false,
-};
-
-/// `justify-items: normal | stretch | <baseline-position> |
-/// <overflow-position>? [ <self-position> | left | right ] | legacy |
-/// legacy && [ left | right | center ]` (§6.2).
-const JUSTIFY_ITEMS: Grammar = Grammar {
-    auto: false,
-    legacy: true,
-    ..JUSTIFY_SELF
-};
-
-/// `align-self: auto | <'align-items'>` (§6.1).
-const ALIGN_SELF: Grammar = Grammar {
-    auto: true,
-    ..ALIGN_ITEMS
-};
+const JUSTIFY_CONTENT: Grammar = AlignProperty::JustifyContent.grammar();
+const ALIGN_CONTENT: Grammar = AlignProperty::AlignContent.grammar();
+const ALIGN_ITEMS: Grammar = AlignProperty::AlignItems.grammar();
+const JUSTIFY_SELF: Grammar = AlignProperty::JustifySelf.grammar();
+const JUSTIFY_ITEMS: Grammar = AlignProperty::JustifyItems.grammar();
+const ALIGN_SELF: Grammar = AlignProperty::AlignSelf.grammar();
 
 fn keyword(token: &Token) -> Option<&str> {
     match token {

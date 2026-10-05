@@ -286,12 +286,12 @@ fn every_property_has_important_setter() {
         .visibility_important(crate::layout::Visibility::Hidden)
         .order_important(1)
         .flex_wrap_important(crate::layout::FlexWrap::Wrap)
-        .justify_content_important(crate::layout::Align::Center.into())
-        .align_items_important(crate::layout::Align::Center.into())
-        .align_content_important(crate::layout::Align::Center.into())
-        .justify_items_important(crate::layout::Align::Center.into())
-        .justify_self_important(crate::layout::Align::Center.into())
-        .align_self_important(crate::layout::Align::Center.into())
+        .justify_content_important(crate::layout::Align::Center)
+        .align_items_important(crate::layout::Align::Center)
+        .align_content_important(crate::layout::Align::Center)
+        .justify_items_important(crate::layout::Align::Center)
+        .justify_self_important(crate::layout::Align::Center)
+        .align_self_important(crate::layout::Align::Center)
         .flex_grow_important(1.0)
         .scrollbar_gutter_important(crate::layout::ScrollbarGutter::Stable)
         .scroll_behavior_important(crate::layout::ScrollBehavior::Smooth)
@@ -401,4 +401,43 @@ fn declared_count_counts_every_field_kind() {
     set("width", "var(--w)", &mut s).unwrap();
     set("--x", "1", &mut s).unwrap();
     assert_eq!(s.declared_count(), fields + 3);
+}
+
+// ─── Alignment and flex-direction (C6G-ALIGN-API) ───────────────────
+
+/// The alignment setters take `impl Into<Alignment>`: a bare keyword.
+#[test]
+fn alignment_setters_take_a_keyword() {
+    use crate::layout::{Align, Alignment};
+    let s = TuiStyle::new()
+        .justify_content(Align::Center)
+        .align_items(Alignment::safe(Align::End));
+    assert_eq!(
+        s.justify_content,
+        Some(Value::Specified(Alignment::new(Align::Center)))
+    );
+    assert_eq!(
+        s.align_items,
+        Some(Value::Specified(Alignment::safe(Align::End)))
+    );
+}
+
+/// CSS Box Alignment 3 §6.1: `space-between` is not in `align-self`'s
+/// grammar — a typed setter refuses it, loudly in a debug build.
+#[test]
+#[should_panic(expected = "align-self")]
+fn an_out_of_grammar_keyword_is_refused() {
+    let _ = TuiStyle::new().align_self(crate::layout::Align::SpaceBetween);
+}
+
+/// `flex-direction` in one value: the builder sets the axis and the
+/// reverse flag together.
+#[test]
+fn flex_direction_sets_axis_and_reverse() {
+    use crate::layout::{Direction, FlexDirection};
+    let s = TuiStyle::new().flex_direction(FlexDirection::ColumnReverse);
+    assert_eq!(s.direction, Some(Value::Specified(Direction::Column)));
+    assert_eq!(s.flex_reverse, Some(Value::Specified(true)));
+    let s = TuiStyle::new().direction_reverse_important(Direction::Row);
+    assert!(s.important.contains(ImportantMask::FLEX_DIRECTION));
 }

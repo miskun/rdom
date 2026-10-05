@@ -273,6 +273,13 @@ fn placed(value: Alignment, item: &ComputedStyle, frame: CrossFrame) -> ItemAlig
         | Align::SpaceBetween
         | Align::SpaceAround
         | Align::SpaceEvenly => CrossAlign::Start,
+        // `Align` is non-exhaustive (DESIGN): a keyword added to it
+        // (`anchor-center`, C15-ANCHOR) must be mapped here — the
+        // workspace's tests catch one that is not.
+        _ => {
+            debug_assert!(false, "unmapped `Align` keyword {:?}", value.keyword);
+            CrossAlign::Start
+        }
     };
     ItemAlign { align, safe }
 }

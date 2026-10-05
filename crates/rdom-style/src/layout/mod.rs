@@ -21,7 +21,7 @@
 //! - `sides` — `Sides`, the per-side shape
 //! - `background` — the background longhands' keyword families
 
-mod alignment;
+pub(crate) mod alignment;
 mod background;
 mod border;
 mod box_model;
@@ -32,7 +32,7 @@ mod sizing;
 #[cfg(test)]
 mod sizing_tests;
 
-pub use alignment::{Align, Alignment, OverflowAlign};
+pub use alignment::{Align, AlignProperty, Alignment, OverflowAlign};
 pub use background::{BackgroundAttachment, BackgroundRepeat, BoxShadow, RepeatStyle, VisualBox};
 pub use border::{
     Border, BorderCollapse, BorderRadius, BorderSpacing, BorderStyle, BorderWeight, BorderWidth,
@@ -40,9 +40,9 @@ pub use border::{
 };
 pub use box_model::{Margin, MarginTrim, MarginValue, Padding, PaddingValue};
 pub use keywords::{
-    BoxSizing, CaretColor, CaretTextColor, Direction, Display, FlexWrap, Flow, Overflow,
-    PointerEvents, Position, ScrollBehavior, ScrollbarGutter, TextDecoration, TextDirection,
-    UserSelect, Visibility, WhiteSpace, WritingMode, ZIndex,
+    BoxSizing, CaretColor, CaretTextColor, Direction, Display, FlexDirection, FlexWrap, Flow,
+    Overflow, PointerEvents, Position, ScrollBehavior, ScrollbarGutter, TextDecoration,
+    TextDirection, UserSelect, Visibility, WhiteSpace, WritingMode, ZIndex,
 };
 pub use rect::LayoutRect;
 pub use sides::{Corners, Sides};

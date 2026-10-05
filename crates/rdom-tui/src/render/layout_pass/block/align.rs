@@ -75,6 +75,13 @@ pub(super) fn justify_offset(value: Alignment, free: i32, rtl: bool, self_rtl: b
         | Align::SpaceBetween
         | Align::SpaceAround
         | Align::SpaceEvenly => start,
+        // `Align` is non-exhaustive (DESIGN): a keyword added to it
+        // (`anchor-center`, C15-ANCHOR) must be mapped here — the
+        // workspace's tests catch one that is not.
+        _ => {
+            debug_assert!(false, "unmapped `Align` keyword {:?}", value.keyword);
+            start
+        }
     }
 }
 

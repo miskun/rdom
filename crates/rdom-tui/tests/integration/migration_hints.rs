@@ -456,7 +456,7 @@ fn alignment_hints() {
     assert_eq!(Align::default(), Align::Normal);
     let safe = Alignment::safe(Align::Center);
     assert_eq!(safe.overflow, OverflowAlign::Safe);
-    let s = TuiStyle::new().justify_content(Align::SpaceBetween.into());
+    let s = TuiStyle::new().justify_content(Align::SpaceBetween);
     assert_eq!(
         s.justify_content,
         Some(Value::Specified(Alignment::new(Align::SpaceBetween)))
@@ -475,7 +475,7 @@ fn alignment_hints() {
 #[test]
 fn align_items_hints() {
     let s = TuiStyle::new()
-        .align_items(Align::Center.into())
+        .align_items(Align::Center)
         .align_self(Alignment::AUTO);
     assert_eq!(s.align_self, Some(Value::Specified(Alignment::AUTO)));
     let ComputedStyle {
@@ -498,7 +498,7 @@ fn align_items_hints() {
 /// C6-ALIGN-CONTENT: the `align_content` fields, bit, builders, parser.
 #[test]
 fn align_content_hints() {
-    let s = TuiStyle::new().align_content(Align::SpaceEvenly.into());
+    let s = TuiStyle::new().align_content(Align::SpaceEvenly);
     assert_eq!(
         s.align_content,
         Some(Value::Specified(Alignment::new(Align::SpaceEvenly)))
@@ -516,7 +516,7 @@ fn align_content_hints() {
 fn place_hints() {
     let s = TuiStyle::new()
         .justify_items(Alignment::LEGACY)
-        .justify_self(Align::Center.into());
+        .justify_self(Align::Center);
     assert_eq!(s.justify_items, Some(Value::Specified(Alignment::LEGACY)));
     let ComputedStyle {
         justify_items,
@@ -534,5 +534,34 @@ fn place_hints() {
     assert!(
         (ImportantMask::JUSTIFY_ITEMS | ImportantMask::JUSTIFY_SELF)
             .intersects(ImportantMask::all())
+    );
+}
+
+/// C6G-ALIGN-API: the alignment builders take `impl Into<Alignment>`
+/// (a bare keyword, no `.into()`), `Align` is `#[non_exhaustive]` (a
+/// match needs a `_` arm), the grammar check, and `flex-direction` as
+/// one value.
+#[test]
+fn alignment_api_hints() {
+    let s = TuiStyle::new()
+        .justify_content(Align::Center)
+        .align_self(Alignment::safe(Align::End));
+    assert_eq!(
+        s.justify_content,
+        Some(Value::Specified(Alignment::new(Align::Center)))
+    );
+    let edge = |a: Align| match a {
+        Align::Start | Align::FlexStart => 0,
+        Align::End | Align::FlexEnd => 2,
+        _ => 1,
+    };
+    assert_eq!(edge(Align::Center), 1);
+    assert!(!Alignment::new(Align::SpaceBetween).is_valid_for(AlignProperty::AlignSelf));
+    let s = TuiStyle::new().flex_direction(FlexDirection::RowReverse);
+    assert_eq!(s.flex_reverse, Some(Value::Specified(true)));
+    let _ = TuiStyle::new().direction_reverse_important(Direction::Column);
+    assert_eq!(
+        ComputedStyle::initial().flex_direction(),
+        FlexDirection::Row
     );
 }

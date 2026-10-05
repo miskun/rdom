@@ -115,6 +115,13 @@ pub(super) fn align_content_offsets(
             | Align::SelfEnd
             | Align::Left
             | Align::Right => Placement::Start,
+            // `Align` is non-exhaustive (DESIGN): a keyword added to it
+            // (`anchor-center`, C15-ANCHOR) must be mapped here — the
+            // workspace's tests catch one that is not.
+            _ => {
+                debug_assert!(false, "unmapped `Align` keyword {:?}", value.keyword);
+                Placement::Start
+            }
         }
     };
     Some(offsets(placement, free, n))
@@ -204,6 +211,13 @@ fn placement(
         Align::SpaceEvenly => Placement::Evenly,
         // Not in `justify-content`'s grammar.
         Align::Auto | Align::SelfStart | Align::SelfEnd | Align::Baseline | Align::LastBaseline => {
+            Placement::Start
+        }
+        // `Align` is non-exhaustive (DESIGN): a keyword added to it
+        // (`anchor-center`, C15-ANCHOR) must be mapped here — the
+        // workspace's tests catch one that is not.
+        _ => {
+            debug_assert!(false, "unmapped `Align` keyword {:?}", value.keyword);
             Placement::Start
         }
     }

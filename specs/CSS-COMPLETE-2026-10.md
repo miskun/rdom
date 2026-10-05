@@ -3005,3 +3005,35 @@ row comes from.
   (`css_phase6/scroll_range.rs`): failed to compile (no `ScrollRange`, no `scroll_range`). Green
   after: `0..=6` / `0..=0` for an `ltr` box, `-6..=0` for a `row-reverse` row, `-2..=0` for a
   `wrap-reverse` row's `scrollTop`, `None` for a text node. No snapshot changed.
+- 2026-10-08 — C6G-ALIGN-API (PN2, PN3, PN14). (1) The six alignment builders were `setter!`s typed
+  `Alignment`, so `.justify_content(Align::Center)` did not compile (the hints wrote `.into()`); they
+  take `impl Into<Alignment>` (`align_setter!`), and a bare `Align::X.into()` argument no longer
+  infers — dropped from the tests and the migration hints. (2) Out-of-grammar values
+  (`.align_self(Align::SpaceBetween.into())`) were stored and laid out as `start`. Decision:
+  per-property validation, from one grammar table — `AlignProperty::grammar` (the `Grammar` records
+  move from the parser to `layout/alignment.rs`; `parse::values::align` reads them) behind the public
+  `Alignment::is_valid_for(AlignProperty)`. Consistent with the other builders, which return `Self`
+  and never a `Result`: where a value has an in-range neighbour a builder keeps it there
+  (`valid_flex_factor` clamps a negative factor); an alignment keyword has none, so the setter
+  `debug_assert!`s (a programming error, loud in tests) and in a release build leaves the field
+  unset, as a CSS parser drops an invalid declaration. Recorded in DESIGN's `#[non_exhaustive]`
+  section beside the debug-asserting wildcard. (3) `ComputedStyle::flex_direction() ->
+  FlexDirection` (new, closed: `row | row-reverse | column | column-reverse`), with
+  `FlexDirection::new` / `axis` / `is_reversed`, `TuiStyle::flex_direction` /
+  `flex_direction_important` and the missing `direction_reverse_important`. (4) `Align` is
+  `#[non_exhaustive]` ahead of `anchor-center` (C15-ANCHOR): DESIGN listed it as closed data (a
+  renderer wildcard a silent fallback); it moves to the open vocabularies — a consumer reading an
+  alignment can treat an unknown keyword as `start`, and `is_valid_for` keeps the grammars checkable
+  without matching every keyword — and rdom-tui's four exhaustive matches (`block/align.rs`,
+  `flex/align.rs`, two in `flex/content.rs`) keep a wildcard that `debug_assert!`s, per the DESIGN
+  rule for sibling crates. DESIGN also corrected: line boxes / fragments, `AnonymousIfc` and
+  `GeneratedBox` are `#[non_exhaustive]` with constructors (C6G-LINEBOX-API,
+  C6G-PSEUDO-FLEX-ITEMS). Red: the rdom-style lib tests failed to compile (no `FlexDirection`, no
+  `AlignProperty`, `justify_content(Align::Center)` not `Into`-generic). Green after:
+  `the_typed_check_agrees_with_each_propertys_grammar` (17 keywords × default / `safe` / `unsafe` /
+  `legacy` × 6 properties: valid exactly when the serialized value parses back for the property),
+  the `should_panic` refusal, the builder and `flex_direction()` tests, and the
+  `migration_hints::alignment_api_hints` group. Mutation check (restored and touched): `left` /
+  `right` accepted by every grammar → `AlignContent: left` fails the agreement test. Existing test
+  code changed: thirteen `Align::X.into()` builder arguments (no longer inferable) lost the `.into()`.
+  No snapshot changed.

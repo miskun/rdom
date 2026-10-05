@@ -76,11 +76,11 @@ pub use tui_event::{TuiDispatchExt, TuiEvent};
 
 pub use ext::{PseudoLayout, StaticPosition, TuiExt};
 pub use layout::{
-    Align, Alignment, AspectRatio, BackgroundAttachment, BackgroundRepeat, Border, BorderRadius,
-    BorderSpacing, BorderStyle, BorderWeight, BorderWidth, BoxShadow, BoxSizing,
-    ContainIntrinsicSize, CornerStyle, Corners, Direction, Display, FlexBasis, FlexWrap, Flow,
-    GapValue, IntrinsicSize, LayoutRect, Margin, MarginTrim, MarginValue, MaxSize, MinSize,
-    Overflow, OverflowAlign, Padding, PaddingValue, PaintLength, RepeatStyle, Sides, Size,
+    Align, AlignProperty, Alignment, AspectRatio, BackgroundAttachment, BackgroundRepeat, Border,
+    BorderRadius, BorderSpacing, BorderStyle, BorderWeight, BorderWidth, BoxShadow, BoxSizing,
+    ContainIntrinsicSize, CornerStyle, Corners, Direction, Display, FlexBasis, FlexDirection,
+    FlexWrap, Flow, GapValue, IntrinsicSize, LayoutRect, Margin, MarginTrim, MarginValue, MaxSize,
+    MinSize, Overflow, OverflowAlign, Padding, PaddingValue, PaintLength, RepeatStyle, Sides, Size,
     TextDirection, UserSelect, Visibility, VisualBox, WhiteSpace, WritingMode,
 };
 pub use node::{TuiNodeExt, TuiNodeMutExt};

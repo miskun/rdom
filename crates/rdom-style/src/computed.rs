@@ -277,6 +277,12 @@ pub struct ComputedStyle {
 }
 
 impl ComputedStyle {
+    /// `flex-direction` as one value (CSS Flexbox §5.1): the axis
+    /// ([`direction`](Self::direction)) and [`flex_reverse`](Self::flex_reverse).
+    pub fn flex_direction(&self) -> crate::layout::FlexDirection {
+        crate::layout::FlexDirection::new(self.direction, self.flex_reverse)
+    }
+
     /// Spec initial values: what every property starts as before any
     /// cascade input is applied. `Color::Reset` means "use the terminal
     /// default"; size/layout defaults match the legacy Element defaults

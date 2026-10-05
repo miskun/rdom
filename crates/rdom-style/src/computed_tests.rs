@@ -86,3 +86,14 @@ fn content_none_inside_concat_contributes_nothing() {
     ]);
     assert_eq!(c.resolve(&vars), Some("AB".into()));
 }
+
+/// CSS Flexbox §5.1: `flex-direction` read back as one value.
+#[test]
+fn flex_direction_reads_axis_and_reverse_as_one() {
+    use crate::layout::FlexDirection;
+    let mut s = ComputedStyle::initial();
+    assert_eq!(s.flex_direction(), FlexDirection::Row);
+    s.direction = Direction::Column;
+    s.flex_reverse = true;
+    assert_eq!(s.flex_direction(), FlexDirection::ColumnReverse);
+}

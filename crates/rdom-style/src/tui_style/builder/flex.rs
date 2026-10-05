@@ -5,7 +5,46 @@
 
 use super::super::{ImportantMask, TuiStyle};
 use crate::Value;
-use crate::layout::{Direction, Display};
+use crate::layout::{AlignProperty, Alignment, Direction, Display, FlexDirection};
+
+/// A Box Alignment setter and its `!important` twin:
+/// `align_setter!("css-name", field, setter, important_setter, MASK,
+/// Property)`. The value is checked against the property's grammar
+/// ([`checked`]).
+macro_rules! align_setter {
+    ($css:literal, $field:ident, $setter:ident, $important_setter:ident, $mask:ident, $prop:ident) => {
+        #[doc = concat!("Set `", $css, "` to `v` — a keyword (`Align::Center`) or an [`Alignment`] (`Alignment::safe(Align::End)`). Chainable. A value outside `", $css, "`'s grammar ([`Alignment::is_valid_for`]) is refused: a debug build panics, a release build leaves the declaration unset, as a CSS parser drops it.")]
+        pub fn $setter(mut self, v: impl Into<Alignment>) -> Self {
+            if let Some(v) = checked(v.into(), AlignProperty::$prop) {
+                self.$field = Some(Value::Specified(v));
+            }
+            self
+        }
+
+        #[doc = concat!("Like `", stringify!($setter), "` but also marks the `", $css, "` declaration `!important`.")]
+        pub fn $important_setter(mut self, v: impl Into<Alignment>) -> Self {
+            if let Some(v) = checked(v.into(), AlignProperty::$prop) {
+                self.$field = Some(Value::Specified(v));
+                self.important |= ImportantMask::$mask;
+            }
+            self
+        }
+    };
+}
+
+/// `v` when `property`'s grammar takes it. An out-of-grammar value is a
+/// programming error — loud in a debug build — and, as CSS drops an
+/// invalid declaration, sets nothing in a release one.
+fn checked(v: Alignment, property: AlignProperty) -> Option<Alignment> {
+    let ok = v.is_valid_for(property);
+    debug_assert!(
+        ok,
+        "`{}` is not a value of `{}` (CSS Box Alignment 3)",
+        crate::parse::values::serialize_alignment(v),
+        property.name()
+    );
+    ok.then_some(v)
+}
 
 impl TuiStyle {
     /// Set `gap`: whole cells (`gap(2)`) or a `calc()` / percentage
@@ -72,53 +111,53 @@ impl TuiStyle {
         self.important |= ImportantMask::FLEX_DIRECTION | ImportantMask::FLEX_REVERSE;
         self.direction(v)
     }
-    setter!(
+    align_setter!(
         "justify-content",
         justify_content,
         justify_content,
         justify_content_important,
         JUSTIFY_CONTENT,
-        crate::layout::Alignment
+        JustifyContent
     );
-    setter!(
+    align_setter!(
         "justify-items",
         justify_items,
         justify_items,
         justify_items_important,
         JUSTIFY_ITEMS,
-        crate::layout::Alignment
+        JustifyItems
     );
-    setter!(
+    align_setter!(
         "justify-self",
         justify_self,
         justify_self,
         justify_self_important,
         JUSTIFY_SELF,
-        crate::layout::Alignment
+        JustifySelf
     );
-    setter!(
+    align_setter!(
         "align-content",
         align_content,
         align_content,
         align_content_important,
         ALIGN_CONTENT,
-        crate::layout::Alignment
+        AlignContent
     );
-    setter!(
+    align_setter!(
         "align-items",
         align_items,
         align_items,
         align_items_important,
         ALIGN_ITEMS,
-        crate::layout::Alignment
+        AlignItems
     );
-    setter!(
+    align_setter!(
         "align-self",
         align_self,
         align_self,
         align_self_important,
         ALIGN_SELF,
-        crate::layout::Alignment
+        AlignSelf
     );
     setter!(
         "flex-wrap",
@@ -134,6 +173,26 @@ impl TuiStyle {
         self.direction = Some(Value::Specified(v));
         self.flex_reverse = Some(Value::Specified(true));
         self
+    }
+    /// Like `direction_reverse` but also marks the `flex-direction`
+    /// declaration `!important`.
+    pub fn direction_reverse_important(mut self, v: Direction) -> Self {
+        self.important |= ImportantMask::FLEX_DIRECTION | ImportantMask::FLEX_REVERSE;
+        self.direction_reverse(v)
+    }
+    /// Set `flex-direction` to `v` (CSS Flexbox §5.1): its axis and
+    /// whether it is reversed, in one value. Chainable.
+    pub fn flex_direction(self, v: FlexDirection) -> Self {
+        if v.is_reversed() {
+            self.direction_reverse(v.axis())
+        } else {
+            self.direction(v.axis())
+        }
+    }
+    /// Like `flex_direction` but also marks the declaration `!important`.
+    pub fn flex_direction_important(mut self, v: FlexDirection) -> Self {
+        self.important |= ImportantMask::FLEX_DIRECTION | ImportantMask::FLEX_REVERSE;
+        self.flex_direction(v)
     }
 
     /// `display: flex` — outer [`Display::Block`] + inner

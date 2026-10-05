@@ -2560,7 +2560,7 @@ fn inline_block_with_pseudo_chrome_hugs_content_plus_pseudos() {
                 .flow(Flow::Flex)
                 .direction(Direction::Column)
                 .width(Size::Flex(1.0))
-                .align_items(crate::layout::Align::FlexStart.into()),
+                .align_items(crate::layout::Align::FlexStart),
         )
         .rule_unchecked("btn", TuiStyle::new().display(Display::InlineBlock))
         .rule_unchecked(
@@ -2693,7 +2693,7 @@ fn inline_block_with_position_relative_shifts_in_flex_parent() {
                 .flow(Flow::Flex)
                 .direction(Direction::Column)
                 .width(Size::Flex(1.0))
-                .align_items(crate::layout::Align::FlexStart.into()),
+                .align_items(crate::layout::Align::FlexStart),
         )
         .rule_unchecked(
             "btn",

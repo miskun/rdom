@@ -15,6 +15,51 @@ pub enum Direction {
     Column,
 }
 
+/// `flex-direction` as one value (CSS Flexbox §5.1): an axis and whether
+/// main-start and main-end swap. rdom stores it as two fields — the axis
+/// (`direction`) and `flex_reverse` — which
+/// `ComputedStyle::flex_direction` and `TuiStyle::flex_direction` join.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum FlexDirection {
+    /// `row`, the initial value.
+    #[default]
+    Row,
+    /// `row-reverse`.
+    RowReverse,
+    /// `column`.
+    Column,
+    /// `column-reverse`.
+    ColumnReverse,
+}
+
+impl FlexDirection {
+    /// The value for `axis`, reversed or not.
+    pub const fn new(axis: Direction, reverse: bool) -> Self {
+        match (axis, reverse) {
+            (Direction::Row, false) => FlexDirection::Row,
+            (Direction::Row, true) => FlexDirection::RowReverse,
+            (Direction::Column, false) => FlexDirection::Column,
+            (Direction::Column, true) => FlexDirection::ColumnReverse,
+        }
+    }
+
+    /// The main axis.
+    pub const fn axis(self) -> Direction {
+        match self {
+            FlexDirection::Row | FlexDirection::RowReverse => Direction::Row,
+            FlexDirection::Column | FlexDirection::ColumnReverse => Direction::Column,
+        }
+    }
+
+    /// Whether main-start and main-end swap (`*-reverse`).
+    pub const fn is_reversed(self) -> bool {
+        matches!(
+            self,
+            FlexDirection::RowReverse | FlexDirection::ColumnReverse
+        )
+    }
+}
+
 /// `flex-wrap` (CSS Flexbox §5.2): whether a flex container is
 /// single-line or multi-line, and which way its lines stack. Not
 /// inherited; initial `NoWrap`.

@@ -113,7 +113,7 @@ fn nested_baseline_rows_measure_each_subtree_once() {
         rdom_style::TuiStyle::new()
             .display(crate::layout::Display::Block)
             .flow(crate::layout::Flow::Flex)
-            .align_items(crate::layout::Align::Baseline.into())
+            .align_items(crate::layout::Align::Baseline)
     };
     for depth in [4, 12] {
         let n = column_walks(depth, style());
