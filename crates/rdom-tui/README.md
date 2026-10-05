@@ -98,6 +98,85 @@ a UA `!important` rule beats an author `!important` rule.
 
 Boxes size as `box-sizing: content-box`, the CSS initial value: `width`, `height` and `min-*` / `max-*` measure the content box, padding and border lie outside it (form controls are `border-box` in the UA sheet); start a sheet with `*, ::before, ::after { box-sizing: border-box }` to size every box by its border.
 
+## Grid layout
+
+`display: grid` lays its children out on rows and columns (CSS Grid Layout 2): track lists with cells, `%`, `fr`, `minmax()`, `fit-content()` and `repeat()` (including `auto-fill` / `auto-fit`), named lines and areas, line, span and area placement with `dense` auto-placement, `subgrid`, and Box Alignment in both axes. Lengths are whole cells, so tracks are too. A page laid out with named areas, its `main` a grid of cards that fits as many 4-cell columns as it can:
+
+```rust
+use rdom_tui::prelude::*;
+
+fn main() -> std::result::Result<(), rdom_css::ParseError> {
+    let sheet = rdom_css::from_css_strict(
+        r#"
+        .page {
+            display: grid;
+            height: 5;
+            grid-template-columns: 6 1fr;
+            grid-template-rows: auto 1fr auto;
+            grid-template-areas: "head head" "nav main" "foot foot";
+            gap: 0 1;
+        }
+        .head { grid-area: head }
+        .nav  { grid-area: nav }
+        .foot { grid-area: foot }
+        .main {
+            grid-area: main;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(4, 1fr));
+            column-gap: 1;
+        }
+        .wide { grid-column: 1 / -1 }
+        "#,
+    )?;
+
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let mut add = |parent: NodeId, class: &str, text: &str| -> NodeId {
+        let id = dom.create_element("div");
+        dom.set_attribute(id, "class", class).unwrap();
+        if !text.is_empty() {
+            let t = dom.create_text_node(text);
+            dom.append_child(id, t).unwrap();
+        }
+        dom.append_child(parent, id).unwrap();
+        id
+    };
+    let page = add(root, "page", "");
+    add(page, "head", "Title");
+    add(page, "nav", "Menu");
+    let main = add(page, "main", "");
+    add(page, "foot", "Status");
+    add(main, "card", "ab");
+    add(main, "card", "cd");
+    add(main, "wide", "wide");
+    add(main, "card", "ef");
+
+    // Cascade, lay out and paint into a 20 × 5 buffer.
+    let area = Rect::new(0, 0, 20, 5);
+    dom.cascade(&sheet);
+    dom.layout_dom(area);
+    let mut buf = Buffer::empty(area);
+    dom.paint_dom(&mut buf, area);
+
+    let rows: Vec<String> = (0..5)
+        .map(|y| (0..20).map(|x| buf.cell(x, y).unwrap().symbol()).collect())
+        .collect();
+    // The `main` area is 13 cells wide: two 6-cell columns and a gap.
+    // `.wide` spans both (`1 / -1`), so the next card starts a new row.
+    assert_eq!(
+        rows,
+        [
+            "Title               ",
+            "Menu   ab     cd    ",
+            "       wide         ",
+            "       ef           ",
+            "Status              ",
+        ]
+    );
+    Ok(())
+}
+```
+
 ## Pseudo-elements and `content`
 
 ```rust

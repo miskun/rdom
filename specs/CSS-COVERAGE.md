@@ -71,7 +71,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 |---|---:|---:|---:|---:|---:|
 | 3.1 Syntax, cascade and inheritance (Syntax 3, Cascade 4/5, CSS 2.1 §6) | 18 | 1 | 0 | 2 | 21 |
 | 3.2 Custom properties (CSS Variables 1) | 6 | 0 | 0 | 1 | 7 |
-| 3.3 Values and units (Values 4) | 15 | 2 | 1 | 4 | 22 |
+| 3.3 Values and units (Values 4) | 16 | 1 | 1 | 4 | 22 |
 | 3.4 Color (Color 4 / 5) | 15 | 1 | 0 | 1 | 17 |
 | 3.5 Backgrounds and borders (Backgrounds 3, Borders 4) | 13 | 1 | 0 | 2 | 16 |
 | 3.6 Box model and sizing (Box 3, Sizing 3/4) | 7 | 2 | 0 | 0 | 9 |
@@ -93,9 +93,9 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 5 | 2 | 1 | 1 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **143** | **28** | **90** | **46** | **307** |
+| **Total** | **144** | **27** | **90** | **46** | **307** |
 
-When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 118 rows Partial / Missing.
+When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 117 rows Partial / Missing.
 
 Headline: rdom parses **183 property names** (`property_names()`, after C7-GRID-AREAS). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are `line-height`, `text-align`, and grid placement.
 
@@ -269,7 +269,7 @@ dropped. The audit's six, with where each stands:
 | `lh`, `rlh` | Partial | One row each, in every length property and math function (C2-LH); they follow `line-height` when it lands (C9-LINE-HEIGHT). | Yes | `CALC/units.rs` |
 | `vw` / `vh` / `vmin` / `vmax` (+ `sv*` / `lv*` / `dv*`, `vi` / `vb`) | Supported | 1% of the terminal's columns / rows, absolute at computed-value time (the cascade resolves them; a resize cascades again) (C2-VIEWPORT). | — | `CALC/units.rs`, `rdom-style/src/absolute.rs`, `CASC` |
 | `cqw` / `cqh` / `cqi` / `cqb` / `cqmin` / `cqmax` | Missing | Need `@container`. | No | `CALC` |
-| `fr` | Partial | Accepted on `width` / `height` as an rdom flex weight (§4); grid's `fr` does not exist. | Yes | `V/length.rs::parse_size` |
+| `fr` | Supported | Grid's `<flex>` in every track list and track size (`1fr`, `minmax(0, 1fr)`, CSS Grid 2 §7.2.4, C7-GRID-CORE), sized by §11.7; also accepted on `width` / `height` as an rdom flex weight (§4). | Yes | `V/grid.rs`, `V/length.rs::parse_size` |
 | `<time>` (`s`, `ms`) | Supported | Rounded to whole ms (documented). | Yes | `TR::parse_time_ms` |
 | `<angle>` (`deg`, `grad`, `rad`, `turn`) | Supported | In the trigonometric functions and registered `<angle>` custom properties (which interpolate); `parse::values::parse_angle` gives degrees for the color hues of Phase 3 (C2-ANGLE); always finite — NaN is 0, ±∞ clamps to `MAX_ANGLE_DEGREES` (C2G-CALC-SEMANTICS). No rotation exists. | — | `CALC/units.rs`, `V/numeric.rs::parse_angle` |
 | `<resolution>`, `<frequency>` | N/A | Image resolution / aural values. | — | — |

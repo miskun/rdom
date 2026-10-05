@@ -4246,3 +4246,16 @@ row comes from.
   only, a `column wrap` flex item's height-dependent min-content width not; and, found with
   C7G-MEMO-PURITY, that a subgrid stays out of its parent's baseline groups on its non-subgridded axis
   too. No snapshot changed.
+- 2026-10-09 — C7G-README-GRID (API B1): the doctested rdom-tui README had no grid example, and two
+  docs still said grid did not exist. The README gains a "Grid layout" section: what grid supports,
+  and a complete page layout built from CSS (`rdom_css::from_css_strict`) — named areas, `auto 1fr
+  auto` rows, a two-value `gap`, a `main` that is itself a grid of `repeat(auto-fill, minmax(4, 1fr))`
+  cards, one `grid-column: 1 / -1` — cascaded, laid out and painted into a 20 × 5 `Buffer` whose rows
+  it asserts, so `cargo test --workspace` checks the paint. The Rust-builder form joins it with
+  C7G-GRID-SETTERS, once `grid-area: head` is one call. Stale lines: CSS-COVERAGE's `fr` row
+  (`grid's fr does not exist`) is *Supported* — grid's `<flex>` and the rdom flex weight — with §1's
+  counts moved (§3.3 16 / 1, total 144 / 27, 117 rows Partial / Missing); DIVERGENCES' masonry entry
+  no longer calls Grid 1 / 2 "scheduled". Check: the doctest's first build failed to compile — its
+  `main` returned `Box<dyn Error>`, and `rdom_css::ParseError` does not implement `std::error::Error`
+  (the example returns `ParseError` instead; the missing impl is a separate API finding, reported, not
+  fixed here); then green, its painted rows as written. No test expectation or snapshot changed.

@@ -383,6 +383,8 @@ One row per renamed or reshaped public item: the 0.5 form, its replacement, the 
 - **An absolutely positioned box in a grid takes its grid area as its containing block** (CSS Grid 2 §9.1): `grid-row` / `grid-column` against the laid-out grid, an `auto` or missing line the containing block's edge, `rtl` columns from the right. (C7-GRID-PLACE)
 - **Grid items paint in order-modified document order and stack by `z-index`** (CSS Grid 2 §6.5), as flex items now do too (§5.4): a static item with a numeric `z-index` is a stacking context, painted and hit in its layer. (C7-GRID-PLACE)
 - `TuiNodeMutExt::set_grid_template_columns` / `set_grid_template_rows`, grammar-checked as the builders; the grid value types at the crate root and in the prelude. (C7-GRID-CORE)
+- Docs: the README has a grid section with a doctested page layout — named areas, `auto 1fr auto` rows, `gap`, a `repeat(auto-fill, minmax(…))` card grid and `grid-column: 1 / -1` — whose paint the doctest checks. (C7G-README-GRID)
+
 
 ### Changed — `rdom-tui`
 
