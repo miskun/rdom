@@ -2205,3 +2205,8 @@ row comes from.
   perturbs `gap: 1 2`. Snapshot: `dom_api` — the demo's `cssText` line is unchanged; its
   `length` reads 9 (was 7) and its `item()` list gains `row-gap` and `column-gap` after `gap`,
   the longhands the demo's `gap: 2` now has, as `padding` lists its four.
+- 2026-10-08 — C6 file-size pass (part 1, no behaviour change): `rdom-showcase/src/nav.rs` (634
+  lines, touched by C6-DIRECTION-REVERSE) — its inline test module moved to `nav_tests.rs` (195;
+  `nav.rs` 441). Production files touched by part 1 now under the bar: `property_dispatch/table.rs`
+  439 (C6-FLEX-LONGHANDS split), `intrinsic/mod.rs` 585 and `tui_style/builder/mod.rs` 569 — near
+  it, for C6-SPLIT; the `flex/*` files are 219–403.
