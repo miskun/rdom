@@ -27,15 +27,17 @@ impl LinePacker<'_> {
             .cur_line_width
             .saturating_add(separator)
             .saturating_add(self.word_width);
-        let must_wrap = projected > self.content_width
+        let must_wrap = projected > self.line_width()
             && matches!(self.ws, WhiteSpace::Normal | WhiteSpace::PreWrap);
 
         if must_wrap && self.line_has_content() {
             self.break_line();
             self.pending_space = false;
             self.pending_space_source = None;
+            self.fit_empty_line(self.word_width);
             self.emit_word_to_current_line(0);
         } else {
+            self.fit_empty_line(self.word_width);
             self.emit_word_to_current_line(separator);
             self.pending_space = false;
             self.pending_space_source = None;
@@ -185,7 +187,7 @@ impl LinePacker<'_> {
             .cur_line_width
             .saturating_add(separator)
             .saturating_add(width);
-        if projected > self.content_width && self.cur_line_width > 0 {
+        if projected > self.line_width() && self.cur_line_width > 0 {
             self.break_line();
             self.pending_space = false;
             self.pending_space_source = None;
@@ -197,6 +199,7 @@ impl LinePacker<'_> {
             self.pending_space = false;
             self.pending_space_source = None;
         }
+        self.fit_empty_line(width);
         let x = i32::from(self.cur_line_width);
         self.cur_atoms.push((self.cur_fragments.len(), rows));
         self.cur_fragments.push(InlineFragment {
@@ -217,13 +220,33 @@ impl LinePacker<'_> {
         self.emitted_any = true;
     }
 
+    /// Settle the current line — its rows (`vertical`), its content at
+    /// the inline-start edge of its band — and open the next one.
     pub(super) fn break_line(&mut self) {
         let mut fragments = std::mem::take(&mut self.cur_fragments);
-        let generated = std::mem::take(&mut self.cur_generated);
+        let mut generated = std::mem::take(&mut self.cur_generated);
         let (baseline, height) = vertical::settle_line(&mut fragments, &self.cur_atoms);
         self.cur_atoms.clear();
         let width = self.cur_line_width;
         self.cur_line_width = 0;
+        // `text-align: start` (CSS Text 3 §7.1; rdom has no `text-align`
+        // yet, C9-TEXT-ALIGN): flush with the band's left edge, or under
+        // `rtl` its right one — a line wider than the band starting left
+        // of it and overflowing its left (end) edge.
+        let (start, band_width) = self.band;
+        let shift = if self.rtl {
+            start + i32::from(band_width) - i32::from(width)
+        } else {
+            start
+        };
+        if shift != 0 {
+            for f in &mut fragments {
+                f.x += shift;
+            }
+            for g in &mut generated {
+                g.x += shift;
+            }
+        }
         let top = self.cur_top;
         self.cur_top = top.saturating_add(height);
         self.lines.push(LineBox {
@@ -234,6 +257,7 @@ impl LinePacker<'_> {
             height,
             baseline,
         });
+        self.open_line();
     }
 
     /// Flush any pending word and the current line. Drops trailing

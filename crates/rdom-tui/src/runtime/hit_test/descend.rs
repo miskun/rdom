@@ -27,8 +27,8 @@ use crate::style::ComputedStyle;
 /// siblings).
 /// Hit-test the stacking context rooted at `root` in reverse paint
 /// order: child contexts with positive `z-index` (highest first), the
-/// `z-index: auto | 0` layer in reverse tree order, the root's in-flow
-/// content, child contexts with negative `z-index`, and finally the
+/// `z-index: auto | 0` layer in reverse tree order, the floats in reverse
+/// tree order, the root's in-flow content, child contexts with negative `z-index`, and finally the
 /// root's own box. `clip` is the region the context paints into.
 pub(super) fn hit_stacking_context(
     dom: &Dom<TuiExt>,
@@ -64,6 +64,7 @@ pub(super) fn hit_stacking_context(
     };
     if hit_layers(dom, root, &layers.positive, x, y, viewport, path)
         || hit_layers(dom, root, &layers.zero_auto, x, y, viewport, path)
+        || hit_layers(dom, root, &layers.floats, x, y, viewport, path)
     {
         root_in_path(path);
         return true;

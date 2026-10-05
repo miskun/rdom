@@ -33,6 +33,55 @@ impl Run {
     }
 }
 
+/// Partition a block container's in-flow box items — `(index in its box
+/// sequence, item)`, floats included — into runs. A run is a contiguous
+/// sequence of children that share a level (block or inline); when the
+/// level flips, the run closes and a new one opens. Comments and
+/// fragments are inline-level (no effect on layout beyond breaking
+/// adjacency). A float (CSS 2.1 §9.5) joins an open inline run — the
+/// packer places it beside the run's lines — and otherwise stands in a
+/// float run of its own, placed at the flow's cursor (`RunKind::Float`).
+pub(super) fn partition(dom: &Dom<TuiExt>, in_flow: &[(usize, BoxItem)]) -> Vec<Run> {
+    let mut runs: Vec<Run> = Vec::new();
+    for (orig_idx, child_id) in in_flow {
+        let floated = child_id.node().is_some_and(|n| is_float(dom, n));
+        let kind = match runs.last() {
+            _ if !floated => child_level(dom, *child_id),
+            Some(last) if last.kind == RunKind::Inline => RunKind::Inline,
+            _ => RunKind::Float,
+        };
+        match runs.last_mut() {
+            Some(last) if last.kind == kind => {
+                last.children.push(*child_id);
+                last.child_range.1 = orig_idx + 1;
+            }
+            _ => runs.push(Run {
+                kind,
+                children: vec![*child_id],
+                child_range: (*orig_idx, orig_idx + 1),
+            }),
+        }
+    }
+    runs
+}
+
+/// Whether the child `id` floats (CSS 2.1 §9.5): out of flow, but laid
+/// out by this pass where it occurs.
+pub(super) fn is_float(dom: &Dom<TuiExt>, id: NodeId) -> bool {
+    crate::render::layout_pass::float::float_side(dom, id).is_some()
+}
+
+/// The first run that is not a float run: the first that holds a line or
+/// a block-level box.
+pub(super) fn first_flow_run(runs: &[Run]) -> Option<&Run> {
+    runs.iter().find(|r| r.kind != RunKind::Float)
+}
+
+/// The last run that is not a float run.
+pub(super) fn last_flow_run(runs: &[Run]) -> Option<&Run> {
+    runs.iter().rev().find(|r| r.kind != RunKind::Float)
+}
+
 /// CSS 2.1 §9.2.1.1 / §16.6.1: white space that the `white-space`
 /// property collapses away generates no inline box, so an inline run
 /// holding nothing else — collapsible whitespace-only text, comments —
@@ -58,7 +107,7 @@ pub(super) fn drop_lineless_runs(
     let mut carried: Vec<NodeId> = Vec::new();
     let mut kept = Vec::with_capacity(runs.len());
     for (i, run) in runs.into_iter().enumerate() {
-        let holds_line = run.kind == RunKind::Block
+        let holds_line = run.kind != RunKind::Inline
             || run.children.iter().any(|&c| match c {
                 BoxItem::Node(c) => bears_line(dom, id, c),
                 BoxItem::Generated(..) => true,
@@ -68,6 +117,20 @@ pub(super) fn drop_lineless_runs(
         if !holds_line {
             for c in run.children.iter().filter_map(|c| c.node()) {
                 carried.extend(static_before.remove(&c).unwrap_or_default());
+            }
+            // Its floats still take their place, at the cursor.
+            let floats: Vec<BoxItem> = run
+                .children
+                .iter()
+                .copied()
+                .filter(|c| c.node().is_some_and(|n| is_float(dom, n)))
+                .collect();
+            if !floats.is_empty() {
+                kept.push(Run {
+                    kind: RunKind::Float,
+                    children: floats,
+                    child_range: run.child_range,
+                });
             }
             continue;
         }
@@ -91,6 +154,9 @@ pub(super) fn drop_lineless_runs(
 pub(super) enum RunKind {
     Block,
     Inline,
+    /// Floats with no inline run to join (CSS 2.1 §9.5): placed at the
+    /// flow's cursor, holding no line.
+    Float,
 }
 
 /// Classify a box item as block-level vs inline-level. Text
@@ -148,7 +214,8 @@ pub(in crate::render::layout_pass) fn inline_runs(
                 runs.push(vec![item]);
                 open = true;
             }
-            RunKind::Block => open = false,
+            // `child_level` never gives `Float`: floats are filtered above.
+            RunKind::Block | RunKind::Float => open = false,
         }
     }
     runs

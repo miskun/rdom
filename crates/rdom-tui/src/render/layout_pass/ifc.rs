@@ -61,6 +61,13 @@ pub(crate) fn is_ifc_block(dom: &Dom<TuiExt>, id: NodeId) -> bool {
             continue;
         }
         let computed = child.ext().and_then(|e| e.computed.as_ref());
+        // A float is out of flow (CSS 2.1 §9.5): neither inline content
+        // nor a block-level box of this flow — the packer places it.
+        if computed.is_some_and(|c| c.float != crate::layout::Float::None)
+            && super::float::float_side(dom, child.id()).is_some()
+        {
+            continue;
+        }
         // An atomic inline (`inline-block`, `inline-flex`, CSS Display 3
         // §2.4) is one opaque box in the line, never inline text.
         if computed.is_some_and(|c| crate::render::box_tree::is_atomic_inline(c)) {

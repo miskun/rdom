@@ -197,7 +197,7 @@ pub(super) fn children_size(
                 .iter()
                 .map(|run| {
                     let pseudos = crate::render::inline::RunPseudos::default();
-                    crate::render::inline::pack_run(dom, id, run, pseudos, child_cross_budget)
+                    crate::render::inline::pack_run(dom, id, run, pseudos, child_cross_budget, None)
                         .height()
                 })
                 .fold(blocks, |acc, n| acc.saturating_add(n))

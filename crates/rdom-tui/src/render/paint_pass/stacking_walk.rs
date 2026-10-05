@@ -61,6 +61,7 @@ fn paint_stacking_context_body(
         paint_layers(dom, &layers, &layers.negative, buf, viewport);
         shadow::paint_backdrop_shadows(dom, layers.shadows_of(0), buf);
         recurse_children(dom, root, buf, clip, viewport);
+        paint_layers(dom, &layers, &layers.floats, buf, viewport);
         paint_layers(dom, &layers, &layers.zero_auto, buf, viewport);
         paint_layers(dom, &layers, &layers.positive, buf, viewport);
         return;
@@ -72,6 +73,7 @@ fn paint_stacking_context_body(
     paint_layers(dom, &layers, &layers.negative, buf, viewport);
     shadow::paint_backdrop_shadows(dom, layers.shadows_of(0), buf);
     paint_content(dom, root, buf, clip, viewport, &frame);
+    paint_layers(dom, &layers, &layers.floats, buf, viewport);
     paint_layers(dom, &layers, &layers.zero_auto, buf, viewport);
     paint_layers(dom, &layers, &layers.positive, buf, viewport);
 }

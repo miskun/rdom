@@ -44,6 +44,7 @@ use crate::layout::WhiteSpace;
 use super::vertical::AtomRows;
 use super::{GeneratedFragment, InlineFragment, LineBox};
 use crate::ext::PseudoSlot;
+use crate::render::layout_pass::float::lines::LineExclusions;
 
 mod emit;
 
@@ -130,6 +131,19 @@ pub(super) struct LinePacker<'a> {
     /// The lines are packed for an intrinsic width only
     /// ([`Self::measuring`]).
     measuring: bool,
+
+    /// The floats beside the lines (CSS 2.1 §9.5), when the context has
+    /// any to consult: the band each line may use, and where a float met
+    /// in the content goes.
+    exclusions: Option<&'a mut dyn LineExclusions>,
+    /// The current line's band: its start column and width — the whole
+    /// content box unless floats shorten it.
+    band: (i32, u16),
+    /// Floats met on a line with no room left for them, placed at the
+    /// next line's top.
+    pending_floats: Vec<NodeId>,
+    /// Lines start at the right (inline-start) edge (`direction: rtl`).
+    rtl: bool,
 }
 
 impl<'a> LinePacker<'a> {
@@ -149,6 +163,79 @@ impl<'a> LinePacker<'a> {
             pending_space_source: None,
             emitted_any: false,
             measuring: false,
+            exclusions: None,
+            band: (0, content_width),
+            pending_floats: Vec::new(),
+            rtl: false,
+        }
+    }
+
+    /// Start each line at the right edge of its band — the inline-start
+    /// edge under `direction: rtl` (CSS Writing Modes 4 §2.1, CSS Text 3
+    /// §7.1's `start`) — a line wider than it overflowing the left edge.
+    pub(super) fn starting_right(mut self, rtl: bool) -> Self {
+        self.rtl = rtl;
+        self
+    }
+
+    /// Pack the lines around the floats `exclusions` describes (CSS 2.1
+    /// §9.5).
+    pub(super) fn around(mut self, exclusions: &'a mut dyn LineExclusions) -> Self {
+        self.exclusions = Some(exclusions);
+        self.open_line();
+        self
+    }
+
+    /// The current line's width: its band's.
+    pub(super) fn line_width(&self) -> u16 {
+        self.band.1
+    }
+
+    /// A new line starts at row `cur_top`: the floats waiting for it are
+    /// placed at its top, and its band read.
+    pub(super) fn open_line(&mut self) {
+        let Some(ex) = self.exclusions.as_deref_mut() else {
+            return;
+        };
+        for id in std::mem::take(&mut self.pending_floats) {
+            ex.place_float(id, self.cur_top, None);
+        }
+        self.band = ex.band(self.cur_top);
+    }
+
+    /// A float met in the inline content (CSS 2.1 §9.5.1): placed on the
+    /// current line when it fits beside what the line holds — the band
+    /// narrows, and the line's content shifts past a left float when the
+    /// line is settled — else at the next line's top. Without exclusions
+    /// (an intrinsic measurement) it is not packed.
+    pub(in crate::render::inline) fn push_float(&mut self, id: NodeId) {
+        let used = self.line_has_content().then_some(self.cur_line_width);
+        let Some(ex) = self.exclusions.as_deref_mut() else {
+            return;
+        };
+        if ex.place_float(id, self.cur_top, used) {
+            self.band = ex.band(self.cur_top);
+        } else {
+            self.pending_floats.push(id);
+        }
+    }
+
+    /// An empty line too narrow for `width` cells beside the floats moves
+    /// down past them until it is wide enough or no float shortens it
+    /// (CSS 2.1 §9.5).
+    pub(super) fn fit_empty_line(&mut self, width: u16) {
+        if self.line_has_content() {
+            return;
+        }
+        while width > self.band.1 && self.band.1 < self.content_width {
+            let Some(ex) = self.exclusions.as_deref_mut() else {
+                return;
+            };
+            let Some(next) = ex.next_change(self.cur_top) else {
+                return;
+            };
+            self.cur_top = next;
+            self.band = ex.band(next);
         }
     }
 

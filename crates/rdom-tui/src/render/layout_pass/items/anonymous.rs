@@ -118,6 +118,9 @@ impl AnonymousItem {
             &self.content,
             RunPseudos::default(),
             width,
+            // A flex or grid container's anonymous item holds no float:
+            // its children are items, which do not float.
+            None,
         )
     }
 

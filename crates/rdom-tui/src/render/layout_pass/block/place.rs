@@ -109,7 +109,26 @@ pub(super) fn lay_out_block_child(
     // everything accumulated so far.
     let gap = margin_acc.resolved();
     let outer_y = y_cursor + gap as i32;
-    let outer_rect = LayoutRect::new(outer_x, outer_y, resolved.width, height);
+    // The floats of the formatting context: clearance (CSS 2.1 §9.5.2)
+    // moves the box below the floats its `clear` names, and a box that
+    // establishes a formatting context of its own goes beside the floats
+    // or below them, never over them (§9.5).
+    let beside = super::super::float::beside_floats(
+        dom,
+        child,
+        &computed,
+        super::super::float::FlowBox {
+            x0: container.x,
+            cb_width: containing_block_width,
+            x: outer_x,
+            y: outer_y,
+            width: resolved.width,
+            rows: height,
+        },
+    );
+    let cleared = beside.y != outer_y;
+    let (outer_x, outer_y) = (beside.x, beside.y);
+    let outer_rect = LayoutRect::new(outer_x, outer_y, beside.width, height);
     layout_node(dom, child, outer_rect, containing_block_width);
 
     // `layout_node` finalizes an `Auto` height via CSS 2.1 §10.6.3
@@ -128,7 +147,7 @@ pub(super) fn lay_out_block_child(
         .map(|r| r.height)
         .unwrap_or(height);
 
-    if collapse_through {
+    if collapse_through && !cleared {
         // Fold the outer bottom into the SAME accumulator and
         // leave y_cursor where it was. Next sibling's `gap`
         // computation will see all of A.mb, E.mt, E.mb, B.mt.

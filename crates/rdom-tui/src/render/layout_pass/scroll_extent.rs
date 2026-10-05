@@ -72,7 +72,7 @@ pub(crate) fn record_scroll_content_size(
     // stretches to the container still contributes the cells that
     // stick out of it. The walk stops at a descendant that clips its
     // own content (it owns whatever overflows it) and skips out-of-flow
-    // boxes: `display:none` takes no space, and positioned boxes are
+    // boxes but floats: `display:none` takes no space, and positioned boxes are
     // placed in phase 2 against their own containing block — the ones
     // this box contains are merged below.
     for child in element_children_of(dom, id) {
@@ -300,7 +300,9 @@ fn extend_scrollable_overflow(
     clip: ClipEdges,
     extend: &mut impl FnMut(LayoutRect),
 ) {
-    if !is_in_flow(dom, id) {
+    // A float is out of flow but in the flow's overflow: its border box
+    // counts like any descendant's (§2.2).
+    if !is_in_flow(dom, id) && super::float::float_side(dom, id).is_none() {
         return;
     }
     extend_box_overflow(dom, id, clip, extend);

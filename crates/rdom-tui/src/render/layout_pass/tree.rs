@@ -21,8 +21,10 @@ pub(crate) fn element_children_of(dom: &Dom<TuiExt>, id: NodeId) -> Vec<NodeId> 
 }
 
 /// True iff `id` participates in normal flow. Non-elements (text, comments,
-/// fragments) always do; an element does when it's neither `display: none` nor
-/// out-of-flow positioned (`absolute` / `fixed`). The single source of truth
+/// fragments) always do; an element does when it's neither `display: none`,
+/// out-of-flow positioned (`absolute` / `fixed`) nor a float (CSS 2.1 §9.3:
+/// "an element is called out of flow if it is floated, absolutely
+/// positioned, or is the root element"; `float::float_side`). The single source of truth
 /// for the "skip out-of-flow children" filter shared by block + flex layout and
 /// the scroll-content walk (`DRY-1`), by the margin-collapse predicates, intrinsic sizing, paint and hit-test.
 pub(crate) fn is_in_flow(dom: &Dom<TuiExt>, id: NodeId) -> bool {
@@ -39,7 +41,9 @@ pub(crate) fn is_in_flow(dom: &Dom<TuiExt>, id: NodeId) -> bool {
     c.display == Display::Contents
         || (c.display != Display::None
             && !matches!(c.position, Position::Absolute | Position::Fixed)
-            && !is_collapsed_table_row(dom, id))
+            && !is_collapsed_table_row(dom, id)
+            && (c.float == crate::layout::Float::None
+                || super::float::float_side(dom, id).is_none()))
 }
 
 /// A `visibility: collapse` table row (CSS 2.1 §17.5.5): removed from

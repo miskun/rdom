@@ -87,6 +87,10 @@ pub(super) fn fill_run<'a>(
                 }
             }
             NodeType::Element => {
+                if crate::render::layout_pass::float::float_side(dom, child_id).is_some() {
+                    push_float(dom, child_id, packer);
+                    continue;
+                }
                 if child.tag_name() == Some("br") {
                     packer.push_hard_break(child_id);
                     continue;
@@ -149,6 +153,11 @@ fn walk_subtree<'a>(dom: &'a Dom<TuiExt>, id: NodeId, packer: &mut LinePacker<'a
                 {
                     continue;
                 }
+                // A float leaves the line (CSS 2.1 §9.5): placed beside it.
+                if crate::render::layout_pass::float::float_side(dom, child.id()).is_some() {
+                    push_float(dom, child.id(), packer);
+                    continue;
+                }
                 // <br> is a hard break. Matches HTML's baked-in
                 // behavior; recognized by tag name rather than by a
                 // Display variant to avoid complicating the cascade
@@ -191,6 +200,23 @@ fn walk_inline_box<'a>(dom: &'a Dom<TuiExt>, id: NodeId, packer: &mut LinePacker
     if let Some(text) = generated::static_pseudo_text(dom, id, StyleSlot::After) {
         packer.push_generated(id, PseudoSlot::After, text);
     }
+}
+
+/// Push the float `id` met in the inline content (CSS 2.1 §9.5). An
+/// intrinsic width measurement packs it as an unbreakable box its margin
+/// box wide — beside the text on one line for max-content, alone for
+/// min-content (CSS Sizing 3 §5.1) — and lays nothing out.
+fn push_float(dom: &Dom<TuiExt>, id: NodeId, packer: &mut LinePacker<'_>) {
+    if packer.is_measuring() {
+        let width = crate::render::layout_pass::float::size::outer_contribution(
+            dom,
+            id,
+            packer.content_width() > 0,
+        );
+        packer.push_atomic_inline_block(id, width, vertical::AtomRows::UNMEASURED);
+        return;
+    }
+    packer.push_float(id);
 }
 
 /// Push the inline block `id` as an atom: its width and its rows in

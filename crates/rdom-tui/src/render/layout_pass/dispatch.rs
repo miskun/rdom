@@ -6,7 +6,6 @@ use rdom_core::{Dom, NodeId};
 
 use crate::ext::{AnonymousIfc, TuiExt};
 use crate::layout::LayoutRect;
-use crate::render::inline::compute_inline_layout;
 use crate::style::ComputedStyle;
 
 use super::ifc::is_ifc_block;
@@ -25,6 +24,45 @@ use super::{element_children_of, layout_node};
 /// (IFC + pure-text via `inline_layout.height()`; flex and grid via the
 /// parent's distribution of their measured content size).
 pub(super) fn layout_children(
+    dom: &mut Dom<TuiExt>,
+    id: NodeId,
+    container: LayoutRect,
+    computed: &ComputedStyle,
+) -> Option<super::block::BlockMeasurement> {
+    // A block container that establishes a block formatting context
+    // (CSS 2.1 §9.4.1) holds its own floats: an exclusion area of its
+    // own while its children are laid out (`float`).
+    let owns_floats = computed.flow.is_block_flow()
+        && (super::block::establishes_bfc(dom, id, computed) || !super::float::in_context(dom));
+    if !owns_floats {
+        return lay_out_children(dom, id, container, computed);
+    }
+    super::float::enter(dom);
+    let measurement = lay_out_children(dom, id, container, computed);
+    let area = super::float::leave(dom);
+    // CSS 2.1 §10.6.7: a block formatting context root's automatic height
+    // reaches the bottom margin edge of its lowest float.
+    let Some(lowest) = area.lowest() else {
+        return measurement;
+    };
+    let scroll_y = super::gutter::scroll_offset(dom, id, crate::layout::Direction::Column);
+    let floats = (lowest - (container.y - scroll_y)).clamp(0, i32::from(u16::MAX)) as u16;
+    let content = measurement.map(|m| m.content_height).or_else(|| {
+        dom.node(id)
+            .ext()
+            .and_then(|e| e.inline_layout.as_ref())
+            .map(|il| il.height())
+    });
+    match content {
+        Some(h) if h >= floats => measurement,
+        h => Some(super::block::BlockMeasurement {
+            content_height: floats.max(h.unwrap_or(0)),
+        }),
+    }
+}
+
+/// [`layout_children`] in whatever float context is current.
+fn lay_out_children(
     dom: &mut Dom<TuiExt>,
     id: NodeId,
     container: LayoutRect,
@@ -59,12 +97,13 @@ pub(super) fn layout_children(
                 ext.margin_chain = None;
             }
         }
-        // Compute + store the inline layout at the block's final
-        // content width. Paint reads this back directly.
-        let inline_layout = compute_inline_layout(dom, id, container.width);
         // The lines sit in the *scrolled* content rect, as paint and
         // hit-test read them back.
         let lines_at = crate::render::inline::scrolled_content_rect(dom, id).unwrap_or(container);
+        // Compute + store the inline layout at the block's final
+        // content width, beside the floats of its formatting context.
+        // Paint reads this back directly.
+        let (inline_layout, floats) = pack_around_floats(dom, id, lines_at, container.width);
         super::positioning::record_static_positions_in_ifc(dom, id, &inline_layout, lines_at);
         // Atomic inline-block fragments (`<button>` in
         // `<p>hi <button>X</button> ok</p>`) need their layout rect
@@ -78,6 +117,9 @@ pub(super) fn layout_children(
         }
         for (atom_id, atom_rect) in atoms {
             layout_node(dom, atom_id, atom_rect, container.width);
+        }
+        for (float_id, rect) in floats {
+            layout_node(dom, float_id, rect, container.width);
         }
         // IFC height is the line count — block-flow auto-height
         // resolution uses this if the IFC block has `height: auto`.
@@ -115,15 +157,14 @@ pub(super) fn layout_children(
     // Flexbox §4, CSS Grid 2 §6.1), laid out by its arm below.
     let items = computed.flow.is_flex_or_grid();
     if has_text_child && no_in_flow_element_children && !items {
-        let inline_layout = compute_inline_layout(dom, id, container.width);
-        super::positioning::record_static_positions_in_ifc(
-            dom,
-            id,
-            &inline_layout,
-            crate::render::inline::scrolled_content_rect(dom, id).unwrap_or(container),
-        );
+        let lines_at = crate::render::inline::scrolled_content_rect(dom, id).unwrap_or(container);
+        let (inline_layout, floats) = pack_around_floats(dom, id, lines_at, container.width);
+        super::positioning::record_static_positions_in_ifc(dom, id, &inline_layout, lines_at);
         if let Some(ext) = dom.node_mut(id).ext_mut() {
             ext.inline_layout = Some(inline_layout);
+        }
+        for (float_id, rect) in floats {
+            layout_node(dom, float_id, rect, container.width);
         }
         return None;
     }
@@ -171,6 +212,28 @@ pub(super) fn layout_children(
     // `intrinsic_size`, not via a children-walk. Return `None` so
     // `layout_node` leaves our height alone.
     None
+}
+
+/// Pack `id`'s inline content at `width` cells, its lines starting at
+/// `lines_at`, beside the floats of the formatting context it is in and
+/// placing its own there (CSS 2.1 §9.5): the layout, and the floats with
+/// the border boxes to lay them out at.
+fn pack_around_floats(
+    dom: &mut Dom<TuiExt>,
+    id: NodeId,
+    lines_at: LayoutRect,
+    width: u16,
+) -> (
+    crate::render::inline::InlineLayout,
+    Vec<(NodeId, LayoutRect)>,
+) {
+    let content = LayoutRect::new(lines_at.x, lines_at.y, width, lines_at.height);
+    super::float::with_area(dom, |dom, area| {
+        let mut ex = super::float::lines::InlineFloats::new(dom, area, content);
+        let layout =
+            crate::render::inline::compute_inline_layout_around(dom, id, width, Some(&mut ex));
+        (layout, ex.into_placed())
+    })
 }
 
 /// Keep a flex or grid container's anonymous items' boxes, in document

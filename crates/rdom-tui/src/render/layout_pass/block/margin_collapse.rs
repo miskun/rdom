@@ -145,7 +145,7 @@ pub(super) fn parent_collapses_bottom_with_last_child(
 ///
 /// Fragments between an element and its layout parent are transparent
 /// (`element_children_of` unwraps them).
-fn establishes_independent_formatting_context(
+pub(in crate::render::layout_pass) fn establishes_independent_formatting_context(
     dom: &Dom<TuiExt>,
     id: NodeId,
     computed: &ComputedStyle,

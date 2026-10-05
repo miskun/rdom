@@ -171,7 +171,7 @@ row comes from.
 | C8-INSETS | `top` / `right` / `bottom` / `left` / `inset`: `%` and `calc()` | done (with C2-PERCENT) |
 | C8-PARSE-ERROR | Every public error type implements `Display` and `std::error::Error` (found by C7G-README-GRID) | done |
 | C8-Z-INDEX | `z-index` full integer range | done |
-| C8-FLOAT | `float` / `clear` (line-box exclusion, clearance) | partial — parse and cascade done; layout, paint and hit-testing next |
+| C8-FLOAT | `float` / `clear` (line-box exclusion, clearance) | partial — values, layout, paint, hit-testing done; intrinsic sizes and the margin-trim / line-clamp / text-overflow interactions next |
 | C8-OVERFLOW-CLIP | `overflow: clip`, two-value `overflow`, `overflow-clip-margin`, logical `overflow-block` / `-inline` | done |
 | C8-TEXT-OVERFLOW | `text-overflow: clip / ellipsis / <string>` | done |
 | C8-LINE-CLAMP | `line-clamp` / `max-lines` / `block-ellipsis` / `continue` | done |
@@ -4676,3 +4676,47 @@ row comes from.
   beside its `display: inline-flex` (a float blockifies it), so `float` is bound `_` there and
   `float_initial_is_none_and_unblockifies` covers it. Until the layout lands (part 2) a floated box
   lays out in flow as the block it computes to (DIVERGENCES §3). No snapshot changed.
+- 2026-10-05 — C8-FLOAT part 2 (CSS 2.1 §9.5, §9.5.1 rules 1–9, §9.5.2, §9.4.1, §10.6.7, Appendix E
+  step 5; CSS Logical 1 §2.3; CSS Display 3 §2.5): layout, paint and hit-testing. Decided, one
+  module: `layout_pass/float/` — `area::ExclusionArea` (one BFC's float margin boxes; `place` is
+  §9.5.1: not above an earlier float's top, as high as it fits beside the earlier floats over its
+  whole height — else below the first that ends — and as far left / right as it goes; `band` the
+  free columns over some rows; `opening` the first top where a box fits; `clearance`, `lowest`),
+  pure and unit-tested; a stack of areas as document data (`enter` / `leave` around a block
+  container that establishes a BFC — `block::establishes_bfc`, the margin-collapse predicate —
+  `with_area` lending the innermost one out for a placement or a packing, never across a
+  `layout_node`; `mark` / `rewind` so a box that lays its children out again — its gutter settled,
+  a stale offset dropped — places their floats once); `size::FloatBox` (shrink-to-fit width,
+  §10.3.5, or the declared one through `box-sizing`, clamped; the content height at it; margins,
+  `auto` 0); `lines::LineExclusions`, the API the inline packer consumes — `band(top)`,
+  `next_change(top)`, `place_float(id, top, used)` — implemented by `InlineFloats` in the IFC's
+  coordinates; `flow::beside_floats` (clearance — the greater of the hypothetical top and the
+  floats' bottom — and a BFC root beside the floats, an `auto` width shrinking down to its
+  min-content contribution, else below them). Floats are out of flow (`tree::is_in_flow`, §9.3;
+  `float_side`: a box parent that is a block container — a flex or grid item, and the root's
+  children, rdom's viewport-column items, do not float). Block layout: a float joins an open
+  inline run (the packer places it), otherwise stands in a `RunKind::Float` run placed at the
+  cursor past the collapsed margins and laid out at once (`settle_height` corrects its exclusion
+  to the height it got); a lineless inline run keeps its floats as a float run; the host's
+  pseudo-elements and margin-trim / collapse read the first / last non-float run. The packer
+  (no ad-hoc offsets): each line takes its band at its top (`open_line`), wraps at the band's
+  width, an empty line too narrow for its first word moves down to the next float bottom (§9.5),
+  a float met mid-line goes on the line if the band has room after the line's content (the
+  content then shifts past a left float when the line settles) else at the next line's top
+  (rule 6), and `break_line` aligns the line in its band — `inline/align.rs` is gone, its `rtl`
+  rule there (C8-RTL-LINE-OVERFLOW's negative start included). `InlineLayout::line_at_row`
+  allows the gap a moved-down line leaves. The IFC, text-leaf and anonymous-box paths pack
+  around the floats and lay the floats they placed out; a BFC root's automatic height reaches
+  its lowest float (§10.6.7, `dispatch::layout_children`). Paint and hit-testing: a fourth layer,
+  `Layers::floats`, painted after the in-flow content and before `z-index: auto` positioned boxes,
+  each float atomically (its positioned descendants this context's), hit-tested in reverse —
+  DIVERGENCES §2 records that inline content overflowing into a float is under it. The scrollable
+  overflow walk counts floats. Red: `css_phase8/float/place.rs` — 8 of 10 failed with the
+  implementation stashed (the floats laid out in flow: `XYZ` above `aa bb cc`, floats stacked
+  `[(0,0),(0,1),(0,2),(0,3)]`, `aa` / `XY` on two rows); green after. Added after (green,
+  mutation-checked): `clear.rs` (5), `bfc.rs` (10), `paint.rs` (2), `area.rs` unit tests (5).
+  Mutation (each restored and touched): the packer's line width ignoring the band → four
+  line-shortening tests; no clearance and no BFC avoidance → four; no §10.6.7 height → one; no
+  `rewind` → the re-layout test (`x` 8 for 0); no float paint layer → eleven; no float hit layer
+  → the hit test. Split: the run partition moved to `block/runs.rs` (`partition`, with the float
+  rule; `block/mod.rs` 607 → 565). No existing test expectation or snapshot changed.

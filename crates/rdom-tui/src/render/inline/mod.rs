@@ -43,7 +43,6 @@
 //! break opportunities. UAX #14 line breaking (soft hyphen, complex-
 //! script clustering) is out of scope.
 
-mod align;
 mod boxes;
 mod caret;
 mod feed;
@@ -61,6 +60,7 @@ use crate::ext::TuiExt;
 use crate::node::TuiNodeExt;
 use crate::render::box_tree::BoxItem;
 
+use crate::render::layout_pass::float::lines::LineExclusions;
 pub use boxes::{GeneratedFragment, InlineFragment, InlineLayout, LineBox};
 pub use caret::cell_of_position;
 pub(crate) use caret::cells_before_byte;
@@ -295,14 +295,46 @@ pub fn atomic_placements(
 /// `content_width`. Idempotent — calling twice with the same inputs
 /// yields identical output.
 pub fn compute_inline_layout(dom: &Dom<TuiExt>, block: NodeId, content_width: u16) -> InlineLayout {
-    let mut packer = LinePacker::new(content_width, white_space(dom, block));
+    compute_inline_layout_around(dom, block, content_width, None)
+}
+
+/// [`compute_inline_layout`], its line boxes shortened by the floats
+/// `exclusions` describes and its own floats placed there (CSS 2.1
+/// §9.5).
+pub(crate) fn compute_inline_layout_around<'a>(
+    dom: &'a Dom<TuiExt>,
+    block: NodeId,
+    content_width: u16,
+    exclusions: Option<&'a mut dyn LineExclusions>,
+) -> InlineLayout {
+    let mut packer = packer_for(dom, block, content_width, exclusions);
     fill_block(dom, block, &mut packer);
     packer.finish();
-    let mut lines = packer.take_lines();
-    align::start_lines_at_inline_start(dom, block, &mut lines, content_width);
     InlineLayout {
-        lines,
+        lines: packer.take_lines(),
         content_width,
+    }
+}
+
+/// A packer for the inline formatting context of the block container
+/// `block`: its `white-space`, its lines starting at its inline-start edge
+/// — the right one under `direction: rtl` (CSS Writing Modes 4 §2.1) —
+/// beside the floats `exclusions` describes.
+fn packer_for<'a>(
+    dom: &'a Dom<TuiExt>,
+    block: NodeId,
+    content_width: u16,
+    exclusions: Option<&'a mut dyn LineExclusions>,
+) -> LinePacker<'a> {
+    let rtl = dom
+        .node(block)
+        .ext()
+        .and_then(|e| e.computed.as_ref())
+        .is_some_and(|c| c.text_direction == crate::layout::TextDirection::Rtl);
+    let packer = LinePacker::new(content_width, white_space(dom, block)).starting_right(rtl);
+    match exclusions {
+        Some(ex) => packer.around(ex),
+        None => packer,
     }
 }
 
@@ -332,7 +364,7 @@ pub fn compute_inline_layout_for_run(
 ) -> InlineLayout {
     let items: Vec<BoxItem> = direct_children.iter().map(|&c| BoxItem::Node(c)).collect();
     let pseudos = generated::run_pseudos(dom, parent, &items);
-    pack_run(dom, parent, &items, pseudos, content_width)
+    pack_run(dom, parent, &items, pseudos, content_width, None)
 }
 
 /// Which of the run's host pseudo-elements a [`pack_run`] includes.
@@ -346,20 +378,22 @@ pub(crate) struct RunPseudos {
 /// (`box_tree::box_sequence`) — as one inline formatting context,
 /// with `parent`'s `::before` / `::after` first / last as `pseudos`
 /// asks. An empty `direct_children` packs the pseudo-elements alone.
-pub(crate) fn pack_run(
-    dom: &Dom<TuiExt>,
+/// The lines are shortened by the floats `exclusions` describes, and the
+/// run's floats placed there (CSS 2.1 §9.5); without it a float in the
+/// run is not packed.
+pub(crate) fn pack_run<'a>(
+    dom: &'a Dom<TuiExt>,
     parent: NodeId,
     direct_children: &[BoxItem],
     pseudos: RunPseudos,
     content_width: u16,
+    exclusions: Option<&'a mut dyn LineExclusions>,
 ) -> InlineLayout {
-    let mut packer = LinePacker::new(content_width, white_space(dom, parent));
+    let mut packer = packer_for(dom, parent, content_width, exclusions);
     fill_run(dom, parent, direct_children, pseudos, &mut packer);
     packer.finish();
-    let mut lines = packer.take_lines();
-    align::start_lines_at_inline_start(dom, parent, &mut lines, content_width);
     InlineLayout {
-        lines,
+        lines: packer.take_lines(),
         content_width,
     }
 }

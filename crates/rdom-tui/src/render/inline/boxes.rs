@@ -10,8 +10,10 @@
 //! row of it, the *baseline* row; each atom is placed so that its own
 //! baseline (CSS 2.1 §10.8.1 — its last line box, or its bottom margin
 //! edge) lands on that row, which is the `vertical-align: baseline`
-//! initial value (`vertical_align`). Lines stack without gaps:
-//! `lines[i + 1].top == lines[i].top + lines[i].height`.
+//! initial value (`vertical_align`). Lines stack without gaps —
+//! `lines[i + 1].top == lines[i].top + lines[i].height` — except where a
+//! line too narrow beside a float moved down past it (CSS 2.1 §9.5): its
+//! `top` is then lower, and the rows between belong to no line.
 
 use rdom_core::NodeId;
 
@@ -254,11 +256,12 @@ impl InlineLayout {
     }
 
     /// The index of the line box spanning `row` (counted from the top
-    /// of the layout), or `None` past the last line.
+    /// of the layout), or `None` past the last line or in the rows a line
+    /// moved down past a float left empty.
     pub fn line_at_row(&self, row: u16) -> Option<usize> {
-        // Lines are sorted by `top` and stack without gaps.
+        // Lines are sorted by `top`.
         let i = self.lines.partition_point(|l| l.bottom() <= row);
-        (i < self.lines.len()).then_some(i)
+        (i < self.lines.len() && self.lines[i].top <= row).then_some(i)
     }
 }
 

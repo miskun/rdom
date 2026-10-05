@@ -2,4 +2,8 @@
 //! §9.5.2, §9.7, §10.6.7; CSS Logical 1 §2.3). One submodule per
 //! concern.
 
+mod bfc;
+mod clear;
 mod computed;
+mod paint;
+mod place;

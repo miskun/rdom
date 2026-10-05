@@ -8,12 +8,17 @@
 //! 2. child contexts with negative `z-index`, ascending,
 //! 3. the root's in-flow content in tree order (a non-positioned
 //!    nested context paints atomically in its place),
-//! 4. positioned descendants with `z-index: auto | 0` in tree order —
+//! 4. its floats in tree order, each atomically, as if it created a
+//!    stacking context whose positioned descendants still belong to this
+//!    one (Appendix E step 5 — after the in-flow content of 3, which
+//!    rdom does not split into backgrounds and inline content,
+//!    DIVERGENCES),
+//! 5. positioned descendants with `z-index: auto | 0` in tree order —
 //!    an `auto` one as a plain box whose own positioned descendants
 //!    belong to this context, a `0` one as a child context,
-//! 5. child contexts with positive `z-index`, ascending.
+//! 6. child contexts with positive `z-index`, ascending.
 //!
-//! [`collect_layers`] gathers 2, 4 and 5 for one context in a single
+//! [`collect_layers`] gathers 2, 4, 5 and 6 for one context in a single
 //! walk that stops at nested contexts, and with them the in-flow boxes
 //! whose outer `box-shadow`s belong to the background phase of 3 (CSS
 //! 2.1 Appendix E step 4 paints block backgrounds — and box shadows,
@@ -83,6 +88,8 @@ pub(crate) struct Layers {
     pub negative: Vec<LayerEntry>,
     /// `z-index: auto | 0`, in tree order.
     pub zero_auto: Vec<LayerEntry>,
+    /// Floats that are not positioned, in tree order (Appendix E step 5).
+    pub floats: Vec<LayerEntry>,
     /// Child contexts with positive `z-index`, ascending `(z, order)`.
     pub positive: Vec<LayerEntry>,
     /// In-flow boxes with an outer shadow, by unit, in tree order.
@@ -137,7 +144,23 @@ fn is_item_of(dom: &Dom<TuiExt>, parent: NodeId) -> bool {
 /// item ([`is_z_indexed_item`]). Every such box that is not positioned
 /// establishes a stacking context ([`creates_stacking_context`]).
 pub(crate) fn is_layered(dom: &Dom<TuiExt>, parent: NodeId, c: &ComputedStyle) -> bool {
-    is_positioned(c) || is_z_indexed_item(dom, parent, c)
+    is_positioned(c) || is_z_indexed_item(dom, parent, c) || is_float(dom, parent, c)
+}
+
+/// Does the element `c`, a child of `parent`, float (CSS 2.1 §9.5) —
+/// paint from its stacking context's float layer (Appendix E step 5)?
+/// The answer `layout_pass::float::float_side` gives from the element:
+/// its `float` is not `none`, it has a box, and `parent` — its box parent
+/// — is a block container.
+pub(crate) fn is_float(dom: &Dom<TuiExt>, parent: NodeId, c: &ComputedStyle) -> bool {
+    c.float != crate::layout::Float::None
+        && !matches!(c.display, Display::None | Display::Contents)
+        && dom.node(parent).node_type() == NodeType::Element
+        && dom
+            .node(parent)
+            .ext()
+            .and_then(|e| e.computed.as_deref())
+            .is_some_and(|p| p.flow.is_block_flow())
 }
 
 /// Does the element `c`, a child of `parent`, establish a stacking
@@ -305,7 +328,32 @@ impl Walk<'_> {
             if c.display == Display::None {
                 continue;
             }
-            if is_layered(dom, box_parent, c) {
+            if !is_positioned(c)
+                && !is_z_indexed_item(dom, box_parent, c)
+                && is_float(dom, box_parent, c)
+            {
+                // A float paints atomically after the in-flow content
+                // (Appendix E step 5); its positioned descendants belong
+                // to this context, its in-flow boxes to its own unit.
+                let context = creates_stacking_context(dom, box_parent, c);
+                let entry = LayerEntry {
+                    id: cid,
+                    z: 0,
+                    order: self.order,
+                    context,
+                    clip: current.content_clip,
+                };
+                self.order += 1;
+                self.layers.floats.push(entry);
+                if !context {
+                    self.chain.push(Frame {
+                        positioned: false,
+                        content_clip: children_clip(dom, cid, c, current.content_clip),
+                    });
+                    self.children(cid, cid, Some(entry.unit()));
+                    self.chain.pop();
+                }
+            } else if is_layered(dom, box_parent, c) {
                 let clip = match c.position {
                     Position::Fixed => viewport,
                     Position::Absolute => self

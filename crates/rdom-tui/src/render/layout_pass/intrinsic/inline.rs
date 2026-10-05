@@ -86,7 +86,7 @@ pub(super) fn pseudo_content_width(dom: &Dom<TuiExt>, id: NodeId) -> u16 {
 pub(super) fn own_line_pseudo_rows(dom: &Dom<TuiExt>, id: NodeId, content_width: u16) -> u16 {
     use crate::render::inline::{RunPseudos, generated, pack_run};
     let own_line = generated::own_line_pseudos(dom, id);
-    let rows = |pseudos: RunPseudos| pack_run(dom, id, &[], pseudos, content_width).height();
+    let rows = |pseudos: RunPseudos| pack_run(dom, id, &[], pseudos, content_width, None).height();
     let mut total = 0u16;
     if own_line.before {
         total = total.saturating_add(rows(RunPseudos {

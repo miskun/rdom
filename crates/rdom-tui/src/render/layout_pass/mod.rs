@@ -62,6 +62,8 @@
 //! - `positioned_overflow` — absolutely positioned boxes in their
 //!   scroll container's extent, measured after placement.
 //! - `gutter` — scroll offsets and scrollbar gutters.
+//! - `float` — floats: the exclusion area of a block formatting
+//!   context, float placement, clearance, the bands line boxes use.
 //!
 //! ## Scroll
 //!
@@ -87,6 +89,7 @@ mod clip_edge;
 mod dispatch;
 mod distribution;
 mod flex;
+pub(crate) mod float;
 mod flow;
 pub(crate) mod geometry;
 mod grid;
@@ -292,6 +295,9 @@ pub(super) fn layout_node(
     // captures the margin-collapse-aware content extent for block-
     // flow elements (CSS 2.1 §10.6.3 — used below to resolve
     // `height: Auto` on this element).
+    // The floats of the formatting context so far: laying the children out
+    // again below places theirs again (`float::rewind`).
+    let floats_mark = float::mark(dom);
     let measurement = layout_children_aligned(dom, id, inner, &computed, containing_block_width);
     // A line-clamp container's height ends at its clamp point (CSS
     // Overflow 4 §4.4).
@@ -374,6 +380,7 @@ pub(super) fn layout_node(
             if let Some(ext) = dom.node_mut(id).ext_mut() {
                 ext.content_layout = inner_v2;
             }
+            float::rewind(dom, floats_mark);
             // Pass 2 is a full re-layout: the content may wrap
             // differently in the narrower area and the forced gutter
             // row is part of this box, so the `auto` height resolves
@@ -416,6 +423,7 @@ pub(super) fn layout_node(
             .ext()
             .map(|e| e.content_layout)
             .unwrap_or(inner);
+        float::rewind(dom, floats_mark);
         let _ = layout_children_aligned(dom, id, final_inner, &computed, containing_block_width);
         record_scroll_content_size(dom, id, final_inner, &computed);
     }
