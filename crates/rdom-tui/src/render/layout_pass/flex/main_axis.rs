@@ -10,7 +10,7 @@ use rdom_core::Dom;
 
 use super::item::FlexItem;
 use crate::ext::TuiExt;
-use crate::layout::{Direction, FlexBasis, MarginValue, Size};
+use crate::layout::{Direction, FlexBasis, MarginValue, Size, clamp_size};
 use crate::render::layout_pass::intrinsic::{Keywords, content_max_size, intrinsic_size};
 use crate::render::layout_pass::margin_trim::FlexTrim;
 
@@ -19,17 +19,21 @@ pub(super) struct ChildMain {
     pub(super) item: FlexItem,
     /// The flex base size (§9.2 step 3), a border box in cells.
     pub(super) base: u16,
+    /// The inner flex base size: the base less the item's padding and
+    /// border on the main axis — what §9.7 scales the shrink factor by.
+    pub(super) inner_base: u16,
     /// `flex-grow` (`width: <n>fr`, rdom's grow, when `flex-grow` is 0).
     pub(super) grow: f32,
     /// `flex-shrink`.
     pub(super) shrink: f32,
     /// The base is the item's content size (`content`, or `auto` with an
     /// `auto` main size): its automatic minimum (§4.5) is no larger, so
-    /// growing cannot violate it.
+    /// it cannot raise a size at or above the base.
     pub(super) content_base: bool,
     /// The base is the item's definite main size property (`flex-basis:
     /// auto` with a definite `width` / `height`) — the specified size
-    /// suggestion its automatic minimum (§4.5) never exceeds.
+    /// suggestion its automatic minimum (§4.5) never exceeds, so it
+    /// cannot raise a size at or above the base either.
     pub(super) specified_base: bool,
     /// The §4.5 automatic minimum, resolved on first use and kept for
     /// line breaking and every freeze-loop iteration ([`Self::auto_min`]).
@@ -56,7 +60,8 @@ pub(super) struct ChildMain {
 impl ChildMain {
     /// The item's §4.5 automatic minimum along `direction` in a
     /// container of content size `budgets`, resolved once
-    /// (`distribute::resolve_auto_min`).
+    /// (`distribute::resolve_auto_min`) — "in all cases […] clamped by
+    /// the maximum main size if it's definite".
     pub(super) fn auto_min(
         &self,
         dom: &Dom<TuiExt>,
@@ -73,16 +78,54 @@ impl ChildMain {
             budgets.main,
             budgets.cross,
         );
+        let v = self.max.map_or(v, |max| v.min(max));
         self.auto_min.set(Some(v));
         v
     }
 
-    /// Whether the automatic minimum cannot change a size at or above
-    /// the base: the base is the specified size suggestion, which the
-    /// minimum never exceeds, and no `max-*` below the base could let
-    /// it win (clamping a size of at least the base by it is a no-op).
-    pub(super) fn auto_min_cannot_bind_above_base(&self) -> bool {
-        self.specified_base && self.max.is_none_or(|m| m >= self.base)
+    /// The item's min main size: its `min-*`, else its automatic
+    /// minimum.
+    pub(super) fn min_main(
+        &self,
+        dom: &Dom<TuiExt>,
+        direction: Direction,
+        budgets: MainBudgets,
+    ) -> u16 {
+        self.min
+            .unwrap_or_else(|| self.auto_min(dom, direction, budgets))
+    }
+
+    /// The item's min main size as it bears on a size at or above its
+    /// base: `None` where the automatic minimum cannot raise such a size
+    /// — a content-sized or specified base is never below it (and it is
+    /// clamped by the `max-*` the size is clamped by too) — so it is not
+    /// resolved there.
+    pub(super) fn min_main_above_base(
+        &self,
+        dom: &Dom<TuiExt>,
+        direction: Direction,
+        budgets: MainBudgets,
+    ) -> Option<u16> {
+        match self.min {
+            Some(m) => Some(m),
+            None if self.content_base || self.specified_base => None,
+            None => Some(self.auto_min(dom, direction, budgets)),
+        }
+    }
+
+    /// The hypothetical main size (§9.3, §9.7 step 1): the base clamped
+    /// by the min and max main sizes, the automatic minimum included.
+    pub(super) fn hypothetical(
+        &self,
+        dom: &Dom<TuiExt>,
+        direction: Direction,
+        budgets: MainBudgets,
+    ) -> u16 {
+        clamp_size(
+            self.base,
+            self.min_main_above_base(dom, direction, budgets),
+            self.max,
+        )
     }
 }
 
@@ -137,6 +180,7 @@ pub(super) fn collect_main_axis_items(
             child_info.push(ChildMain {
                 item: item.clone(),
                 base: 0,
+                inner_base: 0,
                 grow: 0.0,
                 shrink: 0.0,
                 content_base: false,
@@ -157,9 +201,11 @@ pub(super) fn collect_main_axis_items(
             FlexItem::Element(id) => *id,
             FlexItem::Anonymous(anon) => {
                 let c = item.computed(dom);
+                let base = anon.content_size(dom, direction, cross_budget, true);
                 child_info.push(ChildMain {
                     item: item.clone(),
-                    base: anon.content_size(dom, direction, cross_budget, true),
+                    base,
+                    inner_base: base,
                     grow: c.flex_grow,
                     shrink: c.flex_shrink,
                     content_base: true,
@@ -256,16 +302,25 @@ pub(super) fn collect_main_axis_items(
                 FlexBasis::Calc(e) => Some(Size::Calc(e.clone())),
                 FlexBasis::Intrinsic(k) => Some(Size::Intrinsic(k.clone())),
             };
+            // §9.2 step 3.B: a used flex basis of `content` with a preferred
+            // aspect ratio and a definite cross size is the cross size
+            // through the ratio.
+            let from_ratio = || aspect_base(dom, item, &c, direction, budgets, main_cb_w);
             match (basis_size, main_size) {
                 // `content`: the max-content size, whatever the main
                 // size property says (§9.2 step 3.E).
-                (Some(Size::Auto), _) => (
-                    content_max_size(dom, child, direction, cross_budget, main_cb_w),
-                    true,
+                (Some(Size::Auto), _) => from_ratio().map_or_else(
+                    || {
+                        (
+                            content_max_size(dom, child, direction, cross_budget, main_cb_w),
+                            true,
+                        )
+                    },
+                    |b| (b, false),
                 ),
                 (Some(b), _) => match used_size(&b, main_basis) {
                     Some(cells) => (cells, false),
-                    None => (content(), true),
+                    None => from_ratio().map_or_else(|| (content(), true), |b| (b, false)),
                 },
                 (None, Size::Flex(w)) => {
                     if grow <= 0.0 {
@@ -278,7 +333,7 @@ pub(super) fn collect_main_axis_items(
                         specified_base = true;
                         (cells, false)
                     }
-                    None => (content(), true),
+                    None => from_ratio().map_or_else(|| (content(), true), |b| (b, false)),
                 },
             }
         };
@@ -290,28 +345,19 @@ pub(super) fn collect_main_axis_items(
         // container that overflows would silently shrink its items
         // to zero cells (the M5-MIN-CONTENT-1 substrate bug).
         //
-        // **Lazy resolution.** The auto-min only matters during
-        // shrink (`total > net_budget`). For the first `clamp_size`
-        // pass below, auto-min is mathematically ≤ natural for
-        // every Size variant (Flex items have specified_cap = 0;
-        // Fixed/Percent/Calc items have natural = specified_cap;
-        // Auto items have natural = intrinsic ≥ content-min). So
-        // we skip the content walk here — `min` carries only the
-        // explicit `Cells(n)` floor for the first pass; the shrink
-        // branch resolves Auto on demand for items it actually
-        // shrinks.
-        //
-        // Authors that want strict zero shrink set `min-*: 0`
-        // explicitly. Authors that want content-protection on a
-        // grow item write the basis explicitly (`flex: 0 1 auto`
-        // / `width: auto`) so the specified suggestion is
-        // unbounded.
+        // **Lazy resolution.** `min` carries only an explicit floor; the
+        // automatic minimum is resolved on first use and cached
+        // (`ChildMain::auto_min`), and only where it can bind: a
+        // content-sized base is at least the content size suggestion and
+        // a specified base is the specified size suggestion, so neither
+        // needs it for its hypothetical size or for growing — the common
+        // case. A base it can raise (`flex: 1` — a basis of 0 under an
+        // `auto` width) takes it into its hypothetical main size, as
+        // §9.7 step 1 requires; shrinking takes it everywhere.
         //
         // Profile evidence: eager resolution added +47% to the
         // full-frame benchmark
-        // (`benches/runtime.rs::bench_full_frame`); shrink-only
-        // resolution recovers the cost for the non-overflowing
-        // case (the common case).
+        // (`benches/runtime.rs::bench_full_frame`).
         //
         // v1 approximates CSS min-content with intrinsic natural
         // size; strict min-content (longest-word width with wrap)
@@ -332,6 +378,7 @@ pub(super) fn collect_main_axis_items(
         child_info.push(ChildMain {
             item: item.clone(),
             base,
+            inner_base: base.saturating_sub(kw.sizer().chrome()),
             grow,
             shrink: c.flex_shrink,
             content_base,
@@ -346,4 +393,41 @@ pub(super) fn collect_main_axis_items(
     }
 
     child_info
+}
+
+/// §9.2 step 3.B: the flex base size of an item with a preferred aspect
+/// ratio, a used flex basis of `content` and a definite cross size — a
+/// length, or a percentage of a definite container cross size — is that
+/// cross size through the ratio (CSS Sizing 4 §5.1, the ratio sizing the
+/// box `box-sizing` names). `None` when it does not apply.
+fn aspect_base(
+    dom: &Dom<TuiExt>,
+    item: &FlexItem,
+    c: &crate::style::ComputedStyle,
+    direction: Direction,
+    budgets: MainBudgets,
+    cb_width: u16,
+) -> Option<u16> {
+    let FlexItem::Element(id) = item else {
+        return None;
+    };
+    let ratio = c.aspect_ratio?;
+    let (cross_dir, cross_size) = match direction {
+        Direction::Row => (Direction::Column, &c.height),
+        Direction::Column => (Direction::Row, &c.width),
+    };
+    // An intrinsic keyword or `auto` is no definite cross size.
+    if matches!(cross_size, Size::Auto | Size::Intrinsic(_) | Size::Flex(_)) {
+        return None;
+    }
+    let basis = match direction {
+        Direction::Row => item.height_basis_is_definite(dom).then_some(budgets.cross),
+        Direction::Column => Some(budgets.cross),
+    };
+    let cross = Keywords::new(dom, *id, c, cross_dir, budgets.main, cb_width).size(
+        cross_size,
+        basis,
+        budgets.cross,
+    )?;
+    super::cross::aspect_cross_from_main(cross, ratio, cross_dir, c, cb_width)
 }

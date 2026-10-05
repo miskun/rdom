@@ -22,7 +22,7 @@ use super::distribute::{MainAxisBudget, resolve_flexible_lengths};
 use super::main_axis::{ChildMain, MainBudgets, collect_main_axis_items};
 use super::placement::AutoMainMargins;
 use crate::ext::TuiExt;
-use crate::layout::{Direction, FlexWrap, MarginValue, clamp_size};
+use crate::layout::{Direction, FlexWrap, MarginValue};
 use crate::node::TuiNodeExt;
 use crate::render::layout_pass::margin_trim::FlexTrim;
 use crate::style::ComputedStyle;
@@ -64,12 +64,7 @@ pub(super) fn break_lines(
     let mut start = 0;
     let mut used = 0;
     for (i, ci) in items.iter().enumerate() {
-        let floor = match ci.min {
-            Some(m) => Some(m),
-            None if ci.content_base || ci.auto_min_cannot_bind_above_base() => None,
-            None => Some(ci.auto_min(dom, direction, budgets)),
-        };
-        let outer = i32::from(clamp_size(ci.base, floor, ci.max))
+        let outer = i32::from(ci.hypothetical(dom, direction, budgets))
             + cells(&ci.main_start_margin)
             + cells(&ci.main_end_margin);
         if i > start && used + gap + outer > main {

@@ -30,8 +30,9 @@ pub(super) struct MainAxisBudget {
 /// Resolve each item's final main size (CSS Flexbox §9.7).
 ///
 /// 1. The flex factor: `flex-grow` when the outer hypothetical main
-///    sizes (bases clamped by min / max) leave free space, else
-///    `flex-shrink`.
+///    sizes (bases clamped by min / max, the §4.5 automatic minimum
+///    included) leave free space, else `flex-shrink` — also when the
+///    line has no room at all.
 /// 2. An item is inflexible — frozen at its hypothetical size — when
 ///    its factor is 0, or when growing its base exceeds its hypothetical
 ///    size (a `max-*` clamp), or when shrinking it is below it (a
@@ -39,7 +40,7 @@ pub(super) struct MainAxisBudget {
 /// 3. Loop: the free space is the net extent less the frozen items'
 ///    targets and the others' bases (a factor sum below one takes only
 ///    that fraction of the initial free space); it is shared by
-///    `flex-grow`, or, as overflow, by `flex-shrink × base`; each
+///    `flex-grow`, or, as overflow, by `flex-shrink × inner base`; each
 ///    unfrozen target is clamped by its min / max (the §4.5 automatic
 ///    minimum resolved only for an item whose clamp could fire); the
 ///    total violation decides who freezes — all of them when zero, the
@@ -56,18 +57,21 @@ pub(super) fn resolve_flexible_lengths(
     budget: MainAxisBudget,
 ) -> Vec<u16> {
     let n = items.len();
-    // The hypothetical main sizes: the bases clamped by `min-*` / `max-*`.
+    let budgets = super::main_axis::MainBudgets {
+        main: budget.main,
+        cross: budget.cross,
+    };
+    // The hypothetical main sizes: the bases clamped by `min-*` / `max-*`,
+    // the §4.5 automatic minimum included (`ChildMain::hypothetical`, as
+    // line breaking takes them).
     let mut target: Vec<u16> = items
         .iter()
-        .map(|ci| clamp_size(ci.base, ci.min, ci.max))
+        .map(|ci| ci.hypothetical(dom, direction, budgets))
         .collect();
     let net = budget.net;
+    // A line with no room (`net <= 0`) shrinks too: its free space is
+    // negative.
     let growing = target.iter().map(|&h| i32::from(h)).sum::<i32>() < net;
-    // A container with no room shrinks nothing (its items keep their
-    // hypothetical sizes and overflow).
-    if !growing && net <= 0 {
-        return target;
-    }
     let factor = |ci: &ChildMain| f64::from(if growing { ci.grow } else { ci.shrink });
     // Inflexible items freeze at their hypothetical sizes; the others
     // start from their bases.
@@ -87,22 +91,16 @@ pub(super) fn resolve_flexible_lengths(
         net - used
     };
     let initial_free = f64::from(free_now(&target, &frozen));
-    let budgets = super::main_axis::MainBudgets {
-        main: budget.main,
-        cross: budget.cross,
-    };
     // An unfrozen item's target clamped by its min / max: the §4.5
-    // automatic minimum only where it can bind, resolved once per item
-    // (`ChildMain::auto_min`) — so clamping again costs no walk, and the
-    // loop needs no buffer of clamped targets.
+    // automatic minimum only where it can bind (a growing target is at
+    // or above its base), resolved once per item (`ChildMain::auto_min`)
+    // — so clamping again costs no walk, and the loop needs no buffer of
+    // clamped targets.
     let clamped = |ci: &ChildMain, t: u16| -> u16 {
-        let floor = match ci.min {
-            Some(m) => Some(m),
-            // Growing from a content-sized or specified base cannot fall
-            // below the automatic minimum, which is no larger.
-            None if growing && ci.content_base => None,
-            None if growing && ci.auto_min_cannot_bind_above_base() => None,
-            None => Some(ci.auto_min(dom, direction, budgets)),
+        let floor = if growing {
+            ci.min_main_above_base(dom, direction, budgets)
+        } else {
+            Some(ci.min_main(dom, direction, budgets))
         };
         clamp_size(t, floor, ci.max)
     };
@@ -147,15 +145,16 @@ pub(super) fn resolve_flexible_lengths(
 }
 
 /// Share `free` among the unfrozen items: by `flex-grow` when growing,
-/// as overflow by `flex-shrink × base` when shrinking; each unfrozen
-/// target is its base plus (minus) its share, rolling so the shares sum
-/// to the whole cells of `free`.
+/// as overflow by `flex-shrink × inner base` when shrinking (§9.7 step
+/// 4.c: the inner flex base size, the content box); each unfrozen target
+/// is its base plus (minus) its share, rolling so the shares sum to the
+/// whole cells of `free`.
 fn distribute(items: &[ChildMain], frozen: &[bool], target: &mut [u16], free: f64, growing: bool) {
     let weight = |ci: &ChildMain| -> f64 {
         if growing {
             f64::from(ci.grow)
         } else {
-            f64::from(ci.shrink) * f64::from(ci.base)
+            f64::from(ci.shrink) * f64::from(ci.inner_base)
         }
     };
     let total: f64 = items

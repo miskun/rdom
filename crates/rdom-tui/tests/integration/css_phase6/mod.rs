@@ -15,6 +15,7 @@ mod direction_reverse;
 mod display;
 mod flex_direction_initial;
 mod flex_longhands;
+mod flex_spec;
 mod gap;
 mod justify;
 mod margin_sides;

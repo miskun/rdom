@@ -2733,3 +2733,37 @@ row comes from.
   caret test (`(ab, 2)` for `(cd, 1)`); whitespace-only runs rendered → the pseudo / gap test (an
   extra gap); anonymous items measured as 0 in intrinsic sizing → width 4 for 7. No other test
   expectation and no snapshot changed.
+- 2026-10-08 — C6G-FLEX-SPEC (AN9), six fixes in the flex algorithm, each red first. (1) CSS
+  Flexbox §4.5, "in all cases, the size is clamped by the maximum main size if it's definite":
+  `ChildMain::auto_min` clamps the resolved minimum by the item's `max-*`, so a `max-width: 3` item
+  holding `abcdefgh` in a 2-wide row is 3, not 8. (2) §9.7 step 1 decides growing or shrinking by
+  the outer *hypothetical* main sizes, the automatic minimum included; line breaking had it
+  (resolved where it can raise the base) but the freeze loop clamped the bases by the explicit
+  `min-*` only, so a `flex: 1 1 0` item holding `abcdefgh` beside a `width: 4; min-width: 0` one
+  in 10 cells grew, then froze at its minimum and overflowed (8 / 4); both now take
+  `ChildMain::hypothetical` (8 / 2, the spec's). (3) §9.7 step 4.c scales the shrink factor by the
+  *inner* flex base size: `ChildMain::inner_base` (the base less the main-axis padding and border)
+  — a 10-wide item and a `content-box` 2-wide one with 2 cells of padding a side over 12 cells are
+  7 / 5, were 8 / 4. (4) A line with no room (`net <= 0`) returned the hypothetical sizes unshrunk;
+  the loop shrinks it like any other (a `width: 5; min-width: 0` item in a `width: 0` row is 0).
+  (5) CSS Display 3 §2.7: a flex item is blockified, but the cross resolver measured an
+  `inline-block` item at its content size instead of stretching it (§9.4 step 11); it stretches
+  now — except among the document root's children, rdom's viewport column standing in for a
+  browser's `<body>`, where an inline block is inline-level and hugs its content (the
+  `<input type=submit>` button tests pin that half; they failed with the first, unconditional
+  fix). The computed `display` itself is not blockified — recorded in DIVERGENCES §3. (6) §9.2 step
+  3.B, implemented: an item with a preferred aspect ratio, a used flex basis of `content` and a
+  definite cross size (a length, or a percentage of a definite container cross size) takes its base
+  from that cross size through the ratio (`main_axis::aspect_base`, through
+  `cross::aspect_cross_from_main`, so `box-sizing` / `auto && <ratio>` apply as on the cross axis):
+  `aspect-ratio: 2; height: 3` is 6 wide, was 0. C6G-FLEX-COST revisited: its skip condition
+  (`auto_min_cannot_bind_above_base`, a specified base *and* no `max-*` below it) waited on (1);
+  with the minimum clamped by `max-*`, a specified or content-sized base is never below it, so
+  `ChildMain::min_main_above_base` skips on either alone — shared by the hypothetical size and the
+  growing freeze loop. Red (`css_phase6/flex_spec.rs`): 8 for 3; (8, 4) for (8, 2); (8, 4) for
+  (7, 5); 5 for 0; height 1 for 3; (0, 3) for (6, 3). Green after. Mutation checks (each alone,
+  restored and touched): each fix reverted fails its own test and only it. Four existing
+  `layout_pass::tests` expectations encoded the unstretched `inline-block` flex item (the
+  pre-C6G "OOTB" hug): the column-parent case now asserts the stretch (width 80) and the row-parent
+  case the stretched height (24), renamed; the pseudo-chrome and relative-shift cases, which test
+  the intrinsic width, now set `align-items: flex-start`. No snapshot changed.

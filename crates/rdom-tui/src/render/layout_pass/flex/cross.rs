@@ -7,7 +7,7 @@ use rdom_core::Dom;
 
 use super::item::FlexItem;
 use crate::ext::TuiExt;
-use crate::layout::{AspectRatio, Direction, Display, MarginValue, Size, clamp_size};
+use crate::layout::{AspectRatio, Direction, MarginValue, Size, clamp_size};
 use crate::render::layout_pass::block::nearest_block_ancestor_height_is_definite;
 use crate::render::layout_pass::box_sizing::Sizer;
 use crate::render::layout_pass::intrinsic::{Keywords, intrinsic_size};
@@ -288,7 +288,7 @@ pub(super) fn baseline_box(
 /// the main size's padding and border come off first and the cross
 /// size's are added back. Half-to-even rounding to integer cells.
 /// `None` for a degenerate ratio, which behaves as `auto`.
-fn aspect_cross_from_main(
+pub(super) fn aspect_cross_from_main(
     main: u16,
     ratio: AspectRatio,
     direction: Direction,
@@ -321,6 +321,19 @@ fn aspect_cross_from_main(
     Some(cross.saturating_add(cross_edges))
 }
 
+/// An inline-level child of the document root: the root's children are
+/// laid out in rdom's viewport column only as a layout device, standing
+/// in for a browser's `<body>` (DIVERGENCES), where an inline block sits
+/// in a line at its content width — not blockified, so not stretched.
+/// Every child of a real flex container is a flex item, blockified (CSS
+/// Display 3 §2.7).
+fn hugs_as_inline_level(dom: &Dom<TuiExt>, item: &FlexItem, computed: &ComputedStyle) -> bool {
+    computed.display == crate::layout::Display::InlineBlock
+        && !item
+            .box_parent(dom)
+            .is_some_and(|p| crate::render::box_tree::is_flex_container(dom, p))
+}
+
 /// What the cross-axis resolver needs to know about the main axis and
 /// the item's margins.
 struct MainAxisFacts {
@@ -344,9 +357,11 @@ struct MainAxisFacts {
 ///   - If `aspect-ratio` is set AND the child's main axis was *not*
 ///     `Auto`, compute cross from main via the ratio (CSS Sizing 4
 ///     §3.2). Half-to-even rounding to integer cells.
-///   - Else if `display: inline-block` → intrinsic content size on the
-///     cross axis.
-///   - Else → stretch to fill the cross budget.
+///   - Else, stretched → fill the line; not stretched → its content
+///     size at its used main size. A flex item is blockified (CSS
+///     Display 3 §2.7), so an `inline-block` one is no different — but
+///     an inline block in the document root's viewport column hugs its
+///     content, as in a browser's `<body>`.
 ///
 /// Then clamps by `min` / `max`.
 fn resolve_cross_size(
@@ -434,12 +449,9 @@ fn resolve_cross_size(
                 })
             {
                 cross
-            } else if computed.display == Display::InlineBlock {
-                // Cross-axis intrinsic measurement along the axis
-                // perpendicular to the parent's flex direction; its text
-                // wraps to `measure_budget` (a row item's used width).
-                intrinsic_size(dom, child_id, cross_dir, measure_budget, container_width)
-            } else if stretch {
+            } else if stretch && !hugs_as_inline_level(dom, item, computed) {
+                // A flex item is blockified (CSS Display 3 §2.7): an
+                // `inline-block` one stretches as a block does.
                 line
             } else {
                 // Not stretched (an `auto` cross margin, or the

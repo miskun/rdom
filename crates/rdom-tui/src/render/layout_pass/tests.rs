@@ -2499,17 +2499,17 @@ fn debug_inline_block_cascade() {
 
 // ── Display::InlineBlock — atomic inline-level box ───────────────
 //
-// Regression bed for the OOTB-round blocker: a `<button>` (or any
-// inline-block element) with `width: Auto` must NOT stretch cross-
-// axially to the container's width. The button hugs its intrinsic
-// content on both axes.
+// An inline block hugs its intrinsic content where it is inline-level:
+// in a line, and among the document root's children (rdom's viewport
+// column stands in for a browser's `<body>`, `button/tests.rs`). As a
+// flex item it is blockified (CSS Display 3 §2.7) and stretches like a
+// block (CSS Flexbox §9.4 step 11, C6G-FLEX-SPEC); `align-items:
+// flex-start` keeps it at its content size.
 
 #[test]
-fn inline_block_hugs_content_in_column_parent() {
-    // The OOTB blocker scenario: button as direct child of a column-
-    // direction parent (`<screen>`). Pre-M5-now, an auto-width Block
-    // child stretches horizontally to fill the parent. Post-M5-now,
-    // an InlineBlock child sizes to its intrinsic content width.
+fn an_inline_block_flex_item_stretches_in_a_column_parent() {
+    // A flex item is blockified: an `inline-block` child of a column
+    // flex container stretches across it as a block child does.
     let mut dom = tui_dom();
     let root = dom.root();
     let screen = dom.create_element("screen");
@@ -2534,8 +2534,8 @@ fn inline_block_hugs_content_in_column_parent() {
 
     let lb = layout_rect_of(&dom, btn);
     assert_eq!(
-        lb.width, 6,
-        "InlineBlock child must size to intrinsic content width (got {lb:?})"
+        lb.width, 80,
+        "a blockified InlineBlock flex item stretches (got {lb:?})"
     );
 }
 
@@ -2559,7 +2559,8 @@ fn inline_block_with_pseudo_chrome_hugs_content_plus_pseudos() {
             TuiStyle::new()
                 .flow(Flow::Flex)
                 .direction(Direction::Column)
-                .width(Size::Flex(1.0)),
+                .width(Size::Flex(1.0))
+                .align_items(crate::layout::Align::FlexStart.into()),
         )
         .rule_unchecked("btn", TuiStyle::new().display(Display::InlineBlock))
         .rule_unchecked(
@@ -2581,7 +2582,7 @@ fn inline_block_with_pseudo_chrome_hugs_content_plus_pseudos() {
 }
 
 #[test]
-fn inline_block_hugs_content_in_row_parent() {
+fn an_inline_block_flex_item_hugs_its_content_on_the_main_axis() {
     let mut dom = tui_dom();
     let root = dom.root();
     let screen = dom.create_element("screen");
@@ -2607,8 +2608,8 @@ fn inline_block_hugs_content_in_row_parent() {
     let lb = layout_rect_of(&dom, btn);
     assert_eq!(lb.width, 2, "InlineBlock width hugs 'Go' (2 cells)");
     assert_eq!(
-        lb.height, 1,
-        "InlineBlock height hugs content — does NOT stretch to row cross"
+        lb.height, 24,
+        "a blockified InlineBlock flex item stretches to the row's cross size"
     );
 }
 
@@ -2691,7 +2692,8 @@ fn inline_block_with_position_relative_shifts_in_flex_parent() {
             TuiStyle::new()
                 .flow(Flow::Flex)
                 .direction(Direction::Column)
-                .width(Size::Flex(1.0)),
+                .width(Size::Flex(1.0))
+                .align_items(crate::layout::Align::FlexStart.into()),
         )
         .rule_unchecked(
             "btn",

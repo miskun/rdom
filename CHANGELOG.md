@@ -328,6 +328,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Block `align-content` moves the laid-out content instead of laying it out again, and honours `min-height`** (CSS Box Alignment 3 §5.1): nested aligned containers laid their content out twice per level, and an `auto`-height box taller than its content through `min-height` left it at the top; `justify-self: baseline` falls back on the box's own direction (§4.2). (C6G-BLOCK-ALIGN)
 - **The cascade's direction re-run is bounded by its loop, not a debug assertion**: an element's ladder runs at most twice in every build (`settle_direction`), where a release build relied on an invariant to stop. (C6G-RERUN-BOUND)
 - **A flex container lays out its text and its `::before` / `::after` as flex items** (CSS Flexbox §4): a run of text beside element items is an anonymous item (whitespace-only runs are none) and each pseudo-element an item of its own — both were dropped; a text-only container's text is one item, which `justify-content` / `align-items` place. (C6G-ANON-FLEX-ITEMS)
+- **Flex sizing follows CSS Flexbox §4.5 / §9.2 / §9.7 in its corner cases**: the automatic minimum is clamped by `max-*` and counts in the hypothetical sizes that decide growing or shrinking, `flex-shrink` scales by the content-box base, a line with no room shrinks, `inline-block` items stretch, and an `aspect-ratio` item takes its base from a definite cross size. (C6G-FLEX-SPEC)
 
 ### Changed — `rdom-showcase`
 
