@@ -74,6 +74,8 @@ use margin_collapse::{
     store_margin_chain_memo,
 };
 use place::BlockPlace;
+#[cfg(test)]
+pub(super) use runs::FLOW_RUNS;
 use runs::last_flow_run;
 pub(super) use runs::{Run, RunKind, flow_runs, inline_runs, is_block_level};
 use width::resolve_block_width;

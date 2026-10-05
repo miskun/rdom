@@ -52,6 +52,11 @@ pub(in crate::render::layout_pass) fn block_width(
     max: bool,
     outer: &dyn Fn(NodeId, bool) -> u16,
 ) -> Option<u16> {
+    // Partition only a flow that may hold a float: the scan allocates
+    // nothing, and most blocks hold none.
+    if !may_hold_floats(dom, id) {
+        return None;
+    }
     let runs = flow_runs(dom, id);
     if !holds_floats(dom, &runs) {
         return None;
@@ -83,6 +88,31 @@ pub(in crate::render::layout_pass) fn block_width(
         }
     }
     Some(widest)
+}
+
+/// Whether `id`'s box sequence may hold a float — a floated child, a
+/// floated `::before` / `::after` of `id`, or either through a box-less
+/// child (CSS Display 3 §2.5) — without building it: a superset of
+/// [`holds_floats`]'s answer (a float inside a box-less child that holds
+/// only inline content is in its line, not a run item), which decides.
+fn may_hold_floats(dom: &Dom<TuiExt>, id: NodeId) -> bool {
+    use crate::ext::StyleSlot;
+    use crate::render::inline::generated::is_float_pseudo;
+    let pseudo = |host| {
+        is_float_pseudo(dom, host, StyleSlot::Before)
+            || is_float_pseudo(dom, host, StyleSlot::After)
+    };
+    fn children(dom: &Dom<TuiExt>, id: NodeId, pseudo: &dyn Fn(NodeId) -> bool) -> bool {
+        dom.node(id).child_nodes().any(|c| {
+            let c = c.id();
+            if crate::render::box_tree::is_contents(dom, c) {
+                pseudo(c) || children(dom, c, pseudo)
+            } else {
+                super::float_side(dom, c).is_some()
+            }
+        })
+    }
+    pseudo(id) || children(dom, id, &pseudo)
 }
 
 /// Rows from 0 to `bottom` (0 when there is none or it is above).

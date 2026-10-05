@@ -90,6 +90,8 @@ pub(super) fn last_flow_run(runs: &[Run]) -> Option<&Run> {
 /// `layout_block_children` partitions them (before it drops the runs that
 /// hold no line) — for intrinsic sizing to measure what layout lays out.
 pub(in crate::render::layout_pass) fn flow_runs(dom: &Dom<TuiExt>, id: NodeId) -> Vec<Run> {
+    #[cfg(test)]
+    FLOW_RUNS.with(|c| c.set(c.get() + 1));
     let items: Vec<(usize, BoxItem)> = crate::render::box_tree::box_sequence(dom, id)
         .into_iter()
         .enumerate()
@@ -99,6 +101,13 @@ pub(in crate::render::layout_pass) fn flow_runs(dom: &Dom<TuiExt>, id: NodeId) -
         })
         .collect();
     partition(dom, &items)
+}
+
+#[cfg(test)]
+thread_local! {
+    /// [`flow_runs`] calls (tests only: the idle-cost pin).
+    pub(in crate::render::layout_pass) static FLOW_RUNS: std::cell::Cell<usize> =
+        const { std::cell::Cell::new(0) };
 }
 
 /// CSS 2.1 §9.2.1.1 / §16.6.1: white space that the `white-space`

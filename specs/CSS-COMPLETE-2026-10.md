@@ -5181,3 +5181,25 @@ row comes from.
   DIVERGENCES: the clamped-item entry is gone (its `rtl` ellipsis note kept), simplification 2 says the
   exclusion settles after its run, and the once-only re-place is recorded. No existing test expectation or
   snapshot changed.
+- 2026-10-10 — C8G-IDLE-COST (architect N4, the remainder after C8G-RESNAP's snap walk). Found, by counting:
+  every block container's inline-size measurement built its box sequence and float-run partition to learn it
+  held no float (`float::measure::block_width`: 16 partitions for eight float-less flex items' paragraphs);
+  every inline flow on every paint walked up its ancestors to the formatting root looking for a line-clamp
+  container (`text_overflow::block_line`: 390 steps over three paints of a tree with none); and a line-clamp
+  container's clamp point — a walk of its descendants' lines, gathered into a `Vec` and sorted — was
+  computed again by `ClipEdges::of_element` and by each flow's marking on every paint (24 walks over three).
+  Decisions: (1) `block_width` asks `may_hold_floats` first — an allocation-free scan of the children
+  (through box-less ones) and of the floated pseudo-elements, a superset of the partition's answer, which
+  still decides; the block size path is the flow itself since C8G-FLOAT-MEASURE (layout's model, its
+  partition inherent). (2)–(3) the clamp points the layout pass finds are document data
+  (`line_clamp::ClampPoints`, cleared at `layout_dom`'s start, written by `line_clamp::clamped` when layout
+  cuts a container's height), each row kept from the container's scrolled content top so a later shift of
+  the subtree (relative offset, sticky, `align-content`) or of its scroll offset keeps it true;
+  `clamp_point` reads it (walking only a container no pass laid out), and `line_clamp::any` — whether the
+  pass laid one out — gates `block_line`'s walk. The gate's "only when `text-overflow` is set somewhere" is
+  this walk's condition read as what the walk is for: the `block-ellipsis` of a clamped line; a box's own
+  `text-overflow` is an O(1) read of its style. Pins: `layout_pass/idle_cost_tests.rs` (0 partitions without
+  a float, some with one), `inline_paint/cost_tests.rs` (no walk step without a clamp; no clamp walk at
+  paint with one). Red: 16 for 0; `(390, 0)` for `(0, 0)`; 24 for 0. Green after. Added while fixing:
+  `css_phase8/line_clamp.rs::a_shifted_clamped_box_keeps_its_clamp_point` (mutation: rows kept absolute → it
+  fails, the second line clipped). No existing test expectation or snapshot changed.

@@ -31,6 +31,8 @@
 
 mod caret;
 mod chrome;
+#[cfg(test)]
+mod cost_tests;
 mod generated;
 mod selection_overlay;
 mod single_row;

@@ -207,3 +207,16 @@ fn a_blocks_padding_after_the_nth_line_is_not_content() {
     );
     assert_eq!(&rows(&buf, 8, 4)[..2], ["a       ", "b       "]);
 }
+
+/// C8G-IDLE-COST: the clamp point layout keeps for paint moves with its
+/// box — a relatively positioned clamped box shifted a row down after it
+/// was laid out still hides its third line and marks its second.
+#[test]
+fn a_shifted_clamped_box_keeps_its_clamp_point() {
+    let (rows, _) = clamp(
+        "width: 7; line-clamp: 2; position: relative; top: 1",
+        "one two three four",
+    );
+    assert_eq!(&rows[1..3], ["one two ", "three…  "]);
+    assert_eq!(rows[3], "        ", "the third line hidden");
+}

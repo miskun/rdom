@@ -24,6 +24,12 @@ pub(crate) struct ClampPoint {
     pub(crate) line: usize,
 }
 
+#[cfg(test)]
+thread_local! {
+    /// Clamp-point walks (tests only: the idle-cost pin).
+    pub(crate) static CLAMP_WALKS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 /// One line box of the walk, in viewport rows.
 struct Line {
     top: i32,
@@ -33,15 +39,85 @@ struct Line {
     index: usize,
 }
 
+/// The clamp points the layout pass found (document data, valid until the
+/// next pass): each line-clamp container's, its row kept from the
+/// container's scrolled content top ([`scrolled_top`]) so a later move of
+/// its laid-out subtree (`tree::shift_*`) or of its scroll offset keeps it
+/// true. Paint and hit-testing read it: a
+/// clamp point is walked once a layout, not once per flow per paint.
+#[derive(Debug, Default)]
+struct ClampPoints(std::collections::HashMap<NodeId, Option<ClampPoint>>);
+
+/// Forget the last pass's clamp points (`layout_dom`, at its start).
+pub(super) fn begin_pass(dom: &mut Dom<TuiExt>) {
+    match dom.document_data_mut::<ClampPoints>() {
+        Some(points) => points.0.clear(),
+        None => {
+            dom.set_document_data(ClampPoints::default());
+        }
+    }
+}
+
+/// Whether the last layout pass laid a line-clamp container out — what
+/// a flow must find out before it walks up to one (`text_overflow`).
+pub(crate) fn any(dom: &Dom<TuiExt>) -> bool {
+    dom.document_data::<ClampPoints>()
+        .is_some_and(|p| !p.0.is_empty())
+}
+
 /// `id`'s clamp point, `None` when it is not a line-clamp container
 /// (`ComputedStyle::line_clamp_container`) or its content ends by its
-/// Nth line box.
+/// Nth line box: the one the layout pass found, in the container's
+/// current coordinates; a container no pass laid out is walked now.
 pub(crate) fn clamp_point(dom: &Dom<TuiExt>, id: NodeId) -> Option<ClampPoint> {
+    let ext = dom.node(id).ext()?;
+    if !ext.computed.as_deref()?.line_clamp_container {
+        return None;
+    }
+    let cached = dom
+        .document_data::<ClampPoints>()
+        .and_then(|p| p.0.get(&id).copied());
+    match cached {
+        Some(point) => point.map(|p| ClampPoint {
+            bottom: scrolled_top(ext) + p.bottom,
+            ..p
+        }),
+        None => walk(dom, id),
+    }
+}
+
+/// Walk `id`'s line boxes for its clamp point, and keep it for the pass
+/// (`clamped`).
+fn walk_and_keep(dom: &mut Dom<TuiExt>, id: NodeId) -> Option<ClampPoint> {
+    let point = walk(dom, id);
+    let top = dom.node(id).ext().map_or(0, scrolled_top);
+    let kept = point.map(|p| ClampPoint {
+        bottom: p.bottom - top,
+        ..p
+    });
+    if let Some(points) = dom.document_data_mut::<ClampPoints>() {
+        points.0.insert(id, kept);
+    }
+    point
+}
+
+/// The row a container's scrolled content starts at: its content-box top
+/// less its `scrollTop` — what its lines and its laid-out children move
+/// with, so a clamp point kept from it stays true when either moves.
+fn scrolled_top(ext: &TuiExt) -> i32 {
+    ext.content_layout.y - ext.scroll_y
+}
+
+/// `id`'s clamp point, walked: its line boxes and its block descendants'
+/// in its formatting context, gathered and sorted.
+fn walk(dom: &Dom<TuiExt>, id: NodeId) -> Option<ClampPoint> {
     let c = dom.node(id).ext()?.computed.as_deref()?;
     if !c.line_clamp_container {
         return None;
     }
     let n = usize::try_from(c.max_lines?).ok()?;
+    #[cfg(test)]
+    CLAMP_WALKS.with(|w| w.set(w.get() + 1));
     let mut lines = Vec::new();
     let mut content_bottom = i32::MIN;
     collect(dom, id, true, &mut lines, &mut content_bottom);
@@ -121,12 +197,20 @@ fn collect(dom: &Dom<TuiExt>, id: NodeId, root: bool, lines: &mut Vec<Line>, bot
 /// point when it has one (§4.4 `collapse`: the box's automatic height
 /// ends at the clamp point).
 pub(super) fn clamped(
-    dom: &Dom<TuiExt>,
+    dom: &mut Dom<TuiExt>,
     id: NodeId,
     inner: crate::layout::LayoutRect,
     measurement: Option<super::block::BlockMeasurement>,
 ) -> Option<super::block::BlockMeasurement> {
-    let Some(point) = clamp_point(dom, id) else {
+    if !dom
+        .node(id)
+        .ext()
+        .and_then(|e| e.computed.as_deref())
+        .is_some_and(|c| c.line_clamp_container)
+    {
+        return measurement;
+    }
+    let Some(point) = walk_and_keep(dom, id) else {
         return measurement;
     };
     let scroll_y = dom.node(id).ext().map_or(0, |e| e.scroll_y);

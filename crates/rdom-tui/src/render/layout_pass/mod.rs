@@ -112,6 +112,8 @@ mod sticky;
 mod tree;
 
 #[cfg(test)]
+mod idle_cost_tests;
+#[cfg(test)]
 mod tests;
 
 use rdom_core::{Dom, NodeId, NodeType};
@@ -155,8 +157,10 @@ pub trait LayoutExt: crate::sealed::Sealed {
 
 impl LayoutExt for Dom<TuiExt> {
     fn layout_dom(&mut self, viewport: Rect) {
-        // Intrinsic sizes are memoized for this pass only.
+        // Intrinsic sizes are memoized for this pass only, and its clamp
+        // points kept until the next.
         intrinsic::begin_pass(self);
+        line_clamp::begin_pass(self);
         crate::style::cascade::set_document_viewport(
             self,
             rdom_style::calc::Viewport::new(viewport.width, viewport.height),

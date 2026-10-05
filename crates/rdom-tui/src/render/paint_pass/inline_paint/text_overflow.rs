@@ -73,10 +73,18 @@ impl Marking {
 /// The index of the line of `owner`'s flow (`anon`: one of its
 /// anonymous block boxes) that is the Nth line of the line-clamp
 /// container it is in — itself or an ancestor in its block formatting
-/// context — when that container is clamped.
+/// context — when that container is clamped (its clamp point the layout
+/// pass's, `line_clamp::clamp_point`).
 fn block_line(dom: &Dom<TuiExt>, owner: NodeId, anon: Option<usize>) -> Option<usize> {
+    // No line-clamp container was laid out: no line ends one, and no
+    // flow walks up to find out.
+    if !crate::render::layout_pass::line_clamp::any(dom) {
+        return None;
+    }
     let mut at = owner;
     loop {
+        #[cfg(test)]
+        BLOCK_LINE_WALKS.with(|w| w.set(w.get() + 1));
         let c = dom.node(at).ext()?.computed.as_deref()?;
         if c.line_clamp_container {
             let point = crate::render::layout_pass::line_clamp::clamp_point(dom, at)?;
@@ -88,6 +96,13 @@ fn block_line(dom: &Dom<TuiExt>, owner: NodeId, anon: Option<usize>) -> Option<u
         }
         at = crate::render::box_tree::box_parent(dom, at)?;
     }
+}
+
+#[cfg(test)]
+thread_local! {
+    /// Steps of [`block_line`]'s walk (tests only: the idle-cost pin).
+    pub(super) static BLOCK_LINE_WALKS: std::cell::Cell<usize> =
+        const { std::cell::Cell::new(0) };
 }
 
 /// How one line paints under a [`Marking`]: only the cells in
