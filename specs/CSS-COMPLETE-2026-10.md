@@ -4074,3 +4074,17 @@ row comes from.
   align-content: end`, `grid-row: 2 / 3` at `(2, 1, 3, 1)` for `(2, 9, 3, 1)` (checked by stashing the
   fix after green, then restoring and touching it). Green after; no other test and no snapshot
   changed.
+- 2026-10-09 — C7G-INITIAL-ALLOC (architect N1): `ComputedStyle::initial()` — the start of every
+  element's, pseudo-element's and anonymous box's cascade — built `grid_auto_columns` /
+  `grid_auto_rows` as `vec![TrackSize::AUTO]`, two allocations per call and per clone. Decision:
+  the computed fields are `Cow<'static, [TrackSize]>`, the initial value the borrowed
+  `TrackSize::AUTO_LIST` (a `const`, no global state); a declared list is owned (the cascade's new
+  `apply_converted`, `apply_value` for a property whose declared form differs, the `TuiStyle` side
+  staying `Vec<TrackSize>`), and `resolve_viewport_units` makes a list owned only when it holds a
+  math expression. Chosen over "an empty `Vec` means `auto`", which would give a public field a value
+  outside the grammar, and over an `Rc` slice, which needs a thread-local to share. Red:
+  `cascade::cost_tests::the_initial_style_allocates_nothing_for_grid` — `initial()` 3 allocations for
+  1 (the custom-property map's `Rc`, which predates grid and stays); clone pinned at 0 (was 2). Green
+  after. `grid_tests::viewport_units_in_an_auto_track_list_compute_to_cells` covers the owned path
+  (mutation: never making the list owned → `50vw minmax(10vh, 1fr)` kept; reverted and touched).
+  No test expectation or snapshot changed.

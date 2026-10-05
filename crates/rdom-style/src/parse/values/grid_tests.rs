@@ -144,3 +144,19 @@ fn viewport_units_in_a_track_list_compute_to_cells() {
         "40 repeat(2, minmax(2, 1fr)) fit-content(calc(50% + 8))"
     );
 }
+
+/// CSS Values 4 §6.1.2 for `grid-auto-*` (CSS Grid 2 §7.6): a declared
+/// list's viewport units compute to cells, and the initial `auto` stays
+/// the shared, borrowed list (C7G-INITIAL-ALLOC).
+#[test]
+fn viewport_units_in_an_auto_track_list_compute_to_cells() {
+    let mut c = crate::ComputedStyle::initial();
+    let sizes = parse_track_sizes(&tokenize("50vw minmax(10vh, 1fr)").unwrap()).expect("parses");
+    c.grid_auto_columns = std::borrow::Cow::Owned(sizes);
+    c.resolve_viewport_units(crate::calc::Viewport::new(80, 20));
+    assert_eq!(
+        serialize_track_sizes(&c.grid_auto_columns),
+        "40 minmax(2, 1fr)"
+    );
+    assert!(matches!(c.grid_auto_rows, std::borrow::Cow::Borrowed(_)));
+}

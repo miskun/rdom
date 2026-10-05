@@ -114,6 +114,12 @@ impl TrackSize {
     /// `auto`, the initial `grid-auto-columns` / `-rows` (§7.6).
     pub const AUTO: Self = TrackSize::Breadth(TrackBreadth::Auto);
 
+    /// The one-track list `auto`: the initial value of `grid-auto-columns`
+    /// / `grid-auto-rows` (CSS Grid 2 §7.6), shared — a
+    /// [`ComputedStyle`](crate::ComputedStyle) borrows it, so building one
+    /// allocates nothing for grid.
+    pub const AUTO_LIST: &'static [Self] = &[Self::AUTO];
+
     /// A track `n` cells wide.
     pub fn cells(n: u16) -> Self {
         TrackSize::Breadth(TrackBreadth::Cells(n))

@@ -101,10 +101,14 @@ pub struct ComputedStyle {
     /// named areas. Initial `none`.
     pub grid_template_areas: crate::layout::GridTemplateAreas,
     /// `grid-auto-columns` (CSS Grid 2 §7.6): the implicit columns'
-    /// sizes, repeated as a pattern; never empty. Initial `auto`.
-    pub grid_auto_columns: Vec<crate::layout::TrackSize>,
-    /// `grid-auto-rows` (§7.6): the implicit rows' sizes. Initial `auto`.
-    pub grid_auto_rows: Vec<crate::layout::TrackSize>,
+    /// sizes, repeated as a pattern; never empty. Initial `auto`, the
+    /// shared [`TrackSize::AUTO_LIST`](crate::layout::TrackSize::AUTO_LIST)
+    /// borrowed — every element starts from the initial style, so it
+    /// allocates nothing (C7G-INITIAL-ALLOC); a declared list is owned.
+    pub grid_auto_columns: std::borrow::Cow<'static, [crate::layout::TrackSize]>,
+    /// `grid-auto-rows` (§7.6): the implicit rows' sizes. Initial `auto`,
+    /// borrowed as `grid_auto_columns`'.
+    pub grid_auto_rows: std::borrow::Cow<'static, [crate::layout::TrackSize]>,
     /// `grid-auto-flow` (CSS Grid 2 §7.7). Initial `row`.
     pub grid_auto_flow: crate::layout::GridAutoFlow,
     /// `grid-row-start` (CSS Grid 2 §8.3): where the item's grid area
@@ -341,8 +345,8 @@ impl ComputedStyle {
             grid_template_columns: crate::layout::GridTemplate::None,
             grid_template_rows: crate::layout::GridTemplate::None,
             grid_template_areas: crate::layout::GridTemplateAreas::NONE,
-            grid_auto_columns: vec![crate::layout::TrackSize::AUTO],
-            grid_auto_rows: vec![crate::layout::TrackSize::AUTO],
+            grid_auto_columns: std::borrow::Cow::Borrowed(crate::layout::TrackSize::AUTO_LIST),
+            grid_auto_rows: std::borrow::Cow::Borrowed(crate::layout::TrackSize::AUTO_LIST),
             grid_auto_flow: crate::layout::GridAutoFlow::ROW,
             grid_row_start: crate::layout::GridLine::Auto,
             grid_row_end: crate::layout::GridLine::Auto,

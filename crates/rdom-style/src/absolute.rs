@@ -137,8 +137,9 @@ impl ComputedStyle {
         ] {
             absolutize_template(template, vp);
         }
-        absolutize_sizes(self.grid_auto_columns.iter_mut(), vp);
-        absolutize_sizes(self.grid_auto_rows.iter_mut(), vp);
+        for list in [&mut self.grid_auto_columns, &mut self.grid_auto_rows] {
+            absolutize_list(list, vp);
+        }
         for inset in [
             &mut self.top,
             &mut self.right,
@@ -165,6 +166,20 @@ fn absolutize_template(template: &mut crate::layout::GridTemplate, vp: Viewport)
         TrackListItem::Repeat(r) => r.sizes.iter_mut(),
     });
     absolutize_sizes(sizes, vp);
+}
+
+/// [`absolutize_sizes`] for a `grid-auto-*` list, made owned only when it
+/// holds a math expression (the initial, borrowed `auto` never does).
+fn absolutize_list(list: &mut std::borrow::Cow<'static, [crate::layout::TrackSize]>, vp: Viewport) {
+    use crate::layout::{TrackBreadth, TrackSize};
+    let calc = |b: &TrackBreadth| matches!(b, TrackBreadth::Calc(_));
+    let has_calc = list.iter().any(|s| match s {
+        TrackSize::Breadth(b) | TrackSize::FitContent(b) => calc(b),
+        TrackSize::MinMax(min, max) => calc(min) || calc(max),
+    });
+    if has_calc {
+        absolutize_sizes(list.to_mut().iter_mut(), vp);
+    }
 }
 
 /// [`absolutize_template`] for each of `sizes`.

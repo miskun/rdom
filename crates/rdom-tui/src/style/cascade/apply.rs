@@ -226,13 +226,32 @@ pub(super) fn apply_style(
         grid_template_columns: GRID_TEMPLATE_COLUMNS,
         grid_template_rows: GRID_TEMPLATE_ROWS,
         grid_template_areas: GRID_TEMPLATE_AREAS,
-        grid_auto_columns: GRID_AUTO_COLUMNS,
-        grid_auto_rows: GRID_AUTO_ROWS,
         grid_auto_flow: GRID_AUTO_FLOW,
         grid_row_start: GRID_ROW_START,
         grid_row_end: GRID_ROW_END,
         grid_column_start: GRID_COLUMN_START,
         grid_column_end: GRID_COLUMN_END,
+    );
+    // `grid-auto-*`: a declared list becomes the computed one, owned; the
+    // initial `auto` stays borrowed (C7G-INITIAL-ALLOC).
+    let owned = |v: &Vec<crate::layout::TrackSize>| std::borrow::Cow::Owned(v.clone());
+    apply_converted(
+        &mut working.grid_auto_columns,
+        &style.grid_auto_columns,
+        style.important.contains(ImportantMask::GRID_AUTO_COLUMNS),
+        important_pass,
+        kw,
+        |c| &c.grid_auto_columns,
+        owned,
+    );
+    apply_converted(
+        &mut working.grid_auto_rows,
+        &style.grid_auto_rows,
+        style.important.contains(ImportantMask::GRID_AUTO_ROWS),
+        important_pass,
+        kw,
+        |c| &c.grid_auto_rows,
+        owned,
     );
     apply_border_collapse(
         &mut working.border_collapse,
@@ -328,11 +347,33 @@ fn apply_value<T: Clone>(
     kw: &Keywords<'_>,
     field: fn(&ComputedStyle) -> &T,
 ) {
+    apply_converted(
+        target,
+        value,
+        important_prop,
+        important_pass,
+        kw,
+        field,
+        T::clone,
+    );
+}
+
+/// [`apply_value`] for a property whose declared form `S` differs from
+/// its computed one `T`: `to` computes a declared value.
+fn apply_converted<S, T: Clone>(
+    target: &mut T,
+    value: &Option<Value<S>>,
+    important_prop: bool,
+    important_pass: bool,
+    kw: &Keywords<'_>,
+    field: fn(&ComputedStyle) -> &T,
+    to: impl Fn(&S) -> T,
+) {
     if let Some(v) = value
         && matches_pass(important_prop, important_pass)
     {
         *target = match kw.resolve(v) {
-            Resolved::Specified(x) => x.clone(),
+            Resolved::Specified(x) => to(x),
             Resolved::From(source) => field(source).clone(),
         };
     }

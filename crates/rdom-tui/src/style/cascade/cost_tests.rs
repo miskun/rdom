@@ -196,3 +196,26 @@ fn a_deep_tree_cascades_on_a_small_stack() {
         .join()
         .expect("the cascade fits the stack");
 }
+
+/// `C7G-INITIAL-ALLOC` — every element's cascade starts from
+/// `ComputedStyle::initial()` (CSS Cascade 4 §7.1), so the initial
+/// values must cost nothing: `grid-auto-columns` / `grid-auto-rows`'
+/// initial `auto` (CSS Grid 2 §7.6) is a shared static list, not a
+/// fresh `Vec` per element. Building the initial style allocates only
+/// what it did before grid — the custom-property map's `Rc` (CSS
+/// Variables 1 §2: an empty map, shared by everything that inherits it)
+/// — and cloning it allocates nothing. A plain element pays for grid only
+/// when it is one.
+#[test]
+fn the_initial_style_allocates_nothing_for_grid() {
+    use crate::test_alloc::allocations_in;
+    let mut initial = None;
+    let built = allocations_in(|| initial = Some(ComputedStyle::initial()));
+    assert_eq!(
+        built, 1,
+        "ComputedStyle::initial() allocations (`vars` only)"
+    );
+    let initial = initial.unwrap();
+    let cloned = allocations_in(|| drop(std::hint::black_box(initial.clone())));
+    assert_eq!(cloned, 0, "a clone of the initial style allocations");
+}
