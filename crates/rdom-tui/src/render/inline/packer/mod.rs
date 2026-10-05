@@ -126,6 +126,10 @@ pub(super) struct LinePacker<'a> {
     /// Whether any visible grapheme has been emitted yet in this IFC.
     /// False = at IFC start; suppresses leading whitespace.
     emitted_any: bool,
+
+    /// The lines are packed for an intrinsic width only
+    /// ([`Self::measuring`]).
+    measuring: bool,
 }
 
 impl<'a> LinePacker<'a> {
@@ -144,7 +148,24 @@ impl<'a> LinePacker<'a> {
             pending_space: false,
             pending_space_source: None,
             emitted_any: false,
+            measuring: false,
         }
+    }
+
+    /// A packer for an intrinsic inline size (CSS Sizing 3 §5.1): the
+    /// lines' widths are all that is read, so an atom's rows are not
+    /// measured, and its containing block's width — the size being
+    /// computed — is a cyclic percentage basis, 0 (§5.2.1).
+    pub(super) fn measuring(content_width: u16, ws: WhiteSpace) -> Self {
+        Self {
+            measuring: true,
+            ..Self::new(content_width, ws)
+        }
+    }
+
+    /// Whether the lines are packed for an intrinsic width only.
+    pub(super) fn is_measuring(&self) -> bool {
+        self.measuring
     }
 
     /// The content width the lines are packed against — the IFC

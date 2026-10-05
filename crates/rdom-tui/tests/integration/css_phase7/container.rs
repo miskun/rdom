@@ -438,3 +438,49 @@ fn a_grid_item_paints_atomically() {
     assert_eq!(buf.cell(2, 0).unwrap().bg, red);
     assert_ne!(buf.cell(1, 0).unwrap().bg, red);
 }
+
+/// C7G-INLINE-ATOM-MAX — CSS Sizing 3 §5.1: the max-content inline size
+/// of inline content is its widest line laid out with no wrapping, and an
+/// atomic inline (CSS Display 3 §2.4: `inline-grid`, `inline-flex`,
+/// `inline-block`) is a box in that line, its own max-content width
+/// wide (CSS 2.1 §10.3.9), not the text inside it. `x ` beside an atom
+/// 10 wide is 12: a `width: max-content` paragraph holds it on one line,
+/// whether its line is an anonymous block box's or its own.
+#[test]
+fn an_atoms_box_counts_in_its_lines_max_content() {
+    for atom in [
+        "display: inline-grid; grid-template-columns: 5 5",
+        "display: inline-flex; width: 10",
+        "display: inline-block; width: 10",
+    ] {
+        let mut dom = TuiDom::new();
+        let root = dom.root();
+        let p = el(&mut dom, root, "p", "p");
+        text(&mut dom, p, "x ");
+        let a = holding(&mut dom, p, "a", "a");
+        lay_out(
+            &mut dom,
+            &format!(".p {{ width: max-content }} .a {{ {atom} }}"),
+            30,
+            4,
+        );
+        assert_eq!(size(&dom, p), (12, 1), "{atom}");
+        assert_eq!(rect(&dom, a).x, 2, "{atom}");
+    }
+    // Beside an inline box the paragraph is an inline formatting context
+    // of its own (not an anonymous block box's): `x y ` and the atom, 14.
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let p = el(&mut dom, root, "p", "p");
+    text(&mut dom, p, "x ");
+    holding(&mut dom, p, "", "y");
+    text(&mut dom, p, " ");
+    holding(&mut dom, p, "a", "a");
+    lay_out(
+        &mut dom,
+        ".p { width: max-content } .a { display: inline-grid; grid-template-columns: 5 5 }",
+        30,
+        4,
+    );
+    assert_eq!(size(&dom, p), (14, 1), "in an inline formatting context");
+}

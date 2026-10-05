@@ -6,12 +6,12 @@
 //! beside them — before the box's own padding, border and inline
 //! pseudo-elements, which `measure_content` adds.
 
-use rdom_core::{Dom, NodeId, NodeType};
+use rdom_core::{Dom, NodeId};
 
 use crate::render::layout_pass::items::Item;
 
 use super::inline::{border_main_cost, own_line_pseudo_rows};
-use super::{Measure, intrinsic_text, wrap};
+use super::{Measure, wrap};
 use crate::ext::TuiExt;
 use crate::layout::Direction;
 use crate::style::ComputedStyle;
@@ -134,6 +134,12 @@ pub(super) fn children_size(
     // line is, so its baseline-aligned extent counts. (A column's cross
     // axis is the inline axis, where `baseline` falls back and the
     // min-content contributions apply: its items' largest.)
+    // A block container's block-level children; its inline-level ones
+    // are measured in their runs.
+    let block_level = |c: &Item| match c {
+        Item::Element(e) => crate::render::layout_pass::block::is_block_level(dom, *e),
+        Item::Anonymous(_) => false,
+    };
     let wrapping = flex && crate::render::layout_pass::flex::is_multi_line(computed);
     let row_line = flex && !along && direction == Direction::Column;
     let intrinsic_children: u16 = if along && wrapping && measure == Measure::MinContent {
@@ -176,12 +182,52 @@ pub(super) fn children_size(
         let gap_total = crate::render::layout_pass::gap_along(computed, direction)
             .resolve(0)
             .saturating_mul((spaced as u16).saturating_sub(1));
-        let children_main: u16 = children
+        let children_main: u16 = if !flex && direction == Direction::Column {
+            // A block container's height: its block-level children's, and
+            // each anonymous block box's (CSS 2.1 §9.2.1.1) — its run of
+            // inline-level content packed into the content width as layout
+            // packs it, its atoms measured at the widths layout gives them.
+            let blocks = children
+                .iter()
+                .enumerate()
+                .filter(|(_, c)| block_level(c))
+                .map(|(i, c)| outer(i, c))
+                .fold(0u16, |acc, n| acc.saturating_add(n));
+            crate::render::layout_pass::block::inline_runs(dom, id)
+                .iter()
+                .map(|run| {
+                    let pseudos = crate::render::inline::RunPseudos::default();
+                    crate::render::inline::pack_run(dom, id, run, pseudos, child_cross_budget)
+                        .height()
+                })
+                .fold(blocks, |acc, n| acc.saturating_add(n))
+        } else {
+            children
+                .iter()
+                .enumerate()
+                .map(|(i, c)| outer(i, c))
+                .fold(0u16, |acc, n| acc.saturating_add(n))
+        };
+        children_main.saturating_add(gap_total)
+    } else if !flex && direction == Direction::Row {
+        // A block container's width: its block-level children's, and each
+        // anonymous block box's (CSS 2.1 §9.2.1.1) — a run of inline-level
+        // content packed as layout packs it, its widest line under the
+        // measurement's constraint (CSS Sizing 3 §5.1), an atomic inline
+        // a box its own max-content width wide (C7G-INLINE-ATOM-MAX).
+        let blocks = children
             .iter()
             .enumerate()
+            .filter(|(_, c)| block_level(c))
             .map(|(i, c)| outer(i, c))
-            .fold(0u16, |acc, n| acc.saturating_add(n));
-        children_main.saturating_add(gap_total)
+            .max()
+            .unwrap_or(0);
+        let runs = crate::render::layout_pass::block::inline_runs(dom, id)
+            .iter()
+            .map(|run| crate::render::inline::widest_run_line(dom, id, run, measure.available()))
+            .max()
+            .unwrap_or(0);
+        blocks.max(runs)
     } else {
         // Children stack across the queried axis — the largest outer size.
         children
@@ -192,25 +238,9 @@ pub(super) fn children_size(
             .unwrap_or(0)
     };
 
-    // A block container's direct text runs next to element children
-    // become anonymous block boxes (CSS 2.1 §9.2.1.1): a row each on the
-    // Column axis (unwrapped estimate; block layout measures the real
-    // wrap), the widest run on the Row axis. A flex container's are its
-    // anonymous items, measured above.
-    let text_runs = dom
-        .node(id)
-        .child_nodes()
-        .filter(|c| {
-            !flex
-                && c.node_type() == NodeType::Text
-                && c.node_value()
-                    .is_some_and(|t| !t.chars().all(char::is_whitespace))
-        })
-        .map(|c| intrinsic_text(dom, c.id(), direction));
-    let with_text = match direction {
-        Direction::Column => text_runs.fold(intrinsic_children, |acc, n| acc.saturating_add(n)),
-        Direction::Row => text_runs.fold(intrinsic_children, |acc, n| acc.max(n)),
-    };
+    // A block container's direct text runs are in its anonymous block
+    // boxes, packed above; a flex container's are its anonymous items.
+    let with_text = intrinsic_children;
     // A `::before` / `::after` beside a block-level edge child is a line
     // box of its own (CSS 2.1 §9.2.1.1) — its rows add on the Column axis.
     match direction {

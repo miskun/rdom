@@ -40,6 +40,15 @@ pub(super) struct AtomRows {
 }
 
 impl AtomRows {
+    /// An atom whose rows a width measurement does not ask for
+    /// (`LinePacker::measuring`): one row, its baseline.
+    pub(super) const UNMEASURED: Self = AtomRows {
+        margin_top: 0,
+        height: 1,
+        margin_bottom: 0,
+        baseline: 0,
+    };
+
     /// Rows of its margin box above its baseline row.
     fn above(self) -> u16 {
         self.baseline
@@ -59,12 +68,7 @@ impl AtomRows {
 /// whose content box (its containing block) is `cb_width` wide.
 pub(super) fn atom_rows(dom: &Dom<TuiExt>, id: NodeId, width: u16, cb_width: u16) -> AtomRows {
     let Some(computed) = dom.node(id).ext().and_then(|e| e.computed.clone()) else {
-        return AtomRows {
-            margin_top: 0,
-            height: 1,
-            margin_bottom: 0,
-            baseline: 0,
-        };
+        return AtomRows::UNMEASURED;
     };
     let height = intrinsic::intrinsic_size(dom, id, Direction::Column, width, cb_width);
     let margin = |m: &crate::layout::MarginValue| m.resolve(cb_width).max(0) as u16;

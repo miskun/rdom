@@ -126,3 +126,36 @@ pub(super) fn child_level(dom: &Dom<TuiExt>, item: BoxItem) -> RunKind {
         _ => RunKind::Inline,
     }
 }
+
+/// The inline-level runs of `id`'s in-flow box items (CSS 2.1 §9.2.1.1:
+/// each the content of one anonymous block box, packed as one inline
+/// formatting context), in order, cut at its block-level children — the
+/// partition `layout_block_children` makes, for intrinsic sizing to
+/// measure what layout packs.
+pub(in crate::render::layout_pass) fn inline_runs(
+    dom: &Dom<TuiExt>,
+    id: NodeId,
+) -> Vec<Vec<BoxItem>> {
+    let mut runs: Vec<Vec<BoxItem>> = Vec::new();
+    let mut open = false;
+    for item in crate::render::box_tree::box_sequence(dom, id) {
+        if item.node().is_some_and(|c| !is_in_flow(dom, c)) {
+            continue;
+        }
+        match child_level(dom, item) {
+            RunKind::Inline if open => runs.last_mut().expect("an open run").push(item),
+            RunKind::Inline => {
+                runs.push(vec![item]);
+                open = true;
+            }
+            RunKind::Block => open = false,
+        }
+    }
+    runs
+}
+
+/// Whether the element `id` is block-level in its parent's flow (it
+/// ends an inline run, [`inline_runs`]).
+pub(in crate::render::layout_pass) fn is_block_level(dom: &Dom<TuiExt>, id: NodeId) -> bool {
+    child_level(dom, BoxItem::Node(id)) == RunKind::Block
+}

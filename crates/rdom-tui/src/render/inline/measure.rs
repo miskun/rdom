@@ -1,0 +1,47 @@
+//! Intrinsic inline sizes (CSS Sizing 3 §5.1): a box's inline content
+//! packed by the packer layout uses, at every soft-wrap opportunity
+//! (min-content, available width 0) or at none (max-content, an
+//! unbounded one), and its widest line read — so measurement cannot
+//! drift from what layout wraps: `white-space`, collapsing, forced
+//! breaks, generated content, and each atomic inline a box its own
+//! max-content width wide (C7G-INLINE-ATOM-MAX). The packer runs in
+//! its measuring mode (`LinePacker::measuring`).
+
+use rdom_core::{Dom, NodeId};
+
+use super::packer::LinePacker;
+use super::{RunPseudos, fill_block, fill_run, white_space};
+use crate::ext::TuiExt;
+use crate::render::box_tree::BoxItem;
+
+/// The widest line of the block container `block`'s inline content, its
+/// own `::before` / `::after` included, packed `available` wide.
+pub(crate) fn widest_line(dom: &Dom<TuiExt>, block: NodeId, available: u16) -> u16 {
+    let mut packer = LinePacker::measuring(available, white_space(dom, block));
+    fill_block(dom, block, &mut packer);
+    widest(packer)
+}
+
+/// The widest line of the inline run `items` of `parent` (one
+/// anonymous block box's content, CSS 2.1 §9.2.1.1), without `parent`'s
+/// pseudo-elements, packed `available` wide.
+pub(crate) fn widest_run_line(
+    dom: &Dom<TuiExt>,
+    parent: NodeId,
+    items: &[BoxItem],
+    available: u16,
+) -> u16 {
+    let mut packer = LinePacker::measuring(available, white_space(dom, parent));
+    fill_run(dom, parent, items, RunPseudos::default(), &mut packer);
+    widest(packer)
+}
+
+fn widest(mut packer: LinePacker<'_>) -> u16 {
+    packer.finish();
+    packer
+        .take_lines()
+        .iter()
+        .map(|line| line.width)
+        .max()
+        .unwrap_or(0)
+}

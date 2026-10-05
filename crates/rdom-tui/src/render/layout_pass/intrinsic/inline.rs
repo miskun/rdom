@@ -2,7 +2,7 @@
 //! generated-content widths, the rows inline content wraps to, and the
 //! padding / border costs around them.
 
-use rdom_core::{Dom, NodeId, NodeType};
+use rdom_core::{Dom, NodeId};
 use unicode_width::UnicodeWidthStr;
 
 use super::Keywords;
@@ -116,79 +116,13 @@ pub(super) fn border_main_cost(computed: &ComputedStyle, direction: Direction) -
     }
 }
 
-/// Inline content width of `id` on the Row axis for `measure`.
+/// The min- or max-content inline width of `id`'s inline content (CSS
+/// Sizing 3 §5.1): its widest line packed as layout packs it
+/// (`inline::widest_line`) — its static `::before` / `::after` and every
+/// atomic inline (`inline-block`, `inline-flex`, `inline-grid`, CSS
+/// Display 3 §2.4) boxes in those lines, an atom its own max-content
+/// width wide (C7G-INLINE-ATOM-MAX: the max-content width was the sum of
+/// the text inside them).
 pub(super) fn inline_width(dom: &Dom<TuiExt>, id: NodeId, measure: Measure) -> u16 {
-    match measure {
-        Measure::MaxContent => inline_content_width(dom, id),
-        Measure::MinContent => min_content_inline_width(dom, id),
-    }
-}
-
-/// Min-content inline width (CSS Sizing 3 §4.2): the widest line when
-/// the content breaks at every soft-wrap opportunity. Packing at a
-/// zero content width puts each unbreakable word on its own line
-/// with exactly the packer's break rules (`white-space`, hyphens),
-/// so this cannot drift from what layout wraps.
-fn min_content_inline_width(dom: &Dom<TuiExt>, id: NodeId) -> u16 {
-    compute_inline_layout(dom, id, 0)
-        .lines
-        .iter()
-        .map(|line| line.width)
-        .max()
-        .unwrap_or(0)
-}
-
-/// Sum of visible cell widths of all text in an IFC block's inline
-/// subtree, its inline descendants' static pseudo-elements included
-/// (`id`'s own are added by the caller). Walks text nodes and descends
-/// into inline element children. Used as the intrinsic max-content
-/// width for IFC blocks.
-fn inline_content_width(dom: &Dom<TuiExt>, id: NodeId) -> u16 {
-    fn walk(dom: &Dom<TuiExt>, id: NodeId, acc: &mut u32) {
-        use crate::ext::StyleSlot;
-        use crate::layout::{Display, Position};
-        use crate::render::inline::generated;
-        for child in dom.node(id).child_nodes() {
-            match child.node_type() {
-                NodeType::Text => {
-                    let text = child.node_value().unwrap_or("");
-                    *acc = acc.saturating_add(UnicodeWidthStr::width(text) as u32);
-                }
-                NodeType::Element => {
-                    // Out-of-flow descendants (`display: none`,
-                    // `position: absolute|fixed`) generate no in-flow box
-                    // and so add nothing to their ancestor's max-content
-                    // inline width. Skip them — otherwise a text-leaf with
-                    // an absolutely-positioned child (e.g. a chip with an
-                    // absolute dropdown) inflates its intrinsic width by
-                    // the hidden child's text. Mirrors the same filter in
-                    // `intrinsic_element` and the IFC walk in
-                    // `render::inline::walk_subtree`.
-                    let (display, position) = child
-                        .ext()
-                        .and_then(|e| e.computed.as_ref())
-                        .map(|c| (c.display, c.position))
-                        .unwrap_or((Display::Block, Position::Static));
-                    if display == Display::None
-                        || matches!(position, Position::Absolute | Position::Fixed)
-                    {
-                        continue;
-                    }
-                    // The element's static `::before` / `::after` are its
-                    // first / last inline children (CSS 2.1 §12.1), packed
-                    // with the text (`render::inline::walk_inline_box`).
-                    for slot in [StyleSlot::Before, StyleSlot::After] {
-                        let text = generated::static_pseudo_text(dom, child.id(), slot);
-                        *acc = acc
-                            .saturating_add(text.map_or(0, |t| UnicodeWidthStr::width(t) as u32));
-                    }
-                    walk(dom, child.id(), acc);
-                }
-                _ => {}
-            }
-        }
-    }
-    let mut acc: u32 = 0;
-    walk(dom, id, &mut acc);
-    acc.min(u16::MAX as u32) as u16
+    crate::render::inline::widest_line(dom, id, measure.available())
 }

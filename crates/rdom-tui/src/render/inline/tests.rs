@@ -3,7 +3,8 @@
 
 use super::*;
 use crate::TuiDom;
-use crate::layout::Display;
+use crate::ext::PseudoSlot;
+use crate::layout::{Display, WhiteSpace};
 use crate::style::{CascadeExt, Stylesheet, TuiStyle};
 
 fn prepared(template: impl FnOnce(&mut TuiDom) -> NodeId, sheet: &Stylesheet) -> (TuiDom, NodeId) {

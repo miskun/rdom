@@ -4177,3 +4177,30 @@ row comes from.
   of its own, recorded as TECH_DEBT `FOCUS-FLUSH-1`; DIVERGENCES keeps "Focusability reads the last
   cascade's styles", its fixup sentence now true, and names the debt. The upgrade-guide line for the
   refusal is batch B's.
+- 2026-10-09 — C7G-INLINE-ATOM-MAX (architect N7): max-content inline sizes summed the text of an
+  inline subtree (`intrinsic/inline.rs::inline_content_width`), atoms' text included, and a block
+  container whose inline content is text and atoms only — not an IFC block by `is_ifc_block`, so laid
+  out as an anonymous block box (CSS 2.1 §9.2.1.1) — was measured as its element children stacked and
+  its text runs apart (`children.rs`). Decision, at the root: intrinsic inline sizes come from the
+  packer layout uses (CSS Sizing 3 §5.1: the widest line at no soft wrap / at every one), as
+  min-content already did: `inline::widest_line` (an IFC block) and `inline::widest_run_line` (one
+  anonymous block box's run, the partition `block::inline_runs` shares with `layout_block_children`),
+  each with a `LinePacker::measuring` packer whose atoms are their own max-content width with
+  percentages against no basis (§5.2.1) and whose atom rows are not measured. The block container's
+  Column estimate packs the same runs at its content width (its text was one unwrapped row a run, its
+  atoms stacked) — needed, not only truer: with the wider, right Row widths the old estimate measured
+  each nested atom at a width layout never gives it, and `nested_inline_blocks_measure_each_subtree_once`
+  went quadratic (3, 6, 10, 15, 45, 91 Column walks at 1–12 levels); packing as layout does, its keys
+  coincide with layout's and the pin holds unchanged. The sum walk and `pseudo_beside_inline` are gone
+  (the pack holds the static pseudo-elements). Split: `inline/mod.rs` 563 → 365 + `feed.rs` (the box
+  tree fed to the packer, now shared by `compute_inline_layout`, `pack_run` and `measure.rs`); TECH_DEBT
+  `SIZE-1` updated. Red: `css_phase7/container.rs::an_atoms_box_counts_in_its_lines_max_content` —
+  `x ` beside an `inline-grid` of `5 5`, a `width: max-content` paragraph `(10, 2)` for `(12, 1)`
+  (checked against the unchanged source by stashing it); likewise `inline-flex` / `inline-block`
+  `width: 10`, and `x y ` in an IFC 14 wide. Green after. Mutation: the IFC path measured at
+  min-content → `(10, 2)` for `(14, 1)` (reverted, touched). One snapshot changed, justified:
+  `rdom-showcase`'s `ua_chrome.snap` — its "Buttons" `<section>` (an `<h3>` and three `<button>`s, a
+  flex item of the root, sized by this estimate) was 2 rows too tall, the old Column estimate stacking
+  the three inline-block buttons; it is now its `<h3>` and one line, so the three blank rows after the
+  buttons are one, as between every other section (glyphs moved up two rows, no cell changed
+  otherwise). No other test changed.

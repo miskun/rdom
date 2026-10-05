@@ -70,6 +70,7 @@ use margin_collapse::{
 };
 use place::{BlockPlace, lay_out_block_child};
 use runs::{Run, RunKind, child_level, drop_lineless_runs};
+pub(super) use runs::{inline_runs, is_block_level};
 use width::resolve_block_width;
 
 /// Returned by [`layout_block_children`] so the caller (`layout_node`)

@@ -155,6 +155,17 @@ pub(super) enum Measure {
     MinContent,
 }
 
+impl Measure {
+    /// The width inline content is packed at for this size: unbounded
+    /// (no soft wrap taken) or none (every one taken).
+    pub(super) fn available(self) -> u16 {
+        match self {
+            Measure::MaxContent => u16::MAX,
+            Measure::MinContent => 0,
+        }
+    }
+}
+
 /// How `intrinsic_size_inner` interprets the element's declared
 /// size.
 ///
@@ -366,18 +377,10 @@ fn measure_content(
         Direction::Row => pseudo_content_width(dom, id),
         Direction::Column => 0,
     };
-    // For an inline flow of its own (IFC block, pure-text leaf) the
-    // packer lays the static pseudos out with the text, so a
-    // min-content pack already holds them; the max-content sum of text
-    // widths does not.
-    let pseudo_beside_inline = match measure {
-        Measure::MinContent => 0,
-        Measure::MaxContent => pseudo_main,
-    };
 
-    // IFC block: inline content. Width = max-content (unwrapped sum
-    // of text widths). Height = line count at the available content
-    // width.
+    // IFC block: inline content. Width = its widest line packed at the
+    // measurement's constraint (`inline_width`). Height = line count at
+    // the available content width.
     if is_ifc_block(dom, id) {
         let content = match direction {
             Direction::Row => inline_width(dom, id, measure),
@@ -385,10 +388,7 @@ fn measure_content(
                 wrapped_rows(dom, id, computed, cross_budget, containing_block_width)
             }
         };
-        return content
-            .saturating_add(pseudo_beside_inline)
-            .saturating_add(pad_main)
-            .saturating_add(border_main);
+        return content.saturating_add(pad_main).saturating_add(border_main);
     }
 
     // Recursive fit of children. We walk **element** children only —
@@ -476,10 +476,7 @@ fn measure_content(
                     wrapped_rows(dom, id, computed, cross_budget, containing_block_width)
                 }
             };
-            return content
-                .saturating_add(pseudo_beside_inline)
-                .saturating_add(pad_main)
-                .saturating_add(border_main);
+            return content.saturating_add(pad_main).saturating_add(border_main);
         }
         let pseudo_rows = || {
             let p = crate::render::inline::generated::visible_inline_pseudos(dom, id);

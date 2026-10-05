@@ -46,23 +46,26 @@
 mod align;
 mod boxes;
 mod caret;
+mod feed;
 pub(crate) mod generated;
+mod measure;
 mod packer;
 pub(crate) mod vertical;
 
 #[cfg(test)]
 mod tests;
 
-use rdom_core::{Dom, NodeId, NodeType};
+use rdom_core::{Dom, NodeId};
 
-use crate::ext::{PseudoSlot, StyleSlot, TuiExt};
-use crate::layout::WhiteSpace;
+use crate::ext::TuiExt;
 use crate::node::TuiNodeExt;
 use crate::render::box_tree::BoxItem;
 
 pub use boxes::{GeneratedFragment, InlineFragment, InlineLayout, LineBox};
 pub use caret::cell_of_position;
 pub(crate) use caret::cells_before_byte;
+use feed::{fill_block, fill_run, white_space};
+pub(crate) use measure::{widest_line, widest_run_line};
 use packer::LinePacker;
 
 /// True iff `id` has a populated `inline_layout` on its `TuiExt`.
@@ -292,44 +295,14 @@ pub fn atomic_placements(
 /// `content_width`. Idempotent — calling twice with the same inputs
 /// yields identical output.
 pub fn compute_inline_layout(dom: &Dom<TuiExt>, block: NodeId, content_width: u16) -> InlineLayout {
-    let ws = dom
-        .node(block)
-        .ext()
-        .and_then(|e| e.computed.as_ref())
-        .map(|c| c.white_space)
-        .unwrap_or(WhiteSpace::Normal);
-
-    let mut packer = LinePacker::new(content_width, ws);
-    push_pseudo(dom, block, PseudoSlot::Before, &mut packer);
-    walk_subtree(dom, block, &mut packer);
-    push_pseudo(dom, block, PseudoSlot::After, &mut packer);
+    let mut packer = LinePacker::new(content_width, white_space(dom, block));
+    fill_block(dom, block, &mut packer);
     packer.finish();
     let mut lines = packer.take_lines();
     align::start_lines_at_inline_start(dom, block, &mut lines, content_width);
     InlineLayout {
         lines,
         content_width,
-    }
-}
-
-/// Push `host`'s `slot` pseudo-element if it joins `host`'s own inline
-/// content (see [`generated`]). `::before` first pushes the markers of
-/// the list items whose first line this is.
-fn push_pseudo<'a>(
-    dom: &'a Dom<TuiExt>,
-    host: NodeId,
-    slot: PseudoSlot,
-    packer: &mut LinePacker<'a>,
-) {
-    if slot == PseudoSlot::Before {
-        for item in generated::deferred_markers(dom, host) {
-            if let Some(text) = generated::static_pseudo_text(dom, item, StyleSlot::Before) {
-                packer.push_generated(item, PseudoSlot::Before, text);
-            }
-        }
-    }
-    if let Some(text) = generated::own_inline_pseudo_text(dom, host, slot.into()) {
-        packer.push_generated(host, slot, text);
     }
 }
 
@@ -380,61 +353,8 @@ pub(crate) fn pack_run(
     pseudos: RunPseudos,
     content_width: u16,
 ) -> InlineLayout {
-    let ws = dom
-        .node(parent)
-        .ext()
-        .and_then(|e| e.computed.as_ref())
-        .map(|c| c.white_space)
-        .unwrap_or(WhiteSpace::Normal);
-
-    let mut packer = LinePacker::new(content_width, ws);
-    if pseudos.before {
-        push_pseudo(dom, parent, PseudoSlot::Before, &mut packer);
-    }
-    for &item in direct_children {
-        let child_id = match item {
-            BoxItem::Node(n) => n,
-            // The `::before` / `::after` of a box-less child that holds
-            // a block box: an inline box of this flow, hosted by it.
-            BoxItem::Generated(host, slot) => {
-                if let Some(text) = crate::render::box_tree::generated_text(dom, host, slot) {
-                    packer.push_generated(host, slot, text);
-                }
-                continue;
-            }
-        };
-        let child = dom.node(child_id);
-        // A text node directly in a box-less child that holds a block
-        // box is owned by that child (its parent), not by `parent`.
-        let owner = child.parent_node().map_or(parent, |p| p.id());
-        match child.node_type() {
-            NodeType::Text => {
-                if let Some(data) = child.node_value() {
-                    packer.push_text(owner, child_id, data);
-                }
-            }
-            NodeType::Element => {
-                if child.tag_name() == Some("br") {
-                    packer.push_hard_break(child_id);
-                    continue;
-                }
-                // An atomic inline participates as one box — see
-                // `walk_subtree` for the rationale.
-                if child
-                    .computed()
-                    .is_some_and(crate::render::box_tree::is_atomic_inline)
-                {
-                    push_atom(dom, child_id, &mut packer);
-                    continue;
-                }
-                walk_inline_box(dom, child_id, &mut packer);
-            }
-            _ => {}
-        }
-    }
-    if pseudos.after {
-        push_pseudo(dom, parent, PseudoSlot::After, &mut packer);
-    }
+    let mut packer = LinePacker::new(content_width, white_space(dom, parent));
+    fill_run(dom, parent, direct_children, pseudos, &mut packer);
     packer.finish();
     let mut lines = packer.take_lines();
     align::start_lines_at_inline_start(dom, parent, &mut lines, content_width);
@@ -442,122 +362,4 @@ pub(crate) fn pack_run(
         lines,
         content_width,
     }
-}
-
-/// Recursively walk `id`'s descendants in document order, feeding
-/// every text node's graphemes to `packer`. Descends into
-/// `display: inline` elements (their pseudo-elements included — see
-/// [`walk_inline_box`]); `<br>` emits a hard line break.
-///
-/// Non-element children (comments, fragments) are passed through
-/// their descendant element walk.
-fn walk_subtree<'a>(dom: &'a Dom<TuiExt>, id: NodeId, packer: &mut LinePacker<'a>) {
-    use crate::layout::Display;
-    for child in dom.node(id).child_nodes() {
-        match child.node_type() {
-            NodeType::Text => {
-                // Owner is `id` — the direct element parent. Text
-                // node's id goes in too for source-offset tracking.
-                if let Some(data) = child.node_value() {
-                    packer.push_text(id, child.id(), data);
-                }
-            }
-            NodeType::Element => {
-                use crate::layout::Position;
-                let (display, position) = child
-                    .ext()
-                    .and_then(|e| e.computed.as_ref())
-                    .map(|c| (c.display, c.position))
-                    .unwrap_or((Display::Block, Position::Static));
-                // Out-of-flow descendants contribute nothing to the
-                // inline formatting context: `display: none` generates
-                // no box, and `position: absolute|fixed` boxes are
-                // placed independently by phase-2 positioning. Skipping
-                // them keeps their text out of an ancestor's inline run
-                // — e.g. a collapsed tree branch (`[role=group]` set to
-                // `display: none`) must not leak "hidden-child" into the
-                // parent treeitem's text, and a chip with an absolutely-
-                // positioned dropdown must pack only the chip's own text.
-                if display == Display::None
-                    || matches!(position, Position::Absolute | Position::Fixed)
-                {
-                    continue;
-                }
-                // <br> is a hard break. Matches HTML's baked-in
-                // behavior; recognized by tag name rather than by a
-                // Display variant to avoid complicating the cascade
-                // for a one-element special case.
-                if child.tag_name() == Some("br") {
-                    packer.push_hard_break(child.id());
-                    continue;
-                }
-                // CSS 2.1 §10.8: an atomic inline (`inline-block`,
-                // `inline-flex`, `box_tree::is_atomic_inline`)
-                // participates in IFC as a single atomic inline-
-                // level box. Don't recurse into it — the packer
-                // emits one fragment of its width and rows, the layout
-                // pass lays the element out at that rect and paint
-                // paints it there as a box, at its turn in the line.
-                if child
-                    .computed()
-                    .is_some_and(crate::render::box_tree::is_atomic_inline)
-                {
-                    push_atom(dom, child.id(), packer);
-                    continue;
-                }
-                walk_inline_box(dom, child.id(), packer);
-            }
-            _ => {}
-        }
-    }
-}
-
-/// Feed one in-flow inline element: its static `::before`, its
-/// content, its static `::after`. CSS 2.1 §12.1: the pseudo-elements
-/// are the element's first / last inline children, so they pack at its
-/// start / end, in its line flow (they wrap, and the text beside them
-/// shifts). They land in [`LineBox::generated`], hosted by the element.
-fn walk_inline_box<'a>(dom: &'a Dom<TuiExt>, id: NodeId, packer: &mut LinePacker<'a>) {
-    if let Some(text) = generated::static_pseudo_text(dom, id, StyleSlot::Before) {
-        packer.push_generated(id, PseudoSlot::Before, text);
-    }
-    walk_subtree(dom, id, packer);
-    if let Some(text) = generated::static_pseudo_text(dom, id, StyleSlot::After) {
-        packer.push_generated(id, PseudoSlot::After, text);
-    }
-}
-
-/// Push the inline block `id` as an atom: its width and its rows in
-/// the line (`vertical`).
-fn push_atom(dom: &Dom<TuiExt>, id: NodeId, packer: &mut LinePacker<'_>) {
-    let cb_width = packer.content_width();
-    let width = atomic_inline_block_intrinsic_width(dom, id, cb_width);
-    let rows = vertical::atom_rows(dom, id, width, cb_width);
-    packer.push_atomic_inline_block(id, width, rows);
-}
-
-/// Intrinsic main-axis (row) content width of an inline-block
-/// element treated as an atomic IFC box. Includes UA pseudo
-/// content (`::before` + `::after`) plus own text/inline content
-/// plus padding/border via the existing intrinsic measurement.
-fn atomic_inline_block_intrinsic_width(
-    dom: &Dom<TuiExt>,
-    id: NodeId,
-    containing_block_width: u16,
-) -> u16 {
-    // `intrinsic_size` already factors in pseudo widths +
-    // padding + border for Display::InlineBlock — that's the same
-    // measurement the flex layout uses to size inline-block flex
-    // items. Pass `cross_budget = 0` since IFC packers don't
-    // affect inline-block height; only the width matters here.
-    // The atom's containing block is the IFC's block container, whose
-    // content width is definite: percent padding / margins resolve
-    // against it (CSS 2.1 §8.4).
-    crate::render::layout_pass::intrinsic::intrinsic_size(
-        dom,
-        id,
-        crate::layout::Direction::Row,
-        0,
-        containing_block_width,
-    )
 }
