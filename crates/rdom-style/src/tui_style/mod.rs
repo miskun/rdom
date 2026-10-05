@@ -373,190 +373,20 @@ impl TuiStyle {
         self.custom_properties.len() != before
     }
 
-    /// Count how many fields are `Some(..)`. Used by the cascade +
-    /// devtools to show how "heavy" a rule is.
+    /// How many declarations the block holds, counted by what they
+    /// store: each storage field of the property table that is set (so
+    /// a shorthand counts its longhands), each kept declaration that
+    /// writes no field — a flow-relative one, mapped only by the cascade,
+    /// or one waiting for substitution — and each custom property. Used
+    /// by the cascade + devtools to show how "heavy" a rule is.
     pub fn declared_count(&self) -> usize {
-        let mut n = 0;
-        if self.fg.is_some() {
-            n += 1
-        }
-        if self.bg.is_some() {
-            n += 1
-        }
-        n += self
-            .border_color
-            .each()
-            .iter()
-            .filter(|c| c.is_some())
-            .count();
-        n += self
-            .border_width
-            .each()
-            .iter()
-            .filter(|w| w.is_some())
-            .count();
-        n += [
-            self.background_image.is_some(),
-            self.background_position.is_some(),
-            self.background_size.is_some(),
-            self.background_repeat.is_some(),
-            self.background_attachment.is_some(),
-            self.background_origin.is_some(),
-            self.background_clip.is_some(),
-        ]
-        .iter()
-        .filter(|set| **set)
-        .count();
-        if self.bold.is_some() {
-            n += 1
-        }
-        if self.italic.is_some() {
-            n += 1
-        }
-        if self.width.is_some() {
-            n += 1
-        }
-        if self.height.is_some() {
-            n += 1
-        }
-        if self.min_width.is_some() {
-            n += 1
-        }
-        if self.max_width.is_some() {
-            n += 1
-        }
-        if self.min_height.is_some() {
-            n += 1
-        }
-        if self.max_height.is_some() {
-            n += 1
-        }
-        if self.box_sizing.is_some() {
-            n += 1
-        }
-        if self.margin_trim.is_some() {
-            n += 1
-        }
-        n += [
-            self.contain_intrinsic_width.is_some(),
-            self.contain_intrinsic_height.is_some(),
-        ]
-        .iter()
-        .filter(|set| **set)
-        .count();
-        n += self.padding.each().iter().filter(|p| p.is_some()).count();
-        n += self.margin.each().iter().filter(|m| m.is_some()).count();
-        n += [self.row_gap.is_some(), self.column_gap.is_some()]
-            .iter()
-            .filter(|set| **set)
-            .count();
-        if self.order.is_some() {
-            n += 1
-        }
-        n += [
-            self.flex_grow.is_some(),
-            self.flex_shrink.is_some(),
-            self.flex_basis.is_some(),
-        ]
-        .iter()
-        .filter(|set| **set)
-        .count();
-        n += self
-            .border_style
-            .each()
-            .iter()
-            .filter(|s| s.is_some())
-            .count();
-        n += self
-            .border_radius
-            .each()
-            .iter()
-            .filter(|r| r.is_some())
-            .count();
-        if self.direction.is_some() {
-            n += 1
-        }
-        if self.flex_reverse.is_some() {
-            n += 1
-        }
-        if self.flex_wrap.is_some() {
-            n += 1
-        }
-        if self.justify_content.is_some() {
-            n += 1
-        }
-        if self.align_items.is_some() {
-            n += 1
-        }
-        if self.align_content.is_some() {
-            n += 1
-        }
-        if self.align_self.is_some() {
-            n += 1
-        }
-        if self.justify_items.is_some() {
-            n += 1
-        }
-        if self.justify_self.is_some() {
-            n += 1
-        }
-        if self.text_direction.is_some() {
-            n += 1
-        }
-        if self.writing_mode.is_some() {
-            n += 1
-        }
-        if self.overflow_x.is_some() {
-            n += 1
-        }
-        if self.overflow_y.is_some() {
-            n += 1
-        }
-        if self.scrollbar_gutter.is_some() {
-            n += 1
-        }
-        if self.scroll_behavior.is_some() {
-            n += 1
-        }
-        if self.display.is_some() {
-            n += 1
-        }
-        if self.flow.is_some() {
-            n += 1
-        }
-        if self.list_item.is_some() {
-            n += 1
-        }
-        if self.white_space.is_some() {
-            n += 1
-        }
-        if self.user_select.is_some() {
-            n += 1
-        }
-        if self.pointer_events.is_some() {
-            n += 1
-        }
-        if self.visibility.is_some() {
-            n += 1
-        }
-        if self.caret_color.is_some() {
-            n += 1
-        }
-        if self.caret_text_color.is_some() {
-            n += 1
-        }
-        if self.text_decoration.is_some() {
-            n += 1
-        }
-        if self.content.is_some() {
-            n += 1
-        }
-        if self.color_scheme.is_some() {
-            n += 1
-        }
-        n += self.custom_properties.len();
-        n += self.pending.iter().filter(|d| d.has_substitution).count();
-        n
+        crate::property_dispatch::set_field_count(self)
+            + self.custom_properties.len()
+            + self
+                .pending
+                .iter()
+                .filter(|d| d.has_substitution || d.directional)
+                .count()
     }
 }
 

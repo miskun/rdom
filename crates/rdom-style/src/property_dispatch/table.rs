@@ -69,6 +69,13 @@ macro_rules! define_fields {
             /// Every field.
             const EVERY: &'static [Field] = &[$(Field::$variant,)+];
 
+            /// Whether `style` sets the field.
+            fn is_set(self, style: &TuiStyle) -> bool {
+                match self {
+                    $(Field::$variant => style.$($field).+.is_some(),)+
+                }
+            }
+
             /// Copy the field from `from` to `to` when `from` sets it.
             fn copy(self, from: &TuiStyle, to: &mut TuiStyle) {
                 match self {
@@ -404,6 +411,11 @@ pub fn property_mask(name: &str) -> Option<crate::ImportantMask> {
             .iter()
             .fold(crate::ImportantMask::empty(), |m, f| m | f.mask()),
     )
+}
+
+/// How many of the table's storage fields `style` sets.
+pub(crate) fn set_field_count(style: &TuiStyle) -> usize {
+    Field::EVERY.iter().filter(|f| f.is_set(style)).count()
 }
 
 /// Copy every field of `mask` that `from` sets onto `to`.

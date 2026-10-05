@@ -370,3 +370,35 @@ fn aspect_ratio_terms_are_validated() {
         (16.0, 9.0, true)
     );
 }
+
+/// C6G-DECLARED-COUNT: `declared_count` counts every storage field the
+/// property table has — the ones the hand-written count had drifted
+/// from (`z-index`, `opacity`, `position`, the insets, `box-shadow`,
+/// the transition longhands, the counters) included — plus each
+/// declaration kept for the cascade that writes no field (a
+/// flow-relative one, one waiting for substitution) and each custom
+/// property.
+#[test]
+fn declared_count_counts_every_field_kind() {
+    use crate::property_dispatch::{property_mask, set};
+    let physical = [
+        ("z-index", "3"),
+        ("opacity", "0.5"),
+        ("position", "relative"),
+        ("top", "1"),
+        ("box-shadow", "1 1 red"),
+        ("transition", "color 1s"),
+        ("counter-reset", "a"),
+        ("color", "red"),
+    ];
+    let mut s = TuiStyle::new();
+    let mut fields = 0;
+    for (name, value) in physical {
+        set(name, value, &mut s).unwrap_or_else(|e| panic!("{name}: {e:?}"));
+        fields += property_mask(name).expect("a property").count();
+    }
+    set("margin-inline-start", "1", &mut s).unwrap();
+    set("width", "var(--w)", &mut s).unwrap();
+    set("--x", "1", &mut s).unwrap();
+    assert_eq!(s.declared_count(), fields + 3);
+}

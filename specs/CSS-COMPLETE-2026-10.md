@@ -2877,3 +2877,14 @@ row comes from.
   the `var()` split back → (2); the subset's kept declarations cleared → (3). Keeping a declaration whose every field was
   removed, restricted to nothing, instead of dropping it is an equivalent mutation (it writes no
   field) and survives. No snapshot changed.
+- 2026-10-08 — C6G-DECLARED-COUNT (AN16): `TuiStyle::declared_count` was a hand copy of the
+  field list (some 150 lines in `tui_style/mod.rs`) that had drifted — no `z-index`, `opacity`,
+  `position`, insets, `box-shadow`, transition longhands, counters, and no flow-relative
+  declaration (which writes no field until the cascade). Decision: derive it from `define_fields!`
+  — the macro emits `Field::is_set` and `property_dispatch::set_field_count` folds over
+  `Field::EVERY` — plus the custom properties and the kept declarations that write no field (a
+  flow-relative one, or one waiting for substitution). A shorthand still counts its longhands, as
+  the existing tests pin (15, 29). Red: `tui_style::tests::declared_count_counts_every_field_kind`
+  — 3 for 14 (the expected count from `property_mask(name).count()` per declared property, plus
+  the directional, the `var()` and the custom one). Green after. Mutation check (restored and
+  touched): flow-relative declarations not counted → 13. `tui_style/mod.rs` 566 → 396 lines.
