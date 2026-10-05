@@ -10,7 +10,7 @@
 //! - `pre-wrap` — preserve runs + newlines, DO wrap.
 //! - `nowrap`   — collapse like normal, but do NOT wrap.
 //!
-//! The packer (`crates/rdom-tui/src/render/inline/packer.rs`)
+//! The packer (`crates/rdom-tui/src/render/inline/packer/mod.rs`)
 //! reads `white_space` from the IFC block's `ComputedStyle` and
 //! switches between the four modes.
 

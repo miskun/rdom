@@ -2910,3 +2910,22 @@ row comes from.
   `numeric::clamp_i32` (its range test unchanged); the `cell_sizer` doc says what it reads now (the
   computed style after a cascade — an app re-syncing — else the UA `<td>` / `<th>` padding with
   `content-box` or the cell's inline `box-sizing`, percentages against 0). No snapshot changed.
+- 2026-10-08 — C6G-SPLITS (AN18), ahead of grid; pure moves, no behaviour change, no test
+  changed. `rdom-style/src/computed.rs` 543 → 457: its tests to `computed_tests.rs` (`#[path]`).
+  `tui_style/mod.rs` is 396 after C6G-DECLARED-COUNT, no split. `property_dispatch/serialize.rs`
+  520 → `serialize/mod.rs` 62 (the substitution / flow-relative / CSS-wide prelude and the
+  family chain) with one module per family, each `fn serialize(name, style) -> Option<Option<
+  String>>` like the existing `background` / `border` ones: `box_model` 155 (overflow and scroll
+  keywords, `margin-trim`, `direction` / `writing-mode`, `box-sizing`, sizes, `padding`,
+  `margin`, `border-collapse`), `flex` 142 (`display`, flexbox, alignment, gaps), `paint` 131
+  (color, font keywords, `text-decoration`, `opacity`, `white-space`, `user-select`,
+  `pointer-events`, `visibility`, caret colors, `color-scheme`, `content`), `position` 100
+  (position, insets, `z-index`, transitions, counters) — arms moved verbatim. Over 550, split by
+  concern: `render/inline/packer.rs` 578 → `packer/mod.rs` 360 (state and intake: text,
+  generated content, hard breaks, the grapheme and break rules) + `packer/emit.rs` 251
+  (committing words, fragments, atoms, settling and breaking lines); `editing/movement/mod.rs`
+  555 → `mod.rs` 358 (dispatch, horizontal moves, deletion) + `vertical.rs` 212 (Up / Down with
+  sticky-x, line edges; re-exported at the old paths). Under 550, left and recorded in
+  TECH_DEBT `SIZE-1`: `cascade/ladder.rs` 544, `block/mod.rs` 529, `layout/border.rs` 528,
+  `inline_paint/mod.rs` 520, and from this batch `inline/mod.rs` 560, `property_dispatch/table.rs`
+  531, `flex/mod.rs` 516.

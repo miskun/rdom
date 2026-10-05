@@ -6,7 +6,7 @@ For the durable architectural divergences (web-platform departures shipped on pu
 
 ## Open
 
-(none)
+- **`SIZE-1` — production files between 500 and 560 lines, left after C6G-SPLITS.** The Phase 6 gate split the files past 550 lines (`inline/packer.rs` → `packer/{mod,emit}.rs`, `editing/movement/mod.rs` → `movement/{mod,vertical}.rs`, `property_dispatch/serialize.rs` → `serialize/{mod,box_model,flex,paint,position}.rs`, `computed.rs`'s tests → `computed_tests.rs`). Under the 550 bar and left, each with one concern that has not split cleanly yet: `render/inline/mod.rs` 560 (the layout entry points and the inline-flow lookups — the lookups, `InlineFlow` / `box_index` / `inline_flow_layout`, are the next cut), `style/cascade/ladder.rs` 544, `property_dispatch/table.rs` 531, `layout_pass/block/mod.rs` 529, `rdom-style/src/layout/border.rs` 528, `paint_pass/inline_paint/mod.rs` 520, `layout_pass/flex/mod.rs` 516 (the orchestrator; grid's shared line machinery will take its line loop). Pay down when Phase 7 (grid) touches them — it adds fields and layout code to several.
 
 ## Accepted simplifications
 
