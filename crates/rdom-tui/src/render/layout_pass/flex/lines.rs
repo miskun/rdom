@@ -270,8 +270,9 @@ pub(super) fn line_cross_size(
     (tallest.max(plan.baseline_extent()), plan)
 }
 
-/// The intrinsic cross size of the multi-line flex container `id`
-/// (CSS Flexbox §9.9.2): its items broken into lines at `main` (the
+/// The intrinsic cross size of the flex container `id` (CSS Flexbox
+/// §9.9.2): its items broken into lines at `main` (one line when it is
+/// single-line, §9.3; the
 /// inner main size they wrap at), each line's items flexed, each line as
 /// large as its largest outer hypothetical cross size — measured with
 /// the item's used main size — and the lines `cross_gap` apart.
@@ -303,7 +304,12 @@ pub(in crate::render::layout_pass) fn lines_cross_size(
     let flip = super::AxisFlip::of(&container, direction);
     let budgets = MainBudgets { main, cross };
     let mut items = collect_main_axis_items(dom, children, direction, budgets, trim, flip.main);
-    let lines = break_lines(dom, &items, direction, budgets, gap);
+    // §9.3: a single-line container's one line holds every item.
+    let lines = if is_multi_line(&container) {
+        break_lines(dom, &items, direction, budgets, gap)
+    } else {
+        std::iter::once(0..items.len()).collect()
+    };
     let overlap = SiblingOverlap::new(&container, gap, direction);
     let last = lines.len().saturating_sub(1);
     let mut total: u32 = 0;

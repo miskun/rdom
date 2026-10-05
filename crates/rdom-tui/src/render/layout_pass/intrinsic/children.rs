@@ -131,8 +131,13 @@ pub(super) fn children_size(
     // A multi-line flex container (CSS Flexbox §9.9): on its main axis
     // each item can take a line of its own, so its min-content size is
     // its largest item's (its max-content size is one line, the sum); on
-    // its cross axis it is its lines'.
+    // its cross axis it is its lines'. A single-line row's height is its
+    // one line's (§9.4 steps 8 / 15) — sized as a multi-line container's
+    // line is, so its baseline-aligned extent counts. (A column's cross
+    // axis is the inline axis, where `baseline` falls back and the
+    // min-content contributions apply: its items' largest.)
     let wrapping = flex && crate::render::layout_pass::flex::is_multi_line(computed);
+    let row_line = flex && !along && direction == Direction::Column;
     let intrinsic_children: u16 = if along && wrapping && measure == Measure::MinContent {
         children
             .iter()
@@ -140,7 +145,7 @@ pub(super) fn children_size(
             .map(|(i, &c)| outer(i, c))
             .max()
             .unwrap_or(0)
-    } else if wrapping && !along {
+    } else if (wrapping || row_line) && !along {
         wrap::wrapped_cross_size(
             dom,
             id,

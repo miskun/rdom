@@ -2565,3 +2565,23 @@ row comes from.
   layouts. Mutation check (reverted and touched): the atom pushed and its content searched without
   its own visibility rules → the hidden atom's border cell hit the atom (5) for the paragraph (2).
   No snapshot changed.
+- 2026-10-08 — C6G-BASELINE-ROW (AB2): a flex container's `auto` cross size comes from intrinsic
+  sizing (`children_size`), which for a single-line container took the plain largest outer cross
+  contribution, while only the multi-line path (`lines_cross_size` → `line_cross_size`, §9.4 step 8)
+  counted the baseline-aligned extent — so `.f { display: flex; align-items: baseline }` holding a
+  `padding-top: 2` item beside a `padding-bottom: 2` one was 3 rows, the browser's 5, with the
+  second item hanging out (every `align.rs` baseline test fixed `height: 6`). Decision: a single-line
+  *row*'s height is its one line's, measured the way a multi-line container's lines are — through
+  `wrap::wrapped_cross_size` → `lines_cross_size`, which now keeps every item on one line when the
+  container is `nowrap` (§9.3) — so the hypothetical cross sizes are taken at the items' used main
+  sizes, as layout places them. A single-line *column* keeps the largest contribution: its cross
+  axis is the inline axis, where `baseline` falls back (§8.3) and the min- / max-content measure
+  applies, which the lines path (a max-content measurement) would lose. Red:
+  `baseline_alignment_sizes_a_single_line` — height 3 for 5; green after. Mutation check (reverted
+  and touched): `lines_cross_size` breaking a single-line container into lines → the overflowing
+  `nowrap` case, 6 for 5. One snapshot changed, justified: `rdom-showcase` `parse_and_render` — its
+  `body` is a single-line row of two `flex: 1` cards, and its height was the cards' heights each
+  measured at the row's whole width (about 70 cells), where the accent card's text took 3 lines; at
+  its used width (31) it takes 4, so the card's fourth bullet (`• Unicode: …`) and its bottom
+  padding row were clipped by its `overflow-y: hidden` — now shown, two rows taller, as a browser
+  sizes the row. No other test expectation changed.

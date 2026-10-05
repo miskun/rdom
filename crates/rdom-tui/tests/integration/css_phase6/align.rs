@@ -137,6 +137,41 @@ fn baseline_alignment_sizes_a_line() {
     assert_eq!(size(&dom, f).1, 5);
 }
 
+/// §9.4 step 8 for a single-line container (C6G-BASELINE-ROW): with an
+/// `auto` cross size its one line is sized the same way — the
+/// baseline-aligned extent when it exceeds the tallest item — and the
+/// container's height is that line's (§9.4 step 15, §9.9).
+#[test]
+fn baseline_alignment_sizes_a_single_line() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let f = el(&mut dom, root, "div", "f");
+    let a = el(&mut dom, f, "div", "i a");
+    let b = el(&mut dom, f, "div", "i b");
+    for n in [a, b] {
+        let t = dom.create_text_node("x");
+        dom.append_child(n, t).unwrap();
+    }
+    lay_out(
+        &mut dom,
+        ".f { display: flex; align-items: baseline; width: 12 } \
+         .i { width: 2 } .a { padding-top: 2 } .b { padding-bottom: 2 }",
+        20,
+        10,
+    );
+    assert_eq!((rect(&dom, a).y, rect(&dom, b).y), (0, 2));
+    assert_eq!(size(&dom, f).1, 5);
+    // One line however the items overflow it (§9.3: `nowrap`).
+    lay_out(
+        &mut dom,
+        ".f { display: flex; align-items: baseline; width: 3 } \
+         .i { width: 2; flex-shrink: 0 } .a { padding-top: 2 } .b { padding-bottom: 2 }",
+        20,
+        10,
+    );
+    assert_eq!(size(&dom, f).1, 5);
+}
+
 /// Box Alignment §4.4: an item larger than its line overflows as asked
 /// (`center` both ways, the leading space rounded down) unless `safe`,
 /// which aligns it as `start`.

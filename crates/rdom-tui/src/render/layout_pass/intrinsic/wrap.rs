@@ -1,6 +1,6 @@
-//! The intrinsic cross size of a multi-line flex container (CSS
-//! Flexbox §9.9.2): where its items break into lines, for
-//! `flex::lines_cross_size` to lay the lines out.
+//! The intrinsic cross size of a multi-line flex container, or of a
+//! single-line row (CSS Flexbox §9.9.2): where its items break into
+//! lines, for `flex::lines_cross_size` to lay the lines out.
 
 use rdom_core::{Dom, NodeId};
 
@@ -10,7 +10,9 @@ use crate::layout::Direction;
 use crate::render::layout_pass::box_sizing::Sizer;
 use crate::style::ComputedStyle;
 
-/// The cross size along `query` of the multi-line flex container `id`
+/// The cross size along `query` of the flex container `id` — multi-line,
+/// or a single-line row (`query` the column axis), whose one line holds
+/// every item —
 /// whose in-flow items are `children`. `cross_budget` is the extent the
 /// container is measured against on its other axis (a row's border-box
 /// width), `cb_width` its containing block's width.
