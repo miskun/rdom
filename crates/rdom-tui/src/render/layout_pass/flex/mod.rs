@@ -1,7 +1,8 @@
 //! Flex layout — CSS Flexible Box Layout 1, with CSS Box Alignment 3.
 //!
-//! Given a container's `content_layout` and its in-flow element
-//! children, computes each item's main and cross size and position and
+//! Given a container's `content_layout` and its flex items (§4: its
+//! in-flow elements, pseudo-elements and anonymous items wrapping its
+//! runs of text), computes each item's main and cross size and position and
 //! recursively lays it out: the flex base sizes (§9.2, `flex-basis`, the
 //! main size property, rdom's `width: <n>fr`), the lines (§9.3,
 //! `flex-wrap`), the flexible lengths per line (§9.7, `flex-grow` /
@@ -20,6 +21,8 @@
 //! - `mod.rs` — [`layout_children`] (the IFC / text-leaf / block / flex
 //!   dispatch) and [`layout_flex_children`], the orchestrator that
 //!   threads the flex lines through the pieces below in spec order.
+//! - [`item`] — the flex items (§4): elements, pseudo-elements and
+//!   anonymous items wrapping the runs of text, and their measurement.
 //! - [`main_axis`] — per-item main-size gathering (`ChildMain`, §9.2).
 //! - [`distribute`] — the §9.7 grow / shrink freeze loop and the lazy
 //!   §4.5 auto-min floor.
@@ -44,13 +47,14 @@ mod content;
 mod cost_tests;
 mod cross;
 mod distribute;
+pub(in crate::render::layout_pass) mod item;
 mod lines;
 mod main_axis;
 mod placement;
 
 use rdom_core::{Dom, NodeId};
 
-use crate::ext::TuiExt;
+use crate::ext::{AnonymousIfc, TuiExt};
 use crate::layout::{Direction, LayoutRect};
 use crate::render::inline::compute_inline_layout;
 use crate::style::ComputedStyle;
@@ -60,6 +64,7 @@ use super::margin_trim::FlexTrim;
 use super::{element_children_of, layout_node};
 use collapse::SiblingOverlap;
 use cross::CrossSpace;
+use item::FlexItem;
 pub(in crate::render::layout_pass) use lines::{is_multi_line, lines_cross_size};
 use main_axis::{MainBudgets, collect_main_axis_items};
 use placement::{FlexLine, place_items};
@@ -84,8 +89,10 @@ pub(in crate::render::layout_pass) fn is_collapsed(dom: &Dom<TuiExt>, id: NodeId
         })
 }
 
-/// Lay out the **element** children of `id` inside `container`, using
-/// `computed`'s `direction`, `gap`, and the children's own sizes.
+/// Lay out the children of `id` inside `container`: an inline
+/// formatting context, a pure-text leaf, block flow, or — for a flex
+/// container — its flex items (§4), using `computed`'s `direction`,
+/// `gap`, and the items' own sizes.
 ///
 /// Returns `Some(BlockMeasurement)` ONLY when this dispatch went
 /// through the `Flow::Block` arm — that's the only path where
@@ -179,7 +186,10 @@ pub(super) fn layout_children(
     let no_in_flow_element_children = element_children_of(dom, id)
         .iter()
         .all(|&c| !super::is_in_flow(dom, c));
-    if has_text_child && no_in_flow_element_children {
+    // A flex container's text is its anonymous items' (CSS Flexbox §4),
+    // laid out by the flex arm below.
+    let flex = computed.flow == crate::layout::Flow::Flex;
+    if has_text_child && no_in_flow_element_children && !flex {
         let inline_layout = compute_inline_layout(dom, id, container.width);
         super::positioning::record_static_positions_in_ifc(
             dom,
@@ -236,13 +246,13 @@ pub(super) fn layout_children(
     //
     // Their `LayoutRect` stays at the default zero from
     // `TuiExt::default` until something writes to it.
-    let mut children: Vec<NodeId> = element_children_of(dom, id)
-        .into_iter()
-        .filter(|&c| super::is_in_flow(dom, c))
-        .collect();
+    //
+    // CSS Flexbox §4: the items are the in-flow children — elements, the
+    // pseudo-elements, and an anonymous item per run of text.
+    let mut children = item::flex_items(dom, id);
     // CSS Flexbox §5.4: the items are laid out in order-modified
     // document order.
-    crate::render::box_tree::sort_by_order(dom, &mut children);
+    item::sort_by_order(dom, &mut children);
     // `D-M2-2`: a positioned child's static position in a flex
     // container is the content box's start — Flexbox §4.1 places it as
     // the sole item; `justify-content` / `align-items` are not applied
@@ -254,7 +264,13 @@ pub(super) fn layout_children(
     for n in super::positioning::out_of_flow_positioned_children(dom, id) {
         super::positioning::record_static_position(dom, n, static_x, static_y);
     }
-    layout_flex_children(dom, &children, container, computed);
+    let mut anonymous = layout_flex_children(dom, &children, container, computed);
+    // The anonymous items' boxes, in document order (paint, hit-testing
+    // and the caret find a text's box by its `child_range`).
+    anonymous.sort_by_key(|a| a.child_range.0);
+    if let Some(ext) = dom.node_mut(id).ext_mut() {
+        ext.anonymous_blocks = anonymous;
+    }
     // Flex distribution sets each child's outer rect inside the
     // container; the container's own height was determined by its
     // parent's distribution / its declared size. Auto height on a
@@ -264,10 +280,10 @@ pub(super) fn layout_children(
     None
 }
 
-/// Lay out a flex container's items: `children` (already filtered to
-/// in-flow items, in order-modified document order) inside `container`,
-/// driven by `parent`'s `flex-direction`, `flex-wrap`, gaps and
-/// `border-collapse`.
+/// Lay out a flex container's items: `children` (its flex items, in
+/// order-modified document order) inside `container`, driven by
+/// `parent`'s `flex-direction`, `flex-wrap`, gaps and `border-collapse`.
+/// Returns the anonymous items' boxes, in placement order.
 ///
 /// Runs the CSS Flexible Box algorithm in spec order — gather the flex
 /// base sizes (§9.2), collect the items into lines (§9.3, `lines`),
@@ -278,12 +294,13 @@ pub(super) fn layout_children(
 /// modules.
 pub(super) fn layout_flex_children(
     dom: &mut Dom<TuiExt>,
-    children: &[NodeId],
+    children: &[FlexItem],
     container: LayoutRect,
     parent: &ComputedStyle,
-) {
+) -> Vec<AnonymousIfc> {
+    let mut anonymous = Vec::new();
     if children.is_empty() {
-        return;
+        return anonymous;
     }
 
     let direction = parent.direction;
@@ -410,7 +427,6 @@ pub(super) fn layout_flex_children(
         );
         place_items(
             dom,
-            &children[range.clone()],
             FlexLine {
                 items: &items[range.clone()],
                 final_main: &line.final_main,
@@ -429,9 +445,11 @@ pub(super) fn layout_flex_children(
                 trim: line_trim(k),
                 flip,
             },
+            &mut anonymous,
         );
         line_offset += i32::from(line_cross[k]) + i32::from(line_gap);
     }
+    anonymous
 }
 
 /// Which of a flex container's axes run from their physical end edge

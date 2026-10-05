@@ -375,15 +375,35 @@ fn measure_content(
     // `<details>` element's hidden `<pre>` body inflated the
     // intrinsic from ~1 row (summary) to ~15, starving the
     // sibling `flex: 1` panel of its share of the main axis.
-    let mut children: Vec<NodeId> = super::element_children_of(dom, id)
+    //
+    // A flex container measures its flex items (CSS Flexbox §4): its
+    // elements, its pseudo-elements and an anonymous item per run of text
+    // — so its own `::before` / `::after` are no inline content beside
+    // them — in order-modified document order (§5.4: its first and last
+    // items, for `margin-trim`).
+    if computed.flow == crate::layout::Flow::Flex {
+        let mut items = super::flex::item::flex_items(dom, id);
+        super::flex::item::sort_by_order(dom, &mut items);
+        let content = if items.is_empty() {
+            0
+        } else {
+            children::children_size(
+                dom,
+                id,
+                computed,
+                &items,
+                direction,
+                cross_budget,
+                containing_block_width,
+                measure,
+            )
+        };
+        return content.saturating_add(pad_main).saturating_add(border_main);
+    }
+    let children: Vec<NodeId> = super::element_children_of(dom, id)
         .into_iter()
         .filter(|&c| super::is_in_flow(dom, c))
         .collect();
-    // A flex container's first and last items (`margin-trim`) are in
-    // order-modified document order (CSS Flexbox §5.4).
-    if computed.flow == crate::layout::Flow::Flex {
-        crate::render::box_tree::sort_by_order(dom, &mut children);
-    }
 
     if children.is_empty() {
         // No element children. Two cases:
@@ -435,7 +455,7 @@ fn measure_content(
         dom,
         id,
         computed,
-        &children,
+        &super::flex::item::elements(&children),
         direction,
         cross_budget,
         containing_block_width,

@@ -59,8 +59,8 @@ use crate::style::ComputedStyle;
 use super::is_in_flow;
 use super::layout_node;
 pub(super) use align::align_content_lead;
-pub(super) use height::nearest_block_ancestor_height_is_definite;
 use height::resolve_block_height;
+pub(super) use height::{height_is_definite_below, nearest_block_ancestor_height_is_definite};
 #[cfg(debug_assertions)]
 pub(super) use margin_collapse::debug_assert_no_margin_chain_memo;
 use margin_collapse::{
@@ -215,7 +215,11 @@ pub(super) fn layout_block_children(
     // same per-edge inset flex uses so the two layout modes agree.
     let in_flow_ids: Vec<NodeId> = in_flow.iter().filter_map(|(_, c)| c.node()).collect();
     let (top_inset, bot_inset, left_inset, right_inset) =
-        super::border_collapse::collapse_parent_edge_insets(dom, &in_flow_ids, parent_computed);
+        super::border_collapse::collapse_parent_edge_insets(
+            dom,
+            (in_flow_ids.first().copied(), in_flow_ids.last().copied()),
+            parent_computed,
+        );
     let container = LayoutRect::new(
         container.x + left_inset as i32,
         container.y + top_inset as i32,

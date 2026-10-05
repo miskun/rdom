@@ -57,6 +57,16 @@ pub(super) fn inherit_inheritable_from(working: &mut ComputedStyle, parent: &Com
     working.animated_vars = parent.animated_vars.clone();
 }
 
+/// The computed style of an anonymous box whose parent box is styled
+/// `parent` (CSS 2.1 §9.2.1.1, CSS Display 3 §2.2): it inherits the
+/// inheritable properties and takes every other one's initial value —
+/// a `display: block` box with no margins, padding or border.
+pub(crate) fn anonymous_box_style(parent: &ComputedStyle) -> ComputedStyle {
+    let mut style = ComputedStyle::initial();
+    inherit_inheritable_from(&mut style, parent);
+    style
+}
+
 /// True iff any layout-affecting computed property differs between
 /// `a` and `b`. When a new layout-affecting property lands, add its
 /// field comparison here (the cascade test `layout_differs_covers_…`

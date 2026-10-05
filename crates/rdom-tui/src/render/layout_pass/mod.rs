@@ -38,7 +38,7 @@
 //! ## Module layout
 //!
 //! - `mod.rs` — public `LayoutExt` trait + `layout_node` dispatch +
-//!   shared helpers (element_children_of, parent_scroll) +
+//!   shared helpers (element_children_of) +
 //!   fragment handling.
 //! - `flex` — flex distribution: `layout_children`,
 //!   `layout_flex_children`, `resolve_cross_size`.
@@ -97,9 +97,7 @@ use crate::style::ComputedStyle;
 use flex::{layout_children, layout_flex_children};
 
 use auto_height::resolve_auto_height;
-pub(super) use gutter::{
-    gutter_axes, parent_scroll, reserve_scrollbar_gutter, reserve_scrollbar_gutter_forced,
-};
+pub(super) use gutter::{gutter_axes, reserve_scrollbar_gutter, reserve_scrollbar_gutter_forced};
 pub(crate) use ifc::is_ifc_block;
 use scroll_extent::{clamp_scroll_offset, record_scroll_content_size};
 pub(crate) use scroll_extent::{
@@ -434,7 +432,17 @@ fn layout_fragment_children(dom: &mut Dom<TuiExt>, id: NodeId, container: Layout
     let mut viewport_column = ComputedStyle::initial();
     viewport_column.flow = crate::layout::Flow::Flex;
     viewport_column.direction = Direction::Column;
-    layout_flex_children(dom, &children, container, &viewport_column);
+    // Element items only: the root's text is not laid out.
+    let anonymous = layout_flex_children(
+        dom,
+        &flex::item::elements(&children),
+        container,
+        &viewport_column,
+    );
+    debug_assert!(
+        anonymous.is_empty(),
+        "element items make no anonymous boxes"
+    );
     collapse_hidden_children(dom, id, container);
 }
 

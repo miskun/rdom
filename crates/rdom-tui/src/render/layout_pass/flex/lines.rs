@@ -13,6 +13,8 @@ use std::ops::Range;
 
 use rdom_core::{Dom, NodeId};
 
+use super::item::FlexItem;
+
 use super::align::{CrossFrame, LinePlan, PlanItem};
 use super::collapse::SiblingOverlap;
 use super::cross::{CrossSpace, ResolvedMain, hypothetical_outer_cross};
@@ -115,14 +117,14 @@ pub(super) struct LineMain {
 }
 
 /// §9.7 and §9.5 step 12 for one line: resolve the flexible lengths of
-/// `items` (the line's items, `ids` their nodes) against the line's
+/// `items` (the line's items, `ids` the items themselves) against the line's
 /// extent — the main size less the gaps and the non-`auto` margins, plus
 /// the cells sibling overlap reclaims — then split what is left over
 /// the `auto` main-axis margins (a remainder cell to each of the first).
 pub(super) fn resolve_line_main(
     dom: &Dom<TuiExt>,
     items: &[ChildMain],
-    ids: &[NodeId],
+    ids: &[FlexItem],
     direction: Direction,
     budgets: MainBudgets,
     gap: u16,
@@ -228,7 +230,7 @@ pub(super) fn line_cross_size(
         .iter()
         .zip(final_main)
         .map(|(ci, &size)| PlanItem {
-            id: ci.id,
+            item: ci.item.clone(),
             main: resolved_main(ci, size, &frame),
         })
         .collect();
@@ -252,7 +254,7 @@ pub(super) fn line_cross_size(
         .map(|p| {
             hypothetical_outer_cross(
                 dom,
-                p.id,
+                &p.item,
                 frame.cb_width,
                 frame.space,
                 frame.direction,
@@ -278,7 +280,7 @@ pub(super) fn line_cross_size(
 pub(in crate::render::layout_pass) fn lines_cross_size(
     dom: &Dom<TuiExt>,
     id: NodeId,
-    children: &[NodeId],
+    children: &[FlexItem],
     main: u16,
     cross: u16,
     cb_width: u16,

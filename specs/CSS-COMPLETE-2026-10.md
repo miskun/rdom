@@ -2698,3 +2698,38 @@ row comes from.
   green after (a ladder that flips direction on every run is run twice and its second result kept;
   one that keeps it, once). Mutation check (reverted and touched): a third run → `(3, Ltr)` for
   `(2, Rtl)`. No test expectation and no snapshot changed.
+- 2026-10-08 — C6G-ANON-FLEX-ITEMS (batch A's DIVERGENCES §3 finding; closes C6G-CONTENTS-BOXTREE's
+  partial AN3): a flex container dropped every run of text beside an element item and its own
+  `::before` / `::after` (`<div flex>ab<span>hello</span></div>` painted `hello`), because the flex
+  algorithm took `NodeId` items. CSS Flexbox §4: each contiguous run of child text is an anonymous
+  block container flex item (a run of only white space — the characters `white-space` affects,
+  under any `white-space` value — is not rendered), and the pseudo-elements, child boxes, are
+  blockified items. Decision: the flex algorithm takes `flex::item::FlexItem` — an element, or an
+  `AnonymousItem` (a run of the container's box-tree children with the anonymous box style,
+  `cascade::anonymous_box_style`: inherited properties from the container, every other one
+  initial) — from `item::flex_items`, built on `box_tree::flex_sequence` (the container's
+  pseudo-elements, its child nodes, every box-less child replaced by its own between its
+  pseudo-elements). An anonymous item is measured by packing its run (`pack_run`): max-content /
+  min-content width, rows at a width, first / last line as baselines; its base is its max-content
+  size, its automatic minimum its min-content size, its cross size the line when stretched; laid
+  out, it is an `AnonymousIfc` on the container (`child_range` into the flex sequence), so paint,
+  scroll extent, content shifting, the caret (`box_index` reads the flex sequence) and selection
+  read it as a block container's anonymous boxes. `order` is 0, alignment, wrap, gaps and
+  `border-collapse` (no border) apply as to any item; the intrinsic sizes of a flex container
+  measure its items, anonymous ones and pseudo-elements included (they were added beside the
+  element items as block text runs — the widest on the inline axis). A text-only flex container
+  no longer takes the pure-text-leaf path: its text is its one anonymous item, so `justify-content`
+  / `align-items` place it and `text-align` aligns within the item, as in browsers. Hit-testing:
+  `inline_target_at` matched an anonymous box by rows only, and a flex row's items share rows; it
+  now prefers the box whose columns hold the point. Out-of-flow children neither are items nor
+  split a run. A box-less child's pseudo-elements are items of their own (DIVERGENCES had them
+  joining the text). Not done, recorded in DIVERGENCES §3: a pseudo-element item is laid out with
+  the anonymous style — its own sizes, `flex`, `order`, margins, padding and border do not apply.
+  Red (`css_phase6/anon_items.rs`, 7 tests): `["hello     "]` for `["abhello   "]`; `["xay  ]"]` for
+  `["[ ab x y ]  "]`; `["xb    "]` for `["xab   "]`; `hi` top-left for centered on the bottom row;
+  `["efgh  ", ""]` for two lines; width 3 for 7; the caret on `cd` resolved into `ab`'s text node.
+  Green after (and `a_contents_childs_pseudo_elements_are_items_of_their_own`, added with the
+  fix). Mutation checks (each alone, restored and touched): the hit-test column check off → the
+  caret test (`(ab, 2)` for `(cd, 1)`); whitespace-only runs rendered → the pseudo / gap test (an
+  extra gap); anonymous items measured as 0 in intrinsic sizing → width 4 for 7. No other test
+  expectation and no snapshot changed.

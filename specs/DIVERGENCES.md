@@ -289,7 +289,7 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 
 - `align-content` on a block container whose content is inline (an inline formatting context: text, inline boxes) — its block-level content moves (C6-PLACE); not yet scheduled
 - `justify-self` / `align-self` on absolutely positioned boxes (CSS Box Alignment 3 §6.1 / §6.2, in the inset-modified containing block) — not yet scheduled
-- Anonymous flex items beside element items (CSS Flexbox §4): a flex container's text runs next to its element items — its own text, or a box-less child's — and its own `::before` / `::after` are not laid out. A flex container whose only content is text (through box-less children too, with their `::before` / `::after`) lays it out as its one anonymous item (C6G-CONTENTS-BOXTREE); a box-less child's pseudo-elements join that item rather than becoming items of their own — not yet scheduled
+- The box properties of a `::before` / `::after` flex item (CSS Flexbox §4: a pseudo-element of a flex container, or of its box-less child, is an item of its own, C6G-ANON-FLEX-ITEMS) — it is laid out as an anonymous item holding its text (`flex: 0 1 auto`, `order: 0`, `auto` sizes, no margins, padding or border); its text keeps the pseudo-element's colours — not yet scheduled
 
 ### Grid
 

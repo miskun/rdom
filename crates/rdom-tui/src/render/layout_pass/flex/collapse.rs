@@ -14,8 +14,9 @@
 //! [`super::super::border_collapse`]; this module only decides when
 //! and where they apply along a flex line.
 
-use rdom_core::{Dom, NodeId};
+use rdom_core::Dom;
 
+use super::item::FlexItem;
 use crate::ext::TuiExt;
 use crate::layout::{BorderCollapse, Direction, LayoutRect};
 use crate::render::layout_pass::border_collapse::{
@@ -48,12 +49,18 @@ use crate::style::ComputedStyle;
 /// panels) without touching `compute_content_area_collapsed`.
 pub(super) fn inset_container_for_children(
     dom: &Dom<TuiExt>,
-    children: &[NodeId],
+    children: &[FlexItem],
     parent: &ComputedStyle,
     container: LayoutRect,
 ) -> LayoutRect {
-    let (top_inset, bot_inset, left_inset, right_inset) =
-        collapse_parent_edge_insets(dom, children, parent);
+    let (top_inset, bot_inset, left_inset, right_inset) = collapse_parent_edge_insets(
+        dom,
+        (
+            children.first().and_then(FlexItem::node),
+            children.last().and_then(FlexItem::node),
+        ),
+        parent,
+    );
     LayoutRect::new(
         container.x + left_inset as i32,
         container.y + top_inset as i32,
@@ -106,22 +113,24 @@ impl SiblingOverlap {
 
     /// Whether items `a` (earlier) and `b` (its next sibling) share a
     /// cell: only when overlap is active AND both have a border on
-    /// the shared edge.
-    pub(super) fn between(&self, dom: &Dom<TuiExt>, a: NodeId, b: NodeId) -> bool {
-        self.active
-            && has_effective_border_on_edge(dom, a, self.edge_i)
-            && has_effective_border_on_edge(dom, b, self.edge_next)
+    /// the shared edge (an anonymous item has none).
+    pub(super) fn between(&self, dom: &Dom<TuiExt>, a: &FlexItem, b: &FlexItem) -> bool {
+        let bordered = |item: &FlexItem, edge| {
+            item.node()
+                .is_some_and(|id| has_effective_border_on_edge(dom, id, edge))
+        };
+        self.active && bordered(a, self.edge_i) && bordered(b, self.edge_next)
     }
 
     /// Total cells reclaimed by sibling overlap across the line — one
     /// per adjacent pair that [`Self::between`] accepts.
-    pub(super) fn savings(&self, dom: &Dom<TuiExt>, children: &[NodeId]) -> u16 {
+    pub(super) fn savings(&self, dom: &Dom<TuiExt>, children: &[FlexItem]) -> u16 {
         if !self.active {
             return 0;
         }
         let mut savings: u16 = 0;
         for i in 0..children.len().saturating_sub(1) {
-            if self.between(dom, children[i], children[i + 1]) {
+            if self.between(dom, &children[i], &children[i + 1]) {
                 savings = savings.saturating_add(1);
             }
         }

@@ -3,11 +3,11 @@
 //! and the resulting cross offset), and the `aspect-ratio` derivation
 //! of the cross size from the resolved main size (CSS Sizing 4 §3.2).
 
-use rdom_core::{Dom, NodeId};
+use rdom_core::Dom;
 
+use super::item::FlexItem;
 use crate::ext::TuiExt;
 use crate::layout::{AspectRatio, Direction, Display, MarginValue, Size, clamp_size};
-use crate::node::TuiNodeExt;
 use crate::render::layout_pass::block::nearest_block_ancestor_height_is_definite;
 use crate::render::layout_pass::box_sizing::Sizer;
 use crate::render::layout_pass::intrinsic::{Keywords, intrinsic_size};
@@ -115,7 +115,7 @@ fn cross_margins(
 #[allow(clippy::too_many_arguments)]
 pub(super) fn place_cross(
     dom: &Dom<TuiExt>,
-    child_id: NodeId,
+    item: &FlexItem,
     child_computed: &ComputedStyle,
     container_width: u16,
     space: CrossSpace,
@@ -133,7 +133,7 @@ pub(super) fn place_cross(
     let stretch = !auto_margin && align.align == CrossAlign::Stretch;
     let cross_size = resolve_cross_size(
         dom,
-        child_id,
+        item,
         child_computed,
         CrossSpace {
             line: line_avail,
@@ -176,20 +176,17 @@ pub(super) fn place_cross(
 /// margins — what a multi-line container's line is as large as.
 pub(super) fn hypothetical_outer_cross(
     dom: &Dom<TuiExt>,
-    child_id: NodeId,
+    item: &FlexItem,
     container_width: u16,
     space: CrossSpace,
     direction: Direction,
     main: ResolvedMain,
 ) -> u16 {
-    let computed = dom
-        .node(child_id)
-        .computed_rc()
-        .unwrap_or_else(|| std::rc::Rc::new(ComputedStyle::initial()));
+    let computed = item.computed(dom);
     let margins = cross_margins(&computed, container_width, direction, &main);
     let size = resolve_cross_size(
         dom,
-        child_id,
+        item,
         &computed,
         space,
         container_width,
@@ -233,19 +230,16 @@ impl BaselineBox {
     }
 }
 
-/// Measure `child_id` (a row item of used width `main.size`) for
-/// baseline alignment.
+/// Measure `item` (a row item of used width `main.size`) for baseline
+/// alignment.
 pub(super) fn baseline_box(
     dom: &Dom<TuiExt>,
-    child_id: NodeId,
+    item: &FlexItem,
     container_width: u16,
     space: CrossSpace,
     main: ResolvedMain,
 ) -> BaselineBox {
-    let computed = dom
-        .node(child_id)
-        .computed_rc()
-        .unwrap_or_else(|| std::rc::Rc::new(ComputedStyle::initial()));
+    let computed = item.computed(dom);
     let margins = cross_margins(&computed, container_width, Direction::Row, &main);
     let (margin_top, margin_bottom) = if main.mirror {
         (margins.end, margins.start)
@@ -254,7 +248,7 @@ pub(super) fn baseline_box(
     };
     let height = resolve_cross_size(
         dom,
-        child_id,
+        item,
         &computed,
         space,
         container_width,
@@ -266,14 +260,17 @@ pub(super) fn baseline_box(
         },
     );
     let synthesized = height.saturating_sub(1);
-    let (first, last) = crate::render::inline::vertical::content_rows(
-        dom,
-        child_id,
-        &computed,
-        main.size,
-        container_width,
-    )
-    .unwrap_or((synthesized, synthesized));
+    let rows = match item {
+        FlexItem::Element(id) => crate::render::inline::vertical::content_rows(
+            dom,
+            *id,
+            &computed,
+            main.size,
+            container_width,
+        ),
+        FlexItem::Anonymous(anon) => anon.content_rows(dom, main.size),
+    };
+    let (first, last) = rows.unwrap_or((synthesized, synthesized));
     BaselineBox {
         margin_top,
         height,
@@ -354,13 +351,26 @@ struct MainAxisFacts {
 /// Then clamps by `min` / `max`.
 fn resolve_cross_size(
     dom: &Dom<TuiExt>,
-    child_id: NodeId,
+    item: &FlexItem,
     computed: &ComputedStyle,
     space: CrossSpace,
     container_width: u16,
     direction: Direction,
     main: MainAxisFacts,
 ) -> u16 {
+    let child_id = match item {
+        FlexItem::Element(id) => *id,
+        // An anonymous item (§4): an `auto` cross size, no padding,
+        // border, `min-*` or `max-*` — the line when stretched, else its
+        // content measured at its used main size.
+        FlexItem::Anonymous(anon) => {
+            return match direction {
+                _ if main.stretch => space.line,
+                Direction::Row => anon.content_size(dom, Direction::Column, main.size, true),
+                Direction::Column => anon.content_size(dom, Direction::Row, main.size, true),
+            };
+        }
+    };
     // Percentages resolve against the container's inner cross size; a
     // stretched item fills its line (the space left by its margins).
     let container_cross = space.container;

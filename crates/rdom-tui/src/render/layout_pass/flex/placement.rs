@@ -7,13 +7,14 @@
 //! advances past the item, its end margin, the gap, and any collapsed
 //! sibling border.
 
-use rdom_core::{Dom, NodeId};
+use rdom_core::Dom;
 
-use crate::ext::TuiExt;
+use crate::ext::{AnonymousIfc, TuiExt};
 use crate::layout::{Direction, LayoutRect, MarginValue};
-use crate::node::TuiNodeExt;
-use crate::render::layout_pass::{layout_node, parent_scroll};
-use crate::style::ComputedStyle;
+use crate::render::layout_pass::gutter::scroll_offset;
+use crate::render::layout_pass::layout_node;
+
+use super::item::FlexItem;
 
 use super::collapse::SiblingOverlap;
 use super::cross::{CrossPlacement, CrossSpace, ResolvedMain, place_cross};
@@ -58,9 +59,15 @@ pub(super) struct FlexLine<'a> {
     pub(super) flip: super::AxisFlip,
 }
 
-/// Position each child along the main axis, scrolling by the parent's
-/// scroll offset, and lay out each child at its final rect.
-pub(super) fn place_items(dom: &mut Dom<TuiExt>, children: &[NodeId], line: FlexLine<'_>) {
+/// Position each item along the main axis, scrolling by the parent's
+/// scroll offset, and lay out each item at its final rect — an element
+/// through `layout_node`, an anonymous item into `anonymous` (its
+/// container's anonymous block boxes).
+pub(super) fn place_items(
+    dom: &mut Dom<TuiExt>,
+    line: FlexLine<'_>,
+    anonymous: &mut Vec<AnonymousIfc>,
+) {
     let FlexLine {
         items: child_info,
         final_main,
@@ -77,29 +84,21 @@ pub(super) fn place_items(dom: &mut Dom<TuiExt>, children: &[NodeId], line: Flex
         flip,
     } = line;
 
-    let scroll_main = parent_scroll(dom, children, direction);
-    // `SCROLL-CROSS-AXIS-1`: the container's other scroll offset moves
-    // every item along the cross axis (a column container scrolling
-    // horizontally).
-    let scroll_cross = parent_scroll(
-        dom,
-        children,
-        match direction {
-            Direction::Row => Direction::Column,
-            Direction::Column => Direction::Row,
-        },
-    );
+    // The container's scroll offsets: along the main axis, and
+    // (`SCROLL-CROSS-AXIS-1`) along the cross axis, which moves every
+    // item there (a column container scrolling horizontally).
+    let container_id = child_info.first().and_then(|ci| ci.item.box_parent(dom));
+    let scroll = |axis| container_id.map_or(0, |c| scroll_offset(dom, c, axis));
+    let scroll_main = scroll(direction);
+    let scroll_cross = scroll(match direction {
+        Direction::Row => Direction::Column,
+        Direction::Column => Direction::Row,
+    });
 
     let mut main_cursor: i32 = match direction {
         Direction::Row => container.x - scroll_main,
         Direction::Column => container.y - scroll_main,
     };
-
-    let child_list: Vec<(NodeId, u16)> = child_info
-        .iter()
-        .map(|ci| ci.id)
-        .zip(final_main.iter().copied())
-        .collect();
 
     // Distribute the remainder (from integer division of auto_share)
     // to the first few auto margins so the totals add back up exactly.
@@ -114,11 +113,8 @@ pub(super) fn place_items(dom: &mut Dom<TuiExt>, children: &[NodeId], line: Flex
         auto_margins.share.saturating_add(extra)
     };
 
-    for (i, (child_id, size)) in child_list.iter().enumerate() {
-        let child_computed = dom
-            .node(*child_id)
-            .computed_rc()
-            .unwrap_or_else(|| std::rc::Rc::new(ComputedStyle::initial()));
+    for (i, (ci, size)) in child_info.iter().zip(final_main).enumerate() {
+        let child_computed = ci.item.computed(dom);
 
         // Resolve this child's main-axis start and end margins.
         // `Calc` was pre-resolved to `Cells` during `ChildMain`
@@ -148,7 +144,7 @@ pub(super) fn place_items(dom: &mut Dom<TuiExt>, children: &[NodeId], line: Flex
             offset: cross_offset,
         } = place_cross(
             dom,
-            *child_id,
+            &ci.item,
             &child_computed,
             container.width,
             space,
@@ -195,19 +191,22 @@ pub(super) fn place_items(dom: &mut Dom<TuiExt>, children: &[NodeId], line: Flex
         if flip_y {
             child_rect.y = mirror_y(child_rect.y, child_rect.height, container, scroll_y);
         }
-        layout_node(dom, *child_id, child_rect, container.width);
+        match &ci.item {
+            FlexItem::Element(id) => layout_node(dom, *id, child_rect, container.width),
+            FlexItem::Anonymous(anon) => anonymous.push(anon.lay_out(dom, child_rect)),
+        }
 
         // Advance cursor past this child + main-end margin + gap.
         main_cursor = main_cursor.saturating_add(*size as i32);
         main_cursor = main_cursor.saturating_add(main_end_cells);
-        if i + 1 < child_list.len() {
+        if i + 1 < child_info.len() {
             main_cursor = main_cursor.saturating_add(gap as i32);
             // Sibling-overlap pullback. Mirrors the gating in the
             // `overlap_savings` computation: only fires when
             // gap == 0 AND parent has collapse AND both children
             // have a border on the shared edge. With gap > 0, the
             // gap is visible and the siblings don't overlap.
-            if overlap.between(dom, child_info[i].id, child_info[i + 1].id) {
+            if overlap.between(dom, &child_info[i].item, &child_info[i + 1].item) {
                 main_cursor = main_cursor.saturating_sub(1);
             }
         }

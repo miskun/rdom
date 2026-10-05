@@ -72,7 +72,7 @@ pub(super) fn has_effective_border_on_edge(
 /// on the parent's painted border row.
 pub(super) fn collapse_parent_edge_insets(
     dom: &Dom<TuiExt>,
-    children: &[NodeId],
+    (first, last): (Option<NodeId>, Option<NodeId>),
     parent: &ComputedStyle,
 ) -> (u16, u16, u16, u16) {
     use crate::layout::BorderCollapse;
@@ -92,10 +92,10 @@ pub(super) fn collapse_parent_edge_insets(
     // border on the same edge (direct OR via transparent
     // intermediate containers — same helper used by the sibling-
     // overlap path so both axes treat "transparency" consistently).
-    let first = *children.first().unwrap();
-    let last = *children.last().unwrap();
-    let needs_inset =
-        |id: NodeId, edge: CollapseEdge| -> bool { !has_effective_border_on_edge(dom, id, edge) };
+    // `None`: a box with no border of its own (an anonymous flex item).
+    let needs_inset = |id: Option<NodeId>, edge: CollapseEdge| -> bool {
+        id.is_none_or(|id| !has_effective_border_on_edge(dom, id, edge))
+    };
 
     let (top, bottom, left, right) = match super::flow_axis(parent) {
         Direction::Column => {

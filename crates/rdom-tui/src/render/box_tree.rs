@@ -14,6 +14,12 @@
 //! turn, as an inline box with no decoration would; or, when it holds a
 //! block-level box, its children in its place ([`box_sequence`]), with
 //! its static `::before` / `::after` as inline items around them.
+//!
+//! Inside a flex container every box-less child is its children in its
+//! place, with its `::before` / `::after` around them, and the
+//! container's own `::before` / `::after` first and last
+//! ([`flex_sequence`]): each element and pseudo-element there is a flex
+//! item, and each run of text an anonymous one (CSS Flexbox §4).
 
 use rdom_core::{Dom, NodeId, NodeType};
 
@@ -116,6 +122,59 @@ fn push_sequence(dom: &Dom<TuiExt>, id: NodeId, out: &mut Vec<BoxItem>) -> bool 
     holds
 }
 
+/// The flex container `id`'s box-tree children (CSS Display 3 §2.5, CSS
+/// Flexbox §4): its visible static `::before`, its child nodes — every
+/// box-less child (and fragment) replaced by its own, between its
+/// visible static `::before` / `::after` — and its visible static
+/// `::after`. Every element in it is a flex item, and every pseudo-
+/// element that generates a box (a child box, so blockified — `content:
+/// ""` included); its text nodes form the anonymous items' runs.
+/// Anonymous items' `child_range`s index it.
+pub(crate) fn flex_sequence(dom: &Dom<TuiExt>, id: NodeId) -> Vec<BoxItem> {
+    let mut out = Vec::new();
+    if generates_static_pseudo(dom, id, PseudoSlot::Before) {
+        out.push(BoxItem::Generated(id, PseudoSlot::Before));
+    }
+    push_flex_sequence(dom, id, &mut out);
+    if generates_static_pseudo(dom, id, PseudoSlot::After) {
+        out.push(BoxItem::Generated(id, PseudoSlot::After));
+    }
+    out
+}
+
+/// `host`'s `slot` pseudo-element generates a static box: it has
+/// `content` (CSS 2.1 §12.1), is not `display: none` and not positioned
+/// (a positioned one is laid out on its own, `positioned_pseudos`).
+fn generates_static_pseudo(dom: &Dom<TuiExt>, host: NodeId, slot: PseudoSlot) -> bool {
+    let node = dom.node(host);
+    let computed = match slot {
+        PseudoSlot::Before => node.computed_before(),
+        PseudoSlot::After => node.computed_after(),
+    };
+    computed.is_some_and(|c| c.display != Display::None)
+        && generated_text(dom, host, slot).is_some()
+}
+
+fn push_flex_sequence(dom: &Dom<TuiExt>, id: NodeId, out: &mut Vec<BoxItem>) {
+    for child in dom.node(id).child_nodes() {
+        let child = child.id();
+        visit();
+        match dom.node(child).node_type() {
+            NodeType::Element if is_contents(dom, child) => {
+                if generates_static_pseudo(dom, child, PseudoSlot::Before) {
+                    out.push(BoxItem::Generated(child, PseudoSlot::Before));
+                }
+                push_flex_sequence(dom, child, out);
+                if generates_static_pseudo(dom, child, PseudoSlot::After) {
+                    out.push(BoxItem::Generated(child, PseudoSlot::After));
+                }
+            }
+            NodeType::Fragment => push_flex_sequence(dom, child, out),
+            _ => out.push(BoxItem::Node(child)),
+        }
+    }
+}
+
 /// `id` is an in-flow `display: block` element.
 fn is_block_level_in_flow(dom: &Dom<TuiExt>, id: NodeId) -> bool {
     dom.node(id).node_type() == NodeType::Element
@@ -144,8 +203,9 @@ pub(crate) fn holds_block_box(dom: &Dom<TuiExt>, id: NodeId) -> bool {
 /// Whether `id`'s box-tree children include inline content outside any
 /// element box: a text child whose data satisfies `text`, or — through
 /// a box-less child — such a text, or a visible static `::before` /
-/// `::after` (CSS Display 3 §2.5). A flex container whose only content
-/// this is lays it out as one anonymous item (CSS Flexbox §4).
+/// `::after` (CSS Display 3 §2.5). A block container whose only content
+/// this is packs it as a pure-text leaf; a flex container's text is its
+/// anonymous items' (CSS Flexbox §4, `layout_pass::flex::item`).
 pub(crate) fn holds_loose_text(
     dom: &Dom<TuiExt>,
     id: NodeId,

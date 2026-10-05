@@ -121,27 +121,36 @@ impl InlineTarget {
     }
 }
 
-/// Return the inline-flow target rooted at `id` that contains
-/// `y`, if any. Picks the singular IFC when present; otherwise
-/// checks each anonymous box on the element for a y-range match.
-pub(super) fn inline_target_at(dom: &Dom<TuiExt>, id: NodeId, y: u16) -> Option<InlineTarget> {
+/// Return the inline-flow target rooted at `id` that contains the
+/// point, if any. Picks the singular IFC when present; otherwise the
+/// anonymous box holding the point — of several on its rows (a flex
+/// container's anonymous items share a line, CSS Flexbox §4), the one
+/// whose columns hold `x`, else the first on the rows (a block
+/// container's span its content width).
+pub(super) fn inline_target_at(
+    dom: &Dom<TuiExt>,
+    id: NodeId,
+    x: u16,
+    y: u16,
+) -> Option<InlineTarget> {
     if has_inline_layout(dom, id) {
         return Some(InlineTarget::Ifc(id));
     }
     let ext = dom.node(id).ext()?;
-    if ext.anonymous_blocks.is_empty() {
-        return None;
-    }
-    let y_i = y as i32;
-    for (i, anon) in ext.anonymous_blocks.iter().enumerate() {
-        let top = anon.rect.y;
-        let bottom = anon.rect.y + anon.rect.height as i32;
-        if y_i >= top && y_i < bottom {
-            return Some(InlineTarget::Anonymous {
-                container: id,
-                index: i,
-            });
-        }
-    }
-    None
+    let (x, y) = (i32::from(x), i32::from(y));
+    let on_rows = |anon: &&crate::ext::AnonymousIfc| {
+        y >= anon.rect.y && y < anon.rect.y + i32::from(anon.rect.height)
+    };
+    let in_columns = |anon: &crate::ext::AnonymousIfc| {
+        x >= anon.rect.x && x < anon.rect.x + i32::from(anon.rect.width)
+    };
+    let index = ext
+        .anonymous_blocks
+        .iter()
+        .position(|anon| on_rows(&anon) && in_columns(anon))
+        .or_else(|| ext.anonymous_blocks.iter().position(|anon| on_rows(&anon)))?;
+    Some(InlineTarget::Anonymous {
+        container: id,
+        index,
+    })
 }

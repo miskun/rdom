@@ -6,19 +6,17 @@
 //! ([`collect_main_axis_items`]; §9.2 step 3). The §9.7 resolution of
 //! the flexible lengths is `distribute`.
 
-use rdom_core::{Dom, NodeId};
+use rdom_core::Dom;
 
+use super::item::FlexItem;
 use crate::ext::TuiExt;
 use crate::layout::{Direction, FlexBasis, MarginValue, Size};
-use crate::node::TuiNodeExt;
-use crate::render::layout_pass::block::nearest_block_ancestor_height_is_definite;
 use crate::render::layout_pass::intrinsic::{Keywords, content_max_size, intrinsic_size};
 use crate::render::layout_pass::margin_trim::FlexTrim;
-use crate::style::ComputedStyle;
 
 /// Per-item main-axis inputs gathered before distribution.
 pub(super) struct ChildMain {
-    pub(super) id: NodeId,
+    pub(super) item: FlexItem,
     /// The flex base size (§9.2 step 3), a border box in cells.
     pub(super) base: u16,
     /// `flex-grow` (`width: <n>fr`, rdom's grow, when `flex-grow` is 0).
@@ -70,7 +68,7 @@ impl ChildMain {
         }
         let v = super::distribute::resolve_auto_min(
             dom,
-            self.id,
+            &self.item,
             direction,
             budgets.main,
             budgets.cross,
@@ -108,7 +106,7 @@ pub(super) struct MainBudgets {
 /// main-start margin is its right (bottom) one.
 pub(super) fn collect_main_axis_items(
     dom: &Dom<TuiExt>,
-    children: &[NodeId],
+    children: &[FlexItem],
     direction: Direction,
     budgets: MainBudgets,
     trim: FlexTrim,
@@ -127,17 +125,17 @@ pub(super) fn collect_main_axis_items(
         Direction::Row => Some(main_budget),
         Direction::Column => children
             .first()
-            .is_none_or(|&c| nearest_block_ancestor_height_is_definite(dom, c))
+            .is_none_or(|c| c.height_basis_is_definite(dom))
             .then_some(main_budget),
     };
 
-    for (i, &child) in children.iter().enumerate() {
+    for (i, item) in children.iter().enumerate() {
         // Flexbox §4.4: a collapsed item is a strut — zero main size and
         // no main-axis margins; the cross pass keeps its cross size, which
         // holds the line's.
-        if super::is_collapsed(dom, child) {
+        if item.is_collapsed(dom) {
             child_info.push(ChildMain {
-                id: child,
+                item: item.clone(),
                 base: 0,
                 grow: 0.0,
                 shrink: 0.0,
@@ -152,10 +150,31 @@ pub(super) fn collect_main_axis_items(
             });
             continue;
         }
-        let c = dom
-            .node(child)
-            .computed_rc()
-            .unwrap_or_else(|| std::rc::Rc::new(ComputedStyle::initial()));
+        // An anonymous item (§4): `flex: 0 1 auto` with an `auto` main
+        // size, so its base is its max-content size along the main axis
+        // (§9.2 step 3.E), with no margins, `min-*: auto` and no `max-*`.
+        let child = match item {
+            FlexItem::Element(id) => *id,
+            FlexItem::Anonymous(anon) => {
+                let c = item.computed(dom);
+                child_info.push(ChildMain {
+                    item: item.clone(),
+                    base: anon.content_size(dom, direction, cross_budget, true),
+                    grow: c.flex_grow,
+                    shrink: c.flex_shrink,
+                    content_base: true,
+                    specified_base: false,
+                    auto_min: std::cell::Cell::new(None),
+                    main_auto: true,
+                    min: None,
+                    max: None,
+                    main_start_margin: MarginValue::Cells(0),
+                    main_end_margin: MarginValue::Cells(0),
+                });
+                continue;
+            }
+        };
+        let c = item.computed(dom);
         let (main_size, min_raw, max) = match direction {
             Direction::Row => (&c.width, &c.min_width, &c.max_width),
             Direction::Column => (&c.height, &c.min_height, &c.max_height),
@@ -311,7 +330,7 @@ pub(super) fn collect_main_axis_items(
             }
         };
         child_info.push(ChildMain {
-            id: child,
+            item: item.clone(),
             base,
             grow,
             shrink: c.flex_shrink,

@@ -153,7 +153,7 @@ impl HitTestExt for Dom<TuiExt> {
         if let Some(target) = path
             .iter()
             .rev()
-            .find_map(|&id| inline_target_at(self, id, y))
+            .find_map(|&id| inline_target_at(self, id, x, y))
         {
             // user-select gate: any ancestor of the hit with
             // `user-select: none` kills the position.

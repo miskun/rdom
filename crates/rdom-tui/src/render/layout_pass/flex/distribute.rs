@@ -5,8 +5,9 @@
 //! `min-*: auto` floor. The items, with their flex base sizes, come from
 //! `main_axis`.
 
-use rdom_core::{Dom, NodeId};
+use rdom_core::Dom;
 
+use super::item::FlexItem;
 use super::main_axis::ChildMain;
 use crate::ext::TuiExt;
 use crate::layout::{Direction, Overflow, Size, clamp_size};
@@ -232,13 +233,22 @@ fn floor_cells(x: f64) -> u32 {
 /// actually shrinking.
 pub(super) fn resolve_auto_min(
     dom: &Dom<TuiExt>,
-    id: NodeId,
+    item: &FlexItem,
     direction: Direction,
     main_budget: u16,
     cross_budget: u16,
 ) -> u16 {
     #[cfg(test)]
     super::cost_tests::AUTO_MINS.with(|c| c.set(c.get() + 1));
+    let id = match item {
+        FlexItem::Element(id) => *id,
+        // An anonymous item has no specified size, padding or border and
+        // `overflow: visible`: its content size suggestion, its
+        // min-content size (§4.5).
+        FlexItem::Anonymous(anon) => {
+            return anon.content_size(dom, direction, cross_budget, false);
+        }
+    };
     let computed = match dom.node(id).computed() {
         Some(c) => c.clone(),
         None => return 0,

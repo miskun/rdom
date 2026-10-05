@@ -73,6 +73,7 @@ mod ladder;
 mod matching;
 mod pseudo;
 mod registered;
+pub(crate) use inherit::anonymous_box_style;
 pub(crate) use matching::MatchedRules;
 #[cfg(test)]
 pub(crate) use matching::probe as match_probe;

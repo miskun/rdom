@@ -8,14 +8,18 @@
 
 use rdom_core::{Dom, NodeId, NodeType};
 
+use crate::render::layout_pass::flex::item::FlexItem;
+
 use super::inline::{border_main_cost, own_line_pseudo_rows};
 use super::{IntrinsicMode, Measure, intrinsic_size_inner, intrinsic_text, wrap};
 use crate::ext::TuiExt;
 use crate::layout::Direction;
 use crate::style::ComputedStyle;
 
-/// `id`'s in-flow element `children` measured along `direction`, with
-/// its direct text runs; `cross_budget` is the extent `id` is measured
+/// `id`'s in-flow `children` — its element children, or a flex
+/// container's flex items, anonymous ones included (CSS Flexbox §4) —
+/// measured along `direction`, with a block container's direct text
+/// runs; `cross_budget` is the extent `id` is measured
 /// against on the other axis, `containing_block_width` the basis of its
 /// own padding percentages.
 #[allow(clippy::too_many_arguments)]
@@ -23,7 +27,7 @@ pub(super) fn children_size(
     dom: &Dom<TuiExt>,
     id: NodeId,
     computed: &ComputedStyle,
-    children: &[NodeId],
+    children: &[FlexItem],
     direction: Direction,
     cross_budget: u16,
     containing_block_width: u16,
@@ -88,14 +92,27 @@ pub(super) fn children_size(
     };
     let last = children.len() - 1;
     let flex = computed.flow == crate::layout::Flow::Flex;
-    let outer = |i: usize, c: NodeId| {
+    let outer = |i: usize, item: &FlexItem| {
         // Flexbox §4.4: a collapsed item is a strut — no main size, its
         // cross size kept.
-        if flex && along && crate::render::layout_pass::flex::is_collapsed(dom, c) {
+        if flex && along && item.is_collapsed(dom) {
             return 0;
         }
         let keep_start = !(trim_start && (!along || i == 0));
         let keep_end = !(trim_end && (!along || i == last));
+        let c = match item {
+            FlexItem::Element(c) => *c,
+            // An anonymous item: its content, with no margins, padding or
+            // border (§4).
+            FlexItem::Anonymous(anon) => {
+                return anon.content_size(
+                    dom,
+                    direction,
+                    child_cross_budget,
+                    measure == Measure::MaxContent,
+                );
+            }
+        };
         let inner = intrinsic_size_inner(
             dom,
             c,
@@ -142,7 +159,7 @@ pub(super) fn children_size(
         children
             .iter()
             .enumerate()
-            .map(|(i, &c)| outer(i, c))
+            .map(|(i, c)| outer(i, c))
             .max()
             .unwrap_or(0)
     } else if (wrapping || row_line) && !along {
@@ -165,7 +182,7 @@ pub(super) fn children_size(
         let children_main: u16 = children
             .iter()
             .enumerate()
-            .map(|(i, &c)| outer(i, c))
+            .map(|(i, c)| outer(i, c))
             .fold(0u16, |acc, n| acc.saturating_add(n));
         children_main.saturating_add(gap_total)
     } else {
@@ -173,20 +190,22 @@ pub(super) fn children_size(
         children
             .iter()
             .enumerate()
-            .map(|(i, &c)| outer(i, c))
+            .map(|(i, c)| outer(i, c))
             .max()
             .unwrap_or(0)
     };
 
-    // Direct text runs next to element children become anonymous
-    // block boxes (CSS 2.1 §9.2.1.1): a row each on the Column axis
-    // (unwrapped estimate; block layout measures the real wrap), the
-    // widest run on the Row axis.
+    // A block container's direct text runs next to element children
+    // become anonymous block boxes (CSS 2.1 §9.2.1.1): a row each on the
+    // Column axis (unwrapped estimate; block layout measures the real
+    // wrap), the widest run on the Row axis. A flex container's are its
+    // anonymous items, measured above.
     let text_runs = dom
         .node(id)
         .child_nodes()
         .filter(|c| {
-            c.node_type() == NodeType::Text
+            !flex
+                && c.node_type() == NodeType::Text
                 && c.node_value()
                     .is_some_and(|t| !t.chars().all(char::is_whitespace))
         })

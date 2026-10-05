@@ -8,6 +8,7 @@ use super::{Keywords, Measure, contribution::box_contribution};
 use crate::ext::TuiExt;
 use crate::layout::Direction;
 use crate::render::layout_pass::box_sizing::Sizer;
+use crate::render::layout_pass::flex::item::FlexItem;
 use crate::style::ComputedStyle;
 
 /// The cross size along `query` of the flex container `id` — multi-line,
@@ -28,7 +29,7 @@ pub(super) fn wrapped_cross_size(
     dom: &Dom<TuiExt>,
     id: NodeId,
     computed: &ComputedStyle,
-    children: &[NodeId],
+    children: &[FlexItem],
     query: Direction,
     cross_budget: u16,
     cb_width: u16,

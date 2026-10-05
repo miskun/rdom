@@ -15,12 +15,12 @@
 //! says. A column has no baseline on its cross (inline) axis: there the
 //! baseline values fall back to `safe self-start` / `safe self-end`.
 
-use rdom_core::{Dom, NodeId};
+use rdom_core::Dom;
 
 use super::cross::{BaselineBox, CrossSpace, ResolvedMain, baseline_box};
+use super::item::FlexItem;
 use crate::ext::TuiExt;
 use crate::layout::{Align, Alignment, Direction, OverflowAlign, TextDirection};
-use crate::node::TuiNodeExt;
 use crate::style::ComputedStyle;
 
 /// Where an item goes on its line's cross axis, in the frame whose
@@ -119,7 +119,7 @@ pub(super) struct LinePlan {
 
 /// What `plan_line` needs to measure an item.
 pub(super) struct PlanItem {
-    pub(super) id: NodeId,
+    pub(super) item: FlexItem,
     pub(super) main: ResolvedMain,
 }
 
@@ -136,10 +136,7 @@ impl LinePlan {
     ) -> Self {
         let mut plans = Vec::with_capacity(items.len());
         for item in items {
-            let computed = dom
-                .node(item.id)
-                .computed_rc()
-                .unwrap_or_else(|| std::rc::Rc::new(ComputedStyle::initial()));
+            let computed = item.item.computed(dom);
             let value = self_alignment(parent, &computed);
             let auto_margins = match frame.direction {
                 Direction::Row => computed.margin.top.is_auto() || computed.margin.bottom.is_auto(),
@@ -150,7 +147,7 @@ impl LinePlan {
             let baseline = matches!(value.keyword, Align::Baseline | Align::LastBaseline);
             plans.push(
                 if baseline && frame.direction == Direction::Row && !auto_margins {
-                    let b = baseline_box(dom, item.id, cb_width, space, item.main);
+                    let b = baseline_box(dom, &item.item, cb_width, space, item.main);
                     if value.keyword == Align::Baseline {
                         Plan::FirstBaseline(b)
                     } else {

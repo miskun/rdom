@@ -111,18 +111,24 @@ pub(super) fn resolve_block_height(
 /// container's height the same way. A flex item's definite post-flex
 /// size (§9.8) is the `Size::Flex` case below.
 pub(crate) fn nearest_block_ancestor_height_is_definite(dom: &Dom<TuiExt>, id: NodeId) -> bool {
+    // The box parent: a `display: contents` ancestor has no box.
+    height_is_definite_below(dom, crate::render::box_tree::box_parent(dom, id))
+}
+
+/// [`nearest_block_ancestor_height_is_definite`] for a box whose box
+/// parent is `parent` (`None`: the viewport) — an anonymous flex item,
+/// which has no node to start from.
+pub(crate) fn height_is_definite_below(dom: &Dom<TuiExt>, parent: Option<NodeId>) -> bool {
     use crate::layout::{MinSize, Position};
     // Iterative walk so a pathological `<div height="50%">` nest
-    // can't blow the stack. Each step looks at THE PARENT — `id`
-    // is the descendant whose percent we're trying to resolve, so
-    // the first iteration consults `id.parent`, the next consults
-    // *that* parent's parent, etc.
-    let mut cur = id;
+    // can't blow the stack. Each step looks at the next box parent up:
+    // first the box whose children's percentages are being resolved,
+    // then *its* box parent, etc.
+    let mut next = parent;
     loop {
-        // The box parent: a `display: contents` ancestor has no box.
-        let Some(parent_id) = crate::render::box_tree::box_parent(dom, cur) else {
-            // No parent — `cur` is root. The viewport is definite
-            // by construction (layout_dom passes viewport rect).
+        let Some(parent_id) = next else {
+            // No parent: the viewport is definite by construction
+            // (layout_dom passes viewport rect).
             return true;
         };
         let parent = dom.node(parent_id);
@@ -161,7 +167,7 @@ pub(crate) fn nearest_block_ancestor_height_is_definite(dom: &Dom<TuiExt>, id: N
             Size::Auto | Size::Intrinsic(_) => {
                 match crate::render::box_tree::box_parent(dom, parent_id) {
                     Some(gp) if crate::render::box_tree::is_flex_container(dom, gp) => {
-                        cur = parent_id;
+                        next = crate::render::box_tree::box_parent(dom, parent_id);
                     }
                     Some(gp)
                         if dom.node(gp).node_type() == rdom_core::NodeType::Fragment
@@ -192,7 +198,9 @@ pub(crate) fn nearest_block_ancestor_height_is_definite(dom: &Dom<TuiExt>, id: N
                         // viewport), so a flexing child is definite.
                         None => return true,
                         // Flex container: chain up to test its size.
-                        Some(Flow::Flex) => cur = parent_id,
+                        Some(Flow::Flex) => {
+                            next = crate::render::box_tree::box_parent(dom, parent_id)
+                        }
                         // A `flex`-height value under a block-flow
                         // parent is a non-flex context (the shorthand
                         // was used outside a flex container) → treated
@@ -203,7 +211,7 @@ pub(crate) fn nearest_block_ancestor_height_is_definite(dom: &Dom<TuiExt>, id: N
             }
             Size::Percent(_) | Size::Calc(_) => {
                 // Chain up — re-test against the GRANDparent.
-                cur = parent_id;
+                next = crate::render::box_tree::box_parent(dom, parent_id);
             }
         }
     }

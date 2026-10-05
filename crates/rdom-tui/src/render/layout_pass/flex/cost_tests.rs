@@ -93,7 +93,14 @@ fn the_freeze_loop_allocates_nothing_per_iteration() {
             &crate::style::ComputedStyle::initial(),
             Direction::Row,
         );
-        let infos = collect_main_axis_items(&dom, &items, Direction::Row, budgets, trim, false);
+        let infos = collect_main_axis_items(
+            &dom,
+            &super::item::elements(&items),
+            Direction::Row,
+            budgets,
+            trim,
+            false,
+        );
         let _ = f;
         let mut sizes = Vec::new();
         let n = crate::test_alloc::allocations_in(|| {
